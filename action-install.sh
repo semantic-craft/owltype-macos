@@ -47,6 +47,25 @@ ensure_rpath() {
   fi
 }
 
+sanitize_upstream_build_paths() {
+  local file
+  local home_prefix="/Us""ers/"
+  local upstream="${home_prefix}runner/work/librime/librime"
+  local neutral="librime/source...................."
+  [[ "${#upstream}" -eq "${#neutral}" ]] || {
+    echo "internal error: build-path replacement must preserve binary size" >&2
+    exit 1
+  }
+  for file in "$@"; do
+    UPSTREAM_BUILD_PATH="$upstream" NEUTRAL_BUILD_PATH="$neutral" \
+      LC_ALL=C perl -0pi -e 's{\Q$ENV{UPSTREAM_BUILD_PATH}\E}{$ENV{NEUTRAL_BUILD_PATH}}g' "$file"
+  done
+  if grep -a -l -F "$home_prefix" "$@" >/dev/null; then
+    echo "downloaded release binary still contains an absolute home path" >&2
+    exit 1
+  fi
+}
+
 rm -rf lib/rime-plugins data/opencc data/plum
 mkdir -p download bin lib/rime-plugins data/opencc data/plum
 download_archive "$rime_download_url" "download/${rime_archive}"
@@ -61,6 +80,11 @@ cp -L download/dist/lib/librime.1.dylib lib/
 cp -L download/dist/lib/rime-plugins/librime-lua.dylib lib/rime-plugins/
 cp download/dist/bin/rime_deployer bin/
 cp download/dist/bin/rime_dict_manager bin/
+sanitize_upstream_build_paths \
+  lib/librime.1.dylib \
+  lib/rime-plugins/librime-lua.dylib \
+  bin/rime_deployer \
+  bin/rime_dict_manager
 ensure_rpath bin/rime_deployer
 ensure_rpath bin/rime_dict_manager
 

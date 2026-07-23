@@ -31,6 +31,10 @@ release: $(DEPS_CHECK)
 		-configuration Release \
 		-derivedDataPath $(DERIVED_DATA_PATH) \
 		CODE_SIGNING_ALLOWED=NO \
+		ENABLE_CODE_COVERAGE=NO \
+		OTHER_SWIFT_FLAGS="-file-prefix-map $(CURDIR)=." \
+		OTHER_CFLAGS="-ffile-prefix-map=$(CURDIR)=." \
+		OTHER_CPLUSPLUSFLAGS="-ffile-prefix-map=$(CURDIR)=." \
 		build
 	$(MAKE) copy-famo-seed FAMO_CONFIG=Release
 	python3 scripts/finalize-release-bundle.py \

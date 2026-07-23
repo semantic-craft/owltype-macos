@@ -39,6 +39,7 @@ REQUIRED_LICENSES = {
     "Contents/SharedSupport/rime-ice.LICENSE",
 }
 FORBIDDEN_PATH_FRAGMENTS = {"sparkle", "wubi", "octagram", "predict"}
+FORBIDDEN_FILE_MARKERS = (b"/" + b"Users/",)
 COMPONENTS = (
     ("Famotype", None, "GPL-3.0-only", "https://github.com/semantic-craft/famotype-macos"),
     ("Squirrel-derived frontend", "4db2c85ac639c229e14fd9424f79c3c4f97ce478", "GPL-3.0-only", "https://github.com/rime/squirrel"),
@@ -93,6 +94,13 @@ def relative_files(app: Path) -> list[tuple[str, Path]]:
         ((path.relative_to(app).as_posix(), path) for path in app.rglob("*") if path.is_file()),
         key=lambda item: item[0],
     )
+
+
+def verify_no_private_build_paths(files: list[tuple[str, Path]]) -> None:
+    for relative, path in files:
+        data = path.read_bytes()
+        if any(marker in data for marker in FORBIDDEN_FILE_MARKERS):
+            fail(f"absolute home path embedded in release file: {relative}")
 
 
 def verify_seed(app: Path) -> None:
@@ -170,6 +178,7 @@ def main() -> None:
 
     verify_seed(app)
     files = relative_files(app)
+    verify_no_private_build_paths(files)
     paths = {relative for relative, _ in files}
     missing_licenses = REQUIRED_LICENSES - paths
     if missing_licenses:
