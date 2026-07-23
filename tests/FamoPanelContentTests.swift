@@ -1,0 +1,261 @@
+//
+//  FamoPanelContentTests.swift
+//  FamoTests — candidate-panel content-value dedup (B5)
+//
+//  Locks the pure `FamoPanelContent` that lets the candidate panel skip its two SwiftUI
+//  layout passes when an `update(...)` is byte-identical to the one already on screen. The
+//  correctness contract: identical inputs → equal signature (→ early-out); flipping ANY single
+//  field — preedit, EACH `CandidateViewModel` rendering field (id/label/text/comment/badge/
+//  source/provenance), highlightedIndex, page, hasPrevPage, hasNextPage, isVertical, schemaID,
+//  or the caret anchor — → unequal signature (→ full render). The dedup must NEVER skip a
+//  visible change, so this field-by-field test is the safety net.
+//
+//  Limitation (documented, accepted — same as the seam ports): the panel-level early-out itself
+//  (`if content == lastContent && prefs == lastPrefs && isVisible { orderFrontRegardless(); return }`) is NOT
+//  headless-unit-testable — a non-activating `NSPanel`'s `isVisible`/`orderFront` can't be driven
+//  deterministically without a window server / real machine. This signature-equality test (every
+//  field flip → unequal) is the unit-level proof that the early-out only fires on a true no-op.
+//
+
+import AppKit
+import XCTest
+@testable import Famo
+
+final class FamoPanelContentTests: XCTestCase {
+
+  // A representative two-candidate page. Each `make…` helper below mutates exactly one field
+  // off this baseline so each assertion isolates a single rendering input.
+  private func baselineCandidates() -> [CandidateViewModel] {
+    [
+      CandidateViewModel(id: 1, label: "1", text: "你好", comment: "nǐ hǎo",
+                         badge: false, source: nil, provenance: .personal),
+      CandidateViewModel(id: 2, label: "2", text: "拟好", comment: nil,
+                         badge: true, source: "《民法典》第1条", provenance: .verified),
+    ]
+  }
+
+  private func baseline() -> FamoPanelContent {
+    FamoPanelContent(
+      preedit: "nihao",
+      cursor: 2,
+      selStart: 0,
+      selEnd: 2,
+      candidates: baselineCandidates(),
+      highlightedIndex: 0,
+      page: 0,
+      hasPrevPage: false,
+      hasNextPage: true,
+      isVertical: false,
+      schemaID: "rime_ice",
+      anchor: NSRect(x: 100, y: 200, width: 1, height: 18)
+    )
+  }
+
+  // Build a signature differing from baseline only in `candidates`.
+  private func signature(candidates: [CandidateViewModel]) -> FamoPanelContent {
+    let b = baseline()
+    return FamoPanelContent(
+      preedit: b.preedit, cursor: b.cursor, selStart: b.selStart, selEnd: b.selEnd, candidates: candidates, highlightedIndex: b.highlightedIndex,
+      page: b.page, hasPrevPage: b.hasPrevPage, hasNextPage: b.hasNextPage,
+      isVertical: b.isVertical, schemaID: b.schemaID, anchor: b.anchor)
+  }
+
+  // MARK: identical → equal
+
+  func testIdenticalInputsAreEqual() {
+    // Two independently-built signatures from the same inputs must be equal so the early-out
+    // fires on a true no-op re-push.
+    XCTAssertEqual(baseline(), baseline())
+  }
+
+  func testIdenticalCandidateArraysAreEqual() {
+    // Fresh candidate value types (not the same instances) with identical fields stay equal.
+    XCTAssertEqual(signature(candidates: baselineCandidates()),
+                   signature(candidates: baselineCandidates()))
+  }
+
+  // MARK: top-level fields → flipping makes unequal
+
+  func testPreeditChangeIsUnequal() {
+    let b = baseline()
+    let other = FamoPanelContent(
+      preedit: "nihaoa", cursor: b.cursor, selStart: b.selStart, selEnd: b.selEnd, candidates: b.candidates, highlightedIndex: b.highlightedIndex,
+      page: b.page, hasPrevPage: b.hasPrevPage, hasNextPage: b.hasNextPage,
+      isVertical: b.isVertical, schemaID: b.schemaID, anchor: b.anchor)
+    XCTAssertNotEqual(b, other)
+  }
+
+  func testCursorChangeIsUnequal() {
+    // A caret move (arrow keys editing the pinyin) with identical text + candidates must still
+    // fall through to a full render so the blinking bar repaints at its new split point.
+    let b = baseline()
+    let other = FamoPanelContent(
+      preedit: b.preedit, cursor: b.cursor + 1, selStart: b.selStart, selEnd: b.selEnd, candidates: b.candidates, highlightedIndex: b.highlightedIndex,
+      page: b.page, hasPrevPage: b.hasPrevPage, hasNextPage: b.hasNextPage,
+      isVertical: b.isVertical, schemaID: b.schemaID, anchor: b.anchor)
+    XCTAssertNotEqual(b, other)
+  }
+
+  func testHighlightSpanChangeIsUnequal() {
+    // Moving the highlighted syllable (sel_start/sel_end) with identical text must repaint so the
+    // active-syllable tint follows the caret.
+    let b = baseline()
+    let other = FamoPanelContent(
+      preedit: b.preedit, cursor: b.cursor, selStart: b.selStart, selEnd: b.selEnd + 1, candidates: b.candidates, highlightedIndex: b.highlightedIndex,
+      page: b.page, hasPrevPage: b.hasPrevPage, hasNextPage: b.hasNextPage,
+      isVertical: b.isVertical, schemaID: b.schemaID, anchor: b.anchor)
+    XCTAssertNotEqual(b, other)
+  }
+
+  func testHighlightedIndexChangeIsUnequal() {
+    let b = baseline()
+    let other = FamoPanelContent(
+      preedit: b.preedit, cursor: b.cursor, selStart: b.selStart, selEnd: b.selEnd, candidates: b.candidates, highlightedIndex: 1,
+      page: b.page, hasPrevPage: b.hasPrevPage, hasNextPage: b.hasNextPage,
+      isVertical: b.isVertical, schemaID: b.schemaID, anchor: b.anchor)
+    XCTAssertNotEqual(b, other)
+  }
+
+  func testPageChangeIsUnequal() {
+    let b = baseline()
+    let other = FamoPanelContent(
+      preedit: b.preedit, cursor: b.cursor, selStart: b.selStart, selEnd: b.selEnd, candidates: b.candidates, highlightedIndex: b.highlightedIndex,
+      page: 1, hasPrevPage: b.hasPrevPage, hasNextPage: b.hasNextPage,
+      isVertical: b.isVertical, schemaID: b.schemaID, anchor: b.anchor)
+    XCTAssertNotEqual(b, other)
+  }
+
+  func testHasPrevPageChangeIsUnequal() {
+    let b = baseline()
+    let other = FamoPanelContent(
+      preedit: b.preedit, cursor: b.cursor, selStart: b.selStart, selEnd: b.selEnd, candidates: b.candidates, highlightedIndex: b.highlightedIndex,
+      page: b.page, hasPrevPage: true, hasNextPage: b.hasNextPage,
+      isVertical: b.isVertical, schemaID: b.schemaID, anchor: b.anchor)
+    XCTAssertNotEqual(b, other)
+  }
+
+  func testHasNextPageChangeIsUnequal() {
+    let b = baseline()
+    let other = FamoPanelContent(
+      preedit: b.preedit, cursor: b.cursor, selStart: b.selStart, selEnd: b.selEnd, candidates: b.candidates, highlightedIndex: b.highlightedIndex,
+      page: b.page, hasPrevPage: b.hasPrevPage, hasNextPage: false,
+      isVertical: b.isVertical, schemaID: b.schemaID, anchor: b.anchor)
+    XCTAssertNotEqual(b, other)
+  }
+
+  func testIsVerticalChangeIsUnequal() {
+    let b = baseline()
+    let other = FamoPanelContent(
+      preedit: b.preedit, cursor: b.cursor, selStart: b.selStart, selEnd: b.selEnd, candidates: b.candidates, highlightedIndex: b.highlightedIndex,
+      page: b.page, hasPrevPage: b.hasPrevPage, hasNextPage: b.hasNextPage,
+      isVertical: true, schemaID: b.schemaID, anchor: b.anchor)
+    XCTAssertNotEqual(b, other)
+  }
+
+  func testSchemaIDChangeIsUnequal() {
+    let b = baseline()
+    let other = FamoPanelContent(
+      preedit: b.preedit, cursor: b.cursor, selStart: b.selStart, selEnd: b.selEnd, candidates: b.candidates, highlightedIndex: b.highlightedIndex,
+      page: b.page, hasPrevPage: b.hasPrevPage, hasNextPage: b.hasNextPage,
+      isVertical: b.isVertical, schemaID: "wubi86_jidian", anchor: b.anchor)
+    XCTAssertNotEqual(b, other)
+  }
+
+  func testAnchorChangeIsUnequal() {
+    // Identical content at a MOVED caret must fall through to a full render so the panel
+    // repositions — anchor is part of the signature by design (lazy-correct).
+    let b = baseline()
+    let other = FamoPanelContent(
+      preedit: b.preedit, cursor: b.cursor, selStart: b.selStart, selEnd: b.selEnd, candidates: b.candidates, highlightedIndex: b.highlightedIndex,
+      page: b.page, hasPrevPage: b.hasPrevPage, hasNextPage: b.hasNextPage,
+      isVertical: b.isVertical, schemaID: b.schemaID,
+      anchor: NSRect(x: 101, y: 200, width: 1, height: 18))
+    XCTAssertNotEqual(b, other)
+  }
+
+  // MARK: per-candidate fields → flipping ANY one makes unequal
+
+  func testCandidateCountChangeIsUnequal() {
+    var cands = baselineCandidates()
+    cands.removeLast()
+    XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
+  }
+
+  func testCandidateOrderChangeIsUnequal() {
+    // Array equality is order-sensitive: a reordered page renders differently.
+    let cands = baselineCandidates().reversed().map { $0 }
+    XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
+  }
+
+  func testCandidateIDChangeIsUnequal() {
+    var cands = baselineCandidates()
+    let c = cands[0]
+    cands[0] = CandidateViewModel(id: 99, label: c.label, text: c.text, comment: c.comment,
+                                  badge: c.badge, source: c.source, provenance: c.provenance)
+    XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
+  }
+
+  func testCandidateLabelChangeIsUnequal() {
+    var cands = baselineCandidates()
+    let c = cands[0]
+    cands[0] = CandidateViewModel(id: c.id, label: "9", text: c.text, comment: c.comment,
+                                  badge: c.badge, source: c.source, provenance: c.provenance)
+    XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
+  }
+
+  func testCandidateTextChangeIsUnequal() {
+    var cands = baselineCandidates()
+    let c = cands[0]
+    cands[0] = CandidateViewModel(id: c.id, label: c.label, text: "您好", comment: c.comment,
+                                  badge: c.badge, source: c.source, provenance: c.provenance)
+    XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
+  }
+
+  func testCandidateCommentChangeIsUnequal() {
+    var cands = baselineCandidates()
+    let c = cands[0]
+    cands[0] = CandidateViewModel(id: c.id, label: c.label, text: c.text, comment: "ní hǎo",
+                                  badge: c.badge, source: c.source, provenance: c.provenance)
+    XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
+  }
+
+  func testCandidateCommentNilVsValueIsUnequal() {
+    var cands = baselineCandidates()
+    let c = cands[0]
+    cands[0] = CandidateViewModel(id: c.id, label: c.label, text: c.text, comment: nil,
+                                  badge: c.badge, source: c.source, provenance: c.provenance)
+    XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
+  }
+
+  func testCandidateBadgeChangeIsUnequal() {
+    var cands = baselineCandidates()
+    let c = cands[0]
+    cands[0] = CandidateViewModel(id: c.id, label: c.label, text: c.text, comment: c.comment,
+                                  badge: true, source: c.source, provenance: c.provenance)
+    XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
+  }
+
+  func testCandidateSourceChangeIsUnequal() {
+    var cands = baselineCandidates()
+    let c = cands[1]
+    cands[1] = CandidateViewModel(id: c.id, label: c.label, text: c.text, comment: c.comment,
+                                  badge: c.badge, source: "《民法典》第2条", provenance: c.provenance)
+    XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
+  }
+
+  func testCandidateProvenanceChangeIsUnequal() {
+    var cands = baselineCandidates()
+    let c = cands[0]
+    cands[0] = CandidateViewModel(id: c.id, label: c.label, text: c.text, comment: c.comment,
+                                  badge: c.badge, source: c.source, provenance: .verified)
+    XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
+  }
+
+  func testCandidateProvenanceNilVsValueIsUnequal() {
+    var cands = baselineCandidates()
+    let c = cands[0]
+    cands[0] = CandidateViewModel(id: c.id, label: c.label, text: c.text, comment: c.comment,
+                                  badge: c.badge, source: c.source, provenance: nil)
+    XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
+  }
+}

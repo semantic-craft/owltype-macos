@@ -1,0 +1,15 @@
+# Rime dictionary
+# encoding: utf-8
+#
+# Famotype's public seed deliberately imports only inputs with an auditable
+# redistribution grant. See FAMOTYPE-SEED-SOURCES.md in the generated seed.
+
+---
+name: rime_ice
+version: "16.0.0"
+sort: by_weight
+use_preset_vocabulary: true
+vocabulary: essay
+import_tables:
+  - cn_dicts/famotype_unicode
+...

@@ -1,0 +1,45 @@
+name: source ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  public-source-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout audited source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Check public-source boundary
+        run: bash scripts/check-public-source.sh
+
+      - name: Check shell syntax
+        run: bash -n action-install.sh scripts/*.sh
+
+  release-gate:
+    runs-on: macos-14
+    steps:
+      - name: Checkout audited source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install secret scanners
+        run: brew install gitleaks trufflehog
+
+      - name: Bootstrap pinned dependencies
+        run: make bootstrap
+
+      - name: Generate pinned local seed
+        run: make famo-seed
+
+      - name: Run full release gate
+        run: make release-gate DERIVED_DATA_PATH=build/release-gate

@@ -1,0 +1,23 @@
+Famo.xcodeproj/*.mode1v3
+Famo.xcodeproj/*.pbxuser
+Famo.xcodeproj/project.xcworkspace/
+Famo.xcodeproj/xcuserdata/
+build/
+build.log
+*.profraw
+Frameworks/*
+bin/*
+lib/*
+data/opencc/
+data/plum/
+download/
+*~
+.*.swp
+.DS_Store
+data/famo-rime/
+
+# Optional on-device semantic reranking artifacts. They are generated locally,
+# injected at build time and never committed. Absent means heuristic fallback.
+*.mlpackage
+Resources/bge-small-zh.mlpackage
+Resources/vocab.txt

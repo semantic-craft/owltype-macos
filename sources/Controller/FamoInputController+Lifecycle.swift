@@ -1,0 +1,121 @@
+//
+//  FamoInputController+Lifecycle.swift
+//  Famo
+//
+//  Single responsibility: IMK input-session lifecycle overrides (recognizedEvents /
+//  activate / deactivate / hidePalettes / commitComposition) and the ASCII-mode
+//  notification handlers the init's observers fan out to.
+//  Moved verbatim out of FamoInputController.swift (god-object shrink, 2026-06-20);
+//  no logic edits.
+//
+
+import InputMethodKit
+
+extension FamoInputController {
+
+  override func recognizedEvents(_ sender: Any!) -> Int {
+    // print("[DEBUG] recognizedEvents:")
+    debugLiveInputTrace("recognizedEvents hasSender=\(sender != nil)")
+    return Int(NSEvent.EventTypeMask.Element(arrayLiteral: .keyDown, .flagsChanged).rawValue)
+  }
+
+  override func activateServer(_ sender: Any!) {
+    self.client ?= sender as? IMKTextInput
+    // print("[DEBUG] activateServer:")
+    debugLiveInputTrace("activateServer hasSender=\(sender != nil)")
+    var keyboardLayout = NSApp.famoAppDelegate.config?.getString("keyboard_layout") ?? ""
+    if keyboardLayout == "last" || keyboardLayout == "" {
+      keyboardLayout = ""
+    } else if keyboardLayout == "default" {
+      keyboardLayout = "com.apple.keylayout.ABC"
+    } else if !keyboardLayout.hasPrefix("com.apple.keylayout.") {
+      keyboardLayout = "com.apple.keylayout.\(keyboardLayout)"
+    }
+    if keyboardLayout != "" {
+      client?.overrideKeyboard(withKeyboardNamed: keyboardLayout)
+    }
+    preedit = ""
+  }
+
+  override func deactivateServer(_ sender: Any!) {
+    // print("[DEBUG] deactivateServer: \(sender ?? "nil")")
+    debugLiveInputTrace("deactivateServer hasSender=\(sender != nil)")
+    hidePalettes()
+    commitComposition(sender)
+    // Focus is leaving this field — drop the cross-commit spacing seed so the next field's first
+    // commit doesn't inherit a stale boundary char.
+    lastCommittedCharacter = nil
+    client = nil
+  }
+
+  override func hidePalettes() {
+    NSApp.famoAppDelegate.famoPanel?.hidePanel()
+    super.hidePalettes()
+  }
+
+  /*!
+   @method
+   @abstract   Called when a user action was taken that ends an input session.
+   Typically triggered by the user selecting a new input method
+   or keyboard layout.
+   @discussion When this method is called your controller should send the
+   current input buffer to the client via a call to
+   insertText:replacementRange:.  Additionally, this is the time
+   to clean up if that is necessary.
+   */
+  override func commitComposition(_ sender: Any!) {
+    self.client ?= sender as? IMKTextInput
+    // print("[DEBUG] commitComposition: \(sender ?? "nil")")
+    // Forced finalize (focus loss / IME switch / a host — notably Chromium omnibox — ending the
+    // composition on a backspace shrink). Land the ALREADY-CONVERTED preview (`commit_text_preview`,
+    // = what space would commit) instead of the raw `input()` stream: raw pinyin dumped here is the
+    // "退格全退" source (task 07-07). `FamoForcedFinalize.commitText` falls back to raw when no
+    // preview exists, so a forced finalize never loses the user's input.
+    //
+    // #37: this override is the ONE convergence point of every non-key composition end
+    // (deactivateServer → here; TIS input-source fallback → deactivateServer → here; hosts —
+    // Chromium/Electron during ordinary typing — call it directly). The sequence therefore also
+    // clears the snapshot registry, which before #37 only `rimeUpdate()` (next-key path) did:
+    // a forced finalize without it strands the snapshot and blocks every snapshot-gated
+    // consumer for the process lifetime (#131's wild samples). Sequence is XCTest-locked in
+    // FamoForcedFinalizeTests; this adapter only feeds it the live reads/effects.
+    let live: RimeSession? = (rime?.isValid == true) ? rime : nil
+    FamoForcedFinalize.finalize(
+      input: live?.input(),
+      preview: { live?.composition()?.commitTextPreview },
+      commit: { self.commit(string: $0) },
+      clearComposition: { live?.clearComposition() },
+      emitCleared: { MainActor.assumeIsolated { NSApp.famoAppDelegate.snapshotEmitter.emitCleared() } },
+      trace: { self.debugLiveInputTrace($0) }
+    )
+  }
+
+  // seam: was private; internal so FamoInputController.swift's init observer closure can reach it across files.
+  // Deliberately NOT gated on `client != nil` (audited 2026-07-07, task input-controller-hygiene):
+  // this is the CLI global-set path (`--ascii/--nascii` → distributed FamoToggleASCIIMode →
+  // FamoSetASCIIMode), inherited verbatim from upstream Squirrel #1070 where set is broadcast but
+  // report (below) is active-only. Every LIVE controller must flip, or switching back to a
+  // backgrounded app would resurrect the old mode. Menu/settings 中英 does NOT come through here —
+  // it uses applyDefaultAsciiModeToLiveSession (active controller only).
+  func handleASCIIModeToggle(_ notification: Notification) {
+    guard let enableASCII = notification.object as? Bool else { return }
+    setRimeOption(.asciiMode, enableASCII)
+    rimeUpdate()
+  }
+
+  // seam: was private; internal so FamoInputController.swift's init observer closure can reach it across files.
+  func reportASCIIMode(_: Notification) {
+    // Only active input controller should respond
+    guard client != nil else { return }
+    guard let rime, rime.isValid else { return }
+
+    let isASCIIMode = rime.option(.asciiMode)
+    let status = isASCIIMode ? "ascii" : "nascii"
+
+    // Directly respond with the status
+    DistributedNotificationCenter.default().postNotificationName(
+      .init("FamoASCIIModeResponse"),
+      object: status
+    )
+  }
+}

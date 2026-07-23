@@ -1,0 +1,60 @@
+# By default, SwiftLint uses a set of sensible default rules you can adjust:
+disabled_rules: # rule identifiers turned on by default to exclude from running
+  - force_cast
+  - force_try
+  - todo
+opt_in_rules: # some rules are turned off by default, so you need to opt-in
+
+# Alternatively, specify all rules explicitly by uncommenting this option:
+# only_rules: # delete `disabled_rules` & `opt_in_rules` if using this
+#   - empty_parameters
+#   - vertical_whitespace
+
+analyzer_rules: # rules run by `swiftlint analyze`
+  - explicit_self
+
+included: # case-sensitive paths to include during linting. `--path` is ignored if present
+  - sources
+excluded: # case-sensitive paths to ignore during linting. Takes precedence over `included`
+
+# If true, SwiftLint will not fail if no lintable files are found.
+allow_zero_lintable_files: false
+
+# If true, SwiftLint will treat all warnings as errors.
+strict: false
+
+# rules that have both warning and error levels, can set just the warning level
+# implicitly
+line_length: 200
+function_body_length: 200
+# they can set both implicitly with an array
+type_body_length:
+  - 600 # warning
+  - 1200 # error
+# or they can set both explicitly
+file_length:
+  warning: 800
+  error: 1400
+# naming rules can set warnings/errors for min_length and max_length
+# additionally they can set excluded names
+type_name:
+  min_length: 4 # only warning
+  max_length: # warning and error
+    warning: 40
+    error: 50
+  excluded: # excluded via string
+  allowed_symbols: ["_"] # these are allowed in type names
+identifier_name:
+  min_length: # only min_length
+    warning: 3
+    error: 1
+  # geometry (x/y), color components (r/g/b), candidate (c), id, up, ai — legitimate short names;
+  # select_keys/select_labels mirror RIME's snake_case config keys
+  excluded: [i, URL, of, by, x, y, r, g, b, c, id, up, ai, select_keys, select_labels]
+function_parameter_count: # IMK panel/snapshot fns legitimately take many params
+  warning: 8
+  error: 12
+large_tuple:
+  warning: 3
+  error: 5
+reporter: "github-actions-logging" # reporter type (xcode, json, csv, checkstyle, codeclimate, junit, html, emoji, sonarqube, markdown, github-actions-logging, summary)
