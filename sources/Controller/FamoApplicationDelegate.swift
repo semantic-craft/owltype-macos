@@ -3,6 +3,7 @@
 //  Famo
 
 import UserNotifications
+import Sparkle
 import AppKit
 import InputMethodKit
 
@@ -68,8 +69,15 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, UNUserNoti
   // v0.3.3: SwiftUI onboarding/welcome window, created lazily on first launch (or
   // from the menu). Purely additive UI — only forwards already-safe actions.
   var famoOnboardingWindow: FamoOnboardingWindow?
+  lazy var updateController = SPUStandardUpdaterController(
+    startingUpdater: true,
+    updaterDelegate: nil,
+    userDriverDelegate: nil
+  )
+
   func applicationWillFinishLaunching(_ notification: Notification) {
     addObservers()
+    _ = updateController
     // v0.3.3: first-run onboarding. Guarded + non-blocking (just orders the window
     // front); kept LAST so it never interferes with Rime / panel / status setup.
     if !suppressOnboarding && !FamoOnboarding.isDone {
@@ -444,6 +452,14 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, UNUserNoti
 
   func openWiki() {
     NSWorkspace.shared.open(Self.rimeWikiURL)
+  }
+
+  func checkForUpdates() {
+    guard updateController.updater.canCheckForUpdates else {
+      print("Cannot check for updates")
+      return
+    }
+    updateController.updater.checkForUpdates()
   }
 
   static func showMessage(msgText: String?) {

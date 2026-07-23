@@ -1,4 +1,4 @@
-.PHONY: all bootstrap debug release test release-gate source-archive famo-seed copy-famo-seed
+.PHONY: all bootstrap debug release test release-gate source-archive update-package famo-seed copy-famo-seed
 
 all: debug
 
@@ -6,7 +6,8 @@ DERIVED_DATA_PATH ?= build
 RIME_LIBRARY := lib/librime.1.dylib
 RIME_TOOLS := bin/rime_deployer bin/rime_dict_manager
 RIME_DATA := data/plum/default.yaml data/opencc/t2s.json
-DEPS_CHECK := $(RIME_LIBRARY) $(RIME_TOOLS) $(RIME_DATA)
+SPARKLE_FRAMEWORK := Frameworks/Sparkle.framework
+DEPS_CHECK := $(RIME_LIBRARY) $(RIME_TOOLS) $(RIME_DATA) $(SPARKLE_FRAMEWORK)
 
 $(DEPS_CHECK):
 	bash action-install.sh
@@ -54,6 +55,9 @@ source-archive: release
 	bash scripts/create-source-archive.sh \
 		"$(DERIVED_DATA_PATH)/Build/Products/Release/Famo.app" \
 		"$(DERIVED_DATA_PATH)/release"
+
+update-package: release
+	bash package/make_update_package "$(DERIVED_DATA_PATH)"
 
 release-gate: test source-archive
 	bash scripts/check-public-source.sh

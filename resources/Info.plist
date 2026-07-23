@@ -103,6 +103,14 @@
 	<true/>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://responsay.com/famo/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>3Ze0A+sHbvkQ8CLlDUIcYvm7BJS4IJLU1rNEX66F9R4=</string>
 	<key>TICapsLockLanguageSwitchCapable</key>
 	<true/>
 </dict>

@@ -1,0 +1,43 @@
+#!/bin/bash
+# preinstall — 在 payload 落盘**之前**记录两件事（都是 postinstall 拿不到的「更新前」真相）：
+#   1) 目标卷是否已有法墨 bundle（更新/重装的主信号）；
+#   2) 用户当前输入源是否正选中法墨（更新收尾还原选中态的主信号）。
+#
+# 为什么 1) 需要它：Sparkle guided pkg install 会**先终止宿主 App（= Famo 本体）再跑安装器**，
+# 且 imklaunchagent 可能在安装中途按需复活 Famo（它仍是 selected source）——所以 postinstall
+# 里单靠 pgrep 探测进程，在 Sparkle 主路径上必然读 false / 结果非确定，更新会被误判成首装：
+# enable 重跑（二次 enable 幽灵态，TIS-ACTIVATION-NOTES 定律 11）+ select 抢用户当前输入法。
+# 「安装前 bundle 已存在」不受进程生死影响，是更新探测的主信号；postinstall 读取标记后即删。
+#
+# 为什么 2) 也必须在这里记：payload 原地替换 bundle 时 TIS 会把选中态踢出法墨（#16 三连复现：
+# 更新后 fresh 探针恒读 selected=false，用户被踢回 ABC/鼠须管）——postinstall 再探测已经结构性
+# 太晚，切回分支永不触发。preinstall 时刻选中态还在（imklaunchagent 复活 Famo 正因它仍是
+# selected source），用**老二进制 fresh 进程**只读 TIS（定律 13′：读回必须 fresh 进程；
+# --current-input-source 零副作用）。老版本二进制无此 CLI 时探测静默失败 → 不写标记，
+# postinstall 退回自己的现场探测（维持原状，不比现在更糟）。
+#
+# 全程 best-effort：标记写不成也绝不让安装失败（postinstall 还有 pgrep 副信号兜底）。
+set -e
+
+login_user=`/usr/bin/stat -f%Su /dev/console`
+login_uid=`/usr/bin/stat -f%u /dev/console`
+input_methods_root="${DSTROOT:-${2:-}/Library/Input Methods}"
+famo_app_root="${input_methods_root}/Famo.app"
+famo_executable="${famo_app_root}/Contents/MacOS/Famo"
+marker="/private/tmp/im.famo.inputmethod.preinstall-had-bundle"
+selected_marker="/private/tmp/im.famo.inputmethod.preinstall-was-selected"
+
+# 先清旧标记，避免上次安装异常残留误导本次判断。
+/bin/rm -f "${marker}" "${selected_marker}" || true
+
+if [ -d "${famo_app_root}" ]; then
+  # ROOT 写标记（preinstall 以 root 运行）；postinstall（同为 root）读完即删。
+  /usr/bin/touch "${marker}" || true
+
+  # 选中态探测跑在登录用户的 Aqua GUI 会话（TIS 当前源是 per-user 态，root 读到的是 root 的）。
+  current_source="$(/bin/launchctl asuser "${login_uid}" /usr/bin/sudo -u "${login_user}" \
+    "${famo_executable}" --current-input-source 2>/dev/null || true)"
+  case "${current_source}" in
+    im.famo.inputmethod.Famo*) /usr/bin/touch "${selected_marker}" || true ;;
+  esac
+fi

@@ -11,6 +11,8 @@ lib/*
 data/opencc/
 data/plum/
 download/
+package/*.pkg
+package/*-versioned.xml
 *~
 .*.swp
 .DS_Store

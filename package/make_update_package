@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+derived_data_path="${1:-build}"
+app="$root/$derived_data_path/Build/Products/Release/Famo.app"
+package_dir="$root/package"
+
+[[ -f "$app/Contents/Info.plist" ]] || {
+  echo "missing finalized Release app: $app" >&2
+  exit 1
+}
+
+version="$(plutil -extract CFBundleVersion raw "$app/Contents/Info.plist")"
+marketing_version="$(plutil -extract CFBundleShortVersionString raw "$app/Contents/Info.plist")"
+[[ "$version" == "$marketing_version" ]] || {
+  echo "bundle version and marketing version must match" >&2
+  exit 1
+}
+
+stage="$(mktemp -d "${TMPDIR:-/tmp}/famotype-update-package.XXXXXX")"
+cleanup() {
+  case "$stage" in
+    */famotype-update-package.*) rm -rf -- "$stage" ;;
+  esac
+}
+trap cleanup EXIT
+
+cp -R "$app" "$stage/Famo.app"
+(
+  cd "$package_dir"
+  pkgbuild \
+    --root "$stage" \
+    --filter '(^|/)\.DS_Store$' \
+    --filter '(^|/)\._[^/]*$' \
+    --filter '.*\.swiftmodule$' \
+    --component-plist Famo-component.plist \
+    --identifier im.famo.inputmethod.Famo \
+    --version "$version" \
+    --install-location '/Library/Input Methods' \
+    --scripts "$root/scripts" \
+    Famo-component.pkg
+
+  sed "s/@VERSION@/$marketing_version/" Distribution-update > Distribution-update-versioned.xml
+  productbuild \
+    --distribution Distribution-update-versioned.xml \
+    --package-path . \
+    --resources . \
+    Famo-update.pkg
+)
+
+pkgutil --check-signature "$package_dir/Famo-update.pkg" >/dev/null 2>&1 && {
+  echo "unexpected signature on reproducible unsigned update package" >&2
+  exit 1
+}
+echo "PASS: unsigned update package written to $package_dir/Famo-update.pkg"

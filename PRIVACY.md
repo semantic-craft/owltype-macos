@@ -13,16 +13,21 @@ librime 处理。默认用户数据目录是 `~/Library/Application Support/Famo
 用户主动执行 Rime“同步用户数据”时，Famotype 只写入用户选择的本地目录；是否再由 iCloud、
 Dropbox 等系统服务同步，取决于用户自己的目录选择和系统设置。
 
+## 唯一网络面
+
+Sparkle 只访问 `https://responsay.com/famo/appcast.xml` 及其中声明的公开签名安装包，用于检查和安装
+Famotype 更新。更新请求不携带输入内容、候选、用户词库、提示词、设备文件或私有凭据；安装包还必须
+同时通过 HTTPS、EdDSA 和 Apple Developer ID 验证。
+
 ## 不存在的采集面
 
 这个仓库没有：
 
-- 网络请求客户端或网络客户端 entitlement；
+- 通用网络请求客户端或网络客户端 entitlement；
 - 云端 AI、联网搜索和供应商密钥实现；
 - 辅助功能选区读取器、窗口正文读取器或浏览器 URL 读取器；
 - 剪贴板历史读取与持久化；
-- session-wide 键盘事件 tap；
-- 自动更新框架和 appcast。
+- session-wide 键盘事件 tap。
 
 快捷短语无法直接插入时，用户选中的短语可以作为一次性回退写入系统剪贴板；程序不读取、
 归档或建立剪贴板历史。

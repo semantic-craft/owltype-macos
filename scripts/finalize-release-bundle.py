@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import plistlib
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -14,12 +15,18 @@ ROOT = Path(__file__).resolve().parent.parent
 EXPECTED_NATIVE = {
     "Contents/Frameworks/librime.1.dylib",
     "Contents/Frameworks/rime-plugins/librime-lua.dylib",
+    "Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate",
+    "Contents/Frameworks/Sparkle.framework/Versions/B/Sparkle",
+    "Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app/Contents/MacOS/Updater",
+    "Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc/Contents/MacOS/Downloader",
+    "Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc/Contents/MacOS/Installer",
     "Contents/MacOS/Famo",
     "Contents/MacOS/rime_deployer",
     "Contents/MacOS/rime_dict_manager",
 }
 REQUIRED_LICENSES = {
     "Contents/Resources/LICENSE.txt",
+    "Contents/Resources/Sparkle-LICENSE.txt",
     "Contents/Resources/THIRD_PARTY_NOTICES.md",
     "Contents/SharedSupport/FAMOTYPE-SEED-SOURCES.md",
     "Contents/SharedSupport/OpenCC.LICENSE",
@@ -38,14 +45,16 @@ REQUIRED_LICENSES = {
     "Contents/SharedSupport/rime-ice-Credits.md",
     "Contents/SharedSupport/rime-ice.LICENSE",
 }
-FORBIDDEN_PATH_FRAGMENTS = {"sparkle", "wubi", "octagram", "predict"}
+FORBIDDEN_PATH_FRAGMENTS = {"wubi", "octagram", "predict"}
 FORBIDDEN_FILE_MARKERS = (b"/" + b"Users/",)
+SPARKLE_LICENSE_SHA256 = "78babcec24fb8447551f9b5ece67042a82fd4ed14deab863d6e8f0619d0d25f6"
 COMPONENTS = (
     ("Famotype", None, "GPL-3.0-only", "https://github.com/semantic-craft/famotype-macos"),
     ("Squirrel-derived frontend", "4db2c85ac639c229e14fd9424f79c3c4f97ce478", "GPL-3.0-only", "https://github.com/rime/squirrel"),
     ("librime", "33e78140250125871856cdc5b42ddc6a5fcd3cd4", "BSD-3-Clause", "https://github.com/rime/librime"),
     ("librime-lua", "ec52e48ea18f11af37717a01c337f853215cf70b", "BSD-3-Clause", "https://github.com/hchunhui/librime-lua"),
     ("plum", "b1be1969f914cc005add4090631b855db00c2591", "LGPL-3.0-only", "https://github.com/rime/plum"),
+    ("Sparkle", "41847a58cdef7506b257591fcca6f9495df591d4", "MIT", "https://github.com/sparkle-project/Sparkle"),
     ("rime-ice configuration", "b681a34f788795034b3b288830f4861980bc8b0d", "GPL-3.0-only", "https://github.com/iDvel/rime-ice"),
     ("rime-essay", "e9b1a374a6ea015fca5bdd04318924b4483ac35a", "LGPL-3.0-only", "https://github.com/rime/rime-essay"),
     ("Unicode Unihan", "16.0.0", "Unicode-3.0", "https://www.unicode.org/Public/16.0.0/ucd/Unihan.zip"),
@@ -171,10 +180,16 @@ def main() -> None:
         fail(f"not a Famo app bundle: {app}")
 
     resources = app / "Contents/Resources"
+    resources.mkdir(parents=True, exist_ok=True)
     sbom_path = resources / "FAMOTYPE-SBOM.spdx.json"
     manifest_path = resources / "FAMOTYPE-FILE-MANIFEST.sha256"
     sbom_path.unlink(missing_ok=True)
     manifest_path.unlink(missing_ok=True)
+
+    sparkle_license = ROOT / "Sparkle/LICENSE"
+    if not sparkle_license.is_file() or sha256(sparkle_license) != SPARKLE_LICENSE_SHA256:
+        fail("pinned Sparkle license is missing or differs from the reviewed 2.6.2 text")
+    shutil.copyfile(sparkle_license, resources / "Sparkle-LICENSE.txt")
 
     verify_seed(app)
     files = relative_files(app)
@@ -196,9 +211,14 @@ def main() -> None:
         fail(f"forbidden release content: {', '.join(forbidden)}")
 
     native = {relative for relative, path in files if is_macho(path)}
-    if native != EXPECTED_NATIVE:
-        fail(f"native inventory differs: expected {sorted(EXPECTED_NATIVE)}, got {sorted(native)}")
-    remove_linker_signatures(app, native)
+    native_targets = {
+        path.resolve().relative_to(app).as_posix()
+        for _, path in files
+        if is_macho(path)
+    }
+    if native_targets != EXPECTED_NATIVE:
+        fail(f"native inventory differs: expected {sorted(EXPECTED_NATIVE)}, got {sorted(native_targets)}")
+    remove_linker_signatures(app, native_targets)
     if not os.access(app / "Contents/MacOS/rime-install", os.X_OK):
         fail("Contents/MacOS/rime-install is not executable")
 
@@ -208,14 +228,15 @@ def main() -> None:
     build = str(info.get("CFBundleVersion", ""))
     if not version or version != build:
         fail(f"version/build mismatch: {version!r} / {build!r}")
-    if any(key.startswith("SU") for key in info):
-        fail("automatic-update configuration is present in the public-core bundle")
+    if info.get("SUFeedURL") != "https://responsay.com/famo/appcast.xml":
+        fail("Sparkle feed differs from the reviewed public endpoint")
+    if not info.get("SUPublicEDKey") or info.get("SUEnableAutomaticChecks") is not True:
+        fail("Sparkle verification key or automatic checks are missing")
 
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     committed_at = subprocess.check_output(["git", "show", "-s", "--format=%cI", "HEAD"], cwd=ROOT, text=True).strip()
     created = datetime.fromisoformat(committed_at).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    resources.mkdir(parents=True, exist_ok=True)
     sbom_path.write_text(json.dumps(make_sbom(app, version, revision, created), ensure_ascii=False, indent=2, sort_keys=True) + "\n")
     manifest_lines = [
         f"{sha256(path)}  {relative}"
@@ -230,7 +251,7 @@ def main() -> None:
         fail("file manifest does not cover the complete bundle")
 
     print(f"PASS: release bundle {version} finalized")
-    print(f"PASS: {len(native)} unsigned native files, {len(expected_manifest_paths)} hashed bundle files")
+    print(f"PASS: {len(native_targets)} unsigned native targets, {len(expected_manifest_paths)} hashed bundle files")
     print(f"PASS: SPDX SBOM and SHA-256 file manifest written under {resources}")
 
 

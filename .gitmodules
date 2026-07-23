@@ -7,3 +7,6 @@
 [submodule "librime-lua"]
 	path = librime-lua
 	url = https://github.com/hchunhui/librime-lua.git
+[submodule "Sparkle"]
+	path = Sparkle
+	url = https://github.com/sparkle-project/Sparkle

@@ -56,8 +56,24 @@ rsync -a "$repo_root/data/famo-rime/." "$stage/$archive_root/data/famo-rime/"
 
 (
   cd "$stage/$archive_root"
-  find . -type f ! -name FAMOTYPE-SOURCE-MANIFEST.sha256 -print | LC_ALL=C sort | \
-    xargs shasum -a 256
+  python3 - <<'PY'
+import hashlib
+from pathlib import Path
+
+for path in sorted(
+    (
+        item
+        for item in Path(".").rglob("*")
+        if item.is_file() and item.name != "FAMOTYPE-SOURCE-MANIFEST.sha256"
+    ),
+    key=lambda item: item.as_posix().encode(),
+):
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    print(f"{digest.hexdigest()}  {path.as_posix()}")
+PY
 ) > "$stage/$archive_root/FAMOTYPE-SOURCE-MANIFEST.sha256"
 
 COPYFILE_DISABLE=1 tar -czf "$output_dir/$archive_name" -C "$stage" "$archive_root"

@@ -75,8 +75,22 @@ struct FamoAboutPage: View {
           SettingsCardDivider(palette: palette)
           infoRow(label: "当前系统输入源", value: state.currentInputSourceDisplayName)
         }
+        SettingsCardDivider(palette: palette)
+        updateRow
       }
     }
+  }
+
+  private var updateRow: some View {
+    HStack(spacing: 10) {
+      Text("软件更新")
+        .font(.system(size: 14))
+        .foregroundStyle(palette.ink)
+      Spacer(minLength: 8)
+      Button("检查更新") { NSApp.famoAppDelegate.checkForUpdates() }
+        .disabled(!NSApp.famoAppDelegate.updateController.updater.canCheckForUpdates)
+    }
+    .padding(.vertical, 8)
   }
 
   @ViewBuilder
@@ -132,6 +146,7 @@ struct FamoAboutPage: View {
         creditLine(name: "librime（中州韵输入法引擎）", license: "BSD-3-Clause")
         creditLine(name: "雾凇拼音 rime-ice（iDvel）", license: "GPLv3 · 拼音底座")
         creditLine(name: "东风破 plum（Rime 配置管理器）", license: "LGPL-3.0")
+        creditLine(name: "Sparkle", license: "MIT + bundled notices")
       }
     }
   }

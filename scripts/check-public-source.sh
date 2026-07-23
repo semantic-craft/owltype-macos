@@ -14,7 +14,7 @@ while IFS= read -r tracked_path; do
   esac
 
   case "$tracked_path" in
-    *Cloud*|*Provider*|*SearchClient*|*SelectionReader*|*ClipboardHistory*|*GlobalEvent*|*Keychain*|*Sparkle*|*Appcast*|*Notarization*)
+    *Cloud*|*Provider*|*SearchClient*|*SelectionReader*|*ClipboardHistory*|*GlobalEvent*|*Keychain*|*Appcast*|*Notarization*)
       printf 'forbidden sensitive/release path: %s\n' "$tracked_path" >&2
       failed=1
       ;;
@@ -29,9 +29,24 @@ while IFS= read -r tracked_path; do
 done < <(git ls-files)
 
 if git grep -n -I -E \
-  '(URLSession|AXUIElement|CGEventTap|SecItem(Add|CopyMatching|Delete|Update)|kSecAttr|SUUpdater|Sparkle|com\.apple\.security\.network\.client)' \
-  -- sources resources Famo.xcodeproj data rime scripts tools tests ':!scripts/check-public-source.sh'; then
+  '(URLSession|AXUIElement|CGEventTap|SecItem(Add|CopyMatching|Delete|Update)|kSecAttr|com\.apple\.security\.network\.client)' \
+  -- sources resources Famo.xcodeproj data rime package scripts tools tests ':!scripts/check-public-source.sh'; then
   printf 'forbidden API, entitlement, key material or local path found\n' >&2
+  failed=1
+fi
+
+if ! python3 - resources/Info.plist <<'PY'
+import plistlib
+import sys
+
+with open(sys.argv[1], "rb") as handle:
+    info = plistlib.load(handle)
+if info.get("SUFeedURL") != "https://responsay.com/famo/appcast.xml":
+    raise SystemExit("Sparkle feed differs from the reviewed endpoint")
+if not info.get("SUPublicEDKey"):
+    raise SystemExit("Sparkle public verification key is missing")
+PY
+then
   failed=1
 fi
 

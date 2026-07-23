@@ -4,6 +4,7 @@ set -euo pipefail
 
 rime_version="1.17.0"
 rime_git_hash="33e7814"
+sparkle_version="2.6.2"
 
 rime_archive="rime-${rime_git_hash}-macOS-universal.tar.bz2"
 rime_archive_sha256="11d8dc663c6ec06d5ccb6111ba664a9e7b631b703ac6acd07cffbac664021850"
@@ -12,6 +13,10 @@ rime_download_url="https://github.com/rime/librime/releases/download/${rime_vers
 rime_deps_archive="rime-deps-${rime_git_hash}-macOS-universal.tar.bz2"
 rime_deps_archive_sha256="dfe6047e87be271963d7466bd1a6e3d9e660c30e5e73e4bb94e8782c0a6ac8df"
 rime_deps_download_url="https://github.com/rime/librime/releases/download/${rime_version}/${rime_deps_archive}"
+
+sparkle_archive="Sparkle-${sparkle_version}.tar.xz"
+sparkle_archive_sha256="2300a7dc2545a4968e54621b7f351d388ddf1a5cb49e79f6c99e9a09d826f5e8"
+sparkle_download_url="https://github.com/sparkle-project/Sparkle/releases/download/${sparkle_version}/${sparkle_archive}"
 
 plum_packages=(
   "bopomofo 6085c9a38a4a728047862b33d67eee18aa86f3b9"
@@ -66,20 +71,24 @@ sanitize_upstream_build_paths() {
   fi
 }
 
-rm -rf lib/rime-plugins data/opencc data/plum
-mkdir -p download bin lib/rime-plugins data/opencc data/plum
+rm -rf lib/rime-plugins data/opencc data/plum Frameworks
+mkdir -p download bin lib/rime-plugins data/opencc data/plum Frameworks
 download_archive "$rime_download_url" "download/${rime_archive}"
 download_archive "$rime_deps_download_url" "download/${rime_deps_archive}"
+download_archive "$sparkle_download_url" "download/${sparkle_archive}"
 verify_archive "$rime_archive_sha256" "download/${rime_archive}"
 verify_archive "$rime_deps_archive_sha256" "download/${rime_deps_archive}"
+verify_archive "$sparkle_archive_sha256" "download/${sparkle_archive}"
 
 tar --bzip2 -xf "download/${rime_archive}" -C download
 tar --bzip2 -xf "download/${rime_deps_archive}" -C download
+tar -xJf "download/${sparkle_archive}" -C download
 
 cp -L download/dist/lib/librime.1.dylib lib/
 cp -L download/dist/lib/rime-plugins/librime-lua.dylib lib/rime-plugins/
 cp download/dist/bin/rime_deployer bin/
 cp download/dist/bin/rime_dict_manager bin/
+cp -R download/Sparkle.framework Frameworks/
 sanitize_upstream_build_paths \
   lib/librime.1.dylib \
   lib/rime-plugins/librime-lua.dylib \
@@ -90,7 +99,7 @@ ensure_rpath bin/rime_dict_manager
 
 cp -R download/share/opencc/. data/opencc/
 
-git submodule update --init --recursive librime librime-lua plum
+git submodule update --init --recursive librime librime-lua plum Sparkle
 
 for package_spec in "${plum_packages[@]}"; do
   read -r package_name package_sha <<<"$package_spec"

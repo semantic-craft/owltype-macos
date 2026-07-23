@@ -1,0 +1,138 @@
+#!/bin/bash
+# postinstall — Squirrel-model TIS activation for 法墨 Famo (鼠须管 是法墨直系上游).
+#
+# 设计权威 = Squirrel `scripts/postinstall` 序列，按法墨适配。本脚本被两个 pkg 共用：
+#   - Famo.pkg（首装，Distribution，onConclusion=RequireLogout）：走 register+enable+select，
+#     注销重登后 loginwindow 重读输入源列表，法墨必在输入菜单。
+#   - Famo-update.pkg（Sparkle 更新载荷，Distribution-update，无 RequireLogout）：免注销升级，
+#     走 fcitx5 式平滑序列（切出→kill→原地换文件→重启→切回），升级路径零 TIS enable。
+# 依据：`docs/famo-real-machine-smoke-checklist.md` 的更新验收序列与
+# `installer/TIS-ACTIVATION-NOTES.md` 的 TIS 激活约束。
+#
+# 权限分层（Squirrel 同款）：register 走 ROOT（注册是系统级，让系统认识 bundle）；build/enable/select
+# 走 LOGIN USER（TIS 启用与 Rime user_data_dir 都是 per-user，root 改的是 /var/root 的态，没用）。
+set -e
+
+login_user=`/usr/bin/stat -f%Su /dev/console`
+login_uid=`/usr/bin/stat -f%u /dev/console`
+input_methods_root="${DSTROOT:-${2:-}/Library/Input Methods}"
+famo_app_root="${input_methods_root}/Famo.app"
+famo_executable="${famo_app_root}/Contents/MacOS/Famo"
+
+# 在登录用户的 Aqua GUI 会话里跑命令（per-user TIS / Rime 用户目录都在这里，不在 root）。
+as_login_user() {
+  /bin/launchctl asuser "${login_uid}" /usr/bin/sudo -u "${login_user}" "$@"
+}
+
+# 0a) 更新/重装探测（复合判据；pgrep 必须在 killall 之前！）：
+#       is_update = bundle_preexisted（preinstall 标记，主信号）OR was_running（pgrep，副信号）
+#     主信号：Sparkle guided pkg install 会**先终止宿主 App（= Famo 本体）再跑安装器**，且
+#     imklaunchagent 可能在安装中途按需复活 Famo（它仍是 selected source）——pgrep 在 Sparkle
+#     主路径上单独必然读 false / 结果非确定。scripts/preinstall 在 payload 落盘前记录「目标卷
+#     已有 Famo.app」，不受进程生死影响；这里读取后即删标记。
+#     副信号：进程活着 ⟺ 已被 register+enable 过（IMK 只拉起已启用的输入法——fcitx5 幂等判据，
+#     比会撒谎的 TIS IsEnabled 可靠，定律 4/11），覆盖 dev/手动装（make install-* 直跑本脚本、
+#     无 preinstall）等场景。
+#     残余边缘（诚实取舍，fcitx5 同款，不伪装成全防护）：「装过但从未 enable」的机器重装会被
+#     主信号判成更新而跳过 enable；修复路径 = 系统设置 → 键盘 → 输入法 手动添加，或注销重登。
+preinstall_marker="/private/tmp/im.famo.inputmethod.preinstall-had-bundle"
+if [ -f "${preinstall_marker}" ]; then
+  bundle_preexisted=true
+else
+  bundle_preexisted=false
+fi
+/bin/rm -f "${preinstall_marker}" || true
+
+if /usr/bin/pgrep -U "${login_uid}" -x Famo > /dev/null 2>&1; then
+  was_running=true
+else
+  was_running=false
+fi
+
+if [ "${bundle_preexisted}" = true ] || [ "${was_running}" = true ]; then
+  is_update=true
+else
+  is_update=false
+fi
+
+# 0b) 更新前选中态（主信号，preinstall 在 payload 落盘前记录）：payload 原地
+#     替换 bundle 时 TIS 会把选中态踢出法墨——到本脚本再探测已经结构性太晚（#16 三连复现：
+#     fresh 探针恒读 selected=false，切回分支永不触发，用户被踢回 ABC/鼠须管）。读取后即删。
+selected_marker="/private/tmp/im.famo.inputmethod.preinstall-was-selected"
+if [ -f "${selected_marker}" ]; then
+  selected_before_install=true
+else
+  selected_before_install=false
+fi
+/bin/rm -f "${selected_marker}" || true
+
+# 0c) 现场探测法墨此刻是否仍是当前输入法（副信号，兜底 dev/手动装直跑本脚本、无 preinstall 的
+#     场景；payload 已落盘，跑的是新二进制；--current-input-source 只读 TIS，fresh 进程）。
+current_source="$(as_login_user "${famo_executable}" --current-input-source 2>/dev/null || true)"
+case "${current_source}" in
+  im.famo.inputmethod.Famo*) currently_selected=true ;;
+  *) currently_selected=false ;;
+esac
+
+# 还原信号 = 主 OR 副：只还原被更新打断的既有选中态，绝不劫持（更新前不在法墨上 → 两个信号
+# 都是 false → 4b 不触发；首装分支的 select 是另一条路，不走这里）。
+if [ "${selected_before_install}" = true ] || [ "${currently_selected}" = true ]; then
+  was_selected=true
+else
+  was_selected=false
+fi
+
+# 0d) 若法墨此刻仍是当前输入法：kill 之前先切出到 ABC（TIS-ACTIVATION-NOTES 定律 12）。fcitx5
+#     update.sh 实证的坑：kill 时若自己是当前选中 IME，重启后菜单可能不显示（"Switching out is
+#     necessary, otherwise it doesn't show menu"）。装完在第 4b 步切回。已被 payload 踢出的
+#     场景（currently_selected=false）无从切出也无需切出，直接等 4b 还原。
+if [ "${currently_selected}" = true ]; then
+  as_login_user "${famo_executable}" --select-input-source com.apple.keylayout.ABC || true
+fi
+
+# 先停掉运行中的法墨：让 register 看到干净状态，且重启的是新装的 bundle。
+/usr/bin/sudo -u "${login_user}" /usr/bin/killall Famo > /dev/null 2>&1 || true
+
+# 1) 注册输入源（ROOT，系统级）。
+#    `|| true`：TISRegisterInputSource 在冷装时有传播延迟可能瞬时取不到；macOS 也会自动扫描
+#    /Library/Input Methods 收录输入源，所以一次 register miss 不致命。
+"${famo_executable}" --register-input-source || true
+
+if [ "${is_update}" = true ]; then
+  # 2') 更新/重装：整段跳过 enable 和首装 select。已装/进程活着 = 已被 enable 过；对已启用输入法
+  #     再调 TISEnableInputSource 会把好的启用态打成 "error" 幽灵态——All Input Sources 里有、切换
+  #     菜单消失（fcitx5 PR#4 状态机实测；TIS-ACTIVATION-NOTES 定律 11）。这正是 R3 的幂等判据替换：
+  #     bundle 预存在 + 进程存活的复合判据优于 TIS IsEnabled（后者对 default-on 模式恒返回 true，
+  #     重复装测必然二次 enable）。残余边缘见 0a 注释。
+  echo "Famo postinstall: 检测到已有安装（bundle=${bundle_preexisted} / 进程=${was_running}），更新路径跳过 enable/select。"
+else
+  # 2) 启用输入源（LOGIN USER —— TIS enable 是 per-user）。仅首装/未启用态走这里，一次且仅一次。
+  #    （不在这里跑 `--build`：Main.swift --build 不设置 Famo 的 user_data_dir，会误建一个游离的
+  #     ~/Library/Rime；真正的 schema 部署在第 4 步 `open -g Famo.app`→setupRime 里落到自有 Rime 目录。）
+  as_login_user "${famo_executable}" --enable-input-source || true
+
+  # 3) best-effort 自动切到法墨（仅锦上添花）。NON-fatal：第三方输入法被程序化 enable 会弹「允许」同意框，
+  #    用户没点之前 select 可能返回 -50 / 失败（TIS-ACTIVATION-NOTES 定律2/3）。**绝不**把 select 失败
+  #    当安装失败 —— 文件早已就位。
+  as_login_user "${famo_executable}" --select-input-source || true
+fi
+
+# 4) 无参数启动安装好的 Famo.app，让它的 IMKServer 发布 Mach endpoint —— 法墨需要 live server 才能打字
+#    （Squirrel 由系统按需拉起；法墨保持常驻进程）。这一步的 setupRime 会把 法学 + rime-ice schema
+#    部署到法墨自有 Rime 目录（user_data_dir 已正确设置）。
+as_login_user /usr/bin/open -g "${famo_app_root}" || true
+
+# 4b) 若更新前法墨是当前输入法（0b 主信号 OR 0c 副信号）：fresh 进程切回法墨（无参 = 选回主模式；
+#     best-effort，与 0d 的切出配对；#16 补救实测 TISSelectInputSource(Hans) err=0 三连有效，
+#     且 select 后 TextInputMenuAgent 会自行刷新菜单快照）。这不是抢源：只还原更新打断的既有态。
+if [ "${was_selected}" = true ]; then
+  as_login_user "${famo_executable}" --select-input-source || true
+fi
+
+# 5) 强制输入菜单代理立即重读启用列表（TIS-ACTIVATION-NOTES 定律7；微信/搜狗 install.sh 同样 kill
+#    SystemUIServer）。launchd 会自动重启它们。
+/usr/bin/killall SystemUIServer TextInputMenuAgent TextInputSwitcher 2>/dev/null || true
+
+# 6) 仅诊断：若法墨落进 "已选中但未真正启用" 死半态，把可复制的系统设置恢复指引打进安装日志。读用户会话，
+#    跑在同一 asuser GUI 域。best-effort，永不让安装失败。
+as_login_user "${famo_executable}" --detect-activation || true
