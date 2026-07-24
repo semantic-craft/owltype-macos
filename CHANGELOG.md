@@ -7,7 +7,7 @@
 - deploy --build into Famo's own data root, not the process cwd (d6df59d)
 - wubi date_translator 修正正则不锚行尾（上游行带尾随注释） (5c726c5)
 - deliver Famo CLI notifications immediately so --reload survives DNC suspension (#21)
-- 发布净化门只拦私人家目录路径，放行上游 CI 公共构建前缀 /Users/runner/
+- 发布净化门只拦私人家目录路径，放行上游 CI（GitHub runner）公共构建前缀
 
 ### security
 - harden public single-repo development (42ec4eb)
