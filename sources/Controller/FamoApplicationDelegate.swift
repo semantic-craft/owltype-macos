@@ -9,11 +9,18 @@ import UserNotifications
 import Sparkle
 import AppKit
 import InputMethodKit
+import os
 
 final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegate, UNUserNotificationCenterDelegate {
   static let rimeWikiURL = URL(string: "https://github.com/rime/home/wiki")!
   static let updateNotificationIdentifier = "FamoUpdateNotification"
   static let notificationIdentifier = "FamoNotification"
+  /// Deploy/reload lifecycle evidence in the unified log. `print` from an IME process goes
+  /// nowhere useful, and rime's glog can't record a notification that never reached the
+  /// process — this channel is the app-side proof of "reload arrived / deploy succeeded or
+  /// failed". Read with:
+  ///   log show --predicate 'subsystem == "im.famo.inputmethod.Famo" && category == "deploy"' --info
+  static let deployLog = Logger(subsystem: "im.famo.inputmethod.Famo", category: "deploy")
 
   /// The single owner of the global librime lifecycle. The input controller obtains its
   /// per-composition Session from this engine (via `NSApp.famoAppDelegate.engine`), the
@@ -708,6 +715,7 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
     } else {
       // print("[DEBUG] maintenance fails")
       print("Famo: deploy failed during Rime maintenance.")
+      Self.deployLog.error("start_maintenance failed (fullCheck=\(fullCheck, privacy: .public)) — installation_update/detect_modifications refused; see rime glog in \(FamoApp.logDir.path, privacy: .public)")
       return false
     }
   }
@@ -835,10 +843,17 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
     center.addObserver(forName: NSWorkspace.willPowerOffNotification, object: nil, queue: nil, using: workspaceWillPowerOff)
 
     let notifCenter = DistributedNotificationCenter.default()
-    notifCenter.addObserver(forName: .init("FamoReloadNotification"), object: nil, queue: nil, using: rimeNeedsReload)
-    notifCenter.addObserver(forName: .init("FamoSyncNotification"), object: nil, queue: nil, using: rimeNeedsSync)
-    notifCenter.addObserver(forName: .init("FamoToggleASCIIModeNotification"), object: nil, queue: nil, using: rimeToggleASCIIMode)
-    notifCenter.addObserver(forName: .init("FamoGetASCIIModeNotification"), object: nil, queue: nil, using: rimeGetASCIIMode)
+    // Observer side of the DNC-suspension fix (2026-07-24, see Main.swift `--reload`): the
+    // block API registers with the default `.coalesce` suspension behavior, and NSApplication
+    // suspends DNC delivery once the app has been active and resigned — after any
+    // settings-window visit a default post queues forever and the CLI notifications go dead.
+    // Selector registration is the only API that exposes `suspensionBehavior`;
+    // `.deliverImmediately` keeps these observers reachable from ANY poster (including an
+    // older CLI binary that posts without deliverImmediately).
+    notifCenter.addObserver(self, selector: #selector(rimeNeedsReload(_:)), name: .init("FamoReloadNotification"), object: nil, suspensionBehavior: .deliverImmediately)
+    notifCenter.addObserver(self, selector: #selector(rimeNeedsSync(_:)), name: .init("FamoSyncNotification"), object: nil, suspensionBehavior: .deliverImmediately)
+    notifCenter.addObserver(self, selector: #selector(rimeToggleASCIIMode(_:)), name: .init("FamoToggleASCIIModeNotification"), object: nil, suspensionBehavior: .deliverImmediately)
+    notifCenter.addObserver(self, selector: #selector(rimeGetASCIIMode(_:)), name: .init("FamoGetASCIIModeNotification"), object: nil, suspensionBehavior: .deliverImmediately)
     notifCenter.addObserver(forName: .init(kTISNotifySelectedKeyboardInputSourceChanged as String), object: nil, queue: .main) { [weak self] _ in
       self?.finalizeStrandedComposition()
       self?.selectionMenuCoordinator?.hide()
@@ -982,19 +997,26 @@ private extension FamoApplicationDelegate {
     self.shutdownRime()
   }
 
-  func rimeNeedsReload(_: Notification) {
+  @objc func rimeNeedsReload(_: Notification) {
     let trace = FamoLatencyTrace.begin("reload.notification")
     defer { FamoLatencyTrace.end("reload.notification", trace) }
     print("Reloading rime on demand.")
-    self.deploy()
+    // 送达凭据：通知丢失时 app 侧和 librime 侧都零日志（2026-07-24 静默 reload 排查的盲区）。
+    FamoApplicationDelegate.deployLog.notice("FamoReloadNotification received — starting full deploy")
+    let ok = self.deploy()
+    if ok {
+      FamoApplicationDelegate.deployLog.notice("reload deploy succeeded")
+    } else {
+      FamoApplicationDelegate.deployLog.error("reload deploy FAILED — see rime glog in \(FamoApp.logDir.path, privacy: .public)")
+    }
   }
 
-  func rimeNeedsSync(_: Notification) {
+  @objc func rimeNeedsSync(_: Notification) {
     print("Sync rime on demand.")
     self.syncUserData()
   }
 
-  func rimeToggleASCIIMode(_ notification: Notification) {
+  @objc func rimeToggleASCIIMode(_ notification: Notification) {
     guard let mode = notification.object as? String else { return }
     let enableASCII = mode == "ascii"
 
@@ -1005,7 +1027,7 @@ private extension FamoApplicationDelegate {
     }
   }
 
-  func rimeGetASCIIMode(_: Notification) {
+  @objc func rimeGetASCIIMode(_: Notification) {
     NotificationCenter.default.post(name: .init("FamoReportASCIIModeNotification"), object: nil)
   }
 
