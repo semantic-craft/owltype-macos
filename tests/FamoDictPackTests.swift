@@ -82,10 +82,11 @@ final class FamoDictPackTests: XCTestCase {
   }
 
   func testWubiDateTranslatorPatchApplied() async throws {
+    // active 行的形状来自上游真实文件（KyleBing a194fb8 第49行）：带尾随注释，不能假设行尾干净。
     let schema = """
       engine:
         translators:
-          - lua_translator@date_translator
+          - lua_translator@date_translator # 自定义系统变量输出
           # - lua_translator@*wubi86_jidian_date_translator
       """
     let entry = try stub(
@@ -96,8 +97,9 @@ final class FamoDictPackTests: XCTestCase {
 
     XCTAssertEqual(result.installed, ["wubi86_jidian_trad.schema.yaml"])
     let installed = try read("wubi86_jidian_trad.schema.yaml")
-    XCTAssertTrue(installed.contains("- lua_translator@*wubi86_jidian_date_translator"))
-    XCTAssertFalse(installed.contains("- lua_translator@date_translator\n"))
+    // 改名生效且行尾注释原样保留（正则只替换匹配段）
+    XCTAssertTrue(installed.contains("- lua_translator@*wubi86_jidian_date_translator # 自定义系统变量输出"))
+    XCTAssertFalse(installed.contains("- lua_translator@date_translator"))
     // 注释行原样保留（patch 只动 active 行）
     XCTAssertTrue(installed.contains("# - lua_translator@*wubi86_jidian_date_translator"))
     // 记录的是 patch 后哈希，不是上游哈希
