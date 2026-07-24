@@ -23,7 +23,8 @@ final class FamoSettingsActionTests: XCTestCase {
     "FamoFuzzyZhZ", "FamoFuzzyChC", "FamoFuzzyShS", "FamoFuzzyNL", "FamoFuzzyRL",
     "FamoFuzzyFH", "FamoFuzzyAnAng", "FamoFuzzyEnEng", "FamoFuzzyInIng",
     "FamoPanelAppearance", "FamoPanelFontSize", "FamoPanelOrientation", "FamoPanelFontDesign",
-    "FamoPanelAnimations", "FamoPanelExpandedByDefault", "FamoSkin", "FamoEmojiInCandidates",
+    "FamoPanelAnimations", "FamoPanelExpandedByDefault", "FamoPanelPreviewPages", "FamoPanelPreviewRows",
+    "FamoSkin", "FamoEmojiInCandidates",
     "FamoCloudLaneEnabled", "FamoDeepSeekModel",
     "FamoSelectionMenuEnabled", "FamoSkillSourceVerificationEnabled", "FamoSkillResearchAssistEnabled",
     "FamoSkillDocumentFormattingEnabled",
@@ -87,6 +88,9 @@ final class FamoSettingsActionTests: XCTestCase {
     assertToggle(\.keyboardSelect23Semicolon, state, { FamoKeyboardPreferences.select23Semicolon }) { FamoKeyboardPreferences.select23Semicolon = $0 }
     assertToggle(\.keyboardCJKAlnumSpacing, state, { FamoKeyboardPreferences.cjkAlnumSpacing }) { FamoKeyboardPreferences.cjkAlnumSpacing = $0 }
     assertToggle(\.panelAnimationsEnabled, state, { FamoPanelPreferences.animationsEnabled }) { FamoPanelPreferences.animationsEnabled = $0 }
+    // 预览后页（三行候选·方向④Ⓑ）：开关 + 行数分段都经 FamoSettingsActions.set 写穿。
+    assertToggle(\.panelPreviewPages, state, { FamoPanelPreferences.previewPages }) { FamoPanelPreferences.previewPages = $0 }
+    assertSet(1, \.panelPreviewRows, state, { FamoPanelPreferences.previewRows }) { FamoPanelPreferences.previewRows = $0 }
     assertToggle(\.candidateEmojiEnabled, state, { FamoEmojiPreferences.candidateEmojiEnabled }) { FamoEmojiPreferences.candidateEmojiEnabled = $0 }
     assertToggle(\.cloudEnabled, state, { FamoCloudPreferences.isEnabled }) { FamoCloudPreferences.isEnabled = $0 }
     assertToggle(\.askWebSearchEnabled, state, { FamoAskWebSearchSettings.isEnabled }) { FamoAskWebSearchSettings.isEnabled = $0 }

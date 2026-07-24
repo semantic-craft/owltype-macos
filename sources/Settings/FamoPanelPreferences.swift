@@ -238,6 +238,22 @@ enum FamoPanelPreferences {
     set { FamoDefaults.standard.set(newValue, forKey: "FamoPanelShowPaging") }
   }
 
+  /// 预览后页（三行候选·方向④做法Ⓑ「等大淡显」）. Key `"FamoPanelPreviewPages"`,
+  /// default `false`（现状零变化）. On → 横排紧凑条下方以等大、淡显、无序号、不可交互的
+  /// 预览行显示后面 1–2 页；数据来自 librime 候选列表只读枚举（不真翻页）。竖排/折行/
+  /// 展开列表不叠加预览。
+  static var previewPages: Bool {
+    get { FamoDefaults.standard.object(forKey: "FamoPanelPreviewPages") as? Bool ?? false }
+    set { FamoDefaults.standard.set(newValue, forKey: "FamoPanelPreviewPages") }
+  }
+
+  /// 预览行数（1 或 2）. Key `"FamoPanelPreviewRows"`, default `2`. 读取时钳到 1...2，
+  /// 抵御手改 defaults 写出的越界值。
+  static var previewRows: Int {
+    get { min(2, max(1, FamoDefaults.standard.object(forKey: "FamoPanelPreviewRows") as? Int ?? 2)) }
+    set { FamoDefaults.standard.set(min(2, max(1, newValue)), forKey: "FamoPanelPreviewRows") }
+  }
+
   /// 切换提示通知 (show_notifications_when). Key `"FamoPanelShowNotificationsWhen"`,
   /// default `.always` (preserves shipping behavior). Feature 5.
   static var showNotificationsWhen: FamoNotificationWhen {
@@ -270,6 +286,10 @@ struct FamoPanelSnapshot: Sendable, Equatable {
   let candidateFormat: FamoCandidateFormat
   let theme: FamoCandidateTheme
   let appearance: FamoPanelAppearance
+  /// 预览后页 + 预览行数（三行候选·方向④Ⓑ）。控制器在 `showPanel` 里据此决定是否
+  /// 预取后页候选；面板/视图只消费取好的 `previewRows` 数据，不再读这两个偏好。
+  let previewPages: Bool
+  let previewRows: Int
 
   /// Read every backing preference once. Called by the controller (in `showPanel`) per composition,
   /// and by the panel's `refreshPreferences()` on a settings-driven look change.
@@ -283,6 +303,8 @@ struct FamoPanelSnapshot: Sendable, Equatable {
       showPaging: FamoPanelPreferences.showPaging,
       candidateFormat: FamoPanelPreferences.candidateFormat,
       theme: FamoSkinPreferences.skin.theme,
-      appearance: FamoPanelPreferences.appearance)
+      appearance: FamoPanelPreferences.appearance,
+      previewPages: FamoPanelPreferences.previewPages,
+      previewRows: FamoPanelPreferences.previewRows)
   }
 }
