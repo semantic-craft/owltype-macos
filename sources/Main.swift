@@ -275,6 +275,9 @@ struct FamoApp {
         NSApp.famoAppDelegate.startRime(fullCheck: false)
         FamoPerf.since(perfRime, "coldstart.rime")  // heavy: start_maintenance — dict + octagram load
         NSApp.famoAppDelegate.loadSettings()
+        // 方案B：公开包只带清洁室词库种子；完整词库首启在用户侧按 pin 拉取（不阻塞冷启动，
+        // 下载完成后自动 deploy() 编译）。已装 / 用户自备 / 开关关闭时这里只刷新状态。
+        FamoDictPackCenter.shared.autoFetchIfNeeded()
         FamoPerf.since(perfColdStart, "coldstart.total")
         // Activation belongs to the installer path. Public Sparkle updates are information-only and
         // send users to the standalone installer, so a plain app launch must not toggle TIS state.
