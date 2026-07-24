@@ -50,6 +50,7 @@ enum FamoManagedMarker {
   static let rimeIce = "FAMO MANAGED RIME_ICE PATCH v1"
   static let wubiJidian = "FAMO MANAGED WUBI86_JIDIAN PATCH v1"
   static let quickSendFile = "FAMO MANAGED QUICK_SEND FILE v1"
+  static let quickSendJSONFile = "FAMO MANAGED QUICK_SEND JSON FILE v1"
   static let quickSendRimeIce = "FAMO MANAGED QUICK_SEND RIME_ICE PATCH v1"
   static let promptsFile = "FAMO MANAGED PROMPTS FILE v1"
   static let promptsDictFile = "FAMO MANAGED PROMPTS DICT FILE v1"
@@ -169,7 +170,8 @@ final class FamoConfigWriter {
     "wubi86_jidian_pinyin.custom.yaml",
     "wubi86_jidian_trad.custom.yaml",
     "wubi86_jidian_trad_pinyin.custom.yaml",
-    "famo_quick_send.txt",       // 快捷短语表（Famo-owned, not user's custom_phrase.txt）
+    "famo_quick_send.json",      // 快捷短语 source of truth（text·code）
+    "famo_quick_send.txt",       // 快捷短语派生 Rime 表（Famo-owned, not user's custom_phrase.txt）
     "famo_prompts.json",         // 提示词 source of truth（code·title·body·category）
     "famo_prompts.txt",          // 提示词派生 Rime 表（只含 📝title \t code \t score，正文不进表）
     "law_phrase.txt",            // 法律短码表

@@ -26,16 +26,17 @@ final class FamoQuickSendPanelModelTests: XCTestCase {
 
   func testQuickSendPanelModelBuildsListFromStoreAndNavigates() throws {
     let dir = try makeTempDir()
-    let file = dir.appendingPathComponent(FamoQuickSendStore.fileName)
-    // text<TAB>code lines, plus a comment line the store must skip.
+    // Legacy dict-only dir (no JSON): text<TAB>code lines, plus a comment line the store must skip.
+    // The migration read normalizes → rows come back sorted by code (fy < pjzy < zg).
+    let file = dir.appendingPathComponent(FamoQuickSendStore.dictFileName)
     try "# comment\n北京市朝阳区人民法院\tfy\n最高人民法院\tzg\n判决摘要\tpjzy\n"
       .write(to: file, atomically: true, encoding: .utf8)
 
     var model = FamoPickerPanelModel(
       rows: FamoQuickSendStore.load(rimeDir: dir).map(FamoPickerRow.quickSend)
     )
-    XCTAssertEqual(model.rows.map(\.display), ["北京市朝阳区人民法院", "最高人民法院", "判决摘要"])
-    XCTAssertEqual(model.rows.map(\.id), ["fy", "zg", "pjzy"])
+    XCTAssertEqual(model.rows.map(\.display), ["北京市朝阳区人民法院", "判决摘要", "最高人民法院"])
+    XCTAssertEqual(model.rows.map(\.id), ["fy", "pjzy", "zg"])
     // First row selected by default → the ⏎ target.
     XCTAssertFalse(model.isEmpty)
     XCTAssertTrue(model.isSelected(0))
@@ -46,14 +47,14 @@ final class FamoQuickSendPanelModelTests: XCTestCase {
     XCTAssertTrue(model.isSelected(1))
     model.moveSelection(by: 5)
     XCTAssertTrue(model.isSelected(2))
-    XCTAssertEqual(model.selectedRow?.display, "判决摘要")
+    XCTAssertEqual(model.selectedRow?.display, "最高人民法院")
     // ↑ back up, clamp at 0.
     model.moveSelection(by: -9)
     XCTAssertTrue(model.isSelected(0))
 
     // Number keys are 1-based; out-of-range returns nil (no crash).
     XCTAssertEqual(model.row(forNumber: 1)?.display, "北京市朝阳区人民法院")
-    XCTAssertEqual(model.row(forNumber: 3)?.display, "判决摘要")
+    XCTAssertEqual(model.row(forNumber: 3)?.display, "最高人民法院")
     XCTAssertNil(model.row(forNumber: 4))
     XCTAssertNil(model.row(forNumber: 0))
   }
