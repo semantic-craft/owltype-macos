@@ -1,3 +1,31 @@
+<a name="1.5.0"></a>
+## 1.5.0 (2026-07-24)
+
+### Bug 修復 | Bug Fixes
+- honor the show-preedit toggle under inline_preedit (63bb2f6)
+- stop derived v-variant rows snowballing into duplicates (40b4a74)
+- deploy --build into Famo's own data root, not the process cwd (d6df59d)
+- wubi date_translator 修正正则不锚行尾（上游行带尾随注释） (5c726c5)
+
+### security
+- harden public single-repo development (42ec4eb)
+- add Swift CodeQL and dependency updates (#10) (b75d7e8)
+
+### 主要功能更新 | Major Updates
+- split 香槟橙 into 藏蓝 and new 燃橙 skins (ecaa1b4)
+- 首启用户侧拉取完整词库（方案B） (58b9fa7)
+
+### 文檔 | Documentation
+- remove internal development docs from the public tree (66feae1)
+
+### 構建 | Build
+- run the release gate on Xcode 26 and seed before packaged builds (5e9f75c)
+- declare the periphery scan target (d2d196e)
+- pin all workflow actions to full commit SHAs (50e9d57)
+- declare least-privilege permissions on product workflows (8cc1cb6)
+
+**Full Changelog**: https://github.com/rime/squirrel/compare/1.4.23...1.5.0
+
 <a name="famo-1.4.23"></a>
 ## 法墨 Famo 1.4.23 (2026-07-23)
 
