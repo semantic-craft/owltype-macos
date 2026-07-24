@@ -163,12 +163,13 @@ grep -q 'identifier="im.famo.inputmethod.Famo"' "$package_info" || fail "pkg ide
 grep -q 'install-location="/Library/Input Methods"' "$package_info" || fail "pkg install location mismatch"
 pass "pkg metadata is Famo and installs to /Library/Input Methods"
 
+# 方案B：静态 _user_seed 只启用 rime_ice（清洁室基线）。五笔/双拼/简体拼音的 schema_list
+# 由 App 首启的 FamoManagedKeyboardPatchPlan 按当前偏好写入（setupRime，seed 之后、首次
+# deploy 之前），其源文件由 dict-pack 用户侧拉取后补建 —— 静态种子里再断言全套属全量种子
+# 时代的陈旧期望（2026-07-24 1.5.0 出包时逮住）。
 seed="$tmp/Famo-component.pkg/Payload/Famo.app/Contents/SharedSupport/_user_seed/default.custom.yaml"
-for s in rime_ice pinyin_simp double_pinyin_flypy \
-         wubi86_jidian wubi86_jidian_pinyin wubi86_jidian_trad wubi86_jidian_trad_pinyin; do
-  grep -q "schema: $s" "$seed" || fail "pkg seed does not enable $s"
-done
-pass "pkg seed enables 雾凇全拼/简体拼音/小鹤双拼/极点五笔全套"
+grep -q "schema: rime_ice" "$seed" || fail "pkg seed does not enable rime_ice"
+pass "pkg seed 启用清洁室基线（rime_ice；全套 schema_list 由首启 managed patch + dict-pack 接管）"
 # emoji 出厂关 = 共享 rime_ice.schema.yaml 的 reset（不在 _user_seed）。纯雾凇无带声调 preedit。
 ice_schema="$tmp/Famo-component.pkg/Payload/Famo.app/Contents/SharedSupport/rime_ice.schema.yaml"
 grep -A3 'name: emoji' "$ice_schema" | grep -q 'reset: 0' ||
