@@ -9,16 +9,27 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cache_root="${FAMOTYPE_SEED_CACHE:-/tmp/famotype-rime-seed}"
 source_dir="$cache_root/rime-ice"
-essay_dir="$cache_root/rime-essay"
 output_dir="$repo_root/data/famo-rime"
 rime_ice_remote="https://github.com/iDvel/rime-ice.git"
 rime_ice_sha="b681a34f788795034b3b288830f4861980bc8b0d"
-rime_essay_remote="https://github.com/rime/rime-essay.git"
-rime_essay_sha="e9b1a374a6ea015fca5bdd04318924b4483ac35a"
 unihan_version="16.0.0"
 unihan_remote="https://www.unicode.org/Public/$unihan_version/ucd/Unihan.zip"
 unihan_sha="b8f000df69de7828d21326a2ffea462b04bc7560022989f7cc704f10521ef3e0"
 unihan_archive="$cache_root/Unihan-$unihan_version.zip"
+jieba_tag="v0.42.1"
+jieba_dict_remote="https://raw.githubusercontent.com/fxsjy/jieba/$jieba_tag/jieba/dict.txt"
+jieba_dict_sha="7197c3211ddd98962b036cdf40324d1ea2bfaa12bd028e68faa70111a88e12a8"
+jieba_dict_file="$cache_root/jieba-dict-$jieba_tag.txt"
+jieba_license_remote="https://raw.githubusercontent.com/fxsjy/jieba/$jieba_tag/LICENSE"
+jieba_license_sha="18ba0984839f85853b29fadaf992f7dba8fd0ca0fbeae34de2b8735222dc7a37"
+jieba_license_file="$cache_root/jieba-LICENSE-$jieba_tag.txt"
+ppd_sha="cee0ed6e6e4898580cafd2bd5e3723e20b214aa0"
+ppd_pinyin_remote="https://raw.githubusercontent.com/mozillazg/phrase-pinyin-data/$ppd_sha/pinyin.txt"
+ppd_pinyin_sha="dcc769607c220b312fea3e71cb63421298b4b891b1f7356a95ab58f2c96fff81"
+ppd_pinyin_file="$cache_root/ppd-pinyin-${ppd_sha:0:12}.txt"
+ppd_license_remote="https://raw.githubusercontent.com/mozillazg/phrase-pinyin-data/$ppd_sha/LICENSE"
+ppd_license_sha="89ac55df747e4776088c3e77531ef61b973a1a59dd8e6a4548a58996da9a4f70"
+ppd_license_file="$cache_root/ppd-LICENSE-${ppd_sha:0:12}.txt"
 spdx_license_tag="v3.28.0"
 license_cache="$cache_root/spdx-license-list-$spdx_license_tag"
 license_specs=(
@@ -44,6 +55,16 @@ fetch_license() {
   echo "$expected_sha  $target" | shasum -a 256 --check
 }
 
+fetch_pinned() {
+  local url="$1"
+  local expected_sha="$2"
+  local target="$3"
+  if [[ ! -f "$target" ]] || ! echo "$expected_sha  $target" | shasum -a 256 --check --status; then
+    curl --fail --location "$url" --output "$target"
+  fi
+  echo "$expected_sha  $target" | shasum -a 256 --check
+}
+
 if [[ ! -d "$source_dir/.git" ]]; then
   mkdir -p "$cache_root"
   git init "$source_dir"
@@ -53,17 +74,15 @@ fi
 git -C "$source_dir" fetch --depth 1 origin "$rime_ice_sha"
 git -C "$source_dir" checkout --detach "$rime_ice_sha"
 
-if [[ ! -d "$essay_dir/.git" ]]; then
-  git init "$essay_dir"
-  git -C "$essay_dir" remote add origin "$rime_essay_remote"
-fi
-git -C "$essay_dir" fetch --depth 1 origin "$rime_essay_sha"
-git -C "$essay_dir" checkout --detach "$rime_essay_sha"
-
 if [[ ! -f "$unihan_archive" ]] || ! echo "$unihan_sha  $unihan_archive" | shasum -a 256 --check --status; then
   curl --fail --location "$unihan_remote" --output "$unihan_archive"
 fi
 echo "$unihan_sha  $unihan_archive" | shasum -a 256 --check
+
+fetch_pinned "$jieba_dict_remote" "$jieba_dict_sha" "$jieba_dict_file"
+fetch_pinned "$jieba_license_remote" "$jieba_license_sha" "$jieba_license_file"
+fetch_pinned "$ppd_pinyin_remote" "$ppd_pinyin_sha" "$ppd_pinyin_file"
+fetch_pinned "$ppd_license_remote" "$ppd_license_sha" "$ppd_license_file"
 
 rm -rf "$output_dir"
 mkdir -p "$output_dir/_user_seed" "$output_dir/cn_dicts" "$output_dir/licenses"
@@ -91,7 +110,10 @@ sed \
 cp "$repo_root/data/rime_ice.public.dict.yaml" "$output_dir/rime_ice.dict.yaml"
 python3 "$repo_root/scripts/unihan-to-rime.py" \
   "$unihan_archive" "$output_dir/cn_dicts/famotype_unicode.dict.yaml"
-cp "$essay_dir/essay.txt" "$output_dir/essay.txt"
+python3 "$repo_root/scripts/build-famotype-base.py" \
+  "$unihan_archive" "$jieba_dict_file" "$ppd_pinyin_file" \
+  "$output_dir/cn_dicts/famotype_base.dict.yaml" \
+  "$unihan_version-jieba${jieba_tag#v}-ppd${ppd_sha:0:7}"
 cp "$source_dir/default.yaml" "$output_dir/"
 cp \
   "$source_dir"/symbols_v.yaml \
@@ -105,8 +127,8 @@ fi
 
 cp "$source_dir/LICENSE" "$output_dir/rime-ice.LICENSE"
 cp "$source_dir/others/docs/Credits.md" "$output_dir/rime-ice-Credits.md"
-cp "$essay_dir/LICENSE" "$output_dir/rime-essay.LICENSE"
-cp "$essay_dir/AUTHORS" "$output_dir/rime-essay.AUTHORS"
+cp "$jieba_license_file" "$output_dir/jieba.LICENSE"
+cp "$ppd_license_file" "$output_dir/phrase-pinyin-data.LICENSE"
 cp "$repo_root/librime/LICENSE" "$output_dir/librime.LICENSE"
 cp "$repo_root/librime-lua/LICENSE" "$output_dir/librime-lua.LICENSE"
 cp "$repo_root/plum/LICENSE" "$output_dir/plum.LICENSE"
@@ -117,12 +139,22 @@ cp "$repo_root/rime/"*.custom.yaml "$output_dir/_user_seed/"
 cat > "$output_dir/FAMOTYPE-SEED-SOURCES.md" <<EOF
 # Famotype public seed source map
 
-The Chinese dictionary in this seed has exactly two data inputs:
+The Chinese dictionary in this seed has exactly three data inputs:
 
+- \`cn_dicts/famotype_base.dict.yaml\` is generated from jieba \`dict.txt\` at
+  tag \`$jieba_tag\` (MIT), phrase-pinyin-data \`pinyin.txt\` at revision
+  \`$ppd_sha\` (MIT), and Unicode $unihan_version Unihan fields \`kTGH\`,
+  \`kTGHZ2013\`, \`kMandarin\`, and \`kHanyuPinlu\` under Unicode-3.0. Every
+  entry is restricted to the 通用规范汉字表 character set (Unihan \`kTGH\` 2013),
+  which keeps traditional-form and rare characters out of the word candidates.
 - \`cn_dicts/famotype_unicode.dict.yaml\` is generated from Unicode $unihan_version
-  \`Unihan_Readings.txt\` field \`kMandarin\` under Unicode-3.0.
-- \`essay.txt\` is the preset vocabulary from rime-essay revision
-  \`$rime_essay_sha\` under LGPL-3.0-only.
+  \`Unihan_Readings.txt\` field \`kMandarin\` under Unicode-3.0. It carries no
+  weights, so it only serves as a rare-character fallback below famotype_base.
+
+Only the curated \`pinyin.txt\` file of phrase-pinyin-data is used. Its
+\`large_pinyin.txt\`, \`cc_cedict.txt\`, and \`zdic_*\` files are excluded
+because their provenance is CC BY-SA or crawled data. rime-essay is no longer
+distributed with this seed.
 
 The rime-ice schemas, Lua helpers, OpenCC tables, symbols, and configuration are
 from revision \`$rime_ice_sha\` under GPL-3.0-only with its retained Credits.
@@ -136,12 +168,15 @@ EOF
   echo "Famotype local-core Rime seed"
   echo "rime-ice $rime_ice_sha"
   echo "source $rime_ice_remote"
-  echo "rime-essay $rime_essay_sha"
-  echo "source $rime_essay_remote"
   echo "unicode-unihan $unihan_version $unihan_sha"
   echo "source $unihan_remote"
+  echo "jieba $jieba_tag $jieba_dict_sha"
+  echo "source https://github.com/fxsjy/jieba"
+  echo "phrase-pinyin-data $ppd_sha $ppd_pinyin_sha"
+  echo "source https://github.com/mozillazg/phrase-pinyin-data"
   echo "license-texts SPDX license-list-data $spdx_license_tag"
-  echo "dictionary inputs limited to Unicode Unihan kMandarin and rime-essay"
+  echo "dictionary inputs limited to Unicode Unihan, jieba dict.txt, and phrase-pinyin-data pinyin.txt"
+  echo "rime-essay removed from the public seed after traditional-form review"
   echo "rime-ice cn_dicts and en_dicts omitted after provenance review"
   echo "wubi omitted pending provenance review"
   echo "octagram data omitted from the local-core seed"
