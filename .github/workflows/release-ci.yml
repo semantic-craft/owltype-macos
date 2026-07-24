@@ -4,11 +4,11 @@ on:
     tags:
       - '*'
     branches:
-      - master
+      - main
   workflow_dispatch:
 
-# No `contents: write` — CI never creates releases. The rime-law-next root orchestrator owns the
-# exact source/manifest/Draft Release composition and calls this repository's local packaging helper.
+# No `contents: write` — CI never creates releases. The maintainer's local release entrypoint
+# (scripts/release.sh) owns the signed cohort; composition/publishing stays outside CI.
 
 permissions:
   contents: read
@@ -45,10 +45,8 @@ jobs:
         # advisory only — dead-code findings must not block a release
         run: periphery scan --relative-results --skip-build --index-store-path build/Index.noindex/DataStore || true
 
-      # CI does NOT publish a release. scripts/release.sh only builds/signs/notarizes/packages the
-      # App-owned cohort; rime-law-next owns source/manifest/Draft Release composition.
-      # Why: the CI build is unsigned (no Developer ID) AND has no famo-seed (CI checks out
-      # this submodule alone, so famo-seed.sh's ../../packages/rime-law-config is absent and
-      # `make famo-seed` is never run) → its pkg is Gatekeeper-rejected AND missing
-      # rime-ice/法墨/wubi config (~14M shell). Publishing it here would clobber the locally-built
-      # signed + seeded pkg (~63M) with a broken one. CI's job is build + lint validation only.
+      # CI does NOT publish a release. scripts/release.sh (run locally by the maintainer) builds,
+      # signs, notarizes and packages the App cohort; composition/publishing stays outside CI.
+      # Why: the CI build is unsigned (no Developer ID), so its pkg is Gatekeeper-rejected and
+      # must never clobber the locally built signed + notarized cohort. CI's job is build + lint
+      # validation only.
