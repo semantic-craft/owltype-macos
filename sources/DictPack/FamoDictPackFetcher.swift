@@ -159,10 +159,12 @@ struct FamoDictPackFetcher {
     switch patch {
     case .wubiDateTranslator:
       // 对齐 famo-seed-full.sh：只改行首缩进后的 active 行，不碰注释里已带 `*` 的行。
+      // 不锚行尾（上游该行带尾随注释「# 自定义系统变量输出」，famo-seed-full 的 sed 同样不锚），
+      // 只替换匹配段，行尾注释原样保留。
       guard let text = String(data: data, encoding: .utf8) else {
         throw FamoDictPackError.patchDidNothing(dest: file.dest)
       }
-      let pattern = #"(?m)^(\s*)- lua_translator@date_translator$"#
+      let pattern = #"(?m)^(\s*)- lua_translator@date_translator\b"#
       let patched = text.replacingOccurrences(
         of: pattern,
         with: "$1- lua_translator@*wubi86_jidian_date_translator",
