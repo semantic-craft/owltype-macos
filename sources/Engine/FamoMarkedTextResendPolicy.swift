@@ -2,7 +2,7 @@
 //  FamoMarkedTextResendPolicy.swift
 //  Famo
 //
-//  #89（spec rime-law-next#88 §3，spike #87 真机绿灯）：marked text 重发决策的纯函数 seam。
+//  #89（spec 主线仓#88 §3，spike #87 真机绿灯）：marked text 重发决策的纯函数 seam。
 //
 //  历史：`show()` 曾带「内容相同即跳过」的去重守卫（Squirrel show() L558-562 同款）。占位/
 //  恒定内容场景（no_inline 的常量全角空格、inline candidate 退格后首候选不变）首键后每键

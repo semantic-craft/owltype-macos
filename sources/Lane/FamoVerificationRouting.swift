@@ -4,7 +4,7 @@
 //
 //  1:1 移植自 Responsay `ResponsayCore/LegalBrain/Verification/VerificationQueryRouter.swift`
 //  + `SelectionVerifyClipboard.swift` + `Security/ExternalLinkPolicy.swift`（体验对齐要求，
-//  见 rime-law-next docs/famo-responsay-alignment-spec.md）。Core 只产出 route 描述；
+//  见主线仓 docs/famo-responsay-alignment-spec.md）。Core 只产出 route 描述；
 //  打开 URL（用户默认浏览器，绝不用应用内 webview）与写剪贴板由 UI 层（#135）负责。
 //
 //  两种深链策略，按站选择：

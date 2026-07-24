@@ -12,7 +12,9 @@ APP="$ROOT/build/Build/Products/Release/Famo.app"
 PKG="$ROOT/package/Famo.pkg"
 UPDATE_PKG="$ROOT/package/Famo-update.pkg"
 APPCAST="$ROOT/package/appcast.xml"
-MANUAL_SMOKE="${FAMO_MANUAL_SMOKE:-$ROOT/../../.trellis/tasks/06-18-famo-m1-smoke-gate-and-activation-hardening/manual-host-app-smoke.md}"
+# Manual smoke evidence lives outside the public tree; point FAMO_MANUAL_SMOKE at the current
+# release's manual-host-app-smoke document.
+MANUAL_SMOKE="${FAMO_MANUAL_SMOKE:-}"
 DOMAIN="$FAMO_BUNDLE_ID"
 blocked=0
 preflight_only=0
@@ -266,7 +268,7 @@ if (( automated_only )); then
 elif [[ -f "$MANUAL_SMOKE" ]] && grep -q '^Status: PASS$' "$MANUAL_SMOKE"; then
   pass "manual host-app smoke is marked PASS"
 else
-  block "manual host-app smoke is not marked PASS"
+  block "manual host-app smoke is not marked PASS (set FAMO_MANUAL_SMOKE to the evidence document)"
 fi
 
 if (( blocked )); then
