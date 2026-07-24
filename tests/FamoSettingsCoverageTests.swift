@@ -56,6 +56,11 @@ final class FamoSettingsCoverageTests: XCTestCase {
     "Caps Lock 切换西文",             // Feature 2 good_old_caps_lock
     "内嵌候选预览",                   // Feature 3
     "候选条翻页箭头",                 // Feature 4
+    // 三行候选·方向④Ⓑ（预览后页）：开关 + 预览行数分段。action coverage 在
+    // FamoSettingsActionTests 的 panelPreviewPages / panelPreviewRows 断言；纯逻辑
+    // （取数门控/切行）在 FamoPreviewPagesPlanTests。
+    "预览后页",
+    "1 行", "2 行",
     "始终", "智能", "从不",           // Feature 5 切换提示通知
     "标准", "隐藏注释", "仅候选",     // Feature 7 候选格式
     "FamoInputMenuTitles.deploy",

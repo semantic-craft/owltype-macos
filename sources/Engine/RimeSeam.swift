@@ -68,6 +68,15 @@ protocol RimeSession: AnyObject {
   /// `change_page`; `up == true` pages backward.
   func changePage(up: Bool) -> Bool
 
+  /// Read-only peek at the candidate list beyond the current page（三行候选·预览后页）.
+  /// `candidate_list_from_index` + `candidate_list_next/end`: returns up to `count`
+  /// candidates starting at absolute `index` into the WHOLE candidate list (not the current
+  /// page). The iterator walks its own copy of the menu — the session's page/highlight
+  /// state is untouched, and no IMK client round-trip is involved. Returns `[]` when the
+  /// API is unavailable or the iterator can't start (e.g. index past the end). A default
+  /// implementation returns `[]` so existing fakes stay source-compatible.
+  func peekCandidates(from index: Int, count: Int) -> [RimeCandidate]
+
   /// `select_schema` on THIS live session — re-reads the compiled `build/<schema>.schema.yaml`
   /// in place (no engine restart, no dict/octagram rebuild; clears the current composition).
   /// Used by the fast settings-apply path to make a just-deployed config effective on the
@@ -92,6 +101,12 @@ protocol RimeSession: AnyObject {
 
   /// `destroy_session`. After this the session is invalid.
   func destroy()
+}
+
+extension RimeSession {
+  /// Default no-preview implementation — keeps fakes/spies source-compatible; the live
+  /// adapter overrides with the real iterator walk.
+  func peekCandidates(from _: Int, count _: Int) -> [RimeCandidate] { [] }
 }
 
 /// The global Rime lifecycle. Vends Sessions. All calls are on the IMK input thread.
@@ -261,6 +276,27 @@ final class LiveRimeSession: RimeSession {
 
   func changePage(up: Bool) -> Bool {
     rimeAPI.change_page(sessionId, up)
+  }
+
+  func peekCandidates(from index: Int, count: Int) -> [RimeCandidate] {
+    // Guarded like `get_version`: the function pointers ride librime's data_size
+    // versioning, so an older dylib may not carry them — degrade to "no preview".
+    guard count > 0,
+          let fromIndex = rimeAPI.candidate_list_from_index,
+          let next = rimeAPI.candidate_list_next,
+          let end = rimeAPI.candidate_list_end else { return [] }
+    var iterator = RimeCandidateListIterator()
+    guard fromIndex(sessionId, &iterator, Int32(index)) else { return [] }
+    defer { end(&iterator) }
+    var peeked: [RimeCandidate] = []
+    peeked.reserveCapacity(count)
+    while peeked.count < count, next(&iterator) {
+      peeked.append(RimeCandidate(
+        text: iterator.candidate.text.map { String(cString: $0) } ?? "",
+        comment: iterator.candidate.comment.map { String(cString: $0) }
+      ))
+    }
+    return peeked
   }
 
   func selectSchema(_ id: String) -> Bool {

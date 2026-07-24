@@ -72,6 +72,11 @@ struct FamoCandidatePanelView: View {
         flowRow
       } else {
         compactRow
+        // 预览后页（三行候选·方向④Ⓑ）：仅横排紧凑条下方叠加；展开成纵向列表时随
+        // `showsFullList` 一起消失。
+        if !state.previewRows.isEmpty {
+          previewSection
+        }
       }
     }
     // 竖排让内容/输入串撑宽度（仿搜狗的窄竖排，原 244 强制留白过宽）；横排维持 210。
@@ -203,7 +208,42 @@ struct FamoCandidatePanelView: View {
     }
     .padding(.horizontal, 8)
     .padding(.top, 4)
+    // 有预览行时收紧主行底边距（预览段自带底部 9），行距与行内间距一致。
+    .padding(.bottom, state.previewRows.isEmpty ? 9 : 4)
+  }
+
+  // MARK: 预览后页（三行候选·方向④Ⓑ — 等大淡显）
+
+  /// Preview rows for the next 1–2 pages under the compact bar. 做法Ⓑ的裁决：与主行
+  /// **等大**（矩形轮廓稳、翻页时面板不跳）、只降不透明度（0.45 / 0.30）、只渲染候选
+  /// 文字（无序号/注释/徽章）、不可交互（`allowsHitTesting(false)`）、对辅助功能隐藏
+  /// （避免把不可选的行报给 VoiceOver）。数据由控制器预取（librime 只读枚举）。
+  private var previewSection: some View {
+    VStack(alignment: .leading, spacing: 5) {
+      ForEach(Array(state.previewRows.prefix(2).enumerated()), id: \.offset) { rowIndex, row in
+        HStack(spacing: 6) {
+          ForEach(row) { candidate in
+            previewPill(candidate)
+          }
+        }
+        .opacity(rowIndex == 0 ? 0.45 : 0.30)
+      }
+    }
+    .padding(.horizontal, 8)
     .padding(.bottom, 9)
+    .allowsHitTesting(false)
+    .accessibilityHidden(true)
+  }
+
+  /// A preview pill: candidate text only, sized/padded exactly like `compactPill` so the
+  /// three rows read as one grid (等大); never compressed or truncated (`.fixedSize()`).
+  private func previewPill(_ candidate: CandidateViewModel) -> some View {
+    Text(candidate.text)
+      .font(state.fontDesign.candidateFont(size: base + 1))
+      .foregroundStyle(palette.ink)
+      .fixedSize()
+      .padding(.horizontal, 8)
+      .padding(.vertical, 7)
   }
 
   // MARK: Flow row (横排折行 — 多行矩形)

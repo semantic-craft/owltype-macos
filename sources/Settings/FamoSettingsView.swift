@@ -513,6 +513,26 @@ struct FamoSettingsView: View {
         }
       }
     )
+    let previewPagesBinding = Binding(
+      get: { state.panelPreviewPages },
+      set: { newValue in
+        persistPanelPreference {
+          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelPreviewPages) {
+            FamoPanelPreferences.previewPages = $0
+          }
+        }
+      }
+    )
+    let previewRowsBinding = Binding(
+      get: { state.panelPreviewRows },
+      set: { newValue in
+        persistPanelPreference {
+          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelPreviewRows) {
+            FamoPanelPreferences.previewRows = $0
+          }
+        }
+      }
+    )
     return sectionCard(title: "候选显示") {
       VStack(alignment: .leading, spacing: 12) {
         VStack(alignment: .leading, spacing: 6) {
@@ -612,6 +632,26 @@ struct FamoSettingsView: View {
           }
           .tint(palette.accent)
           Text("关掉后候选条不再显示上/下页圆点（鼠标翻页入口）；键盘翻页键不受影响。")
+            .font(.system(size: 11))
+            .foregroundStyle(palette.ink3)
+        }
+
+        // 三行候选（方向④·做法Ⓑ 等大淡显）：主行 + 淡显预览后 1–2 页。
+        VStack(alignment: .leading, spacing: 6) {
+          Toggle(isOn: previewPagesBinding) {
+            Text("预览后页")
+              .font(.system(size: 13, weight: .medium))
+              .foregroundStyle(palette.ink2)
+          }
+          .tint(palette.accent)
+          if state.panelPreviewPages {
+            FamoSegmentedControl(
+              selection: previewRowsBinding,
+              options: [("1 行", 1), ("2 行", 2)],
+              palette: palette
+            )
+          }
+          Text("横排时在候选条下方淡显后面一/两页（等大、无序号、不可点）；翻页键行为不变。")
             .font(.system(size: 11))
             .foregroundStyle(palette.ink3)
         }
