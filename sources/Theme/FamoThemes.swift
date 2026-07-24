@@ -3,10 +3,10 @@
 //  法墨输入法 (Famo) — 皮肤外观 (skin) themes + preference
 //
 //  The 荔园红 (shenda) palette ships in `FamoCandidatePanelState.swift`; this file adds
-//  the other five skins from the project color source of truth
-//  `packages/rime-law-config/skins/colors.md` (胡佛红 / 珞珈青 / 嘉庚蓝 / 香槟橙 / 纽约紫) plus the
-//  `FamoSkin` enum and its UserDefaults home, so the 皮肤外观 settings page can switch
-//  the whole candidate panel + settings window palette.
+//  the other six skins from the project color source of truth
+//  `packages/rime-law-config/skins/colors.md` (胡佛红 / 珞珈青 / 嘉庚蓝 / 香槟橙藏蓝 / 香槟橙燃橙 /
+//  纽约紫) plus the `FamoSkin` enum and its UserDefaults home, so the 皮肤外观 settings page
+//  can switch the whole candidate panel + settings window palette.
 //
 //  Colors are hardcoded from colors.md (light/dark per skin). `famoColor(hex:)` and the
 //  `FamoCandidatePalette` / `FamoCandidateTheme` types live in FamoCandidatePanelState.swift.
@@ -93,6 +93,27 @@ extension FamoCandidateTheme {
     )
   )
 
+  /// 香槟橙（燃橙）/ illinoisflame — 「焦糖燃橙」(2026-07-24 grilling 重设计定案)。
+  /// 橙自己当主角：压暗到能承米白字的焦糖橙胶囊，香槟纸、全暖单色、通身不用藏蓝；
+  /// 与 illinois（藏蓝）并存为同校双皮肤。守 accentDeep_dark = accent_light 铁律 (#C24A00)；
+  /// 深色循「亮胶囊承深字」：accent #FF6E24 + onAccent 深咖 #2B1707（选中字对比度浅 4.5:1 / 深 6.1:1，AA）。
+  static let illinoisflame = FamoCandidateTheme(
+    cornerRadius: 13,
+    shadowRadius: 16,
+    light: FamoCandidatePalette(
+      accent: famoColor(hex: "C24A00"), accentDeep: famoColor(hex: "9A3A00"),
+      onAccent: famoColor(hex: "FFF4E8"), card: famoColor(hex: "FDF6EC"),
+      card2: famoColor(hex: "F6E9D4"), ink: famoColor(hex: "3A2A1B"),
+      ink2: famoColor(hex: "7B6248"), ink3: famoColor(hex: "AB9174")
+    ),
+    dark: FamoCandidatePalette(
+      accent: famoColor(hex: "FF6E24"), accentDeep: famoColor(hex: "C24A00"),
+      onAccent: famoColor(hex: "2B1707"), card: famoColor(hex: "241A12"),
+      card2: famoColor(hex: "2C2117"), ink: famoColor(hex: "F1E5D7"),
+      ink2: famoColor(hex: "B49C85"), ink3: famoColor(hex: "7F6C59")
+    )
+  )
+
   /// 纽约紫 / nyu (colors.md). accent = 官方 NYU Violet (NYU Law Visual Identity: PMS 2597,
   /// RGB 87,6,140, #57068C)；官方三色仅紫/黑/白。暗色 accent 循全系统提亮律升为 #A274DA(同 272° 紫相)，
   /// accentDeep 仍为精确 #57068C，故 NYU Violet 亮/暗两版皆在场。
@@ -114,15 +135,16 @@ extension FamoCandidateTheme {
   )
 }
 
-/// The six shipping skins (源 colors.md). `deepred` (荔园红) is the default; the other
-/// five are university palettes. Carries its display name, university tag, swatch color
-/// (the light accent), and the resolved `FamoCandidateTheme`.
+/// The seven shipping skins (源 colors.md). `deepred` (荔园红) is the default; the other
+/// six are university palettes（伊利诺伊为藏蓝 / 燃橙双皮肤）. Carries its display name,
+/// university tag, swatch color (the light accent), and the resolved `FamoCandidateTheme`.
 enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
   case deepred
   case stanford
   case wuda
   case xiada
   case illinois
+  case illinoisflame
   case nyu
 
   var id: String { rawValue }
@@ -133,7 +155,8 @@ enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
     case .stanford: return "胡佛红"
     case .wuda: return "珞珈青"
     case .xiada: return "嘉庚蓝"
-    case .illinois: return "香槟橙"
+    case .illinois: return "香槟橙（藏蓝）"
+    case .illinoisflame: return "香槟橙（燃橙）"
     case .nyu: return "纽约紫"
     }
   }
@@ -145,6 +168,7 @@ enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
     case .wuda: return "武汉大学"
     case .xiada: return "厦门大学"
     case .illinois: return "伊利诺伊大学"
+    case .illinoisflame: return "伊利诺伊大学"
     case .nyu: return "纽约大学"
     }
   }
@@ -157,6 +181,7 @@ enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
     case .wuda: return .wuda
     case .xiada: return .xiada
     case .illinois: return .illinois
+    case .illinoisflame: return .illinoisflame
     case .nyu: return .nyu
     }
   }
@@ -169,6 +194,7 @@ enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
     case .wuda: return famoColor(hex: "2A8367")
     case .xiada: return famoColor(hex: "1D4A8C")
     case .illinois: return famoColor(hex: "FF5F05")
+    case .illinoisflame: return famoColor(hex: "C24A00")
     case .nyu: return famoColor(hex: "57068C")
     }
   }
