@@ -10,7 +10,7 @@ prompt bodies, selected text, or surrounding host text.
 2. Open Instruments.
 3. Choose a template with Points of Interest / os_signpost support.
 4. Filter for subsystem `im.famo.inputmethod.Famo` and category `latency`.
-5. Type in a host app, open settings/emoji/quick-send windows, and trigger reload/deploy.
+5. Type in a host app, open settings/emoji/quick-send/AI windows, and trigger reload/deploy.
 
 ## Important Names
 

@@ -60,7 +60,7 @@ enum FamoStatusMessageType: String, Sendable {
 @Observable
 final class FamoStatusHUDState {
   var message: String = ""
-  var theme: FamoCandidateTheme = .deepred
+  var theme: FamoCandidateTheme = .shenda
 }
 
 /// The SwiftUI toast view. A single pill with the mode/schema label, styled with the

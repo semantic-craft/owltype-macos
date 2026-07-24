@@ -69,7 +69,7 @@ protocol RimeSession: AnyObject {
   func changePage(up: Bool) -> Bool
 
   /// `select_schema` on THIS live session — re-reads the compiled `build/<schema>.schema.yaml`
-  /// in place (no engine restart or full dictionary rebuild; clears the current composition).
+  /// in place (no engine restart, no dict/octagram rebuild; clears the current composition).
   /// Used by the fast settings-apply path to make a just-deployed config effective on the
   /// active composition's session. NOT on the IMK keystroke hot path.
   func selectSchema(_ id: String) -> Bool
@@ -451,17 +451,20 @@ protocol CandidateStoring: AnyObject {
 // Conformance only — the members already exist with matching signatures.
 extension FamoCandidateStore: CandidateStoring {}
 
-// MARK: - Controller→service ports
+// MARK: - Controller→service ports: snapshot emitter / selection polish
 //
 // The SAME controller→service injection range RimeEngine/SnapshotReading
-// established, extended to the remaining global singletons `FamoInputController` still
-// reaches for off the IMK hot path via bare `.shared`:
+// established, extended to the TWO remaining global singletons `FamoInputController` still
+// reached for off the IMK hot path via bare `.shared`:
 //
 //   • `SnapshotEmitting`     — the composition-timeline emitter the controller pokes from
 //                              `rimeUpdate()` / `commit()` (was `FamoSnapshotEmitter.shared`).
+//   • `SelectionPolishing`   — the explicit 润色选中 rewrite the controller awaits (was
+//                              `FamoSelectionPolishService.shared`).
+//
 // Each is a narrow (ISP) protocol over ONLY the members the controller calls — NOT the
-// singleton's whole surface — so the snapshot path becomes drivable from a fake with no
-// librime session. Production wires the `.shared` instances on the AppDelegate
+// singleton's whole surface — so the AI / snapshot path becomes drivable from a fake with no
+// librime session and no network. Production wires the `.shared` instances on the AppDelegate
 // (composition root, alongside `engine` / `snapshots`); injection is purely
 // additive and changes no behaviour. Both are `@MainActor` because the backing singletons
 // are, and the controller touches them only on the main actor (the emitter calls are already
@@ -478,6 +481,14 @@ protocol SnapshotEmitting: AnyObject {
   func emitCleared()
 }
 
+/// The controller's explicit 润色选中 rewrite. Exposes ONLY the rewrite entry point — not the
+/// service's keychain / fetcher / preferences internals — so a fake can return scripted
+/// rewrites without DeepSeek or the keychain.
+@MainActor
+protocol SelectionPolishing: AnyObject {
+  func polishSelection(_ selection: String) async throws -> [String]
+}
+
 /// The controller's prompt lookup at the commit chokepoint (task 06-30-famo-prompt-management-panel).
 /// Exposes ONLY the (originating code, committed title) → entry lookup — not the store's
 /// load/save/validation surface — so a fake can return a scripted prompt without touching disk.
@@ -489,4 +500,5 @@ protocol PromptResolving: AnyObject {
 
 // Conformances only — the members already exist with matching signatures.
 extension FamoSnapshotEmitter: SnapshotEmitting {}
+extension FamoSelectionPolishService: SelectionPolishing {}
 extension FamoPromptResolver: PromptResolving {}

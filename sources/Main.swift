@@ -1,14 +1,17 @@
 //
 //  Main.swift
 //  Famo
+//
+//  Created by Leo Liu on 5/10/24.
+//
 
 import Foundation
 import InputMethodKit
 import os
 
 /// File-system boundary for user-authored input data. macOS normally protects the user's home
-/// directory, but Famotype also makes its own data root private so prompts,
-/// project terms and Rime learning data are not world-readable if parent
+/// directory, but Famo also makes its own data root private so clipboard history, prompts,
+/// project terms, provider metadata, and Rime learning data are not world-readable if parent
 /// directory permissions are relaxed.
 enum FamoPrivateStorage {
   static func prepareDirectory(_ url: URL, fileManager: FileManager = .default) throws {
@@ -270,10 +273,11 @@ struct FamoApp {
         let perfRime = FamoPerf.mark()
         NSApp.famoAppDelegate.setupRime()
         NSApp.famoAppDelegate.startRime(fullCheck: false)
-        FamoPerf.since(perfRime, "coldstart.rime")  // heavy: start_maintenance and dictionary load
+        FamoPerf.since(perfRime, "coldstart.rime")  // heavy: start_maintenance — dict + octagram load
         NSApp.famoAppDelegate.loadSettings()
         FamoPerf.since(perfColdStart, "coldstart.total")
-        // Activation belongs to the installer path; a plain app launch must not toggle TIS state.
+        // Activation belongs to the installer path. Public Sparkle updates are information-only and
+        // send users to the standalone installer, so a plain app launch must not toggle TIS state.
         if CommandLine.arguments.contains("--activate-once") {
           NSApp.famoAppDelegate.selfHealActivationIfNeeded()
         }
@@ -321,8 +325,8 @@ struct FamoApp {
 }
 
 // 测试隔离（2026-07-21）：TEST_HOST 让单测跑在 Famo.app 进程里，FamoDefaults.standard 即真实
-// 偏好域 ~/Library/Preferences/im.famo.inputmethod.Famo.plist。Famo 代码一律经
-// FamoDefaults.standard 访问偏好；测试进程（单测注入 /
+// 偏好域 ~/Library/Preferences/im.famo.inputmethod.Famo.plist——全量单测曾清掉云端开关/热键槽
+// 等线上配置。Famo 代码一律经 FamoDefaults.standard 访问偏好；测试进程（单测注入 /
 // --ui-test-show-settings 启动）改写到独立 suite 并每次从空域开始，真实域零写入。
 // Lives in Main.swift to avoid a project.pbxproj edit (same `Famo` module, callable everywhere).
 enum FamoDefaults {

@@ -1,6 +1,9 @@
 //
 //  FamoInputController.swift
 //  Famo
+//
+//  Created by Leo Liu on 5/7/24.
+//
 //  Core (god-object shrink, 2026-06-20): stored state, the IMK key-event hot path
 //  (`handle()` / `processKey`), candidate navigation, and the controller's init/deinit.
 //  Cohesive clusters live in same-module extension files:
@@ -72,6 +75,12 @@ final class FamoInputController: IMKInputController {
   private static var loggedFirstKey = false
   private static var recordedFirstHostKeyEvent = false
 
+  // B8: per-lane supervisor for the explicit AI menu actions (off the IMK hot path). A new request
+  // on a lane cancels the prior in-flight one on that lane so a superseded DeepSeek/local request
+  // stops instead of running to completion (wasted tokens); cancelled on session teardown / deinit.
+  // seam: internal so FamoInputController+Menu.swift / +Lifecycle.swift can reach it across files.
+  let aiTasks = FamoLaneTasks()
+
   // Tokens of the block-based NotificationCenter observers registered in init. Block observers are
   // NOT covered by `removeObserver(self)` — the token must be removed explicitly in deinit, or every
   // dead controller (one per input session, in a process that lives for weeks) stays registered in
@@ -109,8 +118,8 @@ final class FamoInputController: IMKInputController {
     }
     ensurePreferredSchemaForIdleSession()
 
-    // 本地热键只在法墨为活跃输入法时由 IMK 直接匹配。绝不可回退到 Carbon RegisterEventHotKey：
-    // 在本 IMK
+    // 全局热键的唯一路径（#118）: 快捷短语面板与划词菜单召唤只在法墨为活跃输入法时有意义 —— 此时
+    // 每个 keyDown 本来就流经这里，直接匹配。绝不可回退到 Carbon RegisterEventHotKey：在本 IMK
     // 进程它注册返回 noErr 后窗口服务器会全局吞掉该组合，但事件永不进程内派发（真机实证）——
     // 热键不响应，还把组合键从所有应用（包括本匹配器）手里偷走。
     if event.type == .keyDown, handleGlobalHotKeyViaIMK(event) {
@@ -282,6 +291,9 @@ final class FamoInputController: IMKInputController {
   }
 
   deinit {
+    // B8: cancel any in-flight AI lane tasks for this session (nonisolated deinit — `cancelAll()`
+    // only calls `Task.cancel()`, which is thread safe and needs no main actor).
+    aiTasks.cancelAll()
     // Unregister the block observers from init (see notificationTokens); removeObserver(token) is
     // thread safe, fine from a nonisolated deinit.
     for token in notificationTokens {

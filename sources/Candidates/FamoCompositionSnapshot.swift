@@ -4,7 +4,7 @@
 //
 //  An IMMUTABLE, value-type snapshot of one composition state, copied off the IMK hot
 //  path AFTER librime + the candidate UI have already updated. It carries everything the
-//  asynchronous local-enhancement layer needs to (a) build a request and
+//  asynchronous enhancement layer (T1 local / T2 cloud) needs to (a) build a request and
 //  (b) later prove the result is still fresh — so a late async result can be dropped
 //  instead of clobbering newer input.
 //
@@ -18,7 +18,8 @@
 import Foundation
 
 /// One candidate, copied out of librime into a plain value. Deliberately holds no engine
-/// handle / index into live Rime state — only what the local enhancement layer may read.
+/// handle / index into live Rime state — only what the enhancement layer may read or echo
+/// back (e.g. as `rime_top_candidates` in a cloud payload).
 struct RimeCandidateSnapshot: Hashable, Sendable {
   /// 0-based position in the Rime menu page at capture time.
   let index: Int

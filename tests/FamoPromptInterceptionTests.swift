@@ -14,25 +14,12 @@
 //       precedence, and the title/code/empty miss cases.
 //    5. `strippingMarker`: drops the 📝 prefix (and a following half/full-width space).
 //
-//  Uses an in-memory fake prompt store — no librime, no disk.
+//  Uses `FakePromptStore` (defined in SeamPortsTests.swift) — no librime, no disk.
 //
 
 import Foundation
 import XCTest
 @testable import Famo
-
-@MainActor
-private final class FakePromptStore: PromptResolving {
-  var entries: [FamoPromptEntry]
-  private(set) var queries: [(code: String, title: String)] = []
-
-  init(entries: [FamoPromptEntry] = []) { self.entries = entries }
-
-  func entry(forCode code: String, title: String) -> FamoPromptEntry? {
-    queries.append((code, title))
-    return entries.first { $0.code == code && $0.title == title }
-  }
-}
 
 @MainActor
 final class FamoPromptInterceptionTests: XCTestCase {
