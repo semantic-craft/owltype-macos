@@ -106,21 +106,20 @@ else
   block "Release app has no valid stapled notarization ticket"
 fi
 
+# 方案B（2026-07-24）：公开 pkg 只携带清洁室种子（famo-seed.sh：Unihan 单字表 + essay），
+# 完整词库（雾凇 cn_dicts/en_dicts、KyleBing 五笔、octagram gram）由 App 首启在用户侧
+# 按 dict-pack manifest 拉取，绝不进公开 payload。旧的「payload 必含 wubi/pinyin_simp」
+# 断言属全量种子时代，已按新口径改写为反向断言。
 payload=$(pkgutil --payload-files "$PKG")
 for path in \
 	  './Famo.app/Contents/Resources/LICENSE.txt' \
 	  './Famo.app/Contents/Resources/THIRD_PARTY_NOTICES.md' \
-	  './Famo.app/Contents/SharedSupport/FAMO-SEED-MANIFEST.txt' \
+	  './Famo.app/Contents/SharedSupport/FAMOTYPE-SEED-MANIFEST.txt' \
 	  './Famo.app/Contents/SharedSupport/famo.yaml' \
 	  './Famo.app/Contents/SharedSupport/rime_ice.schema.yaml' \
 	  './Famo.app/Contents/SharedSupport/rime_ice.dict.yaml' \
-  './Famo.app/Contents/SharedSupport/double_pinyin_flypy.schema.yaml' \
-  './Famo.app/Contents/SharedSupport/pinyin_simp.schema.yaml' \
-  './Famo.app/Contents/SharedSupport/pinyin_simp.dict.yaml' \
-  './Famo.app/Contents/SharedSupport/wubi86_jidian.schema.yaml' \
-  './Famo.app/Contents/SharedSupport/wubi86_jidian_pinyin.schema.yaml' \
-  './Famo.app/Contents/SharedSupport/wubi86_jidian_trad.schema.yaml' \
-  './Famo.app/Contents/SharedSupport/wubi86_jidian_trad_pinyin.schema.yaml'
+  './Famo.app/Contents/SharedSupport/cn_dicts/famotype_unicode.dict.yaml' \
+  './Famo.app/Contents/SharedSupport/essay.txt'
 do
   grep -qxF "$path" <<<"$payload" || fail "pkg payload missing $path"
 done
@@ -130,7 +129,20 @@ if grep -qxF './Famo.app/Contents/SharedSupport/squirrel.yaml' <<<"$payload" ||
    grep -qxF './Famo.app/Contents/SharedSupport/_user_seed/squirrel.custom.yaml' <<<"$payload"; then
   fail "pkg payload still carries Squirrel frontend config names"
 fi
-pass "pkg payload carries Famo config names, license, notices, rime_ice (雾凇全拼), 小鹤双拼, 简体拼音, and 极点五笔全套 (KyleBing wubi86_jidian* + pinyin_simp 反查)"
+# 反倒退：dict-pack 载荷（未过再分发审计的第三方词库）绝不允许出现在公开 payload 里。
+for forbidden in \
+  '/cn_dicts/base\.dict\.yaml$' \
+  '/cn_dicts/8105\.dict\.yaml$' \
+  '/cn_dicts/tencent\.dict\.yaml$' \
+  '/en_dicts/' \
+  '\.gram$' \
+  '/wubi86_jidian'
+do
+  if grep -qE "$forbidden" <<<"$payload"; then
+    fail "pkg payload carries dict-pack material (matched: $forbidden) — 完整词库只能用户侧拉取，不得随包再分发"
+  fi
+done
+pass "pkg payload = 清洁室种子（rime_ice + famotype_unicode + essay），无 dict-pack 再分发载荷"
 
 # 07-07-schema-consistency-guard: cross-check the payload's 拼音 schema against the code's default
 # (FamoKeyboardPreferences .pinyin), so a future schema rename / stale seed can't silently ship a
