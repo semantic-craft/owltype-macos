@@ -36,9 +36,15 @@ SwiftUI 重做候选窗、设置、引导与表情符号面板。
 
 ```sh
 git submodule update --init --recursive
+make setup-dev
 make deps
 make release
 ```
+
+`make setup-dev` 为当前 checkout 启用仓库自带的 pre-push 门禁。推送前会阻止密钥文件、
+个人主目录绝对路径、私有仓 remote、非 GitHub noreply 提交身份与 secret scanner 命中。
+请把本仓库的 Git email 配置为 GitHub 提供的 noreply 地址；本地密钥使用 Keychain 或
+被 `.gitignore` 排除的环境文件保存，不要把 AI 会话、调试日志或本机配置加入 Git。
 
 签名、公证与打包由 `scripts/release.sh` 处理；完整发布编排另有对应源码、manifest 与人工验收门。
 

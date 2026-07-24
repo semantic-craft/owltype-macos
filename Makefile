@@ -1,4 +1,4 @@
-.PHONY: all install deps release debug bootstrap test release-gate source-archive update-package
+.PHONY: all install deps release debug bootstrap test release-gate source-archive update-package setup-dev privacy-gate
 
 all: release
 install: install-release
@@ -8,6 +8,10 @@ install: install-release
 # from-source path for local development).
 bootstrap:
 	bash action-install.sh
+
+setup-dev:
+	git config core.hooksPath .githooks
+	@echo "Installed tracked pre-push privacy gate for this checkout."
 
 RIME_BIN_DIR = librime/dist/bin
 RIME_LIB_DIR = librime/dist/lib
@@ -283,7 +287,10 @@ source-archive: release
 update-package: release
 	bash package/make_update_package "$(DERIVED_DATA_PATH)"
 
-release-gate: test source-archive
+privacy-gate:
 	bash scripts/check-public-source.sh
+	bash scripts/check-public-privacy.selftest.sh
 	bash scripts/check-secrets.sh
+
+release-gate: test source-archive privacy-gate
 	bash -n action-install.sh scripts/*.sh

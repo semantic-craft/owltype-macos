@@ -5,6 +5,8 @@ cd "$(git rev-parse --show-toplevel)"
 
 failed=0
 
+bash scripts/check-public-privacy.sh
+
 # Since the single-repo adoption (2026-07), the complete product — including the
 # cloud/AI layer — is developed in the open. This gate no longer polices feature
 # boundaries; it blocks only what must never be committed to a public tree:
@@ -45,18 +47,6 @@ if not info.get("SUPublicEDKey"):
     raise SystemExit("Sparkle public verification key is missing")
 PY
 then
-  failed=1
-fi
-
-if git grep -n -I -E '(BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|/Users/[^/]+/)' \
-  -- ':!librime' ':!librime-lua' ':!plum' ':!Sparkle' ':!scripts/check-public-source.sh'; then
-  printf 'private key material or absolute home-directory path found\n' >&2
-  failed=1
-fi
-
-if git grep -n -I -E '(famoime-mac|retired-private|xianweizhang@outlook\.com)' \
-  -- ':!librime' ':!librime-lua' ':!plum' ':!Sparkle' ':!scripts/check-public-source.sh'; then
-  printf 'private repository identity found\n' >&2
   failed=1
 fi
 

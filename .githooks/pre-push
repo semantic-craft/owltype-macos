@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+printf 'Running public-repository privacy gate before push...\n'
+bash scripts/check-public-source.sh
+bash scripts/check-secrets.sh
