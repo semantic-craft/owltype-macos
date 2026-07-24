@@ -36,3 +36,25 @@ Resources/vocab.txt
 # project.yml + Sources/ 才是源，须提交；生成的 .xcodeproj 与 build/ 不提交。
 installer/FamoInstaller.xcodeproj/
 installer/build/
+
+# Local credentials, signing material and AI-agent state must never enter the
+# public repository. Example env files remain allowed for documentation.
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+*.pem
+*.p12
+*.p8
+*.key
+*.keystore
+*.jks
+*.mobileprovision
+*.log
+.claude/settings.local.json
+.codex/
+.cursor/
+.windsurf/
+.continue/
+.aider*

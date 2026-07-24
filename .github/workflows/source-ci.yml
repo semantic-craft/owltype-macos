@@ -16,9 +16,12 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Check public-source boundary
-        run: bash scripts/check-public-source.sh
+        run: |
+          bash scripts/check-public-source.sh
+          bash scripts/check-public-privacy.selftest.sh
 
       - name: Check shell syntax
         run: bash -n action-install.sh scripts/*.sh
@@ -38,6 +41,7 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Install secret scanners
         run: brew install gitleaks trufflehog

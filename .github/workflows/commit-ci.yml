@@ -19,16 +19,13 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           submodules: true
+          persist-credentials: false
 
       - name: Install SwiftLint
         run: brew install swiftlint
 
       - name: Lint
         run: swiftlint
-
-      - name: Configure build environment
-        run: |
-          echo git_ref_name="$(git describe --always)" >> $GITHUB_ENV
 
       - name: Build Squirrel
         run: ./action-build.sh package
@@ -38,11 +35,3 @@ jobs:
 
       - name: Check Unused Code
         run: periphery scan --relative-results --skip-build --index-store-path build/Index.noindex/DataStore
-
-      - name: Upload Squirrel artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        with:
-          name: Squirrel-${{ env.git_ref_name }}.zip
-          path: package/*.pkg
-          # keep 90 days
-          retention-days: 90
