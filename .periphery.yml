@@ -1,6 +1,8 @@
 project: Famo.xcodeproj
 schemes:
 - Famo
+targets:
+- Famo
 format: github-actions
 relative_results: true
 retain_objc_accessible: true
