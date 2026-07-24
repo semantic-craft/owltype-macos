@@ -9,7 +9,7 @@ import Foundation
 import AppKit
 import SwiftUI
 
-struct FamoQuickSendEntry: Identifiable, Equatable, Sendable {
+struct FamoQuickSendEntry: Identifiable, Equatable, Sendable, Codable {
   let text: String
   let code: String
   var id: String { code }
@@ -27,18 +27,52 @@ enum FamoQuickSendError: LocalizedError, Equatable {
   }
 }
 
+/// 存储边界（镜像 `FamoPromptStore`，单源单向）：`famo_quick_send.json` 是 source of truth，
+/// `load` 只读它；`famo_quick_send.txt` 是从 entries **派生**的 Rime 表（`text \t code \t score`
+/// + 防撞 `v{code}` 变体行），只写不回读。历史教训：旧版把派生表当存储回读，`v{code}` 行被当成
+/// 真条目，每次保存再派生一层 `v`，条目滚雪球直到触发码撞上 32 字符上限（2026-07 修复）。
+/// 旧安装无 JSON 时 `load` 走一次性迁移：解析派生表并折叠 v 链，下次 `save` 落 JSON。
 enum FamoQuickSendStore {
-  static let fileName = "famo_quick_send.txt"
+  /// source of truth（text·code）。`load` 只读它。
+  static let fileName = "famo_quick_send.json"
+  /// 派生的 Rime 表文件名。`load` 不读它（仅旧格式迁移时读一次）——它只是 JSON 的投影。
+  static let dictFileName = "famo_quick_send.txt"
 
   static func load(rimeDir: URL = FamoApp.userDir) -> [FamoQuickSendEntry] {
     let url = rimeDir.appendingPathComponent(fileName)
+    if let data = try? Data(contentsOf: url),
+       let decoded = try? JSONDecoder().decode([FamoQuickSendEntry].self, from: data) {
+      let valid = decoded.compactMap { try? entry(text: $0.text, code: $0.code) }
+      return (try? normalized(valid)) ?? valid
+    }
+    return legacyEntries(rimeDir: rimeDir)
+  }
+
+  /// 旧格式（JSON 之前，派生表兼作存储）的一次性迁移读取：解析 `dictFileName` 各行，再折叠
+  /// 滚雪球出来的 v 链。只在 JSON 缺失时走到；随后的 `save` 落 JSON，此路径不再命中。
+  private static func legacyEntries(rimeDir: URL) -> [FamoQuickSendEntry] {
+    let url = rimeDir.appendingPathComponent(dictFileName)
     guard let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
-    return text.split(separator: "\n").compactMap { line in
+    let parsed = text.split(separator: "\n").compactMap { line -> FamoQuickSendEntry? in
       let raw = String(line)
       guard !raw.trimmingCharacters(in: .whitespaces).hasPrefix("#") else { return nil }
       let parts = raw.split(separator: "\t", omittingEmptySubsequences: false)
       guard parts.count >= 2 else { return nil }
       return try? entry(text: String(parts[0]), code: String(parts[1]))
+    }
+    return collapsingLegacyVariants(parsed)
+  }
+
+  /// 折叠旧格式回读出的防撞变体：同文本且 code == "v" + 另一条的 code ⇒ 该条是派生行，丢弃。
+  /// 链（`vv…`）逐级命中上一级同样被丢；基础码已被删掉的孤儿链保最短码。真实以 v 开头但文本
+  /// 不同的用户码不受影响。
+  static func collapsingLegacyVariants(_ entries: [FamoQuickSendEntry]) -> [FamoQuickSendEntry] {
+    let deduped = (try? normalized(entries)) ?? entries
+    var textByCode: [String: String] = [:]
+    for item in deduped { textByCode[item.code] = item.text }
+    return deduped.filter { item in
+      guard item.code.hasPrefix("v") else { return true }
+      return textByCode[String(item.code.dropFirst())] != item.text
     }
   }
 
@@ -52,6 +86,11 @@ enum FamoQuickSendStore {
     return FamoQuickSendEntry(text: text, code: code)
   }
 
+  /// 原子写三件（经 `FamoConfigWriter`：备份 + manifest + 回滚），镜像 `FamoPromptStore.save`：
+  ///   1. `famo_quick_send.json` —— source of truth（先严格归一，非法即抛，再编码 JSON）。
+  ///   2. `famo_quick_send.txt`  —— 从同一批 entries 派生的 Rime 表（每次保存全量重生成）。
+  ///   3. `rime_ice.custom.yaml` patch —— 注册 `table_translator@famo_quick_send`。
+  /// 三者同一 `timestamp`（同一回滚批次，rollback 会一起还原）。
   static func save(
     _ entries: [FamoQuickSendEntry],
     writer: FamoConfigWriter = FamoConfigWriter(),
@@ -61,7 +100,13 @@ enum FamoQuickSendStore {
     let clean = try normalized(entries)
     try writer.applyTextFile(
       fileName: fileName,
-      contents: render(clean),
+      contents: try render(clean),
+      marker: FamoManagedMarker.quickSendJSONFile,
+      timestamp: ts
+    )
+    try writer.applyTextFile(
+      fileName: dictFileName,
+      contents: renderDict(clean),
       marker: FamoManagedMarker.quickSendFile,
       timestamp: ts
     )
@@ -99,7 +144,17 @@ enum FamoQuickSendStore {
     return out.sorted { $0.code < $1.code }
   }
 
-  private static func render(_ entries: [FamoQuickSendEntry]) -> String {
+  /// 编码为稳定（排序键 + 美化）JSON 文本，末尾补换行。
+  private static func render(_ entries: [FamoQuickSendEntry]) throws -> String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    let data = try encoder.encode(entries)
+    return (String(data: data, encoding: .utf8) ?? "[]") + "\n"
+  }
+
+  /// 从（已归一的）entries 派生 Rime 表文本。每条出两行：`text \t code \t 100000` 与防撞
+  /// `text \t v{code} \t 100000`。此文件只写不回读（见类型文档）。
+  private static func renderDict(_ entries: [FamoQuickSendEntry]) -> String {
     var lines = [
       "# Rime table",
       "# coding: utf-8",
