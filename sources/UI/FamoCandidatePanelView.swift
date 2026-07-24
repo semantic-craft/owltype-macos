@@ -234,7 +234,7 @@ struct FamoCandidatePanelView: View {
   }
 
   /// Expand/collapse affordance — lives in the candidate row (not the preedit header,
-  /// which is empty under inline preedit) so it's always reachable.
+  /// which is hidden when the 显示输入串 toggle is off) so it's always reachable.
   private var expandChevron: some View {
     Image(systemName: state.isExpanded ? "chevron.up" : "chevron.down")
       .font(.system(size: base - 5, weight: .semibold))
