@@ -5,12 +5,12 @@ jobs:
     runs-on: macos-26
     steps:
       - name: Set Xcode version
-        uses: maxim-lobanov/setup-xcode@v1
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
           xcode-version: '26.5'
 
       - name: Checkout last commit
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           submodules: true
 
@@ -39,7 +39,7 @@ jobs:
         run: periphery scan --relative-results --skip-build --index-store-path build/Index.noindex/DataStore
 
       - name: Upload Squirrel artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: Squirrel-${{ env.git_ref_name }}.zip
           path: package/*.pkg
