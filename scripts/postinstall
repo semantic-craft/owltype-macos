@@ -107,8 +107,8 @@ if [ "${is_update}" = true ]; then
   echo "Famo postinstall: 检测到已有安装（bundle=${bundle_preexisted} / 进程=${was_running}），更新路径跳过 enable/select。"
 else
   # 2) 启用输入源（LOGIN USER —— TIS enable 是 per-user）。仅首装/未启用态走这里，一次且仅一次。
-  #    （不在这里跑 `--build`：Main.swift --build 不设置 Famo 的 user_data_dir，会误建一个游离的
-  #     ~/Library/Rime；真正的 schema 部署在第 4 步 `open -g Famo.app`→setupRime 里落到自有 Rime 目录。）
+  #    （不在这里跑 `--build`：schema 部署在第 4 步 `open -g Famo.app`→setupRime 里完成，无需重复。
+  #     ——--build 曾因不设置 user_data_dir 而把生成物落到进程 cwd，2026-07-24 已修复为落自有 Rime 目录。）
   as_login_user "${famo_executable}" --enable-input-source || true
 
   # 3) best-effort 自动切到法墨（仅锦上添花）。NON-fatal：第三方输入法被程序化 enable 会弹「允许」同意框，
