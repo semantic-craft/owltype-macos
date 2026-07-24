@@ -103,13 +103,17 @@ struct FamoApp {
           runningFamoApps.forEach { $0.terminate() }
           return true
         case "--reload":
-          DistributedNotificationCenter.default().postNotificationName(.init("FamoReloadNotification"), object: nil)
+          // deliverImmediately（2026-07-24 静默 reload 根因）：NSApplication 在 app 激活过又失活后
+          // （任何一次设置/引导窗口访问）自动挂起本进程的分布式通知投递；默认 post 会被 coalesce
+          // 进挂起队列，而后台 IME 永远不会再激活去冲队列——通知就静默丢失（librime 侧因此零日志）。
+          // deliverImmediately 无视挂起态直接送达所有 observer。下面各 CLI post 同理。
+          DistributedNotificationCenter.default().postNotificationName(.init("FamoReloadNotification"), object: nil, userInfo: nil, deliverImmediately: true)
           return true
         case "--apply-keyboard-patch":
           do {
             let written = try FamoManagedKeyboardPatchPlan.apply(snapshot: FamoKeyboardSnapshot.current())
             print("Applied Famo managed keyboard patch: \(written.joined(separator: ", "))")
-            DistributedNotificationCenter.default().postNotificationName(.init("FamoReloadNotification"), object: nil)
+            DistributedNotificationCenter.default().postNotificationName(.init("FamoReloadNotification"), object: nil, userInfo: nil, deliverImmediately: true)
           } catch {
             fputs("Failed to apply Famo managed keyboard patch: \(error)\n", stderr)
             exit(1)
@@ -204,13 +208,13 @@ struct FamoApp {
           _ = rimeAPI.deploy()
           return true
         case "--sync":
-          DistributedNotificationCenter.default().postNotificationName(.init("FamoSyncNotification"), object: nil)
+          DistributedNotificationCenter.default().postNotificationName(.init("FamoSyncNotification"), object: nil, userInfo: nil, deliverImmediately: true)
           return true
         case "--ascii":
-          DistributedNotificationCenter.default().postNotificationName(.init("FamoToggleASCIIModeNotification"), object: "ascii")
+          DistributedNotificationCenter.default().postNotificationName(.init("FamoToggleASCIIModeNotification"), object: "ascii", userInfo: nil, deliverImmediately: true)
           return true
         case "--nascii":
-          DistributedNotificationCenter.default().postNotificationName(.init("FamoToggleASCIIModeNotification"), object: "nascii")
+          DistributedNotificationCenter.default().postNotificationName(.init("FamoToggleASCIIModeNotification"), object: "nascii", userInfo: nil, deliverImmediately: true)
           return true
         case "--getascii":
           var responseReceived = false
@@ -225,7 +229,7 @@ struct FamoApp {
               responseReceived = true
             }
           }
-          DistributedNotificationCenter.default().postNotificationName(.init("FamoGetASCIIModeNotification"), object: nil)
+          DistributedNotificationCenter.default().postNotificationName(.init("FamoGetASCIIModeNotification"), object: nil, userInfo: nil, deliverImmediately: true)
           let timeout = Date().addingTimeInterval(2.0)
           while !responseReceived && Date() < timeout {
             RunLoop.current.run(until: Date().addingTimeInterval(0.01))
