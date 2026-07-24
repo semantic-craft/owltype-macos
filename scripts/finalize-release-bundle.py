@@ -52,7 +52,15 @@ REQUIRED_LICENSES = {
 # The remaining license blocker is upstream grammar data (*.gram from
 # lotem/rime-octagram-data), which ships without a redistribution license.
 FORBIDDEN_RELEASE_SUFFIXES = (".gram",)
-FORBIDDEN_FILE_MARKERS = (b"/" + b"Users/",)
+# The privacy gate exists to keep PRIVATE home directories out of public artifacts
+# (PUBLISHING_CHECKLIST: "absolute home-directory paths"). Upstream librime CI
+# prebuilts (rime_deployer, librime.1.dylib, rime-plugins/*.dylib) embed the public
+# GitHub-runner build prefix in glog __FILE__ strings — 410+ occurrences of
+# /Users/runner/work/librime/... — which identifies no person and cannot be
+# scrubbed without rebuilding upstream binaries. Allow exactly that one public
+# account; every other /Users/<name>/ still fails the gate.
+FORBIDDEN_HOME_PREFIX = b"/" + b"Users/"
+ALLOWED_HOME_ACCOUNTS = (b"runner/",)
 SPARKLE_LICENSE_SHA256 = "78babcec24fb8447551f9b5ece67042a82fd4ed14deab863d6e8f0619d0d25f6"
 COMPONENTS = (
     ("Famotype", None, "GPL-3.0-only", "https://github.com/semantic-craft/famotype-macos"),
@@ -111,10 +119,19 @@ def relative_files(app: Path) -> list[tuple[str, Path]]:
     )
 
 
+def contains_private_home_path(data: bytes) -> bool:
+    index = data.find(FORBIDDEN_HOME_PREFIX)
+    while index >= 0:
+        rest = data[index + len(FORBIDDEN_HOME_PREFIX):]
+        if not any(rest.startswith(account) for account in ALLOWED_HOME_ACCOUNTS):
+            return True
+        index = data.find(FORBIDDEN_HOME_PREFIX, index + len(FORBIDDEN_HOME_PREFIX))
+    return False
+
+
 def verify_no_private_build_paths(files: list[tuple[str, Path]]) -> None:
     for relative, path in files:
-        data = path.read_bytes()
-        if any(marker in data for marker in FORBIDDEN_FILE_MARKERS):
+        if contains_private_home_path(path.read_bytes()):
             fail(f"absolute home path embedded in release file: {relative}")
 
 
