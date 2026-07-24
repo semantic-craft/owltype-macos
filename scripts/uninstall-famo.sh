@@ -96,4 +96,5 @@ for t in "${present[@]}"; do
 done
 
 echo "✅ 法墨卸载完成（清理 ${removed} 项）。Squirrel、~/Library/Rime 及你的其他输入法均未被触碰。"
+echo "提示：DeepSeek API key 仍在钥匙串（im.famo.inputmethod.Famo.deepseek）；如需删除请在「钥匙串访问」手动移除。"
 echo "登出再登录可让输入菜单彻底刷新。"

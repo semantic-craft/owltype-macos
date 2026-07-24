@@ -1,34 +1,33 @@
-# Third-party notices
+# 第三方组件与许可证（法墨输入法 macOS）
 
-本文件是源码树的组件索引，不替代上游要求随二进制附带的许可证全文。
+法墨输入法 macOS 版是 **rime/squirrel（鼠须管）** 的派生作品（fork）。它打包并依赖以下第三方组件。
+本文件汇总许可证归属；各组件的完整许可证文本以其上游仓库为准。
 
-| Component | Version / revision | License | Source |
+## 直接派生 / 上游基座
+
+| 组件 | 角色 | 许可证 | 上游 |
 |---|---|---|---|
-| Squirrel-derived frontend | lineage parent `4db2c85…` | GPL v3 | https://github.com/rime/squirrel |
-| librime | `33e78140250125871856cdc5b42ddc6a5fcd3cd4` | BSD-3-Clause | https://github.com/rime/librime |
-| librime-lua | `ec52e48ea18f11af37717a01c337f853215cf70b` | BSD-3-Clause | https://github.com/hchunhui/librime-lua |
-| plum | `b1be1969f914cc005add4090631b855db00c2591` | LGPL-3.0 | https://github.com/rime/plum |
-| Sparkle | `41847a58cdef7506b257591fcca6f9495df591d4` / 2.6.2 | MIT plus bundled external notices | https://github.com/sparkle-project/Sparkle |
-| rime-ice configuration | `b681a34f788795034b3b288830f4861980bc8b0d` | GPL-3.0-only plus retained credits | https://github.com/iDvel/rime-ice |
-| rime-essay preset vocabulary | `e9b1a374a6ea015fca5bdd04318924b4483ac35a` | LGPL-3.0-only | https://github.com/rime/rime-essay |
-| Unicode Unihan | `16.0.0` | Unicode-3.0 | https://www.unicode.org/Public/16.0.0/ucd/Unihan.zip |
-| OpenCC | supplied by pinned librime build inputs | Apache-2.0 | https://github.com/BYVoid/OpenCC |
+| **Squirrel（鼠须管）** | 本项目 fork 的基座（IMK 输入法 app、候选窗、Rime 部署） | **GPL-3.0**（见 `LICENSE.txt`） | https://github.com/rime/squirrel |
+| **librime（中州韵）** | 输入引擎核心（C++，预编译 universal dylib + 头文件子模块） | **BSD-3-Clause**（"Copyright (c) 2014, RIME Developers"） | https://github.com/rime/librime |
 
-`make bootstrap` 校验 librime 1.17.0 官方构建包的 SHA-256：
+> 因基座为 GPL-3.0：**分发本 fork 的二进制时，必须提供对应修改源码、GPL-3.0 许可证文本、版权声明与构建说明，
+> 不得作为闭源制品分发。**
 
-- `rime-33e7814-macOS-universal.tar.bz2`: `11d8dc663c6ec06d5ccb6111ba664a9e7b631b703ac6acd07cffbac664021850`
-- `rime-deps-33e7814-macOS-universal.tar.bz2`: `dfe6047e87be271963d7466bd1a6e3d9e660c30e5e73e4bb94e8782c0a6ac8df`
-- `Sparkle-2.6.2.tar.xz`: `2300a7dc2545a4968e54621b7f351d388ddf1a5cb49e79f6c99e9a09d826f5e8`
+## 打包进 app 的运行时组件
 
-公开 seed 的中文词典只使用 Unicode 16.0.0 `Unihan_Readings.txt` 的 `kMandarin`
-字段和 rime-essay 的 `essay.txt`。rime-ice 的 `cn_dicts` 与 `en_dicts` 全部不分发，
-从而排除《通用规范汉字表》《现代汉语常用词表》及其他混合来源。生成 seed 时同时
-携带 `FAMOTYPE-SEED-SOURCES.md`、固定快照的 `rime-ice-Credits.md`、rime-essay
-的 AUTHORS/许可证，以及适用于实际文件的完整许可证和署名。
+| 组件 | 角色 | 许可证（以上游为准） | 上游 |
+|---|---|---|---|
+| **librime 插件**：librime-lua / librime-octagram / librime-predict | 雾凇拼音 rime_ice 等方案的 Lua / 语言模型 / 预测能力 | **BSD-3-Clause**（三者上游 `LICENSE`） | [librime-lua](https://github.com/hchunhui/librime-lua) / [librime-octagram](https://github.com/lotem/librime-octagram) / [librime-predict](https://github.com/rime/librime-predict) |
+| **rime-octagram-data（八股文 gram）** | 雾凇拼音 `rime_ice` 启用的简体语法模型数据 `zh-hans-t-essay-bgw.gram`（octagram 插件加载，整句加权） | **LGPL-3.0**（见上游 `LICENSE`） | https://github.com/lotem/rime-octagram-data |
+| **OpenCC** | 简繁转换数据与库（`SharedSupport/opencc`） | **Apache-2.0** | https://github.com/BYVoid/OpenCC |
+| **Sparkle** | 更新检查与签名 package 安装框架 | **MIT**（含其依赖各自许可） | https://github.com/sparkle-project/Sparkle |
+| **plum 配方 / 预置方案与词库** | `SharedSupport` 中的 base 配置与词典 | 各方案/词库上游许可（多为 GPL-3.0 / LGPL / CC，以来源为准） | https://github.com/rime/plum |
+| **rime-ice（雾凇拼音）** | Famo 自包含 seed（`data/famo-rime` → `SharedSupport`）的**拼音底座**：rime_ice 全拼方案 / cn_dicts / en_dicts / Lua / OpenCC / default.yaml | **GPL-3.0**（打包保留 `rime-ice.LICENSE`） | https://github.com/iDvel/rime-ice |
+| **rime-wubi86-jidian（极点五笔86）** | Famo seed 的**五笔全套** overlay：`wubi86_jidian` / `_pinyin` / `_trad` / `_trad_pinyin` 方案、码表、反查依赖 `pinyin_simp`、`numbers` 与 Lua（rime-ice 无自带五笔；无法学五笔） | **Apache-2.0**（打包保留 `wubi86-jidian.LICENSE`） | https://github.com/KyleBing/rime-wubi86-jidian |
 
-生成的 seed 还携带固定在 SPDX license-list-data `v3.28.0` 的 Apache-2.0、BSD-3-Clause、
-CC-BY-3.0、GPL-3.0-only、LGPL-3.0-only、MIT 与 Unicode-3.0 全文；这些通用条款与
-`rime-ice-Credits.md` 的逐来源署名共同分发。
+## 说明
 
-二进制发布门要求完整 license bundle、SBOM、固定内容散列、对应源码与签名更新包同时验证。
-Sparkle 的完整 `LICENSE`（包含其 bundled external notices）会复制进最终 App。
+- 上表中标「以上游为准」处，未在本文件内逐字复制许可证，避免转述失真；分发前请核对各上游 LICENSE 原文并随附。
+- 本 fork 对 Squirrel 的修改清单见本仓 `README.md` 与 git 历史。
+- 法墨自有部分（`sources/Famo*.swift`、`scripts/*`、深大红配色）随本项目许可；与上游 GPL-3.0 基座一并分发时，
+  整体须满足 GPL-3.0 的传染性要求。

@@ -5,17 +5,22 @@ cd "$(git rev-parse --show-toplevel)"
 
 failed=0
 
+# Since the single-repo adoption (2026-07), the complete product — including the
+# cloud/AI layer — is developed in the open. This gate no longer polices feature
+# boundaries; it blocks only what must never be committed to a public tree:
+# generated artifacts, license-restricted data sources, key material, personal
+# paths, and drift of the pinned Sparkle update anchor.
+
 while IFS= read -r tracked_path; do
   case "$tracked_path" in
-    build/*|download/*|bin/*|lib/*|Frameworks/*|data/opencc/*|data/plum/*|data/famo-rime/*|*.xcresult/*)
-      printf 'forbidden generated artifact: %s\n' "$tracked_path" >&2
-      failed=1
+    bin/.placeholder|lib/.placeholder)
+      continue
       ;;
   esac
 
   case "$tracked_path" in
-    *Cloud*|*Provider*|*SearchClient*|*SelectionReader*|*ClipboardHistory*|*GlobalEvent*|*Keychain*|*Appcast*|*Notarization*)
-      printf 'forbidden sensitive/release path: %s\n' "$tracked_path" >&2
+    build/*|download/*|bin/*|lib/*|Frameworks/*|data/opencc/*|data/plum/*|data/famo-rime/*|*.xcresult/*)
+      printf 'forbidden generated artifact: %s\n' "$tracked_path" >&2
       failed=1
       ;;
   esac
@@ -27,13 +32,6 @@ while IFS= read -r tracked_path; do
       ;;
   esac
 done < <(git ls-files)
-
-if git grep -n -I -E \
-  '(URLSession|AXUIElement|CGEventTap|SecItem(Add|CopyMatching|Delete|Update)|kSecAttr|com\.apple\.security\.network\.client)' \
-  -- sources resources Famo.xcodeproj data rime package scripts tools tests ':!scripts/check-public-source.sh'; then
-  printf 'forbidden API, entitlement, key material or local path found\n' >&2
-  failed=1
-fi
 
 if ! python3 - resources/Info.plist <<'PY'
 import plistlib
@@ -51,8 +49,14 @@ then
 fi
 
 if git grep -n -I -E '(BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|/Users/[^/]+/)' \
-  -- ':!librime' ':!librime-lua' ':!plum' ':!scripts/check-public-source.sh'; then
+  -- ':!librime' ':!librime-lua' ':!plum' ':!Sparkle' ':!scripts/check-public-source.sh'; then
   printf 'private key material or absolute home-directory path found\n' >&2
+  failed=1
+fi
+
+if git grep -n -I -E '(famoime-mac|retired-private|xianweizhang@outlook\.com)' \
+  -- ':!librime' ':!librime-lua' ':!plum' ':!Sparkle' ':!scripts/check-public-source.sh'; then
+  printf 'private repository identity found\n' >&2
   failed=1
 fi
 

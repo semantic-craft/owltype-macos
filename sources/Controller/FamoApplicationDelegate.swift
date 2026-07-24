@@ -1,14 +1,18 @@
 //
 //  FamoApplicationDelegate.swift
 //  Famo
+//
+//  Created by Leo Liu on 5/6/24.
+//
 
 import UserNotifications
 import Sparkle
 import AppKit
 import InputMethodKit
 
-final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegate, UNUserNotificationCenterDelegate {
   static let rimeWikiURL = URL(string: "https://github.com/rime/home/wiki")!
+  static let updateNotificationIdentifier = "FamoUpdateNotification"
   static let notificationIdentifier = "FamoNotification"
 
   /// The single owner of the global librime lifecycle. The input controller obtains its
@@ -24,11 +28,19 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, UNUserNoti
   /// production `.shared` emitter; swappable so tests can drive the snapshot path and assert
   /// the emitted call/args without a librime session.
   var snapshotEmitter: SnapshotEmitting = FamoSnapshotEmitter.shared
+  /// The controller's explicit 润色选中 rewrite, behind the narrow `SelectionPolishing` port.
+  /// Default is the production `.shared` service; swappable so tests can return scripted
+  /// rewrites without DeepSeek or the keychain.
+  var selectionPolish: SelectionPolishing = FamoSelectionPolishService.shared
   /// The controller's prompt-commit resolver, behind the narrow `PromptResolving` port. Given the
   /// originating trigger code + committed candidate title, returns the matching 提示词 entry (or
   /// nil). Default is the production `.shared` resolver (reads famo_prompts.json on a 📝 commit);
   /// swappable so tests can return a scripted entry without disk.
   var promptStore: PromptResolving = FamoPromptResolver.shared
+  /// Central host-client compatibility policy. Pure and swappable in tests; controller code asks
+  /// it before risky IMK/AX host reads.
+  var clientCapabilityPolicy = FamoClientCapabilityPolicy()
+  var clientWorkarounds = FamoClientWorkaroundSettings()
   var suppressOnboarding = false
   var config: FamoConfig?
   /// Candidate-window LAYOUT flags read from Rime `style/*` (linear/vertical/inline*),
@@ -69,26 +81,63 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, UNUserNoti
   // v0.3.3: SwiftUI onboarding/welcome window, created lazily on first launch (or
   // from the menu). Purely additive UI — only forwards already-safe actions.
   var famoOnboardingWindow: FamoOnboardingWindow?
-  lazy var updateController = SPUStandardUpdaterController(
-    startingUpdater: true,
-    updaterDelegate: nil,
-    userDriverDelegate: nil
-  )
+  var selectionMenuCoordinator: FamoSelectionMenuCoordinator?
+  lazy var updateController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: self)
+  var supportsGentleScheduledUpdateReminders: Bool {
+    true
+  }
+
+  func standardUserDriverWillHandleShowingUpdate(_ handleShowingUpdate: Bool, forUpdate update: SUAppcastItem, state: SPUUserUpdateState) {
+    NSApp.setActivationPolicy(.regular)
+    if !state.userInitiated {
+      NSApp.dockTile.badgeLabel = "1"
+      let content = UNMutableNotificationContent()
+      content.title = NSLocalizedString("A new update is available", comment: "Update")
+      content.body = NSLocalizedString("Version [version] is now available", comment: "Update").replacingOccurrences(of: "[version]", with: update.displayVersionString)
+      let request = UNNotificationRequest(identifier: Self.updateNotificationIdentifier, content: content, trigger: nil)
+      UNUserNotificationCenter.current().add(request)
+    }
+  }
+
+  func standardUserDriverDidReceiveUserAttention(forUpdate update: SUAppcastItem) {
+    NSApp.dockTile.badgeLabel = ""
+    UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [Self.updateNotificationIdentifier])
+  }
+
+  func standardUserDriverWillFinishUpdateSession() {
+    NSApp.setActivationPolicy(.accessory)
+  }
+
+  func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+    if response.notification.request.identifier == Self.updateNotificationIdentifier && response.actionIdentifier == UNNotificationDefaultActionIdentifier {
+      updateController.updater.checkForUpdates()
+    }
+
+    completionHandler()
+  }
 
   func applicationWillFinishLaunching(_ notification: Notification) {
     addObservers()
-    _ = updateController
+    selectionMenuCoordinator = FamoSelectionMenuCoordinator()
+    selectionMenuCoordinator?.start()
+    startHotKeyTap()
     // v0.3.3: first-run onboarding. Guarded + non-blocking (just orders the window
     // front); kept LAST so it never interferes with Rime / panel / status setup.
     if !suppressOnboarding && !FamoOnboarding.isDone {
       showOnboarding()
     }
+    // #16 新方向：更新后强推注销（免注销自动保持选中态真机不可靠）。首启不弹（首装走 pkg RequireLogout）。
+    let currentVersion = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? ""
+    FamoUpdateLogoutPrompt.runIfNeeded(current: currentVersion)
   }
 
   func applicationWillTerminate(_ notification: Notification) {
     // swiftlint:disable:next notification_center_detachment
     NotificationCenter.default.removeObserver(self)
     DistributedNotificationCenter.default().removeObserver(self)
+    selectionMenuCoordinator?.stop()
+    selectionMenuCoordinator = nil
+    stopHotKeyTap()
     statusHUD?.hidePanel()
     famoPanel?.hidePanel()
   }
@@ -208,6 +257,57 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, UNUserNoti
     FamoLatencyTrace.event("window.quickSend.firstVisible")
   }
 
+  // NO Carbon hotkey registration here (#118 root cause): in this IMK process it registers "noErr",
+  // the window server then consumes the combo system-wide, and the event is never dispatched
+  // in-process — the hotkey does nothing AND steals the combo from the paths that actually work.
+  //
+  // Working paths, in priority order:
+  // 1. `hotKeyTap` (CGEventTap, needs the AX permission 划词 already holds) — cross-host, catches
+  //    combos Chromium/Electron hosts would eat before the IME.
+  // 2. `FamoInputController.handle()` IMK matcher — fallback in cooperative hosts when AX is off.
+  // Both read the stored combos live; no registration or reapply choreography exists anymore.
+
+  /// Session event tap for the global hotkeys (see `FamoHotKeyEventTap`).
+  private let hotKeyTap = FamoHotKeyEventTap()
+
+  /// Wire and start the cross-host hotkey tap. Actions mirror the IMK matcher's, with the same
+  /// logged gate drops.
+  func startHotKeyTap() {
+    hotKeyTap.onQuickSend = { [weak self] in
+      guard let controller = self?.activeInputController else {
+        FamoHotKeyMatcher.log.notice("quickSend fired but activeInputController=nil — dropped")
+        return
+      }
+      controller.showFamoQuickSend()
+    }
+    hotKeyTap.onSelectionSummon = { [weak self] in
+      guard let coordinator = self?.selectionMenuCoordinator else {
+        FamoHotKeyMatcher.log.notice("selectionMenu fired but coordinator=nil — dropped")
+        return
+      }
+      coordinator.summonForCurrentSelection()
+    }
+    hotKeyTap.onAskAnything = { [weak self] in
+      guard let controller = self?.activeInputController else {
+        FamoHotKeyMatcher.log.notice("askAnything fired but activeInputController=nil — dropped")
+        return
+      }
+      controller.requestAIConversation()
+    }
+    hotKeyTap.onPromptAssistant = { [weak self] in
+      guard let controller = self?.activeInputController else {
+        FamoHotKeyMatcher.log.notice("promptAssistant fired but activeInputController=nil — dropped")
+        return
+      }
+      controller.showFamoPromptPicker(initialSegment: .prompt)
+    }
+    hotKeyTap.startIfPossible()
+  }
+
+  func stopHotKeyTap() {
+    hotKeyTap.stop()
+  }
+
   // MARK: - v0.2 settings window
 
   /// Build (or reuse) the settings window, populate its state, and show it.
@@ -257,7 +357,20 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, UNUserNoti
     state.keyboardCJKAlnumSpacing = FamoKeyboardPreferences.cjkAlnumSpacing
     state.keyboardCJKEnglishSpacing = FamoKeyboardPreferences.cjkEnglishSpacing
     state.keyboardCJKNumberSpacing = FamoKeyboardPreferences.cjkNumberSpacing
+    state.keyboardAutoPairBrackets = FamoKeyboardPreferences.autoPairBrackets
     state.keyboardAppEnglishBundleIDsText = FamoKeyboardPreferences.appEnglishBundleIDs.joined(separator: ", ")
+    // Seed Cloud lane preferences. These remain default-off and explicit-trigger only.
+    state.cloudEnabled = FamoCloudPreferences.isEnabled
+    state.cloudModel = FamoCloudPreferences.deepSeekModel
+    // Seed selection-menu skill platform preferences.
+    state.selectionMenuEnabled = FamoSelectionMenuPreferences.isEnabled
+    state.sourceVerificationSkillEnabled = FamoSelectionMenuPreferences.sourceVerificationEnabled
+    state.researchAssistSkillEnabled = FamoSelectionMenuPreferences.researchAssistEnabled
+    state.documentFormattingSkillEnabled = FamoSelectionMenuPreferences.documentFormattingEnabled
+    state.publishFormattingSkillEnabled = FamoSelectionMenuPreferences.publishFormattingEnabled
+    state.translationSkillEnabled = FamoSelectionMenuPreferences.translationEnabled
+    state.polishVariantsSkillEnabled = FamoSelectionMenuPreferences.polishVariantsEnabled
+    state.polishStyleMatchSkillEnabled = FamoSelectionMenuPreferences.polishStyleMatchEnabled
     // Seed the librime version for the 关于 page (best-effort; empty when absent).
     state.librimeVersion = rimeVersion() ?? ""
     state.syncDirectoryDisplayPath = FamoRimeSyncSettings().syncDirectoryDisplayPath
@@ -404,7 +517,7 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, UNUserNoti
   ///   1. `engine.selectSchema(id)` on a transient session — librime REMEMBERS the selection
   ///      for subsequent new sessions (e.g. the next app the user types in).
   ///   2. switch the ACTIVE controller's LIVE session in place (`select_schema(id)` re-reads
-  ///      the built `build/<id>.schema.yaml`; no full dictionary rebuild) so the current
+  ///      the built `build/<id>.schema.yaml`; no dict/octagram rebuild) so the current
   ///      composition window immediately uses the new schema.
   ///   3. reload style flags so the new schema's layout (linear/vertical/inline) takes effect.
   /// Wrapped in a `FamoPerf` mark. Off the IMK keystroke hot path.
@@ -435,6 +548,9 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, UNUserNoti
   /// `default.custom.yaml`'s `schema_list` + fast-apply, exactly like the 键盘输入 page.
   func applyOnboardingScheme(_ schemaID: String) {
     switch schemaID {
+    case "wubi86_jidian":
+      FamoKeyboardPreferences.inputMethod = .wubi
+      FamoKeyboardPreferences.wubiScheme = .jidian86
     case "double_pinyin":
       FamoKeyboardPreferences.inputMethod = .doublePinyin
       FamoKeyboardPreferences.doublePinyin = .ziranma
@@ -450,16 +566,18 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, UNUserNoti
     applyKeyboardConfigFast()
   }
 
-  func openWiki() {
-    NSWorkspace.shared.open(Self.rimeWikiURL)
+  func checkForUpdates() {
+    FamoLatencyTrace.event("button.open.checkUpdates")
+    if updateController.updater.canCheckForUpdates {
+      print("Checking for updates")
+      updateController.updater.checkForUpdates()
+    } else {
+      print("Cannot check for updates")
+    }
   }
 
-  func checkForUpdates() {
-    guard updateController.updater.canCheckForUpdates else {
-      print("Cannot check for updates")
-      return
-    }
-    updateController.updater.checkForUpdates()
+  func openWiki() {
+    NSWorkspace.shared.open(Self.rimeWikiURL)
   }
 
   static func showMessage(msgText: String?) {
@@ -506,6 +624,10 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, UNUserNoti
     // managed blocks are marker-delimited, so this is idempotent and runs cheaply on every launch
     // (not gated by the seed marker), which also fixes existing upgraders.
     _ = try? FamoManagedKeyboardPatchPlan.apply(snapshot: FamoKeyboardSnapshot.current())
+    // B1: one-shot, idempotent migration of a legacy single-DeepSeek setup into a default provider
+    // profile. No-op on a fresh install (no legacy key) or once a profile already exists. Off the
+    // IMK hot path — runs only here at app launch.
+    FamoProviderMigration.migrateLegacyDeepSeekIfNeeded()
     // swiftlint:disable identifier_name
     let notification_handler: RimeNotificationHandler = notificationHandler
     let context_object = Unmanaged.passUnretained(self).toOpaque()
@@ -719,6 +841,7 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, UNUserNoti
     notifCenter.addObserver(forName: .init("FamoGetASCIIModeNotification"), object: nil, queue: nil, using: rimeGetASCIIMode)
     notifCenter.addObserver(forName: .init(kTISNotifySelectedKeyboardInputSourceChanged as String), object: nil, queue: .main) { [weak self] _ in
       self?.finalizeStrandedComposition()
+      self?.selectionMenuCoordinator?.hide()
       // S1/R5: if the selected source is a Famo mode that is NOT truly enabled (the
       // key-swallowing dead half-state), log + surface copyable recovery guidance.
       // Not the IMK hot path: this fires only on selected-source CHANGE, not per keystroke.

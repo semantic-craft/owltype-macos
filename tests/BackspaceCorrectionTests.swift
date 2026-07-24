@@ -22,23 +22,6 @@ import Foundation
 import XCTest
 @testable import Famo
 
-@MainActor
-private final class FakeCandidateStore: CandidateStoring {
-  private(set) var mainSet: [[EnhancedCandidate]] = []
-  private(set) var smartUpserts: [(candidates: [EnhancedCandidate], snapshotID: UInt64)] = []
-  private(set) var clearCount = 0
-  private(set) var errors: [(message: String, lane: EnhancedCandidate.Lane, snapshotID: UInt64)] = []
-
-  func setMainCandidates(_ candidates: [EnhancedCandidate]) { mainSet.append(candidates) }
-  func upsertSmartCandidates(_ candidates: [EnhancedCandidate], snapshotID: UInt64) {
-    smartUpserts.append((candidates, snapshotID))
-  }
-  func clearForSnapshotChange() { clearCount += 1 }
-  func showError(_ message: String, lane: EnhancedCandidate.Lane, snapshotID: UInt64) {
-    errors.append((message, lane, snapshotID))
-  }
-}
-
 final class BackspaceCorrectionTests: XCTestCase {
 
   // MARK: - Helpers

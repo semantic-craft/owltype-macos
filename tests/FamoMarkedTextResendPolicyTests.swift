@@ -1,6 +1,6 @@
 //
 //  FamoMarkedTextResendPolicyTests.swift
-//  FamoTests
+//  FamoTests — #89（spec rime-law-next#88 §3）
 //
 //  行为锁：合成期任意按键序列 → setMarkedText 重发次数 = 合成期回合数（防内容去重回归，
 //  即 #89 任务 3a）。以 (previous, next) preedit 序列模拟 show() 的逐键决策——决策层与

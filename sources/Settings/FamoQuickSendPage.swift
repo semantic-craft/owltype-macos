@@ -122,6 +122,54 @@ enum FamoQuickSendStore {
   }
 }
 
+/// A built-in quick-send *example*: an AI coding agent's "skip all permission prompts" (YOLO)
+/// launch command, fronted by a short trigger code. Pure static data — never persisted and never
+/// deployed by default. The user must tick one in 快捷短语 to merge its `entry` into the live
+/// `FamoQuickSendStore` list (same add/remove path as a hand-typed phrase).
+struct FamoQuickSendExample: Identifiable, Sendable {
+  let tool: String          // e.g. "Claude Code"
+  let entry: FamoQuickSendEntry  // text = command, code = trigger
+  let note: String          // short caution / description
+  var id: String { entry.code }
+}
+
+enum FamoQuickSendExamples {
+  /// Only commands with official documentation are listed; no fabricated bypass flags (e.g. MiMo /
+  /// 小米 has no documented YOLO flag, so it is intentionally omitted).
+  static let all: [FamoQuickSendExample] = [
+    FamoQuickSendExample(
+      tool: "Claude Code",
+      entry: FamoQuickSendEntry(text: "claude --dangerously-skip-permissions", code: "yocc"),
+      note: "跳过所有权限确认"
+    ),
+    FamoQuickSendExample(
+      tool: "Codex",
+      entry: FamoQuickSendEntry(text: "codex --dangerously-bypass-approvals-and-sandbox", code: "yocx"),
+      note: "绕过审批与沙箱"
+    ),
+    FamoQuickSendExample(
+      tool: "Qwen Code",
+      entry: FamoQuickSendEntry(text: "qwen --yolo", code: "yoqw"),
+      note: "YOLO 自动批准"
+    ),
+    FamoQuickSendExample(
+      tool: "Kimi",
+      entry: FamoQuickSendEntry(text: "kimi --yolo", code: "yokm"),
+      note: "YOLO 自动批准"
+    ),
+    FamoQuickSendExample(
+      tool: "Grok",
+      entry: FamoQuickSendEntry(text: "grok --always-approve", code: "yogk"),
+      note: "自动批准"
+    ),
+    FamoQuickSendExample(
+      tool: "Antigravity",
+      entry: FamoQuickSendEntry(text: "agy --dangerously-skip-permissions", code: "yoag"),
+      note: "新工具，建议 agy --help 复核"
+    ),
+  ]
+}
+
 // MARK: - 快捷短语
 
 struct FamoQuickSendPage: View {
@@ -140,6 +188,7 @@ struct FamoQuickSendPage: View {
     ScrollView {
       VStack(spacing: 20) {
         editorCard
+        examplesCard
         listCard
         noteCard
       }
@@ -174,6 +223,63 @@ struct FamoQuickSendPage: View {
         }
       }
     }
+  }
+
+  /// Built-in examples — each AI agent's "skip all permission prompts" launch command. All off by
+  /// default; a checked row merges the example's entry into the live list (and unchecking removes
+  /// it), reusing the same save + redeploy path as a hand-typed phrase. No persisted enable flag.
+  private var examplesCard: some View {
+    SettingsCard(title: "示例（默认未启用）", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
+      VStack(alignment: .leading, spacing: 0) {
+        Text("以下为示例，默认未启用；勾选后才写入生效。这些命令会跳过对应 AI agent 的全部权限确认，请自行评估风险。")
+          .font(.system(size: 12))
+          .foregroundStyle(palette.ink3)
+          .fixedSize(horizontal: false, vertical: true)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.bottom, 4)
+        ForEach(FamoQuickSendExamples.all) { example in
+          SettingsCardDivider(palette: palette)
+          exampleRow(example)
+        }
+      }
+    }
+  }
+
+  private func exampleRow(_ example: FamoQuickSendExample) -> some View {
+    let isOn = entries.contains { $0.code == example.entry.code }
+    return Button(action: { toggleExample(example, on: !isOn) }) {
+      HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 3) {
+          Text(example.tool)
+            .font(.system(size: 13.5, weight: .medium))
+            .foregroundStyle(palette.ink)
+          Text(example.entry.text)
+            .font(.system(size: 11.5, design: .monospaced))
+            .foregroundStyle(palette.ink2)
+            .fixedSize(horizontal: false, vertical: true)
+          HStack(spacing: 6) {
+            // Display the `v`-prefixed variant — rime-ice routes the `v` lead to English/non-pinyin,
+            // so this is the collision-proof trigger the user actually types. The stored
+            // `entry.code` stays the base code (the store auto-generates the `v` variant).
+            Text("v\(example.entry.code)")
+              .font(.system(size: 11, design: .monospaced))
+              .foregroundStyle(palette.ink3)
+            Text("\(example.note)（基础码 \(example.entry.code) 亦可）")
+              .font(.system(size: 11.5))
+              .foregroundStyle(palette.ink3)
+          }
+        }
+        Spacer(minLength: 8)
+        FamoPillToggle(isOn: isOn, palette: palette)
+      }
+      .padding(.vertical, 8)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityElement(children: .combine)
+    .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
+    .accessibilityLabel(example.tool)
   }
 
   private var listCard: some View {
@@ -272,6 +378,22 @@ struct FamoQuickSendPage: View {
     phrase = ""
     code = ""
     editingCode = nil
+  }
+
+  /// Tick / untick a built-in example. ON merges its entry (replacing any same code); OFF removes
+  /// the code. Both go through the same `persist` (save + reload + redeploy) as a hand-typed phrase.
+  private func toggleExample(_ example: FamoQuickSendExample, on: Bool) {
+    do {
+      var next = entries.filter { $0.code != example.entry.code }
+      if on { next.append(example.entry) }
+      let persisted = try persist(next)
+      entries = persisted.0
+      status = on
+        ? (persisted.1 ? "已启用示例并应用配置改动。" : "已启用示例；应用配置失败，请查看诊断日志。")
+        : (persisted.1 ? "已停用示例并应用配置改动。" : "已停用示例；应用配置失败，请查看诊断日志。")
+    } catch {
+      status = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+    }
   }
 
   private func persist(_ next: [FamoQuickSendEntry]) throws -> ([FamoQuickSendEntry], Bool) {

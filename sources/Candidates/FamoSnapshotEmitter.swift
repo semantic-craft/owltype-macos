@@ -115,7 +115,7 @@ final class FamoSnapshotEmitter {
 
     // 项目输入空间 (blueprint_v2 P0): when a project is active, surface its words in the
     // smart lane with the 「项目」provenance. This is the SAME snapshotID-gated upsert path
-    // local enhancement services use — a stale composition is dropped by the store — and it
+    // the cloud/local services use — a stale composition is dropped by the store — and it
     // touches neither the IMK hot path nor the Rime main lane above. No project active →
     // nothing is injected (smart lane stays as set by P1+ services).
     injectActiveProjectWords(snapshotID: snapshot.id)
@@ -138,7 +138,7 @@ final class FamoSnapshotEmitter {
   /// Inject a backspace correction candidate into the smart lane for `snapshotID`, IFF the
   /// experiment is on AND the `previous → current` transition is a backspace-over-conversion AND a
   /// bundled CSC model proposes a different string. The candidate goes through the SAME
-  /// snapshotID-gated upsert as project words, so a stale snapshot drops it. Touches
+  /// snapshotID-gated upsert as project words / cloud results, so a stale snapshot drops it. Touches
   /// neither the IMK hot path nor the Rime main lane.
   ///
   /// Exact bypass when off: returns BEFORE constructing or probing the scorer, so the default-OFF
@@ -180,7 +180,7 @@ final class FamoSnapshotEmitter {
   /// derivation maps to `.project`), applies the project's 术语锁 rules (`FamoTerminology.apply`)
   /// in the SAME enhancement step — promoting preferred forms to the top and dropping forbidden
   /// variants — then hands the terminology-enforced list to the snapshotID-gated upsert, so a late /
-  /// stale snapshot is dropped exactly like any late local result. No-op when no project is active
+  /// stale snapshot is dropped exactly like a stale cloud result. No-op when no project is active
   /// AND no rules would fire. Touches neither the IMK hot path nor the Rime main lane.
   private func injectActiveProjectWords(snapshotID: UInt64) {
     guard let project = projectStore.activeProject else { return }

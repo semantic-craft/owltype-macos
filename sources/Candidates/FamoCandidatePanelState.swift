@@ -45,7 +45,7 @@ final class CandidatePanelState {
   /// false at the start of each new composition (in `FamoSwiftUICandidatePanel.update`)
   /// so every composition begins compact. Ignored when `isVertical` is true.
   var isExpanded: Bool = false
-  var theme: FamoCandidateTheme = .deepred
+  var theme: FamoCandidateTheme = .shenda
   /// Base candidate text point size. The view derives preedit (base − 2) and
   /// paging chevrons (base − 3) from it. Seeded from `FamoPanelPreferences.fontSize`
   /// on the live panel; defaults to 中 (16).
@@ -87,7 +87,7 @@ struct CandidateViewModel: Identifiable, Sendable, Equatable {
   /// Citation source line shown under the word in the vertical list; nil for ordinary
   /// candidates (whose reading/释义 stays in `comment`).
   let source: String?
-  /// G3: user-visible provenance (个人/项目/规则/已核验). `nil` = ordinary main-lane
+  /// G3: user-visible provenance (个人/项目/规则/已核验/AI). `nil` = ordinary main-lane
   /// Rime pinyin candidate → no label rendered (avoids per-candidate noise).
   let provenance: FamoProvenance?
 
@@ -114,8 +114,8 @@ func famoColor(hex: String) -> Color {
   return Color(.sRGB, red: r, green: g, blue: b, opacity: 1.0)
 }
 
-/// One resolved palette (light or dark) of the deep-red theme.
-/// The eight tokens below are the palette's single source of truth.
+/// One resolved palette (light or dark) of the 深大红 (shenda) theme.
+/// 8 tokens; source of truth `packages/rime-law-config/skins/colors.md` (shenda).
 struct FamoCandidatePalette: Sendable, Equatable {
   let accent: Color
   let accentDeep: Color
@@ -127,10 +127,11 @@ struct FamoCandidatePalette: Sendable, Equatable {
   let ink3: Color
 }
 
-/// Visual theme parameters + the deep-red color palettes (light / dark).
+/// Visual theme parameters + the 深大红 (shenda) color palettes (light / dark).
 ///
-/// Colors are bundled here rather than read from configuration at runtime.
-/// Pick light/dark via `@Environment(\.colorScheme)`.
+/// Colors are hardcoded from the project color source of truth
+/// `packages/rime-law-config/skins/colors.md` (shenda) — v0.1.1 does not read
+/// them live from famo.custom.yaml. Pick light/dark via `@Environment(\.colorScheme)`.
 ///
 /// Token → use mapping:
 ///   panel bg = card; selected candidate pill = accent, its text/label = onAccent;
@@ -147,7 +148,7 @@ struct FamoCandidateTheme: Sendable, Equatable {
     scheme == .dark ? dark : light
   }
 
-  static let deepred = FamoCandidateTheme(
+  static let shenda = FamoCandidateTheme(
     cornerRadius: 13,
     shadowRadius: 16,
     light: FamoCandidatePalette(
@@ -173,15 +174,18 @@ struct FamoCandidateTheme: Sendable, Equatable {
   )
 }
 
-/// G3 候选来源标签（provenance）。
+/// G3 候选来源标签五色（provenance）。G2 在此预留命名位，G3 负责把它们渲染进候选窗。
+/// AI 与 Claude design accent 同值 (#C96442)，确保 AI 候选与强调色一致。
+/// 单一真相源 `packages/rime-law-config/skins/colors.md`（provenance 段）。
 enum FamoProvenanceColor {
   static let personal = famoColor(hex: "5E7F6B")  // 个人
   static let project  = famoColor(hex: "3F6E9C")  // 场景
   static let rule     = famoColor(hex: "9A7234")  // 规则
   static let verified = famoColor(hex: "3C7A52")  // 已核验
+  static let ai       = famoColor(hex: "C96442")  // AI（= Claude accent）
 }
 
-/// G3 候选来源。由 `EnhancedCandidate` 的 lane/source 经纯函数派生
+/// G3 候选来源（五类）。由 `EnhancedCandidate` 的 lane/source 经纯函数派生
 /// (`EnhancedCandidate.provenance(...)`)；`nil` 表示普通拼音候选，不渲染标签。
 /// 展示名 + token 颜色都在此集中，视图层不散落硬编码 hex。
 enum FamoProvenance: String, Sendable, Equatable, CaseIterable {
@@ -189,6 +193,7 @@ enum FamoProvenance: String, Sendable, Equatable, CaseIterable {
   case project    // 场景 — 当前场景词库排序
   case rule       // 规则 — 本地法律对象/引注（版本未知）
   case verified   // 已核验 — 法律对象且字段完整、版本已知
+  case ai         // AI — DeepSeek/cloud lane，始终需确认、不自动上屏/学习
 
   /// Short pill label.
   var displayName: String {
@@ -197,6 +202,7 @@ enum FamoProvenance: String, Sendable, Equatable, CaseIterable {
     case .project:  return "场景"
     case .rule:     return "规则"
     case .verified: return "已核验"
+    case .ai:       return "AI"
     }
   }
 
@@ -207,8 +213,10 @@ enum FamoProvenance: String, Sendable, Equatable, CaseIterable {
     case .project:  return FamoProvenanceColor.project
     case .rule:     return FamoProvenanceColor.rule
     case .verified: return FamoProvenanceColor.verified
+    case .ai:       return FamoProvenanceColor.ai
     }
   }
 
-  var needsConfirmation: Bool { false }
+  /// AI candidates carry a "需确认" affordance and never auto-commit/learn.
+  var needsConfirmation: Bool { self == .ai }
 }

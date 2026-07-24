@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="1">
-    <title>法墨 Famotype @VERSION@</title>
-    <welcome file="welcome-update.html" mime-type="text/html"/>
+    <title>法墨 Famo @VERSION@</title>
+    <welcome file="welcome.html" mime-type="text/html"/>
     <conclusion file="conclusion-update.html" mime-type="text/html"/>
     <pkg-ref id="im.famo.inputmethod.Famo"/>
     <options customize="never" require-scripts="false" rootVolumeOnly="true"/>
@@ -14,5 +14,12 @@
     <choice id="im.famo.inputmethod.Famo" visible="false">
         <pkg-ref id="im.famo.inputmethod.Famo"/>
     </choice>
+    <!-- UPDATE pkg (Famo-update.pkg, the Sparkle enclosure): same Famo-component.pkg as the
+         first-install Famo.pkg, but NO onConclusion="RequireLogout" — updates must not force a
+         logout. The shared postinstall detects the update case
+         (Famo process alive = already enabled), switches the input source out to ABC before the
+         kill, replaces files in place, relaunches the new binary (IMKServer endpoint re-publish),
+         and switches back — zero TIS enable calls on the update path, so no second-enable ghost
+         state. First installs keep using Famo.pkg (Distribution, RequireLogout). -->
     <pkg-ref id="im.famo.inputmethod.Famo">Famo-component.pkg</pkg-ref>
 </installer-gui-script>

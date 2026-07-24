@@ -20,7 +20,7 @@ extension FamoApplicationDelegate {
   /// `deploy()` (`shutdownRime` + `startRime(fullCheck:true)`):
   ///   1. `deploy_config_file("default.yaml")` (+ the active `<schema>.schema.yaml`) — the
   ///      `config_file_update` task: recompiles ONE config, merges its `.custom.yaml`,
-  ///      mtime-gated, with no full dictionary rebuild. `config_file_update` is a synchronous
+  ///      mtime-gated, NO dict/octagram rebuild. `config_file_update` is a synchronous
   ///      `RunTask`, so the rebuilt `build/` is ready before the reselect below.
   ///   2. force EVERY live session to reload the new `build/` (`reapplyToLiveSession`:
   ///      destroy+recreate each session + restore its schema; the active one also replays its
@@ -56,7 +56,7 @@ extension FamoApplicationDelegate {
   /// Fast-ish path for the ONE Track-2 exception — 模糊拼音 `speller/algebra`. Changing
   /// algebra rebuilds the schema PRISM (`dict_compiler`), which the config-only
   /// `deploy_config_file` path does NOT do, so it falls back to the mtime-gated
-  /// `start_maintenance(fullCheck:false)` (rebuilds only the affected schema,
+  /// `start_maintenance(fullCheck:false)` (rebuilds only the affected schema — NOT octagram —
   /// per `detect_modifications`). Faster than the full `deploy()` (`fullCheck:true` skips the
   /// mtime gate), but honestly NOT instant. `start_maintenance` schedules its work on a
   /// background thread and returns immediately, so we `joinMaintenance()` to wait for the prism
@@ -70,7 +70,7 @@ extension FamoApplicationDelegate {
     defer { FamoLatencyTrace.end("deploy.fast.fuzzy", trace) }
     let perf = FamoPerf.mark()
     // mtime-gated maintenance: rebuilds only the schema whose `speller/algebra` changed
-    // (prism). No shutdownRime — the live session stays up.
+    // (prism), never octagram. No shutdownRime — the live session stays up.
     let ok = engine.startMaintenance(fullCheck: false)
     if ok {
       // Block until the async workspace_update (prism rebuild) finishes, so the reselect
@@ -89,7 +89,7 @@ extension FamoApplicationDelegate {
   /// The old implementation only touched `activeInputController` and used `select_schema(sameId)`,
   /// which does NOT force librime to rebuild the cached `Schema` — so a changed `menu/page_size`
   /// never reached the running session (the 8→5-not-applying bug). The fix forces a real reload
-  /// by destroying sessions (the engine stays up, so this remains sub-second):
+  /// by destroying sessions (the engine stays up — no octagram reload → still sub-second):
   ///
   /// - Background controllers are DESTROYED ONLY. Their `client` is nil after `deactivateServer`,
   ///   so eagerly recreating now would mislabel the app (`UnknownApp<n>`) and drop its per-app

@@ -95,6 +95,152 @@ extension FamoSettingsActions {
     return (updated, "已删除术语规则「\(rule.preferred)」。")
   }
 
+  static func deepSeekAPIKeyStatus(read: () throws -> String?) -> String {
+    do {
+      let key = try read()
+      return key?.isEmpty == false ? "已配置 Keychain API Key" : "未配置 API Key"
+    } catch {
+      return "无法读取 Keychain"
+    }
+  }
+
+  static func saveDeepSeekAPIKey(
+    _ input: String,
+    save: (String) throws -> Void
+  ) -> (input: String, status: String) {
+    let key = input.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !key.isEmpty else { return (input, "请输入 API Key") }
+    do {
+      try save(key)
+      return ("", "已保存到 Keychain")
+    } catch {
+      return (input, "保存 Keychain 失败")
+    }
+  }
+
+  static func deleteDeepSeekAPIKey(
+    input: String,
+    delete: () throws -> Void
+  ) -> (input: String, status: String) {
+    do {
+      try delete()
+      return ("", "已删除 API Key")
+    } catch {
+      return (input, "删除 Keychain 失败")
+    }
+  }
+
+  // MARK: - AI provider profiles (multi-provider foundation, B1)
+
+  /// Add a new OpenAI-compatible provider profile. Endpoint must be https (mirrors the existing
+  /// `FamoCloudPreferences.deepSeekEndpoint` https check). The key is written to the secret store
+  /// under the new profile's `secretName` only when supplied — never persisted in providers.json.
+  static func addProviderProfile(
+    displayName: String,
+    endpoint: String,
+    model: String,
+    apiKey: String,
+    makeDefault: Bool,
+    store: FamoProviderProfileStore,
+    secrets: FamoSecretStoring,
+    providerID: String? = nil
+  ) -> (profiles: [FamoProviderProfile], status: String) {
+    let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !name.isEmpty else { return (store.profiles(), "供应商名称不能为空。") }
+    guard let url = URL(string: endpoint.trimmingCharacters(in: .whitespacesAndNewlines)),
+          url.scheme == "https" else {
+      return (store.profiles(), "端点必须是 https。")
+    }
+    let profile = FamoProviderProfile(
+      displayName: name,
+      endpoint: url,
+      model: model.trimmingCharacters(in: .whitespacesAndNewlines),
+      providerID: providerID,
+      isDefault: makeDefault
+    )
+    do {
+      let added = try store.add(profile)
+      let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !key.isEmpty {
+        try secrets.setSecret(key, named: added.secretName)
+      }
+      return (store.profiles(), "已添加供应商「\(added.displayName)」。")
+    } catch {
+      return (store.profiles(), "添加供应商失败。")
+    }
+  }
+
+  /// Make a profile the default (the active one the cloud lane routes through).
+  static func setDefaultProviderProfile(
+    _ profile: FamoProviderProfile,
+    store: FamoProviderProfileStore
+  ) -> (profiles: [FamoProviderProfile], status: String) {
+    do {
+      try store.setDefault(id: profile.id)
+      return (store.profiles(), "已将「\(profile.displayName)」设为默认。")
+    } catch {
+      return (store.profiles(), "设置默认供应商失败。")
+    }
+  }
+
+  /// Delete a profile and its stored key. Promotes another to default if the deleted one was default.
+  static func deleteProviderProfile(
+    _ profile: FamoProviderProfile,
+    store: FamoProviderProfileStore,
+    secrets: FamoSecretStoring
+  ) -> (profiles: [FamoProviderProfile], status: String) {
+    do {
+      try store.delete(id: profile.id)
+      try? secrets.deleteSecret(named: profile.secretName)
+      return (store.profiles(), "已删除供应商「\(profile.displayName)」。")
+    } catch {
+      return (store.profiles(), "删除供应商失败。")
+    }
+  }
+
+  /// Save (or replace) a profile's API key. Write-only/masked: the value is never read back into the
+  /// UI; the status only reflects set/cleared, never the key itself.
+  static func saveProviderProfileKey(
+    _ profile: FamoProviderProfile,
+    apiKey: String,
+    secrets: FamoSecretStoring
+  ) -> (input: String, status: String) {
+    let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !key.isEmpty else { return (apiKey, "请输入 API Key") }
+    do {
+      try secrets.setSecret(key, named: profile.secretName)
+      return ("", "已保存到 Keychain")
+    } catch {
+      return (apiKey, "保存 Keychain 失败")
+    }
+  }
+
+  /// Clear a profile's stored key.
+  static func clearProviderProfileKey(
+    _ profile: FamoProviderProfile,
+    secrets: FamoSecretStoring
+  ) -> String {
+    do {
+      try secrets.deleteSecret(named: profile.secretName)
+      return "已删除 API Key"
+    } catch {
+      return "删除 Keychain 失败"
+    }
+  }
+
+  /// "已设置 / 未设置" status for a profile's key — never the value.
+  static func providerProfileKeyStatus(
+    _ profile: FamoProviderProfile,
+    secrets: FamoSecretStoring
+  ) -> String {
+    do {
+      let key = try secrets.secret(named: profile.secretName)
+      return (key?.isEmpty == false) ? "已设置" : "未设置"
+    } catch {
+      return "无法读取 Keychain"
+    }
+  }
+
   static func splitTermVariants(_ raw: String) -> [String] {
     raw
       .split(whereSeparator: { $0 == "," || $0 == "，" })
@@ -113,4 +259,45 @@ extension FamoSettingsActions {
     return true
   }
 
+  static func copyPreviewText(_ text: String, copy: (String) -> Void) {
+    copy(text)
+  }
+
+  static func applyWritePreview(
+    confirmed: Bool,
+    files: [FamoManagedPatchFile],
+    timestamp: String,
+    apply: (FamoManagedPatchFile, String) throws -> Void,
+    redeploy: () -> Bool
+  ) -> String? {
+    guard confirmed else { return nil }
+    var written: [String] = []
+    do {
+      for file in files {
+        try apply(file, timestamp)
+        written.append(file.fileName)
+      }
+      return FamoWritePreviewSheet.applyStatusMessage(written: written, deploySucceeded: redeploy())
+    } catch FamoConfigWriteError.refusedNeverTouch(let name) {
+      return "已拒绝写入受保护文件：\(name)。"
+    } catch {
+      return "写入失败：\(error.localizedDescription)。已写入：\(written.joined(separator: "、"))。"
+    }
+  }
+
+  static func rollbackWritePreview(
+    confirmed: Bool,
+    rollback: () throws -> Void,
+    redeploy: () -> Bool
+  ) -> String? {
+    guard confirmed else { return nil }
+    do {
+      try rollback()
+      return redeploy()
+        ? "已按 manifest 回滚最近一次写入并应用配置改动。"
+        : "已按 manifest 回滚最近一次写入；应用配置失败，请查看诊断日志。"
+    } catch {
+      return "回滚失败：\(error.localizedDescription)。"
+    }
+  }
 }

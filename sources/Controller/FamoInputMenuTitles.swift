@@ -8,6 +8,7 @@
 //
 
 enum FamoInputMenuTitles {
+  static let clipboard = "剪贴板…"
   static let emoji = "表情符号…"
   static let quickSend = "快捷短语…"
   static let settings = "设置…"
@@ -17,6 +18,7 @@ enum FamoInputMenuTitles {
   static let onboarding = "欢迎与引导…"
   static let rimeConfig = "打开法墨配置目录…"
   static let logs = "查看诊断日志…"
+  static let logoutRelogin = "注销并重新登录…"
 
   static func cjkInput(asciiMode: Bool) -> String {
     asciiMode ? "切换至中文输入" : "切换至英文输入"

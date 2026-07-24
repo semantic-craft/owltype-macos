@@ -40,6 +40,9 @@ extension FamoInputController {
   override func deactivateServer(_ sender: Any!) {
     // print("[DEBUG] deactivateServer: \(sender ?? "nil")")
     debugLiveInputTrace("deactivateServer hasSender=\(sender != nil)")
+    // B8: this input session is ending — cancel any in-flight AI lane requests it spawned so they
+    // don't run to completion against a session that's gone (wasted tokens).
+    aiTasks.cancelAll()
     hidePalettes()
     commitComposition(sender)
     // Focus is leaving this field — drop the cross-commit spacing seed so the next field's first
