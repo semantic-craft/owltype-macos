@@ -11,15 +11,28 @@ lib/*
 data/opencc/
 data/plum/
 download/
-package/*.pkg
-package/*-versioned.xml
+package/Famo*.pkg
+package/Famo*.dmg
+package/Famo*.zip
+package/sign/*.pem
+package/test-*
+package/generate_keys
+package/sign_update
+package/*.xml
 *~
 .*.swp
 .DS_Store
 data/famo-rime/
 
-# Optional on-device semantic reranking artifacts. They are generated locally,
-# injected at build time and never committed. Absent means heuristic fallback.
+# 增量 B 端上语义重排 (task 06-20-famo-bge-small-coreml-rerank): offline build artifacts produced
+# by tools/bge_small_to_coreml.py. Large (mirrors the wanxiang .gram / data/plum pattern); injected
+# at build time into the app bundle Resources and NEVER committed. Absent → heuristic fallback.
 *.mlpackage
 Resources/bge-small-zh.mlpackage
 Resources/vocab.txt
+
+# FamoInstaller 独立首装安装器 (task 06-27-famo-app P2): xcodegen 从 installer/project.yml
+# 重生成 .xcodeproj，构建产物落 installer/build/（build/ 已被上面通配覆盖，此处显式列出更清晰）。
+# project.yml + Sources/ 才是源，须提交；生成的 .xcodeproj 与 build/ 不提交。
+installer/FamoInstaller.xcodeproj/
+installer/build/

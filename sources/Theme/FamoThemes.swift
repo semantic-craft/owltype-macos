@@ -2,12 +2,13 @@
 //  FamoThemes.swift
 //  法墨输入法 (Famo) — 皮肤外观 (skin) themes + preference
 //
-//  The deep-red palette ships in `FamoCandidatePanelState.swift`; this file adds
-//  the other five bundled skins (胡佛红 / 珞珈青 / 嘉庚蓝 / 香槟橙 / 纽约紫) plus the
+//  The 荔园红 (shenda) palette ships in `FamoCandidatePanelState.swift`; this file adds
+//  the other five skins from the project color source of truth
+//  `packages/rime-law-config/skins/colors.md` (胡佛红 / 珞珈青 / 嘉庚蓝 / 香槟橙 / 纽约紫) plus the
 //  `FamoSkin` enum and its UserDefaults home, so the 皮肤外观 settings page can switch
 //  the whole candidate panel + settings window palette.
 //
-//  Colors are bundled as light/dark palettes. `famoColor(hex:)` and the
+//  Colors are hardcoded from colors.md (light/dark per skin). `famoColor(hex:)` and the
 //  `FamoCandidatePalette` / `FamoCandidateTheme` types live in FamoCandidatePanelState.swift.
 //
 //  Boundary (ADR-0001 / 0002 / 0003): UI palette only; no Rime / hot-path involvement.
@@ -137,10 +138,21 @@ enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
     }
   }
 
+  var tag: String {
+    switch self {
+    case .deepred: return "深圳大学"
+    case .stanford: return "斯坦福大学"
+    case .wuda: return "武汉大学"
+    case .xiada: return "厦门大学"
+    case .illinois: return "伊利诺伊大学"
+    case .nyu: return "纽约大学"
+    }
+  }
+
   /// Resolved palette/theme for the candidate panel + settings window.
   var theme: FamoCandidateTheme {
     switch self {
-    case .deepred: return .deepred
+    case .deepred: return .shenda
     case .stanford: return .stanford
     case .wuda: return .wuda
     case .xiada: return .xiada

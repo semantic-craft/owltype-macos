@@ -14,7 +14,7 @@
 //  before a pick's insert runs it REACTIVATES that captured app so focus returns to the original
 //  text field, and the controller inserts through the client reference it captured up-front. Iron
 //  rule (unchanged): the pick path must NEVER call `NSApp.activate(...)` — that deactivates the IME
-//  session at the app level and nils `client`. The proven
+//  session at the app level and nils `client` (the reason `FamoAIWindow` is copy-only). The proven
 //  capture→restore lifecycle mirrors `FamoPromptFillSheet` exactly.
 //
 //  Positioning (PR2, design B): the panel is placed NEAR the caret by reusing the candidate panel's
@@ -130,6 +130,12 @@ struct FamoPickerPanelModel: Equatable {
     let count = visible.count
     guard count > 0 else { selection = -1; return }
     selection = max(0, min(count - 1, selection + delta))
+  }
+
+  /// Point the highlight at `index` in the filtered list (hover/click); ignored when out of range.
+  mutating func select(_ index: Int) {
+    guard visible.indices.contains(index) else { return }
+    selection = index
   }
 
   /// Map a 1–9 number key (1-based) to the Nth VISIBLE row, or nil when out of range.

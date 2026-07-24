@@ -15,6 +15,8 @@ ROOT = Path(__file__).resolve().parent.parent
 EXPECTED_NATIVE = {
     "Contents/Frameworks/librime.1.dylib",
     "Contents/Frameworks/rime-plugins/librime-lua.dylib",
+    "Contents/Frameworks/rime-plugins/librime-octagram.dylib",
+    "Contents/Frameworks/rime-plugins/librime-predict.dylib",
     "Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate",
     "Contents/Frameworks/Sparkle.framework/Versions/B/Sparkle",
     "Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app/Contents/MacOS/Updater",
@@ -45,7 +47,11 @@ REQUIRED_LICENSES = {
     "Contents/SharedSupport/rime-ice-Credits.md",
     "Contents/SharedSupport/rime-ice.LICENSE",
 }
-FORBIDDEN_PATH_FRAGMENTS = {"wubi", "octagram", "predict"}
+# Single-repo era: the full product legitimately bundles the KyleBing wubi
+# schemas (Apache-2.0) and the librime predict/octagram plugins (BSD).
+# The remaining license blocker is upstream grammar data (*.gram from
+# lotem/rime-octagram-data), which ships without a redistribution license.
+FORBIDDEN_RELEASE_SUFFIXES = (".gram",)
 FORBIDDEN_FILE_MARKERS = (b"/" + b"Users/",)
 SPARKLE_LICENSE_SHA256 = "78babcec24fb8447551f9b5ece67042a82fd4ed14deab863d6e8f0619d0d25f6"
 COMPONENTS = (
@@ -201,11 +207,7 @@ def main() -> None:
 
     forbidden = sorted(
         relative for relative in paths
-        if any(
-            fragment in part.lower()
-            for part in Path(relative).parts
-            for fragment in FORBIDDEN_PATH_FRAGMENTS
-        )
+        if relative.lower().endswith(FORBIDDEN_RELEASE_SUFFIXES)
     )
     if forbidden:
         fail(f"forbidden release content: {', '.join(forbidden)}")

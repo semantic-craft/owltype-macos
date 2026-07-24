@@ -1,0 +1,90 @@
+#! /bin/bash
+# enconding: utf-8
+#
+# make_archive — 生成真正的 Sparkle 自动更新 appcast（Squirrel 同款机制，载荷改用更新专用 pkg）。
+# Sparkle 自动更新载荷 = 签名+公证的裸 .pkg：Sparkle 1.26+/2.x 按 `.pkg` 扩展名走 guided package
+# installer（SUGuidedPackageInstaller）。<enclosure> 显式声明 sparkle:installationType="package"，
+# 并指向公开源码/发版仓当前版本 tag 下的 Famo-update.pkg 固定链接
+#（Distribution-update，无 RequireLogout——更新免注销；首装仍走
+# DMG 里的 Famo.pkg），并带 sign_update 用与 SUPublicEDKey 配对的 EdDSA 私钥签出的
+# edSignature/length。装毕由组件 (BundleOverwriteAction=upgrade) + postinstall 的
+# 切出→kill→原地换文件→重启→切回 序列完成免注销升级。
+#
+# 依据：research/sparkle-pkg-autoupdate.md（Squirrel make_archive / live appcast 实证）+
+# task 07-02-famo research/fcitx5-macos-install-mechanism.md（免注销升级序列）。
+
+set -e
+
+cd "$(dirname $0)"
+source common.sh
+
+# app_version = CFBundleVersion (build, e.g. 1.1.2) → Sparkle sparkle:version comparison ONLY.
+# marketing_version = CFBundleShortVersionString (e.g. 1.1) → user-facing pkg name / title /
+# download URL / appcast display (sparkle:shortVersionString). Keep them separate: a
+# sparkle:version of 1.1 would read as OLDER than an installed 1.1.2 and suppress the update.
+app_version="$(get_app_version)"
+marketing_version="$(get_marketing_version)"
+pub_date=$(date -R)
+
+# Sparkle 固定到当前 CFBundleVersion 对应的不可变 tag，不依赖 repository-wide Latest。
+download_url="https://github.com/semantic-craft/famotype-macos/releases/download/${app_version}/Famo-update.pkg"
+
+# enclosure 需要已签名(+公证+staple)的 package/Famo-update.pkg 存在（由 `make package` 产出）。缺它
+# 就大声失败，绝不退化成 enclosure-less 的 information-only appcast（那是要还原掉的反模式）。
+PKG="${PROJECT_ROOT}/package/Famo-update.pkg"
+if [ ! -f "${PKG}" ]; then
+    echo >&2 "ERROR: 缺少 ${PKG}（先跑 make package）。appcast 的 <enclosure> 需要它来生成 edSignature/length。"
+    exit 1
+fi
+
+# sign_update（Sparkle 工具）用钥匙串里与 SUPublicEDKey 配对的 EdDSA 私钥签 pkg，
+# 输出形如：  sparkle:edSignature="…" length="…"
+# 用 awk 解析两段属性塞进 <enclosure>（Squirrel make_archive 同款解析）。
+signature="$(./sign_update "${PKG}")"
+edSignature="$(echo "${signature}" | awk -F'"' '{print $2}')"
+length="$(echo "${signature}" | awk -F'"' '{print $4}')"
+if [ -z "${edSignature}" ] || [ -z "${length}" ]; then
+    echo >&2 "ERROR: sign_update 没产出 edSignature/length（输出：${signature}）"
+    exit 1
+fi
+
+write_appcast() {
+    local appcast_file="$1"
+    local title="$2"
+    local description="$3"
+    local link="$4"
+    local enclosure_url="$5"
+    cat > "${appcast_file}" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>${title}</title>
+    <link>${link}</link>
+    <description>${description}</description>
+    <language>zh</language>
+    <item>
+      <title>Famo ${marketing_version}</title>
+      <sparkle:version>${app_version}</sparkle:version>
+      <sparkle:shortVersionString>${marketing_version}</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
+      <pubDate>${pub_date}</pubDate>
+      <sparkle:releaseNotesLink>${link}</sparkle:releaseNotesLink>
+      <enclosure url="${enclosure_url}"
+                 sparkle:version="${app_version}"
+                 sparkle:shortVersionString="${marketing_version}"
+                 sparkle:installationType="package"
+                 sparkle:edSignature="${edSignature}"
+                 length="${length}"
+                 type="application/octet-stream"/>
+    </item>
+  </channel>
+</rss>
+EOF
+
+    ls -l "${appcast_file}"
+}
+
+write_appcast 'appcast.xml' '法墨输入法更新频道' '法墨输入法 Appcast：Sparkle 自动下载签名+公证的 Famo-update.pkg，并在 macOS 授权后安装（无需注销）。' 'https://responsay.com/famo/' "${download_url}"
+write_appcast 'testing-appcast.xml' '法墨输入法测试频道' '法墨输入法测试版 Appcast：Sparkle 自动下载签名+公证的 Famo-update.pkg，并在 macOS 授权后安装（无需注销）。' 'https://responsay.com/famo/' "${download_url}"
+# 本地测试频道：enclosure 指向本地 package/Famo-update.pkg（同一签名），便于离线验证下载/安装流程。
+write_appcast 'debug-appcast.xml' '法墨输入法本地测试' '法墨输入法 Appcast 本地测试：enclosure 指向本地 package/Famo-update.pkg。' "file://${PROJECT_ROOT}/package/debug-appcast.xml" "file://${PROJECT_ROOT}/package/Famo-update.pkg"

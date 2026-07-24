@@ -8,7 +8,7 @@
 //      ~/Library/Application Support/Famo/projects/<project-id>/project.json
 //
 //  Pure local storage — `FileManager` + pretty-printed `JSONEncoder`, atomic writes. Nothing
-//  here is uploaded or sent to an external service. The active project id is the
+//  here is uploaded, synced, or fed into DeepSeek distillation. The active project id is the
 //  only piece of state in `UserDefaults`; the projects themselves live as files so they stay
 //  exportable and inspectable.
 //

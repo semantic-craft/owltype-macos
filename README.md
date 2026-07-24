@@ -1,66 +1,59 @@
-# Famotype for macOS
+# 法墨输入法 · Famotype for macOS
 
-> 你的输入法，应该先把字打好。
+法墨是一个现代化的 macOS 系统输入法。它把 Rime 引擎与数据自包含进 App，并用
+SwiftUI 重做候选窗、设置、引导与表情符号面板。
 
-Famotype（法墨）是一款基于 Rime 的 macOS 中文输入法。它把输入核心、候选窗和设置界面放在本机，
-专注于稳定的中文输入、清晰的候选反馈和可理解的配置。
+> 仓库名为 **Famotype**；为保持已安装版本兼容，代码、Bundle 与构建产物中仍使用 `Famo` 标识。
 
-当前仓库是公开源码与发版面。发布的安装包只包含这里可审查、可独立构建的公共核心。
+## 当前状态
 
-## 现在包含什么
+- 本仓库是法墨的**唯一开发仓库**：完整产品（含云端 AI 功能层）在此公开开发，
+  签名安装包与 Sparkle 更新也从本仓库的 Releases 发布。
+- 仓库历史从经过隐私审查的 1.4.22 源码快照开始，不包含更早期的 Git 历史。
+- 1.4.21 及更早的公开发布已经停止分发，不再受支持。
 
-- 全拼与双拼输入，支持简繁转换；
-- 原生 InputMethodKit 会话与 librime 引擎；
-- SwiftUI 候选窗、横排/竖排、字体、候选数和主题设置；
-- 本地快捷短语、提示词、表情符号和场景词库；
-- 模糊音、翻页键、标点和中英文状态等本地配置；
-- 只访问 `responsay.com/famo/appcast.xml` 的 Sparkle 签名更新检查；
-- 默认拒绝的隐私边界和不含正文的诊断日志。
+## 隐私边界
 
-## 明确不包含什么
+- 正常输入、组字、候选生成与词库处理在本机完成。
+- 云端 AI 默认关闭；开启后也只会在用户明确触发云端功能时发起请求。
+- 云端请求只包含用户主动提交的问题、明确选中的文本和当前对话历史。
+- 请求不会附带输入法原始编码、组字、候选词、屏幕内容、窗口或浏览器信息、焦点字段全文、
+  光标前后文本等隐式上下文。
+- 提供商密钥存入 macOS Keychain，不写入配置文件或仓库。
 
-开源核心不包含云端 AI、联网搜索、辅助功能划词、剪贴板历史或全局键盘事件监听，
-也没有通用网络客户端 entitlement。Sparkle 仅获取公开 appcast 与签名更新包。极点五笔数据和 octagram 语法模型数据在授权链完成复核前不进入
-开源 seed 或公开二进制。
+详见 [PRIVACY.md](PRIVACY.md)。安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。
 
-快捷短语热键只在 Famotype 已是当前输入法、按键交给 InputMethodKit 时生效；程序不会安装
-session-wide event tap。
+## 特性
+
+- **自包含 Rime**：雾凇拼音、极点五笔 86、小鹤双拼、繁体转换等，无需手动配置。
+- **全局设置**：候选个数、简入繁出等对全拼、双拼与五笔统一生效。
+- **SwiftUI 界面**：键盘输入、候选窗外观、皮肤、快捷短语、剪贴板、场景词库与可选 AI 助手。
+- 表情与符号面板常驻输入法菜单。
 
 ## 构建
 
-要求 macOS 14 或更高版本，以及当前稳定版 Xcode。
+需要 Xcode 26+ 与 macOS 14+：
 
-```bash
-git clone --recursive https://github.com/semantic-craft/famotype-macos.git
-cd famotype-macos
-make bootstrap
-make famo-seed
-make debug
+```sh
+git submodule update --init --recursive
+make deps
+make release
 ```
 
-`make bootstrap` 只从 librime 的官方 GitHub Release 获取固定版本构建依赖；
-`make famo-seed` 只获取固定提交的 rime-ice，并把其许可证和 Credits 一并放入本地生成的 seed。
+签名、公证与打包由 `scripts/release.sh` 处理；完整发布编排另有对应源码、manifest 与人工验收门。
 
-## 隐私设计
+## 来源与许可
 
-- 用户数据目录权限为 `0700`，含用户文本或配置的文件权限为 `0600`；
-- 组字、候选、提示词和场景词库留在本机；
-- 日志只记录阶段、计数、长度和状态，不记录原始编码、候选或提交正文；
-- 没有云端请求代码、选区读取器或剪贴板历史存储；
-- 更新只从固定 HTTPS feed 获取公开元数据和 EdDSA 签名安装包，不上传用户内容。
+本项目以 **GPL-3.0** 发布，许可证全文见 [LICENSE.txt](LICENSE.txt)。法墨是
+[RIME 鼠须管（Squirrel）](https://github.com/rime/squirrel) 与
+[librime](https://github.com/rime/librime) 的派生作品。基于本项目分发二进制时，必须同时提供
+对应的修改源码、GPL-3.0 许可证文本与版权声明，不得作为闭源制品分发。
 
-完整边界见 [PRIVACY.md](PRIVACY.md)，安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。
-准备公开前还必须逐项通过 [公开发布清单](docs/PUBLISHING_CHECKLIST.md)；源码公开与二进制发布是两道独立的门。
+完整来源脉络见 [PROVENANCE.md](PROVENANCE.md)，第三方组件许可见
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
-## 许可证与来源
+## 致谢
 
-Famotype 的项目代码按 `GPL-3.0-only` 发布；各上游组件保留其各自许可证。
-来源锁与再分发义务见 [PROVENANCE.md](PROVENANCE.md) 和
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。任何许可证不明确的数据都不会进入公开产物。
-
-## English
-
-Famotype is a local-first Chinese input method for macOS, built with InputMethodKit, librime,
-SwiftUI and Sparkle. The open-source core includes Pinyin, double-Pinyin, local phrases, prompts,
-themes, diagnostics and signed updates. It intentionally excludes cloud AI, selection readers,
-clipboard history, global event taps and general-purpose network clients.
+- [RIME / 中州韻输入法引擎](https://rime.im)——librime 与 Squirrel
+- [雾凇拼音 rime-ice](https://github.com/iDvel/rime-ice)
+- [极点五笔 86](https://github.com/KyleBing/rime-wubi86-jidian)

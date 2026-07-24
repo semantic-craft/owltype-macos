@@ -1,8 +1,8 @@
 //
 //  FamoQuickSendHotKey.swift
-//  法墨输入法 (Famo) — IMK 内快捷面板热键
+//  法墨输入法 (Famo) — 全局唤起热键（快捷短语面板 PR3 + 划词菜单召唤）
 //
-//  快捷短语和提示词面板使用用户录制的受限组合键
+//  Both 快捷短语面板 and 划词菜单 use the SAME shape: a user-RECORDED combo inside a restricted range
 //  (`FamoRecordedHotKey` + `FamoHotKeySlot` + the shared recorder row below), default OFF — a global
 //  hotkey shouldn't claim a key uninvited. 快捷短语面板 used to ship three Space-based presets with
 //  ⌃⇧Space as the default; those rawValues are outside the recordable range and deliberately have
@@ -15,7 +15,8 @@
 //  GetEventDispatcherTarget, with persisted register/fire logging). Net effect: the hotkey does
 //  nothing AND the combo is stolen from every app — including our own IMK-path matcher below.
 //
-//  The working design only matters while 法墨 is the ACTIVE input source — every keyDown already
+//  The working design: both features only matter while 法墨 is the ACTIVE input source (panel needs
+//  `activeInputController`, 划词召唤 no-ops otherwise) — and in that state every keyDown already
 //  flows through `FamoInputController.handle()`. `FamoHotKeyMatcher` matches the combos there;
 //  no registration, no extra permissions, no reapply choreography (combos are read live).
 //
@@ -29,6 +30,8 @@ import SwiftUI
 /// they differ only in where they persist, what they're called, and which legacy rawValues decode.
 enum FamoHotKeySlot: CaseIterable, Sendable {
   case quickSendPanel
+  case selectionMenu
+  case askAnything
   /// 提示词助手直达（07-21 机主提案）：同一块面板、初始分段=提示词——五笔用户的专属入口
   /// （提示词表不挂五笔 schema，打字触发只在拼音下存在）。
   case promptAssistant
@@ -37,6 +40,8 @@ enum FamoHotKeySlot: CaseIterable, Sendable {
   var defaultsKey: String {
     switch self {
     case .quickSendPanel: return "FamoQuickSendPanelHotKey"
+    case .selectionMenu: return "FamoSelectionMenuHotKey"
+    case .askAnything: return "FamoAskAnythingHotKey"
     case .promptAssistant: return "FamoPromptAssistantHotKey"
     }
   }
@@ -46,6 +51,8 @@ enum FamoHotKeySlot: CaseIterable, Sendable {
   var displayName: String {
     switch self {
     case .quickSendPanel: return "快捷短语面板"
+    case .selectionMenu: return "划词菜单"
+    case .askAnything: return "任意提问"
     case .promptAssistant: return "提示词助手"
     }
   }
@@ -54,7 +61,16 @@ enum FamoHotKeySlot: CaseIterable, Sendable {
   /// presets ("ctrlShiftSpace"…) are deliberately ABSENT: they're outside the recordable range, so
   /// an upgrade migrates them to 未设置 rather than showing a combo the user could never re-record.
   var legacyPresets: [String: (keyCode: UInt32, modifiers: UInt32)] {
-    [:]
+    switch self {
+    case .quickSendPanel, .askAnything, .promptAssistant:
+      return [:]
+    case .selectionMenu:
+      return [
+        "ctrlShiftA": (UInt32(kVK_ANSI_A), UInt32(controlKey | shiftKey)),
+        "cmdShiftA": (UInt32(kVK_ANSI_A), UInt32(cmdKey | shiftKey)),
+        "optShiftA": (UInt32(kVK_ANSI_A), UInt32(optionKey | shiftKey))
+      ]
+    }
   }
 
   /// The other slots — used to reject recording a combo that's already taken (the tap/IMK matchers
@@ -75,7 +91,11 @@ enum FamoHotKeySlot: CaseIterable, Sendable {
   }
 }
 
-/// A user-recorded summon combo. Defaults to off and is matched only on the IMK path.
+/// A user-RECORDED summon combo (both slots were fixed presets before). Defaults to off; the user
+/// records one via 快捷键设置. For 划词菜单, pressing it shows the selection menu for the current
+/// selection immediately (skips the 0.30s dwell) — PARALLEL to the 启用划词菜单 master toggle
+/// (which governs auto-popup only): the summon needs Accessibility trust + a usable selection, not
+/// the toggle; drops are logged, never silent.
 ///
 /// Recording range is restricted to avoid shadowing app shortcuts or plain typing: the main key
 /// must be a letter A–Z and the modifiers must include AT LEAST TWO of ⌃⌥⇧⌘ (single-modifier
@@ -191,7 +211,121 @@ enum FamoHotKeyMatcher {
   }
 }
 
-/// Recorder row shared by the local picker settings cards: click the combo button, press the
+/// Session-level CGEventTap hotkey listener — the CROSS-HOST path. The IMK matcher only sees keys
+/// the host forwards to the input method; Chromium/Electron hosts consume modified letter keys as
+/// accelerators BEFORE the IME (real machine: Hyper+J's keyDown never reached `handle()` in an
+/// Electron host while TextEdit delivered it fine). The tap intercepts before app dispatch, so it
+/// works in every host — at the cost of Accessibility permission, which the 划词 feature already
+/// holds (the AX budget was reserved for exactly this). Without AX the tap silently stays off and
+/// the IMK matcher remains the fallback for cooperative hosts; with the tap active, matched combos
+/// are consumed at session level and never reach the IME, so the two paths cannot double-fire.
+///
+/// Consumption rule: a matched combo is consumed ONLY while 法墨 is the current input source
+/// (per-match TIS check, not per-keystroke) — with another IME active it passes through untouched
+/// instead of being stolen system-wide (the retired Carbon registration's sin, #118).
+final class FamoHotKeyEventTap {
+  /// While the settings recorder is capturing, the tap must pass EVERYTHING through — otherwise
+  /// re-recording the currently-bound combo would be consumed here and never reach the recorder's
+  /// local monitor. Main-thread only (tap callback runs on the main run loop).
+  static var isSuppressed = false
+
+  private var tap: CFMachPort?
+  private var runLoopSource: CFRunLoopSource?
+  var onQuickSend: (() -> Void)?
+  var onSelectionSummon: (() -> Void)?
+  var onAskAnything: (() -> Void)?
+  var onPromptAssistant: (() -> Void)?
+
+  /// Install the tap when possible. Safe to call repeatedly; no-op when installed or AX untrusted.
+  func startIfPossible() {
+    guard tap == nil else { return }
+    guard AXIsProcessTrusted() else {
+      FamoHotKeyMatcher.log.notice("event tap not installed: accessibility not trusted (IMK fallback)")
+      return
+    }
+    let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
+    let context = Unmanaged.passUnretained(self).toOpaque()
+    guard let created = CGEvent.tapCreate(
+      tap: .cgSessionEventTap,
+      place: .headInsertEventTap,
+      options: .defaultTap,
+      eventsOfInterest: mask,
+      callback: { _, type, event, userData -> Unmanaged<CGEvent>? in
+        guard let userData else { return Unmanaged.passUnretained(event) }
+        let instance = Unmanaged<FamoHotKeyEventTap>.fromOpaque(userData).takeUnretainedValue()
+        return instance.handle(type: type, event: event)
+      },
+      userInfo: context
+    ) else {
+      FamoHotKeyMatcher.log.notice("event tap unavailable: tapCreate failed despite AX trust")
+      return
+    }
+    tap = created
+    runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, created, 0)
+    CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+    CGEvent.tapEnable(tap: created, enable: true)
+    FamoHotKeyMatcher.log.notice("event tap installed")
+  }
+
+  func stop() {
+    if let runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes) }
+    runLoopSource = nil
+    if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
+    tap = nil
+  }
+
+  private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+    // The system re-disables a slow tap; re-enable and pass the event on.
+    if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+      if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+      return Unmanaged.passUnretained(event)
+    }
+    guard type == .keyDown, !Self.isSuppressed else { return Unmanaged.passUnretained(event) }
+
+    // Fast pre-filter: every configured combo requires a non-shift modifier — plain typing and
+    // shift-typing exit here before any defaults read.
+    let flags = nsFlags(event.flags)
+    guard !flags.isDisjoint(with: [.control, .option, .command]) else {
+      return Unmanaged.passUnretained(event)
+    }
+
+    let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+    // Fixed precedence (allCases order): 快捷短语面板 → 划词菜单 → 任意提问. The recorder rejects
+    // duplicates, so at most one slot matches; the order only keeps a stale duplicate deterministic.
+    let matched = FamoHotKeySlot.allCases.first { slot in
+      (slot.current?.carbonCombo)
+        .map { FamoHotKeyMatcher.matches($0, keyCode: keyCode, flags: flags) } ?? false
+    }
+    guard let matched else { return Unmanaged.passUnretained(event) }
+
+    guard FamoInstaller.currentInputSourceID()?.hasPrefix(FamoInstaller.inputSourcePrefix) == true else {
+      FamoHotKeyMatcher.log.notice("tap match passthrough: famo not current input source")
+      return Unmanaged.passUnretained(event)
+    }
+
+    FamoHotKeyMatcher.log.notice("tap fired: \(String(describing: matched), privacy: .public)")
+    DispatchQueue.main.async { [weak self] in
+      switch matched {
+      case .quickSendPanel: self?.onQuickSend?()
+      case .selectionMenu: self?.onSelectionSummon?()
+      case .askAnything: self?.onAskAnything?()
+      case .promptAssistant: self?.onPromptAssistant?()
+      }
+    }
+    return nil // consume — the host never sees a combo we acted on
+  }
+
+  private func nsFlags(_ flags: CGEventFlags) -> NSEvent.ModifierFlags {
+    var out: NSEvent.ModifierFlags = []
+    if flags.contains(.maskControl) { out.insert(.control) }
+    if flags.contains(.maskAlternate) { out.insert(.option) }
+    if flags.contains(.maskShift) { out.insert(.shift) }
+    if flags.contains(.maskCommand) { out.insert(.command) }
+    return out
+  }
+}
+
+/// Recorder row shared by the 快捷短语面板 and 划词菜单 设置卡: click the combo button, press the
 /// desired keys, done. Captures the next key press with a LOCAL `NSEvent` monitor (the settings
 /// window is in-process — no event tap / Accessibility permission involved) and accepts only combos
 /// inside the allowed range; out-of-range or already-taken presses show a hint and keep listening,
@@ -253,6 +387,12 @@ struct FamoHotKeyRecorderRow: View {
         Text(recordingHintText)
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
+      } else if slot == .selectionMenu, combo != nil, !AXIsProcessTrusted() {
+        // 平行开关（产品决策 2026-07-19）：热键召唤不依赖「启用划词菜单」总开关（那只管选中自动
+        // 弹出）；唯一硬前置是辅助功能权限（读选中文字必需）。未授权时点破，免得录了组合以为坏了。
+        Text("需辅助功能权限（技能平台 → 辅助功能授权），热键才能读取选中文字")
+          .font(.system(size: 12))
+          .foregroundStyle(palette.ink3)
       }
     }
     .padding(.vertical, 4)
@@ -278,6 +418,7 @@ struct FamoHotKeyRecorderRow: View {
   private func startRecording() {
     isRecording = true
     hint = nil
+    FamoHotKeyEventTap.isSuppressed = true // let the recorder see combos the tap would consume
     keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
       handleKeyDown(event)
       return nil // consume every key press while recording
@@ -289,6 +430,7 @@ struct FamoHotKeyRecorderRow: View {
     keyMonitor = nil
     isRecording = false
     hint = nil
+    FamoHotKeyEventTap.isSuppressed = false
   }
 
   private func handleKeyDown(_ event: NSEvent) {

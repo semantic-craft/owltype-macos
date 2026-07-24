@@ -5,7 +5,7 @@
 //  Pure value model for a single "项目" (project) input space: a named bundle of project
 //  words + simple abbreviation expansions the user organizes their input context around.
 //  Local-only, human-readable, exported as `project.json` per project (see `FamoProjectStore`).
-//  Never uploaded or sent to an external service.
+//  Never uploaded, never fed into DeepSeek distillation.
 //
 //  Boundary: a plain `Codable` value type. No disk IO, no Rime handle, no hot-path call —
 //  persistence + activation live in `FamoProjectStore`; candidate injection happens through

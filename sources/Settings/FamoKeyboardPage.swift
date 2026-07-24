@@ -42,7 +42,7 @@ struct FamoKeyboardPage: View {
   /// `deploy()`). Used by every Rime-backed toggle on this page EXCEPT 模糊拼音.
   let onApplyKeyboardConfigFast: () -> Bool
   /// 模糊拼音 fast-ish apply (mtime-gated `fullCheck:false` maintenance — rebuilds the schema
-  /// prism + reselect + replay). NOT instant; copy stays honest.
+  /// prism, not octagram — + reselect + replay). NOT instant; copy stays honest.
   let onApplyFuzzyConfigFast: () -> Bool
 
   /// Which card group this instance renders. 键盘输入 shows everything except the three
@@ -79,6 +79,7 @@ struct FamoKeyboardPage: View {
           applyConfigCard
           inputMethodCard
           defaultStateCard
+          wubiCard
           fuzzyCard
           symbolCard
           candidateEmojiCard
@@ -89,6 +90,8 @@ struct FamoKeyboardPage: View {
           pagingCard
           quickSelectCard
           quickSendPanelHotKeyCard
+          selectionMenuPanelHotKeyCard
+          askAnythingHotKeyCard
           promptAssistantHotKeyCard
           noteCard
         }
@@ -199,6 +202,17 @@ struct FamoKeyboardPage: View {
         )
       }
     )
+    let wubiSchemeBinding = Binding(
+      get: { state.keyboardWubiScheme },
+      set: { newValue in
+        FamoSettingsActions.selectWubiScheme(
+          newValue,
+          state: state,
+          applyConfig: applyCurrentKeyboardSnapshot,
+          onSelectSchema: onSelectSchema
+        )
+      }
+    )
     return SettingsCard(
       title: "输入方式",
       palette: palette,
@@ -206,7 +220,7 @@ struct FamoKeyboardPage: View {
       reduceTransparency: reduceTransparency
     ) {
       VStack(spacing: 0) {
-        ForEach(FamoInputMethod.allCases.filter { $0 != .wubi }, id: \.self) { method in
+        ForEach(FamoInputMethod.allCases, id: \.self) { method in
           SettingsRadioRow(
             title: method.displayName,
             isSelected: methodBinding.wrappedValue == method,
@@ -215,9 +229,11 @@ struct FamoKeyboardPage: View {
           ) {
             if method == .doublePinyin {
               doublePinyinPicker(methodBinding: methodBinding, schemeBinding: schemeBinding)
+            } else if method == .wubi {
+              wubiSchemePicker(methodBinding: methodBinding, schemeBinding: wubiSchemeBinding)
             }
           }
-          if method != .doublePinyin {
+          if method != FamoInputMethod.allCases.last {
             SettingsCardDivider(palette: palette)
           }
         }
@@ -252,6 +268,25 @@ struct FamoKeyboardPage: View {
 
   static func doublePinyinPickerOpacity(for method: FamoInputMethod) -> Double {
     isDoublePinyinPickerEnabled(for: method) ? 1 : 0.4
+  }
+
+  /// 五笔方案 dropdown — same shape as `doublePinyinPicker`; lives in the 五笔输入 row and is
+  /// enabled (full opacity) only when 五笔输入 is the selected method.
+  private func wubiSchemePicker(
+    methodBinding: Binding<FamoInputMethod>,
+    schemeBinding: Binding<FamoWubiScheme>
+  ) -> some View {
+    let enabled = methodBinding.wrappedValue == .wubi
+    return Picker("五笔方案", selection: schemeBinding) {
+      ForEach(FamoWubiScheme.allCases, id: \.self) { scheme in
+        Text(scheme.displayName).tag(scheme)
+      }
+    }
+    .pickerStyle(.menu)
+    .labelsHidden()
+    .fixedSize()
+    .disabled(!enabled)
+    .opacity(enabled ? 1 : 0.4)
   }
 
   // MARK: - 默认状态（搜狗式：新会话 / 切 App 时的初始态）
@@ -330,6 +365,91 @@ struct FamoKeyboardPage: View {
       .fixedSize()
     }
     .padding(.vertical, 8)
+  }
+
+  // MARK: - 五笔
+
+  private var wubiCard: some View {
+    let modeBinding = Binding(
+      get: { state.keyboardWubiCandidateMode },
+      set: { newValue in
+        persistAndApplyRimeConfig {
+          FamoSettingsActions.set(newValue, state: state, keyPath: \.keyboardWubiCandidateMode) {
+            FamoKeyboardPreferences.wubiCandidateMode = $0
+          }
+        }
+      }
+    )
+    return SettingsCard(
+      title: "五笔",
+      palette: palette,
+      theme: theme,
+      reduceTransparency: reduceTransparency
+    ) {
+      VStack(spacing: 0) {
+        SettingsToggleRow(
+          title: "候选编码提示",
+          isOn: state.keyboardWubiCodeHint,
+          palette: palette,
+          isEnabled: rimeBackedRowsEnabled,
+          onToggle: { toggleWubiCodeHint() }
+        )
+        SettingsCardDivider(palette: palette)
+        SettingsToggleRow(
+          title: "空码自动清码",
+          isOn: state.keyboardWubiAutoClear,
+          palette: palette,
+          isEnabled: rimeBackedRowsEnabled,
+          onToggle: { toggleWubiAutoClear() }
+        )
+        SettingsCardDivider(palette: palette)
+        HStack(spacing: 11) {
+          Text("单字候选")
+            .font(.system(size: 14))
+            .foregroundStyle(palette.ink)
+          Spacer(minLength: 8)
+          FamoSegmentedControl(
+            selection: modeBinding,
+            options: FamoWubiCandidateMode.allCases.map { ($0.displayName, $0) },
+            palette: palette
+          )
+          .frame(width: 220)
+          .disabled(!rimeBackedRowsEnabled)
+        }
+        .padding(.vertical, 8)
+        .opacity(rimeBackedRowsEnabled ? 1 : 0.55)
+        SettingsCardDivider(palette: palette)
+        SettingsToggleRow(
+          title: "z 临时拼音反查",
+          isOn: state.keyboardWubiZReverseLookup,
+          palette: palette,
+          isEnabled: rimeBackedRowsEnabled,
+          onToggle: { toggleWubiZReverseLookup() }
+        )
+        SettingsCardDivider(palette: palette)
+        SettingsToggleRow(
+          title: "` 临时英文",
+          isOn: state.keyboardWubiEnglishChannel,
+          palette: palette,
+          isEnabled: rimeBackedRowsEnabled,
+          onToggle: { toggleWubiEnglishChannel() }
+        )
+        Text("按 `（反引号）后直接打英文单词，候选出英文、上屏后回到五笔；不切换模式，也不影响四码上屏。")
+          .font(.system(size: 12))
+          .foregroundStyle(palette.ink3)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.top, 4)
+          .padding(.bottom, 4)
+        SettingsCardDivider(palette: palette)
+        SettingsToggleRow(
+          title: "记住我常用的词（个性化）",
+          isOn: state.keyboardWubiUserDictLearning,
+          palette: palette,
+          isEnabled: rimeBackedRowsEnabled,
+          onToggle: { toggleWubiUserDictLearning() }
+        )
+      }
+    }
   }
 
   // MARK: - 中英文状态切换
@@ -445,7 +565,37 @@ struct FamoKeyboardPage: View {
     }
   }
 
-  /// 提示词助手直达热键：同一块快捷面板、初始分段=提示词。
+  /// 划词菜单 summon hotkey (default off — the user RECORDS a combo here, restricted range; never
+  /// a Rime key_binder). The recorder control + its labels live in the UI layer
+  /// (`FamoHotKeyRecorderRow`); the IMK-path matcher reads the stored combo live, so recording
+  /// needs no re-registration. The 划词菜单 enable/permission live on 技能平台.
+  private var selectionMenuPanelHotKeyCard: some View {
+    SettingsCard(
+      title: "划词菜单",
+      palette: palette,
+      theme: theme,
+      reduceTransparency: reduceTransparency
+    ) {
+      FamoHotKeyRecorderRow(slot: .selectionMenu, palette: palette)
+    }
+  }
+
+  /// 任意提问 summon hotkey (default off — same recorder, same restricted range, never a Rime
+  /// key_binder). Unlike the other two this needs no selection: it opens the AI 对话窗 straight
+  /// away, which is why 任意提问 is NOT a 技能平台 toggle — it is a menu item plus this hotkey.
+  private var askAnythingHotKeyCard: some View {
+    SettingsCard(
+      title: "任意提问",
+      palette: palette,
+      theme: theme,
+      reduceTransparency: reduceTransparency
+    ) {
+      FamoHotKeyRecorderRow(slot: .askAnything, palette: palette)
+    }
+  }
+
+  /// 提示词助手直达热键（07-21 机主提案）：同一块快捷面板、初始分段=提示词。五笔的专属入口——
+  /// 提示词表不挂五笔 schema（守四码上屏），打字触发只在拼音下存在。
   private var promptAssistantHotKeyCard: some View {
     SettingsCard(
       title: "提示词助手",
@@ -455,7 +605,7 @@ struct FamoKeyboardPage: View {
     ) {
       VStack(alignment: .leading, spacing: 8) {
         FamoHotKeyRecorderRow(slot: .promptAssistant, palette: palette)
-        Text("按下热键直接打开提示词列表；选中带 {{变量}} 的模板会先弹填空再插入。")
+        Text("按下热键直接打开提示词列表（任意输入方案可用，含五笔）；选中带 {{变量}} 的模板会先弹填空再插入。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .fixedSize(horizontal: false, vertical: true)
@@ -586,6 +736,21 @@ struct FamoKeyboardPage: View {
           palette: palette,
           onToggle: { toggleCJKAlnumSpacing() }
         )
+        SettingsCardDivider(palette: palette)
+        // 07-21 机主拍板改名：配对表早已不限于括号（含引号 + ASCII），名称与最初需求「成对输入」对齐。
+        // 注释必须在 SettingsToggleRow( 之外——覆盖清单的提取正则不容 `(` 与 `title:` 之间有注释行。
+        SettingsToggleRow(
+          title: "成对输入",
+          isOn: state.keyboardAutoPairBrackets,
+          palette: palette,
+          onToggle: { toggleAutoPairBrackets() }
+        )
+        Text("输入下列开符号自动补全成对：（） 【】 《》 〈〉 「」 『』 〔〕 “” ‘’ <> () [] {}。标准文本应用中光标停在符号中间，其余应用光标在符号后。")
+          .font(.system(size: 12))
+          .foregroundStyle(palette.ink3)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.top, 4)
+          .padding(.bottom, 4)
       }
     }
   }
@@ -788,6 +953,46 @@ struct FamoKeyboardPage: View {
   // FamoSettingsE2ETests 锁死（macOS 优先处理 ⌘，待真机验证后再加绑定）。故此处刻意没有
   // toggle handler；别再加回来，否则就是一个永远不会被调用的死开关。
 
+  private func toggleWubiCodeHint() {
+    persistAndApplyRimeConfig {
+      FamoSettingsActions.toggle(state: state, keyPath: \.keyboardWubiCodeHint) {
+        FamoKeyboardPreferences.wubiCodeHint = $0
+      }
+    }
+  }
+
+  private func toggleWubiAutoClear() {
+    persistAndApplyRimeConfig {
+      FamoSettingsActions.toggle(state: state, keyPath: \.keyboardWubiAutoClear) {
+        FamoKeyboardPreferences.wubiAutoClear = $0
+      }
+    }
+  }
+
+  private func toggleWubiZReverseLookup() {
+    persistAndApplyRimeConfig {
+      FamoSettingsActions.toggle(state: state, keyPath: \.keyboardWubiZReverseLookup) {
+        FamoKeyboardPreferences.wubiZReverseLookup = $0
+      }
+    }
+  }
+
+  private func toggleWubiEnglishChannel() {
+    persistAndApplyRimeConfig {
+      FamoSettingsActions.toggle(state: state, keyPath: \.keyboardWubiEnglishChannel) {
+        FamoKeyboardPreferences.wubiEnglishChannel = $0
+      }
+    }
+  }
+
+  private func toggleWubiUserDictLearning() {
+    persistAndApplyRimeConfig {
+      FamoSettingsActions.toggle(state: state, keyPath: \.keyboardWubiUserDictLearning) {
+        FamoKeyboardPreferences.wubiUserDictLearning = $0
+      }
+    }
+  }
+
   private func toggleAngleSymbolMenu() {
     persistAndApplyRimeConfig {
       FamoSettingsActions.toggle(state: state, keyPath: \.keyboardAngleSymbolMenu) {
@@ -804,4 +1009,11 @@ struct FamoKeyboardPage: View {
     }
   }
 
+  /// 自动配对括号 (task 07-02) — a Famo-side cached flag read live at the commit seam by the
+  /// `FamoAutoPair` decision; like 中文与英文间加入空格 it must NOT trigger a Rime apply/deploy.
+  private func toggleAutoPairBrackets() {
+    FamoSettingsActions.toggle(state: state, keyPath: \.keyboardAutoPairBrackets) {
+      FamoKeyboardPreferences.autoPairBrackets = $0
+    }
+  }
 }

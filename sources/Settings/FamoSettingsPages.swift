@@ -64,7 +64,8 @@ struct FamoAboutPage: View {
         SettingsCardDivider(palette: palette)
         infoRow(label: "构建标识", value: appBuildIdentityDisplay)
         SettingsCardDivider(palette: palette)
-        infoRow(label: "设计与开发", value: "Famotype contributors")
+        // 署名（对齐 Responsay 关于页的写法；文案为对外署名定稿，勿改动措辞）。
+        infoRow(label: "设计与开发", value: "张贤伟 · 深圳大学法律人工智能实训实验室")
         if !state.librimeVersion.isEmpty {
           SettingsCardDivider(palette: palette)
           infoRow(label: "librime", value: state.librimeVersion)
@@ -81,6 +82,9 @@ struct FamoAboutPage: View {
     }
   }
 
+  /// 软件更新 row: a single Sparkle 检查更新 button (mirrors the responsay About pattern, minimal).
+  /// Disabled when the updater can't check yet (no feed / in-flight), matching the delegate guard
+  /// in `checkForUpdates()`. Off the IMK hot path — settings UI only.
   private var updateRow: some View {
     HStack(spacing: 10) {
       Text("软件更新")
@@ -145,8 +149,8 @@ struct FamoAboutPage: View {
         creditLine(name: "Squirrel（鼠须管）", license: "GPLv3")
         creditLine(name: "librime（中州韵输入法引擎）", license: "BSD-3-Clause")
         creditLine(name: "雾凇拼音 rime-ice（iDvel）", license: "GPLv3 · 拼音底座")
-        creditLine(name: "东风破 plum（Rime 配置管理器）", license: "LGPL-3.0")
-        creditLine(name: "Sparkle", license: "MIT + bundled notices")
+        creditLine(name: "极点五笔86（KyleBing）", license: "Apache-2.0 · 五笔全套")
+        creditLine(name: "rime-octagram-data（lotem）", license: "八股文语法模型")
       }
     }
   }
@@ -355,6 +359,8 @@ struct FamoDiagnosticsPage: View {
 
     ## 最近日志（子系统 im.famo.inputmethod.Famo，近 30 分钟）
     \(recentUnifiedLogs())
+
+    \(FamoLogoutDiagnostics.supportBundleSection())
     """
     return redact(raw)
   }

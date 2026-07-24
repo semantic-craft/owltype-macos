@@ -37,6 +37,9 @@ enum FamoSettingsPage: String, CaseIterable, Identifiable, Sendable {
   case schemes
   case quickSend
   case prompts
+  case clipboard
+  case project
+  case ai
   case skin
   case diagnostics
   case about
@@ -53,9 +56,11 @@ enum FamoSettingsPage: String, CaseIterable, Identifiable, Sendable {
     case .keyboard: return "键盘输入"
     case .shortcuts: return "快捷键设置"
     case .appearance: return "候选窗设置"
-    case .schemes: return "输入方案"
-    case .quickSend: return "快捷短语"
+    case .schemes: return "输入方案"    case .quickSend: return "快捷短语"
     case .prompts: return "提示词助手"
+    case .clipboard: return "剪贴板"
+    case .project: return "技能平台"
+    case .ai: return "AI 配置"
     case .skin: return "皮肤外观"
     case .diagnostics: return "诊断"
     case .about: return "关于"
@@ -68,15 +73,35 @@ enum FamoSettingsPage: String, CaseIterable, Identifiable, Sendable {
     case .keyboard: return "keyboard"
     case .shortcuts: return "command"
     case .appearance: return "macwindow"
-    case .schemes: return "character.book.closed"
-    case .quickSend: return "text.badge.plus"
+    case .schemes: return "character.book.closed"    case .quickSend: return "text.badge.plus"
     case .prompts: return "doc.text"
+    case .clipboard: return "doc.on.clipboard"
+    case .project: return "wand.and.sparkles"
+    case .ai: return "sparkles"
     case .skin: return "paintbrush"
     case .diagnostics: return "stethoscope"
     case .about: return "info.circle"
     }
   }
 
+  /// Alternative single-character badge (the earlier Claude Design look). No longer
+  /// rendered — kept for a one-line revert of `sidebarRow`. ponytail: delete if the
+  /// SF Symbol look sticks.
+  var mono: String {
+    switch self {
+    case .keyboard: return "键"
+    case .shortcuts: return "捷"
+    case .appearance: return "候"
+    case .schemes: return "案"    case .quickSend: return "短"
+    case .prompts: return "提"
+    case .clipboard: return "贴"
+    case .project: return "技"
+    case .ai: return "智"
+    case .skin: return "皮"
+    case .diagnostics: return "诊"
+    case .about: return "关"
+    }
+  }
 }
 
 /// Observable backing state for `FamoSettingsView`.
@@ -187,6 +212,8 @@ final class FamoSettingsState {
   var keyboardCJKEnglishSpacing: Bool = false
   /// 中文与数字自动空格 legacy mirror.
   var keyboardCJKNumberSpacing: Bool = false
+  /// 自动配对括号 (mirror of `FamoKeyboardPreferences.autoPairBrackets`). Default false（出厂关）.
+  var keyboardAutoPairBrackets: Bool = false
   /// 这些 App 默认英文 (mirror of `FamoKeyboardPreferences.appEnglishBundleIDs`).
   var keyboardAppEnglishBundleIDsText: String = ""
 
@@ -198,6 +225,119 @@ final class FamoSettingsState {
   var skin: FamoSkin = .deepred
   /// 在候选中显示 emoji (mirror of `FamoEmojiPreferences.candidateEmojiEnabled`). Default false（出厂关）.
   var candidateEmojiEnabled: Bool = false
+  /// Cloud AI enable — 全部划词技能的总闸 (mirror of `FamoCloudPreferences.isEnabled`).
+  var cloudEnabled: Bool = false
+  /// DeepSeek model id (mirror of `FamoCloudPreferences.deepSeekModel`).
+  var cloudModel: String = FamoCloudPreferences.defaultDeepSeekModel
+  /// 任意提问「联网搜索」(mirror of `FamoAskWebSearchSettings.isEnabled`). Default false（出厂关，opt-in）.
+  var askWebSearchEnabled: Bool = FamoAskWebSearchSettings.isEnabled
+  /// 任意提问「联网模型」偏好 (mirror of `FamoAskSearchProviderSettings.rawValue`). `""` = 自动.
+  var askWebSearchProvider: String = FamoAskSearchProviderSettings.rawValue
+  /// 划词菜单总开关 + 技能平台内置技能 mirrors.
+  var selectionMenuEnabled: Bool = FamoSelectionMenuPreferences.isEnabled
+  var polishSkillEnabled: Bool = FamoSelectionMenuPreferences.polishEnabled
+  var sourceVerificationSkillEnabled: Bool = FamoSelectionMenuPreferences.sourceVerificationEnabled
+  var researchAssistSkillEnabled: Bool = FamoSelectionMenuPreferences.researchAssistEnabled
+  var documentFormattingSkillEnabled: Bool = FamoSelectionMenuPreferences.documentFormattingEnabled
+  var publishFormattingSkillEnabled: Bool = FamoSelectionMenuPreferences.publishFormattingEnabled
+  var translationSkillEnabled: Bool = FamoSelectionMenuPreferences.translationEnabled
+  var polishVariantsSkillEnabled: Bool = FamoSelectionMenuPreferences.polishVariantsEnabled
+  var polishStyleMatchSkillEnabled: Bool = FamoSelectionMenuPreferences.polishStyleMatchEnabled
+  var promptOptimizeSkillEnabled: Bool = FamoSelectionMenuPreferences.promptOptimizeEnabled
+  var promptStructureSkillEnabled: Bool = FamoSelectionMenuPreferences.promptStructureEnabled
+}
+
+/// Single home for 划词菜单 + 技能平台 built-in skill preferences.
+///
+/// Defaults are product-facing: the global menu is opt-in/off, while the two built-in
+/// skills are active once the menu is enabled. Keep the UserDefaults keys here so the
+/// settings page, menu bar item, and global selection watcher share one source.
+enum FamoSelectionMenuPreferences {
+  static let enabledKey = "FamoSelectionMenuEnabled"
+  static let polishEnabledKey = "FamoSkillPolishEnabled"
+  static let sourceVerificationEnabledKey = "FamoSkillSourceVerificationEnabled"
+  static let researchAssistEnabledKey = "FamoSkillResearchAssistEnabled"
+  static let documentFormattingEnabledKey = "FamoSkillDocumentFormattingEnabled"
+  static let publishFormattingEnabledKey = "FamoSkillPublishFormattingEnabled"
+  static let translationEnabledKey = "FamoSkillTranslationEnabled"
+  static let polishVariantsEnabledKey = "FamoSkillPolishVariantsEnabled"
+  static let polishStyleMatchEnabledKey = "FamoSkillPolishStyleMatchEnabled"
+  static let promptOptimizeEnabledKey = "FamoSkillPromptOptimizeEnabled"
+  static let promptStructureEnabledKey = "FamoSkillPromptStructureEnabled"
+
+  static var isEnabled: Bool {
+    get { bool(enabledKey, default: false) }
+    set { FamoDefaults.standard.set(newValue, forKey: enabledKey) }
+  }
+
+  static var polishEnabled: Bool {
+    get { bool(polishEnabledKey, default: true) }
+    set { FamoDefaults.standard.set(newValue, forKey: polishEnabledKey) }
+  }
+
+  static var sourceVerificationEnabled: Bool {
+    get { bool(sourceVerificationEnabledKey, default: true) }
+    set { FamoDefaults.standard.set(newValue, forKey: sourceVerificationEnabledKey) }
+  }
+
+  static var researchAssistEnabled: Bool {
+    get { bool(researchAssistEnabledKey, default: true) }
+    set { FamoDefaults.standard.set(newValue, forKey: researchAssistEnabledKey) }
+  }
+
+  static var documentFormattingEnabled: Bool {
+    get { bool(documentFormattingEnabledKey, default: true) }
+    set { FamoDefaults.standard.set(newValue, forKey: documentFormattingEnabledKey) }
+  }
+
+  static var publishFormattingEnabled: Bool {
+    get { bool(publishFormattingEnabledKey, default: true) }
+    set { FamoDefaults.standard.set(newValue, forKey: publishFormattingEnabledKey) }
+  }
+
+  static var translationEnabled: Bool {
+    get { bool(translationEnabledKey, default: true) }
+    set { FamoDefaults.standard.set(newValue, forKey: translationEnabledKey) }
+  }
+
+  static var polishVariantsEnabled: Bool {
+    get { bool(polishVariantsEnabledKey, default: true) }
+    set { FamoDefaults.standard.set(newValue, forKey: polishVariantsEnabledKey) }
+  }
+
+  static var polishStyleMatchEnabled: Bool {
+    get { bool(polishStyleMatchEnabledKey, default: true) }
+    set { FamoDefaults.standard.set(newValue, forKey: polishStyleMatchEnabledKey) }
+  }
+
+  static var promptOptimizeEnabled: Bool {
+    get { bool(promptOptimizeEnabledKey, default: true) }
+    set { FamoDefaults.standard.set(newValue, forKey: promptOptimizeEnabledKey) }
+  }
+
+  static var promptStructureEnabled: Bool {
+    get { bool(promptStructureEnabledKey, default: true) }
+    set { FamoDefaults.standard.set(newValue, forKey: promptStructureEnabledKey) }
+  }
+
+  static func resetForTesting() {
+    FamoDefaults.standard.removeObject(forKey: enabledKey)
+    FamoDefaults.standard.removeObject(forKey: polishEnabledKey)
+    FamoDefaults.standard.removeObject(forKey: sourceVerificationEnabledKey)
+    FamoDefaults.standard.removeObject(forKey: researchAssistEnabledKey)
+    FamoDefaults.standard.removeObject(forKey: documentFormattingEnabledKey)
+    FamoDefaults.standard.removeObject(forKey: publishFormattingEnabledKey)
+    FamoDefaults.standard.removeObject(forKey: translationEnabledKey)
+    FamoDefaults.standard.removeObject(forKey: polishVariantsEnabledKey)
+    FamoDefaults.standard.removeObject(forKey: polishStyleMatchEnabledKey)
+    FamoDefaults.standard.removeObject(forKey: promptOptimizeEnabledKey)
+    FamoDefaults.standard.removeObject(forKey: promptStructureEnabledKey)
+  }
+
+  private static func bool(_ key: String, default defaultValue: Bool) -> Bool {
+    guard FamoDefaults.standard.object(forKey: key) != nil else { return defaultValue }
+    return FamoDefaults.standard.bool(forKey: key)
+  }
 }
 
 struct FamoRimeSyncSettings {
@@ -404,4 +544,24 @@ enum FamoSettingsActions {
     )
   }
 
+  static func setClipboardEnabled(_ value: Bool, write: (Bool) -> Void) -> String {
+    write(value)
+    return value ? "已启用；只在你点击捕获时读取纯文本剪贴板。" : "已关闭；Famo 不读取系统剪贴板。"
+  }
+
+  static func captureClipboard(
+    enabled: Bool,
+    text: String?,
+    capture: (String?) throws -> [FamoClipboardEntry]
+  ) throws -> (entries: [FamoClipboardEntry]?, status: String) {
+    guard enabled else { return (nil, "先启用剪贴板面板。") }
+    return (try capture(text), "已捕获当前剪贴板；最多保留 \(FamoClipboardStore.maxEntries) 条。")
+  }
+
+  static func clearClipboard(
+    clear: () throws -> Void
+  ) throws -> (entries: [FamoClipboardEntry], status: String) {
+    try clear()
+    return ([], "已清空本地剪贴板记录。")
+  }
 }

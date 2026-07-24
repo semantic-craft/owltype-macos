@@ -38,7 +38,7 @@ struct FamoTermRule: Codable, Equatable, Sendable, Identifiable {
   /// Variants that are acceptable: kept in candidates as-is, never removed, never promoted over
   /// `preferred`.
   var allowedVariants: [String]
-  /// Variants that must NOT appear: removed from the local smart lane (the Rime main
+  /// Variants that must NOT appear: removed from the smart/cloud enhancement lane (the Rime main
   /// lane is never touched — this is enforcement in the enhancement layer only).
   var forbiddenVariants: [String]
   /// Reserved (MVP no-op): the full first-occurrence form for 首次出现 vs 后续简称 tracking.
@@ -123,7 +123,7 @@ enum FamoTerminology {
   /// Apply `rules` to enhancement-lane `candidates`. See type doc for the exact contract.
   ///
   /// - Parameters:
-  ///   - candidates: local smart-lane candidates for ONE snapshot (all share a snapshotID/lane).
+  ///   - candidates: smart/cloud lane candidates for ONE snapshot (all share a snapshotID/lane).
   ///   - rules: the active project's terminology rules.
   /// - Returns: the reordered/filtered candidates. Identity (unchanged array) when `rules` is empty.
   static func apply(candidates: [EnhancedCandidate], rules: [FamoTermRule]) -> [EnhancedCandidate] {

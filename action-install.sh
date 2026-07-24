@@ -86,12 +86,16 @@ tar -xJf "download/${sparkle_archive}" -C download
 
 cp -L download/dist/lib/librime.1.dylib lib/
 cp -L download/dist/lib/rime-plugins/librime-lua.dylib lib/rime-plugins/
+cp -L download/dist/lib/rime-plugins/librime-predict.dylib lib/rime-plugins/
+cp -L download/dist/lib/rime-plugins/librime-octagram.dylib lib/rime-plugins/
 cp download/dist/bin/rime_deployer bin/
 cp download/dist/bin/rime_dict_manager bin/
 cp -R download/Sparkle.framework Frameworks/
 sanitize_upstream_build_paths \
   lib/librime.1.dylib \
   lib/rime-plugins/librime-lua.dylib \
+  lib/rime-plugins/librime-predict.dylib \
+  lib/rime-plugins/librime-octagram.dylib \
   bin/rime_deployer \
   bin/rime_dict_manager
 ensure_rpath bin/rime_deployer

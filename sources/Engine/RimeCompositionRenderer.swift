@@ -42,7 +42,7 @@ struct RimeMarkedText: Equatable {
 
 enum RimeCompositionRenderer {
 
-  /// 合成期 keep-alive 占位：零宽空格 U+200B。
+  /// 合成期 keep-alive 占位（#89, spec rime-law-next#88 §3）：零宽空格 U+200B。
   /// fcitx5-macos 先例（macosfrontend.swift `commitAndSetPreeditSync`，见
   /// docs/chromium-omnibox-ime-prior-art.md §2.2）：合成进行中 marked text 一旦为空，
   /// Chromium omnibox 等宿主把「空 marked text」当作合成结束——下一个退格落到已上屏文本，

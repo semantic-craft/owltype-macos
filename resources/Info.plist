@@ -103,15 +103,25 @@
 	<true/>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
-	<key>SUEnableAutomaticChecks</key>
-	<true/>
-	<key>SUEnableInstallerLauncherService</key>
-	<true/>
+	<!-- #16 更新后强推注销：FamoUpdateLogoutPrompt 的【立即注销】发 Apple 事件给「系统事件」走系统
+	     标准注销。hardened runtime 下这条路要求 NSAppleEventsUsageDescription（本 key，TCC 授权框
+	     的理由文案）+ com.apple.security.automation.apple-events（见 Famo.entitlements）；缺任一项
+	     直接 -1743 且不弹授权框——1.4.7 两者皆缺，主按钮从未生效过。发版断言见 check-release.sh。 -->
+	<key>NSAppleEventsUsageDescription</key>
+	<string>法墨在更新后需要通过「系统事件」为你执行注销并重新登录，好让系统完整刷新输入法。</string>
+	<!-- Famo: Sparkle points ONLY at the Famo appcast on responsay.com. Its enclosure is an EdDSA
+	     signed, Developer ID signed and notarized Famo-update.pkg on the public source/release surface.
+	     The update distribution omits RequireLogout; the package scripts preserve the selected input
+	     source and restart the new input-method process in place. -->
 	<key>SUFeedURL</key>
 	<string>https://responsay.com/famo/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>3Ze0A+sHbvkQ8CLlDUIcYvm7BJS4IJLU1rNEX66F9R4=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
 	<key>TICapsLockLanguageSwitchCapable</key>
+	<true/>
+	<key>SUEnableInstallerLauncherService</key>
 	<true/>
 </dict>
 </plist>

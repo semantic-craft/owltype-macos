@@ -199,7 +199,7 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
 
     """.write(to: installation, atomically: true, encoding: .utf8)
 
-    let target = dir.appendingPathComponent("Sync Folder/Famo", isDirectory: true)
+    let target = dir.appendingPathComponent("Cloud Sync/Famo", isDirectory: true)
     let settings = FamoRimeSyncSettings(rimeDir: dir)
     try settings.setSyncDirectory(target)
 
@@ -355,6 +355,75 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
           .path
       )
     )
+  }
+
+  func testClipboardStoreDefaultsOffAndLimitsLocalEntries() throws {
+    let suite = "FamoClipboardTests-\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+
+    XCTAssertFalse(FamoClipboardStore.isEnabled(defaults: defaults))
+    FamoClipboardStore.setEnabled(true, defaults: defaults)
+    XCTAssertTrue(FamoClipboardStore.isEnabled(defaults: defaults))
+
+    let dir = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: dir) }
+
+    let longText = String(repeating: "法", count: FamoClipboardStore.maxCharacters + 10)
+    let entries = (0..<(FamoClipboardStore.maxEntries + 5)).map { index in
+      FamoClipboardEntry(
+        id: UUID(),
+        text: "\(index)-\(longText)",
+        createdAt: Date(timeIntervalSince1970: Double(index))
+      )
+    }
+    try FamoClipboardStore.save(entries, root: dir)
+
+    let loaded = FamoClipboardStore.load(root: dir)
+    XCTAssertEqual(loaded.count, FamoClipboardStore.maxEntries)
+    XCTAssertLessThanOrEqual(loaded[0].text.count, FamoClipboardStore.maxCharacters)
+    let rootMode = try FileManager.default.attributesOfItem(atPath: dir.path)[.posixPermissions] as? NSNumber
+    let fileMode = try FileManager.default.attributesOfItem(
+      atPath: FamoClipboardStore.fileURL(root: dir).path)[.posixPermissions] as? NSNumber
+    XCTAssertEqual(rootMode?.intValue, 0o700)
+    XCTAssertEqual(fileMode?.intValue, 0o600)
+
+    try FamoClipboardStore.clear(root: dir)
+    XCTAssertTrue(FamoClipboardStore.load(root: dir).isEmpty)
+    XCTAssertFalse(FileManager.default.fileExists(atPath: FamoClipboardStore.fileURL(root: dir).path))
+  }
+
+  func testClipboardCaptureRejectsEmptyTextAndDedupes() throws {
+    let dir = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: dir) }
+
+    XCTAssertThrowsError(try FamoClipboardStore.capture("   ", root: dir))
+
+    _ = try FamoClipboardStore.capture("第一条", root: dir, now: Date(timeIntervalSince1970: 1))
+    _ = try FamoClipboardStore.capture("第二条", root: dir, now: Date(timeIntervalSince1970: 2))
+    let loaded = try FamoClipboardStore.capture("第一条", root: dir, now: Date(timeIntervalSince1970: 3))
+
+    XCTAssertEqual(loaded.map(\.text), ["第一条", "第二条"])
+    XCTAssertEqual(loaded[0].createdAt, Date(timeIntervalSince1970: 3))
+  }
+
+  func testClipboardMigratesFromLegacyNestedPath() throws {
+    let dir = try makeTempDir()
+    defer { try? FileManager.default.removeItem(at: dir) }
+
+    // Seed history only at the pre-fix nested `.../famo/clipboard-history.json` location.
+    let legacy = FamoClipboardStore.legacyFileURL(root: dir)
+    try FileManager.default.createDirectory(at: legacy.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let seeded = [FamoClipboardEntry(text: "旧记录", createdAt: Date(timeIntervalSince1970: 1))]
+    try Data(JSONEncoder().encode(seeded)).write(to: legacy)
+
+    // load() falls back to the legacy file, and the next save migrates it forward + drops legacy.
+    XCTAssertEqual(FamoClipboardStore.load(root: dir).map(\.text), ["旧记录"])
+    _ = try FamoClipboardStore.capture("新记录", root: dir, now: Date(timeIntervalSince1970: 2))
+
+    XCTAssertEqual(FamoClipboardStore.load(root: dir).map(\.text), ["新记录", "旧记录"])
+    XCTAssertTrue(FileManager.default.fileExists(atPath: FamoClipboardStore.fileURL(root: dir).path))
+    XCTAssertFalse(FileManager.default.fileExists(atPath: legacy.path))
   }
 
   func testApplyWritesManifestAndRollbackInsideInjectedDirectory() throws {
