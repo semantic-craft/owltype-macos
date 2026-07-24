@@ -153,6 +153,10 @@ final class FamoSettingsCoverageTests: XCTestCase {
     "逗号句号翻页",
     "设置模糊拼音",
     "保存并重新应用",
+    // 完整词库卡（方案B dict-pack，2026-07-24）：下载/重试按钮。行为覆盖在 FamoDictPackTests
+    // （下载/校验/装配/所有权全链路）；按钮 action 只是 FamoDictPackCenter.start() 转发。
+    "立即下载（约 90 MB）",
+    "重试",
     "辅助检索",
     "分号引号选 2/3 位",
     // 「唤起热键」不再列入：快捷短语面板与划词菜单都改用 UI 层的 FamoHotKeyRecorderRow 录制器，

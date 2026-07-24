@@ -78,6 +78,7 @@ struct FamoKeyboardPage: View {
         case .keyboard:
           applyConfigCard
           inputMethodCard
+          dictPackCard
           defaultStateCard
           wubiCard
           fuzzyCard
@@ -174,6 +175,93 @@ struct FamoKeyboardPage: View {
           .frame(maxWidth: .infinity, alignment: .leading)
       }
     }
+  }
+
+  /// 完整词库（方案B）：公开包只带清洁室精简词库；此卡展示 dict-pack 拉取状态并提供手动
+  /// 触发。状态由 FamoDictPackCenter（@Observable）驱动，下载/校验/装配全在 Center/Fetcher。
+  private var dictPackCard: some View {
+    let center = FamoDictPackCenter.shared
+    return SettingsCard(title: "完整词库", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(spacing: 10) {
+          switch center.status {
+          case .notInstalled:
+            Text("未安装 — 当前为精简词库，候选质量受限")
+              .font(.system(size: 12, weight: .medium))
+              .foregroundStyle(palette.ink2)
+            Spacer(minLength: 8)
+            dictPackActionButton("立即下载（约 90 MB）") { center.start() }
+          case .downloading(let progress):
+            ProgressView(value: progress)
+              .controlSize(.small)
+              .frame(maxWidth: 180)
+            Text("下载中 \(Int(progress * 100))%")
+              .font(.system(size: 12))
+              .foregroundStyle(palette.ink2)
+            Spacer(minLength: 8)
+          case .deploying:
+            ProgressView()
+              .controlSize(.small)
+            Text("正在编译词库…")
+              .font(.system(size: 12))
+              .foregroundStyle(palette.ink2)
+            Spacer(minLength: 8)
+          case .installed(let version):
+            Image(systemName: "checkmark.circle.fill")
+              .font(.system(size: 13))
+              .foregroundStyle(FamoProvenanceColor.verified)
+            Text("完整词库已安装（v\(version)）")
+              .font(.system(size: 12, weight: .medium))
+              .foregroundStyle(palette.ink3)
+            Spacer(minLength: 8)
+          case .userProvided:
+            Image(systemName: "checkmark.circle")
+              .font(.system(size: 13))
+              .foregroundStyle(FamoProvenanceColor.verified)
+            Text("检测到自备完整词库（不由法墨管理，不会被覆盖）")
+              .font(.system(size: 12, weight: .medium))
+              .foregroundStyle(palette.ink3)
+            Spacer(minLength: 8)
+          case .failed(let message):
+            Image(systemName: "exclamationmark.triangle.fill")
+              .font(.system(size: 13))
+              .foregroundStyle(.orange)
+            Text("下载失败：\(message)")
+              .font(.system(size: 12))
+              .foregroundStyle(palette.ink2)
+              .lineLimit(2)
+            Spacer(minLength: 8)
+            dictPackActionButton("重试") { center.start() }
+          }
+        }
+        Text("词库按固定版本从上游原仓库（雾凇拼音 / 极点五笔 / 八股文语法模型）下载并逐文件校验，下载完成后自动重新部署。")
+          .font(.system(size: 12))
+          .foregroundStyle(palette.ink3)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
+    }
+    .onAppear { center.refresh() }
+  }
+
+  private func dictPackActionButton(_ title: String, action: @escaping () -> Void) -> some View {
+    Button(action: action, label: {
+      Text(title)
+        .font(.system(size: 13, weight: .medium))
+        .foregroundStyle(palette.accentDeep)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background {
+          RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .fill(palette.card2)
+        }
+        .overlay {
+          RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .strokeBorder(palette.accentDeep.opacity(0.30), lineWidth: 1)
+        }
+        .contentShape(Rectangle())
+    })
+    .buttonStyle(.plain)
+    .accessibilityLabel(title)
   }
 
   /// ◉ 拼音输入 / ○ 双拼输入 [小鹤双拼 ▼] / ○ 五笔 86 / ○ 五笔拼音混输.
