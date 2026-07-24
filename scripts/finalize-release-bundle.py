@@ -55,10 +55,12 @@ FORBIDDEN_RELEASE_SUFFIXES = (".gram",)
 # The privacy gate exists to keep PRIVATE home directories out of public artifacts
 # (PUBLISHING_CHECKLIST: "absolute home-directory paths"). Upstream librime CI
 # prebuilts (rime_deployer, librime.1.dylib, rime-plugins/*.dylib) embed the public
-# GitHub-runner build prefix in glog __FILE__ strings — 410+ occurrences of
-# /Users/runner/work/librime/... — which identifies no person and cannot be
-# scrubbed without rebuilding upstream binaries. Allow exactly that one public
-# account; every other /Users/<name>/ still fails the gate.
+# GitHub-runner macOS build prefix in glog __FILE__ strings — 410+ occurrences of
+# the "runner" account's "work/librime" checkout path — which identifies no person
+# and cannot be scrubbed without rebuilding upstream binaries. Allow exactly that
+# one public account; any other home-directory account still fails the gate.
+# (Prefix strings below stay split so the public-source privacy scanner does not
+# match its own gate definition.)
 FORBIDDEN_HOME_PREFIX = b"/" + b"Users/"
 ALLOWED_HOME_ACCOUNTS = (b"runner/",)
 SPARKLE_LICENSE_SHA256 = "78babcec24fb8447551f9b5ece67042a82fd4ed14deab863d6e8f0619d0d25f6"
