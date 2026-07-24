@@ -126,6 +126,7 @@
 		FA0000FECAFE00FECAFE00FE /* FamoPromptStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000FDCAFE00FDCAFE00FD /* FamoPromptStore.swift */; };
 		FADADA02CAFE0002CAFE0002 /* FamoPromptPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FADADA01CAFE0001CAFE0001 /* FamoPromptPage.swift */; };
 		FA00001ACAFE001ACAFE001A /* FamoPromptStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000FFCAFE00FFCAFE00FF /* FamoPromptStoreTests.swift */; };
+		FADC2608FADC2608FADC2608 /* FamoQuickSendStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FADC2607FADC2607FADC2607 /* FamoQuickSendStoreTests.swift */; };
 		FA000450CAFE0050CAFE0050 /* FamoQuickSendPanelModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000451CAFE0051CAFE0051 /* FamoQuickSendPanelModelTests.swift */; };
 		FAAB0001CAFE0001CAFE0001 /* FamoAutoPair.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAAB0002CAFE0002CAFE0002 /* FamoAutoPair.swift */; };
 		FA07070001CAFE0001CAFE07 /* FamoForcedFinalize.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA07070002CAFE0002CAFE07 /* FamoForcedFinalize.swift */; };
@@ -502,6 +503,7 @@
 		FA0000FDCAFE00FDCAFE00FD /* FamoPromptStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPromptStore.swift; path = sources/Settings/FamoPromptStore.swift; sourceTree = "<group>"; };
 		FADADA01CAFE0001CAFE0001 /* FamoPromptPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPromptPage.swift; path = sources/Settings/FamoPromptPage.swift; sourceTree = "<group>"; };
 		FA0000FFCAFE00FFCAFE00FF /* FamoPromptStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPromptStoreTests.swift; path = tests/FamoPromptStoreTests.swift; sourceTree = "<group>"; };
+		FADC2607FADC2607FADC2607 /* FamoQuickSendStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoQuickSendStoreTests.swift; path = tests/FamoQuickSendStoreTests.swift; sourceTree = "<group>"; };
 		FA000451CAFE0051CAFE0051 /* FamoQuickSendPanelModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoQuickSendPanelModelTests.swift; path = tests/FamoQuickSendPanelModelTests.swift; sourceTree = "<group>"; };
 		FAAB0002CAFE0002CAFE0002 /* FamoAutoPair.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoAutoPair.swift; path = sources/Settings/FamoAutoPair.swift; sourceTree = "<group>"; };
 		FA07070002CAFE0002CAFE07 /* FamoForcedFinalize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoForcedFinalize.swift; path = sources/Engine/FamoForcedFinalize.swift; sourceTree = "<group>"; };
@@ -781,6 +783,7 @@
 				FA000086CAFE0086CAFE0086 /* FamoM3EmojiSkinTests.swift */,
 				FA0000C6CAFE00C6CAFE00C6 /* ProjectStoreTests.swift */,
 				FA0000FFCAFE00FFCAFE00FF /* FamoPromptStoreTests.swift */,
+				FADC2607FADC2607FADC2607 /* FamoQuickSendStoreTests.swift */,
 				FA000451CAFE0051CAFE0051 /* FamoQuickSendPanelModelTests.swift */,
 				FAAB0004CAFE0004CAFE0004 /* FamoAutoPairTests.swift */,
 				FA07070004CAFE0004CAFE07 /* FamoForcedFinalizeTests.swift */,
@@ -1292,6 +1295,7 @@
 				FA000087CAFE0087CAFE0087 /* FamoM3EmojiSkinTests.swift in Sources */,
 				FA0000C7CAFE00C7CAFE00C7 /* ProjectStoreTests.swift in Sources */,
 				FA00001ACAFE001ACAFE001A /* FamoPromptStoreTests.swift in Sources */,
+				FADC2608FADC2608FADC2608 /* FamoQuickSendStoreTests.swift in Sources */,
 				FA000450CAFE0050CAFE0050 /* FamoQuickSendPanelModelTests.swift in Sources */,
 				FAAB0003CAFE0003CAFE0003 /* FamoAutoPairTests.swift in Sources */,
 				FA07070003CAFE0003CAFE07 /* FamoForcedFinalizeTests.swift in Sources */,
