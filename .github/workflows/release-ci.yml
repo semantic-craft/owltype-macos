@@ -10,6 +10,9 @@ on:
 # No `contents: write` — CI never creates releases. The rime-law-next root orchestrator owns the
 # exact source/manifest/Draft Release composition and calls this repository's local packaging helper.
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: macos-26
