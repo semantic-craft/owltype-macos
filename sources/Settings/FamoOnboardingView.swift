@@ -25,11 +25,11 @@ import SwiftUI
 /// The schemes offered on the 选方案 step (id is the real Rime `schema_id` passed to
 /// `onSelectSchema`; not-installed ids no-op gracefully, like the settings switcher).
 private enum OnboardingScheme: String, CaseIterable, Identifiable {
-  case pinyin, shuangpin
+  case pinyin, wubi, shuangpin
   var id: String { rawValue }
-  var glyph: String { self == .pinyin ? "拼" : "双" }
-  var name: String { self == .pinyin ? "拼音" : "双拼" }
-  var code: String { self == .pinyin ? "rime_ice" : "double_pinyin" }
+  var glyph: String { self == .pinyin ? "拼" : self == .wubi ? "五" : "双" }
+  var name: String { self == .pinyin ? "拼音" : self == .wubi ? "五笔" : "双拼" }
+  var code: String { self == .pinyin ? "rime_ice" : self == .wubi ? "wubi86_jidian" : "double_pinyin" }
   var recommended: Bool { self == .pinyin }
 }
 
@@ -46,6 +46,7 @@ struct FamoOnboardingView: View {
   var isFamoEnabled: () -> Bool = { false }
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   @Environment(\.colorScheme) private var colorScheme
 
   @State private var step = 0
@@ -60,7 +61,7 @@ struct FamoOnboardingView: View {
   private let stepNames = ["欢迎", "启用", "选方案", "完成"]
 
   /// 深大红 theme (shared with the candidate panel + settings).
-  private let theme: FamoCandidateTheme = .deepred
+  private let theme: FamoCandidateTheme = .shenda
   private var palette: FamoCandidatePalette { theme.palette(for: colorScheme) }
   private var accentSoft: Color { palette.accent.opacity(colorScheme == .dark ? 0.20 : 0.12) }
 

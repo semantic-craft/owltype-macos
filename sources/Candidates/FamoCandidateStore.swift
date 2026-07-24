@@ -4,12 +4,14 @@
 //
 //  The MainActor container behind the two-lane candidate UI:
 //    - main  : Rime's authoritative candidates (set elsewhere; untouched here in P0).
-//    - smart : local recommendations and ranking.
+//    - smart : T1 local recommendations / 五笔 typo correction / 法学 collocations.
+//  (A former `cloud` lane for inline DeepSeek candidates was removed — see task 06-25-ai /
+//  memory famo-ai-candidate-lane-removed; the DeepSeek base types live on for 划词/任意提问.)
 //
 //  Staleness gate (the whole point of P0): every async upsert carries the `snapshotID` it
 //  was computed for. If that id does not match the live snapshot in `FamoSnapshotRegistry`,
-//  the upsert is DROPPED — a late result can never overwrite newer input. P0 stage:
-//  smart starts empty and is only populated by later local services.
+//  the upsert is DROPPED — a late cloud result can never overwrite newer input. P0 stage:
+//  smart/cloud start empty and are only populated by P1+ services.
 //
 //  Boundary: holds plain value-type candidates only; no librime handle, no hot-path call.
 //
@@ -17,7 +19,7 @@
 import Foundation
 import SwiftUI
 
-/// A candidate destined for the smart lane (or echoing a main-lane Rime candidate).
+/// A candidate destined for the smart/cloud lanes (or echoing a main-lane Rime candidate).
 /// `Sendable` so an enhancement service can build it off the main thread and hand it in.
 struct EnhancedCandidate: Identifiable, Hashable, Sendable {
   /// Where the candidate came from.
@@ -37,7 +39,7 @@ struct EnhancedCandidate: Identifiable, Hashable, Sendable {
   enum CommitMode: String, Sendable {
     /// Select by the underlying Rime candidate index (authoritative path).
     case rimeIndex
-    /// Commit external text via the broker side-channel (local smart results).
+    /// Commit external text via the broker side-channel (smart/cloud results).
     case externalText
   }
 
@@ -108,7 +110,7 @@ extension EnhancedCandidate {
   }
 }
 
-/// Transient error surfaced in a non-main lane.
+/// Transient error surfaced in a non-main lane (e.g. cloud decode / network failure).
 /// Carries the `snapshotID` so a stale error is dropped exactly like a stale candidate.
 struct EnhancedLaneError: Hashable, Sendable {
   let snapshotID: UInt64
@@ -116,10 +118,10 @@ struct EnhancedLaneError: Hashable, Sendable {
   let message: String
 }
 
-/// MainActor observable store of the candidate lanes.
+/// MainActor observable store of the three candidate lanes.
 ///
 /// `main` is owned by the existing Rime path and is NOT written by this increment. `smart`
-/// and `smart` is written only through guarded methods, which drop anything
+/// and `cloud` are written only through the guarded `upsert*` methods, which drop anything
 /// whose `snapshotID` no longer matches the live snapshot.
 @MainActor
 final class FamoCandidateStore: ObservableObject {
@@ -128,16 +130,16 @@ final class FamoCandidateStore: ObservableObject {
 
   /// Rime's authoritative candidates. Set by the existing main-lane path (not here in P0).
   @Published private(set) var main: [EnhancedCandidate] = []
-  /// Local recommendations. Empty until a local service populates it.
+  /// T1 local recommendations. Empty until P2 services populate it.
   @Published private(set) var smart: [EnhancedCandidate] = []
-  /// Latest non-main lane error, if any. Cleared on snapshot change.
+  /// Latest non-main lane error, if any (e.g. cloud decode error). Cleared on snapshot change.
   @Published private(set) var laneError: EnhancedLaneError?
 
-  /// P0-04: minimal notify so the candidate panel can re-render when the async smart
+  /// P0-04: minimal notify so the candidate panel can re-render when the async smart/cloud
   /// lanes change AFTER the initial Rime `showPanel` already drew the page. The controller sets
   /// this once (createSession) to a method that rebuilds the panel from the cached Rime state +
   /// the now-updated store lanes. Invoked on the main actor (the store is `@MainActor`) at the
-  /// end of every smart-lane mutation; nil when no controller is live. Off the IMK key hot path
+  /// end of every smart/cloud mutation; nil when no controller is live. Off the IMK key hot path
   /// (an async upsert / clear, never `processKey`).
   var onLanesChanged: (() -> Void)?
 

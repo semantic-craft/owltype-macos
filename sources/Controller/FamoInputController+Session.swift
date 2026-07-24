@@ -174,7 +174,7 @@ extension FamoInputController {
   /// `menu/page_size` (the 8→5-not-applying bug). The old full `deploy()` only worked because
   /// `shutdownRime()` destroyed every session → the next keystroke `createSession` read fresh
   /// `build/`. We reproduce ONLY that "force the session to re-read build/" effect, WITHOUT
-  /// tearing down the engine (no full dictionary rebuild, so it remains sub-second).
+  /// tearing down the engine (no dict/octagram rebuild → still sub-second).
   ///
   /// Two cases, per the PRD decision (2026-06-22):
   ///
@@ -252,7 +252,7 @@ extension FamoInputController {
 
   /// Switch the active controller's LIVE session to a DIFFERENT schema (输入方式/双拼 picker),
   /// without a full `deploy()`. `select_schema(newId)` re-reads the already-built
-  /// `build/<newId>.schema.yaml` in place (no full dictionary rebuild; clears the composition).
+  /// `build/<newId>.schema.yaml` in place (no dict/octagram rebuild; clears the composition).
   /// Updates the cached `schemaId` ONLY when the select actually lands, and re-renders. Off the IMK
   /// keystroke hot path. Returns `.noLiveSession` when there is no live session (the next
   /// `createSession` will pick up the switched schema, which librime remembers via the

@@ -8,14 +8,14 @@
 //
 //  非激活面板（`.nonactivatingPanel` + `becomesKeyOnlyIfNeeded`）：只有编辑文本框时才短暂成为
 //  key window，不在应用层抢占宿主；showing 前捕获 frontmost app，每条收尾路径都把焦点交还宿主，
-//  这样回调里的 `insertText` 仍落在原输入框。使用 capture→restore
+//  这样回调里的 `insertText` 仍落在原输入框。镜像 `FamoAIWindow` 的 azooKey 式 capture→restore
 //  生命周期（单实例复用、`isReleasedWhenClosed = false`、回调 `[weak self]` 防环）。
 //
 //  边界：SwiftUI 是唯一渲染层（view 经 `NSHostingView` 托管）；IMK 按键热路径不被触碰。AppKit
 //  窗口生命周期不可 headless 单测——纯逻辑（变量抽取 / 替换）在 `FamoPromptStore` 侧已全测，本文件
 //  刻意做薄。真机冒烟（焦点交还后 insertText 是否落到 TextEdit / 微信 / 浏览器）是用户的确认步。
 //
-//  并发：类级别不 `@MainActor`-isolated（与 `FamoSettingsWindow` 一致）；非隔离的
+//  并发：类级别不 `@MainActor`-isolated（与 `FamoAIWindow` / `FamoSettingsWindow` 一致）；非隔离的
 //  控制器在主线程调 `present`。
 //
 

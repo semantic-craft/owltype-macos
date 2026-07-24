@@ -3,7 +3,7 @@
 //  法墨输入法 (Famo) — P0 bypass candidate infrastructure (spec P0-02, registry part)
 //
 //  The MainActor source of truth for "which composition snapshot is currently live". An
-//  async local-enhancement result must call `isCurrent(_:)` on the main
+//  async enhancement result (T1 local / T2 cloud) must call `isCurrent(_:)` on the main
 //  thread before it touches the UI; if the user has typed / paged / committed / switched
 //  schema since the snapshot was taken, the result is stale and must be dropped.
 //

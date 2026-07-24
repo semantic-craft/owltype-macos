@@ -19,6 +19,9 @@ import AppKit
 import SwiftUI
 
 final class FamoSettingsWindow: NSWindowController {
+  /// Strong reference to the observable state so it lives as long as the window.
+  private var state: FamoSettingsState?
+
   init() {
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 900, height: 660),
@@ -55,6 +58,8 @@ final class FamoSettingsWindow: NSWindowController {
     onShowOnboarding: @escaping () -> Void,
     onPanelPreferencesChanged: @escaping () -> Void
   ) {
+    self.state = state
+
     let rootView = FamoSettingsView(
       state: state,
       onSelectSchema: onSelectSchema,
@@ -73,7 +78,7 @@ final class FamoSettingsWindow: NSWindowController {
     // LSUIElement apps have no main menu, so AppKit never translates ⌘C/⌘V/⌘X/⌘A
     // (and ⌘Z) into the standard `copy:`/`paste:`/… responder-chain actions — which
     // makes those shortcuts dead in the settings window's text fields (e.g. the
-    // editable fields. Install a minimal Edit menu so they work while
+    // DeepSeek API Key SecureField). Install a minimal Edit menu so they work while
     // the settings window is key. Idempotent; harmless to leave set when the app
     // reverts to `.accessory` (no menu bar shows without an active titled window).
     Self.installMainMenuIfNeeded()

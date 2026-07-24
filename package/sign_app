@@ -1,0 +1,16 @@
+#! /bin/bash
+# enconding: utf-8
+
+DEV_ID=$1
+DERIVED_DATA_PATH=$2
+appDir="${DERIVED_DATA_PATH}/Build/Products/Release/Famo.app"
+entitlement="resources/Famo.entitlements"
+
+# Apple 的时间戳服务器(TSA)偶发抽风，--timestamp 会让 codesign 失败，且报成误导性的
+# "Unknown format in import"(实为时间戳没拿到)。重试几次即过——与 Makefile 里 productsign 同病同治。
+for i in 1 2 3 4 5; do
+  codesign --deep --force --options runtime --timestamp --sign "Developer ID Application: ${DEV_ID}" --entitlements "$entitlement" --verbose "$appDir" && break
+  echo "[famo] codesign 时间戳抖动(TSA)，重试 ${i}/5（8s）…"; sleep 8
+done
+
+codesign --verify --deep --strict --verbose=2 "$appDir";

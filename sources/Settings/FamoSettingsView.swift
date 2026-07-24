@@ -3,7 +3,7 @@
 //  法墨输入法 (Famo) — SwiftUI settings window
 //
 //  v0.3: the settings UI as a sidebar-nav app (NavigationSplitView, 豆包/微信-style).
-//  Left = a List of user-facing pages (键盘输入 / 候选窗外观 / 快捷短语 / 关于); right = grouped
+//  Left = a List of user-facing pages (键盘输入 / 候选窗外观 / AI 配置 / 关于); right = grouped
 //  深大红 cards. 深大红 themed (light/dark via `colorScheme`), honors Reduce Motion /
 //  Reduce Transparency like `FamoCandidatePanelView`.
 //
@@ -33,7 +33,7 @@ struct FamoSettingsView: View {
   /// + live reselect + replay; no `shutdownRime`). Used for 候选个数 / 键位 / 标点 / schema_list.
   let onApplyKeyboardConfigFast: () -> Bool
   /// 模糊拼音 fast-ish apply → delegate `applyFuzzyConfigFast()` (mtime-gated `fullCheck:false`
-  /// maintenance — rebuilds the affected schema prism + reselect + replay).
+  /// maintenance — rebuilds the affected schema prism, not octagram — + reselect + replay).
   let onApplyFuzzyConfigFast: () -> Bool
   /// 同步用户数据 → delegate `syncUserData()`.
   let onSyncUserData: () -> Void
@@ -79,6 +79,18 @@ struct FamoSettingsView: View {
       // window opens reflecting the saved choices (the pages write back through both).
       state.skin = FamoSkinPreferences.skin
       state.candidateEmojiEnabled = FamoEmojiPreferences.candidateEmojiEnabled
+      state.cloudEnabled = FamoCloudPreferences.isEnabled
+      state.cloudModel = FamoCloudPreferences.deepSeekModel
+      state.selectionMenuEnabled = FamoSelectionMenuPreferences.isEnabled
+      state.sourceVerificationSkillEnabled = FamoSelectionMenuPreferences.sourceVerificationEnabled
+      state.researchAssistSkillEnabled = FamoSelectionMenuPreferences.researchAssistEnabled
+      state.documentFormattingSkillEnabled = FamoSelectionMenuPreferences.documentFormattingEnabled
+      state.publishFormattingSkillEnabled = FamoSelectionMenuPreferences.publishFormattingEnabled
+      state.translationSkillEnabled = FamoSelectionMenuPreferences.translationEnabled
+      state.polishVariantsSkillEnabled = FamoSelectionMenuPreferences.polishVariantsEnabled
+      state.polishStyleMatchSkillEnabled = FamoSelectionMenuPreferences.polishStyleMatchEnabled
+      state.promptOptimizeSkillEnabled = FamoSelectionMenuPreferences.promptOptimizeEnabled
+      state.promptStructureSkillEnabled = FamoSelectionMenuPreferences.promptStructureEnabled
     }
   }
 
@@ -208,6 +220,26 @@ struct FamoSettingsView: View {
           theme: theme,
           reduceTransparency: reduceTransparency
         )
+      case .clipboard:
+        FamoClipboardPage(
+          palette: palette,
+          theme: theme,
+          reduceTransparency: reduceTransparency
+        )
+      case .project:
+        FamoSkillsPage(
+          state: state,
+          palette: palette,
+          theme: theme,
+          reduceTransparency: reduceTransparency
+        )
+      case .ai:
+        FamoAIPage(
+          state: state,
+          palette: palette,
+          theme: theme,
+          reduceTransparency: reduceTransparency
+        )
       case .skin:
         FamoSkinPage(
           state: state,
@@ -330,7 +362,7 @@ struct FamoSettingsView: View {
           _ = onRedeploy()
         }
         actionButton(title: FamoInputMenuTitles.syncDirectory, systemImage: "folder.badge.gearshape", action: onChooseSyncDirectory)
-        actionButton(title: FamoInputMenuTitles.syncUserData, systemImage: "arrow.triangle.2.circlepath", action: onSyncUserData)
+        actionButton(title: FamoInputMenuTitles.syncUserData, systemImage: "arrow.triangle.2.circlepath.icloud", action: onSyncUserData)
         actionButton(title: FamoInputMenuTitles.rimeConfig, systemImage: "folder", action: onOpenRimeFolder)
         actionButton(title: FamoInputMenuTitles.logs, systemImage: "doc.text.magnifyingglass", action: onOpenLog)
         actionButton(title: FamoInputMenuTitles.onboarding, systemImage: "sparkles", action: onShowOnboarding)

@@ -24,8 +24,15 @@ jobs:
         run: bash -n action-install.sh scripts/*.sh
 
   release-gate:
-    runs-on: macos-14
+    # The full product (cloud AI layer) requires Xcode 26+ (Swift main-actor
+    # isolation defaults); macos-14's toolchain cannot compile it.
+    runs-on: macos-26
     steps:
+      - name: Set Xcode version
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
+        with:
+          xcode-version: '26.5'
+
       - name: Checkout audited source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

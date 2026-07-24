@@ -1,35 +1,36 @@
-# Source provenance
+# 来源与许可 · Provenance
 
-本仓库从经过审查的源码白名单开始，没有继承产品开发仓、撤回仓库或历史源码包的 Git 提交。
-首个提交使用 GitHub noreply 身份；后续发布不得合并旧历史。
+法墨输入法 Famo 是自由软件，以 **GPLv3** 许可，是以下上游项目的派生作品。此文件完整记录其来源
+脉络。README 首屏聚焦产品体验，来源细节收在此文件与 README 文末「来源与许可」段落——降位不抹除。
 
-## 固定上游
+## 上游来源 Upstream sources
 
-| Component | Pinned revision | Use |
-|---|---|---|
-| Squirrel | `4db2c85ac639c229e14fd9424f79c3c4f97ce478` parent lineage | InputMethodKit frontend base |
-| librime | `33e78140250125871856cdc5b42ddc6a5fcd3cd4` | Rime engine and build headers |
-| librime-lua | `ec52e48ea18f11af37717a01c337f853215cf70b` | Local Lua extensions used by rime-ice |
-| plum | `b1be1969f914cc005add4090631b855db00c2591` | Rime recipe tooling |
-| Sparkle | `41847a58cdef7506b257591fcca6f9495df591d4` | Signed software-update framework |
-| rime-ice | `b681a34f788795034b3b288830f4861980bc8b0d` | Pinyin schema and dictionaries |
+- **鼠须管 Squirrel** —— <https://github.com/rime/squirrel>（GPLv3）
+  Famo 的 macOS IMK 前端复用并精简自鼠须管的输入热路径。候选窗 / 设置 / 引导 / 表情符号面板由
+  SwiftUI 重做，运行时身份、数据根与安装位置全部改为 Famo（见下方「与鼠须管并存」）。
+- **librime** —— <https://github.com/rime/librime>（BSD-3 / 组件各自许可）
+  输入引擎。Famo 不重写 librime，将其与数据自包含进 `Famo.app`。
+- **RIME / 中州韻输入法引擎** —— <https://rime.im>
 
-`librime`、`librime-lua`、`plum` 与 `Sparkle` 是固定 SHA 的公开子模块。`scripts/famo-seed.sh` 使用完整 SHA 获取
-rime-ice，并把它的 LICENSE 与 Credits 复制到生成的 seed。`make bootstrap` 还会对
-`THIRD_PARTY_NOTICES.md` 所列的两个 librime 官方构建包执行 SHA-256 校验，并且只复制
-`librime`、`librime-lua` 与固定版本 Sparkle.framework；predict 与 octagram 插件不会进入 App 工程。
+## 内置数据与方案 Bundled data & schemas
 
-`plum` 的八个构建期数据包也在 `action-install.sh` 中锁定完整提交 SHA；脚本以 detached HEAD
-安装它们，不再从浮动默认分支生成构建输入。生成 seed 所需的通用许可证全文固定到 SPDX
-license-list-data `v3.28.0`，每个下载文件都在复制前校验 SHA-256。
+- 雾凇拼音 rime-ice —— <https://github.com/iDvel/rime-ice>
+- 极点五笔 86 —— <https://github.com/KyleBing/rime-wubi86-jidian>
+- OpenCC 简繁转换等
 
-## 有意排除
+各组件的完整许可条款见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
 
-- appcast 生成、EdDSA 私钥、Apple 签名、公证和部署流程；
-- 极点五笔数据：底表的再许可授权链尚未取得可公开验证的依据；
-- octagram gram 数据：首个本地核心不启用语法模型；
-- 云端服务、辅助功能划词和剪贴板历史实现。
+## 与鼠须管并存 Coexistence
 
-`make release-gate` 会从最终 App 反查原生组件和完整文件清单，写入 SPDX SBOM，并生成绑定根提交、
-递归子模块、同版数据 seed 和 App 文件清单的对应源码归档。公开二进制发布材料必须同时包含该 App、
-对应源码归档及两者的 SHA-256 清单。
+Famo 使用独立身份，与已安装的鼠须管互不干扰；对鼠须管的任何文件与配置**只读**，绝不修改。
+
+| 项 | 鼠须管 Squirrel | 法墨 Famo |
+| --- | --- | --- |
+| Bundle ID | `im.rime.inputmethod.Squirrel` | `im.famo.inputmethod.Famo` |
+| 安装位置 | `/Library/Input Methods/Squirrel.app` | `/Library/Input Methods/Famo.app` |
+| 数据根 | `~/Library/Rime` | `~/Library/Application Support/Famo` |
+
+## 许可 License
+
+GPLv3（见 [`LICENSE.txt`](LICENSE.txt)）。分发基于本项目的二进制时，必须一并提供对应的修改源码、
+GPLv3 许可证文本与版权声明，不得作为闭源制品分发。

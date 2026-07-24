@@ -10,7 +10,7 @@
 //
 //  v0.4-app-fix: the fuzzy `speller/algebra` block is SCHEMA-level (it patches
 //  `rime_ice.schema.yaml`), so it must go in `rime_ice.custom.yaml`, NOT
-//  `default.custom.yaml`. The
+//  `default.custom.yaml` (see `packages/rime-law-config/CONFIG-DESIGN.md`). The
 //  generator is split into two pure builders:
 //  - `famoDefaultCustomYAML(from:)` — the SHARED keys (ascii_composer/switch_key hint,
 //    key_binder/bindings paging + select, punctuator hints, the commented 双拼 schema
@@ -124,15 +124,16 @@ struct FamoKeyboardSnapshot: Sendable {
 }
 
 struct FamoWubiPatchTarget: Sendable {
+  let schemaID: String
   let fileName: String
   let displayName: String
 }
 
 let famoWubiPatchTargets: [FamoWubiPatchTarget] = [
-  FamoWubiPatchTarget(fileName: "wubi86_jidian.custom.yaml", displayName: "极点五笔86"),
-  FamoWubiPatchTarget(fileName: "wubi86_jidian_pinyin.custom.yaml", displayName: "五笔拼音混输"),
-  FamoWubiPatchTarget(fileName: "wubi86_jidian_trad.custom.yaml", displayName: "五笔简入繁出"),
-  FamoWubiPatchTarget(fileName: "wubi86_jidian_trad_pinyin.custom.yaml", displayName: "五笔拼音混输·简入繁出"),
+  FamoWubiPatchTarget(schemaID: "wubi86_jidian", fileName: "wubi86_jidian.custom.yaml", displayName: "极点五笔86"),
+  FamoWubiPatchTarget(schemaID: "wubi86_jidian_pinyin", fileName: "wubi86_jidian_pinyin.custom.yaml", displayName: "五笔拼音混输"),
+  FamoWubiPatchTarget(schemaID: "wubi86_jidian_trad", fileName: "wubi86_jidian_trad.custom.yaml", displayName: "五笔简入繁出"),
+  FamoWubiPatchTarget(schemaID: "wubi86_jidian_trad_pinyin", fileName: "wubi86_jidian_trad_pinyin.custom.yaml", displayName: "五笔拼音混输·简入繁出"),
 ]
 
 /// Build a `default.custom.yaml` patch string from a keyboard snapshot.

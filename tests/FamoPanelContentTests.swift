@@ -247,7 +247,7 @@ final class FamoPanelContentTests: XCTestCase {
     var cands = baselineCandidates()
     let c = cands[0]
     cands[0] = CandidateViewModel(id: c.id, label: c.label, text: c.text, comment: c.comment,
-                                  badge: c.badge, source: c.source, provenance: .verified)
+                                  badge: c.badge, source: c.source, provenance: .ai)
     XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
   }
 

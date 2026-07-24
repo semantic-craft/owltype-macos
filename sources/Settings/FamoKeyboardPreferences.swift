@@ -75,6 +75,14 @@ enum FamoWubiCandidateMode: String, CaseIterable, Sendable {
   case singleFirst
   case singleOnly
 
+  var displayName: String {
+    switch self {
+    case .normal: return "默认"
+    case .singleFirst: return "单字优先"
+    case .singleOnly: return "纯单字"
+    }
+  }
+
   var luaFilter: String? {
     switch self {
     case .normal: return nil
@@ -87,7 +95,7 @@ enum FamoWubiCandidateMode: String, CaseIterable, Sendable {
 /// 双拼 scheme. Display the 中文 name; expose the rime-ice `schema_id` as a real
 /// computed property (used by the patch builder's commented schema hint). The 7 cases
 /// match rime-ice's bundled double-pinyin schemas exactly (verified against
-/// `rime_ice.schema.yaml`):
+/// `rime_ice.schema.yaml`, see `packages/rime-law-config/CONFIG-DESIGN.md`):
 /// 自然码 is the base `double_pinyin` (NOT `double_pinyin_ziranma`), and 拼音加加 is
 /// `double_pinyin_jiajia` (there is no `double_pinyin_pyjj`).
 ///
@@ -387,6 +395,18 @@ enum FamoKeyboardPreferences {
     }
   }
 
+  /// 自动配对括号 (task 07-02). Key `"FamoKeyboardAutoPairBrackets"`, default `false`
+  /// (PRD D3: 兼容性未大面积真机验证前默认关). Runtime mapping: cached flag + pure pair
+  /// decision in `FamoAutoPair`, executed at the commit seam — hot-effective, NO Rime
+  /// apply/deploy. OFF must stay byte-identical to today's commit behavior.
+  static var autoPairBrackets: Bool {
+    get { cachedAutoPairBrackets }
+    set {
+      cachedAutoPairBrackets = newValue
+      FamoDefaults.standard.set(newValue, forKey: "FamoKeyboardAutoPairBrackets")
+    }
+  }
+
   /// 这些 App 默认英文. Key `"FamoKeyboardAppEnglishBundleIDs"`, default `[]`.
   /// Runtime mapping: generated Rime `app_options/<bundle id>/ascii_mode: true`.
   static var appEnglishBundleIDs: [String] {
@@ -411,6 +431,7 @@ enum FamoKeyboardPreferences {
 
   private static var cachedCJKEnglishSpacing = boolValue("FamoKeyboardCJKEnglishSpacing", default: false)
   private static var cachedCJKNumberSpacing = boolValue("FamoKeyboardCJKNumberSpacing", default: false)
+  private static var cachedAutoPairBrackets = boolValue("FamoKeyboardAutoPairBrackets", default: false)
 
   /// Read a Bool that defaults to `defaultValue` when the key was never written,
   /// instead of UserDefaults' implicit `false`.

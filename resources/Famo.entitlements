@@ -6,5 +6,12 @@
 	<true/>
 	<key>com.apple.security.app-sandbox</key>
 	<false/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<!-- #16 更新后强推注销：hardened runtime 下发 Apple 事件（给「系统事件」执行注销）必须持有它，
+	     否则 errAEEventNotPermitted (-1743) 且 TCC 连授权框都不弹。配套 Info.plist 的
+	     NSAppleEventsUsageDescription。发版断言见 check-release.sh。 -->
+	<key>com.apple.security.automation.apple-events</key>
+	<true/>
 </dict>
 </plist>

@@ -7,8 +7,10 @@
 //  ② expanded vertical list, ③ law-citation candidate with the 「法」 badge + source line —
 //  in 深大红 (light/dark via colorScheme), honoring Reduce Motion / Reduce Transparency.
 //
-//  The palette tokens live with the theme definitions; structural tints (subtle border,
-//  hairline divider, badge fill, selected-pill shadow) are derived from those tokens.
+//  Color source of truth stays `packages/rime-law-config/skins/colors.md` (shenda):
+//  the 8 palette tokens come from there; the design's extra structural tints (subtle
+//  border, hairline divider, badge fill, selected-pill shadow) are DERIVED from those
+//  tokens here rather than hardcoded, so colors.md remains authoritative.
 //
 //  Boundary (ADR-0001 / 0002): this view renders candidates only; key events, marked
 //  text, and commit stay on the native IMK hot path (FamoInputController).
@@ -270,7 +272,7 @@ struct FamoCandidatePanelView: View {
       }
     }
     // Never compress/truncate a candidate to "…" — take the ideal width and let the
-    // bar grow to fit (top candidates can be wider than later ones).
+    // bar grow to fit (the top octagram candidates are wider than the later ones).
     .fixedSize()
     // Capsule padding 8 (was 11): trims the space to the LEFT of the index, so the highlighted
     // pill no longer carries a wide accent margin before the number ("序号左边比较宽").
@@ -322,7 +324,7 @@ struct FamoCandidatePanelView: View {
 
   /// G3 来源小标签：复用「法」徽章的小药丸语法（圆角 5、横 4 纵 3、base*0.68）。
   /// 颜色取自 provenance token（`FamoProvenance.color`）；选中态与 badge 同款反白。
-  /// 仅 `provenance != nil`（本地 smart/法库候选）才渲染；普通拼音候选不调用。
+  /// 仅 `provenance != nil`（smart/cloud/法库候选）才渲染；普通拼音候选不调用。
   private func provenanceTag(_ prov: FamoProvenance, selected: Bool) -> some View {
     Text(prov.displayName)
       .font(.system(size: base * 0.68, weight: .semibold))
