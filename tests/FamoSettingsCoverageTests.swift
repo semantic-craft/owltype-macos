@@ -62,6 +62,9 @@ final class FamoSettingsCoverageTests: XCTestCase {
     "FamoInputMenuTitles.logs",
     "FamoInputMenuTitles.onboarding",
     "FamoInputMenuTitles.rimeConfig",
+    // 重置用户词典…（#37）：备份+删除+还原全链路覆盖在 FamoUserDictResetTests，
+    // 确认弹窗默认按钮同处断言。
+    "FamoInputMenuTitles.resetUserDict",
     "FamoInputMenuTitles.syncDirectory",
     "FamoInputMenuTitles.syncUserData",
     "https 端点",

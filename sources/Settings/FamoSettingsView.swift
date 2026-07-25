@@ -37,6 +37,8 @@ struct FamoSettingsView: View {
   let onApplyFuzzyConfigFast: () -> Bool
   /// 同步用户数据 → delegate `syncUserData()`.
   let onSyncUserData: () -> Void
+  /// 重置用户词典… → delegate-owned 确认弹窗 + `resetUserDict()`（备份 → 删 userdb → 重新部署）。
+  let onResetUserDict: () -> Void
   /// 设置同步目录 → delegate-owned NSOpenPanel + installation.yaml write.
   let onChooseSyncDirectory: () -> Void
   /// 打开用户目录 → delegate `openRimeFolder()`.
@@ -363,6 +365,7 @@ struct FamoSettingsView: View {
         }
         actionButton(title: FamoInputMenuTitles.syncDirectory, systemImage: "folder.badge.gearshape", action: onChooseSyncDirectory)
         actionButton(title: FamoInputMenuTitles.syncUserData, systemImage: "arrow.triangle.2.circlepath.icloud", action: onSyncUserData)
+        actionButton(title: FamoInputMenuTitles.resetUserDict, systemImage: "trash", action: onResetUserDict)
         actionButton(title: FamoInputMenuTitles.rimeConfig, systemImage: "folder", action: onOpenRimeFolder)
         actionButton(title: FamoInputMenuTitles.logs, systemImage: "doc.text.magnifyingglass", action: onOpenLog)
         actionButton(title: FamoInputMenuTitles.onboarding, systemImage: "sparkles", action: onShowOnboarding)
