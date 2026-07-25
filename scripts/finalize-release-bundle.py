@@ -32,6 +32,7 @@ REQUIRED_LICENSES = {
     "Contents/Resources/THIRD_PARTY_NOTICES.md",
     "Contents/SharedSupport/FAMOTYPE-SEED-SOURCES.md",
     "Contents/SharedSupport/OpenCC.LICENSE",
+    "Contents/SharedSupport/jieba.LICENSE",
     "Contents/SharedSupport/librime-lua.LICENSE",
     "Contents/SharedSupport/librime.LICENSE",
     "Contents/SharedSupport/licenses/Apache-2.0.txt",
@@ -41,9 +42,8 @@ REQUIRED_LICENSES = {
     "Contents/SharedSupport/licenses/LGPL-3.0-only.txt",
     "Contents/SharedSupport/licenses/MIT.txt",
     "Contents/SharedSupport/licenses/Unicode-3.0.txt",
+    "Contents/SharedSupport/phrase-pinyin-data.LICENSE",
     "Contents/SharedSupport/plum.LICENSE",
-    "Contents/SharedSupport/rime-essay.AUTHORS",
-    "Contents/SharedSupport/rime-essay.LICENSE",
     "Contents/SharedSupport/rime-ice-Credits.md",
     "Contents/SharedSupport/rime-ice.LICENSE",
 }
@@ -72,7 +72,8 @@ COMPONENTS = (
     ("plum", "b1be1969f914cc005add4090631b855db00c2591", "LGPL-3.0-only", "https://github.com/rime/plum"),
     ("Sparkle", "41847a58cdef7506b257591fcca6f9495df591d4", "MIT", "https://github.com/sparkle-project/Sparkle"),
     ("rime-ice configuration", "b681a34f788795034b3b288830f4861980bc8b0d", "GPL-3.0-only", "https://github.com/iDvel/rime-ice"),
-    ("rime-essay", "e9b1a374a6ea015fca5bdd04318924b4483ac35a", "LGPL-3.0-only", "https://github.com/rime/rime-essay"),
+    ("jieba", "v0.42.1", "MIT", "https://github.com/fxsjy/jieba"),
+    ("phrase-pinyin-data", "cee0ed6e6e4898580cafd2bd5e3723e20b214aa0", "MIT", "https://github.com/mozillazg/phrase-pinyin-data"),
     ("Unicode Unihan", "16.0.0", "Unicode-3.0", "https://www.unicode.org/Public/16.0.0/ucd/Unihan.zip"),
     ("OpenCC", "556ed22496d650bd0b13b6c163be9814637970ae", "Apache-2.0", "https://github.com/BYVoid/OpenCC"),
 )

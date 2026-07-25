@@ -6,10 +6,11 @@
 
 ---
 name: rime_ice
-version: "16.0.0"
+version: "16.0.0-base.1"
 sort: by_weight
-use_preset_vocabulary: true
-vocabulary: essay
+# Order matters: the first table wins duplicate (text, code) rows, so the
+# weighted famotype_base entries must shadow the weight-less famotype_unicode.
 import_tables:
+  - cn_dicts/famotype_base
   - cn_dicts/famotype_unicode
 ...
