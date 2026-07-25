@@ -1,3 +1,12 @@
+<a name="1.5.3"></a>
+## 1.5.3 (2026-07-26)
+
+### 主要功能更新 | Major Updates
+- 设置「维护与诊断」新增「重置用户词典…」：清空输入习惯与自造词学习记录，方案、皮肤、快捷短语等设置与词库均不受影响。确认弹窗默认按钮是取消；重置前把 `*.userdb` 整目录备份到 `.famo-backup/userdb-reset-<ts>/`，可手工还原 (fca5f6f, 40ce3f0)
+  - 修的是 1.4.23 → 1.5.0 那三天种子为 Unihan 全汉字表时被学进 userdb 的繁体词频：升级到干净词库后 `fan ti zi` 首选仍是「繁體字」。属用户自己按的维护动作，不做静默自动净化 (closes #37)
+
+**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.2...1.5.3
+
 <a name="1.5.2"></a>
 ## 1.5.2 (2026-07-25)
 
