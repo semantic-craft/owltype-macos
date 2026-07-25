@@ -14,6 +14,7 @@ enum FamoInputMenuTitles {
   static let settings = "设置…"
   static let deploy = "应用配置改动"
   static let syncUserData = "同步用户数据"
+  static let resetUserDict = "重置用户词典…"
   static let syncDirectory = "设置同步目录..."
   static let onboarding = "欢迎与引导…"
   static let rimeConfig = "打开法墨配置目录…"

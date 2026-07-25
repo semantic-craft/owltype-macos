@@ -69,7 +69,8 @@ final class FamoSettingsUITests: XCTestCase {
     tapMany(["珞珈青", "暗"], in: app)
 
     openPage("about", in: app)
-    tapMany(["应用配置改动", "同步用户数据", "打开法墨配置目录…", "查看诊断日志…", "欢迎与引导…"], in: app)
+    // 重置用户词典… 在 UI-test 模式下接的是空闭包（确认弹窗归 delegate），点它只验按钮可命中。
+    tapMany(["应用配置改动", "同步用户数据", "重置用户词典…", "打开法墨配置目录…", "查看诊断日志…", "欢迎与引导…"], in: app)
   }
 
   private func launchSettings() throws -> XCUIApplication {

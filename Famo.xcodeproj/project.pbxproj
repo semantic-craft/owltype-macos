@@ -90,6 +90,7 @@
 		B35D2FE82BF00839009D156B /* BridgingFunctions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B35D2FE72BF00839009D156B /* BridgingFunctions.swift */; };
 		B38E9B912BE9AE1E0036ABEF /* FamoApplicationDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B38E9B902BE9AE1E0036ABEF /* FamoApplicationDelegate.swift */; };
 		FAA00020CAFE0020CAFE0020 /* FamoUpdateLogoutPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00021CAFE0021CAFE0021 /* FamoUpdateLogoutPrompt.swift */; };
+		FAA00030CAFE0030CAFE0030 /* FamoUserDictResetPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00031CAFE0031CAFE0031 /* FamoUserDictResetPrompt.swift */; };
 		B38E9B952BEAFEFD0036ABEF /* FamoInputController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B38E9B942BEAFEFD0036ABEF /* FamoInputController.swift */; };
 		FA000101CAFE0101CAFE0101 /* FamoInputMenuTitles.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000100CAFE0100CAFE0100 /* FamoInputMenuTitles.swift */; };
 		FA000103CAFE0103CAFE0103 /* FamoInputController+Menu.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000102CAFE0102CAFE0102 /* FamoInputController+Menu.swift */; };
@@ -220,6 +221,7 @@
 		FA0000F4CAFE00F4CAFE00F4 /* RimeValueTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F3CAFE00F3CAFE00F3 /* RimeValueTypes.swift */; };
 		FAA0000DCAFE000DCAFE000D /* RimeCompositionRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA0000ECAFE000ECAFE000E /* RimeCompositionRenderer.swift */; };
 		FA0000F6CAFE00F6CAFE00F6 /* RimeSeam.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F5CAFE00F5CAFE00F5 /* RimeSeam.swift */; };
+		FAA00032CAFE0032CAFE0032 /* FamoUserDictReset.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00033CAFE0033CAFE0033 /* FamoUserDictReset.swift */; };
 		FA0000D9CAFE00D9CAFE00D9 /* FamoExperimentalPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000D8CAFE00D8CAFE00D8 /* FamoExperimentalPreferences.swift */; };
 		FA0000DDCAFE00DDCAFE00DD /* FamoBertTokenizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000DCCAFE00DCCAFE00DC /* FamoBertTokenizer.swift */; };
 		FA000502CAFE0502CAFE0502 /* FamoBackspaceCorrection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000503CAFE0503CAFE0503 /* FamoBackspaceCorrection.swift */; };
@@ -249,6 +251,7 @@
 		FA000A02CAFE0A02CAFE0A02 /* FamoGetAppOptionsRoundTripTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000A01CAFE0A01CAFE0A01 /* FamoGetAppOptionsRoundTripTests.swift */; };
 		FAA0000FCAFE000FCAFE000F /* RimeCompositionRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00010CAFE0010CAFE0010 /* RimeCompositionRendererTests.swift */; };
 		FAA00022CAFE0022CAFE0022 /* FamoUpdateLogoutPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00023CAFE0023CAFE0023 /* FamoUpdateLogoutPromptTests.swift */; };
+		FAA00034CAFE0034CAFE0034 /* FamoUserDictResetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00035CAFE0035CAFE0035 /* FamoUserDictResetTests.swift */; };
 		FA0000FACAFE00FACAFE00FA /* SeamPortsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F9CAFE00F9CAFE00F9 /* SeamPortsTests.swift */; };
 		FA0000FCCAFE00FCCAFE00FC /* CandidateStorePortTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000FBCAFE00FBCAFE00FB /* CandidateStorePortTests.swift */; };
 		FA000702CAFE0702CAFE0702 /* FamoLaneTasksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000703CAFE0703CAFE0703 /* FamoLaneTasksTests.swift */; };
@@ -472,6 +475,7 @@
 		B38E9B8F2BE9AE1E0036ABEF /* Famo-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Famo-Bridging-Header.h"; path = "sources/Famo-Bridging-Header.h"; sourceTree = "<group>"; };
 		B38E9B902BE9AE1E0036ABEF /* FamoApplicationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoApplicationDelegate.swift; path = sources/Controller/FamoApplicationDelegate.swift; sourceTree = "<group>"; };
 		FAA00021CAFE0021CAFE0021 /* FamoUpdateLogoutPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoUpdateLogoutPrompt.swift; path = sources/Controller/FamoUpdateLogoutPrompt.swift; sourceTree = "<group>"; };
+		FAA00031CAFE0031CAFE0031 /* FamoUserDictResetPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoUserDictResetPrompt.swift; path = sources/Controller/FamoUserDictResetPrompt.swift; sourceTree = "<group>"; };
 		B38E9B942BEAFEFD0036ABEF /* FamoInputController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoInputController.swift; path = sources/Controller/FamoInputController.swift; sourceTree = "<group>"; };
 		FA000100CAFE0100CAFE0100 /* FamoInputMenuTitles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoInputMenuTitles.swift; path = sources/Controller/FamoInputMenuTitles.swift; sourceTree = "<group>"; };
 		FA000102CAFE0102CAFE0102 /* FamoInputController+Menu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "FamoInputController+Menu.swift"; path = "sources/Controller/FamoInputController+Menu.swift"; sourceTree = "<group>"; };
@@ -597,6 +601,7 @@
 		FA0000F3CAFE00F3CAFE00F3 /* RimeValueTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeValueTypes.swift; path = sources/Engine/RimeValueTypes.swift; sourceTree = "<group>"; };
 		FAA0000ECAFE000ECAFE000E /* RimeCompositionRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeCompositionRenderer.swift; path = sources/Engine/RimeCompositionRenderer.swift; sourceTree = "<group>"; };
 		FA0000F5CAFE00F5CAFE00F5 /* RimeSeam.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeSeam.swift; path = sources/Engine/RimeSeam.swift; sourceTree = "<group>"; };
+		FAA00033CAFE0033CAFE0033 /* FamoUserDictReset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoUserDictReset.swift; path = sources/Engine/FamoUserDictReset.swift; sourceTree = "<group>"; };
 		FA0000D8CAFE00D8CAFE00D8 /* FamoExperimentalPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoExperimentalPreferences.swift; path = sources/Settings/FamoExperimentalPreferences.swift; sourceTree = "<group>"; };
 		FA0000DCCAFE00DCCAFE00DC /* FamoBertTokenizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoBertTokenizer.swift; path = sources/Lane/FamoBertTokenizer.swift; sourceTree = "<group>"; };
 		FA000503CAFE0503CAFE0503 /* FamoBackspaceCorrection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoBackspaceCorrection.swift; path = sources/Lane/FamoBackspaceCorrection.swift; sourceTree = "<group>"; };
@@ -618,6 +623,7 @@
 		FA000A01CAFE0A01CAFE0A01 /* FamoGetAppOptionsRoundTripTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoGetAppOptionsRoundTripTests.swift; path = tests/FamoGetAppOptionsRoundTripTests.swift; sourceTree = "<group>"; };
 		FAA00010CAFE0010CAFE0010 /* RimeCompositionRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeCompositionRendererTests.swift; path = tests/RimeCompositionRendererTests.swift; sourceTree = "<group>"; };
 		FAA00023CAFE0023CAFE0023 /* FamoUpdateLogoutPromptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoUpdateLogoutPromptTests.swift; path = tests/FamoUpdateLogoutPromptTests.swift; sourceTree = "<group>"; };
+		FAA00035CAFE0035CAFE0035 /* FamoUserDictResetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoUserDictResetTests.swift; path = tests/FamoUserDictResetTests.swift; sourceTree = "<group>"; };
 		FA0000F9CAFE00F9CAFE00F9 /* SeamPortsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SeamPortsTests.swift; path = tests/SeamPortsTests.swift; sourceTree = "<group>"; };
 		FA0000FBCAFE00FBCAFE00FB /* CandidateStorePortTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CandidateStorePortTests.swift; path = tests/CandidateStorePortTests.swift; sourceTree = "<group>"; };
 		FA000703CAFE0703CAFE0703 /* FamoLaneTasksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoLaneTasksTests.swift; path = tests/FamoLaneTasksTests.swift; sourceTree = "<group>"; };
@@ -667,6 +673,7 @@
 			children = (
 				B38E9B902BE9AE1E0036ABEF /* FamoApplicationDelegate.swift */,
 				FAA00021CAFE0021CAFE0021 /* FamoUpdateLogoutPrompt.swift */,
+				FAA00031CAFE0031CAFE0031 /* FamoUserDictResetPrompt.swift */,
 				FA0001F1CAFE01F1CAFE01F1 /* FamoApplicationDelegate+FastApply.swift */,
 				B38E9B942BEAFEFD0036ABEF /* FamoInputController.swift */,
 				FA000100CAFE0100CAFE0100 /* FamoInputMenuTitles.swift */,
@@ -768,6 +775,7 @@
 				FA0000F3CAFE00F3CAFE00F3 /* RimeValueTypes.swift */,
 				FAA0000ECAFE000ECAFE000E /* RimeCompositionRenderer.swift */,
 				FA0000F5CAFE00F5CAFE00F5 /* RimeSeam.swift */,
+				FAA00033CAFE0033CAFE0033 /* FamoUserDictReset.swift */,
 				FA0000D8CAFE00D8CAFE00D8 /* FamoExperimentalPreferences.swift */,
 				FA0000DCCAFE00DCCAFE00DC /* FamoBertTokenizer.swift */,
 				FA000503CAFE0503CAFE0503 /* FamoBackspaceCorrection.swift */,
@@ -837,6 +845,7 @@
 				FA000A01CAFE0A01CAFE0A01 /* FamoGetAppOptionsRoundTripTests.swift */,
 				FAA00010CAFE0010CAFE0010 /* RimeCompositionRendererTests.swift */,
 				FAA00023CAFE0023CAFE0023 /* FamoUpdateLogoutPromptTests.swift */,
+				FAA00035CAFE0035CAFE0035 /* FamoUserDictResetTests.swift */,
 				FA0000F9CAFE00F9CAFE00F9 /* SeamPortsTests.swift */,
 				FA0000FBCAFE00FBCAFE00FB /* CandidateStorePortTests.swift */,
 				FA000703CAFE0703CAFE0703 /* FamoLaneTasksTests.swift */,
@@ -1285,12 +1294,14 @@
 				FA0000F4CAFE00F4CAFE00F4 /* RimeValueTypes.swift in Sources */,
 				FAA0000DCAFE000DCAFE000D /* RimeCompositionRenderer.swift in Sources */,
 				FA0000F6CAFE00F6CAFE00F6 /* RimeSeam.swift in Sources */,
+				FAA00032CAFE0032CAFE0032 /* FamoUserDictReset.swift in Sources */,
 				FA0000D9CAFE00D9CAFE00D9 /* FamoExperimentalPreferences.swift in Sources */,
 				FA0000DDCAFE00DDCAFE00DD /* FamoBertTokenizer.swift in Sources */,
 				FA000502CAFE0502CAFE0502 /* FamoBackspaceCorrection.swift in Sources */,
 				FA000504CAFE0504CAFE0504 /* FamoMacbertCscScorer.swift in Sources */,
 				B38E9B912BE9AE1E0036ABEF /* FamoApplicationDelegate.swift in Sources */,
 				FAA00020CAFE0020CAFE0020 /* FamoUpdateLogoutPrompt.swift in Sources */,
+				FAA00030CAFE0030CAFE0030 /* FamoUserDictResetPrompt.swift in Sources */,
 				FA0001F0CAFE01F0CAFE01F0 /* FamoApplicationDelegate+FastApply.swift in Sources */,
 				B35D2FE82BF00839009D156B /* BridgingFunctions.swift in Sources */,
 			);
@@ -1354,6 +1365,7 @@
 				FA000A02CAFE0A02CAFE0A02 /* FamoGetAppOptionsRoundTripTests.swift in Sources */,
 				FAA0000FCAFE000FCAFE000F /* RimeCompositionRendererTests.swift in Sources */,
 				FAA00022CAFE0022CAFE0022 /* FamoUpdateLogoutPromptTests.swift in Sources */,
+				FAA00034CAFE0034CAFE0034 /* FamoUserDictResetTests.swift in Sources */,
 				FA0000FACAFE00FACAFE00FA /* SeamPortsTests.swift in Sources */,
 				FA0000FCCAFE00FCCAFE00FC /* CandidateStorePortTests.swift in Sources */,
 				FA000702CAFE0702CAFE0702 /* FamoLaneTasksTests.swift in Sources */,
