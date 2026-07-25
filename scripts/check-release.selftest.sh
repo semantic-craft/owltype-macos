@@ -33,12 +33,17 @@ run_gate() {
 output="$work/output"
 
 # Public version seam used by package/appcast/release tooling. The replacement cohort must compare
-# newer than the already-installed 1.4.17 build.
+# newer than the already-installed 1.4.17 build. Pinning a literal version here goes stale at every
+# release, so assert the seam's shape (both fields agree) plus the 1.4.17 floor instead.
 source "$ROOT/package/common.sh"
-if [[ "$(get_marketing_version)" == "1.4.23" && "$(get_app_version)" == "1.4.23" ]]; then
-  ok "release metadata identifies the Sparkle-enabled cohort as 1.4.23"
+marketing_version="$(get_marketing_version)"
+app_version="$(get_app_version)"
+newest_version="$(printf '%s\n' '1.4.17' "$marketing_version" | sort -V | tail -1)"
+if [[ -n "$marketing_version" && "$marketing_version" == "$app_version" \
+      && "$marketing_version" != "1.4.17" && "$newest_version" == "$marketing_version" ]]; then
+  ok "release metadata identifies the Sparkle-enabled cohort as $marketing_version (newer than 1.4.17)"
 else
-  bad "release metadata must identify the Sparkle-enabled cohort as 1.4.23"
+  bad "release metadata must identify one Sparkle-enabled cohort newer than 1.4.17 (marketing=${marketing_version:-unset} app=${app_version:-unset})"
 fi
 
 if env -u NOTARY_PROFILE PATH="$work/valid-bin:/usr/bin:/bin:/usr/sbin:/sbin" \
