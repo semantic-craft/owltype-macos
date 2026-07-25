@@ -308,8 +308,8 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
       encoding: .utf8
     )
     XCTAssertTrue(phraseFile.contains("#@/db_name famo_quick_send"))
-    XCTAssertTrue(phraseFile.contains("法墨测试短语\tfmcs\t100000"))
-    XCTAssertTrue(phraseFile.contains("法墨测试短语\tvfmcs\t100000"))
+    XCTAssertTrue(phraseFile.contains("法墨测试短语\t`fmcs\t100000"))
+    XCTAssertFalse(phraseFile.contains("\tvfmcs\t"))
 
     let rimeIce = try String(
       contentsOf: dir.appendingPathComponent("rime_ice.custom.yaml"),
