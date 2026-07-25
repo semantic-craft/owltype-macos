@@ -172,6 +172,52 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
     _ = engine.syncUserData()
   }
 
+  /// 「重置用户词典…」(#37)：整目录备份 `*.userdb` → 删除 → 重新部署，Rime 重建空库。
+  /// 返回给「维护与诊断」卡状态行的文案。
+  ///
+  /// 顺序是硬约束，不是风格选择：userdb 的 LevelDB 被**法墨自己这个进程**独占锁着
+  /// （2026-07-25 实测，外部 `rime_dict_manager -e` 报 `Error opening db read-only`），
+  /// 所以必须先 `finalize()` 放锁才删得动。`deploy()` 已经在跑同一条
+  /// shutdownRime → startRime(fullCheck:) → loadSettings 的路，这里只是在中间插入删除。
+  ///
+  /// 无论删除成败都把引擎重新拉起来：半死在「已 finalize」状态会让输入法整个不能打字，
+  /// 比重置失败严重得多。
+  func resetUserDict() -> String {
+    let trace = FamoLatencyTrace.begin("reset.userDict")
+    defer { FamoLatencyTrace.end("reset.userDict", trace) }
+    Self.deployLog.notice("reset user dict requested — finalizing rime to release the userdb lock")
+    shutdownRime()
+
+    let result = Result {
+      try FamoUserDictReset.run(root: FamoApp.userDir, timestamp: Self.backupTimestamp())
+    }
+
+    let redeployed = startRime(fullCheck: true)
+    loadSettings()
+
+    switch result {
+    case .success(let outcome):
+      Self.deployLog.notice("""
+        reset user dict cleared \(outcome.schemaIDs.count, privacy: .public) schema(s), \
+        redeploy=\(redeployed, privacy: .public)
+        """)
+      return FamoUserDictReset.statusMessage(outcome: outcome, redeployed: redeployed)
+    case .failure(let error):
+      Self.deployLog.error("""
+        reset user dict FAILED (restored from backup): \
+        \(error.localizedDescription, privacy: .public), redeploy=\(redeployed, privacy: .public)
+        """)
+      return FamoUserDictReset.failureMessage(error: error, redeployed: redeployed)
+    }
+  }
+
+  /// 备份目录名用的文件系统安全时间戳。只在用户显式点击时调用，故直接读 `Date()`。
+  private static func backupTimestamp() -> String {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyyMMdd-HHmmss"
+    return formatter.string(from: Date())
+  }
+
   func chooseSyncDirectory(for state: FamoSettingsState) {
     let settings = FamoRimeSyncSettings()
     let panel = NSOpenPanel()
@@ -413,6 +459,10 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
         self?.syncUserData()
         state.statusMessage = NSLocalizedString("已请求同步用户数据。", comment: "sync user data")
       },
+      onResetUserDict: { [weak self] in
+        guard let self, FamoUserDictResetPrompt.confirm() else { return }
+        state.statusMessage = self.resetUserDict()
+      },
       onChooseSyncDirectory: { [weak self] in
         self?.chooseSyncDirectory(for: state)
       },
@@ -449,6 +499,7 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
       onApplyKeyboardConfigFast: { true },
       onApplyFuzzyConfigFast: { true },
       onSyncUserData: {},
+      onResetUserDict: {},
       onChooseSyncDirectory: {},
       onOpenRimeFolder: {},
       onOpenLog: {},
