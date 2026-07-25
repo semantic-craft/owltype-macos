@@ -35,8 +35,11 @@ jobs:
       - name: Lint
         run: swiftlint
 
+      # 只到 package：archive 会调 package/sign_update 用与 SUPublicEDKey 配对的 EdDSA 私钥
+      # 签 Famo-update.pkg，而 CI 里没有那把私钥（本工作流不带任何 secret），必然失败。appcast
+      # 生成属于本地 scripts/release.sh 的职责，与下面「CI never publishes a release」一致。
       - name: Build Squirrel
-        run: ./action-build.sh archive
+        run: ./action-build.sh package
 
       - name: Install periphery
         run: brew install peripheryapp/periphery/periphery
