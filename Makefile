@@ -212,7 +212,10 @@ package: $(PACKAGE)
 
 # make_archive 现在需要已签名+公证的 package/Famo-update.pkg（Sparkle 更新载荷，无 RequireLogout）
 # 来生成真 enclosure（edSignature/length），所以 archive 依赖 package（不再是 notarized-app）。
-archive: package
+# 也依赖 package/sign_update：make_archive 第 43 行直接调 ./sign_update 签 pkg。scripts/release.sh
+# 本来显式跑 `make package/sign_update` 补这一步，直接 `make archive`（CI 的 action-build.sh 走这条）
+# 却没人补，于是撞 "./sign_update: No such file or directory" (Error 127)。
+archive: package package/sign_update
 	bash package/make_archive
 
 # DMG = 新用户首装下载物：主入口 FamoInstaller.app（GUI 安装器，内嵌已 staple 的 Famo.app，
