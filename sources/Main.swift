@@ -75,6 +75,19 @@ struct FamoApp {
     CommandLine.arguments.contains("--ui-test-show-settings")
   }
 
+  /// Builder traits for `--build`. Must carry the SAME directory triple as the main launch
+  /// path (setupRime): librime resolves every unset directory trait against the process cwd,
+  /// so an app_name-only traits struct made `Famo --build` scatter installation.yaml + build/
+  /// into whatever directory it was run from while the real user dir stayed unbuilt (2026-07-24).
+  static func makeBuilderTraits() -> RimeTraits {
+    var builderTraits = RimeTraits.rimeStructInit()
+    builderTraits.setCString(Bundle.main.sharedSupportPath!, to: \.shared_data_dir)
+    builderTraits.setCString(userDir.path, to: \.user_data_dir)
+    builderTraits.setCString(logDir.path, to: \.log_dir)
+    builderTraits.setCString(FamoRimeIdentity.builderAppName, to: \.app_name)
+    return builderTraits
+  }
+
   // swiftlint:disable:next cyclomatic_complexity
   static func main() {
     let rimeAPI: RimeApi_stdbool = rime_get_api_stdbool().pointee
@@ -90,13 +103,17 @@ struct FamoApp {
           runningFamoApps.forEach { $0.terminate() }
           return true
         case "--reload":
-          DistributedNotificationCenter.default().postNotificationName(.init("FamoReloadNotification"), object: nil)
+          // deliverImmediately（2026-07-24 静默 reload 根因）：NSApplication 在 app 激活过又失活后
+          // （任何一次设置/引导窗口访问）自动挂起本进程的分布式通知投递；默认 post 会被 coalesce
+          // 进挂起队列，而后台 IME 永远不会再激活去冲队列——通知就静默丢失（librime 侧因此零日志）。
+          // deliverImmediately 无视挂起态直接送达所有 observer。下面各 CLI post 同理。
+          DistributedNotificationCenter.default().postNotificationName(.init("FamoReloadNotification"), object: nil, userInfo: nil, deliverImmediately: true)
           return true
         case "--apply-keyboard-patch":
           do {
             let written = try FamoManagedKeyboardPatchPlan.apply(snapshot: FamoKeyboardSnapshot.current())
             print("Applied Famo managed keyboard patch: \(written.joined(separator: ", "))")
-            DistributedNotificationCenter.default().postNotificationName(.init("FamoReloadNotification"), object: nil)
+            DistributedNotificationCenter.default().postNotificationName(.init("FamoReloadNotification"), object: nil, userInfo: nil, deliverImmediately: true)
           } catch {
             fputs("Failed to apply Famo managed keyboard patch: \(error)\n", stderr)
             exit(1)
@@ -182,21 +199,22 @@ struct FamoApp {
         case "--build":
           // Notification
           FamoApplicationDelegate.showMessage(msgText: NSLocalizedString("deploy_update", comment: ""))
-          // Build all schemas in current directory
-          var builderTraits = RimeTraits.rimeStructInit()
-          builderTraits.setCString(FamoRimeIdentity.builderAppName, to: \.app_name)
+          // Build all schemas into Famo's own data root — never the process cwd (see makeBuilderTraits).
+          try? FamoPrivateStorage.prepareDirectory(userDir)
+          try? FileManager.default.createDirectory(at: logDir, withIntermediateDirectories: true)
+          var builderTraits = makeBuilderTraits()
           rimeAPI.setup(&builderTraits)
           rimeAPI.deployer_initialize(nil)
           _ = rimeAPI.deploy()
           return true
         case "--sync":
-          DistributedNotificationCenter.default().postNotificationName(.init("FamoSyncNotification"), object: nil)
+          DistributedNotificationCenter.default().postNotificationName(.init("FamoSyncNotification"), object: nil, userInfo: nil, deliverImmediately: true)
           return true
         case "--ascii":
-          DistributedNotificationCenter.default().postNotificationName(.init("FamoToggleASCIIModeNotification"), object: "ascii")
+          DistributedNotificationCenter.default().postNotificationName(.init("FamoToggleASCIIModeNotification"), object: "ascii", userInfo: nil, deliverImmediately: true)
           return true
         case "--nascii":
-          DistributedNotificationCenter.default().postNotificationName(.init("FamoToggleASCIIModeNotification"), object: "nascii")
+          DistributedNotificationCenter.default().postNotificationName(.init("FamoToggleASCIIModeNotification"), object: "nascii", userInfo: nil, deliverImmediately: true)
           return true
         case "--getascii":
           var responseReceived = false
@@ -211,7 +229,7 @@ struct FamoApp {
               responseReceived = true
             }
           }
-          DistributedNotificationCenter.default().postNotificationName(.init("FamoGetASCIIModeNotification"), object: nil)
+          DistributedNotificationCenter.default().postNotificationName(.init("FamoGetASCIIModeNotification"), object: nil, userInfo: nil, deliverImmediately: true)
           let timeout = Date().addingTimeInterval(2.0)
           while !responseReceived && Date() < timeout {
             RunLoop.current.run(until: Date().addingTimeInterval(0.01))
@@ -275,6 +293,9 @@ struct FamoApp {
         NSApp.famoAppDelegate.startRime(fullCheck: false)
         FamoPerf.since(perfRime, "coldstart.rime")  // heavy: start_maintenance — dict + octagram load
         NSApp.famoAppDelegate.loadSettings()
+        // 方案B：公开包只带清洁室词库种子；完整词库首启在用户侧按 pin 拉取（不阻塞冷启动，
+        // 下载完成后自动 deploy() 编译）。已装 / 用户自备 / 开关关闭时这里只刷新状态。
+        FamoDictPackCenter.shared.autoFetchIfNeeded()
         FamoPerf.since(perfColdStart, "coldstart.total")
         // Activation belongs to the installer path. Public Sparkle updates are information-only and
         // send users to the standalone installer, so a plain app launch must not toggle TIS state.
@@ -305,7 +326,7 @@ struct FamoApp {
     --reload                   deploy
     --apply-keyboard-patch     write Famo managed keyboard patch, then request deploy
     --sync                     sync user data
-    --build                    build all schemas in current directory
+    --build                    build all schemas into Famo's user data dir
     --ascii                    turn on ASCII mode
     --nascii                   turn off ASCII mode
     --getascii                 get current ASCII mode status

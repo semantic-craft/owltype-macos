@@ -126,6 +126,7 @@
 		FA0000FECAFE00FECAFE00FE /* FamoPromptStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000FDCAFE00FDCAFE00FD /* FamoPromptStore.swift */; };
 		FADADA02CAFE0002CAFE0002 /* FamoPromptPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FADADA01CAFE0001CAFE0001 /* FamoPromptPage.swift */; };
 		FA00001ACAFE001ACAFE001A /* FamoPromptStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000FFCAFE00FFCAFE00FF /* FamoPromptStoreTests.swift */; };
+		FADC2608FADC2608FADC2608 /* FamoQuickSendStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FADC2607FADC2607FADC2607 /* FamoQuickSendStoreTests.swift */; };
 		FA000450CAFE0050CAFE0050 /* FamoQuickSendPanelModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000451CAFE0051CAFE0051 /* FamoQuickSendPanelModelTests.swift */; };
 		FAAB0001CAFE0001CAFE0001 /* FamoAutoPair.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAAB0002CAFE0002CAFE0002 /* FamoAutoPair.swift */; };
 		FA07070001CAFE0001CAFE07 /* FamoForcedFinalize.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA07070002CAFE0002CAFE07 /* FamoForcedFinalize.swift */; };
@@ -168,6 +169,11 @@
 		FA000067CAFE0067CAFE0067 /* FamoSnapshotEmitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000066CAFE0066CAFE0066 /* FamoSnapshotEmitter.swift */; };
 		FA000069CAFE0069CAFE0069 /* FamoExternalCommitBroker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000068CAFE0068CAFE0068 /* FamoExternalCommitBroker.swift */; };
 		FA000071CAFE0071CAFE0071 /* FamoCloudFoundation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000070CAFE0070CAFE0070 /* FamoCloudFoundation.swift */; };
+		FAD1CF02CAFEDF02CAFEDF02 /* FamoDictPack.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1CF01CAFEDF01CAFEDF01 /* FamoDictPack.swift */; };
+		FAD1CF04CAFEDF04CAFEDF04 /* FamoDictPackFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1CF03CAFEDF03CAFEDF03 /* FamoDictPackFetcher.swift */; };
+		FAD1CF06CAFEDF06CAFEDF06 /* FamoDictPackCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1CF05CAFEDF05CAFEDF05 /* FamoDictPackCenter.swift */; };
+		FAD1CF08CAFEDF08CAFEDF08 /* FamoDictPackManifestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1CF07CAFEDF07CAFEDF07 /* FamoDictPackManifestData.swift */; };
+		FAD1CF0ACAFEDF0ACAFEDF0A /* FamoDictPackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1CF09CAFEDF09CAFEDF09 /* FamoDictPackTests.swift */; };
 		FA000800CAFE0080CAFE0080 /* FamoStreamingChatClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000801CAFE0081CAFE0081 /* FamoStreamingChatClient.swift */; };
 		FA000900CAFE0090CAFE0090 /* FamoAIContextAssembler.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000901CAFE0091CAFE0091 /* FamoAIContextAssembler.swift */; };
 		FA000902CAFE0092CAFE0092 /* FamoAIConversationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000903CAFE0093CAFE0093 /* FamoAIConversationModel.swift */; };
@@ -502,6 +508,7 @@
 		FA0000FDCAFE00FDCAFE00FD /* FamoPromptStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPromptStore.swift; path = sources/Settings/FamoPromptStore.swift; sourceTree = "<group>"; };
 		FADADA01CAFE0001CAFE0001 /* FamoPromptPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPromptPage.swift; path = sources/Settings/FamoPromptPage.swift; sourceTree = "<group>"; };
 		FA0000FFCAFE00FFCAFE00FF /* FamoPromptStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPromptStoreTests.swift; path = tests/FamoPromptStoreTests.swift; sourceTree = "<group>"; };
+		FADC2607FADC2607FADC2607 /* FamoQuickSendStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoQuickSendStoreTests.swift; path = tests/FamoQuickSendStoreTests.swift; sourceTree = "<group>"; };
 		FA000451CAFE0051CAFE0051 /* FamoQuickSendPanelModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoQuickSendPanelModelTests.swift; path = tests/FamoQuickSendPanelModelTests.swift; sourceTree = "<group>"; };
 		FAAB0002CAFE0002CAFE0002 /* FamoAutoPair.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoAutoPair.swift; path = sources/Settings/FamoAutoPair.swift; sourceTree = "<group>"; };
 		FA07070002CAFE0002CAFE07 /* FamoForcedFinalize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoForcedFinalize.swift; path = sources/Engine/FamoForcedFinalize.swift; sourceTree = "<group>"; };
@@ -544,6 +551,11 @@
 		FA000066CAFE0066CAFE0066 /* FamoSnapshotEmitter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSnapshotEmitter.swift; path = sources/Candidates/FamoSnapshotEmitter.swift; sourceTree = "<group>"; };
 		FA000068CAFE0068CAFE0068 /* FamoExternalCommitBroker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoExternalCommitBroker.swift; path = sources/Candidates/FamoExternalCommitBroker.swift; sourceTree = "<group>"; };
 		FA000070CAFE0070CAFE0070 /* FamoCloudFoundation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoCloudFoundation.swift; path = sources/Lane/FamoCloudFoundation.swift; sourceTree = "<group>"; };
+		FAD1CF01CAFEDF01CAFEDF01 /* FamoDictPack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoDictPack.swift; path = sources/DictPack/FamoDictPack.swift; sourceTree = "<group>"; };
+		FAD1CF03CAFEDF03CAFEDF03 /* FamoDictPackFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoDictPackFetcher.swift; path = sources/DictPack/FamoDictPackFetcher.swift; sourceTree = "<group>"; };
+		FAD1CF05CAFEDF05CAFEDF05 /* FamoDictPackCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoDictPackCenter.swift; path = sources/DictPack/FamoDictPackCenter.swift; sourceTree = "<group>"; };
+		FAD1CF07CAFEDF07CAFEDF07 /* FamoDictPackManifestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoDictPackManifestData.swift; path = sources/DictPack/FamoDictPackManifestData.swift; sourceTree = "<group>"; };
+		FAD1CF09CAFEDF09CAFEDF09 /* FamoDictPackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoDictPackTests.swift; path = tests/FamoDictPackTests.swift; sourceTree = "<group>"; };
 		FA000801CAFE0081CAFE0081 /* FamoStreamingChatClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoStreamingChatClient.swift; path = sources/Lane/FamoStreamingChatClient.swift; sourceTree = "<group>"; };
 		FA000901CAFE0091CAFE0091 /* FamoAIContextAssembler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoAIContextAssembler.swift; path = sources/Lane/FamoAIContextAssembler.swift; sourceTree = "<group>"; };
 		FA000903CAFE0093CAFE0093 /* FamoAIConversationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoAIConversationModel.swift; path = sources/Lane/FamoAIConversationModel.swift; sourceTree = "<group>"; };
@@ -724,6 +736,10 @@
 				FA000066CAFE0066CAFE0066 /* FamoSnapshotEmitter.swift */,
 				FA000068CAFE0068CAFE0068 /* FamoExternalCommitBroker.swift */,
 				FA000070CAFE0070CAFE0070 /* FamoCloudFoundation.swift */,
+				FAD1CF01CAFEDF01CAFEDF01 /* FamoDictPack.swift */,
+				FAD1CF03CAFEDF03CAFEDF03 /* FamoDictPackFetcher.swift */,
+				FAD1CF05CAFEDF05CAFEDF05 /* FamoDictPackCenter.swift */,
+				FAD1CF07CAFEDF07CAFEDF07 /* FamoDictPackManifestData.swift */,
 				FA000801CAFE0081CAFE0081 /* FamoStreamingChatClient.swift */,
 				FA000901CAFE0091CAFE0091 /* FamoAIContextAssembler.swift */,
 				FA000903CAFE0093CAFE0093 /* FamoAIConversationModel.swift */,
@@ -776,11 +792,13 @@
 				FAC10004CAFE0004CAFE0004 /* InstallerActivationPolicy.swift */,
 				FA000135CAFE0135CAFE0135 /* KeyTranslationTests.swift */,
 				FA000082CAFE0082CAFE0082 /* CandidateStoreTests.swift */,
+				FAD1CF09CAFEDF09CAFEDF09 /* FamoDictPackTests.swift */,
 				FA000E01CAFE0E01CAFE0E01 /* FamoKeyboardPatchBuilderTests.swift */,
 				FA000084CAFE0084CAFE0084 /* HotPathLatencyTests.swift */,
 				FA000086CAFE0086CAFE0086 /* FamoM3EmojiSkinTests.swift */,
 				FA0000C6CAFE00C6CAFE00C6 /* ProjectStoreTests.swift */,
 				FA0000FFCAFE00FFCAFE00FF /* FamoPromptStoreTests.swift */,
+				FADC2607FADC2607FADC2607 /* FamoQuickSendStoreTests.swift */,
 				FA000451CAFE0051CAFE0051 /* FamoQuickSendPanelModelTests.swift */,
 				FAAB0004CAFE0004CAFE0004 /* FamoAutoPairTests.swift */,
 				FA07070004CAFE0004CAFE07 /* FamoForcedFinalizeTests.swift */,
@@ -1232,6 +1250,10 @@
 				FA000067CAFE0067CAFE0067 /* FamoSnapshotEmitter.swift in Sources */,
 				FA000069CAFE0069CAFE0069 /* FamoExternalCommitBroker.swift in Sources */,
 				FA000071CAFE0071CAFE0071 /* FamoCloudFoundation.swift in Sources */,
+				FAD1CF02CAFEDF02CAFEDF02 /* FamoDictPack.swift in Sources */,
+				FAD1CF04CAFEDF04CAFEDF04 /* FamoDictPackFetcher.swift in Sources */,
+				FAD1CF06CAFEDF06CAFEDF06 /* FamoDictPackCenter.swift in Sources */,
+				FAD1CF08CAFEDF08CAFEDF08 /* FamoDictPackManifestData.swift in Sources */,
 				FA000800CAFE0080CAFE0080 /* FamoStreamingChatClient.swift in Sources */,
 				FA000900CAFE0090CAFE0090 /* FamoAIContextAssembler.swift in Sources */,
 				FA000902CAFE0092CAFE0092 /* FamoAIConversationModel.swift in Sources */,
@@ -1287,11 +1309,13 @@
 				FAC10003CAFE0003CAFE0003 /* InstallerActivationPolicy.swift in Sources */,
 				FA000134CAFE0134CAFE0134 /* KeyTranslationTests.swift in Sources */,
 				FA000083CAFE0083CAFE0083 /* CandidateStoreTests.swift in Sources */,
+				FAD1CF0ACAFEDF0ACAFEDF0A /* FamoDictPackTests.swift in Sources */,
 				FA000E02CAFE0E02CAFE0E02 /* FamoKeyboardPatchBuilderTests.swift in Sources */,
 				FA000085CAFE0085CAFE0085 /* HotPathLatencyTests.swift in Sources */,
 				FA000087CAFE0087CAFE0087 /* FamoM3EmojiSkinTests.swift in Sources */,
 				FA0000C7CAFE00C7CAFE00C7 /* ProjectStoreTests.swift in Sources */,
 				FA00001ACAFE001ACAFE001A /* FamoPromptStoreTests.swift in Sources */,
+				FADC2608FADC2608FADC2608 /* FamoQuickSendStoreTests.swift in Sources */,
 				FA000450CAFE0050CAFE0050 /* FamoQuickSendPanelModelTests.swift in Sources */,
 				FAAB0003CAFE0003CAFE0003 /* FamoAutoPairTests.swift in Sources */,
 				FA07070003CAFE0003CAFE07 /* FamoForcedFinalizeTests.swift in Sources */,
@@ -1360,7 +1384,7 @@
 				CODE_SIGN_ENTITLEMENTS = resources/Famo.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1.4.23;
+				CURRENT_PROJECT_VERSION = 1.5.0;
 				DEAD_CODE_STRIPPING = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1395,7 +1419,7 @@
 					"$(OTHER_CPLUSPLUSFLAGS_QUOTED_FOR_TARGET_2)",
 				);
 				OTHER_LDFLAGS = "-lrime.1";
-				MARKETING_VERSION = 1.4.23;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = im.famo.inputmethod.Famo;
 				PRODUCT_NAME = Famo;
 				SDKROOT = macosx;
@@ -1417,7 +1441,7 @@
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CODE_SIGN_ENTITLEMENTS = resources/Famo.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1.4.23;
+				CURRENT_PROJECT_VERSION = 1.5.0;
 				DEAD_CODE_STRIPPING = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1451,7 +1475,7 @@
 					"$(OTHER_CPLUSPLUSFLAGS_QUOTED_FOR_TARGET_2)",
 				);
 				OTHER_LDFLAGS = "-lrime.1";
-				MARKETING_VERSION = 1.4.23;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = im.famo.inputmethod.Famo;
 				PRODUCT_NAME = Famo;
 				SDKROOT = macosx;
@@ -1583,7 +1607,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1.4.23;
+				CURRENT_PROJECT_VERSION = 1.5.0;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)",
@@ -1596,7 +1620,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.4.23;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = im.famo.inputmethod.FamoTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -1611,7 +1635,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1.4.23;
+				CURRENT_PROJECT_VERSION = 1.5.0;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)",
@@ -1624,7 +1648,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.4.23;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = im.famo.inputmethod.FamoTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -1638,7 +1662,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1.4.23;
+				CURRENT_PROJECT_VERSION = 1.5.0;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1646,7 +1670,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.4.23;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = im.famo.inputmethod.FamoUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -1660,7 +1684,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1.4.23;
+				CURRENT_PROJECT_VERSION = 1.5.0;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1668,7 +1692,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.4.23;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = im.famo.inputmethod.FamoUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;

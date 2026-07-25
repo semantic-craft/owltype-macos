@@ -158,11 +158,11 @@ final class FamoSettingsE2EContractTests: XCTestCase {
       writer: FamoConfigWriter(rimeDir: rimeDir),
       timestamp: "20260622-settings-e2e"
     )
-    XCTAssertEqual(FamoQuickSendStore.load(rimeDir: rimeDir), [
-      quickEntry,
-      FamoQuickSendEntry(text: "法墨测试", code: "vfmcs"),
-    ])
+    // load reads the JSON source of truth: exactly the saved entries — the derived table's
+    // auto `v` variant line must NOT come back as an entry (the 2026-07 snowball bug).
+    XCTAssertEqual(FamoQuickSendStore.load(rimeDir: rimeDir), [quickEntry])
     XCTAssertTrue(try read("famo_quick_send.txt", in: rimeDir).contains("法墨测试\tfmcs\t100000"))
+    XCTAssertTrue(try read("famo_quick_send.txt", in: rimeDir).contains("法墨测试\tvfmcs\t100000"))
     XCTAssertTrue(try read("rime_ice.custom.yaml", in: rimeDir).contains("table_translator@famo_quick_send"))
 
     XCTAssertFalse(FamoClipboardStore.isEnabled(defaults: defaults))
@@ -205,7 +205,8 @@ final class FamoSettingsE2EContractTests: XCTestCase {
     }
 
     // Enabling an example == saving entries that include its `entry`: it roundtrips through `load`
-    // and the generated TSV + rime_ice patch carry the command (plus the auto `v` variant).
+    // as exactly itself, while the generated TSV + rime_ice patch carry the command plus the auto
+    // `v` variant (derived-table-only — it must never read back as an entry).
     let rimeDir = try makeTempDir()
     let claude = try XCTUnwrap(FamoQuickSendExamples.all.first { $0.tool == "Claude Code" })
     try FamoQuickSendStore.save(
@@ -213,10 +214,7 @@ final class FamoSettingsE2EContractTests: XCTestCase {
       writer: FamoConfigWriter(rimeDir: rimeDir),
       timestamp: "20260630-quick-send-examples"
     )
-    XCTAssertEqual(FamoQuickSendStore.load(rimeDir: rimeDir), [
-      claude.entry,
-      FamoQuickSendEntry(text: claude.entry.text, code: "v\(claude.entry.code)"),
-    ])
+    XCTAssertEqual(FamoQuickSendStore.load(rimeDir: rimeDir), [claude.entry])
     let table = try read("famo_quick_send.txt", in: rimeDir)
     XCTAssertTrue(table.contains("claude --dangerously-skip-permissions\tyocc\t100000"))
     XCTAssertTrue(table.contains("claude --dangerously-skip-permissions\tvyocc\t100000"))
