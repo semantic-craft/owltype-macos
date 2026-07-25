@@ -118,6 +118,9 @@ enum FamoQuickSendStore {
       marker: FamoManagedMarker.quickSendRimeIce,
       yamlLinesIndentedUnderPatch: [
         "  # 快捷短语：Famo-owned table_translator，不读取用户 custom_phrase.txt",
+        "  # 短语码统一带 ` 前缀（见 FamoQuickSendPage.codePrefix）。该键必须在 speller/alphabet",
+        "  # 里，否则根本进不了输入串。rime-ice b681a34 的 alphabet 末尾本就带 `，故此处不覆写",
+        "  # ——整串覆写会连带丢掉大写字母那一段。上游哪天去掉了再补 patch。",
         "  # enable_completion 必须为 false：开着的话短语码会被前缀补全命中——码 yocc 的短语，",
         "  # 只打一个 y 就挤进候选（2026-07-25 实测：y → 三条 CLI 短语压在 有/用/言 前面）。",
         "  # initial_quality 也压到 1：短语只有在码打全时才该出现，不该盖过常用字。",
@@ -156,8 +159,18 @@ enum FamoQuickSendStore {
     return (String(data: data, encoding: .utf8) ?? "[]") + "\n"
   }
 
-  /// 从（已归一的）entries 派生 Rime 表文本。每条出两行：`text \t code \t 100000` 与防撞
-  /// `text \t v{code} \t 100000`。此文件只写不回读（见类型文档）。
+  /// 短语码在 Rime 表里的前缀。反引号不可能出现在拼音串里，也没被 rime-ice 占用
+  /// （`/` 是符号输入前缀、`;` 常被二三候选占），所以短语永远不会和正常打字抢候选。
+  /// 存储侧（`famo_quick_send.json`）仍存裸码，前缀只在派生表时加——升级用户的存量短语
+  /// 因此自动获得前缀，不需要重录，也没有 JSON 迁移。
+  static let codePrefix = "`"
+
+  /// 从（已归一的）entries 派生 Rime 表文本。每条一行：`text \t {prefix}{code} \t 100000`。
+  /// 此文件只写不回读（见类型文档）。
+  ///
+  /// 2026-07-25：原先每条还出一行 `v{code}` 作防撞，且码是裸字母——结果打一个 `y` 就被
+  /// 前缀补全命中 `yocc`，三条 CLI 短语压在 有/用/言 前面。改用真前缀后，`v` 那行的
+  /// 防撞目的已由前缀本身达成，删掉。
   private static func renderDict(_ entries: [FamoQuickSendEntry]) -> String {
     var lines = [
       "# Rime table",
@@ -165,11 +178,11 @@ enum FamoQuickSendStore {
       "#@/db_name famo_quick_send",
       "#@/db_type tabledb",
       "# Famo quick-send phrases. Managed by 法墨输入法 settings.",
+      "# 触发：先打 \(codePrefix) 再打短语码。",
       "",
     ]
     for entry in entries {
-      lines.append("\(entry.text)\t\(entry.code)\t100000")
-      lines.append("\(entry.text)\tv\(entry.code)\t100000")
+      lines.append("\(entry.text)\t\(codePrefix)\(entry.code)\t100000")
     }
     return lines.joined(separator: "\n") + "\n"
   }

@@ -58,11 +58,14 @@ final class FamoQuickSendStoreTests: XCTestCase {
     let loaded = FamoQuickSendStore.load(rimeDir: tempRoot)
     XCTAssertEqual(loaded.map(\.code), ["yocc", "zgfy"])
 
-    // Derived table still carries both the base code and the `v` collision variant for Rime…
+    // Derived table carries the code behind the ` prefix; the old bare + `v` variants are gone
+    // (2026-07-25: bare codes let a single `y` complete into `yocc` and hijack the candidates).
     let dict = try read(FamoQuickSendStore.dictFileName)
-    XCTAssertTrue(dict.contains("claude --dangerously-skip-permissions\tyocc\t100000"))
-    XCTAssertTrue(dict.contains("claude --dangerously-skip-permissions\tvyocc\t100000"))
-    // …and the JSON stores exactly the base entries (`v` variants never persist as entries).
+    XCTAssertTrue(dict.contains("claude --dangerously-skip-permissions\t`yocc\t100000"))
+    XCTAssertFalse(dict.contains("\tyocc\t"))
+    XCTAssertFalse(dict.contains("\tvyocc\t"))
+    // …and the JSON stores the bare code (the prefix lives only in the derived table, so
+    // upgrading users get it for free with no JSON migration).
     let json = try read(FamoQuickSendStore.fileName)
     XCTAssertTrue(json.contains("\"yocc\""))
     XCTAssertFalse(json.contains("\"vyocc\""))
