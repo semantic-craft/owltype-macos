@@ -118,15 +118,19 @@ enum FamoQuickSendStore {
       marker: FamoManagedMarker.quickSendRimeIce,
       yamlLinesIndentedUnderPatch: [
         "  # 快捷短语：Famo-owned table_translator，不读取用户 custom_phrase.txt",
+        "  # enable_completion 必须为 false：开着的话短语码会被前缀补全命中——码 yocc 的短语，",
+        "  # 只打一个 y 就挤进候选（2026-07-25 实测：y → 三条 CLI 短语压在 有/用/言 前面）。",
+        "  # initial_quality 也压到 1：短语只有在码打全时才该出现，不该盖过常用字。",
+        "  # 对照 rime-ice 自带 custom_phrase：completion=false / quality=99。",
         "  \"engine/translators/+\":",
         "    - table_translator@famo_quick_send",
         "  famo_quick_send:",
         "    dictionary: \"\"",
         "    user_dict: famo_quick_send",
         "    db_class: stabledb",
-        "    enable_completion: true",
+        "    enable_completion: false",
         "    enable_sentence: false",
-        "    initial_quality: 100",
+        "    initial_quality: 1",
       ]
     )
   }
