@@ -13,6 +13,8 @@ and emoji panel in SwiftUI — it types out of the box, with no YAML to hand-edi
 > The repository is named **Famotype**; the code, bundle identifiers and build products still use
 > the `Famo` name so that already-installed versions keep working.
 
+![Famotype candidate window](docs/screenshots/candidates.png)
+
 ## Install
 
 Requires macOS 14 or later. Universal binary (Apple Silicon and Intel).
@@ -42,6 +44,21 @@ delete `/Library/Input Methods/Famo.app`.
 - **Snippets, clipboard and scenario dictionaries** for the phrases you retype.
 - **Emoji and symbol panel** in the input method menu.
 - **Optional AI assistant**, off by default — see the boundary below.
+
+## Interface
+
+Seven colour skins, light/dark following the system, applied the moment you pick one:
+
+![Skin picker](docs/screenshots/skins.png)
+
+Pick another skin and the candidate window follows:
+
+![Candidate window in the Champagne Orange (Flame) skin](docs/screenshots/candidates-flame.png)
+
+The settings panel is paged by sidebar — schema, default states and dictionaries all in one place,
+no YAML to touch:
+
+![Keyboard settings](docs/screenshots/keyboard-settings.png)
 
 ## Privacy boundary
 
