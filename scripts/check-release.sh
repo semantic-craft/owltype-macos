@@ -108,10 +108,13 @@ else
   block "Release app has no valid stapled notarization ticket"
 fi
 
-# 方案B（2026-07-24）：公开 pkg 只携带清洁室种子（famo-seed.sh：Unihan 单字表 + essay），
-# 完整词库（雾凇 cn_dicts/en_dicts、KyleBing 五笔、octagram gram）由 App 首启在用户侧
-# 按 dict-pack manifest 拉取，绝不进公开 payload。旧的「payload 必含 wubi/pinyin_simp」
+# 方案B（2026-07-24）：公开 pkg 只携带清洁室种子（famo-seed.sh：famotype_base 词库 +
+# Unihan 单字表兜底），完整词库（雾凇 cn_dicts/en_dicts、KyleBing 五笔、octagram gram）由 App
+# 首启在用户侧按 dict-pack manifest 拉取，绝不进公开 payload。旧的「payload 必含 wubi/pinyin_simp」
 # 断言属全量种子时代，已按新口径改写为反向断言。
+# 2026-07-25：essay.txt 随 rime-essay 一并移出种子（繁体字形 + LGPL 数据项，见 PR #22），
+# 这里改为断言取代它的 famotype_base；本组断言要真 pkg 才跑得到，CI 只到 make package，
+# 所以 1.5.1 出包时才逮住这处陈旧断言。
 payload=$(pkgutil --payload-files "$PKG")
 for path in \
 	  './Famo.app/Contents/Resources/LICENSE.txt' \
@@ -121,7 +124,7 @@ for path in \
 	  './Famo.app/Contents/SharedSupport/rime_ice.schema.yaml' \
 	  './Famo.app/Contents/SharedSupport/rime_ice.dict.yaml' \
   './Famo.app/Contents/SharedSupport/cn_dicts/famotype_unicode.dict.yaml' \
-  './Famo.app/Contents/SharedSupport/essay.txt'
+  './Famo.app/Contents/SharedSupport/cn_dicts/famotype_base.dict.yaml'
 do
   grep -qxF "$path" <<<"$payload" || fail "pkg payload missing $path"
 done
@@ -144,7 +147,7 @@ do
     fail "pkg payload carries dict-pack material (matched: $forbidden) — 完整词库只能用户侧拉取，不得随包再分发"
   fi
 done
-pass "pkg payload = 清洁室种子（rime_ice + famotype_unicode + essay），无 dict-pack 再分发载荷"
+pass "pkg payload = 清洁室种子（rime_ice + famotype_base + famotype_unicode），无 dict-pack 再分发载荷"
 
 # 07-07-schema-consistency-guard: cross-check the payload's 拼音 schema against the code's default
 # (FamoKeyboardPreferences .pinyin), so a future schema rename / stale seed can't silently ship a
