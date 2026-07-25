@@ -23,6 +23,8 @@
 | **Sparkle** | 更新检查与签名 package 安装框架 | **MIT**（含其依赖各自许可） | https://github.com/sparkle-project/Sparkle |
 | **plum 配方 / 预置方案与词库** | `SharedSupport` 中的 base 配置与词典 | 各方案/词库上游许可（多为 GPL-3.0 / LGPL / CC，以来源为准） | https://github.com/rime/plum |
 | **rime-ice（雾凇拼音）** | Famo 自包含 seed（`data/famo-rime` → `SharedSupport`）的**拼音底座**：rime_ice 全拼方案 / cn_dicts / en_dicts / Lua / OpenCC / default.yaml | **GPL-3.0**（打包保留 `rime-ice.LICENSE`） | https://github.com/iDvel/rime-ice |
+| **jieba（结巴分词）** | 公开种子词库 `cn_dicts/famotype_base.dict.yaml` 的词表与词频来源（`jieba/dict.txt`，pin tag `v0.42.1`） | **MIT**（打包保留 `jieba.LICENSE`） | https://github.com/fxsjy/jieba |
+| **phrase-pinyin-data** | famotype_base 的词语注音来源（**仅用 MIT 的 `pinyin.txt`**；`large_pinyin.txt` / `cc_cedict.txt` / `zdic_*` 因 CC BY-SA / 爬取来源明确排除） | **MIT**（打包保留 `phrase-pinyin-data.LICENSE`） | https://github.com/mozillazg/phrase-pinyin-data |
 | **rime-wubi86-jidian（极点五笔86）** | Famo seed 的**五笔全套** overlay：`wubi86_jidian` / `_pinyin` / `_trad` / `_trad_pinyin` 方案、码表、反查依赖 `pinyin_simp`、`numbers` 与 Lua（rime-ice 无自带五笔；无法学五笔） | **Apache-2.0**（打包保留 `wubi86-jidian.LICENSE`） | https://github.com/KyleBing/rime-wubi86-jidian |
 
 ## 说明
