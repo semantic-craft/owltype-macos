@@ -1,16 +1,43 @@
 # 法墨输入法 · Famotype for macOS
 
-法墨是一个现代化的 macOS 系统输入法。它把 Rime 引擎与数据自包含进 App，并用
-SwiftUI 重做候选窗、设置、引导与表情符号面板。
+[![Release](https://img.shields.io/github/v/release/semantic-craft/famotype-macos?label=release)](https://github.com/semantic-craft/famotype-macos/releases/latest)
+[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)](https://github.com/semantic-craft/famotype-macos/releases/latest)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE.txt)
+
+**English: [README.en.md](README.en.md)** · 产品页：<https://responsay.com/famo/>
+
+法墨是一个本地优先的 macOS 中文输入法。它把 Rime 引擎与全部词库数据自包含进 App，用 SwiftUI
+重做了候选窗、设置、引导与表情面板——装好就能打字，不用手写配置文件。
 
 > 仓库名为 **Famotype**；为保持已安装版本兼容，代码、Bundle 与构建产物中仍使用 `Famo` 标识。
 
-## 当前状态
+## 安装
 
-- 本仓库是法墨的**唯一开发仓库**：完整产品（含云端 AI 功能层）在此公开开发，
-  签名安装包与 Sparkle 更新也从本仓库的 Releases 发布。
-- 仓库历史从经过隐私审查的 1.4.22 源码快照开始，不包含更早期的 Git 历史。
-- 1.4.21 及更早的公开发布已经停止分发，不再受支持。
+系统要求 macOS 14 及以上，通用二进制（Apple Silicon / Intel）。
+
+1. 到 [Releases](https://github.com/semantic-craft/famotype-macos/releases/latest) 下载
+   `Famo-update.pkg`，双击安装（安装包需要管理员授权）。
+2. 打开**系统设置 → 键盘 → 输入法**，把「法墨」加进输入法列表。
+3. 如果输入菜单里没有立即出现法墨，注销后重新登录一次即可。
+
+已经装过的用户不用重复下载：App 自带 Sparkle 更新客户端，只读取
+`responsay.com/famo/appcast.xml`，检测到新版后下载同一个签名、公证过的
+`Famo-update.pkg` 就地升级，**不需要注销**。更新检查不上传输入内容或用户数据。
+
+卸载：安装包内附 `卸载法墨.command`，或在系统设置里移除输入法后删除
+`/Library/Input Methods/Famo.app`。
+
+## 特性
+
+- **自包含 Rime**——雾凇拼音（全拼 / 小鹤双拼）、极点五笔 86、简繁转换开箱即用，
+  不需要手动配置任何 YAML。
+- **上下文感知**——记住你的用词习惯，结合上文调整候选顺序；自学习全程在本机。
+- **统一设置**——候选个数、简入繁出、皮肤、字体、横竖排等对全拼、双拼与五笔一并生效，
+  改完即时或异步部署，不用重启。
+- **多套皮肤**——学院风配色，明暗自适应，即时换肤。
+- **快捷短语、剪贴板与场景词库**——常用片段随手可取。
+- **表情与符号面板**——常驻输入法菜单。
+- **可选 AI 助手**——默认关闭，边界见下。
 
 ## 隐私边界
 
@@ -23,14 +50,16 @@ SwiftUI 重做候选窗、设置、引导与表情符号面板。
 
 详见 [PRIVACY.md](PRIVACY.md)。安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。
 
-## 特性
+## 当前状态
 
-- **自包含 Rime**：雾凇拼音、极点五笔 86、小鹤双拼、繁体转换等，无需手动配置。
-- **全局设置**：候选个数、简入繁出等对全拼、双拼与五笔统一生效。
-- **SwiftUI 界面**：键盘输入、候选窗外观、皮肤、快捷短语、剪贴板、场景词库与可选 AI 助手。
-- 表情与符号面板常驻输入法菜单。
+- 本仓库是法墨的**唯一开发仓库**：完整产品（含云端 AI 功能层）在此公开开发，
+  签名安装包与 Sparkle 更新也从本仓库的 Releases 发布。
+- 仓库历史从经过隐私审查的 1.4.22 源码快照开始，不包含更早期的 Git 历史。
+- 1.4.21 及更早的公开发布已经停止分发，不再受支持。
+- Windows 版在 [famotype-win](https://github.com/semantic-craft/famotype-win)，
+  代码、tag 与发布资产与本仓库相互独立。
 
-## 构建
+## 从源码构建
 
 需要 Xcode 26+ 与 macOS 14+：
 
@@ -46,7 +75,11 @@ make release
 请把本仓库的 Git email 配置为 GitHub 提供的 noreply 地址；本地密钥使用 Keychain 或
 被 `.gitignore` 排除的环境文件保存，不要把 AI 会话、调试日志或本机配置加入 Git。
 
-签名、公证与打包由 `scripts/release.sh` 处理；完整发布编排另有对应源码、manifest 与人工验收门。
+公开构建使用清洁室词库种子（`scripts/famo-seed.sh`）：只包含授权链可审计的输入，
+生成的词表限定在《通用规范汉字表》8105 字内。完整词库由 App 首启时从上游原仓库拉取，
+法墨自身不再分发那批数据。种子的逐项来源见构建产物里的 `FAMOTYPE-SEED-SOURCES.md`。
+
+签名、公证与打包由 `scripts/release.sh` 处理；CI 只做构建与静态门禁验证，不发布任何版本。
 
 ## 来源与许可
 
