@@ -1,3 +1,15 @@
+<a name="1.5.2"></a>
+## 1.5.2 (2026-07-25)
+
+### Bug 修復 | Bug Fixes
+- 快捷短语不再和正常打字抢候选：短语码统一带 `` ` `` 前缀，并关掉前缀补全、把 `initial_quality` 从 100 压到 1。此前码是裸字母且开着补全，打一个 `y` 就能命中码为 `yocc` 的短语，压在 有/用/言 前面 (39f9503, ac1f065)
+  - 前缀只加在派生的 Rime 表这一层，`famo_quick_send.json` 仍存裸码 —— **存量短语自动获得前缀，不用重录**
+
+### 主要功能更新 | Major Updates
+- 设置「输入方式」卡片署名底座方案：拼音与双拼为雾凇拼音 rime-ice，五笔为极点五笔 86 (d496d19)
+
+**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.1...1.5.2
+
 <a name="1.5.1"></a>
 ## 1.5.1 (2026-07-25)
 
