@@ -11,6 +11,8 @@
 
 > 仓库名为 **Famotype**；为保持已安装版本兼容，代码、Bundle 与构建产物中仍使用 `Famo` 标识。
 
+![法墨候选窗](docs/screenshots/candidates.png)
+
 ## 安装
 
 系统要求 macOS 14 及以上，通用二进制（Apple Silicon / Intel）。
@@ -38,6 +40,20 @@
 - **快捷短语、剪贴板与场景词库**——常用片段随手可取。
 - **表情与符号面板**——常驻输入法菜单。
 - **可选 AI 助手**——默认关闭，边界见下。
+
+## 界面
+
+七套配色皮肤，明暗跟随系统，选中即时生效：
+
+![皮肤外观](docs/screenshots/skins.png)
+
+换一套皮肤，候选窗随之改变：
+
+![香槟橙（燃橙）皮肤下的候选窗](docs/screenshots/candidates-flame.png)
+
+设置面板按侧栏分页，方案、默认状态、词库都在一处，不用碰 YAML：
+
+![键盘输入设置](docs/screenshots/keyboard-settings.png)
 
 ## 隐私边界
 
