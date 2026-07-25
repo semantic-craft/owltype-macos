@@ -325,6 +325,13 @@ struct FamoKeyboardPage: View {
             SettingsCardDivider(palette: palette)
           }
         }
+        // 底座方案署名：拼音 / 双拼走雾凇拼音（rime-ice），五笔走极点五笔 86。
+        // 用户看得见自己在用谁家的方案，也是 GPL 上游的显性致谢。
+        Text("拼音与双拼底座：雾凇拼音 rime-ice；五笔：极点五笔 86。")
+          .font(.system(size: 12))
+          .foregroundStyle(palette.ink3)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.top, 6)
       }
       .disabled(!rimeBackedRowsEnabled)
       .opacity(rimeBackedRowsEnabled ? 1 : 0.55)
