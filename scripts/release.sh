@@ -1,22 +1,16 @@
 #!/usr/bin/env bash
 # Build the signed/notarized App-owned portion of an exact release cohort.
 #
-# Composition ownership intentionally lives in rime-law-next. This script does not create a source
-# archive, mutate a GitHub release, or write/deploy a website appcast. The root orchestrator supplies
-# its config source explicitly and consumes the App assets/appcast produced here.
+# Composition ownership intentionally stays outside this script. It does not create a source
+# archive, mutate a GitHub release, or write/deploy a website appcast; the release operator
+# consumes the App assets/appcast produced here.
 set -euo pipefail
 
 DEV_ID="${DEV_ID:?set DEV_ID to the Developer ID common name}"
 NOTARY_PROFILE="${NOTARY_PROFILE:?set NOTARY_PROFILE to the notarytool keychain profile name}"
-FAMO_CONFIG_SOURCE_DIR="${FAMO_CONFIG_SOURCE_DIR:?set FAMO_CONFIG_SOURCE_DIR to the root-owned packages/rime-law-config directory}"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$HERE"
-
-[[ -d "$FAMO_CONFIG_SOURCE_DIR" ]] || {
-  echo >&2 "ERROR: FAMO_CONFIG_SOURCE_DIR does not exist"
-  exit 1
-}
 
 echo "==> 1/5 validate signing and notarization readiness"
 security find-identity -v -p codesigning 2>/dev/null | grep -q "Developer ID Application: ${DEV_ID}" || {
@@ -32,8 +26,8 @@ xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1 ||
   exit 1
 }
 
-echo "==> 2/5 assemble the root-owned config into the self-contained seed"
-FAMO_CONFIG_SOURCE_DIR="$FAMO_CONFIG_SOURCE_DIR" make famo-seed
+echo "==> 2/5 assemble the pinned public seed"
+make famo-seed
 
 echo "==> 3/5 build, sign, notarize, and package the App cohort"
 make dmg DEV_ID="$DEV_ID" NOTARY_PROFILE="$NOTARY_PROFILE"
@@ -61,4 +55,4 @@ for artifact in package/Famo.dmg package/Famo.pkg package/Famo-update.pkg packag
   printf 'OUTPUT: %s\n' "$HERE/$artifact"
 done
 
-printf 'PASS: App release cohort build complete; root composition/publishing steps remain external\n'
+printf 'PASS: App release cohort build complete; composition/publishing steps remain external\n'

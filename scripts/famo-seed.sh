@@ -107,6 +107,40 @@ sed \
   -e '/reverse_lookup_filter@radical_reverse_lookup/d' \
   -e '/lua_filter@\*search@radical_pinyin/d' \
   "$source_dir/rime_ice.schema.yaml" > "$output_dir/rime_ice.schema.yaml"
+# Famo 出厂默认：候选 emoji 关（emoji switch reset 1→0）。必须落共享 schema——用户目录
+# custom.yaml 覆盖不到升级用户（首次 seed 不覆盖已有文件）。锚定编辑，找不到即硬失败；
+# check-release.sh 有对应断言。清洁室重写时曾把这步弄丢（1.4.23 带 reset:1 出厂，2026-07-24 复补）。
+python3 - "$output_dir/rime_ice.schema.yaml" <<'PYEOF'
+import sys
+path = sys.argv[1]
+with open(path, encoding="utf-8") as f:
+    lines = f.readlines()
+
+def set_reset_after(name, value):
+    for i, ln in enumerate(lines):
+        s = ln.strip()
+        if not s.startswith("- name:"):
+            continue
+        tok = s[len("- name:"):].strip().split("#")[0].split()
+        if not tok or tok[0] != name:
+            continue
+        base_indent = len(ln) - len(ln.lstrip())
+        for j in range(i + 1, len(lines)):
+            t = lines[j].lstrip()
+            cur_indent = len(lines[j]) - len(t)
+            if t.startswith("- ") or (t and cur_indent <= base_indent):
+                break
+            if t.startswith("reset:"):
+                lines[j] = f"{lines[j][:cur_indent]}reset: {value}\n"
+                return True
+    return False
+
+if not set_reset_after("emoji", 0):
+    sys.exit("[famotype-seed][schema-patch] ERROR: emoji switch (with reset:) not found in rime_ice.schema.yaml")
+with open(path, "w", encoding="utf-8") as f:
+    f.writelines(lines)
+print("[famotype-seed] patched rime_ice.schema.yaml: emoji reset 1 -> 0 (factory off)")
+PYEOF
 cp "$repo_root/data/rime_ice.public.dict.yaml" "$output_dir/rime_ice.dict.yaml"
 python3 "$repo_root/scripts/unihan-to-rime.py" \
   "$unihan_archive" "$output_dir/cn_dicts/famotype_unicode.dict.yaml"
