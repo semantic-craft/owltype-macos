@@ -1,3 +1,21 @@
+<a name="1.5.1"></a>
+## 1.5.1 (2026-07-25)
+
+### 主要功能更新 | Major Updates
+- 公开包自带清洁授权词库 `famotype_base`（8,454 单字读音 + 336,042 词条，jieba + phrase-pinyin-data + Unihan kTGH，全部 MIT / Unicode-3.0），词条限定《通用规范汉字表》8105 字；同时把繁体字形的 rime-essay 移出发行包 (89cf6ff)
+- 首次随 Release 提供首装 DMG（内含 FamoInstaller.app，免注销安装）
+
+### 構建 | Build
+- `archive` 补上 `package/sign_update` 依赖，修掉 `Error 127` (37e3d43)
+- release ci 只构建到 `package`；archive 与 appcast 由本地 `scripts/release.sh` 负责 (4075dc4)
+- 发布门的版本队列断言改用 1.4.17 下限，不再钉死字面量 (e3b5983)
+- bump actions/checkout from 6.1.0 to 7.0.1 (0102415)
+
+### 文檔 | Documentation
+- README 补安装段落、界面截图与英文版 (b7b09d1, c6e5b66)
+
+**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.0...1.5.1
+
 <a name="1.5.0"></a>
 ## 1.5.0 (2026-07-24)
 
