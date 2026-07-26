@@ -35,8 +35,6 @@ struct FamoCandidatePanelView: View {
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   @Environment(\.colorScheme) private var colorScheme
 
-  /// 竖排统一行宽 = 最宽候选行的自然宽（`FamoRowWidthKey` 聚合）。0 = 尚未测得。
-  @State private var uniformRowWidth: CGFloat = 0
 
   /// Resolved 深大红 palette for the active color scheme.
   private var palette: FamoCandidatePalette { state.theme.palette(for: colorScheme) }
@@ -52,6 +50,9 @@ struct FamoCandidatePanelView: View {
 
   /// Header (preedit + caret + chevron) is only meaningful while composing, and only
   /// when the user keeps the in-panel 输入串 on (off → host inline marked text only).
+  ///
+  /// 竖排两形态（07-26 grilling 定案）：开 = 搜狗式「输入条 + 通栏候选」（header 在
+  /// 竖排下带 card2 底色成独立条带）；关 = 参照图式纯候选铺满。两形态行都通栏到面板边。
   private var showsHeader: Bool { state.showPreedit && !state.preedit.isEmpty }
 
   /// G8: candidate-bar animations run only when the user enabled them AND Reduce Motion
@@ -112,6 +113,8 @@ struct FamoCandidatePanelView: View {
 
   private var header: some View {
     let mono = state.preedit.hasPrefix("\\")
+    // 竖排「输入条」形态：card2 底色条带 + 与候选行对齐的 10pt 左边距（横排维持原样）。
+    let vertical = showsFullList
     return HStack(spacing: 8) {
       // preedit rendered as pieces: 音节 runs (the active one tinted accent) separated by faint
       // interpunct delimiters, with the blinking caret spliced in at cursor_pos. Arrow keys move
@@ -123,10 +126,12 @@ struct FamoCandidatePanelView: View {
       }
       Spacer(minLength: 2)   // 原 8：输入串是面板最宽行时，这里的富余直接变成右侧空白
     }
-    .padding(.leading, 14)
+    .padding(.leading, vertical ? 10 : 14)
     .padding(.trailing, 8)
-    .padding(.top, 9)
-    .padding(.bottom, 5)
+    .padding(.top, vertical ? 7 : 9)
+    .padding(.bottom, vertical ? 6 : 5)
+    .frame(maxWidth: vertical ? .infinity : nil, alignment: .leading)
+    .background { if vertical { palette.card2 } }
     .accessibilityElement(children: .combine)
     .accessibilityLabel("输入串 \(state.preedit)")
   }
@@ -358,9 +363,6 @@ struct FamoCandidatePanelView: View {
     .padding(.bottom, 4)
     // 内容贴边后，从横排展开时右上角的收起箭头不再有富余空白可借，给行内容留出走位。
     .padding(.trailing, showsExpandChevron ? 18 : 0)
-    // 行宽统一 = 最宽候选行：短行补齐到同宽（高亮通栏即使落在短候选上也整齐到边），
-    // 但不吸收输入串撑出的面板富余宽度（整句拼音比候选宽时，多余部分是中性底色）。
-    .onPreferenceChange(FamoRowWidthKey.self) { uniformRowWidth = $0 }
     .overlay(alignment: .top) {
       // Hairline between the header and the list (the design's list border-top).
       if showsHeader {
@@ -429,27 +431,14 @@ struct FamoCandidatePanelView: View {
     }
     .padding(.horizontal, 10)   // 左右边距相等：「1」到左边 = 末字到右边（参照图的对称感）
     .padding(.vertical, 7)
-    // 先量自然宽（在 minWidth 补齐之前），供 verticalList 求最宽行。
-    .background {
-      GeometryReader { geo in
-        Color.clear.preference(key: FamoRowWidthKey.self, value: geo.size.width)
-      }
-    }
-    .frame(minWidth: uniformRowWidth > 0 ? uniformRowWidth : nil, alignment: .leading)
-    // 通栏方角高亮：出血到统一行宽的左右两边，外层面板 clipShape 负责裁圆角；
+    // 通栏方角高亮：行铺满面板宽（关输入串时面板宽 = 最宽候选行，即参照图形态；
+    // 开输入串时与「输入条」同宽，搜狗式），外层面板 clipShape 负责裁圆角；
     // 不再投影（贴边色块不应悬浮）。
+    .frame(maxWidth: .infinity, alignment: .leading)
     .background { if selected { Rectangle().fill(palette.accent) } }
     .contentShape(Rectangle())
     .onTapGesture { onSelect(candidate.id) }
     .accessibilityElement(children: .combine)
-  }
-}
-
-/// 竖排行自然宽度的 max-reduce（通栏样式：短行补齐到最宽行）。
-private struct FamoRowWidthKey: PreferenceKey {
-  static let defaultValue: CGFloat = 0
-  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-    value = max(value, nextValue())
   }
 }
 
