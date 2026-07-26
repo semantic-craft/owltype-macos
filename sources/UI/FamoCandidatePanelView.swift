@@ -104,8 +104,8 @@ struct FamoCandidatePanelView: View {
           lineWidth: 1)
     }
     .clipShape(RoundedRectangle(cornerRadius: state.theme.cornerRadius, style: .continuous))
-    .shadow(color: .black.opacity(colorScheme == .dark ? 0.5 : 0.22),
-            radius: state.theme.shadowRadius, x: 0, y: 8)
+    // 面板投影不在这里画：SwiftUI 的 .shadow 不撑布局，而窗口尺寸 = contentView.fittingSize，
+    // 模糊没有落点。改由 NSPanel 的 `hasShadow` 按内容 alpha 画（FamoSwiftUICandidatePanel）。
     .animation(animateOK ? .snappy(duration: 0.08) : nil, value: state.highlightedIndex)
     .animation(animateOK ? .snappy(duration: 0.12) : nil, value: state.isExpanded)
   }
@@ -125,31 +125,32 @@ struct FamoCandidatePanelView: View {
     }
   }
 
-  /// 薄雾玻璃高亮胶囊（横竖共用）：accent 底 + 顶部白渐变顶光 + 内侧 1px 高光描边 +
-  /// 轻 accent 投影——「屏幕上的物件」感。深浅色同构（顶光在暗色 accent 上同样成立）。
-  @ViewBuilder private func mistHighlight(cornerRadius r: CGFloat) -> some View {
-    let shape = RoundedRectangle(cornerRadius: r, style: .continuous)
-    shape.fill(palette.accent)
-      .overlay {
-        shape.fill(LinearGradient(
-          stops: [.init(color: .white.opacity(0.14), location: 0),
-                  .init(color: .clear, location: 0.55)],
-          startPoint: .top, endPoint: .bottom))
-      }
-      .overlay {
-        shape.strokeBorder(LinearGradient(
-          stops: [.init(color: .white.opacity(0.28), location: 0),
-                  .init(color: .white.opacity(0.02), location: 0.6)],
-          startPoint: .top, endPoint: .bottom), lineWidth: 1)
-      }
-      .shadow(color: palette.accent.opacity(0.28), radius: 3, y: 2)
+  /// 选中块（横竖共用）——「通栏圆角」2A，07-26 grilling R6 定案。
+  ///
+  /// 纯 accent 平色 + 圆角 8，出血到面板内壁；R4 的三层立体（顶部白渐变顶光、内侧 1px
+  /// 白描边、accent 外投影）全部撤掉。依据：面板本身已经是玻璃层，Liquid Glass 的
+  /// 「avoid glass on glass」意味着选中态不该再是一个自带材质的物件，只该是面板内的
+  /// 一块 tint——浮起来的是整块面板（NSPanel `hasShadow`），行只是面板内的分区。
+  ///
+  /// 圆角保留 8 而不是走 rime-ice `hilited_corner_radius: 0` 的直角出血：HIG 明确
+  /// macOS 选中态用 rounded-corner appearance，Tahoe 全系统也在往圆角走。
+  @ViewBuilder private func selectionFill(cornerRadius r: CGFloat) -> some View {
+    RoundedRectangle(cornerRadius: r, style: .continuous).fill(palette.accent)
+  }
+
+  /// 横排 2A 的纵向出血量：选中块顶到候选条的上下内边（上 4 / 下 9，有预览行时下 4，
+  /// 与 `compactRow` 的 padding 一一对应）。`.background` 里的负 padding 只让背景越界、
+  /// 不改变布局尺寸。折行模式不出血——行间只有 6pt，出血会压到相邻行。
+  private var compactBleed: (top: CGFloat, bottom: CGFloat) {
+    guard !state.isFlow else { return (0, 0) }
+    return (-4, state.previewRows.isEmpty ? -9 : -4)
   }
 
   // MARK: Header — preedit (dotted underline) + blinking caret + expand chevron
 
   private var header: some View {
     let mono = state.preedit.hasPrefix("\\")
-    // 竖排「输入条」形态：card2 底色条带 + 与候选行对齐的 10pt 左边距（横排维持原样）。
+    // 竖排「输入条」形态：与候选行文字对齐的 14pt 左边距（横排维持原样）。
     let vertical = showsFullList
     return HStack(spacing: 8) {
       // preedit rendered as pieces: 音节 runs (the active one tinted accent) separated by faint
@@ -162,7 +163,7 @@ struct FamoCandidatePanelView: View {
       }
       Spacer(minLength: 2)   // 原 8：输入串是面板最宽行时，这里的富余直接变成右侧空白
     }
-    .padding(.leading, vertical ? 10 : 14)
+    .padding(.leading, 14)
     .padding(.trailing, 8)
     .padding(.top, vertical ? 7 : 9)
     .padding(.bottom, vertical ? 6 : 5)
@@ -361,9 +362,16 @@ struct FamoCandidatePanelView: View {
     // pill no longer carries a wide accent margin before the number ("序号左边比较宽").
     .padding(.horizontal, 8)
     .padding(.vertical, 7)   // 窗口高度：候选更舒展（原 6）
-    // 薄雾玻璃：横排选中胶囊与竖排 listRow 同一 helper（圆角 8 顶光渐变），排布切换不跳戏。
-    .background { if selected { mistHighlight(cornerRadius: 8) } }
-    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    // 2A：横排选中块与竖排 listRow 同一 helper（纯色圆角 8），排布切换不跳戏；
+    // 纵向出血到候选条的上下内边，等同竖排的「出血到面板内壁」。
+    .background {
+      if selected {
+        let bleed = compactBleed
+        selectionFill(cornerRadius: 8)
+          .padding(.top, bleed.top)
+          .padding(.bottom, bleed.bottom)
+      }
+    }
     .contentShape(Rectangle())
     .onTapGesture { onSelect(candidate.id) }
     .accessibilityElement(children: .combine)
@@ -424,9 +432,9 @@ struct FamoCandidatePanelView: View {
         listRow(candidate)
       }
     }
-    // 铺满 + 薄雾玻璃质感（07-26 grilling R4 定案）：行铺满面板宽，高亮为顶光渐变
-    // 胶囊——离面板边 4pt 对称留白（R4 mist 度量），不照抄参照图的方角出血。
-    .padding(.horizontal, 4)
+    // 2A 通栏（07-26 grilling R6 定案）：原来容器留 4pt 横向内边距、选中块离面板边
+    // 4pt；现在把这 4pt 移进 `listRow` 自己的横向 padding（10 → 14），行文字位置分毫
+    // 未动，但选中块出血到面板内壁。
     .padding(.top, 3)
     .padding(.bottom, 4)
     // 内容贴边后，从横排展开时右上角的收起箭头不再有富余空白可借，给行内容留出走位。
@@ -472,9 +480,6 @@ struct FamoCandidatePanelView: View {
             }
             .foregroundStyle(selected ? palette.onAccent : palette.accent)
         }
-        // 不再 `.frame(maxWidth: .infinity)` 拉伸到面板全宽：输入串比候选宽时（整句拼音），
-        // 拉伸会让高亮胶囊拖一条与内容无关的长色尾（「右边太宽」）。改为胶囊只包住
-        // 「序号+词+注释」本身，多余宽度留白 —— 对齐参照系（候选撑宽时两者等价）。
         Text(candidate.text)
           .font(state.fontDesign.candidateFont(size: base))
           .foregroundStyle(selected ? palette.onAccent : palette.ink)
@@ -496,12 +501,15 @@ struct FamoCandidatePanelView: View {
           .padding(.leading, base * 0.9 + 7)   // 对齐词首 ≈ 序号宽(base*0.9) + HStack 间距(7)
       }
     }
-    .padding(.horizontal, 10)   // 左右边距相等：「1」到左边 = 末字到右边（参照图的对称感）
+    // 左右边距相等：「1」到左边 = 末字到右边（参照图的对称感）。14 = 原 10 + 容器让出的 4。
+    .padding(.horizontal, 14)
     .padding(.vertical, 7)
     // 行铺满面板宽（关输入串时面板宽 = 最宽候选行，即参照图的撑满感；开输入串时
-    // 与「输入条」同宽）；高亮 = 薄雾玻璃顶光胶囊（与横排 compactPill 同 helper）。
+    // 与「输入条」同宽）；选中块 = 出血到面板内壁的纯色圆角块（与横排 compactPill 同 helper）。
+    // 通栏的已知代价：开输入串且整句拼音比最宽候选还宽时，选中行会拖一条到输入串
+    // 宽度的色尾。改窄会破坏「候选撑满」的参照系，故保留通栏。
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background { if selected { mistHighlight(cornerRadius: 8) } }
+    .background { if selected { selectionFill(cornerRadius: 8) } }
     .contentShape(Rectangle())
     .onTapGesture { onSelect(candidate.id) }
     .accessibilityElement(children: .combine)
