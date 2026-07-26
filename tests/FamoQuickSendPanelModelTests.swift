@@ -287,29 +287,22 @@ final class FamoQuickSendPanelModelTests: XCTestCase {
   /// matchers check in allCases order, which would silently dead-end the losing feature. The
   /// recorder rejects a combo held by ANY other slot; `counterparts` is the set it consults.
   func testSlotCounterpartPairingGuardsAgainstDuplicateCombos() {
-    XCTAssertEqual(FamoHotKeySlot.quickSendPanel.counterparts, [.selectionMenu, .askAnything, .promptAssistant])
-    XCTAssertEqual(FamoHotKeySlot.selectionMenu.counterparts, [.quickSendPanel, .askAnything, .promptAssistant])
-    XCTAssertEqual(FamoHotKeySlot.askAnything.counterparts, [.quickSendPanel, .selectionMenu, .promptAssistant])
-    XCTAssertEqual(FamoHotKeySlot.promptAssistant.counterparts, [.quickSendPanel, .selectionMenu, .askAnything])
+    // askAnything 槽已退役（2026-07-26）：任意提问只从划词菜单点进，不再有直达热键。
+    XCTAssertEqual(FamoHotKeySlot.quickSendPanel.counterparts, [.selectionMenu, .promptAssistant])
+    XCTAssertEqual(FamoHotKeySlot.selectionMenu.counterparts, [.quickSendPanel, .promptAssistant])
+    XCTAssertEqual(FamoHotKeySlot.promptAssistant.counterparts, [.quickSendPanel, .selectionMenu])
 
     restoreDefaultsAfterTest(key: FamoHotKeySlot.quickSendPanel.defaultsKey)
     restoreDefaultsAfterTest(key: FamoHotKeySlot.selectionMenu.defaultsKey)
-    restoreDefaultsAfterTest(key: FamoHotKeySlot.askAnything.defaultsKey)
+    restoreDefaultsAfterTest(key: FamoHotKeySlot.promptAssistant.defaultsKey)
 
     let combo = FamoRecordedHotKey(keyCode: UInt32(kVK_ANSI_J),
                                    modifiers: UInt32(controlKey | optionKey))
     FamoHotKeySlot.quickSendPanel.current = combo
     XCTAssertTrue(FamoHotKeySlot.selectionMenu.counterparts.contains { $0.current == combo },
                   "划词菜单录制时应能读到快捷短语面板已占用的组合")
-    XCTAssertTrue(FamoHotKeySlot.askAnything.counterparts.contains { $0.current == combo },
-                  "任意提问录制时同样应看到该组合已被占用")
-  }
-
-  /// 任意提问 slot persists under its own key and never inherits 划词菜单's legacy presets.
-  func testAskAnythingSlotHasOwnKeyAndNoLegacyPresets() {
-    XCTAssertEqual(FamoHotKeySlot.askAnything.defaultsKey, "FamoAskAnythingHotKey")
-    XCTAssertEqual(FamoHotKeySlot.askAnything.displayName, "任意提问")
-    XCTAssertTrue(FamoHotKeySlot.askAnything.legacyPresets.isEmpty)
+    XCTAssertTrue(FamoHotKeySlot.promptAssistant.counterparts.contains { $0.current == combo },
+                  "提示词助手录制时同样应看到该组合已被占用")
   }
 
   // MARK: - Helpers

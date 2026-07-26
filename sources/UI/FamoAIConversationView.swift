@@ -92,6 +92,9 @@ struct FamoAIConversationView: View {
         }
       }
       applyInitialQuestionIfNeeded()
+      // 划词召唤的核心动线是「选中 → 出框 → 直接打指令」，焦点必须已经落在输入框里；
+      // 异步一拍等窗口成 key 后再落焦（同步设在 makeKeyAndOrderFront 之前会被吞掉）。
+      DispatchQueue.main.async { inputFocused = true }
     }
   }
 
@@ -181,9 +184,11 @@ struct FamoAIConversationView: View {
           }
           switch state {
           case .idle:
-            // 已经聊过就别再劝人开口——空白提示只在真正空白时出现。
+            // 已经聊过就别再劝人开口——空白提示只在真正空白时出现。带选区时教「下指令」用法。
             if turns.isEmpty {
-              placeholder(NSLocalizedString("问点什么？答案会带上你此刻的上下文。", comment: "idle placeholder"))
+              placeholder(hasSelection
+                ? NSLocalizedString("对选中文本下指令：改写、排版、翻译、拟回复…也可以直接提问。", comment: "idle placeholder with selection")
+                : NSLocalizedString("问点什么？答案会带上你此刻的上下文。", comment: "idle placeholder"))
             }
           case let .streaming(partial):
             questionBubble(model.lastDisplayQuestion ?? model.lastQuestion)
@@ -256,7 +261,10 @@ struct FamoAIConversationView: View {
         taskHeader(task)
       }
       TextField(
-        task?.placeholder ?? NSLocalizedString("向 AI 提问…", comment: "question field placeholder"),
+        task?.placeholder
+          ?? (hasSelection
+            ? NSLocalizedString("对选中文本下指令，或提问…", comment: "question field placeholder with selection")
+            : NSLocalizedString("向 AI 提问…", comment: "question field placeholder")),
         text: $question,
         axis: .vertical
       )
@@ -329,6 +337,13 @@ struct FamoAIConversationView: View {
       quietButton(NSLocalizedString("复制", comment: "copy button"), enabled: currentAnswer != nil) {
         if let answer = currentAnswer { onCopy(answer) }
       }
+      // 「复制粘贴回去」的一键动线：复制结果 + 关窗（关窗自动把焦点还给原 App），回去 ⌘V 即贴。
+      quietButton(NSLocalizedString("复制并关闭", comment: "copy and close button"),
+                  enabled: currentAnswer != nil) {
+        guard let answer = currentAnswer else { return }
+        onCopy(answer)
+        onClose()
+      }
       quietButton(NSLocalizedString("重新生成", comment: "regenerate button"),
                   enabled: !model.lastQuestion.isEmpty && !isStreaming) {
         model.regenerate()
@@ -360,6 +375,11 @@ struct FamoAIConversationView: View {
   }
 
   // MARK: - Helpers
+
+  /// 窗口是否由划词入口带着明确选区打开（决定占位文案教不教「下指令」用法）。
+  private var hasSelection: Bool {
+    !model.capturedContextSummary.isEmpty
+  }
 
   private var isStreaming: Bool {
     if case .streaming = state { return true }

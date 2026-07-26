@@ -124,7 +124,7 @@ extension FamoInputController {
   // Global-hotkey matcher (#118): called from `handle()` for every keyDown while 法墨 is the
   // active IME — the ONLY hotkey path (Carbon registration is banned; it consumes the combo
   // system-wide without ever delivering in this IMK process). Consumes and triggers when the
-  // event equals the 快捷短语面板 / 划词菜单 / 任意提问 combo.
+  // event equals the 快捷短语面板 / 划词菜单 / 提示词助手 combo.
   func handleGlobalHotKeyViaIMK(_ event: NSEvent) -> Bool {
     let flags = event.modifierFlags
     if let combo = FamoHotKeySlot.quickSendPanel.current?.carbonCombo,
@@ -137,12 +137,6 @@ extension FamoInputController {
        FamoHotKeyMatcher.matches(combo, keyCode: event.keyCode, flags: flags) {
       FamoHotKeyMatcher.log.notice("imk-path fired: selectionMenu")
       NSApp.famoAppDelegate.selectionMenuCoordinator?.summonForCurrentSelection()
-      return true
-    }
-    if let combo = FamoHotKeySlot.askAnything.current?.carbonCombo,
-       FamoHotKeyMatcher.matches(combo, keyCode: event.keyCode, flags: flags) {
-      FamoHotKeyMatcher.log.notice("imk-path fired: askAnything")
-      requestAIConversation()
       return true
     }
     if let combo = FamoHotKeySlot.promptAssistant.current?.carbonCombo,
