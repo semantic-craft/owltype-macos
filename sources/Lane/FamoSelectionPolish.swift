@@ -376,7 +376,7 @@ final class FamoSourceVerificationService {
     switch routing.providerID {
     case "qwen":
       return try makeDashScopeRequest(system: system, user: user, routing: routing, apiKey: apiKey)
-    case "zhipu", "mimo":
+    case "mimo":
       return try makeChatSearchRequest(system: system, user: user, routing: routing, apiKey: apiKey)
     case "doubao", "openai":
       return try makeResponsesSearchRequest(system: system, user: user, routing: routing, apiKey: apiKey)
@@ -398,7 +398,7 @@ final class FamoSourceVerificationService {
       // 不透传 routing.model：来源核验只能走 DashScope 原生 generation 端点（compatible-mode
       // 不返回 search_info，来源拿不到），而该端点只服务 qwen-plus/turbo/max 老系列——新预设
       // qwen3.6-flash 打过去直接 400 "url error"（2026-07-20 实盘复现）。钉 qwen-plus：
-      // 同参数实测返回 10 条带 URL 来源。与本方法对 zhipu/mimo 的 per-provider 方言特判同构。
+      // 同参数实测返回 10 条带 URL 来源。与本方法对 mimo 的 per-provider 方言特判同构。
       "model": Self.dashScopeSearchModel,
       "input": [
         "messages": [
@@ -434,17 +434,7 @@ final class FamoSourceVerificationService {
       "temperature": 0.2,
       "stream": false,
     ]
-    if routing.providerID == "zhipu" {
-      body["tool_choice"] = "auto"
-      body["tools"] = [[
-        "type": "web_search",
-        "web_search": [
-          "enable": true,
-          "search_engine": "search_pro",
-          "search_result": true,
-        ],
-      ]]
-    } else if routing.providerID == "mimo" {
+    if routing.providerID == "mimo" {
       body["thinking"] = ["type": "disabled"]
       body["tool_choice"] = "auto"
       body["tools"] = [[

@@ -240,21 +240,23 @@ final class FamoStreamingChatClientTests: XCTestCase {
     XCTAssertNotNil(object["messages"])
   }
 
-  func testZhipuToolsSurviveTheMergeAsStructuredJSON() async throws {
+  func testMiMoToolsSurviveTheMergeAsStructuredJSON() async throws {
     let routing = FamoCloudRouting(
-      providerID: "zhipu",
-      endpoint: URL(string: "https://open.bigmodel.cn/api/paas/v4/chat/completions")!,
-      model: "glm-5-turbo",
-      secretName: "famo.provider.zhipu.apiKey",
-      authHeaderStyle: .bearer
+      providerID: "mimo",
+      endpoint: URL(string: "https://api.xiaomimimo.com/v1/chat/completions")!,
+      model: "mimo-v2.5",
+      secretName: "famo.provider.mimo.apiKey",
+      authHeaderStyle: .apiKey
     )
-    let extras = FamoSearchControl.extraBody(providerID: "zhipu", host: routing.endpoint.host ?? "")
+    let extras = FamoSearchControl.extraBody(providerID: "mimo", host: routing.endpoint.host ?? "")
     let object = try await captureRequestBody(routing: routing, extraBody: extras)
     guard let tools = object["tools"] as? [[String: Any]], let tool = tools.first else {
-      return XCTFail("智谱 tools must survive the JSON merge as an array of objects")
+      return XCTFail("MiMo tools must survive the JSON merge as an array of objects")
     }
     XCTAssertEqual(tool["type"] as? String, "web_search")
-    XCTAssertEqual((tool["web_search"] as? [String: Any])?["search_engine"] as? String, "search_pro")
+    XCTAssertEqual(tool["force_search"] as? Bool, true)
+    XCTAssertEqual((object["thinking"] as? [String: Any])?["type"] as? String, "disabled",
+                   "嵌套字典也要原样过 merge —— 思考没关掉 MiMo 就不触发搜索")
   }
 
   // MARK: - High-level service readiness (no network)

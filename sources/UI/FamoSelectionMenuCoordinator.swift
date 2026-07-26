@@ -643,7 +643,7 @@ enum FamoSelectionSkillPrompts {
   }
 
   static let unsupportedSourceVerificationMessage = """
-  当前默认供应商不支持可返回来源的联网核验。请在 AI 配置里切换到阿里云百炼、火山引擎 · 豆包 Seed、OpenAI、小米 MiMo 或智谱 GLM 后再执行来源核验。
+  当前默认供应商不支持可返回来源的联网核验。请在 AI 配置里切换到阿里云百炼、火山引擎 · 豆包 Seed、OpenAI 或小米 MiMo 后再执行来源核验。
   """
 }
 
