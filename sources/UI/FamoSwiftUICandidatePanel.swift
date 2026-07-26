@@ -120,6 +120,10 @@ struct FamoPanelContent: Equatable {
   let isVertical: Bool
   let schemaID: String
   let anchor: NSRect
+  /// 预览后页（三行候选·方向④Ⓑ）：后 1–2 页的只读预览行，控制器在 `showPanel` 里按偏好
+  /// 预取；空数组 = 无预览（开关关 / 末页 / 竖排 / 折行）。`var` + 默认值让既有构造点
+  /// （含 B5 等式测试的逐字段构造）保持源兼容；数组相等自动并入 B5 去重签名。
+  var previewRows: [[CandidateViewModel]] = []
 
   func replacing(anchor: NSRect) -> FamoPanelContent {
     FamoPanelContent(
@@ -134,8 +138,37 @@ struct FamoPanelContent: Equatable {
       hasNextPage: hasNextPage,
       isVertical: isVertical,
       schemaID: schemaID,
-      anchor: anchor
+      anchor: anchor,
+      previewRows: previewRows
     )
+  }
+}
+
+/// Pure gate + shaping for the 预览后页 rows（三行候选·方向④Ⓑ）。Lives beside
+/// `FamoPanelContent`（同一面板值层）so the controller's `showPanel` stays a thin
+/// call site and the decision/chunking is unit-testable without IMK or librime.
+enum FamoPreviewPagesPlan {
+  /// Whether `showPanel` should peek at the next page(s) for this composition.
+  /// True only when: 开关开、还有后页、本页非空，且本次组字会以横排紧凑条渲染
+  /// （竖排/折行不叠加预览——与视图侧的渲染分支一致）。
+  static func wantsPreview(prefs: FamoPanelSnapshot, lastPage: Bool, candidateCount: Int,
+                           rimeVertical: Bool, schemaID: String) -> Bool {
+    prefs.previewPages
+      && !lastPage
+      && candidateCount > 0
+      && !prefs.orientation.isVertical(rimeVertical: rimeVertical, schemaID: schemaID)
+      && !prefs.orientation.wraps
+  }
+
+  /// Chunk the peeked candidates into preview rows of `pageSize`（尾行可不满）。预览行
+  /// 只渲染候选文字：无序号/注释/徽章（做法Ⓑ 的裁决）；id 仅为 ForEach 稳定性。
+  static func rows(from peeked: [RimeCandidate], pageSize: Int) -> [[CandidateViewModel]] {
+    guard pageSize > 0 else { return [] }
+    return stride(from: 0, to: peeked.count, by: pageSize).map { base in
+      peeked[base..<min(base + pageSize, peeked.count)].enumerated().map { offset, cand in
+        CandidateViewModel(id: base + offset, label: "", text: cand.text)
+      }
+    }
   }
 }
 
@@ -223,6 +256,7 @@ final class FamoSwiftUICandidatePanel: NSPanel {
     panelState.page = content.page
     panelState.hasPrevPage = content.hasPrevPage
     panelState.hasNextPage = content.hasNextPage
+    panelState.previewRows = content.previewRows
     applyPreferences(prefs, rimeVertical: content.isVertical, schemaID: content.schemaID)
 
     lastAnchor = content.anchor
