@@ -340,13 +340,6 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
       }
       coordinator.summonForCurrentSelection()
     }
-    hotKeyTap.onAskAnything = { [weak self] in
-      guard let controller = self?.activeInputController else {
-        FamoHotKeyMatcher.log.notice("askAnything fired but activeInputController=nil — dropped")
-        return
-      }
-      controller.requestAIConversation()
-    }
     hotKeyTap.onPromptAssistant = { [weak self] in
       guard let controller = self?.activeInputController else {
         FamoHotKeyMatcher.log.notice("promptAssistant fired but activeInputController=nil — dropped")

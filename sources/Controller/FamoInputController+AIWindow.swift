@@ -20,7 +20,7 @@ import InputMethodKit
 /// 抽成纯函数是为了可测：`requestAIConversation()` 本身要读 `NSApp` 和单例窗口，测不动；把「放不放行 +
 /// 说什么」摘出来，两个分支才断言得了。写法对齐划词菜单的 `FamoSelectionMenuAction.enabledActions(cloudEnabled:)`。
 enum FamoAskAnythingGate {
-  /// 关闸时给用户看的话。热键与状态菜单栏两条入口都没有可写内联提示的地方，静默返回会被当成「热键坏了」，
+  /// 关闸时给用户看的话。状态菜单栏入口没有可写内联提示的地方，静默返回会被当成「按钮坏了」，
   /// 所以必须出声，且点明去哪儿开。
   static let disabledMessage = "云端 AI 已关闭，「任意提问」不可用。可在「设置 → 技能平台 → 云端 AI（全局）」中开启。"
 
@@ -45,9 +45,9 @@ extension FamoInputController {
   /// `FamoLaneTasks` lane slot. Not on the IMK key-event hot path.
   ///
   /// 云端 AI 关闭时不开窗，只出一条通知。`FamoCloudPreferences.isEnabled` 的定义处写明它是「划词润色 /
-  /// 任意提问」的共用闸，但此前只有划词菜单接了线（`enabledActions` 关闸返空），另两个入口直通 ——
-  /// 关闸后按热键或点状态菜单栏仍能开窗、提问、真发网络请求。三个调用点（状态菜单项 / 唤起热键 /
-  /// `FamoApplicationDelegate` 的 `onAskAnything`）都汇到这个方法，挡这一处即全封。
+  /// 任意提问」的共用闸，但此前只有划词菜单接了线（`enabledActions` 关闸返空），状态菜单入口直通 ——
+  /// 关闸后点状态菜单栏仍能开窗、提问、真发网络请求。任意提问的直达热键已退役（2026-07-26），
+  /// 无选区调用点只剩状态菜单项，全部汇到这个方法，挡这一处即全封。
   @objc func requestAIConversation() {
     FamoLatencyTrace.event("button.open.aiConversation")
     if case let .blocked(message) = FamoAskAnythingGate.decide() {
