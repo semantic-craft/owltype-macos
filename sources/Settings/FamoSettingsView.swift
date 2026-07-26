@@ -583,7 +583,7 @@ struct FamoSettingsView: View {
               .foregroundStyle(palette.ink2)
           }
           .tint(palette.accent)
-          Text("关掉后候选窗顶部不再重复拼音串，仅保留 App 内联预编辑。")
+          Text("关掉后候选窗顶部不再重复拼音串，仅保留 App 内联预编辑。竖排下始终不显示。")
             .font(.system(size: 11))
             .foregroundStyle(palette.ink3)
         }

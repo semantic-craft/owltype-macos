@@ -35,6 +35,7 @@ struct FamoCandidatePanelView: View {
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   @Environment(\.colorScheme) private var colorScheme
 
+
   /// Resolved 深大红 palette for the active color scheme.
   private var palette: FamoCandidatePalette { state.theme.palette(for: colorScheme) }
 
@@ -49,6 +50,9 @@ struct FamoCandidatePanelView: View {
 
   /// Header (preedit + caret + chevron) is only meaningful while composing, and only
   /// when the user keeps the in-panel 输入串 on (off → host inline marked text only).
+  ///
+  /// 竖排两形态（07-26 grilling 定案）：开 = 搜狗式「输入条 + 通栏候选」（header 在
+  /// 竖排下带 card2 底色成独立条带）；关 = 参照图式纯候选铺满。两形态行都通栏到面板边。
   private var showsHeader: Bool { state.showPreedit && !state.preedit.isEmpty }
 
   /// G8: candidate-bar animations run only when the user enabled them AND Reduce Motion
@@ -74,22 +78,36 @@ struct FamoCandidatePanelView: View {
         compactRow
       }
     }
-    // 竖排让内容/输入串撑宽度（仿搜狗的窄竖排，原 244 强制留白过宽）；横排维持 210。
-    .frame(minWidth: showsFullList ? 150 : 210, alignment: .leading)
+    // 竖排让内容/输入串撑宽度（仿鼠鬚管 stacked / 搜狗竖排：以最宽候选贴边 + 对称边距）。
+    // 原 150 强制下限在单字候选页留出 ~80pt 右侧空白（「左右不平衡」），改为随字号的
+    // 小下限（base*4 ≈ 64/76/92），仅防单候选无序号时面板过窄，正常内容都由内容撑宽。
+    // 横排维持 210。
+    .frame(minWidth: showsFullList ? base * 4 : 210, alignment: .leading)
     .background { glass }
     .overlay {
       RoundedRectangle(cornerRadius: state.theme.cornerRadius, style: .continuous)
         .strokeBorder(panelBorder, lineWidth: 1)
     }
+    .overlay {
+      // 薄雾玻璃的顶部内侧高光（R4 mist：inset 0 1px 0 白）——受光面在上。
+      RoundedRectangle(cornerRadius: state.theme.cornerRadius, style: .continuous)
+        .strokeBorder(
+          LinearGradient(
+            stops: [.init(color: .white.opacity(colorScheme == .dark ? 0.08 : 0.30), location: 0),
+                    .init(color: .clear, location: 0.25)],
+            startPoint: .top, endPoint: .bottom),
+          lineWidth: 1)
+    }
     .clipShape(RoundedRectangle(cornerRadius: state.theme.cornerRadius, style: .continuous))
-    .shadow(color: .black.opacity(colorScheme == .dark ? 0.45 : 0.16),
-            radius: state.theme.shadowRadius, x: 0, y: 7)
+    .shadow(color: .black.opacity(colorScheme == .dark ? 0.5 : 0.22),
+            radius: state.theme.shadowRadius, x: 0, y: 8)
     .animation(animateOK ? .snappy(duration: 0.08) : nil, value: state.highlightedIndex)
     .animation(animateOK ? .snappy(duration: 0.12) : nil, value: state.isExpanded)
   }
 
-  /// Half-transparent glass: a material under a card tint (design panelBg ≈ card @ 0.85),
-  /// falling back to an opaque card fill when Reduce Transparency is on.
+  /// 薄雾玻璃（07-26 grilling R4 定案，HIG Materials）：material 上叠 card @ 0.72 ——
+  /// 比原 0.85 更透，让 vibrancy 模糊透出来；Reduce Transparency 回退不透明 card。
+  /// 横排/竖排共用（面板外壳是同一层材质，两种排布才协调）。
   @ViewBuilder private var glass: some View {
     let shape = RoundedRectangle(cornerRadius: state.theme.cornerRadius, style: .continuous)
     if reduceTransparency {
@@ -97,15 +115,37 @@ struct FamoCandidatePanelView: View {
     } else {
       ZStack {
         shape.fill(.regularMaterial)
-        shape.fill(palette.card.opacity(0.85))
+        shape.fill(palette.card.opacity(0.72))
       }
     }
+  }
+
+  /// 薄雾玻璃高亮胶囊（横竖共用）：accent 底 + 顶部白渐变顶光 + 内侧 1px 高光描边 +
+  /// 轻 accent 投影——「屏幕上的物件」感。深浅色同构（顶光在暗色 accent 上同样成立）。
+  @ViewBuilder private func mistHighlight(cornerRadius r: CGFloat) -> some View {
+    let shape = RoundedRectangle(cornerRadius: r, style: .continuous)
+    shape.fill(palette.accent)
+      .overlay {
+        shape.fill(LinearGradient(
+          stops: [.init(color: .white.opacity(0.14), location: 0),
+                  .init(color: .clear, location: 0.55)],
+          startPoint: .top, endPoint: .bottom))
+      }
+      .overlay {
+        shape.strokeBorder(LinearGradient(
+          stops: [.init(color: .white.opacity(0.28), location: 0),
+                  .init(color: .white.opacity(0.02), location: 0.6)],
+          startPoint: .top, endPoint: .bottom), lineWidth: 1)
+      }
+      .shadow(color: palette.accent.opacity(0.28), radius: 3, y: 2)
   }
 
   // MARK: Header — preedit (dotted underline) + blinking caret + expand chevron
 
   private var header: some View {
     let mono = state.preedit.hasPrefix("\\")
+    // 竖排「输入条」形态：card2 底色条带 + 与候选行对齐的 10pt 左边距（横排维持原样）。
+    let vertical = showsFullList
     return HStack(spacing: 8) {
       // preedit rendered as pieces: 音节 runs (the active one tinted accent) separated by faint
       // interpunct delimiters, with the blinking caret spliced in at cursor_pos. Arrow keys move
@@ -115,12 +155,15 @@ struct FamoCandidatePanelView: View {
           preeditPieceView(piece, mono: mono)
         }
       }
-      Spacer(minLength: 8)
+      Spacer(minLength: 2)   // 原 8：输入串是面板最宽行时，这里的富余直接变成右侧空白
     }
-    .padding(.leading, 14)
-    .padding(.trailing, 10)
-    .padding(.top, 9)
-    .padding(.bottom, 5)
+    .padding(.leading, vertical ? 10 : 14)
+    .padding(.trailing, 8)
+    .padding(.top, vertical ? 7 : 9)
+    .padding(.bottom, vertical ? 6 : 5)
+    // 竖排「输入条」：mist 规格为透明底 + 底部细分隔线（verticalList 顶部 hairline），
+    // 不再用 card2 色带——玻璃面板上叠实色条会压住 vibrancy（HIG Materials）。
+    .frame(maxWidth: vertical ? .infinity : nil, alignment: .leading)
     .accessibilityElement(children: .combine)
     .accessibilityLabel("输入串 \(state.preedit)")
   }
@@ -278,14 +321,9 @@ struct FamoCandidatePanelView: View {
     // pill no longer carries a wide accent margin before the number ("序号左边比较宽").
     .padding(.horizontal, 8)
     .padding(.vertical, 7)   // 窗口高度：候选更舒展（原 6）
-    .background {
-      if selected {
-        RoundedRectangle(cornerRadius: 9, style: .continuous)
-          .fill(palette.accent)
-          .shadow(color: palette.accent.opacity(0.22), radius: 3, y: 2)
-      }
-    }
-    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+    // 薄雾玻璃：横排选中胶囊与竖排 listRow 同一 helper（圆角 8 顶光渐变），排布切换不跳戏。
+    .background { if selected { mistHighlight(cornerRadius: 8) } }
+    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     .contentShape(Rectangle())
     .onTapGesture { onSelect(candidate.id) }
     .accessibilityElement(children: .combine)
@@ -341,14 +379,18 @@ struct FamoCandidatePanelView: View {
   // MARK: Vertical list (expanded / Rime vertical / citation)
 
   private var verticalList: some View {
-    VStack(alignment: .leading, spacing: 2) {
+    VStack(alignment: .leading, spacing: 0) {
       ForEach(state.candidates) { candidate in
         listRow(candidate)
       }
     }
-    .padding(.horizontal, 6)
-    .padding(.top, 4)
-    .padding(.bottom, 5)
+    // 铺满 + 薄雾玻璃质感（07-26 grilling R4 定案）：行铺满面板宽，高亮为顶光渐变
+    // 胶囊——离面板边 4pt 对称留白（R4 mist 度量），不照抄参照图的方角出血。
+    .padding(.horizontal, 4)
+    .padding(.top, 3)
+    .padding(.bottom, 4)
+    // 内容贴边后，从横排展开时右上角的收起箭头不再有富余空白可借，给行内容留出走位。
+    .padding(.trailing, showsExpandChevron ? 18 : 0)
     .overlay(alignment: .top) {
       // Hairline between the header and the list (the design's list border-top).
       if showsHeader {
@@ -365,16 +407,18 @@ struct FamoCandidatePanelView: View {
 
   /// A list row: number + optional 「法」 badge + word + reading/释义 note; a citation
   /// candidate adds a muted source line beneath, indented under the word.
+  ///
+  /// 铺满结构（07-26 grilling 定案）：大号带点序号（`1.`，base*0.9）让左侧不再是
+  /// 低密度空气；行内左右各 10pt 相等；行铺满面板宽，高亮胶囊左右到边、边距目视对称。
   private func listRow(_ candidate: CandidateViewModel) -> some View {
     let selected = candidate.id == state.highlightedIndex
     return VStack(alignment: .leading, spacing: 3) {
-      HStack(spacing: 6) {   // 数字↔汉字：序号贴近词、成组（仿搜狗；原 11 偏散）
+      HStack(spacing: 7) {
         // Feature 7: 仅候选 preset hides the序号/字母 label.
         if state.candidateFormat.showsLabel {
-          Text(candidate.label.isEmpty ? "\(candidate.id + 1)" : candidate.label)
-            .font(.system(size: base * 0.72, weight: .medium))
+          Text((candidate.label.isEmpty ? "\(candidate.id + 1)" : candidate.label) + ".")
+            .font(.system(size: base * 0.9))
             .monospacedDigit()
-            .frame(width: base, alignment: .center)
             .foregroundStyle(selected ? palette.onAccent.opacity(0.85) : palette.ink2)
         }
         if candidate.badge {
@@ -388,9 +432,11 @@ struct FamoCandidatePanelView: View {
             }
             .foregroundStyle(selected ? palette.onAccent : palette.accent)
         }
+        // 不再 `.frame(maxWidth: .infinity)` 拉伸到面板全宽：输入串比候选宽时（整句拼音），
+        // 拉伸会让高亮胶囊拖一条与内容无关的长色尾（「右边太宽」）。改为胶囊只包住
+        // 「序号+词+注释」本身，多余宽度留白 —— 对齐参照系（候选撑宽时两者等价）。
         Text(candidate.text)
           .font(state.fontDesign.candidateFont(size: base))
-          .frame(maxWidth: .infinity, alignment: .leading)
           .foregroundStyle(selected ? palette.onAccent : palette.ink)
         // Feature 7: 隐藏注释 / 仅候选 presets drop the reading / 释义 comment.
         if state.candidateFormat.showsComment, let note = candidate.comment, !note.isEmpty {
@@ -407,19 +453,15 @@ struct FamoCandidatePanelView: View {
         Text(source)
           .font(.system(size: base * 0.78))
           .foregroundStyle(selected ? palette.onAccent.opacity(0.82) : palette.ink3)
-          .padding(.leading, base + 6)   // 对齐词首 = 序号框宽(base) + 上面 HStack 间距(6)
+          .padding(.leading, base * 0.9 + 7)   // 对齐词首 ≈ 序号宽(base*0.9) + HStack 间距(7)
       }
     }
-    .padding(.horizontal, 10)   // 框体↔内容：高亮条内边距（仿搜狗稍紧；原 12）
-    .padding(.vertical, 8)
-    .background {
-      if selected {
-        RoundedRectangle(cornerRadius: 9, style: .continuous)
-          .fill(palette.accent)
-          .shadow(color: palette.accent.opacity(0.22), radius: 3, y: 2)
-      }
-    }
-    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+    .padding(.horizontal, 10)   // 左右边距相等：「1」到左边 = 末字到右边（参照图的对称感）
+    .padding(.vertical, 7)
+    // 行铺满面板宽（关输入串时面板宽 = 最宽候选行，即参照图的撑满感；开输入串时
+    // 与「输入条」同宽）；高亮 = 薄雾玻璃顶光胶囊（与横排 compactPill 同 helper）。
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background { if selected { mistHighlight(cornerRadius: 8) } }
     .contentShape(Rectangle())
     .onTapGesture { onSelect(candidate.id) }
     .accessibilityElement(children: .combine)
