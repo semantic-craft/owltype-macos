@@ -167,6 +167,14 @@ final class FamoQuickSendStoreTests: XCTestCase {
     XCTAssertTrue(yaml.contains("enable_completion: false"))
     XCTAssertFalse(yaml.contains("initial_quality: 100"))
     XCTAssertTrue(yaml.contains("initial_quality: 99"))
+    // The migration's backup batch must not collide with the launch-time keyboard apply,
+    // which runs in the same second with a bare yyyyMMdd-HHmmss timestamp — a shared
+    // .famo-backup/<ts>/ dir would let the second write clobber the first backup.
+    let backups = try FileManager.default.contentsOfDirectory(
+      atPath: tempRoot.appendingPathComponent(".famo-backup").path)
+    XCTAssertFalse(backups.isEmpty)
+    XCTAssertTrue(backups.allSatisfy { $0.hasSuffix("-quicksend-migration") },
+                  "migration backups must use their own batch suffix, got \(backups)")
   }
 
   /// The 1.5.2–1.5.3 on-disk shape (` -prefixed table, quality-1 patch) is ALSO stale: the `
