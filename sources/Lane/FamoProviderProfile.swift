@@ -105,15 +105,6 @@ enum FamoLLMProviderCatalog {
       authHeaderStyle: .apiKey
     ),
     FamoLLMProviderPreset(
-      id: "zhipu",
-      displayName: "智谱 GLM",
-      endpoint: "https://open.bigmodel.cn/api/paas/v4/chat/completions",
-      model: "glm-5-turbo",
-      keyHint: "智谱 API Key",
-      sourceSupport: .sourceResults,
-      authHeaderStyle: .bearer
-    ),
-    FamoLLMProviderPreset(
       id: "deepseek",
       displayName: "DeepSeek",
       endpoint: "https://api.deepseek.com/v1/chat/completions",
@@ -166,7 +157,6 @@ enum FamoLLMProviderCatalog {
     if host.contains("dashscope") || host.contains("aliyuncs") || name.contains("百炼") || name.contains("qwen") { return "qwen" }
     if host.contains("volces") || host.contains("volcengine") || name.contains("豆包") { return "doubao" }
     if host.contains("xiaomimimo") || name.contains("mimo") { return "mimo" }
-    if host.contains("bigmodel") || name.contains("智谱") || name.contains("glm") { return "zhipu" }
     if host.contains("deepseek") || name.contains("deepseek") { return "deepseek" }
     if host.contains("minimax") || name.contains("minimax") { return "minimax" }
     if host.contains("generativelanguage") || name.contains("gemini") { return "gemini" }

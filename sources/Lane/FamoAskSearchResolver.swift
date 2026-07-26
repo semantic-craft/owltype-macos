@@ -2,7 +2,7 @@
 //  FamoAskSearchResolver.swift
 //  法墨输入法 (Famo) — 任意提问「联网搜索」的专属模型解析
 //
-//  开关开启时，把这一问路由到一个**可联网的专属供应商**（用户已配好密钥的 Qwen/智谱/MiMo），
+//  开关开启时，把这一问路由到一个**可联网的专属供应商**（用户已配好密钥的 Qwen/MiMo/豆包/OpenAI），
 //  与主对话模型解耦 —— 主模型不支持联网时也能真搜到。若只在主模型请求里拼搜索参数，主模型
 //  （常见是 DeepSeek）不支持联网时会被静默降级成普通问答、只答到训练截止，而用户以为搜了。
 //
@@ -74,7 +74,7 @@ struct FamoAskSearchRoute: Equatable {
   let apiKey: String
 
   var providerID: String { routing.providerID }
-  /// 面向用户的品牌名（通义千问 / 智谱 / MiMo / 豆包 / OpenAI），供 AI 窗署名 chip 使用。
+  /// 面向用户的品牌名（通义千问 / MiMo / 豆包 / OpenAI），供 AI 窗署名 chip 使用。
   var displayName: String? { FamoSearchControl.displayName(for: providerID) }
   /// WHICH transport carries this route's search — `openAsk` picks its client from this rather
   /// than re-deriving it from the provider id.
