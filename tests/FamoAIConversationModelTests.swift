@@ -300,12 +300,12 @@ final class FamoAIConversationModelTests: XCTestCase {
   func testAttributionClearsWhenARegenerateNoLongerSearches() async {
     // A key can be removed (or the toggle flipped) between attempts — a stale 联网 chip would then
     // claim a live search that never happened.
-    let streamer = SearchStreamer(searchProviderID: "zhipu")
+    let streamer = SearchStreamer(searchProviderID: "mimo")
     let model = FamoAIConversationModel(streamer: streamer)
 
     model.submit(question: "q")
     await waitUntil { if case .done = model.state { return true }; return false }
-    XCTAssertEqual(model.searchAttribution, "智谱")
+    XCTAssertEqual(model.searchAttribution, "MiMo")
 
     streamer.searchProviderID = nil
     model.regenerate()
