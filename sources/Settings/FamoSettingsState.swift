@@ -137,7 +137,7 @@ final class FamoSettingsState {
   /// Seeded and written through the same way as `panelAppearance`; the skin
   /// preview also reads `panelFontSize.base` so it reflects the chosen size live.
   var panelFontSize: FamoPanelFontSize = .medium
-  /// G8 候选显示 mirrors of `FamoPanelPreferences` — orientation (横排/竖排/折行), candidate
+  /// G8 候选显示 mirrors of `FamoPanelPreferences` — orientation (横排/竖排/卷轴), candidate
   /// typeface (候选字体), animation toggle (候选条动画). Seeded + written like `panelAppearance`.
   var panelOrientation: FamoPanelOrientation = .auto
   var panelFontDesign: FamoPanelFontDesign = .default
@@ -152,10 +152,8 @@ final class FamoSettingsState {
   var panelShowNotificationsWhen: FamoNotificationWhen = .always
   /// 候选格式预设 (mirror of `FamoPanelPreferences.candidateFormat`). Feature 7.
   var panelCandidateFormat: FamoCandidateFormat = .full
-  /// 预览后页 (mirror of `FamoPanelPreferences.previewPages`). 三行候选·方向④Ⓑ.
-  var panelPreviewPages: Bool = false
-  /// 预览行数 (mirror of `FamoPanelPreferences.previewRows`, 1 或 2).
-  var panelPreviewRows: Int = 2
+  /// 卷轴后页行数 (mirror of `FamoPanelPreferences.scrollRows`, 1 或 2).
+  var panelScrollRows: Int = 2
   /// G8 候选个数 mirror of `FamoKeyboardPreferences.pageSize` (Rime menu/page_size).
   /// Unlike the panel mirrors, this flows through the keyboard patch + 应用配置改动.
   var candidatePageSize: Int = 8

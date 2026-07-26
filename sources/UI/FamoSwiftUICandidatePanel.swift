@@ -120,10 +120,10 @@ struct FamoPanelContent: Equatable {
   let isVertical: Bool
   let schemaID: String
   let anchor: NSRect
-  /// 预览后页（三行候选·方向④Ⓑ）：后 1–2 页的只读预览行，控制器在 `showPanel` 里按偏好
-  /// 预取；空数组 = 无预览（开关关 / 末页 / 竖排 / 折行）。`var` + 默认值让既有构造点
-  /// （含 B5 等式测试的逐字段构造）保持源兼容；数组相等自动并入 B5 去重签名。
-  var previewRows: [[CandidateViewModel]] = []
+  /// 卷轴后页行：后 1–2 整页，控制器在 `showPanel` 里按偏好预取；空数组 = 不卷轴
+  /// （非卷轴方向 / 末页 / 竖排）。`var` + 默认值让既有构造点（含 B5 等式测试的逐字段
+  /// 构造）保持源兼容；数组相等自动并入 B5 去重签名。
+  var scrollRows: [FamoScrollRow] = []
 
   func replacing(anchor: NSRect) -> FamoPanelContent {
     FamoPanelContent(
@@ -139,35 +139,43 @@ struct FamoPanelContent: Equatable {
       isVertical: isVertical,
       schemaID: schemaID,
       anchor: anchor,
-      previewRows: previewRows
+      scrollRows: scrollRows
     )
   }
 }
 
-/// Pure gate + shaping for the 预览后页 rows（三行候选·方向④Ⓑ）。Lives beside
-/// `FamoPanelContent`（同一面板值层）so the controller's `showPanel` stays a thin
-/// call site and the decision/chunking is unit-testable without IMK or librime.
-enum FamoPreviewPagesPlan {
+/// Pure gate + shaping for the 卷轴后页行。Lives beside `FamoPanelContent`（同一面板值层）
+/// so the controller's `showPanel` stays a thin call site and the decision/chunking is
+/// unit-testable without IMK or librime.
+enum FamoScrollRowsPlan {
   /// Whether `showPanel` should peek at the next page(s) for this composition.
-  /// True only when: 开关开、还有后页、本页非空，且本次组字会以横排紧凑条渲染
-  /// （竖排/折行不叠加预览——与视图侧的渲染分支一致）。
-  static func wantsPreview(prefs: FamoPanelSnapshot, lastPage: Bool, candidateCount: Int,
-                           rimeVertical: Bool, schemaID: String) -> Bool {
-    prefs.previewPages
+  /// True only when: 选了卷轴、还有后页、本页非空，且本次组字确实以横排渲染
+  /// （竖排不叠加后页行——与视图侧的渲染分支一致）。
+  ///
+  /// `.scroll` 的 `isVertical` 恒为 false，那条判断留着是为了将来若允许「自动+卷轴」组合时
+  /// 门控依旧正确，且与视图分支一一对应；现在它只对非卷轴方向起作用（那些已被首条挡掉）。
+  static func wantsRows(prefs: FamoPanelSnapshot, lastPage: Bool, candidateCount: Int,
+                        rimeVertical: Bool, schemaID: String) -> Bool {
+    prefs.orientation.scrolls
       && !lastPage
       && candidateCount > 0
       && !prefs.orientation.isVertical(rimeVertical: rimeVertical, schemaID: schemaID)
-      && !prefs.orientation.wraps
   }
 
-  /// Chunk the peeked candidates into preview rows of `pageSize`（尾行可不满）。预览行
-  /// 只渲染候选文字：无序号/注释/徽章（做法Ⓑ 的裁决）；id 仅为 ForEach 稳定性。
-  static func rows(from peeked: [RimeCandidate], pageSize: Int) -> [[CandidateViewModel]] {
+  /// Chunk the peeked candidates into whole pages（尾行可不满）。后页行不渲染序号/注释/
+  /// 徽章——序号只属于主行，因为数字键只选得中主行（这正是「按页对齐」保住的语义）。
+  ///
+  /// `startPage` = 主行页号 + 1；行 id 取页号（卷轴动画的身份），候选 id 取**绝对下标**
+  /// （`startPage * pageSize + …`），点击时直接喂给 `select_candidate`。
+  static func rows(from peeked: [RimeCandidate], pageSize: Int, startPage: Int) -> [FamoScrollRow] {
     guard pageSize > 0 else { return [] }
     return stride(from: 0, to: peeked.count, by: pageSize).map { base in
-      peeked[base..<min(base + pageSize, peeked.count)].enumerated().map { offset, cand in
-        CandidateViewModel(id: base + offset, label: "", text: cand.text)
-      }
+      let page = startPage + base / pageSize
+      return FamoScrollRow(
+        id: page,
+        candidates: peeked[base..<min(base + pageSize, peeked.count)].enumerated().map { offset, cand in
+          CandidateViewModel(id: page * pageSize + offset, label: "", text: cand.text)
+        })
     }
   }
 }
@@ -193,6 +201,12 @@ final class FamoSwiftUICandidatePanel: NSPanel {
   /// input controller wires this to `page(up:)`. NEEDS REAL-MACHINE VERIFICATION:
   /// chevron hit-testing in a non-activating panel.
   var onPage: ((Bool) -> Void)?
+
+  /// Called when a 卷轴后页行 candidate is clicked. Carries the candidate's **absolute** index
+  /// into the whole candidate list (not a page offset), so the controller routes it through
+  /// `select_candidate` instead of `select_candidate_on_current_page`. Mouse-only path —
+  /// the keyboard hot path is untouched.
+  var onSelectAbsolute: ((Int) -> Void)?
 
   init() {
     super.init(
@@ -221,6 +235,7 @@ final class FamoSwiftUICandidatePanel: NSPanel {
         state: panelState,
         onSelect: { [weak self] index in self?.onSelect?(index) },
         onPage: { [weak self] up in self?.onPage?(up) },
+        onSelectAbsolute: { [weak self] index in self?.onSelectAbsolute?(index) },
         onToggleExpand: { [weak self] in self?.reframeToFit() }
       )
     )
@@ -261,7 +276,7 @@ final class FamoSwiftUICandidatePanel: NSPanel {
     panelState.page = content.page
     panelState.hasPrevPage = content.hasPrevPage
     panelState.hasNextPage = content.hasNextPage
-    panelState.previewRows = content.previewRows
+    panelState.scrollRows = content.scrollRows
     applyPreferences(prefs, rimeVertical: content.isVertical, schemaID: content.schemaID)
 
     lastAnchor = content.anchor
@@ -343,13 +358,14 @@ final class FamoSwiftUICandidatePanel: NSPanel {
 
   private func applyPreferences(_ prefs: FamoPanelSnapshot, rimeVertical: Bool, schemaID: String) {
     panelState.schemaID = schemaID
-    // 每次组字都从「未展开」起（「默认形态 单行/卷轴」已并入排列方向，2026-07-22）：竖排走
-    // `isVertical`、折行走 `isFlow`，横排/自动为紧凑单行；候选条右侧展开箭头仍可临时切成纵向列表。
+    // 每次组字都从「未展开」起（老的「默认形态 单行/卷轴」已并入排列方向，2026-07-22；注意
+    // 那个「卷轴」指的是默认展开成纵列，与本处的卷轴形态不是一回事）：竖排走 `isVertical`、
+    // 卷轴走 `isScroll`，横排/自动为紧凑单行；候选条右侧展开箭头仍可临时切成纵向列表。
     panelState.isExpanded = false
     // G8 横排/竖排: `.auto` resolves Rime plus schema defaults; explicit choices override.
     panelState.isVertical = prefs.orientation.isVertical(rimeVertical: rimeVertical, schemaID: schemaID)
-    // 横排折行（多行矩形）：仅显式 `.flow` 为真，与竖排互斥。
-    panelState.isFlow = prefs.orientation.wraps
+    // 卷轴（主行 + 后页行）：仅显式 `.scroll` 为真，与竖排互斥。
+    panelState.isScroll = prefs.orientation.scrolls
     // Honor the v0.2.2/G8 appearance prefs.
     panelState.fontSize = prefs.fontSize.base
     panelState.fontDesign = prefs.fontDesign
