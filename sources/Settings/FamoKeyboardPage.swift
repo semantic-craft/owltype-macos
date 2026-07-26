@@ -662,7 +662,7 @@ struct FamoKeyboardPage: View {
   /// 划词工具箱 summon hotkey (default off — the user RECORDS a combo here, restricted range; never
   /// a Rime key_binder). The recorder control + its labels live in the UI layer
   /// (`FamoHotKeyRecorderRow`); the IMK-path matcher reads the stored combo live, so recording
-  /// needs no re-registration. 工具箱 enable（双击 ⌥ 手势）/permission live on 技能平台；本热键
+  /// needs no re-registration. 工具箱 enable（双击 ⌥ 手势）/permission live on 划词工具箱页；本热键
   /// 是平行入口，不受那个开关约束。
   private var selectionMenuPanelHotKeyCard: some View {
     SettingsCard(
@@ -671,7 +671,14 @@ struct FamoKeyboardPage: View {
       theme: theme,
       reduceTransparency: reduceTransparency
     ) {
-      FamoHotKeyRecorderRow(slot: .selectionMenu, palette: palette)
+      VStack(alignment: .leading, spacing: 8) {
+        FamoHotKeyRecorderRow(slot: .selectionMenu, palette: palette)
+        Text("默认的内置唤起键为双击 ⌥（Option）键，无需录制；这里录的组合是并行入口，不录也不影响双击唤起。")
+          .font(.system(size: 12))
+          .foregroundStyle(palette.ink3)
+          .fixedSize(horizontal: false, vertical: true)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
     }
   }
 
