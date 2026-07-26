@@ -148,8 +148,9 @@ extension FamoInputController {
       let lastPage = composition.isLastPage
 
       // The panel always receives the RAW preedit + caret, in BOTH inline modes: whether the
-      // 输入串+光标 header shows is owned by the「候选窗显示输入串」toggle alone
-      // (FamoPanelShowPreedit → state.showPreedit → FamoCandidatePanelView.showsHeader).
+      // 输入串+光标 header shows is owned by the「候选窗显示输入串」toggle
+      // (FamoPanelShowPreedit → state.showPreedit → FamoCandidatePanelView.showsHeader)，
+      // 且竖排下恒隐藏（07-26：铺满形态，见 showsHeader 注释）。
       // Blanking it under inline_preedit made that toggle unreachable — the factory config
       // ships inline_preedit=true, so the header could never appear.
       showPanel(preedit: composition.preedit,
