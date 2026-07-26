@@ -385,6 +385,8 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
     state.panelShowPaging = FamoPanelPreferences.showPaging
     state.panelShowNotificationsWhen = FamoPanelPreferences.showNotificationsWhen
     state.panelCandidateFormat = FamoPanelPreferences.candidateFormat
+    state.panelPreviewPages = FamoPanelPreferences.previewPages
+    state.panelPreviewRows = FamoPanelPreferences.previewRows
     state.candidatePageSize = FamoKeyboardPreferences.pageSize
     // Seed the 键盘输入 option groups from their single home (FamoKeyboardPreferences).
     state.keyboardInputMethod = FamoKeyboardPreferences.inputMethod

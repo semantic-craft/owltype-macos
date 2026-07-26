@@ -28,6 +28,9 @@ final class CandidatePanelState {
   var selStart: Int = 0
   var selEnd: Int = 0
   var candidates: [CandidateViewModel] = []
+  /// 预览后页（三行候选·方向④Ⓑ）：后 1–2 页的只读预览行。空 = 无预览（开关关 /
+  /// 末页 / 竖排 / 折行——控制器侧已按偏好与形态门控，这里只消费数据）。
+  var previewRows: [[CandidateViewModel]] = []
   var highlightedIndex: Int = 0
   var page: Int = 0
   var hasPrevPage: Bool = false
