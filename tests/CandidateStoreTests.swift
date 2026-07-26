@@ -226,31 +226,9 @@ final class FamoCloudSharedBaseTests: XCTestCase {
     )
   }
 
-  func testAskAnythingFollowsTheCloudMasterSwitch() {
-    // 总闸的定义处写明它是「划词润色 / 任意提问」的共用闸，但任意提问的三个入口（状态菜单项 / 唤起热键 /
-    // FamoApplicationDelegate.onAskAnything）一度直通开窗。两个分支都改真实偏好再读回 —— 只喂注入参数
-    // 验不出「默认参数接错了偏好」这一类裂缝，那正是这条闸出厂时漏掉的东西。
-    FamoCloudPreferences.isEnabled = false
-    XCTAssertEqual(
-      FamoAskAnythingGate.decide(),
-      .blocked(message: FamoAskAnythingGate.disabledMessage),
-      "关闸时任意提问必须被挡下，不得开窗"
-    )
-
-    FamoCloudPreferences.isEnabled = true
-    XCTAssertEqual(FamoAskAnythingGate.decide(), .open, "开闸时任意提问照常开窗")
-  }
-
-  func testAskAnythingBlockedMessageTellsTheUserWhereToTurnItOn() {
-    // 「别静默无响应」是这条闸的硬要求：热键与状态菜单栏都没有可写内联提示的地方，这条文案是唯一反馈。
-    FamoCloudPreferences.isEnabled = false
-
-    guard case let .blocked(message) = FamoAskAnythingGate.decide() else {
-      return XCTFail("关闸时必须返回 .blocked")
-    }
-    XCTAssertFalse(message.isEmpty, "关闸反馈不能是空串，否则与静默无异")
-    XCTAssertTrue(message.contains("技能平台"), "文案要指到开关所在的页面，否则用户找不到地方开")
-  }
+  // 任意提问的专属云闸测试（FamoAskAnythingGate）已随状态栏入口一并删除（2026-07-26）：无选区入口
+  // 没了之后它只剩划词菜单一条路，关闸由 `FamoSelectionMenuAction.enabledActions(cloudEnabled:)`
+  // 统一挡下（断言在 FamoSettingsActionTests，关闸返空数组＝连 .ask 都不出现）。
 
   func testDeepSeekUsageTelemetryStoresOnlyCountsAndCache() {
     FamoCloudUsageTelemetry.record(

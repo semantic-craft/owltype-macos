@@ -128,36 +128,12 @@ final class FamoPromptOptimizerTests: XCTestCase {
     XCTAssertTrue(body.contains("questions"))
     XCTAssertTrue(body.contains("response_format"), "走 json_object 模式")
 
+    // 2026-07-26「结构化·加标签」并入本技能：四要素改写之外，产出还要按语义套 XML 标签。
+    XCTAssertTrue(body.contains("XML"), "合并后 prompt 必须要求 XML 标签分区")
+    XCTAssertTrue(body.contains("嵌套"), "有层级就嵌套的指令要保留")
+
     // 草稿本身必须进请求，否则优化的是空气。
     XCTAssertTrue(body.contains("帮我写个爬虫"))
-  }
-
-  func testStructureModeSwapsInTheTagInvariantPromptNotFourElements() throws {
-    // .structure 模式：只加 XML 标签 + 逐字保真，绝不是四要素改写。真读回编码后的 body。
-    let request = FamoPromptOptimizer.chatRequest(
-      forDraft: "帮我写个爬虫", model: "qwen-plus", mode: .structure)
-    let body = String(data: try JSONEncoder().encode(request), encoding: .utf8) ?? ""
-
-    // 结构化专属指令：逐字保真 + 只加 XML 标签。
-    XCTAssertTrue(body.contains("逐字保真"), "结构化 prompt 必须带逐字保真铁律")
-    XCTAssertTrue(body.contains("XML"), "结构化靠 XML 标签")
-    // 绝不能混进四要素改写指令——那是 .rewrite 的活。
-    XCTAssertFalse(body.contains("产出形态"), "结构化不该带四要素改写指令")
-    // 仍走同一 JSON 协议，parse 复用；草稿进请求；防注入三明治照旧。
-    XCTAssertTrue(body.contains("needs_clarification"))
-    XCTAssertTrue(body.contains("response_format"), "仍走 json_object 模式")
-    XCTAssertTrue(body.contains("帮我写个爬虫"))
-    XCTAssertTrue(body.contains("protected_draft"), "结构化同样套受保护标签三明治")
-  }
-
-  func testDefaultModeStillProducesTheFourElementsRewritePrompt() throws {
-    // 不传 mode 时默认 .rewrite——现有调用点零行为变化的承重不变量。
-    let body = String(
-      data: try JSONEncoder().encode(
-        FamoPromptOptimizer.chatRequest(forDraft: "x", model: "qwen-plus")),
-      encoding: .utf8) ?? ""
-    XCTAssertTrue(body.contains("产出形态"), "默认仍是四要素改写")
-    XCTAssertFalse(body.contains("逐字保真"), "默认不该是结构化 prompt")
   }
 
   func testDraftIsSandwichedSoAnInjectedInstructionCannotHijackTheOptimizer() {
@@ -279,20 +255,17 @@ final class FakePromptOptimizeFetcher: FamoPromptOptimizeFetching {
   private(set) var calls = 0
   private(set) var lastDraft: String?
   private(set) var lastClarifications: [FamoPromptClarification] = []
-  private(set) var lastMode: FamoPromptOptimizeMode?
   private(set) var lastAPIKey: String?
   var result: FamoPromptOptimizeOutcome = .ready("优化后的提示词")
 
   func fetchOptimizedPrompt(
     forDraft draft: String,
     clarifications: [FamoPromptClarification],
-    mode: FamoPromptOptimizeMode,
     apiKey: String
   ) async throws -> FamoPromptOptimizeOutcome {
     calls += 1
     lastDraft = draft
     lastClarifications = clarifications
-    lastMode = mode
     lastAPIKey = apiKey
     return result
   }
@@ -414,20 +387,9 @@ final class FamoPromptOptimizeServiceTests: XCTestCase {
       fetcher.lastClarifications, [.init(question: "给谁用？", answer: "给研究助理")],
       "补答必须传到取数层，否则澄清轮白问")
     XCTAssertEqual(fetcher.lastAPIKey, "sk-test", "解析出的密钥必须真的用上")
-    XCTAssertEqual(fetcher.lastMode, .rewrite, "不传 mode 默认走四要素改写")
   }
 
-  func testStructureModeThreadsThroughServiceToFetcher() async throws {
-    // .structure 必须一路传到取数层，否则结构化会退化成四要素改写。
-    FamoCloudPreferences.isEnabled = true
-    let fetcher = FakePromptOptimizeFetcher()
-    fetcher.result = .ready("<goal>抓裁判文书网</goal>")
-    let service = FamoPromptOptimizeService(
-      fetcher: fetcher, apiKeyProvider: { "sk-test" }, profileProvider: { nil })
-
-    let outcome = try await service.optimize("抓裁判文书网", mode: .structure)
-
-    XCTAssertEqual(outcome, .ready("<goal>抓裁判文书网</goal>"))
-    XCTAssertEqual(fetcher.lastMode, .structure, "结构化模式必须传到取数层")
-  }
+  // FamoPromptOptimizeMode（.rewrite/.structure）已删（2026-07-26）：「结构化·加标签」并入
+  // 「提示词优化」，四要素 + XML 标签由同一份 system prompt 一次做完；mode 穿层测试随之退役，
+  // 合并后的 prompt 契约断言在 testRequestBodyCarriesFableFiveContractAndJSONProtocol。
 }

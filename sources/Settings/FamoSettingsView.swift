@@ -84,15 +84,12 @@ struct FamoSettingsView: View {
       state.cloudEnabled = FamoCloudPreferences.isEnabled
       state.cloudModel = FamoCloudPreferences.deepSeekModel
       state.selectionMenuEnabled = FamoSelectionMenuPreferences.isEnabled
+      state.askAnythingSkillEnabled = FamoSelectionMenuPreferences.askEnabled
       state.sourceVerificationSkillEnabled = FamoSelectionMenuPreferences.sourceVerificationEnabled
       state.researchAssistSkillEnabled = FamoSelectionMenuPreferences.researchAssistEnabled
-      state.documentFormattingSkillEnabled = FamoSelectionMenuPreferences.documentFormattingEnabled
       state.publishFormattingSkillEnabled = FamoSelectionMenuPreferences.publishFormattingEnabled
       state.translationSkillEnabled = FamoSelectionMenuPreferences.translationEnabled
-      state.polishVariantsSkillEnabled = FamoSelectionMenuPreferences.polishVariantsEnabled
-      state.polishStyleMatchSkillEnabled = FamoSelectionMenuPreferences.polishStyleMatchEnabled
       state.promptOptimizeSkillEnabled = FamoSelectionMenuPreferences.promptOptimizeEnabled
-      state.promptStructureSkillEnabled = FamoSelectionMenuPreferences.promptStructureEnabled
     }
   }
 

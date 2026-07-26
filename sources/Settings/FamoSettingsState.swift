@@ -239,16 +239,13 @@ final class FamoSettingsState {
   var askWebSearchProvider: String = FamoAskSearchProviderSettings.rawValue
   /// 划词菜单总开关 + 技能平台内置技能 mirrors.
   var selectionMenuEnabled: Bool = FamoSelectionMenuPreferences.isEnabled
+  var askAnythingSkillEnabled: Bool = FamoSelectionMenuPreferences.askEnabled
   var polishSkillEnabled: Bool = FamoSelectionMenuPreferences.polishEnabled
   var sourceVerificationSkillEnabled: Bool = FamoSelectionMenuPreferences.sourceVerificationEnabled
   var researchAssistSkillEnabled: Bool = FamoSelectionMenuPreferences.researchAssistEnabled
-  var documentFormattingSkillEnabled: Bool = FamoSelectionMenuPreferences.documentFormattingEnabled
   var publishFormattingSkillEnabled: Bool = FamoSelectionMenuPreferences.publishFormattingEnabled
   var translationSkillEnabled: Bool = FamoSelectionMenuPreferences.translationEnabled
-  var polishVariantsSkillEnabled: Bool = FamoSelectionMenuPreferences.polishVariantsEnabled
-  var polishStyleMatchSkillEnabled: Bool = FamoSelectionMenuPreferences.polishStyleMatchEnabled
   var promptOptimizeSkillEnabled: Bool = FamoSelectionMenuPreferences.promptOptimizeEnabled
-  var promptStructureSkillEnabled: Bool = FamoSelectionMenuPreferences.promptStructureEnabled
 }
 
 /// Single home for 划词菜单 + 技能平台 built-in skill preferences.
@@ -256,22 +253,28 @@ final class FamoSettingsState {
 /// Defaults are product-facing: the global menu is opt-in/off, while the two built-in
 /// skills are active once the menu is enabled. Keep the UserDefaults keys here so the
 /// settings page, menu bar item, and global selection watcher share one source.
+// 2026-07-26 技能精简：公文排版（FamoSkillDocumentFormattingEnabled）、润色·多版本挑选
+// （FamoSkillPolishVariantsEnabled）、润色·仿我的范例（FamoSkillPolishStyleMatchEnabled）、
+// 结构化·加标签（FamoSkillPromptStructureEnabled）四个技能已删；旧偏好键成死数据，不迁移不解码。
 enum FamoSelectionMenuPreferences {
   static let enabledKey = "FamoSelectionMenuEnabled"
+  static let askEnabledKey = "FamoSkillAskAnythingEnabled"
   static let polishEnabledKey = "FamoSkillPolishEnabled"
   static let sourceVerificationEnabledKey = "FamoSkillSourceVerificationEnabled"
   static let researchAssistEnabledKey = "FamoSkillResearchAssistEnabled"
-  static let documentFormattingEnabledKey = "FamoSkillDocumentFormattingEnabled"
   static let publishFormattingEnabledKey = "FamoSkillPublishFormattingEnabled"
   static let translationEnabledKey = "FamoSkillTranslationEnabled"
-  static let polishVariantsEnabledKey = "FamoSkillPolishVariantsEnabled"
-  static let polishStyleMatchEnabledKey = "FamoSkillPolishStyleMatchEnabled"
   static let promptOptimizeEnabledKey = "FamoSkillPromptOptimizeEnabled"
-  static let promptStructureEnabledKey = "FamoSkillPromptStructureEnabled"
 
   static var isEnabled: Bool {
     get { bool(enabledKey, default: false) }
     set { FamoDefaults.standard.set(newValue, forKey: enabledKey) }
+  }
+
+  /// 任意提问（全部技能的兜底）自 2026-07-26 起有自己的技能开关，默认开。
+  static var askEnabled: Bool {
+    get { bool(askEnabledKey, default: true) }
+    set { FamoDefaults.standard.set(newValue, forKey: askEnabledKey) }
   }
 
   static var polishEnabled: Bool {
@@ -289,11 +292,6 @@ enum FamoSelectionMenuPreferences {
     set { FamoDefaults.standard.set(newValue, forKey: researchAssistEnabledKey) }
   }
 
-  static var documentFormattingEnabled: Bool {
-    get { bool(documentFormattingEnabledKey, default: true) }
-    set { FamoDefaults.standard.set(newValue, forKey: documentFormattingEnabledKey) }
-  }
-
   static var publishFormattingEnabled: Bool {
     get { bool(publishFormattingEnabledKey, default: true) }
     set { FamoDefaults.standard.set(newValue, forKey: publishFormattingEnabledKey) }
@@ -304,38 +302,20 @@ enum FamoSelectionMenuPreferences {
     set { FamoDefaults.standard.set(newValue, forKey: translationEnabledKey) }
   }
 
-  static var polishVariantsEnabled: Bool {
-    get { bool(polishVariantsEnabledKey, default: true) }
-    set { FamoDefaults.standard.set(newValue, forKey: polishVariantsEnabledKey) }
-  }
-
-  static var polishStyleMatchEnabled: Bool {
-    get { bool(polishStyleMatchEnabledKey, default: true) }
-    set { FamoDefaults.standard.set(newValue, forKey: polishStyleMatchEnabledKey) }
-  }
-
   static var promptOptimizeEnabled: Bool {
     get { bool(promptOptimizeEnabledKey, default: true) }
     set { FamoDefaults.standard.set(newValue, forKey: promptOptimizeEnabledKey) }
   }
 
-  static var promptStructureEnabled: Bool {
-    get { bool(promptStructureEnabledKey, default: true) }
-    set { FamoDefaults.standard.set(newValue, forKey: promptStructureEnabledKey) }
-  }
-
   static func resetForTesting() {
     FamoDefaults.standard.removeObject(forKey: enabledKey)
+    FamoDefaults.standard.removeObject(forKey: askEnabledKey)
     FamoDefaults.standard.removeObject(forKey: polishEnabledKey)
     FamoDefaults.standard.removeObject(forKey: sourceVerificationEnabledKey)
     FamoDefaults.standard.removeObject(forKey: researchAssistEnabledKey)
-    FamoDefaults.standard.removeObject(forKey: documentFormattingEnabledKey)
     FamoDefaults.standard.removeObject(forKey: publishFormattingEnabledKey)
     FamoDefaults.standard.removeObject(forKey: translationEnabledKey)
-    FamoDefaults.standard.removeObject(forKey: polishVariantsEnabledKey)
-    FamoDefaults.standard.removeObject(forKey: polishStyleMatchEnabledKey)
     FamoDefaults.standard.removeObject(forKey: promptOptimizeEnabledKey)
-    FamoDefaults.standard.removeObject(forKey: promptStructureEnabledKey)
   }
 
   private static func bool(_ key: String, default defaultValue: Bool) -> Bool {
