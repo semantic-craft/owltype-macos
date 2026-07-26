@@ -27,7 +27,7 @@ final class FamoSettingsActionTests: XCTestCase {
     "FamoSkin", "FamoEmojiInCandidates",
     "FamoCloudLaneEnabled", "FamoDeepSeekModel",
     "FamoSelectionMenuEnabled", "FamoSkillSourceVerificationEnabled", "FamoSkillResearchAssistEnabled",
-    "FamoSkillDocumentFormattingEnabled",
+    "FamoSkillAskAnythingEnabled",
     "FamoAskWebSearchEnabled", "FamoAskSearchProvider",
   ]
 
@@ -98,13 +98,12 @@ final class FamoSettingsActionTests: XCTestCase {
     assertSet("doubao", \.askWebSearchProvider, state, { FamoAskSearchProviderSettings.rawValue }) { FamoAskSearchProviderSettings.rawValue = $0 }
     assertSet("", \.askWebSearchProvider, state, { FamoAskSearchProviderSettings.rawValue }) { FamoAskSearchProviderSettings.rawValue = $0 }
     assertToggle(\.selectionMenuEnabled, state, { FamoSelectionMenuPreferences.isEnabled }) { FamoSelectionMenuPreferences.isEnabled = $0 }
+    // 任意提问的技能开关（2026-07-26 技能精简：兜底功能置顶、真开关默认开）。
+    assertToggle(\.askAnythingSkillEnabled, state, { FamoSelectionMenuPreferences.askEnabled }) { FamoSelectionMenuPreferences.askEnabled = $0 }
     assertToggle(\.sourceVerificationSkillEnabled, state, { FamoSelectionMenuPreferences.sourceVerificationEnabled }) { FamoSelectionMenuPreferences.sourceVerificationEnabled = $0 }
     assertToggle(\.researchAssistSkillEnabled, state, { FamoSelectionMenuPreferences.researchAssistEnabled }) { FamoSelectionMenuPreferences.researchAssistEnabled = $0 }
-    assertToggle(\.documentFormattingSkillEnabled, state, { FamoSelectionMenuPreferences.documentFormattingEnabled }) { FamoSelectionMenuPreferences.documentFormattingEnabled = $0 }
     assertToggle(\.publishFormattingSkillEnabled, state, { FamoSelectionMenuPreferences.publishFormattingEnabled }) { FamoSelectionMenuPreferences.publishFormattingEnabled = $0 }
     assertToggle(\.translationSkillEnabled, state, { FamoSelectionMenuPreferences.translationEnabled }) { FamoSelectionMenuPreferences.translationEnabled = $0 }
-    assertToggle(\.polishVariantsSkillEnabled, state, { FamoSelectionMenuPreferences.polishVariantsEnabled }) { FamoSelectionMenuPreferences.polishVariantsEnabled = $0 }
-    assertToggle(\.polishStyleMatchSkillEnabled, state, { FamoSelectionMenuPreferences.polishStyleMatchEnabled }) { FamoSelectionMenuPreferences.polishStyleMatchEnabled = $0 }
 
     assertFuzzyToggleActions()
 
@@ -115,63 +114,48 @@ final class FamoSettingsActionTests: XCTestCase {
   func testSelectionMenuSkillPreferencesDefaultToOptInSkillsOnly() {
     FamoSelectionMenuPreferences.resetForTesting()
     XCTAssertFalse(FamoSelectionMenuPreferences.isEnabled)
+    XCTAssertTrue(FamoSelectionMenuPreferences.askEnabled)
     XCTAssertTrue(FamoSelectionMenuPreferences.sourceVerificationEnabled)
     XCTAssertTrue(FamoSelectionMenuPreferences.researchAssistEnabled)
-    XCTAssertTrue(FamoSelectionMenuPreferences.documentFormattingEnabled)
     XCTAssertTrue(FamoSelectionMenuPreferences.publishFormattingEnabled)
     XCTAssertTrue(FamoSelectionMenuPreferences.translationEnabled)
-    XCTAssertTrue(FamoSelectionMenuPreferences.polishVariantsEnabled)
-    XCTAssertTrue(FamoSelectionMenuPreferences.polishStyleMatchEnabled)
     XCTAssertTrue(FamoSelectionMenuPreferences.promptOptimizeEnabled)
-    XCTAssertTrue(FamoSelectionMenuPreferences.promptStructureEnabled)
   }
 
   func testSelectionMenuActionsFollowEnabledSkillPreferences() {
     FamoSelectionMenuPreferences.resetForTesting()
 
-    // 云端 AI 是全部技能的总闸：关掉则菜单为空，不管各技能开关是什么。
+    // 云端 AI 是全部技能的总闸：关掉则菜单为空（含任意提问），不管各技能开关是什么。
     XCTAssertEqual(FamoSelectionMenuAction.enabledActions(cloudEnabled: false), [])
 
     XCTAssertEqual(
       FamoSelectionMenuAction.enabledActions(cloudEnabled: true),
-      [.ask, .polish, .sourceVerification, .researchAssist, .documentFormatting, .publishFormatting,
-       .translate, .polishVariants, .polishStyleMatch, .promptOptimize, .promptStructure]
+      [.ask, .polish, .sourceVerification, .researchAssist, .publishFormatting,
+       .translate, .promptOptimize]
     )
 
-    FamoSelectionMenuPreferences.documentFormattingEnabled = false
     FamoSelectionMenuPreferences.publishFormattingEnabled = false
-    XCTAssertEqual(
-      FamoSelectionMenuAction.enabledActions(cloudEnabled: true),
-      [.ask, .polish, .sourceVerification, .researchAssist, .translate, .polishVariants,
-       .polishStyleMatch, .promptOptimize, .promptStructure]
-    )
-
     FamoSelectionMenuPreferences.sourceVerificationEnabled = false
-    FamoSelectionMenuPreferences.translationEnabled = false
     XCTAssertEqual(
       FamoSelectionMenuAction.enabledActions(cloudEnabled: true),
-      [.ask, .polish, .researchAssist, .polishVariants, .polishStyleMatch, .promptOptimize,
-       .promptStructure]
+      [.ask, .polish, .researchAssist, .translate, .promptOptimize]
     )
 
     FamoSelectionMenuPreferences.polishEnabled = false
-    FamoSelectionMenuPreferences.polishVariantsEnabled = false
-    FamoSelectionMenuPreferences.polishStyleMatchEnabled = false
-    XCTAssertEqual(
-      FamoSelectionMenuAction.enabledActions(cloudEnabled: true),
-      [.ask, .researchAssist, .promptOptimize, .promptStructure]
-    )
-
+    FamoSelectionMenuPreferences.translationEnabled = false
     FamoSelectionMenuPreferences.promptOptimizeEnabled = false
-    FamoSelectionMenuPreferences.promptStructureEnabled = false
     XCTAssertEqual(
       FamoSelectionMenuAction.enabledActions(cloudEnabled: true),
       [.ask, .researchAssist]
     )
 
-    // 任意提问没有技能开关，只要云端 AI 开着就在——关掉每一个技能开关也留得住。
+    // 任意提问自 2026-07-26 起有自己的开关（默认开）：单独关掉它，其余技能不受影响。
+    FamoSelectionMenuPreferences.askEnabled = false
+    XCTAssertEqual(FamoSelectionMenuAction.enabledActions(cloudEnabled: true), [.researchAssist])
+
+    // 全部开关都关（含任意提问）→ 菜单为空。
     FamoSelectionMenuPreferences.researchAssistEnabled = false
-    XCTAssertEqual(FamoSelectionMenuAction.enabledActions(cloudEnabled: true), [.ask])
+    XCTAssertEqual(FamoSelectionMenuAction.enabledActions(cloudEnabled: true), [])
 
     FamoSelectionMenuPreferences.resetForTesting()
   }
