@@ -138,6 +138,13 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
     FamoUpdateLogoutPrompt.runIfNeeded(current: currentVersion)
   }
 
+  func applicationDidBecomeActive(_ notification: Notification) {
+    // 授权后补装（2026-07-26）：启动时 AX 未授权则 tap 缺席，事后授权不会自动送达任何事件，
+    // 录制热键在 Chromium/Electron 宿主失灵直到注销。用户去系统设置授权后切回法墨窗口的
+    // 瞬间（设置页徽章翻绿的同一事件）补一次；已装时首行 guard 直接返回，零开销。
+    hotKeyTap.startIfPossible()
+  }
+
   func applicationWillTerminate(_ notification: Notification) {
     // swiftlint:disable:next notification_center_detachment
     NotificationCenter.default.removeObserver(self)
@@ -901,6 +908,11 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
     notifCenter.addObserver(self, selector: #selector(rimeNeedsSync(_:)), name: .init("FamoSyncNotification"), object: nil, suspensionBehavior: .deliverImmediately)
     notifCenter.addObserver(self, selector: #selector(rimeToggleASCIIMode(_:)), name: .init("FamoToggleASCIIModeNotification"), object: nil, suspensionBehavior: .deliverImmediately)
     notifCenter.addObserver(self, selector: #selector(rimeGetASCIIMode(_:)), name: .init("FamoGetASCIIModeNotification"), object: nil, suspensionBehavior: .deliverImmediately)
+    // 授权后补装 tap 的第二保险（第一保险=applicationDidBecomeActive）：TCC 辅助功能表变更时
+    // 系统会广播这条 DNC（未文档化、10.9 起稳定，alt-tab 等在用）。任何 app 的授权变化都触发、
+    // 无 payload——只当「该重查一次」的信号用，让用户在系统设置里勾上开关的瞬间 tap 就位，
+    // 不必切回法墨窗口。通知名将来若失效，无声退化为 didBecomeActive 补装，无副作用。
+    notifCenter.addObserver(self, selector: #selector(accessibilityAPIChanged(_:)), name: .init("com.apple.accessibility.api"), object: nil, suspensionBehavior: .deliverImmediately)
     notifCenter.addObserver(forName: .init(kTISNotifySelectedKeyboardInputSourceChanged as String), object: nil, queue: .main) { [weak self] _ in
       self?.finalizeStrandedComposition()
       // （旧划词小菜单在此收起；工具箱是标准窗口，切输入源不需要动它——2026-07-26 重设计。）
@@ -1076,6 +1088,14 @@ private extension FamoApplicationDelegate {
 
   @objc func rimeGetASCIIMode(_: Notification) {
     NotificationCenter.default.post(name: .init("FamoReportASCIIModeNotification"), object: nil)
+  }
+
+  @objc func accessibilityAPIChanged(_: Notification) {
+    // 缓半秒再查：通知可能略早于 tccd 落库；这次仍读到未授权也无妨，didBecomeActive 兜底。
+    // 绝非轮询——每次 TCC 变更只补查这一次。
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+      self?.hotKeyTap.startIfPossible()
+    }
   }
 
   func createDirIfNotExist(path: URL) {
