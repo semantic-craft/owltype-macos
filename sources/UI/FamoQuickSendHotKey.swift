@@ -23,6 +23,7 @@
 
 import AppKit
 import Carbon
+import Combine
 import os
 import SwiftUI
 
@@ -339,6 +340,7 @@ struct FamoHotKeyRecorderRow: View {
   @State private var isRecording = false
   @State private var hint: Hint?
   @State private var keyMonitor: Any?
+  @State private var accessibilityTrusted = AXIsProcessTrusted()
 
   private enum Hint: Equatable {
     case outOfRange
@@ -387,7 +389,7 @@ struct FamoHotKeyRecorderRow: View {
         Text(recordingHintText)
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
-      } else if slot == .selectionMenu, combo != nil, !AXIsProcessTrusted() {
+      } else if slot == .selectionMenu, combo != nil, !accessibilityTrusted {
         // 平行开关（产品决策 2026-07-19，重设计后延续）：热键召唤不依赖「启用划词工具箱」总开关
         // （那只管双击 ⌥ 手势）；唯一硬前置是辅助功能权限（读选中文字必需）。未授权时点破，免得录了组合以为坏了。
         Text("需辅助功能权限（技能平台 → 辅助功能授权），热键才能读取选中文字")
@@ -398,6 +400,10 @@ struct FamoHotKeyRecorderRow: View {
     .padding(.vertical, 4)
     .frame(maxWidth: .infinity, alignment: .leading)
     .onDisappear { stopRecording() }
+    // 授权态刷新（同 FamoSkillsPage 徽章）：去系统设置授权后切回本窗口，提示即撤。
+    .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+      accessibilityTrusted = AXIsProcessTrusted()
+    }
   }
 
   private var recordingHintText: String {
