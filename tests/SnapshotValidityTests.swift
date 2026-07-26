@@ -307,8 +307,9 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
       contentsOf: dir.appendingPathComponent("famo_quick_send.txt"),
       encoding: .utf8
     )
-    XCTAssertTrue(phraseFile.contains("#@/db_name famo_quick_send"))
-    XCTAssertTrue(phraseFile.contains("法墨测试短语\t`fmcs\t100000"))
+    XCTAssertTrue(phraseFile.contains("#@/db_name\tfamo_quick_send"))
+    XCTAssertTrue(phraseFile.contains("法墨测试短语\tfmcs\t100000"))
+    XCTAssertFalse(phraseFile.contains("`fmcs"))
     XCTAssertFalse(phraseFile.contains("\tvfmcs\t"))
 
     let rimeIce = try String(
