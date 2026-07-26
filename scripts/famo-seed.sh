@@ -107,9 +107,11 @@ sed \
   -e '/reverse_lookup_filter@radical_reverse_lookup/d' \
   -e '/lua_filter@\*search@radical_pinyin/d' \
   "$source_dir/rime_ice.schema.yaml" > "$output_dir/rime_ice.schema.yaml"
-# Famo 出厂默认：候选 emoji 关（emoji switch reset 1→0）。必须落共享 schema——用户目录
-# custom.yaml 覆盖不到升级用户（首次 seed 不覆盖已有文件）。锚定编辑，找不到即硬失败；
-# check-release.sh 有对应断言。清洁室重写时曾把这步弄丢（1.4.23 带 reset:1 出厂，2026-07-24 复补）。
+# Famo 出厂默认：候选 emoji 关（emoji switch reset 1→0）+ off 态标签 💀→👍（rime-ice 的骷髅
+# 不吉利，每次重新部署 reset 都会弹一次；2026-07-26 用户要求换大拇指，on 态保留 😄）。
+# 必须落共享 schema——用户目录 custom.yaml 覆盖不到升级用户（首次 seed 不覆盖已有文件）。
+# 锚定编辑，找不到即硬失败；check-release.sh 有对应断言。清洁室重写时曾把 reset 补丁弄丢
+# （1.4.23 带 reset:1 出厂，2026-07-24 复补）。
 python3 - "$output_dir/rime_ice.schema.yaml" <<'PYEOF'
 import sys
 path = sys.argv[1]
@@ -135,11 +137,35 @@ def set_reset_after(name, value):
                 return True
     return False
 
+def set_states_after(name, states_literal):
+    for i, ln in enumerate(lines):
+        s = ln.strip()
+        if not s.startswith("- name:"):
+            continue
+        tok = s[len("- name:"):].strip().split("#")[0].split()
+        if not tok or tok[0] != name:
+            continue
+        base_indent = len(ln) - len(ln.lstrip())
+        for j in range(i + 1, len(lines)):
+            t = lines[j].lstrip()
+            cur_indent = len(lines[j]) - len(t)
+            if t.startswith("- ") or (t and cur_indent <= base_indent):
+                break
+            if t.startswith("states:"):
+                lines[j] = f"{lines[j][:cur_indent]}states: {states_literal}\n"
+                return True
+    return False
+
 if not set_reset_after("emoji", 0):
     sys.exit("[famotype-seed][schema-patch] ERROR: emoji switch (with reset:) not found in rime_ice.schema.yaml")
+if not set_states_after("emoji", "[ 👍, 😄 ]"):
+    sys.exit("[famotype-seed][schema-patch] ERROR: emoji switch states not found in rime_ice.schema.yaml")
+# 中英切换提示：英文态显示「英」而非「Ａ」（task 06-27 用户要求，2026-07-26 从全量种子搬入）。
+if not set_states_after("ascii_mode", "[ 中, 英 ]"):
+    sys.exit("[famotype-seed][schema-patch] ERROR: ascii_mode switch states not found in rime_ice.schema.yaml")
 with open(path, "w", encoding="utf-8") as f:
     f.writelines(lines)
-print("[famotype-seed] patched rime_ice.schema.yaml: emoji reset 1 -> 0 (factory off)")
+print("[famotype-seed] patched rime_ice.schema.yaml: emoji reset 1 -> 0 (factory off) states -> [👍, 😄], ascii_mode states -> [中, 英]")
 PYEOF
 cp "$repo_root/data/rime_ice.public.dict.yaml" "$output_dir/rime_ice.dict.yaml"
 python3 "$repo_root/scripts/unihan-to-rime.py" \
