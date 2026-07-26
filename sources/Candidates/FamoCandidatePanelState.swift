@@ -142,7 +142,6 @@ struct FamoCandidatePalette: Sendable, Equatable {
 ///   border = accentDeep.
 struct FamoCandidateTheme: Sendable, Equatable {
   var cornerRadius: CGFloat
-  var shadowRadius: CGFloat
   var light: FamoCandidatePalette
   var dark: FamoCandidatePalette
 
@@ -153,7 +152,6 @@ struct FamoCandidateTheme: Sendable, Equatable {
 
   static let shenda = FamoCandidateTheme(
     cornerRadius: 13,
-    shadowRadius: 16,
     light: FamoCandidatePalette(
       accent: famoColor(hex: "A82C53"),
       accentDeep: famoColor(hex: "8E2447"),
