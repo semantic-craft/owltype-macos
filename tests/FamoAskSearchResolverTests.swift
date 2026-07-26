@@ -42,10 +42,6 @@ final class FamoAskSearchResolverTests: XCTestCase {
     profile("qwen", host: "dashscope.aliyuncs.com", model: "qwen3.6-flash", isDefault: isDefault)
   }
 
-  private func zhipu(isDefault: Bool = false) -> FamoProviderProfile {
-    profile("zhipu", host: "open.bigmodel.cn", model: "glm-5-turbo", isDefault: isDefault)
-  }
-
   private func mimo(isDefault: Bool = false) -> FamoProviderProfile {
     profile("mimo", host: "api.xiaomimimo.com", model: "mimo-v2.5", isDefault: isDefault)
   }
@@ -102,10 +98,9 @@ final class FamoAskSearchResolverTests: XCTestCase {
     // MiMo is the active profile and can already search → use it, even though Qwen (higher in the
     // default order) also has a key. Saves the user configuring a second provider.
     let resolver = makeResolver(
-      profiles: [qwen(), zhipu(), mimo(isDefault: true)],
+      profiles: [qwen(), mimo(isDefault: true)],
       keys: [
         "famo.provider.qwen.apiKey": "sk-qwen",
-        "famo.provider.zhipu.apiKey": "sk-zhipu",
         "famo.provider.mimo.apiKey": "sk-mimo",
       ]
     )
@@ -120,26 +115,26 @@ final class FamoAskSearchResolverTests: XCTestCase {
     // The active profile is DeepSeek (cannot search) — the whole reason for decoupling. The
     // question must still route to a search-capable provider instead of silently not searching.
     let resolver = makeResolver(
-      profiles: [deepseek(), zhipu(), mimo()],
+      profiles: [deepseek(), doubao(), mimo()],
       keys: [
         "famo.provider.deepseek.apiKey": "sk-deepseek",
-        "famo.provider.zhipu.apiKey": "sk-zhipu",
+        "famo.provider.doubao.apiKey": "sk-doubao",
         "famo.provider.mimo.apiKey": "sk-mimo",
       ]
     )
     guard let route = resolver.resolve() else { return XCTFail("expected a resolved route") }
-    XCTAssertEqual(route.providerID, "zhipu", "qwen 未配置 → 顺位到 zhipu")
-    XCTAssertEqual(route.routing.endpoint.host, "open.bigmodel.cn")
-    XCTAssertEqual(route.apiKey, "sk-zhipu")
+    XCTAssertEqual(route.providerID, "mimo", "qwen 未配置 → 顺位到 mimo")
+    XCTAssertEqual(route.routing.endpoint.host, "api.xiaomimimo.com")
+    XCTAssertEqual(route.apiKey, "sk-mimo")
   }
 
   func testPriorityOrderPrefersQwenWhenNothingIsActive() {
     let resolver = makeResolver(
-      profiles: [mimo(), zhipu(), qwen()],
+      profiles: [mimo(), doubao(), qwen()],
       defaultProfile: nil,
       keys: [
         "famo.provider.qwen.apiKey": "sk-qwen",
-        "famo.provider.zhipu.apiKey": "sk-zhipu",
+        "famo.provider.doubao.apiKey": "sk-doubao",
         "famo.provider.mimo.apiKey": "sk-mimo",
       ]
     )
@@ -152,13 +147,13 @@ final class FamoAskSearchResolverTests: XCTestCase {
 
   func testPreferredProviderWinsOverBothTheActiveProfileAndThePriorityOrder() {
     // 用户显式选了 MiMo：既压过 searchProviderIDs 的默认顺序（qwen 在前），也压过「活动档案可联网
-    // 就优先」的自动规则（zhipu 是默认档案）。
+    // 就优先」的自动规则（豆包 是默认档案）。
     let resolver = makeResolver(
-      profiles: [qwen(), zhipu(isDefault: true), mimo()],
+      profiles: [qwen(), doubao(isDefault: true), mimo()],
       preferred: "mimo",
       keys: [
         "famo.provider.qwen.apiKey": "sk-qwen",
-        "famo.provider.zhipu.apiKey": "sk-zhipu",
+        "famo.provider.doubao.apiKey": "sk-doubao",
         "famo.provider.mimo.apiKey": "sk-mimo",
       ]
     )
@@ -239,7 +234,7 @@ final class FamoAskSearchResolverTests: XCTestCase {
   }
 
   func testResponsesProvidersSitBehindTheChatOnesInTheAutoOrder() {
-    // 自动顺序：一期三家（实机验证过）在前，二期两家在后。
+    // 自动顺序：一期两家（实机验证过）在前，二期两家在后。
     let resolver = makeResolver(
       profiles: [doubao(), openai(), mimo()],
       defaultProfile: nil,
@@ -267,22 +262,22 @@ final class FamoAskSearchResolverTests: XCTestCase {
 
   func testSkipsProfileWhoseStoredKeyIsBlank() {
     let resolver = makeResolver(
-      profiles: [qwen(), zhipu()],
+      profiles: [qwen(), mimo()],
       keys: [
         "famo.provider.qwen.apiKey": "   ",
-        "famo.provider.zhipu.apiKey": "sk-zhipu",
+        "famo.provider.mimo.apiKey": "sk-mimo",
       ]
     )
-    XCTAssertEqual(resolver.resolve()?.providerID, "zhipu", "空白 key 不算已配置")
+    XCTAssertEqual(resolver.resolve()?.providerID, "mimo", "空白 key 不算已配置")
   }
 
   func testKeychainFailureSkipsThatProviderInsteadOfFailingTheQuestion() {
     let resolver = makeResolver(
-      profiles: [qwen(), zhipu()],
-      keys: ["famo.provider.zhipu.apiKey": "sk-zhipu"],
+      profiles: [qwen(), mimo()],
+      keys: ["famo.provider.mimo.apiKey": "sk-mimo"],
       secretThrows: ["famo.provider.qwen.apiKey"]
     )
-    XCTAssertEqual(resolver.resolve()?.providerID, "zhipu", "钥匙串读失败只淘汰这一家，不整问失败")
+    XCTAssertEqual(resolver.resolve()?.providerID, "mimo", "钥匙串读失败只淘汰这一家，不整问失败")
   }
 
   // MARK: - Silent fallback
@@ -297,7 +292,7 @@ final class FamoAskSearchResolverTests: XCTestCase {
   }
 
   func testSearchCapableProfilesWithoutAnyKeyResolveToNil() {
-    let resolver = makeResolver(profiles: [qwen(), zhipu(), mimo()], keys: [:])
+    let resolver = makeResolver(profiles: [qwen(), mimo()], keys: [:])
     XCTAssertNil(resolver.resolve(), "配了档案但一把钥匙都没有 → 退回普通问答")
   }
 
@@ -322,19 +317,19 @@ final class FamoAskSearchResolverTests: XCTestCase {
   func testCustomProfileResolvesSearchFieldsByHost() {
     // A profile whose providerID was never stamped still gets the right wire format via its host.
     let custom = FamoProviderProfile(
-      id: "custom-zhipu",
-      displayName: "我的智谱",
-      endpoint: URL(string: "https://open.bigmodel.cn/api/paas/v4/chat/completions")!,
-      model: "glm-5-turbo",
-      secretName: "famo.provider.custom-zhipu.apiKey",
+      id: "custom-mimo",
+      displayName: "我的 MiMo",
+      endpoint: URL(string: "https://api.xiaomimimo.com/v1/chat/completions")!,
+      model: "mimo-v2.5",
+      secretName: "famo.provider.custom-mimo.apiKey",
       isDefault: true
     )
     let resolver = makeResolver(
       profiles: [custom],
-      keys: ["famo.provider.custom-zhipu.apiKey": "sk-custom"]
+      keys: ["famo.provider.custom-mimo.apiKey": "sk-custom"]
     )
     guard let route = resolver.resolve() else { return XCTFail("expected a resolved route") }
-    XCTAssertEqual(route.providerID, "zhipu", "host 兜底推断出智谱")
+    XCTAssertEqual(route.providerID, "mimo", "host 兜底推断出 MiMo")
     XCTAssertEqual(route.extraBody["tool_choice"] as? String, "auto")
   }
 
