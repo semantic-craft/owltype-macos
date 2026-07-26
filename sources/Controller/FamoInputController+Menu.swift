@@ -37,13 +37,11 @@ extension FamoInputController {
     // live client via commit(string:). Additive UI; not on the key-event hot path.
     let famoEmoji = NSMenuItem(title: FamoInputMenuTitles.emoji, action: #selector(showFamoEmojiPanel), keyEquivalent: "")
     famoEmoji.target = self
-    // B10: open the AI conversation window over the current composition context. Additive UI;
-    // not on the key-event hot path; works for a general question even without a composition.
-    // 命名与划词菜单的「任意提问」(FamoSelectionMenuAction.ask) 统一 — 同一个 AI 对话窗的两个入口。
-    let famoAIConversation = NSMenuItem(title: NSLocalizedString("任意提问", comment: "AI conversation window menu item"), action: #selector(requestAIConversation), keyEquivalent: "")
-    famoAIConversation.target = self
+    // 「任意提问」的状态栏入口已删除（产品决策 2026-07-26）：改造成划词技能兜底后它必须带着选区
+    // 进（对选区下指令），而状态栏那一下永远是空选区，开出来的窗什么也加工不了。入口只剩划词菜单
+    // (FamoSelectionMenuAction.ask)——自动弹出或热键召唤，两条都带选区。
     // 润色 moved into the 划词菜单 (FamoSelectionMenuAction.polish); no status-menu entry.
-    // 「启用划词菜单」总开关同样不进菜单栏（产品决策 2026-07-21）：默认关闭、只在设置→技能平台
+    // 「启用划词工具箱」总开关同样不进菜单栏（产品决策 2026-07-21）：默认关闭、只在设置→技能平台
     // 开启，不提供随手打开的快捷入口；热键召唤是平行开关，不受总开关约束。
     let update = NSMenuItem(title: NSLocalizedString("Check for updates...", comment: "Menu item"), action: #selector(checkForUpdates), keyEquivalent: "")
     update.target = self
@@ -64,7 +62,6 @@ extension FamoInputController {
     // 表情/符号 entry is always present — the panel is summoned from here. The old 启用 toggle
     // was removed (hiding the only entry point made the panel unreachable from anywhere).
     menu.addItem(famoEmoji)
-    menu.addItem(famoAIConversation)
     menu.addItem(.separator())
     menu.addItem(logoutRelogin)
     menu.addItem(.separator())

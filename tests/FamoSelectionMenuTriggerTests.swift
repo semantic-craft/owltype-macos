@@ -2,35 +2,96 @@
 //  FamoSelectionMenuTriggerTests.swift
 //  FamoTests
 //
-//  划词菜单事件驱动触发判定（2026-07-21 轮询卡顿修复）：150ms 常轮询已删，改为「划选结束」
-//  事件触发。isSelectionEndTrigger 是纯函数，这里锁死它的判定表。
+//  划词工具箱触发判定（2026-07-26 重设计）：「选中即自动弹出」管线已删（isSelectionEndTrigger
+//  判定表随之退役），唯一手势 = 选中后双击 ⌥。FamoOptionDoubleTapDetector 是纯状态机（事件与
+//  时间戳全注入），这里锁死它的判定表：轻击×2 触发；长按、间隔超时、组合键、键鼠插入都不触发。
 //
 
 import XCTest
 @testable import Famo
 
-final class FamoSelectionMenuTriggerTests: XCTestCase {
-  func testLeftMouseUpAlwaysTriggers() {
-    // 拖选/双击/三击放手都是 mouseUp；shift-click 扩选放手时 shift 仍按着，也要触发。
-    XCTAssertTrue(FamoSelectionMenuCoordinator.isSelectionEndTrigger(type: .leftMouseUp, flags: []))
-    XCTAssertTrue(FamoSelectionMenuCoordinator.isSelectionEndTrigger(type: .leftMouseUp, flags: [.shift]))
+final class FamoOptionDoubleTapDetectorTests: XCTestCase {
+  private let t0 = Date(timeIntervalSinceReferenceDate: 10_000)
+  private func at(_ offset: TimeInterval) -> Date { t0.addingTimeInterval(offset) }
+
+  func testQuickDoubleTapFiresOnSecondRelease() {
+    var d = FamoOptionDoubleTapDetector()
+    XCTAssertFalse(d.processFlagsChanged([.option], at: at(0)))      // 第一击按下
+    XCTAssertFalse(d.processFlagsChanged([], at: at(0.1)))           // 第一击松开
+    XCTAssertFalse(d.processFlagsChanged([.option], at: at(0.3)))    // 第二击按下
+    XCTAssertTrue(d.processFlagsChanged([], at: at(0.4)), "第二击松开的瞬间触发")
   }
 
-  func testFlagsChangedTriggersOnlyWhenAllSelectionModifiersReleased() {
-    // shift+方向 / ⌘A 收尾＝最后一个修饰键松开的那次 flagsChanged。
-    XCTAssertTrue(FamoSelectionMenuCoordinator.isSelectionEndTrigger(type: .flagsChanged, flags: []))
-    // 修饰键按下（或还剩别的修饰键没松）不触发。
-    XCTAssertFalse(FamoSelectionMenuCoordinator.isSelectionEndTrigger(type: .flagsChanged, flags: [.shift]))
-    XCTAssertFalse(FamoSelectionMenuCoordinator.isSelectionEndTrigger(type: .flagsChanged, flags: [.command]))
-    XCTAssertFalse(FamoSelectionMenuCoordinator.isSelectionEndTrigger(type: .flagsChanged, flags: [.shift, .command]))
-    // capsLock 之类的非划选修饰键不挡触发。
-    XCTAssertTrue(FamoSelectionMenuCoordinator.isSelectionEndTrigger(type: .flagsChanged, flags: [.capsLock]))
+  func testFireResetsSoThirdTapStartsAFreshPair() {
+    var d = FamoOptionDoubleTapDetector()
+    _ = d.processFlagsChanged([.option], at: at(0))
+    _ = d.processFlagsChanged([], at: at(0.1))
+    _ = d.processFlagsChanged([.option], at: at(0.2))
+    XCTAssertTrue(d.processFlagsChanged([], at: at(0.3)))
+    // 触发后回 idle：紧接着的第三击只是新序列的第一击，不得连发。
+    XCTAssertFalse(d.processFlagsChanged([.option], at: at(0.4)))
+    XCTAssertFalse(d.processFlagsChanged([], at: at(0.5)))
   }
 
-  func testOtherEventsNeverTrigger() {
-    XCTAssertFalse(FamoSelectionMenuCoordinator.isSelectionEndTrigger(type: .keyDown, flags: []))
-    XCTAssertFalse(FamoSelectionMenuCoordinator.isSelectionEndTrigger(type: .leftMouseDown, flags: []))
-    XCTAssertFalse(FamoSelectionMenuCoordinator.isSelectionEndTrigger(type: .rightMouseUp, flags: []))
+  func testSlowGapDoesNotFire() {
+    var d = FamoOptionDoubleTapDetector()
+    _ = d.processFlagsChanged([.option], at: at(0))
+    _ = d.processFlagsChanged([], at: at(0.1))
+    // 间隔超过 tapMaxGap：第二次按下降级为新的第一击。
+    XCTAssertFalse(d.processFlagsChanged([.option], at: at(0.1 + FamoOptionDoubleTapDetector.tapMaxGap + 0.05)))
+    XCTAssertFalse(d.processFlagsChanged([], at: at(0.1 + FamoOptionDoubleTapDetector.tapMaxGap + 0.15)))
+  }
+
+  func testLongHoldIsNotATap() {
+    var d = FamoOptionDoubleTapDetector()
+    // 第一击按住超时（按住 ⌥ 拖选/等组合键的形态）→ 松开不算轻击。
+    _ = d.processFlagsChanged([.option], at: at(0))
+    XCTAssertFalse(d.processFlagsChanged([], at: at(FamoOptionDoubleTapDetector.tapMaxHold + 0.1)))
+    _ = d.processFlagsChanged([.option], at: at(1.0))
+    XCTAssertFalse(d.processFlagsChanged([], at: at(1.1)), "前一击已作废，这只是新序列的第一击")
+
+    // 第二击按住超时同样作废。
+    var d2 = FamoOptionDoubleTapDetector()
+    _ = d2.processFlagsChanged([.option], at: at(0))
+    _ = d2.processFlagsChanged([], at: at(0.1))
+    _ = d2.processFlagsChanged([.option], at: at(0.2))
+    XCTAssertFalse(d2.processFlagsChanged([], at: at(0.2 + FamoOptionDoubleTapDetector.tapMaxHold + 0.1)))
+  }
+
+  func testOtherModifierAbortsTheGesture() {
+    var d = FamoOptionDoubleTapDetector()
+    _ = d.processFlagsChanged([.option], at: at(0))
+    // ⌥ 还按着又加了 ⇧（⌥⇧ 组合）：整个手势作废，随后的松开也不触发。
+    XCTAssertFalse(d.processFlagsChanged([.option, .shift], at: at(0.1)))
+    XCTAssertFalse(d.processFlagsChanged([.option], at: at(0.2)))
+    XCTAssertFalse(d.processFlagsChanged([], at: at(0.3)), "作废后这只是第一击的收尾，不得触发")
+  }
+
+  func testKeyOrMouseBetweenTapsInvalidates() {
+    var d = FamoOptionDoubleTapDetector()
+    _ = d.processFlagsChanged([.option], at: at(0))
+    _ = d.processFlagsChanged([], at: at(0.1))
+    d.invalidate()  // 两击之间来了键盘/鼠标事件（⌥ 在被当真修饰键用）
+    _ = d.processFlagsChanged([.option], at: at(0.2))
+    XCTAssertFalse(d.processFlagsChanged([], at: at(0.3)), "被作废后重按只是新的第一击")
+  }
+
+  func testCapsLockFlagDoesNotInterfere() {
+    var d = FamoOptionDoubleTapDetector()
+    // capsLock 位随事件带着不影响判定（与旧划选判定同口径：只看四大修饰键）。
+    XCTAssertFalse(d.processFlagsChanged([.option, .capsLock], at: at(0)))
+    XCTAssertFalse(d.processFlagsChanged([.capsLock], at: at(0.1)))
+    XCTAssertFalse(d.processFlagsChanged([.option, .capsLock], at: at(0.2)))
+    XCTAssertTrue(d.processFlagsChanged([.capsLock], at: at(0.3)))
+  }
+
+  func testLoneOtherModifierNeverFires() {
+    var d = FamoOptionDoubleTapDetector()
+    // 双击 ⇧（中英切换的手势域）绝不能串进来。
+    XCTAssertFalse(d.processFlagsChanged([.shift], at: at(0)))
+    XCTAssertFalse(d.processFlagsChanged([], at: at(0.1)))
+    XCTAssertFalse(d.processFlagsChanged([.shift], at: at(0.2)))
+    XCTAssertFalse(d.processFlagsChanged([], at: at(0.3)))
   }
 }
 

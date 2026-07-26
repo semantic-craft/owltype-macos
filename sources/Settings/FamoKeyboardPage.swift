@@ -659,13 +659,14 @@ struct FamoKeyboardPage: View {
     }
   }
 
-  /// 划词菜单 summon hotkey (default off — the user RECORDS a combo here, restricted range; never
+  /// 划词工具箱 summon hotkey (default off — the user RECORDS a combo here, restricted range; never
   /// a Rime key_binder). The recorder control + its labels live in the UI layer
   /// (`FamoHotKeyRecorderRow`); the IMK-path matcher reads the stored combo live, so recording
-  /// needs no re-registration. The 划词菜单 enable/permission live on 技能平台.
+  /// needs no re-registration. 工具箱 enable（双击 ⌥ 手势）/permission live on 技能平台；本热键
+  /// 是平行入口，不受那个开关约束。
   private var selectionMenuPanelHotKeyCard: some View {
     SettingsCard(
-      title: "划词菜单",
+      title: "划词工具箱",
       palette: palette,
       theme: theme,
       reduceTransparency: reduceTransparency
@@ -675,7 +676,7 @@ struct FamoKeyboardPage: View {
   }
 
   // 任意提问的直达热键卡已随 FamoHotKeySlot.askAnything 一并退役（产品决策 2026-07-26）：
-  // 任意提问是划词技能的兜底，入口收敛为「选中文字 → 划词菜单点击」（+ 状态栏菜单项）。
+  // 任意提问是划词技能的兜底，入口收敛为唯一一条「选中文字 → 召唤划词工具箱」（状态栏菜单项同日删除）。
 
   /// 提示词助手直达热键（07-21 机主提案）：同一块快捷面板、初始分段=提示词。五笔的专属入口——
   /// 提示词表不挂五笔 schema（守四码上屏），打字触发只在拼音下存在。
