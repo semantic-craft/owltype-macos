@@ -88,15 +88,26 @@ struct FamoCandidatePanelView: View {
       RoundedRectangle(cornerRadius: state.theme.cornerRadius, style: .continuous)
         .strokeBorder(panelBorder, lineWidth: 1)
     }
+    .overlay {
+      // 薄雾玻璃的顶部内侧高光（R4 mist：inset 0 1px 0 白）——受光面在上。
+      RoundedRectangle(cornerRadius: state.theme.cornerRadius, style: .continuous)
+        .strokeBorder(
+          LinearGradient(
+            stops: [.init(color: .white.opacity(colorScheme == .dark ? 0.08 : 0.30), location: 0),
+                    .init(color: .clear, location: 0.25)],
+            startPoint: .top, endPoint: .bottom),
+          lineWidth: 1)
+    }
     .clipShape(RoundedRectangle(cornerRadius: state.theme.cornerRadius, style: .continuous))
-    .shadow(color: .black.opacity(colorScheme == .dark ? 0.45 : 0.16),
-            radius: state.theme.shadowRadius, x: 0, y: 7)
+    .shadow(color: .black.opacity(colorScheme == .dark ? 0.5 : 0.22),
+            radius: state.theme.shadowRadius, x: 0, y: 8)
     .animation(animateOK ? .snappy(duration: 0.08) : nil, value: state.highlightedIndex)
     .animation(animateOK ? .snappy(duration: 0.12) : nil, value: state.isExpanded)
   }
 
-  /// Half-transparent glass: a material under a card tint (design panelBg ≈ card @ 0.85),
-  /// falling back to an opaque card fill when Reduce Transparency is on.
+  /// 薄雾玻璃（07-26 grilling R4 定案，HIG Materials）：material 上叠 card @ 0.72 ——
+  /// 比原 0.85 更透，让 vibrancy 模糊透出来；Reduce Transparency 回退不透明 card。
+  /// 横排/竖排共用（面板外壳是同一层材质，两种排布才协调）。
   @ViewBuilder private var glass: some View {
     let shape = RoundedRectangle(cornerRadius: state.theme.cornerRadius, style: .continuous)
     if reduceTransparency {
@@ -104,9 +115,29 @@ struct FamoCandidatePanelView: View {
     } else {
       ZStack {
         shape.fill(.regularMaterial)
-        shape.fill(palette.card.opacity(0.85))
+        shape.fill(palette.card.opacity(0.72))
       }
     }
+  }
+
+  /// 薄雾玻璃高亮胶囊（横竖共用）：accent 底 + 顶部白渐变顶光 + 内侧 1px 高光描边 +
+  /// 轻 accent 投影——「屏幕上的物件」感。深浅色同构（顶光在暗色 accent 上同样成立）。
+  @ViewBuilder private func mistHighlight(cornerRadius r: CGFloat) -> some View {
+    let shape = RoundedRectangle(cornerRadius: r, style: .continuous)
+    shape.fill(palette.accent)
+      .overlay {
+        shape.fill(LinearGradient(
+          stops: [.init(color: .white.opacity(0.14), location: 0),
+                  .init(color: .clear, location: 0.55)],
+          startPoint: .top, endPoint: .bottom))
+      }
+      .overlay {
+        shape.strokeBorder(LinearGradient(
+          stops: [.init(color: .white.opacity(0.28), location: 0),
+                  .init(color: .white.opacity(0.02), location: 0.6)],
+          startPoint: .top, endPoint: .bottom), lineWidth: 1)
+      }
+      .shadow(color: palette.accent.opacity(0.28), radius: 3, y: 2)
   }
 
   // MARK: Header — preedit (dotted underline) + blinking caret + expand chevron
@@ -130,8 +161,9 @@ struct FamoCandidatePanelView: View {
     .padding(.trailing, 8)
     .padding(.top, vertical ? 7 : 9)
     .padding(.bottom, vertical ? 6 : 5)
+    // 竖排「输入条」：mist 规格为透明底 + 底部细分隔线（verticalList 顶部 hairline），
+    // 不再用 card2 色带——玻璃面板上叠实色条会压住 vibrancy（HIG Materials）。
     .frame(maxWidth: vertical ? .infinity : nil, alignment: .leading)
-    .background { if vertical { palette.card2 } }
     .accessibilityElement(children: .combine)
     .accessibilityLabel("输入串 \(state.preedit)")
   }
@@ -289,14 +321,9 @@ struct FamoCandidatePanelView: View {
     // pill no longer carries a wide accent margin before the number ("序号左边比较宽").
     .padding(.horizontal, 8)
     .padding(.vertical, 7)   // 窗口高度：候选更舒展（原 6）
-    .background {
-      if selected {
-        RoundedRectangle(cornerRadius: 9, style: .continuous)
-          .fill(palette.accent)
-          .shadow(color: palette.accent.opacity(0.22), radius: 3, y: 2)
-      }
-    }
-    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+    // 薄雾玻璃：横排选中胶囊与竖排 listRow 同一 helper（圆角 8 顶光渐变），排布切换不跳戏。
+    .background { if selected { mistHighlight(cornerRadius: 8) } }
+    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     .contentShape(Rectangle())
     .onTapGesture { onSelect(candidate.id) }
     .accessibilityElement(children: .combine)
@@ -357,9 +384,10 @@ struct FamoCandidatePanelView: View {
         listRow(candidate)
       }
     }
-    // 通栏样式（07-26 grilling 定案）：行左右不留外边距，高亮出血到面板边，由外层
-    // clipShape 裁圆角；上下只留 2/4pt 呼吸。
-    .padding(.top, 2)
+    // 铺满 + 薄雾玻璃质感（07-26 grilling R4 定案）：行铺满面板宽，高亮为顶光渐变
+    // 胶囊——离面板边 4pt 对称留白（R4 mist 度量），不照抄参照图的方角出血。
+    .padding(.horizontal, 4)
+    .padding(.top, 3)
     .padding(.bottom, 4)
     // 内容贴边后，从横排展开时右上角的收起箭头不再有富余空白可借，给行内容留出走位。
     .padding(.trailing, showsExpandChevron ? 18 : 0)
@@ -380,9 +408,8 @@ struct FamoCandidatePanelView: View {
   /// A list row: number + optional 「法」 badge + word + reading/释义 note; a citation
   /// candidate adds a muted source line beneath, indented under the word.
   ///
-  /// 通栏样式（07-26 grilling 定案，参照鼠鬚管 stacked）：大号带点序号（`1.`，base*0.9）
-  /// 让左侧不再是低密度空气；行内左右各 10pt 相等；高亮为方角通栏色块，行宽统一到
-  /// 最宽候选行（`FamoRowWidthKey`），故高亮左右到边、边距目视对称。
+  /// 铺满结构（07-26 grilling 定案）：大号带点序号（`1.`，base*0.9）让左侧不再是
+  /// 低密度空气；行内左右各 10pt 相等；行铺满面板宽，高亮胶囊左右到边、边距目视对称。
   private func listRow(_ candidate: CandidateViewModel) -> some View {
     let selected = candidate.id == state.highlightedIndex
     return VStack(alignment: .leading, spacing: 3) {
@@ -431,11 +458,10 @@ struct FamoCandidatePanelView: View {
     }
     .padding(.horizontal, 10)   // 左右边距相等：「1」到左边 = 末字到右边（参照图的对称感）
     .padding(.vertical, 7)
-    // 通栏方角高亮：行铺满面板宽（关输入串时面板宽 = 最宽候选行，即参照图形态；
-    // 开输入串时与「输入条」同宽，搜狗式），外层面板 clipShape 负责裁圆角；
-    // 不再投影（贴边色块不应悬浮）。
+    // 行铺满面板宽（关输入串时面板宽 = 最宽候选行，即参照图的撑满感；开输入串时
+    // 与「输入条」同宽）；高亮 = 薄雾玻璃顶光胶囊（与横排 compactPill 同 helper）。
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background { if selected { Rectangle().fill(palette.accent) } }
+    .background { if selected { mistHighlight(cornerRadius: 8) } }
     .contentShape(Rectangle())
     .onTapGesture { onSelect(candidate.id) }
     .accessibilityElement(children: .combine)
