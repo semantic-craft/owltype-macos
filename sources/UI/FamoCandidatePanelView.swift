@@ -35,6 +35,9 @@ struct FamoCandidatePanelView: View {
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   @Environment(\.colorScheme) private var colorScheme
 
+  /// 竖排统一行宽 = 最宽候选行的自然宽（`FamoRowWidthKey` 聚合）。0 = 尚未测得。
+  @State private var uniformRowWidth: CGFloat = 0
+
   /// Resolved 深大红 palette for the active color scheme.
   private var palette: FamoCandidatePalette { state.theme.palette(for: colorScheme) }
 
@@ -344,16 +347,20 @@ struct FamoCandidatePanelView: View {
   // MARK: Vertical list (expanded / Rime vertical / citation)
 
   private var verticalList: some View {
-    VStack(alignment: .leading, spacing: 2) {
+    VStack(alignment: .leading, spacing: 0) {
       ForEach(state.candidates) { candidate in
         listRow(candidate)
       }
     }
-    .padding(.horizontal, 5)   // 框体↔高亮条：左右对称 5（与行内 9 合计 14，≈ 上下边距×2 的通用规范）
-    .padding(.top, 4)
-    .padding(.bottom, 5)
+    // 通栏样式（07-26 grilling 定案）：行左右不留外边距，高亮出血到面板边，由外层
+    // clipShape 裁圆角；上下只留 2/4pt 呼吸。
+    .padding(.top, 2)
+    .padding(.bottom, 4)
     // 内容贴边后，从横排展开时右上角的收起箭头不再有富余空白可借，给行内容留出走位。
     .padding(.trailing, showsExpandChevron ? 18 : 0)
+    // 行宽统一 = 最宽候选行：短行补齐到同宽（高亮通栏即使落在短候选上也整齐到边），
+    // 但不吸收输入串撑出的面板富余宽度（整句拼音比候选宽时，多余部分是中性底色）。
+    .onPreferenceChange(FamoRowWidthKey.self) { uniformRowWidth = $0 }
     .overlay(alignment: .top) {
       // Hairline between the header and the list (the design's list border-top).
       if showsHeader {
@@ -370,18 +377,19 @@ struct FamoCandidatePanelView: View {
 
   /// A list row: number + optional 「法」 badge + word + reading/释义 note; a citation
   /// candidate adds a muted source line beneath, indented under the word.
+  ///
+  /// 通栏样式（07-26 grilling 定案，参照鼠鬚管 stacked）：大号带点序号（`1.`，base*0.9）
+  /// 让左侧不再是低密度空气；行内左右各 10pt 相等；高亮为方角通栏色块，行宽统一到
+  /// 最宽候选行（`FamoRowWidthKey`），故高亮左右到边、边距目视对称。
   private func listRow(_ candidate: CandidateViewModel) -> some View {
     let selected = candidate.id == state.highlightedIndex
     return VStack(alignment: .leading, spacing: 3) {
-      HStack(spacing: 4) {   // 数字↔汉字：序号贴近词、成组（「1 的」目视间隙 ≈ 7，原 ~11 偏散）
+      HStack(spacing: 7) {
         // Feature 7: 仅候选 preset hides the序号/字母 label.
         if state.candidateFormat.showsLabel {
-          Text(candidate.label.isEmpty ? "\(candidate.id + 1)" : candidate.label)
-            .font(.system(size: base * 0.72, weight: .medium))
+          Text((candidate.label.isEmpty ? "\(candidate.id + 1)" : candidate.label) + ".")
+            .font(.system(size: base * 0.9))
             .monospacedDigit()
-            // 占位框 base→base*0.8：一位序号实宽仅 ~7pt，整 base 宽的框在序号两侧各多
-            // ~5pt 空气，是「左边太宽」观感的一半来源；0.8 仍够两位序号/字母不抖动。
-            .frame(width: base * 0.8, alignment: .center)
             .foregroundStyle(selected ? palette.onAccent.opacity(0.85) : palette.ink2)
         }
         if candidate.badge {
@@ -416,22 +424,32 @@ struct FamoCandidatePanelView: View {
         Text(source)
           .font(.system(size: base * 0.78))
           .foregroundStyle(selected ? palette.onAccent.opacity(0.82) : palette.ink3)
-          .padding(.leading, base * 0.8 + 4)   // 对齐词首 = 序号框宽(base*0.8) + 上面 HStack 间距(4)
+          .padding(.leading, base * 0.9 + 7)   // 对齐词首 ≈ 序号宽(base*0.9) + HStack 间距(7)
       }
     }
-    .padding(.horizontal, 9)   // 高亮条内边距：左右 9 ≈ 上下 8，高亮胶囊四周留白均衡
-    .padding(.vertical, 8)
+    .padding(.horizontal, 10)   // 左右边距相等：「1」到左边 = 末字到右边（参照图的对称感）
+    .padding(.vertical, 7)
+    // 先量自然宽（在 minWidth 补齐之前），供 verticalList 求最宽行。
     .background {
-      if selected {
-        RoundedRectangle(cornerRadius: 9, style: .continuous)
-          .fill(palette.accent)
-          .shadow(color: palette.accent.opacity(0.22), radius: 3, y: 2)
+      GeometryReader { geo in
+        Color.clear.preference(key: FamoRowWidthKey.self, value: geo.size.width)
       }
     }
-    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+    .frame(minWidth: uniformRowWidth > 0 ? uniformRowWidth : nil, alignment: .leading)
+    // 通栏方角高亮：出血到统一行宽的左右两边，外层面板 clipShape 负责裁圆角；
+    // 不再投影（贴边色块不应悬浮）。
+    .background { if selected { Rectangle().fill(palette.accent) } }
     .contentShape(Rectangle())
     .onTapGesture { onSelect(candidate.id) }
     .accessibilityElement(children: .combine)
+  }
+}
+
+/// 竖排行自然宽度的 max-reduce（通栏样式：短行补齐到最宽行）。
+private struct FamoRowWidthKey: PreferenceKey {
+  static let defaultValue: CGFloat = 0
+  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+    value = max(value, nextValue())
   }
 }
 
