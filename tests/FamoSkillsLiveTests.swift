@@ -93,40 +93,8 @@ final class FamoSkillsLiveTests: XCTestCase {
       "内部三步法不得泄漏到输出（只输出最终意译）")
   }
 
-  func testPolishVariantsSkillReturnsThreeToFiveNumberedRewrites() async throws {
-    let answer = try await streamAnswer(
-      question: FamoSelectionSkillPrompts.polishVariantsQuestion,
-      selectedText: "这个事情我们得赶紧弄一下，不然要出问题。",
-      label: "variants")
-
-    XCTAssertTrue(
-      answer.contains("1.") && answer.contains("2.") && answer.contains("3."),
-      "至少要有编号 1./2./3. 的三个版本")
-    XCTAssertFalse(answer.contains("```"))
-  }
-
-  func testStyleMatchSkillRewritesTowardTheReference() async throws {
-    let scaffold = FamoSelectionSkillPrompts.polishStyleMatchScaffold
-      + "烦请知悉 / 盼复为荷"
-    let answer = try await streamAnswer(
-      question: scaffold,
-      selectedText: "你看一下这个文件，尽快回我。",
-      label: "stylematch")
-
-    XCTAssertFalse(answer.isEmpty)
-    XCTAssertFalse(answer.contains("```"))
-  }
-
-  func testDocumentFormattingSkillReturnsReplaceablePlainText() async throws {
-    let answer = try await streamAnswer(
-      question: FamoSelectionSkillPrompts.documentFormattingQuestion,
-      selectedText: "关于下周三下午开个会讨论实验室设备采购的事，请各位老师参加，地点待定。",
-      label: "docformat")
-
-    XCTAssertFalse(answer.isEmpty)
-    XCTAssertFalse(answer.contains("```"), "公文排版契约：可直接替换原文，不得带代码块")
-    XCTAssertFalse(answer.contains("排版要点"), "契约：不要列排版要点")
-  }
+  // 公文排版 / 润色·多版本挑选 / 润色·仿我的范例 的活体契约测试已随技能删除（2026-07-26 技能
+  // 精简）：个性化加工由「任意提问」对选区直接下指令兜底，没有固定输出契约可断言。
 
   func testResearchAssistSkillReturnsSearchPlan() async throws {
     let answer = try await streamAnswer(

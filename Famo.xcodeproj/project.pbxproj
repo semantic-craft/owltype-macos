@@ -181,7 +181,6 @@
 		FA000904CAFE0094CAFE0094 /* FamoAIWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000905CAFE0095CAFE0095 /* FamoAIWindow.swift */; };
 		FA000910CAFE0096CAFE0096 /* FamoPromptFillSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000911CAFE0097CAFE0097 /* FamoPromptFillSheet.swift */; };
 		FA000906CAFE0096CAFE0096 /* FamoAIConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000907CAFE0097CAFE0097 /* FamoAIConversationView.swift */; };
-		FA000908CAFE0098CAFE0098 /* FamoInputController+AIWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000909CAFE0099CAFE0099 /* FamoInputController+AIWindow.swift */; };
 		FA000802CAFE0082CAFE0082 /* FamoStreamingChatClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000803CAFE0083CAFE0083 /* FamoStreamingChatClientTests.swift */; };
 		FAA0000BCAFE000BCAFE000B /* FamoProviderAuthGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA0000CCAFE000CCAFE000C /* FamoProviderAuthGateTests.swift */; };
 		FA00090ACAFE009ACAFE009A /* FamoAIContextAssemblerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00090BCAFE009BCAFE009B /* FamoAIContextAssemblerTests.swift */; };
@@ -566,7 +565,6 @@
 		FA000905CAFE0095CAFE0095 /* FamoAIWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoAIWindow.swift; path = sources/UI/FamoAIWindow.swift; sourceTree = "<group>"; };
 		FA000911CAFE0097CAFE0097 /* FamoPromptFillSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPromptFillSheet.swift; path = sources/UI/FamoPromptFillSheet.swift; sourceTree = "<group>"; };
 		FA000907CAFE0097CAFE0097 /* FamoAIConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoAIConversationView.swift; path = sources/UI/FamoAIConversationView.swift; sourceTree = "<group>"; };
-		FA000909CAFE0099CAFE0099 /* FamoInputController+AIWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "FamoInputController+AIWindow.swift"; path = "sources/Controller/FamoInputController+AIWindow.swift"; sourceTree = "<group>"; };
 		FA000701CAFE0701CAFE0701 /* FamoLaneTasks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoLaneTasks.swift; path = sources/Controller/FamoLaneTasks.swift; sourceTree = "<group>"; };
 		FA000300CAFE0300CAFE0300 /* FamoProviderProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoProviderProfile.swift; path = sources/Lane/FamoProviderProfile.swift; sourceTree = "<group>"; };
 		FA0000C1CAFE00C1CAFE00C1 /* FamoSelectionPolish.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSelectionPolish.swift; path = sources/Lane/FamoSelectionPolish.swift; sourceTree = "<group>"; };
@@ -753,7 +751,6 @@
 				FA000905CAFE0095CAFE0095 /* FamoAIWindow.swift */,
 				FA000911CAFE0097CAFE0097 /* FamoPromptFillSheet.swift */,
 				FA000907CAFE0097CAFE0097 /* FamoAIConversationView.swift */,
-				FA000909CAFE0099CAFE0099 /* FamoInputController+AIWindow.swift */,
 				FA000300CAFE0300CAFE0300 /* FamoProviderProfile.swift */,
 				FA0000C1CAFE00C1CAFE00C1 /* FamoSelectionPolish.swift */,
 				FAA0000ACAFE000ACAFE000A /* FamoProviderAuthGate.swift */,
@@ -1269,7 +1266,6 @@
 				FA000904CAFE0094CAFE0094 /* FamoAIWindow.swift in Sources */,
 				FA000910CAFE0096CAFE0096 /* FamoPromptFillSheet.swift in Sources */,
 				FA000906CAFE0096CAFE0096 /* FamoAIConversationView.swift in Sources */,
-				FA000908CAFE0098CAFE0098 /* FamoInputController+AIWindow.swift in Sources */,
 				FA000700CAFE0700CAFE0700 /* FamoLaneTasks.swift in Sources */,
 				FA000301CAFE0301CAFE0301 /* FamoProviderProfile.swift in Sources */,
 				FA0000B1CAFE00B1CAFE00B1 /* FamoSelectionPolish.swift in Sources */,

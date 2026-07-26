@@ -1,46 +1,39 @@
 //
 //  FamoSelectionMenuCoordinator.swift
-//  法墨输入法 (Famo) — 全局划词菜单 (global selection menu)
+//  法墨输入法 (Famo) — 划词工具箱 (selection toolbox)
 //
-//  Extracted from FamoAIWindow.swift: the selection-menu action set, snapshot / replacement
-//  types, the floating NSPanel + its SwiftUI view, and the coordinator that reads the frontmost
-//  app's AX selection on selection-end events and dispatches skills. FamoAIWindow (the 任意提问
-//  window) stays separate.
+//  2026-07-26 工具箱重设计：「选中即自动弹出小菜单」整条管线已删（0.30s 停留、每次划选后的
+//  AX 读、dismissedText/代数计数那套消失状态机都是它的陪葬）。现在唯一的打开方式是明确手势——
+//  选中文字后双击 ⌥（或录制的召唤热键）→ 读一次选区 → 打开 FamoAIWindow 工具箱（技能按钮行 +
+//  任意提问输入框）。本文件保留：动作集、快照/替换类型、AX 选区读取、双击 ⌥ 判定器、技能分发
+//  与三个破坏性技能的执行体。
 //
 
 import AppKit
 import ApplicationServices
 import SwiftUI
 
+/// 2026-07-26 技能精简：公文排版 / 润色·多版本挑选 / 润色·仿我的范例已删——个性化的加工需求由
+/// 「任意提问」对选区直接下指令兜底；「结构化·加标签」并入「提示词优化」（优化+加标签一次做完）。
 enum FamoSelectionMenuAction: String, CaseIterable, Sendable {
   case ask
   case polish
   case sourceVerification
   case researchAssist
-  case documentFormatting
   case translate
-  case polishVariants
-  case polishStyleMatch
   case promptOptimize
-  case promptStructure
   case publishFormatting
 
   var title: String {
     switch self {
     case .ask: return "任意提问"
-    // 三个润色的名字必须自解释差异：改不改原文、谁给样例。
-    case .polish: return "润色·直接替换"
+    case .polish: return "润色"
     case .sourceVerification: return "来源核验"
     case .researchAssist: return "辅助检索"
-    case .documentFormatting: return "公文排版"
     case .translate: return "翻译"
-    case .polishVariants: return "润色·多版本挑选"
-    case .polishStyleMatch: return "润色·仿我的范例"
-    // 优化的是「提示词」本身而非普通文字，名字要和三个润色区分开。
+    // 优化的是「提示词」本身而非普通文字，名字要和「润色」区分开。
     case .promptOptimize: return "提示词优化"
-    // 结构化：措辞不动、只给提示词加 XML 标签，和会改写措辞的「提示词优化」分开命名。
-    case .promptStructure: return "结构化·加标签"
-    // 规范排版：只修中文排版（多余换行/引号/全半角/空格）、内容一字不改，与改语体的「公文排版」区分。
+    // 规范排版：只修中文排版（多余换行/引号/全半角/空格）、内容一字不改。
     case .publishFormatting: return "规范排版"
     }
   }
@@ -51,35 +44,25 @@ enum FamoSelectionMenuAction: String, CaseIterable, Sendable {
     case .polish: return "wand.and.stars"
     case .sourceVerification: return "checkmark.seal"
     case .researchAssist: return "magnifyingglass"
-    case .documentFormatting: return "doc.text"
     case .translate: return "globe"
-    case .polishVariants: return "rectangle.stack"
-    case .polishStyleMatch: return "quote.bubble"
     case .promptOptimize: return "sparkles"
-    case .promptStructure: return "chevron.left.forwardslash.chevron.right"
     case .publishFormatting: return "text.justify"
     }
   }
 
-  /// 方案三「朱印」纵向菜单分组（求证/改写/其他，issue #135）；组内顺序即菜单顺序。
-  /// 展示时按 enabledActions() 过滤，空组整组消失——8 动作与偏好开关语义不变。
-  static let menuGroups: [(title: String, actions: [FamoSelectionMenuAction])] = [
-    ("求证", [.sourceVerification, .researchAssist]),
-    ("改写", [.polish, .polishVariants, .polishStyleMatch, .documentFormatting, .publishFormatting, .promptOptimize, .promptStructure]),
-    ("其他", [.ask, .translate]),
-  ]
-
-  /// 行尾提示：「来源核验」带「多源 ›」（回执卡内可跳 13 库）。
-  var menuHint: String? { self == .sourceVerification ? "多源 ›" : nil }
+  // menuGroups / menuHint（方案三「朱印」纵向菜单的分组与行尾提示）已随小菜单面板一并删除
+  // （2026-07-26 工具箱重设计）：工具箱按钮行按 enabledActions() 顺序平铺。
 
   static func enabledActions(cloudEnabled: Bool = FamoCloudPreferences.isEnabled) -> [FamoSelectionMenuAction] {
     // 云端 AI 是全部划词技能的总闸：8 个技能无一能离线工作，关闸则菜单里一个 AI 项都不出现。
     // （此前只挡 ask/polish，其余 6 个照常显示、点了才在窗口内报错——设置页文案与实际不符。）
     guard cloudEnabled else { return [] }
     var out: [FamoSelectionMenuAction] = []
-    // 任意提问没有技能开关：它是全部划词技能的兜底（带选区开对话窗、对选区下指令），入口是
-    // 本菜单项（+ 状态栏菜单的无选区入口）；直达热键已退役（2026-07-26）。
-    out.append(.ask)
+    // 任意提问是全部划词技能的兜底（带选区开对话窗、对选区下指令），入口只有本菜单项；直达热键
+    // 与状态栏的无选区入口都已退役（2026-07-26）。同日起它有自己的技能开关（默认开）。
+    if FamoSelectionMenuPreferences.askEnabled {
+      out.append(.ask)
+    }
     if FamoSelectionMenuPreferences.polishEnabled {
       out.append(.polish)
     }
@@ -89,9 +72,6 @@ enum FamoSelectionMenuAction: String, CaseIterable, Sendable {
     if FamoSelectionMenuPreferences.researchAssistEnabled {
       out.append(.researchAssist)
     }
-    if FamoSelectionMenuPreferences.documentFormattingEnabled {
-      out.append(.documentFormatting)
-    }
     // 规范排版：破坏性（预览确认后替换原文），规则优先 + AI 只重排段落。
     if FamoSelectionMenuPreferences.publishFormattingEnabled {
       out.append(.publishFormatting)
@@ -100,20 +80,10 @@ enum FamoSelectionMenuAction: String, CaseIterable, Sendable {
     if FamoSelectionMenuPreferences.translationEnabled {
       out.append(.translate)
     }
-    // 划词多候选润色 / 参考风格对齐：内置技能（默认开），非破坏——经 FamoAIWindow 展示、不覆盖原选区。
-    if FamoSelectionMenuPreferences.polishVariantsEnabled {
-      out.append(.polishVariants)
-    }
-    if FamoSelectionMenuPreferences.polishStyleMatchEnabled {
-      out.append(.polishStyleMatch)
-    }
-    // 提示词优化：破坏性（预览确认后替换原文），与 .polish 同一条替换流。
+    // 提示词优化：破坏性（预览确认后替换原文），与 .polish 同一条替换流；四要素改写 + XML
+    // 标签分区一次做完（原「结构化·加标签」已并入，2026-07-26）。
     if FamoSelectionMenuPreferences.promptOptimizeEnabled {
       out.append(.promptOptimize)
-    }
-    // 结构化·加标签：破坏性（预览确认后替换原文），与提示词优化共用 handler，只切 .structure 模式。
-    if FamoSelectionMenuPreferences.promptStructureEnabled {
-      out.append(.promptStructure)
     }
     return out
   }
@@ -164,284 +134,118 @@ enum FamoSelectionReplacementFlow {
   }
 }
 
-private struct FamoSelectionMenuItem: Identifiable, Equatable {
-  let action: FamoSelectionMenuAction
-  var id: String { action.rawValue }
-  var title: String { action.title }
-  var symbol: String { action.symbol }
-}
+// FamoSelectionMenuPanel / FamoSelectionMenuView / FamoSelectionMenuItem（选区旁的非激活小菜单
+// 浮窗）已删（2026-07-26 工具箱重设计）：技能入口改为 FamoAIWindow 工具箱的按钮行——标准窗口
+// 语义（Esc 关、焦点可预测），不再需要「点外部消失 / 召唤键自消抑制」那套全局监视器状态机。
 
-final class FamoSelectionMenuPanel: NSPanel {
-  private var currentSnapshot: FamoSelectionMenuSnapshot?
-  private var items: [FamoSelectionMenuItem] = []
-  var pickHandler: ((FamoSelectionMenuAction, FamoSelectionMenuSnapshot) -> Void)?
+/// 双击 ⌥ 手势判定（2026-07-26 工具箱重设计）。纯状态机：事件与时间戳全由调用方注入，可单测。
+///
+/// 判定表：一「击」= ⌥ 单独按下（四大修饰键里只有 .option）→ 在 tapMaxHold 内完全松开；两击
+/// 的间隔（第一击松开 → 第二击按下）≤ tapMaxGap 时，在第二击松开的瞬间触发。任何键盘/鼠标
+/// 事件（经 invalidate()）、其他修饰键出现、或超时都会把状态清零——⌥+字母组合键、⌥+点击、
+/// 长按 ⌥ 都绝不误触发。触发即回到 idle，第三击从头数。
+struct FamoOptionDoubleTapDetector {
+  /// 单击最长按住时长：超过就是「按住 ⌥ 用组合键/拖选」，不是轻击。
+  static let tapMaxHold: TimeInterval = 0.5
+  /// 两击最大间隔（第一击松开 → 第二击按下）。
+  static let tapMaxGap: TimeInterval = 0.45
 
-  init() {
-    super.init(
-      contentRect: NSRect(x: 0, y: 0, width: 330, height: 48),
-      styleMask: [.nonactivatingPanel, .fullSizeContentView],
-      backing: .buffered,
-      defer: false
-    )
-    isReleasedWhenClosed = false
-    isFloatingPanel = true
-    level = .popUpMenu
-    titleVisibility = .hidden
-    titlebarAppearsTransparent = true
-    hasShadow = true
-    isOpaque = false
-    backgroundColor = .clear
-    collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+  private enum Phase {
+    case idle
+    case firstDown(Date)
+    case firstUp(Date)
+    case secondDown(Date)
+  }
+  private var phase: Phase = .idle
+
+  /// 键盘/鼠标事件到来：⌥ 正被当作真修饰键用（⌥+字母 / ⌥+点击），当前手势作废。
+  mutating func invalidate() {
+    phase = .idle
   }
 
-  override var canBecomeKey: Bool { false }
-  override var canBecomeMain: Bool { false }
+  /// 处理一次 flagsChanged。返回 true = 双击成立（第二击松开的那一下）。
+  mutating func processFlagsChanged(_ flags: NSEvent.ModifierFlags, at now: Date) -> Bool {
+    // capsLock 等非四大修饰键不参与判定（与旧划选收尾判定同口径）。
+    let mods = flags.intersection([.shift, .control, .option, .command])
 
-  fileprivate func show(items: [FamoSelectionMenuItem], snapshot: FamoSelectionMenuSnapshot) {
-    guard !items.isEmpty else {
-      hidePanel()
-      return
-    }
-    currentSnapshot = snapshot
-    self.items = items
-    let hosting = NSHostingView(
-      rootView: FamoSelectionMenuView(
-        groups: FamoSelectionMenuView.groups(from: items),
-        onPick: { [weak self] action in self?.pick(action) }
-      )
-    )
-    let size = hosting.fittingSize
-    setContentSize(size)
-    contentView = hosting
-    setFrameOrigin(origin(for: snapshot.bounds, size: size))
-    orderFrontRegardless()
-  }
-
-  func hidePanel() {
-    currentSnapshot = nil
-    orderOut(nil)
-  }
-
-  private func pick(_ action: FamoSelectionMenuAction) {
-    guard let snapshot = currentSnapshot else { return }
-    hidePanel()
-    pickHandler?(action, snapshot)
-  }
-
-  /// 上下文菜单式锚定（原型：sel.right+10 / sel.bottom-6）：顶左角贴选区尾部右下，
-  /// 向下展开；右侧/下方不够时贴屏收敛。无选区 bounds 时锚在鼠标。
-  private func origin(for bounds: NSRect?, size: NSSize) -> NSPoint {
-    let mouse = NSEvent.mouseLocation
-    let anchor = bounds ?? NSRect(x: mouse.x, y: mouse.y, width: 0, height: 0)
-    let screen = NSScreen.screens.first { $0.frame.intersects(anchor) || $0.frame.contains(mouse) } ?? NSScreen.main
-    let visible = screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-
-    var x = anchor.maxX + 10
-    var y = anchor.minY + 6 - size.height   // 顶边贴选区底缘，向下展开
-    if x + size.width > visible.maxX - 8 {
-      x = anchor.midX - size.width / 2
-    }
-    if y < visible.minY + 8 {
-      y = anchor.maxY + 8                    // 下方不够 → 翻到选区上方
-    }
-    x = min(max(x, visible.minX + 8), visible.maxX - size.width - 8)
-    y = min(max(y, visible.minY + 8), visible.maxY - size.height - 8)
-    return NSPoint(x: x, y: y)
-  }
-}
-
-/// 方案三「朱印」纵向菜单（issue #135 HIG 定稿）：宽 220 / 行高 24 / SF 13 / 组题 10.5，
-/// 分组 求证/改写/其他，hover 行整体 accent 高亮。esc/点击外部由 coordinator 的监视器收起。
-private struct FamoSelectionMenuView: View {
-  struct Group: Identifiable {
-    let title: String
-    let items: [FamoSelectionMenuItem]
-    var id: String { title }
-  }
-
-  let groups: [Group]
-  let onPick: (FamoSelectionMenuAction) -> Void
-
-  @State private var hoveredID: String?
-  @Environment(\.colorScheme) private var colorScheme
-  private var palette: FamoCandidatePalette {
-    FamoSkinPreferences.skin.theme.palette(for: colorScheme)
-  }
-
-  /// 按 menuGroups 定义分组；未启用的动作不出现，空组整组消失。
-  static func groups(from items: [FamoSelectionMenuItem]) -> [Group] {
-    let enabled = Set(items.map(\.action))
-    return FamoSelectionMenuAction.menuGroups.compactMap { spec in
-      let groupItems = spec.actions.filter { enabled.contains($0) }.map { FamoSelectionMenuItem(action: $0) }
-      guard !groupItems.isEmpty else { return nil }
-      return Group(title: spec.title, items: groupItems)
-    }
-  }
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
-        if index > 0 {
-          Rectangle()
-            .fill(palette.ink3.opacity(0.35))
-            .frame(height: 1)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-        }
-        Text(group.title)
-          .font(.system(size: 10.5, weight: .semibold))
-          .tracking(1.2)
-          .foregroundStyle(palette.ink2)
-          .padding(EdgeInsets(top: 5, leading: 10, bottom: 2, trailing: 10))
-        ForEach(group.items) { item in
-          row(item)
-        }
+    if mods == .option {
+      // ⌥ 单独按下：要么是第二击开始（间隔合格），要么重新当第一击。
+      switch phase {
+      case .firstUp(let upAt) where now.timeIntervalSince(upAt) <= Self.tapMaxGap:
+        phase = .secondDown(now)
+      default:
+        phase = .firstDown(now)
       }
+      return false
     }
-    .padding(5)
-    .frame(width: 220, alignment: .leading)
-    .background {
-      RoundedRectangle(cornerRadius: 11, style: .continuous)
-        .fill(.regularMaterial)
-        .overlay {
-          RoundedRectangle(cornerRadius: 11, style: .continuous)
-            .stroke(palette.ink3.opacity(0.35), lineWidth: 1)
-        }
-    }
-  }
 
-  private func row(_ item: FamoSelectionMenuItem) -> some View {
-    let hovered = hoveredID == item.id
-    return Button(action: { onPick(item.action) }) {
-      HStack(spacing: 9) {
-        Image(systemName: item.symbol)
-          .font(.system(size: 12, weight: .semibold))
-          .frame(width: 14)
-        Text(item.title)
-          .font(.system(size: 13, weight: .medium))
-          .lineLimit(1)
-        Spacer(minLength: 0)
-        if let hint = item.action.menuHint {
-          Text(hint)
-            .font(.system(size: 11))
-            .foregroundStyle(hovered ? palette.onAccent : palette.ink2)
-        }
+    if mods.isEmpty {
+      // 全部松开：轻击收尾（按住超时则作废）。
+      switch phase {
+      case .firstDown(let downAt) where now.timeIntervalSince(downAt) <= Self.tapMaxHold:
+        phase = .firstUp(now)
+      case .secondDown(let downAt) where now.timeIntervalSince(downAt) <= Self.tapMaxHold:
+        phase = .idle
+        return true
+      default:
+        phase = .idle
       }
-      .padding(.horizontal, 9)
-      .frame(height: 24)
-      .foregroundStyle(hovered ? palette.onAccent : palette.ink)
-      .background {
-        RoundedRectangle(cornerRadius: 7, style: .continuous)
-          .fill(hovered ? palette.accent : Color.clear)
-      }
-      .contentShape(Rectangle())
+      return false
     }
-    .buttonStyle(.plain)
-    .onHover { hoveredID = $0 ? item.id : (hoveredID == item.id ? nil : hoveredID) }
-    .accessibilityLabel(item.title)
+
+    // 出现其他修饰键（⌥⇧ / ⌘… 组合）：不是双击手势。
+    phase = .idle
+    return false
   }
 }
 
 final class FamoSelectionMenuCoordinator {
-  private let panel = FamoSelectionMenuPanel()
-  private var eventMonitor: Any?
-  private var selectionEndMonitor: Any?
-  private var activationObserver: Any?
-  private var pendingCheck: DispatchWorkItem?
-  private var maintenanceTimer: Timer?
-  private var shownSnapshot: FamoSelectionMenuSnapshot?
-  private var dismissedText: String?
-  /// 热键召唤那一下 keyDown 的时间戳，用于抑制它被全局监视器当「点击外部」而自消（见 start()）。
-  private var lastSummon: Date?
-  /// 后台 AX 读取的序号闸：hide() / 新一轮调度都会步进，迟到的旧读取结果直接丢弃。
-  private var readGeneration = 0
+  /// 双击 ⌥ 监视器（工具箱重设计后仅存的常驻监听）。flagsChanged 喂判定器；keyDown / mouseDown
+  /// 只做一件事——作废进行中的双击手势（⌥ 正被当真修饰键用）。回调是纯内存状态机，零 AX、零计时器。
+  private var tapMonitor: Any?
+  private var doubleTap = FamoOptionDoubleTapDetector()
   /// AX 读取专用串行队列：同步 AX 由前台 App 主线程应答，宿主忙时会阻塞等待方，所以绝不放在
   /// Famo 主线程（IMK handle() 同线程）上等。
   private static let axQueue = DispatchQueue(label: "com.famo.selection-menu.ax", qos: .userInitiated)
-  /// 划选结束到弹出的停留窗（产品语义不变：划选后停留 0.30s 再弹出）。
-  private static let dwellInterval: TimeInterval = 0.30
 
-  init() {
-    panel.pickHandler = { [weak self] action, snapshot in
-      self?.handle(action: action, snapshot: snapshot)
-    }
-  }
+  // 「选中即自动弹出」管线（0.30s 停留、每次划选后的后台 AX 读、面板维护计时器、dismissedText/
+  // readGeneration/lastSummon 消失状态机）已删（2026-07-26 工具箱重设计）：打开工具箱只剩明确
+  // 手势，AX 只在手势后读一次。2026-07-21 卡顿实锤的 150ms 轮询教训（别在打字期间碰 AX）依然
+  // 成立——现在打字期间连事件解析都只剩双击判定的纯内存操作。
 
   func start() {
-    guard eventMonitor == nil else { return }
-    // 事件驱动替代 150ms 常轮询（2026-07-21 卡顿实锤）：旧轮询每跳在主线程同步 AX 读前台选区，
-    // 由宿主主线程应答；快打字时宿主忙 → Famo 主线程（IMK handle() 同线程）被拖住，按键上游
-    // 排队、憋数秒后整串放行。现在只在「划选结束」事件后读一次，打字期间零 AX 调用。
-    eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] event in
+    guard tapMonitor == nil else { return }
+    tapMonitor = NSEvent.addGlobalMonitorForEvents(
+      matching: [.flagsChanged, .keyDown, .leftMouseDown, .rightMouseDown]
+    ) { [weak self] event in
       guard let self else { return }
-      // 新输入到来：之前的划选意图作废，待弹检查一并取消。
-      self.cancelPendingCheck()
-      // 召唤热键那一下 keyDown 可能被这里当作「点击外部」而立刻隐藏刚弹出的面板；抑制窗内忽略。
-      if event.type == .keyDown, let lastSummon = self.lastSummon,
-         Date().timeIntervalSince(lastSummon) < 0.3 {
+      guard event.type == .flagsChanged else {
+        self.doubleTap.invalidate()
         return
       }
-      self.hide(suppressCurrentSelection: event.type == .keyDown && event.keyCode == 53)
-    }
-    selectionEndMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp, .flagsChanged]) { [weak self] event in
-      guard let self, Self.isSelectionEndTrigger(type: event.type, flags: event.modifierFlags) else { return }
-      self.scheduleSelectionCheck()
-    }
-    activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
-      forName: NSWorkspace.didActivateApplicationNotification,
-      object: nil,
-      queue: .main
-    ) { [weak self] _ in
-      self?.hide()
+      guard self.doubleTap.processFlagsChanged(event.modifierFlags, at: Date()) else { return }
+      // 双击 ⌥ 成立。总开关只管这个手势（录制热键是平行开关，走 hotKeyTap，不经这里）。
+      guard FamoSelectionMenuPreferences.isEnabled else {
+        FamoHotKeyMatcher.log.notice("double-tap option dropped: toolbox disabled")
+        return
+      }
+      self.summonForCurrentSelection()
     }
   }
 
   func stop() {
-    cancelPendingCheck()
-    if let eventMonitor {
-      NSEvent.removeMonitor(eventMonitor)
-      self.eventMonitor = nil
-    }
-    if let selectionEndMonitor {
-      NSEvent.removeMonitor(selectionEndMonitor)
-      self.selectionEndMonitor = nil
-    }
-    if let activationObserver {
-      NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
-      self.activationObserver = nil
-    }
-    hide()
-  }
-
-  func hide(suppressCurrentSelection: Bool = false) {
-    if suppressCurrentSelection {
-      dismissedText = shownSnapshot?.text
-    }
-    cancelPendingCheck()
-    shownSnapshot = nil
-    stopMaintenance()
-    panel.hidePanel()
-  }
-
-  /// 划选结束判定（纯函数，供单测）：mouseUp＝鼠标划选放手（拖选/双击/三击）；flagsChanged 且
-  /// 四大修饰键全部松开＝键盘划选（shift+方向 / ⌘A）收尾。修饰键按下（flags 非空）不触发。
-  static func isSelectionEndTrigger(type: NSEvent.EventType, flags: NSEvent.ModifierFlags) -> Bool {
-    switch type {
-    case .leftMouseUp:
-      return true
-    case .flagsChanged:
-      return flags.intersection([.shift, .control, .option, .command]).isEmpty
-    default:
-      return false
+    if let tapMonitor {
+      NSEvent.removeMonitor(tapMonitor)
+      self.tapMonitor = nil
     }
   }
 
-  /// 热键召唤入口：立即对当前选区弹出划词菜单，不等 0.30s 停留去抖（同步读一次选区，50ms AX
-  /// 超时兜底，保持即时）。
+  /// 召唤入口（双击 ⌥ / 录制热键共用）：读一次当前选区，打开工具箱窗口。
   ///
-  /// 平行开关（产品决策 2026-07-19）：召唤**不受**「启用划词菜单」总开关约束——总开关只管
-  /// 「选中后自动弹出」；按下热键本身就是明确意图。剩余闸门（授权 / 输入源 / 选区 / 技能）逐一
-  /// 落盘记 drop 原因——#118 的教训是静默闸门让人以为热键坏了。
+  /// 平行开关语义延续（产品决策 2026-07-19，2026-07-26 重设计后仍然成立）：录制热键**不受**
+  /// 总开关约束（按下热键本身就是明确意图）；总开关只管双击 ⌥ 手势（闸在监视器回调里）。
+  /// 剩余闸门（授权 / 输入源 / 选区 / 技能）逐一落盘记 drop 原因——#118 的教训是静默闸门
+  /// 让人以为热键坏了。
   func summonForCurrentSelection() {
     guard FamoInstaller.currentInputSourceID()?.hasPrefix(FamoInstaller.inputSourcePrefix) == true else {
       FamoHotKeyMatcher.log.notice("summon dropped: famo not current input source")
@@ -455,118 +259,82 @@ final class FamoSelectionMenuCoordinator {
       FamoHotKeyMatcher.log.notice("summon dropped: no usable selection")
       return
     }
-    let items = currentItems()
-    guard !items.isEmpty else {
+    guard !FamoSelectionMenuAction.enabledActions().isEmpty else {
       FamoHotKeyMatcher.log.notice("summon dropped: no enabled skills")
       return
     }
-
-    lastSummon = Date()
-    cancelPendingCheck()
-    dismissedText = nil
-    shownSnapshot = snapshot
-    panel.show(items: items, snapshot: snapshot)
-    startMaintenance()
+    openToolbox(snapshot: snapshot)
   }
 
-  private func cancelPendingCheck() {
-    pendingCheck?.cancel()
-    pendingCheck = nil
-    readGeneration += 1
+  /// 打开（或刷新）工具箱窗口：技能按钮行 + 任意提问输入框，选区随窗捕获。
+  /// `question` 非空 = 带指令自动送出（翻译 / 辅助检索按钮走这条，窗口原地刷新、按钮行保留）。
+  private func openToolbox(
+    snapshot: FamoSelectionMenuSnapshot,
+    question: String? = nil,
+    display: String? = nil
+  ) {
+    let actions = FamoSelectionMenuAction.enabledActions()
+    let toolbox = FamoAIToolboxContext(
+      actions: actions.filter { $0 != .ask },
+      askEnabled: actions.contains(.ask),
+      onSkill: { [weak self] action in self?.toolboxPick(action, snapshot: snapshot) }
+    )
+    Task { @MainActor in
+      FamoAIWindow.shared.show(
+        selectedText: snapshot.text,
+        initialQuestion: question ?? "",
+        initialDisplayQuestion: display,
+        autoSubmit: question != nil,
+        toolbox: toolbox
+      )
+    }
   }
 
-  /// 划选结束 → 停留 0.30s（旧 poll 的 candidateSince 判定等价物）→ 读一次选区。期间任何键鼠
-  /// 输入都会经 cancelPendingCheck() 作废本次检查。
-  private func scheduleSelectionCheck() {
-    pendingCheck?.cancel()
-    let work = DispatchWorkItem { [weak self] in self?.performSelectionCheck() }
-    pendingCheck = work
-    DispatchQueue.main.asyncAfter(deadline: .now() + Self.dwellInterval, execute: work)
-  }
-
-  private func performSelectionCheck() {
-    pendingCheck = nil
-    // 自动弹出的闸门（与旧 poll 一致）：总开关 / 当前输入源是法墨 / 已授权。热键召唤不走这里
-    // （summonForCurrentSelection 直接弹），平行开关语义不变。
-    guard FamoSelectionMenuPreferences.isEnabled else { return }
-    guard FamoInstaller.currentInputSourceID()?.hasPrefix(FamoInstaller.inputSourcePrefix) == true else { return }
-    // 静默检查：未授权时直接退出，绝不弹系统授权窗。
-    // 授权申请只发生在用户开启划词菜单时（见 FamoAccessibilitySettings.request）。
-    guard AXIsProcessTrusted() else { return }
-    // 组字进行中＝正在打字，不可能同时在划词；跳过，不去骚扰宿主的 AX。
-    guard MainActor.assumeIsolated({ FamoSnapshotRegistry.shared.current == nil }) else { return }
-    guard let app = NSWorkspace.shared.frontmostApplication,
-          app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
-    readGeneration += 1
-    let generation = readGeneration
-    Self.axQueue.async { [weak self] in
-      let snapshot = self?.readSelection(from: app)
-      DispatchQueue.main.async {
-        guard let self, generation == self.readGeneration else { return }
-        self.presentAutoPopup(snapshot)
+  /// 工具箱按钮行的分发。窗口内技能（翻译 / 辅助检索）原地刷新窗口并保留按钮行；出窗技能
+  /// （核验回执卡、三个替换原文的技能）先关窗（把焦点还给宿主，替换流与小菜单时代同构）再执行。
+  private func toolboxPick(_ action: FamoSelectionMenuAction, snapshot: FamoSelectionMenuSnapshot) {
+    switch action {
+    case .ask:
+      break  // 输入框本身就是任意提问，没有按钮。
+    case .translate:
+      openToolbox(
+        snapshot: snapshot,
+        question: FamoSelectionSkillPrompts.translationQuestion,
+        display: "翻译")
+    case .researchAssist:
+      openToolbox(
+        snapshot: snapshot,
+        question: FamoSelectionSkillPrompts.researchAssistQuestion,
+        display: "辅助检索")
+    case .sourceVerification:
+      Task { @MainActor in
+        FamoAIWindow.shared.close()
+        // 方案三「朱印」（issue #135）：核验进回执卡。锚点抽取、案号闸、联网核验、跳库深链都在卡内。
+        FamoVerificationReceiptController.shared.show(
+          selectedText: snapshot.text,
+          anchorBounds: snapshot.bounds
+        )
+      }
+    case .polish:
+      Task { @MainActor in
+        FamoAIWindow.shared.close()
+        await self.handlePolish(snapshot: snapshot)
+      }
+    case .publishFormatting:
+      Task { @MainActor in
+        FamoAIWindow.shared.close()
+        await self.handlePublishFormatting(snapshot: snapshot)
+      }
+    case .promptOptimize:
+      Task { @MainActor in
+        FamoAIWindow.shared.close()
+        await self.handlePromptOptimize(snapshot: snapshot)
       }
     }
   }
 
-  private func presentAutoPopup(_ snapshot: FamoSelectionMenuSnapshot?) {
-    guard let snapshot, isAllowedSelection(snapshot.text) else {
-      hide()
-      return
-    }
-    if snapshot.text == dismissedText {
-      panel.hidePanel()
-      return
-    }
-    dismissedText = nil
-    let items = currentItems()
-    guard !items.isEmpty else {
-      hide()
-      return
-    }
-    guard shownSnapshot != snapshot else { return }
-    panel.show(items: items, snapshot: snapshot)
-    shownSnapshot = snapshot
-    startMaintenance()
-  }
-
-  /// 面板可见期间的低频兜底（1s）：旧 poll 的「选区消失/切换时收起」职责。键鼠事件已即时收
-  /// 面板，这里只兜「选区被程序性清除」的少数情况；读取同样走后台队列 + 50ms 超时，不碰主线程。
-  /// 自动弹出与热键召唤的面板都由它维护——总开关关闭时召唤面板照样收得起（平行开关语义）。
-  private func startMaintenance() {
-    guard maintenanceTimer == nil else { return }
-    maintenanceTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-      self?.maintainShownPanel()
-    }
-  }
-
-  private func stopMaintenance() {
-    maintenanceTimer?.invalidate()
-    maintenanceTimer = nil
-  }
-
-  private func maintainShownPanel() {
-    guard let shownText = shownSnapshot?.text else {
-      stopMaintenance()
-      return
-    }
-    guard let app = NSWorkspace.shared.frontmostApplication,
-          app.processIdentifier != ProcessInfo.processInfo.processIdentifier else {
-      hide()
-      return
-    }
-    readGeneration += 1
-    let generation = readGeneration
-    Self.axQueue.async { [weak self] in
-      let snapshot = self?.readSelection(from: app)
-      DispatchQueue.main.async {
-        guard let self, generation == self.readGeneration, self.shownSnapshot != nil else { return }
-        if snapshot?.text != shownText { self.hide() }
-      }
-    }
-  }
-
-  /// 同步读当前前台 App 的选区（仅热键召唤用）。在主线程等待，但有 50ms AX 消息超时，最坏
-  /// ~0.25s 的一次性等待，换热键即时响应。
+  /// 同步读当前前台 App 的选区（仅召唤用）。在主线程等待，但有 50ms AX 消息超时，最坏
+  /// ~0.25s 的一次性等待，换召唤即时响应。
   private func readCurrentSelection() -> FamoSelectionMenuSnapshot? {
     guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
     guard app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return nil }
@@ -701,71 +469,7 @@ final class FamoSelectionMenuCoordinator {
     return !trimmed.isEmpty && trimmed.count <= FamoSelectionPolish.maxSelectionLength
   }
 
-  private func currentItems() -> [FamoSelectionMenuItem] {
-    FamoSelectionMenuAction.enabledActions().map { FamoSelectionMenuItem(action: $0) }
-  }
-
-  private func handle(action: FamoSelectionMenuAction, snapshot: FamoSelectionMenuSnapshot) {
-    Task { @MainActor in
-      switch action {
-      case .ask:
-        FamoAIWindow.shared.show(selectedText: snapshot.text)
-      case .polish:
-        await handlePolish(snapshot: snapshot)
-      case .sourceVerification:
-        // 方案三「朱印」（issue #135）：核验进回执卡，不再纯文本丢 AI 窗口。锚点抽取、
-        // 案号闸、联网核验（复用 FamoSourceVerificationService）、跳库深链都在卡内。
-        FamoVerificationReceiptController.shared.show(
-          selectedText: snapshot.text,
-          anchorBounds: snapshot.bounds
-        )
-      case .researchAssist:
-        FamoAIWindow.shared.show(
-          selectedText: snapshot.text,
-          initialQuestion: FamoSelectionSkillPrompts.researchAssistQuestion,
-          initialDisplayQuestion: "辅助检索",
-          autoSubmit: true
-        )
-      case .documentFormatting:
-        await handleDocumentFormatting(snapshot: snapshot)
-      case .publishFormatting:
-        await handlePublishFormatting(snapshot: snapshot)
-      case .translate:
-        // 非破坏：仅把用户明确选中的文本送去翻译；结果在窗口展示、可复制，不覆盖原选区。
-        FamoAIWindow.shared.show(
-          selectedText: snapshot.text,
-          initialQuestion: FamoSelectionSkillPrompts.translationQuestion,
-          initialDisplayQuestion: "翻译",
-          autoSubmit: true
-        )
-      case .polishVariants:
-        // 多候选润色：仅处理明确选区；非破坏，窗口展示、可复制、不覆盖原选区。
-        FamoAIWindow.shared.show(
-          selectedText: snapshot.text,
-          initialQuestion: FamoSelectionSkillPrompts.polishVariantsQuestion,
-          initialDisplayQuestion: "润色·多版本挑选",
-          autoSubmit: true
-        )
-      case .promptOptimize:
-        await handlePromptOptimize(snapshot: snapshot)
-      case .promptStructure:
-        await handlePromptOptimize(snapshot: snapshot, mode: .structure)
-      case .polishStyleMatch:
-        // 参考风格对齐：脚手架挂成 composer 任务卡（指令藏在卡里，不再整句预填进输入框），
-        // 用户只填参考说法，送出时由窗口拼 scaffold + 输入；非破坏。
-        FamoAIWindow.shared.show(
-          selectedText: snapshot.text,
-          composerTask: FamoAIComposerTask(
-            label: "润色·仿我的范例",
-            clarifications: [],
-            placeholder: "输入参考说法，多条用 / 分隔",
-            scaffold: FamoSelectionSkillPrompts.polishStyleMatchScaffold)
-        )
-      }
-    }
-  }
-
-  // 划词菜单「润色」：选中文本送云端改写，预览确认后原地替换。选中文本离设备是用户显式
+  // 「润色」：选中文本送云端改写，预览确认后原地替换。选中文本离设备是用户显式
   // 触发的、对 CodeOnly 边界的既定例外（承接旧 requestSelectionPolish 的隐私注释）。原地
   // 替换不可用（部分 Chromium/Electron 选区只读不可写）时退回剪贴板，保住润色仍可用。
   @MainActor
@@ -777,7 +481,7 @@ final class FamoSelectionMenuCoordinator {
         FamoApplicationDelegate.showMessage(msgText: "未生成改写")
         return
       }
-      guard confirmReplacement(best) else {
+      guard confirmReplacement(best, resultNoun: "润色") else {
         FamoApplicationDelegate.showMessage(msgText: "已取消替换。")
         return
       }
@@ -800,48 +504,40 @@ final class FamoSelectionMenuCoordinator {
     }
   }
 
-  /// 提示词优化（issue #138）/ 结构化加标签：把草稿改写成符合 Fable 5 指南的结构化提示词，或
-  /// 只给草稿加 XML 标签（`mode: .structure`，措辞逐字不动）。两条共用整条管线——完成态与 .polish
-  /// 同路（预览确认后替换原选区），澄清态转任意提问窗口，只在用户可见文案上按 mode 分叉。
+  /// 提示词优化（issue #138）：把草稿改写成符合 Fable 5 指南的结构化提示词——四要素补齐 + XML
+  /// 标签分区一次做完（原「结构化·加标签」已并入，2026-07-26）。完成态与 .polish 同路（预览
+  /// 确认后替换原选区），澄清态转任意提问窗口。
   @MainActor
-  private func handlePromptOptimize(
-    snapshot: FamoSelectionMenuSnapshot,
-    mode: FamoPromptOptimizeMode = .rewrite
-  ) async {
-    let isStructure = mode == .structure
-    FamoApplicationDelegate.showMessage(msgText: isStructure ? "正在加标签…" : "正在优化提示词…")
+  private func handlePromptOptimize(snapshot: FamoSelectionMenuSnapshot) async {
+    FamoApplicationDelegate.showMessage(msgText: "正在优化提示词…")
     do {
-      switch try await FamoPromptOptimizeService.shared.optimize(snapshot.text, mode: mode) {
+      switch try await FamoPromptOptimizeService.shared.optimize(snapshot.text) {
       case let .ready(prompt):
-        guard confirmReplacement(prompt) else {
+        guard confirmReplacement(prompt, resultNoun: "提示词优化") else {
           FamoApplicationDelegate.showMessage(msgText: "已取消替换。")
           return
         }
         switch FamoSelectionReplacementFlow.write(
           prompt, target: snapshot.replacementTarget, bundleID: snapshot.bundleID) {
         case .inserted:
-          FamoApplicationDelegate.showMessage(
-            msgText: isStructure ? "已替换为加好标签的提示词。" : "已替换为优化后的提示词。")
+          FamoApplicationDelegate.showMessage(msgText: "已替换为优化后的提示词。")
         case .copiedToClipboard:
-          FamoApplicationDelegate.showMessage(
-            msgText: isStructure ? "已复制加标签结果，⌘V 替换" : "已复制优化结果，⌘V 替换")
+          FamoApplicationDelegate.showMessage(msgText: "已复制优化结果，⌘V 替换")
         case .failed(let message):
           FamoApplicationDelegate.showMessage(msgText: message)
         }
 
       case let .needsClarification(questions):
         // v1 的澄清是「任务卡 + 手动发送」，不是真多轮：草稿已由 selectedText 带进窗口作上下文，
-        // 澄清问题逐条显示在卡上，（优化 / 结构化）指令藏在 scaffold 里随用户补答一起发送，由
-        // 通用对话产出结果。真多轮循环待 #137。
+        // 澄清问题逐条显示在卡上，优化指令藏在 scaffold 里随用户补答一起发送，由通用对话产出
+        // 结果。真多轮循环待 #137。
         FamoAIWindow.shared.show(
           selectedText: snapshot.text,
           composerTask: FamoAIComposerTask(
-            label: isStructure ? "结构化·加标签 — 补充信息" : "提示词优化 — 补充信息",
+            label: "提示词优化 — 补充信息",
             clarifications: questions,
             placeholder: "逐条补答，多条用 / 分隔",
-            scaffold: isStructure
-              ? FamoSelectionSkillPrompts.promptStructureClarificationScaffold(questions)
-              : FamoSelectionSkillPrompts.promptOptimizeClarificationScaffold(questions))
+            scaffold: FamoSelectionSkillPrompts.promptOptimizeClarificationScaffold(questions))
         )
       }
     } catch {
@@ -851,28 +547,6 @@ final class FamoSelectionMenuCoordinator {
       } else {
         FamoApplicationDelegate.showMessage(msgText: FamoCloudPreferences.message(for: error))
       }
-    }
-  }
-
-  @MainActor
-  private func handleDocumentFormatting(snapshot: FamoSelectionMenuSnapshot) async {
-    FamoApplicationDelegate.showMessage(msgText: "正在生成公文排版…")
-    do {
-      let replacement = try await FamoSelectionDocumentFormatter().generateReplacement(for: snapshot.text)
-      guard confirmReplacement(replacement) else {
-        FamoApplicationDelegate.showMessage(msgText: "已取消替换。")
-        return
-      }
-      switch FamoSelectionReplacementFlow.write(replacement, target: snapshot.replacementTarget, bundleID: snapshot.bundleID) {
-      case .inserted:
-        FamoApplicationDelegate.showMessage(msgText: "已替换选中文本。")
-      case .copiedToClipboard:
-        FamoApplicationDelegate.showMessage(msgText: "已复制排版，⌘V 替换")
-      case .failed(let message):
-        FamoApplicationDelegate.showMessage(msgText: message)
-      }
-    } catch {
-      FamoApplicationDelegate.showMessage(msgText: FamoSelectionDocumentFormatter.message(for: error))
     }
   }
 
@@ -899,7 +573,7 @@ final class FamoSelectionMenuCoordinator {
   }
 
   @MainActor
-  private func confirmReplacement(_ replacement: String, resultNoun: String = "公文排版") -> Bool {
+  private func confirmReplacement(_ replacement: String, resultNoun: String) -> Bool {
     let alert = NSAlert()
     alert.messageText = "替换选中文本？"
     alert.informativeText = "将把原选区替换为下方\(resultNoun)结果。"
@@ -922,52 +596,6 @@ final class FamoSelectionMenuCoordinator {
   }
 }
 
-enum FamoSelectionDocumentFormattingError: Error {
-  case providerUnavailable
-  case emptyReplacement
-}
-
-@MainActor
-struct FamoSelectionDocumentFormatter {
-  private let streamer: FamoConversationStreaming
-
-  init(streamer: FamoConversationStreaming? = nil) {
-    self.streamer = streamer ?? FamoStreamingChatService.shared
-  }
-
-  func generateReplacement(for selectedText: String) async throws -> String {
-    let messages = FamoAIContextAssembler.assemble(
-      selectedText: selectedText,
-      question: FamoSelectionSkillPrompts.documentFormattingQuestion
-    )
-    switch streamer.stream(messages: messages) {
-    case .failure:
-      throw FamoSelectionDocumentFormattingError.providerUnavailable
-    case .success(let stream):
-      var replacement = ""
-      for try await chunk in stream {
-        replacement += chunk
-      }
-      guard !replacement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-        throw FamoSelectionDocumentFormattingError.emptyReplacement
-      }
-      return replacement
-    }
-  }
-
-  static func message(for error: Error) -> String {
-    if let formattingError = error as? FamoSelectionDocumentFormattingError {
-      switch formattingError {
-      case .providerUnavailable:
-        return "尚未配置可用 AI 供应商或 API Key。"
-      case .emptyReplacement:
-        return "未生成可替换文本。"
-      }
-    }
-    return FamoCloudPreferences.message(for: error)
-  }
-}
-
 enum FamoSelectionSkillPrompts {
   static let sourceVerificationQuestion = """
   请对选中文本做来源核验。只在能通过联网检索取得可核来源时给出“已找到可核来源”；如果没有找到，请说“未找到可核来源”，并说明这不等于事实不存在。请列出来源标题、URL、关键信息和判断。
@@ -975,10 +603,6 @@ enum FamoSelectionSkillPrompts {
 
   static let researchAssistQuestion = """
   请基于选中文本生成辅助检索方案。输出可复制的检索关键词、推荐检索入口、优先核验的来源类型和下一步检索路径，不要打开外部网站。
-  """
-
-  static let documentFormattingQuestion = """
-  请将选中文本整理为可直接替换原文的党政机关公文格式文本。只输出替换后的文本，不要解释，不要列排版要点，不要使用 Markdown 代码块。保留原有事实、称谓和段落含义；无法判断的内容保持原文。
   """
 
   /// 规范排版的「段落重排」系统提示。AI 只做一件事——把被硬换行拆断的行拼回完整段落；引号 / 全半角 /
@@ -1008,40 +632,14 @@ enum FamoSelectionSkillPrompts {
   只输出最终意译，一段纯文本。不要输出直译或反思、不要解释、不要加步骤标注、不要使用 Markdown 代码块。
   """
 
-  // 划词多候选润色：非破坏，一次给 3–5 个保义改写供挑选（区别于 .polish 的破坏性单版覆盖）。
-  static let polishVariantsQuestion = """
-  请润色下面的选中文本，给出 3–5 个可选的改写版本供我挑选。
-
-  要求：
-  1. 保持原意不变，不增义、不漏义、不改变事实、立场与语气指向。
-  2. 每个版本换一种说法，在正式度、语气、句式或用词上有真实区分（例如更简洁 / 更正式 / 更书面 / 更平实），让我有不同的选择，而非近义微调。
-  3. 沿用原文的语言（中文→中文，英文→英文）与大致长度，除非更精炼明显更好。
-  4. 法律/公文语境保持术语准确与庄重；日常表达可自然口语。
-
-  只输出改写版本本身，用“1. / 2. / 3.”编号，每个一行或一小段；不要解释、点评、加标题或使用 Markdown 代码块。
-  """
-
-  // 划词参考风格对齐：作为 composer 任务卡的隐藏 scaffold，用户填参考说法后由窗口拼
-  // `scaffold + 输入` 发送（用户不再看到这句指令）。
-  static let polishStyleMatchScaffold =
-    "把下面的选中文本改写得贴近我给的参考说法（保持原意、沿用原文语言，只输出改写）。参考说法（多条用 / 分隔）："
-
   /// 提示词优化的澄清脚手架（issue #138）。作为任务卡的隐藏 scaffold（问题另在卡上逐条显示；
   /// 这里仍串进 scaffold，让模型能把用户补答对回问题）；脚手架自带优化指令，让用户补答后经
-  /// 通用对话也能产出四要素提示词（真多轮循环待 #137）。
+  /// 通用对话也能产出「四要素 + XML 标签分区」的提示词（真多轮循环待 #137）。
   static func promptOptimizeClarificationScaffold(_ questions: [String]) -> String {
     let joined = questions.joined(separator: " / ")
     return "请把选中的草稿改写成结构化提示词：补齐意图（为谁做、产出用来干什么）、目标、边界约束、"
-      + "产出形态，不要写分步骤的操作脚手架，也不要要求复述内部推理。补充信息——\(joined)："
-  }
-
-  /// 结构化·加标签的澄清脚手架：与优化不同，这里只加 XML 标签、措辞逐字不动，绝不改写。同为
-  /// 任务卡的隐藏 scaffold（问题另在卡上逐条显示，这里仍串进 scaffold 供模型对回）。结构化极少
-  /// 需要澄清（多在草稿过短/难解时），脚手架仍自带「只加标签」指令兜底。
-  static func promptStructureClarificationScaffold(_ questions: [String]) -> String {
-    let joined = questions.joined(separator: " / ")
-    return "请给选中的草稿加上成对的 XML 标签（如 <instructions>、<context>、<input>，有层级就嵌套），"
-      + "措辞一字不改、只插入标签、不要新增内容。补充信息——\(joined)："
+      + "产出形态，并用成对 XML 标签按语义分区（有层级就嵌套），不要写分步骤的操作脚手架，"
+      + "也不要要求复述内部推理。补充信息——\(joined)："
   }
 
   static let unsupportedSourceVerificationMessage = """

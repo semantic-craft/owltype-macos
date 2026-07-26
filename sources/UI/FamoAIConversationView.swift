@@ -45,6 +45,8 @@ struct FamoAIConversationView: View {
   let autoSubmit: Bool
   /// 划词脚手架任务卡（nil = 普通提问窗口）。
   let initialTask: FamoAIComposerTask?
+  /// 工具箱上下文（2026-07-26 重设计）：非 nil 时在引文下渲染技能按钮行；nil = 纯任意提问窗。
+  let toolbox: FamoAIToolboxContext?
   /// Window-owned copy (copy-only; never auto-inserts into the target app).
   let onCopy: (String) -> Void
   /// Window-owned close.
@@ -71,8 +73,11 @@ struct FamoAIConversationView: View {
       VStack(alignment: .leading, spacing: 12) {
         header
         contextQuote
+        skillChips
         conversationFlow
-        composer
+        if composerVisible {
+          composer
+        }
         controlRow
       }
       // top inset clears the transparent titlebar's traffic lights.
@@ -170,6 +175,45 @@ struct FamoAIConversationView: View {
       }
       .frame(maxWidth: .infinity, alignment: .leading)
     }
+  }
+
+  // MARK: - Toolbox skill chips (2026-07-26 重设计：技能入口从选区旁小菜单搬进本窗)
+
+  /// 技能按钮行：按 enabledActions 顺序平铺，自适应换行。点击派回协调器（翻译/辅助检索原地
+  /// 刷新本窗；核验与替换类技能先关窗再执行）。
+  @ViewBuilder private var skillChips: some View {
+    if let toolbox, !toolbox.actions.isEmpty {
+      LazyVGrid(
+        columns: [GridItem(.adaptive(minimum: 96), spacing: 6, alignment: .leading)],
+        alignment: .leading,
+        spacing: 6
+      ) {
+        ForEach(toolbox.actions, id: \.rawValue) { action in
+          skillChip(action) { toolbox.onSkill(action) }
+        }
+      }
+    }
+  }
+
+  private func skillChip(_ action: FamoSelectionMenuAction, onTap: @escaping () -> Void) -> some View {
+    Button(action: onTap) {
+      HStack(spacing: 5) {
+        Image(systemName: action.symbol)
+          .font(.system(size: 10.5, weight: .semibold))
+          .foregroundColor(palette.accent)
+        Text(action.title)
+          .font(.system(size: 12, weight: .medium))
+          .foregroundColor(palette.ink)
+          .lineLimit(1)
+      }
+      .padding(.horizontal, 10)
+      .padding(.vertical, 5)
+      .background(Capsule().fill(palette.card2.opacity(0.7)))
+      .overlay(Capsule().stroke(palette.ink3.opacity(0.35), lineWidth: 1))
+      .contentShape(Capsule())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(action.title)
   }
 
   // MARK: - Conversation flow (question bubbles ↔ typeset serif answers)
@@ -379,6 +423,12 @@ struct FamoAIConversationView: View {
   /// 窗口是否由划词入口带着明确选区打开（决定占位文案教不教「下指令」用法）。
   private var hasSelection: Bool {
     !model.capturedContextSummary.isEmpty
+  }
+
+  /// 输入框可见性：任意提问技能被关（toolbox.askEnabled == false）时藏起输入框，窗口只当技能
+  /// 面板用；带任务卡（提示词优化澄清）时属于技能自己的补答流，照常显示。
+  private var composerVisible: Bool {
+    task != nil || toolbox?.askEnabled != false
   }
 
   private var isStreaming: Bool {
