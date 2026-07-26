@@ -259,46 +259,45 @@ final class FamoPanelContentTests: XCTestCase {
     XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
   }
 
-  // MARK: 预览后页 rows (三行候选·方向④Ⓑ) → part of the dedup signature
+  // MARK: 卷轴后页行 → part of the dedup signature
 
-  func testPreviewRowsChangeIsUnequal() {
+  func testScrollRowsChangeIsUnequal() {
     // A page-peek refresh with identical current-page content must still re-render so the
-    // preview rows repaint (e.g. the next page's contents changed after a user-dict learn).
+    // 后页行 repaint (e.g. the next page's contents changed after a user-dict learn).
     var other = baseline()
-    other.previewRows = [[CandidateViewModel(id: 0, label: "", text: "预览")]]
+    other.scrollRows = [FamoScrollRow(id: 1, candidates: [CandidateViewModel(id: 8, label: "", text: "后页")])]
     XCTAssertNotEqual(baseline(), other)
   }
 
-  func testIdenticalPreviewRowsAreEqual() {
+  func testIdenticalScrollRowsAreEqual() {
     var a = baseline()
     var b = baseline()
-    let rows = [[CandidateViewModel(id: 0, label: "", text: "预览")]]
-    a.previewRows = rows
-    b.previewRows = rows
+    let rows = [FamoScrollRow(id: 1, candidates: [CandidateViewModel(id: 8, label: "", text: "后页")])]
+    a.scrollRows = rows
+    b.scrollRows = rows
     XCTAssertEqual(a, b)
   }
 
-  func testReplacingAnchorPreservesPreviewRows() {
+  func testReplacingAnchorPreservesScrollRows() {
     // `reposition(anchor:)` rewrites the cached content via `replacing(anchor:)`; dropping
-    // the preview rows there would make the NEXT dedup comparison wrongly unequal (or the
-    // panel repaint without previews). Lock the field through the copy.
+    // the 后页行 there would make the NEXT dedup comparison wrongly unequal (or the panel
+    // repaint without them). Lock the field through the copy.
     var content = baseline()
-    content.previewRows = [[CandidateViewModel(id: 0, label: "", text: "预览")]]
+    content.scrollRows = [FamoScrollRow(id: 1, candidates: [CandidateViewModel(id: 8, label: "", text: "后页")])]
     let moved = content.replacing(anchor: NSRect(x: 5, y: 6, width: 1, height: 18))
-    XCTAssertEqual(moved.previewRows, content.previewRows)
+    XCTAssertEqual(moved.scrollRows, content.scrollRows)
     XCTAssertEqual(moved.anchor, NSRect(x: 5, y: 6, width: 1, height: 18))
   }
 }
 
-// MARK: - FamoPreviewPagesPlan (pure gate + chunking)
+// MARK: - FamoScrollRowsPlan (pure gate + chunking)
 
-final class FamoPreviewPagesPlanTests: XCTestCase {
+final class FamoScrollRowsPlanTests: XCTestCase {
 
   /// A snapshot with everything the plan reads set explicitly; visual fields pinned to
   /// defaults (they are irrelevant to the gate but required by the memberwise init).
-  private func snapshot(orientation: FamoPanelOrientation = .horizontal,
-                        previewPages: Bool = true,
-                        previewRows: Int = 2) -> FamoPanelSnapshot {
+  private func snapshot(orientation: FamoPanelOrientation = .scroll,
+                        scrollRows: Int = 2) -> FamoPanelSnapshot {
     FamoPanelSnapshot(
       orientation: orientation,
       fontSize: .medium,
@@ -309,8 +308,7 @@ final class FamoPreviewPagesPlanTests: XCTestCase {
       candidateFormat: .full,
       theme: .shenda,
       appearance: .system,
-      previewPages: previewPages,
-      previewRows: previewRows)
+      scrollRows: scrollRows)
   }
 
   private func cand(_ text: String) -> RimeCandidate {
@@ -319,79 +317,82 @@ final class FamoPreviewPagesPlanTests: XCTestCase {
 
   // MARK: gate
 
-  func testWantsPreviewOnHorizontalMidList() {
-    XCTAssertTrue(FamoPreviewPagesPlan.wantsPreview(
+  func testWantsRowsOnScrollMidList() {
+    XCTAssertTrue(FamoScrollRowsPlan.wantsRows(
       prefs: snapshot(), lastPage: false, candidateCount: 5, rimeVertical: false, schemaID: ""))
   }
 
-  func testPrefOffNeverFetches() {
-    XCTAssertFalse(FamoPreviewPagesPlan.wantsPreview(
-      prefs: snapshot(previewPages: false), lastPage: false, candidateCount: 5,
-      rimeVertical: false, schemaID: ""))
-  }
-
   func testLastPageNeverFetches() {
-    XCTAssertFalse(FamoPreviewPagesPlan.wantsPreview(
+    XCTAssertFalse(FamoScrollRowsPlan.wantsRows(
       prefs: snapshot(), lastPage: true, candidateCount: 5, rimeVertical: false, schemaID: ""))
   }
 
   func testEmptyPageNeverFetches() {
-    XCTAssertFalse(FamoPreviewPagesPlan.wantsPreview(
+    XCTAssertFalse(FamoScrollRowsPlan.wantsRows(
       prefs: snapshot(), lastPage: false, candidateCount: 0, rimeVertical: false, schemaID: ""))
   }
 
-  func testVerticalOrientationNeverFetches() {
-    XCTAssertFalse(FamoPreviewPagesPlan.wantsPreview(
-      prefs: snapshot(orientation: .vertical), lastPage: false, candidateCount: 5,
-      rimeVertical: false, schemaID: ""))
+  /// 非卷轴的三个方向都不取数——卷轴是唯一带后页行的形态（「预览后页」开关已被它吸收）。
+  func testNonScrollOrientationsNeverFetch() {
+    for orientation in [FamoPanelOrientation.auto, .horizontal, .vertical] {
+      XCTAssertFalse(FamoScrollRowsPlan.wantsRows(
+        prefs: snapshot(orientation: orientation), lastPage: false, candidateCount: 5,
+        rimeVertical: false, schemaID: ""), "\(orientation) 不该预取后页行")
+    }
   }
 
-  func testFlowOrientationNeverFetches() {
-    XCTAssertFalse(FamoPreviewPagesPlan.wantsPreview(
-      prefs: snapshot(orientation: .flow), lastPage: false, candidateCount: 5,
-      rimeVertical: false, schemaID: ""))
-  }
-
-  func testAutoOrientationFollowsRimeVertical() {
-    // `.auto` resolves against Rime's `_vertical` option: horizontal host → preview OK;
-    // schema-requested vertical → no preview (matches the view's rendering branch).
-    XCTAssertTrue(FamoPreviewPagesPlan.wantsPreview(
-      prefs: snapshot(orientation: .auto), lastPage: false, candidateCount: 5,
-      rimeVertical: false, schemaID: ""))
-    XCTAssertFalse(FamoPreviewPagesPlan.wantsPreview(
-      prefs: snapshot(orientation: .auto), lastPage: false, candidateCount: 5,
-      rimeVertical: true, schemaID: ""))
+  /// 卷轴是横排的一种：即便 rime 方案自己要求竖排，选了卷轴仍按横排渲染并取数
+  /// （`.scroll.isVertical` 恒为 false，与视图的渲染分支一致）。
+  func testScrollIgnoresRimeVertical() {
+    XCTAssertTrue(FamoScrollRowsPlan.wantsRows(
+      prefs: snapshot(), lastPage: false, candidateCount: 5, rimeVertical: true, schemaID: ""))
   }
 
   // MARK: chunking
 
-  func testRowsChunksFullPages() {
-    let rows = FamoPreviewPagesPlan.rows(
-      from: ["一", "二", "三", "四", "五", "六"].map(cand), pageSize: 3)
-    XCTAssertEqual(rows.map { $0.map(\.text) }, [["一", "二", "三"], ["四", "五", "六"]])
+  func testRowsChunksWholePages() {
+    let rows = FamoScrollRowsPlan.rows(
+      from: ["一", "二", "三", "四", "五", "六"].map(cand), pageSize: 3, startPage: 1)
+    XCTAssertEqual(rows.map { $0.candidates.map(\.text) }, [["一", "二", "三"], ["四", "五", "六"]])
+  }
+
+  /// 行 id = librime 页号。这是卷轴动画的身份来源：翻页后同一页号的行必须仍是同一行，
+  /// SwiftUI 才会把它动画成「上滚一格」而不是整块重建。
+  func testRowIDIsThePageNumber() {
+    let rows = FamoScrollRowsPlan.rows(
+      from: ["一", "二", "三", "四"].map(cand), pageSize: 2, startPage: 3)
+    XCTAssertEqual(rows.map(\.id), [3, 4])
+  }
+
+  /// 候选 id = 整张候选列表的绝对下标（页号 × 页大小 + 页内偏移），点击直接喂
+  /// `select_candidate`。用页内偏移会选错词。
+  func testCandidateIDsAreAbsolute() {
+    let rows = FamoScrollRowsPlan.rows(
+      from: ["一", "二", "三", "四"].map(cand), pageSize: 2, startPage: 3)
+    XCTAssertEqual(rows.map { $0.candidates.map(\.id) }, [[6, 7], [8, 9]])
   }
 
   func testRowsKeepsPartialTailRow() {
     // 倒数第二页翻到尾部：后页不满一页也要整行显示（不丢、不补位）。
-    let rows = FamoPreviewPagesPlan.rows(from: ["一", "二", "三", "四"].map(cand), pageSize: 3)
-    XCTAssertEqual(rows.map { $0.map(\.text) }, [["一", "二", "三"], ["四"]])
+    let rows = FamoScrollRowsPlan.rows(
+      from: ["一", "二", "三", "四"].map(cand), pageSize: 3, startPage: 1)
+    XCTAssertEqual(rows.map { $0.candidates.map(\.text) }, [["一", "二", "三"], ["四"]])
   }
 
-  func testRowsEmptyPeekMeansNoPreview() {
-    XCTAssertTrue(FamoPreviewPagesPlan.rows(from: [], pageSize: 5).isEmpty)
+  func testRowsEmptyPeekMeansNoScrollRows() {
+    XCTAssertTrue(FamoScrollRowsPlan.rows(from: [], pageSize: 5, startPage: 1).isEmpty)
   }
 
   func testRowsRenderAsTextOnly() {
-    // 做法Ⓑ：预览行无序号（label 空）、无注释/徽章/来源，id 行内连续（ForEach 稳定性）。
-    let rows = FamoPreviewPagesPlan.rows(from: [cand("甲"), cand("乙")], pageSize: 2)
+    // 后页行无序号（label 空）、无注释/徽章/来源——序号只属于主行（数字键只选得中主行）。
+    let rows = FamoScrollRowsPlan.rows(from: [cand("甲"), cand("乙")], pageSize: 2, startPage: 1)
     XCTAssertEqual(rows.count, 1)
-    XCTAssertEqual(rows[0].map(\.id), [0, 1])
-    XCTAssertEqual(rows[0].map(\.label), ["", ""])
-    XCTAssertEqual(rows[0].compactMap(\.comment), [])
-    XCTAssertEqual(rows[0].filter(\.badge), [])
+    XCTAssertEqual(rows[0].candidates.map(\.label), ["", ""])
+    XCTAssertEqual(rows[0].candidates.compactMap(\.comment), [])
+    XCTAssertEqual(rows[0].candidates.filter(\.badge), [])
   }
 
   func testRowsGuardsZeroPageSize() {
-    XCTAssertTrue(FamoPreviewPagesPlan.rows(from: [cand("甲")], pageSize: 0).isEmpty)
+    XCTAssertTrue(FamoScrollRowsPlan.rows(from: [cand("甲")], pageSize: 0, startPage: 1).isEmpty)
   }
 }

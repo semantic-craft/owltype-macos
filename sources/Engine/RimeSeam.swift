@@ -65,6 +65,13 @@ protocol RimeSession: AnyObject {
   /// `select_candidate_on_current_page`.
   func selectCandidate(_ index: Int) -> Bool
 
+  /// `select_candidate`: select by **absolute** index into the whole candidate list, so a
+  /// candidate that is visible but not on the current page can be committed without paging
+  /// there first. Only the 卷轴后页行 click path uses it (mouse-only — the keyboard hot path
+  /// still goes through librime's own current-page number keys). A default implementation
+  /// returns `false` so existing fakes stay source-compatible.
+  func selectCandidateAbsolute(_ index: Int) -> Bool
+
   /// `change_page`; `up == true` pages backward.
   func changePage(up: Bool) -> Bool
 
@@ -107,6 +114,10 @@ extension RimeSession {
   /// Default no-preview implementation — keeps fakes/spies source-compatible; the live
   /// adapter overrides with the real iterator walk.
   func peekCandidates(from _: Int, count _: Int) -> [RimeCandidate] { [] }
+
+  /// Default no-op — keeps fakes/spies source-compatible; the live adapter overrides with
+  /// `select_candidate`.
+  func selectCandidateAbsolute(_: Int) -> Bool { false }
 }
 
 /// The global Rime lifecycle. Vends Sessions. All calls are on the IMK input thread.
@@ -272,6 +283,10 @@ final class LiveRimeSession: RimeSession {
 
   func selectCandidate(_ index: Int) -> Bool {
     rimeAPI.select_candidate_on_current_page(sessionId, index)
+  }
+
+  func selectCandidateAbsolute(_ index: Int) -> Bool {
+    rimeAPI.select_candidate(sessionId, index)
   }
 
   func changePage(up: Bool) -> Bool {

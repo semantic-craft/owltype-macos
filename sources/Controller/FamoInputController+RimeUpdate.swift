@@ -489,25 +489,25 @@ extension FamoInputController {
     let isVertical = rime?.option(.vertical) ?? false
     let prefs = FamoPanelSnapshot.current()
 
-    // 三行候选（方向④·做法Ⓑ 等大淡显）：预取后 1–2 页做预览行。仅当开关开、还有后页、
-    // 且本次组字会以横排紧凑条渲染（竖排/折行不叠加预览）时才枚举。取数走
-    // `peekCandidates`（librime candidate_list_from_index 只读迭代器）——不真翻页、
-    // 不动 menu 页游标、无 IMK 客户端往返，故不在 Chromium 死锁禁区内。
-    // `!lastPage` 时当前页必为满页，故 page_size == candidates.count。
-    var previewRows: [[CandidateViewModel]] = []
-    if FamoPreviewPagesPlan.wantsPreview(prefs: prefs, lastPage: lastPage,
-                                         candidateCount: candidates.count,
-                                         rimeVertical: isVertical, schemaID: schemaId),
+    // 卷轴：预取后 1–2 整页做后页行。仅当选了卷轴、还有后页、且本次组字会以横排渲染
+    // （竖排不叠加）时才枚举。取数走 `peekCandidates`（librime candidate_list_from_index
+    // 只读迭代器）——不真翻页、不动 menu 页游标、无 IMK 客户端往返，故不在 Chromium
+    // 死锁禁区内。`!lastPage` 时当前页必为满页，故 page_size == candidates.count。
+    var scrollRows: [FamoScrollRow] = []
+    if FamoScrollRowsPlan.wantsRows(prefs: prefs, lastPage: lastPage,
+                                    candidateCount: candidates.count,
+                                    rimeVertical: isVertical, schemaID: schemaId),
        let rime {
       let pageSize = candidates.count
       let peeked = rime.peekCandidates(from: (page + 1) * pageSize,
-                                       count: prefs.previewRows * pageSize)
-      previewRows = FamoPreviewPagesPlan.rows(from: peeked, pageSize: pageSize)
+                                       count: prefs.scrollRows * pageSize)
+      scrollRows = FamoScrollRowsPlan.rows(from: peeked, pageSize: pageSize, startPage: page + 1)
     }
 
     let famo = NSApp.famoAppDelegate.ensureFamoPanel()
     famo.onSelect = { [weak self] index in self?.selectPanelIndex(index) }
     famo.onPage = { [weak self] up in _ = self?.page(up: up) }
+    famo.onSelectAbsolute = { [weak self] index in _ = self?.selectCandidateAbsolute(index) }
     let content = FamoPanelContent(
       preedit: preedit,
       cursor: cursor,
@@ -521,7 +521,7 @@ extension FamoInputController {
       isVertical: isVertical,
       schemaID: schemaId,
       anchor: inputPos,
-      previewRows: previewRows
+      scrollRows: scrollRows
     )
     let panelTrace = FamoLatencyTrace.begin("candidatePanel.update")
     let becameVisible = famo.update(content, prefs: prefs)

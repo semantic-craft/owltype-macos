@@ -552,13 +552,13 @@ final class FamoCandidateDisplayTests: XCTestCase {
   override func setUp() async throws {
     try await super.setUp()
     for key in ["FamoPanelOrientation", "FamoPanelFontDesign", "FamoPanelAnimations",
-                "FamoPanelExpandedByDefault", "FamoKeyboardPageSize"] {
+                "FamoPanelExpandedByDefault", "FamoPanelPreviewPages", "FamoKeyboardPageSize"] {
       FamoDefaults.standard.removeObject(forKey: key)
     }
   }
   override func tearDown() async throws {
     for key in ["FamoPanelOrientation", "FamoPanelFontDesign", "FamoPanelAnimations",
-                "FamoPanelExpandedByDefault", "FamoKeyboardPageSize"] {
+                "FamoPanelExpandedByDefault", "FamoPanelPreviewPages", "FamoKeyboardPageSize"] {
       FamoDefaults.standard.removeObject(forKey: key)
     }
     try await super.tearDown()
@@ -594,12 +594,62 @@ final class FamoCandidateDisplayTests: XCTestCase {
     XCTAssertEqual(FamoPanelPreferences.orientation, .auto)
   }
 
+  /// 迁移②（2026-07-26，卷轴取代折行）：存过 `"flow"` 的老用户读出 `.scroll`。
+  /// `FamoPanelOrientation(rawValue: "flow")` 已是 nil，靠裸串比对这一支兜住。
+  func testOrientationMigratesLegacyFlowToScroll() {
+    FamoDefaults.standard.set("flow", forKey: "FamoPanelOrientation")
+    XCTAssertEqual(FamoPanelPreferences.orientation, .scroll)
+    // 显式改选压过迁移。
+    FamoPanelPreferences.orientation = .horizontal
+    XCTAssertEqual(FamoPanelPreferences.orientation, .horizontal)
+  }
+
+  /// 迁移②：卷轴吸收了「预览后页」开关，开过它的老用户读出 `.scroll`，保住后页行观感。
+  /// 关键回归：这一支排在「已存方向」之前，所以显式选过**横排**+开着预览后页的用户也要迁；
+  /// 而竖排下预览本就被门控掉，必须维持竖排。
+  func testOrientationMigratesLegacyPreviewPagesToScroll() {
+    FamoDefaults.standard.set(true, forKey: "FamoPanelPreviewPages")
+    // 未显式选过方向。
+    XCTAssertEqual(FamoPanelPreferences.orientation, .scroll)
+    // 显式选过横排 —— 仍迁到卷轴（否则后页行静默消失）。
+    FamoDefaults.standard.set("horizontal", forKey: "FamoPanelOrientation")
+    XCTAssertEqual(FamoPanelPreferences.orientation, .scroll)
+    // 竖排不迁。
+    FamoDefaults.standard.set("vertical", forKey: "FamoPanelOrientation")
+    XCTAssertEqual(FamoPanelPreferences.orientation, .vertical)
+  }
+
+  /// 写入任一方向即清掉 legacy 开关——否则迁移会一直生效，用户再也选不回单行横排。
+  func testWritingOrientationClearsLegacyPreviewPagesKey() {
+    FamoDefaults.standard.set(true, forKey: "FamoPanelPreviewPages")
+    FamoPanelPreferences.orientation = .horizontal
+    XCTAssertNil(FamoDefaults.standard.object(forKey: "FamoPanelPreviewPages"))
+    XCTAssertEqual(FamoPanelPreferences.orientation, .horizontal)
+  }
+
+  /// 卷轴后页行数：默认 2，钳到 1...2（抵御手改 defaults 写出的越界值）。
+  func testScrollRowsDefaultAndClamp() {
+    FamoDefaults.standard.removeObject(forKey: "FamoPanelPreviewRows")
+    XCTAssertEqual(FamoPanelPreferences.scrollRows, 2)
+    FamoPanelPreferences.scrollRows = 1
+    XCTAssertEqual(FamoPanelPreferences.scrollRows, 1)
+    FamoDefaults.standard.set(9, forKey: "FamoPanelPreviewRows")
+    XCTAssertEqual(FamoPanelPreferences.scrollRows, 2)
+    FamoDefaults.standard.set(0, forKey: "FamoPanelPreviewRows")
+    XCTAssertEqual(FamoPanelPreferences.scrollRows, 1)
+    FamoDefaults.standard.removeObject(forKey: "FamoPanelPreviewRows")
+  }
+
   func testOrientationResolution() {
     // With no schema default, .auto follows Rime's _vertical; explicit overrides ignore it.
     XCTAssertTrue(FamoPanelOrientation.auto.isVertical(rimeVertical: true))
     XCTAssertFalse(FamoPanelOrientation.auto.isVertical(rimeVertical: false))
     XCTAssertFalse(FamoPanelOrientation.horizontal.isVertical(rimeVertical: true))
     XCTAssertTrue(FamoPanelOrientation.vertical.isVertical(rimeVertical: false))
+    // 卷轴是横排的一种：`isVertical` 恒 false，`scrolls` 才是它与单行横排的区别。
+    XCTAssertFalse(FamoPanelOrientation.scroll.isVertical(rimeVertical: true))
+    XCTAssertTrue(FamoPanelOrientation.scroll.scrolls)
+    XCTAssertFalse(FamoPanelOrientation.horizontal.scrolls)
   }
 
   func testAutoOrientationIsHorizontalForWubiSchemas() {
