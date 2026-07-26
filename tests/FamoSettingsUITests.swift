@@ -51,8 +51,8 @@ final class FamoSettingsUITests: XCTestCase {
 
     openPage("project", in: app)
     // 云端 AI 先开：它是全部技能行的总闸，关着时下面几行是 disabled，点不动。
-    tapMany(["启用划词菜单", "启用云端 AI", "来源核验", "辅助检索", "划词翻译",
-             "润色·直接替换", "润色·多版本挑选", "润色·仿我的范例", "提示词优化"], in: app)
+    tapMany(["启用划词工具箱", "启用云端 AI", "任意提问", "来源核验", "辅助检索", "划词翻译",
+             "润色", "提示词优化"], in: app)
 
     openPage("ai", in: app)
     tapMany([

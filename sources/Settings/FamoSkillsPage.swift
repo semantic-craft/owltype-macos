@@ -60,17 +60,17 @@ struct FamoSkillsPage: View {
   }
 
   private var selectionMenuCard: some View {
-    SettingsCard(title: "划词菜单", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
+    SettingsCard(title: "划词工具箱", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
       VStack(spacing: 0) {
         SettingsToggleRow(
-          title: "启用划词菜单",
-          subtitle: "开启后，在任意 App 里选中文字会自动弹出菜单，菜单项就是下方已启用的技能；关闭后不再自动弹出，仍可用快捷键随时召唤。",
+          title: "启用划词工具箱",
+          subtitle: "开启后，在任意 App 里选中文字、快速双击 ⌥（Option）键即可呼出工具箱：用下方技能加工选中文本，或直接下指令。不会一选中就自动弹出；关闭后双击不响应，仍可用录制的召唤快捷键呼出。",
           isOn: state.selectionMenuEnabled,
           palette: palette,
           onToggle: {
             FamoSettingsActions.toggle(state: state, keyPath: \.selectionMenuEnabled) {
               FamoSelectionMenuPreferences.isEnabled = $0
-              // 用时申请：仅在用户开启划词菜单时请求授权，不在启动/更新时弹。
+              // 用时申请：仅在用户开启划词工具箱时请求授权，不在启动/更新时弹。
               if $0 { FamoAccessibilitySettings.request() }
             }
           }
@@ -83,7 +83,7 @@ struct FamoSkillsPage: View {
             Text("辅助功能权限")
               .font(.system(size: 13.5, weight: .medium))
               .foregroundStyle(palette.ink)
-            Text("划词菜单需要读取当前选区。开启划词菜单时会请求系统授权；若已拒绝或需重新授权，点右侧按钮打开权限设置，授权后切回本窗口即自动更新。")
+            Text("划词工具箱需要读取当前选区。开启工具箱时会请求系统授权；若已拒绝或需重新授权，点右侧按钮打开权限设置，授权后切回本窗口即自动更新。")
               .font(.system(size: 12))
               .foregroundStyle(palette.ink3)
               .fixedSize(horizontal: false, vertical: true)
@@ -119,7 +119,7 @@ struct FamoSkillsPage: View {
       VStack(spacing: 0) {
         SettingsToggleRow(
           title: "启用云端 AI",
-          subtitle: "下方全部内置技能都要联网，都归这个开关管。关闭后技能列表整体停用，划词菜单里不会出现任何 AI 选项，「任意提问」的热键与菜单栏入口也一并停用。",
+          subtitle: "下方全部内置技能都要联网，都归这个开关管。关闭后技能列表整体停用，双击 ⌥ 与召唤快捷键都不再打开工具箱，「任意提问」也一并停用。",
           isOn: state.cloudEnabled,
           palette: palette,
           onToggle: {
@@ -141,9 +141,25 @@ struct FamoSkillsPage: View {
 
   /// 内置技能 rows. Every row is disabled while 云端 AI is off — these all need the network, and
   /// `enabledActions` hides them wholesale in that state, so a live-looking toggle would lie.
+  /// 「任意提问」置顶成独立一段：它是全部技能的兜底（固定功能，2026-07-26 起有真开关、默认开），
+  /// 与下面按需启停的具体技能用分隔线隔开。
   private var builtInSkillsCard: some View {
     SettingsCard(title: "内置技能", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
       VStack(spacing: 0) {
+        SettingsToggleRow(
+          title: "任意提问",
+          subtitle: "全部技能的兜底，也是工具箱的输入框：对选中文本直接下指令（改写、排版、拟回复…）或提问；只回结果、一键复制，不改动原文",
+          systemImage: "text.bubble",
+          isOn: state.askAnythingSkillEnabled,
+          palette: palette,
+          isEnabled: state.cloudEnabled,
+          onToggle: {
+            FamoSettingsActions.toggle(state: state, keyPath: \.askAnythingSkillEnabled) {
+              FamoSelectionMenuPreferences.askEnabled = $0
+            }
+          }
+        )
+        SettingsCardDivider(palette: palette)
         SettingsToggleRow(
           title: "来源核验",
           subtitle: "选中引文或法条，核验来源与版本是否一致",
@@ -168,20 +184,6 @@ struct FamoSkillsPage: View {
           onToggle: {
             FamoSettingsActions.toggle(state: state, keyPath: \.researchAssistSkillEnabled) {
               FamoSelectionMenuPreferences.researchAssistEnabled = $0
-            }
-          }
-        )
-        SettingsCardDivider(palette: palette)
-        SettingsToggleRow(
-          title: "公文排版",
-          subtitle: "选中正文，套用公文格式与字号字体",
-          systemImage: "doc.text",
-          isOn: state.documentFormattingSkillEnabled,
-          palette: palette,
-          isEnabled: state.cloudEnabled,
-          onToggle: {
-            FamoSettingsActions.toggle(state: state, keyPath: \.documentFormattingSkillEnabled) {
-              FamoSelectionMenuPreferences.documentFormattingEnabled = $0
             }
           }
         )
@@ -214,9 +216,8 @@ struct FamoSkillsPage: View {
           }
         )
         SettingsCardDivider(palette: palette)
-        // 三个润色的名字与副标题必须讲清两件事：改不改原文、样例谁来给。
         SettingsToggleRow(
-          title: "润色·直接替换",
+          title: "润色",
           subtitle: "选中文本，AI 改写一版并直接替换原文；宿主不允许替换时改为复制到剪贴板",
           systemImage: "wand.and.stars",
           isOn: state.polishSkillEnabled,
@@ -230,36 +231,8 @@ struct FamoSkillsPage: View {
         )
         SettingsCardDivider(palette: palette)
         SettingsToggleRow(
-          title: "润色·多版本挑选",
-          subtitle: "选中文本，一次给 3–5 个风格各异的版本让你挑；窗口显示、可复制，不改动原文",
-          systemImage: "rectangle.stack",
-          isOn: state.polishVariantsSkillEnabled,
-          palette: palette,
-          isEnabled: state.cloudEnabled,
-          onToggle: {
-            FamoSettingsActions.toggle(state: state, keyPath: \.polishVariantsSkillEnabled) {
-              FamoSelectionMenuPreferences.polishVariantsEnabled = $0
-            }
-          }
-        )
-        SettingsCardDivider(palette: palette)
-        SettingsToggleRow(
-          title: "润色·仿我的范例",
-          subtitle: "选中文本，你先补几条参考说法再发送，改写得贴近你的写法；窗口显示、可复制，不改动原文",
-          systemImage: "quote.bubble",
-          isOn: state.polishStyleMatchSkillEnabled,
-          palette: palette,
-          isEnabled: state.cloudEnabled,
-          onToggle: {
-            FamoSettingsActions.toggle(state: state, keyPath: \.polishStyleMatchSkillEnabled) {
-              FamoSelectionMenuPreferences.polishStyleMatchEnabled = $0
-            }
-          }
-        )
-        SettingsCardDivider(palette: palette)
-        SettingsToggleRow(
           title: "提示词优化",
-          subtitle: "选中写给 AI 的草稿提示词，改写成结构化提示词（补齐意图、目标、约束、产出形态）；预览确认后替换原文。用系统听写口述出草稿后选中即可",
+          subtitle: "选中写给 AI 的草稿提示词，改写成结构化提示词：补齐意图、目标、约束、产出形态，并按语义加上成对 XML 标签；预览确认后替换原文。用系统听写口述出草稿后选中即可",
           systemImage: "sparkles",
           isOn: state.promptOptimizeSkillEnabled,
           palette: palette,
@@ -271,21 +244,7 @@ struct FamoSkillsPage: View {
           }
         )
         SettingsCardDivider(palette: palette)
-        SettingsToggleRow(
-          title: "结构化·加标签",
-          subtitle: "选中写给 AI 的草稿，按语义加上成对 XML 标签（<instructions>、<context> 等，有层级就嵌套）；措辞一字不改、只插入标签。预览确认后替换原文",
-          systemImage: "chevron.left.forwardslash.chevron.right",
-          isOn: state.promptStructureSkillEnabled,
-          palette: palette,
-          isEnabled: state.cloudEnabled,
-          onToggle: {
-            FamoSettingsActions.toggle(state: state, keyPath: \.promptStructureSkillEnabled) {
-              FamoSelectionMenuPreferences.promptStructureEnabled = $0
-            }
-          }
-        )
-        SettingsCardDivider(palette: palette)
-        Text("打开划词菜单后，这些已启用的技能会出现在选中文本旁边。「任意提问」没有单独开关，它是全部技能的兜底——没有现成技能可用的加工需求，从划词菜单点它，对选中文本直接下指令（改写、排版、翻译、拟回复…）或提问。")
+        Text("召唤工具箱（双击 ⌥ 或快捷键）后，这些已启用的技能是窗口顶部的按钮。没有现成技能可用的个性化加工需求（多版本挑选、仿写、公文语体…），在输入框对选中文本直接下指令兜住。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .fixedSize(horizontal: false, vertical: true)

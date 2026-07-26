@@ -111,32 +111,7 @@ final class FamoAIConversationModelTests: XCTestCase {
       "发给模型的必须是 scaffold + 输入的全文，displayQuestion 只影响显示")
   }
 
-  func testDocumentFormatterCollectsReplacementText() async throws {
-    let streamer = FakeStreamer(
-      readiness: .ready(routing: readyRouting, apiKey: "sk-test"),
-      deltas: ["通知\n", "正文"]
-    )
-    let formatter = FamoSelectionDocumentFormatter(streamer: streamer)
-
-    let replacement = try await formatter.generateReplacement(for: "原始选区")
-
-    XCTAssertEqual(replacement, "通知\n正文")
-    XCTAssertEqual(streamer.streamCallCount, 1)
-    XCTAssertTrue(streamer.lastMessages.contains { $0.content.contains("只输出替换后的文本") })
-  }
-
-  func testDocumentFormatterFailsWhenProviderUnavailable() async {
-    let streamer = FakeStreamer(readiness: .unconfigured)
-    let formatter = FamoSelectionDocumentFormatter(streamer: streamer)
-
-    do {
-      _ = try await formatter.generateReplacement(for: "原始选区")
-      XCTFail("provider failure must not produce replacement text")
-    } catch {
-      XCTAssertEqual(FamoSelectionDocumentFormatter.message(for: error), "尚未配置可用 AI 供应商或 API Key。")
-    }
-    XCTAssertEqual(streamer.streamCallCount, 1)
-  }
+  // FamoSelectionDocumentFormatter 的两条测试已随「公文排版」技能删除（2026-07-26 技能精简）。
 
   // MARK: - stop()
 

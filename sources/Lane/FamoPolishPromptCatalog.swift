@@ -13,8 +13,8 @@
 //      temp 0.2 对齐 Responsay LLMGenerationProfile.resolve(rewrite)。
 //
 //  变体选择存于 FamoExperimentalPreferences.selectionPolishPromptVariant（default-OFF 模式：
-//  未设置/未知值一律回退 v1-legacy，不崩）。「润色·多选」技能（FamoSelectionSkillPrompts.
-//  polishVariantsQuestion）的真实区分度要求是法墨独有优点，不在本注册表管辖内、保持不动。
+//  未设置/未知值一律回退 v1-legacy，不崩）。（「润色·多版本挑选」技能已于 2026-07-26 技能精简中
+//  删除，个性化改写由「任意提问」兜底。）
 //
 
 import Foundation
