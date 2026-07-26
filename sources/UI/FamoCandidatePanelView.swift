@@ -118,10 +118,10 @@ struct FamoCandidatePanelView: View {
           preeditPieceView(piece, mono: mono)
         }
       }
-      Spacer(minLength: 8)
+      Spacer(minLength: 2)   // 原 8：输入串是面板最宽行时，这里的富余直接变成右侧空白
     }
     .padding(.leading, 14)
-    .padding(.trailing, 10)
+    .padding(.trailing, 8)
     .padding(.top, 9)
     .padding(.bottom, 5)
     .accessibilityElement(children: .combine)
@@ -395,9 +395,11 @@ struct FamoCandidatePanelView: View {
             }
             .foregroundStyle(selected ? palette.onAccent : palette.accent)
         }
+        // 不再 `.frame(maxWidth: .infinity)` 拉伸到面板全宽：输入串比候选宽时（整句拼音），
+        // 拉伸会让高亮胶囊拖一条与内容无关的长色尾（「右边太宽」）。改为胶囊只包住
+        // 「序号+词+注释」本身，多余宽度留白 —— 对齐参照系（候选撑宽时两者等价）。
         Text(candidate.text)
           .font(state.fontDesign.candidateFont(size: base))
-          .frame(maxWidth: .infinity, alignment: .leading)
           .foregroundStyle(selected ? palette.onAccent : palette.ink)
         // Feature 7: 隐藏注释 / 仅候选 presets drop the reading / 释义 comment.
         if state.candidateFormat.showsComment, let note = candidate.comment, !note.isEmpty {
