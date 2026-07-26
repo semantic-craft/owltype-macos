@@ -178,6 +178,14 @@ ice_schema="$tmp/Famo-component.pkg/Payload/Famo.app/Contents/SharedSupport/rime
 grep -A3 'name: emoji' "$ice_schema" | grep -q 'reset: 0' ||
   fail "pkg rime_ice.schema.yaml does not default emoji off (reset: 0)"
 pass "pkg rime_ice default: emoji off"
+# emoji off 态标签 = 👍（rime-ice 默认 💀 骷髅；reset 每次部署都弹一次 toast，2026-07-26 用户要求换）。
+grep -A3 'name: emoji' "$ice_schema" | grep -q 'states: \[ 👍, 😄 \]' ||
+  fail "pkg rime_ice.schema.yaml emoji states not [ 👍, 😄 ] (skull regression?)"
+pass "pkg rime_ice emoji off label: 👍"
+# ascii_mode 英文态标签 = 英（rime-ice 默认「Ａ」；task 06-27 用户要求，2026-07-26 搬入公开种子）。
+grep -A3 'name: ascii_mode' "$ice_schema" | grep -q 'states: \[ 中, 英 \]' ||
+  fail "pkg rime_ice.schema.yaml ascii_mode states not [ 中, 英 ]"
+pass "pkg rime_ice ascii_mode label: 中/英"
 
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$tmp/Famo-component.pkg/Payload/Famo.app"
 pass "pkg payload app codesign verifies"
