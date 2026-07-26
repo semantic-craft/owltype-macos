@@ -294,7 +294,9 @@ final class ProviderProfileStoreTests: XCTestCase {
   }
 
   func testLLMProviderCatalogMarksSourceSearchProvidersAndMiMoAuth() throws {
-    let sourceCapable = ["qwen", "doubao", "mimo", "zhipu", "openai"]
+    XCTAssertNil(FamoLLMProviderCatalog.preset(id: "zhipu"), "智谱已下架，不得再出现在预设目录里")
+
+    let sourceCapable = ["qwen", "doubao", "mimo", "openai"]
     for id in sourceCapable {
       let preset = try XCTUnwrap(FamoLLMProviderCatalog.preset(id: id))
       XCTAssertEqual(preset.sourceSupport, .sourceResults, "\(id) should support source verification")

@@ -22,7 +22,6 @@ final class FamoSearchControlTests: XCTestCase {
 
   func testChannelResolvesByProviderID() {
     XCTAssertEqual(FamoSearchControl.channel(providerID: "qwen", host: ""), .dashScope)
-    XCTAssertEqual(FamoSearchControl.channel(providerID: "zhipu", host: ""), .zhipu)
     XCTAssertEqual(FamoSearchControl.channel(providerID: "mimo", host: ""), .mimo)
     XCTAssertEqual(FamoSearchControl.channel(providerID: "doubao", host: ""), .ark)
     XCTAssertEqual(FamoSearchControl.channel(providerID: "openai", host: ""), .openAI)
@@ -33,8 +32,6 @@ final class FamoSearchControlTests: XCTestCase {
     XCTAssertEqual(
       FamoSearchControl.channel(providerID: "custom", host: "dashscope.aliyuncs.com"), .dashScope)
     XCTAssertEqual(
-      FamoSearchControl.channel(providerID: "custom", host: "open.bigmodel.cn"), .zhipu)
-    XCTAssertEqual(
       FamoSearchControl.channel(providerID: "custom", host: "api.xiaomimimo.com"), .mimo)
     XCTAssertEqual(
       FamoSearchControl.channel(providerID: "custom", host: "ark.cn-beijing.volces.com"), .ark)
@@ -43,6 +40,8 @@ final class FamoSearchControlTests: XCTestCase {
   }
 
   func testChannelIsNoneForProvidersWithoutSearch() {
+    // 智谱已下架：残留档案（或手填 bigmodel 端点）只当普通对话，不得再走联网。
+    XCTAssertEqual(FamoSearchControl.channel(providerID: "zhipu", host: "open.bigmodel.cn"), .none)
     XCTAssertEqual(FamoSearchControl.channel(providerID: "deepseek", host: "api.deepseek.com"), .none)
     XCTAssertEqual(FamoSearchControl.channel(providerID: "gemini", host: "generativelanguage.googleapis.com"), .none)
     XCTAssertEqual(FamoSearchControl.channel(providerID: "minimax", host: "api.minimax.chat"), .none)
@@ -51,10 +50,9 @@ final class FamoSearchControlTests: XCTestCase {
   // MARK: - Transport (WHICH endpoint carries the search)
 
   func testTransportSplitsChatCompletionsFromResponses() {
-    // 一期三家走 /chat/completions 顶层字段；二期两家的搜索只在 /responses 上，把它们的参数
+    // 一期两家走 /chat/completions 顶层字段；二期两家的搜索只在 /responses 上，把它们的参数
     // 塞进 chat/completions 会被端点静默忽略 —— 所以能力是类型，不是约定。
     XCTAssertEqual(FamoSearchControl.transport(providerID: "qwen", host: ""), .chatCompletions)
-    XCTAssertEqual(FamoSearchControl.transport(providerID: "zhipu", host: ""), .chatCompletions)
     XCTAssertEqual(FamoSearchControl.transport(providerID: "mimo", host: ""), .chatCompletions)
     XCTAssertEqual(FamoSearchControl.transport(providerID: "doubao", host: ""), .responses(isOpenAI: false))
     XCTAssertEqual(FamoSearchControl.transport(providerID: "openai", host: ""), .responses(isOpenAI: true))
@@ -63,7 +61,6 @@ final class FamoSearchControlTests: XCTestCase {
 
   func testSupportsSearchMatchesTheTransport() {
     XCTAssertTrue(FamoSearchControl.supportsSearch(providerID: "qwen", host: ""))
-    XCTAssertTrue(FamoSearchControl.supportsSearch(providerID: "zhipu", host: ""))
     XCTAssertTrue(FamoSearchControl.supportsSearch(providerID: "mimo", host: ""))
     XCTAssertTrue(FamoSearchControl.supportsSearch(providerID: "doubao", host: ""))
     XCTAssertTrue(FamoSearchControl.supportsSearch(providerID: "openai", host: ""))
@@ -76,21 +73,6 @@ final class FamoSearchControlTests: XCTestCase {
     let body = FamoSearchControl.extraBody(providerID: "qwen", host: "dashscope.aliyuncs.com")
     XCTAssertEqual(body["enable_search"] as? Bool, true)
     XCTAssertEqual(body.count, 1, "DashScope 只认 enable_search，多余字段会被拒")
-  }
-
-  func testZhipuExtraBodyCarriesWebSearchTool() {
-    let body = FamoSearchControl.extraBody(providerID: "zhipu", host: "open.bigmodel.cn")
-    XCTAssertEqual(body["tool_choice"] as? String, "auto")
-    guard let tools = body["tools"] as? [[String: Any]], let tool = tools.first else {
-      return XCTFail("智谱 must carry a tools array")
-    }
-    XCTAssertEqual(tool["type"] as? String, "web_search")
-    guard let webSearch = tool["web_search"] as? [String: Any] else {
-      return XCTFail("智谱 web_search tool must carry its nested config")
-    }
-    XCTAssertEqual(webSearch["enable"] as? Bool, true)
-    XCTAssertEqual(webSearch["search_engine"] as? String, "search_pro")
-    XCTAssertEqual(webSearch["search_result"] as? Bool, true)
   }
 
   func testMimoExtraBodyForcesSearchAndDisablesThinking() {
@@ -151,7 +133,6 @@ final class FamoSearchControlTests: XCTestCase {
 
   func testDisplayNameUsesBrandNamesForSearchProviders() {
     XCTAssertEqual(FamoSearchControl.displayName(for: "qwen"), "通义千问")
-    XCTAssertEqual(FamoSearchControl.displayName(for: "zhipu"), "智谱")
     XCTAssertEqual(FamoSearchControl.displayName(for: "mimo"), "MiMo")
     XCTAssertEqual(FamoSearchControl.displayName(for: "doubao"), "豆包")
     XCTAssertEqual(FamoSearchControl.displayName(for: "openai"), "OpenAI")
