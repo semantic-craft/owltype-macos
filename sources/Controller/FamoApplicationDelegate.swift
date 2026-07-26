@@ -686,6 +686,10 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
     // profile. No-op on a fresh install (no legacy key) or once a profile already exists. Off the
     // IMK hot path — runs only here at app launch.
     FamoProviderMigration.migrateLegacyDeepSeekIfNeeded()
+    // 快捷短语派生物迁移（同上键盘托管块的启动期幂等重写）：1.5.2 改了短语码格式（` 前缀 +
+    // 关前缀补全），但派生表/patch 只在设置页保存时重写——存量用户不重新保存就永远吃旧格式，
+    // 打一个 y 仍弹 CLI 短语。在初次 deploy 前重放 save()，内容一致时零写入。
+    FamoQuickSendStore.migrateDerivedArtifactsIfNeeded()
     // swiftlint:disable identifier_name
     let notification_handler: RimeNotificationHandler = notificationHandler
     let context_object = Unmanaged.passUnretained(self).toOpaque()
