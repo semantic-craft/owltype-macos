@@ -55,9 +55,13 @@ enum FamoPanelOrientation: String, CaseIterable, Sendable {
   case auto
   case horizontal
   case vertical
-  /// 横排折行（多行矩形）：横排的一种，候选排满一行折到下一行、堆成矩形（鼠鬚管
-  /// 0.15.0 起「候选折行」同款）。`isVertical` 仍为 false；`wraps` 才是它与单行横排的区别。
-  case flow
+  /// 卷轴（搜狗式按页对齐的多行候选）：主行是 librime 当前页、下方跟 1–2 行后页，翻页时整块
+  /// 上滚一行。`isVertical` 仍为 false；`scrolls` 才是它与单行横排的区别。
+  ///
+  /// 取代了 0.x 的 `.flow`「横排折行」（2026-07-26 退役）：折行把**同一页**折成矩形——候选一个
+  /// 不多、白占高度、行数随候选宽度抖动，且页点/展开箭头作为流式元素会飘到矩形里的随机位置。
+  /// 卷轴换成「一行 = 一整页」，行数固定、序号语义不变（数字键只管主行）。
+  case scroll
 
   /// Resolve to the panel's `isVertical`, given Rime's `_vertical` option for `.auto`.
   ///
@@ -71,13 +75,13 @@ enum FamoPanelOrientation: String, CaseIterable, Sendable {
     case .auto: rimeVertical
     case .horizontal: false
     case .vertical: true
-    case .flow: false   // 折行是横排的一种（多行矩形），不是竖排
+    case .scroll: false   // 卷轴是横排的一种（多行页），不是竖排
     }
   }
 
-  /// 是否横排折行（多行矩形）。仅显式 `.flow` 为真；`auto/横排/竖排` 均不折行，
-  /// 既有默认行为零变化。`isVertical` 为真时此值被忽略（竖排永不折行）。
-  var wraps: Bool { self == .flow }
+  /// 是否卷轴（主行 + 后页行）。仅显式 `.scroll` 为真；`auto/横排/竖排` 均为单行/纵列，
+  /// 既有默认行为零变化。`isVertical` 为真时此值被忽略（竖排不叠加后页行）。
+  var scrolls: Bool { self == .scroll }
 }
 
 /// Candidate text typeface family (G8 候选显示). System choices map to SwiftUI
@@ -178,16 +182,27 @@ enum FamoPanelPreferences {
 
   /// Candidate-window orientation. Key `"FamoPanelOrientation"`, default `.auto`.
   ///
-  /// 迁移（2026-07-22，「默认形态 单行/卷轴」并入排列方向）：老的「卷轴」= 每次组字默认展开成
+  /// 迁移①（2026-07-22，「默认形态 单行/卷轴」并入排列方向）：老的「卷轴」= 每次组字默认展开成
   /// 纵向候选列表，其渲染与 `.vertical` 完全相同（`showsFullList` 同走 `verticalList`）。故**未显式
   /// 选过排列方向**、但开过 legacy `FamoPanelExpandedByDefault` 的用户回落到 `.vertical`，保住其展开
   /// 纵列观感；一旦显式选任一方向即以新键为准（getter 内惰性迁移，仿 `FamoKeyboardPreferences.wubiScheme`）。
+  ///
+  /// 迁移②（2026-07-26，卷轴取代折行、并吸收「预览后页」开关）：
+  /// - 存过 `"flow"`（折行退役）→ `.scroll`。`FamoPanelOrientation(rawValue:)` 已不认这个串，
+  ///   故落到裸串比对这一支。
+  /// - 开过 legacy `FamoPanelPreviewPages`（主行 + 淡显后页）→ `.scroll`，因为卷轴就是它转正。
+  ///   这一支**排在已存方向之前**，否则显式选过「横排」+ 开着预览后页的用户会静默丢掉后页行；
+  ///   竖排下预览本就被门控掉，所以 `.vertical` 明确排除、维持竖排。
   static var orientation: FamoPanelOrientation {
     get {
-      if let raw = FamoDefaults.standard.string(forKey: "FamoPanelOrientation"),
-         let value = FamoPanelOrientation(rawValue: raw) {
-        return value
+      let raw = FamoDefaults.standard.string(forKey: "FamoPanelOrientation")
+      let stored = raw.flatMap(FamoPanelOrientation.init(rawValue:))
+      if stored == nil, raw == "flow" { return .scroll }
+      if stored != .vertical,
+         FamoDefaults.standard.object(forKey: "FamoPanelPreviewPages") as? Bool == true {
+        return .scroll
       }
+      if let stored { return stored }
       if FamoDefaults.standard.object(forKey: "FamoPanelExpandedByDefault") as? Bool == true {
         return .vertical
       }
@@ -195,6 +210,9 @@ enum FamoPanelPreferences {
     }
     set {
       FamoDefaults.standard.set(newValue.rawValue, forKey: "FamoPanelOrientation")
+      // 显式选过方向即视迁移②完成，清掉 legacy 开关——否则 getter 会把之后选的「横排」
+      // 又映射回卷轴，用户再也回不到单行横排。
+      FamoDefaults.standard.removeObject(forKey: "FamoPanelPreviewPages")
     }
   }
 
@@ -238,18 +256,13 @@ enum FamoPanelPreferences {
     set { FamoDefaults.standard.set(newValue, forKey: "FamoPanelShowPaging") }
   }
 
-  /// 预览后页（三行候选·方向④做法Ⓑ「等大淡显」）. Key `"FamoPanelPreviewPages"`,
-  /// default `false`（现状零变化）. On → 横排紧凑条下方以等大、淡显、无序号、不可交互的
-  /// 预览行显示后面 1–2 页；数据来自 librime 候选列表只读枚举（不真翻页）。竖排/折行/
-  /// 展开列表不叠加预览。
-  static var previewPages: Bool {
-    get { FamoDefaults.standard.object(forKey: "FamoPanelPreviewPages") as? Bool ?? false }
-    set { FamoDefaults.standard.set(newValue, forKey: "FamoPanelPreviewPages") }
-  }
-
-  /// 预览行数（1 或 2）. Key `"FamoPanelPreviewRows"`, default `2`. 读取时钳到 1...2，
-  /// 抵御手改 defaults 写出的越界值。
-  static var previewRows: Int {
+  /// 卷轴的后页行数（1 或 2；总行数 = 主行 + 它）. Key `"FamoPanelPreviewRows"`, default `2`.
+  /// 读取时钳到 1...2，抵御手改 defaults 写出的越界值。
+  ///
+  /// 键名保留 `Preview` 前缀：它就是老「预览行数」那一格，卷轴吸收「预览后页」后只换了语义
+  /// （后页行现在可点、稍淡、仍无序号），改键名只会让老用户的选择白丢。开关键
+  /// `"FamoPanelPreviewPages"` 则已退役，只剩 `orientation` getter 里的迁移②读它一次。
+  static var scrollRows: Int {
     get { min(2, max(1, FamoDefaults.standard.object(forKey: "FamoPanelPreviewRows") as? Int ?? 2)) }
     set { FamoDefaults.standard.set(min(2, max(1, newValue)), forKey: "FamoPanelPreviewRows") }
   }
@@ -286,10 +299,9 @@ struct FamoPanelSnapshot: Sendable, Equatable {
   let candidateFormat: FamoCandidateFormat
   let theme: FamoCandidateTheme
   let appearance: FamoPanelAppearance
-  /// 预览后页 + 预览行数（三行候选·方向④Ⓑ）。控制器在 `showPanel` 里据此决定是否
-  /// 预取后页候选；面板/视图只消费取好的 `previewRows` 数据，不再读这两个偏好。
-  let previewPages: Bool
-  let previewRows: Int
+  /// 卷轴的后页行数。控制器在 `showPanel` 里据此决定预取多少后页候选；面板/视图只消费
+  /// 取好的 `scrollRows` 数据，不再读这个偏好。是否卷轴由 `orientation.scrolls` 决定。
+  let scrollRows: Int
 
   /// Read every backing preference once. Called by the controller (in `showPanel`) per composition,
   /// and by the panel's `refreshPreferences()` on a settings-driven look change.
@@ -304,7 +316,6 @@ struct FamoPanelSnapshot: Sendable, Equatable {
       candidateFormat: FamoPanelPreferences.candidateFormat,
       theme: FamoSkinPreferences.skin.theme,
       appearance: FamoPanelPreferences.appearance,
-      previewPages: FamoPanelPreferences.previewPages,
-      previewRows: FamoPanelPreferences.previewRows)
+      scrollRows: FamoPanelPreferences.scrollRows)
   }
 }
