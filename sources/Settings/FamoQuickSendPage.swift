@@ -128,7 +128,15 @@ enum FamoQuickSendStore {
     let hasDict = fm.fileExists(atPath: rimeDir.appendingPathComponent(dictFileName).path)
     guard hasJSON || hasDict else { return }
     do {
-      try save(load(rimeDir: rimeDir), writer: FamoConfigWriter(rimeDir: rimeDir))
+      // 独立后缀防备份撞车：启动期键盘托管块 apply 与本迁移可能同一秒内先后写
+      // rime_ice.custom.yaml，裸 yyyyMMdd-HHmmss 会让两个批次共用同一个
+      // .famo-backup/<ts>/ 目录——第二次备份覆盖第一次，rollback 只能还原到
+      // 键盘写完后的中间态而非启动前原状（PR #42 评审逮住）。
+      try save(
+        load(rimeDir: rimeDir),
+        writer: FamoConfigWriter(rimeDir: rimeDir),
+        timestamp: timestampNow() + "-quicksend-migration"
+      )
     } catch {
       print("Famo: quick-send derived-artifact migration failed: \(error)")
     }
