@@ -158,11 +158,11 @@ final class FamoSettingsE2EContractTests: XCTestCase {
       writer: FamoConfigWriter(rimeDir: rimeDir),
       timestamp: "20260622-settings-e2e"
     )
-    // load reads the JSON source of truth: exactly the saved entries, with the bare code —
-    // the derived table's prefixed line must NOT come back as an entry.
+    // load reads the JSON source of truth: exactly the saved entries. The derived table carries
+    // the same bare code (no prefix — ` collides with rime-ice's radical-search lead key).
     XCTAssertEqual(FamoQuickSendStore.load(rimeDir: rimeDir), [quickEntry])
-    XCTAssertTrue(try read("famo_quick_send.txt", in: rimeDir).contains("法墨测试\t`fmcs\t100000"))
-    XCTAssertFalse(try read("famo_quick_send.txt", in: rimeDir).contains("法墨测试\tfmcs\t100000"))
+    XCTAssertTrue(try read("famo_quick_send.txt", in: rimeDir).contains("法墨测试\tfmcs\t100000"))
+    XCTAssertFalse(try read("famo_quick_send.txt", in: rimeDir).contains("`fmcs"))
     XCTAssertTrue(try read("rime_ice.custom.yaml", in: rimeDir).contains("table_translator@famo_quick_send"))
 
     XCTAssertFalse(FamoClipboardStore.isEnabled(defaults: defaults))
@@ -205,8 +205,8 @@ final class FamoSettingsE2EContractTests: XCTestCase {
     }
 
     // Enabling an example == saving entries that include its `entry`: it roundtrips through `load`
-    // as exactly itself, while the generated TSV + rime_ice patch carry the command plus the auto
-    // `v` variant (derived-table-only — it must never read back as an entry).
+    // as exactly itself, while the generated TSV + rime_ice patch carry the command under its
+    // bare code (full-code trigger; enable_completion stays off in the patch).
     let rimeDir = try makeTempDir()
     let claude = try XCTUnwrap(FamoQuickSendExamples.all.first { $0.tool == "Claude Code" })
     try FamoQuickSendStore.save(
@@ -216,7 +216,8 @@ final class FamoSettingsE2EContractTests: XCTestCase {
     )
     XCTAssertEqual(FamoQuickSendStore.load(rimeDir: rimeDir), [claude.entry])
     let table = try read("famo_quick_send.txt", in: rimeDir)
-    XCTAssertTrue(table.contains("claude --dangerously-skip-permissions\t`yocc\t100000"))
+    XCTAssertTrue(table.contains("claude --dangerously-skip-permissions\tyocc\t100000"))
+    XCTAssertFalse(table.contains("`yocc"))
     XCTAssertFalse(table.contains("\tvyocc\t"))
     XCTAssertTrue(try read("rime_ice.custom.yaml", in: rimeDir).contains("table_translator@famo_quick_send"))
   }
