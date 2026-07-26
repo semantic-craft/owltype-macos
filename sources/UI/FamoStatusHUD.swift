@@ -88,8 +88,8 @@ struct FamoStatusHUDView: View {
           .strokeBorder(panelBorder, lineWidth: 1)
       }
       .clipShape(RoundedRectangle(cornerRadius: state.theme.cornerRadius, style: .continuous))
-      .shadow(color: .black.opacity(colorScheme == .dark ? 0.45 : 0.16),
-              radius: state.theme.shadowRadius, x: 0, y: 7)
+      // 投影不在这里画：SwiftUI 的 .shadow 不撑布局，而窗口尺寸 = contentView.fittingSize，
+      // 模糊没有落点。改由 NSPanel 的 `hasShadow` 按内容 alpha 画（见下方 FamoStatusHUD.init）。
       .accessibilityLabel("状态 \(state.message)")
   }
 
@@ -129,7 +129,10 @@ final class FamoStatusHUD: NSPanel {
     hidesOnDeactivate = false
     isFloatingPanel = true
     level = .floating
-    hasShadow = false
+    // 同 FamoSwiftUICandidatePanel：窗口投影交给 AppKit。此前是 `false` + 视图层
+    // `.shadow(radius:16, y:7)`，但窗口尺寸严格等于 `contentView.fittingSize`，那层模糊
+    // 没有落点——toast 一直是没有投影的。
+    hasShadow = true
     isOpaque = false
     backgroundColor = .clear
     collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
@@ -159,7 +162,11 @@ final class FamoStatusHUD: NSPanel {
 
     contentView?.layoutSubtreeIfNeeded()
     let fittingSize = contentView?.fittingSize ?? NSSize(width: 120, height: 44)
-    setFrame(clampedFrame(anchor: anchor, size: fittingSize), display: true)
+    let newFrame = clampedFrame(anchor: anchor, size: fittingSize)
+    let sizeChanged = newFrame.size != frame.size
+    setFrame(newFrame, display: true)
+    // 尺寸变了才重算窗口投影（toast 一秒一次、不在按键热路径上，但判据与候选窗保持一致）。
+    if sizeChanged { invalidateShadow() }
 
     if !isVisible {
       orderFrontRegardless()
