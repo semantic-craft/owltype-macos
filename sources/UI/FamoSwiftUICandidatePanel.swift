@@ -206,7 +206,12 @@ final class FamoSwiftUICandidatePanel: NSPanel {
     hidesOnDeactivate = false
     isFloatingPanel = true
     level = .popUpMenu
-    hasShadow = false
+    // 窗口投影交给 AppKit（与 emoji / 快捷短语 / 划词菜单四个面板一致）。此前是
+    // `false` + 视图层 `.shadow(radius:16, y:8)`，但 SwiftUI 的 shadow 不撑布局，而窗口
+    // 尺寸严格等于 `contentView.fittingSize`——16pt 的模糊没有落点，整个面板其实一直没有
+    // 投影，屏幕上唯一“浮起来”的东西反而是选中胶囊自己的投影。改由系统按内容 alpha 画，
+    // 改由系统按内容 alpha 画，尺寸变化时经 `setFrameAndShadow` 重算形状。
+    hasShadow = true
     isOpaque = false
     backgroundColor = .clear
     collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
@@ -265,7 +270,7 @@ final class FamoSwiftUICandidatePanel: NSPanel {
     // while fast-paging. reframeToFit() is an async backstop if the sync pass is stale.
     contentView?.layoutSubtreeIfNeeded()
     let fittingSize = contentView?.fittingSize ?? NSSize(width: 320, height: 120)
-    setFrame(clampedFrame(anchor: content.anchor, size: fittingSize), display: true)
+    setFrameAndShadow(clampedFrame(anchor: content.anchor, size: fittingSize))
 
     if !isVisible {
       orderFrontRegardless()
@@ -287,7 +292,19 @@ final class FamoSwiftUICandidatePanel: NSPanel {
     }
     contentView?.layoutSubtreeIfNeeded()
     let fittingSize = contentView?.fittingSize ?? frame.size
-    setFrame(clampedFrame(anchor: anchor, size: fittingSize), display: true)
+    setFrameAndShadow(clampedFrame(anchor: anchor, size: fittingSize))
+  }
+
+  /// `setFrame` + 仅在**尺寸真的变了**时重算窗口投影。
+  ///
+  /// AppKit 的窗口投影按内容 alpha 算，是这条热路径上唯一新增的成本；而候选窗每次按键都会
+  /// `setFrame`，其中相当一部分（移高亮、翻到等宽的一页、只挪位置不改内容）尺寸并没变——
+  /// 那些情况下旧投影形状依然正确，不必重算。面板形状恒为 radius 13 的圆角矩形，尺寸不变
+  /// 即形状不变，所以这个判据是充分的。
+  private func setFrameAndShadow(_ newFrame: NSRect) {
+    let sizeChanged = newFrame.size != frame.size
+    setFrame(newFrame, display: true)
+    if sizeChanged { invalidateShadow() }
   }
 
   /// Re-fit the panel to the current content size against the last caret anchor. Called
@@ -298,8 +315,7 @@ final class FamoSwiftUICandidatePanel: NSPanel {
     DispatchQueue.main.async { [weak self] in
       guard let self, self.isVisible else { return }
       let fittingSize = self.contentView?.fittingSize ?? self.frame.size
-      let frame = self.clampedFrame(anchor: self.lastAnchor, size: fittingSize)
-      self.setFrame(frame, display: true)
+      self.setFrameAndShadow(self.clampedFrame(anchor: self.lastAnchor, size: fittingSize))
     }
   }
 
