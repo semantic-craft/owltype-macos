@@ -32,12 +32,33 @@ final class FamoAIContextAssemblerTests: XCTestCase {
     XCTAssertEqual(messages.map(\.role), ["system", "user"])
   }
 
+  func testSelectionProcessingRuleRidesWithSelectionOnly() throws {
+    // 带选区：加工规则拼在选区消息里（不可信文本之后），保证「把引号替换掉」这类指令只回结果。
+    let withSelection = FamoAIContextAssembler.assemble(selectedText: "选中原文", question: "把引号替换掉")
+    let selectionMessage = withSelection[1].content
+    XCTAssertTrue(selectionMessage.contains(FamoAIContextAssembler.selectionProcessingRule))
+    let textIndex = try XCTUnwrap(selectionMessage.range(of: "选中原文")).lowerBound
+    let ruleIndex = try XCTUnwrap(selectionMessage.range(of: "[选中文本加工规则]")).lowerBound
+    XCTAssertLessThan(textIndex, ruleIndex, "rule must come AFTER the untrusted selection text")
+
+    // 无选区的纯提问：任何消息都不带加工规则，一般问答不受影响。
+    let withoutSelection = FamoAIContextAssembler.assemble(question: "什么是善意取得？")
+    XCTAssertFalse(withoutSelection.contains { $0.content.contains("[选中文本加工规则]") })
+  }
+
+  func testSelectionCapMatchesSelectionMenuGate() {
+    // 划词菜单放行 ≤ maxSelectionLength 的选区；装配器上限必须不小于它，否则菜单放进来的长选区
+    // 会被静默截残（加工结果缺尾）。
+    XCTAssertEqual(FamoAIContextAssembler.selectedTextCharCap, FamoSelectionPolish.maxSelectionLength)
+  }
+
   func testLongExplicitSelectionIsTruncated() {
     let selection = String(repeating: "甲", count: FamoAIContextAssembler.selectedTextCharCap + 50)
     let messages = FamoAIContextAssembler.assemble(selectedText: selection, question: "概括")
     let context = messages[1].content
 
-    XCTAssertTrue(context.hasSuffix("…"))
+    // 截断保留恰好 cap 个字符 + 省略号（加工规则拼在其后，故不再断言 hasSuffix）。
+    XCTAssertTrue(context.contains(String(repeating: "甲", count: FamoAIContextAssembler.selectedTextCharCap) + "…"))
     XCTAssertFalse(context.contains(selection))
   }
 

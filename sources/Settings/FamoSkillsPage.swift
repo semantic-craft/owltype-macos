@@ -285,7 +285,7 @@ struct FamoSkillsPage: View {
           }
         )
         SettingsCardDivider(palette: palette)
-        Text("打开划词菜单后，这些已启用的技能会出现在选中文本旁边。「任意提问」不在此列——它不处理选区，入口是划词菜单里的同名项，也可在「快捷键设置」里录一个热键随时召唤。")
+        Text("打开划词菜单后，这些已启用的技能会出现在选中文本旁边。「任意提问」没有单独开关，它是全部技能的兜底——没有现成技能可用的加工需求，从划词菜单点它，对选中文本直接下指令（改写、排版、翻译、拟回复…）或提问。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .fixedSize(horizontal: false, vertical: true)
