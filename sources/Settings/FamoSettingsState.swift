@@ -59,7 +59,7 @@ enum FamoSettingsPage: String, CaseIterable, Identifiable, Sendable {
     case .schemes: return "输入方案"    case .quickSend: return "快捷短语"
     case .prompts: return "提示词助手"
     case .clipboard: return "剪贴板"
-    case .project: return "技能平台"
+    case .project: return "划词工具箱"
     case .ai: return "AI 配置"
     case .skin: return "皮肤外观"
     case .diagnostics: return "诊断"
@@ -235,7 +235,7 @@ final class FamoSettingsState {
   var askWebSearchEnabled: Bool = FamoAskWebSearchSettings.isEnabled
   /// 任意提问「联网模型」偏好 (mirror of `FamoAskSearchProviderSettings.rawValue`). `""` = 自动.
   var askWebSearchProvider: String = FamoAskSearchProviderSettings.rawValue
-  /// 划词菜单总开关 + 技能平台内置技能 mirrors.
+  /// 划词菜单总开关 + 划词工具箱页内置技能 mirrors.
   var selectionMenuEnabled: Bool = FamoSelectionMenuPreferences.isEnabled
   var askAnythingSkillEnabled: Bool = FamoSelectionMenuPreferences.askEnabled
   var polishSkillEnabled: Bool = FamoSelectionMenuPreferences.polishEnabled
@@ -246,7 +246,7 @@ final class FamoSettingsState {
   var promptOptimizeSkillEnabled: Bool = FamoSelectionMenuPreferences.promptOptimizeEnabled
 }
 
-/// Single home for 划词菜单 + 技能平台 built-in skill preferences.
+/// Single home for 划词菜单 + 划词工具箱页 built-in skill preferences.
 ///
 /// Defaults are product-facing: the global menu is opt-in/off, while the two built-in
 /// skills are active once the menu is enabled. Keep the UserDefaults keys here so the

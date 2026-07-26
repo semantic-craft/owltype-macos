@@ -1,6 +1,6 @@
 //
 //  FamoSkillsPage.swift
-//  法墨输入法 (Famo) — 技能平台 (Skills) settings page + 辅助功能授权
+//  法墨输入法 (Famo) — 划词工具箱页 (Skills) settings page + 辅助功能授权
 //
 //  Boundary (ADR-0001 / 0002 / 0003): SwiftUI settings UI only; not @MainActor-isolated.
 //
@@ -31,7 +31,7 @@ enum FamoAccessibilitySettings {
   }
 }
 
-// MARK: - 技能平台
+// MARK: - 划词工具箱页
 
 /// Selection-menu skill platform. This page only writes preferences and opens the
 /// macOS Accessibility pane; the global selection watcher owns runtime permission checks.
@@ -60,7 +60,7 @@ struct FamoSkillsPage: View {
   }
 
   private var selectionMenuCard: some View {
-    SettingsCard(title: "划词工具箱", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
+    SettingsCard(title: "启用与权限", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
       VStack(spacing: 0) {
         SettingsToggleRow(
           title: "启用划词工具箱",
@@ -111,7 +111,7 @@ struct FamoSkillsPage: View {
   // MARK: - 云端 AI（全局）
 
   /// The single global on/off for every cloud-AI feature. Lives here (not on the AI 配置 page)
-  /// because 技能平台 only does anything once 云端 AI is on: `enabledActions` returns an empty
+  /// because 划词工具箱页 only does anything once 云端 AI is on: `enabledActions` returns an empty
   /// menu when it is off, and the 内置技能 rows below disable in lockstep.
   /// No separate 辅助功能权限 block: `selectionMenuCard` above already shows that status.
   private var cloudCard: some View {

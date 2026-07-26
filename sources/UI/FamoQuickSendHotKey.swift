@@ -392,7 +392,7 @@ struct FamoHotKeyRecorderRow: View {
       } else if slot == .selectionMenu, combo != nil, !accessibilityTrusted {
         // 平行开关（产品决策 2026-07-19，重设计后延续）：热键召唤不依赖「启用划词工具箱」总开关
         // （那只管双击 ⌥ 手势）；唯一硬前置是辅助功能权限（读选中文字必需）。未授权时点破，免得录了组合以为坏了。
-        Text("需辅助功能权限（技能平台 → 辅助功能授权），热键才能读取选中文字")
+        Text("需辅助功能权限（划词工具箱 → 辅助功能授权），热键才能读取选中文字")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
       }
