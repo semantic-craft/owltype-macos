@@ -174,6 +174,17 @@ final class FamoInputController: IMKInputController {
     return success
   }
 
+  /// Commit a candidate by its absolute index into the whole candidate list — the 卷轴后页行
+  /// click path, where the clicked candidate is visible but not on librime's current page.
+  func selectCandidateAbsolute(_ index: Int) -> Bool {
+    guard let rime else { return false }
+    let success = rime.selectCandidateAbsolute(index)
+    if success {
+      rimeUpdate()
+    }
+    return success
+  }
+
   // swiftlint:disable:next identifier_name
   func page(up: Bool) -> Bool {
     guard let rime else { return false }

@@ -25,6 +25,10 @@ struct FamoCandidatePanelView: View {
   /// Paging callback (up == true → previous page). Wired to `page(up:)`; reached via the
   /// page-dot affordances in the compact bar.
   let onPage: (Bool) -> Void
+  /// Click-to-select for a 卷轴后页行 candidate, by **absolute** index into the whole candidate
+  /// list. Separate from `onSelect` (which is a current-page offset) because the two land on
+  /// different librime calls. Optional so the settings skin-preview call site is unaffected.
+  var onSelectAbsolute: ((Int) -> Void)? = nil
   /// Called after the expand chevron toggles `state.isExpanded`, so the hosting panel
   /// can re-fit its frame to the new content size. Optional (default nil) so the
   /// settings skin-preview call site is unaffected. NEEDS REAL-MACHINE VERIFICATION:
@@ -72,15 +76,10 @@ struct FamoCandidatePanelView: View {
       if showsHeader { header }
       if showsFullList {
         verticalList
-      } else if state.isFlow {
-        flowRow
+      } else if state.isScroll {
+        scrollStack
       } else {
         compactRow
-        // 预览后页（三行候选·方向④Ⓑ）：仅横排紧凑条下方叠加；展开成纵向列表时随
-        // `showsFullList` 一起消失。
-        if !state.previewRows.isEmpty {
-          previewSection
-        }
       }
     }
     // 竖排让内容/输入串撑宽度（仿鼠鬚管 stacked / 搜狗竖排：以最宽候选贴边 + 对称边距）。
@@ -108,6 +107,10 @@ struct FamoCandidatePanelView: View {
     // 模糊没有落点。改由 NSPanel 的 `hasShadow` 按内容 alpha 画（FamoSwiftUICandidatePanel）。
     .animation(animateOK ? .snappy(duration: 0.08) : nil, value: state.highlightedIndex)
     .animation(animateOK ? .snappy(duration: 0.12) : nil, value: state.isExpanded)
+    // 卷轴的「上滚一行」。仅卷轴下挂动画：其余形态传 nil，翻页仍是既有的瞬时替换，
+    // 已发布行为零变化。窗口 frame 本身不参与动画（`setFrameAndShadow` 是直接 setFrame），
+    // 靠卷轴行数恒定来保证高度不跳；宽度仍会随候选变化瞬时吸附。
+    .animation(animateOK && state.isScroll ? .snappy(duration: 0.18) : nil, value: state.page)
   }
 
   /// 薄雾玻璃（07-26 grilling R4 定案，HIG Materials）：material 上叠 card @ 0.72 ——
@@ -138,12 +141,12 @@ struct FamoCandidatePanelView: View {
     RoundedRectangle(cornerRadius: r, style: .continuous).fill(palette.accent)
   }
 
-  /// 横排 2A 的纵向出血量：选中块顶到候选条的上下内边（上 4 / 下 9，有预览行时下 4，
-  /// 与 `compactRow` 的 padding 一一对应）。`.background` 里的负 padding 只让背景越界、
-  /// 不改变布局尺寸。折行模式不出血——行间只有 6pt，出血会压到相邻行。
+  /// 横排 2A 的纵向出血量：选中块顶到候选条的上下内边（上 4 / 下 9，与容器 padding 一一
+  /// 对应）。`.background` 里的负 padding 只让背景越界、不改变布局尺寸。
+  ///
+  /// 卷轴且真有后页行时下缘只出 2：主行下方 5pt 就是后页行，出满会压到下一行上。
   private var compactBleed: (top: CGFloat, bottom: CGFloat) {
-    guard !state.isFlow else { return (0, 0) }
-    return (-4, state.previewRows.isEmpty ? -9 : -4)
+    (-4, state.isScroll && !state.scrollRows.isEmpty ? -2 : -9)
   }
 
   // MARK: Header — preedit (dotted underline) + blinking caret + expand chevron
@@ -233,6 +236,14 @@ struct FamoCandidatePanelView: View {
   // MARK: Compact horizontal pill bar (default form)
 
   private var compactRow: some View {
+    mainRow
+      .padding(.horizontal, 8)
+      .padding(.top, 4)
+      .padding(.bottom, 9)
+  }
+
+  /// 当前页那一行：候选 + 翻页点 + 展开箭头。卷轴与单行横排共用，唯一的区别是外面套的容器。
+  private var mainRow: some View {
     HStack(spacing: 6) {   // 字↔字：候选之间留白（仿搜狗的舒展间距；原 1 太挤）
       ForEach(state.candidates) { candidate in
         compactPill(candidate)
@@ -250,71 +261,62 @@ struct FamoCandidatePanelView: View {
         expandChevron.padding(.leading, 4)
       }
     }
-    .padding(.horizontal, 8)
-    .padding(.top, 4)
-    // 有预览行时收紧主行底边距（预览段自带底部 9），行距与行内间距一致。
-    .padding(.bottom, state.previewRows.isEmpty ? 9 : 4)
   }
 
-  // MARK: 预览后页（三行候选·方向④Ⓑ — 等大淡显）
+  // MARK: 卷轴（主行 + 后页行，按页对齐）
 
-  /// Preview rows for the next 1–2 pages under the compact bar. 做法Ⓑ的裁决：与主行
-  /// **等大**（矩形轮廓稳、翻页时面板不跳）、只降不透明度（0.45 / 0.30）、只渲染候选
-  /// 文字（无序号/注释/徽章）、不可交互（`allowsHitTesting(false)`）、对辅助功能隐藏
-  /// （避免把不可选的行报给 VoiceOver）。数据由控制器预取（librime 只读枚举）。
-  private var previewSection: some View {
+  /// 卷轴的行集合：第 0 行是主行（librime 当前页），之后是预取的后页行。
+  ///
+  /// 主行与后页行必须放进**同一个** `ForEach`、以页号为身份：翻一页后集合从 [p, p+1, p+2]
+  /// 变成 [p+1, p+2, p+3]，p+1/p+2 身份不变，SwiftUI 于是把它们从第 2/3 格动画到第 1/2 格
+  /// ——观感即「整块上滚一行」。拆成两个 ForEach（主行一个、后页行一个）就没有这个跨格身份，
+  /// 只会得到逐行的交叉淡化。
+  private var scrollPages: [FamoScrollRow] {
+    [FamoScrollRow(id: state.page, candidates: state.candidates)] + state.scrollRows
+  }
+
+  /// 末页时 `scrollRows` 为空（没有后页可取），卷轴自然退化成单行——这是「到底了」的诚实表达，
+  /// 不拿空行凑高度。代价是候选总数少于两页时，翻到末页会掉一行高度。
+  private var scrollStack: some View {
     VStack(alignment: .leading, spacing: 5) {
-      ForEach(Array(state.previewRows.prefix(2).enumerated()), id: \.offset) { rowIndex, row in
-        HStack(spacing: 6) {
-          ForEach(row) { candidate in
-            previewPill(candidate)
-          }
-        }
-        .opacity(rowIndex == 0 ? 0.45 : 0.30)
+      ForEach(scrollPages) { row in
+        scrollRow(row)
       }
     }
     .padding(.horizontal, 8)
+    .padding(.top, 4)
     .padding(.bottom, 9)
-    .allowsHitTesting(false)
-    .accessibilityHidden(true)
   }
 
-  /// A preview pill: candidate text only, sized/padded exactly like `compactPill` so the
-  /// three rows read as one grid (等大); never compressed or truncated (`.fixedSize()`).
-  private func previewPill(_ candidate: CandidateViewModel) -> some View {
+  /// 一行 = 一整页。主行走 `mainRow`（带序号、可高亮、挂翻页点与展开箭头）；后页行只有
+  /// 候选文字、稍淡（0.75），点击走绝对下标。后页行**不带序号**是刻意的：数字键只选得中
+  /// 主行，给后页行编号会造出「看得到按不到」的假承诺。
+  @ViewBuilder private func scrollRow(_ row: FamoScrollRow) -> some View {
+    if row.id == state.page {
+      mainRow
+    } else {
+      HStack(spacing: 6) {
+        ForEach(row.candidates) { candidate in
+          scrollPill(candidate)
+        }
+      }
+      .opacity(0.75)
+    }
+  }
+
+  /// 后页行的候选：只有候选文字，尺寸/内边距与 `compactPill` 逐项对齐（同字号、同 8/7 内边距），
+  /// 三行才读成一张网格；`.fixedSize()` 保证绝不压缩截断。
+  private func scrollPill(_ candidate: CandidateViewModel) -> some View {
     Text(candidate.text)
       .font(state.fontDesign.candidateFont(size: base + 1))
       .foregroundStyle(palette.ink)
       .fixedSize()
       .padding(.horizontal, 8)
       .padding(.vertical, 7)
-  }
-
-  // MARK: Flow row (横排折行 — 多行矩形)
-
-  /// 折行换行的目标行宽：候选累计超过它就折到下一行，堆成矩形（鼠鬚管 0.15.0「候选折行」同款）。
-  /// 随字号缩放。单个超宽候选（长词/法条）仍整体独占一行、绝不截断——`compactPill` 是 `.fixedSize()`，
-  /// 而 `FamoFlowLayout` 只在「行首之后」才换行。首个可暴露为「行宽/每行候选数」偏好的旋钮。
-  private var flowMaxWidth: CGFloat { base * 16 }
-
-  /// Multi-row rectangle: the same page of `compactPill`s, wrapped at `flowMaxWidth` via a
-  /// custom `Layout`. Reuses `compactPill` / `pageDots` / `expandChevron` verbatim (the flow
-  /// merely changes how they are arranged); the expand chevron still switches to `verticalList`.
-  private var flowRow: some View {
-    FamoFlowLayout(maxWidth: flowMaxWidth, hSpacing: 6, vSpacing: 6) {
-      ForEach(state.candidates) { candidate in
-        compactPill(candidate)
-      }
-      if state.showPaging && (state.hasPrevPage || state.hasNextPage) {
-        pageDots
-      }
-      if showsExpandChevron {
-        expandChevron
-      }
-    }
-    .padding(.horizontal, 8)
-    .padding(.top, 4)
-    .padding(.bottom, 9)
+      .contentShape(Rectangle())
+      // `candidate.id` 在后页行里是整张候选列表的绝对下标（见 `FamoScrollRow`）。
+      .onTapGesture { onSelectAbsolute?(candidate.id) }
+      .accessibilityLabel(Text(candidate.text))
   }
 
   /// Expand/collapse affordance — lives in the candidate row (not the preedit header,
@@ -538,62 +540,3 @@ private struct FamoCaret: View {
   }
 }
 
-/// 横排折行布局（多行矩形）：把候选从左到右摆放，累计宽度超过 `maxWidth` 就折到下一行，
-/// 形成一个矩形候选块（鼠鬚管 0.15.0「候选折行」的 SwiftUI 版；`Layout` 协议需 macOS 13+，
-/// 本工程部署目标 14.0）。放同一文件而非独立文件，是为了免动非同步的 `.xcodeproj`（逐文件登记）。
-///
-/// 换行宽度取 `min(提议宽, maxWidth)`：面板测量 `fittingSize` 时提议宽为 nil，于是按 `maxWidth`
-/// 折行，并返回**紧致**包围盒（最宽行 × 总高），让 `NSHostingView.fittingSize` 得到真实矩形尺寸。
-/// 只在「行首之后」才换行，故单个超过 `maxWidth` 的候选整体独占一行、绝不被压缩截断。
-struct FamoFlowLayout: Layout {
-  /// 触发折行的目标行宽（上限）。
-  var maxWidth: CGFloat
-  /// 同行候选之间的水平间距。
-  var hSpacing: CGFloat = 6
-  /// 行与行之间的垂直间距。
-  var vSpacing: CGFloat = 6
-
-  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache _: inout Void) -> CGSize {
-    let width = min(proposal.width ?? maxWidth, maxWidth)
-    return arrange(subviews: subviews, width: width).size
-  }
-
-  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache _: inout Void) {
-    let width = min(proposal.width ?? maxWidth, maxWidth)
-    let positions = arrange(subviews: subviews, width: width).positions
-    for (index, position) in positions.enumerated() {
-      subviews[index].place(
-        at: CGPoint(x: bounds.minX + position.x, y: bounds.minY + position.y),
-        anchor: .topLeading,
-        proposal: .unspecified
-      )
-    }
-  }
-
-  /// 一次遍历同时算出每个子视图的左上角坐标与整体紧致包围盒。子视图取其理想尺寸
-  /// (`sizeThatFits(.unspecified)`)，与 `placeSubviews` 的 `.unspecified` 放置一致。
-  private func arrange(subviews: Subviews, width: CGFloat) -> (size: CGSize, positions: [CGPoint]) {
-    var positions: [CGPoint] = []
-    positions.reserveCapacity(subviews.count)
-    var x: CGFloat = 0
-    var y: CGFloat = 0
-    var rowHeight: CGFloat = 0
-    var widest: CGFloat = 0
-
-    for subview in subviews {
-      let size = subview.sizeThatFits(.unspecified)
-      // 仅在行首之后换行：保证单个超宽候选也能整体独占一行（不截断）。
-      if x > 0 && x + size.width > width {
-        widest = max(widest, x - hSpacing)
-        x = 0
-        y += rowHeight + vSpacing
-        rowHeight = 0
-      }
-      positions.append(CGPoint(x: x, y: y))
-      x += size.width + hSpacing
-      rowHeight = max(rowHeight, size.height)
-    }
-    widest = max(widest, x - hSpacing)   // 收尾最后一行
-    return (CGSize(width: max(0, widest), height: y + rowHeight), positions)
-  }
-}

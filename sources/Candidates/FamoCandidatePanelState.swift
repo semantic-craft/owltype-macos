@@ -28,18 +28,18 @@ final class CandidatePanelState {
   var selStart: Int = 0
   var selEnd: Int = 0
   var candidates: [CandidateViewModel] = []
-  /// 预览后页（三行候选·方向④Ⓑ）：后 1–2 页的只读预览行。空 = 无预览（开关关 /
-  /// 末页 / 竖排 / 折行——控制器侧已按偏好与形态门控，这里只消费数据）。
-  var previewRows: [[CandidateViewModel]] = []
+  /// 卷轴的后页行：主行（`candidates` = librime 当前页）下方跟的 1–2 整页。空 = 不卷轴
+  /// （非卷轴方向 / 末页 / 竖排——控制器侧已按偏好与形态门控，这里只消费数据）。
+  var scrollRows: [FamoScrollRow] = []
   var highlightedIndex: Int = 0
   var page: Int = 0
   var hasPrevPage: Bool = false
   var hasNextPage: Bool = false
   var isVertical: Bool = false
-  /// 横排折行（多行矩形）模式：候选横向排布、排满一行折到下一行。仅当用户显式选 `.flow`
-  /// 排列方向时为真（`FamoPanelOrientation.wraps`）。与 `isVertical` 互斥——竖排永不折行；
+  /// 卷轴模式：主行 = 当前页，下方跟 `scrollRows`。仅当用户显式选 `.scroll` 排列方向时为真
+  /// （`FamoPanelOrientation.scrolls`）。与 `isVertical` 互斥——竖排不叠加后页行；
   /// `isVertical` / `isExpanded` 为真时本值被忽略（走竖排/展开列表）。
-  var isFlow: Bool = false
+  var isScroll: Bool = false
   /// Active Rime schema id. The compact horizontal bar uses it to keep Wubi code hints visible
   /// without showing noisy pinyin readings for ordinary pinyin schemas.
   var schemaID: String = ""
@@ -75,6 +75,17 @@ final class CandidatePanelState {
   func showsCompactComment(for candidate: CandidateViewModel) -> Bool {
     candidateFormat.showsComment && isWubiSchema && candidate.comment?.isEmpty == false
   }
+}
+
+/// 卷轴里的一整页候选。`id` 取 librime 的**页号**，这是卷轴动画的关键：翻一页后行集合从
+/// [p, p+1, p+2] 变成 [p+1, p+2, p+3]，页号不变的两行保住 SwiftUI 身份、于是被动画成
+/// 「上滚一行」，而不是整块闪替。
+///
+/// `candidates` 里的 `id` 是**候选在整张候选列表里的绝对下标**（不是页内偏移）——后页行的
+/// 点击要走 `select_candidate(绝对下标)`，页内下标在那里是错的。
+struct FamoScrollRow: Identifiable, Sendable, Equatable {
+  let id: Int
+  let candidates: [CandidateViewModel]
 }
 
 /// One candidate row. `Sendable` so a snapshot can be built off the hot path and

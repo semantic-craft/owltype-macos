@@ -46,8 +46,9 @@ final class FamoSettingsCoverageTests: XCTestCase {
     // 浅色/深色 dropped: 外观模式 + 皮肤预览 removed from 候选窗设置 (明暗 lives on 皮肤外观, uses 亮/暗).
     "跟随系统",
     "小", "中", "大",
-    // 排列方向：2026-07-22「默认形态 单行/卷轴」并入本组，`折行`(1.4.19)一并登记；`单行`/`卷轴`已随合并移除。
-    "自动", "横排", "竖排", "折行",
+    // 排列方向：2026-07-22「默认形态 单行/卷轴」并入本组（`单行`/`卷轴` 两个旧标签随之移除）；
+    // 2026-07-26 `折行`(1.4.19) 退役，位置换成新的 `卷轴`（主行 + 后页行，与旧同名标签无关）。
+    "自动", "横排", "竖排", "卷轴",
     "默认", "衬线", "圆体", "Noto Serif SC",
     "亮", "暗",
     // 06-26 batch: 7 new Rime/Squirrel config controls.
@@ -56,11 +57,10 @@ final class FamoSettingsCoverageTests: XCTestCase {
     "Caps Lock 切换西文",             // Feature 2 good_old_caps_lock
     "内嵌候选预览",                   // Feature 3
     "候选条翻页箭头",                 // Feature 4
-    // 三行候选·方向④Ⓑ（预览后页）：开关 + 预览行数分段。action coverage 在
-    // FamoSettingsActionTests 的 panelPreviewPages / panelPreviewRows 断言；纯逻辑
-    // （取数门控/切行）在 FamoPreviewPagesPlanTests。
-    "预览后页",
-    "1 行", "2 行",
+    // 卷轴的后页行数分段（只在排列方向 = 卷轴时露出）。action coverage 在
+    // FamoSettingsActionTests 的 panelScrollRows 断言；纯逻辑（取数门控/切页）在
+    // FamoScrollRowsPlanTests。
+    "跟 1 页", "跟 2 页",
     "始终", "智能", "从不",           // Feature 5 切换提示通知
     "标准", "隐藏注释", "仅候选",     // Feature 7 候选格式
     "FamoInputMenuTitles.deploy",
