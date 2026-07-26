@@ -175,8 +175,8 @@ def set_states_after(name, states_literal):
 
 if not set_reset_after("emoji", 0):
     sys.exit("[famo-seed][schema-patch] ERROR: emoji switch (with reset:) not found in rime_ice.schema.yaml")
-# emoji 状态标签：off 态 rime-ice 用 💀 骷髅（不吉利），改 👋（再见）；on 态保留 😄（task 06-27 用户要求）。
-if not set_states_after("emoji", "[ 👋, 😄 ]"):
+# emoji 状态标签：off 态 rime-ice 用 💀 骷髅（不吉利），改 👍（2026-07-26 用户要求，由 👋 再改）；on 态保留 😄。
+if not set_states_after("emoji", "[ 👍, 😄 ]"):
     sys.exit("[famo-seed][schema-patch] ERROR: emoji switch states not found in rime_ice.schema.yaml")
 # 中英切换提示：英文态显示「英」而非「Ａ」(task 06-27 用户要求)。
 if not set_states_after("ascii_mode", "[ 中, 英 ]"):
@@ -184,7 +184,7 @@ if not set_states_after("ascii_mode", "[ 中, 英 ]"):
 
 with open(path, "w", encoding="utf-8") as f:
     f.writelines(lines)
-print("[famo-seed][schema-patch] rime_ice.schema.yaml: emoji reset->0 states->[👋,😄], ascii_mode states->[中,英]")
+print("[famo-seed][schema-patch] rime_ice.schema.yaml: emoji reset->0 states->[👍,😄], ascii_mode states->[中,英]")
 PYEOF
 
 # --- lotem 八股文 grammar (.gram) — 存在则打包（Famo grammar pref 需要）---
