@@ -28,10 +28,11 @@ enum FamoQuickSendError: LocalizedError, Equatable {
 }
 
 /// 存储边界（镜像 `FamoPromptStore`，单源单向）：`famo_quick_send.json` 是 source of truth，
-/// `load` 只读它；`famo_quick_send.txt` 是从 entries **派生**的 Rime 表（`text \t code \t score`
-/// + 防撞 `v{code}` 变体行），只写不回读。历史教训：旧版把派生表当存储回读，`v{code}` 行被当成
-/// 真条目，每次保存再派生一层 `v`，条目滚雪球直到触发码撞上 32 字符上限（2026-07 修复）。
-/// 旧安装无 JSON 时 `load` 走一次性迁移：解析派生表并折叠 v 链，下次 `save` 落 JSON。
+/// `load` 只读它；`famo_quick_send.txt` 是从 entries **派生**的 Rime 表（每条
+/// `text \t code \t score`），只写不回读。历史教训：旧版把派生表当存储回读，防撞用的
+/// `v{code}` 行被当成真条目，每次保存再派生一层 `v`，条目滚雪球直到触发码撞上 32 字符上限
+/// （2026-07 修复）。旧安装无 JSON 时 `load` 走一次性迁移：解析派生表并折叠 v 链，下次
+/// `save` 落 JSON。
 enum FamoQuickSendStore {
   /// source of truth（text·code）。`load` 只读它。
   static let fileName = "famo_quick_send.json"
@@ -113,18 +114,39 @@ enum FamoQuickSendStore {
     try writer.apply(fileName: "rime_ice.custom.yaml", block: rimeIcePatchBlock, timestamp: ts)
   }
 
+  /// 启动期幂等迁移（对齐 `setupRime` 里键盘托管块的「每次启动重写」先例）：派生表与
+  /// rime_ice patch 只在 `save()` 里重写，而 `save()` 只有用户在设置页动过短语才会跑——
+  /// 1.5.2 把短语码改成 ` 前缀 + 关前缀补全后，升级用户如果从不重新保存，旧派生表
+  /// （裸码 + enable_completion: true + initial_quality: 100）会永远生效，打一个 y 照旧
+  /// 弹 CLI 短语（2026-07-26 真机复现）。这里把 source of truth 重放一遍 `save()`：
+  /// `FamoConfigWriter.writeManagedFile` 在内容一致时零写入，所以已同步时本函数只读不写；
+  /// 不同步时走一次完整原子写（备份 + manifest 照常）。JSON 与派生表都不存在（从未用过
+  /// 快捷短语）则不落任何文件——不给没用过该功能的用户注册 translator。
+  static func migrateDerivedArtifactsIfNeeded(rimeDir: URL = FamoApp.userDir) {
+    let fm = FileManager.default
+    let hasJSON = fm.fileExists(atPath: rimeDir.appendingPathComponent(fileName).path)
+    let hasDict = fm.fileExists(atPath: rimeDir.appendingPathComponent(dictFileName).path)
+    guard hasJSON || hasDict else { return }
+    do {
+      try save(load(rimeDir: rimeDir), writer: FamoConfigWriter(rimeDir: rimeDir))
+    } catch {
+      print("Famo: quick-send derived-artifact migration failed: \(error)")
+    }
+  }
+
   private static var rimeIcePatchBlock: ManagedPatchBlock {
     ManagedPatchBlock(
       marker: FamoManagedMarker.quickSendRimeIce,
       yamlLinesIndentedUnderPatch: [
         "  # 快捷短语：Famo-owned table_translator，不读取用户 custom_phrase.txt",
-        "  # 短语码统一带 ` 前缀（见 FamoQuickSendPage.codePrefix）。该键必须在 speller/alphabet",
-        "  # 里，否则根本进不了输入串。rime-ice b681a34 的 alphabet 末尾本就带 `，故此处不覆写",
-        "  # ——整串覆写会连带丢掉大写字母那一段。上游哪天去掉了再补 patch。",
+        "  # 参数对齐 rime-ice 自带 custom_phrase（completion=false / quality=99）：",
         "  # enable_completion 必须为 false：开着的话短语码会被前缀补全命中——码 yocc 的短语，",
         "  # 只打一个 y 就挤进候选（2026-07-25 实测：y → 三条 CLI 短语压在 有/用/言 前面）。",
-        "  # initial_quality 也压到 1：短语只有在码打全时才该出现，不该盖过常用字。",
-        "  # 对照 rime-ice 自带 custom_phrase：completion=false / quality=99。",
+        "  # initial_quality: 99：码打全时短语要置顶可上屏（这就是快捷短语的用途）；码不全时",
+        "  # 因 completion=false 根本不出候选，不存在盖过常用字的问题。",
+        "  # 历史教训（2026-07-26 探针实证）：1.5.2 曾给短语码加 ` 前缀求彻底隔离，但 ` 是",
+        "  # rime-ice 拆字辅助码的引导键（key_binder/search + search.lua），前导 ` 会把输入切段，",
+        "  # 带前缀的码永远到不了本 translator——短语从此无法触发。别再用 ` 当前缀。",
         "  \"engine/translators/+\":",
         "    - table_translator@famo_quick_send",
         "  famo_quick_send:",
@@ -133,7 +155,7 @@ enum FamoQuickSendStore {
         "    db_class: stabledb",
         "    enable_completion: false",
         "    enable_sentence: false",
-        "    initial_quality: 1",
+        "    initial_quality: 99",
       ]
     )
   }
@@ -159,30 +181,26 @@ enum FamoQuickSendStore {
     return (String(data: data, encoding: .utf8) ?? "[]") + "\n"
   }
 
-  /// 短语码在 Rime 表里的前缀。反引号不可能出现在拼音串里，也没被 rime-ice 占用
-  /// （`/` 是符号输入前缀、`;` 常被二三候选占），所以短语永远不会和正常打字抢候选。
-  /// 存储侧（`famo_quick_send.json`）仍存裸码，前缀只在派生表时加——升级用户的存量短语
-  /// 因此自动获得前缀，不需要重录，也没有 JSON 迁移。
-  static let codePrefix = "`"
-
-  /// 从（已归一的）entries 派生 Rime 表文本。每条一行：`text \t {prefix}{code} \t 100000`。
+  /// 从（已归一的）entries 派生 Rime 表文本。每条一行：`text \t code \t 100000`。
   /// 此文件只写不回读（见类型文档）。
   ///
-  /// 2026-07-25：原先每条还出一行 `v{code}` 作防撞，且码是裸字母——结果打一个 `y` 就被
-  /// 前缀补全命中 `yocc`，三条 CLI 短语压在 有/用/言 前面。改用真前缀后，`v` 那行的
-  /// 防撞目的已由前缀本身达成，删掉。
+  /// 码就是裸码，不带任何前缀。两代防撞方案双双证伪：2026-07 的 `v{code}` 变体行会滚雪球
+  /// （见类型文档），1.5.2 的 ` 前缀撞上 rime-ice 拆字辅助码引导键、短语彻底无法触发
+  /// （见 rimeIcePatchBlock 注释）。防「打一半就冒出来」靠 enable_completion: false；
+  /// 码撞常用简拼的风险由用户选码时自行规避（与 rime-ice custom_phrase 同一约定）。
+  /// 元数据行键值以 TAB 分隔（librime tsv.cc 的 #@ 语法），空格会报 invalid metadata 告警。
   private static func renderDict(_ entries: [FamoQuickSendEntry]) -> String {
     var lines = [
       "# Rime table",
       "# coding: utf-8",
-      "#@/db_name famo_quick_send",
-      "#@/db_type tabledb",
+      "#@/db_name\tfamo_quick_send",
+      "#@/db_type\ttabledb",
       "# Famo quick-send phrases. Managed by 法墨输入法 settings.",
-      "# 触发：先打 \(codePrefix) 再打短语码。",
+      "# 触发：打全短语码，短语置顶。",
       "",
     ]
     for entry in entries {
-      lines.append("\(entry.text)\t\(codePrefix)\(entry.code)\t100000")
+      lines.append("\(entry.text)\t\(entry.code)\t100000")
     }
     return lines.joined(separator: "\n") + "\n"
   }
@@ -330,13 +348,13 @@ struct FamoQuickSendPage: View {
             .foregroundStyle(palette.ink2)
             .fixedSize(horizontal: false, vertical: true)
           HStack(spacing: 6) {
-            // Display the `v`-prefixed variant — rime-ice routes the `v` lead to English/non-pinyin,
-            // so this is the collision-proof trigger the user actually types. The stored
-            // `entry.code` stays the base code (the store auto-generates the `v` variant).
-            Text("v\(example.entry.code)")
+            // The trigger IS the bare code, typed in full (enable_completion is off, so a
+            // partial code shows nothing). No prefix — see renderDict for why both prefix
+            // schemes (`v` variant rows, ` lead) were retired.
+            Text(example.entry.code)
               .font(.system(size: 11, design: .monospaced))
               .foregroundStyle(palette.ink3)
-            Text("\(example.note)（基础码 \(example.entry.code) 亦可）")
+            Text(example.note)
               .font(.system(size: 11.5))
               .foregroundStyle(palette.ink3)
           }

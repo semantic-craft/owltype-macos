@@ -58,14 +58,13 @@ final class FamoQuickSendStoreTests: XCTestCase {
     let loaded = FamoQuickSendStore.load(rimeDir: tempRoot)
     XCTAssertEqual(loaded.map(\.code), ["yocc", "zgfy"])
 
-    // Derived table carries the code behind the ` prefix; the old bare + `v` variants are gone
-    // (2026-07-25: bare codes let a single `y` complete into `yocc` and hijack the candidates).
+    // Derived table carries the BARE code — no ` prefix (` is rime-ice's radical-search lead;
+    // a prefixed code never reaches the translator), no `v` variant rows (the 2026-07 snowball).
+    // Single-key hijack is prevented by enable_completion: false in the patch, not by prefixes.
     let dict = try read(FamoQuickSendStore.dictFileName)
-    XCTAssertTrue(dict.contains("claude --dangerously-skip-permissions\t`yocc\t100000"))
-    XCTAssertFalse(dict.contains("\tyocc\t"))
+    XCTAssertTrue(dict.contains("claude --dangerously-skip-permissions\tyocc\t100000"))
+    XCTAssertFalse(dict.contains("`yocc"))
     XCTAssertFalse(dict.contains("\tvyocc\t"))
-    // …and the JSON stores the bare code (the prefix lives only in the derived table, so
-    // upgrading users get it for free with no JSON migration).
     let json = try read(FamoQuickSendStore.fileName)
     XCTAssertTrue(json.contains("\"yocc\""))
     XCTAssertFalse(json.contains("\"vyocc\""))
@@ -118,6 +117,105 @@ final class FamoQuickSendStoreTests: XCTestCase {
 
     let migrated = FamoQuickSendStore.load(rimeDir: tempRoot)
     XCTAssertEqual(migrated.map(\.code), ["ip", "vip", "vyocc"])
+  }
+
+  // MARK: - Launch-time derived-artifact migration (1.5.2 ` prefix never reached upgraders)
+
+  /// The exact 2026-07-26 real-machine state: a 1.5.1-era install upgraded to 1.5.3 without ever
+  /// re-saving in settings — bare-code dict (no JSON) + the old patch (completion on, quality 100)
+  /// still live, so a single `y` completes into `yocc`. Migration must regenerate all three files.
+  func testMigrateRegeneratesStaleLegacyArtifacts() throws {
+    let legacyDict = """
+      # Rime table
+      #@/db_name famo_quick_send
+      claude --dangerously-skip-permissions\tyocc\t100000
+      claude --dangerously-skip-permissions\tvyocc\t100000
+      """
+    try legacyDict.write(
+      to: tempRoot.appendingPathComponent(FamoQuickSendStore.dictFileName),
+      atomically: true, encoding: .utf8)
+    let legacyYAML = """
+      patch:
+        # >>> FAMO MANAGED QUICK_SEND RIME_ICE PATCH v1
+        "engine/translators/+":
+          - table_translator@famo_quick_send
+        famo_quick_send:
+          dictionary: ""
+          user_dict: famo_quick_send
+          db_class: stabledb
+          enable_completion: true
+          enable_sentence: false
+          initial_quality: 100
+        # <<< FAMO MANAGED QUICK_SEND RIME_ICE PATCH v1
+      """
+    try legacyYAML.write(
+      to: tempRoot.appendingPathComponent("rime_ice.custom.yaml"),
+      atomically: true, encoding: .utf8)
+
+    FamoQuickSendStore.migrateDerivedArtifactsIfNeeded(rimeDir: tempRoot)
+
+    // JSON source of truth materialized with the v-chain collapsed to the bare code.
+    let json = try read(FamoQuickSendStore.fileName)
+    XCTAssertTrue(json.contains("\"yocc\""))
+    XCTAssertFalse(json.contains("\"vyocc\""))
+    // Derived table re-rendered: one bare-code line per entry, v-chain gone.
+    let dict = try read(FamoQuickSendStore.dictFileName)
+    XCTAssertTrue(dict.contains("claude --dangerously-skip-permissions\tyocc\t100000"))
+    XCTAssertFalse(dict.contains("vyocc"))
+    // Patch block replaced in place: completion off (the actual y-hijack fix), quality 99.
+    let yaml = try read("rime_ice.custom.yaml")
+    XCTAssertTrue(yaml.contains("enable_completion: false"))
+    XCTAssertFalse(yaml.contains("initial_quality: 100"))
+    XCTAssertTrue(yaml.contains("initial_quality: 99"))
+  }
+
+  /// The 1.5.2–1.5.3 on-disk shape (` -prefixed table, quality-1 patch) is ALSO stale: the `
+  /// prefix collides with rime-ice's radical-search lead key, so those phrases can never fire.
+  /// Migration must re-render bare codes from the JSON.
+  func testMigrateRewritesPrefixedTableFromJSONSourceOfTruth() throws {
+    let writer = FamoConfigWriter(rimeDir: tempRoot)
+    try FamoQuickSendStore.save(
+      [try FamoQuickSendStore.entry(text: "claude --dangerously-skip-permissions", code: "yocc")],
+      writer: writer, timestamp: "20260726-000001")
+    // Regress the derived table to the 1.5.2 ` -prefixed rendering.
+    try "claude --dangerously-skip-permissions\t`yocc\t100000\n".write(
+      to: tempRoot.appendingPathComponent(FamoQuickSendStore.dictFileName),
+      atomically: true, encoding: .utf8)
+
+    FamoQuickSendStore.migrateDerivedArtifactsIfNeeded(rimeDir: tempRoot)
+
+    let dict = try read(FamoQuickSendStore.dictFileName)
+    XCTAssertTrue(dict.contains("claude --dangerously-skip-permissions\tyocc\t100000"))
+    XCTAssertFalse(dict.contains("`yocc"))
+  }
+
+  /// Once artifacts are in sync the launch-time replay must be pure comparison — zero disk writes,
+  /// zero new rollback-manifest entries (it runs on EVERY launch).
+  func testMigrateIsNoOpOnceArtifactsAreInSync() throws {
+    let writer = FamoConfigWriter(rimeDir: tempRoot)
+    try FamoQuickSendStore.save(
+      [try FamoQuickSendStore.entry(text: "opencode --auto", code: "yooc")],
+      writer: writer, timestamp: "20260726-000000")
+    let manifestURL = tempRoot.appendingPathComponent("famo/rollback-manifest.json")
+    let manifestBefore = try Data(contentsOf: manifestURL)
+    let dictBefore = try read(FamoQuickSendStore.dictFileName)
+    let yamlBefore = try read("rime_ice.custom.yaml")
+
+    FamoQuickSendStore.migrateDerivedArtifactsIfNeeded(rimeDir: tempRoot)
+
+    XCTAssertEqual(try Data(contentsOf: manifestURL), manifestBefore, "in-sync replay must not append manifest entries")
+    XCTAssertEqual(try read(FamoQuickSendStore.dictFileName), dictBefore)
+    XCTAssertEqual(try read("rime_ice.custom.yaml"), yamlBefore)
+  }
+
+  /// A user who never used quick send has neither the JSON nor the dict — migration must not
+  /// conjure files (that would register the translator for everyone).
+  func testMigrateDoesNothingWhenFeatureNeverUsed() throws {
+    FamoQuickSendStore.migrateDerivedArtifactsIfNeeded(rimeDir: tempRoot)
+    let fm = FileManager.default
+    XCTAssertFalse(fm.fileExists(atPath: tempRoot.appendingPathComponent(FamoQuickSendStore.fileName).path))
+    XCTAssertFalse(fm.fileExists(atPath: tempRoot.appendingPathComponent(FamoQuickSendStore.dictFileName).path))
+    XCTAssertFalse(fm.fileExists(atPath: tempRoot.appendingPathComponent("rime_ice.custom.yaml").path))
   }
 
   func testJSONWinsOverLegacyDictWhenBothExist() throws {
