@@ -412,13 +412,11 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
     state.cloudModel = FamoCloudPreferences.deepSeekModel
     // Seed selection-menu skill platform preferences.
     state.selectionMenuEnabled = FamoSelectionMenuPreferences.isEnabled
+    state.askAnythingSkillEnabled = FamoSelectionMenuPreferences.askEnabled
     state.sourceVerificationSkillEnabled = FamoSelectionMenuPreferences.sourceVerificationEnabled
     state.researchAssistSkillEnabled = FamoSelectionMenuPreferences.researchAssistEnabled
-    state.documentFormattingSkillEnabled = FamoSelectionMenuPreferences.documentFormattingEnabled
     state.publishFormattingSkillEnabled = FamoSelectionMenuPreferences.publishFormattingEnabled
     state.translationSkillEnabled = FamoSelectionMenuPreferences.translationEnabled
-    state.polishVariantsSkillEnabled = FamoSelectionMenuPreferences.polishVariantsEnabled
-    state.polishStyleMatchSkillEnabled = FamoSelectionMenuPreferences.polishStyleMatchEnabled
     // Seed the librime version for the 关于 page (best-effort; empty when absent).
     state.librimeVersion = rimeVersion() ?? ""
     state.syncDirectoryDisplayPath = FamoRimeSyncSettings().syncDirectoryDisplayPath
@@ -906,7 +904,7 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
     notifCenter.addObserver(self, selector: #selector(rimeGetASCIIMode(_:)), name: .init("FamoGetASCIIModeNotification"), object: nil, suspensionBehavior: .deliverImmediately)
     notifCenter.addObserver(forName: .init(kTISNotifySelectedKeyboardInputSourceChanged as String), object: nil, queue: .main) { [weak self] _ in
       self?.finalizeStrandedComposition()
-      self?.selectionMenuCoordinator?.hide()
+      // （旧划词小菜单在此收起；工具箱是标准窗口，切输入源不需要动它——2026-07-26 重设计。）
       // S1/R5: if the selected source is a Famo mode that is NOT truly enabled (the
       // key-swallowing dead half-state), log + surface copyable recovery guidance.
       // Not the IMK hot path: this fires only on selected-source CHANGE, not per keystroke.

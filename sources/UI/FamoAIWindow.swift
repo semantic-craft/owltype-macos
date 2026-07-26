@@ -23,6 +23,16 @@
 import AppKit
 import SwiftUI
 
+/// 工具箱模式的上下文（2026-07-26 重设计）：召唤（双击 ⌥ / 热键）打开本窗时带上已启用技能，
+/// 窗口在选区引文下方渲染技能按钮行，点击经 `onSkill` 派回协调器分发（选区快照捕获在闭包里）。
+/// 普通 show()（toolbox = nil）= 纯任意提问窗，无按钮行。`askEnabled` = false 时隐藏输入框
+/// （任意提问技能被关，窗口只当技能面板用）。
+struct FamoAIToolboxContext {
+  let actions: [FamoSelectionMenuAction]
+  let askEnabled: Bool
+  let onSkill: (FamoSelectionMenuAction) -> Void
+}
+
 final class FamoAIWindow: NSWindowController {
   /// The single reused window instance (azooKey lifecycle). Held here rather than on
   /// `FamoApplicationDelegate` so the B10 trigger touches NO shared controller/delegate file — only
@@ -74,9 +84,14 @@ final class FamoAIWindow: NSWindowController {
     initialDisplayQuestion: String? = nil,
     autoSubmit: Bool = false,
     composerTask: FamoAIComposerTask? = nil,
-    initialState: FamoAIConversationState = .idle
+    initialState: FamoAIConversationState = .idle,
+    toolbox: FamoAIToolboxContext? = nil
   ) -> FamoAIConversationModel {
-    previousApp = NSWorkspace.shared.frontmostApplication
+    // 已开着时不重复抓前台 App：工具箱按钮（翻译/辅助检索）原地刷新窗口，此刻前台是本窗自己，
+    // 覆盖掉会把「关窗还焦点」的目标丢掉。
+    if window?.isVisible != true {
+      previousApp = NSWorkspace.shared.frontmostApplication
+    }
 
     let model = FamoAIConversationModel(
       selectedText: selectedText,
@@ -90,6 +105,7 @@ final class FamoAIWindow: NSWindowController {
       initialDisplayQuestion: initialDisplayQuestion,
       autoSubmit: autoSubmit,
       initialTask: composerTask,
+      toolbox: toolbox,
       onCopy: { [weak self] text in self?.copy(text) },
       onClose: { [weak self] in self?.window?.close() }
     )
@@ -100,6 +116,8 @@ final class FamoAIWindow: NSWindowController {
     window?.makeKeyAndOrderFront(nil)
     return model
   }
+  // 出窗技能（核验回执卡 / 替换原文的技能）执行前用继承的 NSWindowController.close() 关窗，
+  // 经 windowWillClose 把焦点还给宿主。
 
   /// Copy-only: the answer goes to the pasteboard. It is NEVER auto-inserted into the target app.
   private func copy(_ text: String) {

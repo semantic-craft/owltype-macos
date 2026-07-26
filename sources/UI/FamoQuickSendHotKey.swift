@@ -36,8 +36,8 @@ enum FamoHotKeySlot: CaseIterable, Sendable {
   case promptAssistant
 
   // 任意提问的直达热键槽（askAnything / "FamoAskAnythingHotKey"）已退役（产品决策 2026-07-26）：
-  // 任意提问是划词技能的兜底，必须带着选区从划词菜单点进（状态栏菜单项保留）；旧偏好键成
-  // 死数据，不迁移不解码。
+  // 任意提问是划词技能的兜底，必须带着选区从划词菜单点进（同日删掉了状态栏那个空选区入口）；
+  // 旧偏好键成死数据，不迁移不解码。
 
   /// UserDefaults key (unchanged from the preset era — the stored values changed, not the keys).
   var defaultsKey: String {
@@ -53,7 +53,8 @@ enum FamoHotKeySlot: CaseIterable, Sendable {
   var displayName: String {
     switch self {
     case .quickSendPanel: return "快捷短语面板"
-    case .selectionMenu: return "划词菜单"
+    // 2026-07-26 工具箱重设计：case 名与 defaultsKey 不动（存量组合照常解码），只换用户可见名。
+    case .selectionMenu: return "划词工具箱"
     case .promptAssistant: return "提示词助手"
     }
   }
@@ -93,10 +94,10 @@ enum FamoHotKeySlot: CaseIterable, Sendable {
 }
 
 /// A user-RECORDED summon combo (both slots were fixed presets before). Defaults to off; the user
-/// records one via 快捷键设置. For 划词菜单, pressing it shows the selection menu for the current
-/// selection immediately (skips the 0.30s dwell) — PARALLEL to the 启用划词菜单 master toggle
-/// (which governs auto-popup only): the summon needs Accessibility trust + a usable selection, not
-/// the toggle; drops are logged, never silent.
+/// records one via 快捷键设置. For 划词工具箱, pressing it opens the toolbox for the current
+/// selection — PARALLEL to the 启用划词工具箱 master toggle (which governs the 双击 ⌥ gesture
+/// only, 2026-07-26 重设计): the summon needs Accessibility trust + a usable selection, not the
+/// toggle; drops are logged, never silent.
 ///
 /// Recording range is restricted to avoid shadowing app shortcuts or plain typing: the main key
 /// must be a letter A–Z and the modifiers must include AT LEAST TWO of ⌃⌥⇧⌘ (single-modifier
@@ -387,8 +388,8 @@ struct FamoHotKeyRecorderRow: View {
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
       } else if slot == .selectionMenu, combo != nil, !AXIsProcessTrusted() {
-        // 平行开关（产品决策 2026-07-19）：热键召唤不依赖「启用划词菜单」总开关（那只管选中自动
-        // 弹出）；唯一硬前置是辅助功能权限（读选中文字必需）。未授权时点破，免得录了组合以为坏了。
+        // 平行开关（产品决策 2026-07-19，重设计后延续）：热键召唤不依赖「启用划词工具箱」总开关
+        // （那只管双击 ⌥ 手势）；唯一硬前置是辅助功能权限（读选中文字必需）。未授权时点破，免得录了组合以为坏了。
         Text("需辅助功能权限（技能平台 → 辅助功能授权），热键才能读取选中文字")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
