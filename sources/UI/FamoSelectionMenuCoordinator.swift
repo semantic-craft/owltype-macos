@@ -77,7 +77,8 @@ enum FamoSelectionMenuAction: String, CaseIterable, Sendable {
     // （此前只挡 ask/polish，其余 6 个照常显示、点了才在窗口内报错——设置页文案与实际不符。）
     guard cloudEnabled else { return [] }
     var out: [FamoSelectionMenuAction] = []
-    // 任意提问没有技能开关：它不处理选区、只开对话窗，入口是本菜单项 + 快捷键（FamoHotKeySlot.askAnything）。
+    // 任意提问没有技能开关：它是全部划词技能的兜底（带选区开对话窗、对选区下指令），入口是
+    // 本菜单项（+ 状态栏菜单的无选区入口）；直达热键已退役（2026-07-26）。
     out.append(.ask)
     if FamoSelectionMenuPreferences.polishEnabled {
       out.append(.polish)

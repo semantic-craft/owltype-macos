@@ -31,17 +31,19 @@ import SwiftUI
 enum FamoHotKeySlot: CaseIterable, Sendable {
   case quickSendPanel
   case selectionMenu
-  case askAnything
   /// 提示词助手直达（07-21 机主提案）：同一块面板、初始分段=提示词——五笔用户的专属入口
   /// （提示词表不挂五笔 schema，打字触发只在拼音下存在）。
   case promptAssistant
+
+  // 任意提问的直达热键槽（askAnything / "FamoAskAnythingHotKey"）已退役（产品决策 2026-07-26）：
+  // 任意提问是划词技能的兜底，必须带着选区从划词菜单点进（状态栏菜单项保留）；旧偏好键成
+  // 死数据，不迁移不解码。
 
   /// UserDefaults key (unchanged from the preset era — the stored values changed, not the keys).
   var defaultsKey: String {
     switch self {
     case .quickSendPanel: return "FamoQuickSendPanelHotKey"
     case .selectionMenu: return "FamoSelectionMenuHotKey"
-    case .askAnything: return "FamoAskAnythingHotKey"
     case .promptAssistant: return "FamoPromptAssistantHotKey"
     }
   }
@@ -52,7 +54,6 @@ enum FamoHotKeySlot: CaseIterable, Sendable {
     switch self {
     case .quickSendPanel: return "快捷短语面板"
     case .selectionMenu: return "划词菜单"
-    case .askAnything: return "任意提问"
     case .promptAssistant: return "提示词助手"
     }
   }
@@ -62,7 +63,7 @@ enum FamoHotKeySlot: CaseIterable, Sendable {
   /// an upgrade migrates them to 未设置 rather than showing a combo the user could never re-record.
   var legacyPresets: [String: (keyCode: UInt32, modifiers: UInt32)] {
     switch self {
-    case .quickSendPanel, .askAnything, .promptAssistant:
+    case .quickSendPanel, .promptAssistant:
       return [:]
     case .selectionMenu:
       return [
@@ -233,7 +234,6 @@ final class FamoHotKeyEventTap {
   private var runLoopSource: CFRunLoopSource?
   var onQuickSend: (() -> Void)?
   var onSelectionSummon: (() -> Void)?
-  var onAskAnything: (() -> Void)?
   var onPromptAssistant: (() -> Void)?
 
   /// Install the tap when possible. Safe to call repeatedly; no-op when installed or AX untrusted.
@@ -290,7 +290,7 @@ final class FamoHotKeyEventTap {
     }
 
     let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
-    // Fixed precedence (allCases order): 快捷短语面板 → 划词菜单 → 任意提问. The recorder rejects
+    // Fixed precedence (allCases order): 快捷短语面板 → 划词菜单 → 提示词助手. The recorder rejects
     // duplicates, so at most one slot matches; the order only keeps a stale duplicate deterministic.
     let matched = FamoHotKeySlot.allCases.first { slot in
       (slot.current?.carbonCombo)
@@ -308,7 +308,6 @@ final class FamoHotKeyEventTap {
       switch matched {
       case .quickSendPanel: self?.onQuickSend?()
       case .selectionMenu: self?.onSelectionSummon?()
-      case .askAnything: self?.onAskAnything?()
       case .promptAssistant: self?.onPromptAssistant?()
       }
     }

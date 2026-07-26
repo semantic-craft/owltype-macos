@@ -92,7 +92,6 @@ struct FamoKeyboardPage: View {
           quickSelectCard
           quickSendPanelHotKeyCard
           selectionMenuPanelHotKeyCard
-          askAnythingHotKeyCard
           promptAssistantHotKeyCard
           noteCard
         }
@@ -675,19 +674,8 @@ struct FamoKeyboardPage: View {
     }
   }
 
-  /// 任意提问 summon hotkey (default off — same recorder, same restricted range, never a Rime
-  /// key_binder). Unlike the other two this needs no selection: it opens the AI 对话窗 straight
-  /// away, which is why 任意提问 is NOT a 技能平台 toggle — it is a menu item plus this hotkey.
-  private var askAnythingHotKeyCard: some View {
-    SettingsCard(
-      title: "任意提问",
-      palette: palette,
-      theme: theme,
-      reduceTransparency: reduceTransparency
-    ) {
-      FamoHotKeyRecorderRow(slot: .askAnything, palette: palette)
-    }
-  }
+  // 任意提问的直达热键卡已随 FamoHotKeySlot.askAnything 一并退役（产品决策 2026-07-26）：
+  // 任意提问是划词技能的兜底，入口收敛为「选中文字 → 划词菜单点击」（+ 状态栏菜单项）。
 
   /// 提示词助手直达热键（07-21 机主提案）：同一块快捷面板、初始分段=提示词。五笔的专属入口——
   /// 提示词表不挂五笔 schema（守四码上屏），打字触发只在拼音下存在。
