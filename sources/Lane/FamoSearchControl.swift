@@ -5,8 +5,8 @@
 //  One "search requested" flag fans out to each provider's own request shape. Providers without
 //  search support resolve to `.none`, so a caller can ask "can this one search?" without a table.
 //
-//  The five providers split by TRANSPORT, and the split is a type (`Transport`) rather than a
-//  convention: Qwen(百炼/DashScope) / 智谱 / 小米MiMo search on `/chat/completions` via top-level
+//  The four providers split by TRANSPORT, and the split is a type (`Transport`) rather than a
+//  convention: Qwen(百炼/DashScope) / 小米MiMo search on `/chat/completions` via top-level
 //  body extras, while 豆包(火山方舟) / OpenAI search ONLY on `/responses` — a different endpoint,
 //  a different body, and a different SSE event shape (see `FamoResponsesStreamingClient`). Asking
 //  a `/responses` provider to search through `extraBody` silently does nothing, which is exactly
@@ -25,7 +25,6 @@ enum FamoSearchControl {
   /// Which provider family's search wire format applies. `.none` = this provider can't search.
   enum Channel: Equatable {
     case dashScope
-    case zhipu
     case mimo
     /// 火山方舟 / 豆包 — search lives on `/responses` only.
     case ark
@@ -49,7 +48,7 @@ enum FamoSearchControl {
   /// The transport that carries `providerID`'s web search.
   static func transport(providerID: String, host: String) -> Transport {
     switch channel(providerID: providerID, host: host) {
-    case .dashScope, .zhipu, .mimo:
+    case .dashScope, .mimo:
       return .chatCompletions
     case .ark:
       return .responses(isOpenAI: false)
@@ -69,18 +68,6 @@ enum FamoSearchControl {
     switch channel(providerID: providerID, host: host) {
     case .dashScope:
       return ["enable_search": true]
-    case .zhipu:
-      return [
-        "tool_choice": "auto",
-        "tools": [[
-          "type": "web_search",
-          "web_search": [
-            "enable": true,
-            "search_engine": "search_pro",
-            "search_result": true,
-          ],
-        ]],
-      ]
     case .mimo:
       // MiMo 的联网与思考互斥（同 `FamoSelectionPolish`）：显式关掉思考，否则搜索工具不触发。
       return [
@@ -106,14 +93,13 @@ enum FamoSearchControl {
   }
 
   /// Provider ids that support search, in the 自动 fallback priority order used by
-  /// `FamoAskSearchResolver`. `/chat/completions` 三家在前（一期已实机验证），`/responses` 两家在后。
-  static let searchProviderIDs = ["qwen", "zhipu", "mimo", "doubao", "openai"]
+  /// `FamoAskSearchResolver`. `/chat/completions` 两家在前（一期已实机验证），`/responses` 两家在后。
+  static let searchProviderIDs = ["qwen", "mimo", "doubao", "openai"]
 
   /// 面向用户的联网模型署名名（品牌名，比公司名更贴近用户认知）。非可联网 → nil。
   static func displayName(for providerID: String) -> String? {
     switch channel(providerID: providerID, host: "") {
     case .dashScope: return "通义千问"
-    case .zhipu:     return "智谱"
     case .mimo:      return "MiMo"
     case .ark:       return "豆包"
     case .openAI:    return "OpenAI"
@@ -126,7 +112,6 @@ enum FamoSearchControl {
   static func channel(providerID: String, host: String) -> Channel {
     switch providerID.lowercased() {
     case "qwen":   return .dashScope
-    case "zhipu":  return .zhipu
     case "mimo":   return .mimo
     case "doubao": return .ark
     case "openai": return .openAI
@@ -134,7 +119,6 @@ enum FamoSearchControl {
     }
     let h = host.lowercased()
     if h.contains("dashscope") || h.contains("aliyuncs")   { return .dashScope }
-    if h.contains("bigmodel")                              { return .zhipu }
     if h.contains("xiaomimimo")                            { return .mimo }
     if h.contains("volces") || h.contains("volcengine")    { return .ark }
     if h == "api.openai.com"                               { return .openAI }

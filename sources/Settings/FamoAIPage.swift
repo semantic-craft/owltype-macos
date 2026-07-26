@@ -57,15 +57,15 @@ struct FamoAIPage: View {
 
   /// 任意提问 的联网搜索开关 + 联网模型选择。只作用于「任意提问」：划词技能、候选、听写都不受影响。
   ///
-  /// 开启后这一问会路由到一个**已配好密钥的可联网供应商**（阿里云百炼 / 智谱 / 小米MiMo / 豆包 /
+  /// 开启后这一问会路由到一个**已配好密钥的可联网供应商**（阿里云百炼 / 小米MiMo / 豆包 /
   /// OpenAI），与上面选定的默认供应商解耦 —— 默认供应商（常见是 DeepSeek）不支持联网时，这一问
-  /// 仍能真的搜到。五家都没配密钥时自动退回普通问答，不报错。
+  /// 仍能真的搜到。四家都没配密钥时自动退回普通问答，不报错。
   private var askWebSearchCard: some View {
     SettingsCard(title: "任意提问 · 联网搜索", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
       VStack(spacing: 0) {
         SettingsToggleRow(
           title: "联网搜索",
-          subtitle: "开启后，「任意提问」会交给已配好密钥的联网模型（阿里云百炼 / 智谱 / 小米MiMo / 豆包 / OpenAI）联网作答；关闭时用模型自有知识回答。只作用于任意提问，不影响划词技能与打字候选。",
+          subtitle: "开启后，「任意提问」会交给已配好密钥的联网模型（阿里云百炼 / 小米MiMo / 豆包 / OpenAI）联网作答；关闭时用模型自有知识回答。只作用于任意提问，不影响划词技能与打字候选。",
           isOn: state.askWebSearchEnabled,
           palette: palette,
           onToggle: {
@@ -79,7 +79,7 @@ struct FamoAIPage: View {
           askWebSearchProviderRow
         }
         SettingsCardDivider(palette: palette)
-        Text("开启后你的提问会发送给该服务商的联网搜索工具，由它检索后作答。五家都没配密钥时会自动退回普通问答——在上方「供应商」里给其中一家填好 API Key 即可启用。回答窗口会标出这一问由哪家联网作答。")
+        Text("开启后你的提问会发送给该服务商的联网搜索工具，由它检索后作答。四家都没配密钥时会自动退回普通问答——在上方「供应商」里给其中一家填好 API Key 即可启用。回答窗口会标出这一问由哪家联网作答。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .fixedSize(horizontal: false, vertical: true)
@@ -89,7 +89,7 @@ struct FamoAIPage: View {
     }
   }
 
-  /// 「联网模型」下拉：自动 + 五家可联网供应商。只在联网搜索打开时出现。
+  /// 「联网模型」下拉：自动 + 四家可联网供应商。只在联网搜索打开时出现。
   ///
   /// 选择**只影响尝试顺序**：选中的那家没填 API Key 时仍会顺位到下一家已配好的，而不是让这一问
   /// 不联网（与 `FamoAskSearchResolver` 的静默降级一致；到底谁答的由回答窗的署名标出）。
@@ -118,7 +118,7 @@ struct FamoAIPage: View {
         .labelsHidden()
         .fixedSize()
       }
-      Text("「自动」= 当前默认供应商本身能联网就用它，否则按 阿里云百炼 → 智谱 → 小米MiMo → 豆包 → OpenAI 找第一个填了 API Key 的。指定某一家只是把它排到最前；那家没填 Key 时仍会顺位到下一家，不会因此不联网。")
+      Text("「自动」= 当前默认供应商本身能联网就用它，否则按 阿里云百炼 → 小米MiMo → 豆包 → OpenAI 找第一个填了 API Key 的。指定某一家只是把它排到最前；那家没填 Key 时仍会顺位到下一家，不会因此不联网。")
         .font(.system(size: 12))
         .foregroundStyle(palette.ink3)
         .fixedSize(horizontal: false, vertical: true)
