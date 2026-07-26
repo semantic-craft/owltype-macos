@@ -20,7 +20,6 @@ extension FamoCandidateTheme {
   /// 胡佛红 / stanford (colors.md).
   static let stanford = FamoCandidateTheme(
     cornerRadius: 13,
-    shadowRadius: 16,
     light: FamoCandidatePalette(
       accent: famoColor(hex: "8C1515"), accentDeep: famoColor(hex: "820000"),
       onAccent: famoColor(hex: "FBFBFC"), card: famoColor(hex: "FBFBFC"),
@@ -38,7 +37,6 @@ extension FamoCandidateTheme {
   /// 珞珈青 / wuda (colors.md).
   static let wuda = FamoCandidateTheme(
     cornerRadius: 13,
-    shadowRadius: 16,
     light: FamoCandidatePalette(
       accent: famoColor(hex: "2A8367"), accentDeep: famoColor(hex: "1F6B52"),
       onAccent: famoColor(hex: "F9FAF8"), card: famoColor(hex: "F8FBF9"),
@@ -56,7 +54,6 @@ extension FamoCandidateTheme {
   /// 嘉庚蓝 / xiada (colors.md).
   static let xiada = FamoCandidateTheme(
     cornerRadius: 13,
-    shadowRadius: 16,
     light: FamoCandidatePalette(
       accent: famoColor(hex: "1D4A8C"), accentDeep: famoColor(hex: "123061"),
       onAccent: famoColor(hex: "F8FAFC"), card: famoColor(hex: "F8FAFC"),
@@ -78,7 +75,6 @@ extension FamoCandidateTheme {
   /// 其余守 accentDeep_dark=accent_light 铁律(暗色描边=浅色藏蓝 accent #13294B)。
   static let illinois = FamoCandidateTheme(
     cornerRadius: 13,
-    shadowRadius: 16,
     light: FamoCandidatePalette(
       accent: famoColor(hex: "13294B"), accentDeep: famoColor(hex: "CC4A00"),
       onAccent: famoColor(hex: "FF7A2E"), card: famoColor(hex: "FCF4E9"),
@@ -99,7 +95,6 @@ extension FamoCandidateTheme {
   /// 深色循「亮胶囊承深字」：accent #FF6E24 + onAccent 深咖 #2B1707（选中字对比度浅 4.5:1 / 深 6.1:1，AA）。
   static let illinoisflame = FamoCandidateTheme(
     cornerRadius: 13,
-    shadowRadius: 16,
     light: FamoCandidatePalette(
       accent: famoColor(hex: "C24A00"), accentDeep: famoColor(hex: "9A3A00"),
       onAccent: famoColor(hex: "FFF4E8"), card: famoColor(hex: "FDF6EC"),
@@ -119,7 +114,6 @@ extension FamoCandidateTheme {
   /// accentDeep 仍为精确 #57068C，故 NYU Violet 亮/暗两版皆在场。
   static let nyu = FamoCandidateTheme(
     cornerRadius: 13,
-    shadowRadius: 16,
     light: FamoCandidatePalette(
       accent: famoColor(hex: "57068C"), accentDeep: famoColor(hex: "3F0567"),
       onAccent: famoColor(hex: "FBF9FE"), card: famoColor(hex: "FBF9FE"),
@@ -137,7 +131,8 @@ extension FamoCandidateTheme {
 
 /// The seven shipping skins (源 colors.md). `deepred` (荔园红) is the default; the other
 /// six are university palettes（伊利诺伊为藏蓝 / 燃橙双皮肤）. Carries its display name,
-/// university tag, swatch color (the light accent), and the resolved `FamoCandidateTheme`.
+/// university tag, swatch color (the light accent — see `swatch` for the illinois exception),
+/// and the resolved `FamoCandidateTheme`.
 enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
   case deepred
   case stanford
@@ -186,7 +181,9 @@ enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
     }
   }
 
-  /// Light-accent swatch shown on the 皮肤外观 selection card.
+  /// Swatch shown on the 皮肤外观 selection card — the light accent, **except `illinois`**:
+  /// its light accent is Illini Blue #13294B, but a navy chip under the name「香槟橙」reads
+  /// wrong, so the card shows Illini Orange #FF5F05 (a brand color, not a palette token).
   var swatch: Color {
     switch self {
     case .deepred: return famoColor(hex: "A82C53")
