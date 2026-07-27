@@ -40,6 +40,14 @@
 
 import SwiftUI
 
+/// 引导窗尺寸的唯一出处 —— 视图的固定 frame 与 `FamoOnboardingWindow` 的 contentRect 必须
+/// 同一个数，否则窗口比内容大就露底色、比内容小就裁掉底部按钮。
+enum FamoOnboardingMetrics {
+  static let width: CGFloat = 880
+  static let height: CGFloat = 580
+  static let illustrationWidth: CGFloat = 340
+}
+
 /// The schemes offered on the 选方案 step (id is the real Rime `schema_id` passed to
 /// `onSelectSchema`; not-installed ids no-op gracefully, like the settings switcher).
 private enum OnboardingScheme: String, CaseIterable, Identifiable {
@@ -62,6 +70,10 @@ struct FamoOnboardingView: View {
   let onFinish: () -> Void
   /// Real enabled query (TIS) for the 启用 step status. Defaults to false for previews.
   var isFamoEnabled: () -> Bool = { false }
+  /// Seeds the wizard's step. Production always starts at 0; tests/previews pass a step so a
+  /// snapshot can render one directly — the fixed 720×480 window does not scroll, so every
+  /// step's content must be checked for overflow, and `step` is otherwise private @State.
+  var initialStep = 0
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -88,17 +100,20 @@ struct FamoOnboardingView: View {
   var body: some View {
     HStack(spacing: 0) {
       illustrationPanel
-        .frame(width: 288)
+        .frame(width: FamoOnboardingMetrics.illustrationWidth)
         .frame(maxHeight: .infinity)
       contentColumn
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     // Fixed window size — without this the NSHostingView sizes the (non-resizable)
     // window to the content's unbounded fitting height and the panel runs too tall.
-    .frame(width: 720, height: 480)
+    .frame(width: FamoOnboardingMetrics.width, height: FamoOnboardingMetrics.height)
     .background(palette.card.ignoresSafeArea())
     .animation(reduceMotion ? nil : .snappy(duration: 0.2), value: step)
-    .onAppear { famoEnabled = isFamoEnabled() }
+    .onAppear {
+      famoEnabled = isFamoEnabled()
+      if initialStep != 0 { step = initialStep }
+    }
   }
 
   // MARK: - Content column (right)
@@ -156,7 +171,7 @@ struct FamoOnboardingView: View {
           .foregroundStyle(palette.ink2)
           .lineSpacing(3)
           .fixedSize(horizontal: false, vertical: true)
-          .frame(maxWidth: 360, alignment: .leading)
+          .frame(maxWidth: 470, alignment: .leading)
       }
       switch step {
       case 0: welcomeChips
@@ -357,7 +372,7 @@ struct FamoOnboardingView: View {
           .foregroundStyle(palette.ink3)
         Text(dictDecided
           ? "未下载 —— 当前为精简词库"
-          : "当前为精简词库 —— 五笔 / 简体拼音 / 小鹤双拼 等方案需要它才能使用")
+          : "当前为精简词库 —— 五笔 / 简体拼音 / 小鹤双拼 等方案需要它才能使用（约 90 MB）")
           .font(.system(size: 13))
           .foregroundStyle(palette.ink2)
           .fixedSize(horizontal: false, vertical: true)
@@ -495,6 +510,10 @@ struct FamoOnboardingView: View {
       Text(info.label)
         .font(.system(size: 14, weight: .semibold))
         .foregroundStyle(palette.onAccent)
+        // 主按钮恒单行：footer 宽度有限，文案变长时宁可挤别人也不要默默折成两行矮胖块
+        // （「同意并下载（约 90 MB）」就这么折过一次）。
+        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
         .padding(.horizontal, 26)
         .padding(.vertical, 12)
         .background { RoundedRectangle(cornerRadius: 11, style: .continuous).fill(palette.accent) }
@@ -514,8 +533,10 @@ struct FamoOnboardingView: View {
     case 1:
       // 知情同意：没装且没问过 → 主按钮就是「同意并下载」（配对的「以后再说」在 footer）。
       // 同意后停在本步显示进度作为确认，但不扣留——按钮立刻变「下一步」。
+      // 按钮只留动作，体积写在状态行 —— footer 这一行还要容下「上一步 / 以后再说 / 跳过」，
+      // 带上「（约 90 MB）」会把主按钮挤成两行（2026-07-27 快照实见）。
       if needsDictConsent {
-        return ("同意并下载（约 90 MB）", { acceptDictDownload() }, false)
+        return ("同意并下载", { acceptDictDownload() }, false)
       }
       return ("下一步", { step = 2 }, false)
     case 2:

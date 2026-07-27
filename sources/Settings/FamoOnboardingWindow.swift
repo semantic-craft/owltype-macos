@@ -33,7 +33,9 @@ enum FamoOnboarding {
 final class FamoOnboardingWindow: NSWindowController {
   init() {
     let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 720, height: 480),
+      contentRect: NSRect(
+        x: 0, y: 0,
+        width: FamoOnboardingMetrics.width, height: FamoOnboardingMetrics.height),
       styleMask: [.titled, .closable],
       backing: .buffered,
       defer: false
