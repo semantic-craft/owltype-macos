@@ -90,13 +90,17 @@ final class FamoPolishPromptCatalogTests: XCTestCase {
   // MARK: - Thinking control per provider (真读回：编码后的请求体)
 
   func testThinkingControlDispatchesByModelPrefix() throws {
-    // 三态契约（2026-07-20 实盘百炼定）：deepseek 走 thinking:{disabled}；qwen 走
+    // 三态契约（2026-07-20 实盘百炼定）：deepseek/mimo/doubao 走 thinking:{disabled}
+    // （FamoThinkingControl 同一 deepSeekStyle 形状；豆包 doubao-seed-2-1-turbo 实测默认开
+    // 思考，短回复也烧 reasoning token，2026-07-28 火山方舟）；qwen 走
     // enable_thinking:false（qwen3.6-flash 默认开思考，实测润色 948 reasoning token / 5.4s，
     // 打爆 8s 交互超时；关掉后 0.6s）；其余供应商两个字段都必须省略（body 逐字节不变）。
-    let deepseek = try FamoSelectionPolish.chatRequest(for: "他撤销了合同", model: "deepseek-v4-flash")
-    let deepseekBody = String(data: try JSONEncoder().encode(deepseek), encoding: .utf8) ?? ""
-    XCTAssertTrue(deepseekBody.contains("\"thinking\""))
-    XCTAssertFalse(deepseekBody.contains("enable_thinking"))
+    for model in ["deepseek-v4-flash", "MiMo-8B", "doubao-seed-2-1-turbo-260628"] {
+      let request = try FamoSelectionPolish.chatRequest(for: "他撤销了合同", model: model)
+      let body = String(data: try JSONEncoder().encode(request), encoding: .utf8) ?? ""
+      XCTAssertTrue(body.contains("\"thinking\""), "\(model) 必须带 thinking:{disabled}")
+      XCTAssertFalse(body.contains("enable_thinking"), "\(model) 不得混入 qwen 的字段")
+    }
 
     let qwen = try FamoSelectionPolish.chatRequest(for: "他撤销了合同", model: "qwen3.6-flash")
     let qwenBody = String(data: try JSONEncoder().encode(qwen), encoding: .utf8) ?? ""
@@ -105,7 +109,7 @@ final class FamoPolishPromptCatalogTests: XCTestCase {
 
     let other = try FamoSelectionPolish.chatRequest(for: "他撤销了合同", model: "gpt-4o")
     let otherBody = String(data: try JSONEncoder().encode(other), encoding: .utf8) ?? ""
-    XCTAssertFalse(otherBody.contains("thinking"), "非 deepseek/qwen 不得携带任何思考控制字段")
+    XCTAssertFalse(otherBody.contains("thinking"), "非 deepseek/mimo/doubao/qwen 不得携带任何思考控制字段")
   }
 
 }

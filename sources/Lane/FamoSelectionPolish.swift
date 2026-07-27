@@ -93,9 +93,12 @@ enum FamoSelectionPolish {
       temperature: variant.temperature,
       stream: false,
       responseFormat: .jsonObject,
-      // Interactive selection polish — disable DeepSeek thinking so it returns in ~1s (see
-      // FamoDeepSeekThinking). DeepSeek-only; other providers omit the field.
-      thinking: model.hasPrefix("deepseek") ? .disabled : nil,
+      // Interactive selection polish — disable hidden thinking so it returns in ~1s (see
+      // FamoDeepSeekThinking). deepseek/mimo/doubao 共用同一 `thinking:{disabled}` 形状
+      // （FamoThinkingControl 的 deepSeekStyle；豆包 doubao-seed-2-1-turbo 实测默认开思考，
+      // 短回复也烧 reasoning token）。别家 nil 省略。
+      thinking: ["deepseek", "mimo", "doubao"].contains(where: model.lowercased().hasPrefix)
+        ? .disabled : nil,
       // qwen 同理关思考：qwen3.6-flash 默认开，实测润色一句话烧 948 reasoning token / 5.4s，
       // 直接把 8 秒交互超时打爆（2026-07-20 实盘百炼发现）；关掉后 0.6s。别家 nil 省略。
       enableThinking: model.hasPrefix("qwen") ? false : nil
