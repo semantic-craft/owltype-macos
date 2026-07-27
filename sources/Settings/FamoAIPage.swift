@@ -49,6 +49,8 @@ struct FamoAIPage: View {
   @State private var searchKeyStatus = ""
   /// 当前选中的搜索后端（raw value，与 `FamoWebSearchBackendSettings` 同步）。
   @State private var searchBackendRaw = FamoWebSearchBackend.doubaoGlobal.rawValue
+  /// 新增流程里「拉取最新」已经用这把 Key 调通过：profile 落库后补标验证（见 `addProvider`）。
+  @State private var pendingKeyVerified = false
 
   var body: some View {
     ScrollView {
@@ -475,6 +477,15 @@ struct FamoAIPage: View {
     providers = result.profiles
     providerStatus = result.status
     if result.status.hasPrefix("已添加") {
+      // 「拉取最新」验证过的正是刚存进去的这把 Key —— 落库后补标，行状态才写「已验证」。
+      if pendingKeyVerified,
+         let added = result.profiles.first(where: {
+           FamoLLMProviderCatalog.inferredProviderID(for: $0) == providerID
+         }) {
+        FamoSettingsActions.markProviderProfileKeyVerified(added)
+        providers = providerStore.profiles()
+      }
+      pendingKeyVerified = false
       fillCustomPreset()
       providerName = ""       // back to the empty 「选择 LLM 预设…」 prompt
       providerKeyInput = ""
@@ -509,6 +520,14 @@ struct FamoAIPage: View {
           fetchedModels = models
           if providerModel.isEmpty { providerModel = availableModels.first ?? "" }
           providerStatus = models.isEmpty ? "已连接，但未解析到模型" : "拉到 \(models.count) 个模型，点右侧下拉选择"
+          // 这一次 `/models` 是拿这把 Key 真的调通的 —— 记下来，行状态才敢写「已验证」。
+          // 新增流程里 profile 还不存在，先记 flag，`addProvider` 落库后再补标。
+          if let editingProfile {
+            FamoSettingsActions.markProviderProfileKeyVerified(editingProfile)
+            providers = providerStore.profiles()
+          } else {
+            pendingKeyVerified = true
+          }
         }
       } catch {
         await MainActor.run { providerStatus = "拉取失败，请检查端点与 Key" }

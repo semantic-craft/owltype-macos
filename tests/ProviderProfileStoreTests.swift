@@ -318,6 +318,67 @@ final class ProviderProfileStoreTests: XCTestCase {
     XCTAssertEqual(FamoLLMProviderCatalog.sourceSupport(for: mimo), .sourceResults)
   }
 
+  /// 密钥三态：「有值」不等于「能用」。实机踩过的就是 MiMo 的 Key 已 401，设置页仍写「已设置」，
+  /// 用户想不到是密钥的问题。所以只有真的调通过一次（`拉取最新`）才升到「已验证」，
+  /// 而换钥匙/删钥匙都让上一次验证作废 —— 旧标记配新密钥就是假验证。
+  func testKeyStatusIsVerifiedOnlyAfterARealCallAndIsInvalidatedByKeyChanges() throws {
+    FamoProviderKeyVerification.resetForTesting()
+    defer { FamoProviderKeyVerification.resetForTesting() }
+    let store = makeStore()
+    let secrets = FamoInMemorySecretStore()
+    let added = FamoSettingsActions.addProviderProfile(
+      displayName: "小米 MiMo", endpoint: "https://api.xiaomimimo.com/v1/chat/completions",
+      model: "mimo-v2.5", apiKey: "sk-mimo", makeDefault: true,
+      store: store, secrets: secrets, providerID: "mimo")
+    let profile = try XCTUnwrap(added.profiles.first)
+    XCTAssertEqual(
+      FamoSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "已设置·未验证")
+
+    FamoSettingsActions.markProviderProfileKeyVerified(profile)
+    XCTAssertEqual(
+      FamoSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "已验证")
+
+    // 换钥匙 → 上一次验证不再代表当前这把 Key。
+    _ = FamoSettingsActions.saveProviderProfileKey(profile, apiKey: "sk-rotated", secrets: secrets)
+    XCTAssertEqual(
+      FamoSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "已设置·未验证")
+
+    FamoSettingsActions.markProviderProfileKeyVerified(profile)
+    _ = FamoSettingsActions.clearProviderProfileKey(profile, secrets: secrets)
+    XCTAssertEqual(
+      FamoSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "未设置")
+    XCTAssertNil(
+      FamoProviderKeyVerification.verifiedAt(secretName: profile.secretName),
+      "删钥匙也要把标记一起清掉，否则重新填一把新 Key 会直接显示已验证")
+  }
+
+  /// 原地编辑时 Key 留空＝保持不变，那么上一次的验证状态也该保持；只有真的换了钥匙才作废。
+  func testUpdateKeepsVerificationWhenKeyIsUnchangedAndDropsItWhenRotated() throws {
+    FamoProviderKeyVerification.resetForTesting()
+    defer { FamoProviderKeyVerification.resetForTesting() }
+    let store = makeStore()
+    let secrets = FamoInMemorySecretStore()
+    let profile = try XCTUnwrap(FamoSettingsActions.addProviderProfile(
+      displayName: "豆包", endpoint: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+      model: "doubao-seed-2-1-turbo-260628", apiKey: "sk-ark", makeDefault: true,
+      store: store, secrets: secrets, providerID: "doubao").profiles.first)
+    FamoSettingsActions.markProviderProfileKeyVerified(profile)
+
+    _ = FamoSettingsActions.updateProviderProfile(
+      profile, endpoint: profile.endpoint.absoluteString, model: "doubao-seed-2-2",
+      apiKey: "", store: store, secrets: secrets)
+    XCTAssertEqual(
+      FamoSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "已验证",
+      "只换了模型，Key 没动 → 验证状态保持")
+
+    _ = FamoSettingsActions.updateProviderProfile(
+      profile, endpoint: profile.endpoint.absoluteString, model: "doubao-seed-2-2",
+      apiKey: "sk-new", store: store, secrets: secrets)
+    XCTAssertEqual(
+      FamoSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "已设置·未验证",
+      "换了钥匙 → 作废")
+  }
+
   /// 换模型的核心不变式：不重填 Key 也能改。`secretName` 是从 profile 的 UUID 推出来的，所以
   /// 「删掉再加一条」会换一个 Keychain 账号并把旧 Key 一起删掉 —— 原地更新才保得住。
   func testUpdateProviderProfileChangesModelAndKeepsStoredKey() throws {
@@ -418,7 +479,9 @@ final class ProviderProfileStoreTests: XCTestCase {
     XCTAssertEqual(saveResult.input, "")
     XCTAssertEqual(saveResult.status, "已保存到 Keychain")
     XCTAssertEqual(try secrets.secret(named: second.secretName), "sk-second")
-    XCTAssertEqual(FamoSettingsActions.providerProfileKeyStatus(second, secrets: secrets), "已设置")
+    // 三态：刚存进去只是「有值」，还没拿它真的调通过任何一次请求。
+    XCTAssertEqual(
+      FamoSettingsActions.providerProfileKeyStatus(second, secrets: secrets), "已设置·未验证")
 
     let emptyKey = FamoSettingsActions.saveProviderProfileKey(second, apiKey: "  ", secrets: secrets)
     XCTAssertEqual(emptyKey.status, "请输入 API Key")
