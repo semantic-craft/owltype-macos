@@ -183,6 +183,12 @@ final class FamoSettingsCoverageTests: XCTestCase {
     "保存并应用",
     "搜索",
     "变量",
+    // 任意提问「联网搜索专用 Key」（豆包搜索 / Perplexity）：与主模型供应商解耦的检索凭据，写入
+    // `famo.search.*` 的 Keychain 条目。行为覆盖在 ProviderProfileStoreTests
+    // （saveSearchCredentialKey / clearSearchCredentialKey / searchCredentialKeyStatus 全链路）。
+    "API Key（写入 Keychain，只写不回显）",
+    "保存",
+    "清除",
   ]
 
   private static let expectedSourceMarkers = [

@@ -367,7 +367,9 @@ final class ProviderProfileStoreTests: XCTestCase {
     XCTAssertEqual(saveResult.input, "")
     XCTAssertEqual(saveResult.status, "已保存到 Keychain")
     XCTAssertEqual(try secrets.secret(named: second.secretName), "sk-second")
-    XCTAssertEqual(FamoSettingsActions.providerProfileKeyStatus(second, secrets: secrets), "已设置")
+    XCTAssertEqual(
+      FamoSettingsActions.providerProfileKeyStatus(second, secrets: secrets), "已设置·未验证",
+      "Keychain 里有值 ≠ 这把 Key 能用（实机踩过：失效的 Key 仍显示已设置）")
 
     let emptyKey = FamoSettingsActions.saveProviderProfileKey(second, apiKey: "  ", secrets: secrets)
     XCTAssertEqual(emptyKey.status, "请输入 API Key")
@@ -382,6 +384,61 @@ final class ProviderProfileStoreTests: XCTestCase {
     XCTAssertNil(store.profile(id: second.id))
     XCTAssertEqual(store.defaultProfile?.id, first.id, "deleting the default promotes the remaining profile")
     XCTAssertTrue(deleteResult.status.contains("second"))
+  }
+
+  /// 「已设置」与「已验证」必须是两档：只有真的调通过一次（拉取模型列表成功）才敢说这把 Key 能用，
+  /// 而换钥匙 / 删钥匙都让上一次验证作废。
+  func testKeyStatusSeparatesStoredFromVerified() throws {
+    FamoProviderKeyVerification.resetForTesting()
+    defer { FamoProviderKeyVerification.resetForTesting() }
+
+    let store = makeStore()
+    let secrets = FamoInMemorySecretStore()
+    let profile = try XCTUnwrap(FamoSettingsActions.addProviderProfile(
+      displayName: "mimo", endpoint: "https://api.xiaomimimo.com/v1/chat/completions",
+      model: "mimo-v2.5", apiKey: "sk-live", makeDefault: true,
+      store: store, secrets: secrets).profiles.first)
+
+    XCTAssertEqual(FamoSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "已设置·未验证")
+
+    FamoSettingsActions.markProviderProfileKeyVerified(profile)
+    XCTAssertEqual(FamoSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "已验证")
+
+    // 换了钥匙 → 之前那次验证不再代表当前这把。
+    _ = FamoSettingsActions.saveProviderProfileKey(profile, apiKey: "sk-another", secrets: secrets)
+    XCTAssertEqual(
+      FamoSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "已设置·未验证",
+      "旧标记配新密钥就是假验证")
+
+    FamoSettingsActions.markProviderProfileKeyVerified(profile)
+    _ = FamoSettingsActions.clearProviderProfileKey(profile, secrets: secrets)
+    XCTAssertNil(FamoProviderKeyVerification.verifiedAt(secretName: profile.secretName))
+  }
+
+  /// 联网搜索专用 Key 走独立命名空间，与供应商密钥互不影响。
+  func testSearchCredentialKeysLiveInTheirOwnNamespace() throws {
+    let secrets = FamoInMemorySecretStore()
+    let credential = FamoSearchCredential.doubaoSearch
+
+    XCTAssertEqual(
+      FamoSettingsActions.searchCredentialKeyStatus(credential, secrets: secrets), "未设置")
+
+    let saved = FamoSettingsActions.saveSearchCredentialKey(
+      credential, apiKey: "  sk-search  ", secrets: secrets)
+    XCTAssertEqual(saved.input, "", "保存后清空输入框，永不回显")
+    XCTAssertTrue(saved.status.contains("豆包搜索"))
+    XCTAssertEqual(try secrets.secret(named: "famo.search.doubao_search.apiKey"), "sk-search")
+    XCTAssertEqual(
+      FamoSettingsActions.searchCredentialKeyStatus(credential, secrets: secrets), "已设置")
+
+    XCTAssertEqual(
+      FamoSettingsActions.saveSearchCredentialKey(credential, apiKey: " ", secrets: secrets).status,
+      "请输入 API Key")
+
+    XCTAssertTrue(
+      FamoSettingsActions.clearSearchCredentialKey(credential, secrets: secrets).contains("豆包搜索"))
+    XCTAssertEqual(
+      FamoSettingsActions.searchCredentialKeyStatus(credential, secrets: secrets), "未设置")
   }
 }
 
