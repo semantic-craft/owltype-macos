@@ -9,18 +9,31 @@
 //  The primary button is a small state machine (开始 / 去启用→继续 /
 //  应用配置→应用中→下一步 / 开始使用).
 //
-//  Famo's steps are 启用输入法 + 选方案/应用配置 + 完整词库 + 小贴士 — NOT microphone /
+//  Famo's steps are 完整词库 + 启用输入法 + 选方案/应用配置 + 小贴士 — NOT microphone /
 //  voice. The enabled status comes from a real `isFamoEnabled` query (TIS); 应用配置 calls
 //  the real `onSelectSchema` (which selects + deploys, routed through the same
 //  pref-write + patch + fast-apply pipeline the 键盘输入 settings page uses — see
-//  `FamoApplicationDelegate.applyOnboardingScheme`). The 词库 step surfaces the REAL
-//  dict-pack state (`FamoDictPackCenter`, @Observable — auto-fetch usually already started
-//  at launch, so walking the earlier steps masks most of the ~90 MB download). No Rime /
-//  disk IO happens in the view. The final step is tips only (换皮肤 / 提示词管理 / 更新后
-//  重开+菜单栏重选) — no live test input, since Famo likely isn't the active input source
-//  yet at that point; its primary CTA soft-blocks (disabled + live progress in the label)
-//  while the dict pack is still downloading/compiling, with a「暂不等待」escape hatch —
-//  never blocks on .failed / .notInstalled.
+//  `FamoApplicationDelegate.applyOnboardingScheme`).
+//
+//  The 词库 step comes SECOND, and that ordering is load-bearing rather than cosmetic:
+//    - it is this flow's INFORMED-CONSENT surface. Since the 知情同意 change the dict pack
+//      is never fetched silently (`FamoDictPackPreferences.autoFetch` defaults false); the
+//      step carries the same copyright rationale as `FamoDictPackPrompt.presentAlert` and
+//      writes the same `promptShown` flag, and `promptOrFetchIfNeeded` stands down while
+//      onboarding is pending so the user is asked exactly once, inline, with no modal
+//      stealing focus.
+//    - consenting here starts the ~90 MB download BEFORE the two slowest steps (the trip to
+//      System Settings to enable, then picking a scheme), so those steps mask it. By the
+//      final step it is usually done.
+//    - 选方案 offers 五笔/双拼, whose schema files SHIP IN THE DICT PACK. Asking afterwards
+//      would mean picking 五笔 lands on the absent-schema path (a second consent alert).
+//  Live state comes from `FamoDictPackCenter` (@Observable). No Rime / disk IO in the view.
+//
+//  The final step is tips only (换皮肤 / 提示词管理 / 更新后重开+菜单栏重选) — no live test
+//  input, since Famo likely isn't the active input source yet at that point; its primary CTA
+//  soft-blocks (disabled + live progress in the label) while the dict pack is still
+//  downloading/compiling, with a「暂不等待」escape hatch — never blocks on .failed /
+//  .notInstalled (a user who declined must not be held).
 //
 //  Boundary (ADR-0001 / 0002 / 0003): SwiftUI is the onboarding UI layer only.
 //
@@ -61,9 +74,11 @@ struct FamoOnboardingView: View {
   @State private var deployed = false
   @State private var deployProgress: CGFloat = 0
   @State private var doneCheckTrim: CGFloat = 0
+  /// 用户是否已在词库步骤作出过选择（同意 / 以后再说）—— 决定这一步还问不问。
+  @State private var dictDecided = FamoDictPackPreferences.promptShown
 
   private let stepCount = 5
-  private let stepNames = ["欢迎", "启用", "选方案", "词库", "完成"]
+  private let stepNames = ["欢迎", "词库", "启用", "选方案", "完成"]
 
   /// 深大红 theme (shared with the candidate panel + settings).
   private let theme: FamoCandidateTheme = .shenda
@@ -145,23 +160,23 @@ struct FamoOnboardingView: View {
       }
       switch step {
       case 0: welcomeChips
-      case 1: enableContent
-      case 2: schemeContent
-      case 3: dictContent
+      case 1: dictContent
+      case 2: enableContent
+      case 3: schemeContent
       default: doneContent
       }
     }
   }
 
   private var title: String {
-    ["欢迎使用法墨", "启用法墨输入法", "选择输入方案", "下载完整词库", "配置已就绪"][step]
+    ["欢迎使用法墨", "完整词库", "启用法墨输入法", "选择输入方案", "配置已就绪"][step]
   }
   private var desc: String {
     [
       "现代、本地、为简体中文而生的开源输入法 —— 由 RIME / librime 驱动，词库与按键都在你掌心。",
+      "法墨只内置自建的清洁室精简词库。五笔、简体拼音、小鹤双拼等方案的词库来自第三方开源项目（雾凇拼音 rime-ice、极点五笔86）—— 为避免版权争议，法墨不随安装包分发它们，也不会在你不知情的情况下替你下载。",
       "打开「系统设置 → 键盘 → 输入法」，在列表中勾选「法墨」即可。点下方按钮可直达设置面板。",
       "挑一个方案先用起来，随时能在设置里增删与切换。推荐从拼音开始。",
-      "安装包出于体积与版权考虑只内置精简词库。完整词库（约 90 MB）从上游原仓库下载，就绪后候选质量显著提升。",
       "还有几件事值得知道 —— 启用后随时能在设置里调整。"
     ][step]
   }
@@ -290,9 +305,8 @@ struct FamoOnboardingView: View {
     .accessibilityLabel("\(item.name) \(item.code)\(item.recommended ? " 推荐" : "")")
   }
 
-  // MARK: Step 3 — 完整词库 (real dict-pack state; FamoDictPackCenter is @Observable so the
-  // body re-renders on progress. Auto-fetch usually already started at launch — this step
-  // mostly just SHOWS a download the user never had to kick off.)
+  // MARK: Step 1 — 完整词库 / 知情同意 (this flow's consent surface; see the file header for
+  // why it sits here. FamoDictPackCenter is @Observable so the body re-renders on progress.)
 
   private var dictContent: some View {
     VStack(alignment: .leading, spacing: 14) {
@@ -301,12 +315,35 @@ struct FamoOnboardingView: View {
         .padding(.vertical, 13)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background { RoundedRectangle(cornerRadius: 11, style: .continuous).fill(palette.card2) }
-      Text("词库按固定版本从上游原仓库（雾凇拼音 / 极点五笔 / 八股文语法模型）下载并逐文件校验，中途退出或注销会自动续传，完成后自动编译生效。等待期间可以先看下一步。")
+      Text(needsDictConsent
+        ? "同意后，法墨会从这些项目的官方仓库按固定版本获取（约 90 MB）并逐文件校验，完成后自动编译启用。下载在后台进行，你可以继续下面的步骤。选「以后再说」也不影响使用，之后随时能在「设置 → 键盘输入 → 完整词库」里下载。"
+        : "词库按固定版本从上游原仓库（雾凇拼音 / 极点五笔 / 八股文语法模型）下载并逐文件校验，中途退出或注销会自动续传，完成后自动编译生效。等待期间可以先看下一步。")
         .font(.system(size: 12))
         .foregroundStyle(palette.ink3)
         .lineSpacing(2)
         .fixedSize(horizontal: false, vertical: true)
     }
+  }
+
+  /// 仍需征求同意：词库没装，且本次没在这一步作出过选择。
+  private var needsDictConsent: Bool {
+    if case .notInstalled = FamoDictPackCenter.shared.status { return !dictDecided }
+    return false
+  }
+
+  /// 「同意并下载」——与 `FamoDictPackPrompt.presentAlert` 的 .download 分支等价：先记已处置
+  /// 再执行。这里用 `start()` 而非 `acceptAndStart()`，后者会把用户甩进设置窗、打断向导。
+  private func acceptDictDownload() {
+    dictDecided = true
+    FamoDictPackPreferences.promptShown = true
+    FamoDictPackCenter.shared.start()
+  }
+
+  /// 「以后再说」——等价于弹窗的 .later：同样记已处置（问过了就别再问），不下载。
+  private func deferDictDownload() {
+    dictDecided = true
+    FamoDictPackPreferences.promptShown = true
+    step = 2
   }
 
   @ViewBuilder
@@ -318,10 +355,21 @@ struct FamoOnboardingView: View {
         Image(systemName: "arrow.down.circle")
           .font(.system(size: 16))
           .foregroundStyle(palette.ink3)
-        Text("未下载 —— 当前为精简词库，候选质量受限")
+        Text(dictDecided
+          ? "未下载 —— 当前为精简词库"
+          : "当前为精简词库 —— 五笔 / 简体拼音 / 小鹤双拼 等方案需要它才能使用")
           .font(.system(size: 13))
           .foregroundStyle(palette.ink2)
+          .fixedSize(horizontal: false, vertical: true)
         Spacer(minLength: 8)
+        if dictDecided {
+          // 已问过（含从「关于」页重开引导的回访者）：主按钮不再是同意键，这里补一个入口，
+          // 否则这一步只剩一句「未下载」而无从下手。
+          Button("现在下载") { acceptDictDownload() }
+            .buttonStyle(.plain)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(palette.accent)
+        }
       case .downloading(let progress):
         dictProgressBar(progress)
         Text("下载中 \(Int(progress * 100))%")
@@ -416,6 +464,13 @@ struct FamoOnboardingView: View {
           .font(.system(size: 13))
           .foregroundStyle(palette.ink3)
       }
+      if step == 1 && needsDictConsent {
+        // 与弹窗的「稍后」等价的那一半：同意二选一必须两个都在场，否则「同意」不成其为选择。
+        Button("以后再说") { deferDictDownload() }
+          .buttonStyle(.plain)
+          .font(.system(size: 13))
+          .foregroundStyle(palette.ink3)
+      }
       Spacer(minLength: 0)
       if step < stepCount - 1 {
         Button("跳过", action: onFinish)
@@ -457,19 +512,19 @@ struct FamoOnboardingView: View {
     case 0:
       return ("开始", { step = 1 }, false)
     case 1:
-      if famoEnabled { return ("继续", { step = 2 }, false) }
-      return ("去启用", { onOpenSystemSettings(); famoEnabled = isFamoEnabled() }, false)
+      // 知情同意：没装且没问过 → 主按钮就是「同意并下载」（配对的「以后再说」在 footer）。
+      // 同意后停在本步显示进度作为确认，但不扣留——按钮立刻变「下一步」。
+      if needsDictConsent {
+        return ("同意并下载（约 90 MB）", { acceptDictDownload() }, false)
+      }
+      return ("下一步", { step = 2 }, false)
     case 2:
-      if deployed { return ("下一步", { step = 3 }, false) }
+      if famoEnabled { return ("继续", { step = 3 }, false) }
+      return ("去启用", { onOpenSystemSettings(); famoEnabled = isFamoEnabled() }, false)
+    case 3:
+      if deployed { return ("下一步", { advanceToDone() }, false) }
       if deploying { return ("应用中…", {}, true) }
       return ("应用配置", { startDeploy() }, false)
-    case 3:
-      // 未开始（自动拉取被关掉/未触发）才需要用户点下载；失败的重试在状态行里，
-      // 主按钮保持「下一步」不扣留。
-      if case .notInstalled = FamoDictPackCenter.shared.status {
-        return ("开始下载", { FamoDictPackCenter.shared.start() }, false)
-      }
-      return ("下一步", { advanceToDone() }, false)
     default:
       // 完成页软阻塞：下载/编译期间置灰、按钮标签就是进度；失败或未下载不扣留
       // （出口在 footer 的「暂不等待」/ 状态自然放行）。
@@ -550,6 +605,17 @@ struct FamoOnboardingView: View {
           .overlay { RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(palette.onAccent.opacity(0.25), lineWidth: 1) }
       }
     case 1:
+      ZStack {
+        Circle().strokeBorder(palette.onAccent.opacity(0.22), lineWidth: 1.5).frame(width: 200, height: 200)
+        Circle().strokeBorder(palette.onAccent.opacity(0.16), lineWidth: 1.5).frame(width: 150, height: 150)
+        Image(systemName: "arrow.down.to.line")
+          .font(.system(size: 38, weight: .semibold))
+          .foregroundStyle(palette.accent)
+          .frame(width: 96, height: 96)
+          .background { Circle().fill(palette.onAccent) }
+          .shadow(color: .black.opacity(0.18), radius: 12, y: 8)
+      }
+    case 2:
       RoundedRectangle(cornerRadius: 24, style: .continuous)
         .fill(palette.onAccent.opacity(0.12))
         .frame(width: 120, height: 120)
@@ -562,7 +628,7 @@ struct FamoOnboardingView: View {
             .background { Circle().fill(palette.onAccent) }
         }
         .shadow(color: .black.opacity(0.18), radius: 12, y: 8)
-    case 2:
+    case 3:
       ZStack {
         fanCard(rotation: -13, fill: palette.onAccent.opacity(0.10))
         fanCard(rotation: -2, fill: palette.onAccent.opacity(0.14))
@@ -571,17 +637,6 @@ struct FamoOnboardingView: View {
         }
       }
       .frame(width: 200, height: 200)
-    case 3:
-      ZStack {
-        Circle().strokeBorder(palette.onAccent.opacity(0.22), lineWidth: 1.5).frame(width: 200, height: 200)
-        Circle().strokeBorder(palette.onAccent.opacity(0.16), lineWidth: 1.5).frame(width: 150, height: 150)
-        Image(systemName: "arrow.down.to.line")
-          .font(.system(size: 38, weight: .semibold))
-          .foregroundStyle(palette.accent)
-          .frame(width: 96, height: 96)
-          .background { Circle().fill(palette.onAccent) }
-          .shadow(color: .black.opacity(0.18), radius: 12, y: 8)
-      }
     default:
       ZStack {
         Circle().strokeBorder(palette.onAccent.opacity(0.2), lineWidth: 1.5).frame(width: 176, height: 176)

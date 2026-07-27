@@ -40,18 +40,32 @@ final class FamoDictPackCenter {
   /// 启动时机（Main.swift，loadSettings 之后）调用。知情同意改版（2026-07-27）：不再静默自动
   /// 下载——未装则**武装提示调度器**，等安全时机弹窗说明版权缘由；用户点「同意并下载」才拉。
   /// 已装 / 用户自备 / 已提示过都只刷新状态。`autoFetch` 开关打开＝用户显式授权免提示直接拉。
+  ///
+  /// 引导待办时让路：新手引导有自己的「词库」步骤，讲同一件事、写同一个 `promptShown`
+  /// （见 `FamoOnboardingView` 的 dict 步骤）。此处再武装调度器就会在引导窗上再弹一次模态
+  /// 问同一个问题。本函数在 `applicationWillFinishLaunching` 弹引导之前跑（Main.swift 在
+  /// `app.run()` 前调用），所以这里读到的 isDone=false ⟺ 本次启动引导会接手。
   func promptOrFetchIfNeeded() {
     refresh()
-    guard makeFetcher().needsFetch() else { return }
-    if FamoDictPackPreferences.autoFetch {
-      start()
+    switch FamoDictPackPrompt.launchAction(
+      needsFetch: makeFetcher().needsFetch(),
+      autoFetch: FamoDictPackPreferences.autoFetch,
+      promptShown: FamoDictPackPreferences.promptShown,
+      onboardingDone: FamoOnboarding.isDone
+    ) {
+    case .doNothing:
       return
+    case .fetchSilently:
+      start()
+    case .deferToOnboarding:
+      FamoDictPackPrompt.log.log("first-run consent deferred to onboarding's dict step")
+    case .armPrompt:
+      FamoDictPackPromptScheduler.shared.arm()
     }
-    guard !FamoDictPackPreferences.promptShown else { return }
-    FamoDictPackPromptScheduler.shared.arm()
   }
 
   /// 知情同意通过 → 开始下载并把用户送到设置页「完整词库」卡（那里有进度条/失败重试）。
+  /// 引导里不走这条：引导的词库步骤自带进度显示，把用户甩进设置窗会打断向导（用 `start()`）。
   func acceptAndStart() {
     NSApp.famoAppDelegate.showSettings(selectedPage: .keyboard)
     start()
@@ -140,6 +154,29 @@ enum FamoDictPackPrompt {
   enum Choice {
     case download
     case later
+  }
+
+  /// 启动时该做什么（纯判定，`promptOrFetchIfNeeded` 的全部分支逻辑）。
+  enum LaunchAction: Equatable {
+    /// 已装 / 用户自备 / 已问过 —— 只刷新状态。
+    case doNothing
+    /// 用户显式开了 autoFetch 开关＝授权免提示直接拉。
+    case fetchSilently
+    /// 引导本次会接手（它的词库步骤讲同一件事、写同一个 promptShown）—— 别再弹一次模态。
+    case deferToOnboarding
+    /// 常规首启告知：武装安全时机调度器。
+    case armPrompt
+  }
+
+  /// - Parameter onboardingDone: 读 `FamoOnboarding.isDone`。false ⟺ 本次启动引导会弹出
+  ///   （`promptOrFetchIfNeeded` 跑在 `applicationWillFinishLaunching` 之前）。
+  static func launchAction(
+    needsFetch: Bool, autoFetch: Bool, promptShown: Bool, onboardingDone: Bool
+  ) -> LaunchAction {
+    guard needsFetch else { return .doNothing }
+    if autoFetch { return .fetchSilently }
+    guard !promptShown else { return .doNothing }
+    return onboardingDone ? .armPrompt : .deferToOnboarding
   }
 
   /// 方案是否由 dict-pack 管理。**纯 manifest 查询、不碰运行期状态**，因此非隔离可调——

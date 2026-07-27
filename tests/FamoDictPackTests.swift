@@ -406,6 +406,42 @@ final class FamoDictPackTests: XCTestCase {
     }
   }
 
+  func testLaunchActionDefersToOnboardingBeforeFirstRunCompletes() {
+    // 引导未走完 ⟺ 本次启动引导会弹，它的词库步骤讲同一件事、写同一个 promptShown ——
+    // 此时武装调度器就会在引导窗上再弹一次模态问同一个问题。
+    XCTAssertEqual(
+      FamoDictPackPrompt.launchAction(
+        needsFetch: true, autoFetch: false, promptShown: false, onboardingDone: false),
+      .deferToOnboarding)
+    // 引导走完过（含老用户升级上来）→ 常规首启告知。
+    XCTAssertEqual(
+      FamoDictPackPrompt.launchAction(
+        needsFetch: true, autoFetch: false, promptShown: false, onboardingDone: true),
+      .armPrompt)
+  }
+
+  func testLaunchActionHonoursInstalledAndConsentFlags() {
+    // 已装 / 用户自备（needsFetch=false）：任何组合都不动。
+    for done in [true, false] {
+      for shown in [true, false] {
+        XCTAssertEqual(
+          FamoDictPackPrompt.launchAction(
+            needsFetch: false, autoFetch: false, promptShown: shown, onboardingDone: done),
+          .doNothing)
+      }
+    }
+    // 问过了就不再问 —— 引导是否走完都一样（引导里作出选择同样置真 promptShown）。
+    XCTAssertEqual(
+      FamoDictPackPrompt.launchAction(
+        needsFetch: true, autoFetch: false, promptShown: true, onboardingDone: false),
+      .doNothing)
+    // autoFetch 是用户显式授权，优先于一切提示（含引导让路）。
+    XCTAssertEqual(
+      FamoDictPackPrompt.launchAction(
+        needsFetch: true, autoFetch: true, promptShown: false, onboardingDone: false),
+      .fetchSilently)
+  }
+
   func testDisplayNameFallsBackToRawID() {
     XCTAssertEqual(FamoDictPackPrompt.displayName(for: "wubi86_jidian"), "极点五笔86")
     XCTAssertEqual(FamoDictPackPrompt.displayName(for: "double_pinyin_mspy"), "双拼")
