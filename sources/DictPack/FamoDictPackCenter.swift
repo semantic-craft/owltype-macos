@@ -91,12 +91,35 @@ final class FamoDictPackCenter {
       print("Famo dict-pack: kept \(result.skippedUserFiles.count) user-provided files untouched.")
     }
     status = .deploying
-    // 词库落盘完成 → 全量重部署编译新词库。deploy() 内部 start_maintenance 是异步的，
-    // 这里返回即视为已交棒（rebuild 在 librime 维护线程进行）。
-    _ = NSApp.famoAppDelegate.deploy()
-    running = false
-    status = makeFetcher().assess()
+    // 词库落盘完成 → 全量重部署编译新词库。deploy() 内部 start_maintenance 是异步的：
+    // 这里保持 .deploying（running 仍占位，挡住 refresh()/start() 重入），直到 librime 的
+    // deploy 通知（notificationHandler → noteDeployFinished）宣告编译真正结束 —— 引导页
+    // 的「开始使用」按钮以此为就绪判据，注销收尾必须等到编译完成才有意义。
+    guard NSApp.famoAppDelegate.deploy() else {
+      running = false
+      status = .failed("词库已下载，但部署未能启动 —— 可在设置里手动「保存并重新应用」")
+      return
+    }
+    // 防卡死兜底：deploy 通知理论上必达（start_maintenance 已受理），但若维护线程异常
+    // 失声，10 分钟后按落盘记录收尾，避免引导/设置页永远停在「编译中」。
+    deployTimeout = Task { [weak self] in
+      try? await Task.sleep(for: .seconds(600))
+      guard !Task.isCancelled else { return }
+      self?.noteDeployFinished(success: true)
+    }
   }
+
+  /// librime 维护线程的 deploy success/failure 通知（经 notificationHandler 转发）。
+  /// 只在本中心等待编译时生效 —— 无关的日常 deploy 到这里是 no-op。
+  func noteDeployFinished(success: Bool) {
+    guard status == .deploying else { return }
+    deployTimeout?.cancel()
+    deployTimeout = nil
+    running = false
+    status = success ? makeFetcher().assess() : .failed("词库编译失败，详见 设置 → 诊断")
+  }
+
+  private var deployTimeout: Task<Void, Never>?
 
   private func fail(_ error: Error) {
     running = false
