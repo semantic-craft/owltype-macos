@@ -531,16 +531,16 @@ struct FamoSettingsView: View {
             options: [("自动", .auto), ("横排", .horizontal), ("竖排", .vertical), ("卷轴", .scroll)],
             palette: palette
           )
-          Text("横排=单行候选条，竖排=纵向列表，卷轴=当前页 + 下方跟后面一/两页、翻页时整块上滚。可点候选条右侧箭头临时展开为列表。")
+          Text("横排=单行候选条，竖排=纵向列表，卷轴=平时单行、按翻页键展开成多行（上方保留上一页、下方跟后几页），再翻页时整块上滚。可点候选条右侧箭头临时展开为列表。")
             .font(.system(size: 11))
             .foregroundStyle(palette.ink3)
           if state.panelOrientation == .scroll {
             FamoSegmentedControl(
               selection: scrollRowsBinding,
-              options: [("跟 1 页", 1), ("跟 2 页", 2)],
+              options: [("跟 1 页", 1), ("跟 2 页", 2), ("跟 3 页", 3), ("跟 4 页", 4)],
               palette: palette
             )
-            Text("后页行稍淡、无序号，可用鼠标点选；数字键仍只对应第一行（当前页）。")
+            Text("前/后页行稍淡、无序号，可用鼠标点选；数字键仍只对应带序号的当前页。")
               .font(.system(size: 11))
               .foregroundStyle(palette.ink3)
           }

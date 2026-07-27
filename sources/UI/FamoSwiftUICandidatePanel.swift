@@ -149,24 +149,39 @@ struct FamoPanelContent: Equatable {
 /// unit-testable without IMK or librime.
 enum FamoScrollRowsPlan {
   /// Whether `showPanel` should peek at the next page(s) for this composition.
-  /// True only when: 选了卷轴、还有后页、本页非空，且本次组字确实以横排渲染
-  /// （竖排不叠加后页行——与视图侧的渲染分支一致）。
+  /// True only when: 选了卷轴、**本次组字翻过页**（翻页才展开，2026-07-28）、还有后页、
+  /// 本页非空，且本次组字确实以横排渲染（竖排不叠加后页行——与视图侧的渲染分支一致）。
   ///
   /// `.scroll` 的 `isVertical` 恒为 false，那条判断留着是为了将来若允许「自动+卷轴」组合时
   /// 门控依旧正确，且与视图分支一一对应；现在它只对非卷轴方向起作用（那些已被首条挡掉）。
-  static func wantsRows(prefs: FamoPanelSnapshot, lastPage: Bool, candidateCount: Int,
-                        rimeVertical: Bool, schemaID: String) -> Bool {
+  static func wantsRows(prefs: FamoPanelSnapshot, didPage: Bool, lastPage: Bool,
+                        candidateCount: Int, rimeVertical: Bool, schemaID: String) -> Bool {
     prefs.orientation.scrolls
+      && didPage
       && !lastPage
       && candidateCount > 0
       && !prefs.orientation.isVertical(rimeVertical: rimeVertical, schemaID: schemaID)
   }
 
-  /// Chunk the peeked candidates into whole pages（尾行可不满）。后页行不渲染序号/注释/
-  /// 徽章——序号只属于主行，因为数字键只选得中主行（这正是「按页对齐」保住的语义）。
+  /// Whether `showPanel` should peek at the page BEFORE the current one（前页行）。
+  /// 展开后主行上方保留紧邻的上一页（固定 1 行滑动窗口，不累积）——翻页时旧主行不再
+  /// 滚出消失，卷轴的「来路」还看得见。门控与 `wantsRows` 同构，差别只在方向：
+  /// 前页看 `page > 0`（翻回第一页就没有前页），后页看 `!lastPage`。
+  static func wantsPrevRow(prefs: FamoPanelSnapshot, didPage: Bool, page: Int,
+                           candidateCount: Int, rimeVertical: Bool, schemaID: String) -> Bool {
+    prefs.orientation.scrolls
+      && didPage
+      && page > 0
+      && candidateCount > 0
+      && !prefs.orientation.isVertical(rimeVertical: rimeVertical, schemaID: schemaID)
+  }
+
+  /// Chunk the peeked candidates into whole pages（尾行可不满）。前/后页行渲染注释但不渲染
+  /// 序号/徽章——序号只属于主行，因为数字键只选得中主行（这正是「按页对齐」保住的语义）。
   ///
-  /// `startPage` = 主行页号 + 1；行 id 取页号（卷轴动画的身份），候选 id 取**绝对下标**
-  /// （`startPage * pageSize + …`），点击时直接喂给 `select_candidate`。
+  /// `startPage` = 该段首页的页号（后页 = 主行页号 + 1，前页 = 主行页号 − 1）；行 id 取
+  /// 页号（卷轴动画的身份），候选 id 取**绝对下标**（`startPage * pageSize + …`），点击时
+  /// 直接喂给 `select_candidate`。
   static func rows(from peeked: [RimeCandidate], pageSize: Int, startPage: Int) -> [FamoScrollRow] {
     guard pageSize > 0 else { return [] }
     return stride(from: 0, to: peeked.count, by: pageSize).map { base in
@@ -174,7 +189,7 @@ enum FamoScrollRowsPlan {
       return FamoScrollRow(
         id: page,
         candidates: peeked[base..<min(base + pageSize, peeked.count)].enumerated().map { offset, cand in
-          CandidateViewModel(id: page * pageSize + offset, label: "", text: cand.text)
+          CandidateViewModel(id: page * pageSize + offset, label: "", text: cand.text, comment: cand.comment)
         })
     }
   }

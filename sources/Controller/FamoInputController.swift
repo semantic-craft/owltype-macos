@@ -53,6 +53,10 @@ final class FamoInputController: IMKInputController {
   var inlinePreedit = false
   // seam: was private; internal so FamoInputController+RimeUpdate.swift can reach it across files.
   var inlineCandidate = false
+  // 卷轴的「本次组字翻过页」旗标（2026-07-28 翻页才展开）：showPanel 见 page > 0 时置位，
+  // 组字结束（空 menu 的 showPanel）复位。展开后整个组字期内保持——翻回第一页、追打字母
+  // 都不收起；只有提交/清空才回到单行。只被 showPanel 读写，不在按键判定路径上。
+  var scrollDidPage = false
   // 首轮旗标同步哨兵（2026-07-12 B3 破闩锁）：inline 旗标改为每轮 rimeUpdate 重算——原先只在
   // schema 变化时算一次，delegate styleFlags 事后恢复了老控制器也永远用不上；soft_cursor 只在
   // 首轮或值变化时下发。false = 本控制器还没做过第一次同步。
