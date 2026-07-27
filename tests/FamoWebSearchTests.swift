@@ -250,6 +250,53 @@ final class FamoWebSearchTests: XCTestCase {
     }
   }
 
+  // MARK: - 裸控制字符（实盘偶发）
+
+  /// 回归：两家的摘要都抠自真实网页正文，正文里混进裸控制字符时它们**不转义**就塞进 JSON 字符串。
+  /// 那不是合法 JSON，`JSONSerialization` 直接拒收（实测：默认与 .fragmentsAllowed 都拒），而解析
+  /// 失败在我们这里归类为「不顺位、如实报错」—— 于是这一问整个失败。2026-07-27 打 Perplexity 时
+  /// 复现过。清洗后必须能正常解析出结果。
+  func testRawControlCharactersInSnippetsDoNotBreakParsing() throws {
+    let control = "\u{0008}"   // 退格符：合法 JSON 字符串里绝不能裸着出现
+    let pplx = """
+      {"id":"s1","results":[{"title":"标题","url":"https://a","snippet":"第一行\(control)第二行"}]}
+      """
+    XCTAssertNil(
+      try? JSONSerialization.jsonObject(with: Data(pplx.utf8)),
+      "前提：裸控制字符确实会让 JSONSerialization 拒收")
+
+    let results = try FamoPerplexitySearchWire.parse(Data(pplx.utf8))
+    XCTAssertEqual(results.count, 1)
+    XCTAssertEqual(results.first?.snippet, "第一行 第二行", "控制字符换成空格，内容不丢")
+
+    let doubao = """
+      {"ResponseMetadata":{"RequestId":"r"},"Result":{"ErrorCode":0,"Documents":[
+        {"Rank":0,"Url":"https://b","Title":"标题B","Snippet":[{"Type":"text","Text":"甲\(control)乙"}]}]}}
+      """
+    let dResults = try FamoDoubaoGlobalSearchWire.parse(Data(doubao.utf8))
+    XCTAssertEqual(dResults.first?.snippet, "甲 乙", "豆包同一条路径也要清洗")
+  }
+
+  /// 清洗不能破坏正常内容：合法的转义换行、中文、emoji 都得原样出来。
+  func testSanitizingLeavesLegitimateContentIntact() throws {
+    let json = """
+      {"id":"s1","results":[{"title":"标题 🙂","url":"https://a","snippet":"第一行\\n第二行"}]}
+      """
+    let results = try FamoPerplexitySearchWire.parse(Data(json.utf8))
+    XCTAssertEqual(results.first?.title, "标题 🙂", "多字节字符不受影响")
+    XCTAssertEqual(
+      results.first?.snippet, "第一行\n第二行",
+      "合法的 \\n 是两个 ASCII 字节，不该被当成控制字符改掉")
+  }
+
+  /// 实测定的默认档：low 只有 1/5 有摘要，high 是 5/5，而三档时延一样。
+  func testPerplexityAsksForFullPageContext() {
+    XCTAssertEqual(
+      FamoPerplexitySearchWire.body(query: "q", limit: 5)["search_context_size"] as? String,
+      "high",
+      "低档省不到时延，只会把接地省没了")
+  }
+
   // MARK: - 署名
 
   /// 署名要说「豆包搜索」/「Perplexity」而不是同名的**模型**供应商：检索的是它，作答的可能是 DeepSeek。

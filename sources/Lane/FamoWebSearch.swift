@@ -74,6 +74,34 @@ protocol FamoWebSearching: Sendable {
   func search(query: String, apiKey: String, limit: Int) async throws -> [FamoWebSearchResult]
 }
 
+// MARK: - 响应清洗
+
+enum FamoWebSearchPayload {
+  /// 把响应里的 C0 控制字符（0x00–0x1F）统一换成空格，然后才交给 `JSONSerialization`。
+  ///
+  /// 为什么必须做：两家的摘要都是从真实网页正文里抠出来的，正文里混进裸控制字符时，它们**不转义**
+  /// 就直接塞进 JSON 字符串 —— 那不是合法 JSON，`JSONSerialization` 会直接拒收（实测确认：默认与
+  /// `.fragmentsAllowed` 都拒）。而解析失败在我们这里被归类为「不顺位、如实报错」，于是这一问就
+  /// **整个失败**。2026-07-27 实盘打 Perplexity 时复现过：同一条 query 连打三次，有一次的
+  /// `search_context_size=medium/high` 响应就带着裸控制字符。
+  ///
+  /// 换成空格是安全的：JSON 的结构性空白（\t\n\r）本来就等价于空格；字符串里合法的换行是
+  /// `\` + `n` 两个字节（都 ≥ 0x20，不受影响）；UTF-8 的续字节 ≥ 0x80，也不受影响。
+  /// 代价只是摘要里的换行变成空格 —— 比整问失败好得多。
+  static func sanitized(_ data: Data) -> Data {
+    Data(data.map { $0 < 0x20 ? 0x20 : $0 })
+  }
+
+  /// `sanitized` + 顶层对象解析。两家共用。
+  static func object(from data: Data) throws -> [String: Any] {
+    guard let root = (try? JSONSerialization.jsonObject(with: sanitized(data)))
+            as? [String: Any] else {
+      throw FamoWebSearchError.malformedResponse
+    }
+    return root
+  }
+}
+
 // MARK: - 豆包搜索 Global 版 · wire format
 
 /// 火山引擎「豆包搜索 Global 版」的请求/响应 wire format。
@@ -124,9 +152,7 @@ enum FamoDoubaoGlobalSearchWire {
   /// 解析响应。业务错误（HTTP 200 + body 里的 Error）会 throw，绝不静默变成空列表——
   /// 「搜到 0 条」和「Key 无效」对用户是两件事，混在一起会让人以为搜索能用只是没结果。
   static func parse(_ data: Data) throws -> [FamoWebSearchResult] {
-    guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-      throw FamoWebSearchError.malformedResponse
-    }
+    let root = try FamoWebSearchPayload.object(from: data)
     if let meta = root["ResponseMetadata"] as? [String: Any],
        let error = meta["Error"] as? [String: Any] {
       throw FamoWebSearchError.serviceError(
@@ -307,8 +333,12 @@ enum FamoPerplexitySearchWire {
     [
       "query": query.trimmingCharacters(in: .whitespacesAndNewlines),
       "max_results": max(limit, 1),
-      // 短答场景不需要整页正文，high 会显著拖时延与 token。
-      "search_context_size": "low",
+      // 实测定的 high（2026-07-27，同一 query 各打 3 次）：
+      //   low    5 条里只有 1 条有摘要，共 355 字 —— 接地基本没发生，模型拿到的只有标题和网址
+      //   medium 3 条有摘要，765 字
+      //   high   5 条全有摘要，2549 字
+      // 而三档时延**没有差别**（0.72 / 0.65 / 0.65s），所以低档省不到时间，只是把接地省没了。
+      "search_context_size": "high",
     ]
   }
 
@@ -326,9 +356,7 @@ enum FamoPerplexitySearchWire {
   }
 
   static func parse(_ data: Data) throws -> [FamoWebSearchResult] {
-    guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-      throw FamoWebSearchError.malformedResponse
-    }
+    let root = try FamoWebSearchPayload.object(from: data)
     // 非 2xx 时 body 通常是 `{"error":{"message":…,"type":…}}`。客户端已按状态码抛错，这里再兜一道，
     // 免得将来某个 200 + error 的边角情况被当成空结果。
     if let error = root["error"] as? [String: Any] {
