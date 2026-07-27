@@ -2,12 +2,20 @@
 //  FamoDictPackCenter.swift
 //  Famo
 //
-//  dict-pack 编排层（MainActor）：状态发布给设置页、启动自动拉取、完成后触发 deploy()。
+//  dict-pack 编排层（MainActor）：状态发布给设置页、启动知情同意提示、完成后触发 deploy()。
 //  下载在后台 Task 里跑 FamoDictPackFetcher；本类只做状态机与线程切换，不做 IO。
+//
+//  本文件承载 dict-pack 提示线三个类型（同一功能、同居一处，对齐 FamoUpdateLogoutPrompt 的
+//  做法，避免新增源文件带来的 pbxproj 手术）：
+//    - `FamoDictPackCenter`            状态机 + 下载编排
+//    - `FamoDictPackPrompt`            纯判定 + 文案 + 呈现
+//    - `FamoDictPackPromptScheduler`   首启安全时机门控（复用 FamoLogoutPromptTiming）
 //
 
 import AppKit
+import CoreGraphics
 import Observation
+import os
 
 @Observable
 @MainActor
@@ -26,10 +34,26 @@ final class FamoDictPackCenter {
     status = makeFetcher().assess()
   }
 
-  /// 启动时机（Main.swift，loadSettings 之后）调用：未装且开关开 → 自动开始；否则只刷新状态。
-  func autoFetchIfNeeded() {
+  /// 提示调度器用：是否仍需提示。轮询期间用户可能已从设置页手动装好，届时静默收摊。
+  var needsPrompt: Bool { makeFetcher().needsFetch() }
+
+  /// 启动时机（Main.swift，loadSettings 之后）调用。知情同意改版（2026-07-27）：不再静默自动
+  /// 下载——未装则**武装提示调度器**，等安全时机弹窗说明版权缘由；用户点「同意并下载」才拉。
+  /// 已装 / 用户自备 / 已提示过都只刷新状态。`autoFetch` 开关打开＝用户显式授权免提示直接拉。
+  func promptOrFetchIfNeeded() {
     refresh()
-    guard FamoDictPackPreferences.autoFetch, makeFetcher().needsFetch() else { return }
+    guard makeFetcher().needsFetch() else { return }
+    if FamoDictPackPreferences.autoFetch {
+      start()
+      return
+    }
+    guard !FamoDictPackPreferences.promptShown else { return }
+    FamoDictPackPromptScheduler.shared.arm()
+  }
+
+  /// 知情同意通过 → 开始下载并把用户送到设置页「完整词库」卡（那里有进度条/失败重试）。
+  func acceptAndStart() {
+    NSApp.famoAppDelegate.showSettings(selectedPage: .keyboard)
     start()
   }
 
@@ -78,6 +102,176 @@ final class FamoDictPackCenter {
     running = false
     let message = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
     print("Famo dict-pack: fetch failed: \(message)")
+    FamoDictPackPrompt.log.error("fetch failed: \(message, privacy: .public)")
     status = .failed(message)
+  }
+}
+
+/// 知情同意提示（2026-07-27 改版）：完整词库来自第三方开源项目（rime-ice / KyleBing 极点五笔86），
+/// 方案B 为避免版权争议不随安装包分发；改版后也**不再由法墨静默替用户下载**——先弹窗说明缘由，
+/// 用户点「同意并下载」才拉。判定是纯函数，XCTest 可锁：真机上「切到包外方案」这条分支只在用户
+/// 恰好切到未随包分发的方案时才走到，手测覆盖不到。
+enum FamoDictPackPrompt {
+  static let log = Logger(subsystem: "im.famo.inputmethod.Famo", category: "dictPack")
+
+  enum Choice {
+    case download
+    case later
+  }
+
+  /// 方案是否由 dict-pack 管理。**纯 manifest 查询、不碰运行期状态**，因此非隔离可调——
+  /// 调用方 `selectSchema` 是 nonisolated，需要先同步分流再决定要不要进主线程呈现。
+  static func isDictPackManagedSchema(
+    _ schemaID: String, manifest: FamoDictPackManifest = .current
+  ) -> Bool {
+    guard !schemaID.isEmpty else { return false }
+    return manifest.files.contains { $0.dest == "\(schemaID).schema.yaml" }
+  }
+
+  /// 切方案失败是不是「dict-pack 未安装」造成的。
+  ///
+  /// 真值才该弹版权说明；否则维持既有的「该方案可能尚未编译」提示——后者对 dict-pack 缺失是
+  /// **误导**（叫用户去「应用配置改动」，可方案文件压根不在磁盘上，照做也没用）。
+  /// 下载中/编译中不弹：用户已经同意过，方案很快就位，再弹一次纯噪音。
+  static func isAbsentDictPackSchema(
+    schemaID: String,
+    manifest: FamoDictPackManifest = .current,
+    status: FamoDictPackStatus
+  ) -> Bool {
+    switch status {
+    case .installed, .userProvided, .downloading, .deploying: return false
+    case .notInstalled, .failed: break
+    }
+    return isDictPackManagedSchema(schemaID, manifest: manifest)
+  }
+
+  /// dict-pack 清单内方案的中文名；不认识的回落到 id 本身（宁可显示 id 也不显示空）。
+  static func displayName(for schemaID: String) -> String {
+    switch schemaID {
+    case "wubi86_jidian": return "极点五笔86"
+    case "wubi86_jidian_pinyin": return "五笔拼音混输"
+    case "wubi86_jidian_trad": return "五笔简入繁出"
+    case "wubi86_jidian_trad_pinyin": return "五笔拼音混输·简入繁出"
+    case "pinyin_simp": return "简体拼音"
+    case "double_pinyin_flypy": return "小鹤双拼"
+    case "radical_pinyin": return "部件拼音反查"
+    case "melt_eng": return "英文"
+    default:
+      return schemaID.hasPrefix("double_pinyin") ? "双拼" : schemaID
+    }
+  }
+
+  /// 版权说明对话框。**只返回用户选择、不自己执行动作**——记录已处置与执行下载由调用方统一
+  /// 编排（对齐 FamoUpdateLogoutPrompt 的 A1「记录在执行之前」）。
+  /// - Parameter schemaID: 由「切到缺失方案」触发时传方案 id，用于点名；首启告知传 nil。
+  @MainActor
+  static func presentAlert(schemaID: String?) -> Choice {
+    let alert = NSAlert()
+    if let schemaID {
+      alert.messageText = "方案「\(displayName(for: schemaID))」需要先下载完整词库"
+    } else {
+      alert.messageText = "法墨当前使用的是精简词库"
+    }
+    alert.informativeText = """
+    法墨安装包只内置了自建的清洁室精简词库。五笔、简体拼音、小鹤双拼等方案的词库来自第三方开源项目（雾凇拼音 rime-ice、极点五笔86），为避免版权争议，法墨不随安装包分发它们，也不会在你不知情的情况下替你下载。
+
+    点「同意并下载」后，法墨会从这些项目的官方仓库按固定版本获取（约 90 MB），校验通过后自动编译启用。
+
+    你也可以选「稍后」，之后随时在「设置 → 键盘输入 → 完整词库」里下载。
+    """
+    alert.addButton(withTitle: "同意并下载（约 90 MB）")  // 第一个 = 默认
+    alert.addButton(withTitle: "稍后")
+    return alert.runModal() == .alertFirstButtonReturn ? .download : .later
+  }
+
+  /// 「切到缺失方案」路径的完整编排：判定 → 弹窗 → 处置。返回是否已由本函数接管提示
+  /// （true = 调用方不要再发那条「尚未编译」的通知）。
+  @MainActor
+  static func handleAbsentSchema(_ schemaID: String) -> Bool {
+    guard isAbsentDictPackSchema(schemaID: schemaID, status: FamoDictPackCenter.shared.status) else {
+      return false
+    }
+    log.log("absent dict-pack schema: \(schemaID, privacy: .public) — presenting consent alert")
+    // 首启告知与本次点名说的是同一件事，弹过一次就别再重复问候。
+    FamoDictPackPreferences.promptShown = true
+    switch presentAlert(schemaID: schemaID) {
+    case .download:
+      FamoDictPackCenter.shared.acceptAndStart()
+    case .later:
+      log.log("user deferred dict-pack download for \(schemaID, privacy: .public)")
+    }
+    return true
+  }
+}
+
+/// 首启告知的安全时机门控。直接复用注销提示线沉淀的纯判定层 `FamoLogoutPromptTiming`——
+/// #109 真机教训同样适用：**启动回调里同步 runModal 会在用户开始输入后中途夺焦点、打断输入**。
+/// 等无合成 + 输入空闲再激活法墨自身弹窗；选「稍后」还原宿主焦点。
+/// 观测：`log show --predicate 'subsystem == "im.famo.inputmethod.Famo" AND category == "dictPack"'`
+@MainActor
+final class FamoDictPackPromptScheduler {
+  static let shared = FamoDictPackPromptScheduler()
+  private init() {}
+
+  private var armed = false
+  private var timer: Timer?
+  private var snapshotBlock = FamoLogoutPromptTiming.SnapshotBlockTracker()
+  private var capturedApp: NSRunningApplication?
+
+  /// 武装：启动低频轮询。同次启动只处理一次。
+  func arm() {
+    guard !armed else { return }
+    armed = true
+    snapshotBlock = FamoLogoutPromptTiming.SnapshotBlockTracker()
+    capturedApp = nil
+    FamoDictPackPrompt.log.log("first-run consent prompt armed")
+    let poll = Timer(timeInterval: FamoLogoutPromptTiming.pollInterval, repeats: true) { [weak self] _ in
+      MainActor.assumeIsolated { self?.tick() }
+    }
+    RunLoop.main.add(poll, forMode: .common)
+    timer = poll
+  }
+
+  private func stopTimer() {
+    timer?.invalidate()
+    timer = nil
+  }
+
+  private func tick() {
+    // 期间用户可能已从设置页手动装好，或走了「切到缺失方案」那条路 —— 都不必再告知一次。
+    guard !FamoDictPackPreferences.promptShown,
+          FamoDictPackCenter.shared.needsPrompt else {
+      stopTimer()
+      return
+    }
+    let input = readSafeInput()
+    let blockedTicks = snapshotBlock.observe(input.snapshotID)
+    guard case .safe = FamoLogoutPromptTiming.safeVerdict(input, blockedTicks: blockedTicks) else {
+      return
+    }
+    stopTimer()
+    capturedApp = NSWorkspace.shared.frontmostApplication
+    NSApp.activate(ignoringOtherApps: true)
+    // A1：处置前先落盘。弹窗未处置就被杀掉时下次启动重弹优于永久静默，但正常路径必须只弹一次。
+    FamoDictPackPreferences.promptShown = true
+    switch FamoDictPackPrompt.presentAlert(schemaID: nil) {
+    case .download:
+      FamoDictPackCenter.shared.acceptAndStart()
+    case .later:
+      FamoDictPackPrompt.log.log("user deferred dict-pack download at first run")
+      capturedApp?.activate()  // 还原宿主焦点，别把用户晾在法墨这边
+    }
+    capturedApp = nil
+  }
+
+  private func readSafeInput() -> FamoLogoutPromptTiming.SafeInput {
+    let snapshotID = FamoSnapshotRegistry.shared.current?.id
+    // 读不到空闲态时【不】据此阻塞——「条件读不到 → 永久静默」正是 #131 要消灭的失败类别。
+    var idle: TimeInterval?
+    if let anyInput = CGEventType(rawValue: ~0) {
+      idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: anyInput)
+    }
+    let isLoginWindow = NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.loginwindow"
+    return FamoLogoutPromptTiming.SafeInput(snapshotID: snapshotID, idleSeconds: idle, isLoginWindow: isLoginWindow)
   }
 }

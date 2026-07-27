@@ -213,6 +213,64 @@ final class FamoDictPackTests: XCTestCase {
     XCTAssertTrue(dests.contains("zh-hans-t-essay-bgw.gram"))
     XCTAssertTrue(dests.contains("wubi86_jidian.schema.yaml"))
   }
+
+  // MARK: - 知情同意提示的纯判定（2026-07-27 改版）
+
+  /// 注入用小清单：只认 wubi86_jidian 一个方案，逻辑与线上清单内容解耦。
+  private func promptManifest() -> FamoDictPackManifest {
+    FamoDictPackManifest(version: 1, files: [
+      .init(repo: "KyleBing/rime-wubi86-jidian", ref: "deadbeef", path: "wubi86_jidian.schema.yaml",
+            dest: "wubi86_jidian.schema.yaml", sha256: String(repeating: "a", count: 64), size: 1, patch: nil)
+    ])
+  }
+
+  func testDictPackManagedSchemaOnlyMatchesManifestSchemas() {
+    let manifest = promptManifest()
+    XCTAssertTrue(FamoDictPackPrompt.isDictPackManagedSchema("wubi86_jidian", manifest: manifest))
+    // 随包分发的方案不归 dict-pack 管——切它失败是真·未编译，不该弹版权说明。
+    XCTAssertFalse(FamoDictPackPrompt.isDictPackManagedSchema("rime_ice", manifest: manifest))
+    XCTAssertFalse(FamoDictPackPrompt.isDictPackManagedSchema("", manifest: manifest))
+    // 只认 <id>.schema.yaml，不能被同前缀的 dict 条目误判。
+    XCTAssertFalse(FamoDictPackPrompt.isDictPackManagedSchema("wubi86_jidian.schema", manifest: manifest))
+  }
+
+  /// 已装/自备/进行中都不该再弹；未装与失败态才弹（失败后仍要给用户再来一次的入口）。
+  func testAbsentDictPackSchemaGatesOnStatus() {
+    let manifest = promptManifest()
+    let absent: [FamoDictPackStatus] = [.notInstalled, .failed("network")]
+    for status in absent {
+      XCTAssertTrue(
+        FamoDictPackPrompt.isAbsentDictPackSchema(schemaID: "wubi86_jidian", manifest: manifest, status: status),
+        "\(status) 应判为缺失")
+    }
+    let present: [FamoDictPackStatus] = [
+      .installed(version: 1), .userProvided, .downloading(progress: 0.5), .deploying
+    ]
+    for status in present {
+      XCTAssertFalse(
+        FamoDictPackPrompt.isAbsentDictPackSchema(schemaID: "wubi86_jidian", manifest: manifest, status: status),
+        "\(status) 不应再弹")
+    }
+    // 未装，但方案本就随包分发 → 仍不弹。
+    XCTAssertFalse(
+      FamoDictPackPrompt.isAbsentDictPackSchema(schemaID: "rime_ice", manifest: manifest, status: .notInstalled))
+  }
+
+  /// 线上清单必须真的覆盖会触发提示的那批方案——漏一个，用户切过去只会看到「尚未编译」的
+  /// 误导提示，且永远没有下载入口。
+  func testCurrentManifestCoversPromptableSchemas() {
+    for id in ["wubi86_jidian", "wubi86_jidian_pinyin", "wubi86_jidian_trad",
+               "wubi86_jidian_trad_pinyin", "pinyin_simp", "double_pinyin_flypy"] {
+      XCTAssertTrue(FamoDictPackPrompt.isDictPackManagedSchema(id), "清单未覆盖 \(id)")
+      XCTAssertNotEqual(FamoDictPackPrompt.displayName(for: id), id, "\(id) 缺中文名，弹窗会显示裸 id")
+    }
+  }
+
+  func testDisplayNameFallsBackToRawID() {
+    XCTAssertEqual(FamoDictPackPrompt.displayName(for: "wubi86_jidian"), "极点五笔86")
+    XCTAssertEqual(FamoDictPackPrompt.displayName(for: "double_pinyin_mspy"), "双拼")
+    XCTAssertEqual(FamoDictPackPrompt.displayName(for: "some_unknown_schema"), "some_unknown_schema")
+  }
 }
 
 /// run 的 progress 回调是 @Sendable —— 用引用类型收集，避免并发捕获 var。

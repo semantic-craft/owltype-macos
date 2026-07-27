@@ -588,9 +588,19 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
     engine.selectSchema(id)                              // remembered for future sessions
     let result = activeInputController?.switchLiveSessionSchema(to: id) // live session, no full deploy
     if case .selectFailed(let failedID)? = result {
-      // 用户可感反馈（决策点 1）：显式切方案失败（多因 build/<id>.schema.yaml 未编译）。走已有系统
-      // 通知，不静默——否则 UI 显示新方案而实际输出仍是旧方案（设置显示拼音 / 打字出五笔）。
-      Self.showMessage(msgText: "无法切换到方案「\(failedID)」：该方案可能尚未编译。请在设置里「应用配置改动」后重试，或运行 Famo --diagnose-rime-config 排查。")
+      // 方案B 分流：失败若是「该方案的词库根本没随包分发」（dict-pack 未装），下面那条通知是**误导**
+      // ——它叫用户去「应用配置改动」，可方案文件压根不在磁盘上，照做也没用。改弹版权说明并引导下载。
+      // 这里只做纯 manifest 判定（本方法 nonisolated）；读运行期状态与弹窗都在主线程做，
+      // 已装却选失败（真·未编译）时由 handleAbsentSchema 返回 false 补发原通知。
+      if FamoDictPackPrompt.isDictPackManagedSchema(failedID) {
+        Task { @MainActor in
+          if !FamoDictPackPrompt.handleAbsentSchema(failedID) {
+            Self.notifySchemaNotCompiled(failedID)
+          }
+        }
+      } else {
+        Self.notifySchemaNotCompiled(failedID)
+      }
     }
     loadSettings()
     loadSettings(for: id)
@@ -635,6 +645,13 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
 
   func openWiki() {
     NSWorkspace.shared.open(Self.rimeWikiURL)
+  }
+
+  /// 用户可感反馈（决策点 1）：显式切方案失败（多因 build/<id>.schema.yaml 未编译）。走已有系统
+  /// 通知，不静默——否则 UI 显示新方案而实际输出仍是旧方案（设置显示拼音 / 打字出五笔）。
+  /// 抽成具名方法：dict-pack 分流后有两个调用点（同步路径 + 主线程补发）。
+  static func notifySchemaNotCompiled(_ failedID: String) {
+    showMessage(msgText: "无法切换到方案「\(failedID)」：该方案可能尚未编译。请在设置里「应用配置改动」后重试，或运行 Famo --diagnose-rime-config 排查。")
   }
 
   static func showMessage(msgText: String?) {
