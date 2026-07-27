@@ -244,6 +244,7 @@ final class FamoSettingsState {
   var publishFormattingSkillEnabled: Bool = FamoSelectionMenuPreferences.publishFormattingEnabled
   var translationSkillEnabled: Bool = FamoSelectionMenuPreferences.translationEnabled
   var promptOptimizeSkillEnabled: Bool = FamoSelectionMenuPreferences.promptOptimizeEnabled
+  var goalBriefSkillEnabled: Bool = FamoSelectionMenuPreferences.goalBriefEnabled
 }
 
 /// Single home for 划词菜单 + 划词工具箱页 built-in skill preferences.
@@ -263,6 +264,7 @@ enum FamoSelectionMenuPreferences {
   static let publishFormattingEnabledKey = "FamoSkillPublishFormattingEnabled"
   static let translationEnabledKey = "FamoSkillTranslationEnabled"
   static let promptOptimizeEnabledKey = "FamoSkillPromptOptimizeEnabled"
+  static let goalBriefEnabledKey = "FamoSkillGoalBriefEnabled"
 
   static var isEnabled: Bool {
     get { bool(enabledKey, default: false) }
@@ -305,6 +307,12 @@ enum FamoSelectionMenuPreferences {
     set { FamoDefaults.standard.set(newValue, forKey: promptOptimizeEnabledKey) }
   }
 
+  /// 任务书（目标七问）：与其他内置技能同策，默认开、随云端总闸生效。
+  static var goalBriefEnabled: Bool {
+    get { bool(goalBriefEnabledKey, default: true) }
+    set { FamoDefaults.standard.set(newValue, forKey: goalBriefEnabledKey) }
+  }
+
   static func resetForTesting() {
     FamoDefaults.standard.removeObject(forKey: enabledKey)
     FamoDefaults.standard.removeObject(forKey: askEnabledKey)
@@ -314,6 +322,7 @@ enum FamoSelectionMenuPreferences {
     FamoDefaults.standard.removeObject(forKey: publishFormattingEnabledKey)
     FamoDefaults.standard.removeObject(forKey: translationEnabledKey)
     FamoDefaults.standard.removeObject(forKey: promptOptimizeEnabledKey)
+    FamoDefaults.standard.removeObject(forKey: goalBriefEnabledKey)
   }
 
   private static func bool(_ key: String, default defaultValue: Bool) -> Bool {

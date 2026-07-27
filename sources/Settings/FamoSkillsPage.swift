@@ -244,6 +244,20 @@ struct FamoSkillsPage: View {
           }
         )
         SettingsCardDivider(palette: palette)
+        SettingsToggleRow(
+          title: "任务书",
+          subtitle: "选中口述的模糊需求，按「目标七问」整理成 AI Agent 可独立执行的目标任务书：目的、完成态、证据、反作弊、边界、取舍逐节补齐，说不清的列进「未知」待你裁决；预览确认后替换原文",
+          systemImage: "checklist",
+          isOn: state.goalBriefSkillEnabled,
+          palette: palette,
+          isEnabled: state.cloudEnabled,
+          onToggle: {
+            FamoSettingsActions.toggle(state: state, keyPath: \.goalBriefSkillEnabled) {
+              FamoSelectionMenuPreferences.goalBriefEnabled = $0
+            }
+          }
+        )
+        SettingsCardDivider(palette: palette)
         Text("召唤工具箱（双击 ⌥ 或快捷键）后，这些已启用的技能是窗口顶部的按钮。没有现成技能可用的个性化加工需求（多版本挑选、仿写、公文语体…），在输入框对选中文本直接下指令兜住。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)

@@ -90,6 +90,7 @@ struct FamoSettingsView: View {
       state.publishFormattingSkillEnabled = FamoSelectionMenuPreferences.publishFormattingEnabled
       state.translationSkillEnabled = FamoSelectionMenuPreferences.translationEnabled
       state.promptOptimizeSkillEnabled = FamoSelectionMenuPreferences.promptOptimizeEnabled
+      state.goalBriefSkillEnabled = FamoSelectionMenuPreferences.goalBriefEnabled
     }
   }
 
