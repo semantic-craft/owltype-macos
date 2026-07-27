@@ -1400,7 +1400,7 @@
 				CODE_SIGN_ENTITLEMENTS = resources/Famo.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1.5.8;
+				CURRENT_PROJECT_VERSION = 1.5.9;
 				DEAD_CODE_STRIPPING = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1435,7 +1435,7 @@
 					"$(OTHER_CPLUSPLUSFLAGS_QUOTED_FOR_TARGET_2)",
 				);
 				OTHER_LDFLAGS = "-lrime.1";
-				MARKETING_VERSION = 1.5.8;
+				MARKETING_VERSION = 1.5.9;
 				PRODUCT_BUNDLE_IDENTIFIER = im.famo.inputmethod.Famo;
 				PRODUCT_NAME = Famo;
 				SDKROOT = macosx;
@@ -1457,7 +1457,7 @@
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CODE_SIGN_ENTITLEMENTS = resources/Famo.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1.5.8;
+				CURRENT_PROJECT_VERSION = 1.5.9;
 				DEAD_CODE_STRIPPING = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1491,7 +1491,7 @@
 					"$(OTHER_CPLUSPLUSFLAGS_QUOTED_FOR_TARGET_2)",
 				);
 				OTHER_LDFLAGS = "-lrime.1";
-				MARKETING_VERSION = 1.5.8;
+				MARKETING_VERSION = 1.5.9;
 				PRODUCT_BUNDLE_IDENTIFIER = im.famo.inputmethod.Famo;
 				PRODUCT_NAME = Famo;
 				SDKROOT = macosx;
@@ -1623,7 +1623,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1.5.8;
+				CURRENT_PROJECT_VERSION = 1.5.9;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)",
@@ -1636,7 +1636,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.5.8;
+				MARKETING_VERSION = 1.5.9;
 				PRODUCT_BUNDLE_IDENTIFIER = im.famo.inputmethod.FamoTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -1651,7 +1651,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1.5.8;
+				CURRENT_PROJECT_VERSION = 1.5.9;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)",
@@ -1664,7 +1664,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.5.8;
+				MARKETING_VERSION = 1.5.9;
 				PRODUCT_BUNDLE_IDENTIFIER = im.famo.inputmethod.FamoTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -1678,7 +1678,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1.5.8;
+				CURRENT_PROJECT_VERSION = 1.5.9;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1686,7 +1686,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.5.8;
+				MARKETING_VERSION = 1.5.9;
 				PRODUCT_BUNDLE_IDENTIFIER = im.famo.inputmethod.FamoUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -1700,7 +1700,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1.5.8;
+				CURRENT_PROJECT_VERSION = 1.5.9;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1708,7 +1708,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.5.8;
+				MARKETING_VERSION = 1.5.9;
 				PRODUCT_BUNDLE_IDENTIFIER = im.famo.inputmethod.FamoUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
