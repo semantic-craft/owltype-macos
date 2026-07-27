@@ -2,18 +2,25 @@
 //  FamoAskSearchResolver.swift
 //  法墨输入法 (Famo) — 任意提问「联网搜索」的专属模型解析
 //
-//  开关开启时，把这一问路由到一个**可联网的专属供应商**（用户已配好密钥的 Qwen/MiMo/豆包/OpenAI），
-//  与主对话模型解耦 —— 主模型不支持联网时也能真搜到。若只在主模型请求里拼搜索参数，主模型
-//  （常见是 DeepSeek）不支持联网时会被静默降级成普通问答、只答到训练截止，而用户以为搜了。
+//  开关开启时，把这一问路由到一个**可联网的专属供应商**（专用搜索凭据 豆包搜索/Perplexity，或已配好
+//  密钥的 Qwen/MiMo/OpenAI），与主对话模型解耦 —— 主模型不支持联网时也能真搜到。若只在主模型请求里
+//  拼搜索参数，主模型（常见是 DeepSeek）不支持联网时会被静默降级成普通问答、只答到训练截止，而用户
+//  以为搜了。
 //
-//  一家都没配好密钥 → 返回 nil，调用方**静默退回**普通问答（`FamoProviderAuthGate` 那条既有路）。
-//  这是刻意的降级语义：联网是加分项，不是让提问失败的理由。
+//  一家都没配好密钥 → `resolveAll()` 返回空，调用方**静默退回**普通问答（`FamoProviderAuthGate`
+//  那条既有路）。这是刻意的降级语义：联网是加分项，不是让提问失败的理由。
+//
+//  为什么返回的是**列表**而不是单个路由：配置期「有没有 Key」与运行期「这家肯不肯服务」是两回事 ——
+//  方舟没开通内容插件是 404 `ToolNotOpen`、MiMo 的 Key 失效是 401，两者都只在请求发出后才知道。
+//  `resolveAll()` 交出全部候选，`FamoStreamingChatService.openAsk` 在**首个 delta 之前**按
+//  `FamoAskSearchFailover` 顺位到下一家，全败才退回普通问答 —— 与设置页「都没配密钥时会自动退回
+//  普通问答」的用户预期同一条语义。
 //
 //  顺序规则（`orderedCandidates`）：用户在设置里显式选的「联网模型」排第一；没选（自动）时，
 //  当前默认档案本身可联网就优先用它（省得另配一份密钥）；其余按 `FamoSearchControl.searchProviderIDs`
 //  补齐。偏好**只影响顺序**：选中的那家没配密钥时照样顺位到下一家，而不是让这一问不联网 ——
-//  与上面的静默降级同一条逻辑，且 AI 窗的署名 chip 会如实写出到底是谁答的，所以「以为用 A 实际用 B」
-//  是可见的，不是欺骗。
+//  与上面的静默降级同一条逻辑，且 AI 窗的署名 chip 会如实写出到底是谁答的（顺位/退回后会改写），
+//  所以「以为用 A 实际用 B」是可见的，不是欺骗。
 //
 //  纯值解析：不发请求。唯一副作用是注入的 Keychain 读取，其失败被吞成「这家不可用」而继续
 //  下一家（与 `FamoProviderAuthGate` 的「永不因钥匙串崩掉调用方」契约一致）。
@@ -120,29 +127,45 @@ struct FamoAskSearchResolver {
     self.secretProvider = secretProvider
   }
 
-  /// The 联网搜索 route for this question, or nil → caller falls back to plain chat.
-  /// nil covers all three "no search this time" cases: toggle off, no search-capable profile, or
-  /// every search-capable profile still missing its key.
+  /// The first 联网搜索 route for this question, or nil → caller falls back to plain chat.
+  /// nil covers all three "no search this time" cases: toggle off, no search-capable provider, or
+  /// every search-capable provider still missing its key.
   func resolve() -> FamoAskSearchRoute? {
-    guard isEnabled() else { return nil }
+    resolveAll().first
+  }
+
+  /// EVERY configured 联网搜索 route, in `orderedCandidates()` order — the input to the runtime
+  /// failover in `FamoStreamingChatService.openAsk`. Empty = no search this time (same three cases
+  /// as `resolve()` returning nil).
+  func resolveAll() -> [FamoAskSearchRoute] {
+    guard isEnabled() else { return [] }
     let profiles = profilesProvider()
-    for providerID in orderedCandidates() {
-      guard let profile = profiles.first(where: {
-        FamoLLMProviderCatalog.inferredProviderID(for: $0) == providerID
-      }) else { continue }
-      guard let apiKey = usableKey(for: profile) else { continue }
-      return FamoAskSearchRoute(routing: FamoCloudRouting.resolve(profile: profile), apiKey: apiKey)
+    return orderedCandidates().compactMap { route(for: $0, profiles: profiles) }
+  }
+
+  /// One candidate id → a usable route, or nil when its key is missing/unreadable.
+  ///
+  /// 两种候选来源：「联网搜索专用 Key」（`FamoSearchCredential`，端点与模型由凭据自己定死，不需要
+  /// `providers.json` 里有对应档案）与内建搜索的对话供应商（从档案解析路由）。
+  private func route(for providerID: String, profiles: [FamoProviderProfile]) -> FamoAskSearchRoute? {
+    if let credential = FamoSearchCredential(providerID: providerID) {
+      guard let apiKey = usableKey(named: credential.secretName) else { return nil }
+      return FamoAskSearchRoute(routing: credential.routing, apiKey: apiKey)
     }
-    return nil
+    guard let profile = profiles.first(where: {
+      FamoLLMProviderCatalog.inferredProviderID(for: $0) == providerID
+    }) else { return nil }
+    guard let apiKey = usableKey(named: profile.secretName) else { return nil }
+    return FamoAskSearchRoute(routing: FamoCloudRouting.resolve(profile: profile), apiKey: apiKey)
   }
 
   /// The order providers are tried in.
   ///
   /// 1. The user's explicit「联网模型」choice, when they made one — ONLY reordering, never gating:
-  ///    the loop in `resolve()` still skips it if its key is missing, so a half-configured choice
-  ///    degrades to the next provider instead of silently turning 联网 off.
-  /// 2. Otherwise 自动: the active profile's provider first when it can already search (no extra
-  ///    key to configure), then the standard priority order with that provider removed.
+  ///    `resolveAll()` still drops it if its key is missing, so a half-configured choice degrades to
+  ///    the next provider instead of silently turning 联网 off.
+  /// 2. Otherwise 自动: 「联网搜索专用 Key」两家保持在最前（没填 Key 时会在 `route(for:)` 里自然掉
+  ///    出，不占位），随后才是活动档案本身（它可联网时优先，省得另配一份密钥），再是其余对话供应商。
   private func orderedCandidates() -> [String] {
     let base = FamoSearchControl.searchProviderIDs
     if let preferred = preferredProviderID(), base.contains(preferred) {
@@ -151,16 +174,61 @@ struct FamoAskSearchResolver {
     guard let active = defaultProfileProvider() else { return base }
     let activeID = FamoLLMProviderCatalog.inferredProviderID(for: active)
     guard base.contains(activeID) else { return base }
-    return [activeID] + base.filter { $0 != activeID }
+    let credentials = base.filter { FamoSearchCredential(providerID: $0) != nil }
+    let chatProviders = base.filter { FamoSearchCredential(providerID: $0) == nil && $0 != activeID }
+    return credentials + [activeID] + chatProviders
   }
 
-  /// A non-empty stored key for `profile`, or nil. A profile with no `secretName` (never happens for
-  /// a stored profile, defensive) and a Keychain read failure both mean "not usable" — skip to the
-  /// next candidate rather than failing the whole question.
-  private func usableKey(for profile: FamoProviderProfile) -> String? {
+  /// A non-empty stored key under `secretName`, or nil. An absent key and a Keychain read failure
+  /// both mean "not usable" — skip to the next candidate rather than failing the whole question.
+  private func usableKey(named secretName: String) -> String? {
     // `try?` flattens both failure modes into nil: a Keychain throw and a genuinely absent key.
-    guard let raw = try? secretProvider(profile.secretName) else { return nil }
+    guard let raw = try? secretProvider(secretName) else { return nil }
     let key = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     return key.isEmpty ? nil : key
+  }
+}
+
+// MARK: - 运行期顺位降级策略
+
+/// 一次联网尝试失败后，该顺位到下一家、还是如实报错给用户。
+///
+/// 判据是「这家在当前配置下**拒绝服务**」还是「这次请求碰上了暂时的麻烦」：
+///   - 顺位：4xx。方舟未开通内容插件是 404 `ToolNotOpen`、MiMo 的 Key 失效是 401、欠费/未授权是
+///     402/403、参数被拒是 400 —— 换成同一家重试永远是同一个结果，只有换一家才可能出答案。
+///     `invalidEndpoint`（端点改写不成 `/responses`）同理，是这条路由本身配不对。
+///   - 报错：408 请求超时与 429 限流虽是 4xx 但**暂时**；5xx 是对方故障；`URLError`（断网、超时）
+///     是用户自己那侧的真错误。这些一律如实上报 —— 把断网吞成「换一家」会让用户以为是我们坏了，
+///     而且下一家同样连不上，只是把一个错误变成四个。
+///   - 报错：`upstreamFailure`（2xx 之后的 `response.failed`）也不顺位：请求已被接受、模型已经开工，
+///     这类失败换一家不会更好，而且可能已经有内容送到窗口了。
+enum FamoAskSearchFailover {
+  /// 4xx 里**不**触发顺位的两个：请求超时与限流，两者稍后重试同一家仍有可能成功。
+  static let transientStatuses: Set<Int> = [408, 429]
+
+  /// 该换下一家联网供应商吗？
+  static func shouldTryNextProvider(after error: Error) -> Bool {
+    switch error {
+    case let streaming as FamoStreamingError:
+      switch streaming {
+      case let .badHTTPStatus(status):
+        return isConfigurationRefusal(status: status)
+      case .invalidEndpoint:
+        return true
+      case .nonHTTPResponse, .upstreamFailure:
+        return false
+      }
+    case let retrieval as FamoWebRetrievalError:
+      // 豆包搜索这类纯检索路由自己判（业务错误码会带着 HTTP 200 回来）——见 `isRouteUnusable`。
+      return retrieval.isRouteUnusable
+    default:
+      // URLError（断网/超时/DNS）与一切未知错误：如实上报，绝不静默换家。
+      return false
+    }
+  }
+
+  /// 4xx 且不是 408/429 —— 「这家在当前配置下不会为你服务」。
+  static func isConfigurationRefusal(status: Int) -> Bool {
+    (400...499).contains(status) && !transientStatuses.contains(status)
   }
 }

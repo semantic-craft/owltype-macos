@@ -136,15 +136,23 @@ final class FamoSearchControlTests: XCTestCase {
     XCTAssertEqual(FamoSearchControl.displayName(for: "mimo"), "MiMo")
     XCTAssertEqual(FamoSearchControl.displayName(for: "doubao"), "豆包")
     XCTAssertEqual(FamoSearchControl.displayName(for: "openai"), "OpenAI")
+    XCTAssertEqual(FamoSearchControl.displayName(for: "doubao_search"), "豆包搜索")
+    XCTAssertEqual(FamoSearchControl.displayName(for: "perplexity"), "Perplexity")
     XCTAssertNil(FamoSearchControl.displayName(for: "deepseek"))
   }
 
   func testEverySearchProviderContributesRealSearchFieldsOnItsOwnTransport() {
     // The 自动 fallback order (and the「联网模型」Picker, which lists exactly these) must never
     // carry a provider that resolves to a request with no search in it. Checked PER TRANSPORT:
-    // chat/completions proves it via non-empty extras, /responses via a tools array in its body.
+    // chat/completions proves it via non-empty extras, /responses via a tools array in its body,
+    // and 检索 by being an endpoint whose entire job is search.
     for providerID in FamoSearchControl.searchProviderIDs {
       switch FamoSearchControl.transport(providerID: providerID, host: "") {
+      case .chatCompletions where providerID == FamoSearchCredential.perplexity.rawValue:
+        // Perplexity 的联网是模型默认行为（要关才传 `disable_search`）——空 extraBody 才是对的。
+        XCTAssertTrue(
+          FamoSearchControl.extraBody(providerID: providerID, host: "").isEmpty,
+          "Perplexity 不需要任何联网字段，多塞反而可能被拒")
       case .chatCompletions:
         XCTAssertFalse(
           FamoSearchControl.extraBody(providerID: providerID, host: "").isEmpty,
@@ -160,9 +168,40 @@ final class FamoSearchControlTests: XCTestCase {
           return XCTFail("\(providerID) 走 /responses 却没有 tools")
         }
         XCTAssertEqual(tool["type"] as? String, "web_search")
+      case .retrieval:
+        XCTAssertNotNil(
+          FamoSearchCredential(providerID: providerID)?.endpoint,
+          "\(providerID) 走纯检索，必须有自己的检索端点")
       case .none:
         XCTFail("\(providerID) is listed as a search candidate but cannot search")
       }
+    }
+  }
+
+  /// 豆包(方舟) 不在任意提问的联网候选里 —— 它的 `/responses` `web_search` 要单独开通内容插件，
+  /// 没开通时整条请求 404 `ToolNotOpen`。豆包这条线改走独立的「豆包搜索」检索 API。
+  func testArkIsNotAnAskSearchCandidateButItsResponsesWireRemains() {
+    XCTAssertFalse(
+      FamoSearchControl.searchProviderIDs.contains("doubao"),
+      "方舟 web_search 需另行开通，不该出现在任意提问的自动顺位里")
+    XCTAssertEqual(
+      FamoSearchControl.transport(providerID: "doubao", host: "ark.cn-beijing.volces.com"),
+      .responses(isOpenAI: false),
+      "来源核验仍在用这条 wire，不能一并删掉")
+    XCTAssertTrue(
+      FamoSearchControl.searchProviderIDs.contains(FamoSearchCredential.doubaoSearch.rawValue))
+  }
+
+  func testSearchCredentialsCarryTheirOwnEndpointsAndKeychainNamespace() {
+    XCTAssertEqual(
+      FamoSearchCredential.doubaoSearch.endpoint.host, "open.feedcoopapi.com",
+      "豆包搜索 Global 版是独立域名，不是方舟")
+    XCTAssertEqual(FamoSearchCredential.perplexity.endpoint.host, "api.perplexity.ai")
+    for credential in FamoSearchCredential.allCases {
+      XCTAssertTrue(
+        credential.secretName.hasPrefix("famo.search."),
+        "搜索凭据与供应商密钥必须分属两个 Keychain 命名空间")
+      XCTAssertEqual(FamoSearchCredential(providerID: credential.rawValue), credential)
     }
   }
 

@@ -42,12 +42,47 @@ enum FamoStreamingError: Error, Equatable {
 /// (see `FamoProviderAuthGate`), so one enum serves streaming / 划词润色 / 来源核验.
 typealias FamoStreamingReadiness = FamoProviderAuthOutcome
 
-/// A successfully opened 任意提问 stream plus WHO answered it: `searchProviderID` names the 联网模型
-/// when the question was routed through 联网搜索, or is nil for a plain-chat answer. The AI window
-/// renders it as the 署名 chip so the user can see this answer came from a live search.
+/// WHO answered this question — a **mutable** carrier, deliberately not a plain value.
+///
+/// 归属在开流那一刻还不算数：请求发出之后才知道方舟没开通内容插件（404 `ToolNotOpen`）、MiMo 的 Key
+/// 已失效（401）。运行期顺位会换一家，全败还会退回普通问答，两种情况都改写归属。所以 `openAsk` 交出
+/// 的是这个盒子而不是一个定值 —— AI 窗在拿到第一段内容与流结束时读回它，署名 chip 写的于是是**最终
+/// 真的答了这一问的那家**，而不是「本来打算用谁」。
+@MainActor
+final class FamoAskAttribution {
+  /// 联网供应商 id；nil = 这一问没走联网（普通问答）。
+  private(set) var searchProviderID: String?
+
+  init(searchProviderID: String? = nil) {
+    self.searchProviderID = searchProviderID
+  }
+
+  func update(searchProviderID: String?) {
+    self.searchProviderID = searchProviderID
+  }
+}
+
+/// A successfully opened 任意提问 stream plus WHO answered it. The AI window renders the attribution
+/// as the 署名 chip so the user can see this answer came from a live search — and, after a runtime
+/// failover, WHICH provider actually produced it.
+@MainActor
 struct FamoAskStreamOpen {
   let stream: AsyncThrowingStream<String, Error>
-  let searchProviderID: String?
+  /// 最终归属。开流时的值只是「打算用谁」，顺位/退回会就地改写它。
+  let attribution: FamoAskAttribution
+
+  /// 当前归属的联网供应商 id，nil = 普通问答。
+  var searchProviderID: String? { attribution.searchProviderID }
+
+  init(stream: AsyncThrowingStream<String, Error>, attribution: FamoAskAttribution) {
+    self.stream = stream
+    self.attribution = attribution
+  }
+
+  /// 归属自始至终不变的便利构造：普通问答，以及不关心联网的测试假实现。
+  init(stream: AsyncThrowingStream<String, Error>, searchProviderID: String?) {
+    self.init(stream: stream, attribution: FamoAskAttribution(searchProviderID: searchProviderID))
+  }
 }
 
 // MARK: - Pure SSE delta parser (the testable core)
@@ -339,6 +374,8 @@ final class FamoStreamingChatService {
   /// The `/responses` transport (豆包 / OpenAI 联网). Held ONLY here — `stream` never touches it,
   /// so 划词技能 structurally cannot reach a search endpoint.
   private let responsesClient: FamoResponsesStreaming
+  /// 纯检索传输（豆包搜索 Global 版）。同上：只有 `openAsk` 持有它。
+  private let retriever: FamoWebRetrieving
   /// Resolves the active profile → routing + key (or a typed not-ready outcome). Built from the
   /// injected profile/secret/legacy closures so tests keep injecting exactly as before.
   private let gate: FamoProviderAuthGate
@@ -349,6 +386,7 @@ final class FamoStreamingChatService {
   init(
     client: FamoChatStreaming? = nil,
     responsesClient: FamoResponsesStreaming? = nil,
+    retriever: FamoWebRetrieving? = nil,
     profileProvider: @escaping () -> FamoProviderProfile? = { FamoProviderProfileStore.shared.defaultProfile },
     profileSecretProvider: @escaping (String) throws -> String? = { try FamoProviderKeychain().secret(named: $0) },
     legacyKeyProvider: @escaping () throws -> String? = FamoCloudKeychain.readDeepSeekAPIKey,
@@ -356,6 +394,7 @@ final class FamoStreamingChatService {
   ) {
     self.client = client ?? FamoStreamingChatClient()
     self.responsesClient = responsesClient ?? FamoResponsesStreamingClient()
+    self.retriever = retriever ?? FamoDoubaoSearchClient()
     self.gate = FamoProviderAuthGate(
       profileProvider: profileProvider,
       profileSecretProvider: profileSecretProvider,
@@ -385,24 +424,136 @@ final class FamoStreamingChatService {
   }
 
   /// 任意提问 entry: stream an answer, routing through a 联网搜索 provider when one is configured and
-  /// the toggle is on. Falls back to plain chat (`stream`) when the resolver returns nil — the
+  /// the toggle is on. Falls back to plain chat (`stream`) when nothing is configured — the
   /// deliberate SILENT degrade: 联网 is a bonus, never a reason for the question to fail.
+  ///
+  /// 配置期与运行期是两道关：这里先挑出**已配好密钥**的候选，请求发出后才知道对方肯不肯服务（方舟
+  /// 未开通插件 = 404 `ToolNotOpen`、Key 失效 = 401）。所以返回的流是一层带顺位的包装：首个 delta
+  /// 之前遇到 4xx 就换下一家，全败退回普通问答，归属写进 `FamoAskAttribution`。真网络错误/超时不在
+  /// 顺位范围内 —— 它们如实报到窗口，不会被伪装成「换一家」。
+  ///
+  /// 第一家仍是**同步**开的（与顺位前的行为逐字一致）：`openAsk` 返回时请求已经发出，只有需要
+  /// await 的纯检索路由，以及顺位后的第二家起，才在流内部的 Task 里开。
   ///
   /// Separate from `stream` on purpose: 划词技能 call that one and can therefore never search,
   /// which is the scope boundary made structural rather than documented.
   func openAsk(messages: [FamoDeepSeekMessage]) -> Result<FamoAskStreamOpen, FamoStreamingReadiness> {
-    if let route = searchResolver.resolve(), let stream = openSearch(route: route, messages: messages) {
-      return .success(FamoAskStreamOpen(stream: stream, searchProviderID: route.providerID))
+    let routes = answerableRoutes()
+    guard !routes.isEmpty else {
+      return stream(messages: messages).map { FamoAskStreamOpen(stream: $0, searchProviderID: nil) }
     }
-    return stream(messages: messages).map {
-      FamoAskStreamOpen(stream: $0, searchProviderID: nil)
+    let attribution = FamoAskAttribution(searchProviderID: routes[0].providerID)
+    let primed = openImmediately(route: routes[0], messages: messages)
+    let query = FamoWebRetrievalPrompt.query(from: Self.searchQuery(in: messages))
+    let stream = AsyncThrowingStream<String, Error> { continuation in
+      let task = Task { [weak self] in
+        guard let self else { return continuation.finish() }
+        await self.pump(
+          routes: routes,
+          primed: primed,
+          messages: messages,
+          query: query,
+          attribution: attribution,
+          into: continuation
+        )
+      }
+      continuation.onTermination = { _ in task.cancel() }
+    }
+    return .success(FamoAskStreamOpen(stream: stream, attribution: attribution))
+  }
+
+  /// The resolved routes that can actually produce an answer for this question.
+  ///
+  /// 纯检索路由（豆包搜索）自己不作答 —— 主模型没配好时它拿到资料也没人写答案，所以那种情况下把它
+  /// 剔掉：候选全空时走普通问答那条路，最终如实返回 `.unconfigured`/`.missingKey`，而不是先联网一趟
+  /// 再报一个跟「没配供应商」无关的错。
+  private func answerableRoutes() -> [FamoAskSearchRoute] {
+    let routes = searchResolver.resolveAll()
+    // 没有纯检索候选时不必去问主模型的就绪状态（那是一次多余的钥匙串读取）。
+    guard routes.contains(where: { $0.transport == .retrieval }) else { return routes }
+    guard case .ready = readiness() else {
+      return routes.filter { $0.transport != .retrieval }
+    }
+    return routes
+  }
+
+  /// 检索用的 query = 最后一条 user 消息。`FamoAIContextAssembler.assemble` 把用户原话放在最后一条
+  /// user 消息、把选中文本放进 system 消息，所以这里拿到的就是问题本身，不掺 scaffold。
+  private static func searchQuery(in messages: [FamoDeepSeekMessage]) -> String {
+    messages.last(where: { $0.role == "user" })?.content ?? ""
+  }
+
+  /// 逐家尝试，直到有一家真的开始输出内容；全败则退回普通问答。
+  ///
+  /// 顺位的硬约束是**首个 delta 之前**：一旦有内容送进窗口，再换一家就会把两半答案拼在一起，所以
+  /// 那之后的失败一律如实上报（哪怕是 401）。
+  private func pump(
+    routes: [FamoAskSearchRoute],
+    primed: AsyncThrowingStream<String, Error>?,
+    messages: [FamoDeepSeekMessage],
+    query: String,
+    attribution: FamoAskAttribution,
+    into continuation: AsyncThrowingStream<String, Error>.Continuation
+  ) async {
+    var primed = primed
+    var lastError: Error?
+
+    for (index, route) in routes.enumerated() {
+      if Task.isCancelled { return continuation.finish() }
+      attribution.update(searchProviderID: route.providerID)
+
+      let inner: AsyncThrowingStream<String, Error>
+      do {
+        if index == 0, let ready = primed {
+          inner = ready
+        } else {
+          inner = try await open(route: route, messages: messages, query: query)
+        }
+      } catch {
+        // 开流阶段就失败：检索被拒/额度用尽/端点改写不成。
+        guard FamoAskSearchFailover.shouldTryNextProvider(after: error) else {
+          return continuation.finish(throwing: error)
+        }
+        lastError = error
+        continue
+      }
+      primed = nil
+
+      var yieldedAnyContent = false
+      do {
+        for try await delta in inner {
+          yieldedAnyContent = true
+          continuation.yield(delta)
+        }
+        return continuation.finish()
+      } catch {
+        guard !yieldedAnyContent,
+              FamoAskSearchFailover.shouldTryNextProvider(after: error) else {
+          return continuation.finish(throwing: error)
+        }
+        lastError = error
+      }
+    }
+
+    // 每一家联网都不可用 → 退回普通问答（设置页承诺的那条降级），署名同时撤掉联网。
+    attribution.update(searchProviderID: nil)
+    guard case let .success(plain) = stream(messages: messages) else {
+      // 连普通问答都没配好：报最后一次联网失败，比报「未配置」贴近真相。
+      return continuation.finish(throwing: lastError ?? FamoStreamingError.nonHTTPResponse)
+    }
+    do {
+      for try await delta in plain {
+        continuation.yield(delta)
+      }
+      continuation.finish()
+    } catch {
+      continuation.finish(throwing: error)
     }
   }
 
-  /// Open the resolved route on ITS transport. nil = this route can't actually search (only
-  /// reachable if a route ever escapes the resolver's search-capable candidate list) → the caller
-  /// falls back to plain chat rather than claiming a 联网 answer it didn't get.
-  private func openSearch(
+  /// Open a route whose transport needs no `await`. nil = 要么这条路由不能搜（只在有路由逃出解析器
+  /// 的候选表时才可能），要么它得先检索（`.retrieval`）——两种都交给 `open(route:…)` 处理。
+  private func openImmediately(
     route: FamoAskSearchRoute,
     messages: [FamoDeepSeekMessage]
   ) -> AsyncThrowingStream<String, Error>? {
@@ -421,8 +572,40 @@ final class FamoStreamingChatService {
         apiKey: route.apiKey,
         isOpenAI: isOpenAI
       )
-    case .none:
+    case .retrieval, .none:
       return nil
     }
+  }
+
+  /// Open the resolved route on ITS transport.
+  ///
+  /// `.retrieval`（豆包搜索）是唯一需要两步的：先检索，把资料拼进最后一问，再由**主模型**流式作答。
+  /// 检索失败原样 throw，由 `pump` 决定顺位还是上报。
+  private func open(
+    route: FamoAskSearchRoute,
+    messages: [FamoDeepSeekMessage],
+    query: String
+  ) async throws -> AsyncThrowingStream<String, Error> {
+    if let immediate = openImmediately(route: route, messages: messages) {
+      return immediate
+    }
+    guard route.transport == .retrieval else {
+      // 这条路由根本不能搜 —— 当成「这家不可用」顺位，而不是声称联网了。
+      throw FamoStreamingError.invalidEndpoint
+    }
+    let documents = try await retriever.retrieve(
+      query: query, routing: route.routing, apiKey: route.apiKey)
+    // 空资料必须当失败：注入零条资料就是让主模型凭训练知识作答，而署名仍写着「联网」。
+    guard !documents.isEmpty else { throw FamoWebRetrievalError.emptyResults }
+    guard case let .ready(routing, apiKey) = readiness() else {
+      // `answerableRoutes()` 已经挡住这种情况；真到这里说明主模型在这一问期间被改没了。
+      throw FamoStreamingError.invalidEndpoint
+    }
+    let augmented = FamoWebRetrievalPrompt.augment(
+      messages: messages,
+      documents: documents,
+      sourceName: route.displayName ?? "联网搜索"
+    )
+    return client.stream(messages: augmented, routing: routing, apiKey: apiKey)
   }
 }

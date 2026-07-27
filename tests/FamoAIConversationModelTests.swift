@@ -290,6 +290,75 @@ final class FamoAIConversationModelTests: XCTestCase {
     XCTAssertNil(model.searchAttribution, "重答未联网时署名必须撤掉")
   }
 
+  /// A streamer whose 归属 is only settled AFTER the stream opens — exactly what the runtime
+  /// failover does (方舟 404 / MiMo 401 只有请求发出后才知道).
+  private final class FailoverStreamer: FamoConversationStreaming {
+    private(set) var attribution: FamoAskAttribution?
+    private var continuation: AsyncThrowingStream<String, Error>.Continuation?
+
+    func readiness() -> FamoStreamingReadiness {
+      .ready(
+        routing: FamoCloudRouting(
+          providerID: "deepseek",
+          endpoint: URL(string: "https://api.deepseek.com/v1/chat/completions")!,
+          model: "deepseek-v4-flash", secretName: nil, authHeaderStyle: .bearer),
+        apiKey: "sk-test")
+    }
+
+    func stream(
+      messages: [FamoDeepSeekMessage]
+    ) -> Result<AsyncThrowingStream<String, Error>, FamoStreamingReadiness> {
+      .success(AsyncThrowingStream { $0.finish() })
+    }
+
+    func openAsk(
+      messages: [FamoDeepSeekMessage]
+    ) -> Result<FamoAskStreamOpen, FamoStreamingReadiness> {
+      let box = FamoAskAttribution(searchProviderID: "mimo")
+      attribution = box
+      let stream = AsyncThrowingStream<String, Error> { cont in
+        self.continuation = cont      // 内容先不发，留给测试在「顺位」之后放行
+      }
+      return .success(FamoAskStreamOpen(stream: stream, attribution: box))
+    }
+
+    /// 放行答案（模拟顺位后的那一家真的开始输出）。
+    func emitAnswer(_ text: String) {
+      continuation?.yield(text)
+      continuation?.finish()
+    }
+  }
+
+  func testAttributionFollowsARuntimeFailoverToAnotherProvider() async {
+    let streamer = FailoverStreamer()
+    let model = FamoAIConversationModel(streamer: streamer)
+
+    model.submit(question: "今天的司法解释")
+    XCTAssertEqual(model.searchAttribution, "MiMo", "开流时先按「打算用谁」署名")
+
+    // 请求发出后 MiMo 返回 401，顺位到百炼 —— 内容还一个字都没出。
+    streamer.attribution?.update(searchProviderID: "qwen")
+    streamer.emitAnswer("百炼答的")
+    await waitUntil { if case .done = model.state { return true }; return false }
+
+    XCTAssertEqual(
+      model.searchAttribution, "通义千问",
+      "chip 必须写真正答了这一问的那家，否则就是「以为用 A 实际用 B」")
+  }
+
+  func testAttributionIsDroppedWhenTheAnswerFallsBackToPlainChat() async {
+    let streamer = FailoverStreamer()
+    let model = FamoAIConversationModel(streamer: streamer)
+
+    model.submit(question: "q")
+    // 每一家联网都不可用 → 退回普通问答。
+    streamer.attribution?.update(searchProviderID: nil)
+    streamer.emitAnswer("训练知识里的答案")
+    await waitUntil { if case .done = model.state { return true }; return false }
+
+    XCTAssertNil(model.searchAttribution, "没真的联网就不能留着联网署名")
+  }
+
   func testUnconfiguredClearsAnyPriorAttribution() async {
     let streamer = FakeStreamer(readiness: .unconfigured)
     let model = FamoAIConversationModel(streamer: streamer)

@@ -127,8 +127,10 @@ struct FamoAIConversationView: View {
   }
 
   /// Editorial route chip — a bordered "seal" rather than a filled badge. Once an answer has been
-  /// routed through 联网搜索 it names the 联网模型 that answered (「联网 · 通义千问」), so the user can
-  /// tell a live-searched answer from a training-cutoff one.
+  /// routed through 联网搜索 it names WHO supplied the live web content（「联网 · 通义千问」，纯检索的
+  /// 豆包搜索则是「联网 · 豆包搜索」+ 主模型作答），so the user can tell a live-searched answer from a
+  /// training-cutoff one. 顺位降级换了供应商、或全败退回普通问答时，`model.searchAttribution` 会随之
+  /// 改写，所以这块印章写的始终是这一问的真实归属。
   private var routeSeal: some View {
     let (label, color): (String, Color)
     if let attribution = model.searchAttribution {

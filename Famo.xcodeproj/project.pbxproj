@@ -212,6 +212,8 @@
 		FA139003CAFE0003CAFE0003 /* FamoPromptOptimizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA139004CAFE0004CAFE0004 /* FamoPromptOptimizerTests.swift */; };
 		FA140001CAFE0001CAFE0001 /* FamoPromptOptimizeLiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA140002CAFE0002CAFE0002 /* FamoPromptOptimizeLiveTests.swift */; };
 		FA141001CAFE0001CAFE0001 /* FamoSkillsLiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA141002CAFE0002CAFE0002 /* FamoSkillsLiveTests.swift */; };
+		FA142001CAFE0001CAFE0001 /* FamoDoubaoSearchClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA142002CAFE0002CAFE0002 /* FamoDoubaoSearchClient.swift */; };
+		FA142003CAFE0003CAFE0003 /* FamoDoubaoSearchClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA142004CAFE0004CAFE0004 /* FamoDoubaoSearchClientTests.swift */; };
 		FA5C0DE100000000000000C1 /* FamoTextInserter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA5C0DE100000000000000C2 /* FamoTextInserter.swift */; };
 		FA0000C3CAFE00C3CAFE00C3 /* FamoProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000C2CAFE00C2CAFE00C2 /* FamoProject.swift */; };
 		FA0000C5CAFE00C5CAFE00C5 /* FamoProjectStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000C4CAFE00C4CAFE00C4 /* FamoProjectStore.swift */; };
@@ -591,6 +593,8 @@
 		FA139004CAFE0004CAFE0004 /* FamoPromptOptimizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPromptOptimizerTests.swift; path = tests/FamoPromptOptimizerTests.swift; sourceTree = "<group>"; };
 		FA140002CAFE0002CAFE0002 /* FamoPromptOptimizeLiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPromptOptimizeLiveTests.swift; path = tests/FamoPromptOptimizeLiveTests.swift; sourceTree = "<group>"; };
 		FA141002CAFE0002CAFE0002 /* FamoSkillsLiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSkillsLiveTests.swift; path = tests/FamoSkillsLiveTests.swift; sourceTree = "<group>"; };
+		FA142002CAFE0002CAFE0002 /* FamoDoubaoSearchClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoDoubaoSearchClient.swift; path = sources/Lane/FamoDoubaoSearchClient.swift; sourceTree = "<group>"; };
+		FA142004CAFE0004CAFE0004 /* FamoDoubaoSearchClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoDoubaoSearchClientTests.swift; path = tests/FamoDoubaoSearchClientTests.swift; sourceTree = "<group>"; };
 		FA5C0DE100000000000000C2 /* FamoTextInserter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoTextInserter.swift; path = sources/Lane/FamoTextInserter.swift; sourceTree = "<group>"; };
 		FA0000C2CAFE00C2CAFE00C2 /* FamoProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoProject.swift; path = sources/Settings/FamoProject.swift; sourceTree = "<group>"; };
 		FA0000C4CAFE00C4CAFE00C4 /* FamoProjectStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoProjectStore.swift; path = sources/Settings/FamoProjectStore.swift; sourceTree = "<group>"; };
@@ -763,6 +767,7 @@
 				FA137004CAFE0004CAFE0004 /* FamoAskSearchResolver.swift */,
 				FA138002CAFE0002CAFE0002 /* FamoResponsesWire.swift */,
 				FA138004CAFE0004CAFE0004 /* FamoResponsesStreamingClient.swift */,
+				FA142002CAFE0002CAFE0002 /* FamoDoubaoSearchClient.swift */,
 				FA139002CAFE0002CAFE0002 /* FamoPromptOptimizer.swift */,
 				FA5C0DE100000000000000C2 /* FamoTextInserter.swift */,
 				FA0000C2CAFE00C2CAFE00C2 /* FamoProject.swift */,
@@ -832,6 +837,7 @@
 				FA135006CAFE0006CAFE0006 /* FamoVerificationReceiptModelTests.swift */,
 				FA136004CAFE0004CAFE0004 /* FamoPolishPromptCatalogTests.swift */,
 				FA137006CAFE0006CAFE0006 /* FamoSearchControlTests.swift */,
+				FA142004CAFE0004CAFE0004 /* FamoDoubaoSearchClientTests.swift */,
 				FA137008CAFE0008CAFE0008 /* FamoAskSearchResolverTests.swift */,
 				FA138006CAFE0006CAFE0006 /* FamoResponsesStreamingClientTests.swift */,
 				FA139004CAFE0004CAFE0004 /* FamoPromptOptimizerTests.swift */,
@@ -1281,6 +1287,7 @@
 				FA137003CAFE0003CAFE0003 /* FamoAskSearchResolver.swift in Sources */,
 				FA138001CAFE0001CAFE0001 /* FamoResponsesWire.swift in Sources */,
 				FA138003CAFE0003CAFE0003 /* FamoResponsesStreamingClient.swift in Sources */,
+				FA142001CAFE0001CAFE0001 /* FamoDoubaoSearchClient.swift in Sources */,
 				FA139001CAFE0001CAFE0001 /* FamoPromptOptimizer.swift in Sources */,
 				FA5C0DE100000000000000C1 /* FamoTextInserter.swift in Sources */,
 				FA0000C3CAFE00C3CAFE00C3 /* FamoProject.swift in Sources */,
@@ -1351,6 +1358,7 @@
 				FA135005CAFE0005CAFE0005 /* FamoVerificationReceiptModelTests.swift in Sources */,
 				FA136003CAFE0003CAFE0003 /* FamoPolishPromptCatalogTests.swift in Sources */,
 				FA137005CAFE0005CAFE0005 /* FamoSearchControlTests.swift in Sources */,
+				FA142003CAFE0003CAFE0003 /* FamoDoubaoSearchClientTests.swift in Sources */,
 				FA137007CAFE0007CAFE0007 /* FamoAskSearchResolverTests.swift in Sources */,
 				FA138005CAFE0005CAFE0005 /* FamoResponsesStreamingClientTests.swift in Sources */,
 				FA139003CAFE0003CAFE0003 /* FamoPromptOptimizerTests.swift in Sources */,

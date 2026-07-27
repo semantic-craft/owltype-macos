@@ -190,29 +190,154 @@ final class FamoAskSearchResolverTests: XCTestCase {
     XCTAssertEqual(FamoAskSearchProviderSettings.rawValue, "")
     XCTAssertNil(FamoAskSearchProviderSettings.preferredProviderID, "出厂＝自动")
 
-    FamoAskSearchProviderSettings.rawValue = "doubao"
-    XCTAssertEqual(FamoAskSearchProviderSettings.preferredProviderID, "doubao")
+    FamoAskSearchProviderSettings.rawValue = "mimo"
+    XCTAssertEqual(FamoAskSearchProviderSettings.preferredProviderID, "mimo")
 
-    // A provider that can't search (or a stale id from an older build) reads as 自动 rather than
-    // pinning the order to a dead entry.
+    // A provider that can't search (or a stale id from an older build — 豆包方舟 was a candidate
+    // before it moved to the standalone 豆包搜索 API) reads as 自动 rather than pinning the order
+    // to a dead entry.
     FamoAskSearchProviderSettings.rawValue = "deepseek"
     XCTAssertNil(FamoAskSearchProviderSettings.preferredProviderID)
+    FamoAskSearchProviderSettings.rawValue = "doubao"
+    XCTAssertNil(FamoAskSearchProviderSettings.preferredProviderID, "旧版存下的方舟选择读成自动")
     FamoAskSearchProviderSettings.resetForTesting()
   }
 
-  // MARK: - `/responses` providers (豆包 / OpenAI)
+  // MARK: - `/responses` providers (OpenAI) 与退役的方舟
 
-  func testDoubaoRouteCarriesTheResponsesTransportAndNoChatExtras() {
+  func testArkProfileNoLongerResolvesAsAnAskSearchRoute() {
+    // 方舟的 web_search 要单独开通内容插件，没开通时 404 ToolNotOpen —— 与其让每一问都先撞一次墙，
+    // 不如不把它列为候选；豆包这条线由独立的「豆包搜索」检索 API 承担。
     let resolver = makeResolver(
       profiles: [doubao(isDefault: true)],
       keys: ["famo.provider.doubao.apiKey": "sk-doubao"]
     )
+    XCTAssertNil(resolver.resolve(), "方舟档案配了 Key 也不再作为任意提问的联网候选")
+  }
+
+  // MARK: - 联网搜索专用 Key
+
+  func testDoubaoSearchCredentialResolvesToTheRetrievalTransport() {
+    let resolver = makeResolver(
+      profiles: [deepseek()],
+      keys: [
+        "famo.provider.deepseek.apiKey": "sk-deepseek",
+        FamoSearchCredential.doubaoSearch.secretName: "sk-doubao-search",
+      ]
+    )
     guard let route = resolver.resolve() else { return XCTFail("expected a resolved route") }
-    XCTAssertEqual(route.providerID, "doubao")
-    XCTAssertEqual(route.transport, .responses(isOpenAI: false), "豆包 必须走 /responses")
-    XCTAssertTrue(route.extraBody.isEmpty, "它的搜索参数不在 chat/completions 顶层字段里")
-    XCTAssertEqual(route.displayName, "豆包")
-    XCTAssertEqual(route.apiKey, "sk-doubao")
+    XCTAssertEqual(route.providerID, "doubao_search")
+    XCTAssertEqual(route.transport, .retrieval, "豆包搜索只检索，答案仍由主模型写")
+    XCTAssertEqual(route.routing.endpoint.host, "open.feedcoopapi.com")
+    XCTAssertEqual(route.apiKey, "sk-doubao-search", "用的是专用 Key，不是方舟模型 Key")
+    XCTAssertEqual(route.displayName, "豆包搜索")
+  }
+
+  func testPerplexityCredentialResolvesToChatCompletionsWithNoExtras() {
+    let resolver = makeResolver(
+      profiles: [deepseek()],
+      keys: [FamoSearchCredential.perplexity.secretName: "pplx-key"]
+    )
+    guard let route = resolver.resolve() else { return XCTFail("expected a resolved route") }
+    XCTAssertEqual(route.providerID, "perplexity")
+    XCTAssertEqual(route.transport, .chatCompletions)
+    XCTAssertEqual(route.routing.endpoint.host, "api.perplexity.ai")
+    XCTAssertTrue(route.extraBody.isEmpty, "Perplexity 默认就联网，多加字段反而可能被拒")
+    XCTAssertEqual(route.apiKey, "pplx-key")
+  }
+
+  func testDedicatedSearchKeyOutranksASearchCapableActiveProfile() {
+    // 「活动档案能联网就优先」是为了省一份密钥；用户既然专门为联网填了 Key，那就是更明确的意图。
+    let resolver = makeResolver(
+      profiles: [qwen(isDefault: true)],
+      keys: [
+        "famo.provider.qwen.apiKey": "sk-qwen",
+        FamoSearchCredential.doubaoSearch.secretName: "sk-doubao-search",
+      ]
+    )
+    XCTAssertEqual(resolver.resolve()?.providerID, "doubao_search")
+  }
+
+  func testCredentialsWithoutKeysDoNotBlockTheChatProviders() {
+    let resolver = makeResolver(
+      profiles: [qwen(isDefault: true)],
+      keys: ["famo.provider.qwen.apiKey": "sk-qwen"]
+    )
+    XCTAssertEqual(
+      resolver.resolve()?.providerID, "qwen",
+      "专用 Key 没填时只是空位，不该把联网整个挡住")
+  }
+
+  // MARK: - resolveAll（运行期顺位的输入）
+
+  func testResolveAllReturnsEveryConfiguredCandidateInOrder() {
+    let resolver = makeResolver(
+      profiles: [qwen(), mimo(), openai(), deepseek(isDefault: true)],
+      keys: [
+        FamoSearchCredential.perplexity.secretName: "pplx-key",
+        "famo.provider.qwen.apiKey": "sk-qwen",
+        "famo.provider.mimo.apiKey": "sk-mimo",
+        "famo.provider.openai.apiKey": "sk-openai",
+        "famo.provider.deepseek.apiKey": "sk-deepseek",
+      ]
+    )
+    XCTAssertEqual(
+      resolver.resolveAll().map(\.providerID), ["perplexity", "qwen", "mimo", "openai"],
+      "顺位降级要拿到全部候选；不能搜的 deepseek 不在其中")
+    XCTAssertEqual(resolver.resolve()?.providerID, "perplexity", "resolve() 就是第一名")
+  }
+
+  func testResolveAllSkipsCandidatesWithoutKeysAndHonoursThePreference() {
+    let resolver = makeResolver(
+      profiles: [qwen(), mimo(), openai()],
+      preferred: "mimo",
+      keys: [
+        "famo.provider.mimo.apiKey": "sk-mimo",
+        "famo.provider.openai.apiKey": "sk-openai",
+      ]
+    )
+    XCTAssertEqual(
+      resolver.resolveAll().map(\.providerID), ["mimo", "openai"],
+      "选中的排第一，没配密钥的 qwen 直接不在候选里")
+  }
+
+  func testResolveAllIsEmptyWhenTheToggleIsOff() {
+    let resolver = makeResolver(
+      enabled: false,
+      profiles: [qwen(isDefault: true)],
+      keys: ["famo.provider.qwen.apiKey": "sk-qwen"]
+    )
+    XCTAssertTrue(resolver.resolveAll().isEmpty)
+  }
+
+  // MARK: - 顺位判据（4xx 换家 / 真错误上报）
+
+  func testConfigurationRefusalsTriggerFailover() {
+    // 方舟未开通插件 404 ToolNotOpen、MiMo 密钥失效 401 —— 这两条就是 2026-07-27 实机撞到的。
+    for status in [400, 401, 402, 403, 404, 422] {
+      XCTAssertTrue(
+        FamoAskSearchFailover.shouldTryNextProvider(after: FamoStreamingError.badHTTPStatus(status)),
+        "HTTP \(status) 换同一家重试永远是同样结果，必须顺位")
+    }
+    XCTAssertTrue(
+      FamoAskSearchFailover.shouldTryNextProvider(after: FamoStreamingError.invalidEndpoint))
+  }
+
+  func testTransientAndRealFailuresAreReportedInsteadOfSwallowed() {
+    for status in [408, 429, 500, 502, 503] {
+      XCTAssertFalse(
+        FamoAskSearchFailover.shouldTryNextProvider(after: FamoStreamingError.badHTTPStatus(status)),
+        "HTTP \(status) 是暂时/对方故障，顺位只会把一个错误变成好几个")
+    }
+    XCTAssertFalse(
+      FamoAskSearchFailover.shouldTryNextProvider(after: URLError(.notConnectedToInternet)),
+      "用户断网必须如实报错，不能伪装成「换一家」")
+    XCTAssertFalse(
+      FamoAskSearchFailover.shouldTryNextProvider(after: URLError(.timedOut)),
+      "超时同上")
+    XCTAssertFalse(
+      FamoAskSearchFailover.shouldTryNextProvider(after: FamoStreamingError.upstreamFailure("x")),
+      "2xx 之后模型自己中断，换一家不会更好")
   }
 
   func testOpenAIRouteCarriesTheOpenAIResponsesDialect() {
@@ -234,7 +359,8 @@ final class FamoAskSearchResolverTests: XCTestCase {
   }
 
   func testResponsesProvidersSitBehindTheChatOnesInTheAutoOrder() {
-    // 自动顺序：一期两家（实机验证过）在前，二期两家在后。
+    // 自动顺序：`/chat/completions` 那几家（实机验证过）在前，`/responses` 的 OpenAI 在后；
+    // 方舟档案（doubao）已不是候选，配了 Key 也不参与排序。
     let resolver = makeResolver(
       profiles: [doubao(), openai(), mimo()],
       defaultProfile: nil,

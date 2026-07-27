@@ -92,10 +92,42 @@ enum FamoCloudPreferences {
   }
 
   static func message(for error: Error) -> String {
+    // 流式与检索两条路各有自己的错误类型（`FamoStreamingError` / `FamoWebRetrievalError`）。不映射的
+    // 话，任意提问全链路失败后只会显示一句没信息的「云端 AI 请求失败」，用户既不知道是 Key 失效还是
+    // 断网，也不知道该去哪儿改。
+    if let streamingError = error as? FamoStreamingError {
+      switch streamingError {
+      case let .badHTTPStatus(status):
+        return message(forStatus: status)
+      case let .upstreamFailure(detail):
+        return "云端 AI 中断：\(detail)"
+      case .invalidEndpoint:
+        return "云端 AI 端点不支持此请求"
+      case .nonHTTPResponse:
+        return "云端 AI 请求失败"
+      }
+    }
+    if let retrievalError = error as? FamoWebRetrievalError {
+      switch retrievalError {
+      case let .badHTTPStatus(status):
+        return message(forStatus: status)
+      case let .apiError(code, detail):
+        return "联网检索失败（\(code)）：\(detail)"
+      case .malformedResponse:
+        return "联网检索返回了无法解析的内容"
+      case .emptyResults:
+        return "联网检索没有找到相关网页"
+      }
+    }
     guard let cloudError = error as? FamoCloudRequestError,
           case let .badHTTPStatus(status) = cloudError else {
       return "云端 AI 请求失败"
     }
+    return message(forStatus: status)
+  }
+
+  /// HTTP 状态码 → 面向用户的一句话。三种错误类型共用（都是同一批状态码，说法没有理由不一致）。
+  private static func message(forStatus status: Int) -> String {
     switch status {
     case 400:
       return "云端 AI 拒绝了此请求"
