@@ -103,6 +103,7 @@ final class FamoSettingsActionTests: XCTestCase {
     assertToggle(\.researchAssistSkillEnabled, state, { FamoSelectionMenuPreferences.researchAssistEnabled }) { FamoSelectionMenuPreferences.researchAssistEnabled = $0 }
     assertToggle(\.publishFormattingSkillEnabled, state, { FamoSelectionMenuPreferences.publishFormattingEnabled }) { FamoSelectionMenuPreferences.publishFormattingEnabled = $0 }
     assertToggle(\.translationSkillEnabled, state, { FamoSelectionMenuPreferences.translationEnabled }) { FamoSelectionMenuPreferences.translationEnabled = $0 }
+    assertToggle(\.goalBriefSkillEnabled, state, { FamoSelectionMenuPreferences.goalBriefEnabled }) { FamoSelectionMenuPreferences.goalBriefEnabled = $0 }
 
     assertFuzzyToggleActions()
 
@@ -119,6 +120,7 @@ final class FamoSettingsActionTests: XCTestCase {
     XCTAssertTrue(FamoSelectionMenuPreferences.publishFormattingEnabled)
     XCTAssertTrue(FamoSelectionMenuPreferences.translationEnabled)
     XCTAssertTrue(FamoSelectionMenuPreferences.promptOptimizeEnabled)
+    XCTAssertTrue(FamoSelectionMenuPreferences.goalBriefEnabled)
   }
 
   func testSelectionMenuActionsFollowEnabledSkillPreferences() {
@@ -130,19 +132,20 @@ final class FamoSettingsActionTests: XCTestCase {
     XCTAssertEqual(
       FamoSelectionMenuAction.enabledActions(cloudEnabled: true),
       [.ask, .polish, .sourceVerification, .researchAssist, .publishFormatting,
-       .translate, .promptOptimize]
+       .translate, .promptOptimize, .goalBrief]
     )
 
     FamoSelectionMenuPreferences.publishFormattingEnabled = false
     FamoSelectionMenuPreferences.sourceVerificationEnabled = false
     XCTAssertEqual(
       FamoSelectionMenuAction.enabledActions(cloudEnabled: true),
-      [.ask, .polish, .researchAssist, .translate, .promptOptimize]
+      [.ask, .polish, .researchAssist, .translate, .promptOptimize, .goalBrief]
     )
 
     FamoSelectionMenuPreferences.polishEnabled = false
     FamoSelectionMenuPreferences.translationEnabled = false
     FamoSelectionMenuPreferences.promptOptimizeEnabled = false
+    FamoSelectionMenuPreferences.goalBriefEnabled = false
     XCTAssertEqual(
       FamoSelectionMenuAction.enabledActions(cloudEnabled: true),
       [.ask, .researchAssist]

@@ -22,6 +22,7 @@ enum FamoSelectionMenuAction: String, CaseIterable, Sendable {
   case researchAssist
   case translate
   case promptOptimize
+  case goalBrief
   case publishFormatting
 
   var title: String {
@@ -33,6 +34,8 @@ enum FamoSelectionMenuAction: String, CaseIterable, Sendable {
     case .translate: return "翻译"
     // 优化的是「提示词」本身而非普通文字，名字要和「润色」区分开。
     case .promptOptimize: return "提示词优化"
+    // 按「目标七问」把模糊需求整理成 Agent 可独立执行的目标任务书。
+    case .goalBrief: return "任务书"
     // 规范排版：只修中文排版（多余换行/引号/全半角/空格）、内容一字不改。
     case .publishFormatting: return "规范排版"
     }
@@ -46,6 +49,7 @@ enum FamoSelectionMenuAction: String, CaseIterable, Sendable {
     case .researchAssist: return "magnifyingglass"
     case .translate: return "globe"
     case .promptOptimize: return "sparkles"
+    case .goalBrief: return "checklist"
     case .publishFormatting: return "text.justify"
     }
   }
@@ -84,6 +88,11 @@ enum FamoSelectionMenuAction: String, CaseIterable, Sendable {
     // 标签分区一次做完（原「结构化·加标签」已并入，2026-07-26）。
     if FamoSelectionMenuPreferences.promptOptimizeEnabled {
       out.append(.promptOptimize)
+    }
+    // 任务书：破坏性（预览确认后替换原文），与 .promptOptimize 同一条管线；按「目标七问」
+    // 把模糊需求整理成目标任务书，缺失项落〈未知〉一节。
+    if FamoSelectionMenuPreferences.goalBriefEnabled {
+      out.append(.goalBrief)
     }
     return out
   }
@@ -330,6 +339,11 @@ final class FamoSelectionMenuCoordinator {
         FamoAIWindow.shared.close()
         await self.handlePromptOptimize(snapshot: snapshot)
       }
+    case .goalBrief:
+      Task { @MainActor in
+        FamoAIWindow.shared.close()
+        await self.handleGoalBrief(snapshot: snapshot)
+      }
     }
   }
 
@@ -550,6 +564,50 @@ final class FamoSelectionMenuCoordinator {
     }
   }
 
+  /// 任务书：按「目标七问」（目的/完成态/证据/反作弊/边界/取舍/未知）把选中的模糊需求整理成
+  /// 目标任务书。完成态与 .promptOptimize 同路（预览确认后替换原选区）；非致命缺失由任务书的
+  /// 〈未知〉一节自兜，只有目的+完成态都推断不出才走澄清、转任意提问窗口。
+  @MainActor
+  private func handleGoalBrief(snapshot: FamoSelectionMenuSnapshot) async {
+    FamoApplicationDelegate.showMessage(msgText: "正在整理任务书…")
+    do {
+      switch try await FamoGoalBriefService.shared.compose(snapshot.text) {
+      case let .ready(brief):
+        guard confirmReplacement(brief, resultNoun: "任务书") else {
+          FamoApplicationDelegate.showMessage(msgText: "已取消替换。")
+          return
+        }
+        switch FamoSelectionReplacementFlow.write(
+          brief, target: snapshot.replacementTarget, bundleID: snapshot.bundleID) {
+        case .inserted:
+          FamoApplicationDelegate.showMessage(msgText: "已替换为整理后的任务书。")
+        case .copiedToClipboard:
+          FamoApplicationDelegate.showMessage(msgText: "已复制任务书，⌘V 替换")
+        case .failed(let message):
+          FamoApplicationDelegate.showMessage(msgText: message)
+        }
+
+      case let .needsClarification(questions):
+        // 与提示词优化同一套 v1 澄清：任务卡 + 手动发送，真多轮待 #137。
+        FamoAIWindow.shared.show(
+          selectedText: snapshot.text,
+          composerTask: FamoAIComposerTask(
+            label: "任务书 — 补充信息",
+            clarifications: questions,
+            placeholder: "逐条补答，多条用 / 分隔",
+            scaffold: FamoSelectionSkillPrompts.goalBriefClarificationScaffold(questions))
+        )
+      }
+    } catch {
+      if FamoLaneCancellation.isCancellation(error) { return }
+      if let briefError = error as? FamoGoalBriefError {
+        FamoApplicationDelegate.showMessage(msgText: briefError.userMessage)
+      } else {
+        FamoApplicationDelegate.showMessage(msgText: FamoCloudPreferences.message(for: error))
+      }
+    }
+  }
+
   @MainActor
   private func handlePublishFormatting(snapshot: FamoSelectionMenuSnapshot) async {
     FamoApplicationDelegate.showMessage(msgText: "正在规范排版…")
@@ -640,6 +698,15 @@ enum FamoSelectionSkillPrompts {
     return "请把选中的草稿改写成结构化提示词：补齐意图（为谁做、产出用来干什么）、目标、边界约束、"
       + "产出形态，并用成对 XML 标签按语义分区（有层级就嵌套），不要写分步骤的操作脚手架，"
       + "也不要要求复述内部推理。补充信息——\(joined)："
+  }
+
+  /// 任务书的澄清脚手架，与提示词优化同一套 v1 承载（任务卡 + 隐藏 scaffold）：补答后经
+  /// 通用对话也能产出按目标七问分节的任务书。
+  static func goalBriefClarificationScaffold(_ questions: [String]) -> String {
+    let joined = questions.joined(separator: " / ")
+    return "请把选中的需求描述整理成一份目标任务书，按目标七问分节：目的 Why、完成态 Done、"
+      + "证据 Proof、反作弊 Anti、边界 Bounds、取舍 Trade、未知 Unknown。能从草稿合理推断的"
+      + "补上并标注（推断），推断不出的写进〈未知〉待裁决，不要编造。补充信息——\(joined)："
   }
 
   static let unsupportedSourceVerificationMessage = """
