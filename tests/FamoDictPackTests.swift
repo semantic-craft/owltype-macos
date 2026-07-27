@@ -193,6 +193,146 @@ final class FamoDictPackTests: XCTestCase {
     }
   }
 
+  // MARK: 断点续传（staging 复用）
+
+  func testResumeReusesValidStagedFile() async throws {
+    // staging 里已有 sha256 相符的文件（上次被打断的遗产）→ 不重下。fixture 里
+    // 故意不放这个文件：若走网络必失败，成功即证明用的是 staged 副本。
+    let content = "big-dict-from-last-time\n"
+    let entry = FamoDictPackFile(
+      repo: "iDvel/rime-ice", ref: "deadbeef", path: "cn_dicts/base.dict.yaml",
+      dest: "cn_dicts/base.dict.yaml",
+      sha256: FamoDictPackFetcher.sha256Hex(Data(content.utf8)), size: content.utf8.count, patch: nil)
+    let staged = userDir.appending(
+      path: ".famo-dictpack-staging/cn_dicts/base.dict.yaml", directoryHint: .notDirectory)
+    try FileManager.default.createDirectory(
+      at: staged.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data(content.utf8).write(to: staged)
+
+    let result = try await fetcher([entry]).run { _ in }
+
+    XCTAssertEqual(result.installed, ["cn_dicts/base.dict.yaml"])
+    XCTAssertEqual(try read("cn_dicts/base.dict.yaml"), content)
+  }
+
+  func testResumeRedownloadsCorruptStagedFile() async throws {
+    // staging 里的半截文件（哈希不符）→ 重下，最终装的是上游内容。
+    let entry = try stub(path: "cn_dicts/ext.dict.yaml", dest: "cn_dicts/ext.dict.yaml", content: "upstream-good\n")
+    let staged = userDir.appending(
+      path: ".famo-dictpack-staging/cn_dicts/ext.dict.yaml", directoryHint: .notDirectory)
+    try FileManager.default.createDirectory(
+      at: staged.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data("trunca".utf8).write(to: staged)
+
+    let result = try await fetcher([entry]).run { _ in }
+
+    XCTAssertEqual(result.installed, ["cn_dicts/ext.dict.yaml"])
+    XCTAssertEqual(try read("cn_dicts/ext.dict.yaml"), "upstream-good\n")
+  }
+
+  func testFailedRunKeepsStagingForResume() async throws {
+    // 两个文件：第一个能下、第二个 fixture 缺失 → run 失败，但第一个的 staged 副本保留。
+    let good = try stub(path: "cn_dicts/a.dict.yaml", dest: "cn_dicts/a.dict.yaml", content: "A\n")
+    let missing = FamoDictPackFile(
+      repo: "iDvel/rime-ice", ref: "deadbeef", path: "cn_dicts/nowhere.yaml", dest: "cn_dicts/nowhere.yaml",
+      sha256: String(repeating: "1", count: 64), size: 9, patch: nil)
+
+    do {
+      _ = try await fetcher([good, missing]).run { _ in }
+      XCTFail("expected downloadFailed")
+    } catch let error as FamoDictPackError {
+      guard case .downloadFailed = error else { return XCTFail("wrong error: \(error)") }
+    }
+    let staged = userDir.appending(
+      path: ".famo-dictpack-staging/cn_dicts/a.dict.yaml", directoryHint: .notDirectory)
+    XCTAssertTrue(FamoDictPackFetcher.stagedFileValid(at: staged, sha256: good.sha256))
+    // 未落盘、无记录
+    XCTAssertNil(FamoDictPackRecord.load(userDir: userDir))
+  }
+
+  // MARK: 下载源链（换源接力）
+
+  func testSourceFailoverOnUnreachablePrimary() async throws {
+    // 主源指向不存在的目录 → 自动切到第二源成功。
+    let entry = try stub(path: "rime_ice.dict.yaml", dest: "rime_ice.dict.yaml", content: "from-mirror\n")
+    let deadRoot = fixtureRoot.deletingLastPathComponent()
+      .appending(component: "no-such-root", directoryHint: .isDirectory).absoluteString
+    let f = FamoDictPackFetcher(
+      manifest: FamoDictPackManifest(version: 1, files: [entry]),
+      userDir: userDir,
+      sourceChainOverride: [
+        .rawPrefix(String(deadRoot.dropLast())),
+        .rawPrefix(String(fixtureRoot.absoluteString.dropLast())),
+      ])
+
+    let result = try await f.run { _ in }
+
+    XCTAssertEqual(result.installed, ["rime_ice.dict.yaml"])
+    XCTAssertEqual(try read("rime_ice.dict.yaml"), "from-mirror\n")
+  }
+
+  func testSourceFailoverOnHashMismatch() async throws {
+    // 主源内容被篡改（哈希不符）→ 不装、换下一源拿到正确内容。
+    let entry = try stub(path: "cn_dicts/base.dict.yaml", dest: "cn_dicts/base.dict.yaml", content: "genuine\n")
+    // 第二棵 fixture 树：同路径放篡改内容，当主源。
+    let tamperedRoot = fixtureRoot.deletingLastPathComponent()
+      .appending(component: "tampered", directoryHint: .isDirectory)
+    let tamperedFile = tamperedRoot.appending(
+      path: "\(entry.repo)/\(entry.ref)/\(entry.path)", directoryHint: .notDirectory)
+    try FileManager.default.createDirectory(
+      at: tamperedFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data("evil-mirror\n".utf8).write(to: tamperedFile)
+    let f = FamoDictPackFetcher(
+      manifest: FamoDictPackManifest(version: 1, files: [entry]),
+      userDir: userDir,
+      sourceChainOverride: [
+        .rawPrefix(String(tamperedRoot.absoluteString.dropLast())),
+        .rawPrefix(String(fixtureRoot.absoluteString.dropLast())),
+      ])
+
+    let result = try await f.run { _ in }
+
+    XCTAssertEqual(result.installed, ["cn_dicts/base.dict.yaml"])
+    XCTAssertEqual(try read("cn_dicts/base.dict.yaml"), "genuine\n")
+  }
+
+  func testSourceChainShape() {
+    // override → 独占；默认链固定以 raw 直连开头/兜底收尾（用户镜像若设会插在链首，
+    // 这里只断言与用户 defaults 无关的后缀形状）。
+    let entry = FamoDictPackFile(
+      repo: "iDvel/rime-ice", ref: "abc123", path: "d/f.yaml", dest: "d/f.yaml",
+      sha256: String(repeating: "0", count: 64), size: 1, patch: nil)
+    XCTAssertEqual(fetcher([entry]).sources().count, 1)
+
+    let plain = FamoDictPackFetcher(
+      manifest: FamoDictPackManifest(version: 1, files: [entry]), userDir: userDir)
+    let chain = plain.sources()
+    XCTAssertEqual(Array(chain.suffix(3)), [
+      .rawPrefix("https://raw.githubusercontent.com"),
+      .rawPrefix("https://gh-proxy.com/https://raw.githubusercontent.com"),
+      .jsDelivr,
+    ])
+    // jsDelivr 的 gh CDN URL 形状：/gh/<repo>@<ref>/<path>
+    XCTAssertEqual(
+      FamoDictPackSource.jsDelivr.url(for: entry)?.absoluteString,
+      "https://cdn.jsdelivr.net/gh/iDvel/rime-ice@abc123/d/f.yaml")
+  }
+
+  // MARK: 流式进度
+
+  func testStreamingProgressIsByteLevel() async throws {
+    // 单文件 600 KB（> 256 KB chunk）→ 下载中就有中间进度回调，而不是文件完成才跳一格。
+    let big = String(repeating: "x", count: 600 * 1024)
+    let entry = try stub(path: "cn_dicts/big.dict.yaml", dest: "cn_dicts/big.dict.yaml", content: big)
+    let collector = ProgressCollector()
+
+    _ = try await fetcher([entry]).run { collector.add($0) }
+
+    let values = collector.values
+    XCTAssertEqual(values.last, 1.0)
+    XCTAssertTrue(values.contains { $0 > 0 && $0 < 1 }, "no intermediate byte-level progress: \(values)")
+  }
+
   func testBundledManifestIsWellFormed() {
     // 生成物基本卫生：非空、版本≥1、dest 唯一、sha256 是 64 位十六进制、无越界路径。
     let manifest = FamoDictPackManifest.current
@@ -264,6 +404,42 @@ final class FamoDictPackTests: XCTestCase {
       XCTAssertTrue(FamoDictPackPrompt.isDictPackManagedSchema(id), "清单未覆盖 \(id)")
       XCTAssertNotEqual(FamoDictPackPrompt.displayName(for: id), id, "\(id) 缺中文名，弹窗会显示裸 id")
     }
+  }
+
+  func testLaunchActionDefersToOnboardingBeforeFirstRunCompletes() {
+    // 引导未走完 ⟺ 本次启动引导会弹，它的词库步骤讲同一件事、写同一个 promptShown ——
+    // 此时武装调度器就会在引导窗上再弹一次模态问同一个问题。
+    XCTAssertEqual(
+      FamoDictPackPrompt.launchAction(
+        needsFetch: true, autoFetch: false, promptShown: false, onboardingDone: false),
+      .deferToOnboarding)
+    // 引导走完过（含老用户升级上来）→ 常规首启告知。
+    XCTAssertEqual(
+      FamoDictPackPrompt.launchAction(
+        needsFetch: true, autoFetch: false, promptShown: false, onboardingDone: true),
+      .armPrompt)
+  }
+
+  func testLaunchActionHonoursInstalledAndConsentFlags() {
+    // 已装 / 用户自备（needsFetch=false）：任何组合都不动。
+    for done in [true, false] {
+      for shown in [true, false] {
+        XCTAssertEqual(
+          FamoDictPackPrompt.launchAction(
+            needsFetch: false, autoFetch: false, promptShown: shown, onboardingDone: done),
+          .doNothing)
+      }
+    }
+    // 问过了就不再问 —— 引导是否走完都一样（引导里作出选择同样置真 promptShown）。
+    XCTAssertEqual(
+      FamoDictPackPrompt.launchAction(
+        needsFetch: true, autoFetch: false, promptShown: true, onboardingDone: false),
+      .doNothing)
+    // autoFetch 是用户显式授权，优先于一切提示（含引导让路）。
+    XCTAssertEqual(
+      FamoDictPackPrompt.launchAction(
+        needsFetch: true, autoFetch: true, promptShown: false, onboardingDone: false),
+      .fetchSilently)
   }
 
   func testDisplayNameFallsBackToRawID() {

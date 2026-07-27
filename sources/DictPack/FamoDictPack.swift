@@ -94,15 +94,17 @@ enum FamoDictPackPreferences {
 
   /// 首启知情同意弹窗是否已呈现过. Key `"FamoDictPackPromptShown"`, default `false`.
   /// 对齐 FamoUpdateLogoutPrompt 的 A1 教训：**处置后才记录**——弹窗未被处置就被进程杀掉时
-  /// 下次启动重弹（有限重弹 > 永久静默）。
+  /// 下次启动重弹（有限重弹 > 永久静默）。引导里的词库步骤是同一条同意线的另一个呈现面，
+  /// 用户在那里作出选择同样置真（见 `FamoOnboardingView` 的 dict 步骤）。
   static var promptShown: Bool {
     get { FamoDefaults.standard.bool(forKey: "FamoDictPackPromptShown") }
     set { FamoDefaults.standard.set(newValue, forKey: "FamoDictPackPromptShown") }
   }
 
-  /// 下载镜像前缀. Key `"FamoDictPackMirror"`, default 空 = 直连 raw.githubusercontent.com。
-  /// 形如 `https://mirror.example.com` —— 替换 raw 主机，其后仍接 `/<repo>/<ref>/<path>`。
-  /// GitHub 直连不可达（国内网络）时的兜底；测试用 file:// 前缀走同一条路径。
+  /// 下载镜像前缀. Key `"FamoDictPackMirror"`, default 空。
+  /// 形如 `https://mirror.example.com` —— raw 同构主机，其后仍接 `/<repo>/<ref>/<path>`。
+  /// 设了则排在下载源链首位（其后仍有 raw 直连 + 内置兜底自动接力，见
+  /// `FamoDictPackFetcher.sources()`）；测试用 file:// 前缀 override 走同一条路径。
   static var mirror: String {
     get { FamoDefaults.standard.string(forKey: "FamoDictPackMirror") ?? "" }
     set { FamoDefaults.standard.set(newValue, forKey: "FamoDictPackMirror") }
