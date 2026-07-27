@@ -41,7 +41,7 @@ extension FamoInputController {
     // 进（对选区下指令），而状态栏那一下永远是空选区，开出来的窗什么也加工不了。入口只剩划词菜单
     // (FamoSelectionMenuAction.ask)——自动弹出或热键召唤，两条都带选区。
     // 润色 moved into the 划词菜单 (FamoSelectionMenuAction.polish); no status-menu entry.
-    // 「启用划词工具箱」总开关同样不进菜单栏（产品决策 2026-07-21）：默认关闭、只在设置→技能平台
+    // 「启用划词工具箱」总开关同样不进菜单栏（产品决策 2026-07-21）：默认关闭、只在设置→划词工具箱页
     // 开启，不提供随手打开的快捷入口；热键召唤是平行开关，不受总开关约束。
     let update = NSMenuItem(title: NSLocalizedString("Check for updates...", comment: "Menu item"), action: #selector(checkForUpdates), keyEquivalent: "")
     update.target = self

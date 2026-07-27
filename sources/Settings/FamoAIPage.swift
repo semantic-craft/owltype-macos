@@ -14,8 +14,8 @@ import SwiftUI
 /// Visible product surface for the existing default-off Smart/Cloud lanes.
 /// This page only writes preferences and Keychain; it never sends a network request.
 ///
-/// The 云端 AI（全局）on/off (`FamoCloudPreferences.isEnabled`) lives on 技能平台
-/// (`FamoSkillsPage.cloudCard`) instead — 技能平台 is the thing that actually depends on it.
+/// The 云端 AI（全局）on/off (`FamoCloudPreferences.isEnabled`) lives on 划词工具箱页
+/// (`FamoSkillsPage.cloudCard`) instead — 划词工具箱页 is the thing that actually depends on it.
 /// This page is just 供应商（配一个就行）— Responsay-style LLM-only presets + a generic
 /// OpenAI-compatible add form. Keys live in the per-provider `FamoProviderKeychain`.
 struct FamoAIPage: View {

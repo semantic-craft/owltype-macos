@@ -105,7 +105,7 @@ final class FamoSettingsUITests: XCTestCase {
       "appearance": "候选窗设置",
       "quickSend": "快捷短语",
       "clipboard": "剪贴板",
-      "project": "技能平台",
+      "project": "划词工具箱",
       "ai": "AI 配置",
       "skin": "皮肤外观",
       "about": "关于",
