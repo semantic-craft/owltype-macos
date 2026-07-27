@@ -7,6 +7,46 @@
 
 import Foundation
 
+// MARK: - 「这把 Key 真的能用」的标记
+
+/// 记下某个 Keychain 账号下的密钥**曾经成功通过一次真实调用**（拉取模型列表）。
+///
+/// 为什么需要它：设置页原先只能回答「Keychain 里有没有值」，而有值 ≠ 能用 —— 2026-07-27 实机踩到的
+/// 就是 MiMo 的 Key 已失效（401 invalid_key），设置页仍写「已设置」，用户以为配好了，直到提问失败也
+/// 想不到是密钥的问题。存的是**时间戳**，不是密钥本身；密钥被改写或删除时标记随之作废（旧标记配新
+/// 密钥就是假验证）。
+enum FamoProviderKeyVerification {
+  static let key = "FamoProviderKeyVerifiedAt"
+
+  /// secretName → 验证通过的时刻（`timeIntervalSince1970`）。
+  private static var table: [String: Double] {
+    get { FamoDefaults.standard.dictionary(forKey: key) as? [String: Double] ?? [:] }
+    set { FamoDefaults.standard.set(newValue, forKey: key) }
+  }
+
+  static func markVerified(secretName: String, at date: Date = Date()) {
+    var next = table
+    next[secretName] = date.timeIntervalSince1970
+    table = next
+  }
+
+  static func verifiedAt(secretName: String) -> Date? {
+    guard let stamp = table[secretName] else { return nil }
+    return Date(timeIntervalSince1970: stamp)
+  }
+
+  /// 密钥变了 / 被删了 → 之前那次验证不再代表当前这把 Key。
+  static func clear(secretName: String) {
+    var next = table
+    next.removeValue(forKey: secretName)
+    table = next
+  }
+
+  static func resetForTesting() {
+    FamoDefaults.standard.removeObject(forKey: key)
+  }
+}
+
 extension FamoSettingsActions {
   static func selectProject(_ project: FamoProject)
     -> (selectedID: String, renameDraft: String, wordsDraft: String, status: String)
@@ -230,6 +270,8 @@ extension FamoSettingsActions {
       let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
       if !key.isEmpty {
         try secrets.setSecret(key, named: saved.secretName)
+        // 换了钥匙 → 上一次验证作废（留空＝保持原 Key，验证状态也就该保持）。
+        FamoProviderKeyVerification.clear(secretName: saved.secretName)
       }
       return (store.profiles(), "已保存「\(saved.displayName)」：\(saved.model.isEmpty ? "默认模型" : saved.model)。")
     } catch {
@@ -259,6 +301,7 @@ extension FamoSettingsActions {
     do {
       try store.delete(id: profile.id)
       try? secrets.deleteSecret(named: profile.secretName)
+      FamoProviderKeyVerification.clear(secretName: profile.secretName)
       return (store.profiles(), "已删除供应商「\(profile.displayName)」。")
     } catch {
       return (store.profiles(), "删除供应商失败。")
@@ -276,6 +319,8 @@ extension FamoSettingsActions {
     guard !key.isEmpty else { return (apiKey, "请输入 API Key") }
     do {
       try secrets.setSecret(key, named: profile.secretName)
+      // 换了钥匙，之前那次验证就不作数了。
+      FamoProviderKeyVerification.clear(secretName: profile.secretName)
       return ("", "已保存到 Keychain")
     } catch {
       return (apiKey, "保存 Keychain 失败")
@@ -289,20 +334,33 @@ extension FamoSettingsActions {
   ) -> String {
     do {
       try secrets.deleteSecret(named: profile.secretName)
+      FamoProviderKeyVerification.clear(secretName: profile.secretName)
       return "已删除 API Key"
     } catch {
       return "删除 Keychain 失败"
     }
   }
 
-  /// "已设置 / 未设置" status for a profile's key — never the value.
+  /// 记下「这把 Key 刚刚真的调通了一次」（`拉取最新` 成功时调用）。
+  static func markProviderProfileKeyVerified(_ profile: FamoProviderProfile) {
+    FamoProviderKeyVerification.markVerified(secretName: profile.secretName)
+  }
+
+  /// 一个 profile 的密钥状态 —— 永远不含密钥本身。
+  ///
+  /// 三档而不是两档：「已验证」= 用这把 Key 真的调通过一次；「已设置」= Keychain 里有值但没验证过
+  /// （可能已失效，实机踩过：MiMo 的 Key 401 了，设置页仍写「已设置」）；「未设置」= 没有值。
+  /// 把「有值」直接说成配好了，是让用户查不出失效密钥的根因。
   static func providerProfileKeyStatus(
     _ profile: FamoProviderProfile,
     secrets: FamoSecretStoring
   ) -> String {
     do {
       let key = try secrets.secret(named: profile.secretName)
-      return (key?.isEmpty == false) ? "已设置" : "未设置"
+      guard key?.isEmpty == false else { return "未设置" }
+      return FamoProviderKeyVerification.verifiedAt(secretName: profile.secretName) == nil
+        ? "已设置·未验证"
+        : "已验证"
     } catch {
       return "无法读取 Keychain"
     }
