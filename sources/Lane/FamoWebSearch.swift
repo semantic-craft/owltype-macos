@@ -131,8 +131,10 @@ enum FamoDoubaoGlobalSearchWire {
       "Query": query,
       "DocCount": min(max(limit, 1), maxDocCount),
       "MaxSnippetLength": 800,
-      // 法墨的回答窗是纯文本，取图只会白烧 token / 时延。
-      "MaxImageCountPerDoc": 0,
+      // 法墨的回答窗是纯文本，图片段解析时就丢掉了。但**这里不能填 0**：文档写的是「传入值 > 0 时
+      // 生效」，0 会被当成没传而落回默认的 3 张/条（2026-07-27 实测：0 与不传都拿到 4 个图片段，
+      // 填 1 才降到 2 个）。所以取 1 —— 这是「关不掉的情况下最省的那档」。
+      "MaxImageCountPerDoc": 1,
     ]
   }
 

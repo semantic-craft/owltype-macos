@@ -289,6 +289,15 @@ final class FamoWebSearchTests: XCTestCase {
       "合法的 \\n 是两个 ASCII 字节，不该被当成控制字符改掉")
   }
 
+  /// 回归：`MaxImageCountPerDoc` 填 0 等于没填 —— 文档是「传入值 > 0 时生效」，0 会落回默认 3 张/条
+  /// （2026-07-27 实测：0 与不传都拿到 4 个图片段，填 1 才降到 2 个）。图片关不掉，只能取最省的一档。
+  func testDoubaoAsksForTheFewestImagesThatActuallyTakesEffect() {
+    let body = FamoDoubaoGlobalSearchWire.body(query: "q", limit: 5)
+    XCTAssertEqual(
+      body["MaxImageCountPerDoc"] as? Int, 1,
+      "0 会被服务端忽略并落回默认 3；1 才是真正生效的最小值")
+  }
+
   /// 实测定的默认档：low 只有 1/5 有摘要，high 是 5/5，而三档时延一样。
   func testPerplexityAsksForFullPageContext() {
     XCTAssertEqual(
