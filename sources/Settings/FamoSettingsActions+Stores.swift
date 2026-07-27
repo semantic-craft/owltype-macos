@@ -170,6 +170,73 @@ extension FamoSettingsActions {
     }
   }
 
+  /// Save the standalone web-search service key (豆包搜索 Global). Write-only, same contract as
+  /// `saveProviderProfileKey`: the value is never read back into the UI.
+  ///
+  /// Not a provider key — it lives under a fixed Keychain account so the search capability is
+  /// independent of which model answers (see `FamoWebSearchKeyStore`).
+  static func saveWebSearchKey(
+    _ apiKey: String,
+    backend: FamoWebSearchBackend,
+    secrets: FamoSecretStoring
+  ) -> (input: String, status: String) {
+    let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !key.isEmpty else { return (apiKey, "请输入\(backend.displayName)的 API Key") }
+    do {
+      try secrets.setSecret(key, named: backend.secretName)
+      return ("", "已保存到 Keychain，联网将由\(backend.displayName)检索后交给默认供应商作答。")
+    } catch {
+      return (apiKey, "保存 Keychain 失败")
+    }
+  }
+
+  /// Clear one backend's stored key → 若它是当前选中的后端，联网退回各家模型内置的搜索工具。
+  /// 只删这一家：另一家的 Key 留着，切回去不用重填。
+  static func clearWebSearchKey(
+    backend: FamoWebSearchBackend,
+    secrets: FamoSecretStoring
+  ) -> String {
+    do {
+      try secrets.deleteSecret(named: backend.secretName)
+      return "已删除\(backend.displayName)的 API Key"
+    } catch {
+      return "删除 Keychain 失败"
+    }
+  }
+
+  /// Edit an existing profile in place — model (and endpoint, for a custom entry) only.
+  ///
+  /// Why not delete+re-add: `secretName` is derived from the profile's UUID, so a re-add mints a new
+  /// account name and `deleteProviderProfile` takes the old key with it. In-place keeps `id` /
+  /// `secretName` / `isDefault`, so **an empty `apiKey` means "keep the stored key"** — that is what
+  /// lets 换模型 work without re-pasting a key the UI can't show back.
+  static func updateProviderProfile(
+    _ profile: FamoProviderProfile,
+    endpoint: String,
+    model: String,
+    apiKey: String,
+    store: FamoProviderProfileStore,
+    secrets: FamoSecretStoring
+  ) -> (profiles: [FamoProviderProfile], status: String) {
+    guard let url = URL(string: endpoint.trimmingCharacters(in: .whitespacesAndNewlines)),
+          url.scheme == "https" else {
+      return (store.profiles(), "端点必须是 https。")
+    }
+    var updated = profile
+    updated.endpoint = url
+    updated.model = model.trimmingCharacters(in: .whitespacesAndNewlines)
+    do {
+      let saved = try store.update(updated)
+      let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !key.isEmpty {
+        try secrets.setSecret(key, named: saved.secretName)
+      }
+      return (store.profiles(), "已保存「\(saved.displayName)」：\(saved.model.isEmpty ? "默认模型" : saved.model)。")
+    } catch {
+      return (store.profiles(), "保存供应商失败。")
+    }
+  }
+
   /// Make a profile the default (the active one the cloud lane routes through).
   static func setDefaultProviderProfile(
     _ profile: FamoProviderProfile,

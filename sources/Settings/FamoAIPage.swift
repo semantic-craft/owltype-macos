@@ -39,6 +39,16 @@ struct FamoAIPage: View {
   @State private var providerKeyHint = ""
   /// Live model ids pulled by 「拉取最新」; merged after the preset's curated models.
   @State private var fetchedModels: [String] = []
+  /// Non-nil = the form is editing this saved profile instead of adding a new one. Editing keeps the
+  /// profile's `id`/`secretName`, so 换模型 doesn't need the key re-pasted (see
+  /// `FamoSettingsActions.updateProviderProfile`).
+  @State private var editingProfile: FamoProviderProfile?
+  /// 搜索服务 Key 的输入框（只写，和供应商 Key 同样从不回显）+ 它的「已设置/未设置」镜像与状态回显。
+  @State private var searchKeyInput = ""
+  @State private var searchKeyConfigured = false
+  @State private var searchKeyStatus = ""
+  /// 当前选中的搜索后端（raw value，与 `FamoWebSearchBackendSettings` 同步）。
+  @State private var searchBackendRaw = FamoWebSearchBackend.doubaoGlobal.rawValue
 
   var body: some View {
     ScrollView {
@@ -50,6 +60,9 @@ struct FamoAIPage: View {
     }
     .onAppear {
       providers = providerStore.profiles()
+      searchBackendRaw = FamoWebSearchBackendSettings.backend.rawValue
+      searchKeyConfigured = FamoWebSearchKeyStore.isConfigured(
+        for: searchBackend, secrets: providerSecrets)
     }
   }
 
@@ -76,10 +89,12 @@ struct FamoAIPage: View {
         )
         if state.askWebSearchEnabled {
           SettingsCardDivider(palette: palette)
+          searchServiceKeyRow
+          SettingsCardDivider(palette: palette)
           askWebSearchProviderRow
         }
         SettingsCardDivider(palette: palette)
-        Text("开启后你的提问会发送给该服务商的联网搜索工具，由它检索后作答。四家都没配密钥时会自动退回普通问答——在上方「供应商」里给其中一家填好 API Key 即可启用。回答窗口会标出这一问由哪家联网作答。")
+        Text("开启后你的提问会发送给该服务商的联网搜索工具，由它检索后作答。四家都没配密钥时会自动退回普通问答——在上方「供应商」里给其中一家填好 API Key 即可启用。回答窗口会标出这一问由哪家联网作答。\n\n为兼顾效率与实际使用效果，任意提问一律强制关闭模型的「深度思考」：混合思考模型默认开着思考时，会在吐出第一个字之前先烧掉几百上千个推理 token（实测一句话要多花 5 秒），而任意提问要的是立刻能用的短答。MiMo 与豆包的搜索插件也要求思考关闭才会触发。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .fixedSize(horizontal: false, vertical: true)
@@ -87,6 +102,67 @@ struct FamoAIPage: View {
           .padding(.top, 8)
       }
     }
+  }
+
+  /// 「搜索服务 API Key」：豆包搜索 Global 版的独立 Key，与任何一家模型的 Key 无关。
+  ///
+  /// 配好它之后，联网走「先检索、再作答」：由豆包搜索取回网页，交给**当前默认供应商**作答 ——
+  /// 所以配的是 DeepSeek 也能联网。留空则退回下面那套「模型自带的联网工具」。
+  private var searchServiceKeyRow: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack(spacing: 11) {
+        Text("搜索服务")
+          .font(.system(size: 14))
+          .foregroundStyle(palette.ink)
+        Spacer(minLength: 8)
+        Picker("搜索服务", selection: searchBackendBinding) {
+          ForEach(FamoWebSearchBackend.allCases, id: \.rawValue) { backend in
+            Text(backend.displayName).tag(backend.rawValue)
+          }
+        }
+        .pickerStyle(.menu)
+        .labelsHidden()
+        .fixedSize()
+        Text(searchKeyConfigured ? "已设置" : "未设置")
+          .font(.system(size: 12, design: .monospaced))
+          .foregroundStyle(palette.ink3)
+      }
+      HStack(spacing: 8) {
+        SecureField("\(searchBackend.displayName) API Key（写入 Keychain）", text: $searchKeyInput)
+          .textFieldStyle(.roundedBorder)
+        smallButton("粘贴") { pasteSearchKey() }
+        smallButton("保存") { saveSearchKey() }
+        if searchKeyConfigured {
+          smallButton("清除") { clearSearchKey() }
+        }
+      }
+      Text("独立于上面的模型密钥。\(searchBackend.keyHint)配好后由\(searchBackend.displayName)取回网页、交给你的默认供应商作答 —— 所以默认配的是 DeepSeek 也能联网。留空则退回各家模型自带的联网工具。两家的 Key 分开存，来回切换不用重填。\(searchKeyStatus.isEmpty ? "" : "\n\n\(searchKeyStatus)")")
+          .font(.system(size: 12))
+          .foregroundStyle(palette.ink3)
+          .fixedSize(horizontal: false, vertical: true)
+          .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .padding(.vertical, 8)
+  }
+
+  private var searchBackend: FamoWebSearchBackend {
+    FamoWebSearchBackend(rawValue: searchBackendRaw) ?? .doubaoGlobal
+  }
+
+  /// 切后端时把输入框和状态一起清掉，并把「已设置」重新指向新后端的 Key ——
+  /// 否则会出现「显示已设置、其实是上一家的 Key」这种最难查的错觉。
+  private var searchBackendBinding: Binding<String> {
+    Binding(
+      get: { searchBackendRaw },
+      set: { newValue in
+        searchBackendRaw = newValue
+        FamoWebSearchBackendSettings.rawValue = newValue
+        searchKeyInput = ""
+        searchKeyStatus = ""
+        searchKeyConfigured = FamoWebSearchKeyStore.isConfigured(
+          for: searchBackend, secrets: providerSecrets)
+      }
+    )
   }
 
   /// 「联网模型」下拉：自动 + 四家可联网供应商。只在联网搜索打开时出现。
@@ -187,6 +263,12 @@ struct FamoAIPage: View {
       .accessibilityLabel(profile.isDefault ? "\(profile.displayName)（当前默认）" : "设为默认：\(profile.displayName)")
       .accessibilityAddTraits(profile.isDefault ? .isSelected : [])
 
+      Button(action: { beginEdit(profile) }) {
+        Image(systemName: "slider.horizontal.3")
+      }
+      .buttonStyle(.borderless)
+      .accessibilityLabel("修改模型：\(profile.displayName)")
+
       Button(action: { deleteProvider(profile) }) {
         Image(systemName: "trash")
       }
@@ -203,7 +285,17 @@ struct FamoAIPage: View {
   /// pop-up, like the pickers on 键盘输入.
   private var providerForm: some View {
     VStack(alignment: .leading, spacing: 10) {
-      formRow("预设") { presetControl }
+      // 编辑已配好的一家时不给「预设」——预设的作用是带出 name/endpoint/model，这三样此刻已经有了；
+      // 留着只会让人误以为必须重选一遍。改成一行「正在修改：xx」提示当前编辑对象。
+      if let editingProfile {
+        formRow("修改") {
+          Text(editingProfile.displayName)
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(palette.ink)
+        }
+      } else {
+        formRow("预设") { presetControl }
+      }
       formRow("端点") { endpointControl }
       formRow("模型") { modelControl }
       formRow("密钥") { keyControl }
@@ -285,10 +377,15 @@ struct FamoAIPage: View {
     }
   }
 
-  /// 「添加并设为默认」+ 状态回显。
+  /// 「添加并设为默认」/ 编辑态的「保存修改」+「取消」+ 状态回显。
   private var addFooter: some View {
     HStack(spacing: 8) {
-      smallButton("添加并设为默认") { addProvider() }
+      if editingProfile == nil {
+        smallButton("添加并设为默认") { addProvider() }
+      } else {
+        smallButton("保存修改") { saveEdit() }
+        smallButton("取消") { cancelEdit() }
+      }
       if !providerStatus.isEmpty {
         Text(providerStatus)
           .font(.system(size: 12))
@@ -300,15 +397,21 @@ struct FamoAIPage: View {
   private var isCustomProvider: Bool { providerID == FamoLLMProviderCatalog.customID }
 
   /// The preset's built-in model(s) — the always-available fallback shown before / without a fetch.
+  ///
+  /// 编辑态下把该供应商**当前用的**模型排在最前：预设里写死的那个型号会过时（供应商发新版比我们发版
+  /// 快），当前值不在列表里就会给人「只能选回旧型号」的错觉。
   private var curatedModels: [String] {
+    let preset: [String]
     switch providerID {
     case "deepseek":
-      return [FamoCloudPreferences.defaultDeepSeekModel, FamoCloudPreferences.reasonerDeepSeekModel]
+      preset = [FamoCloudPreferences.defaultDeepSeekModel, FamoCloudPreferences.reasonerDeepSeekModel]
     case FamoLLMProviderCatalog.customID:
-      return []
+      preset = []
     default:
-      return FamoLLMProviderCatalog.preset(id: providerID).map { [$0.model] } ?? []
+      preset = FamoLLMProviderCatalog.preset(id: providerID).map { [$0.model] } ?? []
     }
+    guard let current = editingProfile?.model, !current.isEmpty else { return preset }
+    return [current] + preset.filter { $0 != current }
   }
 
   private var availableModels: [String] {
@@ -316,10 +419,12 @@ struct FamoAIPage: View {
   }
 
   /// The API Key field prompt — the active preset's key-format hint, or a generic line.
+  /// 编辑态改口径：留空不再是「稍后再填」，而是「保持已存的 Key 不变」。
   private var secureFieldPrompt: String {
-    providerKeyHint.isEmpty
-      ? "API Key（写入 Keychain，可留空稍后再填）"
-      : "API Key（\(providerKeyHint)，写入 Keychain，可留空稍后再填）"
+    let hint = providerKeyHint.isEmpty ? "" : "\(providerKeyHint)，"
+    return editingProfile == nil
+      ? "API Key（\(hint)写入 Keychain，可留空稍后再填）"
+      : "API Key（\(hint)留空＝保持现有 Key 不变）"
   }
 
   /// Prefill the add form from a one-tap preset; the user only pastes the key. DeepSeek keeps the
@@ -390,7 +495,10 @@ struct FamoAIPage: View {
           endpoint.scheme == "https" else {
       providerStatus = "端点必须是 https"; return
     }
-    let key = providerKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
+    // 已配好的一家：Key 字段是只写的（永远空），但 Keychain 里有——回落去读，否则「拉取最新」对
+    // 已存在的供应商永远拉不动，模型就被钉死在预设那一个型号上。
+    let typed = providerKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
+    let key = typed.isEmpty ? (storedKey(for: editingProfile) ?? "") : typed
     guard !key.isEmpty else { providerStatus = "请先填入 API Key 再拉取"; return }
     let authStyle = FamoLLMProviderCatalog.preset(id: providerID)?.authHeaderStyle ?? .bearer
     providerStatus = "拉取模型中…"
@@ -405,6 +513,79 @@ struct FamoAIPage: View {
       } catch {
         await MainActor.run { providerStatus = "拉取失败，请检查端点与 Key" }
       }
+    }
+  }
+
+  private func pasteSearchKey() {
+    if let s = NSPasteboard.general.string(forType: .string) {
+      searchKeyInput = s.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+  }
+
+  private func saveSearchKey() {
+    let result = FamoSettingsActions.saveWebSearchKey(
+      searchKeyInput, backend: searchBackend, secrets: providerSecrets)
+    searchKeyInput = result.input
+    searchKeyStatus = result.status
+    searchKeyConfigured = FamoWebSearchKeyStore.isConfigured(
+      for: searchBackend, secrets: providerSecrets)
+  }
+
+  private func clearSearchKey() {
+    searchKeyStatus = FamoSettingsActions.clearWebSearchKey(
+      backend: searchBackend, secrets: providerSecrets)
+    searchKeyInput = ""
+    searchKeyConfigured = FamoWebSearchKeyStore.isConfigured(
+      for: searchBackend, secrets: providerSecrets)
+  }
+
+  /// The profile's stored key, for 「拉取最新」 only — never surfaced in the UI.
+  private func storedKey(for profile: FamoProviderProfile?) -> String? {
+    guard let profile, let key = try? providerSecrets.secret(named: profile.secretName),
+          !key.isEmpty else { return nil }
+    return key
+  }
+
+  /// Load a saved provider into the form so its model / endpoint can be changed in place.
+  private func beginEdit(_ profile: FamoProviderProfile) {
+    editingProfile = profile
+    providerID = FamoLLMProviderCatalog.inferredProviderID(for: profile)
+    providerName = profile.displayName
+    providerEndpoint = profile.endpoint.absoluteString
+    providerModel = profile.model
+    providerKeyHint = FamoLLMProviderCatalog.preset(id: providerID)?.keyHint ?? ""
+    providerKeyInput = ""
+    fetchedModels = []
+    providerStatus = "点「拉取最新」看该供应商当前有哪些模型，选好后点「保存修改」。"
+  }
+
+  private func cancelEdit() {
+    editingProfile = nil
+    fillCustomPreset()
+    providerName = ""
+    providerKeyInput = ""
+    providerStatus = ""
+  }
+
+  /// Save the edited profile in place — keeps its Keychain entry unless a new key was typed.
+  private func saveEdit() {
+    guard let profile = editingProfile else { return }
+    let result = FamoSettingsActions.updateProviderProfile(
+      profile,
+      endpoint: providerEndpoint,
+      model: providerModel,
+      apiKey: providerKeyInput,
+      store: providerStore,
+      secrets: providerSecrets
+    )
+    providers = result.profiles
+    providerStatus = result.status
+    if result.status.hasPrefix("已保存") {
+      editingProfile = nil
+      fillCustomPreset()
+      providerName = ""
+      providerKeyInput = ""
+      providerStatus = result.status
     }
   }
 
@@ -425,6 +606,13 @@ struct FamoAIPage: View {
     let result = FamoSettingsActions.deleteProviderProfile(profile, store: providerStore, secrets: providerSecrets)
     providers = result.profiles
     providerStatus = result.status
+    // 删掉的正是正在编辑的那条 → 表单退回新增态，否则「保存修改」会写回一条已删除的 profile。
+    if editingProfile?.id == profile.id {
+      editingProfile = nil
+      fillCustomPreset()
+      providerName = ""
+      providerKeyInput = ""
+    }
   }
 
   private func smallButton(_ title: String, action: @escaping () -> Void) -> some View {

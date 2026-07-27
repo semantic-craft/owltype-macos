@@ -318,6 +318,57 @@ final class ProviderProfileStoreTests: XCTestCase {
     XCTAssertEqual(FamoLLMProviderCatalog.sourceSupport(for: mimo), .sourceResults)
   }
 
+  /// 换模型的核心不变式：不重填 Key 也能改。`secretName` 是从 profile 的 UUID 推出来的，所以
+  /// 「删掉再加一条」会换一个 Keychain 账号并把旧 Key 一起删掉 —— 原地更新才保得住。
+  func testUpdateProviderProfileChangesModelAndKeepsStoredKey() throws {
+    let store = makeStore()
+    let secrets = FamoInMemorySecretStore()
+    let added = FamoSettingsActions.addProviderProfile(
+      displayName: "小米 MiMo", endpoint: "https://api.xiaomimimo.com/v1/chat/completions",
+      model: "mimo-v2.5", apiKey: "sk-mimo", makeDefault: true,
+      store: store, secrets: secrets, providerID: "mimo")
+    let original = try XCTUnwrap(added.profiles.first)
+
+    let result = FamoSettingsActions.updateProviderProfile(
+      original,
+      endpoint: "https://api.xiaomimimo.com/v1/chat/completions",
+      model: " mimo-v2.5-pro ",
+      apiKey: "",                       // 用户没重填 Key
+      store: store,
+      secrets: secrets
+    )
+    let updated = try XCTUnwrap(result.profiles.first)
+    XCTAssertEqual(updated.model, "mimo-v2.5-pro", "model is updated and trimmed")
+    XCTAssertEqual(updated.id, original.id, "same profile, not a replacement")
+    XCTAssertEqual(updated.secretName, original.secretName)
+    XCTAssertTrue(updated.isDefault, "编辑模型不该把默认供应商弄丢")
+    XCTAssertEqual(try secrets.secret(named: updated.secretName), "sk-mimo",
+                   "留空的 Key 字段意味着「保持不变」，不是「清空」")
+    XCTAssertEqual(result.profiles.count, 1, "原地更新不该多出一条")
+  }
+
+  func testUpdateProviderProfileWritesNewKeyWhenTypedAndRejectsNonHTTPS() throws {
+    let store = makeStore()
+    let secrets = FamoInMemorySecretStore()
+    let added = FamoSettingsActions.addProviderProfile(
+      displayName: "豆包", endpoint: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+      model: "doubao-seed-2-1-turbo-260628", apiKey: "sk-old", makeDefault: true,
+      store: store, secrets: secrets, providerID: "doubao")
+    let original = try XCTUnwrap(added.profiles.first)
+
+    let rotated = FamoSettingsActions.updateProviderProfile(
+      original, endpoint: original.endpoint.absoluteString, model: original.model,
+      apiKey: " sk-new ", store: store, secrets: secrets)
+    XCTAssertTrue(rotated.status.hasPrefix("已保存"))
+    XCTAssertEqual(try secrets.secret(named: original.secretName), "sk-new", "typed key wins, trimmed")
+
+    let insecure = FamoSettingsActions.updateProviderProfile(
+      original, endpoint: "http://ark.cn-beijing.volces.com/api/v3/chat/completions",
+      model: original.model, apiKey: "", store: store, secrets: secrets)
+    XCTAssertEqual(insecure.status, "端点必须是 https。")
+    XCTAssertEqual(store.profiles().first?.endpoint.scheme, "https", "被拒的端点不能落盘")
+  }
+
   func testAddProviderProfileActionRejectsBlankNameAndNonHTTPS() throws {
     let store = makeStore()
     let secrets = FamoInMemorySecretStore()
