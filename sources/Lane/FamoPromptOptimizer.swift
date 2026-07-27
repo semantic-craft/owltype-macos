@@ -276,7 +276,10 @@ enum FamoPromptOptimizer {
       responseFormat: .jsonObject,
       // 与划词润色同策：DeepSeek 的混合思考默认开，会先烧约 400 token / 5 秒隐藏推理才吐出
       // 这段短 JSON。用户此刻正等着替换选中的草稿，延迟比推理深度值钱。
-      thinking: model.hasPrefix("deepseek") ? .disabled : nil,
+      // MiMo/火山方舟豆包与 DeepSeek 共用同一关思考形状（FamoThinkingControl.deepSeekStyle）；
+      // 豆包实测默认开隐藏思考，长产出 + 思考会顶穿 60s 硬超时。
+      thinking: ["deepseek", "mimo", "doubao"].contains(where: model.lowercased().hasPrefix)
+        ? .disabled : nil,
       // qwen 的思考**保留**（enableThinking: nil），与润色相反：优化整段提示词是质量优先的
       // 长产出（用户在「正在优化…」提示下愿等），推理对补齐四要素有实益；超时已放宽到 60s。
       enableThinking: nil
