@@ -317,27 +317,43 @@ final class FamoScrollRowsPlanTests: XCTestCase {
 
   // MARK: gate
 
-  func testWantsRowsOnScrollMidList() {
+  func testWantsRowsOnScrollMidListAfterPaging() {
     XCTAssertTrue(FamoScrollRowsPlan.wantsRows(
-      prefs: snapshot(), lastPage: false, candidateCount: 5, rimeVertical: false, schemaID: ""))
+      prefs: snapshot(), didPage: true, lastPage: false, candidateCount: 5,
+      rimeVertical: false, schemaID: ""))
+  }
+
+  /// 翻页才展开（2026-07-28）：没翻过页的组字保持单行，即便选了卷轴、还有后页。
+  func testNoPagingMeansNoRows() {
+    XCTAssertFalse(FamoScrollRowsPlan.wantsRows(
+      prefs: snapshot(), didPage: false, lastPage: false, candidateCount: 5,
+      rimeVertical: false, schemaID: ""))
+    XCTAssertFalse(FamoScrollRowsPlan.wantsPrevRow(
+      prefs: snapshot(), didPage: false, page: 1, candidateCount: 5,
+      rimeVertical: false, schemaID: ""))
   }
 
   func testLastPageNeverFetches() {
     XCTAssertFalse(FamoScrollRowsPlan.wantsRows(
-      prefs: snapshot(), lastPage: true, candidateCount: 5, rimeVertical: false, schemaID: ""))
+      prefs: snapshot(), didPage: true, lastPage: true, candidateCount: 5,
+      rimeVertical: false, schemaID: ""))
   }
 
   func testEmptyPageNeverFetches() {
     XCTAssertFalse(FamoScrollRowsPlan.wantsRows(
-      prefs: snapshot(), lastPage: false, candidateCount: 0, rimeVertical: false, schemaID: ""))
+      prefs: snapshot(), didPage: true, lastPage: false, candidateCount: 0,
+      rimeVertical: false, schemaID: ""))
   }
 
-  /// 非卷轴的三个方向都不取数——卷轴是唯一带后页行的形态（「预览后页」开关已被它吸收）。
+  /// 非卷轴的三个方向都不取数——卷轴是唯一带前/后页行的形态（「预览后页」开关已被它吸收）。
   func testNonScrollOrientationsNeverFetch() {
     for orientation in [FamoPanelOrientation.auto, .horizontal, .vertical] {
       XCTAssertFalse(FamoScrollRowsPlan.wantsRows(
-        prefs: snapshot(orientation: orientation), lastPage: false, candidateCount: 5,
-        rimeVertical: false, schemaID: ""), "\(orientation) 不该预取后页行")
+        prefs: snapshot(orientation: orientation), didPage: true, lastPage: false,
+        candidateCount: 5, rimeVertical: false, schemaID: ""), "\(orientation) 不该预取后页行")
+      XCTAssertFalse(FamoScrollRowsPlan.wantsPrevRow(
+        prefs: snapshot(orientation: orientation), didPage: true, page: 1,
+        candidateCount: 5, rimeVertical: false, schemaID: ""), "\(orientation) 不该预取前页行")
     }
   }
 
@@ -345,7 +361,19 @@ final class FamoScrollRowsPlanTests: XCTestCase {
   /// （`.scroll.isVertical` 恒为 false，与视图的渲染分支一致）。
   func testScrollIgnoresRimeVertical() {
     XCTAssertTrue(FamoScrollRowsPlan.wantsRows(
-      prefs: snapshot(), lastPage: false, candidateCount: 5, rimeVertical: true, schemaID: ""))
+      prefs: snapshot(), didPage: true, lastPage: false, candidateCount: 5,
+      rimeVertical: true, schemaID: ""))
+  }
+
+  /// 前页行：翻过页且不在第一页才有（末页也算——那时只剩前页行 + 主行）；
+  /// 翻回第一页就没有「上一页」可保留。
+  func testPrevRowNeedsANonFirstPage() {
+    XCTAssertTrue(FamoScrollRowsPlan.wantsPrevRow(
+      prefs: snapshot(), didPage: true, page: 1, candidateCount: 5,
+      rimeVertical: false, schemaID: ""))
+    XCTAssertFalse(FamoScrollRowsPlan.wantsPrevRow(
+      prefs: snapshot(), didPage: true, page: 0, candidateCount: 5,
+      rimeVertical: false, schemaID: ""))
   }
 
   // MARK: chunking
@@ -383,12 +411,14 @@ final class FamoScrollRowsPlanTests: XCTestCase {
     XCTAssertTrue(FamoScrollRowsPlan.rows(from: [], pageSize: 5, startPage: 1).isEmpty)
   }
 
-  func testRowsRenderAsTextOnly() {
-    // 后页行无序号（label 空）、无注释/徽章/来源——序号只属于主行（数字键只选得中主行）。
-    let rows = FamoScrollRowsPlan.rows(from: [cand("甲"), cand("乙")], pageSize: 2, startPage: 1)
+  func testRowsRenderTextWithComment() {
+    // 前/后页行无序号（label 空）、无徽章/来源——序号只属于主行（数字键只选得中主行）；
+    // 注释保留（码提示，2026-07-28 截图定案：信息密度与主行一致）。
+    let rows = FamoScrollRowsPlan.rows(
+      from: [RimeCandidate(text: "甲", comment: "wg"), cand("乙")], pageSize: 2, startPage: 1)
     XCTAssertEqual(rows.count, 1)
     XCTAssertEqual(rows[0].candidates.map(\.label), ["", ""])
-    XCTAssertEqual(rows[0].candidates.compactMap(\.comment), [])
+    XCTAssertEqual(rows[0].candidates.map(\.comment), ["wg", nil])
     XCTAssertEqual(rows[0].candidates.filter(\.badge), [])
   }
 

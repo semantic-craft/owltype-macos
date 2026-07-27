@@ -152,8 +152,8 @@ final class FamoSettingsState {
   var panelShowNotificationsWhen: FamoNotificationWhen = .always
   /// 候选格式预设 (mirror of `FamoPanelPreferences.candidateFormat`). Feature 7.
   var panelCandidateFormat: FamoCandidateFormat = .full
-  /// 卷轴后页行数 (mirror of `FamoPanelPreferences.scrollRows`, 1 或 2).
-  var panelScrollRows: Int = 2
+  /// 卷轴后页行数 (mirror of `FamoPanelPreferences.scrollRows`, 1–4).
+  var panelScrollRows: Int = 4
   /// G8 候选个数 mirror of `FamoKeyboardPreferences.pageSize` (Rime menu/page_size).
   /// Unlike the panel mirrors, this flows through the keyboard patch + 应用配置改动.
   var candidatePageSize: Int = 8
