@@ -158,7 +158,7 @@ extension FamoInputController {
                 selStart: marked.preeditSelStartUTF16,
                 selEnd: marked.preeditSelEndUTF16,
                 candidates: candidates, comments: comments, labels: labels, highlighted: composition.highlightedIndex,
-                page: page, lastPage: lastPage)
+                page: page, lastPage: lastPage, pageSize: composition.pageSize)
       let snapCount = min(candidates.count, FamoCompositionSnapshot.defaultTopN)
       let snaps = (0..<snapCount).map { i in
         RimeCandidateSnapshot(index: i, text: candidates[i], comment: comments[i].isEmpty ? nil : comments[i], quality: nil)
@@ -401,8 +401,14 @@ extension FamoInputController {
     apply(.setMarkedText(preedit: preedit, selRange: selRange, caretPos: caretPos), client: client)
   }
 
-  func showPanel(preedit: String, cursor: Int, selStart: Int, selEnd: Int, candidates: [String], comments: [String], labels: [String], highlighted: Int, page: Int, lastPage: Bool) {
+  func showPanel(preedit: String, cursor: Int, selStart: Int, selEnd: Int, candidates: [String], comments: [String], labels: [String], highlighted: Int, page: Int, lastPage: Bool, pageSize: Int) {
     // print("[DEBUG] showPanelWithPreedit:...:")
+    // 卷轴「翻页才展开」旗标：page > 0 = 本次组字翻过页 → 置位。置位后组字期内保持
+    // （翻回第一页、追打字母都不收起）；复位在 hidePalettes()——commit、失焦、空 menu
+    // 的收尾都汇聚到那里。放在 client guard 之前，别让 client 缺席漏记一次翻页。
+    if page > 0, !candidates.isEmpty {
+      scrollDidPage = true
+    }
     guard let client = client else { return }
     let policy = clientCapabilityDecisions(for: client)
 
@@ -489,19 +495,26 @@ extension FamoInputController {
     let isVertical = rime?.option(.vertical) ?? false
     let prefs = FamoPanelSnapshot.current()
 
-    // 卷轴：预取后 1–2 整页做后页行。仅当选了卷轴、还有后页、且本次组字会以横排渲染
-    // （竖排不叠加）时才枚举。取数走 `peekCandidates`（librime candidate_list_from_index
-    // 只读迭代器）——不真翻页、不动 menu 页游标、无 IMK 客户端往返，故不在 Chromium
-    // 死锁禁区内。`!lastPage` 时当前页必为满页，故 page_size == candidates.count。
+    // 卷轴（翻页才展开，2026-07-28）：本次组字翻过页后，预取紧邻的前 1 页 + 后 1–4 整页。
+    // 没翻过页时保持单行——展开是翻页动作换来的。取数走 `peekCandidates`（librime
+    // candidate_list_from_index 只读迭代器）——不真翻页、不动 menu 页游标、无 IMK 客户端
+    // 往返，故不在 Chromium 死锁禁区内。页宽用 librime 的 page_size：末页 candidates.count
+    // 不满页，拿它当页宽会把前页的绝对下标全算错。
     var scrollRows: [FamoScrollRow] = []
-    if FamoScrollRowsPlan.wantsRows(prefs: prefs, lastPage: lastPage,
-                                    candidateCount: candidates.count,
-                                    rimeVertical: isVertical, schemaID: schemaId),
-       let rime {
-      let pageSize = candidates.count
-      let peeked = rime.peekCandidates(from: (page + 1) * pageSize,
-                                       count: prefs.scrollRows * pageSize)
-      scrollRows = FamoScrollRowsPlan.rows(from: peeked, pageSize: pageSize, startPage: page + 1)
+    if let rime, pageSize > 0 {
+      if FamoScrollRowsPlan.wantsPrevRow(prefs: prefs, didPage: scrollDidPage, page: page,
+                                         candidateCount: candidates.count,
+                                         rimeVertical: isVertical, schemaID: schemaId) {
+        let peeked = rime.peekCandidates(from: (page - 1) * pageSize, count: pageSize)
+        scrollRows += FamoScrollRowsPlan.rows(from: peeked, pageSize: pageSize, startPage: page - 1)
+      }
+      if FamoScrollRowsPlan.wantsRows(prefs: prefs, didPage: scrollDidPage, lastPage: lastPage,
+                                      candidateCount: candidates.count,
+                                      rimeVertical: isVertical, schemaID: schemaId) {
+        let peeked = rime.peekCandidates(from: (page + 1) * pageSize,
+                                         count: prefs.scrollRows * pageSize)
+        scrollRows += FamoScrollRowsPlan.rows(from: peeked, pageSize: pageSize, startPage: page + 1)
+      }
     }
 
     let famo = NSApp.famoAppDelegate.ensureFamoPanel()

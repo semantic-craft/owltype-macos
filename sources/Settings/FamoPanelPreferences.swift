@@ -256,15 +256,16 @@ enum FamoPanelPreferences {
     set { FamoDefaults.standard.set(newValue, forKey: "FamoPanelShowPaging") }
   }
 
-  /// 卷轴的后页行数（1 或 2；总行数 = 主行 + 它）. Key `"FamoPanelPreviewRows"`, default `2`.
-  /// 读取时钳到 1...2，抵御手改 defaults 写出的越界值。
+  /// 卷轴的后页行数（1–4；展开后总行数 = 前页 1 行 + 主行 + 它）. Key `"FamoPanelPreviewRows"`,
+  /// default `4`（2026-07-28 截图定案：主行下方跟 4 页）。读取时钳到 1...4，抵御手改 defaults
+  /// 写出的越界值；老用户存过的 1/2 落在新区间内，原样生效。
   ///
   /// 键名保留 `Preview` 前缀：它就是老「预览行数」那一格，卷轴吸收「预览后页」后只换了语义
   /// （后页行现在可点、稍淡、仍无序号），改键名只会让老用户的选择白丢。开关键
   /// `"FamoPanelPreviewPages"` 则已退役，只剩 `orientation` getter 里的迁移②读它一次。
   static var scrollRows: Int {
-    get { min(2, max(1, FamoDefaults.standard.object(forKey: "FamoPanelPreviewRows") as? Int ?? 2)) }
-    set { FamoDefaults.standard.set(min(2, max(1, newValue)), forKey: "FamoPanelPreviewRows") }
+    get { min(4, max(1, FamoDefaults.standard.object(forKey: "FamoPanelPreviewRows") as? Int ?? 4)) }
+    set { FamoDefaults.standard.set(min(4, max(1, newValue)), forKey: "FamoPanelPreviewRows") }
   }
 
   /// 切换提示通知 (show_notifications_when). Key `"FamoPanelShowNotificationsWhen"`,

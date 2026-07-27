@@ -53,6 +53,9 @@ extension FamoInputController {
 
   override func hidePalettes() {
     NSApp.famoAppDelegate.famoPanel?.hidePanel()
+    // 卷轴「翻页才展开」旗标的唯一复位点：commit、失焦、空 menu 的收尾全汇聚到这里，
+    // 下一次组字从单行重新开始（置位在 showPanel，见 FamoInputController+RimeUpdate）。
+    scrollDidPage = false
     super.hidePalettes()
   }
 
