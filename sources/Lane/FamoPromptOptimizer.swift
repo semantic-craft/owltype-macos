@@ -324,7 +324,10 @@ enum FamoPromptOptimizer {
   ///
   /// 与 #136 的差别：只转义标签本身，不转义所有尖括号。草稿是待改写的正文，可能含
   /// `Array<String>` 这类代码；全量转义会毁掉保真度，而硬规则要求原样保留代码。
-  private static func sandwiched(_ draft: String) -> String {
+  ///
+  /// internal（原 private）：「任务书」（FamoGoalBrief）的输入同样是一段最容易被「执行」的
+  /// 指令草稿，复用同一道护栏，别让两份三明治各自漂移。
+  static func sandwiched(_ draft: String) -> String {
     let escaped =
       draft
       .replacingOccurrences(
