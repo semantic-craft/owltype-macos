@@ -82,13 +82,22 @@ enum FamoDictPackStatus: Equatable {
 }
 
 enum FamoDictPackPreferences {
-  /// 首启自动拉取开关. Key `"FamoDictPackAutoFetch"`, default `true`.
+  /// 静默自动拉取开关. Key `"FamoDictPackAutoFetch"`, default **`false`**.
+  ///
+  /// 默认从 true 改为 false（知情同意改版）：完整词库来自第三方开源项目，为避免版权争议不随包
+  /// 分发，也不应由法墨替用户静默下载——改为弹窗说明缘由、用户点「同意并下载」后才拉。
+  /// 打开此开关＝用户显式授权免提示自动拉取（高级用法，无 UI，`defaults write` 可设）。
   static var autoFetch: Bool {
-    get {
-      if FamoDefaults.standard.object(forKey: "FamoDictPackAutoFetch") == nil { return true }
-      return FamoDefaults.standard.bool(forKey: "FamoDictPackAutoFetch")
-    }
+    get { FamoDefaults.standard.bool(forKey: "FamoDictPackAutoFetch") }
     set { FamoDefaults.standard.set(newValue, forKey: "FamoDictPackAutoFetch") }
+  }
+
+  /// 首启知情同意弹窗是否已呈现过. Key `"FamoDictPackPromptShown"`, default `false`.
+  /// 对齐 FamoUpdateLogoutPrompt 的 A1 教训：**处置后才记录**——弹窗未被处置就被进程杀掉时
+  /// 下次启动重弹（有限重弹 > 永久静默）。
+  static var promptShown: Bool {
+    get { FamoDefaults.standard.bool(forKey: "FamoDictPackPromptShown") }
+    set { FamoDefaults.standard.set(newValue, forKey: "FamoDictPackPromptShown") }
   }
 
   /// 下载镜像前缀. Key `"FamoDictPackMirror"`, default 空 = 直连 raw.githubusercontent.com。

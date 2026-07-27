@@ -7,8 +7,22 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=scripts/famo-identity.sh
 . "$ROOT/scripts/famo-identity.sh"
 
-pass() { printf 'PASS: %s\n' "$1"; }
-fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
+# 断言失败只记账、不退出：fail-fast 会让第一条 FAIL 掩盖后面所有检查（2026-07-27 实测——
+# 一条过时的 SharedSupport 断言把 TIS 层与候选级探针整段藏了起来，真回归无从发现）。
+FAILURES=()
+fail() { printf 'FAIL: %s\n' "$1" >&2; FAILURES+=("$1"); }
+# 多条断言共用一句结论时，fail 不再退出会让该结论无条件打印，出现「FAIL: Famo Hans is not
+# current」后紧跟「PASS: ...current and usable」的自相矛盾输出。pass_clean 只在本组一条没错
+# 时才下结论；两者都把游标推到当前失败数，于是下一组的起点自动接上，无需手工标记组边界。
+# 彼此独立、不共用结论的断言（如 check_default_off 逐项）继续用 pass。
+MARK=0
+pass() { printf 'PASS: %s\n' "$1"; MARK=${#FAILURES[@]}; }
+pass_clean() {
+  if (( ${#FAILURES[@]} == MARK )); then printf 'PASS: %s\n' "$1"; fi
+  MARK=${#FAILURES[@]}
+}
+# 前置条件失败后续检查全无意义（app 都不在，codesign/探针只会连环报错）——这类仍立即退出。
+die() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 
 if [[ -n "${FAMO_APP:-}" ]]; then
   APP="$FAMO_APP"
@@ -20,7 +34,7 @@ fi
 if [[ -z "${FAMO_APP:-}" &&
       -d "/Library/Input Methods/Famo.app" &&
       -d "$HOME/Library/Input Methods/Famo.app" ]]; then
-  fail "duplicate Famo installs found in /Library and ~/Library"
+  die "duplicate Famo installs found in /Library and ~/Library"
 fi
 EXE="$APP/Contents/MacOS/Famo"
 DOMAIN="$FAMO_BUNDLE_ID"
@@ -28,54 +42,71 @@ SQUIRREL_DOMAIN="$SQUIRREL_BUNDLE_ID"
 PROBE="$ROOT/build/famo-rime-probe"
 PROBE_SRC="$ROOT/tools/famo-rime-probe.cc"
 
-[[ -d "$APP" ]] || fail "installed app not found: $APP"
-[[ -x "$EXE" ]] || fail "installed executable not found: $EXE"
+[[ -d "$APP" ]] || die "installed app not found: $APP"
+[[ -x "$EXE" ]] || die "installed executable not found: $EXE"
 
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP"
-pass "codesign verifies installed app"
+pass_clean "codesign verifies installed app"
 
 bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Contents/Info.plist")
 [[ "$bundle_id" == "$DOMAIN" ]] || fail "unexpected bundle id: $bundle_id"
-pass "bundle id is $DOMAIN"
+pass_clean "bundle id is $DOMAIN"
 
 plutil -p "$APP/Contents/Resources/en.lproj/InfoPlist.strings" | grep -q '"im.famo.inputmethod.Famo.Hans" => "法墨输入法"' ||
   fail "installed Famo Hans menu label is not localized as 法墨输入法"
-pass "installed Famo Hans menu label is localized"
+pass_clean "installed Famo Hans menu label is localized"
 
 [[ -s "$APP/Contents/Resources/LICENSE.txt" ]] || fail "missing GPL license in installed app resources"
 [[ -s "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md" ]] || fail "missing third-party notices in installed app resources"
 grep -q 'librime' "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md" || fail "third-party notices do not mention librime"
 grep -q 'wubi86' "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md" || fail "third-party notices do not mention wubi86"
-pass "installed app carries GPL license and third-party notices"
+pass_clean "installed app carries GPL license and third-party notices"
 
+# 方案B（2026-07-24 单仓公开化）：公开包只携带清洁室种子，五笔/双拼/简体拼音等改由 dictpack
+# 首启用户侧拉取。口径与发布 gate check-release.sh 一致——这里曾停在公开化前的旧世界，断言
+# SharedSupport 必须带 wubi86_jidian* 全套，在任何按方案B安装的机器上恒报 FAIL。
 for file in \
   "famo.yaml" \
   "rime_ice.schema.yaml" \
   "rime_ice.dict.yaml" \
-  "double_pinyin_flypy.schema.yaml" \
-  "pinyin_simp.schema.yaml" \
-  "pinyin_simp.dict.yaml" \
-  "wubi86_jidian.schema.yaml" \
-  "wubi86_jidian_pinyin.schema.yaml" \
-  "wubi86_jidian_trad.schema.yaml" \
-  "wubi86_jidian_trad_pinyin.schema.yaml"
+  "cn_dicts/famotype_base.dict.yaml" \
+  "cn_dicts/famotype_unicode.dict.yaml"
 do
   [[ -s "$APP/Contents/SharedSupport/$file" ]] || fail "installed app missing SharedSupport/$file"
 done
-pass "installed app bundles Famo frontend config, rime_ice (雾凇全拼), 小鹤双拼, 简体拼音, and 极点五笔全套 (KyleBing wubi86_jidian* + pinyin_simp 反查)"
+pass_clean "installed app bundles Famo frontend config and the clean-room rime_ice (雾凇全拼) seed"
 
 [[ ! -e "$APP/Contents/SharedSupport/squirrel.yaml" ]] || fail "installed Famo app still bundles SharedSupport/squirrel.yaml"
 ! grep -q "$HOME/Library/Input Methods/Famo.app" "$APP/Contents/SharedSupport/famo.yaml" ||
   fail "installed Famo frontend config still references user-level Famo.app"
 [[ -s "$APP/Contents/SharedSupport/_user_seed/famo.custom.yaml" ]] || fail "installed seed missing famo.custom.yaml"
 [[ ! -e "$APP/Contents/SharedSupport/_user_seed/squirrel.custom.yaml" ]] || fail "installed Famo seed still bundles squirrel.custom.yaml"
-pass "installed app uses Famo frontend config names"
+pass_clean "installed app uses Famo frontend config names"
 
-for s in rime_ice pinyin_simp double_pinyin_flypy \
-         wubi86_jidian wubi86_jidian_pinyin wubi86_jidian_trad wubi86_jidian_trad_pinyin; do
-  grep -q "schema: $s" "$APP/Contents/SharedSupport/_user_seed/default.custom.yaml" || fail "installed seed does not enable $s"
-done
-pass "installed seed enables 雾凇全拼/简体拼音/小鹤双拼/极点五笔全套"
+grep -q "schema: rime_ice" "$APP/Contents/SharedSupport/_user_seed/default.custom.yaml" ||
+  fail "installed seed does not enable rime_ice"
+pass_clean "installed seed enables 雾凇全拼"
+
+# 五笔/简体拼音/小鹤双拼不进包是方案B的设计，但必须由 dictpack 清单兜住——清单一旦漏项，
+# 新用户首启拉不到这些方案，而包里也没有，等于永久缺失（本机看不出来：老用户目录有历史文件垫着）。
+DICTPACK_MANIFEST="$ROOT/sources/DictPack/FamoDictPackManifestData.swift"
+if [[ -f "$DICTPACK_MANIFEST" ]]; then
+  for dest in \
+    "wubi86_jidian.schema.yaml" \
+    "wubi86_jidian.dict.yaml" \
+    "wubi86_jidian_pinyin.schema.yaml" \
+    "wubi86_jidian_trad.schema.yaml" \
+    "wubi86_jidian_trad_pinyin.schema.yaml" \
+    "pinyin_simp.schema.yaml" \
+    "pinyin_simp.dict.yaml" \
+    "double_pinyin_flypy.schema.yaml"
+  do
+    grep -q "dest: \"$dest\"" "$DICTPACK_MANIFEST" || fail "dictpack manifest does not cover $dest"
+  done
+  pass_clean "dictpack manifest covers 极点五笔全套/简体拼音/小鹤双拼"
+else
+  fail "dictpack manifest not found: $DICTPACK_MANIFEST"
+fi
 
 tis_output=$(/usr/bin/swift - <<'SWIFT'
 import Carbon
@@ -115,7 +146,7 @@ printf '%s\n' "$tis_output"
 [[ $(grep -c '^im\.famo\.inputmethod\.Famo\.Hant ' <<<"$tis_output") -eq 1 ]] || fail "duplicate Famo Hant input source"
 grep -q '^current=im\.famo\.inputmethod\.Famo\.Hans$' <<<"$tis_output" || fail "Famo Hans is not current"
 grep -q '^im\.famo\.inputmethod\.Famo\.Hans enabled=true selected=true selectable=true$' <<<"$tis_output" || fail "Famo Hans is not enabled/selected/selectable"
-pass "TIS reports Famo Hans current and usable"
+pass_clean "TIS reports Famo Hans current and usable"
 
 # W1.4: Famo-owned structured six-layer TIS diagnostic (read-only; FAMO-* codes). On this known-good
 # install every TIS layer is healthy → summary carries no "code" (JSONEncoder omits nil). Any failure
@@ -132,15 +163,15 @@ if code is not None:
     sys.stderr.write("summary.code=%s: %s\n" % (code, s.get("actionable", "")))
     sys.exit(1)
 ' || fail "--diagnose-tis reports a failure code on a known-good install"
-pass "Famo --diagnose-tis reports all TIS layers healthy (no summary.code)"
+pass_clean "Famo --diagnose-tis reports all TIS layers healthy (no summary.code)"
 
 if [[ -d "$SQUIRREL_APP" ]]; then
   squirrel_bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$SQUIRREL_APP/Contents/Info.plist")
   [[ "$squirrel_bundle_id" == "$SQUIRREL_DOMAIN" ]] || fail "unexpected Squirrel bundle id: $squirrel_bundle_id"
-  pass "system Squirrel app remains separate"
+  pass_clean "system Squirrel app remains separate"
   ! grep -Eq '^im\.rime\.inputmethod\.Squirrel.* selected=true' <<<"$tis_output" ||
     fail "Squirrel is selected while Famo smoke expects Famo current"
-  pass "TIS reports Squirrel is not selected"
+  pass_clean "TIS reports Squirrel is not selected"
 else
   pass "no system Squirrel app found"
 fi
@@ -166,7 +197,7 @@ if [[ -d "$HOME/Library/Rime" ]] &&
    find "$HOME/Library/Rime" \( -iname '*famo*' -o -iname '*法墨*' \) -print -quit | grep -q .; then
   fail "found Famo-specific files under live ~/Library/Rime"
 fi
-pass "live ~/Library/Rime has no Famo-specific files"
+pass_clean "live ~/Library/Rime has no Famo-specific files"
 
 if [[ ! -x "$PROBE" || "$PROBE_SRC" -nt "$PROBE" ]]; then
   mkdir -p "$ROOT/build"
@@ -177,7 +208,7 @@ if [[ ! -x "$PROBE" || "$PROBE_SRC" -nt "$PROBE" ]]; then
     "$APP/Contents/Frameworks/librime.1.dylib" \
     -o "$PROBE"
 fi
-pass "probe binary is built from source"
+pass_clean "probe binary is built from source"
 
 PROBE_USER_DIR="$(mktemp -d "${TMPDIR:-/tmp}/famo-rime-probe.XXXXXX")"
 trap 'rm -rf "$PROBE_USER_DIR"' EXIT
@@ -188,27 +219,37 @@ export DYLD_LIBRARY_PATH="$APP/Contents/Frameworks:$APP/Contents/Frameworks/rime
 pinyin_output=$("$PROBE" "$APP/Contents/SharedSupport" "$PROBE_USER_DIR" rime_ice nihao)
 printf '%s\n' "$pinyin_output"
 grep -q $'candidate\\[1\\]=你好' <<<"$pinyin_output" || fail "rime_ice nihao did not return 你好 first"
-pass "rime_ice nihao probe returns 你好"
+pass_clean "rime_ice nihao probe returns 你好"
 
-pinyin_simp_output=$("$PROBE" "$APP/Contents/SharedSupport" "$PROBE_USER_DIR" pinyin_simp nihao)
-printf '%s\n' "$pinyin_simp_output"
-grep -q $'candidate\\[1\\]=你好' <<<"$pinyin_simp_output" || fail "pinyin_simp nihao did not return 你好 first"
-pass "pinyin_simp nihao probe returns 你好"
+# 方案B 的包里只有 rime_ice，五笔/简体拼音要等 dictpack 首启拉取后才落到用户目录，探针无从加载。
+# 仅在方案确实进了 SharedSupport 时才跑——全量种子构建（famo-seed-full.sh）下这几条照常生效，
+# 不因为公开包的口径而丢掉候选级保护。
+probe_schema_if_bundled() {
+  local schema="$1" input="$2" expected="$3" output
+  if [[ ! -s "$APP/Contents/SharedSupport/$schema.schema.yaml" ]]; then
+    pass "$schema not bundled (方案B: dictpack 首启拉取) — candidate probe skipped"
+    return
+  fi
+  output=$("$PROBE" "$APP/Contents/SharedSupport" "$PROBE_USER_DIR" "$schema" "$input")
+  printf '%s\n' "$output"
+  grep -q "candidate\[1\]=$expected" <<<"$output" || fail "$schema $input did not return $expected first"
+  pass_clean "$schema $input probe returns $expected"
+}
 
-wubi_output=$("$PROBE" "$APP/Contents/SharedSupport" "$PROBE_USER_DIR" wubi86_jidian wqvb)
-printf '%s\n' "$wubi_output"
-grep -q $'candidate\\[1\\]=你好' <<<"$wubi_output" || fail "wubi86_jidian wqvb did not return 你好 first"
-pass "wubi86_jidian wqvb probe returns 你好"
-
-wubi_pinyin_output=$("$PROBE" "$APP/Contents/SharedSupport" "$PROBE_USER_DIR" wubi86_jidian_pinyin nihao)
-printf '%s\n' "$wubi_pinyin_output"
-grep -q $'candidate\\[1\\]=你好' <<<"$wubi_pinyin_output" || fail "wubi86_jidian_pinyin nihao did not return 你好 first"
-pass "wubi86_jidian_pinyin nihao probe returns 你好"
+probe_schema_if_bundled pinyin_simp nihao 你好
+probe_schema_if_bundled wubi86_jidian wqvb 你好
+probe_schema_if_bundled wubi86_jidian_pinyin nihao 你好
 
 # 出厂默认（落共享 rime_ice.schema.yaml 的 reset）：emoji 关（纯雾凇无带声调 preedit）。
 ice_schema="$APP/Contents/SharedSupport/rime_ice.schema.yaml"
 grep -A3 'name: emoji' "$ice_schema" | grep -q 'reset: 0' ||
   fail "installed rime_ice.schema.yaml does not default emoji off (reset: 0)"
-pass "installed rime_ice default: emoji off"
+pass_clean "installed rime_ice default: emoji off"
 
-pass "installed Famo smoke gate complete"
+if (( ${#FAILURES[@]} > 0 )); then
+  printf '\n%d check(s) failed:\n' "${#FAILURES[@]}" >&2
+  printf '  - %s\n' "${FAILURES[@]}" >&2
+  exit 1
+fi
+
+pass_clean "installed Famo smoke gate complete"
