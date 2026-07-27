@@ -142,11 +142,14 @@ struct FamoCandidatePanelView: View {
   }
 
   /// 横排 2A 的纵向出血量：选中块顶到候选条的上下内边（上 4 / 下 9，与容器 padding 一一
-  /// 对应）。`.background` 里的负 padding 只让背景越界、不改变布局尺寸。
+  /// 对应）。`.background` 里的负 padding 只让背景越界、不改变层布局尺寸。
   ///
-  /// 卷轴且真有后页行时下缘只出 2：主行下方 5pt 就是后页行，出满会压到下一行上。
+  /// 卷轴里主行紧邻别的行时该侧只出 2：行间距只有 5pt，出满会压到邻行上。上下分开判
+  /// ——前页行只在上方（页号 < 主行）、后页行只在下方（页号 > 主行），末页可以只有前页行。
   private var compactBleed: (top: CGFloat, bottom: CGFloat) {
-    (-4, state.isScroll && !state.scrollRows.isEmpty ? -2 : -9)
+    let rowAbove = state.isScroll && state.scrollRows.contains { $0.id < state.page }
+    let rowBelow = state.isScroll && state.scrollRows.contains { $0.id > state.page }
+    return (rowAbove ? -2 : -4, rowBelow ? -2 : -9)
   }
 
   // MARK: Header — preedit (dotted underline) + blinking caret + expand chevron
@@ -265,18 +268,20 @@ struct FamoCandidatePanelView: View {
 
   // MARK: 卷轴（主行 + 后页行，按页对齐）
 
-  /// 卷轴的行集合：第 0 行是主行（librime 当前页），之后是预取的后页行。
+  /// 卷轴的行集合：主行（librime 当前页）与预取的前/后页行按**页号排序**合并——前页行
+  /// （页号 = 主行 − 1）自然落在主行上方，后页行跟在下方。
   ///
-  /// 主行与后页行必须放进**同一个** `ForEach`、以页号为身份：翻一页后集合从 [p, p+1, p+2]
-  /// 变成 [p+1, p+2, p+3]，p+1/p+2 身份不变，SwiftUI 于是把它们从第 2/3 格动画到第 1/2 格
-  /// ——观感即「整块上滚一行」。拆成两个 ForEach（主行一个、后页行一个）就没有这个跨格身份，
-  /// 只会得到逐行的交叉淡化。
+  /// 所有行必须放进**同一个** `ForEach`、以页号为身份：翻一页后集合从 [p−1, p, p+1, …]
+  /// 变成 [p, p+1, p+2, …]，页号不变的行身份不变，SwiftUI 于是把它们各自动画挪一格
+  /// ——观感即「整块上滚一行」（旧主行退成前页行、原后页行升为主行）。拆成多个 ForEach
+  /// 就没有这个跨格身份，只会得到逐行的交叉淡化。
   private var scrollPages: [FamoScrollRow] {
-    [FamoScrollRow(id: state.page, candidates: state.candidates)] + state.scrollRows
+    ([FamoScrollRow(id: state.page, candidates: state.candidates)] + state.scrollRows)
+      .sorted { $0.id < $1.id }
   }
 
-  /// 末页时 `scrollRows` 为空（没有后页可取），卷轴自然退化成单行——这是「到底了」的诚实表达，
-  /// 不拿空行凑高度。代价是候选总数少于两页时，翻到末页会掉一行高度。
+  /// 没翻过页时 `scrollRows` 为空，卷轴就是单行——展开是翻页动作换来的（2026-07-28）。
+  /// 末页没有后页可取，只剩前页行 + 主行——这是「到底了」的诚实表达，不拿空行凑高度。
   private var scrollStack: some View {
     VStack(alignment: .leading, spacing: 5) {
       ForEach(scrollPages) { row in
@@ -288,9 +293,9 @@ struct FamoCandidatePanelView: View {
     .padding(.bottom, 9)
   }
 
-  /// 一行 = 一整页。主行走 `mainRow`（带序号、可高亮、挂翻页点与展开箭头）；后页行只有
-  /// 候选文字、稍淡（0.75），点击走绝对下标。后页行**不带序号**是刻意的：数字键只选得中
-  /// 主行，给后页行编号会造出「看得到按不到」的假承诺。
+  /// 一行 = 一整页。主行走 `mainRow`（带序号、可高亮、挂翻页点与展开箭头）；前/后页行
+  /// 只有候选文字（+码提示注释）、稍淡（0.75），点击走绝对下标。非主行**不带序号**是
+  /// 刻意的：数字键只选得中主行，给别的行编号会造出「看得到按不到」的假承诺。
   @ViewBuilder private func scrollRow(_ row: FamoScrollRow) -> some View {
     if row.id == state.page {
       mainRow
@@ -304,19 +309,29 @@ struct FamoCandidatePanelView: View {
     }
   }
 
-  /// 后页行的候选：只有候选文字，尺寸/内边距与 `compactPill` 逐项对齐（同字号、同 8/7 内边距），
-  /// 三行才读成一张网格；`.fixedSize()` 保证绝不压缩截断。
+  /// 前/后页行的候选：候选文字 + 码提示注释（门控与主行同一条 `showsCompactComment`——
+  /// 信息密度跟主行一致，截图定案 2026-07-28），尺寸/内边距与 `compactPill` 逐项对齐
+  /// （同字号、同 5pt 字-注释间距、同 8/7 内边距），多行才读成一张网格；`.fixedSize()`
+  /// 保证绝不压缩截断。
   private func scrollPill(_ candidate: CandidateViewModel) -> some View {
-    Text(candidate.text)
-      .font(state.fontDesign.candidateFont(size: base + 1))
-      .foregroundStyle(palette.ink)
-      .fixedSize()
-      .padding(.horizontal, 8)
-      .padding(.vertical, 7)
-      .contentShape(Rectangle())
-      // `candidate.id` 在后页行里是整张候选列表的绝对下标（见 `FamoScrollRow`）。
-      .onTapGesture { onSelectAbsolute?(candidate.id) }
-      .accessibilityLabel(Text(candidate.text))
+    HStack(spacing: 5) {
+      Text(candidate.text)
+        .font(state.fontDesign.candidateFont(size: base + 1))
+        .foregroundStyle(palette.ink)
+      if state.showsCompactComment(for: candidate), let note = candidate.comment {
+        Text(note)
+          .font(.system(size: base * 0.72))
+          .monospacedDigit()
+          .foregroundStyle(palette.ink3)
+      }
+    }
+    .fixedSize()
+    .padding(.horizontal, 8)
+    .padding(.vertical, 7)
+    .contentShape(Rectangle())
+    // `candidate.id` 在前/后页行里是整张候选列表的绝对下标（见 `FamoScrollRow`）。
+    .onTapGesture { onSelectAbsolute?(candidate.id) }
+    .accessibilityLabel(Text(candidate.text))
   }
 
   /// Expand/collapse affordance — lives in the candidate row (not the preedit header,

@@ -677,16 +677,19 @@ final class FamoCandidateDisplayTests: XCTestCase {
     XCTAssertEqual(FamoPanelPreferences.orientation, .horizontal)
   }
 
-  /// 卷轴后页行数：默认 2，钳到 1...2（抵御手改 defaults 写出的越界值）。
+  /// 卷轴后页行数：默认 4（2026-07-28 截图定案），钳到 1...4（抵御手改 defaults 写出的
+  /// 越界值）；老用户存过的 1/2 落在新区间内原样生效。
   func testScrollRowsDefaultAndClamp() {
     FamoDefaults.standard.removeObject(forKey: "FamoPanelPreviewRows")
-    XCTAssertEqual(FamoPanelPreferences.scrollRows, 2)
+    XCTAssertEqual(FamoPanelPreferences.scrollRows, 4)
     FamoPanelPreferences.scrollRows = 1
     XCTAssertEqual(FamoPanelPreferences.scrollRows, 1)
     FamoDefaults.standard.set(9, forKey: "FamoPanelPreviewRows")
-    XCTAssertEqual(FamoPanelPreferences.scrollRows, 2)
+    XCTAssertEqual(FamoPanelPreferences.scrollRows, 4)
     FamoDefaults.standard.set(0, forKey: "FamoPanelPreviewRows")
     XCTAssertEqual(FamoPanelPreferences.scrollRows, 1)
+    FamoDefaults.standard.set(2, forKey: "FamoPanelPreviewRows")
+    XCTAssertEqual(FamoPanelPreferences.scrollRows, 2)
     FamoDefaults.standard.removeObject(forKey: "FamoPanelPreviewRows")
   }
 

@@ -28,8 +28,9 @@ final class CandidatePanelState {
   var selStart: Int = 0
   var selEnd: Int = 0
   var candidates: [CandidateViewModel] = []
-  /// 卷轴的后页行：主行（`candidates` = librime 当前页）下方跟的 1–2 整页。空 = 不卷轴
-  /// （非卷轴方向 / 末页 / 竖排——控制器侧已按偏好与形态门控，这里只消费数据）。
+  /// 卷轴的前/后页行：主行（`candidates` = librime 当前页）之外预取的整页——紧邻的前 1 页
+  /// + 后 1–4 页，视图按页号排序合并进同一列。空 = 单行（没翻过页 / 非卷轴方向 / 竖排
+  /// ——控制器侧已按偏好与「翻页才展开」旗标门控，这里只消费数据）。
   var scrollRows: [FamoScrollRow] = []
   var highlightedIndex: Int = 0
   var page: Int = 0
@@ -77,12 +78,12 @@ final class CandidatePanelState {
   }
 }
 
-/// 卷轴里的一整页候选。`id` 取 librime 的**页号**，这是卷轴动画的关键：翻一页后行集合从
-/// [p, p+1, p+2] 变成 [p+1, p+2, p+3]，页号不变的两行保住 SwiftUI 身份、于是被动画成
-/// 「上滚一行」，而不是整块闪替。
+/// 卷轴里的一整页候选（前页行或后页行）。`id` 取 librime 的**页号**，这是卷轴动画的关键：
+/// 翻一页后行集合从 [p−1, p, p+1, …] 变成 [p, p+1, p+2, …]，页号不变的行保住 SwiftUI
+/// 身份、于是被动画成「上滚一行」，而不是整块闪替。
 ///
-/// `candidates` 里的 `id` 是**候选在整张候选列表里的绝对下标**（不是页内偏移）——后页行的
-/// 点击要走 `select_candidate(绝对下标)`，页内下标在那里是错的。
+/// `candidates` 里的 `id` 是**候选在整张候选列表里的绝对下标**（不是页内偏移）——前/后页行
+/// 的点击要走 `select_candidate(绝对下标)`，页内下标在那里是错的。
 struct FamoScrollRow: Identifiable, Sendable, Equatable {
   let id: Int
   let candidates: [CandidateViewModel]
