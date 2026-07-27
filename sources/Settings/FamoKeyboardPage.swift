@@ -233,7 +233,7 @@ struct FamoKeyboardPage: View {
             dictPackActionButton("重试") { center.start() }
           }
         }
-        Text("词库按固定版本从上游原仓库（雾凇拼音 / 极点五笔 / 八股文语法模型）下载并逐文件校验，下载完成后自动重新部署。")
+        Text("完整词库来自第三方开源项目，为避免版权争议不随安装包分发，也不会在你不知情时自动下载。点下载后按固定版本从上游原仓库（雾凇拼音 / 极点五笔 / 八股文语法模型）获取并逐文件校验，完成后自动重新部署。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .frame(maxWidth: .infinity, alignment: .leading)
