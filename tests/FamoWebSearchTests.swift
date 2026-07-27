@@ -1,0 +1,398 @@
+//
+//  FamoWebSearchTests.swift
+//  FamoTests — 任意提问「先检索、再作答」的搜索层
+//
+//  钉住三件在实盘上咬过人的事（2026-07-27 对 open.feedcoopapi.com 实测）：
+//    1. 豆包搜索**出错时 HTTP 仍是 200**，错误藏在 body 里 —— 只看状态码会把「Key 无效」当成
+//       「没搜到」，用户会以为搜索能用只是没结果。
+//    2. Query 有 100 字符上限且不支持多词，长提问必须截断。
+//    3. 检索失败绝不能让这一问失败（联网是加分项）。
+//
+//  No network: 客户端的 fetch 闭包被注入。
+//
+
+import Foundation
+import XCTest
+@testable import Famo
+
+final class FamoWebSearchTests: XCTestCase {
+
+  // MARK: - 请求 wire format
+
+  func testRequestCarriesBearerKeyAndDocumentedFields() throws {
+    let request = try FamoDoubaoGlobalSearchWire.request(
+      query: "北京周边游玩景点推荐", apiKey: "sk-search", limit: 5)
+    XCTAssertEqual(request.url, FamoDoubaoGlobalSearchWire.endpoint)
+    XCTAssertEqual(request.httpMethod, "POST")
+    XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer sk-search")
+    let body = try XCTUnwrap(request.httpBody)
+    let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+    XCTAssertEqual(object["Query"] as? String, "北京周边游玩景点推荐")
+    XCTAssertEqual(object["DocCount"] as? Int, 5)
+  }
+
+  func testMissingKeyThrowsBeforeAnyRequestIsBuilt() {
+    XCTAssertThrowsError(
+      try FamoDoubaoGlobalSearchWire.request(query: "q", apiKey: "   ", limit: 5)
+    ) { error in
+      XCTAssertEqual(error as? FamoWebSearchError, .missingAPIKey)
+    }
+  }
+
+  /// 文档：DocCount 最多 20。越界的请求会被服务端拒，夹在本地更省一次往返。
+  func testDocCountIsClampedToTheDocumentedRange() {
+    XCTAssertEqual(
+      FamoDoubaoGlobalSearchWire.body(query: "q", limit: 999)["DocCount"] as? Int, 20)
+    XCTAssertEqual(
+      FamoDoubaoGlobalSearchWire.body(query: "q", limit: 0)["DocCount"] as? Int, 1)
+  }
+
+  /// Query 上限 100 字符。按 Character 截，别把中文截成半个码点。
+  func testLongQueryIsTruncatedByCharacterNotByte() {
+    let long = String(repeating: "北", count: 150)
+    let query = try! XCTUnwrap(
+      FamoDoubaoGlobalSearchWire.body(query: long, limit: 5)["Query"] as? String)
+    XCTAssertEqual(query.count, 100)
+    XCTAssertEqual(query, String(repeating: "北", count: 100))
+  }
+
+  // MARK: - 响应解析
+
+  func testParseExtractsDocumentsAndJoinsOnlyTextSnippets() throws {
+    let json = """
+      {"ResponseMetadata":{"RequestId":"r1"},
+       "Result":{"TotalDocCount":20,"ErrorCode":0,"ErrorMsg":"",
+       "Documents":[{"Rank":0,"Url":"https://example.com/a","Title":"标题 A",
+         "Snippet":[{"Type":"text","Text":"第一段"},
+                    {"Type":"image","Image":{"ImageUrl":"https://img"}},
+                    {"Type":"text","Text":"第二段"}],
+         "DocumentInfo":{"PublishTime":"2026-07-01","Filetype":"webpage"},
+         "HostInfo":{"Hostname":"抖音百科"}}]}}
+      """
+    let results = try FamoDoubaoGlobalSearchWire.parse(Data(json.utf8))
+    XCTAssertEqual(results.count, 1)
+    let first = try XCTUnwrap(results.first)
+    XCTAssertEqual(first.title, "标题 A")
+    XCTAssertEqual(first.url, "https://example.com/a")
+    XCTAssertEqual(first.snippet, "第一段\n第二段", "图片段不进摘要，只留 text")
+    XCTAssertEqual(first.publishedAt, "2026-07-01")
+    XCTAssertEqual(first.hostname, "抖音百科")
+  }
+
+  /// 回归：实测 `700901 invalid_api_key` 就是这么回的 —— HTTP 200，错误在 body。
+  func testServiceErrorInsideHTTP200IsThrownNotSwallowedAsEmpty() {
+    let json = """
+      {"ResponseMetadata":{"RequestId":"r1",
+        "Error":{"CodeN":700901,"Code":"invalid_api_key","Message":"invalid api key"}},
+       "Result":null}
+      """
+    XCTAssertThrowsError(try FamoDoubaoGlobalSearchWire.parse(Data(json.utf8))) { error in
+      XCTAssertEqual(
+        error as? FamoWebSearchError,
+        .serviceError(code: "invalid_api_key", message: "invalid api key"))
+    }
+  }
+
+  /// Result 层还有第二个错误通道，同样不能吞成空结果。
+  func testResultLevelErrorCodeIsThrown() {
+    let json = """
+      {"ResponseMetadata":{"RequestId":"r1"},
+       "Result":{"Documents":[],"ErrorCode":10410,"ErrorMsg":"no package"}}
+      """
+    XCTAssertThrowsError(try FamoDoubaoGlobalSearchWire.parse(Data(json.utf8))) { error in
+      XCTAssertEqual(error as? FamoWebSearchError, .serviceError(code: "10410", message: "no package"))
+    }
+  }
+
+  /// 没有 Url / Title 的条目引用不了，丢弃而不是留个空壳给模型。
+  func testDocumentsWithoutURLOrTitleAreDropped() throws {
+    let json = """
+      {"ResponseMetadata":{"RequestId":"r1"},
+       "Result":{"ErrorCode":0,"Documents":[
+         {"Rank":0,"Url":"","Title":"无网址"},
+         {"Rank":1,"Url":"https://ok","Title":""},
+         {"Rank":2,"Url":"https://ok2","Title":"好的"}]}}
+      """
+    let results = try FamoDoubaoGlobalSearchWire.parse(Data(json.utf8))
+    XCTAssertEqual(results.map(\.title), ["好的"])
+  }
+
+  // MARK: - 客户端
+
+  func testClientSurfacesNon2xxAsBadHTTPStatus() async {
+    let client = FamoDoubaoGlobalSearchClient(fetch: { request in
+      (Data(), HTTPURLResponse(
+        url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil)!)
+    })
+    do {
+      _ = try await client.search(query: "q", apiKey: "sk", limit: 3)
+      XCTFail("expected a thrown error")
+    } catch {
+      XCTAssertEqual(error as? FamoWebSearchError, .badHTTPStatus(500))
+    }
+  }
+
+  func testClientReturnsParsedResultsOn200() async throws {
+    let json = """
+      {"ResponseMetadata":{"RequestId":"r1"},
+       "Result":{"ErrorCode":0,"Documents":[
+         {"Rank":0,"Url":"https://a","Title":"A","Snippet":[{"Type":"text","Text":"甲"}]}]}}
+      """
+    let client = FamoDoubaoGlobalSearchClient(fetch: { request in
+      (Data(json.utf8), HTTPURLResponse(
+        url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+    })
+    let results = try await client.search(query: "q", apiKey: "sk", limit: 3)
+    XCTAssertEqual(results.map(\.url), ["https://a"])
+  }
+
+  // MARK: - 注入模型的上下文
+
+  func testQueryIsTheLastUserMessage() {
+    let messages = [
+      FamoDeepSeekMessage(role: "system", content: "你是助手"),
+      FamoDeepSeekMessage(role: "user", content: "第一问"),
+      FamoDeepSeekMessage(role: "assistant", content: "第一答"),
+      FamoDeepSeekMessage(role: "user", content: "  第二问  "),
+    ]
+    XCTAssertEqual(FamoWebSearchContext.query(from: messages), "第二问")
+    XCTAssertNil(FamoWebSearchContext.query(from: [
+      FamoDeepSeekMessage(role: "system", content: "只有系统消息"),
+    ]))
+  }
+
+  func testEmptyResultsInjectNothing() {
+    let messages = [FamoDeepSeekMessage(role: "user", content: "问题")]
+    XCTAssertNil(FamoWebSearchContext.systemMessage(results: []))
+    XCTAssertEqual(
+      FamoWebSearchContext.injecting(results: [], into: messages).count, 1,
+      "没搜到就别插一条『以下是检索结果』的空壳")
+  }
+
+  func testInjectedContextLeadsWithNumberedSourcesAndKeepsOriginalMessages() throws {
+    let results = [
+      FamoWebSearchResult(
+        title: "标题 A", url: "https://a", snippet: "甲",
+        publishedAt: "2026-07-01", hostname: "站点A"),
+      FamoWebSearchResult(
+        title: "标题 B", url: "https://b", snippet: "乙",
+        publishedAt: nil, hostname: nil),
+    ]
+    let original = [FamoDeepSeekMessage(role: "user", content: "问题")]
+    let injected = FamoWebSearchContext.injecting(results: results, into: original)
+    XCTAssertEqual(injected.count, 2)
+    let system = try XCTUnwrap(injected.first)
+    XCTAssertEqual(system.role, "system")
+    XCTAssertTrue(system.content.contains("[1] 标题 A"))
+    XCTAssertTrue(system.content.contains("[2] 标题 B"))
+    XCTAssertTrue(system.content.contains("https://a"))
+    XCTAssertTrue(system.content.contains("发布时间：2026-07-01"))
+    XCTAssertFalse(
+      system.content.contains("发布时间：\n"), "缺失的字段整行省略，不留空标签")
+    XCTAssertEqual(injected.last?.content, "问题", "原消息原样保留在后面")
+  }
+
+  // MARK: - Perplexity Search
+
+  func testPerplexityRequestMatchesDocumentedShape() throws {
+    let request = try FamoPerplexitySearchWire.request(
+      query: "latest AI developments", apiKey: "pplx-test", limit: 5)
+    XCTAssertEqual(request.url, FamoPerplexitySearchWire.endpoint)
+    XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer pplx-test")
+    let object = try XCTUnwrap(
+      JSONSerialization.jsonObject(with: try XCTUnwrap(request.httpBody)) as? [String: Any])
+    XCTAssertEqual(object["query"] as? String, "latest AI developments")
+    XCTAssertEqual(object["max_results"] as? Int, 5)
+    XCTAssertNil(object["Query"], "别把豆包的大写字段名带过来")
+  }
+
+  /// Perplexity 不回站点名，只有 url —— hostname 得自己从 url 取，否则来源那栏整片空着。
+  func testPerplexityDerivesHostnameFromURLAndStripsWWW() throws {
+    let json = """
+      {"id":"s1","results":[
+        {"title":"A","url":"https://www.example.com/a","snippet":"甲","date":"2026-07-01"},
+        {"title":"B","url":"https://news.ycombinator.com/b","snippet":"","last_updated":"2026-07-02"}]}
+      """
+    let results = try FamoPerplexitySearchWire.parse(Data(json.utf8))
+    XCTAssertEqual(results.map(\.hostname), ["example.com", "news.ycombinator.com"])
+    XCTAssertEqual(results.first?.publishedAt, "2026-07-01")
+    XCTAssertEqual(
+      results.last?.publishedAt, "2026-07-02", "没有 date 时退到 last_updated")
+  }
+
+  /// 与豆包相反：Perplexity 用标准状态码。401 要带出可读 message，不能只报个数字。
+  func testPerplexityNon2xxSurfacesServiceMessage() async {
+    let json = #"{"error":{"message":"Invalid API key","type":"authentication_error"}}"#
+    let client = FamoPerplexitySearchClient(fetch: { request in
+      (Data(json.utf8), HTTPURLResponse(
+        url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!)
+    })
+    do {
+      _ = try await client.search(query: "q", apiKey: "pplx", limit: 3)
+      XCTFail("expected a thrown error")
+    } catch {
+      XCTAssertEqual(
+        error as? FamoWebSearchError,
+        .serviceError(code: "authentication_error", message: "Invalid API key"))
+    }
+  }
+
+  func testPerplexityBareStatusWhenErrorBodyIsUnparseable() async {
+    let client = FamoPerplexitySearchClient(fetch: { request in
+      (Data("nope".utf8), HTTPURLResponse(
+        url: request.url!, statusCode: 429, httpVersion: nil, headerFields: nil)!)
+    })
+    do {
+      _ = try await client.search(query: "q", apiKey: "pplx", limit: 3)
+      XCTFail("expected a thrown error")
+    } catch {
+      XCTAssertEqual(error as? FamoWebSearchError, .badHTTPStatus(429))
+    }
+  }
+
+  // MARK: - 裸控制字符（实盘偶发）
+
+  /// 回归：两家的摘要都抠自真实网页正文，正文里混进裸控制字符时它们**不转义**就塞进 JSON 字符串。
+  /// 那不是合法 JSON，`JSONSerialization` 直接拒收（实测：默认与 .fragmentsAllowed 都拒），而解析
+  /// 失败在我们这里归类为「不顺位、如实报错」—— 于是这一问整个失败。2026-07-27 打 Perplexity 时
+  /// 复现过。清洗后必须能正常解析出结果。
+  func testRawControlCharactersInSnippetsDoNotBreakParsing() throws {
+    let control = "\u{0008}"   // 退格符：合法 JSON 字符串里绝不能裸着出现
+    let pplx = """
+      {"id":"s1","results":[{"title":"标题","url":"https://a","snippet":"第一行\(control)第二行"}]}
+      """
+    XCTAssertNil(
+      try? JSONSerialization.jsonObject(with: Data(pplx.utf8)),
+      "前提：裸控制字符确实会让 JSONSerialization 拒收")
+
+    let results = try FamoPerplexitySearchWire.parse(Data(pplx.utf8))
+    XCTAssertEqual(results.count, 1)
+    XCTAssertEqual(results.first?.snippet, "第一行 第二行", "控制字符换成空格，内容不丢")
+
+    let doubao = """
+      {"ResponseMetadata":{"RequestId":"r"},"Result":{"ErrorCode":0,"Documents":[
+        {"Rank":0,"Url":"https://b","Title":"标题B","Snippet":[{"Type":"text","Text":"甲\(control)乙"}]}]}}
+      """
+    let dResults = try FamoDoubaoGlobalSearchWire.parse(Data(doubao.utf8))
+    XCTAssertEqual(dResults.first?.snippet, "甲 乙", "豆包同一条路径也要清洗")
+  }
+
+  /// 清洗不能破坏正常内容：合法的转义换行、中文、emoji 都得原样出来。
+  func testSanitizingLeavesLegitimateContentIntact() throws {
+    let json = """
+      {"id":"s1","results":[{"title":"标题 🙂","url":"https://a","snippet":"第一行\\n第二行"}]}
+      """
+    let results = try FamoPerplexitySearchWire.parse(Data(json.utf8))
+    XCTAssertEqual(results.first?.title, "标题 🙂", "多字节字符不受影响")
+    XCTAssertEqual(
+      results.first?.snippet, "第一行\n第二行",
+      "合法的 \\n 是两个 ASCII 字节，不该被当成控制字符改掉")
+  }
+
+  /// 回归：`MaxImageCountPerDoc` 填 0 等于没填 —— 文档是「传入值 > 0 时生效」，0 会落回默认 3 张/条
+  /// （2026-07-27 实测：0 与不传都拿到 4 个图片段，填 1 才降到 2 个）。图片关不掉，只能取最省的一档。
+  func testDoubaoAsksForTheFewestImagesThatActuallyTakesEffect() {
+    let body = FamoDoubaoGlobalSearchWire.body(query: "q", limit: 5)
+    XCTAssertEqual(
+      body["MaxImageCountPerDoc"] as? Int, 1,
+      "0 会被服务端忽略并落回默认 3；1 才是真正生效的最小值")
+  }
+
+  /// 实测定的默认档：low 只有 1/5 有摘要，high 是 5/5，而三档时延一样。
+  func testPerplexityAsksForFullPageContext() {
+    XCTAssertEqual(
+      FamoPerplexitySearchWire.body(query: "q", limit: 5)["search_context_size"] as? String,
+      "high",
+      "低档省不到时延，只会把接地省没了")
+  }
+
+  // MARK: - 署名
+
+  /// 署名要说「豆包搜索」/「Perplexity」而不是同名的**模型**供应商：检索的是它，作答的可能是 DeepSeek。
+  func testEachBackendHasItsOwnAttributionSeparateFromTheModelProvider() {
+    XCTAssertEqual(
+      FamoSearchControl.displayName(for: FamoWebSearchBackend.doubaoGlobal.attributionID),
+      "豆包搜索")
+    XCTAssertEqual(
+      FamoSearchControl.displayName(for: FamoWebSearchBackend.perplexity.attributionID),
+      "Perplexity")
+    XCTAssertEqual(FamoSearchControl.displayName(for: "doubao"), "豆包", "模型供应商的署名不变")
+    for backend in FamoWebSearchBackend.allCases {
+      XCTAssertNotEqual(backend.attributionID, backend.rawValue)
+    }
+  }
+
+  // MARK: - 后端选择
+
+  func testBackendPreferenceDefaultsToDoubaoAndIgnoresUnknownValues() {
+    FamoWebSearchBackendSettings.resetForTesting()
+    XCTAssertEqual(FamoWebSearchBackendSettings.backend, .doubaoGlobal)
+
+    FamoWebSearchBackendSettings.rawValue = "perplexity"
+    XCTAssertEqual(FamoWebSearchBackendSettings.backend, .perplexity)
+
+    FamoWebSearchBackendSettings.rawValue = "bing"
+    XCTAssertEqual(
+      FamoWebSearchBackendSettings.backend, .doubaoGlobal,
+      "不认识的值回到默认，而不是让联网整个失灵")
+    FamoWebSearchBackendSettings.resetForTesting()
+  }
+
+  // MARK: - Key 存放
+
+  func testKeyStoreReadsTrimmedKeyAndTreatsBlankAsUnconfigured() throws {
+    let secrets = FamoInMemorySecretStore()
+    XCTAssertFalse(FamoWebSearchKeyStore.isConfigured(for: .doubaoGlobal, secrets: secrets))
+
+    try secrets.setSecret("  sk-search  ", named: FamoWebSearchBackend.doubaoGlobal.secretName)
+    XCTAssertEqual(FamoWebSearchKeyStore.apiKey(for: .doubaoGlobal, secrets: secrets), "sk-search")
+    XCTAssertTrue(FamoWebSearchKeyStore.isConfigured(for: .doubaoGlobal, secrets: secrets))
+
+    try secrets.setSecret("   ", named: FamoWebSearchBackend.doubaoGlobal.secretName)
+    XCTAssertNil(
+      FamoWebSearchKeyStore.apiKey(for: .doubaoGlobal, secrets: secrets), "空白 Key 等于没配")
+  }
+
+  /// 两家的 Key 分开存：切后端不该看到上一家的 Key，切回来也不该要求重填。
+  func testBackendKeysAreStoredIndependently() {
+    let secrets = FamoInMemorySecretStore()
+    _ = FamoSettingsActions.saveWebSearchKey("sk-doubao", backend: .doubaoGlobal, secrets: secrets)
+    _ = FamoSettingsActions.saveWebSearchKey("pplx-key", backend: .perplexity, secrets: secrets)
+
+    XCTAssertEqual(FamoWebSearchKeyStore.apiKey(for: .doubaoGlobal, secrets: secrets), "sk-doubao")
+    XCTAssertEqual(FamoWebSearchKeyStore.apiKey(for: .perplexity, secrets: secrets), "pplx-key")
+
+    _ = FamoSettingsActions.clearWebSearchKey(backend: .perplexity, secrets: secrets)
+    XCTAssertNil(FamoWebSearchKeyStore.apiKey(for: .perplexity, secrets: secrets))
+    XCTAssertEqual(
+      FamoWebSearchKeyStore.apiKey(for: .doubaoGlobal, secrets: secrets), "sk-doubao",
+      "删一家不能把另一家的 Key 带走")
+  }
+
+  /// 搜索 Key 用固定账号，不能和任何一条 provider profile 的 Key 撞。
+  func testSearchKeyAccountsAreNotProviderAccounts() {
+    var seen = Set<String>()
+    for backend in FamoWebSearchBackend.allCases {
+      XCTAssertFalse(
+        backend.secretName.hasPrefix("famo.provider."),
+        "搜索能力独立于供应商，Key 不该落在 provider 的账号命名空间里")
+      XCTAssertTrue(seen.insert(backend.secretName).inserted, "两家不能共用一个 Keychain 账号")
+    }
+  }
+
+  func testSaveAndClearWebSearchKeyRoundTrip() {
+    let secrets = FamoInMemorySecretStore()
+    let blank = FamoSettingsActions.saveWebSearchKey("   ", backend: .perplexity, secrets: secrets)
+    XCTAssertEqual(blank.status, "请输入Perplexity的 API Key")
+    XCTAssertFalse(FamoWebSearchKeyStore.isConfigured(for: .perplexity, secrets: secrets))
+
+    let saved = FamoSettingsActions.saveWebSearchKey(
+      " pplx-key ", backend: .perplexity, secrets: secrets)
+    XCTAssertEqual(saved.input, "", "保存后输入框清空，值不回显")
+    XCTAssertTrue(saved.status.hasPrefix("已保存"))
+    XCTAssertEqual(FamoWebSearchKeyStore.apiKey(for: .perplexity, secrets: secrets), "pplx-key")
+
+    _ = FamoSettingsActions.clearWebSearchKey(backend: .perplexity, secrets: secrets)
+    XCTAssertFalse(FamoWebSearchKeyStore.isConfigured(for: .perplexity, secrets: secrets))
+  }
+}

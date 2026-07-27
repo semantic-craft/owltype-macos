@@ -80,6 +80,19 @@ final class FamoSettingsCoverageTests: XCTestCase {
     "模型，如 gpt-4o / deepseek-chat",
     "拉取最新",                       // AI 配置：拉取供应商 /models 模型列表
     "选择模型",                       // AI 配置：从 curated + 拉取结果里选模型
+    // 已配供应商的原地编辑（换模型不必删了重加）：入口按钮 + 编辑态的两个 footer 按钮。
+    // action coverage 在 ProviderProfileStoreTests 的 updateProviderProfile 两条断言。
+    "修改模型：\\(profile.displayName)",
+    "保存修改",
+    "取消",
+    // 任意提问·联网搜索的独立「搜索服务」（豆包搜索 Global / Perplexity Search）：它不属于任何
+    // 一家供应商，配好后联网走「先检索、再作答」。Key 字段的提示语随选中的后端插值，故按源码字面量
+    // 登记（同 设为默认：\(…) 的写法）。action coverage 在 FamoWebSearchTests 的
+    // saveWebSearchKey / clearWebSearchKey 往返 + 两家 Key 互不覆盖的断言。
+    "搜索服务",
+    "\\(searchBackend.displayName) API Key（写入 Keychain）",
+    "保存",
+    "清除",
     "刷新",                           // 诊断页 (FamoDiagnosticsPage)：重跑 buildReport()
     "导出诊断包",                     // 诊断页：NSSavePanel 写脱敏支持包（报告 JSON + 统一日志）
     "添加并设为默认",
@@ -193,7 +206,10 @@ final class FamoSettingsCoverageTests: XCTestCase {
     "(\"竖排\", .vertical)",
     "ForEach(FamoLLMProviderCatalog.presets)",
     "providerID: providerID",
-    "API Key（写入 Keychain，可留空稍后再填）",
+    // Key 字段的提示语按「新增 / 编辑」两态分叉：编辑态留空＝保持现有 Key，不是稍后再填。
+    // 这个区别是原地改模型不用重贴 Key 的用户可见凭据，两支都钉住。
+    "API Key（\\(hint)写入 Keychain，可留空稍后再填）",
+    "API Key（\\(hint)留空＝保持现有 Key 不变）",
   ]
 
   private static let labelPatterns = [
