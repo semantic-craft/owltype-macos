@@ -67,9 +67,13 @@ enum FamoSearchControl {
   static func extraBody(providerID: String, host: String) -> [String: Any] {
     switch channel(providerID: providerID, host: host) {
     case .dashScope:
+      // 关思考不在这里：`FamoStreamingChatClient.makeRequest` 对每条任意提问请求都合并
+      // `FamoThinkingControl.offBody`，百炼的 `enable_thinking: false` 由那里统一带上。
       return ["enable_search": true]
     case .mimo:
       // MiMo 的联网与思考互斥（同 `FamoSelectionPolish`）：显式关掉思考，否则搜索工具不触发。
+      // 与 `FamoThinkingControl` 给 mimo 的字段同值——这里留着是因为它是**搜索能否触发**的前提，
+      // 不只是省 token；两处同时写成 `{"type":"disabled"}`，合并后仍是同一个值。
       return [
         "thinking": ["type": "disabled"],
         "tool_choice": "auto",
@@ -98,6 +102,11 @@ enum FamoSearchControl {
 
   /// 面向用户的联网模型署名名（品牌名，比公司名更贴近用户认知）。非可联网 → nil。
   static func displayName(for providerID: String) -> String? {
+    // 独立搜索层（`FamoWebSearch`）不是一家「可联网的模型」，而是「谁检索的」——它没有 Channel，
+    // 但署名 chip 仍要显示，所以在按 Channel 分派之前先认掉。
+    if let backend = FamoWebSearchBackend.backend(forAttributionID: providerID) {
+      return backend.displayName
+    }
     switch channel(providerID: providerID, host: "") {
     case .dashScope: return "通义千问"
     case .mimo:      return "MiMo"

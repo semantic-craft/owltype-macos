@@ -259,6 +259,60 @@ final class FamoStreamingChatClientTests: XCTestCase {
                    "嵌套字典也要原样过 merge —— 思考没关掉 MiMo 就不触发搜索")
   }
 
+  // MARK: - 强制关思考（`FamoThinkingControl`）
+
+  /// 设置页写着「任意提问一律强制关闭深度思考」。这条断言那句话在**普通问答**上也成立 ——
+  /// 之前只有划词链路和 MiMo/豆包的联网请求关了，任意提问的主链路一个字段都没带。
+  func testPlainAskForcesThinkingOffForEveryKnownProvider() async throws {
+    func routing(_ id: String, _ model: String, _ host: String) -> FamoCloudRouting {
+      FamoCloudRouting(
+        providerID: id,
+        endpoint: URL(string: "https://\(host)/v1/chat/completions")!,
+        model: model,
+        secretName: "famo.provider.\(id).apiKey",
+        authHeaderStyle: .bearer
+      )
+    }
+
+    for (id, model, host) in [
+      ("deepseek", "deepseek-v4-flash", "api.deepseek.com"),
+      ("mimo", "mimo-v2.5", "api.xiaomimimo.com"),
+      ("doubao", "doubao-seed-2-1-turbo-260628", "ark.cn-beijing.volces.com"),
+    ] {
+      let object = try await captureRequestBody(routing: routing(id, model, host), extraBody: [:])
+      XCTAssertEqual((object["thinking"] as? [String: Any])?["type"] as? String, "disabled",
+                     "\(id) 的普通问答也必须关思考")
+    }
+
+    // 百炼是另一个字段名（`enable_thinking`），不是 `thinking` —— 名字搞错等于没关。
+    let qwen = try await captureRequestBody(
+      routing: routing("qwen", "qwen3.6-flash", "dashscope.aliyuncs.com"), extraBody: [:])
+    XCTAssertEqual(qwen["enable_thinking"] as? Bool, false)
+    XCTAssertNil(qwen["thinking"], "百炼没有 thinking 字段，塞进去只会 400")
+  }
+
+  /// 回归：百炼的联网请求一度只带 `enable_search`，思考仍开着 —— 短答前先烧上千 reasoning token。
+  func testQwenSearchRequestCarriesBothSearchAndThinkingOff() async throws {
+    let routing = FamoCloudRouting(
+      providerID: "qwen",
+      endpoint: URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")!,
+      model: "qwen3.6-flash",
+      secretName: "famo.provider.qwen.apiKey",
+      authHeaderStyle: .bearer
+    )
+    let extras = FamoSearchControl.extraBody(providerID: "qwen", host: routing.endpoint.host ?? "")
+    let object = try await captureRequestBody(routing: routing, extraBody: extras)
+    XCTAssertEqual(object["enable_search"] as? Bool, true)
+    XCTAssertEqual(object["enable_thinking"] as? Bool, false, "联网也要关思考")
+  }
+
+  /// OpenAI 在 `/chat/completions` 上没有思考开关：请求体必须逐字节不变，不能凭空多字段。
+  func testUnknownThinkingSwitchLeavesBodyUntouched() async throws {
+    let object = try await captureRequestBody(routing: makeRouting(), extraBody: [:])
+    XCTAssertNil(object["thinking"])
+    XCTAssertNil(object["enable_thinking"])
+  }
+
   // MARK: - High-level service readiness (no network)
 
   @MainActor
@@ -350,7 +404,10 @@ final class FamoStreamingChatClientTests: XCTestCase {
         defaultProfileProvider: { profile },
         preferredProviderID: { nil },
         secretProvider: { _ in "sk-key" }
-      )
+      ),
+      // 必须显式关掉独立搜索层：它的默认实现读的是**真钥匙串**。用户一旦在设置页存了搜索 Key，
+      // 这些用例就会改走「先检索、再作答」并用真 URLSession 打外网 —— 表现为整套 suite 静默挂住。
+      webSearchProvider: { nil }
     )
   }
 
@@ -424,7 +481,8 @@ final class FamoStreamingChatClientTests: XCTestCase {
         defaultProfileProvider: { profile },
         preferredProviderID: { nil },
         secretProvider: { _ in "sk-key" }
-      )
+      ),
+      webSearchProvider: { nil }   // 同上：不让默认实现去读真钥匙串、打真网络。
     )
     guard case let .success(open) = service.openAsk(messages: []) else {
       return XCTFail("expected a plain-chat stream")
@@ -434,6 +492,188 @@ final class FamoStreamingChatClientTests: XCTestCase {
     XCTAssertEqual(chat.lastExtraBody?.isEmpty, true, "普通问答不带任何联网字段")
     XCTAssertEqual(responses.callCount, 0)
   }
+
+  // MARK: - 独立搜索层（先检索、再作答）
+
+  /// 配了搜索 Key 就走搜索层：检索结果作为 system 消息注入，作答仍是**默认供应商**的
+  /// `/chat/completions`（不是方舟 `/responses`），署名是「谁检索的」。
+  @MainActor
+  func testConfiguredWebSearchGroundsThePromptAndKeepsAnsweringOnTheDefaultProvider() async {
+    let chat = RecordingChatClient()
+    let responses = RecordingResponsesClient()
+    let stub = StubWebSearch(results: [
+      FamoWebSearchResult(
+        title: "标题 A", url: "https://a", snippet: "甲",
+        publishedAt: "2026-07-01", hostname: "站点A"),
+    ])
+    let service = makeSearchService(chat: chat, responses: responses, search: stub)
+
+    guard case let .success(open) = service.openAsk(
+      messages: [FamoDeepSeekMessage(role: "user", content: "今天有什么新闻")]) else {
+      return XCTFail("expected a grounded stream")
+    }
+    XCTAssertEqual(open.searchProviderID, FamoWebSearchBackend.doubaoGlobal.attributionID)
+    _ = try? await collect(open.stream)   // 消费掉，让内部 Task 真的跑到 client.stream
+
+    XCTAssertEqual(responses.callCount, 0, "搜索层不走 /responses")
+    XCTAssertEqual(chat.callCount, 1)
+    let sent = chat.lastMessages ?? []
+    XCTAssertEqual(sent.first?.role, "system")
+    XCTAssertEqual(sent.count, 2, "注入的 system + 原来的 user")
+    XCTAssertTrue(sent.first?.content.contains("[1] 标题 A") == true)
+    XCTAssertEqual(sent.last?.content, "今天有什么新闻")
+  }
+
+  /// 检索碰上**暂时性**故障（限流 429 / 断网）时如实上报，而不是悄悄用未接地的答案糊过去。
+  ///
+  /// 这是移植运行期顺位策略后的语义变更：从前是「检索失败就静默降级成普通问答」，问题在于署名仍写着
+  /// 「已联网」，用户拿到的是训练记忆却以为是实时结果。现在暂时性故障如实报错，配置性拒绝（401/404）
+  /// 才顺位换家、全败才退回普通问答并撤掉署名。
+  @MainActor
+  func testTransientSearchFailureIsReportedRatherThanAnsweringUngrounded() async {
+    let chat = RecordingChatClient()
+    let stub = StubWebSearch(failure: .badHTTPStatus(429))
+    let service = makeSearchService(
+      chat: chat, responses: RecordingResponsesClient(), search: stub)
+
+    guard case let .success(open) = service.openAsk(
+      messages: [FamoDeepSeekMessage(role: "user", content: "今天有什么新闻")]) else {
+      return XCTFail("openAsk 本身仍应开出一条流，错误从流里出来")
+    }
+    do {
+      _ = try await collect(open.stream)
+      XCTFail("限流应当如实抛给调用方")
+    } catch {
+      XCTAssertEqual(error as? FamoWebSearchError, .badHTTPStatus(429))
+    }
+    XCTAssertEqual(chat.callCount, 0, "没搜到就不该拿训练记忆冒充联网答案")
+  }
+
+  /// 一条结果都没有 = 失败：注入空资料却署名联网是最隐蔽的一种谎。没有别的候选时退回普通问答。
+  @MainActor
+  func testZeroResultsFallsBackToPlainChatAndDropsTheSearchAttribution() async {
+    let chat = RecordingChatClient()
+    let service = makeSearchService(
+      chat: chat, responses: RecordingResponsesClient(), search: StubWebSearch(results: []))
+
+    guard case let .success(open) = service.openAsk(
+      messages: [FamoDeepSeekMessage(role: "user", content: "今天有什么新闻")]) else {
+      return XCTFail("expected a stream")
+    }
+    _ = try? await collect(open.stream)
+
+    XCTAssertEqual(chat.callCount, 1, "照常作答")
+    XCTAssertEqual(chat.lastMessages?.count, 1, "没搜到就不插 system 上下文")
+    XCTAssertNil(open.searchProviderID, "退回普通问答时必须撤掉联网署名")
+  }
+
+  /// 配置期「有没有 Key」与运行期「肯不肯服务」是两道闸。搜索服务的 Key 无效（HTTP 200 里回
+  /// `invalid_api_key`）时必须顺位到下一家，而不是把这一问判死。
+  @MainActor
+  func testConfigurationRefusalFailsOverToTheNextBackendAndRewritesAttribution() async {
+    let chat = RecordingChatClient()
+    let service = FamoStreamingChatService(
+      client: chat,
+      responsesClient: RecordingResponsesClient(),
+      profileProvider: { Self.deepSeekProfile },
+      profileSecretProvider: { _ in "sk-key" },
+      legacyKeyProvider: { nil },
+      searchResolver: FamoAskSearchResolver(
+        isEnabled: { true }, profilesProvider: { [] },
+        defaultProfileProvider: { nil }, preferredProviderID: { nil },
+        secretProvider: { _ in nil }),
+      webSearchProvider: { (.doubaoGlobal, "sk-bad") },
+      webSearchClientFactory: { backend in
+        backend == .doubaoGlobal
+          ? StubWebSearch(failure: .serviceError(code: "invalid_api_key", message: "invalid"))
+          : StubWebSearch(results: [FamoWebSearchResult(
+              title: "P", url: "https://p", snippet: "乙", publishedAt: nil, hostname: nil)])
+      }
+    )
+    FamoAskWebSearchSettings.isEnabled = true
+    // 两家都配了 Key 才谈得上顺位；第二家的 Key 由真 Keychain 之外的注入路径给不了，
+    // 所以这里断言的是「首家被拒后不把问题判死」——它要么换家、要么退回普通问答。
+    guard case let .success(open) = service.openAsk(
+      messages: [FamoDeepSeekMessage(role: "user", content: "今天有什么新闻")]) else {
+      return XCTFail("首家被拒不该让 openAsk 失败")
+    }
+    _ = try? await collect(open.stream)
+
+    XCTAssertEqual(chat.callCount, 1, "仍然答出来了")
+    XCTAssertNil(
+      open.searchProviderID,
+      "所有联网候选都不可用 → 退回普通问答，署名必须撤掉，不能还挂着「豆包搜索」")
+  }
+
+  /// 与上一条相反：断网/限流这类**暂时**故障不顺位，如实报给用户 ——
+  /// 把断网吞成「换一家」只会把一个错误变成好几个。
+  func testTransientFailuresAreReportedNotFailedOver() {
+    XCTAssertTrue(FamoAskSearchFailover.isConfigurationRefusal(status: 401))
+    XCTAssertTrue(FamoAskSearchFailover.isConfigurationRefusal(status: 404), "方舟 ToolNotOpen")
+    XCTAssertFalse(FamoAskSearchFailover.isConfigurationRefusal(status: 429), "限流稍后可重试")
+    XCTAssertFalse(FamoAskSearchFailover.isConfigurationRefusal(status: 408))
+    XCTAssertFalse(FamoAskSearchFailover.isConfigurationRefusal(status: 500))
+
+    XCTAssertFalse(
+      FamoAskSearchFailover.shouldTryNextProvider(after: URLError(.notConnectedToInternet)),
+      "断网如实上报")
+    XCTAssertTrue(
+      FamoAskSearchFailover.shouldTryNextProvider(
+        after: FamoWebSearchError.serviceError(code: "invalid_api_key", message: "")))
+    XCTAssertFalse(
+      FamoAskSearchFailover.shouldTryNextProvider(
+        after: FamoWebSearchError.serviceError(code: "700429", message: "")),
+      "豆包的限流码带着 HTTP 200 回来，同样不该顺位")
+    XCTAssertTrue(
+      FamoAskSearchFailover.shouldTryNextProvider(after: FamoWebSearchError.noResults),
+      "一条都没搜到 → 换一家，而不是注入空资料却署名联网")
+  }
+
+  @MainActor private static var deepSeekProfile: FamoProviderProfile {
+    FamoProviderProfile(
+      id: "unit",
+      displayName: "unit",
+      endpoint: URL(string: "https://api.deepseek.com/v1/chat/completions")!,
+      model: "deepseek-v4-flash",
+      providerID: "deepseek",
+      secretName: "famo.provider.deepseek.apiKey",
+      isDefault: true
+    )
+  }
+
+  @MainActor
+  private func makeSearchService(
+    chat: RecordingChatClient,
+    responses: RecordingResponsesClient,
+    search: FamoWebSearching
+  ) -> FamoStreamingChatService {
+    let profile = FamoProviderProfile(
+      id: "unit",
+      displayName: "unit",
+      endpoint: URL(string: "https://api.deepseek.com/v1/chat/completions")!,
+      model: "deepseek-v4-flash",
+      providerID: "deepseek",
+      secretName: "famo.provider.deepseek.apiKey",
+      isDefault: true
+    )
+    FamoAskWebSearchSettings.isEnabled = true
+    return FamoStreamingChatService(
+      client: chat,
+      responsesClient: responses,
+      profileProvider: { profile },
+      profileSecretProvider: { _ in "sk-key" },
+      legacyKeyProvider: { nil },
+      // 必须给一个空的 resolver：默认实现读的是**真实的 providers.json + 真钥匙串**，
+      // 开发机上真配着豆包时，搜索层失败后会顺位到那条真路由，断言就会看到「doubao」而不是
+      // 预期的退回普通问答（踩过一次）。测试要自带全部输入，不能继承这台机器的配置。
+      searchResolver: FamoAskSearchResolver(
+        isEnabled: { true }, profilesProvider: { [] },
+        defaultProfileProvider: { nil }, preferredProviderID: { nil },
+        secretProvider: { _ in nil }),
+      webSearchProvider: { (.doubaoGlobal, "sk-search") },
+      webSearchClientFactory: { _ in search }
+    )
+  }
 }
 
 /// Records which transport `openAsk` picked, and with what search payload. Driven synchronously
@@ -441,6 +681,8 @@ final class FamoStreamingChatClientTests: XCTestCase {
 private final class RecordingChatClient: FamoChatStreaming, @unchecked Sendable {
   private(set) var callCount = 0
   private(set) var lastExtraBody: [String: Any]?
+  /// 独立搜索层把检索结果作为 system 消息插在最前面，所以断言要看得到发出去的 messages。
+  private(set) var lastMessages: [FamoDeepSeekMessage]?
 
   func stream(
     messages: [FamoDeepSeekMessage],
@@ -450,7 +692,24 @@ private final class RecordingChatClient: FamoChatStreaming, @unchecked Sendable 
   ) -> AsyncThrowingStream<String, Error> {
     callCount += 1
     lastExtraBody = extraBody
+    lastMessages = messages
     return AsyncThrowingStream { $0.finish() }
+  }
+}
+
+/// 可编排的搜索后端：回结果或抛错，都不碰网络。
+private struct StubWebSearch: FamoWebSearching {
+  let results: [FamoWebSearchResult]
+  let failure: FamoWebSearchError?
+
+  init(results: [FamoWebSearchResult] = [], failure: FamoWebSearchError? = nil) {
+    self.results = results
+    self.failure = failure
+  }
+
+  func search(query: String, apiKey: String, limit: Int) async throws -> [FamoWebSearchResult] {
+    if let failure { throw failure }
+    return results
   }
 }
 

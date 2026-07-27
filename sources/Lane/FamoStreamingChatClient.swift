@@ -42,12 +42,45 @@ enum FamoStreamingError: Error, Equatable {
 /// (see `FamoProviderAuthGate`), so one enum serves streaming / 划词润色 / 来源核验.
 typealias FamoStreamingReadiness = FamoProviderAuthOutcome
 
-/// A successfully opened 任意提问 stream plus WHO answered it: `searchProviderID` names the 联网模型
-/// when the question was routed through 联网搜索, or is nil for a plain-chat answer. The AI window
-/// renders it as the 署名 chip so the user can see this answer came from a live search.
+/// WHO answered this question — a **mutable** carrier, deliberately not a plain value.
+///
+/// 归属在开流那一刻还不算数：请求发出之后才知道方舟没开通内容插件（404 `ToolNotOpen`）、MiMo 的 Key
+/// 已失效（401）、搜索服务的 Key 是错的（`invalid_api_key`）。运行期顺位会换一家，全败还会退回普通
+/// 问答，两种情况都改写归属。所以 `openAsk` 交出的是这个盒子而不是一个定值 —— AI 窗在拿到第一段内容
+/// 与流结束时读回它，署名 chip 写的于是是**最终真的答了这一问的那家**，而不是「本来打算用谁」。
+@MainActor
+final class FamoAskAttribution {
+  /// 联网供应商 / 搜索后端 id；nil = 这一问没走联网（普通问答）。
+  private(set) var searchProviderID: String?
+
+  init(searchProviderID: String? = nil) {
+    self.searchProviderID = searchProviderID
+  }
+
+  func update(searchProviderID: String?) {
+    self.searchProviderID = searchProviderID
+  }
+}
+
+/// A successfully opened 任意提问 stream plus WHO answered it. The AI window renders the attribution
+/// as the 署名 chip so the user can see this answer came from a live search — and, because the
+/// attribution is re-read as content arrives, so that a runtime failover is visible rather than hidden.
+@MainActor
 struct FamoAskStreamOpen {
   let stream: AsyncThrowingStream<String, Error>
-  let searchProviderID: String?
+  let attribution: FamoAskAttribution
+
+  var searchProviderID: String? { attribution.searchProviderID }
+
+  init(stream: AsyncThrowingStream<String, Error>, attribution: FamoAskAttribution) {
+    self.stream = stream
+    self.attribution = attribution
+  }
+
+  init(stream: AsyncThrowingStream<String, Error>, searchProviderID: String?) {
+    self.init(
+      stream: stream, attribution: FamoAskAttribution(searchProviderID: searchProviderID))
+  }
 }
 
 // MARK: - Pure SSE delta parser (the testable core)
@@ -284,8 +317,14 @@ struct FamoStreamingChatClient: FamoChatStreaming {
   /// Build the streaming POST. `routing.endpoint` / `routing.model` come from the active provider
   /// profile (or the legacy globals when none). No `response_format`.
   ///
-  /// `extraBody` (联网搜索) is merged as TOP-LEVEL fields onto the encoded request. An empty
-  /// `extraBody` skips the merge entirely, leaving the plain-chat body byte-identical.
+  /// TWO sets of top-level extras are merged onto the encoded request:
+  ///   1. `FamoThinkingControl.offBody` — 强制关思考, applied to EVERY 任意提问 request (plain or
+  ///      联网). This is the choke point for the whole ask lane: the providers' own field names
+  ///      differ, so the dialect lives in one place instead of at each call site.
+  ///   2. `extraBody` (联网搜索 — `FamoSearchControl.extraBody`), merged last so a search route can
+  ///      override a thinking field if a provider ever needs a different value there.
+  /// A provider with no known thinking switch and no search extras still gets a byte-identical
+  /// plain-chat body (both dicts empty → merge skipped).
   private func makeRequest(
     messages: [FamoDeepSeekMessage],
     routing: FamoCloudRouting,
@@ -306,7 +345,9 @@ struct FamoStreamingChatClient: FamoChatStreaming {
         stream: true
       )
     )
-    request.httpBody = extraBody.isEmpty ? encoded : Self.merging(extraBody, into: encoded)
+    var extras = FamoThinkingControl.offBody(providerID: routing.providerID, model: routing.model)
+    extras.merge(extraBody) { _, search in search }
+    request.httpBody = extras.isEmpty ? encoded : Self.merging(extras, into: encoded)
     return request
   }
 
@@ -319,6 +360,27 @@ struct FamoStreamingChatClient: FamoChatStreaming {
     object.merge(extraBody) { _, extra in extra }
     guard let merged = try? JSONSerialization.data(withJSONObject: object) else { return encoded }
     return merged
+  }
+}
+
+/// 一次可尝试的联网候选。两种形态在**怎么拿到网页**上根本不同，所以是类型而不是约定：
+///   - `.grounded`：独立搜索服务先检索，结果注入后由**默认供应商**作答（豆包搜索 / Perplexity）；
+///   - `.builtIn`：模型自己的联网工具，检索与作答在同一次请求里（百炼 / MiMo / 方舟 / OpenAI）。
+private enum FamoAskAttempt {
+  case grounded(
+    backend: FamoWebSearchBackend,
+    searchKey: String,
+    query: String,
+    routing: FamoCloudRouting,
+    apiKey: String)
+  case builtIn(FamoAskSearchRoute)
+
+  /// 署名 chip 上写谁。`.grounded` 写的是**检索方**（作答的是默认供应商，那是另一回事）。
+  var attributionID: String {
+    switch self {
+    case let .grounded(backend, _, _, _, _): return backend.attributionID
+    case let .builtIn(route):                return route.providerID
+    }
   }
 }
 
@@ -345,6 +407,14 @@ final class FamoStreamingChatService {
   /// Resolves the 任意提问 联网搜索 route (nil = search off / none configured → plain chat).
   /// Only `openAsk` consults it; `stream` (划词技能) never searches.
   private let searchResolver: FamoAskSearchResolver
+  /// 解析当前生效的搜索后端 + 它的 Key。nil = 没配 → 走既有的模型内置联网路径。
+  /// 后端与 Key 一起解析（而不是各取各的），否则切了后端却用着上一家的 Key 会静默 401。
+  private let webSearchProvider: () -> (backend: FamoWebSearchBackend, apiKey: String)?
+  /// 后端 → 客户端。可注入，测试不碰网络。
+  private let webSearchClientFactory: (FamoWebSearchBackend) -> FamoWebSearching
+
+  /// 每问取几条结果喂给模型。多了烧 token 也拖时延，少了容易漏掉答案所在的那一条。
+  static let webSearchResultCount = 5
 
   init(
     client: FamoChatStreaming? = nil,
@@ -352,7 +422,9 @@ final class FamoStreamingChatService {
     profileProvider: @escaping () -> FamoProviderProfile? = { FamoProviderProfileStore.shared.defaultProfile },
     profileSecretProvider: @escaping (String) throws -> String? = { try FamoProviderKeychain().secret(named: $0) },
     legacyKeyProvider: @escaping () throws -> String? = FamoCloudKeychain.readDeepSeekAPIKey,
-    searchResolver: FamoAskSearchResolver? = nil
+    searchResolver: FamoAskSearchResolver? = nil,
+    webSearchProvider: (() -> (backend: FamoWebSearchBackend, apiKey: String)?)? = nil,
+    webSearchClientFactory: ((FamoWebSearchBackend) -> FamoWebSearching)? = nil
   ) {
     self.client = client ?? FamoStreamingChatClient()
     self.responsesClient = responsesClient ?? FamoResponsesStreamingClient()
@@ -362,6 +434,12 @@ final class FamoStreamingChatService {
       legacyKeyProvider: legacyKeyProvider
     )
     self.searchResolver = searchResolver ?? FamoAskSearchResolver()
+    self.webSearchProvider = webSearchProvider ?? {
+      let backend = FamoWebSearchBackendSettings.backend
+      guard let key = FamoWebSearchKeyStore.apiKey(for: backend) else { return nil }
+      return (backend, key)
+    }
+    self.webSearchClientFactory = webSearchClientFactory ?? { $0.makeClient() }
   }
 
   /// Resolve routing + key from the active profile (or legacy globals). Pure, no network. A test can
@@ -391,11 +469,164 @@ final class FamoStreamingChatService {
   /// Separate from `stream` on purpose: 划词技能 call that one and can therefore never search,
   /// which is the scope boundary made structural rather than documented.
   func openAsk(messages: [FamoDeepSeekMessage]) -> Result<FamoAskStreamOpen, FamoStreamingReadiness> {
-    if let route = searchResolver.resolve(), let stream = openSearch(route: route, messages: messages) {
-      return .success(FamoAskStreamOpen(stream: stream, searchProviderID: route.providerID))
+    let attempts = askAttempts(messages: messages)
+    guard let first = attempts.first else {
+      return stream(messages: messages).map {
+        FamoAskStreamOpen(stream: $0, searchProviderID: nil)
+      }
     }
-    return stream(messages: messages).map {
-      FamoAskStreamOpen(stream: $0, searchProviderID: nil)
+    let attribution = FamoAskAttribution(searchProviderID: first.attributionID)
+    // 第一家里**不需要 await** 的那种（模型内置联网）仍同步开，时序与加顺位之前逐字一致；
+    // 需要先检索的独立搜索层只能在流内部的 Task 里开。
+    let primed = openImmediately(attempt: first, messages: messages)
+    let stream = AsyncThrowingStream<String, Error> { continuation in
+      let task = Task { [weak self] in
+        guard let self else { return continuation.finish() }
+        await self.pump(
+          attempts: attempts,
+          primed: primed,
+          messages: messages,
+          attribution: attribution,
+          into: continuation)
+      }
+      continuation.onTermination = { _ in task.cancel() }
+    }
+    return .success(FamoAskStreamOpen(stream: stream, attribution: attribution))
+  }
+
+  /// 这一问可以依次尝试的联网候选。
+  ///
+  /// 顺序：**独立搜索层**（用户选中的后端优先，另一家配了 Key 就跟在后面）→ 各家模型内置的联网工具。
+  /// 搜索层排前面是因为它与作答解耦，不受「这家模型能不能联网 / 账号有没有开通插件」的限制。
+  /// 搜索层自己不作答，所以主模型没就绪时它整体掉出候选 —— 否则会先联网一趟、再报一个跟
+  /// 「没配供应商」无关的错。
+  private func askAttempts(messages: [FamoDeepSeekMessage]) -> [FamoAskAttempt] {
+    guard FamoAskWebSearchSettings.isEnabled else { return [] }
+    var attempts: [FamoAskAttempt] = []
+    if let query = FamoWebSearchContext.query(from: messages),
+       case let .ready(routing, apiKey) = readiness() {
+      for backend in webSearchBackends() {
+        attempts.append(.grounded(
+          backend: backend.backend,
+          searchKey: backend.apiKey,
+          query: query,
+          routing: routing,
+          apiKey: apiKey))
+      }
+    }
+    attempts.append(contentsOf: searchResolver.resolveAll().map(FamoAskAttempt.builtIn))
+    return attempts
+  }
+
+  /// 已配好 Key 的搜索后端，选中的那个排第一 —— 与「联网模型」偏好同样的语义：偏好只排序，
+  /// 没配 Key 的自然掉出，不占位。
+  private func webSearchBackends() -> [(backend: FamoWebSearchBackend, apiKey: String)] {
+    guard let selected = webSearchProvider() else { return [] }
+    var out = [selected]
+    for backend in FamoWebSearchBackend.allCases where backend != selected.backend {
+      if let key = FamoWebSearchKeyStore.apiKey(for: backend) {
+        out.append((backend, key))
+      }
+    }
+    return out
+  }
+
+  /// 逐家尝试，直到有一家真的开始输出内容；全败则退回普通问答。
+  ///
+  /// 顺位的硬约束是**首个 delta 之前**：一旦有内容送进窗口，再换一家就会把两半答案拼在一起，所以
+  /// 那之后的失败一律如实上报（哪怕是 401）。
+  private func pump(
+    attempts: [FamoAskAttempt],
+    primed: AsyncThrowingStream<String, Error>?,
+    messages: [FamoDeepSeekMessage],
+    attribution: FamoAskAttribution,
+    into continuation: AsyncThrowingStream<String, Error>.Continuation
+  ) async {
+    var primed = primed
+    var lastError: Error?
+
+    for (index, attempt) in attempts.enumerated() {
+      if Task.isCancelled { return continuation.finish() }
+      attribution.update(searchProviderID: attempt.attributionID)
+
+      let inner: AsyncThrowingStream<String, Error>
+      do {
+        if index == 0, let ready = primed {
+          inner = ready
+        } else {
+          inner = try await open(attempt: attempt, messages: messages)
+        }
+      } catch {
+        // 开流阶段就失败：检索被拒 / Key 无效 / 一条结果都没有。
+        guard FamoAskSearchFailover.shouldTryNextProvider(after: error) else {
+          return continuation.finish(throwing: error)
+        }
+        lastError = error
+        continue
+      }
+      primed = nil
+
+      var yieldedAnyContent = false
+      do {
+        for try await delta in inner {
+          yieldedAnyContent = true
+          continuation.yield(delta)
+        }
+        return continuation.finish()
+      } catch {
+        guard !yieldedAnyContent,
+              FamoAskSearchFailover.shouldTryNextProvider(after: error) else {
+          return continuation.finish(throwing: error)
+        }
+        lastError = error
+      }
+    }
+
+    // 每一家联网都不可用 → 退回普通问答（设置页承诺的那条降级），署名同时撤掉联网。
+    attribution.update(searchProviderID: nil)
+    guard case let .success(plain) = stream(messages: messages) else {
+      // 连普通问答都没配好：报最后一次联网失败，比报「未配置」贴近真相。
+      return continuation.finish(throwing: lastError ?? FamoStreamingError.nonHTTPResponse)
+    }
+    do {
+      for try await delta in plain {
+        continuation.yield(delta)
+      }
+      continuation.finish()
+    } catch {
+      continuation.finish(throwing: error)
+    }
+  }
+
+  /// 不需要 `await` 就能开的候选（模型内置联网）。nil = 这条得先检索，交给 `open(attempt:…)`。
+  private func openImmediately(
+    attempt: FamoAskAttempt,
+    messages: [FamoDeepSeekMessage]
+  ) -> AsyncThrowingStream<String, Error>? {
+    guard case let .builtIn(route) = attempt else { return nil }
+    return openSearch(route: route, messages: messages)
+  }
+
+  /// 开一条候选的流。检索失败原样 throw，由 `pump` 决定顺位还是上报。
+  private func open(
+    attempt: FamoAskAttempt,
+    messages: [FamoDeepSeekMessage]
+  ) async throws -> AsyncThrowingStream<String, Error> {
+    switch attempt {
+    case let .grounded(backend, searchKey, query, routing, apiKey):
+      let results = try await webSearchClientFactory(backend).search(
+        query: query, apiKey: searchKey, limit: Self.webSearchResultCount)
+      // 0 条结果按失败处理：注入空资料等于凭训练记忆作答却署着「已联网」。
+      guard !results.isEmpty else { throw FamoWebSearchError.noResults }
+      return client.stream(
+        messages: FamoWebSearchContext.injecting(results: results, into: messages),
+        routing: routing,
+        apiKey: apiKey)
+    case let .builtIn(route):
+      guard let stream = openSearch(route: route, messages: messages) else {
+        throw FamoWebSearchError.invalidEndpoint
+      }
+      return stream
     }
   }
 

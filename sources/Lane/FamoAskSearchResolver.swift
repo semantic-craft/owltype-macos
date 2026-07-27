@@ -124,16 +124,25 @@ struct FamoAskSearchResolver {
   /// nil covers all three "no search this time" cases: toggle off, no search-capable profile, or
   /// every search-capable profile still missing its key.
   func resolve() -> FamoAskSearchRoute? {
-    guard isEnabled() else { return nil }
+    resolveAll().first
+  }
+
+  /// EVERY configured 联网搜索 route, in `orderedCandidates()` order — the input to the runtime
+  /// failover in `FamoStreamingChatService.openAsk`.
+  ///
+  /// 为什么要**列表**而不是单个路由：配置期「有没有 Key」与运行期「这家肯不肯服务」是两回事 ——
+  /// 方舟没开通内容插件是 404 `ToolNotOpen`、MiMo 的 Key 失效是 401，两者都只在请求发出后才知道。
+  /// 交出全部候选，调用方在首个 delta 之前顺位，全败才退回普通问答。
+  func resolveAll() -> [FamoAskSearchRoute] {
+    guard isEnabled() else { return [] }
     let profiles = profilesProvider()
-    for providerID in orderedCandidates() {
+    return orderedCandidates().compactMap { providerID in
       guard let profile = profiles.first(where: {
         FamoLLMProviderCatalog.inferredProviderID(for: $0) == providerID
-      }) else { continue }
-      guard let apiKey = usableKey(for: profile) else { continue }
+      }) else { return nil }
+      guard let apiKey = usableKey(for: profile) else { return nil }
       return FamoAskSearchRoute(routing: FamoCloudRouting.resolve(profile: profile), apiKey: apiKey)
     }
-    return nil
   }
 
   /// The order providers are tried in.
@@ -162,5 +171,45 @@ struct FamoAskSearchResolver {
     guard let raw = try? secretProvider(profile.secretName) else { return nil }
     let key = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     return key.isEmpty ? nil : key
+  }
+}
+
+// MARK: - 运行期顺位降级策略
+
+/// 一次联网尝试失败后，该顺位到下一家、还是如实报错给用户。
+///
+/// 判据是「这家在当前配置下**拒绝服务**」还是「这次请求碰上了暂时的麻烦」：
+///   - 顺位：4xx。方舟未开通内容插件是 404 `ToolNotOpen`、MiMo 的 Key 失效是 401、欠费/未授权是
+///     402/403、参数被拒是 400 —— 换成同一家重试永远是同一个结果，只有换一家才可能出答案。
+///   - 报错：408 请求超时与 429 限流虽是 4xx 但**暂时**；5xx 是对方故障；`URLError`（断网、超时）
+///     是用户自己那侧的真错误。这些一律如实上报 —— 把断网吞成「换一家」会让用户以为是我们坏了，
+///     而且下一家同样连不上，只是把一个错误变成好几个。
+enum FamoAskSearchFailover {
+  /// 4xx 里**不**触发顺位的两个：请求超时与限流，两者稍后重试同一家仍有可能成功。
+  static let transientStatuses: Set<Int> = [408, 429]
+
+  /// 该换下一家联网候选吗？
+  static func shouldTryNextProvider(after error: Error) -> Bool {
+    switch error {
+    case let streaming as FamoStreamingError:
+      switch streaming {
+      case let .badHTTPStatus(status):
+        return isConfigurationRefusal(status: status)
+      default:
+        // 非 HTTP 响应 / 2xx 之后才失败：请求已被接受、模型已开工，换一家不会更好。
+        return false
+      }
+    case let search as FamoWebSearchError:
+      // 独立搜索层自己判——它的业务错误会带着 HTTP 200 回来。
+      return search.isRouteUnusable
+    default:
+      // URLError（断网/超时/DNS）与一切未知错误：如实上报，绝不静默换家。
+      return false
+    }
+  }
+
+  /// 4xx 且不是 408/429 —— 「这家在当前配置下不会为你服务」。
+  static func isConfigurationRefusal(status: Int) -> Bool {
+    (400...499).contains(status) && !transientStatuses.contains(status)
   }
 }
