@@ -212,11 +212,11 @@ final class FamoAIConversationModel {
 
     // Resolve a stream. `unconfigured` / `missingKey` produce NO network call. `openAsk` may route
     // through a 联网搜索 provider; when none is configured it silently falls back to plain chat.
-    let stream: AsyncThrowingStream<String, Error>
+    let open: FamoAskStreamOpen
     switch streamer.openAsk(messages: messages) {
-    case let .success(open):
-      stream = open.stream
-      searchAttribution = open.searchProviderID.flatMap(FamoSearchControl.displayName(for:))
+    case let .success(value):
+      open = value
+      applyAttribution(open)
     case .failure:
       searchAttribution = nil
       state = .unconfigured
@@ -225,10 +225,16 @@ final class FamoAIConversationModel {
 
     state = .streaming(partialAnswer: "")
     streamTask = Task { [weak self] in
+      var sawContent = false
       do {
-        for try await delta in stream {
+        for try await delta in open.stream {
           guard let self else { return }
           if Task.isCancelled { return }
+          if !sawContent {
+            sawContent = true
+            // 运行期顺位只发生在首个 delta 之前，所以内容一到，归属才算定了。
+            self.applyAttribution(open)
+          }
           // Accumulate in order. Only fold a delta in while still streaming (a stop() may have
           // already transitioned us away).
           if case let .streaming(partial) = self.state {
@@ -236,6 +242,7 @@ final class FamoAIConversationModel {
           }
         }
         guard let self, !Task.isCancelled else { return }
+        self.applyAttribution(open)
         if case let .streaming(partial) = self.state {
           self.finish(answer: partial)
         }
@@ -243,6 +250,8 @@ final class FamoAIConversationModel {
         guard let self, !Task.isCancelled else { return }
         // A cancellation is not a user-facing failure — stop() already moved state.
         if error is CancellationError { return }
+        // 一个字都没出就失败时，归属可能已经被顺位改写过 —— 撤掉过期的联网署名。
+        self.applyAttribution(open)
         let partial: String
         if case let .streaming(p) = self.state { partial = p } else { partial = "" }
         // Keep any partial answer the user already received; surface the failure too.
@@ -253,5 +262,15 @@ final class FamoAIConversationModel {
         }
       }
     }
+  }
+
+  /// 从流的归属载体读回署名。
+  ///
+  /// 为什么不是开流时读一次就完：联网请求发出后才知道对方拒不服务（方舟 404 `ToolNotOpen`、Key 失效
+  /// 401、搜索服务的 Key 是错的），运行期顺位会换一家、全败会退回普通问答。开流那一刻的值只是「打算
+  /// 用谁」，所以在拿到第一段内容与流收场两个时点各重读一次 —— chip 于是写的是真正答了这一问的那家，
+  /// 退回普通问答时如实撤掉。
+  private func applyAttribution(_ open: FamoAskStreamOpen) {
+    searchAttribution = open.searchProviderID.flatMap(FamoSearchControl.displayName(for:))
   }
 }
