@@ -374,6 +374,55 @@ final class FamoCommitTransformTests: XCTestCase {
 @MainActor
 final class FamoModernUISmokeTests: XCTestCase {
 
+  /// 把引导的每一步渲染成 PNG 落到临时目录，路径打进测试日志。
+  ///
+  /// 为什么需要它：引导窗是**固定 720×480 且不滚动**的，而 `fittingSize` 恒等于这个尺寸
+  /// （它就是 body 里 `.frame` 写死的），所以尺寸断言对「某一步内容变长、超出窗口被裁掉」
+  /// 完全无感。内容溢出只有渲染出来才看得见，而这是每个新用户的第一屏。
+  /// 断言只挡明显退化（画不出/全白）；真正的验收是人看图。
+  func testOnboardingStepsRenderWithoutDegenerateOutput() throws {
+    // 落在 Caches 而不是 temporaryDirectory：后者在测试宿主里是个每次都变的私有路径，
+    // 图渲染出来也找不到，看不成图这个测试就白写了。
+    let dir = try XCTUnwrap(
+      FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first)
+      .appending(component: "famo-onboarding-snapshots", directoryHint: .isDirectory)
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+    for step in 0..<5 {
+      let view = FamoOnboardingView(
+        onOpenSystemSettings: {},
+        onSelectSchema: { _ in },
+        onOpenInputSettings: {},
+        onFinish: {},
+        isFamoEnabled: { step > 2 },   // 走到「启用」之后的步骤按已启用渲染
+        initialStep: step
+      )
+      // 必须挂进真窗口：`initialStep` 经 onAppear 落到 @State，离屏裸 hosting view 不触发。
+      let host = NSHostingView(rootView: view)
+      host.frame = NSRect(
+        x: 0, y: 0,
+        width: FamoOnboardingMetrics.width, height: FamoOnboardingMetrics.height)
+      let window = NSWindow(
+        contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
+      window.contentView = host
+      host.layoutSubtreeIfNeeded()
+      // 等 onAppear 换步 + 换步动画（.snappy 0.2s）整个走完再取图，否则抓到的是过渡中间态，
+      // 上一步的内容还叠在画面上，看起来像重影 bug。
+      RunLoop.current.run(until: Date().addingTimeInterval(0.8))
+      host.layoutSubtreeIfNeeded()
+
+      let rep = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+      host.cacheDisplay(in: host.bounds, to: rep)
+      let png = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
+      let url = dir.appending(component: "step-\(step).png", directoryHint: .notDirectory)
+      try png.write(to: url)
+      print("Famo onboarding snapshot: \(url.path)")
+
+      XCTAssertEqual(rep.pixelsWide, Int(FamoOnboardingMetrics.width * window.backingScaleFactor))
+      XCTAssertGreaterThan(png.count, 4096, "step \(step) 渲染结果小得不像真画面")
+    }
+  }
+
   private func fittingSize<V: View>(of view: V) -> NSSize {
     let host = NSHostingView(rootView: view)
     host.layoutSubtreeIfNeeded()
@@ -439,8 +488,9 @@ final class FamoModernUISmokeTests: XCTestCase {
       onFinish: {},
       isFamoEnabled: { true }
     ))
-    XCTAssertEqual(onboardingSize.width, 720)
-    XCTAssertEqual(onboardingSize.height, 480)
+    // 视图与窗口共用同一组数，锁的是「两边没走散」——窗口比内容大会露底色、小会裁掉底部按钮。
+    XCTAssertEqual(onboardingSize.width, FamoOnboardingMetrics.width)
+    XCTAssertEqual(onboardingSize.height, FamoOnboardingMetrics.height)
 
     let emojiSize = fittingSize(of: FamoEmojiPanelView(onPick: { _ in }, onClose: {}))
     XCTAssertEqual(emojiSize.width, 372)

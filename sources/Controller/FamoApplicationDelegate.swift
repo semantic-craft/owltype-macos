@@ -986,6 +986,14 @@ private func notificationHandler(contextObject: UnsafeMutableRawPointer?, sessio
     default:
       break
     }
+    // dict-pack 等编译真实结束的唯一信号（通知来自 librime 维护线程，跳回 MainActor）。
+    // Center 只在自己处于 .deploying 时消费 —— 日常 deploy 到那里是 no-op。
+    if messageValue == "success" || messageValue == "failure" {
+      let succeeded = messageValue == "success"
+      Task { @MainActor in
+        FamoDictPackCenter.shared.noteDeployFinished(success: succeeded)
+      }
+    }
     return
   }
 
