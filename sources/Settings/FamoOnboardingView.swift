@@ -449,7 +449,9 @@ struct FamoOnboardingView: View {
       onboardingTip(icon: "keyboard", text: "去菜单栏输入法图标切到「法墨」，才能开始打字。")
       onboardingTip(icon: "paintpalette", text: "皮肤可在 设置 → 皮肤外观 里换。")
       onboardingTip(icon: "doc.text", text: "短语/提示词面板的唤起热键可在 设置 → 快捷键设置 里录制，内容在 设置 → 提示词 里管理。")
-      onboardingTip(icon: "arrow.triangle.2.circlepath", text: "自动更新完成后，需退出法墨重新打开，再在菜单栏重选「法墨」，新版本才生效。")
+      // 与更新注销提示线（FamoUpdateLogoutPrompt）同一口径：更新后的权威动作是「注销并重新
+      // 登录」（1.4.6 定论），不是旧的「退出重开＋菜单栏重选」。
+      onboardingTip(icon: "arrow.triangle.2.circlepath", text: "自动更新完成后，法墨会建议你「注销并重新登录」——照做即可，系统会完整刷新输入法，避免法墨从菜单消失或打不出字。")
     }
   }
 
