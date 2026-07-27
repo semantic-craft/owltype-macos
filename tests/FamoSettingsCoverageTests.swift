@@ -159,6 +159,7 @@ final class FamoSettingsCoverageTests: XCTestCase {
     "任意提问",
     "润色",
     "提示词优化",
+    "任务书",                          // 目标七问：模糊需求整理成 Agent 可执行的目标任务书
     "记住我常用的词（个性化）",
     "短语",
     "空码自动清码",
