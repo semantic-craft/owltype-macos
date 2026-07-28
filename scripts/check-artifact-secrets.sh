@@ -101,7 +101,10 @@ PY
   trufflehog_status=$?
   set -e
 
-  if (( trufflehog_status > 1 )); then
+  # 这里**不**传 `--fail`，命中与否交给下面的 python 过滤器判断 —— 也就是说退出码里不存在
+  # 「因发现命中而非零」这回事，任何非零都是扫描本身出了问题（配合 --fail-on-scan-errors，
+  # 读不了的文件、解不开的归档都会走到这里）。曾误写成 `> 1`，等于把扫描错误当成功放行。
+  if (( trufflehog_status != 0 )); then
     echo "ERROR: trufflehog failed to scan $label (exit $trufflehog_status)" >&2
     tail -3 "$work_dir/trufflehog.log" >&2
     exit "$trufflehog_status"
@@ -142,7 +145,10 @@ def manifest_hash_column(finding, path_str, raw):
         with path.open(encoding="utf-8", errors="replace") as handle:
             for index, line in enumerate(handle, start=1):
                 if index == line_no:
-                    return bool(MANIFEST_LINE.match(line))
+                    # 命中值必须**就是**该行开头那个摘要。只验行形状不够：清单里若有个文件名形如
+                    # `phrase_<64位token>`，该行仍是 `<正常摘要>  ./phrase_<token>` 的合规形状，
+                    # 而 trufflehog 报的是来自文件名的那个 token —— 那是真泄漏，不能豁免。
+                    return bool(MANIFEST_LINE.match(line)) and line[:64] == raw
     except OSError:
         return False
     return False
