@@ -81,7 +81,7 @@ enum FamoLLMProviderCatalog {
       id: "qwen",
       displayName: "阿里云百炼",
       endpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
-      model: "qwen3.6-flash",
+      model: "qwen3.7-plus",
       keyHint: "按量付费 sk-…；Token Plan 请改用 token-plan.cn-beijing.maas.aliyuncs.com",
       sourceSupport: .sourceResults,
       authHeaderStyle: .bearer
@@ -140,6 +140,23 @@ enum FamoLLMProviderCatalog {
       sourceSupport: .sourceResults,
       authHeaderStyle: .bearer
     ),
+  ]
+
+  /// 百炼可选模型，新的在前。第一个必须与上面 qwen 预设的 `model` 一致（下拉里选不到默认值很怪）。
+  ///
+  /// 为什么要列一串而不是像别家那样只写一个：阿里的型号迭代比法墨发版快，设置页下拉里只出现一个
+  /// 型号会让人以为「只能用这个」。真正的全量清单靠设置页的「拉取最新」按钮从 `/models` 拉，这里
+  /// 只兜住没联网/没拉取时的常用几个。
+  ///
+  /// 只列有据可查的四个：3.7 三档取自阿里云模型总表；`qwen3.6-flash` 是仓库一直在用、已有实测数据
+  /// 的那个（`FamoSelectionPolish` 的润色耗时注释就是拿它测的）。**没有**顺手补 qwen3.6-plus /
+  /// qwen3.6-max —— 模型总表里已经查不到任何 `qwen3.6-*` 条目，凭命名规律推出来的 id 塞进下拉，
+  /// 用户选中就是一个 400。
+  static let qwenModels = [
+    "qwen3.7-plus",
+    "qwen3.7-flash",
+    "qwen3.7-max",
+    "qwen3.6-flash",
   ]
 
   static let customID = "custom"
@@ -541,4 +558,135 @@ enum FamoProviderModelList {
     guard (resp as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
     return parseModelIDs(data)
   }
+}
+
+// MARK: - 连通性验证
+
+/// 「验证连通性」：拿当前这组 端点 + 模型 + Key **真发一次最小请求**，看对面回不回话。
+///
+/// 为什么它不是「拉取最新」的重复：`/models` 只证明主机通、Key 有效，**完全不检查你选的那个型号**。
+/// 真实踩过的坑正是这一类 —— 2026-07-28 实测百炼的 `qwen3.7-plus` 在
+/// `/api/v1/services/aigc/text-generation/generation` 上一律 `400 url error`，而同一把 Key 拉
+/// `/models` 一切正常。「型号列表里有」「这个端点服务它」是两件事，中间这道缝只有真打一发才看得见。
+///
+/// 失败时必须把服务端那句话带出来：用户看到「url error」才知道是换型号，看到「Invalid API-key」
+/// 才知道是换 Key —— 只报一个状态码等于让人去猜。
+enum FamoProviderConnectivityCheck {
+  enum Outcome: Equatable {
+    /// 通了。`latencyMS` 是整轮往返，顺带让用户对这条链路的手感有个数。
+    case ok(latencyMS: Int)
+    /// 连上了但对面拒绝（Key 无效 / 型号不服务 / 欠费）。`message` 是服务端原话。
+    case rejected(status: Int, message: String)
+    /// 连都没连上：DNS、超时、证书、代理。
+    case unreachable(String)
+    /// 2xx 却不是一个能认的 chat 响应 —— 多半是网关/代理插进来的页面。
+    case malformed
+  }
+
+  /// 最小请求体。`max_tokens` 取 16 而不是 1：1 在个别供应商上会被当成非法值拒掉，而 16 个 token
+  /// 便宜到可以忽略；我们只需要一个 2xx + 能认的响应壳，答什么无所谓。
+  ///
+  /// 一并合上 `FamoThinkingControl.offBody`：混合思考模型默认开着思考时，会在回第一个字前先烧几百
+  /// 上千推理 token（同 任意提问 那条路的理由），验证个连通性没必要等那么久。
+  static func body(providerID: String, model: String) -> [String: Any] {
+    var body: [String: Any] = [
+      "model": model,
+      "messages": [["role": "user", "content": "ping"]],
+      "max_tokens": 16,
+      "stream": false,
+    ]
+    body.merge(FamoThinkingControl.offBody(providerID: providerID, model: model)) { _, off in off }
+    return body
+  }
+
+  static func request(
+    endpoint: URL,
+    providerID: String,
+    model: String,
+    apiKey: String,
+    authStyle: FamoProviderAuthHeaderStyle
+  ) throws -> URLRequest {
+    var req = URLRequest(url: endpoint)
+    req.httpMethod = "POST"
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    authStyle.apply(to: &req, apiKey: apiKey)
+    req.timeoutInterval = 20
+    req.httpBody = try JSONSerialization.data(
+      withJSONObject: body(providerID: providerID, model: model))
+    return req
+  }
+
+  /// 响应 → 结论。纯函数，测试不碰网络。
+  static func outcome(data: Data, response: URLResponse?, latencyMS: Int) -> Outcome {
+    guard let http = response as? HTTPURLResponse else { return .malformed }
+    guard (200...299).contains(http.statusCode) else {
+      return .rejected(status: http.statusCode, message: errorMessage(in: data))
+    }
+    // 认一个 chat 响应的壳就够了 —— `choices` 在，说明这条链路真的走通到了模型。
+    guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+          root["choices"] != nil else {
+      return .malformed
+    }
+    return .ok(latencyMS: latencyMS)
+  }
+
+  /// 从错误正文里挖那句人话。两种壳都认：OpenAI 风格的 `error.message`，
+  /// 与 DashScope 原生风格的顶层 `message`。挖不到就留空，由调用方退回纯状态码。
+  static func errorMessage(in data: Data) -> String {
+    guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+      return ""
+    }
+    if let error = root["error"] as? [String: Any],
+       let message = error["message"] as? String, !message.isEmpty {
+      return message
+    }
+    if let message = root["message"] as? String, !message.isEmpty { return message }
+    return ""
+  }
+
+  /// 真打一发。**不 throw**：连不上也是一种结论，调用方要的是一句能显示的话，不是一个错误。
+  static func run(
+    endpoint: URL,
+    providerID: String,
+    model: String,
+    apiKey: String,
+    authStyle: FamoProviderAuthHeaderStyle,
+    fetch: (URLRequest) async throws -> (Data, URLResponse) = { try await URLSession.shared.data(for: $0) },
+    clock: () -> Date = Date.init
+  ) async -> Outcome {
+    let started = clock()
+    do {
+      let request = try request(
+        endpoint: endpoint, providerID: providerID, model: model,
+        apiKey: apiKey, authStyle: authStyle)
+      let (data, response) = try await fetch(request)
+      let elapsed = Int(clock().timeIntervalSince(started) * 1000)
+      return outcome(data: data, response: response, latencyMS: elapsed)
+    } catch {
+      return .unreachable((error as? URLError)?.localizedDescription ?? error.localizedDescription)
+    }
+  }
+}
+
+extension FamoProviderConnectivityCheck.Outcome {
+  /// 设置页那行状态字。成功一句话，失败要说清「下一步该动哪里」。
+  var statusText: String {
+    switch self {
+    case let .ok(latencyMS):
+      return "连通正常，\(latencyMS) ms 收到回复。"
+    case let .rejected(status, message):
+      let detail = message.isEmpty ? "" : "：\(message)"
+      // 401/403 几乎总是 Key，400/404 几乎总是型号或端点 —— 直接把判断给出来，别让人自己对表。
+      let hint = (status == 401 || status == 403)
+        ? "（多半是 API Key 无效或没权限）"
+        : (status == 400 || status == 404 ? "（多半是这个端点不服务该模型，换个型号再试）" : "")
+      return "对方拒绝了这次请求，HTTP \(status)\(hint)\(detail)"
+    case let .unreachable(reason):
+      return "连不上：\(reason)。检查网络、端点地址或代理。"
+    case .malformed:
+      return "对方回了 200，但不是可识别的 Chat 响应——端点可能不是 OpenAI 兼容的 /chat/completions。"
+    }
+  }
+
+  var isOK: Bool { if case .ok = self { return true }; return false }
 }
