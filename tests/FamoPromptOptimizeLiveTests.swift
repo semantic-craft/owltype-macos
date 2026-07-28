@@ -24,7 +24,16 @@ final class FamoPromptOptimizeLiveTests: XCTestCase {
   /// 百炼按量付费的 OpenAI 兼容端点（与 `FamoLLMProviderCatalog.presets` 的 qwen 预设一致）。
   private let endpoint = URL(
     string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")!
-  private let model = "qwen3.6-flash"
+  /// 默认跟着百炼预设走（测的应当是新用户真会用上的那个型号），`~/.famo-test-model` 可覆盖
+  /// —— 「这个技能该用 3.7-plus 还是 3.6-flash」只能靠同一套用例分别打两次来回答。
+  /// 用文件而不是环境变量的原因见 `FamoSkillsLiveTests.model`（xcodebuild 不转发 shell env）。
+  private let model: String = {
+    let path = ("~/.famo-test-model" as NSString).expandingTildeInPath
+    let override = (try? String(contentsOfFile: path, encoding: .utf8))?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    if let override, !override.isEmpty { return override }
+    return FamoLLMProviderCatalog.preset(id: "qwen")?.model ?? "qwen3.7-plus"
+  }()
 
   /// 读仓库外的测试 Key；没有就返回 nil → 测试跳过。永不打印内容。
   private func testAPIKey() throws -> String {

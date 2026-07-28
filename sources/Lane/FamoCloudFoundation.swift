@@ -224,6 +224,21 @@ enum FamoThinkingControl {
     }
   }
 
+  /// `offBody` 的类型化版本，给**非流式**技能用（提示词优化 / 任务书）：它们发的是
+  /// `FamoDeepSeekChatRequest` 这个 Codable，塞不进 `offBody` 那本字典，于是历史上各自手写了一份
+  /// 前缀判断。两个出口必须给出同一个答案，所以并排放在这里。
+  ///
+  /// nil / nil = 这家没有已知的思考开关，请求体逐字节不变。
+  static func offFields(
+    providerID: String, model: String
+  ) -> (thinking: FamoDeepSeekThinking?, enableThinking: Bool?) {
+    switch resolved(providerID: providerID, model: model) {
+    case .deepSeekStyle: return (.disabled, nil)
+    case .dashScope:     return (nil, false)
+    case .none:          return (nil, nil)
+    }
+  }
+
   /// Which dialect of the thinking switch applies. Not public — callers want `offBody`.
   private enum Dialect { case deepSeekStyle, dashScope, none }
 
