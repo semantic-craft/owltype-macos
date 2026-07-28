@@ -69,7 +69,21 @@ enum FamoSearchControl {
     case .dashScope:
       // 关思考不在这里：`FamoStreamingChatClient.makeRequest` 对每条任意提问请求都合并
       // `FamoThinkingControl.offBody`，百炼的 `enable_thinking: false` 由那里统一带上。
-      return ["enable_search": true]
+      //
+      // `forced_search` 不是可有可无的调优：文档里它**默认 false**，即「模型自己判断这一问要不要
+      // 联网」。而署名 chip 在请求发出前就写好了「通义千问 · 联网」——模型悄悄决定不搜时，用户拿到
+      // 的是训练记忆却以为是实时结果。这与搜索层「0 条结果按失败处理」是同一条原则：宁可没有联网，
+      // 不要假的联网。
+      //
+      // 这里**只能**放这两个字段。`enable_source` / `enable_citation` / `citation_format` /
+      // `prepend_search_result` 在文档里都标着「仅 DashScope 方式支持」，而这条路走的是
+      // `/compatible-mode/v1/chat/completions`——兼容模式的响应里根本没有 `search_info`，塞了也拿
+      // 不到来源角标（想要来源得走原生端点，见 `FamoDashScopeSearchWire`）。
+      // `search_strategy` 不写：默认就是最快的 `turbo`，而任意提问要的正是立刻能用的短答。
+      return [
+        "enable_search": true,
+        "search_options": ["forced_search": true],
+      ]
     case .mimo:
       // MiMo 的联网与思考互斥（同 `FamoSelectionPolish`）：显式关掉思考，否则搜索工具不触发。
       // 与 `FamoThinkingControl` 给 mimo 的字段同值——这里留着是因为它是**搜索能否触发**的前提，

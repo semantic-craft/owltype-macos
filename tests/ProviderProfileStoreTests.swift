@@ -318,6 +318,28 @@ final class ProviderProfileStoreTests: XCTestCase {
     XCTAssertEqual(FamoLLMProviderCatalog.sourceSupport(for: mimo), .sourceResults)
   }
 
+  /// 百炼一家给一串型号（别家只给一个）：阿里的迭代比法墨发版快，下拉里只出现一个会让人以为
+  /// 「只能用这个」。两条不变式：默认值必须在清单里（选不到默认值很怪），以及清单里不许出现
+  /// 阿里模型总表查不到的 `qwen3.6-plus` / `qwen3.6-max` 之流 —— 凭命名规律推出来的 id 被选中就是一个 400。
+  func testQwenPresetOffersTheWholeCuratedListWithItsDefaultInside() throws {
+    let preset = try XCTUnwrap(FamoLLMProviderCatalog.preset(id: "qwen"))
+    XCTAssertEqual(preset.model, "qwen3.7-plus")
+    XCTAssertEqual(FamoLLMProviderCatalog.qwenModels.first, preset.model)
+    XCTAssertTrue(FamoLLMProviderCatalog.qwenModels.contains("qwen3.7-flash"))
+    XCTAssertTrue(FamoLLMProviderCatalog.qwenModels.contains("qwen3.7-max"))
+    XCTAssertTrue(
+      FamoLLMProviderCatalog.qwenModels.contains("qwen3.6-flash"),
+      "3.6 只留仓库实测在用的 flash")
+    XCTAssertEqual(
+      Set(FamoLLMProviderCatalog.qwenModels).count, FamoLLMProviderCatalog.qwenModels.count,
+      "清单不能有重复项，下拉会出现两个一样的")
+    for guessed in ["qwen3.6-plus", "qwen3.6-max", "qwen3.6-max-preview"] {
+      XCTAssertFalse(
+        FamoLLMProviderCatalog.qwenModels.contains(guessed),
+        "\(guessed) 在阿里云模型总表里查不到，不能凭命名规律塞进下拉")
+    }
+  }
+
   /// 密钥三态：「有值」不等于「能用」。实机踩过的就是 MiMo 的 Key 已 401，设置页仍写「已设置」，
   /// 用户想不到是密钥的问题。所以只有真的调通过一次（`拉取最新`）才升到「已验证」，
   /// 而换钥匙/删钥匙都让上一次验证作废 —— 旧标记配新密钥就是假验证。
@@ -528,5 +550,113 @@ final class FamoProviderModelListTests: XCTestCase {
       FamoProviderModelList.merged(curated: ["deepseek-chat", "deepseek-reasoner"],
                                    fetched: ["deepseek-chat", "deepseek-coder"]),
       ["deepseek-chat", "deepseek-reasoner", "deepseek-coder"])
+  }
+}
+
+/// 「验证连通性」按钮背后的判定。`fetch` 注入，测试不碰网络。
+///
+/// 这个按钮存在的理由就是「拉取最新」证明不了的那一段：`/models` 通不代表**你选的那个型号**能用。
+/// 2026-07-28 实盘撞到的正是这类 —— 同一把 Key 拉 `/models` 一切正常，而 `qwen3.7-plus` 打错端点
+/// 路径直接 400 `url error`。所以失败分支必须把服务端原话带出来，只报状态码等于让人去猜。
+final class FamoProviderConnectivityCheckTests: XCTestCase {
+
+  private func response(_ status: Int) -> HTTPURLResponse {
+    HTTPURLResponse(
+      url: URL(string: "https://api.example.com/v1/chat/completions")!,
+      statusCode: status, httpVersion: nil, headerFields: nil)!
+  }
+
+  /// 最小请求：POST + 认证头 + 目标型号。`max_tokens` 取 16 而不是 1（1 在个别供应商上会被当成非法值），
+  /// 并关掉思考 —— 验证连通性没必要等混合思考模型先烧几百推理 token。
+  func testRequestIsAMinimalPostCarryingTheModelUnderTest() throws {
+    let request = try FamoProviderConnectivityCheck.request(
+      endpoint: URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")!,
+      providerID: "qwen", model: "qwen3.7-plus", apiKey: "sk-k", authStyle: .bearer)
+    XCTAssertEqual(request.httpMethod, "POST")
+    XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer sk-k")
+
+    let body = try XCTUnwrap(
+      JSONSerialization.jsonObject(with: try XCTUnwrap(request.httpBody)) as? [String: Any])
+    XCTAssertEqual(body["model"] as? String, "qwen3.7-plus", "验的就是这个型号")
+    XCTAssertEqual(body["max_tokens"] as? Int, 16)
+    XCTAssertEqual(body["stream"] as? Bool, false)
+    XCTAssertEqual(
+      body["enable_thinking"] as? Bool, false,
+      "百炼的关思考字段要带上，否则验一次连通要等它先想完")
+  }
+
+  /// MiMo 走 `api-key` 头而不是 Bearer —— 验证走的必须是该供应商真实的认证方式，
+  /// 否则会把「认证写法不同」误报成「Key 无效」。
+  func testRequestHonoursThePerProviderAuthHeaderStyle() throws {
+    let request = try FamoProviderConnectivityCheck.request(
+      endpoint: URL(string: "https://api.xiaomimimo.com/v1/chat/completions")!,
+      providerID: "mimo", model: "mimo-v2.5", apiKey: "sk-m", authStyle: .apiKey)
+    XCTAssertEqual(request.value(forHTTPHeaderField: "api-key"), "sk-m")
+    XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+  }
+
+  func testOKRequiresAChatShapedBodyNotJustA200() {
+    let chat = Data(#"{"choices":[{"message":{"role":"assistant","content":"pong"}}]}"#.utf8)
+    XCTAssertEqual(
+      FamoProviderConnectivityCheck.outcome(data: chat, response: response(200), latencyMS: 412),
+      .ok(latencyMS: 412))
+
+    // 200 但不是 chat 响应：多半是网关/代理插进来的页面。报「通了」会把人引向错误的方向。
+    XCTAssertEqual(
+      FamoProviderConnectivityCheck.outcome(
+        data: Data("<html>ok</html>".utf8), response: response(200), latencyMS: 1),
+      .malformed)
+  }
+
+  /// 失败必须带上服务端原话：看到「url error」才知道是换型号，看到「Invalid API-key」才知道是换 Key。
+  func testRejectionCarriesTheServerMessageInBothErrorShapes() {
+    let openAIShape = Data(#"{"error":{"message":"Invalid API-key provided.","type":"x"}}"#.utf8)
+    XCTAssertEqual(
+      FamoProviderConnectivityCheck.outcome(
+        data: openAIShape, response: response(401), latencyMS: 5),
+      .rejected(status: 401, message: "Invalid API-key provided."))
+
+    // DashScope 原生是顶层 message，不是 error.message。
+    let dashScopeShape = Data(#"{"code":"InvalidParameter","message":"url error, please check url"}"#.utf8)
+    XCTAssertEqual(
+      FamoProviderConnectivityCheck.outcome(
+        data: dashScopeShape, response: response(400), latencyMS: 5),
+      .rejected(status: 400, message: "url error, please check url"))
+  }
+
+  /// 状态字要把「下一步动哪里」直接说出来，而不是只丢一个数字给用户。
+  func testStatusTextPointsAtTheThingToFix() {
+    XCTAssertTrue(
+      FamoProviderConnectivityCheck.Outcome.rejected(status: 401, message: "bad key")
+        .statusText.contains("API Key"))
+    XCTAssertTrue(
+      FamoProviderConnectivityCheck.Outcome.rejected(status: 400, message: "url error")
+        .statusText.contains("换个型号"),
+      "400/404 几乎总是型号或端点不匹配 —— 实盘撞到的就是这一类")
+    XCTAssertTrue(
+      FamoProviderConnectivityCheck.Outcome.rejected(status: 400, message: "url error")
+        .statusText.contains("url error"), "服务端原话必须出现在状态里")
+    XCTAssertTrue(FamoProviderConnectivityCheck.Outcome.ok(latencyMS: 300).statusText.contains("300"))
+  }
+
+  func testRunReportsUnreachableInsteadOfThrowing() async {
+    let outcome = await FamoProviderConnectivityCheck.run(
+      endpoint: URL(string: "https://api.example.com/v1/chat/completions")!,
+      providerID: "custom", model: "m", apiKey: "k", authStyle: .bearer,
+      fetch: { _ in throw URLError(.notConnectedToInternet) })
+    guard case .unreachable = outcome else {
+      return XCTFail("断网是一种结论，不能抛给调用方：\(outcome)")
+    }
+    XCTAssertFalse(outcome.isOK)
+  }
+
+  func testRunMeasuresLatencyFromTheInjectedClock() async {
+    var ticks = [Date(timeIntervalSince1970: 0), Date(timeIntervalSince1970: 1.25)]
+    let outcome = await FamoProviderConnectivityCheck.run(
+      endpoint: URL(string: "https://api.example.com/v1/chat/completions")!,
+      providerID: "custom", model: "m", apiKey: "k", authStyle: .bearer,
+      fetch: { _ in (Data(#"{"choices":[]}"#.utf8), self.response(200)) },
+      clock: { ticks.removeFirst() })
+    XCTAssertEqual(outcome, .ok(latencyMS: 1250))
   }
 }
