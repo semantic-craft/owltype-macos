@@ -125,7 +125,9 @@ SHA256 = re.compile(r"^[0-9a-f]{64}$")
 # 那一列 —— 清单文件里混进别的东西照样会报。
 MANIFEST_LINE = re.compile(r"^[0-9a-f]{64} {2}\S")
 # Swift 符号修饰：`$s<模块名长度><模块名>…`，本项目模块名是 Famo。实测命中过
-# s4Famo0A18AIConversationViewVwtk（swift-demangle → value witness for Famo.FamoAIConversationView）。
+# s4Famo0A18…ViewVwtk（swift-demangle → value witness for Famo.FamoAIConversationView）。中段
+# 故意省略：那串是 32 位字母数字，Box 检出器只要在它前约 40 字符内看见 box 就报，而本文件通篇
+# 在讲各检出器的误报 —— 写全了等于给未来某句带 Box 的注释埋雷，害整个 privacy-gate 长红。
 SWIFT_MANGLED = re.compile(r"^s\d+Famo")
 
 
