@@ -47,7 +47,7 @@ delete `/Library/Input Methods/Famo.app`.
 
 ## Interface
 
-Eight colour skins, light/dark following the system, applied the moment you pick one:
+Nine colour skins, light/dark following the system, applied the moment you pick one:
 
 ![Skin picker](docs/screenshots/skins.png)
 
