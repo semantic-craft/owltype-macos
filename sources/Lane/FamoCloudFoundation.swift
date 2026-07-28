@@ -224,14 +224,13 @@ enum FamoThinkingControl {
     }
   }
 
-  /// `offBody` 的类型化版本，给**非流式**技能用（提示词优化 / 任务书）：它们发的是
-  /// `FamoDeepSeekChatRequest` 这个 Codable，塞不进 `offBody` 那本字典，于是历史上各自手写了一份
-  /// 前缀判断。两个出口必须给出同一个答案，所以并排放在这里。
+  /// 同一策略的 typed 版本，给用 `Codable` 请求体（`FamoDeepSeekChatRequest`）的非流式调用点用 ——
+  /// 它们塞不进 `offBody` 的 `[String: Any]`。两者共用下面的 `resolved`，不会漂移。
   ///
-  /// nil / nil = 这家没有已知的思考开关，请求体逐字节不变。
-  static func offFields(
-    providerID: String, model: String
-  ) -> (thinking: FamoDeepSeekThinking?, enableThinking: Bool?) {
+  /// 返回 `(nil, nil)` = 这家没有已知的思考开关，两个字段都省略，请求体逐字节不变。
+  static func offFields(providerID: String, model: String)
+    -> (thinking: FamoDeepSeekThinking?, enableThinking: Bool?)
+  {
     switch resolved(providerID: providerID, model: model) {
     case .deepSeekStyle: return (.disabled, nil)
     case .dashScope:     return (nil, false)
@@ -239,7 +238,7 @@ enum FamoThinkingControl {
     }
   }
 
-  /// Which dialect of the thinking switch applies. Not public — callers want `offBody`.
+  /// Which dialect of the thinking switch applies. Not public — callers want `offBody`/`offFields`.
   private enum Dialect { case deepSeekStyle, dashScope, none }
 
   private static func resolved(providerID: String, model: String) -> Dialect {
