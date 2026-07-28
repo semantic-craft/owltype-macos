@@ -3,9 +3,10 @@
 //  法墨输入法 (Famo) — 皮肤外观 (skin) themes + preference
 //
 //  The 荔园红 (shenda) palette ships in `FamoCandidatePanelState.swift`; this file adds
-//  the other six skins from the project color source of truth
+//  the other seven skins from the project color source of truth
 //  `packages/rime-law-config/skins/colors.md` (胡佛红 / 珞珈青 / 嘉庚蓝 / 香槟橙藏蓝 / 香槟橙燃橙 /
-//  纽约紫) plus the `FamoSkin` enum and its UserDefaults home, so the 皮肤外观 settings page
+//  纽约紫) plus 黑文蓝 (sourced from Yale's own brand guide — see its doc comment), plus the
+//  `FamoSkin` enum and its UserDefaults home, so the 皮肤外观 settings page
 //  can switch the whole candidate panel + settings window palette.
 //
 //  Colors are hardcoded from colors.md (light/dark per skin). `famoColor(hex:)` and the
@@ -127,10 +128,33 @@ extension FamoCandidateTheme {
       ink2: famoColor(hex: "A99EBB"), ink3: famoColor(hex: "786C8C")
     )
   )
+
+  /// 黑文蓝 / yale — 耶鲁大学（New Haven）。源为耶鲁自家品牌规范，非 colors.md：
+  /// accent = 官方数字版 Yale Blue #00356B（yaleidentity.yale.edu 网站规范给的 hex）；
+  /// accentDeep_light = #0C2340，即 licensing 品牌手册所定 Yale Blue 印刷版 PMS 289 的 hex ——
+  /// 同一个 Yale Blue 的更深一版，正作描边，不另调暗。ink2/ink3 走 Yale Gray (PMS Warm Gray 7)
+  /// 暖灰系（手册列其为 Yale Blue 的官方搭配色），配米白纸，与同为藏蓝的 xiada 拉开距离。
+  /// 守 accentDeep_dark = accent_light 铁律 (#00356B)；深色循「亮胶囊承深字」：
+  /// accent #4E86C9 + onAccent 深藏蓝 #081426（选中字对比度浅 11.7:1 / 深 4.9:1，AA）。
+  static let yale = FamoCandidateTheme(
+    cornerRadius: 13,
+    light: FamoCandidatePalette(
+      accent: famoColor(hex: "00356B"), accentDeep: famoColor(hex: "0C2340"),
+      onAccent: famoColor(hex: "FBFAF7"), card: famoColor(hex: "FAF9F6"),
+      card2: famoColor(hex: "F1EEE7"), ink: famoColor(hex: "20242B"),
+      ink2: famoColor(hex: "6E665C"), ink3: famoColor(hex: "968C83")
+    ),
+    dark: FamoCandidatePalette(
+      accent: famoColor(hex: "4E86C9"), accentDeep: famoColor(hex: "00356B"),
+      onAccent: famoColor(hex: "081426"), card: famoColor(hex: "1D2129"),
+      card2: famoColor(hex: "181B22"), ink: famoColor(hex: "EAE7E1"),
+      ink2: famoColor(hex: "A69E95"), ink3: famoColor(hex: "746E66")
+    )
+  )
 }
 
-/// The seven shipping skins (源 colors.md). `deepred` (荔园红) is the default; the other
-/// six are university palettes（伊利诺伊为藏蓝 / 燃橙双皮肤）. Carries its display name,
+/// The eight shipping skins (源 colors.md，`yale` 源耶鲁品牌规范). `deepred` (荔园红) is the
+/// default; the other seven are university palettes（伊利诺伊为藏蓝 / 燃橙双皮肤）. Carries its display name,
 /// university tag, swatch color (the light accent — see `swatch` for the illinois exception),
 /// and the resolved `FamoCandidateTheme`.
 enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
@@ -141,6 +165,7 @@ enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
   case illinois
   case illinoisflame
   case nyu
+  case yale
 
   var id: String { rawValue }
 
@@ -153,6 +178,7 @@ enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
     case .illinois: return "香槟橙（藏蓝）"
     case .illinoisflame: return "香槟橙（燃橙）"
     case .nyu: return "纽约紫"
+    case .yale: return "黑文蓝"
     }
   }
 
@@ -165,6 +191,7 @@ enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
     case .illinois: return "伊利诺伊大学"
     case .illinoisflame: return "伊利诺伊大学"
     case .nyu: return "纽约大学"
+    case .yale: return "耶鲁大学"
     }
   }
 
@@ -178,6 +205,7 @@ enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
     case .illinois: return .illinois
     case .illinoisflame: return .illinoisflame
     case .nyu: return .nyu
+    case .yale: return .yale
     }
   }
 
@@ -193,6 +221,7 @@ enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
     case .illinois: return famoColor(hex: "FF5F05")
     case .illinoisflame: return famoColor(hex: "C24A00")
     case .nyu: return famoColor(hex: "57068C")
+    case .yale: return famoColor(hex: "00356B")
     }
   }
 }
