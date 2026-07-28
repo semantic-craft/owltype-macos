@@ -326,16 +326,20 @@ func famoWubiCustomYAML(from s: FamoKeyboardSnapshot, target: FamoWubiPatchTarge
   lines.append("# 写入 ~/Library/Application Support/Famo/\(target.fileName) 后需在法墨设置里「应用配置改动」")
   lines.append("patch:")
 
-  lines.append("  # 编码提示：默认隐藏；打开后保留五笔候选与 z 临时拼音反查编码。")
+  lines.append("  # 候选编码提示：默认隐藏五笔候选的编码。")
   if s.wubiCodeHint {
     lines.append("  \"translator/comment_format\": []")
-    lines.append("  \"reverse_lookup/comment_format\": []")
   } else {
     lines.append("  \"translator/comment_format\":")
     lines.append("    - xform/.+//")
-    lines.append("  \"reverse_lookup/comment_format\":")
-    lines.append("    - xform/.+//")
   }
+
+  // z 临时拼音那一路的注释不是拼音，而是 librime 拿候选文本回主方案词典反查出的五笔编码
+  // （reverse_lookup_translator 的 rev_dict 默认 target = translator，即 wubi86_jidian）。
+  // 那正是「打拼音顺带认五笔码」的练习价值，所以刻意不跟「候选编码提示」联动——后者只管
+  // 五笔本身那一路。恒写空规则表，压掉方案里可能存在的 comment_format。
+  lines.append("  # z 临时拼音反查始终显示五笔编码（练习用），不受上面的候选编码提示影响。")
+  lines.append("  \"reverse_lookup/comment_format\": []")
 
   lines.append("  # 空码自动清码：打开后空码到最大码长时自动清空。")
   lines.append("  \"speller/auto_clear\": \(s.wubiAutoClear ? "max_length" : "\"\"")")
