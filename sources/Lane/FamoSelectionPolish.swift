@@ -79,6 +79,7 @@ enum FamoSelectionPolish {
   static func chatRequest(
     for selection: String,
     model: String = FamoCloudPreferences.deepSeekModel,
+    providerID: String = "",
     variant: FamoPolishPromptVariant = FamoPolishPromptCatalog.resolveActive()
   ) throws -> FamoDeepSeekChatRequest {
     let data = try JSONEncoder().encode(Payload(text: selection))
@@ -87,21 +88,23 @@ enum FamoSelectionPolish {
       FamoDeepSeekMessage(role: "system", content: variant.systemPrompt),
       FamoDeepSeekMessage(role: "user", content: userContent),
     ]
+    // Interactive selection polish — disable hidden thinking so it returns in ~1s (see
+    // FamoDeepSeekThinking). deepseek/mimo/doubao 共用同一 `thinking:{disabled}` 形状
+    // （FamoThinkingControl 的 deepSeekStyle；豆包 doubao-seed-2-1-turbo 实测默认开思考，
+    // 短回复也烧 reasoning token）；qwen 走 `enable_thinking:false`：qwen3.6-flash 默认开，
+    // 实测润色一句话烧 948 reasoning token / 5.4s，直接把 8 秒交互超时打爆（2026-07-20 实盘
+    // 百炼发现）；关掉后 0.6s。别家两个字段都 nil 省略。逐家形状由 FamoThinkingControl 单一
+    // 真相给出：providerID 优先（自定义档案的模型名可能不带标准前缀，如百炼上托管的
+    // deepseek-* 该走 enable_thinking），传空时退回 model 前缀判定。
+    let thinkingOff = FamoThinkingControl.offFields(providerID: providerID, model: model)
     return FamoDeepSeekChatRequest(
       model: model,
       messages: messages,
       temperature: variant.temperature,
       stream: false,
       responseFormat: .jsonObject,
-      // Interactive selection polish — disable hidden thinking so it returns in ~1s (see
-      // FamoDeepSeekThinking). deepseek/mimo/doubao 共用同一 `thinking:{disabled}` 形状
-      // （FamoThinkingControl 的 deepSeekStyle；豆包 doubao-seed-2-1-turbo 实测默认开思考，
-      // 短回复也烧 reasoning token）。别家 nil 省略。
-      thinking: ["deepseek", "mimo", "doubao"].contains(where: model.lowercased().hasPrefix)
-        ? .disabled : nil,
-      // qwen 同理关思考：qwen3.6-flash 默认开，实测润色一句话烧 948 reasoning token / 5.4s，
-      // 直接把 8 秒交互超时打爆（2026-07-20 实盘百炼发现）；关掉后 0.6s。别家 nil 省略。
-      enableThinking: model.hasPrefix("qwen") ? false : nil
+      thinking: thinkingOff.thinking,
+      enableThinking: thinkingOff.enableThinking
     )
   }
 }
@@ -119,17 +122,22 @@ protocol FamoSelectionPolishFetching {
 struct FamoSelectionPolishClient: FamoSelectionPolishFetching {
   let endpoint: URL
   let model: String
+  /// 活跃档案的供应商 id，用来选关思考的字段方言（见 `FamoThinkingControl`）。
+  /// 默认空串 = 不知道档案 id，退回按 model 前缀判定。
+  let providerID: String
   let authHeaderStyle: FamoProviderAuthHeaderStyle
   let urlSession: URLSession
 
   init(
     endpoint: URL = FamoCloudPreferences.deepSeekEndpoint,
     model: String = FamoCloudPreferences.deepSeekModel,
+    providerID: String = "",
     authHeaderStyle: FamoProviderAuthHeaderStyle = .bearer,
     urlSession: URLSession = .shared
   ) {
     self.endpoint = endpoint
     self.model = model
+    self.providerID = providerID
     self.authHeaderStyle = authHeaderStyle
     self.urlSession = urlSession
   }
@@ -144,7 +152,8 @@ struct FamoSelectionPolishClient: FamoSelectionPolishFetching {
     authHeaderStyle.apply(to: &request, apiKey: apiKey)
     request.timeoutInterval = FamoCloudPreferences.requestTimeout
     request.httpBody = try JSONEncoder().encode(
-      FamoSelectionPolish.chatRequest(for: selection, model: model, variant: variant)
+      FamoSelectionPolish.chatRequest(
+        for: selection, model: model, providerID: providerID, variant: variant)
     )
 
     let (data, response) = try await urlSession.data(for: request)
@@ -227,6 +236,7 @@ final class FamoSelectionPolishService {
       ?? FamoSelectionPolishClient(
         endpoint: routing.endpoint,
         model: routing.model,
+        providerID: routing.providerID,
         authHeaderStyle: routing.authHeaderStyle
       )
     return try await fetchWithRetry(fetcher: fetcher, selection: selection, apiKey: apiKey)
