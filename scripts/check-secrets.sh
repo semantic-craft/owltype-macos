@@ -18,6 +18,7 @@ scan_dir="$(mktemp -d)"
 gitleaks_report="$scan_dir/gitleaks.json"
 gitleaks_log="$scan_dir/gitleaks.log"
 trufflehog_output="$scan_dir/trufflehog.jsonl"
+trufflehog_log="$scan_dir/trufflehog.log"
 trap 'rm -rf "$scan_dir"' EXIT
 
 command -v gitleaks >/dev/null || {
@@ -74,12 +75,12 @@ trufflehog git "file://$repo_root" \
   --fail \
   --fail-on-scan-errors \
   --no-update \
-  --json >"$trufflehog_output" 2>&1
+  --json >"$trufflehog_output" 2>"$trufflehog_log"
 trufflehog_status=$?
 set -e
 
 if (( trufflehog_status != 0 )); then
-  python3 - "$trufflehog_output" <<'PY'
+  python3 - "$trufflehog_output" "$trufflehog_log" <<'PY'
 import json
 import sys
 
@@ -90,26 +91,41 @@ with open(sys.argv[1], encoding="utf-8", errors="replace") as handle:
             finding = json.loads(line)
         except json.JSONDecodeError:
             continue
-        detector = finding.get("DetectorName", "unknown")
+        # trufflehog 的运行日志也是 JSON（{"level":"info-0","msg":"scanning repo"}）。
+        # 它们本不该出现在这条流里（stderr 已单独重定向），但版本升级随时可能把日志改到
+        # stdout；没有 DetectorName 的行一律不是命中，跳过，别再报成 detector=unknown。
+        detector = finding.get("DetectorName")
+        if not detector:
+            continue
         git_data = (
             finding.get("SourceMetadata", {})
             .get("Data", {})
             .get("Git", {})
         )
-        path = git_data.get("file", "unknown")
+        # 命中在 commit message 里时 trufflehog 不给 file（键缺失或为 null），只报
+        # `file=unknown` 就没法定位；补上 commit，否则得手工再扫一遍才知道是哪条。
+        path = git_data.get("file") or "(commit message)"
+        commit = (git_data.get("commit") or "")[:12] or "unknown"
         print(
             f"potential secret found: scanner=trufflehog "
-            f"detector={detector} file={path}",
+            f"detector={detector} file={path} commit={commit}",
             file=sys.stderr,
         )
         reported = True
 
 if not reported:
+    # stderr 已单独重定向，所以走到这里意味着「非零退出但没有任何命中」= 扫描本身出错
+    # （--fail-on-scan-errors）。把 trufflehog 自己的最后几行日志带出来，别只给一句套话。
     print(
-        "TruffleHog failed or found a secret; raw output was suppressed. "
-        "Run scripts/check-secrets.sh locally for private diagnosis.",
+        "TruffleHog exited non-zero with no findings — treat as a scan error, not a pass:",
         file=sys.stderr,
     )
+    try:
+        with open(sys.argv[2], encoding="utf-8", errors="replace") as log:
+            for line in log.readlines()[-3:]:
+                print("  " + line.rstrip(), file=sys.stderr)
+    except OSError:
+        print("  (no trufflehog log captured)", file=sys.stderr)
 PY
   exit "$trufflehog_status"
 fi
