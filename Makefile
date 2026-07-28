@@ -145,6 +145,8 @@ release: $(DEPS_CHECK)
 	$(MAKE) copy-famo-seed FAMO_CONFIG=Release
 	python3 scripts/finalize-release-bundle.py \
 		"$(DERIVED_DATA_PATH)/Build/Products/Release/Famo.app"
+	bash scripts/check-secrets.sh --artifacts \
+		"$(DERIVED_DATA_PATH)/Build/Products/Release/Famo.app"
 
 debug: $(DEPS_CHECK)
 	mkdir -p $(DERIVED_DATA_PATH)
