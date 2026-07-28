@@ -63,9 +63,14 @@ extension FamoWebSearchError {
     }
   }
 
-  /// 稍后重试同一家仍可能成功的业务码（豆包限流 / 内部错，Perplexity 的限流类型）。
+  /// 稍后重试同一家仍可能成功的业务码（豆包限流 / 内部错，Perplexity 的限流类型，百炼的限流与内部错）。
+  ///
+  /// 三家都会在错误正文里带自己的 `code`，而客户端一旦读到 `code` 就把状态码换成了 `serviceError`
+  /// —— 于是「429 属于暂时性」这条按状态码判的规则在这里失效，必须逐码补回来。漏掉一个的后果是把
+  /// 限流当成「这家不给你用」，白白顺位到下一家（下一家同样会被限流，只是把错误变多）。
   private static let transientServiceCodes: Set<String> = [
     "700429", "10500", "10501", "rate_limit_error",
+    "Throttling", "Throttling.RateQuota", "Throttling.AllocationQuota", "InternalError",
   ]
 }
 
@@ -222,26 +227,36 @@ struct FamoDoubaoGlobalSearchClient: FamoWebSearching {
 
 /// 可选的搜索后端。一档 = 一个服务 + 它自己的 Key + 它自己的署名。
 ///
-/// 两家的取舍（2026-07-27 查证）：豆包搜索基于豆包 APP 做，国内站点覆盖好、`open.feedcoopapi.com`
-/// 国内直连、每账号每月 500 次免费；Perplexity 英文内容强、支持域名/时效过滤，但 `api.perplexity.ai`
-/// 在国内多半要代理、且没有免费额度。法墨是中文输入法，所以默认豆包，Perplexity 作为可选项。
+/// 三家的取舍（豆包/Perplexity 2026-07-27 查证，通义千问 2026-07-28 补）：豆包搜索基于豆包 APP 做，
+/// 国内站点覆盖好、`open.feedcoopapi.com` 国内直连、每账号每月 500 次免费；Perplexity 英文内容强、
+/// 支持域名/时效过滤，但 `api.perplexity.ai` 在国内多半要代理、且没有免费额度；通义千问复用你已经有的
+/// 百炼 Key（不用再开一个搜索账号），代价是它的来源**不带正文摘要**——见 `FamoDashScopeSearchWire`。
+/// 法墨是中文输入法，所以默认豆包，另外两家作为可选项。
 enum FamoWebSearchBackend: String, CaseIterable, Sendable {
   case doubaoGlobal = "doubao"
+  /// 阿里云百炼（通义千问）。国内第二档，排在 Perplexity 前面。
+  case qwen
+
   case perplexity
 
   /// 设置页下拉里的名字。
   var displayName: String {
     switch self {
     case .doubaoGlobal: return "豆包搜索"
+    // 刻意不叫「通义千问」：那是「联网模型」下拉里 qwen 自己检索自己作答的那一档的名字，而这里
+    // qwen 只负责检索、作答的可能是 DeepSeek。用平台名（阿里云百炼）与模型名（通义千问）区分开，
+    // 署名 chip 才看得出是哪条路 —— 与「豆包搜索」/「豆包」同一个用意。
+    case .qwen:         return "阿里云百炼"
     case .perplexity:   return "Perplexity"
     }
   }
 
   /// 回答窗署名 chip 的 id。刻意带 `-search` 后缀，与同名的**模型**供应商区分开 ——
-  /// 检索的是它，作答的可能是 DeepSeek。
+  /// 检索的是它，作答的可能是 DeepSeek。（`qwen-search` 与内置联网的 `qwen` 因此不会撞车。）
   var attributionID: String {
     switch self {
     case .doubaoGlobal: return "doubao-search"
+    case .qwen:         return "qwen-search"
     case .perplexity:   return "perplexity-search"
     }
   }
@@ -249,11 +264,14 @@ enum FamoWebSearchBackend: String, CaseIterable, Sendable {
   /// Keychain account。每家一把，换后端不会互相覆盖，切回去也不用重填。
   var secretName: String { "famo.websearch.\(rawValue).apiKey" }
 
-  /// 设置页里告诉用户去哪儿拿 Key。两家都不是模型 Key，这句是最容易踩空的地方。
+  /// 设置页里告诉用户去哪儿拿 Key。豆包/Perplexity 都**不是**模型 Key，这句是最容易踩空的地方；
+  /// 通义千问相反 —— 它就是百炼的模型 Key，但仍单独存一份（理由见 `FamoWebSearchKeyStore`）。
   var keyHint: String {
     switch self {
     case .doubaoGlobal:
       return "在火山引擎「联网搜索控制台 → API Key 管理 → 按量后付费」单独创建（方舟的模型 Key 在这里无效）。每个火山账号每月有 500 次免费额度。"
+    case .qwen:
+      return "就是阿里云百炼的模型 Key（sk- 开头），与上面「供应商」里那把同源，在这里再填一次即可。注意它取回的来源只有标题与网址、没有正文摘要，接地效果弱于豆包搜索。"
     case .perplexity:
       return "在 perplexity.ai 的 API 设置里创建（pplx- 开头）。国内网络访问 api.perplexity.ai 可能需要代理；英文内容检索效果更好，中文站点覆盖弱于豆包搜索。"
     }
@@ -262,6 +280,7 @@ enum FamoWebSearchBackend: String, CaseIterable, Sendable {
   func makeClient() -> FamoWebSearching {
     switch self {
     case .doubaoGlobal: return FamoDoubaoGlobalSearchClient()
+    case .qwen:         return FamoDashScopeSearchClient()
     case .perplexity:   return FamoPerplexitySearchClient()
     }
   }
@@ -425,6 +444,164 @@ struct FamoPerplexitySearchClient: FamoWebSearching {
     return .serviceError(
       code: (error["type"] as? String) ?? String(status),
       message: (error["message"] as? String) ?? "")
+  }
+}
+
+// MARK: - 阿里云百炼（通义千问）· wire format
+
+/// 百炼「联网搜索」的请求/响应 wire format，当作**检索器**用。
+///
+/// 文档：help.aliyun.com/zh/model-studio/web-search。全部结论都在 2026-07-28 用真 Key 逐条打过。
+///
+///   1. **必须走 DashScope 原生端点，不能用平时那个 `/compatible-mode/v1/chat/completions`。**
+///      文档原话：OpenAI 兼容协议因协议限制不支持搜索来源返回；`enable_source` / `enable_citation` /
+///      `citation_format` / `prepend_search_result` 四个字段都标着「仅 DashScope 方式支持」。实测印证：
+///      兼容模式下 `search_info` 恒为 ABSENT —— `enable_source: true` 被静默忽略（照样 200），
+///      `prepend_search_result` 更是直接 `400 not supported in OpenAI protocol`。端点写错不会报错，
+///      只会永远搜到 0 条然后被静默顺位掉，是最难查的那种坏法。
+///   2. **原生端点分两条路，按模型的「文本 / 多模态」属性挑，挑错就是 `400 url error`。**
+///      错误码文档（error-code#error-url）原因一：「调用纯文本模型时使用了多模态接口，或者调用多模态
+///      模型时使用了纯文本接口」。实测这张对照表：
+///        - `multimodal-generation/generation`：qwen3.7-plus ✅、qwen3.7-flash ✅、qwen3.7-max ❌400
+///        - `text-generation/generation`：qwen-plus ✅、qwen3.7-max ✅、qwen3.7-plus ❌400、3.7-flash ❌400
+///      两条路的 **`content` 形状还不一样**：多模态要 `[{"text": …}]` 数组，纯文本要裸字符串。
+///      所以 `model` / `endpoint` / `content` 三者是**一组**，改一个必须一起改（`FamoDashScopeSearchWire`
+///      把它们钉在一起就是为了这个）。仓库另一处 `FamoSelectionPolish.dashScopeSearchModel` 走的是
+///      纯文本那条，钉 `qwen-plus`，两边不是笔误。
+///   3. **它不是搜索 API，是一次完整的模型调用**：百炼会顺带写出一整段答案，而我们只要
+///      `output.search_info`，那段答案直接丢掉。所以要主动砍掉这部分浪费，见 `body` 里的两个参数。
+///   4. **返回的来源没有正文摘要**：`search_results` 每条只有 `index/title/url/site_name/icon`
+///      （实测逐条比对，没有任何额外字段）。于是注入模型的只有标题和网址，接地强度明显弱于豆包搜索的
+///      800 字摘要。`FamoWebSearchContext.entry` 对空 `snippet` 本来就是跳过摘要行，不需要特判。
+///   5. **`forced_search` 必须显式打开**：它默认 false，也就是「模型自己判断要不要搜」。作为检索器
+///      我们不能接受「这次它决定不搜」—— 那会返回 0 条、被 `noResults` 顺位掉，白花一次调用。
+enum FamoDashScopeSearchWire {
+  /// 见类型注释第 2 点：这条路径与下面的 `model` 是一组，不能单独改。
+  static let endpoint = URL(
+    string: "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation")!
+
+  /// 检索用的模型。**不跟设置页那个模型下拉走**：那个下拉决定谁作答，这里决定谁检索，是两件事
+  /// —— 检索器钉在这儿，不妨碍你把百炼档案设成别的型号。
+  ///
+  /// 钉 `qwen3.7-plus` 而不是老系列 `qwen-plus`：两者在各自端点上都能回 10 条来源，但新一代关掉
+  /// 思考后更快（见 `body`）。换型号前先回去看类型注释第 2 点那张对照表 —— 换成 `qwen3.7-max` 或
+  /// `qwen-plus` 而不同时改 `endpoint` 与 `content` 形状，拿到的就是 `400 url error`。
+  static let model = "qwen3.7-plus"
+
+  /// 请求体。
+  ///
+  /// `enable_thinking: false` + `max_tokens: 1` 是这一档能不能用的关键，不是可选的调优 ——
+  /// 我们要的只有 `search_info`，模型写的那段答案纯属浪费。2026-07-28 同一条 query 实测：
+  ///   基线（不加这两个）        8.68s，output 357 token（其中 333 是推理）
+  ///   仅关思考                  4.04s，output 87 token
+  ///   关思考 + max_tokens: 1    2.50s，output 1 token   ← 现在这套
+  /// **三种情况下来源都是 10 条**：检索发生在生成之前，砍掉生成不影响 `search_info`。
+  /// 复测 4 次稳定在 2.6–3.9s。少了这两个参数，这一跳会从「可接受」变成「等得难受」。
+  static func body(query: String) -> [String: Any] {
+    [
+      "model": model,
+      "input": [
+        // 多模态端点要的是分段数组，不是裸字符串（见类型注释第 2 点）。
+        "messages": [[
+          "role": "user",
+          "content": [["text": query.trimmingCharacters(in: .whitespacesAndNewlines)]],
+        ]],
+      ],
+      "parameters": [
+        "enable_search": true,
+        "search_options": [
+          // 见类型注释第 5 点：默认 false = 模型自己决定搜不搜，检索器不能接受这种不确定。
+          "forced_search": true,
+          "search_strategy": "max",
+          // 这个才是「把来源回传给我」的开关，也正是兼容模式给不了的那一个。
+          "enable_source": true,
+        ],
+        "result_format": "message",
+        "enable_thinking": false,
+        "max_tokens": 1,
+      ],
+    ]
+  }
+
+  static func request(query: String, apiKey: String) throws -> URLRequest {
+    guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      throw FamoWebSearchError.missingAPIKey
+    }
+    var request = URLRequest(url: endpoint)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+    request.httpBody = try JSONSerialization.data(withJSONObject: body(query: query))
+    return request
+  }
+
+  /// 解析响应。百炼原生的错误是「顶层 `code` + `message`」（如 401 的 `InvalidApiKey`），
+  /// 与豆包一样先认错误通道再取结果 —— 把「Key 无效」读成「没搜到」是这层最容易犯的错。
+  static func parse(_ data: Data, limit: Int) throws -> [FamoWebSearchResult] {
+    let root = try FamoWebSearchPayload.object(from: data)
+    if let code = root["code"] as? String, !code.isEmpty {
+      throw FamoWebSearchError.serviceError(
+        code: code, message: (root["message"] as? String) ?? "")
+    }
+    guard let output = root["output"] as? [String: Any] else {
+      throw FamoWebSearchError.malformedResponse
+    }
+    // 没触发检索时 `search_info` 整个不出现。那是「这次没搜」而不是「响应坏了」，交给调用方按
+    // 0 条结果处理（`noResults` → 顺位下一家），别报成 malformedResponse。
+    let info = output["search_info"] as? [String: Any]
+    let results = (info?["search_results"] as? [[String: Any]]) ?? []
+    return results.prefix(limit).compactMap(result)
+  }
+
+  /// 一条 `search_results` → 归一化结果。缺 url/title 的丢弃（同豆包：引用不了的来源没有价值）。
+  private static func result(_ raw: [String: Any]) -> FamoWebSearchResult? {
+    guard let url = raw["url"] as? String, !url.isEmpty,
+          let title = raw["title"] as? String, !title.isEmpty else { return nil }
+    return FamoWebSearchResult(
+      title: title,
+      // 见上文第 3 点：百炼不回摘要，这里只能留空，不是解析漏了。
+      url: url,
+      snippet: "",
+      // 也不回发布时间。宁可不标，也不标个空的。
+      publishedAt: nil,
+      hostname: (raw["site_name"] as? String).flatMap { $0.isEmpty ? nil : $0 })
+  }
+}
+
+/// 百炼检索的实时客户端。`fetch` 可注入，测试不碰网络。
+struct FamoDashScopeSearchClient: FamoWebSearching {
+  /// 比另外两家的 8s 略宽：这一跳不是一次检索，而是一次带联网的模型调用（见 wire 第 3 点）。
+  /// 12s 是在实测 2.6–3.9s 之上留的余量；再宽没意义 —— 与其让人干等 20s 再报错，
+  /// 不如早点失败、退回普通问答。
+  let timeout: TimeInterval
+  private let fetch: @Sendable (URLRequest) async throws -> (Data, URLResponse)
+
+  init(
+    timeout: TimeInterval = 12,
+    fetch: (@Sendable (URLRequest) async throws -> (Data, URLResponse))? = nil
+  ) {
+    self.timeout = timeout
+    self.fetch = fetch ?? { try await URLSession.shared.data(for: $0) }
+  }
+
+  func search(query: String, apiKey: String, limit: Int) async throws -> [FamoWebSearchResult] {
+    var request = try FamoDashScopeSearchWire.request(query: query, apiKey: apiKey)
+    request.timeoutInterval = timeout
+    let (data, response) = try await fetch(request)
+    if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+      throw Self.serviceError(from: data, status: http.statusCode)
+    }
+    return try FamoDashScopeSearchWire.parse(data, limit: limit)
+  }
+
+  /// 非 2xx 的正文里通常带着可读的 `code`/`message`（401 InvalidApiKey、400 InvalidParameter）。
+  /// 带出来比只报一个状态码好排查 —— 尤其是 `model` 被端点拒收的那种 400。
+  private static func serviceError(from data: Data, status: Int) -> FamoWebSearchError {
+    guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+          let code = root["code"] as? String, !code.isEmpty else {
+      return .badHTTPStatus(status)
+    }
+    return .serviceError(code: code, message: (root["message"] as? String) ?? "")
   }
 }
 
