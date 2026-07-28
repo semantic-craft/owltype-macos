@@ -211,6 +211,22 @@ final class FamoPromptOptimizerTests: XCTestCase {
     XCTAssertEqual(unknown.thinking, .disabled, "没有档案 id 时按模型名前缀判")
   }
 
+  /// qwen 也要关思考。这条一度是反的（注释写着「推理对补齐四要素有实益，用户愿等」），
+  /// 2026-07-28 实盘推翻：同一条草稿 qwen3.7-plus 思考开 40.9s / 终稿 901 字 / 5 个 XML 分区，
+  /// 思考关 8.2s / 815 字 / 同样 5 个分区 —— 那 1732 个推理 token 没换来更好的终稿，只换来 32 秒
+  /// 等待。（顺带证伪「太慢就换小模型」：3.7-flash 关思考 1.5s 但终稿塌到 208 字、0 个分区。）
+  func testHiddenReasoningIsAlsoDisabledForQwen() {
+    for model in ["qwen-plus", "qwen3.7-plus", "qwen3.6-flash"] {
+      XCTAssertEqual(
+        FamoPromptOptimizer.chatRequest(forDraft: "帮我写个爬虫", model: model).enableThinking,
+        false, "\(model) 开着思考白等几十秒，终稿并不更好")
+    }
+    XCTAssertNil(
+      FamoPromptOptimizer.chatRequest(forDraft: "帮我写个爬虫", model: "deepseek-v4-flash")
+        .enableThinking,
+      "别家不得混入 qwen 的字段")
+  }
+
   func testRerunWithoutClarificationsMatchesThePlainRequest() {
     // 空补答的重跑必须与首轮逐字节一致，免得多出一条空的澄清消息干扰模型。
     let plain = FamoPromptOptimizer.chatRequest(forDraft: "帮我写个爬虫", model: "qwen-plus")
