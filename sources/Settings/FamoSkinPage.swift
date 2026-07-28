@@ -11,7 +11,7 @@ import SwiftUI
 
 // MARK: - 皮肤外观 (Skin)
 
-/// Skin selection: a 2-column grid of the four 皮肤 cards + a 明暗 segment (the candidate
+/// Skin selection: a 2-column grid of the 皮肤 cards + a 明暗 segment (the candidate
 /// panel's appearance mode, the same preference surfaced on 候选窗外观).
 struct FamoSkinPage: View {
   @Bindable var state: FamoSettingsState
