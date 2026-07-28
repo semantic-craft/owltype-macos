@@ -217,8 +217,9 @@ enum FamoKeyboardPreferences {
 
   // MARK: - 五笔
 
-  /// 编码提示. Key `"FamoKeyboardWubiCodeHint"`, default `false`.
-  /// Eventual Rime mapping: `translator/comment_format` + `reverse_lookup/comment_format`.
+  /// 候选编码提示. Key `"FamoKeyboardWubiCodeHint"`, default `false`.
+  /// Rime mapping: `translator/comment_format`（只管五笔那一路）。z 临时拼音反查的五笔编码
+  /// 注释是练习用的，恒开，不受本开关影响——见 `famoWubiCustomYAML`。
   static var wubiCodeHint: Bool {
     get { boolValue("FamoKeyboardWubiCodeHint", default: false) }
     set { FamoDefaults.standard.set(newValue, forKey: "FamoKeyboardWubiCodeHint") }

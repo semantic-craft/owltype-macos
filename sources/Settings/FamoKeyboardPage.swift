@@ -520,6 +520,12 @@ struct FamoKeyboardPage: View {
           isEnabled: rimeBackedRowsEnabled,
           onToggle: { toggleWubiZReverseLookup() }
         )
+        Text("按 z 加拼音查字，候选右侧始终显示该字的五笔编码，边打边记；不受上面的「候选编码提示」影响。")
+          .font(.system(size: 12))
+          .foregroundStyle(palette.ink3)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.top, 4)
+          .padding(.bottom, 4)
         SettingsCardDivider(palette: palette)
         SettingsToggleRow(
           title: "` 临时英文",
