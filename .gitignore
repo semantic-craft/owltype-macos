@@ -14,6 +14,9 @@ download/
 package/Famo*.pkg
 package/Famo*.dmg
 package/Famo*.zip
+# 发 Release 时给 DMG/pkg 生成的校验和清单。不 ignore 会以未跟踪文件留在树里，卡住**下一版**
+# `make source-archive` 的洁净门（要求连未跟踪文件都干净）——1.5.8 与 1.5.14 各被咬过一次。
+package/Famo*.sha256
 package/sign/*.pem
 package/test-*
 package/generate_keys
