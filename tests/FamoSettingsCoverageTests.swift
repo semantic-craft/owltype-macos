@@ -79,6 +79,10 @@ final class FamoSettingsCoverageTests: XCTestCase {
     "删除供应商",
     "模型，如 gpt-4o / deepseek-chat",
     "拉取最新",                       // AI 配置：拉取供应商 /models 模型列表
+    // AI 配置：拿「端点 + 这个型号 + Key」真发一次最小请求。补的正是「拉取最新」证明不了的那一段——
+    // `/models` 通不代表你选的型号能用（实盘撞过：同一把 Key 拉 /models 正常，型号打错端点是 400
+    // url error）。action coverage 在 ProviderProfileStoreTests 的 FamoProviderConnectivityCheckTests。
+    "验证连通性",
     "选择模型",                       // AI 配置：从 curated + 拉取结果里选模型
     // 已配供应商的原地编辑（换模型不必删了重加）：入口按钮 + 编辑态的两个 footer 按钮。
     // action coverage 在 ProviderProfileStoreTests 的 updateProviderProfile 两条断言。

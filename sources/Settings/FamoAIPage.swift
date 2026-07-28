@@ -106,10 +106,13 @@ struct FamoAIPage: View {
     }
   }
 
-  /// 「搜索服务 API Key」：豆包搜索 Global 版的独立 Key，与任何一家模型的 Key 无关。
+  /// 「搜索服务 API Key」：所选检索后端自己的 Key，与「哪家模型作答」无关。
   ///
-  /// 配好它之后，联网走「先检索、再作答」：由豆包搜索取回网页，交给**当前默认供应商**作答 ——
+  /// 配好它之后，联网走「先检索、再作答」：由该后端取回网页，交给**当前默认供应商**作答 ——
   /// 所以配的是 DeepSeek 也能联网。留空则退回下面那套「模型自带的联网工具」。
+  ///
+  /// 豆包/Perplexity 的 Key 与模型 Key 是两回事；通义千问那档填的就是百炼模型 Key，但仍单独存一份
+  /// （这层的语义是「谁来检索」，不是「配了哪家模型」）。逐家差异写在 `backend.keyHint` 里。
   private var searchServiceKeyRow: some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(spacing: 11) {
@@ -138,7 +141,7 @@ struct FamoAIPage: View {
           smallButton("清除") { clearSearchKey() }
         }
       }
-      Text("独立于上面的模型密钥。\(searchBackend.keyHint)配好后由\(searchBackend.displayName)取回网页、交给你的默认供应商作答 —— 所以默认配的是 DeepSeek 也能联网。留空则退回各家模型自带的联网工具。两家的 Key 分开存，来回切换不用重填。\(searchKeyStatus.isEmpty ? "" : "\n\n\(searchKeyStatus)")")
+      Text("这把 Key 只用于检索，与上面「供应商」里那把分开存。\(searchBackend.keyHint)配好后由\(searchBackend.displayName)取回网页、交给你的默认供应商作答 —— 所以默认配的是 DeepSeek 也能联网。留空则退回各家模型自带的联网工具。三家的 Key 分开存，来回切换不用重填。\(searchKeyStatus.isEmpty ? "" : "\n\n\(searchKeyStatus)")")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .fixedSize(horizontal: false, vertical: true)
@@ -367,6 +370,9 @@ struct FamoAIPage: View {
         .accessibilityLabel("选择模型")
       }
       smallButton("拉取最新") { fetchModels() }
+      // 与「拉取最新」并排但管两件事：那个只证明主机通、Key 有效，**完全不检查你选的型号**。
+      // 详见 `FamoProviderConnectivityCheck`。
+      smallButton("验证连通性") { checkConnectivity() }
     }
   }
 
@@ -407,6 +413,9 @@ struct FamoAIPage: View {
     switch providerID {
     case "deepseek":
       preset = [FamoCloudPreferences.defaultDeepSeekModel, FamoCloudPreferences.reasonerDeepSeekModel]
+    case "qwen":
+      // 百炼一家给一串（3.7 三档 + 3.6-flash），理由见 `FamoLLMProviderCatalog.qwenModels`。
+      preset = FamoLLMProviderCatalog.qwenModels
     case FamoLLMProviderCatalog.customID:
       preset = []
     default:
@@ -531,6 +540,43 @@ struct FamoAIPage: View {
         }
       } catch {
         await MainActor.run { providerStatus = "拉取失败，请检查端点与 Key" }
+      }
+    }
+  }
+
+  /// 「验证连通性」：拿表单里这组 端点 + 模型 + Key 真发一次最小请求。
+  ///
+  /// 与 `fetchModels` 共用「Key 字段为空就回落去读 Keychain」的规则 —— 已配好的一家 Key 字段永远是
+  /// 空的（只写不回显），不回落就等于「已存在的供应商永远验不了」。
+  ///
+  /// 成功也要落一次「已验证」：这是拿这把 Key 真的调通了，比 `/models` 更有说服力。
+  private func checkConnectivity() {
+    guard let endpoint = URL(string: providerEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)),
+          endpoint.scheme == "https" else {
+      providerStatus = "端点必须是 https"; return
+    }
+    let model = providerModel.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !model.isEmpty else { providerStatus = "请先填模型再验证"; return }
+    let typed = providerKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
+    let key = typed.isEmpty ? (storedKey(for: editingProfile) ?? "") : typed
+    guard !key.isEmpty else { providerStatus = "请先填入 API Key 再验证"; return }
+    let authStyle = FamoLLMProviderCatalog.preset(id: providerID)?.authHeaderStyle ?? .bearer
+
+    providerStatus = "验证中…（\(model)）"
+    Task {
+      let outcome = await FamoProviderConnectivityCheck.run(
+        endpoint: endpoint, providerID: providerID, model: model,
+        apiKey: key, authStyle: authStyle)
+      await MainActor.run {
+        providerStatus = outcome.statusText
+        guard outcome.isOK else { return }
+        // 与 `fetchModels` 同一条：新增流程里 profile 还不存在，先记 flag，落库后再补标。
+        if let editingProfile {
+          FamoSettingsActions.markProviderProfileKeyVerified(editingProfile)
+          providers = providerStore.profiles()
+        } else {
+          pendingKeyVerified = true
+        }
       }
     }
   }
