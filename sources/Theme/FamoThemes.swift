@@ -3,10 +3,10 @@
 //  法墨输入法 (Famo) — 皮肤外观 (skin) themes + preference
 //
 //  The 荔园红 (shenda) palette ships in `FamoCandidatePanelState.swift`; this file adds
-//  the other seven skins from the project color source of truth
+//  the other eight skins from the project color source of truth
 //  `packages/rime-law-config/skins/colors.md` (胡佛红 / 珞珈青 / 嘉庚蓝 / 香槟橙藏蓝 / 香槟橙燃橙 /
-//  纽约紫) plus 黑文蓝 (sourced from Yale's own brand guide — see its doc comment), plus the
-//  `FamoSkin` enum and its UserDefaults home, so the 皮肤外观 settings page
+//  纽约紫) plus 黑文蓝 and 剑桥红 (sourced from Yale's and Harvard's own brand guides — see their
+//  doc comments), plus the `FamoSkin` enum and its UserDefaults home, so the 皮肤外观 settings page
 //  can switch the whole candidate panel + settings window palette.
 //
 //  Colors are hardcoded from colors.md (light/dark per skin). `famoColor(hex:)` and the
@@ -151,10 +151,37 @@ extension FamoCandidateTheme {
       ink2: famoColor(hex: "A69E95"), ink3: famoColor(hex: "746E66")
     )
   )
+
+  /// 剑桥红 / harvard — 哈佛大学（Cambridge 剑桥市，循 nyu / yale 的城市命名法）。源为哈佛自家
+  /// 品牌规范 (identityguide.hms.harvard.edu/brand-design/colors)，非 colors.md：官方色逐字节
+  /// 照搬四个 —— Crimson #A51C30 (PMS 187) 作选中胶囊、Black #1E1E1E 作正文墨、
+  /// Parchment #F3F3F1 (Cool Gray 1) 作 card2、Mortar #8C8179 (Warm Gray 8) 作 ink3，
+  /// 正是哈佛红砖配灰浆的「brick and mortar」。规范只给这一支红，故描边 accentDeep 自 Crimson
+  /// 压深推出 (#811626)，ink2 同理自 Mortar 压深 (#6F6660)。三套红靠纸面分家：荔园红暖羊皮纸、
+  /// 胡佛红冷蓝灰、本皮肤中性灰白纸 + 暖灰墨。守 accentDeep_dark = accent_light 铁律 (#A51C30)；
+  /// 深色同 351° 红相提亮到 #CF3048 —— 再往亮里推就泛玫瑰、贴到荔园红去了，故按住饱和度。
+  /// 红系循胡佛红的「深胶囊承浅字」：onAccent 明暗两版同为米白 #FBFBF9（选中字对比浅 7.3:1 /
+  /// 深 4.9:1，AA）。
+  static let harvard = FamoCandidateTheme(
+    cornerRadius: 13,
+    light: FamoCandidatePalette(
+      accent: famoColor(hex: "A51C30"), accentDeep: famoColor(hex: "811626"),
+      onAccent: famoColor(hex: "FBFBF9"), card: famoColor(hex: "FAFAF8"),
+      card2: famoColor(hex: "F3F3F1"), ink: famoColor(hex: "1E1E1E"),
+      ink2: famoColor(hex: "6F6660"), ink3: famoColor(hex: "8C8179")
+    ),
+    dark: FamoCandidatePalette(
+      accent: famoColor(hex: "CF3048"), accentDeep: famoColor(hex: "A51C30"),
+      onAccent: famoColor(hex: "FBFBF9"), card: famoColor(hex: "242121"),
+      card2: famoColor(hex: "1E1C1B"), ink: famoColor(hex: "EBE8E4"),
+      ink2: famoColor(hex: "A39A93"), ink3: famoColor(hex: "726A64")
+    )
+  )
 }
 
-/// The eight shipping skins (源 colors.md，`yale` 源耶鲁品牌规范). `deepred` (荔园红) is the
-/// default; the other seven are university palettes（伊利诺伊为藏蓝 / 燃橙双皮肤）. Carries its display name,
+/// The nine shipping skins (源 colors.md，`yale` 源耶鲁品牌规范，`harvard` 源哈佛品牌规范).
+/// `deepred` (荔园红) is the
+/// default; the other eight are university palettes（伊利诺伊为藏蓝 / 燃橙双皮肤）. Carries its display name,
 /// university tag, swatch color (the light accent — see `swatch` for the illinois exception),
 /// and the resolved `FamoCandidateTheme`.
 enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
@@ -166,6 +193,7 @@ enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
   case illinoisflame
   case nyu
   case yale
+  case harvard
 
   var id: String { rawValue }
 
@@ -179,6 +207,7 @@ enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
     case .illinoisflame: return "香槟橙（燃橙）"
     case .nyu: return "纽约紫"
     case .yale: return "黑文蓝"
+    case .harvard: return "剑桥红"
     }
   }
 
@@ -192,6 +221,7 @@ enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
     case .illinoisflame: return "伊利诺伊大学"
     case .nyu: return "纽约大学"
     case .yale: return "耶鲁大学"
+    case .harvard: return "哈佛大学"
     }
   }
 
@@ -206,6 +236,7 @@ enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
     case .illinoisflame: return .illinoisflame
     case .nyu: return .nyu
     case .yale: return .yale
+    case .harvard: return .harvard
     }
   }
 
@@ -222,6 +253,7 @@ enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
     case .illinoisflame: return famoColor(hex: "C24A00")
     case .nyu: return famoColor(hex: "57068C")
     case .yale: return famoColor(hex: "00356B")
+    case .harvard: return famoColor(hex: "A51C30")
     }
   }
 }
