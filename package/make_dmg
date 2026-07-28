@@ -112,12 +112,30 @@ fi
 if [ -n "${DEV_ID:-}" ]; then
     echo "==> 公证 DMG（notarytool --wait）"
     # Apple notary 服务偶发请求超时；重试几次再放弃（同 Makefile 里 app/pkg 的处理，坑 11）。
+    #
+    # 重试耗尽必须**就地失败**，不能往下走。`&& break` 让失败不触发 `set -e`，而 1.5.13 出包时
+    # 三次全败（公证凭据中途消失，报 `No Keychain password item found`）之后这里照样去 staple 了
+    # ——staple 当然也失败，于是终端上留下的是 `CloudKit … Record not found` + `Error 65` 这种
+    # 与真因无关的报错，真正那句「凭据没了」被埋在二十行之前。构建是挂了（退出码非零），但把人
+    # 引向了错误的方向：会去查 CloudKit / 网络，而不是去重建凭据。
+    notarized=0
     for i in 1 2 3; do
-        xcrun notarytool submit "${DMG_STABLE}" \
+        if xcrun notarytool submit "${DMG_STABLE}" \
             --keychain-profile "${NOTARY_PROFILE:?set NOTARY_PROFILE to your notarytool keychain-profile name}" \
-            --wait && break
+            --wait; then
+            notarized=1; break
+        fi
         echo "[famo] notary(dmg) 超时/失败，重试 ${i}/3（20s）…"; sleep 20
     done
+    if [ "${notarized}" -ne 1 ]; then
+        echo >&2 "ERROR: DMG 公证三次均失败，停在这一步（不再尝试 staple）。"
+        echo >&2 "       上面 notarytool 的最后一条输出就是真因。若它是"
+        echo >&2 "       'No Keychain password item found for profile: ${NOTARY_PROFILE}'，"
+        echo >&2 "       说明公证凭据条目消失了（已复发两次：1.5.5 / 1.5.13）。恢复："
+        echo >&2 "       xcrun notarytool store-credentials ${NOTARY_PROFILE} --apple-id <apple id> --team-id <team id>"
+        echo >&2 "       随后 'make dmg' 单独补这一步即可，app/pkg 的公证不受影响。"
+        exit 1
+    fi
     xcrun stapler staple "${DMG_STABLE}"
 fi
 
