@@ -46,6 +46,9 @@ echo "==> 5/5 run App-owned automated artifact gates"
 FAMO_IDENTITY_STRICT=1 bash scripts/check-identity-residual.sh
 bash scripts/check-manifest.sh
 bash scripts/check-release.sh --automated-only
+# 出厂 app bundle 的密钥扫描。CI 侧同一道闸挂在 privacy-gate（那儿才装扫描器）；本地发版不走
+# privacy-gate，所以这里显式再调一次。源码包那份由 create-source-archive.sh 自己扫。
+bash scripts/check-secrets.sh --artifacts "build/Build/Products/Release/Famo.app"
 
 for artifact in package/Famo.dmg package/Famo.pkg package/Famo-update.pkg package/appcast.xml; do
   [[ -s "$artifact" ]] || {
