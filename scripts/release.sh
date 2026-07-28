@@ -55,4 +55,20 @@ for artifact in package/Famo.dmg package/Famo.pkg package/Famo-update.pkg packag
   printf 'OUTPUT: %s\n' "$HERE/$artifact"
 done
 
+# 三个上架产物必须**真的带着公证票**，而不只是「文件存在且非空」。
+#
+# 上面那圈 `-s` 检查对「一个签了名但没公证的 DMG」是完全放行的 —— 而那正是 1.5.13 出包时的实际
+# 状态（公证凭据中途消失）。那次是靠 `make dmg` 自己挂掉才拦住的；一旦哪天失败发生在别的分支上、
+# 或者有人手工补跑了某一步，这里就是最后一道闸。stapler 读的是产物里嵌着的票，离线可验，
+# 不依赖任何网络或凭据 —— 也就是说这道闸在凭据已经消失的机器上照样有效。
+for artifact in package/Famo.dmg package/Famo.pkg package/Famo-update.pkg; do
+  xcrun stapler validate "$artifact" >/dev/null 2>&1 || {
+    echo >&2 "ERROR: $artifact 没有公证票（stapler validate 不过）。"
+    echo >&2 "       这种包发出去，新用户会被 Gatekeeper 拦住。"
+    echo >&2 "       先确认公证凭据还在：xcrun notarytool history --keychain-profile \"\$NOTARY_PROFILE\""
+    exit 1
+  }
+  printf 'STAPLED: %s\n' "$artifact"
+done
+
 printf 'PASS: App release cohort build complete; composition/publishing steps remain external\n'
