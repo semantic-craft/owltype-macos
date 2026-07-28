@@ -112,4 +112,16 @@ final class FamoPolishPromptCatalogTests: XCTestCase {
     XCTAssertFalse(otherBody.contains("thinking"), "非 deepseek/mimo/doubao/qwen 不得携带任何思考控制字段")
   }
 
+  func testProviderIDBeatsModelPrefixSoDashScopeHostedDeepSeekGetsTheRightField() throws {
+    // 百炼上托管着 deepseek-* 型号：只看模型名会发 thinking:{disabled}（百炼不认），
+    // 得按档案的 providerID 发 enable_thinking:false。传空串才退回模型名判定。
+    let hosted = try FamoSelectionPolish.chatRequest(
+      for: "他撤销了合同", model: "deepseek-v3", providerID: "qwen")
+    XCTAssertEqual(hosted.enableThinking, false, "档案是百炼，就该走百炼的字段")
+    XCTAssertNil(hosted.thinking, "百炼没有 thinking 字段，塞进去只会 400")
+
+    let unknown = try FamoSelectionPolish.chatRequest(for: "他撤销了合同", model: "deepseek-v3")
+    XCTAssertEqual(unknown.thinking, .disabled, "没有档案 id 时按模型名前缀判")
+  }
+
 }

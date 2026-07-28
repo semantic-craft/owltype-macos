@@ -87,15 +87,27 @@ final class FamoGoalBriefTests: XCTestCase {
     // deepSeekStyle 三家（deepseek/mimo/doubao）都要关思考：2026-07-28 实盘豆包 turbo，
     // 隐藏思考 + 整份任务书长产出超过 60s 硬超时被掐断——只关 deepseek 前缀是不够的。
     for model in ["deepseek-v4-flash", "mimo-v2.5", "doubao-seed-2-1-turbo-260628"] {
-      XCTAssertEqual(
-        FamoGoalBrief.chatRequest(forDraft: "把词库下载做稳", model: model).thinking,
-        .disabled, "\(model) 必须关闭隐藏思考"
-      )
+      let request = FamoGoalBrief.chatRequest(forDraft: "把词库下载做稳", model: model)
+      XCTAssertEqual(request.thinking, .disabled, "\(model) 必须关闭隐藏思考")
+      XCTAssertNil(request.enableThinking, "\(model) 不得混入 qwen 的字段")
     }
-    XCTAssertNil(
-      FamoGoalBrief.chatRequest(forDraft: "把词库下载做稳", model: "qwen-plus").thinking,
-      "qwen 走 enable_thinking 方言，这个字段必须省略"
-    )
+    // qwen 也关思考（2026-07-28 实盘推翻旧的「长产出保留思考」：54.1s→17.3s 且终稿更具体），
+    // 只是走 enable_thinking 方言。
+    let qwen = FamoGoalBrief.chatRequest(forDraft: "把词库下载做稳", model: "qwen-plus")
+    XCTAssertNil(qwen.thinking, "qwen 走 enable_thinking 方言，这个字段必须省略")
+    XCTAssertEqual(qwen.enableThinking, false, "qwen 必须关闭隐藏思考")
+  }
+
+  func testProviderIDBeatsModelPrefixSoDashScopeHostedDeepSeekGetsTheRightField() {
+    // 百炼上托管着 deepseek-* 型号：只看模型名会发 thinking:{disabled}（百炼不认），
+    // 得按档案的 providerID 发 enable_thinking:false。传空串才退回模型名判定。
+    let hosted = FamoGoalBrief.chatRequest(
+      forDraft: "把词库下载做稳", model: "deepseek-v3", providerID: "qwen")
+    XCTAssertEqual(hosted.enableThinking, false, "档案是百炼，就该走百炼的字段")
+    XCTAssertNil(hosted.thinking, "百炼没有 thinking 字段，塞进去只会 400")
+
+    let unknown = FamoGoalBrief.chatRequest(forDraft: "把词库下载做稳", model: "deepseek-v3")
+    XCTAssertEqual(unknown.thinking, .disabled, "没有档案 id 时按模型名前缀判")
   }
 }
 
