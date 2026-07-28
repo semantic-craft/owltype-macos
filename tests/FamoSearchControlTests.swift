@@ -69,10 +69,27 @@ final class FamoSearchControlTests: XCTestCase {
 
   // MARK: - Wire format (field-by-field)
 
-  func testQwenExtraBodyEnablesDashScopeSearch() {
+  func testQwenExtraBodyEnablesDashScopeSearchAndForcesIt() throws {
     let body = FamoSearchControl.extraBody(providerID: "qwen", host: "dashscope.aliyuncs.com")
     XCTAssertEqual(body["enable_search"] as? Bool, true)
-    XCTAssertEqual(body.count, 1, "DashScope 只认 enable_search，多余字段会被拒")
+    // `forced_search` 文档默认 false = 模型自己判断这一问要不要联网。而署名 chip 在请求发出前就写好了
+    // 「通义千问 · 联网」——模型悄悄决定不搜时，用户拿到训练记忆却以为是实时结果。
+    let options = try XCTUnwrap(body["search_options"] as? [String: Any])
+    XCTAssertEqual(options["forced_search"] as? Bool, true)
+    XCTAssertEqual(options.count, 1, "其余 search_options 要么是默认值，要么兼容模式给不了")
+    XCTAssertEqual(body.count, 2)
+  }
+
+  /// 兼容模式（这条路走的 `/compatible-mode/v1/chat/completions`）**拿不到来源**：文档给这四个字段
+  /// 标的是「仅 DashScope 方式支持」，响应里根本没有 `search_info`。塞进来不会报错，只会让人以为
+  /// 配了却一直没有来源角标 —— 要来源得走原生端点（`FamoDashScopeSearchWire`）。
+  func testQwenExtraBodyOmitsTheDashScopeOnlySourceFields() {
+    let body = FamoSearchControl.extraBody(providerID: "qwen", host: "dashscope.aliyuncs.com")
+    let options = (body["search_options"] as? [String: Any]) ?? [:]
+    for field in ["enable_source", "enable_citation", "citation_format", "prepend_search_result"] {
+      XCTAssertNil(options[field], "\(field) 仅 DashScope 原生方式支持，兼容模式塞了也没用")
+      XCTAssertNil(body[field])
+    }
   }
 
   func testMimoExtraBodyForcesSearchAndDisablesThinking() {

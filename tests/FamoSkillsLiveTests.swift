@@ -25,7 +25,25 @@ final class FamoSkillsLiveTests: XCTestCase {
 
   private static let endpoint = URL(
     string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")!
-  private static let model = "qwen3.6-flash"
+
+  /// 打哪个型号。默认 = 百炼预设当前的默认模型，也就是新用户实际会用上的那个 —— 实盘测试要测的
+  /// 是「我们发出去的配置」，把型号写死在这里就会和预设悄悄脱节。
+  ///
+  /// `~/.famo-test-model` 覆盖它：要回答「这个技能该用 3.7-plus 还是 3.6-flash」，唯一靠谱的办法是
+  /// **同一套用例、同样的提示词，分别打两个型号看耗时**。
+  ///     echo qwen3.6-flash > ~/.famo-test-model
+  ///
+  /// ⚠️ 为什么是文件而不是环境变量（2026-07-28 踩过，代价是一整轮假对照数据）：
+  /// **xcodebuild 不会把 shell 的环境变量转发给测试宿主进程**。`FAMO_LIVE_MODEL=… xcodebuild test`
+  /// 看起来跑了、耗时也有波动，其实全程打的还是默认型号。判据很简单：喂一个不存在的型号进去，
+  /// 如果测试照样通过，就说明覆盖压根没生效。Key 走文件也是同一个原因。
+  private static let model: String = {
+    let path = ("~/.famo-test-model" as NSString).expandingTildeInPath
+    let override = (try? String(contentsOfFile: path, encoding: .utf8))?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    if let override, !override.isEmpty { return override }
+    return FamoLLMProviderCatalog.preset(id: "qwen")?.model ?? "qwen3.7-plus"
+  }()
 
   private var routing: FamoCloudRouting {
     FamoCloudRouting(
@@ -170,5 +188,123 @@ final class FamoSkillsLiveTests: XCTestCase {
     XCTAssertFalse(
       outcome.sources.isEmpty,
       "forced_search + enable_source 下应返回可跳查的来源；为空说明来源抽取断了")
+  }
+
+  // MARK: - E. 通义千问当**检索器**（搜索服务下拉里的第三档）
+
+  /// 守住这一档赖以成立的两个实盘事实（2026-07-28 首次跑通）：
+  ///
+  ///   1. **model / endpoint / content 必须配套**。原生端点分文本与多模态两条，挑错就是
+  ///      `400 InvalidParameter · url error`。实测对照：multimodal 收 qwen3.7-plus / 3.7-flash、
+  ///      拒 3.7-max；text 收 qwen-plus / 3.7-max、拒 3.7-plus / 3.7-flash。两条路 `content` 形状
+  ///      也不同（多模态要 `[{text:…}]`，纯文本要裸字符串）。跑挂成 400 就是有人只换了其中一个。
+  ///   2. **来源只能从原生端点拿**。兼容模式实测 `search_info` 恒为 ABSENT（连 `enable_source: true`
+  ///      也只是被静默忽略，`prepend_search_result` 更是直接 400「not supported in OpenAI protocol」）。
+  ///      端点被改回 compatible-mode 的话，这一档会变成永远 0 条、被静默顺位掉 —— 这条断言是那道闸。
+  ///
+  /// 顺带钉住那件反直觉的事：来源**没有正文摘要**，`snippet` 为空是 API 如此，不是解析漏了。
+  func testQwenWorksAsARetrieverOnTheNativeEndpoint() async throws {
+    let apiKey = try testAPIKey()
+
+    let results = try await FamoDashScopeSearchClient().search(
+      query: "2026 年杭州亚运会主办城市有哪些协办城市",
+      apiKey: apiKey,
+      limit: FamoStreamingChatService.webSearchResultCount)
+
+    let dump = results.enumerated()
+      .map { FamoWebSearchContext.entry(index: $0.offset + 1, result: $0.element) }
+      .joined(separator: "\n\n")
+    try? dump.write(toFile: "/tmp/famo-qwen-search.txt", atomically: true, encoding: .utf8)
+
+    XCTAssertFalse(
+      results.isEmpty,
+      "0 条 = 要么 \(FamoDashScopeSearchWire.model) 没被这个端点收编，要么 enable_source 没回来源")
+    for result in results {
+      XCTAssertTrue(result.url.hasPrefix("http"), "来源必须可跳查")
+      XCTAssertFalse(result.title.isEmpty)
+    }
+    XCTAssertTrue(
+      results.allSatisfy { $0.snippet.isEmpty },
+      "百炼的 search_results 不带摘要——真回了摘要说明 API 变了，注入上下文可以顺势加强")
+  }
+
+  // MARK: - F. 规范排版（此前唯一没有实盘覆盖的技能）
+
+  /// 这个技能的成败**不看模型说得好不好，只看它有没有忍住不改字**：`generateReplacement` 会拿
+  /// `contentFingerprint` 比对，AI 一旦顺手润色，整段输出被丢弃、回退纯规则版 —— 于是那次调用
+  /// 白花了钱和时间，而用户只会觉得「AI 排版没起作用」，不会看到任何报错。
+  ///
+  /// 越强的模型越忍不住改字，所以这条用例在换型号时尤其要跑：它是「3.7-plus 值不值」在这个技能上
+  /// 的唯一判据。
+  func testPublishFormattingReflowsWithoutChangingASingleCharacter() async throws {
+    let apiKey = try testAPIKey()
+    // 典型的 PDF 复制品：硬换行把句子拦腰截断，段落之间空行。
+    let pasted = """
+      输入法的候选窗需要在用户翻页之后才展开
+      多行，这样短词输入不会被突然变高的窗
+      口打断。
+
+      翻页后上方固定保留一行前页候选，走到
+      末页也不会掉回单行。
+      """
+    let cleaned = FamoChineseTypesetting.preClean(pasted)
+
+    let client = FamoStreamingChatClient(timeout: 90)
+    let messages = [
+      FamoDeepSeekMessage(
+        role: "system", content: FamoSelectionSkillPrompts.publishReflowSystemPrompt),
+      FamoDeepSeekMessage(role: "user", content: cleaned),
+    ]
+    var reflowed = ""
+    let started = Date()
+    for try await delta in client.stream(messages: messages, routing: routing, apiKey: apiKey) {
+      reflowed += delta
+    }
+    let elapsed = Date().timeIntervalSince(started)
+    try? reflowed.write(
+      toFile: "/tmp/famo-skill-publish.txt", atomically: true, encoding: .utf8)
+
+    XCTAssertFalse(reflowed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    XCTAssertEqual(
+      FamoChineseTypesetting.contentFingerprint(reflowed),
+      FamoChineseTypesetting.contentFingerprint(cleaned),
+      """
+      \(Self.model) 在重排时改了字，指纹护栏会丢弃它的输出、回退纯规则版 —— \
+      也就是这个技能在这个型号上「花了钱但没生效」。耗时 \(elapsed)s。
+      """)
+    XCTAssertFalse(
+      reflowed.contains("```"), "输出裹了代码块，会被原样粘进用户编辑器")
+  }
+
+  // MARK: - G. 任务书（此前只在豆包上实盘过，换到百炼要重验一次契约）
+
+  /// 任务书是全部技能里产出最长的一条，也是最容易顶穿超时的一条（1.5.12 修的正是豆包
+  /// 「隐藏思考烧穿 60s」）。换到百炼后必须重新回答两件事：七问小节齐不齐、耗时离硬超时还有多远。
+  func testGoalBriefProducesSevenSectionsWithinTheHardTimeout() async throws {
+    let apiKey = try testAPIKey()
+    let draft = """
+      我们输入法的词库下载老是断，用户一断网就得重头下，帮我把这个下载搞稳一点，\
+      最好断了能接着下，下载完还得校验一下别装出坏包。
+      """
+
+    let client = FamoGoalBriefClient(
+      endpoint: Self.endpoint, model: Self.model, authHeaderStyle: .bearer)
+    let started = Date()
+    let outcome = try await client.fetchOptimizedPrompt(
+      forDraft: draft, clarifications: [], apiKey: apiKey)
+    let elapsed = Date().timeIntervalSince(started)
+
+    guard case let .ready(brief) = outcome else {
+      return XCTFail("意图可辨的草稿应当直接出任务书，实际 \(outcome)")
+    }
+    try? brief.write(toFile: "/tmp/famo-skill-goalbrief.txt", atomically: true, encoding: .utf8)
+    XCTAssertFalse(
+      brief.hasPrefix("{"), "任务书不该是 JSON 原文——那说明解析层漏了，会把 JSON 粘进用户编辑器")
+    for section in ["目的", "完成态", "证据", "反作弊", "边界", "取舍", "未知"] {
+      XCTAssertTrue(brief.contains(section), "任务书缺〈\(section)〉一节：\(brief.prefix(200))")
+    }
+    // 60s 是产品侧硬超时；实盘要留重试余量，逼近就该换型号而不是等线上被掐断。
+    XCTAssertLessThan(
+      elapsed, 55, "\(Self.model) 出一份任务书要 \(elapsed)s，逼近 60s 硬超时 —— 该换更快的型号")
   }
 }
