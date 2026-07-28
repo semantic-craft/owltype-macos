@@ -38,17 +38,22 @@ enum FamoGoalBriefError: Error, Equatable {
 struct FamoGoalBriefClient: FamoPromptOptimizeFetching {
   let endpoint: URL
   let model: String
+  /// 活跃档案的供应商 id，用来选关思考的字段方言（见 `FamoThinkingControl`）。
+  /// 默认空串 = 不知道档案 id，退回按 model 前缀判定。
+  let providerID: String
   let authHeaderStyle: FamoProviderAuthHeaderStyle
   let urlSession: URLSession
 
   init(
     endpoint: URL = FamoCloudPreferences.deepSeekEndpoint,
     model: String = FamoCloudPreferences.deepSeekModel,
+    providerID: String = "",
     authHeaderStyle: FamoProviderAuthHeaderStyle = .bearer,
     urlSession: URLSession = .shared
   ) {
     self.endpoint = endpoint
     self.model = model
+    self.providerID = providerID
     self.authHeaderStyle = authHeaderStyle
     self.urlSession = urlSession
   }
@@ -71,7 +76,7 @@ struct FamoGoalBriefClient: FamoPromptOptimizeFetching {
     request.timeoutInterval = FamoPromptOptimizer.requestTimeout
     request.httpBody = try JSONEncoder().encode(
       FamoGoalBrief.chatRequest(
-        forDraft: draft, clarifications: clarifications, model: model)
+        forDraft: draft, clarifications: clarifications, model: model, providerID: providerID)
     )
 
     let (data, response) = try await urlSession.data(for: request)
@@ -162,6 +167,7 @@ final class FamoGoalBriefService {
       ?? FamoGoalBriefClient(
         endpoint: routing.endpoint,
         model: routing.model,
+        providerID: routing.providerID,
         authHeaderStyle: routing.authHeaderStyle
       )
     return try await fetcher.fetchOptimizedPrompt(
@@ -208,7 +214,8 @@ enum FamoGoalBrief {
   static func chatRequest(
     forDraft draft: String,
     clarifications: [FamoPromptClarification] = [],
-    model: String
+    model: String,
+    providerID: String = ""
   ) -> FamoDeepSeekChatRequest {
     var messages = [
       FamoDeepSeekMessage(role: "system", content: systemPrompt),
@@ -227,22 +234,16 @@ enum FamoGoalBrief {
         ))
     }
 
-    // 全家关思考，逐家形状由 `FamoThinkingControl` 统一给（这里曾经手写过一份前缀判断）。
-    //
-    // deepSeekStyle 三家：2026-07-28 实盘豆包 turbo，隐藏思考 + 整份任务书长产出超过 60s 硬超时被
-    // 掐断（短澄清响应都带 254 个 reasoning token）——超时归零比推理增益致命。
-    //
-    // qwen 从「保留思考」改成关（2026-07-28 实盘推翻了原来的判断）。原注释写的是「推理对补齐七问
-    // 有实益」，同一条草稿、同一段 system prompt 实测：
-    //     qwen3.7-plus 思考开   54.1s，七问 7/7，1219 字（其中 2256 token 是推理）
-    //     qwen3.7-plus 思考关   17.3s，七问 7/7，1404 字
-    // 不但快 3 倍，产出还更具体（关思考那版在〈证据〉里点到了 Range 偏移量断言、单测/集成测分工，
-    // 开思考那版只写「提供测试用例」）。而且 54.1s 离 60s 硬超时只剩 6 秒 —— 复跑一次就摸到 55.2s，
-    // 这不是「慢一点」，是随时会被掐断。
-    //
-    // 顺带一个不能忘的对照：现在出厂默认若还是 qwen3.6-flash 开思考，同一条草稿要 36.4s。
-    // 也就是说「3.7-plus 关思考」比旧默认又快一倍，不需要为了速度退回小模型。
-    let off = FamoThinkingControl.offFields(providerID: "", model: model)
+    // 全家一律关思考，逐家字段形状由 FamoThinkingControl 单一真相给出：providerID 优先
+    // （自定义档案的模型名可能不带标准前缀），传空时退回 model 前缀判定。
+    // · deepSeekStyle 三家（deepseek / mimo / doubao）：2026-07-28 实盘豆包 turbo，隐藏思考 +
+    //   整份任务书长产出超过 60s 硬超时被掐断（短澄清响应都带 254 个 reasoning token）——
+    //   超时归零比推理增益致命。
+    // · qwen：曾**故意保留**思考（理由是「长产出质量优先，推理对补齐七问有实益」），2026-07-28
+    //   实盘推翻——qwen3.7-plus 关思考 54.1s→17.3s，七问同样 7/7，终稿反而从 1219 字涨到 1404 字
+    //   且更具体（〈证据〉一节从「提供测试用例」写到了偏移量断言）。2256 个推理 token 没换来更好
+    //   的终稿，却把耗时顶到离 60s 硬超时只剩 6 秒（复跑摸到过 55.2s）。
+    let thinkingOff = FamoThinkingControl.offFields(providerID: providerID, model: model)
 
     return FamoDeepSeekChatRequest(
       model: model,
@@ -251,8 +252,8 @@ enum FamoGoalBrief {
       temperature: 0.2,
       stream: false,
       responseFormat: .jsonObject,
-      thinking: off.thinking,
-      enableThinking: off.enableThinking
+      thinking: thinkingOff.thinking,
+      enableThinking: thinkingOff.enableThinking
     )
   }
 }

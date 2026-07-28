@@ -188,16 +188,27 @@ final class FamoPromptOptimizerTests: XCTestCase {
     // MiMo/豆包与 DeepSeek 共用同一关思考形状（FamoThinkingControl.deepSeekStyle）；
     // 豆包实测默认开隐藏思考，长产出 + 思考会顶穿 60s 硬超时。qwen 不认这个字段，必须省略。
     for model in ["deepseek-v4-flash", "mimo-8b-chat", "doubao-seed-2-1-turbo-260628"] {
-      XCTAssertEqual(
-        FamoPromptOptimizer.chatRequest(forDraft: "帮我写个爬虫", model: model).thinking,
-        .disabled,
-        "\(model) 该关隐藏思考"
-      )
+      let request = FamoPromptOptimizer.chatRequest(forDraft: "帮我写个爬虫", model: model)
+      XCTAssertEqual(request.thinking, .disabled, "\(model) 该关隐藏思考")
+      XCTAssertNil(request.enableThinking, "\(model) 不得混入 qwen 的字段")
     }
-    XCTAssertNil(
-      FamoPromptOptimizer.chatRequest(forDraft: "帮我写个爬虫", model: "qwen-plus").thinking,
-      "非 DeepSeek 系供应商不认这个字段，必须省略"
-    )
+    // qwen 也关思考（2026-07-28 实盘推翻旧的「长产出保留思考」：40.9s→8.2s，5 个 XML 分区不变），
+    // 只是走 enable_thinking 方言。
+    let qwen = FamoPromptOptimizer.chatRequest(forDraft: "帮我写个爬虫", model: "qwen-plus")
+    XCTAssertNil(qwen.thinking, "非 DeepSeek 系供应商不认这个字段，必须省略")
+    XCTAssertEqual(qwen.enableThinking, false, "qwen 必须关闭隐藏思考")
+  }
+
+  func testProviderIDBeatsModelPrefixSoDashScopeHostedDeepSeekGetsTheRightField() {
+    // 百炼上托管着 deepseek-* 型号：只看模型名会发 thinking:{disabled}（百炼不认），
+    // 得按档案的 providerID 发 enable_thinking:false。传空串才退回模型名判定。
+    let hosted = FamoPromptOptimizer.chatRequest(
+      forDraft: "帮我写个爬虫", model: "deepseek-v3", providerID: "qwen")
+    XCTAssertEqual(hosted.enableThinking, false, "档案是百炼，就该走百炼的字段")
+    XCTAssertNil(hosted.thinking, "百炼没有 thinking 字段，塞进去只会 400")
+
+    let unknown = FamoPromptOptimizer.chatRequest(forDraft: "帮我写个爬虫", model: "deepseek-v3")
+    XCTAssertEqual(unknown.thinking, .disabled, "没有档案 id 时按模型名前缀判")
   }
 
   /// qwen 也要关思考。这条一度是反的（注释写着「推理对补齐四要素有实益，用户愿等」），
