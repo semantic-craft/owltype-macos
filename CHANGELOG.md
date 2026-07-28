@@ -1,3 +1,14 @@
+<a name="1.5.15"></a>
+## 1.5.15 (2026-07-29)
+
+### 主要功能更新 | Major Updates
+- 皮肤增加第 9 套「怀德纳红」（哈佛大学配色）(#77)
+  - 取色自哈佛自家品牌规范，官方色逐字节照搬四支：Crimson #A51C30 作选中胶囊、Black #1E1E1E 作正文墨、Parchment #F3F3F1 作卡片、Mortar #8C8179 作辅助墨——正是哈佛红砖配灰浆的「brick and mortar」
+  - 命名循胡佛红（Hoover Tower）的地标建筑法，而不是纽约紫 / 黑文蓝的城市法：哈佛所在的 Cambridge 中译「剑桥」在中文里几乎专指剑桥大学，叫「剑桥红」会被读错，故取哈佛园正中心的列柱大馆 Widener Library 定名
+  - 三套红靠纸面分家：荔园红暖羊皮纸、胡佛红冷蓝灰、怀德纳红中性灰白纸配暖灰墨
+
+**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.14...1.5.15
+
 <a name="1.5.14"></a>
 ## 1.5.14 (2026-07-29)
 
