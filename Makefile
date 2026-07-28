@@ -145,8 +145,6 @@ release: $(DEPS_CHECK)
 	$(MAKE) copy-famo-seed FAMO_CONFIG=Release
 	python3 scripts/finalize-release-bundle.py \
 		"$(DERIVED_DATA_PATH)/Build/Products/Release/Famo.app"
-	bash scripts/check-secrets.sh --artifacts \
-		"$(DERIVED_DATA_PATH)/Build/Products/Release/Famo.app"
 
 debug: $(DEPS_CHECK)
 	mkdir -p $(DERIVED_DATA_PATH)
@@ -296,6 +294,14 @@ privacy-gate:
 	bash scripts/check-public-source.sh
 	bash scripts/check-public-privacy.selftest.sh
 	bash scripts/check-secrets.sh
+	@# 产物侧的密钥扫描只能挂在这里：`release` 目标会被没装扫描器的 build job 走到
+	@# （action-build.sh package → make package → release），而 gitleaks/trufflehog 只在
+	@# source-ci 的 release-gate job 里 brew install。privacy-gate 本身就硬依赖这两个工具，
+	@# 且在 `release-gate: test source-archive privacy-gate` 里排在两个产物都生成之后。
+	@# 产物不存在时脚本打 SKIP 而非报错，所以单独跑 `make privacy-gate` 仍然可用。
+	bash scripts/check-secrets.sh --artifacts \
+		"$(DERIVED_DATA_PATH)/Build/Products/Release/Famo.app" \
+		"$(DERIVED_DATA_PATH)"/release/*-source.tar.gz
 
 release-gate: test source-archive privacy-gate
 	bash -n action-install.sh scripts/*.sh
