@@ -246,8 +246,8 @@ enum FamoQuickSendExamples {
       note: "绕过审批与沙箱"
     ),
     FamoQuickSendExample(
-      tool: "Qwen Code",
-      entry: FamoQuickSendEntry(text: "qwen --yolo", code: "yoqw"),
+      tool: "Qoder",
+      entry: FamoQuickSendEntry(text: "qodercli --yolo", code: "yoqd"),
       note: "YOLO 自动批准"
     ),
     FamoQuickSendExample(
@@ -259,11 +259,6 @@ enum FamoQuickSendExamples {
       tool: "Grok",
       entry: FamoQuickSendEntry(text: "grok --always-approve", code: "yogk"),
       note: "自动批准"
-    ),
-    FamoQuickSendExample(
-      tool: "Antigravity",
-      entry: FamoQuickSendEntry(text: "agy --dangerously-skip-permissions", code: "yoag"),
-      note: "新工具，建议 agy --help 复核"
     ),
   ]
 }
