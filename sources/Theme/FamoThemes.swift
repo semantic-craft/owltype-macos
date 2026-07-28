@@ -5,7 +5,7 @@
 //  The 荔园红 (shenda) palette ships in `FamoCandidatePanelState.swift`; this file adds
 //  the other eight skins from the project color source of truth
 //  `packages/rime-law-config/skins/colors.md` (胡佛红 / 珞珈青 / 嘉庚蓝 / 香槟橙藏蓝 / 香槟橙燃橙 /
-//  纽约紫) plus 黑文蓝 and 剑桥红 (sourced from Yale's and Harvard's own brand guides — see their
+//  纽约紫) plus 黑文蓝 and 怀德纳红 (sourced from Yale's and Harvard's own brand guides — see their
 //  doc comments), plus the `FamoSkin` enum and its UserDefaults home, so the 皮肤外观 settings page
 //  can switch the whole candidate panel + settings window palette.
 //
@@ -152,7 +152,9 @@ extension FamoCandidateTheme {
     )
   )
 
-  /// 剑桥红 / harvard — 哈佛大学（Cambridge 剑桥市，循 nyu / yale 的城市命名法）。源为哈佛自家
+  /// 怀德纳红 / harvard — 哈佛大学（Widener Library 怀德纳图书馆，哈佛园正中心的列柱大馆）。
+  /// 循胡佛红（Hoover Tower）的地标建筑命名法，而非 nyu / yale 的城市命名法 —— 哈佛所在的
+  /// Cambridge 译作「剑桥」，拿来命名会被读成剑桥大学。源为哈佛自家
   /// 品牌规范 (identityguide.hms.harvard.edu/brand-design/colors)，非 colors.md：官方色逐字节
   /// 照搬四个 —— Crimson #A51C30 (PMS 187) 作选中胶囊、Black #1E1E1E 作正文墨、
   /// Parchment #F3F3F1 (Cool Gray 1) 作 card2、Mortar #8C8179 (Warm Gray 8) 作 ink3，
@@ -207,7 +209,7 @@ enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
     case .illinoisflame: return "香槟橙（燃橙）"
     case .nyu: return "纽约紫"
     case .yale: return "黑文蓝"
-    case .harvard: return "剑桥红"
+    case .harvard: return "怀德纳红"
     }
   }
 
