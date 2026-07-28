@@ -227,11 +227,22 @@ enum FamoGoalBrief {
         ))
     }
 
-    // deepSeekStyle 三家（deepseek / mimo / doubao，前缀判定对齐 FamoThinkingControl.resolved）
-    // 一律关思考：2026-07-28 实盘豆包 turbo，隐藏思考 + 整份任务书长产出超过 60s 硬超时被掐断
-    // （短澄清响应都带 254 个 reasoning token）——超时归零比推理增益致命。
-    let m = model.lowercased()
-    let disablesThinking = m.hasPrefix("deepseek") || m.hasPrefix("mimo") || m.hasPrefix("doubao")
+    // 全家关思考，逐家形状由 `FamoThinkingControl` 统一给（这里曾经手写过一份前缀判断）。
+    //
+    // deepSeekStyle 三家：2026-07-28 实盘豆包 turbo，隐藏思考 + 整份任务书长产出超过 60s 硬超时被
+    // 掐断（短澄清响应都带 254 个 reasoning token）——超时归零比推理增益致命。
+    //
+    // qwen 从「保留思考」改成关（2026-07-28 实盘推翻了原来的判断）。原注释写的是「推理对补齐七问
+    // 有实益」，同一条草稿、同一段 system prompt 实测：
+    //     qwen3.7-plus 思考开   54.1s，七问 7/7，1219 字（其中 2256 token 是推理）
+    //     qwen3.7-plus 思考关   17.3s，七问 7/7，1404 字
+    // 不但快 3 倍，产出还更具体（关思考那版在〈证据〉里点到了 Range 偏移量断言、单测/集成测分工，
+    // 开思考那版只写「提供测试用例」）。而且 54.1s 离 60s 硬超时只剩 6 秒 —— 复跑一次就摸到 55.2s，
+    // 这不是「慢一点」，是随时会被掐断。
+    //
+    // 顺带一个不能忘的对照：现在出厂默认若还是 qwen3.6-flash 开思考，同一条草稿要 36.4s。
+    // 也就是说「3.7-plus 关思考」比旧默认又快一倍，不需要为了速度退回小模型。
+    let off = FamoThinkingControl.offFields(providerID: "", model: model)
 
     return FamoDeepSeekChatRequest(
       model: model,
@@ -240,10 +251,8 @@ enum FamoGoalBrief {
       temperature: 0.2,
       stream: false,
       responseFormat: .jsonObject,
-      thinking: disablesThinking ? .disabled : nil,
-      // qwen 的思考保留：整份任务书是质量优先的长产出，推理对补齐七问有实益；
-      // 提示词优化实测百炼 20s 出 1.3KB，60s 扛得住。
-      enableThinking: nil
+      thinking: off.thinking,
+      enableThinking: off.enableThinking
     )
   }
 }

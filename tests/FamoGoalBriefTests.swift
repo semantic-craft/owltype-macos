@@ -97,6 +97,21 @@ final class FamoGoalBriefTests: XCTestCase {
       "qwen 走 enable_thinking 方言，这个字段必须省略"
     )
   }
+
+  /// qwen 也要关思考。这条一度是反的（`enableThinking: nil` = 保留思考，理由写着「推理对补齐七问
+  /// 有实益」），2026-07-28 实盘把它推翻了：同一条草稿 qwen3.7-plus 思考开 54.1s / 七问 7/7 /
+  /// 1219 字，思考关 17.3s / 七问 7/7 / 1404 字 —— 快 3 倍且产出更具体。更要紧的是 54.1s 离 60s
+  /// 硬超时只剩 6 秒（复跑摸到过 55.2s），那不是慢一点，是随时会被掐断。
+  func testHiddenReasoningIsAlsoDisabledForQwenLongOutput() {
+    for model in ["qwen-plus", "qwen3.7-plus", "qwen3.6-flash"] {
+      XCTAssertEqual(
+        FamoGoalBrief.chatRequest(forDraft: "把词库下载做稳", model: model).enableThinking,
+        false, "\(model) 开着思考会把整份任务书拖到 60s 硬超时边上")
+    }
+    // 别家不得混入 qwen 的字段（请求体要逐字节不变）。
+    XCTAssertNil(
+      FamoGoalBrief.chatRequest(forDraft: "把词库下载做稳", model: "deepseek-v4-flash").enableThinking)
+  }
 }
 
 // MARK: - 服务层（守卫与穿层，复用 FamoPromptOptimizerTests 的 fake fetcher）
