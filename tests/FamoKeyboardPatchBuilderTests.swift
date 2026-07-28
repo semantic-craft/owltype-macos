@@ -126,9 +126,11 @@ final class FamoKeyboardPatchBuilderTests: XCTestCase {
 
   func testWubiCustomPatchEmitsCodeHintAutoClearAndSingleCharMode() {
     let normal = famoWubiCustomYAML(from: snapshot(.wubi), target: famoWubiPatchTargets[0])
-    XCTAssertTrue(normal.contains("\"translator/comment_format\":"))
-    XCTAssertTrue(normal.contains("\"reverse_lookup/comment_format\":"))
-    XCTAssertTrue(normal.contains("xform/.+//"))
+    // 候选编码提示默认关：只压五笔那一路的注释。z 临时拼音反查的注释是主方案词典反查出的
+    // 五笔编码（练习用），恒开，不跟着这个开关被 xform 抹掉。
+    XCTAssertTrue(normal.contains("\"translator/comment_format\":\n    - xform/.+//"))
+    XCTAssertTrue(normal.contains("\"reverse_lookup/comment_format\": []"))
+    XCTAssertFalse(normal.contains("\"reverse_lookup/comment_format\":\n    - xform/.+//"))
     XCTAssertTrue(normal.contains("\"speller/auto_clear\": \"\""))
     XCTAssertFalse(normal.contains("lua_filter@*wubi86_jidian_single_char_first_filter"))
     XCTAssertFalse(normal.contains("lua_filter@*wubi86_jidian_single_char_only"))
