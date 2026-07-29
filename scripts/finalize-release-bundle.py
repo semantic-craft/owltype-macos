@@ -164,7 +164,6 @@ def main() -> None:
     if forbidden:
         fail(f"forbidden release content: {', '.join(forbidden)}")
 
-    native = {relative for relative, path in files if is_macho(path)}
     native_targets = {
         path.resolve().relative_to(app).as_posix()
         for _, path in files
