@@ -84,3 +84,7 @@ COPYFILE_DISABLE=1 tar -czf "$output_dir/$archive_name" -C "$stage" "$archive_ro
 
 echo "PASS: corresponding source archive written to $output_dir/$archive_name"
 echo "PASS: source revision $revision"
+
+# 源码包是「对外流通的那份源码」，而且它带着 submodule 源码（librime / plum / librime-lua /
+# Sparkle）——`check-secrets.sh` 的历史扫描只覆盖主仓可达历史，碰不到这部分。谁产出产物谁设闸。
+bash "$repo_root/scripts/check-secrets.sh" --artifacts "$output_dir/$archive_name"
