@@ -18,6 +18,10 @@ from pathlib import Path
 
 MANIFEST_NAME = "FAMOTYPE-FILE-MANIFEST.sha256"
 SBOM_NAME = "FAMOTYPE-SBOM.spdx.json"
+# Binds an inventory to the commit and version it was taken from. Without it,
+# "the inventory exists" is not the same claim as "the inventory describes the
+# App built from this source" — see the staleness check in create-source-archive.sh.
+PROVENANCE_NAME = "FAMOTYPE-APP-PROVENANCE.txt"
 
 COMPONENTS = (
     ("Famotype", None, "GPL-3.0-only", "https://github.com/semantic-craft/famotype-macos"),
@@ -104,20 +108,37 @@ def make_sbom(app: Path, version: str, revision: str, created: str) -> dict:
     }
 
 
-def write_inventory(app: Path, output_dir: Path, version: str, revision: str, created: str) -> int:
-    """Write the manifest and SBOM for `app` into `output_dir`; return the file count.
+def manifest_text(app: Path) -> str:
+    """The manifest body for `app`, in `shasum -c` format.
 
-    Covers the bundle completely — nothing is excluded, because neither output
-    lands inside the bundle. Re-running against an unchanged bundle reproduces
-    both files byte for byte.
+    Single source of truth for both writing and re-verifying, so a staleness
+    check can never disagree with the writer about formatting or ordering.
+    """
+    return "\n".join(f"{sha256(path)}  {relative}" for relative, path in relative_files(app)) + "\n"
+
+
+def read_provenance(output_dir: Path) -> dict[str, str]:
+    stamp = {}
+    for line in (output_dir / PROVENANCE_NAME).read_text().splitlines():
+        key, _, value = line.partition(" ")
+        if key:
+            stamp[key] = value
+    return stamp
+
+
+def write_inventory(app: Path, output_dir: Path, version: str, revision: str, created: str) -> int:
+    """Write the manifest, SBOM and provenance stamp for `app` into `output_dir`.
+
+    Covers the bundle completely — nothing is excluded, because none of the
+    outputs land inside the bundle. Re-running against an unchanged bundle
+    reproduces every file byte for byte. Returns the inventoried file count.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
-    files = relative_files(app)
+    body = manifest_text(app)
 
     (output_dir / SBOM_NAME).write_text(
         json.dumps(make_sbom(app, version, revision, created), ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     )
-    (output_dir / MANIFEST_NAME).write_text(
-        "\n".join(f"{sha256(path)}  {relative}" for relative, path in files) + "\n"
-    )
-    return len(files)
+    (output_dir / MANIFEST_NAME).write_text(body)
+    (output_dir / PROVENANCE_NAME).write_text(f"version {version}\nrevision {revision}\n")
+    return len(body.splitlines())
