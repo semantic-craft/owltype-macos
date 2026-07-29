@@ -120,7 +120,7 @@ copy-famo-seed:
 	@if [ -d data/famo-rime ]; then \
 		expected=$$(grep -oE 'case \.pinyin: return "[a-z][a-z0-9_]*"' sources/Settings/FamoKeyboardPreferences.swift | sed -E 's/.*"([a-z0-9_]+)".*/\1/' | head -1); \
 		if [ -n "$$expected" ] && [ ! -f "data/famo-rime/$$expected.schema.yaml" ]; then \
-			echo "[famo] ERROR: seed 陈旧 — data/famo-rime/ 缺 $$expected.schema.yaml（代码默认拼音 schema = $$expected，见 FamoKeyboardPreferences .pinyin）"; \
+			echo "[famo] ERROR: seed 陈旧 — data/famo-rime/ 缺 $$expected.schema.yaml（代码默认拼音 schema = $${expected}，见 FamoKeyboardPreferences .pinyin）"; \
 			echo "[famo]        运行 'make famo-seed' 重新生成自包含 Rime 种子后再构建（07-07-schema-consistency-guard）。"; \
 			exit 1; \
 		fi; \
