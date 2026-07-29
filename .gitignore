@@ -17,6 +17,9 @@ package/Famo*.zip
 # 发 Release 时给 DMG/pkg 生成的校验和清单。不 ignore 会以未跟踪文件留在树里，卡住**下一版**
 # `make source-archive` 的洁净门（要求连未跟踪文件都干净）——1.5.8 与 1.5.14 各被咬过一次。
 package/Famo*.sha256
+# 同一道洁净门：release 链里的 python 脚本 import scripts/famo_bundle.py，跑一次就落一个
+# __pycache__/，紧接着的 make source-archive 会被自己上一步弄脏的树卡住。
+scripts/__pycache__/
 package/sign/*.pem
 package/test-*
 package/generate_keys

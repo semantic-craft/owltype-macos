@@ -48,9 +48,20 @@ bash scripts/check-manifest.sh
 bash scripts/check-release.sh --automated-only
 # 出厂 app bundle 的密钥扫描。CI 侧同一道闸挂在 privacy-gate（那儿才装扫描器）；本地发版不走
 # privacy-gate，所以这里显式再调一次。源码包那份由 create-source-archive.sh 自己扫。
-bash scripts/check-secrets.sh --artifacts "build/Build/Products/Release/Famo.app"
+bash scripts/check-secrets.sh --artifacts "build/Build/Products/Release/Famo.app" \
+  "build/release/FAMOTYPE-FILE-MANIFEST.sha256" "build/release/FAMOTYPE-SBOM.spdx.json"
 
 for artifact in package/Famo.dmg package/Famo.pkg package/Famo-update.pkg package/appcast.xml; do
+  [[ -s "$artifact" ]] || {
+    echo >&2 "ERROR: missing App cohort output: $artifact"
+    exit 1
+  }
+  printf 'OUTPUT: %s\n' "$HERE/$artifact"
+done
+
+# 出厂盘点是给下载者验签用的（cd Famo.app && shasum -a 256 -c FAMOTYPE-FILE-MANIFEST.sha256），
+# 只有跟着上架才有意义 —— 所以和 dmg/pkg 一样列进 OUTPUT，由发布环节一并上传。
+for artifact in build/release/FAMOTYPE-FILE-MANIFEST.sha256 build/release/FAMOTYPE-SBOM.spdx.json; do
   [[ -s "$artifact" ]] || {
     echo >&2 "ERROR: missing App cohort output: $artifact"
     exit 1
