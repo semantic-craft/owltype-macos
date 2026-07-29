@@ -6,14 +6,30 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 app="${1:-}"
 output_dir="${2:-}"
 
+[[ -n "$app" && -n "$output_dir" ]] || {
+  echo "usage: $0 /path/to/Famo.app /path/to/output-directory" >&2
+  exit 1
+}
 [[ -f "$app/Contents/Info.plist" ]] || {
-  echo "usage: $0 /path/to/Famo.app /path/to/output-directory" >&2
+  echo "缺少已构建的 Famo.app: ${app}（先跑 make notarized-app / make dmg）" >&2
   exit 1
 }
-[[ -n "$output_dir" ]] || {
-  echo "usage: $0 /path/to/Famo.app /path/to/output-directory" >&2
+
+# provenance 里的 app-manifest 必须指向**出厂那份 app** 的盘点，也就是 notarized-app 在签名 +
+# 公证 + staple 之后写出来的这份。曾经它指向 bundle 内那份 finalize 期清单，而 make source-archive
+# 会重跑 finalize、在 staple 之后再写一次 —— 于是源码包记的哈希在任何出厂产物里都找不到。
+app_manifest="$output_dir/FAMOTYPE-FILE-MANIFEST.sha256"
+[[ -f "$app_manifest" ]] || {
+  # 变量名必须加花括号：紧跟其后的是全角括号，裸 $app_manifest 会把它的首字节吃进变量名。
+  echo "缺少出厂盘点 ${app_manifest}（先跑 make notarized-app / make dmg）" >&2
   exit 1
 }
+
+# 「盘点存在」不等于「盘点描述的就是这份源码构建出来的 app」：DerivedData 跨 commit 存活，
+# 而本脚本要求洁净工作区，恰恰逼着操作者在 make dmg 之后、跑本脚本之前提交——那一提交就让
+# HEAD 走了。不验的话，就是拿今天的源码配昨天的二进制，正是本次改动要消灭的那类错位。
+# --check 复核两件事：盘点记录的 revision == HEAD，且清单仍然逐字节吻合盘上那个 bundle。
+python3 "$repo_root/scripts/inventory-release-bundle.py" --check "$app" "$output_dir"
 [[ -d "$repo_root/data/famo-rime" ]] || {
   echo "data/famo-rime is missing; run make famo-seed" >&2
   exit 1
@@ -51,7 +67,7 @@ rsync -a "$repo_root/data/famo-rime/." "$stage/$archive_root/data/famo-rime/"
   echo "root $revision"
   git -C "$repo_root" submodule status --recursive
   echo "seed $(shasum -a 256 "$repo_root/data/famo-rime/FAMOTYPE-SEED-MANIFEST.txt" | awk '{print $1}')"
-  echo "app-manifest $(shasum -a 256 "$app/Contents/Resources/FAMOTYPE-FILE-MANIFEST.sha256" | awk '{print $1}')"
+  echo "app-manifest $(shasum -a 256 "$app_manifest" | awk '{print $1}')"
 } > "$stage/$archive_root/FAMOTYPE-SOURCE-PROVENANCE.txt"
 
 (
