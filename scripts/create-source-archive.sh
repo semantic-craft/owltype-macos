@@ -6,12 +6,22 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 app="${1:-}"
 output_dir="${2:-}"
 
-[[ -f "$app/Contents/Info.plist" ]] || {
+[[ -n "$app" && -n "$output_dir" ]] || {
   echo "usage: $0 /path/to/Famo.app /path/to/output-directory" >&2
   exit 1
 }
-[[ -n "$output_dir" ]] || {
-  echo "usage: $0 /path/to/Famo.app /path/to/output-directory" >&2
+[[ -f "$app/Contents/Info.plist" ]] || {
+  echo "缺少已构建的 Famo.app: ${app}（先跑 make notarized-app / make dmg）" >&2
+  exit 1
+}
+
+# provenance 里的 app-manifest 必须指向**出厂那份 app** 的盘点，也就是 notarized-app 在签名 +
+# 公证 + staple 之后写出来的这份。曾经它指向 bundle 内那份 finalize 期清单，而 make source-archive
+# 会重跑 finalize、在 staple 之后再写一次 —— 于是源码包记的哈希在任何出厂产物里都找不到。
+app_manifest="$output_dir/FAMOTYPE-FILE-MANIFEST.sha256"
+[[ -f "$app_manifest" ]] || {
+  # 变量名必须加花括号：紧跟其后的是全角括号，裸 $app_manifest 会把它的首字节吃进变量名。
+  echo "缺少出厂盘点 ${app_manifest}（先跑 make notarized-app / make dmg）" >&2
   exit 1
 }
 [[ -d "$repo_root/data/famo-rime" ]] || {
@@ -51,7 +61,7 @@ rsync -a "$repo_root/data/famo-rime/." "$stage/$archive_root/data/famo-rime/"
   echo "root $revision"
   git -C "$repo_root" submodule status --recursive
   echo "seed $(shasum -a 256 "$repo_root/data/famo-rime/FAMOTYPE-SEED-MANIFEST.txt" | awk '{print $1}')"
-  echo "app-manifest $(shasum -a 256 "$app/Contents/Resources/FAMOTYPE-FILE-MANIFEST.sha256" | awk '{print $1}')"
+  echo "app-manifest $(shasum -a 256 "$app_manifest" | awk '{print $1}')"
 } > "$stage/$archive_root/FAMOTYPE-SOURCE-PROVENANCE.txt"
 
 (

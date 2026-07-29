@@ -28,7 +28,12 @@ on-device, store it with restrictive permissions and never log its text.
 - `bash scripts/check-public-source.sh` passes on the exact commit to be published;
 - Gitleaks and TruffleHog report no verified or unreviewed secrets on the exact Git history;
 - the full test suite and a clean unsigned Release build pass;
-- the final App bundle is inventoried, including every executable, dynamic library and data set;
+- the final App bundle is inventoried, including every executable, dynamic library and data set. The
+  inventory is taken **after** Developer ID signing and `xcrun stapler staple`, because both rewrite
+  the bundle, and it is written outside the bundle so that taking it cannot alter what it describes.
+  `FAMOTYPE-FILE-MANIFEST.sha256` and `FAMOTYPE-SBOM.spdx.json` land under `<derived-data>/release/`
+  and are published alongside the App, so anyone can verify a download with
+  `cd Famo.app && shasum -a 256 -c /path/to/FAMOTYPE-FILE-MANIFEST.sha256`;
 - `THIRD_PARTY_NOTICES.md`, complete license texts, Credits, pinned source revisions and corresponding
   source are shipped for that exact inventory;
 - no dependency or data source remains on a floating branch for a public binary release;
@@ -36,8 +41,12 @@ on-device, store it with restrictive permissions and never log its text.
   noreply identity.
 
 Run `make famo-seed` and then `make release-gate DERIVED_DATA_PATH=build/release-gate` on a clean
-worktree. The gate emits the corresponding source archive and its SHA-256 file under
-`build/release-gate/release/`; publish those files with the exact App built by the same invocation.
+worktree. The gate emits the corresponding source archive, its SHA-256 file, and the App inventory
+under `build/release-gate/release/`; publish those files with the exact App built by the same
+invocation. The archive's `FAMOTYPE-SOURCE-PROVENANCE.txt` records the App manifest's own SHA-256 as
+`app-manifest`, which is what ties the published source to the published binary — so the inventory
+must already exist when the archive is built, and `make source-archive` deliberately does not rebuild
+the App (rebuilding would strip the signatures off the bundle that actually shipped).
 
 Public source and public binaries are separate decisions. Passing the source gates does not permit a
 binary release while any provenance or corresponding-source gate remains open.
