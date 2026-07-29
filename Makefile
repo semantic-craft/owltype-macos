@@ -191,6 +191,14 @@ ifdef DEV_ID
 	xcrun stapler staple "$(DERIVED_DATA_PATH)/Build/Products/Release/Famo.app"
 	rm package/Famo-app.zip
 endif
+	@# 出厂盘点必须描述**最终出厂的那份 app**，所以固定排在 ifdef 块之后：签名会重写全部 12 个
+	@# 原生二进制，staple 会往 Contents/CodeResources 写公证票，两者都发生在 finalize 之后。
+	@# 盘点写在 bundle **外面**——写进 Contents/Resources 就会改变被盘点的对象本身，结果取决于
+	@# 跑过几次、以及上一版在 DerivedData 里留下了什么（1.5.14 出厂清单记的就是上一版的公证票）。
+	@# 未签名构建（CI 无 DEV_ID）同样出盘点，描述的就是那份未签名 app。
+	python3 scripts/inventory-release-bundle.py \
+		"$(DERIVED_DATA_PATH)/Build/Products/Release/Famo.app" \
+		"$(DERIVED_DATA_PATH)/release"
 
 $(PACKAGE): notarized-app
 	bash package/make_package "$(DERIVED_DATA_PATH)"
@@ -282,7 +290,11 @@ test: $(DEPS_CHECK)
 		CODE_SIGN_IDENTITY=- \
 		test
 
-source-archive: release
+# 刻意**不**依赖 `release`：那个目标会重跑 finalize，把已经签名+公证+staple 的 bundle 重新剥
+# 签名，于是源码包记的 provenance 描述的是一份从未出厂的中间态（1.5.14 就是这么错位的）。
+# 这里只消费 notarized-app 已经写好的出厂盘点；盘点不存在时 create-source-archive.sh 报错并
+# 指明先跑 make notarized-app / make dmg。
+source-archive:
 	bash scripts/create-source-archive.sh \
 		"$(DERIVED_DATA_PATH)/Build/Products/Release/Famo.app" \
 		"$(DERIVED_DATA_PATH)/release"
@@ -297,11 +309,17 @@ privacy-gate:
 	@# 产物侧的密钥扫描只能挂在这里：`release` 目标会被没装扫描器的 build job 走到
 	@# （action-build.sh package → make package → release），而 gitleaks/trufflehog 只在
 	@# source-ci 的 release-gate job 里 brew install。privacy-gate 本身就硬依赖这两个工具，
-	@# 且在 `release-gate: test source-archive privacy-gate` 里排在两个产物都生成之后。
+	@# 且在 `release-gate: test notarized-app source-archive privacy-gate` 里排在产物都生成之后。
 	@# 产物不存在时脚本打 SKIP 而非报错，所以单独跑 `make privacy-gate` 仍然可用。
+	@# 盘点那两份从 bundle 内挪到了 release/，它们照样是上架产物 —— 跟着一起扫，别让这次搬家
+	@# 悄悄缩小密钥扫描面。产物不存在时 check-artifact-secrets.sh 打 SKIP，不影响单独跑本目标。
 	bash scripts/check-secrets.sh --artifacts \
 		"$(DERIVED_DATA_PATH)/Build/Products/Release/Famo.app" \
-		"$(DERIVED_DATA_PATH)"/release/*-source.tar.gz
+		"$(DERIVED_DATA_PATH)"/release/*-source.tar.gz \
+		"$(DERIVED_DATA_PATH)/release/FAMOTYPE-FILE-MANIFEST.sha256" \
+		"$(DERIVED_DATA_PATH)/release/FAMOTYPE-SBOM.spdx.json"
 
-release-gate: test source-archive privacy-gate
+# notarized-app 顶替了原来 source-archive 自带的 `release` 依赖：CI 无 DEV_ID 时它就等于
+# 「构建 + finalize + 出厂盘点」，正是 source-archive 消费盘点所需，并不比原来多构建一次。
+release-gate: test notarized-app source-archive privacy-gate
 	bash -n action-install.sh scripts/*.sh
