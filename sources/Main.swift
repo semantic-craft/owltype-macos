@@ -352,6 +352,7 @@ struct FamoApp {
 // Lives in Main.swift to avoid a project.pbxproj edit (same `Famo` module, callable everywhere).
 enum FamoDefaults {
   static let testSuiteName = "im.famo.inputmethod.Famo.tests"
+  static var isRunningUnitTests: Bool { FamoApp.isRunningUnitTests }
   static let standard: UserDefaults = {
     guard FamoApp.isRunningUnitTests || FamoApp.isShowingSettingsForUITests else { return .standard }
     let defaults = UserDefaults(suiteName: testSuiteName)!

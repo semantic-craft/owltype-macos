@@ -210,6 +210,45 @@ extension FamoSettingsActions {
     }
   }
 
+  /// Save the shared Qwen Workspace API Host and keep every existing Qwen profile on the same
+  /// Responses endpoint. This makes the provider path and the independent Qwen search path consume
+  /// one setting instead of silently drifting to different workspaces.
+  static func saveQwenWorkspace(
+    _ input: String,
+    store: FamoProviderProfileStore,
+    defaults: UserDefaults = FamoDefaults.standard
+  ) -> (profiles: [FamoProviderProfile], status: String, saved: Bool) {
+    let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+    let endpoint: URL
+    if trimmed.isEmpty {
+      endpoint = URL(string: FamoLLMProviderCatalog.qwenResponsesEndpoint)!
+    } else if let resolved = FamoQwenWorkspace.responsesEndpoint(for: trimmed) {
+      endpoint = resolved
+    } else {
+      return (
+        store.profiles(),
+        "Workspace ID / API Host 格式无效，未覆盖原配置。",
+        false)
+    }
+
+    do {
+      for var profile in store.profiles() where
+        FamoLLMProviderCatalog.inferredProviderID(for: profile) == "qwen" {
+        profile.endpoint = endpoint
+        _ = try store.update(profile)
+      }
+      guard FamoQwenWorkspaceSettings.save(trimmed, defaults: defaults) else {
+        return (store.profiles(), "Workspace ID / API Host 格式无效，未覆盖原配置。", false)
+      }
+      let status = trimmed.isEmpty
+        ? "已清除 Workspace，百炼将使用通用 Responses 端点。"
+        : "已保存 Workspace API Host，Qwen 供应商与百炼检索将共用。"
+      return (store.profiles(), status, true)
+    } catch {
+      return (store.profiles(), "保存 Workspace API Host 失败。", false)
+    }
+  }
+
   /// Save the standalone web-search service key (豆包搜索 Global). Write-only, same contract as
   /// `saveProviderProfileKey`: the value is never read back into the UI.
   ///

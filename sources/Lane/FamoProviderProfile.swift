@@ -76,11 +76,16 @@ struct FamoLLMProviderPreset: Identifiable, Equatable, Sendable {
 }
 
 enum FamoLLMProviderCatalog {
+  /// 未配置 Workspace 时使用的百炼通用 Responses 端点。Workspace 专属 Host 由
+  /// `FamoQwenWorkspaceSettings` 在本机设置中保存，不能把某个用户的 Workspace 写死在预设里。
+  static let qwenResponsesEndpoint =
+    "https://dashscope.aliyuncs.com/compatible-mode/v1/responses"
+
   static let presets: [FamoLLMProviderPreset] = [
     FamoLLMProviderPreset(
       id: "qwen",
       displayName: "阿里云百炼",
-      endpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+      endpoint: qwenResponsesEndpoint,
       model: "qwen3.7-plus",
       keyHint: "按量付费 sk-…；Token Plan 请改用 token-plan.cn-beijing.maas.aliyuncs.com",
       sourceSupport: .sourceResults,
@@ -190,7 +195,91 @@ enum FamoLLMProviderCatalog {
   static func sourceSupport(for profile: FamoProviderProfile?) -> FamoProviderSourceSupport {
     guard let profile else { return .searchPlanOnly }
     let providerID = inferredProviderID(for: profile)
+    if providerID == "qwen", !profile.model.lowercased().hasPrefix("qwen") {
+      return .searchPlanOnly
+    }
     return preset(id: providerID)?.sourceSupport ?? .searchPlanOnly
+  }
+}
+
+// MARK: - Qwen Workspace API Host
+
+/// 百炼北京地域 Workspace 的 API Host 规范化与 Responses 端点生成。
+///
+/// 设置页允许粘贴三种等价输入：`ws-…`、完整 API Host、完整 Responses URL。只接受阿里云
+/// 北京地域 Workspace Host，避免把任意用户输入直接插进 URL host。
+enum FamoQwenWorkspace {
+  static let beijingHostSuffix = ".cn-beijing.maas.aliyuncs.com"
+
+  static func normalizedAPIHost(_ rawValue: String) -> String? {
+    let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    guard !trimmed.isEmpty else { return nil }
+
+    let candidate: String
+    if trimmed.contains("://") {
+      guard let url = URL(string: trimmed),
+            url.scheme == "https",
+            url.user == nil,
+            url.password == nil,
+            url.port == nil,
+            let host = url.host else { return nil }
+      candidate = host
+    } else {
+      guard !trimmed.contains("/"), !trimmed.contains("@"), !trimmed.contains(":") else {
+        return nil
+      }
+      candidate = trimmed.contains(".") ? trimmed : trimmed + beijingHostSuffix
+    }
+
+    guard candidate.hasPrefix("ws-"), candidate.hasSuffix(beijingHostSuffix) else { return nil }
+    let workspaceID = String(candidate.dropLast(beijingHostSuffix.count))
+    guard workspaceID.count > 3,
+          workspaceID.utf8.allSatisfy({ byte in
+            (48...57).contains(byte) || (97...122).contains(byte) || byte == 45
+          }) else { return nil }
+    return candidate
+  }
+
+  static func responsesEndpoint(for rawValue: String) -> URL? {
+    guard let host = normalizedAPIHost(rawValue) else { return nil }
+    return URL(string: "https://\(host)/compatible-mode/v1/responses")
+  }
+
+  static func apiHost(from endpoint: URL) -> String? {
+    guard let host = endpoint.host else { return nil }
+    return normalizedAPIHost(host)
+  }
+}
+
+/// Workspace Host 不是密钥，放普通偏好即可。API Key 仍只存 Keychain。
+enum FamoQwenWorkspaceSettings {
+  static let key = "FamoQwenWorkspaceAPIHost"
+
+  static func apiHost(defaults: UserDefaults = FamoDefaults.standard) -> String {
+    defaults.string(forKey: key) ?? ""
+  }
+
+  /// 空值表示清除并回退通用端点；非法 Host 不覆盖上一次可用配置。
+  @discardableResult
+  static func save(
+    _ rawValue: String,
+    defaults: UserDefaults = FamoDefaults.standard
+  ) -> Bool {
+    let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+      defaults.removeObject(forKey: key)
+      return true
+    }
+    guard let host = FamoQwenWorkspace.normalizedAPIHost(trimmed) else { return false }
+    defaults.set(host, forKey: key)
+    return true
+  }
+
+  static func responsesEndpoint(defaults: UserDefaults = FamoDefaults.standard) -> URL {
+    if let endpoint = FamoQwenWorkspace.responsesEndpoint(for: apiHost(defaults: defaults)) {
+      return endpoint
+    }
+    return URL(string: FamoLLMProviderCatalog.qwenResponsesEndpoint)!
   }
 }
 
@@ -583,12 +672,23 @@ enum FamoProviderConnectivityCheck {
     case malformed
   }
 
-  /// 最小请求体。`max_tokens` 取 16 而不是 1：1 在个别供应商上会被当成非法值拒掉，而 16 个 token
-  /// 便宜到可以忽略；我们只需要一个 2xx + 能认的响应壳，答什么无所谓。
+  /// 最小请求体。Chat providers cap output at 16 tokens; Qwen Responses does not carry that
+  /// old field because the compatibility reference does not list it as an accepted request field.
   ///
   /// 一并合上 `FamoThinkingControl.offBody`：混合思考模型默认开着思考时，会在回第一个字前先烧几百
   /// 上千推理 token（同 任意提问 那条路的理由），验证个连通性没必要等那么久。
-  static func body(providerID: String, model: String) -> [String: Any] {
+  static func body(providerID: String, model: String, endpoint: URL? = nil) -> [String: Any] {
+    let qwenResponses = endpoint.map {
+      FamoResponsesWire.isQwen(providerID: providerID, model: model, endpoint: $0)
+    } ?? (providerID.lowercased() == "qwen" && model.lowercased().hasPrefix("qwen"))
+    if qwenResponses {
+      return FamoResponsesWire.body(
+        model: model,
+        messages: [FamoDeepSeekMessage(role: "user", content: "ping")],
+        stream: false,
+        dialect: .qwen,
+        webSearch: false)
+    }
     var body: [String: Any] = [
       "model": model,
       "messages": [["role": "user", "content": "ping"]],
@@ -606,13 +706,18 @@ enum FamoProviderConnectivityCheck {
     apiKey: String,
     authStyle: FamoProviderAuthHeaderStyle
   ) throws -> URLRequest {
-    var req = URLRequest(url: endpoint)
+    let qwenResponses = FamoResponsesWire.isQwen(
+      providerID: providerID, model: model, endpoint: endpoint)
+    let requestURL = qwenResponses
+      ? (FamoResponsesWire.url(from: endpoint) ?? endpoint)
+      : endpoint
+    var req = URLRequest(url: requestURL)
     req.httpMethod = "POST"
     req.setValue("application/json", forHTTPHeaderField: "Content-Type")
     authStyle.apply(to: &req, apiKey: apiKey)
     req.timeoutInterval = 20
     req.httpBody = try JSONSerialization.data(
-      withJSONObject: body(providerID: providerID, model: model))
+      withJSONObject: body(providerID: providerID, model: model, endpoint: endpoint))
     return req
   }
 
@@ -622,9 +727,9 @@ enum FamoProviderConnectivityCheck {
     guard (200...299).contains(http.statusCode) else {
       return .rejected(status: http.statusCode, message: errorMessage(in: data))
     }
-    // 认一个 chat 响应的壳就够了 —— `choices` 在，说明这条链路真的走通到了模型。
+    // Recognize either protocol shell: Qwen uses Responses `output`; other providers remain chat.
     guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-          root["choices"] != nil else {
+          root["choices"] != nil || root["output"] != nil else {
       return .malformed
     }
     return .ok(latencyMS: latencyMS)

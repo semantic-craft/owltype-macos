@@ -84,6 +84,10 @@ final class FamoSettingsCoverageTests: XCTestCase {
     // url error）。action coverage 在 ProviderProfileStoreTests 的 FamoProviderConnectivityCheckTests。
     "验证连通性",
     "选择模型",                       // AI 配置：从 curated + 拉取结果里选模型
+    // Qwen Responses 的 Workspace 设置：供应商表单与独立百炼检索共用。规范化、非法 Host 拒绝、
+    // 偏好持久化及既有 Qwen profile 端点同步，覆盖在 ProviderProfileStoreTests。
+    "Workspace ID 或 API Host",
+    "保存空间",
     // 已配供应商的原地编辑（换模型不必删了重加）：入口按钮 + 编辑态的两个 footer 按钮。
     // action coverage 在 ProviderProfileStoreTests 的 updateProviderProfile 两条断言。
     "修改模型：\\(profile.displayName)",
@@ -211,6 +215,7 @@ final class FamoSettingsCoverageTests: XCTestCase {
     "(\"竖排\", .vertical)",
     "ForEach(FamoLLMProviderCatalog.presets)",
     "providerID: providerID",
+    "FamoSettingsActions.saveQwenWorkspace(",
     // Key 字段的提示语按「新增 / 编辑」两态分叉：编辑态留空＝保持现有 Key，不是稍后再填。
     // 这个区别是原地改模型不用重贴 Key 的用户可见凭据，两支都钉住。
     "API Key（\\(hint)写入 Keychain，可留空稍后再填）",

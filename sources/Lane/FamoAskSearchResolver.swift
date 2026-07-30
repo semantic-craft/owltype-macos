@@ -79,10 +79,11 @@ struct FamoAskSearchRoute: Equatable {
   /// WHICH transport carries this route's search — `openAsk` picks its client from this rather
   /// than re-deriving it from the provider id.
   var transport: FamoSearchControl.Transport {
-    FamoSearchControl.transport(providerID: providerID, host: routing.endpoint.host ?? "")
+    FamoSearchControl.transport(
+      providerID: providerID, host: routing.endpoint.host ?? "", model: routing.model)
   }
   /// The provider-specific `/chat/completions` body fields that switch search on for this route.
-  /// Empty for a `/responses` route — its search parameters live in `FamoResponsesWire.searchBody`.
+  /// Empty for a `/responses` route — its search parameters live in `FamoResponsesWire.body`.
   var extraBody: [String: Any] {
     FamoSearchControl.extraBody(providerID: providerID, host: routing.endpoint.host ?? "")
   }
