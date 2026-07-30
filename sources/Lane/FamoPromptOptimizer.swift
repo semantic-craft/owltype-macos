@@ -90,20 +90,52 @@ struct FamoPromptOptimizeClient: FamoPromptOptimizeFetching {
       "prompt-optimize model=\(model) clarifications=\(clarifications.count)"
     }
 
-    var request = URLRequest(url: endpoint)
-    request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    authHeaderStyle.apply(to: &request, apiKey: apiKey)
-    request.timeoutInterval = FamoPromptOptimizer.requestTimeout
-    request.httpBody = try JSONEncoder().encode(
-      FamoPromptOptimizer.chatRequest(
-        forDraft: draft, clarifications: clarifications, model: model, providerID: providerID)
-    )
+    let payload = FamoPromptOptimizer.chatRequest(
+      forDraft: draft, clarifications: clarifications, model: model, providerID: providerID)
+    let qwenResponses = FamoResponsesWire.isQwen(
+      providerID: providerID, model: model, endpoint: endpoint)
+    let request: URLRequest
+    if qwenResponses {
+      request = try FamoResponsesWire.request(
+        endpoint: endpoint,
+        model: model,
+        messages: payload.messages,
+        apiKey: apiKey,
+        authHeaderStyle: authHeaderStyle,
+        dialect: .qwen,
+        stream: false,
+        webSearch: false,
+        temperature: payload.temperature,
+        timeout: FamoPromptOptimizer.requestTimeout)
+    } else {
+      var chatRequest = URLRequest(url: endpoint)
+      chatRequest.httpMethod = "POST"
+      chatRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      authHeaderStyle.apply(to: &chatRequest, apiKey: apiKey)
+      chatRequest.timeoutInterval = FamoPromptOptimizer.requestTimeout
+      chatRequest.httpBody = try JSONEncoder().encode(payload)
+      request = chatRequest
+    }
 
     let (data, response) = try await urlSession.data(for: request)
     if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
       throw FamoCloudRequestError.badHTTPStatus(http.statusCode)
     }
+    if qwenResponses {
+      let decoded = try FamoResponsesWire.parse(data)
+      if let usage = decoded.usage {
+        FamoCloudUsageTelemetry.record(FamoCloudUsageSnapshot(
+          model: decoded.model ?? model,
+          completionTokens: usage.outputTokens,
+          promptTokens: usage.inputTokens,
+          promptCacheHitTokens: usage.cachedTokens,
+          promptCacheMissTokens: max(0, usage.inputTokens - usage.cachedTokens),
+          totalTokens: usage.totalTokens))
+      }
+      guard !decoded.text.isEmpty else { throw FamoCloudRequestError.emptyResponse }
+      return FamoPromptOptimizer.parse(decoded.text)
+    }
+
     let decoded = try JSONDecoder().decode(FamoDeepSeekClient.Response.self, from: data)
     if let usage = decoded.usage {
       // 只落 model + token 计数，与候选道同策；绝不落草稿或产出。

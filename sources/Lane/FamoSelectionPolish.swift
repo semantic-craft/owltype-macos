@@ -91,8 +91,10 @@ enum FamoSelectionPolish {
     // Interactive selection polish — disable hidden thinking so it returns in ~1s (see
     // FamoDeepSeekThinking). deepseek/mimo/doubao 共用同一 `thinking:{disabled}` 形状
     // （FamoThinkingControl 的 deepSeekStyle；豆包 doubao-seed-2-1-turbo 实测默认开思考，
-    // 短回复也烧 reasoning token）；qwen 走 `enable_thinking:false`：qwen3.6-flash 默认开，
-    // 实测润色一句话烧 948 reasoning token / 5.4s，直接把 8 秒交互超时打爆（2026-07-20 实盘
+    // 短回复也烧 reasoning token）；下方 typed payload 保留旧 DashScope Chat 方言供非 Qwen
+    // 托管模型使用，真正的 Qwen 系列请求会在 client 层改走 Responses `reasoning.effort:none`。
+    // qwen3.6-flash 默认开思考，实测润色一句话烧 948 reasoning token / 5.4s，直接把 8 秒交互
+    // 超时打爆（2026-07-20 实盘
     // 百炼发现）；关掉后 0.6s。别家两个字段都 nil 省略。逐家形状由 FamoThinkingControl 单一
     // 真相给出：providerID 优先（自定义档案的模型名可能不带标准前缀，如百炼上托管的
     // deepseek-* 该走 enable_thinking），传空时退回 model 前缀判定。
@@ -146,20 +148,52 @@ struct FamoSelectionPolishClient: FamoSelectionPolishFetching {
     let variant = FamoPolishPromptCatalog.resolveActive()
     // 请求侧观测（issue #136）：沿现有 trace 开关体系只落 variant id + model，绝不落选中文本。
     FamoLiveInputTrace.write { "selection-polish variant=\(variant.id) model=\(model)" }
-    var request = URLRequest(url: endpoint)
-    request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    authHeaderStyle.apply(to: &request, apiKey: apiKey)
-    request.timeoutInterval = FamoCloudPreferences.requestTimeout
-    request.httpBody = try JSONEncoder().encode(
-      FamoSelectionPolish.chatRequest(
-        for: selection, model: model, providerID: providerID, variant: variant)
-    )
+    let payload = try FamoSelectionPolish.chatRequest(
+      for: selection, model: model, providerID: providerID, variant: variant)
+    let qwenResponses = FamoResponsesWire.isQwen(
+      providerID: providerID, model: model, endpoint: endpoint)
+    let request: URLRequest
+    if qwenResponses {
+      request = try FamoResponsesWire.request(
+        endpoint: endpoint,
+        model: model,
+        messages: payload.messages,
+        apiKey: apiKey,
+        authHeaderStyle: authHeaderStyle,
+        dialect: .qwen,
+        stream: false,
+        webSearch: false,
+        temperature: payload.temperature,
+        timeout: FamoCloudPreferences.requestTimeout)
+    } else {
+      var chatRequest = URLRequest(url: endpoint)
+      chatRequest.httpMethod = "POST"
+      chatRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      authHeaderStyle.apply(to: &chatRequest, apiKey: apiKey)
+      chatRequest.timeoutInterval = FamoCloudPreferences.requestTimeout
+      chatRequest.httpBody = try JSONEncoder().encode(payload)
+      request = chatRequest
+    }
 
     let (data, response) = try await urlSession.data(for: request)
     if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
       throw FamoCloudRequestError.badHTTPStatus(http.statusCode)
     }
+    if qwenResponses {
+      let decoded = try FamoResponsesWire.parse(data)
+      if let usage = decoded.usage {
+        FamoCloudUsageTelemetry.record(FamoCloudUsageSnapshot(
+          model: decoded.model ?? model,
+          completionTokens: usage.outputTokens,
+          promptTokens: usage.inputTokens,
+          promptCacheHitTokens: usage.cachedTokens,
+          promptCacheMissTokens: max(0, usage.inputTokens - usage.cachedTokens),
+          totalTokens: usage.totalTokens))
+      }
+      guard !decoded.text.isEmpty else { throw FamoCloudRequestError.emptyResponse }
+      return FamoNumberedRewriteParser.parse(decoded.text)
+    }
+
     let decoded = try JSONDecoder().decode(FamoDeepSeekClient.Response.self, from: data)
     if let usage = decoded.usage {
       // Telemetry only: model + token counts + cache hit/miss. NEVER the selected text or rewrite.
@@ -387,49 +421,19 @@ final class FamoSourceVerificationService {
     let user = "请核验以下选中文本，并返回判断、可核来源 URL、关键信息。选中文本：\n\(selectedText)"
 
     switch routing.providerID {
-    case "qwen":
-      return try makeDashScopeRequest(system: system, user: user, routing: routing, apiKey: apiKey)
     case "mimo":
       return try makeChatSearchRequest(system: system, user: user, routing: routing, apiKey: apiKey)
+    case "qwen":
+      guard FamoResponsesWire.isQwen(
+        providerID: routing.providerID, model: routing.model, endpoint: routing.endpoint) else {
+        throw FamoSourceVerificationError.unsupportedProvider
+      }
+      return try makeResponsesSearchRequest(system: system, user: user, routing: routing, apiKey: apiKey)
     case "doubao", "openai":
       return try makeResponsesSearchRequest(system: system, user: user, routing: routing, apiKey: apiKey)
     default:
       throw FamoSourceVerificationError.unsupportedProvider
     }
-  }
-
-  private func makeDashScopeRequest(
-    system: String,
-    user: String,
-    routing: FamoCloudRouting,
-    apiKey: String
-  ) throws -> URLRequest {
-    guard let url = Self.dashScopeGenerationURL(from: routing.endpoint) else {
-      throw FamoSourceVerificationError.invalidEndpoint
-    }
-    let body: [String: Any] = [
-      // 不透传 routing.model：来源核验只能走 DashScope 原生 generation 端点（compatible-mode
-      // 不返回 search_info，来源拿不到），而该端点只服务 qwen-plus/turbo/max 老系列——新预设
-      // qwen3.6-flash 打过去直接 400 "url error"（2026-07-20 实盘复现）。钉 qwen-plus：
-      // 同参数实测返回 10 条带 URL 来源。与本方法对 mimo 的 per-provider 方言特判同构。
-      "model": Self.dashScopeSearchModel,
-      "input": [
-        "messages": [
-          ["role": "system", "content": system],
-          ["role": "user", "content": user],
-        ],
-      ],
-      "parameters": [
-        "enable_search": true,
-        "search_options": [
-          "forced_search": true,
-          "search_strategy": "max",
-          "enable_source": true,
-        ],
-        "result_format": "message",
-      ],
-    ]
-    return try makeJSONRequest(url: url, body: body, routing: routing, apiKey: apiKey)
   }
 
   private func makeChatSearchRequest(
@@ -471,14 +475,21 @@ final class FamoSourceVerificationService {
     }
     // Shared with the streaming 任意提问 client (`FamoResponsesStreamingClient`) so the two
     // callers of `/responses` cannot drift apart.
-    let body = FamoResponsesWire.searchBody(
+    let dialect: FamoResponsesDialect = switch routing.providerID {
+    case "qwen": .qwen
+    case "openai": .openAI
+    default: .ark
+    }
+    let body = FamoResponsesWire.body(
       model: routing.model,
-      input: [
-        FamoResponsesWire.inputMessage(role: "system", text: system),
-        FamoResponsesWire.inputMessage(role: "user", text: user),
+      messages: [
+        FamoDeepSeekMessage(role: "system", content: system),
+        FamoDeepSeekMessage(role: "user", content: user),
       ],
       stream: false,
-      isOpenAI: routing.providerID == "openai"
+      dialect: dialect,
+      webSearch: true,
+      temperature: 0.2
     )
     return try makeJSONRequest(url: url, body: body, routing: routing, apiKey: apiKey)
   }
@@ -496,20 +507,6 @@ final class FamoSourceVerificationService {
     request.timeoutInterval = 90
     request.httpBody = try JSONSerialization.data(withJSONObject: body)
     return request
-  }
-
-  /// DashScope 原生 generation 端点上做联网核验用的模型（见 makeDashScopeRequest 内注释）。
-  static let dashScopeSearchModel = "qwen-plus"
-
-  private static func dashScopeGenerationURL(from endpoint: URL) -> URL? {
-    guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false),
-          components.host?.lowercased().contains("dashscope") == true else {
-      return nil
-    }
-    components.path = "/api/v1/services/aigc/text-generation/generation"
-    components.query = nil
-    components.fragment = nil
-    return components.url
   }
 
   // `/responses` 的 URL 改写与 input 消息形状已提取到 `FamoResponsesWire`（与流式 任意提问 共用）。

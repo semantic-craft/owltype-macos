@@ -7,12 +7,11 @@
 //  能不能达到预期效果」——mock 喂的永远是我们自己想象的响应形状。
 //
 //  覆盖的四条真实链路（提示词优化已在 FamoPromptOptimizeLiveTests）：
-//    A. SSE 流式（FamoStreamingChatClient）—— 翻译 / 润色·多版本 / 润色·仿范例 / 公文排版 /
+//    A. SSE 流式（FamoResponsesStreamingClient）—— 翻译 / 润色·多版本 / 润色·仿范例 / 公文排版 /
 //       辅助检索共用的传输，逐技能用真实 prompt 打，断言产出符合各自的输出契约。
-//    B. 任意提问·联网搜索 —— 同一流式客户端 + qwen 的 enable_search extraBody。
+//    B. 任意提问·联网搜索 —— 同一 Responses 客户端 + Qwen 内置 web_search。
 //    C. 划词润色（FamoSelectionPolishClient）—— 非流式 json_object 候选契约，v1/v2 变体各一发。
-//    D. 来源核验（FamoSourceVerificationService）—— DashScope 原生 generation 端点 +
-//       forced_search/enable_source，与其他技能完全不同的一条 wire。
+//    D. 来源核验（FamoSourceVerificationService）—— Responses web_search + 来源抽取。
 //
 
 import Foundation
@@ -23,8 +22,17 @@ import XCTest
 @MainActor
 final class FamoSkillsLiveTests: XCTestCase {
 
-  private static let endpoint = URL(
-    string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")!
+  /// `~/.famo-test-workspace` 可填 Workspace ID、完整 API Host 或 Responses URL；不把任何
+  /// 个人 Workspace 写进仓库。未配置时才回退通用域名。
+  private static let endpoint: URL = {
+    let path = ("~/.famo-test-workspace" as NSString).expandingTildeInPath
+    let workspace = (try? String(contentsOfFile: path, encoding: .utf8))?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    if let workspace, let endpoint = FamoQwenWorkspace.responsesEndpoint(for: workspace) {
+      return endpoint
+    }
+    return URL(string: FamoLLMProviderCatalog.qwenResponsesEndpoint)!
+  }()
 
   /// 打哪个型号。默认 = 百炼预设当前的默认模型，也就是新用户实际会用上的那个 —— 实盘测试要测的
   /// 是「我们发出去的配置」，把型号写死在这里就会和预设悄悄脱节。
@@ -76,16 +84,17 @@ final class FamoSkillsLiveTests: XCTestCase {
   /// 消费整条 SSE 流为完整回答；落盘供人工核对。qwen3.6-flash 有静默推理段，上限放宽到 90s。
   private func streamAnswer(
     question: String, selectedText: String? = nil,
-    extraBody: [String: Any] = [:], label: String
+    webSearch: Bool = false, label: String
   ) async throws -> String {
     let apiKey = try testAPIKey()
-    let client = FamoStreamingChatClient(timeout: 90)
+    let client = FamoResponsesStreamingClient(timeout: 90)
     let messages = FamoAIContextAssembler.assemble(
       selectedText: selectedText, question: question)
 
     var answer = ""
     for try await delta in client.stream(
-      messages: messages, routing: routing, apiKey: apiKey, extraBody: extraBody) {
+      messages: messages, routing: routing, apiKey: apiKey,
+      dialect: .qwen, webSearch: webSearch) {
       answer += delta
     }
     try? answer.write(
@@ -126,16 +135,12 @@ final class FamoSkillsLiveTests: XCTestCase {
       "辅助检索应产出可复制的检索方案")
   }
 
-  // MARK: - B. 任意提问 · 联网搜索（qwen enable_search）
+  // MARK: - B. 任意提问 · 联网搜索（Qwen Responses web_search）
 
   func testAskWithWebSearchStreamsAnAnswer() async throws {
-    let extraBody = FamoSearchControl.extraBody(
-      providerID: "qwen", host: Self.endpoint.host ?? "")
-    XCTAssertEqual(extraBody["enable_search"] as? Bool, true, "qwen 联网走顶层 enable_search")
-
     let answer = try await streamAnswer(
       question: "最高人民法院现任院长是谁？只答姓名与就任年份。",
-      extraBody: extraBody,
+      webSearch: true,
       label: "websearch")
 
     XCTAssertFalse(answer.isEmpty, "联网搜索路由下必须仍能流式出答案")
@@ -152,7 +157,7 @@ final class FamoSkillsLiveTests: XCTestCase {
     ] {
       FamoExperimentalPreferences.selectionPolishPromptVariant = variantID
       let client = FamoSelectionPolishClient(
-        endpoint: Self.endpoint, model: Self.model, authHeaderStyle: .bearer)
+        endpoint: Self.endpoint, model: Self.model, providerID: "qwen", authHeaderStyle: .bearer)
       let rewrites = try await client.fetchPolishedRewrites(
         for: "这个事情我们得赶紧弄一下，不然要出问题。", apiKey: apiKey)
 
@@ -165,7 +170,7 @@ final class FamoSkillsLiveTests: XCTestCase {
     }
   }
 
-  // MARK: - D. 来源核验（DashScope 原生端点 + forced_search/enable_source）
+  // MARK: - D. 来源核验（Qwen Responses web_search）
 
   func testSourceVerificationReturnsContentAndSources() async throws {
     let apiKey = try testAPIKey()
@@ -187,23 +192,14 @@ final class FamoSkillsLiveTests: XCTestCase {
     XCTAssertFalse(outcome.content.isEmpty, "核验必须给出结论文本")
     XCTAssertFalse(
       outcome.sources.isEmpty,
-      "forced_search + enable_source 下应返回可跳查的来源；为空说明来源抽取断了")
+      "Responses web_search 应返回可跳查的来源；为空说明来源抽取断了")
   }
 
   // MARK: - E. 通义千问当**检索器**（搜索服务下拉里的第三档）
 
-  /// 守住这一档赖以成立的两个实盘事实（2026-07-28 首次跑通）：
-  ///
-  ///   1. **model / endpoint / content 必须配套**。原生端点分文本与多模态两条，挑错就是
-  ///      `400 InvalidParameter · url error`。实测对照：multimodal 收 qwen3.7-plus / 3.7-flash、
-  ///      拒 3.7-max；text 收 qwen-plus / 3.7-max、拒 3.7-plus / 3.7-flash。两条路 `content` 形状
-  ///      也不同（多模态要 `[{text:…}]`，纯文本要裸字符串）。跑挂成 400 就是有人只换了其中一个。
-  ///   2. **来源只能从原生端点拿**。兼容模式实测 `search_info` 恒为 ABSENT（连 `enable_source: true`
-  ///      也只是被静默忽略，`prepend_search_result` 更是直接 400「not supported in OpenAI protocol」）。
-  ///      端点被改回 compatible-mode 的话，这一档会变成永远 0 条、被静默顺位掉 —— 这条断言是那道闸。
-  ///
-  /// 顺带钉住那件反直觉的事：来源**没有正文摘要**，`snippet` 为空是 API 如此，不是解析漏了。
-  func testQwenWorksAsARetrieverOnTheNativeEndpoint() async throws {
+  /// Responses `web_search_call.action.sources` should make Qwen usable as the independent
+  /// retriever too; source entries currently guarantee URLs but not snippets.
+  func testQwenWorksAsARetrieverOnResponses() async throws {
     let apiKey = try testAPIKey()
 
     let results = try await FamoDashScopeSearchClient().search(
@@ -218,7 +214,7 @@ final class FamoSkillsLiveTests: XCTestCase {
 
     XCTAssertFalse(
       results.isEmpty,
-      "0 条 = 要么 \(FamoDashScopeSearchWire.model) 没被这个端点收编，要么 enable_source 没回来源")
+      "0 条 = 要么 \(FamoDashScopeSearchWire.model) 没触发 web_search，要么来源抽取断了")
     for result in results {
       XCTAssertTrue(result.url.hasPrefix("http"), "来源必须可跳查")
       XCTAssertFalse(result.title.isEmpty)
@@ -249,7 +245,7 @@ final class FamoSkillsLiveTests: XCTestCase {
       """
     let cleaned = FamoChineseTypesetting.preClean(pasted)
 
-    let client = FamoStreamingChatClient(timeout: 90)
+    let client = FamoResponsesStreamingClient(timeout: 90)
     let messages = [
       FamoDeepSeekMessage(
         role: "system", content: FamoSelectionSkillPrompts.publishReflowSystemPrompt),
@@ -257,7 +253,9 @@ final class FamoSkillsLiveTests: XCTestCase {
     ]
     var reflowed = ""
     let started = Date()
-    for try await delta in client.stream(messages: messages, routing: routing, apiKey: apiKey) {
+    for try await delta in client.stream(
+      messages: messages, routing: routing, apiKey: apiKey,
+      dialect: .qwen, webSearch: false) {
       reflowed += delta
     }
     let elapsed = Date().timeIntervalSince(started)
@@ -288,7 +286,7 @@ final class FamoSkillsLiveTests: XCTestCase {
       """
 
     let client = FamoGoalBriefClient(
-      endpoint: Self.endpoint, model: Self.model, authHeaderStyle: .bearer)
+      endpoint: Self.endpoint, model: Self.model, providerID: "qwen", authHeaderStyle: .bearer)
     let started = Date()
     let outcome = try await client.fetchOptimizedPrompt(
       forDraft: draft, clarifications: [], apiKey: apiKey)

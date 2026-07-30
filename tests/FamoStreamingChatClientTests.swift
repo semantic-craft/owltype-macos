@@ -222,8 +222,7 @@ final class FamoStreamingChatClientTests: XCTestCase {
     XCTAssertNil(object["tools"])
   }
 
-  func testSearchExtraBodyIsMergedAsTopLevelFields() async throws {
-    // The whole point of the feature: the provider's search switch must actually reach the wire.
+  func testQwenSearchExtrasNoLongerBelongOnTheChatClient() async throws {
     let routing = FamoCloudRouting(
       providerID: "qwen",
       endpoint: URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")!,
@@ -233,8 +232,8 @@ final class FamoStreamingChatClientTests: XCTestCase {
     )
     let extras = FamoSearchControl.extraBody(providerID: "qwen", host: routing.endpoint.host ?? "")
     let object = try await captureRequestBody(routing: routing, extraBody: extras)
-    XCTAssertEqual(object["enable_search"] as? Bool, true, "联网开关必须真的进了请求体")
-    // …and the base fields survive the merge.
+    XCTAssertTrue(extras.isEmpty)
+    XCTAssertNil(object["enable_search"], "Qwen 搜索已经迁到 Responses，不得再混入旧字段")
     XCTAssertEqual(object["model"] as? String, "qwen3.6-flash")
     XCTAssertEqual(object["stream"] as? Bool, true)
     XCTAssertNotNil(object["messages"])
@@ -284,26 +283,6 @@ final class FamoStreamingChatClientTests: XCTestCase {
                      "\(id) 的普通问答也必须关思考")
     }
 
-    // 百炼是另一个字段名（`enable_thinking`），不是 `thinking` —— 名字搞错等于没关。
-    let qwen = try await captureRequestBody(
-      routing: routing("qwen", "qwen3.6-flash", "dashscope.aliyuncs.com"), extraBody: [:])
-    XCTAssertEqual(qwen["enable_thinking"] as? Bool, false)
-    XCTAssertNil(qwen["thinking"], "百炼没有 thinking 字段，塞进去只会 400")
-  }
-
-  /// 回归：百炼的联网请求一度只带 `enable_search`，思考仍开着 —— 短答前先烧上千 reasoning token。
-  func testQwenSearchRequestCarriesBothSearchAndThinkingOff() async throws {
-    let routing = FamoCloudRouting(
-      providerID: "qwen",
-      endpoint: URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")!,
-      model: "qwen3.6-flash",
-      secretName: "famo.provider.qwen.apiKey",
-      authHeaderStyle: .bearer
-    )
-    let extras = FamoSearchControl.extraBody(providerID: "qwen", host: routing.endpoint.host ?? "")
-    let object = try await captureRequestBody(routing: routing, extraBody: extras)
-    XCTAssertEqual(object["enable_search"] as? Bool, true)
-    XCTAssertEqual(object["enable_thinking"] as? Bool, false, "联网也要关思考")
   }
 
   /// OpenAI 在 `/chat/completions` 上没有思考开关：请求体必须逐字节不变，不能凭空多字段。
@@ -387,7 +366,7 @@ final class FamoStreamingChatClientTests: XCTestCase {
       id: providerID,
       displayName: providerID,
       endpoint: URL(string: "https://\(host)/v1/chat/completions")!,
-      model: "m",
+      model: providerID == "qwen" ? "qwen3.7-plus" : "m",
       providerID: providerID,
       secretName: "famo.provider.\(providerID).apiKey",
       isDefault: true
@@ -412,7 +391,7 @@ final class FamoStreamingChatClientTests: XCTestCase {
   }
 
   @MainActor
-  func testOpenAskSendsAChatCompletionsProviderThroughTheChatClient() {
+  func testOpenAskSendsQwenSearchThroughTheResponsesClient() {
     let chat = RecordingChatClient()
     let responses = RecordingResponsesClient()
     let service = makeDispatchService(
@@ -421,9 +400,26 @@ final class FamoStreamingChatClientTests: XCTestCase {
       return XCTFail("expected an opened stream")
     }
     XCTAssertEqual(open.searchProviderID, "qwen")
-    XCTAssertEqual(chat.callCount, 1)
-    XCTAssertEqual(chat.lastExtraBody?["enable_search"] as? Bool, true)
-    XCTAssertEqual(responses.callCount, 0, "chat/completions 那家不能走 /responses 客户端")
+    XCTAssertEqual(responses.callCount, 1)
+    XCTAssertEqual(responses.lastDialect, .qwen)
+    XCTAssertEqual(responses.lastWebSearch, true)
+    XCTAssertEqual(chat.callCount, 0)
+  }
+
+  @MainActor
+  func testPlainQwenGenerationAlsoUsesResponsesWithoutSearch() {
+    let chat = RecordingChatClient()
+    let responses = RecordingResponsesClient()
+    let service = makeDispatchService(
+      providerID: "qwen", host: "dashscope.aliyuncs.com", chat: chat, responses: responses)
+    guard case .success = service.stream(
+      messages: [FamoDeepSeekMessage(role: "user", content: "你好")]) else {
+      return XCTFail("expected an opened stream")
+    }
+    XCTAssertEqual(responses.callCount, 1)
+    XCTAssertEqual(responses.lastDialect, .qwen)
+    XCTAssertEqual(responses.lastWebSearch, false)
+    XCTAssertEqual(chat.callCount, 0)
   }
 
   @MainActor
@@ -438,7 +434,8 @@ final class FamoStreamingChatClientTests: XCTestCase {
     }
     XCTAssertEqual(open.searchProviderID, "doubao")
     XCTAssertEqual(responses.callCount, 1)
-    XCTAssertEqual(responses.lastIsOpenAI, false, "方舟 dialect, not OpenAI's")
+    XCTAssertEqual(responses.lastDialect, .ark)
+    XCTAssertEqual(responses.lastWebSearch, true)
     XCTAssertEqual(chat.callCount, 0, "/responses 那家绝不能退回 chat/completions —— 那样搜不到")
   }
 
@@ -452,7 +449,7 @@ final class FamoStreamingChatClientTests: XCTestCase {
       return XCTFail("expected an opened stream")
     }
     XCTAssertEqual(open.searchProviderID, "openai")
-    XCTAssertEqual(responses.lastIsOpenAI, true)
+    XCTAssertEqual(responses.lastDialect, .openAI)
     XCTAssertEqual(chat.callCount, 0)
   }
 
@@ -715,16 +712,19 @@ private struct StubWebSearch: FamoWebSearching {
 
 private final class RecordingResponsesClient: FamoResponsesStreaming, @unchecked Sendable {
   private(set) var callCount = 0
-  private(set) var lastIsOpenAI: Bool?
+  private(set) var lastDialect: FamoResponsesDialect?
+  private(set) var lastWebSearch: Bool?
 
   func stream(
     messages: [FamoDeepSeekMessage],
     routing: FamoCloudRouting,
     apiKey: String,
-    isOpenAI: Bool
+    dialect: FamoResponsesDialect,
+    webSearch: Bool
   ) -> AsyncThrowingStream<String, Error> {
     callCount += 1
-    lastIsOpenAI = isOpenAI
+    lastDialect = dialect
+    lastWebSearch = webSearch
     return AsyncThrowingStream { $0.finish() }
   }
 }

@@ -205,8 +205,9 @@ struct FamoDeepSeekThinking: Codable, Equatable, Sendable {
 /// 关掉后 0.6s（2026-07-20 实盘百炼）。所以策略是**全链路强制关**，而不是逐个调用点看着办。
 ///
 /// 关思考的字段名各家不同，且与「联网搜索」正交（MiMo/方舟的搜索插件还要求思考关掉才触发），
-/// 所以这里按 providerID 给出要合进请求体顶层的字段，由 `FamoStreamingChatClient`（任意提问）与
-/// `FamoSearchControl`（联网 extras）共用 —— 两边不会漂移。
+/// 所以这里按 providerID 给出旧 Chat 请求要合进顶层的字段。Qwen 系列本身已统一由
+/// `FamoResponsesWire` 发送 `reasoning.effort:none`；这里的 DashScope 分支只保留给仍走 Chat 的
+/// 非 Qwen 托管模型及兼容 payload builder。
 ///
 /// 返回空字典 = 这家没有已知的思考开关，请求体逐字节不变（OpenAI 的 reasoning 走 `/responses`
 /// 的另一套字段，不在这里管）。

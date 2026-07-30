@@ -49,6 +49,8 @@ struct FamoAIPage: View {
   @State private var searchKeyStatus = ""
   /// 当前选中的搜索后端（raw value，与 `FamoWebSearchBackendSettings` 同步）。
   @State private var searchBackendRaw = FamoWebSearchBackend.doubaoGlobal.rawValue
+  /// 百炼 Workspace ID / API Host。非密钥，供应商与独立 Qwen 检索共用这一项。
+  @State private var qwenWorkspaceInput = ""
   /// 新增流程里「拉取最新」已经用这把 Key 调通过：profile 落库后补标验证（见 `addProvider`）。
   @State private var pendingKeyVerified = false
 
@@ -61,9 +63,21 @@ struct FamoAIPage: View {
       .padding(20)
     }
     .onAppear {
-      providers = providerStore.profiles()
+      // Unit-test rendering must never enumerate the user's real provider file and then ask the
+      // real Keychain for every row. Besides violating test isolation, a test-signed host can
+      // block indefinitely in SecItemCopyMatching. Product and UI-test processes keep the live
+      // stores; pure unit tests render the documented empty state.
+      providers = FamoDefaults.isRunningUnitTests ? [] : providerStore.profiles()
+      qwenWorkspaceInput = FamoQwenWorkspaceSettings.apiHost()
+      if qwenWorkspaceInput.isEmpty,
+         let profile = providers.first(where: {
+           FamoLLMProviderCatalog.inferredProviderID(for: $0) == "qwen"
+         }),
+         let host = FamoQwenWorkspace.apiHost(from: profile.endpoint) {
+        qwenWorkspaceInput = host
+      }
       searchBackendRaw = FamoWebSearchBackendSettings.backend.rawValue
-      searchKeyConfigured = FamoWebSearchKeyStore.isConfigured(
+      searchKeyConfigured = !FamoDefaults.isRunningUnitTests && FamoWebSearchKeyStore.isConfigured(
         for: searchBackend, secrets: providerSecrets)
     }
   }
@@ -140,6 +154,18 @@ struct FamoAIPage: View {
         if searchKeyConfigured {
           smallButton("清除") { clearSearchKey() }
         }
+      }
+      if searchBackend == .qwen {
+        HStack(spacing: 8) {
+          TextField("Workspace ID 或 API Host", text: qwenWorkspaceBinding)
+            .textFieldStyle(.roundedBorder)
+          smallButton("保存空间") { saveQwenWorkspaceSetting() }
+        }
+        Text(qwenWorkspaceHelp)
+          .font(.system(size: 11.5, design: .monospaced))
+          .foregroundStyle(palette.ink3)
+          .fixedSize(horizontal: false, vertical: true)
+          .frame(maxWidth: .infinity, alignment: .leading)
       }
       Text("这把 Key 只用于检索，与上面「供应商」里那把分开存。\(searchBackend.keyHint)配好后由\(searchBackend.displayName)取回网页、交给你的默认供应商作答 —— 所以默认配的是 DeepSeek 也能联网。留空则退回各家模型自带的联网工具。三家的 Key 分开存，来回切换不用重填。\(searchKeyStatus.isEmpty ? "" : "\n\n\(searchKeyStatus)")")
           .font(.system(size: 12))
@@ -301,11 +327,52 @@ struct FamoAIPage: View {
       } else {
         formRow("预设") { presetControl }
       }
+      if providerID == "qwen" {
+        formRow("空间") { qwenWorkspaceControl }
+      }
       formRow("端点") { endpointControl }
       formRow("模型") { modelControl }
       formRow("密钥") { keyControl }
       formRow("") { addFooter }
     }
+  }
+
+  private var qwenWorkspaceControl: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      TextField("Workspace ID 或 API Host", text: qwenWorkspaceBinding)
+        .textFieldStyle(.roundedBorder)
+      Text(qwenWorkspaceHelp)
+        .font(.system(size: 11.5, design: .monospaced))
+        .foregroundStyle(palette.ink3)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  private var qwenWorkspaceBinding: Binding<String> {
+    Binding(
+      get: { qwenWorkspaceInput },
+      set: { newValue in
+        qwenWorkspaceInput = newValue
+        guard providerID == "qwen" else { return }
+        let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+          providerEndpoint = FamoLLMProviderCatalog.qwenResponsesEndpoint
+        } else if let endpoint = FamoQwenWorkspace.responsesEndpoint(for: trimmed) {
+          providerEndpoint = endpoint.absoluteString
+        }
+      }
+    )
+  }
+
+  private var qwenWorkspaceHelp: String {
+    let trimmed = qwenWorkspaceInput.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+      return "留空时使用 dashscope.aliyuncs.com 通用 Responses 端点。"
+    }
+    guard let host = FamoQwenWorkspace.normalizedAPIHost(trimmed) else {
+      return "格式无效：请填 ws-…，或 ws-….cn-beijing.maas.aliyuncs.com。"
+    }
+    return "API Host：\(host)"
   }
 
   /// One 「label · control」 row: a fixed-width right-aligned label + the control filling the rest,
@@ -443,7 +510,11 @@ struct FamoAIPage: View {
   private func fillPreset(_ preset: FamoLLMProviderPreset) {
     providerID = preset.id
     providerName = preset.displayName
-    providerEndpoint = preset.endpoint
+    if preset.id == "qwen" {
+      providerEndpoint = resolvedQwenEndpoint()?.absoluteString ?? preset.endpoint
+    } else {
+      providerEndpoint = preset.endpoint
+    }
     providerModel = preset.model
     providerKeyHint = preset.keyHint
     fetchedModels = []
@@ -462,8 +533,9 @@ struct FamoAIPage: View {
   }
 
   private func addProvider() {
+    guard let effectiveEndpoint = prepareProviderEndpoint() else { return }
     // 每家一条：先移除同一供应商的旧配置（含其 Keychain 键），再添加。
-    let newKey = dedupKey(providerID: providerID, endpointHost: URL(string: providerEndpoint)?.host)
+    let newKey = dedupKey(providerID: providerID, endpointHost: URL(string: effectiveEndpoint)?.host)
     for existing in providers where dedupKey(
       providerID: FamoLLMProviderCatalog.inferredProviderID(for: existing),
       endpointHost: existing.endpoint.host) == newKey {
@@ -475,7 +547,7 @@ struct FamoAIPage: View {
       : providerName
     let result = FamoSettingsActions.addProviderProfile(
       displayName: name,
-      endpoint: providerEndpoint,
+      endpoint: effectiveEndpoint,
       model: providerModel,
       apiKey: providerKeyInput,
       makeDefault: true,
@@ -486,6 +558,7 @@ struct FamoAIPage: View {
     providers = result.profiles
     providerStatus = result.status
     if result.status.hasPrefix("已添加") {
+      persistQwenWorkspaceIfNeeded()
       // 「拉取最新」验证过的正是刚存进去的这把 Key —— 落库后补标，行状态才写「已验证」。
       if pendingKeyVerified,
          let added = result.profiles.first(where: {
@@ -511,7 +584,8 @@ struct FamoAIPage: View {
   /// 「拉取最新」: GET the provider's `/models` with the typed endpoint + key, merge into the model
   /// dropdown. Curated preset models remain the fallback if the fetch fails or returns nothing.
   private func fetchModels() {
-    guard let endpoint = URL(string: providerEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)),
+    guard let effectiveEndpoint = prepareProviderEndpoint(),
+          let endpoint = URL(string: effectiveEndpoint),
           endpoint.scheme == "https" else {
       providerStatus = "端点必须是 https"; return
     }
@@ -551,7 +625,8 @@ struct FamoAIPage: View {
   ///
   /// 成功也要落一次「已验证」：这是拿这把 Key 真的调通了，比 `/models` 更有说服力。
   private func checkConnectivity() {
-    guard let endpoint = URL(string: providerEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)),
+    guard let effectiveEndpoint = prepareProviderEndpoint(),
+          let endpoint = URL(string: effectiveEndpoint),
           endpoint.scheme == "https" else {
       providerStatus = "端点必须是 https"; return
     }
@@ -604,6 +679,42 @@ struct FamoAIPage: View {
       for: searchBackend, secrets: providerSecrets)
   }
 
+  private func saveQwenWorkspaceSetting() {
+    let result = FamoSettingsActions.saveQwenWorkspace(
+      qwenWorkspaceInput, store: providerStore)
+    providers = result.profiles
+    searchKeyStatus = result.status
+    guard result.saved else { return }
+    qwenWorkspaceInput = FamoQwenWorkspaceSettings.apiHost()
+    if providerID == "qwen" {
+      providerEndpoint = FamoQwenWorkspaceSettings.responsesEndpoint().absoluteString
+    }
+  }
+
+  private func resolvedQwenEndpoint() -> URL? {
+    let trimmed = qwenWorkspaceInput.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty
+      ? URL(string: FamoLLMProviderCatalog.qwenResponsesEndpoint)
+      : FamoQwenWorkspace.responsesEndpoint(for: trimmed)
+  }
+
+  /// Qwen 的端点由 Workspace 输入生成；其他供应商仍使用原端点字段。
+  private func prepareProviderEndpoint() -> String? {
+    guard providerID == "qwen" else { return providerEndpoint }
+    guard let endpoint = resolvedQwenEndpoint() else {
+      providerStatus = "Workspace ID / API Host 格式无效。"
+      return nil
+    }
+    providerEndpoint = endpoint.absoluteString
+    return providerEndpoint
+  }
+
+  private func persistQwenWorkspaceIfNeeded() {
+    guard providerID == "qwen" else { return }
+    _ = FamoQwenWorkspaceSettings.save(qwenWorkspaceInput)
+    qwenWorkspaceInput = FamoQwenWorkspaceSettings.apiHost()
+  }
+
   /// The profile's stored key, for 「拉取最新」 only — never surfaced in the UI.
   private func storedKey(for profile: FamoProviderProfile?) -> String? {
     guard let profile, let key = try? providerSecrets.secret(named: profile.secretName),
@@ -617,6 +728,11 @@ struct FamoAIPage: View {
     providerID = FamoLLMProviderCatalog.inferredProviderID(for: profile)
     providerName = profile.displayName
     providerEndpoint = profile.endpoint.absoluteString
+    if providerID == "qwen" {
+      qwenWorkspaceInput = FamoQwenWorkspace.apiHost(from: profile.endpoint)
+        ?? FamoQwenWorkspaceSettings.apiHost()
+      providerEndpoint = resolvedQwenEndpoint()?.absoluteString ?? profile.endpoint.absoluteString
+    }
     providerModel = profile.model
     providerKeyHint = FamoLLMProviderCatalog.preset(id: providerID)?.keyHint ?? ""
     providerKeyInput = ""
@@ -635,9 +751,10 @@ struct FamoAIPage: View {
   /// Save the edited profile in place — keeps its Keychain entry unless a new key was typed.
   private func saveEdit() {
     guard let profile = editingProfile else { return }
+    guard let effectiveEndpoint = prepareProviderEndpoint() else { return }
     let result = FamoSettingsActions.updateProviderProfile(
       profile,
-      endpoint: providerEndpoint,
+      endpoint: effectiveEndpoint,
       model: providerModel,
       apiKey: providerKeyInput,
       store: providerStore,
@@ -646,6 +763,7 @@ struct FamoAIPage: View {
     providers = result.profiles
     providerStatus = result.status
     if result.status.hasPrefix("已保存") {
+      persistQwenWorkspaceIfNeeded()
       editingProfile = nil
       fillCustomPreset()
       providerName = ""
