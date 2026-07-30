@@ -32,9 +32,10 @@ final class FamoPromptOptimizeLiveTests: XCTestCase {
     }
     return URL(string: FamoLLMProviderCatalog.qwenResponsesEndpoint)!
   }()
-  /// 默认跟着百炼预设走（测的应当是新用户真会用上的那个型号），`~/.famo-test-model` 可覆盖
-  /// —— 「这个技能该用 3.7-plus 还是 3.6-flash」只能靠同一套用例分别打两次来回答。
-  /// 用文件而不是环境变量的原因见 `FamoSkillsLiveTests.model`（xcodebuild 不转发 shell env）。
+  /// 默认跟着百炼预设走（测的应当是新用户真会用上的那个型号，2026-07-31 起即 qwen3.7-plus），
+  /// `~/.famo-test-model` 可覆盖 —— 「这个技能该用 3.7-plus 还是 3.7-max」只能靠同一套用例
+  /// 分别打两次来回答。用文件而不是环境变量的原因见 `FamoSkillsLiveTests.model`
+  /// （xcodebuild 不转发 shell env）。
   private let model: String = {
     let path = ("~/.famo-test-model" as NSString).expandingTildeInPath
     let override = (try? String(contentsOfFile: path, encoding: .utf8))?

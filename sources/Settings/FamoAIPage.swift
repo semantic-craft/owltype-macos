@@ -481,7 +481,7 @@ struct FamoAIPage: View {
     case "deepseek":
       preset = [FamoCloudPreferences.defaultDeepSeekModel, FamoCloudPreferences.reasonerDeepSeekModel]
     case "qwen":
-      // 百炼一家给一串（3.7 三档 + 3.6-flash），理由见 `FamoLLMProviderCatalog.qwenModels`。
+      // 百炼一家给一串（3.7-plus 默认 + 3.7-max 高质量档），理由见 `FamoLLMProviderCatalog.qwenModels`。
       preset = FamoLLMProviderCatalog.qwenModels
     case FamoLLMProviderCatalog.customID:
       preset = []

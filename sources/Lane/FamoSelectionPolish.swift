@@ -71,11 +71,12 @@ enum FamoSelectionPolish {
     return nil
   }
 
-  /// Build the DeepSeek chat request for a selection. Flash model. Same json_object response
-  /// format the parser expects. No snapshot involved — this is a standalone text op. The selected
-  /// document text is sent verbatim (raw). System prompt + temperature come from the active
-  /// A/B variant (issue #136); the default resolves `FamoExperimentalPreferences` per call so
-  /// flipping the preference reaches the request body without restarts.
+  /// Build the chat-shaped request payload for a selection (the Responses providers reuse its
+  /// messages + temperature via `FamoResponsesWire`). Same json_object response format the parser
+  /// expects. No snapshot involved — this is a standalone text op. The selected document text is
+  /// sent verbatim (raw). System prompt + temperature come from the active A/B variant
+  /// (issue #136); the default resolves `FamoExperimentalPreferences` per call so flipping the
+  /// preference reaches the request body without restarts.
   static func chatRequest(
     for selection: String,
     model: String = FamoCloudPreferences.deepSeekModel,
@@ -89,15 +90,16 @@ enum FamoSelectionPolish {
       FamoDeepSeekMessage(role: "user", content: userContent),
     ]
     // Interactive selection polish — disable hidden thinking so it returns in ~1s (see
-    // FamoDeepSeekThinking). deepseek/mimo/doubao 共用同一 `thinking:{disabled}` 形状
-    // （FamoThinkingControl 的 deepSeekStyle；豆包 doubao-seed-2-1-turbo 实测默认开思考，
-    // 短回复也烧 reasoning token）；下方 typed payload 保留旧 DashScope Chat 方言供非 Qwen
-    // 托管模型使用，真正的 Qwen 系列请求会在 client 层改走 Responses `reasoning.effort:none`。
-    // qwen3.6-flash 默认开思考，实测润色一句话烧 948 reasoning token / 5.4s，直接把 8 秒交互
-    // 超时打爆（2026-07-20 实盘
-    // 百炼发现）；关掉后 0.6s。别家两个字段都 nil 省略。逐家形状由 FamoThinkingControl 单一
-    // 真相给出：providerID 优先（自定义档案的模型名可能不带标准前缀，如百炼上托管的
-    // deepseek-* 该走 enable_thinking），传空时退回 model 前缀判定。
+    // FamoDeepSeekThinking). deepseek/mimo 沿用 Chat 的 `thinking:{disabled}` 形状
+    // （FamoThinkingControl 的 deepSeekStyle）；下方 typed payload 保留旧 Chat 方言供
+    // 非 Responses 供应商使用。真正的 Qwen / 豆包 请求会在 client 层改走 Responses，
+    // 关思考由 FamoResponsesWire 统一带上（qwen `reasoning.effort:none`、方舟
+    // `thinking.type:disabled`——方舟官方示例默认思考一句寒暄就烧 211 reasoning token）。
+    // 混合思考模型默认开思考的代价（2026-07-20 实盘百炼旧基线）：润色一句话烧 948
+    // reasoning token / 5.4s，直接把 8 秒交互超时打爆；关掉后 0.6s。别家两个字段都 nil
+    // 省略。逐家形状由 FamoThinkingControl 单一真相给出：providerID 优先（自定义档案的
+    // 模型名可能不带标准前缀，如百炼上托管的 deepseek-* 该走 enable_thinking），传空时
+    // 退回 model 前缀判定。
     let thinkingOff = FamoThinkingControl.offFields(providerID: providerID, model: model)
     return FamoDeepSeekChatRequest(
       model: model,
@@ -150,17 +152,17 @@ struct FamoSelectionPolishClient: FamoSelectionPolishFetching {
     FamoLiveInputTrace.write { "selection-polish variant=\(variant.id) model=\(model)" }
     let payload = try FamoSelectionPolish.chatRequest(
       for: selection, model: model, providerID: providerID, variant: variant)
-    let qwenResponses = FamoResponsesWire.isQwen(
+    let responsesDialect = FamoResponsesWire.dialect(
       providerID: providerID, model: model, endpoint: endpoint)
     let request: URLRequest
-    if qwenResponses {
+    if let responsesDialect {
       request = try FamoResponsesWire.request(
         endpoint: endpoint,
         model: model,
         messages: payload.messages,
         apiKey: apiKey,
         authHeaderStyle: authHeaderStyle,
-        dialect: .qwen,
+        dialect: responsesDialect,
         stream: false,
         webSearch: false,
         temperature: payload.temperature,
@@ -179,7 +181,7 @@ struct FamoSelectionPolishClient: FamoSelectionPolishFetching {
     if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
       throw FamoCloudRequestError.badHTTPStatus(http.statusCode)
     }
-    if qwenResponses {
+    if responsesDialect != nil {
       let decoded = try FamoResponsesWire.parse(data)
       if let usage = decoded.usage {
         FamoCloudUsageTelemetry.record(FamoCloudUsageSnapshot(
@@ -328,8 +330,13 @@ final class FamoSourceVerificationService {
 
   /// Product prompt surfaced for the live Responses-API evaluation. Keeping it here (rather than
   /// copying it into the test) makes the evaluated bytes the same bytes production sends.
+  ///
+  /// 2026-07-31 来源质量加固：明确一手官方来源优先。此前模型常拿聚合站/百科转载当来源，
+  /// 用户要跳查的恰恰是「发布机关自己怎么说」。
   nonisolated static let systemPrompt =
     "你是来源核验助手。必须使用联网检索结果核验选中文本。不要凭常识补来源；没有可核 URL 时说明需要人工确认。"
+    + "来源按权威优先：优先给出一手官方来源（发布机关、法院、政府官网或法规公报、标准原文页）；"
+    + "确无一手来源时才用权威媒体或数据库转载，并注明系转载。"
 
   nonisolated static func userPrompt(for selectedText: String) -> String {
     "请核验以下选中文本，并返回判断、可核来源 URL、关键信息。选中文本：\n\(selectedText)"

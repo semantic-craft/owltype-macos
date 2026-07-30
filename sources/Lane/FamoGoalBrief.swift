@@ -70,17 +70,17 @@ struct FamoGoalBriefClient: FamoPromptOptimizeFetching {
 
     let payload = FamoGoalBrief.chatRequest(
       forDraft: draft, clarifications: clarifications, model: model, providerID: providerID)
-    let qwenResponses = FamoResponsesWire.isQwen(
+    let responsesDialect = FamoResponsesWire.dialect(
       providerID: providerID, model: model, endpoint: endpoint)
     let request: URLRequest
-    if qwenResponses {
+    if let responsesDialect {
       request = try FamoResponsesWire.request(
         endpoint: endpoint,
         model: model,
         messages: payload.messages,
         apiKey: apiKey,
         authHeaderStyle: authHeaderStyle,
-        dialect: .qwen,
+        dialect: responsesDialect,
         stream: false,
         webSearch: false,
         temperature: payload.temperature,
@@ -100,7 +100,7 @@ struct FamoGoalBriefClient: FamoPromptOptimizeFetching {
     if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
       throw FamoCloudRequestError.badHTTPStatus(http.statusCode)
     }
-    if qwenResponses {
+    if responsesDialect != nil {
       let decoded = try FamoResponsesWire.parse(data)
       if let usage = decoded.usage {
         FamoCloudUsageTelemetry.record(FamoCloudUsageSnapshot(
@@ -225,6 +225,8 @@ enum FamoGoalBrief {
     缺失处理（分级，别动辄反问）：
     - 某问缺失但能从草稿合理推断：补上，并在补写的句末标注「（推断）」，让用户一眼看出哪些是你补的。
     - 无法合理推断的：写进〈未知 Unknown〉一节，不要编造。没有未知项就写「无」。
+    - 技术选型（编程语言、框架、库、运行环境）除非草稿点名，否则既不推断也不反问：
+      在〈未知〉一节列一条「未指定」即可，其余小节不得出现具体选型，举例（「如 Python」）也不要。
 
     硬规则：
     - 沿用草稿的语言：中文草稿产出中文任务书，英文草稿产出英文任务书。
