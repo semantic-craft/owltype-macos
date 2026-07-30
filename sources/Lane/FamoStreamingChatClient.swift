@@ -398,8 +398,9 @@ final class FamoStreamingChatService {
   static let shared = FamoStreamingChatService()
 
   private let client: FamoChatStreaming
-  /// The `/responses` transport (豆包 / OpenAI 联网). Held ONLY here — `stream` never touches it,
-  /// so 划词技能 structurally cannot reach a search endpoint.
+  /// The `/responses` transport. Qwen uses it for every generation; 豆包/OpenAI use it for their
+  /// built-in-search routes. `webSearch` remains explicit, so plain skills never gain search by
+  /// merely sharing the transport.
   private let responsesClient: FamoResponsesStreaming
   /// Resolves the active profile → routing + key (or a typed not-ready outcome). Built from the
   /// injected profile/secret/legacy closures so tests keep injecting exactly as before.
@@ -454,7 +455,7 @@ final class FamoStreamingChatService {
   func stream(messages: [FamoDeepSeekMessage]) -> Result<AsyncThrowingStream<String, Error>, FamoStreamingReadiness> {
     switch readiness() {
     case let .ready(routing, apiKey):
-      return .success(client.stream(messages: messages, routing: routing, apiKey: apiKey))
+      return .success(plainStream(messages: messages, routing: routing, apiKey: apiKey))
     case .unconfigured:
       return .failure(.unconfigured)
     case .missingKey:
@@ -618,7 +619,7 @@ final class FamoStreamingChatService {
         query: query, apiKey: searchKey, limit: Self.webSearchResultCount)
       // 0 条结果按失败处理：注入空资料等于凭训练记忆作答却署着「已联网」。
       guard !results.isEmpty else { throw FamoWebSearchError.noResults }
-      return client.stream(
+      return plainStream(
         messages: FamoWebSearchContext.injecting(results: results, into: messages),
         routing: routing,
         apiKey: apiKey)
@@ -645,15 +646,36 @@ final class FamoStreamingChatService {
         apiKey: route.apiKey,
         extraBody: route.extraBody
       )
-    case let .responses(isOpenAI):
+    case let .responses(dialect):
       return responsesClient.stream(
         messages: messages,
         routing: route.routing,
         apiKey: route.apiKey,
-        isOpenAI: isOpenAI
+        dialect: dialect,
+        webSearch: true
       )
     case .none:
       return nil
     }
+  }
+
+  /// Plain generation still selects transport by provider. Qwen 与豆包 run their whole Famo
+  /// surface on Responses (store=false + 关思考 live in `FamoResponsesWire.body`); all other
+  /// profiles retain their existing chat-completions wire.
+  private func plainStream(
+    messages: [FamoDeepSeekMessage],
+    routing: FamoCloudRouting,
+    apiKey: String
+  ) -> AsyncThrowingStream<String, Error> {
+    if let dialect = FamoResponsesWire.dialect(
+      providerID: routing.providerID, model: routing.model, endpoint: routing.endpoint) {
+      return responsesClient.stream(
+        messages: messages,
+        routing: routing,
+        apiKey: apiKey,
+        dialect: dialect,
+        webSearch: false)
+    }
+    return client.stream(messages: messages, routing: routing, apiKey: apiKey)
   }
 }

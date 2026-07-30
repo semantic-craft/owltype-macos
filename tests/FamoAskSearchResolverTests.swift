@@ -200,7 +200,7 @@ final class FamoAskSearchResolverTests: XCTestCase {
     FamoAskSearchProviderSettings.resetForTesting()
   }
 
-  // MARK: - `/responses` providers (豆包 / OpenAI)
+  // MARK: - `/responses` providers (Qwen / 豆包 / OpenAI)
 
   func testDoubaoRouteCarriesTheResponsesTransportAndNoChatExtras() {
     let resolver = makeResolver(
@@ -209,7 +209,7 @@ final class FamoAskSearchResolverTests: XCTestCase {
     )
     guard let route = resolver.resolve() else { return XCTFail("expected a resolved route") }
     XCTAssertEqual(route.providerID, "doubao")
-    XCTAssertEqual(route.transport, .responses(isOpenAI: false), "豆包 必须走 /responses")
+    XCTAssertEqual(route.transport, .responses(.ark), "豆包 必须走 /responses")
     XCTAssertTrue(route.extraBody.isEmpty, "它的搜索参数不在 chat/completions 顶层字段里")
     XCTAssertEqual(route.displayName, "豆包")
     XCTAssertEqual(route.apiKey, "sk-doubao")
@@ -221,16 +221,16 @@ final class FamoAskSearchResolverTests: XCTestCase {
       keys: ["famo.provider.openai.apiKey": "sk-openai"]
     )
     guard let route = resolver.resolve() else { return XCTFail("expected a resolved route") }
-    XCTAssertEqual(route.transport, .responses(isOpenAI: true))
+    XCTAssertEqual(route.transport, .responses(.openAI))
     XCTAssertEqual(route.displayName, "OpenAI")
   }
 
-  func testChatCompletionsRouteStillCarriesTheChatTransport() {
+  func testQwenRouteCarriesTheQwenResponsesDialect() {
     let resolver = makeResolver(
       profiles: [qwen(isDefault: true)],
       keys: ["famo.provider.qwen.apiKey": "sk-qwen"]
     )
-    XCTAssertEqual(resolver.resolve()?.transport, .chatCompletions)
+    XCTAssertEqual(resolver.resolve()?.transport, .responses(.qwen))
   }
 
   func testResponsesProvidersSitBehindTheChatOnesInTheAutoOrder() {
@@ -303,14 +303,14 @@ final class FamoAskSearchResolverTests: XCTestCase {
   // MARK: - Route → request fields
 
   func testResolvedRouteCarriesItsProvidersSearchFields() {
-    // The route's extraBody is what actually reaches the wire; assert it is the provider's real
-    // search payload rather than an empty dict (which would mean "searched" without searching).
+    // Qwen's route carries its Responses dialect; chat extras must stay empty.
     let resolver = makeResolver(
       profiles: [qwen(isDefault: true)],
       keys: ["famo.provider.qwen.apiKey": "sk-qwen"]
     )
     guard let route = resolver.resolve() else { return XCTFail("expected a resolved route") }
-    XCTAssertEqual(route.extraBody["enable_search"] as? Bool, true)
+    XCTAssertEqual(route.transport, .responses(.qwen))
+    XCTAssertTrue(route.extraBody.isEmpty)
     XCTAssertEqual(route.displayName, "通义千问")
   }
 

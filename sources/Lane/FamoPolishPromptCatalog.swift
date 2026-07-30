@@ -4,7 +4,8 @@
 //
 //  B4 划词「润色」的 system prompt / temperature 从 FamoSelectionPolish 的硬编码单串改为这里的
 //  变体注册表，给 A/B 对比留结构空间：
-//    - v1-legacy（保底/默认）：出厂 prompt 原样 + temp 0.3，行为与 #136 之前逐字节一致。
+//    - v1-legacy（保底/默认）：出厂 prompt + temp 0.3。2026-07-31 追加一句逐候选保真硬线
+//      （法律/程序动作词不得互换），此前与 #136 之前逐字节一致。
 //    - v2-responsay-aligned：段落化装配（仿 Responsay TextTransformPromptAssembler 的
 //      role/task/rules/output 分段），对齐的是 Responsay 的 rewrite（重改写）线而非 polish
 //      （听写成稿）线（docs/famo-responsay-alignment-spec.md §2.1），并补三块硬护栏（§2.2）：
@@ -61,12 +62,17 @@ enum FamoPolishPromptCatalog {
     variant(id: FamoExperimentalPreferences.selectionPolishPromptVariant)
   }
 
-  // MARK: - v1 prompt (verbatim legacy)
+  // MARK: - v1 prompt (legacy + fidelity hard line)
 
+  /// 2026-07-31 保真加固：在出厂 prompt 上追加一句硬约束。旧基线 qwen3.7-flash 实盘曾把
+  /// 「可能撤销合同」润成「或许解除该合同」——撤销与解除是两种法律效果，润色绝不能替用户
+  /// 换法律动作。约束写成通用规则（动作/效果词 + 确定度 + 事实逐项保留），三个生产模型
+  /// （qwen3.7-plus / qwen3.7-max / doubao-seed-2-1-pro）共用，不做供应商分支。
   static let legacySystemPrompt: String = [
     "You polish and rewrite a passage of Chinese text.",
     "Use fluent written Chinese (书面语) unless the selected text itself clearly establishes another register.",
     "Rewrite the user's provided text; preserve its meaning and do not add new facts.",
+    "Every candidate must keep the original facts, numbers, dates, names, degree of certainty (hedges like 可能/大概 stay hedged), and action/effect words: never substitute one legal or procedural act for another (撤销、解除、终止、无效 are different acts — keep the original one).",
     "Return a JSON object only, shaped exactly like {\"candidates\": [\"改写一\", \"改写二\"]}.",
     "The candidates array holds plain rewrite strings; no other keys, no prose, no code fences.",
     "Do not explain. Do not invent personal context.",
@@ -98,6 +104,7 @@ enum FamoPolishPromptCatalog {
       "What you MUST NOT do (faithfulness red lines):",
       "- Do not add facts, numbers, links, paths, steps, fields, names, or claims the user did not write.",
       "- Do not drop essential information, and do not change the user's stance, intent, decisions, or degree of certainty. Keep hedges as hedges (「大概」「可能」「我觉得」stay) — never make the text sound more sure, more decided, or more committed than the original.",
+      "- Do not swap action/effect words: 法律与程序动作词按原词保留（撤销 / 解除 / 终止 / 无效 / 驳回 互不替换）——they name different legal effects, and every candidate must keep the user's original act.",
       "- Do not add greetings, sign-offs, recipients, or signatures the user did not write.",
       "- Do not add summaries, takeaways, recommendations, or corporate/managerial spin. Rewrite for clarity, never inflate.",
       "- Do not emit meta-sentences (e.g. 「我整理如下」「以下是」「经过分析」).",

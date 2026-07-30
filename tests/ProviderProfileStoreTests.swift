@@ -316,28 +316,134 @@ final class ProviderProfileStoreTests: XCTestCase {
     )
     XCTAssertEqual(FamoLLMProviderCatalog.authHeaderStyle(for: mimo), .apiKey)
     XCTAssertEqual(FamoLLMProviderCatalog.sourceSupport(for: mimo), .sourceResults)
+
+    let nonQwenOnDashScope = FamoProviderProfile(
+      displayName: "百炼托管 DeepSeek",
+      endpoint: URL(string: FamoLLMProviderCatalog.qwenResponsesEndpoint)!,
+      model: "deepseek-v3.2",
+      providerID: "qwen")
+    XCTAssertEqual(
+      FamoLLMProviderCatalog.sourceSupport(for: nonQwenOnDashScope),
+      .searchPlanOnly,
+      "只有 Qwen 系列才进入百炼 Responses web_search 路径")
   }
 
   /// 百炼一家给一串型号（别家只给一个）：阿里的迭代比法墨发版快，下拉里只出现一个会让人以为
-  /// 「只能用这个」。两条不变式：默认值必须在清单里（选不到默认值很怪），以及清单里不许出现
-  /// 阿里模型总表查不到的 `qwen3.6-plus` / `qwen3.6-max` 之流 —— 凭命名规律推出来的 id 被选中就是一个 400。
+  /// 「只能用这个」。三条不变式：默认值必须在清单里（选不到默认值很怪）且是 `qwen3.7-plus`
+  /// （2026-07-31 产品决定的默认基线）；清单只列产品正式支持的 Plus/Max 两档——Flash 不再作为
+  /// 内置推荐（手输或「拉取最新」仍可用）；不许出现阿里模型总表查不到的 `qwen3.6-plus` /
+  /// `qwen3.6-max` 之流 —— 凭命名规律推出来的 id 被选中就是一个 400。
   func testQwenPresetOffersTheWholeCuratedListWithItsDefaultInside() throws {
     let preset = try XCTUnwrap(FamoLLMProviderCatalog.preset(id: "qwen"))
-    XCTAssertEqual(preset.model, "qwen3.7-plus")
+    XCTAssertEqual(preset.model, "qwen3.7-plus", "默认基线是 qwen3.7-plus")
+    XCTAssertEqual(
+      preset.endpoint,
+      FamoLLMProviderCatalog.qwenResponsesEndpoint)
     XCTAssertEqual(FamoLLMProviderCatalog.qwenModels.first, preset.model)
-    XCTAssertTrue(FamoLLMProviderCatalog.qwenModels.contains("qwen3.7-flash"))
-    XCTAssertTrue(FamoLLMProviderCatalog.qwenModels.contains("qwen3.7-max"))
     XCTAssertTrue(
-      FamoLLMProviderCatalog.qwenModels.contains("qwen3.6-flash"),
-      "3.6 只留仓库实测在用的 flash")
+      FamoLLMProviderCatalog.qwenModels.contains("qwen3.7-max"),
+      "高质量档 qwen3.7-max 必须可选")
     XCTAssertEqual(
       Set(FamoLLMProviderCatalog.qwenModels).count, FamoLLMProviderCatalog.qwenModels.count,
       "清单不能有重复项，下拉会出现两个一样的")
+    XCTAssertFalse(
+      FamoLLMProviderCatalog.qwenModels.contains { $0.lowercased().contains("flash") },
+      "Flash 型号不再是内置推荐项（2026-07-31 产品决定）；用户手输不拦，但下拉不背书")
     for guessed in ["qwen3.6-plus", "qwen3.6-max", "qwen3.6-max-preview"] {
       XCTAssertFalse(
         FamoLLMProviderCatalog.qwenModels.contains(guessed),
         "\(guessed) 在阿里云模型总表里查不到，不能凭命名规律塞进下拉")
     }
+  }
+
+  /// 豆包预设 = 高质量档 doubao-seed-2-1-pro，端点直指方舟 Responses（2026-07-31 起
+  /// 豆包全面走 Responses：store=false + thinking:{disabled} 均在 Responses 请求体上）。
+  func testDoubaoPresetUsesProModelOnTheResponsesEndpoint() throws {
+    let preset = try XCTUnwrap(FamoLLMProviderCatalog.preset(id: "doubao"))
+    XCTAssertEqual(preset.model, "doubao-seed-2-1-pro-260628")
+    XCTAssertEqual(
+      preset.endpoint,
+      "https://ark.cn-beijing.volces.com/api/v3/responses")
+    XCTAssertEqual(preset.sourceSupport, .sourceResults)
+  }
+
+  func testQwenWorkspaceInputAcceptsWorkspaceIDHostAndFullEndpoint() throws {
+    let workspaceID = "ws-test123abc"
+    let workspaceHost = "ws-test123abc.cn-beijing.maas.aliyuncs.com"
+    let endpoint = "https://\(workspaceHost)/compatible-mode/v1/responses"
+
+    XCTAssertEqual(FamoQwenWorkspace.normalizedAPIHost(workspaceID), workspaceHost)
+    XCTAssertEqual(FamoQwenWorkspace.normalizedAPIHost(workspaceHost), workspaceHost)
+    XCTAssertEqual(FamoQwenWorkspace.normalizedAPIHost(endpoint), workspaceHost)
+    XCTAssertEqual(
+      FamoQwenWorkspace.responsesEndpoint(for: workspaceID)?.absoluteString,
+      endpoint)
+  }
+
+  func testQwenWorkspaceRejectsInvalidOrForeignHosts() {
+    for invalid in [
+      "workspace.example.com",
+      "ws-good.cn-beijing.maas.aliyuncs.com.evil.example",
+      "ws-good@cn-beijing.maas.aliyuncs.com",
+      "ws-good/compatible-mode/v1/responses",
+      "ws-空间",
+      "https://dashscope.aliyuncs.com/compatible-mode/v1/responses",
+    ] {
+      XCTAssertNil(FamoQwenWorkspace.normalizedAPIHost(invalid), invalid)
+    }
+  }
+
+  func testQwenWorkspaceSettingPersistsOnlyTheNormalizedHost() throws {
+    let suiteName = "FamoQwenWorkspaceTests-\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+
+    XCTAssertTrue(FamoQwenWorkspaceSettings.save("ws-test123abc", defaults: defaults))
+    XCTAssertEqual(
+      FamoQwenWorkspaceSettings.apiHost(defaults: defaults),
+      "ws-test123abc.cn-beijing.maas.aliyuncs.com")
+    XCTAssertEqual(
+      FamoQwenWorkspaceSettings.responsesEndpoint(defaults: defaults).absoluteString,
+      "https://ws-test123abc.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/responses")
+
+    XCTAssertFalse(FamoQwenWorkspaceSettings.save("workspace.example.com", defaults: defaults))
+    XCTAssertEqual(
+      FamoQwenWorkspaceSettings.apiHost(defaults: defaults),
+      "ws-test123abc.cn-beijing.maas.aliyuncs.com",
+      "invalid input must not overwrite the last usable host")
+
+    XCTAssertTrue(FamoQwenWorkspaceSettings.save("", defaults: defaults))
+    XCTAssertEqual(FamoQwenWorkspaceSettings.apiHost(defaults: defaults), "")
+    XCTAssertEqual(
+      FamoQwenWorkspaceSettings.responsesEndpoint(defaults: defaults).absoluteString,
+      FamoLLMProviderCatalog.qwenResponsesEndpoint,
+      "empty workspace falls back to the documented generic Responses host")
+  }
+
+  func testSavingQwenWorkspaceAlsoUpdatesAnExistingQwenProfileEndpoint() throws {
+    let store = makeStore()
+    let profile = FamoProviderProfile(
+      displayName: "阿里云百炼",
+      endpoint: URL(string: FamoLLMProviderCatalog.qwenResponsesEndpoint)!,
+      model: "qwen3.7-plus",
+      providerID: "qwen")
+    _ = try store.add(profile)
+    let suiteName = "FamoQwenWorkspaceActionTests-\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+
+    let result = FamoSettingsActions.saveQwenWorkspace(
+      "ws-test123abc.cn-beijing.maas.aliyuncs.com",
+      store: store,
+      defaults: defaults)
+
+    XCTAssertTrue(result.saved)
+    XCTAssertEqual(
+      try XCTUnwrap(store.profile(id: profile.id)).endpoint.absoluteString,
+      "https://ws-test123abc.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/responses")
+    XCTAssertEqual(
+      FamoQwenWorkspaceSettings.apiHost(defaults: defaults),
+      "ws-test123abc.cn-beijing.maas.aliyuncs.com")
   }
 
   /// 密钥三态：「有值」不等于「能用」。实机踩过的就是 MiMo 的 Key 已 401，设置页仍写「已设置」，
@@ -566,23 +672,45 @@ final class FamoProviderConnectivityCheckTests: XCTestCase {
       statusCode: status, httpVersion: nil, headerFields: nil)!
   }
 
-  /// 最小请求：POST + 认证头 + 目标型号。`max_tokens` 取 16 而不是 1（1 在个别供应商上会被当成非法值），
-  /// 并关掉思考 —— 验证连通性没必要等混合思考模型先烧几百推理 token。
+  /// Qwen 连通性也必须打 Responses，不能只验证旧 chat/completions。
   func testRequestIsAMinimalPostCarryingTheModelUnderTest() throws {
     let request = try FamoProviderConnectivityCheck.request(
       endpoint: URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")!,
       providerID: "qwen", model: "qwen3.7-plus", apiKey: "sk-k", authStyle: .bearer)
     XCTAssertEqual(request.httpMethod, "POST")
+    XCTAssertEqual(
+      request.url?.absoluteString,
+      "https://dashscope.aliyuncs.com/compatible-mode/v1/responses")
     XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer sk-k")
 
     let body = try XCTUnwrap(
       JSONSerialization.jsonObject(with: try XCTUnwrap(request.httpBody)) as? [String: Any])
     XCTAssertEqual(body["model"] as? String, "qwen3.7-plus", "验的就是这个型号")
-    XCTAssertEqual(body["max_tokens"] as? Int, 16)
+    XCTAssertNil(body["max_tokens"])
+    XCTAssertNil(body["max_output_tokens"])
     XCTAssertEqual(body["stream"] as? Bool, false)
     XCTAssertEqual(
-      body["enable_thinking"] as? Bool, false,
-      "百炼的关思考字段要带上，否则验一次连通要等它先想完")
+      (body["reasoning"] as? [String: Any])?["effort"] as? String, "none")
+    XCTAssertNil(body["messages"])
+    XCTAssertNil(body["enable_thinking"])
+  }
+
+  /// 豆包连通性同样必须打 Responses（2026-07-31 起豆包全面走 Responses）：请求体带
+  /// thinking:{disabled} + store:false，绝不带 qwen 的 reasoning 字段。
+  func testDoubaoRequestVerifiesTheResponsesEndpointWithThinkingOff() throws {
+    let request = try FamoProviderConnectivityCheck.request(
+      endpoint: URL(string: "https://ark.cn-beijing.volces.com/api/v3/responses")!,
+      providerID: "doubao", model: "doubao-seed-2-1-pro-260628", apiKey: "sk-a", authStyle: .bearer)
+    XCTAssertEqual(
+      request.url?.absoluteString, "https://ark.cn-beijing.volces.com/api/v3/responses")
+    let body = try XCTUnwrap(
+      JSONSerialization.jsonObject(with: try XCTUnwrap(request.httpBody)) as? [String: Any])
+    XCTAssertEqual(body["model"] as? String, "doubao-seed-2-1-pro-260628")
+    XCTAssertEqual((body["thinking"] as? [String: Any])?["type"] as? String, "disabled")
+    XCTAssertEqual(body["store"] as? Bool, false)
+    XCTAssertNil(body["reasoning"], "reasoning.effort 是 qwen 的字段，方舟不认")
+    XCTAssertNil(body["messages"])
+    XCTAssertNil(body["max_tokens"])
   }
 
   /// MiMo 走 `api-key` 头而不是 Bearer —— 验证走的必须是该供应商真实的认证方式，
@@ -600,6 +728,12 @@ final class FamoProviderConnectivityCheckTests: XCTestCase {
     XCTAssertEqual(
       FamoProviderConnectivityCheck.outcome(data: chat, response: response(200), latencyMS: 412),
       .ok(latencyMS: 412))
+
+    let responses = Data(#"{"output":[{"type":"message","content":[{"type":"output_text","text":"pong"}]}]}"#.utf8)
+    XCTAssertEqual(
+      FamoProviderConnectivityCheck.outcome(
+        data: responses, response: response(200), latencyMS: 99),
+      .ok(latencyMS: 99))
 
     // 200 但不是 chat 响应：多半是网关/代理插进来的页面。报「通了」会把人引向错误的方向。
     XCTAssertEqual(

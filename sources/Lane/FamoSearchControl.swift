@@ -6,8 +6,8 @@
 //  search support resolve to `.none`, so a caller can ask "can this one search?" without a table.
 //
 //  The four providers split by TRANSPORT, and the split is a type (`Transport`) rather than a
-//  convention: Qwen(百炼/DashScope) / 小米MiMo search on `/chat/completions` via top-level
-//  body extras, while 豆包(火山方舟) / OpenAI search ONLY on `/responses` — a different endpoint,
+//  convention: 小米 MiMo searches on `/chat/completions` via top-level body extras, while
+//  Qwen(百炼/DashScope) / 豆包(火山方舟) / OpenAI search on `/responses` — a different endpoint,
 //  a different body, and a different SSE event shape (see `FamoResponsesStreamingClient`). Asking
 //  a `/responses` provider to search through `extraBody` silently does nothing, which is exactly
 //  why the capability is modelled instead of implied.
@@ -38,22 +38,23 @@ enum FamoSearchControl {
   enum Transport: Equatable {
     /// `/chat/completions` + the top-level extras from `extraBody(providerID:host:)`.
     case chatCompletions
-    /// `/responses`. `isOpenAI` picks the body dialect: OpenAI's `web_search` tool takes none of
-    /// 方舟's `max_keyword`/`limit` extras (they 400), and OpenAI has no `thinking` field.
-    case responses(isOpenAI: Bool)
+    /// `/responses`, with an explicit provider wire dialect.
+    case responses(FamoResponsesDialect)
     /// This provider cannot search at all.
     case none
   }
 
   /// The transport that carries `providerID`'s web search.
-  static func transport(providerID: String, host: String) -> Transport {
+  static func transport(providerID: String, host: String, model: String = "") -> Transport {
     switch channel(providerID: providerID, host: host) {
-    case .dashScope, .mimo:
+    case .mimo:
       return .chatCompletions
+    case .dashScope:
+      return model.isEmpty || model.lowercased().hasPrefix("qwen") ? .responses(.qwen) : .none
     case .ark:
-      return .responses(isOpenAI: false)
+      return .responses(.ark)
     case .openAI:
-      return .responses(isOpenAI: true)
+      return .responses(.openAI)
     case .none:
       return .none
     }
@@ -66,24 +67,6 @@ enum FamoSearchControl {
   /// search"; ask `transport(providerID:host:)` for that.
   static func extraBody(providerID: String, host: String) -> [String: Any] {
     switch channel(providerID: providerID, host: host) {
-    case .dashScope:
-      // 关思考不在这里：`FamoStreamingChatClient.makeRequest` 对每条任意提问请求都合并
-      // `FamoThinkingControl.offBody`，百炼的 `enable_thinking: false` 由那里统一带上。
-      //
-      // `forced_search` 不是可有可无的调优：文档里它**默认 false**，即「模型自己判断这一问要不要
-      // 联网」。而署名 chip 在请求发出前就写好了「通义千问 · 联网」——模型悄悄决定不搜时，用户拿到
-      // 的是训练记忆却以为是实时结果。这与搜索层「0 条结果按失败处理」是同一条原则：宁可没有联网，
-      // 不要假的联网。
-      //
-      // 这里**只能**放这两个字段。`enable_source` / `enable_citation` / `citation_format` /
-      // `prepend_search_result` 在文档里都标着「仅 DashScope 方式支持」，而这条路走的是
-      // `/compatible-mode/v1/chat/completions`——兼容模式的响应里根本没有 `search_info`，塞了也拿
-      // 不到来源角标（想要来源得走原生端点，见 `FamoDashScopeSearchWire`）。
-      // `search_strategy` 不写：默认就是最快的 `turbo`，而任意提问要的正是立刻能用的短答。
-      return [
-        "enable_search": true,
-        "search_options": ["forced_search": true],
-      ]
     case .mimo:
       // MiMo 的联网与思考互斥（同 `FamoSelectionPolish`）：显式关掉思考，否则搜索工具不触发。
       // 与 `FamoThinkingControl` 给 mimo 的字段同值——这里留着是因为它是**搜索能否触发**的前提，
@@ -98,8 +81,8 @@ enum FamoSearchControl {
           "limit": 3,
         ]],
       ]
-    case .ark, .openAI, .none:
-      // 豆包/OpenAI 的搜索参数属于 `/responses` 请求体（`FamoResponsesWire.searchBody`），不是
+    case .dashScope, .ark, .openAI, .none:
+      // Qwen/豆包/OpenAI 的搜索参数属于 `/responses` 请求体（`FamoResponsesWire.body`），不是
       // chat/completions 的顶层字段 —— 塞在这里会被端点静默忽略。
       return [:]
     }
@@ -111,7 +94,7 @@ enum FamoSearchControl {
   }
 
   /// Provider ids that support search, in the 自动 fallback priority order used by
-  /// `FamoAskSearchResolver`. `/chat/completions` 两家在前（一期已实机验证），`/responses` 两家在后。
+  /// `FamoAskSearchResolver`. Qwen 优先，其后保留 MiMo Chat 与豆包/OpenAI Responses 的顺位。
   static let searchProviderIDs = ["qwen", "mimo", "doubao", "openai"]
 
   /// 面向用户的联网模型署名名（品牌名，比公司名更贴近用户认知）。非可联网 → nil。

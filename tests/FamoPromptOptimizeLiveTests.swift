@@ -21,12 +21,21 @@ import XCTest
 @MainActor
 final class FamoPromptOptimizeLiveTests: XCTestCase {
 
-  /// 百炼按量付费的 OpenAI 兼容端点（与 `FamoLLMProviderCatalog.presets` 的 qwen 预设一致）。
-  private let endpoint = URL(
-    string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")!
-  /// 默认跟着百炼预设走（测的应当是新用户真会用上的那个型号），`~/.famo-test-model` 可覆盖
-  /// —— 「这个技能该用 3.7-plus 还是 3.6-flash」只能靠同一套用例分别打两次来回答。
-  /// 用文件而不是环境变量的原因见 `FamoSkillsLiveTests.model`（xcodebuild 不转发 shell env）。
+  /// `~/.famo-test-workspace` 可填 Workspace ID、完整 API Host 或 Responses URL；不把任何
+  /// 个人 Workspace 写进仓库。未配置时才回退通用域名。
+  private let endpoint: URL = {
+    let path = ("~/.famo-test-workspace" as NSString).expandingTildeInPath
+    let workspace = (try? String(contentsOfFile: path, encoding: .utf8))?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    if let workspace, let endpoint = FamoQwenWorkspace.responsesEndpoint(for: workspace) {
+      return endpoint
+    }
+    return URL(string: FamoLLMProviderCatalog.qwenResponsesEndpoint)!
+  }()
+  /// 默认跟着百炼预设走（测的应当是新用户真会用上的那个型号，2026-07-31 起即 qwen3.7-plus），
+  /// `~/.famo-test-model` 可覆盖 —— 「这个技能该用 3.7-plus 还是 3.7-max」只能靠同一套用例
+  /// 分别打两次来回答。用文件而不是环境变量的原因见 `FamoSkillsLiveTests.model`
+  /// （xcodebuild 不转发 shell env）。
   private let model: String = {
     let path = ("~/.famo-test-model" as NSString).expandingTildeInPath
     let override = (try? String(contentsOfFile: path, encoding: .utf8))?
@@ -51,14 +60,12 @@ final class FamoPromptOptimizeLiveTests: XCTestCase {
   /// 用真实代码构造的请求体直接 POST，把原始响应落盘供人工核对形状。
   @discardableResult
   private func dumpRawResponse(draft: String, apiKey: String, label: String) async throws -> String {
-    var request = URLRequest(url: endpoint)
-    request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-    request.timeoutInterval = 60
-    request.httpBody = try JSONEncoder().encode(
-      FamoPromptOptimizer.chatRequest(forDraft: draft, model: model)
-    )
+    let payload = FamoPromptOptimizer.chatRequest(
+      forDraft: draft, model: model, providerID: "qwen")
+    let request = try FamoResponsesWire.request(
+      endpoint: endpoint, model: model, messages: payload.messages,
+      apiKey: apiKey, authHeaderStyle: .bearer, dialect: .qwen,
+      stream: false, webSearch: false, temperature: payload.temperature, timeout: 60)
 
     let (data, response) = try await URLSession.shared.data(for: request)
     let status = (response as? HTTPURLResponse)?.statusCode ?? -1
@@ -69,10 +76,7 @@ final class FamoPromptOptimizeLiveTests: XCTestCase {
 
     // 取出模型真正吐的那段 content（解析层要处理的就是它）。这里刻意不复用产品的解码器：
     // 目的是看清「原样」，产品解码器挑不挑得动是另一条断言的事。
-    let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-    let choices = root?["choices"] as? [[String: Any]]
-    let message = choices?.first?["message"] as? [String: Any]
-    let content = message?["content"] as? String ?? ""
+    let content = (try? FamoResponsesWire.parse(data).text) ?? ""
     try? content.write(
       toFile: "/tmp/famo-live-\(label)-content.txt", atomically: true, encoding: .utf8)
     return content
@@ -92,7 +96,7 @@ final class FamoPromptOptimizeLiveTests: XCTestCase {
 
     // 真实客户端全链路（编码 → POST → 解码 → 解析）。
     let client = FamoPromptOptimizeClient(
-      endpoint: endpoint, model: model, authHeaderStyle: .bearer)
+      endpoint: endpoint, model: model, providerID: "qwen", authHeaderStyle: .bearer)
     let outcome = try await client.fetchOptimizedPrompt(
       forDraft: draft, clarifications: [], apiKey: apiKey)
 
@@ -115,7 +119,7 @@ final class FamoPromptOptimizeLiveTests: XCTestCase {
     XCTAssertFalse(content.isEmpty)
 
     let client = FamoPromptOptimizeClient(
-      endpoint: endpoint, model: model, authHeaderStyle: .bearer)
+      endpoint: endpoint, model: model, providerID: "qwen", authHeaderStyle: .bearer)
     let outcome = try await client.fetchOptimizedPrompt(
       forDraft: draft, clarifications: [], apiKey: apiKey)
 
@@ -137,7 +141,7 @@ final class FamoPromptOptimizeLiveTests: XCTestCase {
   func testClarificationAnswersProduceReadyPrompt() async throws {
     let apiKey = try testAPIKey()
     let client = FamoPromptOptimizeClient(
-      endpoint: endpoint, model: model, authHeaderStyle: .bearer)
+      endpoint: endpoint, model: model, providerID: "qwen", authHeaderStyle: .bearer)
 
     let outcome = try await client.fetchOptimizedPrompt(
       forDraft: "帮我写个爬虫",

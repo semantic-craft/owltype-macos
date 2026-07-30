@@ -46,9 +46,27 @@ final class FamoPolishPromptCatalogTests: XCTestCase {
   }
 
   func testLegacyAliasStaysByteIdentical() {
-    // FamoSelectionPolish.systemPrompt 是 v1 的别名——catalog 迁移不许改出厂 prompt 一个字节。
+    // FamoSelectionPolish.systemPrompt 是 v1 的别名——两处必须永远同一份字节
+    // （v1 的内容本身可演进，如 2026-07-31 的保真硬线，但别名不许漂移）。
     XCTAssertEqual(FamoSelectionPolish.systemPrompt, FamoPolishPromptCatalog.legacySystemPrompt)
     XCTAssertTrue(FamoPolishPromptCatalog.legacySystemPrompt.contains("{\"candidates\":"))
+  }
+
+  /// 2026-07-31 保真硬线（真读回：经 chatRequest 落进请求体）。旧基线 qwen3.7-flash 实盘把
+  /// 「可能撤销合同」润成「或许解除该合同」——撤销/解除是不同法律效果，两个变体都必须带
+  /// 「动作词不得互换」的红线，缺了就是把同一坑再挖开。
+  func testBothVariantsCarryTheActionWordFidelityHardLine() throws {
+    let v1 = try FamoSelectionPolish.chatRequest(for: "他可能撤销合同")
+    let v1System = v1.messages.first?.content ?? ""
+    XCTAssertTrue(v1System.contains("撤销"), "v1 必须点名法律动作词示例")
+    XCTAssertTrue(v1System.contains("degree of certainty"), "v1 必须保确定度")
+
+    FamoExperimentalPreferences.selectionPolishPromptVariant =
+      FamoPolishPromptCatalog.responsayAlignedVariantID
+    let v2 = try FamoSelectionPolish.chatRequest(for: "他可能撤销合同")
+    let v2System = v2.messages.first?.content ?? ""
+    XCTAssertTrue(v2System.contains("Do not swap action/effect words"), "v2 红线段必须含动作词条")
+    XCTAssertTrue(v2System.contains("撤销 / 解除"), "v2 必须点名互不替换的动作词")
   }
 
   // MARK: - True read-back: preference → request body
