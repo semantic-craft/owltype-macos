@@ -2,12 +2,13 @@
 //  FamoSearchControlTests.swift
 //  FamoTests — 任意提问「联网搜索」逐家 wire format
 //
-//  Locks the three `/chat/completions` providers' search fields FIELD BY FIELD (a provider that
+//  Locks the remaining `/chat/completions` provider's search fields FIELD BY FIELD (a provider that
 //  silently loses `enable_search` / `tools` answers from its training cutoff while the UI claims it
 //  searched — the exact failure mode this feature exists to prevent), the channel resolution
 //  (providerID wins, host is the fallback), and — since 二期 — WHICH TRANSPORT each provider's
 //  search rides on, because 豆包/OpenAI search only on `/responses` and would silently no-op if
-//  their parameters were routed through `extraBody`.
+//  their parameters were routed through `extraBody`. Qwen joined that Responses path when
+//  DashScope exposed its OpenAI Responses-compatible endpoint.
 //
 //  Pure value logic: no network, no UserDefaults, no Keychain.
 //
@@ -50,13 +51,18 @@ final class FamoSearchControlTests: XCTestCase {
   // MARK: - Transport (WHICH endpoint carries the search)
 
   func testTransportSplitsChatCompletionsFromResponses() {
-    // 一期两家走 /chat/completions 顶层字段；二期两家的搜索只在 /responses 上，把它们的参数
+    // MiMo 仍走 /chat/completions 顶层字段；其余三家的搜索走 /responses，把它们的参数
     // 塞进 chat/completions 会被端点静默忽略 —— 所以能力是类型，不是约定。
-    XCTAssertEqual(FamoSearchControl.transport(providerID: "qwen", host: ""), .chatCompletions)
+    XCTAssertEqual(FamoSearchControl.transport(providerID: "qwen", host: ""), .responses(.qwen))
     XCTAssertEqual(FamoSearchControl.transport(providerID: "mimo", host: ""), .chatCompletions)
-    XCTAssertEqual(FamoSearchControl.transport(providerID: "doubao", host: ""), .responses(isOpenAI: false))
-    XCTAssertEqual(FamoSearchControl.transport(providerID: "openai", host: ""), .responses(isOpenAI: true))
+    XCTAssertEqual(FamoSearchControl.transport(providerID: "doubao", host: ""), .responses(.ark))
+    XCTAssertEqual(FamoSearchControl.transport(providerID: "openai", host: ""), .responses(.openAI))
     XCTAssertEqual(FamoSearchControl.transport(providerID: "deepseek", host: "api.deepseek.com"), .none)
+    XCTAssertEqual(
+      FamoSearchControl.transport(
+        providerID: "qwen", host: "dashscope.aliyuncs.com", model: "deepseek-v3"),
+      .none,
+      "DashScope 上托管的非 Qwen 型号不在 Qwen Responses 支持清单内")
   }
 
   func testSupportsSearchMatchesTheTransport() {
@@ -69,27 +75,9 @@ final class FamoSearchControlTests: XCTestCase {
 
   // MARK: - Wire format (field-by-field)
 
-  func testQwenExtraBodyEnablesDashScopeSearchAndForcesIt() throws {
+  func testQwenExtraBodyIsEmptyBecauseSearchLivesOnResponses() {
     let body = FamoSearchControl.extraBody(providerID: "qwen", host: "dashscope.aliyuncs.com")
-    XCTAssertEqual(body["enable_search"] as? Bool, true)
-    // `forced_search` 文档默认 false = 模型自己判断这一问要不要联网。而署名 chip 在请求发出前就写好了
-    // 「通义千问 · 联网」——模型悄悄决定不搜时，用户拿到训练记忆却以为是实时结果。
-    let options = try XCTUnwrap(body["search_options"] as? [String: Any])
-    XCTAssertEqual(options["forced_search"] as? Bool, true)
-    XCTAssertEqual(options.count, 1, "其余 search_options 要么是默认值，要么兼容模式给不了")
-    XCTAssertEqual(body.count, 2)
-  }
-
-  /// 兼容模式（这条路走的 `/compatible-mode/v1/chat/completions`）**拿不到来源**：文档给这四个字段
-  /// 标的是「仅 DashScope 方式支持」，响应里根本没有 `search_info`。塞进来不会报错，只会让人以为
-  /// 配了却一直没有来源角标 —— 要来源得走原生端点（`FamoDashScopeSearchWire`）。
-  func testQwenExtraBodyOmitsTheDashScopeOnlySourceFields() {
-    let body = FamoSearchControl.extraBody(providerID: "qwen", host: "dashscope.aliyuncs.com")
-    let options = (body["search_options"] as? [String: Any]) ?? [:]
-    for field in ["enable_source", "enable_citation", "citation_format", "prepend_search_result"] {
-      XCTAssertNil(options[field], "\(field) 仅 DashScope 原生方式支持，兼容模式塞了也没用")
-      XCTAssertNil(body[field])
-    }
+    XCTAssertTrue(body.isEmpty, "Qwen 的联网工具属于 /responses，不得再塞旧 enable_search 字段")
   }
 
   func testMimoExtraBodyForcesSearchAndDisablesThinking() {
@@ -108,8 +96,11 @@ final class FamoSearchControlTests: XCTestCase {
 
   func testExtraBodyIsEmptyForNonChatCompletionsProviders() {
     // Empty = merging is a no-op, so the caller never has to branch on capability. Note the two
-    // different reasons: DeepSeek can't search at all, while 豆包/OpenAI CAN — just not here.
+    // different reasons: DeepSeek can't search at all, while Qwen/豆包/OpenAI CAN — just not here.
     XCTAssertTrue(FamoSearchControl.extraBody(providerID: "deepseek", host: "api.deepseek.com").isEmpty)
+    XCTAssertTrue(
+      FamoSearchControl.extraBody(providerID: "qwen", host: "dashscope.aliyuncs.com").isEmpty,
+      "Qwen 的联网参数属于 /responses 请求体")
     XCTAssertTrue(
       FamoSearchControl.extraBody(providerID: "openai", host: "api.openai.com").isEmpty,
       "OpenAI 的联网参数属于 /responses 请求体，不是 chat/completions 顶层字段")
@@ -129,20 +120,21 @@ final class FamoSearchControlTests: XCTestCase {
     }
   }
 
-  // MARK: - `/responses` wire (豆包 / OpenAI)
+  // MARK: - `/responses` wire (Qwen / 豆包 / OpenAI)
 
-  func testResponsesSearchBodyIsJSONSerializableForBothDialects() {
+  func testResponsesSearchBodyIsJSONSerializableForEveryDialect() {
     // Same reasoning as above, one layer down: `FamoResponsesStreamingClient` serializes this
     // body directly, and a non-JSON value there would throw the whole question away.
-    for isOpenAI in [true, false] {
-      let body = FamoResponsesWire.searchBody(
+    for dialect in FamoResponsesDialect.allCases {
+      let body = FamoResponsesWire.body(
         model: "m",
-        input: [FamoResponsesWire.inputMessage(role: "user", text: "问题")],
+        messages: [FamoDeepSeekMessage(role: "user", content: "问题")],
         stream: true,
-        isOpenAI: isOpenAI
+        dialect: dialect,
+        webSearch: true
       )
       XCTAssertTrue(JSONSerialization.isValidJSONObject(body))
-      XCTAssertNotNil(body["tools"], "isOpenAI=\(isOpenAI) 必须带 web_search 工具")
+      XCTAssertNotNil(body["tools"], "dialect=\(dialect) 必须带 web_search 工具")
     }
   }
 
@@ -166,12 +158,13 @@ final class FamoSearchControlTests: XCTestCase {
         XCTAssertFalse(
           FamoSearchControl.extraBody(providerID: providerID, host: "").isEmpty,
           "\(providerID) 走 chat/completions 却没有任何联网字段")
-      case let .responses(isOpenAI):
-        let body = FamoResponsesWire.searchBody(
+      case let .responses(dialect):
+        let body = FamoResponsesWire.body(
           model: "m",
-          input: [FamoResponsesWire.inputMessage(role: "user", text: "问题")],
+          messages: [FamoDeepSeekMessage(role: "user", content: "问题")],
           stream: true,
-          isOpenAI: isOpenAI
+          dialect: dialect,
+          webSearch: true
         )
         guard let tools = body["tools"] as? [[String: Any]], let tool = tools.first else {
           return XCTFail("\(providerID) 走 /responses 却没有 tools")

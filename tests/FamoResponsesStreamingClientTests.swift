@@ -1,6 +1,6 @@
 //
 //  FamoResponsesStreamingClientTests.swift
-//  FamoTests — 任意提问「联网搜索」的 `/responses` 流式传输（豆包 / OpenAI）
+//  FamoTests — 普通问答 / 联网搜索的 `/responses` 流式传输（Qwen / 豆包 / OpenAI）
 //
 //  The headline test here is `testResponsesFramesActuallyProduceDeltas` + its twin
 //  `testChatCompletionsParserSilentlyProducesNothingForResponsesFrames`. Pointing the existing
@@ -10,8 +10,8 @@
 //  one doesn't (so nobody "simplifies" the two back into one).
 //
 //  Everything else asserts what actually went ON THE WIRE — the decoded `URLRequest.httpBody`,
-//  not the dictionary we handed in: rewritten `/responses` URL, `stream: true`, every role
-//  (assistant included) as `input_text`, and the 方舟/OpenAI body dialects.
+//  not the dictionary we handed in: rewritten `/responses` URL, `stream: true`, Qwen's
+//  Chat-compatible input messages, and the 方舟/OpenAI `input_text` dialect.
 //
 //  No network, no Keychain, no librime.
 //
@@ -161,6 +161,16 @@ final class FamoResponsesStreamingClientTests: XCTestCase {
     )
   }
 
+  private func qwenRouting() -> FamoCloudRouting {
+    FamoCloudRouting(
+      providerID: "qwen",
+      endpoint: URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")!,
+      model: "qwen3.7-plus",
+      secretName: "famo.provider.qwen.apiKey",
+      authHeaderStyle: .bearer
+    )
+  }
+
   private func collect(_ stream: AsyncThrowingStream<String, Error>) async throws -> [String] {
     var out: [String] = []
     for try await delta in stream { out.append(delta) }
@@ -175,7 +185,8 @@ final class FamoResponsesStreamingClientTests: XCTestCase {
       #"data: {"type":"response.completed"}"# + "\n\n",
     ])
     let deltas = try await collect(
-      client.stream(messages: [], routing: arkRouting(), apiKey: "sk-test", isOpenAI: false))
+      client.stream(
+        messages: [], routing: arkRouting(), apiKey: "sk-test", dialect: .ark, webSearch: true))
     XCTAssertEqual(deltas, ["根据", "最新检索"])
   }
 
@@ -186,7 +197,8 @@ final class FamoResponsesStreamingClientTests: XCTestCase {
     ])
     do {
       _ = try await collect(
-        client.stream(messages: [], routing: arkRouting(), apiKey: "sk-test", isOpenAI: false))
+        client.stream(
+          messages: [], routing: arkRouting(), apiKey: "sk-test", dialect: .ark, webSearch: true))
       XCTFail("a response.failed frame must surface as an error, not a truncated success")
     } catch let error as FamoStreamingError {
       XCTAssertEqual(error, .upstreamFailure("tool call failed"))
@@ -199,7 +211,8 @@ final class FamoResponsesStreamingClientTests: XCTestCase {
     let client = makeClient(status: 401, chunks: [])
     do {
       _ = try await collect(
-        client.stream(messages: [], routing: arkRouting(), apiKey: "sk-test", isOpenAI: false))
+        client.stream(
+          messages: [], routing: arkRouting(), apiKey: "sk-test", dialect: .ark, webSearch: true))
       XCTFail("a non-2xx status must finish the stream with an error")
     } catch let error as FamoStreamingError {
       XCTAssertEqual(error, .badHTTPStatus(401))
@@ -213,7 +226,8 @@ final class FamoResponsesStreamingClientTests: XCTestCase {
   /// Capture the `URLRequest` the client builds, without opening a socket.
   private func captureRequest(
     routing: FamoCloudRouting,
-    isOpenAI: Bool,
+    dialect: FamoResponsesDialect,
+    webSearch: Bool = true,
     messages: [FamoDeepSeekMessage] = []
   ) async throws -> (url: URL?, body: [String: Any]) {
     let box = ResponsesRequestBox()
@@ -225,7 +239,9 @@ final class FamoResponsesStreamingClientTests: XCTestCase {
         chunks: AsyncThrowingStream { $0.finish() })
     })
     _ = try await collect(
-      client.stream(messages: messages, routing: routing, apiKey: "sk-test", isOpenAI: isOpenAI))
+      client.stream(
+        messages: messages, routing: routing, apiKey: "sk-test",
+        dialect: dialect, webSearch: webSearch))
     guard let request = await box.get(),
           let data = request.httpBody,
           let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -236,7 +252,7 @@ final class FamoResponsesStreamingClientTests: XCTestCase {
   }
 
   func testArkRequestGoesToResponsesWithSearchToolAndStreaming() async throws {
-    let captured = try await captureRequest(routing: arkRouting(), isOpenAI: false)
+    let captured = try await captureRequest(routing: arkRouting(), dialect: .ark)
     XCTAssertEqual(
       captured.url?.absoluteString,
       "https://ark.cn-beijing.volces.com/api/v3/responses",
@@ -252,11 +268,31 @@ final class FamoResponsesStreamingClientTests: XCTestCase {
     // 方舟 的联网与思考互斥，且并行工具调用要封顶。
     XCTAssertEqual((captured.body["thinking"] as? [String: Any])?["type"] as? String, "disabled")
     XCTAssertEqual(captured.body["max_tool_calls"] as? Int, 3)
+    XCTAssertEqual(
+      captured.body["store"] as? Bool, false,
+      "方舟 Responses store 默认 true；Famo 不检索历史响应，必须显式关闭")
+  }
+
+  func testArkPlainRequestStillDisablesThinkingAndStorage() async throws {
+    // 2026-07-31 豆包全面走 Responses 后，关思考与 store=false 不再只属于搜索请求：
+    // 方舟 Responses `store` 默认 true、思考默认开（官方示例一句寒暄烧 211 reasoning token），
+    // 普通生成漏掉任一字段都是回归。
+    let captured = try await captureRequest(
+      routing: arkRouting(), dialect: .ark, webSearch: false,
+      messages: [FamoDeepSeekMessage(role: "user", content: "你好")])
+    XCTAssertEqual(
+      captured.url?.absoluteString,
+      "https://ark.cn-beijing.volces.com/api/v3/responses")
+    XCTAssertEqual((captured.body["thinking"] as? [String: Any])?["type"] as? String, "disabled")
+    XCTAssertEqual(captured.body["store"] as? Bool, false)
+    XCTAssertNil(captured.body["tools"], "普通生成不带搜索工具")
+    XCTAssertNil(captured.body["max_tool_calls"])
+    XCTAssertNil(captured.body["reasoning"], "reasoning.effort 是 qwen 的字段，方舟不认")
   }
 
   func testOpenAIRequestOmitsVolcengineOnlyFields() async throws {
     // OpenAI 400s on 方舟's tool extras and has no `thinking` field.
-    let captured = try await captureRequest(routing: openAIRouting(), isOpenAI: true)
+    let captured = try await captureRequest(routing: openAIRouting(), dialect: .openAI)
     XCTAssertEqual(captured.url?.absoluteString, "https://api.openai.com/v1/responses")
     guard let tools = captured.body["tools"] as? [[String: Any]], let tool = tools.first else {
       return XCTFail("OpenAI must carry a web_search tool")
@@ -278,7 +314,7 @@ final class FamoResponsesStreamingClientTests: XCTestCase {
       FamoDeepSeekMessage(role: "user", content: "那紧急避险呢"),
     ]
     let captured = try await captureRequest(
-      routing: arkRouting(), isOpenAI: false, messages: messages)
+      routing: arkRouting(), dialect: .ark, messages: messages)
     guard let input = captured.body["input"] as? [[String: Any]] else {
       return XCTFail("expected an input array")
     }
@@ -295,7 +331,124 @@ final class FamoResponsesStreamingClientTests: XCTestCase {
     XCTAssertEqual(input.last?["content"] as? [[String: String]] ?? [], [["type": "input_text", "text": "那紧急避险呢"]])
   }
 
+  func testQwenPlainRequestUsesResponsesWithoutSearchFields() async throws {
+    let captured = try await captureRequest(
+      routing: qwenRouting(), dialect: .qwen, webSearch: false,
+      messages: [FamoDeepSeekMessage(role: "user", content: "你好")])
+    XCTAssertEqual(
+      captured.url?.absoluteString,
+      "https://dashscope.aliyuncs.com/compatible-mode/v1/responses")
+    XCTAssertEqual(captured.body["model"] as? String, "qwen3.7-plus")
+    XCTAssertEqual(captured.body["stream"] as? Bool, true)
+    XCTAssertEqual(
+      captured.body["store"] as? Bool, false,
+      "Famo 不使用响应检索/多轮 Response ID；必须关闭百炼默认开启的服务端存储")
+    XCTAssertNil(captured.body["messages"])
+    XCTAssertNil(captured.body["tools"])
+    XCTAssertNil(captured.body["enable_thinking"])
+    XCTAssertEqual(
+      (captured.body["reasoning"] as? [String: Any])?["effort"] as? String,
+      "none")
+  }
+
+  func testQwenSearchRequestUsesBuiltInWebSearchAndRequiresATool() async throws {
+    let captured = try await captureRequest(routing: qwenRouting(), dialect: .qwen)
+    let tools = try XCTUnwrap(captured.body["tools"] as? [[String: Any]])
+    XCTAssertEqual(tools.first?["type"] as? String, "web_search")
+    XCTAssertEqual(tools.first?.count, 1)
+    XCTAssertEqual(captured.body["tool_choice"] as? String, "required")
+    XCTAssertEqual(captured.body["store"] as? Bool, false)
+    XCTAssertNil(captured.body["enable_search"])
+    XCTAssertNil(captured.body["search_options"])
+  }
+
+  func testQwenUsesTheDocumentedChatCompatibleMessageInput() async throws {
+    let messages = [
+      FamoDeepSeekMessage(role: "system", content: "你是法律助理"),
+      FamoDeepSeekMessage(role: "user", content: "第一问"),
+      FamoDeepSeekMessage(role: "assistant", content: "第一答"),
+    ]
+    let captured = try await captureRequest(
+      routing: qwenRouting(), dialect: .qwen, webSearch: false, messages: messages)
+    let input = try XCTUnwrap(captured.body["input"] as? [[String: Any]])
+    XCTAssertEqual(input.compactMap { $0["role"] as? String }, ["system", "user", "assistant"])
+    XCTAssertEqual(input.compactMap { $0["content"] as? String }, ["你是法律助理", "第一问", "第一答"])
+  }
+
+  func testQwenNonStreamingPayloadParsesOutputUsageAndSearchSources() throws {
+    let data = Data(#"""
+      {
+        "model":"qwen3.7-plus",
+        "output":[
+          {"type":"web_search_call","action":{"sources":[
+            {"type":"url","url":"https://example.com/a"},
+            {"type":"url","url":"https://example.com/a"}
+          ]}},
+          {"type":"message","content":[{"type":"output_text","text":"结论"}]}
+        ],
+        "usage":{"input_tokens":12,"output_tokens":7,"total_tokens":19,
+          "input_tokens_details":{"cached_tokens":3}}
+      }
+      """#.utf8)
+    let parsed = try FamoResponsesWire.parse(data)
+    XCTAssertEqual(parsed.text, "结论")
+    XCTAssertEqual(parsed.model, "qwen3.7-plus")
+    XCTAssertEqual(parsed.usage?.inputTokens, 12)
+    XCTAssertEqual(parsed.usage?.outputTokens, 7)
+    XCTAssertEqual(parsed.usage?.totalTokens, 19)
+    XCTAssertEqual(parsed.usage?.cachedTokens, 3)
+    XCTAssertEqual(parsed.sources, [FamoResponsesSource(title: "", url: "https://example.com/a")])
+  }
+
+  func testQwenStructuredSkillsUseResponsesWithoutUnsupportedChatFields() throws {
+    let payloads = [
+      try FamoSelectionPolish.chatRequest(
+        for: "他撤销了合同", model: "qwen3.7-plus", providerID: "qwen"),
+      FamoPromptOptimizer.chatRequest(
+        forDraft: "帮我写个爬虫", model: "qwen3.7-plus", providerID: "qwen"),
+      FamoGoalBrief.chatRequest(
+        forDraft: "把词库下载做稳", model: "qwen3.7-plus", providerID: "qwen"),
+    ]
+    let legacyEndpoint = URL(
+      string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")!
+
+    for payload in payloads {
+      let request = try FamoResponsesWire.request(
+        endpoint: legacyEndpoint,
+        model: payload.model,
+        messages: payload.messages,
+        apiKey: "sk-test",
+        authHeaderStyle: .bearer,
+        dialect: .qwen,
+        stream: false,
+        webSearch: false,
+        temperature: payload.temperature,
+        timeout: 60)
+      XCTAssertEqual(
+        request.url?.absoluteString,
+        "https://dashscope.aliyuncs.com/compatible-mode/v1/responses")
+      let body = try XCTUnwrap(
+        JSONSerialization.jsonObject(with: try XCTUnwrap(request.httpBody)) as? [String: Any])
+      XCTAssertEqual((body["input"] as? [[String: Any]])?.count, payload.messages.count)
+      XCTAssertNil(body["messages"])
+      XCTAssertNil(body["response_format"], "Qwen Responses 文档未列出旧 json_object 字段")
+      XCTAssertNil(body["enable_thinking"])
+      XCTAssertEqual(body["store"] as? Bool, false)
+      XCTAssertEqual((body["reasoning"] as? [String: Any])?["effort"] as? String, "none")
+    }
+  }
+
   // MARK: - URL rewriting (`FamoResponsesWire`)
+
+  func testQwenDetectionDoesNotMisclassifyOtherModelsHostedOnAliyun() {
+    let endpoint = URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/responses")!
+    XCTAssertTrue(FamoResponsesWire.isQwen(
+      providerID: "custom", model: "qwen3.7-plus", endpoint: endpoint))
+    XCTAssertFalse(FamoResponsesWire.isQwen(
+      providerID: "custom", model: "deepseek-v3.2", endpoint: endpoint))
+    XCTAssertFalse(FamoResponsesWire.isQwen(
+      providerID: "qwen", model: "deepseek-v3.2", endpoint: endpoint))
+  }
 
   func testResponsesURLRewritesTheChatSuffix() {
     XCTAssertEqual(

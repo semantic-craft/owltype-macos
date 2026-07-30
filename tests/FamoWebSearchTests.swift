@@ -308,64 +308,48 @@ final class FamoWebSearchTests: XCTestCase {
 
   // MARK: - 百炼（通义千问）wire format
 
-  /// 这一档最容易写错的一件事：走成平时那个 `/compatible-mode/v1/chat/completions`。
-  /// 实测兼容模式下 `search_info` 恒为 ABSENT（`enable_source: true` 照样 200 但被静默忽略）
-  /// —— 端点写错不会报错，只会**永远搜到 0 条**然后被顺位掉，是最难查的那种坏法。
-  func testDashScopeUsesTheNativeEndpointNotCompatibleMode() throws {
-    let request = try FamoDashScopeSearchWire.request(query: "杭州明天天气", apiKey: "sk-qwen")
-    XCTAssertEqual(request.url?.host, "dashscope.aliyuncs.com")
-    XCTAssertTrue(
-      request.url?.path.hasPrefix("/api/v1/services/aigc/") ?? false,
-      "必须是 DashScope 原生端点")
-    XCTAssertFalse(
-      request.url?.absoluteString.contains("compatible-mode") ?? true,
-      "兼容模式拿不到 search_info")
+  func testDashScopeUsesTheResponsesEndpoint() throws {
+    let endpoint = try XCTUnwrap(
+      FamoQwenWorkspace.responsesEndpoint(for: "ws-test123abc"))
+    let request = try FamoDashScopeSearchWire.request(
+      query: "杭州明天天气", apiKey: "sk-qwen", endpoint: endpoint)
+    XCTAssertEqual(request.url?.host, "ws-test123abc.cn-beijing.maas.aliyuncs.com")
+    XCTAssertEqual(request.url?.path, "/compatible-mode/v1/responses")
     XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer sk-qwen")
   }
 
-  /// 原生端点分文本/多模态两条路，**挑错就是 `400 url error`**，而 `content` 的形状也跟着变。
-  /// 2026-07-28 实测对照：multimodal 收 qwen3.7-plus / 3.7-flash、拒 3.7-max；
-  /// text 收 qwen-plus / 3.7-max、拒 3.7-plus / 3.7-flash。
-  /// 所以 model / endpoint / content 三者是一组 —— 这条用例就是防止有人只换其中一个。
-  func testDashScopeModelEndpointAndContentShapeStayInLockstep() throws {
-    let isMultimodal = FamoDashScopeSearchWire.endpoint.path.contains("multimodal-generation")
-    XCTAssertTrue(
-      isMultimodal,
-      "端点若改回 text-generation，model 必须同时换成 qwen-plus / qwen3.7-max，content 也要改成裸字符串")
-    XCTAssertTrue(
-      ["qwen3.7-plus", "qwen3.7-flash"].contains(FamoDashScopeSearchWire.model),
-      "multimodal 端点只服务这两个；qwen-plus / qwen3.7-max 打过去是 400 url error")
-
-    let input = try XCTUnwrap(FamoDashScopeSearchWire.body(query: "问题") ["input"] as? [String: Any])
-    let messages = try XCTUnwrap(input["messages"] as? [[String: Any]])
-    let content = try XCTUnwrap(messages.first?["content"] as? [[String: Any]])
-    XCTAssertEqual(
-      content.first?["text"] as? String, "问题",
-      "多模态端点要 [{text: …}] 分段数组，裸字符串会被拒")
+  func testDashScopeFallsBackToTheGenericResponsesEndpointWithoutAWorkspace() throws {
+    let request = try FamoDashScopeSearchWire.request(
+      query: "杭州明天天气",
+      apiKey: "sk-qwen",
+      endpoint: URL(string: FamoLLMProviderCatalog.qwenResponsesEndpoint)!)
+    XCTAssertEqual(request.url?.host, "dashscope.aliyuncs.com")
+    XCTAssertEqual(request.url?.path, "/compatible-mode/v1/responses")
   }
 
-  /// `forced_search` 默认 false = 模型自己决定搜不搜。作为**检索器**必须强制，否则「这次它决定不搜」
-  /// 会白花一次完整的模型调用换回 0 条。`enable_source` 则是把来源回传给我们的那个开关。
-  func testDashScopeForcesSearchAndAsksForSources() throws {
+  func testDashScopeResponsesForcesTheBuiltInSearchTool() throws {
     let body = FamoDashScopeSearchWire.body(query: "杭州明天天气")
     XCTAssertEqual(body["model"] as? String, FamoDashScopeSearchWire.model)
-    let parameters = try XCTUnwrap(body["parameters"] as? [String: Any])
-    XCTAssertEqual(parameters["enable_search"] as? Bool, true)
-    XCTAssertEqual(parameters["result_format"] as? String, "message")
-    let options = try XCTUnwrap(parameters["search_options"] as? [String: Any])
-    XCTAssertEqual(options["forced_search"] as? Bool, true, "不强制就可能一条都不搜")
-    XCTAssertEqual(options["enable_source"] as? Bool, true, "不开这个就拿不到来源")
-    XCTAssertEqual(options["search_strategy"] as? String, "max")
+    let input = try XCTUnwrap(body["input"] as? [[String: Any]])
+    XCTAssertEqual(input.first?["role"] as? String, "user")
+    XCTAssertTrue((input.first?["content"] as? String)?.contains("杭州明天天气") == true)
+    let tools = try XCTUnwrap(body["tools"] as? [[String: Any]])
+    XCTAssertEqual(tools.count, 1)
+    XCTAssertEqual(tools.first?["type"] as? String, "web_search")
+    XCTAssertEqual(tools.first?.count, 1)
+    XCTAssertEqual(body["tool_choice"] as? String, "required", "作为检索器不能让模型自行跳过搜索")
+    XCTAssertEqual(
+      body["store"] as? Bool, false,
+      "独立检索不使用 Response ID，不得沿用百炼默认 store=true")
+    XCTAssertNil(body["parameters"], "不得再混入旧 generation 参数壳")
   }
 
-  /// 我们只要 `search_info`，模型写的那段答案纯属浪费。实测同一条 query：基线 8.68s（357 output
-  /// token，333 是推理）→ 仅关思考 4.04s → 再加 max_tokens:1 **2.50s**，而**三种情况来源都是 10 条**
-  /// （检索发生在生成之前）。少了这两个参数，这一跳会从「可接受」变成「等得难受」。
-  func testDashScopeCutsTheGenerationItDoesNotUse() throws {
-    let parameters = try XCTUnwrap(
-      FamoDashScopeSearchWire.body(query: "q")["parameters"] as? [String: Any])
-    XCTAssertEqual(parameters["enable_thinking"] as? Bool, false, "推理 token 全是白烧的")
-    XCTAssertEqual(parameters["max_tokens"] as? Int, 1, "答案我们直接丢掉，一个 token 都不用多要")
+  func testDashScopeDisablesReasoningWithoutSendingUndocumentedTokenFields() throws {
+    let body = FamoDashScopeSearchWire.body(query: "q")
+    XCTAssertEqual((body["reasoning"] as? [String: Any])?["effort"] as? String, "none")
+    XCTAssertNil(body["max_output_tokens"])
+    XCTAssertNil(body["enable_thinking"])
+    XCTAssertNil(body["max_tokens"])
   }
 
   func testDashScopeMissingKeyThrowsBeforeAnyRequestIsBuilt() {
@@ -376,49 +360,43 @@ final class FamoWebSearchTests: XCTestCase {
     }
   }
 
-  /// 响应取自文档的 DashScope 原生示例。钉住那件反直觉的事：`search_results` 里**没有摘要字段**，
-  /// 所以 `snippet` 只能是空 —— 空不是解析漏了，是百炼压根不回。
-  func testDashScopeParseExtractsSourcesThatCarryNoSnippet() throws {
+  func testDashScopeParseExtractsResponsesSearchSourcesThatCarryNoSnippet() throws {
     let json = """
-      {"request_id":"r1","output":{"choices":[{"finish_reason":"stop",
-         "message":{"role":"assistant","content":"明天杭州多云。"}}],
-       "search_info":{"extra_tool_info":[],"search_results":[
-         {"icon":"https://mbs1.bdstatic.com/i.png","site_name":"新浪网","index":1,
-          "title":"直降近10℃!冷空气即将抵达","url":"https://cj.sina.com.cn/a"}]}}}
+      {"model":"qwen3.7-plus","output":[
+        {"type":"web_search_call","action":{"type":"search","sources":[
+          {"type":"url","url":"https://cj.sina.com.cn/a"}
+        ]}},
+        {"type":"message","content":[{"type":"output_text","text":"明天杭州多云。"}]}
+      ]}
       """
     let results = try FamoDashScopeSearchWire.parse(Data(json.utf8), limit: 5)
     XCTAssertEqual(results.count, 1)
     let first = try XCTUnwrap(results.first)
-    XCTAssertEqual(first.title, "直降近10℃!冷空气即将抵达")
+    XCTAssertEqual(first.title, "cj.sina.com.cn", "Responses 来源只有 URL 时用 host 作标题")
     XCTAssertEqual(first.url, "https://cj.sina.com.cn/a")
-    XCTAssertEqual(first.hostname, "新浪网")
-    XCTAssertEqual(first.snippet, "", "百炼不回正文摘要，这一档的接地只有标题和网址")
+    XCTAssertEqual(first.hostname, "cj.sina.com.cn")
+    XCTAssertEqual(first.snippet, "", "Responses web_search 来源不保证正文摘要")
     XCTAssertNil(first.publishedAt, "也不回发布时间，宁可不标也不标个空的")
   }
 
-  /// DashScope 不接「要几条」，条数只能在本地截 —— 不截就会把十几条塞进上下文。
-  func testDashScopeParseTruncatesToTheRequestedLimit() throws {
-    let entries = (1...8).map {
-      "{\"index\":\($0),\"title\":\"标题\($0)\",\"url\":\"https://e.com/\($0)\",\"site_name\":\"站\"}"
-    }.joined(separator: ",")
-    let json = "{\"output\":{\"search_info\":{\"search_results\":[\(entries)]}}}"
+  func testDashScopeParseDeduplicatesAndTruncatesSources() throws {
+    let entries = (1...8).map { "{\"type\":\"url\",\"url\":\"https://e.com/\($0)\"}" }
+      .joined(separator: ",")
+    let json = "{\"output\":[{\"type\":\"web_search_call\",\"action\":{\"sources\":[\(entries),{\"type\":\"url\",\"url\":\"https://e.com/1\"}]}}]}"
     let results = try FamoDashScopeSearchWire.parse(Data(json.utf8), limit: 3)
-    XCTAssertEqual(results.map(\.title), ["标题1", "标题2", "标题3"])
+    XCTAssertEqual(results.map(\.url), ["https://e.com/1", "https://e.com/2", "https://e.com/3"])
   }
 
-  /// 没触发检索时 `search_info` 整个不出现。那是「这次没搜到」，交给调用方按 0 条处理并顺位，
-  /// 不能报成「响应坏了」—— 后者会被判定为不可顺位、直接把这一问打死。
-  func testDashScopeMissingSearchInfoIsZeroResultsNotMalformed() throws {
+  func testDashScopeMissingSearchSourcesIsZeroResultsNotMalformed() throws {
     let json = """
-      {"output":{"choices":[{"message":{"role":"assistant","content":"我不知道。"}}]}}
+      {"output":[{"type":"message","content":[{"type":"output_text","text":"我不知道。"}]}]}
       """
     XCTAssertEqual(try FamoDashScopeSearchWire.parse(Data(json.utf8), limit: 5).count, 0)
   }
 
-  /// 百炼把错误放在顶层 `code`/`message`。把它读成空结果 = 用户以为搜索能用只是没结果。
-  func testDashScopeTopLevelErrorCodeIsThrown() {
+  func testDashScopeResponsesErrorIsThrown() {
     let json = """
-      {"code":"InvalidApiKey","message":"Invalid API-key provided.","request_id":"r1"}
+      {"error":{"code":"InvalidApiKey","type":"authentication_error","message":"Invalid API-key provided."}}
       """
     XCTAssertThrowsError(try FamoDashScopeSearchWire.parse(Data(json.utf8), limit: 5)) { error in
       XCTAssertEqual(
@@ -427,11 +405,9 @@ final class FamoWebSearchTests: XCTestCase {
     }
   }
 
-  /// 非 2xx 时把正文里的 `code`/`message` 带出来 —— 尤其是 `model` 被该端点拒收的那种 400，
-  /// 只报一个状态码会让人查不到「换个型号就行」。
   func testDashScopeClientSurfacesTheErrorCodeFromANon2xxBody() async {
     let client = FamoDashScopeSearchClient(fetch: { request in
-      let body = Data(#"{"code":"InvalidParameter","message":"url error"}"#.utf8)
+      let body = Data(#"{"error":{"code":"InvalidParameter","message":"bad tool choice"}}"#.utf8)
       return (body, HTTPURLResponse(
         url: request.url!, statusCode: 400, httpVersion: nil, headerFields: nil)!)
     })
@@ -441,7 +417,7 @@ final class FamoWebSearchTests: XCTestCase {
     } catch {
       XCTAssertEqual(
         error as? FamoWebSearchError,
-        .serviceError(code: "InvalidParameter", message: "url error"))
+        .serviceError(code: "InvalidParameter", message: "bad tool choice"))
       XCTAssertTrue(
         (error as? FamoWebSearchError)?.isRouteUnusable ?? false,
         "型号/参数被拒是配置问题，重试同一家永远同一个结果 —— 该顺位到下一家")

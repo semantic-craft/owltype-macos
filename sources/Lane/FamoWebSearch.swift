@@ -3,7 +3,7 @@
 //  法墨输入法 (Famo) — 任意提问的「先检索、再作答」搜索层
 //
 //  与 `FamoSearchControl` 的分工（两者并存，不是重复）：
-//    - `FamoSearchControl` 走的是**模型内置**的联网工具（方舟 `web_search`、百炼 `enable_search`
+//    - `FamoSearchControl` 走的是**模型内置**的联网工具（方舟/百炼 Responses `web_search`
 //      …）：由模型自己检索、自己作答。代价是每家一套 wire format，而且要求账号在各自控制台
 //      单独开通插件——实测方舟会直接 `404 ToolNotOpen`（2026-07-27）。
 //    - 这里是**独立搜索服务**：我们自己拿到网页结果，再把结果作为上下文交给**任意**一家模型作答。
@@ -449,81 +449,37 @@ struct FamoPerplexitySearchClient: FamoWebSearching {
 
 // MARK: - 阿里云百炼（通义千问）· wire format
 
-/// 百炼「联网搜索」的请求/响应 wire format，当作**检索器**用。
-///
-/// 文档：help.aliyun.com/zh/model-studio/web-search。全部结论都在 2026-07-28 用真 Key 逐条打过。
-///
-///   1. **必须走 DashScope 原生端点，不能用平时那个 `/compatible-mode/v1/chat/completions`。**
-///      文档原话：OpenAI 兼容协议因协议限制不支持搜索来源返回；`enable_source` / `enable_citation` /
-///      `citation_format` / `prepend_search_result` 四个字段都标着「仅 DashScope 方式支持」。实测印证：
-///      兼容模式下 `search_info` 恒为 ABSENT —— `enable_source: true` 被静默忽略（照样 200），
-///      `prepend_search_result` 更是直接 `400 not supported in OpenAI protocol`。端点写错不会报错，
-///      只会永远搜到 0 条然后被静默顺位掉，是最难查的那种坏法。
-///   2. **原生端点分两条路，按模型的「文本 / 多模态」属性挑，挑错就是 `400 url error`。**
-///      错误码文档（error-code#error-url）原因一：「调用纯文本模型时使用了多模态接口，或者调用多模态
-///      模型时使用了纯文本接口」。实测这张对照表：
-///        - `multimodal-generation/generation`：qwen3.7-plus ✅、qwen3.7-flash ✅、qwen3.7-max ❌400
-///        - `text-generation/generation`：qwen-plus ✅、qwen3.7-max ✅、qwen3.7-plus ❌400、3.7-flash ❌400
-///      两条路的 **`content` 形状还不一样**：多模态要 `[{"text": …}]` 数组，纯文本要裸字符串。
-///      所以 `model` / `endpoint` / `content` 三者是**一组**，改一个必须一起改（`FamoDashScopeSearchWire`
-///      把它们钉在一起就是为了这个）。仓库另一处 `FamoSelectionPolish.dashScopeSearchModel` 走的是
-///      纯文本那条，钉 `qwen-plus`，两边不是笔误。
-///   3. **它不是搜索 API，是一次完整的模型调用**：百炼会顺带写出一整段答案，而我们只要
-///      `output.search_info`，那段答案直接丢掉。所以要主动砍掉这部分浪费，见 `body` 里的两个参数。
-///   4. **返回的来源没有正文摘要**：`search_results` 每条只有 `index/title/url/site_name/icon`
-///      （实测逐条比对，没有任何额外字段）。于是注入模型的只有标题和网址，接地强度明显弱于豆包搜索的
-///      800 字摘要。`FamoWebSearchContext.entry` 对空 `snippet` 本来就是跳过摘要行，不需要特判。
-///   5. **`forced_search` 必须显式打开**：它默认 false，也就是「模型自己判断要不要搜」。作为检索器
-///      我们不能接受「这次它决定不搜」—— 那会返回 0 条、被 `noResults` 顺位掉，白花一次调用。
+/// 百炼 Responses `web_search` wire format，当作独立检索器用。Responses 原生返回
+/// `web_search_call.action.sources`，因此不再需要旧 generation 端点的 `search_info` 方言，也没有
+/// 文本/多模态端点与模型必须配对的陷阱。
 enum FamoDashScopeSearchWire {
-  /// 见类型注释第 2 点：这条路径与下面的 `model` 是一组，不能单独改。
-  static let endpoint = URL(
-    string: "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation")!
+  /// 与 Qwen 供应商共用设置页里的 Workspace API Host；留空时走通用 Responses 域名。
+  static var endpoint: URL { FamoQwenWorkspaceSettings.responsesEndpoint() }
 
   /// 检索用的模型。**不跟设置页那个模型下拉走**：那个下拉决定谁作答，这里决定谁检索，是两件事
   /// —— 检索器钉在这儿，不妨碍你把百炼档案设成别的型号。
   ///
-  /// 钉 `qwen3.7-plus` 而不是老系列 `qwen-plus`：两者在各自端点上都能回 10 条来源，但新一代关掉
-  /// 思考后更快（见 `body`）。换型号前先回去看类型注释第 2 点那张对照表 —— 换成 `qwen3.7-max` 或
-  /// `qwen-plus` 而不同时改 `endpoint` 与 `content` 形状，拿到的就是 `400 url error`。
+  /// 该型号在 Responses 与内置 web_search 的支持清单内。检索器型号独立于默认作答档案。
   static let model = "qwen3.7-plus"
 
-  /// 请求体。
-  ///
-  /// `enable_thinking: false` + `max_tokens: 1` 是这一档能不能用的关键，不是可选的调优 ——
-  /// 我们要的只有 `search_info`，模型写的那段答案纯属浪费。2026-07-28 同一条 query 实测：
-  ///   基线（不加这两个）        8.68s，output 357 token（其中 333 是推理）
-  ///   仅关思考                  4.04s，output 87 token
-  ///   关思考 + max_tokens: 1    2.50s，output 1 token   ← 现在这套
-  /// **三种情况下来源都是 10 条**：检索发生在生成之前，砍掉生成不影响 `search_info`。
-  /// 复测 4 次稳定在 2.6–3.9s。少了这两个参数，这一跳会从「可接受」变成「等得难受」。
+  /// We only consume sources. Ask for no prose; the compatibility reference does not document an
+  /// output-token cap as an accepted request parameter, so do not rely on a silently ignored field.
   static func body(query: String) -> [String: Any] {
-    [
-      "model": model,
-      "input": [
-        // 多模态端点要的是分段数组，不是裸字符串（见类型注释第 2 点）。
-        "messages": [[
-          "role": "user",
-          "content": [["text": query.trimmingCharacters(in: .whitespacesAndNewlines)]],
-        ]],
-      ],
-      "parameters": [
-        "enable_search": true,
-        "search_options": [
-          // 见类型注释第 5 点：默认 false = 模型自己决定搜不搜，检索器不能接受这种不确定。
-          "forced_search": true,
-          "search_strategy": "max",
-          // 这个才是「把来源回传给我」的开关，也正是兼容模式给不了的那一个。
-          "enable_source": true,
-        ],
-        "result_format": "message",
-        "enable_thinking": false,
-        "max_tokens": 1,
-      ],
-    ]
+    FamoResponsesWire.body(
+      model: model,
+      messages: [FamoDeepSeekMessage(
+        role: "user",
+        content: "只执行联网检索，不要撰写答案。检索词：\(query.trimmingCharacters(in: .whitespacesAndNewlines))")],
+      stream: false,
+      dialect: .qwen,
+      webSearch: true)
   }
 
-  static func request(query: String, apiKey: String) throws -> URLRequest {
+  static func request(
+    query: String,
+    apiKey: String,
+    endpoint: URL = endpoint
+  ) throws -> URLRequest {
     guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
       throw FamoWebSearchError.missingAPIKey
     }
@@ -535,36 +491,22 @@ enum FamoDashScopeSearchWire {
     return request
   }
 
-  /// 解析响应。百炼原生的错误是「顶层 `code` + `message`」（如 401 的 `InvalidApiKey`），
-  /// 与豆包一样先认错误通道再取结果 —— 把「Key 无效」读成「没搜到」是这层最容易犯的错。
+  /// Responses errors use `error.{code,type,message}`; success sources may have no title, so use
+  /// their hostname as the stable display fallback.
   static func parse(_ data: Data, limit: Int) throws -> [FamoWebSearchResult] {
     let root = try FamoWebSearchPayload.object(from: data)
-    if let code = root["code"] as? String, !code.isEmpty {
+    if let error = root["error"] as? [String: Any] {
       throw FamoWebSearchError.serviceError(
-        code: code, message: (root["message"] as? String) ?? "")
+        code: (error["code"] as? String) ?? (error["type"] as? String) ?? "responses_error",
+        message: (error["message"] as? String) ?? "")
     }
-    guard let output = root["output"] as? [String: Any] else {
-      throw FamoWebSearchError.malformedResponse
+    let parsed = try FamoResponsesWire.parse(data)
+    return parsed.sources.prefix(limit).map { source in
+      let hostname = URL(string: source.url)?.host
+      let title = source.title.isEmpty ? (hostname ?? source.url) : source.title
+      return FamoWebSearchResult(
+        title: title, url: source.url, snippet: "", publishedAt: nil, hostname: hostname)
     }
-    // 没触发检索时 `search_info` 整个不出现。那是「这次没搜」而不是「响应坏了」，交给调用方按
-    // 0 条结果处理（`noResults` → 顺位下一家），别报成 malformedResponse。
-    let info = output["search_info"] as? [String: Any]
-    let results = (info?["search_results"] as? [[String: Any]]) ?? []
-    return results.prefix(limit).compactMap(result)
-  }
-
-  /// 一条 `search_results` → 归一化结果。缺 url/title 的丢弃（同豆包：引用不了的来源没有价值）。
-  private static func result(_ raw: [String: Any]) -> FamoWebSearchResult? {
-    guard let url = raw["url"] as? String, !url.isEmpty,
-          let title = raw["title"] as? String, !title.isEmpty else { return nil }
-    return FamoWebSearchResult(
-      title: title,
-      // 见上文第 3 点：百炼不回摘要，这里只能留空，不是解析漏了。
-      url: url,
-      snippet: "",
-      // 也不回发布时间。宁可不标，也不标个空的。
-      publishedAt: nil,
-      hostname: (raw["site_name"] as? String).flatMap { $0.isEmpty ? nil : $0 })
   }
 }
 
@@ -594,14 +536,15 @@ struct FamoDashScopeSearchClient: FamoWebSearching {
     return try FamoDashScopeSearchWire.parse(data, limit: limit)
   }
 
-  /// 非 2xx 的正文里通常带着可读的 `code`/`message`（401 InvalidApiKey、400 InvalidParameter）。
-  /// 带出来比只报一个状态码好排查 —— 尤其是 `model` 被端点拒收的那种 400。
+  /// Non-2xx Responses errors nest the useful code/message under `error`.
   private static func serviceError(from data: Data, status: Int) -> FamoWebSearchError {
     guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-          let code = root["code"] as? String, !code.isEmpty else {
+          let error = root["error"] as? [String: Any] else {
       return .badHTTPStatus(status)
     }
-    return .serviceError(code: code, message: (root["message"] as? String) ?? "")
+    return .serviceError(
+      code: (error["code"] as? String) ?? (error["type"] as? String) ?? String(status),
+      message: (error["message"] as? String) ?? "")
   }
 }
 

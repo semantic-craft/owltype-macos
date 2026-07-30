@@ -1,6 +1,6 @@
 //
 //  FamoResponsesStreamingClient.swift
-//  法墨输入法 (Famo) — 任意提问「联网搜索」的 `/responses` 流式传输（豆包 / OpenAI）
+//  法墨输入法 (Famo) — `/responses` 流式传输（Qwen / 豆包 / OpenAI）
 //
 //  `FamoStreamingChatClient` speaks `/chat/completions`, whose frames are
 //  `{"choices":[{"delta":{"content":"…"}}]}`. The Responses API is a DIFFERENT event shape:
@@ -18,7 +18,7 @@
 //  Same transport contract as the chat client: injected byte source (no socket in tests), non-2xx
 //  finishes the stream with `FamoStreamingError.badHTTPStatus`, cancellation tears the upstream down.
 //
-//  Off the IMK hot path: only an explicit 任意提问 with 联网搜索 resolved to 豆包/OpenAI reaches here.
+//  Off the per-keystroke IMK hot path: Qwen cloud skills and explicit Responses search routes use it.
 //
 
 import Foundation
@@ -132,17 +132,16 @@ struct FamoResponsesStreamParser {
 // MARK: - Streaming client
 
 /// The narrow `/responses` streaming port. Kept separate from `FamoChatStreaming` on purpose:
-/// only `FamoStreamingChatService.openAsk` holds one, so 划词技能 (which call `stream`) remain
-/// structurally unable to reach a search endpoint.
+/// the high-level service decides whether this is a plain generation or a built-in search request.
 protocol FamoResponsesStreaming {
-  /// Stream an assistant answer for `messages` over `/responses` with web search on. `isOpenAI`
-  /// picks the body dialect (see `FamoResponsesWire.searchBody`). Yields text deltas in order; a
+  /// Stream an assistant answer for `messages` over `/responses`. Yields text deltas in order; a
   /// non-2xx status or an upstream `response.failed` finishes the stream with a `FamoStreamingError`.
   func stream(
     messages: [FamoDeepSeekMessage],
     routing: FamoCloudRouting,
     apiKey: String,
-    isOpenAI: Bool
+    dialect: FamoResponsesDialect,
+    webSearch: Bool
   ) -> AsyncThrowingStream<String, Error>
 }
 
@@ -190,13 +189,15 @@ struct FamoResponsesStreamingClient: FamoResponsesStreaming {
     messages: [FamoDeepSeekMessage],
     routing: FamoCloudRouting,
     apiKey: String,
-    isOpenAI: Bool
+    dialect: FamoResponsesDialect,
+    webSearch: Bool
   ) -> AsyncThrowingStream<String, Error> {
     AsyncThrowingStream { continuation in
       let task = Task {
         do {
           let request = try makeRequest(
-            messages: messages, routing: routing, apiKey: apiKey, isOpenAI: isOpenAI)
+            messages: messages, routing: routing, apiKey: apiKey,
+            dialect: dialect, webSearch: webSearch)
           let source = try await bytesProvider(request)
 
           if let http = source.response, !(200...299).contains(http.statusCode) {
@@ -240,7 +241,8 @@ struct FamoResponsesStreamingClient: FamoResponsesStreaming {
     messages: [FamoDeepSeekMessage],
     routing: FamoCloudRouting,
     apiKey: String,
-    isOpenAI: Bool
+    dialect: FamoResponsesDialect,
+    webSearch: Bool
   ) throws -> URLRequest {
     guard let url = FamoResponsesWire.url(from: routing.endpoint) else {
       throw FamoStreamingError.invalidEndpoint
@@ -252,11 +254,13 @@ struct FamoResponsesStreamingClient: FamoResponsesStreaming {
     routing.authHeaderStyle.apply(to: &request, apiKey: apiKey)
     request.timeoutInterval = timeout
     request.httpBody = try JSONSerialization.data(
-      withJSONObject: FamoResponsesWire.searchBody(
+      withJSONObject: FamoResponsesWire.body(
         model: routing.model,
-        input: messages.map { FamoResponsesWire.inputMessage(role: $0.role, text: $0.content) },
+        messages: messages,
         stream: true,
-        isOpenAI: isOpenAI
+        dialect: dialect,
+        webSearch: webSearch,
+        temperature: 0.2
       )
     )
     return request

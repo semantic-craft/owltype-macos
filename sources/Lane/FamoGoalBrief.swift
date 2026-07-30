@@ -68,21 +68,53 @@ struct FamoGoalBriefClient: FamoPromptOptimizeFetching {
       "goal-brief model=\(model) clarifications=\(clarifications.count)"
     }
 
-    var request = URLRequest(url: endpoint)
-    request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    authHeaderStyle.apply(to: &request, apiKey: apiKey)
-    // 与提示词优化同一条超时理由：整份任务书是长产出，8 秒的候选补全超时必然掐断。
-    request.timeoutInterval = FamoPromptOptimizer.requestTimeout
-    request.httpBody = try JSONEncoder().encode(
-      FamoGoalBrief.chatRequest(
-        forDraft: draft, clarifications: clarifications, model: model, providerID: providerID)
-    )
+    let payload = FamoGoalBrief.chatRequest(
+      forDraft: draft, clarifications: clarifications, model: model, providerID: providerID)
+    let responsesDialect = FamoResponsesWire.dialect(
+      providerID: providerID, model: model, endpoint: endpoint)
+    let request: URLRequest
+    if let responsesDialect {
+      request = try FamoResponsesWire.request(
+        endpoint: endpoint,
+        model: model,
+        messages: payload.messages,
+        apiKey: apiKey,
+        authHeaderStyle: authHeaderStyle,
+        dialect: responsesDialect,
+        stream: false,
+        webSearch: false,
+        temperature: payload.temperature,
+        timeout: FamoPromptOptimizer.requestTimeout)
+    } else {
+      var chatRequest = URLRequest(url: endpoint)
+      chatRequest.httpMethod = "POST"
+      chatRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      authHeaderStyle.apply(to: &chatRequest, apiKey: apiKey)
+      // 与提示词优化同一条超时理由：整份任务书是长产出，8 秒的候选补全超时必然掐断。
+      chatRequest.timeoutInterval = FamoPromptOptimizer.requestTimeout
+      chatRequest.httpBody = try JSONEncoder().encode(payload)
+      request = chatRequest
+    }
 
     let (data, response) = try await urlSession.data(for: request)
     if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
       throw FamoCloudRequestError.badHTTPStatus(http.statusCode)
     }
+    if responsesDialect != nil {
+      let decoded = try FamoResponsesWire.parse(data)
+      if let usage = decoded.usage {
+        FamoCloudUsageTelemetry.record(FamoCloudUsageSnapshot(
+          model: decoded.model ?? model,
+          completionTokens: usage.outputTokens,
+          promptTokens: usage.inputTokens,
+          promptCacheHitTokens: usage.cachedTokens,
+          promptCacheMissTokens: max(0, usage.inputTokens - usage.cachedTokens),
+          totalTokens: usage.totalTokens))
+      }
+      guard !decoded.text.isEmpty else { throw FamoCloudRequestError.emptyResponse }
+      return FamoPromptOptimizer.parse(decoded.text)
+    }
+
     let decoded = try JSONDecoder().decode(FamoDeepSeekClient.Response.self, from: data)
     if let usage = decoded.usage {
       // 只落 model + token 计数，与候选道同策；绝不落草稿或产出。
@@ -193,6 +225,8 @@ enum FamoGoalBrief {
     缺失处理（分级，别动辄反问）：
     - 某问缺失但能从草稿合理推断：补上，并在补写的句末标注「（推断）」，让用户一眼看出哪些是你补的。
     - 无法合理推断的：写进〈未知 Unknown〉一节，不要编造。没有未知项就写「无」。
+    - 技术选型（编程语言、框架、库、运行环境）除非草稿点名，否则既不推断也不反问：
+      在〈未知〉一节列一条「未指定」即可，其余小节不得出现具体选型，举例（「如 Python」）也不要。
 
     硬规则：
     - 沿用草稿的语言：中文草稿产出中文任务书，英文草稿产出英文任务书。
