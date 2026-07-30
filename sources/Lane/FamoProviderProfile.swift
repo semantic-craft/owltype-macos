@@ -86,7 +86,7 @@ enum FamoLLMProviderCatalog {
       id: "qwen",
       displayName: "阿里云百炼",
       endpoint: qwenResponsesEndpoint,
-      model: "qwen3.7-flash",
+      model: "qwen3.7-plus",
       keyHint: "按量付费 sk-…；Token Plan 请改用 token-plan.cn-beijing.maas.aliyuncs.com",
       sourceSupport: .sourceResults,
       authHeaderStyle: .bearer
@@ -94,8 +94,8 @@ enum FamoLLMProviderCatalog {
     FamoLLMProviderPreset(
       id: "doubao",
       displayName: "火山引擎 · 豆包 Seed",
-      endpoint: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
-      model: "doubao-seed-2-1-turbo-260628",
+      endpoint: "https://ark.cn-beijing.volces.com/api/v3/responses",
+      model: "doubao-seed-2-1-pro-260628",
       keyHint: "火山方舟 API Key",
       sourceSupport: .sourceResults,
       authHeaderStyle: .bearer
@@ -147,21 +147,20 @@ enum FamoLLMProviderCatalog {
     ),
   ]
 
-  /// 百炼可选模型，新的在前。第一个必须与上面 qwen 预设的 `model` 一致（下拉里选不到默认值很怪）。
+  /// 百炼可选模型，默认在前。第一个必须与上面 qwen 预设的 `model` 一致（下拉里选不到默认值很怪）。
   ///
   /// 为什么要列一串而不是像别家那样只写一个：阿里的型号迭代比法墨发版快，设置页下拉里只出现一个
   /// 型号会让人以为「只能用这个」。真正的全量清单靠设置页的「拉取最新」按钮从 `/models` 拉，这里
   /// 只兜住没联网/没拉取时的常用几个。
   ///
-  /// 只列有据可查的四个：3.7 三档取自阿里云模型总表；`qwen3.6-flash` 是仓库一直在用、已有实测数据
-  /// 的那个（`FamoSelectionPolish` 的润色耗时注释就是拿它测的）。**没有**顺手补 qwen3.6-plus /
+  /// 只列产品正式支持的两档（2026-07-31 产品决定）：`qwen3.7-plus` 默认基线、`qwen3.7-max`
+  /// 高质量档，均取自阿里云模型总表。Flash 型号不再作为内置推荐或质量基线——想用的用户仍可
+  /// 手动输入或经「拉取最新」从 `/models` 选到，法墨只是不替它背书。**没有**顺手补 qwen3.6-plus /
   /// qwen3.6-max —— 模型总表里已经查不到任何 `qwen3.6-*` 条目，凭命名规律推出来的 id 塞进下拉，
   /// 用户选中就是一个 400。
   static let qwenModels = [
-    "qwen3.7-flash",
     "qwen3.7-plus",
     "qwen3.7-max",
-    "qwen3.6-flash",
   ]
 
   static let customID = "custom"
@@ -672,21 +671,29 @@ enum FamoProviderConnectivityCheck {
     case malformed
   }
 
-  /// 最小请求体。Chat providers cap output at 16 tokens; Qwen Responses does not carry that
-  /// old field because the compatibility reference does not list it as an accepted request field.
+  /// 最小请求体。Chat providers cap output at 16 tokens; the Responses providers (Qwen / 豆包)
+  /// do not carry that old field because their compatibility references do not list it as an
+  /// accepted request field.
   ///
   /// 一并合上 `FamoThinkingControl.offBody`：混合思考模型默认开着思考时，会在回第一个字前先烧几百
-  /// 上千推理 token（同 任意提问 那条路的理由），验证个连通性没必要等那么久。
+  /// 上千推理 token（同 任意提问 那条路的理由），验证个连通性没必要等那么久。Responses 方言的
+  /// 关思考（qwen `reasoning.effort:none`、方舟 `thinking.type:disabled`）由
+  /// `FamoResponsesWire.body` 统一带上。
   static func body(providerID: String, model: String, endpoint: URL? = nil) -> [String: Any] {
-    let qwenResponses = endpoint.map {
-      FamoResponsesWire.isQwen(providerID: providerID, model: model, endpoint: $0)
-    } ?? (providerID.lowercased() == "qwen" && model.lowercased().hasPrefix("qwen"))
-    if qwenResponses {
+    let dialect: FamoResponsesDialect? = endpoint.flatMap {
+      FamoResponsesWire.dialect(providerID: providerID, model: model, endpoint: $0)
+    } ?? { () -> FamoResponsesDialect? in
+      let id = providerID.lowercased()
+      if id == "qwen", model.lowercased().hasPrefix("qwen") { return .qwen }
+      if id == "doubao", model.lowercased().hasPrefix("doubao") { return .ark }
+      return nil
+    }()
+    if let dialect {
       return FamoResponsesWire.body(
         model: model,
         messages: [FamoDeepSeekMessage(role: "user", content: "ping")],
         stream: false,
-        dialect: .qwen,
+        dialect: dialect,
         webSearch: false)
     }
     var body: [String: Any] = [
@@ -706,9 +713,9 @@ enum FamoProviderConnectivityCheck {
     apiKey: String,
     authStyle: FamoProviderAuthHeaderStyle
   ) throws -> URLRequest {
-    let qwenResponses = FamoResponsesWire.isQwen(
-      providerID: providerID, model: model, endpoint: endpoint)
-    let requestURL = qwenResponses
+    let usesResponses = FamoResponsesWire.dialect(
+      providerID: providerID, model: model, endpoint: endpoint) != nil
+    let requestURL = usesResponses
       ? (FamoResponsesWire.url(from: endpoint) ?? endpoint)
       : endpoint
     var req = URLRequest(url: requestURL)

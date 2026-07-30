@@ -659,20 +659,21 @@ final class FamoStreamingChatService {
     }
   }
 
-  /// Plain generation still selects transport by provider. Qwen is the only provider whose whole
-  /// Famo surface is on Responses; all other profiles retain their existing chat-completions wire.
+  /// Plain generation still selects transport by provider. Qwen 与豆包 run their whole Famo
+  /// surface on Responses (store=false + 关思考 live in `FamoResponsesWire.body`); all other
+  /// profiles retain their existing chat-completions wire.
   private func plainStream(
     messages: [FamoDeepSeekMessage],
     routing: FamoCloudRouting,
     apiKey: String
   ) -> AsyncThrowingStream<String, Error> {
-    if FamoResponsesWire.isQwen(
+    if let dialect = FamoResponsesWire.dialect(
       providerID: routing.providerID, model: routing.model, endpoint: routing.endpoint) {
       return responsesClient.stream(
         messages: messages,
         routing: routing,
         apiKey: apiKey,
-        dialect: .qwen,
+        dialect: dialect,
         webSearch: false)
     }
     return client.stream(messages: messages, routing: routing, apiKey: apiKey)

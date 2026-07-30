@@ -48,6 +48,26 @@ enum FamoResponsesWire {
     return host.contains("dashscope") || host.contains("aliyuncs")
   }
 
+  /// Whether this routing belongs to 火山方舟's Doubao service. Mirrors `isQwen`: the model prefix
+  /// is the hard requirement (a custom Ark-hosted third-party model keeps its own wire), the host
+  /// fallback preserves custom profiles created before provider ids were persisted.
+  static func isArk(providerID: String, model: String, endpoint: URL) -> Bool {
+    guard model.lowercased().hasPrefix("doubao") else { return false }
+    if providerID.lowercased() == "doubao" { return true }
+    let host = endpoint.host?.lowercased() ?? ""
+    return host.contains("volces") || host.contains("volcengine")
+  }
+
+  /// The Responses dialect carrying this routing's WHOLE Famo surface (plain generation and
+  /// search alike), or nil when the provider stays on chat completions. Qwen 与豆包 are the two
+  /// full-surface Responses providers; every non-streaming skill client and the plain stream ask
+  /// this one question instead of re-deriving provider checks.
+  static func dialect(providerID: String, model: String, endpoint: URL) -> FamoResponsesDialect? {
+    if isQwen(providerID: providerID, model: model, endpoint: endpoint) { return .qwen }
+    if isArk(providerID: providerID, model: model, endpoint: endpoint) { return .ark }
+    return nil
+  }
+
   /// Rewrite a stored legacy chat endpoint to its `/responses` sibling. Already-migrated profiles
   /// and bare API base URLs are accepted as well, so existing user data needs no migration pass.
   static func url(from endpoint: URL) -> URL? {
@@ -91,9 +111,12 @@ enum FamoResponsesWire {
   /// Build either a plain or web-search Responses request body.
   ///
   /// Qwen's current Responses documentation recommends `reasoning.effort` over the legacy
-  /// `enable_thinking`, so interactive Famo requests use `none`. Famo sends complete message
-  /// history and never retrieves Responses by id, so `store: false` opts out of Qwen's documented
-  /// default server-side persistence. When the UI promises a searched answer, `tool_choice:
+  /// `enable_thinking`, so interactive Famo requests use `none`. 方舟's own switch is
+  /// `thinking.type: disabled` — its Responses default burns hidden reasoning tokens before the
+  /// first output character (官方示例即带 211 reasoning tokens), so it is forced OFF on every
+  /// request, not just search. Famo sends complete message history and never retrieves Responses
+  /// by id, so `store: false` opts out of both providers' documented default server-side
+  /// persistence (方舟 `store` 默认 true). When the UI promises a searched answer, `tool_choice:
   /// required` prevents the model from silently answering from training data.
   static func body(
     model: String,
@@ -121,9 +144,10 @@ enum FamoResponsesWire {
         body["tool_choice"] = "required"
       }
     case .ark:
+      body["store"] = false
+      body["thinking"] = ["type": "disabled"]
       if webSearch {
         body["tools"] = [["type": "web_search", "max_keyword": 2, "limit": 3]]
-        body["thinking"] = ["type": "disabled"]
         body["max_tool_calls"] = 3
       }
     case .openAI:

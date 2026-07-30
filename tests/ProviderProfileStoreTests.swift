@@ -329,28 +329,42 @@ final class ProviderProfileStoreTests: XCTestCase {
   }
 
   /// 百炼一家给一串型号（别家只给一个）：阿里的迭代比法墨发版快，下拉里只出现一个会让人以为
-  /// 「只能用这个」。两条不变式：默认值必须在清单里（选不到默认值很怪），以及清单里不许出现
-  /// 阿里模型总表查不到的 `qwen3.6-plus` / `qwen3.6-max` 之流 —— 凭命名规律推出来的 id 被选中就是一个 400。
+  /// 「只能用这个」。三条不变式：默认值必须在清单里（选不到默认值很怪）且是 `qwen3.7-plus`
+  /// （2026-07-31 产品决定的默认基线）；清单只列产品正式支持的 Plus/Max 两档——Flash 不再作为
+  /// 内置推荐（手输或「拉取最新」仍可用）；不许出现阿里模型总表查不到的 `qwen3.6-plus` /
+  /// `qwen3.6-max` 之流 —— 凭命名规律推出来的 id 被选中就是一个 400。
   func testQwenPresetOffersTheWholeCuratedListWithItsDefaultInside() throws {
     let preset = try XCTUnwrap(FamoLLMProviderCatalog.preset(id: "qwen"))
-    XCTAssertEqual(preset.model, "qwen3.7-flash")
+    XCTAssertEqual(preset.model, "qwen3.7-plus", "默认基线是 qwen3.7-plus")
     XCTAssertEqual(
       preset.endpoint,
       FamoLLMProviderCatalog.qwenResponsesEndpoint)
     XCTAssertEqual(FamoLLMProviderCatalog.qwenModels.first, preset.model)
-    XCTAssertTrue(FamoLLMProviderCatalog.qwenModels.contains("qwen3.7-flash"))
-    XCTAssertTrue(FamoLLMProviderCatalog.qwenModels.contains("qwen3.7-max"))
     XCTAssertTrue(
-      FamoLLMProviderCatalog.qwenModels.contains("qwen3.6-flash"),
-      "3.6 只留仓库实测在用的 flash")
+      FamoLLMProviderCatalog.qwenModels.contains("qwen3.7-max"),
+      "高质量档 qwen3.7-max 必须可选")
     XCTAssertEqual(
       Set(FamoLLMProviderCatalog.qwenModels).count, FamoLLMProviderCatalog.qwenModels.count,
       "清单不能有重复项，下拉会出现两个一样的")
+    XCTAssertFalse(
+      FamoLLMProviderCatalog.qwenModels.contains { $0.lowercased().contains("flash") },
+      "Flash 型号不再是内置推荐项（2026-07-31 产品决定）；用户手输不拦，但下拉不背书")
     for guessed in ["qwen3.6-plus", "qwen3.6-max", "qwen3.6-max-preview"] {
       XCTAssertFalse(
         FamoLLMProviderCatalog.qwenModels.contains(guessed),
         "\(guessed) 在阿里云模型总表里查不到，不能凭命名规律塞进下拉")
     }
+  }
+
+  /// 豆包预设 = 高质量档 doubao-seed-2-1-pro，端点直指方舟 Responses（2026-07-31 起
+  /// 豆包全面走 Responses：store=false + thinking:{disabled} 均在 Responses 请求体上）。
+  func testDoubaoPresetUsesProModelOnTheResponsesEndpoint() throws {
+    let preset = try XCTUnwrap(FamoLLMProviderCatalog.preset(id: "doubao"))
+    XCTAssertEqual(preset.model, "doubao-seed-2-1-pro-260628")
+    XCTAssertEqual(
+      preset.endpoint,
+      "https://ark.cn-beijing.volces.com/api/v3/responses")
+    XCTAssertEqual(preset.sourceSupport, .sourceResults)
   }
 
   func testQwenWorkspaceInputAcceptsWorkspaceIDHostAndFullEndpoint() throws {
@@ -679,6 +693,24 @@ final class FamoProviderConnectivityCheckTests: XCTestCase {
       (body["reasoning"] as? [String: Any])?["effort"] as? String, "none")
     XCTAssertNil(body["messages"])
     XCTAssertNil(body["enable_thinking"])
+  }
+
+  /// 豆包连通性同样必须打 Responses（2026-07-31 起豆包全面走 Responses）：请求体带
+  /// thinking:{disabled} + store:false，绝不带 qwen 的 reasoning 字段。
+  func testDoubaoRequestVerifiesTheResponsesEndpointWithThinkingOff() throws {
+    let request = try FamoProviderConnectivityCheck.request(
+      endpoint: URL(string: "https://ark.cn-beijing.volces.com/api/v3/responses")!,
+      providerID: "doubao", model: "doubao-seed-2-1-pro-260628", apiKey: "sk-a", authStyle: .bearer)
+    XCTAssertEqual(
+      request.url?.absoluteString, "https://ark.cn-beijing.volces.com/api/v3/responses")
+    let body = try XCTUnwrap(
+      JSONSerialization.jsonObject(with: try XCTUnwrap(request.httpBody)) as? [String: Any])
+    XCTAssertEqual(body["model"] as? String, "doubao-seed-2-1-pro-260628")
+    XCTAssertEqual((body["thinking"] as? [String: Any])?["type"] as? String, "disabled")
+    XCTAssertEqual(body["store"] as? Bool, false)
+    XCTAssertNil(body["reasoning"], "reasoning.effort 是 qwen 的字段，方舟不认")
+    XCTAssertNil(body["messages"])
+    XCTAssertNil(body["max_tokens"])
   }
 
   /// MiMo 走 `api-key` 头而不是 Bearer —— 验证走的必须是该供应商真实的认证方式，

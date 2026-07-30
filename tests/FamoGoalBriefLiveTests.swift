@@ -8,7 +8,8 @@
 //  为什么需要它：任务书是全仓最长的单次产出（七问逐节 + 推断标注），mock fetcher 验不出
 //  真实供应商的两件事——①返回 JSON 的真实形状（围栏/status 缺省/超长 questions）；②整份
 //  任务书的生成时长是否扛得住 60 秒超时（提示词优化当年就是 mock 测不出真实延迟才吃过亏）。
-//  本测试打火山方舟豆包 turbo，把原始响应落到 /tmp 供人工核对。
+//  本测试打火山方舟豆包 Pro（2026-07-31 起的产品高质量档；turbo 是 2026-07-28 的旧实测目标），
+//  走产品同款 Responses 请求，把原始响应落到 /tmp 供人工核对。
 //
 //  Key 从仓库外的文件读，绝不落进代码、环境变量导出或日志。
 //
@@ -21,11 +22,11 @@ import XCTest
 @MainActor
 final class FamoGoalBriefLiveTests: XCTestCase {
 
-  /// 火山方舟 OpenAI 兼容端点 + 豆包 turbo（与 `FamoLLMProviderCatalog.presets` 的 doubao
-  /// 预设同端点；模型用 turbo 是机主 2026-07-28 指定的实测目标）。
+  /// 火山方舟 Responses 端点 + 豆包 Pro（与 `FamoLLMProviderCatalog.presets` 的 doubao 预设
+  /// 同端点同模型；2026-07-31 起豆包全面走 Responses：store=false + thinking:{disabled}）。
   private let endpoint = URL(
-    string: "https://ark.cn-beijing.volces.com/api/v3/chat/completions")!
-  private let model = "doubao-seed-2-1-turbo-260628"
+    string: "https://ark.cn-beijing.volces.com/api/v3/responses")!
+  private let model = "doubao-seed-2-1-pro-260628"
 
   /// 读仓库外的测试 Key；没有就返回 nil → 测试跳过。永不打印内容。
   private func testAPIKey() throws -> String {
@@ -40,17 +41,21 @@ final class FamoGoalBriefLiveTests: XCTestCase {
     return key
   }
 
-  /// 用真实代码构造的请求体直接 POST，把原始响应落盘供人工核对形状。
+  /// 用真实代码构造的请求体直接 POST（产品同款 Responses wire），把原始响应落盘供人工核对形状。
   @discardableResult
   private func dumpRawResponse(draft: String, apiKey: String, label: String) async throws -> String {
-    var request = URLRequest(url: endpoint)
-    request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-    request.timeoutInterval = 60
-    request.httpBody = try JSONEncoder().encode(
-      FamoGoalBrief.chatRequest(forDraft: draft, model: model)
-    )
+    let payload = FamoGoalBrief.chatRequest(forDraft: draft, model: model, providerID: "doubao")
+    let request = try FamoResponsesWire.request(
+      endpoint: endpoint,
+      model: model,
+      messages: payload.messages,
+      apiKey: apiKey,
+      authHeaderStyle: .bearer,
+      dialect: .ark,
+      stream: false,
+      webSearch: false,
+      temperature: payload.temperature,
+      timeout: 60)
 
     let (data, response) = try await URLSession.shared.data(for: request)
     let status = (response as? HTTPURLResponse)?.statusCode ?? -1
@@ -59,10 +64,7 @@ final class FamoGoalBriefLiveTests: XCTestCase {
       toFile: "/tmp/famo-live-goalbrief-\(label).json", atomically: true, encoding: .utf8)
     XCTAssertEqual(status, 200, "方舟返回非 200：\(body.prefix(400))")
 
-    let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-    let choices = root?["choices"] as? [[String: Any]]
-    let message = choices?.first?["message"] as? [String: Any]
-    let content = message?["content"] as? String ?? ""
+    let content = (try? FamoResponsesWire.parse(data))?.text ?? ""
     try? content.write(
       toFile: "/tmp/famo-live-goalbrief-\(label)-content.txt", atomically: true, encoding: .utf8)
     return content

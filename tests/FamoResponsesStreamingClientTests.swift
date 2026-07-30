@@ -268,6 +268,26 @@ final class FamoResponsesStreamingClientTests: XCTestCase {
     // 方舟 的联网与思考互斥，且并行工具调用要封顶。
     XCTAssertEqual((captured.body["thinking"] as? [String: Any])?["type"] as? String, "disabled")
     XCTAssertEqual(captured.body["max_tool_calls"] as? Int, 3)
+    XCTAssertEqual(
+      captured.body["store"] as? Bool, false,
+      "方舟 Responses store 默认 true；Famo 不检索历史响应，必须显式关闭")
+  }
+
+  func testArkPlainRequestStillDisablesThinkingAndStorage() async throws {
+    // 2026-07-31 豆包全面走 Responses 后，关思考与 store=false 不再只属于搜索请求：
+    // 方舟 Responses `store` 默认 true、思考默认开（官方示例一句寒暄烧 211 reasoning token），
+    // 普通生成漏掉任一字段都是回归。
+    let captured = try await captureRequest(
+      routing: arkRouting(), dialect: .ark, webSearch: false,
+      messages: [FamoDeepSeekMessage(role: "user", content: "你好")])
+    XCTAssertEqual(
+      captured.url?.absoluteString,
+      "https://ark.cn-beijing.volces.com/api/v3/responses")
+    XCTAssertEqual((captured.body["thinking"] as? [String: Any])?["type"] as? String, "disabled")
+    XCTAssertEqual(captured.body["store"] as? Bool, false)
+    XCTAssertNil(captured.body["tools"], "普通生成不带搜索工具")
+    XCTAssertNil(captured.body["max_tool_calls"])
+    XCTAssertNil(captured.body["reasoning"], "reasoning.effort 是 qwen 的字段，方舟不认")
   }
 
   func testOpenAIRequestOmitsVolcengineOnlyFields() async throws {

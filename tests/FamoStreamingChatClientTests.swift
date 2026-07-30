@@ -362,11 +362,19 @@ final class FamoStreamingChatClientTests: XCTestCase {
     chat: RecordingChatClient,
     responses: RecordingResponsesClient
   ) -> FamoStreamingChatService {
+    let model: String
+    switch providerID {
+    case "qwen": model = "qwen3.7-plus"
+    // 豆包的 plain 传输按「providerID/模型前缀 + host」判方言（FamoResponsesWire.dialect），
+    // 得用真实型号名才能覆盖到那条判定。
+    case "doubao": model = "doubao-seed-2-1-pro-260628"
+    default: model = "m"
+    }
     let profile = FamoProviderProfile(
       id: providerID,
       displayName: providerID,
       endpoint: URL(string: "https://\(host)/v1/chat/completions")!,
-      model: providerID == "qwen" ? "qwen3.7-plus" : "m",
+      model: model,
       providerID: providerID,
       secretName: "famo.provider.\(providerID).apiKey",
       isDefault: true
@@ -418,6 +426,24 @@ final class FamoStreamingChatClientTests: XCTestCase {
     }
     XCTAssertEqual(responses.callCount, 1)
     XCTAssertEqual(responses.lastDialect, .qwen)
+    XCTAssertEqual(responses.lastWebSearch, false)
+    XCTAssertEqual(chat.callCount, 0)
+  }
+
+  @MainActor
+  func testPlainDoubaoGenerationAlsoUsesResponsesWithoutSearch() {
+    // 2026-07-31 起 豆包 与 Qwen 一样全面走 Responses：普通生成也不许退回 chat/completions，
+    // 否则 store=false 与 thinking:{disabled} 全部丢失（方舟 Responses 默认存响应且开思考）。
+    let chat = RecordingChatClient()
+    let responses = RecordingResponsesClient()
+    let service = makeDispatchService(
+      providerID: "doubao", host: "ark.cn-beijing.volces.com", chat: chat, responses: responses)
+    guard case .success = service.stream(
+      messages: [FamoDeepSeekMessage(role: "user", content: "你好")]) else {
+      return XCTFail("expected an opened stream")
+    }
+    XCTAssertEqual(responses.callCount, 1)
+    XCTAssertEqual(responses.lastDialect, .ark)
     XCTAssertEqual(responses.lastWebSearch, false)
     XCTAssertEqual(chat.callCount, 0)
   }
