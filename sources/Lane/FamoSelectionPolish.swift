@@ -326,6 +326,15 @@ struct FamoSourceVerificationOutcome: Equatable, Sendable {
 final class FamoSourceVerificationService {
   static let shared = FamoSourceVerificationService()
 
+  /// Product prompt surfaced for the live Responses-API evaluation. Keeping it here (rather than
+  /// copying it into the test) makes the evaluated bytes the same bytes production sends.
+  nonisolated static let systemPrompt =
+    "你是来源核验助手。必须使用联网检索结果核验选中文本。不要凭常识补来源；没有可核 URL 时说明需要人工确认。"
+
+  nonisolated static func userPrompt(for selectedText: String) -> String {
+    "请核验以下选中文本，并返回判断、可核来源 URL、关键信息。选中文本：\n\(selectedText)"
+  }
+
   private let urlSession: URLSession
   /// Kept for the `sourceSupport` capability gate (a profile-level check, run before auth).
   private let profileProvider: () -> FamoProviderProfile?
@@ -417,8 +426,8 @@ final class FamoSourceVerificationService {
     routing: FamoCloudRouting,
     apiKey: String
   ) throws -> URLRequest {
-    let system = "你是来源核验助手。必须使用联网检索结果核验选中文本。不要凭常识补来源；没有可核 URL 时说明需要人工确认。"
-    let user = "请核验以下选中文本，并返回判断、可核来源 URL、关键信息。选中文本：\n\(selectedText)"
+    let system = Self.systemPrompt
+    let user = Self.userPrompt(for: selectedText)
 
     switch routing.providerID {
     case "mimo":

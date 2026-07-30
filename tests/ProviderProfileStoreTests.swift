@@ -333,7 +333,7 @@ final class ProviderProfileStoreTests: XCTestCase {
   /// 阿里模型总表查不到的 `qwen3.6-plus` / `qwen3.6-max` 之流 —— 凭命名规律推出来的 id 被选中就是一个 400。
   func testQwenPresetOffersTheWholeCuratedListWithItsDefaultInside() throws {
     let preset = try XCTUnwrap(FamoLLMProviderCatalog.preset(id: "qwen"))
-    XCTAssertEqual(preset.model, "qwen3.7-plus")
+    XCTAssertEqual(preset.model, "qwen3.7-flash")
     XCTAssertEqual(
       preset.endpoint,
       FamoLLMProviderCatalog.qwenResponsesEndpoint)
