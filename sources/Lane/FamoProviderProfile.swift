@@ -86,7 +86,7 @@ enum FamoLLMProviderCatalog {
       id: "qwen",
       displayName: "阿里云百炼",
       endpoint: qwenResponsesEndpoint,
-      model: "qwen3.7-plus",
+      model: "qwen3.7-flash",
       keyHint: "按量付费 sk-…；Token Plan 请改用 token-plan.cn-beijing.maas.aliyuncs.com",
       sourceSupport: .sourceResults,
       authHeaderStyle: .bearer
@@ -158,8 +158,8 @@ enum FamoLLMProviderCatalog {
   /// qwen3.6-max —— 模型总表里已经查不到任何 `qwen3.6-*` 条目，凭命名规律推出来的 id 塞进下拉，
   /// 用户选中就是一个 400。
   static let qwenModels = [
-    "qwen3.7-plus",
     "qwen3.7-flash",
+    "qwen3.7-plus",
     "qwen3.7-max",
     "qwen3.6-flash",
   ]
