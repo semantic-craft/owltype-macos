@@ -354,7 +354,9 @@ final class FamoResponsesStreamingClientTests: XCTestCase {
   func testQwenSearchRequestUsesBuiltInWebSearchAndRequiresATool() async throws {
     let captured = try await captureRequest(routing: qwenRouting(), dialect: .qwen)
     let tools = try XCTUnwrap(captured.body["tools"] as? [[String: Any]])
-    XCTAssertEqual(tools.first?["type"] as? String, "web_search")
+    XCTAssertEqual(
+      tools.map { $0["type"] as? String }, ["web_search"],
+      "只挂 web_search 一个：required 模式只准一个工具，web_extractor 又进不了非思考模式（实测双 400）")
     XCTAssertEqual(tools.first?.count, 1)
     XCTAssertEqual(captured.body["tool_choice"] as? String, "required")
     XCTAssertEqual(captured.body["store"] as? Bool, false)
