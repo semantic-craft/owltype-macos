@@ -368,6 +368,8 @@ final class FamoStreamingChatClientTests: XCTestCase {
     // 豆包的 plain 传输按「providerID/模型前缀 + host」判方言（FamoResponsesWire.dialect），
     // 得用真实型号名才能覆盖到那条判定。
     case "doubao": model = "doubao-seed-2-1-pro-260628"
+    // DeepSeek 的方言判定卡型号（`/responses` 目前只收 deepseek-v4-flash），同样得用真实型号名。
+    case "deepseek": model = "deepseek-v4-flash"
     default: model = "m"
     }
     let profile = FamoProviderProfile(
@@ -479,19 +481,28 @@ final class FamoStreamingChatClientTests: XCTestCase {
     XCTAssertEqual(chat.callCount, 0)
   }
 
+  /// DeepSeek 迁 `/responses` 后的传输判定，与上面 qwen / 豆包 / openai 三条同构。
+  /// 这条补的是原本由 DeepSeek fixture 顺带覆盖、现已换成 `chatOnlyProfile` 的那块。
+  @MainActor
+  func testDeepSeekDispatchesToResponsesAndSignsItsSearch() {
+    let chat = RecordingChatClient()
+    let responses = RecordingResponsesClient()
+    let service = makeDispatchService(
+      providerID: "deepseek", host: "api.deepseek.com", chat: chat, responses: responses)
+    guard case let .success(open) = service.openAsk(messages: []) else {
+      return XCTFail("expected an opened stream")
+    }
+    XCTAssertEqual(responses.lastDialect, .deepseek)
+    XCTAssertEqual(chat.callCount, 0, "还在打 chat/completions = 迁移漏了这条链路")
+    XCTAssertEqual(open.searchProviderID, "deepseek", "2026-07-31 起它能联网了，署名要挂上")
+  }
+
   @MainActor
   func testOpenAskWithoutASearchRouteFallsBackToPlainChat() {
     let chat = RecordingChatClient()
     let responses = RecordingResponsesClient()
-    let profile = FamoProviderProfile(
-      id: "deepseek",
-      displayName: "deepseek",
-      endpoint: URL(string: "https://api.deepseek.com/v1/chat/completions")!,
-      model: "deepseek-v4-flash",
-      providerID: "deepseek",
-      secretName: "famo.provider.deepseek.apiKey",
-      isDefault: true
-    )
+    // 同 `chatOnlyProfile`：这条钉的是「没有搜索通道 → 退回普通问答」，作答方得是个 chat 供应商。
+    let profile = Self.chatOnlyProfile
     let service = FamoStreamingChatService(
       client: chat,
       responsesClient: responses,
@@ -598,7 +609,7 @@ final class FamoStreamingChatClientTests: XCTestCase {
     let service = FamoStreamingChatService(
       client: chat,
       responsesClient: RecordingResponsesClient(),
-      profileProvider: { Self.deepSeekProfile },
+      profileProvider: { Self.chatOnlyProfile },
       profileSecretProvider: { _ in "sk-key" },
       legacyKeyProvider: { nil },
       searchResolver: FamoAskSearchResolver(
@@ -654,14 +665,21 @@ final class FamoStreamingChatClientTests: XCTestCase {
       "一条都没搜到 → 换一家，而不是注入空资料却署名联网")
   }
 
-  @MainActor private static var deepSeekProfile: FamoProviderProfile {
+  /// 一个**仍然走 `/chat/completions`** 的默认供应商。独立搜索层那几条用例要的就是这个角色：
+  /// 检索结果作为 system 注入、作答走默认供应商的常规通道。
+  ///
+  /// 曾经这里用的是 DeepSeek——它 2026-07-31 迁到 `/responses` 之后就不再是「chat 供应商」了，
+  /// 断言会变成在验证 fixture 的传输方式而不是搜索层的行为。所以换成一个不属于任何 Responses
+  /// 家族、也没有搜索通道的自定义档案；DeepSeek 的 Responses 路由由
+  /// `testDeepSeekPlainGenerationDispatchesToResponses` 单独覆盖。
+  @MainActor private static var chatOnlyProfile: FamoProviderProfile {
     FamoProviderProfile(
       id: "unit",
       displayName: "unit",
-      endpoint: URL(string: "https://api.deepseek.com/v1/chat/completions")!,
-      model: "deepseek-v4-flash",
-      providerID: "deepseek",
-      secretName: "famo.provider.deepseek.apiKey",
+      endpoint: URL(string: "https://api.example.com/v1/chat/completions")!,
+      model: "unit-chat-v1",
+      providerID: "custom",
+      secretName: "famo.provider.unit.apiKey",
       isDefault: true
     )
   }
@@ -672,15 +690,8 @@ final class FamoStreamingChatClientTests: XCTestCase {
     responses: RecordingResponsesClient,
     search: FamoWebSearching
   ) -> FamoStreamingChatService {
-    let profile = FamoProviderProfile(
-      id: "unit",
-      displayName: "unit",
-      endpoint: URL(string: "https://api.deepseek.com/v1/chat/completions")!,
-      model: "deepseek-v4-flash",
-      providerID: "deepseek",
-      secretName: "famo.provider.deepseek.apiKey",
-      isDefault: true
-    )
+    // 同 `chatOnlyProfile` 的理由：这几条断言的是搜索层，作答方必须是个仍走 chat 的供应商。
+    let profile = Self.chatOnlyProfile
     FamoAskWebSearchSettings.isEnabled = true
     return FamoStreamingChatService(
       client: chat,
