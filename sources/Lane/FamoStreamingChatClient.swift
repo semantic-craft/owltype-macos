@@ -411,6 +411,10 @@ final class FamoStreamingChatService {
   /// 解析当前生效的搜索后端 + 它的 Key。nil = 没配 → 走既有的模型内置联网路径。
   /// 后端与 Key 一起解析（而不是各取各的），否则切了后端却用着上一家的 Key 会静默 401。
   private let webSearchProvider: () -> (backend: FamoWebSearchBackend, apiKey: String)?
+  /// 顺位候选（未选中的搜索后端）的 Key 查询。必须与 `webSearchProvider` 一样可注入：默认读真
+  /// 钥匙串，测试不替换它的话，开发机上真配过的搜索 Key 会悄悄变成一条真实顺位路由——与
+  /// `searchResolver` 注释里踩过的是同一个坑。
+  private let webSearchKeyProvider: (FamoWebSearchBackend) -> String?
   /// 后端 → 客户端。可注入，测试不碰网络。
   private let webSearchClientFactory: (FamoWebSearchBackend) -> FamoWebSearching
 
@@ -425,6 +429,7 @@ final class FamoStreamingChatService {
     legacyKeyProvider: @escaping () throws -> String? = FamoCloudKeychain.readDeepSeekAPIKey,
     searchResolver: FamoAskSearchResolver? = nil,
     webSearchProvider: (() -> (backend: FamoWebSearchBackend, apiKey: String)?)? = nil,
+    webSearchKeyProvider: ((FamoWebSearchBackend) -> String?)? = nil,
     webSearchClientFactory: ((FamoWebSearchBackend) -> FamoWebSearching)? = nil
   ) {
     self.client = client ?? FamoStreamingChatClient()
@@ -440,6 +445,7 @@ final class FamoStreamingChatService {
       guard let key = FamoWebSearchKeyStore.apiKey(for: backend) else { return nil }
       return (backend, key)
     }
+    self.webSearchKeyProvider = webSearchKeyProvider ?? { FamoWebSearchKeyStore.apiKey(for: $0) }
     self.webSearchClientFactory = webSearchClientFactory ?? { $0.makeClient() }
   }
 
@@ -525,7 +531,7 @@ final class FamoStreamingChatService {
     guard let selected = webSearchProvider() else { return [] }
     var out = [selected]
     for backend in FamoWebSearchBackend.allCases where backend != selected.backend {
-      if let key = FamoWebSearchKeyStore.apiKey(for: backend) {
+      if let key = webSearchKeyProvider(backend) {
         out.append((backend, key))
       }
     }
