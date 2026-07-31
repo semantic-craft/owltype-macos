@@ -439,13 +439,7 @@ final class FamoSourceVerificationService {
     switch routing.providerID {
     case "mimo":
       return try makeChatSearchRequest(system: system, user: user, routing: routing, apiKey: apiKey)
-    case "qwen":
-      guard FamoResponsesWire.isQwen(
-        providerID: routing.providerID, model: routing.model, endpoint: routing.endpoint) else {
-        throw FamoSourceVerificationError.unsupportedProvider
-      }
-      return try makeResponsesSearchRequest(system: system, user: user, routing: routing, apiKey: apiKey)
-    case "doubao", "openai":
+    case "qwen", "doubao", "openai":
       return try makeResponsesSearchRequest(system: system, user: user, routing: routing, apiKey: apiKey)
     default:
       throw FamoSourceVerificationError.unsupportedProvider

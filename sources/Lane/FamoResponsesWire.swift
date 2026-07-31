@@ -39,17 +39,25 @@ enum FamoResponsesWireError: Error {
 }
 
 enum FamoResponsesWire {
-  /// Whether this routing belongs to DashScope's Qwen service. The host fallback preserves custom
-  /// profiles created before provider ids were persisted.
-  static func isQwen(providerID: String, model: String, endpoint: URL) -> Bool {
-    guard model.lowercased().hasPrefix("qwen") else { return false }
+  /// Whether this routing belongs to 阿里云百炼 (DashScope). Note what it does NOT look at: the
+  /// **model**. 百炼 is Responses-only by product decision (2026-07-31) — 旧的 `/chat/completions`
+  /// 不再兼容 — so the platform alone decides the wire, and a 百炼-hosted third-party model
+  /// (`deepseek-*` / `kimi-*` / …) goes to `/responses` like everything else. It may well come back
+  /// 400 there: 官方 Responses 文档只列 Qwen 系列。That upstream refusal is surfaced verbatim
+  /// (「验证连通性」prints the server's own words), which is the honest outcome — the alternative
+  /// was the silent fallback this guard used to perform, quietly speaking a wire we no longer
+  /// support and calling it success.
+  ///
+  /// The host fallback preserves custom profiles created before provider ids were persisted.
+  static func isQwen(providerID: String, endpoint: URL) -> Bool {
     if providerID.lowercased() == "qwen" { return true }
     let host = endpoint.host?.lowercased() ?? ""
     return host.contains("dashscope") || host.contains("aliyuncs")
   }
 
-  /// Whether this routing belongs to 火山方舟's Doubao service. Mirrors `isQwen`: the model prefix
-  /// is the hard requirement (a custom Ark-hosted third-party model keeps its own wire), the host
+  /// Whether this routing belongs to 火山方舟's Doubao service. Deliberately NOT symmetric with
+  /// `isQwen`: the model prefix stays a hard requirement here, because 方舟 hosts third-party
+  /// models that genuinely keep their own wire — only 百炼 was declared Responses-only. The host
   /// fallback preserves custom profiles created before provider ids were persisted.
   static func isArk(providerID: String, model: String, endpoint: URL) -> Bool {
     guard model.lowercased().hasPrefix("doubao") else { return false }
@@ -63,7 +71,7 @@ enum FamoResponsesWire {
   /// full-surface Responses providers; every non-streaming skill client and the plain stream ask
   /// this one question instead of re-deriving provider checks.
   static func dialect(providerID: String, model: String, endpoint: URL) -> FamoResponsesDialect? {
-    if isQwen(providerID: providerID, model: model, endpoint: endpoint) { return .qwen }
+    if isQwen(providerID: providerID, endpoint: endpoint) { return .qwen }
     if isArk(providerID: providerID, model: model, endpoint: endpoint) { return .ark }
     return nil
   }

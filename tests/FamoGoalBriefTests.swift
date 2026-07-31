@@ -98,16 +98,32 @@ final class FamoGoalBriefTests: XCTestCase {
     XCTAssertEqual(qwen.enableThinking, false, "qwen 必须关闭隐藏思考")
   }
 
-  func testProviderIDBeatsModelPrefixSoDashScopeHostedDeepSeekGetsTheRightField() {
-    // 百炼上托管着 deepseek-* 型号：只看模型名会发 thinking:{disabled}（百炼不认），
-    // 得按档案的 providerID 发 enable_thinking:false。传空串才退回模型名判定。
+  func testProviderIDBeatsModelPrefixForTheChatThinkingDialect() {
+    // 档案 id 优先于模型名前缀：豆包档案上托管一个 qwen-* 型号，仍要发方舟的 thinking:{disabled}，
+    // 而不是按模型名发 enable_thinking。传空串才退回模型名判定。
+    //
+    // 这条**不再拿百炼举例**：百炼自 2026-07-31 起整体走 Responses，`chatRequest` 的思考字段对它
+    // 已经到不了线上（关思考由 `reasoning.effort:none` 负责），见下面那条测试。
     let hosted = FamoGoalBrief.chatRequest(
-      forDraft: "把词库下载做稳", model: "deepseek-v3", providerID: "qwen")
-    XCTAssertEqual(hosted.enableThinking, false, "档案是百炼，就该走百炼的字段")
-    XCTAssertNil(hosted.thinking, "百炼没有 thinking 字段，塞进去只会 400")
+      forDraft: "把词库下载做稳", model: "qwen3.7-plus", providerID: "doubao")
+    XCTAssertEqual(hosted.thinking, .disabled, "档案是方舟，就该走方舟的字段")
+    XCTAssertNil(hosted.enableThinking, "方舟不认 enable_thinking")
 
     let unknown = FamoGoalBrief.chatRequest(forDraft: "把词库下载做稳", model: "deepseek-v3")
     XCTAssertEqual(unknown.thinking, .disabled, "没有档案 id 时按模型名前缀判")
+  }
+
+  /// 百炼档案（含它托管的非 qwen 型号）一律解析为 Responses ——`chatRequest` 的 `enableThinking`
+  /// 于是根本发不出去，关思考改由 `FamoResponsesWire.body` 的 `reasoning.effort:none` 负责。
+  /// 这条钉住的是「旧 chat 回退已经拆掉」，不是某个字段的值。
+  func testDashScopeProfileResolvesToResponsesSoTheChatThinkingFieldNeverShips() {
+    let endpoint = URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/responses")!
+    for model in ["qwen3.7-plus", "deepseek-v3"] {
+      XCTAssertEqual(
+        FamoResponsesWire.dialect(providerID: "qwen", model: model, endpoint: endpoint),
+        .qwen,
+        "百炼档案配 \(model) 必须走 Responses，而不是回退 chat 带 enable_thinking")
+    }
   }
 
   /// qwen 也要关思考。这条一度是反的（`enableThinking: nil` = 保留思考，理由写着「推理对补齐七问
