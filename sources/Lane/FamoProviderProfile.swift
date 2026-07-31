@@ -191,13 +191,12 @@ enum FamoLLMProviderCatalog {
     return preset(id: providerID)?.authHeaderStyle ?? .bearer
   }
 
+  /// 百炼档案不再按型号降级：它整体是 Responses 供应商，来源核验走 `/responses` 的内置
+  /// `web_search`，能力属于**平台**而非某个型号。型号真不被服务时上游会拒，那句话如实报给用户，
+  /// 比这里先猜一个「辅助检索」更贴近真相。
   static func sourceSupport(for profile: FamoProviderProfile?) -> FamoProviderSourceSupport {
     guard let profile else { return .searchPlanOnly }
-    let providerID = inferredProviderID(for: profile)
-    if providerID == "qwen", !profile.model.lowercased().hasPrefix("qwen") {
-      return .searchPlanOnly
-    }
-    return preset(id: providerID)?.sourceSupport ?? .searchPlanOnly
+    return preset(id: inferredProviderID(for: profile))?.sourceSupport ?? .searchPlanOnly
   }
 }
 
@@ -683,8 +682,10 @@ enum FamoProviderConnectivityCheck {
     let dialect: FamoResponsesDialect? = endpoint.flatMap {
       FamoResponsesWire.dialect(providerID: providerID, model: model, endpoint: $0)
     } ?? { () -> FamoResponsesDialect? in
+      // 没有端点可判时只剩 providerID。百炼整体是 Responses 供应商，不看型号；方舟仍看型号，
+      // 与 `FamoResponsesWire.isArk` 的口径一致（那边写了为何这处不对称）。
       let id = providerID.lowercased()
-      if id == "qwen", model.lowercased().hasPrefix("qwen") { return .qwen }
+      if id == "qwen" { return .qwen }
       if id == "doubao", model.lowercased().hasPrefix("doubao") { return .ark }
       return nil
     }()
@@ -796,7 +797,8 @@ extension FamoProviderConnectivityCheck.Outcome {
     case let .unreachable(reason):
       return "连不上：\(reason)。检查网络、端点地址或代理。"
     case .malformed:
-      return "对方回了 200，但不是可识别的 Chat 响应——端点可能不是 OpenAI 兼容的 /chat/completions。"
+      return "对方回了 200，但既不是 Chat 响应也不是 Responses 响应——端点可能不是 OpenAI 兼容的 "
+        + "/chat/completions 或 /responses。"
     }
   }
 

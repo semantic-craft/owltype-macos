@@ -317,6 +317,9 @@ final class ProviderProfileStoreTests: XCTestCase {
     XCTAssertEqual(FamoLLMProviderCatalog.authHeaderStyle(for: mimo), .apiKey)
     XCTAssertEqual(FamoLLMProviderCatalog.sourceSupport(for: mimo), .sourceResults)
 
+    // 语义已反转（2026-07-31 百炼全面转 Responses）：来源核验能力属于**平台**而非型号。此前这里
+    // 断言的是「非 qwen 型号降级为辅助检索」——那道降级正是旧 chat 回退的一部分，已随之拆掉。
+    // 型号真不被 Responses 服务时由上游 400 说话，比法墨先替阿里猜一个型号白名单更贴近真相。
     let nonQwenOnDashScope = FamoProviderProfile(
       displayName: "百炼托管 DeepSeek",
       endpoint: URL(string: FamoLLMProviderCatalog.qwenResponsesEndpoint)!,
@@ -324,8 +327,8 @@ final class ProviderProfileStoreTests: XCTestCase {
       providerID: "qwen")
     XCTAssertEqual(
       FamoLLMProviderCatalog.sourceSupport(for: nonQwenOnDashScope),
-      .searchPlanOnly,
-      "只有 Qwen 系列才进入百炼 Responses web_search 路径")
+      .sourceResults,
+      "百炼整体走 Responses，来源核验能力不按型号名降级")
   }
 
   /// 百炼一家给一串型号（别家只给一个）：阿里的迭代比法墨发版快，下拉里只出现一个会让人以为

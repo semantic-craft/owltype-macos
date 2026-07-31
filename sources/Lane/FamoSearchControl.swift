@@ -45,12 +45,16 @@ enum FamoSearchControl {
   }
 
   /// The transport that carries `providerID`'s web search.
-  static func transport(providerID: String, host: String, model: String = "") -> Transport {
+  ///
+  /// 百炼 no longer takes a model into account: it is Responses-only (2026-07-31 产品决定), so every
+  /// 百炼 routing searches on `/responses`. The old `model` parameter existed solely to route a
+  /// 百炼-hosted non-Qwen model back to `.none`; that fallback is gone with the rest of 旧模式.
+  static func transport(providerID: String, host: String) -> Transport {
     switch channel(providerID: providerID, host: host) {
     case .mimo:
       return .chatCompletions
     case .dashScope:
-      return model.isEmpty || model.lowercased().hasPrefix("qwen") ? .responses(.qwen) : .none
+      return .responses(.qwen)
     case .ark:
       return .responses(.ark)
     case .openAI:

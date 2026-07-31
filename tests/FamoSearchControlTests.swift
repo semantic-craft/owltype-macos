@@ -59,10 +59,9 @@ final class FamoSearchControlTests: XCTestCase {
     XCTAssertEqual(FamoSearchControl.transport(providerID: "openai", host: ""), .responses(.openAI))
     XCTAssertEqual(FamoSearchControl.transport(providerID: "deepseek", host: "api.deepseek.com"), .none)
     XCTAssertEqual(
-      FamoSearchControl.transport(
-        providerID: "qwen", host: "dashscope.aliyuncs.com", model: "deepseek-v3"),
-      .none,
-      "DashScope 上托管的非 Qwen 型号不在 Qwen Responses 支持清单内")
+      FamoSearchControl.transport(providerID: "qwen", host: "dashscope.aliyuncs.com"),
+      .responses(.qwen),
+      "百炼整体是 Responses 供应商——联网也走 /responses，不再按型号回退")
   }
 
   func testSupportsSearchMatchesTheTransport() {
