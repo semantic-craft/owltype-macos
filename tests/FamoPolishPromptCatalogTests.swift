@@ -130,16 +130,28 @@ final class FamoPolishPromptCatalogTests: XCTestCase {
     XCTAssertFalse(otherBody.contains("thinking"), "非 deepseek/mimo/doubao/qwen 不得携带任何思考控制字段")
   }
 
-  func testProviderIDBeatsModelPrefixSoDashScopeHostedDeepSeekGetsTheRightField() throws {
-    // 百炼上托管着 deepseek-* 型号：只看模型名会发 thinking:{disabled}（百炼不认），
-    // 得按档案的 providerID 发 enable_thinking:false。传空串才退回模型名判定。
+  func testProviderIDBeatsModelPrefixForTheChatThinkingDialect() throws {
+    // 档案 id 优先于模型名前缀：豆包档案上托管一个 qwen-* 型号，仍要发方舟的 thinking:{disabled}。
+    // 不再拿百炼举例——它自 2026-07-31 起整体走 Responses，见下面那条测试。
     let hosted = try FamoSelectionPolish.chatRequest(
-      for: "他撤销了合同", model: "deepseek-v3", providerID: "qwen")
-    XCTAssertEqual(hosted.enableThinking, false, "档案是百炼，就该走百炼的字段")
-    XCTAssertNil(hosted.thinking, "百炼没有 thinking 字段，塞进去只会 400")
+      for: "他撤销了合同", model: "qwen3.7-plus", providerID: "doubao")
+    XCTAssertEqual(hosted.thinking, .disabled, "档案是方舟，就该走方舟的字段")
+    XCTAssertNil(hosted.enableThinking, "方舟不认 enable_thinking")
 
     let unknown = try FamoSelectionPolish.chatRequest(for: "他撤销了合同", model: "deepseek-v3")
     XCTAssertEqual(unknown.thinking, .disabled, "没有档案 id 时按模型名前缀判")
+  }
+
+  /// 百炼档案（含它托管的非 qwen 型号）一律解析为 Responses，`chatRequest` 的 `enableThinking`
+  /// 发不出去——关思考由 `reasoning.effort:none` 负责。钉的是「旧 chat 回退已拆掉」。
+  func testDashScopeProfileResolvesToResponsesSoTheChatThinkingFieldNeverShips() {
+    let endpoint = URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/responses")!
+    for model in ["qwen3.7-plus", "deepseek-v3"] {
+      XCTAssertEqual(
+        FamoResponsesWire.dialect(providerID: "qwen", model: model, endpoint: endpoint),
+        .qwen,
+        "百炼档案配 \(model) 必须走 Responses，而不是回退 chat 带 enable_thinking")
+    }
   }
 
 }
