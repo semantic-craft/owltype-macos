@@ -25,6 +25,13 @@
 用户明确选中的文本本身可能含有个人信息或机密内容。触发云端功能前，请确认所选文本可以交给
 当前配置的模型提供商处理。模型提供商如何保存和使用请求，受该提供商自己的条款与隐私政策约束。
 
+## 自动更新
+
+法墨使用 Sparkle 定期检查新版：请求 `responsay.com/famo/appcast.xml`（该地址重定向到本仓库
+GitHub Releases 中随版发布的 appcast），有新版时从 GitHub Releases 下载签名、公证过的更新包。
+这些是常规 HTTP 请求，携带 User-Agent 中的应用与 Sparkle 版本号；不包含输入内容、用户数据，
+也不包含系统画像（Sparkle 的 system profiling 未启用）。自动检查可在设置中关闭。
+
 ## 凭据
 
 模型提供商密钥存储在 macOS Keychain。仓库、普通配置文件和云端请求正文不应包含这些密钥。
