@@ -98,7 +98,10 @@ final class FamoSettingsCoverageTests: XCTestCase {
     // 登记（同 设为默认：\(…) 的写法）。action coverage 在 FamoWebSearchTests 的
     // saveWebSearchKey / clearWebSearchKey 往返 + 两家 Key 互不覆盖的断言。
     "搜索服务",
+    // 占位符按 searchKeyConfigured 二分：保存后清空输入框是「只写不回显」契约，已设置态占位符
+    // 补上「有 Key 在」的信号，否则空框看起来像没存上（1.5.17 后用户实报）。
     "\\(searchBackend.displayName) API Key（写入 Keychain）",
+    "已设置 ●●●●●●（输入新 Key 可覆盖）",
     "保存",
     "清除",
     "刷新",                           // 诊断页 (FamoDiagnosticsPage)：重跑 buildReport()
@@ -228,6 +231,7 @@ final class FamoSettingsCoverageTests: XCTestCase {
     LabelPattern(#"Picker\("([^"]+)""#),
     LabelPattern(#"TextField\("([^"]+)""#),
     LabelPattern(#"SecureField\("([^"]+)""#),
+    LabelPattern(#"SecureField\s*\(\s*[^?\n]+\?\s*"([^"]+)"\s*:\s*"([^"]+)""#, captures: [1, 2]),
     LabelPattern(#"Button\("([^"]+)""#),
     LabelPattern(#"smallButton\("([^"]+)""#),
     LabelPattern(#"Label\("([^"]+)""#),
