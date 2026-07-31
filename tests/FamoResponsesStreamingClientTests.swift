@@ -442,14 +442,77 @@ final class FamoResponsesStreamingClientTests: XCTestCase {
 
   // MARK: - URL rewriting (`FamoResponsesWire`)
 
-  func testQwenDetectionDoesNotMisclassifyOtherModelsHostedOnAliyun() {
+  /// 百炼是**平台级** Responses 供应商：型号不参与判定。这条曾经是反的（非 qwen 型号回退
+  /// `/chat/completions`），2026-07-31 产品决定旧模式不再兼容后语义反转——百炼上托管的
+  /// `deepseek-*` 也必须走 `/responses`，不被服务时由上游 400 说话，而不是静默换一条旧链路。
+  func testEveryDashScopeRoutingSpeaksResponsesRegardlessOfModel() {
     let endpoint = URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/responses")!
+    XCTAssertTrue(FamoResponsesWire.isQwen(providerID: "custom", endpoint: endpoint))
+    XCTAssertTrue(FamoResponsesWire.isQwen(providerID: "qwen", endpoint: endpoint))
+    // providerID 认百炼时，端点是不是阿里域名都不改变结论。
     XCTAssertTrue(FamoResponsesWire.isQwen(
-      providerID: "custom", model: "qwen3.7-plus", endpoint: endpoint))
-    XCTAssertFalse(FamoResponsesWire.isQwen(
-      providerID: "custom", model: "deepseek-v3.2", endpoint: endpoint))
-    XCTAssertFalse(FamoResponsesWire.isQwen(
-      providerID: "qwen", model: "deepseek-v3.2", endpoint: endpoint))
+      providerID: "qwen", endpoint: URL(string: "https://example.com/v1/responses")!))
+    for model in ["qwen3.7-plus", "deepseek-v3.2", "kimi-k2", "glm-4.6"] {
+      XCTAssertEqual(
+        FamoResponsesWire.dialect(providerID: "qwen", model: model, endpoint: endpoint),
+        .qwen,
+        "百炼档案配 \(model) 仍必须走 Responses——回退 chat/completions 正是本次要拆掉的旧模式")
+    }
+  }
+
+  /// **本次改动唯一的失败模式**：判定点漏改一处，那条链路就悄悄退回 `/chat/completions` ——
+  /// 用户看不见任何错误，只是在用一条已被判定为不兼容的旧协议。所以把百炼 + 非 qwen 型号在每个
+  /// 判定点上扫一遍。
+  ///
+  /// 第 6 处（`FamoSelectionPolish.makeRequest` 的 provider 分派）是 private，它的**可达闸门**
+  /// 正是这里断言的 `sourceSupport`（见 FamoSelectionPolish.swift:382 的 guard）—— 那道闸放行后
+  /// 才轮到 makeRequest，所以断言闸门等于断言了这条路进得去。
+  func testDashScopeHostedNonQwenModelSpeaksResponsesAtEveryDecisionPoint() throws {
+    let endpoint = URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/responses")!
+    let model = "deepseek-v3"
+
+    // 1. wire 方言判定
+    XCTAssertEqual(
+      FamoResponsesWire.dialect(providerID: "qwen", model: model, endpoint: endpoint), .qwen)
+
+    // 2. 联网搜索的传输选择
+    XCTAssertEqual(
+      FamoSearchControl.transport(providerID: "qwen", host: endpoint.host ?? ""),
+      .responses(.qwen))
+
+    // 3. 来源核验能力闸（也是第 6 处私有分派的可达前提）
+    let profile = FamoProviderProfile(
+      displayName: "阿里云百炼", endpoint: endpoint, model: model, providerID: "qwen")
+    XCTAssertTrue(
+      FamoLLMProviderCatalog.sourceSupport(for: profile).supportsSourceVerification,
+      "百炼的来源核验能力属于平台，不该因为型号名不是 qwen 就降级成辅助检索")
+
+    // 4. 连通性验证的请求体：Responses 用 `input`，绝不能回退成 chat 的 `messages`
+    let body = FamoProviderConnectivityCheck.body(
+      providerID: "qwen", model: model, endpoint: endpoint)
+    XCTAssertNotNil(body["input"], "连通性验证必须发 Responses 形状")
+    XCTAssertNil(body["messages"], "回退到 chat 形状就是本次要拆掉的旧模式")
+    XCTAssertNil(body["enable_thinking"], "关思考在 Responses 里由 reasoning.effort 负责")
+    XCTAssertEqual((body["reasoning"] as? [String: Any])?["effort"] as? String, "none")
+    XCTAssertEqual(body["store"] as? Bool, false, "百炼整面维持 store=false")
+
+    // 5. 连通性验证打到的 URL
+    let request = try FamoProviderConnectivityCheck.request(
+      endpoint: endpoint, providerID: "qwen", model: model,
+      apiKey: "sk-test", authStyle: .bearer)
+    XCTAssertEqual(
+      request.url?.absoluteString,
+      "https://dashscope.aliyuncs.com/compatible-mode/v1/responses")
+  }
+
+  /// 反向守卫：`isArk` 刻意**不**跟着放开。方舟托管的第三方模型各有各的 wire，只有百炼被判定为
+  /// 平台级 Responses。这处不对称一旦被"顺手对齐"，豆包档案上的第三方模型就会被错发 Responses。
+  func testArkStillRequiresTheModelPrefix() {
+    let endpoint = URL(string: "https://ark.cn-beijing.volces.com/api/v3/responses")!
+    XCTAssertTrue(FamoResponsesWire.isArk(
+      providerID: "doubao", model: "doubao-seed-2-1-pro-260628", endpoint: endpoint))
+    XCTAssertFalse(FamoResponsesWire.isArk(
+      providerID: "doubao", model: "deepseek-v3.2", endpoint: endpoint))
   }
 
   func testResponsesURLRewritesTheChatSuffix() {
