@@ -606,6 +606,9 @@ final class FamoStreamingChatClientTests: XCTestCase {
         defaultProfileProvider: { nil }, preferredProviderID: { nil },
         secretProvider: { _ in nil }),
       webSearchProvider: { (.doubaoGlobal, "sk-bad") },
+      // 第二家的 Key 走注入而不是真钥匙串：这台机器配没配过百炼搜索，结果都必须一样
+      // （曾经这里读真 Keychain，配过 Key 的开发机上顺位真的成功，断言就翻车了）。
+      webSearchKeyProvider: { $0 == .qwen ? "sk-qwen-search" : nil },
       webSearchClientFactory: { backend in
         backend == .doubaoGlobal
           ? StubWebSearch(failure: .serviceError(code: "invalid_api_key", message: "invalid"))
@@ -614,18 +617,17 @@ final class FamoStreamingChatClientTests: XCTestCase {
       }
     )
     FamoAskWebSearchSettings.isEnabled = true
-    // 两家都配了 Key 才谈得上顺位；第二家的 Key 由真 Keychain 之外的注入路径给不了，
-    // 所以这里断言的是「首家被拒后不把问题判死」——它要么换家、要么退回普通问答。
     guard case let .success(open) = service.openAsk(
       messages: [FamoDeepSeekMessage(role: "user", content: "今天有什么新闻")]) else {
       return XCTFail("首家被拒不该让 openAsk 失败")
     }
     _ = try? await collect(open.stream)
 
-    XCTAssertEqual(chat.callCount, 1, "仍然答出来了")
-    XCTAssertNil(
-      open.searchProviderID,
-      "所有联网候选都不可用 → 退回普通问答，署名必须撤掉，不能还挂着「豆包搜索」")
+    XCTAssertEqual(chat.callCount, 1, "换家后仍然答出来了")
+    XCTAssertEqual(chat.lastMessages?.count, 2, "第二家的检索结果作为 system 上下文插进了这一问")
+    XCTAssertEqual(
+      open.searchProviderID, FamoWebSearchBackend.qwen.attributionID,
+      "署名必须改写成真正完成检索的那家，不能还挂着「豆包搜索」")
   }
 
   /// 与上一条相反：断网/限流这类**暂时**故障不顺位，如实报给用户 ——
@@ -694,6 +696,9 @@ final class FamoStreamingChatClientTests: XCTestCase {
         defaultProfileProvider: { nil }, preferredProviderID: { nil },
         secretProvider: { _ in nil }),
       webSearchProvider: { (.doubaoGlobal, "sk-search") },
+      // 顺位候选的 Key 同理不能读真钥匙串：这台机器配过百炼/Perplexity 搜索 Key 的话，
+      // 首家失败会顺位到一条真实路由，断言看到的就不是「退回普通问答」了。
+      webSearchKeyProvider: { _ in nil },
       webSearchClientFactory: { _ in search }
     )
   }
