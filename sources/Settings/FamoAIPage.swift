@@ -147,7 +147,11 @@ struct FamoAIPage: View {
           .foregroundStyle(palette.ink3)
       }
       HStack(spacing: 8) {
-        SecureField("\(searchBackend.displayName) API Key（写入 Keychain）", text: $searchKeyInput)
+        // 保存后输入框按「只写不回显」契约清空；占位符换成已设置态，否则空框看起来像没存上。
+        SecureField(
+          searchKeyConfigured ? "已设置 ●●●●●●（输入新 Key 可覆盖）"
+            : "\(searchBackend.displayName) API Key（写入 Keychain）",
+          text: $searchKeyInput)
           .textFieldStyle(.roundedBorder)
         smallButton("粘贴") { pasteSearchKey() }
         smallButton("保存") { saveSearchKey() }
