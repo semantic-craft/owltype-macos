@@ -87,14 +87,14 @@ struct FamoAIPage: View {
   /// 任意提问 的联网搜索开关 + 联网模型选择。只作用于「任意提问」：划词技能、候选、听写都不受影响。
   ///
   /// 开启后这一问会路由到一个**已配好密钥的可联网供应商**（阿里云百炼 / 小米MiMo / 豆包 /
-  /// OpenAI），与上面选定的默认供应商解耦 —— 默认供应商（常见是 DeepSeek）不支持联网时，这一问
-  /// 仍能真的搜到。四家都没配密钥时自动退回普通问答，不报错。
+  /// OpenAI / DeepSeek），与上面选定的默认供应商解耦 —— 默认供应商不支持联网时，这一问
+  /// 仍能真的搜到。五家都没配密钥时自动退回普通问答，不报错。
   private var askWebSearchCard: some View {
     SettingsCard(title: "任意提问 · 联网搜索", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
       VStack(spacing: 0) {
         SettingsToggleRow(
           title: "联网搜索",
-          subtitle: "开启后，「任意提问」会交给已配好密钥的联网模型（阿里云百炼 / 小米MiMo / 豆包 / OpenAI）联网作答；关闭时用模型自有知识回答。只作用于任意提问，不影响划词技能与打字候选。",
+          subtitle: "开启后，「任意提问」会交给已配好密钥的联网模型（阿里云百炼 / 小米MiMo / 豆包 / OpenAI / DeepSeek）联网作答；关闭时用模型自有知识回答。只作用于任意提问，不影响划词技能与打字候选。",
           isOn: state.askWebSearchEnabled,
           palette: palette,
           onToggle: {
@@ -110,7 +110,7 @@ struct FamoAIPage: View {
           askWebSearchProviderRow
         }
         SettingsCardDivider(palette: palette)
-        Text("开启后你的提问会发送给该服务商的联网搜索工具，由它检索后作答。四家都没配密钥时会自动退回普通问答——在上方「供应商」里给其中一家填好 API Key 即可启用。回答窗口会标出这一问由哪家联网作答。\n\n为兼顾效率与实际使用效果，任意提问一律强制关闭模型的「深度思考」：混合思考模型默认开着思考时，会在吐出第一个字之前先烧掉几百上千个推理 token（实测一句话要多花 5 秒），而任意提问要的是立刻能用的短答。MiMo 与豆包的搜索插件也要求思考关闭才会触发。")
+        Text("开启后你的提问会发送给该服务商的联网搜索工具，由它检索后作答。五家都没配密钥时会自动退回普通问答——在上方「供应商」里给其中一家填好 API Key 即可启用。回答窗口会标出这一问由哪家联网作答。\n\n为兼顾效率与实际使用效果，任意提问默认关闭模型的「深度思考」：混合思考模型默认开着思考时，会在吐出第一个字之前先烧掉几百上千个推理 token（实测一句话要多花 5 秒），而任意提问要的是立刻能用的短答。MiMo 与豆包的搜索插件也要求思考关闭才会触发。\n\n唯一的例外是 DeepSeek 联网：它的检索是多轮自主搜索，关掉思考反而会让它一直搜下去、最后一个字都答不出来（实测五问全军覆没），所以只有这一条链路保持思考开启。也因此 DeepSeek 联网比通义千问慢一些、给出的来源链接也更少，自动挑选时会优先用通义千问。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .fixedSize(horizontal: false, vertical: true)

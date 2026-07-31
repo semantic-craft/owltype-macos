@@ -682,11 +682,13 @@ enum FamoProviderConnectivityCheck {
     let dialect: FamoResponsesDialect? = endpoint.flatMap {
       FamoResponsesWire.dialect(providerID: providerID, model: model, endpoint: $0)
     } ?? { () -> FamoResponsesDialect? in
-      // 没有端点可判时只剩 providerID。百炼整体是 Responses 供应商，不看型号；方舟仍看型号，
-      // 与 `FamoResponsesWire.isArk` 的口径一致（那边写了为何这处不对称）。
+      // 没有端点可判时只剩 providerID。百炼整体是 Responses 供应商，不看型号；方舟与 DeepSeek
+      // 仍看型号，与 `FamoResponsesWire.isArk` / `.isDeepSeek` 的口径一致（那边写了为何不对称，
+      // DeepSeek 那道型号闸是因为 `/responses` 目前只收 deepseek-v4-flash）。
       let id = providerID.lowercased()
       if id == "qwen" { return .qwen }
       if id == "doubao", model.lowercased().hasPrefix("doubao") { return .ark }
+      if id == "deepseek", model.lowercased().hasPrefix("deepseek-v4-flash") { return .deepseek }
       return nil
     }()
     if let dialect {
