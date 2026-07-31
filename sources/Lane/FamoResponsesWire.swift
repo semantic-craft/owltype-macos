@@ -140,6 +140,11 @@ enum FamoResponsesWire {
       body["store"] = false
       body["reasoning"] = ["effort": "none"]
       if webSearch {
+        // 官方 Responses 文档建议 web_search 搭配 web_extractor「以取得最佳效果」，但它开不进
+        // 这个形态（2026-07-31 对 qwen3.7-plus 实测）：`effort: none` 下直接 400「Normal mode
+        // does not support web_extractor」；开思考后 `tool_choice: required` 又只准挂一个工具
+        // （字符串与 allowed_tools 对象两种写法都 400）。要 extractor 就得同时放弃非思考
+        // （实测 16.7s vs 5.4s）和强制检索 —— 两条都不让，所以维持单 web_search。
         body["tools"] = [["type": "web_search"]]
         body["tool_choice"] = "required"
       }
