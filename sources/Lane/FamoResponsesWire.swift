@@ -1,9 +1,9 @@
 //
 //  FamoResponsesWire.swift
-//  法墨输入法 (Famo) — Qwen / OpenAI / 火山方舟 `/responses` wire format
+//  法墨输入法 (Famo) — Qwen / OpenAI / 火山方舟 / DeepSeek `/responses` wire format
 //
 //  `/responses` is not just a renamed `/chat/completions`: it uses `input`, emits `output`
-//  items, and streams `response.output_text.delta` events. The three providers also have small
+//  items, and streams `response.output_text.delta` events. The four providers also have small
 //  dialect differences, so every Responses caller shares this file instead of hand-building JSON.
 //
 
@@ -13,6 +13,7 @@ enum FamoResponsesDialect: CaseIterable, Equatable, Sendable {
   case qwen
   case ark
   case openAI
+  case deepseek
 }
 
 struct FamoResponsesSource: Equatable, Sendable {
@@ -66,13 +67,34 @@ enum FamoResponsesWire {
     return host.contains("volces") || host.contains("volcengine")
   }
 
+  /// Whether this routing belongs to DeepSeek's own API. Modelled on `isArk`, not `isQwen`: the
+  /// model stays a hard requirement, because DeepSeek's Responses API accepts exactly ONE model
+  /// today —— 官方《使用 Responses API》明写「目前仅支持 `deepseek-v4-flash`，暂不支持
+  /// `deepseek-v4-pro`，我们将于 2026 年 8 月初增加支持」。深度改写走的正是 pro，把它送上
+  /// `/responses` 只会换来 400，所以 pro 继续留在 chat completions；官方放开后撤掉这道闸即可。
+  ///
+  /// 前缀匹配而非等值：DeepSeek 在同一个型号名下滚版本（`deepseek-v4-flash` 现已是 -0731 版），
+  /// 万一日后出现带后缀的写法，不至于被这道闸误伤。
+  static func isDeepSeek(providerID: String, model: String, endpoint: URL) -> Bool {
+    guard model.lowercased().hasPrefix("deepseek-v4-flash") else { return false }
+    if providerID.lowercased() == "deepseek" { return true }
+    let host = endpoint.host?.lowercased() ?? ""
+    return host.contains("deepseek")
+  }
+
   /// The Responses dialect carrying this routing's WHOLE Famo surface (plain generation and
-  /// search alike), or nil when the provider stays on chat completions. Qwen 与豆包 are the two
-  /// full-surface Responses providers; every non-streaming skill client and the plain stream ask
-  /// this one question instead of re-deriving provider checks.
+  /// search alike), or nil when the provider stays on chat completions. Qwen / 豆包 / DeepSeek are
+  /// the full-surface Responses providers; every non-streaming skill client and the plain stream
+  /// ask this one question instead of re-deriving provider checks.
+  ///
+  /// 次序不是随手排的：百炼 是 Responses-only 且**不看 model**，所以一个托管在百炼上的
+  /// `deepseek-*` 必须先被 `isQwen` 认走 —— 它归百炼的 wire。只有打到 `api.deepseek.com`
+  /// 自家端点的才是 `.deepseek`。把 `isDeepSeek` 提到前面会把百炼的托管模型抢过来，用
+  /// DeepSeek 的方言去打百炼的端点。
   static func dialect(providerID: String, model: String, endpoint: URL) -> FamoResponsesDialect? {
     if isQwen(providerID: providerID, endpoint: endpoint) { return .qwen }
     if isArk(providerID: providerID, model: model, endpoint: endpoint) { return .ark }
+    if isDeepSeek(providerID: providerID, model: model, endpoint: endpoint) { return .deepseek }
     return nil
   }
 
@@ -98,7 +120,8 @@ enum FamoResponsesWire {
   /// Qwen explicitly accepts the familiar Chat-format `{role, content}` message array as
   /// Responses `input`. Ark requires every carried history item to be an `input_text` part
   /// (otherwise it asks for output-item id/status fields), and OpenAI accepts that EasyInputMessage
-  /// shape as well.
+  /// shape as well. DeepSeek 两种都收（官方兼容表：content 支持字符串和 `input_text` 内容块），
+  /// 所以它跟着走这条 `input_text` 分支，方言之间少一种形状要维护。
   static func inputMessage(
     role: String,
     text: String,
@@ -126,12 +149,15 @@ enum FamoResponsesWire {
   /// by id, so `store: false` opts out of both providers' documented default server-side
   /// persistence (方舟 `store` 默认 true). When the UI promises a searched answer, `tool_choice:
   /// required` prevents the model from silently answering from training data.
+  ///
+  /// `jsonObject` 只在 `.deepseek` 分支落地，见那里的注释——不是漏写，是别的方言当初迁移时就没带。
   static func body(
     model: String,
     messages: [FamoDeepSeekMessage],
     stream: Bool,
     dialect: FamoResponsesDialect,
     webSearch: Bool,
+    jsonObject: Bool = false,
     temperature: Double? = nil
   ) -> [String: Any] {
     var body: [String: Any] = [
@@ -165,6 +191,39 @@ enum FamoResponsesWire {
       }
     case .openAI:
       if webSearch { body["tools"] = [["type": "web_search"]] }
+    case .deepseek:
+      if webSearch {
+        // **这一支故意不发 `reasoning`**，也就是让 DeepSeek 保持它自己的默认「思考开、effort
+        // high」——与本文件其余每一条「全链路强制关思考」的策略相反，理由是实测出来的硬约束，
+        // 不是偏好（2026-07-31，同五题）：
+        //
+        //   关思考 + required → 0/5 出正文。搜 11~17 轮、`output` 里一个 message 都没有、
+        //     输入烧 78k~105k token。DeepSeek 忽略 `max_tool_calls`，这个循环封不了顶。
+        //   开思考 + required → 5/5 出正文，搜索次数中位 3 次、时长中位 16.6s、输入 15.8k。
+        //
+        // 机制：agentic 循环在两次检索之间的盘算总得有个去处。关思考时它只能挤进可见的
+        // `output_text`（于是 5/5 带过程旁白「我来帮你搜索…让我整理一下」），而且循环收敛不了；
+        // 开思考后它走 `response.reasoning_text.*` 事件，`FamoResponsesStreamParser` 本来就忽略
+        // 那类事件，用户看到的正文因此是干净的（旁白降到 1/5）。
+        //
+        // 别顺手「对齐」成 Qwen 那样加 `reasoning.effort:none`——那等于把这条链路改回 0/5 出正文。
+        // 反过来也别把 Qwen 改成开思考：百炼在思考模式下**拒绝** `tool_choice: required`，
+        // 实测 5/5 报 400「The tool_choice parameter does not support being set to required or
+        // object in thinking mode」。两家的可用配置不重叠，所以逐家硬编码，没有统一开关。
+        body["tools"] = [["type": "web_search"]]
+        body["tool_choice"] = "required"
+      } else {
+        // 非搜索链路（划词润色 / 提示词优化 / 任务书 / 普通问答）照旧强制关思考。思考默认开着、
+        // effort 默认 high（官方《思考模式》），而 Chat 那套 `thinking:{type:disabled}` 在
+        // Responses 上属「静默忽略」参数——唯一管用的开关是 `reasoning.effort: none`。
+        // 2026-07-31 实测 deepseek-v4-flash：不传时 reasoning_tokens 9~37，传 none 后恒为 0。
+        body["reasoning"] = ["effort": "none"]
+      }
+      // `store` 官方标注不支持（响应恒 store:false），所以干脆不发。
+      // `text.format` 官方标注「完整支持」，2026-07-31 实测返回干净 JSON。于是 DeepSeek 这条链路
+      // 把 Chat 时代的 `response_format: json_object` 护栏原样带过来了——Qwen/豆包 当初迁 Responses
+      // 时是把它丢掉的，只靠提示词 + 宽松 parser 兜。
+      if jsonObject { body["text"] = ["format": ["type": "json_object"]] }
     }
     return body
   }
@@ -180,6 +239,7 @@ enum FamoResponsesWire {
     dialect: FamoResponsesDialect,
     stream: Bool,
     webSearch: Bool,
+    jsonObject: Bool = false,
     temperature: Double? = nil,
     timeout: TimeInterval
   ) throws -> URLRequest {
@@ -198,6 +258,7 @@ enum FamoResponsesWire {
       stream: stream,
       dialect: dialect,
       webSearch: webSearch,
+      jsonObject: jsonObject,
       temperature: temperature))
     return request
   }

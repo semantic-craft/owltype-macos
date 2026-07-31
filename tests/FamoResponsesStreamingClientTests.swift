@@ -515,6 +515,200 @@ final class FamoResponsesStreamingClientTests: XCTestCase {
       providerID: "doubao", model: "deepseek-v3.2", endpoint: endpoint))
   }
 
+  // MARK: - DeepSeek 方言（`/responses` 迁移）
+
+  /// DeepSeek 自家 API 的整面迁移。每个判定点扫一遍，理由同百炼那条：漏改一处不会报错，
+  /// 只会让那条链路悄悄留在 `/chat/completions`。
+  ///
+  /// 端点用档案里实际存的 `/v1/chat/completions`：2026-07-31 实测 `/v1/responses` 通，所以
+  /// 靠 `FamoResponsesWire.url` 改写即可，不需要迁移用户数据。
+  func testDeepSeekFlashSpeaksResponsesAtEveryDecisionPoint() throws {
+    let endpoint = URL(string: "https://api.deepseek.com/v1/chat/completions")!
+    let model = "deepseek-v4-flash"
+
+    // 1. wire 方言判定
+    XCTAssertEqual(
+      FamoResponsesWire.dialect(providerID: "deepseek", model: model, endpoint: endpoint),
+      .deepseek)
+
+    // 2. 连通性验证的请求体：Responses 用 `input`，且关思考只能靠 reasoning.effort
+    let body = FamoProviderConnectivityCheck.body(
+      providerID: "deepseek", model: model, endpoint: endpoint)
+    XCTAssertNotNil(body["input"], "DeepSeek 已迁 Responses，必须发 input 形状")
+    XCTAssertNil(body["messages"], "回退 chat 形状 = 迁移漏了一处")
+    XCTAssertEqual((body["reasoning"] as? [String: Any])?["effort"] as? String, "none")
+    XCTAssertNil(
+      body["thinking"],
+      "Chat 那套 thinking:{type:disabled} 在 Responses 上属静默忽略参数，发了等于没关思考")
+    XCTAssertNil(body["store"], "DeepSeek 官方标注 store 不支持，不发比发了拿不到强")
+    XCTAssertNil(body["tools"], "连通性验证不联网")
+
+    // 3. 连通性验证打到的 URL —— 存量档案存的是 /v1/chat/completions
+    let request = try FamoProviderConnectivityCheck.request(
+      endpoint: endpoint, providerID: "deepseek", model: model,
+      apiKey: "sk-test", authStyle: .bearer)
+    XCTAssertEqual(request.url?.absoluteString, "https://api.deepseek.com/v1/responses")
+  }
+
+  /// 型号闸：DeepSeek 的 Responses **目前只收 `deepseek-v4-flash`**，官方注明 `deepseek-v4-pro`
+  /// 2026 年 8 月初才支持。深度改写走的正是 pro——放它上 `/responses` 只会换来 400，所以必须
+  /// 继续留在 chat completions。官方放开后删掉这道闸，同时删掉本测试。
+  func testDeepSeekProStaysOnChatCompletionsUntilUpstreamSupportsIt() {
+    let endpoint = URL(string: "https://api.deepseek.com/v1/chat/completions")!
+    XCTAssertNil(
+      FamoResponsesWire.dialect(
+        providerID: "deepseek", model: FamoCloudPreferences.reasonerDeepSeekModel,
+        endpoint: endpoint),
+      "deepseek-v4-pro 尚未被 Responses 支持，必须留在 chat")
+    XCTAssertEqual(FamoCloudPreferences.reasonerDeepSeekModel, "deepseek-v4-pro")
+    // 前缀匹配：DeepSeek 在同名下滚版本（flash 现已是 -0731 版），带后缀的写法不该被闸误伤。
+    XCTAssertTrue(FamoResponsesWire.isDeepSeek(
+      providerID: "deepseek", model: "deepseek-v4-flash-0731", endpoint: endpoint))
+  }
+
+  /// **判定次序的守卫**。百炼是平台级 Responses 供应商且不看 model，所以它托管的
+  /// `deepseek-v4-flash` 归百炼的 wire；只有打到 `api.deepseek.com` 自家端点的才是 `.deepseek`。
+  /// 把 `isDeepSeek` 提到 `isQwen` 前面就会用 DeepSeek 的方言去打百炼的端点——本测试钉住次序。
+  func testDashScopeHostedDeepSeekFlashKeepsTheQwenDialect() {
+    let dashScope = URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/responses")!
+    XCTAssertEqual(
+      FamoResponsesWire.dialect(
+        providerID: "qwen", model: "deepseek-v4-flash", endpoint: dashScope),
+      .qwen,
+      "百炼托管的 deepseek 归百炼——不是 DeepSeek 自家端点")
+    XCTAssertFalse(FamoResponsesWire.isDeepSeek(
+      providerID: "qwen", model: "deepseek-v4-flash", endpoint: dashScope))
+  }
+
+  /// JSON 护栏：Chat 时代 DeepSeek 这三条技能发的是 `response_format:{"type":"json_object"}`，
+  /// Responses 上对应 `text.format`（官方标注「完整支持」，2026-07-31 实测返回干净 JSON）。
+  /// 方言之间**故意不齐**——Qwen/豆包 当初迁移时就没带这一项，这里断言它们的请求体不受影响。
+  func testJSONObjectGuardLandsOnDeepSeekOnly() {
+    let messages = [FamoDeepSeekMessage(role: "user", content: "hi")]
+    let deepSeek = FamoResponsesWire.body(
+      model: "deepseek-v4-flash", messages: messages, stream: false,
+      dialect: .deepseek, webSearch: false, jsonObject: true)
+    XCTAssertEqual(
+      ((deepSeek["text"] as? [String: Any])?["format"] as? [String: Any])?["type"] as? String,
+      "json_object")
+
+    let deepSeekPlain = FamoResponsesWire.body(
+      model: "deepseek-v4-flash", messages: messages, stream: false,
+      dialect: .deepseek, webSearch: false)
+    XCTAssertNil(deepSeekPlain["text"], "没要 JSON 就不该凭空加约束（任意提问走的是这条）")
+
+    for dialect in [FamoResponsesDialect.qwen, .ark, .openAI] {
+      let body = FamoResponsesWire.body(
+        model: "m", messages: messages, stream: false,
+        dialect: dialect, webSearch: false, jsonObject: true)
+      XCTAssertNil(
+        body["text"],
+        "\(dialect) 的请求体必须逐字节不变——这次迁移不碰它们")
+    }
+  }
+
+  /// 三条 JSON 技能（划词润色 / 提示词优化 / 任务书）走的是 `request(...)` 而不是裸 `body(...)`，
+  /// 所以护栏必须**穿过** request 落进真实 httpBody —— 这一跳漏了，护栏就只存在于单测里。
+  /// 顺带钉住这条链路真实打出去的 URL。
+  func testRequestForwardsTheJSONObjectGuardIntoTheHTTPBody() throws {
+    let request = try FamoResponsesWire.request(
+      endpoint: URL(string: "https://api.deepseek.com/v1/chat/completions")!,
+      model: "deepseek-v4-flash",
+      messages: [FamoDeepSeekMessage(role: "user", content: "hi")],
+      apiKey: "sk-test",
+      authHeaderStyle: .bearer,
+      dialect: .deepseek,
+      stream: false,
+      webSearch: false,
+      jsonObject: true,
+      temperature: 0.6,
+      timeout: 8)
+
+    XCTAssertEqual(request.url?.absoluteString, "https://api.deepseek.com/v1/responses")
+    let body = try XCTUnwrap(
+      JSONSerialization.jsonObject(with: try XCTUnwrap(request.httpBody)) as? [String: Any])
+    XCTAssertEqual(
+      ((body["text"] as? [String: Any])?["format"] as? [String: Any])?["type"] as? String,
+      "json_object",
+      "护栏没穿过 request —— 三条技能实际发出去的请求里没有它")
+    XCTAssertEqual((body["reasoning"] as? [String: Any])?["effort"] as? String, "none")
+  }
+
+  /// **全项目唯一「故意开着思考」的请求**，而且是实测逼出来的，不是偏好。
+  ///
+  /// 2026-07-31 同五题实测 DeepSeek + `tool_choice: required`：
+  ///   关思考 → **0/5 出正文**（搜 11~17 轮、output 里一个 message 都没有、输入 78k~105k token）
+  ///   开思考 → **5/5 出正文**（搜索中位 3 次、时长中位 16.6s、输入 15.8k）
+  /// 机制是 agentic 循环的盘算得有去处：关思考时它挤进可见 `output_text`（5/5 带过程旁白）
+  /// 且循环收敛不了，开思考后走 `reasoning_text` 事件——`FamoResponsesStreamParser` 本来就忽略。
+  ///
+  /// 谁想「顺手对齐」给它补上 `reasoning.effort:none`，等于把这条链路改回 0/5 出正文。
+  func testDeepSeekSearchDeliberatelyLeavesThinkingOn() {
+    let body = FamoResponsesWire.body(
+      model: "deepseek-v4-flash",
+      messages: [FamoDeepSeekMessage(role: "user", content: "hi")],
+      stream: true, dialect: .deepseek, webSearch: true)
+    XCTAssertNil(
+      body["reasoning"],
+      "搜索这条必须让 DeepSeek 保持默认的思考开——补上 effort:none 就是 0/5 出正文")
+    XCTAssertEqual((body["tools"] as? [[String: Any]])?.first?["type"] as? String, "web_search")
+    XCTAssertEqual(
+      body["tool_choice"] as? String, "required",
+      "承诺了检索就不许拿训练数据糊弄——开思考后 required 才立得住")
+  }
+
+  /// 上一条的反面：**非**搜索链路照旧强制关思考。两条合起来钉住「同一方言里按 webSearch 分叉」
+  /// 这件事本身——漏掉分叉的任一边都是真实回归（划词润色会先烧几百推理 token，或搜索出不了正文）。
+  func testDeepSeekNonSearchStillForcesThinkingOff() {
+    for jsonObject in [true, false] {
+      let body = FamoResponsesWire.body(
+        model: "deepseek-v4-flash",
+        messages: [FamoDeepSeekMessage(role: "user", content: "hi")],
+        stream: false, dialect: .deepseek, webSearch: false, jsonObject: jsonObject)
+      XCTAssertEqual((body["reasoning"] as? [String: Any])?["effort"] as? String, "none")
+      XCTAssertNil(body["tools"], "没要联网就不该挂检索工具")
+    }
+  }
+
+  /// Qwen 那条**绝不能**跟着改成开思考：百炼在思考模式下拒绝 `tool_choice: required`，
+  /// 2026-07-31 实测 5/5 报 400「The tool_choice parameter does not support being set to
+  /// required or object in thinking mode」。两家的可用配置不重叠，所以没有统一的思考开关。
+  /// 这条守的是 Qwen 的请求体在本次改动里逐字节不变。
+  func testQwenSearchKeepsThinkingOffBecauseThinkingModeRejectsRequired() {
+    let body = FamoResponsesWire.body(
+      model: "qwen3.7-plus",
+      messages: [FamoDeepSeekMessage(role: "user", content: "hi")],
+      stream: true, dialect: .qwen, webSearch: true)
+    XCTAssertEqual(
+      (body["reasoning"] as? [String: Any])?["effort"] as? String, "none",
+      "百炼开思考 + required = 400，这条不许跟着 DeepSeek 改")
+    XCTAssertEqual(body["tool_choice"] as? String, "required")
+    XCTAssertEqual(body["store"] as? Bool, false)
+  }
+
+  /// DeepSeek 接进联网顺位，但排在最后：实测它来源 URL 中位只有 1 条（Qwen 24 条），
+  /// 而 Famo 的来源 chip 全靠这个；时长中位 16.6s vs 9.4s。自动兜底时 Qwen 必须优先。
+  func testDeepSeekJoinsTheSearchChainButRanksLast() {
+    XCTAssertEqual(
+      FamoSearchControl.transport(
+        providerID: "deepseek", host: "api.deepseek.com", model: "deepseek-v4-flash"),
+      .responses(.deepseek))
+    XCTAssertEqual(FamoSearchControl.displayName(for: "deepseek"), "DeepSeek")
+    XCTAssertEqual(
+      FamoSearchControl.searchProviderIDs.last, "deepseek",
+      "自动兜底顺位里 DeepSeek 必须垫底——来源 chip 比它稀疏得多的对手先上")
+    XCTAssertEqual(
+      FamoSearchControl.searchProviderIDs.first, "qwen", "Qwen 体验最优，顺位第一")
+
+    // 型号闸同样管搜索：配着 pro 的 DeepSeek 档案不能搜（`/responses` 不收 pro），
+    // 如实返回 `.none` 让顺位跳过它，比发出去换一个 400 强。
+    XCTAssertEqual(
+      FamoSearchControl.transport(
+        providerID: "deepseek", host: "api.deepseek.com",
+        model: FamoCloudPreferences.reasonerDeepSeekModel),
+      .none)
+  }
+
   func testResponsesURLRewritesTheChatSuffix() {
     XCTAssertEqual(
       FamoResponsesWire.url(from: URL(string: "https://ark.cn-beijing.volces.com/api/v3/chat/completions")!)?

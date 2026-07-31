@@ -79,7 +79,9 @@ struct FamoAskSearchRoute: Equatable {
   /// WHICH transport carries this route's search — `openAsk` picks its client from this rather
   /// than re-deriving it from the provider id.
   var transport: FamoSearchControl.Transport {
-    FamoSearchControl.transport(providerID: providerID, host: routing.endpoint.host ?? "")
+    // 带上型号：DeepSeek 的 `/responses` 只收 deepseek-v4-flash，配着 pro 的档案不能搜。
+    FamoSearchControl.transport(
+      providerID: providerID, host: routing.endpoint.host ?? "", model: routing.model)
   }
   /// The provider-specific `/chat/completions` body fields that switch search on for this route.
   /// Empty for a `/responses` route — its search parameters live in `FamoResponsesWire.body`.
@@ -141,7 +143,14 @@ struct FamoAskSearchResolver {
         FamoLLMProviderCatalog.inferredProviderID(for: $0) == providerID
       }) else { return nil }
       guard let apiKey = usableKey(for: profile) else { return nil }
-      return FamoAskSearchRoute(routing: FamoCloudRouting.resolve(profile: profile), apiKey: apiKey)
+      let route = FamoAskSearchRoute(
+        routing: FamoCloudRouting.resolve(profile: profile), apiKey: apiKey)
+      // 顺位表是按 providerID 排的，但「这家能不能搜」还可能取决于**型号**：DeepSeek 的
+      // `/responses` 只收 deepseek-v4-flash，配着 pro 的档案交出去只会换来一个 400。
+      // 在这里如实跳过，比让调用方发出去再失败诚实（400 不在 `isConfigurationRefusal` 里，
+      // 不会顺位，会直接把这一问判死）。
+      guard route.transport != .none else { return nil }
+      return route
     }
   }
 
