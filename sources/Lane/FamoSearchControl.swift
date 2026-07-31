@@ -30,6 +30,8 @@ enum FamoSearchControl {
     case ark
     /// OpenAI — search lives on `/responses` only, with a leaner body than 方舟's.
     case openAI
+    /// DeepSeek — search lives on `/responses` only，且**必须开着思考**，见 `FamoResponsesWire`。
+    case deepSeek
     case none
   }
 
@@ -49,7 +51,12 @@ enum FamoSearchControl {
   /// 百炼 no longer takes a model into account: it is Responses-only (2026-07-31 产品决定), so every
   /// 百炼 routing searches on `/responses`. The old `model` parameter existed solely to route a
   /// 百炼-hosted non-Qwen model back to `.none`; that fallback is gone with the rest of 旧模式.
-  static func transport(providerID: String, host: String) -> Transport {
+  ///
+  /// `model` 后来又回来了，但**不是**给百炼的：DeepSeek 的 `/responses` 目前只收
+  /// `deepseek-v4-flash`（官方注明 pro 2026 年 8 月初才支持），所以配着 pro 的 DeepSeek 档案
+  /// 不能搜——如实返回 `.none` 让顺位跳过它，比发出去换一个 400 强。默认空串 = 不知道型号时
+  /// 按"能搜"处理，与 `FamoResponsesWire.dialect` 的 providerID 优先口径一致。
+  static func transport(providerID: String, host: String, model: String = "") -> Transport {
     switch channel(providerID: providerID, host: host) {
     case .mimo:
       return .chatCompletions
@@ -57,6 +64,9 @@ enum FamoSearchControl {
       return .responses(.qwen)
     case .ark:
       return .responses(.ark)
+    case .deepSeek:
+      let m = model.lowercased()
+      return m.isEmpty || m.hasPrefix("deepseek-v4-flash") ? .responses(.deepseek) : .none
     case .openAI:
       return .responses(.openAI)
     case .none:
@@ -85,21 +95,25 @@ enum FamoSearchControl {
           "limit": 3,
         ]],
       ]
-    case .dashScope, .ark, .openAI, .none:
-      // Qwen/豆包/OpenAI 的搜索参数属于 `/responses` 请求体（`FamoResponsesWire.body`），不是
-      // chat/completions 的顶层字段 —— 塞在这里会被端点静默忽略。
+    case .dashScope, .ark, .openAI, .deepSeek, .none:
+      // Qwen/豆包/OpenAI/DeepSeek 的搜索参数属于 `/responses` 请求体（`FamoResponsesWire.body`），
+      // 不是 chat/completions 的顶层字段 —— 塞在这里会被端点静默忽略。
       return [:]
     }
   }
 
   /// Whether this provider can do 任意提问 联网搜索 at all, on either transport.
-  static func supportsSearch(providerID: String, host: String) -> Bool {
-    transport(providerID: providerID, host: host) != .none
+  static func supportsSearch(providerID: String, host: String, model: String = "") -> Bool {
+    transport(providerID: providerID, host: host, model: model) != .none
   }
 
   /// Provider ids that support search, in the 自动 fallback priority order used by
   /// `FamoAskSearchResolver`. Qwen 优先，其后保留 MiMo Chat 与豆包/OpenAI Responses 的顺位。
-  static let searchProviderIDs = ["qwen", "mimo", "doubao", "openai"]
+  ///
+  /// DeepSeek 排在最后是实测定的（2026-07-31，同五题）：它能搜，但来源 URL 中位只有 1 条
+  /// （Qwen 24 条）——Famo 的来源 chip 全靠这个；时长中位 16.6s vs Qwen 9.4s。用户显式选它时
+  /// 照常用，自动兜底时 Qwen 优先。
+  static let searchProviderIDs = ["qwen", "mimo", "doubao", "openai", "deepseek"]
 
   /// 面向用户的联网模型署名名（品牌名，比公司名更贴近用户认知）。非可联网 → nil。
   static func displayName(for providerID: String) -> String? {
@@ -113,6 +127,7 @@ enum FamoSearchControl {
     case .mimo:      return "MiMo"
     case .ark:       return "豆包"
     case .openAI:    return "OpenAI"
+    case .deepSeek:  return "DeepSeek"
     case .none:      return nil
     }
   }
@@ -125,6 +140,7 @@ enum FamoSearchControl {
     case "mimo":   return .mimo
     case "doubao": return .ark
     case "openai": return .openAI
+    case "deepseek": return .deepSeek
     default: break
     }
     let h = host.lowercased()
@@ -132,6 +148,7 @@ enum FamoSearchControl {
     if h.contains("xiaomimimo")                            { return .mimo }
     if h.contains("volces") || h.contains("volcengine")    { return .ark }
     if h == "api.openai.com"                               { return .openAI }
+    if h.contains("deepseek")                              { return .deepSeek }
     return .none
   }
 }

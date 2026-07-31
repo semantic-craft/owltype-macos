@@ -50,6 +50,12 @@ final class FamoAskSearchResolverTests: XCTestCase {
     profile("deepseek", host: "api.deepseek.com", model: "deepseek-v4-flash", isDefault: isDefault)
   }
 
+  /// 一个**真的不能联网**的供应商。DeepSeek 2026-07-31 接入联网后就不再适合当这个角色了
+  /// （它当初是这几条用例里「活动档案不能搜」的样板）。MiniMax 没有搜索通道，接着扮演。
+  private func minimax(isDefault: Bool = true) -> FamoProviderProfile {
+    profile("minimax", host: "api.minimaxi.com", model: "MiniMax-M2.7-highspeed", isDefault: isDefault)
+  }
+
   private func doubao(isDefault: Bool = false) -> FamoProviderProfile {
     profile("doubao", host: "ark.cn-beijing.volces.com", model: "doubao-seed-1.6", isDefault: isDefault)
   }
@@ -112,12 +118,12 @@ final class FamoAskSearchResolverTests: XCTestCase {
   }
 
   func testNonSearchActiveProfileFallsToThePriorityOrder() {
-    // The active profile is DeepSeek (cannot search) — the whole reason for decoupling. The
+    // The active profile is MiniMax (cannot search) — the whole reason for decoupling. The
     // question must still route to a search-capable provider instead of silently not searching.
     let resolver = makeResolver(
-      profiles: [deepseek(), doubao(), mimo()],
+      profiles: [minimax(), doubao(), mimo()],
       keys: [
-        "famo.provider.deepseek.apiKey": "sk-deepseek",
+        "famo.provider.minimax.apiKey": "sk-minimax",
         "famo.provider.doubao.apiKey": "sk-doubao",
         "famo.provider.mimo.apiKey": "sk-mimo",
       ]
@@ -194,9 +200,13 @@ final class FamoAskSearchResolverTests: XCTestCase {
     XCTAssertEqual(FamoAskSearchProviderSettings.preferredProviderID, "doubao")
 
     // A provider that can't search (or a stale id from an older build) reads as 自动 rather than
-    // pinning the order to a dead entry.
-    FamoAskSearchProviderSettings.rawValue = "deepseek"
+    // pinning the order to a dead entry. 样板从 deepseek 换成 minimax：DeepSeek 已能联网。
+    FamoAskSearchProviderSettings.rawValue = "minimax"
     XCTAssertNil(FamoAskSearchProviderSettings.preferredProviderID)
+    FamoAskSearchProviderSettings.rawValue = "deepseek"
+    XCTAssertEqual(
+      FamoAskSearchProviderSettings.preferredProviderID, "deepseek",
+      "DeepSeek 已进顺位链，显式选它必须生效")
     FamoAskSearchProviderSettings.resetForTesting()
   }
 
@@ -283,12 +293,58 @@ final class FamoAskSearchResolverTests: XCTestCase {
   // MARK: - Silent fallback
 
   func testNoSearchCapableProfileResolvesToNil() {
-    // Only DeepSeek configured → nil, and the CALLER falls back to plain chat (never an error).
+    // Only MiniMax configured → nil, and the CALLER falls back to plain chat (never an error).
     let resolver = makeResolver(
+      profiles: [minimax()],
+      keys: ["famo.provider.minimax.apiKey": "sk-minimax"]
+    )
+    XCTAssertNil(resolver.resolve())
+  }
+
+  /// DeepSeek 2026-07-31 起接入联网顺位，但在 `searchProviderIDs` 里垫底：实测它来源 URL
+  /// 中位 1 条 vs Qwen 24 条，而 Famo 的来源 chip 全靠这个。
+  ///
+  /// 注意垫底只管**自动兜底的次序**：既有的「活动档案本身可联网就优先用它」规则照旧压过它
+  /// （省得为联网另配一份密钥）。DeepSeek 是活动档案时由 DeepSeek 搜，是这条规则的结果，不是
+  /// 顺位表的——想改成 Qwen 就得去设置页把「联网模型」显式选成通义千问。
+  func testDeepSeekRanksLastInTheAutoOrderButActiveProfileStillWins() {
+    let noActive = makeResolver(
+      profiles: [deepseek(isDefault: false), qwen()],
+      keys: [
+        "famo.provider.deepseek.apiKey": "sk-deepseek",
+        "famo.provider.qwen.apiKey": "sk-qwen",
+      ]
+    )
+    XCTAssertEqual(
+      noActive.resolve()?.providerID, "qwen",
+      "没有活动档案时按 searchProviderIDs 顺位——Qwen 体验最优，DeepSeek 垫底")
+
+    let deepSeekActive = makeResolver(
+      profiles: [deepseek(isDefault: true), qwen()],
+      keys: [
+        "famo.provider.deepseek.apiKey": "sk-deepseek",
+        "famo.provider.qwen.apiKey": "sk-qwen",
+      ]
+    )
+    XCTAssertEqual(
+      deepSeekActive.resolve()?.providerID, "deepseek",
+      "「活动档案可联网就优先」是既有规则，DeepSeek 接入后照旧适用")
+
+    let alone = makeResolver(
       profiles: [deepseek()],
       keys: ["famo.provider.deepseek.apiKey": "sk-deepseek"]
     )
-    XCTAssertNil(resolver.resolve())
+    XCTAssertEqual(alone.resolve()?.providerID, "deepseek", "只有它时它就得顶上")
+  }
+
+  /// 配着 `deepseek-v4-pro` 的档案不能联网：DeepSeek 的 `/responses` 只收 flash。
+  /// 顺位如实跳过它，而不是发出去换一个 400。
+  func testDeepSeekProProfileIsSkippedBecauseResponsesRejectsIt() {
+    let resolver = makeResolver(
+      profiles: [profile("deepseek", host: "api.deepseek.com", model: "deepseek-v4-pro")],
+      keys: ["famo.provider.deepseek.apiKey": "sk-deepseek"]
+    )
+    XCTAssertNil(resolver.resolve(), "pro 上不了 /responses，这条路由不该被交出来")
   }
 
   func testSearchCapableProfilesWithoutAnyKeyResolveToNil() {

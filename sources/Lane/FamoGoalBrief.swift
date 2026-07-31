@@ -83,6 +83,8 @@ struct FamoGoalBriefClient: FamoPromptOptimizeFetching {
         dialect: responsesDialect,
         stream: false,
         webSearch: false,
+        // 与下方 chat 分支的 `payload.responseFormat = .jsonObject` 对等，见 FamoResponsesWire。
+        jsonObject: true,
         temperature: payload.temperature,
         timeout: FamoPromptOptimizer.requestTimeout)
     } else {

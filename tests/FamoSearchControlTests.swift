@@ -43,7 +43,6 @@ final class FamoSearchControlTests: XCTestCase {
   func testChannelIsNoneForProvidersWithoutSearch() {
     // 智谱已下架：残留档案（或手填 bigmodel 端点）只当普通对话，不得再走联网。
     XCTAssertEqual(FamoSearchControl.channel(providerID: "zhipu", host: "open.bigmodel.cn"), .none)
-    XCTAssertEqual(FamoSearchControl.channel(providerID: "deepseek", host: "api.deepseek.com"), .none)
     XCTAssertEqual(FamoSearchControl.channel(providerID: "gemini", host: "generativelanguage.googleapis.com"), .none)
     XCTAssertEqual(FamoSearchControl.channel(providerID: "minimax", host: "api.minimax.chat"), .none)
   }
@@ -57,7 +56,11 @@ final class FamoSearchControlTests: XCTestCase {
     XCTAssertEqual(FamoSearchControl.transport(providerID: "mimo", host: ""), .chatCompletions)
     XCTAssertEqual(FamoSearchControl.transport(providerID: "doubao", host: ""), .responses(.ark))
     XCTAssertEqual(FamoSearchControl.transport(providerID: "openai", host: ""), .responses(.openAI))
-    XCTAssertEqual(FamoSearchControl.transport(providerID: "deepseek", host: "api.deepseek.com"), .none)
+    XCTAssertEqual(
+      FamoSearchControl.transport(
+        providerID: "deepseek", host: "api.deepseek.com", model: "deepseek-v4-flash"),
+      .responses(.deepseek),
+      "DeepSeek 2026-07-31 起接入联网——开着思考才立得住，见 FamoResponsesWire")
     XCTAssertEqual(
       FamoSearchControl.transport(providerID: "qwen", host: "dashscope.aliyuncs.com"),
       .responses(.qwen),
@@ -69,7 +72,11 @@ final class FamoSearchControlTests: XCTestCase {
     XCTAssertTrue(FamoSearchControl.supportsSearch(providerID: "mimo", host: ""))
     XCTAssertTrue(FamoSearchControl.supportsSearch(providerID: "doubao", host: ""))
     XCTAssertTrue(FamoSearchControl.supportsSearch(providerID: "openai", host: ""))
-    XCTAssertFalse(FamoSearchControl.supportsSearch(providerID: "deepseek", host: "api.deepseek.com"))
+    XCTAssertTrue(FamoSearchControl.supportsSearch(
+      providerID: "deepseek", host: "api.deepseek.com", model: "deepseek-v4-flash"))
+    // 型号闸：`/responses` 只收 flash，配着 pro 的 DeepSeek 档案如实说自己不能搜。
+    XCTAssertFalse(FamoSearchControl.supportsSearch(
+      providerID: "deepseek", host: "api.deepseek.com", model: "deepseek-v4-pro"))
   }
 
   // MARK: - Wire format (field-by-field)
@@ -144,7 +151,8 @@ final class FamoSearchControlTests: XCTestCase {
     XCTAssertEqual(FamoSearchControl.displayName(for: "mimo"), "MiMo")
     XCTAssertEqual(FamoSearchControl.displayName(for: "doubao"), "豆包")
     XCTAssertEqual(FamoSearchControl.displayName(for: "openai"), "OpenAI")
-    XCTAssertNil(FamoSearchControl.displayName(for: "deepseek"))
+    XCTAssertEqual(FamoSearchControl.displayName(for: "deepseek"), "DeepSeek")
+    XCTAssertNil(FamoSearchControl.displayName(for: "minimax"), "不能联网的就不该有联网署名")
   }
 
   func testEverySearchProviderContributesRealSearchFieldsOnItsOwnTransport() {

@@ -165,6 +165,10 @@ struct FamoSelectionPolishClient: FamoSelectionPolishFetching {
         dialect: responsesDialect,
         stream: false,
         webSearch: false,
+        // 与下方 chat 分支的 `payload.responseFormat = .jsonObject` 对等。只有 `.deepseek` 方言
+        // 真的落 `text.format`：Qwen/豆包 当初迁 Responses 时就没带这一项，本次不动它们的请求体
+        // （它们收不收这个字段没验过，不在本次范围内）。见 FamoResponsesWire。
+        jsonObject: true,
         temperature: payload.temperature,
         timeout: FamoCloudPreferences.requestTimeout)
     } else {
