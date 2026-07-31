@@ -50,3 +50,13 @@ the App (rebuilding would strip the signatures off the bundle that actually ship
 
 Public source and public binaries are separate decisions. Passing the source gates does not permit a
 binary release while any provenance or corresponding-source gate remains open.
+
+## After publishing the GitHub Release
+
+Run `bash scripts/check-published-release.sh <version>` immediately after the Release (with all
+assets) is published. It asserts, over the URL installed apps actually poll, that the feed's top
+item is this version, the update pkg downloads with the exact byte length the feed declares, and
+the DMG asset exists. This is the only gate that catches the two silent failure modes outside the
+build: a release mislabeled as pre-release/draft (GitHub's `latest` quietly falls back to the
+previous version) and a missing `appcast.xml` asset (the feed permalink 404s and Sparkle fails
+silently). Local gates cannot see either.
