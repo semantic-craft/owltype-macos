@@ -71,6 +71,25 @@ struct FamoCandidatePanelView: View {
   /// Base candidate point size; smaller roles derive from it so 小/中/大 scales the whole panel.
   private var base: CGFloat { state.fontSize }
 
+  /// 选中块与面板内壁之间的留白——**四边等距**（2026-08-02 定案，取代 07-26 的「出血到面板内壁」）。
+  ///
+  /// 出血的实际观感是：横排里选中块直接压在面板下沿、竖排里贴死左右两壁，而另一轴上又留着
+  /// 8pt——同一块色块四条边不等距，读起来像掉出了面板。改为四边等距内嵌后，与本仓其余选中态
+  /// 是同一套语法（快捷短语面板行 8、设置侧栏 6、分段控件 3，都留白不出血）。
+  private var selectionInset: CGFloat { 5 }
+
+  /// 选中块圆角 = 面板圆角 − 留白（13 − 5 = 8，与原先硬写的 8 相同）：两条圆弧同心，
+  /// 四角的缝宽与四边一致，不会在拐角处忽宽忽窄。皮肤改了面板圆角，选中块跟着走。
+  private var selectionRadius: CGFloat { max(4, state.theme.cornerRadius - selectionInset) }
+
+  /// 竖排里收起箭头是 `.overlay(alignment: .topTrailing)`，直接盖在第一行上，所以行内容
+  /// 必须整块让开它：点击区宽 = 图标 (base−5) + 四周 4×2 = base+3，再加它离右壁的 6，
+  /// 最后留一个 `selectionInset` 的缝。容器自己已经有 `selectionInset`，这里只补差额。
+  ///
+  /// 旧值是写死的 18：实测灰箭头切进选中块右上圆角约 4pt，且那一小片的点击落在箭头上
+  /// ——点「第一候选的右端」会收起面板而不是选词。18 也不随字号走，大字号只会更糟。
+  private var chevronClearance: CGFloat { base + 9 }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       if showsHeader { header }
@@ -128,28 +147,16 @@ struct FamoCandidatePanelView: View {
     }
   }
 
-  /// 选中块（横竖共用）——「通栏圆角」2A，07-26 grilling R6 定案。
+  /// 选中块（横竖共用）——纯 accent 平色 + 同心圆角，四边等距内嵌于面板（`selectionInset`）。
   ///
-  /// 纯 accent 平色 + 圆角 8，出血到面板内壁；R4 的三层立体（顶部白渐变顶光、内侧 1px
-  /// 白描边、accent 外投影）全部撤掉。依据：面板本身已经是玻璃层，Liquid Glass 的
-  /// 「avoid glass on glass」意味着选中态不该再是一个自带材质的物件，只该是面板内的
-  /// 一块 tint——浮起来的是整块面板（NSPanel `hasShadow`），行只是面板内的分区。
+  /// 07-26 R4 的三层立体（顶部白渐变顶光、内侧 1px 白描边、accent 外投影）依旧不要：面板本身
+  /// 已经是玻璃层，Liquid Glass 的「avoid glass on glass」意味着选中态不该再是一个自带材质的
+  /// 物件，只该是面板内的一块 tint——浮起来的是整块面板（NSPanel `hasShadow`），行只是分区。
   ///
-  /// 圆角保留 8 而不是走 rime-ice `hilited_corner_radius: 0` 的直角出血：HIG 明确
-  /// macOS 选中态用 rounded-corner appearance，Tahoe 全系统也在往圆角走。
-  @ViewBuilder private func selectionFill(cornerRadius r: CGFloat) -> some View {
-    RoundedRectangle(cornerRadius: r, style: .continuous).fill(palette.accent)
-  }
-
-  /// 横排 2A 的纵向出血量：选中块顶到候选条的上下内边（上 4 / 下 9，与容器 padding 一一
-  /// 对应）。`.background` 里的负 padding 只让背景越界、不改变层布局尺寸。
-  ///
-  /// 卷轴里主行紧邻别的行时该侧只出 2：行间距只有 5pt，出满会压到邻行上。上下分开判
-  /// ——前页行只在上方（页号 < 主行）、后页行只在下方（页号 > 主行），末页可以只有前页行。
-  private var compactBleed: (top: CGFloat, bottom: CGFloat) {
-    let rowAbove = state.isScroll && state.scrollRows.contains { $0.id < state.page }
-    let rowBelow = state.isScroll && state.scrollRows.contains { $0.id > state.page }
-    return (rowAbove ? -2 : -4, rowBelow ? -2 : -9)
+  /// 但同时也不走 rime-ice `hilited_corner_radius: 0` 那套直角出血：HIG 明确 macOS 选中态用
+  /// rounded-corner appearance，且色块与容器之间要有留白（菜单高亮、侧栏选中都是内嵌的）。
+  @ViewBuilder private var selectionFill: some View {
+    RoundedRectangle(cornerRadius: selectionRadius, style: .continuous).fill(palette.accent)
   }
 
   // MARK: Header — preedit (dotted underline) + blinking caret + expand chevron
@@ -169,7 +176,10 @@ struct FamoCandidatePanelView: View {
       }
       Spacer(minLength: 2)   // 原 8：输入串是面板最宽行时，这里的富余直接变成右侧空白
     }
-    .padding(.leading, 14)
+    // 输入串与**第一个候选的文字**左对齐：竖排 = selectionInset(5) + listRow 内边(9)，
+    // 横排 = selectionInset(5) + compactPill 内边(8)。原来横排固定 14 而候选在 16，差 2pt
+    // 的错位在小面板上一眼看得见。
+    .padding(.leading, vertical ? 14 : 13)
     .padding(.trailing, 8)
     .padding(.top, vertical ? 7 : 9)
     .padding(.bottom, vertical ? 6 : 5)
@@ -238,11 +248,12 @@ struct FamoCandidatePanelView: View {
 
   // MARK: Compact horizontal pill bar (default form)
 
+  /// 容器内边 = `selectionInset`：横排里首/末候选的选中块离左右内壁、上下内壁都是这一个值。
+  /// 原来是横 8 / 上 4 / 下 9 再让选中块负 padding 出血把上下吃干净，于是色块直接坐在面板下沿。
   private var compactRow: some View {
     mainRow
-      .padding(.horizontal, 8)
-      .padding(.top, 4)
-      .padding(.bottom, 9)
+      .padding(.horizontal, selectionInset)
+      .padding(.vertical, selectionInset)
   }
 
   /// 当前页那一行：候选 + 翻页点 + 展开箭头。卷轴与单行横排共用，唯一的区别是外面套的容器。
@@ -288,9 +299,8 @@ struct FamoCandidatePanelView: View {
         scrollRow(row)
       }
     }
-    .padding(.horizontal, 8)
-    .padding(.top, 4)
-    .padding(.bottom, 9)
+    .padding(.horizontal, selectionInset)
+    .padding(.vertical, selectionInset)
   }
 
   /// 一行 = 一整页。主行走 `mainRow`（带序号、可高亮、挂翻页点与展开箭头）；前/后页行
@@ -379,16 +389,9 @@ struct FamoCandidatePanelView: View {
     // pill no longer carries a wide accent margin before the number ("序号左边比较宽").
     .padding(.horizontal, 8)
     .padding(.vertical, 7)   // 窗口高度：候选更舒展（原 6）
-    // 2A：横排选中块与竖排 listRow 同一 helper（纯色圆角 8），排布切换不跳戏；
-    // 纵向出血到候选条的上下内边，等同竖排的「出血到面板内壁」。
-    .background {
-      if selected {
-        let bleed = compactBleed
-        selectionFill(cornerRadius: 8)
-          .padding(.top, bleed.top)
-          .padding(.bottom, bleed.bottom)
-      }
-    }
+    // 横排选中块与竖排 listRow 同一 helper，排布切换不跳戏；块的上下沿就是这里的 7pt 内边，
+    // 离面板内壁恒为容器的 `selectionInset`（卷轴里离相邻行则是 VStack 的 5pt 行距）。
+    .background { if selected { selectionFill } }
     .contentShape(Rectangle())
     .onTapGesture { onSelect(candidate.id) }
     .accessibilityElement(children: .combine)
@@ -449,13 +452,14 @@ struct FamoCandidatePanelView: View {
         listRow(candidate)
       }
     }
-    // 2A 通栏（07-26 grilling R6 定案）：原来容器留 4pt 横向内边距、选中块离面板边
-    // 4pt；现在把这 4pt 移进 `listRow` 自己的横向 padding（10 → 14），行文字位置分毫
-    // 未动，但选中块出血到面板内壁。
-    .padding(.top, 3)
-    .padding(.bottom, 4)
-    // 内容贴边后，从横排展开时右上角的收起箭头不再有富余空白可借，给行内容留出走位。
-    .padding(.trailing, showsExpandChevron ? 18 : 0)
+    // 选中行四边等距内嵌 `selectionInset`；这 5pt 从 `listRow` 的横向 padding 里让出来
+    // （14 → 9），所以行文字仍在离面板内壁 14pt 处，面板宽度也分毫未动——只有色块内收。
+    // 上下原来是 3/4，同样统一到 5。
+    .padding(.horizontal, selectionInset)
+    .padding(.vertical, selectionInset)
+    // 从横排展开时右上角的收起箭头压在第一行上，行内容要整块让开它（见 `chevronClearance`）。
+    // 箭头本身按外框 trailing 6 定位，不受这里影响。
+    .padding(.trailing, showsExpandChevron ? chevronClearance : 0)
     .overlay(alignment: .top) {
       // Hairline between the header and the list (the design's list border-top).
       if showsHeader {
@@ -518,15 +522,16 @@ struct FamoCandidatePanelView: View {
           .padding(.leading, base * 0.9 + 7)   // 对齐词首 ≈ 序号宽(base*0.9) + HStack 间距(7)
       }
     }
-    // 左右边距相等：「1」到左边 = 末字到右边（参照图的对称感）。14 = 原 10 + 容器让出的 4。
-    .padding(.horizontal, 14)
+    // 左右边距相等：「1」到左边 = 末字到右边（参照图的对称感）。9 + 容器的 selectionInset(5)
+    // = 14，文字离面板内壁与内嵌前一致。
+    .padding(.horizontal, 9)
     .padding(.vertical, 7)
-    // 行铺满面板宽（关输入串时面板宽 = 最宽候选行，即参照图的撑满感；开输入串时
-    // 与「输入条」同宽）；选中块 = 出血到面板内壁的纯色圆角块（与横排 compactPill 同 helper）。
-    // 通栏的已知代价：开输入串且整句拼音比最宽候选还宽时，选中行会拖一条到输入串
-    // 宽度的色尾。改窄会破坏「候选撑满」的参照系，故保留通栏。
+    // 行铺满（可用宽度内）（关输入串时面板宽 = 最宽候选行，即参照图的撑满感；开输入串时
+    // 与「输入条」同宽）；选中块 = 四边留白的纯色圆角块（与横排 compactPill 同 helper）。
+    // 已知代价：开输入串且整句拼音比最宽候选还宽时，选中行会拖一条到输入串宽度的色尾。
+    // 改窄会破坏「候选撑满」的参照系，故保留。
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background { if selected { selectionFill(cornerRadius: 8) } }
+    .background { if selected { selectionFill } }
     .contentShape(Rectangle())
     .onTapGesture { onSelect(candidate.id) }
     .accessibilityElement(children: .combine)
