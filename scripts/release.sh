@@ -7,7 +7,7 @@
 set -euo pipefail
 
 DEV_ID="${DEV_ID:?set DEV_ID to the Developer ID common name}"
-NOTARY_PROFILE="${NOTARY_PROFILE:?set NOTARY_PROFILE to the notarytool keychain profile name}"
+NOTARY_PROFILE="${NOTARY_PROFILE:-xw-notary}"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$HERE"
