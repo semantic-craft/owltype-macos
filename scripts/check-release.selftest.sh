@@ -16,6 +16,17 @@ bad() { printf 'FAIL %s\n' "$1" >&2; fail=$((fail + 1)); }
 mkdir -p "$work/valid-bin" "$work/invalid-bin"
 cat > "$work/valid-bin/xcrun" <<'STUB'
 #!/usr/bin/env bash
+profile=""
+while (($#)); do
+  if [[ "$1" == "--keychain-profile" ]]; then
+    profile="${2:-}"
+    break
+  fi
+  shift
+done
+if [[ -n "${EXPECTED_NOTARY_PROFILE:-}" && "$profile" != "$EXPECTED_NOTARY_PROFILE" ]]; then
+  exit 64
+fi
 exit 0
 STUB
 cat > "$work/invalid-bin/xcrun" <<'STUB'
@@ -46,13 +57,12 @@ else
   bad "release metadata must identify one Sparkle-enabled cohort newer than 1.4.17 (marketing=${marketing_version:-unset} app=${app_version:-unset})"
 fi
 
-if env -u NOTARY_PROFILE PATH="$work/valid-bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+if env -u NOTARY_PROFILE EXPECTED_NOTARY_PROFILE=xw-notary \
+    PATH="$work/valid-bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     bash "$GATE" --preflight-only >"$output" 2>&1; then
-  bad "missing NOTARY_PROFILE should fail"
-elif grep -q 'NOTARY_PROFILE' "$output"; then
-  ok "missing NOTARY_PROFILE names the missing variable"
+  ok "missing NOTARY_PROFILE uses the canonical xw-notary profile"
 else
-  bad "missing NOTARY_PROFILE diagnostic should name the variable"
+  bad "missing NOTARY_PROFILE should use the canonical xw-notary profile"
 fi
 
 if run_gate "$work/invalid-bin" NOTARY_PROFILE=fixture-profile >"$output" 2>&1; then
@@ -64,11 +74,12 @@ else
 fi
 
 if env LC_ALL=C LANG=C PATH="$work/valid-bin:/usr/bin:/bin:/usr/sbin:/sbin" \
-    NOTARY_PROFILE=fixture-profile bash "$GATE" --preflight-only >"$output" 2>&1 &&
+    NOTARY_PROFILE=fixture-profile EXPECTED_NOTARY_PROFILE=fixture-profile \
+    bash "$GATE" --preflight-only >"$output" 2>&1 &&
     grep -q 'PASS:.*\.pinyin = rime_ice' "$output"; then
-  ok "default locale parses and reports the expected pinyin schema"
+  ok "explicit NOTARY_PROFILE overrides the canonical default and the locale parses"
 else
-  bad "default locale should complete the expected-pinyin preflight"
+  bad "explicit NOTARY_PROFILE should override the canonical default"
 fi
 
 if grep -qE '^NOTARY_PROFILE[[:space:]]*\?=[[:space:]]*\$\(DEV_ID\)' "$ROOT/Makefile"; then

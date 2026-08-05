@@ -37,8 +37,7 @@ case "${1:-}" in
   *) usage >&2; fail "unknown argument: $1" ;;
 esac
 
-NOTARY_PROFILE="${NOTARY_PROFILE:-}"
-[[ -n "$NOTARY_PROFILE" ]] || fail "missing required variable NOTARY_PROFILE"
+NOTARY_PROFILE="${NOTARY_PROFILE:-xw-notary}"
 if xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
   pass "NOTARY_PROFILE keychain profile is available"
 else

@@ -16,6 +16,7 @@ setup-dev:
 RIME_BIN_DIR = librime/dist/bin
 RIME_LIB_DIR = librime/dist/lib
 DERIVED_DATA_PATH ?= build
+NOTARY_PROFILE ?= xw-notary
 
 RIME_LIBRARY_FILE_NAME = librime.1.dylib
 RIME_LIBRARY = lib/$(RIME_LIBRARY_FILE_NAME)
