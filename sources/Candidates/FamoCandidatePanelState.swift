@@ -50,10 +50,14 @@ final class CandidatePanelState {
   /// so every composition begins compact. Ignored when `isVertical` is true.
   var isExpanded: Bool = false
   var theme: FamoCandidateTheme = .shenda
-  /// Base candidate text point size. The view derives preedit (base − 2) and
-  /// paging chevrons (base − 3) from it. Seeded from `FamoPanelPreferences.fontSize`
-  /// on the live panel; defaults to 中 (16).
-  var fontSize: CGFloat = 16
+  /// Base candidate text point size. The view derives preedit (base − 2), paging chevrons
+  /// (base − 3) and **every padding** from it — 留白走 `FamoPanelFontSize.metric`，以中档为锚
+  /// 等比换算，所以这一个数就是「候选窗尺寸」那一档。Seeded from `FamoPanelPreferences.fontSize`
+  /// on the live panel.
+  ///
+  /// 默认写成 `.medium.base` 而不是裸数：原来的注释说「defaults to 中」而值是 16（那是小档的
+  /// 点数），四档化后留白也跟着它走，默认档一错整块面板的边距就跟着错。
+  var fontSize: CGFloat = FamoPanelFontSize.medium.base
   /// Candidate text typeface family (G8). Seeded from `FamoPanelPreferences.fontDesign`.
   var fontDesign: FamoPanelFontDesign = .default
   /// Whether candidate-bar animations run (G8). Seeded from `FamoPanelPreferences`;

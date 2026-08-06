@@ -426,3 +426,59 @@ final class FamoScrollRowsPlanTests: XCTestCase {
     XCTAssertTrue(FamoScrollRowsPlan.rows(from: [cand("甲")], pageSize: 0, startPage: 1).isEmpty)
   }
 }
+
+// MARK: - 候选窗尺寸四档（点数阶梯 + 留白等比换算）
+
+/// 锁住「候选窗尺寸」这一档拨的是**整块面板**：`FamoPanelFontSize.base` 是点数阶梯，
+/// `metric(_:base:)` 把写在中档坐标系里的留白换算到其余档位。面板的实际留白全在
+/// `FamoCandidatePanelView` 的私有 `m(...)` 里、单测够不着，所以这里锁的是它唯一的数值来源。
+final class FamoPanelSizeTests: XCTestCase {
+
+  /// 四档点数 16 / 19 / 23 / 27。小/中/大三个值与四档化之前逐字相同——`.extraLarge` 是纯增补，
+  /// rawValue 也没动，所以老用户存在 `"FamoPanelFontSize"` 里的选择不需要任何迁移。
+  func testFourStepLadder() {
+    XCTAssertEqual(FamoPanelFontSize.allCases.map(\.base), [16, 19, 23, 27])
+    XCTAssertEqual(FamoPanelFontSize.allCases.map(\.rawValue),
+                   ["small", "medium", "large", "extraLarge"])
+  }
+
+  /// 中档是换算锚点：任何留白值在中档下换算回它自己。这是「默认档逐像素不变」的全部依据
+  /// ——`medium.base` 一旦被改成别的数，绝大多数用户的面板会整块走形，这条会先炸。
+  func testMediumIsTheIdentityAnchor() {
+    for value in [2, 3, 4, 5, 6, 7, 8, 9, 210] as [CGFloat] {
+      XCTAssertEqual(FamoPanelFontSize.metric(value, base: FamoPanelFontSize.medium.base), value)
+    }
+  }
+
+  /// 四档下的关键留白（选中块内嵌 5、pill 内边 8/7、候选间距 6、竖排行内边 9、横排最小宽 210），
+  /// 逐档钉死取整后的点数——`base` 或锚点漂了，这张表立刻对不上。
+  func testMetricTablePerStep() {
+    let expected: [FamoPanelFontSize: [CGFloat: CGFloat]] = [
+      .small:      [5: 4, 8: 7,  7: 6,  6: 5, 9: 8,  210: 177],
+      .medium:     [5: 5, 8: 8,  7: 7,  6: 6, 9: 9,  210: 210],
+      .large:      [5: 6, 8: 10, 7: 8,  6: 7, 9: 11, 210: 254],
+      .extraLarge: [5: 7, 8: 11, 7: 10, 6: 9, 9: 13, 210: 298],
+    ]
+    for (size, table) in expected {
+      for (atMedium, want) in table {
+        XCTAssertEqual(FamoPanelFontSize.metric(atMedium, base: size.base), want,
+                       "\(size.rawValue) 档下中档的 \(atMedium)pt 应换算为 \(want)pt")
+      }
+    }
+  }
+
+  /// 留白全部按整点落位：半点会在非 Retina 上糊掉一条边，且让「四边等距」不再等距。
+  func testMetricsLandOnWholePoints() {
+    for size in FamoPanelFontSize.allCases {
+      for value in stride(from: CGFloat(1), through: 24, by: 1) {
+        let m = FamoPanelFontSize.metric(value, base: size.base)
+        XCTAssertEqual(m, m.rounded(), "\(size.rawValue) 档下 \(value)pt 换算出了非整点 \(m)")
+      }
+    }
+  }
+
+  /// 面板状态的默认字号就是中档：留白现在也从这个数派生，默认档一错整块面板的边距跟着错。
+  func testPanelStateDefaultsToMediumStep() {
+    XCTAssertEqual(CandidatePanelState().fontSize, FamoPanelFontSize.medium.base)
+  }
+}
