@@ -45,7 +45,11 @@ final class FamoSettingsCoverageTests: XCTestCase {
     // FamoSegmentedControl option labels (replaced the old `Picker(.segmented)` titles).
     // 浅色/深色 dropped: 外观模式 + 皮肤预览 removed from 候选窗设置 (明暗 lives on 皮肤外观, uses 亮/暗).
     "跟随系统",
-    "小", "中", "大",
+    // 候选窗尺寸：2026-08-06 由三档「候选字号」升为四档，`特大`(base 27) 是纯增补，小/中/大
+    // 三档的点数与 rawValue 都没动（老用户零迁移）。这一档拨的是整块面板——候选字与留白同步
+    // 缩放。action coverage 在 FamoSettingsActionTests 的 panelFontSize 往返；点数阶梯与留白
+    // 换算表在 FamoPanelSizeTests。
+    "小", "中", "大", "特大",
     // 排列方向：2026-07-22「默认形态 单行/卷轴」并入本组（`单行`/`卷轴` 两个旧标签随之移除）；
     // 2026-07-26 `折行`(1.4.19) 退役，位置换成新的 `卷轴`（主行 + 后页行，与旧同名标签无关）。
     "自动", "横排", "竖排", "卷轴",
