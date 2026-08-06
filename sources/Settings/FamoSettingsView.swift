@@ -562,14 +562,17 @@ struct FamoSettingsView: View {
         }
 
         VStack(alignment: .leading, spacing: 6) {
-          Text("候选字号")
+          Text("候选窗尺寸")
             .font(.system(size: 13, weight: .medium))
             .foregroundStyle(palette.ink2)
           FamoSegmentedControl(
             selection: fontSizeBinding,
-            options: [("小", .small), ("中", .medium), ("大", .large)],
+            options: [("小", .small), ("中", .medium), ("大", .large), ("特大", .extraLarge)],
             palette: palette
           )
+          Text("候选字与面板留白一起缩放，整块候选窗按档位放大或收紧。")
+            .font(.system(size: 11))
+            .foregroundStyle(palette.ink3)
         }
 
         VStack(alignment: .leading, spacing: 6) {

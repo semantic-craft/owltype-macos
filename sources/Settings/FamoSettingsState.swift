@@ -133,9 +133,9 @@ final class FamoSettingsState {
   /// back through both this mirror and `FamoPanelPreferences.appearance` so the
   /// UserDefaults key string lives in exactly one place.
   var panelAppearance: FamoPanelAppearance = .system
-  /// Mirror of `FamoPanelPreferences.fontSize` (小/中/大 candidate font size).
-  /// Seeded and written through the same way as `panelAppearance`; the skin
-  /// preview also reads `panelFontSize.base` so it reflects the chosen size live.
+  /// Mirror of `FamoPanelPreferences.fontSize` — 设置里的「候选窗尺寸」小/中/大/特大，
+  /// 拨的是候选字与面板留白一起缩放后的整块面板大小。Seeded and written through the same
+  /// way as `panelAppearance`.
   var panelFontSize: FamoPanelFontSize = .medium
   /// G8 候选显示 mirrors of `FamoPanelPreferences` — orientation (横排/竖排/卷轴), candidate
   /// typeface (候选字体), animation toggle (候选条动画). Seeded + written like `panelAppearance`.
