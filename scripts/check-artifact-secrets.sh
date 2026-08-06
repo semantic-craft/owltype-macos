@@ -129,6 +129,21 @@ MANIFEST_LINE = re.compile(r"^[0-9a-f]{64} {2}\S")
 # 故意省略：那串是 32 位字母数字，Box 检出器只要在它前约 40 字符内看见 box 就报，而本文件通篇
 # 在讲各检出器的误报 —— 写全了等于给未来某句带 Box 的注释埋雷，害整个 privacy-gate 长红。
 SWIFT_MANGLED = re.compile(r"^s\d+Famo")
+# Lob 的检出器认 `test_` / `live_` 前缀 + 35 位字母数字下划线，于是**恰好 35 字符的测试函数名**
+# 整个撞上：本仓 FamoUpdateLogoutPromptTests 里那个 `test_recordDisposition…noOp`（去掉前缀
+# 正好 17+1+12+1+4 = 35）、vendored googletest / pybind11 里的 `test_shared_ptr…references` 等，
+# 2026-08-06 实测共 11 条。本项目不使用 Lob，也不存在任何 Lob 凭据。
+#
+# 命中值中段一律省略，同上面 Swift 符号那条：`.sh` **不在** SOURCE_SUFFIXES 里（shell 脚本
+# 恰恰是凭据可能被硬写的地方，不能整类放行），所以把原串写全就是给本文件自己埋雷 —— 2026-08-06
+# 初版正是这么写的，源码包扫描当场报了本文件 2 条，release-gate 直接红。
+LOB_TEST_IDENTIFIER = re.compile(r"^(?:test|live)_(?=.*_)[A-Za-z0-9_]+$")
+# 源码文件后缀。命中出现在源码里是「函数名」的必要条件之一；配置、环境文件、清单里的
+# `test_…` 一律不走这条豁免。
+SOURCE_SUFFIXES = {
+    ".swift", ".py", ".cpp", ".cc", ".c", ".h", ".hpp", ".m", ".mm",
+    ".go", ".rs", ".java", ".js", ".ts", ".rb", ".lua",
+}
 
 
 def manifest_hash_column(finding, path_str, raw):
@@ -164,9 +179,29 @@ def swift_symbol(finding, path_str, raw):
     return path.is_file() and path.parent.name in {"MacOS", "Frameworks", "PlugIns"}
 
 
+def lob_test_identifier(finding, path_str, raw):
+    """Lob 检出器把恰好 35 字符的 `test_`/`live_` 开头函数名当成 API key。
+
+    判据取「令牌体里含下划线」：真凭据是一个不可读的随机令牌，下划线是标识符分词才有的
+    东西（实测命中的 11 条每条都含）。若真有人把 `test_<不带下划线的随机串>` 写进源码，
+    这条豁免不认、照样报——也就是说这里放行的是「长得像标识符」，不是「长得像 Lob 键」。
+
+    位置再收一道：只在源码文件里豁免。凭据不会以裸标识符形式存在于源码里。
+
+    为什么不改我们自己那两个方法名了事：vendored 的 9 条改不了（googletest / pybind11 是
+    submodule 源码），源码包照样带着它们，门禁照样红。
+    """
+    if finding.get("DetectorName") != "Lob":
+        return False
+    if not LOB_TEST_IDENTIFIER.match(raw):
+        return False
+    return pathlib.Path(path_str).suffix in SOURCE_SUFFIXES
+
+
 ALLOWED = (
     ("SHA-256 清单的哈希列", manifest_hash_column),
     ("Swift 符号修饰", swift_symbol),
+    ("Lob 撞测试函数名", lob_test_identifier),
 )
 
 real, waived = [], []
