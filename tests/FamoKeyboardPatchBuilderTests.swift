@@ -92,8 +92,20 @@ final class FamoKeyboardPatchBuilderTests: XCTestCase {
     XCTAssertFalse(off.contains("punctuator/half_shape/+"))
     XCTAssertFalse(off.contains("punctuator/full_shape/+"))
 
-    let wubi = famoDefaultCustomYAML(from: snapshot(.wubi, slashSymbolMenu: true))
-    XCTAssertTrue(wubi.contains("\"/\": [\"、\", \"/\", \"／\", \"÷\"]"))
+    for target in famoWubiPatchTargets {
+      let wubi = famoWubiCustomYAML(
+        from: snapshot(.wubi, slashSymbolMenu: true), target: target)
+      XCTAssertTrue(wubi.contains("\"punctuator/half_shape/+\":"), target.fileName)
+      XCTAssertTrue(wubi.contains("\"punctuator/full_shape/+\":"), target.fileName)
+      XCTAssertEqual(
+        wubi.components(separatedBy: "\"/\": [\"、\", \"/\", \"／\", \"÷\"]").count - 1,
+        2,
+        "\(target.fileName): 半角与全角都必须直接写入 schema patch"
+      )
+
+      let wubiOff = famoWubiCustomYAML(from: snapshot(.wubi), target: target)
+      XCTAssertFalse(wubiOff.contains("\"/\": ["), target.fileName)
+    }
   }
 
   // MARK: - N3 ` 临时英文（五笔前缀英文通道）

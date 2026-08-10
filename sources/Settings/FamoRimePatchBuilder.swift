@@ -25,8 +25,9 @@
 //  - `[]` 翻页 first disables rime-ice 以词定字 (`key_binder/select_first|last_character: ""`,
 //    a Lua processor that runs BEFORE key_binder) then sends Page_Up/Down.
 //  - 快速选词 → `send: 2/3` (not `select:`); Command stays commented (Squirrel 不稳, 需真机).
-//  - `/` 符号选单 → default-off 的 half/full-shape punctuator 候选；关闭时不产出 patch，
-//    由 Famo 前端维持「提交当前候选、切英文、输出 ASCII slash」。
+//  - `/` 符号选单 → default-off 的 half/full-shape punctuator 候选；拼音写入 default patch，
+//    四个五笔方案另写各自 schema patch，避免已编译的 import_preset 标点表不随 default 快速更新；
+//    关闭时不产出 patch，由 Famo 前端维持「提交当前候选、切英文、输出 ASCII slash」。
 //  - 全半角 / 中英标点 → `toggle: full_shape|ascii_punct` bindings (Squirrel/Weasel
 //    shifted-key names double-written; the generator DEDUPS) + `switcher/save_options/+`.
 //  - 默认方案顺序 → live `schema_list` (chosen 双拼 first) + `menu/page_size: 8`.
@@ -330,6 +331,11 @@ func famoWubiCustomYAML(from s: FamoKeyboardSnapshot, target: FamoWubiPatchTarge
   lines.append("# 写入 ~/Library/Application Support/Famo/\(target.fileName) 后需在法墨设置里「应用配置改动」")
   lines.append("patch:")
 
+  // 五笔 schema 使用 `import_preset: default`，但快速部署 default.yaml 不会让已经编译的五笔
+  // schema 自动重建其 punctuator。把同一映射直接写进四个五笔 custom patch，随后部署当前
+  // schema，保证极点五笔、拼音混输及两个繁体变体都立即生效。
+  lines.append(contentsOf: slashSymbolMenuPatchLines(from: s))
+
   lines.append("  # 候选编码提示：默认隐藏五笔候选的编码。")
   if s.wubiCodeHint {
     lines.append("  \"translator/comment_format\": []")
@@ -448,19 +454,23 @@ private func fuzzyAlgebraDerives(from f: FamoFuzzySnapshot) -> [String] {
   return entries
 }
 
-/// Punctuator overrides shared by every bundled schema that imports `default`.
+/// `/` is a path separator in Rime patch keys, so it cannot be addressed as
+/// `punctuator/half_shape//`; merge a map containing the literal key instead. Both shape modes use
+/// the same list. This helper is shared by default.custom.yaml (拼音) and every 五笔 schema patch.
+private func slashSymbolMenuPatchLines(from s: FamoKeyboardSnapshot) -> [String] {
+  guard s.slashSymbolMenu else { return [] }
+  return [
+    "  # 符号：/ 弹出候选（、 ASCII/ 全角／ ÷）；关闭本开关时法墨改为切英文并直接输出 /",
+    "  \"punctuator/half_shape/+\":",
+    "    \"/\": [\"、\", \"/\", \"／\", \"÷\"]",
+    "  \"punctuator/full_shape/+\":",
+    "    \"/\": [\"、\", \"/\", \"／\", \"÷\"]",
+  ]
+}
+
+/// Punctuator overrides written to default.custom.yaml for the pinyin-family schemas.
 private func punctuatorPatchLines(from s: FamoKeyboardSnapshot) -> [String] {
-  var lines: [String] = []
-  if s.slashSymbolMenu {
-    // `/` is a path separator in Rime patch keys, so it cannot be addressed as
-    // `punctuator/half_shape//`; merge a map containing the literal key instead. Patch both shape
-    // modes so this explicit option behaves consistently when the user toggles full-width mode.
-    lines.append("  # 符号：/ 弹出候选（、 ASCII/ 全角／ ÷）；关闭本开关时法墨改为切英文并直接输出 /")
-    lines.append("  \"punctuator/half_shape/+\":")
-    lines.append("    \"/\": [\"、\", \"/\", \"／\", \"÷\"]")
-    lines.append("  \"punctuator/full_shape/+\":")
-    lines.append("    \"/\": [\"、\", \"/\", \"／\", \"÷\"]")
-  }
+  var lines = slashSymbolMenuPatchLines(from: s)
   if s.angleSymbolMenu {
     // 只动 `<`（开括号），`>` 保持标量 `》` 直上屏——`>` 若变列表，每次闭合都弹菜单，且菜单确认
     // 的提交在 commit seam 会因 preedit 非空跳过右邻读，自动配对的 skip-over 就死了（见

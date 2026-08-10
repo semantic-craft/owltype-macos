@@ -121,6 +121,9 @@ final class FamoSettingsE2EContractTests: XCTestCase {
       XCTAssertTrue(patch.contains("\"speller/auto_clear\": max_length"), name)
       XCTAssertTrue(patch.contains("lua_filter@*wubi86_jidian_single_char_only"), name)
       XCTAssertFalse(patch.contains("lua_filter@*wubi86_jidian_single_char_first_filter"), name)
+      XCTAssertTrue(patch.contains("\"punctuator/half_shape/+\":"), name)
+      XCTAssertTrue(patch.contains("\"punctuator/full_shape/+\":"), name)
+      XCTAssertTrue(patch.contains("\"/\": [\"、\", \"/\", \"／\", \"÷\"]"), name)
     }
 
     XCTAssertEqual(FamoCommitTransform.apply(to: "法墨AI第3条"), "法墨 AI 第 3 条")
