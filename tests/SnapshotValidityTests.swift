@@ -246,6 +246,16 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
     XCTAssertTrue(text.contains("\"punctuator/half_shape/+\":"))
     XCTAssertTrue(text.contains("\"punctuator/full_shape/+\":"))
     XCTAssertTrue(text.contains("\"/\": [\"、\", \"/\", \"／\", \"÷\"]"))
+
+    for file in files.dropFirst(3) {
+      let wubiText = file.block.yamlLinesIndentedUnderPatch.joined(separator: "\n")
+      XCTAssertTrue(wubiText.contains("\"punctuator/half_shape/+\":"), file.fileName)
+      XCTAssertTrue(wubiText.contains("\"punctuator/full_shape/+\":"), file.fileName)
+      XCTAssertTrue(
+        wubiText.contains("\"/\": [\"、\", \"/\", \"／\", \"÷\"]"),
+        file.fileName
+      )
+    }
   }
 
   func testKeyboardPatchPlanApplyPreservesExistingUserPatch() throws {
