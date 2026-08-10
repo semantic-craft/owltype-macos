@@ -179,8 +179,8 @@ final class FamoSettingsCoverageTests: XCTestCase {
     "短语",
     "空码自动清码",
     "编码，如 fm 或 fmcs",
-    // N1「<」符号选单（键盘页 符号 卡，2026-07-21）：patch coverage 在 FamoKeyboardPatchBuilderTests
-    // 的 angleSymbolMenu 断言。
+    "输入中文时 “/” 弹出符号选单",
+    // 「<」与「/」符号选单的 patch coverage 在 FamoKeyboardPatchBuilderTests。
     "输入中文时 “<” 弹出符号选单",
     // N3 ` 临时英文（键盘页 五笔 卡，2026-07-21）：patch coverage 在 FamoKeyboardPatchBuilderTests
     // 的 wubiEnglishChannel 断言。

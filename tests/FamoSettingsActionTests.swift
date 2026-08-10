@@ -17,7 +17,7 @@ final class FamoSettingsActionTests: XCTestCase {
     "FamoKeyboardFullShapeToggle", "FamoKeyboardCJKPunctToggle",
     "FamoKeyboardDefaultAsciiMode", "FamoKeyboardDefaultFullShape", "FamoKeyboardPageMinusEquals",
     "FamoKeyboardPageBrackets", "FamoKeyboardPageCommaPeriod", "FamoKeyboardSelect23Semicolon",
-    "FamoKeyboardSelect23Command",
+    "FamoKeyboardSelect23Command", "FamoKeyboardSlashSymbolMenu",
     "FamoKeyboardCJKEnglishSpacing", "FamoKeyboardCJKNumberSpacing",
     "FamoKeyboardAppEnglishBundleIDs",
     "FamoFuzzyZhZ", "FamoFuzzyChC", "FamoFuzzyShS", "FamoFuzzyNL", "FamoFuzzyRL",
@@ -43,6 +43,12 @@ final class FamoSettingsActionTests: XCTestCase {
       } else {
         FamoDefaults.standard.removeObject(forKey: key)
       }
+    }
+    if let value = savedDefaults["FamoKeyboardSlashSymbolMenu"] ?? nil {
+      FamoKeyboardPreferences.slashSymbolMenu = (value as? NSNumber)?.boolValue ?? false
+    } else {
+      FamoKeyboardPreferences.slashSymbolMenu = false
+      FamoDefaults.standard.removeObject(forKey: "FamoKeyboardSlashSymbolMenu")
     }
     for dir in tempDirs {
       try? FileManager.default.removeItem(at: dir)
@@ -86,6 +92,7 @@ final class FamoSettingsActionTests: XCTestCase {
     assertToggle(\.keyboardPageBrackets, state, { FamoKeyboardPreferences.pageBrackets }) { FamoKeyboardPreferences.pageBrackets = $0 }
     assertToggle(\.keyboardPageCommaPeriod, state, { FamoKeyboardPreferences.pageCommaPeriod }) { FamoKeyboardPreferences.pageCommaPeriod = $0 }
     assertToggle(\.keyboardSelect23Semicolon, state, { FamoKeyboardPreferences.select23Semicolon }) { FamoKeyboardPreferences.select23Semicolon = $0 }
+    assertToggle(\.keyboardSlashSymbolMenu, state, { FamoKeyboardPreferences.slashSymbolMenu }) { FamoKeyboardPreferences.slashSymbolMenu = $0 }
     assertToggle(\.keyboardCJKAlnumSpacing, state, { FamoKeyboardPreferences.cjkAlnumSpacing }) { FamoKeyboardPreferences.cjkAlnumSpacing = $0 }
     assertToggle(\.panelAnimationsEnabled, state, { FamoPanelPreferences.animationsEnabled }) { FamoPanelPreferences.animationsEnabled = $0 }
     // 卷轴：后页行数分段经 FamoSettingsActions.set 写穿（是否卷轴由排列方向决定，无独立开关）。

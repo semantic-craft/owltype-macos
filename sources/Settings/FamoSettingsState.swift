@@ -206,6 +206,9 @@ final class FamoSettingsState {
   var keyboardPageCommaPeriod: Bool = false
   /// 分号引号选 2/3 位 (mirror of `FamoKeyboardPreferences.select23Semicolon`).
   var keyboardSelect23Semicolon: Bool = false
+  /// 「/」键弹出符号选单 (mirror of `FamoKeyboardPreferences.slashSymbolMenu`)。Default false；
+  /// 关闭时裸 `/` 维持切英文并输出 ASCII slash 的既有行为。
+  var keyboardSlashSymbolMenu: Bool = false
   /// 「<」键弹出符号选单 (mirror of `FamoKeyboardPreferences.angleSymbolMenu`)。Default false（出厂关）.
   var keyboardAngleSymbolMenu: Bool = false
   /// 中文与英文间加入空格 (mirror of `FamoKeyboardPreferences.cjkAlnumSpacing`).

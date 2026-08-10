@@ -756,7 +756,7 @@ struct FamoKeyboardPage: View {
 
   // MARK: - 符号
 
-  /// ☑ 中文下使用英文标点 (ascii_punct，菜单/⌃⇧3 同步) ·
+  /// 中文标点模式、`/` 与 `<` 的可选候选菜单。
   private var symbolCard: some View {
     SettingsCard(
       title: "符号",
@@ -772,6 +772,20 @@ struct FamoKeyboardPage: View {
           isEnabled: rimeBackedRowsEnabled,
           onToggle: { toggleCJKPunct() }
         )
+        SettingsCardDivider(palette: palette)
+        SettingsToggleRow(
+          title: "输入中文时 “/” 弹出符号选单",
+          isOn: state.keyboardSlashSymbolMenu,
+          palette: palette,
+          isEnabled: rimeBackedRowsEnabled,
+          onToggle: { toggleSlashSymbolMenu() }
+        )
+        Text("打开后按 / 键从 、 / ／ ÷ 里挑一个；关闭时维持默认行为：提交当前中文候选、切到英文并直接输入 /。")
+          .font(.system(size: 12))
+          .foregroundStyle(palette.ink3)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.top, 4)
+          .padding(.bottom, 4)
         SettingsCardDivider(palette: palette)
         SettingsToggleRow(
           title: "输入中文时 “<” 弹出符号选单",
@@ -1094,6 +1108,14 @@ struct FamoKeyboardPage: View {
     persistAndApplyRimeConfig {
       FamoSettingsActions.toggle(state: state, keyPath: \.keyboardAngleSymbolMenu) {
         FamoKeyboardPreferences.angleSymbolMenu = $0
+      }
+    }
+  }
+
+  private func toggleSlashSymbolMenu() {
+    persistAndApplyRimeConfig {
+      FamoSettingsActions.toggle(state: state, keyPath: \.keyboardSlashSymbolMenu) {
+        FamoKeyboardPreferences.slashSymbolMenu = $0
       }
     }
   }

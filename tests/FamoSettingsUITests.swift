@@ -19,7 +19,7 @@ final class FamoSettingsUITests: XCTestCase {
     tap("完成", in: app)
     tapMany([
       "中文下使用英文标点",
-      // slash→顿号 行已按机主 07-21 拍板下线；符号卡新增行为「输入中文时 “<” 弹出符号选单」。
+      "输入中文时 “/” 弹出符号选单",
       "输入中文时 “<” 弹出符号选单",
       "在候选中显示 emoji",
       "中文与英文间加入空格",
