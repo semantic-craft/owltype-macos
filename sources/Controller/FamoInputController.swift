@@ -245,15 +245,21 @@ final class FamoInputController: IMKInputController {
     // TODO add special key event preprocessing here
     guard let rime else { return false }
 
-    // '/' → English, globally & schema-agnostically (task 06-30, programming convenience).
+    // '/' → English, globally & schema-agnostically (programming convenience), unless the user
+    // explicitly enabled the slash symbol menu. That opt-in lets the event fall through to Rime's
+    // punctuator candidate list without committing the composition or changing ascii_mode.
     // A bare slash in Chinese mode commits the highlighted candidate (commit_text_preview),
     // flips to ASCII mode, then FALLS THROUGH to `rime.process` below so the slash is emitted
     // as a literal ASCII '/': in ASCII mode librime either rejects it (the host types '/') or
     // commits it (rimeUpdate inserts '/') — either path yields exactly one ASCII slash. Sits
     // above the active schema, so pinyin / wubi / any schema behave identically. The bare-slash
     // gate is the pure `FamoKeycode.slashSwitchesToEnglish` (unit-tested).
-    if FamoKeycode.slashSwitchesToEnglish(keycode: rimeKeycode, modifiers: rimeModifiers,
-                                          asciiMode: rime.option(.asciiMode)) {
+    if FamoKeycode.slashSwitchesToEnglish(
+      keycode: rimeKeycode,
+      modifiers: rimeModifiers,
+      asciiMode: rime.option(.asciiMode),
+      symbolMenuEnabled: FamoKeyboardPreferences.slashSymbolMenu
+    ) {
       if let preview = rime.composition()?.commitTextPreview, !preview.isEmpty {
         commit(string: preview)
         rime.clearComposition()

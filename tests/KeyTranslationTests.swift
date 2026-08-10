@@ -118,35 +118,47 @@ final class KeyTranslationTests: XCTestCase {
   // MARK: - FamoKeycode.slashSwitchesToEnglish (task 06-30: '/' → English for programming)
 
   func testSlashSwitchesToEnglishWhenChineseAndBareSlash() {
-    XCTAssertTrue(FamoKeycode.slashSwitchesToEnglish(keycode: UInt32(XK_slash), modifiers: 0, asciiMode: false))
+    XCTAssertTrue(FamoKeycode.slashSwitchesToEnglish(
+      keycode: UInt32(XK_slash), modifiers: 0, asciiMode: false, symbolMenuEnabled: false))
+  }
+
+  func testSlashDoesNotSwitchWhenSymbolMenuEnabled() {
+    XCTAssertFalse(FamoKeycode.slashSwitchesToEnglish(
+      keycode: UInt32(XK_slash), modifiers: 0, asciiMode: false, symbolMenuEnabled: true))
   }
 
   func testSlashDoesNotSwitchWhenAlreadyAscii() {
     // Already English → leave '/' alone (it just types normally).
-    XCTAssertFalse(FamoKeycode.slashSwitchesToEnglish(keycode: UInt32(XK_slash), modifiers: 0, asciiMode: true))
+    XCTAssertFalse(FamoKeycode.slashSwitchesToEnglish(
+      keycode: UInt32(XK_slash), modifiers: 0, asciiMode: true, symbolMenuEnabled: false))
   }
 
   func testSlashDoesNotSwitchWithControl() {
     // Control+slash is bound (toggle simplification) — must NOT be hijacked.
     XCTAssertFalse(FamoKeycode.slashSwitchesToEnglish(
-      keycode: UInt32(XK_slash), modifiers: kControlMask.rawValue, asciiMode: false))
+      keycode: UInt32(XK_slash), modifiers: kControlMask.rawValue, asciiMode: false,
+      symbolMenuEnabled: false))
   }
 
   func testSlashDoesNotSwitchWithCommandOrOption() {
     XCTAssertFalse(FamoKeycode.slashSwitchesToEnglish(
-      keycode: UInt32(XK_slash), modifiers: kSuperMask.rawValue, asciiMode: false))
+      keycode: UInt32(XK_slash), modifiers: kSuperMask.rawValue, asciiMode: false,
+      symbolMenuEnabled: false))
     XCTAssertFalse(FamoKeycode.slashSwitchesToEnglish(
-      keycode: UInt32(XK_slash), modifiers: kAltMask.rawValue, asciiMode: false))
+      keycode: UInt32(XK_slash), modifiers: kAltMask.rawValue, asciiMode: false,
+      symbolMenuEnabled: false))
   }
 
   func testSlashStillSwitchesWithCapsLock() {
     // CapsLock doesn't change '/'; only Ctrl/Alt/Cmd block the switch, not Lock.
     XCTAssertTrue(FamoKeycode.slashSwitchesToEnglish(
-      keycode: UInt32(XK_slash), modifiers: kLockMask.rawValue, asciiMode: false))
+      keycode: UInt32(XK_slash), modifiers: kLockMask.rawValue, asciiMode: false,
+      symbolMenuEnabled: false))
   }
 
   func testNonSlashKeyDoesNotSwitch() {
-    XCTAssertFalse(FamoKeycode.slashSwitchesToEnglish(keycode: UInt32(XK_a), modifiers: 0, asciiMode: false))
+    XCTAssertFalse(FamoKeycode.slashSwitchesToEnglish(
+      keycode: UInt32(XK_a), modifiers: 0, asciiMode: false, symbolMenuEnabled: false))
   }
 
   // MARK: - resolveKeyChars (iTerm2 / non-ASCII fallback, was inline at handle():152-157)

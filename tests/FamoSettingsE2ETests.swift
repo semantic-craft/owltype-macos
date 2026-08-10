@@ -43,6 +43,7 @@ final class FamoSettingsE2EContractTests: XCTestCase {
     FamoKeyboardPreferences.pageBrackets = true
     FamoKeyboardPreferences.pageCommaPeriod = true
     FamoKeyboardPreferences.select23Semicolon = true
+    FamoKeyboardPreferences.slashSymbolMenu = true
     FamoKeyboardPreferences.cjkAlnumSpacing = true
     FamoKeyboardPreferences.appEnglishBundleIDs = ["com.apple.Terminal", "bad:key", "com.apple.Terminal"]
     FamoKeyboardPreferences.wubiCodeHint = true
@@ -58,6 +59,7 @@ final class FamoSettingsE2EContractTests: XCTestCase {
     XCTAssertEqual(snapshot.doublePinyin, .mspy)
     XCTAssertFalse(snapshot.shiftSwitchCJK)
     XCTAssertEqual(snapshot.pageSize, 9)
+    XCTAssertTrue(snapshot.slashSymbolMenu)
     XCTAssertEqual(snapshot.appEnglishBundleIDs, ["com.apple.Terminal"])
     XCTAssertEqual(snapshot.fuzzy.enabledCount, 3)
 
@@ -89,8 +91,9 @@ final class FamoSettingsE2EContractTests: XCTestCase {
     XCTAssertTrue(defaultPatch.contains("accept: comma"))
     XCTAssertTrue(defaultPatch.contains("send: 2"))
     XCTAssertTrue(defaultPatch.contains("send: 3"))
-    // slash→顿号 已按机主 07-21 拍板下线：patch 不得再带 `/` 行。
-    XCTAssertFalse(defaultPatch.contains("\"/\": ["))
+    XCTAssertTrue(defaultPatch.contains("\"punctuator/half_shape/+\":"))
+    XCTAssertTrue(defaultPatch.contains("\"punctuator/full_shape/+\":"))
+    XCTAssertTrue(defaultPatch.contains("\"/\": [\"、\", \"/\", \"／\", \"÷\"]"))
     // app_options moved to the famo domain (task 07-08): NOT in default anymore — it lives in
     // famo.custom.yaml, the only domain FamoConfig.getAppOptions reads.
     XCTAssertFalse(defaultPatch.contains("app_options/"))
@@ -245,6 +248,7 @@ final class FamoSettingsE2EContractTests: XCTestCase {
     FamoKeyboardPreferences.pageBrackets = true
     FamoKeyboardPreferences.pageCommaPeriod = false
     FamoKeyboardPreferences.select23Semicolon = false
+    FamoKeyboardPreferences.slashSymbolMenu = false
     FamoKeyboardPreferences.cjkAlnumSpacing = false
     FamoKeyboardPreferences.appEnglishBundleIDs = []
     FamoKeyboardPreferences.wubiCodeHint = false
@@ -287,6 +291,9 @@ final class FamoSettingsE2EContractTests: XCTestCase {
     restoreCachedBool("FamoKeyboardCJKNumberSpacing", default: false) {
       FamoKeyboardPreferences.cjkNumberSpacing = $0
     }
+    restoreCachedBool("FamoKeyboardSlashSymbolMenu", default: false) {
+      FamoKeyboardPreferences.slashSymbolMenu = $0
+    }
   }
 
   private func restoreCachedBool(_ key: String, default defaultValue: Bool, set: (Bool) -> Void) {
@@ -326,6 +333,7 @@ final class FamoSettingsE2EContractTests: XCTestCase {
     "FamoKeyboardPageCommaPeriod",
     "FamoKeyboardSelect23Semicolon",
     "FamoKeyboardSelect23Command",
+    "FamoKeyboardSlashSymbolMenu",
     "FamoKeyboardCJKEnglishSpacing",
     "FamoKeyboardCJKNumberSpacing",
     "FamoKeyboardAppEnglishBundleIDs",

@@ -32,6 +32,7 @@ final class FamoKeyboardPatchBuilderTests: XCTestCase {
     wubiZReverseLookup: Bool = true,
     appEnglishBundleIDs: [String] = [],
     angleSymbolMenu: Bool = false,
+    slashSymbolMenu: Bool = false,
     wubiEnglishChannel: Bool = false
   ) -> FamoKeyboardSnapshot {
     FamoKeyboardSnapshot(
@@ -52,6 +53,7 @@ final class FamoKeyboardPatchBuilderTests: XCTestCase {
       wubiScheme: wubiScheme,
       wubiZReverseLookup: wubiZReverseLookup,
       angleSymbolMenu: angleSymbolMenu,
+      slashSymbolMenu: slashSymbolMenu,
       wubiEnglishChannel: wubiEnglishChannel
     )
   }
@@ -74,6 +76,24 @@ final class FamoKeyboardPatchBuilderTests: XCTestCase {
     // 五笔快照同样产出（default.custom.yaml 一份 patch，五笔 schema import_preset: default 通吃）。
     let wubi = famoDefaultCustomYAML(from: snapshot(.wubi, angleSymbolMenu: true))
     XCTAssertTrue(wubi.contains("\"punctuator/half_shape/<\":"))
+  }
+
+  func testSlashSymbolMenuEmitsBothShapeListsOnlyWhenEnabled() {
+    let on = famoDefaultCustomYAML(from: snapshot(.pinyin, slashSymbolMenu: true))
+    XCTAssertTrue(on.contains("\"punctuator/half_shape/+\":"))
+    XCTAssertTrue(on.contains("\"punctuator/full_shape/+\":"))
+    XCTAssertEqual(
+      on.components(separatedBy: "\"/\": [\"、\", \"/\", \"／\", \"÷\"]").count - 1,
+      2,
+      "半角与全角都应产生同一候选表"
+    )
+
+    let off = famoDefaultCustomYAML(from: snapshot(.pinyin))
+    XCTAssertFalse(off.contains("punctuator/half_shape/+"))
+    XCTAssertFalse(off.contains("punctuator/full_shape/+"))
+
+    let wubi = famoDefaultCustomYAML(from: snapshot(.wubi, slashSymbolMenu: true))
+    XCTAssertTrue(wubi.contains("\"/\": [\"、\", \"/\", \"／\", \"÷\"]"))
   }
 
   // MARK: - N3 ` 临时英文（五笔前缀英文通道）
@@ -211,12 +231,10 @@ final class FamoKeyboardPatchBuilderTests: XCTestCase {
     XCTAssertFalse(yaml.contains("\"app_options/"))
   }
 
-  func testRetiredSlashToDunNeverEmits() {
-    // slash→顿号 已按机主 07-21 拍板整体下线：任何快照都不得再产出 `/` 的 punctuator patch，
-    // 托管块重生成后 `/` 回归 rime-ice 原生行为。
+  func testSlashSymbolMenuDefaultsOffAlongsideOtherSymbolOptions() {
     let yaml = famoDefaultCustomYAML(from: snapshot(.pinyin, angleSymbolMenu: true))
-    XCTAssertFalse(yaml.contains("\"/\": ["), "retired slash→顿号 leaked back into the patch")
-    XCTAssertFalse(yaml.contains("punctuator/half_shape/+"), "旧 /+ 合并块应随 slash→顿号 一起消失")
+    XCTAssertFalse(yaml.contains("\"/\": ["), "默认关闭时不得改变 slash 行为")
+    XCTAssertFalse(yaml.contains("punctuator/half_shape/+"))
   }
 
   func testRimeBackedKeyboardControlsEmitExpectedPatchKeys() {
@@ -227,7 +245,8 @@ final class FamoKeyboardPatchBuilderTests: XCTestCase {
       pageBrackets: true,
       pageCommaPeriod: true,
       select23Semicolon: true,
-      angleSymbolMenu: true
+      angleSymbolMenu: true,
+      slashSymbolMenu: true
     ))
 
     XCTAssertTrue(yaml.contains("ascii_composer/switch_key/Shift_L"))
@@ -238,7 +257,7 @@ final class FamoKeyboardPatchBuilderTests: XCTestCase {
     XCTAssertTrue(yaml.contains("accept: comma"))
     XCTAssertTrue(yaml.contains("send: 2"))
     XCTAssertTrue(yaml.contains("send: 3"))
-    // punctuator 断言改由 `<` 符号选单承载（slash→顿号 已下线）。
+    XCTAssertTrue(yaml.contains("\"/\": [\"、\", \"/\", \"／\", \"÷\"]"))
     XCTAssertTrue(yaml.contains("punctuator/half_shape/<"))
     XCTAssertFalse(yaml.contains("Super_L"))
   }
