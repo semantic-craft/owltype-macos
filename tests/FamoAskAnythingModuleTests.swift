@@ -183,6 +183,86 @@ final class FamoAskAnythingModuleTests: XCTestCase {
     XCTAssertEqual(open.searchProviderID, "mimo", "attribution follows the route that yielded")
   }
 
+  func testGenericHTTP400IsReportedWithoutOpeningAnotherBuiltInProvider() async {
+    let qwen = Self.qwenProfile
+    let mimo = Self.mimoProfile
+    let responses = ScriptedResponsesClient(streams: [
+      Self.failingStream(FamoStreamingError.badHTTPStatus(400)),
+    ])
+    let chat = ScriptedChatClient(streams: [Self.stream(deltas: ["不应出现"])])
+    let module: FamoAskAnythingOpening = makeMatrixModule(
+      gateProfile: qwen,
+      builtInProfiles: [qwen, mimo],
+      builtInKeys: [qwen.secretName: "sk-qwen", mimo.secretName: "sk-mimo"],
+      transport: FamoAskAnythingTransportAdapter(chatClient: chat, responsesClient: responses))
+
+    guard case let .success(open) = module.open(messages: Self.question) else {
+      return XCTFail("the first built-in provider should open")
+    }
+    do {
+      _ = try await collect(open.stream)
+      XCTFail("a generic request rejection must surface without crossing providers")
+    } catch {
+      XCTAssertEqual(error as? FamoStreamingError, .badHTTPStatus(400))
+    }
+
+    XCTAssertEqual(
+      responses.calls, [.init(providerID: "qwen", dialect: .qwen, webSearch: true)])
+    XCTAssertTrue(chat.calls.isEmpty, "generic HTTP 400 must not reach the second provider")
+    XCTAssertEqual(open.searchProviderID, "qwen")
+  }
+
+  func testGenericInvalidParameterIsReportedWithoutAnotherSearchOrProvider() async {
+    await assertInvalidParameterIsReportedWithoutAnotherAttempt(message: "invalid parameter")
+  }
+
+  func testContentRelatedInvalidParameterIsReportedWithoutAnotherSearchOrProvider() async {
+    await assertInvalidParameterIsReportedWithoutAnotherAttempt(
+      message: "the submitted URL or question content is invalid")
+  }
+
+  func testExplicitStandaloneConfigurationCodesStillFailOverBeforeFirstDelta() async throws {
+    let refusals: [(code: String, purpose: String)] = [
+      ("invalid_api_key", "authentication"),
+      ("10410", "package entitlement"),
+      ("ToolNotOpen", "search plugin enablement"),
+    ]
+
+    for refusal in refusals {
+      let searches = WebSearchRecorder(
+        results: [Self.searchResult],
+        failures: [
+          .doubaoGlobal: .serviceError(code: refusal.code, message: refusal.purpose),
+        ])
+      let chat = ScriptedChatClient(streams: [Self.stream(deltas: ["接地回答"])])
+      let responses = ScriptedResponsesClient()
+      let module: FamoAskAnythingOpening = makeMatrixModule(
+        gateProfile: Self.chatOnlyProfile,
+        builtInProfiles: [],
+        builtInKeys: [:],
+        transport: FamoAskAnythingTransportAdapter(
+          chatClient: chat, responsesClient: responses),
+        webSearchKeys: [.doubaoGlobal: "sk-doubao", .qwen: "sk-qwen"],
+        searches: searches)
+
+      guard case let .success(open) = module.open(messages: Self.question) else {
+        XCTFail("the first standalone search should open for \(refusal.purpose)")
+        continue
+      }
+      let deltas = try await collect(open.stream)
+
+      XCTAssertEqual(deltas, ["接地回答"], refusal.purpose)
+      XCTAssertEqual(
+        searches.calls.map(\.backend), [.doubaoGlobal, .qwen], refusal.purpose)
+      XCTAssertEqual(
+        chat.calls, [.init(providerID: "custom", carriesSearchFields: false)],
+        refusal.purpose)
+      XCTAssertTrue(responses.calls.isEmpty, refusal.purpose)
+      XCTAssertEqual(
+        open.searchProviderID, FamoWebSearchBackend.qwen.attributionID, refusal.purpose)
+    }
+  }
+
   func testEmptyStreamIsReportedWithoutOpeningAnotherProvider() async {
     let qwen = Self.qwenProfile
     let mimo = Self.mimoProfile
@@ -397,6 +477,42 @@ final class FamoAskAnythingModuleTests: XCTestCase {
       isWebSearchEnabled: { searchEnabled },
       preferredWebSearchBackend: { .doubaoGlobal },
       webSearchKeyProvider: { _ in nil })
+  }
+
+  private func assertInvalidParameterIsReportedWithoutAnotherAttempt(
+    message: String
+  ) async {
+    let qwen = Self.qwenProfile
+    let mimo = Self.mimoProfile
+    let expected = FamoWebSearchError.serviceError(
+      code: "InvalidParameter", message: message)
+    let searches = WebSearchRecorder(
+      results: [Self.searchResult], failures: [.doubaoGlobal: expected])
+    let chat = ScriptedChatClient(streams: [Self.stream(deltas: ["不应出现"])])
+    let responses = ScriptedResponsesClient(streams: [Self.stream(deltas: ["不应出现"])])
+    let module: FamoAskAnythingOpening = makeMatrixModule(
+      gateProfile: Self.chatOnlyProfile,
+      builtInProfiles: [qwen, mimo],
+      builtInKeys: [qwen.secretName: "sk-qwen", mimo.secretName: "sk-mimo"],
+      transport: FamoAskAnythingTransportAdapter(
+        chatClient: chat, responsesClient: responses),
+      webSearchKeys: [.doubaoGlobal: "sk-doubao", .qwen: "sk-qwen-search"],
+      searches: searches)
+
+    guard case let .success(open) = module.open(messages: Self.question) else {
+      return XCTFail("the first standalone search should open")
+    }
+    do {
+      _ = try await collect(open.stream)
+      XCTFail("generic InvalidParameter must surface without another online attempt")
+    } catch {
+      XCTAssertEqual(error as? FamoWebSearchError, expected)
+    }
+
+    XCTAssertEqual(searches.calls.map(\.backend), [.doubaoGlobal])
+    XCTAssertTrue(responses.calls.isEmpty, "InvalidParameter must not reach a model provider")
+    XCTAssertTrue(chat.calls.isEmpty, "InvalidParameter must not open another search or plain ask")
+    XCTAssertEqual(open.searchProviderID, FamoWebSearchBackend.doubaoGlobal.attributionID)
   }
 
   private func makeMatrixModule(

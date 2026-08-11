@@ -48,7 +48,7 @@ extension FamoWebSearchError {
   ///
   /// 判据与 `FamoAskSearchFailover.isConfigurationRefusal` 同源，只是这里还要认几个**带着 HTTP 200
   /// 回来**的业务码。除明确的 `noResults`（必须换后端才能避免空材料却署名联网）外，只有已知
-  /// 鉴权/套餐/固定参数错误可以顺位；未知码原样上报，避免把同一问题在不能确认必要性时继续
+  /// 鉴权/套餐/插件错误可以顺位；未知码原样上报，避免把同一问题在不能确认必要性时继续
   /// 发给另一家供应商。
   var isRouteUnusable: Bool {
     switch self {
@@ -67,7 +67,7 @@ extension FamoWebSearchError {
   /// 三个后端已经观测或文档化的固定配置拒绝；新增错误码默认不顺位，须确认语义后再列入。
   private static let configurationServiceCodes: Set<String> = [
     "invalid_api_key", "700901", "10410",
-    "authentication_error", "InvalidApiKey", "InvalidParameter",
+    "authentication_error", "InvalidApiKey",
     "ToolNotOpen", "insufficient_quota",
   ]
 }

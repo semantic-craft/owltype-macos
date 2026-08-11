@@ -656,6 +656,9 @@ final class FamoStreamingChatClientTests: XCTestCase {
   /// 与上一条相反：断网/限流这类**暂时**故障不顺位，如实报给用户 ——
   /// 把断网吞成「换一家」只会把一个错误变成好几个。
   func testTransientFailuresAreReportedNotFailedOver() {
+    XCTAssertFalse(
+      FamoAskSearchFailover.isConfigurationRefusal(status: 400),
+      "generic request rejections may depend on user content")
     XCTAssertTrue(FamoAskSearchFailover.isConfigurationRefusal(status: 401))
     XCTAssertTrue(FamoAskSearchFailover.isConfigurationRefusal(status: 404), "方舟 ToolNotOpen")
     XCTAssertFalse(
@@ -674,6 +677,21 @@ final class FamoStreamingChatClientTests: XCTestCase {
       FamoAskSearchFailover.shouldTryNextAttempt(
         after: FamoWebSearchError.serviceError(code: "invalid_api_key", message: ""),
         hasYieldedDelta: false))
+    XCTAssertTrue(
+      FamoAskSearchFailover.shouldTryNextAttempt(
+        after: FamoWebSearchError.serviceError(code: "10410", message: ""),
+        hasYieldedDelta: false),
+      "an explicit missing package remains eligible for pre-delta failover")
+    XCTAssertTrue(
+      FamoAskSearchFailover.shouldTryNextAttempt(
+        after: FamoWebSearchError.serviceError(code: "ToolNotOpen", message: ""),
+        hasYieldedDelta: false),
+      "an explicitly disabled plugin remains eligible for pre-delta failover")
+    XCTAssertFalse(
+      FamoAskSearchFailover.shouldTryNextAttempt(
+        after: FamoWebSearchError.serviceError(code: "InvalidParameter", message: "generic"),
+        hasYieldedDelta: false),
+      "generic parameter errors may depend on this question and must surface")
     XCTAssertFalse(
       FamoAskSearchFailover.shouldTryNextAttempt(
         after: FamoWebSearchError.serviceError(code: "700429", message: ""),

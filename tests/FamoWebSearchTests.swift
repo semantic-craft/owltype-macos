@@ -405,7 +405,7 @@ final class FamoWebSearchTests: XCTestCase {
     }
   }
 
-  func testDashScopeClientSurfacesTheErrorCodeFromANon2xxBody() async {
+  func testDashScopeClientPreservesGenericInvalidParameterWithoutMarkingTheRouteUnusable() async {
     let client = FamoDashScopeSearchClient(fetch: { request in
       let body = Data(#"{"error":{"code":"InvalidParameter","message":"bad tool choice"}}"#.utf8)
       return (body, HTTPURLResponse(
@@ -418,9 +418,9 @@ final class FamoWebSearchTests: XCTestCase {
       XCTAssertEqual(
         error as? FamoWebSearchError,
         .serviceError(code: "InvalidParameter", message: "bad tool choice"))
-      XCTAssertTrue(
-        (error as? FamoWebSearchError)?.isRouteUnusable ?? false,
-        "型号/参数被拒是配置问题，重试同一家永远同一个结果 —— 该顺位到下一家")
+      XCTAssertFalse(
+        (error as? FamoWebSearchError)?.isRouteUnusable ?? true,
+        "generic InvalidParameter may describe this question and must not fan out")
     }
   }
 
