@@ -18,10 +18,7 @@ RIME_LIB_DIR = librime/dist/lib
 DERIVED_DATA_PATH ?= build
 RELEASE_OUTPUT_ROOT ?= $(DERIVED_DATA_PATH)
 RELEASE_APP = $(RELEASE_OUTPUT_ROOT)/Build/Products/Release/Famo.app
-# The legacy package helpers prepend PROJECT_ROOT to their path argument. Convert an absolute
-# cohort root to an equivalent repo-relative path at that boundary; release/signing/checks consume
-# RELEASE_OUTPUT_ROOT directly and therefore keep the caller-selected root unchanged.
-RELEASE_OUTPUT_ROOT_FOR_PACKAGE_HELPERS = $(shell python3 -c 'import os, sys; print(os.path.relpath(os.path.abspath(sys.argv[1]), sys.argv[2]))' "$(RELEASE_OUTPUT_ROOT)" "$(CURDIR)")
+RELEASE_OUTPUT_ROOT_ABSOLUTE = $(shell python3 -c 'import os, sys; print(os.path.abspath(sys.argv[1]))' "$(RELEASE_OUTPUT_ROOT)")
 NOTARY_PROFILE ?= xw-notary
 
 RIME_LIBRARY_FILE_NAME = librime.1.dylib
@@ -189,14 +186,10 @@ clean-sparkle:
 .PHONY: notarized-app package archive $(PACKAGE)
 
 notarized-app: release
+	python3 scripts/release-cohort-state.py initialize "$(RELEASE_OUTPUT_ROOT)"
 ifdef DEV_ID
 	@test -n "$(NOTARY_PROFILE)" || { echo "ERROR: NOTARY_PROFILE is required when DEV_ID is set" >&2; exit 1; }
-	bash package/sign_app "$(DEV_ID)" "$(RELEASE_OUTPUT_ROOT)"
-	rm -f package/Famo-app.zip
-	ditto -c -k --keepParent "$(RELEASE_APP)" package/Famo-app.zip
-	@for i in 1 2 3; do xcrun notarytool submit package/Famo-app.zip --keychain-profile "$(NOTARY_PROFILE)" --wait && break || { echo "[famo] notary(app) 超时/失败，重试 $$i/3（20s）…"; sleep 20; }; done
-	xcrun stapler staple "$(RELEASE_APP)"
-	rm package/Famo-app.zip
+	bash package/sign_app "$(DEV_ID)" "$(RELEASE_OUTPUT_ROOT)" "$(NOTARY_PROFILE)"
 endif
 	@# 出厂盘点必须描述**最终出厂的那份 app**，所以固定排在 ifdef 块之后：签名会重写全部 12 个
 	@# 原生二进制，staple 会往 Contents/CodeResources 写公证票，两者都发生在 finalize 之后。
@@ -206,19 +199,10 @@ endif
 	python3 scripts/inventory-release-bundle.py record "$(RELEASE_OUTPUT_ROOT)"
 
 $(PACKAGE): notarized-app
-	bash package/make_package "$(RELEASE_OUTPUT_ROOT_FOR_PACKAGE_HELPERS)"
+	DEV_ID="$(DEV_ID)" bash package/make_package "$(RELEASE_OUTPUT_ROOT_ABSOLUTE)"
 ifdef DEV_ID
-	@for i in 1 2 3 4 5; do rm -f package/Famo-signed.pkg; productsign --sign "Developer ID Installer: $(DEV_ID)" package/Famo.pkg package/Famo-signed.pkg && break || { echo "[famo] productsign 时间戳抖动(TSA -67882)，重试 $$i/5…"; sleep 8; }; done; test -f package/Famo-signed.pkg
-	rm package/Famo.pkg
-	mv package/Famo-signed.pkg package/Famo.pkg
-	@for i in 1 2 3; do xcrun notarytool submit package/Famo.pkg --keychain-profile "$(NOTARY_PROFILE)" --wait && break || { echo "[famo] notary(pkg) 超时/失败，重试 $$i/3（20s）…"; sleep 20; }; done
-	xcrun stapler staple package/Famo.pkg
-	# Famo-update.pkg（Sparkle 更新载荷，无 RequireLogout）同样签名 + 公证 + staple。
-	@for i in 1 2 3 4 5; do rm -f package/Famo-update-signed.pkg; productsign --sign "Developer ID Installer: $(DEV_ID)" package/Famo-update.pkg package/Famo-update-signed.pkg && break || { echo "[famo] productsign(update) 时间戳抖动(TSA -67882)，重试 $$i/5…"; sleep 8; }; done; test -f package/Famo-update-signed.pkg
-	rm package/Famo-update.pkg
-	mv package/Famo-update-signed.pkg package/Famo-update.pkg
-	@for i in 1 2 3; do xcrun notarytool submit package/Famo-update.pkg --keychain-profile "$(NOTARY_PROFILE)" --wait && break || { echo "[famo] notary(update pkg) 超时/失败，重试 $$i/3（20s）…"; sleep 20; }; done
-	xcrun stapler staple package/Famo-update.pkg
+	python3 scripts/release-cohort-state.py seal "$(RELEASE_OUTPUT_ROOT)" installer-pkg "$(DEV_ID)" "$(NOTARY_PROFILE)"
+	python3 scripts/release-cohort-state.py seal "$(RELEASE_OUTPUT_ROOT)" update-pkg "$(DEV_ID)" "$(NOTARY_PROFILE)"
 endif
 
 package: $(PACKAGE)
@@ -229,7 +213,7 @@ package: $(PACKAGE)
 # 本来显式跑 `make package/sign_update` 补这一步，直接 `make archive`（CI 的 action-build.sh 走这条）
 # 却没人补，于是撞 "./sign_update: No such file or directory" (Error 127)。
 archive: package package/sign_update
-	bash package/make_archive
+	RELEASE_OUTPUT_ROOT="$(RELEASE_OUTPUT_ROOT_ABSOLUTE)" bash package/make_archive
 
 # DMG = 新用户首装下载物：主入口 FamoInstaller.app（GUI 安装器，内嵌已 staple 的 Famo.app，
 # 首装免注销）+ 卸载法墨.command + uninstall-famo.sh。make_dmg 自己跑 xcodegen+xcodebuild 构建
@@ -239,7 +223,7 @@ archive: package package/sign_update
 # 透传 DEV_ID/NOTARY_PROFILE 给 make_dmg（脚本从环境读取，未设则跳过签名/公证、仍组出未签名 DMG 供本地验证）。
 .PHONY: dmg
 dmg: package
-	DEV_ID="$(DEV_ID)" NOTARY_PROFILE="$(NOTARY_PROFILE)" bash package/make_dmg "$(RELEASE_OUTPUT_ROOT_FOR_PACKAGE_HELPERS)"
+	DEV_ID="$(DEV_ID)" NOTARY_PROFILE="$(NOTARY_PROFILE)" bash package/make_dmg "$(RELEASE_OUTPUT_ROOT_ABSOLUTE)"
 
 DSTROOT = /Library/Input Methods
 FAMO_APP_ROOT = $(DSTROOT)/Famo.app
@@ -309,9 +293,10 @@ release-cohort-check:
 
 release-cohort-selftest:
 	bash scripts/release-cohort.selftest.sh
+	bash scripts/release-cohort-transition.selftest.sh
 
-update-package: release
-	bash package/make_update_package "$(RELEASE_OUTPUT_ROOT_FOR_PACKAGE_HELPERS)"
+update-package: notarized-app
+	bash package/make_update_package "$(RELEASE_OUTPUT_ROOT_ABSOLUTE)"
 
 privacy-gate:
 	bash scripts/check-public-source.sh

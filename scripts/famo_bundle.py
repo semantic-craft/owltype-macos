@@ -13,6 +13,7 @@ behind in DerivedData.
 
 import hashlib
 import json
+import os
 from pathlib import Path
 
 
@@ -23,10 +24,12 @@ SBOM_NAME = "FAMOTYPE-SBOM.spdx.json"
 # App built from this source" — see the staleness check in create-source-archive.sh.
 PROVENANCE_NAME = "FAMOTYPE-APP-PROVENANCE.txt"
 COHORT_NAME = "FAMOTYPE-RELEASE-COHORT.json"
-COHORT_SCHEMA_VERSION = 1
+COHORT_SCHEMA_VERSION = 2
 INVENTORY_NAMES = (MANIFEST_NAME, SBOM_NAME, PROVENANCE_NAME)
 RELEASE_APP_RELATIVE = Path("Build/Products/Release/Famo.app")
 RELEASE_INVENTORY_RELATIVE = Path("release")
+RELEASE_ARTIFACTS = ("app", "installer-pkg", "update-pkg", "dmg")
+RELEASE_ARTIFACT_STATES = ("built", "signed", "notarized", "stapled", "failed")
 
 COMPONENTS = (
     ("Famotype", None, "GPL-3.0-only", "https://github.com/semantic-craft/famotype-macos"),
@@ -48,6 +51,29 @@ def sha256(path: Path) -> str:
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
+    return digest.hexdigest()
+
+
+def artifact_sha256(path: Path) -> str:
+    """Hash a release file or bundle without depending on filesystem metadata."""
+    path = path.resolve()
+    if path.is_file():
+        return sha256(path)
+    if not path.is_dir():
+        raise FileNotFoundError(f"release artifact does not exist: {path}")
+
+    digest = hashlib.sha256()
+    for child in sorted(path.rglob("*"), key=lambda item: item.relative_to(path).as_posix()):
+        relative = child.relative_to(path).as_posix().encode("utf-8")
+        if child.is_symlink():
+            digest.update(b"L\0" + relative + b"\0")
+            digest.update(os.readlink(child).encode("utf-8") + b"\0")
+        elif child.is_file():
+            digest.update(b"F\0" + relative + b"\0")
+            with child.open("rb") as handle:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            digest.update(b"\0")
     return digest.hexdigest()
 
 
@@ -82,19 +108,79 @@ def read_cohort(output_dir: Path) -> dict:
     return value
 
 
-def write_cohort(output_root: Path, output_dir: Path, version: str, revision: str) -> None:
-    """Atomically bind HEAD, version, root and the current inventory."""
-    cohort = {
-        "inventorySha256": inventory_fingerprint(output_dir),
-        "outputRootSha256": output_root_fingerprint(output_root),
-        "revision": revision,
-        "schemaVersion": COHORT_SCHEMA_VERSION,
-        "version": version,
-    }
+def validate_cohort_shape(cohort: dict) -> None:
+    if cohort.get("schemaVersion") != COHORT_SCHEMA_VERSION:
+        raise ValueError(
+            f"cohort schema is {cohort.get('schemaVersion')!r}, expected {COHORT_SCHEMA_VERSION}"
+        )
+    status = cohort.get("status")
+    if status not in {"active", "failed", "complete"}:
+        raise ValueError(f"cohort has invalid status {status!r}")
+    artifacts = cohort.get("artifacts")
+    if not isinstance(artifacts, dict) or "app" not in artifacts:
+        raise ValueError("cohort has no App artifact")
+    if any(name not in RELEASE_ARTIFACTS for name in artifacts):
+        raise ValueError("cohort contains an unknown release artifact")
+    states = []
+    for name, record in artifacts.items():
+        if not isinstance(record, dict) or record.get("state") not in RELEASE_ARTIFACT_STATES:
+            raise ValueError(f"artifact {name} has invalid state {record.get('state')!r}")
+        states.append(record["state"])
+    if status == "failed" and "failed" not in states:
+        raise ValueError("failed cohort has no failed artifact")
+    if status != "failed" and "failed" in states:
+        raise ValueError("non-failed cohort contains a failed artifact")
+    if status == "complete" and (
+        set(artifacts) != set(RELEASE_ARTIFACTS) or any(state != "stapled" for state in states)
+    ):
+        raise ValueError("complete cohort does not have four stapled artifacts")
+
+
+def write_cohort(output_dir: Path, cohort: dict) -> None:
+    """Atomically persist the complete release cohort state."""
     destination = output_dir / COHORT_NAME
     temporary = destination.with_name(f".{destination.name}.tmp")
     temporary.write_text(json.dumps(cohort, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
     temporary.replace(destination)
+
+
+def cohort_identifier(revision: str, version: str, output_root_sha256: str, build_app_sha256: str) -> str:
+    identity = {
+        "buildAppSha256": build_app_sha256,
+        "outputRootSha256": output_root_sha256,
+        "revision": revision,
+        "schemaVersion": COHORT_SCHEMA_VERSION,
+        "version": version,
+    }
+    return hashlib.sha256(
+        json.dumps(identity, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+
+def describe_artifact_path(path: Path, output_root: Path, repo_root: Path) -> dict[str, str]:
+    """Store artifact locations without private absolute paths."""
+    resolved = path.resolve()
+    for base, root in (("outputRoot", output_root.resolve()), ("repository", repo_root.resolve())):
+        try:
+            relative = resolved.relative_to(root)
+        except ValueError:
+            continue
+        return {"base": base, "path": relative.as_posix()}
+    raise ValueError(f"release artifact must live under the output root or repository: {resolved}")
+
+
+def resolve_artifact_path(record: dict, output_root: Path, repo_root: Path) -> Path:
+    bases = {"outputRoot": output_root.resolve(), "repository": repo_root.resolve()}
+    base = record.get("base")
+    relative = record.get("path")
+    if base not in bases or not isinstance(relative, str) or not relative:
+        raise ValueError("artifact has an invalid path binding")
+    candidate = (bases[base] / relative).resolve()
+    try:
+        candidate.relative_to(bases[base])
+    except ValueError as error:
+        raise ValueError("artifact path escapes its recorded base") from error
+    return candidate
 
 
 def relative_files(app: Path) -> list[tuple[str, Path]]:

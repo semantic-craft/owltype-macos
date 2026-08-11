@@ -1,5 +1,4 @@
-#! /bin/bash
-# enconding: utf-8
+#!/usr/bin/env bash
 #
 # make_archive — 生成真正的 Sparkle 自动更新 appcast（Squirrel 同款机制，载荷改用更新专用 pkg）。
 # Sparkle 自动更新载荷 = 签名+公证的裸 .pkg：Sparkle 1.26+/2.x 按 `.pkg` 扩展名走 guided package
@@ -13,10 +12,14 @@
 # 依据：research/sparkle-pkg-autoupdate.md（Squirrel make_archive / live appcast 实证）+
 # task 07-02-famo research/fcitx5-macos-install-mechanism.md（免注销升级序列）。
 
-set -e
+set -euo pipefail
 
-cd "$(dirname $0)"
+cd "$(dirname "$0")"
+# shellcheck source=package/common.sh
 source common.sh
+
+RELEASE_OUTPUT_ROOT="${RELEASE_OUTPUT_ROOT:-${PROJECT_ROOT}/build}"
+python3 "$PROJECT_ROOT/scripts/release-cohort-state.py" appcast-ready "$RELEASE_OUTPUT_ROOT"
 
 # app_version = CFBundleVersion (build, e.g. 1.1.2) → Sparkle sparkle:version comparison ONLY.
 # marketing_version = CFBundleShortVersionString (e.g. 1.1) → user-facing pkg name / title /

@@ -33,16 +33,19 @@ from pathlib import Path
 
 from famo_bundle import (
     COHORT_NAME,
-    COHORT_SCHEMA_VERSION,
     INVENTORY_NAMES,
     MANIFEST_NAME,
     SBOM_NAME,
+    artifact_sha256,
+    cohort_identifier,
     inventory_fingerprint,
     manifest_text,
     output_root_fingerprint,
     read_cohort,
     read_provenance,
     release_paths,
+    resolve_artifact_path,
+    validate_cohort_shape,
     write_cohort,
     write_inventory,
 )
@@ -68,43 +71,69 @@ def bundle_version(app: Path) -> str:
     return version
 
 
-def check(output_root: Path, app: Path, output_dir: Path) -> None:
-    for name in (*INVENTORY_NAMES, COHORT_NAME):
-        if not (output_dir / name).is_file():
-            fail(f"inventory is incomplete, missing {name} under {output_dir}")
-
+def check_cohort_state(output_root: Path, app: Path, output_dir: Path) -> tuple[dict, str, str]:
     try:
         cohort = read_cohort(output_dir)
     except (OSError, ValueError) as error:
         fail(f"cannot read {COHORT_NAME}: {error}")
 
-    if cohort.get("schemaVersion") != COHORT_SCHEMA_VERSION:
-        fail(
-            f"cohort schema is {cohort.get('schemaVersion')!r}, "
-            f"expected {COHORT_SCHEMA_VERSION}"
-        )
+    try:
+        validate_cohort_shape(cohort)
+    except ValueError as error:
+        fail(str(error))
 
-    stamp = read_provenance(output_dir)
     revision = head_revision()
     if cohort.get("revision") != revision:
         fail(
             f"cohort revision is {cohort.get('revision')!r}, but HEAD is {revision!r}; "
             "re-run make notarized-app / make dmg so the inventory matches this commit"
         )
-    if stamp.get("revision") != revision:
-        fail(
-            f"inventory revision is {stamp.get('revision')!r}, but cohort revision is {revision!r}"
-        )
-
     version = bundle_version(app)
     if cohort.get("version") != version:
         fail(f"cohort version is {cohort.get('version')!r}, but the bundle is {version!r}")
-    if stamp.get("version") != version:
-        fail(f"inventory version is {stamp.get('version')!r}, but cohort version is {version!r}")
 
     expected_root = output_root_fingerprint(output_root)
     if cohort.get("outputRootSha256") != expected_root:
         fail(f"cohort belongs to a different output root, not {output_root}")
+
+    build_sha = cohort.get("buildAppSha256")
+    if not isinstance(build_sha, str) or not build_sha:
+        fail("cohort has no build App identity")
+    expected_id = cohort_identifier(revision, version, expected_root, build_sha)
+    if cohort.get("cohortId") != expected_id:
+        fail("cohort identity digest is invalid")
+    if cohort.get("status") == "failed":
+        failure = cohort.get("failure", {})
+        fail(
+            f"cohort failed at {failure.get('artifact', '?')}/{failure.get('phase', '?')}; "
+            "rebuild before producing inventory or appcast"
+        )
+
+    artifacts = cohort["artifacts"]
+    for artifact_name, record in artifacts.items():
+        try:
+            artifact = resolve_artifact_path(record, output_root, ROOT)
+            current_sha = artifact_sha256(artifact)
+        except (OSError, ValueError) as error:
+            fail(f"cannot validate cohort artifact {artifact_name}: {error}")
+        if record.get("sha256") != current_sha:
+            fail(f"artifact {artifact_name} does not match its cohort binding")
+    return cohort, version, revision
+
+
+def check(output_root: Path, app: Path, output_dir: Path) -> None:
+    for name in (*INVENTORY_NAMES, COHORT_NAME):
+        if not (output_dir / name).is_file():
+            fail(f"inventory is incomplete, missing {name} under {output_dir}")
+
+    cohort, version, revision = check_cohort_state(output_root, app, output_dir)
+    stamp = read_provenance(output_dir)
+    if stamp.get("revision") != revision:
+        fail(
+            f"inventory revision is {stamp.get('revision')!r}, but cohort revision is {revision!r}"
+        )
+    if stamp.get("version") != version:
+        fail(f"inventory version is {stamp.get('version')!r}, but cohort version is {version!r}")
 
     expected_inventory = inventory_fingerprint(output_dir)
     if cohort.get("inventorySha256") != expected_inventory:
@@ -136,11 +165,15 @@ def main() -> None:
 
     version = bundle_version(app)
     revision = head_revision()
+    cohort, cohort_version, cohort_revision = check_cohort_state(output_root, app, output_dir)
+    if cohort_version != version or cohort_revision != revision:
+        fail("release cohort identity changed while recording inventory")
     committed_at = subprocess.check_output(["git", "show", "-s", "--format=%cI", "HEAD"], cwd=ROOT, text=True).strip()
     created = datetime.fromisoformat(committed_at).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     count = write_inventory(app, output_dir, version, revision, created)
-    write_cohort(output_root, output_dir, version, revision)
+    cohort["inventorySha256"] = inventory_fingerprint(output_dir)
+    write_cohort(output_dir, cohort)
 
     # A stapled ticket means this really is the shipping state. Unsigned builds
     # (CI has no DEV_ID) legitimately have none — say which one this is, so an

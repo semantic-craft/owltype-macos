@@ -4,7 +4,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INVENTORY="$ROOT/scripts/inventory-release-bundle.py"
+COHORT_STATE="$ROOT/scripts/release-cohort-state.py"
 work="$(mktemp -d "${TMPDIR:-/tmp}/famo-cohort-selftest.XXXXXX")"
+work="$(cd "$work" && pwd -P)"
 trap 'rm -rf "$work"' EXIT
 
 pass=0
@@ -72,33 +74,31 @@ record_cohort() {
     python3 "$INVENTORY" record "$cohort_root" >"$output" 2>&1
 }
 
+initialize_cohort() {
+  python3 "$COHORT_STATE" initialize "$cohort_root" >"$output" 2>&1
+}
+
 write_version "9.8.7"
 printf 'fake executable\n' >"$payload"
 
 make_trace="$work/make-trace"
-helper_root="$(python3 - "$cohort_root" "$ROOT" <<'PY'
-import os
-import sys
-
-print(os.path.relpath(sys.argv[1], sys.argv[2]))
-PY
-)"
 if make -C "$ROOT" --no-print-directory -n dmg update-package \
     DEPS_CHECK= DEV_ID= RELEASE_OUTPUT_ROOT="$cohort_root" >"$make_trace" 2>&1 &&
    grep -qF -- "-derivedDataPath \"$cohort_root\"" "$make_trace" &&
    grep -qF "copy-famo-seed FAMO_CONFIG=Release DERIVED_DATA_PATH=\"$cohort_root\"" "$make_trace" &&
    grep -qF "\"$cohort_root/Build/Products/Release/Famo.app\"" "$make_trace" &&
    [[ "$(grep -cF "inventory-release-bundle.py record \"$cohort_root\"" "$make_trace")" -eq 1 ]] &&
-   grep -qF "bash package/make_package \"$helper_root\"" "$make_trace" &&
-   grep -qF "bash package/make_dmg \"$helper_root\"" "$make_trace" &&
-   grep -qF "bash package/make_update_package \"$helper_root\"" "$make_trace"; then
+   grep -qF "release-cohort-state.py initialize \"$cohort_root\"" "$make_trace" &&
+   grep -qF "bash package/make_package \"$cohort_root\"" "$make_trace" &&
+   grep -qF "bash package/make_dmg \"$cohort_root\"" "$make_trace" &&
+   grep -qF "bash package/make_update_package \"$cohort_root\"" "$make_trace"; then
   ok "Make propagates one custom output root through release and packaging boundaries"
 else
   sed 's/^/     /' "$make_trace" >&2
   bad "Make must propagate the custom output root without a second release record"
 fi
 
-if record_cohort && [[ -s "$state" ]]; then
+if initialize_cohort && record_cohort && [[ -s "$state" ]]; then
   ok "fake App records a cohort under a custom output root"
 else
   sed 's/^/     /' "$output" >&2
@@ -133,6 +133,7 @@ PY
 expect_fail "HEAD mismatch rejects the cohort" "cohort revision is" \
   env PATH="$fake_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     python3 "$INVENTORY" check "$cohort_root"
+initialize_cohort
 record_cohort
 
 write_version "9.8.8"
@@ -140,6 +141,7 @@ expect_fail "bundle version mismatch rejects the cohort" "cohort version is" \
   env PATH="$fake_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     python3 "$INVENTORY" check "$cohort_root"
 write_version "9.8.7"
+initialize_cohort
 record_cohort
 
 printf '\n' >>"$cohort_root/release/FAMOTYPE-SBOM.spdx.json"
@@ -149,7 +151,7 @@ expect_fail "inventory mismatch rejects the cohort" "cohort inventory fingerprin
 record_cohort
 
 printf 'mutated\n' >>"$payload"
-expect_fail "bundle mutation rejects the recorded inventory" "no longer matches the bundle" \
+expect_fail "bundle mutation rejects the recorded inventory" "artifact app does not match its cohort binding" \
   env PATH="$fake_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     python3 "$INVENTORY" check "$cohort_root"
 printf 'fake executable\n' >"$payload"
