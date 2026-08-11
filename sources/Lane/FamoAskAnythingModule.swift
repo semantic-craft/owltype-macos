@@ -139,7 +139,7 @@ final class FamoAskAnythingModule: FamoAskAnythingOpening {
   private let transport: FamoAskAnythingTransporting
   private let searchResolver: FamoAskSearchResolver
   private let isWebSearchEnabled: () -> Bool
-  private let webSearchProvider: () -> (backend: FamoWebSearchBackend, apiKey: String)?
+  private let preferredWebSearchBackend: () -> FamoWebSearchBackend
   private let webSearchKeyProvider: (FamoWebSearchBackend) -> String?
   private let webSearchClientFactory: (FamoWebSearchBackend) -> FamoWebSearching
   private let webSearchResultCount: Int
@@ -149,7 +149,9 @@ final class FamoAskAnythingModule: FamoAskAnythingOpening {
     transport: FamoAskAnythingTransporting,
     searchResolver: FamoAskSearchResolver,
     isWebSearchEnabled: @escaping () -> Bool = { FamoAskWebSearchSettings.isEnabled },
-    webSearchProvider: @escaping () -> (backend: FamoWebSearchBackend, apiKey: String)?,
+    preferredWebSearchBackend: @escaping () -> FamoWebSearchBackend = {
+      FamoWebSearchBackendSettings.backend
+    },
     webSearchKeyProvider: @escaping (FamoWebSearchBackend) -> String?,
     webSearchClientFactory: @escaping (FamoWebSearchBackend) -> FamoWebSearching = { $0.makeClient() },
     webSearchResultCount: Int = 5
@@ -158,7 +160,7 @@ final class FamoAskAnythingModule: FamoAskAnythingOpening {
     self.transport = transport
     self.searchResolver = searchResolver
     self.isWebSearchEnabled = isWebSearchEnabled
-    self.webSearchProvider = webSearchProvider
+    self.preferredWebSearchBackend = preferredWebSearchBackend
     self.webSearchKeyProvider = webSearchKeyProvider
     self.webSearchClientFactory = webSearchClientFactory
     self.webSearchResultCount = webSearchResultCount
@@ -213,16 +215,17 @@ final class FamoAskAnythingModule: FamoAskAnythingOpening {
     return attempts
   }
 
-  /// 已配好 Key 的搜索后端，用户选中的后端排第一；其他已配置后端随后。
+  /// 已配好 Key 的独立搜索后端，用户选择只重排、不设门槛。
+  ///
+  /// 偏好后端缺 Key 时只淘汰它自己；其余已配置后端仍按产品顺位进入同一尝试矩阵。把
+  /// 「偏好 + Key」绑成一个可选值会在偏好缺 Key 时错误丢掉所有后端，所以两者必须分开解析。
   private func webSearchBackends() -> [(backend: FamoWebSearchBackend, apiKey: String)] {
-    guard let selected = webSearchProvider() else { return [] }
-    var output = [selected]
-    for backend in FamoWebSearchBackend.allCases where backend != selected.backend {
-      if let key = webSearchKeyProvider(backend) {
-        output.append((backend, key))
-      }
+    FamoWebSearchBackend.orderedCandidates(preferred: preferredWebSearchBackend()).compactMap { backend in
+      guard let rawKey = webSearchKeyProvider(backend) else { return nil }
+      let apiKey = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !apiKey.isEmpty else { return nil }
+      return (backend, apiKey)
     }
-    return output
   }
 
   /// 逐家尝试到首个 delta；一旦有内容，后续失败不能换家，避免拼出两家各半的答案。
@@ -251,7 +254,8 @@ final class FamoAskAnythingModule: FamoAskAnythingOpening {
         if error is CancellationError || Task.isCancelled {
           return continuation.finish(throwing: CancellationError())
         }
-        guard FamoAskSearchFailover.shouldTryNextProvider(after: error) else {
+        guard FamoAskSearchFailover.shouldTryNextAttempt(
+          after: error, hasYieldedDelta: false) else {
           return continuation.finish(throwing: error)
         }
         lastError = error
@@ -266,13 +270,14 @@ final class FamoAskAnythingModule: FamoAskAnythingOpening {
           yieldedAnyContent = true
           continuation.yield(delta)
         }
+        guard yieldedAnyContent else { throw FamoStreamingError.emptyResponse }
         return continuation.finish()
       } catch {
         if error is CancellationError || Task.isCancelled {
           return continuation.finish(throwing: CancellationError())
         }
-        guard !yieldedAnyContent,
-              FamoAskSearchFailover.shouldTryNextProvider(after: error) else {
+        guard FamoAskSearchFailover.shouldTryNextAttempt(
+          after: error, hasYieldedDelta: yieldedAnyContent) else {
           return continuation.finish(throwing: error)
         }
         lastError = error

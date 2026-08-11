@@ -396,7 +396,8 @@ final class FamoStreamingChatClientTests: XCTestCase {
       ),
       // 必须显式关掉独立搜索层：它的默认实现读的是**真钥匙串**。用户一旦在设置页存了搜索 Key，
       // 这些用例就会改走「先检索、再作答」并用真 URLSession 打外网 —— 表现为整套 suite 静默挂住。
-      webSearchProvider: { nil }
+      preferredWebSearchBackend: { .doubaoGlobal },
+      webSearchKeyProvider: { _ in nil }
     )
   }
 
@@ -516,7 +517,8 @@ final class FamoStreamingChatClientTests: XCTestCase {
         preferredProviderID: { nil },
         secretProvider: { _ in "sk-key" }
       ),
-      webSearchProvider: { nil }   // 同上：不让默认实现去读真钥匙串、打真网络。
+      preferredWebSearchBackend: { .doubaoGlobal },
+      webSearchKeyProvider: { _ in nil }   // 同上：不让默认实现去读真钥匙串、打真网络。
     )
     guard case let .success(open) = service.openAsk(messages: []) else {
       return XCTFail("expected a plain-chat stream")
@@ -616,10 +618,16 @@ final class FamoStreamingChatClientTests: XCTestCase {
         isEnabled: { true }, profilesProvider: { [] },
         defaultProfileProvider: { nil }, preferredProviderID: { nil },
         secretProvider: { _ in nil }),
-      webSearchProvider: { (.doubaoGlobal, "sk-bad") },
+      preferredWebSearchBackend: { .doubaoGlobal },
       // 第二家的 Key 走注入而不是真钥匙串：这台机器配没配过百炼搜索，结果都必须一样
       // （曾经这里读真 Keychain，配过 Key 的开发机上顺位真的成功，断言就翻车了）。
-      webSearchKeyProvider: { $0 == .qwen ? "sk-qwen-search" : nil },
+      webSearchKeyProvider: {
+        switch $0 {
+        case .doubaoGlobal: return "sk-bad"
+        case .qwen: return "sk-qwen-search"
+        case .perplexity: return nil
+        }
+      },
       webSearchClientFactory: { backend in
         backend == .doubaoGlobal
           ? StubWebSearch(failure: .serviceError(code: "invalid_api_key", message: "invalid"))
@@ -646,23 +654,44 @@ final class FamoStreamingChatClientTests: XCTestCase {
   func testTransientFailuresAreReportedNotFailedOver() {
     XCTAssertTrue(FamoAskSearchFailover.isConfigurationRefusal(status: 401))
     XCTAssertTrue(FamoAskSearchFailover.isConfigurationRefusal(status: 404), "方舟 ToolNotOpen")
+    XCTAssertFalse(
+      FamoAskSearchFailover.isConfigurationRefusal(status: 422),
+      "无法确认是否与问题内容有关的拒绝不能跨供应商追加请求")
+    XCTAssertFalse(FamoAskSearchFailover.isConfigurationRefusal(status: 451))
     XCTAssertFalse(FamoAskSearchFailover.isConfigurationRefusal(status: 429), "限流稍后可重试")
     XCTAssertFalse(FamoAskSearchFailover.isConfigurationRefusal(status: 408))
     XCTAssertFalse(FamoAskSearchFailover.isConfigurationRefusal(status: 500))
 
     XCTAssertFalse(
-      FamoAskSearchFailover.shouldTryNextProvider(after: URLError(.notConnectedToInternet)),
+      FamoAskSearchFailover.shouldTryNextAttempt(
+        after: URLError(.notConnectedToInternet), hasYieldedDelta: false),
       "断网如实上报")
     XCTAssertTrue(
-      FamoAskSearchFailover.shouldTryNextProvider(
-        after: FamoWebSearchError.serviceError(code: "invalid_api_key", message: "")))
+      FamoAskSearchFailover.shouldTryNextAttempt(
+        after: FamoWebSearchError.serviceError(code: "invalid_api_key", message: ""),
+        hasYieldedDelta: false))
     XCTAssertFalse(
-      FamoAskSearchFailover.shouldTryNextProvider(
-        after: FamoWebSearchError.serviceError(code: "700429", message: "")),
+      FamoAskSearchFailover.shouldTryNextAttempt(
+        after: FamoWebSearchError.serviceError(code: "700429", message: ""),
+        hasYieldedDelta: false),
       "豆包的限流码带着 HTTP 200 回来，同样不该顺位")
+    XCTAssertFalse(
+      FamoAskSearchFailover.shouldTryNextAttempt(
+        after: FamoWebSearchError.serviceError(code: "ContentPolicyViolation", message: ""),
+        hasYieldedDelta: false),
+      "未知业务码不能默认跨供应商追加请求")
     XCTAssertTrue(
-      FamoAskSearchFailover.shouldTryNextProvider(after: FamoWebSearchError.noResults),
+      FamoAskSearchFailover.shouldTryNextAttempt(
+        after: FamoWebSearchError.noResults, hasYieldedDelta: false),
       "一条都没搜到 → 换一家，而不是注入空资料却署名联网")
+    XCTAssertTrue(
+      FamoAskSearchFailover.shouldTryNextAttempt(
+        after: FamoStreamingError.invalidEndpoint, hasYieldedDelta: false),
+      "端点不可改写时请求尚未发出，属于候选配置不可用")
+    XCTAssertFalse(
+      FamoAskSearchFailover.shouldTryNextAttempt(
+        after: FamoStreamingError.badHTTPStatus(401), hasYieldedDelta: true),
+      "即便是明确配置拒绝，首个 delta 之后也不能再拼接另一家的答案")
   }
 
   /// 一个**仍然走 `/chat/completions`** 的默认供应商。独立搜索层那几条用例要的就是这个角色：
@@ -706,10 +735,10 @@ final class FamoStreamingChatClientTests: XCTestCase {
         isEnabled: { true }, profilesProvider: { [] },
         defaultProfileProvider: { nil }, preferredProviderID: { nil },
         secretProvider: { _ in nil }),
-      webSearchProvider: { (.doubaoGlobal, "sk-search") },
+      preferredWebSearchBackend: { .doubaoGlobal },
       // 顺位候选的 Key 同理不能读真钥匙串：这台机器配过百炼/Perplexity 搜索 Key 的话，
       // 首家失败会顺位到一条真实路由，断言看到的就不是「退回普通问答」了。
-      webSearchKeyProvider: { _ in nil },
+      webSearchKeyProvider: { $0 == .doubaoGlobal ? "sk-search" : nil },
       webSearchClientFactory: { _ in search }
     )
   }

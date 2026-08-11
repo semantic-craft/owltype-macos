@@ -29,6 +29,9 @@ enum FamoStreamingError: Error, Equatable {
   case nonHTTPResponse
   /// The endpoint could not be rewritten to the route's transport (`/responses`). No request sent.
   case invalidEndpoint
+  /// The transport ended normally without ever yielding answer text. This is not success, and it
+  /// is not known to be a configuration refusal, so the ask module reports it without fanning out.
+  case emptyResponse
   /// The upstream reported a failure MID-STREAM (a Responses-API `response.failed` frame) after a
   /// 2xx. Carries its message. Without this the stream would just end, showing a blank answer as
   /// if it had succeeded.
@@ -396,7 +399,7 @@ final class FamoStreamingChatService {
     profileSecretProvider: @escaping (String) throws -> String? = { try FamoProviderKeychain().secret(named: $0) },
     legacyKeyProvider: @escaping () throws -> String? = FamoCloudKeychain.readDeepSeekAPIKey,
     searchResolver: FamoAskSearchResolver? = nil,
-    webSearchProvider: (() -> (backend: FamoWebSearchBackend, apiKey: String)?)? = nil,
+    preferredWebSearchBackend: (() -> FamoWebSearchBackend)? = nil,
     webSearchKeyProvider: ((FamoWebSearchBackend) -> String?)? = nil,
     webSearchClientFactory: ((FamoWebSearchBackend) -> FamoWebSearching)? = nil
   ) {
@@ -408,11 +411,8 @@ final class FamoStreamingChatService {
     let transport = FamoAskAnythingTransportAdapter(
       chatClient: client ?? FamoStreamingChatClient(),
       responsesClient: responsesClient ?? FamoResponsesStreamingClient())
-    let resolvedWebSearchProvider = webSearchProvider ?? {
-      let backend = FamoWebSearchBackendSettings.backend
-      guard let key = FamoWebSearchKeyStore.apiKey(for: backend) else { return nil }
-      return (backend, key)
-    }
+    let resolvedPreferredWebSearchBackend =
+      preferredWebSearchBackend ?? { FamoWebSearchBackendSettings.backend }
     let resolvedWebSearchKeyProvider =
       webSearchKeyProvider ?? { FamoWebSearchKeyStore.apiKey(for: $0) }
 
@@ -422,7 +422,7 @@ final class FamoStreamingChatService {
       gate: gate,
       transport: transport,
       searchResolver: searchResolver ?? FamoAskSearchResolver(),
-      webSearchProvider: resolvedWebSearchProvider,
+      preferredWebSearchBackend: resolvedPreferredWebSearchBackend,
       webSearchKeyProvider: resolvedWebSearchKeyProvider,
       webSearchClientFactory: webSearchClientFactory ?? { $0.makeClient() },
       webSearchResultCount: Self.webSearchResultCount)

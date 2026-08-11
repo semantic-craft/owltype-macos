@@ -147,8 +147,7 @@ struct FamoAskSearchResolver {
         routing: FamoCloudRouting.resolve(profile: profile), apiKey: apiKey)
       // 顺位表是按 providerID 排的，但「这家能不能搜」还可能取决于**型号**：DeepSeek 的
       // `/responses` 只收 deepseek-v4-flash，配着 pro 的档案交出去只会换来一个 400。
-      // 在这里如实跳过，比让调用方发出去再失败诚实（400 不在 `isConfigurationRefusal` 里，
-      // 不会顺位，会直接把这一问判死）。
+      // 在这里提前过滤，避免发出一次已知无效请求后才进入运行期顺位。
       guard route.transport != .none else { return nil }
       return route
     }
@@ -187,23 +186,27 @@ struct FamoAskSearchResolver {
 
 /// 一次联网尝试失败后，该顺位到下一家、还是如实报错给用户。
 ///
-/// 判据是「这家在当前配置下**拒绝服务**」还是「这次请求碰上了暂时的麻烦」：
-///   - 顺位：4xx。方舟未开通内容插件是 404 `ToolNotOpen`、MiMo 的 Key 失效是 401、欠费/未授权是
-///     402/403、参数被拒是 400 —— 换成同一家重试永远是同一个结果，只有换一家才可能出答案。
-///   - 报错：408 请求超时与 429 限流虽是 4xx 但**暂时**；5xx 是对方故障；`URLError`（断网、超时）
-///     是用户自己那侧的真错误。这些一律如实上报 —— 把断网吞成「换一家」会让用户以为是我们坏了，
-///     而且下一家同样连不上，只是把一个错误变成好几个。
+/// 判据是「这家在当前配置下**拒绝服务**」还是「无法确认能否安全换家」：
+///   - 顺位：明确的参数/鉴权/套餐/插件配置状态。方舟未开通内容插件是 404 `ToolNotOpen`、MiMo 的
+///     Key 失效是 401、欠费/未授权是 402/403、固定请求形状被拒是 400。
+///   - 报错：其余状态、未知业务码、5xx 与 `URLError`。未知即顺位会把同一问题额外发送给其他供应商，
+///     所以这里采取封闭列表；只有可以确认是配置拒绝的错误才允许在首个 delta 前换家。
 enum FamoAskSearchFailover {
-  /// 4xx 里**不**触发顺位的两个：请求超时与限流，两者稍后重试同一家仍有可能成功。
-  static let transientStatuses: Set<Int> = [408, 429]
+  /// 这些状态能确认是当前候选的固定配置问题，而不是这次请求的内容/网络问题。
+  static let configurationRefusalStatuses: Set<Int> = [400, 401, 402, 403, 404]
 
-  /// 该换下一家联网候选吗？
-  static func shouldTryNextProvider(after error: Error) -> Bool {
+  /// 该换下一条联网尝试吗？首个 delta 是不可逆边界：一旦已有输出，即使随后收到明确的
+  /// 401/404，也必须原样上报，不能把两家答案拼在一起。
+  static func shouldTryNextAttempt(after error: Error, hasYieldedDelta: Bool) -> Bool {
+    guard !hasYieldedDelta else { return false }
     switch error {
     case let streaming as FamoStreamingError:
       switch streaming {
       case let .badHTTPStatus(status):
         return isConfigurationRefusal(status: status)
+      case .invalidEndpoint:
+        // Responses URL 连改写都做不到，请求尚未发出；这是候选配置不可用，不是运行期故障。
+        return true
       default:
         // 非 HTTP 响应 / 2xx 之后才失败：请求已被接受、模型已开工，换一家不会更好。
         return false
@@ -217,8 +220,8 @@ enum FamoAskSearchFailover {
     }
   }
 
-  /// 4xx 且不是 408/429 —— 「这家在当前配置下不会为你服务」。
+  /// 明确的配置拒绝。451、422 等语义可能与问题内容有关，不能据此跨供应商追加请求。
   static func isConfigurationRefusal(status: Int) -> Bool {
-    (400...499).contains(status) && !transientStatuses.contains(status)
+    configurationRefusalStatuses.contains(status)
   }
 }

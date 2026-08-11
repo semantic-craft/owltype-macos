@@ -433,6 +433,13 @@ final class FamoWebSearchTests: XCTestCase {
       FamoWebSearchError.serviceError(code: "InternalError", message: "").isRouteUnusable)
   }
 
+  func testUnknownServiceErrorIsReportedInsteadOfFanningOut() {
+    XCTAssertFalse(
+      FamoWebSearchError.serviceError(
+        code: "ContentPolicyViolation", message: "request-specific refusal"
+      ).isRouteUnusable)
+  }
+
   // MARK: - 署名
 
   /// 署名要说「豆包搜索」/「Perplexity」而不是同名的**模型**供应商：检索的是它，作答的可能是 DeepSeek。
@@ -469,6 +476,15 @@ final class FamoWebSearchTests: XCTestCase {
       FamoWebSearchBackendSettings.backend, .doubaoGlobal,
       "不认识的值回到默认，而不是让联网整个失灵")
     FamoWebSearchBackendSettings.resetForTesting()
+  }
+
+  func testPreferredBackendOnlyMovesToFrontOfTheCompleteCandidateOrder() {
+    XCTAssertEqual(
+      FamoWebSearchBackend.orderedCandidates(preferred: .perplexity),
+      [.perplexity, .doubaoGlobal, .qwen])
+    XCTAssertEqual(
+      FamoWebSearchBackend.orderedCandidates(preferred: .qwen),
+      [.qwen, .doubaoGlobal, .perplexity])
   }
 
   // MARK: - Key 存放

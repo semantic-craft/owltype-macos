@@ -47,8 +47,9 @@ extension FamoWebSearchError {
   /// 「这个后端在当前配置下不会为你服务」→ 换下一家才有意义；反之是暂时性/本地故障，如实上报。
   ///
   /// 判据与 `FamoAskSearchFailover.isConfigurationRefusal` 同源，只是这里还要认几个**带着 HTTP 200
-  /// 回来**的业务码：豆包的 `700429` 是限流、`10500/10501` 是它自己内部错，这三个换一家没用；
-  /// 而 `invalid_api_key` / `ToolNotOpen` / 无可用套餐 是实打实的配置问题。
+  /// 回来**的业务码。除明确的 `noResults`（必须换后端才能避免空材料却署名联网）外，只有已知
+  /// 鉴权/套餐/固定参数错误可以顺位；未知码原样上报，避免把同一问题在不能确认必要性时继续
+  /// 发给另一家供应商。
   var isRouteUnusable: Bool {
     switch self {
     case .missingAPIKey, .invalidEndpoint, .noResults:
@@ -56,21 +57,18 @@ extension FamoWebSearchError {
     case let .badHTTPStatus(status):
       return FamoAskSearchFailover.isConfigurationRefusal(status: status)
     case let .serviceError(code, _):
-      return !Self.transientServiceCodes.contains(code)
+      return Self.configurationServiceCodes.contains(code)
     case .malformedResponse:
       // 回了看不懂的东西：可能是网关/代理插进来的页面。换一家不一定更好，如实上报。
       return false
     }
   }
 
-  /// 稍后重试同一家仍可能成功的业务码（豆包限流 / 内部错，Perplexity 的限流类型，百炼的限流与内部错）。
-  ///
-  /// 三家都会在错误正文里带自己的 `code`，而客户端一旦读到 `code` 就把状态码换成了 `serviceError`
-  /// —— 于是「429 属于暂时性」这条按状态码判的规则在这里失效，必须逐码补回来。漏掉一个的后果是把
-  /// 限流当成「这家不给你用」，白白顺位到下一家（下一家同样会被限流，只是把错误变多）。
-  private static let transientServiceCodes: Set<String> = [
-    "700429", "10500", "10501", "rate_limit_error",
-    "Throttling", "Throttling.RateQuota", "Throttling.AllocationQuota", "InternalError",
+  /// 三个后端已经观测或文档化的固定配置拒绝；新增错误码默认不顺位，须确认语义后再列入。
+  private static let configurationServiceCodes: Set<String> = [
+    "invalid_api_key", "700901", "10410",
+    "authentication_error", "InvalidApiKey", "InvalidParameter",
+    "ToolNotOpen", "insufficient_quota",
   ]
 }
 
@@ -232,12 +230,18 @@ struct FamoDoubaoGlobalSearchClient: FamoWebSearching {
 /// 支持域名/时效过滤，但 `api.perplexity.ai` 在国内多半要代理、且没有免费额度；通义千问复用你已经有的
 /// 百炼 Key（不用再开一个搜索账号），代价是它的来源**不带正文摘要**——见 `FamoDashScopeSearchWire`。
 /// 法墨是中文输入法，所以默认豆包，另外两家作为可选项。
-enum FamoWebSearchBackend: String, CaseIterable, Sendable {
+enum FamoWebSearchBackend: String, CaseIterable, Hashable, Sendable {
   case doubaoGlobal = "doubao"
   /// 阿里云百炼（通义千问）。国内第二档，排在 Perplexity 前面。
   case qwen
 
   case perplexity
+
+  /// 独立搜索后端的尝试顺序。设置偏好只把对应后端移到最前，不删除任何其他候选；Key
+  /// 是否可用由任意提问 module 逐项过滤，避免「首选未配 Key」误伤已配置的后备服务。
+  static func orderedCandidates(preferred: FamoWebSearchBackend) -> [FamoWebSearchBackend] {
+    [preferred] + allCases.filter { $0 != preferred }
+  }
 
   /// 设置页下拉里的名字。
   var displayName: String {
