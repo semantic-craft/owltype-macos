@@ -1,4 +1,4 @@
-.PHONY: all install deps release debug bootstrap test release-gate source-archive update-package setup-dev privacy-gate
+.PHONY: all install deps release debug bootstrap test release-gate source-archive update-package setup-dev privacy-gate release-cohort-check release-cohort-selftest
 
 all: release
 install: install-release
@@ -16,6 +16,12 @@ setup-dev:
 RIME_BIN_DIR = librime/dist/bin
 RIME_LIB_DIR = librime/dist/lib
 DERIVED_DATA_PATH ?= build
+RELEASE_OUTPUT_ROOT ?= $(DERIVED_DATA_PATH)
+RELEASE_APP = $(RELEASE_OUTPUT_ROOT)/Build/Products/Release/Famo.app
+# The legacy package helpers prepend PROJECT_ROOT to their path argument. Convert an absolute
+# cohort root to an equivalent repo-relative path at that boundary; release/signing/checks consume
+# RELEASE_OUTPUT_ROOT directly and therefore keep the caller-selected root unchanged.
+RELEASE_OUTPUT_ROOT_FOR_PACKAGE_HELPERS = $(shell python3 -c 'import os, sys; print(os.path.relpath(os.path.abspath(sys.argv[1]), sys.argv[2]))' "$(RELEASE_OUTPUT_ROOT)" "$(CURDIR)")
 NOTARY_PROFILE ?= xw-notary
 
 RIME_LIBRARY_FILE_NAME = librime.1.dylib
@@ -134,18 +140,18 @@ copy-famo-seed:
 	fi
 
 release: $(DEPS_CHECK)
-	mkdir -p $(DERIVED_DATA_PATH)
+	mkdir -p "$(RELEASE_OUTPUT_ROOT)"
 	bash package/add_data_files
-	xcodebuild -project Famo.xcodeproj -configuration Release -scheme Famo -derivedDataPath $(DERIVED_DATA_PATH) $(BUILD_SETTINGS) \
+	xcodebuild -project Famo.xcodeproj -configuration Release -scheme Famo -derivedDataPath "$(RELEASE_OUTPUT_ROOT)" $(BUILD_SETTINGS) \
 		CODE_SIGNING_ALLOWED=NO \
 		ENABLE_CODE_COVERAGE=NO \
 		OTHER_SWIFT_FLAGS="-file-prefix-map $(CURDIR)=." \
 		OTHER_CFLAGS="-ffile-prefix-map=$(CURDIR)=." \
 		OTHER_CPLUSPLUSFLAGS="-ffile-prefix-map=$(CURDIR)=." \
 		build
-	$(MAKE) copy-famo-seed FAMO_CONFIG=Release
+	$(MAKE) copy-famo-seed FAMO_CONFIG=Release DERIVED_DATA_PATH="$(RELEASE_OUTPUT_ROOT)"
 	python3 scripts/finalize-release-bundle.py \
-		"$(DERIVED_DATA_PATH)/Build/Products/Release/Famo.app"
+		"$(RELEASE_APP)"
 
 debug: $(DEPS_CHECK)
 	mkdir -p $(DERIVED_DATA_PATH)
@@ -185,11 +191,11 @@ clean-sparkle:
 notarized-app: release
 ifdef DEV_ID
 	@test -n "$(NOTARY_PROFILE)" || { echo "ERROR: NOTARY_PROFILE is required when DEV_ID is set" >&2; exit 1; }
-	bash package/sign_app "$(DEV_ID)" "$(DERIVED_DATA_PATH)"
+	bash package/sign_app "$(DEV_ID)" "$(RELEASE_OUTPUT_ROOT)"
 	rm -f package/Famo-app.zip
-	ditto -c -k --keepParent "$(DERIVED_DATA_PATH)/Build/Products/Release/Famo.app" package/Famo-app.zip
+	ditto -c -k --keepParent "$(RELEASE_APP)" package/Famo-app.zip
 	@for i in 1 2 3; do xcrun notarytool submit package/Famo-app.zip --keychain-profile "$(NOTARY_PROFILE)" --wait && break || { echo "[famo] notary(app) 超时/失败，重试 $$i/3（20s）…"; sleep 20; }; done
-	xcrun stapler staple "$(DERIVED_DATA_PATH)/Build/Products/Release/Famo.app"
+	xcrun stapler staple "$(RELEASE_APP)"
 	rm package/Famo-app.zip
 endif
 	@# 出厂盘点必须描述**最终出厂的那份 app**，所以固定排在 ifdef 块之后：签名会重写全部 12 个
@@ -197,12 +203,10 @@ endif
 	@# 盘点写在 bundle **外面**——写进 Contents/Resources 就会改变被盘点的对象本身，结果取决于
 	@# 跑过几次、以及上一版在 DerivedData 里留下了什么（1.5.14 出厂清单记的就是上一版的公证票）。
 	@# 未签名构建（CI 无 DEV_ID）同样出盘点，描述的就是那份未签名 app。
-	python3 scripts/inventory-release-bundle.py \
-		"$(DERIVED_DATA_PATH)/Build/Products/Release/Famo.app" \
-		"$(DERIVED_DATA_PATH)/release"
+	python3 scripts/inventory-release-bundle.py record "$(RELEASE_OUTPUT_ROOT)"
 
 $(PACKAGE): notarized-app
-	bash package/make_package "$(DERIVED_DATA_PATH)"
+	bash package/make_package "$(RELEASE_OUTPUT_ROOT_FOR_PACKAGE_HELPERS)"
 ifdef DEV_ID
 	@for i in 1 2 3 4 5; do rm -f package/Famo-signed.pkg; productsign --sign "Developer ID Installer: $(DEV_ID)" package/Famo.pkg package/Famo-signed.pkg && break || { echo "[famo] productsign 时间戳抖动(TSA -67882)，重试 $$i/5…"; sleep 8; }; done; test -f package/Famo-signed.pkg
 	rm package/Famo.pkg
@@ -235,7 +239,7 @@ archive: package package/sign_update
 # 透传 DEV_ID/NOTARY_PROFILE 给 make_dmg（脚本从环境读取，未设则跳过签名/公证、仍组出未签名 DMG 供本地验证）。
 .PHONY: dmg
 dmg: package
-	DEV_ID="$(DEV_ID)" NOTARY_PROFILE="$(NOTARY_PROFILE)" bash package/make_dmg "$(DERIVED_DATA_PATH)"
+	DEV_ID="$(DEV_ID)" NOTARY_PROFILE="$(NOTARY_PROFILE)" bash package/make_dmg "$(RELEASE_OUTPUT_ROOT_FOR_PACKAGE_HELPERS)"
 
 DSTROOT = /Library/Input Methods
 FAMO_APP_ROOT = $(DSTROOT)/Famo.app
@@ -252,7 +256,7 @@ install-debug: debug permission-check
 
 install-release: release permission-check
 	rm -rf "$(FAMO_APP_ROOT)"
-	cp -R $(DERIVED_DATA_PATH)/Build/Products/Release/Famo.app "$(DSTROOT)"
+	cp -R "$(RELEASE_APP)" "$(DSTROOT)"
 	DSTROOT="$(DSTROOT)" bash scripts/postinstall
 
 .PHONY: clean clean-deps
@@ -296,12 +300,18 @@ test: $(DEPS_CHECK)
 # 这里只消费 notarized-app 已经写好的出厂盘点；盘点不存在时 create-source-archive.sh 报错并
 # 指明先跑 make notarized-app / make dmg。
 source-archive:
-	bash scripts/create-source-archive.sh \
-		"$(DERIVED_DATA_PATH)/Build/Products/Release/Famo.app" \
-		"$(DERIVED_DATA_PATH)/release"
+	bash scripts/create-source-archive.sh "$(RELEASE_OUTPUT_ROOT)"
+
+# Read-only cohort preflight. It deliberately has no build prerequisite: callers may invoke it
+# repeatedly without rebuilding, re-signing or replacing the selected cohort.
+release-cohort-check:
+	python3 scripts/inventory-release-bundle.py check "$(RELEASE_OUTPUT_ROOT)"
+
+release-cohort-selftest:
+	bash scripts/release-cohort.selftest.sh
 
 update-package: release
-	bash package/make_update_package "$(DERIVED_DATA_PATH)"
+	bash package/make_update_package "$(RELEASE_OUTPUT_ROOT_FOR_PACKAGE_HELPERS)"
 
 privacy-gate:
 	bash scripts/check-public-source.sh
@@ -315,12 +325,12 @@ privacy-gate:
 	@# 盘点那两份从 bundle 内挪到了 release/，它们照样是上架产物 —— 跟着一起扫，别让这次搬家
 	@# 悄悄缩小密钥扫描面。产物不存在时 check-artifact-secrets.sh 打 SKIP，不影响单独跑本目标。
 	bash scripts/check-secrets.sh --artifacts \
-		"$(DERIVED_DATA_PATH)/Build/Products/Release/Famo.app" \
-		"$(DERIVED_DATA_PATH)"/release/*-source.tar.gz \
-		"$(DERIVED_DATA_PATH)/release/FAMOTYPE-FILE-MANIFEST.sha256" \
-		"$(DERIVED_DATA_PATH)/release/FAMOTYPE-SBOM.spdx.json"
+		"$(RELEASE_APP)" \
+		"$(RELEASE_OUTPUT_ROOT)"/release/*-source.tar.gz \
+		"$(RELEASE_OUTPUT_ROOT)/release/FAMOTYPE-FILE-MANIFEST.sha256" \
+		"$(RELEASE_OUTPUT_ROOT)/release/FAMOTYPE-SBOM.spdx.json"
 
 # notarized-app 顶替了原来 source-archive 自带的 `release` 依赖：CI 无 DEV_ID 时它就等于
 # 「构建 + finalize + 出厂盘点」，正是 source-archive 消费盘点所需，并不比原来多构建一次。
-release-gate: test notarized-app source-archive privacy-gate
+release-gate: test notarized-app release-cohort-selftest source-archive privacy-gate
 	bash -n action-install.sh scripts/*.sh

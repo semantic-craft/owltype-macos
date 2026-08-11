@@ -22,6 +22,11 @@ SBOM_NAME = "FAMOTYPE-SBOM.spdx.json"
 # "the inventory exists" is not the same claim as "the inventory describes the
 # App built from this source" — see the staleness check in create-source-archive.sh.
 PROVENANCE_NAME = "FAMOTYPE-APP-PROVENANCE.txt"
+COHORT_NAME = "FAMOTYPE-RELEASE-COHORT.json"
+COHORT_SCHEMA_VERSION = 1
+INVENTORY_NAMES = (MANIFEST_NAME, SBOM_NAME, PROVENANCE_NAME)
+RELEASE_APP_RELATIVE = Path("Build/Products/Release/Famo.app")
+RELEASE_INVENTORY_RELATIVE = Path("release")
 
 COMPONENTS = (
     ("Famotype", None, "GPL-3.0-only", "https://github.com/semantic-craft/famotype-macos"),
@@ -44,6 +49,52 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def release_paths(output_root: Path) -> tuple[Path, Path, Path]:
+    """Resolve the one output root and its cohort-owned App/inventory paths."""
+    root = output_root.resolve()
+    return root, root / RELEASE_APP_RELATIVE, root / RELEASE_INVENTORY_RELATIVE
+
+
+def output_root_fingerprint(output_root: Path) -> str:
+    """Bind local state to a root without storing a private absolute path."""
+    return hashlib.sha256(str(output_root.resolve()).encode("utf-8")).hexdigest()
+
+
+def inventory_fingerprint(output_dir: Path) -> str:
+    """Hash every published inventory file with an unambiguous name boundary."""
+    digest = hashlib.sha256()
+    for name in INVENTORY_NAMES:
+        digest.update(name.encode("utf-8"))
+        digest.update(b"\0")
+        with (output_dir / name).open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def read_cohort(output_dir: Path) -> dict:
+    value = json.loads((output_dir / COHORT_NAME).read_text())
+    if not isinstance(value, dict):
+        raise ValueError("cohort identity is not a JSON object")
+    return value
+
+
+def write_cohort(output_root: Path, output_dir: Path, version: str, revision: str) -> None:
+    """Atomically bind HEAD, version, root and the current inventory."""
+    cohort = {
+        "inventorySha256": inventory_fingerprint(output_dir),
+        "outputRootSha256": output_root_fingerprint(output_root),
+        "revision": revision,
+        "schemaVersion": COHORT_SCHEMA_VERSION,
+        "version": version,
+    }
+    destination = output_dir / COHORT_NAME
+    temporary = destination.with_name(f".{destination.name}.tmp")
+    temporary.write_text(json.dumps(cohort, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+    temporary.replace(destination)
 
 
 def relative_files(app: Path) -> list[tuple[str, Path]]:

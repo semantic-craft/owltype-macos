@@ -18,10 +18,11 @@ Verifying a downloaded release:
 
     cd /path/to/Famo.app && shasum -a 256 -c /path/to/FAMOTYPE-FILE-MANIFEST.sha256
 
-`--check` re-verifies an inventory before it is used as provenance. DerivedData
-survives across commits, so "an inventory exists" is a weaker claim than "this
-inventory describes the App built from this source" — without the check,
-`make source-archive` would happily pair today's source with yesterday's binary.
+`check OUTPUT_ROOT` re-verifies the cohort before it is used as provenance.
+DerivedData survives across commits, so "an inventory exists" is a weaker claim
+than "this inventory describes the App built from this source under this output
+root" — without the check, `make source-archive` would happily pair today's
+source with yesterday's binary.
 """
 
 import plistlib
@@ -31,11 +32,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from famo_bundle import (
+    COHORT_NAME,
+    COHORT_SCHEMA_VERSION,
+    INVENTORY_NAMES,
     MANIFEST_NAME,
-    PROVENANCE_NAME,
     SBOM_NAME,
+    inventory_fingerprint,
     manifest_text,
+    output_root_fingerprint,
+    read_cohort,
     read_provenance,
+    release_paths,
+    write_cohort,
     write_inventory,
 )
 
@@ -60,21 +68,47 @@ def bundle_version(app: Path) -> str:
     return version
 
 
-def check(app: Path, output_dir: Path) -> None:
-    for name in (MANIFEST_NAME, SBOM_NAME, PROVENANCE_NAME):
+def check(output_root: Path, app: Path, output_dir: Path) -> None:
+    for name in (*INVENTORY_NAMES, COHORT_NAME):
         if not (output_dir / name).is_file():
             fail(f"inventory is incomplete, missing {name} under {output_dir}")
 
+    try:
+        cohort = read_cohort(output_dir)
+    except (OSError, ValueError) as error:
+        fail(f"cannot read {COHORT_NAME}: {error}")
+
+    if cohort.get("schemaVersion") != COHORT_SCHEMA_VERSION:
+        fail(
+            f"cohort schema is {cohort.get('schemaVersion')!r}, "
+            f"expected {COHORT_SCHEMA_VERSION}"
+        )
+
     stamp = read_provenance(output_dir)
     revision = head_revision()
-    if stamp.get("revision") != revision:
+    if cohort.get("revision") != revision:
         fail(
-            f"inventory was taken at {stamp.get('revision')!r}, but HEAD is {revision!r}; "
+            f"cohort revision is {cohort.get('revision')!r}, but HEAD is {revision!r}; "
             "re-run make notarized-app / make dmg so the inventory matches this commit"
         )
+    if stamp.get("revision") != revision:
+        fail(
+            f"inventory revision is {stamp.get('revision')!r}, but cohort revision is {revision!r}"
+        )
+
     version = bundle_version(app)
+    if cohort.get("version") != version:
+        fail(f"cohort version is {cohort.get('version')!r}, but the bundle is {version!r}")
     if stamp.get("version") != version:
-        fail(f"inventory records version {stamp.get('version')!r}, but the bundle is {version!r}")
+        fail(f"inventory version is {stamp.get('version')!r}, but cohort version is {version!r}")
+
+    expected_root = output_root_fingerprint(output_root)
+    if cohort.get("outputRootSha256") != expected_root:
+        fail(f"cohort belongs to a different output root, not {output_root}")
+
+    expected_inventory = inventory_fingerprint(output_dir)
+    if cohort.get("inventorySha256") != expected_inventory:
+        fail("cohort inventory fingerprint does not match the current inventory")
 
     if (output_dir / MANIFEST_NAME).read_text() != manifest_text(app):
         fail(
@@ -82,27 +116,22 @@ def check(app: Path, output_dir: Path) -> None:
             "re-run make notarized-app / make dmg"
         )
 
-    print(f"PASS: inventory matches bundle {version} at revision {revision}")
+    print(f"PASS: release cohort matches bundle {version} at revision {revision}")
+    print(f"PASS: release cohort output root is {output_root}")
 
 
 def main() -> None:
     argv = sys.argv[1:]
-    checking = bool(argv) and argv[0] == "--check"
-    if checking:
-        argv = argv[1:]
-    if len(argv) != 2:
-        fail(f"usage: {Path(sys.argv[0]).name} [--check] /path/to/Famo.app /path/to/output-directory")
+    if len(argv) != 2 or argv[0] not in {"record", "check"}:
+        fail(f"usage: {Path(sys.argv[0]).name} record|check /path/to/release-output-root")
 
-    app = Path(argv[0]).resolve()
-    output_dir = Path(argv[1]).resolve()
+    command = argv[0]
+    output_root, app, output_dir = release_paths(Path(argv[1]))
     if not (app / "Contents/Info.plist").is_file():
         fail(f"not a Famo app bundle: {app}")
-    # The whole point of writing outside the bundle; guard it rather than trust it.
-    if output_dir == app or app in output_dir.parents:
-        fail(f"inventory output must live outside the bundle, got {output_dir}")
 
-    if checking:
-        check(app, output_dir)
+    if command == "check":
+        check(output_root, app, output_dir)
         return
 
     version = bundle_version(app)
@@ -111,6 +140,7 @@ def main() -> None:
     created = datetime.fromisoformat(committed_at).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     count = write_inventory(app, output_dir, version, revision, created)
+    write_cohort(output_root, output_dir, version, revision)
 
     # A stapled ticket means this really is the shipping state. Unsigned builds
     # (CI has no DEV_ID) legitimately have none — say which one this is, so an
@@ -126,7 +156,7 @@ def main() -> None:
         print("PASS: bundle carries a stapled notarization ticket")
     else:
         print("NOTE: bundle carries no notarization ticket (unsigned build)")
-    print(f"PASS: {MANIFEST_NAME}, {SBOM_NAME} and {PROVENANCE_NAME} written under {output_dir}")
+    print(f"PASS: {MANIFEST_NAME}, {SBOM_NAME} and {COHORT_NAME} written under {output_dir}")
 
 
 if __name__ == "__main__":

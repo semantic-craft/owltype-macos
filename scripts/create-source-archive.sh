@@ -3,13 +3,19 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-app="${1:-}"
-output_dir="${2:-}"
+output_root="${1:-}"
 
-[[ -n "$app" && -n "$output_dir" ]] || {
-  echo "usage: $0 /path/to/Famo.app /path/to/output-directory" >&2
+[[ -n "$output_root" ]] || {
+  echo "usage: $0 /path/to/release-output-root" >&2
   exit 1
 }
+[[ -d "$output_root" ]] || {
+  echo "缺少构建输出根目录: $output_root（先跑 make notarized-app / make dmg）" >&2
+  exit 1
+}
+output_root="$(cd "$output_root" && pwd -P)"
+app="$output_root/Build/Products/Release/Famo.app"
+output_dir="$output_root/release"
 [[ -f "$app/Contents/Info.plist" ]] || {
   echo "缺少已构建的 Famo.app: ${app}（先跑 make notarized-app / make dmg）" >&2
   exit 1
@@ -28,8 +34,8 @@ app_manifest="$output_dir/FAMOTYPE-FILE-MANIFEST.sha256"
 # 「盘点存在」不等于「盘点描述的就是这份源码构建出来的 app」：DerivedData 跨 commit 存活，
 # 而本脚本要求洁净工作区，恰恰逼着操作者在 make dmg 之后、跑本脚本之前提交——那一提交就让
 # HEAD 走了。不验的话，就是拿今天的源码配昨天的二进制，正是本次改动要消灭的那类错位。
-# --check 复核两件事：盘点记录的 revision == HEAD，且清单仍然逐字节吻合盘上那个 bundle。
-python3 "$repo_root/scripts/inventory-release-bundle.py" --check "$app" "$output_dir"
+# cohort check 复核 HEAD、版本、输出根、盘点与 bundle 全部属于同一构建。
+python3 "$repo_root/scripts/inventory-release-bundle.py" check "$output_root"
 [[ -d "$repo_root/data/famo-rime" ]] || {
   echo "data/famo-rime is missing; run make famo-seed" >&2
   exit 1
