@@ -268,7 +268,6 @@ test: $(DEPS_CHECK)
 		CODE_SIGN_IDENTITY=- \
 		test \
 		-skip-testing:FamoTests/FamoGoalBriefLiveTests \
-		-skip-testing:FamoTests/FamoLiveInputTraceTests \
 		-skip-testing:FamoTests/FamoPromptOptimizeLiveTests \
 		-skip-testing:FamoTests/FamoResponsesPromptEvaluationLiveTests \
 		-skip-testing:FamoTests/FamoSkillsLiveTests \

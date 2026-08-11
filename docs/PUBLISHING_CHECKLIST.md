@@ -85,5 +85,6 @@ a binary release while any provenance, corresponding-source, license, or human-r
 Local tests use fake adapters, unsigned system packaging tools, and synthetic Sparkle keys only;
 they do not replace a maintainer's final Developer ID signing, notarization, stapling, and installed
 update validation on the exact release artifacts.
-The product test entrypoint explicitly excludes all six credential-gated Live suites; release and
-source CI must never rely on their default skip behavior or run an unfiltered `xcodebuild test`.
+The product test entrypoint explicitly excludes the five credential-gated Live suites; the offline
+`FamoLiveInputTraceTests` privacy regression remains enabled. Release and source CI must never rely
+on default skip behavior or run an unfiltered `xcodebuild test`.
