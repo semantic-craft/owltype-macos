@@ -58,9 +58,11 @@ final class FamoM3EmojiSkinTests: XCTestCase {
   }
 
   func testDeepredIsTheDefaultSkin() {
-    XCTAssertEqual(FamoSkinPreferences.skin, .deepred)
-    FamoSkinPreferences.skin = .wuda
-    XCTAssertEqual(FamoSkinPreferences.skin, .wuda)
+    let settings = FamoCandidatePanelSettings.live
+    let state = FamoSettingsState()
+    XCTAssertEqual(settings.snapshot().skin, .deepred)
+    settings.edit(.skin(.wuda), state: state, onChange: {})
+    XCTAssertEqual(settings.snapshot().skin, .wuda)
   }
 
   // MARK: - Status HUD message-type selection (reproduces legacy FamoPanel.updateStatus)

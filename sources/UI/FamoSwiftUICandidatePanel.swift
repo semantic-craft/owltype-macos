@@ -383,19 +383,13 @@ final class FamoSwiftUICandidatePanel: NSPanel {
     panelState.isScroll = prefs.orientation.scrolls
     // Honor the v0.2.2/G8 appearance prefs.
     panelState.fontSize = prefs.fontSize.base
-    FamoCandidatePanelSettings.live.apply(prefs.candidatePanelSettings, to: panelState)
-    panelState.animationsEnabled = prefs.animationsEnabled
+    FamoCandidatePanelSettings.live.apply(prefs.candidatePanelSettings, to: panelState) {
+      self.appearance = $0
+    }
     panelState.showPreedit = prefs.showPreedit
     // Feature 4 / 7: paging-arrow visibility + candidate-format preset (self-drawn panel).
     panelState.showPaging = prefs.showPaging
     panelState.candidateFormat = prefs.candidateFormat
-    // Honor the chosen 皮肤 so the live candidate panel follows the settings page.
-    panelState.theme = prefs.theme
-    switch prefs.appearance {
-    case .system: self.appearance = nil
-    case .light:  self.appearance = NSAppearance(named: .aqua)
-    case .dark:   self.appearance = NSAppearance(named: .darkAqua)
-    }
   }
 
   /// Place the panel below the caret anchor, clamped multi-display-safe. Delegates the screen

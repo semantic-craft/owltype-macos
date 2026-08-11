@@ -6,6 +6,14 @@
 import AppKit
 import SwiftUI
 
+/// Candidate-panel appearance mode. `system` follows the host environment; `light` / `dark`
+/// force the hosting panel's AppKit appearance and therefore SwiftUI color scheme.
+enum FamoPanelAppearance: String, CaseIterable, Sendable {
+  case system
+  case light
+  case dark
+}
+
 /// The user-visible candidate typeface choice. This is persisted; the runtime panel receives a
 /// resolved `FamoCandidateFont` so it never needs to know how installed-family fallback works.
 enum FamoCandidateFontSelection: String, CaseIterable, Sendable {
@@ -82,12 +90,22 @@ struct FamoLocalCandidateFontCatalog: FamoCandidateFontCatalog {
   }
 }
 
-/// Deep module for candidate-panel settings. #112 establishes the complete lifecycle with font;
-/// #117/#118 can move their fields behind the same seed/edit/snapshot/apply boundary without the
-/// callers learning persistence or synchronization rules.
+/// Deep module for candidate-panel appearance settings. Font, appearance mode, skin, and animation
+/// preference cross one seed/edit/snapshot/apply boundary; callers do not mirror persistence or
+/// visible-panel refresh rules.
 struct FamoCandidatePanelSettings {
   struct Snapshot: Sendable, Equatable {
+    let appearance: FamoPanelAppearance
+    let skin: FamoSkin
     let font: FamoCandidateFont
+    let animationsEnabled: Bool
+  }
+
+  enum Edit: Sendable, Equatable {
+    case appearance(FamoPanelAppearance)
+    case skin(FamoSkin)
+    case font(FamoCandidateFontSelection)
+    case animationsEnabled(Bool)
   }
 
   static let live = FamoCandidatePanelSettings(
@@ -95,7 +113,10 @@ struct FamoCandidatePanelSettings {
     fontCatalog: FamoLocalCandidateFontCatalog()
   )
 
+  private static let appearanceKey = "FamoPanelAppearance"
+  private static let skinKey = "FamoSkin"
   private static let fontSelectionKey = "FamoPanelFontDesign"
+  private static let animationsEnabledKey = "FamoPanelAnimations"
   private static let notoSerifSCFamilies = [
     "Noto Serif SC",
     "Noto Serif CJK SC",
@@ -122,19 +143,34 @@ struct FamoCandidatePanelSettings {
 
   /// Settings-window reopen/reseed boundary.
   func seed(_ state: FamoSettingsState) {
-    state.candidateFont = snapshot().font
+    let snapshot = snapshot()
+    state.panelAppearance = snapshot.appearance
+    state.skin = snapshot.skin
+    state.candidateFont = snapshot.font
+    state.panelAnimationsEnabled = snapshot.animationsEnabled
   }
 
-  /// The only edit path for candidate font: resolve, update observable editing state, persist, then
-  /// notify the owner to refresh any visible panel from a new runtime snapshot.
-  func editFont(
-    _ selection: FamoCandidateFontSelection,
+  /// The only edit path for candidate-panel appearance fields: update observable editing state,
+  /// persist, then notify the owner to refresh any visible panel from a new runtime snapshot.
+  func edit(
+    _ edit: Edit,
     state: FamoSettingsState,
     onChange: () -> Void
   ) {
-    let font = resolveFont(selection)
-    state.candidateFont = font
-    defaults.set(selection.rawValue, forKey: Self.fontSelectionKey)
+    switch edit {
+    case .appearance(let appearance):
+      state.panelAppearance = appearance
+      defaults.set(appearance.rawValue, forKey: Self.appearanceKey)
+    case .skin(let skin):
+      state.skin = skin
+      defaults.set(skin.rawValue, forKey: Self.skinKey)
+    case .font(let selection):
+      state.candidateFont = resolveFont(selection)
+      defaults.set(selection.rawValue, forKey: Self.fontSelectionKey)
+    case .animationsEnabled(let enabled):
+      state.panelAnimationsEnabled = enabled
+      defaults.set(enabled, forKey: Self.animationsEnabledKey)
+    }
     onChange()
   }
 
@@ -143,12 +179,38 @@ struct FamoCandidatePanelSettings {
   func snapshot() -> Snapshot {
     let raw = defaults.string(forKey: Self.fontSelectionKey) ?? ""
     let selection = FamoCandidateFontSelection(rawValue: raw) ?? .default
-    return Snapshot(font: resolveFont(selection))
+    return Snapshot(
+      appearance: FamoPanelAppearance(
+        rawValue: defaults.string(forKey: Self.appearanceKey) ?? ""
+      ) ?? .system,
+      skin: currentSkin(),
+      font: resolveFont(selection),
+      animationsEnabled: defaults.object(forKey: Self.animationsEnabledKey) as? Bool ?? true
+    )
   }
 
-  /// Panel-apply boundary. Callers apply the module snapshot as one value and never mirror fields.
-  func apply(_ snapshot: Snapshot, to state: CandidatePanelState) {
+  /// Lightweight read for companion surfaces that share the selected palette but do not render
+  /// candidates. The candidate panel itself always consumes the complete runtime snapshot.
+  func currentSkin() -> FamoSkin {
+    FamoSkin(rawValue: defaults.string(forKey: Self.skinKey) ?? "") ?? .deepred
+  }
+
+  /// Panel-apply boundary. The observable rendering state and hosting-window appearance are applied
+  /// from the same module snapshot, so forced light/dark and following-system cannot drift.
+  func apply(
+    _ snapshot: Snapshot,
+    to state: CandidatePanelState,
+    setAppearance: (NSAppearance?) -> Void = { _ in }
+  ) {
+    state.appearance = snapshot.appearance
+    state.theme = snapshot.skin.theme
     state.candidateFont = snapshot.font
+    state.animationsEnabled = snapshot.animationsEnabled
+    setAppearance(appKitAppearance(for: snapshot))
+  }
+
+  func appKitAppearance(for snapshot: Snapshot) -> NSAppearance? {
+    resolvedAppearance(snapshot.appearance)
   }
 
   func resolveFont(_ selection: FamoCandidateFontSelection) -> FamoCandidateFont {
@@ -178,5 +240,13 @@ struct FamoCandidatePanelSettings {
     let resolution: FamoCandidateFont.Resolution = family.map { .installedFamily($0) }
       ?? .fallback(fallback)
     return FamoCandidateFont(selection: selection, resolution: resolution)
+  }
+
+  private func resolvedAppearance(_ appearance: FamoPanelAppearance) -> NSAppearance? {
+    switch appearance {
+    case .system: nil
+    case .light: NSAppearance(named: .aqua)
+    case .dark: NSAppearance(named: .darkAqua)
+    }
   }
 }

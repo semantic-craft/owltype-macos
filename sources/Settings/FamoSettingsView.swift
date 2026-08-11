@@ -77,9 +77,9 @@ struct FamoSettingsView: View {
     .animation(reduceMotion ? nil : .snappy(duration: 0.15), value: state.skin)
     .accessibilityIdentifier("FamoSettingsView")
     .onAppear {
-      // Delegate-free seed of the skin / emoji mirrors from their prefs homes, so the
-      // window opens reflecting the saved choices (the pages write back through both).
-      state.skin = FamoSkinPreferences.skin
+      // Delegate-free reseed so direct settings-view hosts and window reopen read the complete
+      // candidate appearance lifecycle from its module boundary.
+      FamoCandidatePanelSettings.live.seed(state)
       state.candidateEmojiEnabled = FamoEmojiPreferences.candidateEmojiEnabled
       state.cloudEnabled = FamoCloudPreferences.isEnabled
       state.cloudModel = FamoCloudPreferences.deepSeekModel
@@ -423,9 +423,9 @@ struct FamoSettingsView: View {
 
   // MARK: - Candidate display (G8)
 
-  /// 候选显示: orientation / typeface / count / animation / scroll-vs-single. Font edits cross
-  /// `FamoCandidatePanelSettings` as one lifecycle; the remaining panel options still write
-  /// through `FamoPanelPreferences` (live — next composition reflects them, like 候选窗外观).
+  /// 候选显示: orientation / typeface / count / animation / scroll-vs-single. Appearance edits
+  /// cross `FamoCandidatePanelSettings` as one lifecycle; #118 layout/content options remain in
+  /// `FamoPanelPreferences`.
   /// 候选个数 is Rime `menu/page_size`, so it flows through the keyboard patch + the fast
   /// config_file apply (`onApplyKeyboardConfigFast`) — effective immediately, no full `deploy()`.
   private var candidateDisplaySection: some View {
@@ -442,9 +442,8 @@ struct FamoSettingsView: View {
     let fontSelectionBinding = Binding(
       get: { state.candidateFont.selection },
       set: { newValue in
-        FamoCandidatePanelSettings.live.editFont(newValue, state: state) {
-          onPanelPreferencesChanged()
-        }
+        FamoCandidatePanelSettings.live.edit(
+          .font(newValue), state: state, onChange: onPanelPreferencesChanged)
       }
     )
     let fontSizeBinding = Binding(
@@ -460,11 +459,8 @@ struct FamoSettingsView: View {
     let animationsBinding = Binding(
       get: { state.panelAnimationsEnabled },
       set: { newValue in
-        persistPanelPreference {
-          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelAnimationsEnabled) {
-            FamoPanelPreferences.animationsEnabled = $0
-          }
-        }
+        FamoCandidatePanelSettings.live.edit(
+          .animationsEnabled(newValue), state: state, onChange: onPanelPreferencesChanged)
       }
     )
     let showPreeditBinding = Binding(

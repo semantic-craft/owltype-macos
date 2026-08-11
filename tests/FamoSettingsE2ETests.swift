@@ -132,22 +132,23 @@ final class FamoSettingsE2EContractTests: XCTestCase {
 
   func testPanelEmojiSkinAIAndExperimentalSettingsPersistToRuntimeHomes() throws {
     let panelEditingState = FamoSettingsState()
-    FamoPanelPreferences.appearance = .dark
+    let panelSettings = FamoCandidatePanelSettings.live
+    panelSettings.edit(.appearance(.dark), state: panelEditingState, onChange: {})
     FamoPanelPreferences.fontSize = .large
     FamoPanelPreferences.orientation = .vertical
-    FamoCandidatePanelSettings.live.editFont(.notoSerifSC, state: panelEditingState, onChange: {})
-    FamoPanelPreferences.animationsEnabled = false
-    FamoSkinPreferences.skin = .wuda
+    panelSettings.edit(.font(.notoSerifSC), state: panelEditingState, onChange: {})
+    panelSettings.edit(.animationsEnabled(false), state: panelEditingState, onChange: {})
+    panelSettings.edit(.skin(.wuda), state: panelEditingState, onChange: {})
     FamoCloudPreferences.isEnabled = true
     FamoCloudPreferences.provider = .deepSeek
     FamoCloudPreferences.deepSeekModel = "deepseek-reasoner"
 
-    XCTAssertEqual(FamoPanelPreferences.appearance, .dark)
+    XCTAssertEqual(panelSettings.snapshot().appearance, .dark)
     XCTAssertEqual(FamoPanelPreferences.fontSize, .large)
     XCTAssertTrue(FamoPanelPreferences.orientation.isVertical(rimeVertical: false, schemaID: "rime_ice"))
-    XCTAssertEqual(FamoCandidatePanelSettings.live.snapshot().font.selection, .notoSerifSC)
-    XCTAssertFalse(FamoPanelPreferences.animationsEnabled)
-    XCTAssertEqual(FamoSkinPreferences.skin, .wuda)
+    XCTAssertEqual(panelSettings.snapshot().font.selection, .notoSerifSC)
+    XCTAssertFalse(panelSettings.snapshot().animationsEnabled)
+    XCTAssertEqual(panelSettings.snapshot().skin, .wuda)
     XCTAssertTrue(FamoCloudPreferences.isEnabled)
     XCTAssertEqual(FamoCloudPreferences.provider, .deepSeek)
     XCTAssertEqual(FamoCloudPreferences.deepSeekModel, FamoCloudPreferences.reasonerDeepSeekModel)
@@ -259,12 +260,14 @@ final class FamoSettingsE2EContractTests: XCTestCase {
     FamoKeyboardPreferences.wubiAutoClear = false
     FamoKeyboardPreferences.wubiCandidateMode = .normal
     resetFuzzyPreferences()
-    FamoPanelPreferences.appearance = .system
+    let panelSettings = FamoCandidatePanelSettings.live
+    let panelState = FamoSettingsState()
+    panelSettings.edit(.appearance(.system), state: panelState, onChange: {})
     FamoPanelPreferences.fontSize = .medium
     FamoPanelPreferences.orientation = .auto
-    FamoCandidatePanelSettings.live.editFont(.default, state: FamoSettingsState(), onChange: {})
-    FamoPanelPreferences.animationsEnabled = true
-    FamoSkinPreferences.skin = .deepred
+    panelSettings.edit(.font(.default), state: panelState, onChange: {})
+    panelSettings.edit(.animationsEnabled(true), state: panelState, onChange: {})
+    panelSettings.edit(.skin(.deepred), state: panelState, onChange: {})
     FamoCloudPreferences.resetForTesting()
     FamoExperimentalPreferences.resetForTesting()
   }

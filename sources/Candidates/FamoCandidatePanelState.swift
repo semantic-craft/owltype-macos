@@ -49,6 +49,9 @@ final class CandidatePanelState {
   /// false at the start of each new composition (in `FamoSwiftUICandidatePanel.update`)
   /// so every composition begins compact. Ignored when `isVertical` is true.
   var isExpanded: Bool = false
+  /// Persisted appearance intent. The hosting panel applies it to `NSWindow.appearance`; retaining
+  /// it in observable state also makes the complete appearance snapshot externally verifiable.
+  var appearance: FamoPanelAppearance = .system
   var theme: FamoCandidateTheme = .shenda
   /// Base candidate text point size. The view derives preedit (base − 2), paging chevrons
   /// (base − 3) and **every padding** from it — 留白由 resolved geometry 以中档为锚
@@ -61,7 +64,7 @@ final class CandidatePanelState {
   /// Resolved candidate font (system / installed family / explicit fallback). Applied as one value
   /// by `FamoCandidatePanelSettings`; the renderer never performs installation detection.
   var candidateFont: FamoCandidateFont = .systemDefault
-  /// Whether candidate-bar animations run (G8). Seeded from `FamoPanelPreferences`;
+  /// Whether candidate-bar animations run (G8). Applied by `FamoCandidatePanelSettings`;
   /// the view ANDs this with `!reduceMotion` so Reduce Motion always wins.
   var animationsEnabled: Bool = true
   /// Whether the panel renders its own preedit header (输入串). Off → host inline
@@ -73,6 +76,12 @@ final class CandidatePanelState {
   /// 候选格式预设 (Feature 7). Drives label / comment visibility in both forms.
   /// Seeded from `FamoPanelPreferences.candidateFormat`.
   var candidateFormat: FamoCandidateFormat = .full
+
+  /// Candidate animations run only when both the user preference and system accessibility policy
+  /// allow them. Keeping this decision here gives rendering and lifecycle tests one rule.
+  func animationsAllowed(reduceMotion: Bool) -> Bool {
+    animationsEnabled && !reduceMotion
+  }
 
   var isWubiSchema: Bool {
     schemaID.hasPrefix("wubi86_")

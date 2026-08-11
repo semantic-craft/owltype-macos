@@ -61,7 +61,7 @@ struct FamoCandidatePanelView: View {
 
   /// G8: candidate-bar animations run only when the user enabled them AND Reduce Motion
   /// is off (Reduce Motion always wins).
-  private var animateOK: Bool { state.animationsEnabled && !reduceMotion }
+  private var animateOK: Bool { state.animationsAllowed(reduceMotion: reduceMotion) }
 
   // Structural tints derived from the canonical tokens (relationships per the design).
   private var panelBorder: Color { palette.accentDeep.opacity(0.16) }

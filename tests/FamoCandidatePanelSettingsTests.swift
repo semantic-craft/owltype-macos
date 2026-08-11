@@ -41,7 +41,7 @@ final class FamoCandidatePanelSettingsTests: XCTestCase {
     ]
 
     for (selection, resolution) in cases {
-      settings.editFont(selection, state: editingState) {
+      settings.edit(.font(selection), state: editingState) {
         settings.apply(settings.snapshot(), to: panelState)
         applyCount += 1
       }

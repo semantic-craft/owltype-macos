@@ -301,13 +301,14 @@ final class FamoScrollRowsPlanTests: XCTestCase {
     FamoPanelSnapshot(
       orientation: orientation,
       fontSize: .medium,
-      candidatePanelSettings: .init(font: .systemDefault),
-      animationsEnabled: true,
+      candidatePanelSettings: .init(
+        appearance: .system,
+        skin: .deepred,
+        font: .systemDefault,
+        animationsEnabled: true),
       showPreedit: true,
       showPaging: true,
       candidateFormat: .full,
-      theme: .shenda,
-      appearance: .system,
       scrollRows: scrollRows)
   }
 

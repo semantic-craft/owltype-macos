@@ -621,14 +621,14 @@ final class FamoCandidateDisplayTests: XCTestCase {
     XCTAssertEqual(FamoPanelPreferences.orientation, .auto)
     settings.seed(state)
     XCTAssertEqual(state.candidateFont.selection, .default)
-    XCTAssertTrue(FamoPanelPreferences.animationsEnabled)
+    XCTAssertTrue(settings.snapshot().animationsEnabled)
     // Round-trip.
     FamoPanelPreferences.orientation = .vertical
-    settings.editFont(.mapleMono, state: state, onChange: {})
-    FamoPanelPreferences.animationsEnabled = false
+    settings.edit(.font(.mapleMono), state: state, onChange: {})
+    settings.edit(.animationsEnabled(false), state: state, onChange: {})
     XCTAssertEqual(FamoPanelPreferences.orientation, .vertical)
     XCTAssertEqual(settings.snapshot().font.selection, .mapleMono)
-    XCTAssertFalse(FamoPanelPreferences.animationsEnabled)
+    XCTAssertFalse(settings.snapshot().animationsEnabled)
   }
 
   /// 迁移（2026-07-22，「默认形态 单行/卷轴」并入排列方向）：未显式选过排列方向但开过 legacy

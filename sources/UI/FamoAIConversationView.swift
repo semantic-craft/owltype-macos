@@ -64,7 +64,7 @@ struct FamoAIConversationView: View {
   /// The active skin's resolved palette (荔园红 by default), light/dark-aware — the whole window is
   /// themed through it, not ad-hoc colors.
   private var palette: FamoCandidatePalette {
-    FamoSkinPreferences.skin.theme.palette(for: colorScheme)
+    FamoCandidatePanelSettings.live.currentSkin().theme.palette(for: colorScheme)
   }
 
   var body: some View {

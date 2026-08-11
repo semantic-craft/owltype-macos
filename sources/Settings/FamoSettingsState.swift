@@ -128,18 +128,15 @@ final class FamoSettingsState {
   var statusMessage: String = ""
   /// Current librime user-data sync directory. Empty only before delegate seeding.
   var syncDirectoryDisplayPath: String = ""
-  /// Mirror of `FamoPanelPreferences.appearance` (跟随系统/浅色/深色 for the SwiftUI
-  /// candidate panel). The delegate seeds it from the prefs home; the view writes
-  /// back through both this mirror and `FamoPanelPreferences.appearance` so the
-  /// UserDefaults key string lives in exactly one place.
+  /// Candidate-panel appearance editing value (跟随系统/浅色/深色). Seeded and persisted through
+  /// `FamoCandidatePanelSettings` together with skin, font, and animation preference.
   var panelAppearance: FamoPanelAppearance = .system
-  /// Mirror of `FamoPanelPreferences.fontSize` — 设置里的「候选窗尺寸」小/中/大/特大，
-  /// 拨的是候选字与面板留白一起缩放后的整块面板大小。Seeded and written through the same
-  /// way as `panelAppearance`.
+  /// Mirror of the #118-scoped `FamoPanelPreferences.fontSize` — 设置里的「候选窗尺寸」
+  /// 小/中/大/特大，拨的是候选字与面板留白一起缩放后的整块面板大小。
   var panelFontSize: FamoPanelFontSize = .medium
-  /// G8 候选显示 mirrors of `FamoPanelPreferences` — orientation (横排/竖排/卷轴) and animation
-  /// toggle (候选条动画). Seeded + written like `panelAppearance`.
+  /// G8 candidate layout editing value. Orientation remains a #118 layout/content field.
   var panelOrientation: FamoPanelOrientation = .auto
+  /// Candidate animation editing value, owned by `FamoCandidatePanelSettings`.
   var panelAnimationsEnabled: Bool = true
   /// Candidate font editing value. `FamoCandidatePanelSettings` owns seed, persistence, installed
   /// family resolution, runtime snapshot, and panel apply as one lifecycle.
@@ -224,11 +221,10 @@ final class FamoSettingsState {
   /// 这些 App 默认英文 (mirror of `FamoKeyboardPreferences.appEnglishBundleIDs`).
   var keyboardAppEnglishBundleIDsText: String = ""
 
-  // MARK: - 皮肤外观 / 候选 emoji mirrors
+  // MARK: - 皮肤外观 / 候选 emoji
 
-  /// Selected skin (mirror of `FamoSkinPreferences.skin`). `FamoSettingsView` reads
-  /// `skin.theme`, so writing this re-skins the whole window; the delegate-free seed
-  /// happens in the view's `.onAppear`.
+  /// Selected candidate-panel skin. `FamoSettingsView` reads `skin.theme`, so editing it through
+  /// `FamoCandidatePanelSettings` re-skins both the settings window and live candidate panel.
   var skin: FamoSkin = .deepred
   /// 在候选中显示 emoji (mirror of `FamoEmojiPreferences.candidateEmojiEnabled`). Default false（出厂关）.
   var candidateEmojiEnabled: Bool = false

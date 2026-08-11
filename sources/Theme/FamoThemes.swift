@@ -1,13 +1,13 @@
 //
 //  FamoThemes.swift
-//  法墨输入法 (Famo) — 皮肤外观 (skin) themes + preference
+//  法墨输入法 (Famo) — 皮肤外观 (skin) themes
 //
 //  The 荔园红 (shenda) palette ships in `FamoCandidatePanelState.swift`; this file adds
 //  the other eight skins from the project color source of truth
 //  `packages/rime-law-config/skins/colors.md` (胡佛红 / 珞珈青 / 嘉庚蓝 / 香槟橙藏蓝 / 香槟橙燃橙 /
 //  纽约紫) plus 黑文蓝 and 怀德纳红 (sourced from Yale's and Harvard's own brand guides — see their
-//  doc comments), plus the `FamoSkin` enum and its UserDefaults home, so the 皮肤外观 settings page
-//  can switch the whole candidate panel + settings window palette.
+//  doc comments), plus the `FamoSkin` enum. Persistence lives in `FamoCandidatePanelSettings`,
+//  allowing the 皮肤外观 page to switch the candidate panel + settings window palette.
 //
 //  Colors are hardcoded from colors.md (light/dark per skin). `famoColor(hex:)` and the
 //  `FamoCandidatePalette` / `FamoCandidateTheme` types live in FamoCandidatePanelState.swift.
@@ -257,18 +257,6 @@ enum FamoSkin: String, CaseIterable, Identifiable, Sendable {
     case .yale: return famoColor(hex: "00356B")
     case .harvard: return famoColor(hex: "A51C30")
     }
-  }
-}
-
-/// Single UserDefaults home for the chosen skin (read live in the candidate panel's
-/// `update(...)`, like `FamoPanelPreferences.fontSize`, so a change takes effect on the
-/// next composition without a restart).
-enum FamoSkinPreferences {
-  private static let key = "FamoSkin"
-
-  static var skin: FamoSkin {
-    get { FamoSkin(rawValue: FamoDefaults.standard.string(forKey: key) ?? "") ?? .deepred }
-    set { FamoDefaults.standard.set(newValue.rawValue, forKey: key) }
   }
 }
 

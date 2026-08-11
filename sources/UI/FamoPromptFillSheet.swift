@@ -153,7 +153,7 @@ private struct FamoPromptFillView: View {
   @FocusState private var focused: String?
 
   private var palette: FamoCandidatePalette {
-    FamoSkinPreferences.skin.theme.palette(for: colorScheme)
+    FamoCandidatePanelSettings.live.currentSkin().theme.palette(for: colorScheme)
   }
 
   var body: some View {

@@ -3,13 +3,13 @@
 //  法墨输入法 (Famo) — SwiftUI candidate panel preferences
 //
 //  v0.2.2: user-customizable appearance for the SwiftUI candidate panel.
-//  Several prefs persisted in UserDefaults (Famo-namespaced): appearance mode
-//  (跟随系统/浅色/深色), candidate panel size (小/中/大/特大), orientation, animations.
-//  Typeface persistence and resolution live behind `FamoCandidatePanelSettings`.
+//  Layout/content prefs persisted in UserDefaults (Famo-namespaced): candidate panel size
+//  (小/中/大/特大), orientation, preedit, paging, format, and scroll rows. Appearance mode, skin,
+//  typeface, and animation persistence live behind `FamoCandidatePanelSettings`.
 //  NOT written to the user's `famo.custom.yaml`.
 //
-//  Single key home for the fields below: the `"FamoPanelAppearance"` /
-//  `"FamoPanelFontSize"` (etc.) UserDefaults string literals live ONLY in this file.
+//  Single key home for the layout/content fields below: the `"FamoPanelFontSize"` (etc.)
+//  UserDefaults string literals live ONLY in this file.
 //  The live panel and the settings layer read/write through these accessors.
 //
 //  Boundary (ADR-0001 / 0002 / 0003): prefs/panel layer only — never touches
@@ -21,15 +21,6 @@
 
 import CoreGraphics
 import Foundation
-
-/// Candidate-panel appearance mode. `system` follows `@Environment(\.colorScheme)`
-/// as before; `light` / `dark` force the panel's `NSAppearance` (which makes the
-/// hosted SwiftUI `colorScheme` resolve accordingly).
-enum FamoPanelAppearance: String, CaseIterable, Sendable {
-  case system
-  case light
-  case dark
-}
 
 /// 候选窗尺寸（设置里的「候选窗尺寸」四档）。`base` 是候选正文的基准点数：面板里其余字号
 /// （preedit ≈ base − 2、展开箭头 ≈ base − 5）**与全部留白**都由它派生，所以这一档拨的是整块
@@ -118,20 +109,9 @@ enum FamoCandidateFormat: String, CaseIterable, Sendable {
   var showsComment: Bool { self == .full }
 }
 
-/// Single home for the SwiftUI candidate-panel appearance preferences. The key
-/// string literals appear ONLY here; the live panel and settings UI read/write
-/// through these accessors so there are no duplicate literals.
+/// Current home for candidate-panel layout/content preferences that remain in #118 scope. Their
+/// key strings stay here until that follow-up extends `FamoCandidatePanelSettings`.
 enum FamoPanelPreferences {
-  /// Appearance mode. Key `"FamoPanelAppearance"`, default `.system`.
-  static var appearance: FamoPanelAppearance {
-    get {
-      FamoPanelAppearance(rawValue: FamoDefaults.standard.string(forKey: "FamoPanelAppearance") ?? "") ?? .system
-    }
-    set {
-      FamoDefaults.standard.set(newValue.rawValue, forKey: "FamoPanelAppearance")
-    }
-  }
-
   /// 候选窗尺寸（字号 + 留白同步缩放）. Key `"FamoPanelFontSize"`, default `.medium`.
   static var fontSize: FamoPanelFontSize {
     get {
@@ -176,13 +156,6 @@ enum FamoPanelPreferences {
       // 又映射回卷轴，用户再也回不到单行横排。
       FamoDefaults.standard.removeObject(forKey: "FamoPanelPreviewPages")
     }
-  }
-
-  /// Candidate-bar animations (highlight slide / expand). Key `"FamoPanelAnimations"`,
-  /// default `true`. Reduce Motion still wins when the user has it on.
-  static var animationsEnabled: Bool {
-    get { FamoDefaults.standard.object(forKey: "FamoPanelAnimations") as? Bool ?? true }
-    set { FamoDefaults.standard.set(newValue, forKey: "FamoPanelAnimations") }
   }
 
   /// Whether the panel renders its own preedit header (输入串 + 虚线下划线 + 闪烁光标).
@@ -236,7 +209,7 @@ enum FamoPanelPreferences {
 }
 
 /// The panel's visual preferences frozen at one instant, injected into the candidate panel so it
-/// renders from a value instead of reaching into `FamoPanelPreferences` / `FamoSkinPreferences`
+/// renders from a value instead of reaching into persistence homes
 /// live mid-render (C3, task 07-05-famo-composition-render-seam). Mirrors the `FamoFuzzySnapshot`
 /// / `FamoKeyboardSnapshot` precedent (Sendable value + `current()` factory). Carries the fields
 /// `FamoSwiftUICandidatePanel` applies; `orientation` stays raw — the panel resolves it against the
@@ -246,12 +219,9 @@ struct FamoPanelSnapshot: Sendable, Equatable {
   let orientation: FamoPanelOrientation
   let fontSize: FamoPanelFontSize
   let candidatePanelSettings: FamoCandidatePanelSettings.Snapshot
-  let animationsEnabled: Bool
   let showPreedit: Bool
   let showPaging: Bool
   let candidateFormat: FamoCandidateFormat
-  let theme: FamoCandidateTheme
-  let appearance: FamoPanelAppearance
   /// 卷轴的后页行数。控制器在 `showPanel` 里据此决定预取多少后页候选；面板/视图只消费
   /// 取好的 `scrollRows` 数据，不再读这个偏好。是否卷轴由 `orientation.scrolls` 决定。
   let scrollRows: Int
@@ -265,12 +235,9 @@ struct FamoPanelSnapshot: Sendable, Equatable {
       orientation: FamoPanelPreferences.orientation,
       fontSize: FamoPanelPreferences.fontSize,
       candidatePanelSettings: candidatePanelSettings.snapshot(),
-      animationsEnabled: FamoPanelPreferences.animationsEnabled,
       showPreedit: FamoPanelPreferences.showPreedit,
       showPaging: FamoPanelPreferences.showPaging,
       candidateFormat: FamoPanelPreferences.candidateFormat,
-      theme: FamoSkinPreferences.skin.theme,
-      appearance: FamoPanelPreferences.appearance,
       scrollRows: FamoPanelPreferences.scrollRows)
   }
 }

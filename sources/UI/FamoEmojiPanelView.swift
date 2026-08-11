@@ -5,7 +5,7 @@
 //  The Claude Design "Famo Emoji Panel" handoff in SwiftUI: a glass floating panel with
 //  top category tabs (最近/表情/符号/颜文字/标点), a tiled grid (颜文字 take
 //  full-width rows), an optional 最近 row, and keyword search across all categories.
-//  深大红 themed via the chosen 皮肤 (FamoSkinPreferences), reusing the candidate panel's
+//  深大红 themed via the chosen candidate-panel skin, reusing the candidate panel's
 //  glass language. Picking a glyph inserts through the active IMK client when present,
 //  otherwise copies to the pasteboard, and updates 最近.
 //
@@ -32,7 +32,7 @@ struct FamoEmojiPanelView: View {
   @State private var recents = FamoEmojiRecents.current()
 
   /// Theme follows the chosen 皮肤 (read live, like the candidate panel).
-  private var theme: FamoCandidateTheme { FamoSkinPreferences.skin.theme }
+  private var theme: FamoCandidateTheme { FamoCandidatePanelSettings.live.currentSkin().theme }
   private var palette: FamoCandidatePalette { theme.palette(for: colorScheme) }
 
   private var searching: Bool { !query.trimmingCharacters(in: .whitespaces).isEmpty }
