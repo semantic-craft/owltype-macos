@@ -621,10 +621,10 @@ final class FamoCandidateDisplayTests: XCTestCase {
     XCTAssertTrue(FamoPanelPreferences.animationsEnabled)
     // Round-trip.
     FamoPanelPreferences.orientation = .vertical
-    FamoPanelPreferences.fontDesign = .notoSerifSC
+    FamoPanelPreferences.fontDesign = .mapleMono
     FamoPanelPreferences.animationsEnabled = false
     XCTAssertEqual(FamoPanelPreferences.orientation, .vertical)
-    XCTAssertEqual(FamoPanelPreferences.fontDesign, .notoSerifSC)
+    XCTAssertEqual(FamoPanelPreferences.fontDesign, .mapleMono)
     XCTAssertFalse(FamoPanelPreferences.animationsEnabled)
   }
 
@@ -730,11 +730,26 @@ final class FamoCandidateDisplayTests: XCTestCase {
     XCTAssertEqual(FamoPanelFontDesign.serif.design, .serif)
     XCTAssertEqual(FamoPanelFontDesign.rounded.design, .rounded)
     XCTAssertEqual(FamoPanelFontDesign.notoSerifSC.design, .serif)
+    XCTAssertEqual(FamoPanelFontDesign.mapleMono.design, .monospaced)
     XCTAssertEqual(
       FamoPanelFontDesign.installedNotoSerifSCFamily(in: ["PingFang SC", "Noto Serif CJK SC"]),
       "Noto Serif CJK SC"
     )
     XCTAssertNil(FamoPanelFontDesign.installedNotoSerifSCFamily(in: ["PingFang SC", "Songti SC"]))
+    XCTAssertEqual(
+      FamoPanelFontDesign.installedMapleMonoFamily(
+        in: ["Maple Mono NF", "Maple Mono CN", "PingFang SC"]),
+      "Maple Mono CN"
+    )
+    XCTAssertEqual(
+      FamoPanelFontDesign.installedMapleMonoFamily(in: ["PingFang SC", "Maple Mono NF"]),
+      "Maple Mono NF"
+    )
+    XCTAssertNil(FamoPanelFontDesign.installedMapleMonoFamily(in: ["PingFang SC", "Menlo"]))
+    XCTAssertEqual(
+      FamoPanelFontDesign.mapleMonoDownloadURL.absoluteString,
+      "https://github.com/subframe7536/maple-font/releases/latest/download/MapleMono-CN.zip"
+    )
   }
 
   func testPageSizeDefaultAndClamp() {
