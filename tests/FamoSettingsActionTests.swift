@@ -75,7 +75,7 @@ final class FamoSettingsActionTests: XCTestCase {
     assertSet(.dark, \.panelAppearance, state, { FamoPanelPreferences.appearance }) { FamoPanelPreferences.appearance = $0 }
     assertSet(.large, \.panelFontSize, state, { FamoPanelPreferences.fontSize }) { FamoPanelPreferences.fontSize = $0 }
     assertSet(.vertical, \.panelOrientation, state, { FamoPanelPreferences.orientation }) { FamoPanelPreferences.orientation = $0 }
-    assertSet(.notoSerifSC, \.panelFontDesign, state, { FamoPanelPreferences.fontDesign }) { FamoPanelPreferences.fontDesign = $0 }
+    assertSet(.mapleMono, \.panelFontDesign, state, { FamoPanelPreferences.fontDesign }) { FamoPanelPreferences.fontDesign = $0 }
     assertSet(6, \.candidatePageSize, state, { FamoKeyboardPreferences.pageSize }) { FamoKeyboardPreferences.pageSize = $0 }
     assertSet(.wuda, \.skin, state, { FamoSkinPreferences.skin }) { FamoSkinPreferences.skin = $0 }
     assertSet(FamoCloudPreferences.reasonerDeepSeekModel, \.cloudModel, state, { FamoCloudPreferences.deepSeekModel }) { FamoCloudPreferences.deepSeekModel = $0 }

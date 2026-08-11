@@ -53,7 +53,7 @@ final class FamoSettingsCoverageTests: XCTestCase {
     // 排列方向：2026-07-22「默认形态 单行/卷轴」并入本组（`单行`/`卷轴` 两个旧标签随之移除）；
     // 2026-07-26 `折行`(1.4.19) 退役，位置换成新的 `卷轴`（主行 + 后页行，与旧同名标签无关）。
     "自动", "横排", "竖排", "卷轴",
-    "默认", "衬线", "圆体", "Noto Serif SC",
+    "默认", "衬线", "圆体", "Noto Serif SC", "Maple Mono",
     "亮", "暗",
     // 06-26 batch: 7 new Rime/Squirrel config controls.
     // 简入繁出 toggle 已并入「默认状态」组的「简繁体」下拉（`defaultStatePickerRow` helper，
@@ -132,6 +132,7 @@ final class FamoSettingsCoverageTests: XCTestCase {
     "中文下使用英文标点",
     "使用 Shift 切换中英文",
     "下载 Noto Serif SC 字体",
+    "下载 Maple Mono CN 字体包",
     "保存修改",
     "我已了解：写入会修改 ~/Library/Application Support/Famo（需真机；备份+manifest 已就绪，可回滚）",
     "候选条动画",
