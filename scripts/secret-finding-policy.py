@@ -188,7 +188,11 @@ def lob_test_identifier(finding: Finding) -> bool:
     path = pathlib.PurePosixPath(finding.path.replace("\\", "/"))
     if path.suffix not in SOURCE_SUFFIXES:
         return False
-    return any(part.casefold() in TEST_PATH_COMPONENTS for part in path.parts[:-1])
+    in_test_directory = any(
+        part.casefold() in TEST_PATH_COMPONENTS for part in path.parts[:-1]
+    )
+    is_selftest_source = ".selftest." in path.name.casefold()
+    return in_test_directory or is_selftest_source
 
 
 Predicate = tuple[str, Callable[[Finding], bool]]

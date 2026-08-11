@@ -5,7 +5,7 @@
 #
 # Read-only. Resolves an app the same way check-identity-residual.sh does; if none
 # is present it notes and skips (source trees carry unresolved $(VAR) placeholders,
-# so this gate is inherently a built-app gate — release.sh runs it after `make dmg`).
+# so this gate is inherently a built-app gate — release.sh runs it after `make release-artifacts`).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

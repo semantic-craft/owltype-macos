@@ -53,4 +53,15 @@ jobs:
         run: make famo-seed
 
       - name: Run full release gate
-        run: make release-gate DERIVED_DATA_PATH=build/release-gate
+        run: |
+          make test DERIVED_DATA_PATH=build/release-gate-tests
+          make release RELEASE_OUTPUT_ROOT=build/release-gate
+          bash scripts/release-cohort.selftest.sh
+          bash scripts/release-cohort-transition.selftest.sh
+          bash scripts/release-chain.selftest.sh
+          bash scripts/check-release.selftest.sh
+          python3 scripts/secret-finding-policy.selftest.py
+          bash scripts/check-secrets.sh
+          bash scripts/check-secrets.sh --artifacts \
+            build/release-gate/Build/Products/Release/Famo.app
+          bash scripts/release.sh --dry-run --output-root build/release-gate

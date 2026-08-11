@@ -15,6 +15,7 @@ import pathlib
 import stat
 import subprocess
 import sys
+import tarfile
 import tempfile
 import textwrap
 import unittest
@@ -86,6 +87,26 @@ class PolicyTableTests(unittest.TestCase):
                 "artifact source identifier",
                 POLICY.normalize_artifact_trufflehog(
                     artifact_record(SYNTHETIC_LOB_IDENTIFIER)
+                ),
+                "Lob 撞测试函数名",
+            ),
+            (
+                "history selftest source identifier",
+                POLICY.normalize_history_trufflehog(
+                    history_record(
+                        SYNTHETIC_LOB_IDENTIFIER,
+                        path="scripts/secret-finding-policy.selftest.py",
+                    )
+                ),
+                "Lob 撞测试函数名",
+            ),
+            (
+                "artifact selftest source identifier",
+                POLICY.normalize_artifact_trufflehog(
+                    artifact_record(
+                        SYNTHETIC_LOB_IDENTIFIER,
+                        path="scripts/secret-finding-policy.selftest.py",
+                    )
                 ),
                 "Lob 撞测试函数名",
             ),
@@ -400,6 +421,24 @@ class ShellAdapterTests(unittest.TestCase):
         )
         self.assertEqual(artifact.returncode, 0, artifact.stderr)
         self.assertIn("Lob 撞测试函数名 1 条", artifact.stdout)
+
+    def test_source_archive_uses_the_shared_artifact_policy(self) -> None:
+        source_archive = self.root / "Famotype-macOS-9.8.7-source.tar.gz"
+        with tarfile.open(source_archive, "w:gz") as archive:
+            archive.add(self.artifact, arcname="Famotype-macOS-9.8.7-source")
+
+        completed = self._run_gate(
+            "--artifacts",
+            str(source_archive),
+            trufflehog_mode="finding",
+            trufflehog_report=artifact_record(
+                SYNTHETIC_LOB_IDENTIFIER,
+                path="Famotype-macOS-9.8.7-source/scripts/policy.selftest.py",
+            ),
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("Lob 撞测试函数名 1 条", completed.stdout)
+        self.assertIn(str(source_archive), completed.stdout)
 
     def test_artifact_non_source_identifier_is_rejected(self) -> None:
         configuration = self.artifact / "runtime.env"

@@ -10,7 +10,7 @@
 #
 # 用法:  bash package/make_dmg /absolute/release-output-root
 # 前置:  build/Build/Products/Release/Famo.app 已构建 + 签名 + 公证 + staple
-#        （`make dmg` 依赖 `package`，其链上的 notarized-app 产出它）。
+#        （`make release-artifacts` 的单一依赖图先产出 package 与 notarized-app）。
 # 签名:  仅在环境变量 DEV_ID 在位时签名 + 公证 + staple（与 Makefile 的 ifdef DEV_ID 一致；公开仓不硬
 #        编码任何身份/TeamID）。DEV_ID 未设 → 跳过签名/公证，仍组出未签名 DMG（便于本地机械验证）。
 #        ⚠️ 定律 6：未公证 DMG 带 quarantine 会被 App Translocation，安装器找不到内嵌 Famo.app——
@@ -38,8 +38,7 @@ INSTALLER_APP="${INSTALLER_DIR}/build/Build/Products/Release/FamoInstaller.app"
 UNINSTALL_CMD="${PROJECT_ROOT}/package/卸载法墨.command"               # 双击卸载入口
 UNINSTALL_SH="${PROJECT_ROOT}/scripts/uninstall-famo.sh"              # 白名单卸载脚本本体
 
-DMG_STABLE="${PROJECT_ROOT}/package/Famo.dmg"                          # 稳定名（latest 永久链）
-DMG_VERSIONED="${PROJECT_ROOT}/package/Famo-${marketing_version}.dmg"  # 版本归档名
+DMG_VERSIONED="${PROJECT_ROOT}/package/Famo-${marketing_version}.dmg"
 COHORT_STATE="${PROJECT_ROOT}/scripts/release-cohort-state.py"
 INVENTORY="${PROJECT_ROOT}/scripts/inventory-release-bundle.py"
 
@@ -108,7 +107,7 @@ else
     echo "==> [跳过签名] DEV_ID 未设：FamoInstaller.app 不签名（仅本地机械验证）"
 fi
 
-# --- 4) 组 DMG 容器（先组稳定名，便于后续 sign/notarize/staple；版本名是最终产物的副本）---------
+# --- 4) 组唯一的版本化 DMG 容器 ------------------------------------------------
 echo "==> 组 DMG 容器（UDZO）：FamoInstaller.app + 卸载法墨.command + uninstall-famo.sh"
 STAGING="$(mktemp -d)"
 trap 'rm -rf "${STAGING}"' EXIT
@@ -117,21 +116,18 @@ cp "${UNINSTALL_CMD}" "${STAGING}/卸载法墨.command"
 cp "${UNINSTALL_SH}" "${STAGING}/uninstall-famo.sh"
 python3 "$COHORT_STATE" id "$RELEASE_OUTPUT_ROOT" >"${STAGING}/FAMOTYPE-RELEASE-COHORT-ID"
 chmod +x "${STAGING}/卸载法墨.command" "${STAGING}/uninstall-famo.sh"
-rm -f "${DMG_STABLE}"
-hdiutil create -volname "${VOLNAME}" -srcfolder "${STAGING}" -ov -format UDZO "${DMG_STABLE}"
+rm -f "${DMG_VERSIONED}"
+hdiutil create -volname "${VOLNAME}" -srcfolder "${STAGING}" -ov -format UDZO "${DMG_VERSIONED}"
 
 # --- 5) 将 DMG 注册进 cohort；生产构建走与 App/pkg 相同的三段转换 ----------------
-python3 "$COHORT_STATE" register "$RELEASE_OUTPUT_ROOT" dmg "$DMG_STABLE"
+python3 "$COHORT_STATE" register "$RELEASE_OUTPUT_ROOT" dmg "$DMG_VERSIONED"
 if [[ -n "${DEV_ID:-}" ]]; then
     python3 "$COHORT_STATE" seal "$RELEASE_OUTPUT_ROOT" dmg "$DEV_ID" \
         "${NOTARY_PROFILE:?set NOTARY_PROFILE to your notarytool keychain-profile name}"
 fi
 
-# --- 6) 落版本归档名（最终产物的副本，与已签名/公证/staple 状态一致）-----------
-cp "${DMG_STABLE}" "${DMG_VERSIONED}"
-
-echo "完成：$(basename "${DMG_STABLE}")（稳定名）+ $(basename "${DMG_VERSIONED}")"
-ls -lh "${DMG_STABLE}" "${DMG_VERSIONED}"
+echo "完成：$(basename "${DMG_VERSIONED}")"
+ls -lh "${DMG_VERSIONED}"
 if [ -z "${DEV_ID:-}" ]; then
     echo "NOTE: 未签名/未公证 DMG（DEV_ID 未设，仅机械验证）。生产发布请带 DEV_ID/NOTARY_PROFILE 重跑。"
 fi

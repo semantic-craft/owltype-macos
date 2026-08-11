@@ -19,7 +19,9 @@ cd "$(dirname "$0")"
 source common.sh
 
 RELEASE_OUTPUT_ROOT="${RELEASE_OUTPUT_ROOT:-${PROJECT_ROOT}/build}"
-python3 "$PROJECT_ROOT/scripts/release-cohort-state.py" appcast-ready "$RELEASE_OUTPUT_ROOT"
+COHORT_STATE="$PROJECT_ROOT/scripts/release-cohort-state.py"
+python3 "$COHORT_STATE" appcast-ready "$RELEASE_OUTPUT_ROOT"
+cohort_id="$(python3 "$COHORT_STATE" id "$RELEASE_OUTPUT_ROOT")"
 
 # app_version = CFBundleVersion (build, e.g. 1.1.2) → Sparkle sparkle:version comparison ONLY.
 # marketing_version = CFBundleShortVersionString (e.g. 1.1) → user-facing pkg name / title /
@@ -50,6 +52,7 @@ if [ -z "${edSignature}" ] || [ -z "${length}" ]; then
     echo >&2 "ERROR: sign_update 没产出 edSignature/length（输出：${signature}）"
     exit 1
 fi
+update_package_sha256="$(shasum -a 256 "${PKG}" | awk '{print $1}')"
 
 write_appcast() {
     local appcast_file="$1"
@@ -59,7 +62,9 @@ write_appcast() {
     local enclosure_url="$5"
     cat > "${appcast_file}" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+<rss version="2.0"
+     xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"
+     xmlns:famo="https://responsay.com/famo/release-cohort">
   <channel>
     <title>${title}</title>
     <link>${link}</link>
@@ -69,6 +74,8 @@ write_appcast() {
       <title>Famo ${marketing_version}</title>
       <sparkle:version>${app_version}</sparkle:version>
       <sparkle:shortVersionString>${marketing_version}</sparkle:shortVersionString>
+      <famo:releaseCohort>${cohort_id}</famo:releaseCohort>
+      <famo:updatePackageSha256>${update_package_sha256}</famo:updatePackageSha256>
       <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
       <pubDate>${pub_date}</pubDate>
       <sparkle:releaseNotesLink>${link}</sparkle:releaseNotesLink>
@@ -91,3 +98,6 @@ write_appcast 'appcast.xml' '法墨输入法更新频道' '法墨输入法 Appca
 write_appcast 'testing-appcast.xml' '法墨输入法测试频道' '法墨输入法测试版 Appcast：Sparkle 自动下载签名+公证的 Famo-update.pkg，并在 macOS 授权后安装（无需注销）。' 'https://responsay.com/famo/' "${download_url}"
 # 本地测试频道：enclosure 指向本地 package/Famo-update.pkg（同一签名），便于离线验证下载/安装流程。
 write_appcast 'debug-appcast.xml' '法墨输入法本地测试' '法墨输入法 Appcast 本地测试：enclosure 指向本地 package/Famo-update.pkg。' "file://${PROJECT_ROOT}/package/debug-appcast.xml" "file://${PROJECT_ROOT}/package/Famo-update.pkg"
+
+python3 "$COHORT_STATE" register-output "$RELEASE_OUTPUT_ROOT" appcast \
+    "$PROJECT_ROOT/package/appcast.xml"

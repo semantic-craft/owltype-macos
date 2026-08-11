@@ -24,12 +24,13 @@ SBOM_NAME = "FAMOTYPE-SBOM.spdx.json"
 # App built from this source" — see the staleness check in create-source-archive.sh.
 PROVENANCE_NAME = "FAMOTYPE-APP-PROVENANCE.txt"
 COHORT_NAME = "FAMOTYPE-RELEASE-COHORT.json"
-COHORT_SCHEMA_VERSION = 2
+COHORT_SCHEMA_VERSION = 3
 INVENTORY_NAMES = (MANIFEST_NAME, SBOM_NAME, PROVENANCE_NAME)
 RELEASE_APP_RELATIVE = Path("Build/Products/Release/Famo.app")
 RELEASE_INVENTORY_RELATIVE = Path("release")
 RELEASE_ARTIFACTS = ("app", "installer-pkg", "update-pkg", "dmg")
 RELEASE_ARTIFACT_STATES = ("built", "signed", "notarized", "stapled", "failed")
+RELEASE_OUTPUTS = ("appcast", "source-archive")
 
 COMPONENTS = (
     ("Famotype", None, "GPL-3.0-only", "https://github.com/semantic-craft/famotype-macos"),
@@ -116,6 +117,10 @@ def validate_cohort_shape(cohort: dict) -> None:
     status = cohort.get("status")
     if status not in {"active", "failed", "complete"}:
         raise ValueError(f"cohort has invalid status {status!r}")
+    if not isinstance(cohort.get("version"), str) or not isinstance(
+        cohort.get("buildVersion"), str
+    ):
+        raise ValueError("cohort has incomplete version metadata")
     artifacts = cohort.get("artifacts")
     if not isinstance(artifacts, dict) or "app" not in artifacts:
         raise ValueError("cohort has no App artifact")
@@ -134,6 +139,12 @@ def validate_cohort_shape(cohort: dict) -> None:
         set(artifacts) != set(RELEASE_ARTIFACTS) or any(state != "stapled" for state in states)
     ):
         raise ValueError("complete cohort does not have four stapled artifacts")
+    outputs = cohort.get("outputs", {})
+    if not isinstance(outputs, dict) or any(name not in RELEASE_OUTPUTS for name in outputs):
+        raise ValueError("cohort contains an unknown release output")
+    for name, record in outputs.items():
+        if not isinstance(record, dict) or not isinstance(record.get("sha256"), str):
+            raise ValueError(f"output {name} has an invalid binding")
 
 
 def write_cohort(output_dir: Path, cohort: dict) -> None:
@@ -144,9 +155,16 @@ def write_cohort(output_dir: Path, cohort: dict) -> None:
     temporary.replace(destination)
 
 
-def cohort_identifier(revision: str, version: str, output_root_sha256: str, build_app_sha256: str) -> str:
+def cohort_identifier(
+    revision: str,
+    version: str,
+    build_version: str,
+    output_root_sha256: str,
+    build_app_sha256: str,
+) -> str:
     identity = {
         "buildAppSha256": build_app_sha256,
+        "buildVersion": build_version,
         "outputRootSha256": output_root_sha256,
         "revision": revision,
         "schemaVersion": COHORT_SCHEMA_VERSION,
@@ -263,7 +281,15 @@ def read_provenance(output_dir: Path) -> dict[str, str]:
     return stamp
 
 
-def write_inventory(app: Path, output_dir: Path, version: str, revision: str, created: str) -> int:
+def write_inventory(
+    app: Path,
+    output_dir: Path,
+    version: str,
+    build_version: str,
+    revision: str,
+    cohort_id: str,
+    created: str,
+) -> int:
     """Write the manifest, SBOM and provenance stamp for `app` into `output_dir`.
 
     Covers the bundle completely — nothing is excluded, because none of the
@@ -277,5 +303,8 @@ def write_inventory(app: Path, output_dir: Path, version: str, revision: str, cr
         json.dumps(make_sbom(app, version, revision, created), ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     )
     (output_dir / MANIFEST_NAME).write_text(body)
-    (output_dir / PROVENANCE_NAME).write_text(f"version {version}\nrevision {revision}\n")
+    (output_dir / PROVENANCE_NAME).write_text(
+        f"version {version}\nbuild-version {build_version}\n"
+        f"revision {revision}\ncohort {cohort_id}\n"
+    )
     return len(body.splitlines())

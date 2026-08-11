@@ -1,4 +1,4 @@
-.PHONY: all install deps release debug bootstrap test release-gate source-archive update-package setup-dev privacy-gate release-cohort-check release-cohort-selftest
+.PHONY: all install deps release debug bootstrap test setup-dev release-artifacts release-cohort-check release-cohort-selftest
 
 all: release
 install: install-release
@@ -168,7 +168,7 @@ sparkle:
 
 # Use the prebuilt Sparkle tools shipped in download/bin/ — the Sparkle source
 # (Sparkle/Sparkle.xcodeproj) is not checked out, so building from it fails with
-# "does not exist" (Error 66) and breaks `make archive`. The binaries are identical.
+# "does not exist" (Error 66) and breaks appcast composition. The binaries are identical.
 package/generate_keys:
 	cp download/bin/generate_keys package/generate_keys
 
@@ -183,7 +183,7 @@ clean-sparkle:
 	rm -rf Frameworks/* > /dev/null 2>&1 || true
 	rm -rf Sparkle/build > /dev/null 2>&1 || true
 
-.PHONY: notarized-app package archive $(PACKAGE)
+.PHONY: notarized-app package $(PACKAGE)
 
 notarized-app: release
 	python3 scripts/release-cohort-state.py initialize "$(RELEASE_OUTPUT_ROOT)"
@@ -207,23 +207,12 @@ endif
 
 package: $(PACKAGE)
 
-# make_archive 现在需要已签名+公证的 package/Famo-update.pkg（Sparkle 更新载荷，无 RequireLogout）
-# 来生成真 enclosure（edSignature/length），所以 archive 依赖 package（不再是 notarized-app）。
-# 也依赖 package/sign_update：make_archive 第 43 行直接调 ./sign_update 签 pkg。scripts/release.sh
-# 本来显式跑 `make package/sign_update` 补这一步，直接 `make archive`（CI 的 action-build.sh 走这条）
-# 却没人补，于是撞 "./sign_update: No such file or directory" (Error 127)。
-archive: package package/sign_update
-	RELEASE_OUTPUT_ROOT="$(RELEASE_OUTPUT_ROOT_ABSOLUTE)" bash package/make_archive
-
-# DMG = 新用户首装下载物：主入口 FamoInstaller.app（GUI 安装器，内嵌已 staple 的 Famo.app，
-# 首装免注销）+ 卸载法墨.command + uninstall-famo.sh。make_dmg 自己跑 xcodegen+xcodebuild 构建
-# 安装器、外层单签（无 --deep）、DMG 签名+公证+staple（安装器无独立公证，随 DMG 公证覆盖）。
-# 仍依赖 package：①保证内嵌用的 Famo.app 已签名+公证+staple（notarized-app 链）；②Famo.pkg /
-# Famo-update.pkg 照常链式产出（pkg 是备用直装链 + Sparkle 载荷，只是不再进 DMG）。
-# 透传 DEV_ID/NOTARY_PROFILE 给 make_dmg（脚本从环境读取，未设则跳过签名/公证、仍组出未签名 DMG 供本地验证）。
-.PHONY: dmg
-dmg: package
+# The authoritative release entrypoint invokes this graph exactly once. Both packages come from
+# make_package, then the versioned DMG reaches stapled before make_archive binds the appcast to the
+# completed cohort. Keeping composition in one recipe avoids re-entering the phony package target.
+release-artifacts: $(PACKAGE) package/sign_update
 	DEV_ID="$(DEV_ID)" NOTARY_PROFILE="$(NOTARY_PROFILE)" bash package/make_dmg "$(RELEASE_OUTPUT_ROOT_ABSOLUTE)"
+	RELEASE_OUTPUT_ROOT="$(RELEASE_OUTPUT_ROOT_ABSOLUTE)" bash package/make_archive
 
 DSTROOT = /Library/Input Methods
 FAMO_APP_ROOT = $(DSTROOT)/Famo.app
@@ -266,8 +255,8 @@ clean-deps:
 	$(MAKE) clean-sparkle
 
 # ---------------------------------------------------------------------------
-# Public CI targets (single-repo era): test, reproducible source archive and
-# the boundary/secret gate that hosted CI runs on every push and pull request.
+# Public CI build target. Release composition and all release gates have one owner:
+# scripts/release.sh.
 
 test: $(DEPS_CHECK)
 	xcodebuild \
@@ -279,13 +268,6 @@ test: $(DEPS_CHECK)
 		CODE_SIGN_IDENTITY=- \
 		test
 
-# 刻意**不**依赖 `release`：那个目标会重跑 finalize，把已经签名+公证+staple 的 bundle 重新剥
-# 签名，于是源码包记的 provenance 描述的是一份从未出厂的中间态（1.5.14 就是这么错位的）。
-# 这里只消费 notarized-app 已经写好的出厂盘点；盘点不存在时 create-source-archive.sh 报错并
-# 指明先跑 make notarized-app / make dmg。
-source-archive:
-	bash scripts/create-source-archive.sh "$(RELEASE_OUTPUT_ROOT)"
-
 # Read-only cohort preflight. It deliberately has no build prerequisite: callers may invoke it
 # repeatedly without rebuilding, re-signing or replacing the selected cohort.
 release-cohort-check:
@@ -294,28 +276,4 @@ release-cohort-check:
 release-cohort-selftest:
 	bash scripts/release-cohort.selftest.sh
 	bash scripts/release-cohort-transition.selftest.sh
-
-update-package: notarized-app
-	bash package/make_update_package "$(RELEASE_OUTPUT_ROOT_ABSOLUTE)"
-
-privacy-gate:
-	bash scripts/check-public-source.sh
-	bash scripts/check-public-privacy.selftest.sh
-	bash scripts/check-secrets.sh
-	@# 产物侧的密钥扫描只能挂在这里：`release` 目标会被没装扫描器的 build job 走到
-	@# （action-build.sh package → make package → release），而 gitleaks/trufflehog 只在
-	@# source-ci 的 release-gate job 里 brew install。privacy-gate 本身就硬依赖这两个工具，
-	@# 且在 `release-gate: test notarized-app source-archive privacy-gate` 里排在产物都生成之后。
-	@# 产物不存在时脚本打 SKIP 而非报错，所以单独跑 `make privacy-gate` 仍然可用。
-	@# 盘点那两份从 bundle 内挪到了 release/，它们照样是上架产物 —— 跟着一起扫，别让这次搬家
-	@# 悄悄缩小密钥扫描面。产物不存在时 check-artifact-secrets.sh 打 SKIP，不影响单独跑本目标。
-	bash scripts/check-secrets.sh --artifacts \
-		"$(RELEASE_APP)" \
-		"$(RELEASE_OUTPUT_ROOT)"/release/*-source.tar.gz \
-		"$(RELEASE_OUTPUT_ROOT)/release/FAMOTYPE-FILE-MANIFEST.sha256" \
-		"$(RELEASE_OUTPUT_ROOT)/release/FAMOTYPE-SBOM.spdx.json"
-
-# notarized-app 顶替了原来 source-archive 自带的 `release` 依赖：CI 无 DEV_ID 时它就等于
-# 「构建 + finalize + 出厂盘点」，正是 source-archive 消费盘点所需，并不比原来多构建一次。
-release-gate: test notarized-app release-cohort-selftest source-archive privacy-gate
-	bash -n action-install.sh scripts/*.sh
+	bash scripts/release-chain.selftest.sh

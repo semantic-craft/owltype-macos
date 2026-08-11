@@ -52,7 +52,7 @@ state="$cohort_root/release/FAMOTYPE-RELEASE-COHORT.json"
 mkdir -p "$(dirname "$plist")" "$(dirname "$payload")"
 
 write_version() {
-  python3 - "$plist" "$1" <<'PY'
+  python3 - "$plist" "$1" "${2:-$1}" <<'PY'
 import plistlib
 import sys
 from pathlib import Path
@@ -63,6 +63,7 @@ with path.open("wb") as handle:
         {
             "CFBundleIdentifier": "im.famo.inputmethod.Famo",
             "CFBundleShortVersionString": sys.argv[2],
+            "CFBundleVersion": sys.argv[3],
         },
         handle,
     )
@@ -82,7 +83,7 @@ write_version "9.8.7"
 printf 'fake executable\n' >"$payload"
 
 make_trace="$work/make-trace"
-if make -C "$ROOT" --no-print-directory -n dmg update-package \
+if make -C "$ROOT" --no-print-directory -n release-artifacts \
     DEPS_CHECK= DEV_ID= RELEASE_OUTPUT_ROOT="$cohort_root" >"$make_trace" 2>&1 &&
    grep -qF -- "-derivedDataPath \"$cohort_root\"" "$make_trace" &&
    grep -qF "copy-famo-seed FAMO_CONFIG=Release DERIVED_DATA_PATH=\"$cohort_root\"" "$make_trace" &&
@@ -91,7 +92,7 @@ if make -C "$ROOT" --no-print-directory -n dmg update-package \
    grep -qF "release-cohort-state.py initialize \"$cohort_root\"" "$make_trace" &&
    grep -qF "bash package/make_package \"$cohort_root\"" "$make_trace" &&
    grep -qF "bash package/make_dmg \"$cohort_root\"" "$make_trace" &&
-   grep -qF "bash package/make_update_package \"$cohort_root\"" "$make_trace"; then
+   grep -qF "bash package/make_archive" "$make_trace"; then
   ok "Make propagates one custom output root through release and packaging boundaries"
 else
   sed 's/^/     /' "$make_trace" >&2
@@ -138,6 +139,14 @@ record_cohort
 
 write_version "9.8.8"
 expect_fail "bundle version mismatch rejects the cohort" "cohort version is" \
+  env PATH="$fake_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+    python3 "$INVENTORY" check "$cohort_root"
+write_version "9.8.7"
+initialize_cohort
+record_cohort
+
+write_version "9.8.7" "988"
+expect_fail "bundle build-version mismatch rejects the cohort" "cohort build version is" \
   env PATH="$fake_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     python3 "$INVENTORY" check "$cohort_root"
 write_version "9.8.7"

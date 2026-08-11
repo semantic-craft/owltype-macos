@@ -1,88 +1,158 @@
 #!/usr/bin/env bash
-# Build the signed/notarized App-owned portion of an exact release cohort.
-#
-# Composition ownership intentionally stays outside this script. It does not create a source
-# archive, mutate a GitHub release, or write/deploy a website appcast; the release operator
-# consumes the App assets/appcast produced here.
+# Authoritative local release chain. It never publishes, tags, or mutates a remote release.
 set -euo pipefail
 
-DEV_ID="${DEV_ID:?set DEV_ID to the Developer ID common name}"
-NOTARY_PROFILE="${NOTARY_PROFILE:-xw-notary}"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+STATE="$ROOT/scripts/release-cohort-state.py"
+dry_run=0
+output_root="$ROOT/build"
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$HERE"
-
-echo "==> 1/5 validate signing and notarization readiness"
-security find-identity -v -p codesigning 2>/dev/null | grep -q "Developer ID Application: ${DEV_ID}" || {
-  echo >&2 "ERROR: Developer ID Application identity is unavailable"
-  exit 1
-}
-security find-identity -v 2>/dev/null | grep -q "Developer ID Installer: ${DEV_ID}" || {
-  echo >&2 "ERROR: Developer ID Installer identity is unavailable"
-  exit 1
-}
-xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1 || {
-  echo >&2 "ERROR: NOTARY_PROFILE points to an unavailable notarytool keychain profile"
-  exit 1
+usage() {
+  printf 'usage: %s [--dry-run] [--output-root PATH]\n' "${0##*/}" >&2
+  exit 64
 }
 
-echo "==> 2/5 assemble the pinned public seed"
-make famo-seed
-
-echo "==> 3/5 build, sign, notarize, and package the App cohort"
-make dmg DEV_ID="$DEV_ID" NOTARY_PROFILE="$NOTARY_PROFILE"
-
-echo "==> 4/5 generate the signed immutable appcast"
-# Call the packaging helper directly. The Makefile `archive` target depends on the phony `package`
-# target and would rebuild/re-notarize the cohort a second time.
-make package/sign_update
-[[ -x package/sign_update ]] || {
-  echo >&2 "ERROR: Sparkle sign_update helper is unavailable"
-  exit 1
-}
-bash package/make_archive
-
-echo "==> 5/5 run App-owned automated artifact gates"
-FAMO_IDENTITY_STRICT=1 bash scripts/check-identity-residual.sh
-bash scripts/check-manifest.sh
-bash scripts/check-release.sh --automated-only
-# 出厂 app bundle 的密钥扫描。CI 侧同一道闸挂在 privacy-gate（那儿才装扫描器）；本地发版不走
-# privacy-gate，所以这里显式再调一次。源码包那份由 create-source-archive.sh 自己扫。
-bash scripts/check-secrets.sh --artifacts "build/Build/Products/Release/Famo.app" \
-  "build/release/FAMOTYPE-FILE-MANIFEST.sha256" "build/release/FAMOTYPE-SBOM.spdx.json"
-
-for artifact in package/Famo.dmg package/Famo.pkg package/Famo-update.pkg package/appcast.xml; do
-  [[ -s "$artifact" ]] || {
-    echo >&2 "ERROR: missing App cohort output: $artifact"
-    exit 1
-  }
-  printf 'OUTPUT: %s\n' "$HERE/$artifact"
+while (($#)); do
+  case "$1" in
+    --dry-run)
+      dry_run=1
+      shift
+      ;;
+    --output-root)
+      (($# >= 2)) || usage
+      output_root="$2"
+      shift 2
+      ;;
+    *)
+      usage
+      ;;
+  esac
 done
 
-# 出厂盘点是给下载者验签用的（cd Famo.app && shasum -a 256 -c FAMOTYPE-FILE-MANIFEST.sha256），
-# 只有跟着上架才有意义 —— 所以和 dmg/pkg 一样列进 OUTPUT，由发布环节一并上传。
-for artifact in build/release/FAMOTYPE-FILE-MANIFEST.sha256 build/release/FAMOTYPE-SBOM.spdx.json; do
-  [[ -s "$artifact" ]] || {
-    echo >&2 "ERROR: missing App cohort output: $artifact"
+mkdir_command() {
+  local rendered
+  printf -v rendered ' %q' "$@"
+  printf 'DRY-RUN:%s\n' "$rendered"
+}
+
+run() {
+  if ((dry_run)); then
+    mkdir_command "$@"
+  else
+    "$@"
+  fi
+}
+
+if [[ "$output_root" != /* ]]; then
+  output_root="$ROOT/$output_root"
+fi
+app="$output_root/Build/Products/Release/Famo.app"
+release_dir="$output_root/release"
+cohort_file="$release_dir/FAMOTYPE-RELEASE-COHORT.json"
+dev_id="${DEV_ID:-}"
+notary_profile="${NOTARY_PROFILE:-xw-notary}"
+
+if ((!dry_run)) && [[ -z "$dev_id" ]]; then
+  echo >&2 "ERROR: set DEV_ID to the Developer ID common name"
+  exit 1
+fi
+if ((dry_run)) && [[ -z "$dev_id" ]]; then
+  dev_id='<Developer ID common name>'
+fi
+
+cd "$ROOT"
+
+echo "==> 1/8 validate clean source, signing, and notarization readiness"
+if ((dry_run)); then
+  mkdir_command git status --porcelain --untracked-files=all
+  mkdir_command security find-identity -v -p codesigning
+  mkdir_command security find-identity -v
+  mkdir_command xcrun notarytool history --keychain-profile "$notary_profile"
+else
+  if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
+    echo >&2 "ERROR: release requires a clean worktree at the exact cohort revision"
+    exit 1
+  fi
+  security find-identity -v -p codesigning 2>/dev/null |
+    grep -q "Developer ID Application: ${dev_id}" || {
+      echo >&2 "ERROR: Developer ID Application identity is unavailable"
+      exit 1
+    }
+  security find-identity -v 2>/dev/null |
+    grep -q "Developer ID Installer: ${dev_id}" || {
+      echo >&2 "ERROR: Developer ID Installer identity is unavailable"
+      exit 1
+    }
+  xcrun notarytool history --keychain-profile "$notary_profile" >/dev/null 2>&1 || {
+    echo >&2 "ERROR: NOTARY_PROFILE points to an unavailable notarytool keychain profile"
     exit 1
   }
-  printf 'OUTPUT: %s\n' "$HERE/$artifact"
-done
+fi
 
-# 三个上架产物必须**真的带着公证票**，而不只是「文件存在且非空」。
-#
-# 上面那圈 `-s` 检查对「一个签了名但没公证的 DMG」是完全放行的 —— 而那正是 1.5.13 出包时的实际
-# 状态（公证凭据中途消失）。那次是靠 `make dmg` 自己挂掉才拦住的；一旦哪天失败发生在别的分支上、
-# 或者有人手工补跑了某一步，这里就是最后一道闸。stapler 读的是产物里嵌着的票，离线可验，
-# 不依赖任何网络或凭据 —— 也就是说这道闸在凭据已经消失的机器上照样有效。
-for artifact in package/Famo.dmg package/Famo.pkg package/Famo-update.pkg; do
-  xcrun stapler validate "$artifact" >/dev/null 2>&1 || {
-    echo >&2 "ERROR: $artifact 没有公证票（stapler validate 不过）。"
-    echo >&2 "       这种包发出去，新用户会被 Gatekeeper 拦住。"
-    echo >&2 "       先确认公证凭据还在：xcrun notarytool history --keychain-profile \"\$NOTARY_PROFILE\""
-    exit 1
-  }
-  printf 'STAPLED: %s\n' "$artifact"
-done
+reuse=0
+if ((!dry_run)) && [[ -e "$cohort_file" ]]; then
+  echo "==> existing cohort state found; verify it instead of building again"
+  python3 "$STATE" verify-chain "$output_root"
+  reuse=1
+fi
 
-printf 'PASS: App release cohort build complete; composition/publishing steps remain external\n'
+echo "==> 2/8 run the full test suite"
+run make test "DERIVED_DATA_PATH=$output_root/tests"
+
+echo "==> 3/8 assemble exactly one signed, notarized, stapled artifact cohort"
+if ((reuse)); then
+  echo "REUSE: complete current cohort; release build and composition remain unchanged"
+else
+  run make famo-seed
+  run make release-artifacts \
+    "DEV_ID=$dev_id" \
+    "NOTARY_PROFILE=$notary_profile" \
+    "RELEASE_OUTPUT_ROOT=$output_root"
+fi
+
+echo "==> 4/8 create and bind corresponding source"
+if ((reuse)); then
+  echo "REUSE: source archive already belongs to the current cohort"
+else
+  run bash "$ROOT/scripts/create-source-archive.sh" "$output_root"
+fi
+
+echo "==> 5/8 verify the complete cohort contract"
+run python3 "$STATE" verify-chain "$output_root"
+
+if ((dry_run)); then
+  dmg='<cohort versioned DMG>'
+  source_archive='<cohort source archive>'
+else
+  dmg="$(python3 "$STATE" artifact-path "$output_root" dmg)"
+  source_archive="$(python3 "$STATE" output-path "$output_root" source-archive)"
+fi
+
+echo "==> 6/8 run release and identity gates"
+run env FAMO_IDENTITY_STRICT=1 "FAMO_APP=$app" "FAMO_DMG=$dmg" \
+  bash "$ROOT/scripts/check-identity-residual.sh"
+run env "FAMO_APP=$app" bash "$ROOT/scripts/check-manifest.sh"
+run env "RELEASE_OUTPUT_ROOT=$output_root" \
+  bash "$ROOT/scripts/check-release.sh" --automated-only
+
+echo "==> 7/8 run privacy and centralized secret gates"
+run python3 "$STATE" verify-chain "$output_root"
+run bash "$ROOT/scripts/check-public-source.sh"
+run bash "$ROOT/scripts/check-public-privacy.selftest.sh"
+run bash "$ROOT/scripts/check-secrets.sh"
+run bash "$ROOT/scripts/check-secrets.sh" --artifacts \
+  "$app" \
+  "$source_archive" \
+  "$release_dir/FAMOTYPE-FILE-MANIFEST.sha256" \
+  "$release_dir/FAMOTYPE-SBOM.spdx.json" \
+  "$release_dir/FAMOTYPE-APP-PROVENANCE.txt" \
+  "$ROOT/package/appcast.xml"
+
+echo "==> 8/8 verify the local publishing contract without publishing"
+run bash "$ROOT/scripts/check-published-release.sh" --dry-run "$output_root"
+
+if ((dry_run)); then
+  printf 'DRY-RUN: complete release order rendered; no step was executed\n'
+else
+  printf 'PASS: one release cohort completed every local gate; no remote state was changed\n'
+fi

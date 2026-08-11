@@ -62,13 +62,14 @@ def head_revision() -> str:
     return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
 
 
-def bundle_version(app: Path) -> str:
+def bundle_versions(app: Path) -> tuple[str, str]:
     with (app / "Contents/Info.plist").open("rb") as handle:
         info = plistlib.load(handle)
     version = str(info.get("CFBundleShortVersionString", ""))
-    if not version:
-        fail("bundle has no CFBundleShortVersionString")
-    return version
+    build_version = str(info.get("CFBundleVersion", ""))
+    if not version or not build_version:
+        fail("bundle has incomplete version metadata")
+    return version, build_version
 
 
 def check_cohort_state(output_root: Path, app: Path, output_dir: Path) -> tuple[dict, str, str]:
@@ -86,11 +87,16 @@ def check_cohort_state(output_root: Path, app: Path, output_dir: Path) -> tuple[
     if cohort.get("revision") != revision:
         fail(
             f"cohort revision is {cohort.get('revision')!r}, but HEAD is {revision!r}; "
-            "re-run make notarized-app / make dmg so the inventory matches this commit"
+            "re-run scripts/release.sh with a fresh output root"
         )
-    version = bundle_version(app)
+    version, build_version = bundle_versions(app)
     if cohort.get("version") != version:
         fail(f"cohort version is {cohort.get('version')!r}, but the bundle is {version!r}")
+    if cohort.get("buildVersion") != build_version:
+        fail(
+            f"cohort build version is {cohort.get('buildVersion')!r}, "
+            f"but the bundle is {build_version!r}"
+        )
 
     expected_root = output_root_fingerprint(output_root)
     if cohort.get("outputRootSha256") != expected_root:
@@ -99,7 +105,9 @@ def check_cohort_state(output_root: Path, app: Path, output_dir: Path) -> tuple[
     build_sha = cohort.get("buildAppSha256")
     if not isinstance(build_sha, str) or not build_sha:
         fail("cohort has no build App identity")
-    expected_id = cohort_identifier(revision, version, expected_root, build_sha)
+    expected_id = cohort_identifier(
+        revision, version, build_version, expected_root, build_sha
+    )
     if cohort.get("cohortId") != expected_id:
         fail("cohort identity digest is invalid")
     if cohort.get("status") == "failed":
@@ -134,6 +142,10 @@ def check(output_root: Path, app: Path, output_dir: Path) -> None:
         )
     if stamp.get("version") != version:
         fail(f"inventory version is {stamp.get('version')!r}, but cohort version is {version!r}")
+    if stamp.get("build-version") != cohort.get("buildVersion"):
+        fail("inventory build version does not match the release cohort")
+    if stamp.get("cohort") != cohort.get("cohortId"):
+        fail("inventory embeds a different cohort identity")
 
     expected_inventory = inventory_fingerprint(output_dir)
     if cohort.get("inventorySha256") != expected_inventory:
@@ -142,7 +154,7 @@ def check(output_root: Path, app: Path, output_dir: Path) -> None:
     if (output_dir / MANIFEST_NAME).read_text() != manifest_text(app):
         fail(
             f"{MANIFEST_NAME} no longer matches the bundle at {app}; "
-            "re-run make notarized-app / make dmg"
+            "re-run scripts/release.sh with a fresh output root"
         )
 
     print(f"PASS: release cohort matches bundle {version} at revision {revision}")
@@ -163,7 +175,7 @@ def main() -> None:
         check(output_root, app, output_dir)
         return
 
-    version = bundle_version(app)
+    version, build_version = bundle_versions(app)
     revision = head_revision()
     cohort, cohort_version, cohort_revision = check_cohort_state(output_root, app, output_dir)
     if cohort_version != version or cohort_revision != revision:
@@ -171,7 +183,15 @@ def main() -> None:
     committed_at = subprocess.check_output(["git", "show", "-s", "--format=%cI", "HEAD"], cwd=ROOT, text=True).strip()
     created = datetime.fromisoformat(committed_at).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    count = write_inventory(app, output_dir, version, revision, created)
+    count = write_inventory(
+        app,
+        output_dir,
+        version,
+        build_version,
+        revision,
+        str(cohort["cohortId"]),
+        created,
+    )
     cohort["inventorySha256"] = inventory_fingerprint(output_dir)
     write_cohort(output_dir, cohort)
 

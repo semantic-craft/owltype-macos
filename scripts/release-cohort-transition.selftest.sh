@@ -119,6 +119,7 @@ with open(sys.argv[1], "wb") as handle:
         {
             "CFBundleIdentifier": "im.famo.inputmethod.Famo",
             "CFBundleShortVersionString": sys.argv[2],
+            "CFBundleVersion": sys.argv[2],
         },
         handle,
     )
@@ -297,12 +298,13 @@ fi
 
 if ! grep -Eq 'notarytool submit|productsign|stapler staple' \
       "$ROOT/Makefile" "$ROOT/package/sign_app" "$ROOT/package/make_package" \
-      "$ROOT/package/make_update_package" "$ROOT/package/make_dmg" &&
+      "$ROOT/package/make_dmg" &&
    grep -qF 'release-cohort-state.py" seal' "$ROOT/package/sign_app" &&
    grep -qF 'release-cohort-state.py seal "$(RELEASE_OUTPUT_ROOT)" installer-pkg' "$ROOT/Makefile" &&
    grep -qF 'release-cohort-state.py seal "$(RELEASE_OUTPUT_ROOT)" update-pkg' "$ROOT/Makefile" &&
    grep -qF '"$COHORT_STATE" seal "$RELEASE_OUTPUT_ROOT" dmg' "$ROOT/package/make_dmg" &&
-   grep -qF 'release-cohort-state.py" appcast-ready' "$ROOT/package/make_archive"; then
+   grep -qF '"$COHORT_STATE" appcast-ready' "$ROOT/package/make_archive" &&
+   grep -qF '"$COHORT_STATE" register-output' "$ROOT/package/make_archive"; then
   ok "Make and package entrypoints delegate all four artifacts and appcast guard to cohort state"
 else
   bad "release entrypoints must not retain copied Apple-tool transition sequences"
@@ -322,9 +324,9 @@ run_state success register "$success_root" installer-pkg "$success_root/artifact
 run_state success register "$success_root" update-pkg "$success_root/artifacts/Famo-update.pkg" >>"$output"
 run_state success seal "$success_root" installer-pkg fixture-id fixture-profile >>"$output" 2>&1
 run_state notary-retry seal "$success_root" update-pkg fixture-id fixture-profile >>"$output" 2>&1
-printf 'disk image\n' >"$success_root/artifacts/Famo.dmg"
-embed_fake_cohort_id "$success_root" "$success_root/artifacts/Famo.dmg"
-run_state success register "$success_root" dmg "$success_root/artifacts/Famo.dmg" >>"$output"
+printf 'disk image\n' >"$success_root/artifacts/Famo-9.8.7.dmg"
+embed_fake_cohort_id "$success_root" "$success_root/artifacts/Famo-9.8.7.dmg"
+run_state success register "$success_root" dmg "$success_root/artifacts/Famo-9.8.7.dmg" >>"$output"
 run_state success seal "$success_root" dmg fixture-id fixture-profile >>"$output" 2>&1
 python3 "$INVENTORY" check "$success_root" >>"$output" 2>&1
 
