@@ -63,6 +63,12 @@ def head_revision() -> str:
     return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
 
 
+def format_utc_timestamp(value: str) -> str:
+    if value.endswith("Z"):
+        value = f"{value[:-1]}+00:00"
+    return datetime.fromisoformat(value).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def bundle_versions(app: Path) -> tuple[str, str]:
     try:
         validate_app_executable(app)
@@ -193,7 +199,7 @@ def main() -> None:
     if cohort_version != version or cohort_revision != revision:
         fail("release cohort identity changed while recording inventory")
     committed_at = subprocess.check_output(["git", "show", "-s", "--format=%cI", "HEAD"], cwd=ROOT, text=True).strip()
-    created = datetime.fromisoformat(committed_at).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    created = format_utc_timestamp(committed_at)
 
     count = write_inventory(
         app,

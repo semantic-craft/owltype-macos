@@ -42,6 +42,7 @@ from release_source import (
     file_tree_snapshot,
     git_source_snapshot,
     tree_fingerprint,
+    validate_deterministic_archive_metadata,
 )
 
 
@@ -181,6 +182,10 @@ def validate_source_archive(
         raise CohortError(
             f"source archive name is {archive.name!r}, expected {expected_name!r}"
         )
+    try:
+        validate_deterministic_archive_metadata(archive, expected_name.removesuffix(".tar.gz"))
+    except SourceSnapshotError as error:
+        raise CohortError(f"source archive metadata is invalid: {error}") from error
     provenance = parse_source_provenance(archive)
     if provenance.get("title") != f"Famotype source release {version}":
         raise CohortError("source archive version does not match the release cohort")

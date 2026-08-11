@@ -2,6 +2,8 @@ name: source ci
 
 on:
   push:
+    branches:
+      - main
   pull_request:
 
 permissions:
@@ -32,6 +34,9 @@ jobs:
             scripts/release-cohort-state.py \
             scripts/release_source.py \
             scripts/safe-extract-tar.py
+
+      - name: Check deterministic source archive metadata
+        run: python3 scripts/release-source-archive.selftest.py
 
   release-gate:
     # The full product (cloud AI layer) requires Xcode 26+ (Swift main-actor

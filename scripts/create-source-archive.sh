@@ -97,7 +97,8 @@ for path in sorted(
 PY
 ) > "$stage/$archive_root/FAMOTYPE-SOURCE-MANIFEST.sha256"
 
-COPYFILE_DISABLE=1 tar -czf "$output_dir/$archive_name" -C "$stage" "$archive_root"
+python3 "$repo_root/scripts/release_source.py" archive \
+  "$stage/$archive_root" "$output_dir/$archive_name"
 (
   cd "$output_dir"
   shasum -a 256 "$archive_name" > "$archive_name.sha256"
