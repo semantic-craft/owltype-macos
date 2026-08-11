@@ -2,8 +2,8 @@
 """Table-driven tests for the shared secret finding policy and shell adapters.
 
 Every finding and scanner executable is synthetic and lives in a temporary
-directory.  The real scanners, release artifacts, credentials, and Keychain
-are never consulted.
+directory. Container tests use unsigned system packaging tools, but never real
+credentials, signing identities, notarization, or Keychain state.
 """
 
 from __future__ import annotations
@@ -309,6 +309,14 @@ class ShellAdapterTests(unittest.TestCase):
                 [[ -n "${findings_status:-}" ]]
                 case "${FAKE_GITLEAKS_MODE:-clean}" in
                   clean) printf '[]' > "$report" ;;
+                  detect_sentinel)
+                    target="${2:?missing scan target}"
+                    if grep -R -l -F "${FAKE_SECRET_SENTINEL:?}" "$target" >/dev/null 2>&1; then
+                      printf '%s' "$FAKE_GITLEAKS_REPORT" > "$report"
+                      exit "$findings_status"
+                    fi
+                    printf '[]' > "$report"
+                    ;;
                   finding)
                     printf '%s' "$FAKE_GITLEAKS_REPORT" > "$report"
                     exit "$findings_status"
@@ -349,6 +357,7 @@ class ShellAdapterTests(unittest.TestCase):
         gitleaks_report: list[dict[str, Any]] | None = None,
         trufflehog_mode: str = "clean",
         trufflehog_report: dict[str, Any] | None = None,
+        secret_sentinel: str = "",
     ) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
         environment["PATH"] = f"{self.fake_bin}{os.pathsep}{environment['PATH']}"
@@ -356,6 +365,7 @@ class ShellAdapterTests(unittest.TestCase):
         environment["FAKE_GITLEAKS_REPORT"] = json.dumps(gitleaks_report or [])
         environment["FAKE_TRUFFLEHOG_MODE"] = trufflehog_mode
         environment["FAKE_TRUFFLEHOG_REPORT"] = json.dumps(trufflehog_report or {})
+        environment["FAKE_SECRET_SENTINEL"] = secret_sentinel
         return subprocess.run(
             ["bash", str(SCRIPT_DIR / "check-secrets.sh"), *arguments],
             cwd=REPO_ROOT,
@@ -440,6 +450,30 @@ class ShellAdapterTests(unittest.TestCase):
         self.assertIn("Lob 撞测试函数名 1 条", completed.stdout)
         self.assertIn(str(source_archive), completed.stdout)
 
+    def test_source_archive_rejects_unsafe_members_before_scanning(self) -> None:
+        cases = ("traversal", "symlink")
+        for member_type in cases:
+            with self.subTest(member_type=member_type):
+                source_archive = self.root / f"unsafe-{member_type}.tar.gz"
+                with tarfile.open(source_archive, "w:gz") as archive:
+                    member = tarfile.TarInfo(
+                        "../outside" if member_type == "traversal" else "source/link"
+                    )
+                    if member_type == "traversal":
+                        payload = b"unsafe fixture"
+                        member.size = len(payload)
+                        import io
+
+                        archive.addfile(member, io.BytesIO(payload))
+                    else:
+                        member.type = tarfile.SYMTYPE
+                        member.linkname = "/tmp/outside"
+                        archive.addfile(member)
+                completed = self._run_gate("--artifacts", str(source_archive))
+                self.assertNotEqual(completed.returncode, 0)
+                self.assertIn("ERROR:", completed.stderr)
+                self.assertFalse((self.root.parent / "outside").exists())
+
     def test_artifact_non_source_identifier_is_rejected(self) -> None:
         configuration = self.artifact / "runtime.env"
         configuration.write_text("synthetic\n", encoding="utf-8")
@@ -465,6 +499,105 @@ class ShellAdapterTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 24)
         self.assertIn("failed to scan", completed.stderr)
         self.assertNotIn("potential secret found", completed.stderr)
+
+    def test_real_pkg_and_dmg_contents_are_scanned_and_dmg_is_detached(self) -> None:
+        sentinel = "FAMOTYPE" + "_SECRET_SENTINEL_" + "A" * 24
+        finding = [{"RuleID": "synthetic-container-secret", "File": "runtime.env"}]
+
+        pkg_root = self.root / "pkg-root"
+        pkg_secret = pkg_root / "Famo.app" / "Contents" / "Resources" / "runtime.env"
+        pkg_secret.parent.mkdir(parents=True)
+        pkg_secret.write_text(f"credential={sentinel}\n", encoding="utf-8")
+        component = self.root / "Famo-component.pkg"
+        distribution = self.root / "Distribution.xml"
+        product_pkg = self.root / "Famo.pkg"
+        subprocess.run(
+            [
+                "/usr/bin/pkgbuild",
+                "--root",
+                str(pkg_root),
+                "--identifier",
+                "im.famo.secret-selftest",
+                "--version",
+                "1",
+                "--install-location",
+                "/Library/Input Methods",
+                str(component),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            [
+                "/usr/bin/productbuild",
+                "--synthesize",
+                "--package",
+                str(component),
+                str(distribution),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            [
+                "/usr/bin/productbuild",
+                "--distribution",
+                str(distribution),
+                "--package-path",
+                str(self.root),
+                str(product_pkg),
+            ],
+            check=True,
+            capture_output=True,
+        )
+
+        pkg_result = self._run_gate(
+            "--artifacts",
+            str(product_pkg),
+            gitleaks_mode="detect_sentinel",
+            gitleaks_report=finding,
+            secret_sentinel=sentinel,
+        )
+        self.assertEqual(pkg_result.returncode, 1, pkg_result.stderr)
+        self.assertIn("potential secret found in artifact", pkg_result.stderr)
+        self.assertNotIn(sentinel, pkg_result.stdout + pkg_result.stderr)
+
+        dmg_root = self.root / "dmg-root"
+        installer_secret = (
+            dmg_root / "FamoInstaller.app" / "Contents" / "Resources" / "runtime.env"
+        )
+        installer_secret.parent.mkdir(parents=True)
+        installer_secret.write_text(f"credential={sentinel}\n", encoding="utf-8")
+        dmg = self.root / "Famo-9.8.7.dmg"
+        subprocess.run(
+            [
+                "/usr/bin/hdiutil",
+                "create",
+                "-volname",
+                "FamoSecretSelfTest",
+                "-srcfolder",
+                str(dmg_root),
+                "-ov",
+                "-format",
+                "UDZO",
+                str(dmg),
+            ],
+            check=True,
+            capture_output=True,
+        )
+
+        dmg_result = self._run_gate(
+            "--artifacts",
+            str(dmg),
+            gitleaks_mode="detect_sentinel",
+            gitleaks_report=finding,
+            secret_sentinel=sentinel,
+        )
+        self.assertEqual(dmg_result.returncode, 1, dmg_result.stderr)
+        self.assertIn("potential secret found in artifact", dmg_result.stderr)
+        self.assertNotIn(sentinel, dmg_result.stdout + dmg_result.stderr)
+        attached_images = subprocess.check_output(["/usr/bin/hdiutil", "info", "-plist"])
+        self.assertNotIn(str(dmg).encode(), attached_images)
 
 
 if __name__ == "__main__":

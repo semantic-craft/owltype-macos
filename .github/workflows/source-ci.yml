@@ -24,7 +24,14 @@ jobs:
           bash scripts/check-public-privacy.selftest.sh
 
       - name: Check shell syntax
-        run: bash -n action-install.sh scripts/*.sh
+        run: |
+          bash -n action-install.sh scripts/*.sh package/apple_tool_adapter package/make_package
+          python3 -m py_compile \
+            scripts/famo_bundle.py \
+            scripts/inventory-release-bundle.py \
+            scripts/release-cohort-state.py \
+            scripts/release_source.py \
+            scripts/safe-extract-tar.py
 
   release-gate:
     # The full product (cloud AI layer) requires Xcode 26+ (Swift main-actor

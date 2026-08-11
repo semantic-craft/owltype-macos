@@ -266,7 +266,13 @@ test: $(DEPS_CHECK)
 		-derivedDataPath $(DERIVED_DATA_PATH) \
 		CODE_SIGNING_ALLOWED=YES \
 		CODE_SIGN_IDENTITY=- \
-		test
+		test \
+		-skip-testing:FamoTests/FamoGoalBriefLiveTests \
+		-skip-testing:FamoTests/FamoLiveInputTraceTests \
+		-skip-testing:FamoTests/FamoPromptOptimizeLiveTests \
+		-skip-testing:FamoTests/FamoResponsesPromptEvaluationLiveTests \
+		-skip-testing:FamoTests/FamoSkillsLiveTests \
+		-skip-testing:FamoTests/FamoTriModelSelectionMatrixLiveTests
 
 # Read-only cohort preflight. It deliberately has no build prerequisite: callers may invoke it
 # repeatedly without rebuilding, re-signing or replacing the selected cohort.

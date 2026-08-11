@@ -45,6 +45,7 @@ from famo_bundle import (
     read_provenance,
     release_paths,
     resolve_artifact_path,
+    validate_app_executable,
     validate_cohort_shape,
     write_cohort,
     write_inventory,
@@ -63,6 +64,10 @@ def head_revision() -> str:
 
 
 def bundle_versions(app: Path) -> tuple[str, str]:
+    try:
+        validate_app_executable(app)
+    except ValueError as error:
+        fail(str(error))
     with (app / "Contents/Info.plist").open("rb") as handle:
         info = plistlib.load(handle)
     version = str(info.get("CFBundleShortVersionString", ""))
@@ -106,7 +111,14 @@ def check_cohort_state(output_root: Path, app: Path, output_dir: Path) -> tuple[
     if not isinstance(build_sha, str) or not build_sha:
         fail("cohort has no build App identity")
     expected_id = cohort_identifier(
-        revision, version, build_version, expected_root, build_sha
+        revision,
+        version,
+        build_version,
+        expected_root,
+        build_sha,
+        str(cohort["sourceSha256"]),
+        str(cohort["seedSha256"]),
+        dict(cohort["submodules"]),
     )
     if cohort.get("cohortId") != expected_id:
         fail("cohort identity digest is invalid")

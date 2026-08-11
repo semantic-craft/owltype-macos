@@ -37,10 +37,6 @@ app_manifest="$output_dir/FAMOTYPE-FILE-MANIFEST.sha256"
 # cohort check 复核 HEAD、版本、输出根、盘点与 bundle 全部属于同一构建。
 python3 "$repo_root/scripts/inventory-release-bundle.py" check "$output_root"
 cohort_id="$(python3 "$repo_root/scripts/release-cohort-state.py" id "$output_root")"
-[[ -d "$repo_root/data/famo-rime" ]] || {
-  echo "data/famo-rime is missing; run make famo-seed" >&2
-  exit 1
-}
 [[ -z "$(git -C "$repo_root" status --porcelain --untracked-files=all)" ]] || {
   echo "source archive requires a clean worktree" >&2
   exit 1
@@ -54,29 +50,28 @@ archive_name="$archive_root.tar.gz"
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
 
-mkdir -p "$stage/$archive_root" "$output_dir"
-git -C "$repo_root" archive HEAD | tar -x -C "$stage/$archive_root"
-
-while read -r submodule_revision submodule_path _; do
-  [[ "$submodule_revision" =~ ^[0-9a-f]{40}$ ]] || {
-    echo "submodule is uninitialized or differs from the recorded revision: $submodule_path" >&2
-    exit 1
-  }
-  mkdir -p "$stage/$archive_root/$submodule_path"
-  git -C "$repo_root/$submodule_path" archive HEAD | \
-    tar -x -C "$stage/$archive_root/$submodule_path"
-done < <(git -C "$repo_root" submodule status --recursive)
-
+mkdir -p "$output_dir"
+python3 "$repo_root/scripts/release_source.py" stage \
+  "$repo_root" "$revision" "$stage/$archive_root"
 mkdir -p "$stage/$archive_root/data/famo-rime"
-rsync -a "$repo_root/data/famo-rime/." "$stage/$archive_root/data/famo-rime/"
+rsync -a "$app/Contents/SharedSupport/." "$stage/$archive_root/data/famo-rime/"
+
+read -r source_tree seed_tree < <(python3 - "$output_dir/FAMOTYPE-RELEASE-COHORT.json" <<'PY'
+import json
+import sys
+
+cohort = json.load(open(sys.argv[1]))
+print(cohort["sourceSha256"], cohort["seedSha256"])
+PY
+)
 
 {
   echo "Famotype source release $version"
   echo "build-version $build_version"
   echo "root $revision"
   echo "cohort $cohort_id"
-  git -C "$repo_root" submodule status --recursive
-  echo "seed $(shasum -a 256 "$repo_root/data/famo-rime/FAMOTYPE-SEED-MANIFEST.txt" | awk '{print $1}')"
+  echo "source-tree $source_tree"
+  echo "seed-tree $seed_tree"
   echo "app-manifest $(shasum -a 256 "$app_manifest" | awk '{print $1}')"
 } > "$stage/$archive_root/FAMOTYPE-SOURCE-PROVENANCE.txt"
 

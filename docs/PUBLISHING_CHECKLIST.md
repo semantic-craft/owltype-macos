@@ -55,9 +55,24 @@ The cohort binds the marketing version (`CFBundleShortVersionString`) and Sparkl
 (`CFBundleVersion`) separately. The versioned DMG and source archive use the marketing version;
 Sparkle comparison and the immutable update-package URL use the build version.
 
+The cohort also binds an exact file-and-mode snapshot of the selected Git revision and every pinned
+submodule revision, plus a stable digest of the complete generated seed shipped in
+`Famo.app/Contents/SharedSupport`. The corresponding-source archive must contain exactly that
+tracked source, its declared manifest and provenance, and a `data/famo-rime` tree identical to the
+App seed. Self-consistent replacement archives are rejected even when their internal manifest and
+checksum sidecar have been recomputed.
+
+The App cohort identity includes normalized entry type and permission mode as well as file contents
+and symlink targets. `Contents/MacOS/Famo` must remain a regular executable file. The appcast must
+declare `sparkle:installationType="package"`, and its EdDSA signature over the exact cohort-bound
+update package must verify with `SUPublicEDKey` from that cohort's App.
+
 The final local publishing gate lists ten cohort-verified assets as `WOULD_PUBLISH`. The script does
 not create a GitHub Release, upload assets, change tags, deploy the feed, or validate a remote URL.
 Those remote actions remain a separate maintainer decision after every local gate passes.
+The shared artifact secret policy scans the App and all ten listed assets. It safely expands PKGs,
+mounts DMGs read-only and detaches them on both success and failure, and extracts tar archives while
+rejecting links, special members, duplicate paths, and traversal before scanning their contents.
 
 The App inventory is taken **after** Developer ID signing and stapling, because both rewrite the
 bundle. `FAMOTYPE-FILE-MANIFEST.sha256`, `FAMOTYPE-SBOM.spdx.json`, App provenance, and the cohort
@@ -67,3 +82,8 @@ checksum. A downloader can verify the App with
 
 Public source and public binaries remain separate legal decisions. A complete cohort does not permit
 a binary release while any provenance, corresponding-source, license, or human-review gate is open.
+Local tests use fake adapters, unsigned system packaging tools, and synthetic Sparkle keys only;
+they do not replace a maintainer's final Developer ID signing, notarization, stapling, and installed
+update validation on the exact release artifacts.
+The product test entrypoint explicitly excludes all six credential-gated Live suites; release and
+source CI must never rely on their default skip behavior or run an unfiltered `xcodebuild test`.

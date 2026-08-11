@@ -32,13 +32,22 @@ from famo_bundle import (
     release_paths,
     resolve_artifact_path,
     sha256,
+    validate_app_executable,
     validate_cohort_shape,
     write_cohort,
+)
+from release_source import (
+    FileEntry,
+    SourceSnapshotError,
+    file_tree_snapshot,
+    git_source_snapshot,
+    tree_fingerprint,
 )
 
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_ADAPTER = ROOT / "package/apple_tool_adapter"
+SPARKLE_SIGNATURE_VERIFIER = ROOT / "scripts/verify-sparkle-eddsa.swift"
 RETRYABLE_EXIT = 75
 REJECTED_EXIT = 65
 SPARKLE_NAMESPACE = "http://www.andymatuschak.org/xml-namespaces/sparkle"
@@ -56,6 +65,10 @@ def head_revision() -> str:
 
 
 def bundle_versions(app: Path) -> tuple[str, str]:
+    try:
+        validate_app_executable(app)
+    except ValueError as error:
+        raise CohortError(str(error)) from error
     try:
         with (app / "Contents/Info.plist").open("rb") as handle:
             info = plistlib.load(handle)
@@ -96,8 +109,23 @@ def validate_identity(cohort: dict, output_root: Path, app: Path) -> None:
     build_sha = cohort.get("buildAppSha256")
     if not isinstance(build_sha, str) or not build_sha:
         raise CohortError("cohort has no build App identity")
+    try:
+        app_seed_sha = tree_fingerprint(
+            file_tree_snapshot(app / "Contents/SharedSupport")
+        )
+    except SourceSnapshotError as error:
+        raise CohortError(f"cannot validate release App seed: {error}") from error
+    if cohort.get("seedSha256") != app_seed_sha:
+        raise CohortError("release App seed does not match the cohort binding")
     expected_id = cohort_identifier(
-        revision, version, build_version, root_sha, build_sha
+        revision,
+        version,
+        build_version,
+        root_sha,
+        build_sha,
+        str(cohort["sourceSha256"]),
+        str(cohort["seedSha256"]),
+        dict(cohort["submodules"]),
     )
     if cohort.get("cohortId") != expected_id:
         raise CohortError("cohort identity digest is invalid")
@@ -225,6 +253,7 @@ def validate_source_archive(
             }
             if not required.issubset(regular):
                 raise CohortError("source archive is missing required corresponding source")
+            actual_entries: dict[str, FileEntry] = {}
             for relative, member in regular.items():
                 extracted = handle.extractfile(member)
                 if extracted is None:
@@ -234,8 +263,62 @@ def validate_source_archive(
                     digest.update(chunk)
                 if digest.hexdigest() != listed[relative]:
                     raise CohortError(f"source archive manifest mismatch for {relative}")
+                actual_entries[relative] = FileEntry(
+                    mode=member.mode & 0o7777,
+                    sha256=digest.hexdigest(),
+                )
     except (OSError, tarfile.TarError, UnicodeDecodeError) as error:
         raise CohortError(f"cannot validate source archive manifest: {error}") from error
+
+    try:
+        expected_source, expected_submodules = git_source_snapshot(
+            ROOT, str(cohort["revision"])
+        )
+    except SourceSnapshotError as error:
+        raise CohortError(f"cannot reconstruct cohort source revision: {error}") from error
+    expected_source_sha = tree_fingerprint(expected_source)
+    if (
+        cohort.get("sourceSha256") != expected_source_sha
+        or cohort.get("submodules") != expected_submodules
+    ):
+        raise CohortError("cohort source binding does not match its revision and submodules")
+
+    provenance_name = "FAMOTYPE-SOURCE-PROVENANCE.txt"
+    seed_prefix = "data/famo-rime/"
+    archived_source = {
+        relative: entry
+        for relative, entry in actual_entries.items()
+        if relative != provenance_name and not relative.startswith(seed_prefix)
+    }
+    expected_source_without_data = {
+        relative: FileEntry(mode=entry.mode, sha256=entry.sha256)
+        for relative, entry in expected_source.items()
+    }
+    if archived_source != expected_source_without_data:
+        raise CohortError("source archive tracked source does not match the cohort revision")
+
+    archived_seed = {
+        relative.removeprefix(seed_prefix): entry
+        for relative, entry in actual_entries.items()
+        if relative.startswith(seed_prefix)
+    }
+    try:
+        app = release_paths(output_dir.parent)[1]
+        app_seed = file_tree_snapshot(app / "Contents/SharedSupport")
+    except SourceSnapshotError as error:
+        raise CohortError(f"cannot read release App seed: {error}") from error
+    app_seed_without_data = {
+        relative: FileEntry(mode=entry.mode, sha256=entry.sha256)
+        for relative, entry in app_seed.items()
+    }
+    if archived_seed != app_seed_without_data:
+        raise CohortError("source archive seed does not match the release App")
+    if tree_fingerprint(app_seed) != cohort.get("seedSha256"):
+        raise CohortError("release App seed does not match the cohort binding")
+    if provenance.get("source-tree") != cohort.get("sourceSha256"):
+        raise CohortError("source archive provenance has a different source tree")
+    if provenance.get("seed-tree") != cohort.get("seedSha256"):
+        raise CohortError("source archive provenance has a different seed tree")
 
     sidecar = archive.with_name(f"{archive.name}.sha256")
     try:
@@ -306,6 +389,8 @@ def validate_appcast(appcast: Path, cohort: dict, output_root: Path) -> None:
         raise CohortError("appcast enclosure version does not match the release cohort")
     if enclosure.get("url") != expected_url:
         raise CohortError("appcast enclosure URL does not match the release cohort version")
+    if enclosure.get(f"{{{SPARKLE_NAMESPACE}}}installationType") != "package":
+        raise CohortError("appcast installation type must be package")
 
     update_record = cohort["artifacts"].get("update-pkg")
     if not update_record:
@@ -322,8 +407,35 @@ def validate_appcast(appcast: Path, cohort: dict, output_root: Path) -> None:
         raise CohortError("appcast enclosure length is invalid") from error
     if enclosure_length != update_package.stat().st_size:
         raise CohortError("appcast enclosure length does not match the cohort update package")
-    if not enclosure.get(f"{{{SPARKLE_NAMESPACE}}}edSignature"):
+    signature = enclosure.get(f"{{{SPARKLE_NAMESPACE}}}edSignature")
+    if not signature:
         raise CohortError("appcast enclosure has no Sparkle signature")
+    app = release_paths(output_root)[1]
+    try:
+        with (app / "Contents/Info.plist").open("rb") as handle:
+            public_key = plistlib.load(handle).get("SUPublicEDKey")
+    except (OSError, plistlib.InvalidFileException) as error:
+        raise CohortError(f"cannot read App Sparkle public key: {error}") from error
+    if not isinstance(public_key, str) or not public_key:
+        raise CohortError("release App has no Sparkle public key")
+    # Sparkle 2.6.2's sign_update --verify derives its public key from a private
+    # seed or Keychain entry. The release validator must instead trust only the
+    # public key shipped in this exact App, so use the system Ed25519 primitive.
+    verified = subprocess.run(
+        [
+            "/usr/bin/swift",
+            str(SPARKLE_SIGNATURE_VERIFIER),
+            str(update_package),
+            signature,
+            public_key,
+        ],
+        cwd=ROOT,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    if verified.returncode:
+        raise CohortError("appcast EdDSA signature does not verify with the App public key")
 
 
 def validate_output(
@@ -427,6 +539,14 @@ def initialize(output_root_arg: str) -> None:
     version, build_version = bundle_versions(app)
     app_sha = artifact_sha256(app)
     root_sha = output_root_fingerprint(output_root)
+    try:
+        source_entries, submodules = git_source_snapshot(ROOT, revision)
+        source_sha = tree_fingerprint(source_entries)
+        seed_sha = tree_fingerprint(
+            file_tree_snapshot(app / "Contents/SharedSupport")
+        )
+    except SourceSnapshotError as error:
+        raise CohortError(f"cannot bind release source: {error}") from error
     output_dir.mkdir(parents=True, exist_ok=True)
     cohort = {
         "artifacts": {
@@ -439,12 +559,22 @@ def initialize(output_root_arg: str) -> None:
         "buildAppSha256": app_sha,
         "buildVersion": build_version,
         "cohortId": cohort_identifier(
-            revision, version, build_version, root_sha, app_sha
+            revision,
+            version,
+            build_version,
+            root_sha,
+            app_sha,
+            source_sha,
+            seed_sha,
+            submodules,
         ),
         "outputRootSha256": root_sha,
         "revision": revision,
         "schemaVersion": COHORT_SCHEMA_VERSION,
+        "seedSha256": seed_sha,
+        "sourceSha256": source_sha,
         "status": "active",
+        "submodules": submodules,
         "version": version,
     }
     write_cohort(output_dir, cohort)
@@ -468,7 +598,7 @@ def register(output_root_arg: str, name: str, artifact_arg: str) -> None:
         )
     sha = artifact_sha256(artifact)
     result = subprocess.run(
-        [str(adapter_path()), "cohort-id", name, str(artifact)],
+        [str(adapter_path()), "cohort-id", name, str(artifact), cohort["cohortId"]],
         cwd=ROOT,
         capture_output=True,
         text=True,

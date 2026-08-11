@@ -108,8 +108,10 @@ chmod +x "$mock_adapter"
 make_fixture() {
   local root="$1" version="${2:-9.8.7}"
   local app="$root/Build/Products/Release/Famo.app"
-  mkdir -p "$app/Contents/MacOS"
+  mkdir -p "$app/Contents/MacOS" "$app/Contents/SharedSupport"
   printf 'fake executable\n' >"$app/Contents/MacOS/Famo"
+  chmod +x "$app/Contents/MacOS/Famo"
+  printf 'fixture seed\n' >"$app/Contents/SharedSupport/seed.txt"
   python3 - "$app/Contents/Info.plist" "$version" <<'PY'
 import plistlib
 import sys
@@ -168,10 +170,6 @@ STUB
 cat >"$production_bin/pkgutil" <<'STUB'
 #!/usr/bin/env bash
 printf 'pkgutil %s\n' "$*" >>"$APPLE_TOOL_LOG"
-if [[ "${1:-}" == --expand ]]; then
-  mkdir -p "$3/Resources"
-  printf '%s\n' "${EMBEDDED_COHORT_ID:?}" >"$3/Resources/FAMOTYPE-RELEASE-COHORT-ID"
-fi
 exit 0
 STUB
 cat >"$production_bin/ditto" <<'STUB'
@@ -238,14 +236,79 @@ else
   bad "production adapter should submit App zip with bounded JSON wait"
 fi
 
-printf 'package\n' >"$work/inspect.pkg"
 printf 'dmg\n' >"$work/inspect.dmg"
-if [[ "$(run_production_adapter accepted cohort-id installer-pkg "$work/inspect.pkg")" == fixture-cohort-id ]] &&
-   [[ "$(run_production_adapter accepted cohort-id dmg "$work/inspect.dmg")" == fixture-cohort-id ]]; then
-  ok "production Apple adapter reads cohort identity from expanded pkg and mounted DMG"
+if [[ "$(run_production_adapter accepted cohort-id dmg "$work/inspect.dmg" fixture-cohort-id)" == fixture-cohort-id ]]; then
+  ok "production Apple adapter reads cohort identity from mounted DMG"
 else
-  bad "production adapter must inspect embedded pkg and DMG cohort identity"
+  bad "production adapter must inspect embedded DMG cohort identity"
 fi
+
+real_pkg_root="$work/real-pkg"
+mkdir -p "$real_pkg_root/payload/Famo.app/Contents/MacOS"
+printf 'unsigned fixture executable\n' >"$real_pkg_root/payload/Famo.app/Contents/MacOS/Famo"
+chmod +x "$real_pkg_root/payload/Famo.app/Contents/MacOS/Famo"
+/usr/bin/pkgbuild --root "$real_pkg_root/payload" \
+  --identifier im.famo.inputmethod.Famo.selftest \
+  --version 1 --install-location '/Library/Input Methods' \
+  "$real_pkg_root/Famo-component.pkg" >/dev/null
+
+write_distribution() {
+  local destination="$1" marker_xml="$2"
+  cat >"$destination" <<XML
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="1"
+    xmlns:famo="https://responsay.com/famo/release-cohort">
+  <title>Famo unsigned cohort fixture</title>
+  ${marker_xml}
+  <options customize="never" require-scripts="false" rootVolumeOnly="true"/>
+  <choices-outline><line choice="default"><line choice="fixture"/></line></choices-outline>
+  <choice id="default"/>
+  <choice id="fixture" visible="false"><pkg-ref id="im.famo.inputmethod.Famo.selftest"/></choice>
+  <pkg-ref id="im.famo.inputmethod.Famo.selftest">Famo-component.pkg</pkg-ref>
+</installer-gui-script>
+XML
+}
+
+build_product_pkg() {
+  local distribution="$1" destination="$2"
+  /usr/bin/productbuild --distribution "$distribution" --package-path "$real_pkg_root" \
+    "$destination" >/dev/null
+}
+
+write_distribution "$real_pkg_root/Distribution-installer.xml" \
+  '<famo:releaseCohort>fixture-cohort-id</famo:releaseCohort>'
+write_distribution "$real_pkg_root/Distribution-update.xml" \
+  '<famo:releaseCohort>fixture-cohort-id</famo:releaseCohort>'
+build_product_pkg "$real_pkg_root/Distribution-installer.xml" "$real_pkg_root/Famo.pkg"
+build_product_pkg "$real_pkg_root/Distribution-update.xml" "$real_pkg_root/Famo-update.pkg"
+
+if [[ "$("$ROOT/package/apple_tool_adapter" cohort-id installer-pkg \
+      "$real_pkg_root/Famo.pkg" fixture-cohort-id)" == fixture-cohort-id ]] &&
+   [[ "$("$ROOT/package/apple_tool_adapter" cohort-id update-pkg \
+      "$real_pkg_root/Famo-update.pkg" fixture-cohort-id)" == fixture-cohort-id ]]; then
+  ok "production adapter reads the unique cohort marker from two real unsigned distribution PKGs"
+else
+  bad "real productbuild PKGs must preserve one production-readable cohort marker"
+fi
+
+for marker_case in missing duplicate wrong; do
+  case "$marker_case" in
+    missing) marker_xml='' ;;
+    duplicate)
+      marker_xml='<famo:releaseCohort>fixture-cohort-id</famo:releaseCohort><famo:releaseCohort>fixture-cohort-id</famo:releaseCohort>'
+      ;;
+    wrong) marker_xml='<famo:releaseCohort>foreign-cohort-id</famo:releaseCohort>' ;;
+  esac
+  write_distribution "$real_pkg_root/Distribution-${marker_case}.xml" "$marker_xml"
+  build_product_pkg "$real_pkg_root/Distribution-${marker_case}.xml" \
+    "$real_pkg_root/${marker_case}.pkg"
+  if "$ROOT/package/apple_tool_adapter" cohort-id installer-pkg \
+      "$real_pkg_root/${marker_case}.pkg" fixture-cohort-id >"$output" 2>&1; then
+    bad "real productbuild PKG with $marker_case cohort marker should fail"
+  else
+    ok "real productbuild PKG with $marker_case cohort marker fails closed"
+  fi
+done
 
 for scenario_and_exit in rejected:65 timeout:75 network:75 credentials:70 malformed:70; do
   scenario="${scenario_and_exit%%:*}"

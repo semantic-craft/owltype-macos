@@ -27,6 +27,7 @@ run_signing_tool() {
 case "$action" in
   cohort-id)
     source_artifact="${3:?missing artifact}"
+    expected_cohort_id="${4:?missing expected cohort identity}"
     case "$kind" in
       installer-pkg|update-pkg)
         expanded_parent="$(mktemp -d "${TMPDIR:-/tmp}/famo-pkg-inspect.XXXXXX")"
@@ -34,9 +35,30 @@ case "$action" in
         cleanup() { rm -rf -- "$expanded_parent"; }
         trap cleanup EXIT
         pkgutil --expand "$source_artifact" "$expanded" >/dev/null || exit 70
-        markers="$(find "$expanded" -type f -name FAMOTYPE-RELEASE-COHORT-ID -print)"
-        [[ "$(printf '%s\n' "$markers" | sed '/^$/d' | wc -l | tr -d ' ')" -eq 1 ]] || exit 70
-        cat "$markers"
+        embedded_id="$(python3 - "$expanded/Distribution" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+
+namespace = "https://responsay.com/famo/release-cohort"
+try:
+    root = ET.parse(sys.argv[1]).getroot()
+except (OSError, ET.ParseError):
+    raise SystemExit(70)
+matches = [
+    element
+    for element in root.iter()
+    if element.tag.rsplit("}", 1)[-1] == "releaseCohort"
+]
+if len(matches) != 1 or matches[0].tag != f"{{{namespace}}}releaseCohort":
+    raise SystemExit(70)
+value = (matches[0].text or "").strip()
+if not value:
+    raise SystemExit(70)
+print(value)
+PY
+)" || exit $?
+        [[ "$embedded_id" == "$expected_cohort_id" ]] || exit 70
+        printf '%s\n' "$embedded_id"
         ;;
       dmg)
         mount_parent="$(mktemp -d "${TMPDIR:-/tmp}/famo-dmg-inspect.XXXXXX")"
@@ -55,6 +77,7 @@ case "$action" in
         attached=1
         [[ -f "$mount_point/FAMOTYPE-RELEASE-COHORT-ID" ]] || exit 70
         embedded_id="$(cat "$mount_point/FAMOTYPE-RELEASE-COHORT-ID")"
+        [[ "$embedded_id" == "$expected_cohort_id" ]] || exit 70
         hdiutil detach "$mount_point" >/dev/null || exit 70
         attached=0
         printf '%s\n' "$embedded_id"
@@ -100,6 +123,7 @@ case "$action" in
     submission="$source_artifact"
     archive=""
     archive_dir=""
+    # shellcheck disable=SC2329  # invoked by the EXIT trap
     cleanup() {
       rm -f -- "$result"
       [[ -z "$archive_dir" ]] || rm -rf -- "$archive_dir"

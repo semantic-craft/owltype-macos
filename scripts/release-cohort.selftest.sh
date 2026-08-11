@@ -50,6 +50,8 @@ plist="$app/Contents/Info.plist"
 payload="$app/Contents/MacOS/Famo"
 state="$cohort_root/release/FAMOTYPE-RELEASE-COHORT.json"
 mkdir -p "$(dirname "$plist")" "$(dirname "$payload")"
+mkdir -p "$app/Contents/SharedSupport"
+printf 'fixture seed\n' >"$app/Contents/SharedSupport/seed.txt"
 
 write_version() {
   python3 - "$plist" "$1" "${2:-$1}" <<'PY'
@@ -81,6 +83,7 @@ initialize_cohort() {
 
 write_version "9.8.7"
 printf 'fake executable\n' >"$payload"
+chmod +x "$payload"
 
 make_trace="$work/make-trace"
 if make -C "$ROOT" --no-print-directory -n release-artifacts \
@@ -105,6 +108,61 @@ else
   sed 's/^/     /' "$output" >&2
   bad "fake App should record a cohort under a custom output root"
 fi
+
+if PYTHONPATH="$ROOT/scripts" python3 - "$work" <<'PY'
+import os
+import sys
+from pathlib import Path
+
+from famo_bundle import artifact_sha256
+
+root = Path(sys.argv[1])
+one = root / "hash-boundary-one"
+two = root / "hash-boundary-two"
+one.mkdir()
+two.mkdir()
+(one / "a").write_bytes(b"X\0F\0b\0" + b"0644\0Y")
+(two / "a").write_bytes(b"X")
+(two / "b").write_bytes(b"Y")
+for path in (one / "a", two / "a", two / "b"):
+    os.chmod(path, 0o644)
+assert artifact_sha256(one) != artifact_sha256(two)
+PY
+then
+  ok "bundle identity is prefix-free across file entry boundaries"
+else
+  bad "bundle identity must not collide when content mimics a following entry header"
+fi
+
+chmod a-x "$payload"
+expect_fail "chmod-only executable-bit removal rejects the cohort inventory" \
+  "release App executable is not executable" \
+  env PATH="$fake_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+    python3 "$INVENTORY" check "$cohort_root"
+chmod +x "$payload"
+record_cohort
+
+invalid_app_root="$work/invalid executable output root"
+invalid_app="$invalid_app_root/Build/Products/Release/Famo.app"
+mkdir -p "$invalid_app/Contents/MacOS"
+cp "$plist" "$invalid_app/Contents/Info.plist"
+ln -s ../Info.plist "$invalid_app/Contents/MacOS/Famo"
+expect_fail "non-regular App executable is rejected at cohort initialization" \
+  "release App executable is not a regular file" \
+  python3 "$COHORT_STATE" initialize "$invalid_app_root"
+
+symlink_app_root="$work/symlink App output root"
+symlink_app_target="$work/symlink App target/Famo.app"
+mkdir -p "$symlink_app_root/Build/Products/Release" \
+  "$symlink_app_target/Contents/MacOS" "$symlink_app_target/Contents/SharedSupport"
+cp "$plist" "$symlink_app_target/Contents/Info.plist"
+printf 'symlink target executable\n' >"$symlink_app_target/Contents/MacOS/Famo"
+chmod +x "$symlink_app_target/Contents/MacOS/Famo"
+printf 'symlink target seed\n' >"$symlink_app_target/Contents/SharedSupport/seed.txt"
+ln -s "$symlink_app_target" "$symlink_app_root/Build/Products/Release/Famo.app"
+expect_fail "symlink App root is rejected at cohort initialization" \
+  "release App root is not a regular directory" \
+  python3 "$COHORT_STATE" initialize "$symlink_app_root"
 
 before="$(shasum -a 256 "$state" | awk '{print $1}')"
 if env BUILD_LOG="$build_log" PATH="$fake_bin:/usr/bin:/bin:/usr/sbin:/sbin" \

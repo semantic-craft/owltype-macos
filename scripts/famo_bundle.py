@@ -14,6 +14,7 @@ behind in DerivedData.
 import hashlib
 import json
 import os
+import stat
 from pathlib import Path
 
 
@@ -24,7 +25,7 @@ SBOM_NAME = "FAMOTYPE-SBOM.spdx.json"
 # App built from this source" — see the staleness check in create-source-archive.sh.
 PROVENANCE_NAME = "FAMOTYPE-APP-PROVENANCE.txt"
 COHORT_NAME = "FAMOTYPE-RELEASE-COHORT.json"
-COHORT_SCHEMA_VERSION = 3
+COHORT_SCHEMA_VERSION = 4
 INVENTORY_NAMES = (MANIFEST_NAME, SBOM_NAME, PROVENANCE_NAME)
 RELEASE_APP_RELATIVE = Path("Build/Products/Release/Famo.app")
 RELEASE_INVENTORY_RELATIVE = Path("release")
@@ -56,26 +57,54 @@ def sha256(path: Path) -> str:
 
 
 def artifact_sha256(path: Path) -> str:
-    """Hash a release file or bundle without depending on filesystem metadata."""
-    path = path.resolve()
-    if path.is_file():
+    """Hash a release file or bundle with normalized type and permission metadata."""
+    path = path.absolute()
+    try:
+        root_stat = path.lstat()
+    except OSError as error:
+        raise FileNotFoundError(f"release artifact does not exist: {path}") from error
+    if stat.S_ISREG(root_stat.st_mode):
         return sha256(path)
-    if not path.is_dir():
-        raise FileNotFoundError(f"release artifact does not exist: {path}")
+    if not stat.S_ISDIR(root_stat.st_mode):
+        raise ValueError(f"unsupported release artifact root type: {path}")
 
     digest = hashlib.sha256()
+    root_mode = stat.S_IMODE(root_stat.st_mode)
+    digest.update(f"D\0.\0{root_mode:04o}\0".encode("utf-8"))
     for child in sorted(path.rglob("*"), key=lambda item: item.relative_to(path).as_posix()):
         relative = child.relative_to(path).as_posix().encode("utf-8")
+        child_stat = child.lstat()
+        mode = f"{stat.S_IMODE(child_stat.st_mode):04o}".encode("ascii")
         if child.is_symlink():
-            digest.update(b"L\0" + relative + b"\0")
-            digest.update(os.readlink(child).encode("utf-8") + b"\0")
-        elif child.is_file():
-            digest.update(b"F\0" + relative + b"\0")
-            with child.open("rb") as handle:
-                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                    digest.update(chunk)
-            digest.update(b"\0")
+            digest.update(b"L\0" + relative + b"\0" + mode + b"\0")
+            target = os.readlink(child).encode("utf-8")
+            digest.update(hashlib.sha256(target).hexdigest().encode("ascii") + b"\0")
+        elif stat.S_ISREG(child_stat.st_mode):
+            digest.update(b"F\0" + relative + b"\0" + mode + b"\0")
+            digest.update(sha256(child).encode("ascii") + b"\0")
+        elif stat.S_ISDIR(child_stat.st_mode):
+            digest.update(b"D\0" + relative + b"\0" + mode + b"\0")
+        else:
+            raise ValueError(f"unsupported release artifact entry type: {child}")
     return digest.hexdigest()
+
+
+def validate_app_executable(app: Path) -> None:
+    try:
+        app_mode = app.lstat().st_mode
+    except OSError as error:
+        raise ValueError(f"cannot inspect release App root: {error}") from error
+    if not stat.S_ISDIR(app_mode):
+        raise ValueError("release App root is not a regular directory")
+    executable = app / "Contents/MacOS/Famo"
+    try:
+        executable_mode = executable.lstat().st_mode
+    except OSError as error:
+        raise ValueError(f"cannot inspect release App executable: {error}") from error
+    if not stat.S_ISREG(executable_mode):
+        raise ValueError("release App executable is not a regular file")
+    if stat.S_IMODE(executable_mode) & 0o111 == 0:
+        raise ValueError("release App executable is not executable")
 
 
 def release_paths(output_root: Path) -> tuple[Path, Path, Path]:
@@ -121,6 +150,24 @@ def validate_cohort_shape(cohort: dict) -> None:
         cohort.get("buildVersion"), str
     ):
         raise ValueError("cohort has incomplete version metadata")
+    for binding in ("sourceSha256", "seedSha256"):
+        value = cohort.get(binding)
+        if (
+            not isinstance(value, str)
+            or len(value) != 64
+            or any(character not in "0123456789abcdef" for character in value)
+        ):
+            raise ValueError(f"cohort has invalid {binding} binding")
+    submodules = cohort.get("submodules")
+    if not isinstance(submodules, dict) or any(
+        not isinstance(path, str)
+        or not path
+        or not isinstance(revision, str)
+        or len(revision) != 40
+        or any(character not in "0123456789abcdef" for character in revision)
+        for path, revision in submodules.items()
+    ):
+        raise ValueError("cohort has invalid submodule revision bindings")
     artifacts = cohort.get("artifacts")
     if not isinstance(artifacts, dict) or "app" not in artifacts:
         raise ValueError("cohort has no App artifact")
@@ -161,6 +208,9 @@ def cohort_identifier(
     build_version: str,
     output_root_sha256: str,
     build_app_sha256: str,
+    source_sha256: str,
+    seed_sha256: str,
+    submodules: dict[str, str],
 ) -> str:
     identity = {
         "buildAppSha256": build_app_sha256,
@@ -168,6 +218,9 @@ def cohort_identifier(
         "outputRootSha256": output_root_sha256,
         "revision": revision,
         "schemaVersion": COHORT_SCHEMA_VERSION,
+        "seedSha256": seed_sha256,
+        "sourceSha256": source_sha256,
+        "submodules": submodules,
         "version": version,
     }
     return hashlib.sha256(

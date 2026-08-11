@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<installer-gui-script minSpecVersion="1">
+<installer-gui-script minSpecVersion="1"
+    xmlns:famo="https://responsay.com/famo/release-cohort">
     <title>法墨 Famo @VERSION@</title>
+    <famo:releaseCohort>@COHORT_ID@</famo:releaseCohort>
     <welcome file="welcome.html" mime-type="text/html"/>
     <conclusion file="conclusion-update.html" mime-type="text/html"/>
     <pkg-ref id="im.famo.inputmethod.Famo"/>

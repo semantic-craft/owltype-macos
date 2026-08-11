@@ -122,10 +122,35 @@ run python3 "$STATE" verify-chain "$output_root"
 
 if ((dry_run)); then
   dmg='<cohort versioned DMG>'
-  source_archive='<cohort source archive>'
+  published_assets=(
+    '<cohort Famo.pkg>'
+    '<cohort Famo-update.pkg>'
+    '<cohort Famo-version.dmg>'
+    '<cohort appcast.xml>'
+    '<cohort source.tar.gz>'
+    '<cohort source.tar.gz.sha256>'
+    '<cohort FAMOTYPE-FILE-MANIFEST.sha256>'
+    '<cohort FAMOTYPE-SBOM.spdx.json>'
+    '<cohort FAMOTYPE-APP-PROVENANCE.txt>'
+    '<cohort FAMOTYPE-RELEASE-COHORT.json>'
+  )
 else
   dmg="$(python3 "$STATE" artifact-path "$output_root" dmg)"
-  source_archive="$(python3 "$STATE" output-path "$output_root" source-archive)"
+  asset_list_file="$(mktemp "${TMPDIR:-/tmp}/famo-published-assets.XXXXXX")"
+  if ! bash "$ROOT/scripts/check-published-release.sh" --print0 \
+      "$output_root" >"$asset_list_file"; then
+    rm -f "$asset_list_file"
+    exit 1
+  fi
+  published_assets=()
+  while IFS= read -r -d '' asset; do
+    published_assets+=("$asset")
+  done <"$asset_list_file"
+  rm -f "$asset_list_file"
+  [[ "${#published_assets[@]}" -eq 10 ]] || {
+    echo >&2 "ERROR: centralized artifact policy did not return ten published assets"
+    exit 1
+  }
 fi
 
 echo "==> 6/8 run release and identity gates"
@@ -142,11 +167,7 @@ run bash "$ROOT/scripts/check-public-privacy.selftest.sh"
 run bash "$ROOT/scripts/check-secrets.sh"
 run bash "$ROOT/scripts/check-secrets.sh" --artifacts \
   "$app" \
-  "$source_archive" \
-  "$release_dir/FAMOTYPE-FILE-MANIFEST.sha256" \
-  "$release_dir/FAMOTYPE-SBOM.spdx.json" \
-  "$release_dir/FAMOTYPE-APP-PROVENANCE.txt" \
-  "$ROOT/package/appcast.xml"
+  "${published_assets[@]}"
 
 echo "==> 8/8 verify the local publishing contract without publishing"
 run bash "$ROOT/scripts/check-published-release.sh" --dry-run "$output_root"

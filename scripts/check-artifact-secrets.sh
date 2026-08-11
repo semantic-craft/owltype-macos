@@ -15,7 +15,18 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 work_dir="$(mktemp -d)"
-trap 'rm -rf "$work_dir"' EXIT
+mounted_dmg=""
+cleanup() {
+  local result=$?
+  trap - EXIT
+  if [[ -n "$mounted_dmg" ]]; then
+    /usr/bin/hdiutil detach "$mounted_dmg" >/dev/null 2>&1 || result=70
+    mounted_dmg=""
+  fi
+  rm -rf "$work_dir"
+  exit "$result"
+}
+trap cleanup EXIT
 
 command -v gitleaks >/dev/null || {
   echo "gitleaks is required for the artifact secret gate" >&2
@@ -43,9 +54,25 @@ for artifact in "$@"; do
   label="$artifact"
   case "$artifact" in
     *.tar.gz|*.tgz)
-      target="$work_dir/$(basename "$artifact").d"
+      target="$work_dir/$scanned-tar"
+      python3 "$repo_root/scripts/safe-extract-tar.py" "$artifact" "$target"
+      ;;
+    *.pkg)
+      target="$work_dir/$scanned-pkg"
+      /usr/sbin/pkgutil --expand-full "$artifact" "$target" >/dev/null || {
+        echo "ERROR: pkgutil failed to safely expand $label" >&2
+        exit 70
+      }
+      ;;
+    *.dmg)
+      target="$work_dir/$scanned-dmg"
       mkdir -p "$target"
-      tar -xzf "$artifact" -C "$target"
+      /usr/bin/hdiutil attach -readonly -nobrowse -mountpoint "$target" \
+        "$artifact" >/dev/null || {
+        echo "ERROR: hdiutil failed to mount $label read-only" >&2
+        exit 70
+      }
+      mounted_dmg="$target"
       ;;
     *)
       target="$artifact"
@@ -106,6 +133,14 @@ for artifact in "$@"; do
   # policy used for reachable history owns every exemption and rejection.
   python3 "$repo_root/scripts/secret-finding-policy.py" \
     artifact trufflehog "$trufflehog_output" --label "$label"
+
+  if [[ -n "$mounted_dmg" ]]; then
+    /usr/bin/hdiutil detach "$mounted_dmg" >/dev/null || {
+      echo "ERROR: hdiutil failed to detach $label" >&2
+      exit 70
+    }
+    mounted_dmg=""
+  fi
 
   scanned=$((scanned + 1))
 done
