@@ -50,8 +50,8 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Install secret scanners
-        run: brew install gitleaks trufflehog
+      - name: Install release gate tools
+        run: brew install gitleaks trufflehog xcodegen
 
       - name: Bootstrap pinned dependencies
         run: make bootstrap
@@ -63,6 +63,8 @@ jobs:
         run: |
           make test DERIVED_DATA_PATH=build/release-gate-tests
           make release RELEASE_OUTPUT_ROOT=build/release-gate
+          bash scripts/release-artifact-chain.selftest.sh \
+            build/release-gate/Build/Products/Release/Famo.app
           bash scripts/release-cohort.selftest.sh
           bash scripts/release-cohort-transition.selftest.sh
           bash scripts/release-chain.selftest.sh
@@ -71,4 +73,3 @@ jobs:
           bash scripts/check-secrets.sh
           bash scripts/check-secrets.sh --artifacts \
             build/release-gate/Build/Products/Release/Famo.app
-          bash scripts/release.sh --dry-run --output-root build/release-gate

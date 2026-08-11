@@ -42,14 +42,25 @@ if [ ! -f "${PKG}" ]; then
     exit 1
 fi
 
-# sign_update（Sparkle 工具）用钥匙串里与 SUPublicEDKey 配对的 EdDSA 私钥签 pkg，
+# sign_update（Sparkle 工具）默认用钥匙串里与 SUPublicEDKey 配对的 EdDSA 私钥签 pkg。
+# 无凭据的机械发布链可显式提供一次性私钥文件；一旦提供就只用该文件，失效时绝不退回钥匙串。
 # 输出形如：  sparkle:edSignature="…" length="…"
 # 用 awk 解析两段属性塞进 <enclosure>（Squirrel make_archive 同款解析）。
-signature="$(./sign_update "${PKG}")"
-edSignature="$(echo "${signature}" | awk -F'"' '{print $2}')"
-length="$(echo "${signature}" | awk -F'"' '{print $4}')"
+if [[ -n "${SPARKLE_ED25519_PRIVATE_KEY_FILE:-}" ]]; then
+    sparkle_private_key="${SPARKLE_ED25519_PRIVATE_KEY_FILE}"
+    if [[ ! -f "$sparkle_private_key" || ! -r "$sparkle_private_key" ]]; then
+        echo >&2 "ERROR: SPARKLE_ED25519_PRIVATE_KEY_FILE must name a readable regular file"
+        exit 1
+    fi
+    edSignature="$(./sign_update --ed-key-file "$sparkle_private_key" -p "${PKG}")"
+    length="$(stat -f '%z' "${PKG}")"
+else
+    signature="$(./sign_update "${PKG}")"
+    edSignature="$(echo "${signature}" | awk -F'"' '{print $2}')"
+    length="$(echo "${signature}" | awk -F'"' '{print $4}')"
+fi
 if [ -z "${edSignature}" ] || [ -z "${length}" ]; then
-    echo >&2 "ERROR: sign_update 没产出 edSignature/length（输出：${signature}）"
+    echo >&2 "ERROR: sign_update 没产出 edSignature/length"
     exit 1
 fi
 update_package_sha256="$(shasum -a 256 "${PKG}" | awk '{print $1}')"
