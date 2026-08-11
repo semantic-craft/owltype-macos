@@ -24,10 +24,185 @@ final class FamoCandidatePanelSettingsTests: XCTestCase {
     super.tearDown()
   }
 
+  func testEveryCandidateSettingUsesOneEditPersistReseedSnapshotAndApplyContract() {
+    let catalog = StubCandidateFontCatalog(["Noto Serif CJK SC"])
+    let settings = FamoCandidatePanelSettings(defaults: defaults, fontCatalog: catalog)
+    let editingState = FamoSettingsState()
+    let panelState = CandidatePanelState()
+    var latestRuntime: FamoCandidatePanelSettings.Snapshot?
+    var applyCount = 0
+
+    func applyRuntimeSnapshot() {
+      let runtime = settings.snapshot()
+      settings.apply(runtime, to: panelState, rimeVertical: true, schemaID: "rime_ice")
+      latestRuntime = runtime
+      applyCount += 1
+    }
+
+    let edits: [FamoCandidatePanelSettings.Edit] = [
+      .appearance(.dark),
+      .skin(.wuda),
+      .font(.notoSerifSC),
+      .animationsEnabled(false),
+      .size(.extraLarge),
+      .orientation(.scroll),
+      .showPreedit(false),
+      .inlineCandidate(true),
+      .showPaging(false),
+      .showNotificationsWhen(.never),
+      .candidateFormat(.candidateOnly),
+      .scrollRows(2)
+    ]
+    for edit in edits {
+      settings.edit(edit, state: editingState, onChange: applyRuntimeSnapshot)
+    }
+
+    let expectedFont = FamoCandidateFont(
+      selection: .notoSerifSC,
+      resolution: .installedFamily("Noto Serif CJK SC")
+    )
+    XCTAssertEqual(editingState.panelAppearance, .dark)
+    XCTAssertEqual(editingState.skin, .wuda)
+    XCTAssertEqual(editingState.candidateFont, expectedFont)
+    XCTAssertFalse(editingState.panelAnimationsEnabled)
+    XCTAssertEqual(editingState.panelFontSize, .extraLarge)
+    XCTAssertEqual(editingState.panelOrientation, .scroll)
+    XCTAssertFalse(editingState.panelShowPreedit)
+    XCTAssertTrue(editingState.panelInlineCandidate)
+    XCTAssertFalse(editingState.panelShowPaging)
+    XCTAssertEqual(editingState.panelShowNotificationsWhen, .never)
+    XCTAssertEqual(editingState.panelCandidateFormat, .candidateOnly)
+    XCTAssertEqual(editingState.panelScrollRows, 2)
+
+    XCTAssertEqual(defaults.string(forKey: "FamoPanelAppearance"), FamoPanelAppearance.dark.rawValue)
+    XCTAssertEqual(defaults.string(forKey: "FamoSkin"), FamoSkin.wuda.rawValue)
+    XCTAssertEqual(defaults.string(forKey: "FamoPanelFontDesign"), FamoCandidateFontSelection.notoSerifSC.rawValue)
+    XCTAssertEqual(defaults.object(forKey: "FamoPanelAnimations") as? Bool, false)
+    XCTAssertEqual(defaults.string(forKey: "FamoPanelFontSize"), FamoPanelFontSize.extraLarge.rawValue)
+    XCTAssertEqual(defaults.string(forKey: "FamoPanelOrientation"), FamoPanelOrientation.scroll.rawValue)
+    XCTAssertEqual(defaults.object(forKey: "FamoPanelShowPreedit") as? Bool, false)
+    XCTAssertEqual(defaults.object(forKey: "FamoPanelInlineCandidate") as? Bool, true)
+    XCTAssertEqual(defaults.object(forKey: "FamoPanelShowPaging") as? Bool, false)
+    XCTAssertEqual(defaults.string(forKey: "FamoPanelShowNotificationsWhen"), FamoNotificationWhen.never.rawValue)
+    XCTAssertEqual(defaults.string(forKey: "FamoPanelCandidateFormat"), FamoCandidateFormat.candidateOnly.rawValue)
+    XCTAssertEqual(defaults.object(forKey: "FamoPanelPreviewRows") as? Int, 2)
+    XCTAssertTrue(settings.currentInlineCandidate())
+    XCTAssertEqual(settings.currentShowNotificationsWhen(), .never)
+
+    XCTAssertEqual(latestRuntime?.appearance, .dark)
+    XCTAssertEqual(latestRuntime?.skin, .wuda)
+    XCTAssertEqual(latestRuntime?.font, expectedFont)
+    XCTAssertEqual(latestRuntime?.animationsEnabled, false)
+    XCTAssertEqual(latestRuntime?.size, .extraLarge)
+    XCTAssertEqual(latestRuntime?.orientation, .scroll)
+    XCTAssertEqual(latestRuntime?.showPreedit, false)
+    XCTAssertEqual(latestRuntime?.inlineCandidate, true)
+    XCTAssertEqual(latestRuntime?.showPaging, false)
+    XCTAssertEqual(latestRuntime?.showNotificationsWhen, .never)
+    XCTAssertEqual(latestRuntime?.candidateFormat, .candidateOnly)
+    XCTAssertEqual(latestRuntime?.scrollRows, 2)
+    XCTAssertEqual(applyCount, edits.count, "every edit must refresh one runtime snapshot")
+
+    XCTAssertEqual(panelState.appearance, .dark)
+    XCTAssertEqual(panelState.theme, FamoSkin.wuda.theme)
+    XCTAssertEqual(panelState.candidateFont, expectedFont)
+    XCTAssertFalse(panelState.animationsEnabled)
+    XCTAssertEqual(panelState.fontSize, FamoPanelFontSize.extraLarge.base)
+    XCTAssertFalse(panelState.isVertical)
+    XCTAssertTrue(panelState.isScroll)
+    XCTAssertFalse(panelState.showPreedit)
+    XCTAssertFalse(panelState.showPaging)
+    XCTAssertEqual(panelState.candidateFormat, .candidateOnly)
+    XCTAssertEqual(panelState.scrollRowLimit, 2)
+
+    let reopenedState = FamoSettingsState()
+    settings.seed(reopenedState)
+    XCTAssertEqual(reopenedState.panelAppearance, .dark)
+    XCTAssertEqual(reopenedState.skin, .wuda)
+    XCTAssertEqual(reopenedState.candidateFont, expectedFont)
+    XCTAssertFalse(reopenedState.panelAnimationsEnabled)
+    XCTAssertEqual(reopenedState.panelFontSize, .extraLarge)
+    XCTAssertEqual(reopenedState.panelOrientation, .scroll)
+    XCTAssertFalse(reopenedState.panelShowPreedit)
+    XCTAssertTrue(reopenedState.panelInlineCandidate)
+    XCTAssertFalse(reopenedState.panelShowPaging)
+    XCTAssertEqual(reopenedState.panelShowNotificationsWhen, .never)
+    XCTAssertEqual(reopenedState.panelCandidateFormat, .candidateOnly)
+    XCTAssertEqual(reopenedState.panelScrollRows, 2)
+
+    let restartedSettings = FamoCandidatePanelSettings(defaults: defaults, fontCatalog: catalog)
+    XCTAssertEqual(restartedSettings.snapshot(), latestRuntime)
+  }
+
+  func testNonRenderedRuntimeReadsShareModuleDefaultsWithTheFullSnapshot() {
+    defaults.set("invalid", forKey: "FamoPanelInlineCandidate")
+    defaults.set("invalid", forKey: "FamoPanelShowNotificationsWhen")
+    let settings = FamoCandidatePanelSettings(
+      defaults: defaults,
+      fontCatalog: StubCandidateFontCatalog([])
+    )
+
+    let runtime = settings.snapshot()
+    XCTAssertEqual(runtime.inlineCandidate, FamoCandidatePanelSettings.defaultInlineCandidate)
+    XCTAssertEqual(
+      runtime.showNotificationsWhen,
+      FamoCandidatePanelSettings.defaultShowNotificationsWhen
+    )
+    XCTAssertEqual(settings.currentInlineCandidate(), runtime.inlineCandidate)
+    XCTAssertEqual(settings.currentShowNotificationsWhen(), runtime.showNotificationsWhen)
+  }
+
+  func testInlineCandidateEditReachesSessionInlineResolutionThroughRuntimeConsumer() {
+    let settings = FamoCandidatePanelSettings(
+      defaults: defaults,
+      fontCatalog: StubCandidateFontCatalog([])
+    )
+    let editingState = FamoSettingsState()
+    var style = FamoStyleFlags()
+
+    settings.edit(.inlineCandidate(true), state: editingState) {
+      settings.applyInlineCandidate(to: &style)
+    }
+
+    XCTAssertTrue(style.inlineCandidate)
+    XCTAssertTrue(
+      FamoStyleFlags.sessionInline(
+        style: style,
+        noInline: false,
+        inlineForced: false
+      ).candidate,
+      "the next composition update must consume the edited inline-candidate preference"
+    )
+  }
+
+  func testNotificationEditControlsOptionAndSchemaPolicyIncludingOffMainRead() {
+    let catalog = StubCandidateFontCatalog([])
+    let settings = FamoCandidatePanelSettings(defaults: defaults, fontCatalog: catalog)
+    let editingState = FamoSettingsState()
+
+    let cases: [(FamoNotificationWhen, Bool, Bool)] = [
+      (.always, true, true),
+      (.appropriate, false, true),
+      (.never, false, false)
+    ]
+    for (value, showsOption, showsSchema) in cases {
+      settings.edit(.showNotificationsWhen(value), state: editingState, onChange: {})
+      let observed = DispatchQueue.global(qos: .userInitiated).sync {
+        (
+          settings.shouldShowNotification(for: .option),
+          settings.shouldShowNotification(for: .schema)
+        )
+      }
+      XCTAssertEqual(observed.0, showsOption, "option policy for \(value)")
+      XCTAssertEqual(observed.1, showsSchema, "schema policy for \(value)")
+    }
+    XCTAssertEqual(catalog.readCount, 0, "off-main notification policy must not resolve fonts")
+  }
+
   func testFontEditPersistsReseedsSnapshotsAndAppliesToObservablePanel() throws {
     let catalog = StubCandidateFontCatalog([
       "Noto Serif CJK SC",
-      "Maple Mono CN",
+      "Maple Mono CN"
     ])
     let settings = FamoCandidatePanelSettings(defaults: defaults, fontCatalog: catalog)
     let editingState = FamoSettingsState()
@@ -37,7 +212,7 @@ final class FamoCandidatePanelSettingsTests: XCTestCase {
     let cases: [(FamoCandidateFontSelection, FamoCandidateFont.Resolution)] = [
       (.default, .system(.default)),
       (.notoSerifSC, .installedFamily("Noto Serif CJK SC")),
-      (.mapleMono, .installedFamily("Maple Mono CN")),
+      (.mapleMono, .installedFamily("Maple Mono CN"))
     ]
 
     for (selection, resolution) in cases {
@@ -56,10 +231,10 @@ final class FamoCandidatePanelSettingsTests: XCTestCase {
       XCTAssertEqual(reopenedState.candidateFont, expected, "reopening settings must read the persisted selection")
 
       let restartedSettings = FamoCandidatePanelSettings(defaults: defaults, fontCatalog: catalog)
-      let runtime = FamoPanelSnapshot.current(candidatePanelSettings: restartedSettings)
+      let runtime = restartedSettings.snapshot()
       let restartedPanelState = CandidatePanelState()
-      restartedSettings.apply(runtime.candidatePanelSettings, to: restartedPanelState)
-      XCTAssertEqual(runtime.candidatePanelSettings.font, expected)
+      restartedSettings.apply(runtime, to: restartedPanelState)
+      XCTAssertEqual(runtime.font, expected)
       XCTAssertEqual(restartedPanelState.candidateFont, expected, "runtime snapshot and panel apply must agree")
     }
 
@@ -80,7 +255,7 @@ final class FamoCandidatePanelSettingsTests: XCTestCase {
     let catalog = StubCandidateFontCatalog([
       "Maple Mono NF",
       "nOtO SeRiF cJk Sc",
-      "Maple Mono CN",
+      "Maple Mono CN"
     ])
     let settings = FamoCandidatePanelSettings(defaults: defaults, fontCatalog: catalog)
 

@@ -93,8 +93,8 @@ enum FamoCandidateAnchor {
 }
 
 /// The immutable content the candidate panel renders for one composition — the value that crosses
-/// the panel seam (C3). Built by the controller (`showPanel`) and passed to `update(_:prefs:)`;
-/// the visual prefs (font/theme/appearance) ride alongside as a separate `FamoPanelSnapshot`.
+/// the panel seam (C3). Built by the controller (`showPanel`) and passed to `update(_:settings:)`;
+/// candidate settings ride alongside as the deep module's immutable runtime snapshot.
 ///
 /// Its `Equatable` conformance doubles as the B5 render-dedup key: an identical re-push (a
 /// `showPanel` right after commit, or an identical per-key re-paint) early-outs instead of running
@@ -154,9 +154,9 @@ enum FamoScrollRowsPlan {
   ///
   /// `.scroll` 的 `isVertical` 恒为 false，那条判断留着是为了将来若允许「自动+卷轴」组合时
   /// 门控依旧正确，且与视图分支一一对应；现在它只对非卷轴方向起作用（那些已被首条挡掉）。
-  static func wantsRows(prefs: FamoPanelSnapshot, didPage: Bool, lastPage: Bool,
+  static func wantsRows(settings: FamoCandidatePanelSettings.Snapshot,
+                        didPage: Bool, lastPage: Bool,
                         candidateCount: Int, rimeVertical: Bool, schemaID: String) -> Bool {
-    let settings = prefs.candidatePanelSettings
     return settings.orientation.scrolls
       && didPage
       && !lastPage
@@ -168,9 +168,9 @@ enum FamoScrollRowsPlan {
   /// 展开后主行上方保留紧邻的上一页（固定 1 行滑动窗口，不累积）——翻页时旧主行不再
   /// 滚出消失，卷轴的「来路」还看得见。门控与 `wantsRows` 同构，差别只在方向：
   /// 前页看 `page > 0`（翻回第一页就没有前页），后页看 `!lastPage`。
-  static func wantsPrevRow(prefs: FamoPanelSnapshot, didPage: Bool, page: Int,
+  static func wantsPrevRow(settings: FamoCandidatePanelSettings.Snapshot,
+                           didPage: Bool, page: Int,
                            candidateCount: Int, rimeVertical: Bool, schemaID: String) -> Bool {
-    let settings = prefs.candidatePanelSettings
     return settings.orientation.scrolls
       && didPage
       && page > 0
@@ -202,12 +202,12 @@ final class FamoSwiftUICandidatePanel: NSPanel {
   private var lastRimeVertical = false
   private var lastSchemaID = ""
 
-  /// The content + prefs of the last fully-rendered `update(_:prefs:)` (B5). Used to skip the
+  /// The content + settings of the last fully-rendered `update(_:settings:)` (B5). Used to skip the
   /// two SwiftUI layout passes when an identical update arrives while the panel is visible.
   /// Both invalidated (set `nil`) on `hidePanel()` and `refreshPreferences()` so the next show /
   /// settings-driven look change always re-renders fully.
   private var lastContent: FamoPanelContent?
-  private var lastPrefs: FamoPanelSnapshot?
+  private var lastSettings: FamoCandidatePanelSettings.Snapshot?
 
   /// Called when a candidate row is clicked. The input controller wires this to
   /// `selectCandidate(_:)`. NEEDS REAL-MACHINE VERIFICATION: click hit-testing in a
@@ -266,7 +266,10 @@ final class FamoSwiftUICandidatePanel: NSPanel {
   override var canBecomeMain: Bool { false }
 
   @discardableResult
-  func update(_ content: FamoPanelContent, prefs: FamoPanelSnapshot) -> Bool {
+  func update(
+    _ content: FamoPanelContent,
+    settings: FamoCandidatePanelSettings.Snapshot
+  ) -> Bool {
     // Nothing to show (between compositions / right after commit, where the controller
     // still calls showPanel with an empty menu): hide instead of rendering an empty pill.
     if content.candidates.isEmpty && content.preedit.isEmpty {
@@ -275,9 +278,9 @@ final class FamoSwiftUICandidatePanel: NSPanel {
     }
     // B5: skip both layout passes when this update is byte-identical to the one already on
     // screen. Guarded by `isVisible` (so the first show after a hide always renders) and by
-    // `lastContent`/`lastPrefs` being reset to nil on hide/refreshPreferences. The early-out
+    // `lastContent`/`lastSettings` being reset to nil on hide/refreshPreferences. The early-out
     // body is a harmless ensure-visible — no panelState mutation, no layout, no reframeToFit.
-    if content == lastContent && prefs == lastPrefs && isVisible {
+    if content == lastContent && settings == lastSettings && isVisible {
       orderFrontRegardless()
       return false
     }
@@ -294,7 +297,7 @@ final class FamoSwiftUICandidatePanel: NSPanel {
     panelState.hasPrevPage = content.hasPrevPage
     panelState.hasNextPage = content.hasNextPage
     panelState.scrollRows = content.scrollRows
-    applyPreferences(prefs, rimeVertical: content.isVertical, schemaID: content.schemaID)
+    applySettings(settings, rimeVertical: content.isVertical, schemaID: content.schemaID)
 
     lastAnchor = content.anchor
     // Force the hosting view to lay out the NEW candidates before measuring; otherwise
@@ -311,7 +314,7 @@ final class FamoSwiftUICandidatePanel: NSPanel {
     reframeToFit()
     // B5: remember what we just rendered so an identical re-push can early-out next time.
     lastContent = content
-    lastPrefs = prefs
+    lastSettings = settings
     return !wasVisible
   }
 
@@ -356,7 +359,7 @@ final class FamoSwiftUICandidatePanel: NSPanel {
     // B5: a re-show must always fully re-render (the early-out is guarded by `isVisible`, but
     // resetting here also makes the intent explicit and survives any future visibility tweak).
     lastContent = nil
-    lastPrefs = nil
+    lastSettings = nil
   }
 
   /// Refresh visual preferences while the settings window is open. This is deliberately
@@ -364,22 +367,30 @@ final class FamoSwiftUICandidatePanel: NSPanel {
   /// key handling.
   func refreshPreferences() {
     // B5: a settings-driven look change (font/skin/orientation default/appearance) invalidates
-    // the dedup key — the next `update(_:prefs:)` must fully re-render with the fresh prefs
+    // the dedup key — the next `update(_:settings:)` must fully re-render with the fresh settings
     // rather than early-out on unchanged content.
     lastContent = nil
-    lastPrefs = nil
-    applyPreferences(.current(), rimeVertical: lastRimeVertical, schemaID: lastSchemaID)
+    lastSettings = nil
+    applySettings(
+      FamoCandidatePanelSettings.live.snapshot(),
+      rimeVertical: lastRimeVertical,
+      schemaID: lastSchemaID
+    )
     contentView?.layoutSubtreeIfNeeded()
     reframeToFit()
   }
 
-  private func applyPreferences(_ prefs: FamoPanelSnapshot, rimeVertical: Bool, schemaID: String) {
+  private func applySettings(
+    _ settings: FamoCandidatePanelSettings.Snapshot,
+    rimeVertical: Bool,
+    schemaID: String
+  ) {
     // 每次组字都从「未展开」起（老的「默认形态 单行/卷轴」已并入排列方向，2026-07-22；注意
     // 那个「卷轴」指的是默认展开成纵列，与本处的卷轴形态不是一回事）：竖排走 `isVertical`、
     // 卷轴走 `isScroll`，横排/自动为紧凑单行；候选条右侧展开箭头仍可临时切成纵向列表。
     panelState.isExpanded = false
     FamoCandidatePanelSettings.live.apply(
-      prefs.candidatePanelSettings,
+      settings,
       to: panelState,
       rimeVertical: rimeVertical,
       schemaID: schemaID

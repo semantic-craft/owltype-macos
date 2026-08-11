@@ -34,8 +34,8 @@ final class FamoPanelAppearanceLifecycleTests: XCTestCase {
     var applyCount = 0
 
     func applyRuntimeSnapshot() {
-      let runtime = FamoPanelSnapshot.current(candidatePanelSettings: settings)
-      settings.apply(runtime.candidatePanelSettings, to: panelState) {
+      let runtime = settings.snapshot()
+      settings.apply(runtime, to: panelState) {
         appliedAppearance = $0
       }
       applyCount += 1
@@ -74,15 +74,15 @@ final class FamoPanelAppearanceLifecycleTests: XCTestCase {
     XCTAssertFalse(reopenedState.panelAnimationsEnabled)
 
     let restartedSettings = FamoCandidatePanelSettings(defaults: defaults, fontCatalog: catalog)
-    let restartedRuntime = FamoPanelSnapshot.current(candidatePanelSettings: restartedSettings)
-    XCTAssertEqual(restartedRuntime.candidatePanelSettings.appearance, .dark)
-    XCTAssertEqual(restartedRuntime.candidatePanelSettings.skin, .wuda)
-    XCTAssertEqual(restartedRuntime.candidatePanelSettings.font, expectedFont)
-    XCTAssertFalse(restartedRuntime.candidatePanelSettings.animationsEnabled)
+    let restartedRuntime = restartedSettings.snapshot()
+    XCTAssertEqual(restartedRuntime.appearance, .dark)
+    XCTAssertEqual(restartedRuntime.skin, .wuda)
+    XCTAssertEqual(restartedRuntime.font, expectedFont)
+    XCTAssertFalse(restartedRuntime.animationsEnabled)
 
     let restartedPanelState = CandidatePanelState()
     var restartedAppearance: NSAppearance?
-    restartedSettings.apply(restartedRuntime.candidatePanelSettings, to: restartedPanelState) {
+    restartedSettings.apply(restartedRuntime, to: restartedPanelState) {
       restartedAppearance = $0
     }
     XCTAssertEqual(restartedPanelState.appearance, .dark)

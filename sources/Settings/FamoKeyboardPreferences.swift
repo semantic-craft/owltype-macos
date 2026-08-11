@@ -4,7 +4,7 @@
 //
 //  v0.3.1: the option-group choices shown on the 键盘输入 page (输入方式 / 中英文切换
 //  / 翻页键 / 快速选词 / 符号). Persisted in UserDefaults (Famo-namespaced), mirroring
-//  `FamoPanelPreferences`: every key string literal lives ONLY in this file, and the
+//  `FamoCandidatePanelSettings`: every key string literal lives ONLY in this file, and the
 //  settings layer reads/writes through these accessors so there are no duplicate
 //  literals anywhere else.
 //

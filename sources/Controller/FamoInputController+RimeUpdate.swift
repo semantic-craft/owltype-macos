@@ -493,7 +493,7 @@ extension FamoInputController {
     }
 
     let isVertical = rime?.option(.vertical) ?? false
-    let prefs = FamoPanelSnapshot.current()
+    let candidatePanelSettings = FamoCandidatePanelSettings.live.snapshot()
 
     // 卷轴（翻页才展开，2026-07-28）：本次组字翻过页后，预取紧邻的前 1 页 + 有界上限 4 个后页。
     // 面板按 runtime snapshot 的 scrollRows 限制可见后页，因此设置从 1 调到 4 时无需再次触碰
@@ -504,15 +504,19 @@ extension FamoInputController {
     // 不满页，拿它当页宽会把前页的绝对下标全算错。
     var scrollRows: [FamoScrollRow] = []
     if let rime, pageSize > 0 {
-      if FamoScrollRowsPlan.wantsPrevRow(prefs: prefs, didPage: scrollDidPage, page: page,
-                                         candidateCount: candidates.count,
-                                         rimeVertical: isVertical, schemaID: schemaId) {
+      if FamoScrollRowsPlan.wantsPrevRow(
+        settings: candidatePanelSettings, didPage: scrollDidPage, page: page,
+        candidateCount: candidates.count,
+        rimeVertical: isVertical, schemaID: schemaId
+      ) {
         let peeked = rime.peekCandidates(from: (page - 1) * pageSize, count: pageSize)
         scrollRows += FamoScrollRowsPlan.rows(from: peeked, pageSize: pageSize, startPage: page - 1)
       }
-      if FamoScrollRowsPlan.wantsRows(prefs: prefs, didPage: scrollDidPage, lastPage: lastPage,
-                                      candidateCount: candidates.count,
-                                      rimeVertical: isVertical, schemaID: schemaId) {
+      if FamoScrollRowsPlan.wantsRows(
+        settings: candidatePanelSettings, didPage: scrollDidPage, lastPage: lastPage,
+        candidateCount: candidates.count,
+        rimeVertical: isVertical, schemaID: schemaId
+      ) {
         let peeked = rime.peekCandidates(from: (page + 1) * pageSize,
                                          count: FamoCandidatePanelSettings.maximumScrollRows * pageSize)
         scrollRows += FamoScrollRowsPlan.rows(from: peeked, pageSize: pageSize, startPage: page + 1)
@@ -539,7 +543,7 @@ extension FamoInputController {
       scrollRows: scrollRows
     )
     let panelTrace = FamoLatencyTrace.begin("candidatePanel.update")
-    let becameVisible = famo.update(content, prefs: prefs)
+    let becameVisible = famo.update(content, settings: candidatePanelSettings)
     FamoLatencyTrace.end("candidatePanel.update", panelTrace)
     if becameVisible, policy.delayedCandidatePositioning.allowed {
       scheduleDelayedCandidateReposition(client: client, panel: famo, candidateCount: candidates.count)

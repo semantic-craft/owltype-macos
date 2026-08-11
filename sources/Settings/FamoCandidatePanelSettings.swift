@@ -90,9 +90,9 @@ struct FamoLocalCandidateFontCatalog: FamoCandidateFontCatalog {
   }
 }
 
-/// Deep module for candidate-panel settings. Every rendered preference crosses one
-/// seed/edit/snapshot/apply boundary; callers do not mirror persistence, constraints, or
-/// visible-panel refresh rules.
+/// Deep module for candidate-panel settings. Every preference crosses one seed/edit/snapshot
+/// lifecycle and its runtime consumer boundary; callers do not mirror persistence, constraints,
+/// or refresh rules.
 struct FamoCandidatePanelSettings {
   struct Snapshot: Sendable, Equatable {
     let appearance: FamoPanelAppearance
@@ -102,7 +102,9 @@ struct FamoCandidatePanelSettings {
     let size: FamoPanelFontSize
     let orientation: FamoPanelOrientation
     let showPreedit: Bool
+    let inlineCandidate: Bool
     let showPaging: Bool
+    let showNotificationsWhen: FamoNotificationWhen
     let candidateFormat: FamoCandidateFormat
     let scrollRows: Int
   }
@@ -115,15 +117,24 @@ struct FamoCandidatePanelSettings {
     case size(FamoPanelFontSize)
     case orientation(FamoPanelOrientation)
     case showPreedit(Bool)
+    case inlineCandidate(Bool)
     case showPaging(Bool)
+    case showNotificationsWhen(FamoNotificationWhen)
     case candidateFormat(FamoCandidateFormat)
     case scrollRows(Int)
+  }
+
+  enum NotificationEvent: Sendable, Equatable {
+    case option
+    case schema
   }
 
   static let defaultSize: FamoPanelFontSize = .medium
   static let defaultOrientation: FamoPanelOrientation = .auto
   static let defaultShowPreedit = true
+  static let defaultInlineCandidate = false
   static let defaultShowPaging = true
+  static let defaultShowNotificationsWhen: FamoNotificationWhen = .always
   static let defaultCandidateFormat: FamoCandidateFormat = .full
   static let minimumScrollRows = 1
   static let maximumScrollRows = 4
@@ -141,14 +152,16 @@ struct FamoCandidatePanelSettings {
   private static let sizeKey = "FamoPanelFontSize"
   private static let orientationKey = "FamoPanelOrientation"
   private static let showPreeditKey = "FamoPanelShowPreedit"
+  private static let inlineCandidateKey = "FamoPanelInlineCandidate"
   private static let showPagingKey = "FamoPanelShowPaging"
+  private static let showNotificationsWhenKey = "FamoPanelShowNotificationsWhen"
   private static let candidateFormatKey = "FamoPanelCandidateFormat"
   private static let scrollRowsKey = "FamoPanelPreviewRows"
   private static let scrollRowsRange = minimumScrollRows...maximumScrollRows
   private static let notoSerifSCFamilies = [
     "Noto Serif SC",
     "Noto Serif CJK SC",
-    "Noto Serif CJK SC VF",
+    "Noto Serif CJK SC VF"
   ]
   private static let mapleMonoFamilies = [
     "Maple Mono CN",
@@ -158,7 +171,7 @@ struct FamoCandidatePanelSettings {
     "Maple Mono",
     "Maple Mono NF",
     "Maple Mono Normal",
-    "Maple Mono Normal NF",
+    "Maple Mono Normal NF"
   ]
 
   private let defaults: UserDefaults
@@ -179,13 +192,17 @@ struct FamoCandidatePanelSettings {
     state.panelFontSize = snapshot.size
     state.panelOrientation = snapshot.orientation
     state.panelShowPreedit = snapshot.showPreedit
+    state.panelInlineCandidate = snapshot.inlineCandidate
     state.panelShowPaging = snapshot.showPaging
+    state.panelShowNotificationsWhen = snapshot.showNotificationsWhen
     state.panelCandidateFormat = snapshot.candidateFormat
     state.panelScrollRows = snapshot.scrollRows
   }
 
-  /// The only edit path for rendered candidate-panel fields: update observable editing state,
-  /// persist, then notify the owner to refresh any visible panel from a new runtime snapshot.
+  // Twelve explicit cases are the lifecycle contract; splitting them would duplicate dispatch.
+  // swiftlint:disable cyclomatic_complexity
+  /// The only edit path for candidate-window fields: update observable editing state, persist,
+  /// then notify runtime consumers to refresh from the new module snapshot.
   func edit(
     _ edit: Edit,
     state: FamoSettingsState,
@@ -213,9 +230,15 @@ struct FamoCandidatePanelSettings {
     case .showPreedit(let show):
       state.panelShowPreedit = show
       defaults.set(show, forKey: Self.showPreeditKey)
+    case .inlineCandidate(let show):
+      state.panelInlineCandidate = show
+      defaults.set(show, forKey: Self.inlineCandidateKey)
     case .showPaging(let show):
       state.panelShowPaging = show
       defaults.set(show, forKey: Self.showPagingKey)
+    case .showNotificationsWhen(let when):
+      state.panelShowNotificationsWhen = when
+      defaults.set(when.rawValue, forKey: Self.showNotificationsWhenKey)
     case .candidateFormat(let format):
       state.panelCandidateFormat = format
       defaults.set(format.rawValue, forKey: Self.candidateFormatKey)
@@ -226,6 +249,7 @@ struct FamoCandidatePanelSettings {
     }
     onChange()
   }
+  // swiftlint:enable cyclomatic_complexity
 
   /// Runtime snapshot boundary. Availability is re-read here so installing a font while Famo is
   /// running is observed by the next settings seed or panel refresh.
@@ -246,7 +270,9 @@ struct FamoCandidatePanelSettings {
         rawValue: defaults.string(forKey: Self.orientationKey) ?? ""
       ) ?? Self.defaultOrientation,
       showPreedit: defaults.object(forKey: Self.showPreeditKey) as? Bool ?? Self.defaultShowPreedit,
+      inlineCandidate: currentInlineCandidate(),
       showPaging: defaults.object(forKey: Self.showPagingKey) as? Bool ?? Self.defaultShowPaging,
+      showNotificationsWhen: currentShowNotificationsWhen(),
       candidateFormat: FamoCandidateFormat(
         rawValue: defaults.string(forKey: Self.candidateFormatKey) ?? ""
       ) ?? Self.defaultCandidateFormat,
@@ -260,6 +286,36 @@ struct FamoCandidatePanelSettings {
   /// candidates. The candidate panel itself always consumes the complete runtime snapshot.
   func currentSkin() -> FamoSkin {
     FamoSkin(rawValue: defaults.string(forKey: Self.skinKey) ?? "") ?? .deepred
+  }
+
+  /// Lightweight runtime read for the IMK composition path. Unlike `snapshot()`, this does not
+  /// resolve installed fonts, so schema reloads never make an AppKit font-catalog call.
+  func currentInlineCandidate() -> Bool {
+    defaults.object(forKey: Self.inlineCandidateKey) as? Bool ?? Self.defaultInlineCandidate
+  }
+
+  /// Apply the persisted inline-preview override to the flags consumed on every composition
+  /// update. This is also called after any candidate-setting edit, so the next input round does
+  /// not wait for a schema reload to observe the toggle.
+  func applyInlineCandidate(to style: inout FamoStyleFlags) {
+    style.inlineCandidate = currentInlineCandidate()
+  }
+
+  /// Lightweight runtime read for librime notifications, which may arrive off the main thread.
+  /// Keeping it on this seam avoids touching the AppKit-backed font catalog in `snapshot()`.
+  func currentShowNotificationsWhen() -> FamoNotificationWhen {
+    FamoNotificationWhen(
+      rawValue: defaults.string(forKey: Self.showNotificationsWhenKey) ?? ""
+    ) ?? Self.defaultShowNotificationsWhen
+  }
+
+  /// Runtime policy consumed by the librime notification callback. This stays lightweight because
+  /// notifications may arrive off-main and must never resolve the AppKit-backed font catalog.
+  func shouldShowNotification(for event: NotificationEvent) -> Bool {
+    switch (currentShowNotificationsWhen(), event) {
+    case (.always, _), (.appropriate, .schema): true
+    case (.appropriate, .option), (.never, _): false
+    }
   }
 
   /// Panel-apply boundary. The observable rendering state and hosting-window appearance are applied

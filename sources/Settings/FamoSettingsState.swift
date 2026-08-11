@@ -142,12 +142,12 @@ final class FamoSettingsState {
   var candidateFont: FamoCandidateFont = .systemDefault
   /// Whether the panel renders its own 输入串 header, owned by `FamoCandidatePanelSettings`.
   var panelShowPreedit = FamoCandidatePanelSettings.defaultShowPreedit
-  /// 内嵌候选预览 (mirror of `FamoPanelPreferences.inlineCandidate`). Feature 3.
-  var panelInlineCandidate: Bool = false
+  /// 内嵌候选预览, owned by `FamoCandidatePanelSettings`. Feature 3.
+  var panelInlineCandidate = FamoCandidatePanelSettings.defaultInlineCandidate
   /// 候选条翻页箭头, owned by `FamoCandidatePanelSettings`. Feature 4.
   var panelShowPaging = FamoCandidatePanelSettings.defaultShowPaging
-  /// 切换提示通知 (mirror of `FamoPanelPreferences.showNotificationsWhen`). Feature 5.
-  var panelShowNotificationsWhen: FamoNotificationWhen = .always
+  /// 切换提示通知, owned by `FamoCandidatePanelSettings`. Feature 5.
+  var panelShowNotificationsWhen = FamoCandidatePanelSettings.defaultShowNotificationsWhen
   /// 候选格式预设, owned by `FamoCandidatePanelSettings`. Feature 7.
   var panelCandidateFormat = FamoCandidatePanelSettings.defaultCandidateFormat
   /// 卷轴后页行数, constrained and persisted by `FamoCandidatePanelSettings` (1–4).

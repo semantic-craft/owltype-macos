@@ -373,10 +373,8 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
     state.schemas = loadSchemaList()
     state.currentSchemaId = currentSchemaId()
     state.currentInputSourceDisplayName = FamoInstaller.currentInputSourceDisplayName()
-    // Seed the complete rendered candidate-panel lifecycle from its single module boundary.
+    // Seed the complete candidate-panel lifecycle from its single module boundary.
     FamoCandidatePanelSettings.live.seed(state)
-    state.panelInlineCandidate = FamoPanelPreferences.inlineCandidate
-    state.panelShowNotificationsWhen = FamoPanelPreferences.showNotificationsWhen
     state.candidatePageSize = FamoKeyboardPreferences.pageSize
     // Seed the 键盘输入 option groups from their single home (FamoKeyboardPreferences).
     state.keyboardInputMethod = FamoKeyboardPreferences.inputMethod
@@ -467,7 +465,9 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
         self?.showOnboarding()
       },
       onPanelPreferencesChanged: { [weak self] in
-        self?.famoPanel?.refreshPreferences()
+        guard let self else { return }
+        FamoCandidatePanelSettings.live.applyInlineCandidate(to: &self.styleFlags)
+        self.famoPanel?.refreshPreferences()
       }
     )
     FamoLatencyTrace.event("window.settings.firstVisible")
@@ -804,9 +804,9 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
     config = candidate
     // Layout flags from the global `style/*` (was `panel.load(...)` into FamoTheme).
     styleFlags = FamoStyleFlags.base(config: candidate)
-    // Feature 3: the 内嵌候选预览 pref overrides `style/inline_candidate` so the toggle
-    // drives the inline preview without hand-editing yaml (takes effect on schema reload).
-    styleFlags.inlineCandidate = FamoPanelPreferences.inlineCandidate
+    // Feature 3: the 内嵌候选预览 pref overrides `style/inline_candidate` without hand-editing
+    // yaml. The same module method runs after live edits and every global/schema style reload.
+    FamoCandidatePanelSettings.live.applyInlineCandidate(to: &styleFlags)
     FamoLiveInputTrace.write { "loadSettings styleFlags inlinePreedit=\(styleFlags.inlinePreedit) inlineCandidate=\(styleFlags.inlineCandidate)" }
   }
 
@@ -831,7 +831,7 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
       flags.apply(config: schema)
     }
     // Feature 3: pref override wins over both global + per-schema `style/inline_candidate`.
-    flags.inlineCandidate = FamoPanelPreferences.inlineCandidate
+    FamoCandidatePanelSettings.live.applyInlineCandidate(to: &flags)
     styleFlags = flags
     schema.close()
   }
@@ -1012,7 +1012,7 @@ private func notificationHandler(contextObject: UnsafeMutableRawPointer?, sessio
       }
       // Feature 5: option toggles (中英 / 全半角 / 简繁 …) only toast on 始终 (`.always`);
       // 智能 (`.appropriate`) keeps them quiet, 从不 (`.never`) suppresses everything.
-      if FamoPanelPreferences.showNotificationsWhen == .always {
+      if FamoCandidatePanelSettings.live.shouldShowNotification(for: .option) {
         delegate.showStatusMessage(msgTextLong: longLabel(), msgTextShort: shortLabel())
       }
     }
@@ -1020,11 +1020,12 @@ private func notificationHandler(contextObject: UnsafeMutableRawPointer?, sessio
   }
 
   // Feature 5: schema switches toast on 始终 + 智能 (i.e. anything but 从不).
-  if FamoPanelPreferences.showNotificationsWhen != .never {
-    if messageType == "schema", let messageValue = messageValue, let schemaName = try? /^[^\/]*\/(.*)$/.firstMatch(in: messageValue)?.output.1 {
+  if messageType == "schema",
+     FamoCandidatePanelSettings.live.shouldShowNotification(for: .schema),
+     let messageValue,
+     let schemaName = try? /^[^\/]*\/(.*)$/.firstMatch(in: messageValue)?.output.1 {
       delegate.showStatusMessage(msgTextLong: String(schemaName), msgTextShort: String(schemaName))
       return
-    }
   }
 }
 

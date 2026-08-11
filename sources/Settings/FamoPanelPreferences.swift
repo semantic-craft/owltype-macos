@@ -1,17 +1,15 @@
 //
 //  FamoPanelPreferences.swift
-//  法墨输入法 (Famo) — SwiftUI candidate panel preferences
+//  法墨输入法 (Famo) — candidate panel preference value types
 //
 //  v0.2.2: user-customizable appearance for the SwiftUI candidate panel.
-//  Non-rendered companion prefs persisted in UserDefaults (Famo-namespaced). Every preference
-//  applied to the candidate panel lives behind `FamoCandidatePanelSettings`.
+//  Persistence and runtime snapshots live exclusively in `FamoCandidatePanelSettings`.
 //  NOT written to the user's `famo.custom.yaml`.
 //
 //  Boundary (ADR-0001 / 0002 / 0003): prefs/panel layer only — never touches
 //  the IMK key-event hot path.
 //
-//  Concurrency: plain `Sendable` value enums; the accessors run on the main
-//  thread like the rest of the candidate / settings UI.
+//  Concurrency: plain `Sendable` value enums shared by settings and runtime snapshots.
 //
 
 import CoreGraphics
@@ -101,43 +99,4 @@ enum FamoCandidateFormat: String, CaseIterable, Sendable {
   var showsLabel: Bool { self != .candidateOnly }
   /// Whether the comment (reading / 释义) is rendered.
   var showsComment: Bool { self == .full }
-}
-
-/// Persistence home for panel-adjacent preferences that are not part of the rendered candidate
-/// panel snapshot.
-enum FamoPanelPreferences {
-  /// 内嵌候选预览 (inline_candidate). Key `"FamoPanelInlineCandidate"`, default `false`.
-  /// Overrides `styleFlags.inlineCandidate` (read in `loadSettings`) so the host-app inline
-  /// preview shows the highlighted candidate. Feature 3.
-  static var inlineCandidate: Bool {
-    get { FamoDefaults.standard.object(forKey: "FamoPanelInlineCandidate") as? Bool ?? false }
-    set { FamoDefaults.standard.set(newValue, forKey: "FamoPanelInlineCandidate") }
-  }
-
-  /// 切换提示通知 (show_notifications_when). Key `"FamoPanelShowNotificationsWhen"`,
-  /// default `.always` (preserves shipping behavior). Feature 5.
-  static var showNotificationsWhen: FamoNotificationWhen {
-    get { FamoNotificationWhen(rawValue: FamoDefaults.standard.string(forKey: "FamoPanelShowNotificationsWhen") ?? "") ?? .always }
-    set { FamoDefaults.standard.set(newValue.rawValue, forKey: "FamoPanelShowNotificationsWhen") }
-  }
-}
-
-/// The panel's visual preferences frozen at one instant, injected into the candidate panel so it
-/// renders from a value instead of reaching into persistence homes
-/// live mid-render (C3, task 07-05-famo-composition-render-seam). Mirrors the `FamoFuzzySnapshot`
-/// / `FamoKeyboardSnapshot` precedent (Sendable value + `current()` factory). Carries the fields
-/// `FamoSwiftUICandidatePanel` applies. Distinct from the domain **Snapshot** (a Composition capture
-/// for stale-work rejection); this is a Preferences snapshot, domain-qualified by name.
-struct FamoPanelSnapshot: Sendable, Equatable {
-  let candidatePanelSettings: FamoCandidatePanelSettings.Snapshot
-
-  /// Read every backing preference once. Called by the controller (in `showPanel`) per composition,
-  /// and by the panel's `refreshPreferences()` on a settings-driven look change.
-  static func current(
-    candidatePanelSettings: FamoCandidatePanelSettings = .live
-  ) -> FamoPanelSnapshot {
-    FamoPanelSnapshot(
-      candidatePanelSettings: candidatePanelSettings.snapshot()
-    )
-  }
 }

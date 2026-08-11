@@ -11,7 +11,7 @@
 //  visible change, so this field-by-field test is the safety net.
 //
 //  Limitation (documented, accepted — same as the seam ports): the panel-level early-out itself
-//  (`if content == lastContent && prefs == lastPrefs && isVisible { orderFrontRegardless(); return }`) is NOT
+//  (`content == lastContent && settings == lastSettings && isVisible`) is NOT
 //  headless-unit-testable — a non-activating `NSPanel`'s `isVisible`/`orderFront` can't be driven
 //  deterministically without a window server / real machine. This signature-equality test (every
 //  field flip → unequal) is the unit-level proof that the early-out only fires on a true no-op.
@@ -297,20 +297,20 @@ final class FamoScrollRowsPlanTests: XCTestCase {
   /// A snapshot with everything the plan reads set explicitly; visual fields pinned to
   /// defaults (they are irrelevant to the gate but required by the memberwise init).
   private func snapshot(orientation: FamoPanelOrientation = .scroll,
-                        scrollRows: Int = 2) -> FamoPanelSnapshot {
-    FamoPanelSnapshot(
-      candidatePanelSettings: .init(
-        appearance: .system,
-        skin: .deepred,
-        font: .systemDefault,
-        animationsEnabled: true,
-        size: .medium,
-        orientation: orientation,
-        showPreedit: true,
-        showPaging: true,
-        candidateFormat: .full,
-        scrollRows: scrollRows
-      )
+                        scrollRows: Int = 2) -> FamoCandidatePanelSettings.Snapshot {
+    FamoCandidatePanelSettings.Snapshot(
+      appearance: .system,
+      skin: .deepred,
+      font: .systemDefault,
+      animationsEnabled: true,
+      size: .medium,
+      orientation: orientation,
+      showPreedit: true,
+      inlineCandidate: false,
+      showPaging: true,
+      showNotificationsWhen: .always,
+      candidateFormat: .full,
+      scrollRows: scrollRows
     )
   }
 
@@ -322,29 +322,29 @@ final class FamoScrollRowsPlanTests: XCTestCase {
 
   func testWantsRowsOnScrollMidListAfterPaging() {
     XCTAssertTrue(FamoScrollRowsPlan.wantsRows(
-      prefs: snapshot(), didPage: true, lastPage: false, candidateCount: 5,
+      settings: snapshot(), didPage: true, lastPage: false, candidateCount: 5,
       rimeVertical: false, schemaID: ""))
   }
 
   /// 翻页才展开（2026-07-28）：没翻过页的组字保持单行，即便选了卷轴、还有后页。
   func testNoPagingMeansNoRows() {
     XCTAssertFalse(FamoScrollRowsPlan.wantsRows(
-      prefs: snapshot(), didPage: false, lastPage: false, candidateCount: 5,
+      settings: snapshot(), didPage: false, lastPage: false, candidateCount: 5,
       rimeVertical: false, schemaID: ""))
     XCTAssertFalse(FamoScrollRowsPlan.wantsPrevRow(
-      prefs: snapshot(), didPage: false, page: 1, candidateCount: 5,
+      settings: snapshot(), didPage: false, page: 1, candidateCount: 5,
       rimeVertical: false, schemaID: ""))
   }
 
   func testLastPageNeverFetches() {
     XCTAssertFalse(FamoScrollRowsPlan.wantsRows(
-      prefs: snapshot(), didPage: true, lastPage: true, candidateCount: 5,
+      settings: snapshot(), didPage: true, lastPage: true, candidateCount: 5,
       rimeVertical: false, schemaID: ""))
   }
 
   func testEmptyPageNeverFetches() {
     XCTAssertFalse(FamoScrollRowsPlan.wantsRows(
-      prefs: snapshot(), didPage: true, lastPage: false, candidateCount: 0,
+      settings: snapshot(), didPage: true, lastPage: false, candidateCount: 0,
       rimeVertical: false, schemaID: ""))
   }
 
@@ -352,10 +352,10 @@ final class FamoScrollRowsPlanTests: XCTestCase {
   func testNonScrollOrientationsNeverFetch() {
     for orientation in [FamoPanelOrientation.auto, .horizontal, .vertical] {
       XCTAssertFalse(FamoScrollRowsPlan.wantsRows(
-        prefs: snapshot(orientation: orientation), didPage: true, lastPage: false,
+        settings: snapshot(orientation: orientation), didPage: true, lastPage: false,
         candidateCount: 5, rimeVertical: false, schemaID: ""), "\(orientation) 不该预取后页行")
       XCTAssertFalse(FamoScrollRowsPlan.wantsPrevRow(
-        prefs: snapshot(orientation: orientation), didPage: true, page: 1,
+        settings: snapshot(orientation: orientation), didPage: true, page: 1,
         candidateCount: 5, rimeVertical: false, schemaID: ""), "\(orientation) 不该预取前页行")
     }
   }
@@ -364,7 +364,7 @@ final class FamoScrollRowsPlanTests: XCTestCase {
   /// （`.scroll.isVertical` 恒为 false，与视图的渲染分支一致）。
   func testScrollIgnoresRimeVertical() {
     XCTAssertTrue(FamoScrollRowsPlan.wantsRows(
-      prefs: snapshot(), didPage: true, lastPage: false, candidateCount: 5,
+      settings: snapshot(), didPage: true, lastPage: false, candidateCount: 5,
       rimeVertical: true, schemaID: ""))
   }
 
@@ -372,10 +372,10 @@ final class FamoScrollRowsPlanTests: XCTestCase {
   /// 翻回第一页就没有「上一页」可保留。
   func testPrevRowNeedsANonFirstPage() {
     XCTAssertTrue(FamoScrollRowsPlan.wantsPrevRow(
-      prefs: snapshot(), didPage: true, page: 1, candidateCount: 5,
+      settings: snapshot(), didPage: true, page: 1, candidateCount: 5,
       rimeVertical: false, schemaID: ""))
     XCTAssertFalse(FamoScrollRowsPlan.wantsPrevRow(
-      prefs: snapshot(), didPage: true, page: 0, candidateCount: 5,
+      settings: snapshot(), didPage: true, page: 0, candidateCount: 5,
       rimeVertical: false, schemaID: ""))
   }
 

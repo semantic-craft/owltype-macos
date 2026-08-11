@@ -34,9 +34,9 @@ final class FamoCandidatePanelDisplayLifecycleTests: XCTestCase {
     var applyCount = 0
 
     func applyRuntimeSnapshot() {
-      let runtime = FamoPanelSnapshot.current(candidatePanelSettings: settings)
+      let runtime = settings.snapshot()
       settings.apply(
-        runtime.candidatePanelSettings,
+        runtime,
         to: panelState,
         rimeVertical: true,
         schemaID: "rime_ice"
@@ -94,17 +94,17 @@ final class FamoCandidatePanelDisplayLifecycleTests: XCTestCase {
       defaults: defaults,
       fontCatalog: DisplayLifecycleFontCatalog()
     )
-    let restartedRuntime = FamoPanelSnapshot.current(candidatePanelSettings: restartedSettings)
-    XCTAssertEqual(restartedRuntime.candidatePanelSettings.size, .extraLarge)
-    XCTAssertEqual(restartedRuntime.candidatePanelSettings.orientation, .scroll)
-    XCTAssertFalse(restartedRuntime.candidatePanelSettings.showPreedit)
-    XCTAssertFalse(restartedRuntime.candidatePanelSettings.showPaging)
-    XCTAssertEqual(restartedRuntime.candidatePanelSettings.candidateFormat, .candidateOnly)
-    XCTAssertEqual(restartedRuntime.candidatePanelSettings.scrollRows, 2)
+    let restartedRuntime = restartedSettings.snapshot()
+    XCTAssertEqual(restartedRuntime.size, .extraLarge)
+    XCTAssertEqual(restartedRuntime.orientation, .scroll)
+    XCTAssertFalse(restartedRuntime.showPreedit)
+    XCTAssertFalse(restartedRuntime.showPaging)
+    XCTAssertEqual(restartedRuntime.candidateFormat, .candidateOnly)
+    XCTAssertEqual(restartedRuntime.scrollRows, 2)
 
     let restartedPanelState = CandidatePanelState()
     restartedSettings.apply(
-      restartedRuntime.candidatePanelSettings,
+      restartedRuntime,
       to: restartedPanelState,
       rimeVertical: true,
       schemaID: "rime_ice"

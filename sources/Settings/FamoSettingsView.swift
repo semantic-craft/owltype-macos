@@ -47,7 +47,7 @@ struct FamoSettingsView: View {
   let onOpenLog: () -> Void
   /// 欢迎与引导 → delegate `showOnboarding()`.
   let onShowOnboarding: () -> Void
-  /// Candidate-panel visual prefs changed → refresh any visible candidate panel.
+  /// Candidate setting changed → refresh all live runtime consumers.
   let onPanelPreferencesChanged: () -> Void
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -469,11 +469,8 @@ struct FamoSettingsView: View {
     let inlineCandidateBinding = Binding(
       get: { state.panelInlineCandidate },
       set: { newValue in
-        persistPanelPreference {
-          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelInlineCandidate) {
-            FamoPanelPreferences.inlineCandidate = $0
-          }
-        }
+        FamoCandidatePanelSettings.live.edit(
+          .inlineCandidate(newValue), state: state, onChange: onPanelPreferencesChanged)
       }
     )
     let showPagingBinding = Binding(
@@ -486,11 +483,8 @@ struct FamoSettingsView: View {
     let notificationsBinding = Binding(
       get: { state.panelShowNotificationsWhen },
       set: { newValue in
-        persistPanelPreference {
-          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelShowNotificationsWhen) {
-            FamoPanelPreferences.showNotificationsWhen = $0
-          }
-        }
+        FamoCandidatePanelSettings.live.edit(
+          .showNotificationsWhen(newValue), state: state, onChange: onPanelPreferencesChanged)
       }
     )
     let candidateFormatBinding = Binding(
@@ -656,11 +650,6 @@ struct FamoSettingsView: View {
 
       }
     }
-  }
-
-  private func persistPanelPreference(_ mutation: () -> Void) {
-    mutation()
-    onPanelPreferencesChanged()
   }
 
   private func persistAndApplyCandidatePageSize(_ value: Int) {
