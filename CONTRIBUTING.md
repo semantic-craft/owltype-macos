@@ -1,0 +1,67 @@
+# Contributing to Famotype
+
+Thank you for improving Famotype. This repository is the complete public source for the
+macOS product, so every accepted change must remain independently buildable and auditable
+from this repository alone.
+
+## What we accept
+
+Good contributions include focused bug fixes, tests, documentation, accessibility and
+performance improvements, and narrowly scoped product or release-engineering changes.
+Please open an issue before starting a feature that changes user-visible behavior, the
+release boundary, bundled data, or a third-party dependency.
+
+Do not submit generated build products, credentials, private data, local logs or agent
+state, personal home-directory paths, license-restricted datasets, private repository
+references, or a change that requires unavailable source or an untracked private service.
+
+## Set up and verify a change
+
+Development requires macOS 14 or later and Xcode 26 or later. From a fresh checkout:
+
+```sh
+git submodule update --init --recursive
+make setup-dev
+make bootstrap
+make famo-seed
+make test
+```
+
+`make bootstrap` uses the pinned prebuilt dependencies used by CI. Contributors who want
+to build those dependencies from source may use `make deps` instead. Before opening a pull
+request, also run the public-source boundary relevant to every change:
+
+```sh
+bash scripts/check-public-source.sh
+```
+
+Run the narrowest additional test that exercises the changed behavior. The complete
+release gate runs in GitHub Actions; contributors do not need signing or notarization
+credentials and should not attempt to publish a release.
+
+## Public-source and licensing boundary
+
+All source, tests, fixtures, and build inputs needed by a contribution must be present in
+this public repository under a compatible license. Update `THIRD_PARTY_NOTICES.md`,
+`PROVENANCE.md`, or the source manifest machinery when a change affects third-party code,
+bundled data, or corresponding-source obligations. Never include secrets or real user
+content in a fixture; use synthetic placeholders.
+
+Security vulnerabilities must be reported through GitHub's private
+[Report a vulnerability](https://github.com/semantic-craft/famotype-macos/security/advisories/new)
+flow, not a public issue. See [SECURITY.md](SECURITY.md).
+
+## Pull requests and review
+
+Keep each pull request focused, explain its user-visible and source-boundary effects, and
+link the originating issue. `public-source-boundary` and `release-gate` are required on the
+exact pull-request head. The repository also runs its build and CodeQL workflows; all
+applicable checks must be green before merge.
+
+The project currently has one maintainer, so the branch rules require zero approving
+reviews while still requiring a pull request, successful release checks, and resolved
+conversations. `CODEOWNERS` is intentionally absent because it would not create a real
+independent review boundary. When a second maintainer is available, the project will add
+real ownership boundaries where useful and require a non-author approval.
+
+By participating, you agree to follow [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
