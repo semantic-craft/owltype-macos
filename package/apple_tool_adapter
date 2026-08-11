@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+# Production Apple-tool adapter for release-cohort-state.py.
+set -u
+
+RETRYABLE_EXIT=75
+REJECTED_EXIT=65
+
+action="${1:-}"
+kind="${2:-}"
+
+run_signing_tool() {
+  local result status
+  result="$(mktemp "${TMPDIR:-/tmp}/famo-signing-result.XXXXXX")"
+  "$@" >"$result" 2>&1
+  status=$?
+  cat "$result"
+  if [[ "$status" -ne 0 ]] && \
+     grep -Eqi 'timestamp|time stamp|-67882|Unknown format in import|temporar.*unavailable' "$result"; then
+    status="$RETRYABLE_EXIT"
+  elif [[ "$status" -ne 0 ]]; then
+    status=70
+  fi
+  rm -f -- "$result"
+  return "$status"
+}
+
+case "$action" in
+  cohort-id)
+    source_artifact="${3:?missing artifact}"
+    expected_cohort_id="${4:?missing expected cohort identity}"
+    case "$kind" in
+      installer-pkg|update-pkg)
+        expanded_parent="$(mktemp -d "${TMPDIR:-/tmp}/famo-pkg-inspect.XXXXXX")"
+        expanded="$expanded_parent/expanded"
+        cleanup() { rm -rf -- "$expanded_parent"; }
+        trap cleanup EXIT
+        pkgutil --expand "$source_artifact" "$expanded" >/dev/null || exit 70
+        embedded_id="$(python3 - "$expanded/Distribution" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+
+namespace = "https://responsay.com/famo/release-cohort"
+try:
+    root = ET.parse(sys.argv[1]).getroot()
+except (OSError, ET.ParseError):
+    raise SystemExit(70)
+matches = [
+    element
+    for element in root.iter()
+    if element.tag.rsplit("}", 1)[-1] == "releaseCohort"
+]
+if len(matches) != 1 or matches[0].tag != f"{{{namespace}}}releaseCohort":
+    raise SystemExit(70)
+value = (matches[0].text or "").strip()
+if not value:
+    raise SystemExit(70)
+print(value)
+PY
+)" || exit $?
+        [[ "$embedded_id" == "$expected_cohort_id" ]] || exit 70
+        printf '%s\n' "$embedded_id"
+        ;;
+      dmg)
+        mount_parent="$(mktemp -d "${TMPDIR:-/tmp}/famo-dmg-inspect.XXXXXX")"
+        mount_point="$mount_parent/mount"
+        mkdir "$mount_point"
+        attached=0
+        cleanup() {
+          if [[ "$attached" -eq 1 ]]; then
+            hdiutil detach "$mount_point" >/dev/null 2>&1 || true
+          fi
+          rm -rf -- "$mount_parent"
+        }
+        trap cleanup EXIT
+        hdiutil attach -readonly -nobrowse -mountpoint "$mount_point" \
+          "$source_artifact" >/dev/null || exit 70
+        attached=1
+        [[ -f "$mount_point/FAMOTYPE-RELEASE-COHORT-ID" ]] || exit 70
+        embedded_id="$(cat "$mount_point/FAMOTYPE-RELEASE-COHORT-ID")"
+        [[ "$embedded_id" == "$expected_cohort_id" ]] || exit 70
+        hdiutil detach "$mount_point" >/dev/null || exit 70
+        attached=0
+        printf '%s\n' "$embedded_id"
+        ;;
+      *)
+        echo >&2 "cohort identity is embedded only in pkg and DMG artifacts"
+        exit 64
+        ;;
+    esac
+    ;;
+  sign)
+    identity="${3:?missing Developer ID}"
+    source_artifact="${4:?missing source artifact}"
+    signed_artifact="${5:?missing signed artifact}"
+    case "$kind" in
+      app)
+        run_signing_tool codesign --deep --force --options runtime --timestamp \
+          --sign "Developer ID Application: ${identity}" \
+          --entitlements resources/Famo.entitlements --verbose "$source_artifact" || exit $?
+        codesign --verify --deep --strict --verbose=2 "$source_artifact"
+        ;;
+      installer-pkg|update-pkg)
+        rm -f -- "$signed_artifact"
+        run_signing_tool productsign --sign "Developer ID Installer: ${identity}" \
+          "$source_artifact" "$signed_artifact" || exit $?
+        pkgutil --check-signature "$signed_artifact" >/dev/null
+        ;;
+      dmg)
+        run_signing_tool codesign --force --sign "Developer ID Application: ${identity}" \
+          --timestamp "$source_artifact" || exit $?
+        codesign --verify --strict --verbose=2 "$source_artifact"
+        ;;
+      *)
+        echo >&2 "unknown release artifact kind: $kind"
+        exit 64
+        ;;
+    esac
+    ;;
+  notarize)
+    profile="${3:?missing notary profile}"
+    source_artifact="${4:?missing artifact}"
+    result="$(mktemp "${TMPDIR:-/tmp}/famo-notary-result.XXXXXX")"
+    submission="$source_artifact"
+    archive=""
+    archive_dir=""
+    # shellcheck disable=SC2329  # invoked by the EXIT trap
+    cleanup() {
+      rm -f -- "$result"
+      [[ -z "$archive_dir" ]] || rm -rf -- "$archive_dir"
+    }
+    trap cleanup EXIT
+    if [[ "$kind" == app ]]; then
+      archive_dir="$(mktemp -d "${TMPDIR:-/tmp}/famo-app-notary.XXXXXX")"
+      archive="$archive_dir/Famo-app.zip"
+      ditto -c -k --keepParent "$source_artifact" "$archive" || exit 70
+      submission="$archive"
+    fi
+
+    xcrun notarytool submit "$submission" --keychain-profile "$profile" \
+      --wait --timeout "${FAMO_NOTARY_WAIT_TIMEOUT:-20m}" \
+      --output-format json >"$result" 2>&1
+    tool_status=$?
+    cat "$result"
+    status="$(python3 - "$result" <<'PY'
+import json
+import sys
+
+try:
+    value = json.load(open(sys.argv[1]))
+except (OSError, ValueError):
+    print("")
+else:
+    print(value.get("status", ""))
+PY
+)"
+    if [[ "$tool_status" -eq 0 && "$status" == Accepted ]]; then
+      exit 0
+    fi
+    if [[ "$status" == Invalid || "$status" == Rejected ]]; then
+      exit "$REJECTED_EXIT"
+    fi
+    if [[ "$status" == "In Progress" ]] || \
+       grep -Eqi 'timed? out|timeout|temporar|network|service unavailable|connection|CloudKit' "$result"; then
+      exit "$RETRYABLE_EXIT"
+    fi
+    exit 70
+    ;;
+  staple)
+    source_artifact="${3:?missing artifact}"
+    xcrun stapler staple "$source_artifact" || exit 70
+    xcrun stapler validate "$source_artifact" || exit 70
+    if [[ "$kind" == dmg ]]; then
+      spctl -a -t open --context context:primary-signature -vv "$source_artifact" 2>&1 \
+        | grep -q accepted || exit 70
+    fi
+    ;;
+  *)
+    echo >&2 "usage: $0 sign|notarize|staple ARTIFACT_KIND ..."
+    exit 64
+    ;;
+esac

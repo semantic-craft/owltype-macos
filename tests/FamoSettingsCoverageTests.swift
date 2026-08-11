@@ -47,8 +47,8 @@ final class FamoSettingsCoverageTests: XCTestCase {
     "跟随系统",
     // 候选窗尺寸：2026-08-06 由三档「候选字号」升为四档，`特大`(base 27) 是纯增补，小/中/大
     // 三档的点数与 rawValue 都没动（老用户零迁移）。这一档拨的是整块面板——候选字与留白同步
-    // 缩放。action coverage 在 FamoSettingsActionTests 的 panelFontSize 往返；点数阶梯与留白
-    // 换算表在 FamoPanelSizeTests。
+    // 缩放。生命周期覆盖在 FamoCandidatePanelDisplayLifecycleTests；点数阶梯与留白换算表在
+    // FamoPanelSizeTests。
     "小", "中", "大", "特大",
     // 排列方向：2026-07-22「默认形态 单行/卷轴」并入本组（`单行`/`卷轴` 两个旧标签随之移除）；
     // 2026-07-26 `折行`(1.4.19) 退役，位置换成新的 `卷轴`（主行 + 后页行，与旧同名标签无关）。
@@ -62,8 +62,8 @@ final class FamoSettingsCoverageTests: XCTestCase {
     "内嵌候选预览",                   // Feature 3
     "候选条翻页箭头",                 // Feature 4
     // 卷轴的后页行数分段（只在排列方向 = 卷轴时露出；2026-07-28 上限放宽到 4）。
-    // action coverage 在 FamoSettingsActionTests 的 panelScrollRows 断言；纯逻辑
-    // （取数门控/切页）在 FamoScrollRowsPlanTests。
+    // 生命周期覆盖在 FamoCandidatePanelDisplayLifecycleTests；纯逻辑（取数门控/切页）在
+    // FamoScrollRowsPlanTests。
     "跟 1 页", "跟 2 页", "跟 3 页", "跟 4 页",
     "始终", "智能", "从不",           // Feature 5 切换提示通知
     "标准", "隐藏注释", "仅候选",     // Feature 7 候选格式

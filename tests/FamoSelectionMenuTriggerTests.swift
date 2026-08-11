@@ -175,10 +175,10 @@ final class FamoChineseTypesettingTests: XCTestCase {
 
 @MainActor
 final class FamoSelectionPublishFormatterTests: XCTestCase {
-  /// 脚本化 `FamoConversationStreaming`：要么吐一串 delta，要么以 readiness 失败。formatter 只用 stream()。
+  /// 脚本化 `FamoPlainStreaming`：要么吐一串 delta，要么以 readiness 失败。formatter 只用 stream()。
   /// 协议是 @MainActor，嵌套类型不继承外层隔离，故须显式标注。
   @MainActor
-  private final class ScriptedStreamer: FamoConversationStreaming {
+  private final class ScriptedStreamer: FamoPlainStreaming {
     enum Mode { case deltas([String]); case fail(FamoStreamingReadiness) }
     let mode: Mode
     init(_ mode: Mode) { self.mode = mode }

@@ -1,21 +1,34 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-set -e
-
-DERIVED_DATA_PATH=$1
+RELEASE_OUTPUT_ROOT="${1:?missing absolute release output root}"
+[[ "$RELEASE_OUTPUT_ROOT" == /* ]] || {
+    echo >&2 "ERROR: release output root must be absolute: $RELEASE_OUTPUT_ROOT"
+    exit 1
+}
 BUNDLE_IDENTIFIER='im.famo.inputmethod.Famo'
 INSTALL_LOCATION='/Library/Input Methods'
 
-cd "$(dirname $0)"
+cd "$(dirname "$0")"
+# shellcheck source=package/common.sh
 source common.sh
 
-RELEASE_DIR="${PROJECT_ROOT}/${DERIVED_DATA_PATH}/Build/Products/Release"
+RELEASE_DIR="${RELEASE_OUTPUT_ROOT}/Build/Products/Release"
 FAMO_APP="${RELEASE_DIR}/Famo.app"
+COHORT_STATE="${PROJECT_ROOT}/scripts/release-cohort-state.py"
+INVENTORY="${PROJECT_ROOT}/scripts/inventory-release-bundle.py"
 
 if [ ! -d "${FAMO_APP}" ]; then
     echo >&2 "ERROR: 缺少已构建的 Famo.app: ${FAMO_APP}（先跑 make release / make notarized-app）"
     exit 1
 fi
+
+if [[ -n "${DEV_ID:-}" ]]; then
+    python3 "$COHORT_STATE" require "$RELEASE_OUTPUT_ROOT" app stapled
+else
+    python3 "$COHORT_STATE" require "$RELEASE_OUTPUT_ROOT" app built stapled
+fi
+python3 "$INVENTORY" check "$RELEASE_OUTPUT_ROOT"
 
 # Build/Products/Release 里除了 Famo.app 还有 FamoInstaller 相关产物（FamoInstaller.swiftmodule，
 # 某些构建配置下还有 FamoInstaller.app）和各种 *.swiftmodule —— 直接 `pkgbuild --root` 整个目录会把
@@ -23,7 +36,10 @@ fi
 # `--root` 它，保证组件 payload 只含 Famo.app（component-plist 的 RootRelativeBundlePath=Famo.app
 # 仍然成立）。
 STAGING="$(mktemp -d)"
-trap 'rm -rf "${STAGING}"' EXIT
+cleanup() {
+    rm -rf "${STAGING}"
+}
+trap cleanup EXIT
 cp -R "${FAMO_APP}" "${STAGING}/Famo.app"
 
 pkgbuild \
@@ -44,8 +60,11 @@ pkgbuild \
 # 同一个 Famo-component.pkg productbuild 两次（双 pkg 分离）：
 #   - Famo.pkg         首装（Distribution，onConclusion=RequireLogout，DMG 里发给新用户）
 #   - Famo-update.pkg  Sparkle 更新载荷（Distribution-update，无 RequireLogout，免注销）
-sed "s/@VERSION@/$(get_marketing_version)/" Distribution > Distribution-versioned.xml
-sed "s/@VERSION@/$(get_marketing_version)/" Distribution-update > Distribution-update-versioned.xml
+cohort_id="$(python3 "$COHORT_STATE" id "$RELEASE_OUTPUT_ROOT")"
+sed -e "s/@VERSION@/$(get_marketing_version)/" -e "s/@COHORT_ID@/${cohort_id}/" \
+    Distribution > Distribution-versioned.xml
+sed -e "s/@VERSION@/$(get_marketing_version)/" -e "s/@COHORT_ID@/${cohort_id}/" \
+    Distribution-update > Distribution-update-versioned.xml
 
 productbuild \
     --distribution Distribution-versioned.xml \
@@ -59,6 +78,14 @@ productbuild \
     --resources . \
     Famo-update.pkg
 
+"${PROJECT_ROOT}/package/apple_tool_adapter" cohort-id installer-pkg \
+    "${PROJECT_ROOT}/package/Famo.pkg" "$cohort_id" >/dev/null
+"${PROJECT_ROOT}/package/apple_tool_adapter" cohort-id update-pkg \
+    "${PROJECT_ROOT}/package/Famo-update.pkg" "$cohort_id" >/dev/null
+
 rm Distribution-versioned.xml Distribution-update-versioned.xml
 
 rm Famo-component.pkg
+
+python3 "$COHORT_STATE" register "$RELEASE_OUTPUT_ROOT" installer-pkg "$PROJECT_ROOT/package/Famo.pkg"
+python3 "$COHORT_STATE" register "$RELEASE_OUTPUT_ROOT" update-pkg "$PROJECT_ROOT/package/Famo-update.pkg"

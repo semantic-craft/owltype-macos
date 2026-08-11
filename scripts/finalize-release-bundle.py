@@ -179,14 +179,14 @@ def main() -> None:
         info = plistlib.load(handle)
     version = str(info.get("CFBundleShortVersionString", ""))
     build = str(info.get("CFBundleVersion", ""))
-    if not version or version != build:
-        fail(f"version/build mismatch: {version!r} / {build!r}")
+    if not version or not build:
+        fail(f"incomplete version metadata: {version!r} / {build!r}")
     if info.get("SUFeedURL") != "https://responsay.com/famo/appcast.xml":
         fail("Sparkle feed differs from the reviewed public endpoint")
     if not info.get("SUPublicEDKey") or info.get("SUEnableAutomaticChecks") is not True:
         fail("Sparkle verification key or automatic checks are missing")
 
-    print(f"PASS: release bundle {version} finalized")
+    print(f"PASS: release bundle {version} (build {build}) finalized")
     print(f"PASS: {len(native_targets)} unsigned native targets, {len(relative_files(app))} bundle files")
     print("PASS: inventory deferred to inventory-release-bundle.py (runs after signing and stapling)")
 

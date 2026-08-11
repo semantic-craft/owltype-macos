@@ -152,13 +152,11 @@ final class FamoStatusHUD: NSPanel {
     guard !message.isEmpty else { return }
 
     hudState.message = message
-    // Honor the chosen 皮肤 (read live, same cadence as the candidate panel).
-    hudState.theme = FamoSkinPreferences.skin.theme
-    switch FamoPanelPreferences.appearance {
-    case .system: self.appearance = nil
-    case .light:  self.appearance = NSAppearance(named: .aqua)
-    case .dark:   self.appearance = NSAppearance(named: .darkAqua)
-    }
+    // Honor the appearance snapshot (read live, same cadence as the candidate panel).
+    let settings = FamoCandidatePanelSettings.live
+    let appearanceSettings = settings.snapshot()
+    hudState.theme = appearanceSettings.skin.theme
+    appearance = settings.appKitAppearance(for: appearanceSettings)
 
     contentView?.layoutSubtreeIfNeeded()
     let fittingSize = contentView?.fittingSize ?? NSSize(width: 120, height: 44)

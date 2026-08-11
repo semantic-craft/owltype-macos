@@ -5,7 +5,7 @@
 //  v0.3.5: the 模糊拼音 sub-settings shown via the 「设置…」 sheet on the 键盘输入 page
 //  (the 豆包 reference's 模糊拼音 row). Nine common fuzzy-sound toggles (zh=z / ch=c /
 //  sh=s / n=l / r=l / f=h / an=ang / en=eng / in=ing), persisted in UserDefaults
-//  (Famo-namespaced), mirroring `FamoKeyboardPreferences` / `FamoPanelPreferences`:
+//  (Famo-namespaced), mirroring the single-key-home convention of `FamoKeyboardPreferences`:
 //  every key string literal lives ONLY in this file, and the settings layer + the
 //  patch builder read/write through these accessors so there are no duplicate literals.
 //

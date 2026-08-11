@@ -78,26 +78,21 @@ struct FamoSkinPage: View {
     }
     .contentShape(Rectangle())
     .onTapGesture {
-      FamoSettingsActions.set(skin, state: state, keyPath: \.skin) {
-        FamoSkinPreferences.skin = $0
-      }
-      onPanelPreferencesChanged()
+      FamoCandidatePanelSettings.live.edit(
+        .skin(skin), state: state, onChange: onPanelPreferencesChanged)
     }
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     .accessibilityLabel(skin.displayName)
   }
 
-  /// 明暗: the candidate panel's appearance mode (shared with 候选窗外观). Written through
-  /// the mirror + `FamoPanelPreferences` so the key string stays in one place.
+  /// 明暗: the candidate panel's appearance mode, edited through the appearance lifecycle module.
   private var appearanceCard: some View {
     let binding = Binding(
       get: { state.panelAppearance },
       set: { newValue in
-        FamoSettingsActions.set(newValue, state: state, keyPath: \.panelAppearance) {
-          FamoPanelPreferences.appearance = $0
-        }
-        onPanelPreferencesChanged()
+        FamoCandidatePanelSettings.live.edit(
+          .appearance(newValue), state: state, onChange: onPanelPreferencesChanged)
       }
     )
     return SettingsCard(title: "明暗", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {

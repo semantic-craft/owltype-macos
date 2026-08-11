@@ -23,7 +23,7 @@ final class FamoSettingsActionTests: XCTestCase {
     "FamoFuzzyZhZ", "FamoFuzzyChC", "FamoFuzzyShS", "FamoFuzzyNL", "FamoFuzzyRL",
     "FamoFuzzyFH", "FamoFuzzyAnAng", "FamoFuzzyEnEng", "FamoFuzzyInIng",
     "FamoPanelAppearance", "FamoPanelFontSize", "FamoPanelOrientation", "FamoPanelFontDesign",
-    "FamoPanelAnimations", "FamoPanelExpandedByDefault", "FamoPanelPreviewPages", "FamoPanelPreviewRows",
+    "FamoPanelAnimations", "FamoPanelPreviewRows",
     "FamoSkin", "FamoEmojiInCandidates",
     "FamoCloudLaneEnabled", "FamoDeepSeekModel",
     "FamoSelectionMenuEnabled", "FamoSkillSourceVerificationEnabled", "FamoSkillResearchAssistEnabled",
@@ -72,12 +72,19 @@ final class FamoSettingsActionTests: XCTestCase {
     XCTAssertEqual(FamoKeyboardPreferences.doublePinyin, .mspy)
 
     assertSet(.singleFirst, \.keyboardWubiCandidateMode, state, { FamoKeyboardPreferences.wubiCandidateMode }) { FamoKeyboardPreferences.wubiCandidateMode = $0 }
-    assertSet(.dark, \.panelAppearance, state, { FamoPanelPreferences.appearance }) { FamoPanelPreferences.appearance = $0 }
-    assertSet(.large, \.panelFontSize, state, { FamoPanelPreferences.fontSize }) { FamoPanelPreferences.fontSize = $0 }
-    assertSet(.vertical, \.panelOrientation, state, { FamoPanelPreferences.orientation }) { FamoPanelPreferences.orientation = $0 }
-    assertSet(.mapleMono, \.panelFontDesign, state, { FamoPanelPreferences.fontDesign }) { FamoPanelPreferences.fontDesign = $0 }
+    let panelSettings = FamoCandidatePanelSettings.live
+    panelSettings.edit(.appearance(.dark), state: state, onChange: {})
+    XCTAssertEqual(panelSettings.snapshot().appearance, .dark)
+    panelSettings.edit(.size(.large), state: state, onChange: {})
+    panelSettings.edit(.orientation(.vertical), state: state, onChange: {})
+    XCTAssertEqual(panelSettings.snapshot().size, .large)
+    XCTAssertEqual(panelSettings.snapshot().orientation, .vertical)
+    panelSettings.edit(.font(.mapleMono), state: state, onChange: {})
+    XCTAssertEqual(state.candidateFont.selection, .mapleMono)
+    XCTAssertEqual(panelSettings.snapshot().font.selection, .mapleMono)
     assertSet(6, \.candidatePageSize, state, { FamoKeyboardPreferences.pageSize }) { FamoKeyboardPreferences.pageSize = $0 }
-    assertSet(.wuda, \.skin, state, { FamoSkinPreferences.skin }) { FamoSkinPreferences.skin = $0 }
+    panelSettings.edit(.skin(.wuda), state: state, onChange: {})
+    XCTAssertEqual(panelSettings.snapshot().skin, .wuda)
     assertSet(FamoCloudPreferences.reasonerDeepSeekModel, \.cloudModel, state, { FamoCloudPreferences.deepSeekModel }) { FamoCloudPreferences.deepSeekModel = $0 }
     // 默认状态·中英文 / 全半角 下拉（同 `FamoSettingsActions.set` 写穿；简繁体复用 traditionalOutput）。
     assertSet(true, \.keyboardDefaultAsciiMode, state, { FamoKeyboardPreferences.defaultAsciiMode }) { FamoKeyboardPreferences.defaultAsciiMode = $0 }
@@ -94,9 +101,10 @@ final class FamoSettingsActionTests: XCTestCase {
     assertToggle(\.keyboardSelect23Semicolon, state, { FamoKeyboardPreferences.select23Semicolon }) { FamoKeyboardPreferences.select23Semicolon = $0 }
     assertToggle(\.keyboardSlashSymbolMenu, state, { FamoKeyboardPreferences.slashSymbolMenu }) { FamoKeyboardPreferences.slashSymbolMenu = $0 }
     assertToggle(\.keyboardCJKAlnumSpacing, state, { FamoKeyboardPreferences.cjkAlnumSpacing }) { FamoKeyboardPreferences.cjkAlnumSpacing = $0 }
-    assertToggle(\.panelAnimationsEnabled, state, { FamoPanelPreferences.animationsEnabled }) { FamoPanelPreferences.animationsEnabled = $0 }
-    // 卷轴：后页行数分段经 FamoSettingsActions.set 写穿（是否卷轴由排列方向决定，无独立开关）。
-    assertSet(1, \.panelScrollRows, state, { FamoPanelPreferences.scrollRows }) { FamoPanelPreferences.scrollRows = $0 }
+    panelSettings.edit(.animationsEnabled(false), state: state, onChange: {})
+    XCTAssertFalse(panelSettings.snapshot().animationsEnabled)
+    panelSettings.edit(.scrollRows(1), state: state, onChange: {})
+    XCTAssertEqual(panelSettings.snapshot().scrollRows, 1)
     assertToggle(\.candidateEmojiEnabled, state, { FamoEmojiPreferences.candidateEmojiEnabled }) { FamoEmojiPreferences.candidateEmojiEnabled = $0 }
     assertToggle(\.cloudEnabled, state, { FamoCloudPreferences.isEnabled }) { FamoCloudPreferences.isEnabled = $0 }
     assertToggle(\.askWebSearchEnabled, state, { FamoAskWebSearchSettings.isEnabled }) { FamoAskWebSearchSettings.isEnabled = $0 }

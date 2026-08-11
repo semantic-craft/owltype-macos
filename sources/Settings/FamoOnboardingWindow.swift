@@ -20,8 +20,8 @@ import AppKit
 import SwiftUI
 
 /// First-run flag for the onboarding window. Get/set so the `"FamoOnboardingDone"`
-/// UserDefaults key string has exactly one home (matching the single-key-home
-/// convention of `FamoSwiftUICandidatePanel.isEnabled` / `FamoPanelPreferences`).
+/// UserDefaults key string has exactly one home (matching the single-key-home convention of
+/// `FamoCandidatePanelSettings`).
 /// Defaults to `false`, so the window auto-shows once on first launch.
 enum FamoOnboarding {
   static var isDone: Bool {

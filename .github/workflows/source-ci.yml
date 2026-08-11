@@ -24,7 +24,14 @@ jobs:
           bash scripts/check-public-privacy.selftest.sh
 
       - name: Check shell syntax
-        run: bash -n action-install.sh scripts/*.sh
+        run: |
+          bash -n action-install.sh scripts/*.sh package/apple_tool_adapter package/make_package
+          python3 -m py_compile \
+            scripts/famo_bundle.py \
+            scripts/inventory-release-bundle.py \
+            scripts/release-cohort-state.py \
+            scripts/release_source.py \
+            scripts/safe-extract-tar.py
 
   release-gate:
     # The full product (cloud AI layer) requires Xcode 26+ (Swift main-actor
@@ -43,8 +50,8 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Install secret scanners
-        run: brew install gitleaks trufflehog
+      - name: Install release gate tools
+        run: brew install gitleaks trufflehog xcodegen
 
       - name: Bootstrap pinned dependencies
         run: make bootstrap
@@ -53,4 +60,16 @@ jobs:
         run: make famo-seed
 
       - name: Run full release gate
-        run: make release-gate DERIVED_DATA_PATH=build/release-gate
+        run: |
+          make test DERIVED_DATA_PATH=build/release-gate-tests
+          make release RELEASE_OUTPUT_ROOT=build/release-gate
+          bash scripts/release-artifact-chain.selftest.sh \
+            build/release-gate/Build/Products/Release/Famo.app
+          bash scripts/release-cohort.selftest.sh
+          bash scripts/release-cohort-transition.selftest.sh
+          bash scripts/release-chain.selftest.sh
+          bash scripts/check-release.selftest.sh
+          python3 scripts/secret-finding-policy.selftest.py
+          bash scripts/check-secrets.sh
+          bash scripts/check-secrets.sh --artifacts \
+            build/release-gate/Build/Products/Release/Famo.app

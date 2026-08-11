@@ -332,7 +332,7 @@ struct FamoQuickSendPanelView: View {
   @FocusState private var searchFocused: Bool
 
   /// Theme follows the chosen 皮肤 (read live, like the candidate/emoji panels).
-  private var theme: FamoCandidateTheme { FamoSkinPreferences.skin.theme }
+  private var theme: FamoCandidateTheme { FamoCandidatePanelSettings.live.currentSkin().theme }
   private var palette: FamoCandidatePalette { theme.palette(for: colorScheme) }
 
   /// Binding to the active segment's model — mutations write back into the right @State. Reads go

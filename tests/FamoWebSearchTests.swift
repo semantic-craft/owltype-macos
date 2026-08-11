@@ -405,7 +405,7 @@ final class FamoWebSearchTests: XCTestCase {
     }
   }
 
-  func testDashScopeClientSurfacesTheErrorCodeFromANon2xxBody() async {
+  func testDashScopeClientPreservesGenericInvalidParameterWithoutMarkingTheRouteUnusable() async {
     let client = FamoDashScopeSearchClient(fetch: { request in
       let body = Data(#"{"error":{"code":"InvalidParameter","message":"bad tool choice"}}"#.utf8)
       return (body, HTTPURLResponse(
@@ -418,9 +418,9 @@ final class FamoWebSearchTests: XCTestCase {
       XCTAssertEqual(
         error as? FamoWebSearchError,
         .serviceError(code: "InvalidParameter", message: "bad tool choice"))
-      XCTAssertTrue(
-        (error as? FamoWebSearchError)?.isRouteUnusable ?? false,
-        "型号/参数被拒是配置问题，重试同一家永远同一个结果 —— 该顺位到下一家")
+      XCTAssertFalse(
+        (error as? FamoWebSearchError)?.isRouteUnusable ?? true,
+        "generic InvalidParameter may describe this question and must not fan out")
     }
   }
 
@@ -431,6 +431,13 @@ final class FamoWebSearchTests: XCTestCase {
       FamoWebSearchError.serviceError(code: "Throttling.RateQuota", message: "").isRouteUnusable)
     XCTAssertFalse(
       FamoWebSearchError.serviceError(code: "InternalError", message: "").isRouteUnusable)
+  }
+
+  func testUnknownServiceErrorIsReportedInsteadOfFanningOut() {
+    XCTAssertFalse(
+      FamoWebSearchError.serviceError(
+        code: "ContentPolicyViolation", message: "request-specific refusal"
+      ).isRouteUnusable)
   }
 
   // MARK: - 署名
@@ -469,6 +476,15 @@ final class FamoWebSearchTests: XCTestCase {
       FamoWebSearchBackendSettings.backend, .doubaoGlobal,
       "不认识的值回到默认，而不是让联网整个失灵")
     FamoWebSearchBackendSettings.resetForTesting()
+  }
+
+  func testPreferredBackendOnlyMovesToFrontOfTheCompleteCandidateOrder() {
+    XCTAssertEqual(
+      FamoWebSearchBackend.orderedCandidates(preferred: .perplexity),
+      [.perplexity, .doubaoGlobal, .qwen])
+    XCTAssertEqual(
+      FamoWebSearchBackend.orderedCandidates(preferred: .qwen),
+      [.qwen, .doubaoGlobal, .perplexity])
   }
 
   // MARK: - Key 存放

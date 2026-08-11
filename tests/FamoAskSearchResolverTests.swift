@@ -290,6 +290,29 @@ final class FamoAskSearchResolverTests: XCTestCase {
     XCTAssertEqual(resolver.resolve()?.providerID, "mimo", "钥匙串读失败只淘汰这一家，不整问失败")
   }
 
+  func testResolveAllKeepsExactPreferenceOrderWhileFilteringEachUnusableKey() {
+    let resolver = makeResolver(
+      profiles: [openai(), deepseek(isDefault: false), mimo(), doubao(), qwen()],
+      defaultProfile: nil,
+      preferred: "doubao",
+      keys: [
+        "famo.provider.qwen.apiKey": "  sk-qwen  ",
+        "famo.provider.mimo.apiKey": "sk-mimo",
+        "famo.provider.openai.apiKey": "   ",
+        "famo.provider.deepseek.apiKey": "sk-deepseek",
+      ]
+    )
+
+    let routes = resolver.resolveAll()
+    XCTAssertEqual(
+      routes.map(\.providerID), ["qwen", "mimo", "deepseek"],
+      "preferred Doubao has no key, so only that entry drops; the remaining canonical order stays")
+    XCTAssertEqual(routes.map(\.apiKey), ["sk-qwen", "sk-mimo", "sk-deepseek"])
+    XCTAssertEqual(
+      routes.map(\.transport),
+      [.responses(.qwen), .chatCompletions, .responses(.deepseek)])
+  }
+
   // MARK: - Silent fallback
 
   func testNoSearchCapableProfileResolvesToNil() {

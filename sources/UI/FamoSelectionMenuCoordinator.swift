@@ -873,9 +873,9 @@ enum FamoSelectionPublishFormattingError: Error {
 /// prompt injection（模型若照做而改内容，指纹护栏即拦下）。
 @MainActor
 struct FamoSelectionPublishFormatter {
-  private let streamer: FamoConversationStreaming
+  private let streamer: FamoPlainStreaming
 
-  init(streamer: FamoConversationStreaming? = nil) {
+  init(streamer: FamoPlainStreaming? = nil) {
     self.streamer = streamer ?? FamoStreamingChatService.shared
   }
 

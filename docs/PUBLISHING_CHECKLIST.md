@@ -23,40 +23,68 @@ The public repository and all public artifacts must exclude:
 The local-only prompt, phrase and scene-term features are allowed only while they keep user content
 on-device, store it with restrictive permissions and never log its text.
 
-## Required gates
+## Authoritative release flow
 
-- `bash scripts/check-public-source.sh` passes on the exact commit to be published;
-- Gitleaks and TruffleHog report no verified or unreviewed secrets on the exact Git history;
-- the full test suite and a clean unsigned Release build pass;
-- the final App bundle is inventoried, including every executable, dynamic library and data set. The
-  inventory is taken **after** Developer ID signing and `xcrun stapler staple`, because both rewrite
-  the bundle, and it is written outside the bundle so that taking it cannot alter what it describes.
-  `FAMOTYPE-FILE-MANIFEST.sha256` and `FAMOTYPE-SBOM.spdx.json` land under `<derived-data>/release/`
-  and are published alongside the App, so anyone can verify a download with
-  `cd Famo.app && shasum -a 256 -c /path/to/FAMOTYPE-FILE-MANIFEST.sha256`;
-- `THIRD_PARTY_NOTICES.md`, complete license texts, Credits, pinned source revisions and corresponding
-  source are shipped for that exact inventory;
-- no dependency or data source remains on a floating branch for a public binary release;
-- a maintainer manually reviews the staged diff and confirms that the Git author uses a public
-  noreply identity.
+Start from a clean worktree at the exact commit to publish. Review the staged diff, confirm the Git
+author uses a public noreply identity, and verify that no dependency or data source is on a floating
+branch. Then use the only release entrypoint:
 
-Run `make famo-seed` and then `make release-gate DERIVED_DATA_PATH=build/release-gate` on a clean
-worktree. The gate emits the corresponding source archive, its SHA-256 file, and the App inventory
-under `build/release-gate/release/`; publish those files with the exact App built by the same
-invocation. The archive's `FAMOTYPE-SOURCE-PROVENANCE.txt` records the App manifest's own SHA-256 as
-`app-manifest`, which is what ties the published source to the published binary — so the inventory
-must already exist when the archive is built, and `make source-archive` deliberately does not rebuild
-the App (rebuilding would strip the signatures off the bundle that actually shipped).
+```sh
+DEV_ID='Developer ID common name' \
+NOTARY_PROFILE='notarytool keychain profile' \
+bash scripts/release.sh --output-root build/release-cohort
+```
 
-Public source and public binaries are separate decisions. Passing the source gates does not permit a
-binary release while any provenance or corresponding-source gate remains open.
+To inspect the same order without invoking builds, Apple tools, scanners, or remote services:
 
-## After publishing the GitHub Release
+```sh
+bash scripts/release.sh --dry-run --output-root build/release-cohort
+```
 
-Run `bash scripts/check-published-release.sh <version>` immediately after the Release (with all
-assets) is published. It asserts, over the URL installed apps actually poll, that the feed's top
-item is this version, the update pkg downloads with the exact byte length the feed declares, and
-the DMG asset exists. This is the only gate that catches the two silent failure modes outside the
-build: a release mislabeled as pre-release/draft (GitHub's `latest` quietly falls back to the
-previous version) and a missing `appcast.xml` asset (the feed permalink 404s and Sparkle fails
-silently). Local gates cannot see either.
+The entrypoint runs tests, creates one Release build, and drives the App, `Famo.pkg`,
+`Famo-update.pkg`, and the versioned DMG through the shared
+`built -> signed -> notarized -> stapled` cohort transitions. It inventories the final App, creates
+an appcast and corresponding-source archive that both embed that cohort ID, and then runs the
+release, privacy, shared secret-policy, and local publishing-contract gates. Any revision, version,
+inventory, artifact, appcast, source, or cohort mismatch stops the chain. Re-running the entrypoint
+reruns the tests, then verifies and reuses a complete valid Release cohort without another Release
+build; a partial, failed, or mismatched cohort must be removed explicitly and rebuilt under a fresh
+output root.
+
+The cohort binds the marketing version (`CFBundleShortVersionString`) and Sparkle build version
+(`CFBundleVersion`) separately. The versioned DMG and source archive use the marketing version;
+Sparkle comparison and the immutable update-package URL use the build version.
+
+The cohort also binds an exact file-and-mode snapshot of the selected Git revision and every pinned
+submodule revision, plus a stable digest of the complete generated seed shipped in
+`Famo.app/Contents/SharedSupport`. The corresponding-source archive must contain exactly that
+tracked source, its declared manifest and provenance, and a `data/famo-rime` tree identical to the
+App seed. Self-consistent replacement archives are rejected even when their internal manifest and
+checksum sidecar have been recomputed.
+
+The App cohort identity includes normalized entry type and permission mode as well as file contents
+and symlink targets. `Contents/MacOS/Famo` must remain a regular executable file. The appcast must
+declare `sparkle:installationType="package"`, and its EdDSA signature over the exact cohort-bound
+update package must verify with `SUPublicEDKey` from that cohort's App.
+
+The final local publishing gate lists ten cohort-verified assets as `WOULD_PUBLISH`. The script does
+not create a GitHub Release, upload assets, change tags, deploy the feed, or validate a remote URL.
+Those remote actions remain a separate maintainer decision after every local gate passes.
+The shared artifact secret policy scans the App and all ten listed assets. It safely expands PKGs,
+mounts DMGs read-only and detaches them on both success and failure, and extracts tar archives while
+rejecting links, special members, duplicate paths, and traversal before scanning their contents.
+
+The App inventory is taken **after** Developer ID signing and stapling, because both rewrite the
+bundle. `FAMOTYPE-FILE-MANIFEST.sha256`, `FAMOTYPE-SBOM.spdx.json`, App provenance, and the cohort
+record live outside the App and ship with the packages, DMG, appcast, source archive, and source
+checksum. A downloader can verify the App with
+`cd Famo.app && shasum -a 256 -c /path/to/FAMOTYPE-FILE-MANIFEST.sha256`.
+
+Public source and public binaries remain separate legal decisions. A complete cohort does not permit
+a binary release while any provenance, corresponding-source, license, or human-review gate is open.
+Local tests use fake adapters, unsigned system packaging tools, and synthetic Sparkle keys only;
+they do not replace a maintainer's final Developer ID signing, notarization, stapling, and installed
+update validation on the exact release artifacts.
+The product test entrypoint explicitly excludes the five credential-gated Live suites; the offline
+`FamoLiveInputTraceTests` privacy regression remains enabled. Release and source CI must never rely
+on default skip behavior or run an unfiltered `xcodebuild test`.

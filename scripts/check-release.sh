@@ -8,7 +8,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=scripts/famo-identity.sh
 . "$ROOT/scripts/famo-identity.sh"
 
-APP="$ROOT/build/Build/Products/Release/Famo.app"
+RELEASE_OUTPUT_ROOT="${RELEASE_OUTPUT_ROOT:-$ROOT/build}"
+APP="$RELEASE_OUTPUT_ROOT/Build/Products/Release/Famo.app"
 PKG="$ROOT/package/Famo.pkg"
 UPDATE_PKG="$ROOT/package/Famo-update.pkg"
 APPCAST="$ROOT/package/appcast.xml"
@@ -55,6 +56,8 @@ if (( preflight_only )); then
   pass "release environment preflight complete"
   exit 0
 fi
+
+python3 "$ROOT/scripts/release-cohort-state.py" verify-chain "$RELEASE_OUTPUT_ROOT"
 
 [[ -d "$APP" ]] || fail "Release app not found: $APP"
 [[ -f "$PKG" ]] || fail "package not found: $PKG"

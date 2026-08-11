@@ -35,7 +35,7 @@ enum FamoSearchControl {
     case none
   }
 
-  /// HOW a provider's search request is sent. Carried by `FamoAskSearchRoute` so `openAsk` picks
+  /// HOW a provider's search request is sent. Carried by `FamoAskSearchRoute` so the ask adapter picks
   /// the matching client instead of inferring it from the provider id at the call site.
   enum Transport: Equatable {
     /// `/chat/completions` + the top-level extras from `extraBody(providerID:host:)`.

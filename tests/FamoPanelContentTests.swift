@@ -11,7 +11,7 @@
 //  visible change, so this field-by-field test is the safety net.
 //
 //  Limitation (documented, accepted — same as the seam ports): the panel-level early-out itself
-//  (`if content == lastContent && prefs == lastPrefs && isVisible { orderFrontRegardless(); return }`) is NOT
+//  (`content == lastContent && settings == lastSettings && isVisible`) is NOT
 //  headless-unit-testable — a non-activating `NSPanel`'s `isVisible`/`orderFront` can't be driven
 //  deterministically without a window server / real machine. This signature-equality test (every
 //  field flip → unequal) is the unit-level proof that the early-out only fires on a true no-op.
@@ -297,18 +297,21 @@ final class FamoScrollRowsPlanTests: XCTestCase {
   /// A snapshot with everything the plan reads set explicitly; visual fields pinned to
   /// defaults (they are irrelevant to the gate but required by the memberwise init).
   private func snapshot(orientation: FamoPanelOrientation = .scroll,
-                        scrollRows: Int = 2) -> FamoPanelSnapshot {
-    FamoPanelSnapshot(
-      orientation: orientation,
-      fontSize: .medium,
-      fontDesign: .default,
-      animationsEnabled: true,
-      showPreedit: true,
-      showPaging: true,
-      candidateFormat: .full,
-      theme: .shenda,
+                        scrollRows: Int = 2) -> FamoCandidatePanelSettings.Snapshot {
+    FamoCandidatePanelSettings.Snapshot(
       appearance: .system,
-      scrollRows: scrollRows)
+      skin: .deepred,
+      font: .systemDefault,
+      animationsEnabled: true,
+      size: .medium,
+      orientation: orientation,
+      showPreedit: true,
+      inlineCandidate: false,
+      showPaging: true,
+      showNotificationsWhen: .always,
+      candidateFormat: .full,
+      scrollRows: scrollRows
+    )
   }
 
   private func cand(_ text: String) -> RimeCandidate {
@@ -319,29 +322,29 @@ final class FamoScrollRowsPlanTests: XCTestCase {
 
   func testWantsRowsOnScrollMidListAfterPaging() {
     XCTAssertTrue(FamoScrollRowsPlan.wantsRows(
-      prefs: snapshot(), didPage: true, lastPage: false, candidateCount: 5,
+      settings: snapshot(), didPage: true, lastPage: false, candidateCount: 5,
       rimeVertical: false, schemaID: ""))
   }
 
   /// 翻页才展开（2026-07-28）：没翻过页的组字保持单行，即便选了卷轴、还有后页。
   func testNoPagingMeansNoRows() {
     XCTAssertFalse(FamoScrollRowsPlan.wantsRows(
-      prefs: snapshot(), didPage: false, lastPage: false, candidateCount: 5,
+      settings: snapshot(), didPage: false, lastPage: false, candidateCount: 5,
       rimeVertical: false, schemaID: ""))
     XCTAssertFalse(FamoScrollRowsPlan.wantsPrevRow(
-      prefs: snapshot(), didPage: false, page: 1, candidateCount: 5,
+      settings: snapshot(), didPage: false, page: 1, candidateCount: 5,
       rimeVertical: false, schemaID: ""))
   }
 
   func testLastPageNeverFetches() {
     XCTAssertFalse(FamoScrollRowsPlan.wantsRows(
-      prefs: snapshot(), didPage: true, lastPage: true, candidateCount: 5,
+      settings: snapshot(), didPage: true, lastPage: true, candidateCount: 5,
       rimeVertical: false, schemaID: ""))
   }
 
   func testEmptyPageNeverFetches() {
     XCTAssertFalse(FamoScrollRowsPlan.wantsRows(
-      prefs: snapshot(), didPage: true, lastPage: false, candidateCount: 0,
+      settings: snapshot(), didPage: true, lastPage: false, candidateCount: 0,
       rimeVertical: false, schemaID: ""))
   }
 
@@ -349,10 +352,10 @@ final class FamoScrollRowsPlanTests: XCTestCase {
   func testNonScrollOrientationsNeverFetch() {
     for orientation in [FamoPanelOrientation.auto, .horizontal, .vertical] {
       XCTAssertFalse(FamoScrollRowsPlan.wantsRows(
-        prefs: snapshot(orientation: orientation), didPage: true, lastPage: false,
+        settings: snapshot(orientation: orientation), didPage: true, lastPage: false,
         candidateCount: 5, rimeVertical: false, schemaID: ""), "\(orientation) 不该预取后页行")
       XCTAssertFalse(FamoScrollRowsPlan.wantsPrevRow(
-        prefs: snapshot(orientation: orientation), didPage: true, page: 1,
+        settings: snapshot(orientation: orientation), didPage: true, page: 1,
         candidateCount: 5, rimeVertical: false, schemaID: ""), "\(orientation) 不该预取前页行")
     }
   }
@@ -361,7 +364,7 @@ final class FamoScrollRowsPlanTests: XCTestCase {
   /// （`.scroll.isVertical` 恒为 false，与视图的渲染分支一致）。
   func testScrollIgnoresRimeVertical() {
     XCTAssertTrue(FamoScrollRowsPlan.wantsRows(
-      prefs: snapshot(), didPage: true, lastPage: false, candidateCount: 5,
+      settings: snapshot(), didPage: true, lastPage: false, candidateCount: 5,
       rimeVertical: true, schemaID: ""))
   }
 
@@ -369,10 +372,10 @@ final class FamoScrollRowsPlanTests: XCTestCase {
   /// 翻回第一页就没有「上一页」可保留。
   func testPrevRowNeedsANonFirstPage() {
     XCTAssertTrue(FamoScrollRowsPlan.wantsPrevRow(
-      prefs: snapshot(), didPage: true, page: 1, candidateCount: 5,
+      settings: snapshot(), didPage: true, page: 1, candidateCount: 5,
       rimeVertical: false, schemaID: ""))
     XCTAssertFalse(FamoScrollRowsPlan.wantsPrevRow(
-      prefs: snapshot(), didPage: true, page: 0, candidateCount: 5,
+      settings: snapshot(), didPage: true, page: 0, candidateCount: 5,
       rimeVertical: false, schemaID: ""))
   }
 
@@ -427,11 +430,9 @@ final class FamoScrollRowsPlanTests: XCTestCase {
   }
 }
 
-// MARK: - 候选窗尺寸四档（点数阶梯 + 留白等比换算）
+// MARK: - 候选窗尺寸四档
 
-/// 锁住「候选窗尺寸」这一档拨的是**整块面板**：`FamoPanelFontSize.base` 是点数阶梯，
-/// `metric(_:base:)` 把写在中档坐标系里的留白换算到其余档位。面板的实际留白全在
-/// `FamoCandidatePanelView` 的私有 `m(...)` 里、单测够不着，所以这里锁的是它唯一的数值来源。
+/// 设置层只定义候选正文的四档点数；完整面板尺寸由 resolved geometry interface 验收。
 final class FamoPanelSizeTests: XCTestCase {
 
   /// 四档点数 16 / 19 / 23 / 27。小/中/大三个值与四档化之前逐字相同——`.extraLarge` 是纯增补，
@@ -442,43 +443,262 @@ final class FamoPanelSizeTests: XCTestCase {
                    ["small", "medium", "large", "extraLarge"])
   }
 
-  /// 中档是换算锚点：任何留白值在中档下换算回它自己。这是「默认档逐像素不变」的全部依据
-  /// ——`medium.base` 一旦被改成别的数，绝大多数用户的面板会整块走形，这条会先炸。
-  func testMediumIsTheIdentityAnchor() {
-    for value in [2, 3, 4, 5, 6, 7, 8, 9, 210] as [CGFloat] {
-      XCTAssertEqual(FamoPanelFontSize.metric(value, base: FamoPanelFontSize.medium.base), value)
-    }
-  }
-
-  /// 四档下的关键留白（选中块内嵌 5、pill 内边 8/7、候选间距 6、竖排行内边 9、横排最小宽 210），
-  /// 逐档钉死取整后的点数——`base` 或锚点漂了，这张表立刻对不上。
-  func testMetricTablePerStep() {
-    let expected: [FamoPanelFontSize: [CGFloat: CGFloat]] = [
-      .small:      [5: 4, 8: 7,  7: 6,  6: 5, 9: 8,  210: 177],
-      .medium:     [5: 5, 8: 8,  7: 7,  6: 6, 9: 9,  210: 210],
-      .large:      [5: 6, 8: 10, 7: 8,  6: 7, 9: 11, 210: 254],
-      .extraLarge: [5: 7, 8: 11, 7: 10, 6: 9, 9: 13, 210: 298],
-    ]
-    for (size, table) in expected {
-      for (atMedium, want) in table {
-        XCTAssertEqual(FamoPanelFontSize.metric(atMedium, base: size.base), want,
-                       "\(size.rawValue) 档下中档的 \(atMedium)pt 应换算为 \(want)pt")
-      }
-    }
-  }
-
-  /// 留白全部按整点落位：半点会在非 Retina 上糊掉一条边，且让「四边等距」不再等距。
-  func testMetricsLandOnWholePoints() {
-    for size in FamoPanelFontSize.allCases {
-      for value in stride(from: CGFloat(1), through: 24, by: 1) {
-        let m = FamoPanelFontSize.metric(value, base: size.base)
-        XCTAssertEqual(m, m.rounded(), "\(size.rawValue) 档下 \(value)pt 换算出了非整点 \(m)")
-      }
-    }
-  }
-
   /// 面板状态的默认字号就是中档：留白现在也从这个数派生，默认档一错整块面板的边距跟着错。
   func testPanelStateDefaultsToMediumStep() {
     XCTAssertEqual(CandidatePanelState().fontSize, FamoPanelFontSize.medium.base)
+  }
+}
+
+// MARK: - 候选窗 resolved geometry
+
+/// 这里锁的是视图实际消费的组合结果，而不是再次复述内部的缩放公式。
+/// 每一档都同时覆盖字号、输入串/首候选对齐、选中块、最小宽度、翻页与展开 affordance。
+final class FamoCandidatePanelGeometryTests: XCTestCase {
+
+  private struct Expected {
+    let size: FamoPanelFontSize
+    let minimumWidth: CGFloat
+    let selectionInset: CGFloat
+    let selectionRadius: CGFloat
+    let headerSpacing: CGFloat
+    let headerLeading: CGFloat
+    let headerTrailing: CGFloat
+    let headerTop: CGFloat
+    let headerBottom: CGFloat
+    let rowSpacing: CGFloat
+    let pillHorizontal: CGFloat
+    let pillVertical: CGFloat
+    let chevronFont: CGFloat
+    let chevronHitPadding: CGFloat
+    let collapseClearance: CGFloat
+  }
+
+  private let expected: [Expected] = [
+    Expected(size: .small, minimumWidth: 177, selectionInset: 4, selectionRadius: 9,
+             headerSpacing: 7, headerLeading: 11, headerTrailing: 7, headerTop: 8, headerBottom: 4,
+             rowSpacing: 5, pillHorizontal: 7, pillVertical: 6,
+             chevronFont: 11, chevronHitPadding: 3, collapseClearance: 22),
+    Expected(size: .medium, minimumWidth: 210, selectionInset: 5, selectionRadius: 8,
+             headerSpacing: 8, headerLeading: 13, headerTrailing: 8, headerTop: 9, headerBottom: 5,
+             rowSpacing: 6, pillHorizontal: 8, pillVertical: 7,
+             chevronFont: 14, chevronHitPadding: 4, collapseClearance: 28),
+    Expected(size: .large, minimumWidth: 254, selectionInset: 6, selectionRadius: 7,
+             headerSpacing: 10, headerLeading: 16, headerTrailing: 10, headerTop: 11, headerBottom: 6,
+             rowSpacing: 7, pillHorizontal: 10, pillVertical: 8,
+             chevronFont: 18, chevronHitPadding: 5, collapseClearance: 35),
+    Expected(size: .extraLarge, minimumWidth: 298, selectionInset: 7, selectionRadius: 6,
+             headerSpacing: 11, headerLeading: 18, headerTrailing: 11, headerTop: 13, headerBottom: 7,
+             rowSpacing: 9, pillHorizontal: 11, pillVertical: 10,
+             chevronFont: 22, chevronHitPadding: 6, collapseClearance: 43),
+  ]
+
+  func testFourSizesResolveTheCompleteHorizontalComposition() {
+    for want in expected {
+      let geometry = FamoCandidatePanelGeometry(
+        candidateFontSize: want.size.base,
+        panelCornerRadius: 13
+      )
+
+      XCTAssertEqual(geometry.minimumWidth, want.minimumWidth, want.size.rawValue)
+      XCTAssertEqual(geometry.selectionInset, want.selectionInset, want.size.rawValue)
+      XCTAssertEqual(geometry.selectionRadius, want.selectionRadius, want.size.rawValue)
+
+      XCTAssertEqual(geometry.header.preeditFontSize, want.size.base - 3, want.size.rawValue)
+      XCTAssertEqual(geometry.header.spacing, want.headerSpacing, want.size.rawValue)
+      XCTAssertEqual(geometry.header.leadingPadding, want.headerLeading, want.size.rawValue)
+      XCTAssertEqual(geometry.header.trailingPadding, want.headerTrailing, want.size.rawValue)
+      XCTAssertEqual(geometry.header.topPadding, want.headerTop, want.size.rawValue)
+      XCTAssertEqual(geometry.header.bottomPadding, want.headerBottom, want.size.rawValue)
+
+      XCTAssertEqual(geometry.compactRow.inset, want.selectionInset, want.size.rawValue)
+      XCTAssertEqual(geometry.mainRow.spacing, want.rowSpacing, want.size.rawValue)
+      XCTAssertEqual(geometry.compactPill.candidateFontSize, want.size.base + 1, want.size.rawValue)
+      XCTAssertEqual(geometry.compactPill.secondaryFontSize, want.size.base * 0.72, accuracy: 0.0001,
+                     want.size.rawValue)
+      XCTAssertEqual(geometry.compactPill.horizontalPadding, want.pillHorizontal, want.size.rawValue)
+      XCTAssertEqual(geometry.compactPill.verticalPadding, want.pillVertical, want.size.rawValue)
+
+      XCTAssertEqual(geometry.expandChevron.fontSize, want.chevronFont, want.size.rawValue)
+      XCTAssertEqual(geometry.expandChevron.hitPadding, want.chevronHitPadding, want.size.rawValue)
+      XCTAssertEqual(geometry.collapseClearance, want.collapseClearance, want.size.rawValue)
+    }
+  }
+
+  func testHeaderAndAffordancesKeepTheirCompositionInvariants() {
+    for size in FamoPanelFontSize.allCases {
+      let geometry = FamoCandidatePanelGeometry(
+        candidateFontSize: size.base,
+        panelCornerRadius: 13
+      )
+
+      // 输入串和首候选文字从面板左壁起使用同一条 resolved 路径。
+      XCTAssertEqual(
+        geometry.header.leadingPadding,
+        geometry.compactRow.inset + geometry.compactPill.horizontalPadding,
+        size.rawValue
+      )
+
+      // HStack 为展开按钮保留完整命中宽与前导间距；overlay 形态还会额外保留右壁净空。
+      XCTAssertEqual(
+        geometry.expandChevronReservedWidth,
+        geometry.mainRow.expandChevronLeadingPadding + geometry.expandChevron.hitWidth,
+        size.rawValue
+      )
+      XCTAssertEqual(
+        geometry.collapseClearance,
+        geometry.expandChevron.hitWidth + geometry.verticalList.collapseTrailingPadding,
+        size.rawValue
+      )
+    }
+  }
+
+  func testRowPillAndAffordanceSpacingStayOnTheFourSizeTable() {
+    let contentSpacing: [CGFloat] = [4, 5, 6, 7]
+    let dividerPadding: [CGFloat] = [4, 5, 6, 7]
+    let chevronLeading: [CGFloat] = [3, 4, 5, 6]
+    let pageDotsTrailing: [CGFloat] = [3, 4, 5, 6]
+    let provenanceHorizontal: [CGFloat] = [3, 4, 5, 6]
+    let provenanceVertical: [CGFloat] = [3, 3, 4, 4]
+
+    for (index, size) in FamoPanelFontSize.allCases.enumerated() {
+      let geometry = FamoCandidatePanelGeometry(
+        candidateFontSize: size.base,
+        panelCornerRadius: 13
+      )
+      XCTAssertEqual(geometry.compactPill.contentSpacing, contentSpacing[index], size.rawValue)
+      XCTAssertEqual(geometry.mainRow.dividerHorizontalPadding, dividerPadding[index], size.rawValue)
+      XCTAssertEqual(geometry.mainRow.expandChevronLeadingPadding, chevronLeading[index], size.rawValue)
+      XCTAssertEqual(geometry.pageDots.trailingPadding, pageDotsTrailing[index], size.rawValue)
+      XCTAssertEqual(
+        geometry.compactPill.provenance.horizontalPadding,
+        provenanceHorizontal[index],
+        size.rawValue
+      )
+      XCTAssertEqual(
+        geometry.compactPill.provenance.verticalPadding,
+        provenanceVertical[index],
+        size.rawValue
+      )
+    }
+  }
+
+  func testHairlineAndPagingHitAreaStayFixedAcrossAllSizes() {
+    for size in FamoPanelFontSize.allCases {
+      let geometry = FamoCandidatePanelGeometry(
+        candidateFontSize: size.base,
+        panelCornerRadius: 13
+      )
+      XCTAssertEqual(geometry.panel.spacing, 0, size.rawValue)
+      XCTAssertEqual(geometry.panel.cornerRadius, 13, size.rawValue)
+      XCTAssertEqual(geometry.panel.strokeWidth, 1, size.rawValue)
+      XCTAssertEqual(geometry.mainRow.dividerWidth, 1, size.rawValue)
+      XCTAssertEqual(geometry.mainRow.dividerHeight, size.base * 0.9, size.rawValue)
+      XCTAssertEqual(geometry.pageDots.spacing, 0, size.rawValue)
+      XCTAssertEqual(geometry.pageDots.hitSize, 18, size.rawValue)
+      XCTAssertEqual(geometry.pageDots.dotDiameter, 5, size.rawValue)
+      XCTAssertEqual(geometry.header.pieceSpacing, 0, size.rawValue)
+      XCTAssertEqual(geometry.header.kerning, 0.4, size.rawValue)
+      XCTAssertEqual(geometry.header.spacerMinimumLength, 2, size.rawValue)
+      XCTAssertEqual(geometry.header.delimiterHorizontalPadding, 2, size.rawValue)
+      XCTAssertEqual(geometry.header.caretHorizontalPadding, 0.5, size.rawValue)
+      XCTAssertEqual(geometry.header.caret.cornerRadius, 1, size.rawValue)
+      XCTAssertEqual(geometry.header.caret.width, 1.5, size.rawValue)
+      XCTAssertEqual(geometry.header.caret.minimumHeight, 8, size.rawValue)
+      XCTAssertEqual(geometry.compactPill.provenance.cornerRadius, 5, size.rawValue)
+      XCTAssertEqual(geometry.listRow.badge.cornerRadius, 5, size.rawValue)
+      XCTAssertEqual(geometry.listRow.provenance.cornerRadius, 5, size.rawValue)
+    }
+  }
+
+  func testFourSizesResolveVerticalAndScrollCompositions() {
+    let verticalMinimumWidth: [CGFloat] = [64, 76, 92, 108]
+    let verticalHeaderLeading: [CGFloat] = [12, 14, 17, 20]
+    let verticalHeaderTop: [CGFloat] = [6, 7, 8, 10]
+    let verticalHeaderBottom: [CGFloat] = [5, 6, 7, 9]
+    let listContentSpacing: [CGFloat] = [3, 3, 4, 4]
+    let listItemSpacing: [CGFloat] = [6, 7, 8, 10]
+    let listHorizontalPadding: [CGFloat] = [8, 9, 11, 13]
+    let listVerticalPadding: [CGFloat] = [6, 7, 8, 10]
+    let scrollStackSpacing: [CGFloat] = [4, 5, 6, 7]
+    let scrollRowSpacing: [CGFloat] = [5, 6, 7, 9]
+    let collapseTopPadding: [CGFloat] = [2, 2, 2, 3]
+
+    for (index, size) in FamoPanelFontSize.allCases.enumerated() {
+      let geometry = FamoCandidatePanelGeometry(
+        candidateFontSize: size.base,
+        panelCornerRadius: 13
+      )
+
+      XCTAssertEqual(geometry.verticalList.minimumWidth, verticalMinimumWidth[index], size.rawValue)
+      XCTAssertEqual(geometry.verticalList.spacing, 0, size.rawValue)
+      XCTAssertEqual(geometry.verticalList.inset, geometry.selectionInset, size.rawValue)
+      XCTAssertEqual(geometry.verticalList.hairlineHeight, 1, size.rawValue)
+      XCTAssertEqual(geometry.verticalList.collapseTopPadding, collapseTopPadding[index], size.rawValue)
+
+      XCTAssertEqual(geometry.verticalHeader.preeditFontSize, size.base - 3, size.rawValue)
+      XCTAssertEqual(geometry.verticalHeader.leadingPadding, verticalHeaderLeading[index], size.rawValue)
+      XCTAssertEqual(geometry.verticalHeader.topPadding, verticalHeaderTop[index], size.rawValue)
+      XCTAssertEqual(geometry.verticalHeader.bottomPadding, verticalHeaderBottom[index], size.rawValue)
+
+      XCTAssertEqual(geometry.listRow.contentSpacing, listContentSpacing[index], size.rawValue)
+      XCTAssertEqual(geometry.listRow.itemSpacing, listItemSpacing[index], size.rawValue)
+      XCTAssertEqual(geometry.listRow.candidateFontSize, size.base, size.rawValue)
+      XCTAssertEqual(geometry.listRow.labelFontSize, size.base * 0.9, accuracy: 0.0001, size.rawValue)
+      XCTAssertEqual(geometry.listRow.badge.fontSize, size.base * 0.68, accuracy: 0.0001,
+                     size.rawValue)
+      XCTAssertEqual(geometry.listRow.commentFontSize, size.base * 0.8, accuracy: 0.0001, size.rawValue)
+      XCTAssertEqual(geometry.listRow.horizontalPadding, listHorizontalPadding[index], size.rawValue)
+      XCTAssertEqual(geometry.listRow.verticalPadding, listVerticalPadding[index], size.rawValue)
+      XCTAssertEqual(geometry.listRow.sourceLine.fontSize, size.base * 0.78, accuracy: 0.0001,
+                     size.rawValue)
+
+      XCTAssertEqual(geometry.scrollStack.spacing, scrollStackSpacing[index], size.rawValue)
+      XCTAssertEqual(geometry.scrollStack.inset, geometry.selectionInset, size.rawValue)
+      XCTAssertEqual(geometry.scrollRow.spacing, scrollRowSpacing[index], size.rawValue)
+      XCTAssertEqual(geometry.scrollPill.contentSpacing, geometry.compactPill.contentSpacing,
+                     size.rawValue)
+      XCTAssertEqual(geometry.scrollPill.candidateFontSize, geometry.compactPill.candidateFontSize,
+                     size.rawValue)
+      XCTAssertEqual(geometry.scrollPill.secondaryFontSize, geometry.compactPill.secondaryFontSize,
+                     accuracy: 0.0001, size.rawValue)
+      XCTAssertEqual(geometry.scrollPill.horizontalPadding, geometry.compactPill.horizontalPadding,
+                     size.rawValue)
+      XCTAssertEqual(geometry.scrollPill.verticalPadding, geometry.compactPill.verticalPadding,
+                     size.rawValue)
+    }
+  }
+
+  func testVerticalHeaderSourceLineAndCollapseKeepClearanceInvariants() {
+    for size in FamoPanelFontSize.allCases {
+      let geometry = FamoCandidatePanelGeometry(
+        candidateFontSize: size.base,
+        panelCornerRadius: 13
+      )
+
+      // 输入串与候选文字从面板左壁起严格共线。
+      XCTAssertEqual(
+        geometry.verticalHeader.leadingPadding,
+        geometry.verticalList.inset + geometry.listRow.horizontalPadding,
+        size.rawValue
+      )
+
+      // 来源行从序号列之后起笔，不会压到序号；字号与行内组合一次解析。
+      XCTAssertEqual(
+        geometry.listRow.sourceLine.leadingPadding,
+        geometry.listRow.labelFontSize + geometry.listRow.itemSpacing,
+        accuracy: 0.0001,
+        size.rawValue
+      )
+
+      // 收起按钮命中区之外仍保留一个 selectionInset，第一行选中块不会被 overlay 截走。
+      XCTAssertEqual(
+        geometry.collapseClearance,
+        geometry.expandChevron.hitWidth + geometry.verticalList.collapseTrailingPadding,
+        size.rawValue
+      )
+      let gap = geometry.verticalList.inset + geometry.collapseClearance
+        - geometry.verticalList.collapseTrailingPadding - geometry.expandChevron.hitWidth
+      XCTAssertEqual(gap, geometry.selectionInset, size.rawValue)
+    }
   }
 }

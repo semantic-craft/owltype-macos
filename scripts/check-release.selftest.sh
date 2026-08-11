@@ -45,16 +45,16 @@ output="$work/output"
 
 # Public version seam used by package/appcast/release tooling. The replacement cohort must compare
 # newer than the already-installed 1.4.17 build. Pinning a literal version here goes stale at every
-# release, so assert the seam's shape (both fields agree) plus the 1.4.17 floor instead.
+# release, so assert both independently populated version roles plus the 1.4.17 marketing floor.
 source "$ROOT/package/common.sh"
 marketing_version="$(get_marketing_version)"
 app_version="$(get_app_version)"
 newest_version="$(printf '%s\n' '1.4.17' "$marketing_version" | sort -V | tail -1)"
-if [[ -n "$marketing_version" && "$marketing_version" == "$app_version" \
+if [[ -n "$marketing_version" && -n "$app_version" \
       && "$marketing_version" != "1.4.17" && "$newest_version" == "$marketing_version" ]]; then
-  ok "release metadata identifies the Sparkle-enabled cohort as $marketing_version (newer than 1.4.17)"
+  ok "release metadata identifies marketing $marketing_version / Sparkle build $app_version"
 else
-  bad "release metadata must identify one Sparkle-enabled cohort newer than 1.4.17 (marketing=${marketing_version:-unset} app=${app_version:-unset})"
+  bad "release metadata must populate both version roles with marketing newer than 1.4.17 (marketing=${marketing_version:-unset} app=${app_version:-unset})"
 fi
 
 if env -u NOTARY_PROFILE EXPECTED_NOTARY_PROFILE=xw-notary \
@@ -88,22 +88,34 @@ else
   ok "Makefile has no DEV_ID fallback for NOTARY_PROFILE"
 fi
 
-if grep -qE 'gh release|git archive|CLOUDFLARE_(DIR|PATH)|responsay.*appcast' "$ROOT/scripts/release.sh"; then
-  bad "App release entrypoint must not own GitHub/source-archive/website composition"
+if grep -qE 'gh release|git push|curl .*responsay|CLOUDFLARE_(DIR|PATH)' "$ROOT/scripts/release.sh"; then
+  bad "release entrypoint must not publish remote state"
 else
-  ok "App release entrypoint stays inside build/sign/notarize/package ownership"
+  ok "release entrypoint owns the local chain without publishing remote state"
 fi
 
-if grep -qE '^[[:space:]]*make[[:space:]]+archive([[:space:]]|$)' "$ROOT/scripts/release.sh"; then
-  bad "App release entrypoint must not rebuild the phony package target while generating appcast"
+if [[ "$(grep -c 'run make release-artifacts' "$ROOT/scripts/release.sh")" -ne 1 ]] ||
+   grep -qE '^[[:space:]]*(run )?make[[:space:]]+(archive|dmg|package)([[:space:]]|$)' \
+     "$ROOT/scripts/release.sh"; then
+  bad "release entrypoint must invoke one artifact graph without component-target re-entry"
 else
-  ok "App release entrypoint generates appcast without a second formal build"
+  ok "release entrypoint invokes one artifact graph without a second formal build"
 fi
 
-if grep -qE '^[[:space:]]*make[[:space:]]+package/sign_update([[:space:]]|$)' "$ROOT/scripts/release.sh"; then
-  ok "App release entrypoint materializes the Sparkle signing helper explicitly"
+if grep -q 'create-source-archive.sh' "$ROOT/scripts/release.sh" &&
+   grep -q 'check-published-release.sh.*--dry-run' "$ROOT/scripts/release.sh" &&
+   grep -q 'verify-chain' "$ROOT/scripts/check-published-release.sh" &&
+   ! grep -qE 'curl|gh release' "$ROOT/scripts/check-published-release.sh"; then
+  ok "source and local published gates remain inside the authoritative non-publishing flow"
 else
-  bad "App release entrypoint must materialize the Sparkle signing helper before appcast generation"
+  bad "authoritative release flow must bind source and keep the published gate local"
+fi
+
+if grep -q 'release-cohort-state.py" verify-chain' "$ROOT/scripts/check-release.sh" &&
+   grep -q 'RELEASE_OUTPUT_ROOT=' "$ROOT/scripts/check-release.sh"; then
+  ok "release artifact gate validates the selected cohort output root"
+else
+  bad "release artifact gate must consume the selected verified cohort"
 fi
 
 if grep -q 'pass "G4' "$ROOT/scripts/check-release.sh"; then

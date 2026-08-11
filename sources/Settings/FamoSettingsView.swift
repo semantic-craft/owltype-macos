@@ -47,7 +47,7 @@ struct FamoSettingsView: View {
   let onOpenLog: () -> Void
   /// 欢迎与引导 → delegate `showOnboarding()`.
   let onShowOnboarding: () -> Void
-  /// Candidate-panel visual prefs changed → refresh any visible candidate panel.
+  /// Candidate setting changed → refresh all live runtime consumers.
   let onPanelPreferencesChanged: () -> Void
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -77,9 +77,9 @@ struct FamoSettingsView: View {
     .animation(reduceMotion ? nil : .snappy(duration: 0.15), value: state.skin)
     .accessibilityIdentifier("FamoSettingsView")
     .onAppear {
-      // Delegate-free seed of the skin / emoji mirrors from their prefs homes, so the
-      // window opens reflecting the saved choices (the pages write back through both).
-      state.skin = FamoSkinPreferences.skin
+      // Delegate-free reseed so direct settings-view hosts and window reopen read the complete
+      // candidate appearance lifecycle from its module boundary.
+      FamoCandidatePanelSettings.live.seed(state)
       state.candidateEmojiEnabled = FamoEmojiPreferences.candidateEmojiEnabled
       state.cloudEnabled = FamoCloudPreferences.isEnabled
       state.cloudModel = FamoCloudPreferences.deepSeekModel
@@ -398,7 +398,7 @@ struct FamoSettingsView: View {
         .font(.system(size: 11))
         .foregroundStyle(palette.ink3)
       Button {
-        NSWorkspace.shared.open(FamoPanelFontDesign.notoSerifSCDownloadURL)
+        NSWorkspace.shared.open(FamoCandidateFontSelection.notoSerifSCDownloadURL)
       } label: {
         Label("下载 Noto Serif SC 字体", systemImage: "arrow.down.circle")
       }
@@ -412,7 +412,7 @@ struct FamoSettingsView: View {
     VStack(alignment: .leading, spacing: 8) {
       Text("本机未安装 Maple Mono；候选窗会先用系统等宽字体回退。下载后解压，双击字体文件即可安装。")
         .font(.system(size: 11)).foregroundStyle(palette.ink3)
-      Button { NSWorkspace.shared.open(FamoPanelFontDesign.mapleMonoDownloadURL) } label: {
+      Button { NSWorkspace.shared.open(FamoCandidateFontSelection.mapleMonoDownloadURL) } label: {
         Label("下载 Maple Mono CN 字体包", systemImage: "arrow.down.circle")
       }
       .buttonStyle(FamoFilledButtonStyle(palette: palette))
@@ -423,61 +423,43 @@ struct FamoSettingsView: View {
 
   // MARK: - Candidate display (G8)
 
-  /// 候选显示: orientation / typeface / count / animation / scroll-vs-single. The four
-  /// panel options write through `FamoPanelPreferences` (live — next composition reflects
-  /// them, like 候选窗外观). 候选个数 is Rime `menu/page_size`, so it flows through the
-  /// keyboard patch + the fast config_file apply (`onApplyKeyboardConfigFast`) — effective
-  /// immediately, no full `deploy()`. Each `Binding` writes BOTH the observable mirror AND
-  /// the prefs home, keeping the UserDefaults key strings in one place.
+  /// 候选显示: every rendered panel option crosses `FamoCandidatePanelSettings` as one lifecycle.
+  /// 候选个数 is Rime `menu/page_size`, so it flows through the keyboard patch + the fast
+  /// config_file apply (`onApplyKeyboardConfigFast`) — effective immediately, no full `deploy()`.
   private var candidateDisplaySection: some View {
     let orientationBinding = Binding(
       get: { state.panelOrientation },
       set: { newValue in
-        persistPanelPreference {
-          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelOrientation) {
-            FamoPanelPreferences.orientation = $0
-          }
-        }
+        FamoCandidatePanelSettings.live.edit(
+          .orientation(newValue), state: state, onChange: onPanelPreferencesChanged)
       }
     )
-    let fontDesignBinding = Binding(
-      get: { state.panelFontDesign },
+    let fontSelectionBinding = Binding(
+      get: { state.candidateFont.selection },
       set: { newValue in
-        persistPanelPreference {
-          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelFontDesign) {
-            FamoPanelPreferences.fontDesign = $0
-          }
-        }
+        FamoCandidatePanelSettings.live.edit(
+          .font(newValue), state: state, onChange: onPanelPreferencesChanged)
       }
     )
     let fontSizeBinding = Binding(
       get: { state.panelFontSize },
       set: { newValue in
-        persistPanelPreference {
-          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelFontSize) {
-            FamoPanelPreferences.fontSize = $0
-          }
-        }
+        FamoCandidatePanelSettings.live.edit(
+          .size(newValue), state: state, onChange: onPanelPreferencesChanged)
       }
     )
     let animationsBinding = Binding(
       get: { state.panelAnimationsEnabled },
       set: { newValue in
-        persistPanelPreference {
-          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelAnimationsEnabled) {
-            FamoPanelPreferences.animationsEnabled = $0
-          }
-        }
+        FamoCandidatePanelSettings.live.edit(
+          .animationsEnabled(newValue), state: state, onChange: onPanelPreferencesChanged)
       }
     )
     let showPreeditBinding = Binding(
       get: { state.panelShowPreedit },
       set: { newValue in
-        persistPanelPreference {
-          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelShowPreedit) {
-            FamoPanelPreferences.showPreedit = $0
-          }
-        }
+        FamoCandidatePanelSettings.live.edit(
+          .showPreedit(newValue), state: state, onChange: onPanelPreferencesChanged)
       }
     )
     let pageSizeBinding = Binding(
@@ -487,51 +469,36 @@ struct FamoSettingsView: View {
     let inlineCandidateBinding = Binding(
       get: { state.panelInlineCandidate },
       set: { newValue in
-        persistPanelPreference {
-          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelInlineCandidate) {
-            FamoPanelPreferences.inlineCandidate = $0
-          }
-        }
+        FamoCandidatePanelSettings.live.edit(
+          .inlineCandidate(newValue), state: state, onChange: onPanelPreferencesChanged)
       }
     )
     let showPagingBinding = Binding(
       get: { state.panelShowPaging },
       set: { newValue in
-        persistPanelPreference {
-          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelShowPaging) {
-            FamoPanelPreferences.showPaging = $0
-          }
-        }
+        FamoCandidatePanelSettings.live.edit(
+          .showPaging(newValue), state: state, onChange: onPanelPreferencesChanged)
       }
     )
     let notificationsBinding = Binding(
       get: { state.panelShowNotificationsWhen },
       set: { newValue in
-        persistPanelPreference {
-          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelShowNotificationsWhen) {
-            FamoPanelPreferences.showNotificationsWhen = $0
-          }
-        }
+        FamoCandidatePanelSettings.live.edit(
+          .showNotificationsWhen(newValue), state: state, onChange: onPanelPreferencesChanged)
       }
     )
     let candidateFormatBinding = Binding(
       get: { state.panelCandidateFormat },
       set: { newValue in
-        persistPanelPreference {
-          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelCandidateFormat) {
-            FamoPanelPreferences.candidateFormat = $0
-          }
-        }
+        FamoCandidatePanelSettings.live.edit(
+          .candidateFormat(newValue), state: state, onChange: onPanelPreferencesChanged)
       }
     )
     let scrollRowsBinding = Binding(
       get: { state.panelScrollRows },
       set: { newValue in
-        persistPanelPreference {
-          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelScrollRows) {
-            FamoPanelPreferences.scrollRows = $0
-          }
-        }
+        FamoCandidatePanelSettings.live.edit(
+          .scrollRows(newValue), state: state, onChange: onPanelPreferencesChanged)
       }
     )
     return sectionCard(title: "候选显示") {
@@ -565,14 +532,14 @@ struct FamoSettingsView: View {
             .font(.system(size: 13, weight: .medium))
             .foregroundStyle(palette.ink2)
           FamoSegmentedControl(
-            selection: fontDesignBinding,
+            selection: fontSelectionBinding,
             options: [("默认", .default), ("衬线", .serif), ("圆体", .rounded), ("Noto Serif SC", .notoSerifSC), ("Maple Mono", .mapleMono)],
             palette: palette
           )
-          if state.panelFontDesign == .notoSerifSC && !FamoPanelFontDesign.isNotoSerifSCInstalled {
+          if state.candidateFont.unavailableSelection == .notoSerifSC {
             notoSerifSCDownloadPrompt
           }
-          if state.panelFontDesign == .mapleMono && !FamoPanelFontDesign.isMapleMonoInstalled {
+          if state.candidateFont.unavailableSelection == .mapleMono {
             mapleMonoDownloadPrompt
           }
         }
@@ -683,11 +650,6 @@ struct FamoSettingsView: View {
 
       }
     }
-  }
-
-  private func persistPanelPreference(_ mutation: () -> Void) {
-    mutation()
-    onPanelPreferencesChanged()
   }
 
   private func persistAndApplyCandidatePageSize(_ value: Int) {

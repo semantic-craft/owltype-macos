@@ -195,8 +195,15 @@ fi
 # files (卸载法墨.command / uninstall-famo.sh). Those two legitimately carry [Ss]quirrel /
 # /Library/Rime / im.rime safety-gate copy but no hard literal, so a product/word scan would
 # false-positive the safety gate — hard-only is the correct depth. Detach via the EXIT trap. ---
-dmg="${FAMO_DMG:-package/Famo.dmg}"
-if [[ -f "$dmg" ]]; then
+dmg="${FAMO_DMG:-}"
+if [[ -z "$dmg" ]]; then
+  if [[ "${FAMO_IDENTITY_STRICT:-0}" == "1" ]]; then
+    printf 'FAIL: FAMO_DMG must name the cohort-bound versioned DMG in strict mode\n' >&2
+    fail=1
+  else
+    printf 'note: no cohort-bound DMG configured for identity scan\n'
+  fi
+elif [[ -f "$dmg" ]]; then
   printf '== scanning DMG: %s ==\n' "$dmg"
   _dmg_mnt="$(hdiutil attach -readonly -nobrowse -noverify "$dmg" 2>/dev/null | tail -1 | awk -F'\t' '{print $NF}')"
   if [[ -n "$_dmg_mnt" && -d "$_dmg_mnt" ]]; then

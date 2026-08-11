@@ -8,33 +8,39 @@
 # Famo.pkg 不再进 DMG，但继续由 `make package` 构建发布（备用/企业直装链，仍 RequireLogout）；
 # Sparkle 自动更新仍走 Famo-update.pkg（本脚本零接触）。
 #
-# 用法:  bash package/make_dmg [DERIVED_DATA_PATH]   (默认 build)
+# 用法:  bash package/make_dmg /absolute/release-output-root
 # 前置:  build/Build/Products/Release/Famo.app 已构建 + 签名 + 公证 + staple
-#        （`make dmg` 依赖 `package`，其链上的 notarized-app 产出它）。
+#        （`make release-artifacts` 的单一依赖图先产出 package 与 notarized-app）。
 # 签名:  仅在环境变量 DEV_ID 在位时签名 + 公证 + staple（与 Makefile 的 ifdef DEV_ID 一致；公开仓不硬
 #        编码任何身份/TeamID）。DEV_ID 未设 → 跳过签名/公证，仍组出未签名 DMG（便于本地机械验证）。
 #        ⚠️ 定律 6：未公证 DMG 带 quarantine 会被 App Translocation，安装器找不到内嵌 Famo.app——
 #        本地机械验证请直接跑构建产物 FamoInstaller.app，别跑未公证 DMG。
 
-set -e
+set -euo pipefail
 
 cd "$(dirname "$0")"
+# shellcheck source=package/common.sh
 source common.sh
 
-DERIVED_DATA_PATH="${1:-build}"
+RELEASE_OUTPUT_ROOT="${1:?missing absolute release output root}"
+[[ "$RELEASE_OUTPUT_ROOT" == /* ]] || {
+    echo >&2 "ERROR: release output root must be absolute: $RELEASE_OUTPUT_ROOT"
+    exit 1
+}
 
 marketing_version="$(get_marketing_version)"
 build_version="$(get_app_version)"
 VOLNAME="法墨输入法"
 
-FAMO_APP="${PROJECT_ROOT}/${DERIVED_DATA_PATH}/Build/Products/Release/Famo.app"
+FAMO_APP="${RELEASE_OUTPUT_ROOT}/Build/Products/Release/Famo.app"
 INSTALLER_DIR="${PROJECT_ROOT}/installer"
 INSTALLER_APP="${INSTALLER_DIR}/build/Build/Products/Release/FamoInstaller.app"
 UNINSTALL_CMD="${PROJECT_ROOT}/package/卸载法墨.command"               # 双击卸载入口
 UNINSTALL_SH="${PROJECT_ROOT}/scripts/uninstall-famo.sh"              # 白名单卸载脚本本体
 
-DMG_STABLE="${PROJECT_ROOT}/package/Famo.dmg"                          # 稳定名（latest 永久链）
-DMG_VERSIONED="${PROJECT_ROOT}/package/Famo-${marketing_version}.dmg"  # 版本归档名
+DMG_VERSIONED="${PROJECT_ROOT}/package/Famo-${marketing_version}.dmg"
+COHORT_STATE="${PROJECT_ROOT}/scripts/release-cohort-state.py"
+INVENTORY="${PROJECT_ROOT}/scripts/inventory-release-bundle.py"
 
 # --- 前置：已构建 + 签名 + staple 的 Famo.app + 卸载脚本 -----------------------
 if [ ! -d "${FAMO_APP}" ]; then
@@ -49,6 +55,16 @@ if [ ! -f "${UNINSTALL_SH}" ]; then
     echo >&2 "ERROR: 缺少 ${UNINSTALL_SH}"
     exit 1
 fi
+if [[ -n "${DEV_ID:-}" ]]; then
+    python3 "$COHORT_STATE" require "$RELEASE_OUTPUT_ROOT" app stapled
+    python3 "$COHORT_STATE" require "$RELEASE_OUTPUT_ROOT" installer-pkg stapled
+    python3 "$COHORT_STATE" require "$RELEASE_OUTPUT_ROOT" update-pkg stapled
+else
+    python3 "$COHORT_STATE" require "$RELEASE_OUTPUT_ROOT" app built stapled
+    python3 "$COHORT_STATE" require "$RELEASE_OUTPUT_ROOT" installer-pkg built stapled
+    python3 "$COHORT_STATE" require "$RELEASE_OUTPUT_ROOT" update-pkg built stapled
+fi
+python3 "$INVENTORY" check "$RELEASE_OUTPUT_ROOT"
 
 # --- 1) 构建 FamoInstaller.app（始终关签名；版本随 Famo 打戳）--------------------
 # installer 工程用 automatic 签名 + 空 team，xcodebuild 阶段一律 CODE_SIGNING_ALLOWED=NO；
@@ -91,74 +107,27 @@ else
     echo "==> [跳过签名] DEV_ID 未设：FamoInstaller.app 不签名（仅本地机械验证）"
 fi
 
-# --- 4) 组 DMG 容器（先组稳定名，便于后续 sign/notarize/staple；版本名是最终产物的副本）---------
+# --- 4) 组唯一的版本化 DMG 容器 ------------------------------------------------
 echo "==> 组 DMG 容器（UDZO）：FamoInstaller.app + 卸载法墨.command + uninstall-famo.sh"
 STAGING="$(mktemp -d)"
 trap 'rm -rf "${STAGING}"' EXIT
 cp -R "${INSTALLER_APP}" "${STAGING}/FamoInstaller.app"
 cp "${UNINSTALL_CMD}" "${STAGING}/卸载法墨.command"
 cp "${UNINSTALL_SH}" "${STAGING}/uninstall-famo.sh"
+python3 "$COHORT_STATE" id "$RELEASE_OUTPUT_ROOT" >"${STAGING}/FAMOTYPE-RELEASE-COHORT-ID"
 chmod +x "${STAGING}/卸载法墨.command" "${STAGING}/uninstall-famo.sh"
-rm -f "${DMG_STABLE}"
-hdiutil create -volname "${VOLNAME}" -srcfolder "${STAGING}" -ov -format UDZO "${DMG_STABLE}"
+rm -f "${DMG_VERSIONED}"
+hdiutil create -volname "${VOLNAME}" -srcfolder "${STAGING}" -ov -format UDZO "${DMG_VERSIONED}"
 
-# --- 5) 签 DMG（ifdef DEV_ID）---------------------------------------------
-if [ -n "${DEV_ID:-}" ]; then
-    echo "==> 签名 DMG"
-    codesign --force --sign "Developer ID Application: ${DEV_ID}" --timestamp "${DMG_STABLE}"
+# --- 5) 将 DMG 注册进 cohort；生产构建走与 App/pkg 相同的三段转换 ----------------
+python3 "$COHORT_STATE" register "$RELEASE_OUTPUT_ROOT" dmg "$DMG_VERSIONED"
+if [[ -n "${DEV_ID:-}" ]]; then
+    python3 "$COHORT_STATE" seal "$RELEASE_OUTPUT_ROOT" dmg "$DEV_ID" \
+        "${NOTARY_PROFILE:?set NOTARY_PROFILE to your notarytool keychain-profile name}"
 fi
 
-# --- 6) 公证 + staple DMG（ifdef DEV_ID）---------------------------------
-if [ -n "${DEV_ID:-}" ]; then
-    echo "==> 公证 DMG（notarytool --wait）"
-    # Apple notary 服务偶发请求超时；重试几次再放弃（同 Makefile 里 app/pkg 的处理，坑 11）。
-    #
-    # 重试耗尽必须**就地失败**，不能往下走。`&& break` 让失败不触发 `set -e`，而 1.5.13 出包时
-    # 三次全败（公证凭据中途消失，报 `No Keychain password item found`）之后这里照样去 staple 了
-    # ——staple 当然也失败，于是终端上留下的是 `CloudKit … Record not found` + `Error 65` 这种
-    # 与真因无关的报错，真正那句「凭据没了」被埋在二十行之前。构建是挂了（退出码非零），但把人
-    # 引向了错误的方向：会去查 CloudKit / 网络，而不是去重建凭据。
-    notarized=0
-    for i in 1 2 3; do
-        if xcrun notarytool submit "${DMG_STABLE}" \
-            --keychain-profile "${NOTARY_PROFILE:?set NOTARY_PROFILE to your notarytool keychain-profile name}" \
-            --wait; then
-            notarized=1; break
-        fi
-        echo "[famo] notary(dmg) 超时/失败，重试 ${i}/3（20s）…"; sleep 20
-    done
-    if [ "${notarized}" -ne 1 ]; then
-        echo >&2 "ERROR: DMG 公证三次均失败，停在这一步（不再尝试 staple）。"
-        echo >&2 "       上面 notarytool 的最后一条输出就是真因。若它是"
-        echo >&2 "       'No Keychain password item found for profile: ${NOTARY_PROFILE}'，"
-        echo >&2 "       说明公证凭据条目消失了（已复发两次：1.5.5 / 1.5.13）。恢复："
-        echo >&2 "       xcrun notarytool store-credentials ${NOTARY_PROFILE} --apple-id <apple id> --team-id <team id>"
-        echo >&2 "       恢复凭据后按顺序补跑这两条（顺序不能反）："
-        echo >&2 "         1) make dmg DEV_ID=… NOTARY_PROFILE=…"
-        echo >&2 "         2) bash package/make_archive          # 必须重跑，别跳过"
-        echo >&2 "       第 2 条的理由：'dmg' 依赖 phony 的 'package'，所以第 1 条**不只补 DMG**，"
-        echo >&2 "       它会连带重出并重新公证 Famo.pkg 与 Famo-update.pkg（1.5.13 实测如此）。"
-        echo >&2 "       若此前已生成过 appcast.xml，里面记的 length 与 EdDSA 签名对应的是旧的"
-        echo >&2 "       Famo-update.pkg —— 换了新包却不重跑 make_archive，Sparkle 会因签名/长度"
-        echo >&2 "       不匹配而拒绝这次更新，且直到用户升级失败才会被发现。"
-        exit 1
-    fi
-    xcrun stapler staple "${DMG_STABLE}"
-fi
-
-# --- 7) Gatekeeper 校验（ifdef DEV_ID）----------------------------------
-# NOTE: spctl 对 DMG 用 `-t open`；必须带 -vv 才打印 'accepted'（不带 -v 静默，macOS 26 尤甚）。
-if [ -n "${DEV_ID:-}" ]; then
-    echo "==> Gatekeeper 校验"
-    spctl -a -t open --context context:primary-signature -vv "${DMG_STABLE}" 2>&1 | grep -q 'accepted' \
-        || { echo >&2 "ERROR: ${DMG_STABLE} 未通过 Gatekeeper（签名/公证有问题）"; exit 1; }
-fi
-
-# --- 8) 落版本归档名（最终产物的副本，与已签名/公证/staple 状态一致）-----------
-cp "${DMG_STABLE}" "${DMG_VERSIONED}"
-
-echo "完成：$(basename "${DMG_STABLE}")（稳定名）+ $(basename "${DMG_VERSIONED}")"
-ls -lh "${DMG_STABLE}" "${DMG_VERSIONED}"
+echo "完成：$(basename "${DMG_VERSIONED}")"
+ls -lh "${DMG_VERSIONED}"
 if [ -z "${DEV_ID:-}" ]; then
     echo "NOTE: 未签名/未公证 DMG（DEV_ID 未设，仅机械验证）。生产发布请带 DEV_ID/NOTARY_PROFILE 重跑。"
 fi
