@@ -55,27 +55,37 @@ final class CandidatePanelState {
   var theme: FamoCandidateTheme = .shenda
   /// Base candidate text point size. The view derives preedit (base − 2), paging chevrons
   /// (base − 3) and **every padding** from it — 留白由 resolved geometry 以中档为锚
-  /// 等比换算，所以这一个数就是「候选窗尺寸」那一档。Seeded from `FamoPanelPreferences.fontSize`
-  /// on the live panel.
+  /// 等比换算，所以这一个数就是「候选窗尺寸」那一档。Applied from the complete candidate-panel
+  /// settings snapshot on the live panel.
   ///
   /// 默认写成 `.medium.base` 而不是裸数：原来的注释说「defaults to 中」而值是 16（那是小档的
   /// 点数），四档化后留白也跟着它走，默认档一错整块面板的边距就跟着错。
-  var fontSize: CGFloat = FamoPanelFontSize.medium.base
+  var fontSize: CGFloat = FamoCandidatePanelSettings.defaultSize.base
   /// Resolved candidate font (system / installed family / explicit fallback). Applied as one value
   /// by `FamoCandidatePanelSettings`; the renderer never performs installation detection.
   var candidateFont: FamoCandidateFont = .systemDefault
   /// Whether candidate-bar animations run (G8). Applied by `FamoCandidatePanelSettings`;
   /// the view ANDs this with `!reduceMotion` so Reduce Motion always wins.
   var animationsEnabled: Bool = true
-  /// Whether the panel renders its own preedit header (输入串). Off → host inline
-  /// marked text only. Seeded from `FamoPanelPreferences.showPreedit`.
-  var showPreedit: Bool = true
+  /// Whether the panel renders its own preedit header (输入串). Off → host inline marked text only.
+  var showPreedit = FamoCandidatePanelSettings.defaultShowPreedit
   /// 候选条翻页箭头 (Feature 4). Off → the compact bar's 上/下页 dots are hidden.
-  /// Seeded from `FamoPanelPreferences.showPaging`.
-  var showPaging: Bool = true
+  var showPaging = FamoCandidatePanelSettings.defaultShowPaging
   /// 候选格式预设 (Feature 7). Drives label / comment visibility in both forms.
-  /// Seeded from `FamoPanelPreferences.candidateFormat`.
-  var candidateFormat: FamoCandidateFormat = .full
+  var candidateFormat = FamoCandidatePanelSettings.defaultCandidateFormat
+  /// Configured number of following pages for scroll mode. The controller bounded-prefetches the
+  /// module maximum; retaining the active limit here lets one complete settings apply reveal or
+  /// hide already-fetched rows without confusing the preference with the `scrollRows` data.
+  var scrollRowLimit = FamoCandidatePanelSettings.defaultScrollRows
+
+  /// Rows visible under the current scroll setting. The preceding page remains a fixed one-row
+  /// history; only following pages are limited. The controller keeps the bounded maximum prefetched
+  /// so changing this limit can reveal or hide rows immediately without another Rime interaction.
+  var visibleScrollRows: [FamoScrollRow] {
+    let preceding = scrollRows.filter { $0.id < page }
+    let following = scrollRows.filter { $0.id > page }.prefix(scrollRowLimit)
+    return preceding + Array(following)
+  }
 
   /// Candidate animations run only when both the user preference and system accessibility policy
   /// allow them. Keeping this decision here gives rendering and lifecycle tests one rule.

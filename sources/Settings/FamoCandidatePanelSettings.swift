@@ -90,8 +90,8 @@ struct FamoLocalCandidateFontCatalog: FamoCandidateFontCatalog {
   }
 }
 
-/// Deep module for candidate-panel appearance settings. Font, appearance mode, skin, and animation
-/// preference cross one seed/edit/snapshot/apply boundary; callers do not mirror persistence or
+/// Deep module for candidate-panel settings. Every rendered preference crosses one
+/// seed/edit/snapshot/apply boundary; callers do not mirror persistence, constraints, or
 /// visible-panel refresh rules.
 struct FamoCandidatePanelSettings {
   struct Snapshot: Sendable, Equatable {
@@ -99,6 +99,12 @@ struct FamoCandidatePanelSettings {
     let skin: FamoSkin
     let font: FamoCandidateFont
     let animationsEnabled: Bool
+    let size: FamoPanelFontSize
+    let orientation: FamoPanelOrientation
+    let showPreedit: Bool
+    let showPaging: Bool
+    let candidateFormat: FamoCandidateFormat
+    let scrollRows: Int
   }
 
   enum Edit: Sendable, Equatable {
@@ -106,7 +112,22 @@ struct FamoCandidatePanelSettings {
     case skin(FamoSkin)
     case font(FamoCandidateFontSelection)
     case animationsEnabled(Bool)
+    case size(FamoPanelFontSize)
+    case orientation(FamoPanelOrientation)
+    case showPreedit(Bool)
+    case showPaging(Bool)
+    case candidateFormat(FamoCandidateFormat)
+    case scrollRows(Int)
   }
+
+  static let defaultSize: FamoPanelFontSize = .medium
+  static let defaultOrientation: FamoPanelOrientation = .auto
+  static let defaultShowPreedit = true
+  static let defaultShowPaging = true
+  static let defaultCandidateFormat: FamoCandidateFormat = .full
+  static let minimumScrollRows = 1
+  static let maximumScrollRows = 4
+  static let defaultScrollRows = maximumScrollRows
 
   static let live = FamoCandidatePanelSettings(
     defaults: FamoDefaults.standard,
@@ -117,6 +138,13 @@ struct FamoCandidatePanelSettings {
   private static let skinKey = "FamoSkin"
   private static let fontSelectionKey = "FamoPanelFontDesign"
   private static let animationsEnabledKey = "FamoPanelAnimations"
+  private static let sizeKey = "FamoPanelFontSize"
+  private static let orientationKey = "FamoPanelOrientation"
+  private static let showPreeditKey = "FamoPanelShowPreedit"
+  private static let showPagingKey = "FamoPanelShowPaging"
+  private static let candidateFormatKey = "FamoPanelCandidateFormat"
+  private static let scrollRowsKey = "FamoPanelPreviewRows"
+  private static let scrollRowsRange = minimumScrollRows...maximumScrollRows
   private static let notoSerifSCFamilies = [
     "Noto Serif SC",
     "Noto Serif CJK SC",
@@ -148,9 +176,15 @@ struct FamoCandidatePanelSettings {
     state.skin = snapshot.skin
     state.candidateFont = snapshot.font
     state.panelAnimationsEnabled = snapshot.animationsEnabled
+    state.panelFontSize = snapshot.size
+    state.panelOrientation = snapshot.orientation
+    state.panelShowPreedit = snapshot.showPreedit
+    state.panelShowPaging = snapshot.showPaging
+    state.panelCandidateFormat = snapshot.candidateFormat
+    state.panelScrollRows = snapshot.scrollRows
   }
 
-  /// The only edit path for candidate-panel appearance fields: update observable editing state,
+  /// The only edit path for rendered candidate-panel fields: update observable editing state,
   /// persist, then notify the owner to refresh any visible panel from a new runtime snapshot.
   func edit(
     _ edit: Edit,
@@ -170,6 +204,25 @@ struct FamoCandidatePanelSettings {
     case .animationsEnabled(let enabled):
       state.panelAnimationsEnabled = enabled
       defaults.set(enabled, forKey: Self.animationsEnabledKey)
+    case .size(let size):
+      state.panelFontSize = size
+      defaults.set(size.rawValue, forKey: Self.sizeKey)
+    case .orientation(let orientation):
+      state.panelOrientation = orientation
+      defaults.set(orientation.rawValue, forKey: Self.orientationKey)
+    case .showPreedit(let show):
+      state.panelShowPreedit = show
+      defaults.set(show, forKey: Self.showPreeditKey)
+    case .showPaging(let show):
+      state.panelShowPaging = show
+      defaults.set(show, forKey: Self.showPagingKey)
+    case .candidateFormat(let format):
+      state.panelCandidateFormat = format
+      defaults.set(format.rawValue, forKey: Self.candidateFormatKey)
+    case .scrollRows(let rows):
+      let constrained = constrainedScrollRows(rows)
+      state.panelScrollRows = constrained
+      defaults.set(constrained, forKey: Self.scrollRowsKey)
     }
     onChange()
   }
@@ -185,7 +238,21 @@ struct FamoCandidatePanelSettings {
       ) ?? .system,
       skin: currentSkin(),
       font: resolveFont(selection),
-      animationsEnabled: defaults.object(forKey: Self.animationsEnabledKey) as? Bool ?? true
+      animationsEnabled: defaults.object(forKey: Self.animationsEnabledKey) as? Bool ?? true,
+      size: FamoPanelFontSize(
+        rawValue: defaults.string(forKey: Self.sizeKey) ?? ""
+      ) ?? Self.defaultSize,
+      orientation: FamoPanelOrientation(
+        rawValue: defaults.string(forKey: Self.orientationKey) ?? ""
+      ) ?? Self.defaultOrientation,
+      showPreedit: defaults.object(forKey: Self.showPreeditKey) as? Bool ?? Self.defaultShowPreedit,
+      showPaging: defaults.object(forKey: Self.showPagingKey) as? Bool ?? Self.defaultShowPaging,
+      candidateFormat: FamoCandidateFormat(
+        rawValue: defaults.string(forKey: Self.candidateFormatKey) ?? ""
+      ) ?? Self.defaultCandidateFormat,
+      scrollRows: constrainedScrollRows(
+        defaults.object(forKey: Self.scrollRowsKey) as? Int ?? Self.defaultScrollRows
+      )
     )
   }
 
@@ -200,12 +267,25 @@ struct FamoCandidatePanelSettings {
   func apply(
     _ snapshot: Snapshot,
     to state: CandidatePanelState,
+    rimeVertical: Bool = false,
+    schemaID: String = "",
     setAppearance: (NSAppearance?) -> Void = { _ in }
   ) {
+    state.schemaID = schemaID
+    state.isVertical = snapshot.orientation.isVertical(
+      rimeVertical: rimeVertical,
+      schemaID: schemaID
+    )
+    state.isScroll = snapshot.orientation.scrolls
+    state.fontSize = snapshot.size.base
     state.appearance = snapshot.appearance
     state.theme = snapshot.skin.theme
     state.candidateFont = snapshot.font
     state.animationsEnabled = snapshot.animationsEnabled
+    state.showPreedit = snapshot.showPreedit
+    state.showPaging = snapshot.showPaging
+    state.candidateFormat = snapshot.candidateFormat
+    state.scrollRowLimit = snapshot.scrollRows
     setAppearance(appKitAppearance(for: snapshot))
   }
 
@@ -248,5 +328,9 @@ struct FamoCandidatePanelSettings {
     case .light: NSAppearance(named: .aqua)
     case .dark: NSAppearance(named: .darkAqua)
     }
+  }
+
+  private func constrainedScrollRows(_ rows: Int) -> Int {
+    min(Self.scrollRowsRange.upperBound, max(Self.scrollRowsRange.lowerBound, rows))
   }
 }

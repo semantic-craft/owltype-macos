@@ -134,8 +134,8 @@ final class FamoSettingsE2EContractTests: XCTestCase {
     let panelEditingState = FamoSettingsState()
     let panelSettings = FamoCandidatePanelSettings.live
     panelSettings.edit(.appearance(.dark), state: panelEditingState, onChange: {})
-    FamoPanelPreferences.fontSize = .large
-    FamoPanelPreferences.orientation = .vertical
+    panelSettings.edit(.size(.large), state: panelEditingState, onChange: {})
+    panelSettings.edit(.orientation(.vertical), state: panelEditingState, onChange: {})
     panelSettings.edit(.font(.notoSerifSC), state: panelEditingState, onChange: {})
     panelSettings.edit(.animationsEnabled(false), state: panelEditingState, onChange: {})
     panelSettings.edit(.skin(.wuda), state: panelEditingState, onChange: {})
@@ -144,8 +144,8 @@ final class FamoSettingsE2EContractTests: XCTestCase {
     FamoCloudPreferences.deepSeekModel = "deepseek-reasoner"
 
     XCTAssertEqual(panelSettings.snapshot().appearance, .dark)
-    XCTAssertEqual(FamoPanelPreferences.fontSize, .large)
-    XCTAssertTrue(FamoPanelPreferences.orientation.isVertical(rimeVertical: false, schemaID: "rime_ice"))
+    XCTAssertEqual(panelSettings.snapshot().size, .large)
+    XCTAssertTrue(panelSettings.snapshot().orientation.isVertical(rimeVertical: false, schemaID: "rime_ice"))
     XCTAssertEqual(panelSettings.snapshot().font.selection, .notoSerifSC)
     XCTAssertFalse(panelSettings.snapshot().animationsEnabled)
     XCTAssertEqual(panelSettings.snapshot().skin, .wuda)
@@ -263,8 +263,8 @@ final class FamoSettingsE2EContractTests: XCTestCase {
     let panelSettings = FamoCandidatePanelSettings.live
     let panelState = FamoSettingsState()
     panelSettings.edit(.appearance(.system), state: panelState, onChange: {})
-    FamoPanelPreferences.fontSize = .medium
-    FamoPanelPreferences.orientation = .auto
+    panelSettings.edit(.size(.medium), state: panelState, onChange: {})
+    panelSettings.edit(.orientation(.auto), state: panelState, onChange: {})
     panelSettings.edit(.font(.default), state: panelState, onChange: {})
     panelSettings.edit(.animationsEnabled(true), state: panelState, onChange: {})
     panelSettings.edit(.skin(.deepred), state: panelState, onChange: {})
@@ -358,7 +358,6 @@ final class FamoSettingsE2EContractTests: XCTestCase {
     "FamoPanelOrientation",
     "FamoPanelFontDesign",
     "FamoPanelAnimations",
-    "FamoPanelExpandedByDefault",
     "FamoSkin",
     "FamoCloudLaneEnabled",
     "FamoCloudProvider",

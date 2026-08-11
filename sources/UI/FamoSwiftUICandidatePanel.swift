@@ -156,11 +156,12 @@ enum FamoScrollRowsPlan {
   /// 门控依旧正确，且与视图分支一一对应；现在它只对非卷轴方向起作用（那些已被首条挡掉）。
   static func wantsRows(prefs: FamoPanelSnapshot, didPage: Bool, lastPage: Bool,
                         candidateCount: Int, rimeVertical: Bool, schemaID: String) -> Bool {
-    prefs.orientation.scrolls
+    let settings = prefs.candidatePanelSettings
+    return settings.orientation.scrolls
       && didPage
       && !lastPage
       && candidateCount > 0
-      && !prefs.orientation.isVertical(rimeVertical: rimeVertical, schemaID: schemaID)
+      && !settings.orientation.isVertical(rimeVertical: rimeVertical, schemaID: schemaID)
   }
 
   /// Whether `showPanel` should peek at the page BEFORE the current one（前页行）。
@@ -169,11 +170,12 @@ enum FamoScrollRowsPlan {
   /// 前页看 `page > 0`（翻回第一页就没有前页），后页看 `!lastPage`。
   static func wantsPrevRow(prefs: FamoPanelSnapshot, didPage: Bool, page: Int,
                            candidateCount: Int, rimeVertical: Bool, schemaID: String) -> Bool {
-    prefs.orientation.scrolls
+    let settings = prefs.candidatePanelSettings
+    return settings.orientation.scrolls
       && didPage
       && page > 0
       && candidateCount > 0
-      && !prefs.orientation.isVertical(rimeVertical: rimeVertical, schemaID: schemaID)
+      && !settings.orientation.isVertical(rimeVertical: rimeVertical, schemaID: schemaID)
   }
 
   /// Chunk the peeked candidates into whole pages（尾行可不满）。前/后页行渲染注释但不渲染
@@ -372,24 +374,18 @@ final class FamoSwiftUICandidatePanel: NSPanel {
   }
 
   private func applyPreferences(_ prefs: FamoPanelSnapshot, rimeVertical: Bool, schemaID: String) {
-    panelState.schemaID = schemaID
     // 每次组字都从「未展开」起（老的「默认形态 单行/卷轴」已并入排列方向，2026-07-22；注意
     // 那个「卷轴」指的是默认展开成纵列，与本处的卷轴形态不是一回事）：竖排走 `isVertical`、
     // 卷轴走 `isScroll`，横排/自动为紧凑单行；候选条右侧展开箭头仍可临时切成纵向列表。
     panelState.isExpanded = false
-    // G8 横排/竖排: `.auto` resolves Rime plus schema defaults; explicit choices override.
-    panelState.isVertical = prefs.orientation.isVertical(rimeVertical: rimeVertical, schemaID: schemaID)
-    // 卷轴（主行 + 后页行）：仅显式 `.scroll` 为真，与竖排互斥。
-    panelState.isScroll = prefs.orientation.scrolls
-    // Honor the v0.2.2/G8 appearance prefs.
-    panelState.fontSize = prefs.fontSize.base
-    FamoCandidatePanelSettings.live.apply(prefs.candidatePanelSettings, to: panelState) {
+    FamoCandidatePanelSettings.live.apply(
+      prefs.candidatePanelSettings,
+      to: panelState,
+      rimeVertical: rimeVertical,
+      schemaID: schemaID
+    ) {
       self.appearance = $0
     }
-    panelState.showPreedit = prefs.showPreedit
-    // Feature 4 / 7: paging-arrow visibility + candidate-format preset (self-drawn panel).
-    panelState.showPaging = prefs.showPaging
-    panelState.candidateFormat = prefs.candidateFormat
   }
 
   /// Place the panel below the caret anchor, clamped multi-display-safe. Delegates the screen

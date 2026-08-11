@@ -495,7 +495,9 @@ extension FamoInputController {
     let isVertical = rime?.option(.vertical) ?? false
     let prefs = FamoPanelSnapshot.current()
 
-    // 卷轴（翻页才展开，2026-07-28）：本次组字翻过页后，预取紧邻的前 1 页 + 后 1–4 整页。
+    // 卷轴（翻页才展开，2026-07-28）：本次组字翻过页后，预取紧邻的前 1 页 + 有界上限 4 个后页。
+    // 面板按 runtime snapshot 的 scrollRows 限制可见后页，因此设置从 1 调到 4 时无需再次触碰
+    // Rime 就能即时揭示已经预取的行；默认仍是 4，取数上限没有扩大。
     // 没翻过页时保持单行——展开是翻页动作换来的。取数走 `peekCandidates`（librime
     // candidate_list_from_index 只读迭代器）——不真翻页、不动 menu 页游标、无 IMK 客户端
     // 往返，故不在 Chromium 死锁禁区内。页宽用 librime 的 page_size：末页 candidates.count
@@ -512,7 +514,7 @@ extension FamoInputController {
                                       candidateCount: candidates.count,
                                       rimeVertical: isVertical, schemaID: schemaId) {
         let peeked = rime.peekCandidates(from: (page + 1) * pageSize,
-                                         count: prefs.scrollRows * pageSize)
+                                         count: FamoCandidatePanelSettings.maximumScrollRows * pageSize)
         scrollRows += FamoScrollRowsPlan.rows(from: peeked, pageSize: pageSize, startPage: page + 1)
       }
     }

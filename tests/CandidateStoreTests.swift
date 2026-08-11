@@ -601,14 +601,18 @@ final class FamoModernUISmokeTests: XCTestCase {
 final class FamoCandidateDisplayTests: XCTestCase {
   override func setUp() async throws {
     try await super.setUp()
-    for key in ["FamoPanelOrientation", "FamoPanelFontDesign", "FamoPanelAnimations",
-                "FamoPanelExpandedByDefault", "FamoPanelPreviewPages", "FamoKeyboardPageSize"] {
+    for key in ["FamoPanelFontSize", "FamoPanelOrientation", "FamoPanelFontDesign",
+                "FamoPanelAnimations", "FamoPanelShowPreedit", "FamoPanelShowPaging",
+                "FamoPanelCandidateFormat", "FamoPanelPreviewRows",
+                "FamoKeyboardPageSize"] {
       FamoDefaults.standard.removeObject(forKey: key)
     }
   }
   override func tearDown() async throws {
-    for key in ["FamoPanelOrientation", "FamoPanelFontDesign", "FamoPanelAnimations",
-                "FamoPanelExpandedByDefault", "FamoPanelPreviewPages", "FamoKeyboardPageSize"] {
+    for key in ["FamoPanelFontSize", "FamoPanelOrientation", "FamoPanelFontDesign",
+                "FamoPanelAnimations", "FamoPanelShowPreedit", "FamoPanelShowPaging",
+                "FamoPanelCandidateFormat", "FamoPanelPreviewRows",
+                "FamoKeyboardPageSize"] {
       FamoDefaults.standard.removeObject(forKey: key)
     }
     try await super.tearDown()
@@ -618,81 +622,34 @@ final class FamoCandidateDisplayTests: XCTestCase {
     let settings = FamoCandidatePanelSettings.live
     let state = FamoSettingsState()
     // Defaults.
-    XCTAssertEqual(FamoPanelPreferences.orientation, .auto)
+    XCTAssertEqual(settings.snapshot().orientation, .auto)
     settings.seed(state)
     XCTAssertEqual(state.candidateFont.selection, .default)
     XCTAssertTrue(settings.snapshot().animationsEnabled)
     // Round-trip.
-    FamoPanelPreferences.orientation = .vertical
+    settings.edit(.orientation(.vertical), state: state, onChange: {})
     settings.edit(.font(.mapleMono), state: state, onChange: {})
     settings.edit(.animationsEnabled(false), state: state, onChange: {})
-    XCTAssertEqual(FamoPanelPreferences.orientation, .vertical)
+    XCTAssertEqual(settings.snapshot().orientation, .vertical)
     XCTAssertEqual(settings.snapshot().font.selection, .mapleMono)
     XCTAssertFalse(settings.snapshot().animationsEnabled)
-  }
-
-  /// 迁移（2026-07-22，「默认形态 单行/卷轴」并入排列方向）：未显式选过排列方向但开过 legacy
-  /// `FamoPanelExpandedByDefault` 的老用户，`orientation` 回落到 `.vertical`（原「卷轴」= 展开纵列，
-  /// 与竖排同渲染）；一旦显式选任一方向即以新键为准。
-  func testOrientationMigratesFromLegacyExpandedByDefault() {
-    // 干净起点（setUp 已清两键）：无新键 + legacy 卷轴开 → 竖排。
-    FamoDefaults.standard.set(true, forKey: "FamoPanelExpandedByDefault")
-    XCTAssertEqual(FamoPanelPreferences.orientation, .vertical)
-    // 显式选择压过 legacy 迁移。
-    FamoPanelPreferences.orientation = .horizontal
-    XCTAssertEqual(FamoPanelPreferences.orientation, .horizontal)
-    // legacy 关（或未设）→ 回默认 .auto。
-    FamoDefaults.standard.removeObject(forKey: "FamoPanelOrientation")
-    FamoDefaults.standard.set(false, forKey: "FamoPanelExpandedByDefault")
-    XCTAssertEqual(FamoPanelPreferences.orientation, .auto)
-  }
-
-  /// 迁移②（2026-07-26，卷轴取代折行）：存过 `"flow"` 的老用户读出 `.scroll`。
-  /// `FamoPanelOrientation(rawValue: "flow")` 已是 nil，靠裸串比对这一支兜住。
-  func testOrientationMigratesLegacyFlowToScroll() {
-    FamoDefaults.standard.set("flow", forKey: "FamoPanelOrientation")
-    XCTAssertEqual(FamoPanelPreferences.orientation, .scroll)
-    // 显式改选压过迁移。
-    FamoPanelPreferences.orientation = .horizontal
-    XCTAssertEqual(FamoPanelPreferences.orientation, .horizontal)
-  }
-
-  /// 迁移②：卷轴吸收了「预览后页」开关，开过它的老用户读出 `.scroll`，保住后页行观感。
-  /// 关键回归：这一支排在「已存方向」之前，所以显式选过**横排**+开着预览后页的用户也要迁；
-  /// 而竖排下预览本就被门控掉，必须维持竖排。
-  func testOrientationMigratesLegacyPreviewPagesToScroll() {
-    FamoDefaults.standard.set(true, forKey: "FamoPanelPreviewPages")
-    // 未显式选过方向。
-    XCTAssertEqual(FamoPanelPreferences.orientation, .scroll)
-    // 显式选过横排 —— 仍迁到卷轴（否则后页行静默消失）。
-    FamoDefaults.standard.set("horizontal", forKey: "FamoPanelOrientation")
-    XCTAssertEqual(FamoPanelPreferences.orientation, .scroll)
-    // 竖排不迁。
-    FamoDefaults.standard.set("vertical", forKey: "FamoPanelOrientation")
-    XCTAssertEqual(FamoPanelPreferences.orientation, .vertical)
-  }
-
-  /// 写入任一方向即清掉 legacy 开关——否则迁移会一直生效，用户再也选不回单行横排。
-  func testWritingOrientationClearsLegacyPreviewPagesKey() {
-    FamoDefaults.standard.set(true, forKey: "FamoPanelPreviewPages")
-    FamoPanelPreferences.orientation = .horizontal
-    XCTAssertNil(FamoDefaults.standard.object(forKey: "FamoPanelPreviewPages"))
-    XCTAssertEqual(FamoPanelPreferences.orientation, .horizontal)
   }
 
   /// 卷轴后页行数：默认 4（2026-07-28 截图定案），钳到 1...4（抵御手改 defaults 写出的
   /// 越界值）；老用户存过的 1/2 落在新区间内原样生效。
   func testScrollRowsDefaultAndClamp() {
+    let settings = FamoCandidatePanelSettings.live
+    let state = FamoSettingsState()
     FamoDefaults.standard.removeObject(forKey: "FamoPanelPreviewRows")
-    XCTAssertEqual(FamoPanelPreferences.scrollRows, 4)
-    FamoPanelPreferences.scrollRows = 1
-    XCTAssertEqual(FamoPanelPreferences.scrollRows, 1)
+    XCTAssertEqual(settings.snapshot().scrollRows, 4)
+    settings.edit(.scrollRows(1), state: state, onChange: {})
+    XCTAssertEqual(settings.snapshot().scrollRows, 1)
     FamoDefaults.standard.set(9, forKey: "FamoPanelPreviewRows")
-    XCTAssertEqual(FamoPanelPreferences.scrollRows, 4)
+    XCTAssertEqual(settings.snapshot().scrollRows, 4)
     FamoDefaults.standard.set(0, forKey: "FamoPanelPreviewRows")
-    XCTAssertEqual(FamoPanelPreferences.scrollRows, 1)
+    XCTAssertEqual(settings.snapshot().scrollRows, 1)
     FamoDefaults.standard.set(2, forKey: "FamoPanelPreviewRows")
-    XCTAssertEqual(FamoPanelPreferences.scrollRows, 2)
+    XCTAssertEqual(settings.snapshot().scrollRows, 2)
     FamoDefaults.standard.removeObject(forKey: "FamoPanelPreviewRows")
   }
 

@@ -292,7 +292,7 @@ struct FamoCandidatePanelView: View {
   /// ——观感即「整块上滚一行」（旧主行退成前页行、原后页行升为主行）。拆成多个 ForEach
   /// 就没有这个跨格身份，只会得到逐行的交叉淡化。
   private var scrollPages: [FamoScrollRow] {
-    ([FamoScrollRow(id: state.page, candidates: state.candidates)] + state.scrollRows)
+    ([FamoScrollRow(id: state.page, candidates: state.candidates)] + state.visibleScrollRows)
       .sorted { $0.id < $1.id }
   }
 

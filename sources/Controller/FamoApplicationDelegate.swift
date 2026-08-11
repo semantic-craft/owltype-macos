@@ -373,17 +373,10 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
     state.schemas = loadSchemaList()
     state.currentSchemaId = currentSchemaId()
     state.currentInputSourceDisplayName = FamoInstaller.currentInputSourceDisplayName()
-    // Seed the candidate-panel appearance lifecycle from its single module boundary.
+    // Seed the complete rendered candidate-panel lifecycle from its single module boundary.
     FamoCandidatePanelSettings.live.seed(state)
-    state.panelFontSize = FamoPanelPreferences.fontSize
-    // Seed the G8 候选显示 prefs from their single homes.
-    state.panelOrientation = FamoPanelPreferences.orientation
-    state.panelShowPreedit = FamoPanelPreferences.showPreedit
     state.panelInlineCandidate = FamoPanelPreferences.inlineCandidate
-    state.panelShowPaging = FamoPanelPreferences.showPaging
     state.panelShowNotificationsWhen = FamoPanelPreferences.showNotificationsWhen
-    state.panelCandidateFormat = FamoPanelPreferences.candidateFormat
-    state.panelScrollRows = FamoPanelPreferences.scrollRows
     state.candidatePageSize = FamoKeyboardPreferences.pageSize
     // Seed the 键盘输入 option groups from their single home (FamoKeyboardPreferences).
     state.keyboardInputMethod = FamoKeyboardPreferences.inputMethod

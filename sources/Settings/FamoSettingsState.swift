@@ -131,28 +131,27 @@ final class FamoSettingsState {
   /// Candidate-panel appearance editing value (跟随系统/浅色/深色). Seeded and persisted through
   /// `FamoCandidatePanelSettings` together with skin, font, and animation preference.
   var panelAppearance: FamoPanelAppearance = .system
-  /// Mirror of the #118-scoped `FamoPanelPreferences.fontSize` — 设置里的「候选窗尺寸」
-  /// 小/中/大/特大，拨的是候选字与面板留白一起缩放后的整块面板大小。
-  var panelFontSize: FamoPanelFontSize = .medium
-  /// G8 candidate layout editing value. Orientation remains a #118 layout/content field.
-  var panelOrientation: FamoPanelOrientation = .auto
+  /// Candidate-panel size editing value, owned by `FamoCandidatePanelSettings`.
+  var panelFontSize = FamoCandidatePanelSettings.defaultSize
+  /// Candidate-panel orientation editing value, owned by `FamoCandidatePanelSettings`.
+  var panelOrientation = FamoCandidatePanelSettings.defaultOrientation
   /// Candidate animation editing value, owned by `FamoCandidatePanelSettings`.
   var panelAnimationsEnabled: Bool = true
   /// Candidate font editing value. `FamoCandidatePanelSettings` owns seed, persistence, installed
   /// family resolution, runtime snapshot, and panel apply as one lifecycle.
   var candidateFont: FamoCandidateFont = .systemDefault
-  /// Whether the panel renders its own 输入串 header. Seeded + written like the others.
-  var panelShowPreedit: Bool = true
+  /// Whether the panel renders its own 输入串 header, owned by `FamoCandidatePanelSettings`.
+  var panelShowPreedit = FamoCandidatePanelSettings.defaultShowPreedit
   /// 内嵌候选预览 (mirror of `FamoPanelPreferences.inlineCandidate`). Feature 3.
   var panelInlineCandidate: Bool = false
-  /// 候选条翻页箭头 (mirror of `FamoPanelPreferences.showPaging`). Feature 4.
-  var panelShowPaging: Bool = true
+  /// 候选条翻页箭头, owned by `FamoCandidatePanelSettings`. Feature 4.
+  var panelShowPaging = FamoCandidatePanelSettings.defaultShowPaging
   /// 切换提示通知 (mirror of `FamoPanelPreferences.showNotificationsWhen`). Feature 5.
   var panelShowNotificationsWhen: FamoNotificationWhen = .always
-  /// 候选格式预设 (mirror of `FamoPanelPreferences.candidateFormat`). Feature 7.
-  var panelCandidateFormat: FamoCandidateFormat = .full
-  /// 卷轴后页行数 (mirror of `FamoPanelPreferences.scrollRows`, 1–4).
-  var panelScrollRows: Int = 4
+  /// 候选格式预设, owned by `FamoCandidatePanelSettings`. Feature 7.
+  var panelCandidateFormat = FamoCandidatePanelSettings.defaultCandidateFormat
+  /// 卷轴后页行数, constrained and persisted by `FamoCandidatePanelSettings` (1–4).
+  var panelScrollRows = FamoCandidatePanelSettings.defaultScrollRows
   /// G8 候选个数 mirror of `FamoKeyboardPreferences.pageSize` (Rime menu/page_size).
   /// Unlike the panel mirrors, this flows through the keyboard patch + 应用配置改动.
   var candidatePageSize: Int = 8

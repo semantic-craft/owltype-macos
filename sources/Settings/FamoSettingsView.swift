@@ -423,20 +423,15 @@ struct FamoSettingsView: View {
 
   // MARK: - Candidate display (G8)
 
-  /// 候选显示: orientation / typeface / count / animation / scroll-vs-single. Appearance edits
-  /// cross `FamoCandidatePanelSettings` as one lifecycle; #118 layout/content options remain in
-  /// `FamoPanelPreferences`.
+  /// 候选显示: every rendered panel option crosses `FamoCandidatePanelSettings` as one lifecycle.
   /// 候选个数 is Rime `menu/page_size`, so it flows through the keyboard patch + the fast
   /// config_file apply (`onApplyKeyboardConfigFast`) — effective immediately, no full `deploy()`.
   private var candidateDisplaySection: some View {
     let orientationBinding = Binding(
       get: { state.panelOrientation },
       set: { newValue in
-        persistPanelPreference {
-          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelOrientation) {
-            FamoPanelPreferences.orientation = $0
-          }
-        }
+        FamoCandidatePanelSettings.live.edit(
+          .orientation(newValue), state: state, onChange: onPanelPreferencesChanged)
       }
     )
     let fontSelectionBinding = Binding(
@@ -449,11 +444,8 @@ struct FamoSettingsView: View {
     let fontSizeBinding = Binding(
       get: { state.panelFontSize },
       set: { newValue in
-        persistPanelPreference {
-          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelFontSize) {
-            FamoPanelPreferences.fontSize = $0
-          }
-        }
+        FamoCandidatePanelSettings.live.edit(
+          .size(newValue), state: state, onChange: onPanelPreferencesChanged)
       }
     )
     let animationsBinding = Binding(
@@ -466,11 +458,8 @@ struct FamoSettingsView: View {
     let showPreeditBinding = Binding(
       get: { state.panelShowPreedit },
       set: { newValue in
-        persistPanelPreference {
-          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelShowPreedit) {
-            FamoPanelPreferences.showPreedit = $0
-          }
-        }
+        FamoCandidatePanelSettings.live.edit(
+          .showPreedit(newValue), state: state, onChange: onPanelPreferencesChanged)
       }
     )
     let pageSizeBinding = Binding(
@@ -490,11 +479,8 @@ struct FamoSettingsView: View {
     let showPagingBinding = Binding(
       get: { state.panelShowPaging },
       set: { newValue in
-        persistPanelPreference {
-          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelShowPaging) {
-            FamoPanelPreferences.showPaging = $0
-          }
-        }
+        FamoCandidatePanelSettings.live.edit(
+          .showPaging(newValue), state: state, onChange: onPanelPreferencesChanged)
       }
     )
     let notificationsBinding = Binding(
@@ -510,21 +496,15 @@ struct FamoSettingsView: View {
     let candidateFormatBinding = Binding(
       get: { state.panelCandidateFormat },
       set: { newValue in
-        persistPanelPreference {
-          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelCandidateFormat) {
-            FamoPanelPreferences.candidateFormat = $0
-          }
-        }
+        FamoCandidatePanelSettings.live.edit(
+          .candidateFormat(newValue), state: state, onChange: onPanelPreferencesChanged)
       }
     )
     let scrollRowsBinding = Binding(
       get: { state.panelScrollRows },
       set: { newValue in
-        persistPanelPreference {
-          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelScrollRows) {
-            FamoPanelPreferences.scrollRows = $0
-          }
-        }
+        FamoCandidatePanelSettings.live.edit(
+          .scrollRows(newValue), state: state, onChange: onPanelPreferencesChanged)
       }
     )
     return sectionCard(title: "候选显示") {

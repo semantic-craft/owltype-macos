@@ -23,7 +23,7 @@ final class FamoSettingsActionTests: XCTestCase {
     "FamoFuzzyZhZ", "FamoFuzzyChC", "FamoFuzzyShS", "FamoFuzzyNL", "FamoFuzzyRL",
     "FamoFuzzyFH", "FamoFuzzyAnAng", "FamoFuzzyEnEng", "FamoFuzzyInIng",
     "FamoPanelAppearance", "FamoPanelFontSize", "FamoPanelOrientation", "FamoPanelFontDesign",
-    "FamoPanelAnimations", "FamoPanelExpandedByDefault", "FamoPanelPreviewPages", "FamoPanelPreviewRows",
+    "FamoPanelAnimations", "FamoPanelPreviewRows",
     "FamoSkin", "FamoEmojiInCandidates",
     "FamoCloudLaneEnabled", "FamoDeepSeekModel",
     "FamoSelectionMenuEnabled", "FamoSkillSourceVerificationEnabled", "FamoSkillResearchAssistEnabled",
@@ -75,8 +75,10 @@ final class FamoSettingsActionTests: XCTestCase {
     let panelSettings = FamoCandidatePanelSettings.live
     panelSettings.edit(.appearance(.dark), state: state, onChange: {})
     XCTAssertEqual(panelSettings.snapshot().appearance, .dark)
-    assertSet(.large, \.panelFontSize, state, { FamoPanelPreferences.fontSize }) { FamoPanelPreferences.fontSize = $0 }
-    assertSet(.vertical, \.panelOrientation, state, { FamoPanelPreferences.orientation }) { FamoPanelPreferences.orientation = $0 }
+    panelSettings.edit(.size(.large), state: state, onChange: {})
+    panelSettings.edit(.orientation(.vertical), state: state, onChange: {})
+    XCTAssertEqual(panelSettings.snapshot().size, .large)
+    XCTAssertEqual(panelSettings.snapshot().orientation, .vertical)
     panelSettings.edit(.font(.mapleMono), state: state, onChange: {})
     XCTAssertEqual(state.candidateFont.selection, .mapleMono)
     XCTAssertEqual(panelSettings.snapshot().font.selection, .mapleMono)
@@ -101,8 +103,8 @@ final class FamoSettingsActionTests: XCTestCase {
     assertToggle(\.keyboardCJKAlnumSpacing, state, { FamoKeyboardPreferences.cjkAlnumSpacing }) { FamoKeyboardPreferences.cjkAlnumSpacing = $0 }
     panelSettings.edit(.animationsEnabled(false), state: state, onChange: {})
     XCTAssertFalse(panelSettings.snapshot().animationsEnabled)
-    // 卷轴：后页行数分段经 FamoSettingsActions.set 写穿（是否卷轴由排列方向决定，无独立开关）。
-    assertSet(1, \.panelScrollRows, state, { FamoPanelPreferences.scrollRows }) { FamoPanelPreferences.scrollRows = $0 }
+    panelSettings.edit(.scrollRows(1), state: state, onChange: {})
+    XCTAssertEqual(panelSettings.snapshot().scrollRows, 1)
     assertToggle(\.candidateEmojiEnabled, state, { FamoEmojiPreferences.candidateEmojiEnabled }) { FamoEmojiPreferences.candidateEmojiEnabled = $0 }
     assertToggle(\.cloudEnabled, state, { FamoCloudPreferences.isEnabled }) { FamoCloudPreferences.isEnabled = $0 }
     assertToggle(\.askWebSearchEnabled, state, { FamoAskWebSearchSettings.isEnabled }) { FamoAskWebSearchSettings.isEnabled = $0 }

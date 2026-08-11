@@ -299,17 +299,19 @@ final class FamoScrollRowsPlanTests: XCTestCase {
   private func snapshot(orientation: FamoPanelOrientation = .scroll,
                         scrollRows: Int = 2) -> FamoPanelSnapshot {
     FamoPanelSnapshot(
-      orientation: orientation,
-      fontSize: .medium,
       candidatePanelSettings: .init(
         appearance: .system,
         skin: .deepred,
         font: .systemDefault,
-        animationsEnabled: true),
-      showPreedit: true,
-      showPaging: true,
-      candidateFormat: .full,
-      scrollRows: scrollRows)
+        animationsEnabled: true,
+        size: .medium,
+        orientation: orientation,
+        showPreedit: true,
+        showPaging: true,
+        candidateFormat: .full,
+        scrollRows: scrollRows
+      )
+    )
   }
 
   private func cand(_ text: String) -> RimeCandidate {
