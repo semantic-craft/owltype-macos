@@ -49,7 +49,7 @@ typealias FamoStreamingReadiness = FamoProviderAuthOutcome
 ///
 /// 归属在开流那一刻还不算数：请求发出之后才知道方舟没开通内容插件（404 `ToolNotOpen`）、MiMo 的 Key
 /// 已失效（401）、搜索服务的 Key 是错的（`invalid_api_key`）。运行期顺位会换一家，全败还会退回普通
-/// 问答，两种情况都改写归属。所以 `openAsk` 交出的是这个盒子而不是一个定值 —— AI 窗在拿到第一段内容
+/// 问答，两种情况都改写归属。所以任意提问 module 交出的是这个盒子而不是一个定值 —— AI 窗在拿到第一段内容
 /// 与流结束时读回它，署名 chip 写的于是是**最终真的答了这一问的那家**，而不是「本来打算用谁」。
 @MainActor
 final class FamoAskAttribution {
@@ -366,10 +366,22 @@ struct FamoStreamingChatClient: FamoChatStreaming {
   }
 }
 
+// MARK: - Plain streaming seam
+
+/// Narrow port for non-conversation skills that must never search.
+@MainActor
+protocol FamoPlainStreaming {
+  func readiness() -> FamoStreamingReadiness
+
+  func stream(
+    messages: [FamoDeepSeekMessage]
+  ) -> Result<AsyncThrowingStream<String, Error>, FamoStreamingReadiness>
+}
+
 // MARK: - High-level entry (resolves the active profile + key)
 
-/// A thin façade B10 can call without wiring routing/keys itself. Resolves the active provider
-/// profile + API key via the shared `FamoProviderAuthGate` (same injectable `profileProvider` /
+/// A thin façade for non-conversation plain-generation skills. Resolves the active provider profile
+/// + API key via the shared `FamoProviderAuthGate` (same injectable `profileProvider` /
 /// `profileSecretProvider` defaults), then streams. When nothing is configured it returns a typed
 /// `FamoStreamingReadiness` (no network, no throw-crash) so the caller can prompt for setup.
 ///
@@ -382,26 +394,16 @@ final class FamoStreamingChatService {
   /// Resolves the active profile → routing + key (or a typed not-ready outcome). Built from the
   /// injected profile/secret/legacy closures so tests keep injecting exactly as before.
   private let gate: FamoProviderAuthGate
-  /// Provider-neutral transport shared by plain streaming and the 任意提问 module. Responses
-  /// dialect selection is private to its concrete adapter.
+  /// Provider-neutral transport for plain streaming. Responses dialect selection is private to
+  /// its concrete adapter.
   private let transport: FamoAskAnythingTransporting
-  /// The whole 任意提问 use case behind one small interface. Conversation callers stay on this
-  /// façade until issue #119; provider priority and Responses dialects do not cross this boundary.
-  private let askAnything: FamoAskAnythingOpening
-
-  /// 每问取几条结果喂给模型。多了烧 token 也拖时延，少了容易漏掉答案所在的那一条。
-  static let webSearchResultCount = 5
 
   init(
     client: FamoChatStreaming? = nil,
     responsesClient: FamoResponsesStreaming? = nil,
     profileProvider: @escaping () -> FamoProviderProfile? = { FamoProviderProfileStore.shared.defaultProfile },
     profileSecretProvider: @escaping (String) throws -> String? = { try FamoProviderKeychain().secret(named: $0) },
-    legacyKeyProvider: @escaping () throws -> String? = FamoCloudKeychain.readDeepSeekAPIKey,
-    searchResolver: FamoAskSearchResolver? = nil,
-    preferredWebSearchBackend: (() -> FamoWebSearchBackend)? = nil,
-    webSearchKeyProvider: ((FamoWebSearchBackend) -> String?)? = nil,
-    webSearchClientFactory: ((FamoWebSearchBackend) -> FamoWebSearching)? = nil
+    legacyKeyProvider: @escaping () throws -> String? = FamoCloudKeychain.readDeepSeekAPIKey
   ) {
     let gate = FamoProviderAuthGate(
       profileProvider: profileProvider,
@@ -411,21 +413,8 @@ final class FamoStreamingChatService {
     let transport = FamoAskAnythingTransportAdapter(
       chatClient: client ?? FamoStreamingChatClient(),
       responsesClient: responsesClient ?? FamoResponsesStreamingClient())
-    let resolvedPreferredWebSearchBackend =
-      preferredWebSearchBackend ?? { FamoWebSearchBackendSettings.backend }
-    let resolvedWebSearchKeyProvider =
-      webSearchKeyProvider ?? { FamoWebSearchKeyStore.apiKey(for: $0) }
-
     self.gate = gate
     self.transport = transport
-    self.askAnything = FamoAskAnythingModule(
-      gate: gate,
-      transport: transport,
-      searchResolver: searchResolver ?? FamoAskSearchResolver(),
-      preferredWebSearchBackend: resolvedPreferredWebSearchBackend,
-      webSearchKeyProvider: resolvedWebSearchKeyProvider,
-      webSearchClientFactory: webSearchClientFactory ?? { $0.makeClient() },
-      webSearchResultCount: Self.webSearchResultCount)
   }
 
   /// Resolve routing + key from the active profile (or legacy globals). Pure, no network. A test can
@@ -448,14 +437,6 @@ final class FamoStreamingChatService {
       return .failure(.missingKey)
     }
   }
-
-  /// 任意提问 entry: stream an answer, routing through a 联网搜索 provider when one is configured and
-  /// the toggle is on. Falls back to plain chat (`stream`) when the resolver returns nil — the
-  /// deliberate SILENT degrade: 联网 is a bonus, never a reason for the question to fail.
-  ///
-  /// Separate from `stream` on purpose: 划词技能 call that one and can therefore never search,
-  /// which is the scope boundary made structural rather than documented.
-  func openAsk(messages: [FamoDeepSeekMessage]) -> Result<FamoAskStreamOpen, FamoStreamingReadiness> {
-    askAnything.open(messages: messages)
-  }
 }
+
+extension FamoStreamingChatService: FamoPlainStreaming {}

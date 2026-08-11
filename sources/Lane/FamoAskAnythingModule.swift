@@ -12,13 +12,15 @@ import Foundation
 
 // MARK: - Caller seam
 
-/// 任意提问的完整用例接口：规划可用尝试、流式回答，并持续给出真实联网署名。
+/// 任意提问的完整用例接口：报告是否可用、流式回答，并持续给出真实联网署名。
 ///
 /// The interface intentionally exposes neither provider priority nor Responses dialects. The
-/// conversation caller remains on `FamoStreamingChatService.openAsk` until issue #119; that method
-/// delegates here without changing its existing contract.
+/// conversation caller depends on this port directly; provider inference, search types, transport
+/// dispatch, failover, and attribution orchestration all remain inside the module.
 @MainActor
 protocol FamoAskAnythingOpening {
+  func readiness() -> FamoStreamingReadiness
+
   func open(
     messages: [FamoDeepSeekMessage]
   ) -> Result<FamoAskStreamOpen, FamoStreamingReadiness>
@@ -135,6 +137,9 @@ private enum FamoAskAttempt {
 /// cancellation propagation, and attribution updates; transports remain injected adapters.
 @MainActor
 final class FamoAskAnythingModule: FamoAskAnythingOpening {
+  static let shared = FamoAskAnythingModule()
+  static let defaultWebSearchResultCount = 5
+
   private let gate: FamoProviderAuthGate
   private let transport: FamoAskAnythingTransporting
   private let searchResolver: FamoAskSearchResolver
@@ -143,6 +148,46 @@ final class FamoAskAnythingModule: FamoAskAnythingOpening {
   private let webSearchKeyProvider: (FamoWebSearchBackend) -> String?
   private let webSearchClientFactory: (FamoWebSearchBackend) -> FamoWebSearching
   private let webSearchResultCount: Int
+
+  /// Live composition root for 任意提问. Callers receive only `FamoAskAnythingOpening`; all
+  /// provider, search, and wire dependencies are assembled here and never cross that boundary.
+  convenience init(
+    client: FamoChatStreaming? = nil,
+    responsesClient: FamoResponsesStreaming? = nil,
+    profileProvider: @escaping () -> FamoProviderProfile? = {
+      FamoProviderProfileStore.shared.defaultProfile
+    },
+    profileSecretProvider: @escaping (String) throws -> String? = {
+      try FamoProviderKeychain().secret(named: $0)
+    },
+    legacyKeyProvider: @escaping () throws -> String? = FamoCloudKeychain.readDeepSeekAPIKey,
+    searchResolver: FamoAskSearchResolver? = nil,
+    isWebSearchEnabled: @escaping () -> Bool = { FamoAskWebSearchSettings.isEnabled },
+    preferredWebSearchBackend: (() -> FamoWebSearchBackend)? = nil,
+    webSearchKeyProvider: ((FamoWebSearchBackend) -> String?)? = nil,
+    webSearchClientFactory: ((FamoWebSearchBackend) -> FamoWebSearching)? = nil
+  ) {
+    let gate = FamoProviderAuthGate(
+      profileProvider: profileProvider,
+      profileSecretProvider: profileSecretProvider,
+      legacyKeyProvider: legacyKeyProvider)
+    let transport = FamoAskAnythingTransportAdapter(
+      chatClient: client ?? FamoStreamingChatClient(),
+      responsesClient: responsesClient ?? FamoResponsesStreamingClient())
+    self.init(
+      gate: gate,
+      transport: transport,
+      searchResolver: searchResolver ?? FamoAskSearchResolver(),
+      isWebSearchEnabled: isWebSearchEnabled,
+      preferredWebSearchBackend: preferredWebSearchBackend ?? {
+        FamoWebSearchBackendSettings.backend
+      },
+      webSearchKeyProvider: webSearchKeyProvider ?? {
+        FamoWebSearchKeyStore.apiKey(for: $0)
+      },
+      webSearchClientFactory: webSearchClientFactory ?? { $0.makeClient() },
+      webSearchResultCount: Self.defaultWebSearchResultCount)
+  }
 
   init(
     gate: FamoProviderAuthGate,
@@ -166,6 +211,10 @@ final class FamoAskAnythingModule: FamoAskAnythingOpening {
     self.webSearchResultCount = webSearchResultCount
   }
 
+  func readiness() -> FamoStreamingReadiness {
+    gate.resolve()
+  }
+
   func open(
     messages: [FamoDeepSeekMessage]
   ) -> Result<FamoAskStreamOpen, FamoStreamingReadiness> {
@@ -178,7 +227,7 @@ final class FamoAskAnythingModule: FamoAskAnythingOpening {
 
     let attribution = FamoAskAttribution(searchProviderID: first.attributionID)
     // A built-in route can be opened synchronously. Keeping it primed preserves the existing
-    // openAsk timing, while the outer stream owns cancellation of the active adapter.
+    // synchronous opening timing, while the outer stream owns cancellation of the active adapter.
     let primed = openImmediately(attempt: first, messages: messages)
     let stream = AsyncThrowingStream<String, Error> { continuation in
       let task = Task { [weak self] in

@@ -76,7 +76,7 @@ struct FamoAskSearchRoute: Equatable {
   var providerID: String { routing.providerID }
   /// 面向用户的品牌名（通义千问 / MiMo / 豆包 / OpenAI），供 AI 窗署名 chip 使用。
   var displayName: String? { FamoSearchControl.displayName(for: providerID) }
-  /// WHICH transport carries this route's search — `openAsk` picks its client from this rather
+  /// WHICH transport carries this route's search — the 任意提问 module picks its client from this rather
   /// than re-deriving it from the provider id.
   var transport: FamoSearchControl.Transport {
     // 带上型号：DeepSeek 的 `/responses` 只收 deepseek-v4-flash，配着 pro 的档案不能搜。
@@ -130,7 +130,7 @@ struct FamoAskSearchResolver {
   }
 
   /// EVERY configured 联网搜索 route, in `orderedCandidates()` order — the input to the runtime
-  /// failover in `FamoStreamingChatService.openAsk`.
+  /// failover in `FamoAskAnythingModule`.
   ///
   /// 为什么要**列表**而不是单个路由：配置期「有没有 Key」与运行期「这家肯不肯服务」是两回事 ——
   /// 方舟没开通内容插件是 404 `ToolNotOpen`、MiMo 的 Key 失效是 401，两者都只在请求发出后才知道。

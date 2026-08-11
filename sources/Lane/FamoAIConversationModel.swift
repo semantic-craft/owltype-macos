@@ -3,47 +3,19 @@
 //  法墨输入法 (Famo) — AI conversation window view model (roadmap B10, v1)
 //
 //  The `@MainActor` state machine behind `FamoAIWindow`. It keeps only user-explicit text,
-//  resolves provider readiness, assembles messages via
-//  `FamoAIContextAssembler`, and consumes a streamed answer from an injected `FamoChatStreaming`
-//  façade. No socket is touched until `submit(question:)`; cancellation and regenerate live here
-//  so the SwiftUI view stays a thin render of `state`.
+//  reports 任意提问 readiness, assembles messages via `FamoAIContextAssembler`, and consumes a
+//  streamed answer through the module's small interface. No socket is touched until
+//  `submit(question:)`; cancellation and regenerate live here so the SwiftUI view stays a thin
+//  render of `state`.
 //
-//  Reuses (by reference): `FamoStreamingChatService` (readiness + stream), `FamoAIContextAssembler`
-//  (context assembly). Tests drive it with a scripted fake streamer — see
+//  Reuses (by reference): `FamoAskAnythingOpening` (readiness + answer), `FamoAIContextAssembler`
+//  (context assembly). Tests drive it with a scripted fake module — see
 //  `tests/FamoAIConversationModelTests.swift`.
 //
 //  Off the IMK hot path: only an explicit AI-window trigger constructs/drives this.
 //
 
 import Foundation
-
-// MARK: - Streaming façade seam
-
-/// Narrow port over `FamoStreamingChatService` so the view model can be tested with a fake that
-/// scripts readiness + a delta stream — no `URLSession`, no Keychain. The live default is the
-/// shared service. Exposes ONLY the two members the window needs (readiness, stream), not the
-/// service's profile/key internals (ISP, same idiom as `SnapshotReading` etc.).
-@MainActor
-protocol FamoConversationStreaming {
-  /// Resolve whether a provider + key are configured, with no network (so the window can show an
-  /// "unconfigured" state before any send).
-  func readiness() -> FamoStreamingReadiness
-  /// Stream an answer for `messages`, or the typed readiness failure when nothing is configured.
-  func stream(messages: [FamoDeepSeekMessage]) -> Result<AsyncThrowingStream<String, Error>, FamoStreamingReadiness>
-  /// 任意提问 entry: like `stream`, but may route through a 联网搜索 provider and reports which one
-  /// answered (nil = plain chat).
-  func openAsk(messages: [FamoDeepSeekMessage]) -> Result<FamoAskStreamOpen, FamoStreamingReadiness>
-}
-
-extension FamoConversationStreaming {
-  /// Default = plain chat, no search. The live service overrides this; a fake that doesn't care
-  /// about 联网搜索 inherits "never searched" without restating it.
-  func openAsk(messages: [FamoDeepSeekMessage]) -> Result<FamoAskStreamOpen, FamoStreamingReadiness> {
-    stream(messages: messages).map { FamoAskStreamOpen(stream: $0, searchProviderID: nil) }
-  }
-}
-
-extension FamoStreamingChatService: FamoConversationStreaming {}
 
 // MARK: - State
 
@@ -65,8 +37,8 @@ enum FamoAIConversationState: Equatable {
 
 @MainActor
 final class FamoAIConversationModel {
-  /// The streaming façade (injected; live default is the shared service).
-  private let streamer: FamoConversationStreaming
+  /// 任意提问 use-case port (injected; live default is the shared module).
+  private let askAnything: FamoAskAnythingOpening
 
   /// Optional selected text captured by the global selection menu. It is explicit-action context,
   /// sent only when the user picks a menu action, and reused for regenerate.
@@ -100,17 +72,17 @@ final class FamoAIConversationModel {
   /// The in-flight stream consumer, so `stop()` / a new `submit` can cancel it.
   private var streamTask: Task<Void, Never>?
 
-  /// `streamer` defaults to nil → the shared service is resolved INSIDE the (`@MainActor`) init, so
+  /// `askAnything` defaults to nil → the shared module is resolved INSIDE the (`@MainActor`) init, so
   /// the `@MainActor`-isolated `.shared` is never referenced from the nonisolated default-argument
   /// context (Swift 6-clean; same `client: … ? = nil` idiom as `FamoStreamingChatService`).
   init(
     selectedText: String? = nil,
     initialState: FamoAIConversationState = .idle,
-    streamer: FamoConversationStreaming? = nil
+    askAnything: FamoAskAnythingOpening? = nil
   ) {
     self.capturedSelectedText = selectedText
     self.state = initialState
-    self.streamer = streamer ?? FamoStreamingChatService.shared
+    self.askAnything = askAnything ?? FamoAskAnythingModule.shared
   }
 
   /// A short one-line summary of the explicit selection shown in the window header.
@@ -120,7 +92,7 @@ final class FamoAIConversationModel {
 
   /// Resolve the provider route for the window's header ("local / cloud / unconfigured"). No network.
   func currentReadiness() -> FamoStreamingReadiness {
-    streamer.readiness()
+    askAnything.readiness()
   }
 
   /// Submit a question. Resolves readiness FIRST (no network if unconfigured), assembles messages,
@@ -210,10 +182,10 @@ final class FamoAIConversationModel {
       question: question
     )
 
-    // Resolve a stream. `unconfigured` / `missingKey` produce NO network call. `openAsk` may route
-    // through a 联网搜索 provider; when none is configured it silently falls back to plain chat.
+    // Ask only through the module interface. `unconfigured` / `missingKey` produce NO network call;
+    // provider/search/wire planning and plain fallback stay behind this boundary.
     let open: FamoAskStreamOpen
-    switch streamer.openAsk(messages: messages) {
+    switch askAnything.open(messages: messages) {
     case let .success(value):
       open = value
       applyAttribution(open)

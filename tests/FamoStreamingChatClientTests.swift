@@ -351,17 +351,18 @@ final class FamoStreamingChatClientTests: XCTestCase {
     XCTAssertEqual(service.readiness(), .missingKey)
   }
 
-  // MARK: - openAsk transport dispatch (no network)
+  // MARK: - 任意提问 module transport dispatch (no network)
 
-  /// A service whose 联网搜索 resolves to `providerID` at `host`, with both transports' clients
+  /// A module whose 联网搜索 resolves to `providerID` at `host`, with both transports' clients
   /// recording which one was actually asked to stream.
   @MainActor
-  private func makeDispatchService(
+  private func makeDispatchModule(
     providerID: String,
     host: String,
     chat: RecordingChatClient,
-    responses: RecordingResponsesClient
-  ) -> FamoStreamingChatService {
+    responses: RecordingResponsesClient,
+    searchEnabled: Bool = true
+  ) -> FamoAskAnythingModule {
     let model: String
     switch providerID {
     case "qwen": model = "qwen3.7-plus"
@@ -381,7 +382,7 @@ final class FamoStreamingChatClientTests: XCTestCase {
       secretName: "famo.provider.\(providerID).apiKey",
       isDefault: true
     )
-    return FamoStreamingChatService(
+    return FamoAskAnythingModule(
       client: chat,
       responsesClient: responses,
       profileProvider: { profile },
@@ -396,6 +397,7 @@ final class FamoStreamingChatClientTests: XCTestCase {
       ),
       // 必须显式关掉独立搜索层：它的默认实现读的是**真钥匙串**。用户一旦在设置页存了搜索 Key，
       // 这些用例就会改走「先检索、再作答」并用真 URLSession 打外网 —— 表现为整套 suite 静默挂住。
+      isWebSearchEnabled: { searchEnabled },
       preferredWebSearchBackend: { .doubaoGlobal },
       webSearchKeyProvider: { _ in nil }
     )
@@ -405,9 +407,9 @@ final class FamoStreamingChatClientTests: XCTestCase {
   func testOpenAskSendsQwenSearchThroughTheResponsesClient() {
     let chat = RecordingChatClient()
     let responses = RecordingResponsesClient()
-    let service = makeDispatchService(
+    let service = makeDispatchModule(
       providerID: "qwen", host: "dashscope.aliyuncs.com", chat: chat, responses: responses)
-    guard case let .success(open) = service.openAsk(messages: []) else {
+    guard case let .success(open) = service.open(messages: []) else {
       return XCTFail("expected an opened stream")
     }
     XCTAssertEqual(open.searchProviderID, "qwen")
@@ -421,9 +423,10 @@ final class FamoStreamingChatClientTests: XCTestCase {
   func testPlainQwenGenerationAlsoUsesResponsesWithoutSearch() {
     let chat = RecordingChatClient()
     let responses = RecordingResponsesClient()
-    let service = makeDispatchService(
-      providerID: "qwen", host: "dashscope.aliyuncs.com", chat: chat, responses: responses)
-    guard case .success = service.stream(
+    let service = makeDispatchModule(
+      providerID: "qwen", host: "dashscope.aliyuncs.com", chat: chat, responses: responses,
+      searchEnabled: false)
+    guard case .success = service.open(
       messages: [FamoDeepSeekMessage(role: "user", content: "你好")]) else {
       return XCTFail("expected an opened stream")
     }
@@ -439,9 +442,10 @@ final class FamoStreamingChatClientTests: XCTestCase {
     // 否则 store=false 与 thinking:{disabled} 全部丢失（方舟 Responses 默认存响应且开思考）。
     let chat = RecordingChatClient()
     let responses = RecordingResponsesClient()
-    let service = makeDispatchService(
-      providerID: "doubao", host: "ark.cn-beijing.volces.com", chat: chat, responses: responses)
-    guard case .success = service.stream(
+    let service = makeDispatchModule(
+      providerID: "doubao", host: "ark.cn-beijing.volces.com", chat: chat, responses: responses,
+      searchEnabled: false)
+    guard case .success = service.open(
       messages: [FamoDeepSeekMessage(role: "user", content: "你好")]) else {
       return XCTFail("expected an opened stream")
     }
@@ -456,9 +460,9 @@ final class FamoStreamingChatClientTests: XCTestCase {
     // 豆包 走错传输就是「搜不到但看起来搜了」—— 这条断言就是拦它的。
     let chat = RecordingChatClient()
     let responses = RecordingResponsesClient()
-    let service = makeDispatchService(
+    let service = makeDispatchModule(
       providerID: "doubao", host: "ark.cn-beijing.volces.com", chat: chat, responses: responses)
-    guard case let .success(open) = service.openAsk(messages: []) else {
+    guard case let .success(open) = service.open(messages: []) else {
       return XCTFail("expected an opened stream")
     }
     XCTAssertEqual(open.searchProviderID, "doubao")
@@ -472,9 +476,9 @@ final class FamoStreamingChatClientTests: XCTestCase {
   func testOpenAskSendsOpenAIThroughTheResponsesClientWithItsOwnDialect() {
     let chat = RecordingChatClient()
     let responses = RecordingResponsesClient()
-    let service = makeDispatchService(
+    let service = makeDispatchModule(
       providerID: "openai", host: "api.openai.com", chat: chat, responses: responses)
-    guard case let .success(open) = service.openAsk(messages: []) else {
+    guard case let .success(open) = service.open(messages: []) else {
       return XCTFail("expected an opened stream")
     }
     XCTAssertEqual(open.searchProviderID, "openai")
@@ -488,9 +492,9 @@ final class FamoStreamingChatClientTests: XCTestCase {
   func testDeepSeekDispatchesToResponsesAndSignsItsSearch() {
     let chat = RecordingChatClient()
     let responses = RecordingResponsesClient()
-    let service = makeDispatchService(
+    let service = makeDispatchModule(
       providerID: "deepseek", host: "api.deepseek.com", chat: chat, responses: responses)
-    guard case let .success(open) = service.openAsk(messages: []) else {
+    guard case let .success(open) = service.open(messages: []) else {
       return XCTFail("expected an opened stream")
     }
     XCTAssertEqual(responses.lastDialect, .deepseek)
@@ -504,7 +508,7 @@ final class FamoStreamingChatClientTests: XCTestCase {
     let responses = RecordingResponsesClient()
     // 同 `chatOnlyProfile`：这条钉的是「没有搜索通道 → 退回普通问答」，作答方得是个 chat 供应商。
     let profile = Self.chatOnlyProfile
-    let service = FamoStreamingChatService(
+    let service = FamoAskAnythingModule(
       client: chat,
       responsesClient: responses,
       profileProvider: { profile },
@@ -520,7 +524,7 @@ final class FamoStreamingChatClientTests: XCTestCase {
       preferredWebSearchBackend: { .doubaoGlobal },
       webSearchKeyProvider: { _ in nil }   // 同上：不让默认实现去读真钥匙串、打真网络。
     )
-    guard case let .success(open) = service.openAsk(messages: []) else {
+    guard case let .success(open) = service.open(messages: []) else {
       return XCTFail("expected a plain-chat stream")
     }
     XCTAssertNil(open.searchProviderID, "没联网就不能署名联网")
@@ -544,7 +548,7 @@ final class FamoStreamingChatClientTests: XCTestCase {
     ])
     let service = makeSearchService(chat: chat, responses: responses, search: stub)
 
-    guard case let .success(open) = service.openAsk(
+    guard case let .success(open) = service.open(
       messages: [FamoDeepSeekMessage(role: "user", content: "今天有什么新闻")]) else {
       return XCTFail("expected a grounded stream")
     }
@@ -572,9 +576,9 @@ final class FamoStreamingChatClientTests: XCTestCase {
     let service = makeSearchService(
       chat: chat, responses: RecordingResponsesClient(), search: stub)
 
-    guard case let .success(open) = service.openAsk(
+    guard case let .success(open) = service.open(
       messages: [FamoDeepSeekMessage(role: "user", content: "今天有什么新闻")]) else {
-      return XCTFail("openAsk 本身仍应开出一条流，错误从流里出来")
+      return XCTFail("module.open 本身仍应开出一条流，错误从流里出来")
     }
     do {
       _ = try await collect(open.stream)
@@ -592,7 +596,7 @@ final class FamoStreamingChatClientTests: XCTestCase {
     let service = makeSearchService(
       chat: chat, responses: RecordingResponsesClient(), search: StubWebSearch(results: []))
 
-    guard case let .success(open) = service.openAsk(
+    guard case let .success(open) = service.open(
       messages: [FamoDeepSeekMessage(role: "user", content: "今天有什么新闻")]) else {
       return XCTFail("expected a stream")
     }
@@ -608,7 +612,7 @@ final class FamoStreamingChatClientTests: XCTestCase {
   @MainActor
   func testConfigurationRefusalFailsOverToTheNextBackendAndRewritesAttribution() async {
     let chat = RecordingChatClient()
-    let service = FamoStreamingChatService(
+    let service = FamoAskAnythingModule(
       client: chat,
       responsesClient: RecordingResponsesClient(),
       profileProvider: { Self.chatOnlyProfile },
@@ -636,9 +640,9 @@ final class FamoStreamingChatClientTests: XCTestCase {
       }
     )
     FamoAskWebSearchSettings.isEnabled = true
-    guard case let .success(open) = service.openAsk(
+    guard case let .success(open) = service.open(
       messages: [FamoDeepSeekMessage(role: "user", content: "今天有什么新闻")]) else {
-      return XCTFail("首家被拒不该让 openAsk 失败")
+      return XCTFail("首家被拒不该让 module.open 失败")
     }
     _ = try? await collect(open.stream)
 
@@ -718,11 +722,11 @@ final class FamoStreamingChatClientTests: XCTestCase {
     chat: RecordingChatClient,
     responses: RecordingResponsesClient,
     search: FamoWebSearching
-  ) -> FamoStreamingChatService {
+  ) -> FamoAskAnythingModule {
     // 同 `chatOnlyProfile` 的理由：这几条断言的是搜索层，作答方必须是个仍走 chat 的供应商。
     let profile = Self.chatOnlyProfile
     FamoAskWebSearchSettings.isEnabled = true
-    return FamoStreamingChatService(
+    return FamoAskAnythingModule(
       client: chat,
       responsesClient: responses,
       profileProvider: { profile },
@@ -744,7 +748,7 @@ final class FamoStreamingChatClientTests: XCTestCase {
   }
 }
 
-/// Records which transport `openAsk` picked, and with what search payload. Driven synchronously
+/// Records which transport the 任意提问 module picked, and with what search payload. Driven synchronously
 /// from the `@MainActor` tests (the stream is never consumed), so plain mutable state is enough.
 private final class RecordingChatClient: FamoChatStreaming, @unchecked Sendable {
   private(set) var callCount = 0

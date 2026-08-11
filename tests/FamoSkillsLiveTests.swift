@@ -205,7 +205,7 @@ final class FamoSkillsLiveTests: XCTestCase {
     let results = try await FamoDashScopeSearchClient().search(
       query: "2026 年杭州亚运会主办城市有哪些协办城市",
       apiKey: apiKey,
-      limit: FamoStreamingChatService.webSearchResultCount)
+      limit: FamoAskAnythingModule.defaultWebSearchResultCount)
 
     let dump = results.enumerated()
       .map { FamoWebSearchContext.entry(index: $0.offset + 1, result: $0.element) }

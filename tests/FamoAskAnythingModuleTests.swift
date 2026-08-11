@@ -307,6 +307,43 @@ final class FamoAskAnythingModuleTests: XCTestCase {
     XCTAssertNil(open.searchProviderID, "the final plain attempt must clear online attribution")
   }
 
+  func testEveryOnlineAttemptAndPlainAnswerFailThroughTheInterface() async {
+    let qwen = Self.qwenProfile
+    let mimo = Self.mimoProfile
+    let responses = ScriptedResponsesClient(streams: [
+      Self.failingStream(FamoStreamingError.badHTTPStatus(401)),
+    ])
+    let chat = ScriptedChatClient(streams: [
+      Self.failingStream(FamoStreamingError.badHTTPStatus(403)),
+      Self.failingStream(FamoStreamingError.badHTTPStatus(503)),
+    ])
+    let module: FamoAskAnythingOpening = makeMatrixModule(
+      gateProfile: Self.chatOnlyProfile,
+      builtInProfiles: [qwen, mimo],
+      builtInKeys: [qwen.secretName: "sk-qwen", mimo.secretName: "sk-mimo"],
+      transport: FamoAskAnythingTransportAdapter(chatClient: chat, responsesClient: responses))
+
+    guard case let .success(open) = module.open(messages: Self.question) else {
+      return XCTFail("configured attempts should open through the interface")
+    }
+    do {
+      _ = try await collect(open.stream)
+      XCTFail("the final plain transport failure must surface")
+    } catch {
+      XCTAssertEqual(error as? FamoStreamingError, .badHTTPStatus(503))
+    }
+
+    XCTAssertNil(open.searchProviderID, "plain fallback clears every online attribution")
+    XCTAssertEqual(
+      responses.calls, [.init(providerID: "qwen", dialect: .qwen, webSearch: true)])
+    XCTAssertEqual(
+      chat.calls,
+      [
+        .init(providerID: "mimo", carriesSearchFields: true),
+        .init(providerID: "custom", carriesSearchFields: false),
+      ])
+  }
+
   func testCancellationDuringStandaloneSearchDoesNotOpenAnyLaterAttempt() async {
     let searchStarted = expectation(description: "standalone search started")
     let searchCancelled = expectation(description: "standalone search cancelled")
