@@ -58,8 +58,9 @@ final class CandidatePanelState {
   /// 默认写成 `.medium.base` 而不是裸数：原来的注释说「defaults to 中」而值是 16（那是小档的
   /// 点数），四档化后留白也跟着它走，默认档一错整块面板的边距就跟着错。
   var fontSize: CGFloat = FamoPanelFontSize.medium.base
-  /// Candidate text typeface family (G8). Seeded from `FamoPanelPreferences.fontDesign`.
-  var fontDesign: FamoPanelFontDesign = .default
+  /// Resolved candidate font (system / installed family / explicit fallback). Applied as one value
+  /// by `FamoCandidatePanelSettings`; the renderer never performs installation detection.
+  var candidateFont: FamoCandidateFont = .systemDefault
   /// Whether candidate-bar animations run (G8). Seeded from `FamoPanelPreferences`;
   /// the view ANDs this with `!reduceMotion` so Reduce Motion always wins.
   var animationsEnabled: Bool = true

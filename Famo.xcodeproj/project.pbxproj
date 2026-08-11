@@ -114,6 +114,7 @@
 		FA000015CAFE0015CAFE0015 /* FamoSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000005CAFE0005CAFE0005 /* FamoSettingsView.swift */; };
 		FA000016CAFE0016CAFE0016 /* FamoSettingsWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000006CAFE0006CAFE0006 /* FamoSettingsWindow.swift */; };
 		FA000017CAFE0017CAFE0017 /* FamoPanelPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000007CAFE0007CAFE0007 /* FamoPanelPreferences.swift */; };
+		FA112003CAFE0003CAFE0112 /* FamoCandidatePanelSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA112002CAFE0002CAFE0112 /* FamoCandidatePanelSettings.swift */; };
 		FA000018CAFE0018CAFE0018 /* FamoSettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000008CAFE0008CAFE0008 /* FamoSettingsComponents.swift */; };
 		FA000019CAFE0019CAFE0019 /* FamoSettingsPages.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000009CAFE0009CAFE0009 /* FamoSettingsPages.swift */; };
 		FA000050CAFE0050CAFE0050 /* FamoEmojiData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000046CAFE0046CAFE0046 /* FamoEmojiData.swift */; };
@@ -249,6 +250,7 @@
 		FA000087CAFE0087CAFE0087 /* FamoM3EmojiSkinTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000086CAFE0086CAFE0086 /* FamoM3EmojiSkinTests.swift */; };
 		FA0000C7CAFE00C7CAFE00C7 /* ProjectStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000C6CAFE00C6CAFE00C6 /* ProjectStoreTests.swift */; };
 		FA000601CAFE0601CAFE0601 /* FamoPanelContentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000600CAFE0600CAFE0600 /* FamoPanelContentTests.swift */; };
+		FA112001CAFE0001CAFE0112 /* FamoCandidatePanelSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA112000CAFE0000CAFE0112 /* FamoCandidatePanelSettingsTests.swift */; };
 		FA000501CAFE0501CAFE0501 /* FamoCandidateAnchorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000500CAFE0500CAFE0500 /* FamoCandidateAnchorTests.swift */; };
 		FAA00006CAFE0006CAFE0006 /* FamoFloatingPanelPositionerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00005CAFE0005CAFE0005 /* FamoFloatingPanelPositionerTests.swift */; };
 		FAA00008CAFE0008CAFE0008 /* FamoPanelInsertionBrokerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00007CAFE0007CAFE0007 /* FamoPanelInsertionBrokerTests.swift */; };
@@ -507,6 +509,7 @@
 		FA000005CAFE0005CAFE0005 /* FamoSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSettingsView.swift; path = sources/Settings/FamoSettingsView.swift; sourceTree = "<group>"; };
 		FA000006CAFE0006CAFE0006 /* FamoSettingsWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSettingsWindow.swift; path = sources/Settings/FamoSettingsWindow.swift; sourceTree = "<group>"; };
 		FA000007CAFE0007CAFE0007 /* FamoPanelPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPanelPreferences.swift; path = sources/Settings/FamoPanelPreferences.swift; sourceTree = "<group>"; };
+		FA112002CAFE0002CAFE0112 /* FamoCandidatePanelSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoCandidatePanelSettings.swift; path = sources/Settings/FamoCandidatePanelSettings.swift; sourceTree = "<group>"; };
 		FA000008CAFE0008CAFE0008 /* FamoSettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSettingsComponents.swift; path = sources/Settings/FamoSettingsComponents.swift; sourceTree = "<group>"; };
 		FA000009CAFE0009CAFE0009 /* FamoSettingsPages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSettingsPages.swift; path = sources/Settings/FamoSettingsPages.swift; sourceTree = "<group>"; };
 		FA000046CAFE0046CAFE0046 /* FamoEmojiData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoEmojiData.swift; path = sources/Data/FamoEmojiData.swift; sourceTree = "<group>"; };
@@ -624,6 +627,7 @@
 		FA000505CAFE0505CAFE0505 /* FamoMacbertCscScorer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoMacbertCscScorer.swift; path = sources/Lane/FamoMacbertCscScorer.swift; sourceTree = "<group>"; };
 		FA0000C6CAFE00C6CAFE00C6 /* ProjectStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProjectStoreTests.swift; path = tests/ProjectStoreTests.swift; sourceTree = "<group>"; };
 		FA000600CAFE0600CAFE0600 /* FamoPanelContentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPanelContentTests.swift; path = tests/FamoPanelContentTests.swift; sourceTree = "<group>"; };
+		FA112000CAFE0000CAFE0112 /* FamoCandidatePanelSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoCandidatePanelSettingsTests.swift; path = tests/FamoCandidatePanelSettingsTests.swift; sourceTree = "<group>"; };
 		FA000500CAFE0500CAFE0500 /* FamoCandidateAnchorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoCandidateAnchorTests.swift; path = tests/FamoCandidateAnchorTests.swift; sourceTree = "<group>"; };
 		FAA00005CAFE0005CAFE0005 /* FamoFloatingPanelPositionerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoFloatingPanelPositionerTests.swift; path = tests/FamoFloatingPanelPositionerTests.swift; sourceTree = "<group>"; };
 		FAA00007CAFE0007CAFE0007 /* FamoPanelInsertionBrokerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPanelInsertionBrokerTests.swift; path = tests/FamoPanelInsertionBrokerTests.swift; sourceTree = "<group>"; };
@@ -716,6 +720,7 @@
 				FA000005CAFE0005CAFE0005 /* FamoSettingsView.swift */,
 				FA000006CAFE0006CAFE0006 /* FamoSettingsWindow.swift */,
 				FA000007CAFE0007CAFE0007 /* FamoPanelPreferences.swift */,
+				FA112002CAFE0002CAFE0112 /* FamoCandidatePanelSettings.swift */,
 				FA000008CAFE0008CAFE0008 /* FamoSettingsComponents.swift */,
 				FA000009CAFE0009CAFE0009 /* FamoSettingsPages.swift */,
 				FA000046CAFE0046CAFE0046 /* FamoEmojiData.swift */,
@@ -840,6 +845,7 @@
 				FA000913CAFE0099CAFE0099 /* FamoPromptInterceptionTests.swift */,
 				FADADA03CAFE0003CAFE0003 /* FamoPromptPageRenderTests.swift */,
 				FA000600CAFE0600CAFE0600 /* FamoPanelContentTests.swift */,
+				FA112000CAFE0000CAFE0112 /* FamoCandidatePanelSettingsTests.swift */,
 				FA000500CAFE0500CAFE0500 /* FamoCandidateAnchorTests.swift */,
 				FAA00005CAFE0005CAFE0005 /* FamoFloatingPanelPositionerTests.swift */,
 				FAA00007CAFE0007CAFE0007 /* FamoPanelInsertionBrokerTests.swift */,
@@ -1241,6 +1247,7 @@
 				FA000015CAFE0015CAFE0015 /* FamoSettingsView.swift in Sources */,
 				FA000016CAFE0016CAFE0016 /* FamoSettingsWindow.swift in Sources */,
 				FA000017CAFE0017CAFE0017 /* FamoPanelPreferences.swift in Sources */,
+				FA112003CAFE0003CAFE0112 /* FamoCandidatePanelSettings.swift in Sources */,
 				FA000018CAFE0018CAFE0018 /* FamoSettingsComponents.swift in Sources */,
 				FA000019CAFE0019CAFE0019 /* FamoSettingsPages.swift in Sources */,
 				FA000050CAFE0050CAFE0050 /* FamoEmojiData.swift in Sources */,
@@ -1368,6 +1375,7 @@
 				FA000912CAFE0098CAFE0098 /* FamoPromptInterceptionTests.swift in Sources */,
 				FADADA04CAFE0004CAFE0004 /* FamoPromptPageRenderTests.swift in Sources */,
 				FA000601CAFE0601CAFE0601 /* FamoPanelContentTests.swift in Sources */,
+				FA112001CAFE0001CAFE0112 /* FamoCandidatePanelSettingsTests.swift in Sources */,
 				FA000501CAFE0501CAFE0501 /* FamoCandidateAnchorTests.swift in Sources */,
 				FAA00006CAFE0006CAFE0006 /* FamoFloatingPanelPositionerTests.swift in Sources */,
 				FAA00008CAFE0008CAFE0008 /* FamoPanelInsertionBrokerTests.swift in Sources */,

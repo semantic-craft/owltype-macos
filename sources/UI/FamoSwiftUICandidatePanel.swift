@@ -383,7 +383,7 @@ final class FamoSwiftUICandidatePanel: NSPanel {
     panelState.isScroll = prefs.orientation.scrolls
     // Honor the v0.2.2/G8 appearance prefs.
     panelState.fontSize = prefs.fontSize.base
-    panelState.fontDesign = prefs.fontDesign
+    FamoCandidatePanelSettings.live.apply(prefs.candidatePanelSettings, to: panelState)
     panelState.animationsEnabled = prefs.animationsEnabled
     panelState.showPreedit = prefs.showPreedit
     // Feature 4 / 7: paging-arrow visibility + candidate-format preset (self-drawn panel).

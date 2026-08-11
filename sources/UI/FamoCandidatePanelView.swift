@@ -337,7 +337,7 @@ struct FamoCandidatePanelView: View {
   ) -> some View {
     HStack(spacing: geometry.contentSpacing) {
       Text(candidate.text)
-        .font(state.fontDesign.candidateFont(size: geometry.candidateFontSize))
+        .font(state.candidateFont.font(size: geometry.candidateFontSize))
         .foregroundStyle(palette.ink)
       if state.showsCompactComment(for: candidate), let note = candidate.comment {
         Text(note)
@@ -386,7 +386,7 @@ struct FamoCandidatePanelView: View {
           .foregroundStyle(selected ? palette.onAccent.opacity(0.85) : palette.ink2)
       }
       Text(candidate.text)
-        .font(state.fontDesign.candidateFont(size: geometry.compactPill.candidateFontSize))
+        .font(state.candidateFont.font(size: geometry.compactPill.candidateFontSize))
         .foregroundStyle(selected ? palette.onAccent : palette.ink)
       if state.showsCompactComment(for: candidate), let note = candidate.comment {
         Text(note)
@@ -540,7 +540,7 @@ struct FamoCandidatePanelView: View {
             .foregroundStyle(selected ? palette.onAccent : palette.accent)
         }
         Text(candidate.text)
-          .font(state.fontDesign.candidateFont(size: row.candidateFontSize))
+          .font(state.candidateFont.font(size: row.candidateFontSize))
           .foregroundStyle(selected ? palette.onAccent : palette.ink)
         // Feature 7: 隐藏注释 / 仅候选 presets drop the reading / 释义 comment.
         if state.candidateFormat.showsComment, let note = candidate.comment, !note.isEmpty {

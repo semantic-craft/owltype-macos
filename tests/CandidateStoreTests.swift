@@ -615,16 +615,19 @@ final class FamoCandidateDisplayTests: XCTestCase {
   }
 
   func testPanelDisplayPrefsDefaultsAndRoundTrip() {
+    let settings = FamoCandidatePanelSettings.live
+    let state = FamoSettingsState()
     // Defaults.
     XCTAssertEqual(FamoPanelPreferences.orientation, .auto)
-    XCTAssertEqual(FamoPanelPreferences.fontDesign, .default)
+    settings.seed(state)
+    XCTAssertEqual(state.candidateFont.selection, .default)
     XCTAssertTrue(FamoPanelPreferences.animationsEnabled)
     // Round-trip.
     FamoPanelPreferences.orientation = .vertical
-    FamoPanelPreferences.fontDesign = .mapleMono
+    settings.editFont(.mapleMono, state: state, onChange: {})
     FamoPanelPreferences.animationsEnabled = false
     XCTAssertEqual(FamoPanelPreferences.orientation, .vertical)
-    XCTAssertEqual(FamoPanelPreferences.fontDesign, .mapleMono)
+    XCTAssertEqual(settings.snapshot().font.selection, .mapleMono)
     XCTAssertFalse(FamoPanelPreferences.animationsEnabled)
   }
 
@@ -725,29 +728,9 @@ final class FamoCandidateDisplayTests: XCTestCase {
     XCTAssertTrue(FamoPanelOrientation.vertical.isVertical(rimeVertical: false, schemaID: "rime_ice"))
   }
 
-  func testFontDesignMapping() {
-    XCTAssertEqual(FamoPanelFontDesign.default.design, .default)
-    XCTAssertEqual(FamoPanelFontDesign.serif.design, .serif)
-    XCTAssertEqual(FamoPanelFontDesign.rounded.design, .rounded)
-    XCTAssertEqual(FamoPanelFontDesign.notoSerifSC.design, .serif)
-    XCTAssertEqual(FamoPanelFontDesign.mapleMono.design, .monospaced)
+  func testCandidateFontDownloadURL() {
     XCTAssertEqual(
-      FamoPanelFontDesign.installedNotoSerifSCFamily(in: ["PingFang SC", "Noto Serif CJK SC"]),
-      "Noto Serif CJK SC"
-    )
-    XCTAssertNil(FamoPanelFontDesign.installedNotoSerifSCFamily(in: ["PingFang SC", "Songti SC"]))
-    XCTAssertEqual(
-      FamoPanelFontDesign.installedMapleMonoFamily(
-        in: ["Maple Mono NF", "Maple Mono CN", "PingFang SC"]),
-      "Maple Mono CN"
-    )
-    XCTAssertEqual(
-      FamoPanelFontDesign.installedMapleMonoFamily(in: ["PingFang SC", "Maple Mono NF"]),
-      "Maple Mono NF"
-    )
-    XCTAssertNil(FamoPanelFontDesign.installedMapleMonoFamily(in: ["PingFang SC", "Menlo"]))
-    XCTAssertEqual(
-      FamoPanelFontDesign.mapleMonoDownloadURL.absoluteString,
+      FamoCandidateFontSelection.mapleMonoDownloadURL.absoluteString,
       "https://github.com/subframe7536/maple-font/releases/latest/download/MapleMono-CN.zip"
     )
   }

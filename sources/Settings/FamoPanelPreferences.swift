@@ -4,12 +4,13 @@
 //
 //  v0.2.2: user-customizable appearance for the SwiftUI candidate panel.
 //  Several prefs persisted in UserDefaults (Famo-namespaced): appearance mode
-//  (跟随系统/浅色/深色), candidate panel size (小/中/大/特大), orientation, typeface, animations.
+//  (跟随系统/浅色/深色), candidate panel size (小/中/大/特大), orientation, animations.
+//  Typeface persistence and resolution live behind `FamoCandidatePanelSettings`.
 //  NOT written to the user's `famo.custom.yaml`.
 //
-//  Single key home: the `"FamoPanelAppearance"` / `"FamoPanelFontSize"` (etc.)
-//  UserDefaults string literals live ONLY in this file. The live panel and the
-//  settings layer read/write through these accessors.
+//  Single key home for the fields below: the `"FamoPanelAppearance"` /
+//  `"FamoPanelFontSize"` (etc.) UserDefaults string literals live ONLY in this file.
+//  The live panel and the settings layer read/write through these accessors.
 //
 //  Boundary (ADR-0001 / 0002 / 0003): prefs/panel layer only — never touches
 //  the IMK key-event hot path.
@@ -18,10 +19,8 @@
 //  thread like the rest of the candidate / settings UI.
 //
 
-import AppKit
 import CoreGraphics
 import Foundation
-import SwiftUI
 
 /// Candidate-panel appearance mode. `system` follows `@Environment(\.colorScheme)`
 /// as before; `light` / `dark` force the panel's `NSAppearance` (which makes the
@@ -90,86 +89,6 @@ enum FamoPanelOrientation: String, CaseIterable, Sendable {
   /// 是否卷轴（主行 + 后页行）。仅显式 `.scroll` 为真；`auto/横排/竖排` 均为单行/纵列，
   /// 既有默认行为零变化。`isVertical` 为真时此值被忽略（竖排不叠加后页行）。
   var scrolls: Bool { self == .scroll }
-}
-
-/// Candidate text typeface family (G8 候选显示). System choices map to SwiftUI
-/// `Font.Design`; named families use the installed font and fall back to the closest system design.
-enum FamoPanelFontDesign: String, CaseIterable, Sendable {
-  case `default`
-  case serif
-  case rounded
-  case notoSerifSC
-  case mapleMono
-
-  var design: Font.Design {
-    switch self {
-    case .default: .default
-    case .serif: .serif
-    case .rounded: .rounded
-    case .notoSerifSC: .serif
-    case .mapleMono: .monospaced
-    }
-  }
-
-  static let notoSerifSCDownloadURL = URL(string: "https://github.com/googlefonts/noto-cjk/raw/main/Serif/Variable/OTF/NotoSerifCJKsc-VF.otf")!
-  static let mapleMonoDownloadURL = URL(
-    string: "https://github.com/subframe7536/maple-font/releases/latest/download/MapleMono-CN.zip"
-  )!
-
-  private static let notoSerifSCFamilies = [
-    "Noto Serif SC",
-    "Noto Serif CJK SC",
-    "Noto Serif CJK SC VF",
-  ]
-
-  /// Prefer the CJK builds for Chinese candidates, while accepting the regular and Nerd Font
-  /// families users may already have installed for editors or terminals.
-  private static let mapleMonoFamilies = [
-    "Maple Mono CN",
-    "Maple Mono NF CN",
-    "Maple Mono Normal CN",
-    "Maple Mono Normal NF CN",
-    "Maple Mono",
-    "Maple Mono NF",
-    "Maple Mono Normal",
-    "Maple Mono Normal NF"
-  ]
-
-  static var isNotoSerifSCInstalled: Bool {
-    installedNotoSerifSCFamily(in: NSFontManager.shared.availableFontFamilies) != nil
-  }
-
-  static var isMapleMonoInstalled: Bool {
-    installedMapleMonoFamily(in: NSFontManager.shared.availableFontFamilies) != nil
-  }
-
-  static func installedNotoSerifSCFamily(in availableFamilies: [String]) -> String? {
-    let installed = Set(availableFamilies.map { $0.lowercased() })
-    return notoSerifSCFamilies.first { installed.contains($0.lowercased()) }
-  }
-
-  static func installedMapleMonoFamily(in availableFamilies: [String]) -> String? {
-    mapleMonoFamilies.lazy.compactMap { preferred in
-      availableFamilies.first { $0.caseInsensitiveCompare(preferred) == .orderedSame }
-    }.first
-  }
-
-  func candidateFont(size: CGFloat) -> Font {
-    switch self {
-    case .notoSerifSC:
-      guard let family = Self.installedNotoSerifSCFamily(in: NSFontManager.shared.availableFontFamilies) else {
-        return .system(size: size, design: .serif)
-      }
-      return .custom(family, size: size)
-    case .mapleMono:
-      guard let family = Self.installedMapleMonoFamily(in: NSFontManager.shared.availableFontFamilies) else {
-        return .system(size: size, design: .monospaced)
-      }
-      return .custom(family, size: size)
-    default:
-      return .system(size: size, design: design)
-    }
-  }
 }
 
 /// When the status HUD (方案 / 中英 / 简繁 切换提示) pops. Maps Rime's
@@ -259,16 +178,6 @@ enum FamoPanelPreferences {
     }
   }
 
-  /// Candidate text typeface. Key `"FamoPanelFontDesign"`, default `.default`.
-  static var fontDesign: FamoPanelFontDesign {
-    get {
-      FamoPanelFontDesign(rawValue: FamoDefaults.standard.string(forKey: "FamoPanelFontDesign") ?? "") ?? .default
-    }
-    set {
-      FamoDefaults.standard.set(newValue.rawValue, forKey: "FamoPanelFontDesign")
-    }
-  }
-
   /// Candidate-bar animations (highlight slide / expand). Key `"FamoPanelAnimations"`,
   /// default `true`. Reduce Motion still wins when the user has it on.
   static var animationsEnabled: Bool {
@@ -329,14 +238,14 @@ enum FamoPanelPreferences {
 /// The panel's visual preferences frozen at one instant, injected into the candidate panel so it
 /// renders from a value instead of reaching into `FamoPanelPreferences` / `FamoSkinPreferences`
 /// live mid-render (C3, task 07-05-famo-composition-render-seam). Mirrors the `FamoFuzzySnapshot`
-/// / `FamoKeyboardSnapshot` precedent (Sendable value + `current()` factory). Carries the 9 fields
+/// / `FamoKeyboardSnapshot` precedent (Sendable value + `current()` factory). Carries the fields
 /// `FamoSwiftUICandidatePanel` applies; `orientation` stays raw — the panel resolves it against the
 /// composition's `isVertical` + `schemaID`. Distinct from the domain **Snapshot** (a Composition
 /// capture for stale-work rejection); this is a Preferences snapshot, domain-qualified by name.
 struct FamoPanelSnapshot: Sendable, Equatable {
   let orientation: FamoPanelOrientation
   let fontSize: FamoPanelFontSize
-  let fontDesign: FamoPanelFontDesign
+  let candidatePanelSettings: FamoCandidatePanelSettings.Snapshot
   let animationsEnabled: Bool
   let showPreedit: Bool
   let showPaging: Bool
@@ -349,11 +258,13 @@ struct FamoPanelSnapshot: Sendable, Equatable {
 
   /// Read every backing preference once. Called by the controller (in `showPanel`) per composition,
   /// and by the panel's `refreshPreferences()` on a settings-driven look change.
-  static func current() -> FamoPanelSnapshot {
+  static func current(
+    candidatePanelSettings: FamoCandidatePanelSettings = .live
+  ) -> FamoPanelSnapshot {
     FamoPanelSnapshot(
       orientation: FamoPanelPreferences.orientation,
       fontSize: FamoPanelPreferences.fontSize,
-      fontDesign: FamoPanelPreferences.fontDesign,
+      candidatePanelSettings: candidatePanelSettings.snapshot(),
       animationsEnabled: FamoPanelPreferences.animationsEnabled,
       showPreedit: FamoPanelPreferences.showPreedit,
       showPaging: FamoPanelPreferences.showPaging,

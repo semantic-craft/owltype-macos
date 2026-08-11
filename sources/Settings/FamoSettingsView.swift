@@ -398,7 +398,7 @@ struct FamoSettingsView: View {
         .font(.system(size: 11))
         .foregroundStyle(palette.ink3)
       Button {
-        NSWorkspace.shared.open(FamoPanelFontDesign.notoSerifSCDownloadURL)
+        NSWorkspace.shared.open(FamoCandidateFontSelection.notoSerifSCDownloadURL)
       } label: {
         Label("下载 Noto Serif SC 字体", systemImage: "arrow.down.circle")
       }
@@ -412,7 +412,7 @@ struct FamoSettingsView: View {
     VStack(alignment: .leading, spacing: 8) {
       Text("本机未安装 Maple Mono；候选窗会先用系统等宽字体回退。下载后解压，双击字体文件即可安装。")
         .font(.system(size: 11)).foregroundStyle(palette.ink3)
-      Button { NSWorkspace.shared.open(FamoPanelFontDesign.mapleMonoDownloadURL) } label: {
+      Button { NSWorkspace.shared.open(FamoCandidateFontSelection.mapleMonoDownloadURL) } label: {
         Label("下载 Maple Mono CN 字体包", systemImage: "arrow.down.circle")
       }
       .buttonStyle(FamoFilledButtonStyle(palette: palette))
@@ -423,12 +423,11 @@ struct FamoSettingsView: View {
 
   // MARK: - Candidate display (G8)
 
-  /// 候选显示: orientation / typeface / count / animation / scroll-vs-single. The four
-  /// panel options write through `FamoPanelPreferences` (live — next composition reflects
-  /// them, like 候选窗外观). 候选个数 is Rime `menu/page_size`, so it flows through the
-  /// keyboard patch + the fast config_file apply (`onApplyKeyboardConfigFast`) — effective
-  /// immediately, no full `deploy()`. Each `Binding` writes BOTH the observable mirror AND
-  /// the prefs home, keeping the UserDefaults key strings in one place.
+  /// 候选显示: orientation / typeface / count / animation / scroll-vs-single. Font edits cross
+  /// `FamoCandidatePanelSettings` as one lifecycle; the remaining panel options still write
+  /// through `FamoPanelPreferences` (live — next composition reflects them, like 候选窗外观).
+  /// 候选个数 is Rime `menu/page_size`, so it flows through the keyboard patch + the fast
+  /// config_file apply (`onApplyKeyboardConfigFast`) — effective immediately, no full `deploy()`.
   private var candidateDisplaySection: some View {
     let orientationBinding = Binding(
       get: { state.panelOrientation },
@@ -440,13 +439,11 @@ struct FamoSettingsView: View {
         }
       }
     )
-    let fontDesignBinding = Binding(
-      get: { state.panelFontDesign },
+    let fontSelectionBinding = Binding(
+      get: { state.candidateFont.selection },
       set: { newValue in
-        persistPanelPreference {
-          FamoSettingsActions.set(newValue, state: state, keyPath: \.panelFontDesign) {
-            FamoPanelPreferences.fontDesign = $0
-          }
+        FamoCandidatePanelSettings.live.editFont(newValue, state: state) {
+          onPanelPreferencesChanged()
         }
       }
     )
@@ -565,14 +562,14 @@ struct FamoSettingsView: View {
             .font(.system(size: 13, weight: .medium))
             .foregroundStyle(palette.ink2)
           FamoSegmentedControl(
-            selection: fontDesignBinding,
+            selection: fontSelectionBinding,
             options: [("默认", .default), ("衬线", .serif), ("圆体", .rounded), ("Noto Serif SC", .notoSerifSC), ("Maple Mono", .mapleMono)],
             palette: palette
           )
-          if state.panelFontDesign == .notoSerifSC && !FamoPanelFontDesign.isNotoSerifSCInstalled {
+          if state.candidateFont.unavailableSelection == .notoSerifSC {
             notoSerifSCDownloadPrompt
           }
-          if state.panelFontDesign == .mapleMono && !FamoPanelFontDesign.isMapleMonoInstalled {
+          if state.candidateFont.unavailableSelection == .mapleMono {
             mapleMonoDownloadPrompt
           }
         }

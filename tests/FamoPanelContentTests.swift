@@ -301,7 +301,7 @@ final class FamoScrollRowsPlanTests: XCTestCase {
     FamoPanelSnapshot(
       orientation: orientation,
       fontSize: .medium,
-      fontDesign: .default,
+      candidatePanelSettings: .init(font: .systemDefault),
       animationsEnabled: true,
       showPreedit: true,
       showPaging: true,

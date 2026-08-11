@@ -137,11 +137,13 @@ final class FamoSettingsState {
   /// 拨的是候选字与面板留白一起缩放后的整块面板大小。Seeded and written through the same
   /// way as `panelAppearance`.
   var panelFontSize: FamoPanelFontSize = .medium
-  /// G8 候选显示 mirrors of `FamoPanelPreferences` — orientation (横排/竖排/卷轴), candidate
-  /// typeface (候选字体), animation toggle (候选条动画). Seeded + written like `panelAppearance`.
+  /// G8 候选显示 mirrors of `FamoPanelPreferences` — orientation (横排/竖排/卷轴) and animation
+  /// toggle (候选条动画). Seeded + written like `panelAppearance`.
   var panelOrientation: FamoPanelOrientation = .auto
-  var panelFontDesign: FamoPanelFontDesign = .default
   var panelAnimationsEnabled: Bool = true
+  /// Candidate font editing value. `FamoCandidatePanelSettings` owns seed, persistence, installed
+  /// family resolution, runtime snapshot, and panel apply as one lifecycle.
+  var candidateFont: FamoCandidateFont = .systemDefault
   /// Whether the panel renders its own 输入串 header. Seeded + written like the others.
   var panelShowPreedit: Bool = true
   /// 内嵌候选预览 (mirror of `FamoPanelPreferences.inlineCandidate`). Feature 3.

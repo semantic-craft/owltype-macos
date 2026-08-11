@@ -131,10 +131,11 @@ final class FamoSettingsE2EContractTests: XCTestCase {
   }
 
   func testPanelEmojiSkinAIAndExperimentalSettingsPersistToRuntimeHomes() throws {
+    let panelEditingState = FamoSettingsState()
     FamoPanelPreferences.appearance = .dark
     FamoPanelPreferences.fontSize = .large
     FamoPanelPreferences.orientation = .vertical
-    FamoPanelPreferences.fontDesign = .notoSerifSC
+    FamoCandidatePanelSettings.live.editFont(.notoSerifSC, state: panelEditingState, onChange: {})
     FamoPanelPreferences.animationsEnabled = false
     FamoSkinPreferences.skin = .wuda
     FamoCloudPreferences.isEnabled = true
@@ -144,7 +145,7 @@ final class FamoSettingsE2EContractTests: XCTestCase {
     XCTAssertEqual(FamoPanelPreferences.appearance, .dark)
     XCTAssertEqual(FamoPanelPreferences.fontSize, .large)
     XCTAssertTrue(FamoPanelPreferences.orientation.isVertical(rimeVertical: false, schemaID: "rime_ice"))
-    XCTAssertEqual(FamoPanelPreferences.fontDesign, .notoSerifSC)
+    XCTAssertEqual(FamoCandidatePanelSettings.live.snapshot().font.selection, .notoSerifSC)
     XCTAssertFalse(FamoPanelPreferences.animationsEnabled)
     XCTAssertEqual(FamoSkinPreferences.skin, .wuda)
     XCTAssertTrue(FamoCloudPreferences.isEnabled)
@@ -261,7 +262,7 @@ final class FamoSettingsE2EContractTests: XCTestCase {
     FamoPanelPreferences.appearance = .system
     FamoPanelPreferences.fontSize = .medium
     FamoPanelPreferences.orientation = .auto
-    FamoPanelPreferences.fontDesign = .default
+    FamoCandidatePanelSettings.live.editFont(.default, state: FamoSettingsState(), onChange: {})
     FamoPanelPreferences.animationsEnabled = true
     FamoSkinPreferences.skin = .deepred
     FamoCloudPreferences.resetForTesting()

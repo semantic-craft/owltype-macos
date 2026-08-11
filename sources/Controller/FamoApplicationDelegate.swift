@@ -378,7 +378,7 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
     state.panelFontSize = FamoPanelPreferences.fontSize
     // Seed the G8 候选显示 prefs from their single homes.
     state.panelOrientation = FamoPanelPreferences.orientation
-    state.panelFontDesign = FamoPanelPreferences.fontDesign
+    FamoCandidatePanelSettings.live.seed(state)
     state.panelAnimationsEnabled = FamoPanelPreferences.animationsEnabled
     state.panelShowPreedit = FamoPanelPreferences.showPreedit
     state.panelInlineCandidate = FamoPanelPreferences.inlineCandidate
