@@ -29,6 +29,24 @@ expect_fail() {
   fi
 }
 
+if PYTHONPATH="$ROOT/scripts" python3 - "$INVENTORY" <<'PY'
+import importlib.util
+import sys
+
+spec = importlib.util.spec_from_file_location("inventory_release_bundle", sys.argv[1])
+assert spec is not None and spec.loader is not None
+inventory = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(inventory)
+
+assert inventory.format_utc_timestamp("2026-08-11T16:09:47Z") == "2026-08-11T16:09:47Z"
+assert inventory.format_utc_timestamp("2026-08-12T00:09:47+08:00") == "2026-08-11T16:09:47Z"
+PY
+then
+  ok "inventory accepts ISO-8601 UTC designators and explicit offsets"
+else
+  bad "inventory must normalize valid Git commit timestamps"
+fi
+
 fake_bin="$work/fake-bin"
 build_log="$work/xcodebuild-invocations"
 mkdir -p "$fake_bin"
