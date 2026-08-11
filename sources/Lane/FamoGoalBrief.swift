@@ -6,8 +6,8 @@
 //  方法来自 Khazix「目标七问」（github.com/KKKKhazix/khazix-skills leader 技能的推文提炼）：
 //  目的 Why / 完成态 Done / 证据 Proof / 反作弊 Anti / 边界 Bounds / 取舍 Trade / 未知 Unknown。
 //
-//  管线整体照搬「提示词优化」（FamoPromptOptimizer，issue #138）：同一个 outcome/澄清/取数
-//  协议、同一个 parse 与三明治护栏——两技能只差 system prompt 与用户可读文案。
+//  鉴权、受保护草稿、澄清、transport 与 outcome safety 由 FamoStructuredDrafting 统一负责；
+//  本文件只保留目标七问 prompt 与任务书自己的用户文案。
 //
 
 import Foundation
@@ -33,9 +33,9 @@ enum FamoGoalBriefError: Error, Equatable {
   }
 }
 
-/// 走直接请求路径的取数客户端，复用提示词优化的取数协议（`FamoPromptOptimizeFetching`）——
-/// 同样需要 json_object、temperature 0.2 与 DeepSeek thinking 控制，流式装配带不上这些。
-struct FamoGoalBriefClient: FamoPromptOptimizeFetching {
+/// 任务书的 live remote adapter。HTTP/wire 细节统一委托给 structured-drafting client；
+/// 带固定路由的 convenience method 只供既有 live integration test 驱动同一模块全流程。
+struct FamoGoalBriefClient: FamoStructuredDraftingRemote {
   let endpoint: URL
   let model: String
   /// 活跃档案的供应商 id，用来选关思考的字段方言（见 `FamoThinkingControl`）。
@@ -63,94 +63,37 @@ struct FamoGoalBriefClient: FamoPromptOptimizeFetching {
     clarifications: [FamoPromptClarification],
     apiKey: String
   ) async throws -> FamoPromptOptimizeOutcome {
-    // 观测只落请求形状（model + 补答轮数），绝不落草稿本身——草稿是用户的需求描述。
-    FamoLiveInputTrace.write {
-      "goal-brief model=\(model) clarifications=\(clarifications.count)"
-    }
+    let routing = FamoCloudRouting(
+      providerID: providerID,
+      endpoint: endpoint,
+      model: model,
+      secretName: nil,
+      authHeaderStyle: authHeaderStyle
+    )
+    let module = FamoStructuredDrafting(
+      configuration: FamoGoalBrief.structuredDraftingConfiguration,
+      cloudEnabled: { true },
+      authorization: { .ready(routing: routing, apiKey: apiKey) },
+      remote: self
+    )
+    return try await module.draft(draft, clarifications: clarifications)
+  }
 
-    let payload = FamoGoalBrief.chatRequest(
-      forDraft: draft, clarifications: clarifications, model: model, providerID: providerID)
-    let responsesDialect = FamoResponsesWire.dialect(
-      providerID: providerID, model: model, endpoint: endpoint)
-    let request: URLRequest
-    if let responsesDialect {
-      request = try FamoResponsesWire.request(
-        endpoint: endpoint,
-        model: model,
-        messages: payload.messages,
-        apiKey: apiKey,
-        authHeaderStyle: authHeaderStyle,
-        dialect: responsesDialect,
-        stream: false,
-        webSearch: false,
-        // 与下方 chat 分支的 `payload.responseFormat = .jsonObject` 对等，见 FamoResponsesWire。
-        jsonObject: true,
-        temperature: payload.temperature,
-        timeout: FamoPromptOptimizer.requestTimeout)
-    } else {
-      var chatRequest = URLRequest(url: endpoint)
-      chatRequest.httpMethod = "POST"
-      chatRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-      authHeaderStyle.apply(to: &chatRequest, apiKey: apiKey)
-      // 与提示词优化同一条超时理由：整份任务书是长产出，8 秒的候选补全超时必然掐断。
-      chatRequest.timeoutInterval = FamoPromptOptimizer.requestTimeout
-      chatRequest.httpBody = try JSONEncoder().encode(payload)
-      request = chatRequest
-    }
-
-    let (data, response) = try await urlSession.data(for: request)
-    if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-      throw FamoCloudRequestError.badHTTPStatus(http.statusCode)
-    }
-    if responsesDialect != nil {
-      let decoded = try FamoResponsesWire.parse(data)
-      if let usage = decoded.usage {
-        FamoCloudUsageTelemetry.record(FamoCloudUsageSnapshot(
-          model: decoded.model ?? model,
-          completionTokens: usage.outputTokens,
-          promptTokens: usage.inputTokens,
-          promptCacheHitTokens: usage.cachedTokens,
-          promptCacheMissTokens: max(0, usage.inputTokens - usage.cachedTokens),
-          totalTokens: usage.totalTokens))
-      }
-      guard !decoded.text.isEmpty else { throw FamoCloudRequestError.emptyResponse }
-      return FamoPromptOptimizer.parse(decoded.text)
-    }
-
-    let decoded = try JSONDecoder().decode(FamoDeepSeekClient.Response.self, from: data)
-    if let usage = decoded.usage {
-      // 只落 model + token 计数，与候选道同策；绝不落草稿或产出。
-      FamoCloudUsageTelemetry.record(
-        FamoCloudUsageSnapshot(
-          model: decoded.model ?? model,
-          completionTokens: usage.completionTokens,
-          promptTokens: usage.promptTokens,
-          promptCacheHitTokens: usage.promptCacheHitTokens ?? 0,
-          promptCacheMissTokens: usage.promptCacheMissTokens ?? 0,
-          totalTokens: usage.totalTokens
-        )
-      )
-    }
-    guard let content = decoded.choices.first?.message.content else {
-      throw FamoCloudRequestError.emptyResponse
-    }
-    // JSON 协议与提示词优化完全同形（ok/needs_clarification + prompt/questions），共用解析器。
-    return FamoPromptOptimizer.parse(content)
+  func fetch(_ request: FamoStructuredDraftingRemoteRequest) async throws -> String {
+    try await FamoStructuredDraftingClient(urlSession: urlSession).fetch(request)
   }
 }
 
-/// 任务书服务：先过守卫，再解析供应商路由，最后取数。结构对齐 `FamoPromptOptimizeService`。
+/// UI-facing façade. Shared structured drafting owns admission, auth ordering, request assembly,
+/// transport and safe parsing; this type only supplies live dependencies and keeps `compose`.
 @MainActor
 final class FamoGoalBriefService {
   static let shared = FamoGoalBriefService()
 
-  /// 注入用于测试；生产为 nil → 每次调用按当前 profile 的路由现建客户端。
-  private let injectedFetcher: FamoPromptOptimizeFetching?
-  /// 解析当前 profile → 路由 + 密钥。与划词润色/提示词优化同用一个网关（含 legacy DeepSeek 兜底）。
-  private let gate: FamoProviderAuthGate
+  private let module: FamoStructuredDrafting
 
   init(
-    fetcher: FamoPromptOptimizeFetching? = nil,
+    remote: FamoStructuredDraftingRemote? = nil,
     apiKeyProvider: @escaping () throws -> String? = FamoCloudKeychain.readDeepSeekAPIKey,
     profileProvider: @escaping () -> FamoProviderProfile? = {
       FamoProviderProfileStore.shared.defaultProfile
@@ -159,53 +102,24 @@ final class FamoGoalBriefService {
       try FamoProviderKeychain().secret(named: $0)
     }
   ) {
-    self.injectedFetcher = fetcher
-    self.gate = FamoProviderAuthGate(
+    let gate = FamoProviderAuthGate(
       profileProvider: profileProvider,
       profileSecretProvider: profileSecretProvider,
       legacyKeyProvider: apiKeyProvider
     )
+    self.module = FamoStructuredDrafting(
+      configuration: FamoGoalBrief.structuredDraftingConfiguration,
+      cloudEnabled: { FamoCloudPreferences.isEnabled },
+      authorization: { gate.resolve() },
+      remote: remote ?? FamoStructuredDraftingClient()
+    )
   }
 
-  /// 上传前的准入：空选区没什么可整理，超长选区沿用划词润色同一条隐私/成本上限
-  /// （`FamoSelectionPolish.maxSelectionLength`），绝不把超大选区送上云端。
-  static func rejectionReason(for draft: String) -> FamoGoalBriefError? {
-    let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-    if trimmed.isEmpty { return .emptyDraft }
-    if trimmed.count > FamoSelectionPolish.maxSelectionLength {
-      return .draftTooLong(trimmed.count)
-    }
-    return nil
-  }
-
-  /// 守卫跑在任何 keychain / 网络动作之前。
   func compose(
     _ draft: String,
     clarifications: [FamoPromptClarification] = []
   ) async throws -> FamoPromptOptimizeOutcome {
-    guard FamoCloudPreferences.isEnabled else { throw FamoGoalBriefError.disabled }
-    if let reason = Self.rejectionReason(for: draft) { throw reason }
-
-    let routing: FamoCloudRouting
-    let apiKey: String
-    switch gate.resolve() {
-    case let .ready(resolvedRouting, resolvedKey):
-      routing = resolvedRouting
-      apiKey = resolvedKey
-    case .unconfigured, .missingKey:
-      throw FamoGoalBriefError.missingAPIKey
-    }
-
-    let fetcher =
-      injectedFetcher
-      ?? FamoGoalBriefClient(
-        endpoint: routing.endpoint,
-        model: routing.model,
-        providerID: routing.providerID,
-        authHeaderStyle: routing.authHeaderStyle
-      )
-    return try await fetcher.fetchOptimizedPrompt(
-      forDraft: draft, clarifications: clarifications, apiKey: apiKey)
+    try await module.draft(draft, clarifications: clarifications)
   }
 }
 
@@ -245,51 +159,40 @@ enum FamoGoalBrief {
     只输出 JSON，不要解释，不要使用 Markdown 代码块。
     """
 
+  static let structuredDraftingConfiguration = FamoStructuredDraftingConfiguration(
+    systemPrompt: systemPrompt,
+    maxDraftLength: FamoSelectionPolish.maxSelectionLength,
+    temperature: 0.2,
+    requestTimeout: 60,
+    traceName: "goal-brief",
+    admissionError: { admission in
+      switch admission {
+      case .disabled:
+        return FamoGoalBriefError.disabled
+      case .emptyDraft:
+        return FamoGoalBriefError.emptyDraft
+      case .draftTooLong(let count):
+        return FamoGoalBriefError.draftTooLong(count)
+      case .missingAPIKey:
+        return FamoGoalBriefError.missingAPIKey
+      }
+    }
+  )
+
   /// 装配一次整理请求。纯函数（model 由调用方解析后传入），好让请求体可以在单测里断言。
-  /// 澄清重跑的承载方式与 `FamoPromptOptimizer.chatRequest` 逐字对齐（#137 落地后可换真多轮）。
   static func chatRequest(
     forDraft draft: String,
     clarifications: [FamoPromptClarification] = [],
     model: String,
     providerID: String = ""
   ) -> FamoDeepSeekChatRequest {
-    var messages = [
-      FamoDeepSeekMessage(role: "system", content: systemPrompt),
-      FamoDeepSeekMessage(role: "user", content: FamoPromptOptimizer.sandwiched(draft))
-    ]
-
-    if !clarifications.isEmpty {
-      let transcript =
-        clarifications
-        .map { "问：\($0.question)\n答：\($0.answer)" }
-        .joined(separator: "\n\n")
-      messages.append(
-        FamoDeepSeekMessage(
-          role: "user",
-          content: "以下是我对澄清问题的补答，请据此产出终稿：\n\n\(transcript)"
-        ))
-    }
-
-    // 全家一律关思考，逐家字段形状由 FamoThinkingControl 单一真相给出：providerID 优先
-    // （自定义档案的模型名可能不带标准前缀），传空时退回 model 前缀判定。
-    // · deepSeekStyle 三家（deepseek / mimo / doubao）：2026-07-28 实盘豆包 turbo，隐藏思考 +
-    //   整份任务书长产出超过 60s 硬超时被掐断（短澄清响应都带 254 个 reasoning token）——
-    //   超时归零比推理增益致命。
-    // · qwen：曾**故意保留**思考（理由是「长产出质量优先，推理对补齐七问有实益」），2026-07-28
-    //   实盘推翻——qwen3.7-plus 关思考 54.1s→17.3s，七问同样 7/7，终稿反而从 1219 字涨到 1404 字
-    //   且更具体（〈证据〉一节从「提供测试用例」写到了偏移量断言）。2256 个推理 token 没换来更好
-    //   的终稿，却把耗时顶到离 60s 硬超时只剩 6 秒（复跑摸到过 55.2s）。
-    let thinkingOff = FamoThinkingControl.offFields(providerID: providerID, model: model)
-
-    return FamoDeepSeekChatRequest(
+    FamoStructuredDrafting.chatRequest(
+      systemPrompt: systemPrompt,
+      draft: draft,
+      clarifications: clarifications,
       model: model,
-      messages: messages,
-      // 整理要稳定复现，对齐提示词优化的 0.2。
-      temperature: 0.2,
-      stream: false,
-      responseFormat: .jsonObject,
-      thinking: thinkingOff.thinking,
-      enableThinking: thinkingOff.enableThinking
+      providerID: providerID,
+      temperature: structuredDraftingConfiguration.temperature
     )
   }
 }

@@ -293,28 +293,6 @@ final class FamoProviderResponseShapeTests: XCTestCase {
 
 // MARK: - Structured-drafting module
 
-/// #115 owns the GoalBrief migration and still compiles its service tests against this legacy fake.
-@MainActor
-final class FakePromptOptimizeFetcher: FamoPromptOptimizeFetching {
-  private(set) var calls = 0
-  private(set) var lastDraft: String?
-  private(set) var lastClarifications: [FamoPromptClarification] = []
-  private(set) var lastAPIKey: String?
-  var result: FamoPromptOptimizeOutcome = .ready("优化后的提示词")
-
-  func fetchOptimizedPrompt(
-    forDraft draft: String,
-    clarifications: [FamoPromptClarification],
-    apiKey: String
-  ) async throws -> FamoPromptOptimizeOutcome {
-    calls += 1
-    lastDraft = draft
-    lastClarifications = clarifications
-    lastAPIKey = apiKey
-    return result
-  }
-}
-
 @MainActor
 final class MockStructuredDraftingRemote: FamoStructuredDraftingRemote {
   private(set) var requests: [FamoStructuredDraftingRemoteRequest] = []

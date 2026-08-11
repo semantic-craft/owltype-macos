@@ -31,20 +31,9 @@ enum FamoPromptOptimizeError: Error, Equatable {
   }
 }
 
-/// #115 迁移任务书前保留的旧取数协议。提示词优化本身已经走 `FamoStructuredDraftingRemote`；
-/// 任务书仍在本票范围外，暂时用这份既有签名承载其 client fake。
-@MainActor
-protocol FamoPromptOptimizeFetching {
-  func fetchOptimizedPrompt(
-    forDraft draft: String,
-    clarifications: [FamoPromptClarification],
-    apiKey: String
-  ) async throws -> FamoPromptOptimizeOutcome
-}
-
 /// 提示词优化的 live remote adapter。HTTP/wire 细节统一委托给 structured-drafting client；
 /// 带固定路由的 convenience method 只供既有 live integration test 驱动同一模块全流程。
-struct FamoPromptOptimizeClient: FamoStructuredDraftingRemote, FamoPromptOptimizeFetching {
+struct FamoPromptOptimizeClient: FamoStructuredDraftingRemote {
   let endpoint: URL
   let model: String
   /// 活跃档案的供应商 id，用来选关思考的字段方言（见 `FamoThinkingControl`）。
@@ -133,7 +122,7 @@ final class FamoPromptOptimizeService {
 }
 
 enum FamoPromptOptimizer {
-  /// #115 前给任务书及 live evaluation 保留的领域入口；单一实现已经在 structured seam。
+  /// Live evaluation 保留的领域入口；单一实现已经在 structured seam。
   static let fallbackClarification = FamoStructuredDrafting.fallbackClarification
 
   /// 澄清问题上限：要预填进任意提问窗口的单行输入框，多了就没法用了。
@@ -241,8 +230,6 @@ enum FamoPromptOptimizer {
   /// 与 #136 的差别：只转义标签本身，不转义所有尖括号。草稿是待改写的正文，可能含
   /// `Array<String>` 这类代码；全量转义会毁掉保真度，而硬规则要求原样保留代码。
   ///
-  /// internal（原 private）：「任务书」（FamoGoalBrief）的输入同样是一段最容易被「执行」的
-  /// 指令草稿，复用同一道护栏，别让两份三明治各自漂移。
   static func sandwiched(_ draft: String) -> String {
     FamoStructuredDrafting.protectedDraft(draft)
   }
