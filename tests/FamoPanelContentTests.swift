@@ -482,3 +482,145 @@ final class FamoPanelSizeTests: XCTestCase {
     XCTAssertEqual(CandidatePanelState().fontSize, FamoPanelFontSize.medium.base)
   }
 }
+
+// MARK: - 横排候选窗 resolved geometry
+
+/// 这里锁的是横排视图实际消费的组合结果，而不是再次复述 `metric` 的缩放公式。
+/// 每一档都同时覆盖字号、输入串/首候选对齐、选中块、最小宽度、翻页与展开 affordance。
+final class FamoCandidatePanelGeometryTests: XCTestCase {
+
+  private struct Expected {
+    let size: FamoPanelFontSize
+    let minimumWidth: CGFloat
+    let selectionInset: CGFloat
+    let selectionRadius: CGFloat
+    let headerSpacing: CGFloat
+    let headerLeading: CGFloat
+    let headerTrailing: CGFloat
+    let headerTop: CGFloat
+    let headerBottom: CGFloat
+    let rowSpacing: CGFloat
+    let pillHorizontal: CGFloat
+    let pillVertical: CGFloat
+    let chevronFont: CGFloat
+    let chevronHitPadding: CGFloat
+    let chevronClearance: CGFloat
+  }
+
+  private let expected: [Expected] = [
+    Expected(size: .small, minimumWidth: 177, selectionInset: 4, selectionRadius: 9,
+             headerSpacing: 7, headerLeading: 11, headerTrailing: 7, headerTop: 8, headerBottom: 4,
+             rowSpacing: 5, pillHorizontal: 7, pillVertical: 6,
+             chevronFont: 11, chevronHitPadding: 3, chevronClearance: 22),
+    Expected(size: .medium, minimumWidth: 210, selectionInset: 5, selectionRadius: 8,
+             headerSpacing: 8, headerLeading: 13, headerTrailing: 8, headerTop: 9, headerBottom: 5,
+             rowSpacing: 6, pillHorizontal: 8, pillVertical: 7,
+             chevronFont: 14, chevronHitPadding: 4, chevronClearance: 28),
+    Expected(size: .large, minimumWidth: 254, selectionInset: 6, selectionRadius: 7,
+             headerSpacing: 10, headerLeading: 16, headerTrailing: 10, headerTop: 11, headerBottom: 6,
+             rowSpacing: 7, pillHorizontal: 10, pillVertical: 8,
+             chevronFont: 18, chevronHitPadding: 5, chevronClearance: 35),
+    Expected(size: .extraLarge, minimumWidth: 298, selectionInset: 7, selectionRadius: 6,
+             headerSpacing: 11, headerLeading: 18, headerTrailing: 11, headerTop: 13, headerBottom: 7,
+             rowSpacing: 9, pillHorizontal: 11, pillVertical: 10,
+             chevronFont: 22, chevronHitPadding: 6, chevronClearance: 43),
+  ]
+
+  func testFourSizesResolveTheCompleteHorizontalComposition() {
+    for want in expected {
+      let geometry = FamoCandidatePanelGeometry(
+        base: want.size.base,
+        panelCornerRadius: 13
+      )
+
+      XCTAssertEqual(geometry.base, want.size.base, want.size.rawValue)
+      XCTAssertEqual(geometry.minimumWidth, want.minimumWidth, want.size.rawValue)
+      XCTAssertEqual(geometry.selectionInset, want.selectionInset, want.size.rawValue)
+      XCTAssertEqual(geometry.selectionRadius, want.selectionRadius, want.size.rawValue)
+
+      XCTAssertEqual(geometry.header.preeditFontSize, want.size.base - 3, want.size.rawValue)
+      XCTAssertEqual(geometry.header.spacing, want.headerSpacing, want.size.rawValue)
+      XCTAssertEqual(geometry.header.leadingPadding, want.headerLeading, want.size.rawValue)
+      XCTAssertEqual(geometry.header.trailingPadding, want.headerTrailing, want.size.rawValue)
+      XCTAssertEqual(geometry.header.topPadding, want.headerTop, want.size.rawValue)
+      XCTAssertEqual(geometry.header.bottomPadding, want.headerBottom, want.size.rawValue)
+
+      XCTAssertEqual(geometry.compactRow.inset, want.selectionInset, want.size.rawValue)
+      XCTAssertEqual(geometry.mainRow.spacing, want.rowSpacing, want.size.rawValue)
+      XCTAssertEqual(geometry.compactPill.candidateFontSize, want.size.base + 1, want.size.rawValue)
+      XCTAssertEqual(geometry.compactPill.secondaryFontSize, want.size.base * 0.72, accuracy: 0.0001,
+                     want.size.rawValue)
+      XCTAssertEqual(geometry.compactPill.horizontalPadding, want.pillHorizontal, want.size.rawValue)
+      XCTAssertEqual(geometry.compactPill.verticalPadding, want.pillVertical, want.size.rawValue)
+
+      XCTAssertEqual(geometry.expandChevron.fontSize, want.chevronFont, want.size.rawValue)
+      XCTAssertEqual(geometry.expandChevron.hitPadding, want.chevronHitPadding, want.size.rawValue)
+      XCTAssertEqual(geometry.chevronClearance, want.chevronClearance, want.size.rawValue)
+    }
+  }
+
+  func testHeaderAndAffordancesKeepTheirCompositionInvariants() {
+    for size in FamoPanelFontSize.allCases {
+      let geometry = FamoCandidatePanelGeometry(base: size.base, panelCornerRadius: 13)
+
+      // 输入串和首候选文字从面板左壁起使用同一条 resolved 路径。
+      XCTAssertEqual(
+        geometry.header.leadingPadding,
+        geometry.compactRow.inset + geometry.compactPill.horizontalPadding,
+        size.rawValue
+      )
+
+      // HStack 为展开按钮保留完整命中宽与前导间距；overlay 形态还会额外保留右壁净空。
+      XCTAssertEqual(
+        geometry.expandChevronReservedWidth,
+        geometry.mainRow.expandChevronLeadingPadding + geometry.expandChevron.hitWidth,
+        size.rawValue
+      )
+      XCTAssertGreaterThanOrEqual(
+        geometry.chevronClearance,
+        geometry.expandChevron.hitWidth + geometry.expandChevron.trailingClearance,
+        size.rawValue
+      )
+    }
+  }
+
+  func testRowPillAndAffordanceSpacingStayOnTheFourSizeTable() {
+    let contentSpacing: [CGFloat] = [4, 5, 6, 7]
+    let dividerPadding: [CGFloat] = [4, 5, 6, 7]
+    let chevronLeading: [CGFloat] = [3, 4, 5, 6]
+    let pageDotsTrailing: [CGFloat] = [3, 4, 5, 6]
+    let provenanceHorizontal: [CGFloat] = [3, 4, 5, 6]
+    let provenanceVertical: [CGFloat] = [3, 3, 4, 4]
+
+    for (index, size) in FamoPanelFontSize.allCases.enumerated() {
+      let geometry = FamoCandidatePanelGeometry(base: size.base, panelCornerRadius: 13)
+      XCTAssertEqual(geometry.compactPill.contentSpacing, contentSpacing[index], size.rawValue)
+      XCTAssertEqual(geometry.mainRow.dividerHorizontalPadding, dividerPadding[index], size.rawValue)
+      XCTAssertEqual(geometry.mainRow.expandChevronLeadingPadding, chevronLeading[index], size.rawValue)
+      XCTAssertEqual(geometry.pageDots.trailingPadding, pageDotsTrailing[index], size.rawValue)
+      XCTAssertEqual(
+        geometry.compactPill.provenanceHorizontalPadding,
+        provenanceHorizontal[index],
+        size.rawValue
+      )
+      XCTAssertEqual(
+        geometry.compactPill.provenanceVerticalPadding,
+        provenanceVertical[index],
+        size.rawValue
+      )
+    }
+  }
+
+  func testHairlineAndPagingHitAreaStayFixedAcrossAllSizes() {
+    for size in FamoPanelFontSize.allCases {
+      let geometry = FamoCandidatePanelGeometry(base: size.base, panelCornerRadius: 13)
+      XCTAssertEqual(geometry.mainRow.dividerWidth, 1, size.rawValue)
+      XCTAssertEqual(geometry.mainRow.dividerHeight, size.base * 0.9, size.rawValue)
+      XCTAssertEqual(geometry.pageDots.hitSize, 18, size.rawValue)
+      XCTAssertEqual(geometry.pageDots.dotDiameter, 5, size.rawValue)
+      XCTAssertEqual(geometry.header.spacerMinimumLength, 2, size.rawValue)
+      XCTAssertEqual(geometry.header.delimiterHorizontalPadding, 2, size.rawValue)
+      XCTAssertEqual(geometry.header.caretHorizontalPadding, 0.5, size.rawValue)
+    }
+  }
+}

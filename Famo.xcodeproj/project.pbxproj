@@ -107,6 +107,7 @@
 		FA000203CAFE0203CAFE0203 /* FamoStyleFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000202CAFE0202CAFE0202 /* FamoStyleFlags.swift */; };
 		FA000011CAFE0011CAFE0011 /* FamoCandidatePanelState.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000001CAFE0001CAFE0001 /* FamoCandidatePanelState.swift */; };
 		FA000012CAFE0012CAFE0012 /* FamoCandidatePanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000002CAFE0002CAFE0002 /* FamoCandidatePanelView.swift */; };
+		FA010801CAFE0108CAFE0108 /* FamoCandidatePanelGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA010800CAFE0108CAFE0108 /* FamoCandidatePanelGeometry.swift */; };
 		FA000013CAFE0013CAFE0013 /* FamoSwiftUICandidatePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000003CAFE0003CAFE0003 /* FamoSwiftUICandidatePanel.swift */; };
 		FA000014CAFE0014CAFE0014 /* FamoSettingsState.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000004CAFE0004CAFE0004 /* FamoSettingsState.swift */; };
 		FA000118CAFE0118CAFE0118 /* FamoSettingsActions+Stores.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000117CAFE0117CAFE0117 /* FamoSettingsActions+Stores.swift */; };
@@ -498,6 +499,7 @@
 		FA000202CAFE0202CAFE0202 /* FamoStyleFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoStyleFlags.swift; path = sources/Settings/FamoStyleFlags.swift; sourceTree = "<group>"; };
 		FA000001CAFE0001CAFE0001 /* FamoCandidatePanelState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoCandidatePanelState.swift; path = sources/Candidates/FamoCandidatePanelState.swift; sourceTree = "<group>"; };
 		FA000002CAFE0002CAFE0002 /* FamoCandidatePanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoCandidatePanelView.swift; path = sources/UI/FamoCandidatePanelView.swift; sourceTree = "<group>"; };
+		FA010800CAFE0108CAFE0108 /* FamoCandidatePanelGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoCandidatePanelGeometry.swift; path = sources/UI/FamoCandidatePanelGeometry.swift; sourceTree = "<group>"; };
 		FA000003CAFE0003CAFE0003 /* FamoSwiftUICandidatePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSwiftUICandidatePanel.swift; path = sources/UI/FamoSwiftUICandidatePanel.swift; sourceTree = "<group>"; };
 		FA000004CAFE0004CAFE0004 /* FamoSettingsState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSettingsState.swift; path = sources/Settings/FamoSettingsState.swift; sourceTree = "<group>"; };
 		FA000117CAFE0117CAFE0117 /* FamoSettingsActions+Stores.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "FamoSettingsActions+Stores.swift"; path = "sources/Settings/FamoSettingsActions+Stores.swift"; sourceTree = "<group>"; };
@@ -705,6 +707,7 @@
 				FA000200CAFE0200CAFE0200 /* FamoStatusHUD.swift */,
 				FA000001CAFE0001CAFE0001 /* FamoCandidatePanelState.swift */,
 				FA000002CAFE0002CAFE0002 /* FamoCandidatePanelView.swift */,
+				FA010800CAFE0108CAFE0108 /* FamoCandidatePanelGeometry.swift */,
 				FA000003CAFE0003CAFE0003 /* FamoSwiftUICandidatePanel.swift */,
 				FA000004CAFE0004CAFE0004 /* FamoSettingsState.swift */,
 				FA000117CAFE0117CAFE0117 /* FamoSettingsActions+Stores.swift */,
@@ -1228,6 +1231,7 @@
 				FA000201CAFE0201CAFE0201 /* FamoStatusHUD.swift in Sources */,
 				FA000011CAFE0011CAFE0011 /* FamoCandidatePanelState.swift in Sources */,
 				FA000012CAFE0012CAFE0012 /* FamoCandidatePanelView.swift in Sources */,
+				FA010801CAFE0108CAFE0108 /* FamoCandidatePanelGeometry.swift in Sources */,
 				FA000013CAFE0013CAFE0013 /* FamoSwiftUICandidatePanel.swift in Sources */,
 				FA000014CAFE0014CAFE0014 /* FamoSettingsState.swift in Sources */,
 				FA000118CAFE0118CAFE0118 /* FamoSettingsActions+Stores.swift in Sources */,
