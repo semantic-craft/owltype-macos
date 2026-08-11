@@ -353,8 +353,18 @@ enum FamoKeyboardPreferences {
 
   // MARK: - 符号
 
-  // slash→顿号（FamoKeyboardSlashToDun）已于 07-21 按机主拍板整体下线：设置行与 patch 产出一并
-  // 移除，`/` 回归 rime-ice 原生行为；遗留的 UserDefaults 键无害、不迁移。
+  /// 输入中文时 "/" 弹出符号选单（、/／÷）。Key `"FamoKeyboardSlashSymbolMenu"`,
+  /// default `false`：关闭时维持法墨的编程便利行为——裸 `/` 提交当前中文候选、切到英文并
+  /// 输出 ASCII `/`；打开后前端不再抢占该键，交给 Rime punctuator 显示候选。
+  /// Runtime reads the cached value on the key-event hot path; the generated default patch supplies
+  /// both half/full-shape candidate lists.
+  static var slashSymbolMenu: Bool {
+    get { cachedSlashSymbolMenu }
+    set {
+      cachedSlashSymbolMenu = newValue
+      FamoDefaults.standard.set(newValue, forKey: "FamoKeyboardSlashSymbolMenu")
+    }
+  }
 
   /// 输入中文时 "<" 弹出符号选单（《〈 ASCII< 「【）。Key `"FamoKeyboardAngleSymbolMenu"`,
   /// default `false`（出厂关，与成对输入家族同策：不惊扰存量用户的 `<`→《 直上屏）。
@@ -433,6 +443,7 @@ enum FamoKeyboardPreferences {
   private static var cachedCJKEnglishSpacing = boolValue("FamoKeyboardCJKEnglishSpacing", default: false)
   private static var cachedCJKNumberSpacing = boolValue("FamoKeyboardCJKNumberSpacing", default: false)
   private static var cachedAutoPairBrackets = boolValue("FamoKeyboardAutoPairBrackets", default: false)
+  private static var cachedSlashSymbolMenu = boolValue("FamoKeyboardSlashSymbolMenu", default: false)
 
   /// Read a Bool that defaults to `defaultValue` when the key was never written,
   /// instead of UserDefaults' implicit `false`.

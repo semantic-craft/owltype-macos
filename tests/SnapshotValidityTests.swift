@@ -129,7 +129,10 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
     return dir
   }
 
-  private func keyboardSnapshot(fuzzy: FamoFuzzySnapshot? = nil) -> FamoKeyboardSnapshot {
+  private func keyboardSnapshot(
+    fuzzy: FamoFuzzySnapshot? = nil,
+    slashSymbolMenu: Bool = false
+  ) -> FamoKeyboardSnapshot {
     FamoKeyboardSnapshot(
       inputMethod: .pinyin,
       doublePinyin: .flypy,
@@ -144,7 +147,8 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
       wubiCodeHint: false,
       wubiAutoClear: false,
       wubiCandidateMode: .normal,
-      appEnglishBundleIDs: []
+      appEnglishBundleIDs: [],
+      slashSymbolMenu: slashSymbolMenu
     )
   }
 
@@ -210,8 +214,7 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
     XCTAssertEqual(settings.currentSyncDirectory().path, target.path)
   }
 
-  func testKeyboardPatchPlanOmitsRetiredSlashPunctuation() {
-    // slash→顿号 已按机主 07-21 拍板下线：默认快照的托管块不得再产出 `/` 的任何 punctuator 行。
+  func testKeyboardPatchPlanDefaultsSlashSymbolMenuOff() {
     let files = FamoManagedKeyboardPatchPlan.files(from: keyboardSnapshot())
     XCTAssertEqual(files.map(\.fileName), [
       "default.custom.yaml",
@@ -235,6 +238,24 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
     XCTAssertTrue(files[2].block.yamlLinesIndentedUnderPatch.isEmpty)
     XCTAssertEqual(files[3].block.marker, FamoManagedMarker.wubiJidian)
     XCTAssertTrue(files[3].block.yamlLinesIndentedUnderPatch.contains { $0.contains("translator/comment_format") })
+  }
+
+  func testKeyboardPatchPlanIncludesSlashSymbolMenuWhenEnabled() {
+    let files = FamoManagedKeyboardPatchPlan.files(from: keyboardSnapshot(slashSymbolMenu: true))
+    let text = files[0].block.yamlLinesIndentedUnderPatch.joined(separator: "\n")
+    XCTAssertTrue(text.contains("\"punctuator/half_shape/+\":"))
+    XCTAssertTrue(text.contains("\"punctuator/full_shape/+\":"))
+    XCTAssertTrue(text.contains("\"/\": [\"、\", \"/\", \"／\", \"÷\"]"))
+
+    for file in files.dropFirst(3) {
+      let wubiText = file.block.yamlLinesIndentedUnderPatch.joined(separator: "\n")
+      XCTAssertTrue(wubiText.contains("\"punctuator/half_shape/+\":"), file.fileName)
+      XCTAssertTrue(wubiText.contains("\"punctuator/full_shape/+\":"), file.fileName)
+      XCTAssertTrue(
+        wubiText.contains("\"/\": [\"、\", \"/\", \"／\", \"÷\"]"),
+        file.fileName
+      )
+    }
   }
 
   func testKeyboardPatchPlanApplyPreservesExistingUserPatch() throws {
@@ -278,7 +299,7 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
     XCTAssertTrue(updated.contains("\"menu/page_size\": 8"))
     XCTAssertTrue(updated.contains("\"switcher/caption\": test"))
     XCTAssertTrue(updated.contains("# >>> \(FamoManagedMarker.defaultPatch)"))
-    // slash→顿号 已下线：重生成的托管块不得再带 `/` 行。
+    // 新开关默认关闭：重生成的托管块不得擅自改变 `/` 行为。
     XCTAssertFalse(updated.contains("\"/\": ["))
     let rimeIce = try String(contentsOf: dir.appendingPathComponent("rime_ice.custom.yaml"), encoding: .utf8)
     XCTAssertTrue(rimeIce.contains("# >>> \(FamoManagedMarker.rimeIce)"))

@@ -407,6 +407,7 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
     state.keyboardPageBrackets = FamoKeyboardPreferences.pageBrackets
     state.keyboardPageCommaPeriod = FamoKeyboardPreferences.pageCommaPeriod
     state.keyboardSelect23Semicolon = FamoKeyboardPreferences.select23Semicolon
+    state.keyboardSlashSymbolMenu = FamoKeyboardPreferences.slashSymbolMenu
     state.keyboardAngleSymbolMenu = FamoKeyboardPreferences.angleSymbolMenu
     state.keyboardCJKAlnumSpacing = FamoKeyboardPreferences.cjkAlnumSpacing
     state.keyboardCJKEnglishSpacing = FamoKeyboardPreferences.cjkEnglishSpacing

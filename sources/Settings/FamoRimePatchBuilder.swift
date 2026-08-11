@@ -25,7 +25,9 @@
 //  - `[]` 翻页 first disables rime-ice 以词定字 (`key_binder/select_first|last_character: ""`,
 //    a Lua processor that runs BEFORE key_binder) then sends Page_Up/Down.
 //  - 快速选词 → `send: 2/3` (not `select:`); Command stays commented (Squirrel 不稳, 需真机).
-//  - slash → 顿号（已于 07-21 按机主拍板整体下线；punctuator 通道现由 `<` 符号选单使用）.
+//  - `/` 符号选单 → default-off 的 half/full-shape punctuator 候选；拼音写入 default patch，
+//    四个五笔方案另写各自 schema patch，避免已编译的 import_preset 标点表不随 default 快速更新；
+//    关闭时不产出 patch，由 Famo 前端维持「提交当前候选、切英文、输出 ASCII slash」。
 //  - 全半角 / 中英标点 → `toggle: full_shape|ascii_punct` bindings (Squirrel/Weasel
 //    shifted-key names double-written; the generator DEDUPS) + `switcher/save_options/+`.
 //  - 默认方案顺序 → live `schema_list` (chosen 双拼 first) + `menu/page_size: 8`.
@@ -92,6 +94,8 @@ struct FamoKeyboardSnapshot: Sendable {
   // 「<」键弹出符号选单 → `punctuator/half_shape/<` 列表。`var`+默认，作 DEFAULTED 参，
   // 保现有 memberwise 调用点（selfCheck / tests）不动。
   var angleSymbolMenu: Bool = false
+  // 「/」键弹出符号选单 → half/full-shape 都覆盖为 [、 / ／ ÷]。默认关；`var`+默认同上。
+  var slashSymbolMenu: Bool = false
   // ` 临时英文（五笔前缀英文通道）→ 五笔 4 变体 custom.yaml 的 melt_eng 接线。`var`+默认同上。
   var wubiEnglishChannel: Bool = false
 
@@ -118,6 +122,7 @@ struct FamoKeyboardSnapshot: Sendable {
       wubiZReverseLookup: FamoKeyboardPreferences.wubiZReverseLookup,
       wubiUserDictLearning: FamoKeyboardPreferences.wubiUserDictLearning,
       angleSymbolMenu: FamoKeyboardPreferences.angleSymbolMenu,
+      slashSymbolMenu: FamoKeyboardPreferences.slashSymbolMenu,
       wubiEnglishChannel: FamoKeyboardPreferences.wubiEnglishChannel
     )
   }
@@ -326,6 +331,11 @@ func famoWubiCustomYAML(from s: FamoKeyboardSnapshot, target: FamoWubiPatchTarge
   lines.append("# 写入 ~/Library/Application Support/Famo/\(target.fileName) 后需在法墨设置里「应用配置改动」")
   lines.append("patch:")
 
+  // 五笔 schema 使用 `import_preset: default`，但快速部署 default.yaml 不会让已经编译的五笔
+  // schema 自动重建其 punctuator。把同一映射直接写进四个五笔 custom patch，随后部署当前
+  // schema，保证极点五笔、拼音混输及两个繁体变体都立即生效。
+  lines.append(contentsOf: slashSymbolMenuPatchLines(from: s))
+
   lines.append("  # 候选编码提示：默认隐藏五笔候选的编码。")
   if s.wubiCodeHint {
     lines.append("  \"translator/comment_format\": []")
@@ -444,10 +454,23 @@ private func fuzzyAlgebraDerives(from f: FamoFuzzySnapshot) -> [String] {
   return entries
 }
 
-/// Punctuator overrides.（slash→顿号 功能已按机主 07-21 拍板整体下线——行为回归 rime-ice 原生，
-/// 这里不再产出 `/` 的任何 patch；托管块重生成时旧行会随之消失。）
+/// `/` is a path separator in Rime patch keys, so it cannot be addressed as
+/// `punctuator/half_shape//`; merge a map containing the literal key instead. Both shape modes use
+/// the same list. This helper is shared by default.custom.yaml (拼音) and every 五笔 schema patch.
+private func slashSymbolMenuPatchLines(from s: FamoKeyboardSnapshot) -> [String] {
+  guard s.slashSymbolMenu else { return [] }
+  return [
+    "  # 符号：/ 弹出候选（、 ASCII/ 全角／ ÷）；关闭本开关时法墨改为切英文并直接输出 /",
+    "  \"punctuator/half_shape/+\":",
+    "    \"/\": [\"、\", \"/\", \"／\", \"÷\"]",
+    "  \"punctuator/full_shape/+\":",
+    "    \"/\": [\"、\", \"/\", \"／\", \"÷\"]",
+  ]
+}
+
+/// Punctuator overrides written to default.custom.yaml for the pinyin-family schemas.
 private func punctuatorPatchLines(from s: FamoKeyboardSnapshot) -> [String] {
-  var lines: [String] = []
+  var lines = slashSymbolMenuPatchLines(from: s)
   if s.angleSymbolMenu {
     // 只动 `<`（开括号），`>` 保持标量 `》` 直上屏——`>` 若变列表，每次闭合都弹菜单，且菜单确认
     // 的提交在 commit seam 会因 preedit 非空跳过右邻读，自动配对的 skip-over 就死了（见
@@ -558,10 +581,9 @@ func famoPatchBuilderSelfCheck() {
   assert(yaml.contains("ascii_composer/good_old_caps_lock"), "Famo patch builder: missing good_old_caps_lock")
   assert(!yaml.contains("speller/algebra"), "Famo patch builder: speller/algebra must not be in default.custom.yaml")
 
-  // v0.5 转正: with [] 翻页 + 快速选词 + `<` 符号选单 + 中英标点切换 all on,
+  // v0.5 转正: with [] 翻页 + 快速选词 + `/`/`<` 符号选单 + 中英标点切换 all on,
   // the default output must carry the now-LIVE keys (Q1–Q4), and the bindings list must
   // contain no duplicate lines (the double-written shifted keys are dedup'd).
-  // （slash→顿号 已于 07-21 下线，punctuator 断言改由 `<` 符号选单承载。）
   var promoted = FamoKeyboardSnapshot(
     inputMethod: .doublePinyin,
     doublePinyin: .flypy,
@@ -579,12 +601,13 @@ func famoPatchBuilderSelfCheck() {
     appEnglishBundleIDs: ["com.example.Editor"]
   )
   promoted.angleSymbolMenu = true
+  promoted.slashSymbolMenu = true
   let promotedYAML = famoDefaultCustomYAML(from: promoted)
   assert(promotedYAML.contains("select_first_character"), "Famo patch builder: missing [] 以词定字 disable")
   assert(promotedYAML.contains("bracketleft"), "Famo patch builder: missing [] 翻页 binding")
   assert(promotedYAML.contains("send: 2"), "Famo patch builder: missing ; 选第 2 位 binding")
+  assert(promotedYAML.contains("\"/\": [\"、\", \"/\", \"／\", \"÷\"]"), "Famo patch builder: missing `/` 符号选单 punctuator")
   assert(promotedYAML.contains("punctuator/half_shape/<"), "Famo patch builder: missing `<` 符号选单 punctuator")
-  assert(!promotedYAML.contains("\"/\": ["), "Famo patch builder: retired slash→顿号 must not be emitted")
   assert(promotedYAML.contains("toggle: ascii_punct"), "Famo patch builder: missing ascii_punct toggle")
   // app_options moved to the famo domain (task 07-08): default.custom.yaml must NOT carry it; the
   // dedicated famo.custom.yaml builder must.

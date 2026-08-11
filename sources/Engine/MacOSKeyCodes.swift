@@ -30,14 +30,19 @@ struct FamoKeycode {
     return ret
   }
 
-  /// `/` switches the IME to English (ASCII) mode globally for programming convenience
-  /// (task 06-30). PURE decision; the controller performs the commit / `set_option` side
-  /// effects. True only for a BARE slash (no Ctrl/Alt/Cmd) pressed while currently in Chinese
-  /// mode — so Control+slash (toggle simplification) and an already-English `/` are left alone.
+  /// `/` switches the IME to English (ASCII) mode globally for programming convenience unless the
+  /// user explicitly enabled the slash symbol menu. PURE decision; the controller performs the
+  /// commit / `set_option` side effects. True only for a BARE slash (no Ctrl/Alt/Cmd) pressed while
+  /// currently in Chinese mode — so Control+slash and an already-English `/` are left alone.
   /// CapsLock does not change `/`, so it does not block the switch. Schema-agnostic by
   /// construction: the decision sits above the active schema (works for pinyin / wubi / any).
-  static func slashSwitchesToEnglish(keycode: UInt32, modifiers: UInt32, asciiMode: Bool) -> Bool {
-    guard !asciiMode, keycode == UInt32(XK_slash) else { return false }
+  static func slashSwitchesToEnglish(
+    keycode: UInt32,
+    modifiers: UInt32,
+    asciiMode: Bool,
+    symbolMenuEnabled: Bool
+  ) -> Bool {
+    guard !symbolMenuEnabled, !asciiMode, keycode == UInt32(XK_slash) else { return false }
     let blocked = kControlMask.rawValue | kAltMask.rawValue | kSuperMask.rawValue
     return (modifiers & blocked) == 0
   }
