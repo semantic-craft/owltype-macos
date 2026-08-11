@@ -408,6 +408,19 @@ struct FamoSettingsView: View {
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 
+  private var mapleMonoDownloadPrompt: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("本机未安装 Maple Mono；候选窗会先用系统等宽字体回退。下载后解压，双击字体文件即可安装。")
+        .font(.system(size: 11)).foregroundStyle(palette.ink3)
+      Button { NSWorkspace.shared.open(FamoPanelFontDesign.mapleMonoDownloadURL) } label: {
+        Label("下载 Maple Mono CN 字体包", systemImage: "arrow.down.circle")
+      }
+      .buttonStyle(FamoFilledButtonStyle(palette: palette))
+      .accessibilityLabel("下载 Maple Mono CN 字体包")
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
   // MARK: - Candidate display (G8)
 
   /// 候选显示: orientation / typeface / count / animation / scroll-vs-single. The four
@@ -553,11 +566,14 @@ struct FamoSettingsView: View {
             .foregroundStyle(palette.ink2)
           FamoSegmentedControl(
             selection: fontDesignBinding,
-            options: [("默认", .default), ("衬线", .serif), ("圆体", .rounded), ("Noto Serif SC", .notoSerifSC)],
+            options: [("默认", .default), ("衬线", .serif), ("圆体", .rounded), ("Noto Serif SC", .notoSerifSC), ("Maple Mono", .mapleMono)],
             palette: palette
           )
           if state.panelFontDesign == .notoSerifSC && !FamoPanelFontDesign.isNotoSerifSCInstalled {
             notoSerifSCDownloadPrompt
+          }
+          if state.panelFontDesign == .mapleMono && !FamoPanelFontDesign.isMapleMonoInstalled {
+            mapleMonoDownloadPrompt
           }
         }
 

@@ -104,12 +104,13 @@ enum FamoPanelOrientation: String, CaseIterable, Sendable {
 }
 
 /// Candidate text typeface family (G8 候选显示). System choices map to SwiftUI
-/// `Font.Design`; `notoSerifSC` requests Google's Simplified Chinese serif when installed.
+/// `Font.Design`; named families use the installed font and fall back to the closest system design.
 enum FamoPanelFontDesign: String, CaseIterable, Sendable {
   case `default`
   case serif
   case rounded
   case notoSerifSC
+  case mapleMono
 
   var design: Font.Design {
     switch self {
@@ -117,10 +118,14 @@ enum FamoPanelFontDesign: String, CaseIterable, Sendable {
     case .serif: .serif
     case .rounded: .rounded
     case .notoSerifSC: .serif
+    case .mapleMono: .monospaced
     }
   }
 
   static let notoSerifSCDownloadURL = URL(string: "https://github.com/googlefonts/noto-cjk/raw/main/Serif/Variable/OTF/NotoSerifCJKsc-VF.otf")!
+  static let mapleMonoDownloadURL = URL(
+    string: "https://github.com/subframe7536/maple-font/releases/latest/download/MapleMono-CN.zip"
+  )!
 
   private static let notoSerifSCFamilies = [
     "Noto Serif SC",
@@ -128,8 +133,25 @@ enum FamoPanelFontDesign: String, CaseIterable, Sendable {
     "Noto Serif CJK SC VF",
   ]
 
+  /// Prefer the CJK builds for Chinese candidates, while accepting the regular and Nerd Font
+  /// families users may already have installed for editors or terminals.
+  private static let mapleMonoFamilies = [
+    "Maple Mono CN",
+    "Maple Mono NF CN",
+    "Maple Mono Normal CN",
+    "Maple Mono Normal NF CN",
+    "Maple Mono",
+    "Maple Mono NF",
+    "Maple Mono Normal",
+    "Maple Mono Normal NF"
+  ]
+
   static var isNotoSerifSCInstalled: Bool {
     installedNotoSerifSCFamily(in: NSFontManager.shared.availableFontFamilies) != nil
+  }
+
+  static var isMapleMonoInstalled: Bool {
+    installedMapleMonoFamily(in: NSFontManager.shared.availableFontFamilies) != nil
   }
 
   static func installedNotoSerifSCFamily(in availableFamilies: [String]) -> String? {
@@ -137,14 +159,27 @@ enum FamoPanelFontDesign: String, CaseIterable, Sendable {
     return notoSerifSCFamilies.first { installed.contains($0.lowercased()) }
   }
 
+  static func installedMapleMonoFamily(in availableFamilies: [String]) -> String? {
+    mapleMonoFamilies.lazy.compactMap { preferred in
+      availableFamilies.first { $0.caseInsensitiveCompare(preferred) == .orderedSame }
+    }.first
+  }
+
   func candidateFont(size: CGFloat) -> Font {
-    guard self == .notoSerifSC else {
+    switch self {
+    case .notoSerifSC:
+      guard let family = Self.installedNotoSerifSCFamily(in: NSFontManager.shared.availableFontFamilies) else {
+        return .system(size: size, design: .serif)
+      }
+      return .custom(family, size: size)
+    case .mapleMono:
+      guard let family = Self.installedMapleMonoFamily(in: NSFontManager.shared.availableFontFamilies) else {
+        return .system(size: size, design: .monospaced)
+      }
+      return .custom(family, size: size)
+    default:
       return .system(size: size, design: design)
     }
-    guard let family = Self.installedNotoSerifSCFamily(in: NSFontManager.shared.availableFontFamilies) else {
-      return .system(size: size, design: .serif)
-    }
-    return .custom(family, size: size)
   }
 }
 
