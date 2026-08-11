@@ -514,7 +514,7 @@ PY
 }
 write_source_manifest
 archive_source() {
-  COPYFILE_DISABLE=1 tar -czf "$source_archive" -C "$work" "$(basename "$source_root")"
+  python3 "$SOURCE_TOOL" archive "$source_root" "$source_archive"
   (
     cd "$release_dir"
     shasum -a 256 "$(basename "$source_archive")" >"$(basename "$source_archive").sha256"
@@ -532,11 +532,7 @@ path, cohort = sys.argv[1:]
 text = open(path).read().replace("cohort foreign-cohort", f"cohort {cohort}")
 open(path, "w").write(text)
 PY
-COPYFILE_DISABLE=1 tar -czf "$source_archive" -C "$work" "$(basename "$source_root")"
-(
-  cd "$release_dir"
-  shasum -a 256 "$(basename "$source_archive")" >"$(basename "$source_archive").sha256"
-)
+archive_source
 expect_fail "source archive internal manifest mismatch is rejected before binding" \
   "source archive manifest mismatch" \
   run_state register-output "$cohort_root" source-archive "$source_archive"
@@ -624,20 +620,42 @@ archive_source
 
 make_special_source_archive() {
   local member_type="$1"
-  python3 - "$source_root" "$source_archive" "$member_type" <<'PY'
+  archive_source
+  python3 - "$source_archive" "$member_type" <<'PY'
+import gzip
+import io
+import os
 import sys
 import tarfile
 from pathlib import Path
 
-source_root = Path(sys.argv[1])
-archive_path = Path(sys.argv[2])
-member_type = sys.argv[3]
-with tarfile.open(archive_path, "w:gz") as archive:
-    archive.add(source_root, arcname=source_root.name)
-    member = tarfile.TarInfo(f"{source_root.name}/outside-{member_type}")
-    member.type = tarfile.SYMTYPE if member_type == "symlink" else tarfile.LNKTYPE
-    member.linkname = "../../escape"
-    archive.addfile(member)
+archive_path = Path(sys.argv[1])
+member_type = sys.argv[2]
+with tarfile.open(archive_path, "r:gz") as archive:
+    members = []
+    for member in archive.getmembers():
+        extracted = archive.extractfile(member) if member.isfile() else None
+        members.append((member, extracted.read() if extracted is not None else None))
+
+root = members[0][0].name
+special = tarfile.TarInfo(f"{root}/zz-outside-{member_type}")
+special.type = tarfile.SYMTYPE if member_type == "symlink" else tarfile.LNKTYPE
+special.linkname = "../../escape"
+special.mode = 0o644
+special.uid = 0
+special.gid = 0
+special.uname = "root"
+special.gname = "root"
+special.mtime = 0
+members.append((special, None))
+
+temporary = archive_path.with_name(f".{archive_path.name}.special")
+with temporary.open("wb") as raw:
+    with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed:
+        with tarfile.open(fileobj=compressed, mode="w", format=tarfile.USTAR_FORMAT) as archive:
+            for member, data in sorted(members, key=lambda item: item[0].name.encode()):
+                archive.addfile(member, io.BytesIO(data) if data is not None else None)
+os.replace(temporary, archive_path)
 PY
   (
     cd "$release_dir"
