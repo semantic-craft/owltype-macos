@@ -4,12 +4,14 @@
 from __future__ import annotations
 
 import hashlib
+import gzip
 import io
 import os
 import stat
 import subprocess
 import sys
 import tarfile
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
@@ -23,6 +25,14 @@ class FileEntry:
 
 class SourceSnapshotError(RuntimeError):
     pass
+
+
+ARCHIVE_UID = 0
+ARCHIVE_GID = 0
+ARCHIVE_OWNER = "root"
+ARCHIVE_GROUP = "root"
+ARCHIVE_MTIME = 0
+ARCHIVE_GZIP_HEADER = b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x02\xff"
 
 
 def _git(repo: Path, *arguments: str) -> bytes:
@@ -198,13 +208,166 @@ def stage_git_source(repo: Path, revision: str, destination: Path) -> None:
         os.chmod(target, entry.mode)
 
 
-def main() -> None:
-    if len(sys.argv) != 5 or sys.argv[1] != "stage":
-        raise SystemExit(
-            f"usage: {Path(sys.argv[0]).name} stage REPOSITORY REVISION DESTINATION"
-        )
+def _archive_path_key(path: Path, root: Path) -> bytes:
+    if path == root:
+        return root.name.encode("utf-8")
+    return f"{root.name}/{path.relative_to(root).as_posix()}".encode("utf-8")
+
+
+def _canonical_archive_mode(path_stat: os.stat_result) -> int:
+    if stat.S_ISDIR(path_stat.st_mode):
+        return 0o755
+    if stat.S_IMODE(path_stat.st_mode) & 0o111:
+        return 0o755
+    return 0o644
+
+
+def _archive_info(name: str, path_stat: os.stat_result) -> tarfile.TarInfo:
+    member = tarfile.TarInfo(name)
+    member.uid = ARCHIVE_UID
+    member.gid = ARCHIVE_GID
+    member.uname = ARCHIVE_OWNER
+    member.gname = ARCHIVE_GROUP
+    member.mtime = ARCHIVE_MTIME
+    member.mode = _canonical_archive_mode(path_stat)
+    if stat.S_ISDIR(path_stat.st_mode):
+        member.type = tarfile.DIRTYPE
+        member.size = 0
+    else:
+        member.type = tarfile.REGTYPE
+        member.size = path_stat.st_size
+    return member
+
+
+def write_deterministic_archive(source_root: Path, output: Path) -> None:
+    source_root = source_root.absolute()
     try:
-        stage_git_source(Path(sys.argv[2]), sys.argv[3], Path(sys.argv[4]))
+        root_stat = source_root.lstat()
+    except OSError as error:
+        raise SourceSnapshotError(f"cannot read source archive root: {error}") from error
+    if not stat.S_ISDIR(root_stat.st_mode):
+        raise SourceSnapshotError(f"source archive root is not a directory: {source_root}")
+    if source_root.name in {"", ".", "..", ".git"}:
+        raise SourceSnapshotError(f"unsafe source archive root: {source_root.name!r}")
+
+    paths = [source_root, *source_root.rglob("*")]
+    paths.sort(key=lambda path: _archive_path_key(path, source_root))
+    inspected: list[tuple[Path, os.stat_result]] = []
+    for path in paths:
+        try:
+            path_stat = path.lstat()
+        except OSError as error:
+            raise SourceSnapshotError(f"cannot inspect source archive path: {path}") from error
+        relative_parts = path.relative_to(source_root).parts
+        if ".git" in relative_parts:
+            raise SourceSnapshotError("source archive contains forbidden .git metadata")
+        if not (stat.S_ISDIR(path_stat.st_mode) or stat.S_ISREG(path_stat.st_mode)):
+            raise SourceSnapshotError(
+                f"source archive contains unsupported entry: {path.relative_to(source_root)}"
+            )
+        inspected.append((path, path_stat))
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temporary_name: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            dir=output.parent, prefix=f".{output.name}.", delete=False
+        ) as raw:
+            temporary_name = raw.name
+            with gzip.GzipFile(
+                filename="", mode="wb", fileobj=raw, compresslevel=9, mtime=ARCHIVE_MTIME
+            ) as compressed:
+                with tarfile.open(
+                    fileobj=compressed, mode="w", format=tarfile.USTAR_FORMAT
+                ) as archive:
+                    for path, path_stat in inspected:
+                        name = _archive_path_key(path, source_root).decode("utf-8")
+                        member = _archive_info(name, path_stat)
+                        if member.isfile():
+                            with path.open("rb") as source:
+                                archive.addfile(member, source)
+                        else:
+                            archive.addfile(member)
+        os.replace(temporary_name, output)
+        temporary_name = None
+    except (OSError, tarfile.TarError, ValueError) as error:
+        raise SourceSnapshotError(f"cannot write source archive: {error}") from error
+    finally:
+        if temporary_name is not None:
+            try:
+                os.unlink(temporary_name)
+            except FileNotFoundError:
+                pass
+
+
+def validate_deterministic_archive_metadata(
+    archive_path: Path, expected_root: str
+) -> None:
+    try:
+        with archive_path.open("rb") as archive_file:
+            header = archive_file.read(10)
+    except OSError as error:
+        raise SourceSnapshotError(f"cannot read source archive: {error}") from error
+    if header != ARCHIVE_GZIP_HEADER:
+        raise SourceSnapshotError("source archive has noncanonical gzip metadata")
+
+    try:
+        with tarfile.open(archive_path, "r:gz") as archive:
+            members = archive.getmembers()
+    except (OSError, tarfile.TarError) as error:
+        raise SourceSnapshotError(f"cannot inspect source archive: {error}") from error
+
+    names = [member.name for member in members]
+    if not names or names != sorted(names, key=lambda name: name.encode("utf-8")):
+        raise SourceSnapshotError("source archive member ordering is not canonical")
+    if len(names) != len(set(names)):
+        raise SourceSnapshotError("source archive contains duplicate members")
+    for index, member in enumerate(members):
+        path = PurePosixPath(member.name)
+        if (
+            path.is_absolute()
+            or not path.parts
+            or path.parts[0] != expected_root
+            or ".." in path.parts
+        ):
+            raise SourceSnapshotError("source archive contains an unsafe member path")
+        if ".git" in path.parts:
+            raise SourceSnapshotError("source archive contains forbidden .git metadata")
+        if index == 0 and (member.name != expected_root or not member.isdir()):
+            raise SourceSnapshotError("source archive root is not a directory")
+        if not (member.isdir() or member.isfile()):
+            raise SourceSnapshotError("source archive contains unsupported member type")
+        if member.pax_headers:
+            raise SourceSnapshotError("source archive has noncanonical extended metadata")
+        if (
+            member.uid != ARCHIVE_UID
+            or member.gid != ARCHIVE_GID
+            or member.uname != ARCHIVE_OWNER
+            or member.gname != ARCHIVE_GROUP
+        ):
+            raise SourceSnapshotError("source archive has noncanonical ownership metadata")
+        if member.mtime != ARCHIVE_MTIME:
+            raise SourceSnapshotError("source archive has noncanonical timestamps")
+        expected_mode = 0o755 if member.isdir() or member.mode & 0o111 else 0o644
+        if member.mode != expected_mode:
+            raise SourceSnapshotError("source archive has noncanonical file modes")
+
+
+def main() -> None:
+    try:
+        if len(sys.argv) == 5 and sys.argv[1] == "stage":
+            stage_git_source(Path(sys.argv[2]), sys.argv[3], Path(sys.argv[4]))
+        elif len(sys.argv) == 4 and sys.argv[1] == "archive":
+            write_deterministic_archive(Path(sys.argv[2]), Path(sys.argv[3]))
+        elif len(sys.argv) == 4 and sys.argv[1] == "check-archive-metadata":
+            validate_deterministic_archive_metadata(Path(sys.argv[2]), sys.argv[3])
+        else:
+            raise SourceSnapshotError(
+                "usage: release_source.py "
+                "stage REPOSITORY REVISION DESTINATION | "
+                "archive SOURCE_ROOT OUTPUT | "
+                "check-archive-metadata ARCHIVE EXPECTED_ROOT"
+            )
     except SourceSnapshotError as error:
         raise SystemExit(f"FAIL: {error}") from error
 
