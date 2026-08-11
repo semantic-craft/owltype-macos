@@ -10,9 +10,30 @@ import CoreGraphics
 /// 视图只消费这里已经判定好的点数，不再分别决定某个值是否缩放。横排、竖排、临时展开
 /// 与卷轴都从同一个不可变值对象取得字号、留白、最小宽度和固定尺寸规则。
 struct FamoCandidatePanelGeometry: Equatable, Sendable {
+  struct Panel: Equatable, Sendable {
+    let spacing: CGFloat
+    let cornerRadius: CGFloat
+    let strokeWidth: CGFloat
+  }
+
+  struct Caret: Equatable, Sendable {
+    let cornerRadius: CGFloat
+    let width: CGFloat
+    let minimumHeight: CGFloat
+  }
+
+  struct Tag: Equatable, Sendable {
+    let fontSize: CGFloat
+    let horizontalPadding: CGFloat
+    let verticalPadding: CGFloat
+    let cornerRadius: CGFloat
+  }
+
   struct Header: Equatable, Sendable {
     let preeditFontSize: CGFloat
     let spacing: CGFloat
+    let pieceSpacing: CGFloat
+    let kerning: CGFloat
     let spacerMinimumLength: CGFloat
     let delimiterHorizontalPadding: CGFloat
     let caretHorizontalPadding: CGFloat
@@ -20,6 +41,7 @@ struct FamoCandidatePanelGeometry: Equatable, Sendable {
     let trailingPadding: CGFloat
     let topPadding: CGFloat
     let bottomPadding: CGFloat
+    let caret: Caret
   }
 
   struct CompactRow: Equatable, Sendable {
@@ -38,9 +60,7 @@ struct FamoCandidatePanelGeometry: Equatable, Sendable {
     let contentSpacing: CGFloat
     let candidateFontSize: CGFloat
     let secondaryFontSize: CGFloat
-    let provenanceFontSize: CGFloat
-    let provenanceHorizontalPadding: CGFloat
-    let provenanceVerticalPadding: CGFloat
+    let provenance: Tag
     let horizontalPadding: CGFloat
     let verticalPadding: CGFloat
   }
@@ -64,13 +84,9 @@ struct FamoCandidatePanelGeometry: Equatable, Sendable {
     let itemSpacing: CGFloat
     let labelFontSize: CGFloat
     let candidateFontSize: CGFloat
-    let badgeFontSize: CGFloat
-    let badgeHorizontalPadding: CGFloat
-    let badgeVerticalPadding: CGFloat
+    let badge: Tag
     let commentFontSize: CGFloat
-    let provenanceFontSize: CGFloat
-    let provenanceHorizontalPadding: CGFloat
-    let provenanceVerticalPadding: CGFloat
+    let provenance: Tag
     let horizontalPadding: CGFloat
     let verticalPadding: CGFloat
     let sourceLine: SourceLine
@@ -94,6 +110,7 @@ struct FamoCandidatePanelGeometry: Equatable, Sendable {
   }
 
   struct PageDots: Equatable, Sendable {
+    let spacing: CGFloat
     let hitSize: CGFloat
     let dotDiameter: CGFloat
     let trailingPadding: CGFloat
@@ -106,7 +123,7 @@ struct FamoCandidatePanelGeometry: Equatable, Sendable {
     var hitWidth: CGFloat { fontSize + hitPadding * 2 }
   }
 
-  let base: CGFloat
+  let panel: Panel
   let minimumWidth: CGFloat
   let selectionInset: CGFloat
   let selectionRadius: CGFloat
@@ -131,113 +148,121 @@ struct FamoCandidatePanelGeometry: Equatable, Sendable {
     mainRow.expandChevronLeadingPadding + expandChevron.hitWidth
   }
 
-  init(base: CGFloat, panelCornerRadius: CGFloat) {
-    func metric(_ atMedium: CGFloat) -> CGFloat {
-      FamoPanelFontSize.metric(atMedium, base: base)
+  init(candidateFontSize: CGFloat, panelCornerRadius: CGFloat) {
+    let resolve: (CGFloat) -> CGFloat = {
+      ($0 * candidateFontSize / FamoPanelFontSize.medium.base).rounded()
     }
 
-    let selectionInset = metric(5)
-    let pillContentSpacing = metric(5)
-    let pillHorizontalPadding = metric(8)
-    let pillVerticalPadding = metric(7)
-    let secondaryFontSize = base * 0.72
-    let listItemSpacing = metric(7)
-    let listHorizontalPadding = metric(9)
-    let labelFontSize = base * 0.9
-    let collapseTrailingPadding = metric(6)
-    let chevron = ExpandChevron(
-      fontSize: base - 5,
-      hitPadding: metric(4)
+    let selectionInset = resolve(5)
+    let pillContentSpacing = resolve(5)
+    let pillHorizontalPadding = resolve(8)
+    let pillVerticalPadding = resolve(7)
+    let secondaryFontSize = candidateFontSize * 0.72
+    let listItemSpacing = resolve(7)
+    let listHorizontalPadding = resolve(9)
+    let labelFontSize = candidateFontSize * 0.9
+    let collapseTrailingPadding = resolve(6)
+    let tag = Tag(
+      fontSize: candidateFontSize * 0.68,
+      horizontalPadding: resolve(4),
+      verticalPadding: resolve(3),
+      cornerRadius: 5
     )
-    let chevronLeadingPadding = metric(4)
+    let caret = Caret(cornerRadius: 1, width: 1.5, minimumHeight: 8)
+    let chevron = ExpandChevron(
+      fontSize: candidateFontSize - 5,
+      hitPadding: resolve(4)
+    )
+    let chevronLeadingPadding = resolve(4)
 
-    self.base = base
-    minimumWidth = metric(210)
+    panel = Panel(spacing: 0, cornerRadius: panelCornerRadius, strokeWidth: 1)
+    minimumWidth = resolve(210)
     self.selectionInset = selectionInset
     selectionRadius = max(4, panelCornerRadius - selectionInset)
     header = Header(
-      preeditFontSize: base - 3,
-      spacing: metric(8),
+      preeditFontSize: candidateFontSize - 3,
+      spacing: resolve(8),
+      pieceSpacing: 0,
+      kerning: 0.4,
       spacerMinimumLength: 2,
       delimiterHorizontalPadding: 2,
       caretHorizontalPadding: 0.5,
       leadingPadding: selectionInset + pillHorizontalPadding,
-      trailingPadding: metric(8),
-      topPadding: metric(9),
-      bottomPadding: metric(5)
+      trailingPadding: resolve(8),
+      topPadding: resolve(9),
+      bottomPadding: resolve(5),
+      caret: caret
     )
     verticalHeader = Header(
-      preeditFontSize: base - 3,
-      spacing: metric(8),
+      preeditFontSize: candidateFontSize - 3,
+      spacing: resolve(8),
+      pieceSpacing: 0,
+      kerning: 0.4,
       spacerMinimumLength: 2,
       delimiterHorizontalPadding: 2,
       caretHorizontalPadding: 0.5,
       leadingPadding: selectionInset + listHorizontalPadding,
-      trailingPadding: metric(8),
-      topPadding: metric(7),
-      bottomPadding: metric(6)
+      trailingPadding: resolve(8),
+      topPadding: resolve(7),
+      bottomPadding: resolve(6),
+      caret: caret
     )
     compactRow = CompactRow(inset: selectionInset)
     mainRow = MainRow(
-      spacing: metric(6),
+      spacing: resolve(6),
       dividerWidth: 1,
-      dividerHeight: base * 0.9,
-      dividerHorizontalPadding: metric(5),
+      dividerHeight: candidateFontSize * 0.9,
+      dividerHorizontalPadding: resolve(5),
       expandChevronLeadingPadding: chevronLeadingPadding
     )
     compactPill = CompactPill(
       contentSpacing: pillContentSpacing,
-      candidateFontSize: base + 1,
+      candidateFontSize: candidateFontSize + 1,
       secondaryFontSize: secondaryFontSize,
-      provenanceFontSize: base * 0.68,
-      provenanceHorizontalPadding: metric(4),
-      provenanceVerticalPadding: metric(3),
+      provenance: tag,
       horizontalPadding: pillHorizontalPadding,
       verticalPadding: pillVerticalPadding
     )
     verticalList = VerticalList(
-      minimumWidth: base * 4,
+      minimumWidth: candidateFontSize * 4,
       spacing: 0,
       inset: selectionInset,
       hairlineHeight: 1,
       collapseTrailingPadding: collapseTrailingPadding,
-      collapseTopPadding: metric(2)
+      collapseTopPadding: resolve(2)
     )
     listRow = ListRow(
-      contentSpacing: metric(3),
+      contentSpacing: resolve(3),
       itemSpacing: listItemSpacing,
       labelFontSize: labelFontSize,
-      candidateFontSize: base,
-      badgeFontSize: base * 0.68,
-      badgeHorizontalPadding: metric(4),
-      badgeVerticalPadding: metric(3),
-      commentFontSize: base * 0.8,
-      provenanceFontSize: base * 0.68,
-      provenanceHorizontalPadding: metric(4),
-      provenanceVerticalPadding: metric(3),
+      candidateFontSize: candidateFontSize,
+      badge: tag,
+      commentFontSize: candidateFontSize * 0.8,
+      provenance: tag,
       horizontalPadding: listHorizontalPadding,
-      verticalPadding: metric(7),
+      verticalPadding: resolve(7),
       sourceLine: SourceLine(
-        fontSize: base * 0.78,
+        fontSize: candidateFontSize * 0.78,
         leadingPadding: labelFontSize + listItemSpacing
       )
     )
     scrollStack = ScrollStack(
-      spacing: metric(5),
+      spacing: resolve(5),
       inset: selectionInset
     )
-    scrollRow = ScrollRow(spacing: metric(6))
+    scrollRow = ScrollRow(spacing: resolve(6))
     scrollPill = ScrollPill(
       contentSpacing: pillContentSpacing,
-      candidateFontSize: base + 1,
+      candidateFontSize: candidateFontSize + 1,
       secondaryFontSize: secondaryFontSize,
       horizontalPadding: pillHorizontalPadding,
       verticalPadding: pillVerticalPadding
     )
     pageDots = PageDots(
+      spacing: 0,
       hitSize: 18,
       dotDiameter: 5,
-      trailingPadding: metric(4)
+      trailingPadding: resolve(4)
     )
     expandChevron = chevron
   }

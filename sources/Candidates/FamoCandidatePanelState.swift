@@ -51,7 +51,7 @@ final class CandidatePanelState {
   var isExpanded: Bool = false
   var theme: FamoCandidateTheme = .shenda
   /// Base candidate text point size. The view derives preedit (base − 2), paging chevrons
-  /// (base − 3) and **every padding** from it — 留白走 `FamoPanelFontSize.metric`，以中档为锚
+  /// (base − 3) and **every padding** from it — 留白由 resolved geometry 以中档为锚
   /// 等比换算，所以这一个数就是「候选窗尺寸」那一档。Seeded from `FamoPanelPreferences.fontSize`
   /// on the live panel.
   ///

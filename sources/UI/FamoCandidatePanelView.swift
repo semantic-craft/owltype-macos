@@ -70,12 +70,15 @@ struct FamoCandidatePanelView: View {
 
   /// 所有候选形态都消费一次解析完成的 geometry。
   private var resolvedGeometry: FamoCandidatePanelGeometry {
-    FamoCandidatePanelGeometry(base: state.fontSize, panelCornerRadius: state.theme.cornerRadius)
+    FamoCandidatePanelGeometry(
+      candidateFontSize: state.fontSize,
+      panelCornerRadius: state.theme.cornerRadius
+    )
   }
 
   var body: some View {
     let geometry = resolvedGeometry
-    return VStack(alignment: .leading, spacing: 0) {
+    return VStack(alignment: .leading, spacing: geometry.panel.spacing) {
       if showsHeader { header(geometry: geometry) }
       if showsFullList {
         verticalList(geometry: geometry)
@@ -94,22 +97,22 @@ struct FamoCandidatePanelView: View {
       minWidth: showsFullList ? geometry.verticalList.minimumWidth : geometry.minimumWidth,
       alignment: .leading
     )
-    .background { glass }
+    .background { glass(geometry: geometry.panel) }
     .overlay {
-      RoundedRectangle(cornerRadius: state.theme.cornerRadius, style: .continuous)
-        .strokeBorder(panelBorder, lineWidth: 1)
+      RoundedRectangle(cornerRadius: geometry.panel.cornerRadius, style: .continuous)
+        .strokeBorder(panelBorder, lineWidth: geometry.panel.strokeWidth)
     }
     .overlay {
       // 薄雾玻璃的顶部内侧高光（R4 mist：inset 0 1px 0 白）——受光面在上。
-      RoundedRectangle(cornerRadius: state.theme.cornerRadius, style: .continuous)
+      RoundedRectangle(cornerRadius: geometry.panel.cornerRadius, style: .continuous)
         .strokeBorder(
           LinearGradient(
             stops: [.init(color: .white.opacity(colorScheme == .dark ? 0.08 : 0.30), location: 0),
                     .init(color: .clear, location: 0.25)],
             startPoint: .top, endPoint: .bottom),
-          lineWidth: 1)
+          lineWidth: geometry.panel.strokeWidth)
     }
-    .clipShape(RoundedRectangle(cornerRadius: state.theme.cornerRadius, style: .continuous))
+    .clipShape(RoundedRectangle(cornerRadius: geometry.panel.cornerRadius, style: .continuous))
     // 面板投影不在这里画：SwiftUI 的 .shadow 不撑布局，而窗口尺寸 = contentView.fittingSize，
     // 模糊没有落点。改由 NSPanel 的 `hasShadow` 按内容 alpha 画（FamoSwiftUICandidatePanel）。
     .animation(animateOK ? .snappy(duration: 0.08) : nil, value: state.highlightedIndex)
@@ -123,8 +126,8 @@ struct FamoCandidatePanelView: View {
   /// 薄雾玻璃（07-26 grilling R4 定案，HIG Materials）：material 上叠 card @ 0.72 ——
   /// 比原 0.85 更透，让 vibrancy 模糊透出来；Reduce Transparency 回退不透明 card。
   /// 横排/竖排共用（面板外壳是同一层材质，两种排布才协调）。
-  @ViewBuilder private var glass: some View {
-    let shape = RoundedRectangle(cornerRadius: state.theme.cornerRadius, style: .continuous)
+  @ViewBuilder private func glass(geometry: FamoCandidatePanelGeometry.Panel) -> some View {
+    let shape = RoundedRectangle(cornerRadius: geometry.cornerRadius, style: .continuous)
     if reduceTransparency {
       shape.fill(palette.card)
     } else {
@@ -158,14 +161,12 @@ struct FamoCandidatePanelView: View {
       // preedit rendered as pieces: 音节 runs (the active one tinted accent) separated by faint
       // interpunct delimiters, with the blinking caret spliced in at cursor_pos. Arrow keys move
       // both cursor_pos and the highlight span, so the bar and the tint slide through the pinyin.
-      HStack(alignment: .bottom, spacing: 0) {
+      HStack(alignment: .bottom, spacing: resolved.pieceSpacing) {
         ForEach(Array(preeditPieces().enumerated()), id: \.offset) { _, piece in
           preeditPieceView(
             piece,
             mono: mono,
-            fontSize: resolved.preeditFontSize,
-            delimiterPadding: resolved.delimiterHorizontalPadding,
-            caretPadding: resolved.caretHorizontalPadding
+            geometry: resolved
           )
         }
       }
@@ -193,25 +194,28 @@ struct FamoCandidatePanelView: View {
   @ViewBuilder private func preeditPieceView(
     _ piece: PreeditPiece,
     mono: Bool,
-    fontSize: CGFloat,
-    delimiterPadding: CGFloat,
-    caretPadding: CGFloat
+    geometry: FamoCandidatePanelGeometry.Header
   ) -> some View {
     switch piece {
     case .run(let text, let highlighted):
       Text(text)
-        .font(.system(size: fontSize, design: mono ? .monospaced : .default))
-        .kerning(0.4)
+        .font(.system(size: geometry.preeditFontSize, design: mono ? .monospaced : .default))
+        .kerning(geometry.kerning)
         .foregroundStyle(highlighted ? palette.accent : palette.ink2)
         .lineLimit(1)
     case .delimiter:
       Text("·")
-        .font(.system(size: fontSize))
+        .font(.system(size: geometry.preeditFontSize))
         .foregroundStyle(palette.ink3.opacity(0.55))
-        .padding(.horizontal, delimiterPadding)
+        .padding(.horizontal, geometry.delimiterHorizontalPadding)
     case .caret:
-      FamoCaret(color: palette.accent, height: fontSize, animated: !reduceMotion)
-        .padding(.horizontal, caretPadding)
+      FamoCaret(
+        color: palette.accent,
+        height: geometry.preeditFontSize,
+        geometry: geometry.caret,
+        animated: !reduceMotion
+      )
+      .padding(.horizontal, geometry.caretHorizontalPadding)
     }
   }
 
@@ -394,9 +398,7 @@ struct FamoCandidatePanelView: View {
         provenanceTag(
           prov,
           selected: selected,
-          fontSize: geometry.compactPill.provenanceFontSize,
-          horizontalPadding: geometry.compactPill.provenanceHorizontalPadding,
-          verticalPadding: geometry.compactPill.provenanceVerticalPadding
+          geometry: geometry.compactPill.provenance
         )
       }
     }
@@ -421,7 +423,7 @@ struct FamoCandidatePanelView: View {
   /// 点本身（5pt）与 18pt 命中区是全档位固定的：18 已经远低于 HIG 的 44pt 下限，再按小档
   /// 收就真点不中了。只有它与候选之间的留白随档位走。
   private func pageDots(geometry: FamoCandidatePanelGeometry.PageDots) -> some View {
-    HStack(spacing: 0) {
+    HStack(spacing: geometry.spacing) {
       if state.hasPrevPage {
         pageDotButton(palette.ink3.opacity(0.5), label: "上一页", geometry: geometry) { onPage(true) }
       }
@@ -460,16 +462,14 @@ struct FamoCandidatePanelView: View {
   private func provenanceTag(
     _ prov: FamoProvenance,
     selected: Bool,
-    fontSize: CGFloat,
-    horizontalPadding: CGFloat,
-    verticalPadding: CGFloat
+    geometry: FamoCandidatePanelGeometry.Tag
   ) -> some View {
     Text(prov.displayName)
-      .font(.system(size: fontSize, weight: .semibold))
-      .padding(.horizontal, horizontalPadding)
-      .padding(.vertical, verticalPadding)
+      .font(.system(size: geometry.fontSize, weight: .semibold))
+      .padding(.horizontal, geometry.horizontalPadding)
+      .padding(.vertical, geometry.verticalPadding)
       .background {
-        RoundedRectangle(cornerRadius: 5, style: .continuous)
+        RoundedRectangle(cornerRadius: geometry.cornerRadius, style: .continuous)
           .fill(selected ? palette.onAccent.opacity(0.2) : prov.color.opacity(0.16))
       }
       .foregroundStyle(selected ? palette.onAccent : prov.color)
@@ -530,11 +530,11 @@ struct FamoCandidatePanelView: View {
         }
         if candidate.badge {
           Text("法")
-            .font(.system(size: row.badgeFontSize, weight: .semibold))
-            .padding(.horizontal, row.badgeHorizontalPadding)
-            .padding(.vertical, row.badgeVerticalPadding)
+            .font(.system(size: row.badge.fontSize, weight: .semibold))
+            .padding(.horizontal, row.badge.horizontalPadding)
+            .padding(.vertical, row.badge.verticalPadding)
             .background {
-              RoundedRectangle(cornerRadius: 5, style: .continuous)
+              RoundedRectangle(cornerRadius: row.badge.cornerRadius, style: .continuous)
                 .fill(selected ? palette.onAccent.opacity(0.2) : badgeFill)
             }
             .foregroundStyle(selected ? palette.onAccent : palette.accent)
@@ -553,9 +553,7 @@ struct FamoCandidatePanelView: View {
           provenanceTag(
             prov,
             selected: selected,
-            fontSize: row.provenanceFontSize,
-            horizontalPadding: row.provenanceHorizontalPadding,
-            verticalPadding: row.provenanceVerticalPadding
+            geometry: row.provenance
           )
         }
       }
@@ -587,13 +585,14 @@ struct FamoCandidatePanelView: View {
 private struct FamoCaret: View {
   let color: Color
   let height: CGFloat
+  let geometry: FamoCandidatePanelGeometry.Caret
   let animated: Bool
   @State private var visible = true
 
   var body: some View {
-    RoundedRectangle(cornerRadius: 1, style: .continuous)
+    RoundedRectangle(cornerRadius: geometry.cornerRadius, style: .continuous)
       .fill(color)
-      .frame(width: 1.5, height: max(8, height))
+      .frame(width: geometry.width, height: max(geometry.minimumHeight, height))
       .opacity(visible ? 1 : 0)
       .onAppear {
         guard animated else { return }

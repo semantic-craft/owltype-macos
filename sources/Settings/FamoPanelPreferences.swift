@@ -34,7 +34,7 @@ enum FamoPanelAppearance: String, CaseIterable, Sendable {
 
 /// 候选窗尺寸（设置里的「候选窗尺寸」四档）。`base` 是候选正文的基准点数：面板里其余字号
 /// （preedit ≈ base − 2、展开箭头 ≈ base − 5）**与全部留白**都由它派生，所以这一档拨的是整块
-/// 面板的大小，不只是字。留白的换算走 `metric(_:base:)`。
+/// 面板的大小，不只是字。完整点数只由 `FamoCandidatePanelGeometry` 一次解析。
 ///
 /// 类型名与 UserDefaults 键都保留 `FontSize`：`base` 本身确实是个字号，且键名一动老用户的
 /// 小/中/大就白丢——同 `"FamoPanelPreviewRows"` 那格保留旧键名的处置。
@@ -55,17 +55,6 @@ enum FamoPanelFontSize: String, CaseIterable, Sendable {
     }
   }
 
-  /// 把在「中」档（base 19）下定好的一个留白值等比换算到 `base` 档，四舍五入到整点。
-  ///
-  /// 面板的留白常数全部写在「中」的坐标系里，锚点即 `medium.base`——所以中档（默认档，绝大多数
-  /// 用户）换算后与四档化之前**逐像素相同**，其余档位的边距跟着字一起走。四档化之前边距是死的：
-  /// 大档字撑大而边距不动会挤，小档小字配大边距会虚胖，那正是「调不动窗格尺寸」的根因。
-  ///
-  /// 只用于留白 / 间距 / 最小宽度。**不**用于 1pt 描边与发丝线（缩放只会变糊）、页点的 18pt
-  /// 命中区（再缩就点不中）、皮肤自己定义的面板圆角。
-  static func metric(_ atMedium: CGFloat, base: CGFloat) -> CGFloat {
-    (atMedium * base / medium.base).rounded()
-  }
 }
 
 /// Candidate-window orientation (G8 候选显示). `auto` keeps Rime's `_vertical` option
