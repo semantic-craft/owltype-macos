@@ -68,65 +68,32 @@ struct FamoCandidatePanelView: View {
   private var divider: Color { palette.ink.opacity(0.09) }
   private var badgeFill: Color { palette.accent.opacity(0.14) }
 
-  /// Base candidate point size; smaller roles derive from it so 小/中/大/特大 scales the whole panel.
-  private var base: CGFloat { state.fontSize }
-
-  /// 横排只消费一次解析完成的 geometry。竖排与卷轴的旧路径留给 #114 迁移。
+  /// 所有候选形态都消费一次解析完成的 geometry。
   private var resolvedGeometry: FamoCandidatePanelGeometry {
     FamoCandidatePanelGeometry(base: state.fontSize, panelCornerRadius: state.theme.cornerRadius)
   }
-
-  /// 留白的档位换算（见 `FamoPanelFontSize.metric`）：本文件里的留白常数一律写「中」档（base 19）
-  /// 下的值再包一层 `m(...)`，于是尺寸档拨的是整块面板——字与边距同步走，中档逐像素不变。
-  ///
-  /// 三类**不**过 `m(...)`：1pt 描边与发丝线（缩放变糊）、页点的 18pt 命中区（再缩点不中）、
-  /// 皮肤定义的面板圆角。已经写成 `base * n` 的尺寸（分隔线高、序号宽）本就随档位走，不重复缩。
-  private func m(_ atMedium: CGFloat) -> CGFloat {
-    FamoPanelFontSize.metric(atMedium, base: base)
-  }
-
-  /// 选中块与面板内壁之间的留白——**四边等距**（2026-08-02 定案，取代 07-26 的「出血到面板内壁」）。
-  ///
-  /// 出血的实际观感是：横排里选中块直接压在面板下沿、竖排里贴死左右两壁，而另一轴上又留着
-  /// 8pt——同一块色块四条边不等距，读起来像掉出了面板。改为四边等距内嵌后，与本仓其余选中态
-  /// 是同一套语法（快捷短语面板行 8、设置侧栏 6、分段控件 3，都留白不出血）。
-  private var selectionInset: CGFloat { m(5) }
-
-  /// 选中块圆角 = 面板圆角 − 留白（中档 13 − 5 = 8，与原先硬写的 8 相同）：两条圆弧同心，
-  /// 四角的缝宽与四边一致，不会在拐角处忽宽忽窄。皮肤改了面板圆角，选中块跟着走。
-  ///
-  /// 面板圆角本身不随尺寸档缩放（它是皮肤定义的形状身份），所以大档下留白变宽、选中块圆角
-  /// 相应收小——同心关系仍然成立，缝宽依旧四边一致。
-  private var selectionRadius: CGFloat { max(4, state.theme.cornerRadius - selectionInset) }
-
-  /// 竖排里收起箭头是 `.overlay(alignment: .topTrailing)`，直接盖在第一行上，所以行内容
-  /// 必须整块让开它：点击区宽 = 图标 (base−5) + 四周 4×2 = base+3，再加它离右壁的 6，
-  /// 最后留一个 `selectionInset` 的缝。容器自己已经有 `selectionInset`，这里只补差额。
-  ///
-  /// 旧值是写死的 18：实测灰箭头切进选中块右上圆角约 4pt，且那一小片的点击落在箭头上
-  /// ——点「第一候选的右端」会收起面板而不是选词。18 也不随字号走，大字号只会更糟。
-  ///
-  /// 三项都由本体推出（不写死 `base + 9`）：档位一变，箭头的内边距与离壁距离都跟着 `m(...)`
-  /// 走，让位宽必须同步重算，否则大档下又会切回选中块。中档仍是 14 + 8 + 6 = base + 9。
-  private var chevronClearance: CGFloat { (base - 5) + m(4) * 2 + m(6) }
 
   var body: some View {
     let geometry = resolvedGeometry
     return VStack(alignment: .leading, spacing: 0) {
       if showsHeader { header(geometry: geometry) }
       if showsFullList {
-        verticalList
+        verticalList(geometry: geometry)
       } else if state.isScroll {
-        scrollStack
+        scrollStack(geometry: geometry)
       } else {
         compactRow(geometry: geometry)
       }
     }
     // 竖排让内容/输入串撑宽度（仿鼠鬚管 stacked / 搜狗竖排：以最宽候选贴边 + 对称边距）。
     // 原 150 强制下限在单字候选页留出 ~80pt 右侧空白（「左右不平衡」），改为随字号的
-    // 小下限（base*4 ≈ 64/76/92），仅防单候选无序号时面板过窄，正常内容都由内容撑宽。
+    // 小下限（geometry 内的 base*4 ≈ 64/76/92），仅防单候选无序号时面板过窄，
+    // 正常内容都由内容撑宽。
     // 横排维持 210（中档；随尺寸档缩放为 177 / 210 / 254 / 298，否则小档会拖一截空尾巴）。
-    .frame(minWidth: showsFullList ? base * 4 : geometry.minimumWidth, alignment: .leading)
+    .frame(
+      minWidth: showsFullList ? geometry.verticalList.minimumWidth : geometry.minimumWidth,
+      alignment: .leading
+    )
     .background { glass }
     .overlay {
       RoundedRectangle(cornerRadius: state.theme.cornerRadius, style: .continuous)
@@ -168,7 +135,7 @@ struct FamoCandidatePanelView: View {
     }
   }
 
-  /// 选中块（横竖共用）——纯 accent 平色 + 同心圆角，四边等距内嵌于面板（`selectionInset`）。
+  /// 选中块（横竖共用）——纯 accent 平色 + 同心圆角，四边按 resolved inset 等距内嵌。
   ///
   /// 07-26 R4 的三层立体（顶部白渐变顶光、内侧 1px 白描边、accent 外投影）依旧不要：面板本身
   /// 已经是玻璃层，Liquid Glass 的「avoid glass on glass」意味着选中态不该再是一个自带材质的
@@ -186,11 +153,8 @@ struct FamoCandidatePanelView: View {
     let mono = state.preedit.hasPrefix("\\")
     // 竖排「输入条」形态：与候选行文字对齐的左边距（中档 14pt；横排维持原样）。
     let vertical = showsFullList
-    let resolved = geometry.header
-    let preeditFontSize = vertical ? base - 3 : resolved.preeditFontSize
-    let delimiterPadding = vertical ? CGFloat(2) : resolved.delimiterHorizontalPadding
-    let caretPadding = vertical ? CGFloat(0.5) : resolved.caretHorizontalPadding
-    return HStack(spacing: vertical ? m(8) : resolved.spacing) {
+    let resolved = vertical ? geometry.verticalHeader : geometry.header
+    return HStack(spacing: resolved.spacing) {
       // preedit rendered as pieces: 音节 runs (the active one tinted accent) separated by faint
       // interpunct delimiters, with the blinking caret spliced in at cursor_pos. Arrow keys move
       // both cursor_pos and the highlight span, so the bar and the tint slide through the pinyin.
@@ -199,22 +163,20 @@ struct FamoCandidatePanelView: View {
           preeditPieceView(
             piece,
             mono: mono,
-            fontSize: preeditFontSize,
-            delimiterPadding: delimiterPadding,
-            caretPadding: caretPadding
+            fontSize: resolved.preeditFontSize,
+            delimiterPadding: resolved.delimiterHorizontalPadding,
+            caretPadding: resolved.caretHorizontalPadding
           )
         }
       }
-      Spacer(minLength: vertical ? 2 : resolved.spacerMinimumLength)
+      Spacer(minLength: resolved.spacerMinimumLength)
     }
-    // 输入串与**第一个候选的文字**左对齐：竖排 = selectionInset + listRow 内边(9)，
-    // 横排 = selectionInset + compactPill 内边(8)。原来横排固定 14 而候选在 16，差 2pt
-    // 的错位在小面板上一眼看得见。两项都按同一 `m(...)` 走（而不是把 14/13 整个缩），
-    // 否则各自四舍五入后会在某些档位错开 1pt，这条对齐正是当初修出来的。
-    .padding(.leading, vertical ? selectionInset + m(9) : resolved.leadingPadding)
-    .padding(.trailing, vertical ? m(8) : resolved.trailingPadding)
-    .padding(.top, vertical ? m(7) : resolved.topPadding)
-    .padding(.bottom, vertical ? m(6) : resolved.bottomPadding)
+    // 输入串与**第一个候选的文字**左对齐：竖排由 verticalList inset + listRow 内边推出，
+    // 横排由 compactRow inset + compactPill 内边推出；两条组合都在 geometry 内一次解析。
+    .padding(.leading, resolved.leadingPadding)
+    .padding(.trailing, resolved.trailingPadding)
+    .padding(.top, resolved.topPadding)
+    .padding(.bottom, resolved.bottomPadding)
     // 竖排「输入条」：mist 规格为透明底 + 底部细分隔线（verticalList 顶部 hairline），
     // 不再用 card2 色带——玻璃面板上叠实色条会压住 vibrancy（HIG Materials）。
     .frame(maxWidth: vertical ? .infinity : nil, alignment: .leading)
@@ -286,7 +248,7 @@ struct FamoCandidatePanelView: View {
 
   // MARK: Compact horizontal pill bar (default form)
 
-  /// 容器内边 = `selectionInset`：横排里首/末候选的选中块离左右内壁、上下内壁都是这一个值。
+  /// 容器内边 = resolved selection inset：首/末候选的选中块离四壁都是这一个值。
   /// 原来是横 8 / 上 4 / 下 9 再让选中块负 padding 出血把上下吃干净，于是色块直接坐在面板下沿。
   private func compactRow(geometry: FamoCandidatePanelGeometry) -> some View {
     mainRow(geometry: geometry)
@@ -310,7 +272,7 @@ struct FamoCandidatePanelView: View {
         pageDots(geometry: geometry.pageDots)
       }
       if showsExpandChevron {
-        horizontalExpandChevron(geometry: geometry.expandChevron)
+        expandChevron(geometry: geometry.expandChevron)
           .padding(.leading, geometry.mainRow.expandChevronLeadingPadding)
       }
     }
@@ -332,26 +294,29 @@ struct FamoCandidatePanelView: View {
 
   /// 没翻过页时 `scrollRows` 为空，卷轴就是单行——展开是翻页动作换来的（2026-07-28）。
   /// 末页没有后页可取，只剩前页行 + 主行——这是「到底了」的诚实表达，不拿空行凑高度。
-  private var scrollStack: some View {
-    VStack(alignment: .leading, spacing: m(5)) {
+  private func scrollStack(geometry: FamoCandidatePanelGeometry) -> some View {
+    VStack(alignment: .leading, spacing: geometry.scrollStack.spacing) {
       ForEach(scrollPages) { row in
-        scrollRow(row)
+        scrollRow(row, geometry: geometry)
       }
     }
-    .padding(.horizontal, selectionInset)
-    .padding(.vertical, selectionInset)
+    .padding(.horizontal, geometry.scrollStack.inset)
+    .padding(.vertical, geometry.scrollStack.inset)
   }
 
   /// 一行 = 一整页。主行走 `mainRow`（带序号、可高亮、挂翻页点与展开箭头）；前/后页行
   /// 只有候选文字（+码提示注释）、稍淡（0.75），点击走绝对下标。非主行**不带序号**是
   /// 刻意的：数字键只选得中主行，给别的行编号会造出「看得到按不到」的假承诺。
-  @ViewBuilder private func scrollRow(_ row: FamoScrollRow) -> some View {
+  @ViewBuilder private func scrollRow(
+    _ row: FamoScrollRow,
+    geometry: FamoCandidatePanelGeometry
+  ) -> some View {
     if row.id == state.page {
-      mainRow(geometry: resolvedGeometry)
+      mainRow(geometry: geometry)
     } else {
-      HStack(spacing: m(6)) {
+      HStack(spacing: geometry.scrollRow.spacing) {
         ForEach(row.candidates) { candidate in
-          scrollPill(candidate)
+          scrollPill(candidate, geometry: geometry.scrollPill)
         }
       }
       .opacity(0.75)
@@ -362,21 +327,24 @@ struct FamoCandidatePanelView: View {
   /// 信息密度跟主行一致，截图定案 2026-07-28），尺寸/内边距与 `compactPill` 逐项对齐
   /// （同字号、同 5pt 字-注释间距、同 8/7 内边距），多行才读成一张网格；`.fixedSize()`
   /// 保证绝不压缩截断。
-  private func scrollPill(_ candidate: CandidateViewModel) -> some View {
-    HStack(spacing: m(5)) {
+  private func scrollPill(
+    _ candidate: CandidateViewModel,
+    geometry: FamoCandidatePanelGeometry.ScrollPill
+  ) -> some View {
+    HStack(spacing: geometry.contentSpacing) {
       Text(candidate.text)
-        .font(state.fontDesign.candidateFont(size: base + 1))
+        .font(state.fontDesign.candidateFont(size: geometry.candidateFontSize))
         .foregroundStyle(palette.ink)
       if state.showsCompactComment(for: candidate), let note = candidate.comment {
         Text(note)
-          .font(.system(size: base * 0.72))
+          .font(.system(size: geometry.secondaryFontSize))
           .monospacedDigit()
           .foregroundStyle(palette.ink3)
       }
     }
     .fixedSize()
-    .padding(.horizontal, m(8))
-    .padding(.vertical, m(7))
+    .padding(.horizontal, geometry.horizontalPadding)
+    .padding(.vertical, geometry.verticalPadding)
     .contentShape(Rectangle())
     // `candidate.id` 在前/后页行里是整张候选列表的绝对下标（见 `FamoScrollRow`）。
     .onTapGesture { onSelectAbsolute?(candidate.id) }
@@ -385,18 +353,7 @@ struct FamoCandidatePanelView: View {
 
   /// Expand/collapse affordance — lives in the candidate row (not the preedit header,
   /// which is hidden when the 显示输入串 toggle is off) so it's always reachable.
-  private var expandChevron: some View {
-    Image(systemName: state.isExpanded ? "chevron.up" : "chevron.down")
-      .font(.system(size: base - 5, weight: .semibold))
-      .foregroundStyle(palette.ink3)
-      .padding(m(4))   // 与 `chevronClearance` 同源：这里一变，让位宽自动跟上
-      .contentShape(Rectangle())
-      .onTapGesture { state.isExpanded.toggle(); onToggleExpand?() }
-      .accessibilityLabel(state.isExpanded ? "收起候选" : "展开候选")
-  }
-
-  /// 横排展开按钮的字号与命中留白已经由 geometry 一次解析；竖排 overlay 暂走上面的旧路径。
-  private func horizontalExpandChevron(
+  private func expandChevron(
     geometry: FamoCandidatePanelGeometry.ExpandChevron
   ) -> some View {
     Image(systemName: state.isExpanded ? "chevron.up" : "chevron.down")
@@ -451,7 +408,7 @@ struct FamoCandidatePanelView: View {
     .padding(.horizontal, geometry.compactPill.horizontalPadding)
     .padding(.vertical, geometry.compactPill.verticalPadding)
     // 横排选中块与竖排 listRow 同一 helper，排布切换不跳戏；块的上下沿就是这里的 7pt 内边，
-    // 离面板内壁恒为容器的 `selectionInset`（卷轴里离相邻行则是 VStack 的 5pt 行距）。
+    // 离面板内壁恒为容器的 resolved inset（卷轴相邻行距也从同一 geometry 取得）。
     .background { if selected { selectionFill(cornerRadius: geometry.selectionRadius) } }
     .contentShape(Rectangle())
     .onTapGesture { onSelect(candidate.id) }
@@ -521,31 +478,32 @@ struct FamoCandidatePanelView: View {
 
   // MARK: Vertical list (expanded / Rime vertical / citation)
 
-  private var verticalList: some View {
-    VStack(alignment: .leading, spacing: 0) {
+  private func verticalList(geometry: FamoCandidatePanelGeometry) -> some View {
+    VStack(alignment: .leading, spacing: geometry.verticalList.spacing) {
       ForEach(state.candidates) { candidate in
-        listRow(candidate)
+        listRow(candidate, geometry: geometry)
       }
     }
-    // 选中行四边等距内嵌 `selectionInset`；这 5pt 从 `listRow` 的横向 padding 里让出来
+    // 选中行四边按 resolved inset 等距内嵌；这 5pt 从 `listRow` 的横向 padding 里让出来
     // （14 → 9），所以行文字仍在离面板内壁 14pt 处，面板宽度也分毫未动——只有色块内收。
     // 上下原来是 3/4，同样统一到 5。
-    .padding(.horizontal, selectionInset)
-    .padding(.vertical, selectionInset)
-    // 从横排展开时右上角的收起箭头压在第一行上，行内容要整块让开它（见 `chevronClearance`）。
+    .padding(.horizontal, geometry.verticalList.inset)
+    .padding(.vertical, geometry.verticalList.inset)
+    // 从横排展开时右上角的收起箭头压在第一行上，行内容按 collapseClearance 整块让开。
     // 箭头本身按外框 trailing 6 定位，不受这里影响。
-    .padding(.trailing, showsExpandChevron ? chevronClearance : 0)
+    .padding(.trailing, showsExpandChevron ? geometry.collapseClearance : 0)
     .overlay(alignment: .top) {
       // Hairline between the header and the list (the design's list border-top).
       if showsHeader {
-        Rectangle().fill(divider).frame(height: 1)
+        Rectangle().fill(divider).frame(height: geometry.verticalList.hairlineHeight)
       }
     }
     .overlay(alignment: .topTrailing) {
       // Collapse affordance when expanded from the compact bar (not Rime-native vertical).
       if showsExpandChevron {
-        // trailing 与 `chevronClearance` 里的 `m(6)` 是同一项：让位宽照这个距离算出来的。
-        expandChevron.padding(.trailing, m(6)).padding(.top, m(2))
+        expandChevron(geometry: geometry.expandChevron)
+          .padding(.trailing, geometry.verticalList.collapseTrailingPadding)
+          .padding(.top, geometry.verticalList.collapseTopPadding)
       }
     }
   }
@@ -555,22 +513,26 @@ struct FamoCandidatePanelView: View {
   ///
   /// 铺满结构（07-26 grilling 定案）：大号带点序号（`1.`，base*0.9）让左侧不再是
   /// 低密度空气；行内左右各 10pt 相等；行铺满面板宽，高亮胶囊左右到边、边距目视对称。
-  private func listRow(_ candidate: CandidateViewModel) -> some View {
+  private func listRow(
+    _ candidate: CandidateViewModel,
+    geometry: FamoCandidatePanelGeometry
+  ) -> some View {
     let selected = candidate.id == state.highlightedIndex
-    return VStack(alignment: .leading, spacing: m(3)) {
-      HStack(spacing: m(7)) {
+    let row = geometry.listRow
+    return VStack(alignment: .leading, spacing: row.contentSpacing) {
+      HStack(spacing: row.itemSpacing) {
         // Feature 7: 仅候选 preset hides the序号/字母 label.
         if state.candidateFormat.showsLabel {
           Text((candidate.label.isEmpty ? "\(candidate.id + 1)" : candidate.label) + ".")
-            .font(.system(size: base * 0.9))
+            .font(.system(size: row.labelFontSize))
             .monospacedDigit()
             .foregroundStyle(selected ? palette.onAccent.opacity(0.85) : palette.ink2)
         }
         if candidate.badge {
           Text("法")
-            .font(.system(size: base * 0.68, weight: .semibold))
-            .padding(.horizontal, m(4))
-            .padding(.vertical, m(3))
+            .font(.system(size: row.badgeFontSize, weight: .semibold))
+            .padding(.horizontal, row.badgeHorizontalPadding)
+            .padding(.vertical, row.badgeVerticalPadding)
             .background {
               RoundedRectangle(cornerRadius: 5, style: .continuous)
                 .fill(selected ? palette.onAccent.opacity(0.2) : badgeFill)
@@ -578,12 +540,12 @@ struct FamoCandidatePanelView: View {
             .foregroundStyle(selected ? palette.onAccent : palette.accent)
         }
         Text(candidate.text)
-          .font(state.fontDesign.candidateFont(size: base))
+          .font(state.fontDesign.candidateFont(size: row.candidateFontSize))
           .foregroundStyle(selected ? palette.onAccent : palette.ink)
         // Feature 7: 隐藏注释 / 仅候选 presets drop the reading / 释义 comment.
         if state.candidateFormat.showsComment, let note = candidate.comment, !note.isEmpty {
           Text(note)
-            .font(.system(size: base * 0.8))
+            .font(.system(size: row.commentFontSize))
             .monospacedDigit()
             .foregroundStyle(selected ? palette.onAccent.opacity(0.82) : palette.ink3)
         }
@@ -591,29 +553,29 @@ struct FamoCandidatePanelView: View {
           provenanceTag(
             prov,
             selected: selected,
-            fontSize: base * 0.68,
-            horizontalPadding: m(4),
-            verticalPadding: m(3)
+            fontSize: row.provenanceFontSize,
+            horizontalPadding: row.provenanceHorizontalPadding,
+            verticalPadding: row.provenanceVerticalPadding
           )
         }
       }
       if let source = candidate.source, !source.isEmpty {
         Text(source)
-          .font(.system(size: base * 0.78))
+          .font(.system(size: row.sourceLine.fontSize))
           .foregroundStyle(selected ? palette.onAccent.opacity(0.82) : palette.ink3)
-          .padding(.leading, base * 0.9 + m(7))   // 对齐词首 ≈ 序号宽(base*0.9) + HStack 间距
+          .padding(.leading, row.sourceLine.leadingPadding)
       }
     }
-    // 左右边距相等：「1」到左边 = 末字到右边（参照图的对称感）。中档 9 + 容器的 selectionInset(5)
-    // = 14，文字离面板内壁与内嵌前一致；header 的 leading 由这同一个 `m(9)` 推出，两者不会错开。
-    .padding(.horizontal, m(9))
-    .padding(.vertical, m(7))
+    // 左右边距相等：「1」到左边 = 末字到右边（参照图的对称感）。中档行内 9 +
+    // 容器 inset 5 = 14；verticalHeader.leading 由这两个 resolved 值推出，不会错开。
+    .padding(.horizontal, row.horizontalPadding)
+    .padding(.vertical, row.verticalPadding)
     // 行铺满（可用宽度内）（关输入串时面板宽 = 最宽候选行，即参照图的撑满感；开输入串时
     // 与「输入条」同宽）；选中块 = 四边留白的纯色圆角块（与横排 compactPill 同 helper）。
     // 已知代价：开输入串且整句拼音比最宽候选还宽时，选中行会拖一条到输入串宽度的色尾。
     // 改窄会破坏「候选撑满」的参照系，故保留。
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background { if selected { selectionFill(cornerRadius: selectionRadius) } }
+    .background { if selected { selectionFill(cornerRadius: geometry.selectionRadius) } }
     .contentShape(Rectangle())
     .onTapGesture { onSelect(candidate.id) }
     .accessibilityElement(children: .combine)
