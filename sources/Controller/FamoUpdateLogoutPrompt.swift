@@ -7,6 +7,11 @@ import os
 /// 更新后弹一次「建议注销」对话框，`立即注销` 为默认动作、`稍后自己注销` 可选。
 /// 首启（首装）不弹：首装走 Famo.pkg 的 `RequireLogout` 强制注销。
 ///
+/// 2026-08 起选中态还原由 postinstall 的延迟任务重新接管（`schedule_deferred_update_restore`：
+/// 1.4.6 失败的根因已定位为 PackageKit 最终注册晚于 postinstall 退出，新任务跨该边界后连稳读回）。
+/// 本提示不因此退役：已开启的旧 App 不重开挂不上新 IMKServer（squirrel#68 系统天花板），
+/// 注销仍是一次性恢复所有 App 的诚实收尾；两者各管一段，互不替代。
+///
 /// 本文件承载注销线五个类型（同一功能、同居一处，避免新增源文件带来的 pbxproj 手术）：
 ///   - `FamoUpdateLogoutPrompt`      判定 + A1「处置后才记录」+ C1 文案 + 呈现（#109）
 ///   - `FamoLogoutPromptTiming`      B2 门控的纯判定层 + 反「永久静默」阀（#131，XCTest 可锁）

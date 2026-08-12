@@ -108,7 +108,8 @@ else
   fail "dictpack manifest not found: $DICTPACK_MANIFEST"
 fi
 
-tis_output=$(/usr/bin/swift - <<'SWIFT'
+run_tis_probe() {
+  /usr/bin/swift - <<'SWIFT'
 import Carbon
 import Foundation
 
@@ -138,12 +139,24 @@ for source in sources {
   print("\(id) enabled=\(enabled) selected=\(selected) selectable=\(selectable)")
 }
 SWIFT
-)
+}
+tis_output=$(run_tis_probe)
 
 printf '%s\n' "$tis_output"
 [[ $(grep -c '^im\.famo\.inputmethod\.Famo ' <<<"$tis_output") -eq 1 ]] || fail "duplicate Famo root input source"
 [[ $(grep -c '^im\.famo\.inputmethod\.Famo\.Hans ' <<<"$tis_output") -eq 1 ]] || fail "duplicate Famo Hans input source"
 [[ $(grep -c '^im\.famo\.inputmethod\.Famo\.Hant ' <<<"$tis_output") -eq 1 ]] || fail "duplicate Famo Hant input source"
+if ! grep -q '^current=im\.famo\.inputmethod\.Famo\.Hans$' <<<"$tis_output"; then
+  # 更新路径的选中态还原是 postinstall 调度的延迟任务（收据 ≤30s + 还原 ≤60s 窗口，
+  # 见 scripts/postinstall 4b）。装完立刻探测会撞上还原在途——有界等待后复测一次，
+  # 别把在途还原判成失败；真失败只是晚 ~90s 报出，不会漏报。
+  for _ in $(seq 1 45); do
+    sleep 2
+    [[ "$("$EXE" --current-input-source 2>/dev/null)" == "im.famo.inputmethod.Famo.Hans" ]] && break
+  done
+  tis_output=$(run_tis_probe)
+  printf '%s\n' "$tis_output"
+fi
 grep -q '^current=im\.famo\.inputmethod\.Famo\.Hans$' <<<"$tis_output" || fail "Famo Hans is not current"
 grep -q '^im\.famo\.inputmethod\.Famo\.Hans enabled=true selected=true selectable=true$' <<<"$tis_output" || fail "Famo Hans is not enabled/selected/selectable"
 pass_clean "TIS reports Famo Hans current and usable"
