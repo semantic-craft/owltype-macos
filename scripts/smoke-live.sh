@@ -173,7 +173,9 @@ UPDATE scenario (asserts the shipped 1.3.32 no-logout update; closes that open l
   0. Old Famo already installed and SELECTED; pre-open TextEdit, Chrome, WeChat.
   1. smoke-live.sh snapshot "$EV/before"
   2. Trigger the Sparkle update (Famo-update.pkg). Update path = park on ABC → replace in place →
-     switch back. It MUST NOT re-register/enable/select — a second enable manufactures a ghost TIS
+     switch back (immediate select + a deferred job that re-selects across PackageKit's final
+     registration window; watch: log stream --predicate 'eventMessage CONTAINS
+     "famo-deferred-update-select"'). It MUST NOT re-enable — a second enable manufactures a ghost TIS
      record. (Packaging is gated by check-release.sh: Famo-update.pkg has NO RequireLogout. Live:
      step 4's --diagnose-tis must still show a single clean Hans source, no duplicate/ghost row.)
   3. For each pre-opened app, record honestly: can type now, OR needs app reopen. An already-open app
