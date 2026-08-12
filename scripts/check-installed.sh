@@ -147,9 +147,10 @@ printf '%s\n' "$tis_output"
 [[ $(grep -c '^im\.famo\.inputmethod\.Famo\.Hans ' <<<"$tis_output") -eq 1 ]] || fail "duplicate Famo Hans input source"
 [[ $(grep -c '^im\.famo\.inputmethod\.Famo\.Hant ' <<<"$tis_output") -eq 1 ]] || fail "duplicate Famo Hant input source"
 if ! grep -q '^current=im\.famo\.inputmethod\.Famo\.Hans$' <<<"$tis_output"; then
-  # 更新路径的选中态还原是 postinstall 调度的延迟任务（收据 ≤30s + 还原 ≤60s 窗口，
-  # 见 scripts/postinstall 4b）。装完立刻探测会撞上还原在途——有界等待后复测一次，
-  # 别把在途还原判成失败；真失败只是晚 ~90s 报出，不会漏报。
+  # 更新路径的选中态还原是 app 侧事件驱动还原器（FamoUpdateSelectionRestorer：武装窗 90s，
+  # 见 scripts/postinstall 0e/4b）。装完立刻探测会撞上还原在途——有界等待后复测一次，
+  # 别把在途还原判成失败；真失败只是晚 ~90s 报出，不会漏报。取证：
+  #   log show --last 5m --predicate 'subsystem == "im.famo.inputmethod.Famo" AND category == "updateRestore"'
   for _ in $(seq 1 45); do
     sleep 2
     [[ "$("$EXE" --current-input-source 2>/dev/null)" == "im.famo.inputmethod.Famo.Hans" ]] && break

@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 import CoreGraphics
 import os
 
@@ -7,17 +8,21 @@ import os
 /// 更新后弹一次「建议注销」对话框，`立即注销` 为默认动作、`稍后自己注销` 可选。
 /// 首启（首装）不弹：首装走 Famo.pkg 的 `RequireLogout` 强制注销。
 ///
-/// 2026-08 起选中态还原由 postinstall 的延迟任务重新接管（`schedule_deferred_update_restore`：
-/// 1.4.6 失败的根因已定位为 PackageKit 最终注册晚于 postinstall 退出，新任务跨该边界后连稳读回）。
-/// 本提示不因此退役：已开启的旧 App 不重开挂不上新 IMKServer（squirrel#68 系统天花板），
-/// 注销仍是一次性恢复所有 App 的诚实收尾；两者各管一段，互不替代。
+/// 2026-08 起选中态还原由本文件的 app 侧事件驱动还原器接管（`FamoUpdateSelectionRestorer`：
+/// 1.4.6 失败的根因已定位为 PackageKit 最终注册晚于 postinstall 退出——postinstall 0e 写交接
+/// 标记，第 4 步 `open -g` 拉起的新 app 天然活过注册边界，监听踢回事件按预算重选；接替曾经的
+/// shell 轮询延迟任务 `schedule_deferred_update_restore`）。本提示不因此退役：已开启的旧 App
+/// 不重开挂不上新 IMKServer（squirrel#68 系统天花板），注销仍是一次性恢复所有 App 的诚实收尾；
+/// 两者各管一段，互不替代。
 ///
-/// 本文件承载注销线五个类型（同一功能、同居一处，避免新增源文件带来的 pbxproj 手术）：
+/// 本文件承载更新收尾线七个类型（同一功能面、同居一处，避免新增源文件带来的 pbxproj 手术）：
 ///   - `FamoUpdateLogoutPrompt`      判定 + A1「处置后才记录」+ C1 文案 + 呈现（#109）
 ///   - `FamoLogoutPromptTiming`      B2 门控的纯判定层 + 反「永久静默」阀（#131，XCTest 可锁）
 ///   - `FamoUpdateLogoutScheduler`   B2 安全时机门控 + 激活确认 + 焦点还原（#109/#131）
 ///   - `FamoLogoutAction`            可复用的正式注销动作 + -1743 分流恢复 UI（#111，更新提示与菜单共用）
 ///   - `FamoLogoutDiagnostics`       覆盖式失败遥测 + 诊断包章节（#111）
+///   - `FamoUpdateSelectionRestorePolicy`  更新后选中态还原的纯判定层（XCTest 可锁）
+///   - `FamoUpdateSelectionRestorer`       更新后选中态还原的事件驱动层（标记消费 + 踢回重选）
 enum FamoUpdateLogoutPrompt {
   static let lastRunVersionKey = "FamoLastRunVersion"
 
@@ -522,5 +527,265 @@ enum FamoLogoutDiagnostics {
 
   private static func bundleString(_ key: String) -> String {
     (Bundle.main.infoDictionary?[key] as? String) ?? ""
+  }
+}
+
+/// 更新后选中态还原的**纯判定层**（2026-08-12，接替 postinstall 的 shell 轮询延迟任务）。
+/// 值进值出，XCTest 可锁——门控不可测就等于没有门控（#131 教训，同 `FamoLogoutPromptTiming`）。
+///
+/// 机制背景（PR #130 定谳的根因）：更新 pkg 的 postinstall 里 `TISSelectInputSource` 返回 noErr
+/// 也会在 PackageKit 对被替换 bundle 的**最终 LaunchServices 注册**落地时被踢回（macOS 26 两次
+/// 实测）——注册边界晚于 postinstall 退出，脚本侧结构性追不到。app 由 postinstall 第 4 步
+/// `open -g` 拉起，天然活过该边界，于是把还原做成 app 内事件驱动：
+///   信号   postinstall 0e 在杀旧进程前写交接标记（内容 = epoch 秒；只在「更新打断了既有选中态」
+///          时写——绝不劫持，首装/更新前不在法墨上都不写）。app 启动读后即删 = 有界一次性。
+///   事件   `kTISNotifySelectedKeyboardInputSourceChanged` 分布式通知。轮询版只能看采样点状态，
+///          事件版能拿到每次切换的精确时刻，从而用「踢回事件与自家 select 的时间相关性」区分
+///          系统踢回（紧跟自家 select，重选）与用户主动切换（与自家 select 无时间相关，立即
+///          收手）——这是 shell 轮询版无法根除的残余。
+///   边界   武装窗 + 重选预算双重有界；窗口到期只留取证日志，绝不常驻。
+/// 不变量：更新路径零 TISEnableInputSource（`--select-input-source` 无参对未启用态只打印即返回）、
+/// 只还原被打断的既有选中态、有界一次性、不强制注销。
+enum FamoUpdateSelectionRestorePolicy {
+  /// 武装窗（秒）。shell 版实测边界：收据落盘 ≤30s、更晚的最终注册踢回再 ≤20s，合计 ~50s，留裕量。
+  static let armWindowSeconds: TimeInterval = 90
+  /// 踢回相关窗（秒）：非法墨事件距「自家最近一次 select」（武装时刻起算，postinstall 4b 的即时
+  /// select 就在其前后一两秒）超过此值 → 判为用户主动切换，立即解除武装。
+  static let bounceCorrelationSeconds: TimeInterval = 60
+  /// 交接标记新鲜度（秒）：postinstall 写标记到 app 启动消费的最大可信间隔（安装失败残留 /
+  /// 用户手动重开 app 的旧标记据此拒收；容忍 60s 时钟前跳）。
+  static let markerStaleSeconds: TimeInterval = 600
+  /// 重选总预算：1 次武装对账（踢回可能发生在 app 启动之前，事件已错过）+ 最多 3 次事件踢回。
+  /// shell 版预算 8 覆盖 60s 盲轮询；事件版每次都先 fresh 读回确认非法墨才花，严格更省。
+  static let reselectBudget = 4
+
+  struct State: Equatable {
+    let armedAt: Date
+    var lastOwnSelectAt: Date
+    var budgetLeft: Int
+  }
+
+  enum Verdict: Equatable {
+    /// 法墨在位——按兵不动，窗口内继续观察（select 生效本身也触发一次事件，走到这里即闭环确认）。
+    case keep
+    /// 判为系统踢回——重选一次（调用方花预算并刷新 `lastOwnSelectAt`）。
+    case reselect
+    /// 与自家 select 无时间相关——用户主动切换，立即解除武装（对用户的让步优先于还原）。
+    case userSwitchDisarm
+    case windowExpiredDisarm
+    case budgetExhaustedDisarm
+  }
+
+  /// 标记是否可信：epoch 可解析且距 now 在 [-60s, markerStaleSeconds] 内。
+  static func shouldArm(markerEpoch: TimeInterval?, now: Date) -> Bool {
+    guard let epoch = markerEpoch else { return false }
+    let age = now.timeIntervalSince1970 - epoch
+    return age >= -60 && age <= markerStaleSeconds
+  }
+
+  /// 一次「当前源读回」的归因。判定次序是硬约束：窗口先于一切（到期即收）；法墨在位不花预算；
+  /// 预算先于相关性（花完只观察）；相关性最后裁「系统踢回 vs 用户切换」。
+  static func verdict(state: State, currentIsFamo: Bool, now: Date) -> Verdict {
+    if now.timeIntervalSince(state.armedAt) > armWindowSeconds { return .windowExpiredDisarm }
+    if currentIsFamo { return .keep }
+    guard state.budgetLeft > 0 else { return .budgetExhaustedDisarm }
+    guard now.timeIntervalSince(state.lastOwnSelectAt) <= bounceCorrelationSeconds else {
+      return .userSwitchDisarm
+    }
+    return .reselect
+  }
+
+  /// `--current-input-source` fresh 进程输出解析：取最后一个非空行（进程可能先打印别的行，
+  /// shell 版同用 `tail -n 1`）。
+  static func parseCurrentSourceID(_ output: String?) -> String? {
+    guard let output else { return nil }
+    let lines = output.split(separator: "\n")
+      .map { $0.trimmingCharacters(in: .whitespaces) }
+      .filter { !$0.isEmpty }
+    return lines.last
+  }
+}
+
+/// 更新后选中态还原的**事件驱动层**（impure 壳，判定全在 `FamoUpdateSelectionRestorePolicy`）。
+/// 生命周期：`applicationWillFinishLaunching` 里 `armIfMarkerPresent()` 消费 postinstall 0e 的
+/// 交接标记（读后即删）→ 武装对账一次 → 自注册 TIS 选中源变化观察者 → 每个事件 fresh 读回归因
+/// → 窗口到期/预算花完/用户切换即解除武装并注销观察者。未武装时零观察者、零开销。
+///
+/// 读回与 select 都 spawn 自家可执行文件 fresh 进程（`--current-input-source` /
+/// `--select-input-source`），与 `InstallerActivationVerifier`（DMG 路径）、shell 延迟任务
+/// （被本类型接替）同一套已实证机器：本进程 TIS 快照在注册窗口内会撒谎（定律 13′），fresh 进程
+/// 读值为真；fresh select 也绕开定律 2 的嵌套 runloop -50。spawn 只在武装窗内、事件触发时发生，
+/// 不在 IMK 按键热路径上。
+///
+/// 观察者是**自注册的 selector + `.deliverImmediately`**，不复用 `addObservers()` 里的 block
+/// 观察者：block API 只有默认 `.coalesce` 挂起行为，而注销提示（`FamoUpdateLogoutScheduler`）
+/// 恰会在本窗口内激活又失活 app——那正是 NSApplication 挂起 DNC 投递的触发条件（2026-07-24
+/// `--reload` 静默失效同根因），挂起后踢回事件将静默丢失。
+///
+/// 可观测（真机红灯/绿灯取证入口）：
+///   log show --last 5m --predicate 'subsystem == "im.famo.inputmethod.Famo" AND category == "updateRestore"'
+@MainActor
+final class FamoUpdateSelectionRestorer: NSObject {
+  static let shared = FamoUpdateSelectionRestorer()
+  override private init() {}
+
+  static let markerPath = "/private/tmp/im.famo.inputmethod.update-restore-pending"
+  private static let log = Logger(subsystem: "im.famo.inputmethod.Famo", category: "updateRestore")
+
+  private var state: FamoUpdateSelectionRestorePolicy.State?
+  private var probeInFlight = false
+  private var selectInFlight = false
+  private var recheckQueued = false
+  private var selectCount = 0
+  private var observing = false
+
+  /// 启动时调用一次：有新鲜交接标记才武装。标记读后即删（一次性）；单测进程不消费真机标记。
+  func armIfMarkerPresent(now: Date = Date()) {
+    guard !FamoDefaults.isRunningUnitTests, state == nil else { return }
+    guard let raw = try? String(contentsOfFile: Self.markerPath, encoding: .utf8) else { return }
+    try? FileManager.default.removeItem(atPath: Self.markerPath)
+    let epoch = TimeInterval(raw.trimmingCharacters(in: .whitespacesAndNewlines))
+    guard FamoUpdateSelectionRestorePolicy.shouldArm(markerEpoch: epoch, now: now) else {
+      Self.log.log("marker stale — not arming (epoch=\(raw.trimmingCharacters(in: .whitespacesAndNewlines), privacy: .public))")
+      return
+    }
+    state = .init(
+      armedAt: now,
+      lastOwnSelectAt: now, // postinstall 4b 的即时 select 就在武装前后一两秒，作初始相关锚
+      budgetLeft: FamoUpdateSelectionRestorePolicy.reselectBudget)
+    startObserving()
+    Self.log.log("armed: window=\(Int(FamoUpdateSelectionRestorePolicy.armWindowSeconds), privacy: .public)s budget=\(FamoUpdateSelectionRestorePolicy.reselectBudget, privacy: .public)")
+    probeAndAct() // 武装对账：踢回可能已发生在 app 启动之前
+    DispatchQueue.main.asyncAfter(deadline: .now() + FamoUpdateSelectionRestorePolicy.armWindowSeconds + 1) {
+      MainActor.assumeIsolated { Self.shared.closeWindowIfStillArmed() }
+    }
+  }
+
+  private func startObserving() {
+    guard !observing else { return }
+    observing = true
+    DistributedNotificationCenter.default().addObserver(
+      self,
+      selector: #selector(selectedSourceChanged(_:)),
+      name: .init(kTISNotifySelectedKeyboardInputSourceChanged as String),
+      object: nil,
+      suspensionBehavior: .deliverImmediately)
+  }
+
+  private func stopObserving() {
+    guard observing else { return }
+    observing = false
+    DistributedNotificationCenter.default().removeObserver(
+      self,
+      name: .init(kTISNotifySelectedKeyboardInputSourceChanged as String),
+      object: nil)
+  }
+
+  @objc private nonisolated func selectedSourceChanged(_ notification: Notification) {
+    DispatchQueue.main.async {
+      MainActor.assumeIsolated { Self.shared.probeAndAct() }
+    }
+  }
+
+  /// fresh 读回 → 主线程归因。in-flight 防重入（同 `InstallerActivationVerifier.tick`）：撞上
+  /// 在途探针/select 只置补查旗标，评估后总会再跑一轮——绝不吞掉最后一个事件。
+  private func probeAndAct() {
+    guard state != nil else { return }
+    if probeInFlight || selectInFlight {
+      recheckQueued = true
+      return
+    }
+    probeInFlight = true
+    DispatchQueue.global(qos: .userInitiated).async {
+      let output = Self.runOwnBinary(["--current-input-source"])
+      DispatchQueue.main.async {
+        MainActor.assumeIsolated { Self.shared.evaluate(probeOutput: output) }
+      }
+    }
+  }
+
+  private func evaluate(probeOutput: String?) {
+    probeInFlight = false
+    defer {
+      if recheckQueued && state != nil && !selectInFlight {
+        recheckQueued = false
+        probeAndAct()
+      }
+    }
+    guard var current = state else { return }
+    guard let sourceID = FamoUpdateSelectionRestorePolicy.parseCurrentSourceID(probeOutput) else {
+      Self.log.log("probe-empty — keeping watch (spawn 失败不花预算也不误判)")
+      return
+    }
+    let isFamo = sourceID.hasPrefix(FamoInstaller.inputSourcePrefix)
+    let now = Date()
+    let verdict = FamoUpdateSelectionRestorePolicy.verdict(state: current, currentIsFamo: isFamo, now: now)
+    switch verdict {
+    case .keep:
+      Self.log.log("keep: current=\(sourceID, privacy: .public) selects=\(self.selectCount, privacy: .public)")
+    case .reselect:
+      current.budgetLeft -= 1
+      current.lastOwnSelectAt = now
+      state = current
+      selectCount += 1
+      selectInFlight = true
+      Self.log.log("reselect #\(self.selectCount, privacy: .public): bounced-to=\(sourceID, privacy: .public) budgetLeft=\(current.budgetLeft, privacy: .public)")
+      DispatchQueue.global(qos: .userInitiated).async {
+        _ = Self.runOwnBinary(["--select-input-source"])
+        DispatchQueue.main.async {
+          MainActor.assumeIsolated { Self.shared.noteSelectFinished() }
+        }
+      }
+    case .userSwitchDisarm:
+      disarm(reason: "user-switch: to=\(sourceID) uncorrelated with own select — respecting user")
+    case .windowExpiredDisarm:
+      disarm(reason: "window-expired: current=\(sourceID) selects=\(selectCount)")
+    case .budgetExhaustedDisarm:
+      disarm(reason: "budget-exhausted: current=\(sourceID) selects=\(selectCount)")
+    }
+  }
+
+  private func noteSelectFinished() {
+    selectInFlight = false
+    if recheckQueued && state != nil {
+      recheckQueued = false
+      probeAndAct()
+    }
+  }
+
+  /// 窗口到期收尾：解除武装后再补一发终态探针，把绿灯/红灯写成可取证的最后一行。
+  private func closeWindowIfStillArmed() {
+    guard state != nil else { return }
+    let selects = selectCount
+    disarm(reason: "window-closed: selects=\(selects) — final readback follows")
+    DispatchQueue.global(qos: .utility).async {
+      let sourceID = FamoUpdateSelectionRestorePolicy.parseCurrentSourceID(
+        Self.runOwnBinary(["--current-input-source"])) ?? "?"
+      Self.log.log("final: current=\(sourceID, privacy: .public) selects=\(selects, privacy: .public)")
+    }
+  }
+
+  private func disarm(reason: String) {
+    state = nil
+    recheckQueued = false
+    stopObserving()
+    Self.log.log("disarmed: \(reason, privacy: .public)")
+  }
+
+  /// spawn 自家可执行文件 fresh 进程（先排空管道再等退出——1.3.32 Bug A 同病同修）。
+  /// 输出坏/进程失败 → nil = 本轮无信号，绝不据此行动。
+  private nonisolated static func runOwnBinary(_ arguments: [String]) -> String? {
+    guard let executable = Bundle.main.executablePath else { return nil }
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: executable)
+    process.arguments = arguments
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    process.standardError = FileHandle.nullDevice
+    do { try process.run() } catch { return nil }
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    process.waitUntilExit()
+    guard process.terminationStatus == 0 else { return nil }
+    return String(data: data, encoding: .utf8)
   }
 }

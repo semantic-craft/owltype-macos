@@ -136,6 +136,10 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
     // #16 新方向：更新后强推注销（免注销自动保持选中态真机不可靠）。首启不弹（首装走 pkg RequireLogout）。
     let currentVersion = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? ""
     FamoUpdateLogoutPrompt.runIfNeeded(current: currentVersion)
+    // 更新后选中态还原（事件驱动版）：postinstall 0e 有交接标记才武装，读后即删、有界一次性。
+    // 本进程由 postinstall 第 4 步 open -g 拉起，天然活过 PackageKit 最终注册边界——踢回事件
+    // 在这里等着被接住（机制与判定见 FamoUpdateSelectionRestorer / …RestorePolicy）。
+    FamoUpdateSelectionRestorer.shared.armIfMarkerPresent()
   }
 
   func applicationDidBecomeActive(_ notification: Notification) {

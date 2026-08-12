@@ -21,10 +21,11 @@
          logout. The shared postinstall detects the update case
          (Famo process alive = already enabled), switches the input source out to ABC before the
          kill, replaces files in place, relaunches the new binary (IMKServer endpoint re-publish),
-         and schedules a one-shot login-session job that restores the selection after PackageKit
-         finishes registering the replaced bundle (selecting from inside postinstall races that
-         final registration and gets bounced back to a bare keylayout) — zero TIS enable calls on
-         the update path, so no second-enable ghost state. First installs keep using Famo.pkg
+         and hands the relaunched app a restore marker: the app's event-driven restorer
+         (FamoUpdateSelectionRestorer) re-selects when PackageKit's final registration bounces the
+         selection (selecting from inside postinstall races that final registration and gets
+         bounced back to a bare keylayout) — zero TIS enable calls on the update path, so no
+         second-enable ghost state. First installs keep using Famo.pkg
          (Distribution, RequireLogout). -->
     <pkg-ref id="im.famo.inputmethod.Famo">Famo-component.pkg</pkg-ref>
 </installer-gui-script>

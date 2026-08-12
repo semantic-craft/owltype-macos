@@ -239,4 +239,93 @@ final class FamoUpdateLogoutPromptTests: XCTestCase {
       FamoLogoutPromptTiming.SafeVerdict.safe(staleCompositionOverride: false).transitionKey,
       "搁浅放行与正常放行必须留下可区分的日志键")
   }
+
+  // MARK: 更新后选中态还原纯判定层（FamoUpdateSelectionRestorePolicy，2026-08-12 事件驱动版）
+  // 锁四条不变量的判定面：有界（窗口/预算）、不抢源（用户切换即收手）、一次性（标记新鲜度）、
+  // 以及「踢回事件与自家 select 的时间相关性」这一事件版独有的归因边界。
+
+  private typealias RestorePolicy = FamoUpdateSelectionRestorePolicy
+
+  private func restoreState(
+    armedAgo: TimeInterval, selectAgo: TimeInterval, budget: Int, now: Date = Date()
+  ) -> RestorePolicy.State {
+    RestorePolicy.State(
+      armedAt: now.addingTimeInterval(-armedAgo),
+      lastOwnSelectAt: now.addingTimeInterval(-selectAgo),
+      budgetLeft: budget)
+  }
+
+  func test_restore_shouldArm_freshEpoch_true() {
+    let now = Date()
+    XCTAssertTrue(RestorePolicy.shouldArm(markerEpoch: now.timeIntervalSince1970 - 30, now: now))
+  }
+
+  func test_restore_shouldArm_staleEpoch_false() {
+    let now = Date()
+    XCTAssertFalse(
+      RestorePolicy.shouldArm(
+        markerEpoch: now.timeIntervalSince1970 - RestorePolicy.markerStaleSeconds - 1, now: now),
+      "安装失败残留/用户手动重开 app 的旧标记不得再武装（一次性边界）")
+  }
+
+  func test_restore_shouldArm_unparsableEpoch_false() {
+    XCTAssertFalse(RestorePolicy.shouldArm(markerEpoch: nil, now: Date()))
+  }
+
+  func test_restore_shouldArm_slightClockSkew_tolerated() {
+    let now = Date()
+    XCTAssertTrue(RestorePolicy.shouldArm(markerEpoch: now.timeIntervalSince1970 + 30, now: now))
+    XCTAssertFalse(RestorePolicy.shouldArm(markerEpoch: now.timeIntervalSince1970 + 120, now: now))
+  }
+
+  func test_restore_verdict_famoInPlace_keep() {
+    let now = Date()
+    let state = restoreState(armedAgo: 10, selectAgo: 10, budget: 4, now: now)
+    XCTAssertEqual(RestorePolicy.verdict(state: state, currentIsFamo: true, now: now), .keep)
+  }
+
+  func test_restore_verdict_bounceWithinCorrelation_reselect() {
+    let now = Date()
+    let state = restoreState(armedAgo: 20, selectAgo: 5, budget: 4, now: now)
+    XCTAssertEqual(
+      RestorePolicy.verdict(state: state, currentIsFamo: false, now: now), .reselect,
+      "紧跟自家 select 的非法墨事件 = PackageKit 最终注册踢回，重选")
+  }
+
+  func test_restore_verdict_uncorrelatedSwitch_disarmsForUser() {
+    let now = Date()
+    let state = restoreState(
+      armedAgo: RestorePolicy.armWindowSeconds - 5,
+      selectAgo: RestorePolicy.bounceCorrelationSeconds + 5, budget: 4, now: now)
+    XCTAssertEqual(
+      RestorePolicy.verdict(state: state, currentIsFamo: false, now: now), .userSwitchDisarm,
+      "与自家 select 无时间相关的切换判为用户主动——立即收手（shell 轮询版无法根除的残余）")
+  }
+
+  func test_restore_verdict_windowExpired_beatsEverything() {
+    let now = Date()
+    let state = restoreState(armedAgo: RestorePolicy.armWindowSeconds + 1, selectAgo: 5, budget: 4, now: now)
+    XCTAssertEqual(RestorePolicy.verdict(state: state, currentIsFamo: false, now: now), .windowExpiredDisarm)
+    XCTAssertEqual(
+      RestorePolicy.verdict(state: state, currentIsFamo: true, now: now), .windowExpiredDisarm,
+      "窗口先于一切：到期即收，连 keep 也不再报")
+  }
+
+  func test_restore_verdict_budgetExhausted_observesOnly() {
+    let now = Date()
+    let state = restoreState(armedAgo: 20, selectAgo: 5, budget: 0, now: now)
+    XCTAssertEqual(
+      RestorePolicy.verdict(state: state, currentIsFamo: false, now: now), .budgetExhaustedDisarm,
+      "预算花完只观察不再动手（不抢源边界）")
+  }
+
+  func test_restore_parseCurrentSourceID_lastNonEmptyLine() {
+    XCTAssertEqual(
+      RestorePolicy.parseCurrentSourceID("Famo reporting!\nim.famo.inputmethod.Famo.Hans\n"),
+      "im.famo.inputmethod.Famo.Hans",
+      "进程可能先打印别的行——取最后一个非空行（shell 版 tail -n 1 同义）")
+    XCTAssertEqual(RestorePolicy.parseCurrentSourceID("com.apple.keylayout.ABC"), "com.apple.keylayout.ABC")
+    XCTAssertNil(RestorePolicy.parseCurrentSourceID(nil))
+    XCTAssertNil(RestorePolicy.parseCurrentSourceID("  \n\n"))
+  }
 }

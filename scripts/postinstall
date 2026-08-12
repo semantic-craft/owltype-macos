@@ -18,117 +18,20 @@ login_uid=`/usr/bin/stat -f%u /dev/console`
 input_methods_root="${DSTROOT:-${2:-}/Library/Input Methods}"
 famo_app_root="${input_methods_root}/Famo.app"
 famo_executable="${famo_app_root}/Contents/MacOS/Famo"
-# installer 调 postinstall 的约定实参：$1=pkg 路径、$3=目标卷。dev/手动直跑（make install-*）
-# 两者皆空——4b 的延迟还原任务据此区分「等真实收据」还是「没有收据可等」。
-installer_target_volume="${3:-/}"
-installer_mode="${1:+pkg}"
-deferred_restore_label="im.famo.inputmethod.Famo.deferred-update-select"
+# 更新还原交接标记（0e 写、app 启动读后即删）：更新路径的配对切回不能只在 postinstall 里直接做
+# ——PackageKit 在 postinstall 退出后才完成被替换 bundle 的最终 LaunchServices 注册，macOS 26 上
+# 此前的 TISSelectInputSource 返回 noErr、fresh 读回却仍是 US（2026-08-12 交接两次实测）。跨该
+# 边界的还原由 app 侧事件驱动还原器接管（FamoUpdateSelectionRestorer：第 4 步 open -g 拉起的新
+# app 天然活过注册边界），本脚本只负责把「更新打断了既有选中态」这个事实交接过去。
+update_restore_marker="/private/tmp/im.famo.inputmethod.update-restore-pending"
 
 # 在登录用户的 Aqua GUI 会话里跑命令（per-user TIS / Rime 用户目录都在这里，不在 root）。
 as_login_user() {
   /bin/launchctl asuser "${login_uid}" /usr/bin/sudo -u "${login_user}" "$@"
 }
 
-# 更新路径的配对切回不能只在 postinstall 里直接做：PackageKit 在 postinstall 退出后才完成被替换
-# bundle 的最终 LaunchServices 注册，macOS 26 上此前的 TISSelectInputSource 返回 noErr、fresh
-# 读回却仍是 US（2026-08-12 交接两次实测）。这里向登录用户 GUI bootstrap 提交一次性任务：
-#   边界   先等本次安装的收据落盘（install-time ≥ 提交时刻；本机实测该值 = 事务收尾写收据的
-#          时间），这是「PackageKit 忙完了」的可观察标志；只有真实 installer 路径才等。
-#   稳定窗 收工要求连续 5 次 fresh 读回法墨 且 距还原循环开始 ≥20 秒——单次读回成功可能仍被
-#          更晚的最终注册踢回（上一版补丁被否的点）；中途被踢就重选并清零计数。
-#   不抢源 被踢的停泊目标不限于键盘布局——本仓 0b 注释实录是「ABC/鼠须管」，所以任何非法墨
-#          读回都重选；对「用户此刻主动切走」的让步 = 重选预算共 8 次，花完只观察不再动手。
-#   自保   launchctl submit 的任务「失败时会被 launchd 重启」（man launchctl）：所有路径都
-#          exit 0 + trap TERM/INT；被 SIGKILL 硬杀后的复活体靠「距安装 >5 分钟即自灭」阀兜底，
-#          下一次安装的 0-pre 是最后一道闸。成败都自删 label，不装永久 LaunchAgent。
-# 任务体必须内嵌成字符串：pkg 的 Scripts 目录是 PKInstallSandbox 临时目录，postinstall 退出后
-# 会被清掉，落盘的伴生脚本文件可能在任务启动前就没了。全程 bounded（收据 ≤30s + 还原 ≤60s），
-# 失败绝不影响安装结果；断点可观察：/usr/bin/logger 打 famo-deferred-update-select 标签进统一日志。
-schedule_deferred_update_restore() {
-  local install_epoch job_script
-  install_epoch="$(/bin/date +%s)"
-  job_script='
-    app="$1"
-    label="$2"
-    volume="$3"
-    mode="$4"
-    since="$5"
-    pkg_id="im.famo.inputmethod.Famo"
-    log() { /usr/bin/logger -t famo-deferred-update-select "$1"; }
-    finish() { log "$1"; /bin/launchctl remove "${label}" >/dev/null 2>&1 || true; exit 0; }
-    trap "finish terminated" TERM INT
-
-    now="$(/bin/date +%s)"
-    case "${since}" in *[!0-9]*|"") since="${now}" ;; esac
-    [ $(( now - since )) -gt 300 ] && finish "stale-relaunch"
-
-    if [ "${mode}" = "pkg" ]; then
-      i=0
-      while [ "${i}" -lt 30 ]; do
-        t="$(/usr/sbin/pkgutil --volume "${volume}" --pkg-info "${pkg_id}" 2>/dev/null \
-          | /usr/bin/awk "/^install-time:/ { print \$2; exit }")"
-        case "${t}" in
-          *[!0-9]*|"") ;;
-          *) if [ "${t}" -ge "${since}" ]; then log "receipt-landed after=${i}"; break; fi ;;
-        esac
-        i=$((i + 1))
-        /bin/sleep 1
-      done
-      [ "${i}" -ge 30 ] && log "receipt-timeout volume=${volume}"
-    fi
-
-    stable=0; empty=0; budget=8; i=0
-    while [ "${i}" -lt 60 ]; do
-      current="$("${app}" --current-input-source 2>/dev/null | /usr/bin/tail -n 1 || true)"
-      case "${current}" in
-        im.famo.inputmethod.Famo*)
-          empty=0
-          stable=$((stable + 1))
-          if [ "${stable}" -ge 5 ] && [ "${i}" -ge 20 ]; then
-            /usr/bin/killall TextInputMenuAgent TextInputSwitcher 2>/dev/null || true
-            finish "restored-stable ticks=${i} selects=$((8 - budget))"
-          fi
-          ;;
-        "")
-          empty=$((empty + 1))
-          if [ "${empty}" -ge 3 ] && [ "${budget}" -gt 0 ]; then
-            budget=$((budget - 1)); empty=0
-            log "blind-select tick=${i}"
-            "${app}" --select-input-source >/dev/null 2>&1 || true
-          fi
-          ;;
-        *)
-          stable=0; empty=0
-          if [ "${budget}" -gt 0 ]; then
-            budget=$((budget - 1))
-            log "reselect tick=${i} from=${current}"
-            "${app}" --select-input-source >/dev/null 2>&1 || true
-          fi
-          ;;
-      esac
-      i=$((i + 1))
-      /bin/sleep 1
-    done
-    finish "window-exhausted selects=$((8 - budget))"
-  '
-  for _ in 1 2; do
-    if as_login_user /bin/launchctl submit \
-      -l "${deferred_restore_label}" -o /dev/null -e /dev/null -- \
-      /bin/sh -c "${job_script}" deferred-update-restore \
-      "${famo_executable}" "${deferred_restore_label}" "${installer_target_volume}" \
-      "${installer_mode}" "${install_epoch}"; then
-      return 0
-    fi
-    /bin/sleep 1
-  done
-  echo "Famo postinstall: 延迟还原任务提交失败（launchctl submit 两次未成）；本次更新只有 4b 的即时 select 兜底。"
-  return 0
-}
-
-# 0-pre) 先干掉上一轮更新可能残留的延迟还原任务（正常自删；SIGKILL 复活体另有 5 分钟自灭阀，
-#        这里是最后一道闸）。必须在 0a 的 pgrep 采样之前：任务的读回探针进程名同样是 Famo，
-#        撞上采样窗口会把全新首装误判成更新而跳过 enable；也不能让旧任务在 0d 切出后又抢着选回。
-as_login_user /bin/launchctl remove "${deferred_restore_label}" >/dev/null 2>&1 || true
+# 0-pre) 清掉上一轮可能残留的交接标记（app 从未启动消费的情形）；app 侧另有新鲜度阀双保险。
+/bin/rm -f "${update_restore_marker}" || true
 
 # 0a) 更新/重装探测（复合判据；pgrep 必须在 killall 之前！）：
 #       is_update = bundle_preexisted（preinstall 标记，主信号）OR was_running（pgrep，副信号）
@@ -196,6 +99,14 @@ if [ "${currently_selected}" = true ]; then
   as_login_user "${famo_executable}" --select-input-source com.apple.keylayout.ABC || true
 fi
 
+# 0e) 交接标记：内容 = epoch 秒（app 侧新鲜度阀用）。必须在 kill 之前写——kill 之后 imklaunchagent
+#     可能随时按需复活法墨（0a 注释实录），复活体启动即读标记，写晚了就消费不到。以登录用户身份写
+#     （/tmp 有 sticky 位，root 写的文件 app 进程删不掉；读后即删是一次性语义的落点）。
+if [ "${was_selected}" = true ]; then
+  install_epoch="$(/bin/date +%s)"
+  as_login_user /bin/sh -c "printf '%s\n' '${install_epoch}' > '${update_restore_marker}'" || true
+fi
+
 # 先停掉运行中的法墨：让 register 看到干净状态，且重启的是新装的 bundle。
 /usr/bin/sudo -u "${login_user}" /usr/bin/killall Famo > /dev/null 2>&1 || true
 
@@ -228,15 +139,16 @@ fi
 #    部署到法墨自有 Rime 目录（user_data_dir 已正确设置）。
 as_login_user /usr/bin/open -g "${famo_app_root}" || true
 
-# 4b) 若更新前法墨是当前输入法（0b 主信号 OR 0c 副信号）：先就地 fresh select 一次（#16 补救
-#     实测 err=0 三连有效，macOS < 26 即时生效，也是 submit 失败时的兜底），再调度延迟任务跨越
-#     PackageKit 最终注册窗口——macOS 26 上这里的 select 返回 noErr 也会在最终注册落地时被踢回，
-#     唯一可靠判据是注册边界之后的连续 fresh 读回（机制、预算与不抢源边界见函数头注释）。
-#     这不是抢源：只还原更新打断的既有态。
+# 4b) 若更新前法墨是当前输入法（0b 主信号 OR 0c 副信号）：就地 fresh select 一次（#16 补救实测
+#     err=0 三连有效，macOS < 26 即时生效）。macOS 26 上这个 select 返回 noErr 也会在 PackageKit
+#     最终注册落地时被踢回——跨该边界的还原由 0e 交接标记 + app 侧事件驱动还原器接管（第 4 步
+#     open -g 拉起的新 app 监听 kTISNotifySelectedKeyboardInputSourceChanged，按「踢回事件与自家
+#     select 的时间相关性」区分系统踢回与用户主动切换，有界窗口 + 重选预算，机制见
+#     FamoUpdateSelectionRestorer / FamoUpdateSelectionRestorePolicy）。这不是抢源：只还原更新
+#     打断的既有态。
 if [ "${was_selected}" = true ]; then
   as_login_user "${famo_executable}" --select-input-source || true
-  schedule_deferred_update_restore || true
-  echo "Famo postinstall: 已调度延迟还原任务（label=${deferred_restore_label}；观察：log stream --predicate 'eventMessage CONTAINS \"famo-deferred-update-select\"'）。"
+  echo "Famo postinstall: 已交接 app 侧延迟还原（观察：log show --last 5m --predicate 'subsystem == \"im.famo.inputmethod.Famo\" AND category == \"updateRestore\"'）。"
 fi
 
 # 5) 强制输入菜单代理立即重读启用列表（TIS-ACTIVATION-NOTES 定律7；微信/搜狗 install.sh 同样 kill
