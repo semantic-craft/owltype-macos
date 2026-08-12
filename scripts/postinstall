@@ -30,9 +30,15 @@ as_login_user() {
   /bin/launchctl asuser "${login_uid}" /usr/bin/sudo -u "${login_user}" "$@"
 }
 
-# 更新路径的配对切回不能只在 postinstall 里直接做：PackageKit 在 postinstall 退出后才完成被替换
-# bundle 的最终 LaunchServices 注册，macOS 26 上此前的 TISSelectInputSource 返回 noErr、fresh
-# 读回却仍是 US（2026-08-12 交接两次实测）。这里向登录用户 GUI bootstrap 提交一次性任务：
+# 跨 PackageKit 最终注册边界的收尾不能在 postinstall 里直接做：PackageKit 在 postinstall 退出后
+# 才完成被替换 bundle 的最终 LaunchServices 注册。两个受害面，同一个可观察边界（收据落盘）：
+#   选中态   macOS 26 上此前的 TISSelectInputSource 返回 noErr、fresh 读回却仍是 US（2026-08-12
+#            交接两次实测）——仅 was_selected 时还原，不抢源。
+#   输入菜单 菜单代理在最终注册前被 killall 重启，拿到的启用列表快照漏掉法墨——TIS 探针全绿
+#            （enabled=true/selectable=true）、输入菜单却不列法墨（FAMO-TIS-006；2026-08-12
+#            1.6.0 no-steal 更新真机红灯实录）。所以定律7 的代理刷新也挪进本任务，且任务
+#            **无条件调度**：不论 was_selected，收工前总刷新一次菜单代理。
+# 这里向登录用户 GUI bootstrap 提交一次性任务：
 #   边界   先等本次安装的收据落盘（install-time ≥ 提交时刻；本机实测该值 = 事务收尾写收据的
 #          时间），这是「PackageKit 忙完了」的可观察标志；只有真实 installer 路径才等。
 #   稳定窗 收工要求连续 5 次 fresh 读回法墨 且 距还原循环开始 ≥20 秒——单次读回成功可能仍被
@@ -60,10 +66,12 @@ schedule_deferred_update_restore() {
 
   /bin/cat > "${job_sh}" <<'JOBEOF'
 #!/bin/sh
-# 法墨更新后延迟还原（由 scripts/postinstall 生成并 bootstrap，机制注释见该文件）。
-app="$1"; label="$2"; volume="$3"; mode="$4"; since="$5"; uid="$6"; job_sh="$7"; job_plist="$8"
+# 法墨安装延迟收尾：菜单代理刷新（总是）+ 选中态还原（仅 selected=true）。
+# 由 scripts/postinstall 生成并 bootstrap，机制注释见该文件。
+app="$1"; label="$2"; volume="$3"; mode="$4"; since="$5"; uid="$6"; job_sh="$7"; job_plist="$8"; selected="$9"
 pkg_id="im.famo.inputmethod.Famo"
 log() { echo "$(/bin/date '+%H:%M:%S') $1"; }
+refresh_menu_agents() { /usr/bin/killall SystemUIServer TextInputMenuAgent TextInputSwitcher 2>/dev/null || true; }
 finish() {
   log "$1"
   /bin/rm -f "${job_sh}" "${job_plist}"
@@ -72,7 +80,7 @@ finish() {
   exit 0
 }
 trap "finish terminated" TERM INT
-log "start mode=${mode} volume=${volume} since=${since}"
+log "start mode=${mode} volume=${volume} since=${since} selected=${selected}"
 
 now="$(/bin/date +%s)"
 case "${since}" in *[!0-9]*|"") since="${now}" ;; esac
@@ -93,6 +101,13 @@ if [ "${mode}" = "pkg" ]; then
   [ "${i}" -ge 30 ] && log "receipt-timeout volume=${volume}"
 fi
 
+# no-steal / 首装：没有选中态要还原，收据边界后刷新菜单代理即收工——这一步不依赖
+# selected，是「输入菜单必列法墨」的唯一保障（postinstall 里立即 killall 会抢在最终注册前）。
+if [ "${selected}" != "true" ]; then
+  refresh_menu_agents
+  finish "menu-refreshed"
+fi
+
 stable=0; empty=0; budget=8; i=0
 while [ "${i}" -lt 60 ]; do
   current="$("${app}" --current-input-source 2>/dev/null | /usr/bin/tail -n 1 || true)"
@@ -101,7 +116,7 @@ while [ "${i}" -lt 60 ]; do
       empty=0
       stable=$((stable + 1))
       if [ "${stable}" -ge 5 ] && [ "${i}" -ge 20 ]; then
-        /usr/bin/killall TextInputMenuAgent TextInputSwitcher 2>/dev/null || true
+        refresh_menu_agents
         finish "restored-stable ticks=${i} selects=$((8 - budget))"
       fi
       ;;
@@ -125,6 +140,8 @@ while [ "${i}" -lt 60 ]; do
   i=$((i + 1))
   /bin/sleep 1
 done
+# 还原窗口耗尽（用户主动切走 / 预算花完）也要刷新菜单：不动选中态，只保证菜单列表不缺法墨。
+refresh_menu_agents
 finish "window-exhausted selects=$((8 - budget))"
 JOBEOF
 
@@ -144,6 +161,7 @@ JOBEOF
     <string>${login_uid}</string>
     <string>${job_sh}</string>
     <string>${job_plist}</string>
+    <string>${was_selected}</string>
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><false/>
@@ -161,8 +179,9 @@ PLISTEOF
     fi
     /bin/sleep 1
   done
-  echo "Famo postinstall: 延迟还原任务 bootstrap 失败（gui/${login_uid}）；本次更新只有 4b 的即时 select 兜底。"
+  echo "Famo postinstall: 延迟收尾任务 bootstrap 失败（gui/${login_uid}）；退化为立即刷新菜单代理（可能早于最终注册），was_selected 路径另有 4b 的即时 select 兜底。"
   /bin/rm -f "${job_sh}" "${job_plist}"
+  /usr/bin/killall SystemUIServer TextInputMenuAgent TextInputSwitcher 2>/dev/null || true
   return 0
 }
 
@@ -270,20 +289,21 @@ fi
 #    部署到法墨自有 Rime 目录（user_data_dir 已正确设置）。
 as_login_user /usr/bin/open -g "${famo_app_root}" || true
 
-# 4b) 若更新前法墨是当前输入法（0b 主信号 OR 0c 副信号）：先就地 fresh select 一次（#16 补救
-#     实测 err=0 三连有效，macOS < 26 即时生效，也是 submit 失败时的兜底），再调度延迟任务跨越
-#     PackageKit 最终注册窗口——macOS 26 上这里的 select 返回 noErr 也会在最终注册落地时被踢回，
-#     唯一可靠判据是注册边界之后的连续 fresh 读回（机制、预算与不抢源边界见函数头注释）。
+# 4b) 若更新前法墨是当前输入法（0b 主信号 OR 0c 副信号）：就地 fresh select 一次（#16 补救实测
+#     err=0 三连有效，macOS < 26 即时生效，也是 bootstrap 失败时的兜底）。macOS 26 上这里的
+#     select 返回 noErr 也会在最终注册落地时被踢回——跨边界还原交给第 5 步的延迟任务。
 #     这不是抢源：只还原更新打断的既有态。
 if [ "${was_selected}" = true ]; then
   as_login_user "${famo_executable}" --select-input-source || true
-  schedule_deferred_update_restore || true
-  echo "Famo postinstall: 已调度延迟还原任务（label=${deferred_restore_label}；断点：tail -f ${deferred_restore_log}）。"
 fi
 
-# 5) 强制输入菜单代理立即重读启用列表（TIS-ACTIVATION-NOTES 定律7；微信/搜狗 install.sh 同样 kill
-#    SystemUIServer）。launchd 会自动重启它们。
-/usr/bin/killall SystemUIServer TextInputMenuAgent TextInputSwitcher 2>/dev/null || true
+# 5) 无条件调度延迟收尾任务：收据边界后刷新输入菜单代理（TIS-ACTIVATION-NOTES 定律7 的 killall
+#    从这里挪进任务——postinstall 里立即 kill 抢在 PackageKit 最终注册之前，代理快照漏掉法墨：
+#    TIS 全绿、输入菜单不列，2026-08-12 1.6.0 no-steal 更新真机红灯）；仅 was_selected 时附带
+#    选中态还原（机制、预算与不抢源边界见函数头注释）。dev/手动直跑无收据可等，任务即时刷新，
+#    与旧步骤 5 等效。
+schedule_deferred_update_restore || true
+echo "Famo postinstall: 已调度延迟收尾任务（was_selected=${was_selected}，label=${deferred_restore_label}；断点：tail -f ${deferred_restore_log}）。"
 
 # 6) 仅诊断：若法墨落进 "已选中但未真正启用" 死半态，把可复制的系统设置恢复指引打进安装日志。读用户会话，
 #    跑在同一 asuser GUI 域。best-effort，永不让安装失败。
