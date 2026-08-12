@@ -186,6 +186,11 @@ UPDATE scenario (asserts the shipped 1.3.32 no-logout update; closes that open l
   5. smoke-live.sh check    — asserts a SINGLE Hans source; an illegal re-enable shows as a duplicate.
   6. Reopen TextEdit → smoke-live.sh input textedit   (real keystroke nihao→你好)
   7. Menu-bar icon visible = 法墨; input menu lists 法墨 exactly once (no duplicate/ghost).
+  8. NO-STEAL variant (second pass): switch to ABC yourself BEFORE triggering the update. After
+     install, Famo must NOT be selected (no source-stealing), but the input menu MUST still list
+     法墨 — the deferred job runs unconditionally and refreshes the menu agents after the receipt
+     boundary (same log file; expect "menu-refreshed"). 1.6.0 red light: menu missing 法墨 while
+     the TIS probe showed enabled=true/selectable=true (FAMO-TIS-006).
 UPDATE
   else
     cat <<'FIRST'
