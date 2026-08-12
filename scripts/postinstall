@@ -23,6 +23,7 @@ famo_executable="${famo_app_root}/Contents/MacOS/Famo"
 installer_target_volume="${3:-/}"
 installer_mode="${1:+pkg}"
 deferred_restore_label="im.famo.inputmethod.Famo.deferred-update-select"
+deferred_restore_log="/private/tmp/${deferred_restore_label}.log"
 
 # 在登录用户的 Aqua GUI 会话里跑命令（per-user TIS / Rime 用户目录都在这里，不在 root）。
 as_login_user() {
@@ -38,97 +39,138 @@ as_login_user() {
 #          更晚的最终注册踢回（上一版补丁被否的点）；中途被踢就重选并清零计数。
 #   不抢源 被踢的停泊目标不限于键盘布局——本仓 0b 注释实录是「ABC/鼠须管」，所以任何非法墨
 #          读回都重选；对「用户此刻主动切走」的让步 = 重选预算共 8 次，花完只观察不再动手。
-#   自保   launchctl submit 的任务「失败时会被 launchd 重启」（man launchctl）：所有路径都
-#          exit 0 + trap TERM/INT；被 SIGKILL 硬杀后的复活体靠「距安装 >5 分钟即自灭」阀兜底，
-#          下一次安装的 0-pre 是最后一道闸。成败都自删 label，不装永久 LaunchAgent。
-# 任务体必须内嵌成字符串：pkg 的 Scripts 目录是 PKInstallSandbox 临时目录，postinstall 退出后
-# 会被清掉，落盘的伴生脚本文件可能在任务启动前就没了。全程 bounded（收据 ≤30s + 还原 ≤60s），
-# 失败绝不影响安装结果；断点可观察：/usr/bin/logger 打 famo-deferred-update-select 标签进统一日志。
+#   载体   root 直接 `launchctl bootstrap gui/<uid>` 一个一次性 agent（RunAtLoad、显式
+#          KeepAlive=false）。不能用 legacy `launchctl submit`：从 postinstall 的 root 守护
+#          进程上下文经 asuser+sudo 提交，返回 0 但任务落进不会运行的引导域（2026-08-12
+#          1.6.0 首轮真机验收红灯实录）；bootstrap 显式指名 GUI 域，root 有权注入，dev 直跑
+#          时用户注入自己的域同样成立（本机实验验证）。
+#   自保   KeepAlive=false 根除「失败被 launchd 重启」；被 SIGKILL 硬杀的复活体另有
+#          「距安装 >5 分钟即自灭」阀兜底，下一次安装的 0-pre 是最后一道闸。
+# 任务体与 plist 落 /private/tmp（不是 PKInstallSandbox，活得过 postinstall；写完 chown 给登录
+# 用户——/tmp 有 sticky 位，root 写的文件用户态任务删不掉），任务收工自删两个文件并 bootout
+# 自己。断点写 ${deferred_restore_log}（launchd 的 stdout/stderr 也指过去，连语法错误都留痕；
+# 本机 /usr/bin/logger 进不了统一日志，别再走那条路）。全程 bounded（收据 ≤30s + 还原 ≤60s），
+# 失败绝不影响安装结果。
 schedule_deferred_update_restore() {
-  local install_epoch job_script
+  local install_epoch job_sh job_plist
   install_epoch="$(/bin/date +%s)"
-  job_script='
-    app="$1"
-    label="$2"
-    volume="$3"
-    mode="$4"
-    since="$5"
-    pkg_id="im.famo.inputmethod.Famo"
-    log() { /usr/bin/logger -t famo-deferred-update-select "$1"; }
-    finish() { log "$1"; /bin/launchctl remove "${label}" >/dev/null 2>&1 || true; exit 0; }
-    trap "finish terminated" TERM INT
+  job_sh="/private/tmp/${deferred_restore_label}.sh"
+  job_plist="/private/tmp/${deferred_restore_label}.plist"
+  /bin/rm -f "${job_sh}" "${job_plist}" "${deferred_restore_log}"
 
-    now="$(/bin/date +%s)"
-    case "${since}" in *[!0-9]*|"") since="${now}" ;; esac
-    [ $(( now - since )) -gt 300 ] && finish "stale-relaunch"
+  /bin/cat > "${job_sh}" <<'JOBEOF'
+#!/bin/sh
+# 法墨更新后延迟还原（由 scripts/postinstall 生成并 bootstrap，机制注释见该文件）。
+app="$1"; label="$2"; volume="$3"; mode="$4"; since="$5"; uid="$6"; job_sh="$7"; job_plist="$8"
+pkg_id="im.famo.inputmethod.Famo"
+log() { echo "$(/bin/date '+%H:%M:%S') $1"; }
+finish() {
+  log "$1"
+  /bin/rm -f "${job_sh}" "${job_plist}"
+  trap - TERM INT
+  /bin/launchctl bootout "gui/${uid}/${label}" 2>/dev/null
+  exit 0
+}
+trap "finish terminated" TERM INT
+log "start mode=${mode} volume=${volume} since=${since}"
 
-    if [ "${mode}" = "pkg" ]; then
-      i=0
-      while [ "${i}" -lt 30 ]; do
-        t="$(/usr/sbin/pkgutil --volume "${volume}" --pkg-info "${pkg_id}" 2>/dev/null \
-          | /usr/bin/awk "/^install-time:/ { print \$2; exit }")"
-        case "${t}" in
-          *[!0-9]*|"") ;;
-          *) if [ "${t}" -ge "${since}" ]; then log "receipt-landed after=${i}"; break; fi ;;
-        esac
-        i=$((i + 1))
-        /bin/sleep 1
-      done
-      [ "${i}" -ge 30 ] && log "receipt-timeout volume=${volume}"
-    fi
+now="$(/bin/date +%s)"
+case "${since}" in *[!0-9]*|"") since="${now}" ;; esac
+[ $(( now - since )) -gt 300 ] && finish "stale-relaunch"
 
-    stable=0; empty=0; budget=8; i=0
-    while [ "${i}" -lt 60 ]; do
-      current="$("${app}" --current-input-source 2>/dev/null | /usr/bin/tail -n 1 || true)"
-      case "${current}" in
-        im.famo.inputmethod.Famo*)
-          empty=0
-          stable=$((stable + 1))
-          if [ "${stable}" -ge 5 ] && [ "${i}" -ge 20 ]; then
-            /usr/bin/killall TextInputMenuAgent TextInputSwitcher 2>/dev/null || true
-            finish "restored-stable ticks=${i} selects=$((8 - budget))"
-          fi
-          ;;
-        "")
-          empty=$((empty + 1))
-          if [ "${empty}" -ge 3 ] && [ "${budget}" -gt 0 ]; then
-            budget=$((budget - 1)); empty=0
-            log "blind-select tick=${i}"
-            "${app}" --select-input-source >/dev/null 2>&1 || true
-          fi
-          ;;
-        *)
-          stable=0; empty=0
-          if [ "${budget}" -gt 0 ]; then
-            budget=$((budget - 1))
-            log "reselect tick=${i} from=${current}"
-            "${app}" --select-input-source >/dev/null 2>&1 || true
-          fi
-          ;;
-      esac
-      i=$((i + 1))
-      /bin/sleep 1
-    done
-    finish "window-exhausted selects=$((8 - budget))"
-  '
+if [ "${mode}" = "pkg" ]; then
+  i=0
+  while [ "${i}" -lt 30 ]; do
+    t="$(/usr/sbin/pkgutil --volume "${volume}" --pkg-info "${pkg_id}" 2>/dev/null \
+      | /usr/bin/awk '/^install-time:/ { print $2; exit }')"
+    case "${t}" in
+      *[!0-9]*|"") ;;
+      *) if [ "${t}" -ge "${since}" ]; then log "receipt-landed after=${i}"; break; fi ;;
+    esac
+    i=$((i + 1))
+    /bin/sleep 1
+  done
+  [ "${i}" -ge 30 ] && log "receipt-timeout volume=${volume}"
+fi
+
+stable=0; empty=0; budget=8; i=0
+while [ "${i}" -lt 60 ]; do
+  current="$("${app}" --current-input-source 2>/dev/null | /usr/bin/tail -n 1 || true)"
+  case "${current}" in
+    im.famo.inputmethod.Famo*)
+      empty=0
+      stable=$((stable + 1))
+      if [ "${stable}" -ge 5 ] && [ "${i}" -ge 20 ]; then
+        /usr/bin/killall TextInputMenuAgent TextInputSwitcher 2>/dev/null || true
+        finish "restored-stable ticks=${i} selects=$((8 - budget))"
+      fi
+      ;;
+    "")
+      empty=$((empty + 1))
+      if [ "${empty}" -ge 3 ] && [ "${budget}" -gt 0 ]; then
+        budget=$((budget - 1)); empty=0
+        log "blind-select tick=${i}"
+        "${app}" --select-input-source >/dev/null 2>&1 || true
+      fi
+      ;;
+    *)
+      stable=0; empty=0
+      if [ "${budget}" -gt 0 ]; then
+        budget=$((budget - 1))
+        log "reselect tick=${i} from=${current}"
+        "${app}" --select-input-source >/dev/null 2>&1 || true
+      fi
+      ;;
+  esac
+  i=$((i + 1))
+  /bin/sleep 1
+done
+finish "window-exhausted selects=$((8 - budget))"
+JOBEOF
+
+  /bin/cat > "${job_plist}" <<PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>${deferred_restore_label}</string>
+  <key>ProgramArguments</key><array>
+    <string>/bin/sh</string>
+    <string>${job_sh}</string>
+    <string>${famo_executable}</string>
+    <string>${deferred_restore_label}</string>
+    <string>${installer_target_volume}</string>
+    <string>${installer_mode}</string>
+    <string>${install_epoch}</string>
+    <string>${login_uid}</string>
+    <string>${job_sh}</string>
+    <string>${job_plist}</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><false/>
+  <key>StandardOutPath</key><string>${deferred_restore_log}</string>
+  <key>StandardErrorPath</key><string>${deferred_restore_log}</string>
+</dict></plist>
+PLISTEOF
+
+  /bin/chmod 644 "${job_sh}" "${job_plist}"
+  /usr/sbin/chown "${login_uid}" "${job_sh}" "${job_plist}" 2>/dev/null || true
   for _ in 1 2; do
-    if as_login_user /bin/launchctl submit \
-      -l "${deferred_restore_label}" -o /dev/null -e /dev/null -- \
-      /bin/sh -c "${job_script}" deferred-update-restore \
-      "${famo_executable}" "${deferred_restore_label}" "${installer_target_volume}" \
-      "${installer_mode}" "${install_epoch}"; then
+    /bin/launchctl bootout "gui/${login_uid}/${deferred_restore_label}" 2>/dev/null || true
+    if /bin/launchctl bootstrap "gui/${login_uid}" "${job_plist}"; then
       return 0
     fi
     /bin/sleep 1
   done
-  echo "Famo postinstall: 延迟还原任务提交失败（launchctl submit 两次未成）；本次更新只有 4b 的即时 select 兜底。"
+  echo "Famo postinstall: 延迟还原任务 bootstrap 失败（gui/${login_uid}）；本次更新只有 4b 的即时 select 兜底。"
+  /bin/rm -f "${job_sh}" "${job_plist}"
   return 0
 }
 
 # 0-pre) 先干掉上一轮更新可能残留的延迟还原任务（正常自删；SIGKILL 复活体另有 5 分钟自灭阀，
 #        这里是最后一道闸）。必须在 0a 的 pgrep 采样之前：任务的读回探针进程名同样是 Famo，
 #        撞上采样窗口会把全新首装误判成更新而跳过 enable；也不能让旧任务在 0d 切出后又抢着选回。
-as_login_user /bin/launchctl remove "${deferred_restore_label}" >/dev/null 2>&1 || true
+/bin/launchctl bootout "gui/${login_uid}/${deferred_restore_label}" 2>/dev/null || true
+/bin/rm -f "/private/tmp/${deferred_restore_label}.sh" "/private/tmp/${deferred_restore_label}.plist"
 
 # 0a) 更新/重装探测（复合判据；pgrep 必须在 killall 之前！）：
 #       is_update = bundle_preexisted（preinstall 标记，主信号）OR was_running（pgrep，副信号）
@@ -236,7 +278,7 @@ as_login_user /usr/bin/open -g "${famo_app_root}" || true
 if [ "${was_selected}" = true ]; then
   as_login_user "${famo_executable}" --select-input-source || true
   schedule_deferred_update_restore || true
-  echo "Famo postinstall: 已调度延迟还原任务（label=${deferred_restore_label}；观察：log stream --predicate 'eventMessage CONTAINS \"famo-deferred-update-select\"'）。"
+  echo "Famo postinstall: 已调度延迟还原任务（label=${deferred_restore_label}；断点：tail -f ${deferred_restore_log}）。"
 fi
 
 # 5) 强制输入菜单代理立即重读启用列表（TIS-ACTIVATION-NOTES 定律7；微信/搜狗 install.sh 同样 kill
