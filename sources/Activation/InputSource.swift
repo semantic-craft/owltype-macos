@@ -451,7 +451,7 @@ enum FamoTISDiagnostics {
     layers.append(LayerResult(
       layer: .menuVisible, ok: nil, code: nil,
       detail: primaryEnabled
-        ? "只读探针看不到输入菜单缓存。若已 enabled 但菜单仍不列「法墨」= FAMO-TIS-006（菜单缓存未刷新）：等软/硬窗自然翻绿或用手动菜单代理刷新按钮"
+        ? "只读探针看不到输入菜单缓存。若已 enabled 但菜单仍不列「法墨」= FAMO-TIS-006（菜单缓存未刷新）：等软/硬窗自然翻绿或用手动菜单代理刷新按钮；刷新后仍不列 = 会话层拒收（TIS 全绿也无用户态解法，2026-08-12 本机实证），注销重登即愈"
         : "未评估（主输入源未启用）"))
 
     // 6. clientAttach — read-only ceiling; per-app IMK attach needs a live app
