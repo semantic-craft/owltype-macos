@@ -62,6 +62,47 @@ final class FamoClientCapabilityPolicyTests: XCTestCase {
     }
   }
 
+  func testToDesktopBundlePrefixIsElectron() {
+    // 08-17 真机实锤：Cursor（ToDesktop 打包，com.todesktop.230313mzl4w4u92）不在旧名单里，
+    // delayedCandidatePositioning 落成 notNeeded → 候选窗钉在陈旧锚点、不跟随光标。
+    // ToDesktop 家族 bundle ID 一律是 com.todesktop.<随机串>，前缀判定整族覆盖。
+    let cursor = policy.evaluate(.init(host: .init(bundleID: "com.todesktop.230313mzl4w4u92")))
+    XCTAssertFalse(cursor.selectedRange.allowed)
+    XCTAssertFalse(cursor.replacementRange.allowed)
+    XCTAssertFalse(cursor.surroundingText.allowed)
+    XCTAssertTrue(cursor.delayedCandidatePositioning.allowed)
+    XCTAssertEqual(cursor.delayedCandidatePositioning.reason, .delayedForElectronClient)
+  }
+
+  func testLinksElectronFrameworkFactMarksUnknownBundleAsElectron() {
+    // 通用检测的策略侧：宿主包里真带 Electron Framework（运行时事实）就按 Electron 处理，
+    // 无论 bundle ID 认不认识——这是「不再维护名单」的关键一环。
+    let detected = policy.evaluate(.init(host: .init(
+      bundleID: "com.example.some-future-electron-app", linksElectronFramework: true
+    )))
+    XCTAssertFalse(detected.replacementRange.allowed)
+    XCTAssertTrue(detected.delayedCandidatePositioning.allowed)
+    XCTAssertEqual(detected.delayedCandidatePositioning.reason, .delayedForElectronClient)
+
+    // 同一个未知 bundle、没有该事实 → 仍走 default，证明判定确实来自这个输入。
+    let plain = policy.evaluate(.init(host: .init(bundleID: "com.example.some-future-electron-app")))
+    XCTAssertTrue(plain.replacementRange.allowed)
+    XCTAssertFalse(plain.delayedCandidatePositioning.allowed)
+  }
+
+  func testElectronFrameworkNameSniffing() {
+    // 探测器的纯核心：框架目录名单里认 `Electron Framework*`（Cursor/VS Code/Slack 实测
+    // 都是这个标准名），普通框架不误伤。
+    XCTAssertTrue(FamoElectronHostDetector.frameworkNamesLinkElectron(
+      ["Squirrel.framework", "Electron Framework.framework"]
+    ))
+    XCTAssertTrue(FamoElectronHostDetector.frameworkNamesLinkElectron(["electron framework.framework"]))
+    XCTAssertFalse(FamoElectronHostDetector.frameworkNamesLinkElectron(
+      ["Sparkle.framework", "Mantle.framework"]
+    ))
+    XCTAssertFalse(FamoElectronHostDetector.frameworkNamesLinkElectron([]))
+  }
+
   func testAutoPairWriteTrustSignalOnlyComesFromAppKitAllowlist() {
     // 自动配对写路径（自替换/跳过覆写）只信 allowedAppKitClient——allowedDefault 的宿主
     // （未知 App，可能是没进清单的 Electron）读可以、写语义不可信。锁 reason 语义本身。
