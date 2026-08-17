@@ -1,3 +1,11 @@
+<a name="1.6.2"></a>
+## 1.6.2 (2026-08-17)
+
+### 主要功能更新 | Major Updates
+- 在 Cursor 等 Electron 应用里打字，候选窗现在会跟着光标走。以前只认一份手工名单（VS Code、Slack 等），Cursor 这种 ToDesktop 打包的应用不在名单里，同步查到的光标位置是旧的，又没有第二次修正，窗就钉在上一次的位置。现在改为看宿主包里是不是真带 Electron Framework，ToDesktop 家族也整族覆盖，以后新出的 Electron 应用不用再往名单里加 (#138)
+
+**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.6.1...1.6.2
+
 <a name="1.6.1"></a>
 ## 1.6.1 (2026-08-12)
 
