@@ -85,6 +85,9 @@ struct FamoClientHostIdentity: Equatable, Sendable {
   var fieldIdentifierSignal: String?
   var windowTitle: String?
   var urlHost: String?
+  /// Runtime fact from `FamoElectronHostDetector`: the host app's bundle ships an
+  /// `Electron Framework.framework`. Kept as a plain input so this policy stays pure.
+  var linksElectronFramework: Bool
 
   init(
     bundleID: String? = nil,
@@ -92,7 +95,8 @@ struct FamoClientHostIdentity: Equatable, Sendable {
     fieldRole: String? = nil,
     fieldIdentifierSignal: String? = nil,
     windowTitle: String? = nil,
-    urlHost: String? = nil
+    urlHost: String? = nil,
+    linksElectronFramework: Bool = false
   ) {
     self.bundleID = bundleID
     self.appName = appName
@@ -100,6 +104,7 @@ struct FamoClientHostIdentity: Equatable, Sendable {
     self.fieldIdentifierSignal = fieldIdentifierSignal
     self.windowTitle = windowTitle
     self.urlHost = urlHost
+    self.linksElectronFramework = linksElectronFramework
   }
 }
 
@@ -312,18 +317,25 @@ private struct ClientFacts {
   }
 
   var electron: Bool {
-    [
-      "com.tinyspeck.slackmacgap",
-      "com.hnc.discord",
-      "com.microsoft.vscode",
-      "com.github.githubclient",
-      "com.openai.chat",
-      // 07-21 真机实锤（Famo `<` 菜单 → `<<>`）：Claude Code / Codex 桌面端也是 Electron，
-      // insertText(replacementRange:) 只认位置不删除范围——自替换退化成插入、内容损坏。
-      "com.anthropic.claudefordesktop",
-      "com.openai.codex",
-      "notion.id"
-    ].contains(bundle) ||
+    // 08-17 真机实锤（Cursor 候选窗不跟随光标）：手工名单永远追不上新 Electron App，判定
+    // 改为三层——① 运行时事实：宿主包里真的带 Electron Framework（FamoElectronHostDetector
+    // 探测，经 host.linksElectronFramework 喂进来）；② ToDesktop 打包的 App bundle ID 一律是
+    // `com.todesktop.<随机串>`（Cursor = com.todesktop.230313mzl4w4u92），前缀整族覆盖；
+    // ③ 原名单只作兜底，供探测拿不到 bundle URL 的场景。
+    input.host.linksElectronFramework ||
+      bundle.hasPrefix("com.todesktop.") ||
+      [
+        "com.tinyspeck.slackmacgap",
+        "com.hnc.discord",
+        "com.microsoft.vscode",
+        "com.github.githubclient",
+        "com.openai.chat",
+        // 07-21 真机实锤（Famo `<` 菜单 → `<<>`）：Claude Code / Codex 桌面端也是 Electron，
+        // insertText(replacementRange:) 只认位置不删除范围——自替换退化成插入、内容损坏。
+        "com.anthropic.claudefordesktop",
+        "com.openai.codex",
+        "notion.id"
+      ].contains(bundle) ||
       fieldSignal.contains("electron") ||
       appName.contains("electron")
   }

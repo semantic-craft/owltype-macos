@@ -375,7 +375,12 @@ final class FamoSelectionMenuCoordinator {
           bundleID: app.bundleIdentifier,
           appName: app.localizedName,
           fieldRole: role,
-          fieldIdentifierSignal: description
+          fieldIdentifierSignal: description,
+          // Electron 宿主的通用判定（详见 FamoElectronHostDetector）；这里已握有
+          // NSRunningApplication，直接用它的 bundleURL，免去按 bundleID 反查。
+          linksElectronFramework: FamoElectronHostDetector.shared.linksElectron(
+            bundleURL: app.bundleURL, cacheKey: app.bundleIdentifier
+          )
         ),
         privacy: .current(isPasswordLike: role?.localizedCaseInsensitiveContains("password") == true ||
                           description.localizedCaseInsensitiveContains("password"))

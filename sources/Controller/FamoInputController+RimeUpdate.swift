@@ -568,7 +568,12 @@ extension FamoInputController {
     let bundleID = client.bundleIdentifier() ?? (currentApp.isEmpty ? nil : currentApp)
     return NSApp.famoAppDelegate.clientCapabilityPolicy.evaluate(
       FamoClientCapabilityInput(
-        host: FamoClientHostIdentity(bundleID: bundleID),
+        host: FamoClientHostIdentity(
+          bundleID: bundleID,
+          // 08-17（Cursor 候选窗不跟随）：Electron 宿主不再靠名单认——探测宿主包里是否真带
+          // Electron Framework。探测按 bundleID 全程缓存，热路径上是一次字典查找。
+          linksElectronFramework: FamoElectronHostDetector.shared.linksElectron(bundleID: bundleID)
+        ),
         privacy: .current(),
         workarounds: NSApp.famoAppDelegate.clientWorkarounds
       )
