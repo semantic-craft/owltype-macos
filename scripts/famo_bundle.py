@@ -34,7 +34,7 @@ RELEASE_ARTIFACT_STATES = ("built", "signed", "notarized", "stapled", "failed")
 RELEASE_OUTPUTS = ("appcast", "source-archive")
 
 COMPONENTS = (
-    ("Famotype", None, "GPL-3.0-only", "https://github.com/semantic-craft/famotype-macos"),
+    ("Famotype", None, "GPL-3.0-only", "https://responsay.com/famo/"),
     ("Squirrel-derived frontend", "4db2c85ac639c229e14fd9424f79c3c4f97ce478", "GPL-3.0-only", "https://github.com/rime/squirrel"),
     ("librime", "33e78140250125871856cdc5b42ddc6a5fcd3cd4", "BSD-3-Clause", "https://github.com/rime/librime"),
     ("librime-lua", "ec52e48ea18f11af37717a01c337f853215cf70b", "BSD-3-Clause", "https://github.com/hchunhui/librime-lua"),
@@ -301,7 +301,7 @@ def make_sbom(app: Path, version: str, revision: str, created: str) -> dict:
         "SPDXID": "SPDXRef-DOCUMENT",
         "creationInfo": {"created": created, "creators": ["Tool: famotype-finalize-release-bundle"]},
         "dataLicense": "CC0-1.0",
-        "documentNamespace": f"https://github.com/semantic-craft/famotype-macos/releases/{version}/spdx/{revision}",
+        "documentNamespace": f"https://responsay.com/famo/releases/{version}/spdx/{revision}",
         "files": files,
         "name": f"Famotype-{version}",
         "packages": packages,

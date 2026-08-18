@@ -26,6 +26,8 @@ jobs:
 
       - name: Release gate regressions
         run: |
+          python3 scripts/famo-distribution.selftest.py
+          python3 -m py_compile scripts/famo_distribution.py
           bash scripts/check-release.selftest.sh
           bash -n scripts/check-release.sh scripts/check-release.selftest.sh scripts/release.sh scripts/famo-seed.sh
 

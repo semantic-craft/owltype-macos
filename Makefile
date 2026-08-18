@@ -279,6 +279,7 @@ release-cohort-check:
 	python3 scripts/inventory-release-bundle.py check "$(RELEASE_OUTPUT_ROOT)"
 
 release-cohort-selftest:
+	python3 scripts/famo-distribution.selftest.py
 	bash scripts/release-cohort.selftest.sh
 	bash scripts/release-cohort-transition.selftest.sh
 	bash scripts/release-chain.selftest.sh

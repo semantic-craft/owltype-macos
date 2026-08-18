@@ -3,7 +3,7 @@
 # make_archive — 生成真正的 Sparkle 自动更新 appcast（Squirrel 同款机制，载荷改用更新专用 pkg）。
 # Sparkle 自动更新载荷 = 签名+公证的裸 .pkg：Sparkle 1.26+/2.x 按 `.pkg` 扩展名走 guided package
 # installer（SUGuidedPackageInstaller）。<enclosure> 显式声明 sparkle:installationType="package"，
-# 并指向公开源码/发版仓当前版本 tag 下的 Famo-update.pkg 固定链接
+# 并指向 responsay.com 对象存储中按 build version 固定的 Famo-update.pkg 链接
 #（Distribution-update，无 RequireLogout——更新免注销；首装仍走
 # DMG 里的 Famo.pkg），并带 sign_update 用与 SUPublicEDKey 配对的 EdDSA 私钥签出的
 # edSignature/length。装毕由组件 (BundleOverwriteAction=upgrade) + postinstall 的
@@ -31,8 +31,9 @@ app_version="$(get_app_version)"
 marketing_version="$(get_marketing_version)"
 pub_date=$(date -R)
 
-# Sparkle 固定到当前 CFBundleVersion 对应的不可变 tag，不依赖 repository-wide Latest。
-download_url="https://github.com/semantic-craft/famotype-macos/releases/download/${app_version}/Famo-update.pkg"
+# Sparkle 固定到当前 CFBundleVersion 对应的不可变对象，不依赖仓库可见性或 latest 别名。
+download_url="$(python3 "${PROJECT_ROOT}/scripts/famo_distribution.py" asset-url \
+    "${app_version}" Famo-update.pkg)"
 
 # enclosure 需要已签名(+公证+staple)的 package/Famo-update.pkg 存在（由 `make package` 产出）。缺它
 # 就大声失败，绝不退化成 enclosure-less 的 information-only appcast（那是要还原掉的反模式）。

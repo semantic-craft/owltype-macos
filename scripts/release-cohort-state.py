@@ -36,6 +36,7 @@ from famo_bundle import (
     validate_cohort_shape,
     write_cohort,
 )
+from famo_distribution import versioned_asset_url
 from release_source import (
     FileEntry,
     SourceSnapshotError,
@@ -383,10 +384,7 @@ def validate_appcast(appcast: Path, cohort: dict, output_root: Path) -> None:
     sparkle_short_version = enclosure.get(
         f"{{{SPARKLE_NAMESPACE}}}shortVersionString"
     )
-    expected_url = (
-        "https://github.com/semantic-craft/famotype-macos/releases/download/"
-        f"{cohort['buildVersion']}/Famo-update.pkg"
-    )
+    expected_url = versioned_asset_url(str(cohort["buildVersion"]), "Famo-update.pkg")
     if (
         sparkle_version != cohort.get("buildVersion")
         or sparkle_short_version != version

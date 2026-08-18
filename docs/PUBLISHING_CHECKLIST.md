@@ -1,20 +1,22 @@
-# Public publishing checklist
+# Binary and corresponding-source publishing checklist
 
-Every public change must pass the applicable gates below before merge. A clean repository limits
-future disclosure; it does not retract copies of previously published source archives.
+Every distributed change must pass the applicable gates below before merge. A private development
+repository limits future disclosure; it does not retract copies of previously distributed source
+archives or reduce recipients' GPL rights.
 
 ## Never import
 
 Do not copy the old product repository's Git history. Export reviewed files from the private mother
 repository through an allowlist, then create a new root commit.
 
-The public repository and all public artifacts must exclude:
+The corresponding-source archive and all public artifacts must exclude secrets and private data,
+but must not omit source merely because the implementation is sensitive. If code is compiled,
+linked, or required to generate, install, or run the distributed binary, it belongs in the complete
+corresponding source. A feature whose source cannot be given to recipients cannot ship in that
+binary. Exclude only:
 
-- cloud AI, provider clients, search clients, credentials and Keychain integration;
-- Accessibility selection readers, host-app inspection and surrounding-text capture;
-- clipboard readers or history, global event taps and background keystroke listeners;
-- appcast generation/deployment, EdDSA private keys, signing/notarization material, package builders
-  and release credentials (the pinned Sparkle client and its public verification key are allowed);
+- credentials, Keychain contents, EdDSA private keys, signing/notarization identities and release
+  credentials (source code that uses Keychain or implements packaging remains corresponding source);
 - private audit reports, absolute home-directory paths, private email addresses and local caches;
 - Wubi dictionary data until its complete relicensing chain is publicly verifiable;
 - octagram model data and plugin binaries until corresponding-source and license obligations are
@@ -67,9 +69,28 @@ and symlink targets. `Contents/MacOS/Famo` must remain a regular executable file
 declare `sparkle:installationType="package"`, and its EdDSA signature over the exact cohort-bound
 update package must verify with `SUPublicEDKey` from that cohort's App.
 
-The final local publishing gate lists ten cohort-verified assets as `WOULD_PUBLISH`. The script does
-not create a GitHub Release, upload assets, change tags, deploy the feed, or validate a remote URL.
-Those remote actions remain a separate maintainer decision after every local gate passes.
+The final local publishing gate lists ten cohort-verified assets as `WOULD_PUBLISH`. The release
+script does not upload assets or deploy the feed. After every local gate passes, inspect the exact
+remote order without changing state:
+
+```sh
+python3 scripts/famo_distribution.py --dry-run --output-root build/release-cohort
+```
+
+Publication is a separate, explicit maintainer decision:
+
+```sh
+npm install --global wrangler@4.123.0
+python3 scripts/famo_distribution.py --publish --output-root build/release-cohort
+```
+
+The publisher requires exactly Wrangler 4.123.0. It stores all ten assets under the immutable
+build-version prefix in the `responsay-downloads` R2 bucket, reads them back, and verifies their
+public hashes. It then replaces one cohort JSON pointer that atomically switches every manual
+binary/source download, verifies those website routes, and replaces `famo/appcast.xml` last. A
+versioned object that already exists with different bytes stops publication; an identical object is
+reused.
+
 The shared artifact secret policy scans the App and all ten listed assets. It safely expands PKGs,
 mounts DMGs read-only and detaches them on both success and failure, and extracts tar archives while
 rejecting links, special members, duplicate paths, and traversal before scanning their contents.
