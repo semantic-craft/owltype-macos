@@ -1,7 +1,7 @@
 # Contributing to Famotype
 
-Thank you for improving Famotype. This repository is the complete public source for the
-macOS product, so every accepted change must remain independently buildable and auditable
+Thank you for improving Famotype. This repository is the complete source for the macOS
+product, so every accepted change must remain independently buildable and auditable
 from this repository alone.
 
 ## What we accept
@@ -35,14 +35,16 @@ request, also run the public-source boundary relevant to every change:
 bash scripts/check-public-source.sh
 ```
 
-Run the narrowest additional test that exercises the changed behavior. The complete
-release gate runs in GitHub Actions; contributors do not need signing or notarization
-credentials and should not attempt to publish a release.
+Run the narrowest additional test that exercises the changed behavior. Pull requests are
+opened on Cursor Origin. Depot CI checks the portable source and policy surface, while
+Buildkite runs the native macOS tests, builds, release gates, and installed input-method
+smoke. Contributors do not need signing or notarization credentials and should not
+attempt to publish a release.
 
 ## Public-source and licensing boundary
 
 All source, tests, fixtures, and build inputs needed by a contribution must be present in
-this public repository under a compatible license. Update `THIRD_PARTY_NOTICES.md`,
+this repository under a compatible license. Update `THIRD_PARTY_NOTICES.md`,
 `PROVENANCE.md`, or the source manifest machinery when a change affects third-party code,
 bundled data, or corresponding-source obligations. Never include secrets or real user
 content in a fixture; use synthetic placeholders.
@@ -53,14 +55,14 @@ flow, not a public issue. See [SECURITY.md](SECURITY.md).
 
 ## Pull requests and review
 
-Keep each pull request focused, explain its user-visible and source-boundary effects, and
-link the originating issue. `public-source-boundary` and `release-gate` are required on the
-exact pull-request head. The repository also runs its build and CodeQL workflows; all
-applicable checks must be green before merge.
+Keep each Origin pull request focused, explain its user-visible and source-boundary
+effects, and link the originating GitHub issue. `Depot CI` and
+`Buildkite / famotype-macos` are required on the exact pull-request head; all applicable
+checks must be green before merge.
 
 The project currently has one maintainer, so the branch rules require zero approving
-reviews while still requiring a pull request, successful release checks, and resolved
-conversations. `CODEOWNERS` is intentionally absent because it would not create a real
+reviews while still requiring an up-to-date pull request and successful checks.
+`CODEOWNERS` is intentionally absent because it would not create a real
 independent review boundary. When a second maintainer is available, the project will add
 real ownership boundaries where useful and require a non-author approval.
 

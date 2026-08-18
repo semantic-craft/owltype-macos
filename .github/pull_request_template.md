@@ -8,7 +8,7 @@
 
 ## Public-source checklist
 
-- [ ] The change is independently buildable from this public repository and does not depend
+- [ ] The change is independently buildable from this repository and does not depend
       on private source, services, history, or local-only files.
 - [ ] New or changed third-party code and data have compatible licenses, provenance, and
       corresponding-source coverage; or this pull request does not affect them.
