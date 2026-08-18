@@ -27,8 +27,9 @@
 
 ## 自动更新
 
-法墨使用 Sparkle 定期检查新版：请求 `responsay.com/famo/appcast.xml`（该地址重定向到本仓库
-GitHub Releases 中随版发布的 appcast），有新版时从 GitHub Releases 下载签名、公证过的更新包。
+法墨使用 Sparkle 定期检查新版：请求 `responsay.com/famo/appcast.xml`（该稳定入口由
+responsay.com 的对象存储提供 appcast），有新版时从 `downloads.responsay.com` 下载按版本固定、
+签名并公证过的更新包。
 这些是常规 HTTP 请求，携带 User-Agent 中的应用与 Sparkle 版本号；不包含输入内容、用户数据，
 也不包含系统画像（Sparkle 的 system profiling 未启用）。自动检查可在设置中关闭。
 

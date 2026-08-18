@@ -1,7 +1,6 @@
 # 法墨输入法 · Famotype for macOS
 
-[![Release](https://img.shields.io/github/v/release/semantic-craft/famotype-macos?label=release)](https://github.com/semantic-craft/famotype-macos/releases/latest)
-[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)](https://github.com/semantic-craft/famotype-macos/releases/latest)
+[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)](https://responsay.com/famo/)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE.txt)
 
 **English: [README.en.md](README.en.md)** · 产品页：<https://responsay.com/famo/>
@@ -17,7 +16,7 @@
 
 系统要求 macOS 14 及以上，通用二进制（Apple Silicon / Intel）。
 
-1. 到 [Releases](https://github.com/semantic-craft/famotype-macos/releases/latest) 下载
+1. 从 [responsay.com](https://responsay.com/famo/Famo-update.pkg) 下载
    `Famo-update.pkg`，双击安装（安装包需要管理员授权）。
 2. 打开**系统设置 → 键盘 → 输入法**，把「法墨」加进输入法列表。
 3. 如果输入菜单里没有立即出现法墨，注销后重新登录一次即可。
@@ -70,7 +69,8 @@
 
 - **Cursor Origin 是法墨的唯一开发主仓库**：完整产品（含云端 AI 功能层）在
   `https://origin.cursor.com/xianwei/famotype-macos.git` 开发并通过 PR 合并。
-  GitHub 保留为私有备份、issue tracker 与签名安装包/Sparkle 更新的发布面。
+  GitHub 保留为私有备份与 issue tracker；签名安装包、Sparkle feed 和逐版对应源码由
+  `responsay.com` 发布。
 - 仓库历史从经过隐私审查的 1.4.22 源码快照开始，不包含更早期的 Git 历史。
 - 1.4.21 及更早的公开发布已经停止分发，不再受支持。
 - Windows 版在 [famotype-win](https://github.com/semantic-craft/famotype-win)，
@@ -98,7 +98,9 @@ make release
 生成的词表限定在《通用规范汉字表》8105 字内。完整词库由 App 首启时从上游原仓库拉取，
 法墨自身不再分发那批数据。种子的逐项来源见构建产物里的 `FAMOTYPE-SEED-SOURCES.md`。
 
-签名、公证与打包由 `scripts/release.sh` 处理；CI 只做构建与静态门禁验证，不发布任何版本。
+签名、公证与打包由 `scripts/release.sh` 处理；验证完成后由
+`scripts/famo_distribution.py --publish` 将完整 cohort 发布到 responsay.com。CI 只做构建与
+静态门禁验证，不持有发布凭据，也不发布任何版本。
 
 ## 来源与许可
 
@@ -106,6 +108,8 @@ make release
 [RIME 鼠须管（Squirrel）](https://github.com/rime/squirrel) 与
 [librime](https://github.com/rime/librime) 的派生作品。基于本项目分发二进制时，必须同时提供
 对应的修改源码、GPL-3.0 许可证文本与版权声明，不得作为闭源制品分发。
+每个二进制版本的完整对应源码可从[官网固定入口](https://responsay.com/famo/source.tar.gz)取得；
+开发仓库保持私有不改变接收者依 GPL 获得、修改和再分发该份源码的权利。
 
 完整来源脉络见 [PROVENANCE.md](PROVENANCE.md)，第三方组件许可见
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

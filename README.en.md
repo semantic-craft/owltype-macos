@@ -1,7 +1,6 @@
 # Famotype for macOS
 
-[![Release](https://img.shields.io/github/v/release/semantic-craft/famotype-macos?label=release)](https://github.com/semantic-craft/famotype-macos/releases/latest)
-[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)](https://github.com/semantic-craft/famotype-macos/releases/latest)
+[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)](https://responsay.com/famo/)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE.txt)
 
 **中文：[README.md](README.md)** · Product page: <https://responsay.com/famo/>
@@ -19,8 +18,8 @@ and emoji panel in SwiftUI — it types out of the box, with no YAML to hand-edi
 
 Requires macOS 14 or later. Universal binary (Apple Silicon and Intel).
 
-1. Download `Famo-update.pkg` from the
-   [latest release](https://github.com/semantic-craft/famotype-macos/releases/latest) and
+1. Download `Famo-update.pkg` from
+   [responsay.com](https://responsay.com/famo/Famo-update.pkg) and
    double-click it (the installer asks for administrator approval).
 2. Open **System Settings → Keyboard → Input Sources** and add 法墨 to the list.
 3. If it does not show up in the input menu right away, log out and back in once.
@@ -76,9 +75,9 @@ in [SECURITY.md](SECURITY.md).
 
 ## Project status
 
-- This repository is the **single development repository** for Famotype on macOS. The complete
-  product, including the cloud AI layer, is developed here in the open, and signed installers plus
-  Sparkle updates are published from this repository's Releases.
+- Cursor Origin is the **single private development repository** for Famotype on macOS. GitHub is
+  a private backup and issue tracker; responsay.com publishes signed installers, the Sparkle feed,
+  and the complete corresponding source for each distributed version.
 - History starts from a privacy-reviewed 1.4.22 source snapshot; earlier Git history is not
   included.
 - 1.4.21 and earlier public builds are no longer distributed or supported.
@@ -109,8 +108,9 @@ characters of the 通用规范汉字表. The full dictionary set is fetched from
 by the app on first run — Famotype does not redistribute that data. Per-input provenance is written
 to `FAMOTYPE-SEED-SOURCES.md` inside the build product.
 
-Signing, notarization and packaging are handled by `scripts/release.sh`. CI only builds and runs the
-static gates; it never publishes a release.
+Signing, notarization and packaging are handled by `scripts/release.sh`. After verification,
+`scripts/famo_distribution.py --publish` publishes the complete cohort through responsay.com. CI
+only builds and runs static gates; it has no publication credentials and never publishes a release.
 
 ## Provenance and license
 
@@ -119,6 +119,9 @@ Released under **GPL-3.0**; see [LICENSE.txt](LICENSE.txt). Famotype is a deriva
 [librime](https://github.com/rime/librime). If you distribute binaries based on this project you
 must also provide the corresponding modified source, the GPL-3.0 license text and the copyright
 notices; it may not be shipped as a closed-source product.
+The complete corresponding source for each binary release is available from the
+[stable website link](https://responsay.com/famo/source.tar.gz). Keeping the development repository
+private does not restrict a recipient's GPL rights to use, modify, and redistribute that source.
 
 Full lineage is in [PROVENANCE.md](PROVENANCE.md); third-party component licenses are in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

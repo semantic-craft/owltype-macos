@@ -7,9 +7,9 @@ failed=0
 
 bash scripts/check-public-privacy.sh
 
-# Since the single-repo adoption (2026-07), the complete product — including the
-# cloud/AI layer — is developed in the open. This gate no longer polices feature
-# boundaries; it blocks only what must never be committed to a public tree:
+# The complete product — including the cloud/AI layer — is developed in the private
+# Cursor Origin repository. This gate protects the corresponding-source snapshot
+# distributed with each binary release by blocking what must never leave the private tree:
 # generated artifacts, license-restricted data sources, key material, personal
 # paths, and drift of the pinned Sparkle update anchor.
 
@@ -21,7 +21,7 @@ while IFS= read -r tracked_path; do
   esac
 
   case "$tracked_path" in
-    build/*|download/*|bin/*|lib/*|Frameworks/*|data/opencc/*|data/plum/*|data/famo-rime/*|*.xcresult/*)
+    build/*|download/*|bin/*|lib/*|Frameworks/*|data/opencc/*|data/plum/*|data/famo-rime/*|.wrangler/*|*.xcresult/*)
       printf 'forbidden generated artifact: %s\n' "$tracked_path" >&2
       failed=1
       ;;

@@ -369,7 +369,7 @@ write_appcast() {
     <sparkle:shortVersionString>${version}</sparkle:shortVersionString>
     <famo:releaseCohort>${identity}</famo:releaseCohort>
     <famo:updatePackageSha256>${package_sha}</famo:updatePackageSha256>
-    <enclosure url="https://github.com/semantic-craft/famotype-macos/releases/download/${build_version}/Famo-update.pkg"
+    <enclosure url="https://downloads.responsay.com/famo/releases/${build_version}/Famo-update.pkg"
       sparkle:version="${build_version}" sparkle:shortVersionString="${version}"
       sparkle:installationType="${installation_type}" sparkle:edSignature="${signature}" length="${update_length}"/>
   </item></channel>
