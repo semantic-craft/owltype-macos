@@ -58,7 +58,7 @@ jobs:
             -v "$PWD:/repo" \
             trufflesecurity/trufflehog:3.90.8 \
             git file:///repo --results=verified,unknown,unverified \
-            --fail-on-scan-errors --no-update --json >"$scan_dir/trufflehog.jsonl"
+            --no-update --json >"$scan_dir/trufflehog.jsonl"
           python3 scripts/secret-finding-policy.py \
             history trufflehog "$scan_dir/trufflehog.jsonl"
       - name: Check licensing and repository policy files

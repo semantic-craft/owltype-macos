@@ -50,14 +50,3 @@ steps:
       bash scripts/check-installed.sh
     artifact_paths:
       - "build/buildkite-tests/Logs/Test/**/*.xcresult"
-    cache:
-      name: famotype-macos-dependencies
-      size: 20g
-      paths:
-        - "download"
-        - "Frameworks"
-        - "lib"
-        - "bin"
-        - "data/opencc"
-        - "data/plum"
-        - "data/famo-rime"
