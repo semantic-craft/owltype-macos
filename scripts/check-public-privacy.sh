@@ -57,7 +57,7 @@ fi
 while IFS=$'\t' read -r _ author_email committer_email; do
   for email in "$author_email" "$committer_email"; do
     case "$email" in
-      noreply@github.com|*@users.noreply.github.com)
+      noreply@github.com|*@users.noreply.github.com|*@users.noreply.cursor.com)
         ;;
       *)
         printf 'non-noreply Git identity found in reachable history\n' >&2
