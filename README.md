@@ -68,8 +68,9 @@
 
 ## 当前状态
 
-- 本仓库是法墨的**唯一开发仓库**：完整产品（含云端 AI 功能层）在此公开开发，
-  签名安装包与 Sparkle 更新也从本仓库的 Releases 发布。
+- **Cursor Origin 是法墨的唯一开发主仓库**：完整产品（含云端 AI 功能层）在
+  `https://origin.cursor.com/xianwei/famotype-macos.git` 开发并通过 PR 合并。
+  GitHub 保留为私有备份、issue tracker 与签名安装包/Sparkle 更新的发布面。
 - 仓库历史从经过隐私审查的 1.4.22 源码快照开始，不包含更早期的 Git 历史。
 - 1.4.21 及更早的公开发布已经停止分发，不再受支持。
 - Windows 版在 [famotype-win](https://github.com/semantic-craft/famotype-win)，
@@ -80,6 +81,8 @@
 需要 Xcode 26+ 与 macOS 14+：
 
 ```sh
+git clone https://origin.cursor.com/xianwei/famotype-macos.git
+cd famotype-macos
 git submodule update --init --recursive
 make setup-dev
 make deps

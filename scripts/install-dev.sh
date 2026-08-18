@@ -111,6 +111,13 @@ if [[ -x "$EXE" ]]; then
   "$EXE" --select-input-source im.famo.inputmethod.Famo.Hans || true
   echo "Launching Famo input method app..."
   open -g "$INSTALLED_APP" || true
+  # A pristine Aqua account can expose the registered modes only after LaunchServices has
+  # started the input-method host once.  Retry through the public TIS APIs after that first
+  # launch; do not rewrite AppleEnabledInputSources or other system preferences.
+  sleep 3
+  "$EXE" --activate-once || true
+  "$EXE" --enable-input-source || true
+  "$EXE" --select-input-source im.famo.inputmethod.Famo.Hans || true
 else
   echo "ERROR: installed executable is not runnable: $EXE"
   exit 1

@@ -1,0 +1,53 @@
+agents:
+  queue: macos-medium
+
+steps:
+  - label: ":apple: macOS input method gates"
+    key: macos
+    timeout_in_minutes: 90
+    command: |
+      set -euo pipefail
+      git submodule update --init --recursive
+      brew list swiftlint >/dev/null 2>&1 || brew install swiftlint
+      brew list periphery >/dev/null 2>&1 || brew install peripheryapp/periphery/periphery
+      brew list gitleaks >/dev/null 2>&1 || brew install gitleaks
+      brew list trufflehog >/dev/null 2>&1 || brew install trufflehog
+      brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+
+      make bootstrap
+      make famo-seed
+
+      swiftlint
+      bash scripts/check-release.selftest.sh
+      bash -n action-install.sh scripts/*.sh package/apple_tool_adapter package/make_package
+
+      make test DERIVED_DATA_PATH=build/buildkite-tests
+      make debug
+      make release \
+        RELEASE_OUTPUT_ROOT=build/buildkite-release \
+        BUILD_SETTINGS="COMPILER_INDEX_STORE_ENABLE=NO SWIFT_COMPILATION_MODE=singlefile SWIFT_ENABLE_BATCH_MODE=NO"
+
+      FAMO_APP="$$PWD/build/buildkite-release/Build/Products/Release/Famo.app" \
+        bash scripts/check-manifest.sh
+      FAMO_APP="$$PWD/build/buildkite-release/Build/Products/Release/Famo.app" \
+        bash scripts/check-identity-residual.sh
+      bash scripts/release-artifact-chain.selftest.sh \
+        build/buildkite-release/Build/Products/Release/Famo.app
+      bash scripts/release-cohort.selftest.sh
+      bash scripts/release-cohort-transition.selftest.sh
+      bash scripts/release-chain.selftest.sh
+      python3 scripts/secret-finding-policy.selftest.py
+      bash scripts/check-secrets.sh
+      bash scripts/check-secrets.sh --artifacts \
+        build/buildkite-release/Build/Products/Release/Famo.app
+
+      periphery scan \
+        --relative-results \
+        --skip-build \
+        --index-store-path build/Index.noindex/DataStore
+
+      CONFIG=Debug ARCHS=arm64 FAMO_ALLOW_USER_DUPLICATE=1 \
+        bash scripts/install-dev.sh
+      FAMO_TIS_MODE=hosted bash scripts/check-installed.sh
+    artifact_paths:
+      - "build/buildkite-tests/Logs/Test/**/*.xcresult"

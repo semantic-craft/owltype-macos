@@ -500,6 +500,10 @@ class ShellAdapterTests(unittest.TestCase):
         self.assertIn("failed to scan", completed.stderr)
         self.assertNotIn("potential secret found", completed.stderr)
 
+    @unittest.skipUnless(
+        sys.platform == "darwin",
+        "PKG and DMG adapter coverage requires macOS packaging tools",
+    )
     def test_real_pkg_and_dmg_contents_are_scanned_and_dmg_is_detached(self) -> None:
         sentinel = "FAMOTYPE" + "_SECRET_SENTINEL_" + "A" * 24
         finding = [{"RuleID": "synthetic-container-secret", "File": "runtime.env"}]

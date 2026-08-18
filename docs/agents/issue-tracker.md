@@ -1,6 +1,10 @@
-# Issue tracker: GitHub
+# Issue tracker: GitHub; code review: Cursor Origin
 
-Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
+Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for issue
+operations. Code branches and pull requests live on Cursor Origin; use the
+`origin` CLI for review and merge operations. GitHub pull requests created
+before the migration are historical work items and must not be treated as the
+canonical code-review queue after migration.
 
 ## Conventions
 
@@ -11,7 +15,9 @@ Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all o
 - **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`.
 - **Close**: `gh issue close <number> --comment "..."`.
 
-Infer the repo from `git remote -v`; `gh` does this automatically inside the clone.
+The canonical code remote is `origin`; the GitHub issue/release backup is named
+`github`. Pass `-R semantic-craft/famotype-macos` to `gh` rather than inferring
+the repository from the canonical Origin remote.
 
 ## Pull requests as a triage surface
 
