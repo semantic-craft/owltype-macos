@@ -1,3 +1,11 @@
+<a name="1.6.3"></a>
+## 1.6.3 (2026-08-18)
+
+### 更新与分发 | Updates
+- 自动更新和对应源码改由 `responsay.com` 发布：Sparkle appcast 指向按构建号固定的签名公证更新包，官网下载入口与同一版本的安装包、DMG、源码归档一起切换。开发仓库保持私有，不再把 GitHub Release 写进 appcast。
+
+**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.6.2...1.6.3
+
 <a name="1.6.2"></a>
 ## 1.6.2 (2026-08-17)
 
