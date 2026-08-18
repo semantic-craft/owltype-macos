@@ -12,6 +12,7 @@ steps:
       brew list periphery >/dev/null 2>&1 || brew install peripheryapp/periphery/periphery
       brew list gitleaks >/dev/null 2>&1 || brew install gitleaks
       brew list trufflehog >/dev/null 2>&1 || brew install trufflehog
+      brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
 
       make bootstrap
       make famo-seed

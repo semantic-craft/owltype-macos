@@ -56,7 +56,7 @@ jobs:
 
           docker run --rm \
             -v "$PWD:/repo" \
-            trufflesecurity/trufflehog:3.90.8 \
+            trufflesecurity/trufflehog:3.96.0 \
             git file:///repo --results=verified,unknown,unverified \
             --no-update --json >"$scan_dir/trufflehog.jsonl"
           python3 scripts/secret-finding-policy.py \
