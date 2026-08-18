@@ -37,10 +37,13 @@ depot ci run --repo xianwei/famotype-macos --org 2wztpgtn69 \
 Buildkite targets the hosted `macos-medium` queue. It uses the repository's own
 Make targets: `make test`, Debug and Release builds, release/cohort self-tests,
 secret and artifact gates, and the existing dev-install plus
-`check-installed.sh` smoke. That smoke verifies the installed bundle, TIS
-selection and a real Rime candidate probe. The installed smoke is meaningful only because the hosted
-runner is disposable; it must never be copied into a persistent developer or
-release machine without a separate safety review.
+`check-installed.sh` smoke. That smoke verifies the installed bundle, unique TIS
+enumeration, Hans enablement/selectability, structured diagnostics, and a real
+Rime candidate probe. A hosted runner has no active text client through which to
+truthfully assert the current/selected input source; the script's default local
+mode retains that stricter current-source assertion. The installed smoke is
+meaningful only because the hosted runner is disposable; it must never be copied
+into a persistent developer or release machine without a separate safety review.
 
 The Release target keeps its normal optimized configuration but CI disables the
 index store and whole-module batching for that invocation. A single Famo

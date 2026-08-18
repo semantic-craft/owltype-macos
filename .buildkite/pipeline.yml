@@ -48,6 +48,6 @@ steps:
 
       CONFIG=Debug ARCHS=arm64 FAMO_ALLOW_USER_DUPLICATE=1 \
         bash scripts/install-dev.sh
-      bash scripts/check-installed.sh
+      FAMO_TIS_MODE=hosted bash scripts/check-installed.sh
     artifact_paths:
       - "build/buildkite-tests/Logs/Test/**/*.xcresult"

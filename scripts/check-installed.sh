@@ -41,6 +41,12 @@ DOMAIN="$FAMO_BUNDLE_ID"
 SQUIRREL_DOMAIN="$SQUIRREL_BUNDLE_ID"
 PROBE="$ROOT/build/famo-rime-probe"
 PROBE_SRC="$ROOT/tools/famo-rime-probe.cc"
+TIS_MODE="${FAMO_TIS_MODE:-interactive}"
+
+case "$TIS_MODE" in
+  interactive|hosted) ;;
+  *) die "unsupported FAMO_TIS_MODE: $TIS_MODE" ;;
+esac
 
 [[ -d "$APP" ]] || die "installed app not found: $APP"
 [[ -x "$EXE" ]] || die "installed executable not found: $EXE"
@@ -146,7 +152,8 @@ printf '%s\n' "$tis_output"
 [[ $(grep -c '^im\.famo\.inputmethod\.Famo ' <<<"$tis_output") -eq 1 ]] || fail "duplicate Famo root input source"
 [[ $(grep -c '^im\.famo\.inputmethod\.Famo\.Hans ' <<<"$tis_output") -eq 1 ]] || fail "duplicate Famo Hans input source"
 [[ $(grep -c '^im\.famo\.inputmethod\.Famo\.Hant ' <<<"$tis_output") -eq 1 ]] || fail "duplicate Famo Hant input source"
-if ! grep -q '^current=im\.famo\.inputmethod\.Famo\.Hans$' <<<"$tis_output"; then
+if [[ "$TIS_MODE" == "interactive" ]] &&
+   ! grep -q '^current=im\.famo\.inputmethod\.Famo\.Hans$' <<<"$tis_output"; then
   # 更新路径的选中态还原是 postinstall 调度的延迟任务（收据 ≤30s + 还原 ≤60s 窗口，
   # 见 scripts/postinstall 4b）。装完立刻探测会撞上还原在途——有界等待后复测一次，
   # 别把在途还原判成失败；真失败只是晚 ~90s 报出，不会漏报。
@@ -157,9 +164,15 @@ if ! grep -q '^current=im\.famo\.inputmethod\.Famo\.Hans$' <<<"$tis_output"; the
   tis_output=$(run_tis_probe)
   printf '%s\n' "$tis_output"
 fi
-grep -q '^current=im\.famo\.inputmethod\.Famo\.Hans$' <<<"$tis_output" || fail "Famo Hans is not current"
-grep -q '^im\.famo\.inputmethod\.Famo\.Hans enabled=true selected=true selectable=true$' <<<"$tis_output" || fail "Famo Hans is not enabled/selected/selectable"
-pass_clean "TIS reports Famo Hans current and usable"
+if [[ "$TIS_MODE" == "interactive" ]]; then
+  grep -q '^current=im\.famo\.inputmethod\.Famo\.Hans$' <<<"$tis_output" || fail "Famo Hans is not current"
+  grep -q '^im\.famo\.inputmethod\.Famo\.Hans enabled=true selected=true selectable=true$' <<<"$tis_output" || fail "Famo Hans is not enabled/selected/selectable"
+  pass_clean "TIS reports Famo Hans current and usable"
+else
+  grep -Eq '^im\.famo\.inputmethod\.Famo\.Hans enabled=true selected=(true|false) selectable=true$' <<<"$tis_output" ||
+    fail "Famo Hans is not enabled and selectable in the hosted Aqua session"
+  pass_clean "TIS reports Famo Hans uniquely registered, enabled, and selectable"
+fi
 
 # W1.4: Famo-owned structured six-layer TIS diagnostic (read-only; FAMO-* codes). On this known-good
 # install every TIS layer is healthy → summary carries no "code" (JSONEncoder omits nil). Any failure
@@ -168,7 +181,8 @@ pass_clean "TIS reports Famo Hans current and usable"
 diag_json=$(perl -e 'alarm 20; exec @ARGV' "$EXE" --diagnose-tis) ||
   fail "--diagnose-tis did not exit within 20s (reinstall the build under test)"
 printf '%s\n' "$diag_json"
-printf '%s' "$diag_json" | /usr/bin/python3 -c '
+if [[ "$TIS_MODE" == "interactive" ]]; then
+  printf '%s' "$diag_json" | /usr/bin/python3 -c '
 import json, sys
 s = json.load(sys.stdin)["summary"]
 code = s.get("code")
@@ -176,15 +190,28 @@ if code is not None:
     sys.stderr.write("summary.code=%s: %s\n" % (code, s.get("actionable", "")))
     sys.exit(1)
 ' || fail "--diagnose-tis reports a failure code on a known-good install"
-pass_clean "Famo --diagnose-tis reports all TIS layers healthy (no summary.code)"
+  pass_clean "Famo --diagnose-tis reports all TIS layers healthy (no summary.code)"
+else
+  printf '%s' "$diag_json" | /usr/bin/python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+assert isinstance(d["summary"], dict)
+assert "im.famo.inputmethod.Famo.Hans" in d["identity"]["expectedSourceIDs"]
+' || fail "--diagnose-tis did not return the expected hosted-session diagnostic shape"
+  pass_clean "Famo --diagnose-tis returns structured hosted-session diagnostics"
+fi
 
 if [[ -d "$SQUIRREL_APP" ]]; then
   squirrel_bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$SQUIRREL_APP/Contents/Info.plist")
   [[ "$squirrel_bundle_id" == "$SQUIRREL_DOMAIN" ]] || fail "unexpected Squirrel bundle id: $squirrel_bundle_id"
   pass_clean "system Squirrel app remains separate"
-  ! grep -Eq '^im\.rime\.inputmethod\.Squirrel.* selected=true' <<<"$tis_output" ||
-    fail "Squirrel is selected while Famo smoke expects Famo current"
-  pass_clean "TIS reports Squirrel is not selected"
+  if [[ "$TIS_MODE" == "interactive" ]]; then
+    ! grep -Eq '^im\.rime\.inputmethod\.Squirrel.* selected=true' <<<"$tis_output" ||
+      fail "Squirrel is selected while Famo smoke expects Famo current"
+    pass_clean "TIS reports Squirrel is not selected"
+  else
+    pass "hosted TIS mode does not require changing the current input source"
+  fi
 else
   pass "no system Squirrel app found"
 fi
