@@ -17,6 +17,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # Origin reports a synthetic pull-request merge SHA that is not a
+          # fetchable ref. Check the reviewed head directly; the branch rule
+          # separately requires it to be up to date with main.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - name: Check public source and privacy boundaries
