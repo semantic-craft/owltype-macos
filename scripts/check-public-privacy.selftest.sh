@@ -30,6 +30,13 @@ new_case
 (cd "$case_repo" && bash scripts/check-public-privacy.sh >/dev/null)
 
 new_case
+git -C "$case_repo" \
+  -c user.name=cursor-origin-test \
+  -c user.email=12345+security-test@users.noreply.cursor.com \
+  commit -q --allow-empty -m 'Cursor Origin merge fixture'
+(cd "$case_repo" && bash scripts/check-public-privacy.sh >/dev/null)
+
+new_case
 printf 'local path: /Users/example/secret\n' > "$case_repo/notes.txt"
 git -C "$case_repo" add notes.txt
 expect_failure "personal absolute path"
