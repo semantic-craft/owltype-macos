@@ -1,0 +1,67 @@
+name: Depot CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    name: Portable source and policy gates
+    runs-on: depot-ubuntu-24.04-4
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check public source and privacy boundaries
+        run: |
+          bash scripts/check-public-source.sh
+          bash scripts/check-public-privacy.selftest.sh
+      - name: Check portable scripts
+        run: |
+          bash -n action-install.sh scripts/*.sh package/apple_tool_adapter package/make_package
+          python3 -m py_compile \
+            scripts/famo_bundle.py \
+            scripts/inventory-release-bundle.py \
+            scripts/release-cohort-state.py \
+            scripts/release_source.py \
+            scripts/safe-extract-tar.py
+          python3 scripts/release-source-archive.selftest.py
+      - name: Check secret-finding policy
+        run: python3 scripts/secret-finding-policy.selftest.py
+      - name: Scan reachable history with Gitleaks and TruffleHog
+        run: |
+          scan_dir="$(mktemp -d)"
+          trap 'rm -rf "$scan_dir"' EXIT
+
+          docker run --rm \
+            -v "$PWD:/repo" \
+            ghcr.io/gitleaks/gitleaks:v8.28.0 \
+            git --redact=100 --no-banner --no-color --exit-code=0 \
+            --log-level=error --report-format=json \
+            --report-path=/repo/.depot-gitleaks.json --log-opts=--all /repo
+          python3 scripts/secret-finding-policy.py \
+            history gitleaks .depot-gitleaks.json
+          rm .depot-gitleaks.json
+
+          docker run --rm \
+            -v "$PWD:/repo" \
+            trufflesecurity/trufflehog:3.90.8 \
+            git file:///repo --results=verified,unknown,unverified \
+            --fail-on-scan-errors --no-update --json >"$scan_dir/trufflehog.jsonl"
+          python3 scripts/secret-finding-policy.py \
+            history trufflehog "$scan_dir/trufflehog.jsonl"
+      - name: Check licensing and repository policy files
+        run: |
+          test -s LICENSE.txt
+          test -s THIRD_PARTY_NOTICES.md
+          test -s PROVENANCE.md
+          test -s PRIVACY.md
+          test -s SECURITY.md
+          grep -q 'GPL-3.0' README.md
