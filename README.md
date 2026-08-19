@@ -99,8 +99,9 @@ make release
 法墨自身不再分发那批数据。种子的逐项来源见构建产物里的 `FAMOTYPE-SEED-SOURCES.md`。
 
 签名、公证与打包由 `scripts/release.sh` 处理；验证完成后由
-`scripts/famo_distribution.py --publish` 将完整 cohort 发布到 responsay.com。CI 只做构建与
-静态门禁验证，不持有发布凭据，也不发布任何版本。
+`scripts/famo_distribution.py --publish` 将完整 cohort 发布到 responsay.com。本项目没有托管
+CI：合并前的门禁由开发机上的 `scripts/gate.sh` 执行，详见
+[docs/operations/ci.md](docs/operations/ci.md)。
 
 ## 来源与许可
 

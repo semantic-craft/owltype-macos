@@ -27,9 +27,9 @@ make famo-seed
 make test
 ```
 
-`make bootstrap` uses the pinned prebuilt dependencies used by CI. Contributors who want
-to build those dependencies from source may use `make deps` instead. Before opening a pull
-request, also run the public-source boundary relevant to every change:
+`make bootstrap` uses the pinned prebuilt dependencies the gate builds against. Contributors
+who want to build those dependencies from source may use `make deps` instead. Before opening
+a pull request, also run the public-source boundary relevant to every change:
 
 ```sh
 bash scripts/check-public-source.sh

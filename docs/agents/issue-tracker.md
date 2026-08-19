@@ -15,9 +15,10 @@ canonical code-review queue after migration.
 - **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`.
 - **Close**: `gh issue close <number> --comment "..."`.
 
-The canonical code remote is `origin`; the GitHub issue/release backup is named
-`github`. Pass `-R semantic-craft/famotype-macos` to `gh` rather than inferring
-the repository from the canonical Origin remote.
+The canonical code remote is `origin`; the GitHub issue tracker and archival
+backup is named `github`. Releases are published to `downloads.responsay.com`,
+not to GitHub. Pass `-R semantic-craft/famotype-macos` to `gh` rather than
+inferring the repository from the canonical Origin remote.
 
 ## Pull requests as a triage surface
 

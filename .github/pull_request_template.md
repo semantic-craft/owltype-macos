@@ -12,7 +12,8 @@
       on private source, services, history, or local-only files.
 - [ ] New or changed third-party code and data have compatible licenses, provenance, and
       corresponding-source coverage; or this pull request does not affect them.
-- [ ] I ran the narrowest relevant tests and listed them above; required CI checks are green.
+- [ ] I ran the narrowest relevant tests and listed them above, and `scripts/gate.sh`
+      passed on this branch as it will merge. There is no hosted CI.
 - [ ] The change contains no credentials, private data, real user content, personal paths,
       private repository identifiers, generated build products, or unreviewed logs.
 - [ ] Security-sensitive details were reported privately rather than placed in this pull
