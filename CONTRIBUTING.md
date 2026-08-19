@@ -42,6 +42,13 @@ development Mac (`--quick` for the fast subset), and a pull request is merged on
 it passes. Contributors do not need signing or notarization credentials and should not
 attempt to publish a release.
 
+The gate leaves build products behind, and every build of `Famo.app` adds another
+LaunchServices claim on the same bundle identifier — enough of them and macOS can start
+launching a stale development build instead of the installed input method.
+`scripts/clean-dev.sh` clears both; it reports by default and deletes only with
+`--apply`. Run it after tearing down worktrees, or whenever a development machine's
+input method starts misbehaving. See [docs/operations/ci.md](docs/operations/ci.md).
+
 ## Public-source and licensing boundary
 
 All source, tests, fixtures, and build inputs needed by a contribution must be present in

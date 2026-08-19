@@ -50,6 +50,51 @@ hosted lanes did: a single Famo whole-module Swift frontend exceeds the macOS
 memory high-watermark, and compiling per file avoids an infrastructure-only
 failure without weakening optimization or source coverage.
 
+## Cleaning up after the gate
+
+`scripts/clean-dev.sh` is the gate's companion: the gate and every worktree
+build leave derived artifacts behind, and this removes the ones nothing can
+reach any more. It reports by default and only deletes with `--apply`:
+
+```bash
+scripts/clean-dev.sh           # report what would go, change nothing
+scripts/clean-dev.sh --apply   # remove it
+```
+
+It exists because the leftovers are not merely wasted disk. Every build of
+`Famo.app` registers another bundle claiming `im.famo.inputmethod.Famo` with
+LaunchServices, and the claim outlives the directory it points at. Enough dead
+claims and macOS can resolve the input method to an ad-hoc development build
+instead of the installed, notarized one — a working install starts failing for
+reasons that have nothing to do with the code. The first sweep, on 2026-08-19,
+found 98 dead claims against a single live one, beside 66 GB of orphaned Xcode
+DerivedData. Run it after a release, after tearing down worktrees, or whenever
+the input method starts behaving strangely on a development machine.
+
+Three things it clears, and the limits on each:
+
+- **Build output in this repository and its worktrees**, including
+  `installer/build`. A release cohort's `release/` directory is kept: it is the
+  signed record of a shipped version, it is small, and re-creating it would mean
+  another notarization round trip. Only the build intermediates around it go.
+- **Orphaned Xcode DerivedData that belonged to this repository** — entries
+  whose recorded workspace was under this repository (or an agent worktree of
+  it) *and* no longer exists. The product builds into the repository, so this
+  mostly catches Sparkle submodule builds. Another project's entries are never
+  touched, nor is any entry whose workspace is still on disk.
+- **Stale LaunchServices registrations for `Famo.app`** — each dead path is
+  unregistered individually with `lsregister -u`. The script deliberately does
+  not run a database rebuild (`lsregister -kill -r`): a rebuild would reset file
+  associations far outside this project, and unregistering the exact stale paths
+  achieves the same result without that blast radius. If more than one *live*
+  registration remains, it says so — normally only
+  `/Library/Input Methods/Famo.app` should be there, and a stray build product
+  can shadow it.
+
+It never deletes a Time Machine snapshot. Recently deleted files stay pinned by
+local snapshots, so free space may not move until macOS thins them; that is
+expected and is not a failed cleanup.
+
 ## GitHub Actions, retired 2026-08-19
 
 `.github/workflows/` held five workflows — `commit-ci.yml`,
