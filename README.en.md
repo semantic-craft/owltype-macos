@@ -109,8 +109,9 @@ by the app on first run — Famotype does not redistribute that data. Per-input 
 to `FAMOTYPE-SEED-SOURCES.md` inside the build product.
 
 Signing, notarization and packaging are handled by `scripts/release.sh`. After verification,
-`scripts/famo_distribution.py --publish` publishes the complete cohort through responsay.com. CI
-only builds and runs static gates; it has no publication credentials and never publishes a release.
+`scripts/famo_distribution.py --publish` publishes the complete cohort through responsay.com. There
+is no hosted CI: `scripts/gate.sh` runs the merge gate on the development Mac, as described in
+[docs/operations/ci.md](docs/operations/ci.md).
 
 ## Provenance and license
 

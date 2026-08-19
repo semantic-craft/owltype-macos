@@ -107,5 +107,5 @@ Local tests use fake adapters, unsigned system packaging tools, and synthetic Sp
 they do not replace a maintainer's final Developer ID signing, notarization, stapling, and installed
 update validation on the exact release artifacts.
 The product test entrypoint explicitly excludes the five credential-gated Live suites; the offline
-`FamoLiveInputTraceTests` privacy regression remains enabled. Release and source CI must never rely
-on default skip behavior or run an unfiltered `xcodebuild test`.
+`FamoLiveInputTraceTests` privacy regression remains enabled. `scripts/gate.sh` and the release
+entrypoint must never rely on default skip behavior or run an unfiltered `xcodebuild test`.
