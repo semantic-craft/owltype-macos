@@ -230,8 +230,12 @@ pass "Famo-update.pkg Distribution has no RequireLogout (no-logout Sparkle paylo
 xmllint --xpath 'boolean(//*[local-name()="enclosure"][@*[local-name()="installationType"]="package"])' "$APPCAST" |
   grep -qx true ||
   fail "appcast enclosure does not declare sparkle:installationType=package"
-xmllint --xpath 'string(//*[local-name()="enclosure"]/@url)' "$APPCAST" |
-  grep -Eq '^https://github\.com/semantic-craft/famotype-macos/releases/download/[0-9.]+/Famo-update\.pkg$' ||
+enclosure_url="$(xmllint --xpath 'string(//*[local-name()="enclosure"]/@url)' "$APPCAST")"
+app_version="$(xmllint --xpath 'string(//*[local-name()="enclosure"]/@*[local-name()="version"])' "$APPCAST")"
+expected_url="$(python3 "$ROOT/scripts/famo_distribution.py" asset-url "$app_version" Famo-update.pkg)"
+[[ "$enclosure_url" != *github.com* ]] ||
+  fail "appcast enclosure must not use a GitHub Release URL"
+[[ "$enclosure_url" == "$expected_url" ]] ||
   fail "appcast enclosure does not use the immutable public source/release URL"
 pass "appcast uses an explicit package installer and immutable public source/release URL"
 
