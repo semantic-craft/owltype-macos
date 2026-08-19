@@ -36,9 +36,10 @@ bash scripts/check-public-source.sh
 ```
 
 Run the narrowest additional test that exercises the changed behavior. Pull requests are
-opened on Cursor Origin. Depot CI checks the portable source and policy surface, while
-Buildkite runs the native macOS tests, builds, release gates, and installed input-method
-smoke. Contributors do not need signing or notarization credentials and should not
+opened on Cursor Origin. There is no hosted CI: `scripts/gate.sh` runs the portable
+source and policy checks plus the native macOS tests, builds and release gates on the
+development Mac (`--quick` for the fast subset), and a pull request is merged only after
+it passes. Contributors do not need signing or notarization credentials and should not
 attempt to publish a release.
 
 ## Public-source and licensing boundary
@@ -56,9 +57,9 @@ flow, not a public issue. See [SECURITY.md](SECURITY.md).
 ## Pull requests and review
 
 Keep each Origin pull request focused, explain its user-visible and source-boundary
-effects, and link the originating GitHub issue. `Depot CI` and
-`Buildkite / famotype-macos` are required on the exact pull-request head; all applicable
-checks must be green before merge.
+effects, and link the originating GitHub issue. No service check is required; the
+merger is responsible for `scripts/gate.sh` passing on the exact pull-request head
+before merge.
 
 The project currently has one maintainer, so the branch rules require zero approving
 reviews while still requiring an up-to-date pull request and successful checks.
