@@ -182,6 +182,7 @@ struct FamoDiagnosticsPage: View {
   let reduceTransparency: Bool
 
   @State private var report: FamoTISReport = FamoTISDiagnostics.buildReport()
+  @State private var makeDefaultStatus: String = FamoDiagnosticsPage.makeDefaultStatusText(nil)
 
   var body: some View {
     ScrollView {
@@ -266,10 +267,48 @@ struct FamoDiagnosticsPage: View {
         SettingsCardDivider(palette: palette)
         line(label: "当前系统输入源", value: report.currentSourceID ?? "无")
         SettingsCardDivider(palette: palette)
+        makeDefaultRow
+        SettingsCardDivider(palette: palette)
         line(label: "数据目录", value: report.dataRoot.path)
         SettingsCardDivider(palette: palette)
         line(label: "数据目录存在", value: report.dataRoot.exists ? "是" : "否")
       }
+    }
+  }
+
+  /// 「设为系统默认输入法」= enable + select（docs/default-input-method-plan.md §4）：系统随即把法墨
+  /// 写进 `AppleSelectedInputSources`，下次登录自动恢复法墨。这个按钮是全仓唯一允许调用
+  /// `makeDefault()` 的地方 —— 用户显式点击才动当前输入源，安装 / 更新 / 启动路径一律不得复用。
+  private var makeDefaultRow: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack(spacing: 10) {
+        Button("设为系统默认输入法") {
+          makeDefaultStatus = Self.makeDefaultStatusText(FamoInstaller().makeDefault())
+          report = FamoTISDiagnostics.buildReport()
+        }
+        Spacer(minLength: 8)
+      }
+      Text(makeDefaultStatus)
+        .font(.system(size: 12))
+        .foregroundStyle(palette.ink2)
+        .textSelection(.enabled)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .padding(.vertical, 8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  /// 三态结果文案（`nil` = 还没点，给一句说明按钮到底做什么）。纯函数，覆盖在 ActivationPolicyTests。
+  static func makeDefaultStatusText(_ result: FamoInstaller.MakeDefaultResult?) -> String {
+    switch result {
+    case .none:
+      return "把法墨切成当前输入源，系统会记住它：下次登录自动恢复法墨。（macOS 没有「默认输入法」开关，这就是「默认」的全部含义。）"
+    case .alreadyDefault(let mode):
+      return "\(mode.displayName)已经是当前系统输入源，下次登录会自动恢复它。"
+    case .madeDefault(let mode):
+      return "已设为默认：\(mode.displayName)。下次登录会自动恢复它。"
+    case .failed(let reason):
+      return "未能设为默认：\(reason)"
     }
   }
 

@@ -27,6 +27,14 @@ final class FamoInstaller {
     static let primary = Self.hans
     case hans = "im.famo.inputmethod.Famo.Hans"
     case hant = "im.famo.inputmethod.Famo.Hant"
+
+    /// 面向用户的模式名，只给结果文案用。日志与诊断一律继续用 `rawValue` 的精确 source id。
+    var displayName: String {
+      switch self {
+      case .hans: return "法墨（简体）"
+      case .hant: return "法墨（繁体）"
+      }
+    }
   }
 
   private lazy var inputSources: [String: TISInputSource] = {
@@ -116,7 +124,21 @@ final class FamoInstaller {
     notifyInputSourcesChanged()
   }
 
-  func select(mode: InputMode? = nil) {
+  /// 「未启用则 enable → select → notify」这条既有链路刚才到底做成了什么。加这个返回值没有改动任何
+  /// TIS 行为（同样的调用、同样的打印、同样的 notify），只是把结果 return 出来，供 `makeDefault()`
+  /// 那层薄包装分三态文案。要点：`alreadySelected` 走的正是那句 "Failed to select" 的打印分支 ——
+  /// 「已经就是当前输入源」不是失败，调用方绝不能据此报错。
+  enum SelectOutcome: Equatable {
+    case selected
+    case alreadySelected
+    case notEnabled
+    case notSelectable
+    case sourceMissing
+    case selectFailed(OSStatus)
+  }
+
+  @discardableResult
+  func select(mode: InputMode? = nil) -> SelectOutcome {
     let enabledInputModes = enabledModes()
     let modeToSelect = mode ?? .primary
     if !enabledInputModes.contains(modeToSelect) {
@@ -124,21 +146,86 @@ final class FamoInstaller {
         enable(modes: [modeToSelect])
       } else {
         print("Default method not enabled yet: \(modeToSelect.rawValue)")
-        return
+        return .notEnabled
       }
     }
+    var outcome = SelectOutcome.sourceMissing
     for (mode, inputSource) in getInputSource(modes: [modeToSelect]) {
-      if let enabled = getBool(for: inputSource, key: kTISPropertyInputSourceIsEnabled),
-         let selectable = getBool(for: inputSource, key: kTISPropertyInputSourceIsSelectCapable),
-         let selected = getBool(for: inputSource, key: kTISPropertyInputSourceIsSelected),
-         enabled && selectable && !selected {
+      let enabled = getBool(for: inputSource, key: kTISPropertyInputSourceIsEnabled)
+      let selectable = getBool(for: inputSource, key: kTISPropertyInputSourceIsSelectCapable)
+      let selected = getBool(for: inputSource, key: kTISPropertyInputSourceIsSelected)
+      if enabled == true, selectable == true, selected == false {
         let error = TISSelectInputSource(inputSource)
         print("Selection \(error == noErr ? "succeeds" : "fails") for input source: \(mode.rawValue)")
+        outcome = error == noErr ? .selected : .selectFailed(error)
       } else {
         print("Failed to select \(mode.rawValue)")
+        outcome = selected == true ? .alreadySelected : (selectable != true ? .notSelectable : .notEnabled)
       }
     }
     notifyInputSourcesChanged()
+    return outcome
+  }
+
+  // MARK: - 「设为系统默认输入法」：只有设置页的用户点击可以走这里
+  //
+  // macOS 没有 set-default API，也没有排序 API。系统在切换输入源时把它写进
+  // `AppleSelectedInputSources`，那才是登录时恢复的目标 —— 所以 enable + select 就是「默认」在这台
+  // 机器上能达到的全部含义（docs/default-input-method-plan.md §1/§4，其中「第三方列表顺序决定默认」
+  // 已被对照实验证伪）。因此下面不新增任何 TIS 逻辑，只是把上面那条既有链路包成三态结果给 UI。
+  //
+  // no-steal 边界：`makeDefault()` 只能由用户在设置页显式点击触发。安装 / 更新 / 启动路径一律不得
+  // 复用 —— 程序自作主张抢用户当前的输入源正是 no-steal 禁止的事。
+
+  enum MakeDefaultResult: Equatable {
+    case alreadyDefault(mode: InputMode)
+    case madeDefault(mode: InputMode)
+    case failed(reason: String)
+  }
+
+  /// 判定先于动作：已启用且已选中就直接判「已是默认」，一个 TIS 调用都不发。
+  enum MakeDefaultPlan: Equatable {
+    case alreadyDefault(InputMode)
+    case select(InputMode)
+  }
+
+  /// 纯决策，无 TIS、无 IO。模式选择：优先**已启用**的法墨模式 —— 只启用了繁体的用户点「设为默认」
+  /// 必须落在繁体，盲选 primary 会把人切到简体；两个都没启用才回落 primary，由 select 顺手 enable。
+  static func makeDefaultPlan(enabledModes: Set<InputMode>, currentSourceID: String?) -> MakeDefaultPlan {
+    if let currentSourceID, let mode = InputMode(rawValue: currentSourceID), enabledModes.contains(mode) {
+      return .alreadyDefault(mode)
+    }
+    return .select(InputMode.allCases.first { enabledModes.contains($0) } ?? .primary)
+  }
+
+  /// 把链路结果翻成用户看得懂的三态。纯函数。
+  static func makeDefaultResult(mode: InputMode, outcome: SelectOutcome) -> MakeDefaultResult {
+    switch outcome {
+    case .selected:
+      return .madeDefault(mode: mode)
+    case .alreadySelected:
+      return .alreadyDefault(mode: mode)
+    case .selectFailed(let status):
+      return .failed(reason: "系统拒绝切换到\(mode.displayName)（TIS 错误 \(status)）。")
+    case .notEnabled:
+      return .failed(reason: "\(mode.displayName)尚未真正启用。请到 系统设置 → 键盘 → 输入法 → 编辑… 里加一次法墨，再回来重试。")
+    case .notSelectable:
+      return .failed(reason: "\(mode.displayName)当前不可选中。请到 系统设置 → 键盘 → 输入法 → 编辑… 里移除法墨后重新加入。")
+    case .sourceMissing:
+      return .failed(reason: "系统里查不到\(mode.displayName)（\(mode.rawValue)）。请重新安装法墨。")
+    }
+  }
+
+  /// 用户点击「设为系统默认输入法」的唯一入口。
+  func makeDefault() -> MakeDefaultResult {
+    let plan = Self.makeDefaultPlan(
+      enabledModes: Set(enabledModes()), currentSourceID: Self.currentInputSourceID())
+    switch plan {
+    case .alreadyDefault(let mode):
+      return .alreadyDefault(mode: mode)
+    case .select(let mode):
+      return Self.makeDefaultResult(mode: mode, outcome: select(mode: mode))
+    }
   }
 
   /// `--select-input-source <arg>` 的纯 CLI 分发决策：参数是法墨自家输入模式，还是任意系统输入源 id

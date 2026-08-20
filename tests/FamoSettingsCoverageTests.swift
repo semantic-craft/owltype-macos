@@ -110,6 +110,11 @@ final class FamoSettingsCoverageTests: XCTestCase {
     "清除",
     "刷新",                           // 诊断页 (FamoDiagnosticsPage)：重跑 buildReport()
     "导出诊断包",                     // 诊断页：NSSavePanel 写脱敏支持包（报告 JSON + 统一日志）
+    // 诊断页「当前系统输入源」行下方：enable + select，系统随即写 AppleSelectedInputSources，
+    // 下次登录恢复法墨（docs/default-input-method-plan.md §4）。这是全仓唯一允许调用
+    // makeDefault() 的路径——安装/更新/启动路径复用即破坏 no-steal。action coverage 在
+    // ActivationPolicyTests 的 makeDefaultPlan / makeDefaultResult / makeDefaultStatusText 断言。
+    "设为系统默认输入法",
     "添加并设为默认",
     // 供应商行改单选 radio（1.4.19 / 624ce54）：整行 Button 的 accessibilityLabel 随 isDefault 三元切换，
     // 两支都插值 provider 名，正则按「源码字面量」提取故含 `\(…)` 文本（Swift 侧需 `\\(` 转义），
