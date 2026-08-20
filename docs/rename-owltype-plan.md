@@ -122,8 +122,27 @@
 1. 若 `~/Library/Application Support/Owltype` 不存在且 `…/Famo` 存在 → 整目录 **复制**（不是移动）到新路径。
 2. 复制后在新目录内改名：`famo.custom.yaml` → `owltype.custom.yaml`；`famo_prompts.userdb` → `owl_prompts.userdb`、`famo_quick_send.userdb` → `owl_quick_send.userdb`（Rime userdb 目录随 user_dict 名寻址，目录改名即接上；`rime_ice.userdb`、`wubi86_jidian.userdb` 原名保留）。**用户短语和提示词库是真用户数据，丢了无法再生，这步必须有并且先复制后改名。**
 3. UserDefaults：从 `im.famo.inputmethod.Famo` 域读取旧偏好导入新域（`defaults export` 级别的整域拷贝即可），失败则接受回落出厂默认，不视为阻塞。
-4. 旧的 `~/Library/Application Support/Famo` 保留原样，由 P5 的卸载脚本负责（用户确认后）删除。
+4. 旧的 `~/Library/Application Support/Famo` 保留原样。**注意：不能指望 P5 的卸载脚本「在迁移之后」删它**——
+   旧卸载器（`470d8f5:scripts/uninstall-famo.sh:29`）的 TARGETS 里直接列着这个目录，且没有任何 `--keep-data`
+   开关（只有 `--dry-run` / `--yes`，一次 y/N 覆盖全部路径），而 P5 的卸载排在装新版之前。所以 P5 改成
+   **第 0 步先整目录备份、首启前恢复、验证通过后才删**（见 §6）。迁移逻辑侧的对应要求：**旧目录不存在时
+   绝不写「迁移完成」标记**，否则一次跑空就把自己永久锁死，用户恢复备份后也不会再迁移。
 5. 迁移逻辑写单测覆盖：目录存在/不存在、半迁移中断重入、userdb 改名。
+
+> **落地修订（票 06 交付时，2026-08-21）** —— 实现见 `sources/Engine/OwlLegacyDataMigration.swift`：
+>
+> - 第 2 条列的三个文件**不够**。快捷短语 / 提示词的 source of truth 是 `famo_quick_send.json` /
+>   `famo_prompts.json`（`.txt` 是派生表，`.userdb` 是 Rime 运行期的 stabledb）；只改 `.userdb` 的话新 app
+>   读不到那两个 JSON，等于短语库和提示词库全丢。完整映射以 `OwlLegacyDataMigration.renameMap` 为准，
+>   另含 `.famo-seed-v2`、`.famo-dictpack.json`、`.famo-dictpack-staging`、`.famo-backup`、`famo/`
+>   （rollback manifest 目录）与两个 dict-pack 法学词库。
+> - 复制后还要改写根目录每个 `*.custom.yaml` 里的托管块标识（`FAMO MANAGED` / `FAMO_CUSTOM` /
+>   `famo_quick_send` / `famo_prompts`）。不改的话新 app 认不出旧 marker，会在同一个 `patch:` 里另起一套
+>   `OWL MANAGED` 块 —— YAML 重复键，且旧块指着已改名的表。
+> - 原子性：复制 + 改名 + 标识改写都在同卷 staging 目录里完成，最后一步 `moveItem` 挂成正式目录。
+>   磁盘上不存在「半个正式目录」，中断重入直接丢弃残骸重跑。
+> - **Keychain 不随迁**：API Key 存在旧 service `im.famo.inputmethod.Famo.providers` / `….deepseek` 下，
+>   `providers.json` 里的 `secretName` 也是旧前缀。装机后需要重新填 API Key —— 见下面 P5 第 7 步。
 
 ---
 
@@ -131,16 +150,19 @@
 
 > 每台机器一次过，顺序不能乱。已知深坑全部来自历史实录。
 
-1. **先退出 Karabiner-Elements**（运行中重装输入法曾触发 Karabiner 析构 bug 致全键盘失灵；本机虽已升 16.1.8 但未实测修复，照旧先退）。
-2. 运行旧的卸载脚本 / `卸载法墨.command`：移除 `~/Library/Input Methods/Famo.app`、从输入源移除法墨。
+0. **备份迁移源**（顺序红线，见第 2 步）：`cp -a ~/Library/Application\ Support/Famo ~/Library/Application\ Support/Famo.pre-owltype-backup`。
+1. **先退出 Karabiner-Elements**（运行中重装输入法曾触发 Karabiner 析构 bug 致全键盘失灵；本机虽已升 16.1.8 但未实测修复，照旧先退）。另：此时把各家 API Key 记下来（Keychain Access 按 service `im.famo.inputmethod.Famo.providers` 找），条目留着别删，等全部机器都切完、新 Key 实测可用之后再清（见文末收尾）。
+2. 运行**旧版**卸载脚本移除法墨——**不是仓里那个**：03 号票已把 `scripts/uninstall-famo.sh` 改名并把内部身份全换成 Owltype，在还没装新版的机器上跑它什么都不会删、而你会以为卸干净了。取回旧版：`git show 470d8f5:scripts/uninstall-famo.sh > /tmp/uninstall-famo.sh`，先 `--dry-run` 看清删除清单。**它会连 `~/Library/Application Support/Famo` 一起删掉**（第 0 步的备份就是为这个）。
 3. **注销并重新登录**（不是可选项：输入源真存储在 `com.apple.inputsources.plist`，会话层污染只有注销/重启能清；userland 复位全套已被证明无效，别再试）。
 4. 清理 LaunchServices 残留：用既有 lsregister 清理配方清掉所有旧 bundle id / 开发构建的认领（装机验收前必清，否则归因不可信）。
-5. 安装 Owltype 2.0.0（签名 pkg），在系统设置中启用「猫头鹰输入法」。
-6. **重新授予 TCC 权限**（辅助功能、Apple 事件）：bundle id 变了，旧授权全部失效，属预期而非故障；若出现「已勾选仍报未授权」，按已知配方删条目重加（csreq 失配）。
-7. 首启验证迁移结果：皮肤/偏好还原、快捷短语与提示词库完好、rime_ice 用户词库连续（打几个惯用词验证词频记忆）。
-8. 真机验收升级链路：等下一个 2.0.x 发布时验证 Sparkle 从新 feed 更新 + 更新后输入源还原（顺带闭环 1.6.1 未验证的修复机制）。
+5. **首启前恢复迁移源**：`cp -a ~/Library/Application\ Support/Famo.pre-owltype-backup ~/Library/Application\ Support/Famo`。第 0 步先整目录备份、这里恢复，是因为第 2 步的卸载已经把它删了；
+   **必须赶在新 app 首次启动之前**——票 06 的迁移只在首启跑，跑空了旧数据就接不过来了。
+6. 安装 Owltype 2.0.0（签名 pkg），在系统设置中启用「猫头鹰输入法」，首启一次让票 06 的迁移执行。
+7. **重新授予 TCC 权限**（辅助功能、Apple 事件）：bundle id 变了，旧授权全部失效，属预期而非故障；若出现「已勾选仍报未授权」，按已知配方删条目重加（csreq 失配）。
+8. 首启验证迁移结果：皮肤/偏好还原、快捷短语与提示词库完好、rime_ice 用户词库连续（打几个惯用词验证词频记忆）。**预期而非故障：云服务 API Key 需要重填** —— Keychain 的 service 名随 bundle id 改了，票 06 的迁移只搬数据目录与偏好域，不搬 Keychain。
+9. 真机验收升级链路：等下一个 2.0.x 发布时验证 Sparkle 从新 feed 更新 + 更新后输入源还原（顺带闭环 1.6.1 未验证的修复机制）。
 
-全部机器完成后 → 执行 P3 第 3 条的第二次部署，删除 `responsay.com/famo/`；本机 `defaults delete im.famo.inputmethod.Famo`、删除旧 Application Support/Famo 备份。
+全部机器完成后 → 执行 P3 第 3 条的第二次部署，删除 `responsay.com/famo/`；本机 `defaults delete im.famo.inputmethod.Famo`、删除旧 `Application Support/Famo` 与第 0 步的备份、删除旧 Keychain service `im.famo.inputmethod.Famo.providers` 下的条目（确认新 Key 实测可用之后）。
 
 ---
 

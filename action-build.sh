@@ -15,7 +15,7 @@ export BUILD_UNIVERSAL=1
 ./action-install.sh
 
 # assemble the clean-room Rime seed the release bundle requires
-make famo-seed
+make owl-seed
 
 # build Squirrel
 make "${target}"

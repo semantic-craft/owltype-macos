@@ -36,10 +36,10 @@ assets=(
   "$appcast"
   "$source_archive"
   "$source_archive.sha256"
-  "$release_dir/FAMOTYPE-FILE-MANIFEST.sha256"
-  "$release_dir/FAMOTYPE-SBOM.spdx.json"
-  "$release_dir/FAMOTYPE-APP-PROVENANCE.txt"
-  "$release_dir/FAMOTYPE-RELEASE-COHORT.json"
+  "$release_dir/OWLTYPE-FILE-MANIFEST.sha256"
+  "$release_dir/OWLTYPE-SBOM.spdx.json"
+  "$release_dir/OWLTYPE-APP-PROVENANCE.txt"
+  "$release_dir/OWLTYPE-RELEASE-COHORT.json"
 )
 
 for asset in "${assets[@]}"; do

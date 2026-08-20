@@ -1,35 +1,32 @@
-# Famotype for macOS
+# Owltype for macOS
 
-[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)](https://responsay.com/famo/)
+[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)](https://responsay.com/owltype/)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE.txt)
 
-**中文：[README.md](README.md)** · Product page: <https://responsay.com/famo/>
+**中文：[README.md](README.md)** · Product page: <https://responsay.com/owltype/>
 
-Famotype (法墨) is a local-first Chinese input method for macOS. It bundles the Rime engine and
+Owltype (猫头鹰) is a local-first Chinese input method for macOS. It bundles the Rime engine and
 all of its dictionary data inside the app, and rebuilds the candidate window, settings, onboarding
 and emoji panel in SwiftUI — it types out of the box, with no YAML to hand-edit.
 
-> The repository is named **Famotype**; the code, bundle identifiers and build products still use
-> the `Famo` name so that already-installed versions keep working.
-
-![Famotype candidate window](docs/screenshots/candidates.png)
+![Owltype candidate window](docs/screenshots/candidates.png)
 
 ## Install
 
 Requires macOS 14 or later. Universal binary (Apple Silicon and Intel).
 
-1. Download `Famo-update.pkg` from
-   [responsay.com](https://responsay.com/famo/Famo-update.pkg) and
+1. Download `Owltype-update.pkg` from
+   [responsay.com](https://responsay.com/owltype/Owltype-update.pkg) and
    double-click it (the installer asks for administrator approval).
-2. Open **System Settings → Keyboard → Input Sources** and add 法墨 to the list.
+2. Open **System Settings → Keyboard → Input Sources** and add 猫头鹰 to the list.
 3. If it does not show up in the input menu right away, log out and back in once.
 
 Existing users do not need to download anything: the app ships a pinned Sparkle updater that reads
-only `responsay.com/famo/appcast.xml`, then downloads and installs the same signed, notarized
-`Famo-update.pkg` in place — **no logout required**. Update checks upload no typing data.
+only `responsay.com/owltype/appcast.xml`, then downloads and installs the same signed, notarized
+`Owltype-update.pkg` in place — **no logout required**. Update checks upload no typing data.
 
-To uninstall, run the bundled `卸载法墨.command`, or remove the input source in System Settings and
-delete `/Library/Input Methods/Famo.app`.
+To uninstall, run the bundled `卸载猫头鹰.command`, or remove the input source in System Settings and
+delete `/Library/Input Methods/Owltype.app`.
 
 ## Features
 
@@ -75,15 +72,14 @@ in [SECURITY.md](SECURITY.md).
 
 ## Project status
 
-- Cursor Origin is the **single private development repository** for Famotype on macOS. GitHub is
+- Cursor Origin is the **single private development repository** for Owltype on macOS. GitHub is
   a private backup and issue tracker; responsay.com publishes signed installers, the Sparkle feed,
   and the complete corresponding source for each distributed version.
 - History starts from a privacy-reviewed 1.4.22 source snapshot; earlier Git history is not
   included.
 - 1.4.21 and earlier public builds are no longer distributed or supported.
-- The Windows edition lives in
-  [famotype-win](https://github.com/semantic-craft/famotype-win); its code, tags and release assets
-  are kept separate from this repository.
+- The Windows edition lives in its own repository; its code, tags and release assets are kept
+  separate from this one.
 
 ## Build from source
 
@@ -102,26 +98,26 @@ scanner hits before anything leaves your machine. Configure this repository's Gi
 GitHub noreply address, keep local secrets in the Keychain or in gitignored env files, and never
 commit AI transcripts, debug logs or machine-local configuration.
 
-Public builds use a clean-room dictionary seed (`scripts/famo-seed.sh`) assembled only from inputs
+Public builds use a clean-room dictionary seed (`scripts/owl-seed.sh`) assembled only from inputs
 with an auditable redistribution grant; generated word entries are restricted to the 8,105
 characters of the 通用规范汉字表. The full dictionary set is fetched from its upstream repositories
-by the app on first run — Famotype does not redistribute that data. Per-input provenance is written
-to `FAMOTYPE-SEED-SOURCES.md` inside the build product.
+by the app on first run — Owltype does not redistribute that data. Per-input provenance is written
+to `OWLTYPE-SEED-SOURCES.md` inside the build product.
 
 Signing, notarization and packaging are handled by `scripts/release.sh`. After verification,
-`scripts/famo_distribution.py --publish` publishes the complete cohort through responsay.com. There
+`scripts/owl_distribution.py --publish` publishes the complete cohort through responsay.com. There
 is no hosted CI: `scripts/gate.sh` runs the merge gate on the development Mac, as described in
 [docs/operations/ci.md](docs/operations/ci.md).
 
 ## Provenance and license
 
-Released under **GPL-3.0**; see [LICENSE.txt](LICENSE.txt). Famotype is a derivative work of
+Released under **GPL-3.0**; see [LICENSE.txt](LICENSE.txt). Owltype is a derivative work of
 [RIME Squirrel](https://github.com/rime/squirrel) and
 [librime](https://github.com/rime/librime). If you distribute binaries based on this project you
 must also provide the corresponding modified source, the GPL-3.0 license text and the copyright
 notices; it may not be shipped as a closed-source product.
 The complete corresponding source for each binary release is available from the
-[stable website link](https://responsay.com/famo/source.tar.gz). Keeping the development repository
+[stable website link](https://responsay.com/owltype/source.tar.gz). Keeping the development repository
 private does not restrict a recipient's GPL rights to use, modify, and redistribute that source.
 
 Full lineage is in [PROVENANCE.md](PROVENANCE.md); third-party component licenses are in

@@ -1,20 +1,20 @@
 #! /bin/bash
 # encoding: utf-8
 #
-# make_dmg — 组「新用户首装」DMG。主入口 = FamoInstaller.app（GUI 安装器，微信法首装免注销，
-# task 07-02-famo-first-install-no-logout 复活），内嵌 **已 staple 的** Famo.app；另含：
-#   - 卸载法墨.command   双击卸载，调同目录的 uninstall-famo.sh（严格白名单）。
-#   - uninstall-famo.sh  白名单卸载脚本本体（与 .command 同目录打包，供其调用）。
-# Famo.pkg 不再进 DMG，但继续由 `make package` 构建发布（备用/企业直装链，仍 RequireLogout）；
-# Sparkle 自动更新仍走 Famo-update.pkg（本脚本零接触）。
+# make_dmg — 组「新用户首装」DMG。主入口 = OwltypeInstaller.app（GUI 安装器，微信法首装免注销，
+# 首装免注销专题 07-02 复活），内嵌 **已 staple 的** Owltype.app；另含：
+#   - 卸载猫头鹰.command   双击卸载，调同目录的 uninstall-owltype.sh（严格白名单）。
+#   - uninstall-owltype.sh  白名单卸载脚本本体（与 .command 同目录打包，供其调用）。
+# Owltype.pkg 不再进 DMG，但继续由 `make package` 构建发布（备用/企业直装链，仍 RequireLogout）；
+# Sparkle 自动更新仍走 Owltype-update.pkg（本脚本零接触）。
 #
 # 用法:  bash package/make_dmg /absolute/release-output-root
-# 前置:  build/Build/Products/Release/Famo.app 已构建 + 签名 + 公证 + staple
+# 前置:  build/Build/Products/Release/Owltype.app 已构建 + 签名 + 公证 + staple
 #        （`make release-artifacts` 的单一依赖图先产出 package 与 notarized-app）。
 # 签名:  仅在环境变量 DEV_ID 在位时签名 + 公证 + staple（与 Makefile 的 ifdef DEV_ID 一致；公开仓不硬
 #        编码任何身份/TeamID）。DEV_ID 未设 → 跳过签名/公证，仍组出未签名 DMG（便于本地机械验证）。
-#        ⚠️ 定律 6：未公证 DMG 带 quarantine 会被 App Translocation，安装器找不到内嵌 Famo.app——
-#        本地机械验证请直接跑构建产物 FamoInstaller.app，别跑未公证 DMG。
+#        ⚠️ 定律 6：未公证 DMG 带 quarantine 会被 App Translocation，安装器找不到内嵌 Owltype.app——
+#        本地机械验证请直接跑构建产物 OwltypeInstaller.app，别跑未公证 DMG。
 
 set -euo pipefail
 
@@ -30,21 +30,21 @@ RELEASE_OUTPUT_ROOT="${1:?missing absolute release output root}"
 
 marketing_version="$(get_marketing_version)"
 build_version="$(get_app_version)"
-VOLNAME="法墨输入法"
+VOLNAME="猫头鹰输入法"
 
-FAMO_APP="${RELEASE_OUTPUT_ROOT}/Build/Products/Release/Famo.app"
+OWL_APP="${RELEASE_OUTPUT_ROOT}/Build/Products/Release/Owltype.app"
 INSTALLER_DIR="${PROJECT_ROOT}/installer"
-INSTALLER_APP="${INSTALLER_DIR}/build/Build/Products/Release/FamoInstaller.app"
-UNINSTALL_CMD="${PROJECT_ROOT}/package/卸载法墨.command"               # 双击卸载入口
-UNINSTALL_SH="${PROJECT_ROOT}/scripts/uninstall-famo.sh"              # 白名单卸载脚本本体
+INSTALLER_APP="${INSTALLER_DIR}/build/Build/Products/Release/OwltypeInstaller.app"
+UNINSTALL_CMD="${PROJECT_ROOT}/package/卸载猫头鹰.command"               # 双击卸载入口
+UNINSTALL_SH="${PROJECT_ROOT}/scripts/uninstall-owltype.sh"              # 白名单卸载脚本本体
 
-DMG_VERSIONED="${PROJECT_ROOT}/package/Famo-${marketing_version}.dmg"
+DMG_VERSIONED="${PROJECT_ROOT}/package/Owltype-${marketing_version}.dmg"
 COHORT_STATE="${PROJECT_ROOT}/scripts/release-cohort-state.py"
 INVENTORY="${PROJECT_ROOT}/scripts/inventory-release-bundle.py"
 
-# --- 前置：已构建 + 签名 + staple 的 Famo.app + 卸载脚本 -----------------------
-if [ ! -d "${FAMO_APP}" ]; then
-    echo >&2 "ERROR: 缺少已构建的 Famo.app: ${FAMO_APP}（先跑 make package / make notarized-app）"
+# --- 前置：已构建 + 签名 + staple 的 Owltype.app + 卸载脚本 -----------------------
+if [ ! -d "${OWL_APP}" ]; then
+    echo >&2 "ERROR: 缺少已构建的 Owltype.app: ${OWL_APP}（先跑 make package / make notarized-app）"
     exit 1
 fi
 if [ ! -f "${UNINSTALL_CMD}" ]; then
@@ -66,15 +66,15 @@ else
 fi
 python3 "$INVENTORY" check "$RELEASE_OUTPUT_ROOT"
 
-# --- 1) 构建 FamoInstaller.app（始终关签名；版本随 Famo 打戳）--------------------
+# --- 1) 构建 OwltypeInstaller.app（始终关签名；版本随 Owltype 打戳）--------------------
 # installer 工程用 automatic 签名 + 空 team，xcodebuild 阶段一律 CODE_SIGNING_ALLOWED=NO；
 # DEV_ID 在位时下面用 codesign --force 显式重签（避免 automatic 签名要 DEVELOPMENT_TEAM）。
 # 构建产物在 installer/build/，与主 build/ 分离——不污染 make_package 的 staging（坑 13 防线不动）。
-echo "==> 构建 FamoInstaller.app（${marketing_version} / ${build_version}）"
+echo "==> 构建 OwltypeInstaller.app（${marketing_version} / ${build_version}）"
 (
     cd "${INSTALLER_DIR}"
     xcodegen generate
-    xcodebuild -project FamoInstaller.xcodeproj -scheme FamoInstaller \
+    xcodebuild -project OwltypeInstaller.xcodeproj -scheme OwltypeInstaller \
         -configuration Release -derivedDataPath build \
         MARKETING_VERSION="${marketing_version}" \
         CURRENT_PROJECT_VERSION="${build_version}" \
@@ -82,40 +82,40 @@ echo "==> 构建 FamoInstaller.app（${marketing_version} / ${build_version}）"
 )
 
 if [ ! -d "${INSTALLER_APP}" ]; then
-    echo >&2 "ERROR: 没生成 FamoInstaller.app: ${INSTALLER_APP}"
+    echo >&2 "ERROR: 没生成 OwltypeInstaller.app: ${INSTALLER_APP}"
     exit 1
 fi
 
-# --- 2) 内嵌已 staple 的 Famo.app ------------------------------------------
-# **不要 re-sign** 这个内嵌的 Famo.app——保留它已公证 + staple 的签名。Installer.swift 在
-# Contents/Library/Famo.app 找它（Apple 约定的嵌套代码位置，不放 Resources，规避公证拒绝）。
-echo "==> 内嵌 Famo.app → FamoInstaller.app/Contents/Library"
+# --- 2) 内嵌已 staple 的 Owltype.app ------------------------------------------
+# **不要 re-sign** 这个内嵌的 Owltype.app——保留它已公证 + staple 的签名。Installer.swift 在
+# Contents/Library/Owltype.app 找它（Apple 约定的嵌套代码位置，不放 Resources，规避公证拒绝）。
+echo "==> 内嵌 Owltype.app → OwltypeInstaller.app/Contents/Library"
 EMBED_DIR="${INSTALLER_APP}/Contents/Library"
 mkdir -p "${EMBED_DIR}"
-rm -rf "${EMBED_DIR}/Famo.app"
-cp -R "${FAMO_APP}" "${EMBED_DIR}/Famo.app"
+rm -rf "${EMBED_DIR}/Owltype.app"
+cp -R "${OWL_APP}" "${EMBED_DIR}/Owltype.app"
 
-# --- 3) 签外层 installer（仅 ifdef DEV_ID；不要 --deep，避免重签内嵌 Famo.app）-----
+# --- 3) 签外层 installer（仅 ifdef DEV_ID；不要 --deep，避免重签内嵌 Owltype.app）-----
 # hardened runtime 已在 project.yml 打开（ENABLE_HARDENED_RUNTIME），这里补 --options runtime
 # 与主工程 sign_app 的公证要求对齐；无独立公证——内嵌代码随 DMG 公证覆盖 + DMG staple（1.3.16 形态）。
 if [ -n "${DEV_ID:-}" ]; then
-    echo "==> 签名 FamoInstaller.app（Developer ID Application: ${DEV_ID}）"
+    echo "==> 签名 OwltypeInstaller.app（Developer ID Application: ${DEV_ID}）"
     codesign --force --options runtime --timestamp \
         --sign "Developer ID Application: ${DEV_ID}" "${INSTALLER_APP}"
     codesign --verify --strict --verbose=2 "${INSTALLER_APP}"
 else
-    echo "==> [跳过签名] DEV_ID 未设：FamoInstaller.app 不签名（仅本地机械验证）"
+    echo "==> [跳过签名] DEV_ID 未设：OwltypeInstaller.app 不签名（仅本地机械验证）"
 fi
 
 # --- 4) 组唯一的版本化 DMG 容器 ------------------------------------------------
-echo "==> 组 DMG 容器（UDZO）：FamoInstaller.app + 卸载法墨.command + uninstall-famo.sh"
+echo "==> 组 DMG 容器（UDZO）：OwltypeInstaller.app + 卸载猫头鹰.command + uninstall-owltype.sh"
 STAGING="$(mktemp -d)"
 trap 'rm -rf "${STAGING}"' EXIT
-cp -R "${INSTALLER_APP}" "${STAGING}/FamoInstaller.app"
-cp "${UNINSTALL_CMD}" "${STAGING}/卸载法墨.command"
-cp "${UNINSTALL_SH}" "${STAGING}/uninstall-famo.sh"
-python3 "$COHORT_STATE" id "$RELEASE_OUTPUT_ROOT" >"${STAGING}/FAMOTYPE-RELEASE-COHORT-ID"
-chmod +x "${STAGING}/卸载法墨.command" "${STAGING}/uninstall-famo.sh"
+cp -R "${INSTALLER_APP}" "${STAGING}/OwltypeInstaller.app"
+cp "${UNINSTALL_CMD}" "${STAGING}/卸载猫头鹰.command"
+cp "${UNINSTALL_SH}" "${STAGING}/uninstall-owltype.sh"
+python3 "$COHORT_STATE" id "$RELEASE_OUTPUT_ROOT" >"${STAGING}/OWLTYPE-RELEASE-COHORT-ID"
+chmod +x "${STAGING}/卸载猫头鹰.command" "${STAGING}/uninstall-owltype.sh"
 rm -f "${DMG_VERSIONED}"
 hdiutil create -volname "${VOLNAME}" -srcfolder "${STAGING}" -ov -format UDZO "${DMG_VERSIONED}"
 

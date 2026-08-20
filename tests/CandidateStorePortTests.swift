@@ -1,11 +1,11 @@
 //
 //  CandidateStorePortTests.swift
-//  FamoTests — PR for task 06-20-port-famocandidatestore-to-injected-candidatestoring-port
+//  OwltypeTests — PR for task 06-20-port-owlcandidatestore-to-injected-candidatestoring-port
 //
 //  Cashes in the testability goal the RimeEngine seam established (sources/RimeSeam.swift,
 //  tests/RimeSeamTests.swift, tests/SeamPortsTests.swift), extended to the heaviest remaining
 //  singleton coupling: the background/async WRITER services that write into the global
-//  `FamoCandidateStore.shared` sink. The new `CandidateStoring` port (RimeSeam.swift) lets each
+//  `OwlCandidateStore.shared` sink. The new `CandidateStoring` port (RimeSeam.swift) lets each
 //  writer's write-behaviour be asserted against a `FakeCandidateStore` with NO librime and NO
 //  network. Unlike the controller→service ports, these are service→sink couplings with no
 //  delegate hop, so the injection point is each WRITER instance's `var store` (mirroring
@@ -27,13 +27,13 @@
 
 import Foundation
 import XCTest
-@testable import Famo
+@testable import Owltype
 
 // MARK: - Fake (test fixture only — never shipped in sources/)
 
 /// A scripted `CandidateStoring` with no real store / registry. Records every call the writer
 /// made so a test can assert the scripted candidates / error flowed through the port — without
-/// the staleness gate, the `@Published` lanes, or `FamoSnapshotRegistry`.
+/// the staleness gate, the `@Published` lanes, or `OwlSnapshotRegistry`.
 @MainActor
 final class FakeCandidateStore: CandidateStoring {
   private(set) var mainSet: [[EnhancedCandidate]] = []
@@ -65,23 +65,23 @@ final class CandidateStorePortTests: XCTestCase {
 
   override func setUp() async throws {
     try await super.setUp()
-    FamoCloudPreferences.resetForTesting()
-    FamoSnapshotRegistry.shared.update(nil)
+    OwlCloudPreferences.resetForTesting()
+    OwlSnapshotRegistry.shared.update(nil)
   }
 
   override func tearDown() async throws {
     // Reset every singleton's injected port back to the production default to avoid cross-test
     // bleed (these are process-wide singletons; a `Fake` left in place would poison later tests).
-    FamoSnapshotEmitter.shared.store = FamoCandidateStore.shared
-    FamoExternalCommitBroker.shared.store = FamoCandidateStore.shared
-    FamoCloudPreferences.resetForTesting()
-    FamoSnapshotRegistry.shared.update(nil)
+    OwlSnapshotEmitter.shared.store = OwlCandidateStore.shared
+    OwlExternalCommitBroker.shared.store = OwlCandidateStore.shared
+    OwlCloudPreferences.resetForTesting()
+    OwlSnapshotRegistry.shared.update(nil)
     try await super.tearDown()
   }
 
   private func snapshot(id: UInt64 = 7, raw: String = "byrw", schema: String = "wubi86_jidian")
-    -> FamoCompositionSnapshot {
-    FamoCompositionSnapshot(
+    -> OwlCompositionSnapshot {
+    OwlCompositionSnapshot(
       id: id,
       sessionID: 1,
       schemaID: schema,
@@ -97,16 +97,16 @@ final class CandidateStorePortTests: XCTestCase {
   // MARK: 1. Runtime defaults ARE the shared singleton (behaviour invariant)
 
   func testWriterDefaultsAreTheSharedStore() {
-    XCTAssertTrue(FamoSnapshotEmitter.shared.store === FamoCandidateStore.shared)
-    XCTAssertTrue(FamoExternalCommitBroker.shared.store === FamoCandidateStore.shared)
+    XCTAssertTrue(OwlSnapshotEmitter.shared.store === OwlCandidateStore.shared)
+    XCTAssertTrue(OwlExternalCommitBroker.shared.store === OwlCandidateStore.shared)
   }
 
   // MARK: 2. A reachable write/clear/error path per writer flows through the injected port
 
-  /// `FamoSnapshotEmitter.emitComposing` mirrors the Rime menu into the main lane via
+  /// `OwlSnapshotEmitter.emitComposing` mirrors the Rime menu into the main lane via
   /// `store.setMainCandidates`. No project active (default) → no smart-lane injection. No network.
   func testEmitterMainLaneWriteFlowsThroughInjectedStore() {
-    let emitter = FamoSnapshotEmitter()
+    let emitter = OwlSnapshotEmitter()
     let fake = FakeCandidateStore()
     emitter.store = fake
 
@@ -126,15 +126,15 @@ final class CandidateStorePortTests: XCTestCase {
     XCTAssertEqual(fake.mainSet.first?.first?.source, .rime)
   }
 
-  /// `FamoExternalCommitBroker.commit` clears the non-main lanes after a successful insert via
+  /// `OwlExternalCommitBroker.commit` clears the non-main lanes after a successful insert via
   /// `store.clearForSnapshotChange`. The candidate must match the live snapshot. No network.
   func testCommitBrokerClearFlowsThroughInjectedStore() {
-    let broker = FamoExternalCommitBroker()
+    let broker = OwlExternalCommitBroker()
     let fake = FakeCandidateStore()
     broker.store = fake
 
     let live = snapshot(id: 60)
-    FamoSnapshotRegistry.shared.update(live)
+    OwlSnapshotRegistry.shared.update(live)
     let candidate = EnhancedCandidate(
       snapshotID: 60,
       source: .localStat,

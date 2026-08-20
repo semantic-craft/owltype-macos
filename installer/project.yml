@@ -1,19 +1,19 @@
-# FamoInstaller — 独立 GUI 首装安装器（仿微信 + 搜狗兜底）。
+# OwltypeInstaller — 独立 GUI 首装安装器（仿微信 + 搜狗兜底）。
 #
-# 这是一个 **独立** 的 xcodegen 工程，与 Famo.xcodeproj 完全无关：
-#   - 绝不修改 ../Famo.xcodeproj / Famo target / 现有 sources。
-#   - `xcodegen generate` 在本目录重生成 FamoInstaller.xcodeproj（已 gitignore）。
+# 这是一个 **独立** 的 xcodegen 工程，与 Owltype.xcodeproj 完全无关：
+#   - 绝不修改 ../Owltype.xcodeproj / Owltype target / 现有 sources。
+#   - `xcodegen generate` 在本目录重生成 OwltypeInstaller.xcodeproj（已 gitignore）。
 #   - 本文件 project.yml + Sources/ 提交进仓；生成的 .xcodeproj 和 build/ 不提交。
 #
-# 关键约束（见 .trellis/tasks/06-27-famo-app/prd.md P2）：
+# 关键约束（见安装器专题 06-27 的 prd P2）：
 #   - 普通带窗口 App（不是 LSUIElement/agent）。
 #   - 不开 App Sandbox：NSAppleScript `do shell script ... with administrator privileges`
 #     在沙箱里不可用，提权拷贝依赖它。
 #   - deploymentTarget macOS 13.0（覆盖面广；NSAppleScript / NSWorkspace API 13+ 都在）。
-name: FamoInstaller
+name: OwltypeInstaller
 
 options:
-  bundleIdPrefix: im.famo
+  bundleIdPrefix: im.owltype
   deploymentTarget:
     macOS: "13.0"
   createIntermediateGroups: true
@@ -22,13 +22,13 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    # 仅本地裸构建的兜底值：package/make_dmg 构建时会用 Famo 的 get_marketing_version /
+    # 仅本地裸构建的兜底值：package/make_dmg 构建时会用 Owltype 的 get_marketing_version /
     # get_app_version 以 xcodebuild 参数覆盖两者（Info.plist 用 $(MARKETING_VERSION) 等占位）。
     MARKETING_VERSION: "1.0.0"
     CURRENT_PROJECT_VERSION: "1"
 
 targets:
-  FamoInstaller:
+  OwltypeInstaller:
     type: application
     platform: macOS
     deploymentTarget: "13.0"
@@ -37,21 +37,21 @@ targets:
     info:
       path: Info.plist
       properties:
-        CFBundleName: 法墨安装器
-        CFBundleDisplayName: 法墨安装器
+        CFBundleName: 猫头鹰安装器
+        CFBundleDisplayName: 猫头鹰安装器
         # 版本占位符：Info.plist 由 xcodegen 每次 generate 重生成，直接改 plist 会被清掉；
-        # 真实版本由 package/make_dmg 构建时以 xcodebuild 参数注入（与 Famo 版本对齐，必改 6）。
+        # 真实版本由 package/make_dmg 构建时以 xcodebuild 参数注入（与 Owltype 版本对齐，必改 6）。
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSMinimumSystemVersion: "13.0"
         LSApplicationCategoryType: public.app-category.utilities
-        NSHumanReadableCopyright: "GPL-3.0-or-later · 法墨输入法"
+        NSHumanReadableCopyright: "GPL-3.0-or-later · 猫头鹰输入法"
         NSPrincipalClass: NSApplication
         # 故意不设 LSUIElement：这是普通可见窗口 App，不是后台 agent。
     settings:
       base:
-        PRODUCT_NAME: FamoInstaller
-        PRODUCT_BUNDLE_IDENTIFIER: im.famo.installer
+        PRODUCT_NAME: OwltypeInstaller
+        PRODUCT_BUNDLE_IDENTIFIER: im.owltype.installer
         GENERATE_INFOPLIST_FILE: NO
         ENABLE_HARDENED_RUNTIME: YES
         # 故意不设 CODE_SIGN_ENTITLEMENTS：不开 App Sandbox（NSAppleScript 提权依赖）。

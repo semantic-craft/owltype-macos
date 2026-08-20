@@ -1,11 +1,11 @@
 //
 //  RimeCompositionRenderer.swift
-//  Famo
+//  Owltype
 //
 //  Pure value renderer for the IMK marked-text presentation of a Composition (C3,
-//  task 07-05-famo-composition-render-seam). The byte→UTF-16 index math and the
+//  task 07-05-owl-composition-render-seam). The byte→UTF-16 index math and the
 //  inline-candidate-preview assembly were moved here VERBATIM out of
-//  `FamoInputController+RimeUpdate.swift` (rimeUpdate) — no logic edits; the only
+//  `OwlInputController+RimeUpdate.swift` (rimeUpdate) — no logic edits; the only
 //  change is that the three former `show(...)` call sites now RETURN a `RimeMarkedText`
 //  value instead of driving IMK.
 //

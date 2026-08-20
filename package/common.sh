@@ -19,7 +19,7 @@ get_app_version() {
 # Distribution 标题 / 下载页 / appcast 显示版本 (sparkle:shortVersionString)。
 # 从 pbxproj 直接读（Info.plist 里是未展开的 $(MARKETING_VERSION)，agvtool 也不展开它）。
 get_marketing_version() {
-    grep -oE 'MARKETING_VERSION = [0-9][0-9.]*;' "${PROJECT_ROOT}/Famo.xcodeproj/project.pbxproj" \
+    grep -oE 'MARKETING_VERSION = [0-9][0-9.]*;' "${PROJECT_ROOT}/Owltype.xcodeproj/project.pbxproj" \
         | sed -E 's/MARKETING_VERSION = ([0-9.]+);/\1/' | sort -u | head -1
 }
 

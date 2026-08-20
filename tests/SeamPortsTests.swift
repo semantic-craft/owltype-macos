@@ -1,13 +1,13 @@
 //
 //  SeamPortsTests.swift
-//  FamoTests — PR for task 06-20-extend-rimeengine-seam-to-snapshot-cloud-ports
+//  OwltypeTests — PR for task 06-20-extend-rimeengine-seam-to-snapshot-cloud-ports
 //
 //  Cashes in the testability goal the RimeEngine seam established (sources/RimeSeam.swift,
 //  tests/RimeSeamTests.swift), extended to the only OTHER two global singletons
-//  `FamoInputController` directly reaches off the IMK hot path:
+//  `OwlInputController` directly reaches off the IMK hot path:
 //
 //    • `SnapshotReading`            — the read-only live-snapshot view the controller reads
-//                                     (was `FamoSnapshotRegistry.shared.current`); the 任意提问 /
+//                                     (was `OwlSnapshotRegistry.shared.current`); the 任意提问 /
 //                                     local Smart-lane triggers read it off the IMK hot path.
 //
 //  This file adds the test-only `FakeSnapshotStore` (scripted, in-memory, NO librime, NO
@@ -15,12 +15,12 @@
 //
 //    1. The narrow `SnapshotReading` port carries exactly what the controller needs: a scripted
 //       `current` reads back through the port.
-//    2. The injection points are real: assigning the fakes onto `FamoApplicationDelegate`'s
+//    2. The injection points are real: assigning the fakes onto `OwlApplicationDelegate`'s
 //       `snapshots` (the composition root, alongside `engine`) type-checks and swaps the
 //       production `.shared` defaults out.
 //
 //  Scope (PRD Out-of-Scope, mirrors RimeSeamTests): this stops at the port boundary.
-//  Constructing a `FamoInputController` headless calls `IMKInputController`'s server
+//  Constructing a `OwlInputController` headless calls `IMKInputController`'s server
 //  initializer, so the trigger's read-then-request SEQUENCE is reproduced here against the
 //  ports the controller now funnels through — the same approach RimeSeamTests used to prove
 //  the controller's librime helpers without a live controller. `.shared` stays the
@@ -31,7 +31,7 @@
 
 import Foundation
 import XCTest
-@testable import Famo
+@testable import Owltype
 
 // MARK: - Fakes (test fixtures only — never shipped in sources/)
 
@@ -40,14 +40,14 @@ import XCTest
 /// trigger reached for `current`.
 @MainActor
 final class FakeSnapshotStore: SnapshotReading {
-  var scriptedCurrent: FamoCompositionSnapshot?
+  var scriptedCurrent: OwlCompositionSnapshot?
   private(set) var readCount = 0
 
-  init(current: FamoCompositionSnapshot? = nil) {
+  init(current: OwlCompositionSnapshot? = nil) {
     self.scriptedCurrent = current
   }
 
-  var current: FamoCompositionSnapshot? {
+  var current: OwlCompositionSnapshot? {
     readCount += 1
     return scriptedCurrent
   }
@@ -98,16 +98,16 @@ final class FakeSelectionPolish: SelectionPolishing {
 
 /// A scripted `PromptResolving` with no disk. Matches scripted entries on exact (code, title)
 /// and records every query so a test can assert the commit chokepoint hit (or skipped) the
-/// lookup — without famo_prompts.json. (The live resolver's v-prefix tolerance + JSON read are
-/// covered against `FamoPromptStore.matchEntry` in FamoPromptInterceptionTests.)
+/// lookup — without owl_prompts.json. (The live resolver's v-prefix tolerance + JSON read are
+/// covered against `OwlPromptStore.matchEntry` in OwlPromptInterceptionTests.)
 @MainActor
 final class FakePromptStore: PromptResolving {
-  var entries: [FamoPromptEntry]
+  var entries: [OwlPromptEntry]
   private(set) var queries: [(code: String, title: String)] = []
 
-  init(entries: [FamoPromptEntry] = []) { self.entries = entries }
+  init(entries: [OwlPromptEntry] = []) { self.entries = entries }
 
-  func entry(forCode code: String, title: String) -> FamoPromptEntry? {
+  func entry(forCode code: String, title: String) -> OwlPromptEntry? {
     queries.append((code, title))
     return entries.first { $0.code == code && $0.title == title }
   }
@@ -118,26 +118,26 @@ final class FakePromptStore: PromptResolving {
 @MainActor
 final class SeamPortsTests: XCTestCase {
 
-  // `FamoSnapshotRegistry` is a process-wide singleton other test classes also write. This
+  // `OwlSnapshotRegistry` is a process-wide singleton other test classes also write. This
   // class never touches `.shared` (its fakes are scripted in-memory), but it asserts
-  // `FamoSnapshotRegistry.shared.current == nil` to prove the fake-driven path leaves the
+  // `OwlSnapshotRegistry.shared.current == nil` to prove the fake-driven path leaves the
   // production singleton untouched. Clear the registry at the start AND end of each test so
   // a snapshot left by an earlier/other test class can't make that assertion flap, and so
   // this class never leaks state into a later one. (single-threaded @MainActor test runner.)
   override func setUp() async throws {
     try await super.setUp()
-    FamoSnapshotRegistry.shared.update(nil)
+    OwlSnapshotRegistry.shared.update(nil)
   }
 
   override func tearDown() async throws {
-    FamoSnapshotRegistry.shared.update(nil)
+    OwlSnapshotRegistry.shared.update(nil)
     try await super.tearDown()
   }
 
   // A realistic composition snapshot, the kind the emitter copies off the hot path.
   private func snapshot(id: UInt64 = 7, raw: String = "nihao", schema: String = "rime_ice")
-    -> FamoCompositionSnapshot {
-    FamoCompositionSnapshot(
+    -> OwlCompositionSnapshot {
+    OwlCompositionSnapshot(
       id: id,
       sessionID: 1,
       schemaID: schema,
@@ -172,13 +172,13 @@ final class SeamPortsTests: XCTestCase {
   // MARK: 2. Injection points are real (composition root, alongside `engine`)
 
   func testDelegateDefaultsAreTheSharedSingletons() {
-    let delegate = FamoApplicationDelegate()
+    let delegate = OwlApplicationDelegate()
     // Behaviour invariant: the runtime default is the `.shared` snapshot registry.
-    XCTAssertTrue(delegate.snapshots === FamoSnapshotRegistry.shared)
+    XCTAssertTrue(delegate.snapshots === OwlSnapshotRegistry.shared)
   }
 
   func testDelegatePortsAreSwappableToFakes() {
-    let delegate = FamoApplicationDelegate()
+    let delegate = OwlApplicationDelegate()
     let store = FakeSnapshotStore(current: snapshot())
     delegate.snapshots = store
     XCTAssertTrue(delegate.snapshots === store)
@@ -192,14 +192,14 @@ final class SeamPortsTests: XCTestCase {
   // librime, no network, headless `IMKInputController` not constructed — see file header).
 
   func testDelegatePortDefaultsAreTheSharedSingletons() {
-    let delegate = FamoApplicationDelegate()
-    XCTAssertTrue(delegate.snapshotEmitter === FamoSnapshotEmitter.shared)
-    XCTAssertTrue(delegate.selectionPolish === FamoSelectionPolishService.shared)
-    XCTAssertTrue(delegate.promptStore === FamoPromptResolver.shared)
+    let delegate = OwlApplicationDelegate()
+    XCTAssertTrue(delegate.snapshotEmitter === OwlSnapshotEmitter.shared)
+    XCTAssertTrue(delegate.selectionPolish === OwlSelectionPolishService.shared)
+    XCTAssertTrue(delegate.promptStore === OwlPromptResolver.shared)
   }
 
   func testDelegateControllerPortsAreSwappableToFakes() {
-    let delegate = FamoApplicationDelegate()
+    let delegate = OwlApplicationDelegate()
     let emitter = FakeSnapshotEmitter()
     let polish = FakeSelectionPolish()
     let prompts = FakePromptStore()
@@ -215,7 +215,7 @@ final class SeamPortsTests: XCTestCase {
   /// (noteSchemaChange → emitComposing → emitCleared → noteCommit) against the injected port,
   /// asserting each call — and `emitComposing`'s scripted args — flowed through the fake.
   func testSnapshotEmitterTriggerFlowsThroughInjectedPort() {
-    let delegate = FamoApplicationDelegate()
+    let delegate = OwlApplicationDelegate()
     let emitter = FakeSnapshotEmitter()
     delegate.snapshotEmitter = emitter
 
@@ -243,7 +243,7 @@ final class SeamPortsTests: XCTestCase {
   /// `polishSelection(_:)` and takes the best rewrite. Asserts the selection forwarded through
   /// the port and the scripted rewrites came back — without DeepSeek/keychain.
   func testSelectionPolishTriggerFlowsThroughInjectedPort() async throws {
-    let delegate = FamoApplicationDelegate()
+    let delegate = OwlApplicationDelegate()
     let polish = FakeSelectionPolish(rewrites: ["改写一", "改写二"])
     delegate.selectionPolish = polish
 

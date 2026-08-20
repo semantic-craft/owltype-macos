@@ -1,16 +1,16 @@
 # Rime dictionary
 # encoding: utf-8
 #
-# Famotype's public seed deliberately imports only inputs with an auditable
-# redistribution grant. See FAMOTYPE-SEED-SOURCES.md in the generated seed.
+# Owltype's public seed deliberately imports only inputs with an auditable
+# redistribution grant. See OWLTYPE-SEED-SOURCES.md in the generated seed.
 
 ---
 name: rime_ice
 version: "16.0.0-base.1"
 sort: by_weight
 # Order matters: the first table wins duplicate (text, code) rows, so the
-# weighted famotype_base entries must shadow the weight-less famotype_unicode.
+# weighted owltype_base entries must shadow the weight-less owltype_unicode.
 import_tables:
-  - cn_dicts/famotype_base
-  - cn_dicts/famotype_unicode
+  - cn_dicts/owltype_base
+  - cn_dicts/owltype_unicode
 ...

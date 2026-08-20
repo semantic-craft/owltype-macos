@@ -49,10 +49,10 @@ class PolicyInputError(Exception):
     """The scanner report could not be safely normalized."""
 
 
-HASH_MANIFESTS = {"FAMOTYPE-FILE-MANIFEST.sha256", "FAMOTYPE-SOURCE-MANIFEST.sha256"}
+HASH_MANIFESTS = {"OWLTYPE-FILE-MANIFEST.sha256", "OWLTYPE-SOURCE-MANIFEST.sha256"}
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 MANIFEST_LINE = re.compile(r"^[0-9a-f]{64} {2}\S")
-SWIFT_MANGLED = re.compile(r"^s\d+Famo")
+SWIFT_MANGLED = re.compile(r"^s\d+Owltype")
 
 # Lob recognizes a five-character environment prefix followed by exactly 35
 # token characters.  The exemption accepts only the test environment, requires
@@ -170,7 +170,7 @@ def manifest_hash_column(finding: Finding) -> bool:
 
 
 def swift_symbol(finding: Finding) -> bool:
-    """Allow Famo Swift symbol names only inside executable bundle locations."""
+    """Allow Owltype Swift symbol names only inside executable bundle locations."""
     if finding.source != "artifact" or finding.scanner != "trufflehog":
         return False
     if not SWIFT_MANGLED.match(finding.raw):

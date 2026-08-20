@@ -10,10 +10,10 @@
 //     扩展截止（300s / 窗口关闭）；迟到 consent 信号一到 → 翻 verified 绿窗（人点「允许」可以
 //     晚于 30s——fix1 QA 假阴性的时序一半）。
 //   - verified 时刻的刷新组合拳（fix2）：kTISNotify 分布式广播 + refreshInputMenuAgents() +
-//     （按 plan.selectFamoAfterInstall）用已装 Famo CLI fresh 进程 select Hans（QA 探针实证
+//     （按 plan.selectOwltypeAfterInstall）用已装 Owltype CLI fresh 进程 select Hans（QA 探针实证
 //     fresh 进程 TISSelectInputSource(Hans)→0；本进程 select 因快照陈旧不可靠，已退役——
 //     定律 2 的嵌套 runloop -50 问题也一并绕开）。install() 里 enable 后那次广播打在 consent
-//     之前、对 consent 后的世界无效，真正让菜单代理 + 已运行 App 认到法墨的是这一次。
+//     之前、对 consent 后的世界无效，真正让菜单代理 + 已运行 App 认到猫头鹰的是这一次。
 //   - 这些都只是过程信号：最终验收 = 干净机真人看菜单 + 宿主 handle() 收键（定律 3/10）。
 //
 // 同时注册 kTISNotifyEnabledKeyboardInputSourcesChanged 分布式通知 observer：用户点「允许」的瞬间
@@ -31,7 +31,7 @@ final class InstallerActivationVerifier {
 
     private let softDeadline: Date
     private let extendedDeadline: Date
-    private let selectFamo: Bool
+    private let selectOwltype: Bool
     private let onState: (InstallerActivationPolicy.VerificationState) -> Void
     private var finished = false
     private var reportedInterimNeedsLogout = false
@@ -42,7 +42,7 @@ final class InstallerActivationVerifier {
     /// 软超时先落 needsLogout(stillTrying: true)（非终态，窗口继续自动更新），
     /// 之后要么迟到信号翻 verified，要么扩展截止落 needsLogout(stillTrying: false)。
     static func start(
-        selectFamo: Bool,
+        selectOwltype: Bool,
         softTimeout: TimeInterval = 30,
         extendedTimeout: TimeInterval = 300,
         onState: @escaping (InstallerActivationPolicy.VerificationState) -> Void
@@ -50,7 +50,7 @@ final class InstallerActivationVerifier {
         dispatchPrecondition(condition: .onQueue(.main))
         cancel()
         let verifier = InstallerActivationVerifier(
-            selectFamo: selectFamo,
+            selectOwltype: selectOwltype,
             softTimeout: softTimeout,
             extendedTimeout: extendedTimeout,
             onState: onState)
@@ -75,12 +75,12 @@ final class InstallerActivationVerifier {
     }
 
     private init(
-        selectFamo: Bool,
+        selectOwltype: Bool,
         softTimeout: TimeInterval,
         extendedTimeout: TimeInterval,
         onState: @escaping (InstallerActivationPolicy.VerificationState) -> Void
     ) {
-        self.selectFamo = selectFamo
+        self.selectOwltype = selectOwltype
         self.softDeadline = Date(timeIntervalSinceNow: softTimeout)
         self.extendedDeadline = Date(timeIntervalSinceNow: extendedTimeout)
         self.onState = onState
@@ -144,9 +144,9 @@ final class InstallerActivationVerifier {
         guard !finished else { return }
         stopSilently()
         if state == .verified {
-            let selectFamo = self.selectFamo
+            let selectOwltype = self.selectOwltype
             DispatchQueue.global(qos: .userInitiated).async {
-                Self.performVerifiedRefresh(selectFamo: selectFamo)
+                Self.performVerifiedRefresh(selectOwltype: selectOwltype)
             }
         }
         onState(state)
@@ -166,9 +166,9 @@ final class InstallerActivationVerifier {
 
     // MARK: - verified 时刻的刷新组合拳（consent 真生效后才对世界有意义）
 
-    private static func performVerifiedRefresh(selectFamo: Bool) {
+    private static func performVerifiedRefresh(selectOwltype: Bool) {
         // 补发分布式广播 + 刷菜单代理：enable 后那次打在 consent 之前无人受益；这一次
-        // TextInputMenuAgent 与已运行 App 才能重新 query 到已启用的法墨（QA：菜单点不中、
+        // TextInputMenuAgent 与已运行 App 才能重新 query 到已启用的猫头鹰（QA：菜单点不中、
         // 装前已开 App 打不出的刷新缺口正是缺这一步）。
         let center = CFNotificationCenterGetDistributedCenter()
         CFNotificationCenterPostNotification(
@@ -176,11 +176,11 @@ final class InstallerActivationVerifier {
             CFNotificationName(kTISNotifyEnabledKeyboardInputSourcesChanged),
             nil, nil, true)
         Installer.refreshInputMenuAgents()
-        if selectFamo {
+        if selectOwltype {
             // fresh 进程 select（1.3.32 CLI 起认任意源 id；QA 探针实证 fresh 进程 select→0）。
             // best-effort：失败不改判——verified 已由探针读回定谳，select 只是把当前源切过去。
             _ = try? Installer.runProcess(
-                Installer.installedAppPath + "/Contents/MacOS/Famo",
+                Installer.installedAppPath + "/Contents/MacOS/Owltype",
                 ["--select-input-source", Installer.primaryModeID])
         }
     }

@@ -16,7 +16,7 @@ for byte, no matter what a previous release left behind in DerivedData.
 
 Verifying a downloaded release:
 
-    cd /path/to/Famo.app && shasum -a 256 -c /path/to/FAMOTYPE-FILE-MANIFEST.sha256
+    cd /path/to/Owltype.app && shasum -a 256 -c /path/to/OWLTYPE-FILE-MANIFEST.sha256
 
 `check OUTPUT_ROOT` re-verifies the cohort before it is used as provenance.
 DerivedData survives across commits, so "an inventory exists" is a weaker claim
@@ -31,7 +31,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from famo_bundle import (
+from owl_bundle import (
     COHORT_NAME,
     INVENTORY_NAMES,
     MANIFEST_NAME,
@@ -187,7 +187,7 @@ def main() -> None:
     command = argv[0]
     output_root, app, output_dir = release_paths(Path(argv[1]))
     if not (app / "Contents/Info.plist").is_file():
-        fail(f"not a Famo app bundle: {app}")
+        fail(f"not a Owltype app bundle: {app}")
 
     if command == "check":
         check(output_root, app, output_dir)

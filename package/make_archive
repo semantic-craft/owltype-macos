@@ -3,14 +3,14 @@
 # make_archive — 生成真正的 Sparkle 自动更新 appcast（Squirrel 同款机制，载荷改用更新专用 pkg）。
 # Sparkle 自动更新载荷 = 签名+公证的裸 .pkg：Sparkle 1.26+/2.x 按 `.pkg` 扩展名走 guided package
 # installer（SUGuidedPackageInstaller）。<enclosure> 显式声明 sparkle:installationType="package"，
-# 并指向 responsay.com 对象存储中按 build version 固定的 Famo-update.pkg 链接
+# 并指向 responsay.com 对象存储中按 build version 固定的 Owltype-update.pkg 链接
 #（Distribution-update，无 RequireLogout——更新免注销；首装仍走
-# DMG 里的 Famo.pkg），并带 sign_update 用与 SUPublicEDKey 配对的 EdDSA 私钥签出的
+# DMG 里的 Owltype.pkg），并带 sign_update 用与 SUPublicEDKey 配对的 EdDSA 私钥签出的
 # edSignature/length。装毕由组件 (BundleOverwriteAction=upgrade) + postinstall 的
 # 切出→kill→原地换文件→重启→切回 序列完成免注销升级。
 #
 # 依据：research/sparkle-pkg-autoupdate.md（Squirrel make_archive / live appcast 实证）+
-# task 07-02-famo research/fcitx5-macos-install-mechanism.md（免注销升级序列）。
+# 首装免注销专题 07-02 的 research/fcitx5-macos-install-mechanism.md（免注销升级序列）。
 
 set -euo pipefail
 
@@ -32,12 +32,12 @@ marketing_version="$(get_marketing_version)"
 pub_date=$(date -R)
 
 # Sparkle 固定到当前 CFBundleVersion 对应的不可变对象，不依赖仓库可见性或 latest 别名。
-download_url="$(python3 "${PROJECT_ROOT}/scripts/famo_distribution.py" asset-url \
-    "${app_version}" Famo-update.pkg)"
+download_url="$(python3 "${PROJECT_ROOT}/scripts/owl_distribution.py" asset-url \
+    "${app_version}" Owltype-update.pkg)"
 
-# enclosure 需要已签名(+公证+staple)的 package/Famo-update.pkg 存在（由 `make package` 产出）。缺它
+# enclosure 需要已签名(+公证+staple)的 package/Owltype-update.pkg 存在（由 `make package` 产出）。缺它
 # 就大声失败，绝不退化成 enclosure-less 的 information-only appcast（那是要还原掉的反模式）。
-PKG="${PROJECT_ROOT}/package/Famo-update.pkg"
+PKG="${PROJECT_ROOT}/package/Owltype-update.pkg"
 if [ ! -f "${PKG}" ]; then
     echo >&2 "ERROR: 缺少 ${PKG}（先跑 make package）。appcast 的 <enclosure> 需要它来生成 edSignature/length。"
     exit 1
@@ -76,18 +76,18 @@ write_appcast() {
 <?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"
      xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"
-     xmlns:famo="https://responsay.com/famo/release-cohort">
+     xmlns:owl="https://responsay.com/owltype/release-cohort">
   <channel>
     <title>${title}</title>
     <link>${link}</link>
     <description>${description}</description>
     <language>zh</language>
     <item>
-      <title>Famo ${marketing_version}</title>
+      <title>Owltype ${marketing_version}</title>
       <sparkle:version>${app_version}</sparkle:version>
       <sparkle:shortVersionString>${marketing_version}</sparkle:shortVersionString>
-      <famo:releaseCohort>${cohort_id}</famo:releaseCohort>
-      <famo:updatePackageSha256>${update_package_sha256}</famo:updatePackageSha256>
+      <owl:releaseCohort>${cohort_id}</owl:releaseCohort>
+      <owl:updatePackageSha256>${update_package_sha256}</owl:updatePackageSha256>
       <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
       <pubDate>${pub_date}</pubDate>
       <sparkle:releaseNotesLink>${link}</sparkle:releaseNotesLink>
@@ -106,10 +106,10 @@ EOF
     ls -l "${appcast_file}"
 }
 
-write_appcast 'appcast.xml' '法墨输入法更新频道' '法墨输入法 Appcast：Sparkle 自动下载签名+公证的 Famo-update.pkg，并在 macOS 授权后安装（无需注销）。' 'https://responsay.com/famo/' "${download_url}"
-write_appcast 'testing-appcast.xml' '法墨输入法测试频道' '法墨输入法测试版 Appcast：Sparkle 自动下载签名+公证的 Famo-update.pkg，并在 macOS 授权后安装（无需注销）。' 'https://responsay.com/famo/' "${download_url}"
-# 本地测试频道：enclosure 指向本地 package/Famo-update.pkg（同一签名），便于离线验证下载/安装流程。
-write_appcast 'debug-appcast.xml' '法墨输入法本地测试' '法墨输入法 Appcast 本地测试：enclosure 指向本地 package/Famo-update.pkg。' "file://${PROJECT_ROOT}/package/debug-appcast.xml" "file://${PROJECT_ROOT}/package/Famo-update.pkg"
+write_appcast 'appcast.xml' '猫头鹰输入法更新频道' '猫头鹰输入法 Appcast：Sparkle 自动下载签名+公证的 Owltype-update.pkg，并在 macOS 授权后安装（无需注销）。' 'https://responsay.com/owltype/' "${download_url}"
+write_appcast 'testing-appcast.xml' '猫头鹰输入法测试频道' '猫头鹰输入法测试版 Appcast：Sparkle 自动下载签名+公证的 Owltype-update.pkg，并在 macOS 授权后安装（无需注销）。' 'https://responsay.com/owltype/' "${download_url}"
+# 本地测试频道：enclosure 指向本地 package/Owltype-update.pkg（同一签名），便于离线验证下载/安装流程。
+write_appcast 'debug-appcast.xml' '猫头鹰输入法本地测试' '猫头鹰输入法 Appcast 本地测试：enclosure 指向本地 package/Owltype-update.pkg。' "file://${PROJECT_ROOT}/package/debug-appcast.xml" "file://${PROJECT_ROOT}/package/Owltype-update.pkg"
 
 python3 "$COHORT_STATE" register-output "$RELEASE_OUTPUT_ROOT" appcast \
     "$PROJECT_ROOT/package/appcast.xml"

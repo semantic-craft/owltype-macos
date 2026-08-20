@@ -21,7 +21,7 @@ while IFS= read -r tracked_path; do
   esac
 
   case "$tracked_path" in
-    build/*|download/*|bin/*|lib/*|Frameworks/*|data/opencc/*|data/plum/*|data/famo-rime/*|.wrangler/*|*.xcresult/*)
+    build/*|download/*|bin/*|lib/*|Frameworks/*|data/opencc/*|data/plum/*|data/owl-rime/*|.wrangler/*|*.xcresult/*)
       printf 'forbidden generated artifact: %s\n' "$tracked_path" >&2
       failed=1
       ;;
@@ -41,7 +41,7 @@ import sys
 
 with open(sys.argv[1], "rb") as handle:
     info = plistlib.load(handle)
-if info.get("SUFeedURL") != "https://responsay.com/famo/appcast.xml":
+if info.get("SUFeedURL") != "https://responsay.com/owltype/appcast.xml":
     raise SystemExit("Sparkle feed differs from the reviewed endpoint")
 if not info.get("SUPublicEDKey"):
     raise SystemExit("Sparkle public verification key is missing")

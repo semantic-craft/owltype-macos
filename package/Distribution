@@ -1,29 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="1"
-    xmlns:famo="https://responsay.com/famo/release-cohort">
-    <title>法墨 Famo @VERSION@</title>
-    <famo:releaseCohort>@COHORT_ID@</famo:releaseCohort>
+    xmlns:owl="https://responsay.com/owltype/release-cohort">
+    <title>猫头鹰 Owltype @VERSION@</title>
+    <owl:releaseCohort>@COHORT_ID@</owl:releaseCohort>
     <welcome file="welcome.html" mime-type="text/html"/>
     <conclusion file="conclusion.html" mime-type="text/html"/>
-    <pkg-ref id="im.famo.inputmethod.Famo"/>
+    <pkg-ref id="im.owltype.inputmethod.Owltype"/>
     <options customize="never" require-scripts="false" rootVolumeOnly="true"/>
     <choices-outline>
         <line choice="default">
-            <line choice="im.famo.inputmethod.Famo"/>
+            <line choice="im.owltype.inputmethod.Owltype"/>
         </line>
     </choices-outline>
     <choice id="default"/>
-    <choice id="im.famo.inputmethod.Famo" visible="false">
-        <pkg-ref id="im.famo.inputmethod.Famo"/>
+    <choice id="im.owltype.inputmethod.Owltype" visible="false">
+        <pkg-ref id="im.owltype.inputmethod.Owltype"/>
     </choice>
-    <!-- onConclusion="RequireLogout" (Squirrel model): FIRST-INSTALL pkg only (Famo.pkg, shipped in
-         the DMG). After install, loginwindow re-reads the input-source list so 法墨 is GUARANTEED to
+    <!-- onConclusion="RequireLogout" (Squirrel model): FIRST-INSTALL pkg only (Owltype.pkg, shipped in
+         the DMG). After install, loginwindow re-reads the input-source list so 猫头鹰 is GUARANTEED to
          appear in the input menu — the user-requested "菜单一定出现" guarantee. postinstall does
          register/enable/select; the logout closes the loop. Sparkle auto-updates no longer serve this
-         pkg: they serve Famo-update.pkg (built from Distribution-update, NO onConclusion) — updates
+         pkg: they serve Owltype-update.pkg (built from Distribution-update, NO onConclusion) — updates
          install in place without a logout, postinstall handles the smooth switch-out/kill/relaunch/
-         switch-back sequence (fcitx5 model). BundleOverwriteAction=upgrade (Famo-component.plist)
+         switch-back sequence (fcitx5 model). BundleOverwriteAction=upgrade (Owltype-component.plist)
          only governs in-place file overwrite (the app + bundled Sparkle.framework swap without a
          reinstall); it does NOT suppress this pkg's logout. -->
-    <pkg-ref id="im.famo.inputmethod.Famo" onConclusion="RequireLogout">Famo-component.pkg</pkg-ref>
+    <pkg-ref id="im.owltype.inputmethod.Owltype" onConclusion="RequireLogout">Owltype-component.pkg</pkg-ref>
 </installer-gui-script>

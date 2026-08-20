@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STATE="$ROOT/scripts/release-cohort-state.py"
 INVENTORY="$ROOT/scripts/inventory-release-bundle.py"
-work="$(mktemp -d "${TMPDIR:-/tmp}/famo-cohort-transition.XXXXXX")"
+work="$(mktemp -d "${TMPDIR:-/tmp}/owl-cohort-transition.XXXXXX")"
 trap 'rm -rf "$work"' EXIT
 
 pass=0
@@ -41,7 +41,7 @@ mock_adapter="$work/mock-apple-tool-adapter"
 apply_marker() {
   local artifact="$1" marker="$2"
   if [[ -d "$artifact" ]]; then
-    printf '%s\n' "$marker" >>"$artifact/Contents/MacOS/Famo"
+    printf '%s\n' "$marker" >>"$artifact/Contents/MacOS/Owltype"
   else
     printf '%s\n' "$marker" >>"$artifact"
   fi
@@ -107,10 +107,10 @@ chmod +x "$mock_adapter"
 
 make_fixture() {
   local root="$1" version="${2:-9.8.7}"
-  local app="$root/Build/Products/Release/Famo.app"
+  local app="$root/Build/Products/Release/Owltype.app"
   mkdir -p "$app/Contents/MacOS" "$app/Contents/SharedSupport"
-  printf 'fake executable\n' >"$app/Contents/MacOS/Famo"
-  chmod +x "$app/Contents/MacOS/Famo"
+  printf 'fake executable\n' >"$app/Contents/MacOS/Owltype"
+  chmod +x "$app/Contents/MacOS/Owltype"
   printf 'fixture seed\n' >"$app/Contents/SharedSupport/seed.txt"
   python3 - "$app/Contents/Info.plist" "$version" <<'PY'
 import plistlib
@@ -119,7 +119,7 @@ import sys
 with open(sys.argv[1], "wb") as handle:
     plistlib.dump(
         {
-            "CFBundleIdentifier": "im.famo.inputmethod.Famo",
+            "CFBundleIdentifier": "im.owltype.inputmethod.Owltype",
             "CFBundleShortVersionString": sys.argv[2],
             "CFBundleVersion": sys.argv[2],
         },
@@ -133,8 +133,8 @@ run_state() {
   local scenario="$1"
   shift
   env \
-    FAMO_APPLE_TOOL_ADAPTER="$mock_adapter" \
-    FAMO_RELEASE_RETRY_DELAY_SECONDS=0 \
+    OWL_APPLE_TOOL_ADAPTER="$mock_adapter" \
+    OWL_RELEASE_RETRY_DELAY_SECONDS=0 \
     MOCK_SCENARIO="$scenario" \
     MOCK_LOG="$mock_log" \
     MOCK_COUNT_DIR="$mock_counts" \
@@ -207,7 +207,7 @@ if [[ "${1:-}" == attach ]]; then
     if [[ "${args[index]}" == -mountpoint ]]; then
       mount_point="${args[index + 1]}"
       mkdir -p "$mount_point"
-      printf '%s\n' "${EMBEDDED_COHORT_ID:?}" >"$mount_point/FAMOTYPE-RELEASE-COHORT-ID"
+      printf '%s\n' "${EMBEDDED_COHORT_ID:?}" >"$mount_point/OWLTYPE-RELEASE-COHORT-ID"
       break
     fi
   done
@@ -225,9 +225,9 @@ run_production_adapter() {
     "$ROOT/package/apple_tool_adapter" "$@"
 }
 
-production_app="$work/production Famo.app"
+production_app="$work/production Owltype.app"
 mkdir -p "$production_app/Contents/MacOS"
-printf 'app\n' >"$production_app/Contents/MacOS/Famo"
+printf 'app\n' >"$production_app/Contents/MacOS/Owltype"
 if run_production_adapter accepted notarize app fixture-profile "$production_app" >"$output" 2>&1 &&
    grep -q -- '--wait --timeout 20m --output-format json' "$production_log"; then
   ok "production Apple adapter zips App and accepts structured notarization success"
@@ -244,27 +244,27 @@ else
 fi
 
 real_pkg_root="$work/real-pkg"
-mkdir -p "$real_pkg_root/payload/Famo.app/Contents/MacOS"
-printf 'unsigned fixture executable\n' >"$real_pkg_root/payload/Famo.app/Contents/MacOS/Famo"
-chmod +x "$real_pkg_root/payload/Famo.app/Contents/MacOS/Famo"
+mkdir -p "$real_pkg_root/payload/Owltype.app/Contents/MacOS"
+printf 'unsigned fixture executable\n' >"$real_pkg_root/payload/Owltype.app/Contents/MacOS/Owltype"
+chmod +x "$real_pkg_root/payload/Owltype.app/Contents/MacOS/Owltype"
 /usr/bin/pkgbuild --root "$real_pkg_root/payload" \
-  --identifier im.famo.inputmethod.Famo.selftest \
+  --identifier im.owltype.inputmethod.Owltype.selftest \
   --version 1 --install-location '/Library/Input Methods' \
-  "$real_pkg_root/Famo-component.pkg" >/dev/null
+  "$real_pkg_root/Owltype-component.pkg" >/dev/null
 
 write_distribution() {
   local destination="$1" marker_xml="$2"
   cat >"$destination" <<XML
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="1"
-    xmlns:famo="https://responsay.com/famo/release-cohort">
-  <title>Famo unsigned cohort fixture</title>
+    xmlns:owl="https://responsay.com/owltype/release-cohort">
+  <title>Owltype unsigned cohort fixture</title>
   ${marker_xml}
   <options customize="never" require-scripts="false" rootVolumeOnly="true"/>
   <choices-outline><line choice="default"><line choice="fixture"/></line></choices-outline>
   <choice id="default"/>
-  <choice id="fixture" visible="false"><pkg-ref id="im.famo.inputmethod.Famo.selftest"/></choice>
-  <pkg-ref id="im.famo.inputmethod.Famo.selftest">Famo-component.pkg</pkg-ref>
+  <choice id="fixture" visible="false"><pkg-ref id="im.owltype.inputmethod.Owltype.selftest"/></choice>
+  <pkg-ref id="im.owltype.inputmethod.Owltype.selftest">Owltype-component.pkg</pkg-ref>
 </installer-gui-script>
 XML
 }
@@ -276,16 +276,16 @@ build_product_pkg() {
 }
 
 write_distribution "$real_pkg_root/Distribution-installer.xml" \
-  '<famo:releaseCohort>fixture-cohort-id</famo:releaseCohort>'
+  '<owl:releaseCohort>fixture-cohort-id</owl:releaseCohort>'
 write_distribution "$real_pkg_root/Distribution-update.xml" \
-  '<famo:releaseCohort>fixture-cohort-id</famo:releaseCohort>'
-build_product_pkg "$real_pkg_root/Distribution-installer.xml" "$real_pkg_root/Famo.pkg"
-build_product_pkg "$real_pkg_root/Distribution-update.xml" "$real_pkg_root/Famo-update.pkg"
+  '<owl:releaseCohort>fixture-cohort-id</owl:releaseCohort>'
+build_product_pkg "$real_pkg_root/Distribution-installer.xml" "$real_pkg_root/Owltype.pkg"
+build_product_pkg "$real_pkg_root/Distribution-update.xml" "$real_pkg_root/Owltype-update.pkg"
 
 if [[ "$("$ROOT/package/apple_tool_adapter" cohort-id installer-pkg \
-      "$real_pkg_root/Famo.pkg" fixture-cohort-id)" == fixture-cohort-id ]] &&
+      "$real_pkg_root/Owltype.pkg" fixture-cohort-id)" == fixture-cohort-id ]] &&
    [[ "$("$ROOT/package/apple_tool_adapter" cohort-id update-pkg \
-      "$real_pkg_root/Famo-update.pkg" fixture-cohort-id)" == fixture-cohort-id ]]; then
+      "$real_pkg_root/Owltype-update.pkg" fixture-cohort-id)" == fixture-cohort-id ]]; then
   ok "production adapter reads the unique cohort marker from two real unsigned distribution PKGs"
 else
   bad "real productbuild PKGs must preserve one production-readable cohort marker"
@@ -295,9 +295,9 @@ for marker_case in missing duplicate wrong; do
   case "$marker_case" in
     missing) marker_xml='' ;;
     duplicate)
-      marker_xml='<famo:releaseCohort>fixture-cohort-id</famo:releaseCohort><famo:releaseCohort>fixture-cohort-id</famo:releaseCohort>'
+      marker_xml='<owl:releaseCohort>fixture-cohort-id</owl:releaseCohort><owl:releaseCohort>fixture-cohort-id</owl:releaseCohort>'
       ;;
-    wrong) marker_xml='<famo:releaseCohort>foreign-cohort-id</famo:releaseCohort>' ;;
+    wrong) marker_xml='<owl:releaseCohort>foreign-cohort-id</owl:releaseCohort>' ;;
   esac
   write_distribution "$real_pkg_root/Distribution-${marker_case}.xml" "$marker_xml"
   build_product_pkg "$real_pkg_root/Distribution-${marker_case}.xml" \
@@ -379,21 +379,21 @@ run_state tsa-retry seal "$success_root" app fixture-id fixture-profile >"$outpu
 env PATH="$fake_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
   python3 "$INVENTORY" record "$success_root" >>"$output" 2>&1
 mkdir -p "$success_root/artifacts"
-printf 'installer package\n' >"$success_root/artifacts/Famo.pkg"
-printf 'update package\n' >"$success_root/artifacts/Famo-update.pkg"
-embed_fake_cohort_id "$success_root" "$success_root/artifacts/Famo.pkg"
-embed_fake_cohort_id "$success_root" "$success_root/artifacts/Famo-update.pkg"
-run_state success register "$success_root" installer-pkg "$success_root/artifacts/Famo.pkg" >>"$output"
-run_state success register "$success_root" update-pkg "$success_root/artifacts/Famo-update.pkg" >>"$output"
+printf 'installer package\n' >"$success_root/artifacts/Owltype.pkg"
+printf 'update package\n' >"$success_root/artifacts/Owltype-update.pkg"
+embed_fake_cohort_id "$success_root" "$success_root/artifacts/Owltype.pkg"
+embed_fake_cohort_id "$success_root" "$success_root/artifacts/Owltype-update.pkg"
+run_state success register "$success_root" installer-pkg "$success_root/artifacts/Owltype.pkg" >>"$output"
+run_state success register "$success_root" update-pkg "$success_root/artifacts/Owltype-update.pkg" >>"$output"
 run_state success seal "$success_root" installer-pkg fixture-id fixture-profile >>"$output" 2>&1
 run_state notary-retry seal "$success_root" update-pkg fixture-id fixture-profile >>"$output" 2>&1
-printf 'disk image\n' >"$success_root/artifacts/Famo-9.8.7.dmg"
-embed_fake_cohort_id "$success_root" "$success_root/artifacts/Famo-9.8.7.dmg"
-run_state success register "$success_root" dmg "$success_root/artifacts/Famo-9.8.7.dmg" >>"$output"
+printf 'disk image\n' >"$success_root/artifacts/Owltype-9.8.7.dmg"
+embed_fake_cohort_id "$success_root" "$success_root/artifacts/Owltype-9.8.7.dmg"
+run_state success register "$success_root" dmg "$success_root/artifacts/Owltype-9.8.7.dmg" >>"$output"
 run_state success seal "$success_root" dmg fixture-id fixture-profile >>"$output" 2>&1
 python3 "$INVENTORY" check "$success_root" >>"$output" 2>&1
 
-if python3 - "$success_root/release/FAMOTYPE-RELEASE-COHORT.json" <<'PY'
+if python3 - "$success_root/release/OWLTYPE-RELEASE-COHORT.json" <<'PY'
 import json
 import sys
 
@@ -418,7 +418,7 @@ else
   bad "transient Apple-tool failures should use bounded retries"
 fi
 
-printf 'replaced after completion\n' >>"$success_root/artifacts/Famo-update.pkg"
+printf 'replaced after completion\n' >>"$success_root/artifacts/Owltype-update.pkg"
 expect_fail "production appcast entrypoint rejects a replaced update package" \
   "artifact update-pkg does not match its cohort binding" \
   env RELEASE_OUTPUT_ROOT="$success_root" bash "$ROOT/package/make_archive"
@@ -427,17 +427,17 @@ cohort_a="$work/cohort A"
 cohort_b="$work/cohort B"
 make_fixture "$cohort_a"
 run_state success seal "$cohort_a" app fixture-id fixture-profile >/dev/null
-printf 'cohort A package\n' >"$cohort_a/Famo.pkg"
-embed_fake_cohort_id "$cohort_a" "$cohort_a/Famo.pkg"
+printf 'cohort A package\n' >"$cohort_a/Owltype.pkg"
+embed_fake_cohort_id "$cohort_a" "$cohort_a/Owltype.pkg"
 
 make_fixture "$cohort_b"
 run_state success seal "$cohort_b" app fixture-id fixture-profile >/dev/null
-cp "$cohort_a/Famo.pkg" "$cohort_b/Famo.pkg"
-cp "$cohort_a/Famo.pkg.embedded-cohort-id" "$cohort_b/Famo.pkg.embedded-cohort-id"
+cp "$cohort_a/Owltype.pkg" "$cohort_b/Owltype.pkg"
+cp "$cohort_a/Owltype.pkg.embedded-cohort-id" "$cohort_b/Owltype.pkg.embedded-cohort-id"
 before_release_calls="$(grep -Ec ' (sign|notarize|staple) ' "$mock_log" || true)"
 expect_fail "full public registration rejects an unchanged artifact from another cohort" \
   "embeds a different cohort identity" \
-  run_state success register "$cohort_b" installer-pkg "$cohort_b/Famo.pkg"
+  run_state success register "$cohort_b" installer-pkg "$cohort_b/Owltype.pkg"
 after_release_calls="$(grep -Ec ' (sign|notarize|staple) ' "$mock_log" || true)"
 if [[ "$before_release_calls" -eq "$after_release_calls" ]]; then
   ok "foreign artifact rejection does not invoke signing or notarization"
@@ -451,7 +451,7 @@ expect_fail "notarization rejection fails the cohort" "notarize rejected" \
   run_state reject seal "$reject_root" app fixture-id fixture-profile
 if [[ "$(grep -c '^reject notarize app ' "$mock_log")" -eq 1 ]] &&
    ! grep -q '^reject staple app ' "$mock_log" &&
-   python3 - "$reject_root/release/FAMOTYPE-RELEASE-COHORT.json" <<'PY'
+   python3 - "$reject_root/release/OWLTYPE-RELEASE-COHORT.json" <<'PY'
 import json
 import sys
 
@@ -480,7 +480,7 @@ expect_fail "notarization timeout exhausts its bounded retry budget" "notarize t
   run_state timeout seal "$timeout_root" app fixture-id fixture-profile
 if [[ "$(grep -c '^timeout notarize app ' "$mock_log")" -eq 3 ]] &&
    ! grep -q '^timeout staple app ' "$mock_log" &&
-   python3 - "$timeout_root/release/FAMOTYPE-RELEASE-COHORT.json" <<'PY'
+   python3 - "$timeout_root/release/OWLTYPE-RELEASE-COHORT.json" <<'PY'
 import json
 import sys
 

@@ -22,7 +22,7 @@ final class InstallerViewModel: ObservableObject {
     }
 
     @Published var phase: Phase = .idle
-    @Published var statusText: String = "点击「安装」把法墨输入法安装到本机。"
+    @Published var statusText: String = "点击「安装」把猫头鹰输入法安装到本机。"
     @Published var isBusy: Bool = false
 
     func install() {
@@ -31,7 +31,7 @@ final class InstallerViewModel: ObservableObject {
         InstallerActivationVerifier.cancel()
         isBusy = true
         phase = .working
-        statusText = "正在安装法墨…"
+        statusText = "正在安装猫头鹰…"
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             do {
                 let plan = try Installer.install()
@@ -41,7 +41,7 @@ final class InstallerViewModel: ObservableObject {
                     // verifier 必须在正常主 runloop 上跑；isBusy 在软超时前保持 true（按钮禁用）。
                     // onState 可能回调多次（fix2 迟到自愈）：软超时先落 needsLogout 橙窗（非终态，
                     // verifier 后台继续 tick），迟到 consent 一到再翻 success 绿窗。
-                    InstallerActivationVerifier.start(selectFamo: plan.selectFamoAfterInstall) { state in
+                    InstallerActivationVerifier.start(selectOwltype: plan.selectOwltypeAfterInstall) { state in
                         self?.isBusy = false
                         switch state {
                         case .verified:
@@ -70,7 +70,7 @@ final class InstallerViewModel: ObservableObject {
     static func failureText(for error: Error) -> String {
         if case InstallerError.activationFailed = error {
             return "❌ " + error.localizedDescription
-                + "\n文件已安装：注销并重新登录后即可在输入法菜单使用法墨。"
+                + "\n文件已安装：注销并重新登录后即可在输入法菜单使用猫头鹰。"
         }
         return "❌ " + error.localizedDescription
     }
@@ -80,11 +80,11 @@ final class InstallerViewModel: ObservableObject {
         // verifier，否则它的迟到回调会把「已卸载」文案覆盖回注销引导。install 路径由
         // InstallerActivationVerifier.start() 内置的 cancel() 顶替。
         InstallerActivationVerifier.cancel()
-        run(progressText: "正在卸载法墨…") {
+        run(progressText: "正在卸载猫头鹰…") {
             try Installer.uninstall()
         } onSuccess: { [weak self] in
             self?.phase = .success
-            self?.statusText = "✅ 法墨已卸载。Squirrel、~/Library/Rime 及你的其他输入法未被触碰。"
+            self?.statusText = "✅ 猫头鹰已卸载。Squirrel、~/Library/Rime 及你的其他输入法未被触碰。"
                 + "登出再登录可彻底刷新输入菜单。钥匙串里的 DeepSeek key 如需删除请手动移除。"
         }
     }
@@ -118,21 +118,21 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            Text("法墨输入法")
+            Text("猫头鹰输入法")
                 .font(.system(size: 28, weight: .bold))
 
-            Text("安装或更新法墨输入法：输入管理员密码 → 弹出「允许启用输入法」对话框时点「允许」→ 在右上角输入法菜单选择「法墨」。新打开的应用立即可用；已打开的应用请重新打开。")
+            Text("安装或更新猫头鹰输入法：输入管理员密码 → 弹出「允许启用输入法」对话框时点「允许」→ 在右上角输入法菜单选择「猫头鹰」。新打开的应用立即可用；已打开的应用请重新打开。")
                 .font(.system(size: 13))
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
 
             // 隐私说明：接住 macOS「可访问你键入的任何内容」这一系统安全框——那段文案 Apple 写死、
-            // 对所有第三方输入法统一显示，App 无法改写或免除。此处如实说明法墨如何处理数据，措辞须与代码
-            // 一致（开源可审计，见 sources/Lane/*、Famo.entitlements）：基础输入本地；AI 为 default-off
-            // 的可选功能（FamoAIPage「default-off Smart/Cloud lanes」），用用户自备 Key 直连服务商，
-            // 法墨自身无中转服务器。切勿写成「不访问任何数据」——启用 AI 后确有文本发往所选服务商。
-            Text("基础输入在本机完成、不联网。AI 为可选功能，需你自行填入大模型 API Key；启用后，相关文本会直接从本机发送给你选择的服务商（如 DeepSeek），法墨没有自己的服务器、不中转、也不留存你的数据。代码完全开源，可自行审计。")
+            // 对所有第三方输入法统一显示，App 无法改写或免除。此处如实说明猫头鹰如何处理数据，措辞须与代码
+            // 一致（开源可审计，见 sources/Lane/*、Owltype.entitlements）：基础输入本地；AI 为 default-off
+            // 的可选功能（OwlAIPage「default-off Smart/Cloud lanes」），用用户自备 Key 直连服务商，
+            // 猫头鹰自身无中转服务器。切勿写成「不访问任何数据」——启用 AI 后确有文本发往所选服务商。
+            Text("基础输入在本机完成、不联网。AI 为可选功能，需你自行填入大模型 API Key；启用后，相关文本会直接从本机发送给你选择的服务商（如 DeepSeek），猫头鹰没有自己的服务器、不中转、也不留存你的数据。代码完全开源，可自行审计。")
                 .font(.system(size: 12))
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)

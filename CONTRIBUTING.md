@@ -1,6 +1,6 @@
-# Contributing to Famotype
+# Contributing to Owltype
 
-Thank you for improving Famotype. This repository is the complete source for the macOS
+Thank you for improving Owltype. This repository is the complete source for the macOS
 product, so every accepted change must remain independently buildable and auditable
 from this repository alone.
 
@@ -23,7 +23,7 @@ Development requires macOS 14 or later and Xcode 26 or later. From a fresh check
 git submodule update --init --recursive
 make setup-dev
 make bootstrap
-make famo-seed
+make owl-seed
 make test
 ```
 
@@ -42,7 +42,7 @@ development Mac (`--quick` for the fast subset), and a pull request is merged on
 it passes. Contributors do not need signing or notarization credentials and should not
 attempt to publish a release.
 
-The gate leaves build products behind, and every build of `Famo.app` adds another
+The gate leaves build products behind, and every build of `Owltype.app` adds another
 LaunchServices claim on the same bundle identifier — enough of them and macOS can start
 launching a stale development build instead of the installed input method.
 `scripts/clean-dev.sh` clears both; it reports by default and deletes only with
@@ -58,7 +58,7 @@ bundled data, or corresponding-source obligations. Never include secrets or real
 content in a fixture; use synthetic placeholders.
 
 Security vulnerabilities must be reported through GitHub's private
-[Report a vulnerability](https://github.com/semantic-craft/famotype-macos/security/advisories/new)
+[Report a vulnerability](https://github.com/semantic-craft/owltype-macos/security/advisories/new)
 flow, not a public issue. See [SECURITY.md](SECURITY.md).
 
 ## Pull requests and review

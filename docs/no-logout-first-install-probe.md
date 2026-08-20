@@ -13,20 +13,20 @@
 输入菜单代理，见 `scripts/postinstall`）在不注销的情况下，单独是否足够可靠？**
 
 历史包袱：1.4.6 时代「免注销保持选中态」在真机不可靠，才改成诚实强推注销
-（`FamoUpdateLogoutPrompt.swift` 头注释）。但那是**更新路径的选中态还原**问题；本探针问的
+（`OwlUpdateLogoutPrompt.swift` 头注释）。但那是**更新路径的选中态还原**问题；本探针问的
 是**首装路径的注册/启用可见性**，是不同的问题，需要独立证据。
 
 ## 探针原理
 
-`sudo installer -pkg Famo.pkg -target /` 命令行安装器**不执行** `onConclusion`——现成的
+`sudo installer -pkg Owltype.pkg -target /` 命令行安装器**不执行** `onConclusion`——现成的
 发布 pkg 就是一次天然的无注销首装，无需构建改包。装完立即（不注销）验收。
 
 ## 硬约束
 
 - **绝不在日常主力机上跑**：
-  - 运行中重装 Famo 会触发 Karabiner-Elements 析构 bug → VirtualHID 卡死、全键盘失灵
+  - 运行中重装 Owltype 会触发 Karabiner-Elements 析构 bug → VirtualHID 卡死、全键盘失灵
     （2026-07 真机实录）。preflight 检测到 Karabiner 即拒跑。
-  - 主力机已装法墨 → 测出的是重装路径（postinstall 跳过 enable/select），对首装问题无效。
+  - 主力机已装猫头鹰 → 测出的是重装路径（postinstall 跳过 enable/select），对首装问题无效。
 - HIToolbox plist（`AppleEnabledInputSources`）有会话缓存不可信，一律用 App 自带的
   TIS API 探测口（`--diagnose-tis` / `--detect-activation` / `--current-input-source`）。
 
@@ -34,7 +34,7 @@
 
 ```bash
 ./scripts/probe-no-logout-install.sh preflight
-sudo installer -pkg <path-to>/Famo.pkg -target /
+sudo installer -pkg <path-to>/Owltype.pkg -target /
 ./scripts/probe-no-logout-install.sh verify   # 取证 + 人工清单，先不注销
 # 人工验收 (a)(b)(c)(d) → 注销重登 → 复测 (a)(b)(c)
 ```
@@ -51,7 +51,7 @@ sudo installer -pkg <path-to>/Famo.pkg -target /
 - **(a)(b)(c) 全过（≥2 个 macOS 版本）** → 方案乙可行：
   1. `package/Distribution` 去掉 `onConclusion="RequireLogout"`；
   2. `scripts/check-release.sh` 的 RequireLogout 断言反转（首装也必须**无**）；
-  3. 引导完成页在需要时把「开始使用」升级为「注销并完成设置」（复用 `FamoLogoutAction`），
+  3. 引导完成页在需要时把「开始使用」升级为「注销并完成设置」（复用 `OwlLogoutAction`），
      判据：本次会话内首装且未注销过（可用 pkg 安装时间 vs 会话启动时间判断，实现时再定）；
   4. 引导第 1 步（启用）文案适配免注销语境。
 - **任一不过（尤其 (b) 输入菜单缺失）** → 保留 RequireLogout（方案甲）；引导维持现状

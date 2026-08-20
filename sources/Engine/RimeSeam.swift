@@ -1,6 +1,6 @@
 //
 //  RimeSeam.swift
-//  Famo
+//  Owltype
 //
 //  The Rime Engine/Session seam (PR1b of the Rime engine seam refactor). Two small
 //  protocols put a testable boundary in front of the librime C API:
@@ -32,7 +32,7 @@ import Foundation
 /// One composition's conversation with librime. All calls are on the IMK input thread.
 protocol RimeSession: AnyObject {
   /// A stable opaque identifier for this session, used only to tag composition snapshots
-  /// (`FamoSnapshotEmitter`). For the live adapter this is the raw `RimeSessionId`.
+  /// (`OwlSnapshotEmitter`). For the live adapter this is the raw `RimeSessionId`.
   var sessionID: UInt64 { get }
 
   /// True if this session id is still valid (`find_session`). 0/destroyed → false.
@@ -90,10 +90,10 @@ protocol RimeSession: AnyObject {
   /// active composition's session. NOT on the IMK keystroke hot path.
   func selectSchema(_ id: String) -> Bool
 
-  /// `get_option` for a Famo-driven option.
+  /// `get_option` for a Owltype-driven option.
   func option(_ option: RimeOption) -> Bool
 
-  /// `set_option` for a Famo-driven option.
+  /// `set_option` for a Owltype-driven option.
   func setOption(_ option: RimeOption, _ value: Bool)
 
   /// `set_option` for an open-namespace app option (arbitrary key from config). Kept
@@ -348,7 +348,7 @@ final class LiveRimeSession: RimeSession {
 
 /// Production `RimeEngine`: the single owner of the global `rimeAPI` lifecycle. The
 /// AppDelegate holds one and the controller obtains its Session from it (via
-/// `NSApp.famoAppDelegate.engine`, the same indirection as `ensureFamoPanel`).
+/// `NSApp.owlAppDelegate.engine`, the same indirection as `ensureOwltypePanel`).
 final class LiveRimeEngine: RimeEngine {
   private let rimeAPI: RimeApi_stdbool
 
@@ -459,7 +459,7 @@ typealias RimeNotificationHandler =
 // member the controller uses — NOT the registry's whole surface — so the path becomes drivable
 // from a fake with no librime session. Production wires the `.shared` instance on the AppDelegate
 // (composition root, alongside `engine`); injection is purely additive and changes no behaviour.
-// `@MainActor` because the backing singleton (`FamoSnapshotRegistry`) is, and the controller
+// `@MainActor` because the backing singleton (`OwlSnapshotRegistry`) is, and the controller
 // touches it only from `@MainActor` Task bodies.
 
 /// The controller's read-only view of the live composition snapshot. Exposes ONLY `current`
@@ -468,21 +468,21 @@ typealias RimeNotificationHandler =
 @MainActor
 protocol SnapshotReading: AnyObject {
   /// The currently live composition snapshot, or nil when there is no active composition.
-  var current: FamoCompositionSnapshot? { get }
+  var current: OwlCompositionSnapshot? { get }
 }
 
 // Conformance only — no implementation change. The member already exists with a matching
 // shape; this just publishes it through the narrow port.
-extension FamoSnapshotRegistry: SnapshotReading {}
+extension OwlSnapshotRegistry: SnapshotReading {}
 
 // MARK: - Candidate-store write-sink port (god-object reduction)
 //
 // The SAME injection range, extended to the heaviest remaining singleton coupling: the
-// background/async WRITER services (`FamoSnapshotEmitter`, `FamoExternalCommitBroker`)
+// background/async WRITER services (`OwlSnapshotEmitter`, `OwlExternalCommitBroker`)
 // all write candidates/errors into the global
-// `FamoCandidateStore.shared` sink. Unlike the controller→service ports above, these are
+// `OwlCandidateStore.shared` sink. Unlike the controller→service ports above, these are
 // service→sink couplings with no delegate hop, so the injection point is the WRITER service
-// instance itself (`var store = FamoCandidateStore.shared`, mirroring `var engine`).
+// instance itself (`var store = OwlCandidateStore.shared`, mirroring `var engine`).
 // A narrow (ISP) port over the methods the writers actually call lets each writer's
 // write-behaviour be asserted against a `Fake` with no librime and no network.
 // is deliberately excluded — it is defined on the store but never called externally via
@@ -500,18 +500,18 @@ protocol CandidateStoring: AnyObject {
 }
 
 // Conformance only — the members already exist with matching signatures.
-extension FamoCandidateStore: CandidateStoring {}
+extension OwlCandidateStore: CandidateStoring {}
 
 // MARK: - Controller→service ports: snapshot emitter / selection polish
 //
 // The SAME controller→service injection range RimeEngine/SnapshotReading
-// established, extended to the TWO remaining global singletons `FamoInputController` still
+// established, extended to the TWO remaining global singletons `OwlInputController` still
 // reached for off the IMK hot path via bare `.shared`:
 //
 //   • `SnapshotEmitting`     — the composition-timeline emitter the controller pokes from
-//                              `rimeUpdate()` / `commit()` (was `FamoSnapshotEmitter.shared`).
+//                              `rimeUpdate()` / `commit()` (was `OwlSnapshotEmitter.shared`).
 //   • `SelectionPolishing`   — the explicit 润色选中 rewrite the controller awaits (was
-//                              `FamoSelectionPolishService.shared`).
+//                              `OwlSelectionPolishService.shared`).
 //
 // Each is a narrow (ISP) protocol over ONLY the members the controller calls — NOT the
 // singleton's whole surface — so the AI / snapshot path becomes drivable from a fake with no
@@ -540,16 +540,16 @@ protocol SelectionPolishing: AnyObject {
   func polishSelection(_ selection: String) async throws -> [String]
 }
 
-/// The controller's prompt lookup at the commit chokepoint (task 06-30-famo-prompt-management-panel).
+/// The controller's prompt lookup at the commit chokepoint (task 06-30-owl-prompt-management-panel).
 /// Exposes ONLY the (originating code, committed title) → entry lookup — not the store's
 /// load/save/validation surface — so a fake can return a scripted prompt without touching disk.
-/// `nil` = the committed candidate is not a Famo prompt (→ normal Rime commit).
+/// `nil` = the committed candidate is not a Owltype prompt (→ normal Rime commit).
 @MainActor
 protocol PromptResolving: AnyObject {
-  func entry(forCode code: String, title: String) -> FamoPromptEntry?
+  func entry(forCode code: String, title: String) -> OwlPromptEntry?
 }
 
 // Conformances only — the members already exist with matching signatures.
-extension FamoSnapshotEmitter: SnapshotEmitting {}
-extension FamoSelectionPolishService: SelectionPolishing {}
-extension FamoPromptResolver: PromptResolving {}
+extension OwlSnapshotEmitter: SnapshotEmitting {}
+extension OwlSelectionPolishService: SelectionPolishing {}
+extension OwlPromptResolver: PromptResolving {}

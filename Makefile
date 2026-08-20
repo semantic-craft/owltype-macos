@@ -17,7 +17,7 @@ RIME_BIN_DIR = librime/dist/bin
 RIME_LIB_DIR = librime/dist/lib
 DERIVED_DATA_PATH ?= build
 RELEASE_OUTPUT_ROOT ?= $(DERIVED_DATA_PATH)
-RELEASE_APP = $(RELEASE_OUTPUT_ROOT)/Build/Products/Release/Famo.app
+RELEASE_APP = $(RELEASE_OUTPUT_ROOT)/Build/Products/Release/Owltype.app
 RELEASE_OUTPUT_ROOT_ABSOLUTE = $(shell python3 -c 'import os, sys; print(os.path.abspath(sys.argv[1]))' "$(RELEASE_OUTPUT_ROOT)")
 NOTARY_PROFILE ?= xw-notary
 
@@ -36,7 +36,7 @@ OPENCC_DATA = data/opencc/TSCharacters.ocd2 \
 	data/opencc/TSPhrases.ocd2 \
 	data/opencc/t2s.json
 SPARKLE_FRAMEWORK = Frameworks/Sparkle.framework
-PACKAGE = package/Famo.pkg
+PACKAGE = package/Owltype.pkg
 DEPS_CHECK = $(RIME_LIBRARY) $(PLUM_DATA) $(OPENCC_DATA) $(SPARKLE_FRAMEWORK)
 
 OPENCC_DATA_OUTPUT = librime/share/opencc/*.*
@@ -113,48 +113,48 @@ endif
 
 BUILD_SETTINGS += COMPILER_INDEX_STORE_ENABLE=YES
 
-.PHONY: famo-seed copy-famo-seed
-# ADR-0004: assemble Famo's self-contained Rime data (rime-ice + 五笔 + law layer).
-famo-seed:
-	bash scripts/famo-seed.sh
+.PHONY: owl-seed copy-owl-seed
+# ADR-0004: assemble Owltype's self-contained Rime data (rime-ice + 五笔 + law layer).
+owl-seed:
+	bash scripts/owl-seed.sh
 
 # Merge the assembled seed into the built app's SharedSupport (shared_data_dir).
 # No-op with a note if the seed hasn't been generated (build still succeeds).
-copy-famo-seed:
-	@if [ -d data/famo-rime ]; then \
-		expected=$$(grep -oE 'case \.pinyin: return "[a-z][a-z0-9_]*"' sources/Settings/FamoKeyboardPreferences.swift | sed -E 's/.*"([a-z0-9_]+)".*/\1/' | head -1); \
-		if [ -n "$$expected" ] && [ ! -f "data/famo-rime/$$expected.schema.yaml" ]; then \
-			echo "[famo] ERROR: seed 陈旧 — data/famo-rime/ 缺 $$expected.schema.yaml（代码默认拼音 schema = $${expected}，见 FamoKeyboardPreferences .pinyin）"; \
-			echo "[famo]        运行 'make famo-seed' 重新生成自包含 Rime 种子后再构建（07-07-schema-consistency-guard）。"; \
+copy-owl-seed:
+	@if [ -d data/owl-rime ]; then \
+		expected=$$(grep -oE 'case \.pinyin: return "[a-z][a-z0-9_]*"' sources/Settings/OwlKeyboardPreferences.swift | sed -E 's/.*"([a-z0-9_]+)".*/\1/' | head -1); \
+		if [ -n "$$expected" ] && [ ! -f "data/owl-rime/$$expected.schema.yaml" ]; then \
+			echo "[owltype] ERROR: seed 陈旧 — data/owl-rime/ 缺 $$expected.schema.yaml（代码默认拼音 schema = $${expected}，见 OwlKeyboardPreferences .pinyin）"; \
+			echo "[owltype]        运行 'make owl-seed' 重新生成自包含 Rime 种子后再构建（07-07-schema-consistency-guard）。"; \
 			exit 1; \
 		fi; \
-		echo "[famo] bundling self-contained Rime seed -> SharedSupport ($(FAMO_CONFIG))"; \
-		rsync -a --delete data/famo-rime/. "$(DERIVED_DATA_PATH)/Build/Products/$(FAMO_CONFIG)/Famo.app/Contents/SharedSupport/"; \
-		echo "[famo] re-signing after seed copy (local ad-hoc)"; \
-		codesign --force --deep --sign - "$(DERIVED_DATA_PATH)/Build/Products/$(FAMO_CONFIG)/Famo.app"; \
+		echo "[owltype] bundling self-contained Rime seed -> SharedSupport ($(OWL_CONFIG))"; \
+		rsync -a --delete data/owl-rime/. "$(DERIVED_DATA_PATH)/Build/Products/$(OWL_CONFIG)/Owltype.app/Contents/SharedSupport/"; \
+		echo "[owltype] re-signing after seed copy (local ad-hoc)"; \
+		codesign --force --deep --sign - "$(DERIVED_DATA_PATH)/Build/Products/$(OWL_CONFIG)/Owltype.app"; \
 	else \
-		echo "[famo] NOTE: data/famo-rime missing - run 'make famo-seed' for self-contained config"; \
+		echo "[owltype] NOTE: data/owl-rime missing - run 'make owl-seed' for self-contained config"; \
 	fi
 
 release: $(DEPS_CHECK)
 	mkdir -p "$(RELEASE_OUTPUT_ROOT)"
 	bash package/add_data_files
-	xcodebuild -project Famo.xcodeproj -configuration Release -scheme Famo -derivedDataPath "$(RELEASE_OUTPUT_ROOT)" $(BUILD_SETTINGS) \
+	xcodebuild -project Owltype.xcodeproj -configuration Release -scheme Owltype -derivedDataPath "$(RELEASE_OUTPUT_ROOT)" $(BUILD_SETTINGS) \
 		CODE_SIGNING_ALLOWED=NO \
 		ENABLE_CODE_COVERAGE=NO \
 		OTHER_SWIFT_FLAGS="-file-prefix-map $(CURDIR)=." \
 		OTHER_CFLAGS="-ffile-prefix-map=$(CURDIR)=." \
 		OTHER_CPLUSPLUSFLAGS="-ffile-prefix-map=$(CURDIR)=." \
 		build
-	$(MAKE) copy-famo-seed FAMO_CONFIG=Release DERIVED_DATA_PATH="$(RELEASE_OUTPUT_ROOT)"
+	$(MAKE) copy-owl-seed OWL_CONFIG=Release DERIVED_DATA_PATH="$(RELEASE_OUTPUT_ROOT)"
 	python3 scripts/finalize-release-bundle.py \
 		"$(RELEASE_APP)"
 
 debug: $(DEPS_CHECK)
 	mkdir -p $(DERIVED_DATA_PATH)
 	bash package/add_data_files
-	xcodebuild -project Famo.xcodeproj -configuration Debug -scheme Famo -derivedDataPath $(DERIVED_DATA_PATH)  $(BUILD_SETTINGS) build
-	$(MAKE) copy-famo-seed FAMO_CONFIG=Debug
+	xcodebuild -project Owltype.xcodeproj -configuration Debug -scheme Owltype -derivedDataPath $(DERIVED_DATA_PATH)  $(BUILD_SETTINGS) build
+	$(MAKE) copy-owl-seed OWL_CONFIG=Debug
 
 .PHONY: sparkle copy-sparkle-framework
 
@@ -215,20 +215,20 @@ release-artifacts: $(PACKAGE) package/sign_update
 	RELEASE_OUTPUT_ROOT="$(RELEASE_OUTPUT_ROOT_ABSOLUTE)" bash package/make_archive
 
 DSTROOT = /Library/Input Methods
-FAMO_APP_ROOT = $(DSTROOT)/Famo.app
+OWL_APP_ROOT = $(DSTROOT)/Owltype.app
 
 .PHONY: permission-check install-debug install-release
 
 permission-check:
-	[ -w "$(DSTROOT)" ] && { [ ! -e "$(FAMO_APP_ROOT)" ] || [ -w "$(FAMO_APP_ROOT)" ]; } || sudo chown -R ${USER} "$(DSTROOT)"
+	[ -w "$(DSTROOT)" ] && { [ ! -e "$(OWL_APP_ROOT)" ] || [ -w "$(OWL_APP_ROOT)" ]; } || sudo chown -R ${USER} "$(DSTROOT)"
 
 install-debug: debug permission-check
-	rm -rf "$(FAMO_APP_ROOT)"
-	cp -R $(DERIVED_DATA_PATH)/Build/Products/Debug/Famo.app "$(DSTROOT)"
+	rm -rf "$(OWL_APP_ROOT)"
+	cp -R $(DERIVED_DATA_PATH)/Build/Products/Debug/Owltype.app "$(DSTROOT)"
 	DSTROOT="$(DSTROOT)" RIME_NO_PREBUILD=1 bash scripts/postinstall
 
 install-release: release permission-check
-	rm -rf "$(FAMO_APP_ROOT)"
+	rm -rf "$(OWL_APP_ROOT)"
 	cp -R "$(RELEASE_APP)" "$(DSTROOT)"
 	DSTROOT="$(DSTROOT)" bash scripts/postinstall
 
@@ -260,18 +260,18 @@ clean-deps:
 
 test: $(DEPS_CHECK)
 	xcodebuild \
-		-project Famo.xcodeproj \
-		-scheme Famo \
+		-project Owltype.xcodeproj \
+		-scheme Owltype \
 		-configuration Debug \
 		-derivedDataPath $(DERIVED_DATA_PATH) \
 		CODE_SIGNING_ALLOWED=YES \
 		CODE_SIGN_IDENTITY=- \
 		test \
-		-skip-testing:FamoTests/FamoGoalBriefLiveTests \
-		-skip-testing:FamoTests/FamoPromptOptimizeLiveTests \
-		-skip-testing:FamoTests/FamoResponsesPromptEvaluationLiveTests \
-		-skip-testing:FamoTests/FamoSkillsLiveTests \
-		-skip-testing:FamoTests/FamoTriModelSelectionMatrixLiveTests
+		-skip-testing:OwltypeTests/OwlGoalBriefLiveTests \
+		-skip-testing:OwltypeTests/OwlPromptOptimizeLiveTests \
+		-skip-testing:OwltypeTests/OwlResponsesPromptEvaluationLiveTests \
+		-skip-testing:OwltypeTests/OwlSkillsLiveTests \
+		-skip-testing:OwltypeTests/OwlTriModelSelectionMatrixLiveTests
 
 # Read-only cohort preflight. It deliberately has no build prerequisite: callers may invoke it
 # repeatedly without rebuilding, re-signing or replacing the selected cohort.
@@ -279,7 +279,7 @@ release-cohort-check:
 	python3 scripts/inventory-release-bundle.py check "$(RELEASE_OUTPUT_ROOT)"
 
 release-cohort-selftest:
-	python3 scripts/famo-distribution.selftest.py
+	python3 scripts/owl-distribution.selftest.py
 	bash scripts/release-cohort.selftest.sh
 	bash scripts/release-cohort-transition.selftest.sh
 	bash scripts/release-chain.selftest.sh

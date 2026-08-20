@@ -42,7 +42,7 @@ def main() -> None:
 # Generated from Unicode 16.0.0 Unihan_Readings.txt kMandarin.
 
 ---
-name: famotype_unicode
+name: owltype_unicode
 version: \"16.0.0\"
 sort: by_weight
 columns:

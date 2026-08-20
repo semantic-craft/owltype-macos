@@ -1,19 +1,19 @@
 //
 //  RimeConfigDiagnostics.swift
-//  法墨输入法 (Famo) — schema 配置一致性只读诊断 (task 07-07-schema-consistency-guard)
+//  猫头鹰输入法 (Owltype) — schema 配置一致性只读诊断 (task 07-07-schema-consistency-guard)
 //
 //  `--diagnose-rime-config` reports whether the schema the app will `select_schema` at runtime
-//  (`FamoKeyboardPreferences.preferredSchemaID`) is actually reachable across the four layers that
+//  (`OwlKeyboardPreferences.preferredSchemaID`) is actually reachable across the four layers that
 //  must agree, and flags a common support trap:
 //
 //    prefs (拼音默认 = rime_ice)
 //      → seed          (running bundle SharedSupport 是否带 <preferred>.schema.yaml)
-//      → user build    (~/Library/Application Support/Famo/build 是否已编译 <preferred>)
+//      → user build    (~/Library/Application Support/Owltype/build 是否已编译 <preferred>)
 //      → user schema_list (default.custom.yaml 的 schema_list 是否列 <preferred>)
 //      → shadow        (用户目录是否有完整 default.yaml 遮蔽共享层)
-//      → foreignDir    (建议：~/Library/Rime 是系统 Rime/Squirrel 目录，法墨按 ADR-0004 不读它)
+//      → foreignDir    (建议：~/Library/Rime 是系统 Rime/Squirrel 目录，猫头鹰按 ADR-0004 不读它)
 //
-//  Mirrors `FamoTISDiagnostics`: a PURE classifier over synthetic value inputs (unit-tested with no
+//  Mirrors `OwlTISDiagnostics`: a PURE classifier over synthetic value inputs (unit-tested with no
 //  IO) + an impure `buildReport()` shell that does the filesystem reads. Read-only — never mutates
 //  config, never deploys. Privacy (backend/logging-guidelines.md): the report is schema ids /
 //  booleans / counts / paths ONLY — never user dictionary content or input text.
@@ -28,7 +28,7 @@ struct RimeConfigObservation: Equatable, Codable {
   let userSchemaList: [String]         // schema ids in the user default.custom.yaml `schema_list`
   let userBuiltSchemas: [String]       // compiled schema ids in the user `build/` (*.schema.yaml basenames)
   let seedSchemas: [String]            // schema ids the running bundle's SharedSupport seed carries
-  let seedManifestBase: String?        // FAMO-SEED-MANIFEST "Base =" line (informational)
+  let seedManifestBase: String?        // OWL-SEED-MANIFEST "Base =" line (informational)
   let userDefaultYamlShadow: Bool      // user_data_dir has a full `default.yaml` shadowing shared
   let foreignRimeDirPresent: Bool      // ~/Library/Rime (system Rime/Squirrel dir) exists
   let foreignRimeHasPreferred: Bool?   // whether ~/Library/Rime's schema_list lists preferred (advisory)
@@ -53,24 +53,24 @@ struct RimeConfigDiagnosis: Equatable, Codable {
   let code: String?
 }
 
-enum FamoRimeConfigDiagnostics {
-  /// User-facing message per FAMO-SCHEMA-* code (developer meaning stays in each layer's `detail`).
+enum OwlRimeConfigDiagnostics {
+  /// User-facing message per OWL-SCHEMA-* code (developer meaning stays in each layer's `detail`).
   static let userMessage: [String: String] = [
-    "FAMO-SCHEMA-001": "用户方案清单不含当前拼音方案。",
-    "FAMO-SCHEMA-002": "当前方案尚未在用户目录编译。",
-    "FAMO-SCHEMA-003": "随附种子不含当前方案（安装物陈旧）。",
-    "FAMO-SCHEMA-004": "用户目录存在遮蔽共享层的 default.yaml。",
-    "FAMO-SCHEMA-005": "检测到系统 Rime 目录（非法墨所用）。",
+    "OWL-SCHEMA-001": "用户方案清单不含当前拼音方案。",
+    "OWL-SCHEMA-002": "当前方案尚未在用户目录编译。",
+    "OWL-SCHEMA-003": "随附种子不含当前方案（安装物陈旧）。",
+    "OWL-SCHEMA-004": "用户目录存在遮蔽共享层的 default.yaml。",
+    "OWL-SCHEMA-005": "检测到系统 Rime 目录（非猫头鹰所用）。",
   ]
 
   /// Short remediation line per code (condensed).
   static func actionText(for code: String) -> String {
     switch code {
-    case "FAMO-SCHEMA-001": return "用户 default.custom.yaml 的 schema_list 不含当前拼音方案 —— 在设置里「应用配置改动」重写 schema_list 并重部署。"
-    case "FAMO-SCHEMA-002": return "用户 build/ 未编译当前方案 —— 启动法墨部署一次，或在设置里「应用配置改动」触发 build。"
-    case "FAMO-SCHEMA-003": return "随附种子（SharedSupport）不含当前方案，多为陈旧构建 —— 重跑 make famo-seed 后重装。"
-    case "FAMO-SCHEMA-004": return "用户目录的 default.yaml 会遮蔽共享层 —— 删除它，法墨只用 default.custom.yaml 打补丁。"
-    case "FAMO-SCHEMA-005": return "~/Library/Rime 是系统 Rime/Squirrel 目录，法墨不读它（用 ~/Library/Application Support/Famo）—— 勿把它当法墨配置排查。"
+    case "OWL-SCHEMA-001": return "用户 default.custom.yaml 的 schema_list 不含当前拼音方案 —— 在设置里「应用配置改动」重写 schema_list 并重部署。"
+    case "OWL-SCHEMA-002": return "用户 build/ 未编译当前方案 —— 启动猫头鹰部署一次，或在设置里「应用配置改动」触发 build。"
+    case "OWL-SCHEMA-003": return "随附种子（SharedSupport）不含当前方案，多为陈旧构建 —— 重跑 make owl-seed 后重装。"
+    case "OWL-SCHEMA-004": return "用户目录的 default.yaml 会遮蔽共享层 —— 删除它，猫头鹰只用 default.custom.yaml 打补丁。"
+    case "OWL-SCHEMA-005": return "~/Library/Rime 是系统 Rime/Squirrel 目录，猫头鹰不读它（用 ~/Library/Application Support/Owltype）—— 勿把它当猫头鹰配置排查。"
     default: return userMessage[code] ?? code
     }
   }
@@ -84,12 +84,12 @@ enum FamoRimeConfigDiagnostics {
     // 0. prefs — the runtime source of truth. Informational (ok:nil).
     layers.append(RimeConfigLayerResult(
       layer: .prefs, ok: nil, code: nil,
-      detail: "运行时目标方案（FamoKeyboardPreferences.preferredSchemaID）= \(preferred.isEmpty ? "<空>" : preferred)"))
+      detail: "运行时目标方案（OwlKeyboardPreferences.preferredSchemaID）= \(preferred.isEmpty ? "<空>" : preferred)"))
 
     // 1. seed — the running bundle's SharedSupport must carry <preferred>.schema.yaml.
     let seedOK = o.seedSchemas.contains(preferred)
     layers.append(RimeConfigLayerResult(
-      layer: .seed, ok: seedOK, code: seedOK ? nil : "FAMO-SCHEMA-003",
+      layer: .seed, ok: seedOK, code: seedOK ? nil : "OWL-SCHEMA-003",
       detail: seedOK
         ? "随附种子含 \(preferred).schema.yaml（Base=\(o.seedManifestBase ?? "?")；共 \(o.seedSchemas.count) 方案）"
         : "随附种子无 \(preferred).schema.yaml —— 安装物陈旧（Base=\(o.seedManifestBase ?? "?")；见 \(o.seedSchemas)）"))
@@ -97,7 +97,7 @@ enum FamoRimeConfigDiagnostics {
     // 2. userBuild — the user's build/ must have compiled <preferred>.schema.yaml.
     let buildOK = o.userBuiltSchemas.contains(preferred)
     layers.append(RimeConfigLayerResult(
-      layer: .userBuild, ok: buildOK, code: buildOK ? nil : "FAMO-SCHEMA-002",
+      layer: .userBuild, ok: buildOK, code: buildOK ? nil : "OWL-SCHEMA-002",
       detail: buildOK
         ? "用户 build/ 已编译 \(preferred)（共 \(o.userBuiltSchemas.count) 方案）"
         : "用户 build/ 未编译 \(preferred)（运行时 select_schema 会失败；见 \(o.userBuiltSchemas)）"))
@@ -105,30 +105,30 @@ enum FamoRimeConfigDiagnostics {
     // 3. userSchemaList — default.custom.yaml schema_list must list <preferred>.
     let listOK = o.userSchemaList.contains(preferred)
     layers.append(RimeConfigLayerResult(
-      layer: .userSchemaList, ok: listOK, code: listOK ? nil : "FAMO-SCHEMA-001",
+      layer: .userSchemaList, ok: listOK, code: listOK ? nil : "OWL-SCHEMA-001",
       detail: listOK
         ? "用户 schema_list 含 \(preferred)（\(o.userSchemaList)）"
         : "用户 schema_list 不含 \(preferred)（漂移；\(o.userSchemaList)）"))
 
     // 4. shadow — a full default.yaml in the user dir shadows the shared layer's config.
     layers.append(RimeConfigLayerResult(
-      layer: .shadow, ok: !o.userDefaultYamlShadow, code: o.userDefaultYamlShadow ? "FAMO-SCHEMA-004" : nil,
+      layer: .shadow, ok: !o.userDefaultYamlShadow, code: o.userDefaultYamlShadow ? "OWL-SCHEMA-004" : nil,
       detail: o.userDefaultYamlShadow
         ? "用户目录存在完整 default.yaml，遮蔽共享层（应只留 default.custom.yaml 补丁）"
         : "用户目录无 default.yaml 遮蔽（仅 default.custom.yaml 补丁）"))
 
     // 5. foreignDir — ADVISORY ONLY (ok:nil, never firstFailing). ~/Library/Rime is the system
-    //    Rime/Squirrel dir; Famo (ADR-0004) never reads it. Surfaces the two-directory confusion.
+    //    Rime/Squirrel dir; Owltype (ADR-0004) never reads it. Surfaces the two-directory confusion.
     let foreignDetail: String
     if o.foreignRimeDirPresent {
       let has = o.foreignRimeHasPreferred == true
-      foreignDetail = "检测到 ~/Library/Rime（系统 Rime/Squirrel 目录，非法墨所用；法墨用 ~/Library/Application Support/Famo）"
-        + (has ? "；其 schema_list 恰含 \(preferred)，勿据此误判" : "；其 schema_list 不含 \(preferred)，与法墨无关")
+      foreignDetail = "检测到 ~/Library/Rime（系统 Rime/Squirrel 目录，非猫头鹰所用；猫头鹰用 ~/Library/Application Support/Owltype）"
+        + (has ? "；其 schema_list 恰含 \(preferred)，勿据此误判" : "；其 schema_list 不含 \(preferred)，与猫头鹰无关")
     } else {
       foreignDetail = "无 ~/Library/Rime（无系统 Rime 目录混淆源）"
     }
     layers.append(RimeConfigLayerResult(
-      layer: .foreignDir, ok: nil, code: o.foreignRimeDirPresent ? "FAMO-SCHEMA-005" : nil, detail: foreignDetail))
+      layer: .foreignDir, ok: nil, code: o.foreignRimeDirPresent ? "OWL-SCHEMA-005" : nil, detail: foreignDetail))
 
     let firstFailing = layers.first { $0.ok == false }
     return RimeConfigDiagnosis(layers: layers, firstFailingLayer: firstFailing?.layer, code: firstFailing?.code)
@@ -136,16 +136,16 @@ enum FamoRimeConfigDiagnostics {
 
   // MARK: - Impure report shell (the only IO: filesystem reads; never mutates)
 
-  /// Assemble the full read-only report. Honours `FAMO_TEST_USER_DIR` (via `FamoApp.userDir`) so the
+  /// Assemble the full read-only report. Honours `OWL_TEST_USER_DIR` (via `OwlApp.userDir`) so the
   /// diagnosis can be pointed at a drift sample without installing anything.
   static func buildReport() -> RimeConfigReport {
-    let preferred = FamoKeyboardPreferences.preferredSchemaID
-    let userDir = FamoApp.userDir
+    let preferred = OwlKeyboardPreferences.preferredSchemaID
+    let userDir = OwlApp.userDir
     let userSchemaList = parseSchemaList(at: userDir.appendingPathComponent("default.custom.yaml"))
     let userBuilt = schemaBasenames(in: userDir.appendingPathComponent("build"))
-    let sharedSupport = FamoApp.appDir.appending(components: "Contents", "SharedSupport")
+    let sharedSupport = OwlApp.appDir.appending(components: "Contents", "SharedSupport")
     let seedSchemas = schemaBasenames(in: sharedSupport)
-    let manifestBase = parseManifestBase(at: sharedSupport.appendingPathComponent("FAMO-SEED-MANIFEST.txt"))
+    let manifestBase = parseManifestBase(at: sharedSupport.appendingPathComponent("OWL-SEED-MANIFEST.txt"))
     let shadow = FileManager.default.fileExists(atPath: userDir.appendingPathComponent("default.yaml").path)
     let foreignDir = systemRimeDir()
     let foreignPresent = FileManager.default.fileExists(atPath: foreignDir.path)
@@ -169,9 +169,9 @@ enum FamoRimeConfigDiagnostics {
     } else {
       actionable = "四层（seed/build/schema_list/shadow）一致，运行时方案「\(preferred)」可达。"
     }
-    // The FAMO-SCHEMA-005 advisory is independent of pass/fail — surface it in the summary either way.
+    // The OWL-SCHEMA-005 advisory is independent of pass/fail — surface it in the summary either way.
     let foreignLayer: RimeConfigLayerResult? = diag.layers.first { $0.layer == RimeConfigLayer.foreignDir && $0.code != nil }
-    let advisory: String? = foreignLayer.map { "FAMO-SCHEMA-005: " + $0.detail }
+    let advisory: String? = foreignLayer.map { "OWL-SCHEMA-005: " + $0.detail }
 
     let summary = RimeConfigReport.Summary(
       code: headlineCode, userMessage: headlineMsg, firstFailingLayer: diag.firstFailingLayer,
@@ -208,7 +208,7 @@ enum FamoRimeConfigDiagnostics {
     return items.filter { $0.hasSuffix(suffix) }.map { String($0.dropLast(suffix.count)) }.sorted()
   }
 
-  /// The "Base = ..." token from FAMO-SEED-MANIFEST (informational). nil if unreadable/absent.
+  /// The "Base = ..." token from OWL-SEED-MANIFEST (informational). nil if unreadable/absent.
   static func parseManifestBase(at url: URL) -> String? {
     guard let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
     for line in text.split(whereSeparator: \.isNewline) where line.hasPrefix("Base =") {
@@ -217,7 +217,7 @@ enum FamoRimeConfigDiagnostics {
     return nil
   }
 
-  /// The system Rime/Squirrel user dir (~/Library/Rime) — NOT Famo's dir. Resolved the same way Famo
+  /// The system Rime/Squirrel user dir (~/Library/Rime) — NOT Owltype's dir. Resolved the same way Owltype
   /// resolves its own library dir (honours sandbox redirection). Advisory-only surface.
   static func systemRimeDir() -> URL {
     let lib = (try? FileManager.default.url(for: .libraryDirectory, in: .userDomainMask, appropriateFor: nil, create: false))
@@ -232,8 +232,8 @@ struct RimeConfigReport: Codable {
     let userMessage: String?
     let firstFailingLayer: RimeConfigLayer?
     let actionable: String
-    let advisory: String?          // FAMO-SCHEMA-005 note when ~/Library/Rime is present (pass or fail)
-    let userDir: String            // resolved Famo user_data_dir (honours FAMO_TEST_USER_DIR)
+    let advisory: String?          // OWL-SCHEMA-005 note when ~/Library/Rime is present (pass or fail)
+    let userDir: String            // resolved Owltype user_data_dir (honours OWL_TEST_USER_DIR)
     let sharedSupportDir: String   // running bundle's SharedSupport (the seed under test)
   }
   let observation: RimeConfigObservation

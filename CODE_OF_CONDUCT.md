@@ -24,7 +24,7 @@ review comments, and project-related public spaces.
 Repository owners may edit or remove contributions and may temporarily or permanently
 restrict participation when behavior violates this code. Sensitive reports should use
 GitHub's private
-[Report a vulnerability](https://github.com/semantic-craft/famotype-macos/security/advisories/new)
+[Report a vulnerability](https://github.com/semantic-craft/owltype-macos/security/advisories/new)
 flow with the title `Code of conduct report`; do not disclose private details in a public
 issue. Reports will be reviewed as confidentially and promptly as practical, with a response
 proportionate to the conduct and its impact.

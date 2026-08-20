@@ -19,7 +19,7 @@ assignees: ''
 
 **Environment**
  - OS version: (macOS 14.5)
- - Famo version: (1.4.22)
+ - Owltype version: (2.0.0)
  - Schema: (If you are using a custom schema, and think it might be related to the schema, please provide a link)
  - [ ] Using Lua: (what Lua script do you use?)
  - [ ] Related to other apps: (which app?)

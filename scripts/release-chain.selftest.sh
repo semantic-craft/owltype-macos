@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STATE="$ROOT/scripts/release-cohort-state.py"
 INVENTORY="$ROOT/scripts/inventory-release-bundle.py"
 RELEASE="$ROOT/scripts/release.sh"
-work="$(mktemp -d "${TMPDIR:-/tmp}/famo-release-chain.XXXXXX")"
+work="$(mktemp -d "${TMPDIR:-/tmp}/owl-release-chain.XXXXXX")"
 cleanup() {
   rm -rf "$work"
 }
@@ -55,11 +55,11 @@ positions = [text.index(value) for value in ordered]
 assert positions == sorted(positions), positions
 artifact_gate = next(line for line in text.splitlines() if "check-secrets.sh --artifacts" in line)
 for required in (
-    "Famo.pkg",
-    "Famo-update.pkg",
+    "Owltype.pkg",
+    "Owltype-update.pkg",
     ".dmg",
     ".tar.gz.sha256",
-    "FAMOTYPE-RELEASE-COHORT.json",
+    "OWLTYPE-RELEASE-COHORT.json",
 ):
     assert required in artifact_gate, (required, artifact_gate)
 PY
@@ -78,16 +78,16 @@ import sys
 
 text = open(sys.argv[1]).read()
 suites = (
-    "FamoGoalBriefLiveTests",
-    "FamoPromptOptimizeLiveTests",
-    "FamoResponsesPromptEvaluationLiveTests",
-    "FamoSkillsLiveTests",
-    "FamoTriModelSelectionMatrixLiveTests",
+    "OwlGoalBriefLiveTests",
+    "OwlPromptOptimizeLiveTests",
+    "OwlResponsesPromptEvaluationLiveTests",
+    "OwlSkillsLiveTests",
+    "OwlTriModelSelectionMatrixLiveTests",
 )
-assert text.count("-skip-testing:FamoTests/") == len(suites), text
-assert "-skip-testing:FamoTests/FamoLiveInputTraceTests" not in text, text
+assert text.count("-skip-testing:OwltypeTests/") == len(suites), text
+assert "-skip-testing:OwltypeTests/OwlLiveInputTraceTests" not in text, text
 for suite in suites:
-    assert text.count(f"-skip-testing:FamoTests/{suite}") == 1, (suite, text)
+    assert text.count(f"-skip-testing:OwltypeTests/{suite}") == 1, (suite, text)
 PY
 then
   ok "product test entrypoint excludes only the five credential-gated Live suites"
@@ -156,12 +156,12 @@ runner_log="$work/runner.log"
 mkdir -p "$runner_bin"
 cat >"$runner_bin/make" <<'STUB'
 #!/bin/bash
-printf 'make %s\n' "$*" >>"$FAMO_RELEASE_TEST_LOG"
-[[ "${FAMO_RELEASE_TEST_FAIL:-}" != make ]]
+printf 'make %s\n' "$*" >>"$OWL_RELEASE_TEST_LOG"
+[[ "${OWL_RELEASE_TEST_FAIL:-}" != make ]]
 STUB
 cat >"$runner_bin/security" <<'STUB'
 #!/bin/bash
-printf 'security %s\n' "$*" >>"$FAMO_RELEASE_TEST_LOG"
+printf 'security %s\n' "$*" >>"$OWL_RELEASE_TEST_LOG"
 if [[ " $* " == *" -p codesigning "* ]]; then
   printf 'Developer ID Application: fixture identity\n'
 else
@@ -170,45 +170,45 @@ fi
 STUB
 cat >"$runner_bin/xcrun" <<'STUB'
 #!/bin/bash
-printf 'xcrun %s\n' "$*" >>"$FAMO_RELEASE_TEST_LOG"
+printf 'xcrun %s\n' "$*" >>"$OWL_RELEASE_TEST_LOG"
 exit 0
 STUB
 cat >"$runner_bin/git" <<'STUB'
 #!/bin/bash
-printf 'git %s\n' "$*" >>"$FAMO_RELEASE_TEST_LOG"
+printf 'git %s\n' "$*" >>"$OWL_RELEASE_TEST_LOG"
 exit 0
 STUB
 cat >"$runner_bin/bash" <<'STUB'
 #!/bin/bash
-printf 'bash %s\n' "$*" >>"$FAMO_RELEASE_TEST_LOG"
-if [[ "${FAMO_RELEASE_TEST_REAL_PUBLISHED:-}" == 1 &&
+printf 'bash %s\n' "$*" >>"$OWL_RELEASE_TEST_LOG"
+if [[ "${OWL_RELEASE_TEST_REAL_PUBLISHED:-}" == 1 &&
       "$*" == *"check-published-release.sh --print0"* ]]; then
   PATH=/usr/bin:/bin:/usr/sbin:/sbin /bin/bash "$@"
   exit $?
 fi
-if [[ "${FAMO_RELEASE_TEST_REAL_PUBLISHED:-}" == 1 &&
+if [[ "${OWL_RELEASE_TEST_REAL_PUBLISHED:-}" == 1 &&
       "$*" == *"check-secrets.sh --artifacts"* ]]; then
-  printf '%s\0' "$@" >"${FAMO_RELEASE_TEST_ARTIFACT_ARGS:?}"
+  printf '%s\0' "$@" >"${OWL_RELEASE_TEST_ARTIFACT_ARGS:?}"
   exit 0
 fi
 if [[ "$*" == *"check-published-release.sh --print0"* ]]; then
-  for asset in Famo.pkg Famo-update.pkg Famo-9.8.7.dmg appcast.xml \
+  for asset in Owltype.pkg Owltype-update.pkg Owltype-9.8.7.dmg appcast.xml \
       source.tar.gz source.tar.gz.sha256 manifest sbom provenance cohort.json; do
-    printf '%s/%s\0' "${FAMO_RELEASE_TEST_ASSET_ROOT:-/tmp}" "$asset"
+    printf '%s/%s\0' "${OWL_RELEASE_TEST_ASSET_ROOT:-/tmp}" "$asset"
   done
 fi
-if [[ "$*" == *"${FAMO_RELEASE_TEST_FAIL:-__never__}"* ]]; then
+if [[ "$*" == *"${OWL_RELEASE_TEST_FAIL:-__never__}"* ]]; then
   exit 71
 fi
 exit 0
 STUB
 cat >"$runner_bin/python3" <<'STUB'
 #!/bin/bash
-printf 'python3 %s\n' "$*" >>"$FAMO_RELEASE_TEST_LOG"
+printf 'python3 %s\n' "$*" >>"$OWL_RELEASE_TEST_LOG"
 if [[ "$*" == *" output-path "* ]]; then
-  printf '%s\n' "${FAMO_RELEASE_TEST_SOURCE:?}"
+  printf '%s\n' "${OWL_RELEASE_TEST_SOURCE:?}"
 fi
-if [[ "$*" == *"${FAMO_RELEASE_TEST_FAIL:-__never__}"* ]]; then
+if [[ "$*" == *"${OWL_RELEASE_TEST_FAIL:-__never__}"* ]]; then
   exit 72
 fi
 exit 0
@@ -217,8 +217,8 @@ chmod +x "$runner_bin"/*
 touch "$work/fake-source.tar.gz"
 
 if env PATH="$runner_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
-    FAMO_RELEASE_TEST_LOG="$runner_log" \
-    FAMO_RELEASE_TEST_SOURCE="$work/fake-source.tar.gz" \
+    OWL_RELEASE_TEST_LOG="$runner_log" \
+    OWL_RELEASE_TEST_SOURCE="$work/fake-source.tar.gz" \
     DEV_ID='fixture identity' NOTARY_PROFILE=fixture-profile \
     /bin/bash "$RELEASE" --output-root "$work/runner output" >"$output" 2>&1 &&
    [[ "$(grep -c '^make release-artifacts ' "$runner_log")" -eq 1 ]] &&
@@ -233,9 +233,9 @@ fi
 : >"$runner_log"
 expect_fail "release chain stops at the first failed composition step" "" \
   env PATH="$runner_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
-    FAMO_RELEASE_TEST_LOG="$runner_log" \
-    FAMO_RELEASE_TEST_SOURCE="$work/fake-source.tar.gz" \
-    FAMO_RELEASE_TEST_FAIL=create-source-archive.sh \
+    OWL_RELEASE_TEST_LOG="$runner_log" \
+    OWL_RELEASE_TEST_SOURCE="$work/fake-source.tar.gz" \
+    OWL_RELEASE_TEST_FAIL=create-source-archive.sh \
     DEV_ID='fixture identity' NOTARY_PROFILE=fixture-profile \
     /bin/bash "$RELEASE" --output-root "$work/failed runner output"
 if grep -q 'create-source-archive.sh' "$runner_log" &&
@@ -279,13 +279,13 @@ STUB
 chmod +x "$fake_bin/xcrun" "$mock_adapter"
 
 cohort_root="$work/cohort"
-app="$cohort_root/Build/Products/Release/Famo.app"
+app="$cohort_root/Build/Products/Release/Owltype.app"
 release_dir="$cohort_root/release"
 artifact_dir="$cohort_root/artifacts"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/SharedSupport/licenses" \
   "$release_dir" "$artifact_dir"
-printf 'fake app\n' >"$app/Contents/MacOS/Famo"
-chmod +x "$app/Contents/MacOS/Famo"
+printf 'fake app\n' >"$app/Contents/MacOS/Owltype"
+chmod +x "$app/Contents/MacOS/Owltype"
 printf 'fixture generated seed\n' >"$app/Contents/SharedSupport/seed.txt"
 printf 'fixture seed license\n' >"$app/Contents/SharedSupport/licenses/fixture.txt"
 private_key="$work/synthetic-ed25519-private-key"
@@ -306,7 +306,7 @@ import sys
 with open(sys.argv[1], "wb") as handle:
     plistlib.dump(
         {
-            "CFBundleIdentifier": "im.famo.inputmethod.Famo",
+            "CFBundleIdentifier": "im.owltype.inputmethod.Owltype",
             "CFBundleShortVersionString": "9.8.7",
             "CFBundleVersion": "987",
             "SUPublicEDKey": sys.argv[2],
@@ -316,7 +316,7 @@ with open(sys.argv[1], "wb") as handle:
 PY
 
 run_state() {
-  env FAMO_APPLE_TOOL_ADAPTER="$mock_adapter" FAMO_RELEASE_RETRY_DELAY_SECONDS=0 \
+  env OWL_APPLE_TOOL_ADAPTER="$mock_adapter" OWL_RELEASE_RETRY_DELAY_SECONDS=0 \
     python3 "$STATE" "$@"
 }
 
@@ -327,14 +327,14 @@ env PATH="$fake_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
 cohort_id="$(run_state id "$cohort_root")"
 cohort_id="${cohort_id##*$'\n'}"
 
-printf 'foreign version DMG\n' >"$artifact_dir/Famo-9.8.8.dmg"
-printf '%s\n' "$cohort_id" >"$artifact_dir/Famo-9.8.8.dmg.embedded-cohort-id"
+printf 'foreign version DMG\n' >"$artifact_dir/Owltype-9.8.8.dmg"
+printf '%s\n' "$cohort_id" >"$artifact_dir/Owltype-9.8.8.dmg.embedded-cohort-id"
 expect_fail "versioned artifact name mismatch is rejected before registration" \
-  "artifact dmg is named 'Famo-9.8.8.dmg', expected 'Famo-9.8.7.dmg'" \
-  run_state register "$cohort_root" dmg "$artifact_dir/Famo-9.8.8.dmg"
-rm -f "$artifact_dir/Famo-9.8.8.dmg" "$artifact_dir/Famo-9.8.8.dmg.embedded-cohort-id"
+  "artifact dmg is named 'Owltype-9.8.8.dmg', expected 'Owltype-9.8.7.dmg'" \
+  run_state register "$cohort_root" dmg "$artifact_dir/Owltype-9.8.8.dmg"
+rm -f "$artifact_dir/Owltype-9.8.8.dmg" "$artifact_dir/Owltype-9.8.8.dmg.embedded-cohort-id"
 
-for spec in 'installer-pkg:Famo.pkg' 'update-pkg:Famo-update.pkg' 'dmg:Famo-9.8.7.dmg'; do
+for spec in 'installer-pkg:Owltype.pkg' 'update-pkg:Owltype-update.pkg' 'dmg:Owltype-9.8.7.dmg'; do
   kind="${spec%%:*}"
   artifact="$artifact_dir/${spec##*:}"
   printf 'fake %s\n' "$kind" >"$artifact"
@@ -343,17 +343,17 @@ for spec in 'installer-pkg:Famo.pkg' 'update-pkg:Famo-update.pkg' 'dmg:Famo-9.8.
   run_state seal "$cohort_root" "$kind" fixture-id fixture-profile >>"$output"
 done
 
-app_manifest_sha="$(shasum -a 256 "$release_dir/FAMOTYPE-FILE-MANIFEST.sha256" | awk '{print $1}')"
+app_manifest_sha="$(shasum -a 256 "$release_dir/OWLTYPE-FILE-MANIFEST.sha256" | awk '{print $1}')"
 appcast="$artifact_dir/appcast.xml"
-update_length="$(stat -f '%z' "$artifact_dir/Famo-update.pkg")"
-update_sha="$(shasum -a 256 "$artifact_dir/Famo-update.pkg" | awk '{print $1}')"
+update_length="$(stat -f '%z' "$artifact_dir/Owltype-update.pkg")"
+update_sha="$(shasum -a 256 "$artifact_dir/Owltype-update.pkg" | awk '{print $1}')"
 sparkle_signer="$ROOT/download/bin/sign_update"
 [[ -x "$sparkle_signer" ]] || {
   echo >&2 "missing pinned Sparkle sign_update; run make bootstrap"
   exit 1
 }
 sparkle_signature="$("$sparkle_signer" --ed-key-file "$private_key" -p \
-  "$artifact_dir/Famo-update.pkg")"
+  "$artifact_dir/Owltype-update.pkg")"
 write_appcast() {
   local version="$1" build_version="$2" identity="$3" destination="$4"
   local package_sha="${5:-$update_sha}"
@@ -363,13 +363,13 @@ write_appcast() {
 <?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"
   xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"
-  xmlns:famo="https://responsay.com/famo/release-cohort">
+  xmlns:owl="https://responsay.com/owltype/release-cohort">
   <channel><item>
     <sparkle:version>${build_version}</sparkle:version>
     <sparkle:shortVersionString>${version}</sparkle:shortVersionString>
-    <famo:releaseCohort>${identity}</famo:releaseCohort>
-    <famo:updatePackageSha256>${package_sha}</famo:updatePackageSha256>
-    <enclosure url="https://downloads.responsay.com/famo/releases/${build_version}/Famo-update.pkg"
+    <owl:releaseCohort>${identity}</owl:releaseCohort>
+    <owl:updatePackageSha256>${package_sha}</owl:updatePackageSha256>
+    <enclosure url="https://downloads.responsay.com/owltype/releases/${build_version}/Owltype-update.pkg"
       sparkle:version="${build_version}" sparkle:shortVersionString="${version}"
       sparkle:installationType="${installation_type}" sparkle:edSignature="${signature}" length="${update_length}"/>
   </item></channel>
@@ -379,7 +379,7 @@ XML
 
 validate_appcast_fixture() {
   PYTHONPATH="$ROOT/scripts" python3 - "$1" "$cohort_root" \
-    "$release_dir/FAMOTYPE-RELEASE-COHORT.json" "$ROOT/scripts/release-cohort-state.py" <<'PY'
+    "$release_dir/OWLTYPE-RELEASE-COHORT.json" "$ROOT/scripts/release-cohort-state.py" <<'PY'
 import json
 import importlib.util
 import sys
@@ -441,9 +441,9 @@ text = open(path).read()
 foreign = """<item>
     <sparkle:version>999</sparkle:version>
     <sparkle:shortVersionString>99.9.9</sparkle:shortVersionString>
-    <famo:releaseCohort>foreign-cohort</famo:releaseCohort>
-    <famo:updatePackageSha256>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</famo:updatePackageSha256>
-    <enclosure url="https://attacker.invalid/Famo-update.pkg"
+    <owl:releaseCohort>foreign-cohort</owl:releaseCohort>
+    <owl:updatePackageSha256>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</owl:updatePackageSha256>
+    <enclosure url="https://attacker.invalid/Owltype-update.pkg"
       sparkle:version="999" sparkle:shortVersionString="99.9.9"
       sparkle:edSignature="foreign" length="1"/>
   </item>"""
@@ -459,7 +459,7 @@ import sys
 
 path = sys.argv[1]
 text = open(path).read()
-foreign = """<enclosure url="https://attacker.invalid/Famo-update.pkg"
+foreign = """<enclosure url="https://attacker.invalid/Owltype-update.pkg"
       sparkle:version="999" sparkle:shortVersionString="99.9.9"
       sparkle:edSignature="foreign" length="1"/>"""
 open(path, "w").write(text.replace("</item>", f"{foreign}</item>"))
@@ -471,26 +471,26 @@ expect_fail "appcast with a foreign second enclosure is rejected before binding"
 write_appcast 9.8.7 987 "$cohort_id" "$appcast"
 run_state register-output "$cohort_root" appcast "$appcast" >>"$output"
 
-source_root="$work/Famotype-macOS-9.8.7-source"
-source_archive="$release_dir/Famotype-macOS-9.8.7-source.tar.gz"
+source_root="$work/Owltype-macOS-9.8.7-source"
+source_archive="$release_dir/Owltype-macOS-9.8.7-source.tar.gz"
 SOURCE_TOOL="$ROOT/scripts/release_source.py"
-mkdir -p "$source_root/Famo.xcodeproj"
-cat >"$source_root/FAMOTYPE-SOURCE-PROVENANCE.txt" <<EOF
-Famotype source release 9.8.7
+mkdir -p "$source_root/Owltype.xcodeproj"
+cat >"$source_root/OWLTYPE-SOURCE-PROVENANCE.txt" <<EOF
+Owltype source release 9.8.7
 build-version 987
 root $(git -C "$ROOT" rev-parse HEAD)
 cohort foreign-cohort
 app-manifest $app_manifest_sha
 EOF
 printf 'source\n' >"$source_root/source.txt"
-printf 'fixture project\n' >"$source_root/Famo.xcodeproj/project.pbxproj"
+printf 'fixture project\n' >"$source_root/Owltype.xcodeproj/project.pbxproj"
 printf 'fixture license\n' >"$source_root/LICENSE.txt"
 printf 'fixture make\n' >"$source_root/Makefile"
 printf 'fixture notices\n' >"$source_root/THIRD_PARTY_NOTICES.md"
-mkdir -p "$source_root/data/famo-rime/licenses"
-cp "$app/Contents/SharedSupport/seed.txt" "$source_root/data/famo-rime/seed.txt"
+mkdir -p "$source_root/data/owl-rime/licenses"
+cp "$app/Contents/SharedSupport/seed.txt" "$source_root/data/owl-rime/seed.txt"
 cp "$app/Contents/SharedSupport/licenses/fixture.txt" \
-  "$source_root/data/famo-rime/licenses/fixture.txt"
+  "$source_root/data/owl-rime/licenses/fixture.txt"
 write_source_manifest() {
   python3 - "$source_root" <<'PY'
 import hashlib
@@ -498,7 +498,7 @@ import sys
 from pathlib import Path
 
 root = Path(sys.argv[1])
-manifest = root / "FAMOTYPE-SOURCE-MANIFEST.sha256"
+manifest = root / "OWLTYPE-SOURCE-MANIFEST.sha256"
 files = sorted(
     (path for path in root.rglob("*") if path.is_file() and path != manifest),
     key=lambda path: path.relative_to(root).as_posix(),
@@ -525,7 +525,7 @@ expect_fail "source archive cohort mismatch is rejected before binding" \
   "source archive embeds a different cohort identity" \
   run_state register-output "$cohort_root" source-archive "$source_archive"
 
-python3 - "$source_root/FAMOTYPE-SOURCE-PROVENANCE.txt" "$cohort_id" <<'PY'
+python3 - "$source_root/OWLTYPE-SOURCE-PROVENANCE.txt" "$cohort_id" <<'PY'
 import sys
 
 path, cohort = sys.argv[1:]
@@ -540,7 +540,7 @@ write_source_manifest
 
 validate_source_archive_fixture() {
   PYTHONPATH="$ROOT/scripts" python3 - "$source_archive" "$release_dir" \
-    "$release_dir/FAMOTYPE-RELEASE-COHORT.json" "$ROOT/scripts/release-cohort-state.py" <<'PY'
+    "$release_dir/OWLTYPE-RELEASE-COHORT.json" "$ROOT/scripts/release-cohort-state.py" <<'PY'
 import importlib.util
 import json
 import sys
@@ -566,10 +566,10 @@ expect_fail "arbitrary self-consistent source archive is rejected" \
 
 rm -rf "$source_root"
 python3 "$SOURCE_TOOL" stage "$ROOT" "$(git -C "$ROOT" rev-parse HEAD)" "$source_root"
-mkdir -p "$source_root/data/famo-rime"
-rsync -a "$app/Contents/SharedSupport/." "$source_root/data/famo-rime/"
-python3 - "$source_root/FAMOTYPE-SOURCE-PROVENANCE.txt" \
-  "$release_dir/FAMOTYPE-RELEASE-COHORT.json" "$app_manifest_sha" <<'PY'
+mkdir -p "$source_root/data/owl-rime"
+rsync -a "$app/Contents/SharedSupport/." "$source_root/data/owl-rime/"
+python3 - "$source_root/OWLTYPE-SOURCE-PROVENANCE.txt" \
+  "$release_dir/OWLTYPE-RELEASE-COHORT.json" "$app_manifest_sha" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -577,7 +577,7 @@ from pathlib import Path
 destination, cohort_path, app_manifest = map(Path, sys.argv[1:])
 cohort = json.loads(cohort_path.read_text())
 destination.write_text(
-    f"Famotype source release {cohort['version']}\n"
+    f"Owltype source release {cohort['version']}\n"
     f"build-version {cohort['buildVersion']}\n"
     f"root {cohort['revision']}\n"
     f"cohort {cohort['cohortId']}\n"
@@ -607,14 +607,14 @@ expect_fail "replaced submodule source fails after manifest and sidecar recomput
   validate_source_archive_fixture
 cp "$work/original-sparkle-license" "$source_root/Sparkle/LICENSE"
 
-cp "$source_root/data/famo-rime/seed.txt" "$work/original-seed"
-printf 'replaced seed\n' >"$source_root/data/famo-rime/seed.txt"
+cp "$source_root/data/owl-rime/seed.txt" "$work/original-seed"
+printf 'replaced seed\n' >"$source_root/data/owl-rime/seed.txt"
 write_source_manifest
 archive_source
 expect_fail "replaced seed fails after manifest and sidecar recomputation" \
   "source archive seed does not match the release App" \
   validate_source_archive_fixture
-cp "$work/original-seed" "$source_root/data/famo-rime/seed.txt"
+cp "$work/original-seed" "$source_root/data/owl-rime/seed.txt"
 write_source_manifest
 archive_source
 
@@ -698,7 +698,7 @@ assert records[-1] == b"", records
 assets = [Path(record.decode()) for record in records[:-1]]
 assert len(assets) == 10, assets
 assert all(asset.exists() for asset in assets), assets
-assert assets[0].name == "Famo.pkg", assets
+assert assets[0].name == "Owltype.pkg", assets
 assert "PASS:" in stderr, stderr
 PY
 then
@@ -711,10 +711,10 @@ fi
 artifact_args="$work/release-artifact-args.nul"
 : >"$runner_log"
 if env PATH="$runner_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
-    FAMO_RELEASE_TEST_LOG="$runner_log" \
-    FAMO_RELEASE_TEST_SOURCE="$source_archive" \
-    FAMO_RELEASE_TEST_REAL_PUBLISHED=1 \
-    FAMO_RELEASE_TEST_ARTIFACT_ARGS="$artifact_args" \
+    OWL_RELEASE_TEST_LOG="$runner_log" \
+    OWL_RELEASE_TEST_SOURCE="$source_archive" \
+    OWL_RELEASE_TEST_REAL_PUBLISHED=1 \
+    OWL_RELEASE_TEST_ARTIFACT_ARGS="$artifact_args" \
     DEV_ID='fixture identity' NOTARY_PROFILE=fixture-profile \
     /bin/bash "$RELEASE" --output-root "$cohort_root" >"$output" 2>&1 &&
    python3 - "$artifact_args" "$app" <<'PY'
@@ -730,7 +730,7 @@ targets = [Path(value) for value in arguments[2:]]
 assert len(targets) == 11, targets
 assert targets[0] == Path(sys.argv[2]), targets
 assert all(target.exists() for target in targets), targets
-assert targets[1].name == "Famo.pkg", targets
+assert targets[1].name == "Owltype.pkg", targets
 PY
 then
   ok "release secret-gate seam receives App plus all ten existing published assets"
@@ -751,12 +751,12 @@ fi
 
 : >"$runner_log"
 if env PATH="$runner_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
-    FAMO_RELEASE_TEST_LOG="$runner_log" \
-    FAMO_RELEASE_TEST_SOURCE="$source_archive" \
+    OWL_RELEASE_TEST_LOG="$runner_log" \
+    OWL_RELEASE_TEST_SOURCE="$source_archive" \
     DEV_ID='fixture identity' NOTARY_PROFILE=fixture-profile \
     /bin/bash "$RELEASE" --output-root "$cohort_root" >"$output" 2>&1 &&
    [[ "$(grep -c '^make test ' "$runner_log")" -eq 1 ]] &&
-   ! grep -qE '^make (famo-seed|release-artifacts)( |$)' "$runner_log" &&
+   ! grep -qE '^make (owl-seed|release-artifacts)( |$)' "$runner_log" &&
    ! grep -q 'create-source-archive.sh' "$runner_log" &&
    grep -q 'verify-chain' "$runner_log"; then
   ok "repeated invocation reruns tests but does not rebuild the verified Release cohort"
@@ -768,12 +768,12 @@ fi
 printf 'mutated\n' >>"$source_archive"
 source_size="$(( $(stat -f '%z' "$source_archive") - 8 ))"
 truncate -s "$source_size" "$source_archive"
-cp "$release_dir/FAMOTYPE-SBOM.spdx.json" "$work/original-sbom.json"
-printf '\n' >>"$release_dir/FAMOTYPE-SBOM.spdx.json"
+cp "$release_dir/OWLTYPE-SBOM.spdx.json" "$work/original-sbom.json"
+printf '\n' >>"$release_dir/OWLTYPE-SBOM.spdx.json"
 expect_fail "inventory mutation fails the complete chain" \
   "cohort inventory fingerprint does not match" \
   run_state verify-chain "$cohort_root"
-cp "$work/original-sbom.json" "$release_dir/FAMOTYPE-SBOM.spdx.json"
+cp "$work/original-sbom.json" "$release_dir/OWLTYPE-SBOM.spdx.json"
 printf 'mutated\n' >>"$source_archive"
 expect_fail "bound source archive mutation fails the complete chain" \
   "output source-archive does not match its cohort binding" \

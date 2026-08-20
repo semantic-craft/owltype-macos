@@ -15,7 +15,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from famo_bundle import MANIFEST_NAME, SBOM_NAME, relative_files, sha256
+from owl_bundle import MANIFEST_NAME, SBOM_NAME, relative_files, sha256
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -29,7 +29,7 @@ EXPECTED_NATIVE = {
     "Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app/Contents/MacOS/Updater",
     "Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc/Contents/MacOS/Downloader",
     "Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc/Contents/MacOS/Installer",
-    "Contents/MacOS/Famo",
+    "Contents/MacOS/Owltype",
     "Contents/MacOS/rime_deployer",
     "Contents/MacOS/rime_dict_manager",
 }
@@ -37,7 +37,7 @@ REQUIRED_LICENSES = {
     "Contents/Resources/LICENSE.txt",
     "Contents/Resources/Sparkle-LICENSE.txt",
     "Contents/Resources/THIRD_PARTY_NOTICES.md",
-    "Contents/SharedSupport/FAMOTYPE-SEED-SOURCES.md",
+    "Contents/SharedSupport/OWLTYPE-SEED-SOURCES.md",
     "Contents/SharedSupport/OpenCC.LICENSE",
     "Contents/SharedSupport/jieba.LICENSE",
     "Contents/SharedSupport/librime-lua.LICENSE",
@@ -118,10 +118,10 @@ def verify_no_private_build_paths(files: list[tuple[str, Path]]) -> None:
 
 
 def verify_seed(app: Path) -> None:
-    source_seed = ROOT / "data/famo-rime"
+    source_seed = ROOT / "data/owl-rime"
     bundled_seed = app / "Contents/SharedSupport"
     if not source_seed.is_dir():
-        fail("data/famo-rime is missing; run make famo-seed")
+        fail("data/owl-rime is missing; run make owl-seed")
     source = {path.relative_to(source_seed).as_posix(): sha256(path) for path in source_seed.rglob("*") if path.is_file()}
     bundled = {path.relative_to(bundled_seed).as_posix(): sha256(path) for path in bundled_seed.rglob("*") if path.is_file()}
     if source != bundled:
@@ -130,11 +130,11 @@ def verify_seed(app: Path) -> None:
 
 def main() -> None:
     if len(sys.argv) != 2:
-        fail(f"usage: {Path(sys.argv[0]).name} /path/to/Famo.app")
+        fail(f"usage: {Path(sys.argv[0]).name} /path/to/Owltype.app")
 
     app = Path(sys.argv[1]).resolve()
     if not (app / "Contents/Info.plist").is_file():
-        fail(f"not a Famo app bundle: {app}")
+        fail(f"not a Owltype app bundle: {app}")
 
     resources = app / "Contents/Resources"
     resources.mkdir(parents=True, exist_ok=True)
@@ -181,7 +181,7 @@ def main() -> None:
     build = str(info.get("CFBundleVersion", ""))
     if not version or not build:
         fail(f"incomplete version metadata: {version!r} / {build!r}")
-    if info.get("SUFeedURL") != "https://responsay.com/famo/appcast.xml":
+    if info.get("SUFeedURL") != "https://responsay.com/owltype/appcast.xml":
         fail("Sparkle feed differs from the reviewed public endpoint")
     if not info.get("SUPublicEDKey") or info.get("SUEnableAutomaticChecks") is not True:
         fail("Sparkle verification key or automatic checks are missing")

@@ -1,15 +1,15 @@
 # 来源与许可 · Provenance
 
-法墨输入法 Famo 是自由软件，以 **GPLv3** 许可，是以下上游项目的派生作品。此文件完整记录其来源
+猫头鹰输入法 Owltype 是自由软件，以 **GPLv3** 许可，是以下上游项目的派生作品。此文件完整记录其来源
 脉络。README 首屏聚焦产品体验，来源细节收在此文件与 README 文末「来源与许可」段落——降位不抹除。
 
 ## 上游来源 Upstream sources
 
 - **鼠须管 Squirrel** —— <https://github.com/rime/squirrel>（GPLv3）
-  Famo 的 macOS IMK 前端复用并精简自鼠须管的输入热路径。候选窗 / 设置 / 引导 / 表情符号面板由
-  SwiftUI 重做，运行时身份、数据根与安装位置全部改为 Famo（见下方「与鼠须管并存」）。
+  Owltype 的 macOS IMK 前端复用并精简自鼠须管的输入热路径。候选窗 / 设置 / 引导 / 表情符号面板由
+  SwiftUI 重做，运行时身份、数据根与安装位置全部改为 Owltype（见下方「与鼠须管并存」）。
 - **librime** —— <https://github.com/rime/librime>（BSD-3 / 组件各自许可）
-  输入引擎。Famo 不重写 librime，将其与数据自包含进 `Famo.app`。
+  输入引擎。Owltype 不重写 librime，将其与数据自包含进 `Owltype.app`。
 - **RIME / 中州韻输入法引擎** —— <https://rime.im>
 
 ## 内置数据与方案 Bundled data & schemas
@@ -22,13 +22,13 @@
 
 ## 与鼠须管并存 Coexistence
 
-Famo 使用独立身份，与已安装的鼠须管互不干扰；对鼠须管的任何文件与配置**只读**，绝不修改。
+Owltype 使用独立身份，与已安装的鼠须管互不干扰；对鼠须管的任何文件与配置**只读**，绝不修改。
 
-| 项 | 鼠须管 Squirrel | 法墨 Famo |
+| 项 | 鼠须管 Squirrel | 猫头鹰 Owltype |
 | --- | --- | --- |
-| Bundle ID | `im.rime.inputmethod.Squirrel` | `im.famo.inputmethod.Famo` |
-| 安装位置 | `/Library/Input Methods/Squirrel.app` | `/Library/Input Methods/Famo.app` |
-| 数据根 | `~/Library/Rime` | `~/Library/Application Support/Famo` |
+| Bundle ID | `im.rime.inputmethod.Squirrel` | `im.owltype.inputmethod.Owltype` |
+| 安装位置 | `/Library/Input Methods/Squirrel.app` | `/Library/Input Methods/Owltype.app` |
+| 数据根 | `~/Library/Rime` | `~/Library/Application Support/Owltype` |
 
 ## 许可 License
 

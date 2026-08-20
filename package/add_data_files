@@ -2,7 +2,7 @@
 
 set -e
 
-project_file=Famo.xcodeproj/project.pbxproj
+project_file=Owltype.xcodeproj/project.pbxproj
 test -f "${project_file}"
 
 # 定義固定的錨點資訊（保持與原專案文件一致，供 sed 尋找定位）

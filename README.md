@@ -1,32 +1,30 @@
-# 法墨输入法 · Famotype for macOS
+# 猫头鹰输入法 · Owltype for macOS
 
-[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)](https://responsay.com/famo/)
+[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)](https://responsay.com/owltype/)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE.txt)
 
-**English: [README.en.md](README.en.md)** · 产品页：<https://responsay.com/famo/>
+**English: [README.en.md](README.en.md)** · 产品页：<https://responsay.com/owltype/>
 
-法墨是一个本地优先的 macOS 中文输入法。它把 Rime 引擎与全部词库数据自包含进 App，用 SwiftUI
+猫头鹰是一个本地优先的 macOS 中文输入法。它把 Rime 引擎与全部词库数据自包含进 App，用 SwiftUI
 重做了候选窗、设置、引导与表情面板——装好就能打字，不用手写配置文件。
 
-> 仓库名为 **Famotype**；为保持已安装版本兼容，代码、Bundle 与构建产物中仍使用 `Famo` 标识。
-
-![法墨候选窗](docs/screenshots/candidates.png)
+![猫头鹰候选窗](docs/screenshots/candidates.png)
 
 ## 安装
 
 系统要求 macOS 14 及以上，通用二进制（Apple Silicon / Intel）。
 
-1. 从 [responsay.com](https://responsay.com/famo/Famo-update.pkg) 下载
-   `Famo-update.pkg`，双击安装（安装包需要管理员授权）。
-2. 打开**系统设置 → 键盘 → 输入法**，把「法墨」加进输入法列表。
-3. 如果输入菜单里没有立即出现法墨，注销后重新登录一次即可。
+1. 从 [responsay.com](https://responsay.com/owltype/Owltype-update.pkg) 下载
+   `Owltype-update.pkg`，双击安装（安装包需要管理员授权）。
+2. 打开**系统设置 → 键盘 → 输入法**，把「猫头鹰」加进输入法列表。
+3. 如果输入菜单里没有立即出现猫头鹰，注销后重新登录一次即可。
 
 已经装过的用户不用重复下载：App 自带 Sparkle 更新客户端，只读取
-`responsay.com/famo/appcast.xml`，检测到新版后下载同一个签名、公证过的
-`Famo-update.pkg` 就地升级，**不需要注销**。更新检查不上传输入内容或用户数据。
+`responsay.com/owltype/appcast.xml`，检测到新版后下载同一个签名、公证过的
+`Owltype-update.pkg` 就地升级，**不需要注销**。更新检查不上传输入内容或用户数据。
 
-卸载：安装包内附 `卸载法墨.command`，或在系统设置里移除输入法后删除
-`/Library/Input Methods/Famo.app`。
+卸载：安装包内附 `卸载猫头鹰.command`，或在系统设置里移除输入法后删除
+`/Library/Input Methods/Owltype.app`。
 
 ## 特性
 
@@ -67,22 +65,21 @@
 
 ## 当前状态
 
-- **Cursor Origin 是法墨的唯一开发主仓库**：完整产品（含云端 AI 功能层）在
-  `https://origin.cursor.com/xianwei/famotype-macos.git` 开发并通过 PR 合并。
+- **Cursor Origin 是猫头鹰的唯一开发主仓库**：完整产品（含云端 AI 功能层）在
+  `https://origin.cursor.com/xianwei/owltype-macos.git` 开发并通过 PR 合并。
   GitHub 保留为私有备份与 issue tracker；签名安装包、Sparkle feed 和逐版对应源码由
   `responsay.com` 发布。
 - 仓库历史从经过隐私审查的 1.4.22 源码快照开始，不包含更早期的 Git 历史。
 - 1.4.21 及更早的公开发布已经停止分发，不再受支持。
-- Windows 版在 [famotype-win](https://github.com/semantic-craft/famotype-win)，
-  代码、tag 与发布资产与本仓库相互独立。
+- Windows 版在各自独立的仓库维护，代码、tag 与发布资产与本仓库相互独立。
 
 ## 从源码构建
 
 需要 Xcode 26+ 与 macOS 14+：
 
 ```sh
-git clone https://origin.cursor.com/xianwei/famotype-macos.git
-cd famotype-macos
+git clone https://origin.cursor.com/xianwei/owltype-macos.git
+cd owltype-macos
 git submodule update --init --recursive
 make setup-dev
 make deps
@@ -94,22 +91,22 @@ make release
 请把本仓库的 Git email 配置为 GitHub 提供的 noreply 地址；本地密钥使用 Keychain 或
 被 `.gitignore` 排除的环境文件保存，不要把 AI 会话、调试日志或本机配置加入 Git。
 
-公开构建使用清洁室词库种子（`scripts/famo-seed.sh`）：只包含授权链可审计的输入，
+公开构建使用清洁室词库种子（`scripts/owl-seed.sh`）：只包含授权链可审计的输入，
 生成的词表限定在《通用规范汉字表》8105 字内。完整词库由 App 首启时从上游原仓库拉取，
-法墨自身不再分发那批数据。种子的逐项来源见构建产物里的 `FAMOTYPE-SEED-SOURCES.md`。
+猫头鹰自身不再分发那批数据。种子的逐项来源见构建产物里的 `OWLTYPE-SEED-SOURCES.md`。
 
 签名、公证与打包由 `scripts/release.sh` 处理；验证完成后由
-`scripts/famo_distribution.py --publish` 将完整 cohort 发布到 responsay.com。本项目没有托管
+`scripts/owl_distribution.py --publish` 将完整 cohort 发布到 responsay.com。本项目没有托管
 CI：合并前的门禁由开发机上的 `scripts/gate.sh` 执行，详见
 [docs/operations/ci.md](docs/operations/ci.md)。
 
 ## 来源与许可
 
-本项目以 **GPL-3.0** 发布，许可证全文见 [LICENSE.txt](LICENSE.txt)。法墨是
+本项目以 **GPL-3.0** 发布，许可证全文见 [LICENSE.txt](LICENSE.txt)。猫头鹰是
 [RIME 鼠须管（Squirrel）](https://github.com/rime/squirrel) 与
 [librime](https://github.com/rime/librime) 的派生作品。基于本项目分发二进制时，必须同时提供
 对应的修改源码、GPL-3.0 许可证文本与版权声明，不得作为闭源制品分发。
-每个二进制版本的完整对应源码可从[官网固定入口](https://responsay.com/famo/source.tar.gz)取得；
+每个二进制版本的完整对应源码可从[官网固定入口](https://responsay.com/owltype/source.tar.gz)取得；
 开发仓库保持私有不改变接收者依 GPL 获得、修改和再分发该份源码的权利。
 
 完整来源脉络见 [PROVENANCE.md](PROVENANCE.md)，第三方组件许可见

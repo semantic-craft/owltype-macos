@@ -1,4 +1,4 @@
-// main.swift — FamoInstaller 显式入口（1.3.32-fix2）。
+// main.swift — OwltypeInstaller 显式入口（1.3.32-fix2）。
 //
 // 为什么不用 @main：`--tis-probe` 自探针必须在 SwiftUI App 生命周期启动之前拦截——
 // fresh 进程直查 TIS、单行输出 `parent=… hans=… hansSelectCapable=…` 后 exit(0)，
@@ -12,4 +12,4 @@ if CommandLine.arguments.dropFirst().contains("--tis-probe") {
     exit(0)
 }
 
-FamoInstallerApp.main()
+OwltypeInstallerApp.main()

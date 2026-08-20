@@ -32,7 +32,7 @@ plum_packages=(
 download_archive() {
   local url="$1"
   local output="$2"
-  if [[ "${FAMOTYPE_NO_DOWNLOAD:-0}" == "1" ]]; then
+  if [[ "${OWLTYPE_NO_DOWNLOAD:-0}" == "1" ]]; then
     [[ -f "$output" ]] || { echo "missing cached archive: $output" >&2; exit 1; }
   else
     curl --fail --location --output "$output" "$url"
@@ -129,4 +129,4 @@ done
 
 cp plum/rime-install bin/
 
-echo "Famotype build dependencies are ready."
+echo "Owltype build dependencies are ready."

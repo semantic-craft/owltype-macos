@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Gate 2 — Manifest consistency. Asserts the built/installed Famo.app Info.plist
-# identity fields equal the canonical constants in famo-identity.sh, so a stray
+# Gate 2 — Manifest consistency. Asserts the built/installed Owltype.app Info.plist
+# identity fields equal the canonical constants in owl-identity.sh, so a stray
 # rename (connection name, source id, icon) can never ship silently.
 #
 # Read-only. Resolves an app the same way check-identity-residual.sh does; if none
@@ -10,17 +10,17 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# shellcheck source=scripts/famo-identity.sh
-. "$ROOT/scripts/famo-identity.sh"
+# shellcheck source=scripts/owl-identity.sh
+. "$ROOT/scripts/owl-identity.sh"
 
-APP="${FAMO_APP:-}"
+APP="${OWL_APP:-}"
 if [[ -z "$APP" ]]; then
-  for cand in "$ROOT/build/Build/Products/Release/Famo.app" "$FAMO_INSTALL_PATH" "$HOME/Library/Input Methods/Famo.app"; do
+  for cand in "$ROOT/build/Build/Products/Release/Owltype.app" "$OWL_INSTALL_PATH" "$HOME/Library/Input Methods/Owltype.app"; do
     if [[ -d "$cand" ]]; then APP="$cand"; break; fi
   done
 fi
 if [[ -z "$APP" || ! -d "$APP" ]]; then
-  printf 'note: no built/installed Famo.app to check; skipping manifest gate\n'
+  printf 'note: no built/installed Owltype.app to check; skipping manifest gate\n'
   exit 0
 fi
 
@@ -44,30 +44,30 @@ assert_eq() {
 
 C='ComponentInputModeDict:tsInputModeListKey'
 
-assert_eq "CFBundleIdentifier"        "CFBundleIdentifier"        "$FAMO_BUNDLE_ID"
-assert_eq "InputMethodConnectionName" "InputMethodConnectionName" "$FAMO_CONNECTION"
-assert_eq "TISInputSourceID"          "TISInputSourceID"          "$FAMO_BUNDLE_ID"
+assert_eq "CFBundleIdentifier"        "CFBundleIdentifier"        "$OWL_BUNDLE_ID"
+assert_eq "InputMethodConnectionName" "InputMethodConnectionName" "$OWL_CONNECTION"
+assert_eq "TISInputSourceID"          "TISInputSourceID"          "$OWL_BUNDLE_ID"
 
 # CFBundleIconFile: normalize away a trailing .icns (Xcode stores the base name in
 # built apps, the source plist keeps the extension) before comparing.
 icon_actual="$(plb CFBundleIconFile)"; icon_actual="${icon_actual%.icns}"
-if [[ "$icon_actual" == "$FAMO_ICON_FILE" ]]; then
+if [[ "$icon_actual" == "$OWL_ICON_FILE" ]]; then
   printf 'PASS: CFBundleIconFile = %s\n' "$icon_actual"
 else
-  printf 'FAIL: CFBundleIconFile = %q (expected %q)\n' "$icon_actual" "$FAMO_ICON_FILE" >&2
+  printf 'FAIL: CFBundleIconFile = %q (expected %q)\n' "$icon_actual" "$OWL_ICON_FILE" >&2
   fail=1
 fi
 
-assert_eq "Hans TISInputSourceID" "$C:$FAMO_SOURCE_ID_HANS:TISInputSourceID" "$FAMO_SOURCE_ID_HANS"
-assert_eq "Hant TISInputSourceID" "$C:$FAMO_SOURCE_ID_HANT:TISInputSourceID" "$FAMO_SOURCE_ID_HANT"
+assert_eq "Hans TISInputSourceID" "$C:$OWL_SOURCE_ID_HANS:TISInputSourceID" "$OWL_SOURCE_ID_HANS"
+assert_eq "Hant TISInputSourceID" "$C:$OWL_SOURCE_ID_HANT:TISInputSourceID" "$OWL_SOURCE_ID_HANT"
 
-for mode in "$FAMO_SOURCE_ID_HANS" "$FAMO_SOURCE_ID_HANT"; do
-  assert_eq "$mode menuIcon"    "$C:$mode:tsInputModeMenuIconFileKey"          "$FAMO_MENU_ICON"
-  assert_eq "$mode altMenuIcon" "$C:$mode:tsInputModeAlternateMenuIconFileKey" "$FAMO_MENU_ICON"
+for mode in "$OWL_SOURCE_ID_HANS" "$OWL_SOURCE_ID_HANT"; do
+  assert_eq "$mode menuIcon"    "$C:$mode:tsInputModeMenuIconFileKey"          "$OWL_MENU_ICON"
+  assert_eq "$mode altMenuIcon" "$C:$mode:tsInputModeAlternateMenuIconFileKey" "$OWL_MENU_ICON"
 done
 
 if (( fail )); then
-  printf 'FAIL: Famo manifest consistency gate\n' >&2
+  printf 'FAIL: Owltype manifest consistency gate\n' >&2
   exit 1
 fi
-printf 'PASS: Famo manifest consistency gate\n'
+printf 'PASS: Owltype manifest consistency gate\n'

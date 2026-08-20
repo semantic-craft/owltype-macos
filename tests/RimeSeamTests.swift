@@ -1,6 +1,6 @@
 //
 //  RimeSeamTests.swift
-//  FamoTests — PR2 of the Rime Engine/Session seam (task 06-20-famo-rime-engine-session-seam)
+//  OwltypeTests — PR2 of the Rime Engine/Session seam (task 06-20-owl-rime-engine-session-seam)
 //
 //  Cashes in the testability goal PR1b created. PR1b put `protocol RimeSession` /
 //  `protocol RimeEngine` (sources/RimeSeam.swift) in front of the librime C API, with
@@ -29,7 +29,7 @@
 
 import Foundation
 import XCTest
-@testable import Famo
+@testable import Owltype
 
 // MARK: - Fakes (test fixtures only — never shipped in sources/)
 
@@ -197,7 +197,7 @@ final class FakeRimeEngine: RimeEngine {
   /// `start_maintenance` and BEFORE a reselect on the fast fuzzy-apply path.
   private(set) var lifecycleTrace: [String] = []
   /// Every `deploy_config_file` file name, in call order — so a test can assert WHICH configs
-  /// a deploy path recompiles (famo.yaml's absence from fast-apply/startRime was the #121 gap).
+  /// a deploy path recompiles (owltype.yaml's absence from fast-apply/startRime was the #121 gap).
   private(set) var deployedConfigFiles: [String] = []
   private(set) var createdSessionCount = 0
   private(set) var selectedSchemas: [String] = []
@@ -468,8 +468,8 @@ final class RimeSeamTests: XCTestCase {
   // MARK: 3b. Fast settings-apply live-session RELOAD sequence (task 06-22 fix, 2026-06-22)
 
   // The headless `IMKInputController` can't be constructed in a unit test (it calls the IMK
-  // server initializer and `NSApp.famoAppDelegate.engine`), so — exactly like the seam tests
-  // above — we reproduce `FamoInputController.reapplyConfigToLiveSession(replayComposition:)`'s
+  // server initializer and `NSApp.owlAppDelegate.engine`), so — exactly like the seam tests
+  // above — we reproduce `OwlInputController.reapplyConfigToLiveSession(replayComposition:)`'s
   // *sequence* against the engine/session ports instead of instantiating the controller.
   //
   // The fix replaced the broken `select_schema(sameId)` reselect (which does NOT force librime
@@ -574,15 +574,15 @@ final class RimeSeamTests: XCTestCase {
   }
 
   func testReplayRawInputSkipsNonASCIIAndPreservesOrder() {
-    // Famo raw input codes are ASCII; a stray non-ASCII scalar must be skipped, not crash.
-    let old = FakeRimeSession(sessionID: 30, input: "fa墨mo")
+    // Owltype raw input codes are ASCII; a stray non-ASCII scalar must be skipped, not crash.
+    let old = FakeRimeSession(sessionID: 30, input: "ow鹰ltype")
     let fresh = FakeRimeSession(sessionID: 31)
     let engine = FakeRimeEngine(vendedSession: fresh)
 
     driveReload(old: old, engine: engine, capturedSchema: "rime_ice", replayComposition: true)
 
-    // Only the ASCII bytes f a m o are re-fed on the fresh session; the CJK 墨 is skipped.
-    XCTAssertEqual(fresh.processedKeys.map(\.keycode), Array("famo".unicodeScalars.map(\.value)))
+    // Only the ASCII bytes o w l t y p e are re-fed on the fresh session; the CJK 鹰 is skipped.
+    XCTAssertEqual(fresh.processedKeys.map(\.keycode), Array("owltype".unicodeScalars.map(\.value)))
   }
 
   func testAppOptionAndPropertyRecorded() {
@@ -660,8 +660,8 @@ final class RimeSeamTests: XCTestCase {
 
   // MARK: 5. Seam-injection boundary — controller helpers delegate 1:1 (deferred end-to-end)
 
-  // NOTE (PRD Out-of-Scope): constructing a `FamoInputController` in a unit test calls
-  // `IMKInputController`'s server initializer and `NSApp.famoAppDelegate.engine` inside
+  // NOTE (PRD Out-of-Scope): constructing a `OwlInputController` in a unit test calls
+  // `IMKInputController`'s server initializer and `NSApp.owlAppDelegate.engine` inside
   // `createSession()`, and its option helpers funnel through `rimeUpdate()`/the IMK
   // `client` on success — neither is available headless. So driving the controller
   // through the fake is DEFERRED until the IMK `client` seam (a named follow-up in the
