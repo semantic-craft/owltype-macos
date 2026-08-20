@@ -88,6 +88,9 @@ tier_rows() {
   fi
 }
 
+# Source layer scans OWL_FORBIDDEN_HARD only — not OWL_FORBIDDEN_CLAIM. Claiming an id
+# is something a built bundle does; source text merely names Squirrel where the
+# coexistence guarantee is documented and tested (see owl-identity.sh).
 scan_source() {
   local tok hard_args=() product_args=() counts summary
   for tok in "${OWL_FORBIDDEN_HARD[@]}";    do hard_args+=(-e "$tok"); done
@@ -284,7 +287,7 @@ else
     for loose in "卸载猫头鹰.command" "uninstall-owltype.sh"; do
       loose_path="${_dmg_mnt}/${loose}"
       [[ -f "$loose_path" ]] || continue
-      for tok in "${OWL_FORBIDDEN_HARD[@]}"; do
+      for tok in "${OWL_FORBIDDEN_HARD[@]}" "${OWL_FORBIDDEN_CLAIM[@]}"; do
         if grep -qF "$tok" "$loose_path"; then
           printf 'HARD     DMG loose %s: %s\n' "$loose" "$tok" >&2
           dmg_hard=$((dmg_hard + 1))

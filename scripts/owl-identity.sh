@@ -30,19 +30,29 @@ SQUIRREL_BUNDLE_ID="$(printf '%s.%s.%s.%s' im rime inputmethod Squirrel)"
 SQUIRREL_APP="/Library/Input Methods/Squirrel.app"
 
 # ---- Forbidden identity residue ----
-# HARD: residue that would make the system, a user, or support mis-identify Owltype.
-# Two families, one consequence, never downgraded to a warning:
-#   - the product's former self (Famo / 法墨, renamed in 2.0.0). A bundle still carrying
-#     these ids resolves as the wrong input source, and the uninstaller still keyed to
-#     them deletes the wrong tree.
-#   - Squirrel's ids, which Owltype must never claim: it is a librime derivative that has
-#     to coexist with an installed Squirrel, not displace it. Live guarantee, not rename
-#     residue — the ids stay forbidden after the rename is finished.
+# HARD: the product's former self (Famo / 法墨, renamed in 2.0.0), forbidden at every
+# layer and never downgraded to a warning. A bundle still carrying these ids resolves as
+# the wrong input source, and an uninstaller still keyed to them deletes the wrong tree.
+# Mentioning them is residue too: after 2.0.0 nothing in the tree has any reason to.
 OWL_FORBIDDEN_HARD=(
   "im.famo.inputmethod.Famo"
   "Famo_Connection"
   "/Library/Input Methods/Famo.app"
   "Application Support/Famo"
+)
+# CLAIM: Squirrel's ids, which Owltype must never claim — it is a librime derivative that
+# has to coexist with an installed Squirrel, not displace it. A live guarantee, unrelated
+# to the rename, so it outlives it.
+#
+# Enforced on shipped artifacts only (Info.plist, resource filenames, DMG loose files),
+# because claiming an id is something a built bundle does, not something source text does.
+# Source legitimately *names* Squirrel: PROVENANCE.md documents the coexistence, and the
+# activation tests assert Owltype classifies Squirrel as foreign. A fixed-string source
+# scan cannot tell "claims" from "mentions", and the version that failed on mentions was
+# telling us to delete the very tests that prove the guarantee holds. The positive check
+# is what actually pins the built identity: check-manifest.sh asserts CFBundleIdentifier /
+# InputMethodConnectionName / TISInputSourceID equal the canonical Owltype values above.
+OWL_FORBIDDEN_CLAIM=(
   "Squirrel_Connection"
   "im.rime.inputmethod.Squirrel"
   "rime.squirrel"
@@ -77,7 +87,7 @@ owl_scan_app_identity() {
   local plist_text tok hit
   plist_text="$(/usr/bin/plutil -convert xml1 -o - "$plist" 2>/dev/null || /bin/cat "$plist" 2>/dev/null || true)"
 
-  for tok in "${OWL_FORBIDDEN_HARD[@]}"; do
+  for tok in "${OWL_FORBIDDEN_HARD[@]}" "${OWL_FORBIDDEN_CLAIM[@]}"; do
     if grep -qF "$tok" <<<"$plist_text"; then
       printf 'HARD     Info.plist: %s\n' "$tok" >&2
       OWL_SCAN_HARD=$((OWL_SCAN_HARD + 1))

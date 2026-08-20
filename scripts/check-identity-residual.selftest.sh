@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Self-test for the artifact layers of check-identity-residual.sh — the built app (3), pkg
 # payload (4a) and dmg (4b). Builds throwaway artifacts poisoned with the old 法墨/Famo
-# identity and asserts the gate FAILS on them, PASSES with no artifacts present, and that
-# the hard/product tier split and the strict flag behave as documented.
+# identity — and with Squirrel's id, which the CLAIM tier forbids artifacts to claim — and
+# asserts the gate FAILS on them, PASSES with no artifacts present, and that the
+# hard/claim/product tier split and the strict flag behave as documented.
 #
 # It drives `--artifacts` on purpose. The source layer scans this working tree, so its
 # verdict is whatever the rename has reached so far; the artifact layers are fixture-driven
@@ -61,6 +62,7 @@ write_app "$work/clean-app/Owltype.app" "im.owltype.inputmethod.Owltype"
 write_app "$work/poison-app/Owltype.app" "im.famo.inputmethod.Famo"
 write_app "$work/brand-app/Owltype.app" "im.owltype.inputmethod.Owltype" \
   '<key>CFBundleName</key><string>法墨输入法</string>'
+write_app "$work/claim-app/Owltype.app" "im.rime.inputmethod.Squirrel"
 
 # --- positive: no artifacts present → artifact layers pass (no false positive) ---
 if run_gate; then ok "positive: no artifacts present passes"; else bad "positive: no-artifact run should exit 0"; fi
@@ -70,6 +72,16 @@ if run_gate OWL_APP="$work/poison-app/Owltype.app"; then
   bad "negative A: built app with the old bundle id should fail the gate"
 else
   expect_fail "negative A: built app with the old bundle id fails the gate" \
+    "hard identity residue in built app"
+fi
+
+# --- negative D: built app claiming Squirrel's id → fails even non-strict. The CLAIM tier
+# is enforced on artifacts only (a bundle claims an id; source text merely names one), so
+# this case is the whole proof that moving it off the source layer did not disarm it. ---
+if run_gate OWL_APP="$work/claim-app/Owltype.app"; then
+  bad "negative D: built app claiming Squirrel's id should fail the gate"
+else
+  expect_fail "negative D: built app claiming Squirrel's id fails the gate" \
     "hard identity residue in built app"
 fi
 
