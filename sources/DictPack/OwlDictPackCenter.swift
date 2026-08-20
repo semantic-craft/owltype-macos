@@ -145,7 +145,7 @@ final class OwlDictPackCenter {
 }
 
 /// 知情同意提示（2026-07-27 改版）：完整词库来自第三方开源项目（rime-ice / KyleBing 极点五笔86），
-/// 方案B 为避免版权争议不随安装包分发；改版后也**不再由法墨静默替用户下载**——先弹窗说明缘由，
+/// 方案B 为避免版权争议不随安装包分发；改版后也**不再由猫头鹰静默替用户下载**——先弹窗说明缘由，
 /// 用户点「同意并下载」才拉。判定是纯函数，XCTest 可锁：真机上「切到包外方案」这条分支只在用户
 /// 恰好切到未随包分发的方案时才走到，手测覆盖不到。
 enum OwlDictPackPrompt {
@@ -230,12 +230,12 @@ enum OwlDictPackPrompt {
     if let schemaID {
       alert.messageText = "方案「\(displayName(for: schemaID))」需要先下载完整词库"
     } else {
-      alert.messageText = "法墨当前使用的是精简词库"
+      alert.messageText = "猫头鹰当前使用的是精简词库"
     }
     alert.informativeText = """
-    法墨安装包只内置了自建的清洁室精简词库。五笔、简体拼音、小鹤双拼等方案的词库来自第三方开源项目（雾凇拼音 rime-ice、极点五笔86），为避免版权争议，法墨不随安装包分发它们，也不会在你不知情的情况下替你下载。
+    猫头鹰安装包只内置了自建的清洁室精简词库。五笔、简体拼音、小鹤双拼等方案的词库来自第三方开源项目（雾凇拼音 rime-ice、极点五笔86），为避免版权争议，猫头鹰不随安装包分发它们，也不会在你不知情的情况下替你下载。
 
-    点「同意并下载」后，法墨会从这些项目的官方仓库按固定版本获取（约 90 MB），校验通过后自动编译启用。
+    点「同意并下载」后，猫头鹰会从这些项目的官方仓库按固定版本获取（约 90 MB），校验通过后自动编译启用。
 
     你也可以选「稍后」，之后随时在「设置 → 键盘输入 → 完整词库」里下载。
     """
@@ -266,7 +266,7 @@ enum OwlDictPackPrompt {
 
 /// 首启告知的安全时机门控。直接复用注销提示线沉淀的纯判定层 `OwlLogoutPromptTiming`——
 /// #109 真机教训同样适用：**启动回调里同步 runModal 会在用户开始输入后中途夺焦点、打断输入**。
-/// 等无合成 + 输入空闲再激活法墨自身弹窗；选「稍后」还原宿主焦点。
+/// 等无合成 + 输入空闲再激活猫头鹰自身弹窗；选「稍后」还原宿主焦点。
 /// 观测：`log show --predicate 'subsystem == "im.owltype.inputmethod.Owltype" AND category == "dictPack"'`
 @MainActor
 final class OwlDictPackPromptScheduler {
@@ -319,7 +319,7 @@ final class OwlDictPackPromptScheduler {
       OwlDictPackCenter.shared.acceptAndStart()
     case .later:
       OwlDictPackPrompt.log.log("user deferred dict-pack download at first run")
-      capturedApp?.activate()  // 还原宿主焦点，别把用户晾在法墨这边
+      capturedApp?.activate()  // 还原宿主焦点，别把用户晾在猫头鹰这边
     }
     capturedApp = nil
   }

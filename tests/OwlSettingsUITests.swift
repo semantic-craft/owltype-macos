@@ -40,7 +40,7 @@ final class OwlSettingsUITests: XCTestCase {
 
     openPage("quickSend", in: app)
     type("短语", text: "uitest", in: app)
-    type("编码，如 fm 或 fmcs", text: "ui", in: app)
+    type("编码，如 mty 或 mtycs", text: "ui", in: app)
     tap("添加短语", in: app)
     tap("清空", in: app)
 
@@ -70,7 +70,7 @@ final class OwlSettingsUITests: XCTestCase {
 
     openPage("about", in: app)
     // 重置用户词典… 在 UI-test 模式下接的是空闭包（确认弹窗归 delegate），点它只验按钮可命中。
-    tapMany(["应用配置改动", "同步用户数据", "重置用户词典…", "打开法墨配置目录…", "查看诊断日志…", "欢迎与引导…"], in: app)
+    tapMany(["应用配置改动", "同步用户数据", "重置用户词典…", "打开猫头鹰配置目录…", "查看诊断日志…", "欢迎与引导…"], in: app)
   }
 
   private func launchSettings() throws -> XCUIApplication {
@@ -86,7 +86,7 @@ final class OwlSettingsUITests: XCTestCase {
     app.launch()
     let ready = app.otherElements["OwlSettingsView"].waitForExistence(timeout: 5)
       || app.buttons["双拼输入"].waitForExistence(timeout: 5)
-      || app.staticTexts["法墨输入法"].waitForExistence(timeout: 5)
+      || app.staticTexts["猫头鹰输入法"].waitForExistence(timeout: 5)
     XCTAssertTrue(ready, "Settings window did not become accessible")
     return app
   }

@@ -1,6 +1,6 @@
 //
 //  OwlExperimentalPreferences.swift
-//  法墨输入法 (Owltype) — 实验性功能开关 (task 06-22-backspace-typo-correction)
+//  猫头鹰输入法 (Owltype) — 实验性功能开关 (task 06-22-backspace-typo-correction)
 //
 //  UserDefaults home for default-OFF experimental toggles. Current tenant: 退格 LM 纠错
 //  (`backspaceCorrectionEnabled`). Mirrors the established prefs pattern (`OwlEmojiPreferences` /

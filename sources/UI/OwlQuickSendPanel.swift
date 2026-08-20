@@ -1,6 +1,6 @@
 //
 //  OwlQuickSendPanel.swift
-//  法墨输入法 (Owltype) — 快捷短语面板 (quick-phrase picker panel) [PR2]
+//  猫头鹰输入法 (Owltype) — 快捷短语面板 (quick-phrase picker panel) [PR2]
 //
 //  A floating NSPanel that lists the configured 快捷短语 (`OwlQuickSendStore`) and inserts a
 //  picked phrase at the cursor — mode-independent (works identically in 五笔/拼音/英文 because it

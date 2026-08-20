@@ -3,7 +3,7 @@ import CoreGraphics
 import os
 
 /// 更新完成后强推注销提示。#16 新方向：`免注销自动保持选中态`（preinstall 记录 + postinstall
-/// 还原）在真机不可靠（1.4.6 更新后法墨掉到 com.apple.keylayout.US 复现），改为诚实强推注销——
+/// 还原）在真机不可靠（1.4.6 更新后猫头鹰掉到 com.apple.keylayout.US 复现），改为诚实强推注销——
 /// 更新后弹一次「建议注销」对话框，`立即注销` 为默认动作、`稍后自己注销` 可选。
 /// 首启（首装）不弹：首装走 Owltype.pkg 的 `RequireLogout` 强制注销。
 ///
@@ -69,17 +69,17 @@ enum OwlUpdateLogoutPrompt {
   }
 
   /// C1：建议注销对话框。标题不变；informative text 加 TCC 授权预告两句（首次点【立即注销】macOS 可能
-  /// 问是否允许法墨控制「系统事件」、允许后仍有注销确认可取消），降低把正常授权当越权而拒绝的概率。
+  /// 问是否允许猫头鹰控制「系统事件」、允许后仍有注销确认可取消），降低把正常授权当越权而拒绝的概率。
   /// **返回用户选择、不自己执行动作**——记录已处置与执行动作由外层（调度器）统一编排，以满足 A1 的
   /// 「记录在执行之前」。
   @MainActor
   static func presentAlert(current: String) -> Choice {
     let alert = NSAlert()
-    alert.messageText = "法墨已更新到 \(current)，建议注销后重新登录"
+    alert.messageText = "猫头鹰已更新到 \(current)，建议注销后重新登录"
     alert.informativeText = """
-    注销并重新登录能让系统完整刷新输入法，法墨会稳定留在输入菜单——避免更新后法墨从菜单消失、或切换后打不出字。
+    注销并重新登录能让系统完整刷新输入法，猫头鹰会稳定留在输入菜单——避免更新后猫头鹰从菜单消失、或切换后打不出字。
 
-    首次点「立即注销」时，macOS 可能会问你是否允许「法墨」控制「系统事件」——这是执行注销所必需的，请点允许；之后系统还会再弹一次注销确认，你仍可取消。
+    首次点「立即注销」时，macOS 可能会问你是否允许「猫头鹰」控制「系统事件」——这是执行注销所必需的，请点允许；之后系统还会再弹一次注销确认，你仍可取消。
 
     你也可以选「稍后自己注销」，需要时从苹果菜单手动注销即可。
     """
@@ -196,7 +196,7 @@ enum OwlLogoutPromptTiming {
 
 /// B2：把「更新后建议注销」从「启动同步弹」改为「安全时机门控 + 激活确认 + 焦点还原」。
 /// 真机已证同步弹（无 activation）会在用户开始输入后中途夺焦点、打断输入。编排复用 `OwlAIWindow` 的
-/// 「先捕获宿主、稍后还原」思路：低频轮询等无合成 + 输入空闲，激活法墨自身后 `runModal`；
+/// 「先捕获宿主、稍后还原」思路：低频轮询等无合成 + 输入空闲，激活猫头鹰自身后 `runModal`；
 /// 「稍后自己注销」还原宿主焦点，「立即注销」保持前台进 TCC→系统注销确认链。
 /// **不设「不安全也强弹」的全局超时**（用户持续输入/登录中永不打断）；但 #131 后「安全条件被卡死」的
 /// 两类永久静默有阀（搁浅合成/激活未确认，见 `OwlLogoutPromptTiming`），且每步可观测：
@@ -208,7 +208,7 @@ final class OwlUpdateLogoutScheduler {
 
   private enum Phase {
     case pending      // 等安全时机
-    case activating   // 已请求激活法墨，等 isActive（有阀，不会永等）
+    case activating   // 已请求激活猫头鹰，等 isActive（有阀，不会永等）
   }
 
   private static let log = Logger(subsystem: "im.owltype.inputmethod.Owltype", category: "logoutPrompt")
@@ -401,9 +401,9 @@ enum OwlLogoutAction {
     let alert = NSAlert()
     alert.messageText = "无法自动注销：请重新开启「自动化」权限"
     alert.informativeText = """
-    你曾拒绝或关闭了「法墨」控制「系统事件」的授权，系统因此静默拦下了自动注销，也不会再弹授权框。
+    你曾拒绝或关闭了「猫头鹰」控制「系统事件」的授权，系统因此静默拦下了自动注销，也不会再弹授权框。
 
-    恢复方法：打开 系统设置 → 隐私与安全性 → 自动化，找到「法墨」，把「系统事件」重新打开；然后再点一次「注销并重新登录」即可。你也可以直接点屏幕左上角的苹果菜单 → 注销。
+    恢复方法：打开 系统设置 → 隐私与安全性 → 自动化，找到「猫头鹰」，把「系统事件」重新打开；然后再点一次「注销并重新登录」即可。你也可以直接点屏幕左上角的苹果菜单 → 注销。
 
     诊断码：\(code.map(String.init) ?? "?")
     """

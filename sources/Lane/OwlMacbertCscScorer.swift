@@ -1,6 +1,6 @@
 //
 //  OwlMacbertCscScorer.swift
-//  法墨输入法 (Owltype) — 退格 LM 纠错钩子 · 端上 CSC scorer (task 06-22-backspace-typo-correction)
+//  猫头鹰输入法 (Owltype) — 退格 LM 纠错钩子 · 端上 CSC scorer (task 06-22-backspace-typo-correction)
 //
 //  The on-device Chinese Spelling Correction (CSC) backend for the backspace correction hook. It
 //  tokenizes the converted Chinese run with `OwlBertTokenizer`, runs `macbert4csc.mlpackage`

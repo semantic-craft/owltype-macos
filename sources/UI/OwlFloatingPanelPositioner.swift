@@ -1,6 +1,6 @@
 //
 //  OwlFloatingPanelPositioner.swift
-//  法墨输入法 (Owltype) — floating-panel screen geometry
+//  猫头鹰输入法 (Owltype) — floating-panel screen geometry
 //
 //  Pure CoreGraphics placement math shared by the floating panels (candidate / quick-send /
 //  status HUD / emoji). Extracted from four near-identical `clampedFrame` + centre-under-mouse

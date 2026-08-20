@@ -1,6 +1,6 @@
 //
 //  OwlSearchControl.swift
-//  法墨输入法 (Owltype) — 任意提问「联网搜索」的逐家 wire format
+//  猫头鹰输入法 (Owltype) — 任意提问「联网搜索」的逐家 wire format
 //
 //  One "search requested" flag fans out to each provider's own request shape. Providers without
 //  search support resolve to `.none`, so a caller can ask "can this one search?" without a table.

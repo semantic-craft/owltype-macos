@@ -191,19 +191,19 @@
         }
       }
     },
-    "Famo" : {
+    "Owltype" : {
       "comment" : "Menu title",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "法墨输入法"
+            "value" : "猫头鹰输入法"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "法墨輸入法"
+            "value" : "貓頭鷹輸入法"
           }
         }
       }

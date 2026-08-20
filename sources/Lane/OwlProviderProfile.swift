@@ -1,6 +1,6 @@
 //
 //  OwlProviderProfile.swift
-//  法墨输入法 (Owltype) — multi-provider profile foundation
+//  猫头鹰输入法 (Owltype) — multi-provider profile foundation
 //  (task 06-22-owl-multi-provider-keychain-foundation, research B1+B2)
 //
 //  Turns the single hardcoded DeepSeek cloud config into a list of named provider PROFILES.
@@ -149,13 +149,13 @@ enum OwlLLMProviderCatalog {
 
   /// 百炼可选模型，默认在前。第一个必须与上面 qwen 预设的 `model` 一致（下拉里选不到默认值很怪）。
   ///
-  /// 为什么要列一串而不是像别家那样只写一个：阿里的型号迭代比法墨发版快，设置页下拉里只出现一个
+  /// 为什么要列一串而不是像别家那样只写一个：阿里的型号迭代比猫头鹰发版快，设置页下拉里只出现一个
   /// 型号会让人以为「只能用这个」。真正的全量清单靠设置页的「拉取最新」按钮从 `/models` 拉，这里
   /// 只兜住没联网/没拉取时的常用几个。
   ///
   /// 只列产品正式支持的两档（2026-07-31 产品决定）：`qwen3.7-plus` 默认基线、`qwen3.7-max`
   /// 高质量档，均取自阿里云模型总表。Flash 型号不再作为内置推荐或质量基线——想用的用户仍可
-  /// 手动输入或经「拉取最新」从 `/models` 选到，法墨只是不替它背书。**没有**顺手补 qwen3.6-plus /
+  /// 手动输入或经「拉取最新」从 `/models` 选到，猫头鹰只是不替它背书。**没有**顺手补 qwen3.6-plus /
   /// qwen3.6-max —— 模型总表里已经查不到任何 `qwen3.6-*` 条目，凭命名规律推出来的 id 塞进下拉，
   /// 用户选中就是一个 400。
   static let qwenModels = [

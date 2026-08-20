@@ -174,7 +174,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
 
   func applicationDidBecomeActive(_ notification: Notification) {
     // 授权后补装（2026-07-26）：启动时 AX 未授权则 tap 缺席，事后授权不会自动送达任何事件，
-    // 录制热键在 Chromium/Electron 宿主失灵直到注销。用户去系统设置授权后切回法墨窗口的
+    // 录制热键在 Chromium/Electron 宿主失灵直到注销。用户去系统设置授权后切回猫头鹰窗口的
     // 瞬间（设置页徽章翻绿的同一事件）补一次；已装时首行 guard 直接返回，零开销。
     hotKeyTap.startIfPossible()
   }
@@ -216,7 +216,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   /// 「重置用户词典…」(#37)：整目录备份 `*.userdb` → 删除 → 重新部署，Rime 重建空库。
   /// 返回给「维护与诊断」卡状态行的文案。
   ///
-  /// 顺序是硬约束，不是风格选择：userdb 的 LevelDB 被**法墨自己这个进程**独占锁着
+  /// 顺序是硬约束，不是风格选择：userdb 的 LevelDB 被**猫头鹰自己这个进程**独占锁着
   /// （2026-07-25 实测，外部 `rime_dict_manager -e` 报 `Error opening db read-only`），
   /// 所以必须先 `finalize()` 放锁才删得动。`deploy()` 已经在跑同一条
   /// shutdownRime → startRime(fullCheck:) → loadSettings 的路，这里只是在中间插入删除。
@@ -690,7 +690,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     center.getNotificationSettings { settings in
       if (settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional) && settings.alertSetting == .enabled {
         let content = UNMutableNotificationContent()
-        content.title = "法墨输入法"
+        content.title = "猫头鹰输入法"
         if let msgText = msgText {
           content.subtitle = msgText
         }
@@ -743,7 +743,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     owlTraits.setCString(OwlApp.userDir.path, to: \.user_data_dir)
     owlTraits.setCString(OwlApp.logDir.path, to: \.log_dir)
     owlTraits.setCString("Owltype", to: \.distribution_code_name)
-    owlTraits.setCString("法墨输入法", to: \.distribution_name)
+    owlTraits.setCString("猫头鹰输入法", to: \.distribution_name)
     owlTraits.setCString(Bundle.main.object(forInfoDictionaryKey: kCFBundleVersionKey as String) as! String, to: \.distribution_version)
     owlTraits.setCString(OwlRimeIdentity.appName, to: \.app_name)
     engine.setup(&owlTraits)
@@ -751,7 +751,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
 
   /// ADR-0004 cycle 3: on first run, seed Owltype's OWN `user_data_dir`
   /// (`~/Library/Application Support/Owltype`) from the bundled `SharedSupport/_user_seed`
-  /// (`*.custom.yaml` selecting the 法墨 schema_list / 深大红 / 法学 opt-in), so the next
+  /// (`*.custom.yaml` selecting the 猫头鹰 schema_list / 深大红 / 法学 opt-in), so the next
   /// `deploy()` compiles them against the bundled rime-ice + 五笔 shared data. Idempotent
   /// via a version marker; never overwrites a file the user already has. Writes ONLY to
   /// Owltype's own dir — never the user's `~/Library/Rime` (ADR-0004).
@@ -954,7 +954,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     // 授权后补装 tap 的第二保险（第一保险=applicationDidBecomeActive）：TCC 辅助功能表变更时
     // 系统会广播这条 DNC（未文档化、10.9 起稳定，alt-tab 等在用）。任何 app 的授权变化都触发、
     // 无 payload——只当「该重查一次」的信号用，让用户在系统设置里勾上开关的瞬间 tap 就位，
-    // 不必切回法墨窗口。通知名将来若失效，无声退化为 didBecomeActive 补装，无副作用。
+    // 不必切回猫头鹰窗口。通知名将来若失效，无声退化为 didBecomeActive 补装，无副作用。
     notifCenter.addObserver(self, selector: #selector(accessibilityAPIChanged(_:)), name: .init("com.apple.accessibility.api"), object: nil, suspensionBehavior: .deliverImmediately)
     notifCenter.addObserver(forName: .init(kTISNotifySelectedKeyboardInputSourceChanged as String), object: nil, queue: .main) { [weak self] _ in
       self?.finalizeStrandedComposition()

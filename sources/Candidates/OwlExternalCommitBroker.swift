@@ -1,6 +1,6 @@
 //
 //  OwlExternalCommitBroker.swift
-//  法墨输入法 (Owltype) — P0 bypass candidate infrastructure (spec P0-05)
+//  猫头鹰输入法 (Owltype) — P0 bypass candidate infrastructure (spec P0-05)
 //
 //  The ONLY sanctioned path for an asynchronous smart-lane candidate to reach the document.
 //  Async enhancement services (T1 local) must NEVER call setMarkedText / insertText

@@ -1,6 +1,6 @@
 //
 //  OwlSettingsView.swift
-//  法墨输入法 (Owltype) — SwiftUI settings window
+//  猫头鹰输入法 (Owltype) — SwiftUI settings window
 //
 //  v0.3: the settings UI as a sidebar-nav app (NavigationSplitView, 豆包/微信-style).
 //  Left = a List of user-facing pages (键盘输入 / 候选窗外观 / AI 配置 / 关于); right = grouped
@@ -131,7 +131,7 @@ struct OwlSettingsView: View {
 
   private var sidebarHeader: some View {
     VStack(alignment: .leading, spacing: 2) {
-      Text("法墨输入法")
+      Text("猫头鹰输入法")
         .font(.system(size: 16, weight: .bold))
         .foregroundStyle(palette.ink)
       Text("Owltype")

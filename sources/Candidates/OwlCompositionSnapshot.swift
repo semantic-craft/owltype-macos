@@ -1,6 +1,6 @@
 //
 //  OwlCompositionSnapshot.swift
-//  法墨输入法 (Owltype) — P0 bypass candidate infrastructure (spec P0-01)
+//  猫头鹰输入法 (Owltype) — P0 bypass candidate infrastructure (spec P0-01)
 //
 //  An IMMUTABLE, value-type snapshot of one composition state, copied off the IMK hot
 //  path AFTER librime + the candidate UI have already updated. It carries everything the

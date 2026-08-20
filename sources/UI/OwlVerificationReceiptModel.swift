@@ -1,6 +1,6 @@
 //
 //  OwlVerificationReceiptModel.swift
-//  法墨输入法 (Owltype) — 核验回执卡状态模型 (issue #135, 方案三「朱印」)
+//  猫头鹰输入法 (Owltype) — 核验回执卡状态模型 (issue #135, 方案三「朱印」)
 //
 //  回执卡的全部可测逻辑：锚点准入（案号闸）、单锚点核验状态机（待核→核验中→绿/橙/红）、
 //  批量动作、跳库路由打开 + 剪贴板纪律 + 逐字 toast、键盘焦点、回执文本拼装。
@@ -299,7 +299,7 @@ final class OwlVerificationReceiptModel: ObservableObject {
   }
 
   func receiptText() -> String {
-    var lines: [String] = ["法墨核验回执 · \(Self.timestamp(completedAt ?? now()))"]
+    var lines: [String] = ["猫头鹰核验回执 · \(Self.timestamp(completedAt ?? now()))"]
     let quote = OwlVerificationQueryRouter.normalizeSelection(selectedText)
     lines.append("引文：「\(quote)」")
     for anchor in anchors {

@@ -17,7 +17,7 @@ enum OwlInputMenuTitles {
   static let resetUserDict = "重置用户词典…"
   static let syncDirectory = "设置同步目录..."
   static let onboarding = "欢迎与引导…"
-  static let rimeConfig = "打开法墨配置目录…"
+  static let rimeConfig = "打开猫头鹰配置目录…"
   static let logs = "查看诊断日志…"
   static let logoutRelogin = "注销并重新登录…"
 

@@ -1,6 +1,6 @@
 //
 //  OwlPanelInsertionBroker.swift
-//  法墨输入法 (Owltype) — panel focus capture / restore
+//  猫头鹰输入法 (Owltype) — panel focus capture / restore
 //
 //  The non-activating picker panels (quick-send, prompt fill sheet) must hand focus back to the
 //  host document BEFORE inserting, and must NEVER call `NSApp.activate` (that deactivates Owltype and

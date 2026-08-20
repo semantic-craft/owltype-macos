@@ -1,6 +1,6 @@
 //
 //  OwlBertTokenizer.swift
-//  法墨输入法 (Owltype) — 退格 LM 纠错 · 端上 CSC tokenizer (task 06-22-backspace-typo-correction)
+//  猫头鹰输入法 (Owltype) — 退格 LM 纠错 · 端上 CSC tokenizer (task 06-22-backspace-typo-correction)
 //
 //  A pure-Swift Chinese BERT WordPiece tokenizer shared by the on-device CSC scorer
 //  (`OwlMacbertCscScorer`). No model, no I/O on the hot path: the vocab is INJECTED at init (the

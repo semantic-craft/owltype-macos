@@ -1,6 +1,6 @@
 //
 //  OwlCandidatePanelGeometry.swift
-//  法墨输入法 (Owltype) — resolved candidate-panel geometry
+//  猫头鹰输入法 (Owltype) — resolved candidate-panel geometry
 //
 
 import CoreGraphics

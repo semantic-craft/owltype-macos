@@ -1,6 +1,6 @@
 //
 //  OwlVerificationRouting.swift
-//  法墨输入法 (Owltype) — 来源核验跳库深链核心 (issue #133)
+//  猫头鹰输入法 (Owltype) — 来源核验跳库深链核心 (issue #133)
 //
 //  1:1 移植自 Responsay `ResponsayCore/LegalBrain/Verification/VerificationQueryRouter.swift`
 //  + `SelectionVerifyClipboard.swift` + `Security/ExternalLinkPolicy.swift`（体验对齐要求，

@@ -1,6 +1,6 @@
 //
 //  OwlCandidateStore.swift
-//  法墨输入法 (Owltype) — P0 bypass candidate infrastructure (spec P0-03)
+//  猫头鹰输入法 (Owltype) — P0 bypass candidate infrastructure (spec P0-03)
 //
 //  The MainActor container behind the two-lane candidate UI:
 //    - main  : Rime's authoritative candidates (set elsewhere; untouched here in P0).

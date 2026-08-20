@@ -1,6 +1,6 @@
 //
 //  OwlSelectionPolish.swift
-//  法墨输入法 (Owltype) — B4 选中润色 (selected-text polish → clipboard)
+//  猫头鹰输入法 (Owltype) — B4 选中润色 (selected-text polish → clipboard)
 //
 //  ⚠️ PRIVACY ⚠️
 //  B4 deliberately sends the user's SELECTED DOCUMENT TEXT to the cloud provider. That is

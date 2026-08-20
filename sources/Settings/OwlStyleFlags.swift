@@ -1,6 +1,6 @@
 //
 //  OwlStyleFlags.swift
-//  法墨输入法 (Owltype) — Rime `style/*` layout flags (not theming)
+//  猫头鹰输入法 (Owltype) — Rime `style/*` layout flags (not theming)
 //
 //  The candidate-window LAYOUT flags the IMK path needs from Rime config:
 //    linear / vertical → which Rime options the hot path (`processKey`) syncs;

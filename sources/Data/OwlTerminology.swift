@@ -1,6 +1,6 @@
 //
 //  OwlTerminology.swift
-//  法墨输入法 (Owltype) — 术语锁 (Terminology Lock, blueprint_v2 P0 pillar, task 06-20-owl-terminology-lock)
+//  猫头鹰输入法 (Owltype) — 术语锁 (Terminology Lock, blueprint_v2 P0 pillar, task 06-20-owl-terminology-lock)
 //
 //  Project-level terminology rules: a preferred term, its allowed variants, and forbidden
 //  variants. Built ON the just-landed 项目输入空间 (`OwlProject` / `OwlProjectStore`) — terminology

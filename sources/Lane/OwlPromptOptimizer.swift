@@ -1,6 +1,6 @@
 //
 //  OwlPromptOptimizer.swift
-//  法墨输入法 (Owltype) — 提示词优化技能 (issue #138)
+//  猫头鹰输入法 (Owltype) — 提示词优化技能 (issue #138)
 //
 //  把草稿提示词重写成符合 Anthropic Fable 5 提示词工程指南的规范提示词。
 //

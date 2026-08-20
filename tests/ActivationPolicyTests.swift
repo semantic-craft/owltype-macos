@@ -55,7 +55,7 @@ final class ActivationPolicyTests: XCTestCase {
     let text = OwlInstaller.activationGuidanceText(for: .hans)
     XCTAssertTrue(text.contains("系统设置"))
     XCTAssertTrue(text.contains("编辑"))
-    XCTAssertTrue(text.contains("法墨"))
+    XCTAssertTrue(text.contains("猫头鹰"))
     // The recovery path must be the System Settings input-source list, NOT a `defaults read` of
     // AppleEnabledInputSources — that plist omits third-party IMEs on macOS 15/26 and misleads.
     XCTAssertFalse(text.contains("defaults read com.apple.HIToolbox AppleEnabledInputSources"))
@@ -103,7 +103,7 @@ final class ActivationPolicyTests: XCTestCase {
   // —— 做什么（plan）与结果怎么翻译（result）。UI 文案第三个纯函数一并钉住。
 
   func testMakeDefaultPlanEnablesAndSelectsPrimaryWhenNothingEnabled() {
-    // 一个法墨模式都没启用：回落 primary（简体），由 select(mode:) 顺手 enable 再 select。
+    // 一个猫头鹰模式都没启用：回落 primary（简体），由 select(mode:) 顺手 enable 再 select。
     let plan = OwlInstaller.makeDefaultPlan(enabledModes: [], currentSourceID: "com.apple.keylayout.ABC")
     XCTAssertEqual(plan, .select(OwlInstaller.InputMode.primary))
   }
@@ -190,7 +190,7 @@ final class ActivationPolicyTests: XCTestCase {
     enabled: Bool = false, selected: Bool = false
   ) -> TISSourceState {
     TISSourceState(
-      id: id, bundleID: OwlInstaller.inputSourcePrefix, localizedName: "法墨输入法",
+      id: id, bundleID: OwlInstaller.inputSourcePrefix, localizedName: "猫头鹰输入法",
       enableCapable: enableCapable, selectCapable: selectCapable, enabled: enabled, selected: selected)
   }
 

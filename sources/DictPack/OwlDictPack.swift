@@ -85,7 +85,7 @@ enum OwlDictPackPreferences {
   /// 静默自动拉取开关. Key `"OwlDictPackAutoFetch"`, default **`false`**.
   ///
   /// 默认从 true 改为 false（知情同意改版）：完整词库来自第三方开源项目，为避免版权争议不随包
-  /// 分发，也不应由法墨替用户静默下载——改为弹窗说明缘由、用户点「同意并下载」后才拉。
+  /// 分发，也不应由猫头鹰替用户静默下载——改为弹窗说明缘由、用户点「同意并下载」后才拉。
   /// 打开此开关＝用户显式授权免提示自动拉取（高级用法，无 UI，`defaults write` 可设）。
   static var autoFetch: Bool {
     get { OwlDefaults.standard.bool(forKey: "OwlDictPackAutoFetch") }

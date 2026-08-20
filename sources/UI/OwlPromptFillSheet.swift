@@ -1,6 +1,6 @@
 //
 //  OwlPromptFillSheet.swift
-//  法墨输入法 (Owltype) — 提示词填空 sheet（R4）
+//  猫头鹰输入法 (Owltype) — 提示词填空 sheet（R4）
 //
 //  当一条命中的提示词正文含 `{{变量}}` 时，控制器在提交拦截处调 `present(entry:onComplete:)` 弹出
 //  本 sheet：每个变量一栏，用户填值后 [插入]/Enter → 回调带回 `OwlPromptVariables.substitute`

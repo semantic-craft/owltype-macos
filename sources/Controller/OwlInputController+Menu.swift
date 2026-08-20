@@ -118,7 +118,7 @@ extension OwlInputController {
     NSApp.owlAppDelegate.showSettings(selectedPage: .clipboard)
   }
 
-  // Global-hotkey matcher (#118): called from `handle()` for every keyDown while 法墨 is the
+  // Global-hotkey matcher (#118): called from `handle()` for every keyDown while 猫头鹰 is the
   // active IME — the ONLY hotkey path (Carbon registration is banned; it consumes the combo
   // system-wide without ever delivering in this IMK process). Consumes and triggers when the
   // event equals the 快捷短语面板 / 划词菜单 / 提示词助手 combo.

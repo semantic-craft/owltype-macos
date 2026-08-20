@@ -317,7 +317,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     let dir = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: dir) }
 
-    let entry = try OwlQuickSendStore.entry(text: "法墨测试短语", code: "fmcs")
+    let entry = try OwlQuickSendStore.entry(text: "猫头鹰测试短语", code: "mtycs")
     try OwlQuickSendStore.save(
       [entry],
       writer: OwlConfigWriter(rimeDir: dir),
@@ -329,9 +329,9 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
       encoding: .utf8
     )
     XCTAssertTrue(phraseFile.contains("#@/db_name\towl_quick_send"))
-    XCTAssertTrue(phraseFile.contains("法墨测试短语\tfmcs\t100000"))
-    XCTAssertFalse(phraseFile.contains("`fmcs"))
-    XCTAssertFalse(phraseFile.contains("\tvfmcs\t"))
+    XCTAssertTrue(phraseFile.contains("猫头鹰测试短语\tmtycs\t100000"))
+    XCTAssertFalse(phraseFile.contains("`mtycs"))
+    XCTAssertFalse(phraseFile.contains("\tvmtycs\t"))
 
     let rimeIce = try String(
       contentsOf: dir.appendingPathComponent("rime_ice.custom.yaml"),
@@ -351,7 +351,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
 
   func testQuickSendStoreRejectsUnsafeEntries() {
     XCTAssertThrowsError(try OwlQuickSendStore.entry(text: "bad\ttext", code: "fm"))
-    XCTAssertThrowsError(try OwlQuickSendStore.entry(text: "法墨", code: "bad:key"))
+    XCTAssertThrowsError(try OwlQuickSendStore.entry(text: "猫头鹰", code: "bad:key"))
   }
 
   func testConfigWriterAllowsManagedLawFormsLuaFile() throws {
@@ -565,14 +565,14 @@ final class OwlInputSourceDisplayTests: XCTestCase {
   func testOwltypeInputSourceDisplayIsBranded() {
     XCTAssertEqual(
       OwlInstaller.currentInputSourceDisplayName(for: "im.owltype.inputmethod.Owltype.Hans"),
-      "法墨输入法（im.owltype.inputmethod.Owltype.Hans）"
+      "猫头鹰输入法（im.owltype.inputmethod.Owltype.Hans）"
     )
   }
 
   func testSquirrelInputSourceDisplayWarnsItIsNotOwltype() {
     XCTAssertEqual(
       OwlInstaller.currentInputSourceDisplayName(for: "im.rime.inputmethod.Squirrel.Hans"),
-      "Squirrel（im.rime.inputmethod.Squirrel.Hans，当前不是法墨）"
+      "Squirrel（im.rime.inputmethod.Squirrel.Hans，当前不是猫头鹰）"
     )
   }
 

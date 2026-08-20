@@ -1,6 +1,6 @@
 //
 //  OwlOnboardingWindow.swift
-//  法墨输入法 (Owltype) — SwiftUI onboarding / welcome window
+//  猫头鹰输入法 (Owltype) — SwiftUI onboarding / welcome window
 //
 //  v0.3.3: a 豆包-style first-run welcome window — a standard titled NSWindow
 //  hosting `OwlOnboardingView` via NSHostingView. Shown on first launch and
@@ -40,7 +40,7 @@ final class OwlOnboardingWindow: NSWindowController {
       backing: .buffered,
       defer: false
     )
-    window.title = NSLocalizedString("欢迎使用法墨输入法", comment: "Owltype onboarding window title")
+    window.title = NSLocalizedString("欢迎使用猫头鹰输入法", comment: "Owltype onboarding window title")
     window.isReleasedWhenClosed = false
     window.center()
     super.init(window: window)

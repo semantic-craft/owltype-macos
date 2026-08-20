@@ -1,6 +1,6 @@
 //
 //  OwlAutoPair.swift
-//  法墨输入法 (Owltype) — 自动配对括号 pure decision layer (task 07-02)
+//  猫头鹰输入法 (Owltype) — 自动配对括号 pure decision layer (task 07-02)
 //
 //  中文模式下 commit 单个开括号 → 补全整对并把光标移到中间（对齐搜狗「标点配对」）；
 //  commit 单个闭括号且光标右侧已是同一闭括号 → skip-over 跳过不重复插入。

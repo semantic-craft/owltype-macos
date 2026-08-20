@@ -1,6 +1,6 @@
 //
 //  OwlSettingsComponents.swift
-//  法墨输入法 (Owltype) — SwiftUI settings window
+//  猫头鹰输入法 (Owltype) — SwiftUI settings window
 //
 //  Reusable card kit for the sidebar-nav settings window, refreshed to the Claude Design
 //  settings handoff visual: lighter cards floating on a darker window with a 1px hairline

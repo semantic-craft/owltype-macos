@@ -1,6 +1,6 @@
 //
 //  OwlWritePreviewSheet.swift
-//  法墨输入法 (Owltype) — settings: 写入改动预览 (dry-run) sheet
+//  猫头鹰输入法 (Owltype) — settings: 写入改动预览 (dry-run) sheet
 //
 //  v0.5 (OwlConfigWriter UI hook): a dry-run preview of what the managed-block merge
 //  would write into Owltype's own `~/Library/Application Support/Owltype`. Builds
@@ -111,7 +111,7 @@ struct OwlWritePreviewSheet: View {
       Text("预览写入改动 · dry-run（未写入磁盘）")
         .font(.system(size: 15, weight: .semibold))
         .foregroundStyle(palette.ink)
-      Text("以下是把法墨「托管块」合并进 ~/Library/Application Support/Owltype 后该文件的样子（不触碰系统 Rime 目录，只替换 OWL MANAGED 标记内的块）。当前仅预览，未写入、未应用配置。")
+      Text("以下是把猫头鹰「托管块」合并进 ~/Library/Application Support/Owltype 后该文件的样子（不触碰系统 Rime 目录，只替换 OWL MANAGED 标记内的块）。当前仅预览，未写入、未应用配置。")
         .font(.system(size: 12))
         .foregroundStyle(palette.ink3)
         .fixedSize(horizontal: false, vertical: true)

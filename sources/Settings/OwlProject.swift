@@ -1,6 +1,6 @@
 //
 //  OwlProject.swift
-//  法墨输入法 (Owltype) — 项目输入空间 (blueprint_v2 P0 pillar, task 06-20-owl-project-input-space)
+//  猫头鹰输入法 (Owltype) — 项目输入空间 (blueprint_v2 P0 pillar, task 06-20-owl-project-input-space)
 //
 //  Pure value model for a single "项目" (project) input space: a named bundle of project
 //  words + simple abbreviation expansions the user organizes their input context around.

@@ -1,6 +1,6 @@
 //
 //  OwlFuzzyPreferences.swift
-//  法墨输入法 (Owltype) — 模糊拼音 (fuzzy-pinyin) settings preferences
+//  猫头鹰输入法 (Owltype) — 模糊拼音 (fuzzy-pinyin) settings preferences
 //
 //  v0.3.5: the 模糊拼音 sub-settings shown via the 「设置…」 sheet on the 键盘输入 page
 //  (the 豆包 reference's 模糊拼音 row). Nine common fuzzy-sound toggles (zh=z / ch=c /

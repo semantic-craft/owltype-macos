@@ -1,6 +1,6 @@
 //
 //  OwlVerificationReceiptCard.swift
-//  法墨输入法 (Owltype) — 核验回执卡渲染 (issue #135, 方案三「朱印」HIG 定稿)
+//  猫头鹰输入法 (Owltype) — 核验回执卡渲染 (issue #135, 方案三「朱印」HIG 定稿)
 //
 //  纯渲染层：NSPanel + SwiftUI 按原型 HIG 标注绘制（卡宽 460 / 圆角 12 / 内距 16 /
 //  印章 56×56 · 2.5pt 描边 / 行高 24 / 图标钮 24×24 / 按钮高 22 / SF Mono 11 徽标）。
@@ -239,7 +239,7 @@ struct OwlVerificationReceiptView: View {
     }
   }
 
-  /// 印鉴方章 56×56：2×2「法墨核讫」，未核灰、已核朱红；已核后点击复制回执。
+  /// 印鉴方章 56×56：2×2「猫头鹰核讫」，未核灰、已核朱红；已核后点击复制回执。
   private var sealView: some View {
     let active = model.hasOutcome && !model.isBusy
     let color = active ? palette.accent : palette.ink3

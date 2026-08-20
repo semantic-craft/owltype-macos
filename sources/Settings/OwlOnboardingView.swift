@@ -1,6 +1,6 @@
 //
 //  OwlOnboardingView.swift
-//  法墨输入法 (Owltype) — SwiftUI onboarding / welcome window
+//  猫头鹰输入法 (Owltype) — SwiftUI onboarding / welcome window
 //
 //  Visual spec: the Claude Design "Owltype Onboarding" handoff (claude.ai/design) — the
 //  default two-column layout (accent illustration left, content right) with a numbered
@@ -184,13 +184,13 @@ struct OwlOnboardingView: View {
   }
 
   private var title: String {
-    ["欢迎使用法墨", "完整词库", "启用法墨输入法", "选择输入方案", "配置已就绪"][step]
+    ["欢迎使用猫头鹰", "完整词库", "启用猫头鹰输入法", "选择输入方案", "配置已就绪"][step]
   }
   private var desc: String {
     [
       "现代、本地、为简体中文而生的开源输入法 —— 由 RIME / librime 驱动，词库与按键都在你掌心。",
-      "法墨只内置自建的清洁室精简词库。五笔、简体拼音、小鹤双拼等方案的词库来自第三方开源项目（雾凇拼音 rime-ice、极点五笔86）—— 为避免版权争议，法墨不随安装包分发它们，也不会在你不知情的情况下替你下载。",
-      "打开「系统设置 → 键盘 → 输入法」，在列表中勾选「法墨」即可。点下方按钮可直达设置面板。",
+      "猫头鹰只内置自建的清洁室精简词库。五笔、简体拼音、小鹤双拼等方案的词库来自第三方开源项目（雾凇拼音 rime-ice、极点五笔86）—— 为避免版权争议，猫头鹰不随安装包分发它们，也不会在你不知情的情况下替你下载。",
+      "打开「系统设置 → 键盘 → 输入法」，在列表中勾选「猫头鹰」即可。点下方按钮可直达设置面板。",
       "挑一个方案先用起来，随时能在设置里增删与切换。推荐从拼音开始。",
       "还有几件事值得知道 —— 启用后随时能在设置里调整。"
     ][step]
@@ -221,7 +221,7 @@ struct OwlOnboardingView: View {
         chevron
         breadcrumb("键盘", accent: false)
         chevron
-        breadcrumb("输入法 → 法墨", accent: true)
+        breadcrumb("输入法 → 猫头鹰", accent: true)
       }
       .padding(.horizontal, 15)
       .padding(.vertical, 13)
@@ -232,7 +232,7 @@ struct OwlOnboardingView: View {
         Image(systemName: owlEnabled ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
           .font(.system(size: 16))
           .foregroundStyle(owlEnabled ? Color.green : palette.ink3)
-        Text(owlEnabled ? "已启用 —— 法墨已出现在输入法列表" : "未启用 —— 尚未在输入法列表中勾选")
+        Text(owlEnabled ? "已启用 —— 猫头鹰已出现在输入法列表" : "未启用 —— 尚未在输入法列表中勾选")
           .font(.system(size: 13))
           .foregroundStyle(owlEnabled ? palette.ink : palette.ink3)
         Spacer(minLength: 8)
@@ -241,7 +241,7 @@ struct OwlOnboardingView: View {
           .font(.system(size: 12, weight: .medium))
           .foregroundStyle(palette.accent)
       }
-      Text("若 macOS 弹出允许「Owltype」启用「法墨输入法」的确认框，请在该弹窗点 Allow。若右上角已显示法墨但不能打字，请到输入法编辑列表先移除法墨，再重新添加。")
+      Text("若 macOS 弹出允许「Owltype」启用「猫头鹰输入法」的确认框，请在该弹窗点 Allow。若右上角已显示猫头鹰但不能打字，请到输入法编辑列表先移除猫头鹰，再重新添加。")
         .font(.system(size: 12))
         .foregroundStyle(palette.ink3)
         .fixedSize(horizontal: false, vertical: true)
@@ -331,7 +331,7 @@ struct OwlOnboardingView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background { RoundedRectangle(cornerRadius: 11, style: .continuous).fill(palette.card2) }
       Text(needsDictConsent
-        ? "同意后，法墨会从这些项目的官方仓库按固定版本获取（约 90 MB）并逐文件校验，完成后自动编译启用。下载在后台进行，你可以继续下面的步骤。选「以后再说」也不影响使用，之后随时能在「设置 → 键盘输入 → 完整词库」里下载。"
+        ? "同意后，猫头鹰会从这些项目的官方仓库按固定版本获取（约 90 MB）并逐文件校验，完成后自动编译启用。下载在后台进行，你可以继续下面的步骤。选「以后再说」也不影响使用，之后随时能在「设置 → 键盘输入 → 完整词库」里下载。"
         : "词库按固定版本从上游原仓库（雾凇拼音 / 极点五笔 / 八股文语法模型）下载并逐文件校验，中途退出或注销会自动续传，完成后自动编译生效。等待期间可以先看下一步。")
         .font(.system(size: 12))
         .foregroundStyle(palette.ink3)
@@ -446,12 +446,12 @@ struct OwlOnboardingView: View {
 
   private var doneContent: some View {
     VStack(alignment: .leading, spacing: 12) {
-      onboardingTip(icon: "keyboard", text: "去菜单栏输入法图标切到「法墨」，才能开始打字。")
+      onboardingTip(icon: "keyboard", text: "去菜单栏输入法图标切到「猫头鹰」，才能开始打字。")
       onboardingTip(icon: "paintpalette", text: "皮肤可在 设置 → 皮肤外观 里换。")
       onboardingTip(icon: "doc.text", text: "短语/提示词面板的唤起热键可在 设置 → 快捷键设置 里录制，内容在 设置 → 提示词 里管理。")
       // 与更新注销提示线（OwlUpdateLogoutPrompt）同一口径：更新后的权威动作是「注销并重新
       // 登录」（1.4.6 定论），不是旧的「退出重开＋菜单栏重选」。
-      onboardingTip(icon: "arrow.triangle.2.circlepath", text: "自动更新完成后，法墨会建议你「注销并重新登录」——照做即可，系统会完整刷新输入法，避免法墨从菜单消失或打不出字。")
+      onboardingTip(icon: "arrow.triangle.2.circlepath", text: "自动更新完成后，猫头鹰会建议你「注销并重新登录」——照做即可，系统会完整刷新输入法，避免猫头鹰从菜单消失或打不出字。")
     }
   }
 
@@ -603,7 +603,7 @@ struct OwlOnboardingView: View {
       illustrationGlyph
       VStack {
         Spacer()
-        Text("法墨 · OWL")
+        Text("猫头鹰 · OWLTYPE")
           .font(.system(size: 12, weight: .medium))
           .tracking(2)
           .foregroundStyle(palette.onAccent.opacity(0.6))

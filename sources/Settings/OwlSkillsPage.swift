@@ -1,6 +1,6 @@
 //
 //  OwlSkillsPage.swift
-//  法墨输入法 (Owltype) — 划词工具箱页 (Skills) settings page + 辅助功能授权
+//  猫头鹰输入法 (Owltype) — 划词工具箱页 (Skills) settings page + 辅助功能授权
 //
 //  Boundary (ADR-0001 / 0002 / 0003): SwiftUI settings UI only; not @MainActor-isolated.
 //

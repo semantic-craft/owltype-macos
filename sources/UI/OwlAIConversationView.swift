@@ -1,6 +1,6 @@
 //
 //  OwlAIConversationView.swift
-//  法墨输入法 (Owltype) — AI conversation window SwiftUI view (roadmap B10, v1)
+//  猫头鹰输入法 (Owltype) — AI conversation window SwiftUI view (roadmap B10, v1)
 //
 //  The chat surface hosted by `OwlAIWindow`. First screen IS the usable chat UI (not settings /
 //  marketing): a captured-context quote, a provider-route seal, the conversation flow, a composer,
@@ -109,7 +109,7 @@ struct OwlAIConversationView: View {
     VStack(alignment: .leading, spacing: 8) {
       HStack(alignment: .firstTextBaseline, spacing: 8) {
         VStack(alignment: .leading, spacing: 2) {
-          Text(NSLocalizedString("法墨", comment: "AI window kicker"))
+          Text(NSLocalizedString("猫头鹰", comment: "AI window kicker"))
             .font(.system(size: 10, weight: .bold))
             .tracking(3)
             .foregroundColor(palette.ink3)

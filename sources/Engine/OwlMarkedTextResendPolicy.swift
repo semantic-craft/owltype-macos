@@ -8,7 +8,7 @@
 //  恒定内容场景（no_inline 的常量全角空格、inline candidate 退格后首候选不变）首键后每键
 //  对客户端整轮静默 → Chromium omnibox 只认「本次 keyDown 栈内是否发生过 NSTextInputClient
 //  调用」（`_hasUnhandledKeyDownEvent`），静默回合按键被重派为原始键 → 原始退格遇合成文本
-//  `TextfieldModel::Backspace → CancelCompositionText` 整段清除（squirrel#906，法墨 trace 实证）。
+//  `TextfieldModel::Backspace → CancelCompositionText` 整段清除（squirrel#906，猫头鹰 trace 实证）。
 //
 //  修法 = fcitx5-macos 契约（docs/chromium-omnibox-ime-prior-art.md §2.2）：每个被 rime 消费
 //  的按键都无条件重发 setMarkedText——**内容去重不复存在**。唯一保留的短路是「空→空」：

@@ -534,7 +534,7 @@ final class OwlSettingsActionTests: XCTestCase {
     state.keyboardCJKEnglishSpacing = false
     state.keyboardCJKNumberSpacing = false
     state.keyboardCJKAlnumSpacing = false
-    XCTAssertEqual(OwlCommitTransform.apply(to: "法墨AI第3条"), "法墨AI第3条")
+    XCTAssertEqual(OwlCommitTransform.apply(to: "猫头鹰AI第3条"), "猫头鹰AI第3条")
 
     // Legacy migration: either old spacing key makes the new single runtime switch ON.
     OwlKeyboardPreferences.cjkEnglishSpacing = true
@@ -553,7 +553,7 @@ final class OwlSettingsActionTests: XCTestCase {
     XCTAssertTrue(state.keyboardCJKEnglishSpacing)
     XCTAssertTrue(state.keyboardCJKNumberSpacing)
     // Live: the cached flag is read immediately by the next commit transform — no deploy.
-    XCTAssertEqual(OwlCommitTransform.apply(to: "法墨AI"), "法墨 AI")
+    XCTAssertEqual(OwlCommitTransform.apply(to: "猫头鹰AI"), "猫头鹰 AI")
     XCTAssertEqual(OwlCommitTransform.apply(to: "第3条"), "第 3 条")
 
     // The apply/redeploy spy was NEVER invoked by any Owltype-side toggle above.

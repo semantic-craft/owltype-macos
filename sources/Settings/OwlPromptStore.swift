@@ -1,6 +1,6 @@
 //
 //  OwlPromptStore.swift
-//  法墨输入法 (Owltype) — 提示词（prompt）存储 + 校验 + 变量引擎（R2 无关的纯逻辑地基）
+//  猫头鹰输入法 (Owltype) — 提示词（prompt）存储 + 校验 + 变量引擎（R2 无关的纯逻辑地基）
 //
 //  提示词是「快捷短语」的 sibling 特性：同样用触发码调出，但正文长 / 多行 / 可含 `{{变量}}`，
 //  放不进单行的 Rime 候选条，所以正文走**独立的 JSON 存储**（source of truth），不与 quick-send

@@ -7,19 +7,19 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Famo"
+            "value" : "Owltype"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "法墨输入法"
+            "value" : "猫头鹰输入法"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "法墨輸入法"
+            "value" : "貓頭鷹輸入法"
           }
         }
       }
@@ -31,88 +31,88 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Famo"
+            "value" : "Owltype"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "法墨输入法"
+            "value" : "猫头鹰输入法"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "法墨輸入法"
+            "value" : "貓頭鷹輸入法"
           }
         }
       }
     },
-    "im.famo.inputmethod.Famo" : {
+    "im.owltype.inputmethod.Owltype" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Famo"
+            "value" : "Owltype"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "法墨输入法"
+            "value" : "猫头鹰输入法"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "法墨輸入法"
+            "value" : "貓頭鷹輸入法"
           }
         }
       }
     },
-    "im.famo.inputmethod.Famo.Hans" : {
+    "im.owltype.inputmethod.Owltype.Hans" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "法墨输入法"
+            "value" : "猫头鹰输入法"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "法墨输入法"
+            "value" : "猫头鹰输入法"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "法墨输入法"
+            "value" : "猫头鹰输入法"
           }
         }
       }
     },
-    "im.famo.inputmethod.Famo.Hant" : {
+    "im.owltype.inputmethod.Owltype.Hant" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "法墨輸入法"
+            "value" : "貓頭鷹輸入法"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "法墨輸入法"
+            "value" : "貓頭鷹輸入法"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "法墨輸入法"
+            "value" : "貓頭鷹輸入法"
           }
         }
       }

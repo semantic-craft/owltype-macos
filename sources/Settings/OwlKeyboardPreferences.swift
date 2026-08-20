@@ -1,6 +1,6 @@
 //
 //  OwlKeyboardPreferences.swift
-//  法墨输入法 (Owltype) — 键盘输入 settings preferences
+//  猫头鹰输入法 (Owltype) — 键盘输入 settings preferences
 //
 //  v0.3.1: the option-group choices shown on the 键盘输入 page (输入方式 / 中英文切换
 //  / 翻页键 / 快速选词 / 符号). Persisted in UserDefaults (Owltype-namespaced), mirroring
@@ -260,7 +260,7 @@ enum OwlKeyboardPreferences {
   }
 
   /// 记住我常用的词（个性化）. Key `"OwlKeyboardWubiUserDictLearning"`, default `false`.
-  /// Rime mapping: `translator/enable_user_dict: true`（词频学习；userdb 由引擎自建自管，法墨写入层不碰）.
+  /// Rime mapping: `translator/enable_user_dict: true`（词频学习；userdb 由引擎自建自管，猫头鹰写入层不碰）.
   static var wubiUserDictLearning: Bool {
     get { boolValue("OwlKeyboardWubiUserDictLearning", default: false) }
     set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiUserDictLearning") }
@@ -354,7 +354,7 @@ enum OwlKeyboardPreferences {
   // MARK: - 符号
 
   /// 输入中文时 "/" 弹出符号选单（、/／÷）。Key `"OwlKeyboardSlashSymbolMenu"`,
-  /// default `false`：关闭时维持法墨的编程便利行为——裸 `/` 提交当前中文候选、切到英文并
+  /// default `false`：关闭时维持猫头鹰的编程便利行为——裸 `/` 提交当前中文候选、切到英文并
   /// 输出 ASCII `/`；打开后前端不再抢占该键，交给 Rime punctuator 显示候选。
   /// Runtime reads the cached value on the key-event hot path; the generated default patch supplies
   /// both half/full-shape candidate lists.

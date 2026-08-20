@@ -1,6 +1,6 @@
 //
 //  OwlSkinPage.swift
-//  法墨输入法 (Owltype) — 皮肤外观 (Skin) settings page
+//  猫头鹰输入法 (Owltype) — 皮肤外观 (Skin) settings page
 //
 //  Boundary (ADR-0001 / 0002 / 0003): SwiftUI settings UI only; not @MainActor-isolated.
 //

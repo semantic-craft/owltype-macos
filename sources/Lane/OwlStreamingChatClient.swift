@@ -1,6 +1,6 @@
 //
 //  OwlStreamingChatClient.swift
-//  法墨输入法 (Owltype) — OpenAI-compatible STREAMING chat transport (roadmap B9, streaming half)
+//  猫头鹰输入法 (Owltype) — OpenAI-compatible STREAMING chat transport (roadmap B9, streaming half)
 //
 //  This is the token-by-token transport the B10 AI conversation window will consume. Owltype's
 //  existing provider stack (OwlDeepSeekCloudLane) is request/response only (`stream: false`,

@@ -1,6 +1,6 @@
 //
 //  OwlWebSearch.swift
-//  法墨输入法 (Owltype) — 任意提问的「先检索、再作答」搜索层
+//  猫头鹰输入法 (Owltype) — 任意提问的「先检索、再作答」搜索层
 //
 //  与 `OwlSearchControl` 的分工（两者并存，不是重复）：
 //    - `OwlSearchControl` 走的是**模型内置**的联网工具（方舟/百炼 Responses `web_search`
@@ -134,7 +134,7 @@ enum OwlDoubaoGlobalSearchWire {
       "Query": query,
       "DocCount": min(max(limit, 1), maxDocCount),
       "MaxSnippetLength": 800,
-      // 法墨的回答窗是纯文本，图片段解析时就丢掉了。但**这里不能填 0**：文档写的是「传入值 > 0 时
+      // 猫头鹰的回答窗是纯文本，图片段解析时就丢掉了。但**这里不能填 0**：文档写的是「传入值 > 0 时
       // 生效」，0 会被当成没传而落回默认的 3 张/条（2026-07-27 实测：0 与不传都拿到 4 个图片段，
       // 填 1 才降到 2 个）。所以取 1 —— 这是「关不掉的情况下最省的那档」。
       "MaxImageCountPerDoc": 1,
@@ -229,7 +229,7 @@ struct OwlDoubaoGlobalSearchClient: OwlWebSearching {
 /// 国内站点覆盖好、`open.feedcoopapi.com` 国内直连、每账号每月 500 次免费；Perplexity 英文内容强、
 /// 支持域名/时效过滤，但 `api.perplexity.ai` 在国内多半要代理、且没有免费额度；通义千问复用你已经有的
 /// 百炼 Key（不用再开一个搜索账号），代价是它的来源**不带正文摘要**——见 `OwlDashScopeSearchWire`。
-/// 法墨是中文输入法，所以默认豆包，另外两家作为可选项。
+/// 猫头鹰是中文输入法，所以默认豆包，另外两家作为可选项。
 enum OwlWebSearchBackend: String, CaseIterable, Hashable, Sendable {
   case doubaoGlobal = "doubao"
   /// 阿里云百炼（通义千问）。国内第二档，排在 Perplexity 前面。

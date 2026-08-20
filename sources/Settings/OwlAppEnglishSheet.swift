@@ -1,6 +1,6 @@
 //
 //  OwlAppEnglishSheet.swift
-//  法墨输入法 (Owltype) — 指定「应用」默认使用英文 管理面板
+//  猫头鹰输入法 (Owltype) — 指定「应用」默认使用英文 管理面板
 //
 //  The 「管理…」 sheet opened from the 键盘输入 page's app-default-English card. Replaces
 //  the old comma-separated bundle-ID TextField with a WeChat-style picker: a list of

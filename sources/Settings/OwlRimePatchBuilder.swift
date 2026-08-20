@@ -1,6 +1,6 @@
 //
 //  OwlRimePatchBuilder.swift
-//  法墨输入法 (Owltype) — Rime patch generators (default.custom.yaml + rime_ice.custom.yaml)
+//  猫头鹰输入法 (Owltype) — Rime patch generators (default.custom.yaml + rime_ice.custom.yaml)
 //
 //  v0.3.2: turn the 键盘输入 choices (persisted in `OwlKeyboardPreferences`) into a
 //  copyable patch string, shown in a preview sheet with a 复制 button. THIS FILE is PURE
@@ -155,8 +155,8 @@ func owlDefaultCustomYAML(from s: OwlKeyboardSnapshot) -> String {
   var lines: [String] = []
 
   // Header — always present, states the draft + verification boundary.
-  lines.append("# 法墨生成（草案）— 应用前请真机验证")
-    lines.append("# 写入 ~/Library/Application Support/Owltype/default.custom.yaml 后需在法墨设置里「应用配置改动」")
+  lines.append("# 猫头鹰生成（草案）— 应用前请真机验证")
+    lines.append("# 写入 ~/Library/Application Support/Owltype/default.custom.yaml 后需在猫头鹰设置里「应用配置改动」")
   lines.append("patch:")
 
   // MARK: - 默认方案顺序 — live `schema_list` (Q5).
@@ -269,8 +269,8 @@ func owlDefaultCustomYAML(from s: OwlKeyboardSnapshot) -> String {
 /// Owltype wrote before (same self-clearing contract as `owlRimeIceCustomYAML`).
 func owlAppOptionsCustomYAML(from s: OwlKeyboardSnapshot) -> String {
   var lines: [String] = []
-  lines.append("# 法墨生成（草案）— 应用前请真机验证")
-  lines.append("# 写入 ~/Library/Application Support/Owltype/owltype.custom.yaml 后需在法墨设置里「应用配置改动」")
+  lines.append("# 猫头鹰生成（草案）— 应用前请真机验证")
+  lines.append("# 写入 ~/Library/Application Support/Owltype/owltype.custom.yaml 后需在猫头鹰设置里「应用配置改动」")
   lines.append("patch:")
 
   let appEnglishBundleIDs = OwlKeyboardPreferences.normalizedAppEnglishBundleIDs(
@@ -300,8 +300,8 @@ func owlRimeIceCustomYAML(from s: OwlKeyboardSnapshot) -> String {
 
   // Header — names the target file + the 全拼方案级（模糊音）scope.
   lines.append("# rime_ice.custom.yaml — 雾凇全拼方案级（模糊音）")
-  lines.append("# 法墨生成（草案）— 应用前请真机验证")
-    lines.append("# 写入 ~/Library/Application Support/Owltype/rime_ice.custom.yaml 后需在法墨设置里「应用配置改动」")
+  lines.append("# 猫头鹰生成（草案）— 应用前请真机验证")
+    lines.append("# 写入 ~/Library/Application Support/Owltype/rime_ice.custom.yaml 后需在猫头鹰设置里「应用配置改动」")
 
   // MARK: - 模糊拼音 (v0.3.5) — live `speller/algebra/+` derives, gated by each pair.
   // The derive rules themselves are standard rime; what is UNCERTAIN is the append
@@ -327,8 +327,8 @@ func owlWubiCustomYAML(from s: OwlKeyboardSnapshot, target: OwlWubiPatchTarget) 
   var lines: [String] = []
 
   lines.append("# \(target.fileName) — \(target.displayName) 方案级")
-  lines.append("# 法墨生成（草案）— 应用前请真机验证")
-  lines.append("# 写入 ~/Library/Application Support/Owltype/\(target.fileName) 后需在法墨设置里「应用配置改动」")
+  lines.append("# 猫头鹰生成（草案）— 应用前请真机验证")
+  lines.append("# 写入 ~/Library/Application Support/Owltype/\(target.fileName) 后需在猫头鹰设置里「应用配置改动」")
   lines.append("patch:")
 
   // 五笔 schema 使用 `import_preset: default`，但快速部署 default.yaml 不会让已经编译的五笔
@@ -372,7 +372,7 @@ func owlWubiCustomYAML(from s: OwlKeyboardSnapshot, target: OwlWubiPatchTarget) 
   }
 
   if s.wubiUserDictLearning {
-    lines.append("  # 个性化：记住你常用的词并按你的词频重排（user_dict）。userdb 由引擎自建自管，法墨不碰。")
+    lines.append("  # 个性化：记住你常用的词并按你的词频重排（user_dict）。userdb 由引擎自建自管，猫头鹰不碰。")
     lines.append("  \"translator/enable_user_dict\": true")
   }
 
@@ -460,7 +460,7 @@ private func fuzzyAlgebraDerives(from f: OwlFuzzySnapshot) -> [String] {
 private func slashSymbolMenuPatchLines(from s: OwlKeyboardSnapshot) -> [String] {
   guard s.slashSymbolMenu else { return [] }
   return [
-    "  # 符号：/ 弹出候选（、 ASCII/ 全角／ ÷）；关闭本开关时法墨改为切英文并直接输出 /",
+    "  # 符号：/ 弹出候选（、 ASCII/ 全角／ ÷）；关闭本开关时猫头鹰改为切英文并直接输出 /",
     "  \"punctuator/half_shape/+\":",
     "    \"/\": [\"、\", \"/\", \"／\", \"÷\"]",
     "  \"punctuator/full_shape/+\":",

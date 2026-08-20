@@ -1,6 +1,6 @@
 //
 //  OwlCloudFoundation.swift
-//  法墨输入法 (Owltype) — shared cloud foundation (preferences / Keychain / routing / wire types)
+//  猫头鹰输入法 (Owltype) — shared cloud foundation (preferences / Keychain / routing / wire types)
 //
 //  The common base every explicit cloud-AI feature builds on: 划词润色、提示词优化、流式聊天、
 //  AI 对话窗. P1-lite boundary: the cloud is NEVER an always-on decoder and never sees 逐键

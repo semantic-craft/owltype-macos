@@ -1,6 +1,6 @@
 //
 //  OwlConfigWriter.swift
-//  法墨输入法 (Owltype) — Rime 配置写入层（托管块 + 备份 + manifest + 回滚）
+//  猫头鹰输入法 (Owltype) — Rime 配置写入层（托管块 + 备份 + manifest + 回滚）
 //
 //  v0.5 (OwlConfigWriter, ChatGPT Pro 回包 Q13 / spec `owl-rime-config-law.md` 写入层):
 //  把 `OwlRimePatchBuilder` 生成的 patch 文本 **安全** 地写进 Owltype 自己的 user_data_dir。策略
@@ -160,8 +160,8 @@ final class OwlConfigWriter {
 
   // MARK: - 白名单（spec 写入层 / 回包 Q13）
 
-  /// **可由法墨管理** 的文件。`apply` 只应被这些文件名调用（UI 侧约束）；列在这里也是
-  /// 文档化的「法墨托管面」。两个 custom.yaml 用托管块合并，其余由生成器整文件产出。
+  /// **可由猫头鹰管理** 的文件。`apply` 只应被这些文件名调用（UI 侧约束）；列在这里也是
+  /// 文档化的「猫头鹰托管面」。两个 custom.yaml 用托管块合并，其余由生成器整文件产出。
   static let owlManagedFiles: Set<String> = [
     "default.custom.yaml",       // 托管块：键位 / 翻页 / 标点 / schema_list
     "owltype.custom.yaml",          // 托管块：per-app app_options（owltype 域，getAppOptions 实读）
@@ -621,9 +621,9 @@ func owlConfigWriterSelfCheck() {
   }
 
   // managedBlock(fromGeneratedYAML:): 头部 # 行与 patch: 行被丢，块内键保留。
-  let gen = "# 法墨生成（草案）\n# 写入说明\npatch:\n  \"menu/page_size\": 8\n"
+  let gen = "# 猫头鹰生成（草案）\n# 写入说明\npatch:\n  \"menu/page_size\": 8\n"
   let mb = OwlConfigWriter.managedBlock(fromGeneratedYAML: gen, marker: marker)
-  assert(!mb.yamlLinesIndentedUnderPatch.contains(where: { $0.contains("法墨生成") }),
+  assert(!mb.yamlLinesIndentedUnderPatch.contains(where: { $0.contains("猫头鹰生成") }),
          "Owltype config writer: header leaked into managed block")
   assert(mb.yamlLinesIndentedUnderPatch.contains(where: { $0.contains("menu/page_size") }),
          "Owltype config writer: lost body line from generated YAML")

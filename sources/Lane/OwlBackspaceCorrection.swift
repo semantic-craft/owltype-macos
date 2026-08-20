@@ -1,6 +1,6 @@
 //
 //  OwlBackspaceCorrection.swift
-//  法墨输入法 (Owltype) — 退格 LM 纠错钩子 (task 06-22-backspace-typo-correction)
+//  猫头鹰输入法 (Owltype) — 退格 LM 纠错钩子 (task 06-22-backspace-typo-correction)
 //
 //  PURE, deterministic, model-free trigger + candidate-shaping for the backspace-after-conversion
 //  Chinese spelling-correction (CSC) hook. Inspired by azooKey's

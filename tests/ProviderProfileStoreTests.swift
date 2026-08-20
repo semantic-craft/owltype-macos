@@ -319,7 +319,7 @@ final class ProviderProfileStoreTests: XCTestCase {
 
     // 语义已反转（2026-07-31 百炼全面转 Responses）：来源核验能力属于**平台**而非型号。此前这里
     // 断言的是「非 qwen 型号降级为辅助检索」——那道降级正是旧 chat 回退的一部分，已随之拆掉。
-    // 型号真不被 Responses 服务时由上游 400 说话，比法墨先替阿里猜一个型号白名单更贴近真相。
+    // 型号真不被 Responses 服务时由上游 400 说话，比猫头鹰先替阿里猜一个型号白名单更贴近真相。
     let nonQwenOnDashScope = OwlProviderProfile(
       displayName: "百炼托管 DeepSeek",
       endpoint: URL(string: OwlLLMProviderCatalog.qwenResponsesEndpoint)!,
@@ -331,7 +331,7 @@ final class ProviderProfileStoreTests: XCTestCase {
       "百炼整体走 Responses，来源核验能力不按型号名降级")
   }
 
-  /// 百炼一家给一串型号（别家只给一个）：阿里的迭代比法墨发版快，下拉里只出现一个会让人以为
+  /// 百炼一家给一串型号（别家只给一个）：阿里的迭代比猫头鹰发版快，下拉里只出现一个会让人以为
   /// 「只能用这个」。三条不变式：默认值必须在清单里（选不到默认值很怪）且是 `qwen3.7-plus`
   /// （2026-07-31 产品决定的默认基线）；清单只列产品正式支持的 Plus/Max 两档——Flash 不再作为
   /// 内置推荐（手输或「拉取最新」仍可用）；不许出现阿里模型总表查不到的 `qwen3.6-plus` /

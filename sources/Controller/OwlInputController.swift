@@ -122,7 +122,7 @@ final class OwlInputController: IMKInputController {
     }
     ensurePreferredSchemaForIdleSession()
 
-    // 全局热键的唯一路径（#118）: 快捷短语面板与划词菜单召唤只在法墨为活跃输入法时有意义 —— 此时
+    // 全局热键的唯一路径（#118）: 快捷短语面板与划词菜单召唤只在猫头鹰为活跃输入法时有意义 —— 此时
     // 每个 keyDown 本来就流经这里，直接匹配。绝不可回退到 Carbon RegisterEventHotKey：在本 IMK
     // 进程它注册返回 noErr 后窗口服务器会全局吞掉该组合，但事件永不进程内派发（真机实证）——
     // 热键不响应，还把组合键从所有应用（包括本匹配器）手里偷走。

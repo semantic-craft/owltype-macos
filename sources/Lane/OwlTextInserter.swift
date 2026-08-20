@@ -1,6 +1,6 @@
 //
 //  OwlTextInserter.swift
-//  法墨输入法 (Owltype) — 技能输出回填插入（Vulcan 多策略兜底）
+//  猫头鹰输入法 (Owltype) — 技能输出回填插入（Vulcan 多策略兜底）
 //
 //  技能输出（划词润色/公文排版改写）回填目标 App 时，AX 写回失败（微信/部分 Chromium 选区只读）就自动兜底：
 //    梯子：AX 写回 → 模拟 ⌘V 粘贴 → 仅剪贴板。按 App(bundleID) 记忆上次成功策略（Vulcan 缓存）。

@@ -1,6 +1,6 @@
 //
 //  OwlQuickSendPage.swift
-//  法墨输入法 (Owltype) — 快捷短语 (Quick Send) settings page + store
+//  猫头鹰输入法 (Owltype) — 快捷短语 (Quick Send) settings page + store
 //
 //  Boundary (ADR-0001 / 0002 / 0003): SwiftUI settings UI only; not @MainActor-isolated.
 //
@@ -203,7 +203,7 @@ enum OwlQuickSendStore {
       "# coding: utf-8",
       "#@/db_name\towl_quick_send",
       "#@/db_type\ttabledb",
-      "# Owltype quick-send phrases. Managed by 法墨输入法 settings.",
+      "# Owltype quick-send phrases. Managed by 猫头鹰输入法 settings.",
       "# 触发：打全短语码，短语置顶。",
       "",
     ]
@@ -295,7 +295,7 @@ struct OwlQuickSendPage: View {
       VStack(alignment: .leading, spacing: 12) {
         TextField("短语", text: $phrase)
           .textFieldStyle(.roundedBorder)
-        TextField("编码，如 fm 或 fmcs", text: $code)
+        TextField("编码，如 mty 或 mtycs", text: $code)
           .textFieldStyle(.roundedBorder)
         HStack(spacing: 10) {
           Button(action: saveEntry) {

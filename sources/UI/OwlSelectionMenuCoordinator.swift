@@ -1,6 +1,6 @@
 //
 //  OwlSelectionMenuCoordinator.swift
-//  法墨输入法 (Owltype) — 划词工具箱 (selection toolbox)
+//  猫头鹰输入法 (Owltype) — 划词工具箱 (selection toolbox)
 //
 //  2026-07-26 工具箱重设计：「选中即自动弹出小菜单」整条管线已删（0.30s 停留、每次划选后的
 //  AX 读、dismissedText/代数计数那套消失状态机都是它的陪葬）。现在唯一的打开方式是明确手势——

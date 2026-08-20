@@ -126,7 +126,7 @@ final class OwlSettingsE2EContractTests: XCTestCase {
       XCTAssertTrue(patch.contains("\"/\": [\"、\", \"/\", \"／\", \"÷\"]"), name)
     }
 
-    XCTAssertEqual(OwlCommitTransform.apply(to: "法墨AI第3条"), "法墨 AI 第 3 条")
+    XCTAssertEqual(OwlCommitTransform.apply(to: "猫头鹰AI第3条"), "猫头鹰 AI 第 3 条")
     XCTAssertEqual(OwlCommitTransform.apply(to: "1. 第一项\n"), "1. 第一项\n")
   }
 
@@ -160,7 +160,7 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
     defer { defaults.removePersistentDomain(forName: suiteName) }
 
-    let quickEntry = try OwlQuickSendStore.entry(text: "法墨测试", code: "fmcs")
+    let quickEntry = try OwlQuickSendStore.entry(text: "猫头鹰测试", code: "mtycs")
     try OwlQuickSendStore.save(
       [quickEntry],
       writer: OwlConfigWriter(rimeDir: rimeDir),
@@ -169,8 +169,8 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     // load reads the JSON source of truth: exactly the saved entries. The derived table carries
     // the same bare code (no prefix — ` collides with rime-ice's radical-search lead key).
     XCTAssertEqual(OwlQuickSendStore.load(rimeDir: rimeDir), [quickEntry])
-    XCTAssertTrue(try read("owl_quick_send.txt", in: rimeDir).contains("法墨测试\tfmcs\t100000"))
-    XCTAssertFalse(try read("owl_quick_send.txt", in: rimeDir).contains("`fmcs"))
+    XCTAssertTrue(try read("owl_quick_send.txt", in: rimeDir).contains("猫头鹰测试\tmtycs\t100000"))
+    XCTAssertFalse(try read("owl_quick_send.txt", in: rimeDir).contains("`mtycs"))
     XCTAssertTrue(try read("rime_ice.custom.yaml", in: rimeDir).contains("table_translator@owl_quick_send"))
 
     XCTAssertFalse(OwlClipboardStore.isEnabled(defaults: defaults))

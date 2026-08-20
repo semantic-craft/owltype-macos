@@ -1,6 +1,6 @@
 //
 //  OwlAIConversationModel.swift
-//  法墨输入法 (Owltype) — AI conversation window view model (roadmap B10, v1)
+//  猫头鹰输入法 (Owltype) — AI conversation window view model (roadmap B10, v1)
 //
 //  The `@MainActor` state machine behind `OwlAIWindow`. It keeps only user-explicit text,
 //  reports 任意提问 readiness, assembles messages via `OwlAIContextAssembler`, and consumes a

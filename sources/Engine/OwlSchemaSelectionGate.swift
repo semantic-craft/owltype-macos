@@ -1,6 +1,6 @@
 //
 //  OwlSchemaSelectionGate.swift
-//  法墨输入法 (Owltype) — 方案 select 尝试/退避的纯决策 (task 07-07-schema-consistency-guard)
+//  猫头鹰输入法 (Owltype) — 方案 select 尝试/退避的纯决策 (task 07-07-schema-consistency-guard)
 //
 //  librime `select_schema` can fail (the target `build/<id>.schema.yaml` isn't compiled — e.g. a
 //  stale seed, or a schema the user picked before its config was deployed). Two controller paths

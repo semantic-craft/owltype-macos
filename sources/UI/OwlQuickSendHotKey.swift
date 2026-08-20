@@ -1,6 +1,6 @@
 //
 //  OwlQuickSendHotKey.swift
-//  法墨输入法 (Owltype) — 全局唤起热键（快捷短语面板 PR3 + 划词菜单召唤）
+//  猫头鹰输入法 (Owltype) — 全局唤起热键（快捷短语面板 PR3 + 划词菜单召唤）
 //
 //  Both 快捷短语面板 and 划词菜单 use the SAME shape: a user-RECORDED combo inside a restricted range
 //  (`OwlRecordedHotKey` + `OwlHotKeySlot` + the shared recorder row below), default OFF — a global
@@ -15,7 +15,7 @@
 //  GetEventDispatcherTarget, with persisted register/fire logging). Net effect: the hotkey does
 //  nothing AND the combo is stolen from every app — including our own IMK-path matcher below.
 //
-//  The working design: both features only matter while 法墨 is the ACTIVE input source (panel needs
+//  The working design: both features only matter while 猫头鹰 is the ACTIVE input source (panel needs
 //  `activeInputController`, 划词召唤 no-ops otherwise) — and in that state every keyDown already
 //  flows through `OwlInputController.handle()`. `OwlHotKeyMatcher` matches the combos there;
 //  no registration, no extra permissions, no reapply choreography (combos are read live).
@@ -223,7 +223,7 @@ enum OwlHotKeyMatcher {
 /// the IMK matcher remains the fallback for cooperative hosts; with the tap active, matched combos
 /// are consumed at session level and never reach the IME, so the two paths cannot double-fire.
 ///
-/// Consumption rule: a matched combo is consumed ONLY while 法墨 is the current input source
+/// Consumption rule: a matched combo is consumed ONLY while 猫头鹰 is the current input source
 /// (per-match TIS check, not per-keystroke) — with another IME active it passes through untouched
 /// instead of being stolen system-wide (the retired Carbon registration's sin, #118).
 final class OwlHotKeyEventTap {

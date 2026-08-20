@@ -61,7 +61,7 @@ final class InstallerActivationPolicyTests: XCTestCase {
   }
 
   func testStaleCurrentSourceWithoutInstallIsCleanInstallAndStillParks() {
-    // (F,F,T) 幽灵残留：TIS 说当前源是法墨，但 bundle/进程都无 → 按干净首装 enable；
+    // (F,F,T) 幽灵残留：TIS 说当前源是猫头鹰，但 bundle/进程都无 → 按干净首装 enable；
     // 定律 12 只看「当前源」信号，替换前照样先切出 ABC，装完配对切回。
     let plan = InstallerActivationPolicy.plan(
       bundlePreexisted: false, owltypeProcessWasRunning: false, owltypeWasCurrentSource: true)
@@ -293,7 +293,7 @@ final class InstallerActivationPolicyTests: XCTestCase {
       bundlePreexisted: true, owltypeProcessWasRunning: false, owltypeWasCurrentSource: false)
     let text = InstallerActivationPolicy.successText(plan: plan)
     XCTAssertTrue(text.contains("更新"))
-    XCTAssertFalse(text.contains("选择「法墨」"), "更新不改用户的输入法选择，不该引导去选")
+    XCTAssertFalse(text.contains("选择「猫头鹰」"), "更新不改用户的输入法选择，不该引导去选")
   }
 
   func testNeedsLogoutTextGuidesLogoutAndNeverClaimsSuccess() {

@@ -1,6 +1,6 @@
 //
 //  OwlKeyboardPage.swift
-//  法墨输入法 (Owltype) — 键盘输入 settings page
+//  猫头鹰输入法 (Owltype) — 键盘输入 settings page
 //
 //  v0.3.1: the input-method option groups (输入方式 / 中英文切换 / 候选翻页快捷键 /
 //  候选快速选词 / 符号), modeled on the 豆包输入法 reference. Built from the shared
@@ -217,7 +217,7 @@ struct OwlKeyboardPage: View {
             Image(systemName: "checkmark.circle")
               .font(.system(size: 13))
               .foregroundStyle(OwlProvenanceColor.verified)
-            Text("检测到自备完整词库（不由法墨管理，不会被覆盖）")
+            Text("检测到自备完整词库（不由猫头鹰管理，不会被覆盖）")
               .font(.system(size: 12, weight: .medium))
               .foregroundStyle(palette.ink3)
             Spacer(minLength: 8)

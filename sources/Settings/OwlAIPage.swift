@@ -1,6 +1,6 @@
 //
 //  OwlAIPage.swift
-//  法墨输入法 (Owltype) — AI 配置 (provider) settings page
+//  猫头鹰输入法 (Owltype) — AI 配置 (provider) settings page
 //
 //  Boundary (ADR-0001 / 0002 / 0003): SwiftUI settings UI only; not @MainActor-isolated.
 //

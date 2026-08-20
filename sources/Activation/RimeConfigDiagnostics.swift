@@ -1,6 +1,6 @@
 //
 //  RimeConfigDiagnostics.swift
-//  法墨输入法 (Owltype) — schema 配置一致性只读诊断 (task 07-07-schema-consistency-guard)
+//  猫头鹰输入法 (Owltype) — schema 配置一致性只读诊断 (task 07-07-schema-consistency-guard)
 //
 //  `--diagnose-rime-config` reports whether the schema the app will `select_schema` at runtime
 //  (`OwlKeyboardPreferences.preferredSchemaID`) is actually reachable across the four layers that
@@ -11,7 +11,7 @@
 //      → user build    (~/Library/Application Support/Owltype/build 是否已编译 <preferred>)
 //      → user schema_list (default.custom.yaml 的 schema_list 是否列 <preferred>)
 //      → shadow        (用户目录是否有完整 default.yaml 遮蔽共享层)
-//      → foreignDir    (建议：~/Library/Rime 是系统 Rime/Squirrel 目录，法墨按 ADR-0004 不读它)
+//      → foreignDir    (建议：~/Library/Rime 是系统 Rime/Squirrel 目录，猫头鹰按 ADR-0004 不读它)
 //
 //  Mirrors `OwlTISDiagnostics`: a PURE classifier over synthetic value inputs (unit-tested with no
 //  IO) + an impure `buildReport()` shell that does the filesystem reads. Read-only — never mutates
@@ -60,17 +60,17 @@ enum OwlRimeConfigDiagnostics {
     "OWL-SCHEMA-002": "当前方案尚未在用户目录编译。",
     "OWL-SCHEMA-003": "随附种子不含当前方案（安装物陈旧）。",
     "OWL-SCHEMA-004": "用户目录存在遮蔽共享层的 default.yaml。",
-    "OWL-SCHEMA-005": "检测到系统 Rime 目录（非法墨所用）。",
+    "OWL-SCHEMA-005": "检测到系统 Rime 目录（非猫头鹰所用）。",
   ]
 
   /// Short remediation line per code (condensed).
   static func actionText(for code: String) -> String {
     switch code {
     case "OWL-SCHEMA-001": return "用户 default.custom.yaml 的 schema_list 不含当前拼音方案 —— 在设置里「应用配置改动」重写 schema_list 并重部署。"
-    case "OWL-SCHEMA-002": return "用户 build/ 未编译当前方案 —— 启动法墨部署一次，或在设置里「应用配置改动」触发 build。"
+    case "OWL-SCHEMA-002": return "用户 build/ 未编译当前方案 —— 启动猫头鹰部署一次，或在设置里「应用配置改动」触发 build。"
     case "OWL-SCHEMA-003": return "随附种子（SharedSupport）不含当前方案，多为陈旧构建 —— 重跑 make owl-seed 后重装。"
-    case "OWL-SCHEMA-004": return "用户目录的 default.yaml 会遮蔽共享层 —— 删除它，法墨只用 default.custom.yaml 打补丁。"
-    case "OWL-SCHEMA-005": return "~/Library/Rime 是系统 Rime/Squirrel 目录，法墨不读它（用 ~/Library/Application Support/Owltype）—— 勿把它当法墨配置排查。"
+    case "OWL-SCHEMA-004": return "用户目录的 default.yaml 会遮蔽共享层 —— 删除它，猫头鹰只用 default.custom.yaml 打补丁。"
+    case "OWL-SCHEMA-005": return "~/Library/Rime 是系统 Rime/Squirrel 目录，猫头鹰不读它（用 ~/Library/Application Support/Owltype）—— 勿把它当猫头鹰配置排查。"
     default: return userMessage[code] ?? code
     }
   }
@@ -122,8 +122,8 @@ enum OwlRimeConfigDiagnostics {
     let foreignDetail: String
     if o.foreignRimeDirPresent {
       let has = o.foreignRimeHasPreferred == true
-      foreignDetail = "检测到 ~/Library/Rime（系统 Rime/Squirrel 目录，非法墨所用；法墨用 ~/Library/Application Support/Owltype）"
-        + (has ? "；其 schema_list 恰含 \(preferred)，勿据此误判" : "；其 schema_list 不含 \(preferred)，与法墨无关")
+      foreignDetail = "检测到 ~/Library/Rime（系统 Rime/Squirrel 目录，非猫头鹰所用；猫头鹰用 ~/Library/Application Support/Owltype）"
+        + (has ? "；其 schema_list 恰含 \(preferred)，勿据此误判" : "；其 schema_list 不含 \(preferred)，与猫头鹰无关")
     } else {
       foreignDetail = "无 ~/Library/Rime（无系统 Rime 目录混淆源）"
     }

@@ -1,6 +1,6 @@
 //
 //  OwlHostCaretAnchorMemory.swift
-//  法墨输入法 (Owltype) — host-scoped last-good caret anchor
+//  猫头鹰输入法 (Owltype) — host-scoped last-good caret anchor
 //
 //  The `previous` half of the B3 anchor cascade (`OwlCandidateAnchor.resolve`), given an owner.
 //  When a host hands back a junk caret rect the cascade falls back to the last known-good anchor;

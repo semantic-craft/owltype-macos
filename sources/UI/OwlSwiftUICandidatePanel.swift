@@ -1,6 +1,6 @@
 //
 //  OwlSwiftUICandidatePanel.swift
-//  法墨输入法 (Owltype) — SwiftUI candidate panel
+//  猫头鹰输入法 (Owltype) — SwiftUI candidate panel
 //
 //  A non-activating NSPanel hosting the SwiftUI candidate view. This is the SOLE
 //  candidate renderer (the legacy AppKit OwlPanel was retired when SwiftUI became

@@ -1,6 +1,6 @@
 //
 //  OwlForcedFinalize.swift
-//  法墨输入法 (Owltype) — 宿主强制 finalize 落字决策 (task 07-07-pinyin-backspace-delete-all)
+//  猫头鹰输入法 (Owltype) — 宿主强制 finalize 落字决策 (task 07-07-pinyin-backspace-delete-all)
 //
 //  When a host (notably Chromium omnibox — Chrome/Edge) unilaterally ends the composition,
 //  macOS calls `commitComposition`. Stock Squirrel commits the RAW input (`rime.input()`),

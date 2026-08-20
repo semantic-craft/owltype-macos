@@ -49,7 +49,7 @@ final class OwlGetAppOptionsRoundTripTests: XCTestCase {
     // `owlAppOptionsCustomYAML` output: a `patch:` root carrying per-app app_options in
     // the OWLTYPE domain (base = owltype.yaml, patch = owltype.custom.yaml).
     let customYAML = """
-    # 法墨 test fixture — getAppOptions 真 librime 往返回归测试 (task 07-11)
+    # 猫头鹰 test fixture — getAppOptions 真 librime 往返回归测试 (task 07-11)
     patch:
       "app_options/\(testBundleID)/ascii_mode": true
     """

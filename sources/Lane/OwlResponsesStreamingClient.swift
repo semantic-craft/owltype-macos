@@ -1,6 +1,6 @@
 //
 //  OwlResponsesStreamingClient.swift
-//  法墨输入法 (Owltype) — `/responses` 流式传输（Qwen / 豆包 / OpenAI）
+//  猫头鹰输入法 (Owltype) — `/responses` 流式传输（Qwen / 豆包 / OpenAI）
 //
 //  `OwlStreamingChatClient` speaks `/chat/completions`, whose frames are
 //  `{"choices":[{"delta":{"content":"…"}}]}`. The Responses API is a DIFFERENT event shape:

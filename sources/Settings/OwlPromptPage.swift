@@ -1,6 +1,6 @@
 //
 //  OwlPromptPage.swift
-//  法墨输入法 (Owltype) — 提示词管理面板（R5：master-detail 设置页）
+//  猫头鹰输入法 (Owltype) — 提示词管理面板（R5：master-detail 设置页）
 //
 //  「提示词」是「快捷短语」的 sibling 特性：同样用触发码调出，但正文长 / 多行 / 可含
 //  `{{变量}}`，放不进单行的 Rime 候选条。本页只负责 R5 的管理 UI——新建 / 编辑 / 分类 /

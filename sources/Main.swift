@@ -148,7 +148,7 @@ struct OwlApp {
           return true
         case "--select-input-source":
           if args.count > 2 {
-            // 法墨自家模式走原路径；其它一律按任意系统输入源 id 精确匹配选择（如
+            // 猫头鹰自家模式走原路径；其它一律按任意系统输入源 id 精确匹配选择（如
             // com.apple.keylayout.ABC —— postinstall 更新序列在 kill 旧进程前切出用）。
             switch OwlInstaller.selectTarget(for: args[2]) {
             case .owlMode(let mode):
@@ -162,7 +162,7 @@ struct OwlApp {
           return true
         case "--current-input-source":
           // postinstall 更新序列用：打印当前系统输入源 id（只读 TIS，不改任何状态），供探测
-          // 「更新前法墨是否是当前输入法」（输出以 im.owltype.inputmethod.Owltype 开头即是）。
+          // 「更新前猫头鹰是否是当前输入法」（输出以 im.owltype.inputmethod.Owltype 开头即是）。
           print(OwlInstaller.currentInputSourceID() ?? "")
           return true
         case "--detect-activation":
@@ -176,7 +176,7 @@ struct OwlApp {
         case "--diagnose-rime-config":
           // 07-07-schema-consistency-guard: read-only schema-consistency diagnosis as JSON — prefs ↔
           // running-bundle seed ↔ user build/ ↔ user schema_list ↔ default.yaml shadow, plus a
-          // ~/Library/Rime advisory (系统 Rime 目录，法墨不读它) + OWL-SCHEMA-* codes. Never mutates
+          // ~/Library/Rime advisory (系统 Rime 目录，猫头鹰不读它) + OWL-SCHEMA-* codes. Never mutates
           // config. Honours OWL_TEST_USER_DIR so it can be pointed at a drift sample.
           let rimeConfigEncoder = JSONEncoder()
           rimeConfigEncoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]

@@ -111,7 +111,7 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "刷新",                           // 诊断页 (OwlDiagnosticsPage)：重跑 buildReport()
     "导出诊断包",                     // 诊断页：NSSavePanel 写脱敏支持包（报告 JSON + 统一日志）
     // 诊断页「当前系统输入源」行下方：enable + select，系统随即写 AppleSelectedInputSources，
-    // 下次登录恢复法墨（docs/default-input-method-plan.md §4）。这是全仓唯一允许调用
+    // 下次登录恢复猫头鹰（docs/default-input-method-plan.md §4）。这是全仓唯一允许调用
     // makeDefault() 的路径——安装/更新/启动路径复用即破坏 no-steal。action coverage 在
     // ActivationPolicyTests 的 makeDefaultPlan / makeDefaultResult / makeDefaultStatusText 断言。
     "设为系统默认输入法",
@@ -184,7 +184,7 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "记住我常用的词（个性化）",
     "短语",
     "空码自动清码",
-    "编码，如 fm 或 fmcs",
+    "编码，如 mty 或 mtycs",
     "输入中文时 “/” 弹出符号选单",
     // 「<」与「/」符号选单的 patch coverage 在 OwlKeyboardPatchBuilderTests。
     "输入中文时 “<” 弹出符号选单",

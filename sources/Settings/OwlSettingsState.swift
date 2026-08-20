@@ -1,6 +1,6 @@
 //
 //  OwlSettingsState.swift
-//  法墨输入法 (Owltype) — SwiftUI settings window
+//  猫头鹰输入法 (Owltype) — SwiftUI settings window
 //
 //  v0.2: observable state for the settings window. Purely additive UI — it only
 //  triggers already-safe delegate actions (deploy / open folders / schema switch)

@@ -1,6 +1,6 @@
 //
 //  OwlCandidatePanelState.swift
-//  法墨输入法 (Owltype) — SwiftUI candidate panel
+//  猫头鹰输入法 (Owltype) — SwiftUI candidate panel
 //
 //  This SwiftUI candidate panel renders the candidate UI only; key events, marked
 //  text, and commit stay on the native IMK hot path (OwlInputController).
