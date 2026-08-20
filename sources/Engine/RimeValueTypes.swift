@@ -1,6 +1,6 @@
 //
 //  RimeValueTypes.swift
-//  Famo
+//  Owltype
 //
 //  Plain Swift value types that cross the Rime Engine/Session seam. The Live
 //  adapters (see RimeSeam.swift) do the librime C-struct alloc → read → free
@@ -8,7 +8,7 @@
 //  `RimeStatus_stdbool` / `RimeCommit` C struct ever leaks past the protocol.
 //
 //  These carry the RAW extracted fields. Presentation logic (UTF-16 index math,
-//  inline-preview assembly) stays in `FamoInputController.rimeUpdate`, operating
+//  inline-preview assembly) stays in `OwlInputController.rimeUpdate`, operating
 //  on these value types. The seam is "talk to Rime"; "drive IMK UI" is the
 //  controller's job. See CONTEXT.md (repo root) → Composition / Status / Option.
 //

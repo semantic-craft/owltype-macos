@@ -1,10 +1,10 @@
 //
 //  ProviderProfileStoreTests.swift
-//  FamoTests — multi-provider profile foundation
+//  OwltypeTests — multi-provider profile foundation
 //  (task 06-22-famo-multi-provider-keychain-foundation, research B1+B2)
 //
 //  Locks the provider-profile foundation contracts against an isolated temp dir + an in-memory
-//  secret store (never touches the real ~/Library/Application Support/Famo or the real Keychain):
+//  secret store (never touches the real ~/Library/Application Support/Owltype or the real Keychain):
 //    1. `providers.json` CRUD round-trips, is human-readable, and carries `schemaVersion`.
 //    2. Exactly-one-default invariant across add / setDefault / delete.
 //    3. A malformed providers.json reads back as empty (no crash); missing schemaVersion defaults.
@@ -16,10 +16,10 @@
 
 import Foundation
 import XCTest
-@testable import Famo
+@testable import Owltype
 
-/// In-memory `FamoSecretStoring` for tests — upsert semantics, no Keychain.
-final class FamoInMemorySecretStore: FamoSecretStoring {
+/// In-memory `OwlSecretStoring` for tests — upsert semantics, no Keychain.
+final class OwlInMemorySecretStore: OwlSecretStoring {
   private var storage: [String: String] = [:]
   func secret(named name: String) throws -> String? { storage[name] }
   func setSecret(_ value: String, named name: String) throws { storage[name] = value }
@@ -33,7 +33,7 @@ final class ProviderProfileStoreTests: XCTestCase {
   override func setUpWithError() throws {
     try super.setUpWithError()
     tempRoot = FileManager.default.temporaryDirectory
-      .appendingPathComponent("FamoProviderStoreTests-\(UUID().uuidString)", isDirectory: true)
+      .appendingPathComponent("OwlProviderStoreTests-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
   }
 
@@ -44,16 +44,16 @@ final class ProviderProfileStoreTests: XCTestCase {
     try super.tearDownWithError()
   }
 
-  private func makeStore() -> FamoProviderProfileStore {
-    FamoProviderProfileStore(root: tempRoot)
+  private func makeStore() -> OwlProviderProfileStore {
+    OwlProviderProfileStore(root: tempRoot)
   }
 
   private func makeProfile(
     name: String,
     model: String = "deepseek-v4-flash",
     isDefault: Bool = false
-  ) -> FamoProviderProfile {
-    FamoProviderProfile(
+  ) -> OwlProviderProfile {
+    OwlProviderProfile(
       displayName: name,
       endpoint: URL(string: "https://api.deepseek.com/chat/completions")!,
       model: model,
@@ -84,7 +84,7 @@ final class ProviderProfileStoreTests: XCTestCase {
 
   func testKeyIsNeverWrittenToProvidersJSON() throws {
     let store = makeStore()
-    let secrets = FamoInMemorySecretStore()
+    let secrets = OwlInMemorySecretStore()
     let profile = try store.add(makeProfile(name: "p"))
     try secrets.setSecret("sk-super-secret-value", named: profile.secretName)
 
@@ -106,7 +106,7 @@ final class ProviderProfileStoreTests: XCTestCase {
 
     let ghost = makeProfile(name: "ghost")
     XCTAssertThrowsError(try store.update(ghost)) { error in
-      XCTAssertEqual(error as? FamoProviderError, .notFound(ghost.id))
+      XCTAssertEqual(error as? OwlProviderError, .notFound(ghost.id))
     }
   }
 
@@ -141,7 +141,7 @@ final class ProviderProfileStoreTests: XCTestCase {
     XCTAssertFalse(try XCTUnwrap(store.profile(id: first.id)).isDefault)
 
     XCTAssertThrowsError(try store.setDefault(id: "nope")) { error in
-      XCTAssertEqual(error as? FamoProviderError, .notFound("nope"))
+      XCTAssertEqual(error as? OwlProviderError, .notFound("nope"))
     }
   }
 
@@ -179,7 +179,7 @@ final class ProviderProfileStoreTests: XCTestCase {
     { "profiles": [] }
     """
     try Data(legacy.utf8).write(to: store.fileURL, options: .atomic)
-    XCTAssertEqual(store.load().schemaVersion, FamoProviderProfilesFile.currentSchemaVersion)
+    XCTAssertEqual(store.load().schemaVersion, OwlProviderProfilesFile.currentSchemaVersion)
   }
 
   func testLegacyMaxCandidatesFieldIsToleratedOnDecodeAndDroppedOnEncode() throws {
@@ -209,7 +209,7 @@ final class ProviderProfileStoreTests: XCTestCase {
   // MARK: - Secret store
 
   func testInMemorySecretStoreUpsertAndDelete() throws {
-    let secrets = FamoInMemorySecretStore()
+    let secrets = OwlInMemorySecretStore()
     XCTAssertNil(try secrets.secret(named: "famo.provider.x.apiKey"))
     try secrets.setSecret("k1", named: "famo.provider.x.apiKey")
     XCTAssertEqual(try secrets.secret(named: "famo.provider.x.apiKey"), "k1")
@@ -223,9 +223,9 @@ final class ProviderProfileStoreTests: XCTestCase {
 
   func testLegacyMigrationCreatesDefaultProfileAndCopiesKey() throws {
     let store = makeStore()
-    let secrets = FamoInMemorySecretStore()
+    let secrets = OwlInMemorySecretStore()
 
-    let migrated = try XCTUnwrap(FamoProviderMigration.migrateLegacyDeepSeekIfNeeded(
+    let migrated = try XCTUnwrap(OwlProviderMigration.migrateLegacyDeepSeekIfNeeded(
       store: store,
       secrets: secrets,
       legacyKeyReader: { "sk-legacy-deepseek" },
@@ -245,13 +245,13 @@ final class ProviderProfileStoreTests: XCTestCase {
 
   func testLegacyMigrationIsIdempotent() throws {
     let store = makeStore()
-    let secrets = FamoInMemorySecretStore()
+    let secrets = OwlInMemorySecretStore()
     let reader: () throws -> String? = { "sk-legacy-deepseek" }
 
-    let first = FamoProviderMigration.migrateLegacyDeepSeekIfNeeded(
+    let first = OwlProviderMigration.migrateLegacyDeepSeekIfNeeded(
       store: store, secrets: secrets, legacyKeyReader: reader)
     XCTAssertNotNil(first)
-    let second = FamoProviderMigration.migrateLegacyDeepSeekIfNeeded(
+    let second = OwlProviderMigration.migrateLegacyDeepSeekIfNeeded(
       store: store, secrets: secrets, legacyKeyReader: reader)
     XCTAssertNil(second, "migration must not run again once a profile exists")
     XCTAssertEqual(store.profiles().count, 1)
@@ -259,8 +259,8 @@ final class ProviderProfileStoreTests: XCTestCase {
 
   func testNoLegacyKeyMeansNoMigration() throws {
     let store = makeStore()
-    let secrets = FamoInMemorySecretStore()
-    let migrated = FamoProviderMigration.migrateLegacyDeepSeekIfNeeded(
+    let secrets = OwlInMemorySecretStore()
+    let migrated = OwlProviderMigration.migrateLegacyDeepSeekIfNeeded(
       store: store, secrets: secrets, legacyKeyReader: { nil })
     XCTAssertNil(migrated, "a fresh install with no legacy key creates no profile")
     XCTAssertTrue(store.profiles().isEmpty)
@@ -270,8 +270,8 @@ final class ProviderProfileStoreTests: XCTestCase {
 
   func testAddProviderProfileActionPersistsProfileAndKey() throws {
     let store = makeStore()
-    let secrets = FamoInMemorySecretStore()
-    let result = FamoSettingsActions.addProviderProfile(
+    let secrets = OwlInMemorySecretStore()
+    let result = OwlSettingsActions.addProviderProfile(
       displayName: " work DeepSeek ",
       endpoint: "https://api.deepseek.com/chat/completions",
       model: "deepseek-chat",
@@ -294,39 +294,39 @@ final class ProviderProfileStoreTests: XCTestCase {
   }
 
   func testLLMProviderCatalogMarksSourceSearchProvidersAndMiMoAuth() throws {
-    XCTAssertNil(FamoLLMProviderCatalog.preset(id: "zhipu"), "智谱已下架，不得再出现在预设目录里")
+    XCTAssertNil(OwlLLMProviderCatalog.preset(id: "zhipu"), "智谱已下架，不得再出现在预设目录里")
 
     let sourceCapable = ["qwen", "doubao", "mimo", "openai"]
     for id in sourceCapable {
-      let preset = try XCTUnwrap(FamoLLMProviderCatalog.preset(id: id))
+      let preset = try XCTUnwrap(OwlLLMProviderCatalog.preset(id: id))
       XCTAssertEqual(preset.sourceSupport, .sourceResults, "\(id) should support source verification")
     }
 
     let planOnly = ["deepseek", "gemini", "minimax"]
     for id in planOnly {
-      let preset = try XCTUnwrap(FamoLLMProviderCatalog.preset(id: id))
+      let preset = try XCTUnwrap(OwlLLMProviderCatalog.preset(id: id))
       XCTAssertEqual(preset.sourceSupport, .searchPlanOnly, "\(id) should not pretend to return sources")
     }
 
-    let mimo = FamoProviderProfile(
+    let mimo = OwlProviderProfile(
       displayName: "小米 MiMo",
       endpoint: URL(string: "https://api.xiaomimimo.com/v1/chat/completions")!,
       model: "mimo-v2.5",
       providerID: "mimo"
     )
-    XCTAssertEqual(FamoLLMProviderCatalog.authHeaderStyle(for: mimo), .apiKey)
-    XCTAssertEqual(FamoLLMProviderCatalog.sourceSupport(for: mimo), .sourceResults)
+    XCTAssertEqual(OwlLLMProviderCatalog.authHeaderStyle(for: mimo), .apiKey)
+    XCTAssertEqual(OwlLLMProviderCatalog.sourceSupport(for: mimo), .sourceResults)
 
     // 语义已反转（2026-07-31 百炼全面转 Responses）：来源核验能力属于**平台**而非型号。此前这里
     // 断言的是「非 qwen 型号降级为辅助检索」——那道降级正是旧 chat 回退的一部分，已随之拆掉。
     // 型号真不被 Responses 服务时由上游 400 说话，比法墨先替阿里猜一个型号白名单更贴近真相。
-    let nonQwenOnDashScope = FamoProviderProfile(
+    let nonQwenOnDashScope = OwlProviderProfile(
       displayName: "百炼托管 DeepSeek",
-      endpoint: URL(string: FamoLLMProviderCatalog.qwenResponsesEndpoint)!,
+      endpoint: URL(string: OwlLLMProviderCatalog.qwenResponsesEndpoint)!,
       model: "deepseek-v3.2",
       providerID: "qwen")
     XCTAssertEqual(
-      FamoLLMProviderCatalog.sourceSupport(for: nonQwenOnDashScope),
+      OwlLLMProviderCatalog.sourceSupport(for: nonQwenOnDashScope),
       .sourceResults,
       "百炼整体走 Responses，来源核验能力不按型号名降级")
   }
@@ -337,24 +337,24 @@ final class ProviderProfileStoreTests: XCTestCase {
   /// 内置推荐（手输或「拉取最新」仍可用）；不许出现阿里模型总表查不到的 `qwen3.6-plus` /
   /// `qwen3.6-max` 之流 —— 凭命名规律推出来的 id 被选中就是一个 400。
   func testQwenPresetOffersTheWholeCuratedListWithItsDefaultInside() throws {
-    let preset = try XCTUnwrap(FamoLLMProviderCatalog.preset(id: "qwen"))
+    let preset = try XCTUnwrap(OwlLLMProviderCatalog.preset(id: "qwen"))
     XCTAssertEqual(preset.model, "qwen3.7-plus", "默认基线是 qwen3.7-plus")
     XCTAssertEqual(
       preset.endpoint,
-      FamoLLMProviderCatalog.qwenResponsesEndpoint)
-    XCTAssertEqual(FamoLLMProviderCatalog.qwenModels.first, preset.model)
+      OwlLLMProviderCatalog.qwenResponsesEndpoint)
+    XCTAssertEqual(OwlLLMProviderCatalog.qwenModels.first, preset.model)
     XCTAssertTrue(
-      FamoLLMProviderCatalog.qwenModels.contains("qwen3.7-max"),
+      OwlLLMProviderCatalog.qwenModels.contains("qwen3.7-max"),
       "高质量档 qwen3.7-max 必须可选")
     XCTAssertEqual(
-      Set(FamoLLMProviderCatalog.qwenModels).count, FamoLLMProviderCatalog.qwenModels.count,
+      Set(OwlLLMProviderCatalog.qwenModels).count, OwlLLMProviderCatalog.qwenModels.count,
       "清单不能有重复项，下拉会出现两个一样的")
     XCTAssertFalse(
-      FamoLLMProviderCatalog.qwenModels.contains { $0.lowercased().contains("flash") },
+      OwlLLMProviderCatalog.qwenModels.contains { $0.lowercased().contains("flash") },
       "Flash 型号不再是内置推荐项（2026-07-31 产品决定）；用户手输不拦，但下拉不背书")
     for guessed in ["qwen3.6-plus", "qwen3.6-max", "qwen3.6-max-preview"] {
       XCTAssertFalse(
-        FamoLLMProviderCatalog.qwenModels.contains(guessed),
+        OwlLLMProviderCatalog.qwenModels.contains(guessed),
         "\(guessed) 在阿里云模型总表里查不到，不能凭命名规律塞进下拉")
     }
   }
@@ -362,7 +362,7 @@ final class ProviderProfileStoreTests: XCTestCase {
   /// 豆包预设 = 高质量档 doubao-seed-2-1-pro，端点直指方舟 Responses（2026-07-31 起
   /// 豆包全面走 Responses：store=false + thinking:{disabled} 均在 Responses 请求体上）。
   func testDoubaoPresetUsesProModelOnTheResponsesEndpoint() throws {
-    let preset = try XCTUnwrap(FamoLLMProviderCatalog.preset(id: "doubao"))
+    let preset = try XCTUnwrap(OwlLLMProviderCatalog.preset(id: "doubao"))
     XCTAssertEqual(preset.model, "doubao-seed-2-1-pro-260628")
     XCTAssertEqual(
       preset.endpoint,
@@ -375,11 +375,11 @@ final class ProviderProfileStoreTests: XCTestCase {
     let workspaceHost = "ws-test123abc.cn-beijing.maas.aliyuncs.com"
     let endpoint = "https://\(workspaceHost)/compatible-mode/v1/responses"
 
-    XCTAssertEqual(FamoQwenWorkspace.normalizedAPIHost(workspaceID), workspaceHost)
-    XCTAssertEqual(FamoQwenWorkspace.normalizedAPIHost(workspaceHost), workspaceHost)
-    XCTAssertEqual(FamoQwenWorkspace.normalizedAPIHost(endpoint), workspaceHost)
+    XCTAssertEqual(OwlQwenWorkspace.normalizedAPIHost(workspaceID), workspaceHost)
+    XCTAssertEqual(OwlQwenWorkspace.normalizedAPIHost(workspaceHost), workspaceHost)
+    XCTAssertEqual(OwlQwenWorkspace.normalizedAPIHost(endpoint), workspaceHost)
     XCTAssertEqual(
-      FamoQwenWorkspace.responsesEndpoint(for: workspaceID)?.absoluteString,
+      OwlQwenWorkspace.responsesEndpoint(for: workspaceID)?.absoluteString,
       endpoint)
   }
 
@@ -392,50 +392,50 @@ final class ProviderProfileStoreTests: XCTestCase {
       "ws-空间",
       "https://dashscope.aliyuncs.com/compatible-mode/v1/responses",
     ] {
-      XCTAssertNil(FamoQwenWorkspace.normalizedAPIHost(invalid), invalid)
+      XCTAssertNil(OwlQwenWorkspace.normalizedAPIHost(invalid), invalid)
     }
   }
 
   func testQwenWorkspaceSettingPersistsOnlyTheNormalizedHost() throws {
-    let suiteName = "FamoQwenWorkspaceTests-\(UUID().uuidString)"
+    let suiteName = "OwlQwenWorkspaceTests-\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
     defer { defaults.removePersistentDomain(forName: suiteName) }
 
-    XCTAssertTrue(FamoQwenWorkspaceSettings.save("ws-test123abc", defaults: defaults))
+    XCTAssertTrue(OwlQwenWorkspaceSettings.save("ws-test123abc", defaults: defaults))
     XCTAssertEqual(
-      FamoQwenWorkspaceSettings.apiHost(defaults: defaults),
+      OwlQwenWorkspaceSettings.apiHost(defaults: defaults),
       "ws-test123abc.cn-beijing.maas.aliyuncs.com")
     XCTAssertEqual(
-      FamoQwenWorkspaceSettings.responsesEndpoint(defaults: defaults).absoluteString,
+      OwlQwenWorkspaceSettings.responsesEndpoint(defaults: defaults).absoluteString,
       "https://ws-test123abc.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/responses")
 
-    XCTAssertFalse(FamoQwenWorkspaceSettings.save("workspace.example.com", defaults: defaults))
+    XCTAssertFalse(OwlQwenWorkspaceSettings.save("workspace.example.com", defaults: defaults))
     XCTAssertEqual(
-      FamoQwenWorkspaceSettings.apiHost(defaults: defaults),
+      OwlQwenWorkspaceSettings.apiHost(defaults: defaults),
       "ws-test123abc.cn-beijing.maas.aliyuncs.com",
       "invalid input must not overwrite the last usable host")
 
-    XCTAssertTrue(FamoQwenWorkspaceSettings.save("", defaults: defaults))
-    XCTAssertEqual(FamoQwenWorkspaceSettings.apiHost(defaults: defaults), "")
+    XCTAssertTrue(OwlQwenWorkspaceSettings.save("", defaults: defaults))
+    XCTAssertEqual(OwlQwenWorkspaceSettings.apiHost(defaults: defaults), "")
     XCTAssertEqual(
-      FamoQwenWorkspaceSettings.responsesEndpoint(defaults: defaults).absoluteString,
-      FamoLLMProviderCatalog.qwenResponsesEndpoint,
+      OwlQwenWorkspaceSettings.responsesEndpoint(defaults: defaults).absoluteString,
+      OwlLLMProviderCatalog.qwenResponsesEndpoint,
       "empty workspace falls back to the documented generic Responses host")
   }
 
   func testSavingQwenWorkspaceAlsoUpdatesAnExistingQwenProfileEndpoint() throws {
     let store = makeStore()
-    let profile = FamoProviderProfile(
+    let profile = OwlProviderProfile(
       displayName: "阿里云百炼",
-      endpoint: URL(string: FamoLLMProviderCatalog.qwenResponsesEndpoint)!,
+      endpoint: URL(string: OwlLLMProviderCatalog.qwenResponsesEndpoint)!,
       model: "qwen3.7-plus",
       providerID: "qwen")
     _ = try store.add(profile)
-    let suiteName = "FamoQwenWorkspaceActionTests-\(UUID().uuidString)"
+    let suiteName = "OwlQwenWorkspaceActionTests-\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
     defer { defaults.removePersistentDomain(forName: suiteName) }
 
-    let result = FamoSettingsActions.saveQwenWorkspace(
+    let result = OwlSettingsActions.saveQwenWorkspace(
       "ws-test123abc.cn-beijing.maas.aliyuncs.com",
       store: store,
       defaults: defaults)
@@ -445,7 +445,7 @@ final class ProviderProfileStoreTests: XCTestCase {
       try XCTUnwrap(store.profile(id: profile.id)).endpoint.absoluteString,
       "https://ws-test123abc.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/responses")
     XCTAssertEqual(
-      FamoQwenWorkspaceSettings.apiHost(defaults: defaults),
+      OwlQwenWorkspaceSettings.apiHost(defaults: defaults),
       "ws-test123abc.cn-beijing.maas.aliyuncs.com")
   }
 
@@ -453,60 +453,60 @@ final class ProviderProfileStoreTests: XCTestCase {
   /// 用户想不到是密钥的问题。所以只有真的调通过一次（`拉取最新`）才升到「已验证」，
   /// 而换钥匙/删钥匙都让上一次验证作废 —— 旧标记配新密钥就是假验证。
   func testKeyStatusIsVerifiedOnlyAfterARealCallAndIsInvalidatedByKeyChanges() throws {
-    FamoProviderKeyVerification.resetForTesting()
-    defer { FamoProviderKeyVerification.resetForTesting() }
+    OwlProviderKeyVerification.resetForTesting()
+    defer { OwlProviderKeyVerification.resetForTesting() }
     let store = makeStore()
-    let secrets = FamoInMemorySecretStore()
-    let added = FamoSettingsActions.addProviderProfile(
+    let secrets = OwlInMemorySecretStore()
+    let added = OwlSettingsActions.addProviderProfile(
       displayName: "小米 MiMo", endpoint: "https://api.xiaomimimo.com/v1/chat/completions",
       model: "mimo-v2.5", apiKey: "sk-mimo", makeDefault: true,
       store: store, secrets: secrets, providerID: "mimo")
     let profile = try XCTUnwrap(added.profiles.first)
     XCTAssertEqual(
-      FamoSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "已设置·未验证")
+      OwlSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "已设置·未验证")
 
-    FamoSettingsActions.markProviderProfileKeyVerified(profile)
+    OwlSettingsActions.markProviderProfileKeyVerified(profile)
     XCTAssertEqual(
-      FamoSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "已验证")
+      OwlSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "已验证")
 
     // 换钥匙 → 上一次验证不再代表当前这把 Key。
-    _ = FamoSettingsActions.saveProviderProfileKey(profile, apiKey: "sk-rotated", secrets: secrets)
+    _ = OwlSettingsActions.saveProviderProfileKey(profile, apiKey: "sk-rotated", secrets: secrets)
     XCTAssertEqual(
-      FamoSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "已设置·未验证")
+      OwlSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "已设置·未验证")
 
-    FamoSettingsActions.markProviderProfileKeyVerified(profile)
-    _ = FamoSettingsActions.clearProviderProfileKey(profile, secrets: secrets)
+    OwlSettingsActions.markProviderProfileKeyVerified(profile)
+    _ = OwlSettingsActions.clearProviderProfileKey(profile, secrets: secrets)
     XCTAssertEqual(
-      FamoSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "未设置")
+      OwlSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "未设置")
     XCTAssertNil(
-      FamoProviderKeyVerification.verifiedAt(secretName: profile.secretName),
+      OwlProviderKeyVerification.verifiedAt(secretName: profile.secretName),
       "删钥匙也要把标记一起清掉，否则重新填一把新 Key 会直接显示已验证")
   }
 
   /// 原地编辑时 Key 留空＝保持不变，那么上一次的验证状态也该保持；只有真的换了钥匙才作废。
   func testUpdateKeepsVerificationWhenKeyIsUnchangedAndDropsItWhenRotated() throws {
-    FamoProviderKeyVerification.resetForTesting()
-    defer { FamoProviderKeyVerification.resetForTesting() }
+    OwlProviderKeyVerification.resetForTesting()
+    defer { OwlProviderKeyVerification.resetForTesting() }
     let store = makeStore()
-    let secrets = FamoInMemorySecretStore()
-    let profile = try XCTUnwrap(FamoSettingsActions.addProviderProfile(
+    let secrets = OwlInMemorySecretStore()
+    let profile = try XCTUnwrap(OwlSettingsActions.addProviderProfile(
       displayName: "豆包", endpoint: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
       model: "doubao-seed-2-1-turbo-260628", apiKey: "sk-ark", makeDefault: true,
       store: store, secrets: secrets, providerID: "doubao").profiles.first)
-    FamoSettingsActions.markProviderProfileKeyVerified(profile)
+    OwlSettingsActions.markProviderProfileKeyVerified(profile)
 
-    _ = FamoSettingsActions.updateProviderProfile(
+    _ = OwlSettingsActions.updateProviderProfile(
       profile, endpoint: profile.endpoint.absoluteString, model: "doubao-seed-2-2",
       apiKey: "", store: store, secrets: secrets)
     XCTAssertEqual(
-      FamoSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "已验证",
+      OwlSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "已验证",
       "只换了模型，Key 没动 → 验证状态保持")
 
-    _ = FamoSettingsActions.updateProviderProfile(
+    _ = OwlSettingsActions.updateProviderProfile(
       profile, endpoint: profile.endpoint.absoluteString, model: "doubao-seed-2-2",
       apiKey: "sk-new", store: store, secrets: secrets)
     XCTAssertEqual(
-      FamoSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "已设置·未验证",
+      OwlSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "已设置·未验证",
       "换了钥匙 → 作废")
   }
 
@@ -514,14 +514,14 @@ final class ProviderProfileStoreTests: XCTestCase {
   /// 「删掉再加一条」会换一个 Keychain 账号并把旧 Key 一起删掉 —— 原地更新才保得住。
   func testUpdateProviderProfileChangesModelAndKeepsStoredKey() throws {
     let store = makeStore()
-    let secrets = FamoInMemorySecretStore()
-    let added = FamoSettingsActions.addProviderProfile(
+    let secrets = OwlInMemorySecretStore()
+    let added = OwlSettingsActions.addProviderProfile(
       displayName: "小米 MiMo", endpoint: "https://api.xiaomimimo.com/v1/chat/completions",
       model: "mimo-v2.5", apiKey: "sk-mimo", makeDefault: true,
       store: store, secrets: secrets, providerID: "mimo")
     let original = try XCTUnwrap(added.profiles.first)
 
-    let result = FamoSettingsActions.updateProviderProfile(
+    let result = OwlSettingsActions.updateProviderProfile(
       original,
       endpoint: "https://api.xiaomimimo.com/v1/chat/completions",
       model: " mimo-v2.5-pro ",
@@ -541,20 +541,20 @@ final class ProviderProfileStoreTests: XCTestCase {
 
   func testUpdateProviderProfileWritesNewKeyWhenTypedAndRejectsNonHTTPS() throws {
     let store = makeStore()
-    let secrets = FamoInMemorySecretStore()
-    let added = FamoSettingsActions.addProviderProfile(
+    let secrets = OwlInMemorySecretStore()
+    let added = OwlSettingsActions.addProviderProfile(
       displayName: "豆包", endpoint: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
       model: "doubao-seed-2-1-turbo-260628", apiKey: "sk-old", makeDefault: true,
       store: store, secrets: secrets, providerID: "doubao")
     let original = try XCTUnwrap(added.profiles.first)
 
-    let rotated = FamoSettingsActions.updateProviderProfile(
+    let rotated = OwlSettingsActions.updateProviderProfile(
       original, endpoint: original.endpoint.absoluteString, model: original.model,
       apiKey: " sk-new ", store: store, secrets: secrets)
     XCTAssertTrue(rotated.status.hasPrefix("已保存"))
     XCTAssertEqual(try secrets.secret(named: original.secretName), "sk-new", "typed key wins, trimmed")
 
-    let insecure = FamoSettingsActions.updateProviderProfile(
+    let insecure = OwlSettingsActions.updateProviderProfile(
       original, endpoint: "http://ark.cn-beijing.volces.com/api/v3/chat/completions",
       model: original.model, apiKey: "", store: store, secrets: secrets)
     XCTAssertEqual(insecure.status, "端点必须是 https。")
@@ -563,15 +563,15 @@ final class ProviderProfileStoreTests: XCTestCase {
 
   func testAddProviderProfileActionRejectsBlankNameAndNonHTTPS() throws {
     let store = makeStore()
-    let secrets = FamoInMemorySecretStore()
+    let secrets = OwlInMemorySecretStore()
 
-    let blank = FamoSettingsActions.addProviderProfile(
+    let blank = OwlSettingsActions.addProviderProfile(
       displayName: "   ", endpoint: "https://api.openai.com/v1/chat/completions",
       model: "gpt-4o", apiKey: "", makeDefault: true, store: store, secrets: secrets)
     XCTAssertEqual(blank.status, "供应商名称不能为空。")
     XCTAssertTrue(store.profiles().isEmpty)
 
-    let insecure = FamoSettingsActions.addProviderProfile(
+    let insecure = OwlSettingsActions.addProviderProfile(
       displayName: "p", endpoint: "http://api.openai.com/v1/chat/completions",
       model: "gpt-4o", apiKey: "", makeDefault: true, store: store, secrets: secrets)
     XCTAssertEqual(insecure.status, "端点必须是 https。")
@@ -580,8 +580,8 @@ final class ProviderProfileStoreTests: XCTestCase {
 
   func testAddProviderProfileActionAllowsEmptyKeyForLaterEntry() throws {
     let store = makeStore()
-    let secrets = FamoInMemorySecretStore()
-    let result = FamoSettingsActions.addProviderProfile(
+    let secrets = OwlInMemorySecretStore()
+    let result = OwlSettingsActions.addProviderProfile(
       displayName: "personal OpenAI", endpoint: "https://api.openai.com/v1/chat/completions",
       model: "gpt-4o", apiKey: "  ", makeDefault: true, store: store, secrets: secrets)
     let profile = try XCTUnwrap(result.profiles.first)
@@ -591,39 +591,39 @@ final class ProviderProfileStoreTests: XCTestCase {
 
   func testSetDefaultDeleteAndSaveKeyActions() throws {
     let store = makeStore()
-    let secrets = FamoInMemorySecretStore()
-    let first = try XCTUnwrap(FamoSettingsActions.addProviderProfile(
+    let secrets = OwlInMemorySecretStore()
+    let first = try XCTUnwrap(OwlSettingsActions.addProviderProfile(
       displayName: "first", endpoint: "https://a.example.com/v1/chat/completions",
       model: "m1", apiKey: "", makeDefault: true, store: store, secrets: secrets).profiles.first)
-    let added2 = FamoSettingsActions.addProviderProfile(
+    let added2 = OwlSettingsActions.addProviderProfile(
       displayName: "second", endpoint: "https://b.example.com/v1/chat/completions",
       model: "m2", apiKey: "", makeDefault: false, store: store, secrets: secrets)
     let second = try XCTUnwrap(added2.profiles.first { $0.displayName == "second" })
 
     // set default
-    let setResult = FamoSettingsActions.setDefaultProviderProfile(second, store: store)
+    let setResult = OwlSettingsActions.setDefaultProviderProfile(second, store: store)
     XCTAssertEqual(store.defaultProfile?.id, second.id)
     XCTAssertTrue(setResult.status.contains("second"))
 
     // save key (write-only, status never echoes the value)
-    let saveResult = FamoSettingsActions.saveProviderProfileKey(second, apiKey: " sk-second ", secrets: secrets)
+    let saveResult = OwlSettingsActions.saveProviderProfileKey(second, apiKey: " sk-second ", secrets: secrets)
     XCTAssertEqual(saveResult.input, "")
     XCTAssertEqual(saveResult.status, "已保存到 Keychain")
     XCTAssertEqual(try secrets.secret(named: second.secretName), "sk-second")
     // 三态：刚存进去只是「有值」，还没拿它真的调通过任何一次请求。
     XCTAssertEqual(
-      FamoSettingsActions.providerProfileKeyStatus(second, secrets: secrets), "已设置·未验证")
+      OwlSettingsActions.providerProfileKeyStatus(second, secrets: secrets), "已设置·未验证")
 
-    let emptyKey = FamoSettingsActions.saveProviderProfileKey(second, apiKey: "  ", secrets: secrets)
+    let emptyKey = OwlSettingsActions.saveProviderProfileKey(second, apiKey: "  ", secrets: secrets)
     XCTAssertEqual(emptyKey.status, "请输入 API Key")
 
     // clear key
-    XCTAssertEqual(FamoSettingsActions.clearProviderProfileKey(second, secrets: secrets), "已删除 API Key")
-    XCTAssertEqual(FamoSettingsActions.providerProfileKeyStatus(second, secrets: secrets), "未设置")
+    XCTAssertEqual(OwlSettingsActions.clearProviderProfileKey(second, secrets: secrets), "已删除 API Key")
+    XCTAssertEqual(OwlSettingsActions.providerProfileKeyStatus(second, secrets: secrets), "未设置")
 
     // delete profile (removes the profile and its stored key; promotes the other to default)
     try secrets.setSecret("sk-first", named: first.secretName)
-    let deleteResult = FamoSettingsActions.deleteProviderProfile(second, store: store, secrets: secrets)
+    let deleteResult = OwlSettingsActions.deleteProviderProfile(second, store: store, secrets: secrets)
     XCTAssertNil(store.profile(id: second.id))
     XCTAssertEqual(store.defaultProfile?.id, first.id, "deleting the default promotes the remaining profile")
     XCTAssertTrue(deleteResult.status.contains("second"))
@@ -631,32 +631,32 @@ final class ProviderProfileStoreTests: XCTestCase {
 }
 
 /// Pure model-list helpers behind the AI-config 「拉取最新」 button (network `fetch` is not unit-tested).
-final class FamoProviderModelListTests: XCTestCase {
+final class OwlProviderModelListTests: XCTestCase {
   func testModelsURLSwapsChatCompletionsSuffix() {
     XCTAssertEqual(
-      FamoProviderModelList.modelsURL(from: URL(string: "https://api.deepseek.com/v1/chat/completions")!)?.absoluteString,
+      OwlProviderModelList.modelsURL(from: URL(string: "https://api.deepseek.com/v1/chat/completions")!)?.absoluteString,
       "https://api.deepseek.com/v1/models")
     XCTAssertEqual(
-      FamoProviderModelList.modelsURL(from: URL(string: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")!)?.absoluteString,
+      OwlProviderModelList.modelsURL(from: URL(string: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")!)?.absoluteString,
       "https://generativelanguage.googleapis.com/v1beta/openai/models")
   }
 
   func testModelsURLFallsBackToParentPath() {
     // No /chat/completions suffix → append `models` to the parent path.
     XCTAssertEqual(
-      FamoProviderModelList.modelsURL(from: URL(string: "https://api.example.com/v1/responses")!)?.absoluteString,
+      OwlProviderModelList.modelsURL(from: URL(string: "https://api.example.com/v1/responses")!)?.absoluteString,
       "https://api.example.com/v1/models")
   }
 
   func testParseModelIDsKeepsOrderAndDedupes() {
     let json = Data(#"{"data":[{"id":"gpt-4o"},{"id":"gpt-4o-mini"},{"id":"gpt-4o"},{"id":""}]}"#.utf8)
-    XCTAssertEqual(FamoProviderModelList.parseModelIDs(json), ["gpt-4o", "gpt-4o-mini"])
-    XCTAssertEqual(FamoProviderModelList.parseModelIDs(Data("not json".utf8)), [])
+    XCTAssertEqual(OwlProviderModelList.parseModelIDs(json), ["gpt-4o", "gpt-4o-mini"])
+    XCTAssertEqual(OwlProviderModelList.parseModelIDs(Data("not json".utf8)), [])
   }
 
   func testMergedPutsCuratedFirstThenNewFetched() {
     XCTAssertEqual(
-      FamoProviderModelList.merged(curated: ["deepseek-chat", "deepseek-reasoner"],
+      OwlProviderModelList.merged(curated: ["deepseek-chat", "deepseek-reasoner"],
                                    fetched: ["deepseek-chat", "deepseek-coder"]),
       ["deepseek-chat", "deepseek-reasoner", "deepseek-coder"])
   }
@@ -667,7 +667,7 @@ final class FamoProviderModelListTests: XCTestCase {
 /// 这个按钮存在的理由就是「拉取最新」证明不了的那一段：`/models` 通不代表**你选的那个型号**能用。
 /// 2026-07-28 实盘撞到的正是这类 —— 同一把 Key 拉 `/models` 一切正常，而 `qwen3.7-plus` 打错端点
 /// 路径直接 400 `url error`。所以失败分支必须把服务端原话带出来，只报状态码等于让人去猜。
-final class FamoProviderConnectivityCheckTests: XCTestCase {
+final class OwlProviderConnectivityCheckTests: XCTestCase {
 
   private func response(_ status: Int) -> HTTPURLResponse {
     HTTPURLResponse(
@@ -677,7 +677,7 @@ final class FamoProviderConnectivityCheckTests: XCTestCase {
 
   /// Qwen 连通性也必须打 Responses，不能只验证旧 chat/completions。
   func testRequestIsAMinimalPostCarryingTheModelUnderTest() throws {
-    let request = try FamoProviderConnectivityCheck.request(
+    let request = try OwlProviderConnectivityCheck.request(
       endpoint: URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")!,
       providerID: "qwen", model: "qwen3.7-plus", apiKey: "sk-k", authStyle: .bearer)
     XCTAssertEqual(request.httpMethod, "POST")
@@ -701,7 +701,7 @@ final class FamoProviderConnectivityCheckTests: XCTestCase {
   /// 豆包连通性同样必须打 Responses（2026-07-31 起豆包全面走 Responses）：请求体带
   /// thinking:{disabled} + store:false，绝不带 qwen 的 reasoning 字段。
   func testDoubaoRequestVerifiesTheResponsesEndpointWithThinkingOff() throws {
-    let request = try FamoProviderConnectivityCheck.request(
+    let request = try OwlProviderConnectivityCheck.request(
       endpoint: URL(string: "https://ark.cn-beijing.volces.com/api/v3/responses")!,
       providerID: "doubao", model: "doubao-seed-2-1-pro-260628", apiKey: "sk-a", authStyle: .bearer)
     XCTAssertEqual(
@@ -719,7 +719,7 @@ final class FamoProviderConnectivityCheckTests: XCTestCase {
   /// MiMo 走 `api-key` 头而不是 Bearer —— 验证走的必须是该供应商真实的认证方式，
   /// 否则会把「认证写法不同」误报成「Key 无效」。
   func testRequestHonoursThePerProviderAuthHeaderStyle() throws {
-    let request = try FamoProviderConnectivityCheck.request(
+    let request = try OwlProviderConnectivityCheck.request(
       endpoint: URL(string: "https://api.xiaomimimo.com/v1/chat/completions")!,
       providerID: "mimo", model: "mimo-v2.5", apiKey: "sk-m", authStyle: .apiKey)
     XCTAssertEqual(request.value(forHTTPHeaderField: "api-key"), "sk-m")
@@ -729,18 +729,18 @@ final class FamoProviderConnectivityCheckTests: XCTestCase {
   func testOKRequiresAChatShapedBodyNotJustA200() {
     let chat = Data(#"{"choices":[{"message":{"role":"assistant","content":"pong"}}]}"#.utf8)
     XCTAssertEqual(
-      FamoProviderConnectivityCheck.outcome(data: chat, response: response(200), latencyMS: 412),
+      OwlProviderConnectivityCheck.outcome(data: chat, response: response(200), latencyMS: 412),
       .ok(latencyMS: 412))
 
     let responses = Data(#"{"output":[{"type":"message","content":[{"type":"output_text","text":"pong"}]}]}"#.utf8)
     XCTAssertEqual(
-      FamoProviderConnectivityCheck.outcome(
+      OwlProviderConnectivityCheck.outcome(
         data: responses, response: response(200), latencyMS: 99),
       .ok(latencyMS: 99))
 
     // 200 但不是 chat 响应：多半是网关/代理插进来的页面。报「通了」会把人引向错误的方向。
     XCTAssertEqual(
-      FamoProviderConnectivityCheck.outcome(
+      OwlProviderConnectivityCheck.outcome(
         data: Data("<html>ok</html>".utf8), response: response(200), latencyMS: 1),
       .malformed)
   }
@@ -749,14 +749,14 @@ final class FamoProviderConnectivityCheckTests: XCTestCase {
   func testRejectionCarriesTheServerMessageInBothErrorShapes() {
     let openAIShape = Data(#"{"error":{"message":"Invalid API-key provided.","type":"x"}}"#.utf8)
     XCTAssertEqual(
-      FamoProviderConnectivityCheck.outcome(
+      OwlProviderConnectivityCheck.outcome(
         data: openAIShape, response: response(401), latencyMS: 5),
       .rejected(status: 401, message: "Invalid API-key provided."))
 
     // DashScope 原生是顶层 message，不是 error.message。
     let dashScopeShape = Data(#"{"code":"InvalidParameter","message":"url error, please check url"}"#.utf8)
     XCTAssertEqual(
-      FamoProviderConnectivityCheck.outcome(
+      OwlProviderConnectivityCheck.outcome(
         data: dashScopeShape, response: response(400), latencyMS: 5),
       .rejected(status: 400, message: "url error, please check url"))
   }
@@ -764,20 +764,20 @@ final class FamoProviderConnectivityCheckTests: XCTestCase {
   /// 状态字要把「下一步动哪里」直接说出来，而不是只丢一个数字给用户。
   func testStatusTextPointsAtTheThingToFix() {
     XCTAssertTrue(
-      FamoProviderConnectivityCheck.Outcome.rejected(status: 401, message: "bad key")
+      OwlProviderConnectivityCheck.Outcome.rejected(status: 401, message: "bad key")
         .statusText.contains("API Key"))
     XCTAssertTrue(
-      FamoProviderConnectivityCheck.Outcome.rejected(status: 400, message: "url error")
+      OwlProviderConnectivityCheck.Outcome.rejected(status: 400, message: "url error")
         .statusText.contains("换个型号"),
       "400/404 几乎总是型号或端点不匹配 —— 实盘撞到的就是这一类")
     XCTAssertTrue(
-      FamoProviderConnectivityCheck.Outcome.rejected(status: 400, message: "url error")
+      OwlProviderConnectivityCheck.Outcome.rejected(status: 400, message: "url error")
         .statusText.contains("url error"), "服务端原话必须出现在状态里")
-    XCTAssertTrue(FamoProviderConnectivityCheck.Outcome.ok(latencyMS: 300).statusText.contains("300"))
+    XCTAssertTrue(OwlProviderConnectivityCheck.Outcome.ok(latencyMS: 300).statusText.contains("300"))
   }
 
   func testRunReportsUnreachableInsteadOfThrowing() async {
-    let outcome = await FamoProviderConnectivityCheck.run(
+    let outcome = await OwlProviderConnectivityCheck.run(
       endpoint: URL(string: "https://api.example.com/v1/chat/completions")!,
       providerID: "custom", model: "m", apiKey: "k", authStyle: .bearer,
       fetch: { _ in throw URLError(.notConnectedToInternet) })
@@ -789,7 +789,7 @@ final class FamoProviderConnectivityCheckTests: XCTestCase {
 
   func testRunMeasuresLatencyFromTheInjectedClock() async {
     var ticks = [Date(timeIntervalSince1970: 0), Date(timeIntervalSince1970: 1.25)]
-    let outcome = await FamoProviderConnectivityCheck.run(
+    let outcome = await OwlProviderConnectivityCheck.run(
       endpoint: URL(string: "https://api.example.com/v1/chat/completions")!,
       providerID: "custom", model: "m", apiKey: "k", authStyle: .bearer,
       fetch: { _ in (Data(#"{"choices":[]}"#.utf8), self.response(200)) },

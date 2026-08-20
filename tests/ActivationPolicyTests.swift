@@ -1,9 +1,9 @@
 //
 //  ActivationPolicyTests.swift
-//  FamoTests — input-source activation diagnostics
+//  OwltypeTests — input-source activation diagnostics
 //
 //  The enable/select path was reverted to upstream Squirrel's trust-the-TIS-bit logic
-//  (see InputSource.swift), so the former FamoActivationPolicy decision-table / didEnableLand /
+//  (see InputSource.swift), so the former OwlActivationPolicy decision-table / didEnableLand /
 //  isUserEnabled tests are gone with the code they covered. What remains is the pure, TIS-free
 //  half-state DIAGNOSTIC and its guidance text — still worth covering: they run on the
 //  selected-source-change observer and from `--detect-activation`, and must never misfire.
@@ -11,32 +11,32 @@
 
 import Foundation
 import XCTest
-@testable import Famo
+@testable import Owltype
 
 final class ActivationPolicyTests: XCTestCase {
 
   // MARK: - diagnoseHalfState (selected-but-not-enabled dead half-state detector)
 
-  func testHalfStateDetectedWhenSelectedFamoNotEnabled() {
-    let diag = FamoInstaller.diagnoseHalfState(
-      currentSourceID: FamoInstaller.InputMode.hans.rawValue,
-      trulyEnabledModes: []   // selected Famo, but nothing is enabled → dead half-state
+  func testHalfStateDetectedWhenSelectedOwltypeNotEnabled() {
+    let diag = OwlInstaller.diagnoseHalfState(
+      currentSourceID: OwlInstaller.InputMode.hans.rawValue,
+      trulyEnabledModes: []   // selected Owltype, but nothing is enabled → dead half-state
     )
     XCTAssertTrue(diag.brokenHalfState)
     XCTAssertEqual(diag.mode, .hans)
   }
 
-  func testNoHalfStateWhenSelectedFamoIsEnabled() {
-    let diag = FamoInstaller.diagnoseHalfState(
-      currentSourceID: FamoInstaller.InputMode.hans.rawValue,
+  func testNoHalfStateWhenSelectedOwltypeIsEnabled() {
+    let diag = OwlInstaller.diagnoseHalfState(
+      currentSourceID: OwlInstaller.InputMode.hans.rawValue,
       trulyEnabledModes: [.hans]
     )
     XCTAssertFalse(diag.brokenHalfState)
     XCTAssertNil(diag.mode)
   }
 
-  func testNoHalfStateWhenCurrentSourceIsNotFamo() {
-    let diag = FamoInstaller.diagnoseHalfState(
+  func testNoHalfStateWhenCurrentSourceIsNotOwltype() {
+    let diag = OwlInstaller.diagnoseHalfState(
       currentSourceID: "com.apple.keylayout.ABC",
       trulyEnabledModes: []
     )
@@ -45,14 +45,14 @@ final class ActivationPolicyTests: XCTestCase {
   }
 
   func testNoHalfStateWhenNoCurrentSource() {
-    let diag = FamoInstaller.diagnoseHalfState(currentSourceID: nil, trulyEnabledModes: [])
+    let diag = OwlInstaller.diagnoseHalfState(currentSourceID: nil, trulyEnabledModes: [])
     XCTAssertFalse(diag.brokenHalfState)
   }
 
   // MARK: - guidance text is non-empty & copyable, points at System Settings (not a stale pref read)
 
   func testGuidanceTextPointsToSystemSettingsAndDoesNotAdviseStalePref() {
-    let text = FamoInstaller.activationGuidanceText(for: .hans)
+    let text = OwlInstaller.activationGuidanceText(for: .hans)
     XCTAssertTrue(text.contains("系统设置"))
     XCTAssertTrue(text.contains("编辑"))
     XCTAssertTrue(text.contains("法墨"))
@@ -62,40 +62,40 @@ final class ActivationPolicyTests: XCTestCase {
   }
 
   func testActivationStatusReportsMissingHostKeyEvents() {
-    let text = FamoInstaller.activationStatusText(
-      currentInputSourceID: FamoInstaller.InputMode.hans.rawValue,
+    let text = OwlInstaller.activationStatusText(
+      currentInputSourceID: OwlInstaller.InputMode.hans.rawValue,
       lastHostKeyEventDate: nil
     )
-    XCTAssertTrue(text.contains(FamoInstaller.InputMode.hans.rawValue))
-    XCTAssertTrue(text.contains("尚未观察到宿主按键进入 Famo handle()"))
+    XCTAssertTrue(text.contains(OwlInstaller.InputMode.hans.rawValue))
+    XCTAssertTrue(text.contains("尚未观察到宿主按键进入 Owltype handle()"))
     XCTAssertTrue(text.contains("系统设置"))
   }
 
   // MARK: - selectTarget (pure CLI dispatch for `--select-input-source <arg>`; no TIS touched)
 
-  func testSelectTargetMapsFamoModeIDsToFamoModes() {
+  func testSelectTargetMapsOwltypeModeIDsToOwltypeModes() {
     XCTAssertEqual(
-      FamoInstaller.selectTarget(for: FamoInstaller.InputMode.hans.rawValue),
-      .famoMode(.hans)
+      OwlInstaller.selectTarget(for: OwlInstaller.InputMode.hans.rawValue),
+      .owlMode(.hans)
     )
     XCTAssertEqual(
-      FamoInstaller.selectTarget(for: FamoInstaller.InputMode.hant.rawValue),
-      .famoMode(.hant)
+      OwlInstaller.selectTarget(for: OwlInstaller.InputMode.hant.rawValue),
+      .owlMode(.hant)
     )
   }
 
   func testSelectTargetTreatsSystemSourceIDsAsGenericSelects() {
-    // postinstall's update sequence parks the user on ABC before killing the old Famo process
-    // (TIS-ACTIVATION-NOTES 定律 12). That id must NEVER fall through to the "select Famo"
-    // default path — it would re-select Famo instead of switching out.
+    // postinstall's update sequence parks the user on ABC before killing the old Owltype process
+    // (TIS-ACTIVATION-NOTES 定律 12). That id must NEVER fall through to the "select Owltype"
+    // default path — it would re-select Owltype instead of switching out.
     XCTAssertEqual(
-      FamoInstaller.selectTarget(for: "com.apple.keylayout.ABC"),
+      OwlInstaller.selectTarget(for: "com.apple.keylayout.ABC"),
       .systemSource("com.apple.keylayout.ABC")
     )
   }
 
   // The old Sogou-style `AppleEnabledInputSources` plist fallback is intentionally gone. On this
-  // macOS version it created duplicate Famo TIS rows and hid Famo from the input menu.
+  // macOS version it created duplicate Owltype TIS rows and hid Owltype from the input menu.
 
   // MARK: - 「设为系统默认输入法」的纯决策层（docs/default-input-method-plan.md §4）
   //
@@ -104,38 +104,38 @@ final class ActivationPolicyTests: XCTestCase {
 
   func testMakeDefaultPlanEnablesAndSelectsPrimaryWhenNothingEnabled() {
     // 一个法墨模式都没启用：回落 primary（简体），由 select(mode:) 顺手 enable 再 select。
-    let plan = FamoInstaller.makeDefaultPlan(enabledModes: [], currentSourceID: "com.apple.keylayout.ABC")
-    XCTAssertEqual(plan, .select(FamoInstaller.InputMode.primary))
+    let plan = OwlInstaller.makeDefaultPlan(enabledModes: [], currentSourceID: "com.apple.keylayout.ABC")
+    XCTAssertEqual(plan, .select(OwlInstaller.InputMode.primary))
   }
 
   func testMakeDefaultPlanSelectsEnabledModeWhenCurrentSourceIsSomethingElse() {
     // 已启用但当前用着别家输入法：选中即可，无需 enable。
-    let plan = FamoInstaller.makeDefaultPlan(enabledModes: [.hans], currentSourceID: "im.rime.inputmethod.Squirrel")
+    let plan = OwlInstaller.makeDefaultPlan(enabledModes: [.hans], currentSourceID: "im.rime.inputmethod.Squirrel")
     XCTAssertEqual(plan, .select(.hans))
   }
 
   func testMakeDefaultPlanReportsAlreadyDefaultWithoutTouchingTIS() {
     // 判定先于动作：已启用且已选中 → 直接判「已是默认」，一个 TIS 调用都不发。
-    let plan = FamoInstaller.makeDefaultPlan(
-      enabledModes: [.hans, .hant], currentSourceID: FamoInstaller.InputMode.hans.rawValue)
+    let plan = OwlInstaller.makeDefaultPlan(
+      enabledModes: [.hans, .hant], currentSourceID: OwlInstaller.InputMode.hans.rawValue)
     XCTAssertEqual(plan, .alreadyDefault(.hans))
   }
 
   func testMakeDefaultPlanPrefersEnabledHantOverPrimary() {
     // 只启用了繁体的用户点「设为默认」必须落在繁体。盲选 primary 会把人切到简体 —— 评审拦下的原提案。
-    let plan = FamoInstaller.makeDefaultPlan(enabledModes: [.hant], currentSourceID: "com.apple.keylayout.ABC")
+    let plan = OwlInstaller.makeDefaultPlan(enabledModes: [.hant], currentSourceID: "com.apple.keylayout.ABC")
     XCTAssertEqual(plan, .select(.hant))
   }
 
-  func testMakeDefaultPlanIgnoresSelectedFamoModeThatIsNotEnabled() {
+  func testMakeDefaultPlanIgnoresSelectedOwltypeModeThatIsNotEnabled() {
     // 吞键死半态（选中但未真正启用）不算「已是默认」：仍要走 select 链路（其中含 enable）修一次。
-    let plan = FamoInstaller.makeDefaultPlan(
-      enabledModes: [], currentSourceID: FamoInstaller.InputMode.hans.rawValue)
+    let plan = OwlInstaller.makeDefaultPlan(
+      enabledModes: [], currentSourceID: OwlInstaller.InputMode.hans.rawValue)
     XCTAssertEqual(plan, .select(.hans))
   }
 
   func testMakeDefaultResultMapsSelectFailureToFailedWithReason() {
-    let result = FamoInstaller.makeDefaultResult(mode: .hans, outcome: .selectFailed(-50))
+    let result = OwlInstaller.makeDefaultResult(mode: .hans, outcome: .selectFailed(-50))
     guard case .failed(let reason) = result else { return XCTFail("select 失败必须落 .failed") }
     XCTAssertTrue(reason.contains("-50"), "失败文案要带上 TIS 状态码，否则用户无从报障")
   }
@@ -143,92 +143,92 @@ final class ActivationPolicyTests: XCTestCase {
   func testMakeDefaultResultTreatsAlreadySelectedAsAlreadyDefaultNotFailure() {
     // 既有 select() 在「已经是当前输入源」时打印的是 "Failed to select"。那不是失败，UI 绝不能这么判。
     XCTAssertEqual(
-      FamoInstaller.makeDefaultResult(mode: .hant, outcome: .alreadySelected),
+      OwlInstaller.makeDefaultResult(mode: .hant, outcome: .alreadySelected),
       .alreadyDefault(mode: .hant))
   }
 
   func testMakeDefaultResultMapsSelectedToMadeDefault() {
     XCTAssertEqual(
-      FamoInstaller.makeDefaultResult(mode: .hans, outcome: .selected),
+      OwlInstaller.makeDefaultResult(mode: .hans, outcome: .selected),
       .madeDefault(mode: .hans))
   }
 
   func testMakeDefaultResultPointsUnselectableStatesAtSystemSettings() {
-    for outcome in [FamoInstaller.SelectOutcome.notEnabled, .notSelectable] {
-      guard case .failed(let reason) = FamoInstaller.makeDefaultResult(mode: .hans, outcome: outcome) else {
+    for outcome in [OwlInstaller.SelectOutcome.notEnabled, .notSelectable] {
+      guard case .failed(let reason) = OwlInstaller.makeDefaultResult(mode: .hans, outcome: outcome) else {
         return XCTFail("\(outcome) 必须落 .failed")
       }
       XCTAssertTrue(reason.contains("系统设置"), "不可选中的恢复路径只有系统设置的输入法列表")
     }
     guard case .failed(let missing) =
-      FamoInstaller.makeDefaultResult(mode: .hans, outcome: .sourceMissing) else {
+      OwlInstaller.makeDefaultResult(mode: .hans, outcome: .sourceMissing) else {
       return XCTFail("查不到输入源必须落 .failed")
     }
-    XCTAssertTrue(missing.contains(FamoInstaller.InputMode.hans.rawValue))
+    XCTAssertTrue(missing.contains(OwlInstaller.InputMode.hans.rawValue))
   }
 
   // MARK: - 诊断页三态文案（+ 未点击时的说明）
 
   func testMakeDefaultStatusTextCoversThreeResultStatesAndTheUnclickedHint() {
-    XCTAssertTrue(FamoDiagnosticsPage.makeDefaultStatusText(nil).contains("下次登录"))
+    XCTAssertTrue(OwlDiagnosticsPage.makeDefaultStatusText(nil).contains("下次登录"))
     XCTAssertTrue(
-      FamoDiagnosticsPage.makeDefaultStatusText(.alreadyDefault(mode: .hant)).contains("已经是当前系统输入源"))
+      OwlDiagnosticsPage.makeDefaultStatusText(.alreadyDefault(mode: .hant)).contains("已经是当前系统输入源"))
     XCTAssertTrue(
-      FamoDiagnosticsPage.makeDefaultStatusText(.madeDefault(mode: .hans)).contains("已设为默认"))
-    let failed = FamoDiagnosticsPage.makeDefaultStatusText(.failed(reason: "系统拒绝切换（TIS 错误 -50）。"))
+      OwlDiagnosticsPage.makeDefaultStatusText(.madeDefault(mode: .hans)).contains("已设为默认"))
+    let failed = OwlDiagnosticsPage.makeDefaultStatusText(.failed(reason: "系统拒绝切换（TIS 错误 -50）。"))
     XCTAssertTrue(failed.contains("未能设为默认"))
     XCTAssertTrue(failed.contains("-50"), "失败原因必须原样透出，不能被文案吃掉")
   }
 
   // MARK: - Six-layer read-only TIS diagnosis (W1.4; §6 root-cause matrix 活跃 rows = the cases)
 
-  private static let hans = FamoInstaller.InputMode.hans.rawValue
-  private static let hant = FamoInstaller.InputMode.hant.rawValue
+  private static let hans = OwlInstaller.InputMode.hans.rawValue
+  private static let hant = OwlInstaller.InputMode.hant.rawValue
 
-  private func famoSource(
+  private func owlSource(
     _ id: String, enableCapable: Bool = true, selectCapable: Bool = true,
     enabled: Bool = false, selected: Bool = false
   ) -> TISSourceState {
     TISSourceState(
-      id: id, bundleID: FamoInstaller.inputSourcePrefix, localizedName: "法墨输入法",
+      id: id, bundleID: OwlInstaller.inputSourcePrefix, localizedName: "法墨输入法",
       enableCapable: enableCapable, selectCapable: selectCapable, enabled: enabled, selected: selected)
   }
 
   private func classify(_ sources: [TISSourceState], current: String?) -> TISDiagnosis {
-    FamoTISDiagnostics.classify(
+    OwlTISDiagnostics.classify(
       sources: sources, currentSourceID: current,
       expectedIDs: [Self.hans, Self.hant], primaryID: Self.hans)
   }
 
-  func testRegisterFailsWhenNoFamoSources() {  // matrix: register 未生效 → FAMO-TIS-001
+  func testRegisterFailsWhenNoOwltypeSources() {  // matrix: register 未生效 → FAMO-TIS-001
     let diag = classify([], current: "com.apple.keylayout.ABC")
     XCTAssertEqual(diag.firstFailingLayer, .register)
     XCTAssertEqual(diag.code, "FAMO-TIS-001")
   }
 
   func testEnableCapabilityFailure() {  // matrix: enable 打错条目/不可启用 → FAMO-TIS-002
-    let diag = classify([famoSource(Self.hans, enableCapable: false)], current: "com.apple.keylayout.ABC")
+    let diag = classify([owlSource(Self.hans, enableCapable: false)], current: "com.apple.keylayout.ABC")
     XCTAssertEqual(diag.firstFailingLayer, .enable)
     XCTAssertEqual(diag.code, "FAMO-TIS-002")
   }
 
   func testWrongEntryEnabledIsCode002() {  // matrix: enabled id 非 .Hans/.Hant → FAMO-TIS-002
-    let stray = FamoInstaller.inputSourcePrefix + ".Stray"
+    let stray = OwlInstaller.inputSourcePrefix + ".Stray"
     let diag = classify(
-      [famoSource(Self.hans, enabled: false), famoSource(stray, enabled: true)],
+      [owlSource(Self.hans, enabled: false), owlSource(stray, enabled: true)],
       current: "com.apple.keylayout.ABC")
     XCTAssertEqual(diag.firstFailingLayer, .enable)
     XCTAssertEqual(diag.code, "FAMO-TIS-002")
   }
 
   func testEnableReadbackInconsistency() {  // capable but enabled=false and not current → FAMO-TIS-003
-    let diag = classify([famoSource(Self.hans, enabled: false)], current: "com.apple.keylayout.ABC")
+    let diag = classify([owlSource(Self.hans, enabled: false)], current: "com.apple.keylayout.ABC")
     XCTAssertEqual(diag.firstFailingLayer, .enable)
     XCTAssertEqual(diag.code, "FAMO-TIS-003")
   }
 
-  func testSelectedButNotEnabledHalfState() {  // matrix: current=Famo 但 enabled=false → FAMO-TIS-004
-    let diag = classify([famoSource(Self.hans, enabled: false, selected: true)], current: Self.hans)
+  func testSelectedButNotEnabledHalfState() {  // matrix: current=Owltype 但 enabled=false → FAMO-TIS-004
+    let diag = classify([owlSource(Self.hans, enabled: false, selected: true)], current: Self.hans)
     XCTAssertEqual(diag.firstFailingLayer, .select)
     XCTAssertEqual(diag.code, "FAMO-TIS-004")
     // enable layer defers to select for the half-state instead of double-reporting.
@@ -236,19 +236,19 @@ final class ActivationPolicyTests: XCTestCase {
   }
 
   func testEnabledNotSelectedIsNotAFailure() {  // enabled + selectable, just not current → healthy
-    let diag = classify([famoSource(Self.hans, enabled: true, selected: false)], current: "com.apple.keylayout.ABC")
+    let diag = classify([owlSource(Self.hans, enabled: true, selected: false)], current: "com.apple.keylayout.ABC")
     XCTAssertNil(diag.code)
     XCTAssertEqual(diag.layers.first { $0.layer == .select }?.ok, true)
   }
 
   func testHealthyWhenPrimaryEnabledAndSelected() {
-    let diag = classify([famoSource(Self.hans, enabled: true, selected: true)], current: Self.hans)
+    let diag = classify([owlSource(Self.hans, enabled: true, selected: true)], current: Self.hans)
     XCTAssertNil(diag.code)
     XCTAssertNil(diag.firstFailingLayer)
   }
 
   func testMenuVisibleAndClientAttachAreReadOnlyCeilings() {  // matrix rows 006 / 005: never a headline
-    let diag = classify([famoSource(Self.hans, enabled: true, selected: true)], current: Self.hans)
+    let diag = classify([owlSource(Self.hans, enabled: true, selected: true)], current: Self.hans)
     XCTAssertNil(diag.layers.first { $0.layer == .menuVisible }?.ok)
     XCTAssertNil(diag.layers.first { $0.layer == .clientAttach }?.ok)
     XCTAssertNil(diag.layers.first { $0.layer == .menuVisible }?.code)
@@ -260,13 +260,13 @@ final class ActivationPolicyTests: XCTestCase {
   // Fixture paths deliberately sit outside any home directory: check-public-privacy.sh blocks
   // home-directory paths anywhere in tracked files, so a realistic one fails the gate.
   private func claims(_ pairs: [(String, String?)]) -> LSClaimReport {
-    FamoTISDiagnostics.classifyClaims(
-      bundleID: FamoInstaller.inputSourcePrefix,
+    OwlTISDiagnostics.classifyClaims(
+      bundleID: OwlInstaller.inputSourcePrefix,
       claims: pairs.map { LSBundleClaim(path: $0.0, teamID: $0.1) })
   }
 
   func testSingleSignedClaimIsHealthy() {  // the shape after scripts/clean-dev.sh --apply
-    let report = claims([("/Library/Input Methods/Famo.app", "LQAVR62TK2")])
+    let report = claims([("/Library/Input Methods/Owltype.app", "LQAVR62TK2")])
     XCTAssertNil(report.code)
     XCTAssertEqual(report.claimCount, 1)
     XCTAssertEqual(report.unsignedCount, 0)
@@ -274,8 +274,8 @@ final class ActivationPolicyTests: XCTestCase {
 
   func testMultipleSignedClaimsWarn() {  // a second signed copy still shadows the installed one
     let report = claims([
-      ("/Library/Input Methods/Famo.app", "LQAVR62TK2"),
-      ("/Volumes/Work/famotype-macos/build/Release/Famo.app", "LQAVR62TK2"),
+      ("/Library/Input Methods/Owltype.app", "LQAVR62TK2"),
+      ("/Volumes/Work/famotype-macos/build/Release/Owltype.app", "LQAVR62TK2"),
     ])
     XCTAssertEqual(report.code, "FAMO-LS-001")
     XCTAssertEqual(report.claimCount, 2)
@@ -284,19 +284,19 @@ final class ActivationPolicyTests: XCTestCase {
 
   func testUnsignedClaimTakesTheHeadline() {  // 结论 A: the ad-hoc build is what breaks login restore
     let report = claims([
-      ("/Library/Input Methods/Famo.app", "LQAVR62TK2"),
-      ("/Volumes/Work/famotype-macos/build/Debug/Famo.app", nil),
+      ("/Library/Input Methods/Owltype.app", "LQAVR62TK2"),
+      ("/Volumes/Work/famotype-macos/build/Debug/Owltype.app", nil),
     ])
     XCTAssertEqual(report.code, "FAMO-LS-002")
     XCTAssertEqual(report.unsignedCount, 1)
   }
 
   func testEmptyTeamIDCountsAsUnsigned() {  // ad-hoc signatures report "" rather than omitting it
-    XCTAssertEqual(claims([("/Volumes/Work/build/Famo.app", "")]).code, "FAMO-LS-002")
+    XCTAssertEqual(claims([("/Volumes/Work/build/Owltype.app", "")]).code, "FAMO-LS-002")
   }
 
   func testLoneUnsignedClaimStillWarns() {  // a dev build alone claiming the id is not healthy
-    let report = claims([("/Volumes/Work/famotype-macos/build/Debug/Famo.app", nil)])
+    let report = claims([("/Volumes/Work/famotype-macos/build/Debug/Owltype.app", nil)])
     XCTAssertEqual(report.code, "FAMO-LS-002")
     XCTAssertEqual(report.claimCount, 1)
   }
@@ -308,14 +308,14 @@ final class ActivationPolicyTests: XCTestCase {
   }
 
   func testClaimsAreSortedByPath() {  // stable JSON across runs; LaunchServices order is arbitrary
-    let report = claims([("/b/Famo.app", "LQAVR62TK2"), ("/a/Famo.app", "LQAVR62TK2")])
-    XCTAssertEqual(report.claims.map { $0.path }, ["/a/Famo.app", "/b/Famo.app"])
+    let report = claims([("/b/Owltype.app", "LQAVR62TK2"), ("/a/Owltype.app", "LQAVR62TK2")])
+    XCTAssertEqual(report.claims.map { $0.path }, ["/a/Owltype.app", "/b/Owltype.app"])
   }
 
   func testLaunchServicesCodesCarryUserMessageAndAction() {
     for code in ["FAMO-LS-001", "FAMO-LS-002"] {
-      XCTAssertNotNil(FamoTISDiagnostics.userMessage[code])
-      XCTAssertTrue(FamoTISDiagnostics.actionText(for: code).contains("clean-dev.sh --apply"))
+      XCTAssertNotNil(OwlTISDiagnostics.userMessage[code])
+      XCTAssertTrue(OwlTISDiagnostics.actionText(for: code).contains("clean-dev.sh --apply"))
     }
   }
 }

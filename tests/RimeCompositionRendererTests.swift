@@ -1,9 +1,9 @@
 //
 //  RimeCompositionRendererTests.swift
-//  FamoTests — C3 (task 07-05-famo-composition-render-seam)
+//  OwltypeTests — C3 (task 07-05-famo-composition-render-seam)
 //
 //  Characterization tests for `RimeCompositionRenderer.markedText`, the pure byte→UTF-16 +
-//  inline-candidate-preview math moved VERBATIM out of `FamoInputController+RimeUpdate`.
+//  inline-candidate-preview math moved VERBATIM out of `OwlInputController+RimeUpdate`.
 //  Pure: feed a fabricated `RimeComposition`, assert the `RimeMarkedText` — no NSPanel, no
 //  librime. Expected values are hand-computed from the librime byte offsets; they lock the
 //  extraction so a future regression in the index math fails here.
@@ -15,7 +15,7 @@
 
 import Foundation
 import XCTest
-@testable import Famo
+@testable import Owltype
 
 final class RimeCompositionRendererTests: XCTestCase {
 
@@ -172,7 +172,7 @@ final class RimeCompositionRendererTests: XCTestCase {
   // MARK: - #90（G1）keep-alive 非空 = autoPair commit 门在 zws 回合保持关闭的承重不变量
 
   func test_keepAlive_isNonEmpty_soAutoPairCommitGateStaysClosedDuringZWSRound() {
-    // autoPair 的 commit 门（FamoInputController+RimeUpdate.swift `commitApplyingAutoPair`）读
+    // autoPair 的 commit 门（OwlInputController+RimeUpdate.swift `commitApplyingAutoPair`）读
     // `self.preedit.isEmpty` 决定是否做右邻 IPC 几何读。#89 后 `self.preedit` 在「引擎组码中但
     // 渲染空」回合持有本 keep-alive；门保持关闭（plain 降级、不在活合成期做 IPC 读）的**唯一**
     // 依据 = keep-alive 非空。若有人把它改成空串，该门会静默重开 = #89 前的 bug（面③回归入口）。

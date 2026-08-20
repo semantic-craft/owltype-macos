@@ -1,15 +1,15 @@
 //
 //  SnapshotValidityTests.swift
-//  FamoTests — P0 staleness baseline (spec P0-06)
+//  OwltypeTests — P0 staleness baseline (spec P0-06)
 //
-//  Verifies `FamoSnapshotRegistry.isCurrent(_:)` returns false after every invalidation
+//  Verifies `OwlSnapshotRegistry.isCurrent(_:)` returns false after every invalidation
 //  event (rawInput / preedit / pageNo / commitSerial / schemaID / sessionID change) and true
 //  for an identical snapshot. No network, no librime dependency.
 //
 
 import Foundation
 import XCTest
-@testable import Famo
+@testable import Owltype
 
 @MainActor
 final class SnapshotValidityTests: XCTestCase {
@@ -24,8 +24,8 @@ final class SnapshotValidityTests: XCTestCase {
     cursor: Int = 2,
     pageNo: Int = 0,
     commitSerial: UInt64 = 0
-  ) -> FamoCompositionSnapshot {
-    FamoCompositionSnapshot(
+  ) -> OwlCompositionSnapshot {
+    OwlCompositionSnapshot(
       id: id,
       sessionID: sessionID,
       schemaID: schemaID,
@@ -39,7 +39,7 @@ final class SnapshotValidityTests: XCTestCase {
   }
 
   func testIsCurrentTrueForIdenticalState() {
-    let registry = FamoSnapshotRegistry()
+    let registry = OwlSnapshotRegistry()
     let snap = makeSnapshot()
     registry.update(snap)
     // A different `id` describing the same composition state is still current.
@@ -48,54 +48,54 @@ final class SnapshotValidityTests: XCTestCase {
   }
 
   func testIsCurrentFalseWhenNoCurrentSnapshot() {
-    let registry = FamoSnapshotRegistry()
+    let registry = OwlSnapshotRegistry()
     XCTAssertFalse(registry.isCurrent(makeSnapshot()))
   }
 
   func testRawInputChangeInvalidates() {
-    let registry = FamoSnapshotRegistry()
+    let registry = OwlSnapshotRegistry()
     let old = makeSnapshot(id: 1, rawInput: "genju")
     registry.update(makeSnapshot(id: 2, rawInput: "genjuq"))
     XCTAssertFalse(registry.isCurrent(old))
   }
 
   func testPreeditChangeInvalidates() {
-    let registry = FamoSnapshotRegistry()
+    let registry = OwlSnapshotRegistry()
     let old = makeSnapshot(id: 1, preedit: "根据")
     registry.update(makeSnapshot(id: 2, preedit: "跟据"))
     XCTAssertFalse(registry.isCurrent(old))
   }
 
   func testPageFlipInvalidates() {
-    let registry = FamoSnapshotRegistry()
+    let registry = OwlSnapshotRegistry()
     let old = makeSnapshot(id: 1, pageNo: 0)
     registry.update(makeSnapshot(id: 2, pageNo: 1))
     XCTAssertFalse(registry.isCurrent(old))
   }
 
   func testCommitSerialBumpInvalidates() {
-    let registry = FamoSnapshotRegistry()
+    let registry = OwlSnapshotRegistry()
     let old = makeSnapshot(id: 1, commitSerial: 0)
     registry.update(makeSnapshot(id: 2, commitSerial: 1))
     XCTAssertFalse(registry.isCurrent(old))
   }
 
   func testSchemaSwitchInvalidates() {
-    let registry = FamoSnapshotRegistry()
+    let registry = OwlSnapshotRegistry()
     let old = makeSnapshot(id: 1, schemaID: "wubi86_jidian")
     registry.update(makeSnapshot(id: 2, schemaID: "pinyin_simp"))
     XCTAssertFalse(registry.isCurrent(old))
   }
 
   func testSessionChangeInvalidates() {
-    let registry = FamoSnapshotRegistry()
+    let registry = OwlSnapshotRegistry()
     let old = makeSnapshot(id: 1, sessionID: 100)
     registry.update(makeSnapshot(id: 2, sessionID: 101))
     XCTAssertFalse(registry.isCurrent(old))
   }
 
   func testCompositionEndInvalidates() {
-    let registry = FamoSnapshotRegistry()
+    let registry = OwlSnapshotRegistry()
     let old = makeSnapshot()
     registry.update(old)
     XCTAssertTrue(registry.isCurrent(old))
@@ -105,7 +105,7 @@ final class SnapshotValidityTests: XCTestCase {
   }
 
   func testSnapshotIDGeneratorIsMonotonic() {
-    let gen = FamoSnapshotIDGenerator()
+    let gen = OwlSnapshotIDGenerator()
     let first = gen.next()
     let second = gen.next()
     let third = gen.next()
@@ -114,9 +114,9 @@ final class SnapshotValidityTests: XCTestCase {
   }
 }
 
-final class FamoConfigWriterBoundaryTests: XCTestCase {
+final class OwlConfigWriterBoundaryTests: XCTestCase {
 
-  private let fuzzyOff = FamoFuzzySnapshot(
+  private let fuzzyOff = OwlFuzzySnapshot(
     zhz: false, chc: false, shs: false, nl: false, rl: false,
     fh: false, anang: false, eneng: false, ining: false
   )
@@ -130,10 +130,10 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
   }
 
   private func keyboardSnapshot(
-    fuzzy: FamoFuzzySnapshot? = nil,
+    fuzzy: OwlFuzzySnapshot? = nil,
     slashSymbolMenu: Bool = false
-  ) -> FamoKeyboardSnapshot {
-    FamoKeyboardSnapshot(
+  ) -> OwlKeyboardSnapshot {
+    OwlKeyboardSnapshot(
       inputMethod: .pinyin,
       doublePinyin: .flypy,
       shiftSwitchCJK: true,
@@ -152,23 +152,23 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
     )
   }
 
-  func testDefaultDirectoryIsFamoUserDataDir() {
-    let writer = FamoConfigWriter()
+  func testDefaultDirectoryIsOwltypeUserDataDir() {
+    let writer = OwlConfigWriter()
     XCTAssertEqual(
       writer.rimeDir.standardizedFileURL.path,
-      FamoApp.userDir.standardizedFileURL.path
+      OwlApp.userDir.standardizedFileURL.path
     )
     XCTAssertFalse(
       writer.rimeDir.path.hasSuffix("/Library/Rime"),
-      "Famo must not default to the user's shared Rime directory"
+      "Owltype must not default to the user's shared Rime directory"
     )
   }
 
-  func testRimeSyncSettingsDefaultToFamoSyncDirectory() throws {
+  func testRimeSyncSettingsDefaultToOwltypeSyncDirectory() throws {
     let dir = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: dir) }
 
-    let settings = FamoRimeSyncSettings(rimeDir: dir)
+    let settings = OwlRimeSyncSettings(rimeDir: dir)
     XCTAssertEqual(
       settings.currentSyncDirectory().standardizedFileURL.path,
       dir.appendingPathComponent("sync", isDirectory: true).standardizedFileURL.path
@@ -181,14 +181,14 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
 
     try """
     installation_id: abc
-    sync_dir: "/tmp/Famo Sync"
+    sync_dir: "/tmp/Owltype Sync"
     distribution_code_name: famo
 
     """.write(to: dir.appendingPathComponent("installation.yaml"), atomically: true, encoding: .utf8)
 
     XCTAssertEqual(
-      FamoRimeSyncSettings(rimeDir: dir).currentSyncDirectory().path,
-      "/tmp/Famo Sync"
+      OwlRimeSyncSettings(rimeDir: dir).currentSyncDirectory().path,
+      "/tmp/Owltype Sync"
     )
   }
 
@@ -203,8 +203,8 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
 
     """.write(to: installation, atomically: true, encoding: .utf8)
 
-    let target = dir.appendingPathComponent("Cloud Sync/Famo", isDirectory: true)
-    let settings = FamoRimeSyncSettings(rimeDir: dir)
+    let target = dir.appendingPathComponent("Cloud Sync/Owltype", isDirectory: true)
+    let settings = OwlRimeSyncSettings(rimeDir: dir)
     try settings.setSyncDirectory(target)
 
     let text = try String(contentsOf: installation, encoding: .utf8)
@@ -215,7 +215,7 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
   }
 
   func testKeyboardPatchPlanDefaultsSlashSymbolMenuOff() {
-    let files = FamoManagedKeyboardPatchPlan.files(from: keyboardSnapshot())
+    let files = OwlManagedKeyboardPatchPlan.files(from: keyboardSnapshot())
     XCTAssertEqual(files.map(\.fileName), [
       "default.custom.yaml",
       "famo.custom.yaml",
@@ -228,20 +228,20 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
 
     let block = files[0].block
     let text = block.yamlLinesIndentedUnderPatch.joined(separator: "\n")
-    XCTAssertEqual(block.marker, FamoManagedMarker.defaultPatch)
+    XCTAssertEqual(block.marker, OwlManagedMarker.defaultPatch)
     XCTAssertFalse(text.contains("\"punctuator/half_shape/+\":"))
     XCTAssertFalse(text.contains("\"/\": ["))
 
     // index 1 = famo.custom.yaml (per-app app_options, famo 域, task 07-08); indices below shift by 1.
-    XCTAssertEqual(files[1].block.marker, FamoManagedMarker.famoAppOptions)
-    XCTAssertEqual(files[2].block.marker, FamoManagedMarker.rimeIce)
+    XCTAssertEqual(files[1].block.marker, OwlManagedMarker.owlAppOptions)
+    XCTAssertEqual(files[2].block.marker, OwlManagedMarker.rimeIce)
     XCTAssertTrue(files[2].block.yamlLinesIndentedUnderPatch.isEmpty)
-    XCTAssertEqual(files[3].block.marker, FamoManagedMarker.wubiJidian)
+    XCTAssertEqual(files[3].block.marker, OwlManagedMarker.wubiJidian)
     XCTAssertTrue(files[3].block.yamlLinesIndentedUnderPatch.contains { $0.contains("translator/comment_format") })
   }
 
   func testKeyboardPatchPlanIncludesSlashSymbolMenuWhenEnabled() {
-    let files = FamoManagedKeyboardPatchPlan.files(from: keyboardSnapshot(slashSymbolMenu: true))
+    let files = OwlManagedKeyboardPatchPlan.files(from: keyboardSnapshot(slashSymbolMenu: true))
     let text = files[0].block.yamlLinesIndentedUnderPatch.joined(separator: "\n")
     XCTAssertTrue(text.contains("\"punctuator/half_shape/+\":"))
     XCTAssertTrue(text.contains("\"punctuator/full_shape/+\":"))
@@ -276,9 +276,9 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
     let target = dir.appendingPathComponent("default.custom.yaml")
     try original.write(to: target, atomically: true, encoding: .utf8)
 
-    let written = try FamoManagedKeyboardPatchPlan.apply(
+    let written = try OwlManagedKeyboardPatchPlan.apply(
       snapshot: keyboardSnapshot(),
-      writer: FamoConfigWriter(rimeDir: dir),
+      writer: OwlConfigWriter(rimeDir: dir),
       timestamp: "20260619-smoke"
     )
 
@@ -298,11 +298,11 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
     XCTAssertFalse(updated.contains("com.example.Legacy"))
     XCTAssertTrue(updated.contains("\"menu/page_size\": 8"))
     XCTAssertTrue(updated.contains("\"switcher/caption\": test"))
-    XCTAssertTrue(updated.contains("# >>> \(FamoManagedMarker.defaultPatch)"))
+    XCTAssertTrue(updated.contains("# >>> \(OwlManagedMarker.defaultPatch)"))
     // 新开关默认关闭：重生成的托管块不得擅自改变 `/` 行为。
     XCTAssertFalse(updated.contains("\"/\": ["))
     let rimeIce = try String(contentsOf: dir.appendingPathComponent("rime_ice.custom.yaml"), encoding: .utf8)
-    XCTAssertTrue(rimeIce.contains("# >>> \(FamoManagedMarker.rimeIce)"))
+    XCTAssertTrue(rimeIce.contains("# >>> \(OwlManagedMarker.rimeIce)"))
     XCTAssertFalse(rimeIce.contains("speller/algebra"))
     XCTAssertTrue(
       FileManager.default.fileExists(
@@ -313,14 +313,14 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
     )
   }
 
-  func testQuickSendStoreWritesFamoOwnedPhraseFileAndPatch() throws {
+  func testQuickSendStoreWritesOwltypeOwnedPhraseFileAndPatch() throws {
     let dir = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: dir) }
 
-    let entry = try FamoQuickSendStore.entry(text: "法墨测试短语", code: "fmcs")
-    try FamoQuickSendStore.save(
+    let entry = try OwlQuickSendStore.entry(text: "法墨测试短语", code: "fmcs")
+    try OwlQuickSendStore.save(
       [entry],
-      writer: FamoConfigWriter(rimeDir: dir),
+      writer: OwlConfigWriter(rimeDir: dir),
       timestamp: "20260619-quick"
     )
 
@@ -337,7 +337,7 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
       contentsOf: dir.appendingPathComponent("rime_ice.custom.yaml"),
       encoding: .utf8
     )
-    XCTAssertTrue(rimeIce.contains("# >>> \(FamoManagedMarker.quickSendRimeIce)"))
+    XCTAssertTrue(rimeIce.contains("# >>> \(OwlManagedMarker.quickSendRimeIce)"))
     XCTAssertTrue(rimeIce.contains("table_translator@famo_quick_send"))
     XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent("custom_phrase.txt").path))
     XCTAssertTrue(
@@ -350,15 +350,15 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
   }
 
   func testQuickSendStoreRejectsUnsafeEntries() {
-    XCTAssertThrowsError(try FamoQuickSendStore.entry(text: "bad\ttext", code: "fm"))
-    XCTAssertThrowsError(try FamoQuickSendStore.entry(text: "法墨", code: "bad:key"))
+    XCTAssertThrowsError(try OwlQuickSendStore.entry(text: "bad\ttext", code: "fm"))
+    XCTAssertThrowsError(try OwlQuickSendStore.entry(text: "法墨", code: "bad:key"))
   }
 
   func testConfigWriterAllowsManagedLawFormsLuaFile() throws {
     let dir = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: dir) }
 
-    let writer = FamoConfigWriter(rimeDir: dir)
+    let writer = OwlConfigWriter(rimeDir: dir)
     try writer.applyTextFile(
       fileName: "lua/law_forms.lua",
       contents: "return {}\n",
@@ -380,50 +380,50 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
   }
 
   func testClipboardStoreDefaultsOffAndLimitsLocalEntries() throws {
-    let suite = "FamoClipboardTests-\(UUID().uuidString)"
+    let suite = "OwlClipboardTests-\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
 
-    XCTAssertFalse(FamoClipboardStore.isEnabled(defaults: defaults))
-    FamoClipboardStore.setEnabled(true, defaults: defaults)
-    XCTAssertTrue(FamoClipboardStore.isEnabled(defaults: defaults))
+    XCTAssertFalse(OwlClipboardStore.isEnabled(defaults: defaults))
+    OwlClipboardStore.setEnabled(true, defaults: defaults)
+    XCTAssertTrue(OwlClipboardStore.isEnabled(defaults: defaults))
 
     let dir = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: dir) }
 
-    let longText = String(repeating: "法", count: FamoClipboardStore.maxCharacters + 10)
-    let entries = (0..<(FamoClipboardStore.maxEntries + 5)).map { index in
-      FamoClipboardEntry(
+    let longText = String(repeating: "法", count: OwlClipboardStore.maxCharacters + 10)
+    let entries = (0..<(OwlClipboardStore.maxEntries + 5)).map { index in
+      OwlClipboardEntry(
         id: UUID(),
         text: "\(index)-\(longText)",
         createdAt: Date(timeIntervalSince1970: Double(index))
       )
     }
-    try FamoClipboardStore.save(entries, root: dir)
+    try OwlClipboardStore.save(entries, root: dir)
 
-    let loaded = FamoClipboardStore.load(root: dir)
-    XCTAssertEqual(loaded.count, FamoClipboardStore.maxEntries)
-    XCTAssertLessThanOrEqual(loaded[0].text.count, FamoClipboardStore.maxCharacters)
+    let loaded = OwlClipboardStore.load(root: dir)
+    XCTAssertEqual(loaded.count, OwlClipboardStore.maxEntries)
+    XCTAssertLessThanOrEqual(loaded[0].text.count, OwlClipboardStore.maxCharacters)
     let rootMode = try FileManager.default.attributesOfItem(atPath: dir.path)[.posixPermissions] as? NSNumber
     let fileMode = try FileManager.default.attributesOfItem(
-      atPath: FamoClipboardStore.fileURL(root: dir).path)[.posixPermissions] as? NSNumber
+      atPath: OwlClipboardStore.fileURL(root: dir).path)[.posixPermissions] as? NSNumber
     XCTAssertEqual(rootMode?.intValue, 0o700)
     XCTAssertEqual(fileMode?.intValue, 0o600)
 
-    try FamoClipboardStore.clear(root: dir)
-    XCTAssertTrue(FamoClipboardStore.load(root: dir).isEmpty)
-    XCTAssertFalse(FileManager.default.fileExists(atPath: FamoClipboardStore.fileURL(root: dir).path))
+    try OwlClipboardStore.clear(root: dir)
+    XCTAssertTrue(OwlClipboardStore.load(root: dir).isEmpty)
+    XCTAssertFalse(FileManager.default.fileExists(atPath: OwlClipboardStore.fileURL(root: dir).path))
   }
 
   func testClipboardCaptureRejectsEmptyTextAndDedupes() throws {
     let dir = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: dir) }
 
-    XCTAssertThrowsError(try FamoClipboardStore.capture("   ", root: dir))
+    XCTAssertThrowsError(try OwlClipboardStore.capture("   ", root: dir))
 
-    _ = try FamoClipboardStore.capture("第一条", root: dir, now: Date(timeIntervalSince1970: 1))
-    _ = try FamoClipboardStore.capture("第二条", root: dir, now: Date(timeIntervalSince1970: 2))
-    let loaded = try FamoClipboardStore.capture("第一条", root: dir, now: Date(timeIntervalSince1970: 3))
+    _ = try OwlClipboardStore.capture("第一条", root: dir, now: Date(timeIntervalSince1970: 1))
+    _ = try OwlClipboardStore.capture("第二条", root: dir, now: Date(timeIntervalSince1970: 2))
+    let loaded = try OwlClipboardStore.capture("第一条", root: dir, now: Date(timeIntervalSince1970: 3))
 
     XCTAssertEqual(loaded.map(\.text), ["第一条", "第二条"])
     XCTAssertEqual(loaded[0].createdAt, Date(timeIntervalSince1970: 3))
@@ -434,17 +434,17 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
     defer { try? FileManager.default.removeItem(at: dir) }
 
     // Seed history only at the pre-fix nested `.../famo/clipboard-history.json` location.
-    let legacy = FamoClipboardStore.legacyFileURL(root: dir)
+    let legacy = OwlClipboardStore.legacyFileURL(root: dir)
     try FileManager.default.createDirectory(at: legacy.deletingLastPathComponent(), withIntermediateDirectories: true)
-    let seeded = [FamoClipboardEntry(text: "旧记录", createdAt: Date(timeIntervalSince1970: 1))]
+    let seeded = [OwlClipboardEntry(text: "旧记录", createdAt: Date(timeIntervalSince1970: 1))]
     try Data(JSONEncoder().encode(seeded)).write(to: legacy)
 
     // load() falls back to the legacy file, and the next save migrates it forward + drops legacy.
-    XCTAssertEqual(FamoClipboardStore.load(root: dir).map(\.text), ["旧记录"])
-    _ = try FamoClipboardStore.capture("新记录", root: dir, now: Date(timeIntervalSince1970: 2))
+    XCTAssertEqual(OwlClipboardStore.load(root: dir).map(\.text), ["旧记录"])
+    _ = try OwlClipboardStore.capture("新记录", root: dir, now: Date(timeIntervalSince1970: 2))
 
-    XCTAssertEqual(FamoClipboardStore.load(root: dir).map(\.text), ["新记录", "旧记录"])
-    XCTAssertTrue(FileManager.default.fileExists(atPath: FamoClipboardStore.fileURL(root: dir).path))
+    XCTAssertEqual(OwlClipboardStore.load(root: dir).map(\.text), ["新记录", "旧记录"])
+    XCTAssertTrue(FileManager.default.fileExists(atPath: OwlClipboardStore.fileURL(root: dir).path))
     XCTAssertFalse(FileManager.default.fileExists(atPath: legacy.path))
   }
 
@@ -456,7 +456,7 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
     let target = dir.appendingPathComponent("default.custom.yaml")
     try original.write(to: target, atomically: true, encoding: .utf8)
 
-    let writer = FamoConfigWriter(rimeDir: dir)
+    let writer = OwlConfigWriter(rimeDir: dir)
     let block = ManagedPatchBlock(
       marker: "FAMO MANAGED TEST PATCH",
       yamlLinesIndentedUnderPatch: [
@@ -501,7 +501,7 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
     try defaultOriginal.write(to: defaultURL, atomically: true, encoding: .utf8)
     try rimeIceOriginal.write(to: rimeIceURL, atomically: true, encoding: .utf8)
 
-    let writer = FamoConfigWriter(rimeDir: dir)
+    let writer = OwlConfigWriter(rimeDir: dir)
     let defaultBlock = ManagedPatchBlock(
       marker: "FAMO MANAGED DEFAULT TEST",
       yamlLinesIndentedUnderPatch: ["  \"menu/page_size\": 8"]
@@ -523,7 +523,7 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
     let dir = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: dir) }
 
-    let writer = FamoConfigWriter(rimeDir: dir)
+    let writer = OwlConfigWriter(rimeDir: dir)
     let block = ManagedPatchBlock(
       marker: "FAMO MANAGED TEST PATCH",
       yamlLinesIndentedUnderPatch: ["  \"menu/page_size\": 8"]
@@ -532,18 +532,18 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
     XCTAssertThrowsError(
       try writer.apply(fileName: "user.yaml", block: block, timestamp: "20260618-test")
     ) { error in
-      guard case FamoConfigWriteError.refusedNeverTouch("user.yaml") = error else {
+      guard case OwlConfigWriteError.refusedNeverTouch("user.yaml") = error else {
         XCTFail("Expected refusedNeverTouch(user.yaml), got \(error)")
         return
       }
     }
   }
 
-  func testApplyRefusesFilesOutsideFamoManagedList() throws {
+  func testApplyRefusesFilesOutsideOwltypeManagedList() throws {
     let dir = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: dir) }
 
-    let writer = FamoConfigWriter(rimeDir: dir)
+    let writer = OwlConfigWriter(rimeDir: dir)
     let block = ManagedPatchBlock(
       marker: "FAMO MANAGED TEST PATCH",
       yamlLinesIndentedUnderPatch: ["  \"menu/page_size\": 8"]
@@ -552,7 +552,7 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
     XCTAssertThrowsError(
       try writer.apply(fileName: "../Squirrel/default.custom.yaml", block: block, timestamp: "20260619-test")
     ) { error in
-      guard case FamoConfigWriteError.refusedUnmanagedFile("../Squirrel/default.custom.yaml") = error else {
+      guard case OwlConfigWriteError.refusedUnmanagedFile("../Squirrel/default.custom.yaml") = error else {
         XCTFail("Expected refusedUnmanagedFile, got \(error)")
         return
       }
@@ -560,27 +560,27 @@ final class FamoConfigWriterBoundaryTests: XCTestCase {
   }
 }
 
-final class FamoInputSourceDisplayTests: XCTestCase {
+final class OwlInputSourceDisplayTests: XCTestCase {
 
-  func testFamoInputSourceDisplayIsBranded() {
+  func testOwltypeInputSourceDisplayIsBranded() {
     XCTAssertEqual(
-      FamoInstaller.currentInputSourceDisplayName(for: "im.famo.inputmethod.Famo.Hans"),
+      OwlInstaller.currentInputSourceDisplayName(for: "im.famo.inputmethod.Famo.Hans"),
       "法墨输入法（im.famo.inputmethod.Famo.Hans）"
     )
   }
 
-  func testSquirrelInputSourceDisplayWarnsItIsNotFamo() {
+  func testSquirrelInputSourceDisplayWarnsItIsNotOwltype() {
     XCTAssertEqual(
-      FamoInstaller.currentInputSourceDisplayName(for: "im.rime.inputmethod.Squirrel.Hans"),
+      OwlInstaller.currentInputSourceDisplayName(for: "im.rime.inputmethod.Squirrel.Hans"),
       "Squirrel（im.rime.inputmethod.Squirrel.Hans，当前不是法墨）"
     )
   }
 
   func testUnknownInputSourceDisplayFallsBackToID() {
     XCTAssertEqual(
-      FamoInstaller.currentInputSourceDisplayName(for: "com.apple.keylayout.US"),
+      OwlInstaller.currentInputSourceDisplayName(for: "com.apple.keylayout.US"),
       "com.apple.keylayout.US"
     )
-    XCTAssertEqual(FamoInstaller.currentInputSourceDisplayName(for: nil), "未知")
+    XCTAssertEqual(OwlInstaller.currentInputSourceDisplayName(for: nil), "未知")
   }
 }

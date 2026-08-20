@@ -1,11 +1,11 @@
 //
 //  CandidateStoreTests.swift
-//  FamoTests — P0 candidate-store staleness gate (spec P0-03 / P0-06)
+//  OwltypeTests — P0 candidate-store staleness gate (spec P0-03 / P0-06)
 //
 //  Verifies the store DROPS an upsert whose snapshotID is stale, KEEPS one for the live
 //  snapshot, and clears smart/cloud on a composition change. No network, no librime.
 //
-//  Note: the store consults `FamoSnapshotRegistry.shared` (the singleton the live emitter
+//  Note: the store consults `OwlSnapshotRegistry.shared` (the singleton the live emitter
 //  also writes), so these tests drive that shared registry. Each test resets it to a known
 //  state, exercising the cross-check exactly as production code will.
 //
@@ -13,13 +13,13 @@
 import AppKit
 import SwiftUI
 import XCTest
-@testable import Famo
+@testable import Owltype
 
 @MainActor
 final class CandidateStoreTests: XCTestCase {
 
-  private func makeSnapshot(id: UInt64, rawInput: String = "byrw") -> FamoCompositionSnapshot {
-    FamoCompositionSnapshot(
+  private func makeSnapshot(id: UInt64, rawInput: String = "byrw") -> OwlCompositionSnapshot {
+    OwlCompositionSnapshot(
       id: id,
       sessionID: 100,
       schemaID: "wubi86_jidian",
@@ -49,21 +49,21 @@ final class CandidateStoreTests: XCTestCase {
   override func setUp() async throws {
     try await super.setUp()
     // Clear any state left by a prior test in this process.
-    FamoSnapshotRegistry.shared.update(nil)
-    FamoCandidateStore.shared.clearForSnapshotChange()
+    OwlSnapshotRegistry.shared.update(nil)
+    OwlCandidateStore.shared.clearForSnapshotChange()
   }
 
   override func tearDown() async throws {
     // Reset the process-wide registry at the source so a leftover snapshot can't leak
     // into later test classes (the symmetric reset to setUp).
-    FamoSnapshotRegistry.shared.update(nil)
+    OwlSnapshotRegistry.shared.update(nil)
     try await super.tearDown()
   }
 
   func testUpsertWithCurrentSnapshotIsKept() {
-    let store = FamoCandidateStore.shared
+    let store = OwlCandidateStore.shared
     let live = makeSnapshot(id: 10)
-    FamoSnapshotRegistry.shared.update(live)
+    OwlSnapshotRegistry.shared.update(live)
 
     store.upsertSmartCandidates(
       [makeCandidate(snapshotID: 10, lane: .smart, text: "本院认为")],
@@ -74,8 +74,8 @@ final class CandidateStoreTests: XCTestCase {
   }
 
   func testStaleSmartUpsertIsDropped() {
-    let store = FamoCandidateStore.shared
-    FamoSnapshotRegistry.shared.update(makeSnapshot(id: 21))
+    let store = OwlCandidateStore.shared
+    OwlSnapshotRegistry.shared.update(makeSnapshot(id: 21))
 
     store.upsertSmartCandidates(
       [makeCandidate(snapshotID: 20, lane: .smart, text: "本院")],
@@ -85,8 +85,8 @@ final class CandidateStoreTests: XCTestCase {
   }
 
   func testUpsertWithMismatchedLaneIsDropped() {
-    let store = FamoCandidateStore.shared
-    FamoSnapshotRegistry.shared.update(makeSnapshot(id: 30))
+    let store = OwlCandidateStore.shared
+    OwlSnapshotRegistry.shared.update(makeSnapshot(id: 30))
 
     // Candidate tagged .main fed into the smart upsert → rejected as inconsistent.
     store.upsertSmartCandidates(
@@ -97,8 +97,8 @@ final class CandidateStoreTests: XCTestCase {
   }
 
   func testClearForSnapshotChangeEmptiesNonMainLanes() {
-    let store = FamoCandidateStore.shared
-    FamoSnapshotRegistry.shared.update(makeSnapshot(id: 40))
+    let store = OwlCandidateStore.shared
+    OwlSnapshotRegistry.shared.update(makeSnapshot(id: 40))
     store.upsertSmartCandidates(
       [makeCandidate(snapshotID: 40, lane: .smart, text: "本院")],
       snapshotID: 40
@@ -113,15 +113,15 @@ final class CandidateStoreTests: XCTestCase {
   }
 
   func testStaleErrorIsDropped() {
-    let store = FamoCandidateStore.shared
-    FamoSnapshotRegistry.shared.update(makeSnapshot(id: 51))
+    let store = OwlCandidateStore.shared
+    OwlSnapshotRegistry.shared.update(makeSnapshot(id: 51))
     store.showError("decode error", lane: .smart, snapshotID: 50)
     XCTAssertNil(store.laneError)
   }
 
   func testExternalCommitBrokerCommitsOnlyCurrentCandidateAndClearsEnhancementLanes() {
-    let store = FamoCandidateStore.shared
-    FamoSnapshotRegistry.shared.update(makeSnapshot(id: 60))
+    let store = OwlCandidateStore.shared
+    OwlSnapshotRegistry.shared.update(makeSnapshot(id: 60))
     store.upsertSmartCandidates(
       [makeCandidate(snapshotID: 60, lane: .smart, text: "本院")],
       snapshotID: 60
@@ -130,19 +130,19 @@ final class CandidateStoreTests: XCTestCase {
 
     var inserted: [String] = []
     let candidate = makeCandidate(snapshotID: 60, lane: .smart, text: "本院认为")
-    FamoExternalCommitBroker.shared.commit(candidate) { inserted.append($0) }
+    OwlExternalCommitBroker.shared.commit(candidate) { inserted.append($0) }
 
     XCTAssertEqual(inserted, ["本院认为"])
     XCTAssertTrue(store.smart.isEmpty)
   }
 
   func testExternalCommitBrokerDropsStaleCandidateWithoutInsert() {
-    let store = FamoCandidateStore.shared
-    FamoSnapshotRegistry.shared.update(makeSnapshot(id: 71, rawInput: "byrwr"))
+    let store = OwlCandidateStore.shared
+    OwlSnapshotRegistry.shared.update(makeSnapshot(id: 71, rawInput: "byrwr"))
 
     var inserted: [String] = []
     let stale = makeCandidate(snapshotID: 70, lane: .smart, text: "本院认为")
-    FamoExternalCommitBroker.shared.commit(stale) { inserted.append($0) }
+    OwlExternalCommitBroker.shared.commit(stale) { inserted.append($0) }
 
     XCTAssertTrue(inserted.isEmpty)
     XCTAssertTrue(store.smart.isEmpty)
@@ -158,7 +158,7 @@ final class ProvenanceMappingTests: XCTestCase {
     _ lane: EnhancedCandidate.Lane,
     law: Bool = false,
     version: Bool = false
-  ) -> FamoProvenance? {
+  ) -> OwlProvenance? {
     EnhancedCandidate.provenance(source: source, lane: lane, isLawObject: law, lawVersionKnown: version)
   }
 
@@ -179,8 +179,8 @@ final class ProvenanceMappingTests: XCTestCase {
   }
 
   func testAINeedsConfirmation() {
-    XCTAssertTrue(FamoProvenance.ai.needsConfirmation)
-    XCTAssertFalse(FamoProvenance.verified.needsConfirmation)
+    XCTAssertTrue(OwlProvenance.ai.needsConfirmation)
+    XCTAssertFalse(OwlProvenance.verified.needsConfirmation)
   }
 }
 
@@ -188,51 +188,51 @@ final class ProvenanceMappingTests: XCTestCase {
 /// strings, the usage telemetry, the numbered-rewrite parser, and the retry-policy classifier.
 /// All are used by the kept 划词润色 / 任意提问 paths; the candidate pipeline is gone.
 @MainActor
-final class FamoCloudSharedBaseTests: XCTestCase {
+final class OwlCloudSharedBaseTests: XCTestCase {
 
   override func setUp() async throws {
     try await super.setUp()
-    FamoCloudPreferences.resetForTesting()
-    FamoCloudUsageTelemetry.resetForTesting()
+    OwlCloudPreferences.resetForTesting()
+    OwlCloudUsageTelemetry.resetForTesting()
   }
 
   override func tearDown() async throws {
-    FamoCloudPreferences.resetForTesting()
-    FamoCloudUsageTelemetry.resetForTesting()
+    OwlCloudPreferences.resetForTesting()
+    OwlCloudUsageTelemetry.resetForTesting()
     try await super.tearDown()
   }
 
   func testDeepSeekModelDefaultsToV4AndCanonicalizesLegacyAliases() {
-    XCTAssertEqual(FamoCloudPreferences.deepSeekModel, "deepseek-v4-flash")
+    XCTAssertEqual(OwlCloudPreferences.deepSeekModel, "deepseek-v4-flash")
 
-    FamoCloudPreferences.deepSeekModel = "deepseek-reasoner"
-    XCTAssertEqual(FamoCloudPreferences.deepSeekModel, "deepseek-v4-pro")
+    OwlCloudPreferences.deepSeekModel = "deepseek-reasoner"
+    XCTAssertEqual(OwlCloudPreferences.deepSeekModel, "deepseek-v4-pro")
 
-    FamoCloudPreferences.deepSeekModel = "deepseek-chat"
-    XCTAssertEqual(FamoCloudPreferences.deepSeekModel, "deepseek-v4-flash")
+    OwlCloudPreferences.deepSeekModel = "deepseek-chat"
+    XCTAssertEqual(OwlCloudPreferences.deepSeekModel, "deepseek-v4-flash")
   }
 
   func testDeepSeekStatusMessagesAreSpecific() {
-    XCTAssertEqual(FamoCloudPreferences.message(for: FamoCloudRequestError.badHTTPStatus(400)), "云端 AI 拒绝了此请求")
-    XCTAssertEqual(FamoCloudPreferences.message(for: FamoCloudRequestError.badHTTPStatus(401)), "云端 AI 的 API Key 无效")
-    XCTAssertEqual(FamoCloudPreferences.message(for: FamoCloudRequestError.badHTTPStatus(402)), "云端 AI 账户余额不足")
-    XCTAssertEqual(FamoCloudPreferences.message(for: FamoCloudRequestError.badHTTPStatus(422)), "云端 AI 不支持的请求格式")
-    XCTAssertEqual(FamoCloudPreferences.message(for: FamoCloudRequestError.badHTTPStatus(429)), "云端 AI 请求过于频繁，请稍后再试")
-    XCTAssertEqual(FamoCloudPreferences.message(for: FamoCloudRequestError.badHTTPStatus(500)), "云端 AI 服务器错误，请稍后重试")
-    XCTAssertEqual(FamoCloudPreferences.message(for: FamoCloudRequestError.badHTTPStatus(503)), "云端 AI 服务繁忙，请稍后重试")
+    XCTAssertEqual(OwlCloudPreferences.message(for: OwlCloudRequestError.badHTTPStatus(400)), "云端 AI 拒绝了此请求")
+    XCTAssertEqual(OwlCloudPreferences.message(for: OwlCloudRequestError.badHTTPStatus(401)), "云端 AI 的 API Key 无效")
+    XCTAssertEqual(OwlCloudPreferences.message(for: OwlCloudRequestError.badHTTPStatus(402)), "云端 AI 账户余额不足")
+    XCTAssertEqual(OwlCloudPreferences.message(for: OwlCloudRequestError.badHTTPStatus(422)), "云端 AI 不支持的请求格式")
+    XCTAssertEqual(OwlCloudPreferences.message(for: OwlCloudRequestError.badHTTPStatus(429)), "云端 AI 请求过于频繁，请稍后再试")
+    XCTAssertEqual(OwlCloudPreferences.message(for: OwlCloudRequestError.badHTTPStatus(500)), "云端 AI 服务器错误，请稍后重试")
+    XCTAssertEqual(OwlCloudPreferences.message(for: OwlCloudRequestError.badHTTPStatus(503)), "云端 AI 服务繁忙，请稍后重试")
     XCTAssertEqual(
-      FamoCloudPreferences.message(for: FamoCloudRequestError.badHTTPStatus(418)),
+      OwlCloudPreferences.message(for: OwlCloudRequestError.badHTTPStatus(418)),
       "云端 AI 请求失败（418）"
     )
   }
 
-  // 任意提问的专属云闸测试（FamoAskAnythingGate）已随状态栏入口一并删除（2026-07-26）：无选区入口
-  // 没了之后它只剩划词菜单一条路，关闸由 `FamoSelectionMenuAction.enabledActions(cloudEnabled:)`
-  // 统一挡下（断言在 FamoSettingsActionTests，关闸返空数组＝连 .ask 都不出现）。
+  // 任意提问的专属云闸测试（OwlAskAnythingGate）已随状态栏入口一并删除（2026-07-26）：无选区入口
+  // 没了之后它只剩划词菜单一条路，关闸由 `OwlSelectionMenuAction.enabledActions(cloudEnabled:)`
+  // 统一挡下（断言在 OwlSettingsActionTests，关闸返空数组＝连 .ask 都不出现）。
 
   func testDeepSeekUsageTelemetryStoresOnlyCountsAndCache() {
-    FamoCloudUsageTelemetry.record(
-      FamoCloudUsageSnapshot(
+    OwlCloudUsageTelemetry.record(
+      OwlCloudUsageSnapshot(
         model: "deepseek-v4-flash",
         completionTokens: 3,
         promptTokens: 10,
@@ -243,8 +243,8 @@ final class FamoCloudSharedBaseTests: XCTestCase {
     )
 
     XCTAssertEqual(
-      FamoCloudUsageTelemetry.lastUsage,
-      FamoCloudUsageSnapshot(
+      OwlCloudUsageTelemetry.lastUsage,
+      OwlCloudUsageSnapshot(
         model: "deepseek-v4-flash",
         completionTokens: 3,
         promptTokens: 10,
@@ -257,114 +257,114 @@ final class FamoCloudSharedBaseTests: XCTestCase {
 
   func testParserRejectsBadJSONAndCleansFields() {
     // Malformed JSON-looking text → no candidates (never surface raw braces/brackets).
-    XCTAssertEqual(FamoNumberedRewriteParser.parse("{not valid json"), [])
-    XCTAssertEqual(FamoNumberedRewriteParser.parse("[oops"), [])
+    XCTAssertEqual(OwlNumberedRewriteParser.parse("{not valid json"), [])
+    XCTAssertEqual(OwlNumberedRewriteParser.parse("[oops"), [])
     // Object form parsed; empties dropped, duplicates de-duped, order preserved.
     XCTAssertEqual(
-      FamoNumberedRewriteParser.parse("{\"candidates\": [\"本院认为\", \"\", \"本院认为\", \"依法驳回\"]}"),
+      OwlNumberedRewriteParser.parse("{\"candidates\": [\"本院认为\", \"\", \"本院认为\", \"依法驳回\"]}"),
       ["本院认为", "依法驳回"]
     )
     // Bare array form still accepted.
-    XCTAssertEqual(FamoNumberedRewriteParser.parse("[\"甲\", \"乙\"]"), ["甲", "乙"])
+    XCTAssertEqual(OwlNumberedRewriteParser.parse("[\"甲\", \"乙\"]"), ["甲", "乙"])
   }
 
   func testRetryPolicyClassifiesErrors() {
-    XCTAssertTrue(FamoCloudRetry.isRetryable(FamoCloudRequestError.emptyResponse))
-    XCTAssertTrue(FamoCloudRetry.isRetryable(FamoCloudRequestError.badHTTPStatus(500)))
-    XCTAssertTrue(FamoCloudRetry.isRetryable(FamoCloudRequestError.badHTTPStatus(503)))
-    XCTAssertTrue(FamoCloudRetry.isRetryable(URLError(.timedOut)))
-    XCTAssertTrue(FamoCloudRetry.isRetryable(URLError(.networkConnectionLost)))
-    XCTAssertFalse(FamoCloudRetry.isRetryable(FamoCloudRequestError.badHTTPStatus(429)))
-    XCTAssertFalse(FamoCloudRetry.isRetryable(FamoCloudRequestError.badHTTPStatus(400)))
-    XCTAssertFalse(FamoCloudRetry.isRetryable(URLError(.notConnectedToInternet)))
+    XCTAssertTrue(OwlCloudRetry.isRetryable(OwlCloudRequestError.emptyResponse))
+    XCTAssertTrue(OwlCloudRetry.isRetryable(OwlCloudRequestError.badHTTPStatus(500)))
+    XCTAssertTrue(OwlCloudRetry.isRetryable(OwlCloudRequestError.badHTTPStatus(503)))
+    XCTAssertTrue(OwlCloudRetry.isRetryable(URLError(.timedOut)))
+    XCTAssertTrue(OwlCloudRetry.isRetryable(URLError(.networkConnectionLost)))
+    XCTAssertFalse(OwlCloudRetry.isRetryable(OwlCloudRequestError.badHTTPStatus(429)))
+    XCTAssertFalse(OwlCloudRetry.isRetryable(OwlCloudRequestError.badHTTPStatus(400)))
+    XCTAssertFalse(OwlCloudRetry.isRetryable(URLError(.notConnectedToInternet)))
   }
 }
 
 @MainActor
-final class FamoNumberedRewriteParserTests: XCTestCase {
+final class OwlNumberedRewriteParserTests: XCTestCase {
 
   func testSharedCandidateTextParserHandlesJsonObjectAndDedupes() {
-    let parsed = FamoNumberedRewriteParser.parse(#"{"candidates":["本院认为","本院认为","依法驳回"]}"#)
+    let parsed = OwlNumberedRewriteParser.parse(#"{"candidates":["本院认为","本院认为","依法驳回"]}"#)
     XCTAssertEqual(parsed, ["本院认为", "依法驳回"])
   }
 
   func testSharedCandidateTextParserTreatsInvalidJsonAsNoResult() {
-    XCTAssertEqual(FamoNumberedRewriteParser.parse(#"{"candidates":["本院认为""#), [])
-    XCTAssertEqual(FamoNumberedRewriteParser.parse("[]"), [])
-    XCTAssertEqual(FamoNumberedRewriteParser.parse(""), [])
+    XCTAssertEqual(OwlNumberedRewriteParser.parse(#"{"candidates":["本院认为""#), [])
+    XCTAssertEqual(OwlNumberedRewriteParser.parse("[]"), [])
+    XCTAssertEqual(OwlNumberedRewriteParser.parse(""), [])
   }
 }
 
-final class FamoCommitTransformTests: XCTestCase {
+final class OwlCommitTransformTests: XCTestCase {
   func testDisabledKeepsText() {
     XCTAssertEqual(
-      FamoCommitTransform.apply(to: "Famo输入法2", cjkEnglishSpacing: false, cjkNumberSpacing: false),
-      "Famo输入法2"
+      OwlCommitTransform.apply(to: "Owltype输入法2", cjkEnglishSpacing: false, cjkNumberSpacing: false),
+      "Owltype输入法2"
     )
   }
 
   func testCJKEnglishSpacing() {
     XCTAssertEqual(
-      FamoCommitTransform.apply(to: "法墨AI", cjkEnglishSpacing: true, cjkNumberSpacing: false),
+      OwlCommitTransform.apply(to: "法墨AI", cjkEnglishSpacing: true, cjkNumberSpacing: false),
       "法墨 AI"
     )
     XCTAssertEqual(
-      FamoCommitTransform.apply(to: "AI法墨", cjkEnglishSpacing: true, cjkNumberSpacing: false),
+      OwlCommitTransform.apply(to: "AI法墨", cjkEnglishSpacing: true, cjkNumberSpacing: false),
       "AI 法墨"
     )
   }
 
   func testCJKNumberSpacing() {
     XCTAssertEqual(
-      FamoCommitTransform.apply(to: "第3条", cjkEnglishSpacing: false, cjkNumberSpacing: true),
+      OwlCommitTransform.apply(to: "第3条", cjkEnglishSpacing: false, cjkNumberSpacing: true),
       "第 3 条"
     )
   }
 
   func testBothModesAvoidDoubleSpacing() {
     XCTAssertEqual(
-      FamoCommitTransform.apply(to: "法墨 AI", cjkEnglishSpacing: true, cjkNumberSpacing: true),
+      OwlCommitTransform.apply(to: "法墨 AI", cjkEnglishSpacing: true, cjkNumberSpacing: true),
       "法墨 AI"
     )
     XCTAssertEqual(
-      FamoCommitTransform.apply(to: "Famo输入法2", cjkEnglishSpacing: true, cjkNumberSpacing: true),
-      "Famo 输入法 2"
+      OwlCommitTransform.apply(to: "Owltype输入法2", cjkEnglishSpacing: true, cjkNumberSpacing: true),
+      "Owltype 输入法 2"
     )
   }
 
   // Regression (2026-06-28): the real-world bug — 中文 and 英文 arrive in SEPARATE commits, so the
   // string-only transform never saw the boundary and no space appeared. The `previous:` seed (the
-  // trailing char of the prior commit, threaded by FamoInputController.lastCommittedCharacter)
+  // trailing char of the prior commit, threaded by OwlInputController.lastCommittedCharacter)
   // restores the boundary space.
   func testCrossCommitBoundarySpacing() {
     // 法墨 committed, then AI committed separately → leading space before AI.
     XCTAssertEqual(
-      FamoCommitTransform.apply(to: "AI", cjkEnglishSpacing: true, cjkNumberSpacing: false, previous: "墨"),
+      OwlCommitTransform.apply(to: "AI", cjkEnglishSpacing: true, cjkNumberSpacing: false, previous: "墨"),
       " AI"
     )
     // AI committed, then 法墨 → leading space before 法墨.
     XCTAssertEqual(
-      FamoCommitTransform.apply(to: "法墨", cjkEnglishSpacing: true, cjkNumberSpacing: false, previous: "I"),
+      OwlCommitTransform.apply(to: "法墨", cjkEnglishSpacing: true, cjkNumberSpacing: false, previous: "I"),
       " 法墨"
     )
     // 第 committed, then 3条 → number spacing across the boundary.
     XCTAssertEqual(
-      FamoCommitTransform.apply(to: "3条", cjkEnglishSpacing: false, cjkNumberSpacing: true, previous: "第"),
+      OwlCommitTransform.apply(to: "3条", cjkEnglishSpacing: false, cjkNumberSpacing: true, previous: "第"),
       " 3 条"
     )
     // Same script across the boundary → no leading space.
     XCTAssertEqual(
-      FamoCommitTransform.apply(to: "天", cjkEnglishSpacing: true, cjkNumberSpacing: true, previous: "今"),
+      OwlCommitTransform.apply(to: "天", cjkEnglishSpacing: true, cjkNumberSpacing: true, previous: "今"),
       "天"
     )
     // Previous char is a space/punctuation (BoundaryKind nil) → no double space.
     XCTAssertEqual(
-      FamoCommitTransform.apply(to: "AI", cjkEnglishSpacing: true, cjkNumberSpacing: false, previous: " "),
+      OwlCommitTransform.apply(to: "AI", cjkEnglishSpacing: true, cjkNumberSpacing: false, previous: " "),
       "AI"
     )
     // nil previous (first commit after focus change) → unchanged.
     XCTAssertEqual(
-      FamoCommitTransform.apply(to: "AI", cjkEnglishSpacing: true, cjkNumberSpacing: false, previous: nil),
+      OwlCommitTransform.apply(to: "AI", cjkEnglishSpacing: true, cjkNumberSpacing: false, previous: nil),
       "AI"
     )
   }
@@ -372,7 +372,7 @@ final class FamoCommitTransformTests: XCTestCase {
 }
 
 @MainActor
-final class FamoModernUISmokeTests: XCTestCase {
+final class OwlModernUISmokeTests: XCTestCase {
 
   /// 把引导的每一步渲染成 PNG 落到临时目录，路径打进测试日志。
   ///
@@ -389,19 +389,19 @@ final class FamoModernUISmokeTests: XCTestCase {
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
     for step in 0..<5 {
-      let view = FamoOnboardingView(
+      let view = OwlOnboardingView(
         onOpenSystemSettings: {},
         onSelectSchema: { _ in },
         onOpenInputSettings: {},
         onFinish: {},
-        isFamoEnabled: { step > 2 },   // 走到「启用」之后的步骤按已启用渲染
+        isOwltypeEnabled: { step > 2 },   // 走到「启用」之后的步骤按已启用渲染
         initialStep: step
       )
       // 必须挂进真窗口：`initialStep` 经 onAppear 落到 @State，离屏裸 hosting view 不触发。
       let host = NSHostingView(rootView: view)
       host.frame = NSRect(
         x: 0, y: 0,
-        width: FamoOnboardingMetrics.width, height: FamoOnboardingMetrics.height)
+        width: OwlOnboardingMetrics.width, height: OwlOnboardingMetrics.height)
       let window = NSWindow(
         contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
       window.contentView = host
@@ -416,9 +416,9 @@ final class FamoModernUISmokeTests: XCTestCase {
       let png = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
       let url = dir.appending(component: "step-\(step).png", directoryHint: .notDirectory)
       try png.write(to: url)
-      print("Famo onboarding snapshot: \(url.path)")
+      print("Owltype onboarding snapshot: \(url.path)")
 
-      XCTAssertEqual(rep.pixelsWide, Int(FamoOnboardingMetrics.width * window.backingScaleFactor))
+      XCTAssertEqual(rep.pixelsWide, Int(OwlOnboardingMetrics.width * window.backingScaleFactor))
       XCTAssertGreaterThan(png.count, 4096, "step \(step) 渲染结果小得不像真画面")
     }
   }
@@ -436,7 +436,7 @@ final class FamoModernUISmokeTests: XCTestCase {
       CandidateViewModel(id: 0, label: "1", text: "你好", comment: "ni hao"),
       CandidateViewModel(id: 1, label: "2", text: "您好")
     ]
-    let panelSize = fittingSize(of: FamoCandidatePanelView(
+    let panelSize = fittingSize(of: OwlCandidatePanelView(
       state: panelState,
       onSelect: { _ in },
       onPage: { _ in }
@@ -444,9 +444,9 @@ final class FamoModernUISmokeTests: XCTestCase {
     XCTAssertGreaterThanOrEqual(panelSize.width, 196)
     XCTAssertGreaterThan(panelSize.height, 0)
 
-    let settingsState = FamoSettingsState()
+    let settingsState = OwlSettingsState()
     settingsState.schemas = [SchemaItem(id: "rime_ice", name: "雾凇拼音")]
-    let settingsSize = fittingSize(of: FamoSettingsView(
+    let settingsSize = fittingSize(of: OwlSettingsView(
       state: settingsState,
       onSelectSchema: { _ in },
       onRedeploy: { true },
@@ -464,7 +464,7 @@ final class FamoModernUISmokeTests: XCTestCase {
     XCTAssertGreaterThan(settingsSize.height, 0)
 
     settingsState.selectedPage = .ai
-    let aiSettingsSize = fittingSize(of: FamoSettingsView(
+    let aiSettingsSize = fittingSize(of: OwlSettingsView(
       state: settingsState,
       onSelectSchema: { _ in },
       onRedeploy: { true },
@@ -481,18 +481,18 @@ final class FamoModernUISmokeTests: XCTestCase {
     XCTAssertGreaterThan(aiSettingsSize.width, 0)
     XCTAssertGreaterThan(aiSettingsSize.height, 0)
 
-    let onboardingSize = fittingSize(of: FamoOnboardingView(
+    let onboardingSize = fittingSize(of: OwlOnboardingView(
       onOpenSystemSettings: {},
       onSelectSchema: { _ in },
       onOpenInputSettings: {},
       onFinish: {},
-      isFamoEnabled: { true }
+      isOwltypeEnabled: { true }
     ))
     // 视图与窗口共用同一组数，锁的是「两边没走散」——窗口比内容大会露底色、小会裁掉底部按钮。
-    XCTAssertEqual(onboardingSize.width, FamoOnboardingMetrics.width)
-    XCTAssertEqual(onboardingSize.height, FamoOnboardingMetrics.height)
+    XCTAssertEqual(onboardingSize.width, OwlOnboardingMetrics.width)
+    XCTAssertEqual(onboardingSize.height, OwlOnboardingMetrics.height)
 
-    let emojiSize = fittingSize(of: FamoEmojiPanelView(onPick: { _ in }, onClose: {}))
+    let emojiSize = fittingSize(of: OwlEmojiPanelView(onPick: { _ in }, onClose: {}))
     XCTAssertEqual(emojiSize.width, 372)
     XCTAssertEqual(emojiSize.height, 318)
   }
@@ -520,45 +520,45 @@ final class FamoModernUISmokeTests: XCTestCase {
   }
 
   func testKeyboardPageExposesFirstClassInputModesAndDoublePinyinPickerState() {
-    XCTAssertFalse(FamoSettingsPage.visibleCases.contains(.schemes))
+    XCTAssertFalse(OwlSettingsPage.visibleCases.contains(.schemes))
     XCTAssertEqual(
-      FamoInputMethod.allCases.map(\.displayName),
+      OwlInputMethod.allCases.map(\.displayName),
       ["拼音输入", "双拼输入", "五笔输入"]
     )
-    XCTAssertEqual(FamoWubiScheme.allCases.map(\.displayName), ["86 版五笔", "五笔拼音混输"])
-    XCTAssertEqual(FamoInputMethod.pinyin.schemaId(doublePinyin: .flypy, wubiScheme: .jidian86), "rime_ice")
-    XCTAssertEqual(FamoInputMethod.doublePinyin.schemaId(doublePinyin: .flypy, wubiScheme: .jidian86), "double_pinyin_flypy")
-    XCTAssertEqual(FamoInputMethod.wubi.schemaId(doublePinyin: .flypy, wubiScheme: .jidian86), "wubi86_jidian")
-    XCTAssertEqual(FamoInputMethod.wubi.schemaId(doublePinyin: .flypy, wubiScheme: .pinyinMix), "wubi86_jidian_pinyin")
-    XCTAssertFalse(FamoKeyboardPage.isDoublePinyinPickerEnabled(for: .pinyin))
-    XCTAssertTrue(FamoKeyboardPage.isDoublePinyinPickerEnabled(for: .doublePinyin))
-    XCTAssertFalse(FamoKeyboardPage.isDoublePinyinPickerEnabled(for: .wubi))
-    XCTAssertEqual(FamoKeyboardPage.doublePinyinPickerOpacity(for: .pinyin), 0.4)
-    XCTAssertEqual(FamoKeyboardPage.doublePinyinPickerOpacity(for: .doublePinyin), 1)
+    XCTAssertEqual(OwlWubiScheme.allCases.map(\.displayName), ["86 版五笔", "五笔拼音混输"])
+    XCTAssertEqual(OwlInputMethod.pinyin.schemaId(doublePinyin: .flypy, wubiScheme: .jidian86), "rime_ice")
+    XCTAssertEqual(OwlInputMethod.doublePinyin.schemaId(doublePinyin: .flypy, wubiScheme: .jidian86), "double_pinyin_flypy")
+    XCTAssertEqual(OwlInputMethod.wubi.schemaId(doublePinyin: .flypy, wubiScheme: .jidian86), "wubi86_jidian")
+    XCTAssertEqual(OwlInputMethod.wubi.schemaId(doublePinyin: .flypy, wubiScheme: .pinyinMix), "wubi86_jidian_pinyin")
+    XCTAssertFalse(OwlKeyboardPage.isDoublePinyinPickerEnabled(for: .pinyin))
+    XCTAssertTrue(OwlKeyboardPage.isDoublePinyinPickerEnabled(for: .doublePinyin))
+    XCTAssertFalse(OwlKeyboardPage.isDoublePinyinPickerEnabled(for: .wubi))
+    XCTAssertEqual(OwlKeyboardPage.doublePinyinPickerOpacity(for: .pinyin), 0.4)
+    XCTAssertEqual(OwlKeyboardPage.doublePinyinPickerOpacity(for: .doublePinyin), 1)
   }
 
   func testInputMenuTitlesExposeRuntimeToggles() {
-    XCTAssertEqual(FamoInputMenuTitles.cjkInput(asciiMode: true), "切换至中文输入")
-    XCTAssertEqual(FamoInputMenuTitles.cjkInput(asciiMode: false), "切换至英文输入")
-    XCTAssertEqual(FamoInputMenuTitles.traditionalInput(traditional: false), "切换至繁体输入")
-    XCTAssertEqual(FamoInputMenuTitles.traditionalInput(traditional: true), "切换至简体输入")
-    XCTAssertEqual(FamoInputMenuTitles.asciiPunctuation(asciiPunct: false), "使用英文标点符号")
-    XCTAssertEqual(FamoInputMenuTitles.asciiPunctuation(asciiPunct: true), "使用中文标点符号")
-    XCTAssertEqual(FamoInputMenuTitles.fullShape(fullShape: false), "使用全角输入")
-    XCTAssertEqual(FamoInputMenuTitles.fullShape(fullShape: true), "使用半角输入")
+    XCTAssertEqual(OwlInputMenuTitles.cjkInput(asciiMode: true), "切换至中文输入")
+    XCTAssertEqual(OwlInputMenuTitles.cjkInput(asciiMode: false), "切换至英文输入")
+    XCTAssertEqual(OwlInputMenuTitles.traditionalInput(traditional: false), "切换至繁体输入")
+    XCTAssertEqual(OwlInputMenuTitles.traditionalInput(traditional: true), "切换至简体输入")
+    XCTAssertEqual(OwlInputMenuTitles.asciiPunctuation(asciiPunct: false), "使用英文标点符号")
+    XCTAssertEqual(OwlInputMenuTitles.asciiPunctuation(asciiPunct: true), "使用中文标点符号")
+    XCTAssertEqual(OwlInputMenuTitles.fullShape(fullShape: false), "使用全角输入")
+    XCTAssertEqual(OwlInputMenuTitles.fullShape(fullShape: true), "使用半角输入")
   }
 
   func testInputMenuTitlesExposeHighFrequencyTools() {
-    XCTAssertEqual(FamoInputMenuTitles.clipboard, "剪贴板…")
-    XCTAssertEqual(FamoInputMenuTitles.emoji, "表情符号…")
-    XCTAssertEqual(FamoInputMenuTitles.quickSend, "快捷短语…")
-    XCTAssertEqual(FamoInputMenuTitles.deploy, "应用配置改动")
-    XCTAssertEqual(FamoInputMenuTitles.syncDirectory, "设置同步目录...")
-    XCTAssertEqual(FamoInputMenuTitles.syncUserData, "同步用户数据")
+    XCTAssertEqual(OwlInputMenuTitles.clipboard, "剪贴板…")
+    XCTAssertEqual(OwlInputMenuTitles.emoji, "表情符号…")
+    XCTAssertEqual(OwlInputMenuTitles.quickSend, "快捷短语…")
+    XCTAssertEqual(OwlInputMenuTitles.deploy, "应用配置改动")
+    XCTAssertEqual(OwlInputMenuTitles.syncDirectory, "设置同步目录...")
+    XCTAssertEqual(OwlInputMenuTitles.syncUserData, "同步用户数据")
   }
 
   func testWritePreviewReportsDeployFailureAfterSuccessfulWrite() {
-    let status = FamoWritePreviewSheet.applyStatusMessage(
+    let status = OwlWritePreviewSheet.applyStatusMessage(
       written: ["default.custom.yaml"],
       deploySucceeded: false
     )
@@ -570,57 +570,57 @@ final class FamoModernUISmokeTests: XCTestCase {
 
   func testAboutPageFormatsVersionAndBuildIdentity() {
     XCTAssertEqual(
-      FamoAboutPage.versionDisplay(info: [
+      OwlAboutPage.versionDisplay(info: [
         "CFBundleShortVersionString": "1.0",
         "CFBundleVersion": "42"
       ]),
       "1.0 (42)"
     )
-    XCTAssertEqual(FamoAboutPage.versionDisplay(info: nil), "未知")
+    XCTAssertEqual(OwlAboutPage.versionDisplay(info: nil), "未知")
     XCTAssertEqual(
-      FamoAboutPage.buildIdentityDisplay(bundleIdentifier: "im.famo.inputmethod.Famo"),
+      OwlAboutPage.buildIdentityDisplay(bundleIdentifier: "im.famo.inputmethod.Famo"),
       "im.famo.inputmethod.Famo"
     )
-    XCTAssertEqual(FamoAboutPage.buildIdentityDisplay(bundleIdentifier: ""), "未知")
+    XCTAssertEqual(OwlAboutPage.buildIdentityDisplay(bundleIdentifier: ""), "未知")
   }
 
   func testFloatingPanelsDoNotStealHostFocus() {
-    XCTAssertFalse(FamoSwiftUICandidatePanel().canBecomeKey)
-    XCTAssertFalse(FamoEmojiPanel().canBecomeKey)
+    XCTAssertFalse(OwlSwiftUICandidatePanel().canBecomeKey)
+    XCTAssertFalse(OwlEmojiPanel().canBecomeKey)
     // The status HUD is also a non-activating panel — it must never steal host focus.
-    XCTAssertFalse(FamoStatusHUD().canBecomeKey)
+    XCTAssertFalse(OwlStatusHUD().canBecomeKey)
   }
 
   // NOTE: `testSwiftUICandidatePanelDefaultsOnButCanOptOut` was removed when the
-  // `FamoSwiftUIPanel` feature flag was retired — SwiftUI is now the sole candidate
+  // `OwlSwiftUIPanel` feature flag was retired — SwiftUI is now the sole candidate
   // renderer, so there is no opt-out flag left to test.
 }
 
 /// G8 候选显示设置 — panel prefs (orientation/typeface/animation/expanded) + Rime page_size.
 @MainActor
-final class FamoCandidateDisplayTests: XCTestCase {
+final class OwlCandidateDisplayTests: XCTestCase {
   override func setUp() async throws {
     try await super.setUp()
-    for key in ["FamoPanelFontSize", "FamoPanelOrientation", "FamoPanelFontDesign",
-                "FamoPanelAnimations", "FamoPanelShowPreedit", "FamoPanelShowPaging",
-                "FamoPanelCandidateFormat", "FamoPanelPreviewRows",
-                "FamoKeyboardPageSize"] {
-      FamoDefaults.standard.removeObject(forKey: key)
+    for key in ["OwlPanelFontSize", "OwlPanelOrientation", "OwlPanelFontDesign",
+                "OwlPanelAnimations", "OwlPanelShowPreedit", "OwlPanelShowPaging",
+                "OwlPanelCandidateFormat", "OwlPanelPreviewRows",
+                "OwlKeyboardPageSize"] {
+      OwlDefaults.standard.removeObject(forKey: key)
     }
   }
   override func tearDown() async throws {
-    for key in ["FamoPanelFontSize", "FamoPanelOrientation", "FamoPanelFontDesign",
-                "FamoPanelAnimations", "FamoPanelShowPreedit", "FamoPanelShowPaging",
-                "FamoPanelCandidateFormat", "FamoPanelPreviewRows",
-                "FamoKeyboardPageSize"] {
-      FamoDefaults.standard.removeObject(forKey: key)
+    for key in ["OwlPanelFontSize", "OwlPanelOrientation", "OwlPanelFontDesign",
+                "OwlPanelAnimations", "OwlPanelShowPreedit", "OwlPanelShowPaging",
+                "OwlPanelCandidateFormat", "OwlPanelPreviewRows",
+                "OwlKeyboardPageSize"] {
+      OwlDefaults.standard.removeObject(forKey: key)
     }
     try await super.tearDown()
   }
 
   func testPanelDisplayPrefsDefaultsAndRoundTrip() {
-    let settings = FamoCandidatePanelSettings.live
-    let state = FamoSettingsState()
+    let settings = OwlCandidatePanelSettings.live
+    let state = OwlSettingsState()
     // Defaults.
     XCTAssertEqual(settings.snapshot().orientation, .auto)
     settings.seed(state)
@@ -638,79 +638,79 @@ final class FamoCandidateDisplayTests: XCTestCase {
   /// 卷轴后页行数：默认 4（2026-07-28 截图定案），钳到 1...4（抵御手改 defaults 写出的
   /// 越界值）；老用户存过的 1/2 落在新区间内原样生效。
   func testScrollRowsDefaultAndClamp() {
-    let settings = FamoCandidatePanelSettings.live
-    let state = FamoSettingsState()
-    FamoDefaults.standard.removeObject(forKey: "FamoPanelPreviewRows")
+    let settings = OwlCandidatePanelSettings.live
+    let state = OwlSettingsState()
+    OwlDefaults.standard.removeObject(forKey: "OwlPanelPreviewRows")
     XCTAssertEqual(settings.snapshot().scrollRows, 4)
     settings.edit(.scrollRows(1), state: state, onChange: {})
     XCTAssertEqual(settings.snapshot().scrollRows, 1)
-    FamoDefaults.standard.set(9, forKey: "FamoPanelPreviewRows")
+    OwlDefaults.standard.set(9, forKey: "OwlPanelPreviewRows")
     XCTAssertEqual(settings.snapshot().scrollRows, 4)
-    FamoDefaults.standard.set(0, forKey: "FamoPanelPreviewRows")
+    OwlDefaults.standard.set(0, forKey: "OwlPanelPreviewRows")
     XCTAssertEqual(settings.snapshot().scrollRows, 1)
-    FamoDefaults.standard.set(2, forKey: "FamoPanelPreviewRows")
+    OwlDefaults.standard.set(2, forKey: "OwlPanelPreviewRows")
     XCTAssertEqual(settings.snapshot().scrollRows, 2)
-    FamoDefaults.standard.removeObject(forKey: "FamoPanelPreviewRows")
+    OwlDefaults.standard.removeObject(forKey: "OwlPanelPreviewRows")
   }
 
   func testOrientationResolution() {
     // With no schema default, .auto follows Rime's _vertical; explicit overrides ignore it.
-    XCTAssertTrue(FamoPanelOrientation.auto.isVertical(rimeVertical: true))
-    XCTAssertFalse(FamoPanelOrientation.auto.isVertical(rimeVertical: false))
-    XCTAssertFalse(FamoPanelOrientation.horizontal.isVertical(rimeVertical: true))
-    XCTAssertTrue(FamoPanelOrientation.vertical.isVertical(rimeVertical: false))
+    XCTAssertTrue(OwlPanelOrientation.auto.isVertical(rimeVertical: true))
+    XCTAssertFalse(OwlPanelOrientation.auto.isVertical(rimeVertical: false))
+    XCTAssertFalse(OwlPanelOrientation.horizontal.isVertical(rimeVertical: true))
+    XCTAssertTrue(OwlPanelOrientation.vertical.isVertical(rimeVertical: false))
     // 卷轴是横排的一种：`isVertical` 恒 false，`scrolls` 才是它与单行横排的区别。
-    XCTAssertFalse(FamoPanelOrientation.scroll.isVertical(rimeVertical: true))
-    XCTAssertTrue(FamoPanelOrientation.scroll.scrolls)
-    XCTAssertFalse(FamoPanelOrientation.horizontal.scrolls)
+    XCTAssertFalse(OwlPanelOrientation.scroll.isVertical(rimeVertical: true))
+    XCTAssertTrue(OwlPanelOrientation.scroll.scrolls)
+    XCTAssertFalse(OwlPanelOrientation.horizontal.scrolls)
   }
 
   func testAutoOrientationIsHorizontalForWubiSchemas() {
     // Fix #2 (2026-06-22): the old Wubi-forces-vertical special case was removed. With
     // orientation 自动, every schema — including Wubi — follows ONLY rime's _vertical, so a
     // Wubi schema with rimeVertical:false now resolves to horizontal like rime_ice.
-    XCTAssertFalse(FamoPanelOrientation.auto.isVertical(rimeVertical: false, schemaID: "wubi86_jidian"))
-    XCTAssertFalse(FamoPanelOrientation.auto.isVertical(rimeVertical: false, schemaID: "wubi86_jidian_pinyin"))
-    XCTAssertFalse(FamoPanelOrientation.auto.isVertical(rimeVertical: false, schemaID: "wubi86_jidian_trad"))
-    XCTAssertFalse(FamoPanelOrientation.auto.isVertical(rimeVertical: false, schemaID: "wubi86_jidian_trad_pinyin"))
-    XCTAssertFalse(FamoPanelOrientation.auto.isVertical(rimeVertical: false, schemaID: "rime_ice"))
+    XCTAssertFalse(OwlPanelOrientation.auto.isVertical(rimeVertical: false, schemaID: "wubi86_jidian"))
+    XCTAssertFalse(OwlPanelOrientation.auto.isVertical(rimeVertical: false, schemaID: "wubi86_jidian_pinyin"))
+    XCTAssertFalse(OwlPanelOrientation.auto.isVertical(rimeVertical: false, schemaID: "wubi86_jidian_trad"))
+    XCTAssertFalse(OwlPanelOrientation.auto.isVertical(rimeVertical: false, schemaID: "wubi86_jidian_trad_pinyin"))
+    XCTAssertFalse(OwlPanelOrientation.auto.isVertical(rimeVertical: false, schemaID: "rime_ice"))
     // …but a schema that DOES set rime _vertical still goes vertical under 自动.
-    XCTAssertTrue(FamoPanelOrientation.auto.isVertical(rimeVertical: true, schemaID: "wubi86_jidian"))
+    XCTAssertTrue(OwlPanelOrientation.auto.isVertical(rimeVertical: true, schemaID: "wubi86_jidian"))
   }
 
   func testExplicitOrientationStillOverridesForAnySchema() {
     // Explicit 横排/竖排 win regardless of schema and regardless of rime _vertical.
-    XCTAssertFalse(FamoPanelOrientation.horizontal.isVertical(rimeVertical: true, schemaID: "wubi86_jidian"))
-    XCTAssertTrue(FamoPanelOrientation.vertical.isVertical(rimeVertical: false, schemaID: "wubi86_jidian"))
-    XCTAssertTrue(FamoPanelOrientation.vertical.isVertical(rimeVertical: false, schemaID: "rime_ice"))
+    XCTAssertFalse(OwlPanelOrientation.horizontal.isVertical(rimeVertical: true, schemaID: "wubi86_jidian"))
+    XCTAssertTrue(OwlPanelOrientation.vertical.isVertical(rimeVertical: false, schemaID: "wubi86_jidian"))
+    XCTAssertTrue(OwlPanelOrientation.vertical.isVertical(rimeVertical: false, schemaID: "rime_ice"))
   }
 
   func testCandidateFontDownloadURL() {
     XCTAssertEqual(
-      FamoCandidateFontSelection.mapleMonoDownloadURL.absoluteString,
+      OwlCandidateFontSelection.mapleMonoDownloadURL.absoluteString,
       "https://github.com/subframe7536/maple-font/releases/latest/download/MapleMono-CN.zip"
     )
   }
 
   func testPageSizeDefaultAndClamp() {
-    XCTAssertEqual(FamoKeyboardPreferences.pageSize, 8)       // default
-    FamoKeyboardPreferences.pageSize = 5
-    XCTAssertEqual(FamoKeyboardPreferences.pageSize, 5)
-    FamoKeyboardPreferences.pageSize = 99                     // clamp high
-    XCTAssertEqual(FamoKeyboardPreferences.pageSize, 9)
-    FamoKeyboardPreferences.pageSize = 1                      // clamp low
-    XCTAssertEqual(FamoKeyboardPreferences.pageSize, 3)
+    XCTAssertEqual(OwlKeyboardPreferences.pageSize, 8)       // default
+    OwlKeyboardPreferences.pageSize = 5
+    XCTAssertEqual(OwlKeyboardPreferences.pageSize, 5)
+    OwlKeyboardPreferences.pageSize = 99                     // clamp high
+    XCTAssertEqual(OwlKeyboardPreferences.pageSize, 9)
+    OwlKeyboardPreferences.pageSize = 1                      // clamp low
+    XCTAssertEqual(OwlKeyboardPreferences.pageSize, 3)
   }
 
   func testKeyboardPatchEmitsConfiguredPageSize() {
-    FamoKeyboardPreferences.pageSize = 6
-    let yaml = famoDefaultCustomYAML(from: FamoKeyboardSnapshot.current())
+    OwlKeyboardPreferences.pageSize = 6
+    let yaml = owlDefaultCustomYAML(from: OwlKeyboardSnapshot.current())
     XCTAssertTrue(yaml.contains("\"menu/page_size\": 6"), "patch must carry the chosen 候选个数")
     XCTAssertFalse(yaml.contains("\"menu/page_size\": 8"), "no stale hardcoded 8")
   }
 
   func testCandidatePageSizeApplyStatusReportsDeployFailureAsNotEffective() {
-    let status = FamoSettingsView.candidatePageSizeApplyStatusMessage(
+    let status = OwlSettingsView.candidatePageSizeApplyStatusMessage(
       written: ["default.custom.yaml"],
       deploySucceeded: false
     )
@@ -722,10 +722,10 @@ final class FamoCandidateDisplayTests: XCTestCase {
   }
 }
 
-// MARK: - B4 选中润色 (FamoSelectionPolish) — pure prompt/policy + service guards
+// MARK: - B4 选中润色 (OwlSelectionPolish) — pure prompt/policy + service guards
 
 @MainActor
-private final class FakePolishFetcher: FamoSelectionPolishFetching {
+private final class FakePolishFetcher: OwlSelectionPolishFetching {
   var calls = 0
   var capturedSelection: String?
   var capturedAPIKey: String?
@@ -743,11 +743,11 @@ private final class FakePolishFetcher: FamoSelectionPolishFetching {
   }
 }
 
-final class FamoSelectionPolishPromptTests: XCTestCase {
+final class OwlSelectionPolishPromptTests: XCTestCase {
 
   func testPolishPromptAsksForJSONCandidatesAndRewrite() {
     // B4 reuses the json_object {"candidates":[...]} contract so the shared parser is reused.
-    let prompt = FamoSelectionPolish.systemPrompt
+    let prompt = OwlSelectionPolish.systemPrompt
     XCTAssertTrue(prompt.contains("{\"candidates\":"), "polish prompt must demand the {\"candidates\":[...]} shape")
     XCTAssertTrue(prompt.lowercased().contains("json"), "polish prompt must ask for JSON (json_object mode)")
     XCTAssertTrue(
@@ -757,28 +757,28 @@ final class FamoSelectionPolishPromptTests: XCTestCase {
   }
 
   func testRejectionReasonRejectsEmptyAndWhitespaceOnly() {
-    XCTAssertEqual(FamoSelectionPolish.rejectionReason(for: ""), .emptySelection)
-    XCTAssertEqual(FamoSelectionPolish.rejectionReason(for: "   \n\t "), .emptySelection)
+    XCTAssertEqual(OwlSelectionPolish.rejectionReason(for: ""), .emptySelection)
+    XCTAssertEqual(OwlSelectionPolish.rejectionReason(for: "   \n\t "), .emptySelection)
   }
 
   func testRejectionReasonCapsLongSelections() {
-    let ok = String(repeating: "甲", count: FamoSelectionPolish.maxSelectionLength)
-    XCTAssertNil(FamoSelectionPolish.rejectionReason(for: ok), "selection at the cap is acceptable")
+    let ok = String(repeating: "甲", count: OwlSelectionPolish.maxSelectionLength)
+    XCTAssertNil(OwlSelectionPolish.rejectionReason(for: ok), "selection at the cap is acceptable")
 
-    let tooLong = String(repeating: "甲", count: FamoSelectionPolish.maxSelectionLength + 1)
+    let tooLong = String(repeating: "甲", count: OwlSelectionPolish.maxSelectionLength + 1)
     XCTAssertEqual(
-      FamoSelectionPolish.rejectionReason(for: tooLong),
-      .selectionTooLong(FamoSelectionPolish.maxSelectionLength + 1),
+      OwlSelectionPolish.rejectionReason(for: tooLong),
+      .selectionTooLong(OwlSelectionPolish.maxSelectionLength + 1),
       "selection beyond the cap must be rejected (privacy + cost guard)"
     )
   }
 
   func testPolishRequestUsesFlashModelAndJSONObjectAndCarriesSelectedText() throws {
-    FamoCloudPreferences.resetForTesting()
-    defer { FamoCloudPreferences.resetForTesting() }
+    OwlCloudPreferences.resetForTesting()
+    defer { OwlCloudPreferences.resetForTesting() }
 
-    let request = try FamoSelectionPolish.chatRequest(for: "他撤销了合同")
-    XCTAssertEqual(request.model, FamoCloudPreferences.deepSeekModel, "polish uses the flash model")
+    let request = try OwlSelectionPolish.chatRequest(for: "他撤销了合同")
+    XCTAssertEqual(request.model, OwlCloudPreferences.deepSeekModel, "polish uses the flash model")
     XCTAssertEqual(request.responseFormat, .jsonObject)
     // The selected text IS the payload here — the documented CodeOnly exception.
     let userContent = request.messages.first(where: { $0.role == "user" })?.content ?? ""
@@ -786,7 +786,7 @@ final class FamoSelectionPolishPromptTests: XCTestCase {
   }
 
   func testPolishRequestContainsOnlyPromptAndExplicitSelection() throws {
-    let request = try FamoSelectionPolish.chatRequest(for: "好的")
+    let request = try OwlSelectionPolish.chatRequest(for: "好的")
     XCTAssertEqual(request.messages.map(\.role), ["system", "user"])
     XCTAssertTrue(request.messages[1].content.contains("好的"))
   }
@@ -794,11 +794,11 @@ final class FamoSelectionPolishPromptTests: XCTestCase {
   /// Redaction is removed: B4 sends the selected document text VERBATIM (raw). PII in the selection
   /// reaches the wire as-is — the privacy trade-off was an explicit user decision (2026-06-23).
   func testPolishRequestSendsSelectionRawWithoutMasking() throws {
-    FamoCloudPreferences.resetForTesting()
-    defer { FamoCloudPreferences.resetForTesting() }
+    OwlCloudPreferences.resetForTesting()
+    defer { OwlCloudPreferences.resetForTesting() }
 
     let selection = "原告联系方式PHONE_SENTINEL邮箱EMAIL_SENTINEL案号CASE_SENTINEL依据第107条撤销合同"
-    let request = try FamoSelectionPolish.chatRequest(for: selection)
+    let request = try OwlSelectionPolish.chatRequest(for: selection)
     let userContent = request.messages.first(where: { $0.role == "user" })?.content ?? ""
 
     // Raw passthrough: every field is carried verbatim, no masking placeholder.
@@ -810,7 +810,7 @@ final class FamoSelectionPolishPromptTests: XCTestCase {
   }
 }
 
-final class FamoSourceVerificationServiceTests: XCTestCase {
+final class OwlSourceVerificationServiceTests: XCTestCase {
 
   func testParseResponseExtractsSummaryAndDedupedSources() throws {
     let json = """
@@ -842,7 +842,7 @@ final class FamoSourceVerificationServiceTests: XCTestCase {
     }
     """
 
-    let parsed = FamoSourceVerificationService.parseResponse(Data(json.utf8))
+    let parsed = OwlSourceVerificationService.parseResponse(Data(json.utf8))
 
     XCTAssertTrue(parsed.content.contains("正式法规文本"))
     XCTAssertEqual(Set(parsed.sources.map(\.url)), [
@@ -853,10 +853,10 @@ final class FamoSourceVerificationServiceTests: XCTestCase {
   }
 
   func testRenderWithSourcesMarksResultAsVerifiable() {
-    let rendered = FamoSourceVerificationService.render(
+    let rendered = OwlSourceVerificationService.render(
       content: "检索到正式来源，但仍需核对条文适用范围。",
       sources: [
-        FamoVerifiedSource(title: "正式来源", url: "https://www.gov.cn/example"),
+        OwlVerifiedSource(title: "正式来源", url: "https://www.gov.cn/example"),
       ]
     )
 
@@ -866,31 +866,31 @@ final class FamoSourceVerificationServiceTests: XCTestCase {
   }
 
   func testRenderWithoutSourcesKeepsManualCheckBoundary() {
-    let summaryOnly = FamoSourceVerificationService.render(
+    let summaryOnly = OwlSourceVerificationService.render(
       content: "模型给出了摘要，但没有可抽取 URL。",
       sources: []
     )
     XCTAssertTrue(summaryOnly.contains("需要人工确认"))
     XCTAssertTrue(summaryOnly.contains("不要把下面内容当作已完成核验"))
 
-    let empty = FamoSourceVerificationService.render(content: "", sources: [])
+    let empty = OwlSourceVerificationService.render(content: "", sources: [])
     XCTAssertTrue(empty.contains("未找到可核来源"))
     XCTAssertTrue(empty.contains("不等于事实不存在"))
   }
 }
 
 @MainActor
-final class FamoSelectionPolishServiceTests: XCTestCase {
+final class OwlSelectionPolishServiceTests: XCTestCase {
 
   override func setUp() async throws {
     try await super.setUp()
-    FamoCloudPreferences.resetForTesting()
-    FamoCloudUsageTelemetry.resetForTesting()
+    OwlCloudPreferences.resetForTesting()
+    OwlCloudUsageTelemetry.resetForTesting()
   }
 
   override func tearDown() async throws {
-    FamoCloudPreferences.resetForTesting()
-    FamoCloudUsageTelemetry.resetForTesting()
+    OwlCloudPreferences.resetForTesting()
+    OwlCloudUsageTelemetry.resetForTesting()
     try await super.tearDown()
   }
 
@@ -901,7 +901,7 @@ final class FamoSelectionPolishServiceTests: XCTestCase {
       XCTFail("Default-off polish must not call the fetcher")
       return []
     }
-    let service = FamoSelectionPolishService(fetcher: fetcher, apiKeyProvider: {
+    let service = OwlSelectionPolishService(fetcher: fetcher, apiKeyProvider: {
       keychainCalls += 1
       return "sk-test"
     })
@@ -909,7 +909,7 @@ final class FamoSelectionPolishServiceTests: XCTestCase {
     do {
       _ = try await service.polishSelection("他撤销了合同")
       XCTFail("disabled polish must throw")
-    } catch let error as FamoSelectionPolishError {
+    } catch let error as OwlSelectionPolishError {
       XCTAssertEqual(error, .disabled)
     } catch {
       XCTFail("unexpected error: \(error)")
@@ -919,23 +919,23 @@ final class FamoSelectionPolishServiceTests: XCTestCase {
   }
 
   func testLengthCapStopsBeforeKeychainAndFetcher() async {
-    FamoCloudPreferences.isEnabled = true
+    OwlCloudPreferences.isEnabled = true
     var keychainCalls = 0
     let fetcher = FakePolishFetcher { _ in
       XCTFail("Over-cap selection must not be uploaded")
       return []
     }
-    let service = FamoSelectionPolishService(fetcher: fetcher, apiKeyProvider: {
+    let service = OwlSelectionPolishService(fetcher: fetcher, apiKeyProvider: {
       keychainCalls += 1
       return "sk-test"
     })
 
-    let tooLong = String(repeating: "甲", count: FamoSelectionPolish.maxSelectionLength + 1)
+    let tooLong = String(repeating: "甲", count: OwlSelectionPolish.maxSelectionLength + 1)
     do {
       _ = try await service.polishSelection(tooLong)
       XCTFail("over-cap selection must throw")
-    } catch let error as FamoSelectionPolishError {
-      XCTAssertEqual(error, .selectionTooLong(FamoSelectionPolish.maxSelectionLength + 1))
+    } catch let error as OwlSelectionPolishError {
+      XCTAssertEqual(error, .selectionTooLong(OwlSelectionPolish.maxSelectionLength + 1))
     } catch {
       XCTFail("unexpected error: \(error)")
     }
@@ -944,17 +944,17 @@ final class FamoSelectionPolishServiceTests: XCTestCase {
   }
 
   func testMissingAPIKeyStopsBeforeFetcher() async {
-    FamoCloudPreferences.isEnabled = true
+    OwlCloudPreferences.isEnabled = true
     let fetcher = FakePolishFetcher { _ in
       XCTFail("Missing key must stop before any fetch")
       return []
     }
-    let service = FamoSelectionPolishService(fetcher: fetcher, apiKeyProvider: { nil }, profileProvider: { nil })
+    let service = OwlSelectionPolishService(fetcher: fetcher, apiKeyProvider: { nil }, profileProvider: { nil })
 
     do {
       _ = try await service.polishSelection("他撤销了合同")
       XCTFail("missing key must throw")
-    } catch let error as FamoSelectionPolishError {
+    } catch let error as OwlSelectionPolishError {
       XCTAssertEqual(error, .missingAPIKey)
     } catch {
       XCTFail("unexpected error: \(error)")
@@ -963,9 +963,9 @@ final class FamoSelectionPolishServiceTests: XCTestCase {
   }
 
   func testEnabledPolishReturnsRewritesBestFirst() async throws {
-    FamoCloudPreferences.isEnabled = true
+    OwlCloudPreferences.isEnabled = true
     let fetcher = FakePolishFetcher { _ in ["他解除了合同", "合同被其解除"] }
-    let service = FamoSelectionPolishService(fetcher: fetcher, apiKeyProvider: { "sk-test" }, profileProvider: { nil })
+    let service = OwlSelectionPolishService(fetcher: fetcher, apiKeyProvider: { "sk-test" }, profileProvider: { nil })
 
     let rewrites = try await service.polishSelection("他撤销了合同")
 
@@ -979,9 +979,9 @@ final class FamoSelectionPolishServiceTests: XCTestCase {
     // FAMO-098: 润色选中 must use the ACTIVE provider profile's key (not only the legacy DeepSeek
     // key), so a user configured with OpenAI / Gemini / 自定义 can polish selections. The legacy
     // key reader must NOT be consulted when a profile with a secret is active.
-    FamoCloudPreferences.isEnabled = true
+    OwlCloudPreferences.isEnabled = true
     let fetcher = FakePolishFetcher { _ in ["他解除了合同"] }
-    let profile = FamoProviderProfile(
+    let profile = OwlProviderProfile(
       id: "unit",
       displayName: "unit",
       endpoint: URL(string: "https://api.openai.com/v1/chat/completions")!,
@@ -989,7 +989,7 @@ final class FamoSelectionPolishServiceTests: XCTestCase {
       secretName: "famo.provider.unit.apiKey",
       isDefault: true
     )
-    let service = FamoSelectionPolishService(
+    let service = OwlSelectionPolishService(
       fetcher: fetcher,
       apiKeyProvider: { XCTFail("active profile must not read the legacy DeepSeek key"); return nil },
       profileProvider: { profile },
@@ -1004,14 +1004,14 @@ final class FamoSelectionPolishServiceTests: XCTestCase {
 
   func testEmptyResultRetriesOnceThenReturnsEmpty() async throws {
     // Reuses the candidate lane's bounded-retry policy: empty content is transient → one retry.
-    FamoCloudPreferences.isEnabled = true
-    let fetcher = FakePolishFetcher { _ in throw FamoCloudRequestError.emptyResponse }
-    let service = FamoSelectionPolishService(fetcher: fetcher, apiKeyProvider: { "sk-test" }, profileProvider: { nil })
+    OwlCloudPreferences.isEnabled = true
+    let fetcher = FakePolishFetcher { _ in throw OwlCloudRequestError.emptyResponse }
+    let service = OwlSelectionPolishService(fetcher: fetcher, apiKeyProvider: { "sk-test" }, profileProvider: { nil })
 
     do {
       _ = try await service.polishSelection("他撤销了合同")
       XCTFail("persistent empty response should surface the error")
-    } catch let error as FamoCloudRequestError {
+    } catch let error as OwlCloudRequestError {
       XCTAssertEqual(error, .emptyResponse)
     } catch {
       XCTFail("unexpected error: \(error)")

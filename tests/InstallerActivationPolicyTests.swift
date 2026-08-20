@@ -1,8 +1,8 @@
 //
 //  InstallerActivationPolicyTests.swift
-//  FamoTests — GUI 安装器（FamoInstaller.app）激活决策的纯函数层
+//  OwltypeTests — GUI 安装器（OwlInstaller.app）激活决策的纯函数层
 //
-//  被测文件 installer/Sources/InstallerActivationPolicy.swift 直接编进 FamoTests target
+//  被测文件 installer/Sources/InstallerActivationPolicy.swift 直接编进 OwltypeTests target
 //  （安装器是独立 xcodegen 工程、无测试 target；纯决策层无 TIS/IO，跨 target 编译零依赖）。
 //  风格对标 ActivationPolicyTests：真值表 + 文案断言，TIS 副作用层（Installer/Verifier）
 //  不可 headless 测，由干净机真人验收（TIS-ACTIVATION-NOTES 定律 3/10）。
@@ -19,83 +19,83 @@ final class InstallerActivationPolicyTests: XCTestCase {
     // 定律 13：干净首装 enable「父条目 + Hans 主模式」各一次（父=菜单显形，Hans=select 需要的
     // 模式启用记录；enable 父条目在 macOS 26 上不级联 default-on 的 Hans——1.3.32 QA 实证）。
     let plan = InstallerActivationPolicy.plan(
-      bundlePreexisted: false, famoProcessWasRunning: false, famoWasCurrentSource: false)
+      bundlePreexisted: false, owltypeProcessWasRunning: false, owltypeWasCurrentSource: false)
     XCTAssertEqual(
       plan,
       InstallerActivationPolicy.ActivationPlan(
         enableParentAndPrimaryModeOnce: true, parkOnABCBeforeReplace: false,
-        selectFamoAfterInstall: true))
+        selectOwltypeAfterInstall: true))
   }
 
   func testPreexistingBundleSkipsEnableAndSelect() {
     // 「bundle 装前已存在」单边即判更新：二次 enable → error 幽灵态（fcitx5 PR#4），必须整段跳过。
     let plan = InstallerActivationPolicy.plan(
-      bundlePreexisted: true, famoProcessWasRunning: false, famoWasCurrentSource: false)
+      bundlePreexisted: true, owltypeProcessWasRunning: false, owltypeWasCurrentSource: false)
     XCTAssertFalse(plan.enableParentAndPrimaryModeOnce)
     XCTAssertFalse(plan.parkOnABCBeforeReplace)
-    XCTAssertFalse(plan.selectFamoAfterInstall, "更新绝不从其它输入法手里抢当前输入源")
+    XCTAssertFalse(plan.selectOwltypeAfterInstall, "更新绝不从其它输入法手里抢当前输入源")
   }
 
   func testRunningProcessSkipsEnableEvenWithoutBundle() {
     // 进程活着 ⟺ 已被 enable 过（IMK 只拉起已启用的输入法）——bundle 信号缺失时的副信号半边。
     let plan = InstallerActivationPolicy.plan(
-      bundlePreexisted: false, famoProcessWasRunning: true, famoWasCurrentSource: false)
+      bundlePreexisted: false, owltypeProcessWasRunning: true, owltypeWasCurrentSource: false)
     XCTAssertFalse(plan.enableParentAndPrimaryModeOnce)
-    XCTAssertFalse(plan.selectFamoAfterInstall)
+    XCTAssertFalse(plan.selectOwltypeAfterInstall)
   }
 
-  func testUpdateWhileFamoIsCurrentParksOnABCAndPairsSelectBack() {
+  func testUpdateWhileOwltypeIsCurrentParksOnABCAndPairsSelectBack() {
     // 定律 12：kill 当前选中的 IME 前切出 ABC；select 只允许作为配对的切回（不重新 enable）。
     let plan = InstallerActivationPolicy.plan(
-      bundlePreexisted: true, famoProcessWasRunning: true, famoWasCurrentSource: true)
+      bundlePreexisted: true, owltypeProcessWasRunning: true, owltypeWasCurrentSource: true)
     XCTAssertFalse(plan.enableParentAndPrimaryModeOnce)
     XCTAssertTrue(plan.parkOnABCBeforeReplace)
-    XCTAssertTrue(plan.selectFamoAfterInstall)
+    XCTAssertTrue(plan.selectOwltypeAfterInstall)
   }
 
   func testBothSignalsTrueStillSkipsEnable() {
     let plan = InstallerActivationPolicy.plan(
-      bundlePreexisted: true, famoProcessWasRunning: true, famoWasCurrentSource: false)
+      bundlePreexisted: true, owltypeProcessWasRunning: true, owltypeWasCurrentSource: false)
     XCTAssertFalse(plan.enableParentAndPrimaryModeOnce)
-    XCTAssertFalse(plan.selectFamoAfterInstall)
+    XCTAssertFalse(plan.selectOwltypeAfterInstall)
   }
 
   func testStaleCurrentSourceWithoutInstallIsCleanInstallAndStillParks() {
     // (F,F,T) 幽灵残留：TIS 说当前源是法墨，但 bundle/进程都无 → 按干净首装 enable；
     // 定律 12 只看「当前源」信号，替换前照样先切出 ABC，装完配对切回。
     let plan = InstallerActivationPolicy.plan(
-      bundlePreexisted: false, famoProcessWasRunning: false, famoWasCurrentSource: true)
+      bundlePreexisted: false, owltypeProcessWasRunning: false, owltypeWasCurrentSource: true)
     XCTAssertEqual(
       plan,
       InstallerActivationPolicy.ActivationPlan(
         enableParentAndPrimaryModeOnce: true, parkOnABCBeforeReplace: true,
-        selectFamoAfterInstall: true))
+        selectOwltypeAfterInstall: true))
   }
 
   func testPreexistingBundleCurrentSourceDeadProcessSkipsEnableButParksAndSelectsBack() {
     // (T,F,T) 装过 + 是当前源 + 进程死了（崩溃/被杀）：bundle 单边信号已足以跳过 enable
     // （防二次 enable 幽灵态），切出/切回配对保留。
     let plan = InstallerActivationPolicy.plan(
-      bundlePreexisted: true, famoProcessWasRunning: false, famoWasCurrentSource: true)
+      bundlePreexisted: true, owltypeProcessWasRunning: false, owltypeWasCurrentSource: true)
     XCTAssertFalse(plan.enableParentAndPrimaryModeOnce)
     XCTAssertTrue(plan.parkOnABCBeforeReplace)
-    XCTAssertTrue(plan.selectFamoAfterInstall)
+    XCTAssertTrue(plan.selectOwltypeAfterInstall)
   }
 
   func testRunningProcessCurrentSourceWithoutBundleSkipsEnableButParksAndSelectsBack() {
     // (F,T,T) bundle 缺失但进程活着且是当前源：进程信号单边 ⟺ 已被 enable 过，绝不二次 enable。
     let plan = InstallerActivationPolicy.plan(
-      bundlePreexisted: false, famoProcessWasRunning: true, famoWasCurrentSource: true)
+      bundlePreexisted: false, owltypeProcessWasRunning: true, owltypeWasCurrentSource: true)
     XCTAssertFalse(plan.enableParentAndPrimaryModeOnce)
     XCTAssertTrue(plan.parkOnABCBeforeReplace)
-    XCTAssertTrue(plan.selectFamoAfterInstall)
+    XCTAssertTrue(plan.selectOwltypeAfterInstall)
   }
 
   // MARK: - consent 等待 + 读回验证状态机（fix2：needsLogout 非吸收态 + 迟到自愈）
   //
   // 信号 =「父 enabled ∧ Hans 在 enabled-only 列表」，由 `--tis-probe` fresh 进程探针读回
   // （安装器老进程 TIS 快照陈旧，进程内读回已退役；select 随之退役出输入信号——改在 verified
-  // 时刻由 fresh 进程 Famo CLI 执行）。软超时 → needsLogout(stillTrying: true) 显示引导但继续等；
+  // 时刻由 fresh 进程 Owltype CLI 执行）。软超时 → needsLogout(stillTrying: true) 显示引导但继续等；
   // 扩展截止 → needsLogout(stillTrying: false) 终态；信号任何时刻到都翻 verified（迟到自愈）。
 
   func testVerificationKeepsWaitingWithoutSignalBeforeDeadline() {
@@ -277,7 +277,7 @@ final class InstallerActivationPolicyTests: XCTestCase {
 
   func testSuccessTextLeadsWithNewlyOpenedAppsAndDropsNoLogoutClaim() {
     let plan = InstallerActivationPolicy.plan(
-      bundlePreexisted: false, famoProcessWasRunning: false, famoWasCurrentSource: false)
+      bundlePreexisted: false, owltypeProcessWasRunning: false, owltypeWasCurrentSource: false)
     let text = InstallerActivationPolicy.successText(plan: plan)
     // QA 三轮拍板（07-02）：领句只承诺「新打开的应用立即可用」，预期与体验对齐。
     XCTAssertTrue(text.contains("新打开的应用"))
@@ -288,9 +288,9 @@ final class InstallerActivationPolicyTests: XCTestCase {
     XCTAssertTrue(text.contains("注销一次"))
   }
 
-  func testUpdateSuccessTextDoesNotAskUserToPickFamo() {
+  func testUpdateSuccessTextDoesNotAskUserToPickOwltype() {
     let plan = InstallerActivationPolicy.plan(
-      bundlePreexisted: true, famoProcessWasRunning: false, famoWasCurrentSource: false)
+      bundlePreexisted: true, owltypeProcessWasRunning: false, owltypeWasCurrentSource: false)
     let text = InstallerActivationPolicy.successText(plan: plan)
     XCTAssertTrue(text.contains("更新"))
     XCTAssertFalse(text.contains("选择「法墨」"), "更新不改用户的输入法选择，不该引导去选")

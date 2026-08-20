@@ -1,6 +1,6 @@
 //
 //  CloudRoutingTests.swift
-//  FamoTests — multi-provider fetcher routing (task 06-22-famo-multi-provider-keychain-foundation, B1)
+//  OwltypeTests — multi-provider fetcher routing (task 06-22-famo-multi-provider-keychain-foundation, B1)
 //
 //  Contracts: cloud requests route endpoint / model + the API key through the ACTIVE provider
 //  profile, falling back to the legacy DeepSeek globals when no profile is configured.
@@ -10,7 +10,7 @@
 
 import Foundation
 import XCTest
-@testable import Famo
+@testable import Owltype
 
 @MainActor
 final class CloudRoutingTests: XCTestCase {
@@ -19,8 +19,8 @@ final class CloudRoutingTests: XCTestCase {
     endpoint: String,
     model: String,
     secretName: String = "famo.provider.unit.apiKey"
-  ) -> FamoProviderProfile {
-    FamoProviderProfile(
+  ) -> OwlProviderProfile {
+    OwlProviderProfile(
       id: "unit",
       displayName: "unit",
       endpoint: URL(string: endpoint)!,
@@ -32,17 +32,17 @@ final class CloudRoutingTests: XCTestCase {
 
   override func setUp() async throws {
     try await super.setUp()
-    FamoCloudPreferences.resetForTesting()
-    FamoCloudUsageTelemetry.resetForTesting()
-    FamoSnapshotRegistry.shared.update(nil)
-    FamoCandidateStore.shared.clearForSnapshotChange()
+    OwlCloudPreferences.resetForTesting()
+    OwlCloudUsageTelemetry.resetForTesting()
+    OwlSnapshotRegistry.shared.update(nil)
+    OwlCandidateStore.shared.clearForSnapshotChange()
   }
 
   override func tearDown() async throws {
-    FamoCloudPreferences.resetForTesting()
-    FamoCloudUsageTelemetry.resetForTesting()
-    FamoSnapshotRegistry.shared.update(nil)
-    FamoCandidateStore.shared.clearForSnapshotChange()
+    OwlCloudPreferences.resetForTesting()
+    OwlCloudUsageTelemetry.resetForTesting()
+    OwlSnapshotRegistry.shared.update(nil)
+    OwlCandidateStore.shared.clearForSnapshotChange()
     try await super.tearDown()
   }
 
@@ -50,7 +50,7 @@ final class CloudRoutingTests: XCTestCase {
 
   func testRoutingResolvesFromActiveProfile() {
     let profile = makeProfile(endpoint: "https://api.openai.com/v1/chat/completions", model: "gpt-4o")
-    let routing = FamoCloudRouting.resolve(profile: profile)
+    let routing = OwlCloudRouting.resolve(profile: profile)
     XCTAssertEqual(routing.providerID, "openai")
     XCTAssertEqual(routing.endpoint, URL(string: "https://api.openai.com/v1/chat/completions"))
     XCTAssertEqual(routing.model, "gpt-4o")
@@ -59,19 +59,19 @@ final class CloudRoutingTests: XCTestCase {
   }
 
   func testRoutingFallsBackToLegacyGlobalsWhenNoProfile() {
-    FamoCloudPreferences.deepSeekModel = "deepseek-v4-flash"
-    let routing = FamoCloudRouting.resolve(profile: nil)
+    OwlCloudPreferences.deepSeekModel = "deepseek-v4-flash"
+    let routing = OwlCloudRouting.resolve(profile: nil)
     XCTAssertEqual(routing.providerID, "deepseek")
-    XCTAssertEqual(routing.endpoint, FamoCloudPreferences.deepSeekEndpoint)
-    XCTAssertEqual(routing.model, FamoCloudPreferences.deepSeekModel)
+    XCTAssertEqual(routing.endpoint, OwlCloudPreferences.deepSeekEndpoint)
+    XCTAssertEqual(routing.model, OwlCloudPreferences.deepSeekModel)
     XCTAssertNil(routing.secretName, "legacy fallback uses the global DeepSeek key, not a per-profile secretName")
     XCTAssertEqual(routing.authHeaderStyle, .bearer)
   }
 
   func testRoutingEmptyProfileModelFallsBackToFlash() {
     let profile = makeProfile(endpoint: "https://example.com/v1/chat/completions", model: "")
-    let routing = FamoCloudRouting.resolve(profile: profile)
-    XCTAssertEqual(routing.model, FamoCloudPreferences.deepSeekModel, "an empty profile model must not send an empty model")
+    let routing = OwlCloudRouting.resolve(profile: profile)
+    XCTAssertEqual(routing.model, OwlCloudPreferences.deepSeekModel, "an empty profile model must not send an empty model")
   }
 
 }

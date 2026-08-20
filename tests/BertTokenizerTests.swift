@@ -1,8 +1,8 @@
 //
 //  BertTokenizerTests.swift
-//  FamoTests — 退格 LM 纠错 · 端上 CSC tokenizer (task 06-22-backspace-typo-correction)
+//  OwltypeTests — 退格 LM 纠错 · 端上 CSC tokenizer (task 06-22-backspace-typo-correction)
 //
-//  Locks the pure-Swift BERT WordPiece tokenizer (shared by `FamoMacbertCscScorer`) on four axes,
+//  Locks the pure-Swift BERT WordPiece tokenizer (shared by `OwlMacbertCscScorer`) on four axes,
 //  all with a TINY FIXTURE vocab (no real 21128-line vocab, no model, no I/O):
 //    1. `[CLS]`/`[SEP]` wrapping (ids 101 / 102) around every encode/tokenize;
 //    2. every CJK char becomes its own token;
@@ -12,7 +12,7 @@
 
 import Foundation
 import XCTest
-@testable import Famo
+@testable import Owltype
 
 final class BertTokenizerTests: XCTestCase {
 
@@ -20,7 +20,7 @@ final class BertTokenizerTests: XCTestCase {
 
   /// A small fixture vocab covering the special tokens, a few CJK chars, and an English word split
   /// into `play` + `##ing` so greedy WordPiece has a real continuation piece to find.
-  private func fixtureTokenizer() -> FamoBertTokenizer {
+  private func fixtureTokenizer() -> OwlBertTokenizer {
     let tokens: [(String, Int)] = [
       ("[PAD]", 0),
       ("[UNK]", 100),
@@ -38,7 +38,7 @@ final class BertTokenizerTests: XCTestCase {
     ]
     var map: [String: Int] = [:]
     for (t, id) in tokens { map[t] = id }
-    return FamoBertTokenizer(vocab: map)
+    return OwlBertTokenizer(vocab: map)
   }
 
   // MARK: - 1. [CLS]/[SEP] wrapping
@@ -111,14 +111,14 @@ final class BertTokenizerTests: XCTestCase {
   // MARK: - Availability / fallback signal
 
   func testEmptyVocabIsUnavailable() {
-    let tok = FamoBertTokenizer(vocab: [:])
+    let tok = OwlBertTokenizer(vocab: [:])
     XCTAssertFalse(tok.isAvailable)
     XCTAssertTrue(tok.encode("正当防卫").isEmpty)
     XCTAssertTrue(tok.tokenize("正当防卫").isEmpty)
   }
 
   func testBlankVocabTextIsUnavailable() {
-    let tok = FamoBertTokenizer(vocabText: "   \n\n   ")
+    let tok = OwlBertTokenizer(vocabText: "   \n\n   ")
     XCTAssertFalse(tok.isAvailable)
   }
 
@@ -126,7 +126,7 @@ final class BertTokenizerTests: XCTestCase {
     // Build from vocab.txt form: line index == id.
     let text = "[PAD]\n[UNK]\nfoo\nbar"
     // [PAD]=0, [UNK]=1, foo=2, bar=3 — but special-token ids fall back to canon for [CLS]/[SEP].
-    let tok = FamoBertTokenizer(vocabText: text)
+    let tok = OwlBertTokenizer(vocabText: text)
     XCTAssertTrue(tok.isAvailable)
     XCTAssertEqual(tok.id(for: "foo"), 2)
     XCTAssertEqual(tok.id(for: "bar"), 3)

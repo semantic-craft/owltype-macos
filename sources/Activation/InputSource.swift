@@ -1,6 +1,6 @@
 //
 //  InputSource.swift
-//  Famo
+//  Owltype
 //
 //  Created by Leo Liu on 5/10/24.
 //
@@ -12,16 +12,16 @@ import Security
 
 // MARK: - Input source install: register → enable → select (upstream Squirrel behavior)
 //
-// Keep only Famo's own bundle identity (`im.famo.inputmethod.Famo[.Hans/.Hant]`) and use TIS as the
+// Keep only Owltype's own bundle identity (`im.famo.inputmethod.Famo[.Hans/.Hant]`) and use TIS as the
 // activation surface. Do NOT write `AppleEnabledInputSources` directly: on modern macOS that plist
-// omits third-party IMEs, and injecting a Famo row creates duplicate TIS records that can leave the
-// menu bar title selected while the input menu itself has no Famo row.
+// omits third-party IMEs, and injecting a Owltype row creates duplicate TIS records that can leave the
+// menu bar title selected while the input menu itself has no Owltype row.
 //
 // The selected-but-not-enabled half-state DIAGNOSTIC (`--detect-activation` /
 // `detectAndGuideIfHalfState`) is kept: it only prints copyable recovery guidance and never blocks
 // enable/select.
 
-final class FamoInstaller {
+final class OwlInstaller {
   static let inputSourcePrefix = "im.famo.inputmethod.Famo"
   static let squirrelInputSourcePrefix = ["im", "rime", "inputmethod", "Squirrel"].joined(separator: ".")
 
@@ -94,7 +94,7 @@ final class FamoInstaller {
   /// helper is intentionally limited to register + notify + menu-agent refresh, so updates cannot
   /// create duplicate TIS rows or steal the active input source.
   func repairRegistrationForInstalledBundle() {
-    TISRegisterInputSource(FamoApp.appDir as CFURL)
+    TISRegisterInputSource(OwlApp.appDir as CFURL)
     notifyInputSourcesChanged()
     Self.refreshInputMenuAgents()
   }
@@ -102,17 +102,17 @@ final class FamoInstaller {
   func register() {
     let enabledInputModes = enabledModes()
     if !enabledInputModes.isEmpty {
-      print("User already registered Famo method(s): \(enabledInputModes.map { $0.rawValue })")
+      print("User already registered Owltype method(s): \(enabledInputModes.map { $0.rawValue })")
       return
     }
-    TISRegisterInputSource(FamoApp.appDir as CFURL)
-    print("Registered input source from \(FamoApp.appDir)")
+    TISRegisterInputSource(OwlApp.appDir as CFURL)
+    print("Registered input source from \(OwlApp.appDir)")
   }
 
   func enable(modes: [InputMode] = []) {
     let enabledInputModes = enabledModes()
     if !enabledInputModes.isEmpty && modes.isEmpty {
-      print("User already enabled Famo method(s): \(enabledInputModes.map { $0.rawValue })")
+      print("User already enabled Owltype method(s): \(enabledInputModes.map { $0.rawValue })")
       // Preserve manually enabled input modes.
       return
     }
@@ -234,13 +234,13 @@ final class FamoInstaller {
   /// （如 `com.apple.keylayout.ABC`，postinstall 更新序列在 kill 旧进程前切出用）。纯函数、无 TIS ——
   /// 单测保证系统 id 绝不会误落回「选中法墨」的无参默认路径。
   enum SelectTarget: Equatable {
-    case famoMode(InputMode)
+    case owlMode(InputMode)
     case systemSource(String)
   }
 
   static func selectTarget(for argument: String) -> SelectTarget {
     if let mode = InputMode(rawValue: argument) {
-      return .famoMode(mode)
+      return .owlMode(mode)
     }
     return .systemSource(argument)
   }
@@ -295,14 +295,14 @@ final class FamoInstaller {
   // CHANGE observer). Prints copyable System Settings recovery guidance; that is its whole job.
 
   struct ActivationDiagnosis: Equatable {
-    /// A Famo mode is the current selected source but its TIS enabled bit is false (the
+    /// A Owltype mode is the current selected source but its TIS enabled bit is false (the
     /// key-swallowing dead half-state).
     let brokenHalfState: Bool
     /// The mode involved, if any.
     let mode: InputMode?
   }
 
-  /// Pure half-state detector: current selected id + which Famo modes are enabled → is it the dead
+  /// Pure half-state detector: current selected id + which Owltype modes are enabled → is it the dead
   /// state? No TIS, no IO — unit-testable.
   static func diagnoseHalfState(currentSourceID: String?, trulyEnabledModes: Set<InputMode>) -> ActivationDiagnosis {
     guard let currentSourceID, currentSourceID.hasPrefix(inputSourcePrefix),
@@ -327,13 +327,13 @@ final class FamoInstaller {
 
   /// Copyable, human-readable recovery guidance for the broken half-state.
   static func activationGuidanceText(for mode: InputMode?) -> String {
-    let label = mode?.rawValue ?? FamoInstaller.InputMode.primary.rawValue
+    let label = mode?.rawValue ?? OwlInstaller.InputMode.primary.rawValue
     return """
     [法墨激活诊断] 检测到“已选中但未真正启用”的死半态：当前输入法是 \(label)，但它没有被真正启用，\
     会吞掉所有按键（包括英文）。
     一键恢复步骤（请手动在系统设置中操作，不要让程序自动改你正在用的输入法）：
       1. 打开 系统设置 → 键盘 → 输入法 → 点“编辑…”（System Settings → Keyboard → Input Sources → Edit…）。
-      2. 若列表里有“法墨/Famo”，先用减号(−)移除，再用加号(+) → 简体中文 → 重新加入“法墨”。
+      2. 若列表里有“法墨/Owltype”，先用减号(−)移除，再用加号(+) → 简体中文 → 重新加入“法墨”。
       3. 若列表里没有“法墨”，直接用加号(+)添加。
       4. 加回后从右上角输入法菜单切到“法墨”，测试能否打字。
     判断是否启用，请以上面“输入法 → 编辑…”里的列表为准；不要用 \
@@ -344,14 +344,14 @@ final class FamoInstaller {
   static func activationStatusText() -> String {
     activationStatusText(
       currentInputSourceID: currentInputSourceID() ?? "未知",
-      lastHostKeyEventDate: FamoActivationHealth.lastHostKeyEventDate()
+      lastHostKeyEventDate: OwlActivationHealth.lastHostKeyEventDate()
     )
   }
 
   static func activationStatusText(currentInputSourceID current: String, lastHostKeyEventDate: String?) -> String {
     let handleStatus = lastHostKeyEventDate.map {
-      "最近一次宿主按键进入 Famo handle(): \($0)"
-    } ?? "本次登录尚未观察到宿主按键进入 Famo handle()。若菜单已选中法墨但打字无反应，请在系统设置 → 键盘 → 输入法里手动添加一次法墨。"
+      "最近一次宿主按键进入 Owltype handle(): \($0)"
+    } ?? "本次登录尚未观察到宿主按键进入 Owltype handle()。若菜单已选中法墨但打字无反应，请在系统设置 → 键盘 → 输入法里手动添加一次法墨。"
     return """
     [法墨激活诊断]
     当前系统输入源：\(current)
@@ -380,10 +380,10 @@ final class FamoInstaller {
     return unsafeBitCast(ref, to: CFString?.self) as String?
   }
 
-  /// Read-only snapshot of every installed input source under Famo's prefix (id + the four TIS
+  /// Read-only snapshot of every installed input source under Owltype's prefix (id + the four TIS
   /// capability/state bits + labels). Fresh-process read via the lazy `inputSources` map — Law 4 is
   /// satisfied when this runs from the short-lived `--diagnose-tis` CLI. Never mutates TIS.
-  func famoSourceStates() -> [TISSourceState] {
+  func owlSourceStates() -> [TISSourceState] {
     inputSources.compactMap { id, source in
       guard id.hasPrefix(Self.inputSourcePrefix) else { return nil }
       return TISSourceState(
@@ -403,7 +403,7 @@ final class FamoInstaller {
 //
 // Separates the register → enumerate → enable → select → menu-visible → client-attach lifecycle so
 // "installed but not usable" maps to a specific FAMO-* code instead of "reboot/logout". Read-only:
-// no enable/select/disable, no `AppleEnabledInputSources` write. Law 4: `Famo --diagnose-tis` is a
+// no enable/select/disable, no `AppleEnabledInputSources` write. Law 4: `Owltype --diagnose-tis` is a
 // short-lived process, so its TIS read-back is fresh by construction. §5/§6 of the de-Squirrel plan.
 
 /// One installed input source's read-only TIS state. Pure value — the classifier is unit-testable
@@ -438,7 +438,7 @@ struct TISDiagnosis: Equatable, Codable {
   let code: String?
 }
 
-/// One LaunchServices claim on Famo's bundle identifier: the bundle that claims it, and the Team ID
+/// One LaunchServices claim on Owltype's bundle identifier: the bundle that claims it, and the Team ID
 /// its signature carries. `teamID == nil` means unsigned or ad-hoc — the shape every local build
 /// has. Pure value, so the classifier below is unit-testable without touching LaunchServices.
 struct LSBundleClaim: Equatable, Codable {
@@ -446,13 +446,13 @@ struct LSBundleClaim: Equatable, Codable {
   let teamID: String?
 }
 
-/// Read-only verdict on who claims Famo's bundle identifier. macOS resolves an input method by
+/// Read-only verdict on who claims Owltype's bundle identifier. macOS resolves an input method by
 /// bundle id, so a second claimant can be resolved *instead of* the installed copy at login: the
 /// IMK service fails to come up and the system falls through to the next input source. That is the
 /// measured cause of 「重启后默认输入法变成别家」 on this developer machine, and it regenerates every
 /// time a build runs (docs/default-input-method-plan.md §1.3 结论 A/C).
 ///
-/// Advisory by design: `code` never becomes `FamoTISReport.Summary.code`. A shadowing development
+/// Advisory by design: `code` never becomes `OwlTISReport.Summary.code`. A shadowing development
 /// build is a developer-machine condition, not a broken install, and check-installed.sh treats any
 /// summary code as a failure.
 struct LSClaimReport: Equatable, Codable {
@@ -464,26 +464,26 @@ struct LSClaimReport: Equatable, Codable {
   let detail: String
 }
 
-enum FamoTISDiagnostics {
+enum OwlTISDiagnostics {
   /// §5 user-facing message per FAMO-* code (developer meaning stays in each layer's `detail`).
   static let userMessage: [String: String] = [
-    "FAMO-TIS-001": "系统尚未识别 Famo 输入源。",
-    "FAMO-TIS-002": "Famo 输入源无法启用。",
-    "FAMO-TIS-003": "Famo 输入源启用结果不一致。",
-    "FAMO-TIS-004": "Famo 输入源无法选中。",
-    "FAMO-TIS-005": "当前 App 未连接到 Famo。",
-    "FAMO-TIS-006": "输入菜单尚未显示 Famo。",
-    "FAMO-INSTALL-001": "Famo 未安装在系统输入法目录。",
-    "FAMO-SIGN-001": "Famo 签名校验未通过。",
-    "FAMO-SIGN-002": "Famo 发布物未通过系统安全评估。",
-    "FAMO-DATA-001": "Famo 数据目录不可用。",
-    "FAMO-DATA-002": "检测到非 Famo 数据路径写入。",
+    "FAMO-TIS-001": "系统尚未识别 Owltype 输入源。",
+    "FAMO-TIS-002": "Owltype 输入源无法启用。",
+    "FAMO-TIS-003": "Owltype 输入源启用结果不一致。",
+    "FAMO-TIS-004": "Owltype 输入源无法选中。",
+    "FAMO-TIS-005": "当前 App 未连接到 Owltype。",
+    "FAMO-TIS-006": "输入菜单尚未显示 Owltype。",
+    "FAMO-INSTALL-001": "Owltype 未安装在系统输入法目录。",
+    "FAMO-SIGN-001": "Owltype 签名校验未通过。",
+    "FAMO-SIGN-002": "Owltype 发布物未通过系统安全评估。",
+    "FAMO-DATA-001": "Owltype 数据目录不可用。",
+    "FAMO-DATA-002": "检测到非 Owltype 数据路径写入。",
     "FAMO-UPDATE-001": "更新时仍有旧输入连接。",
     "FAMO-LS-001": "多个构建认领同一 bundle id，装机版可能被遮蔽。",
     "FAMO-LS-002": "存在未签名构建认领同一 bundle id。",
   ]
 
-  /// PURE six-layer classifier. `sources` is the installed set already filtered to Famo's prefix.
+  /// PURE six-layer classifier. `sources` is the installed set already filtered to Owltype's prefix.
   /// No TIS, no IO — the §6 root-cause matrix 活跃 rows are its unit tests.
   static func classify(
     sources: [TISSourceState], currentSourceID: String?, expectedIDs: [String], primaryID: String
@@ -493,7 +493,7 @@ enum FamoTISDiagnostics {
     let presentIDs = Set(sources.map { $0.id })
     let primaryPresent = presentIDs.contains(primaryID)
     let primary = sources.first { $0.id == primaryID }
-    // Half-state precedence: the current source is a Famo source whose enabled bit is false — the
+    // Half-state precedence: the current source is a Owltype source whose enabled bit is false — the
     // key-swallowing dead state. This is a select-layer pathology (004), not an enable failure.
     let halfState = currentSourceID.flatMap { cur in sources.first { $0.id == cur && !$0.enabled } }
 
@@ -501,8 +501,8 @@ enum FamoTISDiagnostics {
     layers.append(LayerResult(
       layer: .register, ok: registered, code: registered ? nil : "FAMO-TIS-001",
       detail: registered
-        ? "\(sources.count) 个 Famo 输入源可枚举（TISCreateInputSourceList includeAllInstalled=true）"
-        : "0 个 Famo 输入源可枚举 → 未注册（核对安装路径/签名/Info.plist）"))
+        ? "\(sources.count) 个 Owltype 输入源可枚举（TISCreateInputSourceList includeAllInstalled=true）"
+        : "0 个 Owltype 输入源可枚举 → 未注册（核对安装路径/签名/Info.plist）"))
 
     // 2. enumerate
     let missing = expectedIDs.filter { !presentIDs.contains($0) }
@@ -640,64 +640,64 @@ enum FamoTISDiagnostics {
   /// Short remediation line per headline code (§6 修复/预防 column, condensed).
   static func actionText(for code: String) -> String {
     switch code {
-    case "FAMO-INSTALL-001": return "Famo 未装在 /Library/Input Methods/Famo.app —— 用 DMG 安装器安装，勿手动 cp。"
-    case "FAMO-TIS-001": return "系统查不到 Famo 输入源 —— 核对 codesign/spctl/xattr/权限后重跑 --install。"
-    case "FAMO-TIS-002": return "Famo 输入源不可启用 —— 只按精确 source id 操作、检查父条目；绝不按 localized name 选源。"
+    case "FAMO-INSTALL-001": return "Owltype 未装在 /Library/Input Methods/Owltype.app —— 用 DMG 安装器安装，勿手动 cp。"
+    case "FAMO-TIS-001": return "系统查不到 Owltype 输入源 —— 核对 codesign/spctl/xattr/权限后重跑 --install。"
+    case "FAMO-TIS-002": return "Owltype 输入源不可启用 —— 只按精确 source id 操作、检查父条目；绝不按 localized name 选源。"
     case "FAMO-TIS-003": return "启用读回不一致 —— 运行 --enable-input-source；fresh-process 复核仍 false 说明未落地。"
     case "FAMO-TIS-004": return "选中半态/不可选 —— 先切 ABC 再在输入菜单重选「法墨」；必要时系统设置→键盘→输入法重加一次。"
     case "FAMO-LS-001": return "同一 bundle id 被多个 bundle 认领 —— 跑 scripts/clean-dev.sh --apply，只留装机版一条认领。"
     case "FAMO-LS-002": return "未签名（ad-hoc）开发构建认领了同一 bundle id，登录可能解析到它 —— 跑 scripts/clean-dev.sh --apply。"
-    case "FAMO-DATA-001": return "数据目录缺失（可选中但无候选）—— 启动一次 Famo 部署 schema 到 ~/Library/Application Support/Famo；永不 fallback 到 ~/Library/Rime。"
+    case "FAMO-DATA-001": return "数据目录缺失（可选中但无候选）—— 启动一次 Owltype 部署 schema 到 ~/Library/Application Support/Owltype；永不 fallback 到 ~/Library/Rime。"
     default: return userMessage[code] ?? code
     }
   }
 
   /// Assemble the full read-only report (TIS six layers + install identity + data-root existence).
   /// The only IO: TIS read, filesystem stat, installed Info.plist read. No mutation.
-  static func buildReport() -> FamoTISReport {
-    let expected = [FamoInstaller.InputMode.hans.rawValue, FamoInstaller.InputMode.hant.rawValue]
-    let primary = FamoInstaller.InputMode.primary.rawValue
-    let sources = FamoInstaller().famoSourceStates()
-    let currentID = FamoInstaller.currentInputSourceID()
+  static func buildReport() -> OwlTISReport {
+    let expected = [OwlInstaller.InputMode.hans.rawValue, OwlInstaller.InputMode.hant.rawValue]
+    let primary = OwlInstaller.InputMode.primary.rawValue
+    let sources = OwlInstaller().owlSourceStates()
+    let currentID = OwlInstaller.currentInputSourceID()
     let diag = classify(sources: sources, currentSourceID: currentID, expectedIDs: expected, primaryID: primary)
 
-    let canonicalPath = "/Library/Input Methods/Famo.app"
+    let canonicalPath = "/Library/Input Methods/Owltype.app"
     let installed = FileManager.default.fileExists(atPath: canonicalPath)
     let installedBundleID = installed
       ? NSDictionary(contentsOf: URL(fileURLWithPath: canonicalPath).appending(components: "Contents", "Info.plist"))?["CFBundleIdentifier"] as? String
       : nil
-    let identity = FamoTISReport.Identity(
-      expectedBundleID: FamoInstaller.inputSourcePrefix, expectedSourceIDs: expected, primarySourceID: primary,
+    let identity = OwlTISReport.Identity(
+      expectedBundleID: OwlInstaller.inputSourcePrefix, expectedSourceIDs: expected, primarySourceID: primary,
       installPath: canonicalPath, installed: installed, installedBundleID: installedBundleID,
-      bundleIDMatches: installedBundleID == FamoInstaller.inputSourcePrefix,
-      runningBundlePath: FamoApp.appDir.path, installCode: installed ? nil : "FAMO-INSTALL-001")
+      bundleIDMatches: installedBundleID == OwlInstaller.inputSourcePrefix,
+      runningBundlePath: OwlApp.appDir.path, installCode: installed ? nil : "FAMO-INSTALL-001")
 
-    let userDir = FamoApp.userDir
+    let userDir = OwlApp.userDir
     let dataExists = FileManager.default.fileExists(atPath: userDir.path)
-    let dataRoot = FamoTISReport.DataRoot(path: userDir.path, exists: dataExists, code: dataExists ? nil : "FAMO-DATA-001")
+    let dataRoot = OwlTISReport.DataRoot(path: userDir.path, exists: dataExists, code: dataExists ? nil : "FAMO-DATA-001")
 
     // Who else claims this bundle id. Deliberately outside the headline: a shadowing development
     // build is a developer-machine condition (§1.3 结论 D), and folding it into `summaryCode` would
     // turn a healthy install red in check-installed.sh. It reports; clean-dev.sh acts, by hand.
     let launchServices = classifyClaims(
-      bundleID: FamoInstaller.inputSourcePrefix,
-      claims: launchServicesClaims(for: FamoInstaller.inputSourcePrefix))
+      bundleID: OwlInstaller.inputSourcePrefix,
+      claims: launchServicesClaims(for: OwlInstaller.inputSourcePrefix))
 
     // Headline priority: not installed → TIS layer failure → data root missing.
     let summaryCode = identity.installCode ?? diag.code ?? dataRoot.code
-    let summary = FamoTISReport.Summary(
+    let summary = OwlTISReport.Summary(
       code: summaryCode, userMessage: summaryCode.flatMap { userMessage[$0] },
       firstFailingLayer: diag.firstFailingLayer,
       actionable: summaryCode.map { actionText(for: $0) }
         ?? "所有可只读判定的 TIS 层健康；menuVisible/clientAttach 属只读天花板，见对应层 detail。")
 
-    return FamoTISReport(
+    return OwlTISReport(
       identity: identity, dataRoot: dataRoot, launchServices: launchServices, currentSourceID: currentID,
       sources: sources, layers: diag.layers, summary: summary)
   }
 }
 
-struct FamoTISReport: Codable {
+struct OwlTISReport: Codable {
   struct Identity: Codable {
     let expectedBundleID: String
     let expectedSourceIDs: [String]
@@ -729,7 +729,7 @@ struct FamoTISReport: Codable {
   let summary: Summary
 }
 
-enum FamoActivationHealth {
+enum OwlActivationHealth {
   private static let markerURL = FileManager.default.temporaryDirectory
     .appendingPathComponent("famo-last-host-key-event.txt")
 

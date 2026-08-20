@@ -1,9 +1,9 @@
 //
 //  ProjectStoreTests.swift
-//  FamoTests — 项目输入空间 (blueprint_v2 P0 pillar, task 06-20-famo-project-input-space)
+//  OwltypeTests — 项目输入空间 (blueprint_v2 P0 pillar, task 06-20-famo-project-input-space)
 //
 //  Locks three contracts:
-//    1. `FamoProjectStore` CRUD round-trips through `project.json` (create → read → rename →
+//    1. `OwlProjectStore` CRUD round-trips through `project.json` (create → read → rename →
 //       set-words → delete), against an isolated temp directory + temp UserDefaults suite.
 //    2. The active-project pointer persists (UserDefaults) and clears when its project is
 //       deleted; `activeProject` reads back the on-disk project.
@@ -12,12 +12,12 @@
 //       active project lands the words in the smart lane with `.project` provenance.
 //
 //  No network, no librime. The store is pointed at a unique temp root so it never touches the
-//  real ~/Library/Application Support/Famo.
+//  real ~/Library/Application Support/Owltype.
 //
 
 import Foundation
 import XCTest
-@testable import Famo
+@testable import Owltype
 
 final class ProjectStoreTests: XCTestCase {
 
@@ -28,9 +28,9 @@ final class ProjectStoreTests: XCTestCase {
   override func setUpWithError() throws {
     try super.setUpWithError()
     tempRoot = FileManager.default.temporaryDirectory
-      .appendingPathComponent("FamoProjectStoreTests-\(UUID().uuidString)", isDirectory: true)
+      .appendingPathComponent("OwlProjectStoreTests-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-    suiteName = "FamoProjectStoreTests-\(UUID().uuidString)"
+    suiteName = "OwlProjectStoreTests-\(UUID().uuidString)"
     defaults = UserDefaults(suiteName: suiteName)
   }
 
@@ -44,8 +44,8 @@ final class ProjectStoreTests: XCTestCase {
     try super.tearDownWithError()
   }
 
-  private func makeStore() -> FamoProjectStore {
-    FamoProjectStore(root: tempRoot, defaults: defaults)
+  private func makeStore() -> OwlProjectStore {
+    OwlProjectStore(root: tempRoot, defaults: defaults)
   }
 
   // MARK: - CRUD round-trip
@@ -77,7 +77,7 @@ final class ProjectStoreTests: XCTestCase {
   func testEmptyNameRejected() {
     let store = makeStore()
     XCTAssertThrowsError(try store.create(name: "   ")) { error in
-      XCTAssertEqual(error as? FamoProjectError, .emptyName)
+      XCTAssertEqual(error as? OwlProjectError, .emptyName)
     }
   }
 
@@ -118,7 +118,7 @@ final class ProjectStoreTests: XCTestCase {
   func testRenameUnknownIDThrowsNotFound() {
     let store = makeStore()
     XCTAssertThrowsError(try store.rename(id: "missing", to: "x")) { error in
-      XCTAssertEqual(error as? FamoProjectError, .notFound("missing"))
+      XCTAssertEqual(error as? OwlProjectError, .notFound("missing"))
     }
   }
 
@@ -134,7 +134,7 @@ final class ProjectStoreTests: XCTestCase {
     XCTAssertEqual(store.activeProject?.id, a.id)
 
     // A fresh store reading the same defaults + root sees the same active project.
-    let reopened = FamoProjectStore(root: tempRoot, defaults: defaults)
+    let reopened = OwlProjectStore(root: tempRoot, defaults: defaults)
     XCTAssertEqual(reopened.activeProjectID, a.id)
 
     try store.activate(id: b.id)
@@ -155,7 +155,7 @@ final class ProjectStoreTests: XCTestCase {
   func testActivateUnknownIDThrowsNotFound() {
     let store = makeStore()
     XCTAssertThrowsError(try store.activate(id: "nope")) { error in
-      XCTAssertEqual(error as? FamoProjectError, .notFound("nope"))
+      XCTAssertEqual(error as? OwlProjectError, .notFound("nope"))
     }
   }
 
@@ -176,8 +176,8 @@ final class ProjectStoreTests: XCTestCase {
     }
   }
 
-  private func makeSnapshot(id: UInt64, rawInput: String = "byrw") -> FamoCompositionSnapshot {
-    FamoCompositionSnapshot(
+  private func makeSnapshot(id: UInt64, rawInput: String = "byrw") -> OwlCompositionSnapshot {
+    OwlCompositionSnapshot(
       id: id,
       sessionID: 200,
       schemaID: "wubi86_jidian",
@@ -192,9 +192,9 @@ final class ProjectStoreTests: XCTestCase {
 
   @MainActor
   func testProjectWordsLandInSmartLaneWhenSnapshotMatches() {
-    let store = FamoCandidateStore.shared
+    let store = OwlCandidateStore.shared
     store.clearForSnapshotChange()
-    FamoSnapshotRegistry.shared.update(makeSnapshot(id: 50))
+    OwlSnapshotRegistry.shared.update(makeSnapshot(id: 50))
 
     store.upsertSmartCandidates(projectCandidates(["本院", "本院认为"], snapshotID: 50), snapshotID: 50)
 
@@ -203,22 +203,22 @@ final class ProjectStoreTests: XCTestCase {
     // Provenance derivation: smart lane + localNeural source → 「项目」label.
     XCTAssertEqual(store.smart.first?.provenance(), .project)
 
-    FamoSnapshotRegistry.shared.update(nil)
+    OwlSnapshotRegistry.shared.update(nil)
     store.clearForSnapshotChange()
   }
 
   @MainActor
   func testStaleProjectWordsDropped() {
-    let store = FamoCandidateStore.shared
+    let store = OwlCandidateStore.shared
     store.clearForSnapshotChange()
     // User has moved on: live snapshot is id 61, but a project upsert for id 60 arrives late.
-    FamoSnapshotRegistry.shared.update(makeSnapshot(id: 61, rawInput: "byrwr"))
+    OwlSnapshotRegistry.shared.update(makeSnapshot(id: 61, rawInput: "byrwr"))
 
     store.upsertSmartCandidates(projectCandidates(["本院"], snapshotID: 60), snapshotID: 60)
 
     XCTAssertTrue(store.smart.isEmpty, "a stale project upsert must never reach the smart lane")
 
-    FamoSnapshotRegistry.shared.update(nil)
+    OwlSnapshotRegistry.shared.update(nil)
     store.clearForSnapshotChange()
   }
 
@@ -226,8 +226,8 @@ final class ProjectStoreTests: XCTestCase {
   func testEmitComposingInjectsActiveProjectWords() throws {
     // Drive the emitter end-to-end with an active project and assert the smart lane carries
     // the project words for the live snapshot. The emitter is pointed at our isolated temp
-    // store so the real ~/Library/Application Support/Famo is never touched.
-    let emitter = FamoSnapshotEmitter()
+    // store so the real ~/Library/Application Support/Owltype is never touched.
+    let emitter = OwlSnapshotEmitter()
     let store = makeStore()
     emitter.projectStore = store
 
@@ -236,8 +236,8 @@ final class ProjectStoreTests: XCTestCase {
     try store.activate(id: project.id)
 
     defer {
-      FamoSnapshotRegistry.shared.update(nil)
-      FamoCandidateStore.shared.clearForSnapshotChange()
+      OwlSnapshotRegistry.shared.update(nil)
+      OwlCandidateStore.shared.clearForSnapshotChange()
     }
 
     emitter.emitComposing(
@@ -250,21 +250,21 @@ final class ProjectStoreTests: XCTestCase {
       candidates: [RimeCandidateSnapshot(index: 0, text: "本院", quality: 1)]
     )
 
-    let smart = FamoCandidateStore.shared.smart
+    let smart = OwlCandidateStore.shared.smart
     XCTAssertEqual(smart.map(\.text), ["本院认为", "依照"])
     XCTAssertEqual(smart.first?.provenance(), .project)
     // The main (Rime) lane is untouched by the project injection.
-    XCTAssertEqual(FamoCandidateStore.shared.main.map(\.text), ["本院"])
+    XCTAssertEqual(OwlCandidateStore.shared.main.map(\.text), ["本院"])
   }
 
   @MainActor
   func testEmitComposingWithoutActiveProjectLeavesSmartLaneEmpty() throws {
-    let emitter = FamoSnapshotEmitter()
+    let emitter = OwlSnapshotEmitter()
     emitter.projectStore = makeStore()  // no active project
 
     defer {
-      FamoSnapshotRegistry.shared.update(nil)
-      FamoCandidateStore.shared.clearForSnapshotChange()
+      OwlSnapshotRegistry.shared.update(nil)
+      OwlCandidateStore.shared.clearForSnapshotChange()
     }
 
     emitter.emitComposing(
@@ -277,7 +277,7 @@ final class ProjectStoreTests: XCTestCase {
       candidates: [RimeCandidateSnapshot(index: 0, text: "本院", quality: 1)]
     )
 
-    XCTAssertTrue(FamoCandidateStore.shared.smart.isEmpty, "no active project → no project words")
-    XCTAssertEqual(FamoCandidateStore.shared.main.map(\.text), ["本院"])
+    XCTAssertTrue(OwlCandidateStore.shared.smart.isEmpty, "no active project → no project words")
+    XCTAssertEqual(OwlCandidateStore.shared.main.map(\.text), ["本院"])
   }
 }

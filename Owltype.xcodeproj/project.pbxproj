@@ -88,188 +88,188 @@
 		7B5488C91D2DACDF0056A1BE /* symbols.yaml in Copy Shared Support Files */ = {isa = PBXBuildFile; fileRef = 7B54883B1D2DAAD10056A1BE /* symbols.yaml */; };
 		B3216E5C2BF438F800E292D2 /* OwlMenuIcon.pdf in Resources */ = {isa = PBXBuildFile; fileRef = B3216E5B2BF438F800E292D2 /* OwlMenuIcon.pdf */; };
 		B35D2FE82BF00839009D156B /* BridgingFunctions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B35D2FE72BF00839009D156B /* BridgingFunctions.swift */; };
-		B38E9B912BE9AE1E0036ABEF /* FamoApplicationDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B38E9B902BE9AE1E0036ABEF /* FamoApplicationDelegate.swift */; };
-		FAA00020CAFE0020CAFE0020 /* FamoUpdateLogoutPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00021CAFE0021CAFE0021 /* FamoUpdateLogoutPrompt.swift */; };
-		FAA00030CAFE0030CAFE0030 /* FamoUserDictResetPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00031CAFE0031CAFE0031 /* FamoUserDictResetPrompt.swift */; };
-		B38E9B952BEAFEFD0036ABEF /* FamoInputController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B38E9B942BEAFEFD0036ABEF /* FamoInputController.swift */; };
-		FA000101CAFE0101CAFE0101 /* FamoInputMenuTitles.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000100CAFE0100CAFE0100 /* FamoInputMenuTitles.swift */; };
-		FA000103CAFE0103CAFE0103 /* FamoInputController+Menu.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000102CAFE0102CAFE0102 /* FamoInputController+Menu.swift */; };
-		FA000105CAFE0105CAFE0105 /* FamoInputController+RimeUpdate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000104CAFE0104CAFE0104 /* FamoInputController+RimeUpdate.swift */; };
-		FA000107CAFE0107CAFE0107 /* FamoInputController+Lifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000106CAFE0106CAFE0106 /* FamoInputController+Lifecycle.swift */; };
-		FA000109CAFE0109CAFE0109 /* FamoInputController+Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000108CAFE0108CAFE0108 /* FamoInputController+Session.swift */; };
-		FA0001F0CAFE01F0CAFE01F0 /* FamoApplicationDelegate+FastApply.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0001F1CAFE01F1CAFE01F1 /* FamoApplicationDelegate+FastApply.swift */; };
-		FA00010BCAFE010BCAFE010B /* FamoInputController+RimeOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00010ACAFE010ACAFE010A /* FamoInputController+RimeOptions.swift */; };
+		B38E9B912BE9AE1E0036ABEF /* OwlApplicationDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B38E9B902BE9AE1E0036ABEF /* OwlApplicationDelegate.swift */; };
+		FAA00020CAFE0020CAFE0020 /* OwlUpdateLogoutPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00021CAFE0021CAFE0021 /* OwlUpdateLogoutPrompt.swift */; };
+		FAA00030CAFE0030CAFE0030 /* OwlUserDictResetPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00031CAFE0031CAFE0031 /* OwlUserDictResetPrompt.swift */; };
+		B38E9B952BEAFEFD0036ABEF /* OwlInputController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B38E9B942BEAFEFD0036ABEF /* OwlInputController.swift */; };
+		FA000101CAFE0101CAFE0101 /* OwlInputMenuTitles.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000100CAFE0100CAFE0100 /* OwlInputMenuTitles.swift */; };
+		FA000103CAFE0103CAFE0103 /* OwlInputController+Menu.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000102CAFE0102CAFE0102 /* OwlInputController+Menu.swift */; };
+		FA000105CAFE0105CAFE0105 /* OwlInputController+RimeUpdate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000104CAFE0104CAFE0104 /* OwlInputController+RimeUpdate.swift */; };
+		FA000107CAFE0107CAFE0107 /* OwlInputController+Lifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000106CAFE0106CAFE0106 /* OwlInputController+Lifecycle.swift */; };
+		FA000109CAFE0109CAFE0109 /* OwlInputController+Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000108CAFE0108CAFE0108 /* OwlInputController+Session.swift */; };
+		FA0001F0CAFE01F0CAFE01F0 /* OwlApplicationDelegate+FastApply.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0001F1CAFE01F1CAFE01F1 /* OwlApplicationDelegate+FastApply.swift */; };
+		FA00010BCAFE010BCAFE010B /* OwlInputController+RimeOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00010ACAFE010ACAFE010A /* OwlInputController+RimeOptions.swift */; };
 		B39771232BECEA150093A49B /* MacOSKeyCodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39771222BECEA150093A49B /* MacOSKeyCodes.swift */; };
-		FA000130CAFE0130CAFE0130 /* FamoUserAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000131CAFE0131CAFE0131 /* FamoUserAction.swift */; };
-		FA000132CAFE0132CAFE0132 /* FamoInputController+ClientAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000133CAFE0133CAFE0133 /* FamoInputController+ClientAction.swift */; };
-		B39771252BED899F0093A49B /* FamoConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39771242BED899F0093A49B /* FamoConfig.swift */; };
-		FA000201CAFE0201CAFE0201 /* FamoStatusHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000200CAFE0200CAFE0200 /* FamoStatusHUD.swift */; };
-		FA000203CAFE0203CAFE0203 /* FamoStyleFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000202CAFE0202CAFE0202 /* FamoStyleFlags.swift */; };
-		FA000011CAFE0011CAFE0011 /* FamoCandidatePanelState.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000001CAFE0001CAFE0001 /* FamoCandidatePanelState.swift */; };
-		FA000012CAFE0012CAFE0012 /* FamoCandidatePanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000002CAFE0002CAFE0002 /* FamoCandidatePanelView.swift */; };
-		FA010801CAFE0108CAFE0108 /* FamoCandidatePanelGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA010800CAFE0108CAFE0108 /* FamoCandidatePanelGeometry.swift */; };
-		FA000013CAFE0013CAFE0013 /* FamoSwiftUICandidatePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000003CAFE0003CAFE0003 /* FamoSwiftUICandidatePanel.swift */; };
-		FA000014CAFE0014CAFE0014 /* FamoSettingsState.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000004CAFE0004CAFE0004 /* FamoSettingsState.swift */; };
-		FA000118CAFE0118CAFE0118 /* FamoSettingsActions+Stores.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000117CAFE0117CAFE0117 /* FamoSettingsActions+Stores.swift */; };
-		FA000015CAFE0015CAFE0015 /* FamoSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000005CAFE0005CAFE0005 /* FamoSettingsView.swift */; };
-		FA000016CAFE0016CAFE0016 /* FamoSettingsWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000006CAFE0006CAFE0006 /* FamoSettingsWindow.swift */; };
-		FA000017CAFE0017CAFE0017 /* FamoPanelPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000007CAFE0007CAFE0007 /* FamoPanelPreferences.swift */; };
-		FA112003CAFE0003CAFE0112 /* FamoCandidatePanelSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA112002CAFE0002CAFE0112 /* FamoCandidatePanelSettings.swift */; };
-		FA000018CAFE0018CAFE0018 /* FamoSettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000008CAFE0008CAFE0008 /* FamoSettingsComponents.swift */; };
-		FA000019CAFE0019CAFE0019 /* FamoSettingsPages.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000009CAFE0009CAFE0009 /* FamoSettingsPages.swift */; };
-		FA000050CAFE0050CAFE0050 /* FamoEmojiData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000046CAFE0046CAFE0046 /* FamoEmojiData.swift */; };
-		FA000051CAFE0051CAFE0051 /* FamoEmojiPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000047CAFE0047CAFE0047 /* FamoEmojiPanelView.swift */; };
-		FA000052CAFE0052CAFE0052 /* FamoEmojiPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000048CAFE0048CAFE0048 /* FamoEmojiPanel.swift */; };
-		FAA00002CAFE0002CAFE0002 /* FamoFloatingPanelPositioner.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00001CAFE0001CAFE0001 /* FamoFloatingPanelPositioner.swift */; };
-		FAA00041CAFE0041CAFE0041 /* FamoHostCaretAnchorMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00040CAFE0040CAFE0040 /* FamoHostCaretAnchorMemory.swift */; };
-		FAA00004CAFE0004CAFE0004 /* FamoPanelInsertionBroker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00003CAFE0003CAFE0003 /* FamoPanelInsertionBroker.swift */; };
-		FA0000D5CAFE00D5CAFE00D5 /* FamoQuickSendPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000D6CAFE00D6CAFE00D6 /* FamoQuickSendPanel.swift */; };
-		FA0000E7CAFE00E7CAFE00E7 /* FamoQuickSendHotKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000E8CAFE00E8CAFE00E8 /* FamoQuickSendHotKey.swift */; };
-		FA000043CAFE0043CAFE0043 /* FamoThemes.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000040CAFE0040CAFE0040 /* FamoThemes.swift */; };
-		FA000044CAFE0044CAFE0044 /* FamoEmojiPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000041CAFE0041CAFE0041 /* FamoEmojiPreferences.swift */; };
-		FA0000FECAFE00FECAFE00FE /* FamoPromptStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000FDCAFE00FDCAFE00FD /* FamoPromptStore.swift */; };
-		FADADA02CAFE0002CAFE0002 /* FamoPromptPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FADADA01CAFE0001CAFE0001 /* FamoPromptPage.swift */; };
-		FA00001ACAFE001ACAFE001A /* FamoPromptStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000FFCAFE00FFCAFE00FF /* FamoPromptStoreTests.swift */; };
-		FADC2608FADC2608FADC2608 /* FamoQuickSendStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FADC2607FADC2607FADC2607 /* FamoQuickSendStoreTests.swift */; };
-		FA000450CAFE0050CAFE0050 /* FamoQuickSendPanelModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000451CAFE0051CAFE0051 /* FamoQuickSendPanelModelTests.swift */; };
-		FAAB0001CAFE0001CAFE0001 /* FamoAutoPair.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAAB0002CAFE0002CAFE0002 /* FamoAutoPair.swift */; };
-		FA07070001CAFE0001CAFE07 /* FamoForcedFinalize.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA07070002CAFE0002CAFE07 /* FamoForcedFinalize.swift */; };
-		FA0707510001CAFE0051CA07 /* FamoSchemaSelectionGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0707510002CAFE0052CA07 /* FamoSchemaSelectionGate.swift */; };
+		FA000130CAFE0130CAFE0130 /* OwlUserAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000131CAFE0131CAFE0131 /* OwlUserAction.swift */; };
+		FA000132CAFE0132CAFE0132 /* OwlInputController+ClientAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000133CAFE0133CAFE0133 /* OwlInputController+ClientAction.swift */; };
+		B39771252BED899F0093A49B /* OwlConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39771242BED899F0093A49B /* OwlConfig.swift */; };
+		FA000201CAFE0201CAFE0201 /* OwlStatusHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000200CAFE0200CAFE0200 /* OwlStatusHUD.swift */; };
+		FA000203CAFE0203CAFE0203 /* OwlStyleFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000202CAFE0202CAFE0202 /* OwlStyleFlags.swift */; };
+		FA000011CAFE0011CAFE0011 /* OwlCandidatePanelState.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000001CAFE0001CAFE0001 /* OwlCandidatePanelState.swift */; };
+		FA000012CAFE0012CAFE0012 /* OwlCandidatePanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000002CAFE0002CAFE0002 /* OwlCandidatePanelView.swift */; };
+		FA010801CAFE0108CAFE0108 /* OwlCandidatePanelGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA010800CAFE0108CAFE0108 /* OwlCandidatePanelGeometry.swift */; };
+		FA000013CAFE0013CAFE0013 /* OwlSwiftUICandidatePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000003CAFE0003CAFE0003 /* OwlSwiftUICandidatePanel.swift */; };
+		FA000014CAFE0014CAFE0014 /* OwlSettingsState.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000004CAFE0004CAFE0004 /* OwlSettingsState.swift */; };
+		FA000118CAFE0118CAFE0118 /* OwlSettingsActions+Stores.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000117CAFE0117CAFE0117 /* OwlSettingsActions+Stores.swift */; };
+		FA000015CAFE0015CAFE0015 /* OwlSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000005CAFE0005CAFE0005 /* OwlSettingsView.swift */; };
+		FA000016CAFE0016CAFE0016 /* OwlSettingsWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000006CAFE0006CAFE0006 /* OwlSettingsWindow.swift */; };
+		FA000017CAFE0017CAFE0017 /* OwlPanelPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000007CAFE0007CAFE0007 /* OwlPanelPreferences.swift */; };
+		FA112003CAFE0003CAFE0112 /* OwlCandidatePanelSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA112002CAFE0002CAFE0112 /* OwlCandidatePanelSettings.swift */; };
+		FA000018CAFE0018CAFE0018 /* OwlSettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000008CAFE0008CAFE0008 /* OwlSettingsComponents.swift */; };
+		FA000019CAFE0019CAFE0019 /* OwlSettingsPages.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000009CAFE0009CAFE0009 /* OwlSettingsPages.swift */; };
+		FA000050CAFE0050CAFE0050 /* OwlEmojiData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000046CAFE0046CAFE0046 /* OwlEmojiData.swift */; };
+		FA000051CAFE0051CAFE0051 /* OwlEmojiPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000047CAFE0047CAFE0047 /* OwlEmojiPanelView.swift */; };
+		FA000052CAFE0052CAFE0052 /* OwlEmojiPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000048CAFE0048CAFE0048 /* OwlEmojiPanel.swift */; };
+		FAA00002CAFE0002CAFE0002 /* OwlFloatingPanelPositioner.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00001CAFE0001CAFE0001 /* OwlFloatingPanelPositioner.swift */; };
+		FAA00041CAFE0041CAFE0041 /* OwlHostCaretAnchorMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00040CAFE0040CAFE0040 /* OwlHostCaretAnchorMemory.swift */; };
+		FAA00004CAFE0004CAFE0004 /* OwlPanelInsertionBroker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00003CAFE0003CAFE0003 /* OwlPanelInsertionBroker.swift */; };
+		FA0000D5CAFE00D5CAFE00D5 /* OwlQuickSendPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000D6CAFE00D6CAFE00D6 /* OwlQuickSendPanel.swift */; };
+		FA0000E7CAFE00E7CAFE00E7 /* OwlQuickSendHotKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000E8CAFE00E8CAFE00E8 /* OwlQuickSendHotKey.swift */; };
+		FA000043CAFE0043CAFE0043 /* OwlThemes.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000040CAFE0040CAFE0040 /* OwlThemes.swift */; };
+		FA000044CAFE0044CAFE0044 /* OwlEmojiPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000041CAFE0041CAFE0041 /* OwlEmojiPreferences.swift */; };
+		FA0000FECAFE00FECAFE00FE /* OwlPromptStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000FDCAFE00FDCAFE00FD /* OwlPromptStore.swift */; };
+		FADADA02CAFE0002CAFE0002 /* OwlPromptPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FADADA01CAFE0001CAFE0001 /* OwlPromptPage.swift */; };
+		FA00001ACAFE001ACAFE001A /* OwlPromptStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000FFCAFE00FFCAFE00FF /* OwlPromptStoreTests.swift */; };
+		FADC2608FADC2608FADC2608 /* OwlQuickSendStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FADC2607FADC2607FADC2607 /* OwlQuickSendStoreTests.swift */; };
+		FA000450CAFE0050CAFE0050 /* OwlQuickSendPanelModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000451CAFE0051CAFE0051 /* OwlQuickSendPanelModelTests.swift */; };
+		FAAB0001CAFE0001CAFE0001 /* OwlAutoPair.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAAB0002CAFE0002CAFE0002 /* OwlAutoPair.swift */; };
+		FA07070001CAFE0001CAFE07 /* OwlForcedFinalize.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA07070002CAFE0002CAFE07 /* OwlForcedFinalize.swift */; };
+		FA0707510001CAFE0051CA07 /* OwlSchemaSelectionGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0707510002CAFE0052CA07 /* OwlSchemaSelectionGate.swift */; };
 		FA0707520001CAFE0061CA07 /* RimeConfigDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0707520002CAFE0062CA07 /* RimeConfigDiagnostics.swift */; };
 		FA0707520003CAFE0063CA07 /* RimeConfigDiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0707520004CAFE0064CA07 /* RimeConfigDiagnosticsTests.swift */; };
-		FAAB0003CAFE0003CAFE0003 /* FamoAutoPairTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAAB0004CAFE0004CAFE0004 /* FamoAutoPairTests.swift */; };
-		FA07070003CAFE0003CAFE07 /* FamoForcedFinalizeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA07070004CAFE0004CAFE07 /* FamoForcedFinalizeTests.swift */; };
-		FA07070013CAFE0013CAFE07 /* FamoStyleFlagsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA07070014CAFE0014CAFE07 /* FamoStyleFlagsTests.swift */; };
-		FA0707510003CAFE0053CA07 /* FamoSchemaSelectionGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0707510004CAFE0054CA07 /* FamoSchemaSelectionGateTests.swift */; };
-		FA0709340001CAFE0034CA07 /* FamoClientCapabilityPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0709340002CAFE0034CA07 /* FamoClientCapabilityPolicy.swift */; };
-		FA0709AA0001CAFE00AACA07 /* FamoElectronHostDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0709AA0002CAFE00AACA07 /* FamoElectronHostDetector.swift */; };
-		FA0709340003CAFE0035CA07 /* FamoLatencyTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0709340004CAFE0036CA07 /* FamoLatencyTrace.swift */; };
-		FA0709890003CAFE0089CA07 /* FamoMarkedTextResendPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0709890004CAFE0090CA07 /* FamoMarkedTextResendPolicy.swift */; };
-		FA0709900003CAFE0091CA07 /* FamoMarkedTextResendPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0709900004CAFE0092CA07 /* FamoMarkedTextResendPolicyTests.swift */; };
-		FA0709350001CAFE0037CA07 /* FamoLiveInputTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0709350002CAFE0038CA07 /* FamoLiveInputTrace.swift */; };
-		FA0709360001CAFE0039CA07 /* FamoClientCapabilityPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0709360002CAFE0040CA07 /* FamoClientCapabilityPolicyTests.swift */; };
-		FA0721000001CAFE0001CA07 /* FamoSelectionMenuTriggerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0721000002CAFE0002CA07 /* FamoSelectionMenuTriggerTests.swift */; };
-		FA0709360003CAFE0041CA07 /* FamoLiveInputTraceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0709360004CAFE0042CA07 /* FamoLiveInputTraceTests.swift */; };
-		FA000912CAFE0098CAFE0098 /* FamoPromptInterceptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000913CAFE0099CAFE0099 /* FamoPromptInterceptionTests.swift */; };
-		FADADA04CAFE0004CAFE0004 /* FamoPromptPageRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FADADA03CAFE0003CAFE0003 /* FamoPromptPageRenderTests.swift */; };
-		FA000020CAFE0020CAFE0020 /* FamoKeyboardPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000ACAFE000ACAFE000A /* FamoKeyboardPreferences.swift */; };
-		FA000021CAFE0021CAFE0021 /* FamoKeyboardPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000BCAFE000BCAFE000B /* FamoKeyboardPage.swift */; };
-		FACE0106FACE0106FACE0106 /* FamoSelectionMenuCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACE0006FACE0006FACE0006 /* FamoSelectionMenuCoordinator.swift */; };
-		FACE0101FACE0101FACE0101 /* FamoSkinPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACE0001FACE0001FACE0001 /* FamoSkinPage.swift */; };
-		FACE0102FACE0102FACE0102 /* FamoQuickSendPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACE0002FACE0002FACE0002 /* FamoQuickSendPage.swift */; };
-		FACE0103FACE0103FACE0103 /* FamoClipboardPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACE0003FACE0003FACE0003 /* FamoClipboardPage.swift */; };
-		FACE0104FACE0104FACE0104 /* FamoSkillsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACE0004FACE0004FACE0004 /* FamoSkillsPage.swift */; };
-		FACE0105FACE0105FACE0105 /* FamoAIPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACE0005FACE0005FACE0005 /* FamoAIPage.swift */; };
-		FA000022CAFE0022CAFE0022 /* FamoRimePatchBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000CCAFE000CCAFE000C /* FamoRimePatchBuilder.swift */; };
-		FA000023CAFE0023CAFE0023 /* FamoOnboardingWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000DCAFE000DCAFE000D /* FamoOnboardingWindow.swift */; };
-		FA000024CAFE0024CAFE0024 /* FamoOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000ECAFE000ECAFE000E /* FamoOnboardingView.swift */; };
-		FA000025CAFE0025CAFE0025 /* FamoFuzzyPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000FCAFE000FCAFE000F /* FamoFuzzyPreferences.swift */; };
-		FA000026CAFE0026CAFE0026 /* FamoFuzzySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000010CAFE0010CAFE0010 /* FamoFuzzySheet.swift */; };
-		FADD0002CAFE0002CAFE0002 /* FamoAppEnglishSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FADD0001CAFE0001CAFE0001 /* FamoAppEnglishSheet.swift */; };
-		FA000030CAFE0030CAFE0030 /* FamoConfigWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000029CAFE0029CAFE0029 /* FamoConfigWriter.swift */; };
-		FA000032CAFE0032CAFE0032 /* FamoWritePreviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000031CAFE0031CAFE0031 /* FamoWritePreviewSheet.swift */; };
-		FA000061CAFE0061CAFE0061 /* FamoCompositionSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000060CAFE0060CAFE0060 /* FamoCompositionSnapshot.swift */; };
-		FA000063CAFE0063CAFE0063 /* FamoSnapshotRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000062CAFE0062CAFE0062 /* FamoSnapshotRegistry.swift */; };
-		FA000065CAFE0065CAFE0065 /* FamoCandidateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000064CAFE0064CAFE0064 /* FamoCandidateStore.swift */; };
-		FA000067CAFE0067CAFE0067 /* FamoSnapshotEmitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000066CAFE0066CAFE0066 /* FamoSnapshotEmitter.swift */; };
-		FA000069CAFE0069CAFE0069 /* FamoExternalCommitBroker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000068CAFE0068CAFE0068 /* FamoExternalCommitBroker.swift */; };
-		FA000071CAFE0071CAFE0071 /* FamoCloudFoundation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000070CAFE0070CAFE0070 /* FamoCloudFoundation.swift */; };
-		FAD1CF02CAFEDF02CAFEDF02 /* FamoDictPack.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1CF01CAFEDF01CAFEDF01 /* FamoDictPack.swift */; };
-		FAD1CF04CAFEDF04CAFEDF04 /* FamoDictPackFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1CF03CAFEDF03CAFEDF03 /* FamoDictPackFetcher.swift */; };
-		FAD1CF06CAFEDF06CAFEDF06 /* FamoDictPackCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1CF05CAFEDF05CAFEDF05 /* FamoDictPackCenter.swift */; };
-		FAD1CF08CAFEDF08CAFEDF08 /* FamoDictPackManifestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1CF07CAFEDF07CAFEDF07 /* FamoDictPackManifestData.swift */; };
-		FAD1CF0ACAFEDF0ACAFEDF0A /* FamoDictPackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1CF09CAFEDF09CAFEDF09 /* FamoDictPackTests.swift */; };
-		FA000800CAFE0080CAFE0080 /* FamoStreamingChatClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000801CAFE0081CAFE0081 /* FamoStreamingChatClient.swift */; };
-		FA000900CAFE0090CAFE0090 /* FamoAIContextAssembler.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000901CAFE0091CAFE0091 /* FamoAIContextAssembler.swift */; };
-		FA000902CAFE0092CAFE0092 /* FamoAIConversationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000903CAFE0093CAFE0093 /* FamoAIConversationModel.swift */; };
-		FA000904CAFE0094CAFE0094 /* FamoAIWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000905CAFE0095CAFE0095 /* FamoAIWindow.swift */; };
-		FA000910CAFE0096CAFE0096 /* FamoPromptFillSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000911CAFE0097CAFE0097 /* FamoPromptFillSheet.swift */; };
-		FA000906CAFE0096CAFE0096 /* FamoAIConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000907CAFE0097CAFE0097 /* FamoAIConversationView.swift */; };
-		FA000802CAFE0082CAFE0082 /* FamoStreamingChatClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000803CAFE0083CAFE0083 /* FamoStreamingChatClientTests.swift */; };
-		FAA0000BCAFE000BCAFE000B /* FamoProviderAuthGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA0000CCAFE000CCAFE000C /* FamoProviderAuthGateTests.swift */; };
-		FA00090ACAFE009ACAFE009A /* FamoAIContextAssemblerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00090BCAFE009BCAFE009B /* FamoAIContextAssemblerTests.swift */; };
-		FA5C0DE100000000000000C3 /* FamoTextInserterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA5C0DE100000000000000C4 /* FamoTextInserterTests.swift */; };
-		FA00090CCAFE009CCAFE009C /* FamoAIConversationModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00090DCAFE009DCAFE009D /* FamoAIConversationModelTests.swift */; };
-		FA000700CAFE0700CAFE0700 /* FamoLaneTasks.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000701CAFE0701CAFE0701 /* FamoLaneTasks.swift */; };
-		FA000301CAFE0301CAFE0301 /* FamoProviderProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000300CAFE0300CAFE0300 /* FamoProviderProfile.swift */; };
-		FA0000B1CAFE00B1CAFE00B1 /* FamoSelectionPolish.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000C1CAFE00C1CAFE00C1 /* FamoSelectionPolish.swift */; };
-		FAA00009CAFE0009CAFE0009 /* FamoProviderAuthGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA0000ACAFE000ACAFE000A /* FamoProviderAuthGate.swift */; };
-		FA133001CAFE0001CAFE0001 /* FamoVerificationRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA133002CAFE0002CAFE0002 /* FamoVerificationRouting.swift */; };
-		FA133003CAFE0003CAFE0003 /* FamoCNKIExpertQueryBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA133004CAFE0004CAFE0004 /* FamoCNKIExpertQueryBuilder.swift */; };
-		FA133005CAFE0005CAFE0005 /* FamoVerificationRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA133006CAFE0006CAFE0006 /* FamoVerificationRoutingTests.swift */; };
-		FA134001CAFE0001CAFE0001 /* FamoVerificationAnchors.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA134002CAFE0002CAFE0002 /* FamoVerificationAnchors.swift */; };
-		FA134003CAFE0003CAFE0003 /* FamoSelectionVerifyMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA134004CAFE0004CAFE0004 /* FamoSelectionVerifyMenu.swift */; };
-		FA134005CAFE0005CAFE0005 /* FamoVerificationAnchorsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA134006CAFE0006CAFE0006 /* FamoVerificationAnchorsTests.swift */; };
-		FA135001CAFE0001CAFE0001 /* FamoVerificationReceiptModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA135002CAFE0002CAFE0002 /* FamoVerificationReceiptModel.swift */; };
-		FA135003CAFE0003CAFE0003 /* FamoVerificationReceiptCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA135004CAFE0004CAFE0004 /* FamoVerificationReceiptCard.swift */; };
-		FA135005CAFE0005CAFE0005 /* FamoVerificationReceiptModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA135006CAFE0006CAFE0006 /* FamoVerificationReceiptModelTests.swift */; };
-		FA136001CAFE0001CAFE0001 /* FamoPolishPromptCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA136002CAFE0002CAFE0002 /* FamoPolishPromptCatalog.swift */; };
-		FA136003CAFE0003CAFE0003 /* FamoPolishPromptCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA136004CAFE0004CAFE0004 /* FamoPolishPromptCatalogTests.swift */; };
-		FA137001CAFE0001CAFE0001 /* FamoSearchControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA137002CAFE0002CAFE0002 /* FamoSearchControl.swift */; };
-		FA137003CAFE0003CAFE0003 /* FamoAskSearchResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA137004CAFE0004CAFE0004 /* FamoAskSearchResolver.swift */; };
-		FA137005CAFE0005CAFE0005 /* FamoSearchControlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA137006CAFE0006CAFE0006 /* FamoSearchControlTests.swift */; };
-		FA13A003CAFE0103CAFE0103 /* FamoWebSearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA13A004CAFE0104CAFE0104 /* FamoWebSearchTests.swift */; };
-		FA137007CAFE0007CAFE0007 /* FamoAskSearchResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA137008CAFE0008CAFE0008 /* FamoAskSearchResolverTests.swift */; };
-		FA138001CAFE0001CAFE0001 /* FamoResponsesWire.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA138002CAFE0002CAFE0002 /* FamoResponsesWire.swift */; };
-		FA13A001CAFE0101CAFE0101 /* FamoWebSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA13A002CAFE0102CAFE0102 /* FamoWebSearch.swift */; };
-		FA138003CAFE0003CAFE0003 /* FamoResponsesStreamingClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA138004CAFE0004CAFE0004 /* FamoResponsesStreamingClient.swift */; };
-		FA138005CAFE0005CAFE0005 /* FamoResponsesStreamingClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA138006CAFE0006CAFE0006 /* FamoResponsesStreamingClientTests.swift */; };
-		FA107001CAFE0001CAFE0107 /* FamoAskAnythingModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA107002CAFE0002CAFE0107 /* FamoAskAnythingModule.swift */; };
-		FA107003CAFE0003CAFE0107 /* FamoAskAnythingModuleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA107004CAFE0004CAFE0107 /* FamoAskAnythingModuleTests.swift */; };
-		FA110001CAFE0001CAFE0001 /* FamoStructuredDrafting.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA110002CAFE0002CAFE0002 /* FamoStructuredDrafting.swift */; };
-		FA139001CAFE0001CAFE0001 /* FamoPromptOptimizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA139002CAFE0002CAFE0002 /* FamoPromptOptimizer.swift */; };
-		FA139003CAFE0003CAFE0003 /* FamoPromptOptimizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA139004CAFE0004CAFE0004 /* FamoPromptOptimizerTests.swift */; };
-		FA142001CAFE0001CAFE0001 /* FamoGoalBrief.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA142002CAFE0002CAFE0002 /* FamoGoalBrief.swift */; };
-		FA142003CAFE0003CAFE0003 /* FamoGoalBriefTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA142004CAFE0004CAFE0004 /* FamoGoalBriefTests.swift */; };
-		FA143001CAFE0001CAFE0001 /* FamoGoalBriefLiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA143002CAFE0002CAFE0002 /* FamoGoalBriefLiveTests.swift */; };
-		FA140001CAFE0001CAFE0001 /* FamoPromptOptimizeLiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA140002CAFE0002CAFE0002 /* FamoPromptOptimizeLiveTests.swift */; };
-		FA141001CAFE0001CAFE0001 /* FamoSkillsLiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA141002CAFE0002CAFE0002 /* FamoSkillsLiveTests.swift */; };
-		FA5C0DE100000000000000C1 /* FamoTextInserter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA5C0DE100000000000000C2 /* FamoTextInserter.swift */; };
-		FA0000C3CAFE00C3CAFE00C3 /* FamoProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000C2CAFE00C2CAFE00C2 /* FamoProject.swift */; };
-		FA0000C5CAFE00C5CAFE00C5 /* FamoProjectStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000C4CAFE00C4CAFE00C4 /* FamoProjectStore.swift */; };
-		FA0000C9CAFE00C9CAFE00C9 /* FamoTerminology.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000C8CAFE00C8CAFE00C8 /* FamoTerminology.swift */; };
+		FAAB0003CAFE0003CAFE0003 /* OwlAutoPairTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAAB0004CAFE0004CAFE0004 /* OwlAutoPairTests.swift */; };
+		FA07070003CAFE0003CAFE07 /* OwlForcedFinalizeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA07070004CAFE0004CAFE07 /* OwlForcedFinalizeTests.swift */; };
+		FA07070013CAFE0013CAFE07 /* OwlStyleFlagsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA07070014CAFE0014CAFE07 /* OwlStyleFlagsTests.swift */; };
+		FA0707510003CAFE0053CA07 /* OwlSchemaSelectionGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0707510004CAFE0054CA07 /* OwlSchemaSelectionGateTests.swift */; };
+		FA0709340001CAFE0034CA07 /* OwlClientCapabilityPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0709340002CAFE0034CA07 /* OwlClientCapabilityPolicy.swift */; };
+		FA0709AA0001CAFE00AACA07 /* OwlElectronHostDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0709AA0002CAFE00AACA07 /* OwlElectronHostDetector.swift */; };
+		FA0709340003CAFE0035CA07 /* OwlLatencyTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0709340004CAFE0036CA07 /* OwlLatencyTrace.swift */; };
+		FA0709890003CAFE0089CA07 /* OwlMarkedTextResendPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0709890004CAFE0090CA07 /* OwlMarkedTextResendPolicy.swift */; };
+		FA0709900003CAFE0091CA07 /* OwlMarkedTextResendPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0709900004CAFE0092CA07 /* OwlMarkedTextResendPolicyTests.swift */; };
+		FA0709350001CAFE0037CA07 /* OwlLiveInputTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0709350002CAFE0038CA07 /* OwlLiveInputTrace.swift */; };
+		FA0709360001CAFE0039CA07 /* OwlClientCapabilityPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0709360002CAFE0040CA07 /* OwlClientCapabilityPolicyTests.swift */; };
+		FA0721000001CAFE0001CA07 /* OwlSelectionMenuTriggerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0721000002CAFE0002CA07 /* OwlSelectionMenuTriggerTests.swift */; };
+		FA0709360003CAFE0041CA07 /* OwlLiveInputTraceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0709360004CAFE0042CA07 /* OwlLiveInputTraceTests.swift */; };
+		FA000912CAFE0098CAFE0098 /* OwlPromptInterceptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000913CAFE0099CAFE0099 /* OwlPromptInterceptionTests.swift */; };
+		FADADA04CAFE0004CAFE0004 /* OwlPromptPageRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FADADA03CAFE0003CAFE0003 /* OwlPromptPageRenderTests.swift */; };
+		FA000020CAFE0020CAFE0020 /* OwlKeyboardPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000ACAFE000ACAFE000A /* OwlKeyboardPreferences.swift */; };
+		FA000021CAFE0021CAFE0021 /* OwlKeyboardPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000BCAFE000BCAFE000B /* OwlKeyboardPage.swift */; };
+		FACE0106FACE0106FACE0106 /* OwlSelectionMenuCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACE0006FACE0006FACE0006 /* OwlSelectionMenuCoordinator.swift */; };
+		FACE0101FACE0101FACE0101 /* OwlSkinPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACE0001FACE0001FACE0001 /* OwlSkinPage.swift */; };
+		FACE0102FACE0102FACE0102 /* OwlQuickSendPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACE0002FACE0002FACE0002 /* OwlQuickSendPage.swift */; };
+		FACE0103FACE0103FACE0103 /* OwlClipboardPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACE0003FACE0003FACE0003 /* OwlClipboardPage.swift */; };
+		FACE0104FACE0104FACE0104 /* OwlSkillsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACE0004FACE0004FACE0004 /* OwlSkillsPage.swift */; };
+		FACE0105FACE0105FACE0105 /* OwlAIPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACE0005FACE0005FACE0005 /* OwlAIPage.swift */; };
+		FA000022CAFE0022CAFE0022 /* OwlRimePatchBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000CCAFE000CCAFE000C /* OwlRimePatchBuilder.swift */; };
+		FA000023CAFE0023CAFE0023 /* OwlOnboardingWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000DCAFE000DCAFE000D /* OwlOnboardingWindow.swift */; };
+		FA000024CAFE0024CAFE0024 /* OwlOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000ECAFE000ECAFE000E /* OwlOnboardingView.swift */; };
+		FA000025CAFE0025CAFE0025 /* OwlFuzzyPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000FCAFE000FCAFE000F /* OwlFuzzyPreferences.swift */; };
+		FA000026CAFE0026CAFE0026 /* OwlFuzzySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000010CAFE0010CAFE0010 /* OwlFuzzySheet.swift */; };
+		FADD0002CAFE0002CAFE0002 /* OwlAppEnglishSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FADD0001CAFE0001CAFE0001 /* OwlAppEnglishSheet.swift */; };
+		FA000030CAFE0030CAFE0030 /* OwlConfigWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000029CAFE0029CAFE0029 /* OwlConfigWriter.swift */; };
+		FA000032CAFE0032CAFE0032 /* OwlWritePreviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000031CAFE0031CAFE0031 /* OwlWritePreviewSheet.swift */; };
+		FA000061CAFE0061CAFE0061 /* OwlCompositionSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000060CAFE0060CAFE0060 /* OwlCompositionSnapshot.swift */; };
+		FA000063CAFE0063CAFE0063 /* OwlSnapshotRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000062CAFE0062CAFE0062 /* OwlSnapshotRegistry.swift */; };
+		FA000065CAFE0065CAFE0065 /* OwlCandidateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000064CAFE0064CAFE0064 /* OwlCandidateStore.swift */; };
+		FA000067CAFE0067CAFE0067 /* OwlSnapshotEmitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000066CAFE0066CAFE0066 /* OwlSnapshotEmitter.swift */; };
+		FA000069CAFE0069CAFE0069 /* OwlExternalCommitBroker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000068CAFE0068CAFE0068 /* OwlExternalCommitBroker.swift */; };
+		FA000071CAFE0071CAFE0071 /* OwlCloudFoundation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000070CAFE0070CAFE0070 /* OwlCloudFoundation.swift */; };
+		FAD1CF02CAFEDF02CAFEDF02 /* OwlDictPack.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1CF01CAFEDF01CAFEDF01 /* OwlDictPack.swift */; };
+		FAD1CF04CAFEDF04CAFEDF04 /* OwlDictPackFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1CF03CAFEDF03CAFEDF03 /* OwlDictPackFetcher.swift */; };
+		FAD1CF06CAFEDF06CAFEDF06 /* OwlDictPackCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1CF05CAFEDF05CAFEDF05 /* OwlDictPackCenter.swift */; };
+		FAD1CF08CAFEDF08CAFEDF08 /* OwlDictPackManifestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1CF07CAFEDF07CAFEDF07 /* OwlDictPackManifestData.swift */; };
+		FAD1CF0ACAFEDF0ACAFEDF0A /* OwlDictPackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1CF09CAFEDF09CAFEDF09 /* OwlDictPackTests.swift */; };
+		FA000800CAFE0080CAFE0080 /* OwlStreamingChatClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000801CAFE0081CAFE0081 /* OwlStreamingChatClient.swift */; };
+		FA000900CAFE0090CAFE0090 /* OwlAIContextAssembler.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000901CAFE0091CAFE0091 /* OwlAIContextAssembler.swift */; };
+		FA000902CAFE0092CAFE0092 /* OwlAIConversationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000903CAFE0093CAFE0093 /* OwlAIConversationModel.swift */; };
+		FA000904CAFE0094CAFE0094 /* OwlAIWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000905CAFE0095CAFE0095 /* OwlAIWindow.swift */; };
+		FA000910CAFE0096CAFE0096 /* OwlPromptFillSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000911CAFE0097CAFE0097 /* OwlPromptFillSheet.swift */; };
+		FA000906CAFE0096CAFE0096 /* OwlAIConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000907CAFE0097CAFE0097 /* OwlAIConversationView.swift */; };
+		FA000802CAFE0082CAFE0082 /* OwlStreamingChatClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000803CAFE0083CAFE0083 /* OwlStreamingChatClientTests.swift */; };
+		FAA0000BCAFE000BCAFE000B /* OwlProviderAuthGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA0000CCAFE000CCAFE000C /* OwlProviderAuthGateTests.swift */; };
+		FA00090ACAFE009ACAFE009A /* OwlAIContextAssemblerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00090BCAFE009BCAFE009B /* OwlAIContextAssemblerTests.swift */; };
+		FA5C0DE100000000000000C3 /* OwlTextInserterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA5C0DE100000000000000C4 /* OwlTextInserterTests.swift */; };
+		FA00090CCAFE009CCAFE009C /* OwlAIConversationModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00090DCAFE009DCAFE009D /* OwlAIConversationModelTests.swift */; };
+		FA000700CAFE0700CAFE0700 /* OwlLaneTasks.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000701CAFE0701CAFE0701 /* OwlLaneTasks.swift */; };
+		FA000301CAFE0301CAFE0301 /* OwlProviderProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000300CAFE0300CAFE0300 /* OwlProviderProfile.swift */; };
+		FA0000B1CAFE00B1CAFE00B1 /* OwlSelectionPolish.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000C1CAFE00C1CAFE00C1 /* OwlSelectionPolish.swift */; };
+		FAA00009CAFE0009CAFE0009 /* OwlProviderAuthGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA0000ACAFE000ACAFE000A /* OwlProviderAuthGate.swift */; };
+		FA133001CAFE0001CAFE0001 /* OwlVerificationRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA133002CAFE0002CAFE0002 /* OwlVerificationRouting.swift */; };
+		FA133003CAFE0003CAFE0003 /* OwlCNKIExpertQueryBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA133004CAFE0004CAFE0004 /* OwlCNKIExpertQueryBuilder.swift */; };
+		FA133005CAFE0005CAFE0005 /* OwlVerificationRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA133006CAFE0006CAFE0006 /* OwlVerificationRoutingTests.swift */; };
+		FA134001CAFE0001CAFE0001 /* OwlVerificationAnchors.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA134002CAFE0002CAFE0002 /* OwlVerificationAnchors.swift */; };
+		FA134003CAFE0003CAFE0003 /* OwlSelectionVerifyMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA134004CAFE0004CAFE0004 /* OwlSelectionVerifyMenu.swift */; };
+		FA134005CAFE0005CAFE0005 /* OwlVerificationAnchorsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA134006CAFE0006CAFE0006 /* OwlVerificationAnchorsTests.swift */; };
+		FA135001CAFE0001CAFE0001 /* OwlVerificationReceiptModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA135002CAFE0002CAFE0002 /* OwlVerificationReceiptModel.swift */; };
+		FA135003CAFE0003CAFE0003 /* OwlVerificationReceiptCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA135004CAFE0004CAFE0004 /* OwlVerificationReceiptCard.swift */; };
+		FA135005CAFE0005CAFE0005 /* OwlVerificationReceiptModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA135006CAFE0006CAFE0006 /* OwlVerificationReceiptModelTests.swift */; };
+		FA136001CAFE0001CAFE0001 /* OwlPolishPromptCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA136002CAFE0002CAFE0002 /* OwlPolishPromptCatalog.swift */; };
+		FA136003CAFE0003CAFE0003 /* OwlPolishPromptCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA136004CAFE0004CAFE0004 /* OwlPolishPromptCatalogTests.swift */; };
+		FA137001CAFE0001CAFE0001 /* OwlSearchControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA137002CAFE0002CAFE0002 /* OwlSearchControl.swift */; };
+		FA137003CAFE0003CAFE0003 /* OwlAskSearchResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA137004CAFE0004CAFE0004 /* OwlAskSearchResolver.swift */; };
+		FA137005CAFE0005CAFE0005 /* OwlSearchControlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA137006CAFE0006CAFE0006 /* OwlSearchControlTests.swift */; };
+		FA13A003CAFE0103CAFE0103 /* OwlWebSearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA13A004CAFE0104CAFE0104 /* OwlWebSearchTests.swift */; };
+		FA137007CAFE0007CAFE0007 /* OwlAskSearchResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA137008CAFE0008CAFE0008 /* OwlAskSearchResolverTests.swift */; };
+		FA138001CAFE0001CAFE0001 /* OwlResponsesWire.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA138002CAFE0002CAFE0002 /* OwlResponsesWire.swift */; };
+		FA13A001CAFE0101CAFE0101 /* OwlWebSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA13A002CAFE0102CAFE0102 /* OwlWebSearch.swift */; };
+		FA138003CAFE0003CAFE0003 /* OwlResponsesStreamingClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA138004CAFE0004CAFE0004 /* OwlResponsesStreamingClient.swift */; };
+		FA138005CAFE0005CAFE0005 /* OwlResponsesStreamingClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA138006CAFE0006CAFE0006 /* OwlResponsesStreamingClientTests.swift */; };
+		FA107001CAFE0001CAFE0107 /* OwlAskAnythingModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA107002CAFE0002CAFE0107 /* OwlAskAnythingModule.swift */; };
+		FA107003CAFE0003CAFE0107 /* OwlAskAnythingModuleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA107004CAFE0004CAFE0107 /* OwlAskAnythingModuleTests.swift */; };
+		FA110001CAFE0001CAFE0001 /* OwlStructuredDrafting.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA110002CAFE0002CAFE0002 /* OwlStructuredDrafting.swift */; };
+		FA139001CAFE0001CAFE0001 /* OwlPromptOptimizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA139002CAFE0002CAFE0002 /* OwlPromptOptimizer.swift */; };
+		FA139003CAFE0003CAFE0003 /* OwlPromptOptimizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA139004CAFE0004CAFE0004 /* OwlPromptOptimizerTests.swift */; };
+		FA142001CAFE0001CAFE0001 /* OwlGoalBrief.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA142002CAFE0002CAFE0002 /* OwlGoalBrief.swift */; };
+		FA142003CAFE0003CAFE0003 /* OwlGoalBriefTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA142004CAFE0004CAFE0004 /* OwlGoalBriefTests.swift */; };
+		FA143001CAFE0001CAFE0001 /* OwlGoalBriefLiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA143002CAFE0002CAFE0002 /* OwlGoalBriefLiveTests.swift */; };
+		FA140001CAFE0001CAFE0001 /* OwlPromptOptimizeLiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA140002CAFE0002CAFE0002 /* OwlPromptOptimizeLiveTests.swift */; };
+		FA141001CAFE0001CAFE0001 /* OwlSkillsLiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA141002CAFE0002CAFE0002 /* OwlSkillsLiveTests.swift */; };
+		FA5C0DE100000000000000C1 /* OwlTextInserter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA5C0DE100000000000000C2 /* OwlTextInserter.swift */; };
+		FA0000C3CAFE00C3CAFE00C3 /* OwlProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000C2CAFE00C2CAFE00C2 /* OwlProject.swift */; };
+		FA0000C5CAFE00C5CAFE00C5 /* OwlProjectStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000C4CAFE00C4CAFE00C4 /* OwlProjectStore.swift */; };
+		FA0000C9CAFE00C9CAFE00C9 /* OwlTerminology.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000C8CAFE00C8CAFE00C8 /* OwlTerminology.swift */; };
 		FA0000F2CAFE00F2CAFE00F2 /* RimeOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F1CAFE00F1CAFE00F1 /* RimeOption.swift */; };
 		FA0000F4CAFE00F4CAFE00F4 /* RimeValueTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F3CAFE00F3CAFE00F3 /* RimeValueTypes.swift */; };
 		FAA0000DCAFE000DCAFE000D /* RimeCompositionRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA0000ECAFE000ECAFE000E /* RimeCompositionRenderer.swift */; };
 		FA0000F6CAFE00F6CAFE00F6 /* RimeSeam.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F5CAFE00F5CAFE00F5 /* RimeSeam.swift */; };
-		FAA00032CAFE0032CAFE0032 /* FamoUserDictReset.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00033CAFE0033CAFE0033 /* FamoUserDictReset.swift */; };
-		FA0000D9CAFE00D9CAFE00D9 /* FamoExperimentalPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000D8CAFE00D8CAFE00D8 /* FamoExperimentalPreferences.swift */; };
-		FA0000DDCAFE00DDCAFE00DD /* FamoBertTokenizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000DCCAFE00DCCAFE00DC /* FamoBertTokenizer.swift */; };
-		FA000502CAFE0502CAFE0502 /* FamoBackspaceCorrection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000503CAFE0503CAFE0503 /* FamoBackspaceCorrection.swift */; };
-		FA000504CAFE0504CAFE0504 /* FamoMacbertCscScorer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000505CAFE0505CAFE0505 /* FamoMacbertCscScorer.swift */; };
+		FAA00032CAFE0032CAFE0032 /* OwlUserDictReset.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00033CAFE0033CAFE0033 /* OwlUserDictReset.swift */; };
+		FA0000D9CAFE00D9CAFE00D9 /* OwlExperimentalPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000D8CAFE00D8CAFE00D8 /* OwlExperimentalPreferences.swift */; };
+		FA0000DDCAFE00DDCAFE00DD /* OwlBertTokenizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000DCCAFE00DCCAFE00DC /* OwlBertTokenizer.swift */; };
+		FA000502CAFE0502CAFE0502 /* OwlBackspaceCorrection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000503CAFE0503CAFE0503 /* OwlBackspaceCorrection.swift */; };
+		FA000504CAFE0504CAFE0504 /* OwlMacbertCscScorer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000505CAFE0505CAFE0505 /* OwlMacbertCscScorer.swift */; };
 		FA000081CAFE0081CAFE0081 /* SnapshotValidityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000080CAFE0080CAFE0080 /* SnapshotValidityTests.swift */; };
-		FA000113CAFE0113CAFE0113 /* FamoSettingsE2ETests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000112CAFE0112CAFE0112 /* FamoSettingsE2ETests.swift */; };
-		FA000115CAFE0115CAFE0115 /* FamoSettingsActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000114CAFE0114CAFE0114 /* FamoSettingsActionTests.swift */; };
-		FA00011ACAFE011ACAFE011A /* FamoSettingsCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000119CAFE0119CAFE0119 /* FamoSettingsCoverageTests.swift */; };
-		FA000121CAFE0121CAFE0121 /* FamoSettingsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000120CAFE0120CAFE0120 /* FamoSettingsUITests.swift */; };
+		FA000113CAFE0113CAFE0113 /* OwlSettingsE2ETests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000112CAFE0112CAFE0112 /* OwlSettingsE2ETests.swift */; };
+		FA000115CAFE0115CAFE0115 /* OwlSettingsActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000114CAFE0114CAFE0114 /* OwlSettingsActionTests.swift */; };
+		FA00011ACAFE011ACAFE011A /* OwlSettingsCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000119CAFE0119CAFE0119 /* OwlSettingsCoverageTests.swift */; };
+		FA000121CAFE0121CAFE0121 /* OwlSettingsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000120CAFE0120CAFE0120 /* OwlSettingsUITests.swift */; };
 		FA0000A1CAFE00A1CAFE00A1 /* ActivationPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000A2CAFE00A2CAFE00A2 /* ActivationPolicyTests.swift */; };
 		FAC10001CAFE0001CAFE0001 /* InstallerActivationPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAC10002CAFE0002CAFE0002 /* InstallerActivationPolicyTests.swift */; };
 		FAC10003CAFE0003CAFE0003 /* InstallerActivationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAC10004CAFE0004CAFE0004 /* InstallerActivationPolicy.swift */; };
 		FA000134CAFE0134CAFE0134 /* KeyTranslationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000135CAFE0135CAFE0135 /* KeyTranslationTests.swift */; };
 		FA000083CAFE0083CAFE0083 /* CandidateStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000082CAFE0082CAFE0082 /* CandidateStoreTests.swift */; };
-		FA000E02CAFE0E02CAFE0E02 /* FamoKeyboardPatchBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000E01CAFE0E01CAFE0E01 /* FamoKeyboardPatchBuilderTests.swift */; };
+		FA000E02CAFE0E02CAFE0E02 /* OwlKeyboardPatchBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000E01CAFE0E01CAFE0E01 /* OwlKeyboardPatchBuilderTests.swift */; };
 		FA000085CAFE0085CAFE0085 /* HotPathLatencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000084CAFE0084CAFE0084 /* HotPathLatencyTests.swift */; };
-		FA000087CAFE0087CAFE0087 /* FamoM3EmojiSkinTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000086CAFE0086CAFE0086 /* FamoM3EmojiSkinTests.swift */; };
+		FA000087CAFE0087CAFE0087 /* OwlM3EmojiSkinTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000086CAFE0086CAFE0086 /* OwlM3EmojiSkinTests.swift */; };
 		FA0000C7CAFE00C7CAFE00C7 /* ProjectStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000C6CAFE00C6CAFE00C6 /* ProjectStoreTests.swift */; };
-		FA000601CAFE0601CAFE0601 /* FamoPanelContentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000600CAFE0600CAFE0600 /* FamoPanelContentTests.swift */; };
-		FA112001CAFE0001CAFE0112 /* FamoCandidatePanelSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA112000CAFE0000CAFE0112 /* FamoCandidatePanelSettingsTests.swift */; };
-		FA117001CAFE0001CAFE0117 /* FamoCandidatePanelAppearanceLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA117000CAFE0000CAFE0117 /* FamoCandidatePanelAppearanceLifecycleTests.swift */; };
-		FA118001CAFE0001CAFE0118 /* FamoCandidatePanelDisplayLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA118000CAFE0000CAFE0118 /* FamoCandidatePanelDisplayLifecycleTests.swift */; };
-		FA000501CAFE0501CAFE0501 /* FamoCandidateAnchorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000500CAFE0500CAFE0500 /* FamoCandidateAnchorTests.swift */; };
-		FAA00006CAFE0006CAFE0006 /* FamoFloatingPanelPositionerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00005CAFE0005CAFE0005 /* FamoFloatingPanelPositionerTests.swift */; };
-		FAA00043CAFE0043CAFE0043 /* FamoHostCaretAnchorMemoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00042CAFE0042CAFE0042 /* FamoHostCaretAnchorMemoryTests.swift */; };
-		FAA00008CAFE0008CAFE0008 /* FamoPanelInsertionBrokerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00007CAFE0007CAFE0007 /* FamoPanelInsertionBrokerTests.swift */; };
+		FA000601CAFE0601CAFE0601 /* OwlPanelContentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000600CAFE0600CAFE0600 /* OwlPanelContentTests.swift */; };
+		FA112001CAFE0001CAFE0112 /* OwlCandidatePanelSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA112000CAFE0000CAFE0112 /* OwlCandidatePanelSettingsTests.swift */; };
+		FA117001CAFE0001CAFE0117 /* OwlCandidatePanelAppearanceLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA117000CAFE0000CAFE0117 /* OwlCandidatePanelAppearanceLifecycleTests.swift */; };
+		FA118001CAFE0001CAFE0118 /* OwlCandidatePanelDisplayLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA118000CAFE0000CAFE0118 /* OwlCandidatePanelDisplayLifecycleTests.swift */; };
+		FA000501CAFE0501CAFE0501 /* OwlCandidateAnchorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000500CAFE0500CAFE0500 /* OwlCandidateAnchorTests.swift */; };
+		FAA00006CAFE0006CAFE0006 /* OwlFloatingPanelPositionerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00005CAFE0005CAFE0005 /* OwlFloatingPanelPositionerTests.swift */; };
+		FAA00043CAFE0043CAFE0043 /* OwlHostCaretAnchorMemoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00042CAFE0042CAFE0042 /* OwlHostCaretAnchorMemoryTests.swift */; };
+		FAA00008CAFE0008CAFE0008 /* OwlPanelInsertionBrokerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00007CAFE0007CAFE0007 /* OwlPanelInsertionBrokerTests.swift */; };
 		FA000303CAFE0303CAFE0303 /* ProviderProfileStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000302CAFE0302CAFE0302 /* ProviderProfileStoreTests.swift */; };
 		FA000401CAFE0401CAFE0401 /* CloudRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000400CAFE0400CAFE0400 /* CloudRoutingTests.swift */; };
 		FA0000CBCAFE00CBCAFE00CB /* TerminologyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000CACAFE00CACAFE00CA /* TerminologyTests.swift */; };
 		FA0000F8CAFE00F8CAFE00F8 /* RimeSeamTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F7CAFE00F7CAFE00F7 /* RimeSeamTests.swift */; };
-		FA000A02CAFE0A02CAFE0A02 /* FamoGetAppOptionsRoundTripTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000A01CAFE0A01CAFE0A01 /* FamoGetAppOptionsRoundTripTests.swift */; };
+		FA000A02CAFE0A02CAFE0A02 /* OwlGetAppOptionsRoundTripTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000A01CAFE0A01CAFE0A01 /* OwlGetAppOptionsRoundTripTests.swift */; };
 		FAA0000FCAFE000FCAFE000F /* RimeCompositionRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00010CAFE0010CAFE0010 /* RimeCompositionRendererTests.swift */; };
-		FAA00022CAFE0022CAFE0022 /* FamoUpdateLogoutPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00023CAFE0023CAFE0023 /* FamoUpdateLogoutPromptTests.swift */; };
-		FAA00034CAFE0034CAFE0034 /* FamoUserDictResetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00035CAFE0035CAFE0035 /* FamoUserDictResetTests.swift */; };
+		FAA00022CAFE0022CAFE0022 /* OwlUpdateLogoutPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00023CAFE0023CAFE0023 /* OwlUpdateLogoutPromptTests.swift */; };
+		FAA00034CAFE0034CAFE0034 /* OwlUserDictResetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00035CAFE0035CAFE0035 /* OwlUserDictResetTests.swift */; };
 		FA0000FACAFE00FACAFE00FA /* SeamPortsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F9CAFE00F9CAFE00F9 /* SeamPortsTests.swift */; };
 		FA0000FCCAFE00FCCAFE00FC /* CandidateStorePortTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000FBCAFE00FBCAFE00FB /* CandidateStorePortTests.swift */; };
-		FA000702CAFE0702CAFE0702 /* FamoLaneTasksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000703CAFE0703CAFE0703 /* FamoLaneTasksTests.swift */; };
+		FA000702CAFE0702CAFE0702 /* OwlLaneTasksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000703CAFE0703CAFE0703 /* OwlLaneTasksTests.swift */; };
 		FA0000E2CAFE00E2CAFE00E2 /* BertTokenizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000E1CAFE00E1CAFE00E1 /* BertTokenizerTests.swift */; };
 		FA000506CAFE0506CAFE0506 /* BackspaceCorrectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000507CAFE0507CAFE0507 /* BackspaceCorrectionTests.swift */; };
 		B397712D2BEEB39D0093A49B /* InputSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = B397712C2BEEB39D0093A49B /* InputSource.swift */; };
@@ -487,191 +487,191 @@
 		B3216E5B2BF438F800E292D2 /* OwlMenuIcon.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; name = OwlMenuIcon.pdf; path = resources/OwlMenuIcon.pdf; sourceTree = "<group>"; };
 		B32B80772BE7FAA200FCF3BC /* Owltype.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; name = Owltype.entitlements; path = resources/Owltype.entitlements; sourceTree = "<group>"; };
 		B35D2FE72BF00839009D156B /* BridgingFunctions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BridgingFunctions.swift; path = sources/BridgingFunctions.swift; sourceTree = "<group>"; };
-		B38E9B8F2BE9AE1E0036ABEF /* Famo-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Famo-Bridging-Header.h"; path = "sources/Famo-Bridging-Header.h"; sourceTree = "<group>"; };
-		B38E9B902BE9AE1E0036ABEF /* FamoApplicationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoApplicationDelegate.swift; path = sources/Controller/FamoApplicationDelegate.swift; sourceTree = "<group>"; };
-		FAA00021CAFE0021CAFE0021 /* FamoUpdateLogoutPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoUpdateLogoutPrompt.swift; path = sources/Controller/FamoUpdateLogoutPrompt.swift; sourceTree = "<group>"; };
-		FAA00031CAFE0031CAFE0031 /* FamoUserDictResetPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoUserDictResetPrompt.swift; path = sources/Controller/FamoUserDictResetPrompt.swift; sourceTree = "<group>"; };
-		B38E9B942BEAFEFD0036ABEF /* FamoInputController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoInputController.swift; path = sources/Controller/FamoInputController.swift; sourceTree = "<group>"; };
-		FA000100CAFE0100CAFE0100 /* FamoInputMenuTitles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoInputMenuTitles.swift; path = sources/Controller/FamoInputMenuTitles.swift; sourceTree = "<group>"; };
-		FA000102CAFE0102CAFE0102 /* FamoInputController+Menu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "FamoInputController+Menu.swift"; path = "sources/Controller/FamoInputController+Menu.swift"; sourceTree = "<group>"; };
-		FA000104CAFE0104CAFE0104 /* FamoInputController+RimeUpdate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "FamoInputController+RimeUpdate.swift"; path = "sources/Controller/FamoInputController+RimeUpdate.swift"; sourceTree = "<group>"; };
-		FA000106CAFE0106CAFE0106 /* FamoInputController+Lifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "FamoInputController+Lifecycle.swift"; path = "sources/Controller/FamoInputController+Lifecycle.swift"; sourceTree = "<group>"; };
-		FA000108CAFE0108CAFE0108 /* FamoInputController+Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "FamoInputController+Session.swift"; path = "sources/Controller/FamoInputController+Session.swift"; sourceTree = "<group>"; };
-		FA0001F1CAFE01F1CAFE01F1 /* FamoApplicationDelegate+FastApply.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "FamoApplicationDelegate+FastApply.swift"; path = "sources/Controller/FamoApplicationDelegate+FastApply.swift"; sourceTree = "<group>"; };
-		FA00010ACAFE010ACAFE010A /* FamoInputController+RimeOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "FamoInputController+RimeOptions.swift"; path = "sources/Controller/FamoInputController+RimeOptions.swift"; sourceTree = "<group>"; };
+		B38E9B8F2BE9AE1E0036ABEF /* Owltype-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Owltype-Bridging-Header.h"; path = "sources/Owltype-Bridging-Header.h"; sourceTree = "<group>"; };
+		B38E9B902BE9AE1E0036ABEF /* OwlApplicationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlApplicationDelegate.swift; path = sources/Controller/OwlApplicationDelegate.swift; sourceTree = "<group>"; };
+		FAA00021CAFE0021CAFE0021 /* OwlUpdateLogoutPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlUpdateLogoutPrompt.swift; path = sources/Controller/OwlUpdateLogoutPrompt.swift; sourceTree = "<group>"; };
+		FAA00031CAFE0031CAFE0031 /* OwlUserDictResetPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlUserDictResetPrompt.swift; path = sources/Controller/OwlUserDictResetPrompt.swift; sourceTree = "<group>"; };
+		B38E9B942BEAFEFD0036ABEF /* OwlInputController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlInputController.swift; path = sources/Controller/OwlInputController.swift; sourceTree = "<group>"; };
+		FA000100CAFE0100CAFE0100 /* OwlInputMenuTitles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlInputMenuTitles.swift; path = sources/Controller/OwlInputMenuTitles.swift; sourceTree = "<group>"; };
+		FA000102CAFE0102CAFE0102 /* OwlInputController+Menu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+Menu.swift"; path = "sources/Controller/OwlInputController+Menu.swift"; sourceTree = "<group>"; };
+		FA000104CAFE0104CAFE0104 /* OwlInputController+RimeUpdate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+RimeUpdate.swift"; path = "sources/Controller/OwlInputController+RimeUpdate.swift"; sourceTree = "<group>"; };
+		FA000106CAFE0106CAFE0106 /* OwlInputController+Lifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+Lifecycle.swift"; path = "sources/Controller/OwlInputController+Lifecycle.swift"; sourceTree = "<group>"; };
+		FA000108CAFE0108CAFE0108 /* OwlInputController+Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+Session.swift"; path = "sources/Controller/OwlInputController+Session.swift"; sourceTree = "<group>"; };
+		FA0001F1CAFE01F1CAFE01F1 /* OwlApplicationDelegate+FastApply.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlApplicationDelegate+FastApply.swift"; path = "sources/Controller/OwlApplicationDelegate+FastApply.swift"; sourceTree = "<group>"; };
+		FA00010ACAFE010ACAFE010A /* OwlInputController+RimeOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+RimeOptions.swift"; path = "sources/Controller/OwlInputController+RimeOptions.swift"; sourceTree = "<group>"; };
 		B39771222BECEA150093A49B /* MacOSKeyCodes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MacOSKeyCodes.swift; path = sources/Engine/MacOSKeyCodes.swift; sourceTree = "<group>"; };
-		FA000131CAFE0131CAFE0131 /* FamoUserAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoUserAction.swift; path = sources/Engine/FamoUserAction.swift; sourceTree = "<group>"; };
-		FA000133CAFE0133CAFE0133 /* FamoInputController+ClientAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "FamoInputController+ClientAction.swift"; path = "sources/Controller/FamoInputController+ClientAction.swift"; sourceTree = "<group>"; };
-		B39771242BED899F0093A49B /* FamoConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoConfig.swift; path = sources/Settings/FamoConfig.swift; sourceTree = "<group>"; };
-		FA000200CAFE0200CAFE0200 /* FamoStatusHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoStatusHUD.swift; path = sources/UI/FamoStatusHUD.swift; sourceTree = "<group>"; };
-		FA000202CAFE0202CAFE0202 /* FamoStyleFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoStyleFlags.swift; path = sources/Settings/FamoStyleFlags.swift; sourceTree = "<group>"; };
-		FA000001CAFE0001CAFE0001 /* FamoCandidatePanelState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoCandidatePanelState.swift; path = sources/Candidates/FamoCandidatePanelState.swift; sourceTree = "<group>"; };
-		FA000002CAFE0002CAFE0002 /* FamoCandidatePanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoCandidatePanelView.swift; path = sources/UI/FamoCandidatePanelView.swift; sourceTree = "<group>"; };
-		FA010800CAFE0108CAFE0108 /* FamoCandidatePanelGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoCandidatePanelGeometry.swift; path = sources/UI/FamoCandidatePanelGeometry.swift; sourceTree = "<group>"; };
-		FA000003CAFE0003CAFE0003 /* FamoSwiftUICandidatePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSwiftUICandidatePanel.swift; path = sources/UI/FamoSwiftUICandidatePanel.swift; sourceTree = "<group>"; };
-		FA000004CAFE0004CAFE0004 /* FamoSettingsState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSettingsState.swift; path = sources/Settings/FamoSettingsState.swift; sourceTree = "<group>"; };
-		FA000117CAFE0117CAFE0117 /* FamoSettingsActions+Stores.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "FamoSettingsActions+Stores.swift"; path = "sources/Settings/FamoSettingsActions+Stores.swift"; sourceTree = "<group>"; };
-		FA000005CAFE0005CAFE0005 /* FamoSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSettingsView.swift; path = sources/Settings/FamoSettingsView.swift; sourceTree = "<group>"; };
-		FA000006CAFE0006CAFE0006 /* FamoSettingsWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSettingsWindow.swift; path = sources/Settings/FamoSettingsWindow.swift; sourceTree = "<group>"; };
-		FA000007CAFE0007CAFE0007 /* FamoPanelPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPanelPreferences.swift; path = sources/Settings/FamoPanelPreferences.swift; sourceTree = "<group>"; };
-		FA112002CAFE0002CAFE0112 /* FamoCandidatePanelSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoCandidatePanelSettings.swift; path = sources/Settings/FamoCandidatePanelSettings.swift; sourceTree = "<group>"; };
-		FA000008CAFE0008CAFE0008 /* FamoSettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSettingsComponents.swift; path = sources/Settings/FamoSettingsComponents.swift; sourceTree = "<group>"; };
-		FA000009CAFE0009CAFE0009 /* FamoSettingsPages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSettingsPages.swift; path = sources/Settings/FamoSettingsPages.swift; sourceTree = "<group>"; };
-		FA000046CAFE0046CAFE0046 /* FamoEmojiData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoEmojiData.swift; path = sources/Data/FamoEmojiData.swift; sourceTree = "<group>"; };
-		FA000047CAFE0047CAFE0047 /* FamoEmojiPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoEmojiPanelView.swift; path = sources/UI/FamoEmojiPanelView.swift; sourceTree = "<group>"; };
-		FA000048CAFE0048CAFE0048 /* FamoEmojiPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoEmojiPanel.swift; path = sources/UI/FamoEmojiPanel.swift; sourceTree = "<group>"; };
-		FAA00001CAFE0001CAFE0001 /* FamoFloatingPanelPositioner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoFloatingPanelPositioner.swift; path = sources/UI/FamoFloatingPanelPositioner.swift; sourceTree = "<group>"; };
-		FAA00040CAFE0040CAFE0040 /* FamoHostCaretAnchorMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoHostCaretAnchorMemory.swift; path = sources/UI/FamoHostCaretAnchorMemory.swift; sourceTree = "<group>"; };
-		FAA00003CAFE0003CAFE0003 /* FamoPanelInsertionBroker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPanelInsertionBroker.swift; path = sources/UI/FamoPanelInsertionBroker.swift; sourceTree = "<group>"; };
-		FA0000D6CAFE00D6CAFE00D6 /* FamoQuickSendPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoQuickSendPanel.swift; path = sources/UI/FamoQuickSendPanel.swift; sourceTree = "<group>"; };
-		FA0000E8CAFE00E8CAFE00E8 /* FamoQuickSendHotKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoQuickSendHotKey.swift; path = sources/UI/FamoQuickSendHotKey.swift; sourceTree = "<group>"; };
-		FA000040CAFE0040CAFE0040 /* FamoThemes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoThemes.swift; path = sources/Theme/FamoThemes.swift; sourceTree = "<group>"; };
-		FA000041CAFE0041CAFE0041 /* FamoEmojiPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoEmojiPreferences.swift; path = sources/Settings/FamoEmojiPreferences.swift; sourceTree = "<group>"; };
-		FA0000FDCAFE00FDCAFE00FD /* FamoPromptStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPromptStore.swift; path = sources/Settings/FamoPromptStore.swift; sourceTree = "<group>"; };
-		FADADA01CAFE0001CAFE0001 /* FamoPromptPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPromptPage.swift; path = sources/Settings/FamoPromptPage.swift; sourceTree = "<group>"; };
-		FA0000FFCAFE00FFCAFE00FF /* FamoPromptStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPromptStoreTests.swift; path = tests/FamoPromptStoreTests.swift; sourceTree = "<group>"; };
-		FADC2607FADC2607FADC2607 /* FamoQuickSendStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoQuickSendStoreTests.swift; path = tests/FamoQuickSendStoreTests.swift; sourceTree = "<group>"; };
-		FA000451CAFE0051CAFE0051 /* FamoQuickSendPanelModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoQuickSendPanelModelTests.swift; path = tests/FamoQuickSendPanelModelTests.swift; sourceTree = "<group>"; };
-		FAAB0002CAFE0002CAFE0002 /* FamoAutoPair.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoAutoPair.swift; path = sources/Settings/FamoAutoPair.swift; sourceTree = "<group>"; };
-		FA07070002CAFE0002CAFE07 /* FamoForcedFinalize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoForcedFinalize.swift; path = sources/Engine/FamoForcedFinalize.swift; sourceTree = "<group>"; };
-		FA0707510002CAFE0052CA07 /* FamoSchemaSelectionGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSchemaSelectionGate.swift; path = sources/Engine/FamoSchemaSelectionGate.swift; sourceTree = "<group>"; };
-		FA0709340002CAFE0034CA07 /* FamoClientCapabilityPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoClientCapabilityPolicy.swift; path = sources/Engine/FamoClientCapabilityPolicy.swift; sourceTree = "<group>"; };
-		FA0709AA0002CAFE00AACA07 /* FamoElectronHostDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoElectronHostDetector.swift; path = sources/Engine/FamoElectronHostDetector.swift; sourceTree = "<group>"; };
-		FA0709340004CAFE0036CA07 /* FamoLatencyTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoLatencyTrace.swift; path = sources/Engine/FamoLatencyTrace.swift; sourceTree = "<group>"; };
-		FA0709890004CAFE0090CA07 /* FamoMarkedTextResendPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoMarkedTextResendPolicy.swift; path = sources/Engine/FamoMarkedTextResendPolicy.swift; sourceTree = "<group>"; };
-		FA0709900004CAFE0092CA07 /* FamoMarkedTextResendPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoMarkedTextResendPolicyTests.swift; path = tests/FamoMarkedTextResendPolicyTests.swift; sourceTree = "<group>"; };
-		FA0709350002CAFE0038CA07 /* FamoLiveInputTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoLiveInputTrace.swift; path = sources/Engine/FamoLiveInputTrace.swift; sourceTree = "<group>"; };
+		FA000131CAFE0131CAFE0131 /* OwlUserAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlUserAction.swift; path = sources/Engine/OwlUserAction.swift; sourceTree = "<group>"; };
+		FA000133CAFE0133CAFE0133 /* OwlInputController+ClientAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+ClientAction.swift"; path = "sources/Controller/OwlInputController+ClientAction.swift"; sourceTree = "<group>"; };
+		B39771242BED899F0093A49B /* OwlConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlConfig.swift; path = sources/Settings/OwlConfig.swift; sourceTree = "<group>"; };
+		FA000200CAFE0200CAFE0200 /* OwlStatusHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlStatusHUD.swift; path = sources/UI/OwlStatusHUD.swift; sourceTree = "<group>"; };
+		FA000202CAFE0202CAFE0202 /* OwlStyleFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlStyleFlags.swift; path = sources/Settings/OwlStyleFlags.swift; sourceTree = "<group>"; };
+		FA000001CAFE0001CAFE0001 /* OwlCandidatePanelState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlCandidatePanelState.swift; path = sources/Candidates/OwlCandidatePanelState.swift; sourceTree = "<group>"; };
+		FA000002CAFE0002CAFE0002 /* OwlCandidatePanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlCandidatePanelView.swift; path = sources/UI/OwlCandidatePanelView.swift; sourceTree = "<group>"; };
+		FA010800CAFE0108CAFE0108 /* OwlCandidatePanelGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlCandidatePanelGeometry.swift; path = sources/UI/OwlCandidatePanelGeometry.swift; sourceTree = "<group>"; };
+		FA000003CAFE0003CAFE0003 /* OwlSwiftUICandidatePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSwiftUICandidatePanel.swift; path = sources/UI/OwlSwiftUICandidatePanel.swift; sourceTree = "<group>"; };
+		FA000004CAFE0004CAFE0004 /* OwlSettingsState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSettingsState.swift; path = sources/Settings/OwlSettingsState.swift; sourceTree = "<group>"; };
+		FA000117CAFE0117CAFE0117 /* OwlSettingsActions+Stores.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlSettingsActions+Stores.swift"; path = "sources/Settings/OwlSettingsActions+Stores.swift"; sourceTree = "<group>"; };
+		FA000005CAFE0005CAFE0005 /* OwlSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSettingsView.swift; path = sources/Settings/OwlSettingsView.swift; sourceTree = "<group>"; };
+		FA000006CAFE0006CAFE0006 /* OwlSettingsWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSettingsWindow.swift; path = sources/Settings/OwlSettingsWindow.swift; sourceTree = "<group>"; };
+		FA000007CAFE0007CAFE0007 /* OwlPanelPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlPanelPreferences.swift; path = sources/Settings/OwlPanelPreferences.swift; sourceTree = "<group>"; };
+		FA112002CAFE0002CAFE0112 /* OwlCandidatePanelSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlCandidatePanelSettings.swift; path = sources/Settings/OwlCandidatePanelSettings.swift; sourceTree = "<group>"; };
+		FA000008CAFE0008CAFE0008 /* OwlSettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSettingsComponents.swift; path = sources/Settings/OwlSettingsComponents.swift; sourceTree = "<group>"; };
+		FA000009CAFE0009CAFE0009 /* OwlSettingsPages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSettingsPages.swift; path = sources/Settings/OwlSettingsPages.swift; sourceTree = "<group>"; };
+		FA000046CAFE0046CAFE0046 /* OwlEmojiData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlEmojiData.swift; path = sources/Data/OwlEmojiData.swift; sourceTree = "<group>"; };
+		FA000047CAFE0047CAFE0047 /* OwlEmojiPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlEmojiPanelView.swift; path = sources/UI/OwlEmojiPanelView.swift; sourceTree = "<group>"; };
+		FA000048CAFE0048CAFE0048 /* OwlEmojiPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlEmojiPanel.swift; path = sources/UI/OwlEmojiPanel.swift; sourceTree = "<group>"; };
+		FAA00001CAFE0001CAFE0001 /* OwlFloatingPanelPositioner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlFloatingPanelPositioner.swift; path = sources/UI/OwlFloatingPanelPositioner.swift; sourceTree = "<group>"; };
+		FAA00040CAFE0040CAFE0040 /* OwlHostCaretAnchorMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlHostCaretAnchorMemory.swift; path = sources/UI/OwlHostCaretAnchorMemory.swift; sourceTree = "<group>"; };
+		FAA00003CAFE0003CAFE0003 /* OwlPanelInsertionBroker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlPanelInsertionBroker.swift; path = sources/UI/OwlPanelInsertionBroker.swift; sourceTree = "<group>"; };
+		FA0000D6CAFE00D6CAFE00D6 /* OwlQuickSendPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlQuickSendPanel.swift; path = sources/UI/OwlQuickSendPanel.swift; sourceTree = "<group>"; };
+		FA0000E8CAFE00E8CAFE00E8 /* OwlQuickSendHotKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlQuickSendHotKey.swift; path = sources/UI/OwlQuickSendHotKey.swift; sourceTree = "<group>"; };
+		FA000040CAFE0040CAFE0040 /* OwlThemes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlThemes.swift; path = sources/Theme/OwlThemes.swift; sourceTree = "<group>"; };
+		FA000041CAFE0041CAFE0041 /* OwlEmojiPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlEmojiPreferences.swift; path = sources/Settings/OwlEmojiPreferences.swift; sourceTree = "<group>"; };
+		FA0000FDCAFE00FDCAFE00FD /* OwlPromptStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlPromptStore.swift; path = sources/Settings/OwlPromptStore.swift; sourceTree = "<group>"; };
+		FADADA01CAFE0001CAFE0001 /* OwlPromptPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlPromptPage.swift; path = sources/Settings/OwlPromptPage.swift; sourceTree = "<group>"; };
+		FA0000FFCAFE00FFCAFE00FF /* OwlPromptStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlPromptStoreTests.swift; path = tests/OwlPromptStoreTests.swift; sourceTree = "<group>"; };
+		FADC2607FADC2607FADC2607 /* OwlQuickSendStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlQuickSendStoreTests.swift; path = tests/OwlQuickSendStoreTests.swift; sourceTree = "<group>"; };
+		FA000451CAFE0051CAFE0051 /* OwlQuickSendPanelModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlQuickSendPanelModelTests.swift; path = tests/OwlQuickSendPanelModelTests.swift; sourceTree = "<group>"; };
+		FAAB0002CAFE0002CAFE0002 /* OwlAutoPair.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAutoPair.swift; path = sources/Settings/OwlAutoPair.swift; sourceTree = "<group>"; };
+		FA07070002CAFE0002CAFE07 /* OwlForcedFinalize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlForcedFinalize.swift; path = sources/Engine/OwlForcedFinalize.swift; sourceTree = "<group>"; };
+		FA0707510002CAFE0052CA07 /* OwlSchemaSelectionGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSchemaSelectionGate.swift; path = sources/Engine/OwlSchemaSelectionGate.swift; sourceTree = "<group>"; };
+		FA0709340002CAFE0034CA07 /* OwlClientCapabilityPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlClientCapabilityPolicy.swift; path = sources/Engine/OwlClientCapabilityPolicy.swift; sourceTree = "<group>"; };
+		FA0709AA0002CAFE00AACA07 /* OwlElectronHostDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlElectronHostDetector.swift; path = sources/Engine/OwlElectronHostDetector.swift; sourceTree = "<group>"; };
+		FA0709340004CAFE0036CA07 /* OwlLatencyTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlLatencyTrace.swift; path = sources/Engine/OwlLatencyTrace.swift; sourceTree = "<group>"; };
+		FA0709890004CAFE0090CA07 /* OwlMarkedTextResendPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlMarkedTextResendPolicy.swift; path = sources/Engine/OwlMarkedTextResendPolicy.swift; sourceTree = "<group>"; };
+		FA0709900004CAFE0092CA07 /* OwlMarkedTextResendPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlMarkedTextResendPolicyTests.swift; path = tests/OwlMarkedTextResendPolicyTests.swift; sourceTree = "<group>"; };
+		FA0709350002CAFE0038CA07 /* OwlLiveInputTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlLiveInputTrace.swift; path = sources/Engine/OwlLiveInputTrace.swift; sourceTree = "<group>"; };
 		FA0707520002CAFE0062CA07 /* RimeConfigDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeConfigDiagnostics.swift; path = sources/Activation/RimeConfigDiagnostics.swift; sourceTree = "<group>"; };
 		FA0707520004CAFE0064CA07 /* RimeConfigDiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeConfigDiagnosticsTests.swift; path = tests/RimeConfigDiagnosticsTests.swift; sourceTree = "<group>"; };
-		FAAB0004CAFE0004CAFE0004 /* FamoAutoPairTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoAutoPairTests.swift; path = tests/FamoAutoPairTests.swift; sourceTree = "<group>"; };
-		FA07070004CAFE0004CAFE07 /* FamoForcedFinalizeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoForcedFinalizeTests.swift; path = tests/FamoForcedFinalizeTests.swift; sourceTree = "<group>"; };
-		FA07070014CAFE0014CAFE07 /* FamoStyleFlagsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoStyleFlagsTests.swift; path = tests/FamoStyleFlagsTests.swift; sourceTree = "<group>"; };
-		FA0707510004CAFE0054CA07 /* FamoSchemaSelectionGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSchemaSelectionGateTests.swift; path = tests/FamoSchemaSelectionGateTests.swift; sourceTree = "<group>"; };
-		FA0709360002CAFE0040CA07 /* FamoClientCapabilityPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoClientCapabilityPolicyTests.swift; path = tests/FamoClientCapabilityPolicyTests.swift; sourceTree = "<group>"; };
-		FA0721000002CAFE0002CA07 /* FamoSelectionMenuTriggerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSelectionMenuTriggerTests.swift; path = tests/FamoSelectionMenuTriggerTests.swift; sourceTree = "<group>"; };
-		FA0709360004CAFE0042CA07 /* FamoLiveInputTraceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoLiveInputTraceTests.swift; path = tests/FamoLiveInputTraceTests.swift; sourceTree = "<group>"; };
-		FA000913CAFE0099CAFE0099 /* FamoPromptInterceptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPromptInterceptionTests.swift; path = tests/FamoPromptInterceptionTests.swift; sourceTree = "<group>"; };
-		FADADA03CAFE0003CAFE0003 /* FamoPromptPageRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPromptPageRenderTests.swift; path = tests/FamoPromptPageRenderTests.swift; sourceTree = "<group>"; };
-		FA00000ACAFE000ACAFE000A /* FamoKeyboardPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoKeyboardPreferences.swift; path = sources/Settings/FamoKeyboardPreferences.swift; sourceTree = "<group>"; };
-		FA00000BCAFE000BCAFE000B /* FamoKeyboardPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoKeyboardPage.swift; path = sources/Settings/FamoKeyboardPage.swift; sourceTree = "<group>"; };
-		FACE0006FACE0006FACE0006 /* FamoSelectionMenuCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSelectionMenuCoordinator.swift; path = sources/UI/FamoSelectionMenuCoordinator.swift; sourceTree = "<group>"; };
-		FACE0001FACE0001FACE0001 /* FamoSkinPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSkinPage.swift; path = sources/Settings/FamoSkinPage.swift; sourceTree = "<group>"; };
-		FACE0002FACE0002FACE0002 /* FamoQuickSendPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoQuickSendPage.swift; path = sources/Settings/FamoQuickSendPage.swift; sourceTree = "<group>"; };
-		FACE0003FACE0003FACE0003 /* FamoClipboardPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoClipboardPage.swift; path = sources/Settings/FamoClipboardPage.swift; sourceTree = "<group>"; };
-		FACE0004FACE0004FACE0004 /* FamoSkillsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSkillsPage.swift; path = sources/Settings/FamoSkillsPage.swift; sourceTree = "<group>"; };
-		FACE0005FACE0005FACE0005 /* FamoAIPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoAIPage.swift; path = sources/Settings/FamoAIPage.swift; sourceTree = "<group>"; };
-		FA00000CCAFE000CCAFE000C /* FamoRimePatchBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoRimePatchBuilder.swift; path = sources/Settings/FamoRimePatchBuilder.swift; sourceTree = "<group>"; };
-		FA00000DCAFE000DCAFE000D /* FamoOnboardingWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoOnboardingWindow.swift; path = sources/Settings/FamoOnboardingWindow.swift; sourceTree = "<group>"; };
-		FA00000ECAFE000ECAFE000E /* FamoOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoOnboardingView.swift; path = sources/Settings/FamoOnboardingView.swift; sourceTree = "<group>"; };
-		FA00000FCAFE000FCAFE000F /* FamoFuzzyPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoFuzzyPreferences.swift; path = sources/Settings/FamoFuzzyPreferences.swift; sourceTree = "<group>"; };
-		FA000010CAFE0010CAFE0010 /* FamoFuzzySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoFuzzySheet.swift; path = sources/Settings/FamoFuzzySheet.swift; sourceTree = "<group>"; };
-		FADD0001CAFE0001CAFE0001 /* FamoAppEnglishSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoAppEnglishSheet.swift; path = sources/Settings/FamoAppEnglishSheet.swift; sourceTree = "<group>"; };
-		FA000029CAFE0029CAFE0029 /* FamoConfigWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoConfigWriter.swift; path = sources/Settings/FamoConfigWriter.swift; sourceTree = "<group>"; };
-		FA000031CAFE0031CAFE0031 /* FamoWritePreviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoWritePreviewSheet.swift; path = sources/Settings/FamoWritePreviewSheet.swift; sourceTree = "<group>"; };
-		FA000060CAFE0060CAFE0060 /* FamoCompositionSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoCompositionSnapshot.swift; path = sources/Candidates/FamoCompositionSnapshot.swift; sourceTree = "<group>"; };
-		FA000062CAFE0062CAFE0062 /* FamoSnapshotRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSnapshotRegistry.swift; path = sources/Candidates/FamoSnapshotRegistry.swift; sourceTree = "<group>"; };
-		FA000064CAFE0064CAFE0064 /* FamoCandidateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoCandidateStore.swift; path = sources/Candidates/FamoCandidateStore.swift; sourceTree = "<group>"; };
-		FA000066CAFE0066CAFE0066 /* FamoSnapshotEmitter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSnapshotEmitter.swift; path = sources/Candidates/FamoSnapshotEmitter.swift; sourceTree = "<group>"; };
-		FA000068CAFE0068CAFE0068 /* FamoExternalCommitBroker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoExternalCommitBroker.swift; path = sources/Candidates/FamoExternalCommitBroker.swift; sourceTree = "<group>"; };
-		FA000070CAFE0070CAFE0070 /* FamoCloudFoundation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoCloudFoundation.swift; path = sources/Lane/FamoCloudFoundation.swift; sourceTree = "<group>"; };
-		FAD1CF01CAFEDF01CAFEDF01 /* FamoDictPack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoDictPack.swift; path = sources/DictPack/FamoDictPack.swift; sourceTree = "<group>"; };
-		FAD1CF03CAFEDF03CAFEDF03 /* FamoDictPackFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoDictPackFetcher.swift; path = sources/DictPack/FamoDictPackFetcher.swift; sourceTree = "<group>"; };
-		FAD1CF05CAFEDF05CAFEDF05 /* FamoDictPackCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoDictPackCenter.swift; path = sources/DictPack/FamoDictPackCenter.swift; sourceTree = "<group>"; };
-		FAD1CF07CAFEDF07CAFEDF07 /* FamoDictPackManifestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoDictPackManifestData.swift; path = sources/DictPack/FamoDictPackManifestData.swift; sourceTree = "<group>"; };
-		FAD1CF09CAFEDF09CAFEDF09 /* FamoDictPackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoDictPackTests.swift; path = tests/FamoDictPackTests.swift; sourceTree = "<group>"; };
-		FA000801CAFE0081CAFE0081 /* FamoStreamingChatClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoStreamingChatClient.swift; path = sources/Lane/FamoStreamingChatClient.swift; sourceTree = "<group>"; };
-		FA000901CAFE0091CAFE0091 /* FamoAIContextAssembler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoAIContextAssembler.swift; path = sources/Lane/FamoAIContextAssembler.swift; sourceTree = "<group>"; };
-		FA000903CAFE0093CAFE0093 /* FamoAIConversationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoAIConversationModel.swift; path = sources/Lane/FamoAIConversationModel.swift; sourceTree = "<group>"; };
-		FA000905CAFE0095CAFE0095 /* FamoAIWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoAIWindow.swift; path = sources/UI/FamoAIWindow.swift; sourceTree = "<group>"; };
-		FA000911CAFE0097CAFE0097 /* FamoPromptFillSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPromptFillSheet.swift; path = sources/UI/FamoPromptFillSheet.swift; sourceTree = "<group>"; };
-		FA000907CAFE0097CAFE0097 /* FamoAIConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoAIConversationView.swift; path = sources/UI/FamoAIConversationView.swift; sourceTree = "<group>"; };
-		FA000701CAFE0701CAFE0701 /* FamoLaneTasks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoLaneTasks.swift; path = sources/Controller/FamoLaneTasks.swift; sourceTree = "<group>"; };
-		FA000300CAFE0300CAFE0300 /* FamoProviderProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoProviderProfile.swift; path = sources/Lane/FamoProviderProfile.swift; sourceTree = "<group>"; };
-		FA0000C1CAFE00C1CAFE00C1 /* FamoSelectionPolish.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSelectionPolish.swift; path = sources/Lane/FamoSelectionPolish.swift; sourceTree = "<group>"; };
-		FAA0000ACAFE000ACAFE000A /* FamoProviderAuthGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoProviderAuthGate.swift; path = sources/Lane/FamoProviderAuthGate.swift; sourceTree = "<group>"; };
-		FA133002CAFE0002CAFE0002 /* FamoVerificationRouting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoVerificationRouting.swift; path = sources/Lane/FamoVerificationRouting.swift; sourceTree = "<group>"; };
-		FA133004CAFE0004CAFE0004 /* FamoCNKIExpertQueryBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoCNKIExpertQueryBuilder.swift; path = sources/Lane/FamoCNKIExpertQueryBuilder.swift; sourceTree = "<group>"; };
-		FA133006CAFE0006CAFE0006 /* FamoVerificationRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoVerificationRoutingTests.swift; path = tests/FamoVerificationRoutingTests.swift; sourceTree = "<group>"; };
-		FA134002CAFE0002CAFE0002 /* FamoVerificationAnchors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoVerificationAnchors.swift; path = sources/Lane/FamoVerificationAnchors.swift; sourceTree = "<group>"; };
-		FA134004CAFE0004CAFE0004 /* FamoSelectionVerifyMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSelectionVerifyMenu.swift; path = sources/Lane/FamoSelectionVerifyMenu.swift; sourceTree = "<group>"; };
-		FA134006CAFE0006CAFE0006 /* FamoVerificationAnchorsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoVerificationAnchorsTests.swift; path = tests/FamoVerificationAnchorsTests.swift; sourceTree = "<group>"; };
-		FA135002CAFE0002CAFE0002 /* FamoVerificationReceiptModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoVerificationReceiptModel.swift; path = sources/UI/FamoVerificationReceiptModel.swift; sourceTree = "<group>"; };
-		FA135004CAFE0004CAFE0004 /* FamoVerificationReceiptCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoVerificationReceiptCard.swift; path = sources/UI/FamoVerificationReceiptCard.swift; sourceTree = "<group>"; };
-		FA135006CAFE0006CAFE0006 /* FamoVerificationReceiptModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoVerificationReceiptModelTests.swift; path = tests/FamoVerificationReceiptModelTests.swift; sourceTree = "<group>"; };
-		FA136002CAFE0002CAFE0002 /* FamoPolishPromptCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPolishPromptCatalog.swift; path = sources/Lane/FamoPolishPromptCatalog.swift; sourceTree = "<group>"; };
-		FA136004CAFE0004CAFE0004 /* FamoPolishPromptCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPolishPromptCatalogTests.swift; path = tests/FamoPolishPromptCatalogTests.swift; sourceTree = "<group>"; };
-		FA137002CAFE0002CAFE0002 /* FamoSearchControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSearchControl.swift; path = sources/Lane/FamoSearchControl.swift; sourceTree = "<group>"; };
-		FA137004CAFE0004CAFE0004 /* FamoAskSearchResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoAskSearchResolver.swift; path = sources/Lane/FamoAskSearchResolver.swift; sourceTree = "<group>"; };
-		FA137006CAFE0006CAFE0006 /* FamoSearchControlTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSearchControlTests.swift; path = tests/FamoSearchControlTests.swift; sourceTree = "<group>"; };
-		FA13A004CAFE0104CAFE0104 /* FamoWebSearchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoWebSearchTests.swift; path = tests/FamoWebSearchTests.swift; sourceTree = "<group>"; };
-		FA137008CAFE0008CAFE0008 /* FamoAskSearchResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoAskSearchResolverTests.swift; path = tests/FamoAskSearchResolverTests.swift; sourceTree = "<group>"; };
-		FA138002CAFE0002CAFE0002 /* FamoResponsesWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoResponsesWire.swift; path = sources/Lane/FamoResponsesWire.swift; sourceTree = "<group>"; };
-		FA13A002CAFE0102CAFE0102 /* FamoWebSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoWebSearch.swift; path = sources/Lane/FamoWebSearch.swift; sourceTree = "<group>"; };
-		FA138004CAFE0004CAFE0004 /* FamoResponsesStreamingClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoResponsesStreamingClient.swift; path = sources/Lane/FamoResponsesStreamingClient.swift; sourceTree = "<group>"; };
-		FA138006CAFE0006CAFE0006 /* FamoResponsesStreamingClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoResponsesStreamingClientTests.swift; path = tests/FamoResponsesStreamingClientTests.swift; sourceTree = "<group>"; };
-		FA107002CAFE0002CAFE0107 /* FamoAskAnythingModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoAskAnythingModule.swift; path = sources/Lane/FamoAskAnythingModule.swift; sourceTree = "<group>"; };
-		FA107004CAFE0004CAFE0107 /* FamoAskAnythingModuleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoAskAnythingModuleTests.swift; path = tests/FamoAskAnythingModuleTests.swift; sourceTree = "<group>"; };
-		FA110002CAFE0002CAFE0002 /* FamoStructuredDrafting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoStructuredDrafting.swift; path = sources/Lane/FamoStructuredDrafting.swift; sourceTree = "<group>"; };
-		FA139002CAFE0002CAFE0002 /* FamoPromptOptimizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPromptOptimizer.swift; path = sources/Lane/FamoPromptOptimizer.swift; sourceTree = "<group>"; };
-		FA139004CAFE0004CAFE0004 /* FamoPromptOptimizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPromptOptimizerTests.swift; path = tests/FamoPromptOptimizerTests.swift; sourceTree = "<group>"; };
-		FA142002CAFE0002CAFE0002 /* FamoGoalBrief.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoGoalBrief.swift; path = sources/Lane/FamoGoalBrief.swift; sourceTree = "<group>"; };
-		FA142004CAFE0004CAFE0004 /* FamoGoalBriefTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoGoalBriefTests.swift; path = tests/FamoGoalBriefTests.swift; sourceTree = "<group>"; };
-		FA143002CAFE0002CAFE0002 /* FamoGoalBriefLiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoGoalBriefLiveTests.swift; path = tests/FamoGoalBriefLiveTests.swift; sourceTree = "<group>"; };
-		FA140002CAFE0002CAFE0002 /* FamoPromptOptimizeLiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPromptOptimizeLiveTests.swift; path = tests/FamoPromptOptimizeLiveTests.swift; sourceTree = "<group>"; };
-		FA141002CAFE0002CAFE0002 /* FamoSkillsLiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSkillsLiveTests.swift; path = tests/FamoSkillsLiveTests.swift; sourceTree = "<group>"; };
-		FA5C0DE100000000000000C2 /* FamoTextInserter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoTextInserter.swift; path = sources/Lane/FamoTextInserter.swift; sourceTree = "<group>"; };
-		FA0000C2CAFE00C2CAFE00C2 /* FamoProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoProject.swift; path = sources/Settings/FamoProject.swift; sourceTree = "<group>"; };
-		FA0000C4CAFE00C4CAFE00C4 /* FamoProjectStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoProjectStore.swift; path = sources/Settings/FamoProjectStore.swift; sourceTree = "<group>"; };
-		FA0000C8CAFE00C8CAFE00C8 /* FamoTerminology.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoTerminology.swift; path = sources/Data/FamoTerminology.swift; sourceTree = "<group>"; };
+		FAAB0004CAFE0004CAFE0004 /* OwlAutoPairTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAutoPairTests.swift; path = tests/OwlAutoPairTests.swift; sourceTree = "<group>"; };
+		FA07070004CAFE0004CAFE07 /* OwlForcedFinalizeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlForcedFinalizeTests.swift; path = tests/OwlForcedFinalizeTests.swift; sourceTree = "<group>"; };
+		FA07070014CAFE0014CAFE07 /* OwlStyleFlagsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlStyleFlagsTests.swift; path = tests/OwlStyleFlagsTests.swift; sourceTree = "<group>"; };
+		FA0707510004CAFE0054CA07 /* OwlSchemaSelectionGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSchemaSelectionGateTests.swift; path = tests/OwlSchemaSelectionGateTests.swift; sourceTree = "<group>"; };
+		FA0709360002CAFE0040CA07 /* OwlClientCapabilityPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlClientCapabilityPolicyTests.swift; path = tests/OwlClientCapabilityPolicyTests.swift; sourceTree = "<group>"; };
+		FA0721000002CAFE0002CA07 /* OwlSelectionMenuTriggerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSelectionMenuTriggerTests.swift; path = tests/OwlSelectionMenuTriggerTests.swift; sourceTree = "<group>"; };
+		FA0709360004CAFE0042CA07 /* OwlLiveInputTraceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlLiveInputTraceTests.swift; path = tests/OwlLiveInputTraceTests.swift; sourceTree = "<group>"; };
+		FA000913CAFE0099CAFE0099 /* OwlPromptInterceptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlPromptInterceptionTests.swift; path = tests/OwlPromptInterceptionTests.swift; sourceTree = "<group>"; };
+		FADADA03CAFE0003CAFE0003 /* OwlPromptPageRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlPromptPageRenderTests.swift; path = tests/OwlPromptPageRenderTests.swift; sourceTree = "<group>"; };
+		FA00000ACAFE000ACAFE000A /* OwlKeyboardPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlKeyboardPreferences.swift; path = sources/Settings/OwlKeyboardPreferences.swift; sourceTree = "<group>"; };
+		FA00000BCAFE000BCAFE000B /* OwlKeyboardPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlKeyboardPage.swift; path = sources/Settings/OwlKeyboardPage.swift; sourceTree = "<group>"; };
+		FACE0006FACE0006FACE0006 /* OwlSelectionMenuCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSelectionMenuCoordinator.swift; path = sources/UI/OwlSelectionMenuCoordinator.swift; sourceTree = "<group>"; };
+		FACE0001FACE0001FACE0001 /* OwlSkinPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSkinPage.swift; path = sources/Settings/OwlSkinPage.swift; sourceTree = "<group>"; };
+		FACE0002FACE0002FACE0002 /* OwlQuickSendPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlQuickSendPage.swift; path = sources/Settings/OwlQuickSendPage.swift; sourceTree = "<group>"; };
+		FACE0003FACE0003FACE0003 /* OwlClipboardPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlClipboardPage.swift; path = sources/Settings/OwlClipboardPage.swift; sourceTree = "<group>"; };
+		FACE0004FACE0004FACE0004 /* OwlSkillsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSkillsPage.swift; path = sources/Settings/OwlSkillsPage.swift; sourceTree = "<group>"; };
+		FACE0005FACE0005FACE0005 /* OwlAIPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAIPage.swift; path = sources/Settings/OwlAIPage.swift; sourceTree = "<group>"; };
+		FA00000CCAFE000CCAFE000C /* OwlRimePatchBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRimePatchBuilder.swift; path = sources/Settings/OwlRimePatchBuilder.swift; sourceTree = "<group>"; };
+		FA00000DCAFE000DCAFE000D /* OwlOnboardingWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlOnboardingWindow.swift; path = sources/Settings/OwlOnboardingWindow.swift; sourceTree = "<group>"; };
+		FA00000ECAFE000ECAFE000E /* OwlOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlOnboardingView.swift; path = sources/Settings/OwlOnboardingView.swift; sourceTree = "<group>"; };
+		FA00000FCAFE000FCAFE000F /* OwlFuzzyPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlFuzzyPreferences.swift; path = sources/Settings/OwlFuzzyPreferences.swift; sourceTree = "<group>"; };
+		FA000010CAFE0010CAFE0010 /* OwlFuzzySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlFuzzySheet.swift; path = sources/Settings/OwlFuzzySheet.swift; sourceTree = "<group>"; };
+		FADD0001CAFE0001CAFE0001 /* OwlAppEnglishSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAppEnglishSheet.swift; path = sources/Settings/OwlAppEnglishSheet.swift; sourceTree = "<group>"; };
+		FA000029CAFE0029CAFE0029 /* OwlConfigWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlConfigWriter.swift; path = sources/Settings/OwlConfigWriter.swift; sourceTree = "<group>"; };
+		FA000031CAFE0031CAFE0031 /* OwlWritePreviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlWritePreviewSheet.swift; path = sources/Settings/OwlWritePreviewSheet.swift; sourceTree = "<group>"; };
+		FA000060CAFE0060CAFE0060 /* OwlCompositionSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlCompositionSnapshot.swift; path = sources/Candidates/OwlCompositionSnapshot.swift; sourceTree = "<group>"; };
+		FA000062CAFE0062CAFE0062 /* OwlSnapshotRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSnapshotRegistry.swift; path = sources/Candidates/OwlSnapshotRegistry.swift; sourceTree = "<group>"; };
+		FA000064CAFE0064CAFE0064 /* OwlCandidateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlCandidateStore.swift; path = sources/Candidates/OwlCandidateStore.swift; sourceTree = "<group>"; };
+		FA000066CAFE0066CAFE0066 /* OwlSnapshotEmitter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSnapshotEmitter.swift; path = sources/Candidates/OwlSnapshotEmitter.swift; sourceTree = "<group>"; };
+		FA000068CAFE0068CAFE0068 /* OwlExternalCommitBroker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlExternalCommitBroker.swift; path = sources/Candidates/OwlExternalCommitBroker.swift; sourceTree = "<group>"; };
+		FA000070CAFE0070CAFE0070 /* OwlCloudFoundation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlCloudFoundation.swift; path = sources/Lane/OwlCloudFoundation.swift; sourceTree = "<group>"; };
+		FAD1CF01CAFEDF01CAFEDF01 /* OwlDictPack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlDictPack.swift; path = sources/DictPack/OwlDictPack.swift; sourceTree = "<group>"; };
+		FAD1CF03CAFEDF03CAFEDF03 /* OwlDictPackFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlDictPackFetcher.swift; path = sources/DictPack/OwlDictPackFetcher.swift; sourceTree = "<group>"; };
+		FAD1CF05CAFEDF05CAFEDF05 /* OwlDictPackCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlDictPackCenter.swift; path = sources/DictPack/OwlDictPackCenter.swift; sourceTree = "<group>"; };
+		FAD1CF07CAFEDF07CAFEDF07 /* OwlDictPackManifestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlDictPackManifestData.swift; path = sources/DictPack/OwlDictPackManifestData.swift; sourceTree = "<group>"; };
+		FAD1CF09CAFEDF09CAFEDF09 /* OwlDictPackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlDictPackTests.swift; path = tests/OwlDictPackTests.swift; sourceTree = "<group>"; };
+		FA000801CAFE0081CAFE0081 /* OwlStreamingChatClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlStreamingChatClient.swift; path = sources/Lane/OwlStreamingChatClient.swift; sourceTree = "<group>"; };
+		FA000901CAFE0091CAFE0091 /* OwlAIContextAssembler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAIContextAssembler.swift; path = sources/Lane/OwlAIContextAssembler.swift; sourceTree = "<group>"; };
+		FA000903CAFE0093CAFE0093 /* OwlAIConversationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAIConversationModel.swift; path = sources/Lane/OwlAIConversationModel.swift; sourceTree = "<group>"; };
+		FA000905CAFE0095CAFE0095 /* OwlAIWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAIWindow.swift; path = sources/UI/OwlAIWindow.swift; sourceTree = "<group>"; };
+		FA000911CAFE0097CAFE0097 /* OwlPromptFillSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlPromptFillSheet.swift; path = sources/UI/OwlPromptFillSheet.swift; sourceTree = "<group>"; };
+		FA000907CAFE0097CAFE0097 /* OwlAIConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAIConversationView.swift; path = sources/UI/OwlAIConversationView.swift; sourceTree = "<group>"; };
+		FA000701CAFE0701CAFE0701 /* OwlLaneTasks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlLaneTasks.swift; path = sources/Controller/OwlLaneTasks.swift; sourceTree = "<group>"; };
+		FA000300CAFE0300CAFE0300 /* OwlProviderProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlProviderProfile.swift; path = sources/Lane/OwlProviderProfile.swift; sourceTree = "<group>"; };
+		FA0000C1CAFE00C1CAFE00C1 /* OwlSelectionPolish.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSelectionPolish.swift; path = sources/Lane/OwlSelectionPolish.swift; sourceTree = "<group>"; };
+		FAA0000ACAFE000ACAFE000A /* OwlProviderAuthGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlProviderAuthGate.swift; path = sources/Lane/OwlProviderAuthGate.swift; sourceTree = "<group>"; };
+		FA133002CAFE0002CAFE0002 /* OwlVerificationRouting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVerificationRouting.swift; path = sources/Lane/OwlVerificationRouting.swift; sourceTree = "<group>"; };
+		FA133004CAFE0004CAFE0004 /* OwlCNKIExpertQueryBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlCNKIExpertQueryBuilder.swift; path = sources/Lane/OwlCNKIExpertQueryBuilder.swift; sourceTree = "<group>"; };
+		FA133006CAFE0006CAFE0006 /* OwlVerificationRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVerificationRoutingTests.swift; path = tests/OwlVerificationRoutingTests.swift; sourceTree = "<group>"; };
+		FA134002CAFE0002CAFE0002 /* OwlVerificationAnchors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVerificationAnchors.swift; path = sources/Lane/OwlVerificationAnchors.swift; sourceTree = "<group>"; };
+		FA134004CAFE0004CAFE0004 /* OwlSelectionVerifyMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSelectionVerifyMenu.swift; path = sources/Lane/OwlSelectionVerifyMenu.swift; sourceTree = "<group>"; };
+		FA134006CAFE0006CAFE0006 /* OwlVerificationAnchorsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVerificationAnchorsTests.swift; path = tests/OwlVerificationAnchorsTests.swift; sourceTree = "<group>"; };
+		FA135002CAFE0002CAFE0002 /* OwlVerificationReceiptModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVerificationReceiptModel.swift; path = sources/UI/OwlVerificationReceiptModel.swift; sourceTree = "<group>"; };
+		FA135004CAFE0004CAFE0004 /* OwlVerificationReceiptCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVerificationReceiptCard.swift; path = sources/UI/OwlVerificationReceiptCard.swift; sourceTree = "<group>"; };
+		FA135006CAFE0006CAFE0006 /* OwlVerificationReceiptModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVerificationReceiptModelTests.swift; path = tests/OwlVerificationReceiptModelTests.swift; sourceTree = "<group>"; };
+		FA136002CAFE0002CAFE0002 /* OwlPolishPromptCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlPolishPromptCatalog.swift; path = sources/Lane/OwlPolishPromptCatalog.swift; sourceTree = "<group>"; };
+		FA136004CAFE0004CAFE0004 /* OwlPolishPromptCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlPolishPromptCatalogTests.swift; path = tests/OwlPolishPromptCatalogTests.swift; sourceTree = "<group>"; };
+		FA137002CAFE0002CAFE0002 /* OwlSearchControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSearchControl.swift; path = sources/Lane/OwlSearchControl.swift; sourceTree = "<group>"; };
+		FA137004CAFE0004CAFE0004 /* OwlAskSearchResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAskSearchResolver.swift; path = sources/Lane/OwlAskSearchResolver.swift; sourceTree = "<group>"; };
+		FA137006CAFE0006CAFE0006 /* OwlSearchControlTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSearchControlTests.swift; path = tests/OwlSearchControlTests.swift; sourceTree = "<group>"; };
+		FA13A004CAFE0104CAFE0104 /* OwlWebSearchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlWebSearchTests.swift; path = tests/OwlWebSearchTests.swift; sourceTree = "<group>"; };
+		FA137008CAFE0008CAFE0008 /* OwlAskSearchResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAskSearchResolverTests.swift; path = tests/OwlAskSearchResolverTests.swift; sourceTree = "<group>"; };
+		FA138002CAFE0002CAFE0002 /* OwlResponsesWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlResponsesWire.swift; path = sources/Lane/OwlResponsesWire.swift; sourceTree = "<group>"; };
+		FA13A002CAFE0102CAFE0102 /* OwlWebSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlWebSearch.swift; path = sources/Lane/OwlWebSearch.swift; sourceTree = "<group>"; };
+		FA138004CAFE0004CAFE0004 /* OwlResponsesStreamingClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlResponsesStreamingClient.swift; path = sources/Lane/OwlResponsesStreamingClient.swift; sourceTree = "<group>"; };
+		FA138006CAFE0006CAFE0006 /* OwlResponsesStreamingClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlResponsesStreamingClientTests.swift; path = tests/OwlResponsesStreamingClientTests.swift; sourceTree = "<group>"; };
+		FA107002CAFE0002CAFE0107 /* OwlAskAnythingModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAskAnythingModule.swift; path = sources/Lane/OwlAskAnythingModule.swift; sourceTree = "<group>"; };
+		FA107004CAFE0004CAFE0107 /* OwlAskAnythingModuleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAskAnythingModuleTests.swift; path = tests/OwlAskAnythingModuleTests.swift; sourceTree = "<group>"; };
+		FA110002CAFE0002CAFE0002 /* OwlStructuredDrafting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlStructuredDrafting.swift; path = sources/Lane/OwlStructuredDrafting.swift; sourceTree = "<group>"; };
+		FA139002CAFE0002CAFE0002 /* OwlPromptOptimizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlPromptOptimizer.swift; path = sources/Lane/OwlPromptOptimizer.swift; sourceTree = "<group>"; };
+		FA139004CAFE0004CAFE0004 /* OwlPromptOptimizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlPromptOptimizerTests.swift; path = tests/OwlPromptOptimizerTests.swift; sourceTree = "<group>"; };
+		FA142002CAFE0002CAFE0002 /* OwlGoalBrief.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlGoalBrief.swift; path = sources/Lane/OwlGoalBrief.swift; sourceTree = "<group>"; };
+		FA142004CAFE0004CAFE0004 /* OwlGoalBriefTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlGoalBriefTests.swift; path = tests/OwlGoalBriefTests.swift; sourceTree = "<group>"; };
+		FA143002CAFE0002CAFE0002 /* OwlGoalBriefLiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlGoalBriefLiveTests.swift; path = tests/OwlGoalBriefLiveTests.swift; sourceTree = "<group>"; };
+		FA140002CAFE0002CAFE0002 /* OwlPromptOptimizeLiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlPromptOptimizeLiveTests.swift; path = tests/OwlPromptOptimizeLiveTests.swift; sourceTree = "<group>"; };
+		FA141002CAFE0002CAFE0002 /* OwlSkillsLiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSkillsLiveTests.swift; path = tests/OwlSkillsLiveTests.swift; sourceTree = "<group>"; };
+		FA5C0DE100000000000000C2 /* OwlTextInserter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTextInserter.swift; path = sources/Lane/OwlTextInserter.swift; sourceTree = "<group>"; };
+		FA0000C2CAFE00C2CAFE00C2 /* OwlProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlProject.swift; path = sources/Settings/OwlProject.swift; sourceTree = "<group>"; };
+		FA0000C4CAFE00C4CAFE00C4 /* OwlProjectStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlProjectStore.swift; path = sources/Settings/OwlProjectStore.swift; sourceTree = "<group>"; };
+		FA0000C8CAFE00C8CAFE00C8 /* OwlTerminology.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTerminology.swift; path = sources/Data/OwlTerminology.swift; sourceTree = "<group>"; };
 		FA0000F1CAFE00F1CAFE00F1 /* RimeOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeOption.swift; path = sources/Engine/RimeOption.swift; sourceTree = "<group>"; };
 		FA0000F3CAFE00F3CAFE00F3 /* RimeValueTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeValueTypes.swift; path = sources/Engine/RimeValueTypes.swift; sourceTree = "<group>"; };
 		FAA0000ECAFE000ECAFE000E /* RimeCompositionRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeCompositionRenderer.swift; path = sources/Engine/RimeCompositionRenderer.swift; sourceTree = "<group>"; };
 		FA0000F5CAFE00F5CAFE00F5 /* RimeSeam.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeSeam.swift; path = sources/Engine/RimeSeam.swift; sourceTree = "<group>"; };
-		FAA00033CAFE0033CAFE0033 /* FamoUserDictReset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoUserDictReset.swift; path = sources/Engine/FamoUserDictReset.swift; sourceTree = "<group>"; };
-		FA0000D8CAFE00D8CAFE00D8 /* FamoExperimentalPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoExperimentalPreferences.swift; path = sources/Settings/FamoExperimentalPreferences.swift; sourceTree = "<group>"; };
-		FA0000DCCAFE00DCCAFE00DC /* FamoBertTokenizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoBertTokenizer.swift; path = sources/Lane/FamoBertTokenizer.swift; sourceTree = "<group>"; };
-		FA000503CAFE0503CAFE0503 /* FamoBackspaceCorrection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoBackspaceCorrection.swift; path = sources/Lane/FamoBackspaceCorrection.swift; sourceTree = "<group>"; };
-		FA000505CAFE0505CAFE0505 /* FamoMacbertCscScorer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoMacbertCscScorer.swift; path = sources/Lane/FamoMacbertCscScorer.swift; sourceTree = "<group>"; };
+		FAA00033CAFE0033CAFE0033 /* OwlUserDictReset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlUserDictReset.swift; path = sources/Engine/OwlUserDictReset.swift; sourceTree = "<group>"; };
+		FA0000D8CAFE00D8CAFE00D8 /* OwlExperimentalPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlExperimentalPreferences.swift; path = sources/Settings/OwlExperimentalPreferences.swift; sourceTree = "<group>"; };
+		FA0000DCCAFE00DCCAFE00DC /* OwlBertTokenizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlBertTokenizer.swift; path = sources/Lane/OwlBertTokenizer.swift; sourceTree = "<group>"; };
+		FA000503CAFE0503CAFE0503 /* OwlBackspaceCorrection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlBackspaceCorrection.swift; path = sources/Lane/OwlBackspaceCorrection.swift; sourceTree = "<group>"; };
+		FA000505CAFE0505CAFE0505 /* OwlMacbertCscScorer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlMacbertCscScorer.swift; path = sources/Lane/OwlMacbertCscScorer.swift; sourceTree = "<group>"; };
 		FA0000C6CAFE00C6CAFE00C6 /* ProjectStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProjectStoreTests.swift; path = tests/ProjectStoreTests.swift; sourceTree = "<group>"; };
-		FA000600CAFE0600CAFE0600 /* FamoPanelContentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPanelContentTests.swift; path = tests/FamoPanelContentTests.swift; sourceTree = "<group>"; };
-		FA112000CAFE0000CAFE0112 /* FamoCandidatePanelSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoCandidatePanelSettingsTests.swift; path = tests/FamoCandidatePanelSettingsTests.swift; sourceTree = "<group>"; };
-		FA117000CAFE0000CAFE0117 /* FamoCandidatePanelAppearanceLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoCandidatePanelAppearanceLifecycleTests.swift; path = tests/FamoCandidatePanelAppearanceLifecycleTests.swift; sourceTree = "<group>"; };
-		FA118000CAFE0000CAFE0118 /* FamoCandidatePanelDisplayLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoCandidatePanelDisplayLifecycleTests.swift; path = tests/FamoCandidatePanelDisplayLifecycleTests.swift; sourceTree = "<group>"; };
-		FA000500CAFE0500CAFE0500 /* FamoCandidateAnchorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoCandidateAnchorTests.swift; path = tests/FamoCandidateAnchorTests.swift; sourceTree = "<group>"; };
-		FAA00005CAFE0005CAFE0005 /* FamoFloatingPanelPositionerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoFloatingPanelPositionerTests.swift; path = tests/FamoFloatingPanelPositionerTests.swift; sourceTree = "<group>"; };
-		FAA00042CAFE0042CAFE0042 /* FamoHostCaretAnchorMemoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoHostCaretAnchorMemoryTests.swift; path = tests/FamoHostCaretAnchorMemoryTests.swift; sourceTree = "<group>"; };
-		FAA00007CAFE0007CAFE0007 /* FamoPanelInsertionBrokerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPanelInsertionBrokerTests.swift; path = tests/FamoPanelInsertionBrokerTests.swift; sourceTree = "<group>"; };
+		FA000600CAFE0600CAFE0600 /* OwlPanelContentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlPanelContentTests.swift; path = tests/OwlPanelContentTests.swift; sourceTree = "<group>"; };
+		FA112000CAFE0000CAFE0112 /* OwlCandidatePanelSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlCandidatePanelSettingsTests.swift; path = tests/OwlCandidatePanelSettingsTests.swift; sourceTree = "<group>"; };
+		FA117000CAFE0000CAFE0117 /* OwlCandidatePanelAppearanceLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlCandidatePanelAppearanceLifecycleTests.swift; path = tests/OwlCandidatePanelAppearanceLifecycleTests.swift; sourceTree = "<group>"; };
+		FA118000CAFE0000CAFE0118 /* OwlCandidatePanelDisplayLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlCandidatePanelDisplayLifecycleTests.swift; path = tests/OwlCandidatePanelDisplayLifecycleTests.swift; sourceTree = "<group>"; };
+		FA000500CAFE0500CAFE0500 /* OwlCandidateAnchorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlCandidateAnchorTests.swift; path = tests/OwlCandidateAnchorTests.swift; sourceTree = "<group>"; };
+		FAA00005CAFE0005CAFE0005 /* OwlFloatingPanelPositionerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlFloatingPanelPositionerTests.swift; path = tests/OwlFloatingPanelPositionerTests.swift; sourceTree = "<group>"; };
+		FAA00042CAFE0042CAFE0042 /* OwlHostCaretAnchorMemoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlHostCaretAnchorMemoryTests.swift; path = tests/OwlHostCaretAnchorMemoryTests.swift; sourceTree = "<group>"; };
+		FAA00007CAFE0007CAFE0007 /* OwlPanelInsertionBrokerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlPanelInsertionBrokerTests.swift; path = tests/OwlPanelInsertionBrokerTests.swift; sourceTree = "<group>"; };
 		FA000302CAFE0302CAFE0302 /* ProviderProfileStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProviderProfileStoreTests.swift; path = tests/ProviderProfileStoreTests.swift; sourceTree = "<group>"; };
-		FA000803CAFE0083CAFE0083 /* FamoStreamingChatClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoStreamingChatClientTests.swift; path = tests/FamoStreamingChatClientTests.swift; sourceTree = "<group>"; };
-		FAA0000CCAFE000CCAFE000C /* FamoProviderAuthGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoProviderAuthGateTests.swift; path = tests/FamoProviderAuthGateTests.swift; sourceTree = "<group>"; };
-		FA00090BCAFE009BCAFE009B /* FamoAIContextAssemblerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoAIContextAssemblerTests.swift; path = tests/FamoAIContextAssemblerTests.swift; sourceTree = "<group>"; };
-		FA5C0DE100000000000000C4 /* FamoTextInserterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoTextInserterTests.swift; path = tests/FamoTextInserterTests.swift; sourceTree = "<group>"; };
-		FA00090DCAFE009DCAFE009D /* FamoAIConversationModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoAIConversationModelTests.swift; path = tests/FamoAIConversationModelTests.swift; sourceTree = "<group>"; };
+		FA000803CAFE0083CAFE0083 /* OwlStreamingChatClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlStreamingChatClientTests.swift; path = tests/OwlStreamingChatClientTests.swift; sourceTree = "<group>"; };
+		FAA0000CCAFE000CCAFE000C /* OwlProviderAuthGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlProviderAuthGateTests.swift; path = tests/OwlProviderAuthGateTests.swift; sourceTree = "<group>"; };
+		FA00090BCAFE009BCAFE009B /* OwlAIContextAssemblerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAIContextAssemblerTests.swift; path = tests/OwlAIContextAssemblerTests.swift; sourceTree = "<group>"; };
+		FA5C0DE100000000000000C4 /* OwlTextInserterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTextInserterTests.swift; path = tests/OwlTextInserterTests.swift; sourceTree = "<group>"; };
+		FA00090DCAFE009DCAFE009D /* OwlAIConversationModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAIConversationModelTests.swift; path = tests/OwlAIConversationModelTests.swift; sourceTree = "<group>"; };
 		FA000400CAFE0400CAFE0400 /* CloudRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CloudRoutingTests.swift; path = tests/CloudRoutingTests.swift; sourceTree = "<group>"; };
 		FA0000CACAFE00CACAFE00CA /* TerminologyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TerminologyTests.swift; path = tests/TerminologyTests.swift; sourceTree = "<group>"; };
 		FA0000F7CAFE00F7CAFE00F7 /* RimeSeamTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeSeamTests.swift; path = tests/RimeSeamTests.swift; sourceTree = "<group>"; };
-		FA000A01CAFE0A01CAFE0A01 /* FamoGetAppOptionsRoundTripTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoGetAppOptionsRoundTripTests.swift; path = tests/FamoGetAppOptionsRoundTripTests.swift; sourceTree = "<group>"; };
+		FA000A01CAFE0A01CAFE0A01 /* OwlGetAppOptionsRoundTripTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlGetAppOptionsRoundTripTests.swift; path = tests/OwlGetAppOptionsRoundTripTests.swift; sourceTree = "<group>"; };
 		FAA00010CAFE0010CAFE0010 /* RimeCompositionRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeCompositionRendererTests.swift; path = tests/RimeCompositionRendererTests.swift; sourceTree = "<group>"; };
-		FAA00023CAFE0023CAFE0023 /* FamoUpdateLogoutPromptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoUpdateLogoutPromptTests.swift; path = tests/FamoUpdateLogoutPromptTests.swift; sourceTree = "<group>"; };
-		FAA00035CAFE0035CAFE0035 /* FamoUserDictResetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoUserDictResetTests.swift; path = tests/FamoUserDictResetTests.swift; sourceTree = "<group>"; };
+		FAA00023CAFE0023CAFE0023 /* OwlUpdateLogoutPromptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlUpdateLogoutPromptTests.swift; path = tests/OwlUpdateLogoutPromptTests.swift; sourceTree = "<group>"; };
+		FAA00035CAFE0035CAFE0035 /* OwlUserDictResetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlUserDictResetTests.swift; path = tests/OwlUserDictResetTests.swift; sourceTree = "<group>"; };
 		FA0000F9CAFE00F9CAFE00F9 /* SeamPortsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SeamPortsTests.swift; path = tests/SeamPortsTests.swift; sourceTree = "<group>"; };
 		FA0000FBCAFE00FBCAFE00FB /* CandidateStorePortTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CandidateStorePortTests.swift; path = tests/CandidateStorePortTests.swift; sourceTree = "<group>"; };
-		FA000703CAFE0703CAFE0703 /* FamoLaneTasksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoLaneTasksTests.swift; path = tests/FamoLaneTasksTests.swift; sourceTree = "<group>"; };
+		FA000703CAFE0703CAFE0703 /* OwlLaneTasksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlLaneTasksTests.swift; path = tests/OwlLaneTasksTests.swift; sourceTree = "<group>"; };
 		FA0000E1CAFE00E1CAFE00E1 /* BertTokenizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BertTokenizerTests.swift; path = tests/BertTokenizerTests.swift; sourceTree = "<group>"; };
 		FA000507CAFE0507CAFE0507 /* BackspaceCorrectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BackspaceCorrectionTests.swift; path = tests/BackspaceCorrectionTests.swift; sourceTree = "<group>"; };
 		FA000080CAFE0080CAFE0080 /* SnapshotValidityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SnapshotValidityTests.swift; path = tests/SnapshotValidityTests.swift; sourceTree = "<group>"; };
-		FA000112CAFE0112CAFE0112 /* FamoSettingsE2ETests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSettingsE2ETests.swift; path = tests/FamoSettingsE2ETests.swift; sourceTree = "<group>"; };
-		FA000114CAFE0114CAFE0114 /* FamoSettingsActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSettingsActionTests.swift; path = tests/FamoSettingsActionTests.swift; sourceTree = "<group>"; };
-		FA000119CAFE0119CAFE0119 /* FamoSettingsCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSettingsCoverageTests.swift; path = tests/FamoSettingsCoverageTests.swift; sourceTree = "<group>"; };
-		FA000120CAFE0120CAFE0120 /* FamoSettingsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoSettingsUITests.swift; path = tests/FamoSettingsUITests.swift; sourceTree = "<group>"; };
+		FA000112CAFE0112CAFE0112 /* OwlSettingsE2ETests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSettingsE2ETests.swift; path = tests/OwlSettingsE2ETests.swift; sourceTree = "<group>"; };
+		FA000114CAFE0114CAFE0114 /* OwlSettingsActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSettingsActionTests.swift; path = tests/OwlSettingsActionTests.swift; sourceTree = "<group>"; };
+		FA000119CAFE0119CAFE0119 /* OwlSettingsCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSettingsCoverageTests.swift; path = tests/OwlSettingsCoverageTests.swift; sourceTree = "<group>"; };
+		FA000120CAFE0120CAFE0120 /* OwlSettingsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSettingsUITests.swift; path = tests/OwlSettingsUITests.swift; sourceTree = "<group>"; };
 		FA0000A2CAFE00A2CAFE00A2 /* ActivationPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ActivationPolicyTests.swift; path = tests/ActivationPolicyTests.swift; sourceTree = "<group>"; };
 		FAC10002CAFE0002CAFE0002 /* InstallerActivationPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = InstallerActivationPolicyTests.swift; path = tests/InstallerActivationPolicyTests.swift; sourceTree = "<group>"; };
 		FAC10004CAFE0004CAFE0004 /* InstallerActivationPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = InstallerActivationPolicy.swift; path = installer/Sources/InstallerActivationPolicy.swift; sourceTree = "<group>"; };
 		FA000135CAFE0135CAFE0135 /* KeyTranslationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = KeyTranslationTests.swift; path = tests/KeyTranslationTests.swift; sourceTree = "<group>"; };
 		FA000082CAFE0082CAFE0082 /* CandidateStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CandidateStoreTests.swift; path = tests/CandidateStoreTests.swift; sourceTree = "<group>"; };
-		FA000E01CAFE0E01CAFE0E01 /* FamoKeyboardPatchBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoKeyboardPatchBuilderTests.swift; path = tests/FamoKeyboardPatchBuilderTests.swift; sourceTree = "<group>"; };
+		FA000E01CAFE0E01CAFE0E01 /* OwlKeyboardPatchBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlKeyboardPatchBuilderTests.swift; path = tests/OwlKeyboardPatchBuilderTests.swift; sourceTree = "<group>"; };
 		FA000084CAFE0084CAFE0084 /* HotPathLatencyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HotPathLatencyTests.swift; path = tests/HotPathLatencyTests.swift; sourceTree = "<group>"; };
-		FA000086CAFE0086CAFE0086 /* FamoM3EmojiSkinTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoM3EmojiSkinTests.swift; path = tests/FamoM3EmojiSkinTests.swift; sourceTree = "<group>"; };
+		FA000086CAFE0086CAFE0086 /* OwlM3EmojiSkinTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlM3EmojiSkinTests.swift; path = tests/OwlM3EmojiSkinTests.swift; sourceTree = "<group>"; };
 		FA000090CAFE0090CAFE0090 /* OwltypeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OwltypeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FA000122CAFE0122CAFE0122 /* OwltypeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OwltypeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B397712C2BEEB39D0093A49B /* InputSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = InputSource.swift; path = sources/Activation/InputSource.swift; sourceTree = "<group>"; };
@@ -701,125 +701,125 @@
 		080E96DDFE201D6D7F000001 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
-				B38E9B902BE9AE1E0036ABEF /* FamoApplicationDelegate.swift */,
-				FAA00021CAFE0021CAFE0021 /* FamoUpdateLogoutPrompt.swift */,
-				FAA00031CAFE0031CAFE0031 /* FamoUserDictResetPrompt.swift */,
-				FA0001F1CAFE01F1CAFE01F1 /* FamoApplicationDelegate+FastApply.swift */,
-				B38E9B942BEAFEFD0036ABEF /* FamoInputController.swift */,
-				FA000100CAFE0100CAFE0100 /* FamoInputMenuTitles.swift */,
-				FA000102CAFE0102CAFE0102 /* FamoInputController+Menu.swift */,
-				FA000104CAFE0104CAFE0104 /* FamoInputController+RimeUpdate.swift */,
-				FA000106CAFE0106CAFE0106 /* FamoInputController+Lifecycle.swift */,
-				FA000108CAFE0108CAFE0108 /* FamoInputController+Session.swift */,
-				FA00010ACAFE010ACAFE010A /* FamoInputController+RimeOptions.swift */,
-				FA000701CAFE0701CAFE0701 /* FamoLaneTasks.swift */,
+				B38E9B902BE9AE1E0036ABEF /* OwlApplicationDelegate.swift */,
+				FAA00021CAFE0021CAFE0021 /* OwlUpdateLogoutPrompt.swift */,
+				FAA00031CAFE0031CAFE0031 /* OwlUserDictResetPrompt.swift */,
+				FA0001F1CAFE01F1CAFE01F1 /* OwlApplicationDelegate+FastApply.swift */,
+				B38E9B942BEAFEFD0036ABEF /* OwlInputController.swift */,
+				FA000100CAFE0100CAFE0100 /* OwlInputMenuTitles.swift */,
+				FA000102CAFE0102CAFE0102 /* OwlInputController+Menu.swift */,
+				FA000104CAFE0104CAFE0104 /* OwlInputController+RimeUpdate.swift */,
+				FA000106CAFE0106CAFE0106 /* OwlInputController+Lifecycle.swift */,
+				FA000108CAFE0108CAFE0108 /* OwlInputController+Session.swift */,
+				FA00010ACAFE010ACAFE010A /* OwlInputController+RimeOptions.swift */,
+				FA000701CAFE0701CAFE0701 /* OwlLaneTasks.swift */,
 				B39771222BECEA150093A49B /* MacOSKeyCodes.swift */,
-				FA000131CAFE0131CAFE0131 /* FamoUserAction.swift */,
-				FA000133CAFE0133CAFE0133 /* FamoInputController+ClientAction.swift */,
+				FA000131CAFE0131CAFE0131 /* OwlUserAction.swift */,
+				FA000133CAFE0133CAFE0133 /* OwlInputController+ClientAction.swift */,
 				B397712C2BEEB39D0093A49B /* InputSource.swift */,
 				FA0707520002CAFE0062CA07 /* RimeConfigDiagnostics.swift */,
 				B397712E2BEECBED0093A49B /* Main.swift */,
-				FA000202CAFE0202CAFE0202 /* FamoStyleFlags.swift */,
-				FA000200CAFE0200CAFE0200 /* FamoStatusHUD.swift */,
-				FA000001CAFE0001CAFE0001 /* FamoCandidatePanelState.swift */,
-				FA000002CAFE0002CAFE0002 /* FamoCandidatePanelView.swift */,
-				FA010800CAFE0108CAFE0108 /* FamoCandidatePanelGeometry.swift */,
-				FA000003CAFE0003CAFE0003 /* FamoSwiftUICandidatePanel.swift */,
-				FA000004CAFE0004CAFE0004 /* FamoSettingsState.swift */,
-				FA000117CAFE0117CAFE0117 /* FamoSettingsActions+Stores.swift */,
-				FA000005CAFE0005CAFE0005 /* FamoSettingsView.swift */,
-				FA000006CAFE0006CAFE0006 /* FamoSettingsWindow.swift */,
-				FA000007CAFE0007CAFE0007 /* FamoPanelPreferences.swift */,
-				FA112002CAFE0002CAFE0112 /* FamoCandidatePanelSettings.swift */,
-				FA000008CAFE0008CAFE0008 /* FamoSettingsComponents.swift */,
-				FA000009CAFE0009CAFE0009 /* FamoSettingsPages.swift */,
-				FA000046CAFE0046CAFE0046 /* FamoEmojiData.swift */,
-				FA000047CAFE0047CAFE0047 /* FamoEmojiPanelView.swift */,
-				FA000048CAFE0048CAFE0048 /* FamoEmojiPanel.swift */,
-				FAA00001CAFE0001CAFE0001 /* FamoFloatingPanelPositioner.swift */,
-				FAA00040CAFE0040CAFE0040 /* FamoHostCaretAnchorMemory.swift */,
-				FAA00003CAFE0003CAFE0003 /* FamoPanelInsertionBroker.swift */,
-				FA0000D6CAFE00D6CAFE00D6 /* FamoQuickSendPanel.swift */,
-				FA0000E8CAFE00E8CAFE00E8 /* FamoQuickSendHotKey.swift */,
-				FA000040CAFE0040CAFE0040 /* FamoThemes.swift */,
-				FA000041CAFE0041CAFE0041 /* FamoEmojiPreferences.swift */,
-				FA0000FDCAFE00FDCAFE00FD /* FamoPromptStore.swift */,
-				FADADA01CAFE0001CAFE0001 /* FamoPromptPage.swift */,
-				FA00000ACAFE000ACAFE000A /* FamoKeyboardPreferences.swift */,
-				FAAB0002CAFE0002CAFE0002 /* FamoAutoPair.swift */,
-				FA07070002CAFE0002CAFE07 /* FamoForcedFinalize.swift */,
-				FA0707510002CAFE0052CA07 /* FamoSchemaSelectionGate.swift */,
-				FA0709340002CAFE0034CA07 /* FamoClientCapabilityPolicy.swift */,
-				FA0709AA0002CAFE00AACA07 /* FamoElectronHostDetector.swift */,
-				FA0709340004CAFE0036CA07 /* FamoLatencyTrace.swift */,
-				FA0709890004CAFE0090CA07 /* FamoMarkedTextResendPolicy.swift */,
-				FA0709350002CAFE0038CA07 /* FamoLiveInputTrace.swift */,
-				FA00000BCAFE000BCAFE000B /* FamoKeyboardPage.swift */,
-				FACE0006FACE0006FACE0006 /* FamoSelectionMenuCoordinator.swift */,
-				FA135002CAFE0002CAFE0002 /* FamoVerificationReceiptModel.swift */,
-				FA135004CAFE0004CAFE0004 /* FamoVerificationReceiptCard.swift */,
-				FACE0001FACE0001FACE0001 /* FamoSkinPage.swift */,
-				FACE0002FACE0002FACE0002 /* FamoQuickSendPage.swift */,
-				FACE0003FACE0003FACE0003 /* FamoClipboardPage.swift */,
-				FACE0004FACE0004FACE0004 /* FamoSkillsPage.swift */,
-				FACE0005FACE0005FACE0005 /* FamoAIPage.swift */,
-				FA00000CCAFE000CCAFE000C /* FamoRimePatchBuilder.swift */,
-				FA00000DCAFE000DCAFE000D /* FamoOnboardingWindow.swift */,
-				FA00000ECAFE000ECAFE000E /* FamoOnboardingView.swift */,
-				FA00000FCAFE000FCAFE000F /* FamoFuzzyPreferences.swift */,
-				FA000010CAFE0010CAFE0010 /* FamoFuzzySheet.swift */,
-				FADD0001CAFE0001CAFE0001 /* FamoAppEnglishSheet.swift */,
-				FA000029CAFE0029CAFE0029 /* FamoConfigWriter.swift */,
-				FA000031CAFE0031CAFE0031 /* FamoWritePreviewSheet.swift */,
-				FA000060CAFE0060CAFE0060 /* FamoCompositionSnapshot.swift */,
-				FA000062CAFE0062CAFE0062 /* FamoSnapshotRegistry.swift */,
-				FA000064CAFE0064CAFE0064 /* FamoCandidateStore.swift */,
-				FA000066CAFE0066CAFE0066 /* FamoSnapshotEmitter.swift */,
-				FA000068CAFE0068CAFE0068 /* FamoExternalCommitBroker.swift */,
-				FA000070CAFE0070CAFE0070 /* FamoCloudFoundation.swift */,
-				FAD1CF01CAFEDF01CAFEDF01 /* FamoDictPack.swift */,
-				FAD1CF03CAFEDF03CAFEDF03 /* FamoDictPackFetcher.swift */,
-				FAD1CF05CAFEDF05CAFEDF05 /* FamoDictPackCenter.swift */,
-				FAD1CF07CAFEDF07CAFEDF07 /* FamoDictPackManifestData.swift */,
-				FA000801CAFE0081CAFE0081 /* FamoStreamingChatClient.swift */,
-				FA000901CAFE0091CAFE0091 /* FamoAIContextAssembler.swift */,
-				FA000903CAFE0093CAFE0093 /* FamoAIConversationModel.swift */,
-				FA000905CAFE0095CAFE0095 /* FamoAIWindow.swift */,
-				FA000911CAFE0097CAFE0097 /* FamoPromptFillSheet.swift */,
-				FA000907CAFE0097CAFE0097 /* FamoAIConversationView.swift */,
-				FA000300CAFE0300CAFE0300 /* FamoProviderProfile.swift */,
-				FA0000C1CAFE00C1CAFE00C1 /* FamoSelectionPolish.swift */,
-				FAA0000ACAFE000ACAFE000A /* FamoProviderAuthGate.swift */,
-				FA133002CAFE0002CAFE0002 /* FamoVerificationRouting.swift */,
-				FA133004CAFE0004CAFE0004 /* FamoCNKIExpertQueryBuilder.swift */,
-				FA134002CAFE0002CAFE0002 /* FamoVerificationAnchors.swift */,
-				FA134004CAFE0004CAFE0004 /* FamoSelectionVerifyMenu.swift */,
-				FA136002CAFE0002CAFE0002 /* FamoPolishPromptCatalog.swift */,
-				FA137002CAFE0002CAFE0002 /* FamoSearchControl.swift */,
-				FA137004CAFE0004CAFE0004 /* FamoAskSearchResolver.swift */,
-				FA138002CAFE0002CAFE0002 /* FamoResponsesWire.swift */,
-				FA13A002CAFE0102CAFE0102 /* FamoWebSearch.swift */,
-				FA138004CAFE0004CAFE0004 /* FamoResponsesStreamingClient.swift */,
-				FA107002CAFE0002CAFE0107 /* FamoAskAnythingModule.swift */,
-				FA110002CAFE0002CAFE0002 /* FamoStructuredDrafting.swift */,
-				FA139002CAFE0002CAFE0002 /* FamoPromptOptimizer.swift */,
-				FA142002CAFE0002CAFE0002 /* FamoGoalBrief.swift */,
-				FA5C0DE100000000000000C2 /* FamoTextInserter.swift */,
-				FA0000C2CAFE00C2CAFE00C2 /* FamoProject.swift */,
-				FA0000C4CAFE00C4CAFE00C4 /* FamoProjectStore.swift */,
-				FA0000C8CAFE00C8CAFE00C8 /* FamoTerminology.swift */,
+				FA000202CAFE0202CAFE0202 /* OwlStyleFlags.swift */,
+				FA000200CAFE0200CAFE0200 /* OwlStatusHUD.swift */,
+				FA000001CAFE0001CAFE0001 /* OwlCandidatePanelState.swift */,
+				FA000002CAFE0002CAFE0002 /* OwlCandidatePanelView.swift */,
+				FA010800CAFE0108CAFE0108 /* OwlCandidatePanelGeometry.swift */,
+				FA000003CAFE0003CAFE0003 /* OwlSwiftUICandidatePanel.swift */,
+				FA000004CAFE0004CAFE0004 /* OwlSettingsState.swift */,
+				FA000117CAFE0117CAFE0117 /* OwlSettingsActions+Stores.swift */,
+				FA000005CAFE0005CAFE0005 /* OwlSettingsView.swift */,
+				FA000006CAFE0006CAFE0006 /* OwlSettingsWindow.swift */,
+				FA000007CAFE0007CAFE0007 /* OwlPanelPreferences.swift */,
+				FA112002CAFE0002CAFE0112 /* OwlCandidatePanelSettings.swift */,
+				FA000008CAFE0008CAFE0008 /* OwlSettingsComponents.swift */,
+				FA000009CAFE0009CAFE0009 /* OwlSettingsPages.swift */,
+				FA000046CAFE0046CAFE0046 /* OwlEmojiData.swift */,
+				FA000047CAFE0047CAFE0047 /* OwlEmojiPanelView.swift */,
+				FA000048CAFE0048CAFE0048 /* OwlEmojiPanel.swift */,
+				FAA00001CAFE0001CAFE0001 /* OwlFloatingPanelPositioner.swift */,
+				FAA00040CAFE0040CAFE0040 /* OwlHostCaretAnchorMemory.swift */,
+				FAA00003CAFE0003CAFE0003 /* OwlPanelInsertionBroker.swift */,
+				FA0000D6CAFE00D6CAFE00D6 /* OwlQuickSendPanel.swift */,
+				FA0000E8CAFE00E8CAFE00E8 /* OwlQuickSendHotKey.swift */,
+				FA000040CAFE0040CAFE0040 /* OwlThemes.swift */,
+				FA000041CAFE0041CAFE0041 /* OwlEmojiPreferences.swift */,
+				FA0000FDCAFE00FDCAFE00FD /* OwlPromptStore.swift */,
+				FADADA01CAFE0001CAFE0001 /* OwlPromptPage.swift */,
+				FA00000ACAFE000ACAFE000A /* OwlKeyboardPreferences.swift */,
+				FAAB0002CAFE0002CAFE0002 /* OwlAutoPair.swift */,
+				FA07070002CAFE0002CAFE07 /* OwlForcedFinalize.swift */,
+				FA0707510002CAFE0052CA07 /* OwlSchemaSelectionGate.swift */,
+				FA0709340002CAFE0034CA07 /* OwlClientCapabilityPolicy.swift */,
+				FA0709AA0002CAFE00AACA07 /* OwlElectronHostDetector.swift */,
+				FA0709340004CAFE0036CA07 /* OwlLatencyTrace.swift */,
+				FA0709890004CAFE0090CA07 /* OwlMarkedTextResendPolicy.swift */,
+				FA0709350002CAFE0038CA07 /* OwlLiveInputTrace.swift */,
+				FA00000BCAFE000BCAFE000B /* OwlKeyboardPage.swift */,
+				FACE0006FACE0006FACE0006 /* OwlSelectionMenuCoordinator.swift */,
+				FA135002CAFE0002CAFE0002 /* OwlVerificationReceiptModel.swift */,
+				FA135004CAFE0004CAFE0004 /* OwlVerificationReceiptCard.swift */,
+				FACE0001FACE0001FACE0001 /* OwlSkinPage.swift */,
+				FACE0002FACE0002FACE0002 /* OwlQuickSendPage.swift */,
+				FACE0003FACE0003FACE0003 /* OwlClipboardPage.swift */,
+				FACE0004FACE0004FACE0004 /* OwlSkillsPage.swift */,
+				FACE0005FACE0005FACE0005 /* OwlAIPage.swift */,
+				FA00000CCAFE000CCAFE000C /* OwlRimePatchBuilder.swift */,
+				FA00000DCAFE000DCAFE000D /* OwlOnboardingWindow.swift */,
+				FA00000ECAFE000ECAFE000E /* OwlOnboardingView.swift */,
+				FA00000FCAFE000FCAFE000F /* OwlFuzzyPreferences.swift */,
+				FA000010CAFE0010CAFE0010 /* OwlFuzzySheet.swift */,
+				FADD0001CAFE0001CAFE0001 /* OwlAppEnglishSheet.swift */,
+				FA000029CAFE0029CAFE0029 /* OwlConfigWriter.swift */,
+				FA000031CAFE0031CAFE0031 /* OwlWritePreviewSheet.swift */,
+				FA000060CAFE0060CAFE0060 /* OwlCompositionSnapshot.swift */,
+				FA000062CAFE0062CAFE0062 /* OwlSnapshotRegistry.swift */,
+				FA000064CAFE0064CAFE0064 /* OwlCandidateStore.swift */,
+				FA000066CAFE0066CAFE0066 /* OwlSnapshotEmitter.swift */,
+				FA000068CAFE0068CAFE0068 /* OwlExternalCommitBroker.swift */,
+				FA000070CAFE0070CAFE0070 /* OwlCloudFoundation.swift */,
+				FAD1CF01CAFEDF01CAFEDF01 /* OwlDictPack.swift */,
+				FAD1CF03CAFEDF03CAFEDF03 /* OwlDictPackFetcher.swift */,
+				FAD1CF05CAFEDF05CAFEDF05 /* OwlDictPackCenter.swift */,
+				FAD1CF07CAFEDF07CAFEDF07 /* OwlDictPackManifestData.swift */,
+				FA000801CAFE0081CAFE0081 /* OwlStreamingChatClient.swift */,
+				FA000901CAFE0091CAFE0091 /* OwlAIContextAssembler.swift */,
+				FA000903CAFE0093CAFE0093 /* OwlAIConversationModel.swift */,
+				FA000905CAFE0095CAFE0095 /* OwlAIWindow.swift */,
+				FA000911CAFE0097CAFE0097 /* OwlPromptFillSheet.swift */,
+				FA000907CAFE0097CAFE0097 /* OwlAIConversationView.swift */,
+				FA000300CAFE0300CAFE0300 /* OwlProviderProfile.swift */,
+				FA0000C1CAFE00C1CAFE00C1 /* OwlSelectionPolish.swift */,
+				FAA0000ACAFE000ACAFE000A /* OwlProviderAuthGate.swift */,
+				FA133002CAFE0002CAFE0002 /* OwlVerificationRouting.swift */,
+				FA133004CAFE0004CAFE0004 /* OwlCNKIExpertQueryBuilder.swift */,
+				FA134002CAFE0002CAFE0002 /* OwlVerificationAnchors.swift */,
+				FA134004CAFE0004CAFE0004 /* OwlSelectionVerifyMenu.swift */,
+				FA136002CAFE0002CAFE0002 /* OwlPolishPromptCatalog.swift */,
+				FA137002CAFE0002CAFE0002 /* OwlSearchControl.swift */,
+				FA137004CAFE0004CAFE0004 /* OwlAskSearchResolver.swift */,
+				FA138002CAFE0002CAFE0002 /* OwlResponsesWire.swift */,
+				FA13A002CAFE0102CAFE0102 /* OwlWebSearch.swift */,
+				FA138004CAFE0004CAFE0004 /* OwlResponsesStreamingClient.swift */,
+				FA107002CAFE0002CAFE0107 /* OwlAskAnythingModule.swift */,
+				FA110002CAFE0002CAFE0002 /* OwlStructuredDrafting.swift */,
+				FA139002CAFE0002CAFE0002 /* OwlPromptOptimizer.swift */,
+				FA142002CAFE0002CAFE0002 /* OwlGoalBrief.swift */,
+				FA5C0DE100000000000000C2 /* OwlTextInserter.swift */,
+				FA0000C2CAFE00C2CAFE00C2 /* OwlProject.swift */,
+				FA0000C4CAFE00C4CAFE00C4 /* OwlProjectStore.swift */,
+				FA0000C8CAFE00C8CAFE00C8 /* OwlTerminology.swift */,
 				FA0000F1CAFE00F1CAFE00F1 /* RimeOption.swift */,
 				FA0000F3CAFE00F3CAFE00F3 /* RimeValueTypes.swift */,
 				FAA0000ECAFE000ECAFE000E /* RimeCompositionRenderer.swift */,
 				FA0000F5CAFE00F5CAFE00F5 /* RimeSeam.swift */,
-				FAA00033CAFE0033CAFE0033 /* FamoUserDictReset.swift */,
-				FA0000D8CAFE00D8CAFE00D8 /* FamoExperimentalPreferences.swift */,
-				FA0000DCCAFE00DCCAFE00DC /* FamoBertTokenizer.swift */,
-				FA000503CAFE0503CAFE0503 /* FamoBackspaceCorrection.swift */,
-				FA000505CAFE0505CAFE0505 /* FamoMacbertCscScorer.swift */,
-				B39771242BED899F0093A49B /* FamoConfig.swift */,
+				FAA00033CAFE0033CAFE0033 /* OwlUserDictReset.swift */,
+				FA0000D8CAFE00D8CAFE00D8 /* OwlExperimentalPreferences.swift */,
+				FA0000DCCAFE00DCCAFE00DC /* OwlBertTokenizer.swift */,
+				FA000503CAFE0503CAFE0503 /* OwlBackspaceCorrection.swift */,
+				FA000505CAFE0505CAFE0505 /* OwlMacbertCscScorer.swift */,
+				B39771242BED899F0093A49B /* OwlConfig.swift */,
 				B35D2FE72BF00839009D156B /* BridgingFunctions.swift */,
-				B38E9B8F2BE9AE1E0036ABEF /* Famo-Bridging-Header.h */,
+				B38E9B8F2BE9AE1E0036ABEF /* Owltype-Bridging-Header.h */,
 			);
 			name = Sources;
 			sourceTree = "<group>";
@@ -828,72 +828,72 @@
 			isa = PBXGroup;
 			children = (
 				FA000080CAFE0080CAFE0080 /* SnapshotValidityTests.swift */,
-				FA000112CAFE0112CAFE0112 /* FamoSettingsE2ETests.swift */,
-				FA000114CAFE0114CAFE0114 /* FamoSettingsActionTests.swift */,
-				FA000119CAFE0119CAFE0119 /* FamoSettingsCoverageTests.swift */,
-				FA000120CAFE0120CAFE0120 /* FamoSettingsUITests.swift */,
+				FA000112CAFE0112CAFE0112 /* OwlSettingsE2ETests.swift */,
+				FA000114CAFE0114CAFE0114 /* OwlSettingsActionTests.swift */,
+				FA000119CAFE0119CAFE0119 /* OwlSettingsCoverageTests.swift */,
+				FA000120CAFE0120CAFE0120 /* OwlSettingsUITests.swift */,
 				FA0000A2CAFE00A2CAFE00A2 /* ActivationPolicyTests.swift */,
 				FAC10002CAFE0002CAFE0002 /* InstallerActivationPolicyTests.swift */,
 				FAC10004CAFE0004CAFE0004 /* InstallerActivationPolicy.swift */,
 				FA000135CAFE0135CAFE0135 /* KeyTranslationTests.swift */,
 				FA000082CAFE0082CAFE0082 /* CandidateStoreTests.swift */,
-				FAD1CF09CAFEDF09CAFEDF09 /* FamoDictPackTests.swift */,
-				FA000E01CAFE0E01CAFE0E01 /* FamoKeyboardPatchBuilderTests.swift */,
+				FAD1CF09CAFEDF09CAFEDF09 /* OwlDictPackTests.swift */,
+				FA000E01CAFE0E01CAFE0E01 /* OwlKeyboardPatchBuilderTests.swift */,
 				FA000084CAFE0084CAFE0084 /* HotPathLatencyTests.swift */,
-				FA000086CAFE0086CAFE0086 /* FamoM3EmojiSkinTests.swift */,
+				FA000086CAFE0086CAFE0086 /* OwlM3EmojiSkinTests.swift */,
 				FA0000C6CAFE00C6CAFE00C6 /* ProjectStoreTests.swift */,
-				FA0000FFCAFE00FFCAFE00FF /* FamoPromptStoreTests.swift */,
-				FADC2607FADC2607FADC2607 /* FamoQuickSendStoreTests.swift */,
-				FA000451CAFE0051CAFE0051 /* FamoQuickSendPanelModelTests.swift */,
-				FAAB0004CAFE0004CAFE0004 /* FamoAutoPairTests.swift */,
-				FA07070004CAFE0004CAFE07 /* FamoForcedFinalizeTests.swift */,
-				FA07070014CAFE0014CAFE07 /* FamoStyleFlagsTests.swift */,
-				FA0707510004CAFE0054CA07 /* FamoSchemaSelectionGateTests.swift */,
-				FA0709360002CAFE0040CA07 /* FamoClientCapabilityPolicyTests.swift */,
-				FA0721000002CAFE0002CA07 /* FamoSelectionMenuTriggerTests.swift */,
-				FA0709360004CAFE0042CA07 /* FamoLiveInputTraceTests.swift */,
-				FA0709900004CAFE0092CA07 /* FamoMarkedTextResendPolicyTests.swift */,
+				FA0000FFCAFE00FFCAFE00FF /* OwlPromptStoreTests.swift */,
+				FADC2607FADC2607FADC2607 /* OwlQuickSendStoreTests.swift */,
+				FA000451CAFE0051CAFE0051 /* OwlQuickSendPanelModelTests.swift */,
+				FAAB0004CAFE0004CAFE0004 /* OwlAutoPairTests.swift */,
+				FA07070004CAFE0004CAFE07 /* OwlForcedFinalizeTests.swift */,
+				FA07070014CAFE0014CAFE07 /* OwlStyleFlagsTests.swift */,
+				FA0707510004CAFE0054CA07 /* OwlSchemaSelectionGateTests.swift */,
+				FA0709360002CAFE0040CA07 /* OwlClientCapabilityPolicyTests.swift */,
+				FA0721000002CAFE0002CA07 /* OwlSelectionMenuTriggerTests.swift */,
+				FA0709360004CAFE0042CA07 /* OwlLiveInputTraceTests.swift */,
+				FA0709900004CAFE0092CA07 /* OwlMarkedTextResendPolicyTests.swift */,
 				FA0707520004CAFE0064CA07 /* RimeConfigDiagnosticsTests.swift */,
-				FA000913CAFE0099CAFE0099 /* FamoPromptInterceptionTests.swift */,
-				FADADA03CAFE0003CAFE0003 /* FamoPromptPageRenderTests.swift */,
-				FA000600CAFE0600CAFE0600 /* FamoPanelContentTests.swift */,
-				FA112000CAFE0000CAFE0112 /* FamoCandidatePanelSettingsTests.swift */,
-				FA117000CAFE0000CAFE0117 /* FamoCandidatePanelAppearanceLifecycleTests.swift */,
-				FA118000CAFE0000CAFE0118 /* FamoCandidatePanelDisplayLifecycleTests.swift */,
-				FA000500CAFE0500CAFE0500 /* FamoCandidateAnchorTests.swift */,
-				FAA00005CAFE0005CAFE0005 /* FamoFloatingPanelPositionerTests.swift */,
-				FAA00042CAFE0042CAFE0042 /* FamoHostCaretAnchorMemoryTests.swift */,
-				FAA00007CAFE0007CAFE0007 /* FamoPanelInsertionBrokerTests.swift */,
+				FA000913CAFE0099CAFE0099 /* OwlPromptInterceptionTests.swift */,
+				FADADA03CAFE0003CAFE0003 /* OwlPromptPageRenderTests.swift */,
+				FA000600CAFE0600CAFE0600 /* OwlPanelContentTests.swift */,
+				FA112000CAFE0000CAFE0112 /* OwlCandidatePanelSettingsTests.swift */,
+				FA117000CAFE0000CAFE0117 /* OwlCandidatePanelAppearanceLifecycleTests.swift */,
+				FA118000CAFE0000CAFE0118 /* OwlCandidatePanelDisplayLifecycleTests.swift */,
+				FA000500CAFE0500CAFE0500 /* OwlCandidateAnchorTests.swift */,
+				FAA00005CAFE0005CAFE0005 /* OwlFloatingPanelPositionerTests.swift */,
+				FAA00042CAFE0042CAFE0042 /* OwlHostCaretAnchorMemoryTests.swift */,
+				FAA00007CAFE0007CAFE0007 /* OwlPanelInsertionBrokerTests.swift */,
 				FA000302CAFE0302CAFE0302 /* ProviderProfileStoreTests.swift */,
-				FA000803CAFE0083CAFE0083 /* FamoStreamingChatClientTests.swift */,
-				FAA0000CCAFE000CCAFE000C /* FamoProviderAuthGateTests.swift */,
-				FA00090BCAFE009BCAFE009B /* FamoAIContextAssemblerTests.swift */,
-				FA5C0DE100000000000000C4 /* FamoTextInserterTests.swift */,
-				FA00090DCAFE009DCAFE009D /* FamoAIConversationModelTests.swift */,
+				FA000803CAFE0083CAFE0083 /* OwlStreamingChatClientTests.swift */,
+				FAA0000CCAFE000CCAFE000C /* OwlProviderAuthGateTests.swift */,
+				FA00090BCAFE009BCAFE009B /* OwlAIContextAssemblerTests.swift */,
+				FA5C0DE100000000000000C4 /* OwlTextInserterTests.swift */,
+				FA00090DCAFE009DCAFE009D /* OwlAIConversationModelTests.swift */,
 				FA000400CAFE0400CAFE0400 /* CloudRoutingTests.swift */,
-				FA133006CAFE0006CAFE0006 /* FamoVerificationRoutingTests.swift */,
-				FA134006CAFE0006CAFE0006 /* FamoVerificationAnchorsTests.swift */,
-				FA135006CAFE0006CAFE0006 /* FamoVerificationReceiptModelTests.swift */,
-				FA136004CAFE0004CAFE0004 /* FamoPolishPromptCatalogTests.swift */,
-				FA137006CAFE0006CAFE0006 /* FamoSearchControlTests.swift */,
-				FA13A004CAFE0104CAFE0104 /* FamoWebSearchTests.swift */,
-				FA137008CAFE0008CAFE0008 /* FamoAskSearchResolverTests.swift */,
-				FA138006CAFE0006CAFE0006 /* FamoResponsesStreamingClientTests.swift */,
-				FA107004CAFE0004CAFE0107 /* FamoAskAnythingModuleTests.swift */,
-				FA139004CAFE0004CAFE0004 /* FamoPromptOptimizerTests.swift */,
-				FA140002CAFE0002CAFE0002 /* FamoPromptOptimizeLiveTests.swift */,
-				FA142004CAFE0004CAFE0004 /* FamoGoalBriefTests.swift */,
-				FA143002CAFE0002CAFE0002 /* FamoGoalBriefLiveTests.swift */,
-				FA141002CAFE0002CAFE0002 /* FamoSkillsLiveTests.swift */,
+				FA133006CAFE0006CAFE0006 /* OwlVerificationRoutingTests.swift */,
+				FA134006CAFE0006CAFE0006 /* OwlVerificationAnchorsTests.swift */,
+				FA135006CAFE0006CAFE0006 /* OwlVerificationReceiptModelTests.swift */,
+				FA136004CAFE0004CAFE0004 /* OwlPolishPromptCatalogTests.swift */,
+				FA137006CAFE0006CAFE0006 /* OwlSearchControlTests.swift */,
+				FA13A004CAFE0104CAFE0104 /* OwlWebSearchTests.swift */,
+				FA137008CAFE0008CAFE0008 /* OwlAskSearchResolverTests.swift */,
+				FA138006CAFE0006CAFE0006 /* OwlResponsesStreamingClientTests.swift */,
+				FA107004CAFE0004CAFE0107 /* OwlAskAnythingModuleTests.swift */,
+				FA139004CAFE0004CAFE0004 /* OwlPromptOptimizerTests.swift */,
+				FA140002CAFE0002CAFE0002 /* OwlPromptOptimizeLiveTests.swift */,
+				FA142004CAFE0004CAFE0004 /* OwlGoalBriefTests.swift */,
+				FA143002CAFE0002CAFE0002 /* OwlGoalBriefLiveTests.swift */,
+				FA141002CAFE0002CAFE0002 /* OwlSkillsLiveTests.swift */,
 				FA0000CACAFE00CACAFE00CA /* TerminologyTests.swift */,
 				FA0000F7CAFE00F7CAFE00F7 /* RimeSeamTests.swift */,
-				FA000A01CAFE0A01CAFE0A01 /* FamoGetAppOptionsRoundTripTests.swift */,
+				FA000A01CAFE0A01CAFE0A01 /* OwlGetAppOptionsRoundTripTests.swift */,
 				FAA00010CAFE0010CAFE0010 /* RimeCompositionRendererTests.swift */,
-				FAA00023CAFE0023CAFE0023 /* FamoUpdateLogoutPromptTests.swift */,
-				FAA00035CAFE0035CAFE0035 /* FamoUserDictResetTests.swift */,
+				FAA00023CAFE0023CAFE0023 /* OwlUpdateLogoutPromptTests.swift */,
+				FAA00035CAFE0035CAFE0035 /* OwlUserDictResetTests.swift */,
 				FA0000F9CAFE00F9CAFE00F9 /* SeamPortsTests.swift */,
 				FA0000FBCAFE00FBCAFE00FB /* CandidateStorePortTests.swift */,
-				FA000703CAFE0703CAFE0703 /* FamoLaneTasksTests.swift */,
+				FA000703CAFE0703CAFE0703 /* OwlLaneTasksTests.swift */,
 				FA0000E1CAFE00E1CAFE00E1 /* BertTokenizerTests.swift */,
 				FA000507CAFE0507CAFE0507 /* BackspaceCorrectionTests.swift */,
 			);
@@ -1239,122 +1239,122 @@
 			buildActionMask = 2147483647;
 			files = (
 				B39771232BECEA150093A49B /* MacOSKeyCodes.swift in Sources */,
-				FA000130CAFE0130CAFE0130 /* FamoUserAction.swift in Sources */,
-				FA000132CAFE0132CAFE0132 /* FamoInputController+ClientAction.swift in Sources */,
-				FA000203CAFE0203CAFE0203 /* FamoStyleFlags.swift in Sources */,
-				B38E9B952BEAFEFD0036ABEF /* FamoInputController.swift in Sources */,
-				FA000101CAFE0101CAFE0101 /* FamoInputMenuTitles.swift in Sources */,
-				FA000103CAFE0103CAFE0103 /* FamoInputController+Menu.swift in Sources */,
-				FA000105CAFE0105CAFE0105 /* FamoInputController+RimeUpdate.swift in Sources */,
-				FA000107CAFE0107CAFE0107 /* FamoInputController+Lifecycle.swift in Sources */,
-				FA000109CAFE0109CAFE0109 /* FamoInputController+Session.swift in Sources */,
-				FA00010BCAFE010BCAFE010B /* FamoInputController+RimeOptions.swift in Sources */,
-				B39771252BED899F0093A49B /* FamoConfig.swift in Sources */,
+				FA000130CAFE0130CAFE0130 /* OwlUserAction.swift in Sources */,
+				FA000132CAFE0132CAFE0132 /* OwlInputController+ClientAction.swift in Sources */,
+				FA000203CAFE0203CAFE0203 /* OwlStyleFlags.swift in Sources */,
+				B38E9B952BEAFEFD0036ABEF /* OwlInputController.swift in Sources */,
+				FA000101CAFE0101CAFE0101 /* OwlInputMenuTitles.swift in Sources */,
+				FA000103CAFE0103CAFE0103 /* OwlInputController+Menu.swift in Sources */,
+				FA000105CAFE0105CAFE0105 /* OwlInputController+RimeUpdate.swift in Sources */,
+				FA000107CAFE0107CAFE0107 /* OwlInputController+Lifecycle.swift in Sources */,
+				FA000109CAFE0109CAFE0109 /* OwlInputController+Session.swift in Sources */,
+				FA00010BCAFE010BCAFE010B /* OwlInputController+RimeOptions.swift in Sources */,
+				B39771252BED899F0093A49B /* OwlConfig.swift in Sources */,
 				B397712F2BEECBED0093A49B /* Main.swift in Sources */,
 				B397712D2BEEB39D0093A49B /* InputSource.swift in Sources */,
-				FA000201CAFE0201CAFE0201 /* FamoStatusHUD.swift in Sources */,
-				FA000011CAFE0011CAFE0011 /* FamoCandidatePanelState.swift in Sources */,
-				FA000012CAFE0012CAFE0012 /* FamoCandidatePanelView.swift in Sources */,
-				FA010801CAFE0108CAFE0108 /* FamoCandidatePanelGeometry.swift in Sources */,
-				FA000013CAFE0013CAFE0013 /* FamoSwiftUICandidatePanel.swift in Sources */,
-				FA000014CAFE0014CAFE0014 /* FamoSettingsState.swift in Sources */,
-				FA000118CAFE0118CAFE0118 /* FamoSettingsActions+Stores.swift in Sources */,
-				FA000015CAFE0015CAFE0015 /* FamoSettingsView.swift in Sources */,
-				FA000016CAFE0016CAFE0016 /* FamoSettingsWindow.swift in Sources */,
-				FA000017CAFE0017CAFE0017 /* FamoPanelPreferences.swift in Sources */,
-				FA112003CAFE0003CAFE0112 /* FamoCandidatePanelSettings.swift in Sources */,
-				FA000018CAFE0018CAFE0018 /* FamoSettingsComponents.swift in Sources */,
-				FA000019CAFE0019CAFE0019 /* FamoSettingsPages.swift in Sources */,
-				FA000050CAFE0050CAFE0050 /* FamoEmojiData.swift in Sources */,
-				FA000051CAFE0051CAFE0051 /* FamoEmojiPanelView.swift in Sources */,
-				FA000052CAFE0052CAFE0052 /* FamoEmojiPanel.swift in Sources */,
-				FAA00002CAFE0002CAFE0002 /* FamoFloatingPanelPositioner.swift in Sources */,
-				FAA00041CAFE0041CAFE0041 /* FamoHostCaretAnchorMemory.swift in Sources */,
-				FAA00004CAFE0004CAFE0004 /* FamoPanelInsertionBroker.swift in Sources */,
-				FA0000D5CAFE00D5CAFE00D5 /* FamoQuickSendPanel.swift in Sources */,
-				FA0000E7CAFE00E7CAFE00E7 /* FamoQuickSendHotKey.swift in Sources */,
-				FA000043CAFE0043CAFE0043 /* FamoThemes.swift in Sources */,
-				FA000044CAFE0044CAFE0044 /* FamoEmojiPreferences.swift in Sources */,
-				FA0000FECAFE00FECAFE00FE /* FamoPromptStore.swift in Sources */,
-				FADADA02CAFE0002CAFE0002 /* FamoPromptPage.swift in Sources */,
-				FA000020CAFE0020CAFE0020 /* FamoKeyboardPreferences.swift in Sources */,
-				FAAB0001CAFE0001CAFE0001 /* FamoAutoPair.swift in Sources */,
-				FA07070001CAFE0001CAFE07 /* FamoForcedFinalize.swift in Sources */,
-				FA0707510001CAFE0051CA07 /* FamoSchemaSelectionGate.swift in Sources */,
-				FA0709340001CAFE0034CA07 /* FamoClientCapabilityPolicy.swift in Sources */,
-				FA0709AA0001CAFE00AACA07 /* FamoElectronHostDetector.swift in Sources */,
-				FA0709340003CAFE0035CA07 /* FamoLatencyTrace.swift in Sources */,
-				FA0709890003CAFE0089CA07 /* FamoMarkedTextResendPolicy.swift in Sources */,
-				FA0709350001CAFE0037CA07 /* FamoLiveInputTrace.swift in Sources */,
+				FA000201CAFE0201CAFE0201 /* OwlStatusHUD.swift in Sources */,
+				FA000011CAFE0011CAFE0011 /* OwlCandidatePanelState.swift in Sources */,
+				FA000012CAFE0012CAFE0012 /* OwlCandidatePanelView.swift in Sources */,
+				FA010801CAFE0108CAFE0108 /* OwlCandidatePanelGeometry.swift in Sources */,
+				FA000013CAFE0013CAFE0013 /* OwlSwiftUICandidatePanel.swift in Sources */,
+				FA000014CAFE0014CAFE0014 /* OwlSettingsState.swift in Sources */,
+				FA000118CAFE0118CAFE0118 /* OwlSettingsActions+Stores.swift in Sources */,
+				FA000015CAFE0015CAFE0015 /* OwlSettingsView.swift in Sources */,
+				FA000016CAFE0016CAFE0016 /* OwlSettingsWindow.swift in Sources */,
+				FA000017CAFE0017CAFE0017 /* OwlPanelPreferences.swift in Sources */,
+				FA112003CAFE0003CAFE0112 /* OwlCandidatePanelSettings.swift in Sources */,
+				FA000018CAFE0018CAFE0018 /* OwlSettingsComponents.swift in Sources */,
+				FA000019CAFE0019CAFE0019 /* OwlSettingsPages.swift in Sources */,
+				FA000050CAFE0050CAFE0050 /* OwlEmojiData.swift in Sources */,
+				FA000051CAFE0051CAFE0051 /* OwlEmojiPanelView.swift in Sources */,
+				FA000052CAFE0052CAFE0052 /* OwlEmojiPanel.swift in Sources */,
+				FAA00002CAFE0002CAFE0002 /* OwlFloatingPanelPositioner.swift in Sources */,
+				FAA00041CAFE0041CAFE0041 /* OwlHostCaretAnchorMemory.swift in Sources */,
+				FAA00004CAFE0004CAFE0004 /* OwlPanelInsertionBroker.swift in Sources */,
+				FA0000D5CAFE00D5CAFE00D5 /* OwlQuickSendPanel.swift in Sources */,
+				FA0000E7CAFE00E7CAFE00E7 /* OwlQuickSendHotKey.swift in Sources */,
+				FA000043CAFE0043CAFE0043 /* OwlThemes.swift in Sources */,
+				FA000044CAFE0044CAFE0044 /* OwlEmojiPreferences.swift in Sources */,
+				FA0000FECAFE00FECAFE00FE /* OwlPromptStore.swift in Sources */,
+				FADADA02CAFE0002CAFE0002 /* OwlPromptPage.swift in Sources */,
+				FA000020CAFE0020CAFE0020 /* OwlKeyboardPreferences.swift in Sources */,
+				FAAB0001CAFE0001CAFE0001 /* OwlAutoPair.swift in Sources */,
+				FA07070001CAFE0001CAFE07 /* OwlForcedFinalize.swift in Sources */,
+				FA0707510001CAFE0051CA07 /* OwlSchemaSelectionGate.swift in Sources */,
+				FA0709340001CAFE0034CA07 /* OwlClientCapabilityPolicy.swift in Sources */,
+				FA0709AA0001CAFE00AACA07 /* OwlElectronHostDetector.swift in Sources */,
+				FA0709340003CAFE0035CA07 /* OwlLatencyTrace.swift in Sources */,
+				FA0709890003CAFE0089CA07 /* OwlMarkedTextResendPolicy.swift in Sources */,
+				FA0709350001CAFE0037CA07 /* OwlLiveInputTrace.swift in Sources */,
 				FA0707520001CAFE0061CA07 /* RimeConfigDiagnostics.swift in Sources */,
-				FA000021CAFE0021CAFE0021 /* FamoKeyboardPage.swift in Sources */,
-				FACE0106FACE0106FACE0106 /* FamoSelectionMenuCoordinator.swift in Sources */,
-				FACE0101FACE0101FACE0101 /* FamoSkinPage.swift in Sources */,
-				FACE0102FACE0102FACE0102 /* FamoQuickSendPage.swift in Sources */,
-				FACE0103FACE0103FACE0103 /* FamoClipboardPage.swift in Sources */,
-				FACE0104FACE0104FACE0104 /* FamoSkillsPage.swift in Sources */,
-				FACE0105FACE0105FACE0105 /* FamoAIPage.swift in Sources */,
-				FA000022CAFE0022CAFE0022 /* FamoRimePatchBuilder.swift in Sources */,
-				FA000023CAFE0023CAFE0023 /* FamoOnboardingWindow.swift in Sources */,
-				FA000024CAFE0024CAFE0024 /* FamoOnboardingView.swift in Sources */,
-				FA000025CAFE0025CAFE0025 /* FamoFuzzyPreferences.swift in Sources */,
-				FA000026CAFE0026CAFE0026 /* FamoFuzzySheet.swift in Sources */,
-				FADD0002CAFE0002CAFE0002 /* FamoAppEnglishSheet.swift in Sources */,
-				FA000030CAFE0030CAFE0030 /* FamoConfigWriter.swift in Sources */,
-				FA000032CAFE0032CAFE0032 /* FamoWritePreviewSheet.swift in Sources */,
-				FA000061CAFE0061CAFE0061 /* FamoCompositionSnapshot.swift in Sources */,
-				FA000063CAFE0063CAFE0063 /* FamoSnapshotRegistry.swift in Sources */,
-				FA000065CAFE0065CAFE0065 /* FamoCandidateStore.swift in Sources */,
-				FA000067CAFE0067CAFE0067 /* FamoSnapshotEmitter.swift in Sources */,
-				FA000069CAFE0069CAFE0069 /* FamoExternalCommitBroker.swift in Sources */,
-				FA000071CAFE0071CAFE0071 /* FamoCloudFoundation.swift in Sources */,
-				FAD1CF02CAFEDF02CAFEDF02 /* FamoDictPack.swift in Sources */,
-				FAD1CF04CAFEDF04CAFEDF04 /* FamoDictPackFetcher.swift in Sources */,
-				FAD1CF06CAFEDF06CAFEDF06 /* FamoDictPackCenter.swift in Sources */,
-				FAD1CF08CAFEDF08CAFEDF08 /* FamoDictPackManifestData.swift in Sources */,
-				FA000800CAFE0080CAFE0080 /* FamoStreamingChatClient.swift in Sources */,
-				FA000900CAFE0090CAFE0090 /* FamoAIContextAssembler.swift in Sources */,
-				FA000902CAFE0092CAFE0092 /* FamoAIConversationModel.swift in Sources */,
-				FA000904CAFE0094CAFE0094 /* FamoAIWindow.swift in Sources */,
-				FA000910CAFE0096CAFE0096 /* FamoPromptFillSheet.swift in Sources */,
-				FA000906CAFE0096CAFE0096 /* FamoAIConversationView.swift in Sources */,
-				FA000700CAFE0700CAFE0700 /* FamoLaneTasks.swift in Sources */,
-				FA000301CAFE0301CAFE0301 /* FamoProviderProfile.swift in Sources */,
-				FA0000B1CAFE00B1CAFE00B1 /* FamoSelectionPolish.swift in Sources */,
-				FAA00009CAFE0009CAFE0009 /* FamoProviderAuthGate.swift in Sources */,
-				FA133001CAFE0001CAFE0001 /* FamoVerificationRouting.swift in Sources */,
-				FA133003CAFE0003CAFE0003 /* FamoCNKIExpertQueryBuilder.swift in Sources */,
-				FA134001CAFE0001CAFE0001 /* FamoVerificationAnchors.swift in Sources */,
-				FA135001CAFE0001CAFE0001 /* FamoVerificationReceiptModel.swift in Sources */,
-				FA135003CAFE0003CAFE0003 /* FamoVerificationReceiptCard.swift in Sources */,
-				FA134003CAFE0003CAFE0003 /* FamoSelectionVerifyMenu.swift in Sources */,
-				FA136001CAFE0001CAFE0001 /* FamoPolishPromptCatalog.swift in Sources */,
-				FA137001CAFE0001CAFE0001 /* FamoSearchControl.swift in Sources */,
-				FA137003CAFE0003CAFE0003 /* FamoAskSearchResolver.swift in Sources */,
-				FA138001CAFE0001CAFE0001 /* FamoResponsesWire.swift in Sources */,
-				FA13A001CAFE0101CAFE0101 /* FamoWebSearch.swift in Sources */,
-				FA138003CAFE0003CAFE0003 /* FamoResponsesStreamingClient.swift in Sources */,
-				FA107001CAFE0001CAFE0107 /* FamoAskAnythingModule.swift in Sources */,
-				FA110001CAFE0001CAFE0001 /* FamoStructuredDrafting.swift in Sources */,
-				FA139001CAFE0001CAFE0001 /* FamoPromptOptimizer.swift in Sources */,
-				FA142001CAFE0001CAFE0001 /* FamoGoalBrief.swift in Sources */,
-				FA5C0DE100000000000000C1 /* FamoTextInserter.swift in Sources */,
-				FA0000C3CAFE00C3CAFE00C3 /* FamoProject.swift in Sources */,
-				FA0000C5CAFE00C5CAFE00C5 /* FamoProjectStore.swift in Sources */,
-				FA0000C9CAFE00C9CAFE00C9 /* FamoTerminology.swift in Sources */,
+				FA000021CAFE0021CAFE0021 /* OwlKeyboardPage.swift in Sources */,
+				FACE0106FACE0106FACE0106 /* OwlSelectionMenuCoordinator.swift in Sources */,
+				FACE0101FACE0101FACE0101 /* OwlSkinPage.swift in Sources */,
+				FACE0102FACE0102FACE0102 /* OwlQuickSendPage.swift in Sources */,
+				FACE0103FACE0103FACE0103 /* OwlClipboardPage.swift in Sources */,
+				FACE0104FACE0104FACE0104 /* OwlSkillsPage.swift in Sources */,
+				FACE0105FACE0105FACE0105 /* OwlAIPage.swift in Sources */,
+				FA000022CAFE0022CAFE0022 /* OwlRimePatchBuilder.swift in Sources */,
+				FA000023CAFE0023CAFE0023 /* OwlOnboardingWindow.swift in Sources */,
+				FA000024CAFE0024CAFE0024 /* OwlOnboardingView.swift in Sources */,
+				FA000025CAFE0025CAFE0025 /* OwlFuzzyPreferences.swift in Sources */,
+				FA000026CAFE0026CAFE0026 /* OwlFuzzySheet.swift in Sources */,
+				FADD0002CAFE0002CAFE0002 /* OwlAppEnglishSheet.swift in Sources */,
+				FA000030CAFE0030CAFE0030 /* OwlConfigWriter.swift in Sources */,
+				FA000032CAFE0032CAFE0032 /* OwlWritePreviewSheet.swift in Sources */,
+				FA000061CAFE0061CAFE0061 /* OwlCompositionSnapshot.swift in Sources */,
+				FA000063CAFE0063CAFE0063 /* OwlSnapshotRegistry.swift in Sources */,
+				FA000065CAFE0065CAFE0065 /* OwlCandidateStore.swift in Sources */,
+				FA000067CAFE0067CAFE0067 /* OwlSnapshotEmitter.swift in Sources */,
+				FA000069CAFE0069CAFE0069 /* OwlExternalCommitBroker.swift in Sources */,
+				FA000071CAFE0071CAFE0071 /* OwlCloudFoundation.swift in Sources */,
+				FAD1CF02CAFEDF02CAFEDF02 /* OwlDictPack.swift in Sources */,
+				FAD1CF04CAFEDF04CAFEDF04 /* OwlDictPackFetcher.swift in Sources */,
+				FAD1CF06CAFEDF06CAFEDF06 /* OwlDictPackCenter.swift in Sources */,
+				FAD1CF08CAFEDF08CAFEDF08 /* OwlDictPackManifestData.swift in Sources */,
+				FA000800CAFE0080CAFE0080 /* OwlStreamingChatClient.swift in Sources */,
+				FA000900CAFE0090CAFE0090 /* OwlAIContextAssembler.swift in Sources */,
+				FA000902CAFE0092CAFE0092 /* OwlAIConversationModel.swift in Sources */,
+				FA000904CAFE0094CAFE0094 /* OwlAIWindow.swift in Sources */,
+				FA000910CAFE0096CAFE0096 /* OwlPromptFillSheet.swift in Sources */,
+				FA000906CAFE0096CAFE0096 /* OwlAIConversationView.swift in Sources */,
+				FA000700CAFE0700CAFE0700 /* OwlLaneTasks.swift in Sources */,
+				FA000301CAFE0301CAFE0301 /* OwlProviderProfile.swift in Sources */,
+				FA0000B1CAFE00B1CAFE00B1 /* OwlSelectionPolish.swift in Sources */,
+				FAA00009CAFE0009CAFE0009 /* OwlProviderAuthGate.swift in Sources */,
+				FA133001CAFE0001CAFE0001 /* OwlVerificationRouting.swift in Sources */,
+				FA133003CAFE0003CAFE0003 /* OwlCNKIExpertQueryBuilder.swift in Sources */,
+				FA134001CAFE0001CAFE0001 /* OwlVerificationAnchors.swift in Sources */,
+				FA135001CAFE0001CAFE0001 /* OwlVerificationReceiptModel.swift in Sources */,
+				FA135003CAFE0003CAFE0003 /* OwlVerificationReceiptCard.swift in Sources */,
+				FA134003CAFE0003CAFE0003 /* OwlSelectionVerifyMenu.swift in Sources */,
+				FA136001CAFE0001CAFE0001 /* OwlPolishPromptCatalog.swift in Sources */,
+				FA137001CAFE0001CAFE0001 /* OwlSearchControl.swift in Sources */,
+				FA137003CAFE0003CAFE0003 /* OwlAskSearchResolver.swift in Sources */,
+				FA138001CAFE0001CAFE0001 /* OwlResponsesWire.swift in Sources */,
+				FA13A001CAFE0101CAFE0101 /* OwlWebSearch.swift in Sources */,
+				FA138003CAFE0003CAFE0003 /* OwlResponsesStreamingClient.swift in Sources */,
+				FA107001CAFE0001CAFE0107 /* OwlAskAnythingModule.swift in Sources */,
+				FA110001CAFE0001CAFE0001 /* OwlStructuredDrafting.swift in Sources */,
+				FA139001CAFE0001CAFE0001 /* OwlPromptOptimizer.swift in Sources */,
+				FA142001CAFE0001CAFE0001 /* OwlGoalBrief.swift in Sources */,
+				FA5C0DE100000000000000C1 /* OwlTextInserter.swift in Sources */,
+				FA0000C3CAFE00C3CAFE00C3 /* OwlProject.swift in Sources */,
+				FA0000C5CAFE00C5CAFE00C5 /* OwlProjectStore.swift in Sources */,
+				FA0000C9CAFE00C9CAFE00C9 /* OwlTerminology.swift in Sources */,
 				FA0000F2CAFE00F2CAFE00F2 /* RimeOption.swift in Sources */,
 				FA0000F4CAFE00F4CAFE00F4 /* RimeValueTypes.swift in Sources */,
 				FAA0000DCAFE000DCAFE000D /* RimeCompositionRenderer.swift in Sources */,
 				FA0000F6CAFE00F6CAFE00F6 /* RimeSeam.swift in Sources */,
-				FAA00032CAFE0032CAFE0032 /* FamoUserDictReset.swift in Sources */,
-				FA0000D9CAFE00D9CAFE00D9 /* FamoExperimentalPreferences.swift in Sources */,
-				FA0000DDCAFE00DDCAFE00DD /* FamoBertTokenizer.swift in Sources */,
-				FA000502CAFE0502CAFE0502 /* FamoBackspaceCorrection.swift in Sources */,
-				FA000504CAFE0504CAFE0504 /* FamoMacbertCscScorer.swift in Sources */,
-				B38E9B912BE9AE1E0036ABEF /* FamoApplicationDelegate.swift in Sources */,
-				FAA00020CAFE0020CAFE0020 /* FamoUpdateLogoutPrompt.swift in Sources */,
-				FAA00030CAFE0030CAFE0030 /* FamoUserDictResetPrompt.swift in Sources */,
-				FA0001F0CAFE01F0CAFE01F0 /* FamoApplicationDelegate+FastApply.swift in Sources */,
+				FAA00032CAFE0032CAFE0032 /* OwlUserDictReset.swift in Sources */,
+				FA0000D9CAFE00D9CAFE00D9 /* OwlExperimentalPreferences.swift in Sources */,
+				FA0000DDCAFE00DDCAFE00DD /* OwlBertTokenizer.swift in Sources */,
+				FA000502CAFE0502CAFE0502 /* OwlBackspaceCorrection.swift in Sources */,
+				FA000504CAFE0504CAFE0504 /* OwlMacbertCscScorer.swift in Sources */,
+				B38E9B912BE9AE1E0036ABEF /* OwlApplicationDelegate.swift in Sources */,
+				FAA00020CAFE0020CAFE0020 /* OwlUpdateLogoutPrompt.swift in Sources */,
+				FAA00030CAFE0030CAFE0030 /* OwlUserDictResetPrompt.swift in Sources */,
+				FA0001F0CAFE01F0CAFE01F0 /* OwlApplicationDelegate+FastApply.swift in Sources */,
 				B35D2FE82BF00839009D156B /* BridgingFunctions.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1364,71 +1364,71 @@
 			buildActionMask = 2147483647;
 			files = (
 				FA000081CAFE0081CAFE0081 /* SnapshotValidityTests.swift in Sources */,
-				FA000113CAFE0113CAFE0113 /* FamoSettingsE2ETests.swift in Sources */,
-				FA000115CAFE0115CAFE0115 /* FamoSettingsActionTests.swift in Sources */,
-				FA00011ACAFE011ACAFE011A /* FamoSettingsCoverageTests.swift in Sources */,
+				FA000113CAFE0113CAFE0113 /* OwlSettingsE2ETests.swift in Sources */,
+				FA000115CAFE0115CAFE0115 /* OwlSettingsActionTests.swift in Sources */,
+				FA00011ACAFE011ACAFE011A /* OwlSettingsCoverageTests.swift in Sources */,
 				FA0000A1CAFE00A1CAFE00A1 /* ActivationPolicyTests.swift in Sources */,
 				FAC10001CAFE0001CAFE0001 /* InstallerActivationPolicyTests.swift in Sources */,
 				FAC10003CAFE0003CAFE0003 /* InstallerActivationPolicy.swift in Sources */,
 				FA000134CAFE0134CAFE0134 /* KeyTranslationTests.swift in Sources */,
 				FA000083CAFE0083CAFE0083 /* CandidateStoreTests.swift in Sources */,
-				FAD1CF0ACAFEDF0ACAFEDF0A /* FamoDictPackTests.swift in Sources */,
-				FA000E02CAFE0E02CAFE0E02 /* FamoKeyboardPatchBuilderTests.swift in Sources */,
+				FAD1CF0ACAFEDF0ACAFEDF0A /* OwlDictPackTests.swift in Sources */,
+				FA000E02CAFE0E02CAFE0E02 /* OwlKeyboardPatchBuilderTests.swift in Sources */,
 				FA000085CAFE0085CAFE0085 /* HotPathLatencyTests.swift in Sources */,
-				FA000087CAFE0087CAFE0087 /* FamoM3EmojiSkinTests.swift in Sources */,
+				FA000087CAFE0087CAFE0087 /* OwlM3EmojiSkinTests.swift in Sources */,
 				FA0000C7CAFE00C7CAFE00C7 /* ProjectStoreTests.swift in Sources */,
-				FA00001ACAFE001ACAFE001A /* FamoPromptStoreTests.swift in Sources */,
-				FADC2608FADC2608FADC2608 /* FamoQuickSendStoreTests.swift in Sources */,
-				FA000450CAFE0050CAFE0050 /* FamoQuickSendPanelModelTests.swift in Sources */,
-				FAAB0003CAFE0003CAFE0003 /* FamoAutoPairTests.swift in Sources */,
-				FA07070003CAFE0003CAFE07 /* FamoForcedFinalizeTests.swift in Sources */,
-				FA07070013CAFE0013CAFE07 /* FamoStyleFlagsTests.swift in Sources */,
-				FA0707510003CAFE0053CA07 /* FamoSchemaSelectionGateTests.swift in Sources */,
-				FA0709360001CAFE0039CA07 /* FamoClientCapabilityPolicyTests.swift in Sources */,
-				FA0721000001CAFE0001CA07 /* FamoSelectionMenuTriggerTests.swift in Sources */,
-				FA0709360003CAFE0041CA07 /* FamoLiveInputTraceTests.swift in Sources */,
-				FA0709900003CAFE0091CA07 /* FamoMarkedTextResendPolicyTests.swift in Sources */,
+				FA00001ACAFE001ACAFE001A /* OwlPromptStoreTests.swift in Sources */,
+				FADC2608FADC2608FADC2608 /* OwlQuickSendStoreTests.swift in Sources */,
+				FA000450CAFE0050CAFE0050 /* OwlQuickSendPanelModelTests.swift in Sources */,
+				FAAB0003CAFE0003CAFE0003 /* OwlAutoPairTests.swift in Sources */,
+				FA07070003CAFE0003CAFE07 /* OwlForcedFinalizeTests.swift in Sources */,
+				FA07070013CAFE0013CAFE07 /* OwlStyleFlagsTests.swift in Sources */,
+				FA0707510003CAFE0053CA07 /* OwlSchemaSelectionGateTests.swift in Sources */,
+				FA0709360001CAFE0039CA07 /* OwlClientCapabilityPolicyTests.swift in Sources */,
+				FA0721000001CAFE0001CA07 /* OwlSelectionMenuTriggerTests.swift in Sources */,
+				FA0709360003CAFE0041CA07 /* OwlLiveInputTraceTests.swift in Sources */,
+				FA0709900003CAFE0091CA07 /* OwlMarkedTextResendPolicyTests.swift in Sources */,
 				FA0707520003CAFE0063CA07 /* RimeConfigDiagnosticsTests.swift in Sources */,
-				FA000912CAFE0098CAFE0098 /* FamoPromptInterceptionTests.swift in Sources */,
-				FADADA04CAFE0004CAFE0004 /* FamoPromptPageRenderTests.swift in Sources */,
-				FA000601CAFE0601CAFE0601 /* FamoPanelContentTests.swift in Sources */,
-				FA112001CAFE0001CAFE0112 /* FamoCandidatePanelSettingsTests.swift in Sources */,
-				FA117001CAFE0001CAFE0117 /* FamoCandidatePanelAppearanceLifecycleTests.swift in Sources */,
-				FA118001CAFE0001CAFE0118 /* FamoCandidatePanelDisplayLifecycleTests.swift in Sources */,
-				FA000501CAFE0501CAFE0501 /* FamoCandidateAnchorTests.swift in Sources */,
-				FAA00006CAFE0006CAFE0006 /* FamoFloatingPanelPositionerTests.swift in Sources */,
-				FAA00043CAFE0043CAFE0043 /* FamoHostCaretAnchorMemoryTests.swift in Sources */,
-				FAA00008CAFE0008CAFE0008 /* FamoPanelInsertionBrokerTests.swift in Sources */,
+				FA000912CAFE0098CAFE0098 /* OwlPromptInterceptionTests.swift in Sources */,
+				FADADA04CAFE0004CAFE0004 /* OwlPromptPageRenderTests.swift in Sources */,
+				FA000601CAFE0601CAFE0601 /* OwlPanelContentTests.swift in Sources */,
+				FA112001CAFE0001CAFE0112 /* OwlCandidatePanelSettingsTests.swift in Sources */,
+				FA117001CAFE0001CAFE0117 /* OwlCandidatePanelAppearanceLifecycleTests.swift in Sources */,
+				FA118001CAFE0001CAFE0118 /* OwlCandidatePanelDisplayLifecycleTests.swift in Sources */,
+				FA000501CAFE0501CAFE0501 /* OwlCandidateAnchorTests.swift in Sources */,
+				FAA00006CAFE0006CAFE0006 /* OwlFloatingPanelPositionerTests.swift in Sources */,
+				FAA00043CAFE0043CAFE0043 /* OwlHostCaretAnchorMemoryTests.swift in Sources */,
+				FAA00008CAFE0008CAFE0008 /* OwlPanelInsertionBrokerTests.swift in Sources */,
 				FA000303CAFE0303CAFE0303 /* ProviderProfileStoreTests.swift in Sources */,
-				FA000802CAFE0082CAFE0082 /* FamoStreamingChatClientTests.swift in Sources */,
-				FAA0000BCAFE000BCAFE000B /* FamoProviderAuthGateTests.swift in Sources */,
-				FA00090ACAFE009ACAFE009A /* FamoAIContextAssemblerTests.swift in Sources */,
-				FA5C0DE100000000000000C3 /* FamoTextInserterTests.swift in Sources */,
-				FA00090CCAFE009CCAFE009C /* FamoAIConversationModelTests.swift in Sources */,
+				FA000802CAFE0082CAFE0082 /* OwlStreamingChatClientTests.swift in Sources */,
+				FAA0000BCAFE000BCAFE000B /* OwlProviderAuthGateTests.swift in Sources */,
+				FA00090ACAFE009ACAFE009A /* OwlAIContextAssemblerTests.swift in Sources */,
+				FA5C0DE100000000000000C3 /* OwlTextInserterTests.swift in Sources */,
+				FA00090CCAFE009CCAFE009C /* OwlAIConversationModelTests.swift in Sources */,
 				FA000401CAFE0401CAFE0401 /* CloudRoutingTests.swift in Sources */,
-				FA133005CAFE0005CAFE0005 /* FamoVerificationRoutingTests.swift in Sources */,
-				FA134005CAFE0005CAFE0005 /* FamoVerificationAnchorsTests.swift in Sources */,
-				FA135005CAFE0005CAFE0005 /* FamoVerificationReceiptModelTests.swift in Sources */,
-				FA136003CAFE0003CAFE0003 /* FamoPolishPromptCatalogTests.swift in Sources */,
-				FA137005CAFE0005CAFE0005 /* FamoSearchControlTests.swift in Sources */,
-				FA13A003CAFE0103CAFE0103 /* FamoWebSearchTests.swift in Sources */,
-				FA137007CAFE0007CAFE0007 /* FamoAskSearchResolverTests.swift in Sources */,
-				FA138005CAFE0005CAFE0005 /* FamoResponsesStreamingClientTests.swift in Sources */,
-				FA107003CAFE0003CAFE0107 /* FamoAskAnythingModuleTests.swift in Sources */,
-				FA139003CAFE0003CAFE0003 /* FamoPromptOptimizerTests.swift in Sources */,
-				FA140001CAFE0001CAFE0001 /* FamoPromptOptimizeLiveTests.swift in Sources */,
-				FA142003CAFE0003CAFE0003 /* FamoGoalBriefTests.swift in Sources */,
-				FA143001CAFE0001CAFE0001 /* FamoGoalBriefLiveTests.swift in Sources */,
-				FA141001CAFE0001CAFE0001 /* FamoSkillsLiveTests.swift in Sources */,
+				FA133005CAFE0005CAFE0005 /* OwlVerificationRoutingTests.swift in Sources */,
+				FA134005CAFE0005CAFE0005 /* OwlVerificationAnchorsTests.swift in Sources */,
+				FA135005CAFE0005CAFE0005 /* OwlVerificationReceiptModelTests.swift in Sources */,
+				FA136003CAFE0003CAFE0003 /* OwlPolishPromptCatalogTests.swift in Sources */,
+				FA137005CAFE0005CAFE0005 /* OwlSearchControlTests.swift in Sources */,
+				FA13A003CAFE0103CAFE0103 /* OwlWebSearchTests.swift in Sources */,
+				FA137007CAFE0007CAFE0007 /* OwlAskSearchResolverTests.swift in Sources */,
+				FA138005CAFE0005CAFE0005 /* OwlResponsesStreamingClientTests.swift in Sources */,
+				FA107003CAFE0003CAFE0107 /* OwlAskAnythingModuleTests.swift in Sources */,
+				FA139003CAFE0003CAFE0003 /* OwlPromptOptimizerTests.swift in Sources */,
+				FA140001CAFE0001CAFE0001 /* OwlPromptOptimizeLiveTests.swift in Sources */,
+				FA142003CAFE0003CAFE0003 /* OwlGoalBriefTests.swift in Sources */,
+				FA143001CAFE0001CAFE0001 /* OwlGoalBriefLiveTests.swift in Sources */,
+				FA141001CAFE0001CAFE0001 /* OwlSkillsLiveTests.swift in Sources */,
 				FA0000CBCAFE00CBCAFE00CB /* TerminologyTests.swift in Sources */,
 				FA0000F8CAFE00F8CAFE00F8 /* RimeSeamTests.swift in Sources */,
-				FA000A02CAFE0A02CAFE0A02 /* FamoGetAppOptionsRoundTripTests.swift in Sources */,
+				FA000A02CAFE0A02CAFE0A02 /* OwlGetAppOptionsRoundTripTests.swift in Sources */,
 				FAA0000FCAFE000FCAFE000F /* RimeCompositionRendererTests.swift in Sources */,
-				FAA00022CAFE0022CAFE0022 /* FamoUpdateLogoutPromptTests.swift in Sources */,
-				FAA00034CAFE0034CAFE0034 /* FamoUserDictResetTests.swift in Sources */,
+				FAA00022CAFE0022CAFE0022 /* OwlUpdateLogoutPromptTests.swift in Sources */,
+				FAA00034CAFE0034CAFE0034 /* OwlUserDictResetTests.swift in Sources */,
 				FA0000FACAFE00FACAFE00FA /* SeamPortsTests.swift in Sources */,
 				FA0000FCCAFE00FCCAFE00FC /* CandidateStorePortTests.swift in Sources */,
-				FA000702CAFE0702CAFE0702 /* FamoLaneTasksTests.swift in Sources */,
+				FA000702CAFE0702CAFE0702 /* OwlLaneTasksTests.swift in Sources */,
 				FA0000E2CAFE00E2CAFE00E2 /* BertTokenizerTests.swift in Sources */,
 				FA000506CAFE0506CAFE0506 /* BackspaceCorrectionTests.swift in Sources */,
 				);
@@ -1438,7 +1438,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				FA000121CAFE0121CAFE0121 /* FamoSettingsUITests.swift in Sources */,
+				FA000121CAFE0121CAFE0121 /* OwlSettingsUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1496,7 +1496,7 @@
 				PRODUCT_NAME = Owltype;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "sources/Famo-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "sources/Owltype-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				WRAPPER_EXTENSION = app;
@@ -1552,7 +1552,7 @@
 				PRODUCT_NAME = Owltype;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "sources/Famo-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "sources/Owltype-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				WRAPPER_EXTENSION = app;
 			};
