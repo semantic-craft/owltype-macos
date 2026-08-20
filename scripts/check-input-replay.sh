@@ -8,14 +8,23 @@
 # 复用现有 tools/owl-rime-probe.cc（rime->simulate_key_sequence 已支持 {BackSpace}/
 # {Page_Down}/标点/commit），无需改探针。金值均实测 pin。
 #
-# 覆盖：简候选 / 空格上屏 commit / 标点 / 退格 / 翻页 / 多方案 / 简繁。
+# 覆盖：简候选 / 空格上屏 commit / 标点 / 退格 / 翻页 / 多方案 / 简繁。金样本按方案分流：
+# 被测 SharedSupport 里没有的方案逐条报 SKIP（出厂清洁室种子只带 rime_ice，五笔等走
+# dict-pack），一条都没跑到则判红——「全跳过」不许读成「全过」。
 # 跨 App commit 属 IMK/真机层、探针无法自动化 → 见 smoke-live.sh 的人工 checklist。
 #
 # 用法：  bash scripts/check-input-replay.sh        # 对已装 /Library 或 ~/Library 的 app
 #         OWL_APP=/path/to/Owltype.app bash scripts/check-input-replay.sh
+#
+# 未签名的本地构建也能跑：finalize-release-bundle.py 按设计剥掉全部 linker 签名，
+# 出厂签名要等 release 时的 DEV_ID。Apple silicon 上 dyld 拒绝把未签名 dylib 装进
+# （linker-signed 的）探针进程，所以此时改在临时目录里对整个 bundle 做一份 ad-hoc
+# 签名副本再跑——被测的还是这份构建产物，原产物一个字节不动。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/owl-replay-work.XXXXXX")"
+trap 'rm -rf "$WORK"' EXIT
 
 if [[ -n "${OWL_APP:-}" ]]; then
   APP="$OWL_APP"
@@ -24,31 +33,39 @@ elif [[ -d "/Library/Input Methods/Owltype.app" ]]; then
 else
   APP="$HOME/Library/Input Methods/Owltype.app"
 fi
-SS="$APP/Contents/SharedSupport"
-PROBE="$ROOT/build/owl-rime-probe"
+PROBE="$WORK/owl-rime-probe"
 PROBE_SRC="$ROOT/tools/owl-rime-probe.cc"
+
+[[ -d "$APP" ]] || { printf 'FAIL: installed app not found: %s\n' "$APP" >&2; exit 1; }
+
+# 未签名 bundle → 换成临时目录里的 ad-hoc 签名副本（理由见头注释）。
+if ! codesign -dv "$APP" >/dev/null 2>&1; then
+  printf 'note: %s 未签名（本地构建）；改跑临时目录里的 ad-hoc 签名副本\n' "$APP"
+  cp -R "$APP" "$WORK/Owltype.app"
+  codesign --force --deep --sign - "$WORK/Owltype.app" >/dev/null 2>&1 \
+    || { printf 'FAIL: ad-hoc 签名副本失败\n' >&2; exit 1; }
+  APP="$WORK/Owltype.app"
+fi
+SS="$APP/Contents/SharedSupport"
 
 pass() { printf 'PASS: %s\n' "$1"; }
 fail() { printf 'FAIL: %s\n' "$1" >&2; failed=1; }
 
-[[ -d "$APP" ]] || { printf 'FAIL: installed app not found: %s\n' "$APP" >&2; exit 1; }
 [[ -d "$SS/_user_seed" ]] || { printf 'FAIL: no _user_seed in %s\n' "$SS" >&2; exit 1; }
 
-# Build the probe from source if missing/stale (same invocation as check-installed.sh).
-if [[ ! -x "$PROBE" || "$PROBE_SRC" -nt "$PROBE" ]]; then
-  mkdir -p "$ROOT/build"
-  clang++ -std=c++17 \
-    -I"$ROOT/librime/src" \
-    -Wl,-rpath,"$APP/Contents/Frameworks" \
-    "$PROBE_SRC" \
-    "$APP/Contents/Frameworks/librime.1.dylib" \
-    -o "$PROBE"
-fi
+# 探针每跑一次现编：rpath 把被测 app 的 Frameworks 烧进二进制，缓存下来的那份会指向
+# 上一次的 app（ad-hoc 副本更是每次换目录），静默拿到的就是别的构建的候选。
+clang++ -std=c++17 \
+  -I"$ROOT/librime/src" \
+  -Wl,-rpath,"$APP/Contents/Frameworks" \
+  "$PROBE_SRC" \
+  "$APP/Contents/Frameworks/librime.1.dylib" \
+  -o "$PROBE"
 [[ -x "$PROBE" ]] || { printf 'FAIL: probe not built: %s\n' "$PROBE" >&2; exit 1; }
 
 # Empty user data root, seeded from the bundled _user_seed (fresh per run).
-UD="$(mktemp -d "${TMPDIR:-/tmp}/owl-replay.XXXXXX")"
-trap 'rm -rf "$UD"' EXIT
+UD="$WORK/user"
+mkdir -p "$UD"
 cp -R "$SS/_user_seed/." "$UD/"
 mkdir -p "$UD/build"
 export DYLD_LIBRARY_PATH="$APP/Contents/Frameworks:$APP/Contents/Frameworks/rime-plugins:${DYLD_LIBRARY_PATH:-}"
@@ -89,11 +106,35 @@ field() { # <output> <prefix>
   printf '%s' "${line%%$'\t'*}"
 }
 
+# 先空跑一次探针，stderr 不吞。金样本循环里 stderr 是被丢掉的，探针根本没起来时
+# 16 条会整齐地报「候选='' 期望'你好'」——读起来像方案全崩，实际是进程没跑起来。
+# 这一步把「跑不起来」和「跑起来但候选不对」分开，前者直接把真错误打出来。
+preflight="$("$PROBE" "$SS" "$UD" rime_ice nihao 2>&1)" || {
+  printf 'FAIL: 探针无法启动（不是候选错误）：\n%s\n' "$preflight" >&2
+  exit 1
+}
+grep -q '^candidates=' <<<"$preflight" || {
+  printf 'FAIL: 探针没有输出候选行（不是候选错误）：\n%s\n' "$preflight" >&2
+  exit 1
+}
+
 failed=0
+ran=0
+skipped=0
 for row in "${GOLDEN[@]}"; do
   IFS='|' read -r dim schema keys matcher expected <<<"$row"
-  out="$("$PROBE" "$SS" "$UD" "$schema" "$keys" 2>/dev/null || true)"
   label="$dim [$schema '$keys']"
+  # 出厂种子是清洁室版：只带 rime_ice，五笔 / pinyin_simp / 小鹤要用户知情同意后经
+  # dict-pack 下载（OWLTYPE-SEED-MANIFEST.txt 的 "wubi omitted pending provenance
+  # review"）。方案不在被测 SharedSupport 里时，探针只会回空串——那跟「候选错了」在
+  # 输出上分不开。按方案在场与否分流，跳过的逐条报出来，不做静默截断。
+  if [[ ! -f "$SS/$schema.schema.yaml" ]]; then
+    printf 'SKIP: %s → 该方案不在被测 SharedSupport 里（出厂种子未含，需 dict-pack）\n' "$label"
+    skipped=$((skipped + 1))
+    continue
+  fi
+  ran=$((ran + 1))
+  out="$("$PROBE" "$SS" "$UD" "$schema" "$keys" 2>/dev/null || true)"
   case "$matcher" in
     cand1)
       got="$(field "$out" 'candidate[1]=')"
@@ -117,7 +158,13 @@ for row in "${GOLDEN[@]}"; do
 done
 
 if (( failed )); then
-  printf 'FAIL: 输入金样本回放门（%d 条金样本，有失败）\n' "${#GOLDEN[@]}" >&2
+  printf 'FAIL: 输入金样本回放门（%d 条金样本，%d 条跑过，有失败）\n' "${#GOLDEN[@]}" "$ran" >&2
   exit 1
 fi
-printf 'PASS: 输入金样本回放门（%d 条金样本全过）\n' "${#GOLDEN[@]}"
+# 全部跳过 = 一条都没验，输出上却和「全过」长得一样。这正是本门要挡的形态。
+if (( ran == 0 )); then
+  printf 'FAIL: %d 条金样本一条都没跑（%s 里没有任何金样本方案）\n' "${#GOLDEN[@]}" "$SS" >&2
+  exit 1
+fi
+printf 'PASS: 输入金样本回放门（%d 条金样本：%d 过，%d 跳过——方案不在被测种子里）\n' \
+  "${#GOLDEN[@]}" "$ran" "$skipped"
