@@ -168,10 +168,12 @@
 
 ## 7. 总验收清单（全部勾完才算改名完成）
 
-- [ ] `rg -i 'famo|法墨'` 全仓零残留（白名单外）
-- [ ] `check-identity-residual.sh` 严格模式通过（对产物 .app/.pkg 也扫）
-- [ ] `gate.sh` 全绿；全部 selftest 通过
-- [ ] librime 探针候选验证通过
+> 前四项由票 07 在集成分支上验完并合入 main（合并提交 `3c6ac8f`）；余下各项归 08–11。
+
+- [x] `rg -i 'famo|法墨'` 全仓零残留（白名单外）
+- [x] `check-identity-residual.sh` 严格模式通过（对产物 .app/.pkg 也扫）
+- [x] `gate.sh` 全绿；全部 selftest 通过
+- [x] librime 探针候选验证通过
 - [ ] GitHub 仓库、本地目录、remote、Claude 记忆目录四者一致为 owltype
 - [ ] `responsay.com/owltype/appcast.xml` 在线且正确；`famo/` 路径按计划冻结→删除；Responsay appcast 未被波及
 - [ ] 每台装机：卸载→注销→清 LS→装新→TCC 重授→数据迁移验证，逐机记录
