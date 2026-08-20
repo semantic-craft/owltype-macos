@@ -55,7 +55,8 @@ struct OwlApp {
     }
     return defaultUserDir
   }
-  /// 改名工程 P4 的迁移源：旧「法墨」数据根，与 `defaultUserDir` 同父。
+  /// 改名工程 P4 的迁移源：上一代品牌的数据根，与 `defaultUserDir` 同父（目录名由
+  /// `OwlLegacyDataMigration.legacyDirectoryName` 持有 —— 旧标识字面量只许住在那一个文件里）。
   /// `OWL_TEST_USER_DIR` 覆盖数据根时返回 nil —— 开发 / 测试沙箱里不该搬真实旧数据
   /// （见 `OwlLegacyDataMigration.runIfNeeded`）。
   static var legacyUserDir: URL? {

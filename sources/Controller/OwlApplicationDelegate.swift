@@ -706,7 +706,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   }
 
   func setupRime() {
-    // 改名工程 P4（plan §5）：新 app 首启把旧「法墨」数据整目录复制过来并改名。必须是这里的
+    // 改名工程 P4（plan §5）：新 app 首启把上一代品牌的数据整目录复制过来并改名。必须是这里的
     // 第一句 —— 触发条件是「新数据根还不存在」，下面 prepareDirectory 一建就再也不会命中。
     // 自身幂等（完成标记 + 原子挂载），失败只落日志不阻塞启动。
     OwlLegacyDataMigration.runIfNeeded()

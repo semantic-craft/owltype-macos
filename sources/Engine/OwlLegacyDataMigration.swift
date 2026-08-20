@@ -325,6 +325,17 @@ enum OwlLegacyDataMigration {
           migrated legacy user data → \(currentDir.path, privacy: .public) \
           (renamed \(renamed.count, privacy: .public) item(s); legacy tree left untouched)
           """)
+      case .currentDirectoryPresent where FileManager.default.fileExists(atPath: legacyDir.path):
+        // P5 顺序事故的唯一可观测面（plan §6 第 0/5 步）：旧卸载器会把迁移源一起删掉，
+        // 用户若在恢复备份**之前**先启动过一次新 app，数据根就已经被 setupRime 建好并种上
+        // 出厂种子 —— 此后迁移永远不再命中（新目录已存在，且「不覆盖新数据」是硬约束）。
+        // 这里不擅自合并，只把现场喊出来，让 P5 第 8 步的验证能定位到而不是归因成「数据丢了」。
+        log.error("""
+          legacy data root still present at \(legacyDir.path, privacy: .public) but \
+          \(currentDir.path, privacy: .public) already exists without a migration receipt — \
+          first launch happened before the legacy tree was restored, so the one-shot migration \
+          will never run. Recover by moving the current data root aside and relaunching.
+          """)
       case .alreadyMigrated, .currentDirectoryPresent, .noLegacyData:
         break
       }

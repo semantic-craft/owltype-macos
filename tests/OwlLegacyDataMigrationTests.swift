@@ -145,6 +145,25 @@ final class OwlLegacyDataMigrationTests: XCTestCase {
     XCTAssertNil(OwlLegacyDataMigration.receipt(in: currentDir))
   }
 
+  /// plan §5 第 4 条（fd5f75a 加的顺序红线）：**旧目录不存在时绝不写「迁移完成」标记**。
+  /// P5 的旧卸载器会把迁移源一起删掉，用户要从备份恢复；跑空一次就落标记的话，恢复之后
+  /// 迁移永远不会再跑。空跑必须不留任何痕迹。
+  func testEmptyRunLeavesNoTraceSoARestoredBackupStillMigrates() throws {
+    XCTAssertEqual(try migrate(), .noLegacyData)
+    XCTAssertFalse(exists(currentDir))
+    XCTAssertFalse(exists(OwlLegacyDataMigration.stagingDirectory(for: currentDir)))
+
+    // 用户从备份恢复了旧目录 —— 下一次启动必须真的迁移。
+    try makeLegacyTree()
+    guard case .migrated = try migrate() else {
+      return XCTFail("空跑不该锁死迁移：恢复备份后必须还能迁")
+    }
+    XCTAssertEqual(
+      try text(at: currentDir.appendingPathComponent("owl_quick_send.json")),
+      #"[{"text":"猫头鹰输入法","code":"owl"}]"#
+    )
+  }
+
   func testLegacyPathThatIsAFileIsNotTreatedAsData() throws {
     try Data("not a directory".utf8).write(to: legacyDir)
     XCTAssertEqual(try migrate(), .noLegacyData)
