@@ -575,13 +575,13 @@ final class RimeSeamTests: XCTestCase {
 
   func testReplayRawInputSkipsNonASCIIAndPreservesOrder() {
     // Owltype raw input codes are ASCII; a stray non-ASCII scalar must be skipped, not crash.
-    let old = FakeRimeSession(sessionID: 30, input: "fa墨mo")
+    let old = FakeRimeSession(sessionID: 30, input: "ow鹰ltype")
     let fresh = FakeRimeSession(sessionID: 31)
     let engine = FakeRimeEngine(vendedSession: fresh)
 
     driveReload(old: old, engine: engine, capturedSchema: "rime_ice", replayComposition: true)
 
-    // Only the ASCII bytes f a m o are re-fed on the fresh session; the CJK 墨 is skipped.
+    // Only the ASCII bytes o w l t y p e are re-fed on the fresh session; the CJK 鹰 is skipped.
     XCTAssertEqual(fresh.processedKeys.map(\.keycode), Array("owltype".unicodeScalars.map(\.value)))
   }
 
