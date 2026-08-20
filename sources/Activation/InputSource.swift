@@ -5,8 +5,10 @@
 //  Created by Leo Liu on 5/10/24.
 //
 
+import AppKit
 import Foundation
 import InputMethodKit
+import Security
 
 // MARK: - Input source install: register → enable → select (upstream Squirrel behavior)
 //
@@ -436,6 +438,32 @@ struct TISDiagnosis: Equatable, Codable {
   let code: String?
 }
 
+/// One LaunchServices claim on Famo's bundle identifier: the bundle that claims it, and the Team ID
+/// its signature carries. `teamID == nil` means unsigned or ad-hoc — the shape every local build
+/// has. Pure value, so the classifier below is unit-testable without touching LaunchServices.
+struct LSBundleClaim: Equatable, Codable {
+  let path: String
+  let teamID: String?
+}
+
+/// Read-only verdict on who claims Famo's bundle identifier. macOS resolves an input method by
+/// bundle id, so a second claimant can be resolved *instead of* the installed copy at login: the
+/// IMK service fails to come up and the system falls through to the next input source. That is the
+/// measured cause of 「重启后默认输入法变成别家」 on this developer machine, and it regenerates every
+/// time a build runs (docs/default-input-method-plan.md §1.3 结论 A/C).
+///
+/// Advisory by design: `code` never becomes `FamoTISReport.Summary.code`. A shadowing development
+/// build is a developer-machine condition, not a broken install, and check-installed.sh treats any
+/// summary code as a failure.
+struct LSClaimReport: Equatable, Codable {
+  let bundleID: String
+  let claimCount: Int
+  let unsignedCount: Int
+  let claims: [LSBundleClaim]
+  let code: String?
+  let detail: String
+}
+
 enum FamoTISDiagnostics {
   /// §5 user-facing message per FAMO-* code (developer meaning stays in each layer's `detail`).
   static let userMessage: [String: String] = [
@@ -451,6 +479,8 @@ enum FamoTISDiagnostics {
     "FAMO-DATA-001": "Famo 数据目录不可用。",
     "FAMO-DATA-002": "检测到非 Famo 数据路径写入。",
     "FAMO-UPDATE-001": "更新时仍有旧输入连接。",
+    "FAMO-LS-001": "多个构建认领同一 bundle id，装机版可能被遮蔽。",
+    "FAMO-LS-002": "存在未签名构建认领同一 bundle id。",
   ]
 
   /// PURE six-layer classifier. `sources` is the installed set already filtered to Famo's prefix.
@@ -550,6 +580,63 @@ enum FamoTISDiagnostics {
     return TISDiagnosis(layers: layers, firstFailingLayer: firstFailing?.layer, code: firstFailing?.code)
   }
 
+  /// PURE claim classifier over whatever LaunchServices resolves for `bundleID`, in any order.
+  /// Two conditions are worth a code, and an unsigned claimant wins the headline because it names
+  /// the mechanism: a bundle with no Team ID is a local build, and resolving to it is what breaks
+  /// the login restore. Exactly one signed claimant — the installed copy — is the healthy shape.
+  static func classifyClaims(bundleID: String, claims: [LSBundleClaim]) -> LSClaimReport {
+    let sorted = claims.sorted { $0.path < $1.path }
+    let unsigned = sorted.filter { ($0.teamID ?? "").isEmpty }
+    let paths = sorted.map { $0.path }.joined(separator: "、")
+    let code: String?
+    let detail: String
+    if !unsigned.isEmpty {
+      code = "FAMO-LS-002"
+      detail = "\(sorted.count) 个 bundle 认领 \(bundleID)，其中 \(unsigned.count) 个无 teamID（未签名 / ad-hoc 开发构建）："
+        + "\(unsigned.map { $0.path }.joined(separator: "、"))"
+    } else if sorted.count > 1 {
+      code = "FAMO-LS-001"
+      detail = "\(sorted.count) 个已签名 bundle 认领 \(bundleID)：\(paths)；只应有装机版一条，其余会遮蔽它"
+    } else if let only = sorted.first {
+      code = nil
+      detail = "唯一认领 \(only.path)（teamID \(only.teamID ?? "")）"
+    } else {
+      code = nil
+      detail = "LaunchServices 解析不到 \(bundleID) 的任何认领 —— 未安装或未注册，见 register 层与 FAMO-INSTALL-001"
+    }
+    return LSClaimReport(
+      bundleID: bundleID, claimCount: sorted.count, unsignedCount: unsigned.count,
+      claims: sorted, code: code, detail: detail)
+  }
+
+  /// LaunchServices claims on `bundleID`. Read-only: resolves the registration database, mutates
+  /// nothing.
+  ///
+  /// Honest ceiling, same spirit as the `ok == nil` layers: this sees only claimants whose bundle
+  /// still exists. Registrations left behind by deleted build directories are invisible here —
+  /// `scripts/ime-check.sh` lists those and `scripts/clean-dev.sh` sweeps them. A *live* competing
+  /// build is the case that changes which bundle macOS resolves, so it is the set worth reporting,
+  /// and it is the only one affordable: an `lsregister -dump` scan takes ~15s on this machine and
+  /// would blow the 20s budget check-installed.sh puts on `--diagnose-tis`.
+  static func launchServicesClaims(for bundleID: String) -> [LSBundleClaim] {
+    NSWorkspace.shared.urlsForApplications(withBundleIdentifier: bundleID).map {
+      LSBundleClaim(path: $0.path, teamID: teamID(ofBundleAt: $0))
+    }
+  }
+
+  /// Team ID from a bundle's code signature, `nil` when it carries none (unsigned or ad-hoc).
+  /// Reads the signature as recorded on disk; never validates, never mutates.
+  private static func teamID(ofBundleAt url: URL) -> String? {
+    var staticCode: SecStaticCode?
+    guard SecStaticCodeCreateWithPath(url as CFURL, [], &staticCode) == errSecSuccess,
+          let staticCode else { return nil }
+    var information: CFDictionary?
+    guard SecCodeCopySigningInformation(
+      staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &information) == errSecSuccess,
+          let signing = information as? [String: Any] else { return nil }
+    return signing[kSecCodeInfoTeamIdentifier as String] as? String
+  }
+
   /// Short remediation line per headline code (§6 修复/预防 column, condensed).
   static func actionText(for code: String) -> String {
     switch code {
@@ -558,6 +645,8 @@ enum FamoTISDiagnostics {
     case "FAMO-TIS-002": return "Famo 输入源不可启用 —— 只按精确 source id 操作、检查父条目；绝不按 localized name 选源。"
     case "FAMO-TIS-003": return "启用读回不一致 —— 运行 --enable-input-source；fresh-process 复核仍 false 说明未落地。"
     case "FAMO-TIS-004": return "选中半态/不可选 —— 先切 ABC 再在输入菜单重选「法墨」；必要时系统设置→键盘→输入法重加一次。"
+    case "FAMO-LS-001": return "同一 bundle id 被多个 bundle 认领 —— 跑 scripts/clean-dev.sh --apply，只留装机版一条认领。"
+    case "FAMO-LS-002": return "未签名（ad-hoc）开发构建认领了同一 bundle id，登录可能解析到它 —— 跑 scripts/clean-dev.sh --apply。"
     case "FAMO-DATA-001": return "数据目录缺失（可选中但无候选）—— 启动一次 Famo 部署 schema 到 ~/Library/Application Support/Famo；永不 fallback 到 ~/Library/Rime。"
     default: return userMessage[code] ?? code
     }
@@ -587,6 +676,13 @@ enum FamoTISDiagnostics {
     let dataExists = FileManager.default.fileExists(atPath: userDir.path)
     let dataRoot = FamoTISReport.DataRoot(path: userDir.path, exists: dataExists, code: dataExists ? nil : "FAMO-DATA-001")
 
+    // Who else claims this bundle id. Deliberately outside the headline: a shadowing development
+    // build is a developer-machine condition (§1.3 结论 D), and folding it into `summaryCode` would
+    // turn a healthy install red in check-installed.sh. It reports; clean-dev.sh acts, by hand.
+    let launchServices = classifyClaims(
+      bundleID: FamoInstaller.inputSourcePrefix,
+      claims: launchServicesClaims(for: FamoInstaller.inputSourcePrefix))
+
     // Headline priority: not installed → TIS layer failure → data root missing.
     let summaryCode = identity.installCode ?? diag.code ?? dataRoot.code
     let summary = FamoTISReport.Summary(
@@ -596,7 +692,7 @@ enum FamoTISDiagnostics {
         ?? "所有可只读判定的 TIS 层健康；menuVisible/clientAttach 属只读天花板，见对应层 detail。")
 
     return FamoTISReport(
-      identity: identity, dataRoot: dataRoot, currentSourceID: currentID,
+      identity: identity, dataRoot: dataRoot, launchServices: launchServices, currentSourceID: currentID,
       sources: sources, layers: diag.layers, summary: summary)
   }
 }
@@ -626,6 +722,7 @@ struct FamoTISReport: Codable {
   }
   let identity: Identity
   let dataRoot: DataRoot
+  let launchServices: LSClaimReport
   let currentSourceID: String?
   let sources: [TISSourceState]
   let layers: [LayerResult]

@@ -254,4 +254,68 @@ final class ActivationPolicyTests: XCTestCase {
     XCTAssertNil(diag.layers.first { $0.layer == .menuVisible }?.code)
     XCTAssertNil(diag.layers.first { $0.layer == .clientAttach }?.code)
   }
+
+  // MARK: - LaunchServices bundle-id claims (docs/default-input-method-plan.md §1.3 结论 A/C)
+
+  // Fixture paths deliberately sit outside any home directory: check-public-privacy.sh blocks
+  // home-directory paths anywhere in tracked files, so a realistic one fails the gate.
+  private func claims(_ pairs: [(String, String?)]) -> LSClaimReport {
+    FamoTISDiagnostics.classifyClaims(
+      bundleID: FamoInstaller.inputSourcePrefix,
+      claims: pairs.map { LSBundleClaim(path: $0.0, teamID: $0.1) })
+  }
+
+  func testSingleSignedClaimIsHealthy() {  // the shape after scripts/clean-dev.sh --apply
+    let report = claims([("/Library/Input Methods/Famo.app", "LQAVR62TK2")])
+    XCTAssertNil(report.code)
+    XCTAssertEqual(report.claimCount, 1)
+    XCTAssertEqual(report.unsignedCount, 0)
+  }
+
+  func testMultipleSignedClaimsWarn() {  // a second signed copy still shadows the installed one
+    let report = claims([
+      ("/Library/Input Methods/Famo.app", "LQAVR62TK2"),
+      ("/Volumes/Work/famotype-macos/build/Release/Famo.app", "LQAVR62TK2"),
+    ])
+    XCTAssertEqual(report.code, "FAMO-LS-001")
+    XCTAssertEqual(report.claimCount, 2)
+    XCTAssertEqual(report.unsignedCount, 0)
+  }
+
+  func testUnsignedClaimTakesTheHeadline() {  // 结论 A: the ad-hoc build is what breaks login restore
+    let report = claims([
+      ("/Library/Input Methods/Famo.app", "LQAVR62TK2"),
+      ("/Volumes/Work/famotype-macos/build/Debug/Famo.app", nil),
+    ])
+    XCTAssertEqual(report.code, "FAMO-LS-002")
+    XCTAssertEqual(report.unsignedCount, 1)
+  }
+
+  func testEmptyTeamIDCountsAsUnsigned() {  // ad-hoc signatures report "" rather than omitting it
+    XCTAssertEqual(claims([("/Volumes/Work/build/Famo.app", "")]).code, "FAMO-LS-002")
+  }
+
+  func testLoneUnsignedClaimStillWarns() {  // a dev build alone claiming the id is not healthy
+    let report = claims([("/Volumes/Work/famotype-macos/build/Debug/Famo.app", nil)])
+    XCTAssertEqual(report.code, "FAMO-LS-002")
+    XCTAssertEqual(report.claimCount, 1)
+  }
+
+  func testNoClaimsIsNotALaunchServicesCode() {  // not installed → register layer / FAMO-INSTALL-001
+    let report = claims([])
+    XCTAssertNil(report.code)
+    XCTAssertEqual(report.claimCount, 0)
+  }
+
+  func testClaimsAreSortedByPath() {  // stable JSON across runs; LaunchServices order is arbitrary
+    let report = claims([("/b/Famo.app", "LQAVR62TK2"), ("/a/Famo.app", "LQAVR62TK2")])
+    XCTAssertEqual(report.claims.map { $0.path }, ["/a/Famo.app", "/b/Famo.app"])
+  }
+
+  func testLaunchServicesCodesCarryUserMessageAndAction() {
+    for code in ["FAMO-LS-001", "FAMO-LS-002"] {
+      XCTAssertNotNil(FamoTISDiagnostics.userMessage[code])
+      XCTAssertTrue(FamoTISDiagnostics.actionText(for: code).contains("clean-dev.sh --apply"))
+    }
+  }
 }

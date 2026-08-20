@@ -89,7 +89,65 @@ bash scripts/check-release.selftest.sh
 stage "make test"
 make test DERIVED_DATA_PATH=build/gate-tests
 
+# --- LaunchServices claims on this app's bundle id ---------------------------
+#
+# Every build of the app registers another bundle claiming the input method's
+# identifier. macOS resolves an input method by identifier, so once a build
+# claims it too, login can resolve to that build rather than the installed copy:
+# the IMK service fails to come up and the system falls through to whatever
+# input source comes next. That is the measured cause of "the default input
+# method changes after a restart" on this machine, and it regenerates every time
+# the gate runs (docs/default-input-method-plan.md §1.3 结论 A/C).
+#
+# This reports and stops there. Sweeping it is `scripts/clean-dev.sh --apply`,
+# which removes build products a parallel session may still be using, so it
+# stays a deliberate manual act (plan §8.2). Silent when exactly one signed
+# bundle claims the id — the shape a clean machine has. The dump scan costs
+# ~15s; the identifier comes from the identity manifest, never a second copy.
+report_ls_claims() {
+  local lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+  [[ -x "$lsregister" ]] || return 0
+  # shellcheck source=scripts/famo-identity.sh
+  source scripts/famo-identity.sh
+
+  # One record per registration: `path:` opens it, `teamID:` appears only when the
+  # bundle is signed with a team, `identifier:` closes it. "-" marks unsigned.
+  local rows
+  rows="$("$lsregister" -dump 2>/dev/null | awk -v want="$FAMO_BUNDLE_ID" '
+    /^path:/       { p = $0; sub(/^path:[[:space:]]*/, "", p); sub(/ \(0x[0-9a-f]+\)$/, "", p); t = "" }
+    /^teamID:/     { t = $0; sub(/^teamID:[[:space:]]*/, "", t) }
+    /^identifier:/ { id = $0; sub(/^identifier:[[:space:]]*/, "", id)
+                     if (id == want) printf "%s\t%s\n", (t == "" ? "-" : t), p }
+  ')"
+
+  local total=0 unsigned=0 team path
+  while IFS=$'\t' read -r team path; do
+    [[ -n "$path" ]] || continue
+    total=$((total + 1))
+    if [[ "$team" == "-" ]]; then unsigned=$((unsigned + 1)); fi
+  done <<<"$rows"
+
+  # Healthy: the installed copy alone, signed. Nothing to say.
+  if ((total <= 1 && unsigned == 0)); then return 0; fi
+
+  stage "LaunchServices claims on $FAMO_BUNDLE_ID"
+  if ((unsigned > 0)); then
+    printf '  FAMO-LS-002  %d claim(s), %d of them unsigned (no teamID)\n' "$total" "$unsigned"
+  else
+    printf '  FAMO-LS-001  %d claim(s); only the installed copy should claim this id\n' "$total"
+  fi
+  while IFS=$'\t' read -r team path; do
+    [[ -n "$path" ]] || continue
+    printf '    teamID=%-14s %s\n' "$team" "$path"
+  done <<<"$rows"
+  printf '  A build claiming this id can be resolved instead of the installed copy\n'
+  printf '  at login. To clear it:  scripts/clean-dev.sh --apply\n'
+  printf '  Not done here: that removes build products a parallel session may still\n'
+  printf '  be using. Warning only — the gate result below is unaffected.\n'
+}
+
 if [[ "$mode" == "quick" ]]; then
+  report_ls_claims
   echo; echo "gate --quick: ok (debug/release builds, release gates, secret artifact scan and periphery skipped)"
   exit 0
 fi
@@ -123,4 +181,5 @@ else
   exit 1
 fi
 
+report_ls_claims
 echo; echo "gate: ok (the installed input-method smoke is intentionally not part of the gate on a persistent machine)"

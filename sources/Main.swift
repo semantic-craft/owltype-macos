@@ -187,7 +187,8 @@ struct FamoApp {
           return true
         case "--diagnose-tis":
           // W1.4: read-only six-layer TIS diagnosis as JSON (register/enumerate/enable/select/menu/
-          // client-attach + FAMO-* codes + install identity + data-root). Fresh process ⇒ Law 4.
+          // client-attach + FAMO-* codes + install identity + data-root + who else claims the
+          // bundle id). Fresh process ⇒ Law 4.
           // Never mutates any input-source state. Consumed by check-installed.sh / live smoke.
           let encoder = JSONEncoder()
           encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
