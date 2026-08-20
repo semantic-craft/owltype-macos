@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+# Sparkle 的 EdDSA 公钥（SUPublicEDKey）随 app 的 Info.plist 公开分发，是验签公钥而非机密。
+# 按行上下文豁免，不在本文件写出键值本身。
+[allowlist]
+description = "Sparkle EdDSA public key lines are public by design"
+regexTarget = "line"
+regexes = ['''SUPublicEDKey''']
