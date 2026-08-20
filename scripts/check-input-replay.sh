@@ -12,13 +12,13 @@
 # 跨 App commit 属 IMK/真机层、探针无法自动化 → 见 smoke-live.sh 的人工 checklist。
 #
 # 用法：  bash scripts/check-input-replay.sh        # 对已装 /Library 或 ~/Library 的 app
-#         FAMO_APP=/path/to/Famo.app bash scripts/check-input-replay.sh
+#         OWL_APP=/path/to/Famo.app bash scripts/check-input-replay.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-if [[ -n "${FAMO_APP:-}" ]]; then
-  APP="$FAMO_APP"
+if [[ -n "${OWL_APP:-}" ]]; then
+  APP="$OWL_APP"
 elif [[ -d "/Library/Input Methods/Famo.app" ]]; then
   APP="/Library/Input Methods/Famo.app"
 else

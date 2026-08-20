@@ -107,13 +107,13 @@ make test DERIVED_DATA_PATH=build/gate-tests
 report_ls_claims() {
   local lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
   [[ -x "$lsregister" ]] || return 0
-  # shellcheck source=scripts/famo-identity.sh
-  source scripts/famo-identity.sh
+  # shellcheck source=scripts/owl-identity.sh
+  source scripts/owl-identity.sh
 
   # One record per registration: `path:` opens it, `teamID:` appears only when the
   # bundle is signed with a team, `identifier:` closes it. "-" marks unsigned.
   local rows
-  rows="$("$lsregister" -dump 2>/dev/null | awk -v want="$FAMO_BUNDLE_ID" '
+  rows="$("$lsregister" -dump 2>/dev/null | awk -v want="$OWL_BUNDLE_ID" '
     /^path:/       { p = $0; sub(/^path:[[:space:]]*/, "", p); sub(/ \(0x[0-9a-f]+\)$/, "", p); t = "" }
     /^teamID:/     { t = $0; sub(/^teamID:[[:space:]]*/, "", t) }
     /^identifier:/ { id = $0; sub(/^identifier:[[:space:]]*/, "", id)
@@ -130,7 +130,7 @@ report_ls_claims() {
   # Healthy: the installed copy alone, signed. Nothing to say.
   if ((total <= 1 && unsigned == 0)); then return 0; fi
 
-  stage "LaunchServices claims on $FAMO_BUNDLE_ID"
+  stage "LaunchServices claims on $OWL_BUNDLE_ID"
   if ((unsigned > 0)); then
     printf '  FAMO-LS-002  %d claim(s), %d of them unsigned (no teamID)\n' "$total" "$unsigned"
   else
@@ -160,8 +160,9 @@ make release \
 app="$root/build/gate-release/Build/Products/Release/Famo.app"
 
 stage "release gates"
-FAMO_APP="$app" bash scripts/check-manifest.sh
-FAMO_APP="$app" bash scripts/check-identity-residual.sh
+OWL_APP="$app" bash scripts/check-manifest.sh
+OWL_APP="$app" bash scripts/check-identity-residual.sh
+bash scripts/check-identity-residual.selftest.sh
 bash scripts/release-artifact-chain.selftest.sh "$app"
 bash scripts/release-cohort.selftest.sh
 bash scripts/release-cohort-transition.selftest.sh

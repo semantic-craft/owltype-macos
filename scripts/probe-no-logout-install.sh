@@ -26,8 +26,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=scripts/famo-identity.sh
-. "$ROOT/scripts/famo-identity.sh"
+# shellcheck source=scripts/owl-identity.sh
+. "$ROOT/scripts/owl-identity.sh"
 
 APP="/Library/Input Methods/Famo.app"
 EXE="$APP/Contents/MacOS/Famo"
@@ -87,10 +87,10 @@ verify() {
   "$EXE" --current-input-source | tee "${out_dir}/current-input-source.txt"
 
   note "④ 机器判读（初筛；终判以人工清单为准）"
-  if grep -q "$FAMO_BUNDLE_ID" "${out_dir}/diagnose-tis.json"; then
-    pass "diagnose-tis 输出里出现 ${FAMO_BUNDLE_ID}（已被 TIS 枚举到）"
+  if grep -q "$OWL_BUNDLE_ID" "${out_dir}/diagnose-tis.json"; then
+    pass "diagnose-tis 输出里出现 ${OWL_BUNDLE_ID}（已被 TIS 枚举到）"
   else
-    printf 'WARN: diagnose-tis 输出里没有 %s —— 注册/枚举层已挂，(a)(b) 大概率不过\n' "$FAMO_BUNDLE_ID"
+    printf 'WARN: diagnose-tis 输出里没有 %s —— 注册/枚举层已挂，(a)(b) 大概率不过\n' "$OWL_BUNDLE_ID"
   fi
 
   cat <<EOF

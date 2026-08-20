@@ -27,8 +27,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=scripts/famo-identity.sh
-. "$ROOT/scripts/famo-identity.sh"
+# shellcheck source=scripts/owl-identity.sh
+. "$ROOT/scripts/owl-identity.sh"
 
 pass() { printf 'PASS: %s\n' "$1"; }
 fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
@@ -38,7 +38,7 @@ FAMO_SMOKE_SEQUENCE="${FAMO_SMOKE_SEQUENCE:-nihao}"
 FAMO_SMOKE_EXPECT="${FAMO_SMOKE_EXPECT:-你好}"
 
 installed_exe() {
-  local app="$FAMO_INSTALL_PATH"
+  local app="$OWL_INSTALL_PATH"
   [[ -d "$app" ]] || app="$HOME/Library/Input Methods/Famo.app"
   printf '%s/Contents/MacOS/Famo' "$app"
 }
@@ -60,7 +60,7 @@ cmd_snapshot() {
     : > "$dir/squirrel-stat.txt"
   fi
   # Famo data root presence (menu selectable but no candidates ⇒ FAMO-DATA-001).
-  find "$FAMO_DATA_ROOT" -maxdepth 2 -type f 2>/dev/null | sort > "$dir/famo-data-root.txt" || true
+  find "$OWL_DATA_ROOT" -maxdepth 2 -type f 2>/dev/null | sort > "$dir/famo-data-root.txt" || true
   # Fresh-process TIS diagnosis via the installed binary (W1.4).
   local exe; exe="$(installed_exe)"
   if [[ -x "$exe" ]]; then
@@ -96,7 +96,7 @@ cmd_verify() {
   fi
   pass "Squirrel.app unchanged across the flow (coexistence read-only)"
   # 3) Famo data root deployed.
-  [[ -s "$after/famo-data-root.txt" ]] || fail "FAMO-DATA-001: no files under $FAMO_DATA_ROOT after the flow"
+  [[ -s "$after/famo-data-root.txt" ]] || fail "FAMO-DATA-001: no files under $OWL_DATA_ROOT after the flow"
   pass "Famo data root populated under Application Support/Famo"
   # 4) Post-flow TIS healthy (reuse the W1.4 diagnostic summary).
   if [[ -s "$after/diagnose-tis.json" ]]; then
@@ -245,13 +245,13 @@ omnibox_trace() {
   local log; log="$(omnibox_log)"
   case "$mode" in
     on)
-      defaults write "$FAMO_BUNDLE_ID" FamoDebugLiveInputTrace -bool true
+      defaults write "$OWL_BUNDLE_ID" FamoDebugLiveInputTrace -bool true
       : > "$log" 2>/dev/null || true   # fresh judging window
       pass "trace ON — log: $log (cleared for a fresh window)"
       info "生效需重挂法墨进程：切走再切回法墨输入源，或重开目标 App。"
       ;;
     off)
-      defaults delete "$FAMO_BUNDLE_ID" FamoDebugLiveInputTrace 2>/dev/null || true
+      defaults delete "$OWL_BUNDLE_ID" FamoDebugLiveInputTrace 2>/dev/null || true
       pass "trace OFF (FamoDebugLiveInputTrace removed)"
       ;;
     *) fail "omnibox trace: use on|off" ;;
@@ -377,8 +377,8 @@ omnibox_checklist() {
 收尾：
   - 关 trace：  smoke-live.sh omnibox trace off
   - 核对用户默认未被动（本脚本从不写这两项，仅提示核对）：
-      defaults read $FAMO_BUNDLE_ID FamoKeyboardInputMethod   # 期望 wubi
-      defaults read $FAMO_BUNDLE_ID WubiScheme                # 期望 pinyinMix
+      defaults read $OWL_BUNDLE_ID FamoKeyboardInputMethod   # 期望 wubi
+      defaults read $OWL_BUNDLE_ID WubiScheme                # 期望 pinyinMix
 Result marker: Status: PASS
 OMNIBOX
 }

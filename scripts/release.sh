@@ -122,6 +122,7 @@ run python3 "$STATE" verify-chain "$output_root"
 
 if ((dry_run)); then
   dmg='<cohort versioned DMG>'
+  pkg='<cohort installer pkg>'
   published_assets=(
     '<cohort Famo.pkg>'
     '<cohort Famo-update.pkg>'
@@ -136,6 +137,7 @@ if ((dry_run)); then
   )
 else
   dmg="$(python3 "$STATE" artifact-path "$output_root" dmg)"
+  pkg="$(python3 "$STATE" artifact-path "$output_root" installer-pkg)"
   asset_list_file="$(mktemp "${TMPDIR:-/tmp}/famo-published-assets.XXXXXX")"
   if ! bash "$ROOT/scripts/check-published-release.sh" --print0 \
       "$output_root" >"$asset_list_file"; then
@@ -154,9 +156,9 @@ else
 fi
 
 echo "==> 6/8 run release and identity gates"
-run env FAMO_IDENTITY_STRICT=1 "FAMO_APP=$app" "FAMO_DMG=$dmg" \
+run env OWL_IDENTITY_STRICT=1 "OWL_APP=$app" "OWL_PKG=$pkg" "OWL_DMG=$dmg" \
   bash "$ROOT/scripts/check-identity-residual.sh"
-run env "FAMO_APP=$app" bash "$ROOT/scripts/check-manifest.sh"
+run env "OWL_APP=$app" bash "$ROOT/scripts/check-manifest.sh"
 run env "RELEASE_OUTPUT_ROOT=$output_root" \
   bash "$ROOT/scripts/check-release.sh" --automated-only
 

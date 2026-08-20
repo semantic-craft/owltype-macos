@@ -5,8 +5,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# shellcheck source=scripts/famo-identity.sh
-. "$ROOT/scripts/famo-identity.sh"
+# shellcheck source=scripts/owl-identity.sh
+. "$ROOT/scripts/owl-identity.sh"
 
 RELEASE_OUTPUT_ROOT="${RELEASE_OUTPUT_ROOT:-$ROOT/build}"
 APP="$RELEASE_OUTPUT_ROOT/Build/Products/Release/Famo.app"
@@ -16,7 +16,7 @@ APPCAST="$ROOT/package/appcast.xml"
 # Manual smoke evidence lives outside the public tree; point FAMO_MANUAL_SMOKE at the current
 # release's manual-host-app-smoke document.
 MANUAL_SMOKE="${FAMO_MANUAL_SMOKE:-}"
-DOMAIN="$FAMO_BUNDLE_ID"
+DOMAIN="$OWL_BUNDLE_ID"
 blocked=0
 preflight_only=0
 automated_only=0

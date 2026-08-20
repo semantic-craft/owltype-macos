@@ -4,8 +4,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# shellcheck source=scripts/famo-identity.sh
-. "$ROOT/scripts/famo-identity.sh"
+# shellcheck source=scripts/owl-identity.sh
+. "$ROOT/scripts/owl-identity.sh"
 
 # 断言失败只记账、不退出：fail-fast 会让第一条 FAIL 掩盖后面所有检查（2026-07-27 实测——
 # 一条过时的 SharedSupport 断言把 TIS 层与候选级探针整段藏了起来，真回归无从发现）。
@@ -24,20 +24,20 @@ pass_clean() {
 # 前置条件失败后续检查全无意义（app 都不在，codesign/探针只会连环报错）——这类仍立即退出。
 die() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 
-if [[ -n "${FAMO_APP:-}" ]]; then
-  APP="$FAMO_APP"
+if [[ -n "${OWL_APP:-}" ]]; then
+  APP="$OWL_APP"
 elif [[ -d "/Library/Input Methods/Famo.app" ]]; then
   APP="/Library/Input Methods/Famo.app"
 else
   APP="$HOME/Library/Input Methods/Famo.app"
 fi
-if [[ -z "${FAMO_APP:-}" &&
+if [[ -z "${OWL_APP:-}" &&
       -d "/Library/Input Methods/Famo.app" &&
       -d "$HOME/Library/Input Methods/Famo.app" ]]; then
   die "duplicate Famo installs found in /Library and ~/Library"
 fi
 EXE="$APP/Contents/MacOS/Famo"
-DOMAIN="$FAMO_BUNDLE_ID"
+DOMAIN="$OWL_BUNDLE_ID"
 SQUIRREL_DOMAIN="$SQUIRREL_BUNDLE_ID"
 PROBE="$ROOT/build/famo-rime-probe"
 PROBE_SRC="$ROOT/tools/famo-rime-probe.cc"
