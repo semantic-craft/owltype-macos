@@ -98,7 +98,7 @@ final class FakeSelectionPolish: SelectionPolishing {
 
 /// A scripted `PromptResolving` with no disk. Matches scripted entries on exact (code, title)
 /// and records every query so a test can assert the commit chokepoint hit (or skipped) the
-/// lookup — without famo_prompts.json. (The live resolver's v-prefix tolerance + JSON read are
+/// lookup — without owl_prompts.json. (The live resolver's v-prefix tolerance + JSON read are
 /// covered against `OwlPromptStore.matchEntry` in OwlPromptInterceptionTests.)
 @MainActor
 final class FakePromptStore: PromptResolving {

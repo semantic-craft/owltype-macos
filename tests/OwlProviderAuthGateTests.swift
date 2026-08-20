@@ -1,6 +1,6 @@
 //
 //  OwlProviderAuthGateTests.swift
-//  OwltypeTests — provider auth gate (task 07-06-famo-selection-auth-gate)
+//  OwltypeTests — provider auth gate (task 07-06-owl-selection-auth-gate)
 //
 //  Pure: injects fake profile / secret / legacy closures. No real store, Keychain, or network.
 //  Mirrors the streaming-service readiness contract (the gate is that logic, generalized) and adds
@@ -19,7 +19,7 @@ final class OwlProviderAuthGateTests: XCTestCase {
       displayName: "unit",
       endpoint: URL(string: "https://api.openai.com/v1/chat/completions")!,
       model: "gpt-4o",
-      secretName: "famo.provider.unit.apiKey",
+      secretName: "owltype.provider.unit.apiKey",
       isDefault: true
     )
   }

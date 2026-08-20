@@ -1,7 +1,7 @@
 //
 //  ProviderProfileStoreTests.swift
 //  OwltypeTests — multi-provider profile foundation
-//  (task 06-22-famo-multi-provider-keychain-foundation, research B1+B2)
+//  (task 06-22-owl-multi-provider-keychain-foundation, research B1+B2)
 //
 //  Locks the provider-profile foundation contracts against an isolated temp dir + an in-memory
 //  secret store (never touches the real ~/Library/Application Support/Owltype or the real Keychain):
@@ -79,7 +79,7 @@ final class ProviderProfileStoreTests: XCTestCase {
     let reloaded = try XCTUnwrap(store.profile(id: added.id))
     XCTAssertEqual(reloaded.displayName, "work DeepSeek")
     XCTAssertEqual(reloaded.kind, .openAICompatible)
-    XCTAssertEqual(reloaded.secretName, "famo.provider.\(added.id).apiKey")
+    XCTAssertEqual(reloaded.secretName, "owltype.provider.\(added.id).apiKey")
   }
 
   func testKeyIsNeverWrittenToProvidersJSON() throws {
@@ -191,7 +191,7 @@ final class ProviderProfileStoreTests: XCTestCase {
     { "schemaVersion": 1, "profiles": [ {
       "id": "legacy", "displayName": "old", "kind": "openai_compatible",
       "endpoint": "https://api.deepseek.com/chat/completions", "model": "deepseek-v4-flash",
-      "maxCandidates": 4, "secretName": "famo.provider.legacy.apiKey",
+      "maxCandidates": 4, "secretName": "owltype.provider.legacy.apiKey",
       "isDefault": true, "createdAt": "2026-06-22T00:00:00Z"
     } ] }
     """
@@ -210,13 +210,13 @@ final class ProviderProfileStoreTests: XCTestCase {
 
   func testInMemorySecretStoreUpsertAndDelete() throws {
     let secrets = OwlInMemorySecretStore()
-    XCTAssertNil(try secrets.secret(named: "famo.provider.x.apiKey"))
-    try secrets.setSecret("k1", named: "famo.provider.x.apiKey")
-    XCTAssertEqual(try secrets.secret(named: "famo.provider.x.apiKey"), "k1")
-    try secrets.setSecret("k2", named: "famo.provider.x.apiKey")  // upsert
-    XCTAssertEqual(try secrets.secret(named: "famo.provider.x.apiKey"), "k2")
-    try secrets.deleteSecret(named: "famo.provider.x.apiKey")
-    XCTAssertNil(try secrets.secret(named: "famo.provider.x.apiKey"))
+    XCTAssertNil(try secrets.secret(named: "owltype.provider.x.apiKey"))
+    try secrets.setSecret("k1", named: "owltype.provider.x.apiKey")
+    XCTAssertEqual(try secrets.secret(named: "owltype.provider.x.apiKey"), "k1")
+    try secrets.setSecret("k2", named: "owltype.provider.x.apiKey")  // upsert
+    XCTAssertEqual(try secrets.secret(named: "owltype.provider.x.apiKey"), "k2")
+    try secrets.deleteSecret(named: "owltype.provider.x.apiKey")
+    XCTAssertNil(try secrets.secret(named: "owltype.provider.x.apiKey"))
   }
 
   // MARK: - Legacy migration

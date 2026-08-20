@@ -1,6 +1,6 @@
 //
 //  OwlTerminology.swift
-//  法墨输入法 (Owltype) — 术语锁 (Terminology Lock, blueprint_v2 P0 pillar, task 06-20-famo-terminology-lock)
+//  法墨输入法 (Owltype) — 术语锁 (Terminology Lock, blueprint_v2 P0 pillar, task 06-20-owl-terminology-lock)
 //
 //  Project-level terminology rules: a preferred term, its allowed variants, and forbidden
 //  variants. Built ON the just-landed 项目输入空间 (`OwlProject` / `OwlProjectStore`) — terminology
@@ -11,7 +11,7 @@
 //  reordering function (`OwlTerminology.apply`). NO disk IO, no Rime handle, no hot-path call.
 //  Enforcement happens only in the ENHANCEMENT layer (the smart lane, via `OwlSnapshotEmitter`),
 //  exactly like project-word injection — it NEVER touches the IMK hot path, the Rime main lane,
-//  the famo_law_* legal layer, or rime config/deploy. No Lua filter in this MVP.
+//  the owl_law_* legal layer, or rime config/deploy. No Lua filter in this MVP.
 //
 //  Not in MVP (left as comments for a later pass):
 //    - firstForm vs shortForm context tracking (needs document-level state).

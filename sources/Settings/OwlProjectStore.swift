@@ -1,6 +1,6 @@
 //
 //  OwlProjectStore.swift
-//  法墨输入法 (Owltype) — 项目输入空间 (blueprint_v2 P0 pillar, task 06-20-famo-project-input-space)
+//  法墨输入法 (Owltype) — 项目输入空间 (blueprint_v2 P0 pillar, task 06-20-owl-project-input-space)
 //
 //  CRUD + activation for `OwlProject` input spaces. Each project is persisted as a single
 //  human-readable `project.json` under:

@@ -64,8 +64,8 @@ final class OwlUserDictResetTests: XCTestCase {
     XCTAssertEqual(backupDir.lastPathComponent, "userdb-reset-20260726-120000")
     XCTAssertEqual(
       backupDir.deletingLastPathComponent().lastPathComponent,
-      ".famo-backup",
-      "备份要落在配置目录既有的 .famo-backup 根下"
+      ".owl-backup",
+      "备份要落在配置目录既有的 .owl-backup 根下"
     )
     XCTAssertEqual(names(in: backupDir), ["rime_ice.userdb", "wubi86_jidian.userdb"])
   }
@@ -96,7 +96,7 @@ final class OwlUserDictResetTests: XCTestCase {
   func testLeavesEverythingThatIsNotAUserDBAlone() throws {
     try makeUserDB("rime_ice")
     let untouched = [
-      "default.custom.yaml", "famo.custom.yaml", "famo_quick_send.txt",
+      "default.custom.yaml", "owltype.custom.yaml", "owl_quick_send.txt",
       "installation.yaml", "rime_ice.dict.yaml", "clipboard-history.json",
     ]
     for name in untouched {
@@ -142,7 +142,7 @@ final class OwlUserDictResetTests: XCTestCase {
     XCTAssertEqual(outcome.schemaIDs, [])
     XCTAssertNil(outcome.backupDir)
     XCTAssertFalse(
-      exists(root.appendingPathComponent(".famo-backup")),
+      exists(root.appendingPathComponent(".owl-backup")),
       "什么都没清就不该留下空备份目录"
     )
     XCTAssertEqual(
@@ -165,9 +165,9 @@ final class OwlUserDictResetTests: XCTestCase {
     try makeUserDB("rime_ice", marker: "繁體字")
     try makeUserDB("wubi86_jidian")
 
-    // 预先占位：`.famo-backup/userdb-reset-<ts>/rime_ice.userdb` 是个普通文件，copyItem 必失败。
+    // 预先占位：`.owl-backup/userdb-reset-<ts>/rime_ice.userdb` 是个普通文件，copyItem 必失败。
     let backupDir = root
-      .appendingPathComponent(".famo-backup", isDirectory: true)
+      .appendingPathComponent(".owl-backup", isDirectory: true)
       .appendingPathComponent("userdb-reset-20260726-120000", isDirectory: true)
     try FileManager.default.createDirectory(at: backupDir, withIntermediateDirectories: true)
     try Data("blocker".utf8).write(to: backupDir.appendingPathComponent("rime_ice.userdb"))
@@ -190,7 +190,7 @@ final class OwlUserDictResetTests: XCTestCase {
   // MARK: - 状态行文案
 
   func testStatusMessageReportsSchemaCountAndBackupLocation() throws {
-    let backupDir = root.appendingPathComponent(".famo-backup/userdb-reset-20260726-120000")
+    let backupDir = root.appendingPathComponent(".owl-backup/userdb-reset-20260726-120000")
     let outcome = OwlUserDictResetOutcome(schemaIDs: ["rime_ice", "wubi86_jidian"], backupDir: backupDir)
 
     let message = OwlUserDictReset.statusMessage(outcome: outcome, redeployed: true)
@@ -204,7 +204,7 @@ final class OwlUserDictResetTests: XCTestCase {
   func testStatusMessageSurfacesARedeployFailure() {
     let outcome = OwlUserDictResetOutcome(
       schemaIDs: ["rime_ice"],
-      backupDir: root.appendingPathComponent(".famo-backup/userdb-reset-20260726-120000")
+      backupDir: root.appendingPathComponent(".owl-backup/userdb-reset-20260726-120000")
     )
     let message = OwlUserDictReset.statusMessage(outcome: outcome, redeployed: false)
     XCTAssertTrue(message.contains("重新部署失败"), message)
@@ -242,6 +242,6 @@ final class OwlUserDictResetTests: XCTestCase {
     XCTAssertTrue(alert.informativeText.contains("输入习惯"), alert.informativeText)
     XCTAssertTrue(alert.informativeText.contains("自造词"), alert.informativeText)
     XCTAssertTrue(alert.informativeText.contains("设置不受影响"), alert.informativeText)
-    XCTAssertTrue(alert.informativeText.contains(".famo-backup"), alert.informativeText)
+    XCTAssertTrue(alert.informativeText.contains(".owl-backup"), alert.informativeText)
   }
 }

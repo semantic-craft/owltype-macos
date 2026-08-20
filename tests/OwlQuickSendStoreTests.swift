@@ -7,8 +7,8 @@
 //  back as entries, so every save materialized the `v` variants as real entries and re-derived
 //  another `v` layer — entries multiplied until codes hit the 32-char trigger limit.
 //
-//    1. `save` writes THREE files atomically through `OwlConfigWriter`: `famo_quick_send.json`
-//       (source of truth) PLUS the derived `famo_quick_send.txt` PLUS the `rime_ice.custom.yaml`
+//    1. `save` writes THREE files atomically through `OwlConfigWriter`: `owl_quick_send.json`
+//       (source of truth) PLUS the derived `owl_quick_send.txt` PLUS the `rime_ice.custom.yaml`
 //       patch. `load` reads JSON only — repeated save→load round-trips are a FIXPOINT (the
 //       regression guard: no growth, no `v` accretion).
 //    2. Legacy migration: a dict-only dir (pre-JSON install) is parsed once with the snowballed
@@ -88,7 +88,7 @@ final class OwlQuickSendStoreTests: XCTestCase {
     // Pre-JSON install: the dict WAS the store, already snowballed two generations deep.
     let legacy = """
       # Rime table
-      #@/db_name famo_quick_send
+      #@/db_name owl_quick_send
       opencode --auto\tyooc\t100000
       opencode --auto\tvyooc\t100000
       opencode --auto\tvvyooc\t100000
@@ -127,7 +127,7 @@ final class OwlQuickSendStoreTests: XCTestCase {
   func testMigrateRegeneratesStaleLegacyArtifacts() throws {
     let legacyDict = """
       # Rime table
-      #@/db_name famo_quick_send
+      #@/db_name owl_quick_send
       claude --dangerously-skip-permissions\tyocc\t100000
       claude --dangerously-skip-permissions\tvyocc\t100000
       """
@@ -136,17 +136,17 @@ final class OwlQuickSendStoreTests: XCTestCase {
       atomically: true, encoding: .utf8)
     let legacyYAML = """
       patch:
-        # >>> FAMO MANAGED QUICK_SEND RIME_ICE PATCH v1
+        # >>> OWL MANAGED QUICK_SEND RIME_ICE PATCH v1
         "engine/translators/+":
-          - table_translator@famo_quick_send
-        famo_quick_send:
+          - table_translator@owl_quick_send
+        owl_quick_send:
           dictionary: ""
-          user_dict: famo_quick_send
+          user_dict: owl_quick_send
           db_class: stabledb
           enable_completion: true
           enable_sentence: false
           initial_quality: 100
-        # <<< FAMO MANAGED QUICK_SEND RIME_ICE PATCH v1
+        # <<< OWL MANAGED QUICK_SEND RIME_ICE PATCH v1
       """
     try legacyYAML.write(
       to: tempRoot.appendingPathComponent("rime_ice.custom.yaml"),
@@ -169,9 +169,9 @@ final class OwlQuickSendStoreTests: XCTestCase {
     XCTAssertTrue(yaml.contains("initial_quality: 99"))
     // The migration's backup batch must not collide with the launch-time keyboard apply,
     // which runs in the same second with a bare yyyyMMdd-HHmmss timestamp — a shared
-    // .famo-backup/<ts>/ dir would let the second write clobber the first backup.
+    // .owl-backup/<ts>/ dir would let the second write clobber the first backup.
     let backups = try FileManager.default.contentsOfDirectory(
-      atPath: tempRoot.appendingPathComponent(".famo-backup").path)
+      atPath: tempRoot.appendingPathComponent(".owl-backup").path)
     XCTAssertFalse(backups.isEmpty)
     XCTAssertTrue(backups.allSatisfy { $0.hasSuffix("-quicksend-migration") },
                   "migration backups must use their own batch suffix, got \(backups)")
@@ -204,7 +204,7 @@ final class OwlQuickSendStoreTests: XCTestCase {
     try OwlQuickSendStore.save(
       [try OwlQuickSendStore.entry(text: "opencode --auto", code: "yooc")],
       writer: writer, timestamp: "20260726-000000")
-    let manifestURL = tempRoot.appendingPathComponent("famo/rollback-manifest.json")
+    let manifestURL = tempRoot.appendingPathComponent("owltype/rollback-manifest.json")
     let manifestBefore = try Data(contentsOf: manifestURL)
     let dictBefore = try read(OwlQuickSendStore.dictFileName)
     let yamlBefore = try read("rime_ice.custom.yaml")

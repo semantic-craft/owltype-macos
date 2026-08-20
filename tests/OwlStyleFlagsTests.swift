@@ -22,7 +22,7 @@ final class OwlStyleFlagsTests: XCTestCase {
   }
 
   func test_globalInline_normalHost() {
-    // 出厂 famo.yaml：inline_preedit=true / inline_candidate=false；普通宿主无选项。
+    // 出厂 owltype.yaml：inline_preedit=true / inline_candidate=false；普通宿主无选项。
     let r = OwlStyleFlags.sessionInline(
       style: flags(inlinePreedit: true, inlineCandidate: false), noInline: false, inlineForced: false)
     XCTAssertTrue(r.preedit)

@@ -2,7 +2,7 @@
 //  OwlPolishPromptCatalogTests.swift
 //  OwltypeTests — 润色提示词变体注册表 (issue #136)
 //
-//  测试红线（项目记忆 famo-app-options-test-fake-coverage）：断言必须「真读回」——通过
+//  测试红线（项目记忆 owl-app-options-test-fake-coverage）：断言必须「真读回」——通过
 //  OwlExperimentalPreferences 设置 variant 后走到请求构造层（chatRequest 默认参数解析），
 //  断言请求体里的 system prompt / temperature 真的切换了；只断言 catalog 常量文本是假覆盖。
 //

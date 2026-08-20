@@ -4,8 +4,8 @@
 //
 //  Locks the PURE classifier `OwlRimeConfigDiagnostics.classify`:
 //    - healthy (preferred reachable across seed/build/schema_list, no shadow) → no headline code;
-//    - each of FAMO-SCHEMA-001..004 fires on its own layer;
-//    - FAMO-SCHEMA-005 (~/Library/Rime present) is ADVISORY (ok:nil) — never a headline failure;
+//    - each of OWL-SCHEMA-001..004 fires on its own layer;
+//    - OWL-SCHEMA-005 (~/Library/Rime present) is ADVISORY (ok:nil) — never a headline failure;
 //    - precedence: the headline names the most UPSTREAM failure (seed → build → schema_list).
 //
 //  No filesystem, no librime: pure value logic over synthetic observations, mirrors
@@ -51,43 +51,43 @@ final class RimeConfigDiagnosticsTests: XCTestCase {
     XCTAssertNil(layer(diag, .foreignDir).ok) // advisory ceiling
   }
 
-  // Seed doesn't carry preferred → FAMO-SCHEMA-003 (stale install).
+  // Seed doesn't carry preferred → OWL-SCHEMA-003 (stale install).
   func testStaleSeedIsCode003() {
     let diag = OwlRimeConfigDiagnostics.classify(obs(seed: ["wubi86_jidian"]))
-    XCTAssertEqual(diag.code, "FAMO-SCHEMA-003")
+    XCTAssertEqual(diag.code, "OWL-SCHEMA-003")
     XCTAssertEqual(diag.firstFailingLayer, .seed)
     XCTAssertEqual(layer(diag, .seed).ok, false)
   }
 
-  // Seed ok, but user build/ hasn't compiled preferred → FAMO-SCHEMA-002.
+  // Seed ok, but user build/ hasn't compiled preferred → OWL-SCHEMA-002.
   func testUserBuildMissingIsCode002() {
     let diag = OwlRimeConfigDiagnostics.classify(obs(built: ["wubi86_jidian"]))
-    XCTAssertEqual(diag.code, "FAMO-SCHEMA-002")
+    XCTAssertEqual(diag.code, "OWL-SCHEMA-002")
     XCTAssertEqual(diag.firstFailingLayer, .userBuild)
   }
 
-  // Seed + build ok, but user schema_list dropped preferred (drift) → FAMO-SCHEMA-001.
+  // Seed + build ok, but user schema_list dropped preferred (drift) → OWL-SCHEMA-001.
   func testSchemaListDriftIsCode001() {
     let diag = OwlRimeConfigDiagnostics.classify(obs(schemaList: ["wubi86_jidian", "pinyin_simp"]))
-    XCTAssertEqual(diag.code, "FAMO-SCHEMA-001")
+    XCTAssertEqual(diag.code, "OWL-SCHEMA-001")
     XCTAssertEqual(diag.firstFailingLayer, .userSchemaList)
   }
 
-  // A full default.yaml in the user dir shadows the shared layer → FAMO-SCHEMA-004.
+  // A full default.yaml in the user dir shadows the shared layer → OWL-SCHEMA-004.
   func testUserDefaultYamlShadowIsCode004() {
     let diag = OwlRimeConfigDiagnostics.classify(obs(shadow: true))
-    XCTAssertEqual(diag.code, "FAMO-SCHEMA-004")
+    XCTAssertEqual(diag.code, "OWL-SCHEMA-004")
     XCTAssertEqual(diag.firstFailingLayer, .shadow)
   }
 
-  // ~/Library/Rime present but everything else healthy: FAMO-SCHEMA-005 is ADVISORY only — it tags
+  // ~/Library/Rime present but everything else healthy: OWL-SCHEMA-005 is ADVISORY only — it tags
   // the foreignDir layer (ok:nil) but is NEVER the headline failure code.
   func testForeignRimeDirIsAdvisoryNotFailure() {
     let diag = OwlRimeConfigDiagnostics.classify(obs(foreignPresent: true, foreignHasPreferred: false))
     XCTAssertNil(diag.code)                             // not a headline failure
     XCTAssertNil(diag.firstFailingLayer)
     XCTAssertNil(layer(diag, .foreignDir).ok)           // advisory ceiling, never scored
-    XCTAssertEqual(layer(diag, .foreignDir).code, "FAMO-SCHEMA-005")
+    XCTAssertEqual(layer(diag, .foreignDir).code, "OWL-SCHEMA-005")
   }
 
   // No ~/Library/Rime → foreignDir layer carries no advisory code.
@@ -99,7 +99,7 @@ final class RimeConfigDiagnosticsTests: XCTestCase {
   // Multiple failures → the headline names the most UPSTREAM one (seed before build before list).
   func testHeadlinePrefersMostUpstreamFailure() {
     let diag = OwlRimeConfigDiagnostics.classify(obs(schemaList: [], built: [], seed: []))
-    XCTAssertEqual(diag.code, "FAMO-SCHEMA-003")   // seed is upstream of build/list
+    XCTAssertEqual(diag.code, "OWL-SCHEMA-003")   // seed is upstream of build/list
     XCTAssertEqual(diag.firstFailingLayer, .seed)
     // downstream failures are still reported in their layers
     XCTAssertEqual(layer(diag, .userBuild).ok, false)

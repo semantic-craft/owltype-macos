@@ -385,7 +385,7 @@ final class OwlModernUISmokeTests: XCTestCase {
     // 图渲染出来也找不到，看不成图这个测试就白写了。
     let dir = try XCTUnwrap(
       FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first)
-      .appending(component: "famo-onboarding-snapshots", directoryHint: .isDirectory)
+      .appending(component: "owl-onboarding-snapshots", directoryHint: .isDirectory)
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
     for step in 0..<5 {
@@ -578,8 +578,8 @@ final class OwlModernUISmokeTests: XCTestCase {
     )
     XCTAssertEqual(OwlAboutPage.versionDisplay(info: nil), "未知")
     XCTAssertEqual(
-      OwlAboutPage.buildIdentityDisplay(bundleIdentifier: "im.famo.inputmethod.Famo"),
-      "im.famo.inputmethod.Famo"
+      OwlAboutPage.buildIdentityDisplay(bundleIdentifier: "im.owltype.inputmethod.Owltype"),
+      "im.owltype.inputmethod.Owltype"
     )
     XCTAssertEqual(OwlAboutPage.buildIdentityDisplay(bundleIdentifier: ""), "未知")
   }
@@ -976,7 +976,7 @@ final class OwlSelectionPolishServiceTests: XCTestCase {
   }
 
   func testPolishRoutesThroughActiveProviderProfileKey() async throws {
-    // FAMO-098: 润色选中 must use the ACTIVE provider profile's key (not only the legacy DeepSeek
+    // OWL-098: 润色选中 must use the ACTIVE provider profile's key (not only the legacy DeepSeek
     // key), so a user configured with OpenAI / Gemini / 自定义 can polish selections. The legacy
     // key reader must NOT be consulted when a profile with a secret is active.
     OwlCloudPreferences.isEnabled = true
@@ -986,7 +986,7 @@ final class OwlSelectionPolishServiceTests: XCTestCase {
       displayName: "unit",
       endpoint: URL(string: "https://api.openai.com/v1/chat/completions")!,
       model: "gpt-4o",
-      secretName: "famo.provider.unit.apiKey",
+      secretName: "owltype.provider.unit.apiKey",
       isDefault: true
     )
     let service = OwlSelectionPolishService(

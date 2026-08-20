@@ -170,7 +170,7 @@ struct OwlCandidatePalette: Sendable, Equatable {
 ///
 /// Colors are hardcoded from the project color source of truth
 /// `packages/rime-law-config/skins/colors.md` (shenda) — v0.1.1 does not read
-/// them live from famo.custom.yaml. Pick light/dark via `@Environment(\.colorScheme)`.
+/// them live from owltype.custom.yaml. Pick light/dark via `@Environment(\.colorScheme)`.
 ///
 /// Token → use mapping:
 ///   panel bg = card; selected candidate pill = accent, its text/label = onAccent;

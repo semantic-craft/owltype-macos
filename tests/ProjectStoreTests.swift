@@ -1,6 +1,6 @@
 //
 //  ProjectStoreTests.swift
-//  OwltypeTests — 项目输入空间 (blueprint_v2 P0 pillar, task 06-20-famo-project-input-space)
+//  OwltypeTests — 项目输入空间 (blueprint_v2 P0 pillar, task 06-20-owl-project-input-space)
 //
 //  Locks three contracts:
 //    1. `OwlProjectStore` CRUD round-trips through `project.json` (create → read → rename →

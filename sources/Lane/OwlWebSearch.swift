@@ -266,7 +266,7 @@ enum OwlWebSearchBackend: String, CaseIterable, Hashable, Sendable {
   }
 
   /// Keychain account。每家一把，换后端不会互相覆盖，切回去也不用重填。
-  var secretName: String { "famo.websearch.\(rawValue).apiKey" }
+  var secretName: String { "owltype.websearch.\(rawValue).apiKey" }
 
   /// 设置页里告诉用户去哪儿拿 Key。豆包/Perplexity 都**不是**模型 Key，这句是最容易踩空的地方；
   /// 通义千问相反 —— 它就是百炼的模型 Key，但仍单独存一份（理由见 `OwlWebSearchKeyStore`）。

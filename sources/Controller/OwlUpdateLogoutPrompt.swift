@@ -200,7 +200,7 @@ enum OwlLogoutPromptTiming {
 /// 「稍后自己注销」还原宿主焦点，「立即注销」保持前台进 TCC→系统注销确认链。
 /// **不设「不安全也强弹」的全局超时**（用户持续输入/登录中永不打断）；但 #131 后「安全条件被卡死」的
 /// 两类永久静默有阀（搁浅合成/激活未确认，见 `OwlLogoutPromptTiming`），且每步可观测：
-///   `log stream --predicate 'subsystem == "im.famo.inputmethod.Famo" AND category == "logoutPrompt"'`
+///   `log stream --predicate 'subsystem == "im.owltype.inputmethod.Owltype" AND category == "logoutPrompt"'`
 @MainActor
 final class OwlUpdateLogoutScheduler {
   static let shared = OwlUpdateLogoutScheduler()
@@ -211,7 +211,7 @@ final class OwlUpdateLogoutScheduler {
     case activating   // 已请求激活法墨，等 isActive（有阀，不会永等）
   }
 
-  private static let log = Logger(subsystem: "im.famo.inputmethod.Famo", category: "logoutPrompt")
+  private static let log = Logger(subsystem: "im.owltype.inputmethod.Owltype", category: "logoutPrompt")
 
   private var phase: Phase = .pending
   private var pendingVersion: String?

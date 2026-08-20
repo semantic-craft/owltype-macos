@@ -12,7 +12,7 @@ import Security
 
 // MARK: - Input source install: register → enable → select (upstream Squirrel behavior)
 //
-// Keep only Owltype's own bundle identity (`im.famo.inputmethod.Famo[.Hans/.Hant]`) and use TIS as the
+// Keep only Owltype's own bundle identity (`im.owltype.inputmethod.Owltype[.Hans/.Hant]`) and use TIS as the
 // activation surface. Do NOT write `AppleEnabledInputSources` directly: on modern macOS that plist
 // omits third-party IMEs, and injecting a Owltype row creates duplicate TIS records that can leave the
 // menu bar title selected while the input menu itself has no Owltype row.
@@ -22,13 +22,13 @@ import Security
 // enable/select.
 
 final class OwlInstaller {
-  static let inputSourcePrefix = "im.famo.inputmethod.Famo"
+  static let inputSourcePrefix = "im.owltype.inputmethod.Owltype"
   static let squirrelInputSourcePrefix = ["im", "rime", "inputmethod", "Squirrel"].joined(separator: ".")
 
   enum InputMode: String, CaseIterable {
     static let primary = Self.hans
-    case hans = "im.famo.inputmethod.Famo.Hans"
-    case hant = "im.famo.inputmethod.Famo.Hant"
+    case hans = "im.owltype.inputmethod.Owltype.Hans"
+    case hant = "im.owltype.inputmethod.Owltype.Hant"
 
     /// 面向用户的模式名，只给结果文案用。日志与诊断一律继续用 `rawValue` 的精确 source id。
     var displayName: String {
@@ -402,7 +402,7 @@ final class OwlInstaller {
 // MARK: - Read-only six-layer TIS activation diagnosis (W1.4)
 //
 // Separates the register → enumerate → enable → select → menu-visible → client-attach lifecycle so
-// "installed but not usable" maps to a specific FAMO-* code instead of "reboot/logout". Read-only:
+// "installed but not usable" maps to a specific OWL-* code instead of "reboot/logout". Read-only:
 // no enable/select/disable, no `AppleEnabledInputSources` write. Law 4: `Owltype --diagnose-tis` is a
 // short-lived process, so its TIS read-back is fresh by construction. §5/§6 of the de-Squirrel plan.
 
@@ -465,22 +465,22 @@ struct LSClaimReport: Equatable, Codable {
 }
 
 enum OwlTISDiagnostics {
-  /// §5 user-facing message per FAMO-* code (developer meaning stays in each layer's `detail`).
+  /// §5 user-facing message per OWL-* code (developer meaning stays in each layer's `detail`).
   static let userMessage: [String: String] = [
-    "FAMO-TIS-001": "系统尚未识别 Owltype 输入源。",
-    "FAMO-TIS-002": "Owltype 输入源无法启用。",
-    "FAMO-TIS-003": "Owltype 输入源启用结果不一致。",
-    "FAMO-TIS-004": "Owltype 输入源无法选中。",
-    "FAMO-TIS-005": "当前 App 未连接到 Owltype。",
-    "FAMO-TIS-006": "输入菜单尚未显示 Owltype。",
-    "FAMO-INSTALL-001": "Owltype 未安装在系统输入法目录。",
-    "FAMO-SIGN-001": "Owltype 签名校验未通过。",
-    "FAMO-SIGN-002": "Owltype 发布物未通过系统安全评估。",
-    "FAMO-DATA-001": "Owltype 数据目录不可用。",
-    "FAMO-DATA-002": "检测到非 Owltype 数据路径写入。",
-    "FAMO-UPDATE-001": "更新时仍有旧输入连接。",
-    "FAMO-LS-001": "多个构建认领同一 bundle id，装机版可能被遮蔽。",
-    "FAMO-LS-002": "存在未签名构建认领同一 bundle id。",
+    "OWL-TIS-001": "系统尚未识别 Owltype 输入源。",
+    "OWL-TIS-002": "Owltype 输入源无法启用。",
+    "OWL-TIS-003": "Owltype 输入源启用结果不一致。",
+    "OWL-TIS-004": "Owltype 输入源无法选中。",
+    "OWL-TIS-005": "当前 App 未连接到 Owltype。",
+    "OWL-TIS-006": "输入菜单尚未显示 Owltype。",
+    "OWL-INSTALL-001": "Owltype 未安装在系统输入法目录。",
+    "OWL-SIGN-001": "Owltype 签名校验未通过。",
+    "OWL-SIGN-002": "Owltype 发布物未通过系统安全评估。",
+    "OWL-DATA-001": "Owltype 数据目录不可用。",
+    "OWL-DATA-002": "检测到非 Owltype 数据路径写入。",
+    "OWL-UPDATE-001": "更新时仍有旧输入连接。",
+    "OWL-LS-001": "多个构建认领同一 bundle id，装机版可能被遮蔽。",
+    "OWL-LS-002": "存在未签名构建认领同一 bundle id。",
   ]
 
   /// PURE six-layer classifier. `sources` is the installed set already filtered to Owltype's prefix.
@@ -499,7 +499,7 @@ enum OwlTISDiagnostics {
 
     // 1. register
     layers.append(LayerResult(
-      layer: .register, ok: registered, code: registered ? nil : "FAMO-TIS-001",
+      layer: .register, ok: registered, code: registered ? nil : "OWL-TIS-001",
       detail: registered
         ? "\(sources.count) 个 Owltype 输入源可枚举（TISCreateInputSourceList includeAllInstalled=true）"
         : "0 个 Owltype 输入源可枚举 → 未注册（核对安装路径/签名/Info.plist）"))
@@ -510,7 +510,7 @@ enum OwlTISDiagnostics {
       layers.append(LayerResult(layer: .enumerate, ok: nil, code: nil, detail: "未评估（register 失败）"))
     } else if !primaryPresent {
       layers.append(LayerResult(
-        layer: .enumerate, ok: false, code: "FAMO-TIS-001",
+        layer: .enumerate, ok: false, code: "OWL-TIS-001",
         detail: "主输入源 \(primaryID) 不可枚举；已见 \(sources.map { $0.id })"))
     } else {
       layers.append(LayerResult(
@@ -525,18 +525,18 @@ enum OwlTISDiagnostics {
       layers.append(LayerResult(layer: .enable, ok: true, code: nil, detail: "主输入源 \(primaryID) 已启用"))
     } else if halfState != nil {
       layers.append(LayerResult(
-        layer: .enable, ok: nil, code: nil, detail: "enabled=false，属选中半态，见 select 层（FAMO-TIS-004）"))
+        layer: .enable, ok: nil, code: nil, detail: "enabled=false，属选中半态，见 select 层（OWL-TIS-004）"))
     } else if let primary, !primary.enableCapable {
       layers.append(LayerResult(
-        layer: .enable, ok: false, code: "FAMO-TIS-002",
+        layer: .enable, ok: false, code: "OWL-TIS-002",
         detail: "主输入源 \(primaryID) 不可启用（IsEnableCapable=false / 父条目未启用）"))
     } else if let wrong = sources.first(where: { $0.enabled && !expectedIDs.contains($0.id) }) {
       layers.append(LayerResult(
-        layer: .enable, ok: false, code: "FAMO-TIS-002",
+        layer: .enable, ok: false, code: "OWL-TIS-002",
         detail: "启用了非期望输入源 \(wrong.id) 而非 \(primaryID)（enable 打在错误条目/按名称选择）—— 只按精确 source id 操作"))
     } else {
       layers.append(LayerResult(
-        layer: .enable, ok: false, code: "FAMO-TIS-003",
+        layer: .enable, ok: false, code: "OWL-TIS-003",
         detail: "主输入源 \(primaryID) 可启用但读回 enabled=false —— 运行 --enable-input-source；读回仍 false = 启用不一致"))
     }
 
@@ -545,12 +545,12 @@ enum OwlTISDiagnostics {
       layers.append(LayerResult(layer: .select, ok: nil, code: nil, detail: "未评估（主输入源不可枚举）"))
     } else if let half = halfState {
       layers.append(LayerResult(
-        layer: .select, ok: false, code: "FAMO-TIS-004",
+        layer: .select, ok: false, code: "OWL-TIS-004",
         detail: "当前源 \(half.id) 已选中但 enabled=false（吞键死半态）—— 先切 ABC 再重选「法墨」，或系统设置→键盘→输入法重加一次"))
     } else if let primary, primary.enabled {
       if !primary.selectCapable {
         layers.append(LayerResult(
-          layer: .select, ok: false, code: "FAMO-TIS-004",
+          layer: .select, ok: false, code: "OWL-TIS-004",
           detail: "主输入源 \(primaryID) 已启用但不可选中（IsSelectCapable=false）"))
       } else if primary.selected {
         layers.append(LayerResult(layer: .select, ok: true, code: nil, detail: "主输入源 \(primaryID) 已选中（当前）"))
@@ -563,18 +563,18 @@ enum OwlTISDiagnostics {
       layers.append(LayerResult(layer: .select, ok: nil, code: nil, detail: "未评估（主输入源未启用）"))
     }
 
-    // 5. menuVisible — read-only ceiling; surfaces the FAMO-TIS-006 candidate note
+    // 5. menuVisible — read-only ceiling; surfaces the OWL-TIS-006 candidate note
     let primaryEnabled = primary?.enabled ?? false
     layers.append(LayerResult(
       layer: .menuVisible, ok: nil, code: nil,
       detail: primaryEnabled
-        ? "只读探针看不到输入菜单缓存。若已 enabled 但菜单仍不列「法墨」= FAMO-TIS-006（菜单缓存未刷新）：等软/硬窗自然翻绿或用手动菜单代理刷新按钮；刷新后仍不列 = 会话层拒收（TIS 全绿也无用户态解法，2026-08-12 本机实证），注销重登即愈"
+        ? "只读探针看不到输入菜单缓存。若已 enabled 但菜单仍不列「法墨」= OWL-TIS-006（菜单缓存未刷新）：等软/硬窗自然翻绿或用手动菜单代理刷新按钮；刷新后仍不列 = 会话层拒收（TIS 全绿也无用户态解法，2026-08-12 本机实证），注销重登即愈"
         : "未评估（主输入源未启用）"))
 
     // 6. clientAttach — read-only ceiling; per-app IMK attach needs a live app
     layers.append(LayerResult(
       layer: .clientAttach, ok: nil, code: nil,
-      detail: "系统当前输入源 = \(currentSourceID ?? "无")。某 App 的 IMK client 是否 attach 需活跃 App：TIS 全绿但某「已打开」App 无输入 = FAMO-TIS-005，重开该 App（系统天花板，微信同款）"))
+      detail: "系统当前输入源 = \(currentSourceID ?? "无")。某 App 的 IMK client 是否 attach 需活跃 App：TIS 全绿但某「已打开」App 无输入 = OWL-TIS-005，重开该 App（系统天花板，微信同款）"))
 
     let firstFailing = layers.first { $0.ok == false }
     return TISDiagnosis(layers: layers, firstFailingLayer: firstFailing?.layer, code: firstFailing?.code)
@@ -591,18 +591,18 @@ enum OwlTISDiagnostics {
     let code: String?
     let detail: String
     if !unsigned.isEmpty {
-      code = "FAMO-LS-002"
+      code = "OWL-LS-002"
       detail = "\(sorted.count) 个 bundle 认领 \(bundleID)，其中 \(unsigned.count) 个无 teamID（未签名 / ad-hoc 开发构建）："
         + "\(unsigned.map { $0.path }.joined(separator: "、"))"
     } else if sorted.count > 1 {
-      code = "FAMO-LS-001"
+      code = "OWL-LS-001"
       detail = "\(sorted.count) 个已签名 bundle 认领 \(bundleID)：\(paths)；只应有装机版一条，其余会遮蔽它"
     } else if let only = sorted.first {
       code = nil
       detail = "唯一认领 \(only.path)（teamID \(only.teamID ?? "")）"
     } else {
       code = nil
-      detail = "LaunchServices 解析不到 \(bundleID) 的任何认领 —— 未安装或未注册，见 register 层与 FAMO-INSTALL-001"
+      detail = "LaunchServices 解析不到 \(bundleID) 的任何认领 —— 未安装或未注册，见 register 层与 OWL-INSTALL-001"
     }
     return LSClaimReport(
       bundleID: bundleID, claimCount: sorted.count, unsignedCount: unsigned.count,
@@ -640,14 +640,14 @@ enum OwlTISDiagnostics {
   /// Short remediation line per headline code (§6 修复/预防 column, condensed).
   static func actionText(for code: String) -> String {
     switch code {
-    case "FAMO-INSTALL-001": return "Owltype 未装在 /Library/Input Methods/Owltype.app —— 用 DMG 安装器安装，勿手动 cp。"
-    case "FAMO-TIS-001": return "系统查不到 Owltype 输入源 —— 核对 codesign/spctl/xattr/权限后重跑 --install。"
-    case "FAMO-TIS-002": return "Owltype 输入源不可启用 —— 只按精确 source id 操作、检查父条目；绝不按 localized name 选源。"
-    case "FAMO-TIS-003": return "启用读回不一致 —— 运行 --enable-input-source；fresh-process 复核仍 false 说明未落地。"
-    case "FAMO-TIS-004": return "选中半态/不可选 —— 先切 ABC 再在输入菜单重选「法墨」；必要时系统设置→键盘→输入法重加一次。"
-    case "FAMO-LS-001": return "同一 bundle id 被多个 bundle 认领 —— 跑 scripts/clean-dev.sh --apply，只留装机版一条认领。"
-    case "FAMO-LS-002": return "未签名（ad-hoc）开发构建认领了同一 bundle id，登录可能解析到它 —— 跑 scripts/clean-dev.sh --apply。"
-    case "FAMO-DATA-001": return "数据目录缺失（可选中但无候选）—— 启动一次 Owltype 部署 schema 到 ~/Library/Application Support/Owltype；永不 fallback 到 ~/Library/Rime。"
+    case "OWL-INSTALL-001": return "Owltype 未装在 /Library/Input Methods/Owltype.app —— 用 DMG 安装器安装，勿手动 cp。"
+    case "OWL-TIS-001": return "系统查不到 Owltype 输入源 —— 核对 codesign/spctl/xattr/权限后重跑 --install。"
+    case "OWL-TIS-002": return "Owltype 输入源不可启用 —— 只按精确 source id 操作、检查父条目；绝不按 localized name 选源。"
+    case "OWL-TIS-003": return "启用读回不一致 —— 运行 --enable-input-source；fresh-process 复核仍 false 说明未落地。"
+    case "OWL-TIS-004": return "选中半态/不可选 —— 先切 ABC 再在输入菜单重选「法墨」；必要时系统设置→键盘→输入法重加一次。"
+    case "OWL-LS-001": return "同一 bundle id 被多个 bundle 认领 —— 跑 scripts/clean-dev.sh --apply，只留装机版一条认领。"
+    case "OWL-LS-002": return "未签名（ad-hoc）开发构建认领了同一 bundle id，登录可能解析到它 —— 跑 scripts/clean-dev.sh --apply。"
+    case "OWL-DATA-001": return "数据目录缺失（可选中但无候选）—— 启动一次 Owltype 部署 schema 到 ~/Library/Application Support/Owltype；永不 fallback 到 ~/Library/Rime。"
     default: return userMessage[code] ?? code
     }
   }
@@ -670,11 +670,11 @@ enum OwlTISDiagnostics {
       expectedBundleID: OwlInstaller.inputSourcePrefix, expectedSourceIDs: expected, primarySourceID: primary,
       installPath: canonicalPath, installed: installed, installedBundleID: installedBundleID,
       bundleIDMatches: installedBundleID == OwlInstaller.inputSourcePrefix,
-      runningBundlePath: OwlApp.appDir.path, installCode: installed ? nil : "FAMO-INSTALL-001")
+      runningBundlePath: OwlApp.appDir.path, installCode: installed ? nil : "OWL-INSTALL-001")
 
     let userDir = OwlApp.userDir
     let dataExists = FileManager.default.fileExists(atPath: userDir.path)
-    let dataRoot = OwlTISReport.DataRoot(path: userDir.path, exists: dataExists, code: dataExists ? nil : "FAMO-DATA-001")
+    let dataRoot = OwlTISReport.DataRoot(path: userDir.path, exists: dataExists, code: dataExists ? nil : "OWL-DATA-001")
 
     // Who else claims this bundle id. Deliberately outside the headline: a shadowing development
     // build is a developer-machine condition (§1.3 结论 D), and folding it into `summaryCode` would
@@ -731,7 +731,7 @@ struct OwlTISReport: Codable {
 
 enum OwlActivationHealth {
   private static let markerURL = FileManager.default.temporaryDirectory
-    .appendingPathComponent("famo-last-host-key-event.txt")
+    .appendingPathComponent("owl-last-host-key-event.txt")
 
   static func recordHostKeyEventOnce() {
     let text = ISO8601DateFormatter().string(from: Date())

@@ -26,7 +26,7 @@ import Foundation
 
 /// The narrow CSC port: correct a converted Chinese run, returning the input UNCHANGED when no
 /// correction applies (the no-model contract). Injected on `OwlSnapshotEmitter` so a test can swap
-/// a scripted corrector for the concrete `OwlMacbertCscScorer` (see `famo-dependency-seams.md`).
+/// a scripted corrector for the concrete `OwlMacbertCscScorer` (see `owl-dependency-seams.md`).
 protocol OwlCscCorrecting {
   /// Correct `text`; returns `text` unchanged when there is nothing to correct (or no model).
   func correct(_ text: String) -> String

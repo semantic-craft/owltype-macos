@@ -2,7 +2,7 @@
 //  OwlPromptOptimizerTests.swift
 //  OwltypeTests — 提示词优化技能 (issue #138)
 //
-//  测试红线（项目记忆 famo-app-options-test-fake-coverage）：断言必须「真读回」——prompt 契约
+//  测试红线（项目记忆 owl-app-options-test-fake-coverage）：断言必须「真读回」——prompt 契约
 //  要走到编码后的 HTTP 请求体上断言，只断言常量字符串是假覆盖。
 //
 //  Seam（2026-07-20 机主确认）：① parse() 三态解析；② 请求构造层真读回。协调器分发不在本轮。

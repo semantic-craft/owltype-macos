@@ -17,7 +17,7 @@ final class OwlDictPackTests: XCTestCase {
 
   override func setUpWithError() throws {
     let base = FileManager.default.temporaryDirectory
-      .appending(component: "famo-dictpack-tests-\(UUID().uuidString)", directoryHint: .isDirectory)
+      .appending(component: "owl-dictpack-tests-\(UUID().uuidString)", directoryHint: .isDirectory)
     fixtureRoot = base.appending(component: "fixture", directoryHint: .isDirectory)
     userDir = base.appending(component: "user", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: fixtureRoot, withIntermediateDirectories: true)
@@ -78,7 +78,7 @@ final class OwlDictPackTests: XCTestCase {
     XCTAssertEqual(record.files["cn_dicts/base.dict.yaml"], dict.sha256)
     // staging 清理干净
     XCTAssertFalse(FileManager.default.fileExists(
-      atPath: userDir.appending(component: ".famo-dictpack-staging", directoryHint: .isDirectory).path))
+      atPath: userDir.appending(component: ".owl-dictpack-staging", directoryHint: .isDirectory).path))
   }
 
   func testWubiDateTranslatorPatchApplied() async throws {
@@ -204,7 +204,7 @@ final class OwlDictPackTests: XCTestCase {
       dest: "cn_dicts/base.dict.yaml",
       sha256: OwlDictPackFetcher.sha256Hex(Data(content.utf8)), size: content.utf8.count, patch: nil)
     let staged = userDir.appending(
-      path: ".famo-dictpack-staging/cn_dicts/base.dict.yaml", directoryHint: .notDirectory)
+      path: ".owl-dictpack-staging/cn_dicts/base.dict.yaml", directoryHint: .notDirectory)
     try FileManager.default.createDirectory(
       at: staged.deletingLastPathComponent(), withIntermediateDirectories: true)
     try Data(content.utf8).write(to: staged)
@@ -219,7 +219,7 @@ final class OwlDictPackTests: XCTestCase {
     // staging 里的半截文件（哈希不符）→ 重下，最终装的是上游内容。
     let entry = try stub(path: "cn_dicts/ext.dict.yaml", dest: "cn_dicts/ext.dict.yaml", content: "upstream-good\n")
     let staged = userDir.appending(
-      path: ".famo-dictpack-staging/cn_dicts/ext.dict.yaml", directoryHint: .notDirectory)
+      path: ".owl-dictpack-staging/cn_dicts/ext.dict.yaml", directoryHint: .notDirectory)
     try FileManager.default.createDirectory(
       at: staged.deletingLastPathComponent(), withIntermediateDirectories: true)
     try Data("trunca".utf8).write(to: staged)
@@ -244,7 +244,7 @@ final class OwlDictPackTests: XCTestCase {
       guard case .downloadFailed = error else { return XCTFail("wrong error: \(error)") }
     }
     let staged = userDir.appending(
-      path: ".famo-dictpack-staging/cn_dicts/a.dict.yaml", directoryHint: .notDirectory)
+      path: ".owl-dictpack-staging/cn_dicts/a.dict.yaml", directoryHint: .notDirectory)
     XCTAssertTrue(OwlDictPackFetcher.stagedFileValid(at: staged, sha256: good.sha256))
     // 未落盘、无记录
     XCTAssertNil(OwlDictPackRecord.load(userDir: userDir))

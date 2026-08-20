@@ -7,7 +7,7 @@
 //  `resolvePromptCommit(code:committedTitle:store:)` over the injected `PromptResolving` port, plus
 //  the pure `OwlPromptStore.matchEntry` / `strippingMarker`. This locks:
 //    1. The cheap 📝 gate: an unmarked commit returns `.passThrough` WITHOUT a store lookup, so
-//       ordinary pinyin commits never read famo_prompts.json.
+//       ordinary pinyin commits never read owl_prompts.json.
 //    2. The marked branches: no-variable prompt → `.insert(body)`; `{{变量}}` prompt → `.fillIn`.
 //    3. A marked-but-unknown title (store miss) → `.passThrough`.
 //    4. `matchEntry`: (code, title) double match, the collision-proof `v{code}` tolerance, exact

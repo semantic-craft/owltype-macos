@@ -27,7 +27,7 @@ final class OwlExternalCommitBroker {
 
   /// Candidate write-sink port. Defaults to the shared store (production composition root);
   /// injectable so a test can assert the post-commit clear without a real store. See
-  /// `CandidateStoring` in RimeSeam.swift / `famo-dependency-seams.md`.
+  /// `CandidateStoring` in RimeSeam.swift / `owl-dependency-seams.md`.
   var store: CandidateStoring = OwlCandidateStore.shared
 
   init() {}

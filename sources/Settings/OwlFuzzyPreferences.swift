@@ -9,7 +9,7 @@
 //  every key string literal lives ONLY in this file, and the settings layer + the
 //  patch builder read/write through these accessors so there are no duplicate literals.
 //
-//  Persistence boundary (see `.trellis/spec/frontend/famo-modern-ui-direction.md`):
+//  Persistence boundary (see `.trellis/spec/frontend/owl-modern-ui-direction.md`):
 //  these toggles ultimately map to `speller/algebra` derive rules. Preferences stay in
 //  UserDefaults; `OwlKeyboardPage` writes the managed patch and deploys after the sheet
 //  closes, while the preview sheet remains available for dry-run/rollback diagnostics.

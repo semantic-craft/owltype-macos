@@ -6,7 +6,7 @@
 //    - main  : Rime's authoritative candidates (set elsewhere; untouched here in P0).
 //    - smart : T1 local recommendations / 五笔 typo correction / 法学 collocations.
 //  (A former `cloud` lane for inline DeepSeek candidates was removed — see task 06-25-ai /
-//  memory famo-ai-candidate-lane-removed; the DeepSeek base types live on for 划词/任意提问.)
+//  memory owl-ai-candidate-lane-removed; the DeepSeek base types live on for 划词/任意提问.)
 //
 //  Staleness gate (the whole point of P0): every async upsert carries the `snapshotID` it
 //  was computed for. If that id does not match the live snapshot in `OwlSnapshotRegistry`,

@@ -12,7 +12,7 @@ enum OwlLiveInputTrace {
   static let defaultsKey = "OwlDebugLiveInputTrace"
 
   static var defaultURL: URL {
-    FileManager.default.temporaryDirectory.appending(component: "famo-live-input-trace.log", directoryHint: .notDirectory)
+    FileManager.default.temporaryDirectory.appending(component: "owl-live-input-trace.log", directoryHint: .notDirectory)
   }
 
   static func isEnabled(defaults: UserDefaults = OwlDefaults.standard) -> Bool {

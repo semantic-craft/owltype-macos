@@ -21,7 +21,7 @@
 //
 //  v0.5 (patch-builder 转正, first batch): the conservatively-COMMENTED mappings in
 //  `owlDefaultCustomYAML` graduate to the confirmed-correct rime-ice keys, per the
-//  ChatGPT Pro 回包 (`famo-rime-config-law-implementation.html` Q1–Q6):
+//  ChatGPT Pro 回包 (`owl-rime-config-law-implementation.html` Q1–Q6):
 //  - `[]` 翻页 first disables rime-ice 以词定字 (`key_binder/select_first|last_character: ""`,
 //    a Lua processor that runs BEFORE key_binder) then sends Page_Up/Down.
 //  - 快速选词 → `send: 2/3` (not `select:`); Command stays commented (Squirrel 不稳, 需真机).
@@ -209,8 +209,8 @@ func owlDefaultCustomYAML(from s: OwlKeyboardSnapshot) -> String {
     lines.append("  \"ascii_composer/good_old_caps_lock\": \(s.goodOldCapsLock)")
   }
 
-  // App 默认英文 (app_options) 现写入 famo 域（famo.custom.yaml），不再进 default 域——
-  // 只有 config_open("famo") 域被 OwlConfig.getAppOptions 读到；写 default 域会让用户手动
+  // App 默认英文 (app_options) 现写入 owltype 域（owltype.custom.yaml），不再进 default 域——
+  // 只有 config_open("owltype") 域被 OwlConfig.getAppOptions 读到；写 default 域会让用户手动
   // 加的 App 静默失效（域裂缝，task 07-08）。见 owlAppOptionsCustomYAML(from:)。
 
   // MARK: - `[]` 翻页 disables 以词定字 (Q1).
@@ -256,13 +256,13 @@ func owlDefaultCustomYAML(from s: OwlKeyboardSnapshot) -> String {
   return lines.joined(separator: "\n") + "\n"
 }
 
-/// Build a `famo.custom.yaml` patch string carrying per-app `app_options`.
+/// Build a `owltype.custom.yaml` patch string carrying per-app `app_options`.
 ///
-/// PURE: value → string, no side effects. app_options MUST live in the FAMO config domain
-/// (`config_open("famo")` = famo.yaml + famo.custom.yaml) because that is the ONLY domain
+/// PURE: value → string, no side effects. app_options MUST live in the OWL config domain
+/// (`config_open("owltype")` = owltype.yaml + owltype.custom.yaml) because that is the ONLY domain
 /// `OwlConfig.getAppOptions` reads. The pre-fix behaviour wrote them into default.custom.yaml
 /// (the `default` domain), which `getAppOptions` never opens → user-added apps silently had
-/// no effect (config 域裂缝, task 07-08). Factory presets stay in the `famo.yaml` base; user
+/// no effect (config 域裂缝, task 07-08). Factory presets stay in the `owltype.yaml` base; user
 /// additions are this patch — patch-over-base within a single authoritative domain.
 ///
 /// Empty list → bare `patch:` so the managed block becomes empty and clears any app_options
@@ -270,14 +270,14 @@ func owlDefaultCustomYAML(from s: OwlKeyboardSnapshot) -> String {
 func owlAppOptionsCustomYAML(from s: OwlKeyboardSnapshot) -> String {
   var lines: [String] = []
   lines.append("# 法墨生成（草案）— 应用前请真机验证")
-  lines.append("# 写入 ~/Library/Application Support/Owltype/famo.custom.yaml 后需在法墨设置里「应用配置改动」")
+  lines.append("# 写入 ~/Library/Application Support/Owltype/owltype.custom.yaml 后需在法墨设置里「应用配置改动」")
   lines.append("patch:")
 
   let appEnglishBundleIDs = OwlKeyboardPreferences.normalizedAppEnglishBundleIDs(
     from: s.appEnglishBundleIDs.joined(separator: "\n")
   )
   if !appEnglishBundleIDs.isEmpty {
-    lines.append("  # App 默认英文：复用 Rime/Squirrel app_options，只追加用户指定的 bundle id（famo 域，与出厂预设同域）")
+    lines.append("  # App 默认英文：复用 Rime/Squirrel app_options，只追加用户指定的 bundle id（owltype 域，与出厂预设同域）")
     for bundleID in appEnglishBundleIDs {
       lines.append("  \"app_options/\(bundleID)/ascii_mode\": true")
     }
@@ -609,10 +609,10 @@ func owlPatchBuilderSelfCheck() {
   assert(promotedYAML.contains("\"/\": [\"、\", \"/\", \"／\", \"÷\"]"), "Owltype patch builder: missing `/` 符号选单 punctuator")
   assert(promotedYAML.contains("punctuator/half_shape/<"), "Owltype patch builder: missing `<` 符号选单 punctuator")
   assert(promotedYAML.contains("toggle: ascii_punct"), "Owltype patch builder: missing ascii_punct toggle")
-  // app_options moved to the famo domain (task 07-08): default.custom.yaml must NOT carry it; the
-  // dedicated famo.custom.yaml builder must.
+  // app_options moved to the owltype domain (task 07-08): default.custom.yaml must NOT carry it; the
+  // dedicated owltype.custom.yaml builder must.
   assert(!promotedYAML.contains("app_options/"), "Owltype patch builder: app_options must NOT be in default.custom.yaml")
-  assert(owlAppOptionsCustomYAML(from: promoted).contains("app_options/com.example.Editor/ascii_mode"), "Owltype patch builder: missing app_options in famo.custom.yaml")
+  assert(owlAppOptionsCustomYAML(from: promoted).contains("app_options/com.example.Editor/ascii_mode"), "Owltype patch builder: missing app_options in owltype.custom.yaml")
   // 双拼=小鹤: schema_list must put double_pinyin_flypy first.
   assert(promotedYAML.contains("schema: double_pinyin_flypy"), "Owltype patch builder: missing 双拼置顶 schema_list")
   // De-dup: no `key_binder/bindings/+` list line (the `- { ... }` entries) repeats.

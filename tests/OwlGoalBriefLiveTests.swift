@@ -2,7 +2,7 @@
 //  OwlGoalBriefLiveTests.swift
 //  OwltypeTests — 任务书（目标七问）「实盘」集成测试
 //
-//  与 OwlPromptOptimizeLiveTests 同一约定：**默认跳过**，只有 `~/.famo-test-key-doubao`
+//  与 OwlPromptOptimizeLiveTests 同一约定：**默认跳过**，只有 `~/.owl-test-key-doubao`
 //  存在时才跑；CI 与他人机器上 XCTSkip 静默略过，不影响离线套件。
 //
 //  为什么需要它：任务书是全仓最长的单次产出（七问逐节 + 推断标注），mock fetcher 验不出
@@ -30,13 +30,13 @@ final class OwlGoalBriefLiveTests: XCTestCase {
 
   /// 读仓库外的测试 Key；没有就返回 nil → 测试跳过。永不打印内容。
   private func testAPIKey() throws -> String {
-    let path = ("~/.famo-test-key-doubao" as NSString).expandingTildeInPath
+    let path = ("~/.owl-test-key-doubao" as NSString).expandingTildeInPath
     guard let raw = try? String(contentsOfFile: path, encoding: .utf8) else {
-      throw XCTSkip("无 ~/.famo-test-key-doubao，跳过实盘测试（离线套件不受影响）")
+      throw XCTSkip("无 ~/.owl-test-key-doubao，跳过实盘测试（离线套件不受影响）")
     }
     let key = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     if key.isEmpty {
-      throw XCTSkip("~/.famo-test-key-doubao 为空，跳过实盘测试")
+      throw XCTSkip("~/.owl-test-key-doubao 为空，跳过实盘测试")
     }
     return key
   }
@@ -61,12 +61,12 @@ final class OwlGoalBriefLiveTests: XCTestCase {
     let status = (response as? HTTPURLResponse)?.statusCode ?? -1
     let body = String(data: data, encoding: .utf8) ?? ""
     try? body.write(
-      toFile: "/tmp/famo-live-goalbrief-\(label).json", atomically: true, encoding: .utf8)
+      toFile: "/tmp/owl-live-goalbrief-\(label).json", atomically: true, encoding: .utf8)
     XCTAssertEqual(status, 200, "方舟返回非 200：\(body.prefix(400))")
 
     let content = (try? OwlResponsesWire.parse(data))?.text ?? ""
     try? content.write(
-      toFile: "/tmp/famo-live-goalbrief-\(label)-content.txt", atomically: true, encoding: .utf8)
+      toFile: "/tmp/owl-live-goalbrief-\(label)-content.txt", atomically: true, encoding: .utf8)
     return content
   }
 

@@ -19,8 +19,8 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   /// nowhere useful, and rime's glog can't record a notification that never reached the
   /// process — this channel is the app-side proof of "reload arrived / deploy succeeded or
   /// failed". Read with:
-  ///   log show --predicate 'subsystem == "im.famo.inputmethod.Famo" && category == "deploy"' --info
-  static let deployLog = Logger(subsystem: "im.famo.inputmethod.Famo", category: "deploy")
+  ///   log show --predicate 'subsystem == "im.owltype.inputmethod.Owltype" && category == "deploy"' --info
+  static let deployLog = Logger(subsystem: "im.owltype.inputmethod.Owltype", category: "deploy")
 
   /// The single owner of the global librime lifecycle. The input controller obtains its
   /// per-composition Session from this engine (via `NSApp.owlAppDelegate.engine`), the
@@ -41,7 +41,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   var selectionPolish: SelectionPolishing = OwlSelectionPolishService.shared
   /// The controller's prompt-commit resolver, behind the narrow `PromptResolving` port. Given the
   /// originating trigger code + committed candidate title, returns the matching 提示词 entry (or
-  /// nil). Default is the production `.shared` resolver (reads famo_prompts.json on a 📝 commit);
+  /// nil). Default is the production `.shared` resolver (reads owl_prompts.json on a 📝 commit);
   /// swappable so tests can return a scripted entry without disk.
   var promptStore: PromptResolving = OwlPromptResolver.shared
   /// Central host-client compatibility policy. Pure and swappable in tests; controller code asks
@@ -769,7 +769,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
           try fm.copyItem(at: src, to: dst)
         }
       }
-      try? Data("famo seed v1\n".utf8).write(to: marker)
+      try? Data("owltype seed v1\n".utf8).write(to: marker)
       print("Owltype: seeded user_data_dir from bundled _user_seed.")
     } catch {
       print("Owltype: user-dir seed failed: \(error)")
@@ -801,9 +801,9 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       OwlLatencyTrace.event("deploy.maintenanceStarted")
     }
     // update Owltype frontend config — UNCONDITIONALLY: rime's detect_modifications does not
-    // track famo.custom.yaml, so a famo-domain-only change (App 默认英文 add) leaves
+    // track owltype.custom.yaml, so a owltype-domain-only change (App 默认英文 add) leaves
     // maintenance with "nothing to do" and used to skip this deploy entirely — the write
-    // then never reached build/famo.yaml even via 重新部署 (#121 真机验收逮住).
+    // then never reached build/owltype.yaml even via 重新部署 (#121 真机验收逮住).
     // config_file_update is fingerprint-gated → free when unchanged.
     _ = engine.deployConfigFile(OwlRimeIdentity.configFile, versionKey: "config_version")
     OwlLatencyTrace.event("deploy.configFile")
@@ -817,9 +817,9 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     }
   }
 
-  /// `self.config` 可用性判据（2026-07-12 B1/B2）：打得开且非空壳。实测 `config_open("famo")`
-  /// 在 build/famo.yaml 缺席/重建窗口会「成功」返回空壳（一切读取失败）——只看 open 返回值不够，
-  /// 必须探真内容（famo.yaml 恒有 style 段）。
+  /// `self.config` 可用性判据（2026-07-12 B1/B2）：打得开且非空壳。实测 `config_open("owltype")`
+  /// 在 build/owltype.yaml 缺席/重建窗口会「成功」返回空壳（一切读取失败）——只看 open 返回值不够，
+  /// 必须探真内容（owltype.yaml 恒有 style 段）。
   private static func isUsable(_ config: OwlConfig?) -> Bool {
     config?.has(section: "style") ?? false
   }
@@ -905,7 +905,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   // prevent freezing the system
   func problematicLaunchDetected() -> Bool {
     var detected = false
-    let logFile = FileManager.default.temporaryDirectory.appendingPathComponent("famo_launch.json", conformingTo: .json)
+    let logFile = FileManager.default.temporaryDirectory.appendingPathComponent("owl_launch.json", conformingTo: .json)
     // print("[DEBUG] archive: \(logFile)")
     do {
       let archive = try Data(contentsOf: logFile, options: [.uncached])

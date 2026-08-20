@@ -40,7 +40,7 @@ final class OwlUpdateLogoutPromptTests: XCTestCase {
   // MARK: A1 —— planPrompt（更新不记录 / 首装/同版本播种）+ recordDisposition（处置后记录）
 
   private func freshDefaults() -> (UserDefaults, String) {
-    let suite = "test.famo.logout.\(UUID().uuidString)"
+    let suite = "test.owltype.logout.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defaults.removePersistentDomain(forName: suite)
     return (defaults, suite)

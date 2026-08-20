@@ -209,7 +209,7 @@ final class OwlQuickSendPanel: NSPanel {
 
   /// Show near the caret and make key (so the search field is typeable) WITHOUT activating Owltype's
   /// app, capturing the frontmost app first so a pick can restore focus to it. Rebuilds the content
-  /// so the phrase list reflects the latest `famo_quick_send.json` and the query/selection reset on
+  /// so the phrase list reflects the latest `owl_quick_send.json` and the query/selection reset on
   /// each show (freshness). Positioning: near the caret (design B) with a mouse-centered fallback.
   func showPanel(initialSegment: OwlPickerSegment = .phrase) {
     broker.capture()

@@ -290,7 +290,7 @@ final class KeyTranslationTests: XCTestCase {
       handled: false))
   }
 
-  // Regression (task 06-23-fix-famo-left-shift-cjk-english-switch-broken): the live
+  // Regression (task 06-23-fix-owl-left-shift-cjk-english-switch-broken): the live
   // `OwlKeyEvent(event:lastModifiers:)` init used to read `event.characters` /
   // `charactersIgnoringModifiers` UNCONDITIONALLY. For a modifier press (a `flagsChanged`, not a
   // keyDown) `NSEvent.characters` raises NSInternalInconsistencyException — IMK swallowed it and

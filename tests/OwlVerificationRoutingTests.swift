@@ -4,7 +4,7 @@
 //
 //  纯值逻辑：路由表逐源 URL 断言（含编码边界：裸 +、&、CJK）、知网专业检索式、
 //  剪贴板纪律判定、链接安全闸。无网络、无剪贴板副作用、无 librime。
-//  URL 模板逐字对齐 Responsay VerificationQueryRouter（docs/famo-responsay-alignment-spec.md §1）。
+//  URL 模板逐字对齐 Responsay VerificationQueryRouter（docs/owl-responsay-alignment-spec.md §1）。
 //
 
 import Foundation
@@ -141,7 +141,7 @@ final class OwlVerificationRoutingTests: XCTestCase {
     XCTAssertNil(OwlExternalLinkPolicy.safeWebURL("javascript:alert(1)"))
     XCTAssertNil(OwlExternalLinkPolicy.safeWebURL("file:///etc/passwd"))
     XCTAssertNil(OwlExternalLinkPolicy.safeWebURL("data:text/html,hi"))
-    XCTAssertNil(OwlExternalLinkPolicy.safeWebURL("famo://open"))
+    XCTAssertNil(OwlExternalLinkPolicy.safeWebURL("owltype://open"))
     XCTAssertNil(OwlExternalLinkPolicy.safeWebURL("https://trusted@evil.com/x"))
     XCTAssertNil(OwlExternalLinkPolicy.safeWebURL(""))
   }

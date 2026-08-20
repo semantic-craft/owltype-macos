@@ -6,7 +6,7 @@
 //  flag, and the `OwlClientAction.insertTextInRange` value case. The execution half
 //  (`commitApplyingAutoPair`) drives a real `IMKTextInput` client and stays real-machine
 //  verified (headless `IMKInputController` can't be constructed — same limitation as the
-//  rest of the controller; see famo-dependency-seams.md). The decision function carries all
+//  rest of the controller; see owl-dependency-seams.md). The decision function carries all
 //  the branching, so it is the unit-test body.
 //
 

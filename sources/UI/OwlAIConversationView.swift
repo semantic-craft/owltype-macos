@@ -245,14 +245,14 @@ struct OwlAIConversationView: View {
           case .unconfigured:
             placeholder(NSLocalizedString("尚未配置 AI 供应商，请在设置中添加。", comment: "unconfigured body"), isError: true)
           }
-          Color.clear.frame(height: 1).id("famo-ai-bottom")
+          Color.clear.frame(height: 1).id("owl-ai-bottom")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 4)
       }
       .frame(maxHeight: .infinity)
       .onChange(of: state) {
-        proxy.scrollTo("famo-ai-bottom", anchor: .bottom)
+        proxy.scrollTo("owl-ai-bottom", anchor: .bottom)
       }
     }
   }

@@ -1,6 +1,6 @@
 //
 //  TerminologyTests.swift
-//  OwltypeTests — 术语锁 (Terminology Lock, blueprint_v2 P0 pillar, task 06-20-famo-terminology-lock)
+//  OwltypeTests — 术语锁 (Terminology Lock, blueprint_v2 P0 pillar, task 06-20-owl-terminology-lock)
 //
 //  Locks the 术语锁 contract on two axes:
 //    1. The PURE `OwlTerminology.apply(candidates:rules:)` reordering/filtering function:

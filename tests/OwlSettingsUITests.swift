@@ -81,8 +81,8 @@ final class OwlSettingsUITests: XCTestCase {
 
     let app = XCUIApplication()
     app.launchArguments = ["--ui-test-show-settings"]
-    app.launchEnvironment["FAMO_TEST_USER_DIR"] = root.path
-    app.launchEnvironment["FAMO_TEST_LOG_DIR"] = root.appendingPathComponent("logs", isDirectory: true).path
+    app.launchEnvironment["OWL_TEST_USER_DIR"] = root.path
+    app.launchEnvironment["OWL_TEST_LOG_DIR"] = root.appendingPathComponent("logs", isDirectory: true).path
     app.launch()
     let ready = app.otherElements["OwlSettingsView"].waitForExistence(timeout: 5)
       || app.buttons["双拼输入"].waitForExistence(timeout: 5)

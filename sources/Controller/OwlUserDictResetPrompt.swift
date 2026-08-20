@@ -23,7 +23,7 @@ enum OwlUserDictResetPrompt {
       将清空输入习惯与自造词学习记录——法墨会忘掉你上屏过哪些词、以及它们的排序。
 
       方案选择、皮肤、快捷短语等设置不受影响，词库也不受影响。
-      原词典会先整目录备份到配置目录的 .famo-backup/ 下，可手工还原。
+      原词典会先整目录备份到配置目录的 .owl-backup/ 下，可手工还原。
       """
     alert.addButton(withTitle: cancelTitle)   // 第一个 = 默认（毁灭性动作，默认落安全侧）
     alert.addButton(withTitle: confirmTitle).hasDestructiveAction = true

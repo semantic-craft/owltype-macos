@@ -4,7 +4,7 @@
 //
 //  dict-pack 的下载/校验/装配引擎（方案B）。逐文件流式下载 pin 处的上游原文件（边下边写
 //  staging 边算 sha256，字节级进度）、套用既知 patch、全部就绪后原子落盘 user_data_dir、
-//  写 `.famo-dictpack.json` 装机记录。staging 跨次复用 —— 半途被打断（含注销杀进程）后
+//  写 `.owl-dictpack.json` 装机记录。staging 跨次复用 —— 半途被打断（含注销杀进程）后
 //  重跑只补缺，不重下 90 MB。下载源是有序链（用户镜像 → raw 直连 → 内置兜底），单文件
 //  失败自动换源。纯值语义 + 注入依赖（baseURL/userDir），不触碰 UI 与 librime —— 部署
 //  触发在 Center。
@@ -109,7 +109,7 @@ struct OwlDictPackFetcher {
   /// 经 sha256 复验后直接复用，只有装配成功才整体清掉 staging。
   func run(progress: @escaping @Sendable (Double) -> Void) async throws -> OwlDictPackInstallResult {
     let fm = FileManager.default
-    let staging = userDir.appending(component: ".famo-dictpack-staging", directoryHint: .isDirectory)
+    let staging = userDir.appending(component: ".owl-dictpack-staging", directoryHint: .isDirectory)
     try fm.createDirectory(at: staging, withIntermediateDirectories: true)
 
     let record = OwlDictPackRecord.load(userDir: userDir)
@@ -267,8 +267,8 @@ struct OwlDictPackFetcher {
     guard let patch = file.patch else { return data }
     switch patch {
     case .wubiDateTranslator:
-      // 对齐 famo-seed-full.sh：只改行首缩进后的 active 行，不碰注释里已带 `*` 的行。
-      // 不锚行尾（上游该行带尾随注释「# 自定义系统变量输出」，famo-seed-full 的 sed 同样不锚），
+      // 对齐 owl-seed-full.sh：只改行首缩进后的 active 行，不碰注释里已带 `*` 的行。
+      // 不锚行尾（上游该行带尾随注释「# 自定义系统变量输出」，owl-seed-full 的 sed 同样不锚），
       // 只替换匹配段，行尾注释原样保留。
       guard let text = String(data: data, encoding: .utf8) else {
         throw OwlDictPackError.patchDidNothing(dest: file.dest)

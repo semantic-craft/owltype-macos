@@ -6,7 +6,7 @@
 //  批量动作、跳库路由打开 + 剪贴板纪律 + 逐字 toast、键盘焦点、回执文本拼装。
 //  渲染归 OwlVerificationReceiptCard.swift；本文件不建窗口。
 //
-//  铁律（对齐 Responsay，见 docs/famo-responsay-alignment-spec.md）：
+//  铁律（对齐 Responsay，见 docs/owl-responsay-alignment-spec.md）：
 //    · 搜不到 ≠ 不存在 —— 联网核验搜不到只标橙/红，永不自动判驳；
 //    · 跳库一律 NSWorkspace.open 用户默认浏览器，先 open 后复制；
 //    · 只有打开的 URL 无 query 参数时才写剪贴板（OwlSelectionVerifyClipboard）。

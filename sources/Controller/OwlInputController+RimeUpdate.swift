@@ -15,7 +15,7 @@ extension OwlInputController {
 
   func rimeConsumeCommittedText() {
     guard let text = rime?.takeCommit() else { return }
-    // 提示词提交拦截 (task 06-30-famo-prompt-management-panel). This is the UNIVERSAL commit
+    // 提示词提交拦截 (task 06-30-owl-prompt-management-panel). This is the UNIVERSAL commit
     // chokepoint (keyboard space/digit AND panel click both funnel here), so a 提示词 candidate
     // selected ANY way is caught. Recover the originating code from the PRIOR composition snapshot —
     // librime has already cleared `rime.input()` by commit time, but `snapshots.current` still holds

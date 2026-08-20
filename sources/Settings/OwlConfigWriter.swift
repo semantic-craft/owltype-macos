@@ -2,11 +2,11 @@
 //  OwlConfigWriter.swift
 //  法墨输入法 (Owltype) — Rime 配置写入层（托管块 + 备份 + manifest + 回滚）
 //
-//  v0.5 (OwlConfigWriter, ChatGPT Pro 回包 Q13 / spec `famo-rime-config-law.md` 写入层):
+//  v0.5 (OwlConfigWriter, ChatGPT Pro 回包 Q13 / spec `owl-rime-config-law.md` 写入层):
 //  把 `OwlRimePatchBuilder` 生成的 patch 文本 **安全** 地写进 Owltype 自己的 user_data_dir。策略
 //  来自回包：**不重写用户整个文件**，而是在 `patch:` 下插入/替换一段带标记的「托管块」
-//  (`# >>> FAMO MANAGED <marker> ... # <<< <marker>`)，做到幂等；写入前时间戳备份 + sha256，
-//  同目录 temp + `FileManager.replaceItemAt` 原子替换，写 `famo/rollback-manifest.json`，
+//  (`# >>> OWL MANAGED <marker> ... # <<< <marker>`)，做到幂等；写入前时间戳备份 + sha256，
+//  同目录 temp + `FileManager.replaceItemAt` 原子替换，写 `owltype/rollback-manifest.json`，
 //  一键回滚按 manifest 还原。
 //
 //  分层契约：
@@ -45,16 +45,16 @@ struct ManagedPatchBlock {
 /// Stable markers for Owltype-owned managed blocks. Kept outside SwiftUI so settings UI,
 /// CLI smoke commands, and tests all build the same patch plan.
 enum OwlManagedMarker {
-  static let defaultPatch = "FAMO MANAGED DEFAULT PATCH v1"
-  static let owlAppOptions = "FAMO MANAGED FAMO_CUSTOM APP_OPTIONS v1"
-  static let rimeIce = "FAMO MANAGED RIME_ICE PATCH v1"
-  static let wubiJidian = "FAMO MANAGED WUBI86_JIDIAN PATCH v1"
-  static let quickSendFile = "FAMO MANAGED QUICK_SEND FILE v1"
-  static let quickSendJSONFile = "FAMO MANAGED QUICK_SEND JSON FILE v1"
-  static let quickSendRimeIce = "FAMO MANAGED QUICK_SEND RIME_ICE PATCH v1"
-  static let promptsFile = "FAMO MANAGED PROMPTS FILE v1"
-  static let promptsDictFile = "FAMO MANAGED PROMPTS DICT FILE v1"
-  static let promptsRimeIce = "FAMO MANAGED PROMPTS RIME_ICE PATCH v1"
+  static let defaultPatch = "OWL MANAGED DEFAULT PATCH v1"
+  static let owlAppOptions = "OWL MANAGED OWLTYPE_CUSTOM APP_OPTIONS v1"
+  static let rimeIce = "OWL MANAGED RIME_ICE PATCH v1"
+  static let wubiJidian = "OWL MANAGED WUBI86_JIDIAN PATCH v1"
+  static let quickSendFile = "OWL MANAGED QUICK_SEND FILE v1"
+  static let quickSendJSONFile = "OWL MANAGED QUICK_SEND JSON FILE v1"
+  static let quickSendRimeIce = "OWL MANAGED QUICK_SEND RIME_ICE PATCH v1"
+  static let promptsFile = "OWL MANAGED PROMPTS FILE v1"
+  static let promptsDictFile = "OWL MANAGED PROMPTS DICT FILE v1"
+  static let promptsRimeIce = "OWL MANAGED PROMPTS RIME_ICE PATCH v1"
 }
 
 /// One file that Owltype can merge into its own Rime user_data_dir.
@@ -77,12 +77,12 @@ enum OwlManagedKeyboardPatchPlan {
       )
     ))
 
-    // App 默认英文 — per-app `app_options` MUST target the FAMO domain (famo.custom.yaml),
+    // App 默认英文 — per-app `app_options` MUST target the OWLTYPE domain (owltype.custom.yaml),
     // the only domain OwlConfig.getAppOptions reads. Empty list → empty managed block
     // (clears any app_options Owltype wrote before). This is what makes user-added apps take effect.
     let owlAppOptionsYAML = owlAppOptionsCustomYAML(from: snapshot)
     out.append(OwlManagedPatchFile(
-      fileName: "famo.custom.yaml",
+      fileName: "owltype.custom.yaml",
       block: OwlConfigWriter.managedBlock(
         fromGeneratedYAML: owlAppOptionsYAML,
         marker: OwlManagedMarker.owlAppOptions
@@ -164,19 +164,19 @@ final class OwlConfigWriter {
   /// 文档化的「法墨托管面」。两个 custom.yaml 用托管块合并，其余由生成器整文件产出。
   static let owlManagedFiles: Set<String> = [
     "default.custom.yaml",       // 托管块：键位 / 翻页 / 标点 / schema_list
-    "famo.custom.yaml",          // 托管块：per-app app_options（famo 域，getAppOptions 实读）
+    "owltype.custom.yaml",          // 托管块：per-app app_options（owltype 域，getAppOptions 实读）
     "rime_ice.custom.yaml",      // 托管块：全拼方案级模糊音
     "wubi86_jidian.custom.yaml", // 托管块：五笔编码提示 / 单字 / 清码
     "wubi86_jidian_pinyin.custom.yaml",
     "wubi86_jidian_trad.custom.yaml",
     "wubi86_jidian_trad_pinyin.custom.yaml",
-    "famo_quick_send.json",      // 快捷短语 source of truth（text·code）
-    "famo_quick_send.txt",       // 快捷短语派生 Rime 表（Owltype-owned, not user's custom_phrase.txt）
-    "famo_prompts.json",         // 提示词 source of truth（code·title·body·category）
-    "famo_prompts.txt",          // 提示词派生 Rime 表（只含 📝title \t code \t score，正文不进表）
+    "owl_quick_send.json",      // 快捷短语 source of truth（text·code）
+    "owl_quick_send.txt",       // 快捷短语派生 Rime 表（Owltype-owned, not user's custom_phrase.txt）
+    "owl_prompts.json",         // 提示词 source of truth（code·title·body·category）
+    "owl_prompts.txt",          // 提示词派生 Rime 表（只含 📝title \t code \t score，正文不进表）
     "law_phrase.txt",            // 法律短码表
-    "famo_law_terms_pinyin.dict.yaml",  // 法律词拼音 wrapper dict
-    "famo_law_terms_wubi86.dict.yaml",  // 法律词五笔 wrapper dict
+    "owl_law_terms_pinyin.dict.yaml",  // 法律词拼音 wrapper dict
+    "owl_law_terms_wubi86.dict.yaml",  // 法律词五笔 wrapper dict
     "wubi86_law.schema.yaml",    // 派生五笔法学 schema
     "wubi86_law.dict.yaml",      // 五笔法学 dict
     "lua/law_citation.lua",      // 引注 Lua translator
@@ -354,9 +354,9 @@ final class OwlConfigWriter {
   }
 
   private static func isDefaultPatchManagedKey(_ key: String) -> Bool {
-    // app_options/*/ascii_mode now lives in the famo domain (famo.custom.yaml, task 07-08). Owltype no
+    // app_options/*/ascii_mode now lives in the owltype domain (owltype.custom.yaml, task 07-08). Owltype no
     // longer WRITES it into default.custom.yaml, but we keep it as a PURGE rule: any stray/legacy
-    // app_options in default is dead (getAppOptions reads famo) — strip it so default stays clean.
+    // app_options in default is dead (getAppOptions reads owltype) — strip it so default stays clean.
     if key.hasPrefix("app_options/"), key.hasSuffix("/ascii_mode") {
       return true
     }
@@ -436,9 +436,9 @@ final class OwlConfigWriter {
     let url = rimeDir.appendingPathComponent(fileName)
     let beforeSha = Self.sha256Hex(of: original)
     let afterSha = Self.sha256Hex(of: updated)
-    // 2. 备份原文件到 `.famo-backup/<timestamp>/<fileName>`（保留子目录结构）。
+    // 2. 备份原文件到 `.owl-backup/<timestamp>/<fileName>`（保留子目录结构）。
     let backupDir = rimeDir
-      .appendingPathComponent(".famo-backup", isDirectory: true)
+      .appendingPathComponent(".owl-backup", isDirectory: true)
       .appendingPathComponent(timestamp, isDirectory: true)
     let backupFile = backupDir.appendingPathComponent(fileName)
     try OwlPrivateStorage.prepareDirectory(rimeDir, fileManager: fm)
@@ -449,7 +449,7 @@ final class OwlConfigWriter {
     // 3. 同目录 temp 写入，4. 原子替换。
     try OwlPrivateStorage.prepareDirectory(url.deletingLastPathComponent(), fileManager: fm)
     let tmp = url.deletingLastPathComponent()
-      .appendingPathComponent(".\(url.lastPathComponent).famo.tmp")
+      .appendingPathComponent(".\(url.lastPathComponent).owl.tmp")
     try updated.write(to: tmp, atomically: true, encoding: .utf8)
     if fm.fileExists(atPath: url.path) {
       _ = try fm.replaceItemAt(url, withItemAt: tmp)
@@ -497,7 +497,7 @@ final class OwlConfigWriter {
     let restored = (try? String(contentsOf: backupFile, encoding: .utf8)) ?? ""
     // 还原同样走 temp + 原子替换，避免半截文件。
     let tmp = target.deletingLastPathComponent()
-      .appendingPathComponent(".\(target.lastPathComponent).famo.rollback.tmp")
+      .appendingPathComponent(".\(target.lastPathComponent).owl.rollback.tmp")
     try? restored.write(to: tmp, atomically: true, encoding: .utf8)
     if fm.fileExists(atPath: target.path) {
       _ = try? fm.replaceItemAt(target, withItemAt: tmp)
@@ -518,7 +518,7 @@ final class OwlConfigWriter {
 
   private var manifestFileURL: URL {
     rimeDir
-      .appendingPathComponent("famo", isDirectory: true)
+      .appendingPathComponent("owltype", isDirectory: true)
       .appendingPathComponent("rollback-manifest.json")
   }
 
@@ -554,7 +554,7 @@ final class OwlConfigWriter {
 
 // MARK: - manifest 模型
 
-/// `famo/rollback-manifest.json` 的一条文件记录（回包 Q13 JSON 形态）。
+/// `owltype/rollback-manifest.json` 的一条文件记录（回包 Q13 JSON 形态）。
 struct OwlRollbackEntry: Codable {
   let path: String
   let beforeSha256: String
@@ -564,7 +564,7 @@ struct OwlRollbackEntry: Codable {
   let ts: String
 }
 
-/// `famo/rollback-manifest.json` 顶层结构。
+/// `owltype/rollback-manifest.json` 顶层结构。
 struct OwlRollbackManifest: Codable {
   let version: Int
   var files: [OwlRollbackEntry]
@@ -580,7 +580,7 @@ struct OwlRollbackManifest: Codable {
 /// (3) `renderManagedBlock` 在无 `patch:` 的文本上 `throw fileHasNoPatchAndCannotCreate`。
 func owlConfigWriterSelfCheck() {
   let writer = OwlConfigWriter()
-  let marker = "FAMO MANAGED SELFCHECK v1"
+  let marker = "OWL MANAGED SELFCHECK v1"
   let block = ManagedPatchBlock(
     marker: marker,
     yamlLinesIndentedUnderPatch: [

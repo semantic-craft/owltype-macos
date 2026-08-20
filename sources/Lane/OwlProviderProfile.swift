@@ -1,7 +1,7 @@
 //
 //  OwlProviderProfile.swift
 //  法墨输入法 (Owltype) — multi-provider profile foundation
-//  (task 06-22-famo-multi-provider-keychain-foundation, research B1+B2)
+//  (task 06-22-owl-multi-provider-keychain-foundation, research B1+B2)
 //
 //  Turns the single hardcoded DeepSeek cloud config into a list of named provider PROFILES.
 //  Each profile holds endpoint / model and a `secretName` — the Keychain account
@@ -353,9 +353,9 @@ struct OwlProviderProfile: Codable, Identifiable, Equatable, Sendable {
     self.createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date(timeIntervalSince1970: 0)
   }
 
-  /// Secret-name convention: `famo.provider.<id>.apiKey`. Keeps every profile's key under a
+  /// Secret-name convention: `owltype.provider.<id>.apiKey`. Keeps every profile's key under a
   /// distinct Keychain account so multiple providers coexist.
-  static func defaultSecretName(for id: String) -> String { "famo.provider.\(id).apiKey" }
+  static func defaultSecretName(for id: String) -> String { "owltype.provider.\(id).apiKey" }
 }
 
 /// Schema-versioned on-disk wrapper. The version is on the file, not per-record — the standard
@@ -392,7 +392,7 @@ protocol OwlSecretStoring {
 /// `OwlCloudKeychain`, with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` (device-only,
 /// survives reboot, never synced to iCloud).
 struct OwlProviderKeychain: OwlSecretStoring {
-  static let service = "im.famo.inputmethod.Famo.providers"
+  static let service = "im.owltype.inputmethod.Owltype.providers"
 
   private func baseQuery(name: String) -> [String: Any] {
     [

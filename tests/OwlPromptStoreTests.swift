@@ -4,9 +4,9 @@
 //
 //  Locks the pure-logic contracts of the prompt feature:
 //    1. `save` now writes THREE files atomically through `OwlConfigWriter` against an isolated
-//       temp dir — the `famo_prompts.json` source of truth PLUS the derived `famo_prompts.txt`
+//       temp dir — the `owl_prompts.json` source of truth PLUS the derived `owl_prompts.txt`
 //       Rime stabledb (`📝title\tcode\t100000` + the `v{code}` collision variant) PLUS the
-//       `rime_ice.custom.yaml` patch registering `table_translator@famo_prompts`. `load` still
+//       `rime_ice.custom.yaml` patch registering `table_translator@owl_prompts`. `load` still
 //       reads JSON only. Round-trip: save → load equal, normalized (deduped + sorted by code).
 //    2. Validation: trigger-code format, single-line/non-empty title, non-empty body, and the
 //       shared-namespace collision against existing 快捷短语 codes — each a typed `OwlPromptError`.
@@ -51,7 +51,7 @@ final class OwlPromptStoreTests: XCTestCase {
     try OwlPromptStore.save(entries, writer: writer, timestamp: "20260630-000000")
 
     let url = tempRoot.appendingPathComponent(OwlPromptStore.fileName)
-    XCTAssertTrue(FileManager.default.fileExists(atPath: url.path), "famo_prompts.json must be written")
+    XCTAssertTrue(FileManager.default.fileExists(atPath: url.path), "owl_prompts.json must be written")
 
     let loaded = OwlPromptStore.load(rimeDir: tempRoot)
     // normalized() sorts by code: fanyi < hetong.
@@ -78,7 +78,7 @@ final class OwlPromptStoreTests: XCTestCase {
     try OwlPromptStore.save(entries, writer: writer, timestamp: "20260630-000010")
 
     let dictURL = tempRoot.appendingPathComponent(OwlPromptStore.dictFileName)
-    XCTAssertEqual(OwlPromptStore.dictFileName, "famo_prompts.txt")
+    XCTAssertEqual(OwlPromptStore.dictFileName, "owl_prompts.txt")
     let dict = try String(contentsOf: dictURL, encoding: .utf8)
     // 📝-marked title + score, plus the v-prefixed collision-proof variant.
     XCTAssertTrue(dict.contains("📝合同审查\thetong\t100000"), "marked title row missing:\n\(dict)")
@@ -87,7 +87,7 @@ final class OwlPromptStoreTests: XCTestCase {
     XCTAssertFalse(dict.contains("请审查以下合同"), "body must not appear in the derived dict")
     XCTAssertFalse(dict.contains("{{合同正文}}"), "variable placeholder must not appear in the derived dict")
     // tabledb header (mirrors quick-send).
-    XCTAssertTrue(dict.contains("#@/db_name famo_prompts"))
+    XCTAssertTrue(dict.contains("#@/db_name owl_prompts"))
   }
 
   func testSaveWritesRimeIcePatchRegisteringTranslator() throws {
@@ -97,9 +97,9 @@ final class OwlPromptStoreTests: XCTestCase {
 
     let patchURL = tempRoot.appendingPathComponent("rime_ice.custom.yaml")
     let patch = try String(contentsOf: patchURL, encoding: .utf8)
-    XCTAssertTrue(patch.contains("FAMO MANAGED PROMPTS RIME_ICE PATCH v1"), "managed marker missing:\n\(patch)")
-    XCTAssertTrue(patch.contains("table_translator@famo_prompts"), "translator registration missing")
-    XCTAssertTrue(patch.contains("user_dict: famo_prompts"))
+    XCTAssertTrue(patch.contains("OWL MANAGED PROMPTS RIME_ICE PATCH v1"), "managed marker missing:\n\(patch)")
+    XCTAssertTrue(patch.contains("table_translator@owl_prompts"), "translator registration missing")
+    XCTAssertTrue(patch.contains("user_dict: owl_prompts"))
   }
 
   func testSaveDictIsDerivedNotLoaded() throws {

@@ -2,7 +2,7 @@
 //  OwlDictPack.swift
 //  Owltype
 //
-//  方案B（2026-07-24）：公开发布包只带清洁室 Rime 种子（famo-seed.sh，Unihan + essay），
+//  方案B（2026-07-24）：公开发布包只带清洁室 Rime 种子（owl-seed.sh，Unihan + essay），
 //  完整词库由 App 首启在用户机器上按 pin 从上游原仓库拉取 → Owltype 不再分发第三方
 //  词库数据。本文件是 dict-pack 的模型层：清单条目、装机记录（所有权清单）、状态与偏好。
 //  下载/校验/装配在 OwlDictPackFetcher；UI/触发编排在 OwlDictPackCenter。
@@ -10,7 +10,7 @@
 
 import Foundation
 
-/// 下载校验通过后由 fetcher 套用的既知修正（对齐 famo-seed-full.sh 的必修 bug 列表）。
+/// 下载校验通过后由 fetcher 套用的既知修正（对齐 owl-seed-full.sh 的必修 bug 列表）。
 enum OwlDictPackPatch: String, Codable {
   /// KyleBing `_trad`/`_trad_pinyin` schema 里 active 的短名 `lua_translator@date_translator`
   /// 改为按 `*` 约定自动加载的 `lua_translator@*wubi86_jidian_date_translator`。
@@ -46,7 +46,7 @@ struct OwlDictPackManifest {
   var totalBytes: Int { files.reduce(0) { $0 + $1.size } }
 }
 
-/// 装机记录 `.famo-dictpack.json`（user_data_dir 根）：dict-pack 自己写过哪些文件、写入时
+/// 装机记录 `.owl-dictpack.json`（user_data_dir 根）：dict-pack 自己写过哪些文件、写入时
 /// （patch 后）的哈希。升级/重装只覆盖「记录在案且用户没改过」的文件 —— 无记录但文件已存在
 /// 视为用户自备（如 2026-07-24 的手工恢复），永不触碰。
 struct OwlDictPackRecord: Codable, Equatable {
@@ -54,7 +54,7 @@ struct OwlDictPackRecord: Codable, Equatable {
   /// dest（相对 user_data_dir）→ 写入时的 sha256（patch 后）。
   var files: [String: String]
 
-  static let fileName = ".famo-dictpack.json"
+  static let fileName = ".owl-dictpack.json"
 
   static func load(userDir: URL) -> OwlDictPackRecord? {
     let url = userDir.appending(component: fileName, directoryHint: .notDirectory)

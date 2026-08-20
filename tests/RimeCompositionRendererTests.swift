@@ -1,6 +1,6 @@
 //
 //  RimeCompositionRendererTests.swift
-//  OwltypeTests — C3 (task 07-05-famo-composition-render-seam)
+//  OwltypeTests — C3 (task 07-05-owl-composition-render-seam)
 //
 //  Characterization tests for `RimeCompositionRenderer.markedText`, the pure byte→UTF-16 +
 //  inline-candidate-preview math moved VERBATIM out of `OwlInputController+RimeUpdate`.

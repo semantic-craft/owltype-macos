@@ -8,7 +8,7 @@
 //  settings layer reads/writes through these accessors so there are no duplicate
 //  literals anywhere else.
 //
-//  Persistence boundary (see `.trellis/spec/frontend/famo-modern-ui-direction.md`):
+//  Persistence boundary (see `.trellis/spec/frontend/owl-modern-ui-direction.md`):
 //  these options ultimately map to Rime YAML. Preferences stay in UserDefaults; the
 //  explicit write preview sheet is the only path that writes Owltype's user_data_dir and
 //  calls deploy after the user confirms.

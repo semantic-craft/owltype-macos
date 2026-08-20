@@ -603,7 +603,7 @@ struct OwlOnboardingView: View {
       illustrationGlyph
       VStack {
         Spacer()
-        Text("法墨 · FAMO")
+        Text("法墨 · OWL")
           .font(.system(size: 12, weight: .medium))
           .tracking(2)
           .foregroundStyle(palette.onAccent.opacity(0.6))

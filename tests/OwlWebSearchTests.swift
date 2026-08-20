@@ -523,7 +523,7 @@ final class OwlWebSearchTests: XCTestCase {
     var seen = Set<String>()
     for backend in OwlWebSearchBackend.allCases {
       XCTAssertFalse(
-        backend.secretName.hasPrefix("famo.provider."),
+        backend.secretName.hasPrefix("owltype.provider."),
         "搜索能力独立于供应商，Key 不该落在 provider 的账号命名空间里")
       XCTAssertTrue(seen.insert(backend.secretName).inserted, "两家不能共用一个 Keychain 账号")
     }

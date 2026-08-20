@@ -12,7 +12,7 @@ enum OwlLatencyTrace {
   typealias Interval = OSSignpostIntervalState
 
   private static let signposter = OSSignposter(
-    subsystem: "im.famo.inputmethod.Famo",
+    subsystem: "im.owltype.inputmethod.Owltype",
     category: "latency"
   )
 

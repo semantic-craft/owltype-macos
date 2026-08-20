@@ -258,7 +258,7 @@ final class OwlSelectionPolishService {
     guard OwlCloudPreferences.isEnabled else { throw OwlSelectionPolishError.disabled }
     if let reason = OwlSelectionPolish.rejectionReason(for: selection) { throw reason }
 
-    // FAMO-098: route through the active provider profile (its endpoint/model + per-profile key)
+    // OWL-098: route through the active provider profile (its endpoint/model + per-profile key)
     // via the shared OwlProviderAuthGate, so 润色选中 works with whatever provider the user
     // configured (OpenAI / Gemini / 自定义 / …), falling back to the legacy DeepSeek key when no
     // profile is set (the gate's `legacyKeyProvider` == this service's `apiKeyProvider`).

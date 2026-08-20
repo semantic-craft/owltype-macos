@@ -54,7 +54,7 @@ final class OwlAIConversationModelTests: XCTestCase {
   private let readyRouting = OwlCloudRouting(
     providerID: "openai",
     endpoint: URL(string: "https://api.openai.com/v1/chat/completions")!,
-    model: "gpt-4o", secretName: "famo.provider.unit.apiKey",
+    model: "gpt-4o", secretName: "owltype.provider.unit.apiKey",
     authHeaderStyle: .bearer
   )
 

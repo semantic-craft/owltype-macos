@@ -1,6 +1,6 @@
 //
 //  OwlKeyboardPatchBuilderTests.swift
-//  OwltypeTests — keyboard-config patch builders (default / famo / rime_ice / wubi .custom.yaml)
+//  OwltypeTests — keyboard-config patch builders (default / owltype / rime_ice / wubi .custom.yaml)
 //
 //  Extracted from CandidateStoreTests.swift (2026-07-08, task 07-08) to keep test files focused
 //  (每个测试文件聚焦一类) and under the 1200-line file_length limit. Self-contained: the
@@ -192,7 +192,7 @@ final class OwlKeyboardPatchBuilderTests: XCTestCase {
   }
 
   func testAppEnglishBundleIDsUseRimeAppOptions() {
-    // app_options → famo 域 (famo.custom.yaml, task 07-08), the only domain getAppOptions reads.
+    // app_options → owltype 域 (owltype.custom.yaml, task 07-08), the only domain getAppOptions reads.
     let yaml = owlAppOptionsCustomYAML(from: OwlKeyboardSnapshot(
       inputMethod: .pinyin,
       doublePinyin: .flypy,

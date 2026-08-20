@@ -50,12 +50,14 @@ enum OwlClipboardStore {
     root.appendingPathComponent(fileName)
   }
 
-  /// Pre-fix location: history used to nest under a redundant `famo/` subdir inside the already-Owltype
-  /// user dir (`.../Owltype/famo/clipboard-history.json`). Read from here when the canonical file is
-  /// absent so an in-place upgrade doesn't orphan existing history.
+  /// Pre-fix location: history used to nest under a redundant per-app subdir inside the already-
+  /// Owltype user dir (`.../Owltype/owltype/clipboard-history.json`). Read from here when the
+  /// canonical file is absent so an in-place upgrade doesn't orphan existing history.
+  /// 改名注意：旧安装里这个子目录用的是改名前的品牌名，首启迁移（06 号票）复制目录后必须把它
+  /// 一并改名为 `owltype/`，否则这条回落读的是一个永远不存在的路径。
   /// ponytail: legacy-read fallback; drop once installs have rolled past this release.
   static func legacyFileURL(root: URL = OwlApp.userDir) -> URL {
-    root.appendingPathComponent("famo", isDirectory: true)
+    root.appendingPathComponent("owltype", isDirectory: true)
       .appendingPathComponent(fileName)
   }
 

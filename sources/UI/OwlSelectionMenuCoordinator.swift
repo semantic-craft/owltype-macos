@@ -215,7 +215,7 @@ final class OwlSelectionMenuCoordinator {
   private var doubleTap = OwlOptionDoubleTapDetector()
   /// AX 读取专用串行队列：同步 AX 由前台 App 主线程应答，宿主忙时会阻塞等待方，所以绝不放在
   /// Owltype 主线程（IMK handle() 同线程）上等。
-  private static let axQueue = DispatchQueue(label: "com.famo.selection-menu.ax", qos: .userInitiated)
+  private static let axQueue = DispatchQueue(label: "com.owltype.selection-menu.ax", qos: .userInitiated)
 
   // 「选中即自动弹出」管线（0.30s 停留、每次划选后的后台 AX 读、面板维护计时器、dismissedText/
   // readGeneration/lastSummon 消失状态机）已删（2026-07-26 工具箱重设计）：打开工具箱只剩明确
@@ -257,7 +257,7 @@ final class OwlSelectionMenuCoordinator {
   /// 让人以为热键坏了。
   func summonForCurrentSelection() {
     guard OwlInstaller.currentInputSourceID()?.hasPrefix(OwlInstaller.inputSourcePrefix) == true else {
-      OwlHotKeyMatcher.log.notice("summon dropped: famo not current input source")
+      OwlHotKeyMatcher.log.notice("summon dropped: Owltype not current input source")
       return
     }
     guard AXIsProcessTrusted() else {

@@ -4,9 +4,9 @@
 //
 //  「提示词」是「快捷短语」的 sibling 特性：同样用触发码调出，但正文长 / 多行 / 可含
 //  `{{变量}}`，放不进单行的 Rime 候选条。本页只负责 R5 的管理 UI——新建 / 编辑 / 分类 /
-//  搜索 / 删除——并把 source-of-truth 写进 `famo_prompts.json`（经 `OwlConfigWriter` 原子写）。
+//  搜索 / 删除——并把 source-of-truth 写进 `owl_prompts.json`（经 `OwlConfigWriter` 原子写）。
 //
-//  **不在本页**：Rime dict（`famo_prompts.txt`）/ `rime_ice.custom.yaml` patch 的生成、控制器
+//  **不在本页**：Rime dict（`owl_prompts.txt`）/ `rime_ice.custom.yaml` patch 的生成、控制器
 //  提交拦截、📝 候选标记、填空 sheet——这些 R2 触发链路另起一轮，会接到同一个 save 路径之后。
 //  所以这里 `保存并应用` 只落 JSON，不部署、不碰 IMK 热路径（spec 总边界 / ADR-0001..0003）。
 //
@@ -322,7 +322,7 @@ struct OwlPromptPage: View {
 
   private var noteCard: some View {
     SettingsCard(title: "", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
-      Text("提示词正文存在本机 famo_prompts.json；触发码与快捷短语共享命名空间，保存时会校验互不重复。")
+      Text("提示词正文存在本机 owl_prompts.json；触发码与快捷短语共享命名空间，保存时会校验互不重复。")
         .font(.system(size: 12))
         .foregroundStyle(palette.ink3)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -441,7 +441,7 @@ struct OwlPromptPage: View {
     }
   }
 
-  /// 保存：跨特性重码校验后，把草稿合并进列表并原子写 `famo_prompts.json`（仅 source-of-truth）。
+  /// 保存：跨特性重码校验后，把草稿合并进列表并原子写 `owl_prompts.json`（仅 source-of-truth）。
   private func save() {
     do {
       let entry = try OwlPromptStore.validatedEntry(

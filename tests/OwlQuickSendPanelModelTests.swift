@@ -60,7 +60,7 @@ final class OwlQuickSendPanelModelTests: XCTestCase {
   }
 
   func testQuickSendPanelModelEmptyWhenNoFile() throws {
-    let dir = try makeTempDir()  // no famo_quick_send.txt written
+    let dir = try makeTempDir()  // no owl_quick_send.txt written
     let model = OwlPickerPanelModel(
       rows: OwlQuickSendStore.load(rimeDir: dir).map(OwlPickerRow.quickSend)
     )
@@ -175,7 +175,7 @@ final class OwlQuickSendPanelModelTests: XCTestCase {
   // MARK: - Hotkey preference (PR3)
 
   /// Both slots default to OFF and round-trip a recorded combo through UserDefaults. The read-back
-  /// is the assertion (see famo-app-options-test-fake-coverage — asserting the written string only
+  /// is the assertion (see owl-app-options-test-fake-coverage — asserting the written string only
   /// would be fake coverage).
   func testHotKeySlotsDefaultToOffAndRoundTripRecordedCombos() {
     for slot in OwlHotKeySlot.allCases {

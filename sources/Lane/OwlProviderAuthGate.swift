@@ -1,6 +1,6 @@
 //
 //  OwlProviderAuthGate.swift
-//  法墨输入法 (Owltype) — provider auth gate (task 07-06-famo-selection-auth-gate)
+//  法墨输入法 (Owltype) — provider auth gate (task 07-06-owl-selection-auth-gate)
 //
 //  The single seam that turns "the active provider profile" into a usable call configuration —
 //  resolved routing (endpoint / model / auth-header / secretName) + a non-empty API key — applying

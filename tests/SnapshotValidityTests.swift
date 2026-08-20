@@ -123,7 +123,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
 
   private func makeTempDir() throws -> URL {
     let dir = FileManager.default.temporaryDirectory
-      .appendingPathComponent("famo-config-writer-tests", isDirectory: true)
+      .appendingPathComponent("owl-config-writer-tests", isDirectory: true)
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     return dir
@@ -182,7 +182,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     try """
     installation_id: abc
     sync_dir: "/tmp/Owltype Sync"
-    distribution_code_name: famo
+    distribution_code_name: owltype
 
     """.write(to: dir.appendingPathComponent("installation.yaml"), atomically: true, encoding: .utf8)
 
@@ -199,7 +199,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     let installation = dir.appendingPathComponent("installation.yaml")
     try """
     installation_id: abc
-    distribution_code_name: famo
+    distribution_code_name: owltype
 
     """.write(to: installation, atomically: true, encoding: .utf8)
 
@@ -209,7 +209,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
 
     let text = try String(contentsOf: installation, encoding: .utf8)
     XCTAssertTrue(text.contains("installation_id: abc"))
-    XCTAssertTrue(text.contains("distribution_code_name: famo"))
+    XCTAssertTrue(text.contains("distribution_code_name: owltype"))
     XCTAssertTrue(text.contains("sync_dir: \"\(target.path)\""))
     XCTAssertEqual(settings.currentSyncDirectory().path, target.path)
   }
@@ -218,7 +218,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     let files = OwlManagedKeyboardPatchPlan.files(from: keyboardSnapshot())
     XCTAssertEqual(files.map(\.fileName), [
       "default.custom.yaml",
-      "famo.custom.yaml",
+      "owltype.custom.yaml",
       "rime_ice.custom.yaml",
       "wubi86_jidian.custom.yaml",
       "wubi86_jidian_pinyin.custom.yaml",
@@ -232,7 +232,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     XCTAssertFalse(text.contains("\"punctuator/half_shape/+\":"))
     XCTAssertFalse(text.contains("\"/\": ["))
 
-    // index 1 = famo.custom.yaml (per-app app_options, famo 域, task 07-08); indices below shift by 1.
+    // index 1 = owltype.custom.yaml (per-app app_options, owltype 域, task 07-08); indices below shift by 1.
     XCTAssertEqual(files[1].block.marker, OwlManagedMarker.owlAppOptions)
     XCTAssertEqual(files[2].block.marker, OwlManagedMarker.rimeIce)
     XCTAssertTrue(files[2].block.yamlLinesIndentedUnderPatch.isEmpty)
@@ -284,7 +284,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
 
     XCTAssertEqual(written, [
       "default.custom.yaml",
-      "famo.custom.yaml",
+      "owltype.custom.yaml",
       "rime_ice.custom.yaml",
       "wubi86_jidian.custom.yaml",
       "wubi86_jidian_pinyin.custom.yaml",
@@ -307,7 +307,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     XCTAssertTrue(
       FileManager.default.fileExists(
         atPath: dir
-          .appendingPathComponent(".famo-backup/20260619-smoke/default.custom.yaml")
+          .appendingPathComponent(".owl-backup/20260619-smoke/default.custom.yaml")
           .path
       )
     )
@@ -325,10 +325,10 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     )
 
     let phraseFile = try String(
-      contentsOf: dir.appendingPathComponent("famo_quick_send.txt"),
+      contentsOf: dir.appendingPathComponent("owl_quick_send.txt"),
       encoding: .utf8
     )
-    XCTAssertTrue(phraseFile.contains("#@/db_name\tfamo_quick_send"))
+    XCTAssertTrue(phraseFile.contains("#@/db_name\towl_quick_send"))
     XCTAssertTrue(phraseFile.contains("法墨测试短语\tfmcs\t100000"))
     XCTAssertFalse(phraseFile.contains("`fmcs"))
     XCTAssertFalse(phraseFile.contains("\tvfmcs\t"))
@@ -338,12 +338,12 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
       encoding: .utf8
     )
     XCTAssertTrue(rimeIce.contains("# >>> \(OwlManagedMarker.quickSendRimeIce)"))
-    XCTAssertTrue(rimeIce.contains("table_translator@famo_quick_send"))
+    XCTAssertTrue(rimeIce.contains("table_translator@owl_quick_send"))
     XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent("custom_phrase.txt").path))
     XCTAssertTrue(
       FileManager.default.fileExists(
         atPath: dir
-          .appendingPathComponent(".famo-backup/20260619-quick/famo_quick_send.txt")
+          .appendingPathComponent(".owl-backup/20260619-quick/owl_quick_send.txt")
           .path
       )
     )
@@ -362,7 +362,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     try writer.applyTextFile(
       fileName: "lua/law_forms.lua",
       contents: "return {}\n",
-      marker: "FAMO MANAGED LAW FORMS TEST",
+      marker: "OWL MANAGED LAW FORMS TEST",
       timestamp: "20260621-lawforms"
     )
 
@@ -373,7 +373,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     XCTAssertTrue(
       FileManager.default.fileExists(
         atPath: dir
-          .appendingPathComponent(".famo-backup/20260621-lawforms/lua/law_forms.lua")
+          .appendingPathComponent(".owl-backup/20260621-lawforms/lua/law_forms.lua")
           .path
       )
     )
@@ -433,7 +433,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     let dir = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: dir) }
 
-    // Seed history only at the pre-fix nested `.../famo/clipboard-history.json` location.
+    // Seed history only at the pre-fix nested `.../owltype/clipboard-history.json` location.
     let legacy = OwlClipboardStore.legacyFileURL(root: dir)
     try FileManager.default.createDirectory(at: legacy.deletingLastPathComponent(), withIntermediateDirectories: true)
     let seeded = [OwlClipboardEntry(text: "旧记录", createdAt: Date(timeIntervalSince1970: 1))]
@@ -458,7 +458,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
 
     let writer = OwlConfigWriter(rimeDir: dir)
     let block = ManagedPatchBlock(
-      marker: "FAMO MANAGED TEST PATCH",
+      marker: "OWL MANAGED TEST PATCH",
       yamlLinesIndentedUnderPatch: [
         "  \"key_binder/bindings/+\":",
         "    - { when: has_menu, accept: bracketleft, send: Page_Up }",
@@ -468,19 +468,19 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     try writer.apply(fileName: "default.custom.yaml", block: block, timestamp: "20260618-test")
 
     let updated = try String(contentsOf: target, encoding: .utf8)
-    XCTAssertTrue(updated.contains("# >>> FAMO MANAGED TEST PATCH"))
+    XCTAssertTrue(updated.contains("# >>> OWL MANAGED TEST PATCH"))
     XCTAssertTrue(updated.contains("accept: bracketleft"))
     XCTAssertTrue(
       FileManager.default.fileExists(
         atPath: dir
-          .appendingPathComponent("famo/rollback-manifest.json")
+          .appendingPathComponent("owltype/rollback-manifest.json")
           .path
       )
     )
     XCTAssertTrue(
       FileManager.default.fileExists(
         atPath: dir
-          .appendingPathComponent(".famo-backup/20260618-test/default.custom.yaml")
+          .appendingPathComponent(".owl-backup/20260618-test/default.custom.yaml")
           .path
       )
     )
@@ -503,11 +503,11 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
 
     let writer = OwlConfigWriter(rimeDir: dir)
     let defaultBlock = ManagedPatchBlock(
-      marker: "FAMO MANAGED DEFAULT TEST",
+      marker: "OWL MANAGED DEFAULT TEST",
       yamlLinesIndentedUnderPatch: ["  \"menu/page_size\": 8"]
     )
     let rimeIceBlock = ManagedPatchBlock(
-      marker: "FAMO MANAGED RIME_ICE TEST",
+      marker: "OWL MANAGED RIME_ICE TEST",
       yamlLinesIndentedUnderPatch: ["  \"speller/algebra/+\":", "    - derive/^z/zh/"]
     )
 
@@ -525,7 +525,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
 
     let writer = OwlConfigWriter(rimeDir: dir)
     let block = ManagedPatchBlock(
-      marker: "FAMO MANAGED TEST PATCH",
+      marker: "OWL MANAGED TEST PATCH",
       yamlLinesIndentedUnderPatch: ["  \"menu/page_size\": 8"]
     )
 
@@ -545,7 +545,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
 
     let writer = OwlConfigWriter(rimeDir: dir)
     let block = ManagedPatchBlock(
-      marker: "FAMO MANAGED TEST PATCH",
+      marker: "OWL MANAGED TEST PATCH",
       yamlLinesIndentedUnderPatch: ["  \"menu/page_size\": 8"]
     )
 
@@ -564,8 +564,8 @@ final class OwlInputSourceDisplayTests: XCTestCase {
 
   func testOwltypeInputSourceDisplayIsBranded() {
     XCTAssertEqual(
-      OwlInstaller.currentInputSourceDisplayName(for: "im.famo.inputmethod.Famo.Hans"),
-      "法墨输入法（im.famo.inputmethod.Famo.Hans）"
+      OwlInstaller.currentInputSourceDisplayName(for: "im.owltype.inputmethod.Owltype.Hans"),
+      "法墨输入法（im.owltype.inputmethod.Owltype.Hans）"
     )
   }
 

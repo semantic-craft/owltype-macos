@@ -200,37 +200,37 @@ final class ActivationPolicyTests: XCTestCase {
       expectedIDs: [Self.hans, Self.hant], primaryID: Self.hans)
   }
 
-  func testRegisterFailsWhenNoOwltypeSources() {  // matrix: register 未生效 → FAMO-TIS-001
+  func testRegisterFailsWhenNoOwltypeSources() {  // matrix: register 未生效 → OWL-TIS-001
     let diag = classify([], current: "com.apple.keylayout.ABC")
     XCTAssertEqual(diag.firstFailingLayer, .register)
-    XCTAssertEqual(diag.code, "FAMO-TIS-001")
+    XCTAssertEqual(diag.code, "OWL-TIS-001")
   }
 
-  func testEnableCapabilityFailure() {  // matrix: enable 打错条目/不可启用 → FAMO-TIS-002
+  func testEnableCapabilityFailure() {  // matrix: enable 打错条目/不可启用 → OWL-TIS-002
     let diag = classify([owlSource(Self.hans, enableCapable: false)], current: "com.apple.keylayout.ABC")
     XCTAssertEqual(diag.firstFailingLayer, .enable)
-    XCTAssertEqual(diag.code, "FAMO-TIS-002")
+    XCTAssertEqual(diag.code, "OWL-TIS-002")
   }
 
-  func testWrongEntryEnabledIsCode002() {  // matrix: enabled id 非 .Hans/.Hant → FAMO-TIS-002
+  func testWrongEntryEnabledIsCode002() {  // matrix: enabled id 非 .Hans/.Hant → OWL-TIS-002
     let stray = OwlInstaller.inputSourcePrefix + ".Stray"
     let diag = classify(
       [owlSource(Self.hans, enabled: false), owlSource(stray, enabled: true)],
       current: "com.apple.keylayout.ABC")
     XCTAssertEqual(diag.firstFailingLayer, .enable)
-    XCTAssertEqual(diag.code, "FAMO-TIS-002")
+    XCTAssertEqual(diag.code, "OWL-TIS-002")
   }
 
-  func testEnableReadbackInconsistency() {  // capable but enabled=false and not current → FAMO-TIS-003
+  func testEnableReadbackInconsistency() {  // capable but enabled=false and not current → OWL-TIS-003
     let diag = classify([owlSource(Self.hans, enabled: false)], current: "com.apple.keylayout.ABC")
     XCTAssertEqual(diag.firstFailingLayer, .enable)
-    XCTAssertEqual(diag.code, "FAMO-TIS-003")
+    XCTAssertEqual(diag.code, "OWL-TIS-003")
   }
 
-  func testSelectedButNotEnabledHalfState() {  // matrix: current=Owltype 但 enabled=false → FAMO-TIS-004
+  func testSelectedButNotEnabledHalfState() {  // matrix: current=Owltype 但 enabled=false → OWL-TIS-004
     let diag = classify([owlSource(Self.hans, enabled: false, selected: true)], current: Self.hans)
     XCTAssertEqual(diag.firstFailingLayer, .select)
-    XCTAssertEqual(diag.code, "FAMO-TIS-004")
+    XCTAssertEqual(diag.code, "OWL-TIS-004")
     // enable layer defers to select for the half-state instead of double-reporting.
     XCTAssertNil(diag.layers.first { $0.layer == .enable }?.ok)
   }
@@ -275,9 +275,9 @@ final class ActivationPolicyTests: XCTestCase {
   func testMultipleSignedClaimsWarn() {  // a second signed copy still shadows the installed one
     let report = claims([
       ("/Library/Input Methods/Owltype.app", "LQAVR62TK2"),
-      ("/Volumes/Work/famotype-macos/build/Release/Owltype.app", "LQAVR62TK2"),
+      ("/Volumes/Work/owltype-macos/build/Release/Owltype.app", "LQAVR62TK2"),
     ])
-    XCTAssertEqual(report.code, "FAMO-LS-001")
+    XCTAssertEqual(report.code, "OWL-LS-001")
     XCTAssertEqual(report.claimCount, 2)
     XCTAssertEqual(report.unsignedCount, 0)
   }
@@ -285,23 +285,23 @@ final class ActivationPolicyTests: XCTestCase {
   func testUnsignedClaimTakesTheHeadline() {  // 结论 A: the ad-hoc build is what breaks login restore
     let report = claims([
       ("/Library/Input Methods/Owltype.app", "LQAVR62TK2"),
-      ("/Volumes/Work/famotype-macos/build/Debug/Owltype.app", nil),
+      ("/Volumes/Work/owltype-macos/build/Debug/Owltype.app", nil),
     ])
-    XCTAssertEqual(report.code, "FAMO-LS-002")
+    XCTAssertEqual(report.code, "OWL-LS-002")
     XCTAssertEqual(report.unsignedCount, 1)
   }
 
   func testEmptyTeamIDCountsAsUnsigned() {  // ad-hoc signatures report "" rather than omitting it
-    XCTAssertEqual(claims([("/Volumes/Work/build/Owltype.app", "")]).code, "FAMO-LS-002")
+    XCTAssertEqual(claims([("/Volumes/Work/build/Owltype.app", "")]).code, "OWL-LS-002")
   }
 
   func testLoneUnsignedClaimStillWarns() {  // a dev build alone claiming the id is not healthy
-    let report = claims([("/Volumes/Work/famotype-macos/build/Debug/Owltype.app", nil)])
-    XCTAssertEqual(report.code, "FAMO-LS-002")
+    let report = claims([("/Volumes/Work/owltype-macos/build/Debug/Owltype.app", nil)])
+    XCTAssertEqual(report.code, "OWL-LS-002")
     XCTAssertEqual(report.claimCount, 1)
   }
 
-  func testNoClaimsIsNotALaunchServicesCode() {  // not installed → register layer / FAMO-INSTALL-001
+  func testNoClaimsIsNotALaunchServicesCode() {  // not installed → register layer / OWL-INSTALL-001
     let report = claims([])
     XCTAssertNil(report.code)
     XCTAssertEqual(report.claimCount, 0)
@@ -313,7 +313,7 @@ final class ActivationPolicyTests: XCTestCase {
   }
 
   func testLaunchServicesCodesCarryUserMessageAndAction() {
-    for code in ["FAMO-LS-001", "FAMO-LS-002"] {
+    for code in ["OWL-LS-001", "OWL-LS-002"] {
       XCTAssertNotNil(OwlTISDiagnostics.userMessage[code])
       XCTAssertTrue(OwlTISDiagnostics.actionText(for: code).contains("clean-dev.sh --apply"))
     }

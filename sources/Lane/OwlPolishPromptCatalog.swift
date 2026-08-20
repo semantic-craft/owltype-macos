@@ -8,7 +8,7 @@
 //      （法律/程序动作词不得互换），此前与 #136 之前逐字节一致。
 //    - v2-responsay-aligned：段落化装配（仿 Responsay TextTransformPromptAssembler 的
 //      role/task/rules/output 分段），对齐的是 Responsay 的 rewrite（重改写）线而非 polish
-//      （听写成稿）线（docs/famo-responsay-alignment-spec.md §2.1），并补三块硬护栏（§2.2）：
+//      （听写成稿）线（docs/owl-responsay-alignment-spec.md §2.1），并补三块硬护栏（§2.2）：
 //      ① byte-for-byte preserve 清单；② 忠实度红线（不改确定度/保留 hedges/不加寒暄署名
 //      总结腔）；③ 只处理用户明确选择的文本。
 //      temp 0.2 对齐 Responsay LLMGenerationProfile.resolve(rewrite)。

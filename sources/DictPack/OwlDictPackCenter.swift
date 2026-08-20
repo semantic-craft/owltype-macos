@@ -149,7 +149,7 @@ final class OwlDictPackCenter {
 /// 用户点「同意并下载」才拉。判定是纯函数，XCTest 可锁：真机上「切到包外方案」这条分支只在用户
 /// 恰好切到未随包分发的方案时才走到，手测覆盖不到。
 enum OwlDictPackPrompt {
-  static let log = Logger(subsystem: "im.famo.inputmethod.Famo", category: "dictPack")
+  static let log = Logger(subsystem: "im.owltype.inputmethod.Owltype", category: "dictPack")
 
   enum Choice {
     case download
@@ -267,7 +267,7 @@ enum OwlDictPackPrompt {
 /// 首启告知的安全时机门控。直接复用注销提示线沉淀的纯判定层 `OwlLogoutPromptTiming`——
 /// #109 真机教训同样适用：**启动回调里同步 runModal 会在用户开始输入后中途夺焦点、打断输入**。
 /// 等无合成 + 输入空闲再激活法墨自身弹窗；选「稍后」还原宿主焦点。
-/// 观测：`log show --predicate 'subsystem == "im.famo.inputmethod.Famo" AND category == "dictPack"'`
+/// 观测：`log show --predicate 'subsystem == "im.owltype.inputmethod.Owltype" AND category == "dictPack"'`
 @MainActor
 final class OwlDictPackPromptScheduler {
   static let shared = OwlDictPackPromptScheduler()

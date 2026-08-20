@@ -35,11 +35,11 @@ extension OwlApplicationDelegate {
     defer { OwlLatencyTrace.end("deploy.fast.config", trace) }
     let perf = OwlPerf.mark()
     var ok = engine.deployConfigFile("default.yaml", versionKey: "config_version")
-    // famo.yaml (frontend config: style + per-app app_options) is NOT in rime's tracked
+    // owltype.yaml (frontend config: style + per-app app_options) is NOT in rime's tracked
     // default/schema set — without this explicit deploy, App 默认英文 writes landing in
-    // famo.custom.yaml's managed block never reach build/famo.yaml, so getAppOptions keeps
+    // owltype.custom.yaml's managed block never reach build/owltype.yaml, so getAppOptions keeps
     // serving factory entries only (#121 真机验收逮住). config_file_update is
-    // fingerprint-gated → free when famo.custom.yaml is unchanged.
+    // fingerprint-gated → free when owltype.custom.yaml is unchanged.
     ok = engine.deployConfigFile(OwlRimeIdentity.configFile, versionKey: "config_version") && ok
     let schema = activeSchemaIdForFastApply()
     if !schema.isEmpty, schema.first != "." {

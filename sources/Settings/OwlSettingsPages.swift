@@ -173,7 +173,7 @@ struct OwlAboutPage: View {
 // MARK: - 诊断 (Diagnostics)
 
 /// Read-only activation-diagnostics page: renders `OwlTISDiagnostics.buildReport()`
-/// (six TIS layers + FAMO-* codes + actionable text + install/data identity) and exports a
+/// (six TIS layers + OWL-* codes + actionable text + install/data identity) and exports a
 /// redacted support bundle. Lives here rather than a new file to stay off the pbxproj — the
 /// only cross-session merge-conflict point. Off the IMK hot path; settings UI only.
 struct OwlDiagnosticsPage: View {
@@ -374,7 +374,7 @@ struct OwlDiagnosticsPage: View {
 
   private func exportSupportBundle() {
     let panel = NSSavePanel()
-    panel.nameFieldStringValue = "famo-diagnostics.txt"
+    panel.nameFieldStringValue = "owl-diagnostics.txt"
     panel.title = "导出法墨诊断支持包"
     guard panel.runModal() == .OK, let url = panel.url else { return }
     let text = Self.supportBundleText(report: report)
@@ -396,7 +396,7 @@ struct OwlDiagnosticsPage: View {
     ## TIS 六层诊断 (JSON)
     \(json)
 
-    ## 最近日志（子系统 im.famo.inputmethod.Famo，近 30 分钟）
+    ## 最近日志（子系统 im.owltype.inputmethod.Owltype，近 30 分钟）
     \(recentUnifiedLogs())
 
     \(OwlLogoutDiagnostics.supportBundleSection())
@@ -414,12 +414,12 @@ struct OwlDiagnosticsPage: View {
   /// 先读到 EOF 再 waitUntilExit（避免 launchctl 式管道满死锁）；输出 64KB 上界；
   /// 失败/空则给「控制台」App 指引。
   static func recentUnifiedLogs() -> String {
-    let hint = "（近 30 分钟无子系统日志。如需更多，请在「控制台」App 按子系统 im.famo.inputmethod.Famo 过滤导出。）"
+    let hint = "（近 30 分钟无子系统日志。如需更多，请在「控制台」App 按子系统 im.owltype.inputmethod.Owltype 过滤导出。）"
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/log")
     process.arguments = [
       "show", "--last", "30m", "--style", "compact",
-      "--predicate", "subsystem == \"im.famo.inputmethod.Famo\"",
+      "--predicate", "subsystem == \"im.owltype.inputmethod.Owltype\"",
     ]
     let pipe = Pipe()
     process.standardOutput = pipe
@@ -433,7 +433,7 @@ struct OwlDiagnosticsPage: View {
       guard !text.isEmpty else { return hint }
       return String(text.suffix(64 * 1024))
     } catch {
-      return "（无法读取统一日志：\(error.localizedDescription)。请在「控制台」App 按子系统 im.famo.inputmethod.Famo 过滤。）"
+      return "（无法读取统一日志：\(error.localizedDescription)。请在「控制台」App 按子系统 im.owltype.inputmethod.Owltype 过滤。）"
     }
   }
 }

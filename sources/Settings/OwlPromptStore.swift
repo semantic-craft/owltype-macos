@@ -9,12 +9,12 @@
 //  R3（变量引擎）。控制器侧的 IMK 拦截接线与填空 sheet 在 `OwlInputController+RimeUpdate.swift`
 //  / `OwlPromptFillSheet.swift`。
 //
-//  存储边界（spec `famo-rime-config-law.md` 写入层 / `state-management.md` 单源单向）：
+//  存储边界（spec `owl-rime-config-law.md` 写入层 / `state-management.md` 单源单向）：
 //  `save` 一次性原子写三件（经 `OwlConfigWriter`：备份 + manifest + 回滚，与 quick-send 同路）：
-//    1. `famo_prompts.json` —— source of truth（code·title·body·category）。`load` 只读它。
-//    2. `famo_prompts.txt`  —— 从 entries **派生**的 Rime 表（`📝title \t code \t score` + 防撞
+//    1. `owl_prompts.json` —— source of truth（code·title·body·category）。`load` 只读它。
+//    2. `owl_prompts.txt`  —— 从 entries **派生**的 Rime 表（`📝title \t code \t score` + 防撞
 //       `v{code}` 变体）。正文绝不进此表；它只让打 code 时把带 📝 的标题调成候选。
-//    3. `rime_ice.custom.yaml` patch —— 注册 `table_translator@famo_prompts`。
+//    3. `rime_ice.custom.yaml` patch —— 注册 `table_translator@owl_prompts`。
 //  绝不直接写 `~/Library/Rime`。
 //
 //  📝 候选标记（R2）：派生表里标题前缀一个 `📝`，既让候选条视觉上可辨，又给控制器一个**廉价
@@ -134,20 +134,20 @@ enum OwlPromptVariables {
 
 // MARK: - 存储
 
-/// `famo_prompts.json`（source of truth）的读 / 写 / 归一 + 触发码校验。镜像 `OwlQuickSendStore`
+/// `owl_prompts.json`（source of truth）的读 / 写 / 归一 + 触发码校验。镜像 `OwlQuickSendStore`
 /// 的 idiom：`load` 容错（丢非法条目）、`save` 严格（非法即抛）、`normalized` 按 code 去重 + 排序。
 /// 写入经 `OwlConfigWriter`（原子、可回滚），与 quick-send 同路。
 enum OwlPromptStore {
-  static let fileName = "famo_prompts.json"
+  static let fileName = "owl_prompts.json"
   /// 派生的 Rime 表文件名（`📝title \t code \t score`）。`load` 不读它——它只是 JSON 的投影。
-  static let dictFileName = "famo_prompts.txt"
+  static let dictFileName = "owl_prompts.txt"
 
   /// 候选标题前缀的 📝 标记。同时是「视觉可辨」与提交拦截的廉价闸门（见文件头注）。
   static let candidateMarker = "📝"
 
   // MARK: 读
 
-  /// 读 `rimeDir/famo_prompts.json`。文件缺失 / 解码失败 → `[]`；个别非法条目被丢弃（容错）。
+  /// 读 `rimeDir/owl_prompts.json`。文件缺失 / 解码失败 → `[]`；个别非法条目被丢弃（容错）。
   static func load(rimeDir: URL = OwlApp.userDir) -> [OwlPromptEntry] {
     let url = rimeDir.appendingPathComponent(fileName)
     guard let data = try? Data(contentsOf: url),
@@ -216,9 +216,9 @@ enum OwlPromptStore {
   // MARK: 写
 
   /// 原子写三件（经 `OwlConfigWriter`：备份 + manifest + 回滚），镜像 `OwlQuickSendStore.save`：
-  ///   1. `famo_prompts.json` —— source of truth（先严格归一，非法即抛，再编码 JSON）。
-  ///   2. `famo_prompts.txt`  —— 从同一批 entries 派生的 Rime 表（每次保存全量重生成）。
-  ///   3. `rime_ice.custom.yaml` patch —— 注册 `table_translator@famo_prompts`。
+  ///   1. `owl_prompts.json` —— source of truth（先严格归一，非法即抛，再编码 JSON）。
+  ///   2. `owl_prompts.txt`  —— 从同一批 entries 派生的 Rime 表（每次保存全量重生成）。
+  ///   3. `rime_ice.custom.yaml` patch —— 注册 `table_translator@owl_prompts`。
   /// 三者同一 `timestamp`（同一回滚批次，rollback 会一起还原）。
   static func save(
     _ entries: [OwlPromptEntry],
@@ -242,7 +242,7 @@ enum OwlPromptStore {
     try writer.apply(fileName: "rime_ice.custom.yaml", block: rimeIcePatchBlock, timestamp: ts)
   }
 
-  /// `rime_ice.custom.yaml` 托管块：把 `famo_prompts` 注册成一个 Owltype-owned `table_translator`。
+  /// `rime_ice.custom.yaml` 托管块：把 `owl_prompts` 注册成一个 Owltype-owned `table_translator`。
   /// 与快捷短语用**不同 marker**，两块在同一文件里各自独立、互不覆盖。候选只显示 📝 标题，正文
   /// 由控制器在提交拦截时换入——所以这里照常是个普通短码表，无需任何特殊 Rime 配置。
   static var rimeIcePatchBlock: ManagedPatchBlock {
@@ -251,10 +251,10 @@ enum OwlPromptStore {
       yamlLinesIndentedUnderPatch: [
         "  # 提示词：Owltype-owned table_translator，候选只显示 📝 标题；正文由控制器拦截插入",
         "  \"engine/translators/+\":",
-        "    - table_translator@famo_prompts",
-        "  famo_prompts:",
+        "    - table_translator@owl_prompts",
+        "  owl_prompts:",
         "    dictionary: \"\"",
-        "    user_dict: famo_prompts",
+        "    user_dict: owl_prompts",
         "    db_class: stabledb",
         "    enable_completion: false",
         "    enable_sentence: false",
@@ -270,9 +270,9 @@ enum OwlPromptStore {
     var lines = [
       "# Rime table",
       "# coding: utf-8",
-      "#@/db_name famo_prompts",
+      "#@/db_name owl_prompts",
       "#@/db_type tabledb",
-      "# Owltype prompt titles. Body lives in famo_prompts.json; selecting a 📝 row inserts the body.",
+      "# Owltype prompt titles. Body lives in owl_prompts.json; selecting a 📝 row inserts the body.",
       "",
     ]
     for entry in entries {
@@ -373,14 +373,14 @@ func resolvePromptCommit(
 }
 
 /// 活提示词解析器：`PromptResolving` 注入端口的生产实现（镜像 `OwlSelectionPolishService` 之于
-/// `SelectionPolishing`）。按需读 `famo_prompts.json` —— 只有提交了 📝 候选才会走到这（`resolve
+/// `SelectionPolishing`）。按需读 `owl_prompts.json` —— 只有提交了 📝 候选才会走到这（`resolve
 /// PromptCommit` 的廉价闸门把普通提交挡在外面），故这次读盘罕见、不在按键热路径上。
 @MainActor
 final class OwlPromptResolver {
   static let shared = OwlPromptResolver()
   private init() {}
 
-  /// (触发码, 干净标题) → 匹配的提示词；不是提示词则 nil。读当前 `famo_prompts.json`，委托纯函数
+  /// (触发码, 干净标题) → 匹配的提示词；不是提示词则 nil。读当前 `owl_prompts.json`，委托纯函数
   /// `OwlPromptStore.matchEntry` 做匹配（含防撞 `v{code}` 处理）。
   func entry(forCode code: String, title: String) -> OwlPromptEntry? {
     OwlPromptStore.matchEntry(code: code, title: title, in: OwlPromptStore.load())

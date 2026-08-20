@@ -47,8 +47,8 @@ enum OwlUserDictResetError: LocalizedError, Equatable {
 }
 
 enum OwlUserDictReset {
-  /// 备份目录名前缀，`.famo-backup/userdb-reset-<ts>/`（与配置写入层的
-  /// `.famo-backup/<ts>/` 同一个根，靠前缀区分来源）。
+  /// 备份目录名前缀，`.owl-backup/userdb-reset-<ts>/`（与配置写入层的
+  /// `.owl-backup/<ts>/` 同一个根，靠前缀区分来源）。
   static let backupDirPrefix = "userdb-reset-"
   static let userDBSuffix = ".userdb"
 
@@ -82,7 +82,7 @@ enum OwlUserDictReset {
     }
 
     let backupDir = root
-      .appendingPathComponent(".famo-backup", isDirectory: true)
+      .appendingPathComponent(".owl-backup", isDirectory: true)
       .appendingPathComponent(backupDirPrefix + timestamp, isDirectory: true)
     try OwlPrivateStorage.prepareDirectory(backupDir, fileManager: fm)
 

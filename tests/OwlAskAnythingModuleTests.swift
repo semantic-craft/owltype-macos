@@ -551,7 +551,7 @@ final class OwlAskAnythingModuleTests: XCTestCase {
       endpoint: URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/responses")!,
       model: "qwen3.7-plus",
       providerID: "qwen",
-      secretName: "famo.provider.qwen.apiKey",
+      secretName: "owltype.provider.qwen.apiKey",
       isDefault: true)
   }
 
@@ -562,7 +562,7 @@ final class OwlAskAnythingModuleTests: XCTestCase {
       endpoint: URL(string: "https://api.xiaomimimo.com/v1/chat/completions")!,
       model: "mimo-v2.5",
       providerID: "mimo",
-      secretName: "famo.provider.mimo.apiKey")
+      secretName: "owltype.provider.mimo.apiKey")
   }
 
   private static var chatOnlyProfile: OwlProviderProfile {
@@ -572,7 +572,7 @@ final class OwlAskAnythingModuleTests: XCTestCase {
       endpoint: URL(string: "https://api.example.com/v1/chat/completions")!,
       model: "plain-v1",
       providerID: "custom",
-      secretName: "famo.provider.plain.apiKey",
+      secretName: "owltype.provider.plain.apiKey",
       isDefault: true)
   }
 

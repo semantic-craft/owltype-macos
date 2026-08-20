@@ -1,6 +1,6 @@
 //
 //  CandidateStorePortTests.swift
-//  OwltypeTests — PR for task 06-20-port-famocandidatestore-to-injected-candidatestoring-port
+//  OwltypeTests — PR for task 06-20-port-owlcandidatestore-to-injected-candidatestoring-port
 //
 //  Cashes in the testability goal the RimeEngine seam established (sources/RimeSeam.swift,
 //  tests/RimeSeamTests.swift, tests/SeamPortsTests.swift), extended to the heaviest remaining

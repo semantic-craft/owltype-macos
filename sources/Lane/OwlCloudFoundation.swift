@@ -123,7 +123,7 @@ enum OwlCloudKeychainError: Error, Equatable {
 
 /// Keychain home for the DeepSeek API key. The key is never stored in UserDefaults.
 enum OwlCloudKeychain {
-  private static let service = "im.famo.inputmethod.Famo.deepseek"
+  private static let service = "im.owltype.inputmethod.Owltype.deepseek"
   private static let account = "DeepSeekAPIKey"
 
   static func readDeepSeekAPIKey() throws -> String? {

@@ -25,13 +25,13 @@ enum OwlPrivateStorage {
 }
 
 enum OwlRimeIdentity {
-  static let appName = "rime.famo"
-  static let builderAppName = "rime.famo-builder"
-  static let baseConfig = "famo"
-  static let configFile = "famo.yaml"
-  static let customConfigFile = "famo.custom.yaml"
+  static let appName = "rime.owltype"
+  static let builderAppName = "rime.owltype-builder"
+  static let baseConfig = "owltype"
+  static let configFile = "owltype.yaml"
+  static let customConfigFile = "owltype.custom.yaml"
   static let legacyCustomConfigFile = "squirrel.custom.yaml"
-  static let seedMarkerFile = ".famo-seed-v2"
+  static let seedMarkerFile = ".owl-seed-v2"
 }
 
 @main
@@ -50,7 +50,7 @@ struct OwlApp {
   // Coexists with the user's other Rime input methods without clobbering them.
   private static let defaultUserDir = libraryDir.appending(components: "Application Support", "Owltype", directoryHint: .isDirectory)
   static var userDir: URL {
-    if let override = ProcessInfo.processInfo.environment["FAMO_TEST_USER_DIR"], !override.isEmpty {
+    if let override = ProcessInfo.processInfo.environment["OWL_TEST_USER_DIR"], !override.isEmpty {
       return URL(fileURLWithPath: override, isDirectory: true)
     }
     return defaultUserDir
@@ -58,10 +58,10 @@ struct OwlApp {
   // Register the bundle that is actually running: dev and pkg installs live in different roots.
   static let appDir = Bundle.main.bundleURL
   static var logDir: URL {
-    if let override = ProcessInfo.processInfo.environment["FAMO_TEST_LOG_DIR"], !override.isEmpty {
+    if let override = ProcessInfo.processInfo.environment["OWL_TEST_LOG_DIR"], !override.isEmpty {
       return URL(fileURLWithPath: override, isDirectory: true)
     }
-    return FileManager.default.temporaryDirectory.appending(component: "rime.famo", directoryHint: .isDirectory)
+    return FileManager.default.temporaryDirectory.appending(component: "rime.owltype", directoryHint: .isDirectory)
   }
 
   fileprivate static var isRunningUnitTests: Bool {
@@ -162,7 +162,7 @@ struct OwlApp {
           return true
         case "--current-input-source":
           // postinstall 更新序列用：打印当前系统输入源 id（只读 TIS，不改任何状态），供探测
-          // 「更新前法墨是否是当前输入法」（输出以 im.famo.inputmethod.Famo 开头即是）。
+          // 「更新前法墨是否是当前输入法」（输出以 im.owltype.inputmethod.Owltype 开头即是）。
           print(OwlInstaller.currentInputSourceID() ?? "")
           return true
         case "--detect-activation":
@@ -176,8 +176,8 @@ struct OwlApp {
         case "--diagnose-rime-config":
           // 07-07-schema-consistency-guard: read-only schema-consistency diagnosis as JSON — prefs ↔
           // running-bundle seed ↔ user build/ ↔ user schema_list ↔ default.yaml shadow, plus a
-          // ~/Library/Rime advisory (系统 Rime 目录，法墨不读它) + FAMO-SCHEMA-* codes. Never mutates
-          // config. Honours FAMO_TEST_USER_DIR so it can be pointed at a drift sample.
+          // ~/Library/Rime advisory (系统 Rime 目录，法墨不读它) + OWL-SCHEMA-* codes. Never mutates
+          // config. Honours OWL_TEST_USER_DIR so it can be pointed at a drift sample.
           let rimeConfigEncoder = JSONEncoder()
           rimeConfigEncoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
           if let data = try? rimeConfigEncoder.encode(OwlRimeConfigDiagnostics.buildReport()),
@@ -187,7 +187,7 @@ struct OwlApp {
           return true
         case "--diagnose-tis":
           // W1.4: read-only six-layer TIS diagnosis as JSON (register/enumerate/enable/select/menu/
-          // client-attach + FAMO-* codes + install identity + data-root + who else claims the
+          // client-attach + OWL-* codes + install identity + data-root + who else claims the
           // bundle id). Fresh process ⇒ Law 4.
           // Never mutates any input-source state. Consumed by check-installed.sh / live smoke.
           let encoder = JSONEncoder()
@@ -347,12 +347,12 @@ struct OwlApp {
 }
 
 // 测试隔离（2026-07-21）：TEST_HOST 让单测跑在 Owltype.app 进程里，OwlDefaults.standard 即真实
-// 偏好域 ~/Library/Preferences/im.famo.inputmethod.Famo.plist——全量单测曾清掉云端开关/热键槽
+// 偏好域 ~/Library/Preferences/im.owltype.inputmethod.Owltype.plist——全量单测曾清掉云端开关/热键槽
 // 等线上配置。Owltype 代码一律经 OwlDefaults.standard 访问偏好；测试进程（单测注入 /
 // --ui-test-show-settings 启动）改写到独立 suite 并每次从空域开始，真实域零写入。
 // Lives in Main.swift to avoid a project.pbxproj edit (same `Owltype` module, callable everywhere).
 enum OwlDefaults {
-  static let testSuiteName = "im.famo.inputmethod.Famo.tests"
+  static let testSuiteName = "im.owltype.inputmethod.Owltype.tests"
   static var isRunningUnitTests: Bool { OwlApp.isRunningUnitTests }
   static let standard: UserDefaults = {
     guard OwlApp.isRunningUnitTests || OwlApp.isShowingSettingsForUITests else { return .standard }
@@ -365,10 +365,10 @@ enum OwlDefaults {
 // ponytail: dev-only perf埋点, NOT a product feature — delete when the baseline is captured.
 // Lives in Main.swift to avoid a project.pbxproj edit (same `Owltype` module, callable everywhere).
 // Read on the real machine (no Instruments needed):
-//   log stream --predicate 'subsystem == "im.famo.inputmethod.Famo" && category == "perf"' --info
-// RSS is measured externally (no code): ps -o rss= -p $(pgrep -xi famo)   # KB
+//   log stream --predicate 'subsystem == "im.owltype.inputmethod.Owltype" && category == "perf"' --info
+// RSS is measured externally (no code): ps -o rss= -p $(pgrep -xi owltype)   # KB
 enum OwlPerf {
-  static let log = Logger(subsystem: "im.famo.inputmethod.Famo", category: "perf")
+  static let log = Logger(subsystem: "im.owltype.inputmethod.Owltype", category: "perf")
   /// Monotonic start mark (nanoseconds).
   static func mark() -> UInt64 { DispatchTime.now().uptimeNanoseconds }
   /// Log elapsed milliseconds since `t0` under `label`.

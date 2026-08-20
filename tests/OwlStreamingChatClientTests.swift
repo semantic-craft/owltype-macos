@@ -143,7 +143,7 @@ final class OwlStreamingChatClientTests: XCTestCase {
       providerID: "openai",
       endpoint: URL(string: "https://api.openai.com/v1/chat/completions")!,
       model: "gpt-4o",
-      secretName: "famo.provider.unit.apiKey",
+      secretName: "owltype.provider.unit.apiKey",
       authHeaderStyle: .bearer
     )
   }
@@ -227,7 +227,7 @@ final class OwlStreamingChatClientTests: XCTestCase {
       providerID: "qwen",
       endpoint: URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")!,
       model: "qwen3.6-flash",
-      secretName: "famo.provider.qwen.apiKey",
+      secretName: "owltype.provider.qwen.apiKey",
       authHeaderStyle: .bearer
     )
     let extras = OwlSearchControl.extraBody(providerID: "qwen", host: routing.endpoint.host ?? "")
@@ -244,7 +244,7 @@ final class OwlStreamingChatClientTests: XCTestCase {
       providerID: "mimo",
       endpoint: URL(string: "https://api.xiaomimimo.com/v1/chat/completions")!,
       model: "mimo-v2.5",
-      secretName: "famo.provider.mimo.apiKey",
+      secretName: "owltype.provider.mimo.apiKey",
       authHeaderStyle: .apiKey
     )
     let extras = OwlSearchControl.extraBody(providerID: "mimo", host: routing.endpoint.host ?? "")
@@ -268,7 +268,7 @@ final class OwlStreamingChatClientTests: XCTestCase {
         providerID: id,
         endpoint: URL(string: "https://\(host)/v1/chat/completions")!,
         model: model,
-        secretName: "famo.provider.\(id).apiKey",
+        secretName: "owltype.provider.\(id).apiKey",
         authHeaderStyle: .bearer
       )
     }
@@ -301,7 +301,7 @@ final class OwlStreamingChatClientTests: XCTestCase {
       displayName: "unit",
       endpoint: URL(string: "https://api.openai.com/v1/chat/completions")!,
       model: "gpt-4o",
-      secretName: "famo.provider.unit.apiKey",
+      secretName: "owltype.provider.unit.apiKey",
       isDefault: true
     )
     let service = OwlStreamingChatService(
@@ -339,7 +339,7 @@ final class OwlStreamingChatClientTests: XCTestCase {
       displayName: "unit",
       endpoint: URL(string: "https://api.openai.com/v1/chat/completions")!,
       model: "gpt-4o",
-      secretName: "famo.provider.unit.apiKey",
+      secretName: "owltype.provider.unit.apiKey",
       isDefault: true
     )
     let service = OwlStreamingChatService(
@@ -379,7 +379,7 @@ final class OwlStreamingChatClientTests: XCTestCase {
       endpoint: URL(string: "https://\(host)/v1/chat/completions")!,
       model: model,
       providerID: providerID,
-      secretName: "famo.provider.\(providerID).apiKey",
+      secretName: "owltype.provider.\(providerID).apiKey",
       isDefault: true
     )
     return OwlAskAnythingModule(
@@ -730,7 +730,7 @@ final class OwlStreamingChatClientTests: XCTestCase {
       endpoint: URL(string: "https://api.example.com/v1/chat/completions")!,
       model: "unit-chat-v1",
       providerID: "custom",
-      secretName: "famo.provider.unit.apiKey",
+      secretName: "owltype.provider.unit.apiKey",
       isDefault: true
     )
   }

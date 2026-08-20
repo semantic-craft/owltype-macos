@@ -72,7 +72,7 @@ final class OwlSettingsE2EContractTests: XCTestCase {
 
     XCTAssertEqual(written, [
       "default.custom.yaml",
-      "famo.custom.yaml",
+      "owltype.custom.yaml",
       "rime_ice.custom.yaml",
       "wubi86_jidian.custom.yaml",
       "wubi86_jidian_pinyin.custom.yaml",
@@ -94,10 +94,10 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     XCTAssertTrue(defaultPatch.contains("\"punctuator/half_shape/+\":"))
     XCTAssertTrue(defaultPatch.contains("\"punctuator/full_shape/+\":"))
     XCTAssertTrue(defaultPatch.contains("\"/\": [\"、\", \"/\", \"／\", \"÷\"]"))
-    // app_options moved to the famo domain (task 07-08): NOT in default anymore — it lives in
-    // famo.custom.yaml, the only domain OwlConfig.getAppOptions reads.
+    // app_options moved to the owltype domain (task 07-08): NOT in default anymore — it lives in
+    // owltype.custom.yaml, the only domain OwlConfig.getAppOptions reads.
     XCTAssertFalse(defaultPatch.contains("app_options/"))
-    let owlPatch = try read("famo.custom.yaml", in: rimeDir)
+    let owlPatch = try read("owltype.custom.yaml", in: rimeDir)
     XCTAssertTrue(owlPatch.contains("\"app_options/com.apple.Terminal/ascii_mode\": true"))
     XCTAssertFalse(owlPatch.contains("bad:key"))
     XCTAssertFalse(defaultPatch.contains("Super_L"))
@@ -169,9 +169,9 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     // load reads the JSON source of truth: exactly the saved entries. The derived table carries
     // the same bare code (no prefix — ` collides with rime-ice's radical-search lead key).
     XCTAssertEqual(OwlQuickSendStore.load(rimeDir: rimeDir), [quickEntry])
-    XCTAssertTrue(try read("famo_quick_send.txt", in: rimeDir).contains("法墨测试\tfmcs\t100000"))
-    XCTAssertFalse(try read("famo_quick_send.txt", in: rimeDir).contains("`fmcs"))
-    XCTAssertTrue(try read("rime_ice.custom.yaml", in: rimeDir).contains("table_translator@famo_quick_send"))
+    XCTAssertTrue(try read("owl_quick_send.txt", in: rimeDir).contains("法墨测试\tfmcs\t100000"))
+    XCTAssertFalse(try read("owl_quick_send.txt", in: rimeDir).contains("`fmcs"))
+    XCTAssertTrue(try read("rime_ice.custom.yaml", in: rimeDir).contains("table_translator@owl_quick_send"))
 
     XCTAssertFalse(OwlClipboardStore.isEnabled(defaults: defaults))
     OwlClipboardStore.setEnabled(true, defaults: defaults)
@@ -223,16 +223,16 @@ final class OwlSettingsE2EContractTests: XCTestCase {
       timestamp: "20260630-quick-send-examples"
     )
     XCTAssertEqual(OwlQuickSendStore.load(rimeDir: rimeDir), [claude.entry])
-    let table = try read("famo_quick_send.txt", in: rimeDir)
+    let table = try read("owl_quick_send.txt", in: rimeDir)
     XCTAssertTrue(table.contains("claude --dangerously-skip-permissions\tyocc\t100000"))
     XCTAssertFalse(table.contains("`yocc"))
     XCTAssertFalse(table.contains("\tvyocc\t"))
-    XCTAssertTrue(try read("rime_ice.custom.yaml", in: rimeDir).contains("table_translator@famo_quick_send"))
+    XCTAssertTrue(try read("rime_ice.custom.yaml", in: rimeDir).contains("table_translator@owl_quick_send"))
   }
 
   private func makeTempDir() throws -> URL {
     let dir = FileManager.default.temporaryDirectory
-      .appendingPathComponent("famo-settings-e2e", isDirectory: true)
+      .appendingPathComponent("owl-settings-e2e", isDirectory: true)
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     tempDirs.append(dir)

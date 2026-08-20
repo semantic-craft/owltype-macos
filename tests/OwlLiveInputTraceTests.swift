@@ -15,7 +15,7 @@ final class OwlLiveInputTraceTests: XCTestCase {
     super.setUp()
     suiteName = "OwlLiveInputTraceTests-\(UUID().uuidString)"
     defaults = UserDefaults(suiteName: suiteName)!
-    traceURL = FileManager.default.temporaryDirectory.appending(component: "famo-trace-\(UUID().uuidString).log")
+    traceURL = FileManager.default.temporaryDirectory.appending(component: "owl-trace-\(UUID().uuidString).log")
   }
 
   override func tearDown() {

@@ -1,6 +1,6 @@
 //
 //  RimeSeamTests.swift
-//  OwltypeTests — PR2 of the Rime Engine/Session seam (task 06-20-famo-rime-engine-session-seam)
+//  OwltypeTests — PR2 of the Rime Engine/Session seam (task 06-20-owl-rime-engine-session-seam)
 //
 //  Cashes in the testability goal PR1b created. PR1b put `protocol RimeSession` /
 //  `protocol RimeEngine` (sources/RimeSeam.swift) in front of the librime C API, with
@@ -197,7 +197,7 @@ final class FakeRimeEngine: RimeEngine {
   /// `start_maintenance` and BEFORE a reselect on the fast fuzzy-apply path.
   private(set) var lifecycleTrace: [String] = []
   /// Every `deploy_config_file` file name, in call order — so a test can assert WHICH configs
-  /// a deploy path recompiles (famo.yaml's absence from fast-apply/startRime was the #121 gap).
+  /// a deploy path recompiles (owltype.yaml's absence from fast-apply/startRime was the #121 gap).
   private(set) var deployedConfigFiles: [String] = []
   private(set) var createdSessionCount = 0
   private(set) var selectedSchemas: [String] = []
@@ -582,7 +582,7 @@ final class RimeSeamTests: XCTestCase {
     driveReload(old: old, engine: engine, capturedSchema: "rime_ice", replayComposition: true)
 
     // Only the ASCII bytes f a m o are re-fed on the fresh session; the CJK 墨 is skipped.
-    XCTAssertEqual(fresh.processedKeys.map(\.keycode), Array("famo".unicodeScalars.map(\.value)))
+    XCTAssertEqual(fresh.processedKeys.map(\.keycode), Array("owltype".unicodeScalars.map(\.value)))
   }
 
   func testAppOptionAndPropertyRecorded() {

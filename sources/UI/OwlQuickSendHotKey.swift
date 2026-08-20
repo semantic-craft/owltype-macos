@@ -199,8 +199,8 @@ struct OwlRecordedHotKey: Equatable, Sendable {
 enum OwlHotKeyMatcher {
   /// Persisted (`.notice`) observability for hotkey matches — #118 root lesson: silent failure
   /// modes here ship unnoticed. Query on a real machine with:
-  ///   /usr/bin/log show --last 10m --predicate 'subsystem == "im.famo.inputmethod.Famo" && category == "hotkey"'
-  static let log = Logger(subsystem: "im.famo.inputmethod.Famo", category: "hotkey")
+  ///   /usr/bin/log show --last 10m --predicate 'subsystem == "im.owltype.inputmethod.Owltype" && category == "hotkey"'
+  static let log = Logger(subsystem: "im.owltype.inputmethod.Owltype", category: "hotkey")
 
   static func matches(_ combo: (keyCode: UInt32, modifiers: UInt32),
                       keyCode: UInt16, flags: NSEvent.ModifierFlags) -> Bool {
@@ -301,7 +301,7 @@ final class OwlHotKeyEventTap {
     guard let matched else { return Unmanaged.passUnretained(event) }
 
     guard OwlInstaller.currentInputSourceID()?.hasPrefix(OwlInstaller.inputSourcePrefix) == true else {
-      OwlHotKeyMatcher.log.notice("tap match passthrough: famo not current input source")
+      OwlHotKeyMatcher.log.notice("tap match passthrough: Owltype not current input source")
       return Unmanaged.passUnretained(event)
     }
 

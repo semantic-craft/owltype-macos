@@ -28,7 +28,7 @@ enum RimeOption: String, CaseIterable {
   /// 是 rime-ice 用不到它，但保留该 case 以兼容可能携带它的方案。Live runtime option（无需 redeploy）。
   case transcription
   /// rime 原生「候选 emoji」开关。rime-ice 的 switch 名是 `emoji`（其 `simplifier@emoji` 过滤器据此开关）。
-  /// Owltype 出厂把 schema switch reset 1→0（famo-seed.sh），默认关；由 表情符号 设置开关 live 驱动。
+  /// Owltype 出厂把 schema switch reset 1→0（owl-seed.sh），默认关；由 表情符号 设置开关 live 驱动。
   case emojiSuggestion = "emoji"
   case vimMode = "vim_mode"
 

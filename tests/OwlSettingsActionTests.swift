@@ -627,9 +627,9 @@ final class OwlSettingsActionTests: XCTestCase {
     XCTAssertFalse(engine.lifecycleTrace.contains("startMaintenance"))
   }
 
-  /// #121: App 默认英文 writes land in famo.custom.yaml's managed block (famo domain), so the
-  /// fast-apply MUST recompile famo.yaml too — deploying only default.yaml + the active schema
-  /// leaves build/famo.yaml stale and getAppOptions serving factory entries only (the 真机验收
+  /// #121: App 默认英文 writes land in owltype.custom.yaml's managed block (owltype domain), so the
+  /// fast-apply MUST recompile owltype.yaml too — deploying only default.yaml + the active schema
+  /// leaves build/owltype.yaml stale and getAppOptions serving factory entries only (the 真机验收
   /// failure: user-added apps silently never went English).
   func testApplyKeyboardConfigFastDeploysOwltypeFrontendConfig() {
     let delegate = OwlApplicationDelegate()
@@ -637,14 +637,14 @@ final class OwlSettingsActionTests: XCTestCase {
     delegate.engine = engine
 
     XCTAssertTrue(delegate.applyKeyboardConfigFast())
-    XCTAssertTrue(engine.deployedConfigFiles.contains("famo.yaml"),
-                  "fast-apply must recompile famo.yaml (per-app app_options live there)")
+    XCTAssertTrue(engine.deployedConfigFiles.contains("owltype.yaml"),
+                  "fast-apply must recompile owltype.yaml (per-app app_options live there)")
     XCTAssertTrue(engine.deployedConfigFiles.contains("default.yaml"))
   }
 
-  /// #121 companion gap: rime's detect_modifications does not track famo.custom.yaml, so a
-  /// famo-domain-only change leaves `start_maintenance` with "nothing to do" (false). startRime
-  /// used to gate the famo.yaml deploy on that flag — even a full 重新部署 then skipped it and
+  /// #121 companion gap: rime's detect_modifications does not track owltype.custom.yaml, so a
+  /// owltype-domain-only change leaves `start_maintenance` with "nothing to do" (false). startRime
+  /// used to gate the owltype.yaml deploy on that flag — even a full 重新部署 then skipped it and
   /// the managed-block write stayed inert. The deploy must run regardless of the flag.
   func testStartRimeDeploysOwltypeConfigEvenWhenMaintenanceIdle() {
     let delegate = OwlApplicationDelegate()
@@ -652,8 +652,8 @@ final class OwlSettingsActionTests: XCTestCase {
     delegate.engine = engine
 
     _ = delegate.startRime(fullCheck: true)
-    XCTAssertTrue(engine.deployedConfigFiles.contains("famo.yaml"),
-                  "famo.yaml deploy must not be gated on start_maintenance having work to do")
+    XCTAssertTrue(engine.deployedConfigFiles.contains("owltype.yaml"),
+                  "owltype.yaml deploy must not be gated on start_maintenance having work to do")
   }
 
   private func assertSet<T: Equatable>(
@@ -708,7 +708,7 @@ final class OwlSettingsActionTests: XCTestCase {
 
   private func makeTempDir() throws -> URL {
     let dir = FileManager.default.temporaryDirectory
-      .appendingPathComponent("famo-settings-action", isDirectory: true)
+      .appendingPathComponent("owl-settings-action", isDirectory: true)
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     tempDirs.append(dir)

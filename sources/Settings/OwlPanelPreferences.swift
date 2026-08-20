@@ -4,7 +4,7 @@
 //
 //  v0.2.2: user-customizable appearance for the SwiftUI candidate panel.
 //  Persistence and runtime snapshots live exclusively in `OwlCandidatePanelSettings`.
-//  NOT written to the user's `famo.custom.yaml`.
+//  NOT written to the user's `owltype.custom.yaml`.
 //
 //  Boundary (ADR-0001 / 0002 / 0003): prefs/panel layer only — never touches
 //  the IMK key-event hot path.

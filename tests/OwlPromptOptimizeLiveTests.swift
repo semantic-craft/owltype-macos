@@ -2,7 +2,7 @@
 //  OwlPromptOptimizeLiveTests.swift
 //  OwltypeTests — 提示词优化「实盘」集成测试 (issue #138)
 //
-//  这是全仓唯一会打真实网络的测试，**默认跳过**：只有当 `~/.famo-test-key` 存在时才跑。
+//  这是全仓唯一会打真实网络的测试，**默认跳过**：只有当 `~/.owl-test-key` 存在时才跑。
 //  CI 与他人机器上没有该文件，`XCTSkip` 静默略过，不影响 780+ 的离线套件。
 //
 //  为什么需要它：#138 的整条链路此前只用 mock fetcher 验过，真实供应商返回的 JSON 长什么样
@@ -21,10 +21,10 @@ import XCTest
 @MainActor
 final class OwlPromptOptimizeLiveTests: XCTestCase {
 
-  /// `~/.famo-test-workspace` 可填 Workspace ID、完整 API Host 或 Responses URL；不把任何
+  /// `~/.owl-test-workspace` 可填 Workspace ID、完整 API Host 或 Responses URL；不把任何
   /// 个人 Workspace 写进仓库。未配置时才回退通用域名。
   private let endpoint: URL = {
-    let path = ("~/.famo-test-workspace" as NSString).expandingTildeInPath
+    let path = ("~/.owl-test-workspace" as NSString).expandingTildeInPath
     let workspace = (try? String(contentsOfFile: path, encoding: .utf8))?
       .trimmingCharacters(in: .whitespacesAndNewlines)
     if let workspace, let endpoint = OwlQwenWorkspace.responsesEndpoint(for: workspace) {
@@ -33,11 +33,11 @@ final class OwlPromptOptimizeLiveTests: XCTestCase {
     return URL(string: OwlLLMProviderCatalog.qwenResponsesEndpoint)!
   }()
   /// 默认跟着百炼预设走（测的应当是新用户真会用上的那个型号，2026-07-31 起即 qwen3.7-plus），
-  /// `~/.famo-test-model` 可覆盖 —— 「这个技能该用 3.7-plus 还是 3.7-max」只能靠同一套用例
+  /// `~/.owl-test-model` 可覆盖 —— 「这个技能该用 3.7-plus 还是 3.7-max」只能靠同一套用例
   /// 分别打两次来回答。用文件而不是环境变量的原因见 `OwlSkillsLiveTests.model`
   /// （xcodebuild 不转发 shell env）。
   private let model: String = {
-    let path = ("~/.famo-test-model" as NSString).expandingTildeInPath
+    let path = ("~/.owl-test-model" as NSString).expandingTildeInPath
     let override = (try? String(contentsOfFile: path, encoding: .utf8))?
       .trimmingCharacters(in: .whitespacesAndNewlines)
     if let override, !override.isEmpty { return override }
@@ -46,13 +46,13 @@ final class OwlPromptOptimizeLiveTests: XCTestCase {
 
   /// 读仓库外的测试 Key；没有就返回 nil → 测试跳过。永不打印内容。
   private func testAPIKey() throws -> String {
-    let path = ("~/.famo-test-key" as NSString).expandingTildeInPath
+    let path = ("~/.owl-test-key" as NSString).expandingTildeInPath
     guard let raw = try? String(contentsOfFile: path, encoding: .utf8) else {
-      throw XCTSkip("无 ~/.famo-test-key，跳过实盘测试（离线套件不受影响）")
+      throw XCTSkip("无 ~/.owl-test-key，跳过实盘测试（离线套件不受影响）")
     }
     let key = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     if key.isEmpty {
-      throw XCTSkip("~/.famo-test-key 为空，跳过实盘测试")
+      throw XCTSkip("~/.owl-test-key 为空，跳过实盘测试")
     }
     return key
   }
@@ -71,14 +71,14 @@ final class OwlPromptOptimizeLiveTests: XCTestCase {
     let status = (response as? HTTPURLResponse)?.statusCode ?? -1
     let body = String(data: data, encoding: .utf8) ?? ""
     try? body.write(
-      toFile: "/tmp/famo-live-\(label).json", atomically: true, encoding: .utf8)
+      toFile: "/tmp/owl-live-\(label).json", atomically: true, encoding: .utf8)
     XCTAssertEqual(status, 200, "百炼返回非 200：\(body.prefix(400))")
 
     // 取出模型真正吐的那段 content（解析层要处理的就是它）。这里刻意不复用产品的解码器：
     // 目的是看清「原样」，产品解码器挑不挑得动是另一条断言的事。
     let content = (try? OwlResponsesWire.parse(data).text) ?? ""
     try? content.write(
-      toFile: "/tmp/famo-live-\(label)-content.txt", atomically: true, encoding: .utf8)
+      toFile: "/tmp/owl-live-\(label)-content.txt", atomically: true, encoding: .utf8)
     return content
   }
 

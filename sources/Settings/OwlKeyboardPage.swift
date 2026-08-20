@@ -13,7 +13,7 @@
 //  `OwlKeyboardPreferences` (this file contains NO key literals). `@Observable`
 //  `didSet` is intentionally avoided — it does not fire reliably under the macro.
 //
-//  Persistence boundary (see `.trellis/spec/frontend/famo-modern-ui-direction.md`):
+//  Persistence boundary (see `.trellis/spec/frontend/owl-modern-ui-direction.md`):
 //  these options map to Rime YAML. The page saves choices in UserDefaults and routes
 //  Rime-backed toggles through the managed-block writer plus the existing deploy path.
 //  Settings auto-apply; the page-level apply button is only a manual fallback for
@@ -807,7 +807,7 @@ struct OwlKeyboardPage: View {
   // MARK: - 候选 emoji
 
   /// 在打字候选里显示 emoji — drives the rime-ice 原生 `emoji` switch, applied LIVE via the
-  /// delegate (no redeploy). Owltype ships it OFF (famo-seed.sh resets the schema switch 1→0).
+  /// delegate (no redeploy). Owltype ships it OFF (owl-seed.sh resets the schema switch 1→0).
   /// Relocated here from the removed 表情符号 page (the 表情/符号面板 itself lives on the menu bar).
   private var candidateEmojiCard: some View {
     SettingsCard(title: "", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {

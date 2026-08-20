@@ -1,6 +1,6 @@
 //
 //  CloudRoutingTests.swift
-//  OwltypeTests — multi-provider fetcher routing (task 06-22-famo-multi-provider-keychain-foundation, B1)
+//  OwltypeTests — multi-provider fetcher routing (task 06-22-owl-multi-provider-keychain-foundation, B1)
 //
 //  Contracts: cloud requests route endpoint / model + the API key through the ACTIVE provider
 //  profile, falling back to the legacy DeepSeek globals when no profile is configured.
@@ -18,7 +18,7 @@ final class CloudRoutingTests: XCTestCase {
   private func makeProfile(
     endpoint: String,
     model: String,
-    secretName: String = "famo.provider.unit.apiKey"
+    secretName: String = "owltype.provider.unit.apiKey"
   ) -> OwlProviderProfile {
     OwlProviderProfile(
       id: "unit",

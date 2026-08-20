@@ -27,17 +27,17 @@ enum OwlQuickSendError: LocalizedError, Equatable {
   }
 }
 
-/// 存储边界（镜像 `OwlPromptStore`，单源单向）：`famo_quick_send.json` 是 source of truth，
-/// `load` 只读它；`famo_quick_send.txt` 是从 entries **派生**的 Rime 表（每条
+/// 存储边界（镜像 `OwlPromptStore`，单源单向）：`owl_quick_send.json` 是 source of truth，
+/// `load` 只读它；`owl_quick_send.txt` 是从 entries **派生**的 Rime 表（每条
 /// `text \t code \t score`），只写不回读。历史教训：旧版把派生表当存储回读，防撞用的
 /// `v{code}` 行被当成真条目，每次保存再派生一层 `v`，条目滚雪球直到触发码撞上 32 字符上限
 /// （2026-07 修复）。旧安装无 JSON 时 `load` 走一次性迁移：解析派生表并折叠 v 链，下次
 /// `save` 落 JSON。
 enum OwlQuickSendStore {
   /// source of truth（text·code）。`load` 只读它。
-  static let fileName = "famo_quick_send.json"
+  static let fileName = "owl_quick_send.json"
   /// 派生的 Rime 表文件名。`load` 不读它（仅旧格式迁移时读一次）——它只是 JSON 的投影。
-  static let dictFileName = "famo_quick_send.txt"
+  static let dictFileName = "owl_quick_send.txt"
 
   static func load(rimeDir: URL = OwlApp.userDir) -> [OwlQuickSendEntry] {
     let url = rimeDir.appendingPathComponent(fileName)
@@ -88,9 +88,9 @@ enum OwlQuickSendStore {
   }
 
   /// 原子写三件（经 `OwlConfigWriter`：备份 + manifest + 回滚），镜像 `OwlPromptStore.save`：
-  ///   1. `famo_quick_send.json` —— source of truth（先严格归一，非法即抛，再编码 JSON）。
-  ///   2. `famo_quick_send.txt`  —— 从同一批 entries 派生的 Rime 表（每次保存全量重生成）。
-  ///   3. `rime_ice.custom.yaml` patch —— 注册 `table_translator@famo_quick_send`。
+  ///   1. `owl_quick_send.json` —— source of truth（先严格归一，非法即抛，再编码 JSON）。
+  ///   2. `owl_quick_send.txt`  —— 从同一批 entries 派生的 Rime 表（每次保存全量重生成）。
+  ///   3. `rime_ice.custom.yaml` patch —— 注册 `table_translator@owl_quick_send`。
   /// 三者同一 `timestamp`（同一回滚批次，rollback 会一起还原）。
   static func save(
     _ entries: [OwlQuickSendEntry],
@@ -130,7 +130,7 @@ enum OwlQuickSendStore {
     do {
       // 独立后缀防备份撞车：启动期键盘托管块 apply 与本迁移可能同一秒内先后写
       // rime_ice.custom.yaml，裸 yyyyMMdd-HHmmss 会让两个批次共用同一个
-      // .famo-backup/<ts>/ 目录——第二次备份覆盖第一次，rollback 只能还原到
+      // .owl-backup/<ts>/ 目录——第二次备份覆盖第一次，rollback 只能还原到
       // 键盘写完后的中间态而非启动前原状（PR #42 评审逮住）。
       try save(
         load(rimeDir: rimeDir),
@@ -156,10 +156,10 @@ enum OwlQuickSendStore {
         "  # rime-ice 拆字辅助码的引导键（key_binder/search + search.lua），前导 ` 会把输入切段，",
         "  # 带前缀的码永远到不了本 translator——短语从此无法触发。别再用 ` 当前缀。",
         "  \"engine/translators/+\":",
-        "    - table_translator@famo_quick_send",
-        "  famo_quick_send:",
+        "    - table_translator@owl_quick_send",
+        "  owl_quick_send:",
         "    dictionary: \"\"",
-        "    user_dict: famo_quick_send",
+        "    user_dict: owl_quick_send",
         "    db_class: stabledb",
         "    enable_completion: false",
         "    enable_sentence: false",
@@ -201,7 +201,7 @@ enum OwlQuickSendStore {
     var lines = [
       "# Rime table",
       "# coding: utf-8",
-      "#@/db_name\tfamo_quick_send",
+      "#@/db_name\towl_quick_send",
       "#@/db_type\ttabledb",
       "# Owltype quick-send phrases. Managed by 法墨输入法 settings.",
       "# 触发：打全短语码，短语置顶。",

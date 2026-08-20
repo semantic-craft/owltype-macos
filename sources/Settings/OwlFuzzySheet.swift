@@ -8,7 +8,7 @@
 //  (the single key home) AND updates a local `@State` mirror so the checkmark flips
 //  immediately. The page reads the post-close count via `OwlFuzzySnapshot.current()`.
 //
-//  Persistence boundary (see `.trellis/spec/frontend/famo-modern-ui-direction.md`):
+//  Persistence boundary (see `.trellis/spec/frontend/owl-modern-ui-direction.md`):
 //  these toggles map to `speller/algebra` derive rules previewed by
 //  `OwlRimePatchBuilder`; this sheet persists choices in UserDefaults, and the parent
 //  keyboard page writes Owltype's user_data_dir + `deploy()` when the sheet closes.

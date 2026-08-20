@@ -146,7 +146,7 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
       providerID: "doubao",
       endpoint: URL(string: "https://ark.cn-beijing.volces.com/api/v3/chat/completions")!,
       model: "doubao-seed-1.6",
-      secretName: "famo.provider.doubao.apiKey",
+      secretName: "owltype.provider.doubao.apiKey",
       authHeaderStyle: .bearer
     )
   }
@@ -156,7 +156,7 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
       providerID: "openai",
       endpoint: URL(string: "https://api.openai.com/v1/chat/completions")!,
       model: "gpt-5.1",
-      secretName: "famo.provider.openai.apiKey",
+      secretName: "owltype.provider.openai.apiKey",
       authHeaderStyle: .bearer
     )
   }
@@ -166,7 +166,7 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
       providerID: "qwen",
       endpoint: URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")!,
       model: "qwen3.7-plus",
-      secretName: "famo.provider.qwen.apiKey",
+      secretName: "owltype.provider.qwen.apiKey",
       authHeaderStyle: .bearer
     )
   }

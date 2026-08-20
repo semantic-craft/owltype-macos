@@ -540,7 +540,7 @@ protocol SelectionPolishing: AnyObject {
   func polishSelection(_ selection: String) async throws -> [String]
 }
 
-/// The controller's prompt lookup at the commit chokepoint (task 06-30-famo-prompt-management-panel).
+/// The controller's prompt lookup at the commit chokepoint (task 06-30-owl-prompt-management-panel).
 /// Exposes ONLY the (originating code, committed title) → entry lookup — not the store's
 /// load/save/validation surface — so a fake can return a scripted prompt without touching disk.
 /// `nil` = the committed candidate is not a Owltype prompt (→ normal Rime commit).
