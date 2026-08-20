@@ -29,7 +29,7 @@
 		BB8F9F147DC13F34DDA0E7AA /* quick5.supplement.dict.yaml in Copy Shared Support Files */ = {isa = PBXBuildFile; fileRef = B150EA61A8F2334C7053D082 /* quick5.supplement.dict.yaml */; };
 		40F602FDE050B0F5E52E163E /* quick5.schema.yaml in Copy Shared Support Files */ = {isa = PBXBuildFile; fileRef = 7F09B8D3B08F0BE71AC3CFBB /* quick5.schema.yaml */; };
 		CDE74F1B8D5CCC099BC4BFEC /* quick5.dict.yaml in Copy Shared Support Files */ = {isa = PBXBuildFile; fileRef = 8A6002D82F29C56883DD606A /* quick5.dict.yaml */; };
-		442B5B881570C37200370DEA /* famo.yaml in Copy Shared Support Files */ = {isa = PBXBuildFile; fileRef = 442B5B871570C37200370DEA /* famo.yaml */; };
+		442B5B881570C37200370DEA /* owltype.yaml in Copy Shared Support Files */ = {isa = PBXBuildFile; fileRef = 442B5B871570C37200370DEA /* owltype.yaml */; };
 		442C64921F7A410A0027EFBE /* rime-install in CopyFiles */ = {isa = PBXBuildFile; fileRef = 442C64901F7A404A0027EFBE /* rime-install */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		446C01D71F767BD400A6C23E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 446C01D61F767BD400A6C23E /* Assets.xcassets */; };
 		447765C925C30E97002415AF /* Sparkle.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 447765C725C30E6B002415AF /* Sparkle.framework */; };
@@ -376,7 +376,7 @@
 				7B5488C01D2DACDF0056A1BE /* luna_pinyin.schema.yaml in Copy Shared Support Files */,
 				7B5488C11D2DACDF0056A1BE /* luna_quanpin.schema.yaml in Copy Shared Support Files */,
 				7B5488C91D2DACDF0056A1BE /* symbols.yaml in Copy Shared Support Files */,
-				442B5B881570C37200370DEA /* famo.yaml in Copy Shared Support Files */,
+				442B5B881570C37200370DEA /* owltype.yaml in Copy Shared Support Files */,
 			);
 			name = "Copy Shared Support Files";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -430,7 +430,7 @@
 		441E636A22B7E90D006DCCDD /* cangjie5.dict.yaml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = cangjie5.dict.yaml; path = data/plum/cangjie5.dict.yaml; sourceTree = "<group>"; };
 		441E636B22B7E90D006DCCDD /* stroke.schema.yaml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = stroke.schema.yaml; path = data/plum/stroke.schema.yaml; sourceTree = "<group>"; };
 		441E636C22B7E90D006DCCDD /* bopomofo_express.schema.yaml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = bopomofo_express.schema.yaml; path = data/plum/bopomofo_express.schema.yaml; sourceTree = "<group>"; };
-		442B5B871570C37200370DEA /* famo.yaml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = famo.yaml; path = data/famo.yaml; sourceTree = "<group>"; };
+		442B5B871570C37200370DEA /* owltype.yaml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = owltype.yaml; path = data/owltype.yaml; sourceTree = "<group>"; };
 		442C64901F7A404A0027EFBE /* rime-install */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.sh; name = "rime-install"; path = "bin/rime-install"; sourceTree = "<group>"; };
 		446C01D61F767BD400A6C23E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		447765C725C30E6B002415AF /* Sparkle.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Sparkle.framework; path = Frameworks/Sparkle.framework; sourceTree = "<group>"; };
@@ -1026,7 +1026,7 @@
 		44DA7A4214DD598900C1ED3B /* SharedSupport */ = {
 			isa = PBXGroup;
 			children = (
-				442B5B871570C37200370DEA /* famo.yaml */,
+				442B5B871570C37200370DEA /* owltype.yaml */,
 				7B5488A71D2DAC9D0056A1BE /* plum */,
 				4407F39D14EC071E001329FE /* opencc */,
 			);
