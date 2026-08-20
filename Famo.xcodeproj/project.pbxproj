@@ -121,6 +121,7 @@
 		FA000051CAFE0051CAFE0051 /* FamoEmojiPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000047CAFE0047CAFE0047 /* FamoEmojiPanelView.swift */; };
 		FA000052CAFE0052CAFE0052 /* FamoEmojiPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000048CAFE0048CAFE0048 /* FamoEmojiPanel.swift */; };
 		FAA00002CAFE0002CAFE0002 /* FamoFloatingPanelPositioner.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00001CAFE0001CAFE0001 /* FamoFloatingPanelPositioner.swift */; };
+		FAA00041CAFE0041CAFE0041 /* FamoHostCaretAnchorMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00040CAFE0040CAFE0040 /* FamoHostCaretAnchorMemory.swift */; };
 		FAA00004CAFE0004CAFE0004 /* FamoPanelInsertionBroker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00003CAFE0003CAFE0003 /* FamoPanelInsertionBroker.swift */; };
 		FA0000D5CAFE00D5CAFE00D5 /* FamoQuickSendPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000D6CAFE00D6CAFE00D6 /* FamoQuickSendPanel.swift */; };
 		FA0000E7CAFE00E7CAFE00E7 /* FamoQuickSendHotKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000E8CAFE00E8CAFE00E8 /* FamoQuickSendHotKey.swift */; };
@@ -256,6 +257,7 @@
 		FA118001CAFE0001CAFE0118 /* FamoCandidatePanelDisplayLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA118000CAFE0000CAFE0118 /* FamoCandidatePanelDisplayLifecycleTests.swift */; };
 		FA000501CAFE0501CAFE0501 /* FamoCandidateAnchorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000500CAFE0500CAFE0500 /* FamoCandidateAnchorTests.swift */; };
 		FAA00006CAFE0006CAFE0006 /* FamoFloatingPanelPositionerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00005CAFE0005CAFE0005 /* FamoFloatingPanelPositionerTests.swift */; };
+		FAA00043CAFE0043CAFE0043 /* FamoHostCaretAnchorMemoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00042CAFE0042CAFE0042 /* FamoHostCaretAnchorMemoryTests.swift */; };
 		FAA00008CAFE0008CAFE0008 /* FamoPanelInsertionBrokerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00007CAFE0007CAFE0007 /* FamoPanelInsertionBrokerTests.swift */; };
 		FA000303CAFE0303CAFE0303 /* ProviderProfileStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000302CAFE0302CAFE0302 /* ProviderProfileStoreTests.swift */; };
 		FA000401CAFE0401CAFE0401 /* CloudRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000400CAFE0400CAFE0400 /* CloudRoutingTests.swift */; };
@@ -519,6 +521,7 @@
 		FA000047CAFE0047CAFE0047 /* FamoEmojiPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoEmojiPanelView.swift; path = sources/UI/FamoEmojiPanelView.swift; sourceTree = "<group>"; };
 		FA000048CAFE0048CAFE0048 /* FamoEmojiPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoEmojiPanel.swift; path = sources/UI/FamoEmojiPanel.swift; sourceTree = "<group>"; };
 		FAA00001CAFE0001CAFE0001 /* FamoFloatingPanelPositioner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoFloatingPanelPositioner.swift; path = sources/UI/FamoFloatingPanelPositioner.swift; sourceTree = "<group>"; };
+		FAA00040CAFE0040CAFE0040 /* FamoHostCaretAnchorMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoHostCaretAnchorMemory.swift; path = sources/UI/FamoHostCaretAnchorMemory.swift; sourceTree = "<group>"; };
 		FAA00003CAFE0003CAFE0003 /* FamoPanelInsertionBroker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPanelInsertionBroker.swift; path = sources/UI/FamoPanelInsertionBroker.swift; sourceTree = "<group>"; };
 		FA0000D6CAFE00D6CAFE00D6 /* FamoQuickSendPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoQuickSendPanel.swift; path = sources/UI/FamoQuickSendPanel.swift; sourceTree = "<group>"; };
 		FA0000E8CAFE00E8CAFE00E8 /* FamoQuickSendHotKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoQuickSendHotKey.swift; path = sources/UI/FamoQuickSendHotKey.swift; sourceTree = "<group>"; };
@@ -636,6 +639,7 @@
 		FA118000CAFE0000CAFE0118 /* FamoCandidatePanelDisplayLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoCandidatePanelDisplayLifecycleTests.swift; path = tests/FamoCandidatePanelDisplayLifecycleTests.swift; sourceTree = "<group>"; };
 		FA000500CAFE0500CAFE0500 /* FamoCandidateAnchorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoCandidateAnchorTests.swift; path = tests/FamoCandidateAnchorTests.swift; sourceTree = "<group>"; };
 		FAA00005CAFE0005CAFE0005 /* FamoFloatingPanelPositionerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoFloatingPanelPositionerTests.swift; path = tests/FamoFloatingPanelPositionerTests.swift; sourceTree = "<group>"; };
+		FAA00042CAFE0042CAFE0042 /* FamoHostCaretAnchorMemoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoHostCaretAnchorMemoryTests.swift; path = tests/FamoHostCaretAnchorMemoryTests.swift; sourceTree = "<group>"; };
 		FAA00007CAFE0007CAFE0007 /* FamoPanelInsertionBrokerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoPanelInsertionBrokerTests.swift; path = tests/FamoPanelInsertionBrokerTests.swift; sourceTree = "<group>"; };
 		FA000302CAFE0302CAFE0302 /* ProviderProfileStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProviderProfileStoreTests.swift; path = tests/ProviderProfileStoreTests.swift; sourceTree = "<group>"; };
 		FA000803CAFE0083CAFE0083 /* FamoStreamingChatClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoStreamingChatClientTests.swift; path = tests/FamoStreamingChatClientTests.swift; sourceTree = "<group>"; };
@@ -733,6 +737,7 @@
 				FA000047CAFE0047CAFE0047 /* FamoEmojiPanelView.swift */,
 				FA000048CAFE0048CAFE0048 /* FamoEmojiPanel.swift */,
 				FAA00001CAFE0001CAFE0001 /* FamoFloatingPanelPositioner.swift */,
+				FAA00040CAFE0040CAFE0040 /* FamoHostCaretAnchorMemory.swift */,
 				FAA00003CAFE0003CAFE0003 /* FamoPanelInsertionBroker.swift */,
 				FA0000D6CAFE00D6CAFE00D6 /* FamoQuickSendPanel.swift */,
 				FA0000E8CAFE00E8CAFE00E8 /* FamoQuickSendHotKey.swift */,
@@ -857,6 +862,7 @@
 				FA118000CAFE0000CAFE0118 /* FamoCandidatePanelDisplayLifecycleTests.swift */,
 				FA000500CAFE0500CAFE0500 /* FamoCandidateAnchorTests.swift */,
 				FAA00005CAFE0005CAFE0005 /* FamoFloatingPanelPositionerTests.swift */,
+				FAA00042CAFE0042CAFE0042 /* FamoHostCaretAnchorMemoryTests.swift */,
 				FAA00007CAFE0007CAFE0007 /* FamoPanelInsertionBrokerTests.swift */,
 				FA000302CAFE0302CAFE0302 /* ProviderProfileStoreTests.swift */,
 				FA000803CAFE0083CAFE0083 /* FamoStreamingChatClientTests.swift */,
@@ -1263,6 +1269,7 @@
 				FA000051CAFE0051CAFE0051 /* FamoEmojiPanelView.swift in Sources */,
 				FA000052CAFE0052CAFE0052 /* FamoEmojiPanel.swift in Sources */,
 				FAA00002CAFE0002CAFE0002 /* FamoFloatingPanelPositioner.swift in Sources */,
+				FAA00041CAFE0041CAFE0041 /* FamoHostCaretAnchorMemory.swift in Sources */,
 				FAA00004CAFE0004CAFE0004 /* FamoPanelInsertionBroker.swift in Sources */,
 				FA0000D5CAFE00D5CAFE00D5 /* FamoQuickSendPanel.swift in Sources */,
 				FA0000E7CAFE00E7CAFE00E7 /* FamoQuickSendHotKey.swift in Sources */,
@@ -1390,6 +1397,7 @@
 				FA118001CAFE0001CAFE0118 /* FamoCandidatePanelDisplayLifecycleTests.swift in Sources */,
 				FA000501CAFE0501CAFE0501 /* FamoCandidateAnchorTests.swift in Sources */,
 				FAA00006CAFE0006CAFE0006 /* FamoFloatingPanelPositionerTests.swift in Sources */,
+				FAA00043CAFE0043CAFE0043 /* FamoHostCaretAnchorMemoryTests.swift in Sources */,
 				FAA00008CAFE0008CAFE0008 /* FamoPanelInsertionBrokerTests.swift in Sources */,
 				FA000303CAFE0303CAFE0303 /* ProviderProfileStoreTests.swift in Sources */,
 				FA000802CAFE0082CAFE0082 /* FamoStreamingChatClientTests.swift in Sources */,

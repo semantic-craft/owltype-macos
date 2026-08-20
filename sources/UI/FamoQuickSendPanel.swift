@@ -18,11 +18,13 @@
 //  capture→restore lifecycle mirrors `FamoPromptFillSheet` exactly.
 //
 //  Positioning (PR2, design B): the panel is placed NEAR the caret by reusing the candidate panel's
-//  last caret anchor (`FamoApplicationDelegate.lastCaretAnchor`, mirroring
+//  last caret anchor (`FamoApplicationDelegate.currentHostCaretAnchor`, mirroring
 //  `FamoSwiftUICandidatePanel.clampedFrame`): below the caret by default, flipped above when it would
-//  fall off the screen bottom, clamped to the screen holding the caret. When no caret is known
-//  (summoned with no active composition), it falls back to centering under the mouse (PR1 / emoji
-//  behavior).
+//  fall off the screen bottom, clamped to the screen holding the caret. That anchor is scoped to the
+//  FRONTMOST host app, so summoning the panel in a different app than the one that last composed
+//  never inherits that app's caret (and its screen). When no caret is known for this host — nothing
+//  composed here yet, or the stored anchor belongs to another app — it falls back to centering
+//  under the mouse (PR1 / emoji behavior).
 //
 //  Boundary (ADR-0001 / 0002 / 0003): SwiftUI UI layer only; the IMK key-event hot path
 //  (FamoInputController) is untouched — we only ADD a caller of the existing insert seam
@@ -257,11 +259,13 @@ final class FamoQuickSendPanel: NSPanel {
 
   // MARK: Positioning
 
-  /// Place the panel near the caret using the candidate panel's last anchor; fall back to
-  /// centering under the mouse when there is no known caret (summoned with no composition).
+  /// Place the panel near the caret using the candidate panel's last anchor FOR THE FRONTMOST HOST;
+  /// fall back to centering under the mouse when that host has no known caret (nothing composed
+  /// there yet, or the only stored anchor belongs to another app). Runs before `orderFront`, while
+  /// the host is still the frontmost app.
   private func positionPanel() {
     let size = frame.size
-    let anchor = NSApp.famoAppDelegate.lastCaretAnchor
+    let anchor = NSApp.famoAppDelegate.currentHostCaretAnchor
     if anchor != .zero {
       setFrame(clampedFrame(anchor: anchor, size: size), display: false)
     } else {

@@ -79,9 +79,43 @@ final class FamoApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandar
   /// SwiftUI status HUD (mode/schema toast), created lazily on first status message.
   /// Replaces the legacy AppKit FamoPanel.show(status:) path.
   var statusHUD: FamoStatusHUD?
-  /// The last caret anchor seen by the candidate panel (set by the controller on each
-  /// `showPanel`), so the status HUD can position its toast near where the user is typing.
-  var lastCaretAnchor: NSRect = .zero
+  /// The last known-good caret anchor seen by the candidate panel, SCOPED to the host app it came
+  /// from (recorded by the controller on each `showPanel`), so the status HUD and the quick-send
+  /// panel can position near where the user is typing. Host-scoped because a single process-wide
+  /// anchor leaked across apps: a host whose caret rect is rejected reused the previous app's
+  /// anchor, which on a multi-display setup opened its panel on the other app's screen.
+  private var caretAnchorMemory = FamoHostCaretAnchorMemory()
+
+  /// Record a validated caret anchor for `host`. The controller's `showPanel` / delayed
+  /// reposition are the only writers, and both pass anchors that already cleared
+  /// `FamoCandidateAnchor`.
+  func recordCaretAnchor(_ anchor: NSRect, host: String?) {
+    caretAnchorMemory.record(anchor, host: host)
+  }
+
+  /// The last known-good caret anchor for `host` — `nil` when the stored one belongs to a
+  /// different app. Callers must then run their own fallback instead of borrowing another app's
+  /// caret (which is what put the candidate panel on the wrong display).
+  func lastCaretAnchor(forHost host: String?) -> NSRect? {
+    caretAnchorMemory.anchor(for: host)
+  }
+
+  /// The last known-good caret anchor for the app that is currently in front — the host the
+  /// near-caret surfaces (status HUD toast, quick-send panel) are about to appear over. `.zero`
+  /// when that app has no recorded caret: nothing composed there yet, or the only stored anchor
+  /// belongs to another app. `.zero` is the "no caret known" sentinel both consumers already
+  /// handle (the HUD corners its toast; the quick-send panel centres under the mouse), and
+  /// falling back to it IS the fix — borrowing another app's caret is what put these surfaces on
+  /// the wrong display.
+  ///
+  /// The frontmost app, not `activeInputController`, is the honest reading of "current host":
+  /// the active controller is only re-pointed on `showPanel`, so it names the app that last
+  /// COMPOSED — after an app switch, exactly the stale identity this scoping exists to drop.
+  /// Both callers read this while the host is still frontmost (the quick-send panel positions
+  /// itself before it orders front, and never activates Famo).
+  var currentHostCaretAnchor: NSRect {
+    lastCaretAnchor(forHost: NSWorkspace.shared.frontmostApplication?.bundleIdentifier) ?? .zero
+  }
   // v0.2: SwiftUI settings window, created lazily the first time 设置… is opened.
   // Purely additive UI — only forwards already-safe actions; nil until used.
   var famoSettingsWindow: FamoSettingsWindow?
@@ -1033,15 +1067,16 @@ private extension FamoApplicationDelegate {
   func showStatusMessage(msgTextLong: String?, msgTextShort: String?) {
     guard !(msgTextLong ?? "").isEmpty || !(msgTextShort ?? "").isEmpty else { return }
     let messageType = styleFlags.statusMessageType
-    let anchor = lastCaretAnchor
     // The toast is an NSPanel — show it on the main thread (a Rime option/schema
-    // notification can arrive off-main).
+    // notification can arrive off-main). The anchor is read INSIDE the hop for the same
+    // reason: it now asks NSWorkspace which app is frontmost, which belongs on main.
     DispatchQueue.main.async { [weak self] in
-      self?.ensureStatusHUD().show(
+      guard let self else { return }
+      self.ensureStatusHUD().show(
         long: msgTextLong ?? "",
         short: msgTextShort ?? "",
         messageType: messageType,
-        anchor: anchor
+        anchor: self.currentHostCaretAnchor
       )
     }
   }

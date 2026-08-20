@@ -12,10 +12,12 @@
 //  Font.famoSerif), matching the SwiftUI candidate panel's look.
 //
 //  Positioning: caret-relative, mirroring FamoSwiftUICandidatePanel's clamping
-//  (multi-display safe). The anchor is the last caret rect seen by the candidate
-//  panel (the controller records it on every showPanel); when no composition has
-//  happened yet, it falls back to the top-trailing corner of the active screen,
-//  matching the old toast's "appears near where you're typing" behavior.
+//  (multi-display safe). The anchor is the last caret rect the candidate panel saw
+//  IN THE FRONTMOST APP (the controller records it per host on every showPanel);
+//  when that app has no caret on record — nothing composed there yet, or the stored
+//  anchor belongs to another app — it falls back to the top-trailing corner of the
+//  active screen, matching the old toast's "appears near where you're typing"
+//  behavior.
 //
 //  Duration: auto-dismiss after `FamoStatusHUD.showDuration` (≈1.2s — inlined here;
 //  FamoTheme used to own this constant and is being deleted).

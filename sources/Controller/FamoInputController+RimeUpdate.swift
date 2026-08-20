@@ -449,13 +449,19 @@ extension FamoInputController {
     // B3 — anchor validation cascade. The IMK client can hand back a junk caret rect
     // (.zero / infinite / NaN coord / zero-height / off-screen — Electron/WebKit/terminals,
     // or right after a focus change). Resolve first-usable caret-end → char-0 head → last-good
-    // `lastCaretAnchor` → a safe on-screen rect, so the panel/HUD never fly to the screen origin
-    // and we never store junk as `lastCaretAnchor`. caret-end and head are both "this
+    // anchor → a safe on-screen rect, so the panel/HUD never fly to the screen origin and we
+    // never store junk as the last-good anchor. caret-end and head are both "this
     // composition"; the head rect preserves the pre-B4 char-0 behavior as the fallback. For a
     // single-line / short preedit the two rects are on the same line → positioning is unchanged.
+    //
+    // The last-good anchor is scoped to THIS host (`FamoHostCaretAnchorMemory`): it used to be one
+    // process-wide rect, so a host whose rect is always rejected (WeChat) inherited the previous
+    // app's anchor and — on a multi-display setup — opened its candidate bar on that app's screen.
+    // A different host now reads `nil` here and falls through to `safeFallbackAnchor()`.
+    let host = hostIdentity(for: client)
     let resolvedAnchor = FamoCandidateAnchor.resolve(
       candidates: [headRect],
-      previous: NSApp.famoAppDelegate.lastCaretAnchor,
+      previous: NSApp.famoAppDelegate.lastCaretAnchor(forHost: host),
       screens: NSScreen.screens.map(\.frame)
     ) ?? Self.safeFallbackAnchor()
     let inputPos = resolvedAnchor
@@ -463,7 +469,7 @@ extension FamoInputController {
     // SwiftUI is the sole candidate renderer. Record the caret anchor + active controller
     // on the delegate so the status HUD can position near the caret and `finalizeStranded
     // Composition` can reach the controller (was `panel.position` / `panel.inputController`).
-    NSApp.famoAppDelegate.lastCaretAnchor = inputPos
+    NSApp.famoAppDelegate.recordCaretAnchor(inputPos, host: host)
     NSApp.famoAppDelegate.activeInputController = self
     NSApp.famoAppDelegate.registerLiveController(self)
 
@@ -564,8 +570,15 @@ extension FamoInputController {
     FamoCandidateAnchor.safeFallbackAnchor(screens: NSScreen.screens.map(\.frame))
   }
 
+  /// The host app identity used to scope per-app state — the client-capability policy and the
+  /// last-good caret anchor. `bundleIdentifier()`, with the session's `currentApp` standing in for
+  /// clients that report none; `nil` when neither is known.
+  private func hostIdentity(for client: IMKTextInput) -> String? {
+    client.bundleIdentifier() ?? (currentApp.isEmpty ? nil : currentApp)
+  }
+
   private func clientCapabilityDecisions(for client: IMKTextInput) -> FamoClientCapabilities {
-    let bundleID = client.bundleIdentifier() ?? (currentApp.isEmpty ? nil : currentApp)
+    let bundleID = hostIdentity(for: client)
     return NSApp.famoAppDelegate.clientCapabilityPolicy.evaluate(
       FamoClientCapabilityInput(
         host: FamoClientHostIdentity(
@@ -600,12 +613,13 @@ extension FamoInputController {
       var delayedHead = NSRect()
       client.attributes(forCharacterIndex: 0, lineHeightRectangle: &delayedHead)
       let screens = NSScreen.screens.map(\.frame)
+      let host = self.hostIdentity(for: client)
       guard let anchor = FamoCandidateAnchor.resolve(
         candidates: [delayedHead],
-        previous: NSApp.famoAppDelegate.lastCaretAnchor,
+        previous: NSApp.famoAppDelegate.lastCaretAnchor(forHost: host),
         screens: screens
       ) else { return }
-      NSApp.famoAppDelegate.lastCaretAnchor = anchor
+      NSApp.famoAppDelegate.recordCaretAnchor(anchor, host: host)
       panel.reposition(anchor: anchor)
     }
   }
