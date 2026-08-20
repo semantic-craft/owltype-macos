@@ -125,6 +125,21 @@
 4. 旧的 `~/Library/Application Support/Famo` 保留原样，由 P5 的卸载脚本负责（用户确认后）删除。
 5. 迁移逻辑写单测覆盖：目录存在/不存在、半迁移中断重入、userdb 改名。
 
+> **落地修订（票 06 交付时，2026-08-21）** —— 实现见 `sources/Engine/OwlLegacyDataMigration.swift`：
+>
+> - 第 2 条列的三个文件**不够**。快捷短语 / 提示词的 source of truth 是 `famo_quick_send.json` /
+>   `famo_prompts.json`（`.txt` 是派生表，`.userdb` 是 Rime 运行期的 stabledb）；只改 `.userdb` 的话新 app
+>   读不到那两个 JSON，等于短语库和提示词库全丢。完整映射以 `OwlLegacyDataMigration.renameMap` 为准，
+>   另含 `.famo-seed-v2`、`.famo-dictpack.json`、`.famo-dictpack-staging`、`.famo-backup`、`famo/`
+>   （rollback manifest 目录）与两个 dict-pack 法学词库。
+> - 复制后还要改写根目录每个 `*.custom.yaml` 里的托管块标识（`FAMO MANAGED` / `FAMO_CUSTOM` /
+>   `famo_quick_send` / `famo_prompts`）。不改的话新 app 认不出旧 marker，会在同一个 `patch:` 里另起一套
+>   `OWL MANAGED` 块 —— YAML 重复键，且旧块指着已改名的表。
+> - 原子性：复制 + 改名 + 标识改写都在同卷 staging 目录里完成，最后一步 `moveItem` 挂成正式目录。
+>   磁盘上不存在「半个正式目录」，中断重入直接丢弃残骸重跑。
+> - **Keychain 不随迁**：API Key 存在旧 service `im.famo.inputmethod.Famo.providers` / `….deepseek` 下，
+>   `providers.json` 里的 `secretName` 也是旧前缀。装机后需要重新填 API Key —— 见下面 P5 第 7 步。
+
 ---
 
 ## 6. 阶段 P5：装机切换（每台装有法墨的机器，人工按序执行）
@@ -137,7 +152,7 @@
 4. 清理 LaunchServices 残留：用既有 lsregister 清理配方清掉所有旧 bundle id / 开发构建的认领（装机验收前必清，否则归因不可信）。
 5. 安装 Owltype 2.0.0（签名 pkg），在系统设置中启用「猫头鹰输入法」。
 6. **重新授予 TCC 权限**（辅助功能、Apple 事件）：bundle id 变了，旧授权全部失效，属预期而非故障；若出现「已勾选仍报未授权」，按已知配方删条目重加（csreq 失配）。
-7. 首启验证迁移结果：皮肤/偏好还原、快捷短语与提示词库完好、rime_ice 用户词库连续（打几个惯用词验证词频记忆）。
+7. 首启验证迁移结果：皮肤/偏好还原、快捷短语与提示词库完好、rime_ice 用户词库连续（打几个惯用词验证词频记忆）。**预期而非故障：云服务 API Key 需要重填** —— Keychain 的 service 名随 bundle id 改了，票 06 的迁移只搬数据目录与偏好域，不搬 Keychain。
 8. 真机验收升级链路：等下一个 2.0.x 发布时验证 Sparkle 从新 feed 更新 + 更新后输入源还原（顺带闭环 1.6.1 未验证的修复机制）。
 
 全部机器完成后 → 执行 P3 第 3 条的第二次部署，删除 `responsay.com/famo/`；本机 `defaults delete im.famo.inputmethod.Famo`、删除旧 Application Support/Famo 备份。

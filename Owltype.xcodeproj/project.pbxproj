@@ -233,6 +233,7 @@
 		FAA0000DCAFE000DCAFE000D /* RimeCompositionRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA0000ECAFE000ECAFE000E /* RimeCompositionRenderer.swift */; };
 		FA0000F6CAFE00F6CAFE00F6 /* RimeSeam.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F5CAFE00F5CAFE00F5 /* RimeSeam.swift */; };
 		FAA00032CAFE0032CAFE0032 /* OwlUserDictReset.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00033CAFE0033CAFE0033 /* OwlUserDictReset.swift */; };
+		FAA00045CAFE0045CAFE0045 /* OwlLegacyDataMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00044CAFE0044CAFE0044 /* OwlLegacyDataMigration.swift */; };
 		FA0000D9CAFE00D9CAFE00D9 /* OwlExperimentalPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000D8CAFE00D8CAFE00D8 /* OwlExperimentalPreferences.swift */; };
 		FA0000DDCAFE00DDCAFE00DD /* OwlBertTokenizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000DCCAFE00DCCAFE00DC /* OwlBertTokenizer.swift */; };
 		FA000502CAFE0502CAFE0502 /* OwlBackspaceCorrection.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000503CAFE0503CAFE0503 /* OwlBackspaceCorrection.swift */; };
@@ -267,6 +268,7 @@
 		FAA0000FCAFE000FCAFE000F /* RimeCompositionRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00010CAFE0010CAFE0010 /* RimeCompositionRendererTests.swift */; };
 		FAA00022CAFE0022CAFE0022 /* OwlUpdateLogoutPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00023CAFE0023CAFE0023 /* OwlUpdateLogoutPromptTests.swift */; };
 		FAA00034CAFE0034CAFE0034 /* OwlUserDictResetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00035CAFE0035CAFE0035 /* OwlUserDictResetTests.swift */; };
+		FAA00047CAFE0047CAFE0047 /* OwlLegacyDataMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00046CAFE0046CAFE0046 /* OwlLegacyDataMigrationTests.swift */; };
 		FA0000FACAFE00FACAFE00FA /* SeamPortsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F9CAFE00F9CAFE00F9 /* SeamPortsTests.swift */; };
 		FA0000FCCAFE00FCCAFE00FC /* CandidateStorePortTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000FBCAFE00FBCAFE00FB /* CandidateStorePortTests.swift */; };
 		FA000702CAFE0702CAFE0702 /* OwlLaneTasksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000703CAFE0703CAFE0703 /* OwlLaneTasksTests.swift */; };
@@ -628,6 +630,7 @@
 		FAA0000ECAFE000ECAFE000E /* RimeCompositionRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeCompositionRenderer.swift; path = sources/Engine/RimeCompositionRenderer.swift; sourceTree = "<group>"; };
 		FA0000F5CAFE00F5CAFE00F5 /* RimeSeam.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeSeam.swift; path = sources/Engine/RimeSeam.swift; sourceTree = "<group>"; };
 		FAA00033CAFE0033CAFE0033 /* OwlUserDictReset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlUserDictReset.swift; path = sources/Engine/OwlUserDictReset.swift; sourceTree = "<group>"; };
+		FAA00044CAFE0044CAFE0044 /* OwlLegacyDataMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlLegacyDataMigration.swift; path = sources/Engine/OwlLegacyDataMigration.swift; sourceTree = "<group>"; };
 		FA0000D8CAFE00D8CAFE00D8 /* OwlExperimentalPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlExperimentalPreferences.swift; path = sources/Settings/OwlExperimentalPreferences.swift; sourceTree = "<group>"; };
 		FA0000DCCAFE00DCCAFE00DC /* OwlBertTokenizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlBertTokenizer.swift; path = sources/Lane/OwlBertTokenizer.swift; sourceTree = "<group>"; };
 		FA000503CAFE0503CAFE0503 /* OwlBackspaceCorrection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlBackspaceCorrection.swift; path = sources/Lane/OwlBackspaceCorrection.swift; sourceTree = "<group>"; };
@@ -654,6 +657,7 @@
 		FAA00010CAFE0010CAFE0010 /* RimeCompositionRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeCompositionRendererTests.swift; path = tests/RimeCompositionRendererTests.swift; sourceTree = "<group>"; };
 		FAA00023CAFE0023CAFE0023 /* OwlUpdateLogoutPromptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlUpdateLogoutPromptTests.swift; path = tests/OwlUpdateLogoutPromptTests.swift; sourceTree = "<group>"; };
 		FAA00035CAFE0035CAFE0035 /* OwlUserDictResetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlUserDictResetTests.swift; path = tests/OwlUserDictResetTests.swift; sourceTree = "<group>"; };
+		FAA00046CAFE0046CAFE0046 /* OwlLegacyDataMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlLegacyDataMigrationTests.swift; path = tests/OwlLegacyDataMigrationTests.swift; sourceTree = "<group>"; };
 		FA0000F9CAFE00F9CAFE00F9 /* SeamPortsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SeamPortsTests.swift; path = tests/SeamPortsTests.swift; sourceTree = "<group>"; };
 		FA0000FBCAFE00FBCAFE00FB /* CandidateStorePortTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CandidateStorePortTests.swift; path = tests/CandidateStorePortTests.swift; sourceTree = "<group>"; };
 		FA000703CAFE0703CAFE0703 /* OwlLaneTasksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlLaneTasksTests.swift; path = tests/OwlLaneTasksTests.swift; sourceTree = "<group>"; };
@@ -813,6 +817,7 @@
 				FAA0000ECAFE000ECAFE000E /* RimeCompositionRenderer.swift */,
 				FA0000F5CAFE00F5CAFE00F5 /* RimeSeam.swift */,
 				FAA00033CAFE0033CAFE0033 /* OwlUserDictReset.swift */,
+				FAA00044CAFE0044CAFE0044 /* OwlLegacyDataMigration.swift */,
 				FA0000D8CAFE00D8CAFE00D8 /* OwlExperimentalPreferences.swift */,
 				FA0000DCCAFE00DCCAFE00DC /* OwlBertTokenizer.swift */,
 				FA000503CAFE0503CAFE0503 /* OwlBackspaceCorrection.swift */,
@@ -891,6 +896,7 @@
 				FAA00010CAFE0010CAFE0010 /* RimeCompositionRendererTests.swift */,
 				FAA00023CAFE0023CAFE0023 /* OwlUpdateLogoutPromptTests.swift */,
 				FAA00035CAFE0035CAFE0035 /* OwlUserDictResetTests.swift */,
+				FAA00046CAFE0046CAFE0046 /* OwlLegacyDataMigrationTests.swift */,
 				FA0000F9CAFE00F9CAFE00F9 /* SeamPortsTests.swift */,
 				FA0000FBCAFE00FBCAFE00FB /* CandidateStorePortTests.swift */,
 				FA000703CAFE0703CAFE0703 /* OwlLaneTasksTests.swift */,
@@ -1347,6 +1353,7 @@
 				FAA0000DCAFE000DCAFE000D /* RimeCompositionRenderer.swift in Sources */,
 				FA0000F6CAFE00F6CAFE00F6 /* RimeSeam.swift in Sources */,
 				FAA00032CAFE0032CAFE0032 /* OwlUserDictReset.swift in Sources */,
+				FAA00045CAFE0045CAFE0045 /* OwlLegacyDataMigration.swift in Sources */,
 				FA0000D9CAFE00D9CAFE00D9 /* OwlExperimentalPreferences.swift in Sources */,
 				FA0000DDCAFE00DDCAFE00DD /* OwlBertTokenizer.swift in Sources */,
 				FA000502CAFE0502CAFE0502 /* OwlBackspaceCorrection.swift in Sources */,
@@ -1426,6 +1433,7 @@
 				FAA0000FCAFE000FCAFE000F /* RimeCompositionRendererTests.swift in Sources */,
 				FAA00022CAFE0022CAFE0022 /* OwlUpdateLogoutPromptTests.swift in Sources */,
 				FAA00034CAFE0034CAFE0034 /* OwlUserDictResetTests.swift in Sources */,
+				FAA00047CAFE0047CAFE0047 /* OwlLegacyDataMigrationTests.swift in Sources */,
 				FA0000FACAFE00FACAFE00FA /* SeamPortsTests.swift in Sources */,
 				FA0000FCCAFE00FCCAFE00FC /* CandidateStorePortTests.swift in Sources */,
 				FA000702CAFE0702CAFE0702 /* OwlLaneTasksTests.swift in Sources */,

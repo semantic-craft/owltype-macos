@@ -32,6 +32,10 @@ fail=0
 # retired private repositories really are named after the old brand, and that gate exists to
 # keep those exact names out of the public tree. Rewriting the literals there would silently
 # disarm it, so they stay verbatim and this gate looks away.
+# So is the P4 first-launch migration (plan §5) and its test: migration code has to name the
+# old data root, the old preferences domain and the old derived filenames or it cannot address
+# them. Those two files are the ONE sanctioned place in product code — anywhere else the same
+# literals are residue, and this gate still says so.
 # CHANGELOG keeps its historical entries verbatim, and the two plan documents are the
 # record of the 法墨 era, deliberately left as written (plan §2.5; the same whitelist is
 # fixed in .scratch/rename-owltype/EXECUTION.md §3). The submodules are upstream vendor
@@ -52,6 +56,8 @@ SCAN_EXCLUDE=(
   -g '!scripts/owl-identity.sh'
   -g '!scripts/check-public-privacy.sh'
   -g '!scripts/check-public-privacy.selftest.sh'
+  -g '!sources/Engine/OwlLegacyDataMigration.swift'
+  -g '!tests/OwlLegacyDataMigrationTests.swift'
   -g '!CHANGELOG.md'
   -g '!docs/rename-owltype-plan.md'
   -g '!docs/default-input-method-plan.md'
