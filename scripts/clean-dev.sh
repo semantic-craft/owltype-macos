@@ -3,7 +3,7 @@
 # derived artifacts, and this removes the ones that are no longer reachable.
 #
 # It exists because the leftovers are not merely wasted disk. Every build of
-# Famo.app registers another bundle claiming `im.famo.inputmethod.Famo` with
+# Owltype.app registers another bundle claiming `im.owltype.inputmethod.Owltype` with
 # LaunchServices, and those claims outlive the directory they point at. Once
 # enough dead claims accumulate, macOS can resolve the input method to an
 # ad-hoc development build instead of the installed, notarized one — which is
@@ -64,7 +64,7 @@ reclaim() {
 # --- Build output inside the repository and its worktrees --------------------
 #
 # A release cohort directory holds the signed, notarized record of a shipped
-# version (FAMOTYPE-RELEASE-COHORT.json and its siblings). That record is kept:
+# version (OWLTYPE-RELEASE-COHORT.json and its siblings). That record is kept:
 # it is small, it is evidence of what was published, and re-creating it would
 # mean another notarization round trip. Everything beside it under the same
 # output root is ordinary build output.
@@ -77,7 +77,7 @@ while IFS= read -r wt; do
   [[ -d "$wt/build" ]] || continue
   for d in "$wt/build"/*; do
     [[ -d "$d" ]] || continue
-    if [[ -f "$d/release/FAMOTYPE-RELEASE-COHORT.json" ]]; then
+    if [[ -f "$d/release/OWLTYPE-RELEASE-COHORT.json" ]]; then
       # Keep the cohort record; drop the build intermediates around it.
       for sub in "$d"/*; do
         if [[ -d "$sub" && "$(basename "$sub")" != "release" ]]; then
@@ -122,7 +122,7 @@ fi
 
 # --- Stale LaunchServices registrations for this app -------------------------
 
-stage "stale LaunchServices registrations for Famo.app"
+stage "stale LaunchServices registrations for Owltype.app"
 
 lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 if [[ -x "$lsregister" ]]; then
@@ -142,7 +142,7 @@ if [[ -x "$lsregister" ]]; then
   done < <("$lsregister" -dump 2>/dev/null \
     | grep -E '^path:' \
     | sed -E 's/^path:[[:space:]]*//; s/ \(0x[0-9a-f]+\)$//' \
-    | grep -E '/Famo\.app$' \
+    | grep -E '/Owltype\.app$' \
     | sort -u)
 
   if ((apply)); then
@@ -151,8 +151,8 @@ if [[ -x "$lsregister" ]]; then
     printf '  would unregister  %d stale bundle path(s); %d live registration(s) remain\n' "$stale" "$live"
   fi
   if ((live > 1)); then
-    printf '  NOTE: more than one live Famo.app is registered. Only the installed\n'
-    printf '        /Library/Input Methods/Famo.app should normally be present;\n'
+    printf '  NOTE: more than one live Owltype.app is registered. Only the installed\n'
+    printf '        /Library/Input Methods/Owltype.app should normally be present;\n'
     printf '        a stray build product can shadow it.\n'
   fi
 else

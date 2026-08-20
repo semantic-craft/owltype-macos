@@ -4,8 +4,8 @@
 
 ## 本地输入
 
-法墨使用本地 Rime 引擎处理按键、原始编码、组字、候选词和词库。正常输入不会因为安装或启用
-法墨而自动发送到云端。
+猫头鹰使用本地 Rime 引擎处理按键、原始编码、组字、候选词和词库。正常输入不会因为安装或启用
+猫头鹰而自动发送到云端。
 
 ## 可选云端 AI
 
@@ -27,7 +27,7 @@
 
 ## 自动更新
 
-法墨使用 Sparkle 定期检查新版：请求 `responsay.com/famo/appcast.xml`（该稳定入口由
+猫头鹰使用 Sparkle 定期检查新版：请求 `responsay.com/owltype/appcast.xml`（该稳定入口由
 responsay.com 的对象存储提供 appcast），有新版时从 `downloads.responsay.com` 下载按版本固定、
 签名并公证过的更新包。
 这些是常规 HTTP 请求，携带 User-Agent 中的应用与 Sparkle 版本号；不包含输入内容、用户数据，

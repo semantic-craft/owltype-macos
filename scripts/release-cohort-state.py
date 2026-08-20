@@ -15,7 +15,7 @@ import time
 import xml.etree.ElementTree as ET
 from pathlib import Path, PurePosixPath
 
-from famo_bundle import (
+from owl_bundle import (
     COHORT_SCHEMA_VERSION,
     INVENTORY_NAMES,
     RELEASE_ARTIFACTS,
@@ -36,7 +36,7 @@ from famo_bundle import (
     validate_cohort_shape,
     write_cohort,
 )
-from famo_distribution import versioned_asset_url
+from owl_distribution import versioned_asset_url
 from release_source import (
     FileEntry,
     SourceSnapshotError,
@@ -151,7 +151,7 @@ def parse_source_provenance(archive: Path) -> dict[str, str]:
             matches = [
                 member
                 for member in handle.getmembers()
-                if Path(member.name).name == "FAMOTYPE-SOURCE-PROVENANCE.txt"
+                if Path(member.name).name == "OWLTYPE-SOURCE-PROVENANCE.txt"
                 and len(Path(member.name).parts) == 2
                 and member.isfile()
             ]
@@ -178,7 +178,7 @@ def validate_source_archive(
     archive: Path, cohort: dict, output_dir: Path
 ) -> None:
     version = str(cohort["version"])
-    expected_name = f"Famotype-macOS-{version}-source.tar.gz"
+    expected_name = f"Owltype-macOS-{version}-source.tar.gz"
     if archive.name != expected_name:
         raise CohortError(
             f"source archive name is {archive.name!r}, expected {expected_name!r}"
@@ -188,7 +188,7 @@ def validate_source_archive(
     except SourceSnapshotError as error:
         raise CohortError(f"source archive metadata is invalid: {error}") from error
     provenance = parse_source_provenance(archive)
-    if provenance.get("title") != f"Famotype source release {version}":
+    if provenance.get("title") != f"Owltype source release {version}":
         raise CohortError("source archive version does not match the release cohort")
     if provenance.get("build-version") != cohort.get("buildVersion"):
         raise CohortError("source archive build version does not match the release cohort")
@@ -196,7 +196,7 @@ def validate_source_archive(
         raise CohortError("source archive revision does not match the release cohort")
     if provenance.get("cohort") != cohort.get("cohortId"):
         raise CohortError("source archive embeds a different cohort identity")
-    manifest = output_dir / "FAMOTYPE-FILE-MANIFEST.sha256"
+    manifest = output_dir / "OWLTYPE-FILE-MANIFEST.sha256"
     if provenance.get("app-manifest") != sha256(manifest):
         raise CohortError("source archive app inventory does not match the release cohort")
 
@@ -229,7 +229,7 @@ def validate_source_archive(
                 relative = PurePosixPath(*path.parts[1:]).as_posix()
                 regular[relative] = member
 
-            manifest_name = "FAMOTYPE-SOURCE-MANIFEST.sha256"
+            manifest_name = "OWLTYPE-SOURCE-MANIFEST.sha256"
             source_manifest = regular.pop(manifest_name, None)
             if source_manifest is None:
                 raise CohortError("source archive has no source manifest")
@@ -251,7 +251,7 @@ def validate_source_archive(
             if set(listed) != set(regular):
                 raise CohortError("source archive manifest does not cover every source file")
             required = {
-                "FAMOTYPE-SOURCE-PROVENANCE.txt",
+                "OWLTYPE-SOURCE-PROVENANCE.txt",
                 "Owltype.xcodeproj/project.pbxproj",
                 "LICENSE.txt",
                 "Makefile",
@@ -289,8 +289,8 @@ def validate_source_archive(
     ):
         raise CohortError("cohort source binding does not match its revision and submodules")
 
-    provenance_name = "FAMOTYPE-SOURCE-PROVENANCE.txt"
-    seed_prefix = "data/famo-rime/"
+    provenance_name = "OWLTYPE-SOURCE-PROVENANCE.txt"
+    seed_prefix = "data/owl-rime/"
     archived_source = {
         relative: entry
         for relative, entry in actual_entries.items()
@@ -384,7 +384,7 @@ def validate_appcast(appcast: Path, cohort: dict, output_root: Path) -> None:
     sparkle_short_version = enclosure.get(
         f"{{{SPARKLE_NAMESPACE}}}shortVersionString"
     )
-    expected_url = versioned_asset_url(str(cohort["buildVersion"]), "Famo-update.pkg")
+    expected_url = versioned_asset_url(str(cohort["buildVersion"]), "Owltype-update.pkg")
     if (
         sparkle_version != cohort.get("buildVersion")
         or sparkle_short_version != version
@@ -493,7 +493,7 @@ def validate_inventory(
         raise CohortError("inventory revision does not match the release cohort")
     if provenance.get("cohort") != cohort.get("cohortId"):
         raise CohortError("inventory embeds a different cohort identity")
-    if (output_dir / "FAMOTYPE-FILE-MANIFEST.sha256").read_text() != manifest_text(app):
+    if (output_dir / "OWLTYPE-FILE-MANIFEST.sha256").read_text() != manifest_text(app):
         raise CohortError("release inventory manifest does not match the cohort App")
 
 
@@ -524,9 +524,9 @@ def require_active(cohort: dict) -> None:
 
 def expected_artifact_name(cohort: dict, name: str) -> str:
     names = {
-        "installer-pkg": "Famo.pkg",
-        "update-pkg": "Famo-update.pkg",
-        "dmg": f"Famo-{cohort['version']}.dmg",
+        "installer-pkg": "Owltype.pkg",
+        "update-pkg": "Owltype-update.pkg",
+        "dmg": f"Owltype-{cohort['version']}.dmg",
     }
     try:
         return names[name]
@@ -711,7 +711,7 @@ def artifact_path(output_root_arg: str, name: str) -> None:
 
 
 def adapter_path() -> Path:
-    configured = os.environ.get("FAMO_APPLE_TOOL_ADAPTER")
+    configured = os.environ.get("OWL_APPLE_TOOL_ADAPTER")
     adapter = Path(configured).resolve() if configured else DEFAULT_ADAPTER
     if not adapter.is_file() or not os.access(adapter, os.X_OK):
         raise CohortError(f"Apple tool adapter is not executable: {adapter}")
@@ -719,7 +719,7 @@ def adapter_path() -> Path:
 
 
 def retry_delay(phase: str) -> float:
-    override = os.environ.get("FAMO_RELEASE_RETRY_DELAY_SECONDS")
+    override = os.environ.get("OWL_RELEASE_RETRY_DELAY_SECONDS")
     if override is not None:
         return float(override)
     return 8.0 if phase == "sign" else 20.0
@@ -733,7 +733,7 @@ def run_adapter(command: list[str], phase: str, attempts: int) -> int:
         if result.returncode != RETRYABLE_EXIT or attempt == attempts:
             return result.returncode
         print(
-            f"[famo] {phase} transient failure; retry {attempt}/{attempts}",
+            f"[owltype] {phase} transient failure; retry {attempt}/{attempts}",
             file=sys.stderr,
         )
         delay = retry_delay(phase)

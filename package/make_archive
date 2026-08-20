@@ -32,7 +32,7 @@ marketing_version="$(get_marketing_version)"
 pub_date=$(date -R)
 
 # Sparkle 固定到当前 CFBundleVersion 对应的不可变对象，不依赖仓库可见性或 latest 别名。
-download_url="$(python3 "${PROJECT_ROOT}/scripts/famo_distribution.py" asset-url \
+download_url="$(python3 "${PROJECT_ROOT}/scripts/owl_distribution.py" asset-url \
     "${app_version}" Owltype-update.pkg)"
 
 # enclosure 需要已签名(+公证+staple)的 package/Owltype-update.pkg 存在（由 `make package` 产出）。缺它

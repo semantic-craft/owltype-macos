@@ -30,9 +30,9 @@ class ReleaseSourceArchiveTests(unittest.TestCase):
         )
 
     def test_archive_is_reproducible_and_metadata_gate_is_fail_closed(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="famo-source-archive-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="owl-source-archive-") as temporary:
             work = Path(temporary)
-            source = work / "Famotype-macOS-9.9.9-source"
+            source = work / "Owltype-macOS-9.9.9-source"
             (source / "bin").mkdir(parents=True)
             (source / "docs").mkdir()
             (source / "bin/tool").write_text("#!/bin/sh\nexit 0\n")

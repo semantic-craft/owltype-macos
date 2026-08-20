@@ -4,7 +4,7 @@
 set -euo pipefail
 
 CALLER_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-built_app="${1:-$CALLER_ROOT/build/release-gate/Build/Products/Release/Famo.app}"
+built_app="${1:-$CALLER_ROOT/build/release-gate/Build/Products/Release/Owltype.app}"
 
 [[ -d "$built_app" ]] || {
   echo >&2 "ERROR: missing built App fixture: $built_app"
@@ -17,10 +17,10 @@ sign_update_source="$CALLER_ROOT/download/bin/sign_update"
   exit 1
 }
 
-work="$(mktemp -d "${TMPDIR:-/tmp}/famo-artifact-chain.XXXXXX")"
+work="$(mktemp -d "${TMPDIR:-/tmp}/owl-artifact-chain.XXXXXX")"
 ROOT="$work/checkout"
 output_root="$work/output"
-app="$output_root/Build/Products/Release/Famo.app"
+app="$output_root/Build/Products/Release/Owltype.app"
 private_key="$work/sparkle-ed25519-private-key"
 fake_adapter="$work/fake-apple-tool-adapter"
 asset_list="$work/published-assets.nul"
@@ -190,8 +190,8 @@ case "\${1:-}" in
 esac
 EOF
 chmod +x "$fake_adapter"
-export FAMO_APPLE_TOOL_ADAPTER="$fake_adapter"
-export FAMO_RELEASE_RETRY_DELAY_SECONDS=0
+export OWL_APPLE_TOOL_ADAPTER="$fake_adapter"
+export OWL_RELEASE_RETRY_DELAY_SECONDS=0
 
 python3 "$STATE" initialize "$output_root"
 python3 "$STATE" seal "$output_root" app 'mechanical fixture' 'mechanical fixture'

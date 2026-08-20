@@ -1,6 +1,6 @@
-# 第三方组件与许可证（法墨输入法 macOS）
+# 第三方组件与许可证（猫头鹰输入法 macOS）
 
-法墨输入法 macOS 版是 **rime/squirrel（鼠须管）** 的派生作品（fork）。它打包并依赖以下第三方组件。
+猫头鹰输入法 macOS 版是 **rime/squirrel（鼠须管）** 的派生作品（fork）。它打包并依赖以下第三方组件。
 本文件汇总许可证归属；各组件的完整许可证文本以其上游仓库为准。
 
 ## 直接派生 / 上游基座
@@ -22,14 +22,14 @@
 | **OpenCC** | 简繁转换数据与库（`SharedSupport/opencc`） | **Apache-2.0** | https://github.com/BYVoid/OpenCC |
 | **Sparkle** | 更新检查与签名 package 安装框架 | **MIT**（含其依赖各自许可） | https://github.com/sparkle-project/Sparkle |
 | **plum 配方 / 预置方案与词库** | `SharedSupport` 中的 base 配置与词典 | 各方案/词库上游许可（多为 GPL-3.0 / LGPL / CC，以来源为准） | https://github.com/rime/plum |
-| **rime-ice（雾凇拼音）** | Famo 自包含 seed（`data/famo-rime` → `SharedSupport`）的**拼音底座**：rime_ice 全拼方案 / cn_dicts / en_dicts / Lua / OpenCC / default.yaml | **GPL-3.0**（打包保留 `rime-ice.LICENSE`） | https://github.com/iDvel/rime-ice |
-| **jieba（结巴分词）** | 公开种子词库 `cn_dicts/famotype_base.dict.yaml` 的词表与词频来源（`jieba/dict.txt`，pin tag `v0.42.1`） | **MIT**（打包保留 `jieba.LICENSE`） | https://github.com/fxsjy/jieba |
-| **phrase-pinyin-data** | famotype_base 的词语注音来源（**仅用 MIT 的 `pinyin.txt`**；`large_pinyin.txt` / `cc_cedict.txt` / `zdic_*` 因 CC BY-SA / 爬取来源明确排除） | **MIT**（打包保留 `phrase-pinyin-data.LICENSE`） | https://github.com/mozillazg/phrase-pinyin-data |
-| **rime-wubi86-jidian（极点五笔86）** | Famo seed 的**五笔全套** overlay：`wubi86_jidian` / `_pinyin` / `_trad` / `_trad_pinyin` 方案、码表、反查依赖 `pinyin_simp`、`numbers` 与 Lua（rime-ice 无自带五笔；无法学五笔） | **Apache-2.0**（打包保留 `wubi86-jidian.LICENSE`） | https://github.com/KyleBing/rime-wubi86-jidian |
+| **rime-ice（雾凇拼音）** | Owltype 自包含 seed（`data/owl-rime` → `SharedSupport`）的**拼音底座**：rime_ice 全拼方案 / cn_dicts / en_dicts / Lua / OpenCC / default.yaml | **GPL-3.0**（打包保留 `rime-ice.LICENSE`） | https://github.com/iDvel/rime-ice |
+| **jieba（结巴分词）** | 公开种子词库 `cn_dicts/owltype_base.dict.yaml` 的词表与词频来源（`jieba/dict.txt`，pin tag `v0.42.1`） | **MIT**（打包保留 `jieba.LICENSE`） | https://github.com/fxsjy/jieba |
+| **phrase-pinyin-data** | owltype_base 的词语注音来源（**仅用 MIT 的 `pinyin.txt`**；`large_pinyin.txt` / `cc_cedict.txt` / `zdic_*` 因 CC BY-SA / 爬取来源明确排除） | **MIT**（打包保留 `phrase-pinyin-data.LICENSE`） | https://github.com/mozillazg/phrase-pinyin-data |
+| **rime-wubi86-jidian（极点五笔86）** | Owltype seed 的**五笔全套** overlay：`wubi86_jidian` / `_pinyin` / `_trad` / `_trad_pinyin` 方案、码表、反查依赖 `pinyin_simp`、`numbers` 与 Lua（rime-ice 无自带五笔；无法学五笔） | **Apache-2.0**（打包保留 `wubi86-jidian.LICENSE`） | https://github.com/KyleBing/rime-wubi86-jidian |
 
 ## 说明
 
 - 上表中标「以上游为准」处，未在本文件内逐字复制许可证，避免转述失真；分发前请核对各上游 LICENSE 原文并随附。
 - 本 fork 对 Squirrel 的修改清单见本仓 `README.md` 与 git 历史。
-- 法墨自有部分（`sources/Famo*.swift`、`scripts/*`、深大红配色）随本项目许可；与上游 GPL-3.0 基座一并分发时，
+- 猫头鹰自有部分（`sources/Owl*.swift`、`scripts/*`、深大红配色）随本项目许可；与上游 GPL-3.0 基座一并分发时，
   整体须满足 GPL-3.0 的传染性要求。

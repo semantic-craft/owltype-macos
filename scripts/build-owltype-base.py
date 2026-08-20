@@ -225,7 +225,7 @@ def main() -> None:
 # Every entry is restricted to 通用规范汉字表 (kTGH 2013) characters.
 
 ---
-name: famotype_base
+name: owltype_base
 version: "{version}"
 sort: by_weight
 columns:

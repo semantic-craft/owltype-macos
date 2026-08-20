@@ -7,7 +7,7 @@ the Sparkle appcast, and the corresponding source for every distributed
 version. The canonical clone URL is:
 
 ```text
-https://origin.cursor.com/xianwei/famotype-macos.git
+https://origin.cursor.com/xianwei/owltype-macos.git
 ```
 
 Keep the local remotes distinct:
@@ -33,7 +33,7 @@ retired the same day, for the same reason plus three of its own — see
 `scripts/gate.sh` runs on the development Mac exactly what those lanes ran:
 the public-source and privacy boundaries, portable-script syntax and
 self-tests, the secret-finding policy with gitleaks and trufflehog over
-reachable history, the licensing files; then `make bootstrap`, `make famo-seed`,
+reachable history, the licensing files; then `make bootstrap`, `make owl-seed`,
 `swiftlint`, the release self-test, `make test`, Debug and Release builds, the
 manifest, identity-residual, artifact-chain, cohort and release-chain gates,
 `check-secrets.sh` over the tree and the built App, and `periphery`.
@@ -46,7 +46,7 @@ persistent developer or release machine without a separate safety review.
 
 The Release build keeps its normal optimized configuration but the gate
 disables the index store and whole-module batching for that invocation, as the
-hosted lanes did: a single Famo whole-module Swift frontend exceeds the macOS
+hosted lanes did: a single Owltype whole-module Swift frontend exceeds the macOS
 memory high-watermark, and compiling per file avoids an infrastructure-only
 failure without weakening optimization or source coverage.
 
@@ -62,7 +62,7 @@ scripts/clean-dev.sh --apply   # remove it
 ```
 
 It exists because the leftovers are not merely wasted disk. Every build of
-`Famo.app` registers another bundle claiming `im.famo.inputmethod.Famo` with
+`Owltype.app` registers another bundle claiming `im.owltype.inputmethod.Owltype` with
 LaunchServices, and the claim outlives the directory it points at. Enough dead
 claims and macOS can resolve the input method to an ad-hoc development build
 instead of the installed, notarized one — a working install starts failing for
@@ -82,13 +82,13 @@ Three things it clears, and the limits on each:
   it) *and* no longer exists. The product builds into the repository, so this
   mostly catches Sparkle submodule builds. Another project's entries are never
   touched, nor is any entry whose workspace is still on disk.
-- **Stale LaunchServices registrations for `Famo.app`** — each dead path is
+- **Stale LaunchServices registrations for `Owltype.app`** — each dead path is
   unregistered individually with `lsregister -u`. The script deliberately does
   not run a database rebuild (`lsregister -kill -r`): a rebuild would reset file
   associations far outside this project, and unregistering the exact stale paths
   achieves the same result without that blast radius. If more than one *live*
   registration remains, it says so — normally only
-  `/Library/Input Methods/Famo.app` should be there, and a stray build product
+  `/Library/Input Methods/Owltype.app` should be there, and a stray build product
   can shadow it.
 
 It never deletes a Time Machine snapshot. Recently deleted files stay pinned by
@@ -127,14 +127,14 @@ Why they went:
   EdDSA update key and the Developer ID identity are deliberately absent from
   CI, so it built as far as `package` and stopped. `scripts/release.sh` on the
   maintainer's Mac owns signing, notarization and cohort composition, and
-  `scripts/famo_distribution.py --publish` ships the cohort to
+  `scripts/owl_distribution.py --publish` ships the cohort to
   `downloads.responsay.com`.
 
 `source-ci.yml` was the only workflow carrying gate-shaped checks, and
 `scripts/gate.sh` already ran all of them: `check-public-source.sh` and
 `check-public-privacy.selftest.sh`; `bash -n` over the portable scripts and
-`py_compile` over the Python entrypoints; `famo-distribution.selftest.py` and
-`release-source-archive.selftest.py`; `make bootstrap`, `make famo-seed`,
+`py_compile` over the Python entrypoints; `owl-distribution.selftest.py` and
+`release-source-archive.selftest.py`; `make bootstrap`, `make owl-seed`,
 `make test`, `make release`; the artifact-chain, cohort, cohort-transition,
 release-chain and release self-tests; `secret-finding-policy.selftest.py`; and
 `check-secrets.sh` over both the tree and the built App.
@@ -165,11 +165,11 @@ Three things went away on purpose and have no local replacement:
 
 ## GitHub repository settings
 
-Settings on `semantic-craft/famotype-macos` were changed on 2026-08-19 to match
+Settings on `semantic-craft/owltype-macos` were changed on 2026-08-19 to match
 the deletion:
 
 - **Actions are disabled** for the repository
-  (`repos/semantic-craft/famotype-macos/actions/permissions` → `enabled: false`).
+  (`repos/semantic-craft/owltype-macos/actions/permissions` → `enabled: false`).
   With no workflow files left this changes nothing today; it exists so that a
   workflow file pushed back by accident — a stale branch, a restore from an
   archived state — cannot start a billable job. Reversible from
@@ -190,7 +190,7 @@ the deletion:
 An authorized backup refresh is therefore a single fast-forward push:
 
 ```bash
-git push git@github.com:semantic-craft/famotype-macos.git origin/main:main
+git push git@github.com:semantic-craft/owltype-macos.git origin/main:main
 ```
 
 SSH rather than HTTPS on purpose: the local `gh` token carries the `repo` scope

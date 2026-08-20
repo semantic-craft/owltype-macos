@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# install-dev.sh — build 法墨输入法 (Famo) and install it to the user's
+# install-dev.sh — build 猫头鹰输入法 (Owltype) and install it to the user's
 # ~/Library/Input Methods (no sudo). Local DEV install: ad-hoc codesign only.
 #
-# NOTE: Build product path for this Famo app is
-#   build/Build/Products/{Debug,Release}/Famo.app
+# NOTE: Build product path for this Owltype app is
+#   build/Build/Products/{Debug,Release}/Owltype.app
 # (Makefile uses -derivedDataPath build), NOT build/Release/.
 set -euo pipefail
 
@@ -14,8 +14,8 @@ CONFIG="${CONFIG:-Debug}"          # Debug (default, fast) or Release
 ARCHS="${ARCHS:-arm64}"
 DEPLOY="${MACOSX_DEPLOYMENT_TARGET:-14.0}"
 
-APP_NAME="Famo.app"
-PRODUCT_EXECUTABLE="Famo"
+APP_NAME="Owltype.app"
+PRODUCT_EXECUTABLE="Owltype"
 INSTALL_DIR="$HOME/Library/Input Methods"
 INSTALLED_APP="$INSTALL_DIR/$APP_NAME"
 SYSTEM_APP="/Library/Input Methods/$APP_NAME"
@@ -23,10 +23,10 @@ SYSTEM_APP="/Library/Input Methods/$APP_NAME"
 echo "Project root: $ROOT"
 echo "Config: $CONFIG  ARCHS: $ARCHS  Deployment: $DEPLOY"
 
-if [[ -d "$SYSTEM_APP" && "$INSTALLED_APP" != "$SYSTEM_APP" && -z "${FAMO_ALLOW_USER_DUPLICATE:-}" ]]; then
-  echo "ERROR: system-level Famo.app already exists: $SYSTEM_APP"
-  echo "Installing another dev copy under $INSTALL_DIR would create duplicate Famo input sources."
-  echo "Move the system-level Famo aside first, or set FAMO_ALLOW_USER_DUPLICATE=1 for a deliberate duplicate."
+if [[ -d "$SYSTEM_APP" && "$INSTALLED_APP" != "$SYSTEM_APP" && -z "${OWL_ALLOW_USER_DUPLICATE:-}" ]]; then
+  echo "ERROR: system-level Owltype.app already exists: $SYSTEM_APP"
+  echo "Installing another dev copy under $INSTALL_DIR would create duplicate Owltype input sources."
+  echo "Move the system-level Owltype aside first, or set OWL_ALLOW_USER_DUPLICATE=1 for a deliberate duplicate."
   exit 1
 fi
 
@@ -55,7 +55,7 @@ CANDIDATES=(
   "$ROOT/build/Build/Products/$CONFIG/$APP_NAME"
   "$ROOT/build/Build/Products/Debug/$APP_NAME"
   "$ROOT/build/Build/Products/Release/$APP_NAME"
-  "$ROOT/build/Build/Products/$CONFIG/Famo.app"
+  "$ROOT/build/Build/Products/$CONFIG/Owltype.app"
 )
 
 BUILD_APP=""
@@ -74,11 +74,11 @@ echo "Using build product: $BUILD_APP"
 
 mkdir -p "$INSTALL_DIR"
 
-killall Famo 2>/dev/null || true
+killall Owltype 2>/dev/null || true
 # Do NOT touch the user's Squirrel — it's a separate input method.
 
 # Update IN PLACE (rsync into the existing bundle), NOT rm -rf + cp. Replacing the
-# whole bundle deregisters Famo from the user's input-source list (it disappears from
+# whole bundle deregisters Owltype from the user's input-source list (it disappears from
 # the input menu and they must re-add it). Syncing into the existing bundle keeps its
 # identity / TIS registration intact across dev reinstalls.
 if [[ -d "$INSTALLED_APP" ]]; then
@@ -108,8 +108,8 @@ if [[ -x "$EXE" ]]; then
   echo "Registering input source..."
   "$EXE" --register-input-source || true
   "$EXE" --enable-input-source || true
-  "$EXE" --select-input-source im.famo.inputmethod.Famo.Hans || true
-  echo "Launching Famo input method app..."
+  "$EXE" --select-input-source im.owltype.inputmethod.Owltype.Hans || true
+  echo "Launching Owltype input method app..."
   open -g "$INSTALLED_APP" || true
   # A pristine Aqua account can expose the registered modes only after LaunchServices has
   # started the input-method host once.  Retry through the public TIS APIs after that first
@@ -117,7 +117,7 @@ if [[ -x "$EXE" ]]; then
   sleep 3
   "$EXE" --activate-once || true
   "$EXE" --enable-input-source || true
-  "$EXE" --select-input-source im.famo.inputmethod.Famo.Hans || true
+  "$EXE" --select-input-source im.owltype.inputmethod.Owltype.Hans || true
 else
   echo "ERROR: installed executable is not runnable: $EXE"
   exit 1
@@ -125,8 +125,8 @@ fi
 
 echo
 echo "Installed to: $INSTALLED_APP"
-echo "Open System Settings -> Keyboard -> Text Input / Input Sources and add/select 法墨输入法."
-echo "If it appears but cannot type, remove/add 法墨输入法 once in System Settings."
+echo "Open System Settings -> Keyboard -> Text Input / Input Sources and add/select 猫头鹰输入法."
+echo "If it appears but cannot type, remove/add 猫头鹰输入法 once in System Settings."
 echo
 echo "NOT EXECUTED automatically: System Settings selection, host-app typing, logout/reboot."
 echo "These must be verified by hand on the real machine."

@@ -2,7 +2,7 @@
 # 输入源恢复链路体检：重启后跑它，看装机输入法有没有被正确恢复。
 #
 # 自动探测 /Library/Input Methods 与 ~/Library/Input Methods 里的输入法，
-# 不硬编码 bundle id —— 改名（法墨 → 猫头鹰）后无需修改，2.0.0 装机验收可直接复用。
+# 不硬编码 bundle id —— 2.0.0 改名后无需修改，装机验收可直接复用。
 #
 #   scripts/ime-check.sh              # 自动探测
 #   scripts/ime-check.sh <bundle-id>  # 只看指定的一个

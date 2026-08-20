@@ -9,13 +9,13 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 . "$ROOT/scripts/owl-identity.sh"
 
 RELEASE_OUTPUT_ROOT="${RELEASE_OUTPUT_ROOT:-$ROOT/build}"
-APP="$RELEASE_OUTPUT_ROOT/Build/Products/Release/Famo.app"
-PKG="$ROOT/package/Famo.pkg"
-UPDATE_PKG="$ROOT/package/Famo-update.pkg"
+APP="$RELEASE_OUTPUT_ROOT/Build/Products/Release/Owltype.app"
+PKG="$ROOT/package/Owltype.pkg"
+UPDATE_PKG="$ROOT/package/Owltype-update.pkg"
 APPCAST="$ROOT/package/appcast.xml"
-# Manual smoke evidence lives outside the public tree; point FAMO_MANUAL_SMOKE at the current
+# Manual smoke evidence lives outside the public tree; point OWL_MANUAL_SMOKE at the current
 # release's manual-host-app-smoke document.
-MANUAL_SMOKE="${FAMO_MANUAL_SMOKE:-}"
+MANUAL_SMOKE="${OWL_MANUAL_SMOKE:-}"
 DOMAIN="$OWL_BUNDLE_ID"
 blocked=0
 preflight_only=0
@@ -48,8 +48,8 @@ fi
 # 07-07-schema-consistency-guard: derive the packaged pinyin schema from the App source of truth.
 # Keep every expansion braced when adjacent to CJK punctuation: under some locale/Bash combinations,
 # an unbraced name can be parsed past the intended variable boundary and trip `set -u`.
-expected_pinyin=$(grep -oE 'case \.pinyin: return "[a-z][a-z0-9_]*"' "$ROOT/sources/Settings/FamoKeyboardPreferences.swift" | sed -E 's/.*"([a-z0-9_]+)".*/\1/' | head -1)
-[[ -n "$expected_pinyin" ]] || fail "cannot derive expected pinyin schema from FamoKeyboardPreferences.swift"
+expected_pinyin=$(grep -oE 'case \.pinyin: return "[a-z][a-z0-9_]*"' "$ROOT/sources/Settings/OwlKeyboardPreferences.swift" | sed -E 's/.*"([a-z0-9_]+)".*/\1/' | head -1)
+[[ -n "$expected_pinyin" ]] || fail "cannot derive expected pinyin schema from OwlKeyboardPreferences.swift"
 pass "代码默认拼音 schema 已解析（.pinyin = ${expected_pinyin}）"
 
 if (( preflight_only )); then
@@ -81,7 +81,7 @@ else
   block "Release app is not Developer ID Application signed"
 fi
 
-# #116：Apple Events 授权前置。1.4.7 发货了「更新后强推注销」（FamoUpdateLogoutPrompt），但 hardened
+# #116：Apple Events 授权前置。1.4.7 发货了「更新后强推注销」（OwlUpdateLogoutPrompt），但 hardened
 # runtime 下缺 entitlement 或 usage string，发 Apple 事件直接 errAEEventNotPermitted (-1743) 且 TCC
 # 连授权框都不弹 —— 主按钮从未生效过，每次都体面地退化成「请手动注销」，失败被 fallback 文案掩盖着。
 # 必须查【产物】不查源文件：Xcode 处理 Info.plist、codesign 把 entitlement 落进签名，只有从产物读回
@@ -110,30 +110,30 @@ else
   block "Release app has no valid stapled notarization ticket"
 fi
 
-# 方案B（2026-07-24）：公开 pkg 只携带清洁室种子（famo-seed.sh：famotype_base 词库 +
+# 方案B（2026-07-24）：公开 pkg 只携带清洁室种子（owl-seed.sh：owltype_base 词库 +
 # Unihan 单字表兜底），完整词库（雾凇 cn_dicts/en_dicts、KyleBing 五笔、octagram gram）由 App
 # 首启在用户侧按 dict-pack manifest 拉取，绝不进公开 payload。旧的「payload 必含 wubi/pinyin_simp」
 # 断言属全量种子时代，已按新口径改写为反向断言。
 # 2026-07-25：essay.txt 随 rime-essay 一并移出种子（繁体字形 + LGPL 数据项，见 PR #22），
-# 这里改为断言取代它的 famotype_base；本组断言要真 pkg 才跑得到，CI 只到 make package，
+# 这里改为断言取代它的 owltype_base；本组断言要真 pkg 才跑得到，CI 只到 make package，
 # 所以 1.5.1 出包时才逮住这处陈旧断言。
 payload=$(pkgutil --payload-files "$PKG")
 for path in \
-	  './Famo.app/Contents/Resources/LICENSE.txt' \
-	  './Famo.app/Contents/Resources/THIRD_PARTY_NOTICES.md' \
-	  './Famo.app/Contents/SharedSupport/FAMOTYPE-SEED-MANIFEST.txt' \
-	  './Famo.app/Contents/SharedSupport/famo.yaml' \
-	  './Famo.app/Contents/SharedSupport/rime_ice.schema.yaml' \
-	  './Famo.app/Contents/SharedSupport/rime_ice.dict.yaml' \
-  './Famo.app/Contents/SharedSupport/cn_dicts/famotype_unicode.dict.yaml' \
-  './Famo.app/Contents/SharedSupport/cn_dicts/famotype_base.dict.yaml'
+	  './Owltype.app/Contents/Resources/LICENSE.txt' \
+	  './Owltype.app/Contents/Resources/THIRD_PARTY_NOTICES.md' \
+	  './Owltype.app/Contents/SharedSupport/OWLTYPE-SEED-MANIFEST.txt' \
+	  './Owltype.app/Contents/SharedSupport/owltype.yaml' \
+	  './Owltype.app/Contents/SharedSupport/rime_ice.schema.yaml' \
+	  './Owltype.app/Contents/SharedSupport/rime_ice.dict.yaml' \
+  './Owltype.app/Contents/SharedSupport/cn_dicts/owltype_unicode.dict.yaml' \
+  './Owltype.app/Contents/SharedSupport/cn_dicts/owltype_base.dict.yaml'
 do
   grep -qxF "$path" <<<"$payload" || fail "pkg payload missing $path"
 done
-grep -qxF './Famo.app/Contents/SharedSupport/_user_seed/famo.custom.yaml' <<<"$payload" ||
-  fail "pkg payload missing Famo _user_seed/famo.custom.yaml"
-if grep -qxF './Famo.app/Contents/SharedSupport/squirrel.yaml' <<<"$payload" ||
-   grep -qxF './Famo.app/Contents/SharedSupport/_user_seed/squirrel.custom.yaml' <<<"$payload"; then
+grep -qxF './Owltype.app/Contents/SharedSupport/_user_seed/owltype.custom.yaml' <<<"$payload" ||
+  fail "pkg payload missing Owltype _user_seed/owltype.custom.yaml"
+if grep -qxF './Owltype.app/Contents/SharedSupport/squirrel.yaml' <<<"$payload" ||
+   grep -qxF './Owltype.app/Contents/SharedSupport/_user_seed/squirrel.custom.yaml' <<<"$payload"; then
   fail "pkg payload still carries Squirrel frontend config names"
 fi
 # 反倒退：dict-pack 载荷（未过再分发审计的第三方词库）绝不允许出现在公开 payload 里。
@@ -149,34 +149,34 @@ do
     fail "pkg payload carries dict-pack material (matched: $forbidden) — 完整词库只能用户侧拉取，不得随包再分发"
   fi
 done
-pass "pkg payload = 清洁室种子（rime_ice + famotype_base + famotype_unicode），无 dict-pack 再分发载荷"
+pass "pkg payload = 清洁室种子（rime_ice + owltype_base + owltype_unicode），无 dict-pack 再分发载荷"
 
 # 07-07-schema-consistency-guard: cross-check the payload's 拼音 schema against the code's default
-# (FamoKeyboardPreferences .pinyin), so a future schema rename / stale seed can't silently ship a
+# (OwlKeyboardPreferences .pinyin), so a future schema rename / stale seed can't silently ship a
 # payload whose pinyin base no longer matches what the app selects at runtime. Derives the expected
 # id from source (single truth) instead of hardcoding it.
-grep -qxF "./Famo.app/Contents/SharedSupport/${expected_pinyin}.schema.yaml" <<<"$payload" ||
-  fail "pkg payload 拼音 schema 不符：代码默认 .pinyin = ${expected_pinyin}，但 payload 无 ${expected_pinyin}.schema.yaml（seed 陈旧？重跑 make famo-seed 再发版）"
+grep -qxF "./Owltype.app/Contents/SharedSupport/${expected_pinyin}.schema.yaml" <<<"$payload" ||
+  fail "pkg payload 拼音 schema 不符：代码默认 .pinyin = ${expected_pinyin}，但 payload 无 ${expected_pinyin}.schema.yaml（seed 陈旧？重跑 make owl-seed 再发版）"
 pass "pkg payload 拼音 schema 与代码默认一致（.pinyin = ${expected_pinyin}）"
 
-tmp=$(mktemp -u /tmp/famo-pkg.XXXXXX)
-tmp_update=$(mktemp -u /tmp/famo-update-pkg.XXXXXX)
+tmp=$(mktemp -u /tmp/owl-pkg.XXXXXX)
+tmp_update=$(mktemp -u /tmp/owl-update-pkg.XXXXXX)
 trap 'rm -rf "$tmp" "$tmp_update"' EXIT
 pkgutil --expand-full "$PKG" "$tmp"
-package_info="$tmp/Famo-component.pkg/PackageInfo"
-grep -q 'identifier="im.famo.inputmethod.Famo"' "$package_info" || fail "pkg identifier mismatch"
+package_info="$tmp/Owltype-component.pkg/PackageInfo"
+grep -q 'identifier="im.owltype.inputmethod.Owltype"' "$package_info" || fail "pkg identifier mismatch"
 grep -q 'install-location="/Library/Input Methods"' "$package_info" || fail "pkg install location mismatch"
-pass "pkg metadata is Famo and installs to /Library/Input Methods"
+pass "pkg metadata is Owltype and installs to /Library/Input Methods"
 
 # 方案B：静态 _user_seed 只启用 rime_ice（清洁室基线）。五笔/双拼/简体拼音的 schema_list
-# 由 App 首启的 FamoManagedKeyboardPatchPlan 按当前偏好写入（setupRime，seed 之后、首次
+# 由 App 首启的 OwlManagedKeyboardPatchPlan 按当前偏好写入（setupRime，seed 之后、首次
 # deploy 之前），其源文件由 dict-pack 用户侧拉取后补建 —— 静态种子里再断言全套属全量种子
 # 时代的陈旧期望（2026-07-24 1.5.0 出包时逮住）。
-seed="$tmp/Famo-component.pkg/Payload/Famo.app/Contents/SharedSupport/_user_seed/default.custom.yaml"
+seed="$tmp/Owltype-component.pkg/Payload/Owltype.app/Contents/SharedSupport/_user_seed/default.custom.yaml"
 grep -q "schema: rime_ice" "$seed" || fail "pkg seed does not enable rime_ice"
 pass "pkg seed 启用清洁室基线（rime_ice；全套 schema_list 由首启 managed patch + dict-pack 接管）"
 # emoji 出厂关 = 共享 rime_ice.schema.yaml 的 reset（不在 _user_seed）。纯雾凇无带声调 preedit。
-ice_schema="$tmp/Famo-component.pkg/Payload/Famo.app/Contents/SharedSupport/rime_ice.schema.yaml"
+ice_schema="$tmp/Owltype-component.pkg/Payload/Owltype.app/Contents/SharedSupport/rime_ice.schema.yaml"
 grep -A3 'name: emoji' "$ice_schema" | grep -q 'reset: 0' ||
   fail "pkg rime_ice.schema.yaml does not default emoji off (reset: 0)"
 pass "pkg rime_ice default: emoji off"
@@ -189,42 +189,42 @@ grep -A3 'name: ascii_mode' "$ice_schema" | grep -q 'states: \[ 中, 英 \]' ||
   fail "pkg rime_ice.schema.yaml ascii_mode states not [ 中, 英 ]"
 pass "pkg rime_ice ascii_mode label: 中/英"
 
-/usr/bin/codesign --verify --deep --strict --verbose=2 "$tmp/Famo-component.pkg/Payload/Famo.app"
+/usr/bin/codesign --verify --deep --strict --verbose=2 "$tmp/Owltype-component.pkg/Payload/Owltype.app"
 pass "pkg payload app codesign verifies"
 
 # 真正出厂的是 pkg 里这份 app，不是 build/ 里那份 —— 前置断言在两处都跑。
-assert_apple_events_prereqs "$tmp/Famo-component.pkg/Payload/Famo.app" "pkg payload app"
+assert_apple_events_prereqs "$tmp/Owltype-component.pkg/Payload/Owltype.app" "pkg payload app"
 
 # pkg 必须携带 preinstall（payload 落盘前写「bundle 已存在」标记）+ postinstall（读标记走更新/首装
-# 分支）。缺 preinstall = Sparkle 更新会被误判成首装（Sparkle 先杀宿主 Famo，pgrep 单独不可靠）。
-# 两个 pkg 共用同一个 Famo-component.pkg，查首装 pkg 即覆盖两者。
+# 分支）。缺 preinstall = Sparkle 更新会被误判成首装（Sparkle 先杀宿主 Owltype，pgrep 单独不可靠）。
+# 两个 pkg 共用同一个 Owltype-component.pkg，查首装 pkg 即覆盖两者。
 # 光查 Scripts/ 里文件存在不够——pkgbuild --scripts 会原样拷整个目录，真正决定「会不会运行」的是
 # PackageInfo 里的 <preinstall>/<postinstall> 声明（pkgbuild 按 文件名+可执行位 自动接线）。
 grep -q '<preinstall file=' "$package_info" ||
   fail "PackageInfo declares no preinstall script (pkgbuild auto-wiring failed: filename/exec bit?)"
 grep -q '<postinstall file=' "$package_info" ||
   fail "PackageInfo declares no postinstall script"
-[[ -x "$tmp/Famo-component.pkg/Scripts/preinstall" ]] ||
+[[ -x "$tmp/Owltype-component.pkg/Scripts/preinstall" ]] ||
   fail "Scripts/preinstall missing or not executable (update-detection marker writer)"
-[[ -x "$tmp/Famo-component.pkg/Scripts/postinstall" ]] ||
+[[ -x "$tmp/Owltype-component.pkg/Scripts/postinstall" ]] ||
   fail "Scripts/postinstall missing or not executable"
 pass "pkg wires preinstall + postinstall (PackageInfo declarations + executable scripts)"
 
-# 双 pkg 分离（07-02 更新免注销）：首装 Famo.pkg 必须带 onConclusion=RequireLogout；
-# Sparkle 更新载荷 Famo-update.pkg 必须不带（更新免注销）。两者共用同一个 Famo-component.pkg。
+# 双 pkg 分离（07-02 更新免注销）：首装 Owltype.pkg 必须带 onConclusion=RequireLogout；
+# Sparkle 更新载荷 Owltype-update.pkg 必须不带（更新免注销）。两者共用同一个 Owltype-component.pkg。
 # 必须用 xmllint 查真实属性，不能 grep 文本——两份 Distribution 的注释里都写着
 # "RequireLogout" 字样（productbuild 保留 XML 注释），文本 grep 会把合格的更新 pkg 误判成失败。
 require_logout_count() { xmllint --xpath 'count(//pkg-ref[@onConclusion="RequireLogout"])' "$1"; }
 [[ "$(require_logout_count "$tmp/Distribution")" != "0" ]] ||
-  fail "Famo.pkg Distribution is missing onConclusion=RequireLogout (first install must logout)"
-pass "Famo.pkg Distribution requires logout (first-install pkg)"
+  fail "Owltype.pkg Distribution is missing onConclusion=RequireLogout (first install must logout)"
+pass "Owltype.pkg Distribution requires logout (first-install pkg)"
 
 pkgutil --expand "$UPDATE_PKG" "$tmp_update"
 [[ "$(require_logout_count "$tmp_update/Distribution")" == "0" ]] ||
-  fail "Famo-update.pkg Distribution still carries onConclusion=RequireLogout (updates must not force logout)"
-grep -q 'Famo-component.pkg' "$tmp_update/Distribution" ||
-  fail "Famo-update.pkg Distribution does not reference Famo-component.pkg"
-pass "Famo-update.pkg Distribution has no RequireLogout (no-logout Sparkle payload)"
+  fail "Owltype-update.pkg Distribution still carries onConclusion=RequireLogout (updates must not force logout)"
+grep -q 'Owltype-component.pkg' "$tmp_update/Distribution" ||
+  fail "Owltype-update.pkg Distribution does not reference Owltype-component.pkg"
+pass "Owltype-update.pkg Distribution has no RequireLogout (no-logout Sparkle payload)"
 
 [[ -s "$APPCAST" ]] || fail "signed appcast is missing"
 xmllint --xpath 'boolean(//*[local-name()="enclosure"][@*[local-name()="installationType"]="package"])' "$APPCAST" |
@@ -232,7 +232,7 @@ xmllint --xpath 'boolean(//*[local-name()="enclosure"][@*[local-name()="installa
   fail "appcast enclosure does not declare sparkle:installationType=package"
 enclosure_url="$(xmllint --xpath 'string(//*[local-name()="enclosure"]/@url)' "$APPCAST")"
 app_version="$(xmllint --xpath 'string(//*[local-name()="enclosure"]/@*[local-name()="version"])' "$APPCAST")"
-expected_url="$(python3 "$ROOT/scripts/famo_distribution.py" asset-url "$app_version" Famo-update.pkg)"
+expected_url="$(python3 "$ROOT/scripts/owl_distribution.py" asset-url "$app_version" Owltype-update.pkg)"
 [[ "$enclosure_url" != *github.com* ]] ||
   fail "appcast enclosure must not use a GitHub Release URL"
 [[ "$enclosure_url" == "$expected_url" ]] ||
@@ -286,7 +286,7 @@ if (( automated_only )); then
 elif [[ -f "$MANUAL_SMOKE" ]] && grep -q '^Status: PASS$' "$MANUAL_SMOKE"; then
   pass "manual host-app smoke is marked PASS"
 else
-  block "manual host-app smoke is not marked PASS (set FAMO_MANUAL_SMOKE to the evidence document)"
+  block "manual host-app smoke is not marked PASS (set OWL_MANUAL_SMOKE to the evidence document)"
 fi
 
 if (( blocked )); then

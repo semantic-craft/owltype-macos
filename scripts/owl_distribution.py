@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish one verified Famo release cohort through responsay.com."""
+"""Publish one verified Owltype release cohort through responsay.com."""
 
 from __future__ import annotations
 
@@ -21,9 +21,9 @@ from urllib.parse import quote
 
 
 PUBLIC_ORIGIN = "https://downloads.responsay.com"
-CLIENT_FEED_URL = "https://responsay.com/famo/appcast.xml"
+CLIENT_FEED_URL = "https://responsay.com/owltype/appcast.xml"
 R2_BUCKET = "responsay-downloads"
-OBJECT_PREFIX = "famo"
+OBJECT_PREFIX = "owltype"
 WRANGLER_VERSION = "4.123.0"
 IMMUTABLE_CACHE_CONTROL = "public, max-age=31536000, immutable"
 STABLE_CACHE_CONTROL = "public, max-age=0, must-revalidate"
@@ -126,16 +126,16 @@ def build_publish_plan(
     if len(by_name) != len(paths):
         raise DistributionError("publishing contract contains duplicate asset names")
     expected_names = {
-        "Famo.pkg",
-        "Famo-update.pkg",
-        f"Famo-{version}.dmg",
+        "Owltype.pkg",
+        "Owltype-update.pkg",
+        f"Owltype-{version}.dmg",
         "appcast.xml",
-        f"Famotype-macOS-{version}-source.tar.gz",
-        f"Famotype-macOS-{version}-source.tar.gz.sha256",
-        "FAMOTYPE-FILE-MANIFEST.sha256",
-        "FAMOTYPE-SBOM.spdx.json",
-        "FAMOTYPE-APP-PROVENANCE.txt",
-        "FAMOTYPE-RELEASE-COHORT.json",
+        f"Owltype-macOS-{version}-source.tar.gz",
+        f"Owltype-macOS-{version}-source.tar.gz.sha256",
+        "OWLTYPE-FILE-MANIFEST.sha256",
+        "OWLTYPE-SBOM.spdx.json",
+        "OWLTYPE-APP-PROVENANCE.txt",
+        "OWLTYPE-RELEASE-COHORT.json",
     }
     if set(by_name) != expected_names:
         missing = sorted(expected_names - set(by_name))
@@ -154,7 +154,7 @@ def build_publish_plan(
     # download redirects. Replacing one JSON object switches installer, DMG, and source together.
     plan.append(
         _upload(
-            by_name["FAMOTYPE-RELEASE-COHORT.json"],
+            by_name["OWLTYPE-RELEASE-COHORT.json"],
             f"{OBJECT_PREFIX}/latest.json",
             immutable=False,
         )
@@ -185,10 +185,10 @@ def publish(
     by_name = {item.source.name: item for item in immutable}
     try:
         website_aliases = (
-            ("Famo.pkg", by_name["Famo.pkg"]),
-            ("Famo-update.pkg", by_name["Famo-update.pkg"]),
+            ("Owltype.pkg", by_name["Owltype.pkg"]),
+            ("Owltype-update.pkg", by_name["Owltype-update.pkg"]),
             (
-                "Famo.dmg",
+                "Owltype.dmg",
                 next(item for item in immutable if item.source.suffix == ".dmg"),
             ),
             (
@@ -206,7 +206,7 @@ def publish(
         if item.key == f"{OBJECT_PREFIX}/appcast.xml":
             for alias, source_item in website_aliases:
                 verifier.verify(
-                    f"https://responsay.com/famo/{alias}", source_item.sha256
+                    f"https://responsay.com/owltype/{alias}", source_item.sha256
                 )
         existing = store.read(item.key)
         if item.immutable and existing is not None:
@@ -251,7 +251,7 @@ class WranglerR2Store:
         self.command = [executable]
 
     def read(self, key: str) -> bytes | None:
-        with tempfile.TemporaryDirectory(prefix="famo-r2-readback-") as directory:
+        with tempfile.TemporaryDirectory(prefix="owl-r2-readback-") as directory:
             destination = Path(directory) / "object"
             result = subprocess.run(
                 [
@@ -304,7 +304,7 @@ class WranglerR2Store:
 
 class HTTPPublicVerifier:
     def verify(self, url: str, sha256: str) -> None:
-        verified_url = f"{url}?famo-verify={sha256}"
+        verified_url = f"{url}?owl-verify={sha256}"
         last_error: Exception | None = None
         for delay in (0, 1, 2, 4):
             if delay:
@@ -313,7 +313,7 @@ class HTTPPublicVerifier:
             try:
                 request = urllib.request.Request(
                     verified_url,
-                    headers={"Cache-Control": "no-cache", "User-Agent": "FamoReleaseVerifier/1"},
+                    headers={"Cache-Control": "no-cache", "User-Agent": "OwlReleaseVerifier/1"},
                 )
                 with urllib.request.urlopen(request, timeout=30) as response:
                     if response.status != 200:
@@ -344,14 +344,14 @@ def _load_verified_cohort(repo_root: Path, output_root: Path) -> tuple[list[Path
 
     import json
 
-    cohort_path = output_root / "release/FAMOTYPE-RELEASE-COHORT.json"
+    cohort_path = output_root / "release/OWLTYPE-RELEASE-COHORT.json"
     with cohort_path.open(encoding="utf-8") as handle:
         cohort = json.load(handle)
     version = str(cohort["version"])
     build_version = str(cohort["buildVersion"])
 
     appcast = next((path for path in assets if path.name == "appcast.xml"), None)
-    expected_url = versioned_asset_url(build_version, "Famo-update.pkg")
+    expected_url = versioned_asset_url(build_version, "Owltype-update.pkg")
     if appcast is None or expected_url not in appcast.read_text(encoding="utf-8"):
         raise DistributionError(f"verified appcast does not reference {expected_url}")
     return assets, version, build_version
@@ -362,12 +362,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         argv = sys.argv[1:]
     if argv and argv[0] == "asset-url":
         if len(argv) != 3:
-            raise DistributionError("usage: famo_distribution.py asset-url BUILD_VERSION FILENAME")
+            raise DistributionError("usage: owl_distribution.py asset-url BUILD_VERSION FILENAME")
         print(versioned_asset_url(argv[1], argv[2]))
         return 0
 
     parser = argparse.ArgumentParser(
-        description="Publish one complete, verified Famo release cohort to responsay.com"
+        description="Publish one complete, verified Owltype release cohort to responsay.com"
     )
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--dry-run", action="store_true")
@@ -391,7 +391,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     for event in events:
         print(event)
     print(
-        f"PASS: Famo {version} (build {build_version}) published; "
+        f"PASS: Owltype {version} (build {build_version}) published; "
         f"stable appcast committed last at {CLIENT_FEED_URL}"
     )
     return 0

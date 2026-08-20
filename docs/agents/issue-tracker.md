@@ -17,7 +17,7 @@ canonical code-review queue after migration.
 
 The canonical code remote is `origin`; the GitHub issue tracker and archival
 backup is named `github`. Releases are published to `downloads.responsay.com`,
-not to GitHub. Pass `-R semantic-craft/famotype-macos` to `gh` rather than
+not to GitHub. Pass `-R semantic-craft/owltype-macos` to `gh` rather than
 inferring the repository from the canonical Origin remote.
 
 ## Pull requests as a triage surface

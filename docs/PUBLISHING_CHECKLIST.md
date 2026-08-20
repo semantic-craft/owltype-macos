@@ -43,8 +43,8 @@ To inspect the same order without invoking builds, Apple tools, scanners, or rem
 bash scripts/release.sh --dry-run --output-root build/release-cohort
 ```
 
-The entrypoint runs tests, creates one Release build, and drives the App, `Famo.pkg`,
-`Famo-update.pkg`, and the versioned DMG through the shared
+The entrypoint runs tests, creates one Release build, and drives the App, `Owltype.pkg`,
+`Owltype-update.pkg`, and the versioned DMG through the shared
 `built -> signed -> notarized -> stapled` cohort transitions. It inventories the final App, creates
 an appcast and corresponding-source archive that both embed that cohort ID, and then runs the
 release, privacy, shared secret-policy, and local publishing-contract gates. Any revision, version,
@@ -59,13 +59,13 @@ Sparkle comparison and the immutable update-package URL use the build version.
 
 The cohort also binds an exact file-and-mode snapshot of the selected Git revision and every pinned
 submodule revision, plus a stable digest of the complete generated seed shipped in
-`Famo.app/Contents/SharedSupport`. The corresponding-source archive must contain exactly that
-tracked source, its declared manifest and provenance, and a `data/famo-rime` tree identical to the
+`Owltype.app/Contents/SharedSupport`. The corresponding-source archive must contain exactly that
+tracked source, its declared manifest and provenance, and a `data/owl-rime` tree identical to the
 App seed. Self-consistent replacement archives are rejected even when their internal manifest and
 checksum sidecar have been recomputed.
 
 The App cohort identity includes normalized entry type and permission mode as well as file contents
-and symlink targets. `Contents/MacOS/Famo` must remain a regular executable file. The appcast must
+and symlink targets. `Contents/MacOS/Owltype` must remain a regular executable file. The appcast must
 declare `sparkle:installationType="package"`, and its EdDSA signature over the exact cohort-bound
 update package must verify with `SUPublicEDKey` from that cohort's App.
 
@@ -74,20 +74,20 @@ script does not upload assets or deploy the feed. After every local gate passes,
 remote order without changing state:
 
 ```sh
-python3 scripts/famo_distribution.py --dry-run --output-root build/release-cohort
+python3 scripts/owl_distribution.py --dry-run --output-root build/release-cohort
 ```
 
 Publication is a separate, explicit maintainer decision:
 
 ```sh
 npm install --global wrangler@4.123.0
-python3 scripts/famo_distribution.py --publish --output-root build/release-cohort
+python3 scripts/owl_distribution.py --publish --output-root build/release-cohort
 ```
 
 The publisher requires exactly Wrangler 4.123.0. It stores all ten assets under the immutable
 build-version prefix in the `responsay-downloads` R2 bucket, reads them back, and verifies their
 public hashes. It then replaces one cohort JSON pointer that atomically switches every manual
-binary/source download, verifies those website routes, and replaces `famo/appcast.xml` last. A
+binary/source download, verifies those website routes, and replaces `owltype/appcast.xml` last. A
 versioned object that already exists with different bytes stops publication; an identical object is
 reused.
 
@@ -96,10 +96,10 @@ mounts DMGs read-only and detaches them on both success and failure, and extract
 rejecting links, special members, duplicate paths, and traversal before scanning their contents.
 
 The App inventory is taken **after** Developer ID signing and stapling, because both rewrite the
-bundle. `FAMOTYPE-FILE-MANIFEST.sha256`, `FAMOTYPE-SBOM.spdx.json`, App provenance, and the cohort
+bundle. `OWLTYPE-FILE-MANIFEST.sha256`, `OWLTYPE-SBOM.spdx.json`, App provenance, and the cohort
 record live outside the App and ship with the packages, DMG, appcast, source archive, and source
 checksum. A downloader can verify the App with
-`cd Famo.app && shasum -a 256 -c /path/to/FAMOTYPE-FILE-MANIFEST.sha256`.
+`cd Owltype.app && shasum -a 256 -c /path/to/OWLTYPE-FILE-MANIFEST.sha256`.
 
 Public source and public binaries remain separate legal decisions. A complete cohort does not permit
 a binary release while any provenance, corresponding-source, license, or human-review gate is open.
@@ -107,5 +107,5 @@ Local tests use fake adapters, unsigned system packaging tools, and synthetic Sp
 they do not replace a maintainer's final Developer ID signing, notarization, stapling, and installed
 update validation on the exact release artifacts.
 The product test entrypoint explicitly excludes the five credential-gated Live suites; the offline
-`FamoLiveInputTraceTests` privacy regression remains enabled. `scripts/gate.sh` and the release
+`OwlLiveInputTraceTests` privacy regression remains enabled. `scripts/gate.sh` and the release
 entrypoint must never rely on default skip behavior or run an unfiltered `xcodebuild test`.

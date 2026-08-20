@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# verify-rime-config.sh — 法墨输入法 (Famo) RIME 配置预检
+# verify-rime-config.sh — 猫头鹰输入法 (Owltype) RIME 配置预检
 # READ-ONLY. Never modifies the user's ~/Library/Rime or Squirrel install. Only reports + suggests.
 set -euo pipefail
 
-FAMO_USER_DIR="$HOME/Library/Application Support/Famo"
-FAMO_SHARED_DIR="$HOME/Library/Input Methods/Famo.app/Contents/SharedSupport"
+OWL_USER_DIR="$HOME/Library/Application Support/Owltype"
+OWL_SHARED_DIR="$HOME/Library/Input Methods/Owltype.app/Contents/SharedSupport"
 
-echo "Checking Famo user directory: $FAMO_USER_DIR"
+echo "Checking Owltype user directory: $OWL_USER_DIR"
 
-if [[ ! -d "$FAMO_USER_DIR" ]]; then
-  echo "MISSING: $FAMO_USER_DIR"
-  echo "Install and launch Famo first; this script will not create or modify user data."
+if [[ ! -d "$OWL_USER_DIR" ]]; then
+  echo "MISSING: $OWL_USER_DIR"
+  echo "Install and launch Owltype first; this script will not create or modify user data."
   exit 1
 fi
 
@@ -18,7 +18,7 @@ missing=0
 
 check_file() {
   local file="$1"
-  if [[ -f "$FAMO_USER_DIR/$file" ]]; then
+  if [[ -f "$OWL_USER_DIR/$file" ]]; then
     echo "OK: $file"
   else
     echo "MISSING: $file"
@@ -26,19 +26,19 @@ check_file() {
   fi
 }
 
-# Famo frontend skin + user-level schema selection
-check_file "famo.custom.yaml"
+# Owltype frontend skin + user-level schema selection
+check_file "owltype.custom.yaml"
 check_file "default.custom.yaml"
 check_file "rime_ice.custom.yaml"
 
-if [[ ! -d "$FAMO_SHARED_DIR" ]]; then
-  echo "MISSING: $FAMO_SHARED_DIR"
+if [[ ! -d "$OWL_SHARED_DIR" ]]; then
+  echo "MISSING: $OWL_SHARED_DIR"
   missing=1
 fi
 
 check_shared_file() {
   local file="$1"
-  if [[ -f "$FAMO_SHARED_DIR/$file" ]]; then
+  if [[ -f "$OWL_SHARED_DIR/$file" ]]; then
     echo "OK: SharedSupport/$file"
   else
     echo "MISSING: SharedSupport/$file"
@@ -46,11 +46,11 @@ check_shared_file() {
   fi
 }
 
-check_shared_file "famo.yaml"
+check_shared_file "owltype.yaml"
 check_shared_file "wubi86_jidian.schema.yaml"
 
 # 雾凇全拼（rime_ice，rime-ice 底座）
-if [[ -f "$FAMO_SHARED_DIR/rime_ice.schema.yaml" ]]; then
+if [[ -f "$OWL_SHARED_DIR/rime_ice.schema.yaml" ]]; then
   echo "OK: rime_ice.schema.yaml"
 else
   echo "MISSING: rime_ice.schema.yaml"
@@ -58,15 +58,15 @@ else
 fi
 
 echo
-echo "Schema list references (Famo default.custom.yaml):"
+echo "Schema list references (Owltype default.custom.yaml):"
 grep -R "rime_ice\|wubi86_jidian" \
-  "$FAMO_USER_DIR/default.custom.yaml" \
+  "$OWL_USER_DIR/default.custom.yaml" \
   2>/dev/null || echo "  (no rime_ice / wubi86_jidian references found)"
 
 if [[ "$missing" -ne 0 ]]; then
   echo
   echo "Some files are missing. This script does NOT modify user config."
-  echo "Suggested Famo default.custom.yaml patch (apply manually, after backup):"
+  echo "Suggested Owltype default.custom.yaml patch (apply manually, after backup):"
   cat <<'YAML'
 patch:
   schema_list:

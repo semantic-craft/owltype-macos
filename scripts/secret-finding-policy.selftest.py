@@ -185,9 +185,9 @@ class PolicyTableTests(unittest.TestCase):
         different_digest = "b" * 64
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = pathlib.Path(temporary_directory)
-            manifest = root / "FAMOTYPE-FILE-MANIFEST.sha256"
-            manifest.write_text(f"{digest}  ./Famo\n", encoding="utf-8")
-            executable = root / "MacOS" / "Famo"
+            manifest = root / "OWLTYPE-FILE-MANIFEST.sha256"
+            manifest.write_text(f"{digest}  ./Owltype\n", encoding="utf-8")
+            executable = root / "MacOS" / "Owltype"
             executable.parent.mkdir()
             executable.write_text("synthetic", encoding="utf-8")
 
@@ -215,7 +215,7 @@ class PolicyTableTests(unittest.TestCase):
                 (
                     "swift symbol in executable location",
                     artifact_record(
-                        "s4Famo" + "SyntheticWitness",
+                        "s7Owltype" + "SyntheticWitness",
                         detector="Box",
                         path=str(executable),
                     ),
@@ -433,9 +433,9 @@ class ShellAdapterTests(unittest.TestCase):
         self.assertIn("Lob 撞测试函数名 1 条", artifact.stdout)
 
     def test_source_archive_uses_the_shared_artifact_policy(self) -> None:
-        source_archive = self.root / "Famotype-macOS-9.8.7-source.tar.gz"
+        source_archive = self.root / "Owltype-macOS-9.8.7-source.tar.gz"
         with tarfile.open(source_archive, "w:gz") as archive:
-            archive.add(self.artifact, arcname="Famotype-macOS-9.8.7-source")
+            archive.add(self.artifact, arcname="Owltype-macOS-9.8.7-source")
 
         completed = self._run_gate(
             "--artifacts",
@@ -443,7 +443,7 @@ class ShellAdapterTests(unittest.TestCase):
             trufflehog_mode="finding",
             trufflehog_report=artifact_record(
                 SYNTHETIC_LOB_IDENTIFIER,
-                path="Famotype-macOS-9.8.7-source/scripts/policy.selftest.py",
+                path="Owltype-macOS-9.8.7-source/scripts/policy.selftest.py",
             ),
         )
         self.assertEqual(completed.returncode, 0, completed.stderr)
@@ -505,23 +505,23 @@ class ShellAdapterTests(unittest.TestCase):
         "PKG and DMG adapter coverage requires macOS packaging tools",
     )
     def test_real_pkg_and_dmg_contents_are_scanned_and_dmg_is_detached(self) -> None:
-        sentinel = "FAMOTYPE" + "_SECRET_SENTINEL_" + "A" * 24
+        sentinel = "OWLTYPE" + "_SECRET_SENTINEL_" + "A" * 24
         finding = [{"RuleID": "synthetic-container-secret", "File": "runtime.env"}]
 
         pkg_root = self.root / "pkg-root"
-        pkg_secret = pkg_root / "Famo.app" / "Contents" / "Resources" / "runtime.env"
+        pkg_secret = pkg_root / "Owltype.app" / "Contents" / "Resources" / "runtime.env"
         pkg_secret.parent.mkdir(parents=True)
         pkg_secret.write_text(f"credential={sentinel}\n", encoding="utf-8")
-        component = self.root / "Famo-component.pkg"
+        component = self.root / "Owltype-component.pkg"
         distribution = self.root / "Distribution.xml"
-        product_pkg = self.root / "Famo.pkg"
+        product_pkg = self.root / "Owltype.pkg"
         subprocess.run(
             [
                 "/usr/bin/pkgbuild",
                 "--root",
                 str(pkg_root),
                 "--identifier",
-                "im.famo.secret-selftest",
+                "im.owltype.secret-selftest",
                 "--version",
                 "1",
                 "--install-location",
@@ -568,17 +568,17 @@ class ShellAdapterTests(unittest.TestCase):
 
         dmg_root = self.root / "dmg-root"
         installer_secret = (
-            dmg_root / "FamoInstaller.app" / "Contents" / "Resources" / "runtime.env"
+            dmg_root / "OwltypeInstaller.app" / "Contents" / "Resources" / "runtime.env"
         )
         installer_secret.parent.mkdir(parents=True)
         installer_secret.write_text(f"credential={sentinel}\n", encoding="utf-8")
-        dmg = self.root / "Famo-9.8.7.dmg"
+        dmg = self.root / "Owltype-9.8.7.dmg"
         subprocess.run(
             [
                 "/usr/bin/hdiutil",
                 "create",
                 "-volname",
-                "FamoSecretSelfTest",
+                "OwlSecretSelfTest",
                 "-srcfolder",
                 str(dmg_root),
                 "-ov",

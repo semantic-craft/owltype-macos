@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INVENTORY="$ROOT/scripts/inventory-release-bundle.py"
 COHORT_STATE="$ROOT/scripts/release-cohort-state.py"
-work="$(mktemp -d "${TMPDIR:-/tmp}/famo-cohort-selftest.XXXXXX")"
+work="$(mktemp -d "${TMPDIR:-/tmp}/owl-cohort-selftest.XXXXXX")"
 work="$(cd "$work" && pwd -P)"
 trap 'rm -rf "$work"' EXIT
 
@@ -63,10 +63,10 @@ STUB
 chmod +x "$fake_bin/xcrun" "$fake_bin/xcodebuild"
 
 cohort_root="$work/custom output root"
-app="$cohort_root/Build/Products/Release/Famo.app"
+app="$cohort_root/Build/Products/Release/Owltype.app"
 plist="$app/Contents/Info.plist"
-payload="$app/Contents/MacOS/Famo"
-state="$cohort_root/release/FAMOTYPE-RELEASE-COHORT.json"
+payload="$app/Contents/MacOS/Owltype"
+state="$cohort_root/release/OWLTYPE-RELEASE-COHORT.json"
 mkdir -p "$(dirname "$plist")" "$(dirname "$payload")"
 mkdir -p "$app/Contents/SharedSupport"
 printf 'fixture seed\n' >"$app/Contents/SharedSupport/seed.txt"
@@ -81,7 +81,7 @@ path = Path(sys.argv[1])
 with path.open("wb") as handle:
     plistlib.dump(
         {
-            "CFBundleIdentifier": "im.famo.inputmethod.Famo",
+            "CFBundleIdentifier": "im.owltype.inputmethod.Owltype",
             "CFBundleShortVersionString": sys.argv[2],
             "CFBundleVersion": sys.argv[3],
         },
@@ -107,8 +107,8 @@ make_trace="$work/make-trace"
 if make -C "$ROOT" --no-print-directory -n release-artifacts \
     DEPS_CHECK= DEV_ID= RELEASE_OUTPUT_ROOT="$cohort_root" >"$make_trace" 2>&1 &&
    grep -qF -- "-derivedDataPath \"$cohort_root\"" "$make_trace" &&
-   grep -qF "copy-famo-seed FAMO_CONFIG=Release DERIVED_DATA_PATH=\"$cohort_root\"" "$make_trace" &&
-   grep -qF "\"$cohort_root/Build/Products/Release/Famo.app\"" "$make_trace" &&
+   grep -qF "copy-owl-seed OWL_CONFIG=Release DERIVED_DATA_PATH=\"$cohort_root\"" "$make_trace" &&
+   grep -qF "\"$cohort_root/Build/Products/Release/Owltype.app\"" "$make_trace" &&
    [[ "$(grep -cF "inventory-release-bundle.py record \"$cohort_root\"" "$make_trace")" -eq 1 ]] &&
    grep -qF "release-cohort-state.py initialize \"$cohort_root\"" "$make_trace" &&
    grep -qF "bash package/make_package \"$cohort_root\"" "$make_trace" &&
@@ -132,7 +132,7 @@ import os
 import sys
 from pathlib import Path
 
-from famo_bundle import artifact_sha256
+from owl_bundle import artifact_sha256
 
 root = Path(sys.argv[1])
 one = root / "hash-boundary-one"
@@ -161,23 +161,23 @@ chmod +x "$payload"
 record_cohort
 
 invalid_app_root="$work/invalid executable output root"
-invalid_app="$invalid_app_root/Build/Products/Release/Famo.app"
+invalid_app="$invalid_app_root/Build/Products/Release/Owltype.app"
 mkdir -p "$invalid_app/Contents/MacOS"
 cp "$plist" "$invalid_app/Contents/Info.plist"
-ln -s ../Info.plist "$invalid_app/Contents/MacOS/Famo"
+ln -s ../Info.plist "$invalid_app/Contents/MacOS/Owltype"
 expect_fail "non-regular App executable is rejected at cohort initialization" \
   "release App executable is not a regular file" \
   python3 "$COHORT_STATE" initialize "$invalid_app_root"
 
 symlink_app_root="$work/symlink App output root"
-symlink_app_target="$work/symlink App target/Famo.app"
+symlink_app_target="$work/symlink App target/Owltype.app"
 mkdir -p "$symlink_app_root/Build/Products/Release" \
   "$symlink_app_target/Contents/MacOS" "$symlink_app_target/Contents/SharedSupport"
 cp "$plist" "$symlink_app_target/Contents/Info.plist"
-printf 'symlink target executable\n' >"$symlink_app_target/Contents/MacOS/Famo"
-chmod +x "$symlink_app_target/Contents/MacOS/Famo"
+printf 'symlink target executable\n' >"$symlink_app_target/Contents/MacOS/Owltype"
+chmod +x "$symlink_app_target/Contents/MacOS/Owltype"
 printf 'symlink target seed\n' >"$symlink_app_target/Contents/SharedSupport/seed.txt"
-ln -s "$symlink_app_target" "$symlink_app_root/Build/Products/Release/Famo.app"
+ln -s "$symlink_app_target" "$symlink_app_root/Build/Products/Release/Owltype.app"
 expect_fail "symlink App root is rejected at cohort initialization" \
   "release App root is not a regular directory" \
   python3 "$COHORT_STATE" initialize "$symlink_app_root"
@@ -229,7 +229,7 @@ write_version "9.8.7"
 initialize_cohort
 record_cohort
 
-printf '\n' >>"$cohort_root/release/FAMOTYPE-SBOM.spdx.json"
+printf '\n' >>"$cohort_root/release/OWLTYPE-SBOM.spdx.json"
 expect_fail "inventory mismatch rejects the cohort" "cohort inventory fingerprint does not match" \
   env PATH="$fake_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     python3 "$INVENTORY" check "$cohort_root"

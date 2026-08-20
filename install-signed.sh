@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 本地测试安装：Developer-ID 正确签名(+entitlements,硬化运行时) → 装到 /Library/Input Methods → 重注册。
 #
-# 为什么需要它：`make install-release` 末尾的 copy-famo-seed 会用「ad-hoc 无 entitlements」重签，
+# 为什么需要它：`make install-release` 末尾的 copy-owl-seed 会用「ad-hoc 无 entitlements」重签，
 # 装出来的输入法能显示但**不能打字**（缺 disable-library-validation，librime dylib 加载受限）。
 # 本脚本在那之后补一次 Developer-ID 签名，恢复成可用的输入法。
 #
@@ -14,7 +14,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-APP="build/Build/Products/Release/Famo.app"
+APP="build/Build/Products/Release/Owltype.app"
 DSTROOT="/Library/Input Methods"
 ENT="resources/Owltype.entitlements"
 
@@ -36,13 +36,13 @@ codesign --verify --deep --strict "$APP"
 echo "  校验:"; codesign -dv "$APP" 2>&1 | grep -E "Authority=Developer|flags" | sed 's/^/    /'
 
 echo "▸ 安装到 ${DSTROOT}（需要你的 Mac 密码）…"
-sudo rm -rf "$DSTROOT/Famo.app"
-sudo cp -R "$APP" "$DSTROOT/Famo.app"
+sudo rm -rf "$DSTROOT/Owltype.app"
+sudo cp -R "$APP" "$DSTROOT/Owltype.app"
 
 echo "▸ 重新注册 + 重启输入法…"
-F="$DSTROOT/Famo.app/Contents/MacOS/Famo"
+F="$DSTROOT/Owltype.app/Contents/MacOS/Owltype"
 "$F" --register-input-source
 "$F" --enable-input-source
 "$F" --quit || true
 "$F" --select-input-source
-echo "✅ 完成。切到法墨（Ctrl+Space）打字试试。"
+echo "✅ 完成。切到猫头鹰（Ctrl+Space）打字试试。"

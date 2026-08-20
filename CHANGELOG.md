@@ -1,3 +1,21 @@
+<a name="2.0.0"></a>
+## 2.0.0 (2026-08-21)
+
+### 改名 | Rename
+- **法墨输入法正式改名为「猫头鹰输入法」（Owltype）**。这是一次彻底改名，不保留任何兼容层：App 名（`Owltype.app`）、bundle id（`im.owltype.inputmethod.Owltype`）、两个输入源 ID、安装路径、用户数据目录（`~/Library/Application Support/Owltype`）与自动更新源（`responsay.com/owltype/`）全部换新
+- **1.x 不会自动更新到 2.0.0**。旧版的 Sparkle 仍指向已冻结的旧 feed，我们不在旧 feed 上发桥接更新——跨 bundle id 的自动迁移本身是风险面。请手动切换，顺序不能乱：
+  1. 先退出 Karabiner-Elements（运行中重装输入法会触发它的已知崩溃，导致全键盘失灵）
+  2. 运行旧版安装包里的卸载脚本移除法墨
+  3. **注销并重新登录**（输入源真存储在系统会话层，只有注销或重启能清干净）
+  4. 安装 2.0.0，在「系统设置 → 键盘 → 输入法」里加入「猫头鹰输入法」
+  5. 重新授予辅助功能与 Apple 事件权限——bundle id 变了，旧授权全部失效，这是预期而非故障
+- **用户数据首启自动迁移**：旧的 `Application Support/Famo` 目录整体**复制**（不是移动）到新目录，快捷短语库、提示词库、rime_ice 自学习词库与偏好设置一并接过来；迁移幂等，旧目录原样保留，确认无误后再自行删除
+
+### 更新与分发 | Updates
+- 自动更新改读 `https://responsay.com/owltype/appcast.xml`；安装包、DMG 与逐版对应源码归档同步迁到 `owltype/` 路径。Sparkle 的 EdDSA 更新公钥**没有轮换**，签名身份与公证凭据也未变动
+
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.6.3...2.0.0
+
 <a name="1.6.3"></a>
 ## 1.6.3 (2026-08-18)
 

@@ -44,13 +44,13 @@ bash scripts/check-public-privacy.selftest.sh
 stage "portable scripts"
 bash -n action-install.sh scripts/*.sh package/apple_tool_adapter package/make_package
 python3 -m py_compile \
-  scripts/famo_distribution.py \
-  scripts/famo_bundle.py \
+  scripts/owl_distribution.py \
+  scripts/owl_bundle.py \
   scripts/inventory-release-bundle.py \
   scripts/release-cohort-state.py \
   scripts/release_source.py \
   scripts/safe-extract-tar.py
-python3 scripts/famo-distribution.selftest.py
+python3 scripts/owl-distribution.selftest.py
 python3 scripts/release-source-archive.selftest.py
 
 stage "secret-finding policy"
@@ -80,7 +80,7 @@ grep -q 'GPL-3.0' README.md
 stage "bootstrap and seed"
 git submodule update --init --recursive
 make bootstrap
-make famo-seed
+make owl-seed
 
 stage "swiftlint and release self-test"
 swiftlint
@@ -132,9 +132,9 @@ report_ls_claims() {
 
   stage "LaunchServices claims on $OWL_BUNDLE_ID"
   if ((unsigned > 0)); then
-    printf '  FAMO-LS-002  %d claim(s), %d of them unsigned (no teamID)\n' "$total" "$unsigned"
+    printf '  OWL-LS-002  %d claim(s), %d of them unsigned (no teamID)\n' "$total" "$unsigned"
   else
-    printf '  FAMO-LS-001  %d claim(s); only the installed copy should claim this id\n' "$total"
+    printf '  OWL-LS-001  %d claim(s); only the installed copy should claim this id\n' "$total"
   fi
   while IFS=$'\t' read -r team path; do
     [[ -n "$path" ]] || continue
@@ -157,7 +157,7 @@ make debug
 make release \
   RELEASE_OUTPUT_ROOT=build/gate-release \
   BUILD_SETTINGS="COMPILER_INDEX_STORE_ENABLE=NO SWIFT_COMPILATION_MODE=singlefile SWIFT_ENABLE_BATCH_MODE=NO"
-app="$root/build/gate-release/Build/Products/Release/Famo.app"
+app="$root/build/gate-release/Build/Products/Release/Owltype.app"
 
 stage "release gates"
 OWL_APP="$app" bash scripts/check-manifest.sh

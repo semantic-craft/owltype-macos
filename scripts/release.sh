@@ -46,9 +46,9 @@ run() {
 if [[ "$output_root" != /* ]]; then
   output_root="$ROOT/$output_root"
 fi
-app="$output_root/Build/Products/Release/Famo.app"
+app="$output_root/Build/Products/Release/Owltype.app"
 release_dir="$output_root/release"
-cohort_file="$release_dir/FAMOTYPE-RELEASE-COHORT.json"
+cohort_file="$release_dir/OWLTYPE-RELEASE-COHORT.json"
 dev_id="${DEV_ID:-}"
 notary_profile="${NOTARY_PROFILE:-xw-notary}"
 
@@ -103,7 +103,7 @@ echo "==> 3/8 assemble exactly one signed, notarized, stapled artifact cohort"
 if ((reuse)); then
   echo "REUSE: complete current cohort; release build and composition remain unchanged"
 else
-  run make famo-seed
+  run make owl-seed
   run make release-artifacts \
     "DEV_ID=$dev_id" \
     "NOTARY_PROFILE=$notary_profile" \
@@ -124,21 +124,21 @@ if ((dry_run)); then
   dmg='<cohort versioned DMG>'
   pkg='<cohort installer pkg>'
   published_assets=(
-    '<cohort Famo.pkg>'
-    '<cohort Famo-update.pkg>'
-    '<cohort Famo-version.dmg>'
+    '<cohort Owltype.pkg>'
+    '<cohort Owltype-update.pkg>'
+    '<cohort Owltype-version.dmg>'
     '<cohort appcast.xml>'
     '<cohort source.tar.gz>'
     '<cohort source.tar.gz.sha256>'
-    '<cohort FAMOTYPE-FILE-MANIFEST.sha256>'
-    '<cohort FAMOTYPE-SBOM.spdx.json>'
-    '<cohort FAMOTYPE-APP-PROVENANCE.txt>'
-    '<cohort FAMOTYPE-RELEASE-COHORT.json>'
+    '<cohort OWLTYPE-FILE-MANIFEST.sha256>'
+    '<cohort OWLTYPE-SBOM.spdx.json>'
+    '<cohort OWLTYPE-APP-PROVENANCE.txt>'
+    '<cohort OWLTYPE-RELEASE-COHORT.json>'
   )
 else
   dmg="$(python3 "$STATE" artifact-path "$output_root" dmg)"
   pkg="$(python3 "$STATE" artifact-path "$output_root" installer-pkg)"
-  asset_list_file="$(mktemp "${TMPDIR:-/tmp}/famo-published-assets.XXXXXX")"
+  asset_list_file="$(mktemp "${TMPDIR:-/tmp}/owl-published-assets.XXXXXX")"
   if ! bash "$ROOT/scripts/check-published-release.sh" --print0 \
       "$output_root" >"$asset_list_file"; then
     rm -f "$asset_list_file"

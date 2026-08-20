@@ -7,9 +7,9 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cache_root="${FAMOTYPE_SEED_CACHE:-/tmp/famotype-rime-seed}"
+cache_root="${OWLTYPE_SEED_CACHE:-/tmp/owltype-rime-seed}"
 source_dir="$cache_root/rime-ice"
-output_dir="$repo_root/data/famo-rime"
+output_dir="$repo_root/data/owl-rime"
 rime_ice_remote="https://github.com/iDvel/rime-ice.git"
 rime_ice_sha="b681a34f788795034b3b288830f4861980bc8b0d"
 unihan_version="16.0.0"
@@ -107,7 +107,7 @@ sed \
   -e '/reverse_lookup_filter@radical_reverse_lookup/d' \
   -e '/lua_filter@\*search@radical_pinyin/d' \
   "$source_dir/rime_ice.schema.yaml" > "$output_dir/rime_ice.schema.yaml"
-# Famo 出厂默认：候选 emoji 关（emoji switch reset 1→0）+ off 态标签 💀→👍（rime-ice 的骷髅
+# Owltype 出厂默认：候选 emoji 关（emoji switch reset 1→0）+ off 态标签 💀→👍（rime-ice 的骷髅
 # 不吉利，每次重新部署 reset 都会弹一次；2026-07-26 用户要求换大拇指，on 态保留 😄）。
 # 必须落共享 schema——用户目录 custom.yaml 覆盖不到升级用户（首次 seed 不覆盖已有文件）。
 # 锚定编辑，找不到即硬失败；check-release.sh 有对应断言。清洁室重写时曾把 reset 补丁弄丢
@@ -157,22 +157,22 @@ def set_states_after(name, states_literal):
     return False
 
 if not set_reset_after("emoji", 0):
-    sys.exit("[famotype-seed][schema-patch] ERROR: emoji switch (with reset:) not found in rime_ice.schema.yaml")
+    sys.exit("[owltype-seed][schema-patch] ERROR: emoji switch (with reset:) not found in rime_ice.schema.yaml")
 if not set_states_after("emoji", "[ 👍, 😄 ]"):
-    sys.exit("[famotype-seed][schema-patch] ERROR: emoji switch states not found in rime_ice.schema.yaml")
+    sys.exit("[owltype-seed][schema-patch] ERROR: emoji switch states not found in rime_ice.schema.yaml")
 # 中英切换提示：英文态显示「英」而非「Ａ」（task 06-27 用户要求，2026-07-26 从全量种子搬入）。
 if not set_states_after("ascii_mode", "[ 中, 英 ]"):
-    sys.exit("[famotype-seed][schema-patch] ERROR: ascii_mode switch states not found in rime_ice.schema.yaml")
+    sys.exit("[owltype-seed][schema-patch] ERROR: ascii_mode switch states not found in rime_ice.schema.yaml")
 with open(path, "w", encoding="utf-8") as f:
     f.writelines(lines)
-print("[famotype-seed] patched rime_ice.schema.yaml: emoji reset 1 -> 0 (factory off) states -> [👍, 😄], ascii_mode states -> [中, 英]")
+print("[owltype-seed] patched rime_ice.schema.yaml: emoji reset 1 -> 0 (factory off) states -> [👍, 😄], ascii_mode states -> [中, 英]")
 PYEOF
 cp "$repo_root/data/rime_ice.public.dict.yaml" "$output_dir/rime_ice.dict.yaml"
 python3 "$repo_root/scripts/unihan-to-rime.py" \
-  "$unihan_archive" "$output_dir/cn_dicts/famotype_unicode.dict.yaml"
-python3 "$repo_root/scripts/build-famotype-base.py" \
+  "$unihan_archive" "$output_dir/cn_dicts/owltype_unicode.dict.yaml"
+python3 "$repo_root/scripts/build-owltype-base.py" \
   "$unihan_archive" "$jieba_dict_file" "$ppd_pinyin_file" \
-  "$output_dir/cn_dicts/famotype_base.dict.yaml" \
+  "$output_dir/cn_dicts/owltype_base.dict.yaml" \
   "$unihan_version-jieba${jieba_tag#v}-ppd${ppd_sha:0:7}"
 cp "$source_dir/default.yaml" "$output_dir/"
 cp \
@@ -193,23 +193,23 @@ cp "$repo_root/librime/LICENSE" "$output_dir/librime.LICENSE"
 cp "$repo_root/librime-lua/LICENSE" "$output_dir/librime-lua.LICENSE"
 cp "$repo_root/plum/LICENSE" "$output_dir/plum.LICENSE"
 cp "$repo_root/librime/deps/opencc/LICENSE" "$output_dir/OpenCC.LICENSE"
-cp "$repo_root/data/famo.yaml" "$output_dir/famo.yaml"
+cp "$repo_root/data/owltype.yaml" "$output_dir/owltype.yaml"
 cp "$repo_root/rime/"*.custom.yaml "$output_dir/_user_seed/"
 
-cat > "$output_dir/FAMOTYPE-SEED-SOURCES.md" <<EOF
-# Famotype public seed source map
+cat > "$output_dir/OWLTYPE-SEED-SOURCES.md" <<EOF
+# Owltype public seed source map
 
 The Chinese dictionary in this seed has exactly three data inputs:
 
-- \`cn_dicts/famotype_base.dict.yaml\` is generated from jieba \`dict.txt\` at
+- \`cn_dicts/owltype_base.dict.yaml\` is generated from jieba \`dict.txt\` at
   tag \`$jieba_tag\` (MIT), phrase-pinyin-data \`pinyin.txt\` at revision
   \`$ppd_sha\` (MIT), and Unicode $unihan_version Unihan fields \`kTGH\`,
   \`kTGHZ2013\`, \`kMandarin\`, and \`kHanyuPinlu\` under Unicode-3.0. Every
   entry is restricted to the 通用规范汉字表 character set (Unihan \`kTGH\` 2013),
   which keeps traditional-form and rare characters out of the word candidates.
-- \`cn_dicts/famotype_unicode.dict.yaml\` is generated from Unicode $unihan_version
+- \`cn_dicts/owltype_unicode.dict.yaml\` is generated from Unicode $unihan_version
   \`Unihan_Readings.txt\` field \`kMandarin\` under Unicode-3.0. It carries no
-  weights, so it only serves as a rare-character fallback below famotype_base.
+  weights, so it only serves as a rare-character fallback below owltype_base.
 
 Only the curated \`pinyin.txt\` file of phrase-pinyin-data is used. Its
 \`large_pinyin.txt\`, \`cc_cedict.txt\`, and \`zdic_*\` files are excluded
@@ -225,7 +225,7 @@ excluded rather than relying on an unverified or mixed-source license chain.
 EOF
 
 {
-  echo "Famotype local-core Rime seed"
+  echo "Owltype local-core Rime seed"
   echo "rime-ice $rime_ice_sha"
   echo "source $rime_ice_remote"
   echo "unicode-unihan $unihan_version $unihan_sha"
@@ -240,6 +240,6 @@ EOF
   echo "rime-ice cn_dicts and en_dicts omitted after provenance review"
   echo "wubi omitted pending provenance review"
   echo "octagram data omitted from the local-core seed"
-} > "$output_dir/FAMOTYPE-SEED-MANIFEST.txt"
+} > "$output_dir/OWLTYPE-SEED-MANIFEST.txt"
 
-echo "[famotype-seed] assembled pinned rime-ice seed at $output_dir"
+echo "[owltype-seed] assembled pinned rime-ice seed at $output_dir"

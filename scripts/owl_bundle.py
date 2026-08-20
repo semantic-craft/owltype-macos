@@ -1,6 +1,6 @@
 """Shared bundle-walking and inventory helpers.
 
-Two scripts need to agree bit-for-bit on how a Famo.app is walked and hashed:
+Two scripts need to agree bit-for-bit on how a Owltype.app is walked and hashed:
 finalize-release-bundle.py (the pre-signing gate) and inventory-release-bundle.py
 (the shipped-artifact inventory). Keeping the walk in one module is deliberate —
 this repo has already been bitten by two copies of the same logic drifting apart.
@@ -18,23 +18,23 @@ import stat
 from pathlib import Path
 
 
-MANIFEST_NAME = "FAMOTYPE-FILE-MANIFEST.sha256"
-SBOM_NAME = "FAMOTYPE-SBOM.spdx.json"
+MANIFEST_NAME = "OWLTYPE-FILE-MANIFEST.sha256"
+SBOM_NAME = "OWLTYPE-SBOM.spdx.json"
 # Binds an inventory to the commit and version it was taken from. Without it,
 # "the inventory exists" is not the same claim as "the inventory describes the
 # App built from this source" — see the staleness check in create-source-archive.sh.
-PROVENANCE_NAME = "FAMOTYPE-APP-PROVENANCE.txt"
-COHORT_NAME = "FAMOTYPE-RELEASE-COHORT.json"
+PROVENANCE_NAME = "OWLTYPE-APP-PROVENANCE.txt"
+COHORT_NAME = "OWLTYPE-RELEASE-COHORT.json"
 COHORT_SCHEMA_VERSION = 4
 INVENTORY_NAMES = (MANIFEST_NAME, SBOM_NAME, PROVENANCE_NAME)
-RELEASE_APP_RELATIVE = Path("Build/Products/Release/Famo.app")
+RELEASE_APP_RELATIVE = Path("Build/Products/Release/Owltype.app")
 RELEASE_INVENTORY_RELATIVE = Path("release")
 RELEASE_ARTIFACTS = ("app", "installer-pkg", "update-pkg", "dmg")
 RELEASE_ARTIFACT_STATES = ("built", "signed", "notarized", "stapled", "failed")
 RELEASE_OUTPUTS = ("appcast", "source-archive")
 
 COMPONENTS = (
-    ("Famotype", None, "GPL-3.0-only", "https://responsay.com/famo/"),
+    ("Owltype", None, "GPL-3.0-only", "https://responsay.com/owltype/"),
     ("Squirrel-derived frontend", "4db2c85ac639c229e14fd9424f79c3c4f97ce478", "GPL-3.0-only", "https://github.com/rime/squirrel"),
     ("librime", "33e78140250125871856cdc5b42ddc6a5fcd3cd4", "BSD-3-Clause", "https://github.com/rime/librime"),
     ("librime-lua", "ec52e48ea18f11af37717a01c337f853215cf70b", "BSD-3-Clause", "https://github.com/hchunhui/librime-lua"),
@@ -96,7 +96,7 @@ def validate_app_executable(app: Path) -> None:
         raise ValueError(f"cannot inspect release App root: {error}") from error
     if not stat.S_ISDIR(app_mode):
         raise ValueError("release App root is not a regular directory")
-    executable = app / "Contents/MacOS/Famo"
+    executable = app / "Contents/MacOS/Owltype"
     try:
         executable_mode = executable.lstat().st_mode
     except OSError as error:
@@ -299,11 +299,11 @@ def make_sbom(app: Path, version: str, revision: str, created: str) -> dict:
 
     return {
         "SPDXID": "SPDXRef-DOCUMENT",
-        "creationInfo": {"created": created, "creators": ["Tool: famotype-finalize-release-bundle"]},
+        "creationInfo": {"created": created, "creators": ["Tool: owltype-finalize-release-bundle"]},
         "dataLicense": "CC0-1.0",
-        "documentNamespace": f"https://responsay.com/famo/releases/{version}/spdx/{revision}",
+        "documentNamespace": f"https://responsay.com/owltype/releases/{version}/spdx/{revision}",
         "files": files,
-        "name": f"Famotype-{version}",
+        "name": f"Owltype-{version}",
         "packages": packages,
         "relationships": [
             {"spdxElementId": "SPDXRef-DOCUMENT", "relationshipType": "DESCRIBES", "relatedSpdxElement": "SPDXRef-Package-1"},

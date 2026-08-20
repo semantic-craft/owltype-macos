@@ -1,6 +1,6 @@
-# Famo 提示词 Responses API 评测标准
+# Owltype 提示词 Responses API 评测标准
 
-本标准用于回答一个窄问题：Famo 当前真实提示词在三个生产模型的 Responses API 上是否可用、
+本标准用于回答一个窄问题：Owltype 当前真实提示词在三个生产模型的 Responses API 上是否可用、
 守约、够快。
 
 产品模型范围（2026-07-31 产品决定）：
@@ -27,7 +27,7 @@ Flash 型号不受限制。
    - 来源核验、辅助检索、规范排版、翻译；
    - 直接润色；
    - 提示词优化与目标任务书的两条澄清续跑路径。
-3. `FamoPromptPresets.templates` 中五个内置 XML 模板，填入固定样例后逐一执行。
+3. `OwlPromptPresets.templates` 中五个内置 XML 模板，填入固定样例后逐一执行。
 
 声明了但没有产品调用方的提示词不算“可达覆盖”；评测报告必须把它标成孤立提示词，
 避免把测试调用误报成产品覆盖。
@@ -41,14 +41,14 @@ Flash 型号不受限制。
 | `qwen3.7-plus` / `qwen3.7-max` | `https://dashscope.aliyuncs.com/compatible-mode/v1/responses` | `reasoning.effort = none` |
 | `doubao-seed-2-1-pro-260628` | `https://ark.cn-beijing.volces.com/api/v3/responses` | `thinking.type = disabled` |
 
-- 请求体由生产代码 `FamoResponsesWire.body` 构造，与产品请求逐字节同源；
+- 请求体由生产代码 `OwlResponsesWire.body` 构造，与产品请求逐字节同源；
 - 来源核验：强制联网（千问 `tool_choice = required`；方舟 `web_search` 工具 + `max_tool_calls`）；
 - 每项使用一份固定、无隐私的代表性输入；失败项允许再跑一次定位随机性，但第二次通过仍要标记首轮失败。
 
 ## 3. 全量矩阵（默认基线模型）
 
 `qwen3.7-plus` 运行完整提示词矩阵（17 个生产可达案例 + 1 个孤立案例），承载
-`FamoResponsesPromptEvaluationLiveTests`。
+`OwlResponsesPromptEvaluationLiveTests`。
 
 ### 覆盖门
 
@@ -82,7 +82,7 @@ Flash 型号不受限制。
 ## 4. 三模型固定划词矩阵
 
 对 `qwen3.7-plus`、`qwen3.7-max`、`doubao-seed-2-1-pro-260628` 分别运行 8 个固定划词案例，
-每项连续 3 轮，共 72 次请求，承载 `FamoTriModelSelectionMatrixLiveTests`。8 案例与划词
+每项连续 3 轮，共 72 次请求，承载 `OwlTriModelSelectionMatrixLiveTests`。8 案例与划词
 工具箱的 8 个技能一一对应：
 
 | # | 案例 | 层级 | 专属硬门 |
@@ -108,19 +108,19 @@ Flash 型号不受限制。
 ## 5. 总体判定
 
 只有覆盖门、全部质量硬门和对应性能门同时通过，才能称为“Responses API 全量评测通过”；
-三模型矩阵需三个模型全部通过。自动化通过不等于界面端到端通过；发布前仍需在真实 Famo
+三模型矩阵需三个模型全部通过。自动化通过不等于界面端到端通过；发布前仍需在真实 Owltype
 窗口触发至少一次直接替换、预览确认和来源跳转。
 
 ## 6. 证据
 
-实盘 XCTest 默认跳过。在 IDE 中可显式设置 `FAMO_RUN_LIVE_PROMPT_EVAL=1`；命令行因
-Xcode 测试宿主会净化 shell 环境，使用 `FAMO_LIVE_PROMPT_EVAL` 编译条件。API Key 读取：
+实盘 XCTest 默认跳过。在 IDE 中可显式设置 `OWL_RUN_LIVE_PROMPT_EVAL=1`；命令行因
+Xcode 测试宿主会净化 shell 环境，使用 `OWL_LIVE_PROMPT_EVAL` 编译条件。API Key 读取：
 
-- 千问：`DASHSCOPE_API_KEY`（IDE）或仓库外 `~/.famo-test-key`（命令行）；
-- 豆包：`ARK_API_KEY`（IDE）或仓库外 `~/.famo-test-key-doubao`（命令行）。
+- 千问：`DASHSCOPE_API_KEY`（IDE）或仓库外 `~/.owl-test-key`（命令行）；
+- 豆包：`ARK_API_KEY`（IDE）或仓库外 `~/.owl-test-key-doubao`（命令行）。
 
-全量矩阵报告写到 `/tmp/famo-responses-prompt-eval/report.json`；三模型矩阵报告写到
-`/tmp/famo-tri-model-eval/report-<model>.json`，逐项输出写到同目录；不记录 API Key，
+全量矩阵报告写到 `/tmp/owl-responses-prompt-eval/report.json`；三模型矩阵报告写到
+`/tmp/owl-tri-model-eval/report-<model>.json`，逐项输出写到同目录；不记录 API Key，
 不把报告或模型输出提交进仓库。
 
 ## 7. 结果记录

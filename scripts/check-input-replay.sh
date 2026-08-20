@@ -5,28 +5,28 @@
 # 固定测试词库 = 已装 app 的 SharedSupport 方案；空用户数据根 = 每跑一次全新 mktemp 目录
 # 从 _user_seed 播种（与 check-installed.sh 同法，零污染真机 ~/Library/Rime）。
 #
-# 复用现有 tools/famo-rime-probe.cc（rime->simulate_key_sequence 已支持 {BackSpace}/
+# 复用现有 tools/owl-rime-probe.cc（rime->simulate_key_sequence 已支持 {BackSpace}/
 # {Page_Down}/标点/commit），无需改探针。金值均实测 pin。
 #
 # 覆盖：简候选 / 空格上屏 commit / 标点 / 退格 / 翻页 / 多方案 / 简繁。
 # 跨 App commit 属 IMK/真机层、探针无法自动化 → 见 smoke-live.sh 的人工 checklist。
 #
 # 用法：  bash scripts/check-input-replay.sh        # 对已装 /Library 或 ~/Library 的 app
-#         OWL_APP=/path/to/Famo.app bash scripts/check-input-replay.sh
+#         OWL_APP=/path/to/Owltype.app bash scripts/check-input-replay.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if [[ -n "${OWL_APP:-}" ]]; then
   APP="$OWL_APP"
-elif [[ -d "/Library/Input Methods/Famo.app" ]]; then
-  APP="/Library/Input Methods/Famo.app"
+elif [[ -d "/Library/Input Methods/Owltype.app" ]]; then
+  APP="/Library/Input Methods/Owltype.app"
 else
-  APP="$HOME/Library/Input Methods/Famo.app"
+  APP="$HOME/Library/Input Methods/Owltype.app"
 fi
 SS="$APP/Contents/SharedSupport"
-PROBE="$ROOT/build/famo-rime-probe"
-PROBE_SRC="$ROOT/tools/famo-rime-probe.cc"
+PROBE="$ROOT/build/owl-rime-probe"
+PROBE_SRC="$ROOT/tools/owl-rime-probe.cc"
 
 pass() { printf 'PASS: %s\n' "$1"; }
 fail() { printf 'FAIL: %s\n' "$1" >&2; failed=1; }
@@ -47,7 +47,7 @@ fi
 [[ -x "$PROBE" ]] || { printf 'FAIL: probe not built: %s\n' "$PROBE" >&2; exit 1; }
 
 # Empty user data root, seeded from the bundled _user_seed (fresh per run).
-UD="$(mktemp -d "${TMPDIR:-/tmp}/famo-replay.XXXXXX")"
+UD="$(mktemp -d "${TMPDIR:-/tmp}/owl-replay.XXXXXX")"
 trap 'rm -rf "$UD"' EXIT
 cp -R "$SS/_user_seed/." "$UD/"
 mkdir -p "$UD/build"

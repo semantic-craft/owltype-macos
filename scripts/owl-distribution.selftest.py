@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from famo_distribution import (
+from owl_distribution import (
     CLIENT_FEED_URL,
     IMMUTABLE_CACHE_CONTROL,
     STABLE_CACHE_CONTROL,
@@ -52,16 +52,16 @@ class FakePublicVerifier:
 
 def fixture_assets(root: Path, version: str) -> list[Path]:
     names = [
-        "Famo.pkg",
-        "Famo-update.pkg",
-        f"Famo-{version}.dmg",
+        "Owltype.pkg",
+        "Owltype-update.pkg",
+        f"Owltype-{version}.dmg",
         "appcast.xml",
-        f"Famotype-macOS-{version}-source.tar.gz",
-        f"Famotype-macOS-{version}-source.tar.gz.sha256",
-        "FAMOTYPE-FILE-MANIFEST.sha256",
-        "FAMOTYPE-SBOM.spdx.json",
-        "FAMOTYPE-APP-PROVENANCE.txt",
-        "FAMOTYPE-RELEASE-COHORT.json",
+        f"Owltype-macOS-{version}-source.tar.gz",
+        f"Owltype-macOS-{version}-source.tar.gz.sha256",
+        "OWLTYPE-FILE-MANIFEST.sha256",
+        "OWLTYPE-SBOM.spdx.json",
+        "OWLTYPE-APP-PROVENANCE.txt",
+        "OWLTYPE-RELEASE-COHORT.json",
     ]
     assets = []
     for index, name in enumerate(names):
@@ -74,15 +74,15 @@ def fixture_assets(root: Path, version: str) -> list[Path]:
 class DistributionPlanTests(unittest.TestCase):
     def test_versioned_update_url_uses_responsay_download_host(self) -> None:
         self.assertEqual(
-            versioned_asset_url("162", "Famo-update.pkg"),
-            "https://downloads.responsay.com/famo/releases/162/Famo-update.pkg",
+            versioned_asset_url("162", "Owltype-update.pkg"),
+            "https://downloads.responsay.com/owltype/releases/162/Owltype-update.pkg",
         )
 
     def test_versioned_update_url_rejects_path_segments(self) -> None:
         with self.assertRaises(DistributionError):
-            versioned_asset_url("1.6.2", "../Famo-update.pkg")
+            versioned_asset_url("1.6.2", "../Owltype-update.pkg")
         with self.assertRaises(DistributionError):
-            versioned_asset_url("1..6", "Famo-update.pkg")
+            versioned_asset_url("1..6", "Owltype-update.pkg")
 
     def test_plan_uploads_complete_cohort_then_atomic_pointer_and_feed_last(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -101,14 +101,14 @@ class DistributionPlanTests(unittest.TestCase):
         )
         self.assertEqual(
             versioned[1].url,
-            "https://downloads.responsay.com/famo/releases/162/Famo-update.pkg",
+            "https://downloads.responsay.com/owltype/releases/162/Owltype-update.pkg",
         )
-        self.assertEqual(plan[-2].key, "famo/latest.json")
-        self.assertEqual(plan[-1].key, "famo/appcast.xml")
+        self.assertEqual(plan[-2].key, "owltype/latest.json")
+        self.assertEqual(plan[-1].key, "owltype/appcast.xml")
         self.assertEqual(plan[-1].cache_control, STABLE_CACHE_CONTROL)
         self.assertFalse(plan[-1].immutable)
         self.assertEqual(plan[-1].source.name, "appcast.xml")
-        self.assertNotIn("famo/latest/Famo-update.pkg", [item.key for item in plan])
+        self.assertNotIn("owltype/latest/Owltype-update.pkg", [item.key for item in plan])
 
     def test_plan_rejects_incomplete_corresponding_source_contract(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -120,13 +120,13 @@ class DistributionPlanTests(unittest.TestCase):
 
 class PublisherTests(unittest.TestCase):
     def test_r2_store_requires_the_exact_pinned_wrangler(self) -> None:
-        with patch("famo_distribution.shutil.which", return_value=None):
+        with patch("owl_distribution.shutil.which", return_value=None):
             with self.assertRaisesRegex(DistributionError, WRANGLER_VERSION):
                 WranglerR2Store()
         with (
-            patch("famo_distribution.shutil.which", return_value="/fixture/wrangler"),
+            patch("owl_distribution.shutil.which", return_value="/fixture/wrangler"),
             patch(
-                "famo_distribution.subprocess.check_output",
+                "owl_distribution.subprocess.check_output",
                 return_value="4.124.0\n",
             ),
         ):
@@ -148,17 +148,17 @@ class PublisherTests(unittest.TestCase):
 
         self.assertEqual(events[0], f"REUSE {first.key}")
         self.assertNotIn(first.key, store.puts)
-        self.assertEqual(store.puts[-1], "famo/appcast.xml")
+        self.assertEqual(store.puts[-1], "owltype/appcast.xml")
         self.assertEqual(len(verifier.verified), len(plan) + 5)
         manual_urls = [url for url, _ in verifier.verified[-6:-1]]
         self.assertEqual(
             manual_urls,
             [
-                "https://responsay.com/famo/Famo.pkg",
-                "https://responsay.com/famo/Famo-update.pkg",
-                "https://responsay.com/famo/Famo.dmg",
-                "https://responsay.com/famo/source.tar.gz",
-                "https://downloads.responsay.com/famo/appcast.xml",
+                "https://responsay.com/owltype/Owltype.pkg",
+                "https://responsay.com/owltype/Owltype-update.pkg",
+                "https://responsay.com/owltype/Owltype.dmg",
+                "https://responsay.com/owltype/source.tar.gz",
+                "https://downloads.responsay.com/owltype/appcast.xml",
             ],
         )
         self.assertEqual(verifier.verified[-1][0], CLIENT_FEED_URL)
@@ -166,7 +166,7 @@ class PublisherTests(unittest.TestCase):
     def test_website_aliases_do_not_confuse_installer_with_update_package(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             assets = fixture_assets(Path(directory), "1.6.3")
-            assets.sort(key=lambda path: path.name != "Famo-update.pkg")
+            assets.sort(key=lambda path: path.name != "Owltype-update.pkg")
             plan = build_publish_plan(
                 assets,
                 version="1.6.3",
@@ -175,15 +175,15 @@ class PublisherTests(unittest.TestCase):
             verifier = FakePublicVerifier()
             publish(plan, FakeObjectStore(), verifier)
 
-        installer = next(item for item in plan if item.source.name == "Famo.pkg")
-        update = next(item for item in plan if item.source.name == "Famo-update.pkg")
+        installer = next(item for item in plan if item.source.name == "Owltype.pkg")
+        update = next(item for item in plan if item.source.name == "Owltype-update.pkg")
         verified = dict(verifier.verified)
         self.assertNotEqual(installer.sha256, update.sha256)
         self.assertEqual(
-            verified["https://responsay.com/famo/Famo.pkg"], installer.sha256
+            verified["https://responsay.com/owltype/Owltype.pkg"], installer.sha256
         )
         self.assertEqual(
-            verified["https://responsay.com/famo/Famo-update.pkg"], update.sha256
+            verified["https://responsay.com/owltype/Owltype-update.pkg"], update.sha256
         )
 
     def test_publish_rejects_replacement_of_immutable_versioned_object(self) -> None:

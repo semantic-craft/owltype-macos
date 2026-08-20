@@ -28,6 +28,10 @@ esac
 fail=0
 
 # The scan scripts legitimately carry the forbidden literals as patterns and fixtures.
+# check-public-privacy.sh and its self-test are the same category for a different gate: the
+# retired private repositories really are named after the old brand, and that gate exists to
+# keep those exact names out of the public tree. Rewriting the literals there would silently
+# disarm it, so they stay verbatim and this gate looks away.
 # CHANGELOG keeps its historical entries verbatim, and the two plan documents are the
 # record of the 法墨 era, deliberately left as written (plan §2.5; the same whitelist is
 # fixed in .scratch/rename-owltype/EXECUTION.md §3). The submodules are upstream vendor
@@ -46,6 +50,8 @@ SCAN_EXCLUDE=(
   -g '!scripts/check-identity-residual.sh'
   -g '!scripts/check-identity-residual.selftest.sh'
   -g '!scripts/owl-identity.sh'
+  -g '!scripts/check-public-privacy.sh'
+  -g '!scripts/check-public-privacy.selftest.sh'
   -g '!CHANGELOG.md'
   -g '!docs/rename-owltype-plan.md'
   -g '!docs/default-input-method-plan.md'

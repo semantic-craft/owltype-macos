@@ -5,7 +5,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GATE="$ROOT/scripts/check-release.sh"
-work="$(mktemp -d /tmp/famo-release-selftest.XXXXXX)"
+work="$(mktemp -d /tmp/owl-release-selftest.XXXXXX)"
 trap 'rm -rf "$work"' EXIT
 
 pass=0

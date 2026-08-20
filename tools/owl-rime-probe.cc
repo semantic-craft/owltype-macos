@@ -26,10 +26,10 @@ int main(int argc, char* argv[]) {
   traits.user_data_dir = user_data_dir;
   traits.prebuilt_data_dir = prebuilt_data_dir;
   traits.staging_dir = staging_dir;
-  traits.distribution_name = "法墨输入法";
-  traits.distribution_code_name = "Famo";
+  traits.distribution_name = "猫头鹰输入法";
+  traits.distribution_code_name = "Owltype";
   traits.distribution_version = "probe";
-  traits.app_name = "rime.famo-probe";
+  traits.app_name = "rime.owl-probe";
   traits.modules = kModules;
   traits.min_log_level = 2;
   traits.log_dir = "";
