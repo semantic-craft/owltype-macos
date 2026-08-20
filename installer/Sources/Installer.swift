@@ -1,7 +1,7 @@
 // Installer — 安装/卸载的全部副作用逻辑（无 UI）。
 //
-// 安全纪律（卸载白名单，照搬 scripts/uninstall-famo.sh 精神）：
-//   - 删除目标 **硬编码** 为法墨自有路径，绝不触碰 Squirrel / ~/Library/Rime / im.rime /
+// 安全纪律（卸载白名单，照搬 scripts/uninstall-owltype.sh 精神）：
+//   - 删除目标 **硬编码** 为猫头鹰自有路径，绝不触碰 Squirrel / ~/Library/Rime / im.rime /
 //     Sogou / 搜狗 / Weasel 等他人输入法。
 //   - root 陷阱：`do shell script ... with administrator privileges` 以 root 运行，$HOME 会变成
 //     /var/root，所以用户目录下的清理 **绝不** 交给 root 跑——用安装器进程自身（= 登录用户）的
@@ -21,7 +21,7 @@ enum InstallerError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .embeddedAppNotFound:
-            return "未找到内嵌 Famo.app（打包问题）"
+            return "未找到内嵌 Owltype.app（打包问题）"
         case .userCancelled:
             return "已取消"
         case .validationFailed(let message):
@@ -35,9 +35,9 @@ enum InstallerError: LocalizedError {
 }
 
 enum Installer {
-    /// 系统输入法目录里的法墨安装位置。
-    static let installedAppPath = "/Library/Input Methods/Famo.app"
-    private static let expectedBundleID = "im.famo.inputmethod.Famo"
+    /// 系统输入法目录里的猫头鹰安装位置。
+    static let installedAppPath = "/Library/Input Methods/Owltype.app"
+    private static let expectedBundleID = "im.owltype.inputmethod.Owltype"
     private static let expectedTeamID = "LQAVR62TK2"
 
     private struct AppMetadata {
@@ -53,14 +53,14 @@ enum Installer {
         case replaceInvalidExisting
     }
 
-    // MARK: - 内嵌 Famo.app 定位
+    // MARK: - 内嵌 Owltype.app 定位
 
-    /// 内嵌的 Famo.app = 安装器自身 Contents/Library/Famo.app（由 P3 打包时放入）。
+    /// 内嵌的 Owltype.app = 安装器自身 Contents/Library/Owltype.app（由 P3 打包时放入）。
     /// 放 Contents/Library（Apple 约定的嵌套代码位置），不放 Contents/Resources——避免真公证
     /// 时对 Resources 里嵌套可执行代码的潜在拒绝（WeChat/Sogou 也不把裸 .app 放 Resources）。
-    /// P2 阶段它尚不存在，运行到 install() 会按预期报「未找到内嵌 Famo.app」。
-    static func embeddedFamoAppURL() -> URL? {
-        let url = Bundle.main.bundleURL.appendingPathComponent("Contents/Library/Famo.app")
+    /// P2 阶段它尚不存在，运行到 install() 会按预期报「未找到内嵌 Owltype.app」。
+    static func embeddedOwltypeAppURL() -> URL? {
+        let url = Bundle.main.bundleURL.appendingPathComponent("Contents/Library/Owltype.app")
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
@@ -69,7 +69,7 @@ enum Installer {
     /// 安装/更新主流程。返回激活计划：调用方（ViewModel）据此在主 runloop 上启动
     /// `InstallerActivationVerifier`（consent 等待 + 读回验证 + best-effort select 重试）。
     static func install() throws -> InstallerActivationPolicy.ActivationPlan {
-        guard let embedded = embeddedFamoAppURL() else {
+        guard let embedded = embeddedOwltypeAppURL() else {
             throw InstallerError.embeddedAppNotFound
         }
         let payload = try validatePayload(at: embedded)
@@ -78,12 +78,12 @@ enum Installer {
         // 挪走）之前取到，否则被本安装流程自己污染（Sparkle 先杀宿主的同型顺序陷阱）。绝不用
         // kTISPropertyInputSourceIsEnabled 当判据（定律 4：对 default-on 的 Hans 恒 true）。
         let bundlePreexisted = FileManager.default.fileExists(atPath: installedAppPath)
-        let famoWasRunning = famoProcessIsRunning()
-        let famoWasCurrentSource = DispatchQueue.main.sync { currentSourceIsFamo() }
+        let owltypeWasRunning = owltypeProcessIsRunning()
+        let owltypeWasCurrentSource = DispatchQueue.main.sync { currentSourceIsOwltype() }
         let plan = InstallerActivationPolicy.plan(
             bundlePreexisted: bundlePreexisted,
-            famoProcessWasRunning: famoWasRunning,
-            famoWasCurrentSource: famoWasCurrentSource)
+            owltypeProcessWasRunning: owltypeWasRunning,
+            owltypeWasCurrentSource: owltypeWasCurrentSource)
 
         // 降级拒绝 / 嵌套坏包等既有校验仍走 installKind（分类本身不再驱动 enable/select——那由
         // 上面的复合判据 plan 决定）。
@@ -92,21 +92,21 @@ enum Installer {
         // 定律 12：kill 当前选中的 IME 前先切出到 ABC，否则重启后菜单可能不显示；装完由
         // verifier 的 select 重试配对切回。
         if plan.parkOnABCBeforeReplace {
-            parkCurrentSourceOnABC(usingEmbeddedFamoApp: embedded)
+            parkCurrentSourceOnABC(usingEmbeddedOwltypeApp: embedded)
         }
 
-        terminateUserProcess(named: "Famo")
+        terminateUserProcess(named: "Owltype")
         try privilegedReplace(fromAppPath: embedded.path)
         try validateInstalledApp(expected: payload)
         // 校验提权拷贝确实以 root 跑成（用户实测过「没问密码 / 没拷成」却假报成功的情况）。
-        let installedExecutable = installedAppPath + "/Contents/MacOS/Famo"
+        let installedExecutable = installedAppPath + "/Contents/MacOS/Owltype"
         guard FileManager.default.isExecutableFile(atPath: installedExecutable),
-              !FileManager.default.fileExists(atPath: installedAppPath + "/Famo.app") else {
+              !FileManager.default.fileExists(atPath: installedAppPath + "/Owltype.app") else {
             throw InstallerError.privilegedCommandFailed(
                 "拷贝后未发现有效的 \(installedAppPath)（提权可能未执行，或旧包未删除干净）")
         }
         // TIS register/enable 都在「安装器进程」内做：本进程
-        // 就是登录用户 Aqua 会话里的已签名 GUI App，满足 enable 的全部真必要条件（见 task 07-02-famo
+        // 就是登录用户 Aqua 会话里的已签名 GUI App，满足 enable 的全部真必要条件（见首装免注销专题 07-02
         // research/web-cross-validation-no-logout.md——「必须 IME 自身进程」系已证伪的误归因）。
         // TIS API 必须在主线程调用（后台线程调 TISCreateInputSourceList 会 dispatch_assert_queue_fail
         // 崩溃），install() 跑在后台队列，故 main.sync 切回主线程（不会死锁）。select 不在这里做
@@ -114,19 +114,19 @@ enum Installer {
         try DispatchQueue.main.sync {
             try registerAndEnableInputSources(plan: plan)
         }
-        // 先触发 Famo.app 自带的 install-once registration repair，再无参数启动 Famo.app 让它注册
+        // 先触发 Owltype.app 自带的 install-once registration repair，再无参数启动 Owltype.app 让它注册
         // InputMethodKit Mach endpoint。`--activate-once` 是 CLI 修复命令，会立即退出，不能
         // 单独承担“可打字”的验收；微信/搜狗的关键差异是安装后有 live IMK server。
         try launchInstalledAppForActivation()
         return plan
     }
 
-    /// pgrep 登录用户域的 Famo 进程（复合判据副信号）：进程活着 ⟺ 已被 register+enable 过
+    /// pgrep 登录用户域的 Owltype 进程（复合判据副信号）：进程活着 ⟺ 已被 register+enable 过
     /// （IMK 只拉起已启用的输入法——fcitx5 幂等判据，比会撒谎的 IsEnabled 可靠）。
-    private static func famoProcessIsRunning() -> Bool {
+    private static func owltypeProcessIsRunning() -> Bool {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-        process.arguments = ["-U", "\(getuid())", "-x", "Famo"]
+        process.arguments = ["-U", "\(getuid())", "-x", "Owltype"]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         do {
@@ -138,8 +138,8 @@ enum Installer {
         return process.terminationStatus == 0
     }
 
-    /// 当前系统输入源是否法墨（只读 TIS；主线程调用）。
-    private static func currentSourceIsFamo() -> Bool {
+    /// 当前系统输入源是否猫头鹰（只读 TIS；主线程调用）。
+    private static func currentSourceIsOwltype() -> Bool {
         let source = TISCopyCurrentKeyboardInputSource().takeRetainedValue()
         guard let ref = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) else {
             return false
@@ -147,13 +147,13 @@ enum Installer {
         return (unsafeBitCast(ref, to: CFString.self) as String).hasPrefix(inputMethodID)
     }
 
-    /// 定律 12 的「切出」半边：另起子进程跑 **内嵌新版** Famo 的 CLI 切到 ABC（postinstall 同款命令）。
+    /// 定律 12 的「切出」半边：另起子进程跑 **内嵌新版** Owltype 的 CLI 切到 ABC（postinstall 同款命令）。
     /// 为什么不在本进程调 select：安装线程嵌套 runloop 里 select 必 -50（定律 2），另起进程则可成功。
     /// 为什么用内嵌新版而不是已装旧版：1.3.32 之前的 CLI 不认系统源 id，`--select-input-source
-    /// com.apple.keylayout.ABC` 会误落回「选中法墨」默认路径——恰好在 kill 前把法墨选回来。best-effort。
-    private static func parkCurrentSourceOnABC(usingEmbeddedFamoApp embedded: URL) {
-        let famo = embedded.appendingPathComponent("Contents/MacOS/Famo")
-        _ = try? runProcess(famo.path, ["--select-input-source", "com.apple.keylayout.ABC"])
+    /// com.apple.keylayout.ABC` 会误落回「选中猫头鹰」默认路径——恰好在 kill 前把猫头鹰选回来。best-effort。
+    private static func parkCurrentSourceOnABC(usingEmbeddedOwltypeApp embedded: URL) {
+        let owl = embedded.appendingPathComponent("Contents/MacOS/Owltype")
+        _ = try? runProcess(owl.path, ["--select-input-source", "com.apple.keylayout.ABC"])
     }
 
     // MARK: - 安装包校验 / 更新分类
@@ -165,11 +165,11 @@ enum Installer {
         }
         _ = try versionComponents(metadata.shortVersion, label: "CFBundleShortVersionString")
         _ = try versionComponents(metadata.buildVersion, label: "CFBundleVersion")
-        guard FileManager.default.isExecutableFile(atPath: url.appendingPathComponent("Contents/MacOS/Famo").path) else {
-            throw InstallerError.validationFailed("缺少可执行文件 Contents/MacOS/Famo")
+        guard FileManager.default.isExecutableFile(atPath: url.appendingPathComponent("Contents/MacOS/Owltype").path) else {
+            throw InstallerError.validationFailed("缺少可执行文件 Contents/MacOS/Owltype")
         }
-        guard !FileManager.default.fileExists(atPath: url.appendingPathComponent("Famo.app").path) else {
-            throw InstallerError.validationFailed("发现嵌套的 Famo.app")
+        guard !FileManager.default.fileExists(atPath: url.appendingPathComponent("Owltype.app").path) else {
+            throw InstallerError.validationFailed("发现嵌套的 Owltype.app")
         }
         try verifyCodeSignature(at: url)
         return metadata
@@ -191,7 +191,7 @@ enum Installer {
         guard FileManager.default.fileExists(atPath: installedURL.path) else {
             return .firstInstall
         }
-        guard !FileManager.default.fileExists(atPath: installedURL.appendingPathComponent("Famo.app").path) else {
+        guard !FileManager.default.fileExists(atPath: installedURL.appendingPathComponent("Owltype.app").path) else {
             return .replaceInvalidExisting
         }
         let installed: AppMetadata
@@ -201,7 +201,7 @@ enum Installer {
             return .replaceInvalidExisting
         }
         guard installed.bundleID == expectedBundleID else {
-            throw InstallerError.validationFailed("目标路径已有非 Famo bundle：\(installed.bundleID)")
+            throw InstallerError.validationFailed("目标路径已有非 Owltype bundle：\(installed.bundleID)")
         }
         let order: ComparisonResult
         do {
@@ -273,10 +273,10 @@ enum Installer {
     // MARK: - 输入法菜单激活（register + enable 都在安装器进程内）
 
     /// 「父输入法」的 Input Source ID = 输入菜单的显示开关（真机确认：菜单看父项启用态，不是单个模式）。
-    static let inputMethodID = "im.famo.inputmethod.Famo"
+    static let inputMethodID = "im.owltype.inputmethod.Owltype"
 
-    /// 法墨主输入模式（简体）的 Input Source ID。父项启用后再启用此模式。
-    static let primaryModeID = "im.famo.inputmethod.Famo.Hans"
+    /// 猫头鹰主输入模式（简体）的 Input Source ID。父项启用后再启用此模式。
+    static let primaryModeID = "im.owltype.inputmethod.Owltype.Hans"
 
     /// 从一份「刚取的」输入源列表里按 ID 找源。每次操作都要重取，避免拿旧引用。
     /// `TISRegisterInputSource` 之后，系统输入源列表有传播延迟（尤其首次安装、冷启动），
@@ -304,12 +304,12 @@ enum Installer {
 
     /// register + （仅干净首装）enable「父条目 + Hans 主模式」各一次——全部在安装器进程主线程做。
     ///
-    /// 修正后配方（task 07-02-famo research + 1.3.32 首装 QA 真机实证）：
+    /// 修正后配方（首装免注销专题 07-02 的 research + 1.3.32 首装 QA 真机实证）：
     ///   - enable 的必要条件是登录用户身份、Aqua GUI 会话与已签名 App；本安装器进程三条全满足。
     ///   - enable「父条目 + Hans 模式条目」各一次（定律 13，暂定待 DIAG 探针定谳）：macOS 26 真机上
-    ///     enable 父条目**不级联** default-on 的 Hans 模式——1.3.32 QA 现场=菜单有「法墨」行
+    ///     enable 父条目**不级联** default-on 的 Hans 模式——1.3.32 QA 现场=菜单有「猫头鹰」行
     ///     （菜单看父条目启用态）但点不中（select 需要模式条目的启用记录，Hans 从未被 enable）。
-    ///     顺序=先父后模式（Apple 头文件：mode 的父项必须先启用）。Famo 的 Squirrel 系 plist
+    ///     顺序=先父后模式（Apple 头文件：mode 的父项必须先启用）。Owltype 的 Squirrel 系 plist
     ///     带 `tsInputModeDefaultStateKey`，因此父条目与主模式需要分别启用。
     ///   - 是否 enable 由复合幂等判据决定（`InstallerActivationPolicy.plan`，定律 4/11）：已有安装
     ///     整段跳过——对已启用条目二次 TISEnableInputSource 会打成 "error" 幽灵态（fcitx5 PR#4）。
@@ -319,7 +319,7 @@ enum Installer {
     ///     （定律 2：嵌套 runloop 里必 -50），由 `InstallerActivationVerifier` 排到正常主 runloop
     ///     best-effort 重试，并做 enabled 读回验证（过程信号；最终验收 = 真人看菜单，定律 3）。
     static func registerAndEnableInputSources(plan: InstallerActivationPolicy.ActivationPlan) throws {
-        try check(TISRegisterInputSource(URL(fileURLWithPath: installedAppPath) as CFURL), "注册 Famo.app")
+        try check(TISRegisterInputSource(URL(fileURLWithPath: installedAppPath) as CFURL), "注册 Owltype.app")
 
         // 等注册传播：源进入 TIS 列表后再 enable，避免「装好却不显示」（定律 5）。
         _ = try freshSource(primaryModeID)
@@ -333,7 +333,7 @@ enum Installer {
         }
 
         // 这次广播+刷代理打在 consent **之前**（enable 刚调、用户还没点「允许」），对 consent
-        // 之后的世界无效——保留作无害的即时刷新；真正让菜单代理 + 已运行 App 认到法墨的是
+        // 之后的世界无效——保留作无害的即时刷新；真正让菜单代理 + 已运行 App 认到猫头鹰的是
         // verifier 在 verified 时刻补发的组合拳（InstallerActivationVerifier.performVerifiedRefresh，
         // 1.3.32-fix2：QA 真机的「菜单点不中 / 装前已开 App 打不出」刷新缺口即缺那一次）。
         let center = CFNotificationCenterGetDistributedCenter()
@@ -362,7 +362,7 @@ enum Installer {
 
     /// Run the activation command, then launch the installed input method in the current Aqua
     /// session so it registers its InputMethodKit Mach endpoint. The command form
-    /// (`Famo --activate-once`) exits before `IMKServer` is created; the plain app launch is what
+    /// (`Owltype --activate-once`) exits before `IMKServer` is created; the plain app launch is what
     /// makes the selected input source usable immediately after install/update.
     ///
     /// endpoint 5s 轮询**不是硬门**（1.3.32-fix2 拆除）：endpoint 发布与 enable 是否生效正交
@@ -370,38 +370,38 @@ enum Installer {
     /// 直接进失败 UI。现在没等到只记录，流程照常进 verifier，由 fresh 进程探针定成败。
     private static func launchInstalledAppForActivation() throws {
         try runCheckedProcess(
-            URL(fileURLWithPath: installedAppPath + "/Contents/MacOS/Famo"),
+            URL(fileURLWithPath: installedAppPath + "/Contents/MacOS/Owltype"),
             ["--activate-once"],
-            launchFailure: "无法启动 Famo.app --activate-once",
-            nonZeroFailure: "Famo.app --activate-once 启动失败")
+            launchFailure: "无法启动 Owltype.app --activate-once",
+            nonZeroFailure: "Owltype.app --activate-once 启动失败")
 
         try runCheckedProcess(
             URL(fileURLWithPath: "/usr/bin/open"),
             ["-g", installedAppPath],
-            launchFailure: "无法通过 open 启动 Famo.app",
-            nonZeroFailure: "open Famo.app 失败")
+            launchFailure: "无法通过 open 启动 Owltype.app",
+            nonZeroFailure: "open Owltype.app 失败")
 
         let deadline = Date(timeIntervalSinceNow: 5)
         while Date() < deadline {
             let running = NSRunningApplication
                 .runningApplications(withBundleIdentifier: expectedBundleID)
                 .contains(where: { !$0.isTerminated })
-            if running, famoEndpointIsPublished() {
+            if running, owltypeEndpointIsPublished() {
                 return
             }
             RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.1))
         }
-        NSLog("FamoInstaller: Famo IMK endpoint 未在 5s 内确认发布（不作硬门，交给 verifier 继续观察）")
+        NSLog("OwltypeInstaller: Owltype IMK endpoint 未在 5s 内确认发布（不作硬门，交给 verifier 继续观察）")
     }
 
     /// IMK Mach endpoint 是否已发布。只能全域 dump 后 contains 查找——收窄不可行：endpoint 不是
-    /// service label，`launchctl print gui/$uid/im.famo.inputmethod.Famo_Connection` 实测返回
-    /// "Could not find service"（2026-07-02，Famo 运行中、endpoint 明明在全域 dump 里也找不到）。
+    /// service label，`launchctl print gui/$uid/im.owltype.inputmethod.Owltype_Connection` 实测返回
+    /// "Could not find service"（2026-07-02，Owltype 运行中、endpoint 明明在全域 dump 里也找不到）。
     /// 全域 dump 实测 131KB > 64KB 管道缓冲：本调用正是 1.3.32 首装 QA Bug A 的死锁触发点，
     /// 依赖 runProcess 的「先排空再等退出」次序保命；外层轮询有 5s deadline（调用方）。
-    private static func famoEndpointIsPublished() -> Bool {
+    private static func owltypeEndpointIsPublished() -> Bool {
         let output = (try? runProcess("/bin/launchctl", ["print", "gui/\(getuid())"])) ?? ""
-        return output.contains("im.famo.inputmethod.Famo_Connection")
+        return output.contains("im.owltype.inputmethod.Owltype_Connection")
     }
 
     private static func runCheckedProcess(
@@ -433,25 +433,25 @@ enum Installer {
         }
     }
 
-    /// 唯一需要 root 的一步：把内嵌 Famo.app 事务替换到 /Library/Input Methods/。
+    /// 唯一需要 root 的一步：把内嵌 Owltype.app 事务替换到 /Library/Input Methods/。
     private static func privilegedReplace(fromAppPath sourcePath: String) throws {
         let source = shellQuote(sourcePath)
         let dest = shellQuote(installedAppPath)
-        let token = shellQuote("famo-\(UUID().uuidString)")
+        let token = shellQuote("owl-\(UUID().uuidString)")
         let command = [
             "set -e",
             "src=\(source)",
             "dest=\(dest)",
             "parent='/Library/Input Methods'",
             "token=\(token)",
-            "stage=\"$parent/.Famo.app.new.$token\"",
-            "old=\"$parent/.Famo.app.old.$token\"",
+            "stage=\"$parent/.Owltype.app.new.$token\"",
+            "old=\"$parent/.Owltype.app.old.$token\"",
             "rm -rf \"$stage\" \"$old\"",
-            "find \"$parent\" -maxdepth 1 -name '.Famo.app.old.*' -exec rm -rf {} +",
-            "rm -rf \"$parent/Famo.swiftmodule\"",
+            "find \"$parent\" -maxdepth 1 -name '.Owltype.app.old.*' -exec rm -rf {} +",
+            "rm -rf \"$parent/Owltype.swiftmodule\"",
             "/usr/bin/ditto \"$src\" \"$stage\"",
-            "test -x \"$stage/Contents/MacOS/Famo\"",
-            "test ! -e \"$stage/Famo.app\"",
+            "test -x \"$stage/Contents/MacOS/Owltype\"",
+            "test ! -e \"$stage/Owltype.app\"",
             "/usr/bin/codesign --verify --strict \"$stage\"",
             // ponytail: root swap only. In-place Contents replacement hits com.apple.macl on real systems.
             "if [ -e \"$dest\" ]; then mv \"$dest\" \"$old\"; fi",
@@ -471,30 +471,30 @@ enum Installer {
 
     // MARK: - 卸载
 
-    /// 用户级删除白名单：全部是法墨自有路径（绝不含他人输入法 / Rime）。
+    /// 用户级删除白名单：全部是猫头鹰自有路径（绝不含他人输入法 / Rime）。
     private static func userLevelTargets() -> [URL] {
         let home = FileManager.default.homeDirectoryForCurrentUser
         return [
-            home.appendingPathComponent("Library/Application Support/Famo"),
-            home.appendingPathComponent("Library/Caches/im.famo.inputmethod.Famo"),
-            home.appendingPathComponent("Library/Preferences/im.famo.inputmethod.Famo.plist"),
-            home.appendingPathComponent("Library/HTTPStorages/im.famo.inputmethod.Famo"),
-            home.appendingPathComponent("Library/Logs/Famo")
+            home.appendingPathComponent("Library/Application Support/Owltype"),
+            home.appendingPathComponent("Library/Caches/im.owltype.inputmethod.Owltype"),
+            home.appendingPathComponent("Library/Preferences/im.owltype.inputmethod.Owltype.plist"),
+            home.appendingPathComponent("Library/HTTPStorages/im.owltype.inputmethod.Owltype"),
+            home.appendingPathComponent("Library/Logs/Owltype")
         ]
     }
 
     static func uninstall() throws {
         let fileManager = FileManager.default
 
-        // 1) best-effort 退出运行中的法墨（用户级，无需提权 —— Famo 跑在登录用户下）。
-        terminateUserProcess(named: "Famo")
+        // 1) best-effort 退出运行中的猫头鹰（用户级，无需提权 —— Owltype 跑在登录用户下）。
+        terminateUserProcess(named: "Owltype")
 
         // 2) 用户级清理：安装器进程本身就是登录用户，直接用 FileManager 删，避免 root 的 $HOME 陷阱。
         for url in userLevelTargets() where fileManager.fileExists(atPath: url.path) {
             try? fileManager.removeItem(at: url)
         }
 
-        // 3) 提权级：只删系统目录里的法墨 bundle（硬编码白名单路径，绝不动他人输入法）。
+        // 3) 提权级：只删系统目录里的猫头鹰 bundle（硬编码白名单路径，绝不动他人输入法）。
         //    仅在 bundle 实际存在时才弹授权框，避免干净机器卸载时无谓地要密码。
         if fileManager.fileExists(atPath: installedAppPath) {
             let dest = shellQuote(installedAppPath)
@@ -548,7 +548,7 @@ enum Installer {
     }
 
     /// internal（非 private）：InstallerActivationVerifier 复用它 spawn `--tis-probe` 自探针
-    /// 与 verified 时刻的 Famo CLI select（fresh 进程，1.3.32-fix2）。
+    /// 与 verified 时刻的 Owltype CLI select（fresh 进程，1.3.32-fix2）。
     @discardableResult
     static func runProcess(_ executable: String, _ arguments: [String]) throws -> String {
         let process = Process()
@@ -566,7 +566,7 @@ enum Installer {
         // 先排空管道到 EOF，再 waitUntilExit —— 顺序绝不可倒（1.3.32 首装 QA Bug A 根因）：
         // 匿名管道缓冲上限 64KB；子进程输出更大时（launchctl print gui/$uid 实测 131KB）会阻塞在
         // write(2) 等父进程消费，父进程若先 waitUntilExit 则双方互等 = 无 deadline 的永久死锁
-        // （安装器卡死在「正在安装法墨…」，verifier 层的 30s 超时降级根本没机会启动）。
+        // （安装器卡死在「正在安装猫头鹰…」，verifier 层的 30s 超时降级根本没机会启动）。
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
 

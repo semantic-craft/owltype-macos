@@ -1,4 +1,4 @@
-// InstallerTISProbe — `FamoInstaller --tis-probe` 自探针（fresh 进程 TIS 真值，1.3.32-fix2）。
+// InstallerTISProbe — `OwltypeInstaller --tis-probe` 自探针（fresh 进程 TIS 真值，1.3.32-fix2）。
 //
 // 为什么必须 fresh 进程：安装器老进程的 TIS 快照陈旧，读不到 consent 之后的变更（1.3.32-fix1
 // QA 真机：装前已开的 App 打不出、新开的 App 能打——同机理），进程内 TISCreateInputSourceList

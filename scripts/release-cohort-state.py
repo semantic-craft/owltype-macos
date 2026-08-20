@@ -53,7 +53,7 @@ SPARKLE_SIGNATURE_VERIFIER = ROOT / "scripts/verify-sparkle-eddsa.swift"
 RETRYABLE_EXIT = 75
 REJECTED_EXIT = 65
 SPARKLE_NAMESPACE = "http://www.andymatuschak.org/xml-namespaces/sparkle"
-FAMO_COHORT_NAMESPACE = "https://responsay.com/famo/release-cohort"
+OWL_COHORT_NAMESPACE = "https://responsay.com/owltype/release-cohort"
 
 
 class CohortError(RuntimeError):
@@ -252,7 +252,7 @@ def validate_source_archive(
                 raise CohortError("source archive manifest does not cover every source file")
             required = {
                 "FAMOTYPE-SOURCE-PROVENANCE.txt",
-                "Famo.xcodeproj/project.pbxproj",
+                "Owltype.xcodeproj/project.pbxproj",
                 "LICENSE.txt",
                 "Makefile",
                 "THIRD_PARTY_NOTICES.md",
@@ -375,7 +375,7 @@ def validate_appcast(appcast: Path, cohort: dict, output_root: Path) -> None:
             f"expected {version!r}/{cohort.get('buildVersion')!r}"
         )
     embedded_cohort = unique_text(
-        f"{{{FAMO_COHORT_NAMESPACE}}}releaseCohort", "release cohort"
+        f"{{{OWL_COHORT_NAMESPACE}}}releaseCohort", "release cohort"
     )
     if embedded_cohort != cohort.get("cohortId"):
         raise CohortError("appcast embeds a different cohort identity")
@@ -400,7 +400,7 @@ def validate_appcast(appcast: Path, cohort: dict, output_root: Path) -> None:
         raise CohortError("appcast has no cohort update package")
     update_package = resolve_artifact_path(update_record, output_root, ROOT)
     embedded_update_sha = unique_text(
-        f"{{{FAMO_COHORT_NAMESPACE}}}updatePackageSha256", "update package hash"
+        f"{{{OWL_COHORT_NAMESPACE}}}updatePackageSha256", "update package hash"
     )
     if embedded_update_sha != update_record.get("sha256"):
         raise CohortError("appcast update package hash does not match the release cohort")

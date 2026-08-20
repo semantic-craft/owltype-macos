@@ -41,7 +41,7 @@ import sys
 
 with open(sys.argv[1], "rb") as handle:
     info = plistlib.load(handle)
-if info.get("SUFeedURL") != "https://responsay.com/famo/appcast.xml":
+if info.get("SUFeedURL") != "https://responsay.com/owltype/appcast.xml":
     raise SystemExit("Sparkle feed differs from the reviewed endpoint")
 if not info.get("SUPublicEDKey"):
     raise SystemExit("Sparkle public verification key is missing")

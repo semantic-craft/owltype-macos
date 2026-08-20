@@ -10,7 +10,7 @@ kind="${2:-}"
 
 run_signing_tool() {
   local result status
-  result="$(mktemp "${TMPDIR:-/tmp}/famo-signing-result.XXXXXX")"
+  result="$(mktemp "${TMPDIR:-/tmp}/owl-signing-result.XXXXXX")"
   "$@" >"$result" 2>&1
   status=$?
   cat "$result"
@@ -30,7 +30,7 @@ case "$action" in
     expected_cohort_id="${4:?missing expected cohort identity}"
     case "$kind" in
       installer-pkg|update-pkg)
-        expanded_parent="$(mktemp -d "${TMPDIR:-/tmp}/famo-pkg-inspect.XXXXXX")"
+        expanded_parent="$(mktemp -d "${TMPDIR:-/tmp}/owl-pkg-inspect.XXXXXX")"
         expanded="$expanded_parent/expanded"
         cleanup() { rm -rf -- "$expanded_parent"; }
         trap cleanup EXIT
@@ -39,7 +39,7 @@ case "$action" in
 import sys
 import xml.etree.ElementTree as ET
 
-namespace = "https://responsay.com/famo/release-cohort"
+namespace = "https://responsay.com/owltype/release-cohort"
 try:
     root = ET.parse(sys.argv[1]).getroot()
 except (OSError, ET.ParseError):
@@ -61,7 +61,7 @@ PY
         printf '%s\n' "$embedded_id"
         ;;
       dmg)
-        mount_parent="$(mktemp -d "${TMPDIR:-/tmp}/famo-dmg-inspect.XXXXXX")"
+        mount_parent="$(mktemp -d "${TMPDIR:-/tmp}/owl-dmg-inspect.XXXXXX")"
         mount_point="$mount_parent/mount"
         mkdir "$mount_point"
         attached=0
@@ -75,8 +75,8 @@ PY
         hdiutil attach -readonly -nobrowse -mountpoint "$mount_point" \
           "$source_artifact" >/dev/null || exit 70
         attached=1
-        [[ -f "$mount_point/FAMOTYPE-RELEASE-COHORT-ID" ]] || exit 70
-        embedded_id="$(cat "$mount_point/FAMOTYPE-RELEASE-COHORT-ID")"
+        [[ -f "$mount_point/OWLTYPE-RELEASE-COHORT-ID" ]] || exit 70
+        embedded_id="$(cat "$mount_point/OWLTYPE-RELEASE-COHORT-ID")"
         [[ "$embedded_id" == "$expected_cohort_id" ]] || exit 70
         hdiutil detach "$mount_point" >/dev/null || exit 70
         attached=0
@@ -96,7 +96,7 @@ PY
       app)
         run_signing_tool codesign --deep --force --options runtime --timestamp \
           --sign "Developer ID Application: ${identity}" \
-          --entitlements resources/Famo.entitlements --verbose "$source_artifact" || exit $?
+          --entitlements resources/Owltype.entitlements --verbose "$source_artifact" || exit $?
         codesign --verify --deep --strict --verbose=2 "$source_artifact"
         ;;
       installer-pkg|update-pkg)
@@ -119,7 +119,7 @@ PY
   notarize)
     profile="${3:?missing notary profile}"
     source_artifact="${4:?missing artifact}"
-    result="$(mktemp "${TMPDIR:-/tmp}/famo-notary-result.XXXXXX")"
+    result="$(mktemp "${TMPDIR:-/tmp}/owl-notary-result.XXXXXX")"
     submission="$source_artifact"
     archive=""
     archive_dir=""
@@ -130,14 +130,14 @@ PY
     }
     trap cleanup EXIT
     if [[ "$kind" == app ]]; then
-      archive_dir="$(mktemp -d "${TMPDIR:-/tmp}/famo-app-notary.XXXXXX")"
-      archive="$archive_dir/Famo-app.zip"
+      archive_dir="$(mktemp -d "${TMPDIR:-/tmp}/owl-app-notary.XXXXXX")"
+      archive="$archive_dir/Owltype-app.zip"
       ditto -c -k --keepParent "$source_artifact" "$archive" || exit 70
       submission="$archive"
     fi
 
     xcrun notarytool submit "$submission" --keychain-profile "$profile" \
-      --wait --timeout "${FAMO_NOTARY_WAIT_TIMEOUT:-20m}" \
+      --wait --timeout "${OWL_NOTARY_WAIT_TIMEOUT:-20m}" \
       --output-format json >"$result" 2>&1
     tool_status=$?
     cat "$result"

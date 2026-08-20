@@ -1,16 +1,16 @@
 // InstallerActivationPolicy — 首装免注销激活的纯决策层（无 TIS / 无 IO / 无 AppKit）。
 //
 // 为什么是纯函数：TIS/IMK 无法 headless 单测（quality-guidelines），所以把「该不该 enable/select」
-// 与「读回验证状态机」抽成纯函数，编进 FamoTests 覆盖真值表（tests/InstallerActivationPolicyTests.swift，
+// 与「读回验证状态机」抽成纯函数，编进 OwltypeTests 覆盖真值表（tests/InstallerActivationPolicyTests.swift，
 // 参照 ActivationPolicyTests 的 pure-dispatch 风格）；TIS 副作用薄层留在 Installer / Verifier。
 //
 // 判据铁律（installer/TIS-ACTIVATION-NOTES.md 定律 4/11 + fcitx5 PR#4 状态机实测）：
 //   - 绝不把 kTISPropertyInputSourceIsEnabled 当幂等判据 —— 它对 default-on 的 Hans 模式恒返回 true，
 //     旧 1.3.16 安装器正是栽在这里（干净机可能从未真正 enable；脏机则二次 enable → error 幽灵态）。
-//   - 复合幂等判据 = 「bundle 装前已存在 OR Famo 进程存活」（进程活着 ⟺ 已被 enable 过：IMK 只拉起
+//   - 复合幂等判据 = 「bundle 装前已存在 OR Owltype 进程存活」（进程活着 ⟺ 已被 enable 过：IMK 只拉起
 //     已启用的输入法）。两个信号都必须在 killall / 提权拷贝之前采样，否则被本安装流程自己污染。
 //   - 干净首装 enable「父条目 + Hans 模式条目」各一次（定律 13，暂定待 DIAG 定谳）：macOS 26 真机上
-//     enable 父条目不级联 default-on 的 Hans（1.3.32 QA：菜单有「法墨」行但点不中）。「一次且仅
+//     enable 父条目不级联 default-on 的 Hans（1.3.32 QA：菜单有「猫头鹰」行但点不中）。「一次且仅
 //     一次」针对同一条目的二次 enable；两个不同条目各 enable 一次不违反。
 
 import Foundation
@@ -24,25 +24,25 @@ enum InstallerActivationPolicy {
         /// 真必要条件）enable「父条目 + Hans 主模式」各一次（定律 13：父条目 enable 不级联模式；
         /// 父=菜单显形，Hans=select 需要的模式启用记录）。已有安装 → 整段跳过（定律 11 防幽灵态）。
         let enableParentAndPrimaryModeOnce: Bool
-        /// 更新前法墨是当前输入法 → kill 前先切出到 ABC（定律 12：kill 当前选中的 IME 会让
-        /// 重启后菜单不显示），装完由 `selectFamoAfterInstall` 配对切回。
+        /// 更新前猫头鹰是当前输入法 → kill 前先切出到 ABC（定律 12：kill 当前选中的 IME 会让
+        /// 重启后菜单不显示），装完由 `selectOwltypeAfterInstall` 配对切回。
         let parkOnABCBeforeReplace: Bool
-        /// 装完后 best-effort select 法墨（主 runloop 重试，定律 2）：首装锦上添花，或与切出配对
+        /// 装完后 best-effort select 猫头鹰（主 runloop 重试，定律 2）：首装锦上添花，或与切出配对
         /// 的切回。不变量：更新绝不从其它输入法手里抢当前输入源。
-        let selectFamoAfterInstall: Bool
+        let selectOwltypeAfterInstall: Bool
     }
 
-    /// 三个输入信号都必须在 killall Famo / 提权拷贝之前采样（顺序陷阱：晚一步就全被自己污染）。
+    /// 三个输入信号都必须在 killall Owltype / 提权拷贝之前采样（顺序陷阱：晚一步就全被自己污染）。
     static func plan(
         bundlePreexisted: Bool,
-        famoProcessWasRunning: Bool,
-        famoWasCurrentSource: Bool
+        owltypeProcessWasRunning: Bool,
+        owltypeWasCurrentSource: Bool
     ) -> ActivationPlan {
-        let isExistingInstall = bundlePreexisted || famoProcessWasRunning
+        let isExistingInstall = bundlePreexisted || owltypeProcessWasRunning
         return ActivationPlan(
             enableParentAndPrimaryModeOnce: !isExistingInstall,
-            parkOnABCBeforeReplace: famoWasCurrentSource,
-            selectFamoAfterInstall: !isExistingInstall || famoWasCurrentSource)
+            parkOnABCBeforeReplace: owltypeWasCurrentSource,
+            selectOwltypeAfterInstall: !isExistingInstall || owltypeWasCurrentSource)
     }
 
     // MARK: - consent 等待 + 读回验证状态机
@@ -65,7 +65,7 @@ enum InstallerActivationPolicy {
     ///   - 信号 =「父条目 enabled ∧ Hans 在 enabled-only 列表」，由 `--tis-probe` fresh 进程探针
     ///     读回（安装器老进程的 TIS 快照陈旧，读不到 consent 之后的变更——与「装前已开的 App
     ///     打不出、新开 App 能打」同机理，进程内读回已退役）。本进程 select 信号随之退役：
-    ///     select 改在 verified 时刻由 fresh 进程 Famo CLI 执行，不再是输入信号。
+    ///     select 改在 verified 时刻由 fresh 进程 Owltype CLI 执行，不再是输入信号。
     ///   - 信号优先于任何截止（迟到自愈：用户晚点「允许」照样翻绿）；
     ///   - 软超时（deadlineReached）→ needsLogout(stillTrying: true)，显示引导但继续等；
     ///   - 扩展截止（extendedDeadlineReached）→ needsLogout(stillTrying: false)，终态。
@@ -132,14 +132,14 @@ enum InstallerActivationPolicy {
             return "✅ 已安装并启用：新打开的应用立即可用。"
                 + "安装前已打开的个别应用请重新打开该应用；若仍打不出，注销一次即可。"
         }
-        return "✅ 更新完成：法墨已原地更新，未改动你的输入法选择。"
+        return "✅ 更新完成：猫头鹰已原地更新，未改动你的输入法选择。"
     }
 
     /// stillTrying=true（软超时橙窗，verifier 仍在后台等迟到 consent）才承诺「本窗口会自动更新」；
     /// 扩展截止终态（stillTrying=false）verifier 已停，再作此承诺就是假话（R1 诚实兜底）。
     static func needsLogoutText(stillTrying: Bool) -> String {
-        let base = "⚠️ 文件已安装，但未能确认法墨进入输入法列表。"
-            + "注销并重新登录后即可使用；或在 系统设置 → 键盘 → 输入法 里手动添加一次「法墨」。"
+        let base = "⚠️ 文件已安装，但未能确认猫头鹰进入输入法列表。"
+            + "注销并重新登录后即可使用；或在 系统设置 → 键盘 → 输入法 里手动添加一次「猫头鹰」。"
         return stillTrying ? base + "若你刚点了「允许」，本窗口会自动更新。" : base
     }
 }

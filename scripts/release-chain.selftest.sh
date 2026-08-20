@@ -84,10 +84,10 @@ suites = (
     "FamoSkillsLiveTests",
     "FamoTriModelSelectionMatrixLiveTests",
 )
-assert text.count("-skip-testing:FamoTests/") == len(suites), text
-assert "-skip-testing:FamoTests/FamoLiveInputTraceTests" not in text, text
+assert text.count("-skip-testing:OwltypeTests/") == len(suites), text
+assert "-skip-testing:OwltypeTests/FamoLiveInputTraceTests" not in text, text
 for suite in suites:
-    assert text.count(f"-skip-testing:FamoTests/{suite}") == 1, (suite, text)
+    assert text.count(f"-skip-testing:OwltypeTests/{suite}") == 1, (suite, text)
 PY
 then
   ok "product test entrypoint excludes only the five credential-gated Live suites"
@@ -363,12 +363,12 @@ write_appcast() {
 <?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"
   xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"
-  xmlns:famo="https://responsay.com/famo/release-cohort">
+  xmlns:owl="https://responsay.com/owltype/release-cohort">
   <channel><item>
     <sparkle:version>${build_version}</sparkle:version>
     <sparkle:shortVersionString>${version}</sparkle:shortVersionString>
-    <famo:releaseCohort>${identity}</famo:releaseCohort>
-    <famo:updatePackageSha256>${package_sha}</famo:updatePackageSha256>
+    <owl:releaseCohort>${identity}</owl:releaseCohort>
+    <owl:updatePackageSha256>${package_sha}</owl:updatePackageSha256>
     <enclosure url="https://downloads.responsay.com/famo/releases/${build_version}/Famo-update.pkg"
       sparkle:version="${build_version}" sparkle:shortVersionString="${version}"
       sparkle:installationType="${installation_type}" sparkle:edSignature="${signature}" length="${update_length}"/>
@@ -441,8 +441,8 @@ text = open(path).read()
 foreign = """<item>
     <sparkle:version>999</sparkle:version>
     <sparkle:shortVersionString>99.9.9</sparkle:shortVersionString>
-    <famo:releaseCohort>foreign-cohort</famo:releaseCohort>
-    <famo:updatePackageSha256>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</famo:updatePackageSha256>
+    <owl:releaseCohort>foreign-cohort</owl:releaseCohort>
+    <owl:updatePackageSha256>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</owl:updatePackageSha256>
     <enclosure url="https://attacker.invalid/Famo-update.pkg"
       sparkle:version="999" sparkle:shortVersionString="99.9.9"
       sparkle:edSignature="foreign" length="1"/>
@@ -474,7 +474,7 @@ run_state register-output "$cohort_root" appcast "$appcast" >>"$output"
 source_root="$work/Famotype-macOS-9.8.7-source"
 source_archive="$release_dir/Famotype-macOS-9.8.7-source.tar.gz"
 SOURCE_TOOL="$ROOT/scripts/release_source.py"
-mkdir -p "$source_root/Famo.xcodeproj"
+mkdir -p "$source_root/Owltype.xcodeproj"
 cat >"$source_root/FAMOTYPE-SOURCE-PROVENANCE.txt" <<EOF
 Famotype source release 9.8.7
 build-version 987
@@ -483,7 +483,7 @@ cohort foreign-cohort
 app-manifest $app_manifest_sha
 EOF
 printf 'source\n' >"$source_root/source.txt"
-printf 'fixture project\n' >"$source_root/Famo.xcodeproj/project.pbxproj"
+printf 'fixture project\n' >"$source_root/Owltype.xcodeproj/project.pbxproj"
 printf 'fixture license\n' >"$source_root/LICENSE.txt"
 printf 'fixture make\n' >"$source_root/Makefile"
 printf 'fixture notices\n' >"$source_root/THIRD_PARTY_NOTICES.md"

@@ -41,8 +41,8 @@ if [[ -f Makefile ]]; then
   fi
 else
   xcodebuild \
-    -project Famo.xcodeproj \
-    -scheme Famo \
+    -project Owltype.xcodeproj \
+    -scheme Owltype \
     -configuration "$CONFIG" \
     -derivedDataPath build \
     ARCHS="$ARCHS" \

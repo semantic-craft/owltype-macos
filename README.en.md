@@ -28,7 +28,7 @@ Existing users do not need to download anything: the app ships a pinned Sparkle 
 only `responsay.com/famo/appcast.xml`, then downloads and installs the same signed, notarized
 `Famo-update.pkg` in place — **no logout required**. Update checks upload no typing data.
 
-To uninstall, run the bundled `卸载法墨.command`, or remove the input source in System Settings and
+To uninstall, run the bundled `卸载猫头鹰.command`, or remove the input source in System Settings and
 delete `/Library/Input Methods/Famo.app`.
 
 ## Features

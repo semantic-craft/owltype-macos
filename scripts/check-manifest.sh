@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Gate 2 — Manifest consistency. Asserts the built/installed Famo.app Info.plist
+# Gate 2 — Manifest consistency. Asserts the built/installed Owltype.app Info.plist
 # identity fields equal the canonical constants in owl-identity.sh, so a stray
 # rename (connection name, source id, icon) can never ship silently.
 #
@@ -15,12 +15,12 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 APP="${OWL_APP:-}"
 if [[ -z "$APP" ]]; then
-  for cand in "$ROOT/build/Build/Products/Release/Famo.app" "$OWL_INSTALL_PATH" "$HOME/Library/Input Methods/Famo.app"; do
+  for cand in "$ROOT/build/Build/Products/Release/Owltype.app" "$OWL_INSTALL_PATH" "$HOME/Library/Input Methods/Owltype.app"; do
     if [[ -d "$cand" ]]; then APP="$cand"; break; fi
   done
 fi
 if [[ -z "$APP" || ! -d "$APP" ]]; then
-  printf 'note: no built/installed Famo.app to check; skipping manifest gate\n'
+  printf 'note: no built/installed Owltype.app to check; skipping manifest gate\n'
   exit 0
 fi
 
@@ -67,7 +67,7 @@ for mode in "$OWL_SOURCE_ID_HANS" "$OWL_SOURCE_ID_HANT"; do
 done
 
 if (( fail )); then
-  printf 'FAIL: Famo manifest consistency gate\n' >&2
+  printf 'FAIL: Owltype manifest consistency gate\n' >&2
   exit 1
 fi
-printf 'PASS: Famo manifest consistency gate\n'
+printf 'PASS: Owltype manifest consistency gate\n'

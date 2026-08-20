@@ -207,7 +207,7 @@ if [[ "${1:-}" == attach ]]; then
     if [[ "${args[index]}" == -mountpoint ]]; then
       mount_point="${args[index + 1]}"
       mkdir -p "$mount_point"
-      printf '%s\n' "${EMBEDDED_COHORT_ID:?}" >"$mount_point/FAMOTYPE-RELEASE-COHORT-ID"
+      printf '%s\n' "${EMBEDDED_COHORT_ID:?}" >"$mount_point/OWLTYPE-RELEASE-COHORT-ID"
       break
     fi
   done
@@ -257,7 +257,7 @@ write_distribution() {
   cat >"$destination" <<XML
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="1"
-    xmlns:famo="https://responsay.com/famo/release-cohort">
+    xmlns:owl="https://responsay.com/owltype/release-cohort">
   <title>Famo unsigned cohort fixture</title>
   ${marker_xml}
   <options customize="never" require-scripts="false" rootVolumeOnly="true"/>
@@ -276,9 +276,9 @@ build_product_pkg() {
 }
 
 write_distribution "$real_pkg_root/Distribution-installer.xml" \
-  '<famo:releaseCohort>fixture-cohort-id</famo:releaseCohort>'
+  '<owl:releaseCohort>fixture-cohort-id</owl:releaseCohort>'
 write_distribution "$real_pkg_root/Distribution-update.xml" \
-  '<famo:releaseCohort>fixture-cohort-id</famo:releaseCohort>'
+  '<owl:releaseCohort>fixture-cohort-id</owl:releaseCohort>'
 build_product_pkg "$real_pkg_root/Distribution-installer.xml" "$real_pkg_root/Famo.pkg"
 build_product_pkg "$real_pkg_root/Distribution-update.xml" "$real_pkg_root/Famo-update.pkg"
 
@@ -295,9 +295,9 @@ for marker_case in missing duplicate wrong; do
   case "$marker_case" in
     missing) marker_xml='' ;;
     duplicate)
-      marker_xml='<famo:releaseCohort>fixture-cohort-id</famo:releaseCohort><famo:releaseCohort>fixture-cohort-id</famo:releaseCohort>'
+      marker_xml='<owl:releaseCohort>fixture-cohort-id</owl:releaseCohort><owl:releaseCohort>fixture-cohort-id</owl:releaseCohort>'
       ;;
-    wrong) marker_xml='<famo:releaseCohort>foreign-cohort-id</famo:releaseCohort>' ;;
+    wrong) marker_xml='<owl:releaseCohort>foreign-cohort-id</owl:releaseCohort>' ;;
   esac
   write_distribution "$real_pkg_root/Distribution-${marker_case}.xml" "$marker_xml"
   build_product_pkg "$real_pkg_root/Distribution-${marker_case}.xml" \

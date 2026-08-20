@@ -6,7 +6,7 @@ RELEASE_OUTPUT_ROOT="${1:?missing absolute release output root}"
     echo >&2 "ERROR: release output root must be absolute: $RELEASE_OUTPUT_ROOT"
     exit 1
 }
-BUNDLE_IDENTIFIER='im.famo.inputmethod.Famo'
+BUNDLE_IDENTIFIER='im.owltype.inputmethod.Owltype'
 INSTALL_LOCATION='/Library/Input Methods'
 
 cd "$(dirname "$0")"
@@ -14,12 +14,12 @@ cd "$(dirname "$0")"
 source common.sh
 
 RELEASE_DIR="${RELEASE_OUTPUT_ROOT}/Build/Products/Release"
-FAMO_APP="${RELEASE_DIR}/Famo.app"
+OWL_APP="${RELEASE_DIR}/Owltype.app"
 COHORT_STATE="${PROJECT_ROOT}/scripts/release-cohort-state.py"
 INVENTORY="${PROJECT_ROOT}/scripts/inventory-release-bundle.py"
 
-if [ ! -d "${FAMO_APP}" ]; then
-    echo >&2 "ERROR: 缺少已构建的 Famo.app: ${FAMO_APP}（先跑 make release / make notarized-app）"
+if [ ! -d "${OWL_APP}" ]; then
+    echo >&2 "ERROR: 缺少已构建的 Owltype.app: ${OWL_APP}（先跑 make release / make notarized-app）"
     exit 1
 fi
 
@@ -30,36 +30,36 @@ else
 fi
 python3 "$INVENTORY" check "$RELEASE_OUTPUT_ROOT"
 
-# Build/Products/Release 里除了 Famo.app 还有 FamoInstaller 相关产物（FamoInstaller.swiftmodule，
-# 某些构建配置下还有 FamoInstaller.app）和各种 *.swiftmodule —— 直接 `pkgbuild --root` 整个目录会把
-# 它们打进 payload，导致 pkg 公证 Invalid。改为把 *只* Famo.app stage 进一个干净临时根目录，再
-# `--root` 它，保证组件 payload 只含 Famo.app（component-plist 的 RootRelativeBundlePath=Famo.app
+# Build/Products/Release 里除了 Owltype.app 还有 OwltypeInstaller 相关产物（OwltypeInstaller.swiftmodule，
+# 某些构建配置下还有 OwltypeInstaller.app）和各种 *.swiftmodule —— 直接 `pkgbuild --root` 整个目录会把
+# 它们打进 payload，导致 pkg 公证 Invalid。改为把 *只* Owltype.app stage 进一个干净临时根目录，再
+# `--root` 它，保证组件 payload 只含 Owltype.app（component-plist 的 RootRelativeBundlePath=Owltype.app
 # 仍然成立）。
 STAGING="$(mktemp -d)"
 cleanup() {
     rm -rf "${STAGING}"
 }
 trap cleanup EXIT
-cp -R "${FAMO_APP}" "${STAGING}/Famo.app"
+cp -R "${OWL_APP}" "${STAGING}/Owltype.app"
 
 pkgbuild \
     --root "${STAGING}" \
     --filter '(^|/)\.DS_Store$' \
     --filter '(^|/)\._[^/]*$' \
     --filter '.*\.swiftmodule$' \
-    --component-plist Famo-component.plist \
+    --component-plist Owltype-component.plist \
     --identifier "${BUNDLE_IDENTIFIER}" \
     --version "$(get_app_version)" \
     --install-location "${INSTALL_LOCATION}" \
     --scripts "${PROJECT_ROOT}/scripts" \
-    Famo-component.pkg
+    Owltype-component.pkg
 
 # Installer title is user-facing → marketing version (1.1). The pkgbuild --version above
 # stays CFBundleVersion (build) as the internal component version.
 #
-# 同一个 Famo-component.pkg productbuild 两次（双 pkg 分离）：
-#   - Famo.pkg         首装（Distribution，onConclusion=RequireLogout，DMG 里发给新用户）
-#   - Famo-update.pkg  Sparkle 更新载荷（Distribution-update，无 RequireLogout，免注销）
+# 同一个 Owltype-component.pkg productbuild 两次（双 pkg 分离）：
+#   - Owltype.pkg         首装（Distribution，onConclusion=RequireLogout，DMG 里发给新用户）
+#   - Owltype-update.pkg  Sparkle 更新载荷（Distribution-update，无 RequireLogout，免注销）
 cohort_id="$(python3 "$COHORT_STATE" id "$RELEASE_OUTPUT_ROOT")"
 sed -e "s/@VERSION@/$(get_marketing_version)/" -e "s/@COHORT_ID@/${cohort_id}/" \
     Distribution > Distribution-versioned.xml
@@ -70,22 +70,22 @@ productbuild \
     --distribution Distribution-versioned.xml \
     --package-path . \
     --resources . \
-    Famo.pkg
+    Owltype.pkg
 
 productbuild \
     --distribution Distribution-update-versioned.xml \
     --package-path . \
     --resources . \
-    Famo-update.pkg
+    Owltype-update.pkg
 
 "${PROJECT_ROOT}/package/apple_tool_adapter" cohort-id installer-pkg \
-    "${PROJECT_ROOT}/package/Famo.pkg" "$cohort_id" >/dev/null
+    "${PROJECT_ROOT}/package/Owltype.pkg" "$cohort_id" >/dev/null
 "${PROJECT_ROOT}/package/apple_tool_adapter" cohort-id update-pkg \
-    "${PROJECT_ROOT}/package/Famo-update.pkg" "$cohort_id" >/dev/null
+    "${PROJECT_ROOT}/package/Owltype-update.pkg" "$cohort_id" >/dev/null
 
 rm Distribution-versioned.xml Distribution-update-versioned.xml
 
-rm Famo-component.pkg
+rm Owltype-component.pkg
 
-python3 "$COHORT_STATE" register "$RELEASE_OUTPUT_ROOT" installer-pkg "$PROJECT_ROOT/package/Famo.pkg"
-python3 "$COHORT_STATE" register "$RELEASE_OUTPUT_ROOT" update-pkg "$PROJECT_ROOT/package/Famo-update.pkg"
+python3 "$COHORT_STATE" register "$RELEASE_OUTPUT_ROOT" installer-pkg "$PROJECT_ROOT/package/Owltype.pkg"
+python3 "$COHORT_STATE" register "$RELEASE_OUTPUT_ROOT" update-pkg "$PROJECT_ROOT/package/Owltype-update.pkg"

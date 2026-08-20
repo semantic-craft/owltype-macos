@@ -86,7 +86,7 @@
 		7B5488C01D2DACDF0056A1BE /* luna_pinyin.schema.yaml in Copy Shared Support Files */ = {isa = PBXBuildFile; fileRef = 7B5488321D2DAAD10056A1BE /* luna_pinyin.schema.yaml */; };
 		7B5488C11D2DACDF0056A1BE /* luna_quanpin.schema.yaml in Copy Shared Support Files */ = {isa = PBXBuildFile; fileRef = 7B5488331D2DAAD10056A1BE /* luna_quanpin.schema.yaml */; };
 		7B5488C91D2DACDF0056A1BE /* symbols.yaml in Copy Shared Support Files */ = {isa = PBXBuildFile; fileRef = 7B54883B1D2DAAD10056A1BE /* symbols.yaml */; };
-		B3216E5C2BF438F800E292D2 /* FamoMenuIcon.pdf in Resources */ = {isa = PBXBuildFile; fileRef = B3216E5B2BF438F800E292D2 /* FamoMenuIcon.pdf */; };
+		B3216E5C2BF438F800E292D2 /* OwlMenuIcon.pdf in Resources */ = {isa = PBXBuildFile; fileRef = B3216E5B2BF438F800E292D2 /* OwlMenuIcon.pdf */; };
 		B35D2FE82BF00839009D156B /* BridgingFunctions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B35D2FE72BF00839009D156B /* BridgingFunctions.swift */; };
 		B38E9B912BE9AE1E0036ABEF /* FamoApplicationDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B38E9B902BE9AE1E0036ABEF /* FamoApplicationDelegate.swift */; };
 		FAA00020CAFE0020CAFE0020 /* FamoUpdateLogoutPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00021CAFE0021CAFE0021 /* FamoUpdateLogoutPrompt.swift */; };
@@ -444,7 +444,7 @@
 		44CD640915E2633D0021234E /* librime.1.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = librime.1.dylib; path = lib/librime.1.dylib; sourceTree = "<group>"; };
 		44E21A8E16A653E700C2B08F /* rime_deployer */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = rime_deployer; path = bin/rime_deployer; sourceTree = "<group>"; };
 		44E21A8F16A653E700C2B08F /* rime_dict_manager */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; name = rime_dict_manager; path = bin/rime_dict_manager; sourceTree = "<group>"; };
-		44F1EB381431F8270015FD04 /* Famo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Famo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		44F1EB381431F8270015FD04 /* Owltype.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Owltype.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		77AA67DC2588916300A592E2 /* HKVariants.ocd2 */ = {isa = PBXFileReference; lastKnownFileType = file; path = HKVariants.ocd2; sourceTree = "<group>"; };
 		77AA67DD2588916300A592E2 /* t2s.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = t2s.json; sourceTree = "<group>"; };
 		77AA67DE2588916300A592E2 /* t2tw.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = t2tw.json; sourceTree = "<group>"; };
@@ -484,8 +484,8 @@
 		7B54883B1D2DAAD10056A1BE /* symbols.yaml */ = {isa = PBXFileReference; lastKnownFileType = text; name = symbols.yaml; path = data/plum/symbols.yaml; sourceTree = "<group>"; };
 		8D1107310486CEB800E47090 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = resources/Info.plist; sourceTree = "<group>"; };
 		A4B8E1B20F645B870094E08B /* Carbon.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Carbon.framework; path = /System/Library/Frameworks/Carbon.framework; sourceTree = "<absolute>"; };
-		B3216E5B2BF438F800E292D2 /* FamoMenuIcon.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; name = FamoMenuIcon.pdf; path = resources/FamoMenuIcon.pdf; sourceTree = "<group>"; };
-		B32B80772BE7FAA200FCF3BC /* Famo.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; name = Famo.entitlements; path = resources/Famo.entitlements; sourceTree = "<group>"; };
+		B3216E5B2BF438F800E292D2 /* OwlMenuIcon.pdf */ = {isa = PBXFileReference; lastKnownFileType = image.pdf; name = OwlMenuIcon.pdf; path = resources/OwlMenuIcon.pdf; sourceTree = "<group>"; };
+		B32B80772BE7FAA200FCF3BC /* Owltype.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; name = Owltype.entitlements; path = resources/Owltype.entitlements; sourceTree = "<group>"; };
 		B35D2FE72BF00839009D156B /* BridgingFunctions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BridgingFunctions.swift; path = sources/BridgingFunctions.swift; sourceTree = "<group>"; };
 		B38E9B8F2BE9AE1E0036ABEF /* Famo-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Famo-Bridging-Header.h"; path = "sources/Famo-Bridging-Header.h"; sourceTree = "<group>"; };
 		B38E9B902BE9AE1E0036ABEF /* FamoApplicationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoApplicationDelegate.swift; path = sources/Controller/FamoApplicationDelegate.swift; sourceTree = "<group>"; };
@@ -672,8 +672,8 @@
 		FA000E01CAFE0E01CAFE0E01 /* FamoKeyboardPatchBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoKeyboardPatchBuilderTests.swift; path = tests/FamoKeyboardPatchBuilderTests.swift; sourceTree = "<group>"; };
 		FA000084CAFE0084CAFE0084 /* HotPathLatencyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HotPathLatencyTests.swift; path = tests/HotPathLatencyTests.swift; sourceTree = "<group>"; };
 		FA000086CAFE0086CAFE0086 /* FamoM3EmojiSkinTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FamoM3EmojiSkinTests.swift; path = tests/FamoM3EmojiSkinTests.swift; sourceTree = "<group>"; };
-		FA000090CAFE0090CAFE0090 /* FamoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FamoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		FA000122CAFE0122CAFE0122 /* FamoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FamoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		FA000090CAFE0090CAFE0090 /* OwltypeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OwltypeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		FA000122CAFE0122CAFE0122 /* OwltypeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OwltypeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B397712C2BEEB39D0093A49B /* InputSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = InputSource.swift; path = sources/Activation/InputSource.swift; sourceTree = "<group>"; };
 		B397712E2BEECBED0093A49B /* Main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Main.swift; path = sources/Main.swift; sourceTree = "<group>"; };
 		B39771302BEEE4540093A49B /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; name = InfoPlist.xcstrings; path = resources/InfoPlist.xcstrings; sourceTree = "<group>"; };
@@ -924,14 +924,14 @@
 		19C28FACFE9D520D11CA2CBB /* Products */ = {
 			isa = PBXGroup;
 				children = (
-					44F1EB381431F8270015FD04 /* Famo.app */,
-					FA000090CAFE0090CAFE0090 /* FamoTests.xctest */,
-					FA000122CAFE0122CAFE0122 /* FamoUITests.xctest */,
+					44F1EB381431F8270015FD04 /* Owltype.app */,
+					FA000090CAFE0090CAFE0090 /* OwltypeTests.xctest */,
+					FA000122CAFE0122CAFE0122 /* OwltypeUITests.xctest */,
 				);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		29B97314FDCFA39411CA2CEA /* Famo */ = {
+		29B97314FDCFA39411CA2CEA /* Owltype */ = {
 			isa = PBXGroup;
 			children = (
 				2C6B9F9A2BCD086700E327DF /* librime-lua.dylib */,
@@ -946,20 +946,20 @@
 				19C28FACFE9D520D11CA2CBB /* Products */,
 			);
 			indentWidth = 2;
-			name = Famo;
+			name = Owltype;
 			sourceTree = "<group>";
 			tabWidth = 2;
 		};
 		29B97317FDCFA39411CA2CEA /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				B3216E5B2BF438F800E292D2 /* FamoMenuIcon.pdf */,
+				B3216E5B2BF438F800E292D2 /* OwlMenuIcon.pdf */,
 				44986A93184B421700B3278D /* LICENSE.txt */,
 				44986A94184B421700B3278D /* README.md */,
 				FA0000010000000000000002 /* THIRD_PARTY_NOTICES.md */,
 				B39771322BEEE4540093A49B /* Localizable.xcstrings */,
 				8D1107310486CEB800E47090 /* Info.plist */,
-				B32B80772BE7FAA200FCF3BC /* Famo.entitlements */,
+				B32B80772BE7FAA200FCF3BC /* Owltype.entitlements */,
 				B39771302BEEE4540093A49B /* InfoPlist.xcstrings */,
 				446C01D61F767BD400A6C23E /* Assets.xcassets */,
 			);
@@ -1080,9 +1080,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		8D1107260486CEB800E47090 /* Famo */ = {
+		8D1107260486CEB800E47090 /* Owltype */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = C01FCF4A08A954540054247B /* Build configuration list for PBXNativeTarget "Famo" */;
+			buildConfigurationList = C01FCF4A08A954540054247B /* Build configuration list for PBXNativeTarget "Owltype" */;
 			buildPhases = (
 				8D1107290486CEB800E47090 /* Resources */,
 				8D11072C0486CEB800E47090 /* Sources */,
@@ -1097,17 +1097,17 @@
 			);
 			dependencies = (
 			);
-			name = Famo;
+			name = Owltype;
 			packageProductDependencies = (
 			);
 			productInstallPath = "$(HOME)/Applications";
-			productName = Famo;
-			productReference = 44F1EB381431F8270015FD04 /* Famo.app */;
+			productName = Owltype;
+			productReference = 44F1EB381431F8270015FD04 /* Owltype.app */;
 			productType = "com.apple.product-type.application";
 		};
-		FA0000C0CAFE00C0CAFE00C0 /* FamoTests */ = {
+		FA0000C0CAFE00C0CAFE00C0 /* OwltypeTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = FA0000D0CAFE00D0CAFE00D0 /* Build configuration list for PBXNativeTarget "FamoTests" */;
+			buildConfigurationList = FA0000D0CAFE00D0CAFE00D0 /* Build configuration list for PBXNativeTarget "OwltypeTests" */;
 			buildPhases = (
 				FA0000B0CAFE00B0CAFE00B0 /* Sources */,
 			);
@@ -1116,16 +1116,16 @@
 			dependencies = (
 				FA0000E0CAFE00E0CAFE00E0 /* PBXTargetDependency */,
 			);
-			name = FamoTests;
+			name = OwltypeTests;
 			packageProductDependencies = (
 			);
-			productName = FamoTests;
-			productReference = FA000090CAFE0090CAFE0090 /* FamoTests.xctest */;
+			productName = OwltypeTests;
+			productReference = FA000090CAFE0090CAFE0090 /* OwltypeTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		FA000124CAFE0124CAFE0124 /* FamoUITests */ = {
+		FA000124CAFE0124CAFE0124 /* OwltypeUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = FA000129CAFE0129CAFE0129 /* Build configuration list for PBXNativeTarget "FamoUITests" */;
+			buildConfigurationList = FA000129CAFE0129CAFE0129 /* Build configuration list for PBXNativeTarget "OwltypeUITests" */;
 			buildPhases = (
 				FA000123CAFE0123CAFE0123 /* Sources */,
 			);
@@ -1134,11 +1134,11 @@
 			dependencies = (
 				FA000126CAFE0126CAFE0126 /* PBXTargetDependency */,
 			);
-			name = FamoUITests;
+			name = OwltypeUITests;
 			packageProductDependencies = (
 			);
-			productName = FamoUITests;
-			productReference = FA000122CAFE0122CAFE0122 /* FamoUITests.xctest */;
+			productName = OwltypeUITests;
+			productReference = FA000122CAFE0122CAFE0122 /* OwltypeUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -1148,27 +1148,27 @@
 			isa = PBXContainerItemProxy;
 			containerPortal = 29B97313FDCFA39411CA2CEA /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 8D1107260486CEB800E47090 /* Famo */;
-			remoteInfo = Famo;
+			remoteGlobalIDString = 8D1107260486CEB800E47090 /* Owltype */;
+			remoteInfo = Owltype;
 		};
 		FA000125CAFE0125CAFE0125 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 29B97313FDCFA39411CA2CEA /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 8D1107260486CEB800E47090 /* Famo */;
-			remoteInfo = Famo;
+			remoteGlobalIDString = 8D1107260486CEB800E47090 /* Owltype */;
+			remoteInfo = Owltype;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXTargetDependency section */
 		FA0000E0CAFE00E0CAFE00E0 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 8D1107260486CEB800E47090 /* Famo */;
+			target = 8D1107260486CEB800E47090 /* Owltype */;
 			targetProxy = FA0000F0CAFE00F0CAFE00F0 /* PBXContainerItemProxy */;
 		};
 		FA000126CAFE0126CAFE0126 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 8D1107260486CEB800E47090 /* Famo */;
+			target = 8D1107260486CEB800E47090 /* Owltype */;
 			targetProxy = FA000125CAFE0125CAFE0125 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -1193,7 +1193,7 @@
 						};
 					};
 			};
-			buildConfigurationList = C01FCF4E08A954540054247B /* Build configuration list for PBXProject "Famo" */;
+			buildConfigurationList = C01FCF4E08A954540054247B /* Build configuration list for PBXProject "Owltype" */;
 			compatibilityVersion = "Xcode 10.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 1;
@@ -1203,15 +1203,15 @@
 				"zh-Hant",
 				Base,
 			);
-			mainGroup = 29B97314FDCFA39411CA2CEA /* Famo */;
+			mainGroup = 29B97314FDCFA39411CA2CEA /* Owltype */;
 			packageReferences = (
 			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-					8D1107260486CEB800E47090 /* Famo */,
-					FA0000C0CAFE00C0CAFE00C0 /* FamoTests */,
-					FA000124CAFE0124CAFE0124 /* FamoUITests */,
+					8D1107260486CEB800E47090 /* Owltype */,
+					FA0000C0CAFE00C0CAFE00C0 /* OwltypeTests */,
+					FA000124CAFE0124CAFE0124 /* OwltypeUITests */,
 				);
 			};
 /* End PBXProject section */
@@ -1227,7 +1227,7 @@
 				FA0000010000000000000001 /* THIRD_PARTY_NOTICES.md in Resources */,
 				B39771332BEEE4540093A49B /* Localizable.xcstrings in Resources */,
 				44986A96184B421700B3278D /* README.md in Resources */,
-				B3216E5C2BF438F800E292D2 /* FamoMenuIcon.pdf in Resources */,
+				B3216E5C2BF438F800E292D2 /* OwlMenuIcon.pdf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1448,15 +1448,15 @@
 		C01FCF4B08A954540054247B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = Famo;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Owltype;
 				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOL_FRAMEWORKS = AppKit;
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
-				CODE_SIGN_ENTITLEMENTS = resources/Famo.entitlements;
+				CODE_SIGN_ENTITLEMENTS = resources/Owltype.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1.6.3;
+				CURRENT_PROJECT_VERSION = 2.0.0;
 				DEAD_CODE_STRIPPING = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1471,7 +1471,7 @@
 				GCC_MODEL_TUNING = G5;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				INFOPLIST_FILE = resources/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "法墨输入法";
+				INFOPLIST_KEY_CFBundleDisplayName = "猫头鹰输入法";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INSTALL_PATH = "\"/Library/Input Methods\"";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1491,9 +1491,9 @@
 					"$(OTHER_CPLUSPLUSFLAGS_QUOTED_FOR_TARGET_2)",
 				);
 				OTHER_LDFLAGS = "-lrime.1";
-				MARKETING_VERSION = 1.6.3;
-				PRODUCT_BUNDLE_IDENTIFIER = im.famo.inputmethod.Famo;
-				PRODUCT_NAME = Famo;
+				MARKETING_VERSION = 2.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.Owltype;
+				PRODUCT_NAME = Owltype;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "sources/Famo-Bridging-Header.h";
@@ -1506,14 +1506,14 @@
 		C01FCF4C08A954540054247B /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = Famo;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Owltype;
 				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOL_FRAMEWORKS = AppKit;
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
-				CODE_SIGN_ENTITLEMENTS = resources/Famo.entitlements;
+				CODE_SIGN_ENTITLEMENTS = resources/Owltype.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1.6.3;
+				CURRENT_PROJECT_VERSION = 2.0.0;
 				DEAD_CODE_STRIPPING = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1527,7 +1527,7 @@
 				GCC_GENERATE_DEBUGGING_SYMBOLS = NO;
 				GCC_MODEL_TUNING = G5;
 				INFOPLIST_FILE = resources/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "法墨输入法";
+				INFOPLIST_KEY_CFBundleDisplayName = "猫头鹰输入法";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INSTALL_PATH = "\"/Library/Input Methods\"";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1547,9 +1547,9 @@
 					"$(OTHER_CPLUSPLUSFLAGS_QUOTED_FOR_TARGET_2)",
 				);
 				OTHER_LDFLAGS = "-lrime.1";
-				MARKETING_VERSION = 1.6.3;
-				PRODUCT_BUNDLE_IDENTIFIER = im.famo.inputmethod.Famo;
-				PRODUCT_NAME = Famo;
+				MARKETING_VERSION = 2.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.Owltype;
+				PRODUCT_NAME = Owltype;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "sources/Famo-Bridging-Header.h";
@@ -1562,7 +1562,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_APPICON_NAME = Famo;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Owltype;
 				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
@@ -1621,7 +1621,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_APPICON_NAME = Famo;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Owltype;
 				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
@@ -1679,7 +1679,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1.6.3;
+				CURRENT_PROJECT_VERSION = 2.0.0;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)",
@@ -1692,13 +1692,13 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.6.3;
-				PRODUCT_BUNDLE_IDENTIFIER = im.famo.inputmethod.FamoTests;
+				MARKETING_VERSION = 2.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.OwltypeTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Famo.app/Contents/MacOS/Famo";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Owltype.app/Contents/MacOS/Owltype";
 			};
 			name = Debug;
 		};
@@ -1707,7 +1707,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1.6.3;
+				CURRENT_PROJECT_VERSION = 2.0.0;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)",
@@ -1720,13 +1720,13 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.6.3;
-				PRODUCT_BUNDLE_IDENTIFIER = im.famo.inputmethod.FamoTests;
+				MARKETING_VERSION = 2.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.OwltypeTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Famo.app/Contents/MacOS/Famo";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Owltype.app/Contents/MacOS/Owltype";
 			};
 			name = Release;
 		};
@@ -1734,7 +1734,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1.6.3;
+				CURRENT_PROJECT_VERSION = 2.0.0;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1742,13 +1742,13 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.6.3;
-				PRODUCT_BUNDLE_IDENTIFIER = im.famo.inputmethod.FamoUITests;
+				MARKETING_VERSION = 2.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.OwltypeUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = Famo;
+				TEST_TARGET_NAME = Owltype;
 			};
 			name = Debug;
 		};
@@ -1756,7 +1756,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1.6.3;
+				CURRENT_PROJECT_VERSION = 2.0.0;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1764,20 +1764,20 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.6.3;
-				PRODUCT_BUNDLE_IDENTIFIER = im.famo.inputmethod.FamoUITests;
+				MARKETING_VERSION = 2.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.OwltypeUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = Famo;
+				TEST_TARGET_NAME = Owltype;
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		C01FCF4A08A954540054247B /* Build configuration list for PBXNativeTarget "Famo" */ = {
+		C01FCF4A08A954540054247B /* Build configuration list for PBXNativeTarget "Owltype" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				C01FCF4B08A954540054247B /* Debug */,
@@ -1786,7 +1786,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		C01FCF4E08A954540054247B /* Build configuration list for PBXProject "Famo" */ = {
+		C01FCF4E08A954540054247B /* Build configuration list for PBXProject "Owltype" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				C01FCF4F08A954540054247B /* Debug */,
@@ -1795,7 +1795,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		FA0000D0CAFE00D0CAFE00D0 /* Build configuration list for PBXNativeTarget "FamoTests" */ = {
+		FA0000D0CAFE00D0CAFE00D0 /* Build configuration list for PBXNativeTarget "OwltypeTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				FA0000D1CAFE00D1CAFE00D1 /* Debug */,
@@ -1804,7 +1804,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		FA000129CAFE0129CAFE0129 /* Build configuration list for PBXNativeTarget "FamoUITests" */ = {
+		FA000129CAFE0129CAFE0129 /* Build configuration list for PBXNativeTarget "OwltypeUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				FA000127CAFE0127CAFE0127 /* Debug */,

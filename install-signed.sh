@@ -16,7 +16,7 @@ cd "$(dirname "$0")"
 
 APP="build/Build/Products/Release/Famo.app"
 DSTROOT="/Library/Input Methods"
-ENT="resources/Famo.entitlements"
+ENT="resources/Owltype.entitlements"
 
 DEV_ID="$(security find-identity -v -p codesigning | sed -nE 's/.*"Developer ID Application: (.*)".*/\1/p' | head -1)"
 [ -n "$DEV_ID" ] || { echo "❌ 找不到 Developer ID Application 签名身份（security find-identity）"; exit 1; }

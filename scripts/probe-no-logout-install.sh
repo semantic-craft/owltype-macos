@@ -47,7 +47,7 @@ preflight() {
 
   # 首装语义要求干净：已有安装测出的是更新路径（postinstall 跳过 enable/select），结论无效。
   if [[ -d "$APP" ]]; then
-    fail "已存在 $APP —— 探针要求首装语义。先彻底卸载（package/卸载法墨.command）并注销一次后再来。"
+    fail "已存在 $APP —— 探针要求首装语义。先彻底卸载（package/卸载猫头鹰.command）并注销一次后再来。"
   fi
   if [[ -d "$HOME/Library/Input Methods/Famo.app" ]]; then
     fail "已存在 ~/Library/Input Methods/Famo.app（dev 安装）—— 同上，先卸载。"

@@ -1,11 +1,11 @@
-// FamoInstaller — 法墨输入法独立首装安装器（运行在用户 Aqua GUI 会话）。
+// OwltypeInstaller — 猫头鹰输入法独立首装安装器（运行在用户 Aqua GUI 会话）。
 //
-// 设计要点（task 07-02-famo-first-install-no-logout，微信法首装免注销）：
+// 设计要点（首装免注销专题 07-02，微信法首装免注销）：
 //   - 普通带窗口 App（非 agent），单窗一键安装 + 一个卸载。
-//   - 提权仅用于把内嵌的 Famo.app 拷进 /Library/Input Methods/（NSAppleScript admin）。
+//   - 提权仅用于把内嵌的 Owltype.app 拷进 /Library/Input Methods/（NSAppleScript admin）。
 //   - TIS register + enable「父条目」都在本进程内做（登录用户 Aqua 会话已签名 GUI 进程，满足
 //     enable 的全部真必要条件）；是否 enable 由复合幂等判据决定（InstallerActivationPolicy）。
-//   - 拷贝完成后跑 `Famo --activate-once` + `open Famo.app` 发布 IMK endpoint，再由
+//   - 拷贝完成后跑 `Owltype --activate-once` + `open Owltype.app` 发布 IMK endpoint，再由
 //     InstallerActivationVerifier 在主 runloop 等 consent、读回验证、best-effort select。
 //   - 更新/修复也走同一安装器路径，不要求先卸载旧版本；更新整段跳过 enable（防幽灵态）。
 
@@ -13,11 +13,11 @@ import SwiftUI
 import AppKit
 
 // 入口在 main.swift（不用 @main）：`--tis-probe` 自探针要在 SwiftUI 生命周期启动前被拦截。
-struct FamoInstallerApp: App {
+struct OwltypeInstallerApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        WindowGroup("法墨安装器") {
+        WindowGroup("猫头鹰安装器") {
             ContentView()
         }
         .windowResizability(.contentSize)

@@ -139,7 +139,7 @@ copy-famo-seed:
 release: $(DEPS_CHECK)
 	mkdir -p "$(RELEASE_OUTPUT_ROOT)"
 	bash package/add_data_files
-	xcodebuild -project Famo.xcodeproj -configuration Release -scheme Famo -derivedDataPath "$(RELEASE_OUTPUT_ROOT)" $(BUILD_SETTINGS) \
+	xcodebuild -project Owltype.xcodeproj -configuration Release -scheme Owltype -derivedDataPath "$(RELEASE_OUTPUT_ROOT)" $(BUILD_SETTINGS) \
 		CODE_SIGNING_ALLOWED=NO \
 		ENABLE_CODE_COVERAGE=NO \
 		OTHER_SWIFT_FLAGS="-file-prefix-map $(CURDIR)=." \
@@ -153,7 +153,7 @@ release: $(DEPS_CHECK)
 debug: $(DEPS_CHECK)
 	mkdir -p $(DERIVED_DATA_PATH)
 	bash package/add_data_files
-	xcodebuild -project Famo.xcodeproj -configuration Debug -scheme Famo -derivedDataPath $(DERIVED_DATA_PATH)  $(BUILD_SETTINGS) build
+	xcodebuild -project Owltype.xcodeproj -configuration Debug -scheme Owltype -derivedDataPath $(DERIVED_DATA_PATH)  $(BUILD_SETTINGS) build
 	$(MAKE) copy-famo-seed FAMO_CONFIG=Debug
 
 .PHONY: sparkle copy-sparkle-framework
@@ -260,18 +260,18 @@ clean-deps:
 
 test: $(DEPS_CHECK)
 	xcodebuild \
-		-project Famo.xcodeproj \
-		-scheme Famo \
+		-project Owltype.xcodeproj \
+		-scheme Owltype \
 		-configuration Debug \
 		-derivedDataPath $(DERIVED_DATA_PATH) \
 		CODE_SIGNING_ALLOWED=YES \
 		CODE_SIGN_IDENTITY=- \
 		test \
-		-skip-testing:FamoTests/FamoGoalBriefLiveTests \
-		-skip-testing:FamoTests/FamoPromptOptimizeLiveTests \
-		-skip-testing:FamoTests/FamoResponsesPromptEvaluationLiveTests \
-		-skip-testing:FamoTests/FamoSkillsLiveTests \
-		-skip-testing:FamoTests/FamoTriModelSelectionMatrixLiveTests
+		-skip-testing:OwltypeTests/FamoGoalBriefLiveTests \
+		-skip-testing:OwltypeTests/FamoPromptOptimizeLiveTests \
+		-skip-testing:OwltypeTests/FamoResponsesPromptEvaluationLiveTests \
+		-skip-testing:OwltypeTests/FamoSkillsLiveTests \
+		-skip-testing:OwltypeTests/FamoTriModelSelectionMatrixLiveTests
 
 # Read-only cohort preflight. It deliberately has no build prerequisite: callers may invoke it
 # repeatedly without rebuilding, re-signing or replacing the selected cohort.

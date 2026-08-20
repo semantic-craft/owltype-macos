@@ -25,7 +25,7 @@
 `responsay.com/famo/appcast.xml`，检测到新版后下载同一个签名、公证过的
 `Famo-update.pkg` 就地升级，**不需要注销**。更新检查不上传输入内容或用户数据。
 
-卸载：安装包内附 `卸载法墨.command`，或在系统设置里移除输入法后删除
+卸载：安装包内附 `卸载猫头鹰.command`，或在系统设置里移除输入法后删除
 `/Library/Input Methods/Famo.app`。
 
 ## 特性

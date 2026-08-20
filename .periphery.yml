@@ -1,8 +1,8 @@
-project: Famo.xcodeproj
+project: Owltype.xcodeproj
 schemes:
-- Famo
+- Owltype
 targets:
-- Famo
+- Owltype
 format: github-actions
 relative_results: true
 retain_objc_accessible: true
