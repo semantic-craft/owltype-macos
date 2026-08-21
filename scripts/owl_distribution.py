@@ -361,7 +361,12 @@ def _load_verified_cohort(
     state = repo_root / "scripts/release-cohort-state.py"
     gate = repo_root / "scripts/check-published-release.sh"
     subprocess.run(
-        [sys.executable, str(state), "verify-chain", str(output_root)],
+        [
+            sys.executable,
+            str(state),
+            "require-publish-authorization",
+            str(output_root),
+        ],
         check=True,
     )
     result = subprocess.run(

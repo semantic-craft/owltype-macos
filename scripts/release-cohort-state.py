@@ -58,6 +58,8 @@ RETRYABLE_EXIT = 75
 REJECTED_EXIT = 65
 SPARKLE_NAMESPACE = "http://www.andymatuschak.org/xml-namespaces/sparkle"
 OWL_COHORT_NAMESPACE = "https://responsay.com/owltype/release-cohort"
+PUBLISH_AUTHORIZATION_NAME = "OWLTYPE-PUBLISH-AUTHORIZATION.json"
+PUBLISH_AUTHORIZATION_SCHEMA_VERSION = 1
 
 
 class CohortError(RuntimeError):
@@ -804,6 +806,85 @@ def verify_chain(output_root_arg: str) -> None:
     )
 
 
+def publication_asset_paths(
+    output_root: Path, output_dir: Path, cohort: dict
+) -> list[Path]:
+    source_archive = resolve_artifact_path(
+        cohort["outputs"]["source-archive"], output_root, ROOT
+    )
+    paths = [
+        resolve_artifact_path(cohort["artifacts"]["installer-pkg"], output_root, ROOT),
+        resolve_artifact_path(cohort["artifacts"]["update-pkg"], output_root, ROOT),
+        resolve_artifact_path(cohort["artifacts"]["dmg"], output_root, ROOT),
+        resolve_artifact_path(cohort["outputs"]["appcast"], output_root, ROOT),
+        source_archive,
+        source_archive.with_name(f"{source_archive.name}.sha256"),
+        output_dir / "OWLTYPE-FILE-MANIFEST.sha256",
+        output_dir / "OWLTYPE-SBOM.spdx.json",
+        output_dir / "OWLTYPE-APP-PROVENANCE.txt",
+        output_dir / "OWLTYPE-RELEASE-COHORT.json",
+    ]
+    for path in paths:
+        if not path.is_file() or path.stat().st_size == 0:
+            raise CohortError(f"publishing contract asset is missing or empty: {path}")
+    return paths
+
+
+def publish_authorization_binding(output_root_arg: str) -> tuple[Path, dict]:
+    verify_chain(output_root_arg)
+    output_root, _, output_dir, cohort = load_validated(output_root_arg)
+    assets = [
+        {"name": path.name, "sha256": sha256(path)}
+        for path in publication_asset_paths(output_root, output_dir, cohort)
+    ]
+    assets_sha256 = hashlib.sha256(
+        json.dumps(assets, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    ).hexdigest()
+    return output_dir, {
+        "assetsSha256": assets_sha256,
+        "cohortId": cohort["cohortId"],
+        "revision": cohort["revision"],
+        "schemaVersion": PUBLISH_AUTHORIZATION_SCHEMA_VERSION,
+    }
+
+
+def revoke_publish(output_root_arg: str) -> None:
+    _, _, output_dir = release_paths(Path(output_root_arg))
+    (output_dir / PUBLISH_AUTHORIZATION_NAME).unlink(missing_ok=True)
+    print("PASS: local publish authorization is absent")
+
+
+def authorize_publish(output_root_arg: str) -> None:
+    if os.environ.get("OWL_RELEASE_AUTHORIZATION_DRIVER") != "release.sh:8/8":
+        raise CohortError(
+            "publish authorization may only be recorded by the release.sh 8/8 driver"
+        )
+    output_dir, binding = publish_authorization_binding(output_root_arg)
+    destination = output_dir / PUBLISH_AUTHORIZATION_NAME
+    temporary = destination.with_name(f".{destination.name}.tmp")
+    temporary.write_text(
+        json.dumps(binding, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    )
+    temporary.replace(destination)
+    print(f"PASS: publish authorization recorded for cohort {binding['cohortId']}")
+
+
+def require_publish_authorization(output_root_arg: str) -> None:
+    output_dir, expected = publish_authorization_binding(output_root_arg)
+    destination = output_dir / PUBLISH_AUTHORIZATION_NAME
+    try:
+        authorization = json.loads(destination.read_text(encoding="utf-8"))
+    except FileNotFoundError as error:
+        raise CohortError(
+            "publish authorization is missing; run scripts/release.sh successfully"
+        ) from error
+    except (OSError, ValueError) as error:
+        raise CohortError(f"cannot read publish authorization: {error}") from error
+    if authorization != expected:
+        raise CohortError("publish authorization does not match the verified release assets")
+    print(f"PASS: publish authorization verifies for cohort {expected['cohortId']}")
+
+
 def output_path(output_root_arg: str, name: str) -> None:
     output_root, _, _, cohort = load_validated(output_root_arg)
     record = cohort.get("outputs", {}).get(name)
@@ -985,6 +1066,17 @@ def parse_args() -> argparse.Namespace:
     verify_chain_parser = subparsers.add_parser("verify-chain")
     verify_chain_parser.add_argument("output_root")
 
+    revoke_publish_parser = subparsers.add_parser("revoke-publish")
+    revoke_publish_parser.add_argument("output_root")
+
+    authorize_publish_parser = subparsers.add_parser(
+        "authorize-publish", help=argparse.SUPPRESS
+    )
+    authorize_publish_parser.add_argument("output_root")
+
+    require_publish_parser = subparsers.add_parser("require-publish-authorization")
+    require_publish_parser.add_argument("output_root")
+
     output_path_parser = subparsers.add_parser("output-path")
     output_path_parser.add_argument("output_root")
     output_path_parser.add_argument("output", choices=RELEASE_OUTPUTS)
@@ -1018,6 +1110,12 @@ def main() -> None:
             register_output(args.output_root, args.output, args.path)
         elif args.command == "verify-chain":
             verify_chain(args.output_root)
+        elif args.command == "revoke-publish":
+            revoke_publish(args.output_root)
+        elif args.command == "authorize-publish":
+            authorize_publish(args.output_root)
+        elif args.command == "require-publish-authorization":
+            require_publish_authorization(args.output_root)
         elif args.command == "output-path":
             output_path(args.output_root, args.output)
         elif args.command == "artifact-path":

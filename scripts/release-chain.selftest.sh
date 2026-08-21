@@ -6,6 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STATE="$ROOT/scripts/release-cohort-state.py"
 INVENTORY="$ROOT/scripts/inventory-release-bundle.py"
 RELEASE="$ROOT/scripts/release.sh"
+DISTRIBUTION="$ROOT/scripts/owl_distribution.py"
 work="$(mktemp -d "${TMPDIR:-/tmp}/owl-release-chain.XXXXXX")"
 cleanup() {
   rm -rf "$work"
@@ -189,7 +190,8 @@ fi
 if [[ "${OWL_RELEASE_TEST_REAL_PUBLISHED:-}" == 1 &&
       "$*" == *"check-secrets.sh --artifacts"* ]]; then
   printf '%s\0' "$@" >"${OWL_RELEASE_TEST_ARTIFACT_ARGS:?}"
-  exit 0
+  [[ "${OWL_RELEASE_TEST_FAIL_SECRET:-}" != 1 ]]
+  exit $?
 fi
 if [[ "$*" == *"check-published-release.sh --print0"* ]]; then
   for asset in Owltype.pkg Owltype-update.pkg Owltype-9.8.7.dmg appcast.xml \
@@ -205,6 +207,13 @@ STUB
 cat >"$runner_bin/python3" <<'STUB'
 #!/bin/bash
 printf 'python3 %s\n' "$*" >>"$OWL_RELEASE_TEST_LOG"
+if [[ "${OWL_RELEASE_TEST_REAL_PUBLISHED:-}" == 1 &&
+      "$*" == *"release-cohort-state.py revoke-publish"* ]] ||
+   [[ "${OWL_RELEASE_TEST_REAL_PUBLISHED:-}" == 1 &&
+      "$*" == *"release-cohort-state.py authorize-publish"* ]]; then
+  PATH=/usr/bin:/bin:/usr/sbin:/sbin /usr/bin/python3 "$@"
+  exit $?
+fi
 if [[ "$*" == *" output-path "* ]]; then
   printf '%s\n' "${OWL_RELEASE_TEST_SOURCE:?}"
 fi
@@ -718,6 +727,10 @@ if env PATH="$runner_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     OWL_RELEASE_TEST_ARTIFACT_ARGS="$artifact_args" \
     DEV_ID='fixture identity' NOTARY_PROFILE=fixture-profile \
     /bin/bash "$RELEASE" --output-root "$cohort_root" >"$output" 2>&1 &&
+    [[ -s "$release_dir/OWLTYPE-PUBLISH-AUTHORIZATION.json" ]] &&
+    python3 "$DISTRIBUTION" --dry-run --output-root "$cohort_root" \
+      >>"$output" 2>&1 &&
+    grep -qF "complete responsay.com publication order rendered" "$output" &&
    python3 - "$artifact_args" "$app" <<'PY'
 import sys
 from pathlib import Path
@@ -734,10 +747,48 @@ assert all(target.exists() for target in targets), targets
 assert targets[1].name == "Owltype.pkg", targets
 PY
 then
-  ok "release secret-gate seam receives App plus all ten existing published assets"
+  ok "8/8 release gates authorize the exact cohort for publisher planning"
 else
   sed 's/^/     /' "$output" >&2
-  bad "release secret gate must receive App and ten unpolluted published asset paths"
+  bad "release gates must authorize the exact verified cohort after the artifact secret scan"
+fi
+
+publisher_bin="$work/publisher-bin"
+publisher_remote_log="$work/publisher-remote.log"
+mkdir -p "$publisher_bin"
+cat >"$publisher_bin/wrangler" <<'STUB'
+#!/bin/bash
+if [[ "${1:-}" == "--version" ]]; then
+  printf 'wrangler 4.123.0\n'
+  exit 0
+fi
+printf '%s\n' "$*" >>"${OWL_PUBLISH_REMOTE_LOG:?}"
+exit 77
+STUB
+chmod +x "$publisher_bin/wrangler"
+if env PATH="$runner_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+    OWL_RELEASE_TEST_LOG="$runner_log" \
+    OWL_RELEASE_TEST_SOURCE="$source_archive" \
+    OWL_RELEASE_TEST_REAL_PUBLISHED=1 \
+    OWL_RELEASE_TEST_FAIL_SECRET=1 \
+    OWL_RELEASE_TEST_ARTIFACT_ARGS="$artifact_args" \
+    DEV_ID='fixture identity' NOTARY_PROFILE=fixture-profile \
+    /bin/bash "$RELEASE" --output-root "$cohort_root" >"$output" 2>&1; then
+  bad "failed secret gate must not preserve publish authorization"
+elif [[ -e "$release_dir/OWLTYPE-PUBLISH-AUTHORIZATION.json" ]]; then
+  bad "failed secret gate must revoke the previous publish authorization"
+elif env PATH="$publisher_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+    OWL_PUBLISH_REMOTE_LOG="$publisher_remote_log" \
+    python3 "$DISTRIBUTION" --publish --output-root "$cohort_root" \
+      >"$output" 2>&1; then
+  bad "complete but unauthorized cohort must be rejected before remote writes"
+elif grep -qF "publish authorization" "$output" &&
+     [[ ! -e "$publisher_remote_log" ]]; then
+  ok "failed secret gate revokes authorization before publisher remote writes"
+else
+  sed 's/^/     /' "$output" >&2
+  [[ ! -e "$publisher_remote_log" ]] || sed 's/^/     REMOTE: /' "$publisher_remote_log" >&2
+  bad "publisher must require a gate-bound authorization before remote writes"
 fi
 
 if bash "$ROOT/scripts/check-published-release.sh" --dry-run "$cohort_root" \

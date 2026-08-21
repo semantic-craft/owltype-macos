@@ -52,6 +52,8 @@ cohort_file="$release_dir/OWLTYPE-RELEASE-COHORT.json"
 dev_id="${DEV_ID:-}"
 notary_profile="${NOTARY_PROFILE:-xw-notary}"
 
+run python3 "$STATE" revoke-publish "$output_root"
+
 if ((!dry_run)) && [[ -z "$dev_id" ]]; then
   echo >&2 "ERROR: set DEV_ID to the Developer ID common name"
   exit 1
@@ -173,9 +175,11 @@ run bash "$ROOT/scripts/check-secrets.sh" --artifacts \
 
 echo "==> 8/8 verify the local publishing contract without publishing"
 run bash "$ROOT/scripts/check-published-release.sh" --dry-run "$output_root"
+run env OWL_RELEASE_AUTHORIZATION_DRIVER=release.sh:8/8 \
+  python3 "$STATE" authorize-publish "$output_root"
 
 if ((dry_run)); then
   printf 'DRY-RUN: complete release order rendered; no step was executed\n'
 else
-  printf 'PASS: one release cohort completed every local gate; no remote state was changed\n'
+  printf 'PASS: one release cohort completed every local gate and is authorized for publishing; no remote state was changed\n'
 fi
