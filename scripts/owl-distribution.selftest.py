@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -158,6 +159,51 @@ class PublisherTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(DistributionError, "version mismatch"):
                 WranglerR2Store()
+
+    def test_r2_store_streams_large_assets_instead_of_using_lossy_file_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "Owltype.dmg"
+            source.write_bytes(b"signed-dmg-bytes")
+            remote_root = root / "remote"
+            fake_wrangler = root / "wrangler"
+            fake_wrangler.write_text(
+                """#!/bin/sh
+set -eu
+if [ "$1" = "--version" ]; then
+  printf '4.123.0\\n'
+  exit 0
+fi
+if [ "$1" = "r2" ] && [ "$2" = "object" ] && [ "$3" = "put" ]; then
+  object_path="$FAKE_R2_ROOT/${4#*/}"
+  mkdir -p "$(dirname "$object_path")"
+  case " $* " in
+    *" --pipe "*) cat >"$object_path" ;;
+    *) exit 0 ;;
+  esac
+  exit 0
+fi
+exit 2
+""",
+                encoding="utf-8",
+            )
+            fake_wrangler.chmod(0o755)
+            with (
+                patch(
+                    "owl_distribution.shutil.which", return_value=str(fake_wrangler)
+                ),
+                patch.dict(os.environ, {"FAKE_R2_ROOT": str(remote_root)}),
+            ):
+                store = WranglerR2Store()
+                store.put(
+                    source,
+                    "owltype/releases/2.0.1/Owltype.dmg",
+                    content_type="application/x-apple-diskimage",
+                    cache_control=IMMUTABLE_CACHE_CONTROL,
+                )
+
+            uploaded = remote_root / "owltype/releases/2.0.1/Owltype.dmg"
+            self.assertEqual(uploaded.read_bytes(), b"signed-dmg-bytes")
 
     def test_publish_is_idempotent_for_matching_immutable_objects_and_feed_is_last(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
