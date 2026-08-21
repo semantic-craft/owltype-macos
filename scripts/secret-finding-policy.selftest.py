@@ -12,6 +12,8 @@ import importlib.util
 import json
 import os
 import pathlib
+import secrets
+import shutil
 import stat
 import subprocess
 import sys
@@ -358,9 +360,19 @@ class ShellAdapterTests(unittest.TestCase):
         trufflehog_mode: str = "clean",
         trufflehog_report: dict[str, Any] | None = None,
         secret_sentinel: str = "",
+        use_real_gitleaks: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
-        environment["PATH"] = f"{self.fake_bin}{os.pathsep}{environment['PATH']}"
+        scanner_bin = self.fake_bin
+        if use_real_gitleaks:
+            real_gitleaks = shutil.which("gitleaks", path=environment["PATH"])
+            if real_gitleaks is None:
+                self.skipTest("real Gitleaks is required for config integration coverage")
+            scanner_bin = self.root / "real-gitleaks-bin"
+            scanner_bin.mkdir(exist_ok=True)
+            (scanner_bin / "gitleaks").symlink_to(real_gitleaks)
+            (scanner_bin / "trufflehog").symlink_to(self.fake_bin / "trufflehog")
+        environment["PATH"] = f"{scanner_bin}{os.pathsep}{environment['PATH']}"
         environment["FAKE_GITLEAKS_MODE"] = gitleaks_mode
         environment["FAKE_GITLEAKS_REPORT"] = json.dumps(gitleaks_report or [])
         environment["FAKE_TRUFFLEHOG_MODE"] = trufflehog_mode
@@ -374,6 +386,16 @@ class ShellAdapterTests(unittest.TestCase):
             capture_output=True,
             text=True,
         )
+
+    def _source_archive_with(self, relative_path: str, contents: str) -> pathlib.Path:
+        source_root = self.root / ("source-" + secrets.token_hex(4))
+        source_file = source_root / relative_path
+        source_file.parent.mkdir(parents=True)
+        source_file.write_text(contents, encoding="utf-8")
+        source_archive = source_root.with_suffix(".tar.gz")
+        with tarfile.open(source_archive, "w:gz") as archive:
+            archive.add(source_root, arcname="Owltype-macOS-9.8.7-source")
+        return source_archive
 
     def test_gitleaks_nonzero_distinguishes_finding_from_scan_error(self) -> None:
         finding = self._run_gate(
@@ -449,6 +471,70 @@ class ShellAdapterTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertIn("Lob 撞测试函数名 1 条", completed.stdout)
         self.assertIn(str(source_archive), completed.stdout)
+
+    def test_source_archive_allows_the_published_sparkle_public_key(self) -> None:
+        documented_public_key = next(
+            line
+            for line in (REPO_ROOT / "docs" / "rename-owltype-plan.md")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if "SUPublicEDKey" in line
+        )
+        source_archive = self._source_archive_with(
+            "docs/rename-owltype-plan.md",
+            documented_public_key + "\n",
+        )
+
+        completed = self._run_gate(
+            "--artifacts",
+            str(source_archive),
+            use_real_gitleaks=True,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
+    def test_source_archive_still_rejects_a_generic_api_key(self) -> None:
+        synthetic_key = secrets.token_urlsafe(32)
+        source_archive = self._source_archive_with(
+            "config/runtime.env",
+            f'api_key = "{synthetic_key}"\n',
+        )
+
+        completed = self._run_gate(
+            "--artifacts",
+            str(source_archive),
+            use_real_gitleaks=True,
+        )
+
+        self.assertEqual(completed.returncode, 1, completed.stderr)
+        self.assertIn("rule=generic-api-key", completed.stderr)
+        self.assertNotIn(synthetic_key, completed.stdout + completed.stderr)
+
+    def test_public_key_marker_does_not_waive_a_generic_api_key_on_the_same_line(
+        self,
+    ) -> None:
+        synthetic_key = secrets.token_urlsafe(32)
+        documented_public_key = next(
+            line
+            for line in (REPO_ROOT / "docs" / "rename-owltype-plan.md")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if "SUPublicEDKey" in line
+        )
+        source_archive = self._source_archive_with(
+            "docs/rename-owltype-plan.md",
+            f'{documented_public_key} api_key = "{synthetic_key}"\n',
+        )
+
+        completed = self._run_gate(
+            "--artifacts",
+            str(source_archive),
+            use_real_gitleaks=True,
+        )
+
+        self.assertEqual(completed.returncode, 1, completed.stderr)
+        self.assertIn("rule=generic-api-key", completed.stderr)
+        self.assertNotIn(synthetic_key, completed.stdout + completed.stderr)
 
     def test_source_archive_rejects_unsafe_members_before_scanning(self) -> None:
         cases = ("traversal", "symlink")

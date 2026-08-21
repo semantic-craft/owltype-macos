@@ -2,8 +2,11 @@
 useDefault = true
 
 # Sparkle 的 EdDSA 公钥（SUPublicEDKey）随 app 的 Info.plist 公开分发，是验签公钥而非机密。
-# 按行上下文豁免，不在本文件写出键值本身。
-[allowlist]
-description = "Sparkle EdDSA public key lines are public by design"
-regexTarget = "line"
-regexes = ['''SUPublicEDKey''']
+# 路径与精确公钥值必须同时匹配；同一行夹带其他凭据时不会被豁免。
+[[allowlists]]
+targetRules = ["generic-api-key"]
+description = "The documented Sparkle EdDSA public key is public by design"
+condition = "AND"
+regexTarget = "secret"
+paths = ['''(^|/)docs/rename-owltype-plan\.md$''']
+regexes = ['''^3Ze0A\+sHbvkQ8CLlDUIcYvm7BJS4IJLU1rNEX66F9R4=$''']
