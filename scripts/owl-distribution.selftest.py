@@ -9,9 +9,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from owl_distribution import (
-    CLIENT_FEED_URL,
     IMMUTABLE_CACHE_CONTROL,
+    LEGACY_CLIENT_FEED_URL,
     STABLE_CACHE_CONTROL,
+    SUCCESSOR_CLIENT_FEED_URL,
     WRANGLER_VERSION,
     DistributionError,
     WranglerR2Store,
@@ -43,10 +44,18 @@ class FakeObjectStore:
 
 
 class FakePublicVerifier:
-    def __init__(self) -> None:
+    def __init__(self, store: FakeObjectStore | None = None) -> None:
+        self.store = store
         self.verified: list[tuple[str, str]] = []
+        self.alias_latest_states: list[bool] = []
 
     def verify(self, url: str, sha256: str) -> None:
+        if url.startswith("https://responsay.com/owltype/") and not url.endswith(
+            "appcast.xml"
+        ):
+            self.alias_latest_states.append(
+                self.store is not None and "owltype/latest.json" in self.store.objects
+            )
         self.verified.append((url, sha256))
 
 
@@ -84,13 +93,14 @@ class DistributionPlanTests(unittest.TestCase):
         with self.assertRaises(DistributionError):
             versioned_asset_url("1..6", "Owltype-update.pkg")
 
-    def test_plan_uploads_complete_cohort_then_atomic_pointer_and_feed_last(self) -> None:
+    def test_bridge_plan_commits_successor_feed_then_legacy_feed_last(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             assets = fixture_assets(Path(directory), "1.6.2")
             plan = build_publish_plan(
                 assets,
                 version="1.6.2",
                 build_version="162",
+                feed_mode="bridge",
             )
 
         versioned = plan[:10]
@@ -103,19 +113,35 @@ class DistributionPlanTests(unittest.TestCase):
             versioned[1].url,
             "https://downloads.responsay.com/owltype/releases/162/Owltype-update.pkg",
         )
-        self.assertEqual(plan[-2].key, "owltype/latest.json")
+        self.assertEqual(plan[-3].key, "owltype/latest.json")
+        self.assertEqual(plan[-2].key, "owltype/v2/appcast.xml")
         self.assertEqual(plan[-1].key, "owltype/appcast.xml")
         self.assertEqual(plan[-1].cache_control, STABLE_CACHE_CONTROL)
         self.assertFalse(plan[-1].immutable)
         self.assertEqual(plan[-1].source.name, "appcast.xml")
         self.assertNotIn("owltype/latest/Owltype-update.pkg", [item.key for item in plan])
 
+    def test_successor_plan_never_writes_the_legacy_feed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            assets = fixture_assets(Path(directory), "2.0.2")
+            plan = build_publish_plan(
+                assets,
+                version="2.0.2",
+                build_version="2.0.2",
+                feed_mode="successor",
+            )
+        self.assertEqual(plan[-2].key, "owltype/latest.json")
+        self.assertEqual(plan[-1].key, "owltype/v2/appcast.xml")
+        self.assertNotIn("owltype/appcast.xml", [item.key for item in plan])
+
     def test_plan_rejects_incomplete_corresponding_source_contract(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             assets = fixture_assets(Path(directory), "1.6.2")
             assets = [path for path in assets if not path.name.endswith("-source.tar.gz")]
             with self.assertRaisesRegex(DistributionError, "publishing contract"):
-                build_publish_plan(assets, version="1.6.2", build_version="162")
+                build_publish_plan(
+                    assets, version="1.6.2", build_version="162", feed_mode="bridge"
+                )
 
 
 class PublisherTests(unittest.TestCase):
@@ -140,17 +166,23 @@ class PublisherTests(unittest.TestCase):
                 assets,
                 version="1.6.2",
                 build_version="162",
+                feed_mode="bridge",
             )
             first = plan[0]
             store = FakeObjectStore({first.key: first.source.read_bytes()})
-            verifier = FakePublicVerifier()
+            verifier = FakePublicVerifier(store)
             events = publish(plan, store, verifier)
 
         self.assertEqual(events[0], f"REUSE {first.key}")
         self.assertNotIn(first.key, store.puts)
         self.assertEqual(store.puts[-1], "owltype/appcast.xml")
-        self.assertEqual(len(verifier.verified), len(plan) + 5)
-        manual_urls = [url for url, _ in verifier.verified[-6:-1]]
+        self.assertEqual(len(verifier.verified), len(plan) + 6)
+        manual_urls = [
+            url
+            for url, _ in verifier.verified
+            if url.startswith("https://responsay.com/owltype/")
+            and not url.endswith("appcast.xml")
+        ]
         self.assertEqual(
             manual_urls,
             [
@@ -158,10 +190,11 @@ class PublisherTests(unittest.TestCase):
                 "https://responsay.com/owltype/Owltype-update.pkg",
                 "https://responsay.com/owltype/Owltype.dmg",
                 "https://responsay.com/owltype/source.tar.gz",
-                "https://downloads.responsay.com/owltype/appcast.xml",
             ],
         )
-        self.assertEqual(verifier.verified[-1][0], CLIENT_FEED_URL)
+        self.assertEqual(verifier.alias_latest_states, [True, True, True, True])
+        self.assertEqual(verifier.verified[-2][0], SUCCESSOR_CLIENT_FEED_URL)
+        self.assertEqual(verifier.verified[-1][0], LEGACY_CLIENT_FEED_URL)
 
     def test_website_aliases_do_not_confuse_installer_with_update_package(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -171,6 +204,7 @@ class PublisherTests(unittest.TestCase):
                 assets,
                 version="1.6.3",
                 build_version="1.6.3",
+                feed_mode="bridge",
             )
             verifier = FakePublicVerifier()
             publish(plan, FakeObjectStore(), verifier)
@@ -193,6 +227,7 @@ class PublisherTests(unittest.TestCase):
                 assets,
                 version="1.6.2",
                 build_version="162",
+                feed_mode="bridge",
             )
             expected = hashlib.sha256(plan[0].source.read_bytes()).hexdigest()
             store = FakeObjectStore({plan[0].key: b"different release"})

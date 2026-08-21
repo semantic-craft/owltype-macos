@@ -67,13 +67,14 @@ OWL_FORBIDDEN_PRODUCT=(
 )
 
 # owl_scan_app_identity <app_dir>
-# Scans a built/installed .app for identity residue in Info.plist text and product
-# Resource filenames. Sets OWL_SCAN_HARD / OWL_SCAN_PRODUCT to hit counts and
+# Scans a built/installed .app for identity residue in Info.plist text, exact hard
+# identities embedded in its main executable, and product Resource filenames.
+# Sets OWL_SCAN_HARD / OWL_SCAN_PRODUCT to hit counts and
 # prints each hit to stderr. Returns 0 always; the caller decides fail vs warn.
 #
-# Deliberately does NOT scan the Mach-O binary (librime symbols are legitimate
-# provenance — binary-strings scanning is a later, warning-only add) nor
-# Contents/SharedSupport (rime_ice.* schemas are allowed engine data).
+# The executable scan is deliberately limited to OWL_FORBIDDEN_HARD. Generic brand
+# fragments and librime/Squirrel symbols are legitimate provenance and would create
+# false positives. Contents/SharedSupport is likewise engine data, not product identity.
 owl_scan_app_identity() {
   local app="$1"
   OWL_SCAN_HARD=0
@@ -99,6 +100,20 @@ owl_scan_app_identity() {
       OWL_SCAN_PRODUCT=$((OWL_SCAN_PRODUCT + 1))
     fi
   done
+
+  local executable_name executable_path executable_strings
+  executable_name="$(/usr/bin/plutil -extract CFBundleExecutable raw -o - "$plist" 2>/dev/null || true)"
+  [[ -n "$executable_name" ]] || executable_name="Owltype"
+  executable_path="$app/Contents/MacOS/$executable_name"
+  if [[ -f "$executable_path" ]]; then
+    executable_strings="$(/usr/bin/strings -a "$executable_path" 2>/dev/null || true)"
+    for tok in "${OWL_FORBIDDEN_HARD[@]}"; do
+      if grep -qF "$tok" <<<"$executable_strings"; then
+        printf 'HARD     executable: %s\n' "$tok" >&2
+        OWL_SCAN_HARD=$((OWL_SCAN_HARD + 1))
+      fi
+    done
+  fi
 
   # Product resource filenames only (SharedSupport engine data is allowlisted).
   while IFS= read -r hit; do

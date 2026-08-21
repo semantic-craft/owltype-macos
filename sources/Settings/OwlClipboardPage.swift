@@ -50,20 +50,9 @@ enum OwlClipboardStore {
     root.appendingPathComponent(fileName)
   }
 
-  /// Pre-fix location: history used to nest under a redundant per-app subdir inside the already-
-  /// Owltype user dir (`.../Owltype/owltype/clipboard-history.json`). Read from here when the
-  /// canonical file is absent so an in-place upgrade doesn't orphan existing history.
-  /// 改名注意：旧安装里这个子目录用的是改名前的品牌名，首启迁移（06 号票）复制目录后必须把它
-  /// 一并改名为 `owltype/`，否则这条回落读的是一个永远不存在的路径。
-  /// ponytail: legacy-read fallback; drop once installs have rolled past this release.
-  static func legacyFileURL(root: URL = OwlApp.userDir) -> URL {
-    root.appendingPathComponent("owltype", isDirectory: true)
-      .appendingPathComponent(fileName)
-  }
-
   static func load(root: URL = OwlApp.userDir) -> [OwlClipboardEntry] {
     let url = fileURL(root: root)
-    let data = (try? Data(contentsOf: url)) ?? (try? Data(contentsOf: legacyFileURL(root: root)))
+    let data = try? Data(contentsOf: url)
     guard let data, let decoded = try? JSONDecoder().decode([OwlClipboardEntry].self, from: data) else {
       return []
     }
@@ -76,8 +65,6 @@ enum OwlClipboardStore {
     let data = try JSONEncoder().encode(normalized(entries))
     try data.write(to: url, options: .atomic)
     try OwlPrivateStorage.hardenFile(url)
-    // Migrated forward: drop the stale legacy copy so it can't shadow a later read.
-    try? FileManager.default.removeItem(at: legacyFileURL(root: root))
   }
 
   static func capture(_ rawText: String?, root: URL = OwlApp.userDir, now: Date = Date()) throws -> [OwlClipboardEntry] {
@@ -94,8 +81,6 @@ enum OwlClipboardStore {
     if FileManager.default.fileExists(atPath: url.path) {
       try FileManager.default.removeItem(at: url)
     }
-    // Also drop any pre-fix nested copy so clearing leaves nothing behind.
-    try? FileManager.default.removeItem(at: legacyFileURL(root: root))
   }
 
   static func normalized(_ entries: [OwlClipboardEntry]) -> [OwlClipboardEntry] {

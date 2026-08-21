@@ -114,9 +114,9 @@
 	     The update distribution omits RequireLogout; the package scripts preserve the selected input
 	     source and restart the new input-method process in place. -->
 	<key>SUFeedURL</key>
-	<string>https://responsay.com/owltype/appcast.xml</string>
+	<string>https://downloads.responsay.com/owltype/v2/appcast.xml</string>
 	<key>SUPublicEDKey</key>
-	<string>3Ze0A+sHbvkQ8CLlDUIcYvm7BJS4IJLU1rNEX66F9R4=</string>
+	<string>dWrr6gck5aoy5F7V00SizqQM6w9MHmZzeeQFSqYTlfM=</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>TICapsLockLanguageSwitchCapable</key>

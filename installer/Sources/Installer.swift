@@ -37,6 +37,7 @@ enum InstallerError: LocalizedError {
 enum Installer {
     /// 系统输入法目录里的猫头鹰安装位置。
     static let installedAppPath = "/Library/Input Methods/Owltype.app"
+    private static let installerStatePath = "/private/var/db/im.owltype.inputmethod.Owltype-installer"
     private static let expectedBundleID = "im.owltype.inputmethod.Owltype"
     private static let expectedTeamID = "LQAVR62TK2"
 
@@ -486,19 +487,40 @@ enum Installer {
     static func uninstall() throws {
         let fileManager = FileManager.default
 
-        // 1) best-effort 退出运行中的猫头鹰（用户级，无需提权 —— Owltype 跑在登录用户下）。
+        // 1) 若当前输入源是猫头鹰，先停到 ABC；随后停用 TIS 条目再退出。否则只删 bundle 会在
+        // 当前登录会话留下一个 enabled 但不可启动的幽灵输入源，直到注销后才消失。
+        let installedExecutable = installedAppPath + "/Contents/MacOS/Owltype"
+        if fileManager.isExecutableFile(atPath: installedExecutable) {
+            let current = (try? runProcess(installedExecutable, ["--current-input-source"])) ?? ""
+            if current.hasPrefix(inputMethodID) {
+                _ = try? runProcess(
+                    installedExecutable,
+                    ["--select-input-source", "com.apple.keylayout.ABC"])
+            }
+            _ = try? runProcess(installedExecutable, ["--disable-input-source"])
+            _ = try? runProcess(installedExecutable, ["--quit"])
+        }
         terminateUserProcess(named: "Owltype")
 
         // 2) 用户级清理：安装器进程本身就是登录用户，直接用 FileManager 删，避免 root 的 $HOME 陷阱。
         for url in userLevelTargets() where fileManager.fileExists(atPath: url.path) {
-            try? fileManager.removeItem(at: url)
+            try fileManager.removeItem(at: url)
         }
 
-        // 3) 提权级：只删系统目录里的猫头鹰 bundle（硬编码白名单路径，绝不动他人输入法）。
-        //    仅在 bundle 实际存在时才弹授权框，避免干净机器卸载时无谓地要密码。
-        if fileManager.fileExists(atPath: installedAppPath) {
+        // 3) 提权级：只删两个硬编码的 Owltype 系统路径（bundle + root-owned 安装状态）。
+        //    二者都不存在时不弹授权框，避免干净机器卸载时无谓地要密码。
+        let receiptExists = (try? runProcess(
+            "/usr/sbin/pkgutil", ["--pkg-info", expectedBundleID])) != nil
+        if fileManager.fileExists(atPath: installedAppPath)
+            || fileManager.fileExists(atPath: installerStatePath)
+            || receiptExists {
             let dest = shellQuote(installedAppPath)
-            try runPrivileged("rm -rf \(dest)")
+            let state = shellQuote(installerStatePath)
+            var command = "rm -rf \(dest) \(state)"
+            if receiptExists {
+                command += " && /usr/sbin/pkgutil --forget im.owltype.inputmethod.Owltype >/dev/null"
+            }
+            try runPrivileged(command)
         }
     }
 

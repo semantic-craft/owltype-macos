@@ -13,10 +13,9 @@
 # 更新后 fresh 探针恒读 selected=false，用户被踢回 ABC/鼠须管）——postinstall 再探测已经结构性
 # 太晚，切回分支永不触发。preinstall 时刻选中态还在（imklaunchagent 复活 Owltype 正因它仍是
 # selected source），用**老二进制 fresh 进程**只读 TIS（定律 13′：读回必须 fresh 进程；
-# --current-input-source 零副作用）。老版本二进制无此 CLI 时探测静默失败 → 不写标记，
-# postinstall 退回自己的现场探测（维持原状，不比现在更糟）。
-#
-# 全程 best-effort：标记写不成也绝不让安装失败（postinstall 还有 pgrep 副信号兜底）。
+# --current-input-source 零副作用）。老版本二进制无此 CLI 时探测本身可以失败；但一旦确认
+# 了选中态，状态标记必须可靠写入。安装状态目录或“既有 bundle”标记写不成时必须中止，
+# 否则 postinstall 会把更新误判为首装，重新 enable/select 并破坏 no-steal。
 set -e
 
 login_user=`/usr/bin/stat -f%Su /dev/console`
@@ -24,20 +23,43 @@ login_uid=`/usr/bin/stat -f%u /dev/console`
 input_methods_root="${DSTROOT:-${2:-}/Library/Input Methods}"
 owl_app_root="${input_methods_root}/Owltype.app"
 owl_executable="${owl_app_root}/Contents/MacOS/Owltype"
-marker="/private/tmp/im.owltype.inputmethod.preinstall-had-bundle"
-selected_marker="/private/tmp/im.owltype.inputmethod.preinstall-was-selected"
+installer_state_dir="/private/var/db/im.owltype.inputmethod.Owltype-installer"
+installer_markers_dir="${installer_state_dir}/markers"
+marker="${installer_markers_dir}/preinstall-had-bundle"
+selected_marker="${installer_markers_dir}/preinstall-was-selected"
+
+# Package scripts run as root. Keep cross-phase state below a root-owned directory instead of
+# predictable files in /private/tmp, where another local user could pre-create a symlink or marker
+# and turn a clean install into the update path. A stale symlink at the exact leaf is removed; its
+# parent (/private/var/db) is system-owned and not writable by ordinary users.
+prepare_installer_state() {
+  if [ -L "${installer_state_dir}" ]; then
+    /bin/rm -f "${installer_state_dir}" || return 1
+  fi
+  /usr/bin/install -d -o root -g wheel -m 711 "${installer_state_dir}" || return 1
+  /usr/sbin/chown root:wheel "${installer_state_dir}" || return 1
+  /bin/chmod 711 "${installer_state_dir}" || return 1
+  /usr/bin/install -d -o root -g wheel -m 700 "${installer_markers_dir}" || return 1
+  /usr/sbin/chown root:wheel "${installer_markers_dir}" || return 1
+  /bin/chmod 700 "${installer_markers_dir}" || return 1
+}
 
 # 先清旧标记，避免上次安装异常残留误导本次判断。
-/bin/rm -f "${marker}" "${selected_marker}" || true
+prepare_installer_state
+/bin/rm -f "${marker}" "${selected_marker}"
 
 if [ -d "${owl_app_root}" ]; then
   # ROOT 写标记（preinstall 以 root 运行）；postinstall（同为 root）读完即删。
-  /usr/bin/touch "${marker}" || true
+  /usr/bin/touch "${marker}"
+  /bin/chmod 600 "${marker}"
 
   # 选中态探测跑在登录用户的 Aqua GUI 会话（TIS 当前源是 per-user 态，root 读到的是 root 的）。
   current_source="$(/bin/launchctl asuser "${login_uid}" /usr/bin/sudo -u "${login_user}" \
     "${owl_executable}" --current-input-source 2>/dev/null || true)"
   case "${current_source}" in
-    im.owltype.inputmethod.Owltype*) /usr/bin/touch "${selected_marker}" || true ;;
+    im.owltype.inputmethod.Owltype*)
+      /usr/bin/touch "${selected_marker}"
+      /bin/chmod 600 "${selected_marker}"
+      ;;
   esac
 fi

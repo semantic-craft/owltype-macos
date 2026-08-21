@@ -494,7 +494,9 @@ class ShellAdapterTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
 
     def test_source_archive_still_rejects_a_generic_api_key(self) -> None:
-        synthetic_key = secrets.token_urlsafe(32)
+        # Hex is accepted by Gitleaks' generic-api-key rule on every run; URL-safe tokens may
+        # randomly contain punctuation that falls outside the rule and make this negative flaky.
+        synthetic_key = secrets.token_hex(32)
         source_archive = self._source_archive_with(
             "config/runtime.env",
             f'api_key = "{synthetic_key}"\n',
@@ -513,7 +515,7 @@ class ShellAdapterTests(unittest.TestCase):
     def test_public_key_marker_does_not_waive_a_generic_api_key_on_the_same_line(
         self,
     ) -> None:
-        synthetic_key = secrets.token_urlsafe(32)
+        synthetic_key = secrets.token_hex(32)
         documented_public_key = next(
             line
             for line in (REPO_ROOT / "docs" / "rename-owltype-plan.md")

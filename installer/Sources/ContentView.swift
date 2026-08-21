@@ -85,7 +85,8 @@ final class InstallerViewModel: ObservableObject {
         } onSuccess: { [weak self] in
             self?.phase = .success
             self?.statusText = "✅ 猫头鹰已卸载。Squirrel、~/Library/Rime 及你的其他输入法未被触碰。"
-                + "登出再登录可彻底刷新输入菜单。钥匙串里的 DeepSeek key 如需删除请手动移除。"
+                + "登出再登录可彻底刷新输入菜单。钥匙串如需一并清空，请手动删除服务 "
+                + "im.owltype.inputmethod.Owltype.providers 与 im.owltype.inputmethod.Owltype.deepseek。"
         }
     }
 

@@ -429,23 +429,22 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     XCTAssertEqual(loaded[0].createdAt, Date(timeIntervalSince1970: 3))
   }
 
-  func testClipboardMigratesFromLegacyNestedPath() throws {
+  func testClipboardIgnoresObsoleteNestedPath() throws {
     let dir = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: dir) }
 
-    // Seed history only at the pre-fix nested `.../owltype/clipboard-history.json` location.
-    let legacy = OwlClipboardStore.legacyFileURL(root: dir)
+    // A clean Owltype identity must not read migration-era nested state.
+    let legacy = dir.appendingPathComponent("owltype", isDirectory: true)
+      .appendingPathComponent(OwlClipboardStore.fileName)
     try FileManager.default.createDirectory(at: legacy.deletingLastPathComponent(), withIntermediateDirectories: true)
     let seeded = [OwlClipboardEntry(text: "旧记录", createdAt: Date(timeIntervalSince1970: 1))]
     try Data(JSONEncoder().encode(seeded)).write(to: legacy)
 
-    // load() falls back to the legacy file, and the next save migrates it forward + drops legacy.
-    XCTAssertEqual(OwlClipboardStore.load(root: dir).map(\.text), ["旧记录"])
+    XCTAssertTrue(OwlClipboardStore.load(root: dir).isEmpty)
     _ = try OwlClipboardStore.capture("新记录", root: dir, now: Date(timeIntervalSince1970: 2))
 
-    XCTAssertEqual(OwlClipboardStore.load(root: dir).map(\.text), ["新记录", "旧记录"])
+    XCTAssertEqual(OwlClipboardStore.load(root: dir).map(\.text), ["新记录"])
     XCTAssertTrue(FileManager.default.fileExists(atPath: OwlClipboardStore.fileURL(root: dir).path))
-    XCTAssertFalse(FileManager.default.fileExists(atPath: legacy.path))
   }
 
   func testApplyWritesManifestAndRollbackInsideInjectedDirectory() throws {

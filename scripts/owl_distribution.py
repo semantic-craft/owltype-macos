@@ -21,7 +21,8 @@ from urllib.parse import quote
 
 
 PUBLIC_ORIGIN = "https://downloads.responsay.com"
-CLIENT_FEED_URL = "https://responsay.com/owltype/appcast.xml"
+LEGACY_CLIENT_FEED_URL = "https://responsay.com/owltype/appcast.xml"
+SUCCESSOR_CLIENT_FEED_URL = "https://downloads.responsay.com/owltype/v2/appcast.xml"
 R2_BUCKET = "responsay-downloads"
 OBJECT_PREFIX = "owltype"
 WRANGLER_VERSION = "4.123.0"
@@ -115,9 +116,12 @@ def build_publish_plan(
     *,
     version: str,
     build_version: str,
+    feed_mode: str,
 ) -> list[Upload]:
     _validate_version(version, "marketing version")
     _validate_version(build_version, "build version")
+    if feed_mode not in {"bridge", "successor"}:
+        raise DistributionError(f"invalid Sparkle feed mode: {feed_mode!r}")
     paths = [Path(path).resolve() for path in asset_paths]
     if any(not path.is_file() or path.stat().st_size == 0 for path in paths):
         raise DistributionError("publishing contract contains a missing or empty asset")
@@ -160,11 +164,16 @@ def build_publish_plan(
         )
     )
 
-    # The stable feed is the commit point: it is deliberately the final upload, after every
-    # immutable object, manual-download alias, corresponding-source archive, and public readback.
+    # The successor feed is the permanent Owltype trust domain. The 2.0.1 bridge writes it first,
+    # then commits the legacy feed last so 2.0.0 clients can cross once. Later releases never
+    # touch the legacy feed, which remains pinned to the bridge forever.
     plan.append(
-        _upload(by_name["appcast.xml"], f"{OBJECT_PREFIX}/appcast.xml", immutable=False)
+        _upload(by_name["appcast.xml"], f"{OBJECT_PREFIX}/v2/appcast.xml", immutable=False)
     )
+    if feed_mode == "bridge":
+        plan.append(
+            _upload(by_name["appcast.xml"], f"{OBJECT_PREFIX}/appcast.xml", immutable=False)
+        )
     return plan
 
 
@@ -173,12 +182,18 @@ def publish(
     store: ObjectStore,
     verifier: PublicVerifier,
 ) -> list[str]:
-    if (
-        len(plan) < 2
-        or plan[-2].key != f"{OBJECT_PREFIX}/latest.json"
-        or plan[-1].key != f"{OBJECT_PREFIX}/appcast.xml"
-    ):
-        raise DistributionError("atomic latest pointer and stable appcast must be the final uploads")
+    keys = [item.key for item in plan]
+    bridge = keys[-3:] == [
+        f"{OBJECT_PREFIX}/latest.json",
+        f"{OBJECT_PREFIX}/v2/appcast.xml",
+        f"{OBJECT_PREFIX}/appcast.xml",
+    ]
+    successor = keys[-2:] == [
+        f"{OBJECT_PREFIX}/latest.json",
+        f"{OBJECT_PREFIX}/v2/appcast.xml",
+    ] and f"{OBJECT_PREFIX}/appcast.xml" not in keys
+    if not bridge and not successor:
+        raise DistributionError("latest pointer and Sparkle feed commit order is invalid")
 
     events: list[str] = []
     immutable = [item for item in plan if item.immutable]
@@ -202,12 +217,18 @@ def publish(
         )
     except (KeyError, StopIteration) as error:
         raise DistributionError("publish plan is missing a website download alias") from error
+    aliases_verified = False
     for item in plan:
-        if item.key == f"{OBJECT_PREFIX}/appcast.xml":
+        # Website aliases are backed by latest.json. Versioned appcast objects appear earlier in
+        # the immutable batch and must not trigger this check while aliases still point at the
+        # previous release. Verify only after latest.json has been committed, immediately before
+        # the mutable successor feed becomes visible.
+        if item.key == f"{OBJECT_PREFIX}/v2/appcast.xml" and not aliases_verified:
             for alias, source_item in website_aliases:
                 verifier.verify(
                     f"https://responsay.com/owltype/{alias}", source_item.sha256
                 )
+            aliases_verified = True
         existing = store.read(item.key)
         if item.immutable and existing is not None:
             existing_sha256 = hashlib.sha256(existing).hexdigest()
@@ -228,8 +249,14 @@ def publish(
                 raise DistributionError(f"R2 readback mismatch: {item.key}")
             events.append(f"UPLOAD {item.key}")
         verifier.verify(item.url, item.sha256)
-    verifier.verify(CLIENT_FEED_URL, plan[-1].sha256)
-    events.append(f"VERIFY {CLIENT_FEED_URL}")
+    appcast_sha256 = next(
+        item.sha256 for item in plan if item.key == f"{OBJECT_PREFIX}/v2/appcast.xml"
+    )
+    verifier.verify(SUCCESSOR_CLIENT_FEED_URL, appcast_sha256)
+    events.append(f"VERIFY {SUCCESSOR_CLIENT_FEED_URL}")
+    if bridge:
+        verifier.verify(LEGACY_CLIENT_FEED_URL, appcast_sha256)
+        events.append(f"VERIFY {LEGACY_CLIENT_FEED_URL}")
     return events
 
 
@@ -328,7 +355,9 @@ class HTTPPublicVerifier:
         raise DistributionError(f"public readback failed for {url}: {last_error}")
 
 
-def _load_verified_cohort(repo_root: Path, output_root: Path) -> tuple[list[Path], str, str]:
+def _load_verified_cohort(
+    repo_root: Path, output_root: Path
+) -> tuple[list[Path], str, str, str]:
     state = repo_root / "scripts/release-cohort-state.py"
     gate = repo_root / "scripts/check-published-release.sh"
     subprocess.run(
@@ -349,12 +378,15 @@ def _load_verified_cohort(repo_root: Path, output_root: Path) -> tuple[list[Path
         cohort = json.load(handle)
     version = str(cohort["version"])
     build_version = str(cohort["buildVersion"])
+    feed_mode = str(cohort.get("sparkleFeedMode", ""))
+    if feed_mode not in {"bridge", "successor"}:
+        raise DistributionError("verified cohort has no valid Sparkle feed mode")
 
     appcast = next((path for path in assets if path.name == "appcast.xml"), None)
     expected_url = versioned_asset_url(build_version, "Owltype-update.pkg")
     if appcast is None or expected_url not in appcast.read_text(encoding="utf-8"):
         raise DistributionError(f"verified appcast does not reference {expected_url}")
-    return assets, version, build_version
+    return assets, version, build_version, feed_mode
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -377,8 +409,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     repo_root = Path(__file__).resolve().parent.parent
     output_root = args.output_root.expanduser().resolve()
-    assets, version, build_version = _load_verified_cohort(repo_root, output_root)
-    plan = build_publish_plan(assets, version=version, build_version=build_version)
+    assets, version, build_version, feed_mode = _load_verified_cohort(repo_root, output_root)
+    plan = build_publish_plan(
+        assets, version=version, build_version=build_version, feed_mode=feed_mode
+    )
 
     if args.dry_run:
         for item in plan:
@@ -392,7 +426,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(event)
     print(
         f"PASS: Owltype {version} (build {build_version}) published; "
-        f"stable appcast committed last at {CLIENT_FEED_URL}"
+        f"Sparkle feed mode {feed_mode} committed successfully"
     )
     return 0
 

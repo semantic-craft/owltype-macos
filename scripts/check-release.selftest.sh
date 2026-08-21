@@ -124,5 +124,55 @@ else
   ok "automated-only gate keeps G4 visibly NEEDS_HUMAN"
 fi
 
+# Package scripts run as root. Cross-phase markers belong in a root-only state directory, while
+# the per-user deferred LaunchAgent must be staged under a fresh mktemp directory. Fixed files in
+# /private/tmp are attacker-precreatable and turn root redirections into symlink races.
+if grep -qF '/private/var/db/im.owltype.inputmethod.Owltype-installer' "$ROOT/scripts/preinstall" \
+   && grep -qF '/private/var/db/im.owltype.inputmethod.Owltype-installer' "$ROOT/scripts/postinstall" \
+   && grep -qF '/private/var/db/im.owltype.inputmethod.Owltype-installer' "$ROOT/scripts/uninstall-owltype.sh" \
+   && grep -qF '/private/var/db/im.owltype.inputmethod.Owltype-installer' "$ROOT/installer/Sources/Installer.swift" \
+   && grep -qF 'mktemp -d "${installer_jobs_dir}/${deferred_restore_label}.XXXXXX"' "$ROOT/scripts/postinstall" \
+   && ! grep -qE '(^|[="])/private/tmp/im\.owltype\.inputmethod\.preinstall-' \
+        "$ROOT/scripts/preinstall" "$ROOT/scripts/postinstall" \
+   && ! grep -qE 'job_(sh|plist)="/private/tmp/' "$ROOT/scripts/postinstall"; then
+  ok "privileged installer state cannot be pre-created through fixed shared-temp paths"
+else
+  bad "installer scripts must use root-only marker storage and unique deferred-task staging"
+fi
+
+if grep -qx 'prepare_installer_state' "$ROOT/scripts/preinstall" \
+   && grep -qx 'prepare_installer_state' "$ROOT/scripts/postinstall" \
+   && ! grep -q 'if prepare_installer_state' "$ROOT/scripts/preinstall" "$ROOT/scripts/postinstall" \
+   && ! grep -qE 'touch "\$\{(marker|selected_marker)\}".*\|\| true' "$ROOT/scripts/preinstall"; then
+  ok "installer fails closed when authoritative update-state markers cannot be secured"
+else
+  bad "installer must not degrade marker failures into a first-install enable/select path"
+fi
+
+if grep -qF '["--disable-input-source"]' "$ROOT/installer/Sources/Installer.swift"; then
+  ok "GUI uninstaller disables the Owltype TIS entry before deleting its bundle"
+else
+  bad "GUI uninstaller must not leave an enabled ghost input source behind"
+fi
+
+if grep -qF 'pkgutil --forget im.owltype.inputmethod.Owltype' "$ROOT/scripts/uninstall-owltype.sh" \
+   && grep -qF 'pkgutil --forget im.owltype.inputmethod.Owltype' "$ROOT/installer/Sources/Installer.swift" \
+   && ! grep -qF 'try? fileManager.removeItem(at: url)' "$ROOT/installer/Sources/Installer.swift" \
+   && ! grep -qF 'pkgutil --forget im.owltype.inputmethod.Owltype >/dev/null 2>&1 || true' \
+        "$ROOT/installer/Sources/Installer.swift"; then
+  ok "both uninstall paths forget the Owltype PackageKit receipt"
+else
+  bad "complete uninstall must not leave the Owltype package receipt behind"
+fi
+
+if grep -qF 'SPARKLE_ED25519_ACCOUNT:-owltype-ed25519' "$ROOT/package/make_archive" \
+   && grep -qF 'bridge requires explicit SPARKLE_ED25519_ACCOUNT=ed25519' "$ROOT/package/make_archive" \
+   && grep -qF 'successor releases must use SPARKLE_ED25519_ACCOUNT=owltype-ed25519' "$ROOT/package/make_archive" \
+   && grep -qF -- '--account "$sparkle_account"' "$ROOT/package/make_archive"; then
+  ok "ordinary Owltype releases sign with the Owltype-specific Sparkle key account"
+else
+  bad "release signing must not silently fall back to the former shared Sparkle key"
+fi
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 ((fail == 0))
