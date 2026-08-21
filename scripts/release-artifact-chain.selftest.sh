@@ -239,6 +239,34 @@ python3 "$STATE" seal "$output_root" app 'mechanical fixture' 'mechanical fixtur
 python3 "$INVENTORY" record "$output_root"
 
 bash "$ROOT/package/make_package" "$output_root"
+
+# The installer lifecycle is the only reason either public package has a Scripts section.
+# Shipping the repository scripts directory leaks development and release tooling, so pin the
+# exact contents and file types of both real packages produced above.
+assert_minimal_package_scripts() {
+  local package_path="$1" label="$2" expanded_pkg="$work/expanded-$2"
+  local installer_scripts actual_installer_scripts installer_script installer_script_path
+  pkgutil --expand-full "$package_path" "$expanded_pkg"
+  installer_scripts="$expanded_pkg/Owltype-component.pkg/Scripts"
+  actual_installer_scripts="$(cd "$installer_scripts" && find . -mindepth 1 -print \
+    | sed 's#^\./##' | LC_ALL=C sort)"
+  [[ "$actual_installer_scripts" == $'postinstall\npreinstall' ]] || {
+    printf >&2 'ERROR: %s Scripts must contain exactly preinstall and postinstall; got:\n%s\n' \
+      "$label" "$actual_installer_scripts"
+    exit 1
+  }
+  for installer_script in preinstall postinstall; do
+    installer_script_path="$installer_scripts/$installer_script"
+    [[ -f "$installer_script_path" && ! -L "$installer_script_path" && -x "$installer_script_path" ]] || {
+      echo >&2 "ERROR: $label Scripts/$installer_script must be an executable regular file"
+      exit 1
+    }
+  done
+}
+assert_minimal_package_scripts "$ROOT/package/Owltype.pkg" installer
+assert_minimal_package_scripts "$ROOT/package/Owltype-update.pkg" update
+printf 'PASS: both packages carry only regular executable preinstall and postinstall scripts\n'
+
 python3 "$STATE" seal "$output_root" installer-pkg 'mechanical fixture' 'mechanical fixture'
 python3 "$STATE" seal "$output_root" update-pkg 'mechanical fixture' 'mechanical fixture'
 

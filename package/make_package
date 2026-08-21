@@ -35,12 +35,17 @@ python3 "$INVENTORY" check "$RELEASE_OUTPUT_ROOT"
 # 它们打进 payload，导致 pkg 公证 Invalid。改为把 *只* Owltype.app stage 进一个干净临时根目录，再
 # `--root` 它，保证组件 payload 只含 Owltype.app（component-plist 的 RootRelativeBundlePath=Owltype.app
 # 仍然成立）。
-STAGING="$(mktemp -d)"
+WORK="$(mktemp -d)"
 cleanup() {
-    rm -rf "${STAGING}"
+    rm -rf "${WORK}"
 }
 trap cleanup EXIT
+STAGING="${WORK}/root"
+SCRIPTS_STAGING="${WORK}/scripts"
+mkdir -p "${STAGING}" "${SCRIPTS_STAGING}"
 cp -R "${OWL_APP}" "${STAGING}/Owltype.app"
+install -m 0755 "${PROJECT_ROOT}/scripts/preinstall" "${SCRIPTS_STAGING}/preinstall"
+install -m 0755 "${PROJECT_ROOT}/scripts/postinstall" "${SCRIPTS_STAGING}/postinstall"
 
 pkgbuild \
     --root "${STAGING}" \
@@ -51,7 +56,7 @@ pkgbuild \
     --identifier "${BUNDLE_IDENTIFIER}" \
     --version "$(get_app_version)" \
     --install-location "${INSTALL_LOCATION}" \
-    --scripts "${PROJECT_ROOT}/scripts" \
+    --scripts "${SCRIPTS_STAGING}" \
     Owltype-component.pkg
 
 # Installer title is user-facing → marketing version (1.1). The pkgbuild --version above
