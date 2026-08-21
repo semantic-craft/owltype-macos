@@ -162,6 +162,25 @@ pass "pkg payload 拼音 schema 与代码默认一致（.pinyin = ${expected_pin
 tmp=$(mktemp -u /tmp/owl-pkg.XXXXXX)
 tmp_update=$(mktemp -u /tmp/owl-update-pkg.XXXXXX)
 trap 'rm -rf "$tmp" "$tmp_update"' EXIT
+
+assert_installer_scripts() {
+  local component_root="$1" label="$2" package_info_path="$1/PackageInfo"
+  grep -q '<preinstall file=' "$package_info_path" ||
+    fail "$label PackageInfo declares no preinstall script"
+  grep -q '<postinstall file=' "$package_info_path" ||
+    fail "$label PackageInfo declares no postinstall script"
+  for installer_script in preinstall postinstall; do
+    installer_script_path="$component_root/Scripts/$installer_script"
+    [[ -f "$installer_script_path" && ! -L "$installer_script_path" && -x "$installer_script_path" ]] ||
+      fail "$label Scripts/$installer_script must be an executable regular file, not a symlink"
+  done
+  unexpected_installer_script="$(find "$component_root/Scripts" -mindepth 1 \
+    ! -path "$component_root/Scripts/preinstall" \
+    ! -path "$component_root/Scripts/postinstall" -print -quit)"
+  [[ -z "$unexpected_installer_script" ]] ||
+    fail "$label Scripts contains files beyond preinstall/postinstall: ${unexpected_installer_script##*/}"
+}
+
 pkgutil --expand-full "$PKG" "$tmp"
 package_info="$tmp/Owltype-component.pkg/PackageInfo"
 grep -q 'identifier="im.owltype.inputmethod.Owltype"' "$package_info" || fail "pkg identifier mismatch"
@@ -197,18 +216,10 @@ assert_apple_events_prereqs "$tmp/Owltype-component.pkg/Payload/Owltype.app" "pk
 
 # pkg 必须携带 preinstall（payload 落盘前写「bundle 已存在」标记）+ postinstall（读标记走更新/首装
 # 分支）。缺 preinstall = Sparkle 更新会被误判成首装（Sparkle 先杀宿主 Owltype，pgrep 单独不可靠）。
-# 两个 pkg 共用同一个 Owltype-component.pkg，查首装 pkg 即覆盖两者。
 # 光查 Scripts/ 里文件存在不够——pkgbuild --scripts 会原样拷整个目录，真正决定「会不会运行」的是
 # PackageInfo 里的 <preinstall>/<postinstall> 声明（pkgbuild 按 文件名+可执行位 自动接线）。
-grep -q '<preinstall file=' "$package_info" ||
-  fail "PackageInfo declares no preinstall script (pkgbuild auto-wiring failed: filename/exec bit?)"
-grep -q '<postinstall file=' "$package_info" ||
-  fail "PackageInfo declares no postinstall script"
-[[ -x "$tmp/Owltype-component.pkg/Scripts/preinstall" ]] ||
-  fail "Scripts/preinstall missing or not executable (update-detection marker writer)"
-[[ -x "$tmp/Owltype-component.pkg/Scripts/postinstall" ]] ||
-  fail "Scripts/postinstall missing or not executable"
-pass "pkg wires preinstall + postinstall (PackageInfo declarations + executable scripts)"
+assert_installer_scripts "$tmp/Owltype-component.pkg" "Owltype.pkg"
+pass "Owltype.pkg carries exactly preinstall + postinstall and wires both executable scripts"
 
 # 双 pkg 分离（07-02 更新免注销）：首装 Owltype.pkg 必须带 onConclusion=RequireLogout；
 # Sparkle 更新载荷 Owltype-update.pkg 必须不带（更新免注销）。两者共用同一个 Owltype-component.pkg。
@@ -219,11 +230,12 @@ require_logout_count() { xmllint --xpath 'count(//pkg-ref[@onConclusion="Require
   fail "Owltype.pkg Distribution is missing onConclusion=RequireLogout (first install must logout)"
 pass "Owltype.pkg Distribution requires logout (first-install pkg)"
 
-pkgutil --expand "$UPDATE_PKG" "$tmp_update"
+pkgutil --expand-full "$UPDATE_PKG" "$tmp_update"
 [[ "$(require_logout_count "$tmp_update/Distribution")" == "0" ]] ||
   fail "Owltype-update.pkg Distribution still carries onConclusion=RequireLogout (updates must not force logout)"
 grep -q 'Owltype-component.pkg' "$tmp_update/Distribution" ||
   fail "Owltype-update.pkg Distribution does not reference Owltype-component.pkg"
+assert_installer_scripts "$tmp_update/Owltype-component.pkg" "Owltype-update.pkg"
 pass "Owltype-update.pkg Distribution has no RequireLogout (no-logout Sparkle payload)"
 
 [[ -s "$APPCAST" ]] || fail "signed appcast is missing"
