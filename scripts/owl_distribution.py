@@ -310,23 +310,24 @@ class WranglerR2Store:
         content_type: str,
         cache_control: str,
     ) -> None:
-        subprocess.run(
-            [
-                *self.command,
-                "r2",
-                "object",
-                "put",
-                f"{self.bucket}/{key}",
-                "--remote",
-                "--file",
-                str(source),
-                "--content-type",
-                content_type,
-                "--cache-control",
-                cache_control,
-            ],
-            check=True,
-        )
+        with source.open("rb") as input_stream:
+            subprocess.run(
+                [
+                    *self.command,
+                    "r2",
+                    "object",
+                    "put",
+                    f"{self.bucket}/{key}",
+                    "--remote",
+                    "--pipe",
+                    "--content-type",
+                    content_type,
+                    "--cache-control",
+                    cache_control,
+                ],
+                stdin=input_stream,
+                check=True,
+            )
 
 
 class HTTPPublicVerifier:
