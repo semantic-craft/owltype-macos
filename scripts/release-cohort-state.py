@@ -5,7 +5,10 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import hashlib
+import json
 import os
 import plistlib
 import subprocess
@@ -50,6 +53,7 @@ from release_source import (
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_ADAPTER = ROOT / "package/apple_tool_adapter"
 SPARKLE_SIGNATURE_VERIFIER = ROOT / "scripts/verify-sparkle-eddsa.swift"
+SPARKLE_TRANSITION_POLICY = ROOT / "scripts/sparkle-key-transition.json"
 RETRYABLE_EXIT = 75
 REJECTED_EXIT = 65
 SPARKLE_NAMESPACE = "http://www.andymatuschak.org/xml-namespaces/sparkle"
@@ -81,6 +85,97 @@ def bundle_versions(app: Path) -> tuple[str, str]:
     if not version or not build_version:
         raise CohortError("release App has incomplete version metadata")
     return version, build_version
+
+
+def bundle_sparkle_public_key(app: Path) -> str | None:
+    try:
+        with (app / "Contents/Info.plist").open("rb") as handle:
+            value = plistlib.load(handle).get("SUPublicEDKey")
+    except (OSError, plistlib.InvalidFileException) as error:
+        raise CohortError(f"cannot read App Sparkle public key: {error}") from error
+    return value if isinstance(value, str) and value else None
+
+
+def bundle_sparkle_feed_url(app: Path) -> str | None:
+    try:
+        with (app / "Contents/Info.plist").open("rb") as handle:
+            value = plistlib.load(handle).get("SUFeedURL")
+    except (OSError, plistlib.InvalidFileException) as error:
+        raise CohortError(f"cannot read App Sparkle feed URL: {error}") from error
+    return value if isinstance(value, str) and value else None
+
+
+def validate_sparkle_public_key(value: str) -> None:
+    try:
+        decoded = base64.b64decode(value, validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise CohortError("invalid Sparkle public key encoding") from error
+    if len(decoded) != 32:
+        raise CohortError("invalid Sparkle public key length")
+
+
+def select_sparkle_verification_key(
+    version: str, app_public_key: str, transition_public_key: str | None
+) -> str:
+    validate_sparkle_public_key(app_public_key)
+    if transition_public_key is None:
+        return app_public_key
+    validate_sparkle_public_key(transition_public_key)
+    if version != "2.0.1":
+        raise CohortError("Sparkle key transition is only permitted for 2.0.1")
+    if transition_public_key == app_public_key:
+        raise CohortError("Sparkle transition key must differ from the App public key")
+    return transition_public_key
+
+
+def resolve_sparkle_release_policy(app: Path, version: str) -> dict[str, str] | None:
+    app_public_key = bundle_sparkle_public_key(app)
+    if app_public_key is None:
+        return None
+    app_feed_url = bundle_sparkle_feed_url(app)
+    successor_feed_key = "owltype/v2/appcast.xml"
+    successor_feed_url = f"https://downloads.responsay.com/{successor_feed_key}"
+    if app_feed_url != successor_feed_url:
+        raise CohortError("release App does not use the permanent Owltype Sparkle feed")
+
+    if SPARKLE_TRANSITION_POLICY.is_file():
+        try:
+            policy = json.loads(SPARKLE_TRANSITION_POLICY.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            raise CohortError(f"cannot read Sparkle transition policy: {error}") from error
+        expected_keys = {
+            "schemaVersion",
+            "releaseVersion",
+            "fromPublicKey",
+            "toPublicKey",
+            "legacyFeedKey",
+            "successorFeedKey",
+        }
+        if not isinstance(policy, dict) or set(policy) != expected_keys:
+            raise CohortError("Sparkle transition policy has an invalid shape")
+        if policy["schemaVersion"] != 1:
+            raise CohortError("Sparkle transition policy has the wrong schema version")
+        if policy["legacyFeedKey"] != "owltype/appcast.xml":
+            raise CohortError("Sparkle transition policy has the wrong legacy feed")
+        if policy["successorFeedKey"] != successor_feed_key:
+            raise CohortError("Sparkle transition policy has the wrong successor feed")
+        if policy["releaseVersion"] == version:
+            if policy["toPublicKey"] != app_public_key:
+                raise CohortError("Sparkle transition target does not match the App public key")
+            signing_key = select_sparkle_verification_key(
+                version, app_public_key, str(policy["fromPublicKey"])
+            )
+            return {
+                "sparkleFeedMode": "bridge",
+                "sparkleSigningPublicKey": signing_key,
+                "sparkleTrustTransitionFrom": signing_key,
+            }
+
+    validate_sparkle_public_key(app_public_key)
+    return {
+        "sparkleFeedMode": "successor",
+        "sparkleSigningPublicKey": app_public_key,
+    }
 
 
 def validate_identity(cohort: dict, output_root: Path, app: Path) -> None:
@@ -119,6 +214,14 @@ def validate_identity(cohort: dict, output_root: Path, app: Path) -> None:
         raise CohortError(f"cannot validate release App seed: {error}") from error
     if cohort.get("seedSha256") != app_seed_sha:
         raise CohortError("release App seed does not match the cohort binding")
+    sparkle_signing_public_key = str(cohort.get("sparkleSigningPublicKey", ""))
+    sparkle_feed_mode = str(cohort.get("sparkleFeedMode", ""))
+    if sparkle_signing_public_key:
+        expected_policy = resolve_sparkle_release_policy(app, version)
+        if expected_policy is None or any(
+            cohort.get(key) != value for key, value in expected_policy.items()
+        ):
+            raise CohortError("cohort Sparkle policy does not match this release source")
     expected_id = cohort_identifier(
         revision,
         version,
@@ -128,6 +231,8 @@ def validate_identity(cohort: dict, output_root: Path, app: Path) -> None:
         str(cohort["sourceSha256"]),
         str(cohort["seedSha256"]),
         dict(cohort["submodules"]),
+        sparkle_signing_public_key=sparkle_signing_public_key,
+        sparkle_feed_mode=sparkle_feed_mode,
     )
     if cohort.get("cohortId") != expected_id:
         raise CohortError("cohort identity digest is invalid")
@@ -414,11 +519,7 @@ def validate_appcast(appcast: Path, cohort: dict, output_root: Path) -> None:
     if not signature:
         raise CohortError("appcast enclosure has no Sparkle signature")
     app = release_paths(output_root)[1]
-    try:
-        with (app / "Contents/Info.plist").open("rb") as handle:
-            public_key = plistlib.load(handle).get("SUPublicEDKey")
-    except (OSError, plistlib.InvalidFileException) as error:
-        raise CohortError(f"cannot read App Sparkle public key: {error}") from error
+    public_key = cohort.get("sparkleSigningPublicKey") or bundle_sparkle_public_key(app)
     if not isinstance(public_key, str) or not public_key:
         raise CohortError("release App has no Sparkle public key")
     # Sparkle 2.6.2's sign_update --verify derives its public key from a private
@@ -540,6 +641,11 @@ def initialize(output_root_arg: str) -> None:
         raise CohortError(f"release App does not exist: {app}")
     revision = head_revision()
     version, build_version = bundle_versions(app)
+    sparkle_policy = resolve_sparkle_release_policy(app, version)
+    sparkle_signing_public_key = (
+        sparkle_policy["sparkleSigningPublicKey"] if sparkle_policy else ""
+    )
+    sparkle_feed_mode = sparkle_policy["sparkleFeedMode"] if sparkle_policy else ""
     app_sha = artifact_sha256(app)
     root_sha = output_root_fingerprint(output_root)
     try:
@@ -561,16 +667,6 @@ def initialize(output_root_arg: str) -> None:
         },
         "buildAppSha256": app_sha,
         "buildVersion": build_version,
-        "cohortId": cohort_identifier(
-            revision,
-            version,
-            build_version,
-            root_sha,
-            app_sha,
-            source_sha,
-            seed_sha,
-            submodules,
-        ),
         "outputRootSha256": root_sha,
         "revision": revision,
         "schemaVersion": COHORT_SCHEMA_VERSION,
@@ -580,6 +676,20 @@ def initialize(output_root_arg: str) -> None:
         "submodules": submodules,
         "version": version,
     }
+    if sparkle_policy:
+        cohort.update(sparkle_policy)
+    cohort["cohortId"] = cohort_identifier(
+        revision,
+        version,
+        build_version,
+        root_sha,
+        app_sha,
+        source_sha,
+        seed_sha,
+        submodules,
+        sparkle_signing_public_key=sparkle_signing_public_key,
+        sparkle_feed_mode=sparkle_feed_mode,
+    )
     write_cohort(output_dir, cohort)
     print(f"PASS: initialized release cohort {cohort['cohortId']} for {version}")
 

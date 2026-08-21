@@ -5,8 +5,11 @@ useDefault = true
 # 路径与精确公钥值必须同时匹配；同一行夹带其他凭据时不会被豁免。
 [[allowlists]]
 targetRules = ["generic-api-key"]
-description = "The documented Sparkle EdDSA public key is public by design"
+description = "The exact Owltype Sparkle EdDSA public keys are public by design"
 condition = "AND"
 regexTarget = "secret"
-paths = ['''(^|/)docs/rename-owltype-plan\.md$''']
-regexes = ['''^3Ze0A\+sHbvkQ8CLlDUIcYvm7BJS4IJLU1rNEX66F9R4=$''']
+paths = ['''(^|/)(docs/rename-owltype-plan\.md|scripts/sparkle-key-transition\.(json|selftest\.py))$''']
+regexes = [
+  '''^3Ze0A\+sHbvkQ8CLlDUIcYvm7BJS4IJLU1rNEX66F9R4=$''',
+  '''^dWrr6gck5aoy5F7V00SizqQM6w9MHmZzeeQFSqYTlfM=$'''
+]

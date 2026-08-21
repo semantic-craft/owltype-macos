@@ -174,8 +174,8 @@ UPDATE scenario (asserts the shipped 1.3.32 no-logout update; closes that open l
   1. smoke-live.sh snapshot "$EV/before"
   2. Trigger the Sparkle update (Owltype-update.pkg). Update path = park on ABC → replace in place →
      switch back (immediate select + a deferred job that re-selects across PackageKit's final
-     registration window; watch: tail -f
-     /private/tmp/im.owltype.inputmethod.Owltype.deferred-update-select.log). It MUST NOT re-enable
+     registration window; the postinstall log prints the unique root-staged diagnostic path). It
+     MUST NOT re-enable
      — a second enable manufactures a ghost TIS
      record. (Packaging is gated by check-release.sh: Owltype-update.pkg has NO RequireLogout. Live:
      step 4's --diagnose-tis must still show a single clean Hans source, no duplicate/ghost row.)

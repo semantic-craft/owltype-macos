@@ -21,7 +21,8 @@ work="$(mktemp -d "${TMPDIR:-/tmp}/owl-artifact-chain.XXXXXX")"
 ROOT="$work/checkout"
 output_root="$work/output"
 app="$output_root/Build/Products/Release/Owltype.app"
-private_key="$work/sparkle-ed25519-private-key"
+bridge_private_key="$work/sparkle-ed25519-bridge-private-key"
+successor_private_key="$work/sparkle-ed25519-successor-private-key"
 fake_adapter="$work/fake-apple-tool-adapter"
 asset_list="$work/published-assets.nul"
 failure_output="$work/failure-output"
@@ -86,6 +87,7 @@ PY
 
 local_git() {
   command git \
+    -c core.hooksPath=/dev/null \
     -c protocol.file.allow=always \
     -c protocol.git.allow=never \
     -c protocol.http.allow=never \
@@ -147,10 +149,10 @@ unset DEV_ID NOTARY_PROFILE
 mkdir -p "$(dirname "$app")"
 ditto "$built_app" "$app"
 
-# A disposable Sparkle seed keeps CI independent of the maintainer Keychain. The matching public
-# key is installed in the temporary App before its final ad-hoc signature is applied.
-openssl rand -base64 32 >"$private_key"
-public_key="$(xcrun swift - "$private_key" <<'SWIFT'
+# Disposable Sparkle seeds keep CI independent of the maintainer Keychain while exercising the
+# real 2.0.1 trust bridge: the package is signed by the old key and the App embeds the new key.
+sparkle_public_key() {
+  xcrun swift - "$1" <<'SWIFT'
 import CryptoKit
 import Foundation
 
@@ -162,9 +164,48 @@ guard let seed = Data(base64Encoded: encoded) else {
 let key = try Curve25519.Signing.PrivateKey(rawRepresentation: seed)
 print(key.publicKey.rawRepresentation.base64EncodedString())
 SWIFT
-)"
-plutil -replace SUPublicEDKey -string "$public_key" "$app/Contents/Info.plist"
+}
+openssl rand -base64 32 >"$bridge_private_key"
+openssl rand -base64 32 >"$successor_private_key"
+bridge_public_key="$(sparkle_public_key "$bridge_private_key")"
+successor_public_key="$(sparkle_public_key "$successor_private_key")"
+plutil -replace SUPublicEDKey -string "$successor_public_key" "$app/Contents/Info.plist"
 codesign --force --deep --sign - "$app"
+
+# The production transition declaration contains only public material, but its exact keys cannot
+# be used by a credential-free test. Replace it only inside this disposable checkout with an
+# equivalent version-locked policy backed by the two temporary seeds above.
+python3 - "$ROOT/scripts/sparkle-key-transition.json" "$version" \
+  "$bridge_public_key" "$successor_public_key" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+path.write_text(
+    json.dumps(
+        {
+            "schemaVersion": 1,
+            "releaseVersion": sys.argv[2],
+            "fromPublicKey": sys.argv[3],
+            "toPublicKey": sys.argv[4],
+            "legacyFeedKey": "owltype/appcast.xml",
+            "successorFeedKey": "owltype/v2/appcast.xml",
+        },
+        indent=2,
+    )
+    + "\n",
+    encoding="utf-8",
+)
+PY
+# The source archive gate intentionally rejects dirty release checkouts. Commit the synthetic
+# public-key policy only inside this disposable clone so HEAD, sourceSha256, the cohort, and the
+# corresponding-source archive all bind the exact same trust-bridge fixture.
+local_git -C "$ROOT" config user.name "Owltype release selftest"
+local_git -C "$ROOT" config user.email "release-selftest@invalid.example"
+local_git -C "$ROOT" add scripts/sparkle-key-transition.json
+local_git -C "$ROOT" -c commit.gpgSign=false commit --quiet \
+  -m "test: bind disposable Sparkle bridge policy"
 
 cat >"$fake_adapter" <<EOF
 #!/usr/bin/env bash
@@ -204,6 +245,16 @@ python3 "$STATE" seal "$output_root" update-pkg 'mechanical fixture' 'mechanical
 bash "$ROOT/package/make_dmg" "$output_root"
 python3 "$STATE" seal "$output_root" dmg 'mechanical fixture' 'mechanical fixture'
 
+# Scan exactly the four artifacts created by this disposable cohort. Never fall back to package/
+# outputs in the invoking checkout: they may belong to an older release and are not evidence about
+# this commit. Strict mode proves every expected layer exists and carries no predecessor identity.
+OWL_IDENTITY_STRICT=1 \
+  OWL_APP="$app" \
+  OWL_INSTALLER_APP="$ROOT/installer/build/Build/Products/Release/OwltypeInstaller.app" \
+  OWL_PKG="$ROOT/package/Owltype.pkg" \
+  OWL_DMG="$ROOT/package/Owltype-${version}.dmg" \
+  bash "$ROOT/scripts/check-identity-residual.sh" --artifacts
+
 cp "$sign_update_source" "$ROOT/package/sign_update"
 chmod +x "$ROOT/package/sign_update"
 
@@ -221,7 +272,7 @@ grep -qF 'SPARKLE_ED25519_PRIVATE_KEY_FILE must name a readable regular file' \
   }
 
 RELEASE_OUTPUT_ROOT="$output_root" \
-  SPARKLE_ED25519_PRIVATE_KEY_FILE="$private_key" \
+  SPARKLE_ED25519_PRIVATE_KEY_FILE="$bridge_private_key" \
   bash "$ROOT/package/make_archive"
 bash "$ROOT/scripts/create-source-archive.sh" "$output_root"
 python3 "$STATE" verify-chain "$output_root"

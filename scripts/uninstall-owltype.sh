@@ -22,6 +22,7 @@ done
 
 APP="/Library/Input Methods/Owltype.app"
 OWL_BIN="${APP}/Contents/MacOS/Owltype"
+RECEIPT_ID="im.owltype.inputmethod.Owltype"
 
 # 白名单：仅猫头鹰自己的路径。
 TARGETS=(
@@ -31,6 +32,7 @@ TARGETS=(
   "${HOME}/Library/Preferences/im.owltype.inputmethod.Owltype.plist"
   "${HOME}/Library/HTTPStorages/im.owltype.inputmethod.Owltype"
   "${HOME}/Library/Logs/Owltype"
+  "/private/var/db/im.owltype.inputmethod.Owltype-installer"
 )
 
 # 安全闸：任何疑似他人输入法 / Rime 的路径，宁可中止也绝不删除。
@@ -47,7 +49,12 @@ present=()
 for t in "${TARGETS[@]}"; do
   if [ -e "$t" ]; then echo "  - $t"; present+=("$t"); fi
 done
-if [ "${#present[@]}" -eq 0 ]; then
+receipt_present=0
+if /usr/sbin/pkgutil --pkg-info "${RECEIPT_ID}" >/dev/null 2>&1; then
+  receipt_present=1
+  echo "  - PackageKit receipt ${RECEIPT_ID}"
+fi
+if [ "${#present[@]}" -eq 0 ] && [ "${receipt_present}" -eq 0 ]; then
   echo "  （未发现猫头鹰残留文件，可能已卸载。）"
   exit 0
 fi
@@ -86,7 +93,7 @@ fi
 
 removed=0
 for t in "${present[@]}"; do
-  if [[ "$t" == "/Library/Input Methods/"* ]]; then
+  if [[ "$t" == "/Library/Input Methods/"* || "$t" == "/private/var/db/im.owltype.inputmethod.Owltype-installer" ]]; then
     sudo rm -rf "$t"   # 系统目录需要一次密码
   else
     rm -rf "$t"
@@ -95,6 +102,14 @@ for t in "${present[@]}"; do
   removed=$((removed + 1))
 done
 
+if [ "${receipt_present}" -eq 1 ]; then
+  sudo /usr/sbin/pkgutil --forget im.owltype.inputmethod.Owltype >/dev/null
+  echo "  ✓ 已删除 PackageKit receipt ${RECEIPT_ID}"
+  removed=$((removed + 1))
+fi
+
 echo "✅ 猫头鹰卸载完成（清理 ${removed} 项）。Squirrel、~/Library/Rime 及你的其他输入法均未被触碰。"
-echo "提示：DeepSeek API key 仍在钥匙串（im.owltype.inputmethod.Owltype.deepseek）；如需删除请在「钥匙串访问」手动移除。"
+echo "提示：供应商密钥仍在钥匙串；如需一并清空，请手动删除以下两个 service："
+echo "  - im.owltype.inputmethod.Owltype.providers"
+echo "  - im.owltype.inputmethod.Owltype.deepseek"
 echo "登出再登录可让输入菜单彻底刷新。"

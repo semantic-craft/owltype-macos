@@ -22,7 +22,31 @@ owl_executable="${owl_app_root}/Contents/MacOS/Owltype"
 installer_target_volume="${3:-/}"
 installer_mode="${1:+pkg}"
 deferred_restore_label="im.owltype.inputmethod.Owltype.deferred-update-select"
-deferred_restore_log="/private/tmp/${deferred_restore_label}.log"
+installer_state_dir="/private/var/db/im.owltype.inputmethod.Owltype-installer"
+installer_markers_dir="${installer_state_dir}/markers"
+installer_jobs_dir="${installer_state_dir}/jobs"
+deferred_restore_log=""
+deferred_restore_scheduled=false
+
+prepare_installer_state() {
+  if [ -L "${installer_state_dir}" ]; then
+    /bin/rm -f "${installer_state_dir}" || return 1
+  fi
+  /usr/bin/install -d -o root -g wheel -m 711 "${installer_state_dir}" || return 1
+  /usr/sbin/chown root:wheel "${installer_state_dir}" || return 1
+  /bin/chmod 711 "${installer_state_dir}" || return 1
+  /usr/bin/install -d -o root -g wheel -m 700 "${installer_markers_dir}" || return 1
+  /usr/sbin/chown root:wheel "${installer_markers_dir}" || return 1
+  /bin/chmod 700 "${installer_markers_dir}" || return 1
+  /usr/bin/install -d -o root -g wheel -m 755 "${installer_jobs_dir}" || return 1
+  /usr/sbin/chown root:wheel "${installer_jobs_dir}" || return 1
+  /bin/chmod 755 "${installer_jobs_dir}" || return 1
+}
+
+# This state decides whether the script may run the first-install enable/select path. If the
+# root-owned state cannot be established, fail the package transaction instead of silently
+# degrading an update into a fresh install and stealing the user's current input source.
+prepare_installer_state
 
 # 在登录用户的 Aqua GUI 会话里跑命令（per-user TIS / Rime 用户目录都在这里，不在 root）。
 as_login_user() {
@@ -51,29 +75,32 @@ as_login_user() {
 #          时用户注入自己的域同样成立（本机实验验证）。
 #   自保   KeepAlive=false 根除「失败被 launchd 重启」；被 SIGKILL 硬杀的复活体另有
 #          「距安装 >5 分钟即自灭」阀兜底，下一次安装的 0-pre 是最后一道闸。
-# 任务体与 plist 落 /private/tmp（不是 PKInstallSandbox，活得过 postinstall；写完 chown 给登录
-# 用户——/tmp 有 sticky 位，root 写的文件用户态任务删不掉），任务收工自删两个文件并 bootout
-# 自己。断点写 ${deferred_restore_log}（launchd 的 stdout/stderr 也指过去，连语法错误都留痕；
-# 本机 /usr/bin/logger 进不了统一日志，别再走那条路）。全程 bounded（收据 ≤30s + 还原 ≤60s），
-# 失败绝不影响安装结果。
+# 任务体与 plist 落在 root 用 mktemp 创建的唯一目录中（不是 PKInstallSandbox，活得过
+# postinstall）。目录和可执行内容始终归 root，登录用户只拥有日志文件；这样既允许 GUI agent
+# 读取/执行，又不允许它或其他本地用户替换将要执行的脚本。任务 bootout 自己，目录由下一次安装
+# 或卸载器清理。全程 bounded（收据 ≤30s + 还原 ≤60s），失败绝不影响安装结果。
 schedule_deferred_update_restore() {
-  local install_epoch job_sh job_plist
+  local install_epoch job_dir job_sh job_plist
   install_epoch="$(/bin/date +%s)"
-  job_sh="/private/tmp/${deferred_restore_label}.sh"
-  job_plist="/private/tmp/${deferred_restore_label}.plist"
-  /bin/rm -f "${job_sh}" "${job_plist}" "${deferred_restore_log}"
+  job_dir="$(/usr/bin/mktemp -d "${installer_jobs_dir}/${deferred_restore_label}.XXXXXX")" || return 1
+  /bin/chmod 755 "${job_dir}" || { /bin/rm -rf "${job_dir}"; return 1; }
+  job_sh="${job_dir}/restore.sh"
+  job_plist="${job_dir}/restore.plist"
+  deferred_restore_log="${job_dir}/restore.log"
+  /usr/bin/touch "${deferred_restore_log}" || { /bin/rm -rf "${job_dir}"; return 1; }
+  /usr/sbin/chown "${login_uid}" "${deferred_restore_log}" 2>/dev/null || true
+  /bin/chmod 600 "${deferred_restore_log}" || true
 
   /bin/cat > "${job_sh}" <<'JOBEOF'
 #!/bin/sh
 # 猫头鹰安装延迟收尾：菜单代理刷新（总是）+ 选中态还原（仅 selected=true）。
 # 由 scripts/postinstall 生成并 bootstrap，机制注释见该文件。
-app="$1"; label="$2"; volume="$3"; mode="$4"; since="$5"; uid="$6"; job_sh="$7"; job_plist="$8"; selected="$9"
+app="$1"; label="$2"; volume="$3"; mode="$4"; since="$5"; uid="$6"; selected="$7"
 pkg_id="im.owltype.inputmethod.Owltype"
 log() { echo "$(/bin/date '+%H:%M:%S') $1"; }
 refresh_menu_agents() { /usr/bin/killall SystemUIServer TextInputMenuAgent TextInputSwitcher 2>/dev/null || true; }
 finish() {
   log "$1"
-  /bin/rm -f "${job_sh}" "${job_plist}"
   trap - TERM INT
   /bin/launchctl bootout "gui/${uid}/${label}" 2>/dev/null
   exit 0
@@ -158,8 +185,6 @@ JOBEOF
     <string>${installer_mode}</string>
     <string>${install_epoch}</string>
     <string>${login_uid}</string>
-    <string>${job_sh}</string>
-    <string>${job_plist}</string>
     <string>${was_selected}</string>
   </array>
   <key>RunAtLoad</key><true/>
@@ -169,17 +194,18 @@ JOBEOF
 </dict></plist>
 PLISTEOF
 
-  /bin/chmod 644 "${job_sh}" "${job_plist}"
-  /usr/sbin/chown "${login_uid}" "${job_sh}" "${job_plist}" 2>/dev/null || true
+  /bin/chmod 555 "${job_sh}"
+  /bin/chmod 444 "${job_plist}"
   for _ in 1 2; do
     /bin/launchctl bootout "gui/${login_uid}/${deferred_restore_label}" 2>/dev/null || true
     if /bin/launchctl bootstrap "gui/${login_uid}" "${job_plist}"; then
+      deferred_restore_scheduled=true
       return 0
     fi
     /bin/sleep 1
   done
   echo "Owltype postinstall: 延迟收尾任务 bootstrap 失败（gui/${login_uid}）；退化为立即刷新菜单代理（可能早于最终注册），was_selected 路径另有 4b 的即时 select 兜底。"
-  /bin/rm -f "${job_sh}" "${job_plist}"
+  /bin/rm -rf "${job_dir}"
   /usr/bin/killall SystemUIServer TextInputMenuAgent TextInputSwitcher 2>/dev/null || true
   return 0
 }
@@ -188,7 +214,9 @@ PLISTEOF
 #        这里是最后一道闸）。必须在 0a 的 pgrep 采样之前：任务的读回探针进程名同样是 Owltype，
 #        撞上采样窗口会把全新首装误判成更新而跳过 enable；也不能让旧任务在 0d 切出后又抢着选回。
 /bin/launchctl bootout "gui/${login_uid}/${deferred_restore_label}" 2>/dev/null || true
-/bin/rm -f "/private/tmp/${deferred_restore_label}.sh" "/private/tmp/${deferred_restore_label}.plist"
+# jobs 的父目录只有 root 可写；精确清掉上一轮任务目录后再创建新任务。
+/usr/bin/find "${installer_jobs_dir}" -mindepth 1 -maxdepth 1 -type d \
+  -name "${deferred_restore_label}.*" -exec /bin/rm -rf {} + 2>/dev/null || true
 
 # 0a) 更新/重装探测（复合判据；pgrep 必须在 killall 之前！）：
 #       is_update = bundle_preexisted（preinstall 标记，主信号）OR was_running（pgrep，副信号）
@@ -201,7 +229,7 @@ PLISTEOF
 #     无 preinstall）等场景。
 #     残余边缘（诚实取舍，fcitx5 同款，不伪装成全防护）：「装过但从未 enable」的机器重装会被
 #     主信号判成更新而跳过 enable；修复路径 = 系统设置 → 键盘 → 输入法 手动添加，或注销重登。
-preinstall_marker="/private/tmp/im.owltype.inputmethod.preinstall-had-bundle"
+preinstall_marker="${installer_markers_dir}/preinstall-had-bundle"
 if [ -f "${preinstall_marker}" ]; then
   bundle_preexisted=true
 else
@@ -224,7 +252,7 @@ fi
 # 0b) 更新前选中态（主信号，preinstall 在 payload 落盘前记录）：payload 原地
 #     替换 bundle 时 TIS 会把选中态踢出猫头鹰——到本脚本再探测已经结构性太晚（#16 三连复现：
 #     fresh 探针恒读 selected=false，切回分支永不触发，用户被踢回 ABC/鼠须管）。读取后即删。
-selected_marker="/private/tmp/im.owltype.inputmethod.preinstall-was-selected"
+selected_marker="${installer_markers_dir}/preinstall-was-selected"
 if [ -f "${selected_marker}" ]; then
   selected_before_install=true
 else
@@ -302,7 +330,11 @@ fi
 #    选中态还原（机制、预算与不抢源边界见函数头注释）。dev/手动直跑无收据可等，任务即时刷新，
 #    与旧步骤 5 等效。
 schedule_deferred_update_restore || true
-echo "Owltype postinstall: 已调度延迟收尾任务（was_selected=${was_selected}，label=${deferred_restore_label}；断点：tail -f ${deferred_restore_log}）。"
+if [ "${deferred_restore_scheduled}" = true ]; then
+  echo "Owltype postinstall: 已调度延迟收尾任务（was_selected=${was_selected}，label=${deferred_restore_label}；断点：tail -f ${deferred_restore_log}）。"
+else
+  echo "Owltype postinstall: 延迟收尾任务未调度，已执行即时菜单刷新兜底。"
+fi
 
 # 6) 仅诊断：若猫头鹰落进 "已选中但未真正启用" 死半态，把可复制的系统设置恢复指引打进安装日志。读用户会话，
 #    跑在同一 asuser GUI 域。best-effort，永不让安装失败。

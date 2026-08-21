@@ -125,6 +125,8 @@ def check_cohort_state(output_root: Path, app: Path, output_dir: Path) -> tuple[
         str(cohort["sourceSha256"]),
         str(cohort["seedSha256"]),
         dict(cohort["submodules"]),
+        sparkle_signing_public_key=str(cohort.get("sparkleSigningPublicKey", "")),
+        sparkle_feed_mode=str(cohort.get("sparkleFeedMode", "")),
     )
     if cohort.get("cohortId") != expected_id:
         fail("cohort identity digest is invalid")

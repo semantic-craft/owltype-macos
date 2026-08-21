@@ -32,10 +32,6 @@ fail=0
 # retired private repositories really are named after the old brand, and that gate exists to
 # keep those exact names out of the public tree. Rewriting the literals there would silently
 # disarm it, so they stay verbatim and this gate looks away.
-# So is the P4 first-launch migration (plan §5) and its test: migration code has to name the
-# old data root, the old preferences domain and the old derived filenames or it cannot address
-# them. Those two files are the ONE sanctioned place in product code — anywhere else the same
-# literals are residue, and this gate still says so.
 # CHANGELOG keeps its historical entries verbatim, and the two plan documents are the
 # record of the 法墨 era, deliberately left as written (plan §2.5; the same whitelist is
 # fixed in .scratch/rename-owltype/EXECUTION.md §3). The submodules are upstream vendor
@@ -56,11 +52,10 @@ SCAN_EXCLUDE=(
   -g '!scripts/owl-identity.sh'
   -g '!scripts/check-public-privacy.sh'
   -g '!scripts/check-public-privacy.selftest.sh'
-  -g '!sources/Engine/OwlLegacyDataMigration.swift'
-  -g '!tests/OwlLegacyDataMigrationTests.swift'
   -g '!CHANGELOG.md'
   -g '!docs/rename-owltype-plan.md'
   -g '!docs/default-input-method-plan.md'
+  -g '!docs/rename-owltype-evidence/**'
   -g '!librime/**'
   -g '!librime-lua/**'
   -g '!plum/**'
@@ -152,6 +147,7 @@ if [[ "$layer" != "artifacts" ]]; then
     grep -qF "$OWL_BUNDLE_ID" "$uninstaller"             || audit_missing+=("bundle id $OWL_BUNDLE_ID")
     grep -qF "$OWL_INSTALL_PATH" "$uninstaller"          || audit_missing+=("install path $OWL_INSTALL_PATH")
     grep -qF "Application Support/Owltype" "$uninstaller" || audit_missing+=("data root Application Support/Owltype")
+    grep -qF "/private/var/db/im.owltype.inputmethod.Owltype-installer" "$uninstaller" || audit_missing+=("installer state root")
     grep -qE 'forbidden=.*Library/Rime' "$uninstaller"    || audit_missing+=("Squirrel/Rime safety gate")
     if (( ${#audit_missing[@]} )); then
       printf 'FAIL: uninstaller whitelist drifted off identity manifest: %s\n' "${audit_missing[*]}" >&2
@@ -195,14 +191,27 @@ else
 fi
 
 # --- DMG installer app (layer 3): OwltypeInstaller.app is a separate GUI app with its own
-# identity surface (Info.plist + Resources). The embedded Owltype.app lives under
-# Contents/Library, which owl_scan_app_identity does not walk, so it is only counted
-# once (as the built-app layer). Scan the unmounted build product — no DMG mount needed. ---
+# identity surface (Info.plist + Resources). owl_scan_app_identity does not recurse into
+# Contents/Library, so scan the embedded Owltype.app explicitly as a second copy of the
+# product that will actually be installed. No DMG mount is needed for this build product. ---
 installer_app="${OWL_INSTALLER_APP:-installer/build/Build/Products/Release/OwltypeInstaller.app}"
 if [[ -d "$installer_app" ]]; then
   printf '== scanning DMG installer app: %s ==\n' "$installer_app"
   owl_scan_app_identity "$installer_app"
   report_app_scan "OwltypeInstaller.app"
+  embedded_installer_app="$installer_app/Contents/Library/Owltype.app"
+  if [[ -d "$embedded_installer_app" ]]; then
+    owl_scan_app_identity "$embedded_installer_app"
+    report_app_scan "OwltypeInstaller.app embedded Owltype.app"
+  elif [[ "${OWL_IDENTITY_STRICT:-0}" == "1" ]]; then
+    printf 'FAIL: OwltypeInstaller.app has no embedded Owltype.app (strict)\n' >&2
+    fail=1
+  else
+    printf 'note: OwltypeInstaller.app has no embedded Owltype.app\n'
+  fi
+elif [[ "${OWL_IDENTITY_STRICT:-0}" == "1" ]]; then
+  printf 'FAIL: OWL_INSTALLER_APP must name the built installer app in strict mode\n' >&2
+  fail=1
 else
   printf 'note: no OwltypeInstaller.app found to scan (%s)\n' "$installer_app"
 fi
@@ -280,6 +289,19 @@ else
     if [[ -d "$_dmg_mnt/OwltypeInstaller.app" ]]; then
       owl_scan_app_identity "$_dmg_mnt/OwltypeInstaller.app"
       report_app_scan "DMG OwltypeInstaller.app"
+      dmg_embedded_app="$_dmg_mnt/OwltypeInstaller.app/Contents/Library/Owltype.app"
+      if [[ -d "$dmg_embedded_app" ]]; then
+        owl_scan_app_identity "$dmg_embedded_app"
+        report_app_scan "DMG embedded Owltype.app"
+      elif [[ "${OWL_IDENTITY_STRICT:-0}" == "1" ]]; then
+        printf 'FAIL: DMG installer has no embedded Owltype.app (strict)\n' >&2
+        fail=1
+      else
+        printf 'note: DMG installer has no embedded Owltype.app\n'
+      fi
+    elif [[ "${OWL_IDENTITY_STRICT:-0}" == "1" ]]; then
+      printf 'FAIL: DMG has no OwltypeInstaller.app at its root (strict)\n' >&2
+      fail=1
     else
       printf 'note: DMG has no OwltypeInstaller.app at its root\n'
     fi

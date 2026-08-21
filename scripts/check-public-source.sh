@@ -35,16 +35,26 @@ while IFS= read -r tracked_path; do
   esac
 done < <(git ls-files)
 
-if ! python3 - resources/Info.plist <<'PY'
+if ! python3 - resources/Info.plist Owltype.xcodeproj/project.pbxproj scripts/sparkle-key-transition.json <<'PY'
+import json
 import plistlib
+import re
 import sys
 
 with open(sys.argv[1], "rb") as handle:
     info = plistlib.load(handle)
-if info.get("SUFeedURL") != "https://responsay.com/owltype/appcast.xml":
+if info.get("SUFeedURL") != "https://downloads.responsay.com/owltype/v2/appcast.xml":
     raise SystemExit("Sparkle feed differs from the reviewed endpoint")
-if not info.get("SUPublicEDKey"):
-    raise SystemExit("Sparkle public verification key is missing")
+if info.get("SUPublicEDKey") != "dWrr6gck5aoy5F7V00SizqQM6w9MHmZzeeQFSqYTlfM=":
+    raise SystemExit("Sparkle public verification key is not the Owltype key")
+versions = set(re.findall(r"MARKETING_VERSION = ([0-9.]+);", open(sys.argv[2]).read()))
+policy = json.load(open(sys.argv[3], encoding="utf-8"))
+if versions != {policy.get("releaseVersion")}:
+    raise SystemExit("Sparkle transition policy is not locked to the project release")
+if policy.get("toPublicKey") != info.get("SUPublicEDKey"):
+    raise SystemExit("Sparkle transition target differs from the App public key")
+if policy.get("successorFeedKey") != "owltype/v2/appcast.xml":
+    raise SystemExit("Sparkle transition successor feed differs from the reviewed endpoint")
 PY
 then
   failed=1

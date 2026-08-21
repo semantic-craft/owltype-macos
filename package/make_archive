@@ -43,10 +43,25 @@ if [ ! -f "${PKG}" ]; then
     exit 1
 fi
 
-# sign_update（Sparkle 工具）默认用钥匙串里与 SUPublicEDKey 配对的 EdDSA 私钥签 pkg。
+# sign_update（Sparkle 工具）默认使用 Owltype 专属钥匙串 account。2.0.1 的一次性
+# 过渡发布必须显式传 SPARKLE_ED25519_ACCOUNT=ed25519，并同时给 cohort 设置旧公钥；
+# 之后任何未显式配置的发布都只会使用新身份的钥匙。
 # 无凭据的机械发布链可显式提供一次性私钥文件；一旦提供就只用该文件，失效时绝不退回钥匙串。
 # 输出形如：  sparkle:edSignature="…" length="…"
 # 用 awk 解析两段属性塞进 <enclosure>（Squirrel make_archive 同款解析）。
+cohort_file="${RELEASE_OUTPUT_ROOT:-${PROJECT_ROOT}/build}/release/OWLTYPE-RELEASE-COHORT.json"
+sparkle_mode="$(python3 - "$cohort_file" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    print(json.load(handle).get("sparkleFeedMode", ""))
+PY
+)"
+if [[ "$sparkle_mode" != "bridge" && "$sparkle_mode" != "successor" ]]; then
+    echo >&2 "ERROR: release cohort has no valid Sparkle feed mode"
+    exit 1
+fi
 if [[ -n "${SPARKLE_ED25519_PRIVATE_KEY_FILE:-}" ]]; then
     sparkle_private_key="${SPARKLE_ED25519_PRIVATE_KEY_FILE}"
     if [[ ! -f "$sparkle_private_key" || ! -r "$sparkle_private_key" ]]; then
@@ -56,7 +71,20 @@ if [[ -n "${SPARKLE_ED25519_PRIVATE_KEY_FILE:-}" ]]; then
     edSignature="$(./sign_update --ed-key-file "$sparkle_private_key" -p "${PKG}")"
     length="$(stat -f '%z' "${PKG}")"
 else
-    signature="$(./sign_update "${PKG}")"
+    if [[ "$sparkle_mode" == "bridge" ]]; then
+        sparkle_account="${SPARKLE_ED25519_ACCOUNT:-}"
+        if [[ "$sparkle_account" != "ed25519" ]]; then
+            echo >&2 "ERROR: 2.0.1 bridge requires explicit SPARKLE_ED25519_ACCOUNT=ed25519"
+            exit 1
+        fi
+    else
+        sparkle_account="${SPARKLE_ED25519_ACCOUNT:-owltype-ed25519}"
+        if [[ "$sparkle_account" != "owltype-ed25519" ]]; then
+            echo >&2 "ERROR: successor releases must use SPARKLE_ED25519_ACCOUNT=owltype-ed25519"
+            exit 1
+        fi
+    fi
+    signature="$(./sign_update --account "$sparkle_account" "${PKG}")"
     edSignature="$(echo "${signature}" | awk -F'"' '{print $2}')"
     length="$(echo "${signature}" | awk -F'"' '{print $4}')"
 fi

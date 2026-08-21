@@ -211,6 +211,8 @@ def cohort_identifier(
     source_sha256: str,
     seed_sha256: str,
     submodules: dict[str, str],
+    sparkle_signing_public_key: str = "",
+    sparkle_feed_mode: str = "",
 ) -> str:
     identity = {
         "buildAppSha256": build_app_sha256,
@@ -223,6 +225,10 @@ def cohort_identifier(
         "submodules": submodules,
         "version": version,
     }
+    if sparkle_signing_public_key:
+        identity["sparkleSigningPublicKey"] = sparkle_signing_public_key
+    if sparkle_feed_mode:
+        identity["sparkleFeedMode"] = sparkle_feed_mode
     return hashlib.sha256(
         json.dumps(identity, separators=(",", ":"), sort_keys=True).encode("utf-8")
     ).hexdigest()

@@ -1,3 +1,17 @@
+<a name="2.0.1"></a>
+## 2.0.1 (2026-08-21)
+
+### 改名收口 | Rename closeout
+- 删除首启 Famo 数据迁移、旧路径读取回落及迁移收据；Owltype 现在只读写自己的数据、defaults 和 Keychain 身份
+- 加固安装包的 root 脚本状态目录与延迟任务，消除共享临时目录中的符号链接竞态和安装状态伪造
+- GUI 与脚本卸载器会先停用输入源，并删除安装状态及 PackageKit receipt，避免幽灵输入源与假安装状态
+- 产物身份门新增主 Mach-O 硬身份扫描，编译进可执行文件的旧 bundle/path/connection 字面量不再漏检
+
+### 更新安全 | Update security
+- App 改读 `https://downloads.responsay.com/owltype/v2/appcast.xml` 并内嵌 Owltype 独立 Sparkle 公钥。2.0.1 更新包仅为让已安装 2.0.0 跨过信任桥而用旧钥签署一次；旧 feed 固定停在 2.0.1，2.0.2 起只更新新 feed、只用新钥
+
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/2.0.0...2.0.1
+
 <a name="2.0.0"></a>
 ## 2.0.0 (2026-08-21)
 

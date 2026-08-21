@@ -161,11 +161,19 @@ app="$root/build/gate-release/Build/Products/Release/Owltype.app"
 
 stage "release gates"
 OWL_APP="$app" bash scripts/check-manifest.sh
-OWL_APP="$app" bash scripts/check-identity-residual.sh
+# At this point this gate has built only the App. Explicitly hide any package/installer/DMG left
+# by an older local release so the verdict cannot depend on stale, non-cohort artifacts. The
+# mechanical artifact-chain test below builds and strictly scans all four fresh layers together.
+OWL_APP="$app" \
+  OWL_INSTALLER_APP=/nonexistent \
+  OWL_PKG=/nonexistent \
+  OWL_DMG=/nonexistent \
+  bash scripts/check-identity-residual.sh
 bash scripts/check-identity-residual.selftest.sh
 bash scripts/release-artifact-chain.selftest.sh "$app"
 bash scripts/release-cohort.selftest.sh
 bash scripts/release-cohort-transition.selftest.sh
+python3 scripts/sparkle-key-transition.selftest.py
 bash scripts/release-chain.selftest.sh
 python3 scripts/secret-finding-policy.selftest.py
 bash scripts/check-secrets.sh

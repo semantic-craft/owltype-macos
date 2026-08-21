@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Self-test for the artifact layers of check-identity-residual.sh — the built app (3), pkg
-# payload (4a) and dmg (4b). Builds throwaway artifacts poisoned with the old 法墨/Famo
+# Self-test for the artifact layers of check-identity-residual.sh — the built app,
+# installer app (including its embedded app), pkg payload and mounted dmg. Builds
+# throwaway artifacts poisoned with the old 法墨/Famo
 # identity — and with Squirrel's id, which the CLAIM tier forbids artifacts to claim — and
 # asserts the gate FAILS on them, PASSES with no artifacts present, and that the
 # hard/claim/product tier split and the strict flag behave as documented.
@@ -63,6 +64,49 @@ write_app "$work/poison-app/Owltype.app" "im.famo.inputmethod.Famo"
 write_app "$work/brand-app/Owltype.app" "im.owltype.inputmethod.Owltype" \
   '<key>CFBundleName</key><string>法墨输入法</string>'
 write_app "$work/claim-app/Owltype.app" "im.rime.inputmethod.Squirrel"
+write_app "$work/binary-poison-app/Owltype.app" "im.owltype.inputmethod.Owltype" \
+  '<key>CFBundleExecutable</key><string>Owltype</string>'
+mkdir -p "$work/binary-poison-app/Owltype.app/Contents/MacOS"
+printf '#!/bin/sh\n# embedded legacy identity: %s\n' "im.famo.inputmethod.Famo" \
+  > "$work/binary-poison-app/Owltype.app/Contents/MacOS/Owltype"
+chmod +x "$work/binary-poison-app/Owltype.app/Contents/MacOS/Owltype"
+write_app "$work/clean-installer/OwltypeInstaller.app" "im.owltype.installer"
+mkdir -p "$work/clean-installer/OwltypeInstaller.app/Contents/Library"
+cp -R "$work/clean-app/Owltype.app" \
+  "$work/clean-installer/OwltypeInstaller.app/Contents/Library/Owltype.app"
+write_app "$work/empty-installer/OwltypeInstaller.app" "im.owltype.installer"
+write_app "$work/poison-installer/OwltypeInstaller.app" "im.owltype.installer"
+mkdir -p "$work/poison-installer/OwltypeInstaller.app/Contents/Library"
+cp -R "$work/poison-app/Owltype.app" \
+  "$work/poison-installer/OwltypeInstaller.app/Contents/Library/Owltype.app"
+
+# Build one complete clean artifact set so strict structure tests can replace exactly one
+# layer. This prevents an unrelated missing layer from supplying the nonzero exit status.
+mkdir -p "$work/clean-pkgroot"
+cp -R "$work/clean-app/Owltype.app" "$work/clean-pkgroot/Owltype.app"
+mkdir -p "$work/clean-package"
+pkgbuild --root "$work/clean-pkgroot" --identifier im.owltype.inputmethod.Owltype \
+  --install-location "/Library/Input Methods" --version 0.0 \
+  "$work/clean-package/Owltype-component.pkg" >/dev/null 2>&1
+productbuild --synthesize --package "$work/clean-package/Owltype-component.pkg" \
+  "$work/clean-dist.xml" >/dev/null 2>&1
+productbuild --distribution "$work/clean-dist.xml" --package-path "$work/clean-package" \
+  "$work/clean.pkg" >/dev/null 2>&1
+
+mkdir -p "$work/clean-dmgroot"
+cp -R "$work/clean-installer/OwltypeInstaller.app" \
+  "$work/clean-dmgroot/OwltypeInstaller.app"
+hdiutil create -volname OwltypeCleanSelfTest -srcfolder "$work/clean-dmgroot" \
+  -ov -format UDZO "$work/clean.dmg" >/dev/null 2>&1
+
+run_strict_clean() {
+  run_gate OWL_IDENTITY_STRICT=1 \
+    OWL_APP="$work/clean-app/Owltype.app" \
+    OWL_INSTALLER_APP="$work/clean-installer/OwltypeInstaller.app" \
+    OWL_PKG="$work/clean.pkg" \
+    OWL_DMG="$work/clean.dmg" \
+    "$@"
+}
 
 # --- positive: no artifacts present → artifact layers pass (no false positive) ---
 if run_gate; then ok "positive: no artifacts present passes"; else bad "positive: no-artifact run should exit 0"; fi
@@ -72,6 +116,15 @@ if run_gate OWL_APP="$work/poison-app/Owltype.app"; then
   bad "negative A: built app with the old bundle id should fail the gate"
 else
   expect_fail "negative A: built app with the old bundle id fails the gate" \
+    "hard identity residue in built app"
+fi
+
+# --- negative E: the plist is clean but the executable embeds a former hard identity.
+# This catches compiled compatibility code that a plist/resource-only scan cannot see. ---
+if run_gate OWL_APP="$work/binary-poison-app/Owltype.app"; then
+  bad "negative E: built executable with the old bundle id should fail the gate"
+else
+  expect_fail "negative E: built executable with the old bundle id fails the gate" \
     "hard identity residue in built app"
 fi
 
@@ -101,17 +154,38 @@ fi
 
 # --- strict demands every layer was actually looked at: a layer with nothing to scan reads
 # exactly like a clean one, which is how a renamed artifact would slip through §7 Gate 1. ---
-if run_gate OWL_IDENTITY_STRICT=1; then
+if run_strict_clean OWL_APP=/nonexistent; then
   bad "strict: a missing built app should fail the gate"
 else
   expect_fail "strict: a missing built app fails the gate" \
     "OWL_APP must name the built app in strict mode"
 fi
-if run_gate OWL_IDENTITY_STRICT=1 OWL_APP="$work/clean-app/Owltype.app"; then
+if run_strict_clean OWL_INSTALLER_APP=/nonexistent; then
+  bad "strict: a missing installer app should fail the gate"
+else
+  expect_fail "strict: a missing installer app fails the gate" \
+    "OWL_INSTALLER_APP must name the built installer app in strict mode"
+fi
+if run_strict_clean OWL_INSTALLER_APP="$work/empty-installer/OwltypeInstaller.app"; then
+  bad "strict: an installer without its embedded app should fail the gate"
+else
+  expect_fail "strict: an installer without its embedded app fails the gate" \
+    "OwltypeInstaller.app has no embedded Owltype.app (strict)"
+fi
+if run_strict_clean OWL_PKG=/nonexistent; then
   bad "strict: a missing pkg should fail the gate"
 else
   expect_fail "strict: a missing pkg fails the gate" \
     "OWL_PKG must name the built installer pkg in strict mode"
+fi
+
+# --- negative F: the GUI installer outer bundle is clean, but the embedded App it will copy to
+# /Library/Input Methods carries the predecessor identity. The outer scan alone cannot see this. ---
+if run_gate OWL_INSTALLER_APP="$work/poison-installer/OwltypeInstaller.app"; then
+  bad "negative F: installer with a poison embedded App should fail the gate"
+else
+  expect_fail "negative F: installer with a poison embedded App fails the gate" \
+    "hard identity residue in OwltypeInstaller.app embedded Owltype.app"
 fi
 
 # --- negative B: pkg payload plist carries a HARD token → fails even non-strict ---
@@ -137,6 +211,45 @@ if run_gate OWL_DMG="$work/poison.dmg"; then
 else
   expect_fail "negative C: poison DMG loose file (Famo_Connection) fails the gate" \
     "hard identity residue in DMG loose files"
+fi
+
+
+# --- negative G: the mounted DMG path must independently scan the embedded App copy. ---
+mkdir -p "$work/dmg-embedded-root"
+cp -R "$work/poison-installer/OwltypeInstaller.app" \
+  "$work/dmg-embedded-root/OwltypeInstaller.app"
+hdiutil create -volname OwltypeEmbeddedSelfTest -srcfolder "$work/dmg-embedded-root" \
+  -ov -format UDZO "$work/poison-embedded.dmg" >/dev/null 2>&1
+if run_gate OWL_DMG="$work/poison-embedded.dmg"; then
+  bad "negative G: DMG with a poison embedded App should fail the gate"
+else
+  expect_fail "negative G: DMG with a poison embedded App fails the gate" \
+    "hard identity residue in DMG embedded Owltype.app"
+fi
+
+# --- strict DMG shape: a mounted image must carry the outer installer and its embedded App.
+# These cases pin the fail-closed branches independently of identity-residue fixtures. ---
+mkdir -p "$work/dmg-rootless-root"
+printf 'shape fixture\n' > "$work/dmg-rootless-root/README.txt"
+hdiutil create -volname OwltypeRootlessSelfTest -srcfolder "$work/dmg-rootless-root" \
+  -ov -format UDZO "$work/rootless.dmg" >/dev/null 2>&1
+if run_strict_clean OWL_DMG="$work/rootless.dmg"; then
+  bad "strict: a DMG without its root installer should fail the gate"
+else
+  expect_fail "strict: a DMG without its root installer fails the gate" \
+    "DMG has no OwltypeInstaller.app at its root (strict)"
+fi
+
+mkdir -p "$work/dmg-empty-installer-root"
+cp -R "$work/empty-installer/OwltypeInstaller.app" \
+  "$work/dmg-empty-installer-root/OwltypeInstaller.app"
+hdiutil create -volname OwltypeEmptyInstallerSelfTest -srcfolder "$work/dmg-empty-installer-root" \
+  -ov -format UDZO "$work/empty-installer.dmg" >/dev/null 2>&1
+if run_strict_clean OWL_DMG="$work/empty-installer.dmg"; then
+  bad "strict: a DMG installer without its embedded app should fail the gate"
+else
+  expect_fail "strict: a DMG installer without its embedded app fails the gate" \
+    "DMG installer has no embedded Owltype.app (strict)"
 fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
