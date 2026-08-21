@@ -134,10 +134,19 @@ final class ActivationPolicyTests: XCTestCase {
     XCTAssertEqual(plan, .select(.hans))
   }
 
-  func testMakeDefaultResultMapsSelectFailureToFailedWithReason() {
+  func testMakeDefaultResultMapsParamErrToManualReAddGuidance() {
     let result = OwlInstaller.makeDefaultResult(mode: .hans, outcome: .selectFailed(-50))
     guard case .failed(let reason) = result else { return XCTFail("select 失败必须落 .failed") }
     XCTAssertTrue(reason.contains("-50"), "失败文案要带上 TIS 状态码，否则用户无从报障")
+    XCTAssertTrue(reason.contains("系统设置"), "用户从输入法列表移除猫头鹰后，恢复路径只能回到系统设置")
+    XCTAssertTrue(reason.contains("重新加入"), "-50 必须明确告诉用户重新加入猫头鹰，不能只报泛化系统拒绝")
+  }
+
+  func testMakeDefaultResultKeepsGenericGuidanceForOtherSelectFailures() {
+    let result = OwlInstaller.makeDefaultResult(mode: .hans, outcome: .selectFailed(-43))
+    guard case .failed(let reason) = result else { return XCTFail("select 失败必须落 .failed") }
+    XCTAssertTrue(reason.contains("-43"))
+    XCTAssertFalse(reason.contains("重新加入"), "只有已实证的 paramErr 才能给出重新加入的定向恢复路径")
   }
 
   func testMakeDefaultResultTreatsAlreadySelectedAsAlreadyDefaultNotFailure() {

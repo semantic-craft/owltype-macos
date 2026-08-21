@@ -208,6 +208,10 @@ final class OwlInstaller {
     case .alreadySelected:
       return .alreadyDefault(mode: mode)
     case .selectFailed(let status):
+      if status == paramErr {
+        return .failed(
+          reason: "系统拒绝切换到\(mode.displayName)（TIS 错误 \(status)）。请到 系统设置 → 键盘 → 输入法 → 编辑… 里重新加入猫头鹰后再试。")
+      }
       return .failed(reason: "系统拒绝切换到\(mode.displayName)（TIS 错误 \(status)）。")
     case .notEnabled:
       return .failed(reason: "\(mode.displayName)尚未真正启用。请到 系统设置 → 键盘 → 输入法 → 编辑… 里加一次猫头鹰，再回来重试。")
