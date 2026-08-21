@@ -34,8 +34,12 @@ branch. Then use the only release entrypoint:
 ```sh
 DEV_ID='Developer ID common name' \
 NOTARY_PROFILE='notarytool keychain profile' \
-bash scripts/release.sh --output-root build/release-cohort
+bash scripts/release.sh --output-root build/release-<version>-<short-sha>
 ```
+
+The one-time 2.0.1 trust bridge must additionally set
+`SPARKLE_ED25519_ACCOUNT=ed25519`. Releases after 2.0.1 omit that override (or explicitly use
+`owltype-ed25519`); the predecessor account must never become a permanent default.
 
 To inspect the same order without invoking builds, Apple tools, scanners, or remote services:
 
@@ -48,7 +52,10 @@ The entrypoint runs tests, creates one Release build, and drives the App, `Owlty
 `built -> signed -> notarized -> stapled` cohort transitions. It inventories the final App, creates
 an appcast and corresponding-source archive that both embed that cohort ID, and then runs the
 release, privacy, shared secret-policy, and local publishing-contract gates. Any revision, version,
-inventory, artifact, appcast, source, or cohort mismatch stops the chain. Re-running the entrypoint
+inventory, artifact, appcast, source, or cohort mismatch stops the chain. A `complete` cohort means
+only that all four binary artifacts reached `stapled`; it is not permission to publish. The
+entrypoint creates a local, cohort-and-asset-bound publish-authorization receipt only after all
+eight release, privacy, secret, and publishing-contract stages pass. Re-running the entrypoint
 reruns the tests, then verifies and reuses a complete valid Release cohort without another Release
 build; a partial, failed, or mismatched cohort must be removed explicitly and rebuilt under a fresh
 output root.
@@ -74,22 +81,23 @@ script does not upload assets or deploy the feed. After every local gate passes,
 remote order without changing state:
 
 ```sh
-python3 scripts/owl_distribution.py --dry-run --output-root build/release-cohort
+python3 scripts/owl_distribution.py --dry-run --output-root build/release-<version>-<short-sha>
 ```
 
 Publication is a separate, explicit maintainer decision:
 
 ```sh
 npm install --global wrangler@4.123.0
-python3 scripts/owl_distribution.py --publish --output-root build/release-cohort
+python3 scripts/owl_distribution.py --publish --output-root build/release-<version>-<short-sha>
 ```
 
-The publisher requires exactly Wrangler 4.123.0. It stores all ten assets under the immutable
+Both publisher modes require the local publish-authorization receipt before constructing a remote
+plan. The publisher requires exactly Wrangler 4.123.0. It stores all ten assets under the immutable
 build-version prefix in the `responsay-downloads` R2 bucket, reads them back, and verifies their
-public hashes. It then replaces one cohort JSON pointer that atomically switches every manual
-binary/source download, verifies those website routes, and replaces `owltype/appcast.xml` last. A
-versioned object that already exists with different bytes stops publication; an identical object is
-reused.
+public hashes. It then replaces `owltype/latest.json`, verifies all four website aliases, and writes
+`owltype/v2/appcast.xml`. For the one-time 2.0.1 bridge only, it writes the predecessor Owltype feed
+`owltype/appcast.xml` last; 2.0.2 and later never touch that frozen bridge feed. A versioned object
+that already exists with different bytes stops publication; an identical object is reused.
 
 The shared artifact secret policy scans the App and all ten listed assets. It safely expands PKGs,
 mounts DMGs read-only and detaches them on both success and failure, and extracts tar archives while
@@ -101,8 +109,9 @@ record live outside the App and ship with the packages, DMG, appcast, source arc
 checksum. A downloader can verify the App with
 `cd Owltype.app && shasum -a 256 -c /path/to/OWLTYPE-FILE-MANIFEST.sha256`.
 
-Public source and public binaries remain separate legal decisions. A complete cohort does not permit
-a binary release while any provenance, corresponding-source, license, or human-review gate is open.
+Public source and public binaries remain separate legal decisions. A complete cohort without a valid
+publish-authorization receipt must never be published, and no receipt may be issued while any
+provenance, corresponding-source, license, secret, or human-review gate is open.
 Local tests use fake adapters, unsigned system packaging tools, and synthetic Sparkle keys only;
 they do not replace a maintainer's final Developer ID signing, notarization, stapling, and installed
 update validation on the exact release artifacts.
