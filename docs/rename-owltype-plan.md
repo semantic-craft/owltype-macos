@@ -113,7 +113,7 @@
 
 > **执行记录（票 09，2026-08-21）** —— Owltype 2.0.0 已从源码提交 `f63a4b5` 构建、签名、公证并发布；稳定 appcast 按计划最后写入。发布后重新读取全部 Owltype 对象与四个下载别名，均与 release cohort 一致；旧 `famo/` 的 12 个对象仍为 69,807,317 字节且逐对象哈希不变；Responsay 根 appcast 仍为 1.9.2（build 157）。脱敏后的完整证据见 `docs/rename-owltype-evidence/09-distribution-cutover-2026-08-21.md`；原始 HTTP/appcast 留档仅保存在执行机的 `.scratch/rename-owltype/`。GitHub #143 已关闭。旧 `famo/` 仍按本节第 3 条冻结，删除归票 11。
 
-> **2.0.1 更新信任桥修订（2026-08-22）** —— 2.0.0 与 Famo 共用 Sparkle 公钥会让旧 Famo 已签包在 feed 被改写时仍可被 Owltype 接受并以 root 安装。2.0.1 因此采用两段式桥：App 内嵌 Owltype 新公钥并改读 `downloads.responsay.com/owltype/v2/appcast.xml`，但 2.0.1 的 update.pkg 仍用旧钥签一次；发布器先写新 feed，最后把旧 `responsay.com/owltype/appcast.xml` 固定到 2.0.1。2.0.2 起只用新钥、只更新新 feed，旧 feed 不再写入。该桥只处理 Sparkle 信任连续性，不读取或迁移任何 Famo 用户数据。
+> **2.0.1 更新信任桥修订（2026-08-22）** —— 2.0.0 与 Famo 共用 Sparkle 公钥会让旧 Famo 已签包在 feed 被改写时仍可被 Owltype 接受并以 root 安装。2.0.1 因此采用两段式桥：App 内嵌 Owltype 新公钥并改读 `downloads.responsay.com/owltype/v2/appcast.xml`，但 2.0.1 的 update.pkg 仍用旧钥签一次；发布器按“10 个不可变对象 → `owltype/latest.json` → 四个下载别名验证 → `owltype/v2/appcast.xml` → 旧 `owltype/appcast.xml`”执行，最后一步只在 2.0.1 固定桥接 feed。2.0.2 起只用新钥、只更新 v2 feed，旧 feed 不再写入；`famo/*` 在两次桥接发布中始终不属于写入计划。该桥只处理 Sparkle 信任连续性，不读取或迁移任何 Famo 用户数据。
 
 **关于老用户桥接的决策**：不做旧 feed 桥接更新（即不在 famo appcast 上发「自动迁移到猫头鹰」的最终版本）。理由：装机面就是自己的几台机器，手动干净切换（P5）比维护一条只跑一次的自动迁移链更「没有隐患」；bundle id 变更后 Sparkle 跨身份迁移本身就是新风险面。若未来发现有真实外部用户，再考虑在冻结的旧 feed 上发一条纯提示性条目。
 
