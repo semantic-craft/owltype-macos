@@ -82,6 +82,7 @@ for artifact in "$@"; do
   gitleaks_report="$work_dir/gitleaks-$(basename "$artifact").json"
   set +e
   gitleaks dir "$target" \
+    --config="$repo_root/.gitleaks.toml" \
     --redact=100 \
     --no-banner \
     --no-color \
