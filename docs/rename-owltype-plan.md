@@ -1,6 +1,6 @@
 # 改名方案：法墨输入法 → 猫头鹰输入法（Owltype）
 
-> 状态：方案定稿，待执行。本文档是执行代理（Grok）的唯一任务书。
+> 状态：方案定稿；08 外壳改名已完成，09 分发上线尚未执行，后续 10–11 待执行。GitHub #140–#149 是当前规格与依赖源；本地票文件保留对应阶段的详细操作编舞。
 > 原则：一次性彻底改名，不保留兼容层、不留旧标识残留（全局工程原则：不做向后兼容）。
 > 撰写日期：2026-08-20。当前版本 1.6.3，改名后首个版本定为 **2.0.0**。
 
@@ -103,13 +103,13 @@
 
 ## 4. 阶段 P3：分发面切换（responsay.com R2）
 
-> **铁律：wrangler 部署是整站快照，动手前必先 pull 现网全量，改完后 Responsay 与本产品两个面都要验（历史上曾把隔壁 appcast 打回旧版）。**
+> **铁律：当前发布器通过 `wrangler r2 object get/put` 逐对象读写，不是整站快照部署。共享桶与公共路由仍有误覆盖风险：发布前必须对 Owltype、旧 Famo、Responsay 三个面留存现网快照，其中旧 `famo/` 对象逐个记录字节数与哈希；发布只允许写 `owltype/` 键；发布后按同一组三面快照复验。**
 
-1. 拉取现网站点快照到本地工作副本。
+1. 发布前读取并留存三面基线：当前 `owltype/` 对象（首次发布时允许不存在）、整个旧 `famo/` 对象集合的字节数与哈希、Responsay 自己的 appcast 正文与版本号。旧 `famo/` 快照既是冻结证明，也是误写时的恢复依据。
 2. 新增 `owltype/` 路径：`appcast.xml`（2.0.0 条目，enclosure 指向 `owltype/releases/2.0.0/Owltype-update.pkg`）、`Owltype.pkg`、`Owltype.dmg`、`release-cohort` 端点、`source.tar.gz`。
-3. **暂时保留 `famo/` 原样不动**（冻结，不再更新）。旧装机的 Sparkle 还在查旧 feed，留着可避免报错噪音；等 P5 全部机器切换完成后第二次部署再删除整个 `famo/` 路径。
-4. 发布走改名后的 `owl_distribution.py --publish`（wrangler 4.123.0；R2 put 后 readback 短暂不一致属正常，直接重跑不删对象）。
-5. 部署后验证：`curl https://responsay.com/owltype/appcast.xml` 内容正确；`https://responsay.com/famo/appcast.xml` 未被破坏；**Responsay 自己的 appcast 版本号未回退**。
+3. **暂时保留 `famo/` 原样不动**（冻结，不再更新）。旧装机的 Sparkle 还在查旧 feed，留着可避免报错噪音；等 P5 全部机器切换且 2.0.x 新更新链证明完成后，第二次对象级部署再删除整个 `famo/` 路径。
+4. 发布走改名后的 `owl_distribution.py --publish`；该脚本按发布计划对明确的 `owltype/` 键执行对象级 R2 put/get 与公开 URL readback（wrangler 4.123.0；R2 put 后 readback 短暂不一致属正常，直接重跑不删对象）。
+5. 部署后复验三面：`curl https://responsay.com/owltype/appcast.xml` 内容正确且下载对象可读；旧 `famo/` 的对象集合、字节数与哈希和发布前完全一致；**Responsay 自己的 appcast 正文与版本号未回退**。
 
 **关于老用户桥接的决策**：不做旧 feed 桥接更新（即不在 famo appcast 上发「自动迁移到猫头鹰」的最终版本）。理由：装机面就是自己的几台机器，手动干净切换（P5）比维护一条只跑一次的自动迁移链更「没有隐患」；bundle id 变更后 Sparkle 跨身份迁移本身就是新风险面。若未来发现有真实外部用户，再考虑在冻结的旧 feed 上发一条纯提示性条目。
 
@@ -142,27 +142,29 @@
 > - 原子性：复制 + 改名 + 标识改写都在同卷 staging 目录里完成，最后一步 `moveItem` 挂成正式目录。
 >   磁盘上不存在「半个正式目录」，中断重入直接丢弃残骸重跑。
 > - **Keychain 不随迁**：API Key 存在旧 service `im.famo.inputmethod.Famo.providers` / `….deepseek` 下，
->   `providers.json` 里的 `secretName` 也是旧前缀。装机后需要重新填 API Key —— 见下面 P5 第 7 步。
+>   `providers.json` 里的 `secretName` 也是旧前缀。装机后需要重新填 API Key —— 见下面 P5 第 2、9 步。
+> - **一次性迁移实现的删除门**：在所有 Mac 完成逐机切换、且随后发布的 2.0.x 已经从新 feed 完成一次真机更新证明之前，
+>   不得删除迁移实现、迁移测试或残留扫描器中的迁移期例外。更新链证明完成后再在收尾票中一并移除，避免尚未切换的机器失去唯一迁移入口。
 
 ---
 
 ## 6. 阶段 P5：装机切换（每台装有法墨的机器，人工按序执行）
 
-> 每台机器一次过，顺序不能乱。已知深坑全部来自历史实录。
+> 每台机器一次过，顺序不能乱。**本节必须与 2026-08-21 重写后的 10 号票配套使用；10 号票的 0–9 九步编舞、逐步等用户确认和四条红线是权威版本，禁止用更早的七步或八步口径覆盖。**
 
 0. **备份迁移源**（顺序红线，见第 2 步）：`cp -a ~/Library/Application\ Support/Famo ~/Library/Application\ Support/Famo.pre-owltype-backup`。
-1. **先退出 Karabiner-Elements**（运行中重装输入法曾触发 Karabiner 析构 bug 致全键盘失灵；本机虽已升 16.1.8 但未实测修复，照旧先退）。另：此时把各家 API Key 记下来（Keychain Access 按 service `im.famo.inputmethod.Famo.providers` 找），条目留着别删，等全部机器都切完、新 Key 实测可用之后再清（见文末收尾）。
-2. 运行**旧版**卸载脚本移除法墨——**不是仓里那个**：03 号票已把 `scripts/uninstall-famo.sh` 改名并把内部身份全换成 Owltype，在还没装新版的机器上跑它什么都不会删、而你会以为卸干净了。取回旧版：`git show 470d8f5:scripts/uninstall-famo.sh > /tmp/uninstall-famo.sh`，先 `--dry-run` 看清删除清单。**它会连 `~/Library/Application Support/Famo` 一起删掉**（第 0 步的备份就是为这个）。
-3. **注销并重新登录**（不是可选项：输入源真存储在 `com.apple.inputsources.plist`，会话层污染只有注销/重启能清；userland 复位全套已被证明无效，别再试）。
-4. 清理 LaunchServices 残留：用既有 lsregister 清理配方清掉所有旧 bundle id / 开发构建的认领（装机验收前必清，否则归因不可信）。
-5. **首启前恢复迁移源**：`cp -a ~/Library/Application\ Support/Famo.pre-owltype-backup ~/Library/Application\ Support/Famo`。第 0 步先整目录备份、这里恢复，是因为第 2 步的卸载已经把它删了；
-   **必须赶在新 app 首次启动之前**——票 06 的迁移只在首启跑，跑空了旧数据就接不过来了。
-6. 安装 Owltype 2.0.0（签名 pkg），在系统设置中启用「猫头鹰输入法」，首启一次让票 06 的迁移执行。
-7. **重新授予 TCC 权限**（辅助功能、Apple 事件）：bundle id 变了，旧授权全部失效，属预期而非故障；若出现「已勾选仍报未授权」，按已知配方删条目重加（csreq 失配）。
-8. 首启验证迁移结果：皮肤/偏好还原、快捷短语与提示词库完好、rime_ice 用户词库连续（打几个惯用词验证词频记忆）。**预期而非故障：云服务 API Key 需要重填** —— Keychain 的 service 名随 bundle id 改了，票 06 的迁移只搬数据目录与偏好域，不搬 Keychain。
-9. 真机验收升级链路：等下一个 2.0.x 发布时验证 Sparkle 从新 feed 更新 + 更新后输入源还原（顺带闭环 1.6.1 未验证的修复机制）。
+1. **先退出 Karabiner-Elements**（运行中重装输入法曾触发 Karabiner 析构 bug 致全键盘失灵；本机虽已升 16.1.8 但未实测修复，照旧先退）。
+2. **记下各家 API Key**：Keychain Access 按 service `im.famo.inputmethod.Famo.providers` 查找；旧条目此时不得删除。
+3. 运行**旧版**卸载脚本移除法墨——**不是仓里那个**：03 号票已把 `scripts/uninstall-famo.sh` 改名并把内部身份全换成 Owltype，在还没装新版的机器上跑它什么都不会删、而你会以为卸干净了。取回旧版：`git show 470d8f5:scripts/uninstall-famo.sh > /tmp/uninstall-famo.sh`，先 `--dry-run` 看清删除清单。**它会连 `~/Library/Application Support/Famo` 一起删掉**（第 0 步的备份就是为这个）。
+4. **注销并重新登录**（不是可选项：输入源真存储在 `com.apple.inputsources.plist`，会话层污染只有注销/重启能清；userland 复位全套已被证明无效，别再试）。
+5. 清理 LaunchServices 残留：用既有 lsregister 清理配方清掉所有旧 bundle id / 开发构建的认领（装机验收前必清，否则归因不可信）。
+6. **首启前确认并恢复迁移源**：先检查 `~/Library/Application Support/Famo`；第 3 步已经把它删掉时，执行 `cp -a ~/Library/Application\ Support/Famo.pre-owltype-backup ~/Library/Application\ Support/Famo`。
+   **必须赶在新 app 首次启动之前**——票 06 的迁移只在首启跑一次并写幂等标记，跑空了旧数据就接不过来了。
+7. 安装 Owltype 2.0.0（签名 pkg），在系统设置中启用「猫头鹰输入法」，首启一次让票 06 的迁移执行。
+8. **重新授予 TCC 权限**（辅助功能、Apple 事件）：bundle id 变了，旧授权全部失效，属预期而非故障；若出现「已勾选仍报未授权」，按已知配方删条目重加（csreq 失配）。
+9. **验证并记录**：皮肤/偏好、快捷短语与提示词库、`rime_ice` 词频记忆；逐条重贴 API Key 并实际调用；从「未启用」状态点一次「设为系统默认输入法」并原样记录文案；在 Dock、输入菜单、系统设置三处核对新图标。只有全部机器切换完成且新 Key 实测可用后，旧 Keychain、旧数据目录、备份和 defaults 域才可进入逐机确认删除。
 
-全部机器完成后 → 执行 P3 第 3 条的第二次部署，删除 `responsay.com/famo/`；本机 `defaults delete im.famo.inputmethod.Famo`、删除旧 `Application Support/Famo` 与第 0 步的备份、删除旧 Keychain service `im.famo.inputmethod.Famo.providers` 下的条目（确认新 Key 实测可用之后）。
+全部机器完成后，先发布一个 2.0.x 小版本，在真机证明 Sparkle 从新 feed 完整更新成功、更新后输入源仍为猫头鹰且无 no-steal 红灯，闭环 1.6.1 遗留项。该证明通过后才允许删除一次性迁移实现；然后执行 P3 第 3 条的第二次对象级部署，删除整个 `responsay.com/famo/`，并逐机让用户确认后删除旧 defaults 域、旧数据目录及备份、旧 Keychain 条目。
 
 ---
 
@@ -174,7 +176,7 @@
 - [x] `check-identity-residual.sh` 严格模式通过（对产物 .app/.pkg 也扫）
 - [x] `gate.sh` 全绿；全部 selftest 通过
 - [x] librime 探针候选验证通过
-- [ ] GitHub 仓库、本地目录、remote、Claude 记忆目录四者一致为 owltype
+- [x] GitHub 仓库、本地目录、remote、Claude 记忆目录四者一致为 owltype（08 已完成）
 - [ ] `responsay.com/owltype/appcast.xml` 在线且正确；`famo/` 路径按计划冻结→删除；Responsay appcast 未被波及
 - [ ] 每台装机：卸载→注销→清 LS→装新→TCC 重授→数据迁移验证，逐机记录
 - [ ] Sparkle 新 feed 真机更新一次成功（含输入源还原）
@@ -184,11 +186,11 @@
 
 | 风险 | 对策 |
 |---|---|
-| wrangler 整站快照覆盖隔壁产品 | 部署前 pull 全量、部署后双 appcast 验证（P3 铁律） |
+| 共享 R2 桶中对象级发布误写旧产品或公共路由 | 发布前留存三面基线与旧 `famo/` 逐对象字节/哈希快照，只写 `owltype/` 键，发布后按同一快照复验（P3 铁律） |
 | 目录改名丢 Claude/engram 记忆 | P2 第 4 步随迁 |
 | 用户词库/短语库丢失 | P4 先复制后改名 + 幂等标记 + 单测 |
-| 输入源会话层污染 | 卸载后强制注销（P5.3） |
-| TCC 旧授权失效/ csreq 失配 | P5.6 预期化处理 |
+| 输入源会话层污染 | 卸载后强制注销（P5.4） |
+| TCC 旧授权失效/ csreq 失配 | P5.8 预期化处理 |
 | Karabiner 析构 bug | P5.1 先退 Karabiner |
 | 双 seed 脚本失同步 | P1.4 成对修改 + check-release 断言 |
 | CI 只覆盖到 package | archive/appcast/签名链路全部本地真机验（本次全链都动了） |
