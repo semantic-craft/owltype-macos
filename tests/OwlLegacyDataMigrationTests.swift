@@ -15,6 +15,47 @@ import Foundation
 import XCTest
 @testable import Owltype
 
+private enum MigrationFileManagerFailure: Equatable {
+  case enumerateStaging
+  case restoreYAMLPermissions
+  case hardenStagingRoot
+}
+
+private final class MigrationFaultFileManager: FileManager, @unchecked Sendable {
+  private let failure: MigrationFileManagerFailure
+
+  init(failure: MigrationFileManagerFailure) {
+    self.failure = failure
+    super.init()
+  }
+
+  override func contentsOfDirectory(
+    at url: URL,
+    includingPropertiesForKeys keys: [URLResourceKey]?,
+    options mask: FileManager.DirectoryEnumerationOptions = []
+  ) throws -> [URL] {
+    if failure == .enumerateStaging,
+       url.lastPathComponent == ".Owltype-migration-staging" {
+      throw CocoaError(.fileReadNoPermission)
+    }
+    return try super.contentsOfDirectory(at: url, includingPropertiesForKeys: keys, options: mask)
+  }
+
+  override func setAttributes(
+    _ attributes: [FileAttributeKey: Any] = [:],
+    ofItemAtPath path: String
+  ) throws {
+    let name = URL(fileURLWithPath: path).lastPathComponent
+    if failure == .restoreYAMLPermissions, name == "rime_ice.custom.yaml" {
+      throw CocoaError(.fileWriteNoPermission)
+    }
+    if failure == .hardenStagingRoot, name == ".Owltype-migration-staging" {
+      throw CocoaError(.fileWriteNoPermission)
+    }
+    try super.setAttributes(attributes, ofItemAtPath: path)
+  }
+}
+
 final class OwlLegacyDataMigrationTests: XCTestCase {
   private var root: URL!
   private var legacyDir: URL!
@@ -129,12 +170,36 @@ final class OwlLegacyDataMigrationTests: XCTestCase {
     """
 
   @discardableResult
-  private func migrate(timestamp: String = "2026-08-21T00:00:00Z") throws -> OwlLegacyDataMigrationOutcome {
+  private func migrate(
+    timestamp: String = "2026-08-21T00:00:00Z",
+    fileManager: FileManager = .default,
+    managedYAMLWriter: @escaping (String, URL) throws -> Void = { contents, url in
+      try contents.write(to: url, atomically: true, encoding: .utf8)
+    }
+  ) throws -> OwlLegacyDataMigrationOutcome {
     try OwlLegacyDataMigration.migrateUserDirectoryIfNeeded(
       legacyDir: legacyDir,
       currentDir: currentDir,
-      timestamp: timestamp
+      timestamp: timestamp,
+      fileManager: fileManager,
+      managedYAMLWriter: managedYAMLWriter
     )
+  }
+
+  private func assertMigrationRolledBack(
+    to legacySnapshot: [String: Data],
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) throws {
+    XCTAssertFalse(exists(currentDir), "失败时不能发布正式目录", file: file, line: line)
+    XCTAssertNil(OwlLegacyDataMigration.receipt(in: currentDir), file: file, line: line)
+    XCTAssertFalse(
+      exists(OwlLegacyDataMigration.stagingDirectory(for: currentDir)),
+      "失败时必须清理 staging",
+      file: file,
+      line: line
+    )
+    XCTAssertEqual(try snapshot(of: legacyDir), legacySnapshot, "失败不得改动迁移源", file: file, line: line)
   }
 
   // MARK: - 旧目录不存在
@@ -256,15 +321,34 @@ final class OwlLegacyDataMigrationTests: XCTestCase {
     XCTAssertEqual(try snapshot(of: legacyDir), before, "旧目录必须原封不动（先复制后改名）")
   }
 
-  /// `<相对路径>` → 内容，用来断言整棵树未被改动。
-  private func snapshot(of dir: URL) throws -> [String: String] {
-    var out: [String: String] = [:]
+  func testMigrationRejectsLegacyAndCurrentNameCollisionWithoutPublishing() throws {
+    try makeLegacyTree()
+    try write("stale current data", to: "owl_quick_send.json", in: legacyDir)
+    let before = try snapshot(of: legacyDir)
+
+    XCTAssertThrowsError(try migrate()) { error in
+      guard let migrationError = error as? OwlLegacyDataMigrationError,
+            case .renameFailed(let name, _) = migrationError else {
+        return XCTFail("应抛出 renameFailed，实际为 \(error)")
+      }
+      XCTAssertEqual(name, "famo_quick_send.json")
+    }
+
+    XCTAssertFalse(exists(currentDir), "撞名时不能发布一棵混有陈旧新名数据的目录")
+    XCTAssertNil(OwlLegacyDataMigration.receipt(in: currentDir))
+    XCTAssertFalse(exists(OwlLegacyDataMigration.stagingDirectory(for: currentDir)))
+    XCTAssertEqual(try snapshot(of: legacyDir), before, "冲突失败不得改动迁移源")
+  }
+
+  /// `<相对路径>` → 原始字节，用来断言整棵树（包括非 UTF-8 文件）未被改动。
+  private func snapshot(of dir: URL) throws -> [String: Data] {
+    var out: [String: Data] = [:]
     let base = dir.standardizedFileURL.path
     let walker = try XCTUnwrap(fm.enumerator(at: dir, includingPropertiesForKeys: [.isRegularFileKey]))
     for case let url as URL in walker {
       guard (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
       let relative = String(url.standardizedFileURL.path.dropFirst(base.count + 1))
-      out[relative] = (try? text(at: url)) ?? "<binary>"
+      out[relative] = try Data(contentsOf: url)
     }
     return out
   }
@@ -294,6 +378,92 @@ final class OwlLegacyDataMigrationTests: XCTestCase {
     XCTAssertTrue(rimeIce.contains(OwlManagedMarker.quickSendRimeIce))
     XCTAssertTrue(rimeIce.contains(OwlManagedMarker.promptsRimeIce))
     XCTAssertTrue(base.contains(OwlManagedMarker.owlAppOptions))
+  }
+
+  func testMigrationRejectsInvalidUTF8CustomYAMLWithoutPublishing() throws {
+    try makeLegacyTree()
+    let invalidYAML = legacyDir.appendingPathComponent("broken.custom.yaml")
+    try Data([0xFF, 0xFE, 0x00]).write(to: invalidYAML)
+    let before = try snapshot(of: legacyDir)
+
+    XCTAssertThrowsError(try migrate()) { error in
+      guard let migrationError = error as? OwlLegacyDataMigrationError,
+            case .yamlRewriteFailed(let name, _) = migrationError else {
+        return XCTFail("应抛出 yamlRewriteFailed，实际为 \(error)")
+      }
+      XCTAssertEqual(name, "broken.custom.yaml")
+    }
+
+    XCTAssertFalse(exists(currentDir), "配置无法改写时不能发布并永久写下完成标记")
+    XCTAssertNil(OwlLegacyDataMigration.receipt(in: currentDir))
+    XCTAssertFalse(exists(OwlLegacyDataMigration.stagingDirectory(for: currentDir)))
+    XCTAssertEqual(try snapshot(of: legacyDir), before, "配置读取失败不得改动迁移源")
+  }
+
+  func testMigrationRollsBackWhenCustomYAMLDirectoryCannotBeEnumerated() throws {
+    try makeLegacyTree()
+    let before = try snapshot(of: legacyDir)
+    let faultFM = MigrationFaultFileManager(failure: .enumerateStaging)
+
+    XCTAssertThrowsError(try migrate(fileManager: faultFM)) { error in
+      guard let migrationError = error as? OwlLegacyDataMigrationError,
+            case .yamlRewriteFailed(let name, _) = migrationError else {
+        return XCTFail("应抛出 yamlRewriteFailed，实际为 \(error)")
+      }
+      XCTAssertEqual(name, ".Owltype-migration-staging")
+    }
+    try assertMigrationRolledBack(to: before)
+  }
+
+  func testMigrationRollsBackWhenCustomYAMLPermissionsCannotBeRestored() throws {
+    try makeLegacyTree()
+    let before = try snapshot(of: legacyDir)
+    let faultFM = MigrationFaultFileManager(failure: .restoreYAMLPermissions)
+
+    XCTAssertThrowsError(try migrate(fileManager: faultFM)) { error in
+      guard let migrationError = error as? OwlLegacyDataMigrationError,
+            case .yamlRewriteFailed(let name, _) = migrationError else {
+        return XCTFail("应抛出 yamlRewriteFailed，实际为 \(error)")
+      }
+      XCTAssertEqual(name, "rime_ice.custom.yaml")
+    }
+    try assertMigrationRolledBack(to: before)
+  }
+
+  func testMigrationRollsBackWhenCustomYAMLAtomicWriteFails() throws {
+    try makeLegacyTree()
+    let before = try snapshot(of: legacyDir)
+
+    XCTAssertThrowsError(
+      try migrate { contents, url in
+        if url.lastPathComponent == "rime_ice.custom.yaml" {
+          throw CocoaError(.fileWriteNoPermission)
+        }
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+      }
+    ) { error in
+      guard let migrationError = error as? OwlLegacyDataMigrationError,
+            case .yamlRewriteFailed(let name, _) = migrationError else {
+        return XCTFail("应抛出 yamlRewriteFailed，实际为 \(error)")
+      }
+      XCTAssertEqual(name, "rime_ice.custom.yaml")
+    }
+    try assertMigrationRolledBack(to: before)
+  }
+
+  func testMigrationRollsBackWhenStagingRootPermissionsCannotBeHardened() throws {
+    try makeLegacyTree()
+    let before = try snapshot(of: legacyDir)
+    let faultFM = MigrationFaultFileManager(failure: .hardenStagingRoot)
+
+    XCTAssertThrowsError(try migrate(fileManager: faultFM)) { error in
+      guard let migrationError = error as? OwlLegacyDataMigrationError,
+            case .rootPermissionsFailed(let name, _) = migrationError else {
+        return XCTFail("应抛出 rootPermissionsFailed，实际为 \(error)")
+      }
+      XCTAssertEqual(name, ".Owltype-migration-staging")
+    }
+    try assertMigrationRolledBack(to: before)
   }
 
   func testTokenRewriteIsOrderIndependentAndLeavesOtherTextAlone() {

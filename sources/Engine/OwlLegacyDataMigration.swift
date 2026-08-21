@@ -50,6 +50,10 @@ enum OwlLegacyDataMigrationError: LocalizedError, Equatable {
   case copyFailed(reason: String)
   /// staging 内改名失败。
   case renameFailed(name: String, reason: String)
+  /// staging 内托管 YAML 无法读取、改写或恢复权限。
+  case yamlRewriteFailed(name: String, reason: String)
+  /// staging 根目录无法加固为 0700。
+  case rootPermissionsFailed(name: String, reason: String)
   /// 最后一步「挂成正式目录」失败。
   case publishFailed(reason: String)
 
@@ -59,6 +63,10 @@ enum OwlLegacyDataMigrationError: LocalizedError, Equatable {
       return "复制旧用户数据目录失败：\(reason)"
     case .renameFailed(let name, let reason):
       return "改名 \(name) 失败：\(reason)"
+    case .yamlRewriteFailed(let name, let reason):
+      return "改写配置 \(name) 失败：\(reason)"
+    case .rootPermissionsFailed(let name, let reason):
+      return "加固迁移目录 \(name) 权限失败：\(reason)"
     case .publishFailed(let reason):
       return "启用迁移后的用户数据目录失败：\(reason)"
     }
@@ -158,7 +166,10 @@ enum OwlLegacyDataMigration {
     legacyDir: URL,
     currentDir: URL,
     timestamp: String,
-    fileManager fm: FileManager = .default
+    fileManager fm: FileManager = .default,
+    managedYAMLWriter: @escaping (String, URL) throws -> Void = { contents, url in
+      try contents.write(to: url, atomically: true, encoding: .utf8)
+    }
   ) throws -> OwlLegacyDataMigrationOutcome {
     let marker = currentDir.appendingPathComponent(markerFileName)
     if fm.fileExists(atPath: marker.path) { return .alreadyMigrated }
@@ -184,7 +195,7 @@ enum OwlLegacyDataMigration {
 
     do {
       let renamed = try applyRenames(in: staging, fileManager: fm)
-      rewriteManagedTokens(in: staging, fileManager: fm)
+      try rewriteManagedTokens(in: staging, fileManager: fm, writer: managedYAMLWriter)
       let receipt = OwlLegacyDataMigrationReceipt(
         version: receiptVersion,
         source: legacyDir.path,
@@ -194,7 +205,14 @@ enum OwlLegacyDataMigration {
       try writeReceipt(receipt, to: staging.appendingPathComponent(markerFileName), fileManager: fm)
       // 数据根与新目录同规格（0700）；copyItem 保留的是旧目录的位，旧目录本就是 0700，这里
       // 只是把「新目录必须私有」这条不变量写死，不依赖旧目录当时是什么。
-      try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: staging.path)
+      do {
+        try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: staging.path)
+      } catch {
+        throw OwlLegacyDataMigrationError.rootPermissionsFailed(
+          name: staging.lastPathComponent,
+          reason: error.localizedDescription
+        )
+      }
       do {
         try fm.moveItem(at: staging, to: currentDir)
       } catch {
@@ -207,13 +225,19 @@ enum OwlLegacyDataMigration {
     }
   }
 
-  /// staging 内按 `renameMap` 改名。新名已占（正常不会发生）则整条跳过 —— 宁可留两份也不覆盖。
+  /// staging 内按 `renameMap` 改名。旧名与新名同时存在说明源树有冲突；整批回滚，绝不猜哪份更新。
   private static func applyRenames(in root: URL, fileManager fm: FileManager) throws -> [String] {
     var renamed: [String] = []
     for pair in renameMap {
       let from = root.appendingPathComponent(pair.legacy)
       let target = root.appendingPathComponent(pair.current)
-      guard fm.fileExists(atPath: from.path), !fm.fileExists(atPath: target.path) else { continue }
+      guard fm.fileExists(atPath: from.path) else { continue }
+      guard !fm.fileExists(atPath: target.path) else {
+        throw OwlLegacyDataMigrationError.renameFailed(
+          name: pair.legacy,
+          reason: "目标 \(pair.current) 已存在，无法判定应保留哪一份"
+        )
+      }
       do {
         try fm.moveItem(at: from, to: target)
       } catch {
@@ -227,18 +251,57 @@ enum OwlLegacyDataMigration {
     return renamed
   }
 
-  /// 根目录下每个 `*.custom.yaml` 做 token 替换。单个文件读不出 / 写不进不算迁移失败：配置补丁
-  /// 可以由用户在设置页重新生成，为它把整批不可再生的用户数据回滚掉是本末倒置。
-  static func rewriteManagedTokens(in root: URL, fileManager fm: FileManager = .default) {
-    let entries = (try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
+  /// 根目录下每个 `*.custom.yaml` 做 token 替换。任何读写或权限恢复失败都回滚整批；否则收据会
+  /// 永久掩盖一棵仍引用旧文件名的配置树，后续启动也不会重试。
+  static func rewriteManagedTokens(
+    in root: URL,
+    fileManager fm: FileManager = .default,
+    writer: (String, URL) throws -> Void = { contents, url in
+      try contents.write(to: url, atomically: true, encoding: .utf8)
+    }
+  ) throws {
+    let entries: [URL]
+    do {
+      entries = try fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
+    } catch {
+      throw OwlLegacyDataMigrationError.yamlRewriteFailed(
+        name: root.lastPathComponent,
+        reason: error.localizedDescription
+      )
+    }
     for url in entries where url.lastPathComponent.hasSuffix(".custom.yaml") {
-      guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+      let text: String
+      do {
+        text = try String(contentsOf: url, encoding: .utf8)
+      } catch {
+        throw OwlLegacyDataMigrationError.yamlRewriteFailed(
+          name: url.lastPathComponent,
+          reason: error.localizedDescription
+        )
+      }
       let rewritten = rewritingManagedTokens(text)
       guard rewritten != text else { continue }
-      let mode = (try? fm.attributesOfItem(atPath: url.path))?[.posixPermissions]
-      guard (try? rewritten.write(to: url, atomically: true, encoding: .utf8)) != nil else { continue }
+      let mode: Any?
+      do {
+        mode = try fm.attributesOfItem(atPath: url.path)[.posixPermissions]
+        try writer(rewritten, url)
+      } catch {
+        throw OwlLegacyDataMigrationError.yamlRewriteFailed(
+          name: url.lastPathComponent,
+          reason: error.localizedDescription
+        )
+      }
       // 原子写换的是新 inode，权限位不跟着走；`famo.custom.yaml` 本是 0600，别写成 0644。
-      if let mode { try? fm.setAttributes([.posixPermissions: mode], ofItemAtPath: url.path) }
+      if let mode {
+        do {
+          try fm.setAttributes([.posixPermissions: mode], ofItemAtPath: url.path)
+        } catch {
+          throw OwlLegacyDataMigrationError.yamlRewriteFailed(
+            name: url.lastPathComponent,
+            reason: error.localizedDescription
+          )
+        }
+      }
     }
   }
 
