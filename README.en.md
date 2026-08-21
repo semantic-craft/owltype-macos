@@ -78,8 +78,8 @@ in [SECURITY.md](SECURITY.md).
 - History starts from a privacy-reviewed 1.4.22 source snapshot; earlier Git history is not
   included.
 - 1.4.21 and earlier public builds are no longer distributed or supported.
-- The Windows edition lives in its own repository; its code, tags and release assets are kept
-  separate from this one.
+- The Windows edition lives in [owltype-win](https://github.com/semantic-craft/owltype-win); its
+  code, tags and release assets are kept separate from this one.
 
 ## Build from source
 

@@ -71,7 +71,7 @@
   `responsay.com` 发布。
 - 仓库历史从经过隐私审查的 1.4.22 源码快照开始，不包含更早期的 Git 历史。
 - 1.4.21 及更早的公开发布已经停止分发，不再受支持。
-- Windows 版在各自独立的仓库维护，代码、tag 与发布资产与本仓库相互独立。
+- Windows 版在 [owltype-win](https://github.com/semantic-craft/owltype-win) 维护，代码、tag 与发布资产与本仓库相互独立。
 
 ## 从源码构建
 
