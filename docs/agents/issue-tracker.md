@@ -1,10 +1,8 @@
-# Issue tracker: GitHub; code review: Cursor Origin
+# Issue tracker and code review: GitHub
 
 Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for issue
-operations. Code branches and pull requests live on Cursor Origin; use the
-`origin` CLI for review and merge operations. GitHub pull requests created
-before the migration are historical work items and must not be treated as the
-canonical code-review queue after migration.
+operations. Code branches, pull requests, review, and merge state also live on
+GitHub. There is no secondary code mirror or review forge.
 
 ## Conventions
 
@@ -15,16 +13,21 @@ canonical code-review queue after migration.
 - **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`.
 - **Close**: `gh issue close <number> --comment "..."`.
 
-The canonical code remote is `origin`; the GitHub issue tracker and archival
-backup is named `github`. Releases are published to `downloads.responsay.com`,
-not to GitHub. Pass `-R semantic-craft/owltype-macos` to `gh` rather than
-inferring the repository from the canonical Origin remote.
+The canonical code remote is `origin`, pointing to
+`git@github.com:semantic-craft/owltype-macos.git`. Releases are published to
+`downloads.responsay.com`, not to GitHub Releases. Pass
+`-R semantic-craft/owltype-macos` to `gh` when the working directory is not
+available or repository inference would be ambiguous.
 
 ## Pull requests as a triage surface
 
 **PRs as a request surface: no.**
 
 GitHub shares one number space across issues and pull requests, so resolve an ambiguous bare number before acting.
+
+Create branches from fresh `origin/main`, push them to `origin`, and use `gh pr`
+for creation, review, checks, and merge. There is no hosted CI; the merger must
+record the exact local `scripts/gate.sh` result on the pull request before merge.
 
 ## When a skill says "publish to the issue tracker"
 

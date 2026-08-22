@@ -72,9 +72,11 @@ in [SECURITY.md](SECURITY.md).
 
 ## Project status
 
-- Cursor Origin is the **single private development repository** for Owltype on macOS. GitHub is
-  a private backup and issue tracker; responsay.com publishes signed installers, the Sparkle feed,
-  and the complete corresponding source for each distributed version.
+- GitHub is the **single private development repository** for Owltype on macOS. The complete
+  product, issues, and pull requests live in
+  [`semantic-craft/owltype-macos`](https://github.com/semantic-craft/owltype-macos);
+  responsay.com publishes signed installers, the Sparkle feed, and the complete corresponding
+  source for each distributed version.
 - History starts from a privacy-reviewed 1.4.22 source snapshot; earlier Git history is not
   included.
 - 1.4.21 and earlier public builds are no longer distributed or supported.
@@ -86,6 +88,8 @@ in [SECURITY.md](SECURITY.md).
 Requires Xcode 26+ and macOS 14+:
 
 ```sh
+git clone git@github.com:semantic-craft/owltype-macos.git
+cd owltype-macos
 git submodule update --init --recursive
 make setup-dev
 make deps
@@ -93,7 +97,7 @@ make release
 ```
 
 `make setup-dev` installs the repository's pre-push gate for the current checkout. It blocks key
-files, absolute home-directory paths, private remotes, non-noreply commit identities and secret
+files, absolute home-directory paths, retired private remotes, non-noreply commit identities and secret
 scanner hits before anything leaves your machine. Configure this repository's Git email to your
 GitHub noreply address, keep local secrets in the Keychain or in gitignored env files, and never
 commit AI transcripts, debug logs or machine-local configuration.
