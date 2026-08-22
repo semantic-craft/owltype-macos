@@ -8,8 +8,8 @@ failed=0
 bash scripts/check-public-privacy.sh
 
 # The complete product — including the cloud/AI layer — is developed in the private
-# Cursor Origin repository. This gate protects the corresponding-source snapshot
-# distributed with each binary release by blocking what must never leave the private tree:
+# GitHub repository. This gate protects the corresponding-source snapshot distributed
+# with each binary release by blocking what must never leave the private tree:
 # generated artifacts, license-restricted data sources, key material, personal
 # paths, and drift of the pinned Sparkle update anchor.
 

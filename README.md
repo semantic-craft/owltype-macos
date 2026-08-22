@@ -65,10 +65,10 @@
 
 ## 当前状态
 
-- **Cursor Origin 是猫头鹰的唯一开发主仓库**：完整产品（含云端 AI 功能层）在
-  `https://origin.cursor.com/xianwei/owltype-macos.git` 开发并通过 PR 合并。
-  GitHub 保留为私有备份与 issue tracker；签名安装包、Sparkle feed 和逐版对应源码由
-  `responsay.com` 发布。
+- **GitHub 是猫头鹰 macOS 版唯一的私有开发仓库**：完整产品（含云端 AI 功能层）、
+  issue 和 pull request 都在
+  [`semantic-craft/owltype-macos`](https://github.com/semantic-craft/owltype-macos) 管理。
+  签名安装包、Sparkle feed 和逐版对应源码仍由 `responsay.com` 发布。
 - 仓库历史从经过隐私审查的 1.4.22 源码快照开始，不包含更早期的 Git 历史。
 - 1.4.21 及更早的公开发布已经停止分发，不再受支持。
 - Windows 版在 [owltype-win](https://github.com/semantic-craft/owltype-win) 维护，代码、tag 与发布资产与本仓库相互独立。
@@ -78,7 +78,7 @@
 需要 Xcode 26+ 与 macOS 14+：
 
 ```sh
-git clone https://origin.cursor.com/xianwei/owltype-macos.git
+git clone git@github.com:semantic-craft/owltype-macos.git
 cd owltype-macos
 git submodule update --init --recursive
 make setup-dev
@@ -87,7 +87,7 @@ make release
 ```
 
 `make setup-dev` 为当前 checkout 启用仓库自带的 pre-push 门禁。推送前会阻止密钥文件、
-个人主目录绝对路径、私有仓 remote、非 GitHub noreply 提交身份与 secret scanner 命中。
+个人主目录绝对路径、已废弃的私有仓 remote、非 GitHub noreply 提交身份与 secret scanner 命中。
 请把本仓库的 Git email 配置为 GitHub 提供的 noreply 地址；本地密钥使用 Keychain 或
 被 `.gitignore` 排除的环境文件保存，不要把 AI 会话、调试日志或本机配置加入 Git。
 

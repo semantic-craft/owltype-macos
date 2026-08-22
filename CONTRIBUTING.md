@@ -36,7 +36,7 @@ bash scripts/check-public-source.sh
 ```
 
 Run the narrowest additional test that exercises the changed behavior. Pull requests are
-opened on Cursor Origin. There is no hosted CI: `scripts/gate.sh` runs the portable
+opened on GitHub. There is no hosted CI: `scripts/gate.sh` runs the portable
 source and policy checks plus the native macOS tests, builds and release gates on the
 development Mac (`--quick` for the fast subset), and a pull request is merged only after
 it passes. Contributors do not need signing or notarization credentials and should not
@@ -63,13 +63,14 @@ flow, not a public issue. See [SECURITY.md](SECURITY.md).
 
 ## Pull requests and review
 
-Keep each Origin pull request focused, explain its user-visible and source-boundary
+Keep each GitHub pull request focused, explain its user-visible and source-boundary
 effects, and link the originating GitHub issue. No service check is required; the
 merger is responsible for `scripts/gate.sh` passing on the exact pull-request head
-before merge.
+before merge and recording that result in the pull request.
 
-The project currently has one maintainer, so the branch rules require zero approving
-reviews while still requiring an up-to-date pull request and successful checks.
+The project currently has one maintainer, so the branch rules require a pull request and
+resolved review threads but zero approving reviews. They do not require a hosted status check;
+the recorded local gate result is the merge contract.
 `CODEOWNERS` is intentionally absent because it would not create a real
 independent review boundary. When a second maintainer is available, the project will add
 real ownership boundaries where useful and require a non-author approval.
