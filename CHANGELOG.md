@@ -1,3 +1,13 @@
+<a name="2.0.2"></a>
+## 2.0.2 (2026-08-22)
+
+### 更新安全与发布可靠性 | Update security and release reliability
+- 完成 Owltype 独立 Sparkle 信任域切换：2.0.2 起更新包只使用 Owltype 新密钥签名，只发布到永久 `owltype/v2/appcast.xml`；旧桥接 feed 固定停在 2.0.1
+- R2 大文件改为标准输入流式上传，避免命令报告成功但对象实际缺失
+- 后续版本的源码发布门要求一次性 Sparkle 过渡策略从 Git 索引和工作树中彻底消失，并拒绝符号链接绕过
+
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/2.0.1...2.0.2
+
 <a name="2.0.1"></a>
 ## 2.0.1 (2026-08-21)
 

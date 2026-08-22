@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import plistlib
 import sys
 import tempfile
@@ -86,17 +87,32 @@ with tempfile.TemporaryDirectory() as directory:
             },
             handle,
         )
-    bridge = state.resolve_sparkle_release_policy(app, "2.0.1")
-    assert bridge == {
-        "sparkleFeedMode": "bridge",
-        "sparkleSigningPublicKey": OLD_KEY,
-        "sparkleTrustTransitionFrom": OLD_KEY,
-    }
-    print("ok   the checked-in 2.0.1 policy resolves to the old-key bridge")
-
     original_policy = state.SPARKLE_TRANSITION_POLICY
-    state.SPARKLE_TRANSITION_POLICY = Path(directory) / "absent-transition.json"
+    fixture_policy = Path(directory) / "sparkle-key-transition.json"
+    fixture_policy.write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "releaseVersion": "2.0.1",
+                "fromPublicKey": OLD_KEY,
+                "toPublicKey": NEW_KEY,
+                "legacyFeedKey": "owltype/appcast.xml",
+                "successorFeedKey": "owltype/v2/appcast.xml",
+            }
+        ),
+        encoding="utf-8",
+    )
+    state.SPARKLE_TRANSITION_POLICY = fixture_policy
     try:
+        bridge = state.resolve_sparkle_release_policy(app, "2.0.1")
+        assert bridge == {
+            "sparkleFeedMode": "bridge",
+            "sparkleSigningPublicKey": OLD_KEY,
+            "sparkleTrustTransitionFrom": OLD_KEY,
+        }
+        print("ok   a temporary 2.0.1 policy resolves to the old-key bridge")
+
+        state.SPARKLE_TRANSITION_POLICY = Path(directory) / "absent-transition.json"
         successor = state.resolve_sparkle_release_policy(app, "2.0.2")
     finally:
         state.SPARKLE_TRANSITION_POLICY = original_policy
