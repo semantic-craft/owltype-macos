@@ -1,8 +1,0 @@
-{
-  "schemaVersion": 1,
-  "releaseVersion": "2.0.1",
-  "fromPublicKey": "3Ze0A+sHbvkQ8CLlDUIcYvm7BJS4IJLU1rNEX66F9R4=",
-  "toPublicKey": "dWrr6gck5aoy5F7V00SizqQM6w9MHmZzeeQFSqYTlfM=",
-  "legacyFeedKey": "owltype/appcast.xml",
-  "successorFeedKey": "owltype/v2/appcast.xml"
-}
