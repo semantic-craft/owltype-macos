@@ -28,6 +28,7 @@ struct RimeConfigObservation: Equatable, Codable {
   let userSchemaList: [String]         // schema ids in the user default.custom.yaml `schema_list`
   let userBuiltSchemas: [String]       // compiled schema ids in the user `build/` (*.schema.yaml basenames)
   let seedSchemas: [String]            // schema ids the running bundle's SharedSupport seed carries
+  let preferredIsDictPackManaged: Bool // true when absence from the clean-room seed is intentional
   let seedManifestBase: String?        // OWL-SEED-MANIFEST "Base =" line (informational)
   let userDefaultYamlShadow: Bool      // user_data_dir has a full `default.yaml` shadowing shared
   let foreignRimeDirPresent: Bool      // ~/Library/Rime (system Rime/Squirrel dir) exists
@@ -86,13 +87,20 @@ enum OwlRimeConfigDiagnostics {
       layer: .prefs, ok: nil, code: nil,
       detail: "运行时目标方案（OwlKeyboardPreferences.preferredSchemaID）= \(preferred.isEmpty ? "<空>" : preferred)"))
 
-    // 1. seed — the running bundle's SharedSupport must carry <preferred>.schema.yaml.
-    let seedOK = o.seedSchemas.contains(preferred)
+    // 1. seed — bundled schemas must exist in SharedSupport. Dict-pack schemas intentionally do
+    // not ship there; their reachability is decided by userBuild below.
+    let seedOK = o.preferredIsDictPackManaged || o.seedSchemas.contains(preferred)
+    let seedDetail: String
+    if o.preferredIsDictPackManaged {
+      seedDetail = "\(preferred) 由完整词库提供，不要求随附种子包含（种子共 \(o.seedSchemas.count) 方案）"
+    } else if seedOK {
+      seedDetail = "随附种子含 \(preferred).schema.yaml（Base=\(o.seedManifestBase ?? "?")；共 \(o.seedSchemas.count) 方案）"
+    } else {
+      seedDetail = "随附种子无 \(preferred).schema.yaml —— 安装物陈旧（Base=\(o.seedManifestBase ?? "?")；见 \(o.seedSchemas)）"
+    }
     layers.append(RimeConfigLayerResult(
       layer: .seed, ok: seedOK, code: seedOK ? nil : "OWL-SCHEMA-003",
-      detail: seedOK
-        ? "随附种子含 \(preferred).schema.yaml（Base=\(o.seedManifestBase ?? "?")；共 \(o.seedSchemas.count) 方案）"
-        : "随附种子无 \(preferred).schema.yaml —— 安装物陈旧（Base=\(o.seedManifestBase ?? "?")；见 \(o.seedSchemas)）"))
+      detail: seedDetail))
 
     // 2. userBuild — the user's build/ must have compiled <preferred>.schema.yaml.
     let buildOK = o.userBuiltSchemas.contains(preferred)
@@ -155,7 +163,9 @@ enum OwlRimeConfigDiagnostics {
 
     let obs = RimeConfigObservation(
       preferredSchemaID: preferred, userSchemaList: userSchemaList, userBuiltSchemas: userBuilt,
-      seedSchemas: seedSchemas, seedManifestBase: manifestBase, userDefaultYamlShadow: shadow,
+      seedSchemas: seedSchemas,
+      preferredIsDictPackManaged: OwlDictPackPrompt.isDictPackManagedSchema(preferred),
+      seedManifestBase: manifestBase, userDefaultYamlShadow: shadow,
       foreignRimeDirPresent: foreignPresent, foreignRimeHasPreferred: foreignHasPreferred)
     let diag = classify(obs)
 

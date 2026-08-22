@@ -158,8 +158,9 @@ protocol RimeEngine: AnyObject {
   /// Current schema id via a transient session (`get_current_schema`); "" when unavailable.
   func currentSchema() -> String
 
-  /// Select a schema via a transient session (`select_schema`).
-  func selectSchema(_ id: String)
+  /// Select a schema via a transient session (`select_schema`). Returns false when the target
+  /// is not compiled, including the clean-install dict-pack case with no active IMK session.
+  func selectSchema(_ id: String) -> Bool
 
   /// `get_version`; nil when unavailable.
   func version() -> String?
@@ -422,13 +423,12 @@ final class LiveRimeEngine: RimeEngine {
     return String(cString: buffer)
   }
 
-  func selectSchema(_ id: String) {
-    guard !id.isEmpty else { return }
+  func selectSchema(_ id: String) -> Bool {
+    guard !id.isEmpty else { return false }
     let session = rimeAPI.create_session()
-    if session != 0 {
-      id.withCString { _ = rimeAPI.select_schema(session, $0) }
-      _ = rimeAPI.destroy_session(session)
-    }
+    guard session != 0 else { return false }
+    defer { _ = rimeAPI.destroy_session(session) }
+    return id.withCString { rimeAPI.select_schema(session, $0) }
   }
 
   func version() -> String? {
