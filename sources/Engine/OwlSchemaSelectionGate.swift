@@ -59,6 +59,23 @@ enum OwlSchemaSelectionGate {
   static func markerAfterAttempt(preferred: String, selected: Bool) -> String? {
     selected ? nil : preferred
   }
+
+  /// Resolve the picker result across both selection attempts. The transient engine attempt is
+  /// authoritative when no host app currently owns a live IMK session; ignoring it made a clean
+  /// install silently accept Wubi in settings even though its dict-pack schema was absent.
+  static func failedSchemaID(
+    requested: String, engineSelected: Bool, liveResult: SchemaSwitchResult?
+  ) -> String? {
+    guard !requested.isEmpty else { return nil }
+    switch liveResult {
+    case .ok:
+      return nil
+    case .selectFailed(let schemaID):
+      return schemaID
+    case .noLiveSession, nil:
+      return engineSelected ? nil : requested
+    }
+  }
 }
 
 /// The typed outcome of a live picker schema switch (`switchLiveSessionSchema`), so the caller can

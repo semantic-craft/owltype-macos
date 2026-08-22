@@ -460,10 +460,14 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       state: state,
       onSelectSchema: { [weak self] schemaID in
         guard let self else { return }
-        self.selectSchema(schemaID)
-        // Refresh the highlighted row after the deploy triggered by the switch.
-        state.currentSchemaId = self.currentSchemaId().isEmpty ? schemaID : self.currentSchemaId()
-        state.statusMessage = NSLocalizedString("已切换方案并应用配置改动。", comment: "schema switched")
+        let selected = self.selectSchema(schemaID)
+        // Never highlight or announce the requested schema when librime rejected it. On a clean
+        // install this is the exact interval in which the dict-pack consent/download UI takes over.
+        let actualSchemaID = self.currentSchemaId()
+        if !actualSchemaID.isEmpty { state.currentSchemaId = actualSchemaID }
+        state.statusMessage = selected
+          ? NSLocalizedString("已切换方案并应用配置改动。", comment: "schema switched")
+          : NSLocalizedString("方案尚不可用；请先下载完整词库或按提示重试。", comment: "schema unavailable")
       },
       onRedeploy: { [weak self] in
         let ok = self?.deploy() ?? false
@@ -606,20 +610,29 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   /// Wrapped in a `OwlPerf` mark. Off the IMK keystroke hot path.
   //
   // NEEDS REAL-MACHINE VERIFICATION: live typing session picking up the switched schema.
-  func selectSchema(_ id: String) {
-    guard !id.isEmpty else { return }
+  @discardableResult
+  func selectSchema(_ id: String) -> Bool {
+    guard !id.isEmpty else { return false }
     let schemaTrace = OwlLatencyTrace.begin("deploy.schemaSwitch")
     defer { OwlLatencyTrace.end("deploy.schemaSwitch", schemaTrace) }
     let perf = OwlPerf.mark()
-    engine.selectSchema(id)                              // remembered for future sessions
+    let engineSelected = engine.selectSchema(id)          // remembered for future sessions
     let result = activeInputController?.switchLiveSessionSchema(to: id) // live session, no full deploy
-    if case .selectFailed(let failedID)? = result {
+    let failedID = OwlSchemaSelectionGate.failedSchemaID(
+      requested: id, engineSelected: engineSelected, liveResult: result
+    )
+    if let failedID {
       // 方案B 分流：失败若是「该方案的词库根本没随包分发」（dict-pack 未装），下面那条通知是**误导**
       // ——它叫用户去「应用配置改动」，可方案文件压根不在磁盘上，照做也没用。改弹版权说明并引导下载。
       // 这里只做纯 manifest 判定（本方法 nonisolated）；读运行期状态与弹窗都在主线程做，
-      // 已装却选失败（真·未编译）时由 handleAbsentSchema 返回 false 补发原通知。
+      // 已装却选失败（真·未编译）时由 handleAbsentSchema 返回 false 补发原通知。必须同时
+      // 检查 transient engine 的返回值：设置窗打开但没有活动输入框时 result == nil，过去
+      // 正是在这里把全新安装的缺词库失败静默吞掉了。
       if OwlDictPackPrompt.isDictPackManagedSchema(failedID) {
         Task { @MainActor in
+          // A newer picker action may have replaced this failed request before the task runs.
+          // Do not let an obsolete Wubi failure pop over a later successful Pinyin selection.
+          guard OwlKeyboardPreferences.preferredSchemaID == failedID else { return }
           if !OwlDictPackPrompt.handleAbsentSchema(failedID) {
             Self.notifySchemaNotCompiled(failedID)
           }
@@ -631,6 +644,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     loadSettings()
     loadSettings(for: id)
     OwlPerf.since(perf, "fastapply.schema")
+    return failedID == nil
   }
 
   /// Onboarding's 选方案 step entry point. A raw `selectSchema(_:)` alone doesn't stick for a
@@ -650,7 +664,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     default:
       OwlKeyboardPreferences.inputMethod = .pinyin
     }
-    selectSchema(schemaID)
+    _ = selectSchema(schemaID)
     do {
       _ = try OwlManagedKeyboardPatchPlan.apply(snapshot: OwlKeyboardSnapshot.current())
     } catch {

@@ -23,6 +23,7 @@ final class RimeConfigDiagnosticsTests: XCTestCase {
     schemaList: [String] = ["rime_ice", "wubi86_jidian"],
     built: [String] = ["rime_ice", "wubi86_jidian"],
     seed: [String] = ["rime_ice", "wubi86_jidian"],
+    dictPackManaged: Bool = false,
     manifestBase: String? = "rime-ice",
     shadow: Bool = false,
     foreignPresent: Bool = false,
@@ -30,7 +31,8 @@ final class RimeConfigDiagnosticsTests: XCTestCase {
   ) -> RimeConfigObservation {
     RimeConfigObservation(
       preferredSchemaID: preferred, userSchemaList: schemaList, userBuiltSchemas: built,
-      seedSchemas: seed, seedManifestBase: manifestBase, userDefaultYamlShadow: shadow,
+      seedSchemas: seed, preferredIsDictPackManaged: dictPackManaged,
+      seedManifestBase: manifestBase, userDefaultYamlShadow: shadow,
       foreignRimeDirPresent: foreignPresent, foreignRimeHasPreferred: foreignHasPreferred)
   }
 
@@ -57,6 +59,20 @@ final class RimeConfigDiagnosticsTests: XCTestCase {
     XCTAssertEqual(diag.code, "OWL-SCHEMA-003")
     XCTAssertEqual(diag.firstFailingLayer, .seed)
     XCTAssertEqual(layer(diag, .seed).ok, false)
+  }
+
+  // Dict-pack schemas intentionally do not ship in SharedSupport. Once Wubi is present in the
+  // user build and schema_list, a missing bundled seed is healthy rather than a stale installer.
+  func testDictPackSchemaDoesNotRequireBundledSeed() {
+    let diag = OwlRimeConfigDiagnostics.classify(obs(
+      preferred: "wubi86_jidian",
+      schemaList: ["wubi86_jidian"],
+      built: ["wubi86_jidian"],
+      seed: ["rime_ice"],
+      dictPackManaged: true
+    ))
+    XCTAssertNil(diag.code)
+    XCTAssertEqual(layer(diag, .seed).ok, true)
   }
 
   // Seed ok, but user build/ hasn't compiled preferred → OWL-SCHEMA-002.

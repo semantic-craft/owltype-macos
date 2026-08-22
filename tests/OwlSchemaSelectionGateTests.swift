@@ -77,6 +77,31 @@ final class OwlSchemaSelectionGateTests: XCTestCase {
     )
   }
 
+  // MARK: - picker result resolution
+
+  /// Clean-install regression: settings can select Wubi without an active IMK controller. In
+  /// that case the transient result must surface a missing dict-pack schema; when a live result
+  /// exists it is stronger than the transient probe in either direction.
+  func testPickerResolutionTruthTable() {
+    let requested = "wubi86_jidian"
+    for noLiveResult: SchemaSwitchResult? in [nil, .noLiveSession] {
+      XCTAssertEqual(
+        OwlSchemaSelectionGate.failedSchemaID(
+          requested: requested, engineSelected: false, liveResult: noLiveResult),
+        requested
+      )
+      XCTAssertNil(OwlSchemaSelectionGate.failedSchemaID(
+        requested: requested, engineSelected: true, liveResult: noLiveResult))
+    }
+    XCTAssertNil(OwlSchemaSelectionGate.failedSchemaID(
+      requested: requested, engineSelected: false, liveResult: .ok))
+    XCTAssertEqual(
+      OwlSchemaSelectionGate.failedSchemaID(
+        requested: requested, engineSelected: true, liveResult: .selectFailed(schemaID: requested)),
+      requested
+    )
+  }
+
   // MARK: - sequence (fail → back off → config change re-attempts → success clears)
 
   func testFailThenBackoffThenConfigChangeReattempts() {
