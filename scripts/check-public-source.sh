@@ -37,9 +37,12 @@ done < <(git ls-files)
 
 if ! python3 - resources/Info.plist Owltype.xcodeproj/project.pbxproj scripts/sparkle-key-transition.json <<'PY'
 import json
+import os
 import plistlib
 import re
+import subprocess
 import sys
+from pathlib import Path
 
 with open(sys.argv[1], "rb") as handle:
     info = plistlib.load(handle)
@@ -48,13 +51,37 @@ if info.get("SUFeedURL") != "https://downloads.responsay.com/owltype/v2/appcast.
 if info.get("SUPublicEDKey") != "dWrr6gck5aoy5F7V00SizqQM6w9MHmZzeeQFSqYTlfM=":
     raise SystemExit("Sparkle public verification key is not the Owltype key")
 versions = set(re.findall(r"MARKETING_VERSION = ([0-9.]+);", open(sys.argv[2]).read()))
-policy = json.load(open(sys.argv[3], encoding="utf-8"))
-if versions != {policy.get("releaseVersion")}:
-    raise SystemExit("Sparkle transition policy is not locked to the project release")
-if policy.get("toPublicKey") != info.get("SUPublicEDKey"):
-    raise SystemExit("Sparkle transition target differs from the App public key")
-if policy.get("successorFeedKey") != "owltype/v2/appcast.xml":
-    raise SystemExit("Sparkle transition successor feed differs from the reviewed endpoint")
+if len(versions) != 1:
+    raise SystemExit("project must declare one marketing version")
+version = next(iter(versions))
+policy_path = Path(sys.argv[3])
+index_entry = subprocess.run(
+    ["git", "ls-files", "--stage", "--", str(policy_path)],
+    check=True,
+    stdout=subprocess.PIPE,
+    text=True,
+).stdout.strip()
+index_mode = index_entry.split(maxsplit=1)[0] if index_entry else None
+worktree_present = os.path.lexists(policy_path)
+worktree_regular = (
+    worktree_present
+    and not policy_path.is_symlink()
+    and policy_path.is_file()
+)
+if version == "2.0.1":
+    if index_mode not in {"100644", "100755"} or not worktree_regular:
+        raise SystemExit(
+            "2.0.1 requires a Git-tracked regular Sparkle transition policy"
+        )
+    policy = json.loads(policy_path.read_text(encoding="utf-8"))
+    if policy.get("releaseVersion") != version:
+        raise SystemExit("Sparkle transition policy is not locked to the project release")
+    if policy.get("toPublicKey") != info.get("SUPublicEDKey"):
+        raise SystemExit("Sparkle transition target differs from the App public key")
+    if policy.get("successorFeedKey") != "owltype/v2/appcast.xml":
+        raise SystemExit("Sparkle transition successor feed differs from the reviewed endpoint")
+elif index_mode is not None or worktree_present:
+    raise SystemExit("Sparkle transition policy must be removed after 2.0.1")
 PY
 then
   failed=1

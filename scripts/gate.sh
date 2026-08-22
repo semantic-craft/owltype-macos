@@ -40,6 +40,7 @@ need xcodegen "brew install xcodegen"
 stage "public source and privacy boundaries"
 bash scripts/check-public-source.sh
 bash scripts/check-public-privacy.selftest.sh
+bash scripts/check-public-source.selftest.sh
 
 stage "portable scripts"
 bash -n action-install.sh scripts/*.sh package/apple_tool_adapter package/make_package
