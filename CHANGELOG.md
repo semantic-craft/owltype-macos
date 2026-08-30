@@ -1,3 +1,11 @@
+<a name="2.0.4"></a>
+## 2.0.4 (2026-08-31)
+
+### Codex 光标定位修复 | Codex caret positioning fix
+- 修复 Codex 等 Electron/Chromium 宿主中候选窗偶发停在上一处编辑位置的问题：宿主第一次异步返回的光标坐标仍可能过期，现在候选窗可见期间会随每次内容更新继续校正，同时保持原生 AppKit 宿主行为不变 (#154)
+
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/2.0.3...2.0.4
+
 <a name="2.0.3"></a>
 ## 2.0.3 (2026-08-22)
 
