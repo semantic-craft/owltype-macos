@@ -180,6 +180,53 @@ final class OwlCandidateAnchorTests: XCTestCase {
     XCTAssertTrue(OwlCandidateAnchor.shouldQueryCaret(candidateCount: 9))
   }
 
+  // MARK: delayed Electron reposition cadence
+
+  func testVisibleElectronPanelReschedulesDelayedCaretReadAfterTheFirstFrame() {
+    // Codex can return the old editor rect for both the synchronous read and the first async
+    // retry. When the next key updates the already-visible panel, it must schedule another read;
+    // otherwise the candidate window remains pinned to the old editor location for the whole
+    // composition even after Codex has published the current composer caret.
+    XCTAssertTrue(
+      OwlCandidateAnchor.shouldScheduleDelayedReposition(
+        policyAllows: true,
+        panelIsVisible: true,
+        candidateCount: 8
+      )
+    )
+  }
+
+  func testDelayedCaretReadRequiresPolicyVisiblePanelAndCandidates() {
+    XCTAssertTrue(
+      OwlCandidateAnchor.shouldScheduleDelayedReposition(
+        policyAllows: true,
+        panelIsVisible: true,
+        candidateCount: 1
+      )
+    )
+    XCTAssertFalse(
+      OwlCandidateAnchor.shouldScheduleDelayedReposition(
+        policyAllows: false,
+        panelIsVisible: true,
+        candidateCount: 1
+      )
+    )
+    XCTAssertFalse(
+      OwlCandidateAnchor.shouldScheduleDelayedReposition(
+        policyAllows: true,
+        panelIsVisible: false,
+        candidateCount: 1
+      )
+    )
+    XCTAssertFalse(
+      OwlCandidateAnchor.shouldScheduleDelayedReposition(
+        policyAllows: true,
+        panelIsVisible: true,
+        candidateCount: 0
+      )
+    )
+  }
+
   // MARK: safeFallbackAnchor
 
   func testSafeFallbackAnchorUsesFirstScreenTopCenter() {
