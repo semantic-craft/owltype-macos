@@ -90,6 +90,17 @@ enum OwlCandidateAnchor {
   static func shouldQueryCaret(candidateCount: Int) -> Bool {
     candidateCount > 0
   }
+
+  /// Whether this update needs the asynchronous second caret read used by Electron/Chromium.
+  /// These hosts publish caret geometry over IPC, so the first asynchronous read can still be
+  /// stale. Keep correcting after every visible content update, not only the first frame.
+  static func shouldScheduleDelayedReposition(
+    policyAllows: Bool,
+    panelIsVisible: Bool,
+    candidateCount: Int
+  ) -> Bool {
+    policyAllows && panelIsVisible && shouldQueryCaret(candidateCount: candidateCount)
+  }
 }
 
 /// The immutable content the candidate panel renders for one composition — the value that crosses

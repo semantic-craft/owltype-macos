@@ -42,6 +42,11 @@ SYNTHETIC_CREDENTIAL_SHAPE = "test_" + "A" * 35
 SYNTHETIC_LIVE_CREDENTIAL_SHAPE = "live_" + LOB_IDENTIFIER_BODY
 
 
+def synthetic_generic_api_key() -> str:
+    """Return a deterministic high-entropy fixture without storing a secret-shaped literal."""
+    return "0123456789abcdef" * 4
+
+
 def history_record(
     raw: str,
     *,
@@ -494,9 +499,7 @@ class ShellAdapterTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
 
     def test_source_archive_still_rejects_a_generic_api_key(self) -> None:
-        # Hex is accepted by Gitleaks' generic-api-key rule on every run; URL-safe tokens may
-        # randomly contain punctuation that falls outside the rule and make this negative flaky.
-        synthetic_key = secrets.token_hex(32)
+        synthetic_key = synthetic_generic_api_key()
         source_archive = self._source_archive_with(
             "config/runtime.env",
             f'api_key = "{synthetic_key}"\n',
@@ -515,7 +518,7 @@ class ShellAdapterTests(unittest.TestCase):
     def test_public_key_marker_does_not_waive_a_generic_api_key_on_the_same_line(
         self,
     ) -> None:
-        synthetic_key = secrets.token_hex(32)
+        synthetic_key = synthetic_generic_api_key()
         documented_public_key = next(
             line
             for line in (REPO_ROOT / "docs" / "rename-owltype-plan.md")

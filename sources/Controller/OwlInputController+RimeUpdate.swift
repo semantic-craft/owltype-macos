@@ -549,9 +549,13 @@ extension OwlInputController {
       scrollRows: scrollRows
     )
     let panelTrace = OwlLatencyTrace.begin("candidatePanel.update")
-    let becameVisible = owlPanel.update(content, settings: candidatePanelSettings)
+    _ = owlPanel.update(content, settings: candidatePanelSettings)
     OwlLatencyTrace.end("candidatePanel.update", panelTrace)
-    if becameVisible, policy.delayedCandidatePositioning.allowed {
+    if OwlCandidateAnchor.shouldScheduleDelayedReposition(
+      policyAllows: policy.delayedCandidatePositioning.allowed,
+      panelIsVisible: owlPanel.isVisible,
+      candidateCount: candidates.count
+    ) {
       scheduleDelayedCandidateReposition(client: client, panel: owlPanel, candidateCount: candidates.count)
     }
   }
