@@ -334,6 +334,7 @@ func owlWubiCustomYAML(from s: OwlKeyboardSnapshot, target: OwlWubiPatchTarget) 
   // 五笔 schema 使用 `import_preset: default`，但快速部署 default.yaml 不会让已经编译的五笔
   // schema 自动重建其 punctuator。把同一映射直接写进四个五笔 custom patch，随后部署当前
   // schema，保证极点五笔、拼音混输及两个繁体变体都立即生效。
+  lines.append(contentsOf: currencySymbolMenuPatchLines())
   lines.append(contentsOf: slashSymbolMenuPatchLines(from: s))
 
   lines.append("  # 候选编码提示：默认隐藏五笔候选的编码。")
@@ -468,9 +469,22 @@ private func slashSymbolMenuPatchLines(from s: OwlKeyboardSnapshot) -> [String] 
   ]
 }
 
+/// Keep the code-friendly ASCII dollar directly reachable without removing the RMB symbol.
+/// A list makes Shift+4 open the punctuation candidates; the first candidate is the exact `$`
+/// Codex uses for explicit skill invocation, while `¥` remains one keystroke away. Override both
+/// shape modes so the physical shortcut has one stable meaning regardless of the full-shape toggle.
+private func currencySymbolMenuPatchLines() -> [String] {
+  [
+    "  # 货币：Shift+4 弹出候选；ASCII $ 第一（Codex skill），人民币符号 ¥ 第二",
+    "  \"punctuator/half_shape/$\": [\"$\", \"¥\"]",
+    "  \"punctuator/full_shape/$\": [\"$\", \"¥\"]"
+  ]
+}
+
 /// Punctuator overrides written to default.custom.yaml for the pinyin-family schemas.
 private func punctuatorPatchLines(from s: OwlKeyboardSnapshot) -> [String] {
-  var lines = slashSymbolMenuPatchLines(from: s)
+  var lines = currencySymbolMenuPatchLines()
+  lines.append(contentsOf: slashSymbolMenuPatchLines(from: s))
   if s.angleSymbolMenu {
     // 只动 `<`（开括号），`>` 保持标量 `》` 直上屏——`>` 若变列表，每次闭合都弹菜单，且菜单确认
     // 的提交在 commit seam 会因 preedit 非空跳过右邻读，自动配对的 skip-over 就死了（见

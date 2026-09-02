@@ -70,6 +70,23 @@ final class OwlPromptInterceptionTests: XCTestCase {
     XCTAssertTrue(store.queries.isEmpty, "no originating code → no lookup")
   }
 
+  // MARK: - Commit mode transition
+
+  func testOnlyStandaloneDollarCommitEntersEnglishMode() {
+    let examples: [(text: String, entersEnglish: Bool)] = [
+      ("$", true),
+      ("¥", false),
+      ("$100", false),
+      ("普通文本", false)
+    ]
+
+    for example in examples {
+      let session = FakeRimeSession(optionState: [.asciiMode: false])
+      applyCommitModeTransition(after: example.text, to: session)
+      XCTAssertEqual(session.option(.asciiMode), example.entersEnglish, example.text)
+    }
+  }
+
   // MARK: - matchEntry (the live resolver's pure core)
 
   private let pool = [
