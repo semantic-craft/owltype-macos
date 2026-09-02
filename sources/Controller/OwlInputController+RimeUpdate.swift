@@ -11,6 +11,13 @@
 import ApplicationServices
 import InputMethodKit
 
+/// Commit policy at the universal Rime chokepoint. Only the standalone ASCII dollar from the
+/// Shift+4 currency menu changes the following input mode; RMB and text containing `$` keep it.
+func applyCommitModeTransition(after committedText: String, to rime: RimeSession) {
+  guard committedText == "$" else { return }
+  rime.setOption(.asciiMode, true)
+}
+
 extension OwlInputController {
 
   func rimeConsumeCommittedText() {
@@ -30,6 +37,9 @@ extension OwlInputController {
     switch action {
     case .passThrough:
       commit(string: text)
+      if let rime {
+        applyCommitModeTransition(after: text, to: rime)
+      }
     case .insert(let body):
       insertPromptBody(body)
     case .fillIn(let entry):
