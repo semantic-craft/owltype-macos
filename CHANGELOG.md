@@ -1,3 +1,12 @@
+<a name="2.0.5"></a>
+## 2.0.5 (2026-09-02)
+
+### Codex 符号输入优化 | Codex symbol input improvements
+- 中文模式按 Shift+4 时同时提供 ASCII 美元符号 `$` 与人民币符号 `¥`，便于直接输入 Codex 的 `$skill` 调用语法，同时保留人民币输入 (#156)
+- 单独提交 `$` 后自动切换到英文模式，方便继续输入 skill 名称；`¥`、金额文本和普通文本不改变当前模式 (#156)
+
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/2.0.4...2.0.5
+
 <a name="2.0.4"></a>
 ## 2.0.4 (2026-08-31)
 
