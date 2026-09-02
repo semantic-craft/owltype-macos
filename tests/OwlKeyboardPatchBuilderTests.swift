@@ -58,6 +58,23 @@ final class OwlKeyboardPatchBuilderTests: XCTestCase {
     )
   }
 
+  // MARK: - Shift+4 货币符号候选
+
+  func testShiftFourOffersDollarThenYuanInBothShapeModes() {
+    let expectedHalfShape = "\"punctuator/half_shape/$\": [\"$\", \"¥\"]"
+    let expectedFullShape = "\"punctuator/full_shape/$\": [\"$\", \"¥\"]"
+
+    let pinyin = owlDefaultCustomYAML(from: snapshot(.pinyin))
+    XCTAssertTrue(pinyin.contains(expectedHalfShape), "半角 Shift+4 应先给 ASCII $，再给人民币符号 ¥")
+    XCTAssertTrue(pinyin.contains(expectedFullShape), "全角 Shift+4 也应保持相同候选顺序")
+
+    for target in owlWubiPatchTargets {
+      let wubi = owlWubiCustomYAML(from: snapshot(.wubi), target: target)
+      XCTAssertTrue(wubi.contains(expectedHalfShape), target.fileName)
+      XCTAssertTrue(wubi.contains(expectedFullShape), target.fileName)
+    }
+  }
+
   // MARK: - N1「<」符号选单
 
   func testAngleSymbolMenuEmitsHalfShapeListOnlyWhenEnabled() {
