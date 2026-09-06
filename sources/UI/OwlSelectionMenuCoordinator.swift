@@ -213,9 +213,6 @@ final class OwlSelectionMenuCoordinator {
   /// 只做一件事——作废进行中的双击手势（⌥ 正被当真修饰键用）。回调是纯内存状态机，零 AX、零计时器。
   private var tapMonitor: Any?
   private var doubleTap = OwlOptionDoubleTapDetector()
-  /// AX 读取专用串行队列：同步 AX 由前台 App 主线程应答，宿主忙时会阻塞等待方，所以绝不放在
-  /// Owltype 主线程（IMK handle() 同线程）上等。
-  private static let axQueue = DispatchQueue(label: "com.owltype.selection-menu.ax", qos: .userInitiated)
 
   // 「选中即自动弹出」管线（0.30s 停留、每次划选后的后台 AX 读、面板维护计时器、dismissedText/
   // readGeneration/lastSummon 消失状态机）已删（2026-07-26 工具箱重设计）：打开工具箱只剩明确
@@ -356,7 +353,7 @@ final class OwlSelectionMenuCoordinator {
   }
 
   /// 对 `app` 做一轮 AX 选区读取（4–5 次同步查询）。同步 AX 由目标 App 主线程应答，宿主忙时会
-  /// 阻塞调用线程——常规路径必须在 `axQueue` 上调用；50ms 消息超时保证单次查询有界。
+  /// 阻塞调用线程；50ms 消息超时保证单次查询有界。
   private func readSelection(from app: NSRunningApplication) -> OwlSelectionMenuSnapshot? {
     let axApp = AXUIElementCreateApplication(app.processIdentifier)
     AXUIElementSetMessagingTimeout(axApp, 0.05)

@@ -76,7 +76,6 @@ struct OwlOnboardingView: View {
   var initialStep = 0
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   @Environment(\.colorScheme) private var colorScheme
 
   @State private var step = 0
