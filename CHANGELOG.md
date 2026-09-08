@@ -1,3 +1,13 @@
+<a name="2.0.6"></a>
+## 2.0.6 (2026-09-09)
+
+### 候选布局优化 | Candidate layout improvements
+- 收紧拼音音节分隔和横排候选间距，保留候选内边距与独立翻页控件间距
+- 多行候选共享列宽，不同词长、注释和来源标签也能按列对齐；翻页与展开控件移至底部
+- 排列方向统一命名为「多行」，更新设置说明
+
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/2.0.5...2.0.6
+
 <a name="2.0.5"></a>
 ## 2.0.5 (2026-09-02)
 
