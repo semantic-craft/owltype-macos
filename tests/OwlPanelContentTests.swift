@@ -18,6 +18,7 @@
 //
 
 import AppKit
+import SwiftUI
 import XCTest
 @testable import Owltype
 
@@ -749,5 +750,106 @@ final class OwlCandidateLabelSlotTests: XCTestCase {
     // 向上取整到整点：半点宽度会让主行序号和空槽落在不同的像素边界上。
     XCTAssertEqual(small, small.rounded(.up))
     XCTAssertEqual(large, large.rounded(.up))
+  }
+}
+
+/// Measure the actual SwiftUI accessibility frames, not a duplicate width formula.
+@MainActor
+final class OwlScrollLayoutTests: XCTestCase {
+  private func state() -> CandidatePanelState {
+    let state = CandidatePanelState()
+    state.isScroll = true
+    state.animationsEnabled = false
+    state.schemaID = "wubi86_jidian"
+    state.page = 1
+    state.candidates = [
+      CandidateViewModel(id: 0, label: "1", text: "中华人民共和国", provenance: .personal),
+      CandidateViewModel(id: 1, label: "2", text: "国"),
+      CandidateViewModel(id: 2, label: "3", text: "人")]
+    state.scrollRows = [
+      OwlScrollRow(id: 0, candidates: [
+        CandidateViewModel(id: 0, label: "", text: "中", comment: "abcdefghijklmnop"),
+        CandidateViewModel(id: 1, label: "", text: "民族")]),
+      OwlScrollRow(id: 2, candidates: [CandidateViewModel(id: 6, label: "", text: "末页最后一个候选")])]
+    return state
+  }
+
+  private struct Rendered {
+    let size: NSSize
+    let frames: [String: NSRect]
+  }
+
+  private func render(_ state: CandidatePanelState, snapshot: Bool = false) throws -> Rendered {
+    let host = NSHostingView(rootView: OwlCandidatePanelView(state: state, onSelect: { _ in }, onPage: { _ in }))
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 300),
+                          styleMask: [.borderless], backing: .buffered, defer: false)
+    window.contentView = host
+    window.setContentSize(host.fittingSize)
+    host.layoutSubtreeIfNeeded()
+    var frames: [String: NSRect] = [:]
+    for node in host.accessibilityChildren() ?? [] {
+      if let element = node as? NSAccessibilityElementProtocol,
+         let identifier = element.accessibilityIdentifier?() {
+        frames[identifier] = element.accessibilityFrame()
+      }
+    }
+    if snapshot {
+      let rep = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+      host.cacheDisplay(in: host.bounds, to: rep)
+      let png = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
+      try png.write(to: URL(fileURLWithPath: "/tmp/owltype-fixed-scroll.png"))
+    }
+    return Rendered(size: host.fittingSize, frames: frames)
+  }
+
+  func testMixedTextCommentsAndPartialPagesShareRenderedColumns() throws {
+    for format in OwlCandidateFormat.allCases {
+      let state = state()
+      state.candidateFormat = format
+      state.fontSize = format == .full ? OwlPanelFontSize.extraLarge.base : OwlPanelFontSize.medium.base
+      let result = try render(state)
+      let currentFirst = try XCTUnwrap(result.frames["current-candidate-0"])
+      let currentSecond = try XCTUnwrap(result.frames["current-candidate-1"])
+      let previousFirst = try XCTUnwrap(result.frames["scroll-candidate-0"])
+      let previousSecond = try XCTUnwrap(result.frames["scroll-candidate-1"])
+      let last = try XCTUnwrap(result.frames["scroll-candidate-6"])
+      XCTAssertGreaterThan(currentFirst.width, 0)
+      XCTAssertEqual(currentFirst.minX, previousFirst.minX, accuracy: 0.5, format.rawValue)
+      XCTAssertEqual(currentFirst.minX, last.minX, accuracy: 0.5, format.rawValue)
+      XCTAssertEqual(currentSecond.minX, previousSecond.minX, accuracy: 0.5, format.rawValue)
+      XCTAssertGreaterThanOrEqual(currentSecond.minX, max(currentFirst.maxX, previousFirst.maxX, last.maxX) - 0.5)
+      XCTAssertGreaterThan(previousFirst.minY, currentFirst.minY)
+      XCTAssertGreaterThan(currentFirst.minY, last.minY)
+    }
+  }
+
+  func testPagingControlsStayBelowCandidatesWithoutWideningGrid() throws {
+    let state = state()
+    state.showPaging = false
+    let hidden = try render(state)
+    state.showPaging = true
+    state.hasPrevPage = true
+    state.hasNextPage = true
+    let visible = try render(state, snapshot: true)
+    XCTAssertEqual(hidden.size.width, visible.size.width, accuracy: 0.5)
+    let next = try XCTUnwrap(visible.frames["candidate-page-next"])
+    let previous = try XCTUnwrap(visible.frames["candidate-page-previous"])
+    let last = try XCTUnwrap(visible.frames["scroll-candidate-6"])
+    XCTAssertGreaterThan(next.width, 0)
+    XCTAssertLessThanOrEqual(max(next.maxY, previous.maxY), last.minY)
+    XCTAssertNil(hidden.frames["candidate-page-next"])
+    XCTAssertNil(hidden.frames["candidate-page-previous"])
+  }
+
+  func testSingleCandidateWithoutControlsHasNoEmptyFooter() throws {
+    let state = state()
+    state.candidates = [CandidateViewModel(id: 0, label: "1", text: "中")]
+    state.scrollRows = []
+    state.showPaging = false
+    let scroll = try render(state)
+    state.isScroll = false
+    let compact = try render(state)
+    XCTAssertEqual(scroll.size.height, compact.size.height, accuracy: 0.5)
+    XCTAssertEqual(scroll.size.width, compact.size.width, accuracy: 0.5)
   }
 }

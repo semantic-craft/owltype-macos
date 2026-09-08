@@ -1,5 +1,8 @@
 # Candidate layout review — 2026-09-09
 
+Status: the findings below describe the original implementation. See the repair
+follow-up at the end for the subsequent fix.
+
 Reviewed `ebb6e67b93f72ca5bc36f6876379ad3c5a3e4718..731872b9b68a10dec88df4b79162d55902fcfa89`.
 The pinyin-spacing and scroll-alignment changes are combined in commit `731872b`.
 The working tree was clean before review. This review does not modify application behavior.
@@ -66,3 +69,33 @@ horizontal space on preview rows whenever labels are displayed.
 
 Summary: Standards — one P3 documentation finding. Spec — two P2 incomplete layout
 outcomes. Pinyin-spacing review passes; complete scroll-column alignment remains partial.
+
+## Repair follow-up
+
+The scroll view now uses SwiftUI `Grid` and page-identified `GridRow` views. Column
+widths come from the widest complete candidate cell in each visible column, including
+comments and provenance tags. Blank label slots still align text without promising
+number-key selection on preview pages. Short final pages require no placeholder candidates.
+
+Paging and expansion controls now occupy a trailing-aligned footer below the grid;
+the footer omits the inline divider. It is absent when there are no controls. The
+compact horizontal bar keeps its inline controls. This removes the current-row-only
+pager tail, at the cost of a footer's height and blank space within shorter grid cells.
+As before, candidates are not truncated. The total grid can be wider than any one
+natural-width row when the longest cells fall in different columns.
+
+`OwlScrollLayoutTests` measures accessibility frames from the real `NSHostingView`
+rendering. It covers mixed text/comment/tag widths, all three candidate formats,
+large text, previous and partial final pages, paging controls below candidates without
+widening this grid, and no empty footer when controls are absent. Preview candidates
+are grouped as one accessibility element, matching current-page candidates.
+
+The synthetic rendering is inspected separately from installed-input-method acceptance;
+this follow-up does not install or release the application.
+
+Repair validation: `make test DERIVED_DATA_PATH=build/gate-tests` passed all 1,028
+tests; SwiftLint exited 0 with existing warnings; `git diff --check` passed. Running
+the three new layout tests against the original layout with the same accessibility
+identifiers produced the expected failures: second-column drift of 55–154pt across
+formats, and an 81pt width increase when paging controls were enabled. Restoring the
+fixed layout made all three tests pass. The synthetic rendered panel was also inspected.

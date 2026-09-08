@@ -285,35 +285,31 @@ struct OwlCandidatePanelView: View {
       .padding(.vertical, geometry.compactRow.inset)
   }
 
-  /// 当前页那一行：候选 + 翻页点 + 展开箭头。卷轴与单行横排共用，唯一的区别是外面套的容器。
-  ///
-  /// `includesPager` 为 false 时行内只剩候选：卷轴把翻页点/展开箭头交给 `scrollStack`
-  /// 钉到面板右缘，主行的宽度于是只由候选决定，不再比前/后页行多出一截尾巴——那截尾巴
-  /// 既撑宽了面板，又让其余行右侧空出一大片。
-  private func mainRow(geometry: OwlCandidatePanelGeometry, includesPager: Bool = true) -> some View {
-    // 候选自成一层（`spacing` = 0，间隔全由 pill 内边给），翻页组隔着 `pagerSpacing`
-    // 跟在后面——两级 HStack 是为了让「候选之间」和「候选到翻页组」各走各的数。
+  /// 单行横排：候选间距与翻页控件间距分别解析。
+  private func mainRow(geometry: OwlCandidatePanelGeometry) -> some View {
     HStack(spacing: geometry.mainRow.pagerSpacing) {
       HStack(spacing: geometry.mainRow.spacing) {
         ForEach(state.candidates) { candidate in
           compactPill(candidate, geometry: geometry)
         }
       }
-      if includesPager { pagerControls(geometry: geometry) }
+      pagerControls(geometry: geometry)
     }
   }
 
-  /// 翻页点 + 展开箭头。单行横排接在候选后面，卷轴钉在主行右缘——同一组控件，两种摆位。
-  /// 拆出来是为了让两处共用同一份门控与间距，行内摆放时与原来逐点等价（`@ViewBuilder`
-  /// 的 tuple 在 `HStack` 里会摊平，仍各自吃到 `mainRow.pagerSpacing`）。
-  @ViewBuilder private func pagerControls(geometry: OwlCandidatePanelGeometry) -> some View {
+  /// 单行接在候选后面；卷轴放在独立页脚，不占任何候选列。
+  @ViewBuilder private func pagerControls(
+    geometry: OwlCandidatePanelGeometry, includesDivider: Bool = true
+  ) -> some View {
     // Feature 4: the paging-arrow group (divider + dots) is the only mouse-paging
     // affordance; gate both on the 候选条翻页箭头 pref so they hide together.
     if state.showPaging && (state.hasPrevPage || state.hasNextPage) {
-      Rectangle()
-        .fill(divider)
-        .frame(width: geometry.mainRow.dividerWidth, height: geometry.mainRow.dividerHeight)
-        .padding(.horizontal, geometry.mainRow.dividerHorizontalPadding)
+      if includesDivider {
+        Rectangle()
+          .fill(divider)
+          .frame(width: geometry.mainRow.dividerWidth, height: geometry.mainRow.dividerHeight)
+          .padding(.horizontal, geometry.mainRow.dividerHorizontalPadding)
+      }
       pageDots(geometry: geometry.pageDots)
     }
     if showsExpandChevron {
@@ -322,7 +318,7 @@ struct OwlCandidatePanelView: View {
     }
   }
 
-  // MARK: 卷轴（主行 + 后页行，按页对齐：同宽序号槽 + 右缘翻页控件）
+  // MARK: 卷轴（共享候选列 + 独立翻页页脚）
 
   /// 卷轴的行集合：主行（librime 当前页）与预取的前/后页行按**页号排序**合并——前页行
   /// （页号 = 主行 − 1）自然落在主行上方，后页行跟在下方。
@@ -340,55 +336,35 @@ struct OwlCandidatePanelView: View {
   /// 末页没有后页可取，只剩前页行 + 主行——这是「到底了」的诚实表达，不拿空行凑高度。
   private func scrollStack(geometry: OwlCandidatePanelGeometry) -> some View {
     VStack(alignment: .leading, spacing: geometry.scrollStack.spacing) {
-      ForEach(scrollPages) { row in
-        HStack(spacing: 0) {
-          scrollRow(row, geometry: geometry, includesPager: false)
-          if row.id == state.page {
-            // 翻页控件不参与行的自然宽度，被推到面板右缘；`minLength` 保住它与最后一个
-            // 候选之间的间距（与单行横排的 pagerSpacing + divider 内边同值）。
-            Spacer(minLength: geometry.mainRow.pagerSpacing)
-            HStack(spacing: geometry.mainRow.pagerSpacing) {
-              pagerControls(geometry: geometry)
+      Grid(alignment: .leading,
+           horizontalSpacing: geometry.scrollRow.spacing,
+           verticalSpacing: geometry.scrollStack.spacing) {
+        ForEach(scrollPages) { row in
+          GridRow {
+            ForEach(row.candidates) { candidate in
+              if row.id == state.page {
+                compactPill(candidate, geometry: geometry)
+              } else {
+                scrollPill(candidate, geometry: geometry.scrollPill, labelSlot: geometry.labelSlotWidth)
+                  .opacity(0.75)
+              }
             }
           }
         }
-        // 每行都摊到栈宽（= 最宽那一行），右缘于是是一条共同的边，而不是各行各自的行尾。
-        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      if (state.showPaging && (state.hasPrevPage || state.hasNextPage)) || showsExpandChevron {
+        HStack(spacing: geometry.mainRow.pagerSpacing) {
+          pagerControls(geometry: geometry, includesDivider: false)
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
       }
     }
     .padding(.horizontal, geometry.scrollStack.inset)
     .padding(.vertical, geometry.scrollStack.inset)
   }
 
-  /// 一行 = 一整页。主行走 `mainRow`（带序号、可高亮）；前/后页行只有候选文字（+码提示
-  /// 注释）、稍淡（0.75），点击走绝对下标。非主行**不画序号**是刻意的：数字键只选得中
-  /// 主行，给别的行编号会造出「看得到按不到」的假承诺——但序号的**宽度**要留（见
-  /// `scrollPill` 的空槽），否则主行每块都比别人宽出一个序号，列会逐格右移。
-  @ViewBuilder private func scrollRow(
-    _ row: OwlScrollRow,
-    geometry: OwlCandidatePanelGeometry,
-    includesPager: Bool = true
-  ) -> some View {
-    if row.id == state.page {
-      mainRow(geometry: geometry, includesPager: includesPager)
-    } else {
-      HStack(spacing: geometry.scrollRow.spacing) {
-        ForEach(row.candidates) { candidate in
-          scrollPill(candidate, geometry: geometry.scrollPill, labelSlot: geometry.labelSlotWidth)
-        }
-      }
-      .opacity(0.75)
-    }
-  }
-
-  /// 前/后页行的候选：序号空槽 + 候选文字 + 码提示注释（门控与主行同一条
-  /// `showsCompactComment`——信息密度跟主行一致，截图定案 2026-07-28），尺寸/内边距与
-  /// `compactPill` 逐项对齐（同字号、同 5pt 字-注释间距、同 8/7 内边距）；`.fixedSize()`
-  /// 保证绝不压缩截断。
-  ///
-  /// 「逐项对齐」原先漏了序号：主行每块多一个序号 + 5pt 间距（中档约 14pt），差值逐列
-  /// 累加，到第 5 列已错开约 70pt——多行于是读不成一张网格。补上同宽空槽后，每块的
-  /// 起手宽度两边相等，同长候选的各列就落在同一条线上。
+  /// 预览页保留序号空槽，但不显示数字：数字键只选择当前页。
+  /// 候选保持自然宽度、不截断；Grid 按完整内容（含注释）解析跨行列宽。
   private func scrollPill(
     _ candidate: CandidateViewModel,
     geometry: OwlCandidatePanelGeometry.ScrollPill,
@@ -415,7 +391,9 @@ struct OwlCandidatePanelView: View {
     .contentShape(Rectangle())
     // `candidate.id` 在前/后页行里是整张候选列表的绝对下标（见 `OwlScrollRow`）。
     .onTapGesture { onSelectAbsolute?(candidate.id) }
+    .accessibilityElement(children: .combine)
     .accessibilityLabel(Text(candidate.text))
+    .accessibilityIdentifier("scroll-candidate-\(candidate.id)")
   }
 
   /// Expand/collapse affordance — lives in the candidate row (not the preedit header,
@@ -481,6 +459,7 @@ struct OwlCandidatePanelView: View {
     .contentShape(Rectangle())
     .onTapGesture { onSelect(candidate.id) }
     .accessibilityElement(children: .combine)
+    .accessibilityIdentifier("current-candidate-\(candidate.id)")
   }
 
   /// Page indicator: a dim prev-dot, the accent current-dot, a dim next-dot — each
@@ -492,12 +471,14 @@ struct OwlCandidatePanelView: View {
     HStack(spacing: geometry.spacing) {
       if state.hasPrevPage {
         pageDotButton(palette.ink3.opacity(0.5), label: "上一页", geometry: geometry) { onPage(true) }
+          .accessibilityIdentifier("candidate-page-previous")
       }
       dot(palette.accent, diameter: geometry.dotDiameter)
         .frame(width: geometry.hitSize, height: geometry.hitSize)
         .accessibilityLabel("当前页")
       if state.hasNextPage {
         pageDotButton(palette.ink3.opacity(0.5), label: "下一页", geometry: geometry) { onPage(false) }
+          .accessibilityIdentifier("candidate-page-next")
       }
     }
     .padding(.trailing, geometry.trailingPadding)
