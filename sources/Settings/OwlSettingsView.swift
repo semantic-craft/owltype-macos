@@ -509,10 +509,10 @@ struct OwlSettingsView: View {
             .foregroundStyle(palette.ink2)
           OwlSegmentedControl(
             selection: orientationBinding,
-            options: [("自动", .auto), ("横排", .horizontal), ("竖排", .vertical), ("卷轴", .scroll)],
+            options: [("自动", .auto), ("横排", .horizontal), ("竖排", .vertical), ("多行", .scroll)],
             palette: palette
           )
-          Text("横排=单行候选条，竖排=纵向列表，卷轴=平时单行、按翻页键展开成多行（上方保留上一页、下方跟后几页），再翻页时整块上滚。可点候选条右侧箭头临时展开为列表。")
+          Text("横排显示单行候选，竖排显示纵向列表。多行在翻页后显示多页候选，上方保留上一页，下方显示后续页，各列对齐。点击候选区的展开箭头可临时切换为列表。")
             .font(.system(size: 11))
             .foregroundStyle(palette.ink3)
           if state.panelOrientation == .scroll {

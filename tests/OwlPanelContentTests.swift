@@ -260,7 +260,7 @@ final class OwlPanelContentTests: XCTestCase {
     XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
   }
 
-  // MARK: 卷轴后页行 → part of the dedup signature
+  // MARK: 多行后页行 → part of the dedup signature
 
   func testScrollRowsChangeIsUnequal() {
     // A page-peek refresh with identical current-page content must still re-render so the
@@ -327,7 +327,7 @@ final class OwlScrollRowsPlanTests: XCTestCase {
       rimeVertical: false, schemaID: ""))
   }
 
-  /// 翻页才展开（2026-07-28）：没翻过页的组字保持单行，即便选了卷轴、还有后页。
+  /// 翻页才展开（2026-07-28）：没翻过页的组字保持单行，即便选了多行、还有后页。
   func testNoPagingMeansNoRows() {
     XCTAssertFalse(OwlScrollRowsPlan.wantsRows(
       settings: snapshot(), didPage: false, lastPage: false, candidateCount: 5,
@@ -349,7 +349,7 @@ final class OwlScrollRowsPlanTests: XCTestCase {
       rimeVertical: false, schemaID: ""))
   }
 
-  /// 非卷轴的三个方向都不取数——卷轴是唯一带前/后页行的形态（「预览后页」开关已被它吸收）。
+  /// 非多行的三个方向都不取数——多行是唯一带前/后页行的形态（「预览后页」开关已被它吸收）。
   func testNonScrollOrientationsNeverFetch() {
     for orientation in [OwlPanelOrientation.auto, .horizontal, .vertical] {
       XCTAssertFalse(OwlScrollRowsPlan.wantsRows(
@@ -361,7 +361,7 @@ final class OwlScrollRowsPlanTests: XCTestCase {
     }
   }
 
-  /// 卷轴是横排的一种：即便 rime 方案自己要求竖排，选了卷轴仍按横排渲染并取数
+  /// 多行是横排的一种：即便 rime 方案自己要求竖排，选了多行仍按横排渲染并取数
   /// （`.scroll.isVertical` 恒为 false，与视图的渲染分支一致）。
   func testScrollIgnoresRimeVertical() {
     XCTAssertTrue(OwlScrollRowsPlan.wantsRows(
@@ -388,7 +388,7 @@ final class OwlScrollRowsPlanTests: XCTestCase {
     XCTAssertEqual(rows.map { $0.candidates.map(\.text) }, [["一", "二", "三"], ["四", "五", "六"]])
   }
 
-  /// 行 id = librime 页号。这是卷轴动画的身份来源：翻页后同一页号的行必须仍是同一行，
+  /// 行 id = librime 页号。这是多行动画的身份来源：翻页后同一页号的行必须仍是同一行，
   /// SwiftUI 才会把它动画成「上滚一格」而不是整块重建。
   func testRowIDIsThePageNumber() {
     let rows = OwlScrollRowsPlan.rows(
@@ -657,7 +657,7 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
 
       XCTAssertEqual(geometry.scrollStack.spacing, scrollStackSpacing[index], size.rawValue)
       XCTAssertEqual(geometry.scrollStack.inset, geometry.selectionInset, size.rawValue)
-      // 卷轴前/后页行与主行是同一张网格的相邻行：候选间隔差一点点都会逐列累加成错位，
+      // 多行前/后页行与主行是同一张网格的相邻行：候选间隔差一点点都会逐列累加成错位，
       // 所以锁的是「与主行同值」这条不变式，而不是某个具体点数。
       XCTAssertEqual(geometry.scrollRow.spacing, geometry.mainRow.spacing, size.rawValue)
       XCTAssertEqual(geometry.scrollPill.contentSpacing, geometry.compactPill.contentSpacing,
@@ -719,7 +719,7 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
   }
 }
 
-/// 序号槽宽度（方案 A 的对齐地基）。卷轴的前/后页行留出与主行序号同宽的空槽，各行
+/// 序号槽宽度（方案 A 的对齐地基）。多行的前/后页行留出与主行序号同宽的空槽，各行
 /// 候选文字才落在同一条左边界上；这里锁住那个宽度的取法。
 final class OwlCandidateLabelSlotTests: XCTestCase {
   func testNoLabelsOrNoFontMeansNoSlot() {

@@ -45,12 +45,8 @@ enum OwlPanelOrientation: String, CaseIterable, Sendable {
   case auto
   case horizontal
   case vertical
-  /// 卷轴（搜狗式按页对齐的多行候选）：主行是 librime 当前页、下方跟 1–2 行后页，翻页时整块
-  /// 上滚一行。`isVertical` 仍为 false；`scrolls` 才是它与单行横排的区别。
-  ///
-  /// 取代了 0.x 的 `.flow`「横排折行」（2026-07-26 退役）：折行把**同一页**折成矩形——候选一个
-  /// 不多、白占高度、行数随候选宽度抖动，且页点/展开箭头作为流式元素会飘到矩形里的随机位置。
-  /// 卷轴换成「一行 = 一整页」，行数固定、序号语义不变（数字键只管主行）。
+  /// 多行：每行显示一整页，翻页后保留上一页，并显示后续 1–4 页。
+  /// 数字键只选择当前页；`scroll` 是已持久化的设置值。
   case scroll
 
   /// Resolve to the panel's `isVertical`, given Rime's `_vertical` option for `.auto`.
@@ -65,11 +61,11 @@ enum OwlPanelOrientation: String, CaseIterable, Sendable {
     case .auto: rimeVertical
     case .horizontal: false
     case .vertical: true
-    case .scroll: false   // 卷轴是横排的一种（多行页），不是竖排
+    case .scroll: false   // 多行是横排的一种（多行页），不是竖排
     }
   }
 
-  /// 是否卷轴（主行 + 后页行）。仅显式 `.scroll` 为真；`auto/横排/竖排` 均为单行/纵列，
+  /// 是否多行（主行 + 后页行）。仅显式 `.scroll` 为真；`auto/横排/竖排` 均为单行/纵列，
   /// 既有默认行为零变化。`isVertical` 为真时此值被忽略（竖排不叠加后页行）。
   var scrolls: Bool { self == .scroll }
 }

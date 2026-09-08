@@ -67,7 +67,7 @@ protocol RimeSession: AnyObject {
 
   /// `select_candidate`: select by **absolute** index into the whole candidate list, so a
   /// candidate that is visible but not on the current page can be committed without paging
-  /// there first. Only the 卷轴后页行 click path uses it (mouse-only — the keyboard hot path
+  /// there first. Only the 多行后页行 click path uses it (mouse-only — the keyboard hot path
   /// still goes through librime's own current-page number keys). A default implementation
   /// returns `false` so existing fakes stay source-compatible.
   func selectCandidateAbsolute(_ index: Int) -> Bool

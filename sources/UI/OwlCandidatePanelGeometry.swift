@@ -8,7 +8,7 @@ import CoreGraphics
 /// 候选窗一次解析后的完整 geometry。
 ///
 /// 视图只消费这里已经判定好的点数，不再分别决定某个值是否缩放。横排、竖排、临时展开
-/// 与卷轴都从同一个不可变值对象取得字号、留白、最小宽度和固定尺寸规则。
+/// 与多行都从同一个不可变值对象取得字号、留白、最小宽度和固定尺寸规则。
 struct OwlCandidatePanelGeometry: Equatable, Sendable {
   struct Panel: Equatable, Sendable {
     let spacing: CGFloat
@@ -137,7 +137,7 @@ struct OwlCandidatePanelGeometry: Equatable, Sendable {
 
   let panel: Panel
   let minimumWidth: CGFloat
-  /// 序号槽宽度：主行所有序号里最宽的一个（0 = 本次不显示序号）。主行的序号和卷轴
+  /// 序号槽宽度：主行所有序号里最宽的一个（0 = 本次不显示序号）。主行的序号和多行
   /// 前/后页行的空槽都按这**同一个**宽度摆放，各行候选文字于是落在同一条左边界上；
   /// 两侧共用一个数，任何度量误差同时发生、不会让列错开。视图量出后交给这里解析。
   let labelSlotWidth: CGFloat
@@ -170,7 +170,7 @@ struct OwlCandidatePanelGeometry: Equatable, Sendable {
     }
 
     let selectionInset = resolve(5)
-    /// 候选**之间**的额外间隔，主行与卷轴前/后页行共用（见 `MainRow.spacing`）。
+    /// 候选**之间**的额外间隔，主行与多行前/后页行共用（见 `MainRow.spacing`）。
     let candidateSpacing: CGFloat = 0
     let pillContentSpacing = resolve(5)
     let pillHorizontalPadding = resolve(8)
@@ -270,7 +270,7 @@ struct OwlCandidatePanelGeometry: Equatable, Sendable {
       spacing: resolve(5),
       inset: selectionInset
     )
-    // 卷轴前/后页行的候选间隔必须与主行**同值**：两者是同一张网格的相邻行，差一点点
+    // 多行前/后页行的候选间隔必须与主行**同值**：两者是同一张网格的相邻行，差一点点
     // 都会逐列累加成肉眼可见的错位（差 6pt 时第 5 列已偏 24pt）。所以这里读同一个
     // `candidateSpacing`，而不是各自 `resolve` 一遍。
     scrollRow = ScrollRow(spacing: candidateSpacing)

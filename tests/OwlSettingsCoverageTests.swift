@@ -50,9 +50,8 @@ final class OwlSettingsCoverageTests: XCTestCase {
     // 缩放。生命周期覆盖在 OwlCandidatePanelDisplayLifecycleTests；点数阶梯与留白换算表在
     // OwlPanelSizeTests。
     "小", "中", "大", "特大",
-    // 排列方向：2026-07-22「默认形态 单行/卷轴」并入本组（`单行`/`卷轴` 两个旧标签随之移除）；
-    // 2026-07-26 `折行`(1.4.19) 退役，位置换成新的 `卷轴`（主行 + 后页行，与旧同名标签无关）。
-    "自动", "横排", "竖排", "卷轴",
+    // 排列方向；多行在翻页后显示前后页候选。
+    "自动", "横排", "竖排", "多行",
     "默认", "衬线", "圆体", "Noto Serif SC", "Maple Mono",
     "亮", "暗",
     // 06-26 batch: 7 new Rime/Squirrel config controls.
@@ -61,7 +60,7 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "Caps Lock 切换西文",             // Feature 2 good_old_caps_lock
     "内嵌候选预览",                   // Feature 3
     "候选条翻页箭头",                 // Feature 4
-    // 卷轴的后页行数分段（只在排列方向 = 卷轴时露出；2026-07-28 上限放宽到 4）。
+    // 多行的后页行数分段（只在排列方向 = 多行时露出；2026-07-28 上限放宽到 4）。
     // 生命周期覆盖在 OwlCandidatePanelDisplayLifecycleTests；纯逻辑（取数门控/切页）在
     // OwlScrollRowsPlanTests。
     "跟 1 页", "跟 2 页", "跟 3 页", "跟 4 页",

@@ -19,7 +19,7 @@
 import AppKit
 import SwiftUI
 
-/// 序号槽的宽度量算（纯函数，可单测）。卷轴的前/后页行留出与主行序号同宽的空槽，
+/// 序号槽的宽度量算（纯函数，可单测）。多行的前/后页行留出与主行序号同宽的空槽，
 /// 各行候选文字才落在同一条左边界上——而槽里不画数字，因为数字键只选得中主行。
 enum OwlCandidateLabelSlot {
   /// `labels` 里最宽的一个（向上取整到整点）。空数组 / 不显示序号 → 0。
@@ -41,7 +41,7 @@ struct OwlCandidatePanelView: View {
   /// Paging callback (up == true → previous page). Wired to `page(up:)`; reached via the
   /// page-dot affordances in the compact bar.
   let onPage: (Bool) -> Void
-  /// Click-to-select for a 卷轴后页行 candidate, by **absolute** index into the whole candidate
+  /// Click-to-select for a 多行后页行 candidate, by **absolute** index into the whole candidate
   /// list. Separate from `onSelect` (which is a current-page offset) because the two land on
   /// different librime calls. Optional so the settings skin-preview call site is unaffected.
   var onSelectAbsolute: ((Int) -> Void)? = nil
@@ -142,9 +142,9 @@ struct OwlCandidatePanelView: View {
     // 模糊没有落点。改由 NSPanel 的 `hasShadow` 按内容 alpha 画（OwlSwiftUICandidatePanel）。
     .animation(animateOK ? .snappy(duration: 0.08) : nil, value: state.highlightedIndex)
     .animation(animateOK ? .snappy(duration: 0.12) : nil, value: state.isExpanded)
-    // 卷轴的「上滚一行」。仅卷轴下挂动画：其余形态传 nil，翻页仍是既有的瞬时替换，
+    // 多行的「上滚一行」。仅多行下挂动画：其余形态传 nil，翻页仍是既有的瞬时替换，
     // 已发布行为零变化。窗口 frame 本身不参与动画（`setFrameAndShadow` 是直接 setFrame），
-    // 靠卷轴行数恒定来保证高度不跳；宽度仍会随候选变化瞬时吸附。
+    // 靠多行行数恒定来保证高度不跳；宽度仍会随候选变化瞬时吸附。
     .animation(animateOK && state.isScroll ? .snappy(duration: 0.18) : nil, value: state.page)
   }
 
@@ -297,7 +297,7 @@ struct OwlCandidatePanelView: View {
     }
   }
 
-  /// 单行接在候选后面；卷轴放在独立页脚，不占任何候选列。
+  /// 单行接在候选后面；多行放在独立页脚，不占任何候选列。
   @ViewBuilder private func pagerControls(
     geometry: OwlCandidatePanelGeometry, includesDivider: Bool = true
   ) -> some View {
@@ -318,9 +318,9 @@ struct OwlCandidatePanelView: View {
     }
   }
 
-  // MARK: 卷轴（共享候选列 + 独立翻页页脚）
+  // MARK: 多行（共享候选列 + 独立翻页页脚）
 
-  /// 卷轴的行集合：主行（librime 当前页）与预取的前/后页行按**页号排序**合并——前页行
+  /// 多行的行集合：主行（librime 当前页）与预取的前/后页行按**页号排序**合并——前页行
   /// （页号 = 主行 − 1）自然落在主行上方，后页行跟在下方。
   ///
   /// 所有行必须放进**同一个** `ForEach`、以页号为身份：翻一页后集合从 [p−1, p, p+1, …]
@@ -332,7 +332,7 @@ struct OwlCandidatePanelView: View {
       .sorted { $0.id < $1.id }
   }
 
-  /// 没翻过页时 `scrollRows` 为空，卷轴就是单行——展开是翻页动作换来的（2026-07-28）。
+  /// 没翻过页时 `scrollRows` 为空，多行就是单行——展开是翻页动作换来的（2026-07-28）。
   /// 末页没有后页可取，只剩前页行 + 主行——这是「到底了」的诚实表达，不拿空行凑高度。
   private func scrollStack(geometry: OwlCandidatePanelGeometry) -> some View {
     VStack(alignment: .leading, spacing: geometry.scrollStack.spacing) {
@@ -454,7 +454,7 @@ struct OwlCandidatePanelView: View {
     .padding(.horizontal, geometry.compactPill.horizontalPadding)
     .padding(.vertical, geometry.compactPill.verticalPadding)
     // 横排选中块与竖排 listRow 同一 helper，排布切换不跳戏；块的上下沿就是这里的 7pt 内边，
-    // 离面板内壁恒为容器的 resolved inset（卷轴相邻行距也从同一 geometry 取得）。
+    // 离面板内壁恒为容器的 resolved inset（多行相邻行距也从同一 geometry 取得）。
     .background { if selected { selectionFill(cornerRadius: geometry.selectionRadius) } }
     .contentShape(Rectangle())
     .onTapGesture { onSelect(candidate.id) }
