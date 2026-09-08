@@ -16,7 +16,23 @@
 //  text, and commit stay on the native IMK hot path (OwlInputController).
 //
 
+import AppKit
 import SwiftUI
+
+/// 序号槽的宽度量算（纯函数，可单测）。卷轴的前/后页行留出与主行序号同宽的空槽，
+/// 各行候选文字才落在同一条左边界上——而槽里不画数字，因为数字键只选得中主行。
+enum OwlCandidateLabelSlot {
+  /// `labels` 里最宽的一个（向上取整到整点）。空数组 / 不显示序号 → 0。
+  /// 字体与 `compactPill` 的序号一致：system(size:weight:.medium) + monospacedDigit。
+  static func width(labels: [String], fontSize: CGFloat) -> CGFloat {
+    guard !labels.isEmpty, fontSize > 0 else { return 0 }
+    let font = NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .medium)
+    let widest = labels.reduce(CGFloat.zero) { widest, label in
+      max(widest, (label as NSString).size(withAttributes: [.font: font]).width)
+    }
+    return widest.rounded(.up)
+  }
+}
 
 struct OwlCandidatePanelView: View {
   @Bindable var state: CandidatePanelState
@@ -72,8 +88,17 @@ struct OwlCandidatePanelView: View {
   private var resolvedGeometry: OwlCandidatePanelGeometry {
     OwlCandidatePanelGeometry(
       candidateFontSize: state.fontSize,
-      panelCornerRadius: state.theme.cornerRadius
+      panelCornerRadius: state.theme.cornerRadius,
+      labelSlotWidth: OwlCandidateLabelSlot.width(
+        labels: state.candidateFormat.showsLabel ? state.candidates.map(labelText) : [],
+        fontSize: state.fontSize * 0.72
+      )
     )
+  }
+
+  /// 主行序号的显示文本：schema 给了就用 schema 的，否则用页内位次。
+  private func labelText(for candidate: CandidateViewModel) -> String {
+    candidate.label.isEmpty ? "\(candidate.id + 1)" : candidate.label
   }
 
   var body: some View {
@@ -261,28 +286,43 @@ struct OwlCandidatePanelView: View {
   }
 
   /// 当前页那一行：候选 + 翻页点 + 展开箭头。卷轴与单行横排共用，唯一的区别是外面套的容器。
-  private func mainRow(geometry: OwlCandidatePanelGeometry) -> some View {
-    HStack(spacing: geometry.mainRow.spacing) {
-      ForEach(state.candidates) { candidate in
-        compactPill(candidate, geometry: geometry)
+  ///
+  /// `includesPager` 为 false 时行内只剩候选：卷轴把翻页点/展开箭头交给 `scrollStack`
+  /// 钉到面板右缘，主行的宽度于是只由候选决定，不再比前/后页行多出一截尾巴——那截尾巴
+  /// 既撑宽了面板，又让其余行右侧空出一大片。
+  private func mainRow(geometry: OwlCandidatePanelGeometry, includesPager: Bool = true) -> some View {
+    // 候选自成一层（`spacing` = 0，间隔全由 pill 内边给），翻页组隔着 `pagerSpacing`
+    // 跟在后面——两级 HStack 是为了让「候选之间」和「候选到翻页组」各走各的数。
+    HStack(spacing: geometry.mainRow.pagerSpacing) {
+      HStack(spacing: geometry.mainRow.spacing) {
+        ForEach(state.candidates) { candidate in
+          compactPill(candidate, geometry: geometry)
+        }
       }
-      // Feature 4: the paging-arrow group (divider + dots) is the only mouse-paging
-      // affordance; gate both on the 候选条翻页箭头 pref so they hide together.
-      if state.showPaging && (state.hasPrevPage || state.hasNextPage) {
-        Rectangle()
-          .fill(divider)
-          .frame(width: geometry.mainRow.dividerWidth, height: geometry.mainRow.dividerHeight)
-          .padding(.horizontal, geometry.mainRow.dividerHorizontalPadding)
-        pageDots(geometry: geometry.pageDots)
-      }
-      if showsExpandChevron {
-        expandChevron(geometry: geometry.expandChevron)
-          .padding(.leading, geometry.mainRow.expandChevronLeadingPadding)
-      }
+      if includesPager { pagerControls(geometry: geometry) }
     }
   }
 
-  // MARK: 卷轴（主行 + 后页行，按页对齐）
+  /// 翻页点 + 展开箭头。单行横排接在候选后面，卷轴钉在主行右缘——同一组控件，两种摆位。
+  /// 拆出来是为了让两处共用同一份门控与间距，行内摆放时与原来逐点等价（`@ViewBuilder`
+  /// 的 tuple 在 `HStack` 里会摊平，仍各自吃到 `mainRow.pagerSpacing`）。
+  @ViewBuilder private func pagerControls(geometry: OwlCandidatePanelGeometry) -> some View {
+    // Feature 4: the paging-arrow group (divider + dots) is the only mouse-paging
+    // affordance; gate both on the 候选条翻页箭头 pref so they hide together.
+    if state.showPaging && (state.hasPrevPage || state.hasNextPage) {
+      Rectangle()
+        .fill(divider)
+        .frame(width: geometry.mainRow.dividerWidth, height: geometry.mainRow.dividerHeight)
+        .padding(.horizontal, geometry.mainRow.dividerHorizontalPadding)
+      pageDots(geometry: geometry.pageDots)
+    }
+    if showsExpandChevron {
+      expandChevron(geometry: geometry.expandChevron)
+        .padding(.leading, geometry.mainRow.expandChevronLeadingPadding)
+    }
+  }
+
+  // MARK: 卷轴（主行 + 后页行，按页对齐：同宽序号槽 + 右缘翻页控件）
 
   /// 卷轴的行集合：主行（librime 当前页）与预取的前/后页行按**页号排序**合并——前页行
   /// （页号 = 主行 − 1）自然落在主行上方，后页行跟在下方。
@@ -301,41 +341,64 @@ struct OwlCandidatePanelView: View {
   private func scrollStack(geometry: OwlCandidatePanelGeometry) -> some View {
     VStack(alignment: .leading, spacing: geometry.scrollStack.spacing) {
       ForEach(scrollPages) { row in
-        scrollRow(row, geometry: geometry)
+        HStack(spacing: 0) {
+          scrollRow(row, geometry: geometry, includesPager: false)
+          if row.id == state.page {
+            // 翻页控件不参与行的自然宽度，被推到面板右缘；`minLength` 保住它与最后一个
+            // 候选之间的间距（与单行横排的 pagerSpacing + divider 内边同值）。
+            Spacer(minLength: geometry.mainRow.pagerSpacing)
+            HStack(spacing: geometry.mainRow.pagerSpacing) {
+              pagerControls(geometry: geometry)
+            }
+          }
+        }
+        // 每行都摊到栈宽（= 最宽那一行），右缘于是是一条共同的边，而不是各行各自的行尾。
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
     }
     .padding(.horizontal, geometry.scrollStack.inset)
     .padding(.vertical, geometry.scrollStack.inset)
   }
 
-  /// 一行 = 一整页。主行走 `mainRow`（带序号、可高亮、挂翻页点与展开箭头）；前/后页行
-  /// 只有候选文字（+码提示注释）、稍淡（0.75），点击走绝对下标。非主行**不带序号**是
-  /// 刻意的：数字键只选得中主行，给别的行编号会造出「看得到按不到」的假承诺。
+  /// 一行 = 一整页。主行走 `mainRow`（带序号、可高亮）；前/后页行只有候选文字（+码提示
+  /// 注释）、稍淡（0.75），点击走绝对下标。非主行**不画序号**是刻意的：数字键只选得中
+  /// 主行，给别的行编号会造出「看得到按不到」的假承诺——但序号的**宽度**要留（见
+  /// `scrollPill` 的空槽），否则主行每块都比别人宽出一个序号，列会逐格右移。
   @ViewBuilder private func scrollRow(
     _ row: OwlScrollRow,
-    geometry: OwlCandidatePanelGeometry
+    geometry: OwlCandidatePanelGeometry,
+    includesPager: Bool = true
   ) -> some View {
     if row.id == state.page {
-      mainRow(geometry: geometry)
+      mainRow(geometry: geometry, includesPager: includesPager)
     } else {
       HStack(spacing: geometry.scrollRow.spacing) {
         ForEach(row.candidates) { candidate in
-          scrollPill(candidate, geometry: geometry.scrollPill)
+          scrollPill(candidate, geometry: geometry.scrollPill, labelSlot: geometry.labelSlotWidth)
         }
       }
       .opacity(0.75)
     }
   }
 
-  /// 前/后页行的候选：候选文字 + 码提示注释（门控与主行同一条 `showsCompactComment`——
-  /// 信息密度跟主行一致，截图定案 2026-07-28），尺寸/内边距与 `compactPill` 逐项对齐
-  /// （同字号、同 5pt 字-注释间距、同 8/7 内边距），多行才读成一张网格；`.fixedSize()`
+  /// 前/后页行的候选：序号空槽 + 候选文字 + 码提示注释（门控与主行同一条
+  /// `showsCompactComment`——信息密度跟主行一致，截图定案 2026-07-28），尺寸/内边距与
+  /// `compactPill` 逐项对齐（同字号、同 5pt 字-注释间距、同 8/7 内边距）；`.fixedSize()`
   /// 保证绝不压缩截断。
+  ///
+  /// 「逐项对齐」原先漏了序号：主行每块多一个序号 + 5pt 间距（中档约 14pt），差值逐列
+  /// 累加，到第 5 列已错开约 70pt——多行于是读不成一张网格。补上同宽空槽后，每块的
+  /// 起手宽度两边相等，同长候选的各列就落在同一条线上。
   private func scrollPill(
     _ candidate: CandidateViewModel,
-    geometry: OwlCandidatePanelGeometry.ScrollPill
+    geometry: OwlCandidatePanelGeometry.ScrollPill,
+    labelSlot: CGFloat
   ) -> some View {
     HStack(spacing: geometry.contentSpacing) {
+      // 主行序号的空槽：只占宽、不画字（0 = 本次不显示序号，两侧都没有槽，照样对齐）。
+      if labelSlot > 0 {
+        Color.clear.frame(width: labelSlot, height: 0)
+      }
       Text(candidate.text)
         .font(state.candidateFont.font(size: geometry.candidateFontSize))
         .foregroundStyle(palette.ink)
@@ -380,10 +443,13 @@ struct OwlCandidatePanelView: View {
     return HStack(spacing: geometry.compactPill.contentSpacing) {
       // Feature 7: 仅候选 preset hides the序号/字母 label.
       if state.candidateFormat.showsLabel {
-        Text(candidate.label.isEmpty ? "\(candidate.id + 1)" : candidate.label)
+        Text(labelText(for: candidate))
           .font(.system(size: geometry.compactPill.secondaryFontSize, weight: .medium))
           .monospacedDigit()
           .foregroundStyle(selected ? palette.onAccent.opacity(0.85) : palette.ink2)
+          // 与前/后页行的空槽共用同一个宽度，列才不会因量算误差错开；数字右对齐成一条
+          // 数字沟（page_size ≤ 9 时全是等宽数字，观感与原来逐点一致）。
+          .frame(width: geometry.labelSlotWidth, alignment: .trailing)
       }
       Text(candidate.text)
         .font(state.candidateFont.font(size: geometry.compactPill.candidateFontSize))

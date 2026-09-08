@@ -466,6 +466,7 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
     let headerTop: CGFloat
     let headerBottom: CGFloat
     let rowSpacing: CGFloat
+    let pagerSpacing: CGFloat
     let pillHorizontal: CGFloat
     let pillVertical: CGFloat
     let chevronFont: CGFloat
@@ -476,19 +477,19 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
   private let expected: [Expected] = [
     Expected(size: .small, minimumWidth: 177, selectionInset: 4, selectionRadius: 9,
              headerSpacing: 7, headerLeading: 11, headerTrailing: 7, headerTop: 8, headerBottom: 4,
-             rowSpacing: 5, pillHorizontal: 7, pillVertical: 6,
+             rowSpacing: 0, pagerSpacing: 5, pillHorizontal: 7, pillVertical: 6,
              chevronFont: 11, chevronHitPadding: 3, collapseClearance: 22),
     Expected(size: .medium, minimumWidth: 210, selectionInset: 5, selectionRadius: 8,
              headerSpacing: 8, headerLeading: 13, headerTrailing: 8, headerTop: 9, headerBottom: 5,
-             rowSpacing: 6, pillHorizontal: 8, pillVertical: 7,
+             rowSpacing: 0, pagerSpacing: 6, pillHorizontal: 8, pillVertical: 7,
              chevronFont: 14, chevronHitPadding: 4, collapseClearance: 28),
     Expected(size: .large, minimumWidth: 254, selectionInset: 6, selectionRadius: 7,
              headerSpacing: 10, headerLeading: 16, headerTrailing: 10, headerTop: 11, headerBottom: 6,
-             rowSpacing: 7, pillHorizontal: 10, pillVertical: 8,
+             rowSpacing: 0, pagerSpacing: 7, pillHorizontal: 10, pillVertical: 8,
              chevronFont: 18, chevronHitPadding: 5, collapseClearance: 35),
     Expected(size: .extraLarge, minimumWidth: 298, selectionInset: 7, selectionRadius: 6,
              headerSpacing: 11, headerLeading: 18, headerTrailing: 11, headerTop: 13, headerBottom: 7,
-             rowSpacing: 9, pillHorizontal: 11, pillVertical: 10,
+             rowSpacing: 0, pagerSpacing: 9, pillHorizontal: 11, pillVertical: 10,
              chevronFont: 22, chevronHitPadding: 6, collapseClearance: 43),
   ]
 
@@ -512,6 +513,7 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
 
       XCTAssertEqual(geometry.compactRow.inset, want.selectionInset, want.size.rawValue)
       XCTAssertEqual(geometry.mainRow.spacing, want.rowSpacing, want.size.rawValue)
+      XCTAssertEqual(geometry.mainRow.pagerSpacing, want.pagerSpacing, want.size.rawValue)
       XCTAssertEqual(geometry.compactPill.candidateFontSize, want.size.base + 1, want.size.rawValue)
       XCTAssertEqual(geometry.compactPill.secondaryFontSize, want.size.base * 0.72, accuracy: 0.0001,
                      want.size.rawValue)
@@ -599,7 +601,8 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
       XCTAssertEqual(geometry.header.pieceSpacing, 0, size.rawValue)
       XCTAssertEqual(geometry.header.kerning, 0.4, size.rawValue)
       XCTAssertEqual(geometry.header.spacerMinimumLength, 2, size.rawValue)
-      XCTAssertEqual(geometry.header.delimiterHorizontalPadding, 2, size.rawValue)
+      XCTAssertEqual(geometry.header.delimiterHorizontalPadding, 0, size.rawValue)
+      XCTAssertEqual(geometry.verticalHeader.delimiterHorizontalPadding, 0, size.rawValue)
       XCTAssertEqual(geometry.header.caretHorizontalPadding, 0.5, size.rawValue)
       XCTAssertEqual(geometry.header.caret.cornerRadius, 1, size.rawValue)
       XCTAssertEqual(geometry.header.caret.width, 1.5, size.rawValue)
@@ -620,7 +623,6 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
     let listHorizontalPadding: [CGFloat] = [8, 9, 11, 13]
     let listVerticalPadding: [CGFloat] = [6, 7, 8, 10]
     let scrollStackSpacing: [CGFloat] = [4, 5, 6, 7]
-    let scrollRowSpacing: [CGFloat] = [5, 6, 7, 9]
     let collapseTopPadding: [CGFloat] = [2, 2, 2, 3]
 
     for (index, size) in OwlPanelFontSize.allCases.enumerated() {
@@ -654,7 +656,9 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
 
       XCTAssertEqual(geometry.scrollStack.spacing, scrollStackSpacing[index], size.rawValue)
       XCTAssertEqual(geometry.scrollStack.inset, geometry.selectionInset, size.rawValue)
-      XCTAssertEqual(geometry.scrollRow.spacing, scrollRowSpacing[index], size.rawValue)
+      // 卷轴前/后页行与主行是同一张网格的相邻行：候选间隔差一点点都会逐列累加成错位，
+      // 所以锁的是「与主行同值」这条不变式，而不是某个具体点数。
+      XCTAssertEqual(geometry.scrollRow.spacing, geometry.mainRow.spacing, size.rawValue)
       XCTAssertEqual(geometry.scrollPill.contentSpacing, geometry.compactPill.contentSpacing,
                      size.rawValue)
       XCTAssertEqual(geometry.scrollPill.candidateFontSize, geometry.compactPill.candidateFontSize,
@@ -665,6 +669,17 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
                      size.rawValue)
       XCTAssertEqual(geometry.scrollPill.verticalPadding, geometry.compactPill.verticalPadding,
                      size.rawValue)
+
+      // 序号槽是内容量出来的，不由字号解析：不传就是 0（= 本次不显示序号），传了原样带走。
+      // 主行的序号和前/后页行的空槽都读这一个数，列才不会因为两处各自量算而错开。
+      XCTAssertEqual(geometry.labelSlotWidth, 0, size.rawValue)
+      XCTAssertEqual(
+        OwlCandidatePanelGeometry(
+          candidateFontSize: size.base, panelCornerRadius: 13, labelSlotWidth: 12.5
+        ).labelSlotWidth,
+        12.5,
+        size.rawValue
+      )
     }
   }
 
@@ -700,5 +715,39 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
         - geometry.verticalList.collapseTrailingPadding - geometry.expandChevron.hitWidth
       XCTAssertEqual(gap, geometry.selectionInset, size.rawValue)
     }
+  }
+}
+
+/// 序号槽宽度（方案 A 的对齐地基）。卷轴的前/后页行留出与主行序号同宽的空槽，各行
+/// 候选文字才落在同一条左边界上；这里锁住那个宽度的取法。
+final class OwlCandidateLabelSlotTests: XCTestCase {
+  func testNoLabelsOrNoFontMeansNoSlot() {
+    // 「仅候选」预设下视图传空数组：两侧都没有槽，照样对齐。
+    XCTAssertEqual(OwlCandidateLabelSlot.width(labels: [], fontSize: 13.68), 0)
+    XCTAssertEqual(OwlCandidateLabelSlot.width(labels: ["1", "2"], fontSize: 0), 0)
+  }
+
+  func testSlotTakesTheWidestLabel() {
+    let digits = (1...8).map(String.init)
+    // page_size ≤ 9 的常态：全是等宽数字，一位数就定下了槽宽。
+    XCTAssertEqual(
+      OwlCandidateLabelSlot.width(labels: digits, fontSize: 13.68),
+      OwlCandidateLabelSlot.width(labels: ["8"], fontSize: 13.68)
+    )
+    // schema 自定义 select_labels 时按最宽的一个留，短的那些不会被挤出去。
+    XCTAssertGreaterThan(
+      OwlCandidateLabelSlot.width(labels: ["1", "wide"], fontSize: 13.68),
+      OwlCandidateLabelSlot.width(labels: ["1"], fontSize: 13.68)
+    )
+  }
+
+  func testSlotScalesWithFontSizeAndLandsOnWholePoints() {
+    let small = OwlCandidateLabelSlot.width(labels: ["8"], fontSize: 11.52)   // 小档 16 * 0.72
+    let large = OwlCandidateLabelSlot.width(labels: ["8"], fontSize: 19.44)   // 特大档 27 * 0.72
+    XCTAssertGreaterThan(small, 0)
+    XCTAssertGreaterThan(large, small)
+    // 向上取整到整点：半点宽度会让主行序号和空槽落在不同的像素边界上。
+    XCTAssertEqual(small, small.rounded(.up))
+    XCTAssertEqual(large, large.rounded(.up))
   }
 }
