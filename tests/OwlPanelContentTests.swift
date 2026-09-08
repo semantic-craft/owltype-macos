@@ -841,6 +841,23 @@ final class OwlScrollLayoutTests: XCTestCase {
     XCTAssertNil(hidden.frames["candidate-page-previous"])
   }
 
+  func testBeforeFirstPageMultilineKeepsControlsInline() throws {
+    let state = state()
+    state.page = 0
+    state.scrollRows = []
+    state.showPaging = true
+    state.hasNextPage = true
+    let multiline = try render(state)
+    state.isScroll = false
+    let compact = try render(state)
+    XCTAssertEqual(multiline.size.height, compact.size.height, accuracy: 0.5)
+    XCTAssertEqual(multiline.size.width, compact.size.width, accuracy: 0.5)
+    let next = try XCTUnwrap(multiline.frames["candidate-page-next"])
+    let candidate = try XCTUnwrap(multiline.frames["current-candidate-2"])
+    XCTAssertGreaterThanOrEqual(next.minX, candidate.maxX)
+    XCTAssertEqual(next.midY, candidate.midY, accuracy: 0.5)
+  }
+
   func testSingleCandidateWithoutControlsHasNoEmptyFooter() throws {
     let state = state()
     state.candidates = [CandidateViewModel(id: 0, label: "1", text: "中")]

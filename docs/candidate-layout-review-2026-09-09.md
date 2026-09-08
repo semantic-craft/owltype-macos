@@ -99,3 +99,8 @@ the three new layout tests against the original layout with the same accessibili
 identifiers produced the expected failures: second-column drift of 55–154pt across
 formats, and an 81pt width increase when paging controls were enabled. Restoring the
 fixed layout made all three tests pass. The synthetic rendered panel was also inspected.
+
+PR review follow-up: before the first page action, no preview rows exist. That state
+now uses the compact row including inline paging controls; the shared grid and footer
+are used only when preview rows are visible. A rendered-frame regression checks this
+with multiple candidates and an available next page, not just the no-controls case.

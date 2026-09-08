@@ -107,7 +107,7 @@ struct OwlCandidatePanelView: View {
       if showsHeader { header(geometry: geometry) }
       if showsFullList {
         verticalList(geometry: geometry)
-      } else if state.isScroll {
+      } else if state.isScroll && !state.visibleScrollRows.isEmpty {
         scrollStack(geometry: geometry)
       } else {
         compactRow(geometry: geometry)
