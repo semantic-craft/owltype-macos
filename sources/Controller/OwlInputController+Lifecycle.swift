@@ -53,7 +53,7 @@ extension OwlInputController {
 
   override func hidePalettes() {
     NSApp.owlAppDelegate.owlPanel?.hidePanel()
-    // 卷轴「翻页才展开」旗标的唯一复位点：commit、失焦、空 menu 的收尾全汇聚到这里，
+    // 多行「翻页才展开」旗标的唯一复位点：commit、失焦、空 menu 的收尾全汇聚到这里，
     // 下一次组字从单行重新开始（置位在 showPanel，见 OwlInputController+RimeUpdate）。
     scrollDidPage = false
     super.hidePalettes()

@@ -53,7 +53,7 @@ final class OwlInputController: IMKInputController {
   var inlinePreedit = false
   // seam: was private; internal so OwlInputController+RimeUpdate.swift can reach it across files.
   var inlineCandidate = false
-  // 卷轴的「本次组字翻过页」旗标（2026-07-28 翻页才展开）：showPanel 见 page > 0 时置位，
+  // 多行的「本次组字翻过页」旗标（2026-07-28 翻页才展开）：showPanel 见 page > 0 时置位，
   // 组字结束（空 menu 的 showPanel）复位。展开后整个组字期内保持——翻回第一页、追打字母
   // 都不收起；只有提交/清空才回到单行。只被 showPanel 读写，不在按键判定路径上。
   var scrollDidPage = false
@@ -178,7 +178,7 @@ final class OwlInputController: IMKInputController {
     return success
   }
 
-  /// Commit a candidate by its absolute index into the whole candidate list — the 卷轴后页行
+  /// Commit a candidate by its absolute index into the whole candidate list — the 多行后页行
   /// click path, where the clicked candidate is visible but not on librime's current page.
   func selectCandidateAbsolute(_ index: Int) -> Bool {
     guard let rime else { return false }

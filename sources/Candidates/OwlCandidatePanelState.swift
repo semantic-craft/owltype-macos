@@ -28,8 +28,8 @@ final class CandidatePanelState {
   var selStart: Int = 0
   var selEnd: Int = 0
   var candidates: [CandidateViewModel] = []
-  /// 卷轴的前/后页行：主行（`candidates` = librime 当前页）之外预取的整页——紧邻的前 1 页
-  /// + 后 1–4 页，视图按页号排序合并进同一列。空 = 单行（没翻过页 / 非卷轴方向 / 竖排
+  /// 多行的前/后页行：主行（`candidates` = librime 当前页）之外预取的整页——紧邻的前 1 页
+  /// + 后 1–4 页，视图按页号排序合并进同一列。空 = 单行（没翻过页 / 非多行方向 / 竖排
   /// ——控制器侧已按偏好与「翻页才展开」旗标门控，这里只消费数据）。
   var scrollRows: [OwlScrollRow] = []
   var highlightedIndex: Int = 0
@@ -37,7 +37,7 @@ final class CandidatePanelState {
   var hasPrevPage: Bool = false
   var hasNextPage: Bool = false
   var isVertical: Bool = false
-  /// 卷轴模式：主行 = 当前页，下方跟 `scrollRows`。仅当用户显式选 `.scroll` 排列方向时为真
+  /// 多行模式：主行 = 当前页，下方跟 `scrollRows`。仅当用户显式选 `.scroll` 排列方向时为真
   /// （`OwlPanelOrientation.scrolls`）。与 `isVertical` 互斥——竖排不叠加后页行；
   /// `isVertical` / `isExpanded` 为真时本值被忽略（走竖排/展开列表）。
   var isScroll: Bool = false
@@ -102,7 +102,7 @@ final class CandidatePanelState {
   }
 }
 
-/// 卷轴里的一整页候选（前页行或后页行）。`id` 取 librime 的**页号**，这是卷轴动画的关键：
+/// 多行里的一整页候选（前页行或后页行）。`id` 取 librime 的**页号**，这是多行动画的关键：
 /// 翻一页后行集合从 [p−1, p, p+1, …] 变成 [p, p+1, p+2, …]，页号不变的行保住 SwiftUI
 /// 身份、于是被动画成「上滚一行」，而不是整块闪替。
 ///

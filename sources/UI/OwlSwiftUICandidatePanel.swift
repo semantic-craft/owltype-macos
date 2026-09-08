@@ -131,8 +131,8 @@ struct OwlPanelContent: Equatable {
   let isVertical: Bool
   let schemaID: String
   let anchor: NSRect
-  /// 卷轴后页行：后 1–2 整页，控制器在 `showPanel` 里按偏好预取；空数组 = 不卷轴
-  /// （非卷轴方向 / 末页 / 竖排）。`var` + 默认值让既有构造点（含 B5 等式测试的逐字段
+  /// 多行后页行：后 1–2 整页，控制器在 `showPanel` 里按偏好预取；空数组 = 不多行
+  /// （非多行方向 / 末页 / 竖排）。`var` + 默认值让既有构造点（含 B5 等式测试的逐字段
   /// 构造）保持源兼容；数组相等自动并入 B5 去重签名。
   var scrollRows: [OwlScrollRow] = []
 
@@ -155,16 +155,16 @@ struct OwlPanelContent: Equatable {
   }
 }
 
-/// Pure gate + shaping for the 卷轴后页行。Lives beside `OwlPanelContent`（同一面板值层）
+/// Pure gate + shaping for the 多行后页行。Lives beside `OwlPanelContent`（同一面板值层）
 /// so the controller's `showPanel` stays a thin call site and the decision/chunking is
 /// unit-testable without IMK or librime.
 enum OwlScrollRowsPlan {
   /// Whether `showPanel` should peek at the next page(s) for this composition.
-  /// True only when: 选了卷轴、**本次组字翻过页**（翻页才展开，2026-07-28）、还有后页、
+  /// True only when: 选了多行、**本次组字翻过页**（翻页才展开，2026-07-28）、还有后页、
   /// 本页非空，且本次组字确实以横排渲染（竖排不叠加后页行——与视图侧的渲染分支一致）。
   ///
-  /// `.scroll` 的 `isVertical` 恒为 false，那条判断留着是为了将来若允许「自动+卷轴」组合时
-  /// 门控依旧正确，且与视图分支一一对应；现在它只对非卷轴方向起作用（那些已被首条挡掉）。
+  /// `.scroll` 的 `isVertical` 恒为 false，那条判断留着是为了将来若允许「自动+多行」组合时
+  /// 门控依旧正确，且与视图分支一一对应；现在它只对非多行方向起作用（那些已被首条挡掉）。
   static func wantsRows(settings: OwlCandidatePanelSettings.Snapshot,
                         didPage: Bool, lastPage: Bool,
                         candidateCount: Int, rimeVertical: Bool, schemaID: String) -> Bool {
@@ -177,7 +177,7 @@ enum OwlScrollRowsPlan {
 
   /// Whether `showPanel` should peek at the page BEFORE the current one（前页行）。
   /// 展开后主行上方保留紧邻的上一页（固定 1 行滑动窗口，不累积）——翻页时旧主行不再
-  /// 滚出消失，卷轴的「来路」还看得见。门控与 `wantsRows` 同构，差别只在方向：
+  /// 滚出消失，多行的「来路」还看得见。门控与 `wantsRows` 同构，差别只在方向：
   /// 前页看 `page > 0`（翻回第一页就没有前页），后页看 `!lastPage`。
   static func wantsPrevRow(settings: OwlCandidatePanelSettings.Snapshot,
                            didPage: Bool, page: Int,
@@ -193,7 +193,7 @@ enum OwlScrollRowsPlan {
   /// 序号/徽章——序号只属于主行，因为数字键只选得中主行（这正是「按页对齐」保住的语义）。
   ///
   /// `startPage` = 该段首页的页号（后页 = 主行页号 + 1，前页 = 主行页号 − 1）；行 id 取
-  /// 页号（卷轴动画的身份），候选 id 取**绝对下标**（`startPage * pageSize + …`），点击时
+  /// 页号（多行动画的身份），候选 id 取**绝对下标**（`startPage * pageSize + …`），点击时
   /// 直接喂给 `select_candidate`。
   static func rows(from peeked: [RimeCandidate], pageSize: Int, startPage: Int) -> [OwlScrollRow] {
     guard pageSize > 0 else { return [] }
@@ -230,7 +230,7 @@ final class OwlSwiftUICandidatePanel: NSPanel {
   /// chevron hit-testing in a non-activating panel.
   var onPage: ((Bool) -> Void)?
 
-  /// Called when a 卷轴后页行 candidate is clicked. Carries the candidate's **absolute** index
+  /// Called when a 多行后页行 candidate is clicked. Carries the candidate's **absolute** index
   /// into the whole candidate list (not a page offset), so the controller routes it through
   /// `select_candidate` instead of `select_candidate_on_current_page`. Mouse-only path —
   /// the keyboard hot path is untouched.
@@ -396,9 +396,8 @@ final class OwlSwiftUICandidatePanel: NSPanel {
     rimeVertical: Bool,
     schemaID: String
   ) {
-    // 每次组字都从「未展开」起（老的「默认形态 单行/卷轴」已并入排列方向，2026-07-22；注意
-    // 那个「卷轴」指的是默认展开成纵列，与本处的卷轴形态不是一回事）：竖排走 `isVertical`、
-    // 卷轴走 `isScroll`，横排/自动为紧凑单行；候选条右侧展开箭头仍可临时切成纵向列表。
+    // 每次组字都从未展开状态开始：竖排走 `isVertical`，多行走 `isScroll`。
+    // 候选区的展开箭头可临时切换为纵向列表。
     panelState.isExpanded = false
     OwlCandidatePanelSettings.live.apply(
       settings,

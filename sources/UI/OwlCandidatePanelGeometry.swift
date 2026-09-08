@@ -8,7 +8,7 @@ import CoreGraphics
 /// 候选窗一次解析后的完整 geometry。
 ///
 /// 视图只消费这里已经判定好的点数，不再分别决定某个值是否缩放。横排、竖排、临时展开
-/// 与卷轴都从同一个不可变值对象取得字号、留白、最小宽度和固定尺寸规则。
+/// 与多行都从同一个不可变值对象取得字号、留白、最小宽度和固定尺寸规则。
 struct OwlCandidatePanelGeometry: Equatable, Sendable {
   struct Panel: Equatable, Sendable {
     let spacing: CGFloat
@@ -35,6 +35,9 @@ struct OwlCandidatePanelGeometry: Equatable, Sendable {
     let pieceSpacing: CGFloat
     let kerning: CGFloat
     let spacerMinimumLength: CGFloat
+    /// 音节分隔点 `·` 左右**额外**的内边。0 是刻意的：`·` 的字身本来就带左右边空，
+    /// 中档 16pt 下整个字身宽 4.4pt ≈ 一个半角空格，已经是设计好的分隔量；再各加 2pt
+    /// 会让每个音节边界占到 8.4pt——正好是一个字母 `a` 的宽度，长拼音串于是整串发散。
     let delimiterHorizontalPadding: CGFloat
     let caretHorizontalPadding: CGFloat
     let leadingPadding: CGFloat
@@ -49,7 +52,16 @@ struct OwlCandidatePanelGeometry: Equatable, Sendable {
   }
 
   struct MainRow: Equatable, Sendable {
+    /// 候选**之间**的额外间隔。0 是刻意的：相邻候选之间已经隔着两份 `compactPill`
+    /// 的左右内边（中档 8 + 8 = 16pt，比候选字号的 0.8 倍还宽），再加 6pt 就凑成
+    /// 22pt——比一个汉字（中档 20pt）还宽，两个词之间塞得下第三个词。归零后相邻
+    /// 候选的点击区还连成一片，两块之间不再有点不中的死区。
     let spacing: CGFloat
+    /// 候选与**翻页控件组**（分隔线 + 翻页点 + 展开箭头）之间的间隔，以及该组内部的
+    /// 间隔。与 `spacing` 分开是因为两者量的是不同的东西：候选之间收紧不该顺带把翻页
+    /// 点和箭头也拽过来——那组控件各自还有自己的内边（`dividerHorizontalPadding` /
+    /// `pageDots.trailingPadding` / `expandChevronLeadingPadding`），本值只管组间距。
+    let pagerSpacing: CGFloat
     let dividerWidth: CGFloat
     let dividerHeight: CGFloat
     let dividerHorizontalPadding: CGFloat
@@ -125,6 +137,10 @@ struct OwlCandidatePanelGeometry: Equatable, Sendable {
 
   let panel: Panel
   let minimumWidth: CGFloat
+  /// 序号槽宽度：主行所有序号里最宽的一个（0 = 本次不显示序号）。主行的序号和多行
+  /// 前/后页行的空槽都按这**同一个**宽度摆放，各行候选文字于是落在同一条左边界上；
+  /// 两侧共用一个数，任何度量误差同时发生、不会让列错开。视图量出后交给这里解析。
+  let labelSlotWidth: CGFloat
   let selectionInset: CGFloat
   let selectionRadius: CGFloat
   let header: Header
@@ -148,12 +164,14 @@ struct OwlCandidatePanelGeometry: Equatable, Sendable {
     mainRow.expandChevronLeadingPadding + expandChevron.hitWidth
   }
 
-  init(candidateFontSize: CGFloat, panelCornerRadius: CGFloat) {
+  init(candidateFontSize: CGFloat, panelCornerRadius: CGFloat, labelSlotWidth: CGFloat = 0) {
     let resolve: (CGFloat) -> CGFloat = {
       ($0 * candidateFontSize / OwlPanelFontSize.medium.base).rounded()
     }
 
     let selectionInset = resolve(5)
+    /// 候选**之间**的额外间隔，主行与多行前/后页行共用（见 `MainRow.spacing`）。
+    let candidateSpacing: CGFloat = 0
     let pillContentSpacing = resolve(5)
     let pillHorizontalPadding = resolve(8)
     let pillVerticalPadding = resolve(7)
@@ -177,6 +195,7 @@ struct OwlCandidatePanelGeometry: Equatable, Sendable {
 
     panel = Panel(spacing: 0, cornerRadius: panelCornerRadius, strokeWidth: 1)
     minimumWidth = resolve(210)
+    self.labelSlotWidth = labelSlotWidth
     self.selectionInset = selectionInset
     selectionRadius = max(4, panelCornerRadius - selectionInset)
     header = Header(
@@ -185,7 +204,7 @@ struct OwlCandidatePanelGeometry: Equatable, Sendable {
       pieceSpacing: 0,
       kerning: 0.4,
       spacerMinimumLength: 2,
-      delimiterHorizontalPadding: 2,
+      delimiterHorizontalPadding: 0,
       caretHorizontalPadding: 0.5,
       leadingPadding: selectionInset + pillHorizontalPadding,
       trailingPadding: resolve(8),
@@ -199,7 +218,7 @@ struct OwlCandidatePanelGeometry: Equatable, Sendable {
       pieceSpacing: 0,
       kerning: 0.4,
       spacerMinimumLength: 2,
-      delimiterHorizontalPadding: 2,
+      delimiterHorizontalPadding: 0,
       caretHorizontalPadding: 0.5,
       leadingPadding: selectionInset + listHorizontalPadding,
       trailingPadding: resolve(8),
@@ -209,7 +228,8 @@ struct OwlCandidatePanelGeometry: Equatable, Sendable {
     )
     compactRow = CompactRow(inset: selectionInset)
     mainRow = MainRow(
-      spacing: resolve(6),
+      spacing: candidateSpacing,
+      pagerSpacing: resolve(6),
       dividerWidth: 1,
       dividerHeight: candidateFontSize * 0.9,
       dividerHorizontalPadding: resolve(5),
@@ -250,7 +270,10 @@ struct OwlCandidatePanelGeometry: Equatable, Sendable {
       spacing: resolve(5),
       inset: selectionInset
     )
-    scrollRow = ScrollRow(spacing: resolve(6))
+    // 多行前/后页行的候选间隔必须与主行**同值**：两者是同一张网格的相邻行，差一点点
+    // 都会逐列累加成肉眼可见的错位（差 6pt 时第 5 列已偏 24pt）。所以这里读同一个
+    // `candidateSpacing`，而不是各自 `resolve` 一遍。
+    scrollRow = ScrollRow(spacing: candidateSpacing)
     scrollPill = ScrollPill(
       contentSpacing: pillContentSpacing,
       candidateFontSize: candidateFontSize + 1,

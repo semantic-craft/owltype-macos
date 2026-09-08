@@ -36,7 +36,7 @@ final class OwlSettingsUITests: XCTestCase {
     ], in: app)
 
     openPage("appearance", in: app)
-    tapMany(["竖排", "圆体", "候选条动画", "卷轴"], in: app)
+    tapMany(["竖排", "圆体", "候选条动画", "多行"], in: app)
 
     openPage("quickSend", in: app)
     type("短语", text: "uitest", in: app)

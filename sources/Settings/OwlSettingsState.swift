@@ -150,7 +150,7 @@ final class OwlSettingsState {
   var panelShowNotificationsWhen = OwlCandidatePanelSettings.defaultShowNotificationsWhen
   /// 候选格式预设, owned by `OwlCandidatePanelSettings`. Feature 7.
   var panelCandidateFormat = OwlCandidatePanelSettings.defaultCandidateFormat
-  /// 卷轴后页行数, constrained and persisted by `OwlCandidatePanelSettings` (1–4).
+  /// 多行后页行数, constrained and persisted by `OwlCandidatePanelSettings` (1–4).
   var panelScrollRows = OwlCandidatePanelSettings.defaultScrollRows
   /// G8 候选个数 mirror of `OwlKeyboardPreferences.pageSize` (Rime menu/page_size).
   /// Unlike the panel mirrors, this flows through the keyboard patch + 应用配置改动.

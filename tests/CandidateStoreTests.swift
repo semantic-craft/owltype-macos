@@ -635,7 +635,7 @@ final class OwlCandidateDisplayTests: XCTestCase {
     XCTAssertFalse(settings.snapshot().animationsEnabled)
   }
 
-  /// 卷轴后页行数：默认 4（2026-07-28 截图定案），钳到 1...4（抵御手改 defaults 写出的
+  /// 多行后页行数：默认 4（2026-07-28 截图定案），钳到 1...4（抵御手改 defaults 写出的
   /// 越界值）；老用户存过的 1/2 落在新区间内原样生效。
   func testScrollRowsDefaultAndClamp() {
     let settings = OwlCandidatePanelSettings.live
@@ -659,7 +659,7 @@ final class OwlCandidateDisplayTests: XCTestCase {
     XCTAssertFalse(OwlPanelOrientation.auto.isVertical(rimeVertical: false))
     XCTAssertFalse(OwlPanelOrientation.horizontal.isVertical(rimeVertical: true))
     XCTAssertTrue(OwlPanelOrientation.vertical.isVertical(rimeVertical: false))
-    // 卷轴是横排的一种：`isVertical` 恒 false，`scrolls` 才是它与单行横排的区别。
+    // 多行是横排的一种：`isVertical` 恒 false，`scrolls` 才是它与单行横排的区别。
     XCTAssertFalse(OwlPanelOrientation.scroll.isVertical(rimeVertical: true))
     XCTAssertTrue(OwlPanelOrientation.scroll.scrolls)
     XCTAssertFalse(OwlPanelOrientation.horizontal.scrolls)

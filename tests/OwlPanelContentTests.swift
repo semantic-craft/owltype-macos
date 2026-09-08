@@ -18,6 +18,7 @@
 //
 
 import AppKit
+import SwiftUI
 import XCTest
 @testable import Owltype
 
@@ -259,7 +260,7 @@ final class OwlPanelContentTests: XCTestCase {
     XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
   }
 
-  // MARK: 卷轴后页行 → part of the dedup signature
+  // MARK: 多行后页行 → part of the dedup signature
 
   func testScrollRowsChangeIsUnequal() {
     // A page-peek refresh with identical current-page content must still re-render so the
@@ -326,7 +327,7 @@ final class OwlScrollRowsPlanTests: XCTestCase {
       rimeVertical: false, schemaID: ""))
   }
 
-  /// 翻页才展开（2026-07-28）：没翻过页的组字保持单行，即便选了卷轴、还有后页。
+  /// 翻页才展开（2026-07-28）：没翻过页的组字保持单行，即便选了多行、还有后页。
   func testNoPagingMeansNoRows() {
     XCTAssertFalse(OwlScrollRowsPlan.wantsRows(
       settings: snapshot(), didPage: false, lastPage: false, candidateCount: 5,
@@ -348,7 +349,7 @@ final class OwlScrollRowsPlanTests: XCTestCase {
       rimeVertical: false, schemaID: ""))
   }
 
-  /// 非卷轴的三个方向都不取数——卷轴是唯一带前/后页行的形态（「预览后页」开关已被它吸收）。
+  /// 非多行的三个方向都不取数——多行是唯一带前/后页行的形态（「预览后页」开关已被它吸收）。
   func testNonScrollOrientationsNeverFetch() {
     for orientation in [OwlPanelOrientation.auto, .horizontal, .vertical] {
       XCTAssertFalse(OwlScrollRowsPlan.wantsRows(
@@ -360,7 +361,7 @@ final class OwlScrollRowsPlanTests: XCTestCase {
     }
   }
 
-  /// 卷轴是横排的一种：即便 rime 方案自己要求竖排，选了卷轴仍按横排渲染并取数
+  /// 多行是横排的一种：即便 rime 方案自己要求竖排，选了多行仍按横排渲染并取数
   /// （`.scroll.isVertical` 恒为 false，与视图的渲染分支一致）。
   func testScrollIgnoresRimeVertical() {
     XCTAssertTrue(OwlScrollRowsPlan.wantsRows(
@@ -387,7 +388,7 @@ final class OwlScrollRowsPlanTests: XCTestCase {
     XCTAssertEqual(rows.map { $0.candidates.map(\.text) }, [["一", "二", "三"], ["四", "五", "六"]])
   }
 
-  /// 行 id = librime 页号。这是卷轴动画的身份来源：翻页后同一页号的行必须仍是同一行，
+  /// 行 id = librime 页号。这是多行动画的身份来源：翻页后同一页号的行必须仍是同一行，
   /// SwiftUI 才会把它动画成「上滚一格」而不是整块重建。
   func testRowIDIsThePageNumber() {
     let rows = OwlScrollRowsPlan.rows(
@@ -466,6 +467,7 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
     let headerTop: CGFloat
     let headerBottom: CGFloat
     let rowSpacing: CGFloat
+    let pagerSpacing: CGFloat
     let pillHorizontal: CGFloat
     let pillVertical: CGFloat
     let chevronFont: CGFloat
@@ -476,19 +478,19 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
   private let expected: [Expected] = [
     Expected(size: .small, minimumWidth: 177, selectionInset: 4, selectionRadius: 9,
              headerSpacing: 7, headerLeading: 11, headerTrailing: 7, headerTop: 8, headerBottom: 4,
-             rowSpacing: 5, pillHorizontal: 7, pillVertical: 6,
+             rowSpacing: 0, pagerSpacing: 5, pillHorizontal: 7, pillVertical: 6,
              chevronFont: 11, chevronHitPadding: 3, collapseClearance: 22),
     Expected(size: .medium, minimumWidth: 210, selectionInset: 5, selectionRadius: 8,
              headerSpacing: 8, headerLeading: 13, headerTrailing: 8, headerTop: 9, headerBottom: 5,
-             rowSpacing: 6, pillHorizontal: 8, pillVertical: 7,
+             rowSpacing: 0, pagerSpacing: 6, pillHorizontal: 8, pillVertical: 7,
              chevronFont: 14, chevronHitPadding: 4, collapseClearance: 28),
     Expected(size: .large, minimumWidth: 254, selectionInset: 6, selectionRadius: 7,
              headerSpacing: 10, headerLeading: 16, headerTrailing: 10, headerTop: 11, headerBottom: 6,
-             rowSpacing: 7, pillHorizontal: 10, pillVertical: 8,
+             rowSpacing: 0, pagerSpacing: 7, pillHorizontal: 10, pillVertical: 8,
              chevronFont: 18, chevronHitPadding: 5, collapseClearance: 35),
     Expected(size: .extraLarge, minimumWidth: 298, selectionInset: 7, selectionRadius: 6,
              headerSpacing: 11, headerLeading: 18, headerTrailing: 11, headerTop: 13, headerBottom: 7,
-             rowSpacing: 9, pillHorizontal: 11, pillVertical: 10,
+             rowSpacing: 0, pagerSpacing: 9, pillHorizontal: 11, pillVertical: 10,
              chevronFont: 22, chevronHitPadding: 6, collapseClearance: 43),
   ]
 
@@ -512,6 +514,7 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
 
       XCTAssertEqual(geometry.compactRow.inset, want.selectionInset, want.size.rawValue)
       XCTAssertEqual(geometry.mainRow.spacing, want.rowSpacing, want.size.rawValue)
+      XCTAssertEqual(geometry.mainRow.pagerSpacing, want.pagerSpacing, want.size.rawValue)
       XCTAssertEqual(geometry.compactPill.candidateFontSize, want.size.base + 1, want.size.rawValue)
       XCTAssertEqual(geometry.compactPill.secondaryFontSize, want.size.base * 0.72, accuracy: 0.0001,
                      want.size.rawValue)
@@ -599,7 +602,8 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
       XCTAssertEqual(geometry.header.pieceSpacing, 0, size.rawValue)
       XCTAssertEqual(geometry.header.kerning, 0.4, size.rawValue)
       XCTAssertEqual(geometry.header.spacerMinimumLength, 2, size.rawValue)
-      XCTAssertEqual(geometry.header.delimiterHorizontalPadding, 2, size.rawValue)
+      XCTAssertEqual(geometry.header.delimiterHorizontalPadding, 0, size.rawValue)
+      XCTAssertEqual(geometry.verticalHeader.delimiterHorizontalPadding, 0, size.rawValue)
       XCTAssertEqual(geometry.header.caretHorizontalPadding, 0.5, size.rawValue)
       XCTAssertEqual(geometry.header.caret.cornerRadius, 1, size.rawValue)
       XCTAssertEqual(geometry.header.caret.width, 1.5, size.rawValue)
@@ -620,7 +624,6 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
     let listHorizontalPadding: [CGFloat] = [8, 9, 11, 13]
     let listVerticalPadding: [CGFloat] = [6, 7, 8, 10]
     let scrollStackSpacing: [CGFloat] = [4, 5, 6, 7]
-    let scrollRowSpacing: [CGFloat] = [5, 6, 7, 9]
     let collapseTopPadding: [CGFloat] = [2, 2, 2, 3]
 
     for (index, size) in OwlPanelFontSize.allCases.enumerated() {
@@ -654,7 +657,9 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
 
       XCTAssertEqual(geometry.scrollStack.spacing, scrollStackSpacing[index], size.rawValue)
       XCTAssertEqual(geometry.scrollStack.inset, geometry.selectionInset, size.rawValue)
-      XCTAssertEqual(geometry.scrollRow.spacing, scrollRowSpacing[index], size.rawValue)
+      // 多行前/后页行与主行是同一张网格的相邻行：候选间隔差一点点都会逐列累加成错位，
+      // 所以锁的是「与主行同值」这条不变式，而不是某个具体点数。
+      XCTAssertEqual(geometry.scrollRow.spacing, geometry.mainRow.spacing, size.rawValue)
       XCTAssertEqual(geometry.scrollPill.contentSpacing, geometry.compactPill.contentSpacing,
                      size.rawValue)
       XCTAssertEqual(geometry.scrollPill.candidateFontSize, geometry.compactPill.candidateFontSize,
@@ -665,6 +670,17 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
                      size.rawValue)
       XCTAssertEqual(geometry.scrollPill.verticalPadding, geometry.compactPill.verticalPadding,
                      size.rawValue)
+
+      // 序号槽是内容量出来的，不由字号解析：不传就是 0（= 本次不显示序号），传了原样带走。
+      // 主行的序号和前/后页行的空槽都读这一个数，列才不会因为两处各自量算而错开。
+      XCTAssertEqual(geometry.labelSlotWidth, 0, size.rawValue)
+      XCTAssertEqual(
+        OwlCandidatePanelGeometry(
+          candidateFontSize: size.base, panelCornerRadius: 13, labelSlotWidth: 12.5
+        ).labelSlotWidth,
+        12.5,
+        size.rawValue
+      )
     }
   }
 
@@ -700,5 +716,157 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
         - geometry.verticalList.collapseTrailingPadding - geometry.expandChevron.hitWidth
       XCTAssertEqual(gap, geometry.selectionInset, size.rawValue)
     }
+  }
+}
+
+/// 序号槽宽度（方案 A 的对齐地基）。多行的前/后页行留出与主行序号同宽的空槽，各行
+/// 候选文字才落在同一条左边界上；这里锁住那个宽度的取法。
+final class OwlCandidateLabelSlotTests: XCTestCase {
+  func testNoLabelsOrNoFontMeansNoSlot() {
+    // 「仅候选」预设下视图传空数组：两侧都没有槽，照样对齐。
+    XCTAssertEqual(OwlCandidateLabelSlot.width(labels: [], fontSize: 13.68), 0)
+    XCTAssertEqual(OwlCandidateLabelSlot.width(labels: ["1", "2"], fontSize: 0), 0)
+  }
+
+  func testSlotTakesTheWidestLabel() {
+    let digits = (1...8).map(String.init)
+    // page_size ≤ 9 的常态：全是等宽数字，一位数就定下了槽宽。
+    XCTAssertEqual(
+      OwlCandidateLabelSlot.width(labels: digits, fontSize: 13.68),
+      OwlCandidateLabelSlot.width(labels: ["8"], fontSize: 13.68)
+    )
+    // schema 自定义 select_labels 时按最宽的一个留，短的那些不会被挤出去。
+    XCTAssertGreaterThan(
+      OwlCandidateLabelSlot.width(labels: ["1", "wide"], fontSize: 13.68),
+      OwlCandidateLabelSlot.width(labels: ["1"], fontSize: 13.68)
+    )
+  }
+
+  func testSlotScalesWithFontSizeAndLandsOnWholePoints() {
+    let small = OwlCandidateLabelSlot.width(labels: ["8"], fontSize: 11.52)   // 小档 16 * 0.72
+    let large = OwlCandidateLabelSlot.width(labels: ["8"], fontSize: 19.44)   // 特大档 27 * 0.72
+    XCTAssertGreaterThan(small, 0)
+    XCTAssertGreaterThan(large, small)
+    // 向上取整到整点：半点宽度会让主行序号和空槽落在不同的像素边界上。
+    XCTAssertEqual(small, small.rounded(.up))
+    XCTAssertEqual(large, large.rounded(.up))
+  }
+}
+
+/// Measure the actual SwiftUI accessibility frames, not a duplicate width formula.
+@MainActor
+final class OwlScrollLayoutTests: XCTestCase {
+  private func state() -> CandidatePanelState {
+    let state = CandidatePanelState()
+    state.isScroll = true
+    state.animationsEnabled = false
+    state.schemaID = "wubi86_jidian"
+    state.page = 1
+    state.candidates = [
+      CandidateViewModel(id: 0, label: "1", text: "中华人民共和国", provenance: .personal),
+      CandidateViewModel(id: 1, label: "2", text: "国"),
+      CandidateViewModel(id: 2, label: "3", text: "人")]
+    state.scrollRows = [
+      OwlScrollRow(id: 0, candidates: [
+        CandidateViewModel(id: 0, label: "", text: "中", comment: "abcdefghijklmnop"),
+        CandidateViewModel(id: 1, label: "", text: "民族")]),
+      OwlScrollRow(id: 2, candidates: [CandidateViewModel(id: 6, label: "", text: "末页最后一个候选")])]
+    return state
+  }
+
+  private struct Rendered {
+    let size: NSSize
+    let frames: [String: NSRect]
+  }
+
+  private func render(_ state: CandidatePanelState, snapshot: Bool = false) throws -> Rendered {
+    let host = NSHostingView(rootView: OwlCandidatePanelView(state: state, onSelect: { _ in }, onPage: { _ in }))
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 300),
+                          styleMask: [.borderless], backing: .buffered, defer: false)
+    window.contentView = host
+    window.setContentSize(host.fittingSize)
+    host.layoutSubtreeIfNeeded()
+    var frames: [String: NSRect] = [:]
+    for node in host.accessibilityChildren() ?? [] {
+      if let element = node as? NSAccessibilityElementProtocol,
+         let identifier = element.accessibilityIdentifier?() {
+        frames[identifier] = element.accessibilityFrame()
+      }
+    }
+    if snapshot {
+      let rep = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+      host.cacheDisplay(in: host.bounds, to: rep)
+      let png = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
+      try png.write(to: URL(fileURLWithPath: "/tmp/owltype-fixed-scroll.png"))
+    }
+    return Rendered(size: host.fittingSize, frames: frames)
+  }
+
+  func testMixedTextCommentsAndPartialPagesShareRenderedColumns() throws {
+    for format in OwlCandidateFormat.allCases {
+      let state = state()
+      state.candidateFormat = format
+      state.fontSize = format == .full ? OwlPanelFontSize.extraLarge.base : OwlPanelFontSize.medium.base
+      let result = try render(state)
+      let currentFirst = try XCTUnwrap(result.frames["current-candidate-0"])
+      let currentSecond = try XCTUnwrap(result.frames["current-candidate-1"])
+      let previousFirst = try XCTUnwrap(result.frames["scroll-candidate-0"])
+      let previousSecond = try XCTUnwrap(result.frames["scroll-candidate-1"])
+      let last = try XCTUnwrap(result.frames["scroll-candidate-6"])
+      XCTAssertGreaterThan(currentFirst.width, 0)
+      XCTAssertEqual(currentFirst.minX, previousFirst.minX, accuracy: 0.5, format.rawValue)
+      XCTAssertEqual(currentFirst.minX, last.minX, accuracy: 0.5, format.rawValue)
+      XCTAssertEqual(currentSecond.minX, previousSecond.minX, accuracy: 0.5, format.rawValue)
+      XCTAssertGreaterThanOrEqual(currentSecond.minX, max(currentFirst.maxX, previousFirst.maxX, last.maxX) - 0.5)
+      XCTAssertGreaterThan(previousFirst.minY, currentFirst.minY)
+      XCTAssertGreaterThan(currentFirst.minY, last.minY)
+    }
+  }
+
+  func testPagingControlsStayBelowCandidatesWithoutWideningGrid() throws {
+    let state = state()
+    state.showPaging = false
+    let hidden = try render(state)
+    state.showPaging = true
+    state.hasPrevPage = true
+    state.hasNextPage = true
+    let visible = try render(state, snapshot: true)
+    XCTAssertEqual(hidden.size.width, visible.size.width, accuracy: 0.5)
+    let next = try XCTUnwrap(visible.frames["candidate-page-next"])
+    let previous = try XCTUnwrap(visible.frames["candidate-page-previous"])
+    let last = try XCTUnwrap(visible.frames["scroll-candidate-6"])
+    XCTAssertGreaterThan(next.width, 0)
+    XCTAssertLessThanOrEqual(max(next.maxY, previous.maxY), last.minY)
+    XCTAssertNil(hidden.frames["candidate-page-next"])
+    XCTAssertNil(hidden.frames["candidate-page-previous"])
+  }
+
+  func testBeforeFirstPageMultilineKeepsControlsInline() throws {
+    let state = state()
+    state.page = 0
+    state.scrollRows = []
+    state.showPaging = true
+    state.hasNextPage = true
+    let multiline = try render(state)
+    state.isScroll = false
+    let compact = try render(state)
+    XCTAssertEqual(multiline.size.height, compact.size.height, accuracy: 0.5)
+    XCTAssertEqual(multiline.size.width, compact.size.width, accuracy: 0.5)
+    let next = try XCTUnwrap(multiline.frames["candidate-page-next"])
+    let candidate = try XCTUnwrap(multiline.frames["current-candidate-2"])
+    XCTAssertGreaterThanOrEqual(next.minX, candidate.maxX)
+    XCTAssertEqual(next.midY, candidate.midY, accuracy: 0.5)
+  }
+
+  func testSingleCandidateWithoutControlsHasNoEmptyFooter() throws {
+    let state = state()
+    state.candidates = [CandidateViewModel(id: 0, label: "1", text: "中")]
+    state.scrollRows = []
+    state.showPaging = false
+    let scroll = try render(state)
+    state.isScroll = false
+    let compact = try render(state)
+    XCTAssertEqual(scroll.size.height, compact.size.height, accuracy: 0.5)
+    XCTAssertEqual(scroll.size.width, compact.size.width, accuracy: 0.5)
   }
 }

@@ -413,7 +413,7 @@ extension OwlInputController {
 
   func showPanel(preedit: String, cursor: Int, selStart: Int, selEnd: Int, candidates: [String], comments: [String], labels: [String], highlighted: Int, page: Int, lastPage: Bool, pageSize: Int) {
     // print("[DEBUG] showPanelWithPreedit:...:")
-    // 卷轴「翻页才展开」旗标：page > 0 = 本次组字翻过页 → 置位。置位后组字期内保持
+    // 多行「翻页才展开」旗标：page > 0 = 本次组字翻过页 → 置位。置位后组字期内保持
     // （翻回第一页、追打字母都不收起）；复位在 hidePalettes()——commit、失焦、空 menu
     // 的收尾都汇聚到那里。放在 client guard 之前，别让 client 缺席漏记一次翻页。
     if page > 0, !candidates.isEmpty {
@@ -511,7 +511,7 @@ extension OwlInputController {
     let isVertical = rime?.option(.vertical) ?? false
     let candidatePanelSettings = OwlCandidatePanelSettings.live.snapshot()
 
-    // 卷轴（翻页才展开，2026-07-28）：本次组字翻过页后，预取紧邻的前 1 页 + 有界上限 4 个后页。
+    // 多行（翻页才展开，2026-07-28）：本次组字翻过页后，预取紧邻的前 1 页 + 有界上限 4 个后页。
     // 面板按 runtime snapshot 的 scrollRows 限制可见后页，因此设置从 1 调到 4 时无需再次触碰
     // Rime 就能即时揭示已经预取的行；默认仍是 4，取数上限没有扩大。
     // 没翻过页时保持单行——展开是翻页动作换来的。取数走 `peekCandidates`（librime
