@@ -67,16 +67,15 @@ enum OwlResponsesWire {
     return host.contains("volces") || host.contains("volcengine")
   }
 
-  /// Whether this routing belongs to DeepSeek's own API. Modelled on `isArk`, not `isQwen`: the
-  /// model stays a hard requirement, because DeepSeek's Responses API accepts exactly ONE model
-  /// today —— 官方《使用 Responses API》明写「目前仅支持 `deepseek-v4-flash`，暂不支持
-  /// `deepseek-v4-pro`，我们将于 2026 年 8 月初增加支持」。深度改写走的正是 pro，把它送上
-  /// `/responses` 只会换来 400，所以 pro 继续留在 chat completions；官方放开后撤掉这道闸即可。
-  ///
-  /// 前缀匹配而非等值：DeepSeek 在同一个型号名下滚版本（`deepseek-v4-flash` 现已是 -0731 版），
-  /// 万一日后出现带后缀的写法，不至于被这道闸误伤。
+  /// DeepSeek V4.1 Flash uses `deepseek-flash` on Responses as well as Chat.
+  /// Existing explicitly configured V4 Flash model names still reach the same wire.
+  static func supportsDeepSeekModel(_ model: String) -> Bool {
+    let name = model.lowercased()
+    return name == "deepseek-flash" || name.hasPrefix("deepseek-v4-flash")
+  }
+
   static func isDeepSeek(providerID: String, model: String, endpoint: URL) -> Bool {
-    guard model.lowercased().hasPrefix("deepseek-v4-flash") else { return false }
+    guard supportsDeepSeekModel(model) else { return false }
     if providerID.lowercased() == "deepseek" { return true }
     let host = endpoint.host?.lowercased() ?? ""
     return host.contains("deepseek")

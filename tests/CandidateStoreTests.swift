@@ -203,13 +203,13 @@ final class OwlCloudSharedBaseTests: XCTestCase {
   }
 
   func testDeepSeekModelDefaultsToV4AndCanonicalizesLegacyAliases() {
-    XCTAssertEqual(OwlCloudPreferences.deepSeekModel, "deepseek-v4-flash")
+    XCTAssertEqual(OwlCloudPreferences.deepSeekModel, "deepseek-flash")
 
     OwlCloudPreferences.deepSeekModel = "deepseek-reasoner"
     XCTAssertEqual(OwlCloudPreferences.deepSeekModel, "deepseek-v4-pro")
 
     OwlCloudPreferences.deepSeekModel = "deepseek-chat"
-    XCTAssertEqual(OwlCloudPreferences.deepSeekModel, "deepseek-v4-flash")
+    XCTAssertEqual(OwlCloudPreferences.deepSeekModel, "deepseek-flash")
   }
 
   func testDeepSeekStatusMessagesAreSpecific() {

@@ -52,10 +52,9 @@ enum OwlSearchControl {
   /// 百炼 routing searches on `/responses`. The old `model` parameter existed solely to route a
   /// 百炼-hosted non-Qwen model back to `.none`; that fallback is gone with the rest of 旧模式.
   ///
-  /// `model` 后来又回来了，但**不是**给百炼的：DeepSeek 的 `/responses` 目前只收
-  /// `deepseek-v4-flash`（官方注明 pro 2026 年 8 月初才支持），所以配着 pro 的 DeepSeek 档案
-  /// 不能搜——如实返回 `.none` 让顺位跳过它，比发出去换一个 400 强。默认空串 = 不知道型号时
-  /// 按"能搜"处理，与 `OwlResponsesWire.dialect` 的 providerID 优先口径一致。
+  /// Search capability is distinct from Responses generation support. V4.1 Flash ignores
+  /// built-in web_search tools, so its model must not enter the search-provider queue.
+  /// Older explicitly configured model routes keep their existing policy.
   static func transport(providerID: String, host: String, model: String = "") -> Transport {
     switch channel(providerID: providerID, host: host) {
     case .mimo:
@@ -65,7 +64,10 @@ enum OwlSearchControl {
     case .ark:
       return .responses(.ark)
     case .deepSeek:
+      // V4.1 Flash accepts Responses, but ignores built-in web_search tools.
+      // Do not mistake generation support for a usable search route.
       let m = model.lowercased()
+      if m == "deepseek-flash" { return .none }
       return m.isEmpty || m.hasPrefix("deepseek-v4-flash") ? .responses(.deepseek) : .none
     case .openAI:
       return .responses(.openAI)

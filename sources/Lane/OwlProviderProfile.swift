@@ -86,7 +86,7 @@ enum OwlLLMProviderCatalog {
       id: "qwen",
       displayName: "阿里云百炼",
       endpoint: qwenResponsesEndpoint,
-      model: "qwen3.7-plus",
+      model: "qwen3.8-flash",
       keyHint: "按量付费 sk-…；Token Plan 请改用 token-plan.cn-beijing.maas.aliyuncs.com",
       sourceSupport: .sourceResults,
       authHeaderStyle: .bearer
@@ -113,7 +113,7 @@ enum OwlLLMProviderCatalog {
       id: "deepseek",
       displayName: "DeepSeek",
       endpoint: "https://api.deepseek.com/v1/chat/completions",
-      model: "deepseek-v4-flash",
+      model: OwlCloudPreferences.defaultDeepSeekModel,
       keyHint: "sk-…",
       sourceSupport: .searchPlanOnly,
       authHeaderStyle: .bearer
@@ -131,7 +131,7 @@ enum OwlLLMProviderCatalog {
       id: "gemini",
       displayName: "Google Gemini",
       endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-      model: "gemini-3.5-flash-lite",
+      model: "gemini-3.8-flash",
       keyHint: "AIza…",
       sourceSupport: .searchPlanOnly,
       authHeaderStyle: .bearer
@@ -153,12 +153,9 @@ enum OwlLLMProviderCatalog {
   /// 型号会让人以为「只能用这个」。真正的全量清单靠设置页的「拉取最新」按钮从 `/models` 拉，这里
   /// 只兜住没联网/没拉取时的常用几个。
   ///
-  /// 只列产品正式支持的两档（2026-07-31 产品决定）：`qwen3.7-plus` 默认基线、`qwen3.7-max`
-  /// 高质量档，均取自阿里云模型总表。Flash 型号不再作为内置推荐或质量基线——想用的用户仍可
-  /// 手动输入或经「拉取最新」从 `/models` 选到，猫头鹰只是不替它背书。**没有**顺手补 qwen3.6-plus /
-  /// qwen3.6-max —— 模型总表里已经查不到任何 `qwen3.6-*` 条目，凭命名规律推出来的 id 塞进下拉，
-  /// 用户选中就是一个 400。
+  /// Qwen 3.8 Flash 为默认；保留已有 Plus/Max 选项供显式选择。
   static let qwenModels = [
+    "qwen3.8-flash",
     "qwen3.7-plus",
     "qwen3.7-max",
   ]
@@ -684,11 +681,11 @@ enum OwlProviderConnectivityCheck {
     } ?? { () -> OwlResponsesDialect? in
       // 没有端点可判时只剩 providerID。百炼整体是 Responses 供应商，不看型号；方舟与 DeepSeek
       // 仍看型号，与 `OwlResponsesWire.isArk` / `.isDeepSeek` 的口径一致（那边写了为何不对称，
-      // DeepSeek 那道型号闸是因为 `/responses` 目前只收 deepseek-v4-flash）。
+      // DeepSeek 的型号判断同时涵盖 V4.1 Flash 与已有的 V4 Flash 档案）。
       let id = providerID.lowercased()
       if id == "qwen" { return .qwen }
       if id == "doubao", model.lowercased().hasPrefix("doubao") { return .ark }
-      if id == "deepseek", model.lowercased().hasPrefix("deepseek-v4-flash") { return .deepseek }
+      if id == "deepseek", OwlResponsesWire.supportsDeepSeekModel(model) { return .deepseek }
       return nil
     }()
     if let dialect {
@@ -702,7 +699,8 @@ enum OwlProviderConnectivityCheck {
     var body: [String: Any] = [
       "model": model,
       "messages": [["role": "user", "content": "ping"]],
-      "max_tokens": 16,
+      // Gemini 3.8 cannot disable thinking; its token budget includes reasoning.
+      "max_tokens": model.lowercased() == "gemini-3.8-flash" ? 1024 : 16,
       "stream": false,
     ]
     body.merge(OwlThinkingControl.offBody(providerID: providerID, model: model)) { _, off in off }
