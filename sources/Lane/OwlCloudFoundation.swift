@@ -30,7 +30,7 @@ enum OwlCloudPreferences {
   private static let endpointKey = "OwlDeepSeekEndpoint"
 
   static let defaultDeepSeekEndpoint = URL(string: "https://api.deepseek.com/chat/completions")!
-  static let defaultDeepSeekModel = "deepseek-v4-flash"
+  static let defaultDeepSeekModel = "deepseek-flash"
   static let reasonerDeepSeekModel = "deepseek-v4-pro"
 
   /// Explicit per-request network timeout (seconds). Bounds worst-case degrade latency so a

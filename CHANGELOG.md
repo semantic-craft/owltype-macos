@@ -1,3 +1,11 @@
+<a name="2.0.7"></a>
+## 2.0.7 (2026-09-11)
+
+- 更新百炼默认模型为 Qwen 3.8 Flash（`qwen3.8-flash`），沿用 Responses 联网搜索与来源提取。
+- 更新默认模型为 DeepSeek V4.1 Flash（`deepseek-flash`）和 Gemini 3.8 Flash（`gemini-3.8-flash`）。
+- DeepSeek V4.1 Flash 的生成和连通性验证使用 Responses API；该型号不提供内置联网搜索，不进入搜索顺位。
+- 增加 Gemini 3.8 Flash 连通性验证的 token 预算，容纳模型思考输出。
+
 <a name="2.0.6"></a>
 ## 2.0.6 (2026-09-09)
 

@@ -485,7 +485,7 @@ struct OwlAIPage: View {
     case "deepseek":
       preset = [OwlCloudPreferences.defaultDeepSeekModel, OwlCloudPreferences.reasonerDeepSeekModel]
     case "qwen":
-      // 百炼一家给一串（3.7-plus 默认 + 3.7-max 高质量档），理由见 `OwlLLMProviderCatalog.qwenModels`。
+      // 默认 3.8 Flash，另提供 Plus/Max；型号清单由 catalog 统一维护。
       preset = OwlLLMProviderCatalog.qwenModels
     case OwlLLMProviderCatalog.customID:
       preset = []

@@ -785,7 +785,14 @@ final class OwlScrollLayoutTests: XCTestCase {
                           styleMask: [.borderless], backing: .buffered, defer: false)
     window.contentView = host
     window.setContentSize(host.fittingSize)
+    // SwiftUI publishes accessibility geometry only after the window is presented.
+    window.orderFront(nil)
+    defer { window.orderOut(nil) }
     host.layoutSubtreeIfNeeded()
+    let deadline = Date().addingTimeInterval(1)
+    while (host.accessibilityChildren() ?? []).isEmpty && Date() < deadline {
+      RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+    }
     var frames: [String: NSRect] = [:]
     for node in host.accessibilityChildren() ?? [] {
       if let element = node as? NSAccessibilityElementProtocol,

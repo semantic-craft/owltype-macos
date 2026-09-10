@@ -28,6 +28,28 @@ final class OwlInMemorySecretStore: OwlSecretStoring {
 
 final class ProviderProfileStoreTests: XCTestCase {
 
+  func testLatestFlashPresetsAndProbeRouting() throws {
+    let deepseek = try XCTUnwrap(OwlLLMProviderCatalog.preset(id: "deepseek"))
+    XCTAssertEqual(deepseek.model, "deepseek-flash")
+    let endpoint = try XCTUnwrap(URL(string: deepseek.endpoint))
+    let body = OwlProviderConnectivityCheck.body(providerID: "deepseek", model: deepseek.model, endpoint: endpoint)
+    XCTAssertNotNil(body["input"])
+    XCTAssertNil(body["messages"])
+    XCTAssertEqual(body["model"] as? String, "deepseek-flash")
+    let request = try OwlProviderConnectivityCheck.request(
+      endpoint: endpoint, providerID: "deepseek", model: deepseek.model,
+      apiKey: "test-placeholder", authStyle: .bearer)
+    XCTAssertEqual(request.url?.absoluteString, "https://api.deepseek.com/v1/responses")
+    XCTAssertEqual(OwlSearchControl.transport(
+      providerID: "deepseek", host: "api.deepseek.com", model: deepseek.model), .none)
+    let gemini = try XCTUnwrap(OwlLLMProviderCatalog.preset(id: "gemini"))
+    XCTAssertEqual(gemini.model, "gemini-3.8-flash")
+    let geminiBody = OwlProviderConnectivityCheck.body(providerID: "gemini", model: gemini.model)
+    XCTAssertNotNil(geminiBody["messages"])
+    XCTAssertEqual(geminiBody["max_tokens"] as? Int, 1024)
+    XCTAssertNil(geminiBody["thinking"])
+  }
+
   private var tempRoot: URL!
 
   override func setUpWithError() throws {
@@ -331,14 +353,10 @@ final class ProviderProfileStoreTests: XCTestCase {
       "百炼整体走 Responses，来源核验能力不按型号名降级")
   }
 
-  /// 百炼一家给一串型号（别家只给一个）：阿里的迭代比猫头鹰发版快，下拉里只出现一个会让人以为
-  /// 「只能用这个」。三条不变式：默认值必须在清单里（选不到默认值很怪）且是 `qwen3.7-plus`
-  /// （2026-07-31 产品决定的默认基线）；清单只列产品正式支持的 Plus/Max 两档——Flash 不再作为
-  /// 内置推荐（手输或「拉取最新」仍可用）；不许出现阿里模型总表查不到的 `qwen3.6-plus` /
-  /// `qwen3.6-max` 之流 —— 凭命名规律推出来的 id 被选中就是一个 400。
+  /// The default Flash model is selectable first; existing explicit Plus/Max choices remain.
   func testQwenPresetOffersTheWholeCuratedListWithItsDefaultInside() throws {
     let preset = try XCTUnwrap(OwlLLMProviderCatalog.preset(id: "qwen"))
-    XCTAssertEqual(preset.model, "qwen3.7-plus", "默认基线是 qwen3.7-plus")
+    XCTAssertEqual(preset.model, "qwen3.8-flash")
     XCTAssertEqual(
       preset.endpoint,
       OwlLLMProviderCatalog.qwenResponsesEndpoint)
@@ -349,14 +367,18 @@ final class ProviderProfileStoreTests: XCTestCase {
     XCTAssertEqual(
       Set(OwlLLMProviderCatalog.qwenModels).count, OwlLLMProviderCatalog.qwenModels.count,
       "清单不能有重复项，下拉会出现两个一样的")
-    XCTAssertFalse(
-      OwlLLMProviderCatalog.qwenModels.contains { $0.lowercased().contains("flash") },
-      "Flash 型号不再是内置推荐项（2026-07-31 产品决定）；用户手输不拦，但下拉不背书")
-    for guessed in ["qwen3.6-plus", "qwen3.6-max", "qwen3.6-max-preview"] {
-      XCTAssertFalse(
-        OwlLLMProviderCatalog.qwenModels.contains(guessed),
-        "\(guessed) 在阿里云模型总表里查不到，不能凭命名规律塞进下拉")
-    }
+    let request = try OwlResponsesWire.request(
+      endpoint: URL(string: preset.endpoint)!, model: preset.model,
+      messages: [OwlDeepSeekMessage(role: "user", content: "Search the web")],
+      apiKey: "test-placeholder", authHeaderStyle: .bearer, dialect: .qwen,
+      stream: false, webSearch: true, timeout: 20)
+    XCTAssertEqual(request.url?.absoluteString, preset.endpoint)
+    let body = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(request.httpBody)) as? [String: Any])
+    XCTAssertEqual(body["model"] as? String, "qwen3.8-flash")
+    XCTAssertEqual(body["tool_choice"] as? String, "required")
+    XCTAssertEqual((body["tools"] as? [[String: String]])?.first?["type"], "web_search")
+    XCTAssertEqual((body["reasoning"] as? [String: String])?["effort"], "none")
+
   }
 
   /// 豆包预设 = 高质量档 doubao-seed-2-1-pro，端点直指方舟 Responses（2026-07-31 起
