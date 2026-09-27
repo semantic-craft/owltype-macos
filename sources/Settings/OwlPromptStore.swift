@@ -79,56 +79,14 @@ enum OwlPromptError: LocalizedError, Equatable {
 /// （而非清空），让用户看到尚未填写的位置、不丢信息；而 `values` 里**存在**该名（哪怕值是空串）
 /// 则按其值替换。同名变量出现多次都会被替换。
 enum OwlPromptVariables {
-  // `.*?` 非贪婪、不跨行：变量名不应跨越换行。相邻 `{{a}}{{b}}` 会被拆成两个独立匹配。
-  private static let regex = try! NSRegularExpression(pattern: "\\{\\{(.*?)\\}\\}")
-
-  private struct Token {
-    let range: NSRange   // 整个 `{{...}}` 的范围
-    let name: String     // 去掉两端空白后的变量名（可能为空 → `{{}}`）
-  }
-
-  private static func tokens(in body: String) -> [Token] {
-    let ns = body as NSString
-    let full = NSRange(location: 0, length: ns.length)
-    return regex.matches(in: body, range: full).map { match in
-      let nameRange = match.range(at: 1)
-      let raw = nameRange.location == NSNotFound ? "" : ns.substring(with: nameRange)
-      return Token(range: match.range, name: raw.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-  }
-
-  /// 抽取 `body` 里所有 `{{名}}` 的名字，去重、保留首现顺序。空名占位符 `{{}}` 忽略。
   static func extract(from body: String) -> [String] {
-    var seen = Set<String>()
-    var out: [String] = []
-    for token in tokens(in: body) where !token.name.isEmpty {
-      if seen.insert(token.name).inserted { out.append(token.name) }
-    }
-    return out
+    OwlTemplateEngine.parse(body: body, syntax: .legacyDoubleBraces).parameters.map(\.name)
   }
 
-  /// 用 `values` 替换 `body` 里的 `{{名}}`。未填（或空名）占位符保留原文，见类型文档的「未填变量规则」。
   static func substitute(_ body: String, values: [String: String]) -> String {
-    let ns = body as NSString
-    var result = ""
-    var cursor = 0
-    for token in tokens(in: body) {
-      // 追加占位符之前的原文。
-      if token.range.location > cursor {
-        result += ns.substring(with: NSRange(location: cursor, length: token.range.location - cursor))
-      }
-      if !token.name.isEmpty, let value = values[token.name] {
-        result += value
-      } else {
-        // 未填 / 空名 → 保留原占位符文本。
-        result += ns.substring(with: token.range)
-      }
-      cursor = token.range.location + token.range.length
-    }
-    if cursor < ns.length {
-      result += ns.substring(from: cursor)
-    }
-    return result
+    let parsed = OwlTemplateEngine.parse(body: body, syntax: .legacyDoubleBraces)
+    let keyed = Dictionary(uniqueKeysWithValues: values.map { ("n:" + $0.key, $0.value) })
+    return OwlTemplateEngine.render(parsed, values: keyed).previewText
   }
 }
 
@@ -345,10 +303,8 @@ enum OwlPromptStore {
 enum OwlPromptCommitAction: Equatable {
   /// 不是提示词候选 —— 照常走正常 Rime 提交。
   case passThrough
-  /// 命中提示词、正文无 `{{变量}}` —— 直接把 `body` 插入光标处。
-  case insert(String)
-  /// 命中提示词、正文含 `{{变量}}` —— 弹填空 sheet，收集值后再插入。
-  case fillIn(OwlPromptEntry)
+  /// Preserve the selected entry snapshot; the shared invocation decides whether filling is needed.
+  case invoke(OwlPromptEntry)
 }
 
 /// 提交拦截的**纯决策**：给定源触发码（提交时 `rime.input()` 已清空，须取自前一合成 snapshot 的
@@ -369,7 +325,7 @@ func resolvePromptCommit(
   guard committedTitle.hasPrefix(OwlPromptStore.candidateMarker) else { return .passThrough }
   let title = OwlPromptStore.strippingMarker(committedTitle)
   guard let code, let entry = store.entry(forCode: code, title: title) else { return .passThrough }
-  return entry.variables.isEmpty ? .insert(entry.body) : .fillIn(entry)
+  return .invoke(entry)
 }
 
 /// 活提示词解析器：`PromptResolving` 注入端口的生产实现（镜像 `OwlSelectionPolishService` 之于

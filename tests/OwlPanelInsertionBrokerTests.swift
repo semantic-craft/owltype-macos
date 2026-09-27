@@ -1,64 +1,162 @@
-//
-//  OwlPanelInsertionBrokerTests.swift
-//  OwltypeTests — panel focus capture / restore choreography (C4)
-//
-//  Locks the shared broker the quick-send / prompt-fill panels use to hand focus back to the host
-//  before inserting: capture → restore-first → idempotent clear → drop (skip) → pasteboard fallback.
-//  Frontmost read + pasteboard write injected as spies, so no live NSWorkspace / NSPasteboard.
-//
-
 import XCTest
 @testable import Owltype
 
 final class OwlPanelInsertionBrokerTests: XCTestCase {
-
   func testRestoreFocusReactivatesCapturedHostOnce() {
-    var activateCount = 0
-    let broker = OwlPanelInsertionBroker(captureFrontmost: { { activateCount += 1 } },
-                                          pasteboardWrite: { _ in })
+    var activations = 0
+    let broker = OwlPanelInsertionBroker(captureFrontmost: {
+      .init(restore: { activations += 1 }, isRestored: { true })
+    }, pasteboardWrite: { _ in XCTFail("no copy"); return false })
     broker.capture()
     broker.restoreFocus()
-    XCTAssertEqual(activateCount, 1)
-    broker.restoreFocus()   // idempotent — the captured host was already cleared
-    XCTAssertEqual(activateCount, 1, "a second restore must not re-activate")
+    broker.restoreFocus()
+    XCTAssertEqual(activations, 1)
   }
 
   func testNoFrontmostMeansRestoreIsNoop() {
-    var activateCount = 0
-    let broker = OwlPanelInsertionBroker(captureFrontmost: { nil },   // nothing frontmost
-                                          pasteboardWrite: { _ in })
+    let broker = OwlPanelInsertionBroker(captureFrontmost: { nil })
     broker.capture()
     broker.restoreFocus()
-    XCTAssertEqual(activateCount, 0)
   }
 
   func testDropSkipsRestore() {
-    var activateCount = 0
-    let broker = OwlPanelInsertionBroker(captureFrontmost: { { activateCount += 1 } },
-                                          pasteboardWrite: { _ in })
+    var activations = 0
+    let broker = OwlPanelInsertionBroker(captureFrontmost: {
+      .init(restore: { activations += 1 }, isRestored: { true })
+    })
     broker.capture()
     broker.drop()
     broker.restoreFocus()
-    XCTAssertEqual(activateCount, 0, "drop() forgets the host so restore does nothing")
+    XCTAssertEqual(activations, 0)
   }
 
   func testDeliverRestoresBeforeInserting() {
     var events: [String] = []
-    let broker = OwlPanelInsertionBroker(captureFrontmost: { { events.append("restore") } },
-                                          pasteboardWrite: { _ in events.append("pasteboard") })
+    let broker = OwlPanelInsertionBroker(captureFrontmost: {
+      .init(restore: { events.append("restore") }, isRestored: { true })
+    }, pasteboardWrite: { _ in XCTFail("no copy"); return false })
     broker.capture()
-    broker.restoreAndDeliver("你好", host: { _ in events.append("host") })
-    XCTAssertEqual(events, ["restore", "host"], "focus must be restored before the host inserts")
+    broker.restoreAndDeliver(.init(text: "你好"), host: { result in
+      events.append(result.text); return .attemptedUnverified
+    }, isPending: { true }, completion: { XCTAssertEqual($0, .attemptedUnverified) })
+    XCTAssertEqual(events, ["restore", "你好"])
   }
 
-  func testDeliverFallsBackToPasteboardWithoutHost() {
-    var events: [String] = []
-    var pasted: String?
-    let broker = OwlPanelInsertionBroker(captureFrontmost: { { events.append("restore") } },
-                                          pasteboardWrite: { pasted = $0; events.append("pasteboard") })
-    broker.capture()
-    broker.restoreAndDeliver("SSRN", host: nil)
-    XCTAssertEqual(events, ["restore", "pasteboard"])
-    XCTAssertEqual(pasted, "SSRN")
+  func testNoHostRetainsTextWithoutAutomaticCopy() {
+    var copied: [String] = []
+    let invocation = OwlTemplateInvocation(content: .plainText("SSRN\n正文"),
+      broker: OwlPanelInsertionBroker(captureFrontmost: { nil }, pasteboardWrite: { copied.append($0); return true }), deliver: nil)
+    var presentations = 0
+    invocation.start { _ in presentations += 1 }
+    XCTAssertEqual(invocation.outcome, .notAttempted(.missingHost))
+    XCTAssertEqual(invocation.retainedResult?.text, "SSRN\n正文")
+    XCTAssertEqual(presentations, 1)
+    XCTAssertTrue(copied.isEmpty)
+    XCTAssertTrue(invocation.copyResult())
+    XCTAssertEqual(copied, ["SSRN\n正文"])
   }
+
+  func testPickerTransfersOriginalHostThroughFillWithoutRecapture() {
+    var events: [String] = []
+    var captures = 0
+    let picker = OwlPanelInsertionBroker(captureFrontmost: {
+      captures += 1
+      return .init(restore: { events.append("original host") }, isRestored: { true })
+    }, pasteboardWrite: { _ in XCTFail("must not copy"); return false })
+    picker.capture()
+    let invocation = OwlTemplateInvocation(
+      content: .prompt(OwlPromptEntry(code: "a", title: "A", body: "{{value}}")),
+      broker: picker.transferCapture(), deliver: { events.append($0.text); return .confirmed })
+    invocation.start { _ in events.append("fill shown") }
+    picker.restoreFocus()
+    XCTAssertEqual(events, ["fill shown"])
+    invocation.confirm(values: ["value": "final\ntext"])
+    XCTAssertEqual(events, ["fill shown", "original host", "final\ntext"])
+    XCTAssertEqual(captures, 1)
+  }
+
+  func testReentrantDeliveryCannotSubmitTwice() {
+    var count = 0
+    var invocation: OwlTemplateInvocation!
+    invocation = OwlTemplateInvocation(content: .plainText("text"),
+      broker: OwlPanelInsertionBroker(captureFrontmost: { nil }), deliver: { _ in
+        count += 1
+        XCTAssertFalse(invocation.confirm(values: [:]))
+        invocation.cancel(.windowClosed) // an in-progress write cannot be undone
+        return .attemptedUnverified
+      })
+    invocation.start { _ in }
+    XCTAssertEqual(count, 1)
+    XCTAssertEqual(invocation.outcome, .attemptedUnverified)
+  }
+
+  func testActivationRequestAloneDoesNotPermitInsertion() {
+    var writes = 0
+    let broker = OwlPanelInsertionBroker(captureFrontmost: {
+      .init(restore: {}, isRestored: { false })
+    }, pasteboardWrite: { _ in XCTFail("no copy"); return false }, schedule: { _, work in work() })
+    broker.capture()
+    let invocation = OwlTemplateInvocation(content: .plainText("retained"), broker: broker,
+      deliver: { _ in writes += 1; return .confirmed })
+    invocation.start { _ in }
+    XCTAssertEqual(writes, 0)
+    XCTAssertEqual(invocation.outcome, .notAttempted(.focusNotRestored))
+    XCTAssertEqual(invocation.retainedResult?.text, "retained")
+  }
+
+  func testCancelDuringRestorationPreventsLaterCallbackDelivery() {
+    var queue: [() -> Void] = []
+    var restored = false
+    var writes = 0
+    let broker = OwlPanelInsertionBroker(captureFrontmost: {
+      .init(restore: {}, isRestored: { restored })
+    }, schedule: { _, work in queue.append(work) })
+    broker.capture()
+    let invocation = OwlTemplateInvocation(content: .plainText("text"), broker: broker,
+      deliver: { _ in writes += 1; return .confirmed })
+    invocation.start { _ in XCTFail("cancelled restoration must not present") }
+    XCTAssertFalse(invocation.confirm(values: [:]))
+    invocation.cancel(.replaced, restoreFocus: false)
+    restored = true
+    queue.removeFirst()()
+    XCTAssertEqual(writes, 0)
+    XCTAssertEqual(invocation.state, .cancelled(.replaced))
+  }
+
+  func testRestorationRechecksTargetAndCanFinishOnlyOnce() {
+    var queue: [() -> Void] = []
+    var restored = false
+    var writes = 0
+    let broker = OwlPanelInsertionBroker(captureFrontmost: {
+      .init(restore: {}, isRestored: { restored })
+    }, schedule: { _, work in queue.append(work) })
+    broker.capture()
+    let invocation = OwlTemplateInvocation(content: .plainText("text"), broker: broker,
+      deliver: { _ in writes += 1; return .attemptedUnverified })
+    invocation.start { _ in }
+    XCTAssertEqual(writes, 0)
+    restored = true
+    let callback = queue.removeFirst()
+    callback()
+    callback()
+    XCTAssertEqual(writes, 1)
+    XCTAssertEqual(invocation.outcome, .attemptedUnverified)
+  }
+  func testAppActivationWaitsForOriginalFieldReadiness() {
+    var queue: [() -> Void] = []
+    var fieldReady = false
+    var writes = 0
+    let broker = OwlPanelInsertionBroker(captureFrontmost: {
+      .init(restore: {}, isRestored: { true })
+    }, schedule: { _, work in queue.append(work) })
+    broker.capture()
+    let invocation = OwlTemplateInvocation(content: .plainText("text"), broker: broker,
+      deliver: { _ in writes += 1; return .confirmed }, isHostReady: { fieldReady })
+    invocation.start { _ in XCTFail("no result until ready") }
+    XCTAssertEqual(writes, 0)
+    fieldReady = true
+    queue.removeFirst()()
+    XCTAssertEqual(writes, 1)
+  }
+
 }

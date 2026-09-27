@@ -75,7 +75,23 @@ final class OwlSettingsWindow: NSWindowController {
       onShowOnboarding: onShowOnboarding,
       onPanelPreferencesChanged: onPanelPreferencesChanged
     )
-    window?.contentView = NSHostingView(rootView: rootView)
+    // NavigationSplitView installs a native toolbar. Constrain the hosting surface to
+    // AppKit's actual content layout guide, which updates with toolbar/titlebar size;
+    // otherwise detail pages can start underneath the toolbar material.
+    if let window {
+      let container = NSView()
+      let hosting = NSHostingView(rootView: rootView)
+      hosting.translatesAutoresizingMaskIntoConstraints = false
+      window.contentView = container
+      container.addSubview(hosting)
+      let guide = (window.contentLayoutGuide as? NSLayoutGuide) ?? container.safeAreaLayoutGuide
+      NSLayoutConstraint.activate([
+        hosting.leadingAnchor.constraint(equalTo: guide.leadingAnchor),
+        hosting.trailingAnchor.constraint(equalTo: guide.trailingAnchor),
+        hosting.topAnchor.constraint(equalTo: guide.topAnchor),
+        hosting.bottomAnchor.constraint(equalTo: guide.bottomAnchor),
+      ])
+    }
 
     // LSUIElement apps have no main menu, so AppKit never translates ⌘C/⌘V/⌘X/⌘A
     // (and ⌘Z) into the standard `copy:`/`paste:`/… responder-chain actions — which

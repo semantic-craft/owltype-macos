@@ -327,4 +327,37 @@ final class ActivationPolicyTests: XCTestCase {
       XCTAssertTrue(OwlTISDiagnostics.actionText(for: code).contains("clean-dev.sh --apply"))
     }
   }
+
+  // MARK: - IMK endpoint ownership (2026-09-27: a build-dir copy squatted Owltype_Connection)
+
+  func testOnlyBundlesDirectlyInInputMethodsFoldersMayServeIMK() throws {
+    let home = FileManager.default.temporaryDirectory
+      .appending(component: "owl-imk-gate-\(UUID().uuidString)", directoryHint: .isDirectory)
+    let library = home.appending(component: "Library", directoryHint: .isDirectory)
+    defer { try? FileManager.default.removeItem(at: home) }
+    let installed: [URL] = [
+      URL(fileURLWithPath: "/Library/Input Methods/Owltype.app", isDirectory: true),
+      library.appending(components: "Input Methods", "Owltype.app", directoryHint: .isDirectory)
+    ]
+    for url in installed {
+      XCTAssertTrue(OwlApp.isInstalledInputMethodBundle(url, libraryDir: library), url.path)
+    }
+    let squatters: [URL] = [
+      URL(fileURLWithPath: "/opt/src/owltype-macos/build/Build/Products/Debug/Owltype.app", isDirectory: true),
+      URL(fileURLWithPath: "/Library/Input Methods/.disabled-backup/Owltype.app", isDirectory: true),
+      URL(fileURLWithPath: "/tmp/Input Methods/Owltype.app", isDirectory: true)
+    ]
+    for url in squatters {
+      XCTAssertFalse(OwlApp.isInstalledInputMethodBundle(url, libraryDir: library), url.path)
+    }
+
+    // A symlink placed in Input Methods that points at a build product is still the build product.
+    let inputMethods = library.appending(component: "Input Methods", directoryHint: .isDirectory)
+    let products = home.appending(components: "build", "Owltype.app", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: inputMethods, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: products, withIntermediateDirectories: true)
+    let link = inputMethods.appending(component: "Owltype.app", directoryHint: .isDirectory)
+    try FileManager.default.createSymbolicLink(at: link, withDestinationURL: products)
+    XCTAssertFalse(OwlApp.isInstalledInputMethodBundle(link, libraryDir: library))
+  }
 }

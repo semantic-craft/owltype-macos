@@ -1,66 +1,93 @@
-//
-//  OwlPanelInsertionBroker.swift
-//  猫头鹰输入法 (Owltype) — panel focus capture / restore
-//
-//  The non-activating picker panels (quick-send, prompt fill sheet) must hand focus back to the
-//  host document BEFORE inserting, and must NEVER call `NSApp.activate` (that deactivates Owltype and
-//  nils the IMK `client`, breaking insertion). This broker concentrates that choreography —
-//  capture the frontmost app on show, restore-first on pick, idempotent clear, drop-without-restore,
-//  pasteboard fallback — that was copy-pasted across those panels. The actual text insertion stays
-//  with the caller (the controller's captured-client path / `+ClientAction`); the broker delegates.
-//
-//  Boundary: focus + fallback only. The frontmost-app read and the pasteboard write are injected
-//  (defaults hit NSWorkspace / NSPasteboard) so capture→restore→deliver is unit-testable with spies.
-//
-
 import AppKit
 
-/// Produces the "restore focus" action for the captured frontmost app, or `nil` when there is none.
-/// The default reads `NSWorkspace.shared.frontmostApplication` and returns a thunk that reactivates
-/// it *weakly* — a quit host neither leaks nor is force-held (matching the panels' old `weak var`).
-/// Tests inject a spy that records activation.
-typealias OwlFrontmostCapture = () -> (() -> Void)?
-
+/// Application restoration is necessary but not sufficient: the delivery adapter separately
+/// validates the original field. No automatic clipboard fallback, key events or repeat delivery.
 final class OwlPanelInsertionBroker {
-  private let captureFrontmost: OwlFrontmostCapture
-  private let pasteboardWrite: (String) -> Void
-  private var restore: (() -> Void)?
+  struct FocusTarget {
+    let restore: () -> Void
+    let isRestored: () -> Bool
+  }
+  typealias Capture = () -> FocusTarget?
+  private let captureFrontmost: Capture
+  private let pasteboardWrite: (String) -> Bool
+  private let schedule: (TimeInterval, @escaping () -> Void) -> Void
+  private var target: FocusTarget?
+  private var captureAttempted = false
 
-  init(captureFrontmost: @escaping OwlFrontmostCapture = {
-         guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
-         return { [weak app] in app?.activate(options: []) }
-       },
-       pasteboardWrite: @escaping (String) -> Void = { text in
-         NSPasteboard.general.clearContents()
-         NSPasteboard.general.setString(text, forType: .string)
-       }) {
+  init(
+    captureFrontmost: @escaping Capture = {
+      guard let app = NSWorkspace.shared.frontmostApplication,
+            app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return nil }
+      return FocusTarget(restore: {
+        guard !app.isTerminated else { return }
+        app.activate(options: [])
+      }, isRestored: { !app.isTerminated && app.isActive })
+    },
+    pasteboardWrite: @escaping (String) -> Bool = { text in
+      NSPasteboard.general.clearContents()
+      return NSPasteboard.general.setString(text, forType: .string)
+    },
+    schedule: @escaping (TimeInterval, @escaping () -> Void) -> Void = { delay, action in
+      DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: action)
+    }
+  ) {
     self.captureFrontmost = captureFrontmost
     self.pasteboardWrite = pasteboardWrite
+    self.schedule = schedule
   }
 
-  /// Remember the app that is frontmost right now, so a later pick can hand focus back to it.
-  func capture() { restore = captureFrontmost() }
+  func capture() { captureAttempted = true; target = captureFrontmost() }
 
-  /// Reactivate the captured host and clear the reference. Idempotent (a following call is a no-op),
-  /// so a pick-then-hide can't double-activate. NEVER `NSApp.activate` — that nils the IMK client.
+  func transferCapture() -> OwlPanelInsertionBroker {
+    let next = OwlPanelInsertionBroker(captureFrontmost: captureFrontmost,
+      pasteboardWrite: pasteboardWrite, schedule: schedule)
+    next.target = target
+    next.captureAttempted = captureAttempted
+    drop()
+    return next
+  }
+
   func restoreFocus() {
-    restore?()
-    restore = nil
+    let captured = target
+    drop()
+    captured?.restore()
   }
 
-  /// Forget the captured host WITHOUT reactivating it (re-present case: another panel is about to
-  /// take over, so we neither restore focus nor leave a stale reference).
-  func drop() { restore = nil }
+  func drop() { target = nil; captureAttempted = false }
 
-  /// Restore host focus, then deliver `text`: through `host` (the caller's captured-client inserter)
-  /// when wired, else copy to the pasteboard. Restore always happens first so the insert lands in
-  /// the host field. Mirrors the panels' "restore → callback / fallback" order.
-  func restoreAndDeliver(_ text: String, host: ((String) -> Void)?) {
-    restoreFocus()
-    if let host {
-      host(text)
-    } else {
-      pasteboardWrite(text)
+  /// Only the explicit Copy Result action calls this method, after context has been frozen.
+  func copyResult(_ result: OwlTemplateInvocation.Result) -> Bool { pasteboardWrite(result.text) }
+
+  func restoreAndDeliver(_ result: OwlTemplateInvocation.Result,
+                         host: ((OwlTemplateInvocation.Result) -> OwlTemplateDeliveryOutcome)?,
+                         isHostReady: @escaping () -> Bool = { true },
+                         isPending: @escaping () -> Bool,
+                         completion: @escaping (OwlTemplateDeliveryOutcome) -> Void) {
+    let captured = target
+    let neededCapture = captureAttempted
+    drop()
+    guard let host else { completion(.notAttempted(.missingHost)); return }
+    guard !neededCapture || captured != nil else { completion(.notAttempted(.missingHost)); return }
+    // Direct active-session calls never opened a window and require no activation request.
+    guard let captured else {
+      if isPending() { completion(host(result)) }
+      return
+    }
+    guard isPending() else { return }
+    captured.restore()
+    awaitRestoration(captured, remaining: 12, isHostReady: isHostReady, isPending: isPending) { restored in
+      guard isPending() else { return }
+      completion(restored ? host(result) : .notAttempted(.focusNotRestored))
+    }
+  }
+
+  private func awaitRestoration(_ captured: FocusTarget, remaining: Int,
+                                isHostReady: @escaping () -> Bool, isPending: @escaping () -> Bool, completion: @escaping (Bool) -> Void) {
+    guard isPending() else { return }
+    if captured.isRestored() && isHostReady() { completion(true); return }
+    guard remaining > 0 else { completion(false); return }
+    schedule(0.025) { [self] in
+      awaitRestoration(captured, remaining: remaining - 1, isHostReady: isHostReady, isPending: isPending, completion: completion)
     }
   }
 }

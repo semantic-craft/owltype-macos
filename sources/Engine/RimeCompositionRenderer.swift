@@ -92,7 +92,7 @@ enum RimeCompositionRenderer {
     let preeditSelEndUTF16 = end.utf16Offset(in: preedit)
 
     if inlineCandidate {
-      var candidatePreview = composition.commitTextPreview ?? ""
+      var candidatePreview = OwlTemplateStore.candidateDisplay(composition.commitTextPreview ?? "")
       let endOfCandidatePreview = candidatePreview.endIndex
       if inlinePreedit {
         // 左移光標後的情形：

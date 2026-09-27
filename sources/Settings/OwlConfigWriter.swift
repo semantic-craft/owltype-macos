@@ -154,8 +154,11 @@ final class OwlConfigWriter {
   /// 目标 Rime 目录。可注入以便测试；默认 Owltype 自己的 user_data_dir。
   let rimeDir: URL
 
-  init(rimeDir: URL = OwlApp.userDir) {
+  private let writeCheckpoint: (String) throws -> Void
+
+  init(rimeDir: URL = OwlApp.userDir, writeCheckpoint: @escaping (String) throws -> Void = { _ in }) {
     self.rimeDir = rimeDir
+    self.writeCheckpoint = writeCheckpoint
   }
 
   // MARK: - 白名单（spec 写入层 / 回包 Q13）
@@ -172,6 +175,9 @@ final class OwlConfigWriter {
     "wubi86_jidian_trad_pinyin.custom.yaml",
     "owl_quick_send.json",      // 快捷短语 source of truth（text·code）
     "owl_quick_send.txt",       // 快捷短语派生 Rime 表（Owltype-owned, not user's custom_phrase.txt）
+    "owl_templates.json",
+    "owl_templates.txt",
+    "owl_templates_state.json",
     "owl_prompts.json",         // 提示词 source of truth（code·title·body·category）
     "owl_prompts.txt",          // 提示词派生 Rime 表（只含 📝title \t code \t score，正文不进表）
     "law_phrase.txt",            // 法律短码表
@@ -430,7 +436,7 @@ final class OwlConfigWriter {
     // manifest entry + force a redeploy every time. The rendered block is timestamp-free
     // (timestamp only names the backup dir), so `updated == original` whenever prefs are
     // unchanged and the bare keys are already stripped → skip all disk work.
-    guard updated != original else { return }
+    guard !updated.utf8.elementsEqual(original.utf8) else { return }
 
     let fm = FileManager.default
     let url = rimeDir.appendingPathComponent(fileName)
@@ -445,6 +451,7 @@ final class OwlConfigWriter {
     try OwlPrivateStorage.prepareDirectory(backupFile.deletingLastPathComponent(), fileManager: fm)
     try original.write(to: backupFile, atomically: true, encoding: .utf8)
     try OwlPrivateStorage.hardenFile(backupFile, fileManager: fm)
+    try writeCheckpoint("backup:" + fileName)
 
     // 3. 同目录 temp 写入，4. 原子替换。
     try OwlPrivateStorage.prepareDirectory(url.deletingLastPathComponent(), fileManager: fm)
@@ -457,6 +464,7 @@ final class OwlConfigWriter {
       try fm.moveItem(at: tmp, to: url)
     }
     try OwlPrivateStorage.hardenFile(url, fileManager: fm)
+    try writeCheckpoint("replaced:" + fileName)
 
     // 5. 追加 rollback manifest 条目。
     let entry = OwlRollbackEntry(
@@ -468,6 +476,7 @@ final class OwlConfigWriter {
       ts: timestamp
     )
     try appendManifest(entry)
+    try writeCheckpoint("manifest:" + fileName)
   }
 
   // MARK: - rollback（best-effort）

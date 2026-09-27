@@ -75,6 +75,21 @@ struct OwlApp {
     CommandLine.arguments.contains("--ui-test-show-settings")
   }
 
+  /// The IMK endpoint (`InputMethodConnectionName`) is first-come-first-served per login session.
+  /// A build-directory copy launched directly (Xcode Run, `open build/.../Owltype.app`) used to
+  /// claim it while the installed copy was restarting; the installed input method then failed
+  /// registration (`Operation not permitted`) and never received a key until the squatter quit
+  /// (2026-09-27: 73 minutes with no candidate window). Only a bundle that sits directly in an
+  /// Input Methods folder may serve IMK or start Rime against the real user data.
+  static func isInstalledInputMethodBundle(_ bundleURL: URL, libraryDir: URL = libraryDir) -> Bool {
+    let parent = bundleURL.resolvingSymlinksInPath().standardizedFileURL.deletingLastPathComponent().path
+    let roots = [URL(fileURLWithPath: "/Library", isDirectory: true), libraryDir].map {
+      $0.appending(component: "Input Methods", directoryHint: .isDirectory)
+        .resolvingSymlinksInPath().standardizedFileURL.path
+    }
+    return roots.contains(parent)
+  }
+
   /// Builder traits for `--build`. Must carry the SAME directory triple as the main launch
   /// path (setupRime): librime resolves every unset directory trait against the process cwd,
   /// so an app_name-only traits struct made `Owltype --build` scatter installation.yaml + build/
@@ -262,7 +277,15 @@ struct OwlApp {
       let uiTestSettings = isShowingSettingsForUITests
       // find the bundle identifier and then initialize the input method server
       let main = Bundle.main
-      if !runningUnitTests {
+      if !runningUnitTests && !uiTestSettings && !isInstalledInputMethodBundle(main.bundleURL) {
+        let message = "Owltype: refusing to run as an input method from \(main.bundlePath) — only copies in "
+          + "/Library/Input Methods or ~/Library/Input Methods may claim the IMK connection. Install with "
+          + "`make install-debug` or scripts/install-dev.sh; use --ui-test-show-settings for the settings UI."
+        print(message)
+        Logger(subsystem: "im.owltype.inputmethod.Owltype", category: "launch").error("\(message, privacy: .public)")
+        exit(EX_CONFIG)
+      }
+      if !runningUnitTests && !uiTestSettings {
         let connectionName = main.object(forInfoDictionaryKey: "InputMethodConnectionName") as! String
         inputMethodServer = IMKServer(name: connectionName, bundleIdentifier: main.bundleIdentifier!)
       }

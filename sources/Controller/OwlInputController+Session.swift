@@ -158,6 +158,7 @@ extension OwlInputController {
   }
 
   func destroySession() {
+    finishAutomaticExpansion(replaySemicolon: false)
     // print("[DEBUG] destroySession:")
     rime?.destroy()
     rime = nil
@@ -262,6 +263,7 @@ extension OwlInputController {
   @discardableResult
   func switchLiveSessionSchema(to id: String) -> SchemaSwitchResult {
     guard !id.isEmpty, let rime, rime.isValid else { return .noLiveSession }
+    finishAutomaticExpansion(replaySemicolon: false)
     let selected = rime.selectSchema(id)   // re-reads build/<id>.schema.yaml in place; clears composition
     knownFailedSchemaID = OwlSchemaSelectionGate.markerAfterAttempt(preferred: id, selected: selected)
     if selected {

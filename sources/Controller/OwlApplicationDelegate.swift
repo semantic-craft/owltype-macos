@@ -330,23 +330,19 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   /// The floating quick-phrase panel, created lazily on first open.
   private var owlQuickSendPanel: OwlQuickSendPanel?
 
-  /// Show the 短语/提示词 panel. `onPickPhrase` / `onPickPrompt` are where a chosen 短语 / 提示词 goes —
-  /// from the input menu the controller passes closures that insert at the cursor via the client it
-  /// captured up-front; without a document client the 短语 path falls back to copying to the
-  /// pasteboard. Both are re-assigned on every show so the reused singleton always targets the latest
-  /// trigger.
+  /// The controller binds this adapter to its original IMK client. The picker transfers its
+  /// captured focus to the selected invocation, including when a fill window follows.
   func showQuickSendPanel(
-    onPickPhrase: ((String) -> Void)? = nil,
-    onPickPrompt: ((OwlPromptEntry) -> Void)? = nil,
+    onInvoke: ((OwlTemplateInvocation.Content, OwlPanelInsertionBroker, OwlTemplateInvocation.Intent) -> Void)? = nil,
     initialSegment: OwlPickerSegment = .phrase
   ) {
     let trace = OwlLatencyTrace.begin("window.open.quickSend")
     defer { OwlLatencyTrace.end("window.open.quickSend", trace) }
+    OwlPromptFillSheet.shared.dismissForNewInvocation()
     let panel = owlQuickSendPanel ?? OwlQuickSendPanel()
     owlQuickSendPanel = panel
     OwlLatencyTrace.event("window.quickSend.controllerSelected")
-    panel.phrasePickHandler = onPickPhrase
-    panel.promptPickHandler = onPickPrompt
+    panel.invocationHandler = onInvoke
     panel.showPanel(initialSegment: initialSegment)
     OwlLatencyTrace.event("window.quickSend.firstVisible")
   }
@@ -727,7 +723,12 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       createDirIfNotExist(path: OwlApp.userDir)
     }
     createDirIfNotExist(path: OwlApp.logDir)
-    seedUserDirIfNeeded()
+    // Recover before any seed/managed patch can change the shared rollback manifest.
+    // Failure leaves originals and the durable journal intact; the settings route exposes retry.
+    var templateRecoveryReady = true
+    do { try OwlTemplateMigration(rimeDir: OwlApp.userDir).recoverIfNeeded() }
+    catch { templateRecoveryReady = false }
+    if templateRecoveryReady { seedUserDirIfNeeded() }
     // Bug fix: the seeded `default.custom.yaml` is bare (schema_list + page_size only) and the
     // Owltype managed keyboard blocks (both Shift_L AND Shift_R = commit_code, key_binder paging/
     // select, punctuator, switcher/save_options) used to be written ONLY when the user round-tripped
@@ -737,15 +738,21 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     // Main.swift / deploy()) — so the first `start_maintenance` compiles them into build/. The
     // managed blocks are marker-delimited, so this is idempotent and runs cheaply on every launch
     // (not gated by the seed marker), which also fixes existing upgraders.
-    _ = try? OwlManagedKeyboardPatchPlan.apply(snapshot: OwlKeyboardSnapshot.current())
+    if templateRecoveryReady {
+      // Only valid, conflict-free raw data is migrated automatically. Never replay a tolerant
+      // legacy loader into its source JSON before this audit.
+      _ = try? OwlTemplateMigration(rimeDir: OwlApp.userDir).runAutomatically()
+      if !OwlTemplateMigration.hasPendingRecovery(rimeDir: OwlApp.userDir) {
+        _ = try? OwlManagedKeyboardPatchPlan.apply(snapshot: OwlKeyboardSnapshot.current())
+      }
+    }
+    // Bind the committed template directory after migration/recovery. reload closes the
+    // in-memory index on unavailable/legacy state; UI tests use the isolated defaults source.
+    _ = try? OwlAutomaticExpansionRuntime.shared.reload(rimeDir: OwlApp.userDir, defaults: OwlDefaults.standard)
     // B1: one-shot, idempotent migration of a legacy single-DeepSeek setup into a default provider
     // profile. No-op on a fresh install (no legacy key) or once a profile already exists. Off the
     // IMK hot path — runs only here at app launch.
     OwlProviderMigration.migrateLegacyDeepSeekIfNeeded()
-    // 快捷短语派生物迁移（同上键盘托管块的启动期幂等重写）：1.5.2 改了短语码格式（` 前缀 +
-    // 关前缀补全），但派生表/patch 只在设置页保存时重写——存量用户不重新保存就永远吃旧格式，
-    // 打一个 y 仍弹 CLI 短语。在初次 deploy 前重放 save()，内容一致时零写入。
-    OwlQuickSendStore.migrateDerivedArtifactsIfNeeded()
     // swiftlint:disable identifier_name
     let notification_handler: RimeNotificationHandler = notificationHandler
     let context_object = Unmanaged.passUnretained(self).toOpaque()
@@ -804,11 +811,14 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   }
 
   @discardableResult
-  func startRime(fullCheck: Bool) -> Bool {
+  func startRime(fullCheck: Bool, migrationDirectory: URL = OwlApp.userDir) -> Bool {
     let trace = OwlLatencyTrace.begin("deploy.startRime")
     defer { OwlLatencyTrace.end("deploy.startRime", trace) }
     print("Initializing la rime...")
+    // Always bring the engine up: returning before initialize left every session dead, and
+    // deploy() had already called shutdownRime — one unfinished migration meant no input at all.
     engine.initialize(nil)
+    guard !templateRecoveryBlocksDeployment(migrationDirectory) else { return false }
     // check for configuration updates
     let maintained = engine.startMaintenance(fullCheck: fullCheck)
     if maintained {
@@ -829,6 +839,15 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       Self.deployLog.error("start_maintenance failed (fullCheck=\(fullCheck, privacy: .public)) — installation_update/detect_modifications refused; see rime glog in \(OwlApp.logDir.path, privacy: .public)")
       return false
     }
+  }
+
+  /// While a template migration journal is unresolved, its target files (template dict,
+  /// rime_ice.custom.yaml, …) may be half-written. Typing keeps running on the last compiled
+  /// `build/`; only recompiling from those sources waits until recovery succeeds.
+  func templateRecoveryBlocksDeployment(_ directory: URL = OwlApp.userDir) -> Bool {
+    guard OwlTemplateMigration.hasPendingRecovery(rimeDir: directory) else { return false }
+    Self.deployLog.error("template migration recovery pending — skipped Rime deployment, serving the last build")
+    return true
   }
 
   /// `self.config` 可用性判据（2026-07-12 B1/B2）：打得开且非空壳。实测 `config_open("owltype")`

@@ -8,7 +8,7 @@
 //  the pure `OwlPromptStore.matchEntry` / `strippingMarker`. This locks:
 //    1. The cheap 📝 gate: an unmarked commit returns `.passThrough` WITHOUT a store lookup, so
 //       ordinary pinyin commits never read owl_prompts.json.
-//    2. The marked branches: no-variable prompt → `.insert(body)`; `{{变量}}` prompt → `.fillIn`.
+//    2. The marked branches: both prompt forms → `.invoke(entry)` preserving the exact selected version.
 //    3. A marked-but-unknown title (store miss) → `.passThrough`.
 //    4. `matchEntry`: (code, title) double match, the collision-proof `v{code}` tolerance, exact
 //       precedence, and the title/code/empty miss cases.
@@ -43,7 +43,7 @@ final class OwlPromptInterceptionTests: XCTestCase {
   func testMarkedPromptWithoutVariablesInserts() {
     let store = FakePromptStore(entries: [entry("hetong", "合同审查", "请审查合同正文。")])
     let action = resolvePromptCommit(code: "hetong", committedTitle: marker + "合同审查", store: store)
-    XCTAssertEqual(action, .insert("请审查合同正文。"))
+    XCTAssertEqual(action, .invoke(entry("hetong", "合同审查", "请审查合同正文。")))
     XCTAssertEqual(store.queries.count, 1)
     XCTAssertEqual(store.queries.first?.title, "合同审查", "marker must be stripped before lookup")
   }
@@ -52,7 +52,7 @@ final class OwlPromptInterceptionTests: XCTestCase {
     let prompt = entry("fanyi", "翻译", "把下面译成{{语言}}：{{原文}}")
     let store = FakePromptStore(entries: [prompt])
     let action = resolvePromptCommit(code: "fanyi", committedTitle: marker + "翻译", store: store)
-    XCTAssertEqual(action, .fillIn(prompt))
+    XCTAssertEqual(action, .invoke(prompt))
   }
 
   func testMarkedButUnknownTitlePassesThrough() {
@@ -68,6 +68,88 @@ final class OwlPromptInterceptionTests: XCTestCase {
     let action = resolvePromptCommit(code: nil, committedTitle: marker + "合同审查", store: store)
     XCTAssertEqual(action, .passThrough)
     XCTAssertTrue(store.queries.isEmpty, "no originating code → no lookup")
+  }
+
+  // MARK: - Shared invocation (real parser and fill model, synthetic host)
+
+  func testResolvedCandidateAndSelectedEntryHaveSameInvocationSemantics() {
+    for body in ["  多行\n\t正文🙂  ", "{{语言}}: {{原文}} / {{语言}}"] {
+      let selected = entry("sample", "模板", body)
+      let store = FakePromptStore(entries: [selected])
+      guard case .invoke(let candidate) = resolvePromptCommit(
+        code: "sample", committedTitle: marker + selected.title, store: store
+      ) else { return XCTFail("candidate must enter the shared invocation") }
+      for content in [OwlTemplateInvocation.Content.prompt(selected), .prompt(candidate)] {
+        var events: [String] = []
+        let broker = OwlPanelInsertionBroker(captureFrontmost: { .init(restore: { events.append("restore original") }, isRestored: { true }) },
+                                            pasteboardWrite: { _ in XCTFail("must not copy"); return false })
+        broker.capture()
+        let invocation = OwlTemplateInvocation(content: content, broker: broker,
+                                               deliver: { events.append($0.text); return .confirmed })
+        var fill: OwlPromptFillModel?
+        invocation.start { fill = OwlPromptFillModel(entry: selected, invocation: $0) }
+        if let fill {
+          XCTAssertEqual(fill.variables, ["语言", "原文"])
+          fill.values = ["语言": "中文", "原文": "🙂\n第二行"]
+          let preview = fill.filledBody
+          invocation.confirm(values: fill.values)
+          XCTAssertEqual(events, ["restore original", preview])
+          XCTAssertEqual(preview, "中文: 🙂\n第二行 / 中文")
+        } else {
+          XCTAssertEqual(events, ["restore original", body])
+        }
+        // Repeated confirmation and cancellation cannot deliver a second time.
+        invocation.confirm(values: ["语言": "different"])
+        invocation.cancel(.windowClosed)
+        XCTAssertEqual(events.count, 2)
+        XCTAssertEqual(invocation.content, .prompt(selected))
+      }
+    }
+  }
+
+  func testPlainTextDoesNotInterpretBracesOrNormalizeWhitespace() {
+    let text = "  {{原样}}\n\t{clipboard}🙂  "
+    var output: [String] = []
+    let broker = OwlPanelInsertionBroker(captureFrontmost: { nil }, pasteboardWrite: { _ in XCTFail("direct insertion must not touch clipboard"); return false })
+    let invocation = OwlTemplateInvocation(content: .plainText(text), broker: broker,
+                                           deliver: { output.append($0.text); return .confirmed })
+    invocation.start { _ in XCTFail("plain text must not request parameters") }
+    invocation.start { _ in XCTFail("already submitted") }
+    XCTAssertEqual(output, [text])
+    XCTAssertEqual(invocation.state, .completed(.init(text: text), .confirmed))
+  }
+
+  func testCancelAndCloseDoNotInsertAndRetainTheirReason() {
+    for reason in [OwlTemplateInvocation.Cancellation.user, .windowClosed, .replaced] {
+      var restores = 0
+      let broker = OwlPanelInsertionBroker(captureFrontmost: { .init(restore: { restores += 1 }, isRestored: { true }) },
+                                          pasteboardWrite: { _ in XCTFail("no copy on cancel"); return false })
+      broker.capture()
+      let invocation = OwlTemplateInvocation(content: .prompt(entry("a", "A", "{{材料}}")),
+                                             broker: broker, deliver: { _ in XCTFail("no insert"); return .notAttempted(.missingHost) })
+      var presentations = 0
+      invocation.start { _ in presentations += 1 }
+      invocation.start { _ in presentations += 1 }
+      invocation.cancel(reason, restoreFocus: reason != .replaced)
+      invocation.confirm(values: ["材料": "must not insert"])
+      XCTAssertEqual(invocation.state, .cancelled(reason))
+      XCTAssertEqual(presentations, 1)
+      XCTAssertEqual(restores, reason == .replaced ? 0 : 1)
+    }
+  }
+
+  func testLegacyEmptyValuesAndRepeatedParameterArePreserved() {
+    let selected = entry("a", "A", "{{材料}}/{{材料}}")
+    var output: String?
+    let invocation = OwlTemplateInvocation(content: .prompt(selected),
+      broker: OwlPanelInsertionBroker(captureFrontmost: { nil }, pasteboardWrite: { _ in true }),
+      deliver: { output = $0.text; return .confirmed })
+    let model = OwlPromptFillModel(entry: selected, invocation: invocation)
+    XCTAssertEqual(model.variables, ["材料"])
+    XCTAssertEqual(model.values, ["材料": ""])
+    XCTAssertEqual(model.filledBody, "/")
+    invocation.confirm(values: model.values)
+    XCTAssertEqual(output, "/")
   }
 
   // MARK: - Commit mode transition
