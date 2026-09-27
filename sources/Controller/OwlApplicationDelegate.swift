@@ -812,11 +812,13 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
 
   @discardableResult
   func startRime(fullCheck: Bool, migrationDirectory: URL = OwlApp.userDir) -> Bool {
-    guard !OwlTemplateMigration.hasPendingRecovery(rimeDir: migrationDirectory) else { return false }
     let trace = OwlLatencyTrace.begin("deploy.startRime")
     defer { OwlLatencyTrace.end("deploy.startRime", trace) }
     print("Initializing la rime...")
+    // Always bring the engine up: returning before initialize left every session dead, and
+    // deploy() had already called shutdownRime — one unfinished migration meant no input at all.
     engine.initialize(nil)
+    guard !templateRecoveryBlocksDeployment(migrationDirectory) else { return false }
     // check for configuration updates
     let maintained = engine.startMaintenance(fullCheck: fullCheck)
     if maintained {
@@ -837,6 +839,15 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       Self.deployLog.error("start_maintenance failed (fullCheck=\(fullCheck, privacy: .public)) — installation_update/detect_modifications refused; see rime glog in \(OwlApp.logDir.path, privacy: .public)")
       return false
     }
+  }
+
+  /// While a template migration journal is unresolved, its target files (template dict,
+  /// rime_ice.custom.yaml, …) may be half-written. Typing keeps running on the last compiled
+  /// `build/`; only recompiling from those sources waits until recovery succeeds.
+  func templateRecoveryBlocksDeployment(_ directory: URL = OwlApp.userDir) -> Bool {
+    guard OwlTemplateMigration.hasPendingRecovery(rimeDir: directory) else { return false }
+    Self.deployLog.error("template migration recovery pending — skipped Rime deployment, serving the last build")
+    return true
   }
 
   /// `self.config` 可用性判据（2026-07-12 B1/B2）：打得开且非空壳。实测 `config_open("owltype")`

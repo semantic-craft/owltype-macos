@@ -33,6 +33,7 @@ extension OwlApplicationDelegate {
   func applyKeyboardConfigFast() -> Bool {
     let trace = OwlLatencyTrace.begin("deploy.fast.config")
     defer { OwlLatencyTrace.end("deploy.fast.config", trace) }
+    guard !templateRecoveryBlocksDeployment() else { return false }
     let perf = OwlPerf.mark()
     var ok = engine.deployConfigFile("default.yaml", versionKey: "config_version")
     // owltype.yaml (frontend config: style + per-app app_options) is NOT in rime's tracked
@@ -68,6 +69,7 @@ extension OwlApplicationDelegate {
   func applyFuzzyConfigFast() -> Bool {
     let trace = OwlLatencyTrace.begin("deploy.fast.fuzzy")
     defer { OwlLatencyTrace.end("deploy.fast.fuzzy", trace) }
+    guard !templateRecoveryBlocksDeployment() else { return false }
     let perf = OwlPerf.mark()
     // mtime-gated maintenance: rebuilds only the schema whose `speller/algebra` changed
     // (prism), never octagram. No shutdownRime — the live session stays up.
