@@ -148,10 +148,10 @@ extension OwlInputController {
   // 快捷短语… opens the runtime picker panel (mirrors showOwltypeEmojiPanel), not the settings page.
   // PR2 gives the panel a typed search field, so it becomes key (becomesKeyOnlyIfNeeded) while the
   // user types — which can deactivate the host IME session and nil `self.client`. So CAPTURE the
-  // client up-front (mirroring presentPromptFillSheet); the panel reactivates the captured host
+  // client up-front (mirroring candidate invocation); the panel reactivates the captured host
   // before invoking this handler, so inserting through the CAPTURED client reference lands the
-  // phrase back in the original field. If there was no live client at summon time, fall back to
-  // copying so the pick isn't lost. IRON RULE: never NSApp.activate here (that nils `client` — the
+  // phrase back in the original field. Without a verifiable target, preserve the result for
+  // an explicit copy action. IRON RULE: never NSApp.activate here (that nils `client` — the
   // reason OwlAIWindow is copy-only). This ADDS a caller of the existing apply(.insertText:client:)
   // seam; the hot-path methods themselves are untouched.
   @objc func showOwltypeQuickSend() {
@@ -163,21 +163,16 @@ extension OwlInputController {
   func showOwltypePromptPicker(initialSegment: OwlPickerSegment) {
     OwlLatencyTrace.event("button.open.quickSend")
     let client = self.client
+    let target = OwlTemplateHostDelivery(controller: self, client: client)
+    target.endImmediateDelivery()
     NSApp.owlAppDelegate.showQuickSendPanel(
-      onPickPhrase: { [weak self] phrase in
-        guard let self else { return }
-        if let client {
-          self.apply(.insertText(phrase), client: client)
+      onInvoke: { [weak self] content, broker, intent in
+        if let self {
+          self.invokeTemplate(content, broker: broker, capturedClient: client, intent: intent, target: target)
         } else {
-          let pasteboard = NSPasteboard.general
-          pasteboard.clearContents()
-          pasteboard.setString(phrase, forType: .string)
+          let invocation = OwlTemplateInvocation(content: content, broker: broker, deliver: nil, intent: intent)
+          MainActor.assumeIsolated { OwlPromptFillSheet.shared.begin(invocation: invocation) }
         }
-      },
-      onPickPrompt: { [weak self] entry in
-        // 提示词: insert body (or fill sheet when it has {{变量}}) through the SAME captured client —
-        // never self.client (the key panel may have nil'd it). See insertPickedPrompt.
-        self?.insertPickedPrompt(entry, capturedClient: client)
       },
       initialSegment: initialSegment
     )

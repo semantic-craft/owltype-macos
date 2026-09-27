@@ -7,6 +7,34 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AB173001CAFE0001CAFE0001 /* OwlDynamicAutomaticTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB173001CAFE0002CAFE0002 /* OwlDynamicAutomaticTests.swift */; };
+		AB172003CAFE0001CAFE0001 /* OwlTemplateHostDeliveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB172003CAFE0002CAFE0002 /* OwlTemplateHostDeliveryTests.swift */; };
+		AB172002CAFE0001CAFE0001 /* OwlTemplateCursorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB172002CAFE0002CAFE0002 /* OwlTemplateCursorTests.swift */; };
+		AB172001CAFE0001CAFE0001 /* OwlTemplateCursorPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB172001CAFE0002CAFE0002 /* OwlTemplateCursorPlacement.swift */; };
+		AB169002CAFE0001CAFE0001 /* OwlTemplateDeliveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB169002CAFE0002CAFE0002 /* OwlTemplateDeliveryTests.swift */; };
+		AB169001CAFE0001CAFE0001 /* OwlTemplateHostDelivery.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB169001CAFE0002CAFE0002 /* OwlTemplateHostDelivery.swift */; };
+		AB168003CAFE0001CAFE0001 /* OwlRaycastImportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB168003CAFE0002CAFE0002 /* OwlRaycastImportTests.swift */; };
+		AB168002CAFE0001CAFE0001 /* OwlRaycastImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB168002CAFE0002CAFE0002 /* OwlRaycastImportView.swift */; };
+		AB168001CAFE0001CAFE0001 /* OwlRaycastImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB168001CAFE0002CAFE0002 /* OwlRaycastImport.swift */; };
+		AB170003CAFE0001CAFE0001 /* OwlAutomaticExpansionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB170003CAFE0002CAFE0002 /* OwlAutomaticExpansionTests.swift */; };
+		AB170002CAFE0001CAFE0001 /* OwlInputController+AutomaticExpansion.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB170002CAFE0002CAFE0002 /* OwlInputController+AutomaticExpansion.swift */; };
+		AB170001CAFE0001CAFE0001 /* OwlAutomaticExpansion.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB170001CAFE0002CAFE0002 /* OwlAutomaticExpansion.swift */; };
+		AB167001CAFE0001CAFE0001 /* OwlTemplateTemporalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB167001CAFE0002CAFE0002 /* OwlTemplateTemporalTests.swift */; };
+		AB166002CAFE0001CAFE0001 /* OwlTemplateClipboardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB166002CAFE0002CAFE0002 /* OwlTemplateClipboardTests.swift */; };
+		AB166001CAFE0001CAFE0001 /* OwlTemplateContextCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB166001CAFE0002CAFE0002 /* OwlTemplateContextCapture.swift */; };
+		AB164003CAFE0001CAFE0001 /* OwlTemplateBackupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB164003CAFE0002CAFE0002 /* OwlTemplateBackupTests.swift */; };
+		AB164002CAFE0001CAFE0001 /* OwlTemplateRestoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB164002CAFE0002CAFE0002 /* OwlTemplateRestoreView.swift */; };
+		AB164001CAFE0001CAFE0001 /* OwlTemplateBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB164001CAFE0002CAFE0002 /* OwlTemplateBackup.swift */; };
+		AB165002CAFE0001CAFE0001 /* OwlTemplateEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB165002CAFE0002CAFE0002 /* OwlTemplateEngineTests.swift */; };
+		AB165001CAFE0001CAFE0001 /* OwlTemplateEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB165001CAFE0002CAFE0002 /* OwlTemplateEngine.swift */; };
+		AB163003CAFE0001CAFE0001 /* OwlTemplateMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB163003CAFE0002CAFE0002 /* OwlTemplateMigrationTests.swift */; };
+		AB163002CAFE0001CAFE0001 /* OwlTemplateMigrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB163002CAFE0002CAFE0002 /* OwlTemplateMigrationView.swift */; };
+		AB163001CAFE0001CAFE0001 /* OwlTemplateMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB163001CAFE0002CAFE0002 /* OwlTemplateMigration.swift */; };
+		AB162004CAFE0001CAFE0001 /* OwlTemplateStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB162004CAFE0002CAFE0002 /* OwlTemplateStoreTests.swift */; };
+		AB162003CAFE0001CAFE0001 /* OwlTemplatePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB162003CAFE0002CAFE0002 /* OwlTemplatePickerView.swift */; };
+		AB162002CAFE0001CAFE0001 /* OwlTemplatePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB162002CAFE0002CAFE0002 /* OwlTemplatePage.swift */; };
+		AB162001CAFE0001CAFE0001 /* OwlTemplateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB162001CAFE0002CAFE0002 /* OwlTemplateStore.swift */; };
+		AB161001CAFE0001CAFE0001 /* OwlTemplateInvocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB161002CAFE0002CAFE0002 /* OwlTemplateInvocation.swift */; };
 		2C6B9F9D2BCD086700E327DF /* librime-lua.dylib in Copy Rime plugins */ = {isa = PBXBuildFile; fileRef = 2C6B9F9A2BCD086700E327DF /* librime-lua.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		2C6B9F9E2BCD086700E327DF /* librime-octagram.dylib in Copy Rime plugins */ = {isa = PBXBuildFile; fileRef = 2C6B9F9B2BCD086700E327DF /* librime-octagram.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		2C6B9F9F2BCD086700E327DF /* librime-predict.dylib in Copy Rime plugins */ = {isa = PBXBuildFile; fileRef = 2C6B9F9C2BCD086700E327DF /* librime-predict.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
@@ -408,6 +436,34 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		AB173001CAFE0002CAFE0002 /* OwlDynamicAutomaticTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlDynamicAutomaticTests.swift; path = tests/OwlDynamicAutomaticTests.swift; sourceTree = "<group>"; };
+		AB172003CAFE0002CAFE0002 /* OwlTemplateHostDeliveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateHostDeliveryTests.swift; path = tests/OwlTemplateHostDeliveryTests.swift; sourceTree = "<group>"; };
+		AB172002CAFE0002CAFE0002 /* OwlTemplateCursorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateCursorTests.swift; path = tests/OwlTemplateCursorTests.swift; sourceTree = "<group>"; };
+		AB172001CAFE0002CAFE0002 /* OwlTemplateCursorPlacement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateCursorPlacement.swift; path = sources/UI/OwlTemplateCursorPlacement.swift; sourceTree = "<group>"; };
+		AB169002CAFE0002CAFE0002 /* OwlTemplateDeliveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateDeliveryTests.swift; path = tests/OwlTemplateDeliveryTests.swift; sourceTree = "<group>"; };
+		AB169001CAFE0002CAFE0002 /* OwlTemplateHostDelivery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateHostDelivery.swift; path = sources/UI/OwlTemplateHostDelivery.swift; sourceTree = "<group>"; };
+		AB168003CAFE0002CAFE0002 /* OwlRaycastImportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRaycastImportTests.swift; path = tests/OwlRaycastImportTests.swift; sourceTree = "<group>"; };
+		AB168002CAFE0002CAFE0002 /* OwlRaycastImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRaycastImportView.swift; path = sources/Settings/OwlRaycastImportView.swift; sourceTree = "<group>"; };
+		AB168001CAFE0002CAFE0002 /* OwlRaycastImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRaycastImport.swift; path = sources/Settings/OwlRaycastImport.swift; sourceTree = "<group>"; };
+		AB170003CAFE0002CAFE0002 /* OwlAutomaticExpansionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAutomaticExpansionTests.swift; path = "tests/OwlAutomaticExpansionTests.swift"; sourceTree = "<group>"; };
+		AB170002CAFE0002CAFE0002 /* OwlInputController+AutomaticExpansion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+AutomaticExpansion.swift"; path = "sources/Controller/OwlInputController+AutomaticExpansion.swift"; sourceTree = "<group>"; };
+		AB170001CAFE0002CAFE0002 /* OwlAutomaticExpansion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAutomaticExpansion.swift; path = "sources/Controller/OwlAutomaticExpansion.swift"; sourceTree = "<group>"; };
+		AB167001CAFE0002CAFE0002 /* OwlTemplateTemporalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateTemporalTests.swift; path = tests/OwlTemplateTemporalTests.swift; sourceTree = "<group>"; };
+		AB166002CAFE0002CAFE0002 /* OwlTemplateClipboardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateClipboardTests.swift; path = tests/OwlTemplateClipboardTests.swift; sourceTree = "<group>"; };
+		AB166001CAFE0002CAFE0002 /* OwlTemplateContextCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateContextCapture.swift; path = sources/UI/OwlTemplateContextCapture.swift; sourceTree = "<group>"; };
+		AB164003CAFE0002CAFE0002 /* OwlTemplateBackupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateBackupTests.swift; path = tests/OwlTemplateBackupTests.swift; sourceTree = "<group>"; };
+		AB164002CAFE0002CAFE0002 /* OwlTemplateRestoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateRestoreView.swift; path = sources/Settings/OwlTemplateRestoreView.swift; sourceTree = "<group>"; };
+		AB164001CAFE0002CAFE0002 /* OwlTemplateBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateBackup.swift; path = sources/Settings/OwlTemplateBackup.swift; sourceTree = "<group>"; };
+		AB165002CAFE0002CAFE0002 /* OwlTemplateEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateEngineTests.swift; path = tests/OwlTemplateEngineTests.swift; sourceTree = "<group>"; };
+		AB165001CAFE0002CAFE0002 /* OwlTemplateEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateEngine.swift; path = sources/Settings/OwlTemplateEngine.swift; sourceTree = "<group>"; };
+		AB163003CAFE0002CAFE0002 /* OwlTemplateMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateMigrationTests.swift; path = tests/OwlTemplateMigrationTests.swift; sourceTree = "<group>"; };
+		AB163002CAFE0002CAFE0002 /* OwlTemplateMigrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateMigrationView.swift; path = sources/Settings/OwlTemplateMigrationView.swift; sourceTree = "<group>"; };
+		AB163001CAFE0002CAFE0002 /* OwlTemplateMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateMigration.swift; path = sources/Settings/OwlTemplateMigration.swift; sourceTree = "<group>"; };
+		AB162004CAFE0002CAFE0002 /* OwlTemplateStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateStoreTests.swift; path = tests/OwlTemplateStoreTests.swift; sourceTree = "<group>"; };
+		AB162003CAFE0002CAFE0002 /* OwlTemplatePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplatePickerView.swift; path = sources/UI/OwlTemplatePickerView.swift; sourceTree = "<group>"; };
+		AB162002CAFE0002CAFE0002 /* OwlTemplatePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplatePage.swift; path = sources/Settings/OwlTemplatePage.swift; sourceTree = "<group>"; };
+		AB162001CAFE0002CAFE0002 /* OwlTemplateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateStore.swift; path = sources/Settings/OwlTemplateStore.swift; sourceTree = "<group>"; };
+		AB161002CAFE0002CAFE0002 /* OwlTemplateInvocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateInvocation.swift; path = sources/UI/OwlTemplateInvocation.swift; sourceTree = "<group>"; };
 		1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = /System/Library/Frameworks/Cocoa.framework; sourceTree = "<absolute>"; };
 		29B97324FDCFA39411CA2CEA /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = /System/Library/Frameworks/AppKit.framework; sourceTree = "<absolute>"; };
 		29B97325FDCFA39411CA2CEA /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = /System/Library/Frameworks/Foundation.framework; sourceTree = "<absolute>"; };
@@ -739,6 +795,22 @@
 				FAA00001CAFE0001CAFE0001 /* OwlFloatingPanelPositioner.swift */,
 				FAA00040CAFE0040CAFE0040 /* OwlHostCaretAnchorMemory.swift */,
 				FAA00003CAFE0003CAFE0003 /* OwlPanelInsertionBroker.swift */,
+				AB161002CAFE0002CAFE0002 /* OwlTemplateInvocation.swift */,
+				AB162003CAFE0002CAFE0002 /* OwlTemplatePickerView.swift */,
+				AB162002CAFE0002CAFE0002 /* OwlTemplatePage.swift */,
+				AB163002CAFE0002CAFE0002 /* OwlTemplateMigrationView.swift */,
+				AB162001CAFE0002CAFE0002 /* OwlTemplateStore.swift */,
+				AB165001CAFE0002CAFE0002 /* OwlTemplateEngine.swift */,
+				AB164001CAFE0002CAFE0002 /* OwlTemplateBackup.swift */,
+				AB169001CAFE0002CAFE0002 /* OwlTemplateHostDelivery.swift */,
+				AB172001CAFE0002CAFE0002 /* OwlTemplateCursorPlacement.swift */,
+				AB168002CAFE0002CAFE0002 /* OwlRaycastImportView.swift */,
+				AB168001CAFE0002CAFE0002 /* OwlRaycastImport.swift */,
+				AB164002CAFE0002CAFE0002 /* OwlTemplateRestoreView.swift */,
+				AB166001CAFE0002CAFE0002 /* OwlTemplateContextCapture.swift */,
+				AB170001CAFE0002CAFE0002 /* OwlAutomaticExpansion.swift */,
+				AB170002CAFE0002CAFE0002 /* OwlInputController+AutomaticExpansion.swift */,
+				AB163001CAFE0002CAFE0002 /* OwlTemplateMigration.swift */,
 				FA0000D6CAFE00D6CAFE00D6 /* OwlQuickSendPanel.swift */,
 				FA0000E8CAFE00E8CAFE00E8 /* OwlQuickSendHotKey.swift */,
 				FA000040CAFE0040CAFE0040 /* OwlThemes.swift */,
@@ -843,6 +915,18 @@
 				FA000086CAFE0086CAFE0086 /* OwlM3EmojiSkinTests.swift */,
 				FA0000C6CAFE00C6CAFE00C6 /* ProjectStoreTests.swift */,
 				FA0000FFCAFE00FFCAFE00FF /* OwlPromptStoreTests.swift */,
+				AB162004CAFE0002CAFE0002 /* OwlTemplateStoreTests.swift */,
+				AB165002CAFE0002CAFE0002 /* OwlTemplateEngineTests.swift */,
+				AB164003CAFE0002CAFE0002 /* OwlTemplateBackupTests.swift */,
+				AB166002CAFE0002CAFE0002 /* OwlTemplateClipboardTests.swift */,
+				AB167001CAFE0002CAFE0002 /* OwlTemplateTemporalTests.swift */,
+				AB169002CAFE0002CAFE0002 /* OwlTemplateDeliveryTests.swift */,
+				AB173001CAFE0002CAFE0002 /* OwlDynamicAutomaticTests.swift */,
+				AB172003CAFE0002CAFE0002 /* OwlTemplateHostDeliveryTests.swift */,
+				AB172002CAFE0002CAFE0002 /* OwlTemplateCursorTests.swift */,
+				AB168003CAFE0002CAFE0002 /* OwlRaycastImportTests.swift */,
+				AB170003CAFE0002CAFE0002 /* OwlAutomaticExpansionTests.swift */,
+				AB163003CAFE0002CAFE0002 /* OwlTemplateMigrationTests.swift */,
 				FADC2607FADC2607FADC2607 /* OwlQuickSendStoreTests.swift */,
 				FA000451CAFE0051CAFE0051 /* OwlQuickSendPanelModelTests.swift */,
 				FAAB0004CAFE0004CAFE0004 /* OwlAutoPairTests.swift */,
@@ -1271,6 +1355,22 @@
 				FAA00002CAFE0002CAFE0002 /* OwlFloatingPanelPositioner.swift in Sources */,
 				FAA00041CAFE0041CAFE0041 /* OwlHostCaretAnchorMemory.swift in Sources */,
 				FAA00004CAFE0004CAFE0004 /* OwlPanelInsertionBroker.swift in Sources */,
+				AB161001CAFE0001CAFE0001 /* OwlTemplateInvocation.swift in Sources */,
+				AB162003CAFE0001CAFE0001 /* OwlTemplatePickerView.swift in Sources */,
+				AB162002CAFE0001CAFE0001 /* OwlTemplatePage.swift in Sources */,
+				AB163002CAFE0001CAFE0001 /* OwlTemplateMigrationView.swift in Sources */,
+				AB162001CAFE0001CAFE0001 /* OwlTemplateStore.swift in Sources */,
+				AB165001CAFE0001CAFE0001 /* OwlTemplateEngine.swift in Sources */,
+				AB164001CAFE0001CAFE0001 /* OwlTemplateBackup.swift in Sources */,
+				AB169001CAFE0001CAFE0001 /* OwlTemplateHostDelivery.swift in Sources */,
+				AB172001CAFE0001CAFE0001 /* OwlTemplateCursorPlacement.swift in Sources */,
+				AB168002CAFE0001CAFE0001 /* OwlRaycastImportView.swift in Sources */,
+				AB168001CAFE0001CAFE0001 /* OwlRaycastImport.swift in Sources */,
+				AB164002CAFE0001CAFE0001 /* OwlTemplateRestoreView.swift in Sources */,
+				AB166001CAFE0001CAFE0001 /* OwlTemplateContextCapture.swift in Sources */,
+				AB170001CAFE0001CAFE0001 /* OwlAutomaticExpansion.swift in Sources */,
+				AB170002CAFE0001CAFE0001 /* OwlInputController+AutomaticExpansion.swift in Sources */,
+				AB163001CAFE0001CAFE0001 /* OwlTemplateMigration.swift in Sources */,
 				FA0000D5CAFE00D5CAFE00D5 /* OwlQuickSendPanel.swift in Sources */,
 				FA0000E7CAFE00E7CAFE00E7 /* OwlQuickSendHotKey.swift in Sources */,
 				FA000043CAFE0043CAFE0043 /* OwlThemes.swift in Sources */,
@@ -1378,6 +1478,18 @@
 				FA000087CAFE0087CAFE0087 /* OwlM3EmojiSkinTests.swift in Sources */,
 				FA0000C7CAFE00C7CAFE00C7 /* ProjectStoreTests.swift in Sources */,
 				FA00001ACAFE001ACAFE001A /* OwlPromptStoreTests.swift in Sources */,
+				AB162004CAFE0001CAFE0001 /* OwlTemplateStoreTests.swift in Sources */,
+				AB165002CAFE0001CAFE0001 /* OwlTemplateEngineTests.swift in Sources */,
+				AB164003CAFE0001CAFE0001 /* OwlTemplateBackupTests.swift in Sources */,
+				AB166002CAFE0001CAFE0001 /* OwlTemplateClipboardTests.swift in Sources */,
+				AB167001CAFE0001CAFE0001 /* OwlTemplateTemporalTests.swift in Sources */,
+				AB169002CAFE0001CAFE0001 /* OwlTemplateDeliveryTests.swift in Sources */,
+				AB173001CAFE0001CAFE0001 /* OwlDynamicAutomaticTests.swift in Sources */,
+				AB172003CAFE0001CAFE0001 /* OwlTemplateHostDeliveryTests.swift in Sources */,
+				AB172002CAFE0001CAFE0001 /* OwlTemplateCursorTests.swift in Sources */,
+				AB168003CAFE0001CAFE0001 /* OwlRaycastImportTests.swift in Sources */,
+				AB170003CAFE0001CAFE0001 /* OwlAutomaticExpansionTests.swift in Sources */,
+				AB163003CAFE0001CAFE0001 /* OwlTemplateMigrationTests.swift in Sources */,
 				FADC2608FADC2608FADC2608 /* OwlQuickSendStoreTests.swift in Sources */,
 				FA000450CAFE0050CAFE0050 /* OwlQuickSendPanelModelTests.swift in Sources */,
 				FAAB0003CAFE0003CAFE0003 /* OwlAutoPairTests.swift in Sources */,

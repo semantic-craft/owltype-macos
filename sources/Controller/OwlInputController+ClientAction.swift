@@ -43,6 +43,7 @@ extension OwlInputController {
   /// call in the controller goes through here (grep verifies side-effect convergence). Pure
   /// dispatch — same calls, same arguments as the old inline code.
   func apply(_ action: OwlClientAction, client: IMKTextInput) {
+    finishAutomaticExpansionBeforeClientAction()
     switch action {
     case let .insertText(string):
       OwlLatencyTrace.event("commitText.apply")

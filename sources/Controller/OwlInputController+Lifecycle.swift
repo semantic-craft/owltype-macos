@@ -20,7 +20,11 @@ extension OwlInputController {
   }
 
   override func activateServer(_ sender: Any!) {
+    templateHostGeneration &+= 1
+    automaticEpoch &+= 1
+    discardAutomaticExpansion()
     self.client ?= sender as? IMKTextInput
+    pendingTemplateDelivery?.hostDidActivate()
     // print("[DEBUG] activateServer:")
     debugLiveInputTrace("activateServer hasSender=\(sender != nil)")
     var keyboardLayout = NSApp.owlAppDelegate.config?.getString("keyboard_layout") ?? ""
@@ -38,6 +42,8 @@ extension OwlInputController {
   }
 
   override func deactivateServer(_ sender: Any!) {
+    pendingTemplateDelivery?.hostWillDeactivate()
+    templateHostGeneration &+= 1
     // print("[DEBUG] deactivateServer: \(sender ?? "nil")")
     debugLiveInputTrace("deactivateServer hasSender=\(sender != nil)")
     // B8: this input session is ending — cancel any in-flight AI lane requests it spawned so they
@@ -70,6 +76,10 @@ extension OwlInputController {
    to clean up if that is necessary.
    */
   override func commitComposition(_ sender: Any!) {
+    if let incoming = sender as? IMKTextInput, let previous = client, incoming !== previous {
+      discardAutomaticExpansion()
+    }
+    finishAutomaticExpansion(replaySemicolon: true)
     self.client ?= sender as? IMKTextInput
     // print("[DEBUG] commitComposition: \(sender ?? "nil")")
     // Forced finalize (focus loss / IME switch / a host — notably Chromium omnibox — ending the
@@ -105,6 +115,8 @@ extension OwlInputController {
   // it uses applyDefaultAsciiModeToLiveSession (active controller only).
   func handleASCIIModeToggle(_ notification: Notification) {
     guard let enableASCII = notification.object as? Bool else { return }
+    pendingTemplateDelivery?.invalidate()
+    finishAutomaticExpansion(replaySemicolon: true)
     setRimeOption(.asciiMode, enableASCII)
     rimeUpdate()
   }

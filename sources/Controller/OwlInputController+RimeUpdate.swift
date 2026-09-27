@@ -22,6 +22,24 @@ extension OwlInputController {
 
   func rimeConsumeCommittedText() {
     guard let text = rime?.takeCommit() else { return }
+    // ID-marked unified candidates bypass normal input formatting. Ordinary commits do no IO.
+    if text.hasPrefix(OwlTemplateStore.candidatePrefix) {
+      let code = MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshots.current?.rawInput }
+      let entry = OwlTemplateStore.resolveCandidate(code: code, text: text) {
+        guard OwlTemplateStore.mode() == .unified else { throw OwlTemplateError.legacyRequiresMigration }
+        return try OwlTemplateStore.load()
+      }
+      let capturedClient = client
+      preedit = ""
+      hidePalettes()
+      MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.noteCommit() }
+      // A stale/deleted/renamed record must never leak its marker or insert a different body.
+      guard let entry else { return }
+      let broker = OwlPanelInsertionBroker()
+      broker.capture()
+      invokeTemplate(.template(entry), broker: broker, capturedClient: capturedClient)
+      return
+    }
     // 提示词提交拦截 (task 06-30-owl-prompt-management-panel). This is the UNIVERSAL commit
     // chokepoint (keyboard space/digit AND panel click both funnel here), so a 提示词 candidate
     // selected ANY way is caught. Recover the originating code from the PRIOR composition snapshot —
@@ -40,58 +58,44 @@ extension OwlInputController {
       if let rime {
         applyCommitModeTransition(after: text, to: rime)
       }
-    case .insert(let body):
-      insertPromptBody(body)
-    case .fillIn(let entry):
-      presentPromptFillSheet(for: entry)
-    }
-  }
-
-  /// 命中提示词、无变量：取消正常候选提交，把 `body` **逐字节**插入光标处（直接走 `apply`，绕过
-  /// 中英空格 transform，正文带换行原样落字）。其余收尾镜像 `commit(string:)`。
-  private func insertPromptBody(_ body: String) {
-    guard let client else { return }
-    apply(.insertText(body), client: client)
-    preedit = ""
-    hidePalettes()
-    MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.noteCommit() }
-  }
-
-  /// 命中提示词、含 `{{变量}}`：先取消正常候选提交（合成已被 librime 清空，这里收尾面板 / preedit），
-  /// 捕获当前 `client`，弹**非激活**填空 sheet；用户确认（[插入]/Enter）→ 用 `substitute` 替换好的
-  /// 正文 `insertText` 到原宿主；取消（Esc/[取消]）→ 什么都不插。焦点交还宿主后才插字。
-  private func presentPromptFillSheet(for entry: OwlPromptEntry) {
-    preedit = ""
-    hidePalettes()
-    MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.noteCommit() }
-    let client = self.client
-    MainActor.assumeIsolated {
-      OwlPromptFillSheet.shared.present(entry: entry) { [weak self] filledBody in
-        guard let self, let filledBody, let client else { return }
-        self.apply(.insertText(filledBody), client: client)
+    case .invoke(let entry):
+      let capturedClient = client
+      let needsFill = !entry.variables.isEmpty
+      let broker = OwlPanelInsertionBroker()
+      // Preserve the original candidate cleanup order: direct insertion precedes cleanup;
+      // parameter entry cleans composition before showing the non-activating window.
+      if !needsFill {
+        invokeTemplate(.prompt(entry), broker: broker, capturedClient: capturedClient)
+      }
+      preedit = ""
+      hidePalettes()
+      MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.noteCommit() }
+      if needsFill {
+        broker.capture()
+        invokeTemplate(.prompt(entry), broker: broker, capturedClient: capturedClient)
       }
     }
   }
 
-  /// Insert a 提示词 picked from the quick-phrase PANEL (task 07-01), NOT the 📝 candidate chokepoint.
-  /// The panel captured the client up-front and restored host focus before calling this, so we insert
-  /// through the passed `capturedClient` — NEVER `self.client`, which the key panel may have nil'd
-  /// (same reason `showOwltypeQuickSend` captures the client for the 短语 path). No variables → insert
-  /// `body` directly; has variables → the same non-activating fill sheet, its filled body inserted
-  /// through the same captured client on confirm. No composition to clean up (panel-summoned, so
-  /// there is no pending preedit/candidate state — unlike the commit chokepoint).
-  func insertPickedPrompt(_ entry: OwlPromptEntry, capturedClient: IMKTextInput?) {
-    guard let capturedClient else { return }
-    if entry.variables.isEmpty {
-      apply(.insertText(entry.body), client: capturedClient)
-    } else {
-      MainActor.assumeIsolated {
-        OwlPromptFillSheet.shared.present(entry: entry) { [weak self] filledBody in
-          guard let self, let filledBody else { return }
-          self.apply(.insertText(filledBody), client: capturedClient)
-        }
-      }
-    }
+  /// Every route delivers the same Result, including a literal trailing delimiter. A later
+  /// panel callback may not borrow the active-session exception of this synchronous call.
+  func invokeTemplate(_ content: OwlTemplateInvocation.Content,
+                      broker: OwlPanelInsertionBroker, capturedClient: IMKTextInput?,
+                      trailingText: String = "", intent: OwlTemplateInvocation.Intent = .insert,
+                      target: OwlTemplateHostDelivery? = nil,
+                      automaticSource: OwlTemplateHostDelivery.AutomaticSource? = nil) {
+    let delivery = target ?? OwlTemplateHostDelivery(controller: self, client: capturedClient, automaticSource: automaticSource)
+    let invocation = OwlTemplateInvocation(content: content, broker: broker,
+      deliver: { delivery.deliver($0) }, trailingText: trailingText, intent: intent,
+      isHostReady: { delivery.isReadyForDelivery() },
+      mayRestoreFocus: { delivery.mayRestoreFocus() },
+      presentationTransition: { delivery.presentationTransition(window: $0, active: $1) },
+      preparePresentation: automaticSource == nil ? nil : {
+        broker.capture()
+        return delivery.prepareForPresentation()
+      }, onFinish: { delivery.invalidate() })
+    MainActor.assumeIsolated { OwlPromptFillSheet.shared.begin(invocation: invocation) }
+    delivery.endImmediateDelivery()
   }
 
   func rimeUpdate() {
@@ -151,7 +155,7 @@ extension OwlInputController {
       // update candidates. The value type already decoded the C arrays (null comment → nil,
       // labels resolved with the same select_keys/select_labels precedence as before); the
       // controller keeps its old `[String]` shape (null comment → "") for the panel API.
-      let candidates = composition.candidates.map { $0.text }
+      let candidates = composition.candidates.map { OwlTemplateStore.candidateDisplay($0.text) }
       let comments = composition.candidates.map { $0.comment ?? "" }
       let labels = composition.labels
       let page = composition.pageNo

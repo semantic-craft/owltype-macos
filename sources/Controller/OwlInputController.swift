@@ -24,6 +24,12 @@ final class OwlInputController: IMKInputController {
 
   // seam: was private; internal so the Menu/RimeUpdate/Lifecycle/Session extensions can reach it across files.
   weak var client: IMKTextInput?
+  var templateHostGeneration: UInt64 = 0
+  weak var pendingTemplateDelivery: OwlTemplateHostDelivery?
+  let automaticRecognizer = OwlAutomaticExpansionRecognizer()
+  var automaticTarget: OwlAutomaticExpansionTarget?
+  var automaticApplyingClientAction = false
+  var automaticEpoch: UInt64 = 0
   /// The current composition's Session, vended by the Engine seam. `nil` (or `!isValid`)
   /// means "no live session — recreate before use". Swappable so PR2 can inject a fake;
   /// the live default comes from `NSApp.owlAppDelegate.engine` (same indirection as
@@ -93,6 +99,7 @@ final class OwlInputController: IMKInputController {
 
   override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
     guard let event = event else { return false }
+    if event.type == .keyDown { pendingTemplateDelivery?.invalidate() }
     OwlLatencyTrace.event("key.received")
     let handleTrace = OwlLatencyTrace.begin("handle")
     defer { OwlLatencyTrace.end("handle", handleTrace) }
@@ -115,12 +122,20 @@ final class OwlInputController: IMKInputController {
       }
     }
 
+    if let incoming = sender as? IMKTextInput, let previous = self.client, incoming !== previous {
+      // The old field is no longer the target; never recover into the new field.
+      templateHostGeneration &+= 1
+      automaticEpoch &+= 1
+      discardAutomaticExpansion()
+    }
     self.client ?= sender as? IMKTextInput
     if let app = client?.bundleIdentifier(), currentApp != app {
       currentApp = app
       updateAppOptions()
     }
     ensurePreferredSchemaForIdleSession()
+
+    if handleAutomaticExpansion(event) { return true }
 
     // 全局热键的唯一路径（#118）: 快捷短语面板与划词菜单召唤只在猫头鹰为活跃输入法时有意义 —— 此时
     // 每个 keyDown 本来就流经这里，直接匹配。绝不可回退到 Carbon RegisterEventHotKey：在本 IMK
@@ -147,14 +162,17 @@ final class OwlInputController: IMKInputController {
 
     case let .flagsChanged(capsLockRevert, events, updateLastModifiers, handled):
       // print("[DEBUG] FLAGSCHANGED modifiers: \(updateLastModifiers)")
-      if let revert = capsLockRevert {
-        _ = processKey(revert.keycode, modifiers: revert.modifiers)
-      }
-      for event in events {
-        _ = processKey(event.keycode, modifiers: event.modifiers)
-      }
+      OwlAutomaticExpansionControllerEntry.processModifiers(pending: automaticRecognizer.buffer,
+        finishSemicolon: { finishAutomaticExpansion(replaySemicolon: true) }, process: {
+        if let revert = capsLockRevert {
+          _ = processKey(revert.keycode, modifiers: revert.modifiers)
+        }
+        for event in events {
+          _ = processKey(event.keycode, modifiers: event.modifiers)
+        }
+      })
       lastModifiers = updateLastModifiers
-      rimeUpdate()
+      if !refreshAutomaticExpansionAfterModifiers() { rimeUpdate() }
       // `handled` mirrors the original: true only for the couldn't-infer bail; false on the
       // normal modifier path so the host app still receives the modifier event.
       return handled
@@ -206,6 +224,12 @@ final class OwlInputController: IMKInputController {
     super.init(server: server, delegate: delegate, client: client)
     debugLiveInputTrace("controller init hasClient=\(client != nil)")
     createSession()
+
+    notificationTokens.append(NotificationCenter.default.addObserver(
+      forName: OwlAutomaticExpansionRuntime.willChange,
+      object: OwlAutomaticExpansionRuntime.shared,
+      queue: nil
+    ) { [weak self] _ in self?.finishAutomaticExpansion(replaySemicolon: true) })
 
     // Listen for ASCII mode toggle notifications
     notificationTokens.append(NotificationCenter.default.addObserver(
@@ -312,6 +336,7 @@ final class OwlInputController: IMKInputController {
   }
 
   deinit {
+    discardAutomaticExpansion()
     // B8: cancel any in-flight AI lane tasks for this session (nonisolated deinit — `cancelAll()`
     // only calls `Task.cancel()`, which is thread safe and needs no main actor).
     aiTasks.cancelAll()

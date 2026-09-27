@@ -160,18 +160,11 @@ struct OwlPickerPanelModel: Equatable {
 // MARK: - Panel
 
 final class OwlQuickSendPanel: NSPanel {
-  /// Where a picked 短语 goes. Set by the input controller to insert at the cursor via the client it
-  /// captured up-front; left nil when shown without a client → falls back to the pasteboard.
-  /// Re-assigned on every show so the panel can be a reused singleton across triggers.
-  var phrasePickHandler: ((String) -> Void)?
+  /// Captured-client adapter, refreshed on each show. Selection transfers the original host.
+  var invocationHandler: ((OwlTemplateInvocation.Content, OwlPanelInsertionBroker, OwlTemplateInvocation.Intent) -> Void)?
+  private var didPick = false
 
-  /// Where a picked 提示词 goes: the controller inserts its body (routing through a fill sheet when it
-  /// has `{{变量}}`) via the same captured client. No pasteboard fallback — the panel is summoned with
-  /// a live client from the menu/hotkey, and a body may need variable substitution before it lands.
-  var promptPickHandler: ((OwlPromptEntry) -> Void)?
-
-  /// Focus choreography (capture the host on show → restore before a pick inserts → pasteboard
-  /// fallback) lives in the shared broker; see `OwlPanelInsertionBroker`.
+  /// Focus choreography (capture the host on show → restore before a pick inserts) lives in the shared broker; see `OwlPanelInsertionBroker`.
   private let broker = OwlPanelInsertionBroker()
 
   init() {
@@ -212,6 +205,7 @@ final class OwlQuickSendPanel: NSPanel {
   /// so the phrase list reflects the latest `owl_quick_send.json` and the query/selection reset on
   /// each show (freshness). Positioning: near the caret (design B) with a mouse-centered fallback.
   func showPanel(initialSegment: OwlPickerSegment = .phrase) {
+    didPick = false
     broker.capture()
     installContentView(initialSegment: initialSegment)
     positionPanel()
@@ -231,6 +225,20 @@ final class OwlQuickSendPanel: NSPanel {
   /// (Re)install the SwiftUI content with a freshly loaded phrase list. Cheap and user-triggered
   /// (never on the key-event hot path).
   private func installContentView(initialSegment: OwlPickerSegment = .phrase) {
+    let mode = OwlTemplateStore.mode()
+    if mode != .legacy {
+      let entries = (try? OwlTemplateStore.load())?.entries ?? []
+      let error: String?
+      if case .unavailable(let message) = mode { error = message } else { error = nil }
+      setContentSize(NSSize(width: 650, height: 450))
+      contentView = NSHostingView(rootView: OwlTemplatePickerView(
+        entries: error == nil ? entries : [], promptOnly: initialSegment == .prompt, error: error,
+        onPick: { [weak self] in self?.invoke(.template($0)) },
+        onPreview: { [weak self] in self?.invoke(.template($0), intent: .resultPreview) },
+        onClose: { [weak self] in self?.hidePanel() }))
+      return
+    }
+    setContentSize(NSSize(width: 300, height: 360))
     contentView = NSHostingView(
       rootView: OwlQuickSendPanelView(
         initialSegment: initialSegment,
@@ -241,20 +249,21 @@ final class OwlQuickSendPanel: NSPanel {
     )
   }
 
-  /// Route a 短语 pick to the controller's inserter when set, else copy to the pasteboard. Restores
-  /// focus to the captured host FIRST so the controller's `client.insertText` lands in the original
-  /// field, then inserts (mirrors `OwlPromptFillSheet`: restore → callback). The view calls this
-  /// then `onClose` (→ `hidePanel`), so the panel orders out after the insert.
-  private func handlePhrasePick(_ phrase: String) {
-    broker.restoreAndDeliver(phrase, host: phrasePickHandler)
-  }
+  private func handlePhrasePick(_ phrase: String) { invoke(.plainText(phrase)) }
 
-  /// Route a 提示词 pick to the controller (restore host focus first, same as `handlePhrasePick`).
-  /// The controller decides body-insert vs. fill sheet. Dropped silently when no handler is wired
-  /// (settings-page summon, which shows no 提示词).
-  private func handlePromptPick(_ entry: OwlPromptEntry) {
-    restoreFocus()
-    promptPickHandler?(entry)
+  private func handlePromptPick(_ entry: OwlPromptEntry) { invoke(.prompt(entry)) }
+
+  private func invoke(_ content: OwlTemplateInvocation.Content, intent: OwlTemplateInvocation.Intent = .insert) {
+    guard !didPick else { return }
+    didPick = true
+    let captured = broker.transferCapture()
+    orderOut(nil) // relinquish the search field before any delivery or result presentation
+    if let invocationHandler {
+      invocationHandler(content, captured, intent)
+    } else {
+      let invocation = OwlTemplateInvocation(content: content, broker: captured, deliver: nil, intent: intent)
+      MainActor.assumeIsolated { OwlPromptFillSheet.shared.begin(invocation: invocation) }
+    }
   }
 
   // MARK: Positioning
