@@ -35,9 +35,9 @@
 #   • menu/page_size 8 (default.custom.yaml)
 #   • macOS 皮肤 (owltype.custom.yaml)
 #
-# NOTE (lotem 八股文 grammar)：LOTEM essay-bgw grams (zh-hans/hant, ~9–11MB) 是 ACTIVE 语法模型，
-#   必须打包——Owltype 的 rime_ice.custom.yaml 把 grammar/language 指向它。action-build 经 plum
-#   (SQUIRREL_BUNDLED_RECIPES) 取到 data/plum/，这里 hop 进 seed。缺失=warn 不 fail（config-only seed）。
+# NOTE (lotem 八股文 grammar)：LOTEM essay-bgw grams (zh-hans/hant, ~9–11MB) 是 ACTIVE 语法模型——
+#   Owltype 的 rime_ice.custom.yaml 把 grammar/language 指向它。本地 data/plum/
+#   里有 gram 时这里 hop 进 seed（公开发布不带：finalize-release-bundle.py 拦 *.gram）。缺失=warn 不 fail（config-only seed）。
 #
 # Usage:  bash scripts/owl-seed-full.sh       # uses /tmp clone cache, clones if missing
 #         OWL_SEED_REFRESH=1 bash scripts/...  # force re-clone
@@ -195,7 +195,7 @@ for gram in zh-hans-t-essay-bgw.gram zh-hant-t-essay-bgw.gram; do
     echo "[owl-seed] bundled lotem grammar: $gram ($(du -h "$OUT/$gram" | cut -f1))"
   else
     echo "[owl-seed] WARNING: lotem grammar $gram NOT in $PLUM_DIR — NOT bundled"
-    echo "[owl-seed]          (grammar pref no-ops until 'make plum-data' / action-install fetches it)"
+    echo "[owl-seed]          (grammar pref no-ops until it is placed in data/plum/)"
   fi
 done
 
