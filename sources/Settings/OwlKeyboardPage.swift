@@ -92,7 +92,6 @@ struct OwlKeyboardPage: View {
           quickSelectCard
           quickSendPanelHotKeyCard
           selectionMenuPanelHotKeyCard
-          promptAssistantHotKeyCard
           noteCard
         }
       }
@@ -656,12 +655,20 @@ struct OwlKeyboardPage: View {
   /// Picker defaulting to ⌃⇧Space; both hotkeys now share `OwlHotKeyRecorderRow` and start unset.
   private var quickSendPanelHotKeyCard: some View {
     SettingsCard(
-      title: "快捷短语面板",
+      title: "快捷片段",
       palette: palette,
       theme: theme,
       reduceTransparency: reduceTransparency
     ) {
-      OwlHotKeyRecorderRow(slot: .quickSendPanel, palette: palette)
+      VStack(alignment: .leading, spacing: 12) {
+        OwlHotKeyRecorderRow(slot: .quickSendPanel, palette: palette)
+        DisclosureGroup("直达提示词筛选（可选）") {
+          OwlHotKeyRecorderRow(slot: .promptAssistant, palette: palette)
+          Text("打开同一个快捷片段库并筛选提示词，已有快捷键继续有效。")
+            .font(.system(size: 12)).foregroundStyle(palette.ink3)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
     }
   }
 
@@ -680,29 +687,6 @@ struct OwlKeyboardPage: View {
       VStack(alignment: .leading, spacing: 8) {
         OwlHotKeyRecorderRow(slot: .selectionMenu, palette: palette)
         Text("默认的内置唤起键为双击 ⌥（Option）键，无需录制；这里录的组合是并行入口，不录也不影响双击唤起。")
-          .font(.system(size: 12))
-          .foregroundStyle(palette.ink3)
-          .fixedSize(horizontal: false, vertical: true)
-          .frame(maxWidth: .infinity, alignment: .leading)
-      }
-    }
-  }
-
-  // 任意提问的直达热键卡已随 OwlHotKeySlot.askAnything 一并退役（产品决策 2026-07-26）：
-  // 任意提问是划词技能的兜底，入口收敛为唯一一条「选中文字 → 召唤划词工具箱」（状态栏菜单项同日删除）。
-
-  /// 提示词助手直达热键（07-21 机主提案）：同一块快捷面板、初始分段=提示词。五笔的专属入口——
-  /// 提示词表不挂五笔 schema（守四码上屏），打字触发只在拼音下存在。
-  private var promptAssistantHotKeyCard: some View {
-    SettingsCard(
-      title: "提示词助手",
-      palette: palette,
-      theme: theme,
-      reduceTransparency: reduceTransparency
-    ) {
-      VStack(alignment: .leading, spacing: 8) {
-        OwlHotKeyRecorderRow(slot: .promptAssistant, palette: palette)
-        Text("按下热键直接打开提示词列表（任意输入方案可用，含五笔）；选中带 {{变量}} 的模板会先弹填空再插入。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .fixedSize(horizontal: false, vertical: true)

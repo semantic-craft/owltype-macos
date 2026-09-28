@@ -209,8 +209,6 @@ struct OwlSettingsView: View {
         schemesPage
       case .quickSend:
         OwlTemplateSettingsRoute(palette: palette, onRedeploy: { _ = onRedeploy() })
-      case .prompts:
-        OwlTemplateSettingsRoute(palette: palette, promptOnly: true, onRedeploy: { _ = onRedeploy() })
       case .clipboard:
         OwlClipboardPage(
           palette: palette,

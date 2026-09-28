@@ -148,7 +148,7 @@ enum OwlTemplateStore {
 
   static func mode(rimeDir: URL = OwlApp.userDir) -> Mode {
     if OwlTemplateMigration.hasPendingRecovery(rimeDir: rimeDir) {
-      return .unavailable("模板库操作需要恢复，请到快捷短语设置中重试。")
+      return .unavailable("模板库操作需要恢复，请到快捷片段设置中重试。")
     }
     let fm = FileManager.default
     let state = rimeDir.appendingPathComponent(stateFileName)

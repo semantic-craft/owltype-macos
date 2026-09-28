@@ -36,7 +36,6 @@ enum OwlSettingsPage: String, CaseIterable, Identifiable, Sendable {
   case appearance
   case schemes
   case quickSend
-  case prompts
   case clipboard
   case project
   case ai
@@ -56,8 +55,7 @@ enum OwlSettingsPage: String, CaseIterable, Identifiable, Sendable {
     case .keyboard: return "键盘输入"
     case .shortcuts: return "快捷键设置"
     case .appearance: return "候选窗设置"
-    case .schemes: return "输入方案"    case .quickSend: return "快捷短语"
-    case .prompts: return "提示词助手"
+    case .schemes: return "输入方案"    case .quickSend: return "快捷片段"
     case .clipboard: return "剪贴板"
     case .project: return "划词工具箱"
     case .ai: return "AI 配置"
@@ -74,7 +72,6 @@ enum OwlSettingsPage: String, CaseIterable, Identifiable, Sendable {
     case .shortcuts: return "command"
     case .appearance: return "macwindow"
     case .schemes: return "character.book.closed"    case .quickSend: return "text.badge.plus"
-    case .prompts: return "doc.text"
     case .clipboard: return "doc.on.clipboard"
     case .project: return "wand.and.sparkles"
     case .ai: return "sparkles"
@@ -93,7 +90,6 @@ enum OwlSettingsPage: String, CaseIterable, Identifiable, Sendable {
     case .shortcuts: return "捷"
     case .appearance: return "候"
     case .schemes: return "案"    case .quickSend: return "短"
-    case .prompts: return "提"
     case .clipboard: return "贴"
     case .project: return "技"
     case .ai: return "智"

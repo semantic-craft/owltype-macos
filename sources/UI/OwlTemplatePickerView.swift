@@ -42,7 +42,7 @@ struct OwlTemplatePickerView: View {
     VStack(spacing: 10) {
       HStack {
         Picker("范围", selection: $promptOnly) {
-          Text("全部").tag(false)
+          Text("全部片段").tag(false)
           Text("提示词").tag(true)
         }.pickerStyle(.segmented).frame(width: 200)
         Picker("标签", selection: $selectedTag) {
@@ -85,7 +85,7 @@ struct OwlTemplatePickerView: View {
                 .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .topLeading)
             }.accessibilityIdentifier("template-full-preview")
           } else {
-            Text(entries.isEmpty ? "在快捷短语设置中创建条目" : "无匹配条目")
+            Text(entries.isEmpty ? "在快捷片段设置中创建条目" : "无匹配条目")
             Spacer()
           }
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

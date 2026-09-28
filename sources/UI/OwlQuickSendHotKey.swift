@@ -53,10 +53,10 @@ enum OwlHotKeySlot: CaseIterable, Sendable {
   /// `settings-` source file) so it stays invisible to `OwlSettingsCoverageTests`.
   var displayName: String {
     switch self {
-    case .quickSendPanel: return "快捷短语面板"
+    case .quickSendPanel: return "快捷片段"
     // 2026-07-26 工具箱重设计：case 名与 defaultsKey 不动（存量组合照常解码），只换用户可见名。
     case .selectionMenu: return "划词工具箱"
-    case .promptAssistant: return "提示词助手"
+    case .promptAssistant: return "快捷片段 · 提示词筛选"
     }
   }
 

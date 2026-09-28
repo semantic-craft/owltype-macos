@@ -39,10 +39,21 @@ final class OwlSettingsUITests: XCTestCase {
     tapMany(["竖排", "圆体", "候选条动画", "多行"], in: app)
 
     openPage("quickSend", in: app)
-    type("短语", text: "uitest", in: app)
-    type("编码，如 mty 或 mtycs", text: "ui", in: app)
-    tap("添加短语", in: app)
-    tap("清空", in: app)
+    XCTAssertFalse(app.staticTexts["提示词助手"].exists)
+    type("template-title", text: "uitest snippet", in: app)
+    type("template-body", text: "first line\nsecond line", in: app)
+    tap("template-save", in: app)
+    XCTAssertTrue(app.buttons["uitest snippet"].waitForExistence(timeout: 3))
+    tap("提示词", in: app)
+    XCTAssertFalse(app.buttons["uitest snippet"].exists)
+    tap("新建", in: app)
+    type("template-title", text: "uitest prompt", in: app)
+    type("template-body", text: "prompt body", in: app)
+    tap("template-save", in: app)
+    XCTAssertTrue(app.buttons["uitest prompt"].waitForExistence(timeout: 3))
+    tap("全部", in: app)
+    XCTAssertTrue(app.buttons["uitest snippet"].exists)
+    XCTAssertTrue(app.buttons["uitest prompt"].exists)
 
     openPage("clipboard", in: app)
     NSPasteboard.general.clearContents()
@@ -103,7 +114,7 @@ final class OwlSettingsUITests: XCTestCase {
     let title = [
       "shortcuts": "快捷键设置",
       "appearance": "候选窗设置",
-      "quickSend": "快捷短语",
+      "quickSend": "快捷片段",
       "clipboard": "剪贴板",
       "project": "划词工具箱",
       "ai": "AI 配置",

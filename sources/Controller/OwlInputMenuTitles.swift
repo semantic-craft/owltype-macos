@@ -10,7 +10,7 @@
 enum OwlInputMenuTitles {
   static let clipboard = "剪贴板…"
   static let emoji = "表情符号…"
-  static let quickSend = "快捷短语…"
+  static let quickSend = "快捷片段…"
   static let settings = "设置…"
   static let deploy = "应用配置改动"
   static let syncUserData = "同步用户数据"

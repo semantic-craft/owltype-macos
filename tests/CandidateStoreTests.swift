@@ -519,6 +519,13 @@ final class OwlModernUISmokeTests: XCTestCase {
     XCTAssertFalse(state.showsCompactComment(for: CandidateViewModel(id: 0, label: "1", text: "你好")))
   }
 
+  func testSnippetSettingsHasOneEntryAndPreservesExistingShortcutBindings() {
+    XCTAssertEqual(OwlSettingsPage.visibleCases.filter { $0.title == "快捷片段" }, [.quickSend])
+    XCTAssertNil(OwlSettingsPage(rawValue: "prompts"))
+    XCTAssertEqual(OwlHotKeySlot.quickSendPanel.defaultsKey, "OwlQuickSendPanelHotKey")
+    XCTAssertEqual(OwlHotKeySlot.promptAssistant.defaultsKey, "OwlPromptAssistantHotKey")
+  }
+
   func testKeyboardPageExposesFirstClassInputModesAndDoublePinyinPickerState() {
     XCTAssertFalse(OwlSettingsPage.visibleCases.contains(.schemes))
     XCTAssertEqual(
@@ -551,7 +558,7 @@ final class OwlModernUISmokeTests: XCTestCase {
   func testInputMenuTitlesExposeHighFrequencyTools() {
     XCTAssertEqual(OwlInputMenuTitles.clipboard, "剪贴板…")
     XCTAssertEqual(OwlInputMenuTitles.emoji, "表情符号…")
-    XCTAssertEqual(OwlInputMenuTitles.quickSend, "快捷短语…")
+    XCTAssertEqual(OwlInputMenuTitles.quickSend, "快捷片段…")
     XCTAssertEqual(OwlInputMenuTitles.deploy, "应用配置改动")
     XCTAssertEqual(OwlInputMenuTitles.syncDirectory, "设置同步目录...")
     XCTAssertEqual(OwlInputMenuTitles.syncUserData, "同步用户数据")
