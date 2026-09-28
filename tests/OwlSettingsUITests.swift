@@ -45,6 +45,7 @@ final class OwlSettingsUITests: XCTestCase {
     tap("template-save", in: app)
     XCTAssertTrue(app.buttons["uitest snippet"].waitForExistence(timeout: 3))
     tap("提示词", in: app)
+    XCTAssertFalse(app.buttons["uitest snippet"].exists)
     tap("新建", in: app)
     type("template-title", text: "uitest prompt", in: app)
     type("template-body", text: "prompt body", in: app)
