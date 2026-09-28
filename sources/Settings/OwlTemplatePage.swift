@@ -282,7 +282,7 @@ final class OwlTemplateEditorModel: ObservableObject {
 /// Scroll the whole detail surface so native toolbar safe areas and short windows never clip controls.
 struct OwlTemplatePage: View {
   let palette: OwlCandidatePalette
-  var promptOnly = false
+  @State private var promptOnly = false
   var onRedeploy: (() -> Void)?
   @StateObject private var model: OwlTemplateEditorModel
   @State private var search = ""
@@ -309,7 +309,7 @@ struct OwlTemplatePage: View {
   init(palette: OwlCandidatePalette, promptOnly: Bool = false,
        writer: OwlConfigWriter = OwlConfigWriter(), onRedeploy: (() -> Void)? = nil) {
     self.palette = palette
-    self.promptOnly = promptOnly
+    _promptOnly = State(initialValue: promptOnly)
     self.onRedeploy = onRedeploy
     _model = StateObject(wrappedValue: OwlTemplateEditorModel(writer: writer))
   }
@@ -389,7 +389,11 @@ struct OwlTemplatePage: View {
 
   private var libraryList: some View {
     VStack(alignment: .leading, spacing: 12) {
-      Text(promptOnly ? "提示词" : "快捷短语").font(.headline)
+      Text("快捷片段").font(.headline)
+      Picker("内容筛选", selection: $promptOnly) {
+        Text("全部").tag(false)
+        Text("提示词").tag(true)
+      }.pickerStyle(.segmented).accessibilityIdentifier("snippet-category-filter")
       TextField("搜索标题、正文、标签或触发词", text: $search)
       Picker("标签筛选", selection: $selectedTag) {
         Text("全部标签").tag(nil as String?)
@@ -399,7 +403,7 @@ struct OwlTemplatePage: View {
       automaticSettings
       Button("导入 Raycast JSON…") { withSavedDraft { chooseRaycastImport() } }
         .disabled(!model.canEdit).accessibilityIdentifier("template-import-raycast")
-      Menu("备份与恢复") {
+      Menu("导出与恢复") {
         Button("导出完整原生备份…", action: exportBackup)
         Button("从原生备份恢复…") { withSavedDraft { chooseRestore() } }
         Button("打开本地备份文件夹") {

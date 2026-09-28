@@ -41,7 +41,7 @@ struct OwlTemplateMigrationView: View {
   }
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
-      Text("迁移快捷短语与提示词").font(.title2)
+      Text("将旧短语与提示词迁移到快捷片段").font(.title2)
       Text("原始文件会保留。请先处理记录问题和编码冲突，再启用统一模板库。暂不迁移时可切换到其他设置页，已有原件不会改变。")
         .foregroundStyle(.secondary)
       if let plan = model.plan {
@@ -91,17 +91,16 @@ struct OwlTemplateMigrationView: View {
   }
 }
 
-/// Keeps both original settings routes, while replacing legacy editing with the lossless audit.
+/// The unified snippet settings entry audits legacy content before opening the editor.
 struct OwlTemplateSettingsRoute: View {
   let palette: OwlCandidatePalette
-  var promptOnly = false
   var rimeDir: URL = OwlApp.userDir
   let onRedeploy: () -> Void
   @State private var unified = false
   var body: some View {
     Group {
       if unified || OwlTemplateStore.mode(rimeDir: rimeDir) == .empty || OwlTemplateStore.mode(rimeDir: rimeDir) == .unified {
-        OwlTemplatePage(palette: palette, promptOnly: promptOnly, writer: OwlConfigWriter(rimeDir: rimeDir), onRedeploy: onRedeploy)
+        OwlTemplatePage(palette: palette, writer: OwlConfigWriter(rimeDir: rimeDir), onRedeploy: onRedeploy)
       } else {
         OwlTemplateMigrationView(rimeDir: rimeDir) { unified = true; onRedeploy() }
       }

@@ -495,7 +495,7 @@ struct OwlQuickSendPanelView: View {
   private var emptyState: some View {
     let nothingConfigured = model.rows.isEmpty
     let kind = segment.label
-    let settingsPage = segment == .phrase ? "快捷短语" : "提示词"
+    let settingsPage = "快捷片段"
     return VStack(spacing: 6) {
       Text(nothingConfigured ? "还没有配置\(kind)" : "无匹配\(kind)")
         .font(.system(size: 13))

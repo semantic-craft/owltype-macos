@@ -26,7 +26,7 @@ final class OwlPromptFillModel: ObservableObject {
 
   init(invocation: OwlTemplateInvocation) {
     switch invocation.content {
-    case .plainText: title = "快捷短语"
+    case .plainText: title = "快捷片段"
     case .prompt(let entry): title = entry.title
     case .template(let entry): title = entry.title
     }
