@@ -27,6 +27,7 @@ final class OwlSettingsCoverageTests: XCTestCase {
   private static let settingsFiles = [
     "sources/Settings/OwlSettingsView.swift",
     "sources/Settings/OwlKeyboardPage.swift",
+    "sources/Settings/OwlInputHabitsSettings.swift",
     "sources/Settings/OwlKeyboardPreferences.swift",
     "sources/Settings/OwlSettingsPages.swift",
     "sources/Settings/OwlSkinPage.swift",
@@ -45,6 +46,8 @@ final class OwlSettingsCoverageTests: XCTestCase {
     // OwlSegmentedControl option labels (replaced the old `Picker(.segmented)` titles).
     // 浅色/深色 dropped: 外观模式 + 皮肤预览 removed from 候选窗设置 (明暗 lives on 皮肤外观, uses 亮/暗).
     "跟随系统",
+    // Input habits: persistence, forget/unpin and native practice are covered by OwlInputHabitsTests.
+    "记住每个应用的中英文状态", "管理记忆…", "忘记", "管理置顶词…", "取消置顶",
     // 候选窗尺寸：2026-08-06 由三档「候选字号」升为四档，`特大`(base 27) 是纯增补，小/中/大
     // 三档的点数与 rawValue 都没动（老用户零迁移）。这一档拨的是整块面板——候选字与留白同步
     // 缩放。生命周期覆盖在 OwlCandidatePanelDisplayLifecycleTests；点数阶梯与留白换算表在

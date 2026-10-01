@@ -85,11 +85,11 @@ struct OwlKeyboardPage: View {
           symbolCard
           candidateEmojiCard
           localConvenienceCard
-          appEnglishCard
         case .shortcuts:
           cjkSwitchCard
           pagingCard
           quickSelectCard
+          OwlPinnedWordsSettings(palette: palette, theme: theme, reduceTransparency: reduceTransparency)
           quickSendPanelHotKeyCard
           selectionMenuPanelHotKeyCard
           noteCard
@@ -416,17 +416,30 @@ struct OwlKeyboardPage: View {
       }
     )
     return SettingsCard(
-      title: "默认状态",
+      title: "中英文与初始状态",
       palette: palette,
       theme: theme,
       reduceTransparency: reduceTransparency
     ) {
       VStack(spacing: 0) {
-        defaultStatePickerRow(title: "中英文", selection: asciiBinding, offLabel: "中文", onLabel: "英文")
+        OwlAppModeControls(palette: palette)
+        defaultStatePickerRow(title: "初始中英文", selection: asciiBinding, offLabel: "中文", onLabel: "英文")
         SettingsCardDivider(palette: palette)
         defaultStatePickerRow(title: "简繁体", selection: traditionalBinding, offLabel: "简体", onLabel: "繁体")
         SettingsCardDivider(palette: palette)
         defaultStatePickerRow(title: "全半角", selection: fullShapeBinding, offLabel: "半角", onLabel: "全角")
+        HStack {
+          VStack(alignment: .leading, spacing: 4) {
+            Text("指定应用初始英文").font(.system(size: 13))
+            Text(appEnglishSummary + "；已有记忆时优先恢复上次选择。")
+              .font(.system(size: 12)).foregroundStyle(palette.ink3)
+          }
+          Spacer()
+          Button("管理…") {
+            appEnglishSnapshot = OwlKeyboardPreferences.appEnglishBundleIDs
+            showAppEnglishSheet = true
+          }
+        }.padding(.vertical, 10)
         Text("简繁体打开后全拼 / 双拼 / 五笔候选转繁体（s2t），立即生效。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
@@ -853,39 +866,6 @@ struct OwlKeyboardPage: View {
   /// 指定「应用」默认使用英文: a row summarising how many apps are set + a 「管理…」 button
   /// that opens `OwlAppEnglishSheet` (WeChat-style icon/name picker, replaces the old
   /// comma-separated bundle-ID text field). Storage + apply path are unchanged.
-  private var appEnglishCard: some View {
-    SettingsCard(
-      title: "指定「应用」默认使用英文",
-      palette: palette,
-      theme: theme,
-      reduceTransparency: reduceTransparency
-    ) {
-      HStack(spacing: 10) {
-        Text(appEnglishSummary)
-          .font(.system(size: 13))
-          .foregroundStyle(palette.ink3)
-        Spacer(minLength: 0)
-        Button(action: {
-          appEnglishSnapshot = OwlKeyboardPreferences.appEnglishBundleIDs
-          showAppEnglishSheet = true
-        }) {
-          Text("管理…")
-            .font(.system(size: 14, weight: .medium))
-            .foregroundStyle(palette.accent)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 6)
-            .background {
-              RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .strokeBorder(palette.accent.opacity(0.6), lineWidth: 1)
-            }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("管理…")
-      }
-      .padding(.vertical, 4)
-    }
-  }
-
   /// Reactive count of configured apps (reads the observed mirror, not prefs, so the row
   /// refreshes after the sheet closes). Phrased so the empty state still explains itself.
   private var appEnglishSummary: String {

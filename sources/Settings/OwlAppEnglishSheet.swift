@@ -45,7 +45,7 @@ enum OwlAppEnglishCatalog {
   /// bundle identifier, or nil if cancelled / unreadable.
   static func pickApplicationBundleID() -> String? {
     let panel = NSOpenPanel()
-    panel.message = "选择一个应用，下次使用它时默认英文输入"
+    panel.message = "选择一个应用，在没有状态记忆时使用英文输入"
     panel.prompt = "选择"
     panel.allowedContentTypes = [.application]
     panel.allowsMultipleSelection = false
@@ -85,7 +85,7 @@ struct OwlAppEnglishSheet: View {
 
   var body: some View {
     VStack(spacing: 14) {
-      Text("指定「应用」默认使用英文")
+      Text("指定应用初始英文")
         .font(.system(size: 15, weight: .semibold))
         .foregroundStyle(palette.ink)
       listArea
@@ -100,7 +100,7 @@ struct OwlAppEnglishSheet: View {
     if bundleIDs.isEmpty {
       VStack {
         Spacer()
-        Text("添加应用后，下次使用该应用时默认为英文输入状态")
+        Text("没有状态记忆时以英文开始；已有记忆时恢复上次选择")
           .font(.system(size: 13))
           .foregroundStyle(palette.ink3)
           .multilineTextAlignment(.center)

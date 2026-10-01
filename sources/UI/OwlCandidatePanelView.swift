@@ -50,6 +50,8 @@ struct OwlCandidatePanelView: View {
   /// settings skin-preview call site is unaffected. NEEDS REAL-MACHINE VERIFICATION:
   /// the async reframe timing in a non-activating panel.
   var onToggleExpand: (() -> Void)? = nil
+  var canPin: ((String) -> Bool)? = nil
+  var onPin: ((String) -> Void)? = nil
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -173,6 +175,21 @@ struct OwlCandidatePanelView: View {
   /// rounded-corner appearance，且色块与容器之间要有留白（菜单高亮、侧栏选中都是内嵌的）。
   @ViewBuilder private func selectionFill(cornerRadius: CGFloat) -> some View {
     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(palette.accent)
+  }
+
+  @ViewBuilder private func pinBadge(_ candidate: CandidateViewModel) -> some View {
+    if candidate.comment == "置顶" {
+      Image(systemName: "pin.fill")
+        .font(.system(size: 10))
+        .foregroundStyle(candidate.id == state.highlightedIndex ? palette.onAccent : palette.accent)
+        .accessibilityLabel("已置顶")
+    }
+  }
+
+  @ViewBuilder private func pinMenu(_ candidate: CandidateViewModel) -> some View {
+    if canPin?(candidate.text) == true {
+      Button(candidate.comment == "置顶" ? "取消置顶" : "置顶此候选") { onPin?(candidate.text) }
+    }
   }
 
   // MARK: Header — preedit (dotted underline) + blinking caret + expand chevron
@@ -375,10 +392,11 @@ struct OwlCandidatePanelView: View {
       if labelSlot > 0 {
         Color.clear.frame(width: labelSlot, height: 0)
       }
+      pinBadge(candidate)
       Text(candidate.text)
         .font(state.candidateFont.font(size: geometry.candidateFontSize))
         .foregroundStyle(palette.ink)
-      if state.showsCompactComment(for: candidate), let note = candidate.comment {
+      if state.showsCompactComment(for: candidate), let note = candidate.comment, note != "置顶" {
         Text(note)
           .font(.system(size: geometry.secondaryFontSize))
           .monospacedDigit()
@@ -391,6 +409,7 @@ struct OwlCandidatePanelView: View {
     .contentShape(Rectangle())
     // `candidate.id` 在前/后页行里是整张候选列表的绝对下标（见 `OwlScrollRow`）。
     .onTapGesture { onSelectAbsolute?(candidate.id) }
+    .contextMenu { pinMenu(candidate) }
     .accessibilityElement(children: .combine)
     .accessibilityLabel(Text(candidate.text))
     .accessibilityIdentifier("scroll-candidate-\(candidate.id)")
@@ -429,10 +448,11 @@ struct OwlCandidatePanelView: View {
           // 数字沟（page_size ≤ 9 时全是等宽数字，观感与原来逐点一致）。
           .frame(width: geometry.labelSlotWidth, alignment: .trailing)
       }
+      pinBadge(candidate)
       Text(candidate.text)
         .font(state.candidateFont.font(size: geometry.compactPill.candidateFontSize))
         .foregroundStyle(selected ? palette.onAccent : palette.ink)
-      if state.showsCompactComment(for: candidate), let note = candidate.comment {
+      if state.showsCompactComment(for: candidate), let note = candidate.comment, note != "置顶" {
         Text(note)
           .font(.system(size: geometry.compactPill.secondaryFontSize))
           .monospacedDigit()
@@ -458,6 +478,7 @@ struct OwlCandidatePanelView: View {
     .background { if selected { selectionFill(cornerRadius: geometry.selectionRadius) } }
     .contentShape(Rectangle())
     .onTapGesture { onSelect(candidate.id) }
+    .contextMenu { pinMenu(candidate) }
     .accessibilityElement(children: .combine)
     .accessibilityIdentifier("current-candidate-\(candidate.id)")
   }
@@ -586,11 +607,12 @@ struct OwlCandidatePanelView: View {
             }
             .foregroundStyle(selected ? palette.onAccent : palette.accent)
         }
+        pinBadge(candidate)
         Text(candidate.text)
           .font(state.candidateFont.font(size: row.candidateFontSize))
           .foregroundStyle(selected ? palette.onAccent : palette.ink)
         // Feature 7: 隐藏注释 / 仅候选 presets drop the reading / 释义 comment.
-        if state.candidateFormat.showsComment, let note = candidate.comment, !note.isEmpty {
+        if state.candidateFormat.showsComment, let note = candidate.comment, !note.isEmpty, note != "置顶" {
           Text(note)
             .font(.system(size: row.commentFontSize))
             .monospacedDigit()
@@ -623,6 +645,7 @@ struct OwlCandidatePanelView: View {
     .background { if selected { selectionFill(cornerRadius: geometry.selectionRadius) } }
     .contentShape(Rectangle())
     .onTapGesture { onSelect(candidate.id) }
+    .contextMenu { pinMenu(candidate) }
     .accessibilityElement(children: .combine)
   }
 }

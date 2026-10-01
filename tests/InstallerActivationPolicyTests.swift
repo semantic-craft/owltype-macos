@@ -13,6 +13,24 @@ import XCTest
 
 final class InstallerActivationPolicyTests: XCTestCase {
 
+  func testParkingUsesUSWhenABCIsNotInstalled() {
+    XCTAssertEqual(InstallerActivationPolicy.parkingSourceID(
+      preferredID: "com.apple.keylayout.US", selectableASCIIKeyboardIDs: ["com.apple.keylayout.US"]),
+      "com.apple.keylayout.US")
+  }
+
+  func testParkingHonorsAvailablePreferredKeyboardAndIgnoresStalePreference() {
+    XCTAssertEqual(InstallerActivationPolicy.parkingSourceID(
+      preferredID: "com.apple.keylayout.British",
+      selectableASCIIKeyboardIDs: ["com.apple.keylayout.US", "com.apple.keylayout.British"]),
+      "com.apple.keylayout.British")
+    XCTAssertEqual(InstallerActivationPolicy.parkingSourceID(
+      preferredID: "com.apple.keylayout.ABC", selectableASCIIKeyboardIDs: ["com.apple.keylayout.US"]),
+      "com.apple.keylayout.US")
+    XCTAssertNil(InstallerActivationPolicy.parkingSourceID(
+      preferredID: "com.apple.keylayout.ABC", selectableASCIIKeyboardIDs: []))
+  }
+
   // MARK: - 复合幂等判据真值表（定律 4/11：绝不信 IsEnabled；已有安装整段跳过 enable）
 
   func testCleanFirstInstallEnablesParentAndPrimaryModeOnceAndSelects() {
@@ -23,7 +41,7 @@ final class InstallerActivationPolicyTests: XCTestCase {
     XCTAssertEqual(
       plan,
       InstallerActivationPolicy.ActivationPlan(
-        enableParentAndPrimaryModeOnce: true, parkOnABCBeforeReplace: false,
+        enableParentAndPrimaryModeOnce: true, parkOnKeyboardBeforeReplace: false,
         selectOwltypeAfterInstall: true))
   }
 
@@ -32,7 +50,7 @@ final class InstallerActivationPolicyTests: XCTestCase {
     let plan = InstallerActivationPolicy.plan(
       bundlePreexisted: true, owltypeProcessWasRunning: false, owltypeWasCurrentSource: false)
     XCTAssertFalse(plan.enableParentAndPrimaryModeOnce)
-    XCTAssertFalse(plan.parkOnABCBeforeReplace)
+    XCTAssertFalse(plan.parkOnKeyboardBeforeReplace)
     XCTAssertFalse(plan.selectOwltypeAfterInstall, "更新绝不从其它输入法手里抢当前输入源")
   }
 
@@ -49,7 +67,7 @@ final class InstallerActivationPolicyTests: XCTestCase {
     let plan = InstallerActivationPolicy.plan(
       bundlePreexisted: true, owltypeProcessWasRunning: true, owltypeWasCurrentSource: true)
     XCTAssertFalse(plan.enableParentAndPrimaryModeOnce)
-    XCTAssertTrue(plan.parkOnABCBeforeReplace)
+    XCTAssertTrue(plan.parkOnKeyboardBeforeReplace)
     XCTAssertTrue(plan.selectOwltypeAfterInstall)
   }
 
@@ -68,7 +86,7 @@ final class InstallerActivationPolicyTests: XCTestCase {
     XCTAssertEqual(
       plan,
       InstallerActivationPolicy.ActivationPlan(
-        enableParentAndPrimaryModeOnce: true, parkOnABCBeforeReplace: true,
+        enableParentAndPrimaryModeOnce: true, parkOnKeyboardBeforeReplace: true,
         selectOwltypeAfterInstall: true))
   }
 
@@ -78,7 +96,7 @@ final class InstallerActivationPolicyTests: XCTestCase {
     let plan = InstallerActivationPolicy.plan(
       bundlePreexisted: true, owltypeProcessWasRunning: false, owltypeWasCurrentSource: true)
     XCTAssertFalse(plan.enableParentAndPrimaryModeOnce)
-    XCTAssertTrue(plan.parkOnABCBeforeReplace)
+    XCTAssertTrue(plan.parkOnKeyboardBeforeReplace)
     XCTAssertTrue(plan.selectOwltypeAfterInstall)
   }
 
@@ -87,7 +105,7 @@ final class InstallerActivationPolicyTests: XCTestCase {
     let plan = InstallerActivationPolicy.plan(
       bundlePreexisted: false, owltypeProcessWasRunning: true, owltypeWasCurrentSource: true)
     XCTAssertFalse(plan.enableParentAndPrimaryModeOnce)
-    XCTAssertTrue(plan.parkOnABCBeforeReplace)
+    XCTAssertTrue(plan.parkOnKeyboardBeforeReplace)
     XCTAssertTrue(plan.selectOwltypeAfterInstall)
   }
 

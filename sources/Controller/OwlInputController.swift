@@ -80,6 +80,8 @@ final class OwlInputController: IMKInputController {
   var chordDuration: TimeInterval = 0
   // seam: was private; internal so OwlInputController+Session.swift can reach it across files.
   var currentApp: String = ""
+  var appModeObservation = OwlAppModeObservation()
+  var pinnedWordsRevision: UInt64?
   // ponytail: dev perf埋点 — log the very first real keystroke of the process once
   // (cold first-key latency: incl. first createSession + get_context + panel show).
   private static var loggedFirstKey = false
@@ -115,6 +117,7 @@ final class OwlInputController: IMKInputController {
     // continue in that case (the system will not deliver a key down event to the application).
     // Returning false means the original key down will be passed on to the client.
 
+    if self.client == nil { self.client = sender as? IMKTextInput }
     if rime?.isValid != true {
       createSession()
       if rime?.isValid != true {
@@ -134,6 +137,8 @@ final class OwlInputController: IMKInputController {
       updateAppOptions()
     }
     ensurePreferredSchemaForIdleSession()
+    syncPinnedWords()
+    if event.type == .keyDown, handlePinHotKey(event) { return true }
 
     if handleAutomaticExpansion(event) { return true }
 

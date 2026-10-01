@@ -221,6 +221,10 @@ final class OwlConfigWriter {
   /// - 否则若 `original` 含 `patch:`：在末尾追加 `\n\n` + 托管块 + `\n`。
   /// - 否则（无 `patch:`，无法安全创建）：`throw fileHasNoPatchAndCannotCreate`。
   func renderManagedBlock(_ original: String, block: ManagedPatchBlock) throws -> String {
+    // The public seed uses `patch: {}`. Expand that empty map before adding children.
+    let original = original.replacingOccurrences(
+      of: #"(?m)^patch:\s*\{\s*\}[ \t]*(#.*)?$"#,
+      with: "patch: $1", options: .regularExpression)
     let begin = "  # >>> \(block.marker)"
     let end = "  # <<< \(block.marker)"
     let managed = ([begin] + block.yamlLinesIndentedUnderPatch + [end])

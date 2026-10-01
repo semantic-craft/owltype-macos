@@ -456,3 +456,95 @@ private final class ProgressCollector: @unchecked Sendable {
   var values: [Double] { lock.withLock { storage } }
   func add(_ value: Double) { lock.withLock { storage.append(value) } }
 }
+
+final class OwlPinyinMixedInputTests: XCTestCase {
+  private var root: URL!
+  private var user: URL { root.appendingPathComponent("user") }
+  private var shared: URL { root.appendingPathComponent("shared") }
+
+  override func setUpWithError() throws {
+    root = FileManager.default.temporaryDirectory.appendingPathComponent("owl-mixed-\(UUID().uuidString)")
+    try write("rime_ice.schema.yaml", at: shared, text: "schema:\n  schema_id: rime_ice\nengine:\n  translators:\n    - script_translator\n")
+    try write("rime_ice.custom.yaml", at: user, text: "# User comment\npatch: {}\n")
+  }
+
+  override func tearDownWithError() throws { try FileManager.default.removeItem(at: root) }
+
+  private func write(_ path: String, at directory: URL, text: String = "fixture\n") throws {
+    let url = directory.appendingPathComponent(path)
+    try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try text.write(to: url, atomically: true, encoding: .utf8)
+  }
+
+  private func populate() throws {
+    for file in OwlPinyinMixedInput.englishFiles + ["en_dicts/cn_en.txt"] { try write(file, at: user) }
+  }
+
+  private func config() throws -> String {
+    try String(contentsOf: user.appendingPathComponent("rime_ice.custom.yaml"), encoding: .utf8)
+  }
+
+  func testDownloadThenUpgradeRestoresChannelsWithoutDuplicateOrLostUserPatch() throws {
+    try OwlPinyinMixedInput.apply(userDir: user, sharedDir: shared)
+    XCTAssertEqual(try config(), "# User comment\npatch: {}\n")
+    try populate()
+    // Templates already own the /+ key. Mixed input must not add a second such key.
+    try write("rime_ice.custom.yaml", at: user, text: "patch:\n  \"engine/translators/+\":\n    - table_translator@owl_templates\n  \"menu/page_size\": 7\n")
+    try write("build/rime_ice.schema.yaml", at: user, text: "old compiled schema")
+    try OwlPinyinMixedInput.apply(userDir: user, sharedDir: shared)
+    let compiled = user.appendingPathComponent("build/rime_ice.schema.yaml")
+    XCTAssertFalse(FileManager.default.fileExists(atPath: compiled.path), "Rapid dictionary installation must invalidate the old translator list")
+    let first = try config()
+    try write("build/rime_ice.schema.yaml", at: user, text: "updated compiled schema")
+    XCTAssertTrue(first.contains("table_translator@melt_eng"))
+    XCTAssertTrue(first.contains("table_translator@cn_en"))
+    XCTAssertTrue(first.contains("table_translator@owl_templates"))
+    XCTAssertTrue(first.contains("\"menu/page_size\": 7"))
+    XCTAssertEqual(first.components(separatedBy: "engine/translators/+").count, 2)
+    try OwlPinyinMixedInput.apply(userDir: user, sharedDir: shared)
+    XCTAssertEqual(try config(), first, "An upgrader's existing data must remain idempotent")
+    XCTAssertTrue(FileManager.default.fileExists(atPath: compiled.path))
+  }
+
+  func testEmptySeedMapIsExpandedAndMissingResourcesRemoveOnlyOwnedChannels() throws {
+    try populate()
+    try OwlPinyinMixedInput.apply(userDir: user, sharedDir: shared)
+    XCTAssertFalse(try config().contains("patch: {}"))
+    XCTAssertTrue(try config().contains("# User comment"))
+    try FileManager.default.removeItem(at: user.appendingPathComponent("en_dicts/en.dict.yaml"))
+    try OwlPinyinMixedInput.apply(userDir: user, sharedDir: shared)
+    XCTAssertFalse(try config().contains("table_translator@melt_eng"))
+    XCTAssertTrue(try config().contains("table_translator@cn_en"))
+    try FileManager.default.removeItem(at: user.appendingPathComponent("en_dicts/cn_en.txt"))
+    try OwlPinyinMixedInput.apply(userDir: user, sharedDir: shared)
+    XCTAssertFalse(try config().contains("table_translator@cn_en"))
+    XCTAssertTrue(try config().contains("# User comment"))
+  }
+
+  func testUserOwnedSchemaOrTranslatorListIsPreserved() throws {
+    try populate()
+    for key in ["engine/translators", "engine/translators/=", "engine/translators/@before 0"] {
+      let custom = "patch:\n  \"\(key)\": [script_translator]\n"
+      try write("rime_ice.custom.yaml", at: user, text: custom)
+      try OwlPinyinMixedInput.apply(userDir: user, sharedDir: shared)
+      XCTAssertEqual(try config(), custom)
+    }
+    try write("rime_ice.custom.yaml", at: user, text: "patch: {}\n")
+    try write("rime_ice.schema.yaml", at: user)
+    try OwlPinyinMixedInput.apply(userDir: user, sharedDir: shared)
+    XCTAssertEqual(try config(), "patch: {}\n")
+  }
+
+  func testFullSchemaOrUserAppendDoesNotDuplicateExistingTranslators() throws {
+    try populate()
+    let custom = "patch:\n  \"engine/translators/+\": [table_translator@melt_eng, table_translator@cn_en]\n"
+    try write("rime_ice.custom.yaml", at: user, text: custom)
+    try OwlPinyinMixedInput.apply(userDir: user, sharedDir: shared)
+    XCTAssertEqual(try config(), custom)
+    try write("rime_ice.custom.yaml", at: user, text: "patch: {}\n")
+    try write("rime_ice.schema.yaml", at: shared,
+              text: "engine:\n  translators:\n    - table_translator@melt_eng\n    - table_translator@cn_en\n")
+    try OwlPinyinMixedInput.apply(userDir: user, sharedDir: shared)
+    XCTAssertEqual(try config(), "patch: {}\n")
+  }
+}

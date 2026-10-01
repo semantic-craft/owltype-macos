@@ -103,6 +103,27 @@ struct OwlApp {
     return builderTraits
   }
 
+  private static func buildSchemas(rimeAPI: RimeApi_stdbool) {
+    // Notification
+    OwlApplicationDelegate.showMessage(msgText: NSLocalizedString("deploy_update", comment: ""))
+    // Build all schemas into Owltype's own data root — never the process cwd (see makeBuilderTraits).
+    try? OwlPrivateStorage.prepareDirectory(userDir)
+    try? FileManager.default.createDirectory(at: logDir, withIntermediateDirectories: true)
+    var builderTraits = makeBuilderTraits()
+    rimeAPI.setup(&builderTraits)
+    rimeAPI.deployer_initialize(nil)
+    do {
+      if let sharedSupport = Bundle.main.sharedSupportURL {
+        try OwlPinyinMixedInput.apply(userDir: userDir, sharedDir: sharedSupport)
+        do { try OwlPinnedWordsDeployment.apply(userDir: userDir, sharedDir: sharedSupport) } catch { fputs("Pinned candidates unavailable: \(error)\n", stderr) }
+      }
+    } catch {
+      fputs("Failed to configure English candidates: \(error)\n", stderr)
+      exit(1)
+    }
+    _ = rimeAPI.deploy()
+  }
+
   // swiftlint:disable:next cyclomatic_complexity
   static func main() {
     let rimeAPI: RimeApi_stdbool = rime_get_api_stdbool().pointee
@@ -213,15 +234,7 @@ struct OwlApp {
           }
           return true
         case "--build":
-          // Notification
-          OwlApplicationDelegate.showMessage(msgText: NSLocalizedString("deploy_update", comment: ""))
-          // Build all schemas into Owltype's own data root — never the process cwd (see makeBuilderTraits).
-          try? OwlPrivateStorage.prepareDirectory(userDir)
-          try? FileManager.default.createDirectory(at: logDir, withIntermediateDirectories: true)
-          var builderTraits = makeBuilderTraits()
-          rimeAPI.setup(&builderTraits)
-          rimeAPI.deployer_initialize(nil)
-          _ = rimeAPI.deploy()
+          buildSchemas(rimeAPI: rimeAPI)
           return true
         case "--sync":
           DistributedNotificationCenter.default().postNotificationName(.init("OwlSyncNotification"), object: nil, userInfo: nil, deliverImmediately: true)

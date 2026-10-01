@@ -819,6 +819,17 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     // deploy() had already called shutdownRime — one unfinished migration meant no input at all.
     engine.initialize(nil)
     guard !templateRecoveryBlocksDeployment(migrationDirectory) else { return false }
+    do {
+      if let sharedSupport = Bundle.main.sharedSupportURL {
+        try OwlPinyinMixedInput.apply(userDir: migrationDirectory, sharedDir: sharedSupport)
+        do { try OwlPinnedWordsDeployment.apply(userDir: migrationDirectory, sharedDir: sharedSupport) } catch {
+          Self.deployLog.error("Pinned candidates unavailable: \(error.localizedDescription, privacy: .public)")
+        }
+      }
+    } catch {
+      Self.deployLog.error("English candidate configuration failed: \(error.localizedDescription, privacy: .public)")
+      return false
+    }
     // check for configuration updates
     let maintained = engine.startMaintenance(fullCheck: fullCheck)
     if maintained {
@@ -1097,7 +1108,7 @@ private func notificationHandler(contextObject: UnsafeMutableRawPointer?, sessio
 }
 
 private extension OwlApplicationDelegate {
-  func showStatusMessage(msgTextLong: String?, msgTextShort: String?) {
+  internal func showStatusMessage(msgTextLong: String?, msgTextShort: String?) {
     guard !(msgTextLong ?? "").isEmpty || !(msgTextShort ?? "").isEmpty else { return }
     let messageType = styleFlags.statusMessageType
     // The toast is an NSPanel — show it on the main thread (a Rime option/schema

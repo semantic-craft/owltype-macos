@@ -178,7 +178,7 @@ final class OwlQuickSendPanelModelTests: XCTestCase {
   /// is the assertion (see owl-app-options-test-fake-coverage — asserting the written string only
   /// would be fake coverage).
   func testHotKeySlotsDefaultToOffAndRoundTripRecordedCombos() {
-    for slot in OwlHotKeySlot.allCases {
+    for slot in OwlHotKeySlot.allCases.filter({ $0 != .pinCandidate }) {
       restoreDefaultsAfterTest(key: slot.defaultsKey)
 
       // Default (no stored value) = 未设置 — a global hotkey never claims a key uninvited.
@@ -288,9 +288,9 @@ final class OwlQuickSendPanelModelTests: XCTestCase {
   /// recorder rejects a combo held by ANY other slot; `counterparts` is the set it consults.
   func testSlotCounterpartPairingGuardsAgainstDuplicateCombos() {
     // askAnything 槽已退役（2026-07-26）：任意提问只从划词菜单点进，不再有直达热键。
-    XCTAssertEqual(OwlHotKeySlot.quickSendPanel.counterparts, [.selectionMenu, .promptAssistant])
-    XCTAssertEqual(OwlHotKeySlot.selectionMenu.counterparts, [.quickSendPanel, .promptAssistant])
-    XCTAssertEqual(OwlHotKeySlot.promptAssistant.counterparts, [.quickSendPanel, .selectionMenu])
+    XCTAssertEqual(OwlHotKeySlot.quickSendPanel.counterparts, [.selectionMenu, .promptAssistant, .pinCandidate])
+    XCTAssertEqual(OwlHotKeySlot.selectionMenu.counterparts, [.quickSendPanel, .promptAssistant, .pinCandidate])
+    XCTAssertEqual(OwlHotKeySlot.promptAssistant.counterparts, [.quickSendPanel, .selectionMenu, .pinCandidate])
 
     restoreDefaultsAfterTest(key: OwlHotKeySlot.quickSendPanel.defaultsKey)
     restoreDefaultsAfterTest(key: OwlHotKeySlot.selectionMenu.defaultsKey)

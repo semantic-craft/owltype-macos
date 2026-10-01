@@ -110,3 +110,78 @@ enum OwlDictPackPreferences {
     set { OwlDefaults.standard.set(newValue, forKey: "OwlDictPackMirror") }
   }
 }
+
+/// Restores the English channels omitted from the public seed once their data exists.
+/// Runs before maintenance, so both a completed download and an app upgrade take effect.
+/// Owns only its marked block; custom schemas and user-owned translator lists take priority.
+enum OwlPinyinMixedInput {
+  static let marker = "OWL MANAGED PINYIN MIXED INPUT v1"
+  static let englishFiles = ["melt_eng.schema.yaml", "melt_eng.dict.yaml", "en_dicts/en.dict.yaml", "en_dicts/en_ext.dict.yaml"]
+
+  static func apply(userDir: URL, sharedDir: URL) throws {
+    let writer = OwlConfigWriter(rimeDir: userDir)
+    let custom = userDir.appendingPathComponent("rime_ice.custom.yaml")
+    let original = FileManager.default.fileExists(atPath: custom.path)
+      ? try String(contentsOf: custom, encoding: .utf8) : "patch:\n"
+    let unmanaged = removingOwnBlock(original)
+    let schemaURL = sharedDir.appendingPathComponent("rime_ice.schema.yaml")
+    guard FileManager.default.fileExists(atPath: schemaURL.path) else { return }
+    let schema = try String(contentsOf: schemaURL, encoding: .utf8)
+    let source = activeLines(schema)
+    let userPatch = activeLines(unmanaged)
+    let customSchema = FileManager.default.fileExists(atPath: userDir.appendingPathComponent("rime_ice.schema.yaml").path)
+    // Appending an independent block must not override a deliberate user list replacement
+    // or an indirect include whose final translator list we cannot establish here.
+    let ownsList = userPatch.range(
+      of: #"(?m)^\s*["']?engine/translators(?:/=)?["']?\s*:|engine/translators/@|schema/dependencies/@|^\s*translators\s*:|__include\s*:|__patch\s*:"#,
+      options: .regularExpression) != nil
+    var lines: [String] = []
+    if !customSchema && !ownsList {
+      let existing = source + "\n" + userPatch
+      if englishFiles.allSatisfy({ available($0, userDir: userDir, sharedDir: sharedDir) }),
+         !existing.contains("table_translator@melt_eng") {
+        // Distinct insertion keys coexist with templates' engine/translators/+ block.
+        lines += ["  \"schema/dependencies/@next\": melt_eng",
+                  "  \"engine/translators/@before 0\": table_translator@melt_eng"]
+      }
+      if available("en_dicts/cn_en.txt", userDir: userDir, sharedDir: sharedDir),
+         !existing.contains("table_translator@cn_en") {
+        lines += ["  \"engine/translators/@before 1\": table_translator@cn_en"]
+      }
+    }
+    guard !lines.isEmpty || original.contains("# >>> \(marker)") else { return }
+    try writer.apply(fileName: "rime_ice.custom.yaml",
+                     block: ManagedPatchBlock(marker: marker, yamlLinesIndentedUnderPatch: lines),
+                     timestamp: ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-"))
+    // librime compares whole-second source mtimes. A download immediately after initial
+    // deployment can otherwise leave the old translator list cached despite new YAML.
+    if try String(contentsOf: custom, encoding: .utf8) != original {
+      let compiled = userDir.appendingPathComponent("build/rime_ice.schema.yaml")
+      if FileManager.default.fileExists(atPath: compiled.path) { try FileManager.default.removeItem(at: compiled) }
+    }
+  }
+
+  private static func available(_ path: String, userDir: URL, sharedDir: URL) -> Bool {
+    // User data shadows shared data, including an empty/broken override.
+    for root in [userDir, sharedDir] {
+      let url = root.appendingPathComponent(path)
+      if FileManager.default.fileExists(atPath: url.path) {
+        return ((try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]))
+          .map { $0.isRegularFile == true && ($0.fileSize ?? 0) > 0 }) ?? false
+      }
+    }
+    return false
+  }
+
+  private static func activeLines(_ text: String) -> String {
+    text.components(separatedBy: .newlines).map {
+      String($0.prefix { $0 != "#" })
+    }.joined(separator: "\n")
+  }
+
+  private static func removingOwnBlock(_ text: String) -> String {
+    guard let begin = text.range(of: "  # >>> \(marker)"),
+          let end = text.range(of: "  # <<< \(marker)"), begin.lowerBound < end.upperBound else { return text }
+    return text.replacingCharacters(in: begin.lowerBound..<end.upperBound, with: "")
+  }
+}

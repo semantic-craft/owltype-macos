@@ -1,87 +1,135 @@
-# Owltype for macOS
+<div align="center">
+
+<img src="Assets.xcassets/Owltype.appiconset/icon_128x128@2x.png" width="96" alt="Owltype app icon">
+
+# Owltype · 猫头鹰输入法
+
+**Local typing, with AI when you need it.**
+
+Pinyin · Double Pinyin · Wubi · Text-selection tools
+
+**深圳大学法律人工智能实训实验室 · Shenzhen University**
 
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)](https://responsay.com/owltype/)
+[![Apple Silicon + Intel](https://img.shields.io/badge/Apple_Silicon_%2B_Intel-Universal-grey)](#get-started)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE.txt)
 
-**中文：[README.md](README.md)** · Product page: <https://responsay.com/owltype/>
+[Get started](#get-started) · [Features](#features) · [Recent updates](#recent-updates) · [Interface](#interface) · [Project and feedback](#project-and-feedback)
 
-Owltype (猫头鹰) is a local-first Chinese input method for macOS. It bundles the Rime engine and
-all of its dictionary data inside the app, and rebuilds the candidate window, settings, onboarding
-and emoji panel in SwiftUI — it types out of the box, with no YAML to hand-edit.
+[Website](https://responsay.com/owltype/) · [中文](README.md)
+
+</div>
+
+Owltype is a Chinese input method for macOS. Write with familiar Pinyin or Wubi, then select text to polish, translate or investigate its sources. Rime powers the input engine; SwiftUI provides native candidates and settings. Everyday typing stays on your Mac. Optional cloud AI runs only after you configure and explicitly invoke it.
 
 ![Owltype candidate window](docs/screenshots/candidates.png)
 
-## Install
+## Recent updates
 
-Requires macOS 14 or later. Universal binary (Apple Silicon and Intel).
+**2.0.11 · Current source version**
 
-1. Download `Owltype-update.pkg` from
-   [responsay.com](https://responsay.com/owltype/Owltype-update.pkg) and
-   double-click it (the installer asks for administrator approval).
-2. Open **System Settings → Keyboard → Input Sources** and add 猫头鹰 to the list.
-3. If it does not show up in the input menu right away, log out and back in once.
+- **Mixed Chinese/English Pinyin:** repairs missing English and mixed-language candidate channels after a full dictionary download or upgrade.
+- **Per-app language memory:** restores the previous Chinese/English choice, with controls to inspect and forget entries.
+- **Pinned candidates:** pins or unpins complete full-Pinyin candidates, with Control Shift P as the default shortcut and a context-menu entry.
+- **Real onboarding practice:** checks composition and commitment of “你好，猫头鹰” in a native text field; pasting does not count.
+- **Installation and presentation:** selects an available system ASCII keyboard; keeps only the lab attribution in About and refreshes both project introductions.
 
-Existing users do not need to download anything: the app ships a pinned Sparkle updater that reads
-only `responsay.com/owltype/appcast.xml`, then downloads and installs the same signed, notarized
-`Owltype-update.pkg` in place — **no logout required**. Update checks upload no typing data.
+<details>
+<summary>Acceptance scope and previous release</summary>
 
-To uninstall, run the bundled `卸载猫头鹰.command`, or remove the input source in System Settings and
-delete `/Library/Input Methods/Owltype.app`.
+Mixed input and keyboard pinning have TextEdit evidence. The context menu, cross-app Shift switching and full onboarding flow still need installed-app verification. Native-controller and real-Rime integration tests cover the feature logic. See the [design and acceptance record](docs/input-habits-design.md) (Chinese).
+
+**2.0.10 (2026-10-01)** added the MiniMax M3.1 preset and China subscription search, and restored the update channel. Users on 2.0.9 or earlier need one manual installation of 2.0.10 or later before receiving subsequent in-app updates.
+
+</details>
 
 ## Features
 
-- **Self-contained Rime** — Rime-ice pinyin (full and Flypy double pinyin), Wubi 86 (Jidian), and
-  simplified/traditional conversion work out of the box, with no YAML configuration.
-- **Context aware** — learns your vocabulary and reorders candidates from context, entirely
-  on-device.
-- **One settings surface** — candidate count, simplified-in/traditional-out, skins, fonts and
-  horizontal/vertical layout apply across full pinyin, double pinyin and Wubi at once.
-- **Multiple skins** — collegiate palettes, light/dark aware, switchable instantly.
-- **Snippets, clipboard and scenario dictionaries** for the phrases you retype.
-- **Emoji and symbol panel** in the input method menu.
-- **Optional AI assistant**, off by default — see the boundary below.
+### ⌨️ Familiar ways to type
+
+Full Pinyin, Flypy double Pinyin, Wubi 86 Jidian, and simplified-to-traditional output. Adjust candidate count, fonts, orientation, initial language and per-app initial English rules in the keyboard and candidate settings. Rime keeps vocabulary learning and user frequency data on-device.
+
+The app bundles its engine and a basic seed dictionary. Full dictionaries are downloaded from upstream through the app. Initial downloads require a network connection; everyday typing then runs locally.
+
+### ✨ Work directly with selected text
+
+The text-selection toolbox offers eight individually configurable actions. Enable cloud AI, configure a provider and grant the system permissions needed to read your selection first.
+
+| Action | What it does |
+| --- | --- |
+| Ask | Give instructions about selected text and ask follow-up questions; search before answering when configured. |
+| Polish | Improve expression and preview the result before replacing the original. |
+| Translate | Translate selected text. |
+| Source verification | Extract legal, case or literature references and offer sources and search routes. |
+| Research assistance | Organize research approaches, keywords and queries. |
+| Prompt optimization | Clarify a prompt's goals, constraints and structure. |
+| Task brief | Turn a rough request into an executable brief and identify missing information. |
+| Publication formatting | Tidy Chinese spacing, punctuation and paragraphs, with a replacement preview. |
+
+Source verification groups entry points into legislation, cases and literature, including China's national laws database, PKULaw, China Judgments Online, the People's Courts Case Database and CNKI. Search routes and AI answers help you consult originals; they do not imply full database access or completed fact-checking.
+
+### 🔌 Configure models and search separately
+
+Presets include Alibaba Cloud Bailian, Doubao, MiMo, DeepSeek and MiniMax. You can also configure OpenAI-compatible services. Set an endpoint, model and key for your account, then test the connection.
+
+Independent search can supply results to an answering model from a different provider. MiniMax China subscription search requires a matching subscription key. Model access, independent search and source-verification capabilities are handled separately. M3.1 supports reasoning-depth controls; reasoning cannot be disabled.
+
+### 📋 Keep reusable content close
+
+Quick snippets, clipboard access, emoji and symbol panels help with text you use repeatedly. Configure common shortcuts in one settings page, without editing configuration files.
+
+### 🎨 Native settings and collegiate palettes
+
+Nine colour palettes support light, dark and system appearance. Adjust fonts, layout, candidate styling and animations; skin changes apply immediately. Settings also include dictionary management, the sync directory, diagnostics and maintenance tools.
+
+## Get started
+
+**macOS 14 or later · Apple Silicon / Intel**
+
+1. [Download the installer DMG](https://responsay.com/owltype/Owltype.dmg), open “猫头鹰安装器” and click “安装” (Install). macOS may request administrator authorization.
+2. Allow the input method if macOS asks, then select “猫头鹰” in the system input menu. If it is missing, check System Settings → Keyboard → Input Sources.
+3. Choose a scheme under “键盘输入” (Keyboard input), follow the dictionary setup and try typing in a newly opened text app.
+4. For AI, add a provider under “AI 配置” and enable the desired text-selection tools. Ordinary typing needs no model configuration.
+
+**Cannot type after installation?** Reopen the host app first. If it still cannot connect, follow the installer's guidance to log out and back in once. Input-method connection refresh varies by host; not every installation or upgrade can avoid logout.
+
+**Updates:** from 2.0.10 onward, use About → Check for updates. The feed is `https://downloads.responsay.com/owltype/v3/appcast.xml`. Older versions need one manual installation of 2.0.10 or later. [Direct update-package download](https://responsay.com/owltype/Owltype-update.pkg).
+
+**Uninstall:** open the installer and choose “卸载” (Uninstall). This also clears Owltype user data; back up personal dictionaries and configuration first if you want to keep them.
 
 ## Interface
 
-Nine colour skins, light/dark following the system, applied the moment you pick one:
+These are the existing repository screenshots. Exact controls depend on the installed version.
 
-![Skin picker](docs/screenshots/skins.png)
+| Appearance | Keyboard input |
+| --- | --- |
+| ![Skin picker](docs/screenshots/skins.png) | ![Keyboard settings](docs/screenshots/keyboard-settings.png) |
 
-Pick another skin and the candidate window follows:
+<details>
+<summary>Another candidate-window palette</summary>
 
-![Candidate window in the Champagne Orange (Flame) skin](docs/screenshots/candidates-flame.png)
+![Candidate window in Champagne Orange (Flame)](docs/screenshots/candidates-flame.png)
 
-The settings panel is paged by sidebar — schema, default states and dictionaries all in one place,
-no YAML to touch:
-
-![Keyboard settings](docs/screenshots/keyboard-settings.png)
+</details>
 
 ## Privacy boundary
 
-- Keystrokes, composition, candidate generation and dictionary lookups all happen on-device.
-- Cloud AI is off by default. Once enabled, requests are made only when you explicitly trigger a
-  cloud feature.
-- A cloud request carries only the question you submitted, the text you explicitly selected, and
-  the current conversation history.
-- It never carries implicit context: raw input codes, composition, candidates, screen contents,
-  window or browser information, the full text of the focused field, or the text around the cursor.
-- Provider keys live in the macOS Keychain, never in config files or in this repository.
+- **Typing stays local:** keystrokes, composition, candidate generation and dictionary processing are not automatically uploaded.
+- **Cloud AI is off by default:** even when enabled, model and search requests require an explicit action.
+- **Only explicitly submitted content:** requests may contain your question, selected text and current conversation history. They do not automatically include screen, window or browser information, text outside the selection or text around the cursor.
+- **Keys stay in Keychain:** they are not stored in ordinary configuration files. Updates and dictionary downloads use the network without sending typing content.
 
-See [PRIVACY.md](PRIVACY.md) for the full statement. Report security issues privately as described
-in [SECURITY.md](SECURITY.md).
+See [PRIVACY.md](PRIVACY.md). Report security issues privately as described in [SECURITY.md](SECURITY.md).
 
-## Project status
+## Project and feedback
 
-- GitHub is the **single private development repository** for Owltype on macOS. The complete
-  product, issues, and pull requests live in
-  [`semantic-craft/owltype-macos`](https://github.com/semantic-craft/owltype-macos);
-  responsay.com publishes signed installers, the Sparkle feed, and the complete corresponding
-  source for each distributed version.
-- History starts from a privacy-reviewed 1.4.22 source snapshot; earlier Git history is not
-  included.
-- 1.4.21 and earlier public builds are no longer distributed or supported.
-- The Windows edition lives in [owltype-win](https://github.com/semantic-craft/owltype-win); its
-  code, tags and release assets are kept separate from this one.
+**深圳大学法律人工智能实训实验室 · Shenzhen University**.
+
+- [Website and public downloads](https://responsay.com/owltype/) · [Corresponding source](https://responsay.com/owltype/source.tar.gz)
+- [Issues and suggestions](https://github.com/semantic-craft/owltype-macos/issues): the development repository is private; collaborators with access can file issues. Include the app version, macOS version, host app and steps to reproduce.
+- [Windows edition](https://github.com/semantic-craft/owltype-win): independently maintained, with separate versions, features and release assets.
+
+GitHub is the single private development repository for the complete macOS product, issues and reviews. The website distributes installers, update feeds and corresponding source. Repository history starts with the 1.4.22 source snapshot; public releases through 1.4.21 are no longer distributed or supported.
 
 ## Build from source
 

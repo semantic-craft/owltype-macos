@@ -38,10 +38,15 @@ extension OwlInputController {
     if keyboardLayout != "" {
       client?.overrideKeyboard(withKeyboardNamed: keyboardLayout)
     }
+    if rime?.isValid == true {
+      currentApp = client?.bundleIdentifier() ?? currentApp
+      updateAppOptions()
+    }
     preedit = ""
   }
 
   override func deactivateServer(_ sender: Any!) {
+    rememberAppInputMode()
     pendingTemplateDelivery?.hostWillDeactivate()
     templateHostGeneration &+= 1
     // print("[DEBUG] deactivateServer: \(sender ?? "nil")")
@@ -118,6 +123,7 @@ extension OwlInputController {
     pendingTemplateDelivery?.invalidate()
     finishAutomaticExpansion(replaySemicolon: true)
     setRimeOption(.asciiMode, enableASCII)
+    OwlAppInputMemory.shared.remember(app: currentApp, ascii: enableASCII)
     rimeUpdate()
   }
 
