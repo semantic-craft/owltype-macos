@@ -110,7 +110,13 @@ struct OwlAIPage: View {
           askWebSearchProviderRow
         }
         SettingsCardDivider(palette: palette)
-        Text("开启后你的提问会发送给该服务商的联网搜索工具，由它检索后作答。五家都没配密钥时会自动退回普通问答——在上方「供应商」里给其中一家填好 API Key 即可启用。回答窗口会标出这一问由哪家联网作答。\n\n为兼顾效率与实际使用效果，任意提问默认关闭模型的「深度思考」：混合思考模型默认开着思考时，会在吐出第一个字之前先烧掉几百上千个推理 token（实测一句话要多花 5 秒），而任意提问要的是立刻能用的短答。MiMo 与豆包的搜索插件也要求思考关闭才会触发。\n\n唯一的例外是 DeepSeek 联网：它的检索是多轮自主搜索，关掉思考反而会让它一直搜下去、最后一个字都答不出来（实测五问全军覆没），所以只有这一条链路保持思考开启。也因此 DeepSeek 联网比通义千问慢一些、给出的来源链接也更少，自动挑选时会优先用通义千问。")
+        Text("""
+          开启后，优先由已配置的搜索服务检索，再交给默认模型作答；也可由联网模型直接检索作答。\
+          回答窗口会标注搜索来源。未配置可用搜索服务或联网模型时，退回普通问答。
+
+          任意提问优先减少思考等待：支持关闭思考的模型默认关闭；MiniMax M3.1 不支持关闭，\
+          使用低思考强度，M3 则关闭思考。DeepSeek 内置联网需保留思考，自动挑选时仍优先通义千问。
+          """)
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .fixedSize(horizontal: false, vertical: true)
@@ -487,6 +493,8 @@ struct OwlAIPage: View {
     case "qwen":
       // 默认 3.8 Flash，另提供 Plus/Max；型号清单由 catalog 统一维护。
       preset = OwlLLMProviderCatalog.qwenModels
+    case "minimax":
+      preset = OwlLLMProviderCatalog.minimaxModels
     case OwlLLMProviderCatalog.customID:
       preset = []
     default:

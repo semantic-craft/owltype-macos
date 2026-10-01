@@ -292,6 +292,24 @@ final class OwlStreamingChatClientTests: XCTestCase {
     XCTAssertNil(object["enable_thinking"])
   }
 
+  func testMiniMaxStreamUsesLowReasoningAndOnlyEmitsAnswer() async throws {
+    let routing = OwlCloudRouting(
+      providerID: "minimax", endpoint: URL(string: "https://api.minimax.cn/v1/chat/completions")!,
+      model: "MiniMax-M3.1-Flash-Preview", secretName: nil, authHeaderStyle: .bearer)
+    let body = try await captureRequestBody(routing: routing, extraBody: [:])
+    XCTAssertEqual(body["reasoning_effort"] as? String, "low")
+    XCTAssertEqual(body["reasoning_split"] as? Bool, true)
+    XCTAssertNil(body["thinking"])
+    var parser = OwlSSEChatParser()
+    let deltas = parser.consume("""
+      data: {"choices":[{"delta":{"reasoning_content":"private reasoning"}}]}
+      data: {"choices":[{"delta":{"content":"最终答案"}}]}
+      data: [DONE]
+
+      """)
+    XCTAssertEqual(deltas, ["最终答案"])
+  }
+
   // MARK: - High-level service readiness (no network)
 
   @MainActor
@@ -629,7 +647,7 @@ final class OwlStreamingChatClientTests: XCTestCase {
         switch $0 {
         case .doubaoGlobal: return "sk-bad"
         case .qwen: return "sk-qwen-search"
-        case .perplexity: return nil
+        case .perplexity, .minimax: return nil
         }
       },
       webSearchClientFactory: { backend in

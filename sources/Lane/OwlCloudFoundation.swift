@@ -198,11 +198,11 @@ struct OwlDeepSeekThinking: Codable, Equatable, Sendable {
   static let disabled = OwlDeepSeekThinking(type: "disabled")
 }
 
-/// 「强制关闭思考」的逐家 wire format —— 单一真相。
+/// 交互延迟策略的逐家 wire format：能关闭思考时关闭，M3.1 使用 low。
 ///
 /// Owltype 的每条链路都是短输出交互（划词润色、任意提问、来源核验），混合思考模型默认开着思考时
 /// 会在吐第一个字前先烧几百上千 reasoning token：实测 qwen3.6-flash 润色一句话 948 token / 5.4s，
-/// 关掉后 0.6s（2026-07-20 实盘百炼）。所以策略是**全链路强制关**，而不是逐个调用点看着办。
+/// 关掉后 0.6s（2026-07-20 实盘百炼）。M3.1 不允许关闭思考，使用 low；M3 可以关闭。
 ///
 /// 关思考的字段名各家不同，且与「联网搜索」正交（MiMo/方舟的搜索插件还要求思考关掉才触发），
 /// 所以这里按 providerID 给出旧 Chat 请求要合进顶层的字段。Qwen 与豆包 已统一由
@@ -213,35 +213,42 @@ struct OwlDeepSeekThinking: Codable, Equatable, Sendable {
 /// 返回空字典 = 这家没有已知的思考开关，请求体逐字节不变（OpenAI 的 reasoning 走 `/responses`
 /// 的另一套字段，不在这里管）。
 enum OwlThinkingControl {
-  /// Top-level body fields that force `providerID`'s hybrid thinking OFF.
+  /// Top-level fields for the provider's lowest supported thinking latency.
   ///
   /// `model` is the fallback for a custom profile whose id was never stamped — same precedence as
   /// `OwlSearchControl.channel(providerID:host:)`, and it keeps the pre-B1 model-prefix behaviour
   /// (`OwlSelectionPolish.chatRequest`) working unchanged.
   static func offBody(providerID: String, model: String) -> [String: Any] {
-    switch resolved(providerID: providerID, model: model) {
-    case .deepSeekStyle: return ["thinking": ["type": "disabled"]]
-    case .dashScope:     return ["enable_thinking": false]
-    case .none:          return [:]
-    }
+    let fields = offFields(providerID: providerID, model: model)
+    var body: [String: Any] = [:]
+    if let thinking = fields.thinking { body["thinking"] = ["type": thinking.type] }
+    if let enabled = fields.enableThinking { body["enable_thinking"] = enabled }
+    if let effort = fields.reasoningEffort { body["reasoning_effort"] = effort }
+    if let split = fields.reasoningSplit { body["reasoning_split"] = split }
+    return body
   }
 
-  /// 同一策略的 typed 版本，给用 `Codable` 请求体（`OwlDeepSeekChatRequest`）的非流式调用点用 ——
-  /// 它们塞不进 `offBody` 的 `[String: Any]`。两者共用下面的 `resolved`，不会漂移。
-  ///
-  /// 返回 `(nil, nil)` = 这家没有已知的思考开关，两个字段都省略，请求体逐字节不变。
-  static func offFields(providerID: String, model: String)
-    -> (thinking: OwlDeepSeekThinking?, enableThinking: Bool?)
-  {
+  struct Fields {
+    var thinking: OwlDeepSeekThinking?
+    var enableThinking: Bool?
+    var reasoningEffort: String?
+    var reasoningSplit: Bool?
+  }
+
+  /// Typed equivalent for JSON-producing selection skills. Reasoning stays outside content.
+  static func offFields(providerID: String, model: String) -> Fields {
     switch resolved(providerID: providerID, model: model) {
-    case .deepSeekStyle: return (.disabled, nil)
-    case .dashScope:     return (nil, false)
-    case .none:          return (nil, nil)
+    case .deepSeekStyle: return Fields(thinking: .disabled)
+    case .dashScope: return Fields(enableThinking: false)
+    case .minimaxAdaptive: return Fields(reasoningEffort: "low", reasoningSplit: true)
+    case .minimaxDirect: return Fields(thinking: .disabled, reasoningSplit: true)
+    case .minimaxThinking: return Fields(reasoningSplit: true)
+    case .none: return Fields()
     }
   }
 
   /// Which dialect of the thinking switch applies. Not public — callers want `offBody`/`offFields`.
-  private enum Dialect { case deepSeekStyle, dashScope, none }
+  private enum Dialect { case deepSeekStyle, dashScope, minimaxAdaptive, minimaxDirect, minimaxThinking, none }
 
   private static func resolved(providerID: String, model: String) -> Dialect {
     switch providerID.lowercased() {
@@ -252,6 +259,9 @@ enum OwlThinkingControl {
     default: break
     }
     let m = model.lowercased()
+    if m == "minimax-m3.1-flash-preview" { return .minimaxAdaptive }
+    if m == "minimax-m3" { return .minimaxDirect }
+    if m.hasPrefix("minimax-m2") { return .minimaxThinking }
     if m.hasPrefix("deepseek") || m.hasPrefix("mimo") || m.hasPrefix("doubao") { return .deepSeekStyle }
     if m.hasPrefix("qwen") { return .dashScope }
     return .none
@@ -266,7 +276,7 @@ struct OwlDeepSeekChatRequest: Codable, Equatable, Sendable {
   /// DeepSeek / OpenAI-compatible JSON mode. Forces a JSON-object reply so the local parser
   /// validates `{"candidates": [...]}` instead of free text. json_object mode requires the
   /// prompt to also ask for JSON + give an example (see `OwlSelectionPolish.chatRequest`). (G5)
-  let responseFormat: OwlDeepSeekResponseFormat
+  let responseFormat: OwlDeepSeekResponseFormat?
   /// DeepSeek-only thinking control; nil → field omitted (other providers / deep rewrite unchanged).
   let thinking: OwlDeepSeekThinking?
   /// DashScope（qwen）的混合思考开关，语义对应 DeepSeek 的 `thinking`。qwen3.6-flash 默认开思考，
@@ -274,10 +284,15 @@ struct OwlDeepSeekChatRequest: Codable, Equatable, Sendable {
   /// nil → 字段省略，非 qwen 供应商的请求体逐字节不变。
   let enableThinking: Bool?
 
+  let reasoningEffort: String?
+  let reasoningSplit: Bool?
+
   enum CodingKeys: String, CodingKey {
     case model, messages, temperature, stream, thinking
     case responseFormat = "response_format"
     case enableThinking = "enable_thinking"
+    case reasoningEffort = "reasoning_effort"
+    case reasoningSplit = "reasoning_split"
   }
 }
 

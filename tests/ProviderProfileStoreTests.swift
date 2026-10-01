@@ -50,6 +50,35 @@ final class ProviderProfileStoreTests: XCTestCase {
     XCTAssertNil(geminiBody["thinking"])
   }
 
+  func testMiniMaxPreviewUsesLowThinkingAndAdequateProbeBudget() throws {
+    let preset = try XCTUnwrap(OwlLLMProviderCatalog.preset(id: "minimax"))
+    XCTAssertEqual(preset.model, "MiniMax-M3.1-Flash-Preview")
+    XCTAssertEqual(OwlLLMProviderCatalog.minimaxModels.first, preset.model)
+    let body = OwlProviderConnectivityCheck.body(providerID: "minimax", model: preset.model)
+    XCTAssertEqual(body["reasoning_effort"] as? String, "low")
+    XCTAssertEqual(body["reasoning_split"] as? Bool, true)
+    XCTAssertNil(body["thinking"])
+    XCTAssertNil(body["max_tokens"])
+    XCTAssertEqual(body["max_completion_tokens"] as? Int, 4096)
+    for model in OwlLLMProviderCatalog.minimaxModels {
+      let payload = try OwlSelectionPolish.chatRequest(for: "请确认明天开会。", model: model, providerID: "minimax")
+      let object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any])
+      XCTAssertNil(object["response_format"], "MiniMax has no documented JSON mode")
+      XCTAssertEqual(object["reasoning_split"] as? Bool, true)
+      if model == "MiniMax-M3" {
+        XCTAssertEqual((object["thinking"] as? [String: String])?["type"], "disabled")
+      } else {
+        XCTAssertNil(object["thinking"], "M3.1 and M2 cannot disable reasoning")
+      }
+    }
+    let drafting = OwlStructuredDrafting.chatRequest(
+      systemPrompt: "Return JSON", draft: "安排会议", model: preset.model,
+      providerID: "minimax", temperature: 0.2)
+    XCTAssertEqual(drafting.reasoningEffort, "low")
+    XCTAssertEqual(drafting.reasoningSplit, true)
+    XCTAssertNil(drafting.responseFormat)
+  }
+
   private var tempRoot: URL!
 
   override func setUpWithError() throws {

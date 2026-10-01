@@ -68,7 +68,7 @@ extension OwlWebSearchError {
   private static let configurationServiceCodes: Set<String> = [
     "invalid_api_key", "700901", "10410",
     "authentication_error", "InvalidApiKey",
-    "ToolNotOpen", "insufficient_quota",
+    "ToolNotOpen", "insufficient_quota", "minimax_1004", "minimax_2038",
   ]
 }
 
@@ -236,6 +236,7 @@ enum OwlWebSearchBackend: String, CaseIterable, Hashable, Sendable {
   case qwen
 
   case perplexity
+  case minimax
 
   /// 独立搜索后端的尝试顺序。设置偏好只把对应后端移到最前，不删除任何其他候选；Key
   /// 是否可用由任意提问 module 逐项过滤，避免「首选未配 Key」误伤已配置的后备服务。
@@ -252,6 +253,7 @@ enum OwlWebSearchBackend: String, CaseIterable, Hashable, Sendable {
     // 署名 chip 才看得出是哪条路 —— 与「豆包搜索」/「豆包」同一个用意。
     case .qwen:         return "阿里云百炼"
     case .perplexity:   return "Perplexity"
+    case .minimax:      return "MiniMax 搜索（国内站）"
     }
   }
 
@@ -262,6 +264,7 @@ enum OwlWebSearchBackend: String, CaseIterable, Hashable, Sendable {
     case .doubaoGlobal: return "doubao-search"
     case .qwen:         return "qwen-search"
     case .perplexity:   return "perplexity-search"
+    case .minimax:      return "minimax-search"
     }
   }
 
@@ -276,6 +279,8 @@ enum OwlWebSearchBackend: String, CaseIterable, Hashable, Sendable {
       return "在火山引擎「联网搜索控制台 → API Key 管理 → 按量后付费」单独创建（方舟的模型 Key 在这里无效）。每个火山账号每月有 500 次免费额度。"
     case .qwen:
       return "就是阿里云百炼的模型 Key（sk- 开头），与上面「供应商」里那把同源，在这里再填一次即可。注意它取回的来源只有标题与网址、没有正文摘要，接地效果弱于豆包搜索。"
+    case .minimax:
+      return "填入 MiniMax 国内站的 M Plan / Token Plan 订阅 Key（sk-cp-…），与模型 Key 相同，在这里单独保存。搜索结果交给当前默认模型作答。"
     case .perplexity:
       return "在 perplexity.ai 的 API 设置里创建（pplx- 开头）。国内网络访问 api.perplexity.ai 可能需要代理；英文内容检索效果更好，中文站点覆盖弱于豆包搜索。"
     }
@@ -286,6 +291,7 @@ enum OwlWebSearchBackend: String, CaseIterable, Hashable, Sendable {
     case .doubaoGlobal: return OwlDoubaoGlobalSearchClient()
     case .qwen:         return OwlDashScopeSearchClient()
     case .perplexity:   return OwlPerplexitySearchClient()
+    case .minimax:      return OwlMiniMaxSearchClient()
     }
   }
 
@@ -603,5 +609,56 @@ enum OwlWebSearchContext {
   ) -> [OwlDeepSeekMessage] {
     guard let system = systemMessage(results: results) else { return messages }
     return [system] + messages
+  }
+}
+
+// MARK: - MiniMax subscription search
+
+/// Official MiniMax-Coding-Plan-MCP REST contract, without spawning an MCP process.
+/// https://github.com/MiniMax-AI/MiniMax-Coding-Plan-MCP/blob/main/minimax_mcp/server.py
+struct OwlMiniMaxSearchClient: OwlWebSearching {
+  private let fetch: @Sendable (URLRequest) async throws -> (Data, URLResponse)
+
+  init(fetch: (@Sendable (URLRequest) async throws -> (Data, URLResponse))? = nil) {
+    self.fetch = fetch ?? { try await URLSession.shared.data(for: $0) }
+  }
+
+  func search(query: String, apiKey: String, limit: Int) async throws -> [OwlWebSearchResult] {
+    guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      throw OwlWebSearchError.missingAPIKey
+    }
+    var request = URLRequest(url: URL(string: "https://api.minimax.cn/v1/coding_plan/search")!)
+    request.httpMethod = "POST"
+    request.timeoutInterval = 8
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+    request.httpBody = try JSONSerialization.data(withJSONObject: ["q": query])
+    let (data, response) = try await fetch(request)
+    guard let http = response as? HTTPURLResponse else { throw OwlWebSearchError.malformedResponse }
+    guard (200...299).contains(http.statusCode) else {
+      throw OwlWebSearchError.badHTTPStatus(http.statusCode)
+    }
+    let root = try OwlWebSearchPayload.object(from: data)
+    guard let base = root["base_resp"] as? [String: Any],
+          let code = base["status_code"] as? Int else { throw OwlWebSearchError.malformedResponse }
+    guard code == 0 else {
+      throw OwlWebSearchError.serviceError(
+        code: "minimax_\(code)", message: base["status_msg"] as? String ?? "")
+    }
+    guard let organic = root["organic"] as? [[String: Any]] else {
+      throw OwlWebSearchError.malformedResponse
+    }
+    let results: [OwlWebSearchResult] = organic.compactMap { item in
+      guard let link = item["link"] as? String, let url = URL(string: link),
+            let scheme = url.scheme, ["https", "http"].contains(scheme),
+            let host = url.host else { return nil }
+      let title = item["title"] as? String ?? ""
+      return OwlWebSearchResult(
+        title: title.isEmpty ? host : title, url: link,
+        snippet: item["snippet"] as? String ?? "",
+        publishedAt: item["date"] as? String, hostname: host)
+    }
+    guard !results.isEmpty else { throw OwlWebSearchError.noResults }
+    return Array(results.prefix(max(1, limit)))
   }
 }
