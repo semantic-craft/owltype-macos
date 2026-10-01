@@ -1,6 +1,6 @@
 # MiniMax 接入核实（2026-10-01）
 
-本文核实官方文档与官方 MCP 源码，不代表账户权限、质量或时延已经通过真实调用验证。研究阶段未读取凭据。动态文档可能继续更新。
+本文先核实官方文档与官方 MCP 源码，再进行文末所列真实调用。仅对列明的模型与搜索测试报告结果；其他能力仍为文档核实。动态文档可能继续更新。
 
 ## 可实施结论
 
@@ -69,12 +69,12 @@ ASR 官方提供 `asr-1.0`，可通过按量或 M Plan 使用：`POST https://ap
 2. 请求 M3.1 `disabled` 仅验证预期拒绝；不能把拒绝称作“关闭后效果差”。
 3. 验证 Subscription Key 对所选区域、模型、独立搜索和 ASR 的实际权限；不能仅凭套餐宣传推定全功能可用。
 4. 验证预算耗尽、限流、HTTP 200 业务错误、空正文和 SSE 仅思考分片能否正确处理。
-5. 目前未确认 JSON mode、Responses 请求 `store:false`、逐事件 SSE 完整兼容；未测 M3.1 搜索质量、中文改写质量和延迟。
+5. 目前未确认 JSON mode、Responses 请求 `store:false`、逐事件 SSE 完整兼容；文末的小样本测试不代表全面质量评测。
 
 
 ## 本次落地与验证
 
-已修改工作区代码，未提交、未安装或发布：
+接入代码已提交为 `fe6287b`；未推送、未安装或发布：
 
 - MiniMax 新建档案预设为 M3.1 Flash Preview，模型列表提供 M3 和 M2.7-highspeed；已有档案的选择保持原值。
 - 普通问答、润色、提示词优化和任务书共用思考策略：M3.1 `low`、M3 `disabled`；MiniMax 显式分离思考与正文，不发送未经文档保证的 JSON mode。
@@ -84,6 +84,30 @@ ASR 官方提供 `asr-1.0`，可通过按量或 M Plan 使用：`POST https://ap
 
 本地 Xcode 构建与相关 185 项测试通过（2026-10-01），覆盖供应商配置、流式正文、结构化任务、检索解析和回退顺序。测试日志：`/tmp/owltype-minimax-tests.log`；使用 `xcodebuild -project Owltype.xcodeproj -scheme Owltype -configuration Debug -derivedDataPath /tmp/owltype-minimax-tests CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test`，以 `-only-testing` 选择 ProviderProfileStoreTests、OwlStreamingChatClientTests、OwlPolishPromptCatalogTests、OwlPromptOptimizerTests、OwlGoalBriefTests、OwlWebSearchTests、OwlMiniMaxSearchTests、OwlAskSearchResolverTests、OwlAskAnythingModuleTests、CandidateStoreTests。
 
-真实调用未完成：本次未找到可用 MiniMax 订阅凭据，也未收到用户补充的配置位置。不能据此宣称模型质量、低思考延迟、账户权限或搜索结果质量已验证。
+真实调用已完成：用户通过带粘贴按钮的原生安全输入框提供国内站订阅 Key，直接保存到本机 Keychain。没有在聊天、日志、代码或报告中记录密钥值。
 
 [`scripts/probe-minimax.py`](../scripts/probe-minimax.py) 提供可重放的合成文本对照：M3.1 low / max、M3 关闭思考，每组润色、翻译、短问答，默认三轮并轮换调用顺序，记录首个正文延迟、总时长、token、JSON 合规与答案。仅统计格式，不自动裁定改写质量。支持进程内 `MINIMAX_API_KEY`，或 `--keychain-account` 从现有应用 Keychain 读取；不把 Key 写进报告或命令行。默认国内站，国际订阅用 `--region global`。报告默认 `/tmp/owltype-minimax-probe.json`。无凭据运行已确认在联网前退出。
+
+
+## 真实调用结果（2026-10-01）
+
+同一国内站订阅、同一组三题（润色/翻译/80字内问答）、每种配置三轮，共27次调用；每轮轮换配置先后，temperature=0.2，max_completion_tokens=4096。首字只统计正文，不统计思考分片。完整合成文本答案与API用量见[原始结果](minimax-evaluation-2026-10-01.json)，脚本见上文。
+
+| 配置 | 成功正文 | 首个正文中位数 | 总时长中位数 | JSON有效 | 思考token总和 |
+| --- | --- | --- | --- | --- | --- |
+| M3.1 low | 9/9 | 1.413秒 | 1.461秒 | 6/6 | 202 |
+| M3.1 max | 9/9 | 2.305秒 | 2.622秒 | 6/6 | 696 |
+| M3 disabled | 9/9 | 4.948秒 | 5.356秒 | 6/6 | 0* |
+
+* M3部分响应未提供 reasoning_tokens；表中将缺失计为0，不能将全部响应都称为明确返回0。各配置均命中部分缓存，网络与服务负载存在波动，这是短文本小样本对照，不能推广为所有任务的固定速度。
+
+人工检查：M3.1两档润色均保留日期、时间、会议室未定等事实；low有一次将“周五之前”翻译为“by Friday”（可能包含周五，边界比before Friday宽），max三次均用before Friday。M3也有一次同样的翻译边界问题，并在部分润色中引入“原定”等语气变化。M3.1问答均符合80字符限制；M3三次分别94、125、115字符，均超出要求。全部JSON有效不等于内容完全保真。
+
+结论：保留M3.1 low作为交互默认，本样本首正文中位数比max低约39%，未见选择M3关闭思考的速度收益；严谨日期/期限翻译仍需验收，不能称low在所有任务上质量更好。
+
+额外验证：
+
+- M3.1发送thinking.disabled实测HTTP 400，错误明确要求adaptive；不能关闭思考的文档限制得到验证。
+- 应用的非流式连通性请求（ping、low、reasoning_split、4096预算）HTTP 200，0.852秒返回非空正文，finish_reason=stop。
+- 独立搜索REST HTTP 200、base_resp.status_code=0，1.406秒返回10条结果，全部带摘要。此次只证明接口可用与结果结构，未做搜索排名/覆盖率评测。
+- 现有Token Plan Key可完成上述调用；未调用ASR、TTS、图像/视频或Responses原生搜索，未变更套餐。
