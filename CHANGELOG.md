@@ -1,3 +1,12 @@
+<a name="2.0.10"></a>
+## 2.0.10 (2026-10-01)
+
+### MiniMax 模型与联网搜索 | MiniMax models and web search
+- MiniMax 新建配置默认使用 M3.1 Flash Preview，支持 M Plan / Token Plan 订阅 Key；已有配置保留所选模型。
+- M3.1 默认使用低思考强度，适配润色、提示词优化、任务书与任意提问；保留 M3 关闭思考和 M2.7-highspeed 选项。
+- 增加 MiniMax 国内站搜索服务，可将带摘要的网页结果交给当前默认模型作答。
+- 修正 MiniMax 连通性验证的输出预算，分离思考与正文，并保留结构化输出的本地校验。
+
 <a name="2.0.9"></a>
 ## 2.0.9 (2026-09-28)
 
