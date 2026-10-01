@@ -318,7 +318,7 @@ with open(sys.argv[1], "wb") as handle:
             "CFBundleIdentifier": "im.owltype.inputmethod.Owltype",
             "CFBundleShortVersionString": "9.8.7",
             "CFBundleVersion": "987",
-            "SUFeedURL": "https://downloads.responsay.com/owltype/v2/appcast.xml",
+            "SUFeedURL": "https://downloads.responsay.com/owltype/v3/appcast.xml",
             "SUPublicEDKey": sys.argv[2],
         },
         handle,

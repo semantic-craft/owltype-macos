@@ -39,7 +39,7 @@ from owl_bundle import (
     validate_cohort_shape,
     write_cohort,
 )
-from owl_distribution import versioned_asset_url
+from owl_distribution import sparkle_feed_key, versioned_asset_url
 from release_source import (
     FileEntry,
     SourceSnapshotError,
@@ -135,7 +135,7 @@ def resolve_sparkle_release_policy(app: Path, version: str) -> dict[str, str] | 
     if app_public_key is None:
         return None
     app_feed_url = bundle_sparkle_feed_url(app)
-    successor_feed_key = "owltype/v2/appcast.xml"
+    successor_feed_key = sparkle_feed_key(version)
     successor_feed_url = f"https://downloads.responsay.com/{successor_feed_key}"
     if app_feed_url != successor_feed_url:
         raise CohortError("release App does not use the permanent Owltype Sparkle feed")

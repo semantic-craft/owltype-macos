@@ -46,9 +46,9 @@ from pathlib import Path
 
 with open(sys.argv[1], "rb") as handle:
     info = plistlib.load(handle)
-if info.get("SUFeedURL") != "https://downloads.responsay.com/owltype/v2/appcast.xml":
+if info.get("SUFeedURL") != "https://downloads.responsay.com/owltype/v3/appcast.xml":
     raise SystemExit("Sparkle feed differs from the reviewed endpoint")
-if info.get("SUPublicEDKey") != "dWrr6gck5aoy5F7V00SizqQM6w9MHmZzeeQFSqYTlfM=":
+if info.get("SUPublicEDKey") != "AyX1IlXNOqRparvq+MKIsNOPRdq8qoB+nZH6JavAlQM=":
     raise SystemExit("Sparkle public verification key is not the Owltype key")
 versions = set(re.findall(r"MARKETING_VERSION = ([0-9.]+);", open(sys.argv[2]).read()))
 if len(versions) != 1:

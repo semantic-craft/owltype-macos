@@ -181,11 +181,11 @@ def main() -> None:
     build = str(info.get("CFBundleVersion", ""))
     if not version or not build:
         fail(f"incomplete version metadata: {version!r} / {build!r}")
-    if info.get("SUFeedURL") != "https://downloads.responsay.com/owltype/v2/appcast.xml":
+    if info.get("SUFeedURL") != "https://downloads.responsay.com/owltype/v3/appcast.xml":
         fail("Sparkle feed differs from the reviewed public endpoint")
     if (
         info.get("SUPublicEDKey")
-        != "dWrr6gck5aoy5F7V00SizqQM6w9MHmZzeeQFSqYTlfM="
+        != "AyX1IlXNOqRparvq+MKIsNOPRdq8qoB+nZH6JavAlQM="
         or info.get("SUEnableAutomaticChecks") is not True
     ):
         fail("Sparkle verification key or automatic checks are missing")

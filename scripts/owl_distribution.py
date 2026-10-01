@@ -86,6 +86,12 @@ def _validate_version(value: str, label: str) -> None:
         raise DistributionError(f"invalid {label}: {value!r}")
 
 
+def sparkle_feed_key(version: str) -> str:
+    """2.0.10 starts a new trust domain after loss of the v2 private key."""
+    _validate_version(version, "marketing version")
+    return "owltype/v3/appcast.xml" if tuple(map(int, version.split("."))) >= (2, 0, 10) else "owltype/v2/appcast.xml"
+
+
 def _content_type(path: Path) -> str:
     explicit = {
         ".dmg": "application/x-apple-diskimage",
@@ -122,6 +128,9 @@ def build_publish_plan(
     _validate_version(build_version, "build version")
     if feed_mode not in {"bridge", "successor"}:
         raise DistributionError(f"invalid Sparkle feed mode: {feed_mode!r}")
+    feed_key = sparkle_feed_key(version)
+    if feed_mode == "bridge" and feed_key == "owltype/v3/appcast.xml":
+        raise DistributionError("v3 trust recovery requires manual installation, not a legacy bridge")
     paths = [Path(path).resolve() for path in asset_paths]
     if any(not path.is_file() or path.stat().st_size == 0 for path in paths):
         raise DistributionError("publishing contract contains a missing or empty asset")
@@ -164,11 +173,12 @@ def build_publish_plan(
         )
     )
 
-    # The successor feed is the permanent Owltype trust domain. The 2.0.1 bridge writes it first,
+    # Current releases write only v3; v2 remains frozen for clients with the lost key.
+    # The historical 2.0.1 bridge writes v2 first,
     # then commits the legacy feed last so 2.0.0 clients can cross once. Later releases never
     # touch the legacy feed, which remains pinned to the bridge forever.
     plan.append(
-        _upload(by_name["appcast.xml"], f"{OBJECT_PREFIX}/v2/appcast.xml", immutable=False)
+        _upload(by_name["appcast.xml"], feed_key, immutable=False)
     )
     if feed_mode == "bridge":
         plan.append(
@@ -188,10 +198,14 @@ def publish(
         f"{OBJECT_PREFIX}/v2/appcast.xml",
         f"{OBJECT_PREFIX}/appcast.xml",
     ]
+    feed_key = keys[-1] if keys and keys[-1] == "owltype/v3/appcast.xml" else "owltype/v2/appcast.xml"
     successor = keys[-2:] == [
-        f"{OBJECT_PREFIX}/latest.json",
-        f"{OBJECT_PREFIX}/v2/appcast.xml",
+        f"{OBJECT_PREFIX}/latest.json", feed_key,
     ] and f"{OBJECT_PREFIX}/appcast.xml" not in keys
+    if feed_key == "owltype/v3/appcast.xml" and any(
+        key in {"owltype/appcast.xml", "owltype/v2/appcast.xml"} for key in keys
+    ):
+        raise DistributionError("v3 releases must not overwrite earlier trust feeds")
     if not bridge and not successor:
         raise DistributionError("latest pointer and Sparkle feed commit order is invalid")
 
@@ -223,7 +237,7 @@ def publish(
         # the immutable batch and must not trigger this check while aliases still point at the
         # previous release. Verify only after latest.json has been committed, immediately before
         # the mutable successor feed becomes visible.
-        if item.key == f"{OBJECT_PREFIX}/v2/appcast.xml" and not aliases_verified:
+        if item.key == feed_key and not aliases_verified:
             for alias, source_item in website_aliases:
                 verifier.verify(
                     f"https://responsay.com/owltype/{alias}", source_item.sha256
@@ -250,10 +264,11 @@ def publish(
             events.append(f"UPLOAD {item.key}")
         verifier.verify(item.url, item.sha256)
     appcast_sha256 = next(
-        item.sha256 for item in plan if item.key == f"{OBJECT_PREFIX}/v2/appcast.xml"
+        item.sha256 for item in plan if item.key == feed_key
     )
-    verifier.verify(SUCCESSOR_CLIENT_FEED_URL, appcast_sha256)
-    events.append(f"VERIFY {SUCCESSOR_CLIENT_FEED_URL}")
+    client_feed_url = f"{PUBLIC_ORIGIN}/{feed_key}"
+    verifier.verify(client_feed_url, appcast_sha256)
+    events.append(f"VERIFY {client_feed_url}")
     if bridge:
         verifier.verify(LEGACY_CLIENT_FEED_URL, appcast_sha256)
         events.append(f"VERIFY {LEGACY_CLIENT_FEED_URL}")
