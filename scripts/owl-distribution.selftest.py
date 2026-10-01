@@ -6,6 +6,7 @@ import hashlib
 import os
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -134,6 +135,27 @@ class DistributionPlanTests(unittest.TestCase):
         self.assertEqual(plan[-2].key, "owltype/latest.json")
         self.assertEqual(plan[-1].key, "owltype/v2/appcast.xml")
         self.assertNotIn("owltype/appcast.xml", [item.key for item in plan])
+
+    def test_recovery_release_keeps_both_old_feeds_frozen(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            assets = fixture_assets(Path(directory), "2.0.10")
+            plan = build_publish_plan(assets, version="2.0.10", build_version="2.0.10", feed_mode="successor")
+            self.assertEqual(plan[-1].key, "owltype/v3/appcast.xml")
+            frozen = {"owltype/appcast.xml": b"old bridge", "owltype/v2/appcast.xml": b"2.0.9 signed feed"}
+            store = FakeObjectStore(frozen)
+            verifier = FakePublicVerifier(store)
+            publish(plan, store, verifier)
+            for key, value in frozen.items():
+                self.assertEqual(store.objects[key], value)
+                self.assertNotIn(key, store.puts)
+            self.assertEqual(verifier.verified[-1][0], "https://downloads.responsay.com/owltype/v3/appcast.xml")
+            self.assertEqual(verifier.alias_latest_states, [True] * 4)
+            with self.assertRaisesRegex(DistributionError, "manual installation"):
+                build_publish_plan(assets, version="2.0.10", build_version="2.0.10", feed_mode="bridge")
+            historical = build_publish_plan(assets, version="2.0.10", build_version="2.0.10", feed_mode="successor")
+            historical.insert(10, replace(plan[-1], key="owltype/v2/appcast.xml"))
+            with self.assertRaisesRegex(DistributionError, "earlier trust feeds"):
+                publish(historical, store, verifier)
 
     def test_plan_rejects_incomplete_corresponding_source_contract(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

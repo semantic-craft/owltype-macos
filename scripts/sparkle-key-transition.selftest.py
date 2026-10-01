@@ -122,4 +122,19 @@ with tempfile.TemporaryDirectory() as directory:
     }
     print("ok   removing the one-release policy makes later releases new-key-only")
 
-print("\n8 passed, 0 failed")
+with tempfile.TemporaryDirectory() as directory:
+    app = Path(directory) / "Owltype.app"
+    (app / "Contents").mkdir(parents=True)
+    def write_feed(feed: str) -> None:
+        with (app / "Contents/Info.plist").open("wb") as handle:
+            plistlib.dump({"SUPublicEDKey": NEW_KEY, "SUFeedURL": feed}, handle)
+    write_feed("https://downloads.responsay.com/owltype/v2/appcast.xml")
+    expect_error("recovery release rejects the old client feed", "Sparkle feed",
+                 lambda: state.resolve_sparkle_release_policy(app, "2.0.10"))
+    write_feed("https://downloads.responsay.com/owltype/v3/appcast.xml")
+    assert state.resolve_sparkle_release_policy(app, "2.0.10") == {
+        "sparkleFeedMode": "successor", "sparkleSigningPublicKey": NEW_KEY,
+    }
+    print("ok   recovery release uses its embedded key and the new v3 trust feed")
+
+print("\nSparkle trust policy tests passed")

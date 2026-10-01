@@ -1,6 +1,10 @@
 <a name="2.0.10"></a>
 ## 2.0.10 (2026-10-01)
 
+### 更新签名恢复 | Update signing recovery
+- 更换发布电脑后重建猫头鹰专属更新签名密钥。2.0.9 及更早版本需手动下载安装本版一次，此后继续自动更新。
+- 新版使用独立 v3 更新通道；旧 v2 通道保持原状，不向旧版发送无法验证的新签名安装包。
+
 ### MiniMax 模型与联网搜索 | MiniMax models and web search
 - MiniMax 新建配置默认使用 M3.1 Flash Preview，支持 M Plan / Token Plan 订阅 Key；已有配置保留所选模型。
 - M3.1 默认使用低思考强度，适配润色、提示词优化、任务书与任意提问；保留 M3 关闭思考和 M2.7-highspeed 选项。

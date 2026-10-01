@@ -78,7 +78,7 @@ python3 scripts/owl_distribution.py --publish --output-root <verified-output-roo
 
 Publication is complete only after the publisher has remote-read and SHA-256 verified
 all immutable artifacts, then committed `owltype/latest.json` and
-`owltype/v2/appcast.xml`. Repository migration or cleanup must not change those objects.
+`owltype/v3/appcast.xml` (2.0.10 onward). The v2 feed stays frozen at 2.0.9; recovery from the lost signing key requires a one-time manual installation. Repository migration or cleanup must not change the frozen older feeds.
 
 ## Cleaning up after the gate
 
