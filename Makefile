@@ -266,16 +266,16 @@ test: $(DEPS_CHECK)
 		-project Owltype.xcodeproj \
 		-scheme Owltype \
 		-configuration Debug \
-		-derivedDataPath $(DERIVED_DATA_PATH) \
+		-derivedDataPath "$(DERIVED_DATA_PATH)" \
 		CODE_SIGNING_ALLOWED=YES \
 		CODE_SIGN_IDENTITY=- \
 		build-for-testing
-	$(MAKE) copy-owl-seed DERIVED_DATA_PATH=$(DERIVED_DATA_PATH) OWL_CONFIG=Debug
+	$(MAKE) copy-owl-seed DERIVED_DATA_PATH="$(DERIVED_DATA_PATH)" OWL_CONFIG=Debug
 	xcodebuild \
 		-project Owltype.xcodeproj \
 		-scheme Owltype \
 		-configuration Debug \
-		-derivedDataPath $(DERIVED_DATA_PATH) \
+		-derivedDataPath "$(DERIVED_DATA_PATH)" \
 		CODE_SIGNING_ALLOWED=YES \
 		CODE_SIGN_IDENTITY=- \
 		test-without-building \
