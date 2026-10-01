@@ -64,8 +64,7 @@ struct OwlAboutPage: View {
         SettingsCardDivider(palette: palette)
         infoRow(label: "构建标识", value: appBuildIdentityDisplay)
         SettingsCardDivider(palette: palette)
-        // 署名（对齐 Responsay 关于页的写法；文案为对外署名定稿，勿改动措辞）。
-        infoRow(label: "设计与开发", value: "张贤伟 · 深圳大学法律人工智能实训实验室")
+        infoRow(label: "设计与开发", value: "深圳大学法律人工智能实训实验室")
         if !state.librimeVersion.isEmpty {
           SettingsCardDivider(palette: palette)
           infoRow(label: "librime", value: state.librimeVersion)

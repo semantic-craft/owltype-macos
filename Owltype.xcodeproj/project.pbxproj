@@ -7,6 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		7F0DC648D4FA46D8B807DC11 /* OwlInputHabitsIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3C6C24D8ADC4266BE3AFEEE /* OwlInputHabitsIntegrationTests.swift */; };
+		670F2E760700470A9CE045E9 /* OwlInputHabitsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3E22E941504EA49830A2A2 /* OwlInputHabitsTests.swift */; };
+		8E0219EE244D455186692B00 /* OwlInputController+InputHabits.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18655B9FE96489FABD6D0D3 /* OwlInputController+InputHabits.swift */; };
+		07860FECCA2A4B9EAC2331D8 /* OwlInputHabitsSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA978779A9B64A19A7E70BB9 /* OwlInputHabitsSettings.swift */; };
+		7AE040E79F0946C2A2036977 /* OwlPinnedWordsDeployment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F32FC4A4E5B46B5A07BC2F5 /* OwlPinnedWordsDeployment.swift */; };
+		F1233813CC4543789D65C9A9 /* OwlPinnedWords.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8573B4C99C949C5BB32E7C5 /* OwlPinnedWords.swift */; };
+		4F1F9D8AFC93488EAF08D264 /* OwlOnboardingPractice.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5C93C517B5248478C7A8FBE /* OwlOnboardingPractice.swift */; };
+		7AB6866332B74789A8C5A6CC /* OwlAppInputMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99C1AA462FD34768AB99C65B /* OwlAppInputMemory.swift */; };
 		AB173001CAFE0001CAFE0001 /* OwlDynamicAutomaticTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB173001CAFE0002CAFE0002 /* OwlDynamicAutomaticTests.swift */; };
 		AB172003CAFE0001CAFE0001 /* OwlTemplateHostDeliveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB172003CAFE0002CAFE0002 /* OwlTemplateHostDeliveryTests.swift */; };
 		AB172002CAFE0001CAFE0001 /* OwlTemplateCursorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB172002CAFE0002CAFE0002 /* OwlTemplateCursorTests.swift */; };
@@ -436,6 +444,14 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		C3C6C24D8ADC4266BE3AFEEE /* OwlInputHabitsIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputHabitsIntegrationTests.swift"; path = "tests/OwlInputHabitsIntegrationTests.swift"; sourceTree = "<group>"; };
+		CC3E22E941504EA49830A2A2 /* OwlInputHabitsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputHabitsTests.swift"; path = "tests/OwlInputHabitsTests.swift"; sourceTree = "<group>"; };
+		A18655B9FE96489FABD6D0D3 /* OwlInputController+InputHabits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+InputHabits.swift"; path = "sources/Controller/OwlInputController+InputHabits.swift"; sourceTree = "<group>"; };
+		FA978779A9B64A19A7E70BB9 /* OwlInputHabitsSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputHabitsSettings.swift"; path = "sources/Settings/OwlInputHabitsSettings.swift"; sourceTree = "<group>"; };
+		8F32FC4A4E5B46B5A07BC2F5 /* OwlPinnedWordsDeployment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlPinnedWordsDeployment.swift"; path = "sources/Settings/OwlPinnedWordsDeployment.swift"; sourceTree = "<group>"; };
+		D8573B4C99C949C5BB32E7C5 /* OwlPinnedWords.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlPinnedWords.swift"; path = "sources/Settings/OwlPinnedWords.swift"; sourceTree = "<group>"; };
+		D5C93C517B5248478C7A8FBE /* OwlOnboardingPractice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlOnboardingPractice.swift"; path = "sources/Settings/OwlOnboardingPractice.swift"; sourceTree = "<group>"; };
+		99C1AA462FD34768AB99C65B /* OwlAppInputMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlAppInputMemory.swift"; path = "sources/Settings/OwlAppInputMemory.swift"; sourceTree = "<group>"; };
 		AB173001CAFE0002CAFE0002 /* OwlDynamicAutomaticTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlDynamicAutomaticTests.swift; path = tests/OwlDynamicAutomaticTests.swift; sourceTree = "<group>"; };
 		AB172003CAFE0002CAFE0002 /* OwlTemplateHostDeliveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateHostDeliveryTests.swift; path = tests/OwlTemplateHostDeliveryTests.swift; sourceTree = "<group>"; };
 		AB172002CAFE0002CAFE0002 /* OwlTemplateCursorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateCursorTests.swift; path = tests/OwlTemplateCursorTests.swift; sourceTree = "<group>"; };
@@ -850,6 +866,12 @@
 				FA000068CAFE0068CAFE0068 /* OwlExternalCommitBroker.swift */,
 				FA000070CAFE0070CAFE0070 /* OwlCloudFoundation.swift */,
 				FAD1CF01CAFEDF01CAFEDF01 /* OwlDictPack.swift */,
+				A18655B9FE96489FABD6D0D3 /* OwlInputController+InputHabits.swift */,
+				FA978779A9B64A19A7E70BB9 /* OwlInputHabitsSettings.swift */,
+				8F32FC4A4E5B46B5A07BC2F5 /* OwlPinnedWordsDeployment.swift */,
+				D8573B4C99C949C5BB32E7C5 /* OwlPinnedWords.swift */,
+				D5C93C517B5248478C7A8FBE /* OwlOnboardingPractice.swift */,
+				99C1AA462FD34768AB99C65B /* OwlAppInputMemory.swift */,
 				FAD1CF03CAFEDF03CAFEDF03 /* OwlDictPackFetcher.swift */,
 				FAD1CF05CAFEDF05CAFEDF05 /* OwlDictPackCenter.swift */,
 				FAD1CF07CAFEDF07CAFEDF07 /* OwlDictPackManifestData.swift */,
@@ -910,6 +932,8 @@
 				FA000135CAFE0135CAFE0135 /* KeyTranslationTests.swift */,
 				FA000082CAFE0082CAFE0082 /* CandidateStoreTests.swift */,
 				FAD1CF09CAFEDF09CAFEDF09 /* OwlDictPackTests.swift */,
+				C3C6C24D8ADC4266BE3AFEEE /* OwlInputHabitsIntegrationTests.swift */,
+				CC3E22E941504EA49830A2A2 /* OwlInputHabitsTests.swift */,
 				FA000E01CAFE0E01CAFE0E01 /* OwlKeyboardPatchBuilderTests.swift */,
 				FA000084CAFE0084CAFE0084 /* HotPathLatencyTests.swift */,
 				FA000086CAFE0086CAFE0086 /* OwlM3EmojiSkinTests.swift */,
@@ -1409,6 +1433,12 @@
 				FA000069CAFE0069CAFE0069 /* OwlExternalCommitBroker.swift in Sources */,
 				FA000071CAFE0071CAFE0071 /* OwlCloudFoundation.swift in Sources */,
 				FAD1CF02CAFEDF02CAFEDF02 /* OwlDictPack.swift in Sources */,
+				8E0219EE244D455186692B00 /* OwlInputController+InputHabits.swift in Sources */,
+				07860FECCA2A4B9EAC2331D8 /* OwlInputHabitsSettings.swift in Sources */,
+				7AE040E79F0946C2A2036977 /* OwlPinnedWordsDeployment.swift in Sources */,
+				F1233813CC4543789D65C9A9 /* OwlPinnedWords.swift in Sources */,
+				4F1F9D8AFC93488EAF08D264 /* OwlOnboardingPractice.swift in Sources */,
+				7AB6866332B74789A8C5A6CC /* OwlAppInputMemory.swift in Sources */,
 				FAD1CF04CAFEDF04CAFEDF04 /* OwlDictPackFetcher.swift in Sources */,
 				FAD1CF06CAFEDF06CAFEDF06 /* OwlDictPackCenter.swift in Sources */,
 				FAD1CF08CAFEDF08CAFEDF08 /* OwlDictPackManifestData.swift in Sources */,
@@ -1473,6 +1503,8 @@
 				FA000134CAFE0134CAFE0134 /* KeyTranslationTests.swift in Sources */,
 				FA000083CAFE0083CAFE0083 /* CandidateStoreTests.swift in Sources */,
 				FAD1CF0ACAFEDF0ACAFEDF0A /* OwlDictPackTests.swift in Sources */,
+				7F0DC648D4FA46D8B807DC11 /* OwlInputHabitsIntegrationTests.swift in Sources */,
+				670F2E760700470A9CE045E9 /* OwlInputHabitsTests.swift in Sources */,
 				FA000E02CAFE0E02CAFE0E02 /* OwlKeyboardPatchBuilderTests.swift in Sources */,
 				FA000085CAFE0085CAFE0085 /* HotPathLatencyTests.swift in Sources */,
 				FA000087CAFE0087CAFE0087 /* OwlM3EmojiSkinTests.swift in Sources */,
@@ -1568,7 +1600,7 @@
 				CODE_SIGN_ENTITLEMENTS = resources/Owltype.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2.0.10;
+				CURRENT_PROJECT_VERSION = 2.0.11;
 				DEAD_CODE_STRIPPING = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1603,7 +1635,7 @@
 					"$(OTHER_CPLUSPLUSFLAGS_QUOTED_FOR_TARGET_2)",
 				);
 				OTHER_LDFLAGS = "-lrime.1";
-				MARKETING_VERSION = 2.0.10;
+				MARKETING_VERSION = 2.0.11;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.Owltype;
 				PRODUCT_NAME = Owltype;
 				SDKROOT = macosx;
@@ -1625,7 +1657,7 @@
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CODE_SIGN_ENTITLEMENTS = resources/Owltype.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.0.10;
+				CURRENT_PROJECT_VERSION = 2.0.11;
 				DEAD_CODE_STRIPPING = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1659,7 +1691,7 @@
 					"$(OTHER_CPLUSPLUSFLAGS_QUOTED_FOR_TARGET_2)",
 				);
 				OTHER_LDFLAGS = "-lrime.1";
-				MARKETING_VERSION = 2.0.10;
+				MARKETING_VERSION = 2.0.11;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.Owltype;
 				PRODUCT_NAME = Owltype;
 				SDKROOT = macosx;
@@ -1791,7 +1823,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2.0.10;
+				CURRENT_PROJECT_VERSION = 2.0.11;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)",
@@ -1804,7 +1836,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.0.10;
+				MARKETING_VERSION = 2.0.11;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.OwltypeTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -1819,7 +1851,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2.0.10;
+				CURRENT_PROJECT_VERSION = 2.0.11;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)",
@@ -1832,7 +1864,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.0.10;
+				MARKETING_VERSION = 2.0.11;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.OwltypeTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -1846,7 +1878,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2.0.10;
+				CURRENT_PROJECT_VERSION = 2.0.11;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1854,7 +1886,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.0.10;
+				MARKETING_VERSION = 2.0.11;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.OwltypeUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -1868,7 +1900,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2.0.10;
+				CURRENT_PROJECT_VERSION = 2.0.11;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1876,7 +1908,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.0.10;
+				MARKETING_VERSION = 2.0.11;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.OwltypeUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;

@@ -27,9 +27,9 @@
 
 ## 自动更新
 
-猫头鹰使用 Sparkle 定期检查新版：请求 `responsay.com/owltype/appcast.xml`（该稳定入口由
-responsay.com 的对象存储提供 appcast），有新版时从 `downloads.responsay.com` 下载按版本固定、
-签名并公证过的更新包。
+猫头鹰使用 Sparkle 定期检查新版。2.0.10 起请求
+`https://downloads.responsay.com/owltype/v3/appcast.xml`，有新版时从 `downloads.responsay.com`
+下载按版本固定、签名并公证过的更新包。2.0.9 及更早版本需手动安装一次新版以迁移更新通道。
 这些是常规 HTTP 请求，携带 User-Agent 中的应用与 Sparkle 版本号；不包含输入内容、用户数据，
 也不包含系统画像（Sparkle 的 system profiling 未启用）。自动检查可在设置中关闭。
 

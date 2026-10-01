@@ -90,10 +90,10 @@ enum Installer {
         // 上面的复合判据 plan 决定）。
         _ = try installKind(for: payload)
 
-        // 定律 12：kill 当前选中的 IME 前先切出到 ABC，否则重启后菜单可能不显示；装完由
+        // 定律 12：kill 当前选中的 IME 前先切出到可用的系统英文键盘，否则重启后菜单可能不显示；装完由
         // verifier 的 select 重试配对切回。
-        if plan.parkOnABCBeforeReplace {
-            parkCurrentSourceOnABC(usingEmbeddedOwltypeApp: embedded)
+        if plan.parkOnKeyboardBeforeReplace {
+            try parkCurrentSource(usingOwltypeApp: embedded)
         }
 
         terminateUserProcess(named: "Owltype")
@@ -148,13 +148,34 @@ enum Installer {
         return (unsafeBitCast(ref, to: CFString.self) as String).hasPrefix(inputMethodID)
     }
 
-    /// 定律 12 的「切出」半边：另起子进程跑 **内嵌新版** Owltype 的 CLI 切到 ABC（postinstall 同款命令）。
-    /// 为什么不在本进程调 select：安装线程嵌套 runloop 里 select 必 -50（定律 2），另起进程则可成功。
-    /// 为什么用内嵌新版而不是已装旧版：1.3.32 之前的 CLI 不认系统源 id，`--select-input-source
-    /// com.apple.keylayout.ABC` 会误落回「选中猫头鹰」默认路径——恰好在 kill 前把猫头鹰选回来。best-effort。
-    private static func parkCurrentSourceOnABC(usingEmbeddedOwltypeApp embedded: URL) {
-        let owl = embedded.appendingPathComponent("Contents/MacOS/Owltype")
-        _ = try? runProcess(owl.path, ["--select-input-source", "com.apple.keylayout.ABC"])
+    /// Only choose an enabled ASCII keyboard actually present on this Mac (US is not ABC).
+    /// Read TIS on the main thread; select in a fresh CLI process to avoid nested-runloop failure.
+    /// Verify readback because the existing CLI also exits successfully when selection fails.
+    private static func parkCurrentSource(usingOwltypeApp app: URL) throws {
+        let sourceID: String? = DispatchQueue.main.sync {
+            let filter = [kTISPropertyInputSourceType: kTISTypeKeyboardLayout,
+                          kTISPropertyInputSourceIsASCIICapable: kCFBooleanTrue!,
+                          kTISPropertyInputSourceIsSelectCapable: kCFBooleanTrue!,
+                          kTISPropertyInputSourceIsEnabled: kCFBooleanTrue!] as CFDictionary
+            let sources = TISCreateInputSourceList(filter, false).takeRetainedValue() as! [TISInputSource]
+            func id(_ source: TISInputSource) -> String? {
+                guard let ref = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) else { return nil }
+                return unsafeBitCast(ref, to: CFString.self) as String
+            }
+            let preferred = TISCopyCurrentASCIICapableKeyboardInputSource().takeRetainedValue()
+            return InstallerActivationPolicy.parkingSourceID(
+                preferredID: id(preferred), selectableASCIIKeyboardIDs: sources.compactMap(id))
+        }
+        guard let sourceID else {
+            throw InstallerError.activationFailed("未找到可用的英文键盘输入源，未替换猫头鹰。请先启用系统英文键盘。")
+        }
+        let owl = app.appendingPathComponent("Contents/MacOS/Owltype")
+        _ = try runProcess(owl.path, ["--select-input-source", sourceID])
+        let selected = try runProcess(owl.path, ["--current-input-source"])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard selected == sourceID else {
+            throw InstallerError.activationFailed("未能切换到系统英文键盘，已停止操作。请切换后重试。")
+        }
     }
 
     // MARK: - 安装包校验 / 更新分类
@@ -487,15 +508,13 @@ enum Installer {
     static func uninstall() throws {
         let fileManager = FileManager.default
 
-        // 1) 若当前输入源是猫头鹰，先停到 ABC；随后停用 TIS 条目再退出。否则只删 bundle 会在
+        // 1) 若当前输入源是猫头鹰，先停到可用的系统英文键盘；随后停用 TIS 条目再退出。否则只删 bundle 会在
         // 当前登录会话留下一个 enabled 但不可启动的幽灵输入源，直到注销后才消失。
         let installedExecutable = installedAppPath + "/Contents/MacOS/Owltype"
         if fileManager.isExecutableFile(atPath: installedExecutable) {
             let current = (try? runProcess(installedExecutable, ["--current-input-source"])) ?? ""
             if current.hasPrefix(inputMethodID) {
-                _ = try? runProcess(
-                    installedExecutable,
-                    ["--select-input-source", "com.apple.keylayout.ABC"])
+                try parkCurrentSource(usingOwltypeApp: URL(fileURLWithPath: installedAppPath))
             }
             _ = try? runProcess(installedExecutable, ["--disable-input-source"])
             _ = try? runProcess(installedExecutable, ["--quit"])

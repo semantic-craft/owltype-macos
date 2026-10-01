@@ -111,6 +111,7 @@ extension OwlInputController {
     //   (i.e. before the option reads); freeing the status struct is independent of those
     //   option queries, so the behaviour is identical.
     rimeConsumeCommittedText()
+    rememberAppInputMode()
 
     if let status = rime.status() {
       // enable schema specific ui style. The value type maps a null `schema_id` C pointer
@@ -118,6 +119,8 @@ extension OwlInputController {
       // non-empty `schemaId` here matches the old `if let schema_id = status.schema_id`.
       if !status.schemaId.isEmpty, schemaId == "" || schemaId != status.schemaId {
         schemaId = status.schemaId
+        pinnedWordsRevision = nil
+        syncPinnedWords()
         MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.noteSchemaChange() }
         NSApp.owlAppDelegate.loadSettings(for: schemaId)
       }
@@ -544,6 +547,13 @@ extension OwlInputController {
     }
 
     let owlPanel = NSApp.owlAppDelegate.ensureOwltypePanel()
+    let pinInput = rime?.input() ?? ""
+    let pinSession = rime?.sessionID ?? 0
+    owlPanel.canPin = { [weak self] text in self?.pinnedTarget(text: text) != nil }
+    owlPanel.onPin = { [weak self] text in
+      guard let self, self.rime?.sessionID == pinSession, self.rime?.input() == pinInput else { return }
+      self.togglePinnedWord(text: text)
+    }
     owlPanel.onSelect = { [weak self] index in self?.selectPanelIndex(index) }
     owlPanel.onPage = { [weak self] up in _ = self?.page(up: up) }
     owlPanel.onSelectAbsolute = { [weak self] index in _ = self?.selectCandidateAbsolute(index) }

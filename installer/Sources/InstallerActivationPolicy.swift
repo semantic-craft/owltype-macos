@@ -17,6 +17,11 @@ import Foundation
 
 enum InstallerActivationPolicy {
 
+    static func parkingSourceID(preferredID: String?, selectableASCIIKeyboardIDs: [String]) -> String? {
+        if let preferredID, selectableASCIIKeyboardIDs.contains(preferredID) { return preferredID }
+        return selectableASCIIKeyboardIDs.sorted().first
+    }
+
     // MARK: - 安装期激活计划（复合幂等判据真值表）
 
     struct ActivationPlan: Equatable {
@@ -24,9 +29,9 @@ enum InstallerActivationPolicy {
         /// 真必要条件）enable「父条目 + Hans 主模式」各一次（定律 13：父条目 enable 不级联模式；
         /// 父=菜单显形，Hans=select 需要的模式启用记录）。已有安装 → 整段跳过（定律 11 防幽灵态）。
         let enableParentAndPrimaryModeOnce: Bool
-        /// 更新前猫头鹰是当前输入法 → kill 前先切出到 ABC（定律 12：kill 当前选中的 IME 会让
+        /// 更新前猫头鹰是当前输入法 → kill 前先切出到可用的系统英文键盘（定律 12：kill 当前选中的 IME 会让
         /// 重启后菜单不显示），装完由 `selectOwltypeAfterInstall` 配对切回。
-        let parkOnABCBeforeReplace: Bool
+        let parkOnKeyboardBeforeReplace: Bool
         /// 装完后 best-effort select 猫头鹰（主 runloop 重试，定律 2）：首装锦上添花，或与切出配对
         /// 的切回。不变量：更新绝不从其它输入法手里抢当前输入源。
         let selectOwltypeAfterInstall: Bool
@@ -41,7 +46,7 @@ enum InstallerActivationPolicy {
         let isExistingInstall = bundlePreexisted || owltypeProcessWasRunning
         return ActivationPlan(
             enableParentAndPrimaryModeOnce: !isExistingInstall,
-            parkOnABCBeforeReplace: owltypeWasCurrentSource,
+            parkOnKeyboardBeforeReplace: owltypeWasCurrentSource,
             selectOwltypeAfterInstall: !isExistingInstall || owltypeWasCurrentSource)
     }
 

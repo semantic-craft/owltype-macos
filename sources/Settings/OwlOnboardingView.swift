@@ -29,16 +29,13 @@
 //      would mean picking 五笔 lands on the absent-schema path (a second consent alert).
 //  Live state comes from `OwlDictPackCenter` (@Observable). No Rime / disk IO in the view.
 //
-//  The final step is tips only (换皮肤 / 提示词管理 / 更新后重开+菜单栏重选) — no live test
-//  input, since Owltype likely isn't the active input source yet at that point; its primary CTA
-//  soft-blocks (disabled + live progress in the label) while the dict pack is still
-//  downloading/compiling, with a「暂不等待」escape hatch — never blocks on .failed /
-//  .notInstalled (a user who declined must not be held).
+//  The final step verifies real Owltype composition in a local NSTextView; skipping remains available.
 //
 //  Boundary (ADR-0001 / 0002 / 0003): SwiftUI is the onboarding UI layer only.
 //
 
 import SwiftUI
+import Combine
 
 /// 引导窗尺寸的唯一出处 —— 视图的固定 frame 与 `OwlOnboardingWindow` 的 contentRect 必须
 /// 同一个数，否则窗口比内容大就露底色、比内容小就裁掉底部按钮。
@@ -78,6 +75,10 @@ struct OwlOnboardingView: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.colorScheme) private var colorScheme
 
+  @State private var practiceComplete = false
+  @State private var practiceHint: String?
+  @State private var practiceSourceIsOwl = false
+  @State private var practiceGeneration = 0
   @State private var step = 0
   @State private var owlEnabled = false
   @State private var scheme: OnboardingScheme = .pinyin
@@ -89,7 +90,7 @@ struct OwlOnboardingView: View {
   @State private var dictDecided = OwlDictPackPreferences.promptShown
 
   private let stepCount = 5
-  private let stepNames = ["欢迎", "词库", "启用", "选方案", "完成"]
+  private let stepNames = ["欢迎", "词库", "启用", "选方案", "试打"]
 
   /// 深大红 theme (shared with the candidate panel + settings).
   private let theme: OwlCandidateTheme = .shenda
@@ -183,7 +184,7 @@ struct OwlOnboardingView: View {
   }
 
   private var title: String {
-    ["欢迎使用猫头鹰", "完整词库", "启用猫头鹰输入法", "选择输入方案", "配置已就绪"][step]
+    ["欢迎使用猫头鹰", "完整词库", "启用猫头鹰输入法", "选择输入方案", "试打一下"][step]
   }
   private var desc: String {
     [
@@ -191,7 +192,7 @@ struct OwlOnboardingView: View {
       "猫头鹰只内置自建的清洁室精简词库。五笔、简体拼音、小鹤双拼等方案的词库来自第三方开源项目（雾凇拼音 rime-ice、极点五笔86）—— 为避免版权争议，猫头鹰不随安装包分发它们，也不会在你不知情的情况下替你下载。",
       "打开「系统设置 → 键盘 → 输入法」，在列表中勾选「猫头鹰」即可。点下方按钮可直达设置面板。",
       "挑一个方案先用起来，随时能在设置里增删与切换。推荐从拼音开始。",
-      "还有几件事值得知道 —— 启用后随时能在设置里调整。"
+      "切换到猫头鹰输入法，在下面打出第一句，确认输入已经正常。"
     ][step]
   }
 
@@ -440,33 +441,36 @@ struct OwlOnboardingView: View {
     .frame(height: 5)
   }
 
-  // MARK: Step 4 — tips (no live test input: Owltype likely isn't the active input source yet,
-  // so a real TextField here would just type raw letters and confuse a new user)
+  // MARK: Step 4 — actual marked-text and commit verification
 
   private var doneContent: some View {
     VStack(alignment: .leading, spacing: 12) {
-      onboardingTip(icon: "keyboard", text: "去菜单栏输入法图标切到「猫头鹰」，才能开始打字。")
-      onboardingTip(icon: "paintpalette", text: "皮肤可在 设置 → 皮肤外观 里换。")
-      onboardingTip(icon: "doc.text", text: "短语/提示词面板的唤起热键可在 设置 → 快捷键设置 里录制，内容在 设置 → 提示词 里管理。")
-      // 与更新注销提示线（OwlUpdateLogoutPrompt）同一口径：更新后的权威动作是「注销并重新
-      // 登录」（1.4.6 定论），不是旧的「退出重开＋菜单栏重选」。
-      onboardingTip(icon: "arrow.triangle.2.circlepath", text: "自动更新完成后，猫头鹰会建议你「注销并重新登录」——照做即可，系统会完整刷新输入法，避免猫头鹰从菜单消失或打不出字。")
+      Text(OwlPracticeProof.target).font(.system(size: 21, weight: .semibold))
+      OwlPracticeField { _, complete, hint in
+        practiceComplete = complete
+        practiceHint = hint
+      }
+      .id(practiceGeneration)
+      .frame(height: 85)
+      Label(practiceSourceIsOwl ? "当前已选中猫头鹰" : "请从菜单栏切换到猫头鹰",
+            systemImage: practiceSourceIsOwl ? "checkmark.circle.fill" : "keyboard")
+        .font(.system(size: 12)).foregroundStyle(palette.ink2)
+      Label(practiceComplete ? "试打成功，可以开始使用了" : (practiceHint ?? "等待手动输入完整句子；粘贴不计入"),
+            systemImage: practiceComplete ? "checkmark.circle.fill" : "pencil")
+        .font(.system(size: 12)).foregroundStyle(palette.ink2)
+        .accessibilityIdentifier("onboarding.practice.result")
+      Button("清空重试") {
+        practiceGeneration += 1
+        practiceComplete = false
+        practiceHint = nil
+      }.buttonStyle(.plain).foregroundStyle(palette.accent)
     }
+    .onAppear { refreshPracticeSource() }
+    .onReceive(Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()) { _ in refreshPracticeSource() }
   }
 
-  private func onboardingTip(icon: String, text: String) -> some View {
-    HStack(alignment: .top, spacing: 10) {
-      Image(systemName: icon)
-        .font(.system(size: 13))
-        .foregroundStyle(palette.accent)
-        .frame(width: 18, alignment: .center)
-      Text(text)
-        .font(.system(size: 13))
-        .foregroundStyle(palette.ink2)
-        .lineSpacing(2)
-        .fixedSize(horizontal: false, vertical: true)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
+  private func refreshPracticeSource() {
+    practiceSourceIsOwl = OwlInstaller.InputMode(rawValue: OwlInstaller.currentInputSourceID() ?? "") != nil
   }
 
   // MARK: - Footer (primary state machine + back + skip)
@@ -496,7 +500,7 @@ struct OwlOnboardingView: View {
       } else if primaryInfo.disabled {
         // 软阻塞的出口：词库还在下载/编译时不扣留用户 —— 下载在 App 级继续，
         // 引导关掉也不中断。
-        Button("暂不等待，先开始使用", action: onFinish)
+        Button("稍后再试", action: onFinish)
           .buttonStyle(.plain)
           .font(.system(size: 13))
           .foregroundStyle(palette.ink3)
@@ -556,7 +560,7 @@ struct OwlOnboardingView: View {
       case .deploying:
         return ("词库编译中…", {}, true)
       default:
-        return ("开始使用", onFinish, false)
+        return ("开始使用", onFinish, !practiceComplete)
       }
     }
   }
@@ -577,6 +581,9 @@ struct OwlOnboardingView: View {
   }
 
   private func advanceToDone() {
+    practiceComplete = false
+    practiceHint = nil
+    practiceGeneration += 1
     step = 4
     doneCheckTrim = 0
     if reduceMotion {

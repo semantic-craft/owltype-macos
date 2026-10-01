@@ -224,6 +224,8 @@ final class OwlSwiftUICandidatePanel: NSPanel {
   /// `selectCandidate(_:)`. NEEDS REAL-MACHINE VERIFICATION: click hit-testing in a
   /// non-activating panel.
   var onSelect: ((Int) -> Void)?
+  var canPin: ((String) -> Bool)?
+  var onPin: ((String) -> Void)?
 
   /// Called when a paging chevron is clicked (up == true → previous page). The
   /// input controller wires this to `page(up:)`. NEEDS REAL-MACHINE VERIFICATION:
@@ -264,7 +266,9 @@ final class OwlSwiftUICandidatePanel: NSPanel {
         onSelect: { [weak self] index in self?.onSelect?(index) },
         onPage: { [weak self] up in self?.onPage?(up) },
         onSelectAbsolute: { [weak self] index in self?.onSelectAbsolute?(index) },
-        onToggleExpand: { [weak self] in self?.reframeToFit() }
+        onToggleExpand: { [weak self] in self?.reframeToFit() },
+        canPin: { [weak self] in self?.canPin?($0) ?? false },
+        onPin: { [weak self] in self?.onPin?($0) }
       )
     )
   }

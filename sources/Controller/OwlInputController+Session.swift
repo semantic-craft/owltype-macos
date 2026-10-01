@@ -77,6 +77,7 @@ extension OwlInputController {
     let newSession = NSApp.owlAppDelegate.engine.createSession()
     rime = newSession
     schemaId = ""
+    pinnedWordsRevision = nil
 
     if newSession.isValid {
       let preferredSchema = OwlKeyboardPreferences.preferredSchemaID
@@ -90,9 +91,7 @@ extension OwlInputController {
       // Silent (no user notification) — createSession runs on every focus change; only the explicit
       // picker (`OwlApplicationDelegate.selectSchema`) surfaces a user-facing failure.
       knownFailedSchemaID = OwlSchemaSelectionGate.markerAfterAttempt(preferred: preferredSchema, selected: selected)
-      // 默认状态 (搜狗式)：先 seed 全局默认 中英文 / 全半角，再 updateAppOptions()，这样 per-app
-      // 「默认英文」(app_options 只会把 ascii_mode 置 true) 能正确覆盖全局默认。
-      setRimeOption(.asciiMode, OwlKeyboardPreferences.defaultAsciiMode)
+      // Resolve app memory and initial language once; avoid transient default-mode notifications.
       setRimeOption(.fullShape, OwlKeyboardPreferences.defaultFullShape)
       updateAppOptions()
       // Feature 1: seed 简↔繁 from the pref so Owltype's「简入繁出」choice survives focus changes /
@@ -102,6 +101,7 @@ extension OwlInputController {
       // 候选 emoji (rime-ice 原生 emoji switch). Owltype 出厂关；按 表情符号 设置开关 seed，
       // 让选择在焦点切换 / 新会话后保持（rime 每次新会话会 reset 回 schema 默认值）。
       setRimeOption(.emojiSuggestion, OwlEmojiPreferences.candidateEmojiEnabled)
+      syncPinnedWords()
     }
     // Register as a LIVE controller so the fast settings-apply path can force this session to
     // reload the freshly-deployed `build/` (weak membership; deinit/destroy drops it). Idempotent.
@@ -128,11 +128,15 @@ extension OwlInputController {
       // re-runs createSession (or a later attempt succeeds).
       return
     case .attempt:
+      let ascii = rime.option(.asciiMode)
       let selected = rime.selectSchema(preferredSchema)
+      if selected { rime.setOption(.asciiMode, ascii) }
       knownFailedSchemaID = OwlSchemaSelectionGate.markerAfterAttempt(preferred: preferredSchema, selected: selected)
       debugLiveInputTrace("ensurePreferred idle current=\(currentSchema) preferred=\(preferredSchema) select=\(selected) after=\(rime.status()?.schemaId ?? "<nil>")")
       if selected {
         schemaId = preferredSchema
+        pinnedWordsRevision = nil
+        syncPinnedWords()
         MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.noteSchemaChange() }
         NSApp.owlAppDelegate.loadSettings(for: preferredSchema)
       }
@@ -144,14 +148,15 @@ extension OwlInputController {
       return
     }
     guard let rime else { return }
-    if let appOptions = NSApp.owlAppDelegate.config?.getAppOptions(currentApp) {
-      for (key, value) in appOptions {
-        debugLiveInputTrace("set app option: \(key) = \(value)")
-        // App options come from config with arbitrary keys (open namespace) — NOT the
-        // closed RimeOption set — so they go through the dedicated `setAppOption`.
-        rime.setAppOption(key, value)
-      }
+    let appOptions = NSApp.owlAppDelegate.config?.getAppOptions(currentApp) ?? [:]
+    for (key, value) in appOptions where key != RimeOption.asciiMode.rawValue {
+      // Other app options remain authoritative, including arbitrary user-defined keys.
+      rime.setAppOption(key, value)
     }
+    let fallback = appOptions[RimeOption.asciiMode.rawValue] ?? OwlKeyboardPreferences.defaultAsciiMode
+    let restored = OwlAppInputMemory.shared.initialMode(app: currentApp, fallback: fallback)
+    if rime.option(.asciiMode) != restored { rime.setOption(.asciiMode, restored) }
+    appModeObservation.seed(restored)
     if let reportBundleID = NSApp.owlAppDelegate.config?.getBool("unsafe/report_bundleid"), reportBundleID {
       rime.setProperty(name: "client_app", value: currentApp)
     }
@@ -264,10 +269,14 @@ extension OwlInputController {
   func switchLiveSessionSchema(to id: String) -> SchemaSwitchResult {
     guard !id.isEmpty, let rime, rime.isValid else { return .noLiveSession }
     finishAutomaticExpansion(replaySemicolon: false)
+    let ascii = rime.option(.asciiMode)
     let selected = rime.selectSchema(id)   // re-reads build/<id>.schema.yaml in place; clears composition
     knownFailedSchemaID = OwlSchemaSelectionGate.markerAfterAttempt(preferred: id, selected: selected)
     if selected {
+      rime.setOption(.asciiMode, ascii)
       schemaId = id                        // only cache the id librime actually switched to
+      pinnedWordsRevision = nil
+      syncPinnedWords()
     } else {
       debugLiveInputTrace("switchLiveSessionSchema id=\(id) select=false — schemaId NOT updated (no cache poisoning)")
     }

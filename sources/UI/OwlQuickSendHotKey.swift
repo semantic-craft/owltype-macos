@@ -27,14 +27,16 @@ import Combine
 import os
 import SwiftUI
 
-/// The summon hotkey slots. Same recordable range, same recorder row, same default (off);
-/// they differ only in where they persist, what they're called, and which legacy rawValues decode.
+/// Hotkey slots share the recorder and conflict checks. Summon shortcuts default to off;
+/// candidate pinning defaults to Control Shift P only when that combination is unclaimed.
 enum OwlHotKeySlot: CaseIterable, Sendable {
   case quickSendPanel
   case selectionMenu
   /// 提示词助手直达（07-21 机主提案）：同一块面板、初始分段=提示词——五笔用户的专属入口
   /// （提示词表不挂五笔 schema，打字触发只在拼音下存在）。
   case promptAssistant
+  /// Local to a live pinyin candidate menu; never intercepted by the global event tap.
+  case pinCandidate
 
   // 任意提问的直达热键槽（askAnything / "OwlAskAnythingHotKey"）已退役（产品决策 2026-07-26）：
   // 任意提问是划词技能的兜底，必须带着选区从划词菜单点进（同日删掉了状态栏那个空选区入口）；
@@ -46,6 +48,7 @@ enum OwlHotKeySlot: CaseIterable, Sendable {
     case .quickSendPanel: return "OwlQuickSendPanelHotKey"
     case .selectionMenu: return "OwlSelectionMenuHotKey"
     case .promptAssistant: return "OwlPromptAssistantHotKey"
+    case .pinCandidate: return "OwlPinCandidateHotKey"
     }
   }
 
@@ -57,6 +60,7 @@ enum OwlHotKeySlot: CaseIterable, Sendable {
     // 2026-07-26 工具箱重设计：case 名与 defaultsKey 不动（存量组合照常解码），只换用户可见名。
     case .selectionMenu: return "划词工具箱"
     case .promptAssistant: return "快捷片段 · 提示词筛选"
+    case .pinCandidate: return "置顶当前候选"
     }
   }
 
@@ -65,7 +69,7 @@ enum OwlHotKeySlot: CaseIterable, Sendable {
   /// an upgrade migrates them to 未设置 rather than showing a combo the user could never re-record.
   var legacyPresets: [String: (keyCode: UInt32, modifiers: UInt32)] {
     switch self {
-    case .quickSendPanel, .promptAssistant:
+    case .quickSendPanel, .promptAssistant, .pinCandidate:
       return [:]
     case .selectionMenu:
       return [
@@ -82,11 +86,15 @@ enum OwlHotKeySlot: CaseIterable, Sendable {
     OwlHotKeySlot.allCases.filter { $0 != self }
   }
 
-  /// Persisted combo; `nil` = off (the default — stored as "off").
+  /// Persisted combo; `nil` = off. Pinning has an unclaimed-combination fallback.
   var current: OwlRecordedHotKey? {
     get {
-      OwlDefaults.standard.string(forKey: defaultsKey)
-        .flatMap { OwlRecordedHotKey.decode($0, legacyPresets: legacyPresets) }
+      if let stored = OwlDefaults.standard.string(forKey: defaultsKey) {
+        return OwlRecordedHotKey.decode(stored, legacyPresets: legacyPresets)
+      }
+      guard self == .pinCandidate else { return nil }
+      let proposed = OwlRecordedHotKey(keyCode: UInt32(kVK_ANSI_P), modifiers: UInt32(controlKey | shiftKey))
+      return counterparts.contains(where: { $0.current == proposed }) ? nil : proposed
     }
     nonmutating set {
       OwlDefaults.standard.set(newValue.map(OwlRecordedHotKey.encode) ?? "off", forKey: defaultsKey)
@@ -294,7 +302,7 @@ final class OwlHotKeyEventTap {
     let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
     // Fixed precedence (allCases order): 快捷短语面板 → 划词菜单 → 提示词助手. The recorder rejects
     // duplicates, so at most one slot matches; the order only keeps a stale duplicate deterministic.
-    let matched = OwlHotKeySlot.allCases.first { slot in
+    let matched = OwlHotKeySlot.allCases.filter { $0 != .pinCandidate }.first { slot in
       (slot.current?.carbonCombo)
         .map { OwlHotKeyMatcher.matches($0, keyCode: keyCode, flags: flags) } ?? false
     }
@@ -311,6 +319,7 @@ final class OwlHotKeyEventTap {
       case .quickSendPanel: self?.onQuickSend?()
       case .selectionMenu: self?.onSelectionSummon?()
       case .promptAssistant: self?.onPromptAssistant?()
+      case .pinCandidate: break // excluded above; handled only by IMK with live candidates
       }
     }
     return nil // consume — the host never sees a combo we acted on
@@ -356,7 +365,7 @@ struct OwlHotKeyRecorderRow: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(spacing: 10) {
-        Text("唤起热键")
+        Text(slot == .pinCandidate ? "置顶 / 取消置顶" : "唤起热键")
           .font(.system(size: 14))
           .foregroundStyle(palette.ink)
         Spacer(minLength: 8)
