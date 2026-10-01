@@ -121,9 +121,9 @@ enum OwlLLMProviderCatalog {
     OwlLLMProviderPreset(
       id: "minimax",
       displayName: "MiniMax",
-      endpoint: "https://api.minimaxi.com/v1/chat/completions",
-      model: "MiniMax-M2.7-highspeed",
-      keyHint: "MiniMax API Key",
+      endpoint: "https://api.minimax.cn/v1/chat/completions",
+      model: "MiniMax-M3.1-Flash-Preview",
+      keyHint: "M Plan / Token Plan 订阅 Key（sk-cp-…）；国际站请使用 api.minimax.io",
       sourceSupport: .searchPlanOnly,
       authHeaderStyle: .bearer
     ),
@@ -159,6 +159,8 @@ enum OwlLLMProviderCatalog {
     "qwen3.7-plus",
     "qwen3.7-max",
   ]
+
+  static let minimaxModels = ["MiniMax-M3.1-Flash-Preview", "MiniMax-M3", "MiniMax-M2.7-highspeed"]
 
   static let customID = "custom"
 
@@ -703,7 +705,13 @@ enum OwlProviderConnectivityCheck {
       "max_tokens": model.lowercased() == "gemini-3.8-flash" ? 1024 : 16,
       "stream": false,
     ]
-    body.merge(OwlThinkingControl.offBody(providerID: providerID, model: model)) { _, off in off }
+    let thinking = OwlThinkingControl.offBody(providerID: providerID, model: model)
+    if thinking["reasoning_split"] != nil {
+      body.removeValue(forKey: "max_tokens")
+      // MiniMax counts reasoning against the generation budget; 16 can yield no answer.
+      body["max_completion_tokens"] = thinking["thinking"] == nil ? 4096 : 16
+    }
+    body.merge(thinking) { _, off in off }
     return body
   }
 

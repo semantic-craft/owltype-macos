@@ -106,9 +106,12 @@ enum OwlSelectionPolish {
       messages: messages,
       temperature: variant.temperature,
       stream: false,
-      responseFormat: .jsonObject,
+      // MiniMax documents no JSON mode; keep prompt + local validation as the contract.
+      responseFormat: thinkingOff.reasoningSplit == nil ? .jsonObject : nil,
       thinking: thinkingOff.thinking,
-      enableThinking: thinkingOff.enableThinking
+      enableThinking: thinkingOff.enableThinking,
+      reasoningEffort: thinkingOff.reasoningEffort,
+      reasoningSplit: thinkingOff.reasoningSplit
     )
   }
 }

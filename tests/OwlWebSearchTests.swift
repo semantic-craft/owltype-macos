@@ -481,10 +481,10 @@ final class OwlWebSearchTests: XCTestCase {
   func testPreferredBackendOnlyMovesToFrontOfTheCompleteCandidateOrder() {
     XCTAssertEqual(
       OwlWebSearchBackend.orderedCandidates(preferred: .perplexity),
-      [.perplexity, .doubaoGlobal, .qwen])
+      [.perplexity, .doubaoGlobal, .qwen, .minimax])
     XCTAssertEqual(
       OwlWebSearchBackend.orderedCandidates(preferred: .qwen),
-      [.qwen, .doubaoGlobal, .perplexity])
+      [.qwen, .doubaoGlobal, .perplexity, .minimax])
   }
 
   // MARK: - Key 存放
@@ -543,5 +543,42 @@ final class OwlWebSearchTests: XCTestCase {
 
     _ = OwlSettingsActions.clearWebSearchKey(backend: .perplexity, secrets: secrets)
     XCTAssertFalse(OwlWebSearchKeyStore.isConfigured(for: .perplexity, secrets: secrets))
+  }
+}
+
+final class OwlMiniMaxSearchTests: XCTestCase {
+  func testSearchMapsSourcesAndSendsSubscriptionContract() async throws {
+    let client = OwlMiniMaxSearchClient { request in
+      XCTAssertEqual(request.url?.absoluteString, "https://api.minimax.cn/v1/coding_plan/search")
+      XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+      let body = try JSONSerialization.jsonObject(with: XCTUnwrap(request.httpBody)) as? [String: String]
+      XCTAssertEqual(body, ["q": "MiniMax 官方文档"])
+      let data = Data(#"{"base_resp":{"status_code":0},"organic":[{"title":"文档","link":"https://example.com/docs","snippet":"正文摘要","date":"2026-10-01"},{"link":"javascript:alert(1)"}]}"#.utf8)
+      return (data, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+    }
+    let results = try await client.search(query: "MiniMax 官方文档", apiKey: "test-key", limit: 3)
+    XCTAssertEqual(results.count, 1)
+    XCTAssertEqual(results.first?.snippet, "正文摘要")
+    XCTAssertEqual(results.first?.publishedAt, "2026-10-01")
+    XCTAssertEqual(OwlSearchControl.displayName(for: "minimax-search"), "MiniMax 搜索（国内站）")
+  }
+
+  func testBusinessErrorsAndEmptyResultsCannotClaimSearchedAnswer() async throws {
+    for (payload, expected) in [
+      (#"{"base_resp":{"status_code":1004,"status_msg":"invalid key"}}"#,
+       OwlWebSearchError.serviceError(code: "minimax_1004", message: "invalid key")),
+      (#"{"base_resp":{"status_code":0},"organic":[]}"#, .noResults),
+      (#"{"organic":[]}"#, .malformedResponse)
+    ] {
+      let client = OwlMiniMaxSearchClient { request in
+        (Data(payload.utf8), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+      }
+      do {
+        _ = try await client.search(query: "test", apiKey: "test-key", limit: 3)
+        XCTFail("must reject unusable search result")
+      } catch {
+        XCTAssertEqual(error as? OwlWebSearchError, expected)
+      }
+    }
   }
 }
