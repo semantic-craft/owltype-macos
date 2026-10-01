@@ -258,7 +258,10 @@ clean-deps:
 # Public CI build target. Release composition and all release gates have one owner:
 # scripts/release.sh.
 
+# Real-Rime integration tests need the same seed as the shipped app. Populate it after
+# Xcode creates the test host, then run without rebuilding away that prepared bundle.
 test: $(DEPS_CHECK)
+	$(MAKE) owl-seed
 	xcodebuild \
 		-project Owltype.xcodeproj \
 		-scheme Owltype \
@@ -266,7 +269,16 @@ test: $(DEPS_CHECK)
 		-derivedDataPath $(DERIVED_DATA_PATH) \
 		CODE_SIGNING_ALLOWED=YES \
 		CODE_SIGN_IDENTITY=- \
-		test \
+		build-for-testing
+	$(MAKE) copy-owl-seed DERIVED_DATA_PATH=$(DERIVED_DATA_PATH) OWL_CONFIG=Debug
+	xcodebuild \
+		-project Owltype.xcodeproj \
+		-scheme Owltype \
+		-configuration Debug \
+		-derivedDataPath $(DERIVED_DATA_PATH) \
+		CODE_SIGNING_ALLOWED=YES \
+		CODE_SIGN_IDENTITY=- \
+		test-without-building \
 		-skip-testing:OwltypeTests/OwlGoalBriefLiveTests \
 		-skip-testing:OwltypeTests/OwlPromptOptimizeLiveTests \
 		-skip-testing:OwltypeTests/OwlResponsesPromptEvaluationLiveTests \

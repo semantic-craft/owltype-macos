@@ -55,3 +55,5 @@ OWL_HABITS_DICTS=/tmp/owltype-mixed-integration/full bash scripts/check-input-ha
 US-only 回归修复前失败、修复后通过；28 项 InstallerActivationPolicyTests 通过，安装器 Release 构建通过。证据在 `/tmp/owltype-parking-regression/`。此安装器修复尚未再次执行提权安装。关于页按用户最新要求仅移除个人姓名，保留「深圳大学法律人工智能实训实验室」及原有布局。
 
 项目介绍参考 [DeepTutor 官网](https://deeptutor.info/)（2026-10-02 查阅）：首屏说明产品用途，功能与使用入口承接，页脚标注 Data Intelligence Lab @ The University of Hong Kong。猫头鹰中英文 README 采用产品用途、主要能力、实验室归属的顺序；未复制其宣传文案，未发布网站。
+
+发布门禁首次运行发现通用 `make test` 未拷入 `_user_seed`，新增真实 Rime 集成测试失败；专用验收脚本原已显式拷贝。现将通用入口改为生成种子、build-for-testing、拷入种子并重新签名、test-without-building，保留全部离线测试与既有五项 Live suite 排除。全套测试复跑通过；失败记录 `/tmp/owltype-2.0.11-gate.log`，修复后记录 `/tmp/owltype-2.0.11-test-seed-fix.log`。
