@@ -37,6 +37,10 @@ NOTARY_PROFILE='notarytool keychain profile' \
 bash scripts/release.sh --output-root build/release-<version>-<short-sha>
 ```
 
+Both the input method and the DMG installer explicitly build `arm64` and `x86_64`.
+Their build steps verify both slices before signing; the host Mac’s active architecture
+must not narrow the published artifacts.
+
 The one-time 2.0.1 trust bridge must additionally set
 `SPARKLE_ED25519_ACCOUNT=ed25519`. Releases after 2.0.1 omit that override (or explicitly use
 `owltype-ed25519`); the predecessor account must never become a permanent default.
