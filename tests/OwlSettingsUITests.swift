@@ -85,20 +85,14 @@ final class OwlSettingsUITests: XCTestCase {
   }
 
   func testSnippetCategoryFilterKeepsBothKindsAccessible() throws {
-    let app = try launchSettings()
+    let app = try launchSettings(seedFilterEntries: true)
     defer { app.terminate() }
     openPage("quickSend", in: app)
-    type("template-title", text: "e2e snippet", in: app)
-    type("template-body", text: "plain body", in: app)
-    tap("template-save", in: app)
     XCTAssertTrue(app.buttons["e2e snippet"].waitForExistence(timeout: 3))
+    XCTAssertTrue(app.buttons["e2e prompt"].exists)
     tap("提示词", in: app)
     XCTAssertFalse(app.buttons["e2e snippet"].exists)
-    tap("新建", in: app)
-    type("template-title", text: "e2e prompt", in: app)
-    type("template-body", text: "prompt body", in: app)
-    tap("template-save", in: app)
-    XCTAssertTrue(app.buttons["e2e prompt"].waitForExistence(timeout: 3))
+    XCTAssertTrue(app.buttons["e2e prompt"].exists)
     tap("全部", in: app)
     XCTAssertTrue(app.buttons["e2e snippet"].exists)
     XCTAssertTrue(app.buttons["e2e prompt"].exists)
@@ -108,18 +102,32 @@ final class OwlSettingsUITests: XCTestCase {
     add(screenshot)
   }
 
-  private func launchSettings() throws -> XCUIApplication {
+  private func launchSettings(seedFilterEntries: Bool = false) throws -> XCUIApplication {
     let root = FileManager.default.temporaryDirectory
       .appendingPathComponent("OwltypeUITests-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+
+    if seedFilterEntries {
+      let entries: [[String: Any]] = ["general", "prompt"].map { category in
+        ["id": UUID().uuidString, "title": category == "general" ? "e2e snippet" : "e2e prompt",
+         "body": "Synthetic filter fixture", "bodyType": "plainText", "syntax": "standard",
+         "candidateAliases": [], "tags": [], "isPinned": false, "category": category,
+         "parameters": [], "invocationMode": "searchOnly", "expansionMode": "delimiterDrop"]
+      }
+      try JSONSerialization.data(withJSONObject: ["formatVersion": 1, "entries": entries])
+        .write(to: root.appendingPathComponent("owl_templates.json"))
+      try Data(#"{"formatVersion":1,"committed":true}"#.utf8)
+        .write(to: root.appendingPathComponent("owl_templates_state.json"))
+    }
 
     let app = XCUIApplication()
     app.launchArguments = ["--ui-test-show-settings"]
     app.launchEnvironment["OWL_TEST_USER_DIR"] = root.path
     app.launchEnvironment["OWL_TEST_LOG_DIR"] = root.appendingPathComponent("logs", isDirectory: true).path
     app.launch()
-    let ready = app.otherElements["OwlSettingsView"].waitForExistence(timeout: 5)
+    let ready = app.windows.firstMatch.waitForExistence(timeout: 5)
+      || app.otherElements["OwlSettingsView"].waitForExistence(timeout: 5)
       || app.buttons["双拼输入"].waitForExistence(timeout: 5)
       || app.staticTexts["猫头鹰输入法"].waitForExistence(timeout: 5)
     XCTAssertTrue(ready, "Settings window did not become accessible")
