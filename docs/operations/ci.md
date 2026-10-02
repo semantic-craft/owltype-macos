@@ -8,7 +8,7 @@ git@github.com:semantic-craft/owltype-macos.git
 
 The local remote topology has one canonical remote:
 
-- `origin`: the private GitHub repository, used for fetch, branches, pull requests,
+- `origin`: the public GitHub repository, used for fetch, branches, pull requests,
   and merges.
 
 Signed installers, the Sparkle appcast, and the corresponding source for every
@@ -17,9 +17,8 @@ release surface for Owltype.
 
 ## The gate
 
-There is no hosted CI. GitHub Actions remains disabled because private macOS jobs
-consume a paid runner allowance and the release credentials deliberately stay on the
-maintainer's Mac. A missing hosted check is not a pass: the merger owns the local gate
+There is no hosted CI. GitHub Actions remains disabled; checks and release credentials
+stay on the maintainer's Mac. Making the source public does not enable hosted runners. A missing hosted check is not a pass: the merger owns the local gate
 result for the exact pull-request head.
 
 `scripts/gate.sh` runs the public-source and privacy boundaries, portable-script
