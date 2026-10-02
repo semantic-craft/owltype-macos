@@ -29,12 +29,12 @@ struct OwlSettingsView: View {
   let onSelectSchema: (String) -> Void
   /// 应用配置改动 → delegate `deploy()` (the heavy full maintenance; 维护与诊断「重新部署」).
   let onRedeploy: () -> Bool
-  /// Track-2 config-only fast apply → delegate `applyKeyboardConfigFast()` (deploy_config_file
+  /// Track-2 config-only fast apply → shared settings application (deploy_config_file
   /// + live reselect + replay; no `shutdownRime`). Used for 候选个数 / 键位 / 标点 / schema_list.
-  let onApplyKeyboardConfigFast: () -> Bool
-  /// 模糊拼音 fast-ish apply → delegate `applyFuzzyConfigFast()` (mtime-gated `fullCheck:false`
+  let onApplyKeyboardConfigFast: () throws -> OwlKeyboardSettingsApplication.Outcome
+  /// 模糊拼音 fast-ish apply → shared settings application (mtime-gated `fullCheck:false`
   /// maintenance — rebuilds the affected schema prism, not octagram — + reselect + replay).
-  let onApplyFuzzyConfigFast: () -> Bool
+  let onApplyFuzzyConfigFast: () throws -> OwlKeyboardSettingsApplication.Outcome
   /// 同步用户数据 → delegate `syncUserData()`.
   let onSyncUserData: () -> Void
   /// 重置用户词典… → delegate-owned 确认弹窗 + `resetUserDict()`（备份 → 删 userdb → 重新部署）。
@@ -656,14 +656,11 @@ struct OwlSettingsView: View {
 
     DispatchQueue.main.async {
       do {
-        // 候选个数 is Rime `menu/page_size` (config-only): write the managed patch, then the
-        // fast config_file deploy + live reselect makes it effective immediately (no full
-        // `deploy()` / shutdownRime). page_size lives in `default.yaml`, which Owltype's schema
-        // does not shadow, so the override is honored.
-        let written = try OwlManagedKeyboardPatchPlan.apply(snapshot: OwlKeyboardSnapshot.current())
+        // Saving and activation belong to the shared settings application.
+        let outcome = try onApplyKeyboardConfigFast()
         candidatePageSizeApplyStatus = Self.candidatePageSizeApplyStatusMessage(
-          written: written,
-          deploySucceeded: onApplyKeyboardConfigFast()
+          written: outcome.written,
+          deploySucceeded: outcome.succeeded
         )
       } catch OwlConfigWriteError.refusedNeverTouch(let name) {
         candidatePageSizeApplyStatus = "已拒绝写入受保护文件：\(name)。候选个数未生效，请查看诊断日志。"

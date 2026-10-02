@@ -26,7 +26,13 @@ Owltype is a Chinese input method for macOS. Write with familiar Pinyin or Wubi,
 
 ## Recent updates
 
-**2.0.11 · Current source version**
+**2.0.12 · Current source version**
+
+- **Settings application:** save, compile, and refresh input sessions through one path while preserving composition.
+- **Selected-text rewrites:** share confirmation, cancellation, and delivery handling; cancelled results do not preview or replace text.
+- **Snippet filter:** use a theme-aware neutral background and selection highlight while retaining All / Prompts filtering.
+
+**2.0.11**
 
 - **Mixed Chinese/English Pinyin:** repairs missing English and mixed-language candidate channels after a full dictionary download or upgrade.
 - **Per-app language memory:** restores the previous Chinese/English choice, with controls to inspect and forget entries.

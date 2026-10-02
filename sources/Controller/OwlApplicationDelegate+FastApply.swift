@@ -13,76 +13,18 @@ import AppKit
 extension OwlApplicationDelegate {
   // MARK: - Fast settings-apply (Track 2 / PR3)
 
-  /// Fast path for Track-2 *config-only* settings (候选个数 `menu/page_size` / 翻页·选词键
-  /// `key_binder` / Shift `ascii_composer` / slash `punctuator` /
-  /// schema_list). The patch text is already written by the caller
-  /// (`OwlManagedKeyboardPatchPlan.apply`); this only makes it EFFECTIVE without the heavy
-  /// `deploy()` (`shutdownRime` + `startRime(fullCheck:true)`):
-  ///   1. `deploy_config_file("default.yaml")` (+ the active `<schema>.schema.yaml`) — the
-  ///      `config_file_update` task: recompiles ONE config, merges its `.custom.yaml`,
-  ///      mtime-gated, NO dict/octagram rebuild. `config_file_update` is a synchronous
-  ///      `RunTask`, so the rebuilt `build/` is ready before the reselect below.
-  ///   2. force EVERY live session to reload the new `build/` (`reapplyToLiveSession`:
-  ///      destroy+recreate each session + restore its schema; the active one also replays its
-  ///      composition so the panel re-renders under the new config — no retype). A same-id
-  ///      reselect was NOT enough (it doesn't rebuild the cached Schema → page_size stayed stale).
-  /// Wrapped in a `OwlPerf` mark (PR1's deferred empirical deliverable). Reloads `loadSettings`
-  /// so style flags pick up any layout change. NOT on the IMK keystroke hot path. Returns
-  /// whether the config_file deploy(s) succeeded.
-  @discardableResult
-  func applyKeyboardConfigFast() -> Bool {
-    let trace = OwlLatencyTrace.begin("deploy.fast.config")
-    defer { OwlLatencyTrace.end("deploy.fast.config", trace) }
-    guard !templateRecoveryBlocksDeployment() else { return false }
-    let perf = OwlPerf.mark()
-    var ok = engine.deployConfigFile("default.yaml", versionKey: "config_version")
-    // owltype.yaml (frontend config: style + per-app app_options) is NOT in rime's tracked
-    // default/schema set — without this explicit deploy, App 默认英文 writes landing in
-    // owltype.custom.yaml's managed block never reach build/owltype.yaml, so getAppOptions keeps
-    // serving factory entries only (#121 真机验收逮住). config_file_update is
-    // fingerprint-gated → free when owltype.custom.yaml is unchanged.
-    ok = engine.deployConfigFile(OwlRimeIdentity.configFile, versionKey: "config_version") && ok
-    let schema = activeSchemaIdForFastApply()
-    if !schema.isEmpty, schema.first != "." {
-      // The active schema's own config carries schema-level keys (wubi 编码提示 / 单字 / 清码,
-      // schema-bundled punctuator). config_file_update is config-only (no prism/dict rebuild).
-      ok = engine.deployConfigFile("\(schema).schema.yaml", versionKey: "schema/version") && ok
-    }
-    loadSettings()
-    reapplyToLiveSession()
-    OwlPerf.since(perf, "fastapply.config")
-    return ok
-  }
-
-  /// Fast-ish path for the ONE Track-2 exception — 模糊拼音 `speller/algebra`. Changing
-  /// algebra rebuilds the schema PRISM (`dict_compiler`), which the config-only
-  /// `deploy_config_file` path does NOT do, so it falls back to the mtime-gated
-  /// `start_maintenance(fullCheck:false)` (rebuilds only the affected schema — NOT octagram —
-  /// per `detect_modifications`). Faster than the full `deploy()` (`fullCheck:true` skips the
-  /// mtime gate), but honestly NOT instant. `start_maintenance` schedules its work on a
-  /// background thread and returns immediately, so we `joinMaintenance()` to wait for the prism
-  /// rebuild to land in `build/` BEFORE the reselect re-reads it (otherwise the reselect would
-  /// race the rebuild and the new fuzzy rules would silently not take effect). Then reselect +
-  /// replay on the live session. NOT on the IMK keystroke hot path. Returns whether maintenance
-  /// started.
-  @discardableResult
-  func applyFuzzyConfigFast() -> Bool {
-    let trace = OwlLatencyTrace.begin("deploy.fast.fuzzy")
-    defer { OwlLatencyTrace.end("deploy.fast.fuzzy", trace) }
-    guard !templateRecoveryBlocksDeployment() else { return false }
-    let perf = OwlPerf.mark()
-    // mtime-gated maintenance: rebuilds only the schema whose `speller/algebra` changed
-    // (prism), never octagram. No shutdownRime — the live session stays up.
-    let ok = engine.startMaintenance(fullCheck: false)
-    if ok {
-      // Block until the async workspace_update (prism rebuild) finishes, so the reselect
-      // below re-reads the rebuilt build/<schema>.schema.yaml rather than the stale one.
-      engine.joinMaintenance()
-    }
-    loadSettings()
-    reapplyToLiveSession()
-    OwlPerf.since(perf, "fastapply.fuzzy")
-    return ok
+  /// Owns persistence and activation together; callers only choose the kind of edit.
+  func applyKeyboardSettings(
+    _ mode: OwlKeyboardSettingsApplication.Mode,
+    snapshot: OwlKeyboardSnapshot = .current(),
+    directory: URL = OwlApp.userDir
+  ) throws -> OwlKeyboardSettingsApplication.Outcome {
+    try OwlKeyboardSettingsApplication(
+      engine: engine,
+      directory: directory,
+      activeSchema: activeSchemaIdForFastApply,
+      refresh: { self.loadSettings(); self.reapplyToLiveSession() }
+    ).apply(snapshot, mode: mode)
   }
 
   /// Re-apply the just-deployed config to EVERY live controller's session so the freshly-built

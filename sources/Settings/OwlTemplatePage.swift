@@ -390,10 +390,7 @@ struct OwlTemplatePage: View {
   private var libraryList: some View {
     VStack(alignment: .leading, spacing: 12) {
       Text("快捷片段").font(.headline)
-      Picker("内容筛选", selection: $promptOnly) {
-        Text("全部").tag(false)
-        Text("提示词").tag(true)
-      }.pickerStyle(.segmented).accessibilityIdentifier("snippet-category-filter")
+      categoryFilter
       TextField("搜索标题、正文、标签或触发词", text: $search)
       Picker("标签筛选", selection: $selectedTag) {
         Text("全部标签").tag(nil as String?)
@@ -427,6 +424,39 @@ struct OwlTemplatePage: View {
         }
       }.frame(minHeight: 80, maxHeight: 240)
     }
+  }
+
+  private var categoryFilter: some View {
+    HStack(spacing: 2) {
+      categoryButton("全部", prompt: false)
+      categoryButton("提示词", prompt: true)
+    }
+    .padding(3)
+    .background(palette.ink.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    .accessibilityElement(children: .contain)
+    .accessibilityLabel("内容筛选")
+    .accessibilityIdentifier("snippet-category-filter")
+  }
+
+  private func categoryButton(_ title: String, prompt: Bool) -> some View {
+    let selected = promptOnly == prompt
+    return Button { promptOnly = prompt } label: {
+      Text(title)
+        .font(.system(size: 13, weight: selected ? .semibold : .regular))
+        .foregroundStyle(selected ? palette.ink : palette.ink2)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 5)
+        .background {
+          if selected {
+            RoundedRectangle(cornerRadius: 6)
+              .fill(palette.card)
+              .shadow(color: .black.opacity(0.12), radius: 1, y: 1)
+          }
+        }
+        .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityAddTraits(selected ? .isSelected : [])
   }
 
   private var editor: some View {

@@ -239,18 +239,5 @@ final class SeamPortsTests: XCTestCase {
     ))
   }
 
-  /// Reproduces the 划词菜单「润色」trigger (`handlePolish`): it awaits the port's
-  /// `polishSelection(_:)` and takes the best rewrite. Asserts the selection forwarded through
-  /// the port and the scripted rewrites came back — without DeepSeek/keychain.
-  func testSelectionPolishTriggerFlowsThroughInjectedPort() async throws {
-    let delegate = OwlApplicationDelegate()
-    let polish = FakeSelectionPolish(rewrites: ["改写一", "改写二"])
-    delegate.selectionPolish = polish
-
-    let rewrites = try await delegate.selectionPolish.polishSelection("原始选中文本")
-
-    XCTAssertEqual(polish.polished, ["原始选中文本"])
-    XCTAssertEqual(rewrites.first, "改写一")
-  }
 
 }

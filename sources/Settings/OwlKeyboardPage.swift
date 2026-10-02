@@ -40,10 +40,10 @@ struct OwlKeyboardPage: View {
   let onRedeploy: () -> Bool
   /// Track-2 config-only fast apply (deploy_config_file + live reselect + replay; no full
   /// `deploy()`). Used by every Rime-backed toggle on this page EXCEPT 模糊拼音.
-  let onApplyKeyboardConfigFast: () -> Bool
+  let onApplyKeyboardConfigFast: () throws -> OwlKeyboardSettingsApplication.Outcome
   /// 模糊拼音 fast-ish apply (mtime-gated `fullCheck:false` maintenance — rebuilds the schema
   /// prism, not octagram — + reselect + replay). NOT instant; copy stays honest.
-  let onApplyFuzzyConfigFast: () -> Bool
+  let onApplyFuzzyConfigFast: () throws -> OwlKeyboardSettingsApplication.Outcome
 
   /// Which card group this instance renders. 键盘输入 shows everything except the three
   /// shortcut cards; 快捷键设置 (a separate sidebar page) shows only those three. One view
@@ -904,8 +904,8 @@ struct OwlKeyboardPage: View {
     applyCurrentKeyboardSnapshot()
   }
 
-  /// Track-2 config-only apply path (页内 Rime-backed toggles + App 默认英文). Writes the
-  /// managed patch, then the FAST config_file deploy + live reselect + replay makes it
+  /// Track-2 config-only apply path (页内 Rime-backed toggles + App 默认英文). The shared application module writes the
+  /// managed patch, then config deploy + live reselect + replay makes it
   /// effective immediately — no full `deploy()` / shutdownRime.
   private func applyCurrentKeyboardSnapshot() {
     applyKeyboardSnapshot(progress: "正在应用配置…", apply: onApplyKeyboardConfigFast)
@@ -918,17 +918,17 @@ struct OwlKeyboardPage: View {
     applyKeyboardSnapshot(progress: "正在应用模糊拼音（可能需要片刻）…", apply: onApplyFuzzyConfigFast)
   }
 
-  private func applyKeyboardSnapshot(progress: String, apply: @escaping () -> Bool) {
+  private func applyKeyboardSnapshot(progress: String, apply: @escaping () throws -> OwlKeyboardSettingsApplication.Outcome) {
     guard !isAutoApplyingRimeConfig else { return }
     isAutoApplyingRimeConfig = true
     autoApplyStatus = progress
 
     DispatchQueue.main.async {
       do {
-        let written = try OwlManagedKeyboardPatchPlan.apply(snapshot: OwlKeyboardSnapshot.current())
+        let outcome = try apply()
         autoApplyStatus = Self.autoApplyStatusMessage(
-          written: written,
-          deploySucceeded: apply()
+          written: outcome.written,
+          deploySucceeded: outcome.succeeded
         )
       } catch OwlConfigWriteError.refusedNeverTouch(let name) {
         autoApplyStatus = "已拒绝写入受保护文件：\(name)。改动未生效，请查看诊断日志。"
