@@ -4,9 +4,9 @@
 
 # Owltype · 猫头鹰输入法
 
-**Local typing, with AI when you need it.**
+**An open-source Rime input method, made for everyday typing and AI workflows.**
 
-Pinyin · Double Pinyin · Wubi · Text-selection tools
+Native macOS UI · Pinyin / Double Pinyin / Wubi · Prompt snippets · Raycast import
 
 **深圳大学法律人工智能实训实验室 · Shenzhen University**
 
@@ -14,40 +14,53 @@ Pinyin · Double Pinyin · Wubi · Text-selection tools
 [![Apple Silicon + Intel](https://img.shields.io/badge/Apple_Silicon_%2B_Intel-Universal-grey)](#get-started)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE.txt)
 
-[Get started](#get-started) · [Features](#features) · [Recent updates](#recent-updates) · [Interface](#interface) · [Project and feedback](#project-and-feedback)
+[Get started](#get-started) · [AI workflows](#built-for-ai-workflows) · [Features](#features) · [Interface](#interface) · [Contribute](#project-and-feedback)
 
 [Website](https://responsay.com/owltype/) · [中文](README.md)
 
 </div>
 
-Owltype is a Chinese input method for macOS. Write with familiar Pinyin or Wubi, then select text to polish, translate or investigate its sources. Rime powers the input engine; SwiftUI provides native candidates and settings. Everyday typing stays on your Mac. Optional cloud AI runs only after you configure and explicitly invoke it.
+Owltype is an **open-source Chinese input method for macOS, built on Rime**. Describe a task in Chinese, type a `/` command or a `$` skill name, then insert a reusable prompt: the little steps of working with AI agents belong in the input experience.
+
+Native SwiftUI candidates, nine colour palettes, familiar input schemes and mixed Chinese/English typing keep everyday writing comfortable. Typing and snippets run locally. Optional cloud AI runs only after you configure and explicitly invoke it.
+
+We have used Owltype ourselves for two to three months and tested it with a small group. This is a version we use reliably for everyday work. **Log out and back in once after installation** so macOS can load the input method correctly.
+
+> 🦉 **Now open source. Help us make it better.** [Download](https://responsay.com/owltype/) · [Report an issue / suggest a feature](https://github.com/semantic-craft/owltype-macos/issues) · [Explore the source](https://github.com/semantic-craft/owltype-macos)
 
 ![Owltype candidate window](docs/screenshots/candidates.png)
 
-## Recent updates
+## Built for AI workflows
 
-**2.0.12 · Current source version**
+Small details for moving between agents such as Codex and Claude Code, editors and everyday writing.
 
-- **Settings application:** save, compile, and refresh input sessions through one path while preserving composition.
-- **Selected-text rewrites:** share confirmation, cancellation, and delivery handling; cancelled results do not preview or replace text.
-- **Snippet filter:** use a theme-aware neutral background and selection highlight while retaining All / Prompts filtering.
+| Your workflow | The detail that helps |
+| --- | --- |
+| Follow a Chinese request with a `/` command | By default, `/` commits the current Chinese candidate, switches to English and outputs an ASCII slash. A symbol-menu option is also available. |
+| Type a `$` skill name in Codex | The `Shift + 4` currency candidates put ASCII `$` first, with `¥` still available. |
+| Switch between editors, terminals and chat | Per-app language memory, initial-English rules, English punctuation in Chinese mode and optional Chinese/English spacing. |
+| Reuse a long prompt | Search snippets by title, body, tag or trigger, or insert through candidate confirmation. |
+| Change the task or source material each time | Templates support parameters, defaults, choices, clipboard text, date/time and cursor placement, with a preview before insertion. |
+| Skip opening a panel | Opt into automatic expansion with `;;` triggers, immediately or after a delimiter, with per-app exclusions. |
+| Bring an existing Raycast snippet library | Import basic Raycast JSON, preview entries and resolve duplicates and trigger conflicts. |
+| Clarify a rough request | Use the selected-text Prompt optimization or Task brief action to organize goals, constraints and missing information. |
 
-**2.0.11**
+![Prompt snippets and Raycast import](docs/screenshots/prompt-snippets.jpg)
 
-- **Mixed Chinese/English Pinyin:** repairs missing English and mixed-language candidate channels after a full dictionary download or upgrade.
-- **Per-app language memory:** restores the previous Chinese/English choice, with controls to inspect and forget entries.
-- **Pinned candidates:** pins or unpins complete full-Pinyin candidates, with Control Shift P as the default shortcut and a context-menu entry.
-- **Real onboarding practice:** checks composition and commitment of “你好，猫头鹰” in a native text field; pasting does not count.
-- **Installation and presentation:** selects an available system ASCII keyboard; keeps only the lab attribution in About and refreshes both project introductions.
+### Turn prompts into reusable templates
 
-<details>
-<summary>Acceptance scope and previous release</summary>
+Create a template under Quick snippets, set its trigger to `;;review`, choose automatic expansion and enable it under Automatic expansion settings:
 
-Mixed input and keyboard pinning have TextEdit evidence. The context menu, cross-app Shift switching and full onboarding flow still need installed-app verification. Native-controller and real-Rime integration tests cover the feature logic. See the [design and acceptance record](docs/input-habits-design.md) (Chinese).
+```text
+Review the following changes, focusing on {argument name="Focus" default="correctness and edge cases"}.
+List reproducible issues first, then suggest the smallest fixes.
 
-**2.0.10 (2026-10-01)** added the MiniMax M3.1 preset and China subscription search, and restored the update channel. Users on 2.0.9 or earlier need one manual installation of 2.0.10 or later before receiving subsequent in-app updates.
+{clipboard}
+```
 
-</details>
+Copy the material, type `;;review` in a supported text field, fill or confirm parameters, preview and insert. Search-only and candidate-confirmed invocation are also available. `{cursor}` marks the desired caret position; unsupported hosts receive a fallback notice.
+
+**Alongside Raycast:** choose Quick snippets → Import Raycast JSON and select your export. Supported dynamic fields become templates. Unsupported or ambiguous fields stay pending until you fix them or explicitly convert the entry to plain text. This is local import, not two-way sync. Assign a shared automatic trigger to only one tool. Automatic expansion requires Owltype to be active and does not send chat messages for you.
 
 ## Features
 
@@ -93,11 +106,11 @@ Nine colour palettes support light, dark and system appearance. Adjust fonts, la
 **macOS 14 or later · Apple Silicon / Intel**
 
 1. [Download the installer DMG](https://responsay.com/owltype/Owltype.dmg), open “猫头鹰安装器” and click “安装” (Install). macOS may request administrator authorization.
-2. Allow the input method if macOS asks, then select “猫头鹰” in the system input menu. If it is missing, check System Settings → Keyboard → Input Sources.
+2. **Log out and back in once after installation.** Allow the input method if macOS asks, then select “猫头鹰” in the system input menu. If it is missing, check System Settings → Keyboard → Input Sources.
 3. Choose a scheme under “键盘输入” (Keyboard input), follow the dictionary setup and try typing in a newly opened text app.
 4. For AI, add a provider under “AI 配置” and enable the desired text-selection tools. Ordinary typing needs no model configuration.
 
-**Cannot type after installation?** Reopen the host app first. If it still cannot connect, follow the installer's guidance to log out and back in once. Input-method connection refresh varies by host; not every installation or upgrade can avoid logout.
+**Cannot type after installation?** Confirm you have logged out and back in, reopen the host app and check that “猫头鹰” is selected in the system input menu.
 
 **Updates:** from 2.0.10 onward, use About → Check for updates. The feed is `https://downloads.responsay.com/owltype/v3/appcast.xml`. Older versions need one manual installation of 2.0.10 or later. [Direct update-package download](https://responsay.com/owltype/Owltype-update.pkg).
 
@@ -105,16 +118,41 @@ Nine colour palettes support light, dark and system appearance. Adjust fonts, la
 
 ## Interface
 
-These are the existing repository screenshots. Exact controls depend on the installed version.
+Settings screenshots use sample data in the isolated 2.0.12 demo window; candidates show actual typing. Exact controls depend on the installed version.
 
 | Appearance | Keyboard input |
 | --- | --- |
-| ![Skin picker](docs/screenshots/skins.png) | ![Keyboard settings](docs/screenshots/keyboard-settings.png) |
+| ![Skin picker](docs/screenshots/skins.jpg) | ![Keyboard settings](docs/screenshots/keyboard-settings.jpg) |
 
 <details>
 <summary>Another candidate-window palette</summary>
 
 ![Candidate window in Champagne Orange (Flame)](docs/screenshots/candidates-flame.png)
+
+</details>
+
+## Recent updates
+
+**2.0.12 · Current source version**
+
+- **Settings application:** save, compile, and refresh input sessions through one path while preserving composition.
+- **Selected-text rewrites:** share confirmation, cancellation, and delivery handling; cancelled results do not preview or replace text.
+- **Snippet filter:** use a theme-aware neutral background and selection highlight while retaining All / Prompts filtering.
+
+**2.0.11**
+
+- **Mixed Chinese/English Pinyin:** repairs missing English and mixed-language candidate channels after a full dictionary download or upgrade.
+- **Per-app language memory:** restores the previous Chinese/English choice, with controls to inspect and forget entries.
+- **Pinned candidates:** pins or unpins complete full-Pinyin candidates, with Control Shift P as the default shortcut and a context-menu entry.
+- **Real onboarding practice:** checks composition and commitment of “你好，猫头鹰” in a native text field; pasting does not count.
+- **Installation and presentation:** selects an available system ASCII keyboard; keeps only the lab attribution in About and refreshes both project introductions.
+
+<details>
+<summary>Acceptance scope and previous release</summary>
+
+Mixed input and keyboard pinning have TextEdit evidence. The context menu, cross-app Shift switching and full onboarding flow still need installed-app verification. Native-controller and real-Rime integration tests cover the feature logic. See the [design and acceptance record](docs/input-habits-design.md) (Chinese).
+
+**2.0.10 (2026-10-01)** added the MiniMax M3.1 preset and China subscription search, and restored the update channel. Users on 2.0.9 or earlier need one manual installation of 2.0.10 or later before receiving subsequent in-app updates.
 
 </details>
 
@@ -132,17 +170,17 @@ See [PRIVACY.md](PRIVACY.md). Report security issues privately as described in [
 **深圳大学法律人工智能实训实验室 · Shenzhen University**.
 
 - [Website and public downloads](https://responsay.com/owltype/) · [Corresponding source](https://responsay.com/owltype/source.tar.gz)
-- [Issues and suggestions](https://github.com/semantic-craft/owltype-macos/issues): the development repository is private; collaborators with access can file issues. Include the app version, macOS version, host app and steps to reproduce.
+- [Issues and suggestions](https://github.com/semantic-craft/owltype-macos/issues): issues and pull requests are welcome, including input feedback, template workflows and improvements. Include the app version, macOS version, host app and steps to reproduce.
 - [Windows edition](https://github.com/semantic-craft/owltype-win): independently maintained, with separate versions, features and release assets.
 
-GitHub is the single private development repository for the complete macOS product, issues and reviews. The website distributes installers, update feeds and corresponding source. Repository history starts with the 1.4.22 source snapshot; public releases through 1.4.21 are no longer distributed or supported.
+GitHub is the public development repository for the complete macOS product, issues and reviews. The website distributes installers, update feeds and corresponding source. Repository history starts with the 1.4.22 source snapshot; public releases through 1.4.21 are no longer distributed or supported.
 
 ## Build from source
 
 Requires Xcode 26+ and macOS 14+:
 
 ```sh
-git clone git@github.com:semantic-craft/owltype-macos.git
+git clone https://github.com/semantic-craft/owltype-macos.git
 cd owltype-macos
 git submodule update --init --recursive
 make setup-dev
@@ -175,8 +213,8 @@ Released under **GPL-3.0**; see [LICENSE.txt](LICENSE.txt). Owltype is a derivat
 must also provide the corresponding modified source, the GPL-3.0 license text and the copyright
 notices; it may not be shipped as a closed-source product.
 The complete corresponding source for each binary release is available from the
-[stable website link](https://responsay.com/owltype/source.tar.gz). Keeping the development repository
-private does not restrict a recipient's GPL rights to use, modify, and redistribute that source.
+[stable website link](https://responsay.com/owltype/source.tar.gz). You are welcome to use, modify and redistribute the source under the GPL. The development branch
+may differ from the source of a released binary.
 
 Full lineage is in [PROVENANCE.md](PROVENANCE.md); third-party component licenses are in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
