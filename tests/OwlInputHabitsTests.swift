@@ -120,8 +120,8 @@ final class OwlInputHabitsTests: XCTestCase {
   }
 
   func testPinDeploymentCoexistsWithEnglishAndTemplateChannelsAndIsIdempotent() throws {
-    let priorAvailability = OwlPinnedWordsDeployment.available
-    defer { OwlPinnedWordsDeployment.available = priorAvailability }
+    let priorAvailability = OwlPinyinCandidateDeployment.available
+    defer { OwlPinyinCandidateDeployment.available = priorAvailability }
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
     let user = root.appendingPathComponent("user")
@@ -134,19 +134,19 @@ final class OwlInputHabitsTests: XCTestCase {
     let compiled = user.appendingPathComponent("build/rime_ice.schema.yaml")
     try FileManager.default.createDirectory(at: compiled.deletingLastPathComponent(), withIntermediateDirectories: true)
     try "old compiled schema".write(to: compiled, atomically: true, encoding: .utf8)
-    try OwlPinnedWordsDeployment.apply(userDir: user, sharedDir: shared)
+    try OwlPinyinCandidateDeployment.apply(userDir: user, sharedDir: shared)
     XCTAssertFalse(FileManager.default.fileExists(atPath: compiled.path), "Changed patches invalidate Rime's second-granularity cache")
     let first = try String(contentsOf: custom, encoding: .utf8)
     try "new compiled schema".write(to: compiled, atomically: true, encoding: .utf8)
-    XCTAssertTrue(first.contains(OwlPinnedWordsDeployment.filter))
+    XCTAssertTrue(first.contains(OwlPinyinCandidateDeployment.filter))
     XCTAssertTrue(first.contains("# keep me"))
-    try OwlPinnedWordsDeployment.apply(userDir: user, sharedDir: shared)
+    try OwlPinyinCandidateDeployment.apply(userDir: user, sharedDir: shared)
     XCTAssertEqual(first, try String(contentsOf: custom, encoding: .utf8))
     XCTAssertTrue(FileManager.default.fileExists(atPath: compiled.path), "An unchanged patch must not force another compile")
     try "patch:\n  \"engine/filters\": [uniquifier]\n".write(to: custom, atomically: true, encoding: .utf8)
-    try OwlPinnedWordsDeployment.apply(userDir: user, sharedDir: shared)
-    XCTAssertFalse(OwlPinnedWordsDeployment.available)
-    XCTAssertFalse(try String(contentsOf: custom, encoding: .utf8).contains(OwlPinnedWordsDeployment.filter))
+    try OwlPinyinCandidateDeployment.apply(userDir: user, sharedDir: shared)
+    XCTAssertFalse(OwlPinyinCandidateDeployment.available)
+    XCTAssertFalse(try String(contentsOf: custom, encoding: .utf8).contains(OwlPinyinCandidateDeployment.filter))
   }
 
   func testPinShortcutDefaultYieldsToExistingUserShortcut() {

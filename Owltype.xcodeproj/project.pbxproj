@@ -11,7 +11,7 @@
 		670F2E760700470A9CE045E9 /* OwlInputHabitsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3E22E941504EA49830A2A2 /* OwlInputHabitsTests.swift */; };
 		8E0219EE244D455186692B00 /* OwlInputController+InputHabits.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18655B9FE96489FABD6D0D3 /* OwlInputController+InputHabits.swift */; };
 		07860FECCA2A4B9EAC2331D8 /* OwlInputHabitsSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA978779A9B64A19A7E70BB9 /* OwlInputHabitsSettings.swift */; };
-		7AE040E79F0946C2A2036977 /* OwlPinnedWordsDeployment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F32FC4A4E5B46B5A07BC2F5 /* OwlPinnedWordsDeployment.swift */; };
+		7AE040E79F0946C2A2036977 /* OwlPinyinCandidateDeployment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F32FC4A4E5B46B5A07BC2F5 /* OwlPinyinCandidateDeployment.swift */; };
 		F1233813CC4543789D65C9A9 /* OwlPinnedWords.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8573B4C99C949C5BB32E7C5 /* OwlPinnedWords.swift */; };
 		4F1F9D8AFC93488EAF08D264 /* OwlOnboardingPractice.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5C93C517B5248478C7A8FBE /* OwlOnboardingPractice.swift */; };
 		7AB6866332B74789A8C5A6CC /* OwlAppInputMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99C1AA462FD34768AB99C65B /* OwlAppInputMemory.swift */; };
@@ -452,7 +452,7 @@
 		CC3E22E941504EA49830A2A2 /* OwlInputHabitsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputHabitsTests.swift"; path = "tests/OwlInputHabitsTests.swift"; sourceTree = "<group>"; };
 		A18655B9FE96489FABD6D0D3 /* OwlInputController+InputHabits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+InputHabits.swift"; path = "sources/Controller/OwlInputController+InputHabits.swift"; sourceTree = "<group>"; };
 		FA978779A9B64A19A7E70BB9 /* OwlInputHabitsSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputHabitsSettings.swift"; path = "sources/Settings/OwlInputHabitsSettings.swift"; sourceTree = "<group>"; };
-		8F32FC4A4E5B46B5A07BC2F5 /* OwlPinnedWordsDeployment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlPinnedWordsDeployment.swift"; path = "sources/Settings/OwlPinnedWordsDeployment.swift"; sourceTree = "<group>"; };
+		8F32FC4A4E5B46B5A07BC2F5 /* OwlPinyinCandidateDeployment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlPinyinCandidateDeployment.swift"; path = "sources/Settings/OwlPinyinCandidateDeployment.swift"; sourceTree = "<group>"; };
 		D8573B4C99C949C5BB32E7C5 /* OwlPinnedWords.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlPinnedWords.swift"; path = "sources/Settings/OwlPinnedWords.swift"; sourceTree = "<group>"; };
 		D5C93C517B5248478C7A8FBE /* OwlOnboardingPractice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlOnboardingPractice.swift"; path = "sources/Settings/OwlOnboardingPractice.swift"; sourceTree = "<group>"; };
 		99C1AA462FD34768AB99C65B /* OwlAppInputMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlAppInputMemory.swift"; path = "sources/Settings/OwlAppInputMemory.swift"; sourceTree = "<group>"; };
@@ -878,7 +878,7 @@
 				FAD1CF01CAFEDF01CAFEDF01 /* OwlDictPack.swift */,
 				A18655B9FE96489FABD6D0D3 /* OwlInputController+InputHabits.swift */,
 				FA978779A9B64A19A7E70BB9 /* OwlInputHabitsSettings.swift */,
-				8F32FC4A4E5B46B5A07BC2F5 /* OwlPinnedWordsDeployment.swift */,
+				8F32FC4A4E5B46B5A07BC2F5 /* OwlPinyinCandidateDeployment.swift */,
 				D8573B4C99C949C5BB32E7C5 /* OwlPinnedWords.swift */,
 				D5C93C517B5248478C7A8FBE /* OwlOnboardingPractice.swift */,
 				99C1AA462FD34768AB99C65B /* OwlAppInputMemory.swift */,
@@ -1449,7 +1449,7 @@
 				FAD1CF02CAFEDF02CAFEDF02 /* OwlDictPack.swift in Sources */,
 				8E0219EE244D455186692B00 /* OwlInputController+InputHabits.swift in Sources */,
 				07860FECCA2A4B9EAC2331D8 /* OwlInputHabitsSettings.swift in Sources */,
-				7AE040E79F0946C2A2036977 /* OwlPinnedWordsDeployment.swift in Sources */,
+				7AE040E79F0946C2A2036977 /* OwlPinyinCandidateDeployment.swift in Sources */,
 				F1233813CC4543789D65C9A9 /* OwlPinnedWords.swift in Sources */,
 				4F1F9D8AFC93488EAF08D264 /* OwlOnboardingPractice.swift in Sources */,
 				7AB6866332B74789A8C5A6CC /* OwlAppInputMemory.swift in Sources */,

@@ -115,7 +115,7 @@ struct OwlApp {
     do {
       if let sharedSupport = Bundle.main.sharedSupportURL {
         try OwlPinyinMixedInput.apply(userDir: userDir, sharedDir: sharedSupport)
-        do { try OwlPinnedWordsDeployment.apply(userDir: userDir, sharedDir: sharedSupport) } catch { fputs("Pinned candidates unavailable: \(error)\n", stderr) }
+        do { try OwlPinyinCandidateDeployment.apply(userDir: userDir, sharedDir: sharedSupport) } catch { fputs("Pinyin candidate priorities unavailable: \(error)\n", stderr) }
       }
     } catch {
       fputs("Failed to configure English candidates: \(error)\n", stderr)

@@ -821,8 +821,8 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     do {
       if let sharedSupport = Bundle.main.sharedSupportURL {
         try OwlPinyinMixedInput.apply(userDir: migrationDirectory, sharedDir: sharedSupport)
-        do { try OwlPinnedWordsDeployment.apply(userDir: migrationDirectory, sharedDir: sharedSupport) } catch {
-          Self.deployLog.error("Pinned candidates unavailable: \(error.localizedDescription, privacy: .public)")
+        do { try OwlPinyinCandidateDeployment.apply(userDir: migrationDirectory, sharedDir: sharedSupport) } catch {
+          Self.deployLog.error("Pinyin candidate priorities unavailable: \(error.localizedDescription, privacy: .public)")
         }
       }
     } catch {
