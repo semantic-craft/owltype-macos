@@ -780,6 +780,9 @@ final class OwlScrollLayoutTests: XCTestCase {
   }
 
   private func render(_ state: CandidatePanelState, snapshot: Bool = false) throws -> Rendered {
+    // A fresh test host has no external AX client. Request the same enhanced tree explicitly
+    // instead of depending on a prior UI test having enabled accessibility for this build path.
+    NSApp.accessibilitySetValue(true, forAttribute: NSAccessibility.Attribute(rawValue: "AXEnhancedUserInterface"))
     let host = NSHostingView(rootView: OwlCandidatePanelView(state: state, onSelect: { _ in }, onPage: { _ in }))
     let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 300),
                           styleMask: [.borderless], backing: .buffered, defer: false)
