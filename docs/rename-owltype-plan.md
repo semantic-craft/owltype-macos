@@ -1,6 +1,6 @@
 # 改名方案：法墨输入法 → 猫头鹰输入法（Owltype）
 
-> 状态：方案定稿；08 外壳改名与 09 分发上线已完成，后续 10–11 待执行。GitHub #140–#149 是当前规格与依赖源；本地票文件保留对应阶段的详细操作编舞。
+> 状态（2026-10-02 核对）：本文保留改名时的设计决策和迁移依据，以下阶段步骤是历史方案，不作为当前操作清单。现行实现已发布至 2.0.11；GitHub [#148](https://github.com/semantic-craft/owltype-macos/issues/148)、[#149](https://github.com/semantic-craft/owltype-macos/issues/149) 仍开放，未完成验收与旧分发面的处置以这两项工单为准。当前发布流程见 [发布检查清单](PUBLISHING_CHECKLIST.md)。
 > 原则：一次性彻底改名，不保留兼容层、不留旧标识残留（全局工程原则：不做向后兼容）。
 > 撰写日期：2026-08-20。方案制定时版本为 1.6.3；改名后首个版本 **2.0.0** 已于 2026-08-21 发布。
 
@@ -96,7 +96,7 @@
 3. **本地目录**：确认无其他会话占用（`lsof +D`）后 `mv ~/Projects/famotype-macos ~/Projects/owltype-macos`。
 4. **Claude/engram 记忆随迁**：目录名是记忆的 key。
    `mv ~/.claude/projects/-Users-xianweizhang-Projects-famotype-macos ~/.claude/projects/-Users-xianweizhang-Projects-owltype-macos`；engram 若按 cwd 归档项目，确认新路径能接上旧项目（接不上则在 engram 里做一次 handoff 说明）。**漏掉这步 = 全部项目记忆静默丢失，这是最容易被忽略的隐患。**
-5. Metis 侧若有检出（08-19 清理记录称两机残留已清，预期没有），有则同法处理。famotype 不在 fleet manifest，无 manifest 改动。
+5. 原计划中的 Metis 跨机迁移步骤已取消：该机器已退役，不再执行同步、部署或验收。
 6. `.claude/` 内残留的 worktree 配置、launch.json 等若引用旧路径，同步清理。
 
 ---

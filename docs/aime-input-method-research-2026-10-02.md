@@ -1,5 +1,7 @@
 # AIME 安装注销与英文词库核实（2026-10-02）
 
+> 当前状态（2026-10-02）：中英混输修复、按应用记忆中英状态、真实试打与快捷置顶已合入并发布于 2.0.11。本文保留研究时的对照基线，文中的“尚未发布”和功能差距均指当时状态；最终实现、真实宿主验收及未覆盖项见 [输入体验设计与验收记录](input-habits-design.md)。
+
 核实对象是 Zool 的 **AIME / 艾么输入法**，官网 https://aime.zool.app，官方仓库 `zoolapp/aime`。本次读取公开源码与上游词库，未安装或运行 AIME；没有用宣传或代码存在替代端到端验收。
 
 源码基线：AIME [`90e9e431d112e2407ce7c34375bd288b2401db17`](https://github.com/zoolapp/aime/tree/90e9e431d112e2407ce7c34375bd288b2401db17)；雾凇 `2026.06.30` 对应 [`6810e8916d160498620a16fef2135956fecbd485`](https://github.com/iDvel/rime-ice/tree/6810e8916d160498620a16fef2135956fecbd485)；librime 1.17.0 对应 [`33e78140250125871856cdc5b42ddc6a5fcd3cd4`](https://github.com/rime/librime/tree/33e78140250125871856cdc5b42ddc6a5fcd3cd4)。
@@ -139,10 +141,10 @@ PASS: hello is available as a candidate              (exit 0)
 3. 保持雾凇原有排序：前缀或中英混合词不保证首选。例如隔离出厂中文数据中 `hell → hello` 在第 13 项，`xguang → X光` 在第 19 项；均可翻页选择。这次没有另改候选排序策略。
 4. 修改文件 SwiftLint 无错误（有既有警告），Python/Bash 语法检查及 `git diff --check` 通过。未跑全量门禁；未进行 TextEdit/微信等实际宿主的界面输入验收，未替换用户正在使用的输入法。
 
-复跑：先以项目构建流程生成 App 并执行 `make copy-owl-seed`，再运行：
+复跑：先运行 `make debug` 和 `make copy-owl-seed`（默认构建目录 `build`），再运行下列命令。之前 `/tmp/owltype-mixed-input-build` 中的临时构建已清理；测试词库仍保留，受 manifest 校验且不包含用户数据。
 
 ```bash
 python3 scripts/check-pinyin-mixed-input.py \
-  --app /tmp/owltype-mixed-input-build/Build/Products/Debug/Owltype.app \
+  --app build/Build/Products/Debug/Owltype.app \
   --dicts /tmp/owltype-mixed-integration/full
 ```
