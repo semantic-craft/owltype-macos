@@ -84,6 +84,30 @@ final class OwlSettingsUITests: XCTestCase {
     tapMany(["应用配置改动", "同步用户数据", "重置用户词典…", "打开猫头鹰配置目录…", "查看诊断日志…", "欢迎与引导…"], in: app)
   }
 
+  func testSnippetCategoryFilterKeepsBothKindsAccessible() throws {
+    let app = try launchSettings()
+    defer { app.terminate() }
+    openPage("quickSend", in: app)
+    type("template-title", text: "e2e snippet", in: app)
+    type("template-body", text: "plain body", in: app)
+    tap("template-save", in: app)
+    XCTAssertTrue(app.buttons["e2e snippet"].waitForExistence(timeout: 3))
+    tap("提示词", in: app)
+    XCTAssertFalse(app.buttons["e2e snippet"].exists)
+    tap("新建", in: app)
+    type("template-title", text: "e2e prompt", in: app)
+    type("template-body", text: "prompt body", in: app)
+    tap("template-save", in: app)
+    XCTAssertTrue(app.buttons["e2e prompt"].waitForExistence(timeout: 3))
+    tap("全部", in: app)
+    XCTAssertTrue(app.buttons["e2e snippet"].exists)
+    XCTAssertTrue(app.buttons["e2e prompt"].exists)
+    let screenshot = XCTAttachment(screenshot: app.screenshot())
+    screenshot.name = "Snippet filter — all entries"
+    screenshot.lifetime = .keepAlways
+    add(screenshot)
+  }
+
   private func launchSettings() throws -> XCUIApplication {
     let root = FileManager.default.temporaryDirectory
       .appendingPathComponent("OwltypeUITests-\(UUID().uuidString)", isDirectory: true)

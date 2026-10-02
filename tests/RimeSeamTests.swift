@@ -473,63 +473,38 @@ final class RimeSeamTests: XCTestCase {
 
   // MARK: 3b. Fast settings-apply live-session RELOAD sequence (task 06-22 fix, 2026-06-22)
 
-  // The headless `IMKInputController` can't be constructed in a unit test (it calls the IMK
-  // server initializer and `NSApp.owlAppDelegate.engine`), so — exactly like the seam tests
-  // above — we reproduce `OwlInputController.reapplyConfigToLiveSession(replayComposition:)`'s
-  // *sequence* against the engine/session ports instead of instantiating the controller.
-  //
-  // The fix replaced the broken `select_schema(sameId)` reselect (which does NOT force librime
-  // to rebuild the cached Schema, so a changed `menu/page_size` never reached the running
-  // session) with a forced reload. Two cases (PRD decision 2026-06-22):
-  //   - ACTIVE controller: the OLD session is DESTROYED, the engine creates a FRESH session
-  //     (which reads the new `build/`), the captured schema is restored on it (so a 五笔/双拼
-  //     user isn't kicked back to 拼音), and the captured rawInput is replayed so the panel
-  //     re-renders.
-  //   - BACKGROUND controller: DESTROY ONLY — no eager recreate. Its `client` is nil after
-  //     `deactivateServer`, so recreating now would mislabel the app (`UnknownApp<n>`) and lose
-  //     per-app options. Its `handle()` hot path lazily recreates on the next keystroke (with a
-  //     live `client`), reading the new `build/` then.
-  // No librime, no full deploy, engine stays up.
-
-  /// Mirror of `reapplyConfigToLiveSession(replayComposition:)` minus the IMK `rimeUpdate()`
-  /// tail (needs a client). Drives the OLD session + a FakeRimeEngine the way the controller
-  /// does. For the ACTIVE case (`replayComposition: true`): capture → destroy old →
-  /// engine.createSession() → restore captured schema → replay. For the BACKGROUND case
-  /// (`replayComposition: false`): destroy old ONLY (no recreate). Returns the fresh session the
-  /// engine vended for the active case, or the destroyed `old` for the background case, so a test
-  /// can assert what happened.
+  /// The harness supplies engine state; all lifecycle and replay logic is production code.
+  @MainActor
   @discardableResult
   private func driveReload(
     old: FakeRimeSession,
     engine: FakeRimeEngine,
     capturedSchema: String,
     replayComposition: Bool
-  ) -> FakeRimeSession {
-    // Background controller: destroy only, lazy recreate on next keystroke.
-    guard replayComposition else {
-      old.destroy()                                  // destroySession() — no createSession()
-      return old
-    }
-    let rawInput = old.input() ?? ""
-    old.destroy()                                    // destroySession()
-    let fresh = engine.createSession() as! FakeRimeSession   // createSession() reads new build/
-    if !capturedSchema.isEmpty {
-      _ = fresh.selectSchema(capturedSchema)         // switchLiveSessionSchema(to:) restores user's schema
-    }
-    if !rawInput.isEmpty {
-      for scalar in rawInput.unicodeScalars where scalar.isASCII {
-        _ = fresh.process(keycode: scalar.value, modifiers: 0)
-      }
-    }
-    return fresh
+  ) throws -> FakeRimeSession {
+    let delegate = NSApp.owlAppDelegate
+    let previous = delegate.engine
+    delegate.engine = FakeRimeEngine()
+    defer { delegate.engine = previous; delegate.owlPanel?.hidePanel() }
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    controller.destroySession()
+    controller.rime = old
+    controller.schemaId = capturedSchema
+    delegate.engine = engine
+    controller.reapplyConfigToLiveSession(replayComposition: replayComposition)
+    // Detach the fake so controller teardown cannot change the observed result.
+    let result = controller.rime as? FakeRimeSession ?? old
+    controller.rime = nil
+    return result
   }
 
-  func testFastApplyReloadsActiveSessionRestoresSchemaAndReplays() {
+  @MainActor
+  func testFastApplyReloadsActiveSessionRestoresSchemaAndReplays() throws {
     let old = FakeRimeSession(sessionID: 1, input: "qiu")
     let fresh = FakeRimeSession(sessionID: 2)         // a DIFFERENT session id — proves it's recreated
     let engine = FakeRimeEngine(vendedSession: fresh)
 
-    let result = driveReload(old: old, engine: engine, capturedSchema: "wubi86_jidian", replayComposition: true)
+    let result = try driveReload(old: old, engine: engine, capturedSchema: "wubi86_jidian", replayComposition: true)
 
     // 1. the OLD session was DESTROYED (the whole point — same-id reselect didn't reload).
     XCTAssertTrue(old.destroyed)
@@ -538,7 +513,7 @@ final class RimeSeamTests: XCTestCase {
     XCTAssertTrue(result === fresh)
     XCTAssertEqual(result.sessionID, 2)
     // 3. the captured schema was RESTORED on the fresh session (don't kick 五笔 → 拼音).
-    XCTAssertEqual(fresh.selectedLiveSchemas, ["wubi86_jidian"])
+    XCTAssertEqual(fresh.selectedLiveSchemas.last, "wubi86_jidian")
     // 4. the in-flight rawInput was replayed on the FRESH session so the panel re-renders.
     XCTAssertEqual(fresh.processedKeys.map(\.keycode), Array("qiu".unicodeScalars.map(\.value)))
     XCTAssertTrue(fresh.processedKeys.allSatisfy { $0.modifiers == 0 })
@@ -546,7 +521,8 @@ final class RimeSeamTests: XCTestCase {
     XCTAssertTrue(old.processedKeys.isEmpty)
   }
 
-  func testFastApplyDestroysBackgroundSessionWithoutRecreating() {
+  @MainActor
+  func testFastApplyDestroysBackgroundSessionWithoutRecreating() throws {
     // A non-active (background) controller: DESTROY ONLY. We must NOT eagerly recreate — the
     // backgrounded controller's `client` is nil (deactivateServer cleared it), so recreating
     // here would derive `UnknownApp<n>` and drop the app's per-app options. Its `handle()` hot
@@ -555,7 +531,7 @@ final class RimeSeamTests: XCTestCase {
     let fresh = FakeRimeSession(sessionID: 11)
     let engine = FakeRimeEngine(vendedSession: fresh)
 
-    let result = driveReload(old: old, engine: engine, capturedSchema: "rime_ice", replayComposition: false)
+    let result = try driveReload(old: old, engine: engine, capturedSchema: "rime_ice", replayComposition: false)
 
     XCTAssertTrue(old.destroyed)
     XCTAssertEqual(engine.createdSessionCount, 0)               // NO eager recreate
@@ -564,28 +540,30 @@ final class RimeSeamTests: XCTestCase {
     XCTAssertTrue(fresh.processedKeys.isEmpty)                  // nothing replayed
   }
 
-  func testFastApplyReloadWithEmptySchemaLeavesFreshSessionDefault() {
+  @MainActor
+  func testFastApplyReloadWithEmptySchemaLeavesFreshSessionDefault() throws {
     // Empty captured schema (no schema yet) → leave the fresh session on its default; the
     // PRD says this is fine (no reselect, no replay needed).
     let old = FakeRimeSession(sessionID: 20, input: "")
     let fresh = FakeRimeSession(sessionID: 21)
     let engine = FakeRimeEngine(vendedSession: fresh)
 
-    driveReload(old: old, engine: engine, capturedSchema: "", replayComposition: true)
+    try driveReload(old: old, engine: engine, capturedSchema: "", replayComposition: true)
 
     XCTAssertTrue(old.destroyed)
     XCTAssertEqual(engine.createdSessionCount, 1)
-    XCTAssertTrue(fresh.selectedLiveSchemas.isEmpty)            // no reselect on empty schema
+    XCTAssertEqual(fresh.selectedLiveSchemas, [OwlKeyboardPreferences.preferredSchemaID])
     XCTAssertTrue(fresh.processedKeys.isEmpty)                  // nothing to replay
   }
 
-  func testReplayRawInputSkipsNonASCIIAndPreservesOrder() {
+  @MainActor
+  func testReplayRawInputSkipsNonASCIIAndPreservesOrder() throws {
     // Owltype raw input codes are ASCII; a stray non-ASCII scalar must be skipped, not crash.
     let old = FakeRimeSession(sessionID: 30, input: "ow鹰ltype")
     let fresh = FakeRimeSession(sessionID: 31)
     let engine = FakeRimeEngine(vendedSession: fresh)
 
-    driveReload(old: old, engine: engine, capturedSchema: "rime_ice", replayComposition: true)
+    try driveReload(old: old, engine: engine, capturedSchema: "rime_ice", replayComposition: true)
 
     // Only the ASCII bytes o w l t y p e are re-fed on the fresh session; the CJK 鹰 is skipped.
     XCTAssertEqual(fresh.processedKeys.map(\.keycode), Array("owltype".unicodeScalars.map(\.value)))

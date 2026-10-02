@@ -151,6 +151,22 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     XCTAssertFalse(controller.rime?.option(.asciiMode) ?? true, "Forget restores the initial mode")
     try type("nihao ", into: controller, client: client)
     XCTAssertEqual(client.text.string, "你好")
+
+    // Exercise the complete settings production path, including live and background controllers.
+    clear(client)
+    try type("nihao", into: controller, client: client)
+    let previousPageSize = OwlKeyboardPreferences.pageSize
+    defer { OwlKeyboardPreferences.pageSize = previousPageSize }
+    let previousSession = controller.rime?.sessionID
+    OwlKeyboardPreferences.pageSize = 3
+    let applied = try delegate.applyKeyboardSettings(.config, directory: root)
+    XCTAssertTrue(applied.succeeded)
+    XCTAssertNotEqual(controller.rime?.sessionID, previousSession)
+    XCTAssertEqual(controller.rime?.input(), "nihao", "Applying settings must retain in-flight composition")
+    XCTAssertEqual(controller.rime?.composition()?.pageSize, 3, "The running engine must read the saved setting")
+    XCTAssertFalse(second.rime?.isValid == true, "Background sessions must wait for their next activation")
+    try type(" ", into: controller, client: client)
+    XCTAssertEqual(client.text.string, "你好", "The replayed composition must still commit normally")
   }
 
   @MainActor

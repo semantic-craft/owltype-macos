@@ -588,12 +588,12 @@ final class OwlSettingsActionTests: XCTestCase {
   /// rules silently fail to take effect. Drive the delegate with a fake engine and assert the
   /// join happens, after start_maintenance. No `activeInputController`, so the reselect is a
   /// safe no-op here; we only assert the engine lifecycle ordering.
-  func testApplyFuzzyConfigFastJoinsMaintenanceAfterStartAndBeforeReselect() {
+  func testApplyFuzzyConfigFastJoinsMaintenanceAfterStartAndBeforeReselect() throws {
     let delegate = OwlApplicationDelegate()
     let engine = FakeRimeEngine(startMaintenanceResult: true)
     delegate.engine = engine
 
-    XCTAssertTrue(delegate.applyFuzzyConfigFast())
+    XCTAssertTrue(try delegate.applyKeyboardSettings(.fuzzy, directory: applicationDirectory()).succeeded)
 
     XCTAssertEqual(engine.joinMaintenanceCount, 1, "fuzzy fast-apply must join the maintenance thread")
     XCTAssertEqual(
@@ -604,12 +604,12 @@ final class OwlSettingsActionTests: XCTestCase {
 
   /// When `start_maintenance` itself fails there is no async work to wait for, so the fuzzy
   /// fast-apply must NOT call join (nothing to join) and reports failure.
-  func testApplyFuzzyConfigFastSkipsJoinWhenMaintenanceFails() {
+  func testApplyFuzzyConfigFastSkipsJoinWhenMaintenanceFails() throws {
     let delegate = OwlApplicationDelegate()
     let engine = FakeRimeEngine(startMaintenanceResult: false)
     delegate.engine = engine
 
-    XCTAssertFalse(delegate.applyFuzzyConfigFast())
+    XCTAssertFalse(try delegate.applyKeyboardSettings(.fuzzy, directory: applicationDirectory()).succeeded)
     XCTAssertEqual(engine.joinMaintenanceCount, 0)
     XCTAssertEqual(engine.lifecycleTrace, ["startMaintenance"])
   }
@@ -617,12 +617,12 @@ final class OwlSettingsActionTests: XCTestCase {
   /// PR3 Track 2 (config-only): `applyKeyboardConfigFast` uses synchronous `deploy_config_file`
   /// (config_file_update RunTask), so it must NOT run `start_maintenance` and must NOT join —
   /// the rebuilt `build/` is ready synchronously before the reselect.
-  func testApplyKeyboardConfigFastUsesConfigFileDeployNotMaintenance() {
+  func testApplyKeyboardConfigFastUsesConfigFileDeployNotMaintenance() throws {
     let delegate = OwlApplicationDelegate()
     let engine = FakeRimeEngine(currentSchema: "rime_ice", deployConfigFileResult: true)
     delegate.engine = engine
 
-    XCTAssertTrue(delegate.applyKeyboardConfigFast())
+    XCTAssertTrue(try delegate.applyKeyboardSettings(.config, directory: applicationDirectory()).succeeded)
     XCTAssertEqual(engine.joinMaintenanceCount, 0, "config-only fast-apply must not run/join maintenance")
     XCTAssertFalse(engine.lifecycleTrace.contains("startMaintenance"))
   }
@@ -631,12 +631,12 @@ final class OwlSettingsActionTests: XCTestCase {
   /// fast-apply MUST recompile owltype.yaml too — deploying only default.yaml + the active schema
   /// leaves build/owltype.yaml stale and getAppOptions serving factory entries only (the 真机验收
   /// failure: user-added apps silently never went English).
-  func testApplyKeyboardConfigFastDeploysOwltypeFrontendConfig() {
+  func testApplyKeyboardConfigFastDeploysOwltypeFrontendConfig() throws {
     let delegate = OwlApplicationDelegate()
     let engine = FakeRimeEngine(currentSchema: "rime_ice", deployConfigFileResult: true)
     delegate.engine = engine
 
-    XCTAssertTrue(delegate.applyKeyboardConfigFast())
+    XCTAssertTrue(try delegate.applyKeyboardSettings(.config, directory: applicationDirectory()).succeeded)
     XCTAssertTrue(engine.deployedConfigFiles.contains("owltype.yaml"),
                   "fast-apply must recompile owltype.yaml (per-app app_options live there)")
     XCTAssertTrue(engine.deployedConfigFiles.contains("default.yaml"))
@@ -654,6 +654,13 @@ final class OwlSettingsActionTests: XCTestCase {
     _ = delegate.startRime(fullCheck: true)
     XCTAssertTrue(engine.deployedConfigFiles.contains("owltype.yaml"),
                   "owltype.yaml deploy must not be gated on start_maintenance having work to do")
+  }
+
+  private func applicationDirectory() throws -> URL {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    tempDirs.append(directory)
+    return directory
   }
 
   private func assertSet<T: Equatable>(

@@ -298,6 +298,14 @@ final class OwlTemplateMigrationTests: XCTestCase {
     XCTAssertEqual(engine.initializeCount, 1)
     XCTAssertTrue(engine.lifecycleTrace.isEmpty)
     XCTAssertTrue(engine.deployedConfigFiles.isEmpty)
+    // The complete settings path must reject edits before touching recovery inputs.
+    let before = try? Data(contentsOf: root.appendingPathComponent("rime_ice.custom.yaml"))
+    let application = OwlKeyboardSettingsApplication(
+      engine: engine, directory: root, activeSchema: { "rime_ice" },
+      refresh: { XCTFail("Recovery must block settings activation") })
+    XCTAssertThrowsError(try application.apply(.current(), mode: .config))
+    XCTAssertEqual(try? Data(contentsOf: root.appendingPathComponent("rime_ice.custom.yaml")), before)
+    XCTAssertTrue(engine.deployedConfigFiles.isEmpty)
 
     try OwlTemplateMigration(rimeDir: root).recoverIfNeeded()
     XCTAssertTrue(delegate.startRime(fullCheck: true, migrationDirectory: root))

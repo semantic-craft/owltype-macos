@@ -321,25 +321,10 @@ final class OwlSelectionMenuCoordinator {
           anchorBounds: snapshot.bounds
         )
       }
-    case .polish:
+    case .polish, .publishFormatting, .promptOptimize, .goalBrief:
       Task { @MainActor in
         OwlAIWindow.shared.close()
-        await self.handlePolish(snapshot: snapshot)
-      }
-    case .publishFormatting:
-      Task { @MainActor in
-        OwlAIWindow.shared.close()
-        await self.handlePublishFormatting(snapshot: snapshot)
-      }
-    case .promptOptimize:
-      Task { @MainActor in
-        OwlAIWindow.shared.close()
-        await self.handlePromptOptimize(snapshot: snapshot)
-      }
-    case .goalBrief:
-      Task { @MainActor in
-        OwlAIWindow.shared.close()
-        await self.handleGoalBrief(snapshot: snapshot)
+        await self.handleRewrite(action, snapshot: snapshot)
       }
     }
   }
@@ -489,147 +474,15 @@ final class OwlSelectionMenuCoordinator {
   // 触发的、对 CodeOnly 边界的既定例外（承接旧 requestSelectionPolish 的隐私注释）。原地
   // 替换不可用（部分 Chromium/Electron 选区只读不可写）时退回剪贴板，保住润色仍可用。
   @MainActor
-  private func handlePolish(snapshot: OwlSelectionMenuSnapshot) async {
-    OwlApplicationDelegate.showMessage(msgText: "正在润色…")
-    do {
-      let rewrites = try await NSApp.owlAppDelegate.selectionPolish.polishSelection(snapshot.text)
-      guard let best = rewrites.first else {
-        OwlApplicationDelegate.showMessage(msgText: "未生成改写")
-        return
-      }
-      guard confirmReplacement(best, resultNoun: "润色") else {
-        OwlApplicationDelegate.showMessage(msgText: "已取消替换。")
-        return
-      }
-      switch OwlSelectionReplacementFlow.write(best, target: snapshot.replacementTarget, bundleID: snapshot.bundleID) {
-      case .inserted:
-        OwlApplicationDelegate.showMessage(msgText: "已替换选中文本。")
-      case .copiedToClipboard:
-        OwlApplicationDelegate.showMessage(msgText: "已复制改写，⌘V 替换")
-      case .failed(let message):
-        OwlApplicationDelegate.showMessage(msgText: message)
-      }
-    } catch {
-      // B8: 被后一次同 lane 请求取消的润色要静默——先吞掉 cancellation 再决定是否报错。
-      if OwlLaneCancellation.isCancellation(error) { return }
-      if let polishError = error as? OwlSelectionPolishError {
-        OwlApplicationDelegate.showMessage(msgText: polishError.userMessage)
-      } else {
-        OwlApplicationDelegate.showMessage(msgText: OwlCloudPreferences.message(for: error))
-      }
-    }
-  }
-
-  /// 提示词优化（issue #138）：把草稿改写成符合 Fable 5 指南的结构化提示词——四要素补齐 + XML
-  /// 标签分区一次做完（原「结构化·加标签」已并入，2026-07-26）。完成态与 .polish 同路（预览
-  /// 确认后替换原选区），澄清态转任意提问窗口。
-  @MainActor
-  private func handlePromptOptimize(snapshot: OwlSelectionMenuSnapshot) async {
-    OwlApplicationDelegate.showMessage(msgText: "正在优化提示词…")
-    do {
-      switch try await OwlPromptOptimizeService.shared.optimize(snapshot.text) {
-      case let .ready(prompt):
-        guard confirmReplacement(prompt, resultNoun: "提示词优化") else {
-          OwlApplicationDelegate.showMessage(msgText: "已取消替换。")
-          return
-        }
-        switch OwlSelectionReplacementFlow.write(
-          prompt, target: snapshot.replacementTarget, bundleID: snapshot.bundleID) {
-        case .inserted:
-          OwlApplicationDelegate.showMessage(msgText: "已替换为优化后的提示词。")
-        case .copiedToClipboard:
-          OwlApplicationDelegate.showMessage(msgText: "已复制优化结果，⌘V 替换")
-        case .failed(let message):
-          OwlApplicationDelegate.showMessage(msgText: message)
-        }
-
-      case let .needsClarification(questions):
-        // v1 的澄清是「任务卡 + 手动发送」，不是真多轮：草稿已由 selectedText 带进窗口作上下文，
-        // 澄清问题逐条显示在卡上，优化指令藏在 scaffold 里随用户补答一起发送，由通用对话产出
-        // 结果。真多轮循环待 #137。
-        OwlAIWindow.shared.show(
-          selectedText: snapshot.text,
-          composerTask: OwlAIComposerTask(
-            label: "提示词优化 — 补充信息",
-            clarifications: questions,
-            placeholder: "逐条补答，多条用 / 分隔",
-            scaffold: OwlSelectionSkillPrompts.promptOptimizeClarificationScaffold(questions))
-        )
-      }
-    } catch {
-      if OwlLaneCancellation.isCancellation(error) { return }
-      if let optimizeError = error as? OwlPromptOptimizeError {
-        OwlApplicationDelegate.showMessage(msgText: optimizeError.userMessage)
-      } else {
-        OwlApplicationDelegate.showMessage(msgText: OwlCloudPreferences.message(for: error))
-      }
-    }
-  }
-
-  /// 任务书：按「目标七问」（目的/完成态/证据/反作弊/边界/取舍/未知）把选中的模糊需求整理成
-  /// 目标任务书。完成态与 .promptOptimize 同路（预览确认后替换原选区）；非致命缺失由任务书的
-  /// 〈未知〉一节自兜，只有目的+完成态都推断不出才走澄清、转任意提问窗口。
-  @MainActor
-  private func handleGoalBrief(snapshot: OwlSelectionMenuSnapshot) async {
-    OwlApplicationDelegate.showMessage(msgText: "正在整理任务书…")
-    do {
-      switch try await OwlGoalBriefService.shared.compose(snapshot.text) {
-      case let .ready(brief):
-        guard confirmReplacement(brief, resultNoun: "任务书") else {
-          OwlApplicationDelegate.showMessage(msgText: "已取消替换。")
-          return
-        }
-        switch OwlSelectionReplacementFlow.write(
-          brief, target: snapshot.replacementTarget, bundleID: snapshot.bundleID) {
-        case .inserted:
-          OwlApplicationDelegate.showMessage(msgText: "已替换为整理后的任务书。")
-        case .copiedToClipboard:
-          OwlApplicationDelegate.showMessage(msgText: "已复制任务书，⌘V 替换")
-        case .failed(let message):
-          OwlApplicationDelegate.showMessage(msgText: message)
-        }
-
-      case let .needsClarification(questions):
-        // 与提示词优化同一套 v1 澄清：任务卡 + 手动发送，真多轮待 #137。
-        OwlAIWindow.shared.show(
-          selectedText: snapshot.text,
-          composerTask: OwlAIComposerTask(
-            label: "任务书 — 补充信息",
-            clarifications: questions,
-            placeholder: "逐条补答，多条用 / 分隔",
-            scaffold: OwlSelectionSkillPrompts.goalBriefClarificationScaffold(questions))
-        )
-      }
-    } catch {
-      if OwlLaneCancellation.isCancellation(error) { return }
-      if let briefError = error as? OwlGoalBriefError {
-        OwlApplicationDelegate.showMessage(msgText: briefError.userMessage)
-      } else {
-        OwlApplicationDelegate.showMessage(msgText: OwlCloudPreferences.message(for: error))
-      }
-    }
-  }
-
-  @MainActor
-  private func handlePublishFormatting(snapshot: OwlSelectionMenuSnapshot) async {
-    OwlApplicationDelegate.showMessage(msgText: "正在规范排版…")
-    do {
-      let replacement = try await OwlSelectionPublishFormatter().generateReplacement(for: snapshot.text)
-      guard confirmReplacement(replacement, resultNoun: "规范排版") else {
-        OwlApplicationDelegate.showMessage(msgText: "已取消替换。")
-        return
-      }
-      switch OwlSelectionReplacementFlow.write(replacement, target: snapshot.replacementTarget, bundleID: snapshot.bundleID) {
-      case .inserted:
-        OwlApplicationDelegate.showMessage(msgText: "已替换选中文本。")
-      case .copiedToClipboard:
-        OwlApplicationDelegate.showMessage(msgText: "已复制排版，⌘V 替换")
-      case .failed(let message):
-        OwlApplicationDelegate.showMessage(msgText: message)
-      }
-    } catch {
-      OwlApplicationDelegate.showMessage(msgText: OwlSelectionPublishFormatter.message(for: error))
-    }
+  private func handleRewrite(_ action: OwlSelectionMenuAction, snapshot: OwlSelectionMenuSnapshot) async {
+    await OwlSelectionRewrite(
+      generate: OwlSelectionRewrite.generate,
+      confirm: { self.confirmReplacement($0, resultNoun: $1) },
+      deliver: { OwlSelectionReplacementFlow.write(
+        $0, target: snapshot.replacementTarget, bundleID: snapshot.bundleID) },
+      clarify: { OwlAIWindow.shared.show(selectedText: $0, composerTask: $1) },
+      notify: { OwlApplicationDelegate.showMessage(msgText: $0) }
+    ).run(action, text: snapshot.text)
   }
 
   @MainActor

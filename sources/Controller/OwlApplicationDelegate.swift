@@ -473,10 +473,10 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
         return ok
       },
       onApplyKeyboardConfigFast: { [weak self] in
-        self?.applyKeyboardConfigFast() ?? false
+        try self?.applyKeyboardSettings(.config) ?? .init(written: [], succeeded: false)
       },
       onApplyFuzzyConfigFast: { [weak self] in
-        self?.applyFuzzyConfigFast() ?? false
+        try self?.applyKeyboardSettings(.fuzzy) ?? .init(written: [], succeeded: false)
       },
       onSyncUserData: { [weak self] in
         self?.syncUserData()
@@ -521,8 +521,8 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       state: state,
       onSelectSchema: { state.currentSchemaId = $0 },
       onRedeploy: { true },
-      onApplyKeyboardConfigFast: { true },
-      onApplyFuzzyConfigFast: { true },
+      onApplyKeyboardConfigFast: { .init(written: [], succeeded: true) },
+      onApplyFuzzyConfigFast: { .init(written: [], succeeded: true) },
       onSyncUserData: {},
       onResetUserDict: {},
       onChooseSyncDirectory: {},
@@ -662,11 +662,10 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     }
     _ = selectSchema(schemaID)
     do {
-      _ = try OwlManagedKeyboardPatchPlan.apply(snapshot: OwlKeyboardSnapshot.current())
+      _ = try applyKeyboardSettings(.config)
     } catch {
       print("Onboarding scheme patch write failed: \(error)")
     }
-    applyKeyboardConfigFast()
   }
 
   func checkForUpdates() {
