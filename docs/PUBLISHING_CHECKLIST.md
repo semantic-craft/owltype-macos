@@ -119,6 +119,11 @@ provenance, corresponding-source, license, secret, or human-review gate is open.
 Local tests use fake adapters, unsigned system packaging tools, and synthetic Sparkle keys only;
 they do not replace a maintainer's final Developer ID signing, notarization, stapling, and installed
 update validation on the exact release artifacts.
+After an installed update, run `python3 scripts/check-installed-process.py` before real typing.
+This checks the live executable inode, not just the version on disk: macOS may restart the old
+input method while the installer waits for authorization. The installer stops that process again
+after replacement and waits for exit before activating the installed copy. The read-only check's
+captured stale-process regression can be replayed with `--self-test`.
 The product test entrypoint explicitly excludes the five credential-gated Live suites; the offline
 `OwlLiveInputTraceTests` privacy regression remains enabled. `scripts/gate.sh` and the release
 entrypoint must never rely on default skip behavior or run an unfiltered `xcodebuild test`.

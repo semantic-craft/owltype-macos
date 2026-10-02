@@ -106,6 +106,11 @@ enum Installer {
             throw InstallerError.privilegedCommandFailed(
                 "拷贝后未发现有效的 \(installedAppPath)（提权可能未执行，或旧包未删除干净）")
         }
+        // macOS can relaunch the old IME while authorization/copy is in progress. A process
+        // still mapping the renamed old bundle makes `open` reuse that process, even though
+        // the installed files validate as the new version. Stop again AFTER replacement and
+        // wait for exit before registration/activation can launch the installed executable.
+        try stopInputMethodAfterReplacement()
         // TIS register/enable 都在「安装器进程」内做：本进程
         // 就是登录用户 Aqua 会话里的已签名 GUI App，满足 enable 的全部真必要条件（见首装免注销专题 07-02
         // research/web-cross-validation-no-logout.md——「必须 IME 自身进程」系已证伪的误归因）。
@@ -555,6 +560,17 @@ enum Installer {
     }
 
     // MARK: - 提权执行（NSAppleScript do-shell-script）
+
+    private static func stopInputMethodAfterReplacement() throws {
+        terminateUserProcess(named: "Owltype")
+        let deadline = Date(timeIntervalSinceNow: 5)
+        while owltypeProcessIsRunning() {
+            guard Date() < deadline else {
+                throw InstallerError.activationFailed("旧输入法进程尚未退出，请稍后重新安装。")
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+    }
 
     /// 通过 NSAppleScript `with administrator privileges` 以 root 跑一条 shell 命令。
     /// 用户在系统授权框输密码 / Touch ID；取消 → InstallerError.userCancelled。
