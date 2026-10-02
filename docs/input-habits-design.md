@@ -22,7 +22,7 @@ Lua 过滤器在最终候选流中排入置顶词并去重，Rime 自身继续�
 
 ## 验证与交付状态
 
-基线 `3be472b25d18427ccde759f93071f02babcf4f4a` 加本地未提交改动。
+以下记录按实现与验收阶段保留。初期基线为 `3be472b25d18427ccde759f93071f02babcf4f4a` 加本地改动；最终发布结果见文末，覆盖早期尚未完成的门禁与发布状态。
 
 - Debug 构建通过；90 项相关 XCTest 通过，覆盖记忆持久化/恢复/忘记、试打来源与粘贴、原生布局、置顶约束和存储、快捷键冲突、配置所有权和幂等，以及既有设置/引擎适配行为。
 - `scripts/check-pinyin-pinning.py --app <built-app>`：真实 librime 验证首位排序、去重、空格和数字键提交、简拼及简繁隔离、同会话置顶/取消重放。
@@ -32,7 +32,7 @@ Lua 过滤器在最终候选流中排入置顶词并去重，Rime 自身继续�
 - 端到端回归发现 `lue` 的候选「略」不能置顶：Rime 将其 preedit 显示为 `lve`，原先直接比较拼写而拒绝。最小用例及真实控制器用例修复前失败，规范化 `lue/lve`、`jv/ju` 和 `ü/v` 后通过；保存和重放仍使用原始输入码。
 - `scripts/check-input-replay.sh`：16 条金样本中 9 条通过；7 条双拼/五笔因种子未含对应方案而跳过，未计入通过。
 - 回放使用临时用户目录。随后经用户明确授权，临时安装 Developer ID 签名并通过 Apple 公证的测试版，在 TextEdit 中逐键输入 `nihao` + 空格得到「你好」，连续输入得到「你好 hello」；Control Shift P 保存/取消置顶，重新组字及数字键提交通过。测试后已恢复原版 2.0.10、偏好和词库，并实测原版五笔 `wqvb` →「你好」。
-- 实机验收仍有缺口：CUA 不支持单独按 Shift，候选窗的原生右键 UI 读取不稳定；跨应用切换和右键菜单未计为通过。完整引导试打仍只有真实控制器集成测试证据，未完成已安装宿主验收。未运行合并前的完整 gate。
+- 实机验收仍有缺口：CUA 不支持单独按 Shift，候选窗的原生右键 UI 读取不稳定；跨应用切换和右键菜单未计为通过。完整引导试打仍只有真实控制器集成测试证据，未完成已安装宿主验收。这一阶段尚未运行完整 gate；后续合并前完整门禁已通过，见文末。
 - 用户已授权提交、推送与发布 2.0.11；正式改动没有依赖原型文件。具体发布状态以 Git 与发布记录为准。
 
 ## 重跑与证据
@@ -52,8 +52,19 @@ OWL_HABITS_DICTS=/tmp/owltype-mixed-integration/full bash scripts/check-input-ha
 
 安装期间发现系统只有 `com.apple.keylayout.US`，安装器硬编码 ABC，CLI 即使找不到目标也退出 0。修复安装/卸载的切出逻辑：枚举已启用、可选择的 ASCII 系统键盘，优先当前 ASCII 键盘，并在替换前由新 CLI 进程读回真实选中项；失败则停止操作。旧宿主在更新后仍可能需要重新打开，本轮 TextEdit 重开后才接通，因此不承诺解决所有免注销情形。
 
-US-only 回归修复前失败、修复后通过；28 项 InstallerActivationPolicyTests 通过，安装器 Release 构建通过。证据在 `/tmp/owltype-parking-regression/`。此安装器修复尚未再次执行提权安装。关于页按用户最新要求仅移除个人姓名，保留「深圳大学法律人工智能实训实验室」及原有布局。
+US-only 回归修复前失败、修复后通过；28 项 InstallerActivationPolicyTests 通过，安装器 Release 构建通过。证据在 `/tmp/owltype-parking-regression/`。这一阶段尚未复验提权安装；后续正式安装器已完成实机更新验收，见文末。关于页按用户最新要求仅移除个人姓名，保留「深圳大学法律人工智能实训实验室」及原有布局。
 
 项目介绍参考 [DeepTutor 官网](https://deeptutor.info/)（2026-10-02 查阅）：首屏说明产品用途，功能与使用入口承接，页脚标注 Data Intelligence Lab @ The University of Hong Kong。猫头鹰中英文 README 采用产品用途、主要能力、实验室归属的顺序；未复制其宣传文案，未发布网站。
 
 发布门禁首次运行发现通用 `make test` 未拷入 `_user_seed`，新增真实 Rime 集成测试失败；专用验收脚本原已显式拷贝。现将通用入口改为生成种子、build-for-testing、拷入种子并重新签名、test-without-building，保留全部离线测试与既有五项 Live suite 排除。全套测试复跑通过；失败记录 `/tmp/owltype-2.0.11-gate.log`，修复后记录 `/tmp/owltype-2.0.11-test-seed-fix.log`。
+
+
+## 2.0.11 发布与收尾（2026-10-02）
+
+- 功能与文档通过 [PR #182](https://github.com/semantic-craft/owltype-macos/pull/182) 合并；[PR #183](https://github.com/semantic-craft/owltype-macos/pull/183) 修复主程序与安装器的双架构构建；[PR #184](https://github.com/semantic-craft/owltype-macos/pull/184) 修复替换文件期间系统重启旧输入法进程、导致更新后仍运行旧版的问题。安装器在替换后再次停止进程并确认退出，再激活新程序。
+- 各 PR 合并前均在准确的 PR head 运行本地 `scripts/gate.sh`；最终修复 head 为 `bfd9c7f2099240f58c2dba4b4a9443f99d0d9456`，1,293 项测试全部通过，无托管 CI。
+- 发布标签 `2.0.11` 对应 `81ac909e2d065251afc212ca83423505a7651fc3`，发布 cohort 为 `775f22b9dedd6f72d8346e797e850beb7669818527ab868383c31d451157cd3b`。主程序、安装器均包含 arm64 与 x86_64；正式签名、公证、stapling、对应源码、隐私与密钥扫描及官方发布链八个关卡全部通过。
+- 最终 DMG 实机更新后，运行中进程直接映射已安装的新版可执行文件，未手动重启输入法；安装目录与发布 App 的文件哈希、符号链接逐项一致。TextEdit 的逐键拼音、Control Shift P 置顶/取消、数字选词与「你好 hello」通过。新增只读 `scripts/check-installed-process.py`，检查实际映射的 inode，避免只读磁盘版本而漏掉旧进程；`--self-test` 可重放旧进程反例。
+- [官网下载入口](https://responsay.com/owltype/Owltype.dmg) 与 v3 更新源已发布并校验公开文件哈希。`latest.json` 与本地最终 cohort 一致；v2 与历史 bridge feed 的哈希未变。代码、主分支及 `2.0.11` 标签已推送。
+- 临时验收完成后曾恢复原版 2.0.10、原词库与偏好，并验证原版五笔。随后用户明确要求本机直接安装新版，现已通过同一正式 DMG 升级并保留 2.0.11，核对运行进程及已安装 App 与已发布产物一致，保留原输入方案和初始语言设置。无需为本次收尾重新打包或改写已发布版本。
+- 已安装宿主的原生右键菜单、跨应用物理 Shift 切换、完整引导窗口流程仍未计为通过；这些逻辑已有真实 Rime/原生控制器集成测试。CUA 的单独 Shift 与宿主输入焦点限制不能当作成功验收证据，也不据此单独认定产品故障。
