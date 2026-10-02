@@ -24,6 +24,8 @@ Owltype is an **open-source Chinese input method for macOS, built on Rime**. Des
 
 Native SwiftUI candidates, nine colour palettes, familiar input schemes and mixed Chinese/English typing keep everyday writing comfortable. Typing and snippets run locally. Optional cloud AI runs only after you configure and explicitly invoke it.
 
+We have used Owltype ourselves for two to three months and tested it with a small group. This is a version we use reliably for everyday work. **Log out and back in once after installation** so macOS can load the input method correctly.
+
 > 🦉 **Now open source. Help us make it better.** [Download](https://responsay.com/owltype/) · [Report an issue / suggest a feature](https://github.com/semantic-craft/owltype-macos/issues) · [Explore the source](https://github.com/semantic-craft/owltype-macos)
 
 ![Owltype candidate window](docs/screenshots/candidates.png)
@@ -104,11 +106,11 @@ Nine colour palettes support light, dark and system appearance. Adjust fonts, la
 **macOS 14 or later · Apple Silicon / Intel**
 
 1. [Download the installer DMG](https://responsay.com/owltype/Owltype.dmg), open “猫头鹰安装器” and click “安装” (Install). macOS may request administrator authorization.
-2. Allow the input method if macOS asks, then select “猫头鹰” in the system input menu. If it is missing, check System Settings → Keyboard → Input Sources.
+2. **Log out and back in once after installation.** Allow the input method if macOS asks, then select “猫头鹰” in the system input menu. If it is missing, check System Settings → Keyboard → Input Sources.
 3. Choose a scheme under “键盘输入” (Keyboard input), follow the dictionary setup and try typing in a newly opened text app.
 4. For AI, add a provider under “AI 配置” and enable the desired text-selection tools. Ordinary typing needs no model configuration.
 
-**Cannot type after installation?** Reopen the host app first. If it still cannot connect, follow the installer's guidance to log out and back in once. Input-method connection refresh varies by host; not every installation or upgrade can avoid logout.
+**Cannot type after installation?** Confirm you have logged out and back in, reopen the host app and check that “猫头鹰” is selected in the system input menu.
 
 **Updates:** from 2.0.10 onward, use About → Check for updates. The feed is `https://downloads.responsay.com/owltype/v3/appcast.xml`. Older versions need one manual installation of 2.0.10 or later. [Direct update-package download](https://responsay.com/owltype/Owltype-update.pkg).
 
