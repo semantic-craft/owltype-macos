@@ -251,8 +251,8 @@ final class OwlInstaller {
 
   /// Select ANY system input source by exact id：`TISCreateInputSourceList` 按
   /// `kTISPropertyInputSourceID` 精确匹配（`inputSources` 字典即该映射）后 `TISSelectInputSource`。
-  /// postinstall 更新序列用它切出到 ABC（TIS-ACTIVATION-NOTES 定律 12）。best-effort：找不到 / 失败
-  /// 只打印，不抛错——select 失败是常态（定律 2/3），绝不据此让安装失败。
+  /// postinstall 更新序列用它切出到 ABC（见 `docs/operations/installation.md`）。best-effort：找不到 / 失败
+  /// 只打印，不抛错——select 失败是常态（历史观察），绝不据此让安装失败。
   func select(sourceID: String) {
     guard let inputSource = inputSources[sourceID] else {
       print("Input source not found: \(sourceID)")

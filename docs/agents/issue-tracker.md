@@ -27,7 +27,7 @@ GitHub shares one number space across issues and pull requests, so resolve an am
 
 Create branches from fresh `origin/main`, push them to `origin`, and use `gh pr`
 for creation, review, checks, and merge. There is no hosted CI; the merger must
-record the exact local `scripts/gate.sh` result on the pull request before merge.
+record the exact local [local gate](../../scripts/gate.sh) result on the pull request before merge.
 
 ## When a skill says "publish to the issue tracker"
 

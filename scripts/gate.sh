@@ -42,6 +42,10 @@ bash scripts/check-public-source.sh
 bash scripts/check-public-privacy.selftest.sh
 bash scripts/check-public-source.selftest.sh
 
+stage "navigation references"
+python3 scripts/check-navigation.selftest.py
+python3 scripts/check-navigation.py
+
 stage "portable scripts"
 bash -n action-install.sh scripts/*.sh package/apple_tool_adapter package/make_package
 python3 -m py_compile \
