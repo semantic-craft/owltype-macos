@@ -25,6 +25,11 @@ binary. Exclude only:
 The local-only prompt, phrase and scene-term features are allowed only while they keep user content
 on-device, store it with restrictive permissions and never log its text.
 
+## Installation mechanisms
+
+For GUI versus PKG activation, state restoration, current tests and historical evidence
+boundaries, read [installation constraints](operations/installation.md).
+
 ## Authoritative release flow
 
 Start from a clean worktree at the exact commit to publish. Review the staged diff, confirm the Git

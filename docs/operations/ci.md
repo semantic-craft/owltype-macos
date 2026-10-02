@@ -8,7 +8,7 @@ git@github.com:semantic-craft/owltype-macos.git
 
 The local remote topology has one canonical remote:
 
-- `origin`: the public GitHub repository, used for fetch, branches, pull requests,
+- `origin`: the private GitHub development repository, used for fetch, branches, pull requests,
   and merges.
 
 Signed installers, the Sparkle appcast, and the corresponding source for every
@@ -18,7 +18,7 @@ release surface for Owltype.
 ## The gate
 
 There is no hosted CI. GitHub Actions remains disabled; checks and release credentials
-stay on the maintainer's Mac. Making the source public does not enable hosted runners. A missing hosted check is not a pass: the merger owns the local gate
+stay on the maintainer's Mac. Repository visibility changes do not enable hosted runners. A missing hosted check is not a pass: the merger owns the local gate
 result for the exact pull-request head.
 
 `scripts/gate.sh` runs the public-source and privacy boundaries, portable-script
@@ -37,6 +37,22 @@ The Release build keeps its optimized configuration, but the gate disables the i
 store and whole-module batching for that invocation. One whole-module Swift frontend
 can exceed the macOS memory high-watermark; compiling per file avoids an
 infrastructure-only failure without weakening optimization or source coverage.
+
+## Navigation references
+
+Run `python3 scripts/check-navigation.py` and
+`python3 scripts/check-navigation.selftest.py` for navigation changes; both run in the
+local gate. The scope is the agent entry and its routing documents, installation
+constraints, and the installation code comments that refer to those constraints.
+The explicit source list is maintained in the checker; a missing source also fails.
+
+Markdown links/images and standalone backtick file paths are checked for existence.
+Markdown paths are relative to their document; source-comment paths are repository-relative.
+Links with URL schemes, network URLs and fragment-only links are excluded; anchors
+inside an existing file are not validated. Fenced examples are excluded. For a historical
+or optional reference outside a fence, put `<!-- reference-check: historical -->` or
+`<!-- reference-check: optional -->` on that line only, and explain its context in prose.
+New required navigation belongs in ordinary links, not in exempt examples.
 
 ## Pull requests
 

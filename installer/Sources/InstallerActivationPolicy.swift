@@ -1,17 +1,12 @@
-// InstallerActivationPolicy — 首装免注销激活的纯决策层（无 TIS / 无 IO / 无 AppKit）。
+// InstallerActivationPolicy — 安装激活的纯决策层（无 TIS / 无 IO / 无 AppKit）。
 //
-// 为什么是纯函数：TIS/IMK 无法 headless 单测（quality-guidelines），所以把「该不该 enable/select」
+// 为什么是纯函数：TIS/IMK 无法 headless 单测，所以把「该不该 enable/select」
 // 与「读回验证状态机」抽成纯函数，编进 OwltypeTests 覆盖真值表（tests/InstallerActivationPolicyTests.swift，
 // 参照 ActivationPolicyTests 的 pure-dispatch 风格）；TIS 副作用薄层留在 Installer / Verifier。
 //
-// 判据铁律（installer/TIS-ACTIVATION-NOTES.md 定律 4/11 + fcitx5 PR#4 状态机实测）：
-//   - 绝不把 kTISPropertyInputSourceIsEnabled 当幂等判据 —— 它对 default-on 的 Hans 模式恒返回 true，
-//     旧 1.3.16 安装器正是栽在这里（干净机可能从未真正 enable；脏机则二次 enable → error 幽灵态）。
-//   - 复合幂等判据 = 「bundle 装前已存在 OR Owltype 进程存活」（进程活着 ⟺ 已被 enable 过：IMK 只拉起
-//     已启用的输入法）。两个信号都必须在 killall / 提权拷贝之前采样，否则被本安装流程自己污染。
-//   - 干净首装 enable「父条目 + Hans 模式条目」各一次（定律 13，暂定待 DIAG 定谳）：macOS 26 真机上
-//     enable 父条目不级联 default-on 的 Hans（1.3.32 QA：菜单有「猫头鹰」行但点不中）。「一次且仅
-//     一次」针对同一条目的二次 enable；两个不同条目各 enable 一次不违反。
+// 当前策略、回归测试和历史观察边界见 `docs/operations/installation.md`。
+// 更新判据是替换前的 bundle/进程状态；不以主模式 IsEnabled 单独判断。
+// 首装计划启用父条目与主模式各一次，更新不重复启用。
 
 import Foundation
 
@@ -26,13 +21,13 @@ enum InstallerActivationPolicy {
 
     struct ActivationPlan: Equatable {
         /// 干净首装 → 在安装器进程（登录用户 Aqua 会话里的已签名 GUI 进程，满足 enable 的全部
-        /// 真必要条件）enable「父条目 + Hans 主模式」各一次（定律 13：父条目 enable 不级联模式；
-        /// 父=菜单显形，Hans=select 需要的模式启用记录）。已有安装 → 整段跳过（定律 11 防幽灵态）。
+        /// 真必要条件）enable「父条目 + Hans 主模式」各一次（历史观察：父条目 enable 不级联模式；
+        /// 父=菜单显形，Hans=select 需要的模式启用记录）。已有安装 → 整段跳过（避免历史重复启用问题）。
         let enableParentAndPrimaryModeOnce: Bool
-        /// 更新前猫头鹰是当前输入法 → kill 前先切出到可用的系统英文键盘（定律 12：kill 当前选中的 IME 会让
+        /// 更新前猫头鹰是当前输入法 → kill 前先切出到可用的系统英文键盘（历史观察：kill 当前选中的 IME 会让
         /// 重启后菜单不显示），装完由 `selectOwltypeAfterInstall` 配对切回。
         let parkOnKeyboardBeforeReplace: Bool
-        /// 装完后 best-effort select 猫头鹰（主 runloop 重试，定律 2）：首装锦上添花，或与切出配对
+        /// 装完后 best-effort select 猫头鹰（验证后通过 fresh CLI 尝试）：首装锦上添花，或与切出配对
         /// 的切回。不变量：更新绝不从其它输入法手里抢当前输入源。
         let selectOwltypeAfterInstall: Bool
     }
@@ -57,7 +52,7 @@ enum InstallerActivationPolicy {
         /// 跟上——1.3.32 QA 的幽灵组合，绝不能提前判 verified）。
         case waiting
         /// fresh 进程探针读回「父条目 enabled ∧ Hans 在 enabled-only 列表」—— 过程信号（最终验收
-        /// = 干净机真人看菜单 + 宿主 handle() 收键，定律 3/10），但足以对用户报安装成功。
+        /// = 干净机真人看菜单 + 宿主 handle() 收键），但足以对用户报安装成功。
         /// 迟到信号同样翻 verified：人点「允许」可以晚于软超时（1.3.32-fix1 QA 假阴性的时序一半）。
         case verified
         /// 软超时未凑齐信号 → 诚实引导「注销重登」，绝不伪装成功（R1）。**非吸收态**（fix2）：
@@ -93,7 +88,7 @@ enum InstallerActivationPolicy {
 
     /// fresh 进程 TIS 真值三元组。parent = 父条目 IsEnabled 位（父无 tsInputModeDefaultStateKey，
     /// 该位可信）；primaryMode(hans) = enabled-only 列表成员资格（绝不看 Hans 的 IsEnabled 位——
-    /// 定律 4 恒真）；hansSelectCapable = Hans 的 IsSelectCapable 位（诊断参考，不进 verified 判定）。
+    /// 历史上观察到恒真）；hansSelectCapable = Hans 的 IsSelectCapable 位（诊断参考，不进 verified 判定）。
     struct ProbeSignals: Equatable {
         let parentEnabled: Bool
         let primaryModeEnabled: Bool

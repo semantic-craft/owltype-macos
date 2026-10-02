@@ -12,4 +12,4 @@ Use the five canonical triage roles and their default label names. See `docs/age
 
 ### Domain docs
 
-This repository uses the single-context domain-doc layout. See `docs/agents/domain.md`.
+For input, settings, dictionaries, AI, installation, or verification work, start with the task-to-code map in [domain.md](docs/agents/domain.md).

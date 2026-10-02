@@ -4,6 +4,11 @@ Thank you for improving Owltype. This repository is the complete source for the 
 product, so every accepted change must remain independently buildable and auditable
 from this repository alone.
 
+The GitHub development repository is private. The issue, pull-request and clone workflows
+below require collaborator access. Other recipients can obtain released versions from the
+[public corresponding-source archive](https://responsay.com/owltype/source.tar.gz).
+No public feedback endpoint is currently configured for users without repository access.
+
 ## What we accept
 
 Good contributions include focused bug fixes, tests, documentation, accessibility and
@@ -57,9 +62,8 @@ this repository under a compatible license. Update `THIRD_PARTY_NOTICES.md`,
 bundled data, or corresponding-source obligations. Never include secrets or real user
 content in a fixture; use synthetic placeholders.
 
-Security vulnerabilities must be reported through GitHub's private
-[Report a vulnerability](https://github.com/semantic-craft/owltype-macos/security/advisories/new)
-flow, not a public issue. See [SECURITY.md](SECURITY.md).
+For security reporting availability and sensitive-data boundaries, see
+[SECURITY.md](SECURITY.md). Private repository access must not be assumed for reporters.
 
 ## Pull requests and review
 

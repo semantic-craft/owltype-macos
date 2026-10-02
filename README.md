@@ -14,7 +14,7 @@ macOS 原生界面 · 拼音 / 双拼 / 五笔 · 提示词快捷片段 · Rayca
 [![Apple Silicon + Intel](https://img.shields.io/badge/Apple_Silicon_%2B_Intel-Universal-grey)](#快速开始)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE.txt)
 
-[下载与安装](#快速开始) · [AI 工作流](#为-ai-工作流设计) · [功能](#功能) · [界面](#界面) · [参与开源](#项目与反馈)
+[下载与安装](#快速开始) · [AI 工作流](#为-ai-工作流设计) · [功能](#功能) · [界面](#界面) · [项目与反馈](#项目与反馈)
 
 [项目主页](https://responsay.com/owltype/) · [English](README.en.md)
 
@@ -26,7 +26,7 @@ macOS 原生界面 · 拼音 / 双拼 / 五笔 · 提示词快捷片段 · Rayca
 
 我们已经实际使用了两三个月，并经过小范围内测，现在开放的是可以日常稳定使用的版本。**安装完成后需要注销并重新登录一次**，让 macOS 正确加载输入法。
 
-> 🦉 **现已开源，欢迎一起打磨。** [下载安装](https://responsay.com/owltype/) · [报告问题 / 提建议](https://github.com/semantic-craft/owltype-macos/issues) · [浏览源码](https://github.com/semantic-craft/owltype-macos)
+> 🦉 **开发仓库为私有，安装包与已发布版本的对应源码仍公开提供。** [下载安装](https://responsay.com/owltype/) · [获取版本源码](https://responsay.com/owltype/source.tar.gz)
 
 ![猫头鹰候选窗](docs/screenshots/candidates.png)
 
@@ -170,14 +170,14 @@ App 内置可独立启动的引擎与基础种子词库；完整词库通过应�
 **深圳大学法律人工智能实训实验室**。
 
 - [项目主页与公开下载](https://responsay.com/owltype/) · [每版对应源码](https://responsay.com/owltype/source.tar.gz)
-- [问题与建议](https://github.com/semantic-craft/owltype-macos/issues)：欢迎提交 Issue 或 Pull Request，分享输入体验、模板用法与改进建议。请说明版本、macOS 版本、宿主应用与复现步骤。
+- [维护者工单](https://github.com/semantic-craft/owltype-macos/issues)：仅已获仓库访问权限的协作者可使用 Issue 和 Pull Request。反馈请说明应用版本、macOS 版本、宿主应用与复现步骤。目前未配置面向未授权用户的公开反馈入口。
 - [Windows 版](https://github.com/semantic-craft/owltype-win)：独立维护，版本、功能与发布资产不与 macOS 版自动同步。
 
-GitHub 是 macOS 版的公开开发仓库，完整产品、工单与代码评审都在此管理；安装包、更新源与对应源码由官网分发。仓库历史从 1.4.22 源码快照开始，1.4.21 及更早公开版本已停止分发与支持。
+GitHub 是 macOS 版的私有开发仓库，供获授权的协作者管理产品、工单与代码评审；安装包、更新源与对应源码由官网公开分发。仓库访问权限不改变已分发版本的 GPL-3.0 许可。仓库历史从 1.4.22 源码快照开始，1.4.21 及更早公开版本已停止分发与支持。
 
 ## 从源码构建
 
-需要 Xcode 26+ 与 macOS 14+：
+需要 Xcode 26+ 与 macOS 14+。没有仓库访问权限时，从[版本源码下载入口](https://responsay.com/owltype/source.tar.gz)获取已发布版本，解压后按包内构建说明操作。以下克隆与 Git hook 命令仅供获授权的仓库协作者使用：
 
 ```sh
 git clone https://github.com/semantic-craft/owltype-macos.git
