@@ -6,13 +6,13 @@
 # 为什么 1) 需要它：Sparkle guided pkg install 会**先终止宿主 App（= Owltype 本体）再跑安装器**，
 # 且 imklaunchagent 可能在安装中途按需复活 Owltype（它仍是 selected source）——所以 postinstall
 # 里单靠 pgrep 探测进程，在 Sparkle 主路径上必然读 false / 结果非确定，更新会被误判成首装：
-# enable 重跑（二次 enable 幽灵态，TIS-ACTIVATION-NOTES 定律 11）+ select 抢用户当前输入法。
+# enable 重跑（历史重复启用问题，见 `docs/operations/installation.md`）+ select 抢用户当前输入法。
 # 「安装前 bundle 已存在」不受进程生死影响，是更新探测的主信号；postinstall 读取标记后即删。
 #
 # 为什么 2) 也必须在这里记：payload 原地替换 bundle 时 TIS 会把选中态踢出猫头鹰（#16 三连复现：
 # 更新后 fresh 探针恒读 selected=false，用户被踢回 ABC/鼠须管）——postinstall 再探测已经结构性
 # 太晚，切回分支永不触发。preinstall 时刻选中态还在（imklaunchagent 复活 Owltype 正因它仍是
-# selected source），用**老二进制 fresh 进程**只读 TIS（定律 13′：读回必须 fresh 进程；
+# selected source），用**老二进制 fresh 进程**只读 TIS（历史观察：读回必须 fresh 进程；
 # --current-input-source 零副作用）。老版本二进制无此 CLI 时探测本身可以失败；但一旦确认
 # 了选中态，状态标记必须可靠写入。安装状态目录或“既有 bundle”标记写不成时必须中止，
 # 否则 postinstall 会把更新误判为首装，重新 enable/select 并破坏 no-steal。

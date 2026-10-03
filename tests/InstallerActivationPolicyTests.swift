@@ -5,7 +5,7 @@
 //  被测文件 installer/Sources/InstallerActivationPolicy.swift 直接编进 OwltypeTests target
 //  （安装器是独立 xcodegen 工程、无测试 target；纯决策层无 TIS/IO，跨 target 编译零依赖）。
 //  风格对标 ActivationPolicyTests：真值表 + 文案断言，TIS 副作用层（Installer/Verifier）
-//  不可 headless 测，由干净机真人验收（TIS-ACTIVATION-NOTES 定律 3/10）。
+//  不可 headless 测，由干净机真人验收（见 `docs/operations/installation.md`）。
 //
 
 import Foundation
@@ -31,10 +31,10 @@ final class InstallerActivationPolicyTests: XCTestCase {
       preferredID: "com.apple.keylayout.ABC", selectableASCIIKeyboardIDs: []))
   }
 
-  // MARK: - 复合幂等判据真值表（定律 4/11：绝不信 IsEnabled；已有安装整段跳过 enable）
+  // MARK: - 复合幂等判据真值表（历史观察：绝不信 IsEnabled；已有安装整段跳过 enable）
 
   func testCleanFirstInstallEnablesParentAndPrimaryModeOnceAndSelects() {
-    // 定律 13：干净首装 enable「父条目 + Hans 主模式」各一次（父=菜单显形，Hans=select 需要的
+    // 历史观察：干净首装 enable「父条目 + Hans 主模式」各一次（父=菜单显形，Hans=select 需要的
     // 模式启用记录；enable 父条目在 macOS 26 上不级联 default-on 的 Hans——1.3.32 QA 实证）。
     let plan = InstallerActivationPolicy.plan(
       bundlePreexisted: false, owltypeProcessWasRunning: false, owltypeWasCurrentSource: false)
@@ -63,7 +63,7 @@ final class InstallerActivationPolicyTests: XCTestCase {
   }
 
   func testUpdateWhileOwltypeIsCurrentParksOnABCAndPairsSelectBack() {
-    // 定律 12：kill 当前选中的 IME 前切出 ABC；select 只允许作为配对的切回（不重新 enable）。
+    // 更新策略：kill 当前选中的 IME 前切出系统英文键盘；select 只允许作为配对的切回（不重新 enable）。
     let plan = InstallerActivationPolicy.plan(
       bundlePreexisted: true, owltypeProcessWasRunning: true, owltypeWasCurrentSource: true)
     XCTAssertFalse(plan.enableParentAndPrimaryModeOnce)
@@ -80,7 +80,7 @@ final class InstallerActivationPolicyTests: XCTestCase {
 
   func testStaleCurrentSourceWithoutInstallIsCleanInstallAndStillParks() {
     // (F,F,T) 幽灵残留：TIS 说当前源是猫头鹰，但 bundle/进程都无 → 按干净首装 enable；
-    // 定律 12 只看「当前源」信号，替换前照样先切出 ABC，装完配对切回。
+    // 策略只看「当前源」信号，替换前照样先切出系统英文键盘，装完配对切回。
     let plan = InstallerActivationPolicy.plan(
       bundlePreexisted: false, owltypeProcessWasRunning: false, owltypeWasCurrentSource: true)
     XCTAssertEqual(

@@ -25,6 +25,11 @@ binary. Exclude only:
 The local-only prompt, phrase and scene-term features are allowed only while they keep user content
 on-device, store it with restrictive permissions and never log its text.
 
+## Installation mechanisms
+
+For GUI versus PKG activation, state restoration, current tests and historical evidence
+boundaries, read [installation constraints](operations/installation.md).
+
 ## Authoritative release flow
 
 Start from a clean worktree at the exact commit to publish. Review the staged diff, confirm the Git
@@ -127,3 +132,33 @@ captured stale-process regression can be replayed with `--self-test`.
 The product test entrypoint explicitly excludes the five credential-gated Live suites; the offline
 `OwlLiveInputTraceTests` privacy regression remains enabled. `scripts/gate.sh` and the release
 entrypoint must never rely on default skip behavior or run an unfiltered `xcodebuild test`.
+
+## Interrupted publication and release closeout
+
+The publisher updates immutable assets first, then the website pointer and finally
+the client feed. These remote writes are sequential, not one atomic transaction.
+A failure after the website pointer changes can leave website downloads newer than
+the Sparkle feed; record which write/readback failed before choosing recovery.
+
+| Failure point | Recovery within the authorized release |
+| --- | --- |
+| Local tests/signing/cohort validation | No upload has occurred through the release entrypoint. Fix the cause; reuse only a verified complete cohort. Retain failed evidence and use a fresh output root for a partial or mismatched cohort. |
+| Immutable asset upload/readback | Retry the publisher with the same verified output root and valid authorization receipt. Identical remote objects are reused; differing bytes at a versioned key are a hard stop, not permission to overwrite. |
+| Website aliases or final feed verification | Preserve the same cohort and retry after the transport/cache cause is resolved. The publisher rechecks immutable assets, rewrites the mutable pointers and verifies public responses. Do not rebuild a different binary under the same published build version. |
+| A published product regression | Stop further distribution changes and select a recovery scope. Prefer a corrected, higher build version through the complete release chain; pointing the feed at an older version does not make installed Sparkle clients downgrade. |
+
+Before publishing, retain the prior and intended `latest.json` and active appcast
+bytes, their hashes, and both cohort identities in the local release record. Restoring
+mutable pointers is a separate, explicitly authorized operation: verify the prior
+assets still exist, restore the reviewed bytes, then recheck website aliases and feed.
+There is no automatic remote rollback command. Never modify the frozen v2 or bridge
+feeds for ordinary recovery. Installed-machine recovery follows the
+[installation acceptance procedure](operations/installation.md#installed-acceptance-and-recovery-record).
+
+Close the release in the existing PR/issue or acceptance record with source commit,
+tag if created, marketing/build versions, cohort ID, public artifact verification,
+installed-path results and remaining gaps. Distinguish built, published, installed
+and user-accepted states. Keep required logs and native evidence outside temporary
+and build directories using the [evidence location](operations/ci.md#focused-feedback-and-retained-evidence);
+review/redact any excerpt before posting it. Historical temporary paths are evidence
+locators only, not a guarantee those files still exist.

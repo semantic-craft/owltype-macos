@@ -26,7 +26,7 @@ Native SwiftUI candidates, nine colour palettes, familiar input schemes and mixe
 
 We have used Owltype ourselves for two to three months and tested it with a small group. This is a version we use reliably for everyday work. **Log out and back in once after installation** so macOS can load the input method correctly.
 
-> 🦉 **Now open source. Help us make it better.** [Download](https://responsay.com/owltype/) · [Report an issue / suggest a feature](https://github.com/semantic-craft/owltype-macos/issues) · [Explore the source](https://github.com/semantic-craft/owltype-macos)
+> 🦉 **The development repository is private; installers and corresponding source for released versions remain public.** [Download](https://responsay.com/owltype/) · [Get release source](https://responsay.com/owltype/source.tar.gz)
 
 ![Owltype candidate window](docs/screenshots/candidates.png)
 
@@ -170,14 +170,17 @@ See [PRIVACY.md](PRIVACY.md). Report security issues privately as described in [
 **深圳大学法律人工智能实训实验室 · Shenzhen University**.
 
 - [Website and public downloads](https://responsay.com/owltype/) · [Corresponding source](https://responsay.com/owltype/source.tar.gz)
-- [Issues and suggestions](https://github.com/semantic-craft/owltype-macos/issues): issues and pull requests are welcome, including input feedback, template workflows and improvements. Include the app version, macOS version, host app and steps to reproduce.
+- [Maintainer issues](https://github.com/semantic-craft/owltype-macos/issues): issues and pull requests are available to collaborators with repository access. Include the app version, macOS version, host app and steps to reproduce. No public feedback endpoint is currently configured for users without access.
 - [Windows edition](https://github.com/semantic-craft/owltype-win): independently maintained, with separate versions, features and release assets.
 
-GitHub is the public development repository for the complete macOS product, issues and reviews. The website distributes installers, update feeds and corresponding source. Repository history starts with the 1.4.22 source snapshot; public releases through 1.4.21 are no longer distributed or supported.
+GitHub is the private development repository for authorized collaborators working on the macOS product, issues and reviews. The website publicly distributes installers, update feeds and corresponding source. Repository access does not change the GPL-3.0 license of distributed versions. Repository history starts with the 1.4.22 source snapshot; public releases through 1.4.21 are no longer distributed or supported.
 
 ## Build from source
 
-Requires Xcode 26+ and macOS 14+:
+Requires Xcode 26+ and macOS 14+. Without repository access, download the
+[release source archive](https://responsay.com/owltype/source.tar.gz), extract it and follow
+the included build instructions. The clone and Git hook commands below are for authorized
+repository collaborators:
 
 ```sh
 git clone https://github.com/semantic-craft/owltype-macos.git

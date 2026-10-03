@@ -8,7 +8,7 @@ git@github.com:semantic-craft/owltype-macos.git
 
 The local remote topology has one canonical remote:
 
-- `origin`: the public GitHub repository, used for fetch, branches, pull requests,
+- `origin`: the private GitHub development repository, used for fetch, branches, pull requests,
   and merges.
 
 Signed installers, the Sparkle appcast, and the corresponding source for every
@@ -18,7 +18,7 @@ release surface for Owltype.
 ## The gate
 
 There is no hosted CI. GitHub Actions remains disabled; checks and release credentials
-stay on the maintainer's Mac. Making the source public does not enable hosted runners. A missing hosted check is not a pass: the merger owns the local gate
+stay on the maintainer's Mac. Repository visibility changes do not enable hosted runners. A missing hosted check is not a pass: the merger owns the local gate
 result for the exact pull-request head.
 
 `scripts/gate.sh` runs the public-source and privacy boundaries, portable-script
@@ -27,6 +27,53 @@ reachable history, licensing checks, dependency bootstrap, clean-room seed gener
 SwiftLint, release self-tests, the Swift test suite, Debug and Release builds, manifest,
 identity-residual, artifact-chain, cohort and release-chain gates, built-App secret
 checks, and Periphery. `--quick` stops after the test suite.
+
+## Focused feedback and retained evidence
+
+Use [the verification runner](../../scripts/verify.py) during editing. It runs the
+existing checks and records their commands, elapsed time, exit status and coverage
+limits. Pick the relevant scope; none of the focused scopes replaces the full gate:
+
+```sh
+python3 scripts/verify.py navigation
+python3 scripts/verify.py workflow
+python3 scripts/verify.py distribution
+python3 scripts/verify.py swift --test OwlKeyboardSettingsApplicationTests
+python3 scripts/verify.py swift --test OwlInputHabitsIntegrationTests --test RimeSeamTests
+```
+
+`navigation` checks maintained references and their regression tests. `workflow`
+also tests the verification runner. `distribution` tests the publisher, stale-process
+detector and release orchestration using fixtures; it does not sign or publish.
+`swift` uses the same seed preparation and test host as `make test`, selecting only
+the named classes or `Class/method` cases. A new checkout still needs the dependency
+setup in [CONTRIBUTING](../../CONTRIBUTING.md). Swift builds and seed preparation
+are still required; selected tests are not a promise of a seconds-long cold build.
+Use `--dry-run` to inspect any scope without running it or writing evidence.
+
+Direct `scripts/gate.sh` and `scripts/gate.sh --quick` calls also use the recorder.
+`--quick` retains history scans and the complete offline product suite: it is a
+pre-merge subset, not the everyday focused check. Gate and release calls explicitly
+clear `TEST_ONLY`, so a focused selection cannot silently narrow release validation.
+
+Each run creates a private directory under
+`~/Projects/_shared-work/owltype/verification` with `result.json`, `summary.md` and
+numbered command logs. Set `OWL_VERIFICATION_DIR` to use another durable location
+outside the checkout. These files survive worktree/build cleanup. They are local
+evidence and may contain machine paths; review and redact before sharing.
+
+The receipt captures HEAD, working-tree status, tracked diff hashes, untracked file
+hashes and initialized submodule state before and after execution. A changed source
+snapshot returns failure even when every command passed. Ignored build inputs and
+edits reverted before the final snapshot are outside this check. A dirty-tree pass
+describes that snapshot, not an exact committed PR head. Failed commands retain their
+exit status and later commands remain `not-run`; a `running` record left by a hard
+kill is incomplete evidence. Normal interruption terminates the check subprocesses.
+
+For PR closeout, include the tested commit, commands, result, scope omissions and
+evidence location in the existing PR. Keep required screenshots, selected xcresult
+bundles and host-acceptance records alongside the receipt before deleting temporary
+files. Large logs remain local; the durable PR summary must stand on its own.
 
 One step is deliberately not in the gate: the installed input-method smoke
 (`install-dev.sh` followed by `check-installed.sh`). Installing a development input
@@ -37,6 +84,22 @@ The Release build keeps its optimized configuration, but the gate disables the i
 store and whole-module batching for that invocation. One whole-module Swift frontend
 can exceed the macOS memory high-watermark; compiling per file avoids an
 infrastructure-only failure without weakening optimization or source coverage.
+
+## Navigation references
+
+Run `python3 scripts/check-navigation.py` and
+`python3 scripts/check-navigation.selftest.py` for navigation changes; both run in the
+local gate. The scope is the agent entry and its routing documents, installation
+constraints, and the installation code comments that refer to those constraints.
+The explicit source list is maintained in the checker; a missing source also fails.
+
+Markdown links/images and standalone backtick file paths are checked for existence.
+Markdown paths are relative to their document; source-comment paths are repository-relative.
+Links with URL schemes, network URLs and fragment-only links are excluded; anchors
+inside an existing file are not validated. Fenced examples are excluded. For a historical
+or optional reference outside a fence, put `<!-- reference-check: historical -->` or
+`<!-- reference-check: optional -->` on that line only, and explain its context in prose.
+New required navigation belongs in ordinary links, not in exempt examples.
 
 ## Pull requests
 
