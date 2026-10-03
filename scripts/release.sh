@@ -99,7 +99,7 @@ if ((!dry_run)) && [[ -e "$cohort_file" ]]; then
 fi
 
 echo "==> 2/8 run the full test suite"
-run make test "DERIVED_DATA_PATH=$output_root/tests"
+run make test "DERIVED_DATA_PATH=$output_root/tests" TEST_ONLY=
 
 echo "==> 3/8 assemble exactly one signed, notarized, stapled artifact cohort"
 if ((reuse)); then

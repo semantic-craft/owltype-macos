@@ -28,6 +28,53 @@ SwiftLint, release self-tests, the Swift test suite, Debug and Release builds, m
 identity-residual, artifact-chain, cohort and release-chain gates, built-App secret
 checks, and Periphery. `--quick` stops after the test suite.
 
+## Focused feedback and retained evidence
+
+Use [the verification runner](../../scripts/verify.py) during editing. It runs the
+existing checks and records their commands, elapsed time, exit status and coverage
+limits. Pick the relevant scope; none of the focused scopes replaces the full gate:
+
+```sh
+python3 scripts/verify.py navigation
+python3 scripts/verify.py workflow
+python3 scripts/verify.py distribution
+python3 scripts/verify.py swift --test OwlKeyboardSettingsApplicationTests
+python3 scripts/verify.py swift --test OwlInputHabitsIntegrationTests --test RimeSeamTests
+```
+
+`navigation` checks maintained references and their regression tests. `workflow`
+also tests the verification runner. `distribution` tests the publisher, stale-process
+detector and release orchestration using fixtures; it does not sign or publish.
+`swift` uses the same seed preparation and test host as `make test`, selecting only
+the named classes or `Class/method` cases. A new checkout still needs the dependency
+setup in [CONTRIBUTING](../../CONTRIBUTING.md). Swift builds and seed preparation
+are still required; selected tests are not a promise of a seconds-long cold build.
+Use `--dry-run` to inspect any scope without running it or writing evidence.
+
+Direct `scripts/gate.sh` and `scripts/gate.sh --quick` calls also use the recorder.
+`--quick` retains history scans and the complete offline product suite: it is a
+pre-merge subset, not the everyday focused check. Gate and release calls explicitly
+clear `TEST_ONLY`, so a focused selection cannot silently narrow release validation.
+
+Each run creates a private directory under
+`~/Projects/_shared-work/owltype/verification` with `result.json`, `summary.md` and
+numbered command logs. Set `OWL_VERIFICATION_DIR` to use another durable location
+outside the checkout. These files survive worktree/build cleanup. They are local
+evidence and may contain machine paths; review and redact before sharing.
+
+The receipt captures HEAD, working-tree status, tracked diff hashes, untracked file
+hashes and initialized submodule state before and after execution. A changed source
+snapshot returns failure even when every command passed. Ignored build inputs and
+edits reverted before the final snapshot are outside this check. A dirty-tree pass
+describes that snapshot, not an exact committed PR head. Failed commands retain their
+exit status and later commands remain `not-run`; a `running` record left by a hard
+kill is incomplete evidence. Normal interruption terminates the check subprocesses.
+
+For PR closeout, include the tested commit, commands, result, scope omissions and
+evidence location in the existing PR. Keep required screenshots, selected xcresult
+bundles and host-acceptance records alongside the receipt before deleting temporary
+files. Large logs remain local; the durable PR summary must stand on its own.
+
 One step is deliberately not in the gate: the installed input-method smoke
 (`install-dev.sh` followed by `check-installed.sh`). Installing a development input
 method mutates the persistent machine and needs its own explicit safety and acceptance

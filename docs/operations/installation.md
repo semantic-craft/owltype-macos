@@ -52,3 +52,33 @@ laws. The current implementation and the tests above define the maintained contr
 After an authorized installed update, follow the publishing checklist's live-process
 check and test composition/commit in a newly opened host. A successful TIS probe alone
 does not establish that an already-open host has reconnected.
+
+## Installed acceptance and recovery record
+
+For an authorized installed update, record the release version/build, source commit,
+cohort ID, macOS version, installation path (GUI, first-install PKG, or Sparkle update),
+previous version and selected input source. Keep evidence with the
+[durable verification records](ci.md#focused-feedback-and-retained-evidence).
+
+1. Preserve the previous signed installer and a reviewed backup of the user's input
+   preferences and dictionary before replacement. Record their locations locally.
+2. Complete the selected installation path, including logout when requested. Run
+   `python3 scripts/check-installed-process.py` and verify that the installed App
+   matches the selected release inventory. A version label alone is insufficient.
+3. In a newly opened native host, type `nihao`, select and commit “你好”, then test
+   the changed behavior. For activation/input changes also check an already-open
+   host, switching to another app and back, and preservation of the previously
+   selected non-Owltype input source when applicable.
+4. Record actual results for physical Shift switching, candidate right-click, and
+   the complete onboarding typing step when affected. Unsupported automation is
+   `not tested`; controller tests and TIS probes cannot substitute for these results.
+5. Cover GUI and PKG/Sparkle separately when changing shared activation behavior.
+   Include first install versus update and a keyboard setup without ABC when relevant;
+   the known PKG parking limitation above remains an explicit coverage gap.
+
+If acceptance fails, retain the failed artifact and logs. Recover using the previous
+signed installer only within the authorized recovery scope; stop if it cannot read
+the current data format. Restore user data only from the agreed backup, then rerun
+the live-process check and real composition/commit. Record whether the machine was
+restored or intentionally kept on the new version. Local recovery does not revert
+the public update feed or establish that other users have recovered.

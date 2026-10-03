@@ -25,6 +25,14 @@ The [Makefile](../../Makefile) owns dependency setup and the product test comman
 The app project is [the checked-in Xcode project](../../Owltype.xcodeproj/project.pbxproj);
 only [the installer](../../installer/project.yml) uses XcodeGen.
 
+For the tests named in the table, run
+`python3 scripts/verify.py swift --test ClassName` (repeat `--test` for related
+classes, or use `ClassName/methodName`). Use `navigation` for reference edits,
+`workflow` for verification-runner changes and `distribution` for publishing
+orchestration. See [focused checks and evidence](../operations/ci.md#focused-feedback-and-retained-evidence)
+for setup, coverage limits and durable local receipts. Full merge validation remains
+[the local gate](../../scripts/gate.sh).
+
 For a settings-only preview, the app's `--ui-test-show-settings` mode avoids IMK/Rime
 startup and uses isolated preferences. See [startup and CLI flags](../../sources/Main.swift).
 A development build cannot serve as the installed input method; use the installation
