@@ -4,7 +4,10 @@
 
 ## Verification
 
-<!-- List the focused commands or manual checks you actually ran. -->
+<!-- Include tested commit, commands, result and unverified behavior. The verification
+runner writes a local summary and logs; include its evidence location and a reviewed
+summary here. A dirty-tree receipt is not a passing gate on the committed PR head.
+Keep raw logs and machine paths local unless reviewed for sharing. -->
 
 ## Public-source checklist
 

@@ -281,7 +281,7 @@ test: $(DEPS_CHECK)
 		-derivedDataPath "$(DERIVED_DATA_PATH)" \
 		CODE_SIGNING_ALLOWED=YES \
 		CODE_SIGN_IDENTITY=- \
-		test-without-building \
+		test-without-building $(foreach test,$(TEST_ONLY),-only-testing:OwltypeTests/$(test)) \
 		-skip-testing:OwltypeTests/OwlGoalBriefLiveTests \
 		-skip-testing:OwltypeTests/OwlPromptOptimizeLiveTests \
 		-skip-testing:OwltypeTests/OwlResponsesPromptEvaluationLiveTests \

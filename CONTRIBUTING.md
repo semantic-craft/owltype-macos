@@ -40,7 +40,10 @@ a pull request, also run the public-source boundary relevant to every change:
 bash scripts/check-public-source.sh
 ```
 
-Run the narrowest additional test that exercises the changed behavior. Pull requests are
+Run the narrowest additional test that exercises the changed behavior using the
+[focused check commands and retained verification evidence](docs/operations/ci.md#focused-feedback-and-retained-evidence).
+For example, `python3 scripts/verify.py swift --test OwlKeyboardSettingsApplicationTests`
+runs the selected offline suite through the normal seeded test host. Pull requests are
 opened on GitHub. There is no hosted CI: `scripts/gate.sh` runs the portable
 source and policy checks plus the native macOS tests, builds and release gates on the
 development Mac (`--quick` for the fast subset), and a pull request is merged only after
