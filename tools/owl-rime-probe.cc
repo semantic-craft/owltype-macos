@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
+#include <chrono>
 
 static const char* kModules[] = {"default", "plugins", nullptr};
 
@@ -64,6 +65,8 @@ int main(int argc, char* argv[]) {
   if (getenv("OWL_PROBE_TRADITIONAL")) {
     rime->set_option(session, "traditionalization", True);
   }
+  if (getenv("OWL_PROBE_ASCII")) rime->set_option(session, "ascii_mode", True);
+  const auto input_start = std::chrono::steady_clock::now();
   if (!rime->simulate_key_sequence(session, keys)) {
     fprintf(stderr, "failed to process key sequence: %s\n", keys);
   }
@@ -97,6 +100,11 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
+  if (getenv("OWL_PROBE_TIMING")) {
+    const auto elapsed = std::chrono::steady_clock::now() - input_start;
+    printf("input_us=%lld\n", static_cast<long long>(
+        std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count()));
+  }
   printf("schema=%s\n", schema_id);
   printf("commit=%s\n", commit_text);
   printf("preedit=%s\n", context.composition.preedit ? context.composition.preedit : "");

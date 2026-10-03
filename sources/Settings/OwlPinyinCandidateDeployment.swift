@@ -1,7 +1,9 @@
 import Foundation
 
-/// Installs only an Owltype-owned filter. A user's custom filter chain remains theirs.
-enum OwlPinnedWordsDeployment {
+/// Installs full-pinyin short-code priority and explicit pins in one owned filter.
+/// A user's custom filter chain remains theirs.
+enum OwlPinyinCandidateDeployment {
+  // Retain the deployed marker/module name so upgrades replace the existing managed block.
   static let marker = "OWL MANAGED PINNED WORDS v1"
   static let filter = "lua_filter@*owltype_pinned_words"
   static var available = false
@@ -46,12 +48,46 @@ enum OwlPinnedWordsDeployment {
 
   static let lua = #"""
   -- OWL MANAGED PINNED WORDS v1
-  -- Frontend supplies local preferences via a session property; no IO during typing.
+  -- Short-code Chinese priority, then explicit pins. No IO during typing.
   local M = {}
   function M.init(env)
     env.packed = nil
     env.words = {}
   end
+  local function has_han(text)
+    for _, cp in utf8.codes(text) do
+      if (cp >= 0x3400 and cp <= 0x9fff) or (cp >= 0xf900 and cp <= 0xfaff)
+        or (cp >= 0x20000 and cp <= 0x323af) then return true end
+    end
+    return false
+  end
+
+  -- Consume the translation once: retain displaced candidates until the first three
+  -- Chinese candidates have been yielded, then stream the untouched tail lazily.
+  local function short_code_candidates(input, enabled)
+    return coroutine.wrap(function()
+      local pending, count = {}, 0
+      for cand in input:iter() do
+        if not enabled or count == 3 then
+          coroutine.yield(cand)
+        elseif cand.type == "user_table" then
+          -- Explicit custom phrases/templates keep their priority, including ASCII text.
+          coroutine.yield(cand)
+        elseif has_han(cand.text) then
+          coroutine.yield(cand)
+          count = count + 1
+          if count == 3 then
+            for _, deferred in ipairs(pending) do coroutine.yield(deferred) end
+            pending = {}
+          end
+        else
+          pending[#pending + 1] = cand
+        end
+      end
+      for _, deferred in ipairs(pending) do coroutine.yield(deferred) end
+    end)
+  end
+
   function M.func(input, env)
     local ctx = env.engine.context
     local packed = ctx:get_property("owl_pinned_words")
@@ -69,7 +105,9 @@ enum OwlPinnedWordsDeployment {
     local pins = env.words[ctx.input .. "\t" .. (traditional and "1" or "0")] or {}
     local seen = {}
     local first = true
-    for cand in input:iter() do
+    local short = not ctx:get_option("ascii_mode") and #ctx.input <= 2
+      and ctx.input:match("^[a-z]+$") ~= nil
+    for cand in short_code_candidates(input, short) do
       if first then
         first = false
         if not ctx:get_option("ascii_mode") and cand.start == 0 and cand._end == #ctx.input then

@@ -17,9 +17,9 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     defer {
       if let previousUserDir { setenv("OWL_TEST_USER_DIR", previousUserDir, 1) } else { unsetenv("OWL_TEST_USER_DIR") }
     }
-    let availability = OwlPinnedWordsDeployment.available
-    defer { OwlPinnedWordsDeployment.available = availability }
-    try OwlPinnedWordsDeployment.apply(userDir: root, sharedDir: shared)
+    let availability = OwlPinyinCandidateDeployment.available
+    defer { OwlPinyinCandidateDeployment.available = availability }
+    try OwlPinyinCandidateDeployment.apply(userDir: root, sharedDir: shared)
     let engine = LiveRimeEngine()
     var traits = RimeTraits.rimeStructInit()
     traits.setCString(shared.path, to: \.shared_data_dir)
