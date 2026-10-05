@@ -5,6 +5,7 @@
 ### Issue tracker
 
 Issues and specs are tracked in GitHub Issues. See `docs/agents/issue-tracker.md`.
+For project housekeeping or closeout, follow its [issue reconciliation steps](docs/agents/issue-tracker.md#project-housekeeping-and-closeout).
 
 ### Triage labels
 
