@@ -335,7 +335,14 @@ struct OwlTemplatePage: View {
           }
         }
       }.safeAreaPadding(.top, 16).padding(.horizontal, 16)
-        .safeAreaInset(edge: .bottom) { saveBar.padding(12).background(.regularMaterial) }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+          VStack(spacing: 0) {
+            SettingsCardDivider(palette: palette)
+            saveBar.padding(.vertical, 12)
+          }
+          .padding(.horizontal, 16)
+          .background(palette.card2)
+        }
     }
     .background(OwlTemplateFilePanelWindow(host: filePanelHost).frame(width: 0, height: 0))
     .onDisappear { filePanelHost.activePanel?.cancel(nil) }
@@ -649,13 +656,17 @@ struct OwlTemplatePage: View {
   }
 
   private var saveBar: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      HStack {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(spacing: 8) {
         Button("保存") { if model.save() { onRedeploy?() } }.accessibilityIdentifier("template-save").disabled(!model.canEdit)
+          .buttonStyle(OwlFilledButtonStyle(palette: palette))
+          .fixedSize()
         Button("复制为新条目") { withSavedDraft { model.draft = model.draft.duplicated(); model.status = "副本尚未保存。" } }.disabled(!model.canEdit)
+          .buttonStyle(OwlTemplateSecondaryButtonStyle(palette: palette))
         Button("删除…", role: .destructive) {
           deletion = model.library.entries.first { $0.id == model.draft.id }; showingDelete = deletion != nil
         }.disabled(!model.canEdit || !model.library.entries.contains { $0.id == model.draft.id })
+          .buttonStyle(OwlTemplateSecondaryButtonStyle(palette: palette))
         Spacer()
       }
       if let backupURL = model.lastBackupURL {
@@ -736,6 +747,25 @@ struct OwlTemplatePage: View {
   }
 
   private func resetPreview() { previewValues = model.parsed.initialValues }
+}
+
+private struct OwlTemplateSecondaryButtonStyle: ButtonStyle {
+  let palette: OwlCandidatePalette
+  @Environment(\.isEnabled) private var isEnabled
+
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .font(.system(size: 14, weight: .medium))
+      .foregroundStyle(palette.ink2)
+      .padding(.horizontal, 12)
+      .padding(.vertical, 9)
+      .background {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+          .fill(palette.ink.opacity(configuration.isPressed ? 0.10 : 0.04))
+      }
+      .opacity(isEnabled ? 1 : 0.4)
+      .contentShape(Rectangle())
+  }
 }
 
 private struct OwlTemplateParameterForm: View {
