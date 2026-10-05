@@ -144,6 +144,10 @@ all immutable artifacts, then committed `owltype/latest.json` and
 
 ## Cleaning up after the gate
 
+For project-wide housekeeping, first complete [issue reconciliation](../agents/issue-tracker.md#project-housekeeping-and-closeout).
+The cleanup below handles build artifacts and registrations; its success alone
+does not establish that the project's open work has been audited.
+
 `scripts/clean-dev.sh` is the gate's companion. It reports by default and deletes only
 with `--apply`:
 

@@ -29,6 +29,45 @@ Create branches from fresh `origin/main`, push them to `origin`, and use `gh pr`
 for creation, review, checks, and merge. There is no hosted CI; the merger must
 record the exact local [local gate](../../scripts/gate.sh) result on the pull request before merge.
 
+## Project housekeeping and closeout
+
+Housekeeping includes reconciling open issues with the current implementation.
+A clean checkout and an empty PR list establish Git state only. An open issue
+establishes tracker state; implementation and acceptance need their own evidence.
+
+1. Enumerate every open issue in the requested scope, including parent specs and
+   child tickets. For project-wide housekeeping, cover the whole open backlog.
+   Read each issue's acceptance criteria and comments. Page through results;
+   a truncated listing or body leaves that part of the audit incomplete.
+2. At a recorded, freshly fetched main commit, trace each acceptance criterion to
+   current code, merged PRs and relevant tests or release/host-acceptance records.
+   A filename or symbol match is a starting point, not proof of working behaviour.
+   Record implementation and verification separately: implemented, partial or
+   absent; automated checks, installed-host acceptance and release evidence.
+   Missing evidence is **unverified**, not evidence that a feature is absent.
+3. Resolve conflicts between old plans and later delivery records. Record which
+   criteria were superseded and why; preserve useful decisions and acceptance
+   evidence. Historical version numbers are not instructions to repeat a release,
+   installation, data migration or retired-machine task.
+4. Within the user's authorized scope, update the original issues with the checked
+   commit, evidence links and exact remaining criteria. Close completed issues only
+   when all applicable criteria have evidence; close superseded issues with the
+   replacement or cancellation rationale. Keep partial work and unresolved evidence
+   gaps open. Parent specs require their own end-to-end acceptance, even when all
+   child tickets are closed. Reuse issues rather than creating a second status ledger.
+5. Report each retained issue by number, with the reason and remaining work. Separate
+   implementation gaps from verification gaps and from items not yet audited.
+   Finish the in-scope audit before declaring project housekeeping complete; if
+   access or another blocker prevents it, identify the exact unchecked items and
+   report partial completion. Backlog reconciliation does not itself expand the
+   task into implementing every retained feature.
+
+Use existing receipts when they match the criterion and relevant code revision;
+run focused checks for unresolved behaviour within scope. A broad passing gate
+cannot substitute for an issue's required host or release acceptance. Repository
+cleanup follows [local gate operations](../operations/ci.md#cleaning-up-after-the-gate)
+after identifying the evidence and resources that must remain.
+
 ## When a skill says "publish to the issue tracker"
 
 Create a GitHub issue.
