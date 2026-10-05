@@ -8,9 +8,13 @@ struct OwlAppModeControls: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      Toggle(isOn: $memory.enabled) { Text("记住每个应用的中英文状态") }
-        .toggleStyle(.switch)
-        .accessibilityIdentifier("settings.rememberAppMode")
+      SettingsToggleRow(
+        title: "记住每个应用的中英文状态",
+        isOn: memory.enabled,
+        palette: palette,
+        onToggle: { memory.enabled.toggle() }
+      )
+      .accessibilityIdentifier("settings.rememberAppMode")
       HStack {
         Text("回到应用时恢复上次选择；没有记录时使用初始状态。")
           .font(.system(size: 12)).foregroundStyle(palette.ink3)

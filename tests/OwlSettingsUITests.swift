@@ -2,6 +2,27 @@ import AppKit
 import XCTest
 
 final class OwlSettingsUITests: XCTestCase {
+  func testAppModeMemoryUsesFullWidthSettingsToggle() throws {
+    let app = try launchSettings()
+    defer { app.terminate() }
+    let row = app.buttons["settings.rememberAppMode"]
+    XCTAssertTrue(row.waitForExistence(timeout: 3), "Memory must use the shared settings toggle row")
+    guard row.exists else { return }
+    let manage = app.buttons["settings.manageAppMemory"]
+    XCTAssertEqual(row.frame.maxX, manage.frame.maxX, accuracy: 2,
+                   "The toggle must align with the card's trailing controls")
+    XCTAssertGreaterThan(row.frame.width, 400, "The whole settings row must be clickable")
+    XCTAssertTrue(row.isSelected)
+    row.click()
+    XCTAssertFalse(row.isSelected)
+    row.click()
+    XCTAssertTrue(row.isSelected)
+    let screenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+    screenshot.name = "App mode memory — shared settings toggle"
+    screenshot.lifetime = .keepAlways
+    add(screenshot)
+  }
+
   func testSettingsControlsCanBeClickedWithIsolatedUserDir() throws {
     let app = try launchSettings()
 
