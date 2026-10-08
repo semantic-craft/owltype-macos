@@ -1,6 +1,6 @@
 # 改名方案：法墨输入法 → 猫头鹰输入法（Owltype）
 
-> 状态（2026-10-02 核对）：本文保留改名时的设计决策和迁移依据，以下阶段步骤是历史方案，不作为当前操作清单。现行实现已发布至 2.0.11；GitHub [#148](https://github.com/semantic-craft/owltype-macos/issues/148)、[#149](https://github.com/semantic-craft/owltype-macos/issues/149) 仍开放，未完成验收与旧分发面的处置以这两项工单为准。当前发布流程见 [发布检查清单](PUBLISHING_CHECKLIST.md)。
+> 状态（2026-10-08 核对）：本文保留改名时的设计决策和迁移依据，以下阶段步骤是历史方案，不作为当前操作清单。现行实现已发布至 2.0.13，使用 v3 更新源；旧 bridge 固定在 2.0.1，v2 固定在 2.0.9。旧 Famo 分发于 2026-10-05 完成源站删除及定向 CDN 清除，本轮复验源站为空、12 个公开地址均返回 404，不再执行下文的旧分发冻结计划。GitHub [#148](https://github.com/semantic-craft/owltype-macos/issues/148)、[#149](https://github.com/semantic-craft/owltype-macos/issues/149) 仍开放，剩余更新、卸载重装与 TCC 等验收以原工单为准。Metis 已退役，其跨机任务取消；不据历史步骤重新删除真实用户数据。当前发布流程见 [发布检查清单](PUBLISHING_CHECKLIST.md)。
 > 原则：一次性彻底改名，不保留兼容层、不留旧标识残留（全局工程原则：不做向后兼容）。
 > 撰写日期：2026-08-20。方案制定时版本为 1.6.3；改名后首个版本 **2.0.0** 已于 2026-08-21 发布。
 
@@ -157,7 +157,7 @@
 - [x] `gate.sh` 全绿；全部 selftest 通过
 - [x] librime 探针候选验证通过
 - [x] GitHub 仓库、本地目录、remote、Claude 记忆目录四者一致为 owltype（08 已完成）
-- [x] `responsay.com/owltype/appcast.xml` 在线且正确；首次发布后三面验证通过，`famo/` 当前冻结待最终删除
+- [x] `responsay.com/owltype/appcast.xml` 在线且固定桥接版；首次发布后三面验证通过，`famo/` 已于 2026-10-05 退役并在 2026-10-08 复验
 - [ ] 每台装机：完整卸载旧身份→注销→清 LS→全新安装→TCC 重授，逐机记录
 - [ ] Sparkle 新 feed 真机更新一次成功（含输入源还原）
 - [ ] 图标重绘任务已立项（不阻塞）
