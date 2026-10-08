@@ -268,10 +268,18 @@ enum OwlThinkingControl {
   }
 }
 
+enum OwlChatSamplingControl {
+  /// Gemini 3.8 deprecated sampling controls; omit them on its OpenAI-compatible endpoint too.
+  /// https://ai.google.dev/gemini-api/docs/latest-model#migration-checklist
+  static func temperature(_ value: Double, model: String) -> Double? {
+    model.lowercased() == "gemini-3.8-flash" ? nil : value
+  }
+}
+
 struct OwlDeepSeekChatRequest: Codable, Equatable, Sendable {
   let model: String
   let messages: [OwlDeepSeekMessage]
-  let temperature: Double
+  let temperature: Double?
   let stream: Bool
   /// DeepSeek / OpenAI-compatible JSON mode. Forces a JSON-object reply so the local parser
   /// validates `{"candidates": [...]}` instead of free text. json_object mode requires the

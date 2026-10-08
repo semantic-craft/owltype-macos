@@ -81,6 +81,47 @@ final class ProviderProfileStoreTests: XCTestCase {
 
   private var tempRoot: URL!
 
+  func testGemini38SelectionAndDraftingOmitSamplingParameters() throws {
+    let model = "gemini-3.8-flash"
+    for providerID in ["gemini", ""] {
+      for variant in [OwlPolishPromptCatalog.legacy, OwlPolishPromptCatalog.responsayAligned] {
+        let payload = try OwlSelectionPolish.chatRequest(
+          for: "请确认明天开会。", model: model, providerID: providerID, variant: variant)
+        let body = try XCTUnwrap(
+          JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any])
+        XCTAssertNil(body["temperature"])
+        XCTAssertNil(body["top_p"])
+        XCTAssertNil(body["top_k"])
+        XCTAssertEqual(body["model"] as? String, model)
+        XCTAssertEqual((body["response_format"] as? [String: String])?["type"], "json_object")
+        XCTAssertEqual(payload.messages.first?.content, variant.systemPrompt)
+      }
+      let payload = OwlStructuredDrafting.chatRequest(
+        systemPrompt: "Return JSON", draft: "安排会议", model: model,
+        providerID: providerID, temperature: 0.2)
+      let body = try XCTUnwrap(
+        JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any])
+      XCTAssertNil(body["temperature"])
+      XCTAssertNil(body["top_p"])
+      XCTAssertNil(body["top_k"])
+      XCTAssertNotNil(body["messages"])
+    }
+  }
+
+  func testOtherChatModelsKeepConfiguredTemperature() throws {
+    for model in ["gemini-2.5-flash", "gpt-4o", "MiniMax-M3.1-Flash-Preview"] {
+      let selection = try OwlSelectionPolish.chatRequest(
+        for: "请确认明天开会。", model: model, variant: OwlPolishPromptCatalog.legacy)
+      let drafting = OwlStructuredDrafting.chatRequest(
+        systemPrompt: "Return JSON", draft: "安排会议", model: model, temperature: 0.2)
+      for (payload, expected) in [(selection, 0.3), (drafting, 0.2)] {
+        let body = try XCTUnwrap(
+          JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any])
+        XCTAssertEqual(body["temperature"] as? Double, expected)
+      }
+    }
+  }
+
   override func setUpWithError() throws {
     try super.setUpWithError()
     tempRoot = FileManager.default.temporaryDirectory

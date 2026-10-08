@@ -236,7 +236,7 @@ struct OwlStreamingChatClient: OwlChatStreaming {
   private struct StreamingRequest: Encodable {
     let model: String
     let messages: [OwlDeepSeekMessage]
-    let temperature: Double
+    let temperature: Double?
     let stream: Bool
   }
 
@@ -344,7 +344,7 @@ struct OwlStreamingChatClient: OwlChatStreaming {
       StreamingRequest(
         model: routing.model,
         messages: messages,
-        temperature: 0.2,
+        temperature: OwlChatSamplingControl.temperature(0.2, model: routing.model),
         stream: true
       )
     )
