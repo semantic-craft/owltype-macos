@@ -218,8 +218,25 @@ final class OwlStreamingChatClientTests: XCTestCase {
     let object = try await captureRequestBody(routing: makeRouting(), extraBody: [:])
     XCTAssertEqual(object["model"] as? String, "gpt-4o")
     XCTAssertEqual(object["stream"] as? Bool, true)
+    XCTAssertEqual(object["temperature"] as? Double, 0.2)
     XCTAssertNil(object["enable_search"], "普通问答绝不带联网字段")
     XCTAssertNil(object["tools"])
+  }
+
+  func testGemini38StreamOmitsSamplingAndPreservesReasoningEffort() async throws {
+    let routing = OwlCloudRouting(
+      providerID: "gemini",
+      endpoint: URL(string: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")!,
+      model: "gemini-3.8-flash", secretName: nil, authHeaderStyle: .bearer)
+    let body = try await captureRequestBody(routing: routing, extraBody: ["reasoning_effort": "low"])
+    XCTAssertNil(body["temperature"])
+    XCTAssertNil(body["top_p"])
+    XCTAssertNil(body["top_k"])
+    XCTAssertEqual(body["reasoning_effort"] as? String, "low")
+    XCTAssertNil(body["thinking_level"])
+    XCTAssertEqual(body["stream"] as? Bool, true)
+    XCTAssertEqual(body["model"] as? String, routing.model)
+    XCTAssertNotNil(body["messages"])
   }
 
   func testQwenSearchExtrasNoLongerBelongOnTheChatClient() async throws {

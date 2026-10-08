@@ -154,7 +154,7 @@ final class OwlStructuredDrafting {
     return OwlDeepSeekChatRequest(
       model: model,
       messages: messages,
-      temperature: temperature,
+      temperature: OwlChatSamplingControl.temperature(temperature, model: model),
       stream: false,
       // MiniMax documents no JSON mode; keep prompt + local validation as the contract.
       responseFormat: thinkingOff.reasoningSplit == nil ? .jsonObject : nil,
