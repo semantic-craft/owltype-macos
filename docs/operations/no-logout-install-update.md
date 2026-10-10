@@ -6,7 +6,8 @@
 已完成只读版本探针和离线自测；产品安装、更新、提示行为尚未修改。
 已验签并安装线上 2.0.13 更新包；旧、新 TextEdit 五笔上屏成功，但稍后出现注销提示。
 安装基线失败项已复现；用户已执行回滚，当前 App 为 2.0.12，安装收据保留 2.0.13。
-回滚进程 PID 37873、路径/磁盘/LS 版本一致、inode 检查通过；实际打字恢复待用户确认。
+回滚进程 PID 37873、路径/磁盘/LS 版本一致、inode 检查通过；用户确认旧、新宿主打字恢复。
+回滚后也延迟出现“已更新到 2.0.12”注销提示，截图已保存；A1 同样影响降级。
 用户已明确批准 agent 开始本机 B4 和安装，后续不重复索要安装确认；管理员认证仍由用户接管。
 已完成真机只读基线和 B4 同版本对照：用户用五笔确认旧、新 TextEdit 都能提交“你好”。
 同版本和跨版本 B4 在本机均未复现“旧 TextEdit 必须重开”；不能外推其他系统。
@@ -202,7 +203,7 @@ S3 的直接 pkg 安装与 Sparkle 下载/安装入口分别记录，不能互�
 
 - 探针自测 19 项通过；旧 inode 检查自测通过；verify runner 自测 8 项通过；shell 语法通过。
 - 自测已接入 gate 的 portable_scripts 及 verify.py distribution；全 gate 尚未运行。
-- Swift 四个指定测试组、check-release.selftest、release-cohort-selftest：产品修改前尚未运行。
+- OwlBundleSwapTests 11/11 通过（20261010T011853Z-swift-d1tphz1c）；其余三个指定测试组、check-release.selftest、release-cohort-selftest 尚未运行。
 - 未验证：macl spike、修改后 S1–S4、无 ABC、Intel、macOS 14/15、真实 Sparkle 入口、指定 sudo installer CLI 基线入口。
 - 真机：arm64、macOS 27.0.1 (26A434)。2.0.13 的 PID 22162 于安装期间启动；
   路径正确，inode 87910446 映射检查通过，磁盘/lsappinfo/目标均为 2.0.13。
@@ -217,6 +218,37 @@ S3 的直接 pkg 安装与 Sparkle 下载/安装入口分别记录，不能互�
 原始探针、观察记录和空白测试窗口准备态截图在 verification 根下的
 `no-logout-20261010/b4-live-gtbydw85/`。安装包哈希和回滚备份签名复核仍通过。
 
+## macl 交换实验（准备完成，尚未执行）
+
+当前真实 App 外壳存在 72 字节 `com.apple.macl`；Contents 只有 provenance 属性。
+`installer/Shared/OwlBundleSwap.swift` 保持外壳不变，调用 `renamex_np(RENAME_SWAP)`；
+首装用 `RENAME_EXCL` 拒绝覆盖现有目标。原语只负责文件，不验签、不重启、不删除。
+调用方必须串行化安装，保护暂存路径，在交换前验证身份/签名，在验收后决定旧内容保留策略。
+
+普通用户目录中的签名副本预检发现：在 App 根目录保留 `.Contents.update` 时，
+`codesign --verify --deep --strict` 报 `unsealed contents present in the bundle root`。
+修正为交换后先把旧 Contents 移出 App，再验签，副本预检已通过；换回原 Contents 并移走
+测试副本后验签也通过。因此后续实现必须在重启新进程前完成这一步，不能留下隐藏目录。
+原始失败与修正记录：`no-logout-20261010/macl-spike-kz23tpby/preflight{,-corrected}.json`。
+
+已用系统 swiftc 编译独立 helper（未调用 Developer ID 签名或公证），源码为
+`scripts/owl-bundle-swap.swift` + 同一个 OwlBundleSwap。真实实验脚本为
+`scripts/spike-bundle-swap-macl.sh`。命令需要用户执行或明确批准：
+
+```sh
+bash "$HOME/Projects/_shared-work/owltype/verification/no-logout-20261010/macl-spike-kz23tpby/run-macl-spike.sh"
+```
+
+目的：将装机 2.0.12 的 Contents 复制为 `.Contents.update`，交换一次、把旧 Contents
+临时保留到证据目录、核验签名和外壳 inode/macl 哈希，再交换回原 Contents inode。
+不运行安装包、不重启服务器或输入服务、不改输入源和词典、不修改安装收据。
+这只验证 macl/交换/签名，不能当作一次更新重连验收。实验期间请暂不打字或启动其他安装。
+
+恢复：EXIT handler 在已知两侧 inode 对应时换回原 Contents，将测试副本保留到
+证据目录 `retained-Contents`。它不会删任何一个 Contents；若 inode 非预期或换回失败，
+保留原始/新目录并输出 STOP，停止后人工核验，禁止继续叠加安装。
+`macl-spike.log` 保存 root 文件阶段，`macl-session.log` 保存执行前后用户会话只读探针。
+
 ## 决策日志（北京时间，逐步追加）
 
 | 时间 | 做了什么 | 原因 | 证据 | 结果 |
@@ -230,3 +262,5 @@ S3 的直接 pkg 安装与 Sparkle 下载/安装入口分别记录，不能互�
 | 2026-10-10 09:14 +0800 | 完成跨版本基线并记录延迟注销提示；准备 App 回滚脚本 | 用户确认两代宿主都能输入，随后提示证明 A1 与实际重连状态脱钩 | 收据09:05:30；日志09:07:45 presenting alert、09:07:48 later；5/30秒探针通过；user-acceptance.json | B4 本机未复现必须重开；无提示验收失败；sudo需密码，CUA禁止控制Terminal，回滚尚未执行 |
 | 2026-10-10 09:17 +0800 | 核验用户执行的 App 回滚 | 按失败恢复约定保留现场，不撤销收据或删除词典 | rollback-output.txt；PID 37873、inode 87976705、磁盘/LS 2.0.12；恢复及保留 App 的深度严格签名均通过 | 旧 TextEdit 86600 保留；收据仍2.0.13；实际打字待确认 |
 | 2026-10-10 09:20 +0800 | 新增 OwlBundleSwap 和 11 项真实文件系统单测 | 保持 App 外壳，以 RENAME_SWAP 交换 Contents，失败不走两次移动；首装使用 RENAME_EXCL | verify.py swift --test OwlBundleSwapTests 11/11；证据 20261010T011853Z-swift-d1tphz1c；SDK sys/stdio.h 定义交换 API | 临时目录通过；实际 App 外壳存在 macl，尚未验证其影响，也未接入安装流程 |
+| 2026-10-10 09:22 +0800 | 记录回滚后实际打字与随后再次弹窗 | 不把暂未出现弹窗当成最终无提示验收 | 用户先确认两边正常，再提供2.0.12注销提示截图；rollback-user-acceptance.json、rollback-logout-prompt-log.txt | App与打字恢复；无提示项仍失败，版本变化策略也触发降级提示 |
+| 2026-10-10 09:24 +0800 | 准备 macl 实验 driver/恢复脚本并完成签名副本预检 | 在真实安装前验证交换期间签名边界，避免隐藏暂存目录影响新进程启动 | 初次严格验签失败 unsealed contents；将旧 Contents 移出 App 后交换/换回验签均通过；shell语法通过 | 修正一次后预检通过；真实 /Library 交换尚未执行，等待用户 |
