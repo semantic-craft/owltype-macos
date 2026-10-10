@@ -4,7 +4,8 @@
 
 分支：`codex/no-logout-install-update`。核实基线：`7f24eac8fe379ec58e5fa5e1ae666d9e116a03b0`。
 已完成只读版本探针和离线自测；产品安装、更新、提示行为尚未修改。
-下一步由用户执行基线及 B4 隔离实验，保留原始输出后再实施。
+已下载并验证线上 2.0.13 更新包，备份当前装机 2.0.12；尚未安装。
+下一步由用户执行或明确批准基线及 B4 隔离实验，保留原始输出后再实施。
 不得把下面的源码核实、探针自测或微信静态分析记成真机验收通过。
 
 顺序：探针 → 基线/B4 → OwlBundleSwap 单测 → 用户 macl spike → 会话重启 →
@@ -121,18 +122,56 @@ bash scripts/check-live-ime-version.sh \
 需要恢复猫头鹰时由用户再次 `open -g '/Library/Input Methods/Owltype.app'` 后手动选择；
 系统通常会自动重新拉起两个服务。若仍异常停止诊断并交回用户，不擅自注销或重开 O。
 
-### 基线安装与跨版本 B4（等待产物确认）
+### 已核实产物（2026-10-10）
 
-需要用户指定旧版与目标版的现成 GUI/pkg 产物及已知可回退版本。
-不运行发版/签名/公证流程，也不以文件名推断包内版本。
-先只读检查产物版本、payload、身份和哈希，随后给出绑定到具体路径的安装及回滚命令，
-再由用户执行。pkg 的命令形式为 `sudo /usr/sbin/installer -pkg <已核实的包> -target /`；
-GUI 由用户打开已核实安装器并完成管理员授权。本阶段尚未授权 agent 实际安装。
+用户指定当前装机 2.0.12 为旧版，线上已发布 2.0.13 更新 pkg 为目标；仅在下载失败时
+才从两个 tag 打包。下载成功，因此未走本地打包，也没有签名、公证或读取私钥。
+
+- Feed：[线上 v3 appcast](https://downloads.responsay.com/owltype/v3/appcast.xml)。
+- 包：[2.0.13 Owltype-update.pkg](https://downloads.responsay.com/owltype/releases/2.0.13/Owltype-update.pkg)。
+- 长度：15,151,841 字节，与 appcast 完全一致。
+- SHA-256：`72494e3bfcb7efb9f0e75f7ec163a003835e4207197ee9c23b6dc59ba60e726f`，与 appcast 一致。
+- 用装机 2.0.12 内的 SUPublicEDKey 和仓库 `scripts/verify-sparkle-eddsa.swift` 验证
+  appcast Ed25519 签名，通过；未调用需要私钥的 sign_update。
+- `pkgutil --check-signature` 确认 Apple Developer ID Installer 签名、公证信任；
+  `spctl --assess --type install` 接受；包内 App `codesign --verify --deep --strict` 通过。
+- pkg、包内 App、装机备份的签名团队一致。包内 build/营销版本均为 2.0.13，
+  bundle ID、InputMethodConnectionName、公钥、完整 ComponentInputModeDict 与装机 2.0.12 一致。
+- `pkgutil --payload-files` 显示 316 条 `./Owltype.app/Contents/` 路径，PackageInfo
+  的安装根是 `/Library/Input Methods`；更新包无 RequireLogout。
+  解包得到的 preinstall/postinstall 与当前分支脚本逐字节一致。
+- 当前装机 App 已用 ditto 归档成 `Owltype-installed-2.0.12.zip`；解包后的版本仍为
+  2.0.12，完整 plist 一致，深度严格签名验证通过。这是 App 文件备份，不是用户数据或收据备份。
+
+本地证据子目录：`no-logout-20261010/published-2.0.13-wkcqsfhx`，位于前述 verification 根下。
+保留 `appcast.xml`、下载响应头、`selected-item.json`、`validation.json`、
+`content-checks.json`、签名/公证输出、完整 payload 列表、解包内容、2.0.12 备份。
+`validation.json` 记录校验命令及退出码；`content-checks.json` 另存 feed、验证器和备份哈希。
+
+### 基线安装与跨版本 B4（等用户执行或批准）
+
+下面是针对上述已核实包的安装命令，目的仅为记录原有 2.0.12 → 2.0.13 更新行为。
+**不要在完成 B4 同版本控制、保留旧 TextEdit 并准备好计时之前执行。**
+
+```sh
+artifact_dir="$HOME/Projects/_shared-work/owltype/verification/no-logout-20261010/published-2.0.13-wkcqsfhx"
+sudo /usr/sbin/installer -pkg "$artifact_dir/Owltype-update.pkg" -target /
+```
+
+用户执行时应将安装 stdout/stderr、退出码、安装起止 epoch 保存到独立实验目录，
+而不是仅运行上面两行后回忆时刻。密码由用户在原生终端/系统授权框输入。
+本阶段尚未授权 agent 实际安装或结束输入法进程。
 
 安装前保持 O 运行并能提交“你好”，记录其 PID、选中态、版本探针、开始时间；
 装完立即记完成时间，先记录无干预的探针/菜单/O/N 打字（N 必须是另一个 PID），
 之后才允许做服务重启对照。基线有 RequireLogout 或更新提示时记录失败，不接受注销。
-回退必须使用已核实的旧版安装器且不删除用户数据；如 GUI 拒绝降级，停止并另外确认恢复方案。
+本次回滚来源为已验签的装机 2.0.12 备份：用户先切到系统键盘，停止猫头鹰；
+将 `rollback/Owltype.app` 暂存到 `/Library/Input Methods/.Owltype.rollback-2.0.12`，
+核验签名并恢复 root:staff 所有权，再把失败的 live App 移到带时间戳的保留目录，
+将暂存 App 移回 `/Library/Input Methods/Owltype.app`。若第二次移动失败，立即移回保留目录中的
+失败 App，避免留下空安装路径。最后在用户会话重新启动并选择猫头鹰，运行版本/inode 探针和打字检查。
+这些恢复步骤同样需要用户执行或明确批准；不删除词典、不重写系统输入源文件。
+App 回滚不会撤销 pkg 收据或运行期间发生的用户数据变化；若出现数据格式不兼容，停止并另行确认恢复范围。
 首装场景的“无 bundle/未启用”前提不能靠删除用户词典或手改 HIToolbox 制造；
 当前主账号已有安装，清理范围/测试账号需用户另行选定后提供具体命令。
 
@@ -141,7 +180,7 @@ GUI 由用户打开已核实安装器并完成管理员授权。本阶段尚未�
 | 场景 | 版本三证/60 秒 | 菜单截图 | 旧 TextEdit 上屏 | 新 TextEdit 上屏 | 无注销提示 | 选中态保留 | 原始输出 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | B4 同版本控制 | 待用户执行 | 未采集 | 未测 | 未测 | 未测 | 未测 | 无 |
-| B4 跨版本基线 | 等待产物/用户执行 | 未采集 | 未测 | 未测 | 未测 | 未测 | 无 |
+| B4 跨版本基线 | 产物已验证，等用户执行 | 未采集 | 未测 | 未测 | 未测 | 未测 | 无安装输出 |
 | S1 GUI 首装 | 未测 | 未采集 | 未测 | 未测 | 未测 | 首装选中待测 | 无 |
 | S2 pkg 首装 | 未测 | 未采集 | 未测 | 未测 | 未测 | 首装选中待测 | 无 |
 | S3 Sparkle/pkg 更新，原选猫头鹰 | 未测 | 未采集 | 未测 | 未测 | 未测 | 未测 | 无 |
@@ -168,3 +207,4 @@ S3 的直接 pkg 安装与 Sparkle 下载/安装入口分别记录，不能互�
 | --- | --- | --- | --- | --- |
 | 2026-10-10 08:10 +0800 | 从 freshly fetched main 建指定分支，核对 A1–B4 | 先确认实际代码，避免把旧注释当平台规律 | 基线 7f24eac；上表源码定位及 squirrel#68 正文 | A1/A3/B3 口径收窄；B1 因果和 B4 保留待测 |
 | 2026-10-10 08:13 +0800 | 添加只读探针、19 项自测，接入 gate/distribution | 同时核对路径/启动时间、inode、三份版本，并拒绝不完整证据 | 探针自测 19/19、inode 自测、runner 8/8、bash -n | 离线通过；真实安装/打字未验证，停在用户实验前 |
+| 2026-10-10 08:45 +0800 | 下载线上 2.0.13 更新包，验证签名/身份/payload，归档并验签装机 2.0.12 | 用户指定已发布包为复现目标，实际安装前备好基线和回滚来源 | 长度/SHA 一致；Ed25519、pkgutil、spctl、App codesign 全通过；本地 validation.json/content-checks.json | 下载成功，无需 tag 打包；仍未安装，等待用户真机实验 |
