@@ -22,6 +22,8 @@ installer 返回 0；安装完成后约 1 秒内，版本/path/inode 三证通�
 用户操作期间父源曾读为 disabled、随后 enabled；准确干预时刻未知，不能据此断言自动禁用。
 此时新/旧 TextEdit 上屏、60 秒人工证据和无注销提示均未确认。用户已执行回滚：发行签名 2.0.12/PID86006/inode88269622 一致，失败 App 严格验签通过并保留；用户确认菜单恢复且旧 TextEdit 可五笔上屏。收据仍2.0.13。
 下一步回到此失败步骤，隔离注册刷新、签名身份变化、重复 LS claims；暂不叠加安装补丁。
+发行签名 2.0.12 控制组现已完成人工菜单/旧宿主打字确认；用户输入小写 pass，被脚本大小写判断误报为失败。
+原始输出保留，人工结果解释单独记录。已自动恢复发行签名 2.0.12/PID3908/inode88291319，Hans 选中；ad-hoc 对照尚未运行。
 
 不得把下面的源码核实、探针自测或微信静态分析记成真机验收通过。
 
@@ -198,6 +200,7 @@ App 回滚不会撤销 pkg 收据或运行期间发生的用户数据变化；�
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | B4 同版本控制 | 重启后 2.0.12 路径/inode/LS 版本通过，新 PID 20422 | 输入菜单未采集；打字基线截图已存 | 用户确认五笔“你好”上屏 | 用户确认五笔“你好”上屏 | 无版本变化提示被观察到；非完整 UI 扫描 | 猫头鹰保持选中 | b4-live-gtbydw85/b4-control-result.json、b4-1-after-retry.txt |
 | B4 跨版本基线 | 完成后 5/30 秒版本三证通过；人工打字时刻不满足计时证明 | 未采集；Installer 成功页已存 | 用户确认五笔“你好”上屏，旧 PID 86600 保留 | 用户确认新 PID 22804 上屏；文件未保存 | **失败：135 秒后弹出，用户选稍后** | 0 秒为 US，5/30 秒恢复 Hans | pkg-2.0.13-baseline 下 probe-*.txt、timeline.jsonl、user-acceptance.json、logout-prompt-final-log.txt |
+| 同版本原发行签名控制 | 2.0.12，恢复PID3908，inode88291319；非完整60秒验收 | 用户以pass确认菜单可见；未采集 | 用户以pass确认五笔上屏 | 本组不覆盖 | 本组不覆盖；原版延迟提示另有截图 | 最终读回Hans；CLI曾打印选择失败 | signature-control-un78ig0b/signed-run/session.log、restored.txt、interpretation.json |
 | S1 GUI 首装 | 未测 | 未采集 | 未测 | 未测 | 未测 | 首装选中待测 | 无 |
 | S2 pkg 首装 | 未测 | 未采集 | 未测 | 未测 | 未测 | 首装选中待测 | 无 |
 | S3 Sparkle/pkg 更新，原选猫头鹰 | 未测 | 未采集 | 未测 | 未测 | 未测 | 未测 | 无 |
@@ -297,12 +300,14 @@ bash "$HOME/Projects/_shared-work/owltype/verification/no-logout-20261010/macl-s
 
 | 2026-10-10 12:44 +0800 | 核验用户回滚及打字恢复，准备同代码不同签名对照 | 上次同时改变代码和签名，人工删加使后续状态不可归因；先控制变量 | rollback-verification.json、rollback-user-acceptance.json；signed/adhoc严格验签通过，两架构代码段和Info一致 | 2.0.12恢复且用户确认旧宿主可打字；控制实验待用户执行，未改装机状态、未叠加产品补丁 |
 
+| 2026-10-10 12:53 +0800 | 核验signed控制及自动恢复，修正交互脚本仅识别大写PASS的缺陷 | 用户小写pass不应被当成输入法失败，选中CLI错误也需区分随后读回 | signed-run原始日志、interpretation.json；大小写/空白等10项自测；恢复严格验签及inode通过 | 人工菜单/旧宿主控制通过，误判原文保留；不要求重做；ad-hoc待用户执行，未叠加产品补丁 |
+
 ## 菜单缺失：下一步隔离实验
 
 先保持代码和版本均为 2.0.12，以相同的共享文件交换、用户进程重启和 TextInput 服务刷新流程做
 signed 控制，再做 ad-hoc 对照。第一组失败就停止，不继续第二组；每组退出时都恢复发行签名 2.0.12。
 候选目录为本地证据根下 `signature-control-un78ig0b`。`code-section-proof.json` 证明两架构主程序
-`__TEXT,__text` 以及 Info.plist 一致；`preflight.json` 保留严格验签及比对命令；尚未运行装机实验。
+`__TEXT,__text` 以及 Info.plist 一致；`preflight.json` 保留严格验签及比对命令。signed 控制已运行；ad-hoc 尚未运行。
 驱动为同目录 `run-control.sh signed|adhoc`，只允许普通登录用户执行，内部 sudo 仅调用既有文件提交 helper。
 不运行 pkg、不改收据、不删除词典、不注册/启用输入源来修补现场。人工确认之后自动换回已验签副本。
 
