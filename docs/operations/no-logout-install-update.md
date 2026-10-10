@@ -3,7 +3,7 @@
 ## 当前状态
 
 分支：`codex/no-logout-install-update`。核实基线：`7f24eac8fe379ec58e5fa5e1ae666d9e116a03b0`。
-已实现探针、原子交换、暂存 pkg、共享会话自检、GUI 复用及失败才提示注销；尚未安装修改后的产物。
+已实现探针、原子交换、暂存 pkg、共享会话自检、GUI 复用及失败才提示注销；修改版 pkg 已安装测试并失败，见下文。
 已验签并安装线上 2.0.13 更新包；旧、新 TextEdit 五笔上屏成功，但稍后出现注销提示。
 安装基线失败项已复现；用户已执行回滚，当前 App 为 2.0.12，安装收据保留 2.0.13。
 回滚进程 PID 37873、路径/磁盘/LS 版本一致、inode 检查通过；用户确认旧、新宿主打字恢复。
@@ -23,7 +23,12 @@ installer 返回 0；安装完成后约 1 秒内，版本/path/inode 三证通�
 此时新/旧 TextEdit 上屏、60 秒人工证据和无注销提示均未确认。用户已执行回滚：发行签名 2.0.12/PID86006/inode88269622 一致，失败 App 严格验签通过并保留；用户确认菜单恢复且旧 TextEdit 可五笔上屏。收据仍2.0.13。
 下一步回到此失败步骤，隔离注册刷新、签名身份变化、重复 LS claims；暂不叠加安装补丁。
 发行签名 2.0.12 控制组现已完成人工菜单/旧宿主打字确认；用户输入小写 pass，被脚本大小写判断误报为失败。
-原始输出保留，人工结果解释单独记录。已自动恢复发行签名 2.0.12/PID3908/inode88291319，Hans 选中；ad-hoc 对照尚未运行。
+原始输出保留，人工结果解释单独记录。ad-hoc 同版本组也已人工通过：菜单有猫头鹰，旧 TextEdit 可五笔上屏。
+最新自动恢复为发行签名 2.0.12/PID10550/inode88299480，严格验签及映射检查通过，Hans 选中。
+两组结果不支持“签名变化本身足以造成菜单缺失”；尚未验证修改版的生产会话收尾。
+安装原始日志新增直接证据：11:56:08 的 INSTALL_SESSION_OK 之后，PackageKit 又注册暂存路径的 Owltype.app。
+空 component plist 未阻止最终注册，原结构检查的保证不足；与菜单缺失的因果仍需隔离。
+下一步已准备同一 b8ad566 App、不经 PackageKit、调用生产 --finish-install 的控制脚本；尚未执行或修改产品代码。
 
 不得把下面的源码核实、探针自测或微信静态分析记成真机验收通过。
 
@@ -302,12 +307,14 @@ bash "$HOME/Projects/_shared-work/owltype/verification/no-logout-20261010/macl-s
 
 | 2026-10-10 12:53 +0800 | 核验signed控制及自动恢复，修正交互脚本仅识别大写PASS的缺陷 | 用户小写pass不应被当成输入法失败，选中CLI错误也需区分随后读回 | signed-run原始日志、interpretation.json；大小写/空白等10项自测；恢复严格验签及inode通过 | 人工菜单/旧宿主控制通过，误判原文保留；不要求重做；ad-hoc待用户执行，未叠加产品补丁 |
 
-## 菜单缺失：下一步隔离实验
+| 2026-10-10 13:03 +0800 | 核验 ad-hoc 控制通过和自动恢复；提取 PackageKit 晚注册证据并准备生产会话控制 | 排除单纯签名假设，纠正空组件列表能阻止注册的错误保证；先隔离再改产品 | adhoc-run/interpretation.json；PID10550/inode88299480严格验签通过；packagekit-finalization.txt；控制脚本 bash -n 通过 | 两个同版本控制人工通过；原修改pkg仍失败；暂存App晚注册已证实，菜单因果待测；未叠加产品补丁 |
+
+## 菜单缺失：控制结果与后续隔离
 
 先保持代码和版本均为 2.0.12，以相同的共享文件交换、用户进程重启和 TextInput 服务刷新流程做
 signed 控制，再做 ad-hoc 对照。第一组失败就停止，不继续第二组；每组退出时都恢复发行签名 2.0.12。
 候选目录为本地证据根下 `signature-control-un78ig0b`。`code-section-proof.json` 证明两架构主程序
-`__TEXT,__text` 以及 Info.plist 一致；`preflight.json` 保留严格验签及比对命令。signed 控制已运行；ad-hoc 尚未运行。
+`__TEXT,__text` 以及 Info.plist 一致；`preflight.json` 保留严格验签及比对命令。signed 与 ad-hoc 控制均已运行并通过人工菜单/旧宿主打字检查。
 驱动为同目录 `run-control.sh signed|adhoc`，只允许普通登录用户执行，内部 sudo 仅调用既有文件提交 helper。
 不运行 pkg、不改收据、不删除词典、不注册/启用输入源来修补现场。人工确认之后自动换回已验签副本。
 
@@ -319,3 +326,29 @@ signed 控制，再做 ad-hoc 对照。第一组失败就停止，不继续第�
 
 菜单 AX 查询超时，不能仅靠 TIS 布尔值自动确认实际菜单。每组人工 PASS 必须同时满足菜单可见和旧宿主上屏；
 任何手工删加输入源都使该组失败。统一日志未提供可归因的 Owltype 拒收原因；CharacterPaletteIM 的错误不作为 Owltype 根因。
+
+
+### PackageKit 最终注册的直接证据
+
+本地 `native-b8ad566-imqzppmw/packagekit-finalization.txt` 保留 `/var/log/install.log` 的
+本次安装原始片段；`packagekit-finalization-analysis.json` 区分观察与推断。
+组件 PackageInfo 的 bundle-version/relocate 均为空，但系统仍记录：
+
+```text
+11:56:08 postinstall: INSTALL_SESSION_OK pid=70931 version=2.0.13
+11:56:08 installd: Writing receipt for im.owltype.inputmethod.Owltype
+11:56:08 installd: Touched bundle /Library/Input Methods/.Owltype.pkg-staging/Owltype.app
+11:56:08 installer: Registered bundle file:///Library/Input%20Methods/.Owltype.pkg-staging/Owltype.app/ for uid 0
+```
+
+这确认 B1 的“最终注册晚于 postinstall”仍存在于新暂存方案，不能再声称空组件列表会阻止注册。
+日志还声明 receipt-based obsoleting，但没有直接文件删除证据，不据此断言旧 live Contents 被删。
+当前优先级：晚到的暂存 App 注册 > 生产会话收尾与控制脚本差异 > 多份 App 注册记录干扰。
+同版本两签名控制已降低“单纯换签名”的解释力，但没有排除其与 PackageKit 的组合影响。
+
+下一控制保留失败产物 b8ad566 的字节、签名和 `--finish-install`，绕过 PackageKit，使用既有文件 helper。
+若仍缺菜单，则晚到的 PackageKit 注册不是该失败的必要条件；若通过，则优先缩小 PackageKit/启动上下文的差异，
+仍不能直接归因于某一条注册。控制脚本为本地 `session-control-r6pwto8y/run-control.sh`，严格验签/hash/旧宿主守卫、
+原选中态读回、版本探针和自动恢复均已准备；bash 语法检查通过，尚未真机执行。
+起始选中态按现场记录（当前 Hans，上次失败时微信），差异必须保留，不作同条件因果证明。
+控制通过也不算 S3/S4；下一轮产品修复需避免把可注册的暂存 App 交给 PackageKit，并重新验证完整安装边界。
