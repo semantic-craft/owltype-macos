@@ -8,7 +8,7 @@ Release composition remains in the [publishing checklist](../PUBLISHING_CHECKLIS
 
 | Path | Implementation | Current behaviour and boundary |
 | --- | --- | --- |
-| DMG GUI installer | [Installer](../../installer/Sources/Installer.swift), [policy](../../installer/Sources/InstallerActivationPolicy.swift), [verifier](../../installer/Sources/InstallerActivationVerifier.swift), [TIS probe](../../installer/Sources/InstallerTISProbe.swift) | Samples existing bundle, running process and selected source before replacement. Chooses an enabled, selectable system ASCII keyboard when parking is needed, selects through a fresh CLI process and verifies readback before proceeding. |
+| DMG GUI installer | [Installer](../../installer/Sources/Installer.swift), [policy](../../installer/Sources/InstallerActivationPolicy.swift), [session self-check](../../sources/Activation/OwlInstallSession.swift), [TIS probe](../../installer/Sources/InstallerTISProbe.swift) | Samples existing bundle, running process and selected source before replacement. Chooses an enabled, selectable system ASCII keyboard when parking is needed, selects through a fresh CLI process and verifies readback before proceeding. |
 | PKG / Sparkle | [preinstall](../../scripts/preinstall), [postinstall](../../scripts/postinstall), [first-install distribution](../../package/Distribution), [update distribution](../../package/Distribution-update) | Saves pre-replacement state across package phases. First-install PKG declares logout; update PKG does not. The parking step still attempts ABC best-effort; it does not use the GUI installer's available-keyboard selection and readback. |
 
 Do not apply the GUI installer's US-only regression result to the PKG path. Changing
