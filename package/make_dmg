@@ -5,7 +5,7 @@
 # 首装免注销专题 07-02 复活），内嵌 **已 staple 的** Owltype.app；另含：
 #   - 卸载猫头鹰.command   双击卸载，调同目录的 uninstall-owltype.sh（严格白名单）。
 #   - uninstall-owltype.sh  白名单卸载脚本本体（与 .command 同目录打包，供其调用）。
-# Owltype.pkg 不再进 DMG，但继续由 `make package` 构建发布（备用/企业直装链，仍 RequireLogout）；
+# Owltype.pkg 不再进 DMG，但继续由 `make package` 构建发布（备用直装链，无 RequireLogout）；
 # Sparkle 自动更新仍走 Owltype-update.pkg（本脚本零接触）。
 #
 # 用法:  bash package/make_dmg /absolute/release-output-root

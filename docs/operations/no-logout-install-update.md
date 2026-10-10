@@ -11,7 +11,10 @@
 用户已批准并完成本机 B4、发布包安装/回滚和 macl 实验；修改后产物的真机安装仍需按原限制交给用户执行或确认，管理员认证由用户接管。
 已完成真机只读基线和 B4 同版本对照：用户用五笔确认旧、新 TextEdit 都能提交“你好”。
 同版本和跨版本 B4 在本机均未复现“旧 TextEdit 必须重开”；不能外推其他系统。
-macl 真机 spike 已通过。下一步完成分支头 gate 与产物验证，再由用户执行 S1–S4。
+macl 真机 spike 已通过；3e323f3 干净分支头完整 gate 通过（1310 项产品测试）。
+两种未签名 product pkg 的实际展开结构检查通过；draft PR #203 已创建，尚未合并。
+修改版真机验收需先解决签名约束：现有禁签名要求下，无法保留修改后 App 的发行签名；
+已询问是否允许隔离测试副本 ad-hoc 签名。即使允许，也不等于 GUI 发行验签或真实 Sparkle 已可验收。
 Sparkle 的仅下载接管尚未实现，当前仍使用其既有 pkg 安装器；真实 Sparkle 入口不计通过。
 不得把下面的源码核实、探针自测或微信静态分析记成真机验收通过。
 
@@ -206,7 +209,8 @@ S3 的直接 pkg 安装与 Sparkle 下载/安装入口分别记录，不能互�
 - 自测已接入 gate 的 portable_scripts 及 verify.py distribution。
 - 五组相关 Swift 测试 96/96 通过（20261010T032914Z-swift-zhm__izf）：OwlBundleSwapTests、OwlSessionRestartTests、InstallerActivationPolicyTests、OwlUpdateLogoutPromptTests、ActivationPolicyTests。
 - check-release.selftest 17/17、release-cohort-selftest 33/33 通过；GUI 无签名构建通过。
-- cfaba60 的干净分支头 gate 在 release_checks 失败：identity selftest 仍把夹具放到旧的 live payload 路径；此前所有阶段（含产品测试与构建）通过。修正夹具后 identity selftest 16/16，准备重跑完整 gate。失败证据：20261010T033505Z-full-ceatwrfb。
+- cfaba60 的干净分支头 gate 在 release_checks 失败：identity selftest 仍把夹具放到旧的 live payload 路径；此前所有阶段（含产品测试与构建）通过。修正夹具后 identity selftest 16/16；3e323f3 完整 gate 通过，证据 20261010T034015Z-full-hzs73vjg。失败证据：20261010T033505Z-full-ceatwrfb。
+- 实际 product pkg 结构证据：no-logout-20261010/product-pkgs-_9_8c099，含命令、pkgutil payload 原始输出、两个展开目录及 result.json。PASS_STRUCTURE_ONLY，不是安装验收或可发布 cohort。
 - 未验证：修改后 S1–S4、无 ABC、Intel、macOS 14/15、真实 Sparkle 入口、指定 sudo installer CLI 基线入口。
 - 真机：arm64、macOS 27.0.1 (26A434)。2.0.13 的 PID 22162 于安装期间启动；
   路径正确，inode 87910446 映射检查通过，磁盘/lsappinfo/目标均为 2.0.13。
@@ -267,7 +271,6 @@ bash "$HOME/Projects/_shared-work/owltype/verification/no-logout-20261010/macl-s
 | 2026-10-10 08:45 +0800 | 下载线上 2.0.13 更新包，验证签名/身份/payload，归档并验签装机 2.0.12 | 用户指定已发布包为复现目标，实际安装前备好基线和回滚来源 | 长度/SHA 一致；Ed25519、pkgutil、spctl、App codesign 全通过；本地 validation.json/content-checks.json | 下载成功，无需 tag 打包；仍未安装，等待用户真机实验 |
 | 2026-10-10 08:56 +0800 | 接受本机实验/安装授权，采集完整只读快照并建立独立旧 TextEdit 文档 | B4 必须先证明装前可以真实上屏，不能用失效或未确认基线推断更新行为 | b4-0-before.txt、baseline-observations.json；CUA 单独 Shift 不受支持 | 版本映射基线通过；等待实体键盘打字结果，尚未重启或安装 |
 | 2026-10-10 09:04 +0800 | 完成 2.0.12 同版本服务器重启对照 | 单独检验旧 TextEdit 是否必须重开 | PID 830→20422；旧宿主 86600 保留，新宿主 20527；用户确认两者均可五笔输入“你好”；b4-control-result.json | 同版本对照通过；首次 open 返回 -600，确认旧进程退出后一次重试成功；尚不能代替跨版本结论 |
-
 | 2026-10-10 09:14 +0800 | 完成跨版本基线并记录延迟注销提示；准备 App 回滚脚本 | 用户确认两代宿主都能输入，随后提示证明 A1 与实际重连状态脱钩 | 收据09:05:30；日志09:07:45 presenting alert、09:07:48 later；5/30秒探针通过；user-acceptance.json | B4 本机未复现必须重开；无提示验收失败；sudo需密码，CUA禁止控制Terminal，回滚尚未执行 |
 | 2026-10-10 09:17 +0800 | 核验用户执行的 App 回滚 | 按失败恢复约定保留现场，不撤销收据或删除词典 | rollback-output.txt；PID 37873、inode 87976705、磁盘/LS 2.0.12；恢复及保留 App 的深度严格签名均通过 | 旧 TextEdit 86600 保留；收据仍2.0.13；实际打字待确认 |
 | 2026-10-10 09:20 +0800 | 新增 OwlBundleSwap 和 11 项真实文件系统单测 | 保持 App 外壳，以 RENAME_SWAP 交换 Contents，失败不走两次移动；首装使用 RENAME_EXCL | verify.py swift --test OwlBundleSwapTests 11/11；证据 20261010T011853Z-swift-d1tphz1c；SDK sys/stdio.h 定义交换 API | 临时目录通过；实际 App 外壳存在 macl，尚未验证其影响，也未接入安装流程 |
@@ -278,5 +281,6 @@ bash "$HOME/Projects/_shared-work/owltype/verification/no-logout-20261010/macl-s
 | 2026-10-10 11:24 +0800 | pkg改为隐藏暂存payload、root文件提交与用户会话收尾；新增校验失败恢复测试 | 消除PackageKit原地覆盖live和收据边界延迟任务，交换后移出旧Contents再验签 | Swift交换/会话26/26；release selftest15/15；真实未签名组件pkgutil payload无live路径，PackageInfo无bundle注册；证据staged-pkg-9uoglhmo | 离线通过，未安装；结构检查初次把系统/var软链误判，限定到payload边界后修正通过；两产品pkg仍待最终构建 |
 | 2026-10-10 11:26 +0800 | GUI复用 --commit-install 与 --finish-install，删除旧Verifier及旧整包替换/服务清理 | 两个入口使用相同原语和自检，避免30秒软超时直接建议注销 | GUI无签名构建通过；相关Swift组通过，证据20261010T032538Z-swift-_5dfrr0m；release-cohort-selftest33/33 | 未安装GUI；首次测试编译有两处旧参数，修正一次后通过 |
 | 2026-10-10 11:31 +0800 | 删除版本变化触发和常驻注销菜单，只在自检失败时提供恢复；两个pkg去RequireLogout并更新发版断言/文档 | 基线升级及降级都在成功上屏后延迟弹窗，版本差异不能证明会话坏了 | 五组Swift96/96；release selftest17/17；证据20261010T032914Z-swift-zhm__izf | 离线通过，正式S1–S4待测；Sparkle仅下载接管仍未实现 |
-
 | 2026-10-10 11:40 +0800 | 修正 identity 自测夹具的 pkg 暂存路径 | 完整 gate 检出旧夹具路径导致毒化 payload 未被扫描，不能放宽断言 | cfaba60 gate 的 release_checks 失败；修正后 identity selftest16/16 | 单次修正通过；即将重跑干净分支头 gate |
+
+| 2026-10-10 11:46 +0800 | 完成两产品pkg结构验证及完整gate，推送分支并建draft PR #203；清理旧注销标题和打包注释 | 交付可审阅修改，保留失败与真机证据边界 | 3e323f3 gate 全阶段通过、产品1310/1310；product-pkgs-_9_8c099 两包无live payload/RequireLogout | 未合并/发布；签名约束待用户答复，S1–S4及Sparkle仅下载仍未完成；本次收尾提交后重跑分支头验证 |
