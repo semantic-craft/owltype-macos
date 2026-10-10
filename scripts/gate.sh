@@ -64,6 +64,7 @@ portable_scripts() {
     scripts/safe-extract-tar.py
   python3 scripts/owl-distribution.selftest.py
   python3 scripts/release-source-archive.selftest.py
+  bash scripts/check-live-ime-version.sh --self-test
 }
 
 secret_policy() {
