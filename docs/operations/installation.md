@@ -53,7 +53,9 @@ remain unresolved and must not be presented as verified. Native logs disproved t
 assumption: PackageKit still registered the staged App after postinstall and the process/TIS self-check.
 The revised format gives PackageKit only an inert archive. Release, identity and secret gates unpack and
 inspect its real contents; they reject direct App payloads, escaping archive paths and unsafe links.
-Native acceptance of this revision is pending. Receipt-based obsoleting during migration from an older
+A direct-pkg native run confirmed menu visibility, preserved selection and old/new host typing;
+the designated new-host check completed outside the 60-second window, so full timed acceptance
+remains pending. Receipt-based obsoleting during migration from an older
 live-bundle receipt also remains unverified; App rollback does not restore that older receipt.
 
 ## Acceptance and recovery
