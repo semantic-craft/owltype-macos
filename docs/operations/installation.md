@@ -11,7 +11,7 @@ Both the GUI installer and package scripts invoke the installed payload's CLI:
 | Phase | Owner | Contract |
 | --- | --- | --- |
 | Capture | GUI / preinstall | Capture existing installation and exact selected source before replacement. Missing update context fails closed. |
-| Stage | PackageKit / privileged file helper | PKG payload targets `/Library/Input Methods/.Owltype.pkg-staging/Owltype.app`; the live App is absent from the payload. **Known failure:** PackageKit still registers the staged App after postinstall despite the empty component list. This format must be revised before acceptance. |
+| Stage | PackageKit / privileged file helper | PKG payload contains only `/Library/Input Methods/.Owltype.pkg-staging/Owltype.app.zip`. postinstall unpacks into a fresh root-only directory, verifies and commits, then removes that private unpack directory before session recovery. The live App and all nested bundles are absent from the PackageKit payload. |
 | Commit | `--commit-install` as root | Copy into a protected candidate, validate signature and unchanged identities, preserve the live App shell, exchange `Contents` and `.Contents.update` with `RENAME_SWAP`. Move retired contents outside the App before strict signature verification. First install uses `RENAME_EXCL`. |
 | Activate | `--finish-install` as console user | End old installed server instances, register/enable parent and primary mode only on first install, read back selection, refresh only TextInputMenuAgent/TextInputSwitcher, launch the installed App, and poll its state. |
 | Verify | Fresh user-session probe | Require enabled input sources, expected selection, one server at the installed executable path, expected LS version and current executable inode. Default budget is 45 seconds. |
@@ -49,10 +49,12 @@ button keeps the session open. The GUI also reports a failed self-check without 
 
 Sparkle's existing package installer remains in use on this branch at present. Its upstream lifecycle
 may terminate the host before package execution. Download-only handoff and the real Sparkle entrypoint
-remain unresolved and must not be presented as verified. The staged package path avoids a direct live-bundle payload and removes the previous
-receipt-dependent delayed selection job, but native logs prove late registration of the staged App
-still occurs. Current process/TIS self-check success precedes that registration and is insufficient
-to establish final menu availability. Receipt-based obsoleting is also logged; its effect remains unverified.
+remain unresolved and must not be presented as verified. Native logs disproved the previous empty-component-list
+assumption: PackageKit still registered the staged App after postinstall and the process/TIS self-check.
+The revised format gives PackageKit only an inert archive. Release, identity and secret gates unpack and
+inspect its real contents; they reject direct App payloads, escaping archive paths and unsafe links.
+Native acceptance of this revision is pending. Receipt-based obsoleting during migration from an older
+live-bundle receipt also remains unverified; App rollback does not restore that older receipt.
 
 ## Acceptance and recovery
 

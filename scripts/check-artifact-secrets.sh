@@ -63,6 +63,13 @@ for artifact in "$@"; do
         echo "ERROR: pkgutil failed to safely expand $label" >&2
         exit 70
       }
+      # Packaging now hides the App from PackageKit inside a ZIP. Scan its unpacked contents
+      # under the same target, so compression cannot hide a credential from either scanner.
+      component="$target/Owltype-component.pkg"
+      if [[ -f "$component/Payload/Library/Input Methods/.Owltype.pkg-staging/Owltype.app.zip" ]]; then
+        python3 "$repo_root/scripts/check-staged-pkg.py" "$component" \
+          --extract-to "$target/checked-app" >/dev/null
+      fi
       ;;
     *.dmg)
       target="$work_dir/$scanned-dmg"

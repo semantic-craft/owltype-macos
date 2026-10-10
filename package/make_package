@@ -30,8 +30,8 @@ else
 fi
 python3 "$INVENTORY" check "$RELEASE_OUTPUT_ROOT"
 
-# PackageKit owns only the hidden staging tree. The script exchanges live Contents after extraction.
-# An empty component list prevents PackageKit from registering or relocating the staged bundle.
+# PackageKit sees only an inert archive: empty bundle metadata alone did not stop its final
+# registration of a staged App. postinstall privately unpacks and commits before session recovery.
 WORK="$(mktemp -d)"
 cleanup() {
     rm -rf "${WORK}"
@@ -42,7 +42,7 @@ SCRIPTS_STAGING="${WORK}/scripts"
 mkdir -p "${STAGING}" "${SCRIPTS_STAGING}"
 PAYLOAD_PARENT="${STAGING}/Library/Input Methods/.Owltype.pkg-staging"
 mkdir -p "${PAYLOAD_PARENT}"
-cp -R "${OWL_APP}" "${PAYLOAD_PARENT}/Owltype.app"
+/usr/bin/ditto -c -k --sequesterRsrc --keepParent "${OWL_APP}" "${PAYLOAD_PARENT}/Owltype.app.zip"
 install -m 0755 "${PROJECT_ROOT}/scripts/preinstall" "${SCRIPTS_STAGING}/preinstall"
 install -m 0755 "${PROJECT_ROOT}/scripts/postinstall" "${SCRIPTS_STAGING}/postinstall"
 

@@ -48,7 +48,9 @@ expect_fail() {
 # write_app <dir> <identifier> [extra-plist-entry]
 write_app() {
   local dir="$1" identifier="$2" extra="${3:-}"
-  mkdir -p "$dir/Contents"
+  mkdir -p "$dir/Contents/MacOS"
+  printf '#!/bin/sh\nexit 0\n' > "$dir/Contents/MacOS/Owltype"
+  chmod +x "$dir/Contents/MacOS/Owltype"
   cat > "$dir/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -83,7 +85,7 @@ cp -R "$work/poison-app/Owltype.app" \
 # Build one complete clean artifact set so strict structure tests can replace exactly one
 # layer. This prevents an unrelated missing layer from supplying the nonzero exit status.
 mkdir -p "$work/clean-pkgroot/Library/Input Methods/.Owltype.pkg-staging"
-cp -R "$work/clean-app/Owltype.app" "$work/clean-pkgroot/Library/Input Methods/.Owltype.pkg-staging/Owltype.app"
+/usr/bin/ditto -c -k --sequesterRsrc --keepParent "$work/clean-app/Owltype.app" "$work/clean-pkgroot/Library/Input Methods/.Owltype.pkg-staging/Owltype.app.zip"
 mkdir -p "$work/clean-package"
 pkgbuild --root "$work/clean-pkgroot" --identifier im.owltype.inputmethod.Owltype \
   --install-location / --component-plist "$ROOT/package/Owltype-component.plist" --version 0.0 \
@@ -190,7 +192,7 @@ fi
 
 # --- negative B: pkg payload plist carries a HARD token → fails even non-strict ---
 mkdir -p "$work/pkgroot/Library/Input Methods/.Owltype.pkg-staging"
-cp -R "$work/poison-app/Owltype.app" "$work/pkgroot/Library/Input Methods/.Owltype.pkg-staging/Owltype.app"
+/usr/bin/ditto -c -k --sequesterRsrc --keepParent "$work/poison-app/Owltype.app" "$work/pkgroot/Library/Input Methods/.Owltype.pkg-staging/Owltype.app.zip"
 pkgbuild --root "$work/pkgroot" --identifier im.owltype.inputmethod.Owltype \
   --install-location / --component-plist "$ROOT/package/Owltype-component.plist" --version 0.0 "$work/Owltype-component.pkg" >/dev/null 2>&1
 productbuild --synthesize --package "$work/Owltype-component.pkg" "$work/dist.xml" >/dev/null 2>&1

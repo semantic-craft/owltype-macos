@@ -600,9 +600,17 @@ class ShellAdapterTests(unittest.TestCase):
         finding = [{"RuleID": "synthetic-container-secret", "File": "runtime.env"}]
 
         pkg_root = self.root / "pkg-root"
-        pkg_secret = pkg_root / "Owltype.app" / "Contents" / "Resources" / "runtime.env"
+        pkg_app = self.root / "archive-source" / "Owltype.app"
+        pkg_secret = pkg_app / "Contents" / "Resources" / "runtime.env"
         pkg_secret.parent.mkdir(parents=True)
         pkg_secret.write_text(f"credential={sentinel}\n", encoding="utf-8")
+        (pkg_app / "Contents/Info.plist").write_text("fixture")
+        (pkg_app / "Contents/MacOS").mkdir()
+        (pkg_app / "Contents/MacOS/Owltype").write_text("fixture executable")
+        archive = pkg_root / "Library/Input Methods/.Owltype.pkg-staging/Owltype.app.zip"
+        archive.parent.mkdir(parents=True)
+        subprocess.run(["/usr/bin/ditto", "-c", "-k", "--keepParent", str(pkg_app), str(archive)],
+                       check=True, capture_output=True)
         component = self.root / "Owltype-component.pkg"
         distribution = self.root / "Distribution.xml"
         product_pkg = self.root / "Owltype.pkg"
@@ -616,7 +624,7 @@ class ShellAdapterTests(unittest.TestCase):
                 "--version",
                 "1",
                 "--install-location",
-                "/Library/Input Methods",
+                "/",
                 str(component),
             ],
             check=True,

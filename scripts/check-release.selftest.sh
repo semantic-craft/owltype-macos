@@ -144,7 +144,7 @@ else
   bad "package must fail closed and separate privileged files from user-session actions"
 fi
 if python3 "$ROOT/scripts/check-staged-pkg.py" --self-test; then
-  ok "staged payload gate rejects live overwrite and PackageKit registration"
+  ok "staged payload gate rejects live overwrite and directly registerable bundles"
 else
   bad "staged payload gate regression"
 fi
