@@ -12,6 +12,7 @@ import InputMethodKit
 import os
 
 final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegate, UNUserNotificationCenterDelegate {
+  private var installSelfCheckObserver: NSObjectProtocol?
   static let rimeWikiURL = URL(string: "https://github.com/rime/home/wiki")!
   static let updateNotificationIdentifier = "OwlUpdateNotification"
   static let notificationIdentifier = "OwlNotification"
@@ -167,9 +168,16 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     if !suppressOnboarding && !OwlOnboarding.isDone {
       showOnboarding()
     }
-    // #16 新方向：更新后强推注销（免注销自动保持选中态真机不可靠）。首启不弹（首装走 pkg RequireLogout）。
-    let currentVersion = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? ""
-    OwlUpdateLogoutPrompt.runIfNeeded(current: currentVersion)
+    // Only a completed self-check failure can request recovery guidance; startup/version
+    // changes never arm a logout prompt. The CLI writes its result before notifying this app.
+    installSelfCheckObserver = DistributedNotificationCenter.default().addObserver(
+      forName: OwlUpdateLogoutPrompt.selfCheckNotification, object: nil, queue: .main
+    ) { _ in
+      Task { @MainActor in
+        let current = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
+        OwlUpdateLogoutPrompt.runIfNeeded(current: current)
+      }
+    }
   }
 
   func applicationDidBecomeActive(_ notification: Notification) {

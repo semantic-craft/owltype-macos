@@ -3,7 +3,7 @@
 ## 当前状态
 
 分支：`codex/no-logout-install-update`。核实基线：`7f24eac8fe379ec58e5fa5e1ae666d9e116a03b0`。
-已完成只读版本探针和离线自测；产品安装、更新、提示行为尚未修改。
+已实现探针、原子交换、暂存 pkg、共享会话自检、GUI 复用及失败才提示注销；尚未安装修改后的产物。
 已验签并安装线上 2.0.13 更新包；旧、新 TextEdit 五笔上屏成功，但稍后出现注销提示。
 安装基线失败项已复现；用户已执行回滚，当前 App 为 2.0.12，安装收据保留 2.0.13。
 回滚进程 PID 37873、路径/磁盘/LS 版本一致、inode 检查通过；用户确认旧、新宿主打字恢复。
@@ -11,7 +11,8 @@
 用户已明确批准 agent 开始本机 B4 和安装，后续不重复索要安装确认；管理员认证仍由用户接管。
 已完成真机只读基线和 B4 同版本对照：用户用五笔确认旧、新 TextEdit 都能提交“你好”。
 同版本和跨版本 B4 在本机均未复现“旧 TextEdit 必须重开”；不能外推其他系统。
-OwlBundleSwap 已完成临时目录测试，尚未接入产品路径；macl 真机 spike 已通过；用户会话重启序列和 CLI 已实现并通过离线测试，已接入暂存 pkg；下一步让 GUI 复用相同文件/会话入口。
+macl 真机 spike 已通过。下一步完成分支头 gate 与产物验证，再由用户执行 S1–S4。
+Sparkle 的仅下载接管尚未实现，当前仍使用其既有 pkg 安装器；真实 Sparkle 入口不计通过。
 不得把下面的源码核实、探针自测或微信静态分析记成真机验收通过。
 
 顺序：探针 → 基线/B4 → OwlBundleSwap 单测 → 用户 macl spike → 会话重启 →
@@ -274,3 +275,4 @@ bash "$HOME/Projects/_shared-work/owltype/verification/no-logout-20261010/macl-s
 | 2026-10-10 11:15 +0800 | 实现用户会话重启序列、fresh TIS/进程探针与 --finish-install CLI | 替换后有界结束旧进程；首装注册启用；选择读回后只刷两个TextInput服务；版本/path/inode共同自检 | 新增11项会话测试，连同四个指定组共113/113；证据20261010T031407Z-swift-01iq58j7；真实只读探针正确，开发目录重启入口被拒绝 | 尚未接入pkg/GUI或真机重启；第一次集成编译漏括号，修正一次后全通过 |
 | 2026-10-10 11:24 +0800 | pkg改为隐藏暂存payload、root文件提交与用户会话收尾；新增校验失败恢复测试 | 消除PackageKit原地覆盖live和收据边界延迟任务，交换后移出旧Contents再验签 | Swift交换/会话26/26；release selftest15/15；真实未签名组件pkgutil payload无live路径，PackageInfo无bundle注册；证据staged-pkg-9uoglhmo | 离线通过，未安装；结构检查初次把系统/var软链误判，限定到payload边界后修正通过；两产品pkg仍待最终构建 |
 | 2026-10-10 11:26 +0800 | GUI复用 --commit-install 与 --finish-install，删除旧Verifier及旧整包替换/服务清理 | 两个入口使用相同原语和自检，避免30秒软超时直接建议注销 | GUI无签名构建通过；相关Swift组通过，证据20261010T032538Z-swift-_5dfrr0m；release-cohort-selftest33/33 | 未安装GUI；首次测试编译有两处旧参数，修正一次后通过 |
+| 2026-10-10 11:31 +0800 | 删除版本变化触发和常驻注销菜单，只在自检失败时提供恢复；两个pkg去RequireLogout并更新发版断言/文档 | 基线升级及降级都在成功上屏后延迟弹窗，版本差异不能证明会话坏了 | 五组Swift96/96；release selftest17/17；证据20261010T032914Z-swift-zhm__izf | 离线通过，正式S1–S4待测；Sparkle仅下载接管仍未实现 |

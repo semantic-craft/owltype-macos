@@ -2,7 +2,7 @@
 //
 // 为什么是纯函数：TIS/IMK 无法 headless 单测，所以把「该不该 enable/select」
 // 与「读回验证状态机」抽成纯函数，编进 OwltypeTests 覆盖真值表（tests/InstallerActivationPolicyTests.swift，
-// 参照 ActivationPolicyTests 的 pure-dispatch 风格）；TIS 副作用薄层留在 Installer / Verifier。
+// 参照 ActivationPolicyTests 的 pure-dispatch 风格）；TIS 副作用薄层留在 OwlInstallSession。
 //
 // 当前策略、回归测试和历史观察边界见 `docs/operations/installation.md`。
 // 更新判据是替换前的 bundle/进程状态；不以主模式 IsEnabled 单独判断。
@@ -24,8 +24,8 @@ enum InstallerActivationPolicy {
         /// 真必要条件）enable「父条目 + Hans 主模式」各一次（历史观察：父条目 enable 不级联模式；
         /// 父=菜单显形，Hans=select 需要的模式启用记录）。已有安装 → 整段跳过（避免历史重复启用问题）。
         let enableParentAndPrimaryModeOnce: Bool
-        /// 装完后 best-effort select 猫头鹰（验证后通过 fresh CLI 尝试）：首装锦上添花，或与切出配对
-        /// 的切回。不变量：更新绝不从其它输入法手里抢当前输入源。
+        /// 自检时通过 fresh CLI 选择猫头鹰：首装启用后选择，更新保留原模式；不与临时切出配对
+        /// 。不变量：更新绝不从其它输入法手里抢当前输入源。
         let selectOwltypeAfterInstall: Bool
     }
 

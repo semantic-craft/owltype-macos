@@ -30,8 +30,23 @@ final class OwlInstallSession: OwlSessionRestart.Effects {
     }
     let request = OwlSessionRestart.Request(firstInstall: firstInstall, sourceBefore: sourceBefore, expectedVersion: version)
     let session = OwlInstallSession(mode: request.selectionTarget ?? OwlSessionRestart.primarySource)
-    let server = try OwlSessionRestart.run(request, effects: session)
-    print("INSTALL_SESSION_OK pid=\(server.pid) version=\(server.version)")
+    guard session.isUserSession else { throw OwlSessionRestart.Failure.notUserSession }
+    // Discard a previous attempt's pending guidance before launching the new server.
+    Self.reportSelfCheck(current: version, passed: true)
+    do {
+      let server = try OwlSessionRestart.run(request, effects: session)
+      Self.reportSelfCheck(current: version, passed: true)
+      print("INSTALL_SESSION_OK pid=\(server.pid) version=\(server.version)")
+    } catch {
+      Self.reportSelfCheck(current: version, passed: false)
+      throw error
+    }
+  }
+
+  private static func reportSelfCheck(current: String, passed: Bool) {
+    OwlUpdateLogoutPrompt.recordSelfCheck(current: current, passed: passed)
+    DistributedNotificationCenter.default().postNotificationName(OwlUpdateLogoutPrompt.selfCheckNotification,
+      object: current, userInfo: nil, deliverImmediately: true)
   }
 
   func pause() { RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.25)) }
@@ -111,7 +126,10 @@ final class OwlInstallSession: OwlSessionRestart.Effects {
     }
     let observation = OwlSessionRestart.Observation(parentEnabled: parentEnabled, modeEnabled: source(mode, all: false) != nil,
       selectedSource: OwlInstaller.currentInputSourceID() ?? "", servers: servers)
-    return String(decoding: try JSONEncoder().encode(observation), as: UTF8.self)
+    guard let json = String(data: try JSONEncoder().encode(observation), encoding: .utf8) else {
+      throw CocoaError(.fileReadCorruptFile)
+    }
+    return json
   }
 
   private static func source(_ identifier: String, all: Bool) -> TISInputSource? {

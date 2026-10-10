@@ -15,30 +15,6 @@ import XCTest
 @testable import Owltype
 
 final class OwlUpdateLogoutPromptTests: XCTestCase {
-  // MARK: shouldSuggest (pure) —— 不变
-
-  func test_shouldSuggest_firstLaunchNil_false() {
-    XCTAssertFalse(OwlUpdateLogoutPrompt.shouldSuggest(lastRun: nil, current: "1.4.8"))
-  }
-
-  func test_shouldSuggest_emptyLast_false() {
-    XCTAssertFalse(OwlUpdateLogoutPrompt.shouldSuggest(lastRun: "", current: "1.4.8"))
-  }
-
-  func test_shouldSuggest_emptyCurrent_false() {
-    XCTAssertFalse(OwlUpdateLogoutPrompt.shouldSuggest(lastRun: "1.4.7", current: ""))
-  }
-
-  func test_shouldSuggest_versionChanged_true() {
-    XCTAssertTrue(OwlUpdateLogoutPrompt.shouldSuggest(lastRun: "1.4.7", current: "1.4.8"))
-  }
-
-  func test_shouldSuggest_sameVersion_false() {
-    XCTAssertFalse(OwlUpdateLogoutPrompt.shouldSuggest(lastRun: "1.4.8", current: "1.4.8"))
-  }
-
-  // MARK: A1 —— planPrompt（更新不记录 / 首装/同版本播种）+ recordDisposition（处置后记录）
-
   private func freshDefaults() -> (UserDefaults, String) {
     let suite = "test.owltype.logout.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
@@ -46,64 +22,32 @@ final class OwlUpdateLogoutPromptTests: XCTestCase {
     return (defaults, suite)
   }
 
-  func test_planPrompt_firstLaunch_seedsAndNoPrompt() {
-    let (defaults, suite) = freshDefaults()
-    defer { defaults.removePersistentDomain(forName: suite) }
-    XCTAssertFalse(OwlUpdateLogoutPrompt.planPrompt(current: "1.4.8", defaults: defaults),
-                   "首启（无 lastRun）不弹")
-    XCTAssertEqual(defaults.string(forKey: OwlUpdateLogoutPrompt.lastRunVersionKey), "1.4.8",
-                   "首装立即播种当前版本")
+  func testUpgradeDowngradeAndFirstLaunchNeverPromptWithoutFailedSelfCheck() {
+    for old in [nil, "", "2.0.12", "2.0.13", "2.0.14"] as [String?] {
+      let (defaults, suite) = freshDefaults()
+      defer { defaults.removePersistentDomain(forName: suite) }
+      defaults.set(old, forKey: OwlUpdateLogoutPrompt.lastRunVersionKey)
+      XCTAssertFalse(OwlUpdateLogoutPrompt.planPrompt(current: "2.0.13", defaults: defaults))
+    }
   }
 
-  func test_planPrompt_sameVersion_noPromptAndRecorded() {
-    let (defaults, suite) = freshDefaults()
-    defer { defaults.removePersistentDomain(forName: suite) }
-    defaults.set("1.4.8", forKey: OwlUpdateLogoutPrompt.lastRunVersionKey)
-    XCTAssertFalse(OwlUpdateLogoutPrompt.planPrompt(current: "1.4.8", defaults: defaults),
-                   "同版本不弹")
-    XCTAssertEqual(defaults.string(forKey: OwlUpdateLogoutPrompt.lastRunVersionKey), "1.4.8")
+  func testOnlyFailureForCurrentBuildAllowsPrompt() {
+    XCTAssertTrue(OwlUpdateLogoutPrompt.shouldSuggest(failedVersion: "2.0.13", current: "2.0.13"))
+    XCTAssertFalse(OwlUpdateLogoutPrompt.shouldSuggest(failedVersion: "2.0.12", current: "2.0.13"))
+    XCTAssertFalse(OwlUpdateLogoutPrompt.shouldSuggest(failedVersion: nil, current: "2.0.13"))
+    XCTAssertFalse(OwlUpdateLogoutPrompt.shouldSuggest(failedVersion: "", current: ""))
   }
 
-  func test_planPrompt_afterUpdate_promptsWithoutRecording() {
+  func testFailedSelfCheckPromptsUntilDispositionAndSuccessClearsFailure() {
     let (defaults, suite) = freshDefaults()
     defer { defaults.removePersistentDomain(forName: suite) }
-    defaults.set("1.4.7", forKey: OwlUpdateLogoutPrompt.lastRunVersionKey)
-    XCTAssertTrue(OwlUpdateLogoutPrompt.planPrompt(current: "1.4.8", defaults: defaults),
-                  "版本变化应弹")
-    XCTAssertEqual(defaults.string(forKey: OwlUpdateLogoutPrompt.lastRunVersionKey), "1.4.7",
-                   "A1：更新路径【不】在 planPrompt 里记录——仍是旧版本，待处置后才记录")
-  }
-
-  func test_recordDisposition_recordsCurrent() {
-    let (defaults, suite) = freshDefaults()
-    defer { defaults.removePersistentDomain(forName: suite) }
-    defaults.set("1.4.7", forKey: OwlUpdateLogoutPrompt.lastRunVersionKey)
-    OwlUpdateLogoutPrompt.recordDisposition(current: "1.4.8", defaults: defaults)
-    XCTAssertEqual(defaults.string(forKey: OwlUpdateLogoutPrompt.lastRunVersionKey), "1.4.8")
-  }
-
-  func test_recordDisposition_emptyCurrent_noOp() {
-    let (defaults, suite) = freshDefaults()
-    defer { defaults.removePersistentDomain(forName: suite) }
-    defaults.set("1.4.7", forKey: OwlUpdateLogoutPrompt.lastRunVersionKey)
-    OwlUpdateLogoutPrompt.recordDisposition(current: "", defaults: defaults)
-    XCTAssertEqual(defaults.string(forKey: OwlUpdateLogoutPrompt.lastRunVersionKey), "1.4.7",
-                   "空版本不覆盖已有记录")
-  }
-
-  func test_updateLifecycle_planThenRecord_noRepeat() {
-    let (defaults, suite) = freshDefaults()
-    defer { defaults.removePersistentDomain(forName: suite) }
-    defaults.set("1.4.7", forKey: OwlUpdateLogoutPrompt.lastRunVersionKey)
-    // 首次更新：待弹、未记录
-    XCTAssertTrue(OwlUpdateLogoutPrompt.planPrompt(current: "1.4.8", defaults: defaults))
-    XCTAssertEqual(defaults.string(forKey: OwlUpdateLogoutPrompt.lastRunVersionKey), "1.4.7",
-                   "未处置前不记录")
-    // 处置后记录
-    OwlUpdateLogoutPrompt.recordDisposition(current: "1.4.8", defaults: defaults)
-    // 再次启动：同版本不再弹
-    XCTAssertFalse(OwlUpdateLogoutPrompt.planPrompt(current: "1.4.8", defaults: defaults),
-                   "处置并记录后，同版本再启动不重弹")
+    defaults.set("2.0.13", forKey: OwlUpdateLogoutPrompt.failureVersionKey)
+    XCTAssertTrue(OwlUpdateLogoutPrompt.planPrompt(current: "2.0.13", defaults: defaults))
+    OwlUpdateLogoutPrompt.recordDisposition(current: "2.0.13", defaults: defaults)
+    XCTAssertFalse(OwlUpdateLogoutPrompt.planPrompt(current: "2.0.13", defaults: defaults))
+    defaults.set("2.0.13", forKey: OwlUpdateLogoutPrompt.failureVersionKey)
+    OwlUpdateLogoutPrompt.recordSelfCheck(current: "2.0.13", passed: true, defaults: defaults)
+    XCTAssertFalse(OwlUpdateLogoutPrompt.planPrompt(current: "2.0.13", defaults: defaults))
   }
 
   // MARK: #111 遥测 —— OwlLogoutDiagnostics

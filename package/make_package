@@ -62,7 +62,7 @@ pkgbuild \
 # stays CFBundleVersion (build) as the internal component version.
 #
 # 同一个 Owltype-component.pkg productbuild 两次（双 pkg 分离）：
-#   - Owltype.pkg         首装（Distribution，onConclusion=RequireLogout，DMG 里发给新用户）
+#   - Owltype.pkg         首装（Distribution，无需注销）
 #   - Owltype-update.pkg  Sparkle 更新载荷（Distribution-update，无 RequireLogout，免注销）
 cohort_id="$(python3 "$COHORT_STATE" id "$RELEASE_OUTPUT_ROOT")"
 sed -e "s/@VERSION@/$(get_marketing_version)/" -e "s/@COHORT_ID@/${cohort_id}/" \

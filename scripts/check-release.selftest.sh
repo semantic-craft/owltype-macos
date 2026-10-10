@@ -124,6 +124,14 @@ else
   ok "automated-only gate keeps G4 visibly NEEDS_HUMAN"
 fi
 
+for distribution in Distribution Distribution-update; do
+  if [[ "$(xmllint --xpath 'count(//pkg-ref[@onConclusion="RequireLogout"])' "$ROOT/package/$distribution")" == 0 ]]; then
+    ok "$distribution does not require logout"
+  else
+    bad "$distribution must not require logout"
+  fi
+done
+
 # The package state stays root-owned; session actions use the captured console user.
 if grep -qF 'install -d -o root -g wheel -m 700 "$markers"' "$ROOT/scripts/preinstall" \
    && grep -qF 'set -euo pipefail' "$ROOT/scripts/preinstall" \

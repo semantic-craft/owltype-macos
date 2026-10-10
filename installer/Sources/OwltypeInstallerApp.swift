@@ -6,7 +6,7 @@
 //   - TIS register + enable「父条目」都在本进程内做（登录用户 Aqua 会话已签名 GUI 进程，满足
 //     enable 的全部真必要条件）；是否 enable 由复合幂等判据决定（InstallerActivationPolicy）。
 //   - 拷贝完成后跑 `Owltype --activate-once` + `open Owltype.app` 发布 IMK endpoint，再由
-//     InstallerActivationVerifier 在主 runloop 等 consent、读回验证、best-effort select。
+//     OwlInstallSession 在用户会话完成启用、选择读回、服务刷新和进程自检。
 //   - 更新/修复也走同一安装器路径，不要求先卸载旧版本；更新整段跳过 enable（防幽灵态）。
 
 import SwiftUI

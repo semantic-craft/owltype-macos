@@ -222,14 +222,11 @@ assert_installer_scripts "$tmp/Owltype-component.pkg" "Owltype.pkg"
 python3 "$ROOT/scripts/check-staged-pkg.py" "$tmp/Owltype-component.pkg"
 pass "Owltype.pkg carries exactly preinstall + postinstall and wires both executable scripts"
 
-# 双 pkg 分离（07-02 更新免注销）：首装 Owltype.pkg 必须带 onConclusion=RequireLogout；
-# Sparkle 更新载荷 Owltype-update.pkg 必须不带（更新免注销）。两者共用同一个 Owltype-component.pkg。
-# 必须用 xmllint 查真实属性，不能 grep 文本——两份 Distribution 的注释里都写着
-# "RequireLogout" 字样（productbuild 保留 XML 注释），文本 grep 会把合格的更新 pkg 误判成失败。
+# Both installation paths must finish within the current login session.
 require_logout_count() { xmllint --xpath 'count(//pkg-ref[@onConclusion="RequireLogout"])' "$1"; }
-[[ "$(require_logout_count "$tmp/Distribution")" != "0" ]] ||
-  fail "Owltype.pkg Distribution is missing onConclusion=RequireLogout (first install must logout)"
-pass "Owltype.pkg Distribution requires logout (first-install pkg)"
+[[ "$(require_logout_count "$tmp/Distribution")" == "0" ]] ||
+  fail "Owltype.pkg Distribution still carries onConclusion=RequireLogout"
+pass "Owltype.pkg Distribution has no RequireLogout"
 
 pkgutil --expand-full "$UPDATE_PKG" "$tmp_update"
 [[ "$(require_logout_count "$tmp_update/Distribution")" == "0" ]] ||
