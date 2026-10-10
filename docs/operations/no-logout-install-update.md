@@ -10,7 +10,7 @@
 用户已明确批准 agent 开始本机 B4 和安装，后续不重复索要安装确认；管理员认证仍由用户接管。
 已完成真机只读基线和 B4 同版本对照：用户用五笔确认旧、新 TextEdit 都能提交“你好”。
 同版本和跨版本 B4 在本机均未复现“旧 TextEdit 必须重开”；不能外推其他系统。
-下一步先完成回滚验收，再实现 OwlBundleSwap 并测试；macl 真机 spike 仍需用户执行或批准。
+OwlBundleSwap 已完成临时目录测试，尚未接入产品路径；下一步 macl 真机 spike 需用户执行或批准。
 不得把下面的源码核实、探针自测或微信静态分析记成真机验收通过。
 
 顺序：探针 → 基线/B4 → OwlBundleSwap 单测 → 用户 macl spike → 会话重启 →
@@ -229,3 +229,4 @@ S3 的直接 pkg 安装与 Sparkle 下载/安装入口分别记录，不能互�
 
 | 2026-10-10 09:14 +0800 | 完成跨版本基线并记录延迟注销提示；准备 App 回滚脚本 | 用户确认两代宿主都能输入，随后提示证明 A1 与实际重连状态脱钩 | 收据09:05:30；日志09:07:45 presenting alert、09:07:48 later；5/30秒探针通过；user-acceptance.json | B4 本机未复现必须重开；无提示验收失败；sudo需密码，CUA禁止控制Terminal，回滚尚未执行 |
 | 2026-10-10 09:17 +0800 | 核验用户执行的 App 回滚 | 按失败恢复约定保留现场，不撤销收据或删除词典 | rollback-output.txt；PID 37873、inode 87976705、磁盘/LS 2.0.12；恢复及保留 App 的深度严格签名均通过 | 旧 TextEdit 86600 保留；收据仍2.0.13；实际打字待确认 |
+| 2026-10-10 09:20 +0800 | 新增 OwlBundleSwap 和 11 项真实文件系统单测 | 保持 App 外壳，以 RENAME_SWAP 交换 Contents，失败不走两次移动；首装使用 RENAME_EXCL | verify.py swift --test OwlBundleSwapTests 11/11；证据 20261010T011853Z-swift-d1tphz1c；SDK sys/stdio.h 定义交换 API | 临时目录通过；实际 App 外壳存在 macl，尚未验证其影响，也未接入安装流程 |

@@ -319,6 +319,8 @@
 		D26434552706A15100857391 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D26434542706A15100857391 /* QuartzCore.framework */; };
 		E93074B70A5C264700470842 /* InputMethodKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E93074B60A5C264700470842 /* InputMethodKit.framework */; };
 		F45E005F2B8CA81C00179B75 /* UserNotifications.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F45E005E2B8CA81C00179B75 /* UserNotifications.framework */; };
+		FB5A00010000000000000001 /* OwlBundleSwap.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5A00020000000000000001 /* OwlBundleSwap.swift */; };
+		FB5A00010000000000000002 /* OwlBundleSwapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5A00020000000000000002 /* OwlBundleSwapTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -761,6 +763,8 @@
 		D26434542706A15100857391 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
 		E93074B60A5C264700470842 /* InputMethodKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = InputMethodKit.framework; path = /System/Library/Frameworks/InputMethodKit.framework; sourceTree = "<absolute>"; };
 		F45E005E2B8CA81C00179B75 /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
+		FB5A00020000000000000001 /* OwlBundleSwap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlBundleSwap.swift; path = installer/Shared/OwlBundleSwap.swift; sourceTree = "<group>"; };
+		FB5A00020000000000000002 /* OwlBundleSwapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlBundleSwapTests.swift; path = tests/OwlBundleSwapTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -941,6 +945,8 @@
 				FA0000A2CAFE00A2CAFE00A2 /* ActivationPolicyTests.swift */,
 				FAC10002CAFE0002CAFE0002 /* InstallerActivationPolicyTests.swift */,
 				FAC10004CAFE0004CAFE0004 /* InstallerActivationPolicy.swift */,
+				FB5A00020000000000000001 /* OwlBundleSwap.swift */,
+				FB5A00020000000000000002 /* OwlBundleSwapTests.swift */,
 				FA000135CAFE0135CAFE0135 /* KeyTranslationTests.swift */,
 				FA000082CAFE0082CAFE0082 /* CandidateStoreTests.swift */,
 				FAD1CF09CAFEDF09CAFEDF09 /* OwlDictPackTests.swift */,
@@ -1516,6 +1522,8 @@
 				FA0000A1CAFE00A1CAFE00A1 /* ActivationPolicyTests.swift in Sources */,
 				FAC10001CAFE0001CAFE0001 /* InstallerActivationPolicyTests.swift in Sources */,
 				FAC10003CAFE0003CAFE0003 /* InstallerActivationPolicy.swift in Sources */,
+				FB5A00010000000000000001 /* OwlBundleSwap.swift in Sources */,
+				FB5A00010000000000000002 /* OwlBundleSwapTests.swift in Sources */,
 				FA000134CAFE0134CAFE0134 /* KeyTranslationTests.swift in Sources */,
 				FA000083CAFE0083CAFE0083 /* CandidateStoreTests.swift in Sources */,
 				FAD1CF0ACAFEDF0ACAFEDF0A /* OwlDictPackTests.swift in Sources */,
