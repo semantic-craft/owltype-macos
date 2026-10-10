@@ -3,11 +3,11 @@
 ## 当前状态
 
 分支：`codex/no-logout-install-update`。核实基线：`7f24eac8fe379ec58e5fa5e1ae666d9e116a03b0`。
-**最新复测：输入法身份未确认，不计通过。** `native-window-check-0n2jrwny`中版本三证通过，PID30889/inode88878518，20秒收到人工PASS。
-新、旧文档分别在约18秒、46秒保存你好；但约9.5秒截图只显示微信与U.S.，没有猫头鹰，提交后探针仍为微信。
-用户澄清“再来一次，我也没印象”。约100秒后只读探针已选Hans，不能反推之前实际用哪种输入法上屏。
-当前保留测试版2.0.13；不把这轮记为成功，也不据此追加产品补丁。此前一次归档包复测菜单有猫头鹰、新旧功能通过，但指定新宿主补查超过60秒，证据边界仍保留。
-用户已要求再测；外部`native-identity-check-_5q9z_gs/start.sh`复用同字节pkg，在文档保存时截图，并采样前台PID和当前输入源；实际安装仍待用户执行。
+**最新复测：菜单及新宿主通过，旧宿主身份未建立；暂停重复装机。** `native-identity-check-_5q9z_gs`版本三证通过，PID43020/inode88900974，32秒人工PASS，无提示（该时点）。
+菜单截图有猫头鹰，自动完成后微信仍选中；新文档约21秒、旧文档约29秒保存时均为Hans。
+但两次前台PID都是新TextEdit进程43694。只读窗口所有权查询确认它自动恢复了`b4-old-host.rtf`，原进程86600另有同名窗口。
+因此只能证明新宿主可用，不能把旧文档名当成旧宿主证据。此前仅凭同名文档和人工确认的旧宿主记录也有此覆盖缺口，不能独立证明B4。
+这是验收驱动遗漏，不是新确认的产品失败；当前保留2.0.13，不再重复安装或叠加产品补丁。继续验收前须先固定旧进程对应窗口并核实所有权。
 
 实现与验证状态：
 - 已实现只读探针、Contents原子交换、归档pkg、共享会话自检、GUI复用、失败才提示注销及去RequireLogout。
@@ -201,6 +201,7 @@ App 回滚不会撤销 pkg 收据或运行期间发生的用户数据变化；�
 | S3 直接归档pkg更新，原选微信（2844297脚本，同一b8ad566 App） | 约1秒三证通过：PID30891/inode88685200；**完整60秒未证明** | **缺失：Ghostty无截图权限**；用户PASS确认菜单 | 用户PASS；文档含你好，保存于完成后100秒 | 用户PASS；archive-update-new-host.txt含你好，保存于完成后100秒 | 用户提交PASS时未见；更晚未覆盖 | 初次探针微信保持；之后用户选择Hans打字 | native-archive-1p8g5o1e/session.log、after.txt、user-acceptance.json、packagekit-install-archive.txt |
 | S3 同归档pkg复测，原选微信 | 三证通过：PID15690/inode88861134；26秒人工PASS，但新宿主计时未证实 | input-menu.png：约9秒，猫头鹰可见、微信勾选 | 文档约24秒保存你好，用户PASS | 首次打在其他窗口；指定文件约114秒保存你好，补查PASS，**不计60秒** | 用户补查仍无提示；非无限期证明 | 自动完成后微信保持，随后人工选择Hans | native-archive-recheck-gwmw77gz/after.txt、manual-probe.txt、user-acceptance.json、input-menu.png |
 | S3 指定新窗口复测（同包） | 三证通过：PID30889/inode88878518；20秒PASS | **约9.5秒截图只有微信与U.S.，无猫头鹰** | 46秒保存你好，输入法归属未确认 | 18秒保存你好，输入法归属未确认 | PASS含无提示，但整体人工结果待澄清 | 自动/人工后探针仍为微信；更晚Hans不能倒推 | native-window-check-0n2jrwny/user-acceptance.json、input-menu.png、after.txt、manual-probe.txt；用户无印象，**不计通过** |
+| S3 输入法身份采样复测（同包） | 三证通过：PID43020/inode88900974；32秒PASS | input-menu.png：猫头鹰可见，微信勾选 | **未验证旧宿主**：旧文件29秒保存、Hans，但前台为新PID43694 | 21秒保存你好，Hans，新PID43694；typing-new-1.png | 人工32秒PASS未见提示 | 自动完成微信保持，之后人工Hans | native-identity-check-_5q9z_gs/user-acceptance.json、typing-observations.jsonl、window-ownership.txt；**不计完整S3** |
 | S3 真实 Sparkle 更新，原选其他源 | 未测 | 未采集 | 未测 | 未测 | 未测 | 未测 | 无 |
 | S4 GUI 更新，原选猫头鹰 | 未测 | 未采集 | 未测 | 未测 | 未测 | 未测 | 无 |
 | S4 GUI 更新，原选其他源 | 未测 | 未采集 | 未测 | 未测 | 未测 | 未测 | 无 |
@@ -310,6 +311,8 @@ bash "$HOME/Projects/_shared-work/owltype/verification/no-logout-20261010/macl-s
 
 | 2026-10-10 21:39 +0800 | 核验新窗口复测，记录人工PASS与菜单/输入源证据不一致 | 你好文本和版本通过不能证明猫头鹰实际参与输入 | 新18秒/旧46秒保存；菜单无猫头鹰；20秒PASS后仍微信，后续Hans；用户无印象要求再测 | 不计通过，保留测试版；同包driver增加保存截图及输入源/前台PID只读采样，隔离自测通过，未再次安装或改产品 |
 
+| 2026-10-10 21:43 +0800 | 核验身份采样并查窗口所属进程，暂停重复装机 | 新TextEdit自动恢复旧文档，使文件名不足以区分安装前宿主；不把采样部分成功扩大为完整通过 | 菜单有猫头鹰，Hans下21/29秒保存；两次前台PID43694；CGWindow所有权确认新旧PID都有同名旧文档 | 新宿主通过，旧宿主未验证；保留测试版和证据，不再给无绑定的重装命令，不叠加产品补丁 |
+
 ## 菜单缺失：控制结果与后续隔离
 
 先保持代码和版本均为 2.0.12，以相同的共享文件交换、用户进程重启和 TextInput 服务刷新流程做
@@ -396,3 +399,14 @@ Ghostty截图报 `could not create image from display`，用户随后说明刚�
 新驱动`native-identity-check-_5q9z_gs`只改本地验收采集，同pkg同App；保存指定测试文档时截主屏幕，最多每份3张，仅本地保存，持续采样前台PID/输入源到60秒。
 记录不把瞬时输入源当作字符归属的绝对证明，最终仍需人工确认；三个bash语法检查、Python语法及隔离模拟的保存/输入源切换/PID解析/时限检查通过。
 用户执行前未安装、回滚或更改产品。原两次不完整证据及本轮矛盾保留，不继续无证据产品补丁。
+
+
+### 输入法身份采样：发现旧文档恢复到新宿主
+
+`native-identity-check-_5q9z_gs/user-acceptance.json`汇总原始探针、`typing-observations.jsonl`及三张本地截图。
+21:40:55安装完成，43020进程启动时间晚于安装开始；约21秒新文档和约29秒旧文档保存时，采样均为Hans，前台PID43694。
+截图确认输入菜单猫头鹰存在、微信原选中态保持，两份文档可见你好；人工32秒PASS包含当时无提示。
+只读CGWindowList查询`window-ownership.txt`进一步确认：43694同时拥有`OWLTYPE-IDENTITY-NEW.txt`和`b4-old-host.rtf`，86600仍拥有另一个`b4-old-host.rtf`。
+因此本次新宿主通过，但安装前旧宿主未测到。open -n启动TextEdit会恢复旧文档，按标题找窗口不能保证对应原进程。
+此前基线B4/生产控制/归档复测的旧宿主人工确认属于历史报告；没有窗口所属进程证据的部分不能独立排除同样混淆。
+暂停重复真机安装，先修正验收宿主绑定；不把此缺口解释为必须重开App，也不改产品、放宽60秒标准或再次自动回滚。
