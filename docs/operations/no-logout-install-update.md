@@ -11,7 +11,7 @@
 用户已明确批准 agent 开始本机 B4 和安装，后续不重复索要安装确认；管理员认证仍由用户接管。
 已完成真机只读基线和 B4 同版本对照：用户用五笔确认旧、新 TextEdit 都能提交“你好”。
 同版本和跨版本 B4 在本机均未复现“旧 TextEdit 必须重开”；不能外推其他系统。
-OwlBundleSwap 已完成临时目录测试，尚未接入产品路径；下一步 macl 真机 spike 需用户执行或批准。
+OwlBundleSwap 已完成临时目录测试，尚未接入产品路径；macl 真机 spike 已通过；下一步实现用户会话重启序列。
 不得把下面的源码核实、探针自测或微信静态分析记成真机验收通过。
 
 顺序：探针 → 基线/B4 → OwlBundleSwap 单测 → 用户 macl spike → 会话重启 →
@@ -204,7 +204,7 @@ S3 的直接 pkg 安装与 Sparkle 下载/安装入口分别记录，不能互�
 - 探针自测 19 项通过；旧 inode 检查自测通过；verify runner 自测 8 项通过；shell 语法通过。
 - 自测已接入 gate 的 portable_scripts 及 verify.py distribution；全 gate 尚未运行。
 - OwlBundleSwapTests 11/11 通过（20261010T011853Z-swift-d1tphz1c）；其余三个指定测试组、check-release.selftest、release-cohort-selftest 尚未运行。
-- 未验证：macl spike、修改后 S1–S4、无 ABC、Intel、macOS 14/15、真实 Sparkle 入口、指定 sudo installer CLI 基线入口。
+- 未验证：修改后 S1–S4、无 ABC、Intel、macOS 14/15、真实 Sparkle 入口、指定 sudo installer CLI 基线入口。
 - 真机：arm64、macOS 27.0.1 (26A434)。2.0.13 的 PID 22162 于安装期间启动；
   路径正确，inode 87910446 映射检查通过，磁盘/lsappinfo/目标均为 2.0.13。
 - 未注销、未退出旧 TextEdit；已重启 Owltype 并安装发布包。没有签名、公证、修改 feed 或发布。
@@ -218,7 +218,7 @@ S3 的直接 pkg 安装与 Sparkle 下载/安装入口分别记录，不能互�
 原始探针、观察记录和空白测试窗口准备态截图在 verification 根下的
 `no-logout-20261010/b4-live-gtbydw85/`。安装包哈希和回滚备份签名复核仍通过。
 
-## macl 交换实验（准备完成，尚未执行）
+## macl 交换实验（2026-10-10 11:06 已通过）
 
 当前真实 App 外壳存在 72 字节 `com.apple.macl`；Contents 只有 provenance 属性。
 `installer/Shared/OwlBundleSwap.swift` 保持外壳不变，调用 `renamex_np(RENAME_SWAP)`；
@@ -233,11 +233,17 @@ S3 的直接 pkg 安装与 Sparkle 下载/安装入口分别记录，不能互�
 
 已用系统 swiftc 编译独立 helper（未调用 Developer ID 签名或公证），源码为
 `scripts/owl-bundle-swap.swift` + 同一个 OwlBundleSwap。真实实验脚本为
-`scripts/spike-bundle-swap-macl.sh`。命令需要用户执行或明确批准：
+`scripts/spike-bundle-swap-macl.sh`。用户已执行以下命令：
 
 ```sh
 bash "$HOME/Projects/_shared-work/owltype/verification/no-logout-20261010/macl-spike-kz23tpby/run-macl-spike.sh"
 ```
+
+实测结果：root 阶段 `RESULT=0`；外壳 inode 87976695 不变，Contents 从 87976696
+交换为 88060372，再恢复 87976696；macl 哈希前/中/后相同。严格验签通过，
+`.Contents.update` 已移出 live App。前后 PID 均为 37873、版本 2.0.12、inode 映射通过，
+前后均选中微信输入法。这只证明这次交换没有改选中态，不是 S3/S4 更新的 no-steal 验收。
+详见同目录 `result.json`、`post-spike-signature.txt` 和原始两份日志。
 
 目的：将装机 2.0.12 的 Contents 复制为 `.Contents.update`，交换一次、把旧 Contents
 临时保留到证据目录、核验签名和外壳 inode/macl 哈希，再交换回原 Contents inode。
@@ -264,3 +270,4 @@ bash "$HOME/Projects/_shared-work/owltype/verification/no-logout-20261010/macl-s
 | 2026-10-10 09:20 +0800 | 新增 OwlBundleSwap 和 11 项真实文件系统单测 | 保持 App 外壳，以 RENAME_SWAP 交换 Contents，失败不走两次移动；首装使用 RENAME_EXCL | verify.py swift --test OwlBundleSwapTests 11/11；证据 20261010T011853Z-swift-d1tphz1c；SDK sys/stdio.h 定义交换 API | 临时目录通过；实际 App 外壳存在 macl，尚未验证其影响，也未接入安装流程 |
 | 2026-10-10 09:22 +0800 | 记录回滚后实际打字与随后再次弹窗 | 不把暂未出现弹窗当成最终无提示验收 | 用户先确认两边正常，再提供2.0.12注销提示截图；rollback-user-acceptance.json、rollback-logout-prompt-log.txt | App与打字恢复；无提示项仍失败，版本变化策略也触发降级提示 |
 | 2026-10-10 09:24 +0800 | 准备 macl 实验 driver/恢复脚本并完成签名副本预检 | 在真实安装前验证交换期间签名边界，避免隐藏暂存目录影响新进程启动 | 初次严格验签失败 unsealed contents；将旧 Contents 移出 App 后交换/换回验签均通过；shell语法通过 | 修正一次后预检通过；真实 /Library 交换尚未执行，等待用户 |
+| 2026-10-10 11:06 +0800 | 核验用户执行的真实 macl spike | 在接入安装调用链前确认保留外壳的 Contents 交换可用 | macl-spike.log RESULT=0；外壳87976695不变；Contents87976696→88060372→87976696；macl哈希一致；严格验签0 | 本机macl不阻碍交换；进程37873及微信选中态保持；尚非更新重连验收 |
