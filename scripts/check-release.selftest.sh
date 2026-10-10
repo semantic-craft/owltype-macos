@@ -124,29 +124,21 @@ else
   ok "automated-only gate keeps G4 visibly NEEDS_HUMAN"
 fi
 
-# Package scripts run as root. Cross-phase markers belong in a root-only state directory, while
-# the per-user deferred LaunchAgent must be staged under a fresh mktemp directory. Fixed files in
-# /private/tmp are attacker-precreatable and turn root redirections into symlink races.
-if grep -qF '/private/var/db/im.owltype.inputmethod.Owltype-installer' "$ROOT/scripts/preinstall" \
-   && grep -qF '/private/var/db/im.owltype.inputmethod.Owltype-installer' "$ROOT/scripts/postinstall" \
-   && grep -qF '/private/var/db/im.owltype.inputmethod.Owltype-installer' "$ROOT/scripts/uninstall-owltype.sh" \
-   && grep -qF '/private/var/db/im.owltype.inputmethod.Owltype-installer' "$ROOT/installer/Sources/Installer.swift" \
-   && grep -qF 'mktemp -d "${installer_jobs_dir}/${deferred_restore_label}.XXXXXX"' "$ROOT/scripts/postinstall" \
-   && ! grep -qE '(^|[="])/private/tmp/im\.owltype\.inputmethod\.preinstall-' \
-        "$ROOT/scripts/preinstall" "$ROOT/scripts/postinstall" \
-   && ! grep -qE 'job_(sh|plist)="/private/tmp/' "$ROOT/scripts/postinstall"; then
-  ok "privileged installer state cannot be pre-created through fixed shared-temp paths"
+# The package state stays root-owned; session actions use the captured console user.
+if grep -qF 'install -d -o root -g wheel -m 700 "$markers"' "$ROOT/scripts/preinstall" \
+   && grep -qF 'set -euo pipefail' "$ROOT/scripts/preinstall" \
+   && grep -qF 'set -euo pipefail' "$ROOT/scripts/postinstall" \
+   && grep -qF '"$staged_app/Contents/MacOS/Owltype" --commit-install' "$ROOT/scripts/postinstall" \
+   && grep -qF '"$live_app/Contents/MacOS/Owltype" --finish-install' "$ROOT/scripts/postinstall" \
+   && ! grep -qE 'schedule_deferred|killall|--register-input-source' "$ROOT/scripts/postinstall"; then
+  ok "package uses protected phase state, atomic file commit and user-session activation"
 else
-  bad "installer scripts must use root-only marker storage and unique deferred-task staging"
+  bad "package must fail closed and separate privileged files from user-session actions"
 fi
-
-if grep -qx 'prepare_installer_state' "$ROOT/scripts/preinstall" \
-   && grep -qx 'prepare_installer_state' "$ROOT/scripts/postinstall" \
-   && ! grep -q 'if prepare_installer_state' "$ROOT/scripts/preinstall" "$ROOT/scripts/postinstall" \
-   && ! grep -qE 'touch "\$\{(marker|selected_marker)\}".*\|\| true' "$ROOT/scripts/preinstall"; then
-  ok "installer fails closed when authoritative update-state markers cannot be secured"
+if python3 "$ROOT/scripts/check-staged-pkg.py" --self-test; then
+  ok "staged payload gate rejects live overwrite and PackageKit registration"
 else
-  bad "installer must not degrade marker failures into a first-install enable/select path"
+  bad "staged payload gate regression"
 fi
 
 if grep -qF '["--disable-input-source"]' "$ROOT/installer/Sources/Installer.swift"; then

@@ -34,6 +34,47 @@ enum OwlBundleSwap {
     try rename(stagedApp, to: destination, flags: UInt32(RENAME_EXCL))
   }
 
+  /// Commits an already copied/validated candidate. Retire the old Contents outside the App
+  /// before strict validation; a hidden sibling inside the bundle is unsealed content.
+  /// On validation failure exchange back and keep the failed candidate for diagnosis.
+  static func commitPreparedApp(_ prepared: URL, to live: URL, retired: URL,
+                                validate: (URL) throws -> Void) throws {
+    let manager = FileManager.default
+    try validate(prepared)
+    guard !manager.fileExists(atPath: retired.path) else { throw failure(EEXIST, path: retired.path) }
+    if !manager.fileExists(atPath: live.path) {
+      try publishFirstInstall(from: prepared, to: live)
+      do { try validate(live) } catch {
+        try publishFirstInstall(from: live, to: prepared)
+        throw error
+      }
+      return
+    }
+    try requireCanonicalDirectory(live)
+    let staged = live.appendingPathComponent(".Contents.update", isDirectory: true)
+    let candidateContents = prepared.appendingPathComponent("Contents", isDirectory: true)
+    // RENAME_EXCL also rejects a dangling symlink, unlike fileExists alone.
+    try rename(candidateContents, to: staged, flags: UInt32(RENAME_EXCL))
+    var exchanged = false
+    var parked = false
+    do {
+      try exchangeContents(in: live)
+      exchanged = true
+      try rename(staged, to: retired, flags: UInt32(RENAME_EXCL))
+      parked = true
+      try validate(live)
+    } catch {
+      // No deletion and no guessed fallback. If recovery itself fails, preserve its error and
+      // both locations; the caller must stop instead of starting another installation.
+      if exchanged {
+        if parked { try rename(retired, to: staged, flags: UInt32(RENAME_EXCL)) }
+        try exchangeContents(in: live)
+      }
+      try rename(staged, to: candidateContents, flags: UInt32(RENAME_EXCL))
+      throw error
+    }
+  }
+
   private static func requireCanonicalDirectory(_ url: URL) throws {
     guard url.isFileURL,
           url.standardizedFileURL.path == url.resolvingSymlinksInPath().standardizedFileURL.path else {

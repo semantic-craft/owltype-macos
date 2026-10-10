@@ -11,7 +11,7 @@
 用户已明确批准 agent 开始本机 B4 和安装，后续不重复索要安装确认；管理员认证仍由用户接管。
 已完成真机只读基线和 B4 同版本对照：用户用五笔确认旧、新 TextEdit 都能提交“你好”。
 同版本和跨版本 B4 在本机均未复现“旧 TextEdit 必须重开”；不能外推其他系统。
-OwlBundleSwap 已完成临时目录测试，尚未接入产品路径；macl 真机 spike 已通过；用户会话重启序列和 CLI 已实现并通过离线测试，尚未接入安装器；下一步改暂存 pkg。
+OwlBundleSwap 已完成临时目录测试，尚未接入产品路径；macl 真机 spike 已通过；用户会话重启序列和 CLI 已实现并通过离线测试，已接入暂存 pkg；下一步让 GUI 复用相同文件/会话入口。
 不得把下面的源码核实、探针自测或微信静态分析记成真机验收通过。
 
 顺序：探针 → 基线/B4 → OwlBundleSwap 单测 → 用户 macl spike → 会话重启 →
@@ -272,3 +272,4 @@ bash "$HOME/Projects/_shared-work/owltype/verification/no-logout-20261010/macl-s
 | 2026-10-10 09:24 +0800 | 准备 macl 实验 driver/恢复脚本并完成签名副本预检 | 在真实安装前验证交换期间签名边界，避免隐藏暂存目录影响新进程启动 | 初次严格验签失败 unsealed contents；将旧 Contents 移出 App 后交换/换回验签均通过；shell语法通过 | 修正一次后预检通过；真实 /Library 交换尚未执行，等待用户 |
 | 2026-10-10 11:06 +0800 | 核验用户执行的真实 macl spike | 在接入安装调用链前确认保留外壳的 Contents 交换可用 | macl-spike.log RESULT=0；外壳87976695不变；Contents87976696→88060372→87976696；macl哈希一致；严格验签0 | 本机macl不阻碍交换；进程37873及微信选中态保持；尚非更新重连验收 |
 | 2026-10-10 11:15 +0800 | 实现用户会话重启序列、fresh TIS/进程探针与 --finish-install CLI | 替换后有界结束旧进程；首装注册启用；选择读回后只刷两个TextInput服务；版本/path/inode共同自检 | 新增11项会话测试，连同四个指定组共113/113；证据20261010T031407Z-swift-01iq58j7；真实只读探针正确，开发目录重启入口被拒绝 | 尚未接入pkg/GUI或真机重启；第一次集成编译漏括号，修正一次后全通过 |
+| 2026-10-10 11:24 +0800 | pkg改为隐藏暂存payload、root文件提交与用户会话收尾；新增校验失败恢复测试 | 消除PackageKit原地覆盖live和收据边界延迟任务，交换后移出旧Contents再验签 | Swift交换/会话26/26；release selftest15/15；真实未签名组件pkgutil payload无live路径，PackageInfo无bundle注册；证据staged-pkg-9uoglhmo | 离线通过，未安装；结构检查初次把系统/var软链误判，限定到payload边界后修正通过；两产品pkg仍待最终构建 |

@@ -191,11 +191,11 @@ pass "pkg metadata is Owltype and installs to /Library/Input Methods"
 # 由 App 首启的 OwlManagedKeyboardPatchPlan 按当前偏好写入（setupRime，seed 之后、首次
 # deploy 之前），其源文件由 dict-pack 用户侧拉取后补建 —— 静态种子里再断言全套属全量种子
 # 时代的陈旧期望（2026-07-24 1.5.0 出包时逮住）。
-seed="$tmp/Owltype-component.pkg/Payload/Owltype.app/Contents/SharedSupport/_user_seed/default.custom.yaml"
+seed="$tmp/Owltype-component.pkg/Payload/Library/Input Methods/.Owltype.pkg-staging/Owltype.app/Contents/SharedSupport/_user_seed/default.custom.yaml"
 grep -q "schema: rime_ice" "$seed" || fail "pkg seed does not enable rime_ice"
 pass "pkg seed 启用清洁室基线（rime_ice；全套 schema_list 由首启 managed patch + dict-pack 接管）"
 # emoji 出厂关 = 共享 rime_ice.schema.yaml 的 reset（不在 _user_seed）。纯雾凇无带声调 preedit。
-ice_schema="$tmp/Owltype-component.pkg/Payload/Owltype.app/Contents/SharedSupport/rime_ice.schema.yaml"
+ice_schema="$tmp/Owltype-component.pkg/Payload/Library/Input Methods/.Owltype.pkg-staging/Owltype.app/Contents/SharedSupport/rime_ice.schema.yaml"
 grep -A3 'name: emoji' "$ice_schema" | grep -q 'reset: 0' ||
   fail "pkg rime_ice.schema.yaml does not default emoji off (reset: 0)"
 pass "pkg rime_ice default: emoji off"
@@ -208,17 +208,18 @@ grep -A3 'name: ascii_mode' "$ice_schema" | grep -q 'states: \[ 中, 英 \]' ||
   fail "pkg rime_ice.schema.yaml ascii_mode states not [ 中, 英 ]"
 pass "pkg rime_ice ascii_mode label: 中/英"
 
-/usr/bin/codesign --verify --deep --strict --verbose=2 "$tmp/Owltype-component.pkg/Payload/Owltype.app"
+/usr/bin/codesign --verify --deep --strict --verbose=2 "$tmp/Owltype-component.pkg/Payload/Library/Input Methods/.Owltype.pkg-staging/Owltype.app"
 pass "pkg payload app codesign verifies"
 
 # 真正出厂的是 pkg 里这份 app，不是 build/ 里那份 —— 前置断言在两处都跑。
-assert_apple_events_prereqs "$tmp/Owltype-component.pkg/Payload/Owltype.app" "pkg payload app"
+assert_apple_events_prereqs "$tmp/Owltype-component.pkg/Payload/Library/Input Methods/.Owltype.pkg-staging/Owltype.app" "pkg payload app"
 
 # pkg 必须携带 preinstall（payload 落盘前写「bundle 已存在」标记）+ postinstall（读标记走更新/首装
 # 分支）。缺 preinstall = Sparkle 更新会被误判成首装（Sparkle 先杀宿主 Owltype，pgrep 单独不可靠）。
 # 光查 Scripts/ 里文件存在不够——pkgbuild --scripts 会原样拷整个目录，真正决定「会不会运行」的是
 # PackageInfo 里的 <preinstall>/<postinstall> 声明（pkgbuild 按 文件名+可执行位 自动接线）。
 assert_installer_scripts "$tmp/Owltype-component.pkg" "Owltype.pkg"
+python3 "$ROOT/scripts/check-staged-pkg.py" "$tmp/Owltype-component.pkg"
 pass "Owltype.pkg carries exactly preinstall + postinstall and wires both executable scripts"
 
 # 双 pkg 分离（07-02 更新免注销）：首装 Owltype.pkg 必须带 onConclusion=RequireLogout；
@@ -236,6 +237,7 @@ pkgutil --expand-full "$UPDATE_PKG" "$tmp_update"
 grep -q 'Owltype-component.pkg' "$tmp_update/Distribution" ||
   fail "Owltype-update.pkg Distribution does not reference Owltype-component.pkg"
 assert_installer_scripts "$tmp_update/Owltype-component.pkg" "Owltype-update.pkg"
+python3 "$ROOT/scripts/check-staged-pkg.py" "$tmp_update/Owltype-component.pkg"
 pass "Owltype-update.pkg Distribution has no RequireLogout (no-logout Sparkle payload)"
 
 [[ -s "$APPCAST" ]] || fail "signed appcast is missing"

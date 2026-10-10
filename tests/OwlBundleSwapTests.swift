@@ -120,6 +120,56 @@ final class OwlBundleSwapTests: XCTestCase {
     XCTAssertEqual(try marker(live), "old")
   }
 
+  func testCommitRetiresOldContentsBeforeValidatingInstalledBundle() throws {
+    let candidate = root.appendingPathComponent("Candidate.app")
+    let retired = root.appendingPathComponent("Retired")
+    try contents(candidate.appendingPathComponent("Contents"), text: "new")
+    let oldInode = try inode(live)
+    var checked: [URL] = []
+    try OwlBundleSwap.commitPreparedApp(candidate, to: app, retired: retired) { location in
+      checked.append(location)
+      XCTAssertFalse(FileManager.default.fileExists(atPath: location.appendingPathComponent(".Contents.update").path))
+      XCTAssertEqual(try self.marker(location.appendingPathComponent("Contents")), "new")
+    }
+    XCTAssertEqual(checked, [candidate, app])
+    XCTAssertEqual(try inode(retired), oldInode)
+    XCTAssertEqual(try marker(retired), "old")
+    XCTAssertEqual(try marker(live), "new")
+  }
+
+  func testPostExchangeValidationFailureRestoresOldInodeAndPreservesFailedCandidate() throws {
+    let candidate = root.appendingPathComponent("Candidate.app")
+    let retired = root.appendingPathComponent("Retired")
+    try contents(candidate.appendingPathComponent("Contents"), text: "new")
+    let oldInode = try inode(live)
+    XCTAssertThrowsError(try OwlBundleSwap.commitPreparedApp(candidate, to: app, retired: retired) { location in
+      if location == self.app { throw CocoaError(.fileReadCorruptFile) }
+    })
+    XCTAssertEqual(try inode(live), oldInode)
+    XCTAssertEqual(try marker(live), "old")
+    XCTAssertEqual(try marker(candidate.appendingPathComponent("Contents")), "new")
+    XCTAssertFalse(FileManager.default.fileExists(atPath: staged.path))
+  }
+
+  func testPreCommitValidationFailureDoesNotMutateLiveOrCandidate() throws {
+    let candidate = root.appendingPathComponent("Candidate.app")
+    try contents(candidate.appendingPathComponent("Contents"), text: "new")
+    XCTAssertThrowsError(try OwlBundleSwap.commitPreparedApp(candidate, to: app, retired: root.appendingPathComponent("Retired")) { _ in
+      throw CocoaError(.fileReadCorruptFile)
+    })
+    XCTAssertEqual(try marker(live), "old")
+    XCTAssertEqual(try marker(candidate.appendingPathComponent("Contents")), "new")
+  }
+
+  func testFirstInstallValidationFailureReturnsCandidateAndLeavesDestinationAbsent() throws {
+    let destination = root.appendingPathComponent("Installed.app")
+    XCTAssertThrowsError(try OwlBundleSwap.commitPreparedApp(app, to: destination, retired: root.appendingPathComponent("Retired")) { location in
+      if location == destination { throw CocoaError(.fileReadCorruptFile) }
+    })
+    XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+    XCTAssertEqual(try marker(live), "old")
+  }
+
   private func contents(_ directory: URL, text: String) throws {
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     try Data(text.utf8).write(to: directory.appendingPathComponent("marker"))

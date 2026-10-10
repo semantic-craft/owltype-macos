@@ -240,12 +240,12 @@ if [[ -f "$pkg" ]]; then
   # pkgutil --expand-full refuses a pre-existing target, so use an uncreated `mktemp -u` name.
   _pkg_tmp="$(mktemp -u /tmp/owl-pkg-scan.XXXXXX)"
   if pkgutil --expand-full "$pkg" "$_pkg_tmp" >/dev/null 2>&1; then
-    pkg_app="$_pkg_tmp/Owltype-component.pkg/Payload/Owltype.app"
+    pkg_app="$_pkg_tmp/Owltype-component.pkg/Payload/Library/Input Methods/.Owltype.pkg-staging/Owltype.app"
     if [[ -d "$pkg_app" ]]; then
       owl_scan_app_identity "$pkg_app"
       report_app_scan "pkg payload"
     else
-      pkg_unscanned="pkg expanded but no payload app at Owltype-component.pkg/Payload/Owltype.app"
+      pkg_unscanned="pkg expanded but no payload app at Owltype-component.pkg/Payload/Library/Input Methods/.Owltype.pkg-staging/Owltype.app"
     fi
   else
     pkg_unscanned="pkgutil --expand-full failed for $pkg"

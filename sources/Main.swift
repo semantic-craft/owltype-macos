@@ -168,6 +168,15 @@ struct OwlApp {
           }
           installer.enable()
           return true
+        case "--commit-install":
+          do {
+            guard args.count == 3 else { throw CocoaError(.fileReadInvalidFileName) }
+            try OwlInstallFiles.commit(source: URL(fileURLWithPath: args[2]))
+          } catch {
+            fputs("INSTALL_FILES_FAILED: \(error)\n", stderr)
+            exit(1)
+          }
+          return true
         case "--finish-install":
           do {
             guard args.count == 5, args[2] == "first" || args[2] == "update" else {

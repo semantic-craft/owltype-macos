@@ -325,6 +325,8 @@
 		FB5A00010000000000000004 /* OwlSessionRestartTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5A00020000000000000004 /* OwlSessionRestartTests.swift */; };
 		FB5A00010000000000000005 /* OwlInstallSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5A00020000000000000005 /* OwlInstallSession.swift */; };
 		FB5A00010000000000000006 /* OwlSessionRestart.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5A00020000000000000003 /* OwlSessionRestart.swift */; };
+		FB5A00010000000000000007 /* OwlInstallFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5A00020000000000000007 /* OwlInstallFiles.swift */; };
+		FB5A00010000000000000008 /* OwlBundleSwap.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5A00020000000000000001 /* OwlBundleSwap.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -772,6 +774,7 @@
 		FB5A00020000000000000003 /* OwlSessionRestart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSessionRestart.swift; path = installer/Shared/OwlSessionRestart.swift; sourceTree = "<group>"; };
 		FB5A00020000000000000004 /* OwlSessionRestartTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSessionRestartTests.swift; path = tests/OwlSessionRestartTests.swift; sourceTree = "<group>"; };
 		FB5A00020000000000000005 /* OwlInstallSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlInstallSession.swift; path = sources/Activation/OwlInstallSession.swift; sourceTree = "<group>"; };
+		FB5A00020000000000000007 /* OwlInstallFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlInstallFiles.swift; path = sources/Activation/OwlInstallFiles.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -794,6 +797,7 @@
 			children = (
 				B38E9B902BE9AE1E0036ABEF /* OwlApplicationDelegate.swift */,
 				FB5A00020000000000000005 /* OwlInstallSession.swift */,
+				FB5A00020000000000000007 /* OwlInstallFiles.swift */,
 				FAA00021CAFE0021CAFE0021 /* OwlUpdateLogoutPrompt.swift */,
 				FAA00031CAFE0031CAFE0031 /* OwlUserDictResetPrompt.swift */,
 				FA0001F1CAFE01F1CAFE01F1 /* OwlApplicationDelegate+FastApply.swift */,
@@ -1380,6 +1384,8 @@
 				FA000203CAFE0203CAFE0203 /* OwlStyleFlags.swift in Sources */,
 				B38E9B952BEAFEFD0036ABEF /* OwlInputController.swift in Sources */,
 				FB5A00010000000000000005 /* OwlInstallSession.swift in Sources */,
+				FB5A00010000000000000007 /* OwlInstallFiles.swift in Sources */,
+				FB5A00010000000000000008 /* OwlBundleSwap.swift in Sources */,
 				FB5A00010000000000000006 /* OwlSessionRestart.swift in Sources */,
 				FA000101CAFE0101CAFE0101 /* OwlInputMenuTitles.swift in Sources */,
 				FA000103CAFE0103CAFE0103 /* OwlInputController+Menu.swift in Sources */,
