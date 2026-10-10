@@ -8,7 +8,7 @@
 安装基线失败项已复现；用户已执行回滚，当前 App 为 2.0.12，安装收据保留 2.0.13。
 回滚进程 PID 37873、路径/磁盘/LS 版本一致、inode 检查通过；用户确认旧、新宿主打字恢复。
 回滚后也延迟出现“已更新到 2.0.12”注销提示，截图已保存；A1 同样影响降级。
-用户已明确批准 agent 开始本机 B4 和安装，后续不重复索要安装确认；管理员认证仍由用户接管。
+用户已批准并完成本机 B4、发布包安装/回滚和 macl 实验；修改后产物的真机安装仍需按原限制交给用户执行或确认，管理员认证由用户接管。
 已完成真机只读基线和 B4 同版本对照：用户用五笔确认旧、新 TextEdit 都能提交“你好”。
 同版本和跨版本 B4 在本机均未复现“旧 TextEdit 必须重开”；不能外推其他系统。
 macl 真机 spike 已通过。下一步完成分支头 gate 与产物验证，再由用户执行 S1–S4。
@@ -203,8 +203,10 @@ S3 的直接 pkg 安装与 Sparkle 下载/安装入口分别记录，不能互�
 ## 自动验证与未验证项
 
 - 探针自测 19 项通过；旧 inode 检查自测通过；verify runner 自测 8 项通过；shell 语法通过。
-- 自测已接入 gate 的 portable_scripts 及 verify.py distribution；全 gate 尚未运行。
-- OwlBundleSwapTests 11/11 通过（20261010T011853Z-swift-d1tphz1c）；其余三个指定测试组、check-release.selftest、release-cohort-selftest 尚未运行。
+- 自测已接入 gate 的 portable_scripts 及 verify.py distribution。
+- 五组相关 Swift 测试 96/96 通过（20261010T032914Z-swift-zhm__izf）：OwlBundleSwapTests、OwlSessionRestartTests、InstallerActivationPolicyTests、OwlUpdateLogoutPromptTests、ActivationPolicyTests。
+- check-release.selftest 17/17、release-cohort-selftest 33/33 通过；GUI 无签名构建通过。
+- cfaba60 的干净分支头 gate 在 release_checks 失败：identity selftest 仍把夹具放到旧的 live payload 路径；此前所有阶段（含产品测试与构建）通过。修正夹具后 identity selftest 16/16，准备重跑完整 gate。失败证据：20261010T033505Z-full-ceatwrfb。
 - 未验证：修改后 S1–S4、无 ABC、Intel、macOS 14/15、真实 Sparkle 入口、指定 sudo installer CLI 基线入口。
 - 真机：arm64、macOS 27.0.1 (26A434)。2.0.13 的 PID 22162 于安装期间启动；
   路径正确，inode 87910446 映射检查通过，磁盘/lsappinfo/目标均为 2.0.13。
@@ -276,3 +278,5 @@ bash "$HOME/Projects/_shared-work/owltype/verification/no-logout-20261010/macl-s
 | 2026-10-10 11:24 +0800 | pkg改为隐藏暂存payload、root文件提交与用户会话收尾；新增校验失败恢复测试 | 消除PackageKit原地覆盖live和收据边界延迟任务，交换后移出旧Contents再验签 | Swift交换/会话26/26；release selftest15/15；真实未签名组件pkgutil payload无live路径，PackageInfo无bundle注册；证据staged-pkg-9uoglhmo | 离线通过，未安装；结构检查初次把系统/var软链误判，限定到payload边界后修正通过；两产品pkg仍待最终构建 |
 | 2026-10-10 11:26 +0800 | GUI复用 --commit-install 与 --finish-install，删除旧Verifier及旧整包替换/服务清理 | 两个入口使用相同原语和自检，避免30秒软超时直接建议注销 | GUI无签名构建通过；相关Swift组通过，证据20261010T032538Z-swift-_5dfrr0m；release-cohort-selftest33/33 | 未安装GUI；首次测试编译有两处旧参数，修正一次后通过 |
 | 2026-10-10 11:31 +0800 | 删除版本变化触发和常驻注销菜单，只在自检失败时提供恢复；两个pkg去RequireLogout并更新发版断言/文档 | 基线升级及降级都在成功上屏后延迟弹窗，版本差异不能证明会话坏了 | 五组Swift96/96；release selftest17/17；证据20261010T032914Z-swift-zhm__izf | 离线通过，正式S1–S4待测；Sparkle仅下载接管仍未实现 |
+
+| 2026-10-10 11:40 +0800 | 修正 identity 自测夹具的 pkg 暂存路径 | 完整 gate 检出旧夹具路径导致毒化 payload 未被扫描，不能放宽断言 | cfaba60 gate 的 release_checks 失败；修正后 identity selftest16/16 | 单次修正通过；即将重跑干净分支头 gate |
