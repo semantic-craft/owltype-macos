@@ -331,6 +331,7 @@ bash "$HOME/Projects/_shared-work/owltype/verification/no-logout-20261010/macl-s
 | 2026-10-11 14:10 +0800 | 按用户决定保留官方Sparkle，准备隔离真实入口实验 | 无需维护定制框架；源码尚未证明重复启动故障，先补可归属的端到端证据 | 固定版本源码、同包哈希/临时公钥验签、loopback检查、原旧窗口绑定及日志反例回放；审阅修复互斥和来源验证 | 未改产品、未安装；#204仍待用户真机执行，不新增无收益单测 |
 | 2026-10-11 14:16 +0800 | 核对官方Sparkle原选Hans实验 | 不能只凭pkg成功或人工PASS覆盖更新器收尾异常 | 下载请求、Autoupdate→installer来源、三证和菜单/两宿主截图通过；26秒PASS；TCC出现Updater应用管理拒绝 | 计时输入与Hans保持通过；延迟观察及通知原因未闭环，保留现场，不重装或自动回滚 |
 | 2026-10-11 14:29 +0800 | 收录用户延迟PASS并只读追查Updater通知 | 避免重复安装或用权限放宽掩盖问题 | TCC PID93817拒绝时间、LaunchServices请求、固定2.6.2源码及签名对照 | 功能与延迟观察通过；拒绝操作路径未知，签名因素仍是假设；不改产品、不改权限 |
+| 2026-10-11 14:47 +0800 | 建立不安装的Updater拒绝复现 | 避免为诊断重复完整安装；控制TCC责任进程归因 | launchd副本PID10783/11609的AppBundles拒绝，原Owltype94004保持 | 已能独立复现；准备30秒系统调用跟踪，因sudo限制待用户执行，无产品补丁 |
 
 ## 菜单缺失：控制结果与后续隔离
 
@@ -485,3 +486,16 @@ helper只操作指定TextEdit窗口，不安装、输入字符、改输入源或
 - 上游维护者说明默认更新策略使用同Team ID，且此类通知有时不妨碍安装；见[讨论2881](https://github.com/sparkle-project/Sparkle/discussions/2881)（讨论正文2026-06-03维护者回复；不借用其他报告的根因）。
 
 本次未重装、未修改TCC/权限/签名，也未加入猜测性产品补丁。尚缺被拒操作/路径，以及正常同Team ID发行签名的对照，故保留通知问题为未验证项；无需用户重复已通过的打字验收。
+
+
+### #204：不安装复现Updater拒绝（2026-10-11续查）
+
+本地`.../sparkle-official-5d03p3jc/open-probe`保留源码、调用记录、进程证据和TCC日志。未执行sudo或安装，Owltype始终为原PID94004。
+
+1. 普通NSWorkspace openURL探针成功，没有重现AppBundles拒绝。真实Updater副本通过命令行运行收尾也成功，但TCC归因到Codex，因此该阴性结果不能排除Updater权限问题。
+2. 改为临时`gui/501` launchd任务，使用原ad-hoc Updater二进制副本；诊断dylib只将applicationDidFinishLaunching改为设置既有目标并调用原relaunchApplication，跳过安装器连接。原来的重新打开和副本自清理逻辑仍执行，任务结束后bootout。
+3. 独立归因的PID10783再次触发SystemPolicyAppBundles拒绝（421.30093，14:44:31.227168，authValue=0/authReason=2）。补充元数据调用跟踪的PID11609也触发同类拒绝（421.30100，14:46:26.794891）；进程仍为94004。因此已经存在无需安装的拒绝复现，不需要重跑Sparkle更新或人工打字。
+4. `setxattr/removexattr/setattrlist/fsetattrlist/fsctl/access/faccessat/open`的用户态插桩未定位具体拒绝调用；不能由“没有捕获”推断没有系统写操作。中间sandbox_check变参插桩没有完整转发契约，已移除，该轮不作为因果证据。
+5. 准备`.../sparkle-denial-trace-4d6shq92/start-no-install.sh`：sudo只运行系统fs_usage，限定Updater/CoreServicesUIAgent、最长30秒；先通过预检进程读取专用marker，确实记录路径才运行同一隔离复现。脚本/二进制SHA256、shell语法、预检读文件通过；root跟踪尚未运行。安装草案已删除，本次不包含安装/回滚动作。
+
+下一步由用户执行上述取证脚本（sudo限制）。不用关闭旧窗口、无需再次安装或打字；现有App、词典、收据均保持。精确被拒操作仍待系统层捕获，不把本轮诊断标为修复完成。
