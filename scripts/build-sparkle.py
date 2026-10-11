@@ -15,6 +15,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
 REVISION = "41847a58cdef7506b257591fcca6f9495df591d4"
+SOURCE_SHA256 = "7c4af8fb8ba319d2b55c90af8b29ddc530d03cccac28b6b60638b032a61e5b8d"
 PATCH = ROOT / "patches/sparkle/application-relaunch.patch"
 RECEIPT = Path("Versions/B/Resources/OwltypeSparkleBuild.json")
 UPDATER = Path("Versions/B/Updater.app/Contents/MacOS/Updater")
@@ -46,6 +47,32 @@ def verify(framework):
         raise ValueError("Sparkle Updater lacks the application launch API")
 
 
+def prepare_source(upstream, source):
+    """Use the same pinned tree from Git checkouts and published source archives."""
+    if (upstream / ".git").exists():
+        if subprocess.check_output(["git", "-C", str(upstream), "rev-parse", "HEAD"], text=True).strip() != REVISION:
+            raise ValueError("unexpected Sparkle submodule revision")
+        archive = source / "upstream.tar"
+        run("git", "-C", str(upstream), "archive", "--format=tar", "-o", str(archive), REVISION)
+        run("tar", "-xf", str(archive), "-C", str(source))
+        archive.unlink()
+    else:
+        shutil.copytree(upstream, source, dirs_exist_ok=True, symlinks=True)
+    entries = []
+    for path in sorted(source.rglob("*")):
+        relative = path.relative_to(source).as_posix()
+        if path.is_symlink():
+            entries.append([relative, "symlink", str(path.readlink())])
+        elif path.is_file():
+            mode = "executable" if path.stat().st_mode & 0o111 else "file"
+            entries.append([relative, mode, hashlib.sha256(path.read_bytes()).hexdigest()])
+    digest = hashlib.sha256(json.dumps(entries, separators=(",", ":"), ensure_ascii=True).encode()).hexdigest()
+    if digest != SOURCE_SHA256:
+        raise ValueError("Sparkle source differs from the pinned upstream tree")
+    run("git", "apply", "--check", str(PATCH), cwd=source)
+    run("git", "apply", str(PATCH), cwd=source)
+
+
 def build():
     destination = ROOT / "Frameworks/Sparkle.framework"
     try:
@@ -55,19 +82,11 @@ def build():
     except (OSError, ValueError, subprocess.CalledProcessError):
         pass
     upstream = ROOT / "Sparkle"
-    if subprocess.check_output(["git", "-C", str(upstream), "rev-parse", "HEAD"], text=True).strip() != REVISION:
-        raise ValueError("unexpected Sparkle submodule revision")
-    # Archive the committed pin, never copy uncommitted dependency edits.
     work = ROOT / "build/sparkle-patched"
     work.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="source-", dir=work) as temporary:
         source = Path(temporary)
-        archive = source / "upstream.tar"
-        run("git", "-C", str(upstream), "archive", "--format=tar", "-o", str(archive), REVISION)
-        run("tar", "-xf", str(archive), "-C", str(source))
-        archive.unlink()
-        run("git", "apply", "--check", str(PATCH), cwd=source)
-        run("git", "apply", str(PATCH), cwd=source)
+        prepare_source(upstream, source)
         prefix_map = f"-ffile-prefix-map={source}=Sparkle"
         run("xcodebuild", "-quiet", "-project", str(source / "Sparkle.xcodeproj"),
             "-scheme", "Sparkle", "-configuration", "Release", "-derivedDataPath", str(work / "derived"),

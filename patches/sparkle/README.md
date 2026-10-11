@@ -18,7 +18,9 @@ upstream binary; remove it when adopting an upstream revision with equivalent be
 
 `make sparkle` archives the committed pin, applies this patch in an isolated build
 folder and builds both architectures without Developer ID signing. The submodule is
-not edited. A receipt binds the patch digest and Updater Mach-O UUIDs; bootstrap,
+not edited. Published source archives use their included Sparkle tree without Git
+metadata; both paths verify the same pinned tree digest before applying the patch.
+A receipt binds the patch digest and Updater Mach-O UUIDs; bootstrap,
 release finalization and release checks reject stale/unpatched artifacts. UUIDs remain
 stable when the release pipeline replaces code signatures. This receipt detects build
 mixups; it does not replace signing or Sparkle's download verification.

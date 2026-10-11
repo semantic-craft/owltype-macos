@@ -162,7 +162,7 @@ debug: $(DEPS_CHECK)
 .PHONY: sparkle
 
 sparkle:
-	git submodule update --init --recursive Sparkle
+	@if [ -e .git ]; then git submodule update --init --recursive Sparkle; fi
 	python3 scripts/build-sparkle.py
 
 # Use the prebuilt Sparkle tools shipped in download/bin/ — the Sparkle source
