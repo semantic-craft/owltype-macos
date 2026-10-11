@@ -97,7 +97,7 @@ class HostEvidenceTests(unittest.TestCase):
                 Path(command[-1]).write_bytes(b'isolated screenshot fixture')
 
             with patch('sys.argv', argv), patch.object(module, 'file_state', side_effect=[self.baseline, self.saved]), \
-                 patch.object(module.subprocess, 'check_output', side_effect=[json.dumps(self.before), json.dumps(self.after)]), \
+                 patch.object(module.subprocess, 'check_output', side_effect=[json.dumps(self.before), json.dumps(self.before), json.dumps(self.after)]), \
                  patch.object(module.subprocess, 'run', side_effect=capture) as screenshot, \
                  patch.object(module.time, 'sleep'), patch.object(module.time, 'time', return_value=110):
                 if source == 'im.owltype.inputmethod.Owltype.Hans':
@@ -115,6 +115,38 @@ class HostEvidenceTests(unittest.TestCase):
 
     def test_full_watch_flow_rejects_other_ime(self):
         self.replay_main('com.tencent.inputmethod.wetype.pinyin')
+
+    def test_save_between_file_read_and_host_observation(self):
+        # Native failure: the file read still saw the old mtime, then a save
+        # completed 13ms before the following AX observation. That observation
+        # must not replace the earlier boundary for the next file read.
+        with tempfile.TemporaryDirectory() as folder:
+            binding = Path(folder) / 'binding.json'
+            binding.write_text(json.dumps(self.binding))
+            output = Path(folder) / 'evidence.json'
+            reads = [0]
+
+            def state(_):
+                reads[0] += 1
+                return copy.deepcopy(self.saved if reads[0] >= 3 else self.baseline)
+
+            def observation(*args, **kwargs):
+                value = copy.deepcopy(self.before)
+                value['observedAt'] = {1: 110, 2: 111.013, 3: 111.3}[reads[0]]
+                value['nihaoCount'] = 3 if reads[0] == 1 else 4
+                return json.dumps(value)
+
+            def capture(command, **kwargs):
+                Path(command[-1]).write_bytes(b'isolated screenshot fixture')
+
+            argv = ['watch', '--helper', '/fake/helper', '--binding', str(binding),
+                    '--started', '95', '--completed', '100', '--role', 'old', '--output', str(output)]
+            with patch('sys.argv', argv), patch.object(module, 'file_state', side_effect=state), \
+                 patch.object(module.subprocess, 'check_output', side_effect=observation), \
+                 patch.object(module.subprocess, 'run', side_effect=capture), \
+                 patch.object(module.time, 'sleep'), patch.object(module.time, 'time', return_value=110):
+                module.main()
+            self.assertEqual(json.loads(output.read_text())['errors'], [])
 
 
 if __name__ == '__main__':

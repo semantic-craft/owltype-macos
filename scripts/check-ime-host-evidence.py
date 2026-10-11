@@ -71,6 +71,7 @@ def main():
     print(f'请在已调出的{args.role}窗口选猫头鹰，用五笔新增“你好”并按⌘S；脚本会自动切换下一窗口。', flush=True)
     while time.time() <= args.completed + 60:
         time.sleep(.15)
+        before_read = observe()
         saved = file_state(binding)
         after = observe()
         if saved['mtime_ns'] != baseline['mtime_ns']:
@@ -85,7 +86,9 @@ def main():
                 raise ValueError('Save screenshot missing')
             print(f'HOST_SAVE_VERIFIED role={args.role} pid={binding["pid"]}; manual Wubi confirmation still required')
             return
-        before = after
+        # A save may occur after this file read but before `after`. Keep the
+        # observation preceding the file read as the next save's lower bound.
+        before = before_read
     raise ValueError('60-second window expired; not a confirmed product failure')
 
 
