@@ -47,9 +47,14 @@ A version change, including a downgrade, never arms a logout prompt. An explicit
 self-check can notify the running App to offer recovery guidance at an input-safe time. The default
 button keeps the session open. The GUI also reports a failed self-check without requesting logout.
 
-Sparkle's existing package installer remains in use on this branch at present. Its upstream lifecycle
-may terminate the host before package execution. Download-only handoff and the real Sparkle entrypoint
-remain unresolved and must not be presented as verified. Native logs disproved the previous empty-component-list
+The user approved retaining official Sparkle on 2026-10-11 (#204): Sparkle owns downloading,
+EdDSA verification and invoking the system package installer; the package owns atomic file commit
+and user-session recovery. The earlier download-only requirement is superseded. Sparkle 2.6.2 has
+no public verified-download-path handoff. Returning false from its relaunch delegate can abort
+installation, so it is not a way to suppress only a duplicate launch. Its progress agent uses an
+ordinary openURL after package completion; whether that reuses the server launched by postinstall
+must still be verified through the real entrypoint. No product workaround is justified yet.
+Native logs disproved the previous empty-component-list
 assumption: PackageKit still registered the staged App after postinstall and the process/TIS self-check.
 The revised format gives PackageKit only an inert archive. Release, identity and secret gates unpack and
 inspect its real contents; they reject direct App payloads, escaping archive paths and unsafe links.
