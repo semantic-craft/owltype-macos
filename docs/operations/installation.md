@@ -70,6 +70,21 @@ Capture the input menu and note any delayed logout guidance. All required succes
 within 60 seconds, with later unwanted prompts also recorded as failures. Test an update with another
 input method selected before installation separately. Never edit HIToolbox files to manufacture state.
 
+Bind hosts with [the local window helper](../../scripts/ime-acceptance-host.swift), using PID, process
+launch time, executable, window ID and document URL. A restored copy of the old document in a new
+TextEdit process is not old-host evidence. `focus` validates the saved identity before raising the
+exact window; `new` starts a fresh TextEdit with per-process state restoration disabled. It never
+reopens an old document by path or silently rebinds a missing window. Accessibility and screenshot
+permissions must be checked in the executing terminal before any privileged operation.
+
+[The save observer](../../scripts/check-ime-host-evidence.py) requires the same bound window focused
+and Owltype Hans selected around a new saved “你好”, within the shared 60-second deadline. It compares
+with the bound window's text baseline, since another process may have saved the same file. This is
+supporting evidence, not proof of physical Wubi keystrokes; human confirmation remains required.
+Run a no-install rehearsal before another native update when changing this harness. Never count a
+rehearsal as installation acceptance. Offline failure replays live in
+[host evidence tests](../../scripts/check-ime-host-evidence.selftest.py).
+
 Before native installation, obtain user execution/approval and identify a verified App backup.
 On failure preserve the failed App and logs, restore the agreed App only, and recheck process mapping
 and typing. App rollback does not undo the package receipt or dictionary changes. Do not remove user

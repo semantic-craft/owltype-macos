@@ -65,6 +65,8 @@ portable_scripts() {
   python3 scripts/owl-distribution.selftest.py
   python3 scripts/release-source-archive.selftest.py
   bash scripts/check-live-ime-version.sh --self-test
+  python3 scripts/check-ime-host-evidence.selftest.py
+  xcrun swiftc -typecheck scripts/ime-acceptance-host.swift
 }
 
 secret_policy() {

@@ -59,6 +59,7 @@ def plan(scope, tests):
         return [[python, 'scripts/owl-distribution.selftest.py'],
                 [python, 'scripts/check-installed-process.py', '--self-test'],
                 ['bash', 'scripts/check-live-ime-version.sh', '--self-test'],
+                [python, 'scripts/check-ime-host-evidence.selftest.py'],
                 ['bash', 'scripts/release-chain.selftest.sh']]
     if scope == 'workflow':
         return [[python, 'scripts/verify.selftest.py'],
