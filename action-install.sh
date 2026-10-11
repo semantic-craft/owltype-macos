@@ -90,7 +90,7 @@ cp -L download/dist/lib/rime-plugins/librime-predict.dylib lib/rime-plugins/
 cp -L download/dist/lib/rime-plugins/librime-octagram.dylib lib/rime-plugins/
 cp download/dist/bin/rime_deployer bin/
 cp download/dist/bin/rime_dict_manager bin/
-cp -R download/Sparkle.framework Frameworks/
+
 sanitize_upstream_build_paths \
   lib/librime.1.dylib \
   lib/rime-plugins/librime-lua.dylib \
@@ -104,6 +104,7 @@ ensure_rpath bin/rime_dict_manager
 cp -R download/share/opencc/. data/opencc/
 
 git submodule update --init --recursive librime librime-lua plum Sparkle
+python3 scripts/build-sparkle.py
 
 for package_spec in "${plum_packages[@]}"; do
   read -r package_name package_sha <<<"$package_spec"

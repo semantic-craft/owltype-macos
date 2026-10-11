@@ -303,6 +303,10 @@ def make_sbom(app: Path, version: str, revision: str, created: str) -> dict:
             }
         )
 
+        if name == "Sparkle":
+            patch = Path(__file__).resolve().parent.parent / "patches/sparkle/application-relaunch.patch"
+            packages[-1]["sourceInfo"] = "Official upstream pin with Owltype application-relaunch.patch SHA256 " + sha256(patch)
+
     return {
         "SPDXID": "SPDXRef-DOCUMENT",
         "creationInfo": {"created": created, "creators": ["Tool: owltype-finalize-release-bundle"]},

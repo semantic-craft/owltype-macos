@@ -57,6 +57,9 @@ if (( preflight_only )); then
   exit 0
 fi
 
+# Receipt and UUIDs survive release signing; reject the old prebuilt Updater.
+python3 "$ROOT/scripts/build-sparkle.py" --check "$APP/Contents/Frameworks/Sparkle.framework"
+
 python3 "$ROOT/scripts/release-cohort-state.py" verify-chain "$RELEASE_OUTPUT_ROOT"
 
 [[ -d "$APP" ]] || fail "Release app not found: $APP"

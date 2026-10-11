@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""Build pinned upstream Sparkle plus the reviewed application-relaunch patch.
+
+The submodule stays untouched. A receipt binds the patch and both Updater slices;
+UUIDs survive the release pipeline's removal/replacement of code signatures.
+"""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import tempfile
+
+ROOT = Path(__file__).resolve().parent.parent
+REVISION = "41847a58cdef7506b257591fcca6f9495df591d4"
+PATCH = ROOT / "patches/sparkle/application-relaunch.patch"
+RECEIPT = Path("Versions/B/Resources/OwltypeSparkleBuild.json")
+UPDATER = Path("Versions/B/Updater.app/Contents/MacOS/Updater")
+
+
+def run(*args, **kwargs):
+    return subprocess.run(args, check=True, **kwargs)
+
+
+def uuids(binary):
+    output = subprocess.check_output(["xcrun", "dwarfdump", "--uuid", str(binary)], text=True)
+    result = dict((arch, uuid) for uuid, arch in re.findall(r"UUID: ([0-9A-F-]+) \(([^)]+)\)", output))
+    if set(result) != {"arm64", "x86_64"}:
+        raise ValueError("Sparkle Updater must contain arm64 and x86_64")
+    return result
+
+
+def identity():
+    return {"upstreamRevision": REVISION, "patchSHA256": hashlib.sha256(PATCH.read_bytes()).hexdigest(),
+            "builderSHA256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+
+
+def verify(framework):
+    receipt = json.loads((framework / RECEIPT).read_text())
+    expected = {**identity(), "updaterUUIDs": uuids(framework / UPDATER)}
+    if receipt != expected:
+        raise ValueError("Sparkle build receipt differs from the reviewed patch or Updater binary")
+    if b"openApplicationAtURL:configuration:completionHandler:" not in (framework / UPDATER).read_bytes():
+        raise ValueError("Sparkle Updater lacks the application launch API")
+
+
+def build():
+    destination = ROOT / "Frameworks/Sparkle.framework"
+    try:
+        verify(destination)
+        print("Sparkle patched build is current")
+        return
+    except (OSError, ValueError, subprocess.CalledProcessError):
+        pass
+    upstream = ROOT / "Sparkle"
+    if subprocess.check_output(["git", "-C", str(upstream), "rev-parse", "HEAD"], text=True).strip() != REVISION:
+        raise ValueError("unexpected Sparkle submodule revision")
+    # Archive the committed pin, never copy uncommitted dependency edits.
+    work = ROOT / "build/sparkle-patched"
+    work.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="source-", dir=work) as temporary:
+        source = Path(temporary)
+        archive = source / "upstream.tar"
+        run("git", "-C", str(upstream), "archive", "--format=tar", "-o", str(archive), REVISION)
+        run("tar", "-xf", str(archive), "-C", str(source))
+        archive.unlink()
+        run("git", "apply", "--check", str(PATCH), cwd=source)
+        run("git", "apply", str(PATCH), cwd=source)
+        prefix_map = f"-ffile-prefix-map={source}=Sparkle"
+        run("xcodebuild", "-quiet", "-project", str(source / "Sparkle.xcodeproj"),
+            "-scheme", "Sparkle", "-configuration", "Release", "-derivedDataPath", str(work / "derived"),
+            "ARCHS=arm64 x86_64", "ONLY_ACTIVE_ARCH=NO", "MACOSX_DEPLOYMENT_TARGET=14.0", "CODE_SIGNING_ALLOWED=NO",
+            "CODE_SIGNING_REQUIRED=NO", "CODE_SIGN_IDENTITY=", "DEBUG_INFORMATION_FORMAT=dwarf-with-dsym",
+            "OTHER_CFLAGS=$(inherited) " + prefix_map,
+            "OTHER_CPLUSPLUSFLAGS=$(inherited) " + prefix_map, "build")
+        built = work / "derived/Build/Products/Release/Sparkle.framework"
+        receipt = {**identity(), "updaterUUIDs": uuids(built / UPDATER)}
+        (built / RECEIPT).write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+        verify(built)
+        destination.parent.mkdir(exist_ok=True)
+        # Publish only the validated build, preserving the previous framework on build failure.
+        staged = destination.with_name("Sparkle.framework.new")
+        if staged.exists():
+            shutil.rmtree(staged)
+        shutil.copytree(built, staged, symlinks=True)
+        if destination.exists():
+            shutil.rmtree(destination)
+        staged.rename(destination)
+        print("Built official Sparkle pin with application-relaunch patch")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", type=Path)
+    args = parser.parse_args()
+    if args.check:
+        verify(args.check)
+        print("Sparkle application-relaunch build verified")
+    else:
+        build()
+
+
+if __name__ == "__main__":
+    main()

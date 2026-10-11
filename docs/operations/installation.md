@@ -51,9 +51,13 @@ The user approved retaining official Sparkle on 2026-10-11 (#204): Sparkle owns 
 EdDSA verification and invoking the system package installer; the package owns atomic file commit
 and user-session recovery. The earlier download-only requirement is superseded. Sparkle 2.6.2 has
 no public verified-download-path handoff. Returning false from its relaunch delegate can abort
-installation, so it is not a way to suppress only a duplicate launch. Its progress agent uses an
-ordinary openURL after package completion; whether that reuses the server launched by postinstall
-must still be verified through the real entrypoint. No product workaround is justified yet.
+installation, so it is not a way to suppress only a duplicate launch. The progress agent now has a tracked source patch: application bundles use
+openApplicationAtURL and wait for completion before cleanup. The legacy openURL route requested
+a read-write sandbox extension and triggered App Management in the isolated test. See
+[the dependency patch](../../patches/sparkle/README.md). Download, verification and pkg installation
+remain official Sparkle code; the dependency is a patched build, not the unmodified upstream binary.
+An update started by an older installed App still uses its old helper; the repair takes effect when
+the updated helper starts the next update. Full installation with the rebuilt helper is pending.
 Native logs disproved the previous empty-component-list
 assumption: PackageKit still registered the staged App after postinstall and the process/TIS self-check.
 The revised format gives PackageKit only an inert archive. Release, identity and secret gates unpack and

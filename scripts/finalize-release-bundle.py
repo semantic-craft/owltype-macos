@@ -149,6 +149,8 @@ def main() -> None:
         fail("pinned Sparkle license is missing or differs from the reviewed 2.6.2 text")
     shutil.copyfile(sparkle_license, resources / "Sparkle-LICENSE.txt")
 
+    subprocess.run([sys.executable, str(ROOT / "scripts/build-sparkle.py"), "--check",
+                    str(app / "Contents/Frameworks/Sparkle.framework")], check=True)
     verify_seed(app)
     files = relative_files(app)
     verify_no_private_build_paths(files)

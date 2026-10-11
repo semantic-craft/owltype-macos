@@ -1,0 +1,48 @@
+--- a/Sparkle/InstallerProgress/InstallerProgressAppController.m
++++ b/Sparkle/InstallerProgress/InstallerProgressAppController.m
+@@ -390,18 +390,34 @@
+                 [self cleanupAndExitWithStatus:EXIT_FAILURE error:[NSError errorWithDomain:SUSparkleErrorDomain code:SUAgentInvalidationError userInfo:@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Error: Encountered invalid path to relaunch: %@", pathToRelaunch] }]];
+             }
+             
+-            // Note: we can launch application bundles or open plug-in bundles
+-            if (![[NSWorkspace sharedWorkspace] openURL:[NSURL fileURLWithPath:pathToRelaunch isDirectory:YES]]) {
+-                SULog(SULogLevelError, @"Error: Failed to relaunch bundle at %@", pathToRelaunch);
+-            }
+-            
+-            // Delay termination for a little bit to better increase the chance the updated application when relaunched will be the frontmost application
+-            // This is related to macOS activation issues when terminating a frontmost application happens right before launching another app
+-            
++            // An application launch is not a document-open operation. The latter can
++            // request a read-write sandbox extension and trigger App Management.
+             self->_willTerminate = YES;
+-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SUTerminationTimeDelay * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+-                [self cleanupAndExitWithStatus:EXIT_SUCCESS error:nil];
+-            });
++            void (^finishRelaunch)(NSError *) = ^(NSError *error) {
++                dispatch_async(dispatch_get_main_queue(), ^{
++                    if (error != nil) {
++                        [self cleanupAndExitWithStatus:EXIT_FAILURE error:error];
++                    }
++                    // Preserve Sparkle's activation delay, but only after opening completes.
++                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SUTerminationTimeDelay * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
++                        [self cleanupAndExitWithStatus:EXIT_SUCCESS error:nil];
++                    });
++                });
++            };
++            NSURL *relaunchURL = [NSURL fileURLWithPath:pathToRelaunch isDirectory:YES];
++            if (@available(macOS 10.15, *)) {
++                if ([[relaunchBundle objectForInfoDictionaryKey:@"CFBundlePackageType"] isEqual:@"APPL"]) {
++                    NSWorkspaceOpenConfiguration *configuration = [NSWorkspaceOpenConfiguration configuration];
++                    configuration.createsNewApplicationInstance = NO;
++                    [[NSWorkspace sharedWorkspace] openApplicationAtURL:relaunchURL configuration:configuration completionHandler:^(NSRunningApplication *application, NSError *error) {
++                        finishRelaunch(error);
++                    }];
++                    return;
++                }
++            }
++            // Keep upstream support for plug-in bundles and pre-10.15 hosts.
++            BOOL opened = [[NSWorkspace sharedWorkspace] openURL:relaunchURL];
++            finishRelaunch(opened ? nil : [NSError errorWithDomain:SUSparkleErrorDomain code:SUAgentInvalidationError userInfo:@{ NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Failed to relaunch bundle at %@", pathToRelaunch] }]);
+         }
+     });
+ }
