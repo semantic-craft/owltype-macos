@@ -1,65 +1,35 @@
 #!/bin/bash
-# preinstall — 在 payload 落盘**之前**记录两件事（都是 postinstall 拿不到的「更新前」真相）：
-#   1) 目标卷是否已有猫头鹰 bundle（更新/重装的主信号）；
-#   2) 用户当前输入源是否正选中猫头鹰（更新收尾还原选中态的主信号）。
-#
-# 为什么 1) 需要它：Sparkle guided pkg install 会**先终止宿主 App（= Owltype 本体）再跑安装器**，
-# 且 imklaunchagent 可能在安装中途按需复活 Owltype（它仍是 selected source）——所以 postinstall
-# 里单靠 pgrep 探测进程，在 Sparkle 主路径上必然读 false / 结果非确定，更新会被误判成首装：
-# enable 重跑（历史重复启用问题，见 `docs/operations/installation.md`）+ select 抢用户当前输入法。
-# 「安装前 bundle 已存在」不受进程生死影响，是更新探测的主信号；postinstall 读取标记后即删。
-#
-# 为什么 2) 也必须在这里记：payload 原地替换 bundle 时 TIS 会把选中态踢出猫头鹰（#16 三连复现：
-# 更新后 fresh 探针恒读 selected=false，用户被踢回 ABC/鼠须管）——postinstall 再探测已经结构性
-# 太晚，切回分支永不触发。preinstall 时刻选中态还在（imklaunchagent 复活 Owltype 正因它仍是
-# selected source），用**老二进制 fresh 进程**只读 TIS（历史观察：读回必须 fresh 进程；
-# --current-input-source 零副作用）。老版本二进制无此 CLI 时探测本身可以失败；但一旦确认
-# 了选中态，状态标记必须可靠写入。安装状态目录或“既有 bundle”标记写不成时必须中止，
-# 否则 postinstall 会把更新误判为首装，重新 enable/select 并破坏 no-steal。
-set -e
-
-login_user=`/usr/bin/stat -f%Su /dev/console`
-login_uid=`/usr/bin/stat -f%u /dev/console`
-input_methods_root="${DSTROOT:-${2:-}/Library/Input Methods}"
-owl_app_root="${input_methods_root}/Owltype.app"
-owl_executable="${owl_app_root}/Contents/MacOS/Owltype"
-installer_state_dir="/private/var/db/im.owltype.inputmethod.Owltype-installer"
-installer_markers_dir="${installer_state_dir}/markers"
-marker="${installer_markers_dir}/preinstall-had-bundle"
-selected_marker="${installer_markers_dir}/preinstall-was-selected"
-
-# Package scripts run as root. Keep cross-phase state below a root-owned directory instead of
-# predictable files in /private/tmp, where another local user could pre-create a symlink or marker
-# and turn a clean install into the update path. A stale symlink at the exact leaf is removed; its
-# parent (/private/var/db) is system-owned and not writable by ordinary users.
-prepare_installer_state() {
-  if [ -L "${installer_state_dir}" ]; then
-    /bin/rm -f "${installer_state_dir}" || return 1
-  fi
-  /usr/bin/install -d -o root -g wheel -m 711 "${installer_state_dir}" || return 1
-  /usr/sbin/chown root:wheel "${installer_state_dir}" || return 1
-  /bin/chmod 711 "${installer_state_dir}" || return 1
-  /usr/bin/install -d -o root -g wheel -m 700 "${installer_markers_dir}" || return 1
-  /usr/sbin/chown root:wheel "${installer_markers_dir}" || return 1
-  /bin/chmod 700 "${installer_markers_dir}" || return 1
-}
-
-# 先清旧标记，避免上次安装异常残留误导本次判断。
-prepare_installer_state
-/bin/rm -f "${marker}" "${selected_marker}"
-
-if [ -d "${owl_app_root}" ]; then
-  # ROOT 写标记（preinstall 以 root 运行）；postinstall（同为 root）读完即删。
-  /usr/bin/touch "${marker}"
-  /bin/chmod 600 "${marker}"
-
-  # 选中态探测跑在登录用户的 Aqua GUI 会话（TIS 当前源是 per-user 态，root 读到的是 root 的）。
-  current_source="$(/bin/launchctl asuser "${login_uid}" /usr/bin/sudo -u "${login_user}" \
-    "${owl_executable}" --current-input-source 2>/dev/null || true)"
-  case "${current_source}" in
-    im.owltype.inputmethod.Owltype*)
-      /usr/bin/touch "${selected_marker}"
-      /bin/chmod 600 "${selected_marker}"
-      ;;
-  esac
+# Capture the console session before payload extraction. Payload only writes a staging tree.
+set -euo pipefail
+[[ $EUID == 0 && ${3:-/} == / ]] || { echo 'Owltype: install on the boot volume as root.' >&2; exit 1; }
+installer_state_dir='/private/var/db/im.owltype.inputmethod.Owltype-installer'
+markers="${installer_state_dir}/markers"
+input_root='/Library/Input Methods'
+staging="${input_root}/.Owltype.pkg-staging"
+for path in "$installer_state_dir" "$markers" "$input_root" "$staging"; do
+  [[ ! -L "$path" ]] || { echo "Owltype: refusing symlink $path" >&2; exit 1; }
+done
+/usr/bin/install -d -o root -g wheel -m 711 "$installer_state_dir"
+/usr/bin/install -d -o root -g wheel -m 700 "$markers"
+/usr/bin/install -d -o root -g staff -m 755 "$input_root"
+login_uid=$(/usr/bin/stat -f%u /dev/console)
+login_user=$(/usr/bin/stat -f%Su /dev/console)
+[[ "$login_uid" -ge 501 && "$login_user" != loginwindow ]] || { echo 'Owltype: active GUI user required.' >&2; exit 1; }
+kind=first
+source_before=''
+if [[ -e "$input_root/Owltype.app" ]]; then
+  kind=update
+  source_before=$(/bin/launchctl asuser "$login_uid" /usr/bin/sudo -u "$login_user" \
+    "$input_root/Owltype.app/Contents/MacOS/Owltype" --current-input-source)
+  [[ -n "$source_before" ]] || { echo 'Owltype: cannot capture current input source.' >&2; exit 1; }
 fi
+# Preserve a previous incomplete payload; never overwrite it or the live Contents in place.
+if [[ -e "$staging" ]]; then
+  /bin/mv "$staging" "$input_root/.Owltype.abandoned-$(/usr/bin/uuidgen)"
+fi
+/usr/bin/install -d -o root -g staff -m 755 "$staging"
+umask 077
+printf '%s\n' "$kind" > "$markers/install-kind"
+printf '%s\n' "$source_before" > "$markers/selected-source"
+printf '%s\n' "$login_uid" > "$markers/login-uid"
+printf '%s\n' "$login_user" > "$markers/login-user"

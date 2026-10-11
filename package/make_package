@@ -7,7 +7,7 @@ RELEASE_OUTPUT_ROOT="${1:?missing absolute release output root}"
     exit 1
 }
 BUNDLE_IDENTIFIER='im.owltype.inputmethod.Owltype'
-INSTALL_LOCATION='/Library/Input Methods'
+INSTALL_LOCATION='/'
 
 cd "$(dirname "$0")"
 # shellcheck source=package/common.sh
@@ -30,11 +30,8 @@ else
 fi
 python3 "$INVENTORY" check "$RELEASE_OUTPUT_ROOT"
 
-# Build/Products/Release 里除了 Owltype.app 还有 OwltypeInstaller 相关产物（OwltypeInstaller.swiftmodule，
-# 某些构建配置下还有 OwltypeInstaller.app）和各种 *.swiftmodule —— 直接 `pkgbuild --root` 整个目录会把
-# 它们打进 payload，导致 pkg 公证 Invalid。改为把 *只* Owltype.app stage 进一个干净临时根目录，再
-# `--root` 它，保证组件 payload 只含 Owltype.app（component-plist 的 RootRelativeBundlePath=Owltype.app
-# 仍然成立）。
+# PackageKit sees only an inert archive: empty bundle metadata alone did not stop its final
+# registration of a staged App. postinstall privately unpacks and commits before session recovery.
 WORK="$(mktemp -d)"
 cleanup() {
     rm -rf "${WORK}"
@@ -43,7 +40,9 @@ trap cleanup EXIT
 STAGING="${WORK}/root"
 SCRIPTS_STAGING="${WORK}/scripts"
 mkdir -p "${STAGING}" "${SCRIPTS_STAGING}"
-cp -R "${OWL_APP}" "${STAGING}/Owltype.app"
+PAYLOAD_PARENT="${STAGING}/Library/Input Methods/.Owltype.pkg-staging"
+mkdir -p "${PAYLOAD_PARENT}"
+/usr/bin/ditto -c -k --sequesterRsrc --keepParent "${OWL_APP}" "${PAYLOAD_PARENT}/Owltype.app.zip"
 install -m 0755 "${PROJECT_ROOT}/scripts/preinstall" "${SCRIPTS_STAGING}/preinstall"
 install -m 0755 "${PROJECT_ROOT}/scripts/postinstall" "${SCRIPTS_STAGING}/postinstall"
 
@@ -63,7 +62,7 @@ pkgbuild \
 # stays CFBundleVersion (build) as the internal component version.
 #
 # 同一个 Owltype-component.pkg productbuild 两次（双 pkg 分离）：
-#   - Owltype.pkg         首装（Distribution，onConclusion=RequireLogout，DMG 里发给新用户）
+#   - Owltype.pkg         首装（Distribution，无需注销）
 #   - Owltype-update.pkg  Sparkle 更新载荷（Distribution-update，无 RequireLogout，免注销）
 cohort_id="$(python3 "$COHORT_STATE" id "$RELEASE_OUTPUT_ROOT")"
 sed -e "s/@VERSION@/$(get_marketing_version)/" -e "s/@COHORT_ID@/${cohort_id}/" \

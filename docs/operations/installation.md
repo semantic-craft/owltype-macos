@@ -1,84 +1,105 @@
 # Installation and activation constraints
 
-This is a navigation and behaviour reference for the current implementation, not a
-claim that every macOS version or clean-install scenario has been tested.
+This describes the branch implementation. Native acceptance and failures are recorded in
+[the no-logout investigation](no-logout-install-update.md); unit tests do not establish host typing.
 Release composition remains in the [publishing checklist](../PUBLISHING_CHECKLIST.md).
 
-## Two installation paths
+## Shared file and session phases
 
-| Path | Implementation | Current behaviour and boundary |
+Both the GUI installer and package scripts invoke the installed payload's CLI:
+
+| Phase | Owner | Contract |
 | --- | --- | --- |
-| DMG GUI installer | [Installer](../../installer/Sources/Installer.swift), [policy](../../installer/Sources/InstallerActivationPolicy.swift), [verifier](../../installer/Sources/InstallerActivationVerifier.swift), [TIS probe](../../installer/Sources/InstallerTISProbe.swift) | Samples existing bundle, running process and selected source before replacement. Chooses an enabled, selectable system ASCII keyboard when parking is needed, selects through a fresh CLI process and verifies readback before proceeding. |
-| PKG / Sparkle | [preinstall](../../scripts/preinstall), [postinstall](../../scripts/postinstall), [first-install distribution](../../package/Distribution), [update distribution](../../package/Distribution-update) | Saves pre-replacement state across package phases. First-install PKG declares logout; update PKG does not. The parking step still attempts ABC best-effort; it does not use the GUI installer's available-keyboard selection and readback. |
+| Capture | GUI / preinstall | Capture existing installation and exact selected source before replacement. Missing update context fails closed. |
+| Stage | PackageKit / privileged file helper | PKG payload contains only `/Library/Input Methods/.Owltype.pkg-staging/Owltype.app.zip`. postinstall unpacks into a fresh root-only directory, verifies and commits, then removes that private unpack directory before session recovery. The live App and all nested bundles are absent from the PackageKit payload. |
+| Commit | `--commit-install` as root | Copy into a protected candidate, validate signature and unchanged identities, preserve the live App shell, exchange `Contents` and `.Contents.update` with `RENAME_SWAP`. Move retired contents outside the App before strict signature verification. First install uses `RENAME_EXCL`. |
+| Activate | `--finish-install` as console user | End old installed server instances, register/enable parent and primary mode only on first install, read back selection, refresh only TextInputMenuAgent/TextInputSwitcher, launch the installed App, and poll its state. |
+| Verify | Fresh user-session probe | Require enabled input sources, expected selection, one server at the installed executable path, expected LS version and current executable inode. Default budget is 45 seconds. |
 
-Do not apply the GUI installer's US-only regression result to the PKG path. Changing
-that path is separate implementation work, not a documentation correction.
+Implementation: [file primitive](../../installer/Shared/OwlBundleSwap.swift),
+[privileged file phase](../../sources/Activation/OwlInstallFiles.swift),
+[session sequence](../../installer/Shared/OwlSessionRestart.swift),
+[native effects](../../sources/Activation/OwlInstallSession.swift),
+[GUI](../../installer/Sources/Installer.swift),
+[preinstall](../../scripts/preinstall), [postinstall](../../scripts/postinstall).
 
-## Constraints implemented today
+The privileged phase does not manipulate input sources, user processes, dictionaries, or preferences.
+A private lock serializes commits. Interrupted prepared/retired directories are retained; do not
+blindly remove them or retry over an unknown `.Contents.update`. Validate identities before recovery.
+On a post-exchange validation failure, the file primitive swaps back and retains the failed candidate.
+A failure of recovery itself stops the operation and requires inspection of both locations.
 
-- Existing-install detection uses the pre-existing bundle or running process, captured
-  before termination/replacement. Updates skip the first-install enable sequence.
-  The GUI policy's first-install plan enables the parent and primary mode once each.
-- An update restores Owltype only when it interrupted the user's selection of Owltype.
-  It does not select Owltype over another source chosen before the update.
-- The GUI verifier reads a fresh-process probe: parent enabled and primary-mode
-  membership in the enabled-only list. Primary-mode `IsEnabled` alone is not the
-  verification signal. Selection capability is diagnostic, not sufficient for success.
-- Verification accepts late consent after its soft deadline; the extended deadline
-  ends retries and leaves logout guidance. A process signal is not proof of host typing.
-- The PKG path delays menu refresh and selection restoration until the receipt boundary;
-  see the deferred task in postinstall for its budget and no-steal conditions.
-- The shared CLI's [exact-ID selection](../../sources/Activation/InputSource.swift)
-  prints missing-source or selection failure without a failure exit status. Callers
-  needing a guarantee must read back the selected source, as the GUI installer does.
-- [App startup](../../sources/Main.swift) rejects non-installed bundles before IMK
-  registration. Unit tests and the isolated settings-preview mode take separate paths.
+Updates preserve the exact Hans/Hant mode when Owltype was selected. When another source was selected,
+the session sequence performs no select operation; a changed readback fails self-check instead of
+forcing a different source. Uninstallation still uses an available ASCII keyboard for parking.
+First-install consent must be accepted by the user; a process/TIS self-check cannot substitute for it.
 
-## Evidence and limits
+Strict signature verification rejects `.Contents.update` inside an App as unsealed contents. Retired
+contents must leave the bundle before validation and before the installer starts the new server.
+The native macl spike confirmed that keeping the App shell preserves its inode and macl on the tested
+host. That result is not a general proof for every macOS version or filesystem.
 
-[Installer policy tests](../../tests/InstallerActivationPolicyTests.swift) cover the
-activation truth table, US-only parking selection, probe parsing, late consent and
-logout states. [Activation tests](../../tests/ActivationPolicyTests.swift) cover the
-installed-bundle boundary. [Release self-tests](../../scripts/check-release.selftest.sh)
-check package-state handling. These do not replace native TIS/IMK acceptance.
+## Recovery guidance
 
-The [input-habits acceptance record](../input-habits-design.md) records the GUI installer
-ASCII-keyboard repair and actual host results. Older comments about repeated-enable
-“ghost” states, default-on mode flags and stale process snapshots came from historical
-macOS observations. Their original numbered diagnostic notebook is no longer present;
-treat them as rationale for retained safeguards, not independently reproduced platform
-laws. The current implementation and the tests above define the maintained contract.
+Neither package requests RequireLogout. The GUI reports success only after the shared self-check;
+its former 30-second logout timer is gone. The input menu has no permanent logout action.
+A version change, including a downgrade, never arms a logout prompt. An explicit failed session
+self-check can notify the running App to offer recovery guidance at an input-safe time. The default
+button keeps the session open. The GUI also reports a failed self-check without requesting logout.
 
-After an authorized installed update, follow the publishing checklist's live-process
-check and test composition/commit in a newly opened host. A successful TIS probe alone
-does not establish that an already-open host has reconnected.
+The user approved retaining official Sparkle on 2026-10-11 (#204): Sparkle owns downloading,
+EdDSA verification and invoking the system package installer; the package owns atomic file commit
+and user-session recovery. The earlier download-only requirement is superseded. Sparkle 2.6.2 has
+no public verified-download-path handoff. Returning false from its relaunch delegate can abort
+installation, so it is not a way to suppress only a duplicate launch. The progress agent now has a tracked source patch: application bundles use
+openApplicationAtURL and wait for completion before cleanup. The legacy openURL route requested
+a read-write sandbox extension and triggered App Management in the isolated test. See
+[the dependency patch](../../patches/sparkle/README.md). Download, verification and pkg installation
+remain official Sparkle code; the dependency is a patched build, not the unmodified upstream binary.
+An update started by an older installed App still uses its old helper; the repair takes effect when
+the updated helper starts the next update. Full installation with the rebuilt helper is pending.
+Native logs disproved the previous empty-component-list
+assumption: PackageKit still registered the staged App after postinstall and the process/TIS self-check.
+The revised format gives PackageKit only an inert archive. Release, identity and secret gates unpack and
+inspect its real contents; they reject direct App payloads, escaping archive paths and unsafe links.
+A bound-host direct-pkg run confirmed menu visibility and preserved WeType selection. The original
+TextEdit process saved Wubi input at 24.83 seconds and the new process at 17.85 seconds; the user
+confirmed no logout prompt, including a later follow-up. This covers the local ad-hoc test App on
+arm64 macOS 27.0.1, not Sparkle, GUI, first installation or an initially selected Owltype source. Receipt-based obsoleting during migration from an older
+live-bundle receipt also remains unverified; App rollback does not restore that older receipt.
 
-## Installed acceptance and recovery record
+## Acceptance and recovery
 
-For an authorized installed update, record the release version/build, source commit,
-cohort ID, macOS version, installation path (GUI, first-install PKG, or Sparkle update),
-previous version and selected input source. Keep evidence with the
-[durable verification records](ci.md#focused-feedback-and-retained-evidence).
+Use [the read-only live probe](../../scripts/check-live-ime-version.sh) with the artifact's target build
+and recorded installation times. It checks path/start time, inode, installed/LS/target version equality,
+and selected source. Success is labelled `PASS_VERSION_ONLY` until human evidence is recorded.
 
-1. Preserve the previous signed installer and a reviewed backup of the user's input
-   preferences and dictionary before replacement. Record their locations locally.
-2. Complete the selected installation path, including logout when requested. Run
-   `python3 scripts/check-installed-process.py` and verify that the installed App
-   matches the selected release inventory. A version label alone is insufficient.
-3. In a newly opened native host, type `nihao`, select and commit “你好”, then test
-   the changed behavior. For activation/input changes also check an already-open
-   host, switching to another app and back, and preservation of the previously
-   selected non-Owltype input source when applicable.
-4. Record actual results for physical Shift switching, candidate right-click, and
-   the complete onboarding typing step when affected. Unsupported automation is
-   `not tested`; controller tests and TIS probes cannot substitute for these results.
-5. Cover GUI and PKG/Sparkle separately when changing shared activation behavior.
-   Include first install versus update and a keyboard setup without ABC when relevant;
-   the known PKG parking limitation above remains an explicit coverage gap.
+For each GUI/PKG first install and update, preserve an already-open TextEdit process, open a distinct
+TextEdit process after installation, and commit “你好” with the user's actual input scheme in both.
+Capture the input menu and note any delayed logout guidance. All required success evidence must be
+within 60 seconds, with later unwanted prompts also recorded as failures. Test an update with another
+input method selected before installation separately. Never edit HIToolbox files to manufacture state.
 
-If acceptance fails, retain the failed artifact and logs. Recover using the previous
-signed installer only within the authorized recovery scope; stop if it cannot read
-the current data format. Restore user data only from the agreed backup, then rerun
-the live-process check and real composition/commit. Record whether the machine was
-restored or intentionally kept on the new version. Local recovery does not revert
-the public update feed or establish that other users have recovered.
+Bind hosts with [the local window helper](../../scripts/ime-acceptance-host.swift), using PID, process
+launch time, executable, window ID and document URL. A restored copy of the old document in a new
+TextEdit process is not old-host evidence. `focus` validates the saved identity before raising the
+exact window; `new` starts a fresh TextEdit with per-process state restoration disabled. It never
+reopens an old document by path or silently rebinds a missing window. Accessibility and screenshot
+permissions must be checked in the executing terminal before any privileged operation.
+
+[The save observer](../../scripts/check-ime-host-evidence.py) requires the bound window focused
+with Owltype Hans selected before a new saved “你好”, within the shared 60-second deadline. If focus
+has moved after saving, the exact new text count must already have been observed in the focused
+Owltype host before saving. Both observations must still resolve the same bound process/window,
+and the saved count must match its final window text; blur alone is neither success nor failure. It compares
+with the bound window's text baseline, since another process may have saved the same file. This is
+supporting evidence, not proof of physical Wubi keystrokes; human confirmation remains required.
+Run a no-install rehearsal before another native update when changing this harness. Never count a
+rehearsal as installation acceptance. Offline failure replays live in
+[host evidence tests](../../scripts/check-ime-host-evidence.selftest.py).
+
+Before native installation, obtain user execution/approval and identify a verified App backup.
+On failure preserve the failed App and logs, restore the agreed App only, and recheck process mapping
+and typing. App rollback does not undo the package receipt or dictionary changes. Do not remove user
+data or log out as a test workaround. Source-built acceptance artifacts, signing constraints, clean
+first-install setup, Intel, and macOS 14/15 remain explicit coverage items in the investigation.

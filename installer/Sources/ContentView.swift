@@ -1,6 +1,6 @@
 // ContentView — 极简单窗 UI：标题 + 说明 + 「安装」/「卸载」 + 一行进度/结果。
-// 所有副作用都在 Installer.swift / InstallerActivationVerifier.swift；本文件只管展示与派活：
-// 安装 = 后台队列跑 Installer.install() → 主 runloop 跑 verifier（consent 等待 + 读回验证）。
+// 所有副作用都在 Installer.swift / OwlInstallSession.swift；本文件只管展示与派活：
+// 安装在后台完成文件交换和用户会话自检，再将结果送回主线程。
 // 文案双态（PRD R1）：成功 = 新开应用立即可用（QA 三轮拍板：不领「无需注销」绝对承诺）；
 // 验证超时 = 注销重登引导，绝不伪装成功。
 
@@ -26,9 +26,6 @@ final class InstallerViewModel: ObservableObject {
     @Published var isBusy: Bool = false
 
     func install() {
-        // 同 uninstall()：橙窗期间重装，先终止旧 verifier（不能只靠 start() 内置的 cancel——
-        // Installer.install() 在后台要跑数秒，期间旧会话的迟到回调会覆盖「正在安装」状态）。
-        InstallerActivationVerifier.cancel()
         isBusy = true
         phase = .working
         statusText = "正在安装猫头鹰…"
@@ -36,25 +33,9 @@ final class InstallerViewModel: ObservableObject {
             do {
                 let plan = try Installer.install()
                 DispatchQueue.main.async {
-                    self?.phase = .verifying
-                    self?.statusText = InstallerActivationPolicy.verifyingText
-                    // verifier 必须在正常主 runloop 上跑；isBusy 在软超时前保持 true（按钮禁用）。
-                    // onState 可能回调多次（fix2 迟到自愈）：软超时先落 needsLogout 橙窗（非终态，
-                    // verifier 后台继续 tick），迟到 consent 一到再翻 success 绿窗。
-                    InstallerActivationVerifier.start(selectOwltype: plan.selectOwltypeAfterInstall) { state in
-                        self?.isBusy = false
-                        switch state {
-                        case .verified:
-                            self?.phase = .success
-                            self?.statusText = InstallerActivationPolicy.successText(plan: plan)
-                        case .needsLogout(let stillTrying):
-                            self?.phase = .needsLogout
-                            self?.statusText =
-                                InstallerActivationPolicy.needsLogoutText(stillTrying: stillTrying)
-                        case .waiting:
-                            break // verifier 不回调 waiting
-                        }
-                    }
+                    self?.isBusy = false
+                    self?.phase = .success
+                    self?.statusText = InstallerActivationPolicy.successText(plan: plan)
                 }
             } catch {
                 DispatchQueue.main.async {
@@ -70,16 +51,12 @@ final class InstallerViewModel: ObservableObject {
     static func failureText(for error: Error) -> String {
         if case InstallerError.activationFailed = error {
             return "❌ " + error.localizedDescription
-                + "\n文件已安装：注销并重新登录后即可在输入法菜单使用猫头鹰。"
+                + "\n文件已安装，但会话自检失败。请先重试或在系统设置检查输入法；仍无法恢复时可注销并重新登录。"
         }
         return "❌ " + error.localizedDescription
     }
 
     func uninstall() {
-        // 橙窗（needsLogout(stillTrying: true)）期间按钮已恢复可点：先静默终止仍在后台 tick 的
-        // verifier，否则它的迟到回调会把「已卸载」文案覆盖回注销引导。install 路径由
-        // InstallerActivationVerifier.start() 内置的 cancel() 顶替。
-        InstallerActivationVerifier.cancel()
         run(progressText: "正在卸载猫头鹰…") {
             try Installer.uninstall()
         } onSuccess: { [weak self] in

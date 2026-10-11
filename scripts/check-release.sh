@@ -57,6 +57,9 @@ if (( preflight_only )); then
   exit 0
 fi
 
+# Receipt and UUIDs survive release signing; reject the old prebuilt Updater.
+python3 "$ROOT/scripts/build-sparkle.py" --check "$APP/Contents/Frameworks/Sparkle.framework"
+
 python3 "$ROOT/scripts/release-cohort-state.py" verify-chain "$RELEASE_OUTPUT_ROOT"
 
 [[ -d "$APP" ]] || fail "Release app not found: $APP"
@@ -117,7 +120,18 @@ fi
 # 2026-07-25：essay.txt 随 rime-essay 一并移出种子（繁体字形 + LGPL 数据项，见 PR #22），
 # 这里改为断言取代它的 owltype_base；本组断言要真 pkg 才跑得到，CI 只到 make package，
 # 所以 1.5.1 出包时才逮住这处陈旧断言。
-payload=$(pkgutil --payload-files "$PKG")
+tmp=$(mktemp -u /tmp/owl-pkg.XXXXXX)
+tmp_update=$(mktemp -u /tmp/owl-update-pkg.XXXXXX)
+trap 'rm -rf "$tmp" "$tmp_update"' EXIT
+
+pkgutil --expand-full "$PKG" "$tmp"
+package_info="$tmp/Owltype-component.pkg/PackageInfo"
+grep -q 'identifier="im.owltype.inputmethod.Owltype"' "$package_info" || fail "pkg identifier mismatch"
+pkg_app="$(python3 "$ROOT/scripts/check-staged-pkg.py" "$tmp/Owltype-component.pkg" --extract-to "$tmp/checked-app")"
+pass "pkg metadata is Owltype with an inert archive payload at the root install location"
+
+# Audit the actual archived App contents, not only the outer archive filename.
+payload=$(cd "$tmp/checked-app" && find ./Owltype.app -print)
 for path in \
 	  './Owltype.app/Contents/Resources/LICENSE.txt' \
 	  './Owltype.app/Contents/Resources/THIRD_PARTY_NOTICES.md' \
@@ -159,10 +173,6 @@ grep -qxF "./Owltype.app/Contents/SharedSupport/${expected_pinyin}.schema.yaml" 
   fail "pkg payload 拼音 schema 不符：代码默认 .pinyin = ${expected_pinyin}，但 payload 无 ${expected_pinyin}.schema.yaml（seed 陈旧？重跑 make owl-seed 再发版）"
 pass "pkg payload 拼音 schema 与代码默认一致（.pinyin = ${expected_pinyin}）"
 
-tmp=$(mktemp -u /tmp/owl-pkg.XXXXXX)
-tmp_update=$(mktemp -u /tmp/owl-update-pkg.XXXXXX)
-trap 'rm -rf "$tmp" "$tmp_update"' EXIT
-
 assert_installer_scripts() {
   local component_root="$1" label="$2" package_info_path="$1/PackageInfo"
   grep -q '<preinstall file=' "$package_info_path" ||
@@ -181,21 +191,15 @@ assert_installer_scripts() {
     fail "$label Scripts contains files beyond preinstall/postinstall: ${unexpected_installer_script##*/}"
 }
 
-pkgutil --expand-full "$PKG" "$tmp"
-package_info="$tmp/Owltype-component.pkg/PackageInfo"
-grep -q 'identifier="im.owltype.inputmethod.Owltype"' "$package_info" || fail "pkg identifier mismatch"
-grep -q 'install-location="/Library/Input Methods"' "$package_info" || fail "pkg install location mismatch"
-pass "pkg metadata is Owltype and installs to /Library/Input Methods"
-
 # 方案B：静态 _user_seed 只启用 rime_ice（清洁室基线）。五笔/双拼/简体拼音的 schema_list
 # 由 App 首启的 OwlManagedKeyboardPatchPlan 按当前偏好写入（setupRime，seed 之后、首次
 # deploy 之前），其源文件由 dict-pack 用户侧拉取后补建 —— 静态种子里再断言全套属全量种子
 # 时代的陈旧期望（2026-07-24 1.5.0 出包时逮住）。
-seed="$tmp/Owltype-component.pkg/Payload/Owltype.app/Contents/SharedSupport/_user_seed/default.custom.yaml"
+seed="$pkg_app/Contents/SharedSupport/_user_seed/default.custom.yaml"
 grep -q "schema: rime_ice" "$seed" || fail "pkg seed does not enable rime_ice"
 pass "pkg seed 启用清洁室基线（rime_ice；全套 schema_list 由首启 managed patch + dict-pack 接管）"
 # emoji 出厂关 = 共享 rime_ice.schema.yaml 的 reset（不在 _user_seed）。纯雾凇无带声调 preedit。
-ice_schema="$tmp/Owltype-component.pkg/Payload/Owltype.app/Contents/SharedSupport/rime_ice.schema.yaml"
+ice_schema="$pkg_app/Contents/SharedSupport/rime_ice.schema.yaml"
 grep -A3 'name: emoji' "$ice_schema" | grep -q 'reset: 0' ||
   fail "pkg rime_ice.schema.yaml does not default emoji off (reset: 0)"
 pass "pkg rime_ice default: emoji off"
@@ -208,27 +212,25 @@ grep -A3 'name: ascii_mode' "$ice_schema" | grep -q 'states: \[ 中, 英 \]' ||
   fail "pkg rime_ice.schema.yaml ascii_mode states not [ 中, 英 ]"
 pass "pkg rime_ice ascii_mode label: 中/英"
 
-/usr/bin/codesign --verify --deep --strict --verbose=2 "$tmp/Owltype-component.pkg/Payload/Owltype.app"
+/usr/bin/codesign --verify --deep --strict --verbose=2 "$pkg_app"
 pass "pkg payload app codesign verifies"
 
 # 真正出厂的是 pkg 里这份 app，不是 build/ 里那份 —— 前置断言在两处都跑。
-assert_apple_events_prereqs "$tmp/Owltype-component.pkg/Payload/Owltype.app" "pkg payload app"
+assert_apple_events_prereqs "$pkg_app" "pkg payload app"
 
 # pkg 必须携带 preinstall（payload 落盘前写「bundle 已存在」标记）+ postinstall（读标记走更新/首装
 # 分支）。缺 preinstall = Sparkle 更新会被误判成首装（Sparkle 先杀宿主 Owltype，pgrep 单独不可靠）。
 # 光查 Scripts/ 里文件存在不够——pkgbuild --scripts 会原样拷整个目录，真正决定「会不会运行」的是
 # PackageInfo 里的 <preinstall>/<postinstall> 声明（pkgbuild 按 文件名+可执行位 自动接线）。
 assert_installer_scripts "$tmp/Owltype-component.pkg" "Owltype.pkg"
+python3 "$ROOT/scripts/check-staged-pkg.py" "$tmp/Owltype-component.pkg"
 pass "Owltype.pkg carries exactly preinstall + postinstall and wires both executable scripts"
 
-# 双 pkg 分离（07-02 更新免注销）：首装 Owltype.pkg 必须带 onConclusion=RequireLogout；
-# Sparkle 更新载荷 Owltype-update.pkg 必须不带（更新免注销）。两者共用同一个 Owltype-component.pkg。
-# 必须用 xmllint 查真实属性，不能 grep 文本——两份 Distribution 的注释里都写着
-# "RequireLogout" 字样（productbuild 保留 XML 注释），文本 grep 会把合格的更新 pkg 误判成失败。
+# Both installation paths must finish within the current login session.
 require_logout_count() { xmllint --xpath 'count(//pkg-ref[@onConclusion="RequireLogout"])' "$1"; }
-[[ "$(require_logout_count "$tmp/Distribution")" != "0" ]] ||
-  fail "Owltype.pkg Distribution is missing onConclusion=RequireLogout (first install must logout)"
-pass "Owltype.pkg Distribution requires logout (first-install pkg)"
+[[ "$(require_logout_count "$tmp/Distribution")" == "0" ]] ||
+  fail "Owltype.pkg Distribution still carries onConclusion=RequireLogout"
+pass "Owltype.pkg Distribution has no RequireLogout"
 
 pkgutil --expand-full "$UPDATE_PKG" "$tmp_update"
 [[ "$(require_logout_count "$tmp_update/Distribution")" == "0" ]] ||
@@ -236,6 +238,9 @@ pkgutil --expand-full "$UPDATE_PKG" "$tmp_update"
 grep -q 'Owltype-component.pkg' "$tmp_update/Distribution" ||
   fail "Owltype-update.pkg Distribution does not reference Owltype-component.pkg"
 assert_installer_scripts "$tmp_update/Owltype-component.pkg" "Owltype-update.pkg"
+update_archive="$(python3 "$ROOT/scripts/check-staged-pkg.py" "$tmp_update/Owltype-component.pkg")"
+installer_archive="$(python3 "$ROOT/scripts/check-staged-pkg.py" "$tmp/Owltype-component.pkg")"
+cmp "$installer_archive" "$update_archive" || fail "installer/update pkg App archives differ"
 pass "Owltype-update.pkg Distribution has no RequireLogout (no-logout Sparkle payload)"
 
 [[ -s "$APPCAST" ]] || fail "signed appcast is missing"

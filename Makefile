@@ -37,7 +37,7 @@ OPENCC_DATA = data/opencc/TSCharacters.ocd2 \
 	data/opencc/t2s.json
 SPARKLE_FRAMEWORK = Frameworks/Sparkle.framework
 PACKAGE = package/Owltype.pkg
-DEPS_CHECK = $(RIME_LIBRARY) $(PLUM_DATA) $(OPENCC_DATA) $(SPARKLE_FRAMEWORK)
+DEPS_CHECK = $(RIME_LIBRARY) $(PLUM_DATA) $(OPENCC_DATA) sparkle
 
 OPENCC_DATA_OUTPUT = librime/share/opencc/*.*
 PLUM_DATA_OUTPUT = plum/output/*.*
@@ -159,15 +159,11 @@ debug: $(DEPS_CHECK)
 	xcodebuild -project Owltype.xcodeproj -configuration Debug -scheme Owltype -derivedDataPath $(DERIVED_DATA_PATH)  $(BUILD_SETTINGS) build
 	$(MAKE) copy-owl-seed OWL_CONFIG=Debug
 
-.PHONY: sparkle copy-sparkle-framework
-
-$(SPARKLE_FRAMEWORK):
-	git submodule update --init --recursive Sparkle
-	$(MAKE) sparkle
+.PHONY: sparkle
 
 sparkle:
-	xcodebuild -project Sparkle/Sparkle.xcodeproj -configuration Release $(BUILD_SETTINGS) build
-	$(MAKE) copy-sparkle-framework
+	@if [ -e .git ]; then git submodule update --init --recursive Sparkle; fi
+	python3 scripts/build-sparkle.py
 
 # Use the prebuilt Sparkle tools shipped in download/bin/ — the Sparkle source
 # (Sparkle/Sparkle.xcodeproj) is not checked out, so building from it fails with
@@ -178,13 +174,9 @@ package/generate_keys:
 package/sign_update:
 	cp download/bin/sign_update package/sign_update
 
-copy-sparkle-framework:
-	mkdir -p Frameworks
-	cp -RP Sparkle/build/Release/Sparkle.framework Frameworks/
-
 clean-sparkle:
 	rm -rf Frameworks/* > /dev/null 2>&1 || true
-	rm -rf Sparkle/build > /dev/null 2>&1 || true
+	rm -rf Sparkle/build build/sparkle-patched > /dev/null 2>&1 || true
 
 .PHONY: notarized-app package $(PACKAGE)
 

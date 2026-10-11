@@ -20,7 +20,7 @@
 | **librime 插件**：librime-lua / librime-octagram / librime-predict | 雾凇拼音 rime_ice 等方案的 Lua / 语言模型 / 预测能力 | **BSD-3-Clause**（三者上游 `LICENSE`） | [librime-lua](https://github.com/hchunhui/librime-lua) / [librime-octagram](https://github.com/lotem/librime-octagram) / [librime-predict](https://github.com/rime/librime-predict) |
 | **rime-octagram-data（八股文 gram）** | 雾凇拼音 `rime_ice` 启用的简体语法模型数据 `zh-hans-t-essay-bgw.gram`（octagram 插件加载，整句加权） | **LGPL-3.0**（见上游 `LICENSE`） | https://github.com/lotem/rime-octagram-data |
 | **OpenCC** | 简繁转换数据与库（`SharedSupport/opencc`） | **Apache-2.0** | https://github.com/BYVoid/OpenCC |
-| **Sparkle** | 更新检查与签名 package 安装框架 | **MIT**（含其依赖各自许可） | https://github.com/sparkle-project/Sparkle |
+| **Sparkle** | 更新检查与签名 package 安装框架；基于固定官方版本构建，应用重开补丁见 `patches/sparkle/` | **MIT**（含其依赖各自许可） | https://github.com/sparkle-project/Sparkle |
 | **plum 配方 / 预置方案与词库** | `SharedSupport` 中的 base 配置与词典 | 各方案/词库上游许可（多为 GPL-3.0 / LGPL / CC，以来源为准） | https://github.com/rime/plum |
 | **rime-ice（雾凇拼音）** | Owltype 自包含 seed（`data/owl-rime` → `SharedSupport`）的**拼音底座**：rime_ice 全拼方案 / cn_dicts / en_dicts / Lua / OpenCC / default.yaml | **GPL-3.0**（打包保留 `rime-ice.LICENSE`） | https://github.com/iDvel/rime-ice |
 | **jieba（结巴分词）** | 公开种子词库 `cn_dicts/owltype_base.dict.yaml` 的词表与词频来源（`jieba/dict.txt`，pin tag `v0.42.1`） | **MIT**（打包保留 `jieba.LICENSE`） | https://github.com/fxsjy/jieba |

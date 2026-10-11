@@ -2,24 +2,12 @@ import AppKit
 import CoreGraphics
 import os
 
-/// 更新完成后强推注销提示。#16 新方向：`免注销自动保持选中态`（preinstall 记录 + postinstall
-/// 还原）在真机不可靠（1.4.6 更新后猫头鹰掉到 com.apple.keylayout.US 复现），改为诚实强推注销——
-/// 更新后弹一次「建议注销」对话框，`立即注销` 为默认动作、`稍后自己注销` 可选。
-/// 首启（首装）不弹：首装走 Owltype.pkg 的 `RequireLogout` 强制注销。
-///
-/// 2026-08 起选中态还原由 postinstall 的延迟任务重新接管（`schedule_deferred_update_restore`：
-/// 1.4.6 失败的根因已定位为 PackageKit 最终注册晚于 postinstall 退出，新任务跨该边界后连稳读回）。
-/// 本提示不因此退役：已开启的旧 App 不重开挂不上新 IMKServer（squirrel#68 系统天花板），
-/// 注销仍是一次性恢复所有 App 的诚实收尾；两者各管一段，互不替代。
-///
-/// 本文件承载注销线五个类型（同一功能、同居一处，避免新增源文件带来的 pbxproj 手术）：
-///   - `OwlUpdateLogoutPrompt`      判定 + A1「处置后才记录」+ C1 文案 + 呈现（#109）
-///   - `OwlLogoutPromptTiming`      B2 门控的纯判定层 + 反「永久静默」阀（#131，XCTest 可锁）
-///   - `OwlUpdateLogoutScheduler`   B2 安全时机门控 + 激活确认 + 焦点还原（#109/#131）
-///   - `OwlLogoutAction`            可复用的正式注销动作 + -1743 分流恢复 UI（#111，更新提示与菜单共用）
-///   - `OwlLogoutDiagnostics`       覆盖式失败遥测 + 诊断包章节（#111）
+/// Recovery guidance only after an explicit installation-session self-check failure.
+/// Version changes (including downgrades) are not evidence that a login session is broken.
 enum OwlUpdateLogoutPrompt {
   static let lastRunVersionKey = "OwlLastRunVersion"
+  static let failureVersionKey = "OwlInstallSelfCheckFailedVersion"
+  static let selfCheckNotification = Notification.Name("OwlInstallSelfCheckChanged")
 
   /// 用户对建议注销对话框的处置。
   enum Choice {
@@ -27,30 +15,21 @@ enum OwlUpdateLogoutPrompt {
     case later
   }
 
-  /// 是否因版本变化而建议注销（纯函数）。
-  /// - `lastRun` 为 nil/空（首启/首装）→ false（由 pkg RequireLogout 承载注销）。
-  /// - `current` 空 → false（拿不到版本，不判定）。
-  /// - `lastRun != current`（刚更新）→ true。
-  static func shouldSuggest(lastRun: String?, current: String) -> Bool {
-    guard let lastRun, !lastRun.isEmpty, !current.isEmpty else { return false }
-    return lastRun != current
+  static func shouldSuggest(failedVersion: String?, current: String) -> Bool {
+    !current.isEmpty && failedVersion == current
   }
 
-  /// A1：判定本次启动的处置，返回是否需要（在安全时机）弹窗。
-  /// 副作用仅「首装/同版本播种」——把 `current` 写进 defaults（首装立即播种，保留首装语义，避免下次
-  /// 升级被误判成首装而永不弹）。**更新路径【不在此处记录】**：记录推迟到 `recordDisposition`
-  /// （即 `runModal` 返回、执行动作之前），使 alert 未处置就被进程杀掉时下次启动会重弹（窄异常路径，
-  /// 用有限重弹换永久静音）。可注入 `defaults`，不碰 UI，可单测。
   @discardableResult
   static func planPrompt(current: String, defaults: UserDefaults) -> Bool {
-    let last = defaults.string(forKey: lastRunVersionKey)
-    if shouldSuggest(lastRun: last, current: current) {
-      return true // 更新：待弹，先不记录
-    }
-    if !current.isEmpty {
-      defaults.set(current, forKey: lastRunVersionKey) // 首启/同版本：播种
-    }
+    if shouldSuggest(failedVersion: defaults.string(forKey: failureVersionKey), current: current) { return true }
+    if !current.isEmpty { defaults.set(current, forKey: lastRunVersionKey) }
     return false
+  }
+
+  static func recordSelfCheck(current: String, passed: Bool, defaults: UserDefaults = OwlDefaults.standard) {
+    guard !current.isEmpty else { return }
+    if passed { defaults.removeObject(forKey: failureVersionKey) } else { defaults.set(current, forKey: failureVersionKey) }
+    defaults.synchronize()
   }
 
   /// A1：用户处置后（`runModal` 返回）记录已消费版本。必须在执行动作【之前】调用——「立即注销」会
@@ -58,34 +37,37 @@ enum OwlUpdateLogoutPrompt {
   static func recordDisposition(current: String, defaults: UserDefaults) {
     guard !current.isEmpty else { return }
     defaults.set(current, forKey: lastRunVersionKey)
+    defaults.removeObject(forKey: failureVersionKey)
   }
 
-  /// 启动时调用（`applicationWillFinishLaunching`）。B2：只判定 + 播种，需要弹则**武装调度器**（非阻塞
-  /// 返回），不再在启动回调里同步 `runModal`——真机已证同步弹会在用户开始输入后中途夺焦点、打断输入。
+  /// Called when the installation session reports a result, never because the app version changed.
   @MainActor
   static func runIfNeeded(current: String, defaults: UserDefaults = OwlDefaults.standard) {
-    guard planPrompt(current: current, defaults: defaults) else { return }
+    defaults.synchronize()
+    guard planPrompt(current: current, defaults: defaults) else {
+      OwlUpdateLogoutScheduler.shared.cancelPendingPrompt()
+      return
+    }
     OwlUpdateLogoutScheduler.shared.arm(current: current, defaults: defaults)
   }
 
-  /// C1：建议注销对话框。标题不变；informative text 加 TCC 授权预告两句（首次点【立即注销】macOS 可能
-  /// 问是否允许猫头鹰控制「系统事件」、允许后仍有注销确认可取消），降低把正常授权当越权而拒绝的概率。
+  /// Optional recovery after a failed self-check; the default button leaves the session running.
   /// **返回用户选择、不自己执行动作**——记录已处置与执行动作由外层（调度器）统一编排，以满足 A1 的
   /// 「记录在执行之前」。
   @MainActor
   static func presentAlert(current: String) -> Choice {
     let alert = NSAlert()
-    alert.messageText = "猫头鹰已更新到 \(current)，建议注销后重新登录"
+    alert.messageText = "猫头鹰 \(current) 安装后的会话自检未通过"
     alert.informativeText = """
-    注销并重新登录能让系统完整刷新输入法，猫头鹰会稳定留在输入菜单——避免更新后猫头鹰从菜单消失、或切换后打不出字。
+    请先在输入菜单中选择猫头鹰并试输入；也可以重试安装或在系统设置检查输入法。若仍无法恢复，可尝试注销并重新登录。
 
-    首次点「立即注销」时，macOS 可能会问你是否允许「猫头鹰」控制「系统事件」——这是执行注销所必需的，请点允许；之后系统还会再弹一次注销确认，你仍可取消。
+    首次选择注销时，macOS 可能会问你是否允许「猫头鹰」控制「系统事件」——这是执行注销所必需的，请点允许；之后系统还会再弹一次注销确认，你仍可取消。
 
-    你也可以选「稍后自己注销」，需要时从苹果菜单手动注销即可。
+    你也可以选「稍后处理」，需要时从苹果菜单手动注销即可。
     """
-    alert.addButton(withTitle: "立即注销")     // 第一个 = 默认
-    alert.addButton(withTitle: "稍后自己注销")
-    return alert.runModal() == .alertFirstButtonReturn ? .logoutNow : .later
+    alert.addButton(withTitle: "稍后处理")
+    alert.addButton(withTitle: "注销并重新登录…")
+    return alert.runModal() == .alertSecondButtonReturn ? .logoutNow : .later
   }
 }
 
@@ -237,6 +219,11 @@ final class OwlUpdateLogoutScheduler {
     lastTransitionKey = nil
     Self.log.log("armed: version=\(current, privacy: .public)")
     startTimer()
+  }
+
+  func cancelPendingPrompt() {
+    stopTimer()
+    pendingVersion = nil
   }
 
   private func startTimer() {

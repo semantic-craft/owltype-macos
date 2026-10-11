@@ -168,6 +168,43 @@ struct OwlApp {
           }
           installer.enable()
           return true
+        case "--commit-install":
+          do {
+            guard args.count == 3 else { throw CocoaError(.fileReadInvalidFileName) }
+            try OwlInstallFiles.commit(source: URL(fileURLWithPath: args[2]))
+          } catch {
+            fputs("INSTALL_FILES_FAILED: \(error)\n", stderr)
+            exit(1)
+          }
+          return true
+        case "--finish-install":
+          do {
+            guard args.count == 5, args[2] == "first" || args[2] == "update" else {
+              throw OwlSessionRestart.Failure.missingContext
+            }
+            try OwlInstallSession.finish(firstInstall: args[2] == "first", sourceBefore: args[3], version: args[4])
+          } catch {
+            fputs("INSTALL_SESSION_FAILED: \(error)\n", stderr)
+            exit(1)
+          }
+          return true
+        case "--install-session-enable":
+          do { try OwlInstallSession.enableForFirstInstall() } catch {
+            fputs("INSTALL_ENABLE_FAILED: \(error)\n", stderr)
+            exit(1)
+          }
+          return true
+        case "--install-session-probe":
+          do {
+            guard args.count == 4, let excludedPID = Int32(args[2]) else {
+              throw OwlSessionRestart.Failure.missingContext
+            }
+            print(try OwlInstallSession.probe(excluding: excludedPID, mode: args[3]))
+          } catch {
+            fputs("INSTALL_PROBE_FAILED: \(error)\n", stderr)
+            exit(1)
+          }
+          return true
         case "--activate-once":
           print("Owltype: repair registration and refresh input menu agents.")
           installer.repairRegistrationForInstalledBundle()

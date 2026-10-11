@@ -209,6 +209,12 @@ assert_minimal_package_scripts() {
   local package_path="$1" label="$2" expanded_pkg="$work/expanded-$2"
   local installer_scripts actual_installer_scripts installer_script installer_script_path
   pkgutil --expand-full "$package_path" "$expanded_pkg"
+  python3 "$ROOT/scripts/check-staged-pkg.py" "$expanded_pkg/Owltype-component.pkg" \
+    --extract-to "$expanded_pkg/checked-app" >/dev/null
+  diff -qr "$app/Contents" "$expanded_pkg/checked-app/Owltype.app/Contents" >/dev/null || {
+    echo >&2 "ERROR: $label archive does not contain the cohort App"
+    exit 1
+  }
   installer_scripts="$expanded_pkg/Owltype-component.pkg/Scripts"
   actual_installer_scripts="$(cd "$installer_scripts" && find . -mindepth 1 -print \
     | sed 's#^\./##' | LC_ALL=C sort)"

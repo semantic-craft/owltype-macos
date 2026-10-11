@@ -16,14 +16,6 @@
     <choice id="im.owltype.inputmethod.Owltype" visible="false">
         <pkg-ref id="im.owltype.inputmethod.Owltype"/>
     </choice>
-    <!-- onConclusion="RequireLogout" (Squirrel model): FIRST-INSTALL pkg only (Owltype.pkg, shipped in
-         the DMG). After install, loginwindow re-reads the input-source list so 猫头鹰 is GUARANTEED to
-         appear in the input menu — the user-requested "菜单一定出现" guarantee. postinstall does
-         register/enable/select; the logout closes the loop. Sparkle auto-updates no longer serve this
-         pkg: they serve Owltype-update.pkg (built from Distribution-update, NO onConclusion) — updates
-         install in place without a logout, postinstall handles the smooth switch-out/kill/relaunch/
-         switch-back sequence (fcitx5 model). BundleOverwriteAction=upgrade (Owltype-component.plist)
-         only governs in-place file overwrite (the app + bundled Sparkle.framework swap without a
-         reinstall); it does NOT suppress this pkg's logout. -->
-    <pkg-ref id="im.owltype.inputmethod.Owltype" onConclusion="RequireLogout">Owltype-component.pkg</pkg-ref>
+    <!-- Staged payload; atomic file commit followed by user-session activation. -->
+    <pkg-ref id="im.owltype.inputmethod.Owltype">Owltype-component.pkg</pkg-ref>
 </installer-gui-script>

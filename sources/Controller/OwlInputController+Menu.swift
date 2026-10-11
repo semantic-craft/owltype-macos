@@ -45,10 +45,6 @@ extension OwlInputController {
     // 开启，不提供随手打开的快捷入口；热键召唤是平行开关，不受总开关约束。
     let update = NSMenuItem(title: NSLocalizedString("Check for updates...", comment: "Menu item"), action: #selector(checkForUpdates), keyEquivalent: "")
     update.target = self
-    // #111 问3 B：补注销入口。「注销并重新登录…」放在「检查更新」前的独立分组；与更新提示【立即注销】
-    // 共用 OwlLogoutAction.requestLogout（发请求 + 两类 fallback），不复制分流逻辑。
-    let logoutRelogin = NSMenuItem(title: OwlInputMenuTitles.logoutRelogin, action: #selector(requestLogoutAndRelogin), keyEquivalent: "")
-    logoutRelogin.target = self
 
     let menu = NSMenu()
     menu.addItem(cjkInput)
@@ -62,8 +58,6 @@ extension OwlInputController {
     // 表情/符号 entry is always present — the panel is summoned from here. The old 启用 toggle
     // was removed (hiding the only entry point made the panel unreachable from anywhere).
     menu.addItem(owlEmoji)
-    menu.addItem(.separator())
-    menu.addItem(logoutRelogin)
     menu.addItem(.separator())
     menu.addItem(update)
 
@@ -217,12 +211,6 @@ extension OwlInputController {
   @objc func checkForUpdates() {
     OwlLatencyTrace.event("button.open.checkUpdates")
     NSApp.owlAppDelegate.checkForUpdates()
-  }
-
-  // #111 问3 B：输入菜单「注销并重新登录…」的处理器，与更新提示【立即注销】共用 OwlLogoutAction。
-  @objc func requestLogoutAndRelogin() {
-    OwlLatencyTrace.event("button.logout")
-    OwlLogoutAction.requestLogout()
   }
 
   @objc func openWiki() {
