@@ -3,8 +3,8 @@
 ## 当前状态
 
 分支：`codex/no-logout-install-update`。核实基线：`7f24eac8fe379ec58e5fa5e1ae666d9e116a03b0`。
-**最新Sparkle实验：原选猫头鹰的计时输入、选中态和延迟观察通过；另有应用管理通知待定位。** 官方Sparkle祖先进程93816实际启动installer93915，14:13:23包安装结束；三证约1.13秒通过，Owltype PID94004/inode90964582。菜单有猫头鹰并勾选，原旧PID86600在20.79秒、新PID94180在13.84秒保存，人工26秒PASS。
-截图同时出现macOS“Updater被阻止修改App”的提示；TCC日志在14:13:24记录SystemPolicyAppBundles拒绝，具体操作及影响待核实，不把它等同于注销提示或已证明的安装失败。三分钟进程观察仅有稳定PID94004，用户随后确认延迟观察PASS、无注销提示且输入正常。该通知诊断未闭环，#204保持开放；未回滚、未追加安装。
+**最新Sparkle实验：原选猫头鹰的计时输入、选中态和延迟观察通过；应用管理通知的触发原因已定位，产品修复待完成。** 官方Sparkle祖先进程93816实际启动installer93915，14:13:23包安装结束；三证约1.13秒通过，Owltype PID94004/inode90964582。菜单有猫头鹰并勾选，原旧PID86600在20.79秒、新PID94180在13.84秒保存，人工26秒PASS。
+截图同时出现macOS“Updater被阻止修改App”的提示；TCC日志在14:13:24记录SystemPolicyAppBundles拒绝，后续不安装探针确认是旧openURL申请目标App读写沙盒扩展被拒，不是换入或输入失败。三分钟进程观察仅有稳定PID94004，用户随后确认延迟观察PASS、无注销提示且输入正常。通知直接触发链已闭环，产品修复及发行签名验证未完成，#204保持开放；未回滚、未追加安装。
 
 **最新验收：直接归档 pkg 更新、原选微信的场景通过。** 用户于2026-10-11 12:33运行绑定宿主的正式安装；版本三证约1.1秒通过，菜单截图显示猫头鹰且微信仍勾选。
 真正旧TextEdit PID86600/窗口21126在24.83秒保存新增你好；安装后新PID76113在17.85秒保存；两侧观察均为原绑定窗口聚焦且Hans选中。用户32秒确认实际五笔、菜单和无提示，随后再次确认没有迟到提示。
@@ -330,6 +330,7 @@ bash "$HOME/Projects/_shared-work/owltype/verification/no-logout-20261010/macl-s
 | 2026-10-11 13:58 +0800 | 核对#204实际Sparkle接口与验签时序 | 微信报告中的接管接口并非官方2.6.2 API，不能把下载回调当作可信包交接 | 固定子模块41847a5及链接框架2.6.2；通知无路径/接管返回值，包验签在安装器内；禁止重启委托会中止推进 | 两种路线及成本已交用户选择；未改产品/依赖、未安装，保留#204开放 |
 | 2026-10-11 14:10 +0800 | 按用户决定保留官方Sparkle，准备隔离真实入口实验 | 无需维护定制框架；源码尚未证明重复启动故障，先补可归属的端到端证据 | 固定版本源码、同包哈希/临时公钥验签、loopback检查、原旧窗口绑定及日志反例回放；审阅修复互斥和来源验证 | 未改产品、未安装；#204仍待用户真机执行，不新增无收益单测 |
 | 2026-10-11 14:16 +0800 | 核对官方Sparkle原选Hans实验 | 不能只凭pkg成功或人工PASS覆盖更新器收尾异常 | 下载请求、Autoupdate→installer来源、三证和菜单/两宿主截图通过；26秒PASS；TCC出现Updater应用管理拒绝 | 计时输入与Hans保持通过；延迟观察及通知原因未闭环，保留现场，不重装或自动回滚 |
+| 2026-10-11 14:57 +0800 | 定位Updater拒绝并完成旧/新API交叉对照 | 系统跟踪避免把目录删除fallback误作通知原因 | 精确读写扩展参数、EPERM调用栈、同PID的A/B/A/B与TCC对照 | 直接原因已证；无再安装、无权限改动；官方依赖下产品修复待完成 |
 | 2026-10-11 14:29 +0800 | 收录用户延迟PASS并只读追查Updater通知 | 避免重复安装或用权限放宽掩盖问题 | TCC PID93817拒绝时间、LaunchServices请求、固定2.6.2源码及签名对照 | 功能与延迟观察通过；拒绝操作路径未知，签名因素仍是假设；不改产品、不改权限 |
 | 2026-10-11 14:47 +0800 | 建立不安装的Updater拒绝复现 | 避免为诊断重复完整安装；控制TCC责任进程归因 | launchd副本PID10783/11609的AppBundles拒绝，原Owltype94004保持 | 已能独立复现；准备30秒系统调用跟踪，因sudo限制待用户执行，无产品补丁 |
 
@@ -499,3 +500,23 @@ helper只操作指定TextEdit窗口，不安装、输入字符、改输入源或
 5. 准备`.../sparkle-denial-trace-4d6shq92/start-no-install.sh`：sudo只运行系统fs_usage，限定Updater/CoreServicesUIAgent、最长30秒；先通过预检进程读取专用marker，确实记录路径才运行同一隔离复现。脚本/二进制SHA256、shell语法、预检读文件通过；root跟踪尚未运行。安装草案已删除，本次不包含安装/回滚动作。
 
 下一步由用户执行上述取证脚本（sudo限制）。不用关闭旧窗口、无需再次安装或打字；现有App、词典、收据均保持。精确被拒操作仍待系统层捕获，不把本轮诊断标为修复完成。
+
+
+### #204：精确触发链及A/B/A/B验证（2026-10-11）
+
+**结论：Sparkle 2.6.2的旧式NSWorkspace openURL收尾路径，让LaunchServices为已安装App申请读写沙盒扩展，触发App Management拒绝。** 不需要交换文件即可复现。
+
+证据根目录`sparkle-official-5d03p3jc/open-probe`：`extension.log`中PID17073在1791701697.964930调用`sandbox_extension_issue_file`，目标`/Library/Input Methods/Owltype.app`，class=`com.apple.app-sandbox.read-write`，flags=`0x10`，返回NULL/errno=1（EPERM）。完整栈为Updater收尾block→NSWorkspace openURL→LSOpenFromURLSpec→_LSRemoteOpenCall invokeWithError→沙盒扩展申请；对应TCC明确拒绝SystemPolicyAppBundles。`macsyscall.log`进一步记录Sandbox syscall 5的EPERM。接口声明核对[Apple WebKit SandboxSPI.h](https://github.com/WebKit/WebKit/blob/main/Source/WTF/wtf/spi/darwin/SandboxSPI.h)；私有接口仅用于诊断插桩，不能进入产品。
+
+用户执行的`kerneltrace`系统调用记录在`sparkle-denial-trace-4d6shq92/filesystem-trace.log`。14:50:07.386的TCC拒绝早于14:50:07.741开始的副本删除；后者unlink目录的EPERM随后由rmdir成功处理，不能误认成通知原因。
+
+| 隔离探针 | AppBundles拒绝 | 读写扩展申请 | 最终输入法PID |
+| --- | --- | --- | --- |
+| 原API extension/PID17073 | 1次 | NULL/EPERM | 94004 |
+| 专用openApplicationAtURL modern/PID17379 | 0次 | 未观察到 | 94004（回调error=none） |
+| 恢复原API legacyconfirm/PID18102 | 1次 | NULL/EPERM | 94004 |
+| 专用API，activates=true modernmatched/PID18412 | 0次 | 未观察到 | 94004（回调error=none） |
+
+`causal-comparison.json`汇总原始日志；`diagnosis.md`说明边界，`final-probe.sha256`固定最终探针版本。所有探针使用同一已安装App、同类ad-hoc Updater副本，均未安装/重启输入法；临时launchd任务已bootout。原命令行对照归因于Codex的差异另留记录，不纳入上述独立归因对照。
+
+产品修复尚未实施：官方当前2.x文件blob`fb73bd28bc9609a081b4da800e86715c13dbee52`第399行仍用openURL（原文保留为`upstream-2x-controller.m`），不能把升级依赖当作已验证修复。可行方向是上游采用专用打开应用API；遵守保留官方Sparkle的决定，不把临时方法替换或私有API带进产品。此结论证明本机ad-hoc实验的直接触发链；原发行Developer ID同Team信任下是否拒绝仍未验证，不把缺少Team ID单独写成充分根因。
