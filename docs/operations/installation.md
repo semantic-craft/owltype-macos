@@ -57,7 +57,7 @@ a read-write sandbox extension and triggered App Management in the isolated test
 [the dependency patch](../../patches/sparkle/README.md). Download, verification and pkg installation
 remain official Sparkle code; the dependency is a patched build, not the unmodified upstream binary.
 An update started by an older installed App still uses its old helper; the repair takes effect when
-the updated helper starts the next update. Full installation with the rebuilt helper is pending.
+the updated helper starts the next update. Full Sparkle installation with the rebuilt helper passed on the tested arm64 host with Owltype initially selected; remaining cases are tracked in #204/#205.
 Native logs disproved the previous empty-component-list
 assumption: PackageKit still registered the staged App after postinstall and the process/TIS self-check.
 The revised format gives PackageKit only an inert archive. Release, identity and secret gates unpack and
