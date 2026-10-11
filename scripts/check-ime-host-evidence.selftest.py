@@ -51,8 +51,26 @@ class HostEvidenceTests(unittest.TestCase):
         self.before['source'] = 'com.tencent.inputmethod.wetype.pinyin'
         self.assertTrue(self.errors())
 
-    def test_focus_change_cannot_pass(self):
+    def test_focus_change_without_observed_new_text_cannot_pass(self):
         self.after['focused'] = False
+        self.assertTrue(self.errors())
+
+    def test_return_to_terminal_after_observed_new_text_can_pass(self):
+        # Captured native sequence: new text is already in the original focused
+        # host with Hans selected; save completes, then the terminal takes focus.
+        self.before['nihaoCount'] = 4
+        self.after['focused'] = False
+        self.after['frontPID'] = 200
+        self.after['source'] = 'com.tencent.inputmethod.wetype.pinyin'
+        self.assertEqual(self.errors(), [])
+
+    def test_blur_does_not_waive_original_source_or_focus(self):
+        self.before['nihaoCount'] = 4
+        self.after['focused'] = False
+        self.before['source'] = 'com.tencent.inputmethod.wetype.pinyin'
+        self.assertTrue(self.errors())
+        self.before['source'] = 'im.owltype.inputmethod.Owltype.Hans'
+        self.before['frontPID'] = 200
         self.assertTrue(self.errors())
 
     def test_old_text_without_new_commit_cannot_pass(self):

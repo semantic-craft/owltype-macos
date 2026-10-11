@@ -17,10 +17,17 @@ def validate(binding, before, after, baseline, saved, started, completed, role):
     for observation in (before, after):
         if observation['binding'] != binding:
             errors.append('Host/window identity changed')
-        if observation['frontPID'] != binding['pid'] or not observation['focused']:
-            errors.append('Bound window was not focused')
-        if observation['source'] != 'im.owltype.inputmethod.Owltype.Hans':
-            errors.append('Owltype Hans was not selected')
+    def focused_owltype(observation):
+        return (observation['frontPID'] == binding['pid'] and observation['focused']
+                and observation['source'] == 'im.owltype.inputmethod.Owltype.Hans')
+
+    if not focused_owltype(before):
+        errors.append('Bound window with Owltype was not focused before save')
+    # Returning to the terminal after saving is normal. If the post-save
+    # observation is no longer focused, require the exact new text count to
+    # have already been observed in the focused original host before saving.
+    if not focused_owltype(after) and before['nihaoCount'] != saved['nihao_count']:
+        errors.append('New text was not observed while bound window had Owltype focus')
     if not completed <= before['observedAt'] <= saved['mtime'] <= after['observedAt'] <= completed + 60:
         errors.append('Save not bracketed by observations within 60 seconds')
     if saved['mtime_ns'] <= baseline['mtime_ns'] or saved['nihao_count'] <= baseline['nihao_count']:

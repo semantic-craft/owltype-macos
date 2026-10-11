@@ -77,8 +77,11 @@ exact window; `new` starts a fresh TextEdit with per-process state restoration d
 reopens an old document by path or silently rebinds a missing window. Accessibility and screenshot
 permissions must be checked in the executing terminal before any privileged operation.
 
-[The save observer](../../scripts/check-ime-host-evidence.py) requires the same bound window focused
-and Owltype Hans selected around a new saved “你好”, within the shared 60-second deadline. It compares
+[The save observer](../../scripts/check-ime-host-evidence.py) requires the bound window focused
+with Owltype Hans selected before a new saved “你好”, within the shared 60-second deadline. If focus
+has moved after saving, the exact new text count must already have been observed in the focused
+Owltype host before saving. Both observations must still resolve the same bound process/window,
+and the saved count must match its final window text; blur alone is neither success nor failure. It compares
 with the bound window's text baseline, since another process may have saved the same file. This is
 supporting evidence, not proof of physical Wubi keystrokes; human confirmation remains required.
 Run a no-install rehearsal before another native update when changing this harness. Never count a
