@@ -3,8 +3,8 @@
 ## 当前状态
 
 分支：`codex/no-logout-install-update`。核实基线：`7f24eac8fe379ec58e5fa5e1ae666d9e116a03b0`。
-**最新Sparkle实验：原选猫头鹰的计时输入与选中态通过；收尾观察仍待闭环。** 官方Sparkle祖先进程93816实际启动installer93915，14:13:23包安装结束；三证约1.13秒通过，Owltype PID94004/inode90964582。菜单有猫头鹰并勾选，原旧PID86600在20.79秒、新PID94180在13.84秒保存，人工26秒PASS。
-截图同时出现macOS“Updater被阻止修改App”的提示；TCC日志在14:13:24记录SystemPolicyAppBundles拒绝，具体操作及影响待核实，不把它等同于注销提示或已证明的安装失败。三分钟观察/人工最终确认及该通知诊断未闭环，#204保持开放；未回滚、未追加安装。
+**最新Sparkle实验：原选猫头鹰的计时输入、选中态和延迟观察通过；另有应用管理通知待定位。** 官方Sparkle祖先进程93816实际启动installer93915，14:13:23包安装结束；三证约1.13秒通过，Owltype PID94004/inode90964582。菜单有猫头鹰并勾选，原旧PID86600在20.79秒、新PID94180在13.84秒保存，人工26秒PASS。
+截图同时出现macOS“Updater被阻止修改App”的提示；TCC日志在14:13:24记录SystemPolicyAppBundles拒绝，具体操作及影响待核实，不把它等同于注销提示或已证明的安装失败。三分钟进程观察仅有稳定PID94004，用户随后确认延迟观察PASS、无注销提示且输入正常。该通知诊断未闭环，#204保持开放；未回滚、未追加安装。
 
 **最新验收：直接归档 pkg 更新、原选微信的场景通过。** 用户于2026-10-11 12:33运行绑定宿主的正式安装；版本三证约1.1秒通过，菜单截图显示猫头鹰且微信仍勾选。
 真正旧TextEdit PID86600/窗口21126在24.83秒保存新增你好；安装后新PID76113在17.85秒保存；两侧观察均为原绑定窗口聚焦且Hans选中。用户32秒确认实际五笔、菜单和无提示，随后再次确认没有迟到提示。
@@ -207,7 +207,7 @@ App 回滚不会撤销 pkg 收据或运行期间发生的用户数据变化；�
 | S3 指定新窗口复测（同包） | 三证通过：PID30889/inode88878518；20秒PASS | **约9.5秒截图只有微信与U.S.，无猫头鹰** | 46秒保存你好，输入法归属未确认 | 18秒保存你好，输入法归属未确认 | PASS含无提示，但整体人工结果待澄清 | 自动/人工后探针仍为微信；更晚Hans不能倒推 | native-window-check-0n2jrwny/user-acceptance.json、input-menu.png、after.txt、manual-probe.txt；用户无印象，**不计通过** |
 | S3 输入法身份采样复测（同包） | 三证通过：PID43020/inode88900974；32秒PASS | input-menu.png：猫头鹰可见，微信勾选 | **未验证旧宿主**：旧文件29秒保存、Hans，但前台为新PID43694 | 21秒保存你好，Hans，新PID43694；typing-new-1.png | 人工32秒PASS未见提示 | 自动完成微信保持，之后人工Hans | native-identity-check-_5q9z_gs/user-acceptance.json、typing-observations.jsonl、window-ownership.txt；**不计完整S3** |
 | S3 绑定宿主直接归档pkg，原选微信 | **通过**：约1.1秒，PID76011/inode89596300，三版本2.0.13；人工32秒PASS | input-menu.png：猫头鹰可见、微信勾选 | **通过**：原PID86600/窗口21126，24.83秒，Hans；old-save.png | **通过**：新PID76113，17.85秒，Hans；new-save.png | 用户PASS及随后追问均无提示 | 自动完成保持微信，之后人工选择Hans | native-bound-host-ma6tlcf0：after.txt、new-save.json、old-save.json、user-acceptance.json；本机ad-hoc副本 |
-| S3 官方Sparkle，本地隔离feed，原选Hans | 三证约1.13秒通过：PID94004/inode90964582；26秒人工PASS | input-menu.png：猫头鹰可见且勾选 | 原PID86600/窗口21126，20.79秒Hans保存；old-save.png | 新PID94180，13.84秒Hans保存；new-save.png | 当场PASS；延迟确认待收尾；另有Updater应用管理拒绝通知待诊断 | 自动完成后Hans保持 | sparkle-official-5d03p3jc：祖先进程/HTTP/PackageKit、after.txt、new/old-save.json、user-acceptance.json；**计时输入通过，收尾未闭环** |
+| S3 官方Sparkle，本地隔离feed，原选Hans | 三证约1.13秒通过：PID94004/inode90964582；26秒人工PASS | input-menu.png：猫头鹰可见且勾选 | 原PID86600/窗口21126，20.79秒Hans保存；old-save.png | 新PID94180，13.84秒Hans保存；new-save.png | 当场与延迟观察PASS；另有Updater应用管理拒绝通知待诊断 | 自动完成后Hans保持 | sparkle-official-5d03p3jc：祖先进程/HTTP/PackageKit、after.txt、new/old-save.json、user-acceptance.json；**计时输入及延迟观察通过，通知原因未闭环** |
 | S3 真实 Sparkle 更新，原选其他源 | 未测 | 未采集 | 未测 | 未测 | 未测 | 未测 | 无 |
 | S4 GUI 更新，原选猫头鹰 | 未测 | 未采集 | 未测 | 未测 | 未测 | 未测 | 无 |
 | S4 GUI 更新，原选其他源 | 未测 | 未采集 | 未测 | 未测 | 未测 | 未测 | 无 |
@@ -330,6 +330,7 @@ bash "$HOME/Projects/_shared-work/owltype/verification/no-logout-20261010/macl-s
 | 2026-10-11 13:58 +0800 | 核对#204实际Sparkle接口与验签时序 | 微信报告中的接管接口并非官方2.6.2 API，不能把下载回调当作可信包交接 | 固定子模块41847a5及链接框架2.6.2；通知无路径/接管返回值，包验签在安装器内；禁止重启委托会中止推进 | 两种路线及成本已交用户选择；未改产品/依赖、未安装，保留#204开放 |
 | 2026-10-11 14:10 +0800 | 按用户决定保留官方Sparkle，准备隔离真实入口实验 | 无需维护定制框架；源码尚未证明重复启动故障，先补可归属的端到端证据 | 固定版本源码、同包哈希/临时公钥验签、loopback检查、原旧窗口绑定及日志反例回放；审阅修复互斥和来源验证 | 未改产品、未安装；#204仍待用户真机执行，不新增无收益单测 |
 | 2026-10-11 14:16 +0800 | 核对官方Sparkle原选Hans实验 | 不能只凭pkg成功或人工PASS覆盖更新器收尾异常 | 下载请求、Autoupdate→installer来源、三证和菜单/两宿主截图通过；26秒PASS；TCC出现Updater应用管理拒绝 | 计时输入与Hans保持通过；延迟观察及通知原因未闭环，保留现场，不重装或自动回滚 |
+| 2026-10-11 14:29 +0800 | 收录用户延迟PASS并只读追查Updater通知 | 避免重复安装或用权限放宽掩盖问题 | TCC PID93817拒绝时间、LaunchServices请求、固定2.6.2源码及签名对照 | 功能与延迟观察通过；拒绝操作路径未知，签名因素仍是假设；不改产品、不改权限 |
 
 ## 菜单缺失：控制结果与后续隔离
 
@@ -471,3 +472,16 @@ helper只操作指定TextEdit窗口，不安装、输入字符、改输入源或
 执行驱动先验证原旧PID86600/窗口21126及截图权限；用户执行文件准备后，从真实“检查更新”走Sparkle。观察器关联本地feed/下载、installer的Sparkle祖先进程及相同PID的PackageKit事务；只有postinstall自检与事务结束同时记录后才开始60秒宿主步骤，缺证据即停。保留3分钟进程观察和人工迟到提示确认。
 脚本审阅修正：准备/回滚共用操作锁；授权后和提交前核查安装进程及PackageKit结束边界，状态不明不回滚；禁止安装未结束时自动交换备份。失败现场保留，由用户确认安全结束后恢复已验签发行版2.0.12，不删词典、不改收据。
 准备检查：公钥验签、loopback feed和pkg字节一致、安装日志边界回放与无Sparkle祖先/无会话成功/其他包反例、shell/Python语法通过。原旧窗口只读身份仍一致。没有新增产品单测，也没有把这些检查计为原生验收。
+
+
+### #204：Updater应用管理通知的只读诊断
+
+本轮用户确认延迟观察PASS，无注销提示、输入正常。证据目录仍为`sparkle-official-5d03p3jc`；原始`notification-window.json`、精确摘录`notification-focused.json`、签名对照`notification-signatures.txt`与`user-acceptance.json`保存在本地。
+
+- 已确认：14:13:23安装和会话恢复完成。14:13:24.292488，Updater PID93817记录LaunchServices.launchViaCSUA；14:13:24.299076，TCC将AppBundles请求归因到同一Updater；14:13:24.312402因unentitled binary无法提示授权而拒绝。提示不是包安装失败，也不是注销提示。
+- 推断：最接近的调用是安装后的NSWorkspace openURL（固定Sparkle 2.6.2源码InstallerProgressAppController.m:373–405）。随后源码延迟0.3秒才删除自己的缓存App；进程14:13:24.680920退出，缓存副本已不存在。因此优先怀疑重新打开App时的系统操作，缓存清理假设较弱；日志没有调用栈和被拒绝路径，不能定为具体系统调用。
+- 签名对照：实验的基线/目标App及嵌套Updater均Signature=adhoc、TeamIdentifier=not set；保存的发行版2.0.12及其Updater均为Developer ID、TeamIdentifier=LQAVR62TK2。测试签名无法证明发行签名下是否发生同样通知；没有Team ID是候选影响因素，尚无对照实验证明因果。
+- 不符合的已知问题：[Sparkle #2591](https://github.com/sparkle-project/Sparkle/issues/2591)及[#2593](https://github.com/sparkle-project/Sparkle/pull/2593)针对自定义NSUpdateSecurityPolicy与Sparkle整App原子交换。本轮App没有该键，文件交换由包内root步骤较早完成，拒绝主体是后续Updater，因此不能直接套用其修复或认定升级Sparkle能解决。
+- 上游维护者说明默认更新策略使用同Team ID，且此类通知有时不妨碍安装；见[讨论2881](https://github.com/sparkle-project/Sparkle/discussions/2881)（讨论正文2026-06-03维护者回复；不借用其他报告的根因）。
+
+本次未重装、未修改TCC/权限/签名，也未加入猜测性产品补丁。尚缺被拒操作/路径，以及正常同Team ID发行签名的对照，故保留通知问题为未验证项；无需用户重复已通过的打字验收。
