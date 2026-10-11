@@ -323,6 +323,7 @@ bash "$HOME/Projects/_shared-work/owltype/verification/no-logout-20261010/macl-s
 
 | 2026-10-11 12:24 +0800 | 用户授权继续后修正保存后焦点判定并回放原始记录 | 已聚焦的原窗口有新增文字且保存一致时，切回终端不能抹去先前输入证据 | 真实new/old-save原文回放均无错误；新增回归先红后绿，17项自测通过；原始STOP保留 | 不要求重做已有焦点演练；未补造旧图，未计S3或执行安装；完整分支验证随后运行 |
 | 2026-10-11 12:37 +0800 | 核验绑定宿主正式pkg更新并保留测试版 | 用真实旧进程身份排除同名文档恢复混淆，不重复已通过场景 | 三证1.1秒、菜单微信保持、旧24.83秒/新17.85秒Hans保存、人工32秒PASS及迟到提示追问无；18755cd完整gate通过 | 直接pkg原选微信通过；本机B4旧宿主无需重开；其余入口/选中态/平台仍未验证 |
+| 2026-10-11 13:58 +0800 | 核对#204实际Sparkle接口与验签时序 | 微信报告中的接管接口并非官方2.6.2 API，不能把下载回调当作可信包交接 | 固定子模块41847a5及链接框架2.6.2；通知无路径/接管返回值，包验签在安装器内；禁止重启委托会中止推进 | 两种路线及成本已交用户选择；未改产品/依赖、未安装，保留#204开放 |
 
 ## 菜单缺失：控制结果与后续隔离
 
@@ -433,3 +434,21 @@ helper只操作指定TextEdit窗口，不安装、输入字符、改输入源或
 聚焦distribution收据`20261010T135043Z-distribution-bp1il6y4`通过（当时工作区有本修复）；最后的超时约束另以同组自测验证，不冒称分支头完整gate通过。
 `native-bound-host-ma6tlcf0/preflight.sh`在执行终端检查AX/窗口身份和截图；不抢焦点，不调用sudo。`rehearse.sh`在确认准备后创建唯一新文档，自动先切新窗口、采集保存，再切真正旧窗口、采集保存。该入口没有安装/回滚调用，结果标签为REHEARSAL_EVIDENCE_READY，不能替代S3。
 实际安装入口随后由用户执行并通过，详见当前状态和结果矩阵；准备阶段记录与原始演练失败保留。
+
+
+### #204：Sparkle 交接接口核对（2026-10-11）
+
+核对对象为实际链接框架2.6.2及同版本子模块提交`41847a58cdef7506b257591fcca6f9495df591d4`，不是当前上游最新版。
+微信逆向报告里的`shouldExtractUpdate:downloadedFilePath:clanerBlock:`不在该版本公开头文件或源码中；该报告不能直接作为官方API接入方案，尚未证明微信如何提供这个扩展。
+
+| 证据（Sparkle子模块内） | 结论 |
+| --- | --- |
+| `Sparkle/SPUUpdaterDelegate.h:291–296` | didDownloadUpdate只给appcast item，不给本地下载路径，也无接管返回值。 |
+| `Sparkle/SPUCoreBasedUpdateDriver.m:178–183,216–250` | 通知后直接进入内部extractUpdate并启动安装器；公开willExtractUpdate也只是通知。 |
+| `Autoupdate/AppInstaller.m:194–201` | 包的下载签名预校验在安装器里执行；下载通知不等于验签通过。 |
+| `Sparkle/SPUInstallerDriver.m:504–520` | updaterShouldRelaunchApplication返回false会中止本次安装推进，不是仅关闭安装后的重启。不能以此方法作为完成接管。 |
+| `Autoupdate/SUGuidedPackageInstaller.m:41–48` | 标准package最终仍调用系统installer安装pkg；PR中的包内文件/会话逻辑继续适用，但真正Sparkle生命周期尚未验收。 |
+
+官方[安装流程文档](https://github.com/sparkle-project/Sparkle/blob/41847a58cdef7506b257591fcca6f9495df591d4/Documentation/Installation.md)说明目标进程退出后才进行最终安装，并可在安装后重启。直接pkg通过不能证明该退出/重启配合通过。
+
+实现选择待用户确认：保留官方下载、验签、pkg调用并验证会话配合（调整只下载要求）；或者维护定制Sparkle，新增安全交接边界及依赖构建/更新维护。未使用私有API、扫描下载缓存、跳过验签或改依赖。尚未修改产品代码或执行安装；不把接口调查记为#204完成。
