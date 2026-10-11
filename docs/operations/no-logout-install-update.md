@@ -332,6 +332,7 @@ bash "$HOME/Projects/_shared-work/owltype/verification/no-logout-20261010/macl-s
 | 2026-10-11 14:16 +0800 | 核对官方Sparkle原选Hans实验 | 不能只凭pkg成功或人工PASS覆盖更新器收尾异常 | 下载请求、Autoupdate→installer来源、三证和菜单/两宿主截图通过；26秒PASS；TCC出现Updater应用管理拒绝 | 计时输入与Hans保持通过；延迟观察及通知原因未闭环，保留现场，不重装或自动回滚 |
 | 2026-10-11 15:34 +0800 | 增加并构建Sparkle应用重开源码补丁 | 官方无可替代收尾接口，避免临时插桩进入产品 | 双架构构建通过；实际编译Updater无TCC拒绝；release自测17/17 | 保留官方下载验签安装流程；产品补丁完成，完整gate/审阅/真机待完成 |
 | 2026-10-11 15:42 +0800 | 修复审阅发现的无Git源码包构建回归 | 对应源码归档必须能独立构建，不能依赖仓库元数据 | Gitless真实源树补丁自测通过；隔离归档make sparkle双架构构建通过；Standards复核零遗留、Spec零缺陷 | 不安装、不改系统权限；完整新分支头gate随后运行 |
+| 2026-10-11 16:34 +0800 | 核验补丁后的真实Sparkle更新及延迟观察 | 以完整安装确认隔离探针修复，避免只凭人工PASS结案 | 02a24b4三证、菜单Hans、新17.83秒/原旧22.18秒保存、27秒人工PASS、三分钟延迟PASS；Updater退出且捕获日志无其AppBundles拒绝 | 本机原选猫头鹰分支通过；其他选中态及平台仍未验证，不重复安装、不合并 |
 | 2026-10-11 14:57 +0800 | 定位Updater拒绝并完成旧/新API交叉对照 | 系统跟踪避免把目录删除fallback误作通知原因 | 精确读写扩展参数、EPERM调用栈、同PID的A/B/A/B与TCC对照 | 直接原因已证；无再安装、无权限改动；官方依赖下产品修复待完成 |
 | 2026-10-11 14:29 +0800 | 收录用户延迟PASS并只读追查Updater通知 | 避免重复安装或用权限放宽掩盖问题 | TCC PID93817拒绝时间、LaunchServices请求、固定2.6.2源码及签名对照 | 功能与延迟观察通过；拒绝操作路径未知，签名因素仍是假设；不改产品、不改权限 |
 | 2026-10-11 14:47 +0800 | 建立不安装的Updater拒绝复现 | 避免为诊断重复完整安装；控制TCC责任进程归因 | launchd副本PID10783/11609的AppBundles拒绝，原Owltype94004保持 | 已能独立复现；准备30秒系统调用跟踪，因sudo限制待用户执行，无产品补丁 |
@@ -535,3 +536,23 @@ helper只操作指定TextEdit窗口，不安装、输入字符、改输入源或
 迁移边界：从旧版开始的第一轮更新仍运行旧版Updater，目标包不能替换已经在运行的辅助进程；这轮可能仍有旧通知。后续更新才使用修复后的辅助进程。下一轮完整真机实验必须将修复放入起始基线，不能只换目标pkg。
 
 源码归档兼容性审阅发现并修复：`make sparkle`仅在Git工作区初始化子模块；归档路径复制随包源码，两条路径均核验固定上游树摘要。实际无Git目录`sparkle-gitless-build-7hywnmu0/build.log`的`make sparkle`通过；自测覆盖真实源码及未知修改拒绝。标准轴原1项已解决，需求轴0项；真机更新仍单独验收。
+
+
+### #204：补丁完整 Sparkle 更新通过（原选猫头鹰）
+
+测试代码提交 `02a24b4044187f239efa68845cd20ea13bd26747`，完整干净 gate 14阶段/1310项产品测试通过（366.353秒，收据 `20261011T074108Z-full-4zof5r73`）。本节仅记录后续人工验收，不将其文档提交冒称为该次完整 gate 的提交。
+
+本地证据目录 `sparkle-patched-qcz2s_rj`。起始测试App与目标包均含源码补丁；本机ad-hoc签名、localhost feed、内存生成测试密钥，真实检查更新入口。`sparkle-installer-ancestry.jsonl`证明Autoupdate76158调用installer76312；payload为归档，下载字节和验签配置已在准备时绑定。
+
+| 项目 | 结果 | 原始证据 |
+| --- | --- | --- |
+| 版本三证 | PID76429，系统安装路径；磁盘/LS/目标2.0.13；inode91173429一致；进程晚于安装开始 | after.txt |
+| 菜单/选中态 | 猫头鹰可见且选中Hans，更新前后保持 | input-menu.png、update-source-before.txt |
+| 新宿主 | PID76516；17.83秒保存新增“你好”；前后选中Hans | new-save.json、new-save.png |
+| 原旧宿主 | PID86600/window21126保持；22.18秒保存新增“你好”；前后选中Hans | old-save.json、old-save.png |
+| 人工与延迟 | 27秒PASS；三分钟观察后用户PASS，无注销或Updater被阻止通知 | manual-result.txt、delayed-result.txt、late-runtime.jsonl |
+| Updater收尾 | PID76159于16:30:11.653退出；捕获日志未发现其AppBundles拒绝 | interim-updater-log.json、updater-system-log.json、diagnostic-status.json |
+
+中途日志451条、最终查询223条：系统统一日志后续查询保留的条目减少，两份均保留。其他系统进程有AppBundles预检，不能宣称所有TCC事件为零；结论限定本轮Updater未观察到拒绝，并有用户无通知确认。收尾查询exit0，操作锁已释放；保留测试版，不再重装或回滚。`review.json`汇总完整审阅。
+
+本轮解决本机已复现的Updater拒绝。#204仍缺原选其他输入源的真实Sparkle分支等验收；#205剩余GUI/pkg矩阵、Intel、macOS14/15和原发行Developer ID信任路径未验证。首次从旧发行版更新仍运行旧Updater的迁移限制不变。
