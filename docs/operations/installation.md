@@ -53,9 +53,10 @@ remain unresolved and must not be presented as verified. Native logs disproved t
 assumption: PackageKit still registered the staged App after postinstall and the process/TIS self-check.
 The revised format gives PackageKit only an inert archive. Release, identity and secret gates unpack and
 inspect its real contents; they reject direct App payloads, escaping archive paths and unsafe links.
-A direct-pkg native run confirmed menu visibility, preserved selection and old/new host typing;
-the designated new-host check completed outside the 60-second window, so full timed acceptance
-remains pending. Receipt-based obsoleting during migration from an older
+A bound-host direct-pkg run confirmed menu visibility and preserved WeType selection. The original
+TextEdit process saved Wubi input at 24.83 seconds and the new process at 17.85 seconds; the user
+confirmed no logout prompt, including a later follow-up. This covers the local ad-hoc test App on
+arm64 macOS 27.0.1, not Sparkle, GUI, first installation or an initially selected Owltype source. Receipt-based obsoleting during migration from an older
 live-bundle receipt also remains unverified; App rollback does not restore that older receipt.
 
 ## Acceptance and recovery
