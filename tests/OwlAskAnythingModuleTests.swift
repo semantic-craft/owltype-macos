@@ -135,7 +135,7 @@ final class OwlAskAnythingModuleTests: XCTestCase {
       preferredWebSearchBackend: .doubaoGlobal,
       webSearchKeys: [
         .qwen: "  sk-qwen-search  ",
-        .perplexity: "   ",
+        .serper: "   ",
       ],
       searches: searches)
 
@@ -150,7 +150,7 @@ final class OwlAskAnythingModuleTests: XCTestCase {
     XCTAssertEqual(
       searches.calls,
       [.init(backend: .qwen, query: "今天有什么新规？", apiKey: "sk-qwen-search", limit: 5)],
-      "the missing preferred key and blank Perplexity key must filter only those candidates")
+      "the missing preferred key and blank Serper key must filter only those candidates")
     XCTAssertEqual(
       responses.calls,
       [.init(providerID: "qwen", dialect: .qwen, webSearch: false)],

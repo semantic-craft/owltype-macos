@@ -664,7 +664,7 @@ final class OwlStreamingChatClientTests: XCTestCase {
         switch $0 {
         case .doubaoGlobal: return "sk-bad"
         case .qwen: return "sk-qwen-search"
-        case .perplexity, .minimax: return nil
+        case .serper, .minimax: return nil
         }
       },
       webSearchClientFactory: { backend in
@@ -793,7 +793,7 @@ final class OwlStreamingChatClientTests: XCTestCase {
         defaultProfileProvider: { nil }, preferredProviderID: { nil },
         secretProvider: { _ in nil }),
       preferredWebSearchBackend: { .doubaoGlobal },
-      // 顺位候选的 Key 同理不能读真钥匙串：这台机器配过百炼/Perplexity 搜索 Key 的话，
+      // 顺位候选的 Key 同理不能读真钥匙串：这台机器配过百炼/Serper 搜索 Key 的话，
       // 首家失败会顺位到一条真实路由，断言看到的就不是「退回普通问答」了。
       webSearchKeyProvider: { $0 == .doubaoGlobal ? "sk-search" : nil },
       webSearchClientFactory: { _ in search }

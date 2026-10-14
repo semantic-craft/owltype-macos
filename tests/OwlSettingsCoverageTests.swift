@@ -99,7 +99,7 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "修改模型：\\(profile.displayName)",
     "保存修改",
     "取消",
-    // 任意提问·联网搜索的独立「搜索服务」（豆包搜索 Global / Perplexity Search）：它不属于任何
+    // 任意提问·联网搜索的独立「搜索服务」（豆包搜索 Global / Serper）：它不属于任何
     // 一家供应商，配好后联网走「先检索、再作答」。Key 字段的提示语随选中的后端插值，故按源码字面量
     // 登记（同 设为默认：\(…) 的写法）。action coverage 在 OwlWebSearchTests 的
     // saveWebSearchKey / clearWebSearchKey 往返 + 两家 Key 互不覆盖的断言。

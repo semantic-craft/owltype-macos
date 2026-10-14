@@ -131,7 +131,7 @@ struct OwlAIPage: View {
   /// 配好它之后，联网走「先检索、再作答」：由该后端取回网页，交给**当前默认供应商**作答 ——
   /// 所以配的是 DeepSeek 也能联网。留空则退回下面那套「模型自带的联网工具」。
   ///
-  /// 豆包/Perplexity 的 Key 与模型 Key 是两回事；通义千问那档填的就是百炼模型 Key，但仍单独存一份
+  /// 豆包/Serper 的 Key 与模型 Key 是两回事；通义千问那档填的就是百炼模型 Key，但仍单独存一份
   /// （这层的语义是「谁来检索」，不是「配了哪家模型」）。逐家差异写在 `backend.keyHint` 里。
   private var searchServiceKeyRow: some View {
     VStack(alignment: .leading, spacing: 6) {
