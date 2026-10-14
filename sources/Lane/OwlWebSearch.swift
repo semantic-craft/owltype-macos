@@ -11,7 +11,7 @@
 //
 //  搜索后端是可插拔的（`OwlWebSearching`）。首个实现是火山引擎「豆包搜索 Global 版」，选它是因为
 //  它覆盖国内站点、`open.feedcoopapi.com` 国内直连、且每个火山账号每月有 500 次免费额度。
-//  Perplexity Search（`api.perplexity.ai/search`）是同类接口，将来按同一 protocol 补一个实现即可。
+//  Serper（`google.serper.dev/search`）是同类接口，按同一 protocol 实现。
 //
 //  Pure value logic + 一个薄客户端：没有 UserDefaults，Key 由调用方传入。
 //
@@ -85,8 +85,7 @@ enum OwlWebSearchPayload {
   /// 为什么必须做：两家的摘要都是从真实网页正文里抠出来的，正文里混进裸控制字符时，它们**不转义**
   /// 就直接塞进 JSON 字符串 —— 那不是合法 JSON，`JSONSerialization` 会直接拒收（实测确认：默认与
   /// `.fragmentsAllowed` 都拒）。而解析失败在我们这里被归类为「不顺位、如实报错」，于是这一问就
-  /// **整个失败**。2026-07-27 实盘打 Perplexity 时复现过：同一条 query 连打三次，有一次的
-  /// `search_context_size=medium/high` 响应就带着裸控制字符。
+  /// **整个失败**。2026-07-27 实盘打当时的英文搜索后端时复现过：同一条 query 连打三次，有一次响应就带着裸控制字符。
   ///
   /// 换成空格是安全的：JSON 的结构性空白（\t\n\r）本来就等价于空格；字符串里合法的换行是
   /// `\` + `n` 两个字节（都 ≥ 0x20，不受影响）；UTF-8 的续字节 ≥ 0x80，也不受影响。
@@ -225,17 +224,17 @@ struct OwlDoubaoGlobalSearchClient: OwlWebSearching {
 
 /// 可选的搜索后端。一档 = 一个服务 + 它自己的 Key + 它自己的署名。
 ///
-/// 三家的取舍（豆包/Perplexity 2026-07-27 查证，通义千问 2026-07-28 补）：豆包搜索基于豆包 APP 做，
-/// 国内站点覆盖好、`open.feedcoopapi.com` 国内直连、每账号每月 500 次免费；Perplexity 英文内容强、
-/// 支持域名/时效过滤，但 `api.perplexity.ai` 在国内多半要代理、且没有免费额度；通义千问复用你已经有的
+/// 取舍（豆包 2026-07-27 查证，通义千问 2026-07-28 补，Serper 2026-10-15 补）：豆包搜索基于豆包 APP 做，
+/// 国内站点覆盖好、`open.feedcoopapi.com` 国内直连、每账号每月 500 次免费；Serper 是 Google 结果，英文内容强，
+/// 但 `google.serper.dev` 在国内多半要代理；通义千问复用你已经有的
 /// 百炼 Key（不用再开一个搜索账号），代价是它的来源**不带正文摘要**——见 `OwlDashScopeSearchWire`。
 /// 猫头鹰是中文输入法，所以默认豆包，另外两家作为可选项。
 enum OwlWebSearchBackend: String, CaseIterable, Hashable, Sendable {
   case doubaoGlobal = "doubao"
-  /// 阿里云百炼（通义千问）。国内第二档，排在 Perplexity 前面。
+  /// 阿里云百炼（通义千问）。国内第二档，排在 Serper 前面。
   case qwen
 
-  case perplexity
+  case serper
   case minimax
 
   /// 独立搜索后端的尝试顺序。设置偏好只把对应后端移到最前，不删除任何其他候选；Key
@@ -252,7 +251,7 @@ enum OwlWebSearchBackend: String, CaseIterable, Hashable, Sendable {
     // qwen 只负责检索、作答的可能是 DeepSeek。用平台名（阿里云百炼）与模型名（通义千问）区分开，
     // 署名 chip 才看得出是哪条路 —— 与「豆包搜索」/「豆包」同一个用意。
     case .qwen:         return "阿里云百炼"
-    case .perplexity:   return "Perplexity"
+    case .serper:       return "Serper（Google 搜索）"
     case .minimax:      return "MiniMax 搜索（国内站）"
     }
   }
@@ -263,7 +262,7 @@ enum OwlWebSearchBackend: String, CaseIterable, Hashable, Sendable {
     switch self {
     case .doubaoGlobal: return "doubao-search"
     case .qwen:         return "qwen-search"
-    case .perplexity:   return "perplexity-search"
+    case .serper:       return "serper-search"
     case .minimax:      return "minimax-search"
     }
   }
@@ -271,7 +270,7 @@ enum OwlWebSearchBackend: String, CaseIterable, Hashable, Sendable {
   /// Keychain account。每家一把，换后端不会互相覆盖，切回去也不用重填。
   var secretName: String { "owltype.websearch.\(rawValue).apiKey" }
 
-  /// 设置页里告诉用户去哪儿拿 Key。豆包/Perplexity 都**不是**模型 Key，这句是最容易踩空的地方；
+  /// 设置页里告诉用户去哪儿拿 Key。豆包/Serper 都**不是**模型 Key，这句是最容易踩空的地方；
   /// 通义千问相反 —— 它就是百炼的模型 Key，但仍单独存一份（理由见 `OwlWebSearchKeyStore`）。
   var keyHint: String {
     switch self {
@@ -281,8 +280,8 @@ enum OwlWebSearchBackend: String, CaseIterable, Hashable, Sendable {
       return "就是阿里云百炼的模型 Key（sk- 开头），与上面「供应商」里那把同源，在这里再填一次即可。注意它取回的来源只有标题与网址、没有正文摘要，接地效果弱于豆包搜索。"
     case .minimax:
       return "填入 MiniMax 国内站的 M Plan / Token Plan 订阅 Key（sk-cp-…），与模型 Key 相同，在这里单独保存。搜索结果交给当前默认模型作答。"
-    case .perplexity:
-      return "在 perplexity.ai 的 API 设置里创建（pplx- 开头）。国内网络访问 api.perplexity.ai 可能需要代理；英文内容检索效果更好，中文站点覆盖弱于豆包搜索。"
+    case .serper:
+      return "在 serper.dev 的 Dashboard → API Key 处获取。国内网络访问 google.serper.dev 可能需要代理；英文内容检索效果更好，中文站点覆盖弱于豆包搜索。"
     }
   }
 
@@ -290,7 +289,7 @@ enum OwlWebSearchBackend: String, CaseIterable, Hashable, Sendable {
     switch self {
     case .doubaoGlobal: return OwlDoubaoGlobalSearchClient()
     case .qwen:         return OwlDashScopeSearchClient()
-    case .perplexity:   return OwlPerplexitySearchClient()
+    case .serper:       return OwlSerperSearchClient()
     case .minimax:      return OwlMiniMaxSearchClient()
     }
   }
@@ -325,7 +324,7 @@ enum OwlWebSearchBackendSettings {
 /// 独立搜索服务的 API Key 存放位置。
 ///
 /// 刻意**不挂在任何一条 provider profile 下**：这把 Key 属于「搜索能力」本身，与用哪家模型作答无关
-/// （配了 DeepSeek 也能用它联网）。挂在豆包/Perplexity 供应商下会造成一个假依赖——没配那家模型
+/// （配了 DeepSeek 也能用它联网）。挂在豆包等供应商下会造成一个假依赖——没配那家模型
 /// 就不能联网。复用 `OwlProviderKeychain` 的 service，只是换一组固定 account，省一套钥匙串管道。
 enum OwlWebSearchKeyStore {
   /// 该后端已配好的搜索 Key；未配 / 读取失败 → nil（调用方据此退回不联网，而不是崩）。
@@ -346,82 +345,69 @@ enum OwlWebSearchKeyStore {
   }
 }
 
-// MARK: - Perplexity Search · wire format
+// MARK: - Serper（Google 搜索）· wire format
 
-/// Perplexity Search API 的请求/响应 wire format。
+/// Serper（google.serper.dev）的请求/响应 wire format。
 ///
-/// 文档：docs.perplexity.ai/api-reference/search-post。与豆包搜索的三个关键差别：
-///   1. **错误走标准 HTTP 状态码**（401 认证 / 429 限流 / 4xx-5xx），不像豆包那样 200 里藏错误；
-///   2. Query 没有 100 字符上限，也不禁多词；
-///   3. 结果里没有站点名，只有 url —— `hostname` 从 url 里取，不然署名那栏会整片空着。
-///
-/// 注意这是 Search API（返回结构化结果），不是 Sonar（`/chat/completions` 带 citations 的问答）。
-/// Sonar 不需要这一层：它本身就是 OpenAI 兼容端点，当普通供应商加进 `OwlProviderProfile` 即可。
-enum OwlPerplexitySearchWire {
-  static let endpoint = URL(string: "https://api.perplexity.ai/search")!
+/// 文档：serper.dev。与豆包搜索的关键差别：
+///   1. 鉴权用 `X-API-KEY` 头，不是 Bearer；
+///   2. **错误走标准 HTTP 状态码**（401/403 认证、429 限流），正文是 `{"message":…,"statusCode":…}`；
+///   3. 结果在 `organic` 里，只有 `link`，没有站点名 —— `hostname` 从 url 里取。
+enum OwlSerperSearchWire {
+  static let endpoint = URL(string: "https://google.serper.dev/search")!
+
+  /// Serper 单次最多 100 条；这里只取回答需要的几条。
+  static let maxResults = 100
 
   static func body(query: String, limit: Int) -> [String: Any] {
     [
-      "query": query.trimmingCharacters(in: .whitespacesAndNewlines),
-      "max_results": max(limit, 1),
-      // 实测定的 high（2026-07-27，同一 query 各打 3 次）：
-      //   low    5 条里只有 1 条有摘要，共 355 字 —— 接地基本没发生，模型拿到的只有标题和网址
-      //   medium 3 条有摘要，765 字
-      //   high   5 条全有摘要，2549 字
-      // 而三档时延**没有差别**（0.72 / 0.65 / 0.65s），所以低档省不到时间，只是把接地省没了。
-      "search_context_size": "high",
+      "q": query.trimmingCharacters(in: .whitespacesAndNewlines),
+      "num": min(max(limit, 1), maxResults),
     ]
   }
 
   static func request(query: String, apiKey: String, limit: Int) throws -> URLRequest {
-    guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-      throw OwlWebSearchError.missingAPIKey
-    }
+    let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !key.isEmpty else { throw OwlWebSearchError.missingAPIKey }
     var request = URLRequest(url: endpoint)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+    request.setValue(key, forHTTPHeaderField: "X-API-KEY")
     request.httpBody = try JSONSerialization.data(
       withJSONObject: body(query: query, limit: limit))
     return request
   }
 
-  static func parse(_ data: Data) throws -> [OwlWebSearchResult] {
+  static func parse(_ data: Data, limit: Int = maxResults) throws -> [OwlWebSearchResult] {
     let root = try OwlWebSearchPayload.object(from: data)
-    // 非 2xx 时 body 通常是 `{"error":{"message":…,"type":…}}`。客户端已按状态码抛错，这里再兜一道，
-    // 免得将来某个 200 + error 的边角情况被当成空结果。
-    if let error = root["error"] as? [String: Any] {
-      throw OwlWebSearchError.serviceError(
-        code: (error["type"] as? String) ?? "error",
-        message: (error["message"] as? String) ?? "")
-    }
-    guard let results = root["results"] as? [[String: Any]] else {
+    // 200 里带 message 而没有 organic 时也按错误处理，免得被当成空结果。
+    guard let organic = root["organic"] as? [[String: Any]] else {
+      if let message = root["message"] as? String {
+        throw OwlWebSearchError.serviceError(
+          code: (root["statusCode"] as? Int).map(String.init) ?? "serper_error", message: message)
+      }
       throw OwlWebSearchError.malformedResponse
     }
-    return results.compactMap(result)
+    return Array(organic.compactMap(result).prefix(max(1, limit)))
   }
 
   private static func result(_ raw: [String: Any]) -> OwlWebSearchResult? {
-    guard let url = raw["url"] as? String, !url.isEmpty,
+    guard let url = raw["link"] as? String, !url.isEmpty,
           let title = raw["title"] as? String, !title.isEmpty else { return nil }
     let snippet = (raw["snippet"] as? String)?
       .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    // `date` 是发布日；缺了退到 `last_updated`，两个都没有就不标时间（而不是标个空的）。
-    let published = [raw["date"] as? String, raw["last_updated"] as? String]
-      .compactMap { $0 }
-      .first { !$0.isEmpty }
+    let published = (raw["date"] as? String).flatMap { $0.isEmpty ? nil : $0 }
     return OwlWebSearchResult(
       title: title,
       url: url,
       snippet: snippet,
       publishedAt: published,
-      // Perplexity 不回站点名，从 url 里取主机名（去掉 www.）当来源标注。
       hostname: URL(string: url)?.host.map { $0.hasPrefix("www.") ? String($0.dropFirst(4)) : $0 })
   }
 }
 
-/// Perplexity Search 的实时客户端。`fetch` 可注入，测试不碰网络。
-struct OwlPerplexitySearchClient: OwlWebSearching {
+/// Serper 的实时客户端。`fetch` 可注入，测试不碰网络。
+struct OwlSerperSearchClient: OwlWebSearching {
   let timeout: TimeInterval
   private let fetch: @Sendable (URLRequest) async throws -> (Data, URLResponse)
 
@@ -434,26 +420,24 @@ struct OwlPerplexitySearchClient: OwlWebSearching {
   }
 
   func search(query: String, apiKey: String, limit: Int) async throws -> [OwlWebSearchResult] {
-    var request = try OwlPerplexitySearchWire.request(
-      query: query, apiKey: apiKey, limit: limit)
+    var request = try OwlSerperSearchWire.request(query: query, apiKey: apiKey, limit: limit)
     request.timeoutInterval = timeout
     let (data, response) = try await fetch(request)
     if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-      // 错误正文里通常有可读的 message（如 401 的认证说明），带出来比只报一个状态码好排查。
       throw Self.serviceError(from: data, status: http.statusCode)
     }
-    return try OwlPerplexitySearchWire.parse(data)
+    let results = try OwlSerperSearchWire.parse(data, limit: limit)
+    guard !results.isEmpty else { throw OwlWebSearchError.noResults }
+    return results
   }
 
   /// 从错误正文里挖 message；挖不到就退回纯状态码。
   private static func serviceError(from data: Data, status: Int) -> OwlWebSearchError {
     guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-          let error = root["error"] as? [String: Any] else {
+          let message = root["message"] as? String else {
       return .badHTTPStatus(status)
     }
-    return .serviceError(
-      code: (error["type"] as? String) ?? String(status),
-      message: (error["message"] as? String) ?? "")
+    return .serviceError(code: String(status), message: message)
   }
 }
 

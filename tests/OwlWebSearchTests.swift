@@ -192,61 +192,89 @@ final class OwlWebSearchTests: XCTestCase {
     XCTAssertEqual(injected.last?.content, "问题", "原消息原样保留在后面")
   }
 
-  // MARK: - Perplexity Search
+  // MARK: - Serper
 
-  func testPerplexityRequestMatchesDocumentedShape() throws {
-    let request = try OwlPerplexitySearchWire.request(
-      query: "latest AI developments", apiKey: "pplx-test", limit: 5)
-    XCTAssertEqual(request.url, OwlPerplexitySearchWire.endpoint)
-    XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer pplx-test")
+  func testSerperRequestMatchesDocumentedShape() throws {
+    let request = try OwlSerperSearchWire.request(
+      query: "latest AI developments", apiKey: " serper-test ", limit: 5)
+    XCTAssertEqual(request.url, OwlSerperSearchWire.endpoint)
+    XCTAssertEqual(request.url?.absoluteString, "https://google.serper.dev/search")
+    XCTAssertEqual(request.httpMethod, "POST")
+    XCTAssertEqual(request.value(forHTTPHeaderField: "X-API-KEY"), "serper-test")
+    XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"), "Serper 用 X-API-KEY，不用 Bearer")
     let object = try XCTUnwrap(
       JSONSerialization.jsonObject(with: try XCTUnwrap(request.httpBody)) as? [String: Any])
-    XCTAssertEqual(object["query"] as? String, "latest AI developments")
-    XCTAssertEqual(object["max_results"] as? Int, 5)
+    XCTAssertEqual(object["q"] as? String, "latest AI developments")
+    XCTAssertEqual(object["num"] as? Int, 5)
     XCTAssertNil(object["Query"], "别把豆包的大写字段名带过来")
   }
 
-  /// Perplexity 不回站点名，只有 url —— hostname 得自己从 url 取，否则来源那栏整片空着。
-  func testPerplexityDerivesHostnameFromURLAndStripsWWW() throws {
-    let json = """
-      {"id":"s1","results":[
-        {"title":"A","url":"https://www.example.com/a","snippet":"甲","date":"2026-07-01"},
-        {"title":"B","url":"https://news.ycombinator.com/b","snippet":"","last_updated":"2026-07-02"}]}
-      """
-    let results = try OwlPerplexitySearchWire.parse(Data(json.utf8))
-    XCTAssertEqual(results.map(\.hostname), ["example.com", "news.ycombinator.com"])
-    XCTAssertEqual(results.first?.publishedAt, "2026-07-01")
-    XCTAssertEqual(
-      results.last?.publishedAt, "2026-07-02", "没有 date 时退到 last_updated")
+  func testSerperRejectsBlankKey() {
+    XCTAssertThrowsError(
+      try OwlSerperSearchWire.request(query: "q", apiKey: "  ", limit: 5)
+    ) { XCTAssertEqual($0 as? OwlWebSearchError, .missingAPIKey) }
   }
 
-  /// 与豆包相反：Perplexity 用标准状态码。401 要带出可读 message，不能只报个数字。
-  func testPerplexityNon2xxSurfacesServiceMessage() async {
-    let json = #"{"error":{"message":"Invalid API key","type":"authentication_error"}}"#
-    let client = OwlPerplexitySearchClient(fetch: { request in
+  /// Serper 不回站点名，只有 link —— hostname 得自己从 url 取，否则来源那栏整片空着。
+  func testSerperDerivesHostnameFromURLAndStripsWWW() throws {
+    let json = """
+      {"searchParameters":{"q":"x"},"organic":[
+        {"title":"A","link":"https://www.example.com/a","snippet":"甲","date":"2026-07-01","position":1},
+        {"title":"B","link":"https://news.ycombinator.com/b","snippet":"","position":2},
+        {"title":"","link":"https://dropped.example","position":3}]}
+      """
+    let results = try OwlSerperSearchWire.parse(Data(json.utf8))
+    XCTAssertEqual(results.map(\.hostname), ["example.com", "news.ycombinator.com"])
+    XCTAssertEqual(results.first?.publishedAt, "2026-07-01")
+    XCTAssertNil(results.last?.publishedAt, "没有 date 就不标时间")
+  }
+
+  func testSerperParseHonoursLimit() throws {
+    let json = """
+      {"organic":[{"title":"A","link":"https://a"},{"title":"B","link":"https://b"}]}
+      """
+    XCTAssertEqual(try OwlSerperSearchWire.parse(Data(json.utf8), limit: 1).count, 1)
+  }
+
+  /// 与豆包相反：Serper 用标准状态码。403 要带出可读 message，不能只报个数字。
+  func testSerperNon2xxSurfacesServiceMessage() async {
+    let json = #"{"message":"Unauthorized.","statusCode":403}"#
+    let client = OwlSerperSearchClient(fetch: { request in
       (Data(json.utf8), HTTPURLResponse(
-        url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!)
+        url: request.url!, statusCode: 403, httpVersion: nil, headerFields: nil)!)
     })
     do {
-      _ = try await client.search(query: "q", apiKey: "pplx", limit: 3)
+      _ = try await client.search(query: "q", apiKey: "k", limit: 3)
       XCTFail("expected a thrown error")
     } catch {
       XCTAssertEqual(
-        error as? OwlWebSearchError,
-        .serviceError(code: "authentication_error", message: "Invalid API key"))
+        error as? OwlWebSearchError, .serviceError(code: "403", message: "Unauthorized."))
     }
   }
 
-  func testPerplexityBareStatusWhenErrorBodyIsUnparseable() async {
-    let client = OwlPerplexitySearchClient(fetch: { request in
+  func testSerperBareStatusWhenErrorBodyIsUnparseable() async {
+    let client = OwlSerperSearchClient(fetch: { request in
       (Data("nope".utf8), HTTPURLResponse(
         url: request.url!, statusCode: 429, httpVersion: nil, headerFields: nil)!)
     })
     do {
-      _ = try await client.search(query: "q", apiKey: "pplx", limit: 3)
+      _ = try await client.search(query: "q", apiKey: "k", limit: 3)
       XCTFail("expected a thrown error")
     } catch {
       XCTAssertEqual(error as? OwlWebSearchError, .badHTTPStatus(429))
+    }
+  }
+
+  func testSerperEmptyOrganicIsNoResults() async {
+    let client = OwlSerperSearchClient(fetch: { request in
+      (Data(#"{"organic":[]}"#.utf8), HTTPURLResponse(
+        url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+    })
+    do {
+      _ = try await client.search(query: "q", apiKey: "k", limit: 3)
+      XCTFail("expected a thrown error")
+    } catch {
+      XCTAssertEqual(error as? OwlWebSearchError, .noResults)
     }
   }
 
@@ -254,18 +282,18 @@ final class OwlWebSearchTests: XCTestCase {
 
   /// 回归：两家的摘要都抠自真实网页正文，正文里混进裸控制字符时它们**不转义**就塞进 JSON 字符串。
   /// 那不是合法 JSON，`JSONSerialization` 直接拒收（实测：默认与 .fragmentsAllowed 都拒），而解析
-  /// 失败在我们这里归类为「不顺位、如实报错」—— 于是这一问整个失败。2026-07-27 打 Perplexity 时
+  /// 失败在我们这里归类为「不顺位、如实报错」—— 于是这一问整个失败。2026-07-27 实盘
   /// 复现过。清洗后必须能正常解析出结果。
   func testRawControlCharactersInSnippetsDoNotBreakParsing() throws {
     let control = "\u{0008}"   // 退格符：合法 JSON 字符串里绝不能裸着出现
-    let pplx = """
-      {"id":"s1","results":[{"title":"标题","url":"https://a","snippet":"第一行\(control)第二行"}]}
+    let serper = """
+      {"organic":[{"title":"标题","link":"https://a","snippet":"第一行\(control)第二行"}]}
       """
     XCTAssertNil(
-      try? JSONSerialization.jsonObject(with: Data(pplx.utf8)),
+      try? JSONSerialization.jsonObject(with: Data(serper.utf8)),
       "前提：裸控制字符确实会让 JSONSerialization 拒收")
 
-    let results = try OwlPerplexitySearchWire.parse(Data(pplx.utf8))
+    let results = try OwlSerperSearchWire.parse(Data(serper.utf8))
     XCTAssertEqual(results.count, 1)
     XCTAssertEqual(results.first?.snippet, "第一行 第二行", "控制字符换成空格，内容不丢")
 
@@ -280,9 +308,9 @@ final class OwlWebSearchTests: XCTestCase {
   /// 清洗不能破坏正常内容：合法的转义换行、中文、emoji 都得原样出来。
   func testSanitizingLeavesLegitimateContentIntact() throws {
     let json = """
-      {"id":"s1","results":[{"title":"标题 🙂","url":"https://a","snippet":"第一行\\n第二行"}]}
+      {"organic":[{"title":"标题 🙂","link":"https://a","snippet":"第一行\\n第二行"}]}
       """
-    let results = try OwlPerplexitySearchWire.parse(Data(json.utf8))
+    let results = try OwlSerperSearchWire.parse(Data(json.utf8))
     XCTAssertEqual(results.first?.title, "标题 🙂", "多字节字符不受影响")
     XCTAssertEqual(
       results.first?.snippet, "第一行\n第二行",
@@ -298,12 +326,9 @@ final class OwlWebSearchTests: XCTestCase {
       "0 会被服务端忽略并落回默认 3；1 才是真正生效的最小值")
   }
 
-  /// 实测定的默认档：low 只有 1/5 有摘要，high 是 5/5，而三档时延一样。
-  func testPerplexityAsksForFullPageContext() {
-    XCTAssertEqual(
-      OwlPerplexitySearchWire.body(query: "q", limit: 5)["search_context_size"] as? String,
-      "high",
-      "低档省不到时延，只会把接地省没了")
+  func testSerperClampsResultCount() {
+    XCTAssertEqual(OwlSerperSearchWire.body(query: "q", limit: 0)["num"] as? Int, 1)
+    XCTAssertEqual(OwlSerperSearchWire.body(query: "q", limit: 500)["num"] as? Int, 100)
   }
 
   // MARK: - 百炼（通义千问）wire format
@@ -442,14 +467,14 @@ final class OwlWebSearchTests: XCTestCase {
 
   // MARK: - 署名
 
-  /// 署名要说「豆包搜索」/「Perplexity」而不是同名的**模型**供应商：检索的是它，作答的可能是 DeepSeek。
+  /// 署名要说「豆包搜索」/「Serper」而不是同名的**模型**供应商：检索的是它，作答的可能是 DeepSeek。
   func testEachBackendHasItsOwnAttributionSeparateFromTheModelProvider() {
     XCTAssertEqual(
       OwlSearchControl.displayName(for: OwlWebSearchBackend.doubaoGlobal.attributionID),
       "豆包搜索")
     XCTAssertEqual(
-      OwlSearchControl.displayName(for: OwlWebSearchBackend.perplexity.attributionID),
-      "Perplexity")
+      OwlSearchControl.displayName(for: OwlWebSearchBackend.serper.attributionID),
+      "Serper（Google 搜索）")
     XCTAssertEqual(
       OwlSearchControl.displayName(for: OwlWebSearchBackend.qwen.attributionID),
       "阿里云百炼")
@@ -468,8 +493,12 @@ final class OwlWebSearchTests: XCTestCase {
     OwlWebSearchBackendSettings.resetForTesting()
     XCTAssertEqual(OwlWebSearchBackendSettings.backend, .doubaoGlobal)
 
+    OwlWebSearchBackendSettings.rawValue = "serper"
+    XCTAssertEqual(OwlWebSearchBackendSettings.backend, .serper)
+
     OwlWebSearchBackendSettings.rawValue = "perplexity"
-    XCTAssertEqual(OwlWebSearchBackendSettings.backend, .perplexity)
+    XCTAssertEqual(
+      OwlWebSearchBackendSettings.backend, .doubaoGlobal, "已停用后端的旧偏好回到默认")
 
     OwlWebSearchBackendSettings.rawValue = "bing"
     XCTAssertEqual(
@@ -480,11 +509,11 @@ final class OwlWebSearchTests: XCTestCase {
 
   func testPreferredBackendOnlyMovesToFrontOfTheCompleteCandidateOrder() {
     XCTAssertEqual(
-      OwlWebSearchBackend.orderedCandidates(preferred: .perplexity),
-      [.perplexity, .doubaoGlobal, .qwen, .minimax])
+      OwlWebSearchBackend.orderedCandidates(preferred: .serper),
+      [.serper, .doubaoGlobal, .qwen, .minimax])
     XCTAssertEqual(
       OwlWebSearchBackend.orderedCandidates(preferred: .qwen),
-      [.qwen, .doubaoGlobal, .perplexity, .minimax])
+      [.qwen, .doubaoGlobal, .serper, .minimax])
   }
 
   // MARK: - Key 存放
@@ -506,13 +535,13 @@ final class OwlWebSearchTests: XCTestCase {
   func testBackendKeysAreStoredIndependently() {
     let secrets = OwlInMemorySecretStore()
     _ = OwlSettingsActions.saveWebSearchKey("sk-doubao", backend: .doubaoGlobal, secrets: secrets)
-    _ = OwlSettingsActions.saveWebSearchKey("pplx-key", backend: .perplexity, secrets: secrets)
+    _ = OwlSettingsActions.saveWebSearchKey("serper-key", backend: .serper, secrets: secrets)
 
     XCTAssertEqual(OwlWebSearchKeyStore.apiKey(for: .doubaoGlobal, secrets: secrets), "sk-doubao")
-    XCTAssertEqual(OwlWebSearchKeyStore.apiKey(for: .perplexity, secrets: secrets), "pplx-key")
+    XCTAssertEqual(OwlWebSearchKeyStore.apiKey(for: .serper, secrets: secrets), "serper-key")
 
-    _ = OwlSettingsActions.clearWebSearchKey(backend: .perplexity, secrets: secrets)
-    XCTAssertNil(OwlWebSearchKeyStore.apiKey(for: .perplexity, secrets: secrets))
+    _ = OwlSettingsActions.clearWebSearchKey(backend: .serper, secrets: secrets)
+    XCTAssertNil(OwlWebSearchKeyStore.apiKey(for: .serper, secrets: secrets))
     XCTAssertEqual(
       OwlWebSearchKeyStore.apiKey(for: .doubaoGlobal, secrets: secrets), "sk-doubao",
       "删一家不能把另一家的 Key 带走")
@@ -531,18 +560,18 @@ final class OwlWebSearchTests: XCTestCase {
 
   func testSaveAndClearWebSearchKeyRoundTrip() {
     let secrets = OwlInMemorySecretStore()
-    let blank = OwlSettingsActions.saveWebSearchKey("   ", backend: .perplexity, secrets: secrets)
-    XCTAssertEqual(blank.status, "请输入Perplexity的 API Key")
-    XCTAssertFalse(OwlWebSearchKeyStore.isConfigured(for: .perplexity, secrets: secrets))
+    let blank = OwlSettingsActions.saveWebSearchKey("   ", backend: .serper, secrets: secrets)
+    XCTAssertEqual(blank.status, "请输入Serper（Google 搜索）的 API Key")
+    XCTAssertFalse(OwlWebSearchKeyStore.isConfigured(for: .serper, secrets: secrets))
 
     let saved = OwlSettingsActions.saveWebSearchKey(
-      " pplx-key ", backend: .perplexity, secrets: secrets)
+      " serper-key ", backend: .serper, secrets: secrets)
     XCTAssertEqual(saved.input, "", "保存后输入框清空，值不回显")
     XCTAssertTrue(saved.status.hasPrefix("已保存"))
-    XCTAssertEqual(OwlWebSearchKeyStore.apiKey(for: .perplexity, secrets: secrets), "pplx-key")
+    XCTAssertEqual(OwlWebSearchKeyStore.apiKey(for: .serper, secrets: secrets), "serper-key")
 
-    _ = OwlSettingsActions.clearWebSearchKey(backend: .perplexity, secrets: secrets)
-    XCTAssertFalse(OwlWebSearchKeyStore.isConfigured(for: .perplexity, secrets: secrets))
+    _ = OwlSettingsActions.clearWebSearchKey(backend: .serper, secrets: secrets)
+    XCTAssertFalse(OwlWebSearchKeyStore.isConfigured(for: .serper, secrets: secrets))
   }
 }
 

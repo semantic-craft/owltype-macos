@@ -1,5 +1,8 @@
 ## Unreleased
 
+### 任意提问 | Ask Anything
+- 联网搜索服务中的 Perplexity 档换成 Serper（Google 搜索，google.serper.dev），需在设置里填 Serper 的 API Key；原先选了 Perplexity 的会回到默认的豆包搜索。
+
 <a name="2.0.14"></a>
 ## 2.0.14 (2026-10-11)
 
