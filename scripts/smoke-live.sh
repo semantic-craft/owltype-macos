@@ -325,17 +325,19 @@ omnibox_judge() {
   lastSend="$(grep 'markedText send' "$log" | tail -1 || true)"
   info "last markedText send (after ESC/clear should be len=0)      : ${lastSend:-<none>}"
   echo
+  # Absence of failures is meaningful only after observing composition and its clear.
+  if ! grep -Eq 'markedText send .*len=[1-9][0-9]*([[:space:]]|$)' "$log"; then
+    fail "no non-empty composition observed — trace acceptance not established"
+  fi
+  if ! printf '%s\n' "$lastSend" | grep -Eq '(^|[[:space:]])len=0([[:space:]]|$)'; then
+    fail "missing final clear — trace acceptance not established"
+  fi
   if [[ "$finalize" == "0" ]]; then
     pass "zero commitComposition finalize (no forced-kill recurrence)"
   else
     fail "commitComposition finalize=$finalize — non-zero during omnibox backspace = kill suspicion, review by hand"
   fi
-  case "$lastSend" in
-    *"len=0"*)          pass "last marked text len=0 (client cleared, no zws residue)" ;;
-    "")                 info "note: no markedText send lines (trace not active, or nothing injected)" ;;
-    *"keepAlive=true"*) fail "last marked text keepAlive=true not cleared — zws residue suspicion, review by hand" ;;
-    *)                  info "note: last send not len=0 (fine if mid-composition; after ESC expect a len=0 closer)" ;;
-  esac
+  pass "composition observed and last marked text cleared"
 }
 
 omnibox_checklist() {

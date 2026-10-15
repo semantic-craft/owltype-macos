@@ -66,6 +66,7 @@ portable_scripts() {
   python3 scripts/release-source-archive.selftest.py
   python3 scripts/build-sparkle.selftest.py
   bash scripts/check-live-ime-version.sh --self-test
+  python3 scripts/smoke-live.selftest.py
   python3 scripts/check-ime-host-evidence.selftest.py
   xcrun swiftc -typecheck scripts/ime-acceptance-host.swift
 }

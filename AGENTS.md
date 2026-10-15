@@ -14,3 +14,8 @@ Use the five canonical triage roles and their default label names. See `docs/age
 ### Domain docs
 
 For input, settings, dictionaries, AI, installation, or verification work, start with the task-to-code map in [domain.md](docs/agents/domain.md).
+
+## Verification lessons
+
+Before changing acceptance scripts or interpreting live evidence, read [LESSONS.md](LESSONS.md).
+Record observed acceptance failures there with their regression and scope.
