@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # install-dev.sh — build 猫头鹰输入法 (Owltype) and install it to the user's
-# ~/Library/Input Methods (no sudo). Local DEV install: ad-hoc codesign only.
+# ~/Library/Input Methods (no sudo). The installed copy is signed with a stable
+# certificate identity (scripts/stable-sign-identity.sh), never ad hoc: Keychain grants
+# follow the designated requirement, and an ad hoc cdhash changes with every build.
 #
 # NOTE: Build product path for this Owltype app is
 #   build/Build/Products/{Debug,Release}/Owltype.app
@@ -29,6 +31,39 @@ if [[ -d "$SYSTEM_APP" && "$INSTALLED_APP" != "$SYSTEM_APP" && -z "${OWL_ALLOW_U
   echo "Move the system-level Owltype aside first, or set OWL_ALLOW_USER_DUPLICATE=1 for a deliberate duplicate."
   exit 1
 fi
+
+# Resolve the identity before building so a machine without one fails fast.
+SIGN_IDENTITY="$(bash "$ROOT/scripts/stable-sign-identity.sh")"
+echo "Signing identity: $SIGN_IDENTITY"
+
+# Prints the designated requirement of a bundle, or nothing when it is unsigned.
+designated_requirement() {
+  codesign -d -r- "$1" 2>/dev/null | sed -nE 's/^(# )?designated => //p' | head -1
+}
+
+# Ad hoc requirements are the per-build cdhash ("# designated => cdhash H\"...\""):
+# Keychain would ask for the login password after every install, and leftover ad hoc
+# copies shadow the notarized input method in LaunchServices.
+require_stable_signature() {
+  local candidate="$1" installed="$2" requirement current
+  requirement="$(designated_requirement "$candidate")"
+  if [[ -z "$requirement" || "$requirement" == cdhash* ]]; then
+    echo "ERROR: $candidate is ad hoc signed (designated => ${requirement:-none}); refusing to install it."
+    echo "Install development builds with: bash scripts/install-dev.sh"
+    echo "It signs with a stable identity; OWL_SIGN_IDENTITY selects one from: security find-identity -v -p codesigning"
+    exit 1
+  fi
+  if [[ -d "$installed" ]]; then
+    current="$(designated_requirement "$installed")"
+    if [[ -n "$current" && "$current" != cdhash* && "$current" != "$requirement" ]]; then
+      echo "ERROR: $installed is signed by a different identity; replacing it would drop its Keychain grants."
+      echo "Installed: designated => $current"
+      echo "Candidate: designated => $requirement"
+      echo "Set OWL_SIGN_IDENTITY to the installed identity, or remove $installed deliberately first."
+      exit 1
+    fi
+  fi
+}
 
 echo "Building ($CONFIG)..."
 if [[ -f Makefile ]]; then
@@ -72,6 +107,11 @@ if [[ -z "$BUILD_APP" ]]; then
 fi
 echo "Using build product: $BUILD_APP"
 
+echo "Signing build product with $SIGN_IDENTITY..."
+codesign --force --deep --options runtime --sign "$SIGN_IDENTITY" \
+  --entitlements "$ROOT/resources/Owltype.entitlements" "$BUILD_APP"
+require_stable_signature "$BUILD_APP" "$INSTALLED_APP"
+
 mkdir -p "$INSTALL_DIR"
 
 killall Owltype 2>/dev/null || true
@@ -97,10 +137,7 @@ if [[ ! -x "$INSTALLED_APP/Contents/MacOS/$PRODUCT_EXECUTABLE" ]]; then
   echo "Fallback executable: $PRODUCT_EXECUTABLE"
 fi
 
-echo "Ad-hoc signing installed app (dev only)..."
-codesign --force --deep --sign - "$INSTALLED_APP" || {
-  echo "WARN: ad-hoc codesign failed. Continue only for local debug if macOS allows it."
-}
+codesign --verify --deep --strict "$INSTALLED_APP"
 
 EXE="$INSTALLED_APP/Contents/MacOS/$PRODUCT_EXECUTABLE"
 

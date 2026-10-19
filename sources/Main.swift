@@ -330,7 +330,7 @@ struct OwlApp {
       if !runningUnitTests && !uiTestSettings && !isInstalledInputMethodBundle(main.bundleURL) {
         let message = "Owltype: refusing to run as an input method from \(main.bundlePath) — only copies in "
           + "/Library/Input Methods or ~/Library/Input Methods may claim the IMK connection. Install with "
-          + "`make install-debug` or scripts/install-dev.sh; use --ui-test-show-settings for the settings UI."
+          + "scripts/install-dev.sh; use --ui-test-show-settings for the settings UI."
         print(message)
         Logger(subsystem: "im.owltype.inputmethod.Owltype", category: "launch").error("\(message, privacy: .public)")
         exit(EX_CONFIG)

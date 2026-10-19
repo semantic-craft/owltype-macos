@@ -1,7 +1,6 @@
 .PHONY: all install deps release debug bootstrap test setup-dev release-artifacts release-cohort-check release-cohort-selftest
 
 all: release
-install: install-release
 
 # CI entry: fetch the prebuilt librime/opencc/plum/Sparkle deps instead of
 # building them from source (the `deps`/`librime` targets below remain the
@@ -209,23 +208,17 @@ release-artifacts: $(PACKAGE) package/sign_update
 	DEV_ID="$(DEV_ID)" NOTARY_PROFILE="$(NOTARY_PROFILE)" bash package/make_dmg "$(RELEASE_OUTPUT_ROOT_ABSOLUTE)"
 	RELEASE_OUTPUT_ROOT="$(RELEASE_OUTPUT_ROOT_ABSOLUTE)" bash package/make_archive
 
-DSTROOT = /Library/Input Methods
-OWL_APP_ROOT = $(DSTROOT)/Owltype.app
+.PHONY: install-debug install-release
 
-.PHONY: permission-check install-debug install-release
-
-permission-check:
-	[ -w "$(DSTROOT)" ] && { [ ! -e "$(OWL_APP_ROOT)" ] || [ -w "$(OWL_APP_ROOT)" ]; } || sudo chown -R ${USER} "$(DSTROOT)"
-
-install-debug: debug permission-check
-	rm -rf "$(OWL_APP_ROOT)"
-	cp -R $(DERIVED_DATA_PATH)/Build/Products/Debug/Owltype.app "$(DSTROOT)"
-	DSTROOT="$(DSTROOT)" RIME_NO_PREBUILD=1 bash scripts/postinstall
-
-install-release: release permission-check
-	rm -rf "$(OWL_APP_ROOT)"
-	cp -R "$(RELEASE_APP)" "$(DSTROOT)"
-	DSTROOT="$(DSTROOT)" bash scripts/postinstall
+# These targets used to copy the ad hoc (Debug) or unsigned (Release) build product over
+# /Library/Input Methods/Owltype.app, replacing the notarized input method. An ad hoc
+# install pins Keychain grants to a per-build cdhash and shadows the real input method in
+# LaunchServices, so they now refuse and name the supported paths.
+install install-debug install-release:
+	@echo "ERROR: 'make $@' no longer installs an unsigned or ad hoc build." >&2
+	@echo "Development install (stable signing identity): bash scripts/install-dev.sh" >&2
+	@echo "Shipped install: the notarized Owltype pkg from 'make release-artifacts'." >&2
+	@exit 2
 
 .PHONY: clean clean-deps
 

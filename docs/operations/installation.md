@@ -103,3 +103,15 @@ On failure preserve the failed App and logs, restore the agreed App only, and re
 and typing. App rollback does not undo the package receipt or dictionary changes. Do not remove user
 data or log out as a test workaround. Source-built acceptance artifacts, signing constraints, clean
 first-install setup, Intel, and macOS 14/15 remain explicit coverage items in the investigation.
+
+## Development installs
+
+[install-dev.sh](../../scripts/install-dev.sh) is the only development install path. It signs
+the build with a stable certificate identity from
+[stable-sign-identity.sh](../../scripts/stable-sign-identity.sh) (Developer ID Application,
+whose designated requirement matches the shipped App, else Apple Development;
+`OWL_SIGN_IDENTITY` overrides) and refuses a candidate whose requirement is an ad hoc
+`cdhash` or whose identity differs from the installed copy. Ad hoc installs make Keychain ask
+for the login password after every rebuild and leave LaunchServices claims that shadow the
+notarized input method. The former `make install*` targets now refuse. Offline regression:
+[install-dev.selftest.sh](../../scripts/install-dev.selftest.sh).
