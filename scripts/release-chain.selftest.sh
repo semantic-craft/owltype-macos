@@ -661,7 +661,7 @@ members.append((special, None))
 
 temporary = archive_path.with_name(f".{archive_path.name}.special")
 with temporary.open("wb") as raw:
-    with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed:
+    with gzip.GzipFile(filename="", mode="wb", fileobj=raw, compresslevel=9, mtime=0) as compressed:
         with tarfile.open(fileobj=compressed, mode="w", format=tarfile.USTAR_FORMAT) as archive:
             for member, data in sorted(members, key=lambda item: item[0].name.encode()):
                 archive.addfile(member, io.BytesIO(data) if data is not None else None)
