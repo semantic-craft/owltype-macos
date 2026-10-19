@@ -86,13 +86,27 @@ class ReleaseSourceArchiveTests(unittest.TestCase):
                 member.mtime = 0
                 archive.addfile(member)
             with malformed.open("wb") as raw:
-                with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as zipped:
+                with gzip.GzipFile(filename="", mode="wb", fileobj=raw, compresslevel=9, mtime=0) as zipped:
                     zipped.write(buffer.getvalue())
             result = self.run_tool(
                 "check-archive-metadata", str(malformed), source.name
             )
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("ownership metadata", result.stderr)
+
+            # A valid archive recompressed at another level differs only in the
+            # gzip XFL byte and must still be rejected.
+            recompressed = work / "recompressed.tar.gz"
+            with recompressed.open("wb") as raw:
+                with gzip.GzipFile(
+                    filename="", mode="wb", fileobj=raw, compresslevel=6, mtime=0
+                ) as zipped:
+                    zipped.write(gzip.decompress(compressed))
+            result = self.run_tool(
+                "check-archive-metadata", str(recompressed), source.name
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("noncanonical gzip metadata", result.stderr)
 
 
 if __name__ == "__main__":
