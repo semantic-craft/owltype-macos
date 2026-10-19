@@ -23,9 +23,9 @@ from urllib.parse import quote
 PUBLIC_ORIGIN = "https://downloads.responsay.com"
 LEGACY_CLIENT_FEED_URL = "https://responsay.com/owltype/appcast.xml"
 SUCCESSOR_CLIENT_FEED_URL = "https://downloads.responsay.com/owltype/v2/appcast.xml"
-R2_BUCKET = "responsay-downloads"
+DOWNLOADS_REPOSITORY = "semantic-craft/downloads"
+_BINARY_SUFFIXES = (".dmg", ".pkg", ".tar.gz")
 OBJECT_PREFIX = "owltype"
-WRANGLER_VERSION = "4.123.0"
 IMMUTABLE_CACHE_CONTROL = "public, max-age=31536000, immutable"
 STABLE_CACHE_CONTROL = "public, max-age=0, must-revalidate"
 _VERSION_PATTERN = re.compile(r"[0-9]+(?:\.[0-9]+)*")
@@ -57,6 +57,8 @@ class ObjectStore(Protocol):
         content_type: str,
         cache_control: str,
     ) -> None: ...
+
+    def commit(self, message: str) -> None: ...
 
 
 class PublicVerifier(Protocol):
@@ -231,18 +233,7 @@ def publish(
         )
     except (KeyError, StopIteration) as error:
         raise DistributionError("publish plan is missing a website download alias") from error
-    aliases_verified = False
     for item in plan:
-        # Website aliases are backed by latest.json. Versioned appcast objects appear earlier in
-        # the immutable batch and must not trigger this check while aliases still point at the
-        # previous release. Verify only after latest.json has been committed, immediately before
-        # the mutable successor feed becomes visible.
-        if item.key == feed_key and not aliases_verified:
-            for alias, source_item in website_aliases:
-                verifier.verify(
-                    f"https://responsay.com/owltype/{alias}", source_item.sha256
-                )
-            aliases_verified = True
         existing = store.read(item.key)
         if item.immutable and existing is not None:
             existing_sha256 = hashlib.sha256(existing).hexdigest()
@@ -260,9 +251,16 @@ def publish(
             )
             written = store.read(item.key)
             if written is None or hashlib.sha256(written).hexdigest() != item.sha256:
-                raise DistributionError(f"R2 readback mismatch: {item.key}")
+                raise DistributionError(f"readback mismatch: {item.key}")
             events.append(f"UPLOAD {item.key}")
+    # Release assets are public on upload. latest.json (the website aliases) and the Sparkle
+    # feed become public together in this one commit, after every asset is in place.
+    store.commit(f"owltype: publish {plan[0].key.split('/')[-2]}")
+    events.append("COMMIT")
+    for item in plan:
         verifier.verify(item.url, item.sha256)
+    for alias, source_item in website_aliases:
+        verifier.verify(f"https://responsay.com/owltype/{alias}", source_item.sha256)
     appcast_sha256 = next(
         item.sha256 for item in plan if item.key == feed_key
     )
@@ -275,81 +273,86 @@ def publish(
     return events
 
 
-class WranglerR2Store:
-    def __init__(self, bucket: str = R2_BUCKET) -> None:
-        self.bucket = bucket
-        executable = shutil.which("wrangler")
-        if executable is None:
-            raise DistributionError(
-                f"wrangler {WRANGLER_VERSION} is required; install that exact version first"
-            )
-        version = subprocess.check_output(
-            [executable, "--version"], text=True
-        ).strip()
-        if version.split()[-1] != WRANGLER_VERSION:
-            raise DistributionError(
-                f"wrangler version mismatch: expected {WRANGLER_VERSION}, got {version!r}"
-            )
-        self.command = [executable]
+class GitHubDownloadsStore:
+    """Binaries are Release assets of the public downloads repository; every other
+    object is a file under its site/ directory, which Cloudflare Pages serves at
+    PUBLIC_ORIGIN. site/_redirects maps each binary URL to its asset."""
+
+    def __init__(self, tag: str, repository: str = DOWNLOADS_REPOSITORY, gh: str = "gh") -> None:
+        if shutil.which(gh) is None:
+            raise DistributionError("gh is required and must be logged in to GitHub")
+        self.gh, self.repository, self.tag = gh, repository, tag
+        self._workdir = tempfile.TemporaryDirectory(prefix="owl-downloads-")
+        self.checkout = Path(self._workdir.name) / "downloads"
+        subprocess.run([gh, "repo", "clone", repository, str(self.checkout), "--", "--depth", "1"], check=True)
+        self.site = self.checkout / "site"
+        self.redirects_path = self.site / "_redirects"
+        self.redirects: dict[str, str] = {}
+        for line in self.redirects_path.read_text(encoding="utf-8").splitlines():
+            if line.strip() and not line.startswith("#"):
+                path, target, *_ = line.split()
+                self.redirects[path] = target
+        self.assets: set[str] | None = None
+
+    def _asset_url(self, name: str) -> str:
+        return f"https://github.com/{self.repository}/releases/download/{self.tag}/{quote(name)}"
+
+    def _release_assets(self) -> set[str]:
+        if self.assets is None:
+            result = subprocess.run([self.gh, "release", "view", self.tag, "-R", self.repository,
+                                     "--json", "assets", "-q", ".assets[].name"],
+                                    capture_output=True, text=True, check=False)
+            if result.returncode != 0:
+                subprocess.run([self.gh, "release", "create", self.tag, "-R", self.repository,
+                                "--title", self.tag, "--notes", f"Owltype {self.tag.removeprefix('owltype-')}",
+                                "--latest=false"], check=True, stdout=subprocess.DEVNULL)
+                self.assets = set()
+            else:
+                self.assets = set(result.stdout.split())
+        return self.assets
 
     def read(self, key: str) -> bytes | None:
-        with tempfile.TemporaryDirectory(prefix="owl-r2-readback-") as directory:
-            destination = Path(directory) / "object"
-            result = subprocess.run(
-                [
-                    *self.command,
-                    "r2",
-                    "object",
-                    "get",
-                    f"{self.bucket}/{key}",
-                    "--remote",
-                    "--file",
-                    str(destination),
-                ],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                check=False,
-            )
-            if result.returncode == 0:
-                return destination.read_bytes()
-            if "The specified key does not exist" in result.stdout:
+        if not key.endswith(_BINARY_SUFFIXES):
+            path = self.site / key
+            return path.read_bytes() if path.is_file() else None
+        target = self.redirects.get(f"/{key}")
+        if target is None:
+            return None
+        try:
+            with urllib.request.urlopen(target, timeout=120) as response:
+                return response.read()
+        except urllib.error.HTTPError as error:
+            if error.code == 404:
                 return None
-            raise DistributionError(f"wrangler could not read {key}:\n{result.stdout.rstrip()}")
+            raise
 
-    def put(
-        self,
-        source: Path,
-        key: str,
-        *,
-        content_type: str,
-        cache_control: str,
-    ) -> None:
-        with source.open("rb") as input_stream:
-            subprocess.run(
-                [
-                    *self.command,
-                    "r2",
-                    "object",
-                    "put",
-                    f"{self.bucket}/{key}",
-                    "--remote",
-                    "--pipe",
-                    "--content-type",
-                    content_type,
-                    "--cache-control",
-                    cache_control,
-                ],
-                stdin=input_stream,
-                check=True,
-            )
+    def put(self, source: Path, key: str, *, content_type: str, cache_control: str) -> None:
+        if not key.endswith(_BINARY_SUFFIXES):
+            path = self.site / key
+            path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, path)
+            return
+        if source.name not in self._release_assets():
+            subprocess.run([self.gh, "release", "upload", self.tag, "-R", self.repository, str(source)], check=True)
+            self.assets.add(source.name)
+        self.redirects[f"/{key}"] = self._asset_url(source.name)
+        self.redirects_path.write_text(
+            "".join(f"{path} {target} 302\n" for path, target in self.redirects.items()), encoding="utf-8")
+
+    def commit(self, message: str) -> None:
+        git = ["git", "-C", str(self.checkout)]
+        subprocess.run([*git, "add", "-A", "site"], check=True)
+        if subprocess.run([*git, "diff", "--cached", "--quiet"], check=False).returncode == 0:
+            return
+        subprocess.run([*git, "commit", "-q", "-m", message], check=True)
+        subprocess.run([*git, "push", "-q", "origin", "HEAD"], check=True)
 
 
 class HTTPPublicVerifier:
     def verify(self, url: str, sha256: str) -> None:
         verified_url = f"{url}?owl-verify={sha256}"
         last_error: Exception | None = None
-        for delay in (0, 1, 2, 4):
+        for delay in (0, 5, 10, 20, 30, 60, 60):
             if delay:
                 time.sleep(delay)
             digest = hashlib.sha256()
@@ -442,7 +445,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("PASS: complete responsay.com publication order rendered; no remote state changed")
         return 0
 
-    events = publish(plan, WranglerR2Store(), HTTPPublicVerifier())
+    events = publish(plan, GitHubDownloadsStore(f"owltype-{build_version}"), HTTPPublicVerifier())
     for event in events:
         print(event)
     print(
