@@ -756,16 +756,12 @@ fi
 publisher_bin="$work/publisher-bin"
 publisher_remote_log="$work/publisher-remote.log"
 mkdir -p "$publisher_bin"
-cat >"$publisher_bin/wrangler" <<'STUB'
+cat >"$publisher_bin/gh" <<'STUB'
 #!/bin/bash
-if [[ "${1:-}" == "--version" ]]; then
-  printf 'wrangler 4.123.0\n'
-  exit 0
-fi
 printf '%s\n' "$*" >>"${OWL_PUBLISH_REMOTE_LOG:?}"
 exit 77
 STUB
-chmod +x "$publisher_bin/wrangler"
+chmod +x "$publisher_bin/gh"
 if env PATH="$runner_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     OWL_RELEASE_TEST_LOG="$runner_log" \
     OWL_RELEASE_TEST_SOURCE="$source_archive" \

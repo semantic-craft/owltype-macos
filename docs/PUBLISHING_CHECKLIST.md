@@ -96,15 +96,18 @@ python3 scripts/owl_distribution.py --dry-run --output-root build/release-<versi
 Publication is a separate, explicit maintainer decision:
 
 ```sh
-npm install --global wrangler@4.123.0
+gh auth status   # needs push access to semantic-craft/downloads
 python3 scripts/owl_distribution.py --publish --output-root build/release-<version>-<short-sha>
 ```
 
 Both publisher modes require the local publish-authorization receipt before constructing a remote
-plan. The publisher requires exactly Wrangler 4.123.0. It stores all ten assets under the immutable
-build-version prefix in the `responsay-downloads` R2 bucket, reads them back, and verifies their
-public hashes. It then replaces `owltype/latest.json`, verifies all four website aliases, and writes
-`owltype/v3/appcast.xml` for 2.0.10 and later. The v2 feed is frozen at 2.0.9 after loss of its signing key; users must manually install 2.0.10 once to adopt the new key and v3 feed. For the historical one-time 2.0.1 bridge only, it writes the predecessor Owltype feed
+plan. `downloads.responsay.com` is a Cloudflare Pages site deployed from the public
+`semantic-craft/downloads` repository; nothing is stored in R2. The publisher uploads the PKGs, DMG
+and source archive as GitHub Release assets (tag `owltype-<build version>`), maps their
+`owltype/releases/<build version>/` URLs to those assets in `site/_redirects`, and stages the other
+assets, `owltype/latest.json` and `owltype/v3/appcast.xml` (2.0.10 and later) as files under `site/`.
+One push then makes the pointer and the feed public together, after every asset; the publisher
+waits for the Pages deployment and verifies every public hash and all four website aliases. The v2 feed is frozen at 2.0.9 after loss of its signing key; users must manually install 2.0.10 once to adopt the new key and v3 feed. For the historical one-time 2.0.1 bridge only, it writes the predecessor Owltype feed
 `owltype/appcast.xml` last; 2.0.2 and later never touch that frozen bridge feed. A versioned object
 that already exists with different bytes stops publication; an identical object is reused.
 

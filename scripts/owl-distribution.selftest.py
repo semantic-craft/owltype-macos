@@ -15,9 +15,8 @@ from owl_distribution import (
     LEGACY_CLIENT_FEED_URL,
     STABLE_CACHE_CONTROL,
     SUCCESSOR_CLIENT_FEED_URL,
-    WRANGLER_VERSION,
     DistributionError,
-    WranglerR2Store,
+    GitHubDownloadsStore,
     build_publish_plan,
     publish,
     versioned_asset_url,
@@ -28,6 +27,7 @@ class FakeObjectStore:
     def __init__(self, existing: dict[str, bytes] | None = None) -> None:
         self.objects = dict(existing or {})
         self.puts: list[str] = []
+        self.commits: list[tuple[str, list[str]]] = []
 
     def read(self, key: str) -> bytes | None:
         return self.objects.get(key)
@@ -43,6 +43,9 @@ class FakeObjectStore:
         del content_type, cache_control
         self.objects[key] = source.read_bytes()
         self.puts.append(key)
+
+    def commit(self, message: str) -> None:
+        self.commits.append((message, list(self.puts)))
 
 
 class FakePublicVerifier:
@@ -168,64 +171,49 @@ class DistributionPlanTests(unittest.TestCase):
 
 
 class PublisherTests(unittest.TestCase):
-    def test_r2_store_requires_the_exact_pinned_wrangler(self) -> None:
+    def test_store_requires_gh(self) -> None:
         with patch("owl_distribution.shutil.which", return_value=None):
-            with self.assertRaisesRegex(DistributionError, WRANGLER_VERSION):
-                WranglerR2Store()
-        with (
-            patch("owl_distribution.shutil.which", return_value="/fixture/wrangler"),
-            patch(
-                "owl_distribution.subprocess.check_output",
-                return_value="4.124.0\n",
-            ),
-        ):
-            with self.assertRaisesRegex(DistributionError, "version mismatch"):
-                WranglerR2Store()
+            with self.assertRaisesRegex(DistributionError, "gh is required"):
+                GitHubDownloadsStore("owltype-2.0.15")
 
-    def test_r2_store_streams_large_assets_instead_of_using_lossy_file_mode(self) -> None:
+    def test_store_uploads_binaries_as_release_assets_and_stages_the_rest(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            source = root / "Owltype.dmg"
-            source.write_bytes(b"signed-dmg-bytes")
-            remote_root = root / "remote"
-            fake_wrangler = root / "wrangler"
-            fake_wrangler.write_text(
-                """#!/bin/sh
-set -eu
-if [ "$1" = "--version" ]; then
-  printf '4.123.0\\n'
-  exit 0
-fi
-if [ "$1" = "r2" ] && [ "$2" = "object" ] && [ "$3" = "put" ]; then
-  object_path="$FAKE_R2_ROOT/${4#*/}"
-  mkdir -p "$(dirname "$object_path")"
-  case " $* " in
-    *" --pipe "*) cat >"$object_path" ;;
-    *) exit 0 ;;
-  esac
-  exit 0
-fi
-exit 2
-""",
-                encoding="utf-8",
-            )
-            fake_wrangler.chmod(0o755)
-            with (
-                patch(
-                    "owl_distribution.shutil.which", return_value=str(fake_wrangler)
-                ),
-                patch.dict(os.environ, {"FAKE_R2_ROOT": str(remote_root)}),
-            ):
-                store = WranglerR2Store()
-                store.put(
-                    source,
-                    "owltype/releases/2.0.1/Owltype.dmg",
-                    content_type="application/x-apple-diskimage",
-                    cache_control=IMMUTABLE_CACHE_CONTROL,
-                )
+            dmg = root / "Owltype-2.0.15.dmg"
+            dmg.write_bytes(b"signed-dmg-bytes")
+            notes = root / "OWLTYPE-RELEASE-COHORT.json"
+            notes.write_text("{}\n")
+            calls: list[list[str]] = []
 
-            uploaded = remote_root / "owltype/releases/2.0.1/Owltype.dmg"
-            self.assertEqual(uploaded.read_bytes(), b"signed-dmg-bytes")
+            def fake_run(command, **kwargs):
+                import subprocess
+                calls.append(list(command))
+                if command[1:3] == ["repo", "clone"]:
+                    (Path(command[4]) / "site").mkdir(parents=True)
+                    (Path(command[4]) / "site/_redirects").write_text("")
+                if command[1:3] == ["release", "view"]:
+                    return subprocess.CompletedProcess(command, 1, "", "release not found")
+                return subprocess.CompletedProcess(command, 0, "", "")
+
+            with (
+                patch("owl_distribution.shutil.which", return_value="/fixture/gh"),
+                patch("owl_distribution.tempfile.TemporaryDirectory") as temporary,
+                patch("owl_distribution.subprocess.run", side_effect=fake_run),
+            ):
+                temporary.return_value.name = str(root / "work")
+                store = GitHubDownloadsStore("owltype-2.0.15")
+                store.put(dmg, "owltype/releases/2.0.15/Owltype-2.0.15.dmg",
+                          content_type="x", cache_control=IMMUTABLE_CACHE_CONTROL)
+                store.put(notes, "owltype/latest.json", content_type="x", cache_control=STABLE_CACHE_CONTROL)
+                self.assertEqual(store.read("owltype/latest.json"), b"{}\n")
+
+            self.assertEqual([c[1:3] for c in calls if c[0] == "/fixture/gh" or c[0] == "gh"][-2:],
+                             [["release", "create"], ["release", "upload"]])
+            self.assertEqual(
+                (root / "work/downloads/site/_redirects").read_text(),
+                "/owltype/releases/2.0.15/Owltype-2.0.15.dmg https://github.com/semantic-craft/downloads"
+                "/releases/download/owltype-2.0.15/Owltype-2.0.15.dmg 302\n",
+            )
 
     def test_publish_is_idempotent_for_matching_immutable_objects_and_feed_is_last(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -244,6 +232,8 @@ exit 2
         self.assertEqual(events[0], f"REUSE {first.key}")
         self.assertNotIn(first.key, store.puts)
         self.assertEqual(store.puts[-1], "owltype/appcast.xml")
+        self.assertEqual(len(store.commits), 1)
+        self.assertEqual(store.commits[0][1], store.puts)
         self.assertEqual(len(verifier.verified), len(plan) + 6)
         manual_urls = [
             url
