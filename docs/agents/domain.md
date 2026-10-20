@@ -42,6 +42,8 @@ workflow when actual typing must be tested.
 
 - Chinese/English channels and ranking: [AIME research](../aime-input-method-research-2026-10-02.md)
   and [Pinyin comparison](../aime-pinyin-comparison-2026-10-02.md).
+- Mixed-English placement rule borrowed from Metasequoia IME:
+  [comparison and decision](../metasequoia-mixed-english-2026-10-20.md).
 - Input habits, pinning, onboarding and installed-host evidence:
   [design and acceptance record](../input-habits-design.md).
 - MiniMax endpoints, reasoning and subscription search:

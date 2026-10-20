@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Replay short-code priority through real Rime using isolated data.
+"""Replay short-code priority and mixed-English placement through real Rime using isolated data.
 
 Usage: python3 scripts/check-pinyin-short-code.py --app /path/Owltype.app --dicts /path/dict-pack
 Only the English dictionaries are copied; no live user database is read or changed.
@@ -12,6 +12,11 @@ import re
 import shutil
 import subprocess
 import tempfile
+
+
+def latin(text):
+    """Mirror the filter: a Latin row without Han characters."""
+    return re.search(r'[A-Za-z]', text) is not None and re.search(r'[\u3400-\u9fff\uf900-\ufaff\U00020000-\U000323af]', text) is None
 
 
 def main():
@@ -64,9 +69,28 @@ def main():
         assert original.index('的') > 100, 'fixture must reproduce the long English prefix'
         assert len(original) < 1000, 'comparison must include the complete candidate stream'
         assert Counter(values) == Counter(original), 'lost or duplicated candidates'
-        assert values[3:] == [x for x in original if x not in ['的', '得', '地']]
-        for keys in ['shi', 'hello', 'nihao', 'def']:
-            assert run(keys)[0] == run(keys, baseline)[0], keys
+        def same_rows(keys):
+            current, control = run(keys)[0], run(keys, baseline)[0]
+            assert len(current) == len(control) and len(set(current)) == len(current), keys
+            # Moving English to the tail changes which rows a truncated (1000-row) window holds.
+            if len(control) < 1000:
+                assert Counter(current) == Counter(control), keys
+            return current
+
+        # Whole-syllable input: English never competes by weight, so every Chinese row comes first.
+        assert values == [x for x in values if not latin(x)] + [x for x in values if latin(x)], values[:40]
+        for keys in ['di', 'shi', 'nihao']:
+            current = same_rows(keys)
+            assert not any(latin(x) for x in current[:8]), (keys, current[:8])
+        # An English word equal to input that pinyin cannot spell leads; otherwise one English
+        # row takes the second seat and the rest follow the Chinese rows.
+        for keys, word in [('hello', 'hello'), ('dir', 'dir'), ('github', 'GitHub')]:
+            current = same_rows(keys)
+            assert current[0] == word, (keys, current[:5])
+        for keys in ['hel', 'gith']:
+            current = same_rows(keys)
+            assert not latin(current[0]) and latin(current[1]), (keys, current[:5])
+        assert run('hello{space}')[1] == 'hello'
         assert run('def{BackSpace}')[0] == values, 'backspace must restore short-code priority'
         assert run('de', OWL_PROBE_ASCII='1') == ([], ''), 'ASCII input passes through to host'
         assert run('de', OWL_PROBE_PINNED_WORDS='de\t0\t德')[0][:4] == ['德', '的', '得', '地']
@@ -83,7 +107,7 @@ def main():
         assert run('de2')[1] == '得'
         assert run('de4')[1] == values[3], 'English numeric commit must match reordered row'
         assert run('de{Page_Down}1')[1] == values[8], 'page 2 selection must match reordered stream'
-        print('PASS: real dictionary ordering, no loss/duplicates, long codes, backspace, pins, ASCII, redeploy and commits')
+        print('PASS: real dictionary ordering, no loss/duplicates, English lead/seat, backspace, pins, ASCII, redeploy and commits')
         print('Input + first page latency (microseconds, excludes startup):', timings)
 
         # A small real-engine translator fixture covers exhausted streams and explicit
@@ -102,6 +126,11 @@ local cases = {
   c = {{'user_table', 'CUSTOM'}, {'completion', 'cat'}, {'phrase', '从'},
        {'phrase', '才'}, {'phrase', '次'}, {'phrase', '此'}},
   d = {{'completion', 'demo'}, {'phrase', '𠀀'}, {'phrase', '的'}, {'phrase', '地'}},
+  qwy = {{'phrase', '前'}, {'completion', 'Qwy'}, {'phrase', '钱'}, {'completion', 'qwyz'}},
+  qwz = {{'phrase', '前'}, {'completion', 'qwzzz'}, {'phrase', '钱'}, {'completion', 'qwz'}},
+  qwx = {{'phrase', '前'}, {'phrase', '钱'}, {'phrase', '千'}, {'completion', 'qwxa'},
+         {'completion', 'qwxb'}},
+  ta = {{'completion', 'tab'}, {'completion', 'ta'}, {'phrase', '他'}, {'phrase', '她'}},
 }
 return function(code, seg)
   for _, item in ipairs(cases[code] or cases.a) do
@@ -113,12 +142,16 @@ end
             'patch:\n  \"schema_list/@next\": {schema: short_fixture}\n')
         (user / 'build/default.yaml').unlink(missing_ok=True)
         for code, expected in [('a', ['啊', '阿', 'alpha', 'also']), ('b', ['beta', 'book']),
-                               ('c', ['CUSTOM', '从', '才', '次', 'cat', '此']),
+                               ('c', ['CUSTOM', '从', '才', '次', '此', 'cat']),
                                ('d', ['𠀀', '的', '地', 'demo']),
-                               ('aaa', ['alpha', '啊', 'also', '阿'])]:
+                               ('aaa', ['啊', '阿', 'alpha', 'also']),
+                               ('qwy', ['Qwy', '前', '钱', 'qwyz']),
+                               ('qwz', ['前', 'qwzzz', '钱', 'qwz']),
+                               ('qwx', ['前', 'qwxa', '钱', '千', 'qwxb']),
+                               ('ta', ['他', '她', 'ta', 'tab'])]:
             actual = run(code, schema='short_fixture')[0]
             assert actual == expected, (code, actual, expected)
-        print('PASS: fewer than three/no Chinese, explicit ASCII phrase, extended Han and length boundary')
+        print('PASS: fewer than three/no Chinese, explicit ASCII phrase, extended Han, English lead and seat')
 
 
 if __name__ == '__main__':
