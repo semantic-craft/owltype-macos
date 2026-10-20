@@ -12,7 +12,9 @@ final class OwlInstallFilesTests: XCTestCase {
   private var live: URL { inputMethods.appendingPathComponent("Owltype.app") }
 
   override func setUpWithError() throws {
-    root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+    // realpath keeps /private, the form of the shipped work directory; Foundation's
+    // resolvingSymlinksInPath would hand back the /var symlink path instead.
+    root = URL(fileURLWithPath: String(cString: realpath(FileManager.default.temporaryDirectory.path, nil)))
       .appendingPathComponent("OwlInstallFilesTests-\(UUID().uuidString)")
     let state = root.appendingPathComponent("db/installer-state")
     try FileManager.default.createDirectory(at: state, withIntermediateDirectories: true)
@@ -78,6 +80,12 @@ final class OwlInstallFilesTests: XCTestCase {
       XCTAssertEqual((error as? POSIXError)?.code, .EXDEV)
     }
     XCTAssertNoThrow(try OwlInstallFiles.requireSameVolume(root, layout.work.deletingLastPathComponent()))
+  }
+
+  func testCanonicalCheckKeepsPrivatePrefixAndRejectsSymlinkedVar() throws {
+    XCTAssertTrue(root.path.hasPrefix("/private/"))
+    XCTAssertTrue(OwlBundleSwap.isCanonical(root))
+    XCTAssertFalse(OwlBundleSwap.isCanonical(URL(fileURLWithPath: String(root.path.dropFirst("/private".count)))))
   }
 
   func testSystemLayoutKeepsWorkOutsideInputMethods() {
