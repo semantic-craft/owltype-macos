@@ -18,9 +18,10 @@ source_before=$(/bin/cat "$markers/selected-source")
 [[ "$login_uid" == "$(/usr/bin/stat -f%u /dev/console)" && "$login_uid" -ge 501 ]] || exit 1
 [[ "$kind" == first || "$kind" == update ]] || exit 1
 [[ -f "$archive" && ! -L "$archive" ]] || exit 1
-# A fresh root-only directory prevents the console user from replacing extracted files.
+# A fresh root-only directory prevents the console user from replacing extracted files. It sits
+# outside Input Methods, where a retained App would be registered as a second input method.
 # Preserve it on failure; remove it on successful file commit, before PackageKit finalization.
-unpack="$(/usr/bin/mktemp -d '/Library/Input Methods/.Owltype.unpack.XXXXXXXX')"
+unpack="$(/usr/bin/mktemp -d "${installer_state_dir}/unpack.XXXXXXXX")"
 /bin/chmod 700 "$unpack"
 /usr/bin/ditto -x -k "$archive" "$unpack"
 staged_app="$unpack/Owltype.app"
@@ -29,6 +30,9 @@ staged_app="$unpack/Owltype.app"
 version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$staged_app/Contents/Info.plist")
 "$staged_app/Contents/MacOS/Owltype" --commit-install "$staged_app"
 /bin/rm -rf "$unpack"
+# The archive is consumed; leave nothing in Input Methods for the next preinstall to keep.
+/bin/rm -f "$archive"
+/bin/rmdir "$staging" 2>/dev/null || true
 # All session actions (including first-install registration) use the user's Aqua bootstrap.
 /bin/launchctl asuser "$login_uid" /usr/bin/sudo -u "$login_user" \
   "$live_app/Contents/MacOS/Owltype" --finish-install "$kind" "$source_before" "$version"
