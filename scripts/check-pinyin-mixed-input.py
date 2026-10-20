@@ -84,7 +84,7 @@ def main():
                 check(user, 'nihao', '你好')
                 check(user, 'hello', 'hello', absent=True)
                 continue
-            for keys, expected in [('hello', 'hello'), ('gith', 'GitHub'), ('hell', 'hello'),
+            for keys, expected in [('hello', 'hello'), ('gith', 'GitHub'), ('hel', 'held'),
                                    ('qqqun', 'QQ群'), ('xguang', 'X光'), ('nihao', '你好')]:
                 check(user, keys, expected)
             check(user, 'hello{space}', 'hello', commit=True)
