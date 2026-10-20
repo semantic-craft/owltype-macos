@@ -63,8 +63,8 @@ if [ "$DRY_RUN" = 1 ]; then
   exit 0
 fi
 
-if [ "${#strays[@]}" -gt 0 ] && owl_install_in_progress; then
-  echo "❌ 猫头鹰安装器正在运行。请等安装结束后再修复。"
+if owl_install_in_progress; then
+  echo "❌ 有安装或更新正在进行（猫头鹰安装器、系统安装程序或自动更新）。请等它结束后再修复。"
   exit 1
 fi
 

@@ -120,10 +120,13 @@ Owltype's bundle id and paths.
   logout rebuilds the list.
 - `卸载猫头鹰.command` runs [uninstall-owltype.sh](../../scripts/uninstall-owltype.sh), which
   does the same cleanup and also removes the installed App, preferences, caches, the receipt
-  and (unless `--keep-data`) the data root, so a reinstall starts clean.
+  and (unless `--keep-data`) the data root and preferences, so a reinstall starts clean.
+  Without a runnable installed App it parks the input source through a surviving older copy.
 
 Neither edits HIToolbox preferences; uninstall disables the input source through the App's
-own `--disable-input-source` before deleting it. Both refuse to run while `OwltypeInstaller` or `--commit-install` is running. Offline
+own `--disable-input-source` before deleting it. Both refuse to run during any install phase: OwltypeInstaller, Installer, `installer`,
+Sparkle's Autoupdate, this package's pre/postinstall, the commit/finish CLI phases, or a
+held `.Owltype.install-lock`. Offline
 regression: [uninstall-repair.selftest.sh](../../scripts/uninstall-repair.selftest.sh).
 
 ## Development installs

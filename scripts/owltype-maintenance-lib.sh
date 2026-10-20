@@ -63,10 +63,17 @@ owl_unregister() {
   "$OWL_LSREGISTER" -u "$1" >/dev/null 2>&1 || true
 }
 
-# 安装器或系统安装程序正在跑时不动 .Owltype.* 中间目录，避免打断一次正在提交的安装。
+# 任何安装阶段在跑时都不动 .Owltype.* 中间目录、也不结束猫头鹰进程，避免打断一次正在提交的安装：
+# 猫头鹰安装器、系统安装程序与 Sparkle 的安装进程、本包的 preinstall/postinstall、提交与会话收尾
+# 两个 CLI 阶段，以及提交时持有的锁目录。系统安装程序跑的若是别家的包，也宁可请用户稍后再试。
 owl_install_in_progress() {
-  pgrep -x OwltypeInstaller >/dev/null 2>&1 && return 0
-  pgrep -f '/Owltype.app/Contents/MacOS/Owltype --commit-install' >/dev/null 2>&1 && return 0
+  local name
+  for name in OwltypeInstaller Installer installer Autoupdate; do
+    pgrep -x "$name" >/dev/null 2>&1 && return 0
+  done
+  pgrep -f 'im\.owltype\.inputmethod\.Owltype[^ ]*/(pre|post)install' >/dev/null 2>&1 && return 0
+  pgrep -f 'MacOS/Owltype --(commit-install|finish-install|install-session-)' >/dev/null 2>&1 && return 0
+  [ -e "$OWL_SYSTEM_IM_DIR/.Owltype.install-lock" ] && return 0
   return 1
 }
 

@@ -10,7 +10,7 @@
 #   bash uninstall-owltype.sh              # 交互确认后卸载
 #   bash uninstall-owltype.sh --dry-run    # 只打印将删除什么，不动手
 #   bash uninstall-owltype.sh --yes        # 跳过确认（脚本化场景）
-#   bash uninstall-owltype.sh --keep-data  # 保留词库、设置与学习数据（~/Library/Application Support/Owltype）
+#   bash uninstall-owltype.sh --keep-data  # 保留词库、学习数据与设置（Application Support/Owltype 与偏好 plist）
 set -euo pipefail
 
 DRY_RUN=0
@@ -37,16 +37,23 @@ RECEIPT_ID="im.owltype.inputmethod.Owltype"
 TARGETS=(
   "${APP}"
   "${HOME}/Library/Caches/im.owltype.inputmethod.Owltype"
-  "${HOME}/Library/Preferences/im.owltype.inputmethod.Owltype.plist"
   "${HOME}/Library/HTTPStorages/im.owltype.inputmethod.Owltype"
   "${HOME}/Library/Logs/Owltype"
   "${OWL_SYSTEM_ROOT}/private/var/db/im.owltype.inputmethod.Owltype-installer"
 )
 if [ "$KEEP_DATA" != 1 ]; then
-  TARGETS+=("${HOME}/Library/Application Support/Owltype")
+  TARGETS+=(
+    "${HOME}/Library/Application Support/Owltype"
+    "${HOME}/Library/Preferences/im.owltype.inputmethod.Owltype.plist"
+  )
 fi
 while IFS= read -r stray; do
-  [ -n "$stray" ] && TARGETS+=("$stray")
+  [ -n "$stray" ] || continue
+  TARGETS+=("$stray")
+  # 正式位置没有可执行的猫头鹰时，用仍在的旧副本停用输入源，免得删掉后当前输入源指向已删除的程序。
+  if [ ! -x "$OWL_BIN" ] && [ -x "$stray/Contents/MacOS/Owltype" ]; then
+    OWL_BIN="$stray/Contents/MacOS/Owltype"
+  fi
 done < <(owl_stray_copies)
 
 # 安全闸：任何疑似他人输入法 / Rime 的路径，宁可中止也绝不删除。
@@ -95,7 +102,7 @@ if [ "$ASSUME_YES" != 1 ]; then
 fi
 
 if owl_install_in_progress; then
-  echo "❌ 猫头鹰安装器正在运行。请等安装结束后再卸载。"
+  echo "❌ 有安装或更新正在进行（猫头鹰安装器、系统安装程序或自动更新）。请等它结束后再卸载。"
   exit 1
 fi
 
@@ -146,6 +153,6 @@ echo "提示：供应商密钥仍在钥匙串；如需一并清空，请手动�
 echo "  - im.owltype.inputmethod.Owltype.providers"
 echo "  - im.owltype.inputmethod.Owltype.deepseek"
 if [ "$KEEP_DATA" = 1 ]; then
-  echo "词库与设置保留在 ~/Library/Application Support/Owltype，重装后继续使用。"
+  echo "词库与设置已保留（~/Library/Application Support/Owltype 与偏好设置），重装后继续使用。"
 fi
 echo "重装前建议注销再登录一次：系统在登录时重建输入法列表，之后再运行安装器。"

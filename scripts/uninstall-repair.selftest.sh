@@ -35,9 +35,11 @@ echo "pkgutil $*" >>"$MOCK_LOG"
 [ "$1" = --pkg-info ] && [ "${MOCK_RECEIPT:-0}" != 1 ] && exit 1
 exit 0
 EOF
+# pgrep: reports a match only for the pattern named in MOCK_PGREP_MATCH, so each install
+# phase can be simulated by the exact predicate the scripts use for it.
 cat >"$mocks/pgrep" <<'EOF'
 #!/bin/sh
-for a in "$@"; do [ "$a" = OwltypeInstaller ] && [ "${MOCK_INSTALLER_RUNNING:-0}" = 1 ] && exit 0; done
+for a in "$@"; do [ -n "${MOCK_PGREP_MATCH:-}" ] && [ "$a" = "$MOCK_PGREP_MATCH" ] && exit 0; done
 exit 1
 EOF
 for tool in killall pkill; do
@@ -71,7 +73,9 @@ setup() {
   mkdir -p "$sim/.Owltype.retired-ABC" "$sim/.Owltype.pkg-staging"
   touch "$sim/.Owltype.retired-ABC/Info.plist" "$sim/.Owltype.pkg-staging/Owltype.app.zip"
   mkdir -p "$home/Library/Application Support/Owltype" "$home/Library/Rime" "$sys/private/var/db"
-  touch "$home/Library/Application Support/Owltype/user.yaml" "$home/Library/Rime/keep.yaml"
+  mkdir -p "$home/Library/Preferences"
+  touch "$home/Library/Application Support/Owltype/user.yaml" "$home/Library/Rime/keep.yaml" \
+    "$home/Library/Preferences/$ID.plist"
   mkdir -p "$work/cache/com.apple.TextInputMenuAgent"
   printf 'x%sy' "$ID" >"$work/cache/com.apple.IntlDataCache.le.kbdx"
   printf 'x%sy' "$ID" >"$work/cache/com.apple.TextInputMenuAgent/com.apple.IntlDataCache.le"
@@ -92,7 +96,7 @@ run() {  # script args...
   local script="$1" ; shift
   env -i PATH="$mocks:/usr/bin:/bin" HOME="$home" MOCK_LOG="$MOCK_LOG" \
     MOCK_LS_DUMP="$work/ls.dump" MOCK_RECEIPT="${MOCK_RECEIPT:-0}" \
-    MOCK_INSTALLER_RUNNING="${MOCK_INSTALLER_RUNNING:-0}" \
+    MOCK_PGREP_MATCH="${MOCK_PGREP_MATCH:-}" \
     OWL_SYSTEM_ROOT="$sys" OWL_LSREGISTER="$mocks/lsregister" OWL_USER_CACHE_DIR="$work/cache" \
     /bin/bash "$ROOT/scripts/$script" "$@" >"$work/out.txt" 2>&1
 }
@@ -104,9 +108,20 @@ run repair-owltype.sh --dry-run
 expect "repair --dry-run lists the older user copy" 'grep -qF "$uim/Owltype.app" "$work/out.txt"'
 expect "repair --dry-run changes nothing" '[ -d "$uim/Owltype.app" ] && [ -d "$sim/.Owltype.retired-ABC" ] && [ ! -e "$MOCK_LOG" ]'
 
+for phase in OwltypeInstaller Installer Autoupdate \
+    'im\.owltype\.inputmethod\.Owltype[^ ]*/(pre|post)install' \
+    'MacOS/Owltype --(commit-install|finish-install|install-session-)'; do
+  for script in repair-owltype.sh uninstall-owltype.sh; do
+    setup
+    MOCK_PGREP_MATCH="$phase" run "$script" --yes && status=0 || status=$?
+    expect "$script refuses during install phase: $phase" '[ "$status" -ne 0 ] && [ -d "$sim/Owltype.app" ] && [ -d "$uim/Owltype.app" ] && [ -d "$sim/.Owltype.pkg-staging" ] && ! logged "pkill"'
+  done
+done
+
 setup
-MOCK_INSTALLER_RUNNING=1 run repair-owltype.sh --yes && status=0 || status=$?
-expect "repair refuses while the installer runs" '[ "$status" -ne 0 ] && [ -d "$uim/Owltype.app" ] && [ -d "$sim/.Owltype.pkg-staging" ]'
+mkdir "$sim/.Owltype.install-lock"
+run repair-owltype.sh --yes && status=0 || status=$?
+expect "repair refuses while the commit lock is held" '[ "$status" -ne 0 ] && [ -d "$uim/Owltype.app" ]'
 
 setup
 run repair-owltype.sh --yes
@@ -130,7 +145,17 @@ expect "uninstall purges Owltype list caches" '[ ! -e "$work/cache/com.apple.Int
 
 setup
 run uninstall-owltype.sh --yes --keep-data
-expect "uninstall --keep-data keeps the user data" '[ -f "$home/Library/Application Support/Owltype/user.yaml" ] && [ ! -e "$sim/Owltype.app" ]'
+expect "uninstall --keep-data keeps the user data and settings" '[ -f "$home/Library/Application Support/Owltype/user.yaml" ] && [ -f "$home/Library/Preferences/$ID.plist" ] && [ ! -e "$sim/Owltype.app" ]'
+
+setup
+MOCK_RECEIPT=1 run uninstall-owltype.sh --yes
+expect "uninstall without --keep-data removes the settings" '[ ! -e "$home/Library/Preferences/$ID.plist" ]'
+
+setup
+rm -rf "$sim/Owltype.app"
+printf '#!/bin/sh\necho "user-copy $*" >>"$MOCK_LOG"\n' >"$uim/Owltype.app/Contents/MacOS/Owltype"
+run uninstall-owltype.sh --yes
+expect "uninstall parks the source through a surviving user copy" 'logged "user-copy --disable-input-source" && [ ! -e "$uim/Owltype.app" ]'
 
 setup
 rm -rf "$sim/Owltype.app" "$uim/Owltype.app" "$sim"/.Owltype.* "$home/Library/Application Support/Owltype"
