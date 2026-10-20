@@ -269,7 +269,7 @@ fi
 
 # --- DMG (layer 4b): scan the assembled installer DMG as a whole. Mount read-only, run the
 # full identity scan on the OwltypeInstaller.app inside it, and hard-token-scan ONLY the two
-# loose files (卸载猫头鹰.command / uninstall-owltype.sh). Those two legitimately carry
+# loose maintenance files (uninstall/repair entries and scripts). Those legitimately carry
 # [Ss]quirrel / /Library/Rime / im.rime safety-gate copy but no hard literal, so a
 # product/word scan would false-positive the safety gate — hard-only is the correct depth.
 # Detach via the EXIT trap. ---
@@ -305,7 +305,8 @@ else
       printf 'note: DMG has no OwltypeInstaller.app at its root\n'
     fi
     dmg_hard=0
-    for loose in "卸载猫头鹰.command" "uninstall-owltype.sh"; do
+    for loose in "卸载猫头鹰.command" "uninstall-owltype.sh" "修复猫头鹰.command" \
+        "repair-owltype.sh" "owltype-maintenance-lib.sh"; do
       loose_path="${_dmg_mnt}/${loose}"
       [[ -f "$loose_path" ]] || continue
       for tok in "${OWL_FORBIDDEN_HARD[@]}" "${OWL_FORBIDDEN_CLAIM[@]}"; do
