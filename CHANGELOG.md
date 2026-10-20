@@ -1,5 +1,14 @@
 ## Unreleased
 
+<a name="2.0.15"></a>
+## 2.0.15 (2026-10-20)
+
+### 中英混输 | Mixed Chinese and English
+- 参照水杉输入法调整英文候选位置：英文不再按权重和拼音竞争。打 `di`、`nihao` 这类完整拼音时第一页全是中文，英文排在中文之后；只有输入拼不成拼音且英文词正好等于输入（如 `hello`、`github`）时英文才排第一；其余情况第一个英文在第二位。候选只调整顺序，不删减。
+
+### 菜单栏 | Menu bar
+- 输入法菜单栏图标改为站在橄榄枝上的侧身猫头鹰。
+
 ### 任意提问 | Ask Anything
 - 联网搜索服务中的 Perplexity 档换成 Serper（Google 搜索，google.serper.dev），需在设置里填 Serper 的 API Key；原先选了 Perplexity 的会回到默认的豆包搜索。
 
