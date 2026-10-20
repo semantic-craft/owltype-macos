@@ -157,11 +157,14 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     try type("nihao", into: controller, client: client)
     let previousPageSize = OwlKeyboardPreferences.pageSize
     defer { OwlKeyboardPreferences.pageSize = previousPageSize }
-    let previousSession = controller.rime?.sessionID
+    let previousSession = try XCTUnwrap(controller.rime)
     OwlKeyboardPreferences.pageSize = 3
     let applied = try delegate.applyKeyboardSettings(.config, directory: root)
     XCTAssertTrue(applied.succeeded)
-    XCTAssertNotEqual(controller.rime?.sessionID, previousSession)
+    // librime's session id is the Session's heap address, so destroy-then-create may reuse it.
+    // Prove the recreate by the wrapper instead: the old one is destroyed, a new one is live.
+    XCTAssertFalse(previousSession.isValid, "Applying settings must destroy the old session")
+    XCTAssertFalse(controller.rime === previousSession, "The active controller must get a new session")
     XCTAssertEqual(controller.rime?.input(), "nihao", "Applying settings must retain in-flight composition")
     XCTAssertEqual(controller.rime?.composition()?.pageSize, 3, "The running engine must read the saved setting")
     XCTAssertFalse(second.rime?.isValid == true, "Background sessions must wait for their next activation")

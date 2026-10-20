@@ -56,6 +56,27 @@ review dates, not retries. Keep deterministic checks in the local gate.
   [the merge gate](scripts/gate.sh). Not yet run on the affected Mac.
 - Seen on 1 distinct date: 2026-10-20.
 
+## A librime session id is not a session identity
+
+**Prove a session was recreated by its wrapper, never by comparing `RimeSessionId`s.**
+
+- Reason: librime returns the `Session`'s heap address as its id
+  ([service.cc](librime/src/rime/service.cc)), so destroy-then-create often gets the
+  freed address back. `testControllerRoundTrip` asserted a new id after applying
+  settings and failed once in `gate.sh --quick`
+  (`20261020T080929Z-quick-idniri2m`, both ids `524545235096`) while the next
+  assertions, including the new page size, passed. A probe reused the id in 1250 of
+  3000 destroy/create pairs. The `start_maintenance failed` line in that log came
+  from a later test and is unrelated.
+- Prevention: assert the old wrapper is invalid (`destroy` zeroes its id) and the
+  controller holds a different wrapper. Product staleness checks that key on
+  `sessionID` (snapshots, pin and expansion callbacks) also see reused ids; they pair
+  it with input and revision state.
+- Regression: [OwlInputHabitsIntegrationTests](tests/OwlInputHabitsIntegrationTests.swift)
+  now checks wrapper identity, which is independent of allocator reuse. It runs in
+  [the merge gate](scripts/gate.sh).
+- Seen on 1 distinct date: 2026-10-20.
+
 ## Require positive evidence before judging a live trace
 
 **An empty or unfinished trace is unverified, even when its error count is zero.**
