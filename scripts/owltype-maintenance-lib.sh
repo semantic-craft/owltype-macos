@@ -74,6 +74,8 @@ owl_install_in_progress() {
   pgrep -f 'im\.owltype\.inputmethod\.Owltype[^ ]*/(pre|post)install' >/dev/null 2>&1 && return 0
   pgrep -f 'MacOS/Owltype --(commit-install|finish-install|install-session-)' >/dev/null 2>&1 && return 0
   [ -e "$OWL_SYSTEM_IM_DIR/.Owltype.install-lock" ] && return 0
+  # 2.0.16 起提交锁在安装器状态目录里（docs/operations/installation.md「Where intermediates live」）。
+  [ -e "${OWL_SYSTEM_ROOT}/private/var/db/im.owltype.inputmethod.Owltype-installer/work/install-lock" ] && return 0
   return 1
 }
 

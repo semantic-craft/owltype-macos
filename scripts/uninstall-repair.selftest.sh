@@ -124,6 +124,11 @@ run repair-owltype.sh --yes && status=0 || status=$?
 expect "repair refuses while the commit lock is held" '[ "$status" -ne 0 ] && [ -d "$uim/Owltype.app" ]'
 
 setup
+mkdir -p "$sys/private/var/db/im.owltype.inputmethod.Owltype-installer/work/install-lock"
+run repair-owltype.sh --yes && status=0 || status=$?
+expect "repair refuses while the current commit lock is held" '[ "$status" -ne 0 ] && [ -d "$uim/Owltype.app" ]'
+
+setup
 run repair-owltype.sh --yes
 expect "repair removes the older copy and installer leftovers" '[ ! -e "$uim/Owltype.app" ] && [ ! -e "$sim/.Owltype.retired-ABC" ] && [ ! -e "$sim/.Owltype.pkg-staging" ]'
 expect "repair keeps the install, other input methods and user data" '[ -d "$sim/Owltype.app" ] && [ -d "$sim/Squirrel.app" ] && [ -d "$uim/Other.app" ] && [ -f "$home/Library/Application Support/Owltype/user.yaml" ] && [ -f "$home/Library/Rime/keep.yaml" ]'

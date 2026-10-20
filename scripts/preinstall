@@ -23,9 +23,45 @@ if [[ -e "$input_root/Owltype.app" ]]; then
     "$input_root/Owltype.app/Contents/MacOS/Owltype" --current-input-source)
   [[ -n "$source_before" ]] || { echo 'Owltype: cannot capture current input source.' >&2; exit 1; }
 fi
-# Preserve a previous incomplete payload; never overwrite it or the live Contents in place.
+# LaunchServices and the input menu register bundles under Input Methods, hidden or not, so a
+# leftover copy shows up as a second 猫头鹰输入法. Install intermediates now live under
+# $installer_state_dir; an earlier payload or older installer's leftovers are kept for
+# inspection there, unregistered, never deleted or reused.
+lsregister='/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
+retained="${installer_state_dir}/retained"
+/usr/bin/install -d -o root -g wheel -m 700 "$retained"
+unregister() {
+  "$lsregister" -u "$1" >/dev/null 2>&1 || true
+  /bin/launchctl asuser "$login_uid" /usr/bin/sudo -u "$login_user" "$lsregister" -u "$1" >/dev/null 2>&1 || true
+}
+retain() {
+  local entry=$1 bundle target
+  unregister "$entry"
+  if [[ -d "$entry" && ! -L "$entry" ]]; then
+    while IFS= read -r bundle; do unregister "$bundle"; done \
+      < <(/usr/bin/find "$entry" -mindepth 1 -maxdepth 2 -name '*.app' -print)
+  fi
+  target="$retained/${entry##*/}"
+  [[ ! -e "$target" && ! -L "$target" ]] || target="$target-$(/usr/bin/uuidgen)"
+  /bin/mv "$entry" "$target"
+}
+# A staging tree holding only the archive is an earlier package's inert payload; anything else
+# is unknown and kept. Never overwrite it or the live Contents in place.
 if [[ -e "$staging" ]]; then
-  /bin/mv "$staging" "$input_root/.Owltype.abandoned-$(/usr/bin/uuidgen)"
+  if [[ -z "$(/usr/bin/find "$staging" -mindepth 1 ! \( -path "$staging/Owltype.app.zip" -type f \) -print -quit)" ]]; then
+    /bin/rm -rf "$staging"
+  else
+    retain "$staging"
+  fi
+fi
+# An older installer whose --commit-install is still running may be mid-commit: leave its
+# directories alone. Without that process its lock is stale (killed or power loss) and is
+# retained with the rest, so it cannot block this cleanup forever.
+if [[ ! -e "$input_root/.Owltype.install-lock" ]] || ! /usr/bin/pgrep -f -- ' --commit-install ' >/dev/null; then
+  for entry in "$input_root"/.Owltype.*; do
+    [[ -e "$entry" || -L "$entry" ]] || continue
+    retain "$entry"
+  done
 fi
 /usr/bin/install -d -o root -g staff -m 755 "$staging"
 umask 077

@@ -11,8 +11,8 @@ Both the GUI installer and package scripts invoke the installed payload's CLI:
 | Phase | Owner | Contract |
 | --- | --- | --- |
 | Capture | GUI / preinstall | Capture existing installation and exact selected source before replacement. Missing update context fails closed. |
-| Stage | PackageKit / privileged file helper | PKG payload contains only `/Library/Input Methods/.Owltype.pkg-staging/Owltype.app.zip`. postinstall unpacks into a fresh root-only directory, verifies and commits, then removes that private unpack directory before session recovery. The live App and all nested bundles are absent from the PackageKit payload. |
-| Commit | `--commit-install` as root | Copy into a protected candidate, validate signature and unchanged identities, preserve the live App shell, exchange `Contents` and `.Contents.update` with `RENAME_SWAP`. Move retired contents outside the App before strict signature verification. First install uses `RENAME_EXCL`. |
+| Stage | PackageKit / privileged file helper | PKG payload contains only `/Library/Input Methods/.Owltype.pkg-staging/Owltype.app.zip`. postinstall unpacks into a fresh root-only directory under the installer state directory, verifies and commits, then removes that unpack directory, the consumed archive and the staging directory before session recovery. The live App and all nested bundles are absent from the PackageKit payload. |
+| Commit | `--commit-install` as root | Copy into a protected candidate in the work directory, validate signature and unchanged identities, preserve the live App shell, exchange `Contents` and `.Contents.update` with `RENAME_SWAP`. Move retired contents outside the App before strict signature verification. First install uses `RENAME_EXCL`. After the installed App validates, remove the retired contents and the candidate wrapper. |
 | Activate | `--finish-install` as console user | End old installed server instances, register/enable parent and primary mode only on first install, read back selection, refresh only TextInputMenuAgent/TextInputSwitcher, launch the installed App, and poll its state. |
 | Verify | Fresh user-session probe | Require enabled input sources, expected selection, one server at the installed executable path, expected LS version and current executable inode. Default budget is 45 seconds. |
 
@@ -28,6 +28,38 @@ A private lock serializes commits. Interrupted prepared/retired directories are 
 blindly remove them or retry over an unknown `.Contents.update`. Validate identities before recovery.
 On a post-exchange validation failure, the file primitive swaps back and retains the failed candidate.
 A failure of recovery itself stops the operation and requires inspection of both locations.
+
+### Where intermediates live
+
+LaunchServices and the input menu register bundles found under `/Library/Input Methods`, hidden
+`.Owltype.*` directories included, so each leftover copy can become a second「猫头鹰输入法」entry.
+Up to 2.0.15 the installer kept its lock, candidates, retired contents, unpack directories and
+abandoned payloads there. Now only the live App and the PackageKit staging archive touch it:
+
+| Path under `/private/var/db/im.owltype.inputmethod.Owltype-installer/` | Contents | Lifetime |
+| --- | --- | --- |
+| `work/install-lock` | commit lock | removed when `--commit-install` exits |
+| `work/prepared-<uuid>/Owltype.app` | candidate copy | removed after a validated commit; retained on failure |
+| `work/retired-<uuid>` | old `Contents` after the swap | removed after a validated commit; retained on failure |
+| `unpack.<random>/Owltype.app` | postinstall's extracted archive | removed after the commit; retained on failure |
+| `retained/<name>` | a previous staging tree with anything but the archive, and `.Owltype.*` directories an older installer left in Input Methods | kept for inspection |
+
+Removing the retired contents early does not change what a still-running old server sees: it
+resolves bundle paths through `Owltype.app/Contents`, which already holds the new files after the
+swap, and files it has open or mapped keep their inodes. Nothing restores from `retired-*`;
+rollback uses a separately verified App backup.
+
+The state directory is on the same volume as Input Methods (the Data volume); `--commit-install`
+checks `st_dev` and fails with `EXDEV` before touching the live App if it is not, so the
+`RENAME_SWAP`/`RENAME_EXCL` steps never cross volumes. preinstall unregisters each entry it moves
+into `retained` (and any App inside it) from both root's and the console user's LaunchServices
+database, then renames it; it never deletes one. A staging tree holding only the consumed archive
+is discarded. preinstall leaves legacy directories alone while an older installer's
+`.Owltype.install-lock` exists and a `--commit-install` process is running; a lock without that
+process is stale and is retained with the rest. The GUI installer does not run preinstall, so legacy leftovers on a
+GUI-only Mac still need the repair script. Offline regression:
+[pkg-leftovers.selftest.sh](../../scripts/pkg-leftovers.selftest.sh) and
+[OwlInstallFilesTests](../../tests/OwlInstallFilesTests.swift).
 
 Updates preserve the exact Hans/Hant mode when Owltype was selected. When another source was selected,
 the session sequence performs no select operation; a changed readback fails self-check instead of

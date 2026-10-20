@@ -1,0 +1,122 @@
+import Darwin
+import Foundation
+import XCTest
+
+/// The privileged file phase must not leave bundle-shaped copies where LaunchServices and the
+/// input menu look (#217 follow-up): intermediates live in the private work directory, and a
+/// validated commit removes them.
+final class OwlInstallFilesTests: XCTestCase {
+  private var root: URL!
+  private var layout: OwlInstallFiles.Layout!
+  private var inputMethods: URL { layout.inputMethods }
+  private var live: URL { inputMethods.appendingPathComponent("Owltype.app") }
+
+  override func setUpWithError() throws {
+    root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+      .appendingPathComponent("OwlInstallFilesTests-\(UUID().uuidString)")
+    let state = root.appendingPathComponent("db/installer-state")
+    try FileManager.default.createDirectory(at: state, withIntermediateDirectories: true)
+    layout = OwlInstallFiles.Layout(inputMethods: root.appendingPathComponent("Input Methods"),
+                                    work: state.appendingPathComponent("work"))
+  }
+
+  override func tearDownWithError() throws {
+    if let root { try FileManager.default.removeItem(at: root) }
+  }
+
+  func testFirstInstallLeavesOnlyTheLiveAppAndAnEmptyWorkDirectory() throws {
+    try commit(try bundle("new"))
+    XCTAssertEqual(try marker(live), "new")
+    XCTAssertEqual(try entries(inputMethods), ["Owltype.app"])
+    XCTAssertEqual(try entries(layout.work), [])
+  }
+
+  func testUpdateRemovesRetiredContentsAndCandidateWrapper() throws {
+    try commit(try bundle("old"))
+    let shell = try inode(live)
+    try commit(try bundle("new"))
+    XCTAssertEqual(try marker(live), "new")
+    XCTAssertEqual(try inode(live), shell)
+    XCTAssertEqual(try entries(inputMethods), ["Owltype.app"])
+    XCTAssertEqual(try entries(layout.work), [])
+  }
+
+  func testFailedValidationKeepsCandidateInWorkNotInputMethods() throws {
+    try commit(try bundle("old"))
+    XCTAssertThrowsError(try commit(try bundle("new")) { location in
+      if location == self.live { throw CocoaError(.fileReadCorruptFile) }
+    })
+    XCTAssertEqual(try marker(live), "old")
+    XCTAssertEqual(try entries(inputMethods), ["Owltype.app"])
+    let retained = try entries(layout.work)
+    XCTAssertEqual(retained.count, 1)
+    XCTAssertTrue(retained[0].hasPrefix("prepared-"))
+    let candidate = layout.work.appendingPathComponent(retained[0]).appendingPathComponent("Owltype.app")
+    XCTAssertEqual(try marker(candidate), "new")
+  }
+
+  func testHeldLockStopsBeforeCopying() throws {
+    try commit(try bundle("old"))
+    try FileManager.default.createDirectory(at: layout.work.appendingPathComponent("install-lock"),
+                                            withIntermediateDirectories: false)
+    XCTAssertThrowsError(try commit(try bundle("new")))
+    XCTAssertEqual(try marker(live), "old")
+    XCTAssertEqual(try entries(layout.work), ["install-lock"])
+  }
+
+  func testSymlinkedWorkDirectoryIsRefused() throws {
+    let elsewhere = root.appendingPathComponent("elsewhere")
+    try FileManager.default.createDirectory(at: elsewhere, withIntermediateDirectories: false)
+    try FileManager.default.createSymbolicLink(at: layout.work, withDestinationURL: elsewhere)
+    XCTAssertThrowsError(try commit(try bundle("new")))
+    XCTAssertFalse(FileManager.default.fileExists(atPath: live.path))
+    XCTAssertEqual(try entries(elsewhere), [])
+  }
+
+  func testDifferentVolumesAreRefused() throws {
+    XCTAssertThrowsError(try OwlInstallFiles.requireSameVolume(root, URL(fileURLWithPath: "/dev"))) { error in
+      XCTAssertEqual((error as? POSIXError)?.code, .EXDEV)
+    }
+    XCTAssertNoThrow(try OwlInstallFiles.requireSameVolume(root, layout.work.deletingLastPathComponent()))
+  }
+
+  func testSystemLayoutKeepsWorkOutsideInputMethods() {
+    let system = OwlInstallFiles.Layout.system
+    XCTAssertEqual(system.inputMethods.path, "/Library/Input Methods")
+    XCTAssertFalse(system.work.path.hasPrefix(system.inputMethods.path + "/"))
+    XCTAssertEqual(system.work.deletingLastPathComponent().path,
+                   "/private/var/db/im.owltype.inputmethod.Owltype-installer")
+  }
+
+  private func commit(_ source: URL, verify: @escaping (URL) throws -> Void = { _ in }) throws {
+    try OwlInstallFiles.commit(source: source, layout: layout, verify: verify) { _ in }
+  }
+
+  private func bundle(_ text: String) throws -> URL {
+    let app = root.appendingPathComponent("source-\(UUID().uuidString)/Owltype.app")
+    let contents = app.appendingPathComponent("Contents")
+    try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+    let info: [String: Any] = ["CFBundleIdentifier": "im.owltype.inputmethod.Owltype",
+                               "InputMethodConnectionName": "Owltype_Connection",
+                               "ComponentInputModeDict": ["tsVisibleInputModeOrderedArrayKey": ["Hans"]],
+                               "CFBundleVersion": text]
+    try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+      .write(to: contents.appendingPathComponent("Info.plist"))
+    try Data(text.utf8).write(to: contents.appendingPathComponent("marker"))
+    return app
+  }
+
+  private func marker(_ app: URL) throws -> String {
+    String(decoding: try Data(contentsOf: app.appendingPathComponent("Contents/marker")), as: UTF8.self)
+  }
+
+  private func entries(_ directory: URL) throws -> [String] {
+    try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted()
+  }
+
+  private func inode(_ url: URL) throws -> ino_t {
+    var info = stat()
+    guard lstat(url.path, &info) == 0 else { throw POSIXError(.ENOENT) }
+    return info.st_ino
+  }
+}
