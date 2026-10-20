@@ -54,7 +54,8 @@ navigation() {
 
 portable_scripts() {
   stage "portable scripts"
-  bash -n action-install.sh scripts/*.sh package/apple_tool_adapter package/make_package
+  bash -n action-install.sh scripts/*.sh package/apple_tool_adapter package/make_package \
+    package/*.command
   python3 -m py_compile \
     scripts/owl_distribution.py \
     scripts/owl_bundle.py \
@@ -68,6 +69,7 @@ portable_scripts() {
   bash scripts/check-live-ime-version.sh --self-test
   python3 scripts/smoke-live.selftest.py
   bash scripts/install-dev.selftest.sh
+  bash scripts/uninstall-repair.selftest.sh
   python3 scripts/check-ime-host-evidence.selftest.py
   xcrun swiftc -typecheck scripts/ime-acceptance-host.swift
 }

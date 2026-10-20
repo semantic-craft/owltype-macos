@@ -38,6 +38,24 @@ review dates, not retries. Keep deterministic checks in the local gate.
   It runs in [the merge gate](scripts/gate.sh).
 - Seen in this project on 1 distinct date: 2026-10-19 (found by audit; same class as Sonori).
 
+## Every bundle that claims the id is a menu entry
+
+**Uninstall and repair must clear all Owltype claims, not just the installed App.**
+
+- Reason: a user's input menu showed two「猫头鹰输入法」entries, one with the 2.0.15 profile
+  owl and one with the ≤2.0.14 badge icon. The old uninstaller deleted only
+  `/Library/Input Methods/Owltype.app`, so older copies, installer `.Owltype.*` leftovers
+  (LaunchServices registers them; 33 were on the development Mac) and stale records survived
+  a reinstall. Which copy the user's Mac held is unconfirmed.
+- Prevention: [repair-owltype.sh](scripts/repair-owltype.sh) and
+  [uninstall-owltype.sh](scripts/uninstall-owltype.sh) share
+  [owltype-maintenance-lib.sh](scripts/owltype-maintenance-lib.sh): remove stray copies,
+  unregister every other claim, purge the list caches that mention the id, restart the menu agents.
+- Regression: [uninstall-repair.selftest.sh](scripts/uninstall-repair.selftest.sh) runs both
+  scripts against a fake system root with mocked privileged tools. It runs in
+  [the merge gate](scripts/gate.sh). Not yet run on the affected Mac.
+- Seen on 1 distinct date: 2026-10-20.
+
 ## Require positive evidence before judging a live trace
 
 **An empty or unfinished trace is unverified, even when its error count is zero.**

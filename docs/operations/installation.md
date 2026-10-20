@@ -104,6 +104,31 @@ and typing. App rollback does not undo the package receipt or dictionary changes
 data or log out as a test workaround. Source-built acceptance artifacts, signing constraints, clean
 first-install setup, Intel, and macOS 14/15 remain explicit coverage items in the investigation.
 
+## Uninstall and repair on a user's Mac
+
+The DMG ships two double-click entries next to the installer. Both share
+[owltype-maintenance-lib.sh](../../scripts/owltype-maintenance-lib.sh) and only act on
+Owltype's bundle id and paths.
+
+- `修复猫头鹰.command` runs [repair-owltype.sh](../../scripts/repair-owltype.sh). Use it when
+  the input menu shows two「猫头鹰输入法」entries or an old icon: macOS lists every bundle that
+  claims the id, so an older copy in `~/Library/Input Methods`, a leftover `.Owltype.*`
+  directory from an interrupted install, or a stale LaunchServices record each add an entry.
+  It removes those copies, unregisters every other claim, re-registers the installed App
+  (`--activate-once`), deletes only the `com.apple.IntlDataCache.le*` caches that mention
+  the id, and restarts the input menu agents. User data stays. If two entries remain, a
+  logout rebuilds the list.
+- `卸载猫头鹰.command` runs [uninstall-owltype.sh](../../scripts/uninstall-owltype.sh), which
+  does the same cleanup and also removes the installed App, preferences, caches, the receipt
+  and (unless `--keep-data`) the data root and preferences, so a reinstall starts clean.
+  Without a runnable installed App it parks the input source through a surviving older copy.
+
+Neither edits HIToolbox preferences; uninstall disables the input source through the App's
+own `--disable-input-source` before deleting it. Both refuse to run during any install phase: OwltypeInstaller, Installer, `installer`,
+Sparkle's Autoupdate, this package's pre/postinstall, the commit/finish CLI phases, or a
+held `.Owltype.install-lock`. Offline
+regression: [uninstall-repair.selftest.sh](../../scripts/uninstall-repair.selftest.sh).
+
 ## Development installs
 
 [install-dev.sh](../../scripts/install-dev.sh) is the only development install path. It signs
