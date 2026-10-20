@@ -44,6 +44,8 @@ shift 5
 exec "$@"
 EOF
 printf '#!/bin/sh\nexit 0\n' >"$mocks/codesign"
+# pgrep: an older installer's --commit-install is running only when MOCK_OLD_COMMIT=1.
+printf '#!/bin/sh\n[ "$MOCK_OLD_COMMIT" = 1 ]\n' >"$mocks/pgrep"
 printf '#!/bin/sh\necho 9999\n' >"$mocks/PlistBuddy"
 chmod +x "$mocks"/*
 
@@ -78,10 +80,11 @@ for script in preinstall postinstall; do
       -e "s|/usr/bin/stat|$mocks/stat|g" \
       -e "s|/bin/launchctl|$mocks/launchctl|g" \
       -e "s|/usr/bin/codesign|$mocks/codesign|g" \
+      -e "s|/usr/bin/pgrep|$mocks/pgrep|g" \
       -e "s|/usr/libexec/PlistBuddy|$mocks/PlistBuddy|g" \
       "$ROOT/scripts/$script" >"$work/$script"
   chmod +x "$work/$script"
-  if grep -qE "(^|[ '\"=(])/(Library/Input|private/var/db|usr/bin/(install|stat|codesign)|bin/launchctl|usr/libexec/PlistBuddy|System/Library)" "$work/$script"; then
+  if grep -qE "(^|[ '\"=(])/(Library/Input|private/var/db|usr/bin/(install|stat|codesign|pgrep)|bin/launchctl|usr/libexec/PlistBuddy|System/Library)" "$work/$script"; then
     bad "$script rewrite left a real system path"
   else
     ok "$script rewrite reaches only the fake root and mocks"
@@ -145,12 +148,15 @@ run preinstall
 check "unknown staging content is retained and unregistered" \
   '[[ -d "$state/retained/.Owltype.pkg-staging/Owltype.app" ]] && grep -qxF -- "-u $staging/Owltype.app" "$MOCK_LOG"'
 
-# 5. An older installer holding its lock may be mid-commit: its directories stay put.
+# 5. An older installer still committing keeps its directories; a stale lock does not block.
 reset_root
 mkdir -p "$im/.Owltype.install-lock" "$im/.Owltype.retired-G"
+MOCK_OLD_COMMIT=1 run preinstall
+check "legacy directories stay while an older --commit-install runs" \
+  '[[ -d "$im/.Owltype.install-lock" && -d "$im/.Owltype.retired-G" && ! -e "$state/retained/.Owltype.retired-G" ]]'
 run preinstall
-check "legacy directories stay while an older installer holds its lock" \
-  '[[ -d "$im/.Owltype.retired-G" && ! -e "$state/retained/.Owltype.retired-G" ]]'
+check "a stale legacy lock is retained with the leftovers instead of blocking cleanup" \
+  '[[ -d "$state/retained/.Owltype.install-lock" && -d "$state/retained/.Owltype.retired-G" && ! -e "$im/.Owltype.install-lock" ]]'
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 ((fail == 0))

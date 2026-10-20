@@ -44,13 +44,19 @@ abandoned payloads there. Now only the live App and the PackageKit staging archi
 | `unpack.<random>/Owltype.app` | postinstall's extracted archive | removed after the commit; retained on failure |
 | `retained/<name>` | a previous staging tree with anything but the archive, and `.Owltype.*` directories an older installer left in Input Methods | kept for inspection |
 
+Removing the retired contents early does not change what a still-running old server sees: it
+resolves bundle paths through `Owltype.app/Contents`, which already holds the new files after the
+swap, and files it has open or mapped keep their inodes. Nothing restores from `retired-*`;
+rollback uses a separately verified App backup.
+
 The state directory is on the same volume as Input Methods (the Data volume); `--commit-install`
 checks `st_dev` and fails with `EXDEV` before touching the live App if it is not, so the
 `RENAME_SWAP`/`RENAME_EXCL` steps never cross volumes. preinstall unregisters each entry it moves
 into `retained` (and any App inside it) from both root's and the console user's LaunchServices
 database, then renames it; it never deletes one. A staging tree holding only the consumed archive
 is discarded. preinstall leaves legacy directories alone while an older installer's
-`.Owltype.install-lock` exists. The GUI installer does not run preinstall, so legacy leftovers on a
+`.Owltype.install-lock` exists and a `--commit-install` process is running; a lock without that
+process is stale and is retained with the rest. The GUI installer does not run preinstall, so legacy leftovers on a
 GUI-only Mac still need the repair script. Offline regression:
 [pkg-leftovers.selftest.sh](../../scripts/pkg-leftovers.selftest.sh) and
 [OwlInstallFilesTests](../../tests/OwlInstallFilesTests.swift).

@@ -54,8 +54,10 @@ if [[ -e "$staging" ]]; then
     retain "$staging"
   fi
 fi
-# An older installer still holding its lock may be mid-commit: leave its directories alone.
-if [[ ! -e "$input_root/.Owltype.install-lock" ]]; then
+# An older installer whose --commit-install is still running may be mid-commit: leave its
+# directories alone. Without that process its lock is stale (killed or power loss) and is
+# retained with the rest, so it cannot block this cleanup forever.
+if [[ ! -e "$input_root/.Owltype.install-lock" ]] || ! /usr/bin/pgrep -f -- ' --commit-install ' >/dev/null; then
   for entry in "$input_root"/.Owltype.*; do
     [[ -e "$entry" || -L "$entry" ]] || continue
     retain "$entry"
