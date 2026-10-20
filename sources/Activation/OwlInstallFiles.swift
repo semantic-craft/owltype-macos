@@ -54,7 +54,7 @@ enum OwlInstallFiles {
     let retired = layout.work.appendingPathComponent("retired-\(UUID().uuidString)")
     // Validate the root-owned copy before executing any operation on the live bundle.
     try manager.copyItem(at: source, to: prepared)
-    guard prepared.resolvingSymlinksInPath().path == prepared.path else { throw POSIXError(.ELOOP) }
+    guard OwlBundleSwap.isCanonical(prepared) else { throw POSIXError(.ELOOP) }
     try verify(prepared)
     let metadata = try info(prepared)
     guard metadata["CFBundleIdentifier"] as? String == bundleID,

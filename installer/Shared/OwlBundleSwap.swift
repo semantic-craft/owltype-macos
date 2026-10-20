@@ -76,11 +76,17 @@ enum OwlBundleSwap {
   }
 
   private static func requireCanonicalDirectory(_ url: URL) throws {
-    guard url.isFileURL,
-          url.standardizedFileURL.path == url.resolvingSymlinksInPath().standardizedFileURL.path else {
-      throw failure(ELOOP, path: url.path)
-    }
+    guard isCanonical(url) else { throw failure(ELOOP, path: url.path) }
     _ = try directoryInfo(url)
+  }
+
+  /// True when the existing path has no symlink, `.` or `..` component. Uses realpath(3) and the
+  /// raw path: Foundation's resolvingSymlinksInPath and standardizedFileURL both drop a leading
+  /// /private, so /private/var/... (the installer work directory) would never compare equal.
+  static func isCanonical(_ url: URL) -> Bool {
+    guard url.isFileURL, let resolved = realpath(url.path, nil) else { return false }
+    defer { free(resolved) }
+    return String(cString: resolved) == url.path
   }
 
   private static func directoryInfo(_ url: URL) throws -> stat {

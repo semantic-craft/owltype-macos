@@ -9,7 +9,9 @@ final class OwlBundleSwapTests: XCTestCase {
   private var staged: URL { app.appendingPathComponent(".Contents.update") }
 
   override func setUpWithError() throws {
-    root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+    // realpath keeps /private, the form of the shipped work directory; Foundation's
+    // resolvingSymlinksInPath would hand back the /var symlink path instead.
+    root = URL(fileURLWithPath: String(cString: realpath(FileManager.default.temporaryDirectory.path, nil)))
       .appendingPathComponent("OwlBundleSwapTests-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: app, withIntermediateDirectories: true)
     try contents(live, text: "old")

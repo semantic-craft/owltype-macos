@@ -3,6 +3,24 @@
 Each entry keeps the rule, reason, regression, and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## Compare canonical paths with realpath, and test under /private
+
+**Symlink checks must use realpath(3) on the raw path; file-system tests must run under the real `/private/...` path.**
+
+- Reason: 2.0.16 moved install intermediates to `/private/var/db/...`. The candidate check
+  compared `resolvingSymlinksInPath()` with the path, and Foundation drops a leading `/private`
+  (so does `standardizedFileURL`), so the first real PKG install failed with `ELOOP` in
+  `--commit-install`. The tests passed because their temp root was `/var/folders/...`, itself a
+  symlinked path that Foundation round-trips unchanged. The live App stayed on 2.0.15; nothing
+  was published.
+- Prevention: `OwlBundleSwap.isCanonical` uses `realpath` against `url.path`; both bundle tests
+  build their root with `realpath`, so it starts with `/private`.
+- Regression: [OwlInstallFilesTests](tests/OwlInstallFilesTests.swift) and
+  [OwlBundleSwapTests](tests/OwlBundleSwapTests.swift); the old check fails 4 of 8
+  OwlInstallFilesTests. They run in [the merge gate](scripts/gate.sh). Offline tests still do not
+  replace a real signed PKG install before publishing.
+- Seen on 1 distinct date: 2026-10-20.
+
 ## Pin every gzip parameter a fixture depends on
 
 **Fixtures that feed the canonical-archive gate must pass `compresslevel=9`, not rely on Python's default.**
