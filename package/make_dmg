@@ -5,6 +5,8 @@
 # 首装免注销专题 07-02 复活），内嵌 **已 staple 的** Owltype.app；另含：
 #   - 卸载猫头鹰.command   双击卸载，调同目录的 uninstall-owltype.sh（严格白名单）。
 #   - uninstall-owltype.sh  白名单卸载脚本本体（与 .command 同目录打包，供其调用）。
+#   - 修复猫头鹰.command   双击修复（重复的输入法条目、旧图标），调同目录的 repair-owltype.sh。
+#   - repair-owltype.sh / owltype-maintenance-lib.sh  修复脚本本体与两个脚本共用的函数。
 # Owltype.pkg 不再进 DMG，但继续由 `make package` 构建发布（备用直装链，无 RequireLogout）；
 # Sparkle 自动更新仍走 Owltype-update.pkg（本脚本零接触）。
 #
@@ -37,6 +39,9 @@ INSTALLER_DIR="${PROJECT_ROOT}/installer"
 INSTALLER_APP="${INSTALLER_DIR}/build/Build/Products/Release/OwltypeInstaller.app"
 UNINSTALL_CMD="${PROJECT_ROOT}/package/卸载猫头鹰.command"               # 双击卸载入口
 UNINSTALL_SH="${PROJECT_ROOT}/scripts/uninstall-owltype.sh"              # 白名单卸载脚本本体
+REPAIR_CMD="${PROJECT_ROOT}/package/修复猫头鹰.command"                  # 双击修复入口
+REPAIR_SH="${PROJECT_ROOT}/scripts/repair-owltype.sh"                    # 修复脚本本体
+MAINT_LIB="${PROJECT_ROOT}/scripts/owltype-maintenance-lib.sh"           # 卸载与修复共用函数
 
 DMG_VERSIONED="${PROJECT_ROOT}/package/Owltype-${marketing_version}.dmg"
 COHORT_STATE="${PROJECT_ROOT}/scripts/release-cohort-state.py"
@@ -51,10 +56,12 @@ if [ ! -f "${UNINSTALL_CMD}" ]; then
     echo >&2 "ERROR: 缺少 ${UNINSTALL_CMD}"
     exit 1
 fi
-if [ ! -f "${UNINSTALL_SH}" ]; then
-    echo >&2 "ERROR: 缺少 ${UNINSTALL_SH}"
-    exit 1
-fi
+for required in "${UNINSTALL_SH}" "${REPAIR_CMD}" "${REPAIR_SH}" "${MAINT_LIB}"; do
+    if [ ! -f "${required}" ]; then
+        echo >&2 "ERROR: 缺少 ${required}"
+        exit 1
+    fi
+done
 if [[ -n "${DEV_ID:-}" ]]; then
     python3 "$COHORT_STATE" require "$RELEASE_OUTPUT_ROOT" app stapled
     python3 "$COHORT_STATE" require "$RELEASE_OUTPUT_ROOT" installer-pkg stapled
@@ -112,14 +119,18 @@ else
 fi
 
 # --- 4) 组唯一的版本化 DMG 容器 ------------------------------------------------
-echo "==> 组 DMG 容器（UDZO）：OwltypeInstaller.app + 卸载猫头鹰.command + uninstall-owltype.sh"
+echo "==> 组 DMG 容器（UDZO）：OwltypeInstaller.app + 卸载/修复入口与脚本"
 STAGING="$(mktemp -d)"
 trap 'rm -rf "${STAGING}"' EXIT
 cp -R "${INSTALLER_APP}" "${STAGING}/OwltypeInstaller.app"
 cp "${UNINSTALL_CMD}" "${STAGING}/卸载猫头鹰.command"
 cp "${UNINSTALL_SH}" "${STAGING}/uninstall-owltype.sh"
+cp "${REPAIR_CMD}" "${STAGING}/修复猫头鹰.command"
+cp "${REPAIR_SH}" "${STAGING}/repair-owltype.sh"
+cp "${MAINT_LIB}" "${STAGING}/owltype-maintenance-lib.sh"
 python3 "$COHORT_STATE" id "$RELEASE_OUTPUT_ROOT" >"${STAGING}/OWLTYPE-RELEASE-COHORT-ID"
-chmod +x "${STAGING}/卸载猫头鹰.command" "${STAGING}/uninstall-owltype.sh"
+chmod +x "${STAGING}/卸载猫头鹰.command" "${STAGING}/uninstall-owltype.sh" \
+    "${STAGING}/修复猫头鹰.command" "${STAGING}/repair-owltype.sh"
 rm -f "${DMG_VERSIONED}"
 hdiutil create -volname "${VOLNAME}" -srcfolder "${STAGING}" -ov -format UDZO "${DMG_VERSIONED}"
 
