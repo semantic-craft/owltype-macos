@@ -75,7 +75,7 @@ final class OwlVerificationReceiptController {
     let model = OwlVerificationReceiptModel(
       selectedText: selectedText,
       anchors: anchors,
-      onlineVerifyAvailable: OwlCloudPreferences.isEnabled && OwlDoubaoSearchKeyStore.isConfigured(),
+      onlineVerifyAvailable: OwlSourceVerificationService.isOnlineVerifyAvailable(),
       verifier: { try await OwlSourceVerificationService.shared.verifyStructured($0) })
     model.onClose = { [weak self] in self?.close() }
     self.model = model
