@@ -489,6 +489,24 @@ final class OwlProviderProfileStore {
     }
   }
 
+  /// Missing files are empty; unreadable or malformed files have unknown contents.
+  func readableProfiles() -> [OwlProviderProfile]? {
+    let data: Data
+    do {
+      data = try Data(contentsOf: fileURL)
+    } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+      return []
+    } catch {
+      return nil
+    }
+    guard let file = try? Self.makeDecoder().decode(OwlProviderProfilesFile.self, from: data) else {
+      return nil
+    }
+    return file.profiles.sorted {
+      $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt < $1.createdAt
+    }
+  }
+
   /// The active provider — the single profile flagged `isDefault`, or nil when none configured, or
   /// when the flagged profile is a retired provider. A retired id is not a usable default: the
   /// runtime falls back to the repo's legacy DeepSeek config instead of routing to a service this

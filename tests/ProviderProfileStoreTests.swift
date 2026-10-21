@@ -422,6 +422,36 @@ final class ProviderProfileStoreTests: XCTestCase {
 
   // MARK: - Robustness
 
+  func testReadableProfilesMissingFileReturnsEmpty() {
+    XCTAssertEqual(makeStore().readableProfiles(), [])
+  }
+
+  func testReadableProfilesMalformedFileReturnsNil() throws {
+    let store = makeStore()
+    try Data("invalid JSON".utf8).write(to: store.fileURL)
+    XCTAssertNil(store.readableProfiles())
+    XCTAssertEqual(store.profiles(), [])
+  }
+
+  func testReadableProfilesReadFailureReturnsNil() throws {
+    let store = makeStore()
+    try FileManager.default.createDirectory(at: store.fileURL, withIntermediateDirectories: false)
+    XCTAssertNil(store.readableProfiles())
+  }
+
+  func testReadableProfilesReturnsSortedProfiles() throws {
+    let store = makeStore()
+    for (id, timestamp) in [("b", 2.0), ("c", 1.0), ("a", 2.0)] {
+      let profile = OwlProviderProfile(
+        id: id, displayName: id, endpoint: URL(string: "https://example.com/v1")!,
+        model: "test-model", createdAt: Date(timeIntervalSince1970: timestamp))
+      try store.add(profile)
+    }
+    let profiles = try XCTUnwrap(store.readableProfiles())
+    XCTAssertEqual(profiles.map(\.id), ["c", "a", "b"])
+    XCTAssertEqual(profiles, store.profiles())
+  }
+
   func testMalformedFileReadsAsEmpty() throws {
     let store = makeStore()
     try Data("{ this is not valid json".utf8).write(to: store.fileURL, options: .atomic)
@@ -795,7 +825,27 @@ final class ProviderProfileStoreTests: XCTestCase {
     try assertWorkspaceKeyTransaction(failure: "config")
   }
 
-  private func assertWorkspaceKeyTransaction(failure: String?) throws {
+  func testSavingQwenWorkspacePostWriteFailureFinishesCommit() throws {
+    try assertWorkspaceKeyTransaction(failure: "afterWrite")
+  }
+
+  func testSavingQwenWorkspaceUnreadableCommitRetainsKeys() throws {
+    try assertWorkspaceKeyTransaction(failure: "unreadable")
+  }
+
+  func testSavingQwenWorkspacePreservesSharedOldKey() throws {
+    try assertWorkspaceKeyTransaction(failure: nil, sharedOldKey: true)
+  }
+
+  func testSavingQwenWorkspacePostWriteFailurePreservesSharedOldKey() throws {
+    try assertWorkspaceKeyTransaction(failure: "afterWrite", sharedOldKey: true)
+  }
+
+  func testSavingQwenWorkspaceSuccessfulUpdateUsesReturnedProfiles() throws {
+    try assertWorkspaceKeyTransaction(failure: "unreadableAfterSuccess", sharedOldKey: true)
+  }
+
+  private func assertWorkspaceKeyTransaction(failure: String?, sharedOldKey: Bool = false) throws {
     enum Injected: Error { case failure }
     final class Secrets: OwlSecretStoring {
       let backing = OwlInMemorySecretStore()
@@ -820,7 +870,9 @@ final class ProviderProfileStoreTests: XCTestCase {
         displayName: "Qwen \(index)",
         endpoint: index == 2 ? target.appendingPathComponent("old")
           : URL(string: OwlLLMProviderCatalog.qwenResponsesEndpoint)!,
-        model: "qwen3.7-plus", providerID: "qwen", isDefault: index == 0))
+        model: "qwen3.7-plus", providerID: "qwen",
+        secretName: sharedOldKey && index != 1 ? "shared-old-key" : nil,
+        isDefault: index == 0))
     }
     _ = try store.add(makeProfile(name: "DeepSeek"))
     let before = store.profiles()
@@ -841,12 +893,29 @@ final class ProviderProfileStoreTests: XCTestCase {
       saves += 1
       if failure == "config" { throw Injected.failure }
     }
+    store.afterAtomicWrite = {
+      if failure == "unreadable" || failure == "unreadableAfterSuccess" {
+        try Data("invalid JSON".utf8).write(to: store.fileURL)
+      }
+      if failure == "afterWrite" || failure == "unreadable" { throw Injected.failure }
+    }
     secrets.fail = failure == "key"
     let result = OwlSettingsActions.saveQwenWorkspace(
       "ws-test123abc", apiKey: "  new-key \n", store: store, secrets: secrets, defaults: defaults)
-    XCTAssertEqual(result.saved, failure == nil)
+    let succeeds = failure == nil || failure == "afterWrite" || failure == "unreadableAfterSuccess"
+    XCTAssertEqual(result.saved, succeeds)
     XCTAssertEqual(saves, failure == "key" ? 0 : 1)
-    if failure != nil {
+    if failure == "unreadable" {
+      XCTAssertNil(makeStore().readableProfiles())
+      XCTAssertEqual(secrets.backing.storage.count, keys.count + 2)
+      XCTAssertEqual(secrets.backing.storage.filter { keys[$0.key] == nil }.values.sorted(),
+                     ["new-key", "new-key"])
+      for (name, value) in keys { XCTAssertEqual(try secrets.secret(named: name), value) }
+      XCTAssertEqual(before.map { OwlProviderKeyVerification.verifiedAt(secretName: $0.secretName) }, verified)
+      XCTAssertEqual(OwlQwenWorkspaceSettings.apiHost(defaults: defaults), hostBefore)
+      return
+    }
+    if !succeeds {
       XCTAssertEqual(try Data(contentsOf: store.fileURL), bytes)
       XCTAssertEqual(result.profiles, before)
       XCTAssertEqual(secrets.backing.storage, keys)
@@ -854,11 +923,15 @@ final class ProviderProfileStoreTests: XCTestCase {
       XCTAssertEqual(OwlQwenWorkspaceSettings.apiHost(defaults: defaults), hostBefore)
       return
     }
-    XCTAssertEqual(makeStore().profiles(), result.profiles)
-    XCTAssertEqual(store.defaultProfile?.id, before.first(where: { $0.isDefault })?.id)
+    XCTAssertEqual(result.status, "已保存 Workspace API Host，所有 Qwen 供应商将共用。")
+    if failure != "unreadableAfterSuccess" {
+      XCTAssertEqual(makeStore().profiles(), result.profiles)
+    }
+    XCTAssertEqual(result.profiles.first(where: { $0.isDefault })?.id,
+                   before.first(where: { $0.isDefault })?.id)
     var newNames = Set<String>()
     for (index, old) in before.enumerated() {
-      let saved = try XCTUnwrap(store.profile(id: old.id))
+      let saved = try XCTUnwrap(result.profiles.first(where: { $0.id == old.id }))
       if old.displayName == "Qwen 0" || old.displayName == "Qwen 1" {
         var expected = old
         expected.endpoint = target
@@ -867,8 +940,13 @@ final class ProviderProfileStoreTests: XCTestCase {
         XCTAssertNotEqual(saved.secretName, old.secretName)
         newNames.insert(saved.secretName)
         XCTAssertEqual(try secrets.secret(named: saved.secretName), "new-key")
-        XCTAssertNil(try secrets.secret(named: old.secretName))
-        XCTAssertNil(OwlProviderKeyVerification.verifiedAt(secretName: old.secretName))
+        if sharedOldKey && old.displayName == "Qwen 0" {
+          XCTAssertEqual(try secrets.secret(named: old.secretName), keys[old.secretName])
+          XCTAssertEqual(OwlProviderKeyVerification.verifiedAt(secretName: old.secretName), verified[index])
+        } else {
+          XCTAssertNil(try secrets.secret(named: old.secretName))
+          XCTAssertNil(OwlProviderKeyVerification.verifiedAt(secretName: old.secretName))
+        }
         XCTAssertNil(OwlProviderKeyVerification.verifiedAt(secretName: saved.secretName))
       } else {
         var expected = old

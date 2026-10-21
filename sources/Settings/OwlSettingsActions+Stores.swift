@@ -241,8 +241,24 @@ extension OwlSettingsActions {
     }
     var stagedNames: [String] = []
     var committing = false
+    var updated = qwenProfiles
+    func finishCommit(_ profiles: [OwlProviderProfile])
+      -> (profiles: [OwlProviderProfile], status: String, saved: Bool) {
+      commitWorkspace()
+      for name in stagedNames { OwlProviderKeyVerification.clear(secretName: name) }
+      for old in changing where !profiles.contains(where: { $0.secretName == old.secretName }) {
+        try? secrets.deleteSecret(named: old.secretName)
+        OwlProviderKeyVerification.clear(secretName: old.secretName)
+      }
+      let status = trimmed.isEmpty
+        ? "已清除 Workspace，百炼将使用通用 Responses 端点。"
+        : "已保存 Workspace API Host，所有 Qwen 供应商将共用。"
+      let ordered = profiles.sorted {
+        $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt < $1.createdAt
+      }
+      return (ordered, status, true)
+    }
     do {
-      var updated = qwenProfiles
       for index in updated.indices {
         updated[index].endpoint = endpoint
         if changing.contains(where: { $0.id == updated[index].id }) {
@@ -254,26 +270,28 @@ extension OwlSettingsActions {
         }
       }
       committing = true
-      try store.update(updated)
-      commitWorkspace()
-      let profiles = store.profiles()
-      for name in stagedNames { OwlProviderKeyVerification.clear(secretName: name) }
-      for old in changing where !profiles.contains(where: { $0.secretName == old.secretName }) {
-        try? secrets.deleteSecret(named: old.secretName)
-        OwlProviderKeyVerification.clear(secretName: old.secretName)
-      }
-      let status = trimmed.isEmpty
-        ? "已清除 Workspace，百炼将使用通用 Responses 端点。"
-        : "已保存 Workspace API Host，所有 Qwen 供应商将共用。"
-      return (profiles, status, true)
+      let profiles = try store.update(updated)
+      return finishCommit(profiles)
     } catch {
-      let profiles = store.profiles()
-      // Before commit, all staged keys are disposable. After a save error, require
-      // readable old references and no staged references; ambiguous state retains keys.
+      if !committing {
+        for name in stagedNames { try? secrets.deleteSecret(named: name) }
+        return (store.profiles(), "保存 Workspace API Host 失败。", false)
+      }
+      guard let profiles = store.readableProfiles() else {
+        return (store.profiles(), "保存 Workspace API Host 失败。", false)
+      }
+      let committed = updated.allSatisfy { expected in
+        profiles.contains {
+          $0.id == expected.id && $0.endpoint == expected.endpoint
+            && $0.secretName == expected.secretName
+        }
+      }
+      if committed { return finishCommit(profiles) }
+      // Only readable old references with no staged references permit key cleanup.
       let unchanged = changing.allSatisfy { old in
         profiles.first(where: { $0.id == old.id })?.secretName == old.secretName
       } && !profiles.contains(where: { stagedNames.contains($0.secretName) })
-      if !committing || unchanged {
+      if unchanged {
         for name in stagedNames { try? secrets.deleteSecret(named: name) }
       }
       return (profiles, "保存 Workspace API Host 失败。", false)
