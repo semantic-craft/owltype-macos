@@ -103,12 +103,14 @@ struct OwlAskSearchResolver {
     return candidateProfiles().compactMap { profile in
       guard let apiKey = usableKey(for: profile) else { return nil }
       let base = OwlCloudRouting.resolve(profile: profile)
-      // 换成能搜的型号：档案选的 flash 收下 web_search 却不搜，交出去用户会以为搜过了。
+      // 官方端点换成能搜的型号：档案选的 flash 收下 web_search 却不搜，交出去用户会以为搜过了。
+      // 代理端点不一定提供这个型号或 /responses，保留档案型号，flash 由下面的 transport 判掉。
+      let official = base.endpoint.host?.lowercased() == OwlCloudPreferences.defaultDeepSeekEndpoint.host
       let route = OwlAskSearchRoute(
         routing: OwlCloudRouting(
           providerID: base.providerID,
           endpoint: base.endpoint,
-          model: OwlSearchControl.searchModel,
+          model: official ? OwlSearchControl.searchModel : base.model,
           secretName: base.secretName,
           authHeaderStyle: base.authHeaderStyle),
         apiKey: apiKey)

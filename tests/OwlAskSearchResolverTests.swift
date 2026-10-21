@@ -167,6 +167,22 @@ final class OwlAskSearchResolverTests: XCTestCase {
     XCTAssertEqual(Set(mixed.resolveAll().map(\.routing.model)), [OwlSearchControl.searchModel])
   }
 
+  func testProxyEndpointKeepsItsOwnModel() {
+    // 名字或 host 含 deepseek 的代理不一定提供 v4-pro 或 /responses，不能强换型号。
+    let flash = makeResolver(
+      profiles: [profile("deepseek", host: "deepseek.proxy.example", model: "deepseek-v4-flash")],
+      keys: ["owltype.provider.deepseek.apiKey": "sk-proxy"]
+    )
+    XCTAssertNil(flash.resolve(), "代理上的 flash 不会搜，跳过")
+
+    let pro = makeResolver(
+      profiles: [profile("deepseek", host: "deepseek.proxy.example", model: "deepseek-v4-pro")],
+      keys: ["owltype.provider.deepseek.apiKey": "sk-proxy"]
+    )
+    XCTAssertEqual(pro.resolve()?.routing.model, "deepseek-v4-pro")
+    XCTAssertEqual(pro.resolve()?.routing.endpoint.host, "deepseek.proxy.example")
+  }
+
   func testCustomProfileResolvesDeepSeekByHost() {
     // A profile whose providerID was never stamped still routes via its host.
     let custom = OwlProviderProfile(
