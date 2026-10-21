@@ -398,6 +398,8 @@ struct OwlDiagnosticsPage: View {
     ## 最近日志（子系统 im.owltype.inputmethod.Owltype，近 30 分钟）
     \(recentUnifiedLogs())
 
+    \(OwlInstallSelfCheckRecord.supportBundleSection())
+
     \(OwlLogoutDiagnostics.supportBundleSection())
     """
     return redact(raw)

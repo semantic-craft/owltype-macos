@@ -80,6 +80,18 @@ A version change, including a downgrade, never arms a logout prompt. An explicit
 self-check can notify the running App to offer recovery guidance at an input-safe time. The default
 button keeps the session open. The GUI also reports a failed self-check without requesting logout.
 
+A failed self-check records its stage, the error and the conditions the last probe missed (#207).
+The CLI prints `INSTALL_SESSION_DIAGNOSIS:` after `INSTALL_SESSION_FAILED:`, so the GUI dialog and
+`/var/log/install.log` (the PKG path, including updates started from 检查更新) carry the reason. The
+App keeps the same record beside the failed version. At the input-safe time it runs the installer's
+probe again and compares the server conditions only, not the selection, which the user may have
+changed since; when every condition holds it marks the record recovered and shows nothing. Otherwise
+the alert states what failed then and what the re-probe saw, and the support bundle (设置 → 诊断支持包)
+carries the record under 「安装自检」 until a later self-check passes. Offline regression:
+[OwlSessionRestartTests](../../tests/OwlSessionRestartTests.swift) and
+[OwlUpdateLogoutPromptTests](../../tests/OwlUpdateLogoutPromptTests.swift); the re-probe on a
+tester's Mac and a real failure's diagnosis line are not yet verified.
+
 The user approved retaining official Sparkle on 2026-10-11 (#204): Sparkle owns downloading,
 EdDSA verification and invoking the system package installer; the package owns atomic file commit
 and user-session recovery. The earlier download-only requirement is superseded. Sparkle 2.6.2 has

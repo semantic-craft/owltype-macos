@@ -8,6 +8,8 @@
 //   - #111 失败遥测 `OwlLogoutDiagnostics`：分类、覆盖式写入/读回/清除、诊断包章节。
 //   - #131 B2 纯判定层 `OwlLogoutPromptTiming`：安全时机归因（合成/输入/loginwindow）、搁浅合成阀、
 //     激活确认阀、条件读不到不阻塞、日志变化键——锁「任何门控条件都不得造成不可观测的永久静默」。
+//   - #207 安装自检失败记录 `OwlInstallSelfCheckRecord`：CLI 失败写入阶段/原因/未满足条件、自检通过清除、
+//     弹窗前重探判定（只有探针成功且无未满足条件才算恢复）、处置状态、弹窗明细与诊断包章节。
 //  NSAlert 呈现 / 注销 AppleEvent / 调度器与系统信号的接线 = 真机手验（modal UI，不进 XCTest）。
 //
 
@@ -182,5 +184,133 @@ final class OwlUpdateLogoutPromptTests: XCTestCase {
       OwlLogoutPromptTiming.SafeVerdict.safe(staleCompositionOverride: true).transitionKey,
       OwlLogoutPromptTiming.SafeVerdict.safe(staleCompositionOverride: false).transitionKey,
       "搁浅放行与正常放行必须留下可区分的日志键")
+  }
+
+  // MARK: #207 —— 安装自检失败记录 OwlInstallSelfCheckRecord + 弹窗前重探判定
+
+  private func failedRecord(version: String = "2.0.19") -> OwlInstallSelfCheckRecord {
+    OwlInstallSelfCheckRecord(
+      version: version, firstInstall: false, stage: "verify", reason: "selfCheckTimedOut",
+      unmet: ["serverVersionDiffers"],
+      summary: "阶段「核验会话」失败：自检超时（selfCheckTimedOut）；未满足：运行中的版本为 2.0.18，预期 2.0.19",
+      probeMode: "im.owltype.inputmethod.Owltype.Hans", observationJSON: "{\"servers\":[]}",
+      timestampUTC: "2026-10-22T07:00:00Z")
+  }
+
+  func test_selfCheck_failureStoresDiagnosisBesideVersion_passClearsBoth() {
+    let (defaults, suite) = freshDefaults()
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let observation = Owltype.OwlSessionRestart.Observation(parentEnabled: true, modeEnabled: true,
+      selectedSource: "im.owltype.inputmethod.Owltype.Hans", servers: [])
+    let diagnosis = Owltype.OwlSessionRestart.Diagnosis(
+      stage: .verify, reason: "selfCheckTimedOut", unmet: [.noServer], lastObservation: observation, firstInstall: false,
+      expectedSource: "im.owltype.inputmethod.Owltype.Hans", expectedVersion: "2.0.19",
+      probeMode: "im.owltype.inputmethod.Owltype.Hans")
+    OwlUpdateLogoutPrompt.recordSelfCheck(current: "2.0.19", passed: false, diagnosis: diagnosis, defaults: defaults)
+    XCTAssertTrue(OwlUpdateLogoutPrompt.planPrompt(current: "2.0.19", defaults: defaults))
+    let record = OwlInstallSelfCheckRecord.load(defaults: defaults)
+    XCTAssertEqual(record?.version, "2.0.19")
+    XCTAssertEqual(record?.stage, "verify")
+    XCTAssertEqual(record?.reason, "selfCheckTimedOut")
+    XCTAssertEqual(record?.unmet, ["noServer"])
+    XCTAssertEqual(record?.summary, diagnosis.summary)
+    XCTAssertEqual(record?.probeMode, "im.owltype.inputmethod.Owltype.Hans")
+    XCTAssertEqual(record?.status, .failed)
+    XCTAssertEqual(record?.schemaVersion, OwlInstallSelfCheckRecord.schemaVersion)
+    XCTAssertTrue(record?.observationJSON?.contains("\"selectedSource\"") ?? false, "探测结果原样随记录")
+    XCTAssertFalse(record?.timestampUTC.isEmpty ?? true)
+    OwlUpdateLogoutPrompt.recordSelfCheck(current: "2.0.19", passed: true, defaults: defaults)
+    XCTAssertFalse(OwlUpdateLogoutPrompt.planPrompt(current: "2.0.19", defaults: defaults))
+    XCTAssertNil(OwlInstallSelfCheckRecord.load(defaults: defaults), "自检通过即清除，诊断包不再报告已恢复的问题")
+  }
+
+  func test_selfCheckRecord_isOverwrite_keepsLatest() {
+    let (defaults, suite) = freshDefaults()
+    defer { defaults.removePersistentDomain(forName: suite) }
+    failedRecord(version: "2.0.18").save(defaults: defaults)
+    failedRecord(version: "2.0.19").save(defaults: defaults)
+    XCTAssertEqual(OwlInstallSelfCheckRecord.load(defaults: defaults)?.version, "2.0.19")
+    XCTAssertEqual(OwlInstallSelfCheckRecord.load(defaults: defaults), failedRecord(version: "2.0.19"), "读回等于写入")
+  }
+
+  func test_recheckDecision_onlyACleanProbeCountsAsRecovered() {
+    XCTAssertEqual(OwlUpdateLogoutPrompt.recheckDecision(unmet: [], error: nil), .recovered)
+    XCTAssertEqual(OwlUpdateLogoutPrompt.recheckDecision(unmet: ["noServer"], error: nil), .present)
+    XCTAssertEqual(OwlUpdateLogoutPrompt.recheckDecision(unmet: nil, error: "Owltype --install-session-probe 超过 8 秒未结束"),
+                   .present, "探针失败 ≠ 已恢复")
+    XCTAssertEqual(OwlUpdateLogoutPrompt.recheckDecision(unmet: [], error: "x"), .present)
+    XCTAssertEqual(OwlUpdateLogoutPrompt.recheckDecision(unmet: nil, error: nil), .present, "读不到 ≠ 已恢复")
+  }
+
+  func test_recordRecovered_consumesPromptAndKeepsRecordMarkedRecovered() {
+    let (defaults, suite) = freshDefaults()
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set("2.0.19", forKey: OwlUpdateLogoutPrompt.failureVersionKey)
+    failedRecord().save(defaults: defaults)
+    OwlUpdateLogoutPrompt.recordRecovered(current: "2.0.19", defaults: defaults)
+    XCTAssertFalse(OwlUpdateLogoutPrompt.planPrompt(current: "2.0.19", defaults: defaults), "已恢复：本次启动不再弹")
+    XCTAssertEqual(defaults.string(forKey: OwlUpdateLogoutPrompt.lastRunVersionKey), "2.0.19")
+    XCTAssertEqual(OwlInstallSelfCheckRecord.load(defaults: defaults)?.status, .recovered)
+    XCTAssertTrue(OwlInstallSelfCheckRecord.supportBundleSection(defaults: defaults).contains("弹窗前重探已恢复，未提示"))
+  }
+
+  func test_recordDisposition_marksTheUsersChoiceOnTheRecord() {
+    for (choice, status) in [(OwlUpdateLogoutPrompt.Choice.later, OwlInstallSelfCheckRecord.Status.dismissed),
+                             (.logoutNow, .logoutRequested)] {
+      let (defaults, suite) = freshDefaults()
+      defer { defaults.removePersistentDomain(forName: suite) }
+      defaults.set("2.0.19", forKey: OwlUpdateLogoutPrompt.failureVersionKey)
+      failedRecord().save(defaults: defaults)
+      OwlUpdateLogoutPrompt.recordDisposition(current: "2.0.19", defaults: defaults, choice: choice)
+      XCTAssertFalse(OwlUpdateLogoutPrompt.planPrompt(current: "2.0.19", defaults: defaults))
+      XCTAssertEqual(OwlInstallSelfCheckRecord.load(defaults: defaults)?.status, status)
+    }
+    let (defaults, suite) = freshDefaults()
+    defer { defaults.removePersistentDomain(forName: suite) }
+    failedRecord().save(defaults: defaults)
+    OwlUpdateLogoutPrompt.recordDisposition(current: "2.0.19", defaults: defaults)
+    XCTAssertEqual(OwlInstallSelfCheckRecord.load(defaults: defaults)?.status, .failed, "无处置信息不改状态")
+  }
+
+  func test_selfCheckRecord_alertDetail_statesTheFailureThenTheRecheck() {
+    var record = failedRecord()
+    XCTAssertEqual(record.alertDetail, "本次安装自检：\(record.summary)")
+    record.recheckError = "Owltype --install-session-probe 超过 8 秒未结束"
+    XCTAssertEqual(record.alertDetail,
+                   "本次安装自检：\(record.summary)\n刚才重新探测失败：Owltype --install-session-probe 超过 8 秒未结束")
+    record.recheckSummary = "没有运行中的猫头鹰进程"
+    XCTAssertEqual(record.alertDetail, "本次安装自检：\(record.summary)\n刚才重新探测：没有运行中的猫头鹰进程",
+                   "探针成功时以探测结果为准")
+  }
+
+  func test_selfCheckRecord_supportBundleSection_emptyAndPopulated() {
+    let (defaults, suite) = freshDefaults()
+    defer { defaults.removePersistentDomain(forName: suite) }
+    XCTAssertEqual(OwlInstallSelfCheckRecord.supportBundleSection(defaults: defaults), "## 安装自检\n（无最近失败记录）")
+    var record = failedRecord()
+    record.recheckTimestampUTC = "2026-10-22T07:05:00Z"
+    record.recheckUnmet = ["noServer"]
+    record.recheckSummary = "没有运行中的猫头鹰进程"
+    record.status = .dismissed
+    record.save(defaults: defaults)
+    let section = OwlInstallSelfCheckRecord.supportBundleSection(defaults: defaults)
+    for expected in ["## 安装自检（最近一次失败）", "时间(UTC): 2026-10-22T07:00:00Z", "版本: 2.0.19（更新）", "阶段: verify",
+                     "原因: selfCheckTimedOut", "未满足: serverVersionDiffers", "说明: 阶段「核验会话」失败",
+                     "探测结果: {\"servers\":[]}", "状态: 用户选择「稍后处理」",
+                     "重探(UTC): 2026-10-22T07:05:00Z → 没有运行中的猫头鹰进程"] {
+      XCTAssertTrue(section.contains(expected), "缺少：\(expected)\n\(section)")
+    }
+  }
+
+  func test_selfCheckRecord_supportBundleSection_reportsAFailedRecheck() {
+    let (defaults, suite) = freshDefaults()
+    defer { defaults.removePersistentDomain(forName: suite) }
+    var record = failedRecord()
+    record.recheckTimestampUTC = "2026-10-22T07:05:00Z"
+    record.recheckError = "Owltype --install-session-probe 超过 8 秒未结束"
+    record.save(defaults: defaults)
+    let section = OwlInstallSelfCheckRecord.supportBundleSection(defaults: defaults)
+    XCTAssertTrue(section.contains("重探(UTC): 2026-10-22T07:05:00Z → 探测失败：Owltype --install-session-probe 超过 8 秒未结束"))
+    XCTAssertTrue(section.contains("状态: 待处理"))
   }
 }

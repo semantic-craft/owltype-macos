@@ -9,6 +9,38 @@ final class OwlInstallSession: OwlSessionRestart.Effects {
   private static let parentID = "im.owltype.inputmethod.Owltype"
   private let oldProcesses: [NSRunningApplication]
   private let mode: String
+  /// #207: the step in progress and the last probe result, so a failure can say what it saw.
+  private(set) var stage: OwlSessionRestart.Stage = .stopOldProcesses
+  private(set) var lastObservation: OwlSessionRestart.Observation?
+
+  /// The sequence's error together with its diagnosis. `description` stays the bare error so the
+  /// first `INSTALL_SESSION_FAILED` line keeps the form the GUI and the lessons match on.
+  struct SessionFailure: Error, CustomStringConvertible {
+    let error: Error
+    let diagnosis: OwlSessionRestart.Diagnosis
+    var description: String { "\(error)" }
+  }
+
+  /// How a helper command failed: it did not finish, or it exited outside its accepted statuses.
+  enum CommandFailure {
+    case timedOut(seconds: TimeInterval)
+    case exited(status: Int32)
+  }
+
+  /// Names the command and carries its stderr so the diagnosis says which step broke, not just
+  /// that one did.
+  struct CommandError: Error, CustomStringConvertible {
+    let command: String
+    let failure: CommandFailure
+    let stderr: String
+
+    var description: String {
+      switch failure {
+      case .timedOut(let seconds): return "\(command) 超过 \(Int(seconds)) 秒未结束"
+      case .exited(let status): return "\(command) 退出码 \(status)" + (stderr.isEmpty ? "" : "：\(stderr)")
+      }
+    }
+  }
 
   var isUserSession: Bool {
     var console = stat()
@@ -31,25 +63,39 @@ final class OwlInstallSession: OwlSessionRestart.Effects {
       throw CocoaError(.executableNotLoadable)
     }
     let request = OwlSessionRestart.Request(firstInstall: firstInstall, sourceBefore: sourceBefore, expectedVersion: version)
-    let session = OwlInstallSession(mode: request.selectionTarget ?? OwlSessionRestart.primarySource)
+    let session = OwlInstallSession(mode: request.probeMode)
     guard session.isUserSession else { throw OwlSessionRestart.Failure.notUserSession }
     // Discard a previous attempt's pending guidance before launching the new server.
-    Self.reportSelfCheck(current: version, passed: true)
+    Self.reportSelfCheck(current: version, passed: true, diagnosis: nil)
     do {
       let server = try OwlSessionRestart.run(request, effects: session)
-      Self.reportSelfCheck(current: version, passed: true)
+      Self.reportSelfCheck(current: version, passed: true, diagnosis: nil)
       print("INSTALL_SESSION_OK pid=\(server.pid) version=\(server.version)")
     } catch {
-      Self.reportSelfCheck(current: version, passed: false)
-      throw error
+      let diagnosis = OwlSessionRestart.diagnose(error, request: request, stage: session.stage,
+                                                 lastObservation: session.lastObservation)
+      Self.reportSelfCheck(current: version, passed: false, diagnosis: diagnosis)
+      throw SessionFailure(error: error, diagnosis: diagnosis)
     }
   }
 
-  private static func reportSelfCheck(current: String, passed: Bool) {
-    OwlUpdateLogoutPrompt.recordSelfCheck(current: current, passed: passed)
+  private static func reportSelfCheck(current: String, passed: Bool, diagnosis: OwlSessionRestart.Diagnosis?) {
+    OwlUpdateLogoutPrompt.recordSelfCheck(current: current, passed: passed, diagnosis: diagnosis)
     DistributedNotificationCenter.default().postNotificationName(OwlUpdateLogoutPrompt.selfCheckNotification,
       object: current, userInfo: nil, deliverImmediately: true)
   }
+
+  /// The App's re-check before recovery guidance (#207): the same probe and the same server
+  /// conditions as the installer's self-check, minus the selection requirement, which the user
+  /// may have changed on purpose since. Runs a subprocess; call it off the main thread.
+  static func recheck(expectedVersion: String, mode: String) throws -> (unmet: [OwlSessionRestart.Unmet],
+                                                                          observation: OwlSessionRestart.Observation) {
+    let output = try command(OwlSessionRestart.installedExecutable, ["--install-session-probe", "0", mode], timeout: 8)
+    let observation = try JSONDecoder().decode(OwlSessionRestart.Observation.self, from: Data(output.utf8))
+    return (OwlSessionRestart.unmetServerConditions(observation, expectedVersion: expectedVersion), observation)
+  }
+
+  func didEnter(_ stage: OwlSessionRestart.Stage) { self.stage = stage }
 
   func pause() { RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.25)) }
 
@@ -70,7 +116,9 @@ final class OwlInstallSession: OwlSessionRestart.Effects {
   func observe() throws -> OwlSessionRestart.Observation {
     let output = try Self.command(OwlSessionRestart.installedExecutable,
                                   ["--install-session-probe", "\(getpid())", mode], timeout: 8)
-    return try JSONDecoder().decode(OwlSessionRestart.Observation.self, from: Data(output.utf8))
+    let observation = try JSONDecoder().decode(OwlSessionRestart.Observation.self, from: Data(output.utf8))
+    lastObservation = observation
+    return observation
   }
 
   func selectSource(_ source: String) throws {
@@ -146,32 +194,43 @@ final class OwlInstallSession: OwlSessionRestart.Effects {
     if result != noErr { throw NSError(domain: NSOSStatusErrorDomain, code: Int(result)) }
   }
 
-  /// A file-backed stdout prevents pipe deadlocks. Commands contain no credentials and have
-  /// bounded runtimes; timeout never becomes a successful probe.
+  /// File-backed stdout and stderr prevent pipe deadlocks. Commands contain no credentials and
+  /// have bounded runtimes; timeout never becomes a successful probe. A failure names the command
+  /// and keeps the start of its stderr for the diagnosis.
   private static func command(_ path: String, _ arguments: [String], timeout: TimeInterval = 2,
                               acceptedStatuses: Set<Int32> = [0]) throws -> String {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("owl-install-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
     defer { try? FileManager.default.removeItem(at: directory) }
     let output = directory.appendingPathComponent("output")
-    FileManager.default.createFile(atPath: output.path, contents: nil, attributes: [.posixPermissions: 0o600])
-    let handle = try FileHandle(forWritingTo: output)
-    defer { try? handle.close() }
+    let errors = directory.appendingPathComponent("stderr")
+    for file in [output, errors] {
+      FileManager.default.createFile(atPath: file.path, contents: nil, attributes: [.posixPermissions: 0o600])
+    }
+    let outputHandle = try FileHandle(forWritingTo: output)
+    let errorHandle = try FileHandle(forWritingTo: errors)
+    defer {
+      try? outputHandle.close()
+      try? errorHandle.close()
+    }
+    let name = (path as NSString).lastPathComponent + (arguments.first.map { " \($0)" } ?? "")
     let process = Process()
     process.executableURL = URL(fileURLWithPath: path)
     process.arguments = arguments
-    process.standardOutput = handle
-    process.standardError = FileHandle.nullDevice
+    process.standardOutput = outputHandle
+    process.standardError = errorHandle
     let finished = DispatchSemaphore(value: 0)
     process.terminationHandler = { _ in finished.signal() }
     try process.run()
     guard finished.wait(timeout: .now() + timeout) == .success else {
       if process.isRunning { kill(process.processIdentifier, SIGKILL) }
       _ = finished.wait(timeout: .now() + 1)
-      throw CocoaError(.executableRuntimeMismatch)
+      throw CommandError(command: name, failure: .timedOut(seconds: timeout), stderr: "")
     }
     guard acceptedStatuses.contains(process.terminationStatus) else {
-      throw NSError(domain: NSPOSIXErrorDomain, code: Int(process.terminationStatus), userInfo: [NSFilePathErrorKey: path])
+      let stderr = (try? String(contentsOf: errors, encoding: .utf8))?
+        .trimmingCharacters(in: .whitespacesAndNewlines).prefix(300) ?? ""
+      throw CommandError(command: name, failure: .exited(status: process.terminationStatus), stderr: String(stderr))
     }
     return try String(contentsOf: output, encoding: .utf8)
   }
