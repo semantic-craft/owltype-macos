@@ -250,10 +250,8 @@ extension OwlSettingsActions {
 
   /// Edit an existing profile in place — model (and endpoint, for a custom entry) only.
   ///
-  /// Why not delete+re-add: `secretName` is derived from the profile's UUID, so a re-add mints a new
-  /// account name and `deleteProviderProfile` takes the old key with it. In-place keeps `id` /
-  /// `secretName` / `isDefault`, so **an empty `apiKey` means "keep the stored key"** — that is what
-  /// lets 换模型 work without re-pasting a key the UI can't show back.
+  /// Keep the profile identity; an empty key preserves its existing secret reference.
+  /// A replacement key gets an independent reference before the endpoint is committed.
   static func updateProviderProfile(
     _ profile: OwlProviderProfile,
     endpoint: String,
@@ -273,18 +271,23 @@ extension OwlSettingsActions {
     updated.endpoint = url
     updated.model = model.trimmingCharacters(in: .whitespacesAndNewlines)
     do {
-      let saved = try store.update(updated)
       let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+      let oldSecretName = store.profile(id: profile.id)?.secretName
       if !key.isEmpty {
-        do {
-          try secrets.setSecret(key, named: saved.secretName)
-        } catch {
-          // Restore the endpoint and provider ID so the old key cannot route to the new host.
-          _ = try store.update(profile)
-          throw error
-        }
-        // 换了钥匙 → 上一次验证作废（留空＝保持原 Key，验证状态也就该保持）。
+        // Never expose a new endpoint with the old key, even if save throws after its
+        // atomic write. No rollback is needed: either on-disk version has a matching key.
+        updated.secretName = OwlProviderProfile.defaultSecretName(for: UUID().uuidString)
+        try secrets.setSecret(key, named: updated.secretName)
+      }
+      let saved = try store.update(updated)
+      if !key.isEmpty {
         OwlProviderKeyVerification.clear(secretName: saved.secretName)
+        // Only retire an unreferenced key after a confirmed commit. On an ambiguous
+        // save failure retain both keys; deleting either could break the persisted version.
+        if let oldSecretName, !store.profiles().contains(where: { $0.secretName == oldSecretName }) {
+          try? secrets.deleteSecret(named: oldSecretName)
+          OwlProviderKeyVerification.clear(secretName: oldSecretName)
+        }
       }
       return (store.profiles(), "已保存「\(saved.displayName)」：\(saved.model.isEmpty ? "默认模型" : saved.model)。")
     } catch {

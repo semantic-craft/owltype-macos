@@ -438,6 +438,10 @@ final class OwlProviderProfileStore {
 
   private let root: URL
 
+  // Fault injection at persistence boundaries; nil in production.
+  var beforeSave: (() throws -> Void)?
+  var afterAtomicWrite: (() throws -> Void)?
+
   init(root: URL = OwlApp.userDir) {
     self.root = root
   }
@@ -494,10 +498,12 @@ final class OwlProviderProfileStore {
   // MARK: Write
 
   private func save(_ profiles: [OwlProviderProfile]) throws {
+    try beforeSave?()
     try OwlPrivateStorage.prepareDirectory(root)
     let file = OwlProviderProfilesFile(profiles: profiles)
     let data = try Self.makeEncoder().encode(file)
     try data.write(to: fileURL, options: .atomic)
+    try afterAtomicWrite?()
     try OwlPrivateStorage.hardenFile(fileURL)
   }
 

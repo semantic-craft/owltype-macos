@@ -58,6 +58,137 @@ final class ProviderProfileStoreTests: XCTestCase {
                    "Failed key storage must preserve the endpoint on disk")
   }
 
+  private enum SaveFailure: Error { case injected }
+
+  private func assertNoOldKeyAtNewEndpoint(
+    secrets: OwlSecretStoring, oldKey: String, newEndpoint: String,
+    file: StaticString = #filePath, line: UInt = #line
+  ) throws {
+    let reloaded = makeStore()
+    if let profile = reloaded.defaultProfile {
+      let key = try secrets.secret(named: profile.secretName)
+      XCTAssertFalse(profile.endpoint.absoluteString == newEndpoint && key == oldKey,
+                     "Reloaded default must not pair the new endpoint with the old key", file: file, line: line)
+    }
+    let routing = OwlCloudRouting.resolve(profile: reloaded.defaultProfile)
+    let routedKey = try routing.secretName.flatMap { try secrets.secret(named: $0) }
+    XCTAssertFalse(routing.endpoint.absoluteString == newEndpoint && routedKey == oldKey,
+                   "Actual routing must not send the old key to the new endpoint", file: file, line: line)
+  }
+
+  func testEditingCustomDefaultPreservesEndpointWhenKeyStorageFails() throws {
+    let store = makeStore()
+    let secrets = FailingSecretStore()
+    let profile = try store.add(OwlProviderProfile(
+      displayName: "custom", endpoint: URL(string: "https://old.example.com/v1/chat/completions")!,
+      model: "old-model", providerID: OwlLLMProviderCatalog.customID, isDefault: true))
+    let oldKey = UUID().uuidString
+    try secrets.backing.setSecret(oldKey, named: profile.secretName)
+    let endpoint = "https://new.example.com/v1/chat/completions"
+    let result = OwlSettingsActions.updateProviderProfile(
+      profile, endpoint: endpoint, model: "new-model", apiKey: UUID().uuidString,
+      store: store, secrets: secrets)
+    XCTAssertEqual(result.status, "保存供应商失败。")
+    XCTAssertEqual(makeStore().defaultProfile?.endpoint, profile.endpoint)
+    try assertNoOldKeyAtNewEndpoint(secrets: secrets, oldKey: oldKey, newEndpoint: endpoint)
+  }
+
+  func testEditingDefaultCannotRouteOldKeyWhenConfigurationThrowsAfterWriting() throws {
+    for providerID in ["retired-provider", OwlLLMProviderCatalog.customID] {
+      let store = makeStore()
+      let secrets = OwlInMemorySecretStore()
+      let profile = try store.add(OwlProviderProfile(
+        displayName: providerID, endpoint: URL(string: "https://old.example.com/v1/chat/completions")!,
+        model: "old-model", providerID: providerID, isDefault: true))
+      let oldKey = UUID().uuidString
+      try secrets.setSecret(oldKey, named: profile.secretName)
+      let newKey = UUID().uuidString
+      store.afterAtomicWrite = { throw SaveFailure.injected }
+      let endpoint = "https://new.example.com/v1/chat/completions"
+      let result = OwlSettingsActions.updateProviderProfile(
+        profile, endpoint: endpoint, model: "new-model", apiKey: newKey,
+        store: store, secrets: secrets)
+      XCTAssertEqual(result.status, "保存供应商失败。")
+      let saved = try XCTUnwrap(makeStore().defaultProfile)
+      XCTAssertTrue(try secrets.secret(named: saved.secretName) == newKey)
+      XCTAssertTrue(try secrets.secret(named: profile.secretName) == oldKey)
+      XCTAssertEqual(makeStore().profile(id: profile.id)?.endpoint.absoluteString, endpoint,
+                     "The injected failure must occur after the actual atomic write")
+      try assertNoOldKeyAtNewEndpoint(secrets: secrets, oldKey: oldKey, newEndpoint: endpoint)
+    }
+  }
+
+  func testEditingDefaultCannotRouteOldKeyWhenKeyStorageAndRollbackFail() throws {
+    for providerID in ["retired-provider", OwlLLMProviderCatalog.customID] {
+      let store = makeStore()
+      let secrets = FailingSecretStore()
+      let profile = try store.add(OwlProviderProfile(
+        displayName: providerID, endpoint: URL(string: "https://old.example.com/v1/chat/completions")!,
+        model: "old-model", providerID: providerID, isDefault: true))
+      let oldKey = UUID().uuidString
+      try secrets.backing.setSecret(oldKey, named: profile.secretName)
+      var writes = 0
+      store.beforeSave = {
+        writes += 1
+        if writes > 1 { throw SaveFailure.injected }
+      }
+      let endpoint = "https://new.example.com/v1/chat/completions"
+      let result = OwlSettingsActions.updateProviderProfile(
+        profile, endpoint: endpoint, model: "new-model", apiKey: UUID().uuidString,
+        store: store, secrets: secrets)
+      XCTAssertEqual(result.status, "保存供应商失败。")
+      XCTAssertEqual(writes, 0, "Key failure must now precede any configuration write or rollback")
+      try assertNoOldKeyAtNewEndpoint(secrets: secrets, oldKey: oldKey, newEndpoint: endpoint)
+    }
+  }
+
+  func testEditingDefaultPreservesOldPairWhenConfigurationFailsBeforeWriting() throws {
+    let store = makeStore()
+    let secrets = OwlInMemorySecretStore()
+    let profile = try store.add(OwlProviderProfile(
+      displayName: "custom", endpoint: URL(string: "https://old.example.com/v1/chat/completions")!,
+      model: "old-model", providerID: OwlLLMProviderCatalog.customID, isDefault: true))
+    let oldKey = UUID().uuidString
+    try secrets.setSecret(oldKey, named: profile.secretName)
+    let before = try Data(contentsOf: store.fileURL)
+    store.beforeSave = { throw SaveFailure.injected }
+    let endpoint = "https://new.example.com/v1/chat/completions"
+    let result = OwlSettingsActions.updateProviderProfile(
+      profile, endpoint: endpoint, model: "new-model", apiKey: UUID().uuidString,
+      store: store, secrets: secrets)
+    XCTAssertEqual(result.status, "保存供应商失败。")
+    XCTAssertEqual(try Data(contentsOf: makeStore().fileURL), before)
+    XCTAssertTrue(try secrets.secret(named: profile.secretName) == oldKey)
+    try assertNoOldKeyAtNewEndpoint(secrets: secrets, oldKey: oldKey, newEndpoint: endpoint)
+  }
+
+  func testEditingDefaultRoutesNewKeyEvenWhenOldKeyCleanupFails() throws {
+    final class CleanupFailingSecrets: OwlSecretStoring {
+      let backing = OwlInMemorySecretStore()
+      func secret(named name: String) throws -> String? { try backing.secret(named: name) }
+      func setSecret(_ value: String, named name: String) throws { try backing.setSecret(value, named: name) }
+      func deleteSecret(named name: String) throws { throw SaveFailure.injected }
+    }
+    let store = makeStore()
+    let secrets = CleanupFailingSecrets()
+    let profile = try store.add(OwlProviderProfile(
+      displayName: "custom", endpoint: URL(string: "https://old.example.com/v1/chat/completions")!,
+      model: "old-model", providerID: OwlLLMProviderCatalog.customID, isDefault: true))
+    let oldKey = UUID().uuidString
+    let newKey = UUID().uuidString
+    try secrets.setSecret(oldKey, named: profile.secretName)
+    let endpoint = "https://new.example.com/v1/chat/completions"
+    let result = OwlSettingsActions.updateProviderProfile(
+      profile, endpoint: endpoint, model: "new-model", apiKey: newKey,
+      store: store, secrets: secrets)
+    XCTAssertTrue(result.status.hasPrefix("已保存"))
+    let saved = try XCTUnwrap(makeStore().defaultProfile)
+    XCTAssertEqual(saved.endpoint.absoluteString, endpoint)
+    XCTAssertTrue(try secrets.secret(named: saved.secretName) == newKey)
+    XCTAssertTrue(try secrets.secret(named: profile.secretName) == oldKey)
+    try assertNoOldKeyAtNewEndpoint(secrets: secrets, oldKey: oldKey, newEndpoint: endpoint)
+  }
+
   func testLatestFlashPresetsAndProbeRouting() throws {
     let deepseek = try XCTUnwrap(OwlLLMProviderCatalog.preset(id: "deepseek"))
     XCTAssertEqual(deepseek.model, "deepseek-flash")
@@ -668,11 +799,12 @@ final class ProviderProfileStoreTests: XCTestCase {
       OwlSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "已验证",
       "只换了模型，Key 没动 → 验证状态保持")
 
-    _ = OwlSettingsActions.updateProviderProfile(
+    let rotated = OwlSettingsActions.updateProviderProfile(
       profile, endpoint: profile.endpoint.absoluteString, model: "doubao-seed-2-2",
       apiKey: "sk-new", store: store, secrets: secrets)
+    let saved = try XCTUnwrap(rotated.profiles.first)
     XCTAssertEqual(
-      OwlSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "已设置·未验证",
+      OwlSettingsActions.providerProfileKeyStatus(saved, secrets: secrets), "已设置·未验证",
       "换了钥匙 → 作废")
   }
 
@@ -718,7 +850,10 @@ final class ProviderProfileStoreTests: XCTestCase {
       original, endpoint: original.endpoint.absoluteString, model: original.model,
       apiKey: " sk-new ", store: store, secrets: secrets)
     XCTAssertTrue(rotated.status.hasPrefix("已保存"))
-    XCTAssertEqual(try secrets.secret(named: original.secretName), "sk-new", "typed key wins, trimmed")
+    let saved = try XCTUnwrap(makeStore().defaultProfile)
+    XCTAssertNotEqual(saved.secretName, original.secretName)
+    XCTAssertTrue(try secrets.secret(named: saved.secretName) == "sk-new", "typed key wins, trimmed")
+    XCTAssertNil(try secrets.secret(named: original.secretName), "confirmed commit retires the old key")
 
     let insecure = OwlSettingsActions.updateProviderProfile(
       original, endpoint: "http://ark.cn-beijing.volces.com/api/v3/chat/completions",
