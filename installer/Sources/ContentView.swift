@@ -49,6 +49,11 @@ final class InstallerViewModel: ObservableObject {
 
     /// 失败文案分层：激活阶段失败时文件其实已拷好 → 补注销引导；拷贝/校验/取消则报错本身。
     static func failureText(for error: Error) -> String {
+        if case InstallerError.activationFailed(let message) = error, message.contains("inputSourceNotEnabled") {
+            return "❌ 系统还没允许启用猫头鹰输入法。"
+                + "\n文件已安装。请再点一次「安装」，在弹出的「允许启用输入法」对话框中点「允许」；"
+                + "没有弹窗时，到系统设置 → 键盘 → 输入法 添加「猫头鹰」。"
+        }
         if case InstallerError.activationFailed = error {
             return "❌ " + error.localizedDescription
                 + "\n文件已安装，但会话自检失败。请先重试或在系统设置检查输入法；仍无法恢复时可注销并重新登录。"

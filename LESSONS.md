@@ -23,6 +23,26 @@ review dates, not retries. Keep deterministic checks in the local gate.
   (run with `TEST_RUNNER_DEEPSEEK_API_KEY`). Ask streaming has no per-reply search guard yet.
 - Seen on 1 distinct date: 2026-10-21.
 
+## The self-check budget must not include the user's consent
+
+**Wait for the enable consent on its own deadline; start the 45-second self-check after it.**
+
+- Reason: the same Mac as the next entry ran the notarized 2.0.17 GUI installer as a first install
+  and got `INSTALL_SESSION_FAILED: selfCheckTimedOut`. The 45 seconds started before the
+  「允许启用输入法」consent, so a late or hidden dialog spent the whole budget. A retry then ran as
+  an update, which never requested enabling, so it could not recover. No probe output from that
+  Mac was available; the consent wait is the inferred cause, and a surviving Owltype copy
+  outside `/Library/Input Methods` (which the old code did not stop) is the other candidate.
+- Prevention: `OwlSessionRestart.run` waits up to 120 seconds for enabled sources and fails with
+  `inputSourceNotEnabled`; an update that finds them disabled requests enabling once; the session
+  driver stops every process with the bundle id; the GUI shows consent guidance for that failure.
+- Regression: `testConsentWaitDoesNotSpendTheSelfCheckBudget`,
+  `testMissingConsentFailsWithItsOwnReason` and
+  `testUpdateOfDisabledSourceRequestsEnableOnceSoRetryRecovers` in
+  [OwlSessionRestartTests](tests/OwlSessionRestartTests.swift). A native GUI first install with
+  consent remains unverified.
+- Seen on 1 distinct date: 2026-10-21.
+
 ## An existing App directory is not an existing install
 
 **Classify first install versus update by `Contents/Info.plist`, not by the App directory.**
