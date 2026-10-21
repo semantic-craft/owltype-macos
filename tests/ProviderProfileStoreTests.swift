@@ -326,6 +326,17 @@ final class ProviderProfileStoreTests: XCTestCase {
       OwlSearchControl.supportsSearch(providerID: "retired-provider", host: "retired.example.com"))
   }
 
+  func testRetiredSearchProviderPreferenceFallsBackToAuto() {
+    OwlAskSearchProviderSettings.resetForTesting()
+    defer { OwlAskSearchProviderSettings.resetForTesting() }
+
+    // 旧版本把「联网模型」偏好存成某个已下线的供应商 id：解析层读作「自动」，设置镜像也
+    // 回落到自动，而不是把下拉绑定到一个没有任何对应选项的悬空 id。
+    OwlAskSearchProviderSettings.rawValue = "retired-provider"
+    XCTAssertNil(OwlAskSearchProviderSettings.preferredProviderID, "已下线 id 读作自动")
+    XCTAssertEqual(OwlSettingsState().askWebSearchProvider, "", "设置镜像不得显示悬空的已下线 id")
+  }
+
   // MARK: - Secret store
 
   func testInMemorySecretStoreUpsertAndDelete() throws {
