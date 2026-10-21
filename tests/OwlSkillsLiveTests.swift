@@ -12,6 +12,7 @@
 //    B. Responses 内置 web_search —— 同一 Responses 客户端 + Qwen web_search（来源核验共用这条传输）。
 //    C. 划词润色（OwlSelectionPolishClient）—— 非流式 json_object 候选契约，v1/v2 变体各一发。
 //    D. 来源核验（OwlSourceVerificationService）—— 豆包搜索取来源 + 默认供应商对照判断。
+//    E. 来源核验 —— DeepSeek 内置联网（deepseek-v4-pro）检索并判断。
 //
 
 import Foundation
@@ -172,28 +173,18 @@ final class OwlSkillsLiveTests: XCTestCase {
 
   // MARK: - D. 来源核验（豆包搜索 + 百炼判断）
 
-  /// 豆包搜索 Key 与本机 research-infra `doubao-search` 同源：env `DOUBAO_SEARCH_API_KEY`，
-  /// 否则读钥匙串 `doubao-search-api`。都没有就跳过（离线套件不受影响）。
-  private func doubaoSearchKey() throws -> String {
-    if let key = ProcessInfo.processInfo.environment["DOUBAO_SEARCH_API_KEY"]?
-      .trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty {
-      return key
-    }
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-    process.arguments = ["find-generic-password", "-s", "doubao-search-api", "-w"]
-    let pipe = Pipe()
-    process.standardOutput = pipe
-    process.standardError = FileHandle.nullDevice
-    try? process.run()
-    process.waitUntilExit()
-    let key = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    guard process.terminationStatus == 0, !key.isEmpty else {
-      throw XCTSkip("无豆包搜索 Key（DOUBAO_SEARCH_API_KEY / 钥匙串 doubao-search-api），跳过来源核验实盘")
+  /// 实盘 Key 只从测试进程环境读：xcodebuild 不转发普通环境变量，要用 `TEST_RUNNER_` 前缀注入
+  /// （`TEST_RUNNER_DEEPSEEK_API_KEY=… xcodebuild test-without-building …`，前缀会被去掉）。
+  /// 开发凭据经项目 `.envrc` 的 `use secrets` 加载；缺了就跳过，不回退个人钥匙串。
+  private func liveKey(_ name: String) throws -> String {
+    guard let key = ProcessInfo.processInfo.environment[name]?
+      .trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty else {
+      throw XCTSkip("无 \(name)（以 TEST_RUNNER_\(name) 注入），跳过实盘")
     }
     return key
   }
+
+  private func doubaoSearchKey() throws -> String { try liveKey("DOUBAO_SEARCH_API_KEY") }
 
   func testSourceVerificationReturnsContentAndSources() async throws {
     let apiKey = try testAPIKey()
@@ -220,6 +211,72 @@ final class OwlSkillsLiveTests: XCTestCase {
     XCTAssertFalse(outcome.content.isEmpty, "核验必须给出结论文本")
     XCTAssertFalse(outcome.sources.isEmpty, "豆包搜索应返回可跳查的来源")
     XCTAssertTrue(outcome.content.contains("2021"), "核验结论丢失施行年份 2021")
+  }
+
+  // MARK: - E. 来源核验（DeepSeek 内置联网）
+
+  /// 真走 `OwlAskSearchResolver` 交出的型号（`OwlSearchControl.searchModel`）：断言 DeepSeek
+  /// 真的搜过（服务层见不到 `web_search_call` 会拒收），且来源来自正文链接。
+  func testSourceVerificationOnDeepSeekWebSearch() async throws {
+    let apiKey = try liveKey("DEEPSEEK_API_KEY")
+    OwlCloudPreferences.isEnabled = true
+    let route = OwlAskSearchRoute(
+      routing: OwlCloudRouting(
+        providerID: "deepseek",
+        endpoint: URL(string: "https://api.deepseek.com/chat/completions")!,
+        model: OwlSearchControl.searchModel,
+        secretName: "owltype.live.deepseek", authHeaderStyle: .bearer),
+      apiKey: apiKey)
+    let service = OwlSourceVerificationService(
+      searchKeyProvider: { nil },
+      webSearchRoutesProvider: { [route] },
+      profileProvider: { nil },
+      profileSecretProvider: { _ in nil },
+      legacyKeyProvider: { nil })
+
+    let started = Date()
+    let outcome = try await service.verifyStructured(
+      "《中华人民共和国民法典》自2021年1月1日起施行。")
+    try? (outcome.content + "\n\n" + outcome.sources.map(\.url).joined(separator: "\n"))
+      .write(toFile: "/tmp/owl-skill-verify-deepseek.txt", atomically: true, encoding: .utf8)
+
+    XCTAssertTrue(outcome.content.contains("2021"), "核验结论丢失施行年份 2021")
+    XCTAssertFalse(outcome.sources.isEmpty, "DeepSeek 正文应带可跳查的来源链接")
+    XCTAssertTrue(
+      outcome.sources.contains { $0.url.contains("gov.cn") || $0.url.contains("people.com.cn") },
+      "应至少有一条官方或权威来源")
+    XCTAssertLessThan(Date().timeIntervalSince(started), OwlSourceVerificationService.webSearchTimeout)
+  }
+
+  /// 两路都配：豆包结果编号进 DeepSeek 的提示词，来源合并且不重复。
+  func testSourceVerificationOnDoubaoAndDeepSeek() async throws {
+    let apiKey = try liveKey("DEEPSEEK_API_KEY")
+    let searchKey = try doubaoSearchKey()
+    OwlCloudPreferences.isEnabled = true
+    let route = OwlAskSearchRoute(
+      routing: OwlCloudRouting(
+        providerID: "deepseek",
+        endpoint: URL(string: "https://api.deepseek.com/chat/completions")!,
+        model: OwlSearchControl.searchModel,
+        secretName: "owltype.live.deepseek", authHeaderStyle: .bearer),
+      apiKey: apiKey)
+    let service = OwlSourceVerificationService(
+      searchKeyProvider: { searchKey },
+      webSearchRoutesProvider: { [route] },
+      profileProvider: { nil },
+      profileSecretProvider: { _ in nil },
+      legacyKeyProvider: { nil })
+
+    let outcome = try await service.verifyStructured(
+      "《中华人民共和国民法典》自2021年1月1日起施行。")
+
+    try? (outcome.content + "\n\n" + outcome.sources.map(\.url).joined(separator: "\n"))
+      .write(toFile: "/tmp/owl-skill-verify-both.txt", atomically: true, encoding: .utf8)
+    XCTAssertTrue(outcome.content.contains("2021"), "核验结论丢失施行年份 2021")
+    let urls = outcome.sources.map(\.url)
+    XCTAssertEqual(urls.count, Set(urls).count, "来源不应重复")
+    XCTAssertFalse(urls.contains { $0.contains("#ws_call_id=") }, "跳查网址应是干净的")
+    XCTAssertGreaterThan(urls.count, 1)
   }
 
   /// 提示词评测用的固定检索结果：一条百科转载在前、一条一手官方来源在后，

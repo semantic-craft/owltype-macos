@@ -565,7 +565,7 @@ enum OwlSelectionSkillPrompts {
   }
 
   static let missingSourceSearchKeyMessage = """
-  来源核验需要联网搜索：在 设置 → AI →「来源核验 · 豆包搜索」填写 API Key，或配置使用 deepseek-v4-flash 的 DeepSeek 供应商。
+  来源核验需要联网搜索：在 设置 → AI →「来源核验 · 豆包搜索」填写 API Key，或在 设置 → AI 添加 DeepSeek 供应商。
   """
 }
 

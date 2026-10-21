@@ -10,7 +10,8 @@
 //  这是刻意的降级语义：联网是加分项，不是让提问失败的理由。
 //
 //  顺序规则（`candidateProfiles`）：当前默认档案是 DeepSeek 时排第一（省得另配一份密钥），其余
-//  DeepSeek 档案按存储顺序补齐；型号不能联网的（如 deepseek-v4-pro）在这里就被过滤掉。
+//  DeepSeek 档案按存储顺序补齐。联网一律改用 `OwlSearchControl.searchModel`，档案选的作答型号
+//  只管普通问答——能搜的型号与日常作答的型号不是同一个。
 //
 //  纯值解析：不发请求。唯一副作用是注入的 Keychain 读取，其失败被吞成「这家不可用」而继续
 //  下一家（与 `OwlProviderAuthGate` 的「永不因钥匙串崩掉调用方」契约一致）。
@@ -50,7 +51,7 @@ struct OwlAskSearchRoute: Equatable {
   /// WHICH transport carries this route's search — the 任意提问 module picks its client from this rather
   /// than re-deriving it from the provider id.
   var transport: OwlSearchControl.Transport {
-    // 带上型号：DeepSeek 的 `/responses` 只收 deepseek-v4-flash，配着 pro 的档案不能搜。
+    // 带上型号：只有 `OwlSearchControl.searchModel` 真会执行搜索。
     OwlSearchControl.transport(
       providerID: providerID, host: routing.endpoint.host ?? "", model: routing.model)
   }
@@ -101,10 +102,16 @@ struct OwlAskSearchResolver {
     guard isEnabled() else { return [] }
     return candidateProfiles().compactMap { profile in
       guard let apiKey = usableKey(for: profile) else { return nil }
+      let base = OwlCloudRouting.resolve(profile: profile)
+      // 换成能搜的型号：档案选的 flash 收下 web_search 却不搜，交出去用户会以为搜过了。
       let route = OwlAskSearchRoute(
-        routing: OwlCloudRouting.resolve(profile: profile), apiKey: apiKey)
-      // 「能不能搜」还取决于**型号**：DeepSeek 的 `/responses` 只收 deepseek-v4-flash，配着 pro
-      // 的档案交出去只会换来一个 400。在这里提前过滤，避免发出一次已知无效请求。
+        routing: OwlCloudRouting(
+          providerID: base.providerID,
+          endpoint: base.endpoint,
+          model: OwlSearchControl.searchModel,
+          secretName: base.secretName,
+          authHeaderStyle: base.authHeaderStyle),
+        apiKey: apiKey)
       guard route.transport != .none else { return nil }
       return route
     }

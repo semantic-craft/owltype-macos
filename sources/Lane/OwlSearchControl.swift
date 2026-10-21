@@ -33,17 +33,15 @@ enum OwlSearchControl {
   /// The transport that carries `providerID`'s web search: `.responses(.deepseek)` for a
   /// search-capable DeepSeek profile, `.none` otherwise.
   ///
-  /// Search capability is distinct from Responses generation support. DeepSeek's `/responses`
-  /// search only serves `deepseek-v4-flash` (V4.1 Flash ignores built-in web_search tools), so
-  /// `model` gates which DeepSeek models may search.
+  /// Search capability is distinct from Responses generation support: only `searchModel`
+  /// actually runs DeepSeek's built-in web_search, so `model` gates which DeepSeek models may search.
   static func transport(providerID: String, host: String, model: String = "") -> Transport {
     switch channel(providerID: providerID, host: host) {
     case .deepSeek:
-      // V4.1 Flash accepts Responses, but ignores built-in web_search tools.
-      // Do not mistake generation support for a usable search route.
+      // V4.1 Flash（`deepseek-flash`，`deepseek-v4-flash` 现已被服务端映射到它）收 Responses、
+      // 收 web_search 工具，但**不执行搜索**，凭记忆作答还附上像样的链接。别把「能生成」当成「能搜」。
       let m = model.lowercased()
-      if m == "deepseek-flash" { return .none }
-      return m.isEmpty || m.hasPrefix("deepseek-v4-flash") ? .responses(.deepseek) : .none
+      return m.isEmpty || m.hasPrefix(searchModel) ? .responses(.deepseek) : .none
     case .none:
       return .none
     }
@@ -56,6 +54,12 @@ enum OwlSearchControl {
 
   /// The one provider id 任意提问 联网搜索 routes to.
   static let searchProviderID = "deepseek"
+
+  /// 真正会执行内置 web_search 的 DeepSeek 型号。联网路由一律改用它，与档案里选的作答型号无关：
+  /// 2026-10-21 实测 `deepseek-v4-flash` 被服务端映射成 `deepseek-flash`（V4.1 Flash），响应里
+  /// 没有一条 `web_search_call`，推理里写着「无法真正联网，给出已知官方链接」；同一把 Key 换
+  /// `deepseek-v4-pro` 则逐轮检索，来源核验 18~23 秒出结论。
+  static let searchModel = "deepseek-v4-pro"
 
   /// 面向用户的联网署名名。非可联网 → nil。
   static func displayName(for providerID: String) -> String? {

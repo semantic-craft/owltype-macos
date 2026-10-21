@@ -2,7 +2,8 @@
 
 ### 划词 | Selection
 - 「来源核验」改为先用豆包搜索（Global 版接口，与 `doubao-search` 命令行工具相同）取回网页，再交给默认供应商对照判断并按 `[序号]` 标注来源；不再依赖 OpenAI、千问的内置联网，默认用 DeepSeek 或 MiniMax 也能核验。需要在 设置 → AI →「来源核验 · 豆包搜索」填写联网搜索控制台「按量后付费」的 API Key（方舟模型 Key 不能用）；之前存过豆包搜索 Key 的会直接沿用。
-- 「来源核验」也用 DeepSeek 内置联网搜索：配有 `deepseek-v4-flash` 的 DeepSeek 供应商时，DeepSeek 自己联网检索并判断，配了豆包搜索则把豆包结果一并交给它，来源合并展示；只配 DeepSeek、不填豆包搜索 Key 也能核验。DeepSeek Key 失效或欠费时换下一个 DeepSeek 档案，都不可用再退回「豆包搜索 + 默认供应商」。
+- 「来源核验」也用 DeepSeek 内置联网搜索：配有 DeepSeek 供应商时，DeepSeek 自己联网检索并判断，配了豆包搜索则把豆包结果一并交给它，来源合并展示；只配 DeepSeek、不填豆包搜索 Key 也能核验。DeepSeek Key 失效或欠费时换下一个 DeepSeek 档案，都不可用再退回「豆包搜索 + 默认供应商」。
+- 修复 DeepSeek 联网其实没在搜：DeepSeek 现在把 `deepseek-v4-flash` 当作 V4.1 Flash，它收下搜索工具却不搜，凭记忆作答并附上像样的链接。任意提问与来源核验的联网一律改用 `deepseek-v4-pro`（与档案选的作答型号无关，按 Pro 计费）；来源核验在 DeepSeek 没搜、手里又没有豆包结果时不采信它给的链接。
 
 <a name="2.0.17"></a>
 ## 2.0.17 (2026-10-21)
