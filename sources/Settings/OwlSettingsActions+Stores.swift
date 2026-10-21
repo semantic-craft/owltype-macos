@@ -188,7 +188,7 @@ extension OwlSettingsActions {
     let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !name.isEmpty else { return (store.profiles(), "供应商名称不能为空。") }
     guard let url = URL(string: endpoint.trimmingCharacters(in: .whitespacesAndNewlines)),
-          url.scheme == "https" else {
+          isHTTPSEndpoint(url) else {
       return (store.profiles(), "端点必须是 https。")
     }
     let profile = OwlProviderProfile(
@@ -248,12 +248,39 @@ extension OwlSettingsActions {
     }
   }
 
-  /// Edit an existing profile in place — model (and endpoint, for a custom entry) only.
-  ///
-  /// Why not delete+re-add: `secretName` is derived from the profile's UUID, so a re-add mints a new
-  /// account name and `deleteProviderProfile` takes the old key with it. In-place keeps `id` /
-  /// `secretName` / `isDefault`, so **an empty `apiKey` means "keep the stored key"** — that is what
-  /// lets 换模型 work without re-pasting a key the UI can't show back.
+  /// 保存与「拉取最新」「验证连通性」共用的 HTTPS 判断，scheme 不区分大小写。
+  static func isHTTPSEndpoint(_ url: URL) -> Bool {
+    url.scheme?.lowercased() == "https"
+  }
+
+  private static func origin(_ url: URL) -> (String?, String?, Int?) {
+    let scheme = url.scheme?.lowercased()
+    let port: Int? = url.port ?? (scheme == "https" ? 443 : scheme == "http" ? 80 : nil)
+    return (scheme, url.host?.lowercased(), port)
+  }
+
+  /// 「拉取最新」「验证连通性」要用的 Key。
+  static func providerProbeKey(
+    editing profile: OwlProviderProfile?,
+    endpoint: URL,
+    typedKey: String,
+    store: OwlProviderProfileStore,
+    secrets: OwlSecretStoring
+  ) -> (key: String?, status: String?) {
+    let typed = typedKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard typed.isEmpty else { return (typed, nil) }
+    guard let profile else { return (nil, nil) }
+    let current = store.profile(id: profile.id) ?? profile
+    guard origin(endpoint) == origin(current.endpoint) else {
+      return (nil, "更换地址后请重新填写 API Key。")
+    }
+    guard let stored = try? secrets.secret(named: current.secretName),
+          !stored.isEmpty else { return (nil, nil) }
+    return (stored, nil)
+  }
+
+  /// Edit the persisted profile; a blank key is allowed only within the same origin.
+  /// A replacement key gets an independent reference before the endpoint is committed.
   static func updateProviderProfile(
     _ profile: OwlProviderProfile,
     endpoint: String,
@@ -262,25 +289,60 @@ extension OwlSettingsActions {
     store: OwlProviderProfileStore,
     secrets: OwlSecretStoring
   ) -> (profiles: [OwlProviderProfile], status: String) {
-    guard let url = URL(string: endpoint.trimmingCharacters(in: .whitespacesAndNewlines)),
-          url.scheme == "https" else {
+    guard let current = store.profile(id: profile.id) else {
+      return (store.profiles(), "保存供应商失败。")
+    }
+    guard let url = URL(string: endpoint.trimmingCharacters(in: .whitespacesAndNewlines)) else {
       return (store.profiles(), "端点必须是 https。")
     }
-    var updated = profile
+    let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !key.isEmpty || origin(url) == origin(current.endpoint) else {
+      return (store.profiles(), "更换地址后请重新填写 API Key。")
+    }
+    guard isHTTPSEndpoint(url) else {
+      return (store.profiles(), "端点必须是 https。")
+    }
+    var updated = current
+    if !OwlLLMProviderCatalog.isKnownProviderID(OwlLLMProviderCatalog.inferredProviderID(for: current)) {
+      updated.providerID = OwlLLMProviderCatalog.customID
+    }
     updated.endpoint = url
     updated.model = model.trimmingCharacters(in: .whitespacesAndNewlines)
+    let oldSecretName = current.secretName
+    var stagedSecretName: String?
     do {
-      let saved = try store.update(updated)
-      let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
       if !key.isEmpty {
-        try secrets.setSecret(key, named: saved.secretName)
-        // 换了钥匙 → 上一次验证作废（留空＝保持原 Key，验证状态也就该保持）。
+        // Commit the endpoint and its replacement key reference together.
+        updated.secretName = OwlProviderProfile.defaultSecretName(for: UUID().uuidString)
+        stagedSecretName = updated.secretName
+        try secrets.setSecret(key, named: updated.secretName)
+      }
+      let saved = try store.update(updated)
+      if !key.isEmpty {
         OwlProviderKeyVerification.clear(secretName: saved.secretName)
+        if !store.profiles().contains(where: { $0.secretName == oldSecretName }) {
+          try? secrets.deleteSecret(named: oldSecretName)
+          OwlProviderKeyVerification.clear(secretName: oldSecretName)
+        }
       }
       return (store.profiles(), "已保存「\(saved.displayName)」：\(saved.model.isEmpty ? "默认模型" : saved.model)。")
     } catch {
-      return (store.profiles(), "保存供应商失败。")
+      let profiles = store.profiles()
+      // A readable old reference proves this replacement did not commit. Missing or
+      // unreadable configuration is ambiguous, so retain the staged key in that case.
+      if let stagedSecretName,
+         profiles.first(where: { $0.id == current.id })?.secretName == oldSecretName,
+         !profiles.contains(where: { $0.secretName == stagedSecretName }) {
+        try? secrets.deleteSecret(named: stagedSecretName)
+      }
+      return (profiles, "保存供应商失败。")
     }
+  }
+
+  static func providerProfileForRetry(
+    _ profile: OwlProviderProfile, profiles: [OwlProviderProfile]
+  ) -> OwlProviderProfile? {
+    profiles.first { $0.id == profile.id }
   }
 
   /// Make a profile the default (the active one the cloud lane routes through).
@@ -288,6 +350,9 @@ extension OwlSettingsActions {
     _ profile: OwlProviderProfile,
     store: OwlProviderProfileStore
   ) -> (profiles: [OwlProviderProfile], status: String) {
+    guard OwlLLMProviderCatalog.isKnownProviderID(OwlLLMProviderCatalog.inferredProviderID(for: profile)) else {
+      return (store.profiles(), "请先编辑并保存该供应商，再设为默认。")
+    }
     do {
       try store.setDefault(id: profile.id)
       return (store.profiles(), "已将「\(profile.displayName)」设为默认。")
