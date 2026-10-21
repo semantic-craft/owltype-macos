@@ -239,45 +239,90 @@ extension OwlSettingsActions {
   /// Responses endpoint, so profiles added at different times never drift to different workspaces.
   static func saveQwenWorkspace(
     _ input: String,
+    apiKey: String,
     store: OwlProviderProfileStore,
+    secrets: OwlSecretStoring,
     defaults: UserDefaults = OwlDefaults.standard
   ) -> (profiles: [OwlProviderProfile], status: String, saved: Bool) {
     let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-    let endpoint: URL
-    if trimmed.isEmpty {
-      endpoint = URL(string: OwlLLMProviderCatalog.qwenResponsesEndpoint)!
-    } else if let resolved = OwlQwenWorkspace.responsesEndpoint(for: trimmed) {
-      endpoint = resolved
-    } else {
-      return (
-        store.profiles(),
-        "Workspace ID / API Host 格式无效，未覆盖原配置。",
-        false)
+    let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let commitWorkspace = OwlQwenWorkspaceSettings.prepareSave(trimmed, defaults: defaults),
+          let endpoint = trimmed.isEmpty
+            ? URL(string: OwlLLMProviderCatalog.qwenResponsesEndpoint)
+            : OwlQwenWorkspace.responsesEndpoint(for: trimmed) else {
+      return (store.profiles(), "Workspace ID / API Host 格式无效，未覆盖原配置。", false)
     }
-
-    let qwenProfiles = store.profiles().filter {
+    guard let profiles = store.readableProfiles() else {
+      return (store.profiles(), "保存 Workspace API Host 失败。", false)
+    }
+    let qwenProfiles = profiles.filter {
       OwlLLMProviderCatalog.inferredProviderID(for: $0) == "qwen"
     }
     for profile in qwenProfiles {
-      if let rejection = originChangeKeyRejection(current: profile, endpoint: endpoint, apiKey: "") {
+      if let rejection = originChangeKeyRejection(current: profile, endpoint: endpoint, apiKey: key) {
         return (store.profiles(), rejection, false)
       }
     }
-
-    do {
-      for var profile in qwenProfiles {
-        profile.endpoint = endpoint
-        _ = try store.update(profile)
-      }
-      guard OwlQwenWorkspaceSettings.save(trimmed, defaults: defaults) else {
-        return (store.profiles(), "Workspace ID / API Host 格式无效，未覆盖原配置。", false)
+    // Ask the shared guard with an empty key to identify which profiles need replacement.
+    let changing = qwenProfiles.filter {
+      originChangeKeyRejection(current: $0, endpoint: endpoint, apiKey: "") != nil
+    }
+    var stagedNames: [String] = []
+    var committing = false
+    var updated = qwenProfiles
+    func finishCommit(_ profiles: [OwlProviderProfile])
+      -> (profiles: [OwlProviderProfile], status: String, saved: Bool) {
+      commitWorkspace()
+      for name in stagedNames { OwlProviderKeyVerification.clear(secretName: name) }
+      for old in changing where !profiles.contains(where: { $0.secretName == old.secretName }) {
+        try? secrets.deleteSecret(named: old.secretName)
+        OwlProviderKeyVerification.clear(secretName: old.secretName)
       }
       let status = trimmed.isEmpty
         ? "已清除 Workspace，百炼将使用通用 Responses 端点。"
         : "已保存 Workspace API Host，所有 Qwen 供应商将共用。"
-      return (store.profiles(), status, true)
+      let ordered = profiles.sorted {
+        $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt < $1.createdAt
+      }
+      return (ordered, status, true)
+    }
+    do {
+      for index in updated.indices {
+        updated[index].endpoint = endpoint
+        if changing.contains(where: { $0.id == updated[index].id }) {
+          // Independent names keep deleting one profile from removing another profile's key.
+          let name = OwlProviderProfile.defaultSecretName(for: UUID().uuidString)
+          stagedNames.append(name)
+          try secrets.setSecret(key, named: name)
+          updated[index].secretName = name
+        }
+      }
+      committing = true
+      let profiles = try store.update(updated)
+      return finishCommit(profiles)
     } catch {
-      return (store.profiles(), "保存 Workspace API Host 失败。", false)
+      if !committing {
+        for name in stagedNames { try? secrets.deleteSecret(named: name) }
+        return (store.profiles(), "保存 Workspace API Host 失败。", false)
+      }
+      guard let profiles = store.readableProfiles() else {
+        return (store.profiles(), "保存 Workspace API Host 失败。", false)
+      }
+      let committed = updated.allSatisfy { expected in
+        profiles.contains {
+          $0.id == expected.id && $0.endpoint == expected.endpoint
+            && $0.secretName == expected.secretName
+        }
+      }
+      if committed { return finishCommit(profiles) }
+      // Only readable old references with no staged references permit key cleanup.
+      let unchanged = changing.allSatisfy { old in
+        profiles.first(where: { $0.id == old.id })?.secretName == old.secretName
+      } && !profiles.contains(where: { stagedNames.contains($0.secretName) })
+      if unchanged {
+        for name in stagedNames { try? secrets.deleteSecret(named: name) }
+      }
+      return (profiles, "保存 Workspace API Host 失败。", false)
     }
   }
 
@@ -388,6 +433,13 @@ extension OwlSettingsActions {
     profiles.first { $0.id == profile.id }
   }
 
+  static func editingProfileAfterWorkspaceSave(
+    _ editing: OwlProviderProfile?, profiles: [OwlProviderProfile]
+  ) -> OwlProviderProfile? {
+    guard let editing else { return nil }
+    return providerProfileForRetry(editing, profiles: profiles) ?? editing
+  }
+
   /// Make a profile the default (the active one the cloud lane routes through).
   static func setDefaultProviderProfile(
     _ profile: OwlProviderProfile,
@@ -451,6 +503,16 @@ extension OwlSettingsActions {
     } catch {
       return "删除 Keychain 失败"
     }
+  }
+
+  static func profileToMarkVerified(
+    probed: OwlProviderProfile?, current: OwlProviderProfile?
+  ) -> OwlProviderProfile? {
+    guard let probed, let current,
+          probed.id == current.id,
+          probed.secretName == current.secretName,
+          probed.endpoint == current.endpoint else { return nil }
+    return current
   }
 
   /// 记下「这把 Key 刚刚真的调通了一次」（`拉取最新` 成功时调用）。

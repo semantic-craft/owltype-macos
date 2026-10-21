@@ -218,14 +218,23 @@ enum OwlQwenWorkspaceSettings {
     _ rawValue: String,
     defaults: UserDefaults = OwlDefaults.standard
   ) -> Bool {
-    let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else {
-      defaults.removeObject(forKey: key)
-      return true
-    }
-    guard let host = OwlQwenWorkspace.normalizedAPIHost(trimmed) else { return false }
-    defaults.set(host, forKey: key)
+    guard let commit = prepareSave(rawValue, defaults: defaults) else { return false }
+    commit()
     return true
+  }
+
+  /// Validate before a profile transaction. The returned write has no remaining validation
+  /// or throwing operations, so settings cannot reject the input after profiles commit.
+  static func prepareSave(
+    _ rawValue: String,
+    defaults: UserDefaults = OwlDefaults.standard
+  ) -> (() -> Void)? {
+    let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed.isEmpty {
+      return { defaults.removeObject(forKey: key) }
+    }
+    guard let host = OwlQwenWorkspace.normalizedAPIHost(trimmed) else { return nil }
+    return { defaults.set(host, forKey: key) }
   }
 
   static func responsesEndpoint(defaults: UserDefaults = OwlDefaults.standard) -> URL {
@@ -451,6 +460,24 @@ final class OwlProviderProfileStore {
     }
   }
 
+  /// Missing files are empty; unreadable or malformed files have unknown contents.
+  func readableProfiles() -> [OwlProviderProfile]? {
+    let data: Data
+    do {
+      data = try Data(contentsOf: fileURL)
+    } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+      return []
+    } catch {
+      return nil
+    }
+    guard let file = try? Self.makeDecoder().decode(OwlProviderProfilesFile.self, from: data) else {
+      return nil
+    }
+    return file.profiles.sorted {
+      $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt < $1.createdAt
+    }
+  }
+
   /// The active provider — the single profile flagged `isDefault`, or nil when none configured, or
   /// when the flagged profile is a retired provider. A retired id is not a usable default: the
   /// runtime falls back to the repo's legacy DeepSeek config instead of routing to a service this
@@ -513,6 +540,24 @@ final class OwlProviderProfileStore {
     let normalized = enforcingSingleDefault(all, preferred: profile.isDefault ? profile.id : nil)
     try save(normalized)
     return normalized.first { $0.id == profile.id } ?? profile
+  }
+
+  /// Replace a batch in one atomic file write, preserving the persisted default.
+  /// Validate every id before writing anything; an empty batch needs no write.
+  @discardableResult
+  func update(_ profiles: [OwlProviderProfile]) throws -> [OwlProviderProfile] {
+    var all = load().profiles
+    let defaultID = all.first(where: { $0.isDefault })?.id
+    for profile in profiles {
+      guard let index = all.firstIndex(where: { $0.id == profile.id }) else {
+        throw OwlProviderError.notFound(profile.id)
+      }
+      all[index] = profile
+    }
+    guard !profiles.isEmpty else { return all }
+    let normalized = enforcingSingleDefault(all, preferred: defaultID)
+    try save(normalized)
+    return normalized
   }
 
   /// Delete a profile. If it was the default and others remain, the first is promoted.

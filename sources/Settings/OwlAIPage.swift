@@ -45,6 +45,7 @@ struct OwlAIPage: View {
   @State private var editingProfile: OwlProviderProfile?
   /// 百炼 Workspace ID / API Host。非密钥，所有 Qwen 供应商档案共用这一项。
   @State private var qwenWorkspaceInput = ""
+  @State private var qwenWorkspaceKeyInput = ""
   @State private var doubaoSearchKeyInput = ""
   @State private var doubaoSearchKeyConfigured = false
   @State private var doubaoSearchKeyStatus = ""
@@ -294,6 +295,9 @@ struct OwlAIPage: View {
           .textFieldStyle(.roundedBorder)
         smallButton("保存空间") { saveQwenWorkspaceSetting() }
       }
+      SecureField("新 Workspace 的 API Key（换空间时必填）", text: $qwenWorkspaceKeyInput)
+        .textFieldStyle(.roundedBorder)
+        .font(.system(size: 13))
       Text(qwenWorkspaceHelp)
         .font(.system(size: 11.5, design: .monospaced))
         .foregroundStyle(palette.ink3)
@@ -544,8 +548,9 @@ struct OwlAIPage: View {
           OwlSettingsActions.isHTTPSEndpoint(endpoint) else {
       providerStatus = "端点必须是 https"; return
     }
+    let probedProfile = editingProfile
     let probe = OwlSettingsActions.providerProbeKey(
-      editing: editingProfile, endpoint: endpoint, typedKey: providerKeyInput,
+      editing: probedProfile, endpoint: endpoint, typedKey: providerKeyInput,
       store: providerStore, secrets: providerSecrets)
     if let status = probe.status { providerStatus = status; return }
     guard let key = probe.key else { providerStatus = "请先填入 API Key 再拉取"; return }
@@ -560,11 +565,12 @@ struct OwlAIPage: View {
           providerStatus = models.isEmpty ? "已连接，但未解析到模型" : "拉到 \(models.count) 个模型，点右侧下拉选择"
           // 这一次 `/models` 是拿这把 Key 真的调通的 —— 记下来，行状态才敢写「已验证」。
           // 新增流程里 profile 还不存在，先记 flag，`addProvider` 落库后再补标。
-          if let editingProfile {
-            OwlSettingsActions.markProviderProfileKeyVerified(editingProfile)
+          if probedProfile == nil {
+            if editingProfile == nil { pendingKeyVerified = true }
+          } else if let profile = OwlSettingsActions.profileToMarkVerified(
+            probed: probedProfile, current: editingProfile) {
+            OwlSettingsActions.markProviderProfileKeyVerified(profile)
             providers = providerStore.profiles()
-          } else {
-            pendingKeyVerified = true
           }
         }
       } catch {
@@ -587,8 +593,9 @@ struct OwlAIPage: View {
     }
     let model = providerModel.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !model.isEmpty else { providerStatus = "请先填模型再验证"; return }
+    let probedProfile = editingProfile
     let probe = OwlSettingsActions.providerProbeKey(
-      editing: editingProfile, endpoint: endpoint, typedKey: providerKeyInput,
+      editing: probedProfile, endpoint: endpoint, typedKey: providerKeyInput,
       store: providerStore, secrets: providerSecrets)
     if let status = probe.status { providerStatus = status; return }
     guard let key = probe.key else { providerStatus = "请先填入 API Key 再验证"; return }
@@ -603,11 +610,12 @@ struct OwlAIPage: View {
         providerStatus = outcome.statusText
         guard outcome.isOK else { return }
         // 与 `fetchModels` 同一条：新增流程里 profile 还不存在，先记 flag，落库后再补标。
-        if let editingProfile {
-          OwlSettingsActions.markProviderProfileKeyVerified(editingProfile)
+        if probedProfile == nil {
+          if editingProfile == nil { pendingKeyVerified = true }
+        } else if let profile = OwlSettingsActions.profileToMarkVerified(
+          probed: probedProfile, current: editingProfile) {
+          OwlSettingsActions.markProviderProfileKeyVerified(profile)
           providers = providerStore.profiles()
-        } else {
-          pendingKeyVerified = true
         }
       }
     }
@@ -615,10 +623,13 @@ struct OwlAIPage: View {
 
   private func saveQwenWorkspaceSetting() {
     let result = OwlSettingsActions.saveQwenWorkspace(
-      qwenWorkspaceInput, store: providerStore)
+      qwenWorkspaceInput, apiKey: qwenWorkspaceKeyInput, store: providerStore, secrets: providerSecrets)
     providers = result.profiles
+    editingProfile = OwlSettingsActions.editingProfileAfterWorkspaceSave(
+      editingProfile, profiles: result.profiles)
     providerStatus = result.status
     guard result.saved else { return }
+    qwenWorkspaceKeyInput = ""
     qwenWorkspaceInput = OwlQwenWorkspaceSettings.apiHost()
     if providerID == "qwen" {
       providerEndpoint = OwlQwenWorkspaceSettings.responsesEndpoint().absoluteString
