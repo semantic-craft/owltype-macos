@@ -161,6 +161,20 @@ enum OwlLLMProviderCatalog {
     return customID
   }
 
+  /// Whether a resolved provider id is still routable: a preset in the catalog, or the custom id.
+  /// A profile whose id has left the preset catalog (a provider retired by a newer build) is not a
+  /// usable default and must fall back to the repo's default config instead of its own endpoint.
+  static func isKnownProviderID(_ id: String) -> Bool {
+    id == customID || preset(id: id) != nil
+  }
+
+  /// The provider id the settings form shows when editing a profile. A retired id is shown as
+  /// custom so the form's endpoint stays editable and no dangling preset selection appears.
+  static func formProviderID(for profile: OwlProviderProfile) -> String {
+    let id = inferredProviderID(for: profile)
+    return isKnownProviderID(id) ? id : customID
+  }
+
   /// 百炼档案不再按型号降级：它整体是 Responses 供应商，来源核验走 `/responses` 的内置
   /// `web_search`，能力属于**平台**而非某个型号。型号真不被服务时上游会拒，那句话如实报给用户，
   /// 比这里先猜一个「辅助检索」更贴近真相。
@@ -462,9 +476,15 @@ final class OwlProviderProfileStore {
     }
   }
 
-  /// The active provider — the single profile flagged `isDefault`, or nil when none configured.
+  /// The active provider — the single profile flagged `isDefault`, or nil when none configured, or
+  /// when the flagged profile is a retired provider. A retired id is not a usable default: the
+  /// runtime falls back to the repo's legacy DeepSeek config instead of routing to a service this
+  /// build no longer ships. The flagged profile itself stays intact (not dropped, not rewritten).
   var defaultProfile: OwlProviderProfile? {
-    load().profiles.first { $0.isDefault }
+    guard let flagged = load().profiles.first(where: { $0.isDefault }) else { return nil }
+    return OwlLLMProviderCatalog.isKnownProviderID(
+      OwlLLMProviderCatalog.inferredProviderID(for: flagged)
+    ) ? flagged : nil
   }
 
   func profile(id: String) -> OwlProviderProfile? {

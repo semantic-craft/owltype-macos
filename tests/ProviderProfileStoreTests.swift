@@ -299,9 +299,11 @@ final class ProviderProfileStoreTests: XCTestCase {
   }
 
   func testUnknownProviderIDDecodesAndDegradesSafely() throws {
-    // A profile saved by an older build whose providerID is no longer a known preset must still
-    // decode (providerID is a free-form string, not a rawValue enum) and route without crashing:
-    // an unknown id degrades to custom-like behaviour — no search, no source verification, bearer.
+    // A profile saved by an older build whose providerID is no longer in the preset catalog must
+    // still decode (providerID is a free-form string, not a rawValue enum), but it is no longer a
+    // usable default: the store reports no active profile, routing falls back to the legacy DeepSeek
+    // config (endpoint + legacy key), and the settings form shows it as a custom entry. The flagged
+    // profile itself stays intact — nothing is dropped, rewritten, or deleted.
     let store = makeStore()
     let legacy = """
     { "schemaVersion": 1, "profiles": [ {
@@ -312,11 +314,28 @@ final class ProviderProfileStoreTests: XCTestCase {
     } ] }
     """
     try Data(legacy.utf8).write(to: store.fileURL, options: .atomic)
+
+    // 旧档案本身不解码崩溃、不丢弃。
     let profiles = store.profiles()
     XCTAssertEqual(profiles.map(\.id), ["legacy"], "an unknown providerID must still decode")
     let profile = try XCTUnwrap(profiles.first)
     XCTAssertEqual(profile.providerID, "retired-provider")
     XCTAssertEqual(OwlLLMProviderCatalog.inferredProviderID(for: profile), "retired-provider")
+
+    // 已退出预设目录的 id 不再作为有效默认：store 无活动档案，路由回落到仓库默认 DeepSeek，
+    // 而不是继续打已下线服务的端点，密钥也回到 legacy（secretName 为空）。
+    XCTAssertNil(store.defaultProfile, "a retired default is not a usable default")
+    let routing = OwlCloudRouting.resolve(profile: store.defaultProfile)
+    XCTAssertEqual(routing.providerID, "deepseek")
+    XCTAssertNotEqual(routing.endpoint, profile.endpoint, "must not route to the retired endpoint")
+    XCTAssertNil(routing.secretName, "the legacy key is used, not the retired profile's secretName")
+
+    // 设置读取路径：编辑该档案时按 custom 展示（端点可改），不出现悬空的预设 id。
+    XCTAssertEqual(
+      OwlLLMProviderCatalog.formProviderID(for: profile), OwlLLMProviderCatalog.customID,
+      "the edit form shows a retired provider as custom")
+
+    // 能力降级：不联网、不来源核验。
     XCTAssertEqual(
       OwlLLMProviderCatalog.sourceSupport(for: profile), .searchPlanOnly,
       "an unknown provider must not claim source verification")

@@ -280,14 +280,18 @@ struct OwlAIPage: View {
   /// default, hollow = tap to switch) makes "one default among many" read as one consistent control,
   /// replacing the old inverted ✓ that sat on the *non*-default rows (a bare, unlabeled checkmark that
   /// read as "this one is selected" while meaning the opposite). Tapping anywhere on the row except 🗑
-  /// sets it default; the trash button stays a separate control.
+  /// sets it default; the trash button stays a separate control. The active marker follows the
+  /// **valid** default (`OwlProviderProfileStore.defaultProfile`), so a retired profile that still
+  /// carries `isDefault` in the file is not shown as the active provider.
+  @ViewBuilder
   private func providerRow(_ profile: OwlProviderProfile) -> some View {
+    let isActive = providerStore.defaultProfile?.id == profile.id
     HStack(spacing: 10) {
-      Button(action: { if !profile.isDefault { setDefaultProvider(profile) } }) {
+      Button(action: { if !isActive { setDefaultProvider(profile) } }) {
         HStack(spacing: 10) {
-          Image(systemName: profile.isDefault ? "circle.inset.filled" : "circle")
+          Image(systemName: isActive ? "circle.inset.filled" : "circle")
             .font(.system(size: 15))
-            .foregroundStyle(profile.isDefault ? palette.accent : palette.ink3)
+            .foregroundStyle(isActive ? palette.accent : palette.ink3)
           VStack(alignment: .leading, spacing: 2) {
             Text(profile.displayName)
               .font(.system(size: 13.5, weight: .medium))
@@ -301,8 +305,8 @@ struct OwlAIPage: View {
         .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
-      .accessibilityLabel(profile.isDefault ? "\(profile.displayName)（当前默认）" : "设为默认：\(profile.displayName)")
-      .accessibilityAddTraits(profile.isDefault ? .isSelected : [])
+      .accessibilityLabel(isActive ? "\(profile.displayName)（当前默认）" : "设为默认：\(profile.displayName)")
+      .accessibilityAddTraits(isActive ? .isSelected : [])
 
       Button(action: { beginEdit(profile) }) {
         Image(systemName: "slider.horizontal.3")
@@ -737,7 +741,7 @@ struct OwlAIPage: View {
   /// Load a saved provider into the form so its model / endpoint can be changed in place.
   private func beginEdit(_ profile: OwlProviderProfile) {
     editingProfile = profile
-    providerID = OwlLLMProviderCatalog.inferredProviderID(for: profile)
+    providerID = OwlLLMProviderCatalog.formProviderID(for: profile)
     providerName = profile.displayName
     providerEndpoint = profile.endpoint.absoluteString
     if providerID == "qwen" {
