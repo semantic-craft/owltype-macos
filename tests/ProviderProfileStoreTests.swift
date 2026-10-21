@@ -1044,6 +1044,40 @@ final class ProviderProfileStoreTests: XCTestCase {
     }
   }
 
+  func testUppercaseHTTPSEndpointPassesSharedSchemeCheck() throws {
+    for endpoint in [
+      "HTTPS://api.example.com/v1",
+      "Https://api.example.com/v1",
+      "https://api.example.com/v1",
+    ] {
+      XCTAssertTrue(OwlSettingsActions.isHTTPSEndpoint(try XCTUnwrap(URL(string: endpoint))), endpoint)
+    }
+    for endpoint in [
+      "http://api.example.com/v1",
+      "HTTP://api.example.com/v1",
+      "ftp://api.example.com",
+    ] {
+      XCTAssertFalse(OwlSettingsActions.isHTTPSEndpoint(try XCTUnwrap(URL(string: endpoint))), endpoint)
+    }
+
+    let store = makeStore()
+    let secrets = OwlInMemorySecretStore()
+    let profile = try store.add(OwlProviderProfile(
+      displayName: "custom", endpoint: URL(string: "https://api.example.com/v1")!,
+      model: "old-model", providerID: OwlLLMProviderCatalog.customID, isDefault: true))
+    try secrets.setSecret(UUID().uuidString, named: profile.secretName)
+    let endpoint = "HTTPS://api.example.com/v1"
+
+    let result = OwlSettingsActions.updateProviderProfile(
+      profile, endpoint: endpoint, model: profile.model, apiKey: "",
+      store: store, secrets: secrets)
+
+    XCTAssertTrue(result.status.hasPrefix("已保存"))
+    let saved = try XCTUnwrap(makeStore().profile(id: profile.id))
+    XCTAssertEqual(saved.endpoint, URL(string: endpoint))
+    XCTAssertTrue(OwlSettingsActions.isHTTPSEndpoint(saved.endpoint))
+  }
+
   func testSameOriginEditsPreserveKeyIncludingCaseAndDefaultPort() throws {
     OwlProviderKeyVerification.resetForTesting()
     defer { OwlProviderKeyVerification.resetForTesting() }

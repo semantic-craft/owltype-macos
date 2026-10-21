@@ -188,7 +188,7 @@ extension OwlSettingsActions {
     let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !name.isEmpty else { return (store.profiles(), "供应商名称不能为空。") }
     guard let url = URL(string: endpoint.trimmingCharacters(in: .whitespacesAndNewlines)),
-          url.scheme == "https" else {
+          isHTTPSEndpoint(url) else {
       return (store.profiles(), "端点必须是 https。")
     }
     let profile = OwlProviderProfile(
@@ -248,6 +248,11 @@ extension OwlSettingsActions {
     }
   }
 
+  /// 保存与「拉取最新」「验证连通性」共用的 HTTPS 判断，scheme 不区分大小写。
+  static func isHTTPSEndpoint(_ url: URL) -> Bool {
+    url.scheme?.lowercased() == "https"
+  }
+
   private static func origin(_ url: URL) -> (String?, String?, Int?) {
     let scheme = url.scheme?.lowercased()
     let port: Int? = url.port ?? (scheme == "https" ? 443 : scheme == "http" ? 80 : nil)
@@ -294,7 +299,7 @@ extension OwlSettingsActions {
     guard !key.isEmpty || origin(url) == origin(current.endpoint) else {
       return (store.profiles(), "更换地址后请重新填写 API Key。")
     }
-    guard url.scheme?.lowercased() == "https" else {
+    guard isHTTPSEndpoint(url) else {
       return (store.profiles(), "端点必须是 https。")
     }
     var updated = current

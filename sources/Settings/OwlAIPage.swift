@@ -472,7 +472,7 @@ struct OwlAIPage: View {
   private func fetchModels() {
     guard let effectiveEndpoint = prepareProviderEndpoint(),
           let endpoint = URL(string: effectiveEndpoint),
-          endpoint.scheme == "https" else {
+          OwlSettingsActions.isHTTPSEndpoint(endpoint) else {
       providerStatus = "端点必须是 https"; return
     }
     let probe = OwlSettingsActions.providerProbeKey(
@@ -513,7 +513,7 @@ struct OwlAIPage: View {
   private func checkConnectivity() {
     guard let effectiveEndpoint = prepareProviderEndpoint(),
           let endpoint = URL(string: effectiveEndpoint),
-          endpoint.scheme == "https" else {
+          OwlSettingsActions.isHTTPSEndpoint(endpoint) else {
       providerStatus = "端点必须是 https"; return
     }
     let model = providerModel.trimmingCharacters(in: .whitespacesAndNewlines)
