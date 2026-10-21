@@ -2,16 +2,14 @@
 //  OwlAskSearchResolver.swift
 //  猫头鹰输入法 (Owltype) — 任意提问「联网搜索」的路由解析
 //
-//  开关开启时，把这一问路由到一个**已配好密钥、能联网的 DeepSeek 档案**，与主对话模型解耦 ——
-//  主模型是别家（或 DeepSeek Pro 这种不能联网的型号）时也能真搜到。若只在主模型请求里拼搜索参数，
-//  不支持联网的主模型会被静默降级成普通问答、只答到训练截止，而用户以为搜了。
+//  开关开启时，把这一问路由到一个**已配好密钥的 DeepSeek 档案**：先用它的 Key 调 DeepSeek Search
+//  接口取回网页，再依据结果作答，与主对话模型解耦——主模型是别家时也能真搜到。
 //
 //  没有可用的 DeepSeek 档案 → 返回空，调用方**静默退回**普通问答（`OwlProviderAuthGate` 那条既有路）。
 //  这是刻意的降级语义：联网是加分项，不是让提问失败的理由。
 //
 //  顺序规则（`candidateProfiles`）：当前默认档案是 DeepSeek 时排第一（省得另配一份密钥），其余
-//  DeepSeek 档案按存储顺序补齐。联网一律改用 `OwlSearchControl.searchModel`，档案选的作答型号
-//  只管普通问答——能搜的型号与日常作答的型号不是同一个。
+//  DeepSeek 档案按存储顺序补齐。官方端点上作答型号一律用 `OwlSearchControl.searchModel`。
 //
 //  纯值解析：不发请求。唯一副作用是注入的 Keychain 读取，其失败被吞成「这家不可用」而继续
 //  下一家（与 `OwlProviderAuthGate` 的「永不因钥匙串崩掉调用方」契约一致）。
@@ -51,9 +49,7 @@ struct OwlAskSearchRoute: Equatable {
   /// WHICH transport carries this route's search — the 任意提问 module picks its client from this rather
   /// than re-deriving it from the provider id.
   var transport: OwlSearchControl.Transport {
-    // 带上型号：只有 `OwlSearchControl.searchModel` 真会执行搜索。
-    OwlSearchControl.transport(
-      providerID: providerID, host: routing.endpoint.host ?? "", model: routing.model)
+    OwlSearchControl.transport(providerID: providerID, host: routing.endpoint.host ?? "")
   }
 }
 
@@ -86,8 +82,8 @@ struct OwlAskSearchResolver {
   }
 
   /// The 联网搜索 route for this question, or nil → caller falls back to plain chat.
-  /// nil covers all three "no search this time" cases: toggle off, no search-capable DeepSeek
-  /// profile, or every such profile still missing its key.
+  /// nil covers all three "no search this time" cases: toggle off, no DeepSeek profile, or every
+  /// such profile still missing its key.
   func resolve() -> OwlAskSearchRoute? {
     resolveAll().first
   }
@@ -103,8 +99,7 @@ struct OwlAskSearchResolver {
     return candidateProfiles().compactMap { profile in
       guard let apiKey = usableKey(for: profile) else { return nil }
       let base = OwlCloudRouting.resolve(profile: profile)
-      // 官方端点换成能搜的型号：档案选的 flash 收下 web_search 却不搜，交出去用户会以为搜过了。
-      // 代理端点不一定提供这个型号或 /responses，保留档案型号，flash 由下面的 transport 判掉。
+      // 官方端点用固定的作答型号；代理端点不一定提供它，保留档案型号。
       let official = base.endpoint.host?.lowercased() == OwlCloudPreferences.defaultDeepSeekEndpoint.host
       let route = OwlAskSearchRoute(
         routing: OwlCloudRouting(

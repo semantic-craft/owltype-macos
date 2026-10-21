@@ -2,10 +2,10 @@
 //  OwlSearchControl.swift
 //  猫头鹰输入法 (Owltype) — 任意提问「联网搜索」的 wire format
 //
-//  任意提问的联网只走 DeepSeek：`/responses` + 内置 `web_search`，dialect 见 `OwlResponsesWire`。
-//  其他供应商一律 `.none` —— 调用方问「这家能不能搜」时不需要再查一张表。
+//  任意提问的联网只走 DeepSeek：先调 DeepSeek Search 接口取回网页（`OwlDeepSeekSearch`），再由
+//  `searchModel` 依据编号结果作答。其他供应商一律 `.none` —— 调用方问「这家能不能搜」时不需要再查一张表。
 //
-//  （来源核验另有自己的检索路径，见 `OwlSelectionPolish.makeResponsesSearchRequest`，不受这里约束。）
+//  来源核验用同一个检索接口，另可叠加豆包搜索，见 `OwlSourceVerificationService`。
 //
 //  Pure value logic: no network, no UserDefaults, no Keychain. Safe to call from anywhere.
 //
@@ -13,53 +13,41 @@
 import Foundation
 
 enum OwlSearchControl {
-  /// Which provider family's search wire format applies. `.none` = this provider can't search.
+  /// Which provider family's search applies. `.none` = this provider can't search.
   enum Channel: Equatable {
-    /// DeepSeek — search lives on `/responses` only，且**必须开着思考**，见 `OwlResponsesWire`。
     case deepSeek
     case none
   }
 
-  /// How a search-capable provider's request is sent: `/responses` with a provider-specific
-  /// dialect, or `.none` when the provider cannot search at all. Carried by `OwlAskSearchRoute`
-  /// so the ask adapter dispatches from this type instead of re-deriving it from the provider id.
+  /// How a search-capable provider's search is carried. Carried by `OwlAskSearchRoute` so the ask
+  /// adapter dispatches from this type instead of re-deriving it from the provider id.
   enum Transport: Equatable {
-    /// `/responses`, with an explicit provider wire dialect.
-    case responses(OwlResponsesDialect)
+    /// 先 `POST /v1/tools/search` 取回网页，再把编号结果交给作答模型。
+    case deepSeekSearchAPI
     /// This provider cannot search at all.
     case none
   }
 
-  /// The transport that carries `providerID`'s web search: `.responses(.deepseek)` for a
-  /// search-capable DeepSeek profile, `.none` otherwise.
-  ///
-  /// Search capability is distinct from Responses generation support: only `searchModel`
-  /// actually runs DeepSeek's built-in web_search, so `model` gates which DeepSeek models may search.
-  static func transport(providerID: String, host: String, model: String = "") -> Transport {
+  /// 联网与作答型号无关：检索是一次独立的 HTTP 请求，任何 DeepSeek 型号都能依据结果作答。
+  /// 不靠模型内置的 `web_search` 工具——2026-10-21 实测 V4.1 Flash 收下工具却不搜，凭记忆作答。
+  static func transport(providerID: String, host: String) -> Transport {
     switch channel(providerID: providerID, host: host) {
-    case .deepSeek:
-      // V4.1 Flash（`deepseek-flash`，`deepseek-v4-flash` 现已被服务端映射到它）收 Responses、
-      // 收 web_search 工具，但**不执行搜索**，凭记忆作答还附上像样的链接。别把「能生成」当成「能搜」。
-      let m = model.lowercased()
-      return m.isEmpty || m.hasPrefix(searchModel) ? .responses(.deepseek) : .none
-    case .none:
-      return .none
+    case .deepSeek: return .deepSeekSearchAPI
+    case .none:     return .none
     }
   }
 
   /// Whether this provider can do 任意提问 联网搜索 at all.
-  static func supportsSearch(providerID: String, host: String, model: String = "") -> Bool {
-    transport(providerID: providerID, host: host, model: model) != .none
+  static func supportsSearch(providerID: String, host: String) -> Bool {
+    transport(providerID: providerID, host: host) != .none
   }
 
   /// The one provider id 任意提问 联网搜索 routes to.
   static let searchProviderID = "deepseek"
 
-  /// 真正会执行内置 web_search 的 DeepSeek 型号。联网路由一律改用它，与档案里选的作答型号无关：
-  /// 2026-10-21 实测 `deepseek-v4-flash` 被服务端映射成 `deepseek-flash`（V4.1 Flash），响应里
-  /// 没有一条 `web_search_call`，推理里写着「无法真正联网，给出已知官方链接」；同一把 Key 换
-  /// `deepseek-v4-pro` 则逐轮检索，来源核验 18~23 秒出结论。
-  static let searchModel = "deepseek-v4-pro"
+  /// 官方端点上依据检索结果作答的型号：V4.1 Flash，便宜、约 1 秒出首字。档案选的作答型号只管普通问答；
+  /// 代理端点保留档案型号（代理不一定提供这个型号）。
+  static let searchModel = "deepseek-flash"
 
   /// 面向用户的联网署名名。非可联网 → nil。
   static func displayName(for providerID: String) -> String? {

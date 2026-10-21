@@ -330,18 +330,19 @@ struct OwlSourceVerificationOutcome: Equatable, Sendable {
   let sources: [OwlVerifiedSource]
 }
 
-/// 来源核验：豆包搜索与 DeepSeek 内置联网搜索，配了哪个用哪个，都配了就一起用。
+/// 来源核验：豆包搜索与 DeepSeek 搜索，配了哪个用哪个，都配了就并行一起搜。
 ///
-///   - 有能联网的 DeepSeek 档案（deepseek-v4-flash，与任意提问联网同一套解析）：DeepSeek 自己联网
-///     检索并判断；配了豆包搜索时，豆包结果编号放进提示词一并参考。来源 = 豆包结果 + DeepSeek 搜到的。
-///   - 只有豆包搜索：豆包取回网页，默认供应商对照判断；没配默认供应商时只回来源列表，由用户复核。
+///   - 检索：豆包搜索（单独的 Key）与 DeepSeek Search 接口（DeepSeek 档案的 Key，与任意提问联网
+///     同一套解析）各取一份，按网址去重合并、统一编号。
+///   - 判断：有 DeepSeek 档案时由 `deepseek-flash` 对照编号结果判断；它被拒（Key 失效 / 欠费）或
+///     没有 DeepSeek 档案时交给默认供应商；都没有时只回来源列表，由用户复核。
 ///
 /// 来源只来自搜索结果本身（标题 + URL），不让模型凭空补来源。
 @MainActor
 final class OwlSourceVerificationService {
   static let shared = OwlSourceVerificationService()
 
-  /// 每次核验取回的网页数。卡片最多展示 8 条，多取无益，还占模型上下文。
+  /// 每一路检索取回的网页数。两路合并去重后最多 `2 × resultCount` 条。
   static let resultCount = 8
 
   /// Product prompt surfaced for the live evaluation. Keeping it here (rather than copying it into
@@ -354,59 +355,29 @@ final class OwlSourceVerificationService {
     + "来源按权威优先：优先引用一手官方来源（发布机关、法院、政府官网或法规公报、标准原文页）；"
     + "确无一手来源时才用权威媒体或数据库转载，并注明系转载。引用时用 [序号] 标注对应的检索结果。"
 
-  /// DeepSeek 自带联网时的系统提示：检索结果多了它自己搜到的网页，其余口径与 `systemPrompt` 一致。
-  nonisolated static let webSearchSystemPrompt =
-    "你是来源核验助手。先联网检索，再只依据检索结果核验选中文本，不要凭常识补来源；"
-    + "检索结果不足以判断时，直接说明需要人工确认。"
-    + "来源按权威优先：优先引用一手官方来源（发布机关、法院、政府官网或法规公报、标准原文页）；"
-    + "确无一手来源时才用权威媒体或数据库转载，并注明系转载。"
-    + "引用给出的检索结果时用 [序号]；引用你自己搜到的网页时写成 [标题](网址)。"
-
-  /// DeepSeek 联网检索单独作答（没有豆包结果）时的用户提示。
-  nonisolated static func webSearchUserPrompt(for selectedText: String) -> String {
+  nonisolated static func userPrompt(
+    for selectedText: String,
+    results: [OwlWebSearchResult]
+  ) -> String {
     """
-    请联网检索并核验以下选中文本，给出判断、支持判断的来源（[标题](网址)）和关键信息。
+    请核验以下选中文本，给出判断、支持判断的来源序号和关键信息。
 
     选中文本：
     \(selectedText)
+
+    检索结果：
+    \(OwlWebSearchGrounding.numbered(results))
     """
   }
 
-  nonisolated static func userPrompt(
-    for selectedText: String,
-    results: [OwlDoubaoSearchResult]
-  ) -> String {
-    let body = results.enumerated().map { index, result in
-      var lines = ["[\(index + 1)] \(result.title)"]
-      if let host = result.hostname { lines.append("来源：\(host)") }
-      if let published = result.publishedAt { lines.append("发布时间：\(published)") }
-      lines.append("网址：\(result.url)")
-      if !result.snippet.isEmpty { lines.append("摘要：\(result.snippet)") }
-      return lines.joined(separator: "\n")
-    }.joined(separator: "\n\n")
-    return """
-      请核验以下选中文本，给出判断、支持判断的来源序号和关键信息。
-
-      选中文本：
-      \(selectedText)
-
-      检索结果：
-      \(body)
-      """
-  }
-
-  /// DeepSeek 联网检索实测中位 16.6s（见 `OwlResponsesWire` 的 `.deepseek` 注释），普通请求的
-  /// 8 秒超时会把它几乎全部掐掉。
-  static let webSearchTimeout: TimeInterval = 90
-
   private let searchClient: OwlDoubaoSearching
   private let searchKeyProvider: () -> String?
-  private let webSearchRoutesProvider: @MainActor () -> [OwlAskSearchRoute]
-  private let webSearchFetch: @Sendable (URLRequest) async throws -> (Data, URLResponse)
+  private let deepSeekSearchClient: OwlDeepSeekSearching
+  private let deepSeekRoutesProvider: @MainActor () -> [OwlAskSearchRoute]
   private let gate: OwlProviderAuthGate
   private let transport: OwlAskAnythingTransporting
 
-  /// 能用 DeepSeek 内置联网核验的档案，顺序同任意提问联网。不看任意提问的联网开关：
+  /// 能用 DeepSeek 搜索核验的档案，顺序同任意提问联网。不看任意提问的联网开关：
   /// 来源核验本身就是「要联网」的动作。
   static func deepSeekSearchRoutes() -> [OwlAskSearchRoute] {
     OwlAskSearchResolver(isEnabled: { true }).resolveAll()
@@ -421,10 +392,10 @@ final class OwlSourceVerificationService {
   init(
     searchClient: OwlDoubaoSearching = OwlDoubaoSearchClient(),
     searchKeyProvider: @escaping () -> String? = { OwlDoubaoSearchKeyStore.apiKey() },
-    webSearchRoutesProvider: @escaping @MainActor () -> [OwlAskSearchRoute] = {
+    deepSeekSearchClient: OwlDeepSeekSearching = OwlDeepSeekSearchClient(),
+    deepSeekRoutesProvider: @escaping @MainActor () -> [OwlAskSearchRoute] = {
       @MainActor in OwlSourceVerificationService.deepSeekSearchRoutes()
     },
-    webSearchFetch: (@Sendable (URLRequest) async throws -> (Data, URLResponse))? = nil,
     profileProvider: @escaping () -> OwlProviderProfile? = { OwlProviderProfileStore.shared.defaultProfile },
     profileSecretProvider: @escaping (String) throws -> String? = { try OwlProviderKeychain().secret(named: $0) },
     legacyKeyProvider: @escaping () throws -> String? = OwlCloudKeychain.readDeepSeekAPIKey,
@@ -432,8 +403,8 @@ final class OwlSourceVerificationService {
   ) {
     self.searchClient = searchClient
     self.searchKeyProvider = searchKeyProvider
-    self.webSearchRoutesProvider = webSearchRoutesProvider
-    self.webSearchFetch = webSearchFetch ?? { try await URLSession.shared.data(for: $0) }
+    self.deepSeekSearchClient = deepSeekSearchClient
+    self.deepSeekRoutesProvider = deepSeekRoutesProvider
     self.gate = OwlProviderAuthGate(
       profileProvider: profileProvider,
       profileSecretProvider: profileSecretProvider,
@@ -441,7 +412,8 @@ final class OwlSourceVerificationService {
     )
     self.transport = transport ?? OwlAskAnythingTransportAdapter(
       chatClient: OwlStreamingChatClient(),
-      responsesClient: OwlResponsesStreamingClient())
+      responsesClient: OwlResponsesStreamingClient(),
+      searchClient: deepSeekSearchClient)
   }
 
   func verifyStructured(_ selectedText: String) async throws -> OwlSourceVerificationOutcome {
@@ -450,53 +422,52 @@ final class OwlSourceVerificationService {
       throw OwlSourceVerificationError.emptySelection
     }
     let searchKey = searchKeyProvider()
-    let webSearchRoutes = webSearchRoutesProvider()
-    guard searchKey != nil || !webSearchRoutes.isEmpty else {
+    let routes = deepSeekRoutesProvider()
+    guard searchKey != nil || !routes.isEmpty else {
       throw OwlSourceVerificationError.missingSearchKey
     }
 
-    var results: [OwlDoubaoSearchResult] = []
-    if let searchKey {
-      do {
-        results = try await searchClient.search(
-          query: selectedText, apiKey: searchKey, limit: Self.resultCount)
-      } catch let error as OwlDoubaoSearchError {
-        // 还有 DeepSeek 联网兜底时，豆包这一路失败不挡核验；只有豆包一路时如实报错。
-        guard !webSearchRoutes.isEmpty else { throw OwlSourceVerificationError.search(error) }
-      }
+    async let doubao = Self.doubaoSearch(
+      selectedText, apiKey: searchKey, client: searchClient)
+    async let deepSeek = Self.deepSeekSearch(
+      selectedText, routes: routes, client: deepSeekSearchClient)
+    let (doubaoOutcome, deepSeekOutcome) = await (doubao, deepSeek)
+
+    let results = Self.merged(deepSeekOutcome.results, doubaoOutcome.results)
+    guard !results.isEmpty else {
+      // 两路都没有结果：只配了豆包且它报错时如实说豆包；DeepSeek 被拒时带上状态码。
+      if routes.isEmpty, let error = doubaoOutcome.error { throw OwlSourceVerificationError.search(error) }
+      if let status = deepSeekOutcome.failedStatus { throw OwlSourceVerificationError.badHTTPStatus(status) }
+      throw OwlSourceVerificationError.emptyResponse
     }
     let sources = results.map { OwlVerifiedSource(title: $0.title, url: $0.url) }
-
-    if !webSearchRoutes.isEmpty {
-      let refusedStatus: Int
-      switch try await verifyWithWebSearch(
-        selectedText, results: results, sources: sources, routes: webSearchRoutes) {
-      case let .done(outcome):
-        return outcome
-      case let .refused(status):
-        refusedStatus = status
-      case .unsearched:
-        refusedStatus = 0
-      }
-      // 每个 DeepSeek 档案都被明确拒绝（Key 失效 / 欠费），或没搜也没给出可用判断：有豆包结果
-      // 就退回默认供应商判断；没有就如实报错——没搜过的链接不能当来源交给用户。
-      guard !results.isEmpty else {
-        throw refusedStatus == 0
-          ? OwlSourceVerificationError.emptyResponse
-          : OwlSourceVerificationError.badHTTPStatus(refusedStatus)
-      }
-    }
-    guard !results.isEmpty else { throw OwlSourceVerificationError.emptyResponse }
-
-    guard case let .ready(routing, apiKey) = gate.resolve() else {
-      // 没配作答模型：来源仍然可跳查，判断留给用户（卡片会提示人工复核）。
-      return OwlSourceVerificationOutcome(content: "", sources: sources)
-    }
     let messages = [
       OwlDeepSeekMessage(role: "system", content: Self.systemPrompt),
       OwlDeepSeekMessage(
         role: "user", content: Self.userPrompt(for: selectedText, results: results)),
     ]
+
+    // 判断：搜索接口认过这把 Key 的 DeepSeek 档案优先，被配置拒绝时退回默认供应商。
+    if let route = deepSeekOutcome.route {
+      do {
+        return try await judge(
+          messages, routing: route.routing, apiKey: route.apiKey, sources: sources)
+      } catch OwlSourceVerificationError.badHTTPStatus(let status)
+        where OwlAskSearchFailover.isConfigurationRefusal(status: status) {}
+    }
+    guard case let .ready(routing, apiKey) = gate.resolve() else {
+      // 没配作答模型：来源仍然可跳查，判断留给用户（卡片会提示人工复核）。
+      return OwlSourceVerificationOutcome(content: "", sources: sources)
+    }
+    return try await judge(messages, routing: routing, apiKey: apiKey, sources: sources)
+  }
+
+  private func judge(
+    _ messages: [OwlDeepSeekMessage],
+    routing: OwlCloudRouting,
+    apiKey: String,
+    sources: [OwlVerifiedSource]
+  ) async throws -> OwlSourceVerificationOutcome {
     var content = ""
     do {
       for try await delta in transport.streamPlain(
@@ -511,105 +482,61 @@ final class OwlSourceVerificationService {
       content: trimmed, sources: Self.citedFirst(sources, in: trimmed))
   }
 
-  private enum WebSearchAttempt {
-    case done(OwlSourceVerificationOutcome)
-    /// 所有档案都是配置拒绝（401/402/403/404），带最后一个状态码。
-    case refused(Int)
-    /// 没有豆包结果、响应里也没有一次 `web_search_call`（凭记忆写的），或干脆没回正文。
-    case unsearched
+  private struct DoubaoOutcome {
+    var results: [OwlWebSearchResult] = []
+    var error: OwlDoubaoSearchError?
   }
 
-  /// DeepSeek `/responses` + 内置 `web_search`，非流式，好拿到它检索过的网页。档案逐个试，
-  /// 只在配置拒绝时换下一个——与任意提问联网的顺位规则同一判据（`OwlAskSearchFailover`）。
-  private func verifyWithWebSearch(
-    _ selectedText: String,
-    results: [OwlDoubaoSearchResult],
-    sources: [OwlVerifiedSource],
-    routes: [OwlAskSearchRoute]
-  ) async throws -> WebSearchAttempt {
-    let messages = [
-      OwlDeepSeekMessage(role: "system", content: Self.webSearchSystemPrompt),
-      OwlDeepSeekMessage(
-        role: "user",
-        content: results.isEmpty
-          ? Self.webSearchUserPrompt(for: selectedText)
-          : Self.userPrompt(for: selectedText, results: results)),
-    ]
-    var lastStatus = 0
+  nonisolated private static func doubaoSearch(
+    _ text: String, apiKey: String?, client: OwlDoubaoSearching
+  ) async -> DoubaoOutcome {
+    guard let apiKey else { return DoubaoOutcome() }
+    do {
+      return DoubaoOutcome(results: try await client.search(
+        query: text, apiKey: apiKey, limit: resultCount))
+    } catch let error as OwlDoubaoSearchError {
+      return DoubaoOutcome(error: error)
+    } catch {
+      return DoubaoOutcome(error: .malformedResponse)
+    }
+  }
+
+  private struct DeepSeekOutcome {
+    var results: [OwlWebSearchResult] = []
+    /// 搜索请求成功的档案：它的 Key 已被 DeepSeek 认过，判断也交给它。
+    var route: OwlAskSearchRoute?
+    var failedStatus: Int?
+  }
+
+  /// 档案逐个试，只在配置拒绝（401/402/403/404）时换下一个——与任意提问联网同一判据。
+  nonisolated private static func deepSeekSearch(
+    _ text: String, routes: [OwlAskSearchRoute], client: OwlDeepSeekSearching
+  ) async -> DeepSeekOutcome {
+    var outcome = DeepSeekOutcome()
     for route in routes {
-      let request = try OwlResponsesWire.request(
-        endpoint: route.routing.endpoint,
-        model: route.routing.model,
-        messages: messages,
-        apiKey: route.apiKey,
-        authHeaderStyle: route.routing.authHeaderStyle,
-        dialect: .deepseek,
-        stream: false,
-        webSearch: true,
-        timeout: Self.webSearchTimeout)
-      let (data, response) = try await webSearchFetch(request)
-      if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-        guard OwlAskSearchFailover.isConfigurationRefusal(status: http.statusCode) else {
-          throw OwlSourceVerificationError.badHTTPStatus(http.statusCode)
-        }
-        lastStatus = http.statusCode
-        continue
+      guard let endpoint = OwlDeepSeekSearchWire.endpoint(for: route.routing.endpoint) else { continue }
+      do {
+        outcome.results = try await client.search(
+          query: text, endpoint: endpoint, apiKey: route.apiKey, limit: resultCount)
+        outcome.route = route
+        outcome.failedStatus = nil
+        return outcome
+      } catch OwlDeepSeekSearchError.badHTTPStatus(let status) {
+        outcome.failedStatus = status
+        guard OwlAskSearchFailover.isConfigurationRefusal(status: status) else { return outcome }
+      } catch {
+        return outcome
       }
-      guard let decoded = try? OwlResponsesWire.parse(data) else {
-        throw OwlSourceVerificationError.emptyResponse
-      }
-      if let usage = decoded.usage {
-        OwlCloudUsageTelemetry.record(OwlCloudUsageSnapshot(
-          model: decoded.model ?? route.routing.model,
-          completionTokens: usage.outputTokens,
-          promptTokens: usage.inputTokens,
-          promptCacheHitTokens: usage.cachedTokens,
-          promptCacheMissTokens: max(0, usage.inputTokens - usage.cachedTokens),
-          totalTokens: usage.totalTokens))
-      }
-      let searched = decoded.searchCallCount > 0
-      // 没搜过的回答只在手里有豆包结果时可用：那时 `[序号]` 指向真取回的网页；它自己写的链接
-      // 是凭记忆的，一条不收。没有豆包结果又没搜，就不算核验。
-      guard searched || !results.isEmpty else { return .unsearched }
-      let content = decoded.text
-      guard !content.isEmpty else { return .unsearched }
-      let found = searched
-        ? decoded.sources.map { OwlVerifiedSource(title: $0.title, url: $0.url) }
-          + Self.linkedSources(in: content)
-        : []
-      let merged = Self.mergedSources(Self.citedFirst(sources, in: content), found)
-      guard !content.isEmpty || !merged.isEmpty else {
-        throw OwlSourceVerificationError.emptyResponse
-      }
-      return .done(OwlSourceVerificationOutcome(content: content, sources: merged))
     }
-    return .refused(lastStatus)
+    return outcome
   }
 
-  /// 正文里 `[标题](网址)` 形式的引用。2026-10-21 实测 DeepSeek 的 `web_search_call` 只带检索词、
-  /// 正文 annotations 为空，来源只出现在正文链接里——这是 DeepSeek 一路的主来源，不是兜底。
-  nonisolated static func linkedSources(in content: String) -> [OwlVerifiedSource] {
-    content.matches(of: /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/).map {
-      OwlVerifiedSource(title: String($0.1), url: String($0.2))
-    }
-  }
-
-  /// 按 URL 去重拼接；标题为空时用站点域名顶上，卡片上不留空行。
-  ///
-  /// DeepSeek 的结构化来源在网址后挂 `#ws_call_id=…`（实测 2026-10-21），同一网页在正文链接里
-  /// 却不带——不先剥掉就会同一条出现两次，跳过去的也不是干净网址。
-  nonisolated static func mergedSources(
-    _ first: [OwlVerifiedSource],
-    _ second: [OwlVerifiedSource]
-  ) -> [OwlVerifiedSource] {
+  /// 按网址去重拼接，先到先得。
+  nonisolated static func merged(
+    _ first: [OwlWebSearchResult], _ second: [OwlWebSearchResult]
+  ) -> [OwlWebSearchResult] {
     var seen = Set<String>()
-    return (first + second).compactMap { source in
-      var url = source.url
-      if let marker = url.range(of: "#ws_call_id=") { url = String(url[..<marker.lowerBound]) }
-      guard seen.insert(url).inserted else { return nil }
-      let title = source.title.isEmpty ? (URL(string: url)?.host ?? url) : source.title
-      return OwlVerifiedSource(title: title, url: url)
-    }
+    return (first + second).filter { seen.insert($0.url).inserted }
   }
 
   /// 把判断里 `[序号]` 引到的来源按引用顺序提到前面。回执卡拿第一条当「核到的来源」，

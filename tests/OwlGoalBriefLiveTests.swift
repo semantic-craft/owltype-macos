@@ -2,8 +2,8 @@
 //  OwlGoalBriefLiveTests.swift
 //  OwltypeTests — 任务书（目标七问）「实盘」集成测试
 //
-//  与 OwlPromptOptimizeLiveTests 同一约定：**默认跳过**，只有 `~/.owl-test-key-doubao`
-//  存在时才跑；CI 与他人机器上 XCTSkip 静默略过，不影响离线套件。
+//  与 OwlPromptOptimizeLiveTests 同一约定：**默认跳过**，Key（`ARK_API_KEY`）经 `OwlLiveKey`
+//  从环境读，用 `bash scripts/live-test.sh` 运行；CI 与他人机器上 XCTSkip 略过。
 //
 //  为什么需要它：任务书是全仓最长的单次产出（七问逐节 + 推断标注），mock fetcher 验不出
 //  真实供应商的两件事——①返回 JSON 的真实形状（围栏/status 缺省/超长 questions）；②整份
@@ -28,18 +28,7 @@ final class OwlGoalBriefLiveTests: XCTestCase {
     string: "https://ark.cn-beijing.volces.com/api/v3/responses")!
   private let model = "doubao-seed-2-1-pro-260628"
 
-  /// 读仓库外的测试 Key；没有就返回 nil → 测试跳过。永不打印内容。
-  private func testAPIKey() throws -> String {
-    let path = ("~/.owl-test-key-doubao" as NSString).expandingTildeInPath
-    guard let raw = try? String(contentsOfFile: path, encoding: .utf8) else {
-      throw XCTSkip("无 ~/.owl-test-key-doubao，跳过实盘测试（离线套件不受影响）")
-    }
-    let key = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-    if key.isEmpty {
-      throw XCTSkip("~/.owl-test-key-doubao 为空，跳过实盘测试")
-    }
-    return key
-  }
+  private func testAPIKey() throws -> String { try OwlLiveKey.ark.value() }
 
   /// 用真实代码构造的请求体直接 POST（产品同款 Responses wire），把原始响应落盘供人工核对形状。
   @discardableResult

@@ -43,7 +43,7 @@ final class OwlDoubaoSearchWireTests: XCTestCase {
     """
     let results = try OwlDoubaoSearchWire.parse(Data(json.utf8))
     XCTAssertEqual(results, [
-      OwlDoubaoSearchResult(
+      OwlWebSearchResult(
         title: "中华人民共和国民法典", url: "https://www.npc.gov.cn/a",
         snippet: "自2021年1月1日起施行", publishedAt: "2020-06-01", hostname: "中国人大网"),
     ])
@@ -113,10 +113,10 @@ final class OwlSourceVerificationServiceTests: XCTestCase {
   private static let claim = "《中华人民共和国民法典》自2021年1月1日起施行。"
 
   private static let results = [
-    OwlDoubaoSearchResult(
+    OwlWebSearchResult(
       title: "百科转载", url: "https://baike.example.com/a", snippet: "民法典施行日期",
       publishedAt: nil, hostname: "baike.example.com"),
-    OwlDoubaoSearchResult(
+    OwlWebSearchResult(
       title: "中华人民共和国民法典", url: "https://www.npc.gov.cn/a",
       snippet: "本法自2021年1月1日起施行", publishedAt: "2020-06-01", hostname: "中国人大网"),
   ]
@@ -210,168 +210,122 @@ final class OwlSourceVerificationServiceTests: XCTestCase {
     XCTAssertEqual(OwlSourceVerificationService.citedFirst([], in: "[1]"), [])
   }
 
-  // MARK: - DeepSeek 内置联网
+  // MARK: - DeepSeek 搜索
 
-  private static let deepSeekPayload = #"""
-    {
-      "model":"deepseek-v4-pro",
-      "output":[
-        {"type":"web_search_call","action":{"sources":[{"type":"url","url":"https://flk.npc.gov.cn/x#ws_call_id=call_01"}]}},
-        {"type":"message","content":[{"type":"output_text",
-          "text":"属实。见 [2] 与 [国家法律法规数据库](https://flk.npc.gov.cn/x)、[新华网](https://news.cn/y)。"}]}
-      ],
-      "usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15}
-    }
-    """#
+  private static let deepSeekResults = [
+    OwlWebSearchResult(
+      title: "国家法律法规数据库", url: "https://flk.npc.gov.cn/x", snippet: "民法典 2021年1月1日施行",
+      publishedAt: "2020-05-28", hostname: "国家法律法规数据库"),
+    OwlWebSearchResult(
+      title: "人大网重复", url: "https://www.npc.gov.cn/a", snippet: "重复网址",
+      publishedAt: nil, hostname: nil),
+  ]
 
-  func testDeepSeekAloneSearchesAndJudgesInOneCall() async throws {
+  func testDeepSeekAloneSearchesAndFlashJudges() async throws {
     let search = StubSearch(results: Self.results)
-    let transport = StubTransport(deltas: ["不应出现"])
-    let web = StubWebSearch([(200, Self.deepSeekPayload)])
-    let service = makeService(
-      search: search, transport: transport, searchKey: nil, webSearch: web, routes: 1)
-
-    let outcome = try await service.verifyStructured(Self.claim)
+    let deepSeek = StubDeepSeekSearch([.success(Self.deepSeekResults)])
+    let transport = StubTransport(deltas: ["属实，见 [1]。"])
+    let outcome = try await makeService(
+      search: search, transport: transport, searchKey: nil, deepSeek: deepSeek, routes: 1
+    ).verifyStructured(Self.claim)
 
     XCTAssertTrue(search.queries.isEmpty, "没配豆包 Key 就不调豆包")
-    XCTAssertTrue(transport.calls.isEmpty, "DeepSeek 自己判断，不再交默认供应商")
-    XCTAssertTrue(outcome.content.hasPrefix("属实。"))
-    XCTAssertEqual(
-      outcome.sources,
-      [
-        OwlVerifiedSource(title: "flk.npc.gov.cn", url: "https://flk.npc.gov.cn/x"),
-        OwlVerifiedSource(title: "新华网", url: "https://news.cn/y"),
-      ],
-      "结构化来源与正文链接合并去重，空标题用域名顶上")
-
-    let request = try XCTUnwrap(web.requests.first)
-    XCTAssertEqual(request.url?.absoluteString, "https://api.deepseek.com/v1/responses")
-    XCTAssertEqual(request.timeoutInterval, OwlSourceVerificationService.webSearchTimeout)
-    let body = try XCTUnwrap(
-      JSONSerialization.jsonObject(with: try XCTUnwrap(request.httpBody)) as? [String: Any])
-    XCTAssertEqual(body["model"] as? String, OwlSearchControl.searchModel)
-    XCTAssertEqual(body["stream"] as? Bool, false)
-    XCTAssertEqual((body["tools"] as? [[String: Any]])?.first?["type"] as? String, "web_search")
-    let input = try XCTUnwrap(body["input"] as? [[String: Any]])
-    XCTAssertEqual(Self.text(of: input.first), OwlSourceVerificationService.webSearchSystemPrompt)
-    XCTAssertEqual(
-      Self.text(of: input.last), OwlSourceVerificationService.webSearchUserPrompt(for: Self.claim))
+    XCTAssertEqual(deepSeek.queries, [Self.claim])
+    XCTAssertEqual(deepSeek.endpoints.map(\.absoluteString), ["https://api.deepseek.com/v1/tools/search"])
+    XCTAssertEqual(transport.apiKeys, ["sk-ds-0"], "搜索认过的 DeepSeek 档案来判断，不交默认供应商")
+    XCTAssertEqual(transport.models, [OwlSearchControl.searchModel])
+    XCTAssertEqual(outcome.content, "属实，见 [1]。")
+    XCTAssertEqual(outcome.sources.map(\.url), ["https://flk.npc.gov.cn/x", "https://www.npc.gov.cn/a"])
   }
 
-  func testBothSearchesFeedDoubaoResultsToDeepSeek() async throws {
-    let search = StubSearch(results: Self.results)
-    let transport = StubTransport(deltas: ["不应出现"])
-    let web = StubWebSearch([(200, Self.deepSeekPayload)])
-    let service = makeService(search: search, transport: transport, webSearch: web, routes: 1)
+  func testBothSearchesAreMergedByURLAndNumberedOnce() async throws {
+    let transport = StubTransport(deltas: ["依据 [3]。"])
+    let outcome = try await makeService(
+      search: StubSearch(results: Self.results), transport: transport,
+      deepSeek: StubDeepSeekSearch([.success(Self.deepSeekResults)]), routes: 1
+    ).verifyStructured(Self.claim)
 
-    let outcome = try await service.verifyStructured(Self.claim)
-
-    XCTAssertEqual(search.queries, [Self.claim])
-    XCTAssertTrue(transport.calls.isEmpty)
+    let merged = OwlSourceVerificationService.merged(Self.deepSeekResults, Self.results)
     XCTAssertEqual(
-      outcome.sources.map(\.url),
-      [
-        "https://www.npc.gov.cn/a", "https://baike.example.com/a",
-        "https://flk.npc.gov.cn/x", "https://news.cn/y",
-      ],
-      "豆包结果按 [序号] 引用排前，DeepSeek 自己搜到的接在后面")
-    let body = try XCTUnwrap(
-      JSONSerialization.jsonObject(with: try XCTUnwrap(web.requests.first?.httpBody)) as? [String: Any])
-    let user = try XCTUnwrap(Self.text(of: (body["input"] as? [[String: Any]])?.last))
-    XCTAssertEqual(user, OwlSourceVerificationService.userPrompt(for: Self.claim, results: Self.results))
+      merged.map(\.url),
+      ["https://flk.npc.gov.cn/x", "https://www.npc.gov.cn/a", "https://baike.example.com/a"],
+      "DeepSeek 在前，重复网址只留先到的一条")
+    XCTAssertEqual(
+      transport.calls.first?.last?.content,
+      OwlSourceVerificationService.userPrompt(for: Self.claim, results: merged))
+    XCTAssertEqual(outcome.sources.first?.url, "https://baike.example.com/a", "被引用的 [3] 排第一")
   }
 
   func testDoubaoFailureFallsThroughToDeepSeek() async throws {
     let failure = OwlDoubaoSearchError.serviceError(code: "10409", message: "plan")
-    let web = StubWebSearch([(200, Self.deepSeekPayload)])
     let outcome = try await makeService(
-      search: StubSearch(failure: failure), transport: StubTransport(), webSearch: web, routes: 1
+      search: StubSearch(failure: failure), transport: StubTransport(deltas: ["属实。"]),
+      deepSeek: StubDeepSeekSearch([.success(Self.deepSeekResults)]), routes: 1
     ).verifyStructured(Self.claim)
     XCTAssertEqual(outcome.sources.first?.url, "https://flk.npc.gov.cn/x")
   }
 
-  func testRefusedDeepSeekProfileFailsOverToTheNextOne() async throws {
-    let web = StubWebSearch([(401, "{}"), (200, Self.deepSeekPayload)])
-    let outcome = try await makeService(
-      search: StubSearch(), transport: StubTransport(), searchKey: nil, webSearch: web, routes: 2
+  func testRefusedDeepSeekSearchFailsOverToTheNextProfile() async throws {
+    let deepSeek = StubDeepSeekSearch([
+      .failure(OwlDeepSeekSearchError.badHTTPStatus(401)), .success(Self.deepSeekResults),
+    ])
+    let transport = StubTransport(deltas: ["属实。"])
+    _ = try await makeService(
+      search: StubSearch(), transport: transport, searchKey: nil, deepSeek: deepSeek, routes: 2
     ).verifyStructured(Self.claim)
-    XCTAssertEqual(web.requests.count, 2)
-    XCTAssertEqual(web.requests.map { $0.value(forHTTPHeaderField: "Authorization") },
-                   ["Bearer sk-ds-0", "Bearer sk-ds-1"])
-    XCTAssertTrue(outcome.content.hasPrefix("属实。"))
+    XCTAssertEqual(deepSeek.apiKeys, ["sk-ds-0", "sk-ds-1"])
+    XCTAssertEqual(transport.apiKeys, ["sk-ds-1"])
   }
 
-  func testAllDeepSeekProfilesRefusedFallsBackToDoubaoJudging() async throws {
+  func testAllDeepSeekProfilesRefusedFallsBackToDoubaoAndTheDefaultProvider() async throws {
     let transport = StubTransport(deltas: ["依据 [2]。"])
-    let web = StubWebSearch([(402, "{}")])
     let outcome = try await makeService(
-      search: StubSearch(results: Self.results), transport: transport, webSearch: web, routes: 1
+      search: StubSearch(results: Self.results), transport: transport,
+      deepSeek: StubDeepSeekSearch([.failure(OwlDeepSeekSearchError.badHTTPStatus(402))]), routes: 1
     ).verifyStructured(Self.claim)
-    XCTAssertEqual(transport.calls.count, 1)
+    XCTAssertEqual(transport.apiKeys, ["sk-model"])
     XCTAssertEqual(outcome.sources.first?.url, "https://www.npc.gov.cn/a")
   }
 
   func testAllDeepSeekProfilesRefusedWithoutDoubaoReportsTheStatus() async {
-    let web = StubWebSearch([(402, "{}")])
-    await assertThrows(
-      makeService(
-        search: StubSearch(), transport: StubTransport(), searchKey: nil, webSearch: web, routes: 1),
-      .badHTTPStatus(402))
-  }
-
-  func testDeepSeekServerErrorIsReportedWithoutTryingAnotherProfile() async {
-    let transport = StubTransport(deltas: ["不应出现"])
-    let web = StubWebSearch([(500, "{}"), (200, Self.deepSeekPayload)])
-    await assertThrows(
-      makeService(
-        search: StubSearch(results: Self.results), transport: transport, webSearch: web, routes: 2),
-      .badHTTPStatus(500))
-    XCTAssertEqual(web.requests.count, 1, "非配置拒绝不换家，也不再把选区发给默认供应商")
-    XCTAssertTrue(transport.calls.isEmpty)
-  }
-
-  /// 2026-10-21 实测：flash 收下 web_search 却一次没搜，正文照样附「官方链接」。没有
-  /// `web_search_call` 的回答不能当核验结果。
-  func testUnsearchedDeepSeekReplyIsNotTrusted() async throws {
-    let unsearched = #"""
-      {"output":[{"type":"message","content":[{"type":"output_text",
-        "text":"属实。[中国人大网](http://www.npc.gov.cn/remembered)"}]}]}
-      """#
     await assertThrows(
       makeService(
         search: StubSearch(), transport: StubTransport(), searchKey: nil,
-        webSearch: StubWebSearch([(200, unsearched)]), routes: 1),
-      .emptyResponse)
-
-    // 手里有豆包结果时，没再搜的判断仍立得住（[序号] 指向真取回的网页），但它凭记忆写的链接不收。
-    let transport = StubTransport(deltas: ["不应出现"])
-    let groundedButUnsearched = #"""
-      {"output":[{"type":"message","content":[{"type":"output_text",
-        "text":"属实，见 [2]。另见 [中国人大网](http://www.npc.gov.cn/remembered)"}]}]}
-      """#
-    let outcome = try await makeService(
-      search: StubSearch(results: Self.results), transport: transport,
-      webSearch: StubWebSearch([(200, groundedButUnsearched)]), routes: 1
-    ).verifyStructured(Self.claim)
-    XCTAssertTrue(transport.calls.isEmpty)
-    XCTAssertTrue(outcome.content.hasPrefix("属实"))
-    XCTAssertEqual(
-      outcome.sources.map(\.url), ["https://www.npc.gov.cn/a", "https://baike.example.com/a"])
-
-    // 没回正文：有豆包结果就退回默认供应商判断。
-    let fallback = StubTransport(deltas: ["依据 [2]。"])
-    _ = try await makeService(
-      search: StubSearch(results: Self.results), transport: fallback,
-      webSearch: StubWebSearch([(200, #"{"output":[]}"#)]), routes: 1
-    ).verifyStructured(Self.claim)
-    XCTAssertEqual(fallback.calls.count, 1)
+        deepSeek: StubDeepSeekSearch([.failure(OwlDeepSeekSearchError.badHTTPStatus(402))]),
+        routes: 1),
+      .badHTTPStatus(402))
   }
 
-  func testLinkedSourcesReadsMarkdownLinksOnly() {
-    XCTAssertEqual(
-      OwlSourceVerificationService.linkedSources(
-        in: "见 [人大网](https://npc.gov.cn/a) 与 https://bare.example.com 和 [2]"),
-      [OwlVerifiedSource(title: "人大网", url: "https://npc.gov.cn/a")])
+  func testDeepSeekServerErrorDoesNotTryAnotherProfile() async throws {
+    let deepSeek = StubDeepSeekSearch([
+      .failure(OwlDeepSeekSearchError.badHTTPStatus(500)), .success(Self.deepSeekResults),
+    ])
+    let transport = StubTransport(deltas: ["依据 [2]。"])
+    _ = try await makeService(
+      search: StubSearch(results: Self.results), transport: transport, deepSeek: deepSeek, routes: 2
+    ).verifyStructured(Self.claim)
+    XCTAssertEqual(deepSeek.apiKeys, ["sk-ds-0"], "非配置拒绝不换家")
+    XCTAssertEqual(transport.apiKeys, ["sk-model"], "豆包结果仍可由默认供应商判断")
+  }
+
+  func testRefusedDeepSeekJudgeFallsBackToTheDefaultProvider() async throws {
+    let transport = StubTransport(deltas: ["属实。"], failFirst: OwlStreamingError.badHTTPStatus(402))
+    let outcome = try await makeService(
+      search: StubSearch(), transport: transport, searchKey: nil,
+      deepSeek: StubDeepSeekSearch([.success(Self.deepSeekResults)]), routes: 1
+    ).verifyStructured(Self.claim)
+    XCTAssertEqual(transport.apiKeys, ["sk-ds-0", "sk-model"])
+    XCTAssertEqual(outcome.content, "属实。")
+  }
+
+  func testEmptySearchesNeverReachAModel() async {
+    let transport = StubTransport(deltas: ["不应出现"])
+    await assertThrows(
+      makeService(
+        search: StubSearch(), transport: transport,
+        deepSeek: StubDeepSeekSearch([.success([])]), routes: 1),
+      .emptyResponse)
+    XCTAssertTrue(transport.calls.isEmpty, "没有检索结果就不让模型凭记忆判断")
   }
 
   // MARK: - Helpers
@@ -380,7 +334,7 @@ final class OwlSourceVerificationServiceTests: XCTestCase {
     search: StubSearch,
     transport: StubTransport,
     searchKey: String? = "sk-search",
-    webSearch: StubWebSearch? = nil,
+    deepSeek: StubDeepSeekSearch = StubDeepSeekSearch(),
     routes: Int = 0,
     profile: OwlProviderProfile? = OwlProviderProfile(
       displayName: "DeepSeek",
@@ -393,17 +347,12 @@ final class OwlSourceVerificationServiceTests: XCTestCase {
     OwlSourceVerificationService(
       searchClient: search,
       searchKeyProvider: { searchKey },
-      webSearchRoutesProvider: { Self.deepSeekRoutes(count: routes) },
-      webSearchFetch: webSearch.map { stub in { try await stub.fetch($0) } },
+      deepSeekSearchClient: deepSeek,
+      deepSeekRoutesProvider: { Self.deepSeekRoutes(count: routes) },
       profileProvider: { profile },
       profileSecretProvider: { _ in "sk-model" },
       legacyKeyProvider: { nil },
       transport: transport)
-  }
-
-  /// DeepSeek 方言的 input 是 `input_text` 内容块，取出其中的文字。
-  private static func text(of message: [String: Any]?) -> String? {
-    (message?["content"] as? [[String: Any]])?.first?["text"] as? String
   }
 
   private static func deepSeekRoutes(count: Int) -> [OwlAskSearchRoute] {
@@ -412,7 +361,7 @@ final class OwlSourceVerificationServiceTests: XCTestCase {
         routing: OwlCloudRouting(
           providerID: "deepseek",
           endpoint: URL(string: "https://api.deepseek.com/v1/chat/completions")!,
-          model: "deepseek-v4-pro",
+          model: OwlSearchControl.searchModel,
           secretName: "owltype.provider.ds\($0).apiKey",
           authHeaderStyle: .bearer),
         apiKey: "sk-ds-\($0)")
@@ -434,34 +383,38 @@ final class OwlSourceVerificationServiceTests: XCTestCase {
   }
 }
 
-/// 按顺序回放 (HTTP 状态, 响应体)，记下发出的请求。
-private final class StubWebSearch: @unchecked Sendable {
-  private var replies: [(Int, String)]
-  private(set) var requests: [URLRequest] = []
+/// 按顺序回放 DeepSeek 搜索结果，脚本用完后回空列表。
+private final class StubDeepSeekSearch: OwlDeepSeekSearching, @unchecked Sendable {
+  private var outcomes: [Result<[OwlWebSearchResult], Error>]
+  private(set) var queries: [String] = []
+  private(set) var apiKeys: [String] = []
+  private(set) var endpoints: [URL] = []
 
-  init(_ replies: [(Int, String)]) { self.replies = replies }
+  init(_ outcomes: [Result<[OwlWebSearchResult], Error>] = []) { self.outcomes = outcomes }
 
-  func fetch(_ request: URLRequest) async throws -> (Data, URLResponse) {
-    requests.append(request)
-    let (status, body) = replies.removeFirst()
-    let response = HTTPURLResponse(
-      url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!
-    return (Data(body.utf8), response)
+  func search(
+    query: String, endpoint: URL, apiKey: String, limit: Int
+  ) async throws -> [OwlWebSearchResult] {
+    queries.append(query)
+    apiKeys.append(apiKey)
+    endpoints.append(endpoint)
+    guard !outcomes.isEmpty else { return [] }
+    return try outcomes.removeFirst().get()
   }
 }
 
 private final class StubSearch: OwlDoubaoSearching, @unchecked Sendable {
-  private let results: [OwlDoubaoSearchResult]
+  private let results: [OwlWebSearchResult]
   private let failure: OwlDoubaoSearchError?
   private(set) var queries: [String] = []
   private(set) var lastKey: String?
 
-  init(results: [OwlDoubaoSearchResult] = [], failure: OwlDoubaoSearchError? = nil) {
+  init(results: [OwlWebSearchResult] = [], failure: OwlDoubaoSearchError? = nil) {
     self.results = results
     self.failure = failure
   }
 
-  func search(query: String, apiKey: String, limit: Int) async throws -> [OwlDoubaoSearchResult] {
+  func search(query: String, apiKey: String, limit: Int) async throws -> [OwlWebSearchResult] {
     queries.append(query)
     lastKey = apiKey
     if let failure { throw failure }
@@ -473,11 +426,15 @@ private final class StubSearch: OwlDoubaoSearching, @unchecked Sendable {
 private final class StubTransport: OwlAskAnythingTransporting {
   private let deltas: [String]
   private let failure: Error?
+  private var failFirst: Error?
   private(set) var calls: [[OwlDeepSeekMessage]] = []
+  private(set) var apiKeys: [String] = []
+  private(set) var models: [String] = []
 
-  init(deltas: [String] = [], failure: Error? = nil) {
+  init(deltas: [String] = [], failure: Error? = nil, failFirst: Error? = nil) {
     self.deltas = deltas
     self.failure = failure
+    self.failFirst = failFirst
   }
 
   func streamPlain(
@@ -486,6 +443,12 @@ private final class StubTransport: OwlAskAnythingTransporting {
     apiKey: String
   ) -> AsyncThrowingStream<String, Error> {
     calls.append(messages)
+    apiKeys.append(apiKey)
+    models.append(routing.model)
+    if let first = failFirst {
+      failFirst = nil
+      return AsyncThrowingStream { $0.finish(throwing: first) }
+    }
     let deltas = deltas
     let failure = failure
     return AsyncThrowingStream { continuation in
@@ -494,12 +457,12 @@ private final class StubTransport: OwlAskAnythingTransporting {
     }
   }
 
-  func streamBuiltInSearch(
+  func streamWebSearch(
     messages: [OwlDeepSeekMessage],
     routing: OwlCloudRouting,
     apiKey: String
   ) -> AsyncThrowingStream<String, Error>? {
-    XCTFail("来源核验不走模型内置搜索")
+    XCTFail("来源核验自己检索，不走任意提问的联网流")
     return nil
   }
 }

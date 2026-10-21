@@ -85,13 +85,13 @@ The text-selection toolbox offers eight individually configurable actions. Enabl
 | Task brief | Turn a rough request into an executable brief and identify missing information. |
 | Publication formatting | Tidy Chinese spacing, punctuation and paragraphs, with a replacement preview. |
 
-Source verification groups entry points into legislation, cases and literature, including China's national laws database, PKULaw, China Judgments Online, the People's Courts Case Database and CNKI. Online checks fetch pages with Doubao Search and DeepSeek built-in web search and judge against them with citations; this needs a Doubao Search API key in Settings → AI, or a DeepSeek provider. Search routes and AI answers help you consult originals; they do not imply full database access or completed fact-checking.
+Source verification groups entry points into legislation, cases and literature, including China's national laws database, PKULaw, China Judgments Online, the People's Courts Case Database and CNKI. Online checks fetch pages with Doubao Search and the DeepSeek Search API and judge against them with citations; this needs a Doubao Search API key in Settings → AI, or a DeepSeek provider. Search routes and AI answers help you consult originals; they do not imply full database access or completed fact-checking.
 
 ### 🔌 Configure models and search separately
 
 Presets include Alibaba Cloud Bailian, Doubao, DeepSeek and MiniMax. You can also configure OpenAI-compatible services. Set an endpoint, model and key for your account, then test the connection.
 
-Ask Anything web search uses only DeepSeek's built-in search, always on `deepseek-v4-pro` (Flash accepts the tool but does not search): configure a DeepSeek provider, and the answering model can come from another provider. MiniMax uses the GA M3.1-Flash model on the China site (api.minimax.cn); its reasoning depth is adjustable but cannot be turned off.
+Ask Anything web search first fetches pages with the DeepSeek Search API, then `deepseek-flash` answers from them and the answer ends with the pages it cites: configure a DeepSeek provider, whichever provider is your default. MiniMax uses the GA M3.1-Flash model on the China site (api.minimax.cn); its reasoning depth is adjustable but cannot be turned off.
 
 ### 📋 Keep reusable content close
 

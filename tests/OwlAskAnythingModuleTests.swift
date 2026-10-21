@@ -26,7 +26,7 @@ final class OwlAskAnythingModuleTests: XCTestCase {
     }
 
     XCTAssertEqual(open.searchProviderID, "deepseek")
-    XCTAssertEqual(transport.calls, [.builtInSearch(providerID: "deepseek")])
+    XCTAssertEqual(transport.calls, [.webSearch(providerID: "deepseek")])
     let deltas = try await collect(open.stream)
     XCTAssertEqual(deltas, ["本院", "认为"])
     XCTAssertEqual(open.searchProviderID, "deepseek", "stream completion must keep the actual signer")
@@ -81,7 +81,7 @@ final class OwlAskAnythingModuleTests: XCTestCase {
       XCTAssertEqual((error as? URLError)?.code, .notConnectedToInternet)
     }
     XCTAssertEqual(
-      transport.calls, [.builtInSearch(providerID: "deepseek")],
+      transport.calls, [.webSearch(providerID: "deepseek")],
       "a real request error must not fan out into fallback requests")
   }
 
@@ -113,7 +113,7 @@ final class OwlAskAnythingModuleTests: XCTestCase {
     await fulfillment(of: [innerCancelled], timeout: 1)
 
     XCTAssertEqual(
-      transport.calls, [.builtInSearch(providerID: "deepseek")],
+      transport.calls, [.webSearch(providerID: "deepseek")],
       "cancellation must not open a retry or plain fallback")
   }
 
@@ -127,7 +127,7 @@ final class OwlAskAnythingModuleTests: XCTestCase {
       gateProfile: qwen,
       builtInProfiles: [qwen, doubao],
       builtInKeys: [qwen.secretName: "sk-qwen", doubao.secretName: "sk-doubao"],
-      transport: OwlAskAnythingTransportAdapter(chatClient: chat, responsesClient: responses))
+      transport: Self.adapter(chat, responses))
 
     guard case let .success(open) = module.open(messages: Self.question) else {
       return XCTFail("plain ask should open")
@@ -152,7 +152,7 @@ final class OwlAskAnythingModuleTests: XCTestCase {
       gateProfile: Self.chatOnlyProfile,
       builtInProfiles: [first, second],
       builtInKeys: [first.secretName: "sk-a", second.secretName: "sk-b"],
-      transport: OwlAskAnythingTransportAdapter(chatClient: chat, responsesClient: responses))
+      transport: Self.adapter(chat, responses))
 
     guard case let .success(open) = module.open(messages: Self.question) else {
       return XCTFail("the DeepSeek matrix should open")
@@ -164,10 +164,10 @@ final class OwlAskAnythingModuleTests: XCTestCase {
     XCTAssertEqual(
       responses.calls,
       [
-        .init(providerID: "deepseek", dialect: .deepseek, webSearch: true),
-        .init(providerID: "deepseek", dialect: .deepseek, webSearch: true),
+        .init(providerID: "deepseek", dialect: .deepseek, webSearch: false),
+        .init(providerID: "deepseek", dialect: .deepseek, webSearch: false),
       ])
-    XCTAssertTrue(chat.calls.isEmpty, "built-in search rides on /responses")
+    XCTAssertTrue(chat.calls.isEmpty, "deepseek-flash answers on /responses, without the built-in tool")
     XCTAssertEqual(open.searchProviderID, "deepseek", "attribution follows the route that yielded")
   }
 
@@ -182,7 +182,7 @@ final class OwlAskAnythingModuleTests: XCTestCase {
       gateProfile: first,
       builtInProfiles: [first, second],
       builtInKeys: [first.secretName: "sk-a", second.secretName: "sk-b"],
-      transport: OwlAskAnythingTransportAdapter(chatClient: chat, responsesClient: responses))
+      transport: Self.adapter(chat, responses))
 
     guard case let .success(open) = module.open(messages: Self.question) else {
       return XCTFail("the first DeepSeek profile should open")
@@ -195,7 +195,7 @@ final class OwlAskAnythingModuleTests: XCTestCase {
     }
 
     XCTAssertEqual(
-      responses.calls, [.init(providerID: "deepseek", dialect: .deepseek, webSearch: true)])
+      responses.calls, [.init(providerID: "deepseek", dialect: .deepseek, webSearch: false)])
     XCTAssertTrue(chat.calls.isEmpty, "generic HTTP 400 must not reach plain fallback")
     XCTAssertEqual(open.searchProviderID, "deepseek")
   }
@@ -209,7 +209,7 @@ final class OwlAskAnythingModuleTests: XCTestCase {
       gateProfile: first,
       builtInProfiles: [first, second],
       builtInKeys: [first.secretName: "sk-a", second.secretName: "sk-b"],
-      transport: OwlAskAnythingTransportAdapter(chatClient: chat, responsesClient: responses))
+      transport: Self.adapter(chat, responses))
 
     guard case let .success(open) = module.open(messages: Self.question) else {
       return XCTFail("the first route should open")
@@ -236,7 +236,7 @@ final class OwlAskAnythingModuleTests: XCTestCase {
       gateProfile: first,
       builtInProfiles: [first, second],
       builtInKeys: [first.secretName: "sk-a", second.secretName: "sk-b"],
-      transport: OwlAskAnythingTransportAdapter(chatClient: chat, responsesClient: responses))
+      transport: Self.adapter(chat, responses))
 
     guard case let .success(open) = module.open(messages: Self.question) else {
       return XCTFail("the first route should open")
@@ -266,7 +266,7 @@ final class OwlAskAnythingModuleTests: XCTestCase {
       gateProfile: Self.chatOnlyProfile,
       builtInProfiles: [first, second],
       builtInKeys: [first.secretName: "sk-a", second.secretName: "sk-b"],
-      transport: OwlAskAnythingTransportAdapter(chatClient: chat, responsesClient: responses))
+      transport: Self.adapter(chat, responses))
 
     guard case let .success(open) = module.open(messages: Self.question) else {
       return XCTFail("the matrix should open before runtime refusals are known")
@@ -292,7 +292,7 @@ final class OwlAskAnythingModuleTests: XCTestCase {
       gateProfile: Self.chatOnlyProfile,
       builtInProfiles: [first, second],
       builtInKeys: [first.secretName: "sk-a", second.secretName: "sk-b"],
-      transport: OwlAskAnythingTransportAdapter(chatClient: chat, responsesClient: responses))
+      transport: Self.adapter(chat, responses))
 
     guard case let .success(open) = module.open(messages: Self.question) else {
       return XCTFail("configured attempts should open through the interface")
@@ -307,6 +307,71 @@ final class OwlAskAnythingModuleTests: XCTestCase {
     XCTAssertNil(open.searchProviderID, "plain fallback clears every online attribution")
     XCTAssertEqual(responses.calls.count, 2)
     XCTAssertEqual(chat.calls, [.init(providerID: "custom")])
+  }
+
+  private static func adapter(
+    _ chat: ScriptedChatClient,
+    _ responses: ScriptedResponsesClient,
+    search: ScriptedSearchClient = ScriptedSearchClient()
+  ) -> OwlAskAnythingTransportAdapter {
+    OwlAskAnythingTransportAdapter(chatClient: chat, responsesClient: responses, searchClient: search)
+  }
+
+  /// 搜索请求被拒（Key 欠费）同样在首个 delta 前换档案；作答依据编号结果，脚注只列被引用的网页。
+  func testSearchRefusalFailsOverAndTheAnswerIsFootedWithCitedResults() async throws {
+    let first = Self.deepSeekProfile(id: "ds-a")
+    let second = Self.deepSeekProfile(id: "ds-b")
+    let results = [
+      OwlWebSearchResult(title: "人大", url: "https://npc.gov.cn/a", snippet: "2021年1月1日施行",
+                         publishedAt: nil, hostname: nil),
+      OwlWebSearchResult(title: "百科", url: "https://baike.example.com/b", snippet: "",
+                         publishedAt: nil, hostname: nil),
+    ]
+    let search = ScriptedSearchClient([
+      .failure(OwlDeepSeekSearchError.badHTTPStatus(402)), .success(results),
+    ])
+    let responses = ScriptedResponsesClient(streams: [Self.stream(deltas: ["2021 年起施行 [1]。"])])
+    let chat = ScriptedChatClient()
+    let module = makeMatrixModule(
+      gateProfile: Self.chatOnlyProfile,
+      builtInProfiles: [first, second],
+      builtInKeys: [first.secretName: "sk-a", second.secretName: "sk-b"],
+      transport: Self.adapter(chat, responses, search: search))
+
+    guard case let .success(open) = module.open(messages: Self.question) else {
+      return XCTFail("the DeepSeek matrix should open")
+    }
+    let deltas = try await collect(open.stream)
+
+    XCTAssertEqual(search.apiKeys, ["sk-a", "sk-b"])
+    XCTAssertEqual(search.endpoints.map(\.absoluteString), Array(
+      repeating: "https://api.deepseek.com/v1/tools/search", count: 2))
+    XCTAssertEqual(
+      responses.calls, [.init(providerID: "deepseek", dialect: .deepseek, webSearch: false)],
+      "被拒的那家不发作答请求")
+    XCTAssertEqual(responses.lastMessages.first?.role, "system")
+    XCTAssertTrue(responses.lastMessages.first?.content.contains("[1] 人大") == true)
+    XCTAssertEqual(
+      deltas, ["2021 年起施行 [1]。", "\n\n来源：\n[1] [人大](https://npc.gov.cn/a)"])
+    XCTAssertEqual(open.searchProviderID, "deepseek")
+  }
+
+  /// 检索结果的网址不经模型改写：没有引用时也只列真取回的网页。
+  func testSearchedAnswerNeverCarriesModelInventedSources() async throws {
+    let profile = Self.deepSeekProfile(id: "ds-a")
+    let search = ScriptedSearchClient([.success([])])
+    let responses = ScriptedResponsesClient(streams: [Self.stream(deltas: ["没搜到。"])])
+    let module = makeMatrixModule(
+      gateProfile: profile,
+      builtInProfiles: [profile],
+      builtInKeys: [profile.secretName: "sk-a"],
+      transport: Self.adapter(ScriptedChatClient(), responses, search: search))
+    guard case let .success(open) = module.open(messages: Self.question) else {
+      return XCTFail("should open")
+    }
+    let deltas = try await collect(open.stream)
+    XCTAssertEqual(deltas, ["没搜到。"])
+    XCTAssertTrue(responses.lastMessages.first?.content.contains("未检索到相关网页") == true)
   }
 
   private func makeModule(
@@ -420,7 +485,7 @@ final class OwlAskAnythingModuleTests: XCTestCase {
 private final class InMemoryAskTransport: OwlAskAnythingTransporting {
   enum Call: Equatable {
     case plain(providerID: String)
-    case builtInSearch(providerID: String)
+    case webSearch(providerID: String)
   }
 
   private(set) var calls: [Call] = []
@@ -444,12 +509,12 @@ private final class InMemoryAskTransport: OwlAskAnythingTransporting {
     return plainStream
   }
 
-  func streamBuiltInSearch(
+  func streamWebSearch(
     messages: [OwlDeepSeekMessage],
     routing: OwlCloudRouting,
     apiKey: String
   ) -> AsyncThrowingStream<String, Error>? {
-    calls.append(.builtInSearch(providerID: routing.providerID))
+    calls.append(.webSearch(providerID: routing.providerID))
     return builtInStream
   }
 }
@@ -488,6 +553,7 @@ private final class ScriptedResponsesClient: OwlResponsesStreaming, @unchecked S
 
   private var streams: [AsyncThrowingStream<String, Error>]
   private(set) var calls: [Call] = []
+  private(set) var lastMessages: [OwlDeepSeekMessage] = []
 
   init(streams: [AsyncThrowingStream<String, Error>] = []) {
     self.streams = streams
@@ -501,9 +567,30 @@ private final class ScriptedResponsesClient: OwlResponsesStreaming, @unchecked S
     webSearch: Bool
   ) -> AsyncThrowingStream<String, Error> {
     calls.append(.init(providerID: routing.providerID, dialect: dialect, webSearch: webSearch))
+    lastMessages = messages
     guard !streams.isEmpty else {
       return AsyncThrowingStream { $0.finish() }
     }
     return streams.removeFirst()
+  }
+}
+
+/// Scripted DeepSeek Search: one outcome per call, `[]` once the script runs out.
+private final class ScriptedSearchClient: OwlDeepSeekSearching, @unchecked Sendable {
+  private var outcomes: [Result<[OwlWebSearchResult], Error>]
+  private(set) var apiKeys: [String] = []
+  private(set) var endpoints: [URL] = []
+
+  init(_ outcomes: [Result<[OwlWebSearchResult], Error>] = []) {
+    self.outcomes = outcomes
+  }
+
+  func search(
+    query: String, endpoint: URL, apiKey: String, limit: Int
+  ) async throws -> [OwlWebSearchResult] {
+    apiKeys.append(apiKey)
+    endpoints.append(endpoint)
+    guard !outcomes.isEmpty else { return [] }
+    return try outcomes.removeFirst().get()
   }
 }

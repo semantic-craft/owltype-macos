@@ -2,8 +2,8 @@
 //  OwlPromptOptimizeLiveTests.swift
 //  OwltypeTests — 提示词优化「实盘」集成测试 (issue #138)
 //
-//  这是全仓唯一会打真实网络的测试，**默认跳过**：只有当 `~/.owl-test-key` 存在时才跑。
-//  CI 与他人机器上没有该文件，`XCTSkip` 静默略过，不影响 780+ 的离线套件。
+//  打真实网络，**默认跳过**：Key 经 `OwlLiveKey` 从环境读，用 `bash scripts/live-test.sh` 运行。
+//  CI 与他人机器上没有 Key，`XCTSkip` 略过，不影响离线套件。
 //
 //  为什么需要它：#138 的整条链路此前只用 mock fetcher 验过，真实供应商返回的 JSON 长什么样
 //  （套不套 markdown 围栏、status 给不给全、questions 会不会超 3 条）一个样本都没有，解析层
@@ -44,18 +44,7 @@ final class OwlPromptOptimizeLiveTests: XCTestCase {
     return OwlLLMProviderCatalog.preset(id: "qwen")?.model ?? "qwen3.7-plus"
   }()
 
-  /// 读仓库外的测试 Key；没有就返回 nil → 测试跳过。永不打印内容。
-  private func testAPIKey() throws -> String {
-    let path = ("~/.owl-test-key" as NSString).expandingTildeInPath
-    guard let raw = try? String(contentsOfFile: path, encoding: .utf8) else {
-      throw XCTSkip("无 ~/.owl-test-key，跳过实盘测试（离线套件不受影响）")
-    }
-    let key = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-    if key.isEmpty {
-      throw XCTSkip("~/.owl-test-key 为空，跳过实盘测试")
-    }
-    return key
-  }
+  private func testAPIKey() throws -> String { try OwlLiveKey.dashScope.value() }
 
   /// 用真实代码构造的请求体直接 POST，把原始响应落盘供人工核对形状。
   @discardableResult
