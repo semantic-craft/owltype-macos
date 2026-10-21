@@ -389,7 +389,8 @@ final class OwlStreamingChatClientTests: XCTestCase {
         profilesProvider: { [profile] },
         defaultProfileProvider: { profile },
         secretProvider: { _ in "sk-key" }
-      )
+      ),
+      searchClient: EmptySearchClient()
     )
   }
 
@@ -479,8 +480,9 @@ final class OwlStreamingChatClientTests: XCTestCase {
 
 
   /// DeepSeek 迁 `/responses` 后的传输判定，也是任意提问唯一的联网通道。
+  /// 联网先走搜索接口，作答请求在检索返回后才发，所以要把流读完再看方言。
   @MainActor
-  func testDeepSeekDispatchesToResponsesAndSignsItsSearch() {
+  func testDeepSeekDispatchesToResponsesAndSignsItsSearch() async {
     let chat = RecordingChatClient()
     let responses = RecordingResponsesClient()
     let service = makeDispatchModule(
@@ -488,9 +490,12 @@ final class OwlStreamingChatClientTests: XCTestCase {
     guard case let .success(open) = service.open(messages: []) else {
       return XCTFail("expected an opened stream")
     }
+    XCTAssertEqual(open.searchProviderID, "deepseek", "联网署名要挂上")
+    // 记录用的客户端不出内容，流会以 emptyResponse 结束；这里只看发出的请求。
+    do { for try await _ in open.stream {} } catch {}
     XCTAssertEqual(responses.lastDialect, .deepseek)
+    XCTAssertEqual(responses.lastWebSearch, false, "检索由搜索接口完成，作答请求不挂内置 web_search")
     XCTAssertEqual(chat.callCount, 0, "还在打 chat/completions = 迁移漏了这条链路")
-    XCTAssertEqual(open.searchProviderID, "deepseek", "2026-07-31 起它能联网了，署名要挂上")
   }
 
   @MainActor
@@ -584,6 +589,13 @@ private final class RecordingChatClient: OwlChatStreaming, @unchecked Sendable {
     lastMessages = messages
     return AsyncThrowingStream { $0.finish() }
   }
+}
+
+/// 单元测试不碰真实搜索接口。
+private struct EmptySearchClient: OwlDeepSeekSearching {
+  func search(
+    query: String, endpoint: URL, apiKey: String, limit: Int
+  ) async throws -> [OwlWebSearchResult] { [] }
 }
 
 private final class RecordingResponsesClient: OwlResponsesStreaming, @unchecked Sendable {

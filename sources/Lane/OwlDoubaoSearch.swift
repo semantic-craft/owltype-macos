@@ -11,8 +11,8 @@
 
 import Foundation
 
-/// 一条搜索结果。`publishedAt` / `hostname` 可能为空——只用于标注来源，缺了不影响核验。
-struct OwlDoubaoSearchResult: Equatable, Sendable {
+/// 一条搜索结果（豆包与 DeepSeek 搜索共用）。`publishedAt` / `hostname` 可能为空——只用于标注来源，缺了不影响核验。
+struct OwlWebSearchResult: Equatable, Sendable {
   let title: String
   let url: String
   let snippet: String
@@ -29,7 +29,7 @@ enum OwlDoubaoSearchError: Error, Equatable {
 }
 
 protocol OwlDoubaoSearching: Sendable {
-  func search(query: String, apiKey: String, limit: Int) async throws -> [OwlDoubaoSearchResult]
+  func search(query: String, apiKey: String, limit: Int) async throws -> [OwlWebSearchResult]
 }
 
 // MARK: - Wire format
@@ -76,7 +76,7 @@ enum OwlDoubaoSearchWire {
   }
 
   /// 业务错误一律 throw，绝不静默变成空列表——「搜到 0 条」和「Key 无效」对用户是两件事。
-  static func parse(_ data: Data) throws -> [OwlDoubaoSearchResult] {
+  static func parse(_ data: Data) throws -> [OwlWebSearchResult] {
     // 摘要从网页正文抠出来，偶尔混进未转义的 C0 控制字符，那不是合法 JSON。换成空格是安全的：
     // JSON 的结构性空白本就等价于空格，字符串里的合法转义与 UTF-8 续字节都 ≥ 0x20。
     let sanitized = Data(data.map { $0 < 0x20 ? 0x20 : $0 })
@@ -101,7 +101,7 @@ enum OwlDoubaoSearchWire {
   }
 
   /// 缺 Url/Title 的条目直接丢弃：不能跳查的来源没有价值。
-  private static func document(_ raw: [String: Any]) -> OwlDoubaoSearchResult? {
+  private static func document(_ raw: [String: Any]) -> OwlWebSearchResult? {
     guard let url = raw["Url"] as? String, url.hasPrefix("http"),
           let title = raw["Title"] as? String, !title.isEmpty else { return nil }
     let snippet = ((raw["Snippet"] as? [[String: Any]]) ?? [])
@@ -113,7 +113,7 @@ enum OwlDoubaoSearchWire {
     let published = (info?["PublishTime"] as? String).flatMap { $0.isEmpty ? nil : $0 }
     let host = raw["HostInfo"] as? [String: Any]
     let hostname = (host?["Hostname"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-    return OwlDoubaoSearchResult(
+    return OwlWebSearchResult(
       title: title, url: url, snippet: snippet, publishedAt: published, hostname: hostname)
   }
 }
@@ -132,7 +132,7 @@ struct OwlDoubaoSearchClient: OwlDoubaoSearching {
     self.fetch = fetch ?? { try await URLSession.shared.data(for: $0) }
   }
 
-  func search(query: String, apiKey: String, limit: Int) async throws -> [OwlDoubaoSearchResult] {
+  func search(query: String, apiKey: String, limit: Int) async throws -> [OwlWebSearchResult] {
     var request = try OwlDoubaoSearchWire.request(query: query, apiKey: apiKey, limit: limit)
     request.timeoutInterval = timeout
     let (data, response) = try await fetch(request)

@@ -2,8 +2,8 @@
 //  OwlSkillsLiveTests.swift
 //  OwltypeTests — 全部 AI 技能对阿里云百炼的「实盘」验收
 //
-//  与 `OwlPromptOptimizeLiveTests` 同一契约：**默认跳过**，仅当 `~/.owl-test-key`（仓库外）
-//  存在时才跑。目的不是回归（离线套件管回归），而是回答「每个 AI 技能在真实供应商上到底
+//  与 `OwlPromptOptimizeLiveTests` 同一契约：**默认跳过**，Key 经 `OwlLiveKey` 从环境读，
+//  用 `bash scripts/live-test.sh <测试名>` 运行。目的不是回归（离线套件管回归），而是回答「每个 AI 技能在真实供应商上到底
 //  能不能达到预期效果」——mock 喂的永远是我们自己想象的响应形状。
 //
 //  覆盖的四条真实链路（提示词优化已在 OwlPromptOptimizeLiveTests）：
@@ -12,7 +12,7 @@
 //    B. Responses 内置 web_search —— 同一 Responses 客户端 + Qwen web_search（来源核验共用这条传输）。
 //    C. 划词润色（OwlSelectionPolishClient）—— 非流式 json_object 候选契约，v1/v2 变体各一发。
 //    D. 来源核验（OwlSourceVerificationService）—— 豆包搜索取来源 + 默认供应商对照判断。
-//    E. 来源核验 —— DeepSeek 内置联网（deepseek-v4-pro）检索并判断。
+//    E. DeepSeek 搜索接口 + deepseek-flash —— 来源核验、任意提问联网。
 //
 
 import Foundation
@@ -60,15 +60,7 @@ final class OwlSkillsLiveTests: XCTestCase {
       secretName: "owltype.live.test", authHeaderStyle: .bearer)
   }
 
-  private func testAPIKey() throws -> String {
-    let path = ("~/.owl-test-key" as NSString).expandingTildeInPath
-    guard let raw = try? String(contentsOfFile: path, encoding: .utf8) else {
-      throw XCTSkip("无 ~/.owl-test-key，跳过实盘测试（离线套件不受影响）")
-    }
-    let key = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-    if key.isEmpty { throw XCTSkip("~/.owl-test-key 为空，跳过实盘测试") }
-    return key
-  }
+  private func testAPIKey() throws -> String { try OwlLiveKey.dashScope.value() }
 
   override func setUp() async throws {
     try await super.setUp()
@@ -173,18 +165,7 @@ final class OwlSkillsLiveTests: XCTestCase {
 
   // MARK: - D. 来源核验（豆包搜索 + 百炼判断）
 
-  /// 实盘 Key 只从测试进程环境读：xcodebuild 不转发普通环境变量，要用 `TEST_RUNNER_` 前缀注入
-  /// （`TEST_RUNNER_DEEPSEEK_API_KEY=… xcodebuild test-without-building …`，前缀会被去掉）。
-  /// 开发凭据经项目 `.envrc` 的 `use secrets` 加载；缺了就跳过，不回退个人钥匙串。
-  private func liveKey(_ name: String) throws -> String {
-    guard let key = ProcessInfo.processInfo.environment[name]?
-      .trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty else {
-      throw XCTSkip("无 \(name)（以 TEST_RUNNER_\(name) 注入），跳过实盘")
-    }
-    return key
-  }
-
-  private func doubaoSearchKey() throws -> String { try liveKey("DOUBAO_SEARCH_API_KEY") }
+  private func doubaoSearchKey() throws -> String { try OwlLiveKey.doubaoSearch.value() }
 
   func testSourceVerificationReturnsContentAndSources() async throws {
     let apiKey = try testAPIKey()
@@ -197,8 +178,8 @@ final class OwlSkillsLiveTests: XCTestCase {
       providerID: "qwen", secretName: "owltype.live.test", isDefault: true)
     let service = OwlSourceVerificationService(
       searchKeyProvider: { searchKey },
-      // 这条只测「豆包搜索 + 默认供应商」；不让本机已配的 DeepSeek 档案改走内置联网。
-      webSearchRoutesProvider: { [] },
+      // 这条只测「豆包搜索 + 默认供应商」；不让本机已配的 DeepSeek 档案加入检索和判断。
+      deepSeekRoutesProvider: { [] },
       profileProvider: { profile },
       profileSecretProvider: { _ in apiKey },
       legacyKeyProvider: { nil })
@@ -213,23 +194,26 @@ final class OwlSkillsLiveTests: XCTestCase {
     XCTAssertTrue(outcome.content.contains("2021"), "核验结论丢失施行年份 2021")
   }
 
-  // MARK: - E. 来源核验（DeepSeek 内置联网）
+  // MARK: - E. DeepSeek 搜索接口 + deepseek-flash
 
-  /// 真走 `OwlAskSearchResolver` 交出的型号（`OwlSearchControl.searchModel`）：断言 DeepSeek
-  /// 真的搜过（服务层见不到 `web_search_call` 会拒收），且来源来自正文链接。
-  func testSourceVerificationOnDeepSeekWebSearch() async throws {
-    let apiKey = try liveKey("DEEPSEEK_API_KEY")
-    OwlCloudPreferences.isEnabled = true
-    let route = OwlAskSearchRoute(
+  private func deepSeekRoute(_ apiKey: String) -> OwlAskSearchRoute {
+    OwlAskSearchRoute(
       routing: OwlCloudRouting(
         providerID: "deepseek",
         endpoint: URL(string: "https://api.deepseek.com/chat/completions")!,
         model: OwlSearchControl.searchModel,
         secretName: "owltype.live.deepseek", authHeaderStyle: .bearer),
       apiKey: apiKey)
+  }
+
+  /// 只配 DeepSeek：搜索接口取回网页，flash 判断。来源全部来自检索结果。
+  func testSourceVerificationOnDeepSeekSearch() async throws {
+    let apiKey = try OwlLiveKey.deepSeek.value()
+    OwlCloudPreferences.isEnabled = true
+    let route = deepSeekRoute(apiKey)
     let service = OwlSourceVerificationService(
       searchKeyProvider: { nil },
-      webSearchRoutesProvider: { [route] },
+      deepSeekRoutesProvider: { [route] },
       profileProvider: { nil },
       profileSecretProvider: { _ in nil },
       legacyKeyProvider: { nil })
@@ -237,32 +221,27 @@ final class OwlSkillsLiveTests: XCTestCase {
     let started = Date()
     let outcome = try await service.verifyStructured(
       "《中华人民共和国民法典》自2021年1月1日起施行。")
-    try? (outcome.content + "\n\n" + outcome.sources.map(\.url).joined(separator: "\n"))
-      .write(toFile: "/tmp/owl-skill-verify-deepseek.txt", atomically: true, encoding: .utf8)
+    let elapsed = Date().timeIntervalSince(started)
+    try? (outcome.content + "\n\n" + outcome.sources.map(\.url).joined(separator: "\n")
+      + "\n\n\(elapsed)s").write(
+        toFile: "/tmp/owl-skill-verify-deepseek.txt", atomically: true, encoding: .utf8)
 
     XCTAssertTrue(outcome.content.contains("2021"), "核验结论丢失施行年份 2021")
-    XCTAssertFalse(outcome.sources.isEmpty, "DeepSeek 正文应带可跳查的来源链接")
     XCTAssertTrue(
       outcome.sources.contains { $0.url.contains("gov.cn") || $0.url.contains("people.com.cn") },
       "应至少有一条官方或权威来源")
-    XCTAssertLessThan(Date().timeIntervalSince(started), OwlSourceVerificationService.webSearchTimeout)
+    XCTAssertLessThan(elapsed, 20, "检索约 0.5 秒、flash 判断几秒；超过 20 秒说明走错了路")
   }
 
-  /// 两路都配：豆包结果编号进 DeepSeek 的提示词，来源合并且不重复。
+  /// 两路都配：并行检索，按网址合并去重后由 flash 判断。
   func testSourceVerificationOnDoubaoAndDeepSeek() async throws {
-    let apiKey = try liveKey("DEEPSEEK_API_KEY")
+    let apiKey = try OwlLiveKey.deepSeek.value()
     let searchKey = try doubaoSearchKey()
     OwlCloudPreferences.isEnabled = true
-    let route = OwlAskSearchRoute(
-      routing: OwlCloudRouting(
-        providerID: "deepseek",
-        endpoint: URL(string: "https://api.deepseek.com/chat/completions")!,
-        model: OwlSearchControl.searchModel,
-        secretName: "owltype.live.deepseek", authHeaderStyle: .bearer),
-      apiKey: apiKey)
+    let route = deepSeekRoute(apiKey)
     let service = OwlSourceVerificationService(
       searchKeyProvider: { searchKey },
-      webSearchRoutesProvider: { [route] },
+      deepSeekRoutesProvider: { [route] },
       profileProvider: { nil },
       profileSecretProvider: { _ in nil },
       legacyKeyProvider: { nil })
@@ -275,18 +254,43 @@ final class OwlSkillsLiveTests: XCTestCase {
     XCTAssertTrue(outcome.content.contains("2021"), "核验结论丢失施行年份 2021")
     let urls = outcome.sources.map(\.url)
     XCTAssertEqual(urls.count, Set(urls).count, "来源不应重复")
-    XCTAssertFalse(urls.contains { $0.contains("#ws_call_id=") }, "跳查网址应是干净的")
-    XCTAssertGreaterThan(urls.count, 1)
+    XCTAssertGreaterThan(urls.count, OwlSourceVerificationService.resultCount, "两路结果都应在")
+  }
+
+  /// 任意提问联网：真实检索 + flash 流式作答，末尾脚注只列检索结果里的网页。
+  @MainActor
+  func testAskWebSearchOnDeepSeekSearch() async throws {
+    let apiKey = try OwlLiveKey.deepSeek.value()
+    let route = deepSeekRoute(apiKey)
+    let adapter = OwlAskAnythingTransportAdapter(
+      chatClient: OwlStreamingChatClient(),
+      responsesClient: OwlResponsesStreamingClient(),
+      searchClient: OwlDeepSeekSearchClient())
+    let stream = try XCTUnwrap(adapter.streamWebSearch(
+      messages: [OwlDeepSeekMessage(role: "user", content: "民法典是哪一年开始施行的？")],
+      routing: route.routing, apiKey: route.apiKey))
+
+    let started = Date()
+    var answer = ""
+    for try await delta in stream { answer += delta }
+    let elapsed = Date().timeIntervalSince(started)
+    try? (answer + "\n\n\(elapsed)s").write(
+      toFile: "/tmp/owl-skill-ask-deepseek.txt", atomically: true, encoding: .utf8)
+
+    XCTAssertTrue(answer.contains("2021"), "回答丢失施行年份 2021")
+    XCTAssertTrue(answer.contains("\n\n来源：\n["), "应有由检索结果生成的来源脚注")
+    XCTAssertTrue(answer.contains("gov.cn") || answer.contains("people.com.cn"), "脚注应含权威来源")
+    XCTAssertLessThan(elapsed, 20)
   }
 
   /// 提示词评测用的固定检索结果：一条百科转载在前、一条一手官方来源在后，
   /// 判断应当引用后者（[2]）——「一手官方来源优先」的机器判定。
   static let verificationFixture = [
-    OwlDoubaoSearchResult(
+    OwlWebSearchResult(
       title: "民法典_百科", url: "https://baike.example.com/minfadian",
       snippet: "《中华人民共和国民法典》于2020年5月28日通过，自2021年1月1日起施行。",
       publishedAt: nil, hostname: "baike.example.com"),
-    OwlDoubaoSearchResult(
+    OwlWebSearchResult(
       title: "中华人民共和国民法典", url: "https://www.npc.gov.cn/npc/c30834/202006/t20200602.html",
       snippet: "第一千二百六十条　本法自2021年1月1日起施行。",
       publishedAt: "2020-06-02", hostname: "中国人大网"),
@@ -454,18 +458,7 @@ final class OwlResponsesPromptEvaluationLiveTests: XCTestCase {
           "未启用 OWL_RUN_LIVE_PROMPT_EVAL=1 或 OWL_LIVE_PROMPT_EVAL，跳过 Responses API 全提示词实盘评测")
       }
     #endif
-    if let key = environment["DASHSCOPE_API_KEY"]?
-      .trimmingCharacters(in: .whitespacesAndNewlines),
-      !key.isEmpty {
-      return key
-    }
-    let path = ("~/.owl-test-key" as NSString).expandingTildeInPath
-    if let key = try? String(contentsOfFile: path, encoding: .utf8)
-      .trimmingCharacters(in: .whitespacesAndNewlines),
-      !key.isEmpty {
-      return key
-    }
-    throw XCTSkip("无 DASHSCOPE_API_KEY 或 ~/.owl-test-key，无法执行实盘评测")
+    return try OwlLiveKey.dashScope.value()
   }
 
   func testAllBuiltInAndSkillPromptsOnResponsesAPI() async throws {
@@ -991,8 +984,8 @@ final class OwlResponsesPromptEvaluationLiveTests: XCTestCase {
 /// 联网项每发 ≤ 60s。每案例三轮中位耗时随报告落盘 `/tmp/owl-tri-model-eval/report-<model>.json`。
 ///
 /// 与 17 案例全量矩阵同一 opt-in 契约：默认跳过；`OWL_RUN_LIVE_PROMPT_EVAL=1`（IDE）或
-/// `OWL_LIVE_PROMPT_EVAL` 编译条件（命令行）。Key：千问 `DASHSCOPE_API_KEY` / `~/.owl-test-key`；
-/// 豆包 `ARK_API_KEY` / `~/.owl-test-key-doubao`。缺哪家的 Key 就跳过哪家。
+/// `OWL_LIVE_PROMPT_EVAL` 编译条件（命令行）。Key 经 `OwlLiveKey`：千问 `DASHSCOPE_API_KEY`，
+/// 豆包 `ARK_API_KEY`。缺哪家的 Key 就跳过哪家。
 @MainActor
 final class OwlTriModelSelectionMatrixLiveTests: XCTestCase {
   private static let qwenEndpoint = URL(
@@ -1073,30 +1066,12 @@ final class OwlTriModelSelectionMatrixLiveTests: XCTestCase {
 
   private func dashScopeKey() throws -> String {
     try requireOptIn()
-    if let key = ProcessInfo.processInfo.environment["DASHSCOPE_API_KEY"]?
-      .trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty {
-      return key
-    }
-    let path = ("~/.owl-test-key" as NSString).expandingTildeInPath
-    if let key = try? String(contentsOfFile: path, encoding: .utf8)
-      .trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty {
-      return key
-    }
-    throw XCTSkip("无 DASHSCOPE_API_KEY 或 ~/.owl-test-key，跳过千问矩阵")
+    return try OwlLiveKey.dashScope.value()
   }
 
   private func arkKey() throws -> String {
     try requireOptIn()
-    if let key = ProcessInfo.processInfo.environment["ARK_API_KEY"]?
-      .trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty {
-      return key
-    }
-    let path = ("~/.owl-test-key-doubao" as NSString).expandingTildeInPath
-    if let key = try? String(contentsOfFile: path, encoding: .utf8)
-      .trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty {
-      return key
-    }
-    throw XCTSkip("无 ARK_API_KEY 或 ~/.owl-test-key-doubao，跳过豆包矩阵")
+    return try OwlLiveKey.ark.value()
   }
 
   // MARK: 三个模型各一条入口（缺谁的 Key 跳过谁，互不牵连）

@@ -388,7 +388,8 @@ final class OwlStreamingChatService {
     )
     let transport = OwlAskAnythingTransportAdapter(
       chatClient: client ?? OwlStreamingChatClient(),
-      responsesClient: responsesClient ?? OwlResponsesStreamingClient())
+      responsesClient: responsesClient ?? OwlResponsesStreamingClient(),
+      searchClient: OwlDeepSeekSearchClient())
     self.gate = gate
     self.transport = transport
   }

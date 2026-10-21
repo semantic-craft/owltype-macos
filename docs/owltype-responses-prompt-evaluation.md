@@ -113,11 +113,11 @@ Flash 型号不受限制。
 
 ## 6. 证据
 
-实盘 XCTest 默认跳过。在 IDE 中可显式设置 `OWL_RUN_LIVE_PROMPT_EVAL=1`；命令行因
-Xcode 测试宿主会净化 shell 环境，使用 `OWL_LIVE_PROMPT_EVAL` 编译条件。API Key 读取：
-
-- 千问：`DASHSCOPE_API_KEY`（IDE）或仓库外 `~/.owl-test-key`（命令行）；
-- 豆包：`ARK_API_KEY`（IDE）或仓库外 `~/.owl-test-key-doubao`（命令行）。
+实盘 XCTest 默认跳过。在 IDE 中可显式设置 `OWL_RUN_LIVE_PROMPT_EVAL=1`；命令行用
+`OWL_RUN_LIVE_PROMPT_EVAL=1 bash scripts/live-test.sh <测试名>`，或 `OWL_LIVE_PROMPT_EVAL`
+编译条件。API Key 只从环境读（`tests/OwlLiveKeys.swift`）：千问 `DASHSCOPE_API_KEY`，豆包
+`ARK_API_KEY`。命令行由 `scripts/live-test.sh` 经 direnv 按项目 `.envrc` 取 Key，并加
+`TEST_RUNNER_` 前缀转给测试进程（xcodebuild 不转发普通环境变量）。
 
 全量矩阵报告写到 `/tmp/owl-responses-prompt-eval/report.json`；三模型矩阵报告写到
 `/tmp/owl-tri-model-eval/report-<model>.json`，逐项输出写到同目录；不记录 API Key，

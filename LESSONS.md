@@ -3,24 +3,44 @@
 Each entry keeps the rule, reason, regression, and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## Run live tests through scripts/live-test.sh
+
+**Live keys come from the environment only; `scripts/live-test.sh` loads them through direnv and fails when a named live test skips.**
+
+- Reason: the DeepSeek key was in the project's `use secrets`, yet live tests skipped and the
+  agent reported the key as missing. Three causes stacked: tests read keys from three places
+  (`TEST_RUNNER_*`, `~/.owl-test-key`, `~/.owl-test-key-doubao`); the agent shell is not a login
+  shell and had inherited a stale direnv export (DashScope and Ark keys, no DeepSeek key); and
+  xcodebuild drops plain environment variables, so a skip looked like a clean run.
+- Prevention: [OwlLiveKeys](tests/OwlLiveKeys.swift) is the only key reader and key list.
+  [live-test.sh](scripts/live-test.sh) reads the names from it, always re-resolves them with
+  `direnv exec` against the current `.envrc`, forwards them as `TEST_RUNNER_*`, and exits non-zero
+  when a requested test skips. A blocked `.envrc` stops the run; the user approves it with
+  `direnv allow`.
+- Regression: [live-test.selftest.sh](scripts/live-test.selftest.sh) in the gate covers the
+  stale-environment case, skip-as-failure, a blocked `.envrc` and keys never printed.
+- Seen on 1 distinct date: 2026-10-21.
+
 ## A web_search tool in the request is not a search
 
-**Trust a built-in search answer only when the response contains a `web_search_call`; pin the search model.**
+**Search with an explicit request, not a tool the model may ignore; take sources only from its results.**
 
 - Reason: DeepSeek now serves `deepseek-v4-flash` as `deepseek-flash` (V4.1 Flash), which accepts
   the `web_search` tool and `tool_choice: required` yet never searches. It answered from memory
   with plausible official links, and its reasoning said it could not actually go online. Ask and
   source verification both showed these answers as searched. `deepseek-v4-pro` really searches:
-  source verification finished in 17 to 23 seconds with links it had fetched.
-- Prevention: search routes always use `OwlSearchControl.searchModel` (`deepseek-v4-pro`),
-  whatever model the profile answers with. Source verification rejects a reply with no
-  `web_search_call` and falls back to Doubao results, or reports nothing found. DeepSeek's
-  sources appear only as body links and as URLs carrying `#ws_call_id=`; the fragment is
-  stripped before dedup.
-- Regression: `testUnsearchedDeepSeekReplyIsNotTrusted` in
-  [OwlSourceVerificationTests](tests/OwlSourceVerificationTests.swift); live check
-  `testSourceVerificationOnDeepSeekWebSearch` in [OwlSkillsLiveTests](tests/OwlSkillsLiveTests.swift)
-  (run with `TEST_RUNNER_DEEPSEEK_API_KEY`). Ask streaming has no per-reply search guard yet.
+  source verification took 17 to 23 seconds with links it had fetched.
+- Prevention: DeepSeek search is a `POST /v1/tools/search` request
+  ([OwlDeepSeekSearch](sources/Lane/OwlDeepSeekSearch.swift)); `deepseek-flash` answers from the
+  numbered results with no `web_search` tool. Ask appends a sources footer built from the
+  results, so a URL the model invents never reaches the user. Search failures with 401/402/403/404
+  fail over to the next DeepSeek profile.
+- Regression: `testSearchedAnswerNeverCarriesModelInventedSources` in
+  [OwlAskAnythingModuleTests](tests/OwlAskAnythingModuleTests.swift),
+  `testDeepSeekAloneSearchesAndFlashJudges` in
+  [OwlSourceVerificationTests](tests/OwlSourceVerificationTests.swift); live checks
+  `testAskWebSearchOnDeepSeekSearch` and `testSourceVerificationOnDeepSeekSearch` in
+  [OwlSkillsLiveTests](tests/OwlSkillsLiveTests.swift).
 - Seen on 1 distinct date: 2026-10-21.
 
 ## The self-check budget must not include the user's consent

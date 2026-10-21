@@ -676,20 +676,13 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
     XCTAssertEqual(body["store"] as? Bool, false)
   }
 
-  /// 任意提问联网只走 DeepSeek 的 `/responses` 内置搜索。
+  /// 任意提问联网只走 DeepSeek（搜索接口），不再经 `/responses` 内置搜索。
   func testDeepSeekIsTheOnlySearchProvider() {
     XCTAssertEqual(
-      OwlSearchControl.transport(
-        providerID: "deepseek", host: "api.deepseek.com", model: OwlSearchControl.searchModel),
-      .responses(.deepseek))
+      OwlSearchControl.transport(providerID: "deepseek", host: "api.deepseek.com"),
+      .deepSeekSearchAPI)
     XCTAssertEqual(OwlSearchControl.displayName(for: "deepseek"), "DeepSeek")
     XCTAssertEqual(OwlSearchControl.searchProviderID, "deepseek")
-
-    // 型号闸同样管搜索：flash 收下 web_search 却不搜，如实返回 `.none`。
-    XCTAssertEqual(
-      OwlSearchControl.transport(
-        providerID: "deepseek", host: "api.deepseek.com", model: "deepseek-v4-flash"),
-      .none)
   }
 
   func testResponsesURLRewritesTheChatSuffix() {

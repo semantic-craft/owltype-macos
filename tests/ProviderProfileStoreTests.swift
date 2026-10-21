@@ -202,8 +202,9 @@ final class ProviderProfileStoreTests: XCTestCase {
       endpoint: endpoint, providerID: "deepseek", model: deepseek.model,
       apiKey: "test-placeholder", authStyle: .bearer)
     XCTAssertEqual(request.url?.absoluteString, "https://api.deepseek.com/v1/responses")
-    XCTAssertEqual(OwlSearchControl.transport(
-      providerID: "deepseek", host: "api.deepseek.com", model: deepseek.model), .none)
+    XCTAssertEqual(
+      OwlSearchControl.transport(providerID: "deepseek", host: "api.deepseek.com"),
+      .deepSeekSearchAPI, "预置的 flash 档案经搜索接口联网")
     let gemini = try XCTUnwrap(OwlLLMProviderCatalog.preset(id: "gemini"))
     XCTAssertEqual(gemini.model, "gemini-3.8-flash")
     let geminiBody = OwlProviderConnectivityCheck.body(providerID: "gemini", model: gemini.model)
