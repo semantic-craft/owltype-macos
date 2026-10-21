@@ -3,6 +3,26 @@
 Each entry keeps the rule, reason, regression, and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## A web_search tool in the request is not a search
+
+**Trust a built-in search answer only when the response contains a `web_search_call`; pin the search model.**
+
+- Reason: DeepSeek now serves `deepseek-v4-flash` as `deepseek-flash` (V4.1 Flash), which accepts
+  the `web_search` tool and `tool_choice: required` yet never searches. It answered from memory
+  with plausible official links, and its reasoning said it could not actually go online. Ask and
+  source verification both showed these answers as searched. `deepseek-v4-pro` really searches:
+  source verification finished in 17 to 23 seconds with links it had fetched.
+- Prevention: search routes always use `OwlSearchControl.searchModel` (`deepseek-v4-pro`),
+  whatever model the profile answers with. Source verification rejects a reply with no
+  `web_search_call` and falls back to Doubao results, or reports nothing found. DeepSeek's
+  sources appear only as body links and as URLs carrying `#ws_call_id=`; the fragment is
+  stripped before dedup.
+- Regression: `testUnsearchedDeepSeekReplyIsNotTrusted` in
+  [OwlSourceVerificationTests](tests/OwlSourceVerificationTests.swift); live check
+  `testSourceVerificationOnDeepSeekWebSearch` in [OwlSkillsLiveTests](tests/OwlSkillsLiveTests.swift)
+  (run with `TEST_RUNNER_DEEPSEEK_API_KEY`). Ask streaming has no per-reply search guard yet.
+- Seen on 1 distinct date: 2026-10-21.
+
 ## The self-check budget must not include the user's consent
 
 **Wait for the enable consent on its own deadline; start the 45-second self-check after it.**

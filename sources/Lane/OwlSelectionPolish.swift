@@ -475,10 +475,15 @@ final class OwlSourceVerificationService {
         return outcome
       case let .refused(status):
         refusedStatus = status
+      case .unsearched:
+        refusedStatus = 0
       }
-      // 每个 DeepSeek 档案都被明确拒绝（Key 失效 / 欠费）：有豆包结果就退回默认供应商判断。
+      // 每个 DeepSeek 档案都被明确拒绝（Key 失效 / 欠费），或没搜也没给出可用判断：有豆包结果
+      // 就退回默认供应商判断；没有就如实报错——没搜过的链接不能当来源交给用户。
       guard !results.isEmpty else {
-        throw OwlSourceVerificationError.badHTTPStatus(refusedStatus)
+        throw refusedStatus == 0
+          ? OwlSourceVerificationError.emptyResponse
+          : OwlSourceVerificationError.badHTTPStatus(refusedStatus)
       }
     }
     guard !results.isEmpty else { throw OwlSourceVerificationError.emptyResponse }
@@ -510,6 +515,8 @@ final class OwlSourceVerificationService {
     case done(OwlSourceVerificationOutcome)
     /// 所有档案都是配置拒绝（401/402/403/404），带最后一个状态码。
     case refused(Int)
+    /// 没有豆包结果、响应里也没有一次 `web_search_call`（凭记忆写的），或干脆没回正文。
+    case unsearched
   }
 
   /// DeepSeek `/responses` + 内置 `web_search`，非流式，好拿到它检索过的网页。档案逐个试，
@@ -560,9 +567,16 @@ final class OwlSourceVerificationService {
           promptCacheMissTokens: max(0, usage.inputTokens - usage.cachedTokens),
           totalTokens: usage.totalTokens))
       }
+      let searched = decoded.searchCallCount > 0
+      // 没搜过的回答只在手里有豆包结果时可用：那时 `[序号]` 指向真取回的网页；它自己写的链接
+      // 是凭记忆的，一条不收。没有豆包结果又没搜，就不算核验。
+      guard searched || !results.isEmpty else { return .unsearched }
       let content = decoded.text
-      let found = decoded.sources.map { OwlVerifiedSource(title: $0.title, url: $0.url) }
-        + Self.linkedSources(in: content)
+      guard !content.isEmpty else { return .unsearched }
+      let found = searched
+        ? decoded.sources.map { OwlVerifiedSource(title: $0.title, url: $0.url) }
+          + Self.linkedSources(in: content)
+        : []
       let merged = Self.mergedSources(Self.citedFirst(sources, in: content), found)
       guard !content.isEmpty || !merged.isEmpty else {
         throw OwlSourceVerificationError.emptyResponse
@@ -572,7 +586,8 @@ final class OwlSourceVerificationService {
     return .refused(lastStatus)
   }
 
-  /// 正文里 `[标题](网址)` 形式的引用。DeepSeek 的结构化来源字段没有实测样本，正文链接是兜底。
+  /// 正文里 `[标题](网址)` 形式的引用。2026-10-21 实测 DeepSeek 的 `web_search_call` 只带检索词、
+  /// 正文 annotations 为空，来源只出现在正文链接里——这是 DeepSeek 一路的主来源，不是兜底。
   nonisolated static func linkedSources(in content: String) -> [OwlVerifiedSource] {
     content.matches(of: /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/).map {
       OwlVerifiedSource(title: String($0.1), url: String($0.2))
@@ -580,15 +595,20 @@ final class OwlSourceVerificationService {
   }
 
   /// 按 URL 去重拼接；标题为空时用站点域名顶上，卡片上不留空行。
+  ///
+  /// DeepSeek 的结构化来源在网址后挂 `#ws_call_id=…`（实测 2026-10-21），同一网页在正文链接里
+  /// 却不带——不先剥掉就会同一条出现两次，跳过去的也不是干净网址。
   nonisolated static func mergedSources(
     _ first: [OwlVerifiedSource],
     _ second: [OwlVerifiedSource]
   ) -> [OwlVerifiedSource] {
     var seen = Set<String>()
     return (first + second).compactMap { source in
-      guard seen.insert(source.url).inserted else { return nil }
-      guard source.title.isEmpty else { return source }
-      return OwlVerifiedSource(title: URL(string: source.url)?.host ?? source.url, url: source.url)
+      var url = source.url
+      if let marker = url.range(of: "#ws_call_id=") { url = String(url[..<marker.lowerBound]) }
+      guard seen.insert(url).inserted else { return nil }
+      let title = source.title.isEmpty ? (URL(string: url)?.host ?? url) : source.title
+      return OwlVerifiedSource(title: title, url: url)
     }
   }
 

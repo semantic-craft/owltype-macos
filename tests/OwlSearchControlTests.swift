@@ -39,12 +39,13 @@ final class OwlSearchControlTests: XCTestCase {
   func testDeepSeekTransportIsGatedByModel() {
     XCTAssertEqual(
       OwlSearchControl.transport(
-        providerID: "deepseek", host: "api.deepseek.com", model: "deepseek-v4-flash"),
+        providerID: "deepseek", host: "api.deepseek.com", model: OwlSearchControl.searchModel),
       .responses(.deepseek),
       "开着思考才立得住，见 OwlResponsesWire")
-    // 型号闸：`/responses` 只收 v4 flash，配着 pro / V4.1 Flash 的档案如实说自己不能搜。
+    XCTAssertEqual(OwlSearchControl.searchModel, "deepseek-v4-pro")
+    // 型号闸：flash 收下 web_search 却不搜（v4-flash 已被映射到 V4.1 Flash），如实说自己不能搜。
     XCTAssertFalse(OwlSearchControl.supportsSearch(
-      providerID: "deepseek", host: "api.deepseek.com", model: "deepseek-v4-pro"))
+      providerID: "deepseek", host: "api.deepseek.com", model: "deepseek-v4-flash"))
     XCTAssertFalse(OwlSearchControl.supportsSearch(
       providerID: "deepseek", host: "api.deepseek.com", model: "deepseek-flash"))
   }

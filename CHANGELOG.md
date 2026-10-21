@@ -1,5 +1,8 @@
 ## Unreleased
 
+### 划词 | Selection
+- 修复 DeepSeek 联网其实没在搜：DeepSeek 现在把 `deepseek-v4-flash` 当作 V4.1 Flash，它收下搜索工具却不搜，凭记忆作答并附上像样的链接。任意提问与来源核验的联网一律改用 `deepseek-v4-pro`（与档案选的作答型号无关，按 Pro 计费）；来源核验在 DeepSeek 没搜、手里又没有豆包结果时不采信它给的链接。
+
 <a name="2.0.18"></a>
 ## 2.0.18 (2026-10-21)
 

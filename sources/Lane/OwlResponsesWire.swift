@@ -33,6 +33,8 @@ struct OwlResponsesResult: Equatable, Sendable {
   let model: String?
   let usage: OwlResponsesUsage?
   let sources: [OwlResponsesSource]
+  /// 响应里 `web_search_call` 的条数。0 = 这次没有真搜——带着 web_search 工具也可能凭记忆作答。
+  var searchCallCount: Int = 0
 }
 
 enum OwlResponsesWireError: Error {
@@ -275,7 +277,9 @@ enum OwlResponsesWire {
       text: text,
       model: root["model"] as? String,
       usage: usage,
-      sources: collectSources(in: root)
+      sources: collectSources(in: root),
+      searchCallCount: (root["output"] as? [[String: Any]] ?? [])
+        .filter { $0["type"] as? String == "web_search_call" }.count
     )
   }
 

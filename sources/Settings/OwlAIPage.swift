@@ -102,7 +102,7 @@ struct OwlAIPage: View {
         )
         SettingsCardDivider(palette: palette)
         Text("""
-          联网由 DeepSeek 内置搜索完成，需在上面添加 DeepSeek 供应商并选用 deepseek-v4-flash（Pro 不支持联网）。\
+          联网由 DeepSeek 内置搜索完成，需在上面添加 DeepSeek 供应商；联网固定使用 deepseek-v4-pro（Flash 不会真的搜索）。\
           回答窗口会标注搜索来源。没有可用的 DeepSeek 档案时，退回普通问答。
 
           任意提问优先减少思考等待：支持关闭思考的模型默认关闭；MiniMax M3.1 Flash 不支持关闭，\
@@ -153,7 +153,7 @@ struct OwlAIPage: View {
         }
         Text("""
           来源核验先用豆包搜索（Global 版）取回网页，再交给默认供应商对照判断，来源只取自搜索结果。\
-          配有 deepseek-v4-flash 的 DeepSeek 供应商时，DeepSeek 也会联网检索并一起判断；只配 DeepSeek 也能核验。\
+          配有 DeepSeek 供应商时，DeepSeek（deepseek-v4-pro）也会联网检索并一起判断；只配 DeepSeek 也能核验。\
           这把 Key 与方舟模型 Key 不同：在火山引擎「联网搜索控制台 → API Key 管理 → 按量后付费」创建，\
           每月 500 次免费。\(doubaoSearchKeyStatus.isEmpty ? "" : "\n\n\(doubaoSearchKeyStatus)")
           """)
