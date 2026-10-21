@@ -120,7 +120,10 @@ review dates, not retries. Keep deterministic checks in the local gate.
   a thrown save does not prove that nothing was persisted.
 - Prevention: commit endpoint and new secret reference together; retire the old key only
   after confirmed success and only if no profile references it. An ambiguous save retains
-  both keys. Blank-key edits keep their existing semantics.
+  both keys; a readable old reference with no staged-key reference permits staged-key cleanup.
+  Compare scheme/host/default-normalized port against the persisted profile: origin changes
+  require a nonblank replacement key. Same-origin edits preserve the persisted key reference,
+  and failed-save retries refresh the editing profile from the reloaded list.
 - Regression: `ProviderProfileStoreTests` reloads the real JSON store and checks both
   `defaultProfile` and `OwlCloudRouting` for retired/custom defaults. Post-write errors and
   key-write plus rollback failures produced 8 assertion failures before the fix.

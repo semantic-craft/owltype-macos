@@ -632,6 +632,8 @@ struct OwlAIPage: View {
       providerName = ""
       providerKeyInput = ""
       providerStatus = result.status
+    } else {
+      editingProfile = OwlSettingsActions.providerProfileForRetry(profile, profiles: result.profiles)
     }
   }
 
