@@ -45,6 +45,9 @@ struct OwlAIPage: View {
   @State private var editingProfile: OwlProviderProfile?
   /// 百炼 Workspace ID / API Host。非密钥，所有 Qwen 供应商档案共用这一项。
   @State private var qwenWorkspaceInput = ""
+  @State private var doubaoSearchKeyInput = ""
+  @State private var doubaoSearchKeyConfigured = false
+  @State private var doubaoSearchKeyStatus = ""
   /// 新增流程里「拉取最新」已经用这把 Key 调通过：profile 落库后补标验证（见 `addProvider`）。
   @State private var pendingKeyVerified = false
 
@@ -53,6 +56,7 @@ struct OwlAIPage: View {
       VStack(spacing: 20) {
         providerSectionCard
         askWebSearchCard
+        sourceVerificationSearchCard
       }
       .padding(20)
     }
@@ -63,6 +67,8 @@ struct OwlAIPage: View {
       // stores; pure unit tests render the documented empty state.
       providers = OwlDefaults.isRunningUnitTests ? [] : providerStore.profiles()
       qwenWorkspaceInput = OwlQwenWorkspaceSettings.apiHost()
+      doubaoSearchKeyConfigured = !OwlDefaults.isRunningUnitTests
+        && OwlDoubaoSearchKeyStore.isConfigured(secrets: providerSecrets)
       if qwenWorkspaceInput.isEmpty,
          let profile = providers.first(where: {
            OwlLLMProviderCatalog.inferredProviderID(for: $0) == "qwen"
@@ -109,6 +115,68 @@ struct OwlAIPage: View {
           .padding(.top, 8)
       }
     }
+  }
+
+  // MARK: - 来源核验 · 豆包搜索
+
+  /// 来源核验的检索层。Key 与上面「供应商」里的模型 Key 分开存：豆包搜索的 Key 要在火山引擎
+  /// 联网搜索控制台单独建，方舟模型 Key 打不通（`700901`）。配好后由豆包搜索取回网页，
+  /// 默认供应商对照判断 —— 默认配的是哪家都能核验。
+  private var sourceVerificationSearchCard: some View {
+    SettingsCard(title: "来源核验 · 豆包搜索", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
+      VStack(alignment: .leading, spacing: 6) {
+        HStack(spacing: 11) {
+          Text("豆包搜索 API Key")
+            .font(.system(size: 14))
+            .foregroundStyle(palette.ink)
+          Spacer(minLength: 8)
+          Text(doubaoSearchKeyConfigured ? "已设置" : "未设置")
+            .font(.system(size: 12, design: .monospaced))
+            .foregroundStyle(palette.ink3)
+        }
+        HStack(spacing: 8) {
+          // 保存后输入框按「只写不回显」契约清空；占位符换成已设置态，否则空框看起来像没存上。
+          SecureField(
+            doubaoSearchKeyConfigured ? "已设置 ●●●●●●（输入新 Key 可覆盖）"
+              : "豆包搜索 API Key（写入 Keychain）",
+            text: $doubaoSearchKeyInput)
+            .textFieldStyle(.roundedBorder)
+          smallButton("粘贴") {
+            if let s = NSPasteboard.general.string(forType: .string) {
+              doubaoSearchKeyInput = s.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+          }
+          smallButton("保存") { saveDoubaoSearchKey() }
+          if doubaoSearchKeyConfigured {
+            smallButton("清除") { clearDoubaoSearchKey() }
+          }
+        }
+        Text("""
+          来源核验先用豆包搜索（Global 版）取回网页，再交给默认供应商对照判断，来源只取自搜索结果。\
+          这把 Key 与方舟模型 Key 不同：在火山引擎「联网搜索控制台 → API Key 管理 → 按量后付费」创建，\
+          每月 500 次免费。\(doubaoSearchKeyStatus.isEmpty ? "" : "\n\n\(doubaoSearchKeyStatus)")
+          """)
+          .font(.system(size: 12))
+          .foregroundStyle(palette.ink3)
+          .fixedSize(horizontal: false, vertical: true)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .padding(.vertical, 8)
+    }
+  }
+
+  private func saveDoubaoSearchKey() {
+    let result = OwlSettingsActions.saveDoubaoSearchKey(
+      doubaoSearchKeyInput, secrets: providerSecrets)
+    doubaoSearchKeyInput = result.input
+    doubaoSearchKeyStatus = result.status
+    doubaoSearchKeyConfigured = OwlDoubaoSearchKeyStore.isConfigured(secrets: providerSecrets)
+  }
+
+  private func clearDoubaoSearchKey() {
+    doubaoSearchKeyStatus = OwlSettingsActions.clearDoubaoSearchKey(secrets: providerSecrets)
+    doubaoSearchKeyInput = ""
+    doubaoSearchKeyConfigured = OwlDoubaoSearchKeyStore.isConfigured(secrets: providerSecrets)
   }
 
   // MARK: - 供应商（配一个就行）
@@ -163,7 +231,7 @@ struct OwlAIPage: View {
             Text(profile.displayName)
               .font(.system(size: 13.5, weight: .medium))
               .foregroundStyle(palette.ink)
-            Text("\(profile.model.isEmpty ? "默认模型" : profile.model) · \(OwlSettingsActions.providerProfileKeyStatus(profile, secrets: providerSecrets)) · \(OwlLLMProviderCatalog.sourceSupport(for: profile).displayName)")
+            Text("\(profile.model.isEmpty ? "默认模型" : profile.model) · \(OwlSettingsActions.providerProfileKeyStatus(profile, secrets: providerSecrets))")
               .font(.system(size: 11.5, design: .monospaced))
               .foregroundStyle(palette.ink3)
           }

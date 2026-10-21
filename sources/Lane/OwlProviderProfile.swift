@@ -45,27 +45,12 @@ enum OwlProviderAuthHeaderStyle: String, Codable, Sendable, Equatable {
   }
 }
 
-enum OwlProviderSourceSupport: String, Codable, Sendable, Equatable {
-  case sourceResults
-  case searchPlanOnly
-
-  var supportsSourceVerification: Bool { self == .sourceResults }
-
-  var displayName: String {
-    switch self {
-    case .sourceResults: return "支持来源核验"
-    case .searchPlanOnly: return "辅助检索"
-    }
-  }
-}
-
 struct OwlLLMProviderPreset: Identifiable, Equatable, Sendable {
   let id: String
   let displayName: String
   let endpoint: String
   let model: String
   let keyHint: String
-  let sourceSupport: OwlProviderSourceSupport
 }
 
 enum OwlLLMProviderCatalog {
@@ -80,48 +65,42 @@ enum OwlLLMProviderCatalog {
       displayName: "阿里云百炼",
       endpoint: qwenResponsesEndpoint,
       model: "qwen3.8-flash",
-      keyHint: "按量付费 sk-…；Token Plan 请改用 token-plan.cn-beijing.maas.aliyuncs.com",
-      sourceSupport: .sourceResults
+      keyHint: "按量付费 sk-…；Token Plan 请改用 token-plan.cn-beijing.maas.aliyuncs.com"
     ),
     OwlLLMProviderPreset(
       id: "doubao",
       displayName: "火山引擎 · 豆包 Seed",
       endpoint: "https://ark.cn-beijing.volces.com/api/v3/responses",
       model: "doubao-seed-2-1-pro-260628",
-      keyHint: "火山方舟 API Key",
-      sourceSupport: .sourceResults
+      keyHint: "火山方舟 API Key"
     ),
     OwlLLMProviderPreset(
       id: "deepseek",
       displayName: "DeepSeek",
       endpoint: "https://api.deepseek.com/v1/chat/completions",
       model: OwlCloudPreferences.defaultDeepSeekModel,
-      keyHint: "sk-…",
-      sourceSupport: .searchPlanOnly
+      keyHint: "sk-…"
     ),
     OwlLLMProviderPreset(
       id: "minimax",
       displayName: "MiniMax",
       endpoint: "https://api.minimax.cn/v1/chat/completions",
       model: "MiniMax-M3.1-Flash",
-      keyHint: "国内站 api.minimax.cn 的 M Plan / Token Plan 订阅 Key（sk-cp-…）",
-      sourceSupport: .searchPlanOnly
+      keyHint: "国内站 api.minimax.cn 的 M Plan / Token Plan 订阅 Key（sk-cp-…）"
     ),
     OwlLLMProviderPreset(
       id: "gemini",
       displayName: "Google Gemini",
       endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
       model: "gemini-3.8-flash",
-      keyHint: "AIza…",
-      sourceSupport: .searchPlanOnly
+      keyHint: "AIza…"
     ),
     OwlLLMProviderPreset(
       id: "openai",
       displayName: "OpenAI",
       endpoint: "https://api.openai.com/v1/chat/completions",
       model: "chat-latest",
-      keyHint: "sk-…",
-      sourceSupport: .sourceResults
+      keyHint: "sk-…"
     ),
   ]
 
@@ -173,14 +152,6 @@ enum OwlLLMProviderCatalog {
   static func formProviderID(for profile: OwlProviderProfile) -> String {
     let id = inferredProviderID(for: profile)
     return isKnownProviderID(id) ? id : customID
-  }
-
-  /// 百炼档案不再按型号降级：它整体是 Responses 供应商，来源核验走 `/responses` 的内置
-  /// `web_search`，能力属于**平台**而非某个型号。型号真不被服务时上游会拒，那句话如实报给用户，
-  /// 比这里先猜一个「辅助检索」更贴近真相。
-  static func sourceSupport(for profile: OwlProviderProfile?) -> OwlProviderSourceSupport {
-    guard let profile else { return .searchPlanOnly }
-    return preset(id: inferredProviderID(for: profile))?.sourceSupport ?? .searchPlanOnly
   }
 }
 

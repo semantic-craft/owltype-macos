@@ -312,9 +312,9 @@ final class OwlSelectionPolishService {
 enum OwlSourceVerificationError: Error, Equatable {
   case disabled
   case emptySelection
-  case unsupportedProvider
-  case missingAPIKey
-  case invalidEndpoint
+  /// 来源核验靠豆包搜索取来源；没配它的 Key 就无从核验。
+  case missingSearchKey
+  case search(OwlDoubaoSearchError)
   case badHTTPStatus(Int)
   case emptyResponse
 }
@@ -324,93 +324,139 @@ struct OwlVerifiedSource: Equatable, Sendable {
   let url: String
 }
 
-/// 结构化核验结果：摘要正文 + 抽到的来源列表。回执卡（#135）按锚点渲染进绿/橙卡；
-/// 纯文本出口 `verify(_:)` 仍在（`render` 拼装），供无卡路径与既有测试复用。
+/// 结构化核验结果：判断正文 + 来源列表。回执卡（#135）按锚点渲染进绿/橙卡。
 struct OwlSourceVerificationOutcome: Equatable, Sendable {
   let content: String
   let sources: [OwlVerifiedSource]
 }
 
+/// 来源核验：先用豆包搜索取回网页，再交给默认供应商对照判断。
+///
+/// 来源只来自豆包搜索的结果本身（标题 + URL），模型只写判断，不能自己补来源 —— 所以「有没有可核
+/// 来源」与默认供应商是哪家无关。没配默认供应商时只回来源列表，由用户自己复核。
 @MainActor
 final class OwlSourceVerificationService {
   static let shared = OwlSourceVerificationService()
 
-  /// Product prompt surfaced for the live Responses-API evaluation. Keeping it here (rather than
-  /// copying it into the test) makes the evaluated bytes the same bytes production sends.
-  ///
-  /// 2026-07-31 来源质量加固：明确一手官方来源优先。此前模型常拿聚合站/百科转载当来源，
-  /// 用户要跳查的恰恰是「发布机关自己怎么说」。
-  nonisolated static let systemPrompt =
-    "你是来源核验助手。必须使用联网检索结果核验选中文本。不要凭常识补来源；没有可核 URL 时说明需要人工确认。"
-    + "来源按权威优先：优先给出一手官方来源（发布机关、法院、政府官网或法规公报、标准原文页）；"
-    + "确无一手来源时才用权威媒体或数据库转载，并注明系转载。"
+  /// 每次核验取回的网页数。卡片最多展示 8 条，多取无益，还占模型上下文。
+  static let resultCount = 8
 
-  nonisolated static func userPrompt(for selectedText: String) -> String {
-    "请核验以下选中文本，并返回判断、可核来源 URL、关键信息。选中文本：\n\(selectedText)"
+  /// Product prompt surfaced for the live evaluation. Keeping it here (rather than copying it into
+  /// the test) makes the evaluated bytes the same bytes production sends.
+  ///
+  /// 来源按权威优先：用户要跳查的恰恰是「发布机关自己怎么说」，聚合站/百科转载只能兜底。
+  nonisolated static let systemPrompt =
+    "你是来源核验助手。只依据给出的检索结果核验选中文本，不要凭常识补来源；"
+    + "检索结果不足以判断时，直接说明需要人工确认。"
+    + "来源按权威优先：优先引用一手官方来源（发布机关、法院、政府官网或法规公报、标准原文页）；"
+    + "确无一手来源时才用权威媒体或数据库转载，并注明系转载。引用时用 [序号] 标注对应的检索结果。"
+
+  nonisolated static func userPrompt(
+    for selectedText: String,
+    results: [OwlDoubaoSearchResult]
+  ) -> String {
+    let body = results.enumerated().map { index, result in
+      var lines = ["[\(index + 1)] \(result.title)"]
+      if let host = result.hostname { lines.append("来源：\(host)") }
+      if let published = result.publishedAt { lines.append("发布时间：\(published)") }
+      lines.append("网址：\(result.url)")
+      if !result.snippet.isEmpty { lines.append("摘要：\(result.snippet)") }
+      return lines.joined(separator: "\n")
+    }.joined(separator: "\n\n")
+    return """
+      请核验以下选中文本，给出判断、支持判断的来源序号和关键信息。
+
+      选中文本：
+      \(selectedText)
+
+      检索结果：
+      \(body)
+      """
   }
 
-  private let urlSession: URLSession
-  /// Kept for the `sourceSupport` capability gate (a profile-level check, run before auth).
-  private let profileProvider: () -> OwlProviderProfile?
-  /// Resolves the active profile → routing + key. `legacyKeyProvider: nil` — 来源核验 has NO legacy
-  /// fallback (it needs a configured modern provider; a legacy DeepSeek key can't do web search).
+  private let searchClient: OwlDoubaoSearching
+  private let searchKeyProvider: () -> String?
   private let gate: OwlProviderAuthGate
+  private let transport: OwlAskAnythingTransporting
 
   init(
-    urlSession: URLSession = .shared,
+    searchClient: OwlDoubaoSearching = OwlDoubaoSearchClient(),
+    searchKeyProvider: @escaping () -> String? = { OwlDoubaoSearchKeyStore.apiKey() },
     profileProvider: @escaping () -> OwlProviderProfile? = { OwlProviderProfileStore.shared.defaultProfile },
-    profileSecretProvider: @escaping (String) throws -> String? = { try OwlProviderKeychain().secret(named: $0) }
+    profileSecretProvider: @escaping (String) throws -> String? = { try OwlProviderKeychain().secret(named: $0) },
+    legacyKeyProvider: @escaping () throws -> String? = OwlCloudKeychain.readDeepSeekAPIKey,
+    transport: OwlAskAnythingTransporting? = nil
   ) {
-    self.urlSession = urlSession
-    self.profileProvider = profileProvider
+    self.searchClient = searchClient
+    self.searchKeyProvider = searchKeyProvider
     self.gate = OwlProviderAuthGate(
       profileProvider: profileProvider,
       profileSecretProvider: profileSecretProvider,
-      legacyKeyProvider: nil
+      legacyKeyProvider: legacyKeyProvider
     )
-  }
-
-  func verify(_ selectedText: String) async throws -> String {
-    let outcome = try await verifyStructured(selectedText)
-    return Self.render(content: outcome.content, sources: outcome.sources)
+    self.transport = transport ?? OwlAskAnythingTransportAdapter(
+      chatClient: OwlStreamingChatClient(),
+      responsesClient: OwlResponsesStreamingClient())
   }
 
   func verifyStructured(_ selectedText: String) async throws -> OwlSourceVerificationOutcome {
     guard OwlCloudPreferences.isEnabled else { throw OwlSourceVerificationError.disabled }
-    if let reason = OwlSelectionPolish.rejectionReason(for: selectedText) {
-      switch reason {
-      case .emptySelection: throw OwlSourceVerificationError.emptySelection
-      case .selectionTooLong: throw OwlSourceVerificationError.emptySelection
-      default: throw OwlSourceVerificationError.emptySelection
+    if OwlSelectionPolish.rejectionReason(for: selectedText) != nil {
+      throw OwlSourceVerificationError.emptySelection
+    }
+    guard let searchKey = searchKeyProvider() else {
+      throw OwlSourceVerificationError.missingSearchKey
+    }
+
+    let results: [OwlDoubaoSearchResult]
+    do {
+      results = try await searchClient.search(
+        query: selectedText, apiKey: searchKey, limit: Self.resultCount)
+    } catch let error as OwlDoubaoSearchError {
+      throw OwlSourceVerificationError.search(error)
+    }
+    guard !results.isEmpty else { throw OwlSourceVerificationError.emptyResponse }
+    let sources = results.map { OwlVerifiedSource(title: $0.title, url: $0.url) }
+
+    guard case let .ready(routing, apiKey) = gate.resolve() else {
+      // 没配作答模型：来源仍然可跳查，判断留给用户（卡片会提示人工复核）。
+      return OwlSourceVerificationOutcome(content: "", sources: sources)
+    }
+    let messages = [
+      OwlDeepSeekMessage(role: "system", content: Self.systemPrompt),
+      OwlDeepSeekMessage(
+        role: "user", content: Self.userPrompt(for: selectedText, results: results)),
+    ]
+    var content = ""
+    do {
+      for try await delta in transport.streamPlain(
+        messages: messages, routing: routing, apiKey: apiKey) {
+        content += delta
+      }
+    } catch let OwlStreamingError.badHTTPStatus(status) {
+      throw OwlSourceVerificationError.badHTTPStatus(status)
+    }
+    let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+    return OwlSourceVerificationOutcome(
+      content: trimmed, sources: Self.citedFirst(sources, in: trimmed))
+  }
+
+  /// 把判断里 `[序号]` 引到的来源按引用顺序提到前面。回执卡拿第一条当「核到的来源」，
+  /// 它应当是模型据以判断的那条，而不是搜索排序碰巧第一的那条。
+  nonisolated static func citedFirst(
+    _ sources: [OwlVerifiedSource],
+    in content: String
+  ) -> [OwlVerifiedSource] {
+    guard !sources.isEmpty else { return sources }
+    var cited: [Int] = []
+    let pattern = /\[(\d{1,2})\]/
+    for match in content.matches(of: pattern) {
+      if let number = Int(match.1), (1...sources.count).contains(number), !cited.contains(number - 1) {
+        cited.append(number - 1)
       }
     }
-
-    let profile = profileProvider()
-    guard OwlLLMProviderCatalog.sourceSupport(for: profile).supportsSourceVerification else {
-      throw OwlSourceVerificationError.unsupportedProvider
-    }
-    // Auth via the shared gate (no legacy fallback — see `gate` init). A profile with no stored key
-    // → `.missingKey`; both not-ready cases map to this service's `.missingAPIKey`.
-    let routing: OwlCloudRouting
-    let apiKey: String
-    switch gate.resolve() {
-    case let .ready(resolvedRouting, resolvedKey):
-      routing = resolvedRouting
-      apiKey = resolvedKey
-    case .unconfigured, .missingKey:
-      throw OwlSourceVerificationError.missingAPIKey
-    }
-
-    let request = try makeRequest(selectedText: selectedText, routing: routing, apiKey: apiKey)
-    let (data, response) = try await urlSession.data(for: request)
-    if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-      throw OwlSourceVerificationError.badHTTPStatus(http.statusCode)
-    }
-    let parsed = Self.parseResponse(data)
-    guard !parsed.content.isEmpty || !parsed.sources.isEmpty else {
-      throw OwlSourceVerificationError.emptyResponse
-    }
-    return OwlSourceVerificationOutcome(content: parsed.content, sources: parsed.sources)
+    let rest = sources.indices.filter { !cited.contains($0) }
+    return (cited + rest).map { sources[$0] }
   }
 
   nonisolated static func message(for error: Error) -> String {
@@ -422,173 +468,25 @@ final class OwlSourceVerificationService {
       return "云端 AI 未启用"
     case .emptySelection:
       return "未选中文本或选中文本过长"
-    case .unsupportedProvider:
-      return OwlSelectionSkillPrompts.unsupportedSourceVerificationMessage
-    case .missingAPIKey:
-      return "云端 AI 的 API Key 未配置"
-    case .invalidEndpoint:
-      return "当前供应商端点不支持来源核验"
+    case .missingSearchKey:
+      return OwlSelectionSkillPrompts.missingSourceSearchKeyMessage
+    case let .search(searchError):
+      switch searchError {
+      case .missingAPIKey:
+        return OwlSelectionSkillPrompts.missingSourceSearchKeyMessage
+      case let .badHTTPStatus(status):
+        return "豆包搜索请求失败（\(status)）"
+      case let .serviceError(code, _) where code == "700901" || code == "10409":
+        return "豆包搜索 Key 无效：需在火山引擎联网搜索控制台创建「按量后付费」Key（\(code)）"
+      case let .serviceError(code, _):
+        return "豆包搜索返回错误（\(code)）"
+      case .malformedResponse:
+        return "豆包搜索返回了无法解析的结果"
+      }
     case .badHTTPStatus(let status):
       return "来源核验请求失败（\(status)）"
     case .emptyResponse:
       return "未找到可核来源。注意：这不等于事实不存在。"
-    }
-  }
-
-  private func makeRequest(
-    selectedText: String,
-    routing: OwlCloudRouting,
-    apiKey: String
-  ) throws -> URLRequest {
-    let system = Self.systemPrompt
-    let user = Self.userPrompt(for: selectedText)
-
-    switch routing.providerID {
-    case "qwen", "doubao", "openai":
-      return try makeResponsesSearchRequest(system: system, user: user, routing: routing, apiKey: apiKey)
-    default:
-      throw OwlSourceVerificationError.unsupportedProvider
-    }
-  }
-
-  private func makeResponsesSearchRequest(
-    system: String,
-    user: String,
-    routing: OwlCloudRouting,
-    apiKey: String
-  ) throws -> URLRequest {
-    guard let url = OwlResponsesWire.url(from: routing.endpoint) else {
-      throw OwlSourceVerificationError.invalidEndpoint
-    }
-    // Shared with the streaming 任意提问 client (`OwlResponsesStreamingClient`) so the two
-    // callers of `/responses` cannot drift apart.
-    let dialect: OwlResponsesDialect = switch routing.providerID {
-    case "qwen": .qwen
-    case "openai": .openAI
-    default: .ark
-    }
-    let body = OwlResponsesWire.body(
-      model: routing.model,
-      messages: [
-        OwlDeepSeekMessage(role: "system", content: system),
-        OwlDeepSeekMessage(role: "user", content: user),
-      ],
-      stream: false,
-      dialect: dialect,
-      webSearch: true,
-      temperature: 0.2
-    )
-    return try makeJSONRequest(url: url, body: body, routing: routing, apiKey: apiKey)
-  }
-
-  private func makeJSONRequest(
-    url: URL,
-    body: [String: Any],
-    routing: OwlCloudRouting,
-    apiKey: String
-  ) throws -> URLRequest {
-    var request = URLRequest(url: url)
-    request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    routing.authHeaderStyle.apply(to: &request, apiKey: apiKey)
-    request.timeoutInterval = 90
-    request.httpBody = try JSONSerialization.data(withJSONObject: body)
-    return request
-  }
-
-  // `/responses` 的 URL 改写与 input 消息形状已提取到 `OwlResponsesWire`（与流式 任意提问 共用）。
-
-  nonisolated static func parseResponse(_ data: Data) -> (content: String, sources: [OwlVerifiedSource]) {
-    guard let object = try? JSONSerialization.jsonObject(with: data) else {
-      return ("", [])
-    }
-    let content = firstContent(in: object).trimmingCharacters(in: .whitespacesAndNewlines)
-    let sources = collectSources(in: object)
-    return (content, sources)
-  }
-
-  nonisolated static func render(content: String, sources: [OwlVerifiedSource]) -> String {
-    if !sources.isEmpty {
-      let sourceLines = sources.prefix(8).map { source in
-        "- \(source.title.isEmpty ? source.url : source.title)\n  \(source.url)"
-      }.joined(separator: "\n")
-      let summary = content.trimmingCharacters(in: .whitespacesAndNewlines)
-      return """
-      已找到可核来源
-
-      \(summary.isEmpty ? "已通过联网检索取得来源 URL，请人工复核来源内容与原文主张是否完全对应。" : summary)
-
-      来源：
-      \(sourceLines)
-      """
-    }
-    if !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      return """
-      需要人工确认
-
-      模型返回了联网核验摘要，但没有返回可抽取的来源 URL。不要把下面内容当作已完成核验：
-
-      \(content)
-      """
-    }
-    return "未找到可核来源。注意：这不等于事实不存在。"
-  }
-
-  private nonisolated static func firstContent(in object: Any) -> String {
-    if let dict = object as? [String: Any] {
-      if let output = dict["output"] as? [String: Any] {
-        if let text = output["text"] as? String { return text }
-        if let choices = output["choices"] as? [[String: Any]],
-           let message = choices.first?["message"] as? [String: Any],
-           let content = message["content"] as? String {
-          return content
-        }
-      }
-      if let output = dict["output"] as? [[String: Any]] {
-        for item in output {
-          if let content = item["content"] as? [[String: Any]] {
-            for part in content {
-              if let text = part["text"] as? String { return text }
-            }
-          }
-        }
-      }
-      for value in dict.values {
-        let nested = firstContent(in: value)
-        if !nested.isEmpty { return nested }
-      }
-    }
-    if let array = object as? [Any] {
-      for value in array {
-        let nested = firstContent(in: value)
-        if !nested.isEmpty { return nested }
-      }
-    }
-    return ""
-  }
-
-  private nonisolated static func collectSources(in object: Any) -> [OwlVerifiedSource] {
-    var out: [OwlVerifiedSource] = []
-    var seen = Set<String>()
-    collectSources(in: object, into: &out, seen: &seen)
-    return out
-  }
-
-  private nonisolated static func collectSources(in object: Any, into out: inout [OwlVerifiedSource], seen: inout Set<String>) {
-    if out.count >= 12 { return }
-    if let dict = object as? [String: Any] {
-      let url = (dict["url"] ?? dict["link"] ?? dict["source_url"] ?? dict["uri"]) as? String
-      if let url, url.hasPrefix("http"), seen.insert(url).inserted {
-        let title = (dict["title"] ?? dict["name"] ?? dict["site_name"]) as? String
-        out.append(OwlVerifiedSource(title: title ?? "", url: url))
-      }
-      for value in dict.values {
-        collectSources(in: value, into: &out, seen: &seen)
-      }
-    } else if let array = object as? [Any] {
-      for value in array {
-        collectSources(in: value, into: &out, seen: &seen)
-      }
     }
   }
 }

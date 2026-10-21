@@ -564,8 +564,8 @@ enum OwlSelectionSkillPrompts {
       + "补上并标注（推断），推断不出的写进〈未知〉待裁决，不要编造。补充信息——\(joined)："
   }
 
-  static let unsupportedSourceVerificationMessage = """
-  当前默认供应商不支持可返回来源的联网核验。请在 AI 配置里切换到阿里云百炼、火山引擎 · 豆包 Seed 或 OpenAI 后再执行来源核验。
+  static let missingSourceSearchKeyMessage = """
+  来源核验需要豆包搜索的 API Key。请在 设置 → AI →「来源核验 · 豆包搜索」里填写后再执行。
   """
 }
 
