@@ -463,10 +463,7 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
   /// **本次改动唯一的失败模式**：判定点漏改一处，那条链路就悄悄退回 `/chat/completions` ——
   /// 用户看不见任何错误，只是在用一条已被判定为不兼容的旧协议。所以把百炼 + 非 qwen 型号在每个
   /// 判定点上扫一遍。
-  ///
-  /// 第 6 处（`OwlSelectionPolish.makeRequest` 的 provider 分派）是 private，它的**可达闸门**
-  /// 正是这里断言的 `sourceSupport`（见 OwlSelectionPolish.swift:382 的 guard）—— 那道闸放行后
-  /// 才轮到 makeRequest，所以断言闸门等于断言了这条路进得去。
+
   func testDashScopeHostedNonQwenModelSpeaksResponsesAtEveryDecisionPoint() throws {
     let endpoint = URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/responses")!
     let model = "deepseek-v3"
@@ -480,14 +477,7 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
       OwlSearchControl.transport(providerID: "qwen", host: endpoint.host ?? ""),
       .none)
 
-    // 3. 来源核验能力闸（也是第 6 处私有分派的可达前提）
-    let profile = OwlProviderProfile(
-      displayName: "阿里云百炼", endpoint: endpoint, model: model, providerID: "qwen")
-    XCTAssertTrue(
-      OwlLLMProviderCatalog.sourceSupport(for: profile).supportsSourceVerification,
-      "百炼的来源核验能力属于平台，不该因为型号名不是 qwen 就降级成辅助检索")
-
-    // 4. 连通性验证的请求体：Responses 用 `input`，绝不能回退成 chat 的 `messages`
+    // 3. 连通性验证的请求体：Responses 用 `input`，绝不能回退成 chat 的 `messages`
     let body = OwlProviderConnectivityCheck.body(
       providerID: "qwen", model: model, endpoint: endpoint)
     XCTAssertNotNil(body["input"], "连通性验证必须发 Responses 形状")
@@ -496,7 +486,7 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
     XCTAssertEqual((body["reasoning"] as? [String: Any])?["effort"] as? String, "none")
     XCTAssertEqual(body["store"] as? Bool, false, "百炼整面维持 store=false")
 
-    // 5. 连通性验证打到的 URL
+    // 4. 连通性验证打到的 URL
     let request = try OwlProviderConnectivityCheck.request(
       endpoint: endpoint, providerID: "qwen", model: model,
       apiKey: "sk-test", authStyle: .bearer)

@@ -245,6 +245,8 @@
 		FA136003CAFE0003CAFE0003 /* OwlPolishPromptCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA136004CAFE0004CAFE0004 /* OwlPolishPromptCatalogTests.swift */; };
 		FA137001CAFE0001CAFE0001 /* OwlSearchControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA137002CAFE0002CAFE0002 /* OwlSearchControl.swift */; };
 		FA137003CAFE0003CAFE0003 /* OwlAskSearchResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA137004CAFE0004CAFE0004 /* OwlAskSearchResolver.swift */; };
+		FA13A003CAFE0003CAFE0003 /* OwlSourceVerificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA13A004CAFE0004CAFE0004 /* OwlSourceVerificationTests.swift */; };
+		FA13A001CAFE0001CAFE0001 /* OwlDoubaoSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA13A002CAFE0002CAFE0002 /* OwlDoubaoSearch.swift */; };
 		FA137005CAFE0005CAFE0005 /* OwlSearchControlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA137006CAFE0006CAFE0006 /* OwlSearchControlTests.swift */; };
 		FA137007CAFE0007CAFE0007 /* OwlAskSearchResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA137008CAFE0008CAFE0008 /* OwlAskSearchResolverTests.swift */; };
 		FA138001CAFE0001CAFE0001 /* OwlResponsesWire.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA138002CAFE0002CAFE0002 /* OwlResponsesWire.swift */; };
@@ -688,6 +690,8 @@
 		FA136004CAFE0004CAFE0004 /* OwlPolishPromptCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlPolishPromptCatalogTests.swift; path = tests/OwlPolishPromptCatalogTests.swift; sourceTree = "<group>"; };
 		FA137002CAFE0002CAFE0002 /* OwlSearchControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSearchControl.swift; path = sources/Lane/OwlSearchControl.swift; sourceTree = "<group>"; };
 		FA137004CAFE0004CAFE0004 /* OwlAskSearchResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAskSearchResolver.swift; path = sources/Lane/OwlAskSearchResolver.swift; sourceTree = "<group>"; };
+		FA13A004CAFE0004CAFE0004 /* OwlSourceVerificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSourceVerificationTests.swift; path = tests/OwlSourceVerificationTests.swift; sourceTree = "<group>"; };
+		FA13A002CAFE0002CAFE0002 /* OwlDoubaoSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlDoubaoSearch.swift; path = sources/Lane/OwlDoubaoSearch.swift; sourceTree = "<group>"; };
 		FA137006CAFE0006CAFE0006 /* OwlSearchControlTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSearchControlTests.swift; path = tests/OwlSearchControlTests.swift; sourceTree = "<group>"; };
 		FA137008CAFE0008CAFE0008 /* OwlAskSearchResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAskSearchResolverTests.swift; path = tests/OwlAskSearchResolverTests.swift; sourceTree = "<group>"; };
 		FA138002CAFE0002CAFE0002 /* OwlResponsesWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlResponsesWire.swift; path = sources/Lane/OwlResponsesWire.swift; sourceTree = "<group>"; };
@@ -916,6 +920,7 @@
 				FA136002CAFE0002CAFE0002 /* OwlPolishPromptCatalog.swift */,
 				FA137002CAFE0002CAFE0002 /* OwlSearchControl.swift */,
 				FA137004CAFE0004CAFE0004 /* OwlAskSearchResolver.swift */,
+				FA13A002CAFE0002CAFE0002 /* OwlDoubaoSearch.swift */,
 				FA138002CAFE0002CAFE0002 /* OwlResponsesWire.swift */,
 				FA138004CAFE0004CAFE0004 /* OwlResponsesStreamingClient.swift */,
 				FA107002CAFE0002CAFE0107 /* OwlAskAnythingModule.swift */,
@@ -1016,6 +1021,7 @@
 				FA136004CAFE0004CAFE0004 /* OwlPolishPromptCatalogTests.swift */,
 				FA137006CAFE0006CAFE0006 /* OwlSearchControlTests.swift */,
 				FA137008CAFE0008CAFE0008 /* OwlAskSearchResolverTests.swift */,
+				FA13A004CAFE0004CAFE0004 /* OwlSourceVerificationTests.swift */,
 				FA138006CAFE0006CAFE0006 /* OwlResponsesStreamingClientTests.swift */,
 				FA107004CAFE0004CAFE0107 /* OwlAskAnythingModuleTests.swift */,
 				FA139004CAFE0004CAFE0004 /* OwlPromptOptimizerTests.swift */,
@@ -1497,6 +1503,7 @@
 				FA136001CAFE0001CAFE0001 /* OwlPolishPromptCatalog.swift in Sources */,
 				FA137001CAFE0001CAFE0001 /* OwlSearchControl.swift in Sources */,
 				FA137003CAFE0003CAFE0003 /* OwlAskSearchResolver.swift in Sources */,
+				FA13A001CAFE0001CAFE0001 /* OwlDoubaoSearch.swift in Sources */,
 				FA138001CAFE0001CAFE0001 /* OwlResponsesWire.swift in Sources */,
 				FA138003CAFE0003CAFE0003 /* OwlResponsesStreamingClient.swift in Sources */,
 				FA107001CAFE0001CAFE0107 /* OwlAskAnythingModule.swift in Sources */,
@@ -1599,6 +1606,7 @@
 				FA136003CAFE0003CAFE0003 /* OwlPolishPromptCatalogTests.swift in Sources */,
 				FA137005CAFE0005CAFE0005 /* OwlSearchControlTests.swift in Sources */,
 				FA137007CAFE0007CAFE0007 /* OwlAskSearchResolverTests.swift in Sources */,
+				FA13A003CAFE0003CAFE0003 /* OwlSourceVerificationTests.swift in Sources */,
 				FA138005CAFE0005CAFE0005 /* OwlResponsesStreamingClientTests.swift in Sources */,
 				FA107003CAFE0003CAFE0107 /* OwlAskAnythingModuleTests.swift in Sources */,
 				FA139003CAFE0003CAFE0003 /* OwlPromptOptimizerTests.swift in Sources */,
@@ -1642,7 +1650,7 @@
 				CODE_SIGN_ENTITLEMENTS = resources/Owltype.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2.0.17;
+				CURRENT_PROJECT_VERSION = 2.0.18;
 				DEAD_CODE_STRIPPING = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1677,7 +1685,7 @@
 					"$(OTHER_CPLUSPLUSFLAGS_QUOTED_FOR_TARGET_2)",
 				);
 				OTHER_LDFLAGS = "-lrime.1";
-				MARKETING_VERSION = 2.0.17;
+				MARKETING_VERSION = 2.0.18;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.Owltype;
 				PRODUCT_NAME = Owltype;
 				SDKROOT = macosx;
@@ -1699,7 +1707,7 @@
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CODE_SIGN_ENTITLEMENTS = resources/Owltype.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.0.17;
+				CURRENT_PROJECT_VERSION = 2.0.18;
 				DEAD_CODE_STRIPPING = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1733,7 +1741,7 @@
 					"$(OTHER_CPLUSPLUSFLAGS_QUOTED_FOR_TARGET_2)",
 				);
 				OTHER_LDFLAGS = "-lrime.1";
-				MARKETING_VERSION = 2.0.17;
+				MARKETING_VERSION = 2.0.18;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.Owltype;
 				PRODUCT_NAME = Owltype;
 				SDKROOT = macosx;
@@ -1865,7 +1873,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2.0.17;
+				CURRENT_PROJECT_VERSION = 2.0.18;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)",
@@ -1878,7 +1886,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.0.17;
+				MARKETING_VERSION = 2.0.18;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.OwltypeTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -1893,7 +1901,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2.0.17;
+				CURRENT_PROJECT_VERSION = 2.0.18;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)",
@@ -1906,7 +1914,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.0.17;
+				MARKETING_VERSION = 2.0.18;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.OwltypeTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -1920,7 +1928,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2.0.17;
+				CURRENT_PROJECT_VERSION = 2.0.18;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1928,7 +1936,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.0.17;
+				MARKETING_VERSION = 2.0.18;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.OwltypeUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -1942,7 +1950,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2.0.17;
+				CURRENT_PROJECT_VERSION = 2.0.18;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1950,7 +1958,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.0.17;
+				MARKETING_VERSION = 2.0.18;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.OwltypeUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;

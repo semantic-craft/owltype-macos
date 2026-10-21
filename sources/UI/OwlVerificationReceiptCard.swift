@@ -72,11 +72,10 @@ final class OwlVerificationReceiptController {
     let anchors = OwlVerificationReceiptModel.admittedAnchors(
       from: selectedText,
       currentYear: Calendar.current.component(.year, from: Date()))
-    let support = OwlLLMProviderCatalog.sourceSupport(for: OwlProviderProfileStore.shared.defaultProfile)
     let model = OwlVerificationReceiptModel(
       selectedText: selectedText,
       anchors: anchors,
-      onlineVerifyAvailable: OwlCloudPreferences.isEnabled && support.supportsSourceVerification,
+      onlineVerifyAvailable: OwlSourceVerificationService.isOnlineVerifyAvailable(),
       verifier: { try await OwlSourceVerificationService.shared.verifyStructured($0) })
     model.onClose = { [weak self] in self?.close() }
     self.model = model

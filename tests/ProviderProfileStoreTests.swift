@@ -533,10 +533,7 @@ final class ProviderProfileStoreTests: XCTestCase {
       OwlLLMProviderCatalog.formProviderID(for: profile), OwlLLMProviderCatalog.customID,
       "the edit form shows a retired provider as custom")
 
-    // 能力降级：不联网、不来源核验。
-    XCTAssertEqual(
-      OwlLLMProviderCatalog.sourceSupport(for: profile), .searchPlanOnly,
-      "an unknown provider must not claim source verification")
+    // 能力降级：不联网。
     XCTAssertEqual(
       OwlSearchControl.channel(providerID: "retired-provider", host: "retired.example.com"), .none)
     XCTAssertFalse(
@@ -630,33 +627,8 @@ final class ProviderProfileStoreTests: XCTestCase {
     XCTAssertFalse(json.contains("sk-add"), "the key must never land in providers.json")
   }
 
-  func testLLMProviderCatalogMarksSourceSearchProviders() throws {
+  func testRetiredZhipuPresetStaysOutOfTheCatalog() {
     XCTAssertNil(OwlLLMProviderCatalog.preset(id: "zhipu"), "智谱已下架，不得再出现在预设目录里")
-
-    let sourceCapable = ["qwen", "doubao", "openai"]
-    for id in sourceCapable {
-      let preset = try XCTUnwrap(OwlLLMProviderCatalog.preset(id: id))
-      XCTAssertEqual(preset.sourceSupport, .sourceResults, "\(id) should support source verification")
-    }
-
-    let planOnly = ["deepseek", "gemini", "minimax"]
-    for id in planOnly {
-      let preset = try XCTUnwrap(OwlLLMProviderCatalog.preset(id: id))
-      XCTAssertEqual(preset.sourceSupport, .searchPlanOnly, "\(id) should not pretend to return sources")
-    }
-
-    // 语义已反转（2026-07-31 百炼全面转 Responses）：来源核验能力属于**平台**而非型号。此前这里
-    // 断言的是「非 qwen 型号降级为辅助检索」——那道降级正是旧 chat 回退的一部分，已随之拆掉。
-    // 型号真不被 Responses 服务时由上游 400 说话，比猫头鹰先替阿里猜一个型号白名单更贴近真相。
-    let nonQwenOnDashScope = OwlProviderProfile(
-      displayName: "百炼托管 DeepSeek",
-      endpoint: URL(string: OwlLLMProviderCatalog.qwenResponsesEndpoint)!,
-      model: "deepseek-v3.2",
-      providerID: "qwen")
-    XCTAssertEqual(
-      OwlLLMProviderCatalog.sourceSupport(for: nonQwenOnDashScope),
-      .sourceResults,
-      "百炼整体走 Responses，来源核验能力不按型号名降级")
   }
 
   /// The default Flash model is selectable first; existing explicit Plus/Max choices remain.
@@ -695,7 +667,6 @@ final class ProviderProfileStoreTests: XCTestCase {
     XCTAssertEqual(
       preset.endpoint,
       "https://ark.cn-beijing.volces.com/api/v3/responses")
-    XCTAssertEqual(preset.sourceSupport, .sourceResults)
   }
 
   func testQwenWorkspaceInputAcceptsWorkspaceIDHostAndFullEndpoint() throws {

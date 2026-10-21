@@ -85,7 +85,7 @@ The text-selection toolbox offers eight individually configurable actions. Enabl
 | Task brief | Turn a rough request into an executable brief and identify missing information. |
 | Publication formatting | Tidy Chinese spacing, punctuation and paragraphs, with a replacement preview. |
 
-Source verification groups entry points into legislation, cases and literature, including China's national laws database, PKULaw, China Judgments Online, the People's Courts Case Database and CNKI. Search routes and AI answers help you consult originals; they do not imply full database access or completed fact-checking.
+Source verification groups entry points into legislation, cases and literature, including China's national laws database, PKULaw, China Judgments Online, the People's Courts Case Database and CNKI. Online checks fetch pages with Doubao Search and DeepSeek built-in web search and judge against them with citations; this needs a Doubao Search API key in Settings → AI, or a DeepSeek provider using deepseek-v4-flash. Search routes and AI answers help you consult originals; they do not imply full database access or completed fact-checking.
 
 ### 🔌 Configure models and search separately
 

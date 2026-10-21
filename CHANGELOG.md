@@ -3,6 +3,19 @@
 ### AI 供应商 | AI providers
 - 保存百炼 Workspace 支持填写新 API Key，换源档案与密钥引用整批保存；同源档案保留原密钥，失败时保留原配置和输入。
 
+<a name="2.0.18"></a>
+## 2.0.18 (2026-10-21)
+
+### 安装与更新 | Installation and updates
+- 修复首次安装时报「INSTALL_SESSION_FAILED: selfCheckTimedOut」：等你在「允许启用输入法」对话框点「允许」的时间不再计入安装自检，最多等 2 分钟；一直没有允许时会明确提示去点「允许」或在系统设置添加猫头鹰，再点「安装」即可恢复（以前重试也会再次超时）。安装时也会结束其他位置残留的猫头鹰进程。
+
+### 划词 | Selection
+- 「来源核验」改为先用豆包搜索（Global 版接口，与 `doubao-search` 命令行工具相同）取回网页，再交给默认供应商对照判断并按 `[序号]` 标注来源；不再依赖 OpenAI、千问的内置联网，默认用 DeepSeek 或 MiniMax 也能核验。需要在 设置 → AI →「来源核验 · 豆包搜索」填写联网搜索控制台「按量后付费」的 API Key（方舟模型 Key 不能用）；之前存过豆包搜索 Key 的会直接沿用。
+- 「来源核验」也用 DeepSeek 内置联网搜索：配有 `deepseek-v4-flash` 的 DeepSeek 供应商时，DeepSeek 自己联网检索并判断，配了豆包搜索则把豆包结果一并交给它，来源合并展示；只配 DeepSeek、不填豆包搜索 Key 也能核验。DeepSeek Key 失效或欠费时换下一个 DeepSeek 档案，都不可用再退回「豆包搜索 + 默认供应商」。
+
+### AI 供应商 | AI providers
+- 保存百炼 Workspace 时，若任一 Qwen 档案需要更换地址来源，整批保持原配置并提示重新填写 API Key，避免旧密钥被带到新地址。
+
 <a name="2.0.17"></a>
 ## 2.0.17 (2026-10-21)
 
@@ -16,7 +29,6 @@
 - 联网搜索只走 DeepSeek 内置搜索（需配置 DeepSeek 供应商并使用 `deepseek-v4-flash`）；移除豆包、百炼、Serper、MiniMax 四个独立搜索服务及其设置项，千问、豆包、OpenAI 不再承担任意提问的联网。来源核验不受影响。
 
 ### AI 供应商 | AI providers
-- 保存百炼 Workspace 时，若任一 Qwen 档案需要更换地址来源，整批保持原配置并提示重新填写 API Key，避免旧密钥被带到新地址。
 - MiniMax 预设改用正式版 `MiniMax-M3.1-Flash`，只走国内站 api.minimax.cn；型号列表为 M3.1-Flash 与 M3，去掉 M2.7-highspeed。已保存的 `-Preview` 档案继续按低思考强度工作。
 
 <a name="2.0.16"></a>

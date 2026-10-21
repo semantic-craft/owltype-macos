@@ -11,7 +11,7 @@
 //       辅助检索共用的传输，逐技能用真实 prompt 打，断言产出符合各自的输出契约。
 //    B. Responses 内置 web_search —— 同一 Responses 客户端 + Qwen web_search（来源核验共用这条传输）。
 //    C. 划词润色（OwlSelectionPolishClient）—— 非流式 json_object 候选契约，v1/v2 变体各一发。
-//    D. 来源核验（OwlSourceVerificationService）—— Responses web_search + 来源抽取。
+//    D. 来源核验（OwlSourceVerificationService）—— 豆包搜索取来源 + 默认供应商对照判断。
 //
 
 import Foundation
@@ -170,10 +170,34 @@ final class OwlSkillsLiveTests: XCTestCase {
     }
   }
 
-  // MARK: - D. 来源核验（Qwen Responses web_search）
+  // MARK: - D. 来源核验（豆包搜索 + 百炼判断）
+
+  /// 豆包搜索 Key 与本机 research-infra `doubao-search` 同源：env `DOUBAO_SEARCH_API_KEY`，
+  /// 否则读钥匙串 `doubao-search-api`。都没有就跳过（离线套件不受影响）。
+  private func doubaoSearchKey() throws -> String {
+    if let key = ProcessInfo.processInfo.environment["DOUBAO_SEARCH_API_KEY"]?
+      .trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty {
+      return key
+    }
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+    process.arguments = ["find-generic-password", "-s", "doubao-search-api", "-w"]
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    process.standardError = FileHandle.nullDevice
+    try? process.run()
+    process.waitUntilExit()
+    let key = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard process.terminationStatus == 0, !key.isEmpty else {
+      throw XCTSkip("无豆包搜索 Key（DOUBAO_SEARCH_API_KEY / 钥匙串 doubao-search-api），跳过来源核验实盘")
+    }
+    return key
+  }
 
   func testSourceVerificationReturnsContentAndSources() async throws {
     let apiKey = try testAPIKey()
+    let searchKey = try doubaoSearchKey()
     OwlCloudPreferences.isEnabled = true
 
     let profile = OwlProviderProfile(
@@ -181,8 +205,12 @@ final class OwlSkillsLiveTests: XCTestCase {
       endpoint: Self.endpoint, model: Self.model,
       providerID: "qwen", secretName: "owltype.live.test", isDefault: true)
     let service = OwlSourceVerificationService(
+      searchKeyProvider: { searchKey },
+      // 这条只测「豆包搜索 + 默认供应商」；不让本机已配的 DeepSeek 档案改走内置联网。
+      webSearchRoutesProvider: { [] },
       profileProvider: { profile },
-      profileSecretProvider: { _ in apiKey })
+      profileSecretProvider: { _ in apiKey },
+      legacyKeyProvider: { nil })
 
     let outcome = try await service.verifyStructured(
       "《中华人民共和国民法典》自2021年1月1日起施行。")
@@ -190,10 +218,22 @@ final class OwlSkillsLiveTests: XCTestCase {
       toFile: "/tmp/owl-skill-verify.txt", atomically: true, encoding: .utf8)
 
     XCTAssertFalse(outcome.content.isEmpty, "核验必须给出结论文本")
-    XCTAssertFalse(
-      outcome.sources.isEmpty,
-      "Responses web_search 应返回可跳查的来源；为空说明来源抽取断了")
+    XCTAssertFalse(outcome.sources.isEmpty, "豆包搜索应返回可跳查的来源")
+    XCTAssertTrue(outcome.content.contains("2021"), "核验结论丢失施行年份 2021")
   }
+
+  /// 提示词评测用的固定检索结果：一条百科转载在前、一条一手官方来源在后，
+  /// 判断应当引用后者（[2]）——「一手官方来源优先」的机器判定。
+  static let verificationFixture = [
+    OwlDoubaoSearchResult(
+      title: "民法典_百科", url: "https://baike.example.com/minfadian",
+      snippet: "《中华人民共和国民法典》于2020年5月28日通过，自2021年1月1日起施行。",
+      publishedAt: nil, hostname: "baike.example.com"),
+    OwlDoubaoSearchResult(
+      title: "中华人民共和国民法典", url: "https://www.npc.gov.cn/npc/c30834/202006/t20200602.html",
+      snippet: "第一千二百六十条　本法自2021年1月1日起施行。",
+      publishedAt: "2020-06-02", hostname: "中国人大网"),
+  ]
 
   // MARK: - F. 规范排版（此前唯一没有实盘覆盖的技能）
 
@@ -465,19 +505,19 @@ final class OwlResponsesPromptEvaluationLiveTests: XCTestCase {
     let verificationClaim = "《中华人民共和国民法典》自2021年1月1日起施行。"
     await evaluate(
       "source-verification-system",
-      tier: .search,
+      tier: .quality,
       messages: [
         OwlDeepSeekMessage(
           role: "system", content: OwlSourceVerificationService.systemPrompt),
         OwlDeepSeekMessage(
           role: "user",
-          content: OwlSourceVerificationService.userPrompt(for: verificationClaim)),
-      ],
-      forceWebSearch: true
+          content: OwlSourceVerificationService.userPrompt(
+            for: verificationClaim, results: OwlSkillsLiveTests.verificationFixture)),
+      ]
     ) { response in
       var failures: [String] = []
-      if response.sources.isEmpty { failures.append("强制联网后没有返回来源 URL") }
       if !response.text.contains("2021") { failures.append("核验结论丢失施行年份 2021") }
+      if !response.text.contains("[2]") { failures.append("没有引用一手官方来源 [2]") }
       return failures
     }
 
@@ -1069,30 +1109,25 @@ final class OwlTriModelSelectionMatrixLiveTests: XCTestCase {
       return failures
     })
 
-    // 3. 来源核验（强制联网）：除了来源非空，还必须给到一手官方来源（gov.cn 域）——
+    // 3. 来源核验：给定豆包搜索的固定结果，判断必须引用一手官方来源 [2]（gov.cn）——
     //    这是「来源核验优先一手官方来源」合并条件的机器判定。
     cases.append(MatrixCase(
-      id: "source-verification", tier: .search, temperature: 0.2, webSearch: true,
+      id: "source-verification", tier: .quality, temperature: nil, webSearch: false,
       messages: [
         OwlDeepSeekMessage(
           role: "system", content: OwlSourceVerificationService.systemPrompt),
         OwlDeepSeekMessage(
           role: "user",
           content: OwlSourceVerificationService.userPrompt(
-            for: "《中华人民共和国民法典》自2021年1月1日起施行。")),
+            for: "《中华人民共和国民法典》自2021年1月1日起施行。",
+            results: OwlSkillsLiveTests.verificationFixture)),
       ]
     ) { response in
       var failures: [String] = []
-      if response.sources.isEmpty { failures.append("强制联网后没有返回来源 URL") }
       if !response.text.contains("2021") { failures.append("核验结论丢失施行年份 2021") }
-      let hasOfficial = response.sources.contains { source in
-        guard let host = URL(string: source)?.host?.lowercased() else { return false }
-        return host == "gov.cn" || host.hasSuffix(".gov.cn")
-      }
-      if !hasOfficial { failures.append("没有给出一手官方来源（gov.cn 域）") }
+      if !response.text.contains("[2]") { failures.append("没有引用一手官方来源 [2]（gov.cn）") }
       return failures
     })
-
     // 4. 辅助检索：产出可复制的检索方案。
     cases.append(MatrixCase(
       id: "research-assist", tier: .interactive, temperature: nil, webSearch: false,

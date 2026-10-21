@@ -209,6 +209,12 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "保存并应用",
     "搜索",
     "变量",
+    // 来源核验 · 豆包搜索：Key 存取在 OwlSettingsActions.saveDoubaoSearchKey / clearDoubaoSearchKey，
+    // 行为由 OwlDoubaoSearchWireTests 的 key store 用例与 OwlSourceVerificationServiceTests 覆盖。
+    "豆包搜索 API Key（写入 Keychain）",
+    "已设置 ●●●●●●（输入新 Key 可覆盖）",
+    "保存",
+    "清除",
   ]
 
   private static let expectedSourceMarkers = [
@@ -224,6 +230,8 @@ final class OwlSettingsCoverageTests: XCTestCase {
     // 这个区别是原地改模型不用重贴 Key 的用户可见凭据，两支都钉住。
     "API Key（\\(hint)写入 Keychain，可留空稍后再填）",
     "API Key（\\(hint)留空＝保持现有 Key 不变）",
+    "OwlSettingsActions.saveDoubaoSearchKey(",
+    "OwlSettingsActions.clearDoubaoSearchKey(",
   ]
 
   private static let labelPatterns = [

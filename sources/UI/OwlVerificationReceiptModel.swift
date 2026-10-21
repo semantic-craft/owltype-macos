@@ -43,7 +43,7 @@ enum OwlAnchorVerifyState: Equatable {
 final class OwlVerificationReceiptModel: ObservableObject {
   let selectedText: String
   let anchors: [OwlVerificationAnchor]
-  /// 当前供应商是否支持带来源的联网核验；false 时只留跳库深链路（对齐 Responsay LegalBrain off）。
+  /// 是否配好了豆包搜索（来源核验的检索层）；false 时只留跳库深链路（对齐 Responsay LegalBrain off）。
   let onlineVerifyAvailable: Bool
 
   @Published private(set) var states: [String: OwlAnchorVerifyState] = [:]
