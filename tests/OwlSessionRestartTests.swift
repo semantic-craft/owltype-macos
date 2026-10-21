@@ -60,6 +60,36 @@ final class OwlSessionRestartTests: XCTestCase {
     XCTAssertEqual(effects.events.prefix(5), ["terminate", "register-enable", "observe", "observe", "refresh"])
   }
 
+  func testConsentWaitDoesNotSpendTheSelfCheckBudget() throws {
+    let effects = Session()
+    let disabled = OwlSessionRestart.Observation(parentEnabled: false, modeEnabled: false, selectedSource: other, servers: [])
+    effects.observations = Array(repeating: disabled, count: 120) + [ready(source: own)]
+    _ = try OwlSessionRestart.run(request(first: true), effects: effects)
+    XCTAssertGreaterThan(effects.uptime, 45)
+    XCTAssertEqual(effects.events.filter { $0 == "register-enable" }.count, 1)
+  }
+
+  func testMissingConsentFailsWithItsOwnReason() {
+    let effects = Session()
+    effects.observations = [.init(parentEnabled: true, modeEnabled: false, selectedSource: other, servers: [])]
+    expectFailure(.inputSourceNotEnabled) {
+      try OwlSessionRestart.run(request(first: true), effects: effects, consentTimeout: 3)
+    }
+    XCTAssertFalse(effects.events.contains("refresh"))
+  }
+
+  func testUpdateOfDisabledSourceRequestsEnableOnceSoRetryRecovers() throws {
+    let effects = Session()
+    effects.observations = [
+      .init(parentEnabled: false, modeEnabled: false, selectedSource: other, servers: []),
+      .init(parentEnabled: false, modeEnabled: false, selectedSource: other, servers: []),
+      ready(source: other),
+    ]
+    _ = try OwlSessionRestart.run(request(source: other), effects: effects)
+    XCTAssertEqual(effects.events, ["terminate", "observe", "register-enable", "observe", "observe",
+                                   "refresh", "launch", "observe"])
+  }
+
   func testOldProcessGetsOneForcedTerminationBeforeSessionActions() throws {
     let effects = Session()
     effects.oldProcessAlive = true
