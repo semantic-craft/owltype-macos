@@ -210,6 +210,31 @@ extension OwlSettingsActions {
     }
   }
 
+  /// Save the 豆包搜索 key used by 来源核验. Stored apart from model keys: the search console
+  /// issues its own key, and an Ark model key is rejected (`700901`).
+  static func saveDoubaoSearchKey(
+    _ apiKey: String,
+    secrets: OwlSecretStoring
+  ) -> (input: String, status: String) {
+    let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !key.isEmpty else { return (apiKey, "请输入豆包搜索的 API Key") }
+    do {
+      try secrets.setSecret(key, named: OwlDoubaoSearchKeyStore.secretName)
+      return ("", "已保存到 Keychain，来源核验将用豆包搜索取来源。")
+    } catch {
+      return (apiKey, "保存 Keychain 失败")
+    }
+  }
+
+  static func clearDoubaoSearchKey(secrets: OwlSecretStoring) -> String {
+    do {
+      try secrets.deleteSecret(named: OwlDoubaoSearchKeyStore.secretName)
+      return "已删除豆包搜索的 API Key，来源核验只保留跳库查询。"
+    } catch {
+      return "删除 Keychain 失败"
+    }
+  }
+
   /// Save the shared Qwen Workspace API Host and keep every existing Qwen profile on the same
   /// Responses endpoint, so profiles added at different times never drift to different workspaces.
   static func saveQwenWorkspace(
