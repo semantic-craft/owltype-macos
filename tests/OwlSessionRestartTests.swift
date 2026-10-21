@@ -143,6 +143,121 @@ final class OwlSessionRestartTests: XCTestCase {
     XCTAssertFalse(OwlSessionRestart.mapsInstalledExecutable("p400\nftxt\ni100\nn/retired/Owltype\nftxt\ni99\nn\(path)\n", inode: 100))
   }
 
+  // MARK: #207 —— 失败归因：阶段、原因、未满足条件（安装日志、恢复弹窗、诊断包共用）
+
+  func testStagesAreEnteredInOrderBeforeEachStepsFirstEffect() throws {
+    let effects = Session()
+    effects.observations = [ready(source: other), ready(source: own), ready(source: own)]
+    _ = try OwlSessionRestart.run(request(first: true), effects: effects)
+    XCTAssertEqual(effects.stages, [.stopOldProcesses, .enable, .select, .launch, .verify])
+  }
+
+  func testUnmetConditionsNameEveryMissingPieceOfEvidence() {
+    XCTAssertEqual(OwlSessionRestart.unmetConditions(ready(source: own), request: request()), [])
+    let disabled = OwlSessionRestart.Observation(parentEnabled: true, modeEnabled: false, selectedSource: other, servers: [])
+    XCTAssertEqual(OwlSessionRestart.unmetConditions(disabled, request: request()),
+                   [.sourceNotEnabled, .selectedSourceDiffers, .noServer])
+    let stale = OwlSessionRestart.Observation(parentEnabled: true, modeEnabled: true, selectedSource: own,
+                                              servers: [server(version: "2.0.12", path: "/tmp/Owltype", mapped: false)])
+    XCTAssertEqual(OwlSessionRestart.unmetConditions(stale, request: request()),
+                   [.serverOutsideInstalledApp, .serverVersionDiffers, .serverMapsOtherExecutable])
+    let two = OwlSessionRestart.Observation(parentEnabled: true, modeEnabled: true, selectedSource: own,
+                                            servers: [server(), server()])
+    XCTAssertEqual(OwlSessionRestart.unmetConditions(two, request: request()), [.multipleServers])
+    let dead = OwlSessionRestart.Observation(parentEnabled: true, modeEnabled: true, selectedSource: own,
+                                             servers: [.init(pid: 0, executable: OwlSessionRestart.installedExecutable,
+                                                             version: "2.0.13", mapsInstalledExecutable: true)])
+    XCTAssertEqual(OwlSessionRestart.unmetConditions(dead, request: request()), [.noServer])
+  }
+
+  func testServerConditionsIgnoreSelectionSoTheAppCanRecheckAfterTheUserSwitched() {
+    let switched = ready(source: other)
+    XCTAssertEqual(OwlSessionRestart.unmetServerConditions(switched, expectedVersion: "2.0.13"), [])
+    XCTAssertEqual(OwlSessionRestart.unmetConditions(switched, request: request()), [.selectedSourceDiffers])
+  }
+
+  func testTimeoutDiagnosisNamesTheStageAndWhatTheLastProbeSaw() {
+    let effects = Session()
+    effects.observations = [.init(parentEnabled: true, modeEnabled: true, selectedSource: own, servers: [server(version: "2.0.12")])]
+    let diagnosis = diagnoseFailure(request(), effects: effects, timeout: 2)
+    XCTAssertEqual(diagnosis?.stage, .verify)
+    XCTAssertEqual(diagnosis?.reason, "selfCheckTimedOut")
+    XCTAssertEqual(diagnosis?.unmet, [.serverVersionDiffers])
+    XCTAssertEqual(diagnosis?.lastObservation, effects.observations[0])
+    XCTAssertEqual(diagnosis?.summary,
+                   "阶段「核验会话」失败：自检超时（selfCheckTimedOut）；未满足：运行中的版本为 2.0.12，预期 2.0.13")
+  }
+
+  func testSelectionThatNeverTakesEffectIsAttributedToTheSelectStage() {
+    let effects = Session()
+    effects.observations = [ready(source: "com.apple.keylayout.US")]
+    let diagnosis = diagnoseFailure(request(), effects: effects, timeout: 2)
+    XCTAssertEqual(diagnosis?.stage, .select)
+    XCTAssertEqual(diagnosis?.unmet, [.selectedSourceDiffers])
+    XCTAssertEqual(diagnosis?.summary, "阶段「恢复选中的输入法」失败：自检超时（selfCheckTimedOut）；未满足："
+                   + "选中的输入法与安装前不同（预期 \(own)，实际 com.apple.keylayout.US）")
+  }
+
+  func testConsentTimeoutDiagnosisReportsOnlyTheEnableCondition() {
+    let effects = Session()
+    effects.observations = [.init(parentEnabled: true, modeEnabled: false, selectedSource: other, servers: [])]
+    let diagnosis = diagnoseFailure(request(first: true), effects: effects, consentTimeout: 3)
+    XCTAssertEqual(diagnosis?.stage, .enable)
+    XCTAssertEqual(diagnosis?.reason, "inputSourceNotEnabled")
+    XCTAssertEqual(diagnosis?.unmet, [.sourceNotEnabled], "启用前不期待服务器，也不报选中态")
+    XCTAssertEqual(diagnosis?.summary,
+                   "阶段「等待启用输入源」失败：等待启用超时（inputSourceNotEnabled）；未满足：输入源未启用（父源已启用，模式未启用）")
+  }
+
+  func testStopStageDiagnosisCarriesNoProbeConditions() {
+    let effects = Session()
+    effects.oldProcessAlive = true
+    effects.forceWorks = false
+    let diagnosis = diagnoseFailure(request(first: true), effects: effects)
+    XCTAssertEqual(diagnosis?.stage, .stopOldProcesses)
+    XCTAssertEqual(diagnosis?.unmet, [])
+    XCTAssertNil(diagnosis?.lastObservation)
+    XCTAssertEqual(diagnosis?.summary, "阶段「结束旧进程」失败：旧进程没有退出（oldProcessDidNotExit）")
+  }
+
+  func testHelperCommandErrorKeepsItsOwnDescriptionAsTheReason() {
+    struct ProbeTimedOut: Error, CustomStringConvertible {
+      var description: String { "Owltype --install-session-probe 超过 8 秒未结束" }
+    }
+    let diagnosis = OwlSessionRestart.diagnose(ProbeTimedOut(), request: request(), stage: .launch, lastObservation: nil)
+    XCTAssertEqual(diagnosis.reason, "Owltype --install-session-probe 超过 8 秒未结束")
+    XCTAssertEqual(diagnosis.summary, "阶段「启动已安装的猫头鹰」失败：Owltype --install-session-probe 超过 8 秒未结束")
+  }
+
+  func testDescribeSpellsOutEachConditionAndAnEmptyListMeansHealthy() {
+    let observation = OwlSessionRestart.Observation(parentEnabled: false, modeEnabled: false, selectedSource: other,
+                                                    servers: [server(), server(version: "2.0.12")])
+    let text = OwlSessionRestart.describe(unmet: [.sourceNotEnabled, .multipleServers], observation: observation,
+                                          expectedSource: own, expectedVersion: "2.0.13")
+    XCTAssertEqual(text, "输入源未启用（父源未启用，模式未启用）；猫头鹰进程不止一个（pid 400、400）")
+    XCTAssertEqual(OwlSessionRestart.describe(unmet: [], observation: nil, expectedSource: own, expectedVersion: "2.0.13"),
+                   "全部条件已满足")
+  }
+
+  func testDiagnosisRoundTripsThroughJSON() throws {
+    let diagnosis = OwlSessionRestart.diagnose(OwlSessionRestart.Failure.selfCheckTimedOut, request: request(),
+                                               stage: .verify, lastObservation: ready(source: own))
+    let data = try JSONEncoder().encode(diagnosis)
+    XCTAssertEqual(try JSONDecoder().decode(OwlSessionRestart.Diagnosis.self, from: data), diagnosis)
+  }
+
+  private func diagnoseFailure(_ request: OwlSessionRestart.Request, effects: Session, timeout: TimeInterval = 45,
+                               consentTimeout: TimeInterval = 120) -> OwlSessionRestart.Diagnosis? {
+    do {
+      try OwlSessionRestart.run(request, effects: effects, timeout: timeout, consentTimeout: consentTimeout)
+      XCTFail("expected the sequence to fail")
+      return nil
+    } catch {
+      return OwlSessionRestart.diagnose(error, request: request, stage: effects.stages.last ?? .stopOldProcesses,
+                                        lastObservation: effects.lastObservation)
+    }
+  }
+
   private func request(first: Bool = false, source: String = OwlSessionRestart.primarySource) -> OwlSessionRestart.Request {
     .init(firstInstall: first, sourceBefore: source, expectedVersion: "2.0.13")
   }
@@ -170,6 +285,10 @@ final class OwlSessionRestartTests: XCTestCase {
     var forceWorks = true
     var events: [String] = []
     var observations: [OwlSessionRestart.Observation] = []
+    /// Stage transitions, consecutive repeats collapsed; kept apart from `events` so the exact
+    /// effect sequences above stay what they lock.
+    var stages: [OwlSessionRestart.Stage] = []
+    var lastObservation: OwlSessionRestart.Observation?
     func pause() { uptime += 0.5 }
     func stopOldProcesses(force: Bool) {
       events.append(force ? "kill" : "terminate")
@@ -179,10 +298,15 @@ final class OwlSessionRestartTests: XCTestCase {
     func registerAndEnableParentAndMode() { events.append("register-enable") }
     func observe() -> OwlSessionRestart.Observation {
       events.append("observe")
-      return observations.count > 1 ? observations.removeFirst() : observations[0]
+      let observation = observations.count > 1 ? observations.removeFirst() : observations[0]
+      lastObservation = observation
+      return observation
     }
     func selectSource(_ source: String) { events.append("select:\(source)") }
     func refreshTextInputServices() { events.append("refresh") }
     func launchInstalledApp() { events.append("launch") }
+    func didEnter(_ stage: OwlSessionRestart.Stage) {
+      if stages.last != stage { stages.append(stage) }
+    }
   }
 }

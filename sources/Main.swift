@@ -185,6 +185,10 @@ struct OwlApp {
             try OwlInstallSession.finish(firstInstall: args[2] == "first", sourceBefore: args[3], version: args[4])
           } catch {
             fputs("INSTALL_SESSION_FAILED: \(error)\n", stderr)
+            // #207: the stage, the error and what the last probe saw, for install.log and the GUI.
+            if let failure = error as? OwlInstallSession.SessionFailure {
+              fputs("INSTALL_SESSION_DIAGNOSIS: \(failure.diagnosis.summary)\n", stderr)
+            }
             exit(1)
           }
           return true

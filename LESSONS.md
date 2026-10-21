@@ -3,6 +3,34 @@
 Each entry keeps the rule, reason, regression, and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## A failed self-check must say which step failed and what it saw
+
+**Record the stage, the error and the unmet conditions of a failed install self-check; re-probe before guidance and keep the reason in the support bundle.**
+
+- Reason: the 2.0.14 report in #207 (filed 2026-10-11) and a tester's 2026-10-22 report after an
+  update through 检查更新 both arrived as a screenshot of 「安装后的会话自检未通过」 with 「稍后处理」
+  clicked, and typing worked in both. The App persisted only the failed version;
+  `selfCheckTimedOut` named no stage, no condition and no probe result; the reason lived in the
+  GUI dialog or `/var/log/install.log`, which neither tester sent. The prompt also fired without
+  re-checking, so a transient failure showed stale guidance.
+- Prevention: `OwlSessionRestart.run` reports each stage through `didEnter`; `diagnose` turns
+  the thrown error and the last observation into a `Diagnosis` (stage, reason, unmet
+  conditions, observation). The CLI prints `INSTALL_SESSION_DIAGNOSIS:` after
+  `INSTALL_SESSION_FAILED:` and stores the record beside the failed version
+  ([OwlInstallSelfCheckRecord](sources/Controller/OwlUpdateLogoutPrompt.swift)). At the
+  input-safe time the App runs the same probe again and skips the prompt when every server
+  condition holds; the alert and the support bundle section 「安装自检」 carry both facts.
+- Regression: `testTimeoutDiagnosisNamesTheStageAndWhatTheLastProbeSaw`,
+  `testSelectionThatNeverTakesEffectIsAttributedToTheSelectStage` and
+  `testConsentTimeoutDiagnosisReportsOnlyTheEnableCondition` in
+  [OwlSessionRestartTests](tests/OwlSessionRestartTests.swift);
+  `test_selfCheck_failureStoresDiagnosisBesideVersion_passClearsBoth`,
+  `test_recheckDecision_onlyACleanProbeCountsAsRecovered` and
+  `test_recordRecovered_consumesPromptAndKeepsRecordMarkedRecovered` in
+  [OwlUpdateLogoutPromptTests](tests/OwlUpdateLogoutPromptTests.swift). The host re-probe and a
+  real failure's diagnosis line remain unverified on a tester's Mac.
+- Seen on 2 distinct dates: 2026-10-11, 2026-10-22.
+
 ## Run live tests through scripts/live-test.sh
 
 **Live keys come from the environment only; `scripts/live-test.sh` loads them through direnv and fails when a named live test skips.**

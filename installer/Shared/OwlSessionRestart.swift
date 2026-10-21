@@ -19,6 +19,9 @@ enum OwlSessionRestart {
     }
 
     var expectedSource: String { selectionTarget ?? sourceBefore }
+
+    /// The mode whose enabled bit the probe reads: the selection target, else the primary mode.
+    var probeMode: String { selectionTarget ?? OwlSessionRestart.primarySource }
   }
 
   struct Server: Equatable, Codable {
@@ -28,7 +31,7 @@ enum OwlSessionRestart {
     let mapsInstalledExecutable: Bool
   }
 
-  struct Observation: Codable {
+  struct Observation: Equatable, Codable {
     let parentEnabled: Bool
     let modeEnabled: Bool
     let selectedSource: String
@@ -43,11 +46,147 @@ enum OwlSessionRestart {
     case selfCheckTimedOut
   }
 
+  /// The step the sequence is executing. Effects learn each transition through `didEnter`, so an
+  /// error thrown by any step can be attributed to it afterwards (#207).
+  enum Stage: String, Codable {
+    case stopOldProcesses
+    case enable
+    case select
+    case launch
+    case verify
+  }
+
+  /// One condition of the self-check that an observation did not meet.
+  enum Unmet: String, Codable, Equatable {
+    case sourceNotEnabled
+    case selectedSourceDiffers
+    case noServer
+    case multipleServers
+    case serverOutsideInstalledApp
+    case serverVersionDiffers
+    case serverMapsOtherExecutable
+  }
+
+  /// What a failed sequence leaves behind: the step that threw, the error, and the conditions the
+  /// last observation missed, so a timeout says which evidence never arrived. The installer log,
+  /// the App's recovery guidance and the support bundle all read this.
+  struct Diagnosis: Codable, Equatable {
+    let stage: Stage
+    let reason: String
+    let unmet: [Unmet]
+    let lastObservation: Observation?
+    let firstInstall: Bool
+    let expectedSource: String
+    let expectedVersion: String
+    let probeMode: String
+
+    var summary: String {
+      var text = "阶段「\(OwlSessionRestart.label(stage))」失败：\(OwlSessionRestart.label(reason: reason))"
+      if !unmet.isEmpty {
+        text += "；未满足：" + OwlSessionRestart.describe(unmet: unmet, observation: lastObservation,
+                                                      expectedSource: expectedSource, expectedVersion: expectedVersion)
+      }
+      return text
+    }
+  }
+
   static func mapsInstalledExecutable(_ lsof: String, inode: UInt64) -> Bool {
     lsof.components(separatedBy: "ftxt\n").dropFirst().contains { record in
       let fields = record.components(separatedBy: .newlines)
       return fields.contains("n\(installedExecutable)") && fields.contains("i\(inode)")
     }
+  }
+
+  /// Conditions the running server must meet whatever is selected. The App re-checks exactly
+  /// these before it shows recovery guidance, with the same probe the installer used.
+  static func unmetServerConditions(_ observation: Observation, expectedVersion: String) -> [Unmet] {
+    var unmet: [Unmet] = []
+    if !(observation.parentEnabled && observation.modeEnabled) { unmet.append(.sourceNotEnabled) }
+    switch observation.servers.count {
+    case 0:
+      unmet.append(.noServer)
+    case 1:
+      let server = observation.servers[0]
+      if server.pid <= 0 { unmet.append(.noServer) }
+      if server.executable != installedExecutable { unmet.append(.serverOutsideInstalledApp) }
+      if server.version != expectedVersion { unmet.append(.serverVersionDiffers) }
+      if !server.mapsInstalledExecutable { unmet.append(.serverMapsOtherExecutable) }
+    default:
+      unmet.append(.multipleServers)
+    }
+    return unmet
+  }
+
+  /// Every condition the self-check requires; an empty result is a passed check.
+  static func unmetConditions(_ observation: Observation, request: Request) -> [Unmet] {
+    let server = unmetServerConditions(observation, expectedVersion: request.expectedVersion)
+    guard observation.selectedSource != request.expectedSource else { return server }
+    return server.filter { $0 == .sourceNotEnabled } + [.selectedSourceDiffers]
+      + server.filter { $0 != .sourceNotEnabled }
+  }
+
+  /// Attribute a thrown error to the stage that was running. Before the launch step no server is
+  /// expected, so only the enable condition is reported there.
+  static func diagnose(_ error: Error, request: Request, stage: Stage,
+                       lastObservation: Observation?) -> Diagnosis {
+    var unmet = lastObservation.map { unmetConditions($0, request: request) } ?? []
+    switch stage {
+    case .stopOldProcesses: unmet = []
+    case .enable: unmet = unmet.filter { $0 == .sourceNotEnabled }
+    case .select, .launch, .verify: break
+    }
+    return Diagnosis(stage: stage, reason: "\(error)", unmet: unmet, lastObservation: lastObservation,
+                     firstInstall: request.firstInstall, expectedSource: request.expectedSource,
+                     expectedVersion: request.expectedVersion, probeMode: request.probeMode)
+  }
+
+  static func label(_ stage: Stage) -> String {
+    switch stage {
+    case .stopOldProcesses: return "结束旧进程"
+    case .enable: return "等待启用输入源"
+    case .select: return "恢复选中的输入法"
+    case .launch: return "启动已安装的猫头鹰"
+    case .verify: return "核验会话"
+    }
+  }
+
+  static func label(reason: String) -> String {
+    switch reason {
+    case "notUserSession": return "不在用户登录会话中（notUserSession）"
+    case "missingContext": return "缺少安装上下文（missingContext）"
+    case "oldProcessDidNotExit": return "旧进程没有退出（oldProcessDidNotExit）"
+    case "inputSourceNotEnabled": return "等待启用超时（inputSourceNotEnabled）"
+    case "selfCheckTimedOut": return "自检超时（selfCheckTimedOut）"
+    default: return reason
+    }
+  }
+
+  /// Chinese, one clause per condition, with the observed value beside the expected one.
+  static func describe(unmet: [Unmet], observation: Observation?, expectedSource: String,
+                       expectedVersion: String) -> String {
+    guard !unmet.isEmpty else { return "全部条件已满足" }
+    let server = observation?.servers.count == 1 ? observation?.servers[0] : nil
+    return unmet.map { condition -> String in
+      switch condition {
+      case .sourceNotEnabled:
+        let parent = observation?.parentEnabled == true ? "已" : "未"
+        let mode = observation?.modeEnabled == true ? "已" : "未"
+        return "输入源未启用（父源\(parent)启用，模式\(mode)启用）"
+      case .selectedSourceDiffers:
+        return "选中的输入法与安装前不同（预期 \(expectedSource)，实际 \(observation?.selectedSource ?? "?")）"
+      case .noServer:
+        return "没有运行中的猫头鹰进程"
+      case .multipleServers:
+        let pids = (observation?.servers ?? []).map { String($0.pid) }.joined(separator: "、")
+        return "猫头鹰进程不止一个（pid \(pids)）"
+      case .serverOutsideInstalledApp:
+        return "运行中的猫头鹰不在 /Library/Input Methods（\(server?.executable ?? "?")）"
+      case .serverVersionDiffers:
+        return "运行中的版本为 \(server?.version ?? "?")，预期 \(expectedVersion)"
+      case .serverMapsOtherExecutable:
+        return "进程映射的不是刚安装的可执行文件"
+      }
+    }.joined(separator: "；")
   }
 
   /// All effects must be bounded. stopOldProcesses checks identity/ownership before signaling;
@@ -63,6 +202,8 @@ enum OwlSessionRestart {
     func selectSource(_ source: String) throws
     func refreshTextInputServices() throws
     func launchInstalledApp() throws
+    /// Called at every stage transition, before that stage's first effect.
+    func didEnter(_ stage: Stage)
   }
 
   /// Successful self-check is process/TIS evidence only; real host typing remains a native test.
@@ -76,6 +217,7 @@ enum OwlSessionRestart {
     guard !request.expectedVersion.isEmpty,
           request.firstInstall || !request.sourceBefore.isEmpty else { throw Failure.missingContext }
     let started = effects.uptime
+    effects.didEnter(.stopOldProcesses)
     try effects.stopOldProcesses(force: false)
     var forced = false
     while try effects.oldProcessesRemain() {
@@ -86,6 +228,7 @@ enum OwlSessionRestart {
       }
       effects.pause()
     }
+    effects.didEnter(.enable)
     if request.firstInstall { try effects.registerAndEnableParentAndMode() }
 
     var enableRequested = request.firstInstall
@@ -105,25 +248,27 @@ enum OwlSessionRestart {
     var refreshed = false
     while effects.uptime < deadline {
       if let target = request.selectionTarget, observation.selectedSource != target {
+        effects.didEnter(.select)
         try effects.selectSource(target)
         // Selection's return status is not a readback. Wait for a fresh observation.
       } else if !refreshed {
+        effects.didEnter(.launch)
         try effects.refreshTextInputServices()
         try effects.launchInstalledApp()
         refreshed = true
-      } else if observation.parentEnabled && observation.modeEnabled,
-                observation.selectedSource == request.expectedSource,
-                observation.servers.count == 1,
-                let server = observation.servers.first,
-                server.pid > 0,
-                server.executable == installedExecutable,
-                server.version == request.expectedVersion,
-                server.mapsInstalledExecutable {
-        return server
+      } else {
+        effects.didEnter(.verify)
+        if unmetConditions(observation, request: request).isEmpty, let server = observation.servers.first {
+          return server
+        }
       }
       effects.pause()
       observation = try effects.observe()
     }
     throw Failure.selfCheckTimedOut
   }
+}
+
+extension OwlSessionRestart.Effects {
+  func didEnter(_ stage: OwlSessionRestart.Stage) {}
 }
