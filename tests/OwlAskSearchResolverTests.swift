@@ -101,7 +101,7 @@ final class OwlAskSearchResolverTests: XCTestCase {
     guard let route = resolver.resolve() else { return XCTFail("expected a resolved route") }
     XCTAssertEqual(route.providerID, "deepseek")
     XCTAssertEqual(route.routing.endpoint.host, "api.deepseek.com")
-    XCTAssertEqual(route.routing.model, "deepseek-v4-flash")
+    XCTAssertEqual(route.routing.model, "deepseek-v4-pro", "联网固定换成会真搜的型号")
     XCTAssertEqual(route.apiKey, "sk-deepseek")
     XCTAssertEqual(route.transport, .responses(.deepseek))
     XCTAssertEqual(route.displayName, "DeepSeek")
@@ -145,14 +145,13 @@ final class OwlAskSearchResolverTests: XCTestCase {
     XCTAssertEqual(resolver.resolveAll().map(\.apiKey), ["sk-b", "sk-a"], "活动档案在前，其余按存储顺序")
   }
 
-  /// 配着 `deepseek-v4-pro` 的档案不能联网：DeepSeek 的 `/responses` 只收 flash。
-  /// 如实跳过它，而不是发出去换一个 400。
-  func testDeepSeekProProfileIsSkippedBecauseResponsesRejectsIt() {
+  /// 联网型号与档案的作答型号无关：pro、flash 档案都用 searchModel 去搜，Key 照用各自的。
+  func testEveryDeepSeekProfileSearchesOnTheSearchModel() {
     let pro = makeResolver(
       profiles: [deepseek(model: "deepseek-v4-pro", isDefault: true)],
       keys: ["owltype.provider.deepseek.apiKey": "sk-deepseek"]
     )
-    XCTAssertNil(pro.resolve(), "pro 上不了 /responses，这条路由不该被交出来")
+    XCTAssertEqual(pro.resolve()?.routing.model, OwlSearchControl.searchModel)
 
     let mixed = makeResolver(
       profiles: [
@@ -164,7 +163,24 @@ final class OwlAskSearchResolverTests: XCTestCase {
         "owltype.provider.ds-flash.apiKey": "sk-flash",
       ]
     )
-    XCTAssertEqual(mixed.resolveAll().map(\.apiKey), ["sk-flash"], "活动档案是 pro 时顺位到 flash 档案")
+    XCTAssertEqual(mixed.resolveAll().map(\.apiKey), ["sk-pro", "sk-flash"], "活动档案在前，其余按存储顺序")
+    XCTAssertEqual(Set(mixed.resolveAll().map(\.routing.model)), [OwlSearchControl.searchModel])
+  }
+
+  func testProxyEndpointKeepsItsOwnModel() {
+    // 名字或 host 含 deepseek 的代理不一定提供 v4-pro 或 /responses，不能强换型号。
+    let flash = makeResolver(
+      profiles: [profile("deepseek", host: "deepseek.proxy.example", model: "deepseek-v4-flash")],
+      keys: ["owltype.provider.deepseek.apiKey": "sk-proxy"]
+    )
+    XCTAssertNil(flash.resolve(), "代理上的 flash 不会搜，跳过")
+
+    let pro = makeResolver(
+      profiles: [profile("deepseek", host: "deepseek.proxy.example", model: "deepseek-v4-pro")],
+      keys: ["owltype.provider.deepseek.apiKey": "sk-proxy"]
+    )
+    XCTAssertEqual(pro.resolve()?.routing.model, "deepseek-v4-pro")
+    XCTAssertEqual(pro.resolve()?.routing.endpoint.host, "deepseek.proxy.example")
   }
 
   func testCustomProfileResolvesDeepSeekByHost() {

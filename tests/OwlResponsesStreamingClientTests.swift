@@ -680,17 +680,15 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
   func testDeepSeekIsTheOnlySearchProvider() {
     XCTAssertEqual(
       OwlSearchControl.transport(
-        providerID: "deepseek", host: "api.deepseek.com", model: "deepseek-v4-flash"),
+        providerID: "deepseek", host: "api.deepseek.com", model: OwlSearchControl.searchModel),
       .responses(.deepseek))
     XCTAssertEqual(OwlSearchControl.displayName(for: "deepseek"), "DeepSeek")
     XCTAssertEqual(OwlSearchControl.searchProviderID, "deepseek")
 
-    // 型号闸同样管搜索：配着 pro 的 DeepSeek 档案不能搜（`/responses` 不收 pro），
-    // 如实返回 `.none` 让顺位跳过它，比发出去换一个 400 强。
+    // 型号闸同样管搜索：flash 收下 web_search 却不搜，如实返回 `.none`。
     XCTAssertEqual(
       OwlSearchControl.transport(
-        providerID: "deepseek", host: "api.deepseek.com",
-        model: OwlCloudPreferences.reasonerDeepSeekModel),
+        providerID: "deepseek", host: "api.deepseek.com", model: "deepseek-v4-flash"),
       .none)
   }
 

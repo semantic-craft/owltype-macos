@@ -214,9 +214,9 @@ final class OwlSourceVerificationServiceTests: XCTestCase {
 
   private static let deepSeekPayload = #"""
     {
-      "model":"deepseek-v4-flash",
+      "model":"deepseek-v4-pro",
       "output":[
-        {"type":"web_search_call","action":{"sources":[{"type":"url","url":"https://flk.npc.gov.cn/x"}]}},
+        {"type":"web_search_call","action":{"sources":[{"type":"url","url":"https://flk.npc.gov.cn/x#ws_call_id=call_01"}]}},
         {"type":"message","content":[{"type":"output_text",
           "text":"属实。见 [2] 与 [国家法律法规数据库](https://flk.npc.gov.cn/x)、[新华网](https://news.cn/y)。"}]}
       ],
@@ -249,7 +249,7 @@ final class OwlSourceVerificationServiceTests: XCTestCase {
     XCTAssertEqual(request.timeoutInterval, OwlSourceVerificationService.webSearchTimeout)
     let body = try XCTUnwrap(
       JSONSerialization.jsonObject(with: try XCTUnwrap(request.httpBody)) as? [String: Any])
-    XCTAssertEqual(body["model"] as? String, "deepseek-v4-flash")
+    XCTAssertEqual(body["model"] as? String, OwlSearchControl.searchModel)
     XCTAssertEqual(body["stream"] as? Bool, false)
     XCTAssertEqual((body["tools"] as? [[String: Any]])?.first?["type"] as? String, "web_search")
     let input = try XCTUnwrap(body["input"] as? [[String: Any]])
@@ -330,6 +330,43 @@ final class OwlSourceVerificationServiceTests: XCTestCase {
     XCTAssertTrue(transport.calls.isEmpty)
   }
 
+  /// 2026-10-21 实测：flash 收下 web_search 却一次没搜，正文照样附「官方链接」。没有
+  /// `web_search_call` 的回答不能当核验结果。
+  func testUnsearchedDeepSeekReplyIsNotTrusted() async throws {
+    let unsearched = #"""
+      {"output":[{"type":"message","content":[{"type":"output_text",
+        "text":"属实。[中国人大网](http://www.npc.gov.cn/remembered)"}]}]}
+      """#
+    await assertThrows(
+      makeService(
+        search: StubSearch(), transport: StubTransport(), searchKey: nil,
+        webSearch: StubWebSearch([(200, unsearched)]), routes: 1),
+      .emptyResponse)
+
+    // 手里有豆包结果时，没再搜的判断仍立得住（[序号] 指向真取回的网页），但它凭记忆写的链接不收。
+    let transport = StubTransport(deltas: ["不应出现"])
+    let groundedButUnsearched = #"""
+      {"output":[{"type":"message","content":[{"type":"output_text",
+        "text":"属实，见 [2]。另见 [中国人大网](http://www.npc.gov.cn/remembered)"}]}]}
+      """#
+    let outcome = try await makeService(
+      search: StubSearch(results: Self.results), transport: transport,
+      webSearch: StubWebSearch([(200, groundedButUnsearched)]), routes: 1
+    ).verifyStructured(Self.claim)
+    XCTAssertTrue(transport.calls.isEmpty)
+    XCTAssertTrue(outcome.content.hasPrefix("属实"))
+    XCTAssertEqual(
+      outcome.sources.map(\.url), ["https://www.npc.gov.cn/a", "https://baike.example.com/a"])
+
+    // 没回正文：有豆包结果就退回默认供应商判断。
+    let fallback = StubTransport(deltas: ["依据 [2]。"])
+    _ = try await makeService(
+      search: StubSearch(results: Self.results), transport: fallback,
+      webSearch: StubWebSearch([(200, #"{"output":[]}"#)]), routes: 1
+    ).verifyStructured(Self.claim)
+    XCTAssertEqual(fallback.calls.count, 1)
+  }
+
   func testLinkedSourcesReadsMarkdownLinksOnly() {
     XCTAssertEqual(
       OwlSourceVerificationService.linkedSources(
@@ -375,7 +412,7 @@ final class OwlSourceVerificationServiceTests: XCTestCase {
         routing: OwlCloudRouting(
           providerID: "deepseek",
           endpoint: URL(string: "https://api.deepseek.com/v1/chat/completions")!,
-          model: "deepseek-v4-flash",
+          model: "deepseek-v4-pro",
           secretName: "owltype.provider.ds\($0).apiKey",
           authHeaderStyle: .bearer),
         apiKey: "sk-ds-\($0)")
