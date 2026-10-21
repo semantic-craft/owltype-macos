@@ -206,6 +206,8 @@ final class OwlSkillsLiveTests: XCTestCase {
       providerID: "qwen", secretName: "owltype.live.test", isDefault: true)
     let service = OwlSourceVerificationService(
       searchKeyProvider: { searchKey },
+      // 这条只测「豆包搜索 + 默认供应商」；不让本机已配的 DeepSeek 档案改走内置联网。
+      webSearchRoutesProvider: { [] },
       profileProvider: { profile },
       profileSecretProvider: { _ in apiKey },
       legacyKeyProvider: { nil })

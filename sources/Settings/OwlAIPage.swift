@@ -153,6 +153,7 @@ struct OwlAIPage: View {
         }
         Text("""
           来源核验先用豆包搜索（Global 版）取回网页，再交给默认供应商对照判断，来源只取自搜索结果。\
+          配有 deepseek-v4-flash 的 DeepSeek 供应商时，DeepSeek 也会联网检索并一起判断；只配 DeepSeek 也能核验。\
           这把 Key 与方舟模型 Key 不同：在火山引擎「联网搜索控制台 → API Key 管理 → 按量后付费」创建，\
           每月 500 次免费。\(doubaoSearchKeyStatus.isEmpty ? "" : "\n\n\(doubaoSearchKeyStatus)")
           """)
