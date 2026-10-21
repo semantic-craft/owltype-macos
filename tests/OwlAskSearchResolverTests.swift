@@ -42,10 +42,6 @@ final class OwlAskSearchResolverTests: XCTestCase {
     profile("qwen", host: "dashscope.aliyuncs.com", model: "qwen3.6-flash", isDefault: isDefault)
   }
 
-  private func mimo(isDefault: Bool = false) -> OwlProviderProfile {
-    profile("mimo", host: "api.xiaomimimo.com", model: "mimo-v2.5", isDefault: isDefault)
-  }
-
   private func deepseek(isDefault: Bool = true) -> OwlProviderProfile {
     profile("deepseek", host: "api.deepseek.com", model: "deepseek-v4-flash", isDefault: isDefault)
   }
@@ -101,47 +97,45 @@ final class OwlAskSearchResolverTests: XCTestCase {
   // MARK: - 自动 preference
 
   func testActiveSearchCapableProfileWinsOverThePriorityOrder() {
-    // MiMo is the active profile and can already search → use it, even though Qwen (higher in the
+    // 豆包 is the active profile and can already search → use it, even though Qwen (higher in the
     // default order) also has a key. Saves the user configuring a second provider.
     let resolver = makeResolver(
-      profiles: [qwen(), mimo(isDefault: true)],
+      profiles: [qwen(), doubao(isDefault: true)],
       keys: [
         "owltype.provider.qwen.apiKey": "sk-qwen",
-        "owltype.provider.mimo.apiKey": "sk-mimo",
+        "owltype.provider.doubao.apiKey": "sk-doubao",
       ]
     )
     guard let route = resolver.resolve() else { return XCTFail("expected a resolved route") }
-    XCTAssertEqual(route.providerID, "mimo")
-    XCTAssertEqual(route.routing.model, "mimo-v2.5")
-    XCTAssertEqual(route.routing.endpoint.host, "api.xiaomimimo.com")
-    XCTAssertEqual(route.apiKey, "sk-mimo")
+    XCTAssertEqual(route.providerID, "doubao")
+    XCTAssertEqual(route.routing.model, "doubao-seed-1.6")
+    XCTAssertEqual(route.routing.endpoint.host, "ark.cn-beijing.volces.com")
+    XCTAssertEqual(route.apiKey, "sk-doubao")
   }
 
   func testNonSearchActiveProfileFallsToThePriorityOrder() {
     // The active profile is MiniMax (cannot search) — the whole reason for decoupling. The
     // question must still route to a search-capable provider instead of silently not searching.
     let resolver = makeResolver(
-      profiles: [minimax(), doubao(), mimo()],
+      profiles: [minimax(), doubao()],
       keys: [
         "owltype.provider.minimax.apiKey": "sk-minimax",
         "owltype.provider.doubao.apiKey": "sk-doubao",
-        "owltype.provider.mimo.apiKey": "sk-mimo",
       ]
     )
     guard let route = resolver.resolve() else { return XCTFail("expected a resolved route") }
-    XCTAssertEqual(route.providerID, "mimo", "qwen 未配置 → 顺位到 mimo")
-    XCTAssertEqual(route.routing.endpoint.host, "api.xiaomimimo.com")
-    XCTAssertEqual(route.apiKey, "sk-mimo")
+    XCTAssertEqual(route.providerID, "doubao", "minimax 不能搜 → 顺位到 doubao（qwen 未配置）")
+    XCTAssertEqual(route.routing.endpoint.host, "ark.cn-beijing.volces.com")
+    XCTAssertEqual(route.apiKey, "sk-doubao")
   }
 
   func testPriorityOrderPrefersQwenWhenNothingIsActive() {
     let resolver = makeResolver(
-      profiles: [mimo(), doubao(), qwen()],
+      profiles: [doubao(), qwen()],
       defaultProfile: nil,
       keys: [
         "owltype.provider.qwen.apiKey": "sk-qwen",
         "owltype.provider.doubao.apiKey": "sk-doubao",
-        "owltype.provider.mimo.apiKey": "sk-mimo",
       ]
     )
     guard let route = resolver.resolve() else { return XCTFail("expected a resolved route") }
@@ -152,20 +146,20 @@ final class OwlAskSearchResolverTests: XCTestCase {
   // MARK: - 「联网模型」偏好（Picker）
 
   func testPreferredProviderWinsOverBothTheActiveProfileAndThePriorityOrder() {
-    // 用户显式选了 MiMo：既压过 searchProviderIDs 的默认顺序（qwen 在前），也压过「活动档案可联网
+    // 用户显式选了 OpenAI：既压过 searchProviderIDs 的默认顺序（qwen 在前），也压过「活动档案可联网
     // 就优先」的自动规则（豆包 是默认档案）。
     let resolver = makeResolver(
-      profiles: [qwen(), doubao(isDefault: true), mimo()],
-      preferred: "mimo",
+      profiles: [qwen(), doubao(isDefault: true), openai()],
+      preferred: "openai",
       keys: [
         "owltype.provider.qwen.apiKey": "sk-qwen",
         "owltype.provider.doubao.apiKey": "sk-doubao",
-        "owltype.provider.mimo.apiKey": "sk-mimo",
+        "owltype.provider.openai.apiKey": "sk-openai",
       ]
     )
     guard let route = resolver.resolve() else { return XCTFail("expected a resolved route") }
-    XCTAssertEqual(route.providerID, "mimo")
-    XCTAssertEqual(route.apiKey, "sk-mimo")
+    XCTAssertEqual(route.providerID, "openai")
+    XCTAssertEqual(route.apiKey, "sk-openai")
   }
 
   func testPreferredProviderWithoutAKeyFallsThroughToTheNextCandidate() {
@@ -212,7 +206,7 @@ final class OwlAskSearchResolverTests: XCTestCase {
 
   // MARK: - `/responses` providers (Qwen / 豆包 / OpenAI)
 
-  func testDoubaoRouteCarriesTheResponsesTransportAndNoChatExtras() {
+  func testDoubaoRouteCarriesTheResponsesTransport() {
     let resolver = makeResolver(
       profiles: [doubao(isDefault: true)],
       keys: ["owltype.provider.doubao.apiKey": "sk-doubao"]
@@ -220,7 +214,6 @@ final class OwlAskSearchResolverTests: XCTestCase {
     guard let route = resolver.resolve() else { return XCTFail("expected a resolved route") }
     XCTAssertEqual(route.providerID, "doubao")
     XCTAssertEqual(route.transport, .responses(.ark), "豆包 必须走 /responses")
-    XCTAssertTrue(route.extraBody.isEmpty, "它的搜索参数不在 chat/completions 顶层字段里")
     XCTAssertEqual(route.displayName, "豆包")
     XCTAssertEqual(route.apiKey, "sk-doubao")
   }
@@ -243,61 +236,46 @@ final class OwlAskSearchResolverTests: XCTestCase {
     XCTAssertEqual(resolver.resolve()?.transport, .responses(.qwen))
   }
 
-  func testResponsesProvidersSitBehindTheChatOnesInTheAutoOrder() {
-    // 自动顺序：一期两家（实机验证过）在前，二期两家在后。
-    let resolver = makeResolver(
-      profiles: [doubao(), openai(), mimo()],
-      defaultProfile: nil,
-      keys: [
-        "owltype.provider.doubao.apiKey": "sk-doubao",
-        "owltype.provider.openai.apiKey": "sk-openai",
-        "owltype.provider.mimo.apiKey": "sk-mimo",
-      ]
-    )
-    XCTAssertEqual(resolver.resolve()?.providerID, "mimo")
-  }
-
   // MARK: - Key availability
 
   func testSkipsSearchCapableProfileWithNoStoredKey() {
     // Qwen is configured as a profile but has no key yet → fall through to the next candidate.
     let resolver = makeResolver(
-      profiles: [qwen(), mimo()],
-      keys: ["owltype.provider.mimo.apiKey": "sk-mimo"]
+      profiles: [qwen(), doubao()],
+      keys: ["owltype.provider.doubao.apiKey": "sk-doubao"]
     )
     guard let route = resolver.resolve() else { return XCTFail("expected a resolved route") }
-    XCTAssertEqual(route.providerID, "mimo")
-    XCTAssertEqual(route.apiKey, "sk-mimo")
+    XCTAssertEqual(route.providerID, "doubao")
+    XCTAssertEqual(route.apiKey, "sk-doubao")
   }
 
   func testSkipsProfileWhoseStoredKeyIsBlank() {
     let resolver = makeResolver(
-      profiles: [qwen(), mimo()],
+      profiles: [qwen(), doubao()],
       keys: [
         "owltype.provider.qwen.apiKey": "   ",
-        "owltype.provider.mimo.apiKey": "sk-mimo",
+        "owltype.provider.doubao.apiKey": "sk-doubao",
       ]
     )
-    XCTAssertEqual(resolver.resolve()?.providerID, "mimo", "空白 key 不算已配置")
+    XCTAssertEqual(resolver.resolve()?.providerID, "doubao", "空白 key 不算已配置")
   }
 
   func testKeychainFailureSkipsThatProviderInsteadOfFailingTheQuestion() {
     let resolver = makeResolver(
-      profiles: [qwen(), mimo()],
-      keys: ["owltype.provider.mimo.apiKey": "sk-mimo"],
+      profiles: [qwen(), doubao()],
+      keys: ["owltype.provider.doubao.apiKey": "sk-doubao"],
       secretThrows: ["owltype.provider.qwen.apiKey"]
     )
-    XCTAssertEqual(resolver.resolve()?.providerID, "mimo", "钥匙串读失败只淘汰这一家，不整问失败")
+    XCTAssertEqual(resolver.resolve()?.providerID, "doubao", "钥匙串读失败只淘汰这一家，不整问失败")
   }
 
   func testResolveAllKeepsExactPreferenceOrderWhileFilteringEachUnusableKey() {
     let resolver = makeResolver(
-      profiles: [openai(), deepseek(isDefault: false), mimo(), doubao(), qwen()],
+      profiles: [openai(), deepseek(isDefault: false), doubao(), qwen()],
       defaultProfile: nil,
       preferred: "doubao",
       keys: [
         "owltype.provider.qwen.apiKey": "  sk-qwen  ",
-        "owltype.provider.mimo.apiKey": "sk-mimo",
         "owltype.provider.openai.apiKey": "   ",
         "owltype.provider.deepseek.apiKey": "sk-deepseek",
       ]
@@ -305,12 +283,12 @@ final class OwlAskSearchResolverTests: XCTestCase {
 
     let routes = resolver.resolveAll()
     XCTAssertEqual(
-      routes.map(\.providerID), ["qwen", "mimo", "deepseek"],
+      routes.map(\.providerID), ["qwen", "deepseek"],
       "preferred Doubao has no key, so only that entry drops; the remaining canonical order stays")
-    XCTAssertEqual(routes.map(\.apiKey), ["sk-qwen", "sk-mimo", "sk-deepseek"])
+    XCTAssertEqual(routes.map(\.apiKey), ["sk-qwen", "sk-deepseek"])
     XCTAssertEqual(
       routes.map(\.transport),
-      [.responses(.qwen), .chatCompletions, .responses(.deepseek)])
+      [.responses(.qwen), .responses(.deepseek)])
   }
 
   // MARK: - Silent fallback
@@ -371,7 +349,7 @@ final class OwlAskSearchResolverTests: XCTestCase {
   }
 
   func testSearchCapableProfilesWithoutAnyKeyResolveToNil() {
-    let resolver = makeResolver(profiles: [qwen(), mimo()], keys: [:])
+    let resolver = makeResolver(profiles: [qwen(), doubao()], keys: [:])
     XCTAssertNil(resolver.resolve(), "配了档案但一把钥匙都没有 → 退回普通问答")
   }
 
@@ -382,34 +360,33 @@ final class OwlAskSearchResolverTests: XCTestCase {
   // MARK: - Route → request fields
 
   func testResolvedRouteCarriesItsProvidersSearchFields() {
-    // Qwen's route carries its Responses dialect; chat extras must stay empty.
+    // Qwen's route carries its Responses dialect.
     let resolver = makeResolver(
       profiles: [qwen(isDefault: true)],
       keys: ["owltype.provider.qwen.apiKey": "sk-qwen"]
     )
     guard let route = resolver.resolve() else { return XCTFail("expected a resolved route") }
     XCTAssertEqual(route.transport, .responses(.qwen))
-    XCTAssertTrue(route.extraBody.isEmpty)
     XCTAssertEqual(route.displayName, "通义千问")
   }
 
-  func testCustomProfileResolvesSearchFieldsByHost() {
+  func testCustomProfileResolvesSearchChannelByHost() {
     // A profile whose providerID was never stamped still gets the right wire format via its host.
     let custom = OwlProviderProfile(
-      id: "custom-mimo",
-      displayName: "我的 MiMo",
-      endpoint: URL(string: "https://api.xiaomimimo.com/v1/chat/completions")!,
-      model: "mimo-v2.5",
-      secretName: "owltype.provider.custom-mimo.apiKey",
+      id: "custom-doubao",
+      displayName: "我的豆包",
+      endpoint: URL(string: "https://ark.cn-beijing.volces.com/api/v3/responses")!,
+      model: "doubao-seed-2-1-pro-260628",
+      secretName: "owltype.provider.custom-doubao.apiKey",
       isDefault: true
     )
     let resolver = makeResolver(
       profiles: [custom],
-      keys: ["owltype.provider.custom-mimo.apiKey": "sk-custom"]
+      keys: ["owltype.provider.custom-doubao.apiKey": "sk-custom"]
     )
     guard let route = resolver.resolve() else { return XCTFail("expected a resolved route") }
-    XCTAssertEqual(route.providerID, "mimo", "host 兜底推断出 MiMo")
-    XCTAssertEqual(route.extraBody["tool_choice"] as? String, "auto")
+    XCTAssertEqual(route.providerID, "doubao", "host 兜底推断出豆包")
+    XCTAssertEqual(route.transport, .responses(.ark))
   }
 
   // MARK: - Preference default

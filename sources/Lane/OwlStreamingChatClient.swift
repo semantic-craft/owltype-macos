@@ -47,8 +47,8 @@ typealias OwlStreamingReadiness = OwlProviderAuthOutcome
 
 /// WHO answered this question — a **mutable** carrier, deliberately not a plain value.
 ///
-/// 归属在开流那一刻还不算数：请求发出之后才知道方舟没开通内容插件（404 `ToolNotOpen`）、MiMo 的 Key
-/// 已失效（401）、搜索服务的 Key 是错的（`invalid_api_key`）。运行期顺位会换一家，全败还会退回普通
+/// 归属在开流那一刻还不算数：请求发出之后才知道方舟没开通内容插件（404 `ToolNotOpen`）、Key 已失效
+/// （401）、搜索服务的 Key 是错的（`invalid_api_key`）。运行期顺位会换一家，全败还会退回普通
 /// 问答，两种情况都改写归属。所以任意提问 module 交出的是这个盒子而不是一个定值 —— AI 窗在拿到第一段内容
 /// 与流结束时读回它，署名 chip 写的于是是**最终真的答了这一问的那家**，而不是「本来打算用谁」。
 @MainActor
@@ -205,27 +205,11 @@ protocol OwlChatStreaming {
   /// Yields content deltas in order and finishes when the upstream sends `[DONE]`. Honors task
   /// cancellation (cancelling the consuming task tears down the upstream byte stream). A non-2xx
   /// HTTP status finishes the stream with `OwlStreamingError.badHTTPStatus`.
-  ///
-  /// `extraBody` merges provider-specific top-level fields into the request (联网搜索 —
-  /// `OwlSearchControl.extraBody`). Empty (the default) leaves the body byte-identical to the
-  /// plain-chat request.
-  func stream(
-    messages: [OwlDeepSeekMessage],
-    routing: OwlCloudRouting,
-    apiKey: String,
-    extraBody: [String: Any]
-  ) -> AsyncThrowingStream<String, Error>
-}
-
-extension OwlChatStreaming {
-  /// Plain chat — no provider extras. Keeps every existing call site (and test fake) unchanged.
   func stream(
     messages: [OwlDeepSeekMessage],
     routing: OwlCloudRouting,
     apiKey: String
-  ) -> AsyncThrowingStream<String, Error> {
-    stream(messages: messages, routing: routing, apiKey: apiKey, extraBody: [:])
-  }
+  ) -> AsyncThrowingStream<String, Error>
 }
 
 /// Live OpenAI-compatible streaming client. Builds the POST (`Authorization: Bearer`, `stream: true`,
@@ -279,14 +263,12 @@ struct OwlStreamingChatClient: OwlChatStreaming {
   func stream(
     messages: [OwlDeepSeekMessage],
     routing: OwlCloudRouting,
-    apiKey: String,
-    extraBody: [String: Any]
+    apiKey: String
   ) -> AsyncThrowingStream<String, Error> {
     AsyncThrowingStream { continuation in
       let task = Task {
         do {
-          let request = try makeRequest(
-            messages: messages, routing: routing, apiKey: apiKey, extraBody: extraBody)
+          let request = try makeRequest(messages: messages, routing: routing, apiKey: apiKey)
           let source = try await bytesProvider(request)
 
           if let http = source.response, !(200...299).contains(http.statusCode) {
@@ -320,19 +302,14 @@ struct OwlStreamingChatClient: OwlChatStreaming {
   /// Build the streaming POST. `routing.endpoint` / `routing.model` come from the active provider
   /// profile (or the legacy globals when none). No `response_format`.
   ///
-  /// TWO sets of top-level extras are merged onto the encoded request:
-  ///   1. `OwlThinkingControl.offBody` — 强制关思考, applied to EVERY 任意提问 request (plain or
-  ///      联网). This is the choke point for the whole ask lane: the providers' own field names
-  ///      differ, so the dialect lives in one place instead of at each call site.
-  ///   2. `extraBody` (联网搜索 — `OwlSearchControl.extraBody`), merged last so a search route can
-  ///      override a thinking field if a provider ever needs a different value there.
-  /// A provider with no known thinking switch and no search extras still gets a byte-identical
-  /// plain-chat body (both dicts empty → merge skipped).
+  /// `OwlThinkingControl.offBody` — 强制关思考, applied to EVERY 任意提问 request (plain or 联网) —
+  /// is merged onto the encoded request. This is the choke point for the whole ask lane: the
+  /// providers' own field names differ, so the dialect lives in one place instead of at each call
+  /// site. A provider with no known thinking switch still gets a byte-identical plain-chat body.
   private func makeRequest(
     messages: [OwlDeepSeekMessage],
     routing: OwlCloudRouting,
-    apiKey: String,
-    extraBody: [String: Any]
+    apiKey: String
   ) throws -> URLRequest {
     var request = URLRequest(url: routing.endpoint)
     request.httpMethod = "POST"
@@ -348,19 +325,18 @@ struct OwlStreamingChatClient: OwlChatStreaming {
         stream: true
       )
     )
-    var extras = OwlThinkingControl.offBody(providerID: routing.providerID, model: routing.model)
-    extras.merge(extraBody) { _, search in search }
+    let extras = OwlThinkingControl.offBody(providerID: routing.providerID, model: routing.model)
     request.httpBody = extras.isEmpty ? encoded : Self.merging(extras, into: encoded)
     return request
   }
 
-  /// Merge provider extras onto an encoded request body. A re-serialization failure falls back to
-  /// the un-merged body: the question still gets answered (just without search) instead of throwing.
-  private static func merging(_ extraBody: [String: Any], into encoded: Data) -> Data {
+  /// Merge thinking-control extras onto an encoded request body. A re-serialization failure falls
+  /// back to the un-merged body: the question still gets answered instead of throwing.
+  private static func merging(_ extras: [String: Any], into encoded: Data) -> Data {
     guard var object = (try? JSONSerialization.jsonObject(with: encoded)) as? [String: Any] else {
       return encoded
     }
-    object.merge(extraBody) { _, extra in extra }
+    object.merge(extras) { _, extra in extra }
     guard let merged = try? JSONSerialization.data(withJSONObject: object) else { return encoded }
     return merged
   }

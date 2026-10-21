@@ -90,7 +90,6 @@ final class OwlSettingsUITests: XCTestCase {
     tapMany([
       "+ OpenAI",
       "+ Google Gemini",
-      "+ 小米 MiMo",
       "+ 火山引擎 · 豆包 Seed",
       "+ 自定义（OpenAI 兼容）",
       "+ DeepSeek",

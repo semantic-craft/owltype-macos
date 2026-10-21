@@ -88,13 +88,6 @@ struct OwlAskAnythingTransportAdapter: OwlAskAnythingTransporting {
       host: routing.endpoint.host ?? "",
       model: routing.model
     ) {
-    case .chatCompletions:
-      return chatClient.stream(
-        messages: messages,
-        routing: routing,
-        apiKey: apiKey,
-        extraBody: OwlSearchControl.extraBody(
-          providerID: routing.providerID, host: routing.endpoint.host ?? ""))
     case let .responses(dialect):
       return responsesClient.stream(
         messages: messages,

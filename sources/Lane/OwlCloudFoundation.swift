@@ -204,7 +204,7 @@ struct OwlDeepSeekThinking: Codable, Equatable, Sendable {
 /// 会在吐第一个字前先烧几百上千 reasoning token：实测 qwen3.6-flash 润色一句话 948 token / 5.4s，
 /// 关掉后 0.6s（2026-07-20 实盘百炼）。M3.1 不允许关闭思考，使用 low；M3 可以关闭。
 ///
-/// 关思考的字段名各家不同，且与「联网搜索」正交（MiMo/方舟的搜索插件还要求思考关掉才触发），
+/// 关思考的字段名各家不同，且与「联网搜索」正交（方舟的搜索插件还要求思考关掉才触发），
 /// 所以这里按 providerID 给出旧 Chat 请求要合进顶层的字段。Qwen 与豆包 已统一由
 /// `OwlResponsesWire` 在 Responses 请求体里关思考（qwen `reasoning.effort:none`、方舟
 /// `thinking.type:disabled`）；这里的 DashScope / deepSeekStyle 分支只保留给仍走 Chat 的
@@ -252,17 +252,17 @@ enum OwlThinkingControl {
 
   private static func resolved(providerID: String, model: String) -> Dialect {
     switch providerID.lowercased() {
-    // `{"thinking":{"type":"disabled"}}` — DeepSeek、小米 MiMo、火山方舟豆包 用的是同一种形状。
-    case "deepseek", "mimo", "doubao": return .deepSeekStyle
-    case "qwen":                       return .dashScope
-    case "openai", "gemini":           return .none
+    // `{"thinking":{"type":"disabled"}}` — DeepSeek、火山方舟豆包 用的是同一种形状。
+    case "deepseek", "doubao": return .deepSeekStyle
+    case "qwen":               return .dashScope
+    case "openai", "gemini":   return .none
     default: break
     }
     let m = model.lowercased()
     if m == "minimax-m3.1-flash-preview" { return .minimaxAdaptive }
     if m == "minimax-m3" { return .minimaxDirect }
     if m.hasPrefix("minimax-m2") { return .minimaxThinking }
-    if m.hasPrefix("deepseek") || m.hasPrefix("mimo") || m.hasPrefix("doubao") { return .deepSeekStyle }
+    if m.hasPrefix("deepseek") || m.hasPrefix("doubao") { return .deepSeekStyle }
     if m.hasPrefix("qwen") { return .dashScope }
     return .none
   }
@@ -340,7 +340,7 @@ struct OwlCloudRouting: Equatable, Sendable {
         endpoint: profile.endpoint,
         model: profile.model.isEmpty ? OwlCloudPreferences.deepSeekModel : profile.model,
         secretName: profile.secretName,
-        authHeaderStyle: OwlLLMProviderCatalog.authHeaderStyle(for: profile)
+        authHeaderStyle: .bearer
       )
     }
     return OwlCloudRouting(

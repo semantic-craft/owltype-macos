@@ -39,15 +39,9 @@ enum OwlProviderKind: String, Codable, CaseIterable, Sendable {
 
 enum OwlProviderAuthHeaderStyle: String, Codable, Sendable, Equatable {
   case bearer
-  case apiKey
 
   func apply(to request: inout URLRequest, apiKey: String) {
-    switch self {
-    case .bearer:
-      request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-    case .apiKey:
-      request.setValue(apiKey, forHTTPHeaderField: "api-key")
-    }
+    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
   }
 }
 
@@ -72,7 +66,6 @@ struct OwlLLMProviderPreset: Identifiable, Equatable, Sendable {
   let model: String
   let keyHint: String
   let sourceSupport: OwlProviderSourceSupport
-  let authHeaderStyle: OwlProviderAuthHeaderStyle
 }
 
 enum OwlLLMProviderCatalog {
@@ -88,8 +81,7 @@ enum OwlLLMProviderCatalog {
       endpoint: qwenResponsesEndpoint,
       model: "qwen3.8-flash",
       keyHint: "按量付费 sk-…；Token Plan 请改用 token-plan.cn-beijing.maas.aliyuncs.com",
-      sourceSupport: .sourceResults,
-      authHeaderStyle: .bearer
+      sourceSupport: .sourceResults
     ),
     OwlLLMProviderPreset(
       id: "doubao",
@@ -97,17 +89,7 @@ enum OwlLLMProviderCatalog {
       endpoint: "https://ark.cn-beijing.volces.com/api/v3/responses",
       model: "doubao-seed-2-1-pro-260628",
       keyHint: "火山方舟 API Key",
-      sourceSupport: .sourceResults,
-      authHeaderStyle: .bearer
-    ),
-    OwlLLMProviderPreset(
-      id: "mimo",
-      displayName: "小米 MiMo",
-      endpoint: "https://api.xiaomimimo.com/v1/chat/completions",
-      model: "mimo-v2.5",
-      keyHint: "按量付费 sk-…；Token Plan 填 tp-…",
-      sourceSupport: .sourceResults,
-      authHeaderStyle: .apiKey
+      sourceSupport: .sourceResults
     ),
     OwlLLMProviderPreset(
       id: "deepseek",
@@ -115,8 +97,7 @@ enum OwlLLMProviderCatalog {
       endpoint: "https://api.deepseek.com/v1/chat/completions",
       model: OwlCloudPreferences.defaultDeepSeekModel,
       keyHint: "sk-…",
-      sourceSupport: .searchPlanOnly,
-      authHeaderStyle: .bearer
+      sourceSupport: .searchPlanOnly
     ),
     OwlLLMProviderPreset(
       id: "minimax",
@@ -124,8 +105,7 @@ enum OwlLLMProviderCatalog {
       endpoint: "https://api.minimax.cn/v1/chat/completions",
       model: "MiniMax-M3.1-Flash-Preview",
       keyHint: "M Plan / Token Plan 订阅 Key（sk-cp-…）；国际站请使用 api.minimax.io",
-      sourceSupport: .searchPlanOnly,
-      authHeaderStyle: .bearer
+      sourceSupport: .searchPlanOnly
     ),
     OwlLLMProviderPreset(
       id: "gemini",
@@ -133,8 +113,7 @@ enum OwlLLMProviderCatalog {
       endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
       model: "gemini-3.8-flash",
       keyHint: "AIza…",
-      sourceSupport: .searchPlanOnly,
-      authHeaderStyle: .bearer
+      sourceSupport: .searchPlanOnly
     ),
     OwlLLMProviderPreset(
       id: "openai",
@@ -142,8 +121,7 @@ enum OwlLLMProviderCatalog {
       endpoint: "https://api.openai.com/v1/chat/completions",
       model: "chat-latest",
       keyHint: "sk-…",
-      sourceSupport: .sourceResults,
-      authHeaderStyle: .bearer
+      sourceSupport: .sourceResults
     ),
   ]
 
@@ -176,7 +154,6 @@ enum OwlLLMProviderCatalog {
     let name = profile.displayName.lowercased()
     if host.contains("dashscope") || host.contains("aliyuncs") || name.contains("百炼") || name.contains("qwen") { return "qwen" }
     if host.contains("volces") || host.contains("volcengine") || name.contains("豆包") { return "doubao" }
-    if host.contains("xiaomimimo") || name.contains("mimo") { return "mimo" }
     if host.contains("deepseek") || name.contains("deepseek") { return "deepseek" }
     if host.contains("minimax") || name.contains("minimax") { return "minimax" }
     if host.contains("generativelanguage") || name.contains("gemini") { return "gemini" }
@@ -184,10 +161,18 @@ enum OwlLLMProviderCatalog {
     return customID
   }
 
-  static func authHeaderStyle(for profile: OwlProviderProfile?) -> OwlProviderAuthHeaderStyle {
-    guard let profile else { return .bearer }
-    let providerID = inferredProviderID(for: profile)
-    return preset(id: providerID)?.authHeaderStyle ?? .bearer
+  /// Whether a resolved provider id is still routable: a preset in the catalog, or the custom id.
+  /// A profile whose id has left the preset catalog (a provider retired by a newer build) is not a
+  /// usable default and must fall back to the repo's default config instead of its own endpoint.
+  static func isKnownProviderID(_ id: String) -> Bool {
+    id == customID || preset(id: id) != nil
+  }
+
+  /// The provider id the settings form shows when editing a profile. A retired id is shown as
+  /// custom so the form's endpoint stays editable and no dangling preset selection appears.
+  static func formProviderID(for profile: OwlProviderProfile) -> String {
+    let id = inferredProviderID(for: profile)
+    return isKnownProviderID(id) ? id : customID
   }
 
   /// 百炼档案不再按型号降级：它整体是 Responses 供应商，来源核验走 `/responses` 的内置
@@ -491,9 +476,15 @@ final class OwlProviderProfileStore {
     }
   }
 
-  /// The active provider — the single profile flagged `isDefault`, or nil when none configured.
+  /// The active provider — the single profile flagged `isDefault`, or nil when none configured, or
+  /// when the flagged profile is a retired provider. A retired id is not a usable default: the
+  /// runtime falls back to the repo's legacy DeepSeek config instead of routing to a service this
+  /// build no longer ships. The flagged profile itself stays intact (not dropped, not rewritten).
   var defaultProfile: OwlProviderProfile? {
-    load().profiles.first { $0.isDefault }
+    guard let flagged = load().profiles.first(where: { $0.isDefault }) else { return nil }
+    return OwlLLMProviderCatalog.isKnownProviderID(
+      OwlLLMProviderCatalog.inferredProviderID(for: flagged)
+    ) ? flagged : nil
   }
 
   func profile(id: String) -> OwlProviderProfile? {

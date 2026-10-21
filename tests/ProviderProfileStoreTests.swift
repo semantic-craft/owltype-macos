@@ -298,6 +298,64 @@ final class ProviderProfileStoreTests: XCTestCase {
     XCTAssertTrue(json.contains("\"legacy\""))
   }
 
+  func testUnknownProviderIDDecodesAndDegradesSafely() throws {
+    // A profile saved by an older build whose providerID is no longer in the preset catalog must
+    // still decode (providerID is a free-form string, not a rawValue enum), but it is no longer a
+    // usable default: the store reports no active profile, routing falls back to the legacy DeepSeek
+    // config (endpoint + legacy key), and the settings form shows it as a custom entry. The flagged
+    // profile itself stays intact — nothing is dropped, rewritten, or deleted.
+    let store = makeStore()
+    let legacy = """
+    { "schemaVersion": 1, "profiles": [ {
+      "id": "legacy", "displayName": "retired", "kind": "openai_compatible",
+      "endpoint": "https://retired.example.com/v1/chat/completions", "model": "retired-1",
+      "providerID": "retired-provider", "secretName": "owltype.provider.legacy.apiKey",
+      "isDefault": true, "createdAt": "2026-06-22T00:00:00Z"
+    } ] }
+    """
+    try Data(legacy.utf8).write(to: store.fileURL, options: .atomic)
+
+    // 旧档案本身不解码崩溃、不丢弃。
+    let profiles = store.profiles()
+    XCTAssertEqual(profiles.map(\.id), ["legacy"], "an unknown providerID must still decode")
+    let profile = try XCTUnwrap(profiles.first)
+    XCTAssertEqual(profile.providerID, "retired-provider")
+    XCTAssertEqual(OwlLLMProviderCatalog.inferredProviderID(for: profile), "retired-provider")
+
+    // 已退出预设目录的 id 不再作为有效默认：store 无活动档案，路由回落到仓库默认 DeepSeek，
+    // 而不是继续打已下线服务的端点，密钥也回到 legacy（secretName 为空）。
+    XCTAssertNil(store.defaultProfile, "a retired default is not a usable default")
+    let routing = OwlCloudRouting.resolve(profile: store.defaultProfile)
+    XCTAssertEqual(routing.providerID, "deepseek")
+    XCTAssertNotEqual(routing.endpoint, profile.endpoint, "must not route to the retired endpoint")
+    XCTAssertNil(routing.secretName, "the legacy key is used, not the retired profile's secretName")
+
+    // 设置读取路径：编辑该档案时按 custom 展示（端点可改），不出现悬空的预设 id。
+    XCTAssertEqual(
+      OwlLLMProviderCatalog.formProviderID(for: profile), OwlLLMProviderCatalog.customID,
+      "the edit form shows a retired provider as custom")
+
+    // 能力降级：不联网、不来源核验。
+    XCTAssertEqual(
+      OwlLLMProviderCatalog.sourceSupport(for: profile), .searchPlanOnly,
+      "an unknown provider must not claim source verification")
+    XCTAssertEqual(
+      OwlSearchControl.channel(providerID: "retired-provider", host: "retired.example.com"), .none)
+    XCTAssertFalse(
+      OwlSearchControl.supportsSearch(providerID: "retired-provider", host: "retired.example.com"))
+  }
+
+  func testRetiredSearchProviderPreferenceFallsBackToAuto() {
+    OwlAskSearchProviderSettings.resetForTesting()
+    defer { OwlAskSearchProviderSettings.resetForTesting() }
+
+    // 旧版本把「联网模型」偏好存成某个已下线的供应商 id：解析层读作「自动」，设置镜像也
+    // 回落到自动，而不是把下拉绑定到一个没有任何对应选项的悬空 id。
+    OwlAskSearchProviderSettings.rawValue = "retired-provider"
+    XCTAssertNil(OwlAskSearchProviderSettings.preferredProviderID, "已下线 id 读作自动")
+    XCTAssertEqual(OwlSettingsState().askWebSearchProvider, "", "设置镜像不得显示悬空的已下线 id")
+  }
+
   // MARK: - Secret store
 
   func testInMemorySecretStoreUpsertAndDelete() throws {
@@ -385,10 +443,10 @@ final class ProviderProfileStoreTests: XCTestCase {
     XCTAssertFalse(json.contains("sk-add"), "the key must never land in providers.json")
   }
 
-  func testLLMProviderCatalogMarksSourceSearchProvidersAndMiMoAuth() throws {
+  func testLLMProviderCatalogMarksSourceSearchProviders() throws {
     XCTAssertNil(OwlLLMProviderCatalog.preset(id: "zhipu"), "智谱已下架，不得再出现在预设目录里")
 
-    let sourceCapable = ["qwen", "doubao", "mimo", "openai"]
+    let sourceCapable = ["qwen", "doubao", "openai"]
     for id in sourceCapable {
       let preset = try XCTUnwrap(OwlLLMProviderCatalog.preset(id: id))
       XCTAssertEqual(preset.sourceSupport, .sourceResults, "\(id) should support source verification")
@@ -399,15 +457,6 @@ final class ProviderProfileStoreTests: XCTestCase {
       let preset = try XCTUnwrap(OwlLLMProviderCatalog.preset(id: id))
       XCTAssertEqual(preset.sourceSupport, .searchPlanOnly, "\(id) should not pretend to return sources")
     }
-
-    let mimo = OwlProviderProfile(
-      displayName: "小米 MiMo",
-      endpoint: URL(string: "https://api.xiaomimimo.com/v1/chat/completions")!,
-      model: "mimo-v2.5",
-      providerID: "mimo"
-    )
-    XCTAssertEqual(OwlLLMProviderCatalog.authHeaderStyle(for: mimo), .apiKey)
-    XCTAssertEqual(OwlLLMProviderCatalog.sourceSupport(for: mimo), .sourceResults)
 
     // 语义已反转（2026-07-31 百炼全面转 Responses）：来源核验能力属于**平台**而非型号。此前这里
     // 断言的是「非 qwen 型号降级为辅助检索」——那道降级正是旧 chat 回退的一部分，已随之拆掉。
@@ -541,7 +590,7 @@ final class ProviderProfileStoreTests: XCTestCase {
       "ws-test123abc.cn-beijing.maas.aliyuncs.com")
   }
 
-  /// 密钥三态：「有值」不等于「能用」。实机踩过的就是 MiMo 的 Key 已 401，设置页仍写「已设置」，
+  /// 密钥三态：「有值」不等于「能用」。实机踩过的就是 Key 已 401，设置页仍写「已设置」，
   /// 用户想不到是密钥的问题。所以只有真的调通过一次（`拉取最新`）才升到「已验证」，
   /// 而换钥匙/删钥匙都让上一次验证作废 —— 旧标记配新密钥就是假验证。
   func testKeyStatusIsVerifiedOnlyAfterARealCallAndIsInvalidatedByKeyChanges() throws {
@@ -550,9 +599,9 @@ final class ProviderProfileStoreTests: XCTestCase {
     let store = makeStore()
     let secrets = OwlInMemorySecretStore()
     let added = OwlSettingsActions.addProviderProfile(
-      displayName: "小米 MiMo", endpoint: "https://api.xiaomimimo.com/v1/chat/completions",
-      model: "mimo-v2.5", apiKey: "sk-mimo", makeDefault: true,
-      store: store, secrets: secrets, providerID: "mimo")
+      displayName: "豆包", endpoint: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+      model: "doubao-seed-2-1-turbo-260628", apiKey: "sk-ark", makeDefault: true,
+      store: store, secrets: secrets, providerID: "doubao")
     let profile = try XCTUnwrap(added.profiles.first)
     XCTAssertEqual(
       OwlSettingsActions.providerProfileKeyStatus(profile, secrets: secrets), "已设置·未验证")
@@ -608,25 +657,25 @@ final class ProviderProfileStoreTests: XCTestCase {
     let store = makeStore()
     let secrets = OwlInMemorySecretStore()
     let added = OwlSettingsActions.addProviderProfile(
-      displayName: "小米 MiMo", endpoint: "https://api.xiaomimimo.com/v1/chat/completions",
-      model: "mimo-v2.5", apiKey: "sk-mimo", makeDefault: true,
-      store: store, secrets: secrets, providerID: "mimo")
+      displayName: "豆包", endpoint: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+      model: "doubao-seed-2-1-turbo-260628", apiKey: "sk-ark", makeDefault: true,
+      store: store, secrets: secrets, providerID: "doubao")
     let original = try XCTUnwrap(added.profiles.first)
 
     let result = OwlSettingsActions.updateProviderProfile(
       original,
-      endpoint: "https://api.xiaomimimo.com/v1/chat/completions",
-      model: " mimo-v2.5-pro ",
+      endpoint: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+      model: " doubao-seed-2-2 ",
       apiKey: "",                       // 用户没重填 Key
       store: store,
       secrets: secrets
     )
     let updated = try XCTUnwrap(result.profiles.first)
-    XCTAssertEqual(updated.model, "mimo-v2.5-pro", "model is updated and trimmed")
+    XCTAssertEqual(updated.model, "doubao-seed-2-2", "model is updated and trimmed")
     XCTAssertEqual(updated.id, original.id, "same profile, not a replacement")
     XCTAssertEqual(updated.secretName, original.secretName)
     XCTAssertTrue(updated.isDefault, "编辑模型不该把默认供应商弄丢")
-    XCTAssertEqual(try secrets.secret(named: updated.secretName), "sk-mimo",
+    XCTAssertEqual(try secrets.secret(named: updated.secretName), "sk-ark",
                    "留空的 Key 字段意味着「保持不变」，不是「清空」")
     XCTAssertEqual(result.profiles.count, 1, "原地更新不该多出一条")
   }
@@ -806,16 +855,6 @@ final class OwlProviderConnectivityCheckTests: XCTestCase {
     XCTAssertNil(body["reasoning"], "reasoning.effort 是 qwen 的字段，方舟不认")
     XCTAssertNil(body["messages"])
     XCTAssertNil(body["max_tokens"])
-  }
-
-  /// MiMo 走 `api-key` 头而不是 Bearer —— 验证走的必须是该供应商真实的认证方式，
-  /// 否则会把「认证写法不同」误报成「Key 无效」。
-  func testRequestHonoursThePerProviderAuthHeaderStyle() throws {
-    let request = try OwlProviderConnectivityCheck.request(
-      endpoint: URL(string: "https://api.xiaomimimo.com/v1/chat/completions")!,
-      providerID: "mimo", model: "mimo-v2.5", apiKey: "sk-m", authStyle: .apiKey)
-    XCTAssertEqual(request.value(forHTTPHeaderField: "api-key"), "sk-m")
-    XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
   }
 
   func testOKRequiresAChatShapedBodyNotJustA200() {

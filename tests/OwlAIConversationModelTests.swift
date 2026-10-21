@@ -303,12 +303,12 @@ final class OwlAIConversationModelTests: XCTestCase {
   func testAttributionClearsWhenARegenerateNoLongerSearches() async {
     // A key can be removed (or the toggle flipped) between attempts — a stale 联网 chip would then
     // claim a live search that never happened.
-    let streamer = SearchAskAnything(searchProviderID: "mimo")
+    let streamer = SearchAskAnything(searchProviderID: "doubao")
     let model = OwlAIConversationModel(askAnything: streamer)
 
     model.submit(question: "q")
     await waitUntil { if case .done = model.state { return true }; return false }
-    XCTAssertEqual(model.searchAttribution, "MiMo")
+    XCTAssertEqual(model.searchAttribution, "豆包")
 
     streamer.searchProviderID = nil
     model.regenerate()
@@ -439,7 +439,7 @@ final class OwlAIConversationModelTests: XCTestCase {
   // MARK: - 署名随运行期顺位改写
 
   /// A streamer whose 归属 is only settled AFTER the stream opens — exactly what the runtime
-  /// failover does（方舟 404 ToolNotOpen / MiMo 401 只有请求发出后才知道）。
+  /// failover does（方舟 404 ToolNotOpen / Key 401 只有请求发出后才知道）。
   private final class FailoverAskAnything: OwlAskAnythingOpening {
     private(set) var attribution: OwlAskAttribution?
     private var continuation: AsyncThrowingStream<String, Error>.Continuation?
@@ -456,7 +456,7 @@ final class OwlAIConversationModelTests: XCTestCase {
     func open(
       messages: [OwlDeepSeekMessage]
     ) -> Result<OwlAskStreamOpen, OwlStreamingReadiness> {
-      let box = OwlAskAttribution(searchProviderID: "mimo")
+      let box = OwlAskAttribution(searchProviderID: "doubao")
       attribution = box
       let stream = AsyncThrowingStream<String, Error> { cont in
         self.continuation = cont      // 内容先不发，留给测试在「顺位」之后放行
@@ -476,9 +476,9 @@ final class OwlAIConversationModelTests: XCTestCase {
     let model = OwlAIConversationModel(askAnything: streamer)
 
     model.submit(question: "今天的司法解释")
-    XCTAssertEqual(model.searchAttribution, "MiMo", "开流时先按「打算用谁」署名")
+    XCTAssertEqual(model.searchAttribution, "豆包", "开流时先按「打算用谁」署名")
 
-    // 请求发出后 MiMo 返回 401，顺位到百炼 —— 内容还一个字都没出。
+    // 请求发出后 豆包 返回 401，顺位到百炼 —— 内容还一个字都没出。
     streamer.attribution?.update(searchProviderID: "qwen")
     streamer.emitAnswer("百炼答的")
     await waitUntil { if case .done = model.state { return true }; return false }

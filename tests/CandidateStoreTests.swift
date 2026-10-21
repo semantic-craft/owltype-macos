@@ -820,24 +820,30 @@ final class OwlSelectionPolishPromptTests: XCTestCase {
 final class OwlSourceVerificationServiceTests: XCTestCase {
 
   func testParseResponseExtractsSummaryAndDedupedSources() throws {
+    // 来源核验只走 Responses：正文在 output[].content[] 的 output_text 里，来源来自
+    // output-text annotations 与顶层 search_results，按 URL 去重。
     let json = """
     {
-      "choices": [
+      "output": [
         {
-          "message": {
-            "content": "该表述需要以正式法规文本和监管说明交叉核验。",
-            "annotations": [
-              {
-                "type": "url_citation",
-                "title": "全国人大常委会法工委",
-                "url": "https://www.npc.gov.cn/example"
-              },
-              {
-                "title": "重复来源",
-                "url": "https://www.npc.gov.cn/example"
-              }
-            ]
-          }
+          "type": "message",
+          "content": [
+            {
+              "type": "output_text",
+              "text": "该表述需要以正式法规文本和监管说明交叉核验。",
+              "annotations": [
+                {
+                  "type": "url_citation",
+                  "title": "全国人大常委会法工委",
+                  "url": "https://www.npc.gov.cn/example"
+                },
+                {
+                  "title": "重复来源",
+                  "url": "https://www.npc.gov.cn/example"
+                }
+              ]
+            }
+          ]
         }
       ],
       "search_results": [

@@ -2,7 +2,7 @@
 //  OwlAskSearchResolver.swift
 //  猫头鹰输入法 (Owltype) — 任意提问「联网搜索」的专属模型解析
 //
-//  开关开启时，把这一问路由到一个**可联网的专属供应商**（用户已配好密钥的 Qwen/MiMo/豆包/OpenAI），
+//  开关开启时，把这一问路由到一个**可联网的专属供应商**（用户已配好密钥的 Qwen/豆包/OpenAI），
 //  与主对话模型解耦 —— 主模型不支持联网时也能真搜到。若只在主模型请求里拼搜索参数，主模型
 //  （常见是 DeepSeek）不支持联网时会被静默降级成普通问答、只答到训练截止，而用户以为搜了。
 //
@@ -67,14 +67,14 @@ enum OwlAskSearchProviderSettings {
 // MARK: - Resolved route
 
 /// A resolved 联网搜索 route: which provider answers, how to reach it, and the key to use.
-/// `providerID` drives both the request body (`OwlSearchControl.extraBody`) and the window's
-/// 署名 chip, so the user can see WHO answered this question online.
+/// `providerID` drives the request body (via the route's transport) and the window's 署名 chip, so
+/// the user can see WHO answered this question online.
 struct OwlAskSearchRoute: Equatable {
   let routing: OwlCloudRouting
   let apiKey: String
 
   var providerID: String { routing.providerID }
-  /// 面向用户的品牌名（通义千问 / MiMo / 豆包 / OpenAI），供 AI 窗署名 chip 使用。
+  /// 面向用户的品牌名（通义千问 / 豆包 / OpenAI），供 AI 窗署名 chip 使用。
   var displayName: String? { OwlSearchControl.displayName(for: providerID) }
   /// WHICH transport carries this route's search — the 任意提问 module picks its client from this rather
   /// than re-deriving it from the provider id.
@@ -82,11 +82,6 @@ struct OwlAskSearchRoute: Equatable {
     // 带上型号：DeepSeek 的 `/responses` 只收 deepseek-v4-flash，配着 pro 的档案不能搜。
     OwlSearchControl.transport(
       providerID: providerID, host: routing.endpoint.host ?? "", model: routing.model)
-  }
-  /// The provider-specific `/chat/completions` body fields that switch search on for this route.
-  /// Empty for a `/responses` route — its search parameters live in `OwlResponsesWire.body`.
-  var extraBody: [String: Any] {
-    OwlSearchControl.extraBody(providerID: providerID, host: routing.endpoint.host ?? "")
   }
 }
 
@@ -133,7 +128,7 @@ struct OwlAskSearchResolver {
   /// failover in `OwlAskAnythingModule`.
   ///
   /// 为什么要**列表**而不是单个路由：配置期「有没有 Key」与运行期「这家肯不肯服务」是两回事 ——
-  /// 方舟没开通内容插件是 404 `ToolNotOpen`、MiMo 的 Key 失效是 401，两者都只在请求发出后才知道。
+  /// 方舟没开通内容插件是 404 `ToolNotOpen`、Key 失效是 401，两者都只在请求发出后才知道。
   /// 交出全部候选，调用方在首个 delta 之前顺位，全败才退回普通问答。
   func resolveAll() -> [OwlAskSearchRoute] {
     guard isEnabled() else { return [] }
@@ -187,8 +182,8 @@ struct OwlAskSearchResolver {
 /// 一次联网尝试失败后，该顺位到下一家、还是如实报错给用户。
 ///
 /// 判据是「这家在当前配置下**拒绝服务**」还是「无法确认能否安全换家」：
-///   - 顺位：明确的鉴权/套餐/插件配置状态。方舟未开通内容插件是 404 `ToolNotOpen`、MiMo 的
-///     Key 失效是 401、欠费/未授权是 402/403。
+///   - 顺位：明确的鉴权/套餐/插件配置状态。方舟未开通内容插件是 404 `ToolNotOpen`、Key 失效是
+///     401、欠费/未授权是 402/403。
 ///   - 报错：其余状态、未知业务码、5xx 与 `URLError`。未知即顺位会把同一问题额外发送给其他供应商，
 ///     所以这里采取封闭列表；只有可以确认是配置拒绝的错误才允许在首个 delta 前换家。
 enum OwlAskSearchFailover {

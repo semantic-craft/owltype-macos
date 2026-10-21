@@ -12,7 +12,7 @@ import Foundation
 /// 记下某个 Keychain 账号下的密钥**曾经成功通过一次真实调用**（拉取模型列表）。
 ///
 /// 为什么需要它：设置页原先只能回答「Keychain 里有没有值」，而有值 ≠ 能用 —— 2026-07-27 实机踩到的
-/// 就是 MiMo 的 Key 已失效（401 invalid_key），设置页仍写「已设置」，用户以为配好了，直到提问失败也
+/// 就是 Key 已失效（401 invalid_key），设置页仍写「已设置」，用户以为配好了，直到提问失败也
 /// 想不到是密钥的问题。存的是**时间戳**，不是密钥本身；密钥被改写或删除时标记随之作废（旧标记配新
 /// 密钥就是假验证）。
 enum OwlProviderKeyVerification {
@@ -388,7 +388,7 @@ extension OwlSettingsActions {
   /// 一个 profile 的密钥状态 —— 永远不含密钥本身。
   ///
   /// 三档而不是两档：「已验证」= 用这把 Key 真的调通过一次；「已设置」= Keychain 里有值但没验证过
-  /// （可能已失效，实机踩过：MiMo 的 Key 401 了，设置页仍写「已设置」）；「未设置」= 没有值。
+  /// （可能已失效，实机踩过：Key 401 了，设置页仍写「已设置」）；「未设置」= 没有值。
   /// 把「有值」直接说成配好了，是让用户查不出失效密钥的根因。
   static func providerProfileKeyStatus(
     _ profile: OwlProviderProfile,

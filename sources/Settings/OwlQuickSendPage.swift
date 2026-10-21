@@ -232,8 +232,7 @@ struct OwlQuickSendExample: Identifiable, Sendable {
 }
 
 enum OwlQuickSendExamples {
-  /// Only commands with official documentation are listed; no fabricated bypass flags (e.g. MiMo /
-  /// 小米 has no documented YOLO flag, so it is intentionally omitted).
+  /// Only commands with official documentation are listed; no fabricated bypass flags.
   static let all: [OwlQuickSendExample] = [
     OwlQuickSendExample(
       tool: "Claude Code",

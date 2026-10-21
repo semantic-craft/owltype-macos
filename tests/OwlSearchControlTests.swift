@@ -2,13 +2,10 @@
 //  OwlSearchControlTests.swift
 //  OwltypeTests — 任意提问「联网搜索」逐家 wire format
 //
-//  Locks the remaining `/chat/completions` provider's search fields FIELD BY FIELD (a provider that
-//  silently loses `enable_search` / `tools` answers from its training cutoff while the UI claims it
-//  searched — the exact failure mode this feature exists to prevent), the channel resolution
-//  (providerID wins, host is the fallback), and — since 二期 — WHICH TRANSPORT each provider's
-//  search rides on, because 豆包/OpenAI search only on `/responses` and would silently no-op if
-//  their parameters were routed through `extraBody`. Qwen joined that Responses path when
-//  DashScope exposed its OpenAI Responses-compatible endpoint.
+//  Locks the channel resolution (providerID wins, host is the fallback) and the per-provider
+//  transport: every search-capable provider searches on `/responses` with a provider-specific
+//  `OwlResponsesDialect`; anything else resolves to `.none`. The capability is modelled as a type
+//  rather than implied, so a caller can ask "can this one search?" without a per-provider table.
 //
 //  Pure value logic: no network, no UserDefaults, no Keychain.
 //
@@ -23,7 +20,6 @@ final class OwlSearchControlTests: XCTestCase {
 
   func testChannelResolvesByProviderID() {
     XCTAssertEqual(OwlSearchControl.channel(providerID: "qwen", host: ""), .dashScope)
-    XCTAssertEqual(OwlSearchControl.channel(providerID: "mimo", host: ""), .mimo)
     XCTAssertEqual(OwlSearchControl.channel(providerID: "doubao", host: ""), .ark)
     XCTAssertEqual(OwlSearchControl.channel(providerID: "openai", host: ""), .openAI)
   }
@@ -32,8 +28,6 @@ final class OwlSearchControlTests: XCTestCase {
     // A custom profile whose id was never stamped still resolves by endpoint host.
     XCTAssertEqual(
       OwlSearchControl.channel(providerID: "custom", host: "dashscope.aliyuncs.com"), .dashScope)
-    XCTAssertEqual(
-      OwlSearchControl.channel(providerID: "custom", host: "api.xiaomimimo.com"), .mimo)
     XCTAssertEqual(
       OwlSearchControl.channel(providerID: "custom", host: "ark.cn-beijing.volces.com"), .ark)
     XCTAssertEqual(
@@ -47,13 +41,10 @@ final class OwlSearchControlTests: XCTestCase {
     XCTAssertEqual(OwlSearchControl.channel(providerID: "minimax", host: "api.minimax.chat"), .none)
   }
 
-  // MARK: - Transport (WHICH endpoint carries the search)
+  // MARK: - Transport (search wire dialect)
 
-  func testTransportSplitsChatCompletionsFromResponses() {
-    // MiMo 仍走 /chat/completions 顶层字段；其余三家的搜索走 /responses，把它们的参数
-    // 塞进 chat/completions 会被端点静默忽略 —— 所以能力是类型，不是约定。
+  func testTransportRoutesEverySearchProviderThroughResponses() {
     XCTAssertEqual(OwlSearchControl.transport(providerID: "qwen", host: ""), .responses(.qwen))
-    XCTAssertEqual(OwlSearchControl.transport(providerID: "mimo", host: ""), .chatCompletions)
     XCTAssertEqual(OwlSearchControl.transport(providerID: "doubao", host: ""), .responses(.ark))
     XCTAssertEqual(OwlSearchControl.transport(providerID: "openai", host: ""), .responses(.openAI))
     XCTAssertEqual(
@@ -69,7 +60,6 @@ final class OwlSearchControlTests: XCTestCase {
 
   func testSupportsSearchMatchesTheTransport() {
     XCTAssertTrue(OwlSearchControl.supportsSearch(providerID: "qwen", host: ""))
-    XCTAssertTrue(OwlSearchControl.supportsSearch(providerID: "mimo", host: ""))
     XCTAssertTrue(OwlSearchControl.supportsSearch(providerID: "doubao", host: ""))
     XCTAssertTrue(OwlSearchControl.supportsSearch(providerID: "openai", host: ""))
     XCTAssertTrue(OwlSearchControl.supportsSearch(
@@ -79,58 +69,11 @@ final class OwlSearchControlTests: XCTestCase {
       providerID: "deepseek", host: "api.deepseek.com", model: "deepseek-v4-pro"))
   }
 
-  // MARK: - Wire format (field-by-field)
-
-  func testQwenExtraBodyIsEmptyBecauseSearchLivesOnResponses() {
-    let body = OwlSearchControl.extraBody(providerID: "qwen", host: "dashscope.aliyuncs.com")
-    XCTAssertTrue(body.isEmpty, "Qwen 的联网工具属于 /responses，不得再塞旧 enable_search 字段")
-  }
-
-  func testMimoExtraBodyForcesSearchAndDisablesThinking() {
-    let body = OwlSearchControl.extraBody(providerID: "mimo", host: "api.xiaomimimo.com")
-    XCTAssertEqual(body["tool_choice"] as? String, "auto")
-    // MiMo 的联网与思考互斥：thinking 必须显式关掉，否则搜索工具不触发。
-    XCTAssertEqual((body["thinking"] as? [String: Any])?["type"] as? String, "disabled")
-    guard let tools = body["tools"] as? [[String: Any]], let tool = tools.first else {
-      return XCTFail("MiMo must carry a tools array")
-    }
-    XCTAssertEqual(tool["type"] as? String, "web_search")
-    XCTAssertEqual(tool["force_search"] as? Bool, true)
-    XCTAssertEqual(tool["max_keyword"] as? Int, 3)
-    XCTAssertEqual(tool["limit"] as? Int, 3)
-  }
-
-  func testExtraBodyIsEmptyForNonChatCompletionsProviders() {
-    // Empty = merging is a no-op, so the caller never has to branch on capability. Note the two
-    // different reasons: DeepSeek can't search at all, while Qwen/豆包/OpenAI CAN — just not here.
-    XCTAssertTrue(OwlSearchControl.extraBody(providerID: "deepseek", host: "api.deepseek.com").isEmpty)
-    XCTAssertTrue(
-      OwlSearchControl.extraBody(providerID: "qwen", host: "dashscope.aliyuncs.com").isEmpty,
-      "Qwen 的联网参数属于 /responses 请求体")
-    XCTAssertTrue(
-      OwlSearchControl.extraBody(providerID: "openai", host: "api.openai.com").isEmpty,
-      "OpenAI 的联网参数属于 /responses 请求体，不是 chat/completions 顶层字段")
-    XCTAssertTrue(
-      OwlSearchControl.extraBody(providerID: "doubao", host: "ark.cn-beijing.volces.com").isEmpty,
-      "豆包 同上 —— 塞在这里会被端点静默忽略")
-  }
-
-  func testEveryExtraBodyIsJSONSerializable() {
-    // The merge path runs these through JSONSerialization; a non-JSON value would fail silently
-    // there (the request falls back to un-merged = no search), so pin it here instead.
-    for providerID in OwlSearchControl.searchProviderIDs {
-      let body = OwlSearchControl.extraBody(providerID: providerID, host: "")
-      XCTAssertTrue(
-        JSONSerialization.isValidJSONObject(body),
-        "\(providerID) extraBody must be JSON-serializable")
-    }
-  }
-
-  // MARK: - `/responses` wire (Qwen / 豆包 / OpenAI)
+  // MARK: - `/responses` wire (Qwen / 豆包 / OpenAI / DeepSeek)
 
   func testResponsesSearchBodyIsJSONSerializableForEveryDialect() {
-    // Same reasoning as above, one layer down: `OwlResponsesStreamingClient` serializes this
-    // body directly, and a non-JSON value there would throw the whole question away.
+    // `OwlResponsesStreamingClient` serializes this body directly, and a non-JSON value there would
+    // throw the whole question away.
     for dialect in OwlResponsesDialect.allCases {
       let body = OwlResponsesWire.body(
         model: "m",
@@ -148,7 +91,6 @@ final class OwlSearchControlTests: XCTestCase {
 
   func testDisplayNameUsesBrandNamesForSearchProviders() {
     XCTAssertEqual(OwlSearchControl.displayName(for: "qwen"), "通义千问")
-    XCTAssertEqual(OwlSearchControl.displayName(for: "mimo"), "MiMo")
     XCTAssertEqual(OwlSearchControl.displayName(for: "doubao"), "豆包")
     XCTAssertEqual(OwlSearchControl.displayName(for: "openai"), "OpenAI")
     XCTAssertEqual(OwlSearchControl.displayName(for: "deepseek"), "DeepSeek")
@@ -157,14 +99,10 @@ final class OwlSearchControlTests: XCTestCase {
 
   func testEverySearchProviderContributesRealSearchFieldsOnItsOwnTransport() {
     // The 自动 fallback order (and the「联网模型」Picker, which lists exactly these) must never
-    // carry a provider that resolves to a request with no search in it. Checked PER TRANSPORT:
-    // chat/completions proves it via non-empty extras, /responses via a tools array in its body.
+    // carry a provider that resolves to a request with no search in it. Checked per provider:
+    // /responses proves search via a tools array in its body.
     for providerID in OwlSearchControl.searchProviderIDs {
       switch OwlSearchControl.transport(providerID: providerID, host: "") {
-      case .chatCompletions:
-        XCTAssertFalse(
-          OwlSearchControl.extraBody(providerID: providerID, host: "").isEmpty,
-          "\(providerID) 走 chat/completions 却没有任何联网字段")
       case let .responses(dialect):
         let body = OwlResponsesWire.body(
           model: "m",
