@@ -12,7 +12,7 @@ Both the GUI installer and package scripts invoke the installed payload's CLI:
 | --- | --- | --- |
 | Capture | GUI / preinstall | Capture existing installation and exact selected source before replacement. Missing update context fails closed. |
 | Stage | PackageKit / privileged file helper | PKG payload contains only `/Library/Input Methods/.Owltype.pkg-staging/Owltype.app.zip`. postinstall unpacks into a fresh root-only directory under the installer state directory, verifies and commits, then removes that unpack directory, the consumed archive and the staging directory before session recovery. The live App and all nested bundles are absent from the PackageKit payload. |
-| Commit | `--commit-install` as root | Copy into a protected candidate in the work directory, validate signature and unchanged identities, preserve the live App shell, exchange `Contents` and `.Contents.update` with `RENAME_SWAP`. Move retired contents outside the App before strict signature verification. First install uses `RENAME_EXCL`. After the installed App validates, remove the retired contents and the candidate wrapper. |
+| Commit | `--commit-install` as root | Copy into a protected candidate in the work directory, validate signature and unchanged identities, preserve the live App shell, exchange `Contents` and `.Contents.update` with `RENAME_SWAP`. Move retired contents outside the App before strict signature verification. First install uses `RENAME_EXCL`. A live App without `Contents/Info.plist` counts as absent: GUI and preinstall classify the run as a first install, and the commit moves that shell to `retained` first. After the installed App validates, remove the retired contents and the candidate wrapper. |
 | Activate | `--finish-install` as console user | End old installed server instances, register/enable parent and primary mode only on first install, read back selection, refresh only TextInputMenuAgent/TextInputSwitcher, launch the installed App, and poll its state. |
 | Verify | Fresh user-session probe | Require enabled input sources, expected selection, one server at the installed executable path, expected LS version and current executable inode. Default budget is 45 seconds. |
 
@@ -43,6 +43,7 @@ abandoned payloads there. Now only the live App and the PackageKit staging archi
 | `work/retired-<uuid>` | old `Contents` after the swap | removed after a validated commit; retained on failure |
 | `unpack.<random>/Owltype.app` | postinstall's extracted archive | removed after the commit; retained on failure |
 | `retained/<name>` | a previous staging tree with anything but the archive, and `.Owltype.*` directories an older installer left in Input Methods | kept for inspection |
+| `retained/incomplete-Owltype-<uuid>` | a live `Owltype.app` without `Contents/Info.plist`, moved aside by `--commit-install`, which then installs fresh | kept for inspection |
 
 Removing the retired contents early does not change what a still-running old server sees: it
 resolves bundle paths through `Owltype.app/Contents`, which already holds the new files after the

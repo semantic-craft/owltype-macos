@@ -74,7 +74,8 @@ enum Installer {
         }
         let payload = try validatePayload(at: embedded)
 
-        let bundlePreexisted = FileManager.default.fileExists(atPath: installedAppPath)
+        // A shell without Info.plist is set aside by --commit-install and installed fresh.
+        let bundlePreexisted = FileManager.default.fileExists(atPath: installedAppPath + "/Contents/Info.plist")
         let wasRunning = owltypeProcessIsRunning()
         let sourceBefore = DispatchQueue.main.sync { currentSourceID() }
         let plan = InstallerActivationPolicy.plan(

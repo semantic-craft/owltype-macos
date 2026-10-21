@@ -59,6 +59,9 @@ enum OwlInstallFiles {
     let metadata = try info(prepared)
     guard metadata["CFBundleIdentifier"] as? String == bundleID,
           metadata["InputMethodConnectionName"] as? String == "Owltype_Connection" else { throw CocoaError(.fileReadCorruptFile) }
+    if manager.fileExists(atPath: live.path), !hasInfo(live) {
+      try retainIncomplete(live, layout: layout)
+    }
     if manager.fileExists(atPath: live.path) {
       let old = try info(live)
       for key in ["CFBundleIdentifier", "InputMethodConnectionName", "ComponentInputModeDict"] {
@@ -98,6 +101,26 @@ enum OwlInstallFiles {
       throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
     }
     guard firstInfo.st_dev == secondInfo.st_dev else { throw POSIXError(.EXDEV) }
+  }
+
+  /// GUI and preinstall classify first install versus update with the same test.
+  private static func hasInfo(_ app: URL) -> Bool {
+    FileManager.default.fileExists(atPath: app.appendingPathComponent("Contents/Info.plist").path)
+  }
+
+  /// A live App without Contents/Info.plist (an app cleaner or a partial manual removal) has
+  /// nothing to compare or swap. Keep it for inspection outside Input Methods, never delete it,
+  /// and continue as a first install. A symlinked live path is left for the swap to refuse.
+  private static func retainIncomplete(_ live: URL, layout: Layout) throws {
+    guard OwlBundleSwap.isCanonical(live) else { throw POSIXError(.ELOOP) }
+    let retained = layout.work.deletingLastPathComponent().appendingPathComponent("retained")
+    try privateDirectory(retained, mode: 0o700)
+    try requireSameVolume(retained, layout.inputMethods)
+    let target = retained.appendingPathComponent("incomplete-Owltype-\(UUID().uuidString)")
+    guard renamex_np(live.path, target.path, UInt32(RENAME_EXCL)) == 0 else {
+      throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+    }
+    fputs("INSTALL_FILES_WARNING: moved incomplete \(live.path) to \(target.path)\n", stderr)
   }
 
   private static func info(_ app: URL) throws -> [String: Any] {

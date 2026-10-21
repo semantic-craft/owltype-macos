@@ -57,6 +57,21 @@ final class OwlInstallFilesTests: XCTestCase {
     XCTAssertEqual(try marker(candidate), "new")
   }
 
+  func testIncompleteLiveAppIsRetainedOutsideInputMethodsAndInstalledFresh() throws {
+    let shell = live.appendingPathComponent("Contents/Resources")
+    try FileManager.default.createDirectory(at: shell, withIntermediateDirectories: true)
+    try commit(try bundle("new"))
+    XCTAssertEqual(try marker(live), "new")
+    XCTAssertEqual(try entries(inputMethods), ["Owltype.app"])
+    XCTAssertEqual(try entries(layout.work), [])
+    let retained = layout.work.deletingLastPathComponent().appendingPathComponent("retained")
+    let kept = try entries(retained)
+    XCTAssertEqual(kept.count, 1)
+    XCTAssertTrue(kept[0].hasPrefix("incomplete-Owltype-"))
+    XCTAssertTrue(FileManager.default.fileExists(
+      atPath: retained.appendingPathComponent(kept[0]).appendingPathComponent("Contents/Resources").path))
+  }
+
   func testHeldLockStopsBeforeCopying() throws {
     try commit(try bundle("old"))
     try FileManager.default.createDirectory(at: layout.work.appendingPathComponent("install-lock"),

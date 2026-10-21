@@ -3,6 +3,22 @@
 Each entry keeps the rule, reason, regression, and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## An existing App directory is not an existing install
+
+**Classify first install versus update by `Contents/Info.plist`, not by the App directory.**
+
+- Reason: a user's Mac had `/Library/Input Methods/Owltype.app` without `Contents/Info.plist`
+  (an incomplete earlier removal). The GUI installer treated it as an update, and
+  `--commit-install` failed reading the old Info.plist (`NSCocoaErrorDomain` 260,
+  `INSTALL_FILES_FAILED`). preinstall would have failed too, running the missing executable.
+- Prevention: the commit moves such a shell to the installer's `retained/` and publishes a
+  first install; GUI and preinstall use the same Info.plist test, so session activation
+  registers and enables the source instead of waiting for an update that has none.
+- Regression: `testIncompleteLiveAppIsRetainedOutsideInputMethodsAndInstalledFresh` in
+  [OwlInstallFilesTests](tests/OwlInstallFilesTests.swift). The GUI and preinstall
+  classification has no offline test; a native install over an empty shell remains unverified.
+- Seen on 1 distinct date: 2026-10-21.
+
 ## Compare canonical paths with realpath, and test under /private
 
 **Symlink checks must use realpath(3) on the raw path; file-system tests must run under the real `/private/...` path.**
