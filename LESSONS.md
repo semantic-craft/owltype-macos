@@ -207,3 +207,19 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Scope: isolated file storage and injected secret-store failures; no live Keychain or
   installed-app upgrade acceptance is claimed.
 - Seen on 1 distinct date: 2026-10-21.
+
+## Make one live call before merging a new external-API capability
+
+**A feature that depends on a provider's live behavior is not mergeable until one real request has shown that behavior; mocked tests only prove our side.**
+
+- Reason: #233 (d70c63f) added DeepSeek built-in web search to source verification with 8 mocked
+  service tests and stated "未做：DeepSeek 真实联网调用" because no DeepSeek dev key was on the
+  machine. The first live run showed Flash never searched and invented links, so the same day
+  needed #236 (bdf9c5d, switch to v4-pro) and #237 (881f85c, search API plus flash), the latter
+  shipped in 2.0.19.
+- Done right: #237 ran `scripts/live-test.sh` with all six named live tests passing and listed
+  per-test timings; #236 ran live checks before merge.
+- Prevention: when no key is available, keep the PR open or behind a disabled default and ask for
+  the key instead of merging on mocks.
+- Seen on 1 distinct date: 2026-10-21.
+
