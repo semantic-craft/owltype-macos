@@ -472,14 +472,14 @@ struct OwlAIPage: View {
   private func fetchModels() {
     guard let effectiveEndpoint = prepareProviderEndpoint(),
           let endpoint = URL(string: effectiveEndpoint),
-          endpoint.scheme == "https" else {
+          OwlSettingsActions.isHTTPSEndpoint(endpoint) else {
       providerStatus = "端点必须是 https"; return
     }
-    // 已配好的一家：Key 字段是只写的（永远空），但 Keychain 里有——回落去读，否则「拉取最新」对
-    // 已存在的供应商永远拉不动，模型就被钉死在预设那一个型号上。
-    let typed = providerKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
-    let key = typed.isEmpty ? (storedKey(for: editingProfile) ?? "") : typed
-    guard !key.isEmpty else { providerStatus = "请先填入 API Key 再拉取"; return }
+    let probe = OwlSettingsActions.providerProbeKey(
+      editing: editingProfile, endpoint: endpoint, typedKey: providerKeyInput,
+      store: providerStore, secrets: providerSecrets)
+    if let status = probe.status { providerStatus = status; return }
+    guard let key = probe.key else { providerStatus = "请先填入 API Key 再拉取"; return }
     let authStyle = OwlProviderAuthHeaderStyle.bearer
     providerStatus = "拉取模型中…"
     Task {
@@ -506,21 +506,23 @@ struct OwlAIPage: View {
 
   /// 「验证连通性」：拿表单里这组 端点 + 模型 + Key 真发一次最小请求。
   ///
-  /// 与 `fetchModels` 共用「Key 字段为空就回落去读 Keychain」的规则 —— 已配好的一家 Key 字段永远是
+  /// 与 `fetchModels` 共用「Key 字段为空且端点同源才读取 Keychain」的规则 —— 已配好的一家 Key 字段永远是
   /// 空的（只写不回显），不回落就等于「已存在的供应商永远验不了」。
   ///
   /// 成功也要落一次「已验证」：这是拿这把 Key 真的调通了，比 `/models` 更有说服力。
   private func checkConnectivity() {
     guard let effectiveEndpoint = prepareProviderEndpoint(),
           let endpoint = URL(string: effectiveEndpoint),
-          endpoint.scheme == "https" else {
+          OwlSettingsActions.isHTTPSEndpoint(endpoint) else {
       providerStatus = "端点必须是 https"; return
     }
     let model = providerModel.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !model.isEmpty else { providerStatus = "请先填模型再验证"; return }
-    let typed = providerKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
-    let key = typed.isEmpty ? (storedKey(for: editingProfile) ?? "") : typed
-    guard !key.isEmpty else { providerStatus = "请先填入 API Key 再验证"; return }
+    let probe = OwlSettingsActions.providerProbeKey(
+      editing: editingProfile, endpoint: endpoint, typedKey: providerKeyInput,
+      store: providerStore, secrets: providerSecrets)
+    if let status = probe.status { providerStatus = status; return }
+    guard let key = probe.key else { providerStatus = "请先填入 API Key 再验证"; return }
     let authStyle = OwlProviderAuthHeaderStyle.bearer
 
     providerStatus = "验证中…（\(model)）"
@@ -578,13 +580,6 @@ struct OwlAIPage: View {
     qwenWorkspaceInput = OwlQwenWorkspaceSettings.apiHost()
   }
 
-  /// The profile's stored key, for 「拉取最新」 only — never surfaced in the UI.
-  private func storedKey(for profile: OwlProviderProfile?) -> String? {
-    guard let profile, let key = try? providerSecrets.secret(named: profile.secretName),
-          !key.isEmpty else { return nil }
-    return key
-  }
-
   /// Load a saved provider into the form so its model / endpoint can be changed in place.
   private func beginEdit(_ profile: OwlProviderProfile) {
     editingProfile = profile
@@ -632,6 +627,8 @@ struct OwlAIPage: View {
       providerName = ""
       providerKeyInput = ""
       providerStatus = result.status
+    } else {
+      editingProfile = OwlSettingsActions.providerProfileForRetry(profile, profiles: result.profiles)
     }
   }
 

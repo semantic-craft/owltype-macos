@@ -110,3 +110,24 @@ review dates, not retries. Keep deterministic checks in the local gate.
   actual shell judge with empty, unrelated, clear-only, unfinished, valid and
   forced-finalize logs. It runs in [the merge gate](scripts/gate.sh).
 - Seen on 1 distinct date: 2026-10-15.
+
+## Commit endpoint and replacement key reference together
+
+**Write a replacement key under an independent secret name before committing its endpoint.**
+
+- Reason: saving the endpoint first exposed the old key if Keychain failed and rollback
+  also failed. An atomic config write can also succeed before permission hardening throws;
+  a thrown save does not prove that nothing was persisted.
+- Prevention: commit endpoint and new secret reference together; retire the old key only
+  after confirmed success and only if no profile references it. An ambiguous save retains
+  both keys; a readable old reference with no staged-key reference permits staged-key cleanup.
+  Compare scheme/host/default-normalized port against the persisted profile: origin changes
+  require a nonblank replacement key. Same-origin edits preserve the persisted key reference,
+  and failed-save retries refresh the editing profile from the reloaded list.
+  Probe requests also require a replacement key when the origin changes.
+- Regression: `ProviderProfileStoreTests` reloads the real JSON store and checks both
+  `defaultProfile` and `OwlCloudRouting` for retired/custom defaults. Post-write errors and
+  key-write plus rollback failures produced 8 assertion failures before the fix.
+- Scope: isolated file storage and injected secret-store failures; no live Keychain or
+  installed-app upgrade acceptance is claimed.
+- Seen on 1 distinct date: 2026-10-21.
