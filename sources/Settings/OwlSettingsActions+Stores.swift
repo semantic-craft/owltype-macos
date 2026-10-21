@@ -505,6 +505,16 @@ extension OwlSettingsActions {
     }
   }
 
+  static func profileToMarkVerified(
+    probed: OwlProviderProfile?, current: OwlProviderProfile?
+  ) -> OwlProviderProfile? {
+    guard let probed, let current,
+          probed.id == current.id,
+          probed.secretName == current.secretName,
+          probed.endpoint == current.endpoint else { return nil }
+    return current
+  }
+
   /// 记下「这把 Key 刚刚真的调通了一次」（`拉取最新` 成功时调用）。
   static func markProviderProfileKeyVerified(_ profile: OwlProviderProfile) {
     OwlProviderKeyVerification.markVerified(secretName: profile.secretName)

@@ -873,6 +873,77 @@ final class ProviderProfileStoreTests: XCTestCase {
       editing, profiles: [makeProfile(name: "Other")]), editing)
   }
 
+  func testProfileToMarkVerifiedRejectsProbeBeforeWorkspaceKeyReplacement() throws {
+    OwlProviderKeyVerification.resetForTesting()
+    defer { OwlProviderKeyVerification.resetForTesting() }
+    let store = makeStore()
+    let secrets = OwlInMemorySecretStore()
+    let probed = try store.add(OwlProviderProfile(
+      displayName: "Qwen", endpoint: URL(string: OwlLLMProviderCatalog.qwenResponsesEndpoint)!,
+      model: "qwen3.7-plus", providerID: "qwen"))
+    try secrets.setSecret("old-key", named: probed.secretName)
+    let suite = "WorkspacePendingProbe-\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+
+    let result = OwlSettingsActions.saveQwenWorkspace(
+      "ws-test123abc", apiKey: "new-key", store: store, secrets: secrets, defaults: defaults)
+    XCTAssertTrue(result.saved)
+    let current = try XCTUnwrap(OwlSettingsActions.editingProfileAfterWorkspaceSave(
+      probed, profiles: result.profiles))
+    XCTAssertNotEqual(current.secretName, probed.secretName)
+    XCTAssertEqual(try secrets.secret(named: current.secretName), "new-key")
+
+    let toVerify = OwlSettingsActions.profileToMarkVerified(probed: probed, current: current)
+    XCTAssertNil(toVerify)
+    if let toVerify { OwlSettingsActions.markProviderProfileKeyVerified(toVerify) }
+    XCTAssertNil(OwlProviderKeyVerification.verifiedAt(secretName: current.secretName))
+  }
+
+  func testProfileToMarkVerifiedAcceptsUnchangedProfile() throws {
+    OwlProviderKeyVerification.resetForTesting()
+    defer { OwlProviderKeyVerification.resetForTesting() }
+    let current = makeProfile(name: "Qwen")
+    let toVerify = try XCTUnwrap(OwlSettingsActions.profileToMarkVerified(
+      probed: current, current: current))
+    XCTAssertEqual(toVerify, current)
+
+    OwlSettingsActions.markProviderProfileKeyVerified(toVerify)
+
+    XCTAssertNotNil(OwlProviderKeyVerification.verifiedAt(secretName: current.secretName))
+  }
+
+  func testProfileToMarkVerifiedRejectsMissingProfile() {
+    let profile = makeProfile(name: "Qwen")
+    XCTAssertNil(OwlSettingsActions.profileToMarkVerified(probed: nil, current: profile))
+    XCTAssertNil(OwlSettingsActions.profileToMarkVerified(probed: profile, current: nil))
+    XCTAssertNil(OwlSettingsActions.profileToMarkVerified(probed: nil, current: nil))
+  }
+
+  func testProfileToMarkVerifiedRejectsDifferentID() {
+    let probed = makeProfile(name: "Qwen")
+    var current = makeProfile(name: "Other")
+    current.secretName = probed.secretName
+    current.endpoint = probed.endpoint
+    XCTAssertNotEqual(current.id, probed.id)
+    XCTAssertNil(OwlSettingsActions.profileToMarkVerified(probed: probed, current: current))
+  }
+
+  func testProfileToMarkVerifiedRejectsDifferentEndpointWithSameSecretName() {
+    let probed = makeProfile(name: "Qwen")
+    var current = probed
+    current.endpoint = URL(string: "https://other.example.com/v1/responses")!
+    XCTAssertEqual(current.secretName, probed.secretName)
+    XCTAssertNil(OwlSettingsActions.profileToMarkVerified(probed: probed, current: current))
+  }
+
+  func testProfileToMarkVerifiedRejectsDifferentSecretName() {
+    let probed = makeProfile(name: "Qwen")
+    var current = probed
+    current.secretName = "replacement-\(UUID().uuidString)"
+    XCTAssertNil(OwlSettingsActions.profileToMarkVerified(probed: probed, current: current))
+  }
+
   func testWorkspacePreparedSaveValidatesWithoutWriting() throws {
     let suite = "WorkspacePrepared-\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

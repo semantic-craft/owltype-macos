@@ -548,8 +548,9 @@ struct OwlAIPage: View {
           OwlSettingsActions.isHTTPSEndpoint(endpoint) else {
       providerStatus = "端点必须是 https"; return
     }
+    let probedProfile = editingProfile
     let probe = OwlSettingsActions.providerProbeKey(
-      editing: editingProfile, endpoint: endpoint, typedKey: providerKeyInput,
+      editing: probedProfile, endpoint: endpoint, typedKey: providerKeyInput,
       store: providerStore, secrets: providerSecrets)
     if let status = probe.status { providerStatus = status; return }
     guard let key = probe.key else { providerStatus = "请先填入 API Key 再拉取"; return }
@@ -564,11 +565,12 @@ struct OwlAIPage: View {
           providerStatus = models.isEmpty ? "已连接，但未解析到模型" : "拉到 \(models.count) 个模型，点右侧下拉选择"
           // 这一次 `/models` 是拿这把 Key 真的调通的 —— 记下来，行状态才敢写「已验证」。
           // 新增流程里 profile 还不存在，先记 flag，`addProvider` 落库后再补标。
-          if let editingProfile {
-            OwlSettingsActions.markProviderProfileKeyVerified(editingProfile)
+          if probedProfile == nil {
+            if editingProfile == nil { pendingKeyVerified = true }
+          } else if let profile = OwlSettingsActions.profileToMarkVerified(
+            probed: probedProfile, current: editingProfile) {
+            OwlSettingsActions.markProviderProfileKeyVerified(profile)
             providers = providerStore.profiles()
-          } else {
-            pendingKeyVerified = true
           }
         }
       } catch {
@@ -591,8 +593,9 @@ struct OwlAIPage: View {
     }
     let model = providerModel.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !model.isEmpty else { providerStatus = "请先填模型再验证"; return }
+    let probedProfile = editingProfile
     let probe = OwlSettingsActions.providerProbeKey(
-      editing: editingProfile, endpoint: endpoint, typedKey: providerKeyInput,
+      editing: probedProfile, endpoint: endpoint, typedKey: providerKeyInput,
       store: providerStore, secrets: providerSecrets)
     if let status = probe.status { providerStatus = status; return }
     guard let key = probe.key else { providerStatus = "请先填入 API Key 再验证"; return }
@@ -607,11 +610,12 @@ struct OwlAIPage: View {
         providerStatus = outcome.statusText
         guard outcome.isOK else { return }
         // 与 `fetchModels` 同一条：新增流程里 profile 还不存在，先记 flag，落库后再补标。
-        if let editingProfile {
-          OwlSettingsActions.markProviderProfileKeyVerified(editingProfile)
+        if probedProfile == nil {
+          if editingProfile == nil { pendingKeyVerified = true }
+        } else if let profile = OwlSettingsActions.profileToMarkVerified(
+          probed: probedProfile, current: editingProfile) {
+          OwlSettingsActions.markProviderProfileKeyVerified(profile)
           providers = providerStore.profiles()
-        } else {
-          pendingKeyVerified = true
         }
       }
     }
