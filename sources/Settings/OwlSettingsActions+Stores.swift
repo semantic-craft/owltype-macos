@@ -267,6 +267,9 @@ extension OwlSettingsActions {
       return (store.profiles(), "端点必须是 https。")
     }
     var updated = profile
+    if !OwlLLMProviderCatalog.isKnownProviderID(OwlLLMProviderCatalog.inferredProviderID(for: profile)) {
+      updated.providerID = OwlLLMProviderCatalog.customID
+    }
     updated.endpoint = url
     updated.model = model.trimmingCharacters(in: .whitespacesAndNewlines)
     do {
@@ -288,6 +291,9 @@ extension OwlSettingsActions {
     _ profile: OwlProviderProfile,
     store: OwlProviderProfileStore
   ) -> (profiles: [OwlProviderProfile], status: String) {
+    guard OwlLLMProviderCatalog.isKnownProviderID(OwlLLMProviderCatalog.inferredProviderID(for: profile)) else {
+      return (store.profiles(), "请先编辑并保存该供应商，再设为默认。")
+    }
     do {
       try store.setDefault(id: profile.id)
       return (store.profiles(), "已将「\(profile.displayName)」设为默认。")

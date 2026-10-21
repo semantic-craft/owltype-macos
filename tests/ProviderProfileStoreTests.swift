@@ -725,6 +725,58 @@ final class ProviderProfileStoreTests: XCTestCase {
     XCTAssertTrue(result.status.hasPrefix("已添加"))
   }
 
+  func testEditingRetiredProviderThenSettingDefaultRoutesToSavedProfile() throws {
+    let store = makeStore()
+    let secrets = OwlInMemorySecretStore()
+    let current = try store.add(OwlProviderProfile(
+      displayName: "current", endpoint: URL(string: "https://current.example.com/v1/chat/completions")!,
+      model: "current-model", providerID: OwlLLMProviderCatalog.customID))
+    let retired = try store.add(OwlProviderProfile(
+      displayName: "retired", endpoint: URL(string: "https://retired.example.com/v1/chat/completions")!,
+      model: "retired-model", providerID: "retired-provider"))
+    try secrets.setSecret("test-placeholder", named: retired.secretName)
+
+    XCTAssertEqual(OwlLLMProviderCatalog.formProviderID(for: retired), OwlLLMProviderCatalog.customID)
+    let result = OwlSettingsActions.updateProviderProfile(
+      retired, endpoint: "https://custom.example.com/v1/chat/completions", model: " custom-model ",
+      apiKey: "", store: store, secrets: secrets)
+    XCTAssertTrue(result.status.hasPrefix("已保存"))
+    let saved = try XCTUnwrap(store.profile(id: retired.id))
+    XCTAssertEqual(saved.providerID, OwlLLMProviderCatalog.customID)
+    XCTAssertEqual(saved.secretName, retired.secretName)
+    XCTAssertEqual(try secrets.secret(named: saved.secretName), "test-placeholder")
+    XCTAssertEqual(store.defaultProfile?.id, current.id)
+
+    let selected = OwlSettingsActions.setDefaultProviderProfile(saved, store: store)
+    XCTAssertTrue(selected.status.hasPrefix("已将"))
+    XCTAssertEqual(selected.profiles.filter { $0.isDefault }.map(\.id), [saved.id])
+    XCTAssertEqual(store.defaultProfile?.id, saved.id)
+    let routing = OwlCloudRouting.resolve(profile: store.defaultProfile)
+    XCTAssertEqual(routing.providerID, OwlLLMProviderCatalog.customID)
+    XCTAssertEqual(routing.endpoint.absoluteString, "https://custom.example.com/v1/chat/completions")
+    XCTAssertEqual(routing.model, "custom-model")
+    XCTAssertEqual(routing.secretName, saved.secretName)
+  }
+
+  func testSettingUneditedRetiredProviderDefaultRejectsAndPreservesCurrentDefault() throws {
+    let store = makeStore()
+    let current = try store.add(OwlProviderProfile(
+      displayName: "current", endpoint: URL(string: "https://current.example.com/v1/chat/completions")!,
+      model: "current-model", providerID: OwlLLMProviderCatalog.customID))
+    let retired = try store.add(OwlProviderProfile(
+      displayName: "retired", endpoint: URL(string: "https://retired.example.com/v1/chat/completions")!,
+      model: "retired-model", providerID: "retired-provider"))
+    let before = try Data(contentsOf: store.fileURL)
+
+    let result = OwlSettingsActions.setDefaultProviderProfile(retired, store: store)
+
+    XCTAssertEqual(result.status, "请先编辑并保存该供应商，再设为默认。")
+    XCTAssertEqual(result.profiles.filter { $0.isDefault }.map(\.id), [current.id])
+    XCTAssertEqual(store.defaultProfile?.id, current.id)
+    XCTAssertEqual(try Data(contentsOf: store.fileURL), before)
+    XCTAssertEqual(OwlCloudRouting.resolve(profile: store.defaultProfile).secretName, current.secretName)
+  }
+
   func testSetDefaultDeleteAndSaveKeyActions() throws {
     let store = makeStore()
     let secrets = OwlInMemorySecretStore()
