@@ -15,7 +15,7 @@ import urllib.request
 from pathlib import Path
 
 
-MODEL = "MiniMax-M3.1-Flash-Preview"
+MODEL = "MiniMax-M3.1-Flash"
 CASES = [
     ("polish", '润色这句话，保留全部事实。只输出JSON，格式为{"candidates":["改写"]}：'
      '我们约好了10月8日下午3点开会，但是会议室还没有确定。'),

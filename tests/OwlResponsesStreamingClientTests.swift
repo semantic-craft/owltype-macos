@@ -475,10 +475,10 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
     XCTAssertEqual(
       OwlResponsesWire.dialect(providerID: "qwen", model: model, endpoint: endpoint), .qwen)
 
-    // 2. 联网搜索的传输选择
+    // 2. 联网搜索的传输选择：任意提问联网只走 DeepSeek，百炼档案不参与
     XCTAssertEqual(
       OwlSearchControl.transport(providerID: "qwen", host: endpoint.host ?? ""),
-      .responses(.qwen))
+      .none)
 
     // 3. 来源核验能力闸（也是第 6 处私有分派的可达前提）
     let profile = OwlProviderProfile(
@@ -686,19 +686,14 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
     XCTAssertEqual(body["store"] as? Bool, false)
   }
 
-  /// DeepSeek 接进联网顺位，但排在最后：实测它来源 URL 中位只有 1 条（Qwen 24 条），
-  /// 而 Owltype 的来源 chip 全靠这个；时长中位 16.6s vs 9.4s。自动兜底时 Qwen 必须优先。
-  func testDeepSeekJoinsTheSearchChainButRanksLast() {
+  /// 任意提问联网只走 DeepSeek 的 `/responses` 内置搜索。
+  func testDeepSeekIsTheOnlySearchProvider() {
     XCTAssertEqual(
       OwlSearchControl.transport(
         providerID: "deepseek", host: "api.deepseek.com", model: "deepseek-v4-flash"),
       .responses(.deepseek))
     XCTAssertEqual(OwlSearchControl.displayName(for: "deepseek"), "DeepSeek")
-    XCTAssertEqual(
-      OwlSearchControl.searchProviderIDs.last, "deepseek",
-      "自动兜底顺位里 DeepSeek 必须垫底——来源 chip 比它稀疏得多的对手先上")
-    XCTAssertEqual(
-      OwlSearchControl.searchProviderIDs.first, "qwen", "Qwen 体验最优，顺位第一")
+    XCTAssertEqual(OwlSearchControl.searchProviderID, "deepseek")
 
     // 型号闸同样管搜索：配着 pro 的 DeepSeek 档案不能搜（`/responses` 不收 pro），
     // 如实返回 `.none` 让顺位跳过它，比发出去换一个 400 强。

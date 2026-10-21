@@ -273,7 +273,7 @@ final class OwlStreamingChatClientTests: XCTestCase {
   func testMiniMaxStreamUsesLowReasoningAndOnlyEmitsAnswer() async throws {
     let routing = OwlCloudRouting(
       providerID: "minimax", endpoint: URL(string: "https://api.minimax.cn/v1/chat/completions")!,
-      model: "MiniMax-M3.1-Flash-Preview", secretName: nil, authHeaderStyle: .bearer)
+      model: "MiniMax-M3.1-Flash", secretName: nil, authHeaderStyle: .bearer)
     let body = try await captureRequestBody(routing: routing)
     XCTAssertEqual(body["reasoning_effort"] as? String, "low")
     XCTAssertEqual(body["reasoning_split"] as? Bool, true)
@@ -385,22 +385,17 @@ final class OwlStreamingChatClientTests: XCTestCase {
       profileSecretProvider: { _ in "sk-key" },
       legacyKeyProvider: { nil },
       searchResolver: OwlAskSearchResolver(
-        isEnabled: { true },
+        isEnabled: { searchEnabled },
         profilesProvider: { [profile] },
         defaultProfileProvider: { profile },
-        preferredProviderID: { nil },
         secretProvider: { _ in "sk-key" }
-      ),
-      // 必须显式关掉独立搜索层：它的默认实现读的是**真钥匙串**。用户一旦在设置页存了搜索 Key，
-      // 这些用例就会改走「先检索、再作答」并用真 URLSession 打外网 —— 表现为整套 suite 静默挂住。
-      isWebSearchEnabled: { searchEnabled },
-      preferredWebSearchBackend: { .doubaoGlobal },
-      webSearchKeyProvider: { _ in nil }
+      )
     )
   }
 
   @MainActor
-  func testOpenAskSendsQwenSearchThroughTheResponsesClient() {
+  func testQwenNeverSearchesEvenWhenAskSearchIsOn() {
+    // 任意提问联网只走 DeepSeek：千问是默认供应商时，开着联网也只做它的普通 Responses 生成。
     let chat = RecordingChatClient()
     let responses = RecordingResponsesClient()
     let service = makeDispatchModule(
@@ -408,10 +403,10 @@ final class OwlStreamingChatClientTests: XCTestCase {
     guard case let .success(open) = service.open(messages: []) else {
       return XCTFail("expected an opened stream")
     }
-    XCTAssertEqual(open.searchProviderID, "qwen")
+    XCTAssertNil(open.searchProviderID)
     XCTAssertEqual(responses.callCount, 1)
     XCTAssertEqual(responses.lastDialect, .qwen)
-    XCTAssertEqual(responses.lastWebSearch, true)
+    XCTAssertEqual(responses.lastWebSearch, false)
     XCTAssertEqual(chat.callCount, 0)
   }
 
@@ -452,8 +447,7 @@ final class OwlStreamingChatClientTests: XCTestCase {
   }
 
   @MainActor
-  func testOpenAskSendsDoubaoThroughTheResponsesClient() {
-    // 豆包 走错传输就是「搜不到但看起来搜了」—— 这条断言就是拦它的。
+  func testDoubaoNeverSearchesEvenWhenAskSearchIsOn() {
     let chat = RecordingChatClient()
     let responses = RecordingResponsesClient()
     let service = makeDispatchModule(
@@ -461,15 +455,16 @@ final class OwlStreamingChatClientTests: XCTestCase {
     guard case let .success(open) = service.open(messages: []) else {
       return XCTFail("expected an opened stream")
     }
-    XCTAssertEqual(open.searchProviderID, "doubao")
+    XCTAssertNil(open.searchProviderID)
     XCTAssertEqual(responses.callCount, 1)
     XCTAssertEqual(responses.lastDialect, .ark)
-    XCTAssertEqual(responses.lastWebSearch, true)
+    XCTAssertEqual(responses.lastWebSearch, false)
     XCTAssertEqual(chat.callCount, 0, "/responses 那家绝不能退回 chat/completions —— 那样搜不到")
   }
 
   @MainActor
-  func testOpenAskSendsOpenAIThroughTheResponsesClientWithItsOwnDialect() {
+  func testOpenAIAnswersPlainWithoutSearch() {
+    // OpenAI 不承担任意提问的联网：普通问答照旧走 chat/completions，不挂联网署名。
     let chat = RecordingChatClient()
     let responses = RecordingResponsesClient()
     let service = makeDispatchModule(
@@ -477,13 +472,13 @@ final class OwlStreamingChatClientTests: XCTestCase {
     guard case let .success(open) = service.open(messages: []) else {
       return XCTFail("expected an opened stream")
     }
-    XCTAssertEqual(open.searchProviderID, "openai")
-    XCTAssertEqual(responses.lastDialect, .openAI)
-    XCTAssertEqual(chat.callCount, 0)
+    XCTAssertNil(open.searchProviderID)
+    XCTAssertEqual(responses.callCount, 0)
+    XCTAssertEqual(chat.callCount, 1)
   }
 
-  /// DeepSeek 迁 `/responses` 后的传输判定，与上面 qwen / 豆包 / openai 三条同构。
-  /// 这条补的是原本由 DeepSeek fixture 顺带覆盖、现已换成 `chatOnlyProfile` 的那块。
+
+  /// DeepSeek 迁 `/responses` 后的传输判定，也是任意提问唯一的联网通道。
   @MainActor
   func testDeepSeekDispatchesToResponsesAndSignsItsSearch() {
     let chat = RecordingChatClient()
@@ -514,11 +509,8 @@ final class OwlStreamingChatClientTests: XCTestCase {
         isEnabled: { true },
         profilesProvider: { [profile] },
         defaultProfileProvider: { profile },
-        preferredProviderID: { nil },
         secretProvider: { _ in "sk-key" }
-      ),
-      preferredWebSearchBackend: { .doubaoGlobal },
-      webSearchKeyProvider: { _ in nil }   // 同上：不让默认实现去读真钥匙串、打真网络。
+      )
     )
     guard case let .success(open) = service.open(messages: []) else {
       return XCTFail("expected a plain-chat stream")
@@ -528,127 +520,7 @@ final class OwlStreamingChatClientTests: XCTestCase {
     XCTAssertEqual(responses.callCount, 0)
   }
 
-  // MARK: - 独立搜索层（先检索、再作答）
-
-  /// 配了搜索 Key 就走搜索层：检索结果作为 system 消息注入，作答仍是**默认供应商**的
-  /// `/chat/completions`（不是方舟 `/responses`），署名是「谁检索的」。
-  @MainActor
-  func testConfiguredWebSearchGroundsThePromptAndKeepsAnsweringOnTheDefaultProvider() async {
-    let chat = RecordingChatClient()
-    let responses = RecordingResponsesClient()
-    let stub = StubWebSearch(results: [
-      OwlWebSearchResult(
-        title: "标题 A", url: "https://a", snippet: "甲",
-        publishedAt: "2026-07-01", hostname: "站点A"),
-    ])
-    let service = makeSearchService(chat: chat, responses: responses, search: stub)
-
-    guard case let .success(open) = service.open(
-      messages: [OwlDeepSeekMessage(role: "user", content: "今天有什么新闻")]) else {
-      return XCTFail("expected a grounded stream")
-    }
-    XCTAssertEqual(open.searchProviderID, OwlWebSearchBackend.doubaoGlobal.attributionID)
-    _ = try? await collect(open.stream)   // 消费掉，让内部 Task 真的跑到 client.stream
-
-    XCTAssertEqual(responses.callCount, 0, "搜索层不走 /responses")
-    XCTAssertEqual(chat.callCount, 1)
-    let sent = chat.lastMessages ?? []
-    XCTAssertEqual(sent.first?.role, "system")
-    XCTAssertEqual(sent.count, 2, "注入的 system + 原来的 user")
-    XCTAssertTrue(sent.first?.content.contains("[1] 标题 A") == true)
-    XCTAssertEqual(sent.last?.content, "今天有什么新闻")
-  }
-
-  /// 检索碰上**暂时性**故障（限流 429 / 断网）时如实上报，而不是悄悄用未接地的答案糊过去。
-  ///
-  /// 这是移植运行期顺位策略后的语义变更：从前是「检索失败就静默降级成普通问答」，问题在于署名仍写着
-  /// 「已联网」，用户拿到的是训练记忆却以为是实时结果。现在暂时性故障如实报错，配置性拒绝（401/404）
-  /// 才顺位换家、全败才退回普通问答并撤掉署名。
-  @MainActor
-  func testTransientSearchFailureIsReportedRatherThanAnsweringUngrounded() async {
-    let chat = RecordingChatClient()
-    let stub = StubWebSearch(failure: .badHTTPStatus(429))
-    let service = makeSearchService(
-      chat: chat, responses: RecordingResponsesClient(), search: stub)
-
-    guard case let .success(open) = service.open(
-      messages: [OwlDeepSeekMessage(role: "user", content: "今天有什么新闻")]) else {
-      return XCTFail("module.open 本身仍应开出一条流，错误从流里出来")
-    }
-    do {
-      _ = try await collect(open.stream)
-      XCTFail("限流应当如实抛给调用方")
-    } catch {
-      XCTAssertEqual(error as? OwlWebSearchError, .badHTTPStatus(429))
-    }
-    XCTAssertEqual(chat.callCount, 0, "没搜到就不该拿训练记忆冒充联网答案")
-  }
-
-  /// 一条结果都没有 = 失败：注入空资料却署名联网是最隐蔽的一种谎。没有别的候选时退回普通问答。
-  @MainActor
-  func testZeroResultsFallsBackToPlainChatAndDropsTheSearchAttribution() async {
-    let chat = RecordingChatClient()
-    let service = makeSearchService(
-      chat: chat, responses: RecordingResponsesClient(), search: StubWebSearch(results: []))
-
-    guard case let .success(open) = service.open(
-      messages: [OwlDeepSeekMessage(role: "user", content: "今天有什么新闻")]) else {
-      return XCTFail("expected a stream")
-    }
-    _ = try? await collect(open.stream)
-
-    XCTAssertEqual(chat.callCount, 1, "照常作答")
-    XCTAssertEqual(chat.lastMessages?.count, 1, "没搜到就不插 system 上下文")
-    XCTAssertNil(open.searchProviderID, "退回普通问答时必须撤掉联网署名")
-  }
-
-  /// 配置期「有没有 Key」与运行期「肯不肯服务」是两道闸。搜索服务的 Key 无效（HTTP 200 里回
-  /// `invalid_api_key`）时必须顺位到下一家，而不是把这一问判死。
-  @MainActor
-  func testConfigurationRefusalFailsOverToTheNextBackendAndRewritesAttribution() async {
-    let chat = RecordingChatClient()
-    let service = OwlAskAnythingModule(
-      client: chat,
-      responsesClient: RecordingResponsesClient(),
-      profileProvider: { Self.chatOnlyProfile },
-      profileSecretProvider: { _ in "sk-key" },
-      legacyKeyProvider: { nil },
-      searchResolver: OwlAskSearchResolver(
-        isEnabled: { true }, profilesProvider: { [] },
-        defaultProfileProvider: { nil }, preferredProviderID: { nil },
-        secretProvider: { _ in nil }),
-      preferredWebSearchBackend: { .doubaoGlobal },
-      // 第二家的 Key 走注入而不是真钥匙串：这台机器配没配过百炼搜索，结果都必须一样
-      // （曾经这里读真 Keychain，配过 Key 的开发机上顺位真的成功，断言就翻车了）。
-      webSearchKeyProvider: {
-        switch $0 {
-        case .doubaoGlobal: return "sk-bad"
-        case .qwen: return "sk-qwen-search"
-        case .serper, .minimax: return nil
-        }
-      },
-      webSearchClientFactory: { backend in
-        backend == .doubaoGlobal
-          ? StubWebSearch(failure: .serviceError(code: "invalid_api_key", message: "invalid"))
-          : StubWebSearch(results: [OwlWebSearchResult(
-              title: "P", url: "https://p", snippet: "乙", publishedAt: nil, hostname: nil)])
-      }
-    )
-    OwlAskWebSearchSettings.isEnabled = true
-    guard case let .success(open) = service.open(
-      messages: [OwlDeepSeekMessage(role: "user", content: "今天有什么新闻")]) else {
-      return XCTFail("首家被拒不该让 module.open 失败")
-    }
-    _ = try? await collect(open.stream)
-
-    XCTAssertEqual(chat.callCount, 1, "换家后仍然答出来了")
-    XCTAssertEqual(chat.lastMessages?.count, 2, "第二家的检索结果作为 system 上下文插进了这一问")
-    XCTAssertEqual(
-      open.searchProviderID, OwlWebSearchBackend.qwen.attributionID,
-      "署名必须改写成真正完成检索的那家，不能还挂着「豆包搜索」")
-  }
-
-  /// 与上一条相反：断网/限流这类**暂时**故障不顺位，如实报给用户 ——
+  /// 断网/限流这类**暂时**故障不顺位，如实报给用户 ——
   /// 把断网吞成「换一家」只会把一个错误变成好几个。
   func testTransientFailuresAreReportedNotFailedOver() {
     XCTAssertFalse(
@@ -670,39 +542,6 @@ final class OwlStreamingChatClientTests: XCTestCase {
       "断网如实上报")
     XCTAssertTrue(
       OwlAskSearchFailover.shouldTryNextAttempt(
-        after: OwlWebSearchError.serviceError(code: "invalid_api_key", message: ""),
-        hasYieldedDelta: false))
-    XCTAssertTrue(
-      OwlAskSearchFailover.shouldTryNextAttempt(
-        after: OwlWebSearchError.serviceError(code: "10410", message: ""),
-        hasYieldedDelta: false),
-      "an explicit missing package remains eligible for pre-delta failover")
-    XCTAssertTrue(
-      OwlAskSearchFailover.shouldTryNextAttempt(
-        after: OwlWebSearchError.serviceError(code: "ToolNotOpen", message: ""),
-        hasYieldedDelta: false),
-      "an explicitly disabled plugin remains eligible for pre-delta failover")
-    XCTAssertFalse(
-      OwlAskSearchFailover.shouldTryNextAttempt(
-        after: OwlWebSearchError.serviceError(code: "InvalidParameter", message: "generic"),
-        hasYieldedDelta: false),
-      "generic parameter errors may depend on this question and must surface")
-    XCTAssertFalse(
-      OwlAskSearchFailover.shouldTryNextAttempt(
-        after: OwlWebSearchError.serviceError(code: "700429", message: ""),
-        hasYieldedDelta: false),
-      "豆包的限流码带着 HTTP 200 回来，同样不该顺位")
-    XCTAssertFalse(
-      OwlAskSearchFailover.shouldTryNextAttempt(
-        after: OwlWebSearchError.serviceError(code: "ContentPolicyViolation", message: ""),
-        hasYieldedDelta: false),
-      "未知业务码不能默认跨供应商追加请求")
-    XCTAssertTrue(
-      OwlAskSearchFailover.shouldTryNextAttempt(
-        after: OwlWebSearchError.noResults, hasYieldedDelta: false),
-      "一条都没搜到 → 换一家，而不是注入空资料却署名联网")
-    XCTAssertTrue(
-      OwlAskSearchFailover.shouldTryNextAttempt(
         after: OwlStreamingError.invalidEndpoint, hasYieldedDelta: false),
       "端点不可改写时请求尚未发出，属于候选配置不可用")
     XCTAssertFalse(
@@ -711,13 +550,12 @@ final class OwlStreamingChatClientTests: XCTestCase {
       "即便是明确配置拒绝，首个 delta 之后也不能再拼接另一家的答案")
   }
 
-  /// 一个**仍然走 `/chat/completions`** 的默认供应商。独立搜索层那几条用例要的就是这个角色：
-  /// 检索结果作为 system 注入、作答走默认供应商的常规通道。
+  /// 一个**仍然走 `/chat/completions`** 的默认供应商：没有搜索通道时退回普通问答的那个角色。
   ///
   /// 曾经这里用的是 DeepSeek——它 2026-07-31 迁到 `/responses` 之后就不再是「chat 供应商」了，
   /// 断言会变成在验证 fixture 的传输方式而不是搜索层的行为。所以换成一个不属于任何 Responses
   /// 家族、也没有搜索通道的自定义档案；DeepSeek 的 Responses 路由由
-  /// `testDeepSeekPlainGenerationDispatchesToResponses` 单独覆盖。
+  /// `testDeepSeekDispatchesToResponsesAndSignsItsSearch` 单独覆盖。
   @MainActor private static var chatOnlyProfile: OwlProviderProfile {
     OwlProviderProfile(
       id: "unit",
@@ -729,43 +567,12 @@ final class OwlStreamingChatClientTests: XCTestCase {
       isDefault: true
     )
   }
-
-  @MainActor
-  private func makeSearchService(
-    chat: RecordingChatClient,
-    responses: RecordingResponsesClient,
-    search: OwlWebSearching
-  ) -> OwlAskAnythingModule {
-    // 同 `chatOnlyProfile` 的理由：这几条断言的是搜索层，作答方必须是个仍走 chat 的供应商。
-    let profile = Self.chatOnlyProfile
-    OwlAskWebSearchSettings.isEnabled = true
-    return OwlAskAnythingModule(
-      client: chat,
-      responsesClient: responses,
-      profileProvider: { profile },
-      profileSecretProvider: { _ in "sk-key" },
-      legacyKeyProvider: { nil },
-      // 必须给一个空的 resolver：默认实现读的是**真实的 providers.json + 真钥匙串**，
-      // 开发机上真配着豆包时，搜索层失败后会顺位到那条真路由，断言就会看到「doubao」而不是
-      // 预期的退回普通问答（踩过一次）。测试要自带全部输入，不能继承这台机器的配置。
-      searchResolver: OwlAskSearchResolver(
-        isEnabled: { true }, profilesProvider: { [] },
-        defaultProfileProvider: { nil }, preferredProviderID: { nil },
-        secretProvider: { _ in nil }),
-      preferredWebSearchBackend: { .doubaoGlobal },
-      // 顺位候选的 Key 同理不能读真钥匙串：这台机器配过百炼/Serper 搜索 Key 的话，
-      // 首家失败会顺位到一条真实路由，断言看到的就不是「退回普通问答」了。
-      webSearchKeyProvider: { $0 == .doubaoGlobal ? "sk-search" : nil },
-      webSearchClientFactory: { _ in search }
-    )
-  }
 }
 
 /// Records which transport the 任意提问 module picked. Driven synchronously
 /// from the `@MainActor` tests (the stream is never consumed), so plain mutable state is enough.
 private final class RecordingChatClient: OwlChatStreaming, @unchecked Sendable {
   private(set) var callCount = 0
-  /// 独立搜索层把检索结果作为 system 消息插在最前面，所以断言要看得到发出去的 messages。
   private(set) var lastMessages: [OwlDeepSeekMessage]?
 
   func stream(
@@ -776,22 +583,6 @@ private final class RecordingChatClient: OwlChatStreaming, @unchecked Sendable {
     callCount += 1
     lastMessages = messages
     return AsyncThrowingStream { $0.finish() }
-  }
-}
-
-/// 可编排的搜索后端：回结果或抛错，都不碰网络。
-private struct StubWebSearch: OwlWebSearching {
-  let results: [OwlWebSearchResult]
-  let failure: OwlWebSearchError?
-
-  init(results: [OwlWebSearchResult] = [], failure: OwlWebSearchError? = nil) {
-    self.results = results
-    self.failure = failure
-  }
-
-  func search(query: String, apiKey: String, limit: Int) async throws -> [OwlWebSearchResult] {
-    if let failure { throw failure }
-    return results
   }
 }
 

@@ -91,7 +91,7 @@ Source verification groups entry points into legislation, cases and literature, 
 
 Presets include Alibaba Cloud Bailian, Doubao, DeepSeek and MiniMax. You can also configure OpenAI-compatible services. Set an endpoint, model and key for your account, then test the connection.
 
-Independent search can supply results to an answering model from a different provider. MiniMax China subscription search requires a matching subscription key. Model access, independent search and source-verification capabilities are handled separately. M3.1 supports reasoning-depth controls; reasoning cannot be disabled.
+Ask Anything web search uses only DeepSeek's built-in search (`deepseek-v4-flash`): configure a DeepSeek provider, and the answering model can come from another provider. MiniMax uses the GA M3.1-Flash model on the China site (api.minimax.cn); its reasoning depth is adjustable but cannot be turned off.
 
 ### 📋 Keep reusable content close
 

@@ -259,7 +259,8 @@ enum OwlThinkingControl {
     default: break
     }
     let m = model.lowercased()
-    if m == "minimax-m3.1-flash-preview" { return .minimaxAdaptive }
+    // M3.1 Flash 不能关思考，只能调深度；`-preview` 是正式版前的 ID，旧档案仍按同一形状发。
+    if m == "minimax-m3.1-flash" || m == "minimax-m3.1-flash-preview" { return .minimaxAdaptive }
     if m == "minimax-m3" { return .minimaxDirect }
     if m.hasPrefix("minimax-m2") { return .minimaxThinking }
     if m.hasPrefix("deepseek") || m.hasPrefix("doubao") { return .deepSeekStyle }
