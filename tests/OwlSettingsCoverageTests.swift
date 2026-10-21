@@ -93,6 +93,7 @@ final class OwlSettingsCoverageTests: XCTestCase {
     // Qwen Responses 的 Workspace 设置：供应商表单与独立百炼检索共用。规范化、非法 Host 拒绝、
     // 偏好持久化及既有 Qwen profile 端点同步，覆盖在 ProviderProfileStoreTests。
     "Workspace ID 或 API Host",
+    "新 Workspace 的 API Key（换空间时必填）",
     "保存空间",
     // 已配供应商的原地编辑（换模型不必删了重加）：入口按钮 + 编辑态的两个 footer 按钮。
     // action coverage 在 ProviderProfileStoreTests 的 updateProviderProfile 两条断言。

@@ -45,6 +45,7 @@ struct OwlAIPage: View {
   @State private var editingProfile: OwlProviderProfile?
   /// 百炼 Workspace ID / API Host。非密钥，所有 Qwen 供应商档案共用这一项。
   @State private var qwenWorkspaceInput = ""
+  @State private var qwenWorkspaceKeyInput = ""
   /// 新增流程里「拉取最新」已经用这把 Key 调通过：profile 落库后补标验证（见 `addProvider`）。
   @State private var pendingKeyVerified = false
 
@@ -225,6 +226,9 @@ struct OwlAIPage: View {
           .textFieldStyle(.roundedBorder)
         smallButton("保存空间") { saveQwenWorkspaceSetting() }
       }
+      SecureField("新 Workspace 的 API Key（换空间时必填）", text: $qwenWorkspaceKeyInput)
+        .textFieldStyle(.roundedBorder)
+        .font(.system(size: 13))
       Text(qwenWorkspaceHelp)
         .font(.system(size: 11.5, design: .monospaced))
         .foregroundStyle(palette.ink3)
@@ -546,10 +550,11 @@ struct OwlAIPage: View {
 
   private func saveQwenWorkspaceSetting() {
     let result = OwlSettingsActions.saveQwenWorkspace(
-      qwenWorkspaceInput, store: providerStore)
+      qwenWorkspaceInput, apiKey: qwenWorkspaceKeyInput, store: providerStore, secrets: providerSecrets)
     providers = result.profiles
     providerStatus = result.status
     guard result.saved else { return }
+    qwenWorkspaceKeyInput = ""
     qwenWorkspaceInput = OwlQwenWorkspaceSettings.apiHost()
     if providerID == "qwen" {
       providerEndpoint = OwlQwenWorkspaceSettings.responsesEndpoint().absoluteString

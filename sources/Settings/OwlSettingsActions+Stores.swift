@@ -214,45 +214,69 @@ extension OwlSettingsActions {
   /// Responses endpoint, so profiles added at different times never drift to different workspaces.
   static func saveQwenWorkspace(
     _ input: String,
+    apiKey: String,
     store: OwlProviderProfileStore,
+    secrets: OwlSecretStoring,
     defaults: UserDefaults = OwlDefaults.standard
   ) -> (profiles: [OwlProviderProfile], status: String, saved: Bool) {
     let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-    let endpoint: URL
-    if trimmed.isEmpty {
-      endpoint = URL(string: OwlLLMProviderCatalog.qwenResponsesEndpoint)!
-    } else if let resolved = OwlQwenWorkspace.responsesEndpoint(for: trimmed) {
-      endpoint = resolved
-    } else {
-      return (
-        store.profiles(),
-        "Workspace ID / API Host 格式无效，未覆盖原配置。",
-        false)
+    let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let commitWorkspace = OwlQwenWorkspaceSettings.prepareSave(trimmed, defaults: defaults),
+          let endpoint = trimmed.isEmpty
+            ? URL(string: OwlLLMProviderCatalog.qwenResponsesEndpoint)
+            : OwlQwenWorkspace.responsesEndpoint(for: trimmed) else {
+      return (store.profiles(), "Workspace ID / API Host 格式无效，未覆盖原配置。", false)
     }
-
     let qwenProfiles = store.profiles().filter {
       OwlLLMProviderCatalog.inferredProviderID(for: $0) == "qwen"
     }
     for profile in qwenProfiles {
-      if let rejection = originChangeKeyRejection(current: profile, endpoint: endpoint, apiKey: "") {
+      if let rejection = originChangeKeyRejection(current: profile, endpoint: endpoint, apiKey: key) {
         return (store.profiles(), rejection, false)
       }
     }
-
+    // Ask the shared guard with an empty key to identify which profiles need replacement.
+    let changing = qwenProfiles.filter {
+      originChangeKeyRejection(current: $0, endpoint: endpoint, apiKey: "") != nil
+    }
+    var stagedNames: [String] = []
+    var committing = false
     do {
-      for var profile in qwenProfiles {
-        profile.endpoint = endpoint
-        _ = try store.update(profile)
+      var updated = qwenProfiles
+      for index in updated.indices {
+        updated[index].endpoint = endpoint
+        if changing.contains(where: { $0.id == updated[index].id }) {
+          // Independent names keep deleting one profile from removing another profile's key.
+          let name = OwlProviderProfile.defaultSecretName(for: UUID().uuidString)
+          stagedNames.append(name)
+          try secrets.setSecret(key, named: name)
+          updated[index].secretName = name
+        }
       }
-      guard OwlQwenWorkspaceSettings.save(trimmed, defaults: defaults) else {
-        return (store.profiles(), "Workspace ID / API Host 格式无效，未覆盖原配置。", false)
+      committing = true
+      try store.update(updated)
+      commitWorkspace()
+      let profiles = store.profiles()
+      for name in stagedNames { OwlProviderKeyVerification.clear(secretName: name) }
+      for old in changing where !profiles.contains(where: { $0.secretName == old.secretName }) {
+        try? secrets.deleteSecret(named: old.secretName)
+        OwlProviderKeyVerification.clear(secretName: old.secretName)
       }
       let status = trimmed.isEmpty
         ? "已清除 Workspace，百炼将使用通用 Responses 端点。"
         : "已保存 Workspace API Host，所有 Qwen 供应商将共用。"
-      return (store.profiles(), status, true)
+      return (profiles, status, true)
     } catch {
-      return (store.profiles(), "保存 Workspace API Host 失败。", false)
+      let profiles = store.profiles()
+      // Before commit, all staged keys are disposable. After a save error, require
+      // readable old references and no staged references; ambiguous state retains keys.
+      let unchanged = changing.allSatisfy { old in
+        profiles.first(where: { $0.id == old.id })?.secretName == old.secretName
+      } && !profiles.contains(where: { stagedNames.contains($0.secretName) })
+      if !committing || unchanged {
+        for name in stagedNames { try? secrets.deleteSecret(named: name) }
+      }
+      return (profiles, "保存 Workspace API Host 失败。", false)
     }
   }
 

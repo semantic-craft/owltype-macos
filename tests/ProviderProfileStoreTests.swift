@@ -740,7 +740,7 @@ final class ProviderProfileStoreTests: XCTestCase {
     defer { defaults.removePersistentDomain(forName: suiteName) }
 
     let result = OwlSettingsActions.saveQwenWorkspace(
-      "ws-test123abc", store: store, defaults: defaults)
+      "ws-test123abc", apiKey: "", store: store, secrets: secrets, defaults: defaults)
 
     XCTAssertTrue(result.saved)
     let endpoint = URL(string:
@@ -756,6 +756,189 @@ final class ProviderProfileStoreTests: XCTestCase {
     XCTAssertEqual(
       OwlQwenWorkspaceSettings.apiHost(defaults: defaults),
       "ws-test123abc.cn-beijing.maas.aliyuncs.com")
+  }
+
+  func testWorkspacePreparedSaveValidatesWithoutWriting() throws {
+    let suite = "WorkspacePrepared-\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    XCTAssertTrue(OwlQwenWorkspaceSettings.save("ws-original", defaults: defaults))
+    let before = defaults.dictionaryRepresentation()
+    XCTAssertNil(OwlQwenWorkspaceSettings.prepareSave("foreign.example.com", defaults: defaults))
+    let commit = try XCTUnwrap(OwlQwenWorkspaceSettings.prepareSave(
+      "  WS-test123abc  ", defaults: defaults))
+    XCTAssertEqual(defaults.dictionaryRepresentation() as NSDictionary, before as NSDictionary)
+    commit()
+    XCTAssertEqual(OwlQwenWorkspaceSettings.apiHost(defaults: defaults),
+                   "ws-test123abc.cn-beijing.maas.aliyuncs.com")
+    let clear = try XCTUnwrap(OwlQwenWorkspaceSettings.prepareSave(" \n", defaults: defaults))
+    XCTAssertFalse(OwlQwenWorkspaceSettings.apiHost(defaults: defaults).isEmpty)
+    clear()
+    XCTAssertEqual(OwlQwenWorkspaceSettings.apiHost(defaults: defaults), "")
+  }
+
+  func testSavingQwenWorkspaceWhitespaceKeyRejectsEntireBatchWithoutMutation() throws {
+    try assertQwenWorkspaceOriginChangeRejected(
+      input: "ws-test123abc", currentEndpoint: OwlLLMProviderCatalog.qwenResponsesEndpoint,
+      apiKey: "  \n")
+  }
+
+  func testSavingQwenWorkspaceKeyRotatesOnlyChangedOriginsInOneSave() throws {
+    try assertWorkspaceKeyTransaction(failure: nil)
+  }
+
+  func testSavingQwenWorkspaceKeyWriteFailureCleansStagedKeys() throws {
+    try assertWorkspaceKeyTransaction(failure: "key")
+  }
+
+  func testSavingQwenWorkspaceProfileCommitFailureCleansStagedKeys() throws {
+    try assertWorkspaceKeyTransaction(failure: "config")
+  }
+
+  private func assertWorkspaceKeyTransaction(failure: String?) throws {
+    enum Injected: Error { case failure }
+    final class Secrets: OwlSecretStoring {
+      let backing = OwlInMemorySecretStore()
+      var writes = 0
+      var fail = false
+      func secret(named name: String) throws -> String? { try backing.secret(named: name) }
+      func setSecret(_ value: String, named name: String) throws {
+        writes += 1
+        try backing.setSecret(value, named: name)
+        // Fail after the second write to exercise cleanup of every staged key.
+        if fail && writes == 2 { throw Injected.failure }
+      }
+      func deleteSecret(named name: String) throws { try backing.deleteSecret(named: name) }
+    }
+    OwlProviderKeyVerification.resetForTesting()
+    defer { OwlProviderKeyVerification.resetForTesting() }
+    let store = makeStore()
+    let secrets = Secrets()
+    let target = try XCTUnwrap(OwlQwenWorkspace.responsesEndpoint(for: "ws-test123abc"))
+    for index in 0..<3 {
+      _ = try store.add(OwlProviderProfile(
+        displayName: "Qwen \(index)",
+        endpoint: index == 2 ? target.appendingPathComponent("old")
+          : URL(string: OwlLLMProviderCatalog.qwenResponsesEndpoint)!,
+        model: "qwen3.7-plus", providerID: "qwen", isDefault: index == 0))
+    }
+    _ = try store.add(makeProfile(name: "DeepSeek"))
+    let before = store.profiles()
+    let bytes = try Data(contentsOf: store.fileURL)
+    for profile in before {
+      try secrets.backing.setSecret("old-" + profile.id, named: profile.secretName)
+      OwlProviderKeyVerification.markVerified(secretName: profile.secretName)
+    }
+    let keys = secrets.backing.storage
+    let verified = before.map { OwlProviderKeyVerification.verifiedAt(secretName: $0.secretName) }
+    let suite = "WorkspaceTransaction-\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    XCTAssertTrue(OwlQwenWorkspaceSettings.save("ws-original", defaults: defaults))
+    let hostBefore = OwlQwenWorkspaceSettings.apiHost(defaults: defaults)
+    var saves = 0
+    store.beforeSave = {
+      saves += 1
+      if failure == "config" { throw Injected.failure }
+    }
+    secrets.fail = failure == "key"
+    let result = OwlSettingsActions.saveQwenWorkspace(
+      "ws-test123abc", apiKey: "  new-key \n", store: store, secrets: secrets, defaults: defaults)
+    XCTAssertEqual(result.saved, failure == nil)
+    XCTAssertEqual(saves, failure == "key" ? 0 : 1)
+    if failure != nil {
+      XCTAssertEqual(try Data(contentsOf: store.fileURL), bytes)
+      XCTAssertEqual(result.profiles, before)
+      XCTAssertEqual(secrets.backing.storage, keys)
+      XCTAssertEqual(before.map { OwlProviderKeyVerification.verifiedAt(secretName: $0.secretName) }, verified)
+      XCTAssertEqual(OwlQwenWorkspaceSettings.apiHost(defaults: defaults), hostBefore)
+      return
+    }
+    XCTAssertEqual(makeStore().profiles(), result.profiles)
+    XCTAssertEqual(store.defaultProfile?.id, before.first(where: { $0.isDefault })?.id)
+    var newNames = Set<String>()
+    for (index, old) in before.enumerated() {
+      let saved = try XCTUnwrap(store.profile(id: old.id))
+      if old.displayName == "Qwen 0" || old.displayName == "Qwen 1" {
+        var expected = old
+        expected.endpoint = target
+        expected.secretName = saved.secretName
+        XCTAssertEqual(saved, expected)
+        XCTAssertNotEqual(saved.secretName, old.secretName)
+        newNames.insert(saved.secretName)
+        XCTAssertEqual(try secrets.secret(named: saved.secretName), "new-key")
+        XCTAssertNil(try secrets.secret(named: old.secretName))
+        XCTAssertNil(OwlProviderKeyVerification.verifiedAt(secretName: old.secretName))
+        XCTAssertNil(OwlProviderKeyVerification.verifiedAt(secretName: saved.secretName))
+      } else {
+        var expected = old
+        if old.providerID == "qwen" { expected.endpoint = target }
+        XCTAssertEqual(saved, expected)
+        XCTAssertEqual(try secrets.secret(named: old.secretName), keys[old.secretName])
+        XCTAssertEqual(OwlProviderKeyVerification.verifiedAt(secretName: old.secretName), verified[index])
+      }
+    }
+    XCTAssertEqual(newNames.count, 2)
+    XCTAssertEqual(OwlQwenWorkspaceSettings.apiHost(defaults: defaults), target.host)
+  }
+
+  func testSavingQwenWorkspaceSameOriginIgnoresReplacementKey() throws {
+    let store = makeStore()
+    let secrets = OwlInMemorySecretStore()
+    let target = try XCTUnwrap(OwlQwenWorkspace.responsesEndpoint(for: "ws-test123abc"))
+    for index in 0..<2 {
+      let profile = try store.add(OwlProviderProfile(
+        displayName: "Qwen \(index)", endpoint: target.appendingPathComponent("old"),
+        model: "qwen3.7-plus", providerID: "qwen"))
+      try secrets.setSecret("old-" + profile.id, named: profile.secretName)
+    }
+    let before = store.profiles()
+    let keys = secrets.storage
+    let suite = "WorkspaceSameOrigin-\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let result = OwlSettingsActions.saveQwenWorkspace(
+      "ws-test123abc", apiKey: "new-key", store: store, secrets: secrets, defaults: defaults)
+    XCTAssertTrue(result.saved)
+    XCTAssertEqual(result.profiles, before.map { old in
+      var updated = old
+      updated.endpoint = target
+      return updated
+    })
+    XCTAssertEqual(secrets.storage, keys)
+  }
+
+  func testBatchUpdatePreservesDefaultAndSavesOnce() throws {
+    let store = makeStore()
+    let first = try store.add(makeProfile(name: "First", isDefault: true))
+    let second = try store.add(makeProfile(name: "Second"))
+    var updates = [first, second]
+    updates[0].model = "new-first"
+    updates[0].isDefault = false
+    updates[1].model = "new-second"
+    updates[1].isDefault = true
+    var saves = 0
+    store.beforeSave = { saves += 1 }
+    try store.update(updates)
+    XCTAssertEqual(saves, 1)
+    XCTAssertEqual(makeStore().defaultProfile?.id, first.id)
+    XCTAssertEqual(makeStore().profile(id: first.id)?.model, "new-first")
+    XCTAssertEqual(makeStore().profile(id: second.id)?.model, "new-second")
+  }
+
+  func testBatchUpdateUnknownIDDoesNotWrite() throws {
+    let store = makeStore()
+    var existing = try store.add(makeProfile(name: "Existing", isDefault: true))
+    let before = try Data(contentsOf: store.fileURL)
+    existing.model = "changed"
+    let unknown = makeProfile(name: "Unknown")
+    var saves = 0
+    store.beforeSave = { saves += 1 }
+    XCTAssertThrowsError(try store.update([existing, unknown])) { error in
+      XCTAssertEqual(error as? OwlProviderError, .notFound(unknown.id))
+    }
+    XCTAssertEqual(saves, 0)
+    XCTAssertEqual(try Data(contentsOf: store.fileURL), before)
   }
 
   func testSavingQwenWorkspaceHostChangeRejectsEntireBatchWithoutMutation() throws {
@@ -782,7 +965,7 @@ final class ProviderProfileStoreTests: XCTestCase {
   }
 
   private func assertQwenWorkspaceOriginChangeRejected(
-    input: String, currentEndpoint: String
+    input: String, currentEndpoint: String, apiKey: String = ""
   ) throws {
     OwlProviderKeyVerification.resetForTesting()
     defer { OwlProviderKeyVerification.resetForTesting() }
@@ -822,7 +1005,8 @@ final class ProviderProfileStoreTests: XCTestCase {
     var writes = 0
     store.beforeSave = { writes += 1 }
 
-    let result = OwlSettingsActions.saveQwenWorkspace(input, store: store, defaults: defaults)
+    let result = OwlSettingsActions.saveQwenWorkspace(
+      input, apiKey: apiKey, store: store, secrets: secrets, defaults: defaults)
 
     XCTAssertEqual(result.status, "更换地址后请重新填写 API Key。")
     XCTAssertFalse(result.saved)
@@ -839,6 +1023,7 @@ final class ProviderProfileStoreTests: XCTestCase {
   }
 
   func testSavingQwenWorkspaceWithoutQwenProfilesOnlyUpdatesSettings() throws {
+    let secrets = OwlInMemorySecretStore()
     let store = makeStore()
     _ = try store.add(makeProfile(name: "DeepSeek", isDefault: true))
     let profilesBefore = store.profiles()
@@ -851,7 +1036,7 @@ final class ProviderProfileStoreTests: XCTestCase {
     store.beforeSave = { writes += 1 }
 
     let result = OwlSettingsActions.saveQwenWorkspace(
-      "ws-test123abc", store: store, defaults: defaults)
+      "ws-test123abc", apiKey: "", store: store, secrets: secrets, defaults: defaults)
 
     XCTAssertTrue(result.saved)
     XCTAssertEqual(writes, 0)
