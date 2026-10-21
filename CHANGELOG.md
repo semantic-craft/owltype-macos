@@ -1,5 +1,14 @@
 ## Unreleased
 
+<a name="2.0.17"></a>
+## 2.0.17 (2026-10-21)
+
+### 安装与更新 | Installation and updates
+- 修复安装时报「授权步骤失败：INSTALL_FILES_FAILED … Info.plist 不存在」：`/Library/Input Methods/Owltype.app` 只剩一个空目录（例如之前没删干净）时，安装器不再把它当成更新，而是把这个残缺目录移到安装器自己的保留目录，然后按首次安装装好并启用输入法。
+
+### 设置 | Settings
+- 已下线供应商留下的档案，在设置里编辑保存后按自定义供应商工作，之后可以设为默认；未保存前点「设为默认」会提示先编辑保存。更换供应商地址时必须重新填写 API Key，「拉取最新」和「验证连通性」同样遵守。
+
 ### 任意提问 | Ask Anything
 - 联网搜索只走 DeepSeek 内置搜索（需配置 DeepSeek 供应商并使用 `deepseek-v4-flash`）；移除豆包、百炼、Serper、MiniMax 四个独立搜索服务及其设置项，千问、豆包、OpenAI 不再承担任意提问的联网。来源核验不受影响。
 
