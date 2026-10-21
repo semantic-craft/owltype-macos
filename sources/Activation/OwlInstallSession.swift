@@ -19,8 +19,10 @@ final class OwlInstallSession: OwlSessionRestart.Effects {
 
   init(mode: String) {
     self.mode = mode
+    // Any copy claiming the id counts as old, including one left by an incomplete removal;
+    // the probe counts every Owltype process, so a survivor elsewhere would fail the check.
     oldProcesses = NSRunningApplication.runningApplications(withBundleIdentifier: Self.parentID)
-      .filter { $0.processIdentifier != getpid() && !$0.isTerminated && $0.bundleURL?.path == Self.appPath }
+      .filter { $0.processIdentifier != getpid() && !$0.isTerminated }
   }
 
   static func finish(firstInstall: Bool, sourceBefore: String, version: String) throws {

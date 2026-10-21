@@ -39,6 +39,7 @@ enum OwlSessionRestart {
     case notUserSession
     case missingContext
     case oldProcessDidNotExit
+    case inputSourceNotEnabled
     case selfCheckTimedOut
   }
 
@@ -65,17 +66,20 @@ enum OwlSessionRestart {
   }
 
   /// Successful self-check is process/TIS evidence only; real host typing remains a native test.
+  /// Waiting for the user's enable consent spends `consentTimeout`, not the self-check budget.
+  /// An update that finds the source disabled (an earlier first install whose consent never
+  /// arrived) requests enabling once, so retrying the installer can recover.
   @discardableResult
-  static func run(_ request: Request, effects: Effects, timeout: TimeInterval = 45) throws -> Server {
+  static func run(_ request: Request, effects: Effects, timeout: TimeInterval = 45,
+                  consentTimeout: TimeInterval = 120) throws -> Server {
     guard effects.isUserSession else { throw Failure.notUserSession }
     guard !request.expectedVersion.isEmpty,
           request.firstInstall || !request.sourceBefore.isEmpty else { throw Failure.missingContext }
     let started = effects.uptime
-    let deadline = started + timeout
     try effects.stopOldProcesses(force: false)
     var forced = false
     while try effects.oldProcessesRemain() {
-      guard effects.uptime < min(started + 5, deadline) else { throw Failure.oldProcessDidNotExit }
+      guard effects.uptime < started + 5 else { throw Failure.oldProcessDidNotExit }
       if !forced, effects.uptime >= started + 2 {
         try effects.stopOldProcesses(force: true)
         forced = true
@@ -84,29 +88,41 @@ enum OwlSessionRestart {
     }
     if request.firstInstall { try effects.registerAndEnableParentAndMode() }
 
+    var enableRequested = request.firstInstall
+    let consentDeadline = effects.uptime + consentTimeout
+    var observation = try effects.observe()
+    while !(observation.parentEnabled && observation.modeEnabled) {
+      if !enableRequested {
+        try effects.registerAndEnableParentAndMode()
+        enableRequested = true
+      }
+      guard effects.uptime < consentDeadline else { throw Failure.inputSourceNotEnabled }
+      effects.pause()
+      observation = try effects.observe()
+    }
+
+    let deadline = effects.uptime + timeout
     var refreshed = false
     while effects.uptime < deadline {
-      let observation = try effects.observe()
-      guard effects.uptime < deadline else { throw Failure.selfCheckTimedOut }
-      if observation.parentEnabled && observation.modeEnabled {
-        if let target = request.selectionTarget, observation.selectedSource != target {
-          try effects.selectSource(target)
-          // Selection's return status is not a readback. Wait for a fresh observation.
-        } else if !refreshed {
-          try effects.refreshTextInputServices()
-          try effects.launchInstalledApp()
-          refreshed = true
-        } else if observation.selectedSource == request.expectedSource,
-                  observation.servers.count == 1,
-                  let server = observation.servers.first,
-                  server.pid > 0,
-                  server.executable == installedExecutable,
-                  server.version == request.expectedVersion,
-                  server.mapsInstalledExecutable {
-          return server
-        }
+      if let target = request.selectionTarget, observation.selectedSource != target {
+        try effects.selectSource(target)
+        // Selection's return status is not a readback. Wait for a fresh observation.
+      } else if !refreshed {
+        try effects.refreshTextInputServices()
+        try effects.launchInstalledApp()
+        refreshed = true
+      } else if observation.parentEnabled && observation.modeEnabled,
+                observation.selectedSource == request.expectedSource,
+                observation.servers.count == 1,
+                let server = observation.servers.first,
+                server.pid > 0,
+                server.executable == installedExecutable,
+                server.version == request.expectedVersion,
+                server.mapsInstalledExecutable {
+        return server
       }
       effects.pause()
+      observation = try effects.observe()
     }
     throw Failure.selfCheckTimedOut
   }
