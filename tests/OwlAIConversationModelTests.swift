@@ -280,14 +280,14 @@ final class OwlAIConversationModelTests: XCTestCase {
   }
 
   func testSearchRoutedAnswerExposesTheProviderBrandName() async {
-    let streamer = SearchAskAnything(searchProviderID: "qwen")
+    let streamer = SearchAskAnything(searchProviderID: "deepseek")
     let model = OwlAIConversationModel(askAnything: streamer)
     XCTAssertNil(model.searchAttribution, "提交前没有署名")
 
     model.submit(question: "今天的司法解释")
     await waitUntil { if case .done = model.state { return true }; return false }
 
-    XCTAssertEqual(model.searchAttribution, "通义千问", "署名走品牌名，供窗口 chip 直接渲染")
+    XCTAssertEqual(model.searchAttribution, "DeepSeek", "署名走品牌名，供窗口 chip 直接渲染")
   }
 
   func testPlainChatAnswerHasNoSearchAttribution() async {
@@ -303,12 +303,12 @@ final class OwlAIConversationModelTests: XCTestCase {
   func testAttributionClearsWhenARegenerateNoLongerSearches() async {
     // A key can be removed (or the toggle flipped) between attempts — a stale 联网 chip would then
     // claim a live search that never happened.
-    let streamer = SearchAskAnything(searchProviderID: "doubao")
+    let streamer = SearchAskAnything(searchProviderID: "deepseek")
     let model = OwlAIConversationModel(askAnything: streamer)
 
     model.submit(question: "q")
     await waitUntil { if case .done = model.state { return true }; return false }
-    XCTAssertEqual(model.searchAttribution, "豆包")
+    XCTAssertEqual(model.searchAttribution, "DeepSeek")
 
     streamer.searchProviderID = nil
     model.regenerate()
@@ -456,7 +456,7 @@ final class OwlAIConversationModelTests: XCTestCase {
     func open(
       messages: [OwlDeepSeekMessage]
     ) -> Result<OwlAskStreamOpen, OwlStreamingReadiness> {
-      let box = OwlAskAttribution(searchProviderID: "doubao")
+      let box = OwlAskAttribution(searchProviderID: "deepseek")
       attribution = box
       let stream = AsyncThrowingStream<String, Error> { cont in
         self.continuation = cont      // 内容先不发，留给测试在「顺位」之后放行
@@ -469,23 +469,6 @@ final class OwlAIConversationModelTests: XCTestCase {
       continuation?.yield(text)
       continuation?.finish()
     }
-  }
-
-  func testAttributionFollowsARuntimeFailoverToAnotherProvider() async {
-    let streamer = FailoverAskAnything()
-    let model = OwlAIConversationModel(askAnything: streamer)
-
-    model.submit(question: "今天的司法解释")
-    XCTAssertEqual(model.searchAttribution, "豆包", "开流时先按「打算用谁」署名")
-
-    // 请求发出后 豆包 返回 401，顺位到百炼 —— 内容还一个字都没出。
-    streamer.attribution?.update(searchProviderID: "qwen")
-    streamer.emitAnswer("百炼答的")
-    await waitUntil { if case .done = model.state { return true }; return false }
-
-    XCTAssertEqual(
-      model.searchAttribution, "通义千问",
-      "chip 必须写真正答了这一问的那家，否则就是「以为用 A 实际用 B」")
   }
 
   func testAttributionIsDroppedWhenTheAnswerFallsBackToPlainChat() async {

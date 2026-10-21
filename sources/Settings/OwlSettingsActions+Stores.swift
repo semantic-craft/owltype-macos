@@ -211,8 +211,7 @@ extension OwlSettingsActions {
   }
 
   /// Save the shared Qwen Workspace API Host and keep every existing Qwen profile on the same
-  /// Responses endpoint. This makes the provider path and the independent Qwen search path consume
-  /// one setting instead of silently drifting to different workspaces.
+  /// Responses endpoint, so profiles added at different times never drift to different workspaces.
   static func saveQwenWorkspace(
     _ input: String,
     store: OwlProviderProfileStore,
@@ -242,44 +241,10 @@ extension OwlSettingsActions {
       }
       let status = trimmed.isEmpty
         ? "已清除 Workspace，百炼将使用通用 Responses 端点。"
-        : "已保存 Workspace API Host，Qwen 供应商与百炼检索将共用。"
+        : "已保存 Workspace API Host，所有 Qwen 供应商将共用。"
       return (store.profiles(), status, true)
     } catch {
       return (store.profiles(), "保存 Workspace API Host 失败。", false)
-    }
-  }
-
-  /// Save the standalone web-search service key (豆包搜索 Global). Write-only, same contract as
-  /// `saveProviderProfileKey`: the value is never read back into the UI.
-  ///
-  /// Not a provider key — it lives under a fixed Keychain account so the search capability is
-  /// independent of which model answers (see `OwlWebSearchKeyStore`).
-  static func saveWebSearchKey(
-    _ apiKey: String,
-    backend: OwlWebSearchBackend,
-    secrets: OwlSecretStoring
-  ) -> (input: String, status: String) {
-    let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !key.isEmpty else { return (apiKey, "请输入\(backend.displayName)的 API Key") }
-    do {
-      try secrets.setSecret(key, named: backend.secretName)
-      return ("", "已保存到 Keychain，联网将由\(backend.displayName)检索后交给默认供应商作答。")
-    } catch {
-      return (apiKey, "保存 Keychain 失败")
-    }
-  }
-
-  /// Clear one backend's stored key → 若它是当前选中的后端，联网退回各家模型内置的搜索工具。
-  /// 只删这一家：另一家的 Key 留着，切回去不用重填。
-  static func clearWebSearchKey(
-    backend: OwlWebSearchBackend,
-    secrets: OwlSecretStoring
-  ) -> String {
-    do {
-      try secrets.deleteSecret(named: backend.secretName)
-      return "已删除\(backend.displayName)的 API Key"
-    } catch {
-      return "删除 Keychain 失败"
     }
   }
 

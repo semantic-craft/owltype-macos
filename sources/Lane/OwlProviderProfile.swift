@@ -103,8 +103,8 @@ enum OwlLLMProviderCatalog {
       id: "minimax",
       displayName: "MiniMax",
       endpoint: "https://api.minimax.cn/v1/chat/completions",
-      model: "MiniMax-M3.1-Flash-Preview",
-      keyHint: "M Plan / Token Plan 订阅 Key（sk-cp-…）；国际站请使用 api.minimax.io",
+      model: "MiniMax-M3.1-Flash",
+      keyHint: "国内站 api.minimax.cn 的 M Plan / Token Plan 订阅 Key（sk-cp-…）",
       sourceSupport: .searchPlanOnly
     ),
     OwlLLMProviderPreset(
@@ -138,7 +138,7 @@ enum OwlLLMProviderCatalog {
     "qwen3.7-max",
   ]
 
-  static let minimaxModels = ["MiniMax-M3.1-Flash-Preview", "MiniMax-M3", "MiniMax-M2.7-highspeed"]
+  static let minimaxModels = ["MiniMax-M3.1-Flash", "MiniMax-M3"]
 
   static let customID = "custom"
 

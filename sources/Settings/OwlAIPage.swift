@@ -43,13 +43,7 @@ struct OwlAIPage: View {
   /// profile's `id`/`secretName`, so 换模型 doesn't need the key re-pasted (see
   /// `OwlSettingsActions.updateProviderProfile`).
   @State private var editingProfile: OwlProviderProfile?
-  /// 搜索服务 Key 的输入框（只写，和供应商 Key 同样从不回显）+ 它的「已设置/未设置」镜像与状态回显。
-  @State private var searchKeyInput = ""
-  @State private var searchKeyConfigured = false
-  @State private var searchKeyStatus = ""
-  /// 当前选中的搜索后端（raw value，与 `OwlWebSearchBackendSettings` 同步）。
-  @State private var searchBackendRaw = OwlWebSearchBackend.doubaoGlobal.rawValue
-  /// 百炼 Workspace ID / API Host。非密钥，供应商与独立 Qwen 检索共用这一项。
+  /// 百炼 Workspace ID / API Host。非密钥，所有 Qwen 供应商档案共用这一项。
   @State private var qwenWorkspaceInput = ""
   /// 新增流程里「拉取最新」已经用这把 Key 调通过：profile 落库后补标验证（见 `addProvider`）。
   @State private var pendingKeyVerified = false
@@ -76,25 +70,22 @@ struct OwlAIPage: View {
          let host = OwlQwenWorkspace.apiHost(from: profile.endpoint) {
         qwenWorkspaceInput = host
       }
-      searchBackendRaw = OwlWebSearchBackendSettings.backend.rawValue
-      searchKeyConfigured = !OwlDefaults.isRunningUnitTests && OwlWebSearchKeyStore.isConfigured(
-        for: searchBackend, secrets: providerSecrets)
     }
   }
 
   // MARK: - 任意提问 · 联网搜索
 
-  /// 任意提问 的联网搜索开关 + 联网模型选择。只作用于「任意提问」：划词技能、候选、听写都不受影响。
+  /// 任意提问 的联网搜索开关。只作用于「任意提问」：划词技能、候选、听写都不受影响。
   ///
-  /// 开启后这一问会路由到一个**已配好密钥的可联网供应商**（阿里云百炼 / 豆包 / OpenAI /
-  /// DeepSeek），与上面选定的默认供应商解耦 —— 默认供应商不支持联网时，这一问
-  /// 仍能真的搜到。四家都没配密钥时自动退回普通问答，不报错。
+  /// 开启后这一问会路由到一个**已配好密钥、能联网的 DeepSeek 档案**，与上面选定的默认供应商
+  /// 解耦 —— 默认供应商是别家时，这一问仍能真的搜到。没有可用的 DeepSeek 档案时自动退回普通问答，
+  /// 不报错。
   private var askWebSearchCard: some View {
     SettingsCard(title: "任意提问 · 联网搜索", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
       VStack(spacing: 0) {
         SettingsToggleRow(
           title: "联网搜索",
-          subtitle: "开启后，「任意提问」会交给已配好密钥的联网模型（阿里云百炼 / 豆包 / OpenAI / DeepSeek）联网作答；关闭时用模型自有知识回答。只作用于任意提问，不影响划词技能与打字候选。",
+          subtitle: "开启后，「任意提问」会交给已配好密钥的 DeepSeek 联网作答；关闭时用模型自有知识回答。只作用于任意提问，不影响划词技能与打字候选。",
           isOn: state.askWebSearchEnabled,
           palette: palette,
           onToggle: {
@@ -103,19 +94,13 @@ struct OwlAIPage: View {
             }
           }
         )
-        if state.askWebSearchEnabled {
-          SettingsCardDivider(palette: palette)
-          searchServiceKeyRow
-          SettingsCardDivider(palette: palette)
-          askWebSearchProviderRow
-        }
         SettingsCardDivider(palette: palette)
         Text("""
-          开启后，优先由已配置的搜索服务检索，再交给默认模型作答；也可由联网模型直接检索作答。\
-          回答窗口会标注搜索来源。未配置可用搜索服务或联网模型时，退回普通问答。
+          联网由 DeepSeek 内置搜索完成，需在上面添加 DeepSeek 供应商并选用 deepseek-v4-flash（Pro 不支持联网）。\
+          回答窗口会标注搜索来源。没有可用的 DeepSeek 档案时，退回普通问答。
 
-          任意提问优先减少思考等待：支持关闭思考的模型默认关闭；MiniMax M3.1 不支持关闭，\
-          使用低思考强度，M3 则关闭思考。DeepSeek 内置联网需保留思考，自动挑选时仍优先通义千问。
+          任意提问优先减少思考等待：支持关闭思考的模型默认关闭；MiniMax M3.1 Flash 不支持关闭，\
+          使用低思考强度，M3 则关闭思考。DeepSeek 内置联网需保留思考。
           """)
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
@@ -124,124 +109,6 @@ struct OwlAIPage: View {
           .padding(.top, 8)
       }
     }
-  }
-
-  /// 「搜索服务 API Key」：所选检索后端自己的 Key，与「哪家模型作答」无关。
-  ///
-  /// 配好它之后，联网走「先检索、再作答」：由该后端取回网页，交给**当前默认供应商**作答 ——
-  /// 所以配的是 DeepSeek 也能联网。留空则退回下面那套「模型自带的联网工具」。
-  ///
-  /// 豆包/Serper 的 Key 与模型 Key 是两回事；通义千问那档填的就是百炼模型 Key，但仍单独存一份
-  /// （这层的语义是「谁来检索」，不是「配了哪家模型」）。逐家差异写在 `backend.keyHint` 里。
-  private var searchServiceKeyRow: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      HStack(spacing: 11) {
-        Text("搜索服务")
-          .font(.system(size: 14))
-          .foregroundStyle(palette.ink)
-        Spacer(minLength: 8)
-        Picker("搜索服务", selection: searchBackendBinding) {
-          ForEach(OwlWebSearchBackend.allCases, id: \.rawValue) { backend in
-            Text(backend.displayName).tag(backend.rawValue)
-          }
-        }
-        .pickerStyle(.menu)
-        .labelsHidden()
-        .fixedSize()
-        Text(searchKeyConfigured ? "已设置" : "未设置")
-          .font(.system(size: 12, design: .monospaced))
-          .foregroundStyle(palette.ink3)
-      }
-      HStack(spacing: 8) {
-        // 保存后输入框按「只写不回显」契约清空；占位符换成已设置态，否则空框看起来像没存上。
-        SecureField(
-          searchKeyConfigured ? "已设置 ●●●●●●（输入新 Key 可覆盖）"
-            : "\(searchBackend.displayName) API Key（写入 Keychain）",
-          text: $searchKeyInput)
-          .textFieldStyle(.roundedBorder)
-        smallButton("粘贴") { pasteSearchKey() }
-        smallButton("保存") { saveSearchKey() }
-        if searchKeyConfigured {
-          smallButton("清除") { clearSearchKey() }
-        }
-      }
-      if searchBackend == .qwen {
-        HStack(spacing: 8) {
-          TextField("Workspace ID 或 API Host", text: qwenWorkspaceBinding)
-            .textFieldStyle(.roundedBorder)
-          smallButton("保存空间") { saveQwenWorkspaceSetting() }
-        }
-        Text(qwenWorkspaceHelp)
-          .font(.system(size: 11.5, design: .monospaced))
-          .foregroundStyle(palette.ink3)
-          .fixedSize(horizontal: false, vertical: true)
-          .frame(maxWidth: .infinity, alignment: .leading)
-      }
-      Text("这把 Key 只用于检索，与上面「供应商」里那把分开存。\(searchBackend.keyHint)配好后由\(searchBackend.displayName)取回网页、交给你的默认供应商作答 —— 所以默认配的是 DeepSeek 也能联网。留空则退回各家模型自带的联网工具。三家的 Key 分开存，来回切换不用重填。\(searchKeyStatus.isEmpty ? "" : "\n\n\(searchKeyStatus)")")
-          .font(.system(size: 12))
-          .foregroundStyle(palette.ink3)
-          .fixedSize(horizontal: false, vertical: true)
-          .frame(maxWidth: .infinity, alignment: .leading)
-    }
-    .padding(.vertical, 8)
-  }
-
-  private var searchBackend: OwlWebSearchBackend {
-    OwlWebSearchBackend(rawValue: searchBackendRaw) ?? .doubaoGlobal
-  }
-
-  /// 切后端时把输入框和状态一起清掉，并把「已设置」重新指向新后端的 Key ——
-  /// 否则会出现「显示已设置、其实是上一家的 Key」这种最难查的错觉。
-  private var searchBackendBinding: Binding<String> {
-    Binding(
-      get: { searchBackendRaw },
-      set: { newValue in
-        searchBackendRaw = newValue
-        OwlWebSearchBackendSettings.rawValue = newValue
-        searchKeyInput = ""
-        searchKeyStatus = ""
-        searchKeyConfigured = OwlWebSearchKeyStore.isConfigured(
-          for: searchBackend, secrets: providerSecrets)
-      }
-    )
-  }
-
-  /// 「联网模型」下拉：自动 + 四家可联网供应商。只在联网搜索打开时出现。
-  ///
-  /// 选择**只影响尝试顺序**：选中的那家没填 API Key 时仍会顺位到下一家已配好的，而不是让这一问
-  /// 不联网（与 `OwlAskSearchResolver` 的静默降级一致；到底谁答的由回答窗的署名标出）。
-  private var askWebSearchProviderRow: some View {
-    let binding = Binding(
-      get: { state.askWebSearchProvider },
-      set: { newValue in
-        OwlSettingsActions.set(newValue, state: state, keyPath: \.askWebSearchProvider) {
-          OwlAskSearchProviderSettings.rawValue = $0
-        }
-      }
-    )
-    return VStack(alignment: .leading, spacing: 6) {
-      HStack(spacing: 11) {
-        Text("联网模型")
-          .font(.system(size: 14))
-          .foregroundStyle(palette.ink)
-        Spacer(minLength: 8)
-        Picker("联网模型", selection: binding) {
-          Text("自动").tag("")
-          ForEach(OwlSearchControl.searchProviderIDs, id: \.self) { providerID in
-            Text(OwlSearchControl.displayName(for: providerID) ?? providerID).tag(providerID)
-          }
-        }
-        .pickerStyle(.menu)
-        .labelsHidden()
-        .fixedSize()
-      }
-      Text("「自动」= 当前默认供应商本身能联网就用它，否则按 阿里云百炼 → 豆包 → OpenAI 找第一个填了 API Key 的。指定某一家只是把它排到最前；那家没填 Key 时仍会顺位到下一家，不会因此不联网。")
-        .font(.system(size: 12))
-        .foregroundStyle(palette.ink3)
-        .fixedSize(horizontal: false, vertical: true)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-    .padding(.vertical, 8)
   }
 
   // MARK: - 供应商（配一个就行）
@@ -353,8 +220,11 @@ struct OwlAIPage: View {
 
   private var qwenWorkspaceControl: some View {
     VStack(alignment: .leading, spacing: 4) {
-      TextField("Workspace ID 或 API Host", text: qwenWorkspaceBinding)
-        .textFieldStyle(.roundedBorder)
+      HStack(spacing: 8) {
+        TextField("Workspace ID 或 API Host", text: qwenWorkspaceBinding)
+          .textFieldStyle(.roundedBorder)
+        smallButton("保存空间") { saveQwenWorkspaceSetting() }
+      }
       Text(qwenWorkspaceHelp)
         .font(.system(size: 11.5, design: .monospaced))
         .foregroundStyle(palette.ink3)
@@ -672,34 +542,11 @@ struct OwlAIPage: View {
     }
   }
 
-  private func pasteSearchKey() {
-    if let s = NSPasteboard.general.string(forType: .string) {
-      searchKeyInput = s.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-  }
-
-  private func saveSearchKey() {
-    let result = OwlSettingsActions.saveWebSearchKey(
-      searchKeyInput, backend: searchBackend, secrets: providerSecrets)
-    searchKeyInput = result.input
-    searchKeyStatus = result.status
-    searchKeyConfigured = OwlWebSearchKeyStore.isConfigured(
-      for: searchBackend, secrets: providerSecrets)
-  }
-
-  private func clearSearchKey() {
-    searchKeyStatus = OwlSettingsActions.clearWebSearchKey(
-      backend: searchBackend, secrets: providerSecrets)
-    searchKeyInput = ""
-    searchKeyConfigured = OwlWebSearchKeyStore.isConfigured(
-      for: searchBackend, secrets: providerSecrets)
-  }
-
   private func saveQwenWorkspaceSetting() {
     let result = OwlSettingsActions.saveQwenWorkspace(
       qwenWorkspaceInput, store: providerStore)
     providers = result.profiles
-    searchKeyStatus = result.status
+    providerStatus = result.status
     guard result.saved else { return }
     qwenWorkspaceInput = OwlQwenWorkspaceSettings.apiHost()
     if providerID == "qwen" {

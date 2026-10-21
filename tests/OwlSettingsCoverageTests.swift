@@ -99,17 +99,6 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "修改模型：\\(profile.displayName)",
     "保存修改",
     "取消",
-    // 任意提问·联网搜索的独立「搜索服务」（豆包搜索 Global / Serper）：它不属于任何
-    // 一家供应商，配好后联网走「先检索、再作答」。Key 字段的提示语随选中的后端插值，故按源码字面量
-    // 登记（同 设为默认：\(…) 的写法）。action coverage 在 OwlWebSearchTests 的
-    // saveWebSearchKey / clearWebSearchKey 往返 + 两家 Key 互不覆盖的断言。
-    "搜索服务",
-    // 占位符按 searchKeyConfigured 二分：保存后清空输入框是「只写不回显」契约，已设置态占位符
-    // 补上「有 Key 在」的信号，否则空框看起来像没存上（1.5.17 后用户实报）。
-    "\\(searchBackend.displayName) API Key（写入 Keychain）",
-    "已设置 ●●●●●●（输入新 Key 可覆盖）",
-    "保存",
-    "清除",
     "刷新",                           // 诊断页 (OwlDiagnosticsPage)：重跑 buildReport()
     "导出诊断包",                     // 诊断页：NSSavePanel 写脱敏支持包（报告 JSON + 统一日志）
     // 诊断页「当前系统输入源」行下方：enable + select，系统随即写 AppleSelectedInputSources，
@@ -157,7 +146,6 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "z 临时拼音反查",
     "启用云端 AI",
     "联网搜索",                        // 任意提问专属：开启后交给可联网供应商作答
-    "联网模型",                        // 任意提问专属：指定由哪家联网作答（自动 + 四家）
     "启用划词工具箱",                  // 2026-07-26 重设计：自动弹出改双击 ⌥ 召唤，开关随之改名
     "启用剪贴板面板",
     "在候选中显示 emoji",

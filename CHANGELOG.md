@@ -1,5 +1,12 @@
 ## Unreleased
 
+### 任意提问 | Ask Anything
+- 联网搜索只走 DeepSeek 内置搜索（需配置 DeepSeek 供应商并使用 `deepseek-v4-flash`）；移除豆包、百炼、Serper、MiniMax 四个独立搜索服务及其设置项，千问、豆包、OpenAI 不再承担任意提问的联网。来源核验不受影响。
+
+### AI 供应商 | AI providers
+- 移除小米 MiMo 供应商。
+- MiniMax 预设改用正式版 `MiniMax-M3.1-Flash`，只走国内站 api.minimax.cn；型号列表为 M3.1-Flash 与 M3，去掉 M2.7-highspeed。已保存的 `-Preview` 档案继续按低思考强度工作。
+
 <a name="2.0.16"></a>
 ## 2.0.16 (2026-10-20)
 

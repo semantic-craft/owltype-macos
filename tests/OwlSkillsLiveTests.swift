@@ -9,7 +9,7 @@
 //  覆盖的四条真实链路（提示词优化已在 OwlPromptOptimizeLiveTests）：
 //    A. SSE 流式（OwlResponsesStreamingClient）—— 翻译 / 润色·多版本 / 润色·仿范例 / 公文排版 /
 //       辅助检索共用的传输，逐技能用真实 prompt 打，断言产出符合各自的输出契约。
-//    B. 任意提问·联网搜索 —— 同一 Responses 客户端 + Qwen 内置 web_search。
+//    B. Responses 内置 web_search —— 同一 Responses 客户端 + Qwen web_search（来源核验共用这条传输）。
 //    C. 划词润色（OwlSelectionPolishClient）—— 非流式 json_object 候选契约，v1/v2 变体各一发。
 //    D. 来源核验（OwlSourceVerificationService）—— Responses web_search + 来源抽取。
 //
@@ -135,7 +135,7 @@ final class OwlSkillsLiveTests: XCTestCase {
       "辅助检索应产出可复制的检索方案")
   }
 
-  // MARK: - B. 任意提问 · 联网搜索（Qwen Responses web_search）
+  // MARK: - B. Responses 内置联网搜索（Qwen web_search）
 
   func testAskWithWebSearchStreamsAnAnswer() async throws {
     let answer = try await streamAnswer(
@@ -193,35 +193,6 @@ final class OwlSkillsLiveTests: XCTestCase {
     XCTAssertFalse(
       outcome.sources.isEmpty,
       "Responses web_search 应返回可跳查的来源；为空说明来源抽取断了")
-  }
-
-  // MARK: - E. 通义千问当**检索器**（搜索服务下拉里的第三档）
-
-  /// Responses `web_search_call.action.sources` should make Qwen usable as the independent
-  /// retriever too; source entries currently guarantee URLs but not snippets.
-  func testQwenWorksAsARetrieverOnResponses() async throws {
-    let apiKey = try testAPIKey()
-
-    let results = try await OwlDashScopeSearchClient().search(
-      query: "2026 年杭州亚运会主办城市有哪些协办城市",
-      apiKey: apiKey,
-      limit: OwlAskAnythingModule.defaultWebSearchResultCount)
-
-    let dump = results.enumerated()
-      .map { OwlWebSearchContext.entry(index: $0.offset + 1, result: $0.element) }
-      .joined(separator: "\n\n")
-    try? dump.write(toFile: "/tmp/owl-qwen-search.txt", atomically: true, encoding: .utf8)
-
-    XCTAssertFalse(
-      results.isEmpty,
-      "0 条 = 要么 \(OwlDashScopeSearchWire.model) 没触发 web_search，要么来源抽取断了")
-    for result in results {
-      XCTAssertTrue(result.url.hasPrefix("http"), "来源必须可跳查")
-      XCTAssertFalse(result.title.isEmpty)
-    }
-    XCTAssertTrue(
-      results.allSatisfy { $0.snippet.isEmpty },
-      "百炼的 search_results 不带摘要——真回了摘要说明 API 变了，注入上下文可以顺势加强")
   }
 
   // MARK: - F. 规范排版（此前唯一没有实盘覆盖的技能）
@@ -709,27 +680,6 @@ final class OwlResponsesPromptEvaluationLiveTests: XCTestCase {
       if !response.text.contains("断点续传") || !response.text.contains("SHA-256") {
         failures.append("目标任务书澄清续跑丢失补充信息")
       }
-      return failures
-    }
-
-    let grounding = try XCTUnwrap(OwlWebSearchContext.systemMessage(results: [
-      OwlWebSearchResult(
-        title: "制度修订公告",
-        url: "https://example.com/official",
-        snippet: "该制度自2026年起施行。",
-        publishedAt: "2026-01-01",
-        hostname: "example.com"),
-    ]))
-    await evaluate(
-      "web-search-context-system",
-      messages: [
-        grounding,
-        OwlDeepSeekMessage(role: "user", content: "制度从哪一年施行？请标注来源。"),
-      ]
-    ) { response in
-      var failures: [String] = []
-      if !response.text.contains("2026") { failures.append("没有采用检索上下文中的时效信息") }
-      if !response.text.contains("[1]") { failures.append("没有按检索上下文提示标注来源序号") }
       return failures
     }
 

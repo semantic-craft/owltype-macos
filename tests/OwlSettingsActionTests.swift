@@ -108,9 +108,6 @@ final class OwlSettingsActionTests: XCTestCase {
     assertToggle(\.candidateEmojiEnabled, state, { OwlEmojiPreferences.candidateEmojiEnabled }) { OwlEmojiPreferences.candidateEmojiEnabled = $0 }
     assertToggle(\.cloudEnabled, state, { OwlCloudPreferences.isEnabled }) { OwlCloudPreferences.isEnabled = $0 }
     assertToggle(\.askWebSearchEnabled, state, { OwlAskWebSearchSettings.isEnabled }) { OwlAskWebSearchSettings.isEnabled = $0 }
-    // 任意提问「联网模型」下拉：写穿到偏好，且「自动」("") 也要能写回去。
-    assertSet("doubao", \.askWebSearchProvider, state, { OwlAskSearchProviderSettings.rawValue }) { OwlAskSearchProviderSettings.rawValue = $0 }
-    assertSet("", \.askWebSearchProvider, state, { OwlAskSearchProviderSettings.rawValue }) { OwlAskSearchProviderSettings.rawValue = $0 }
     assertToggle(\.selectionMenuEnabled, state, { OwlSelectionMenuPreferences.isEnabled }) { OwlSelectionMenuPreferences.isEnabled = $0 }
     // 任意提问的技能开关（2026-07-26 技能精简：兜底功能置顶、真开关默认开）。
     assertToggle(\.askAnythingSkillEnabled, state, { OwlSelectionMenuPreferences.askEnabled }) { OwlSelectionMenuPreferences.askEnabled = $0 }

@@ -50,9 +50,10 @@ final class ProviderProfileStoreTests: XCTestCase {
     XCTAssertNil(geminiBody["thinking"])
   }
 
-  func testMiniMaxPreviewUsesLowThinkingAndAdequateProbeBudget() throws {
+  func testMiniMaxFlashUsesLowThinkingAndAdequateProbeBudget() throws {
     let preset = try XCTUnwrap(OwlLLMProviderCatalog.preset(id: "minimax"))
-    XCTAssertEqual(preset.model, "MiniMax-M3.1-Flash-Preview")
+    XCTAssertEqual(preset.model, "MiniMax-M3.1-Flash")
+    XCTAssertEqual(preset.endpoint, "https://api.minimax.cn/v1/chat/completions", "只接国内站")
     XCTAssertEqual(OwlLLMProviderCatalog.minimaxModels.first, preset.model)
     let body = OwlProviderConnectivityCheck.body(providerID: "minimax", model: preset.model)
     XCTAssertEqual(body["reasoning_effort"] as? String, "low")
@@ -68,9 +69,14 @@ final class ProviderProfileStoreTests: XCTestCase {
       if model == "MiniMax-M3" {
         XCTAssertEqual((object["thinking"] as? [String: String])?["type"], "disabled")
       } else {
-        XCTAssertNil(object["thinking"], "M3.1 and M2 cannot disable reasoning")
+        XCTAssertNil(object["thinking"], "M3.1 Flash cannot disable reasoning")
       }
     }
+    // 正式版之前存下的 `-Preview` 档案不改写，仍按 M3.1 Flash 的形状发（低思考强度）。
+    let legacyPreview = OwlProviderConnectivityCheck.body(
+      providerID: "minimax", model: "MiniMax-M3.1-Flash-Preview")
+    XCTAssertEqual(legacyPreview["reasoning_effort"] as? String, "low")
+    XCTAssertNil(legacyPreview["thinking"])
     let drafting = OwlStructuredDrafting.chatRequest(
       systemPrompt: "Return JSON", draft: "安排会议", model: preset.model,
       providerID: "minimax", temperature: 0.2)
@@ -109,7 +115,7 @@ final class ProviderProfileStoreTests: XCTestCase {
   }
 
   func testOtherChatModelsKeepConfiguredTemperature() throws {
-    for model in ["gemini-2.5-flash", "gpt-4o", "MiniMax-M3.1-Flash-Preview"] {
+    for model in ["gemini-2.5-flash", "gpt-4o", "MiniMax-M3.1-Flash"] {
       let selection = try OwlSelectionPolish.chatRequest(
         for: "请确认明天开会。", model: model, variant: OwlPolishPromptCatalog.legacy)
       let drafting = OwlStructuredDrafting.chatRequest(
@@ -343,17 +349,6 @@ final class ProviderProfileStoreTests: XCTestCase {
       OwlSearchControl.channel(providerID: "retired-provider", host: "retired.example.com"), .none)
     XCTAssertFalse(
       OwlSearchControl.supportsSearch(providerID: "retired-provider", host: "retired.example.com"))
-  }
-
-  func testRetiredSearchProviderPreferenceFallsBackToAuto() {
-    OwlAskSearchProviderSettings.resetForTesting()
-    defer { OwlAskSearchProviderSettings.resetForTesting() }
-
-    // 旧版本把「联网模型」偏好存成某个已下线的供应商 id：解析层读作「自动」，设置镜像也
-    // 回落到自动，而不是把下拉绑定到一个没有任何对应选项的悬空 id。
-    OwlAskSearchProviderSettings.rawValue = "retired-provider"
-    XCTAssertNil(OwlAskSearchProviderSettings.preferredProviderID, "已下线 id 读作自动")
-    XCTAssertEqual(OwlSettingsState().askWebSearchProvider, "", "设置镜像不得显示悬空的已下线 id")
   }
 
   // MARK: - Secret store

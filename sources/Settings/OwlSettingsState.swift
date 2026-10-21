@@ -229,10 +229,6 @@ final class OwlSettingsState {
   var cloudModel: String = OwlCloudPreferences.defaultDeepSeekModel
   /// 任意提问「联网搜索」(mirror of `OwlAskWebSearchSettings.isEnabled`). Default false（出厂关，opt-in）.
   var askWebSearchEnabled: Bool = OwlAskWebSearchSettings.isEnabled
-  /// 任意提问「联网模型」偏好 (mirror of `OwlAskSearchProviderSettings.preferredProviderID`).
-  /// `""` = 自动。用校验后的值而不是 rawValue：旧版本存下的已下线供应商 id 会回落到自动，
-  /// 不会在下拉里悬空成一个没有对应选项的选择。
-  var askWebSearchProvider: String = OwlAskSearchProviderSettings.preferredProviderID ?? ""
   /// 划词菜单总开关 + 划词工具箱页内置技能 mirrors.
   var selectionMenuEnabled: Bool = OwlSelectionMenuPreferences.isEnabled
   var askAnythingSkillEnabled: Bool = OwlSelectionMenuPreferences.askEnabled

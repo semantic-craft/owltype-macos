@@ -48,9 +48,9 @@ protocol OwlAskAnythingTransporting {
 
 /// Adapts the existing chat and Responses transports to the provider-neutral ask port.
 ///
-/// Qwen's built-in search lands here as a `/responses` request with `webSearch = true`; plain Qwen
-/// generation uses the same adapter with `webSearch = false`. The module above this type never sees
-/// `.qwen` (or any other Responses dialect), which is the boundary issue #107 establishes.
+/// DeepSeek's built-in search lands here as a `/responses` request with `webSearch = true`; plain
+/// generation on a Responses provider uses the same adapter with `webSearch = false`. The module
+/// above this type never sees a Responses dialect, which is the boundary issue #107 establishes.
 @MainActor
 struct OwlAskAnythingTransportAdapter: OwlAskAnythingTransporting {
   private let chatClient: OwlChatStreaming
@@ -101,29 +101,6 @@ struct OwlAskAnythingTransportAdapter: OwlAskAnythingTransporting {
   }
 }
 
-// MARK: - Attempt plan
-
-/// 一次可尝试的联网候选。两种形态在怎么拿到网页上根本不同，所以是类型而不是约定：
-///   - `.grounded`：独立搜索服务先检索，结果注入后由默认供应商作答；
-///   - `.builtIn`：模型自己的联网工具，检索与作答在同一次请求里。
-private enum OwlAskAttempt {
-  case grounded(
-    backend: OwlWebSearchBackend,
-    searchKey: String,
-    query: String,
-    routing: OwlCloudRouting,
-    apiKey: String)
-  case builtIn(OwlAskSearchRoute)
-
-  /// 署名 chip 上写谁。`.grounded` 写检索方，`.builtIn` 写联网作答方。
-  var attributionID: String {
-    switch self {
-    case let .grounded(backend, _, _, _, _): return backend.attributionID
-    case let .builtIn(route):                return route.providerID
-    }
-  }
-}
-
 // MARK: - Use-case module
 
 /// 任意提问的用例模块。It owns attempt planning, pre-content failover, plain fallback, streaming,
@@ -131,16 +108,10 @@ private enum OwlAskAttempt {
 @MainActor
 final class OwlAskAnythingModule: OwlAskAnythingOpening {
   static let shared = OwlAskAnythingModule()
-  static let defaultWebSearchResultCount = 5
 
   private let gate: OwlProviderAuthGate
   private let transport: OwlAskAnythingTransporting
   private let searchResolver: OwlAskSearchResolver
-  private let isWebSearchEnabled: () -> Bool
-  private let preferredWebSearchBackend: () -> OwlWebSearchBackend
-  private let webSearchKeyProvider: (OwlWebSearchBackend) -> String?
-  private let webSearchClientFactory: (OwlWebSearchBackend) -> OwlWebSearching
-  private let webSearchResultCount: Int
 
   /// Live composition root for 任意提问. Callers receive only `OwlAskAnythingOpening`; all
   /// provider, search, and wire dependencies are assembled here and never cross that boundary.
@@ -154,11 +125,7 @@ final class OwlAskAnythingModule: OwlAskAnythingOpening {
       try OwlProviderKeychain().secret(named: $0)
     },
     legacyKeyProvider: @escaping () throws -> String? = OwlCloudKeychain.readDeepSeekAPIKey,
-    searchResolver: OwlAskSearchResolver? = nil,
-    isWebSearchEnabled: @escaping () -> Bool = { OwlAskWebSearchSettings.isEnabled },
-    preferredWebSearchBackend: (() -> OwlWebSearchBackend)? = nil,
-    webSearchKeyProvider: ((OwlWebSearchBackend) -> String?)? = nil,
-    webSearchClientFactory: ((OwlWebSearchBackend) -> OwlWebSearching)? = nil
+    searchResolver: OwlAskSearchResolver? = nil
   ) {
     let gate = OwlProviderAuthGate(
       profileProvider: profileProvider,
@@ -170,38 +137,17 @@ final class OwlAskAnythingModule: OwlAskAnythingOpening {
     self.init(
       gate: gate,
       transport: transport,
-      searchResolver: searchResolver ?? OwlAskSearchResolver(),
-      isWebSearchEnabled: isWebSearchEnabled,
-      preferredWebSearchBackend: preferredWebSearchBackend ?? {
-        OwlWebSearchBackendSettings.backend
-      },
-      webSearchKeyProvider: webSearchKeyProvider ?? {
-        OwlWebSearchKeyStore.apiKey(for: $0)
-      },
-      webSearchClientFactory: webSearchClientFactory ?? { $0.makeClient() },
-      webSearchResultCount: Self.defaultWebSearchResultCount)
+      searchResolver: searchResolver ?? OwlAskSearchResolver())
   }
 
   init(
     gate: OwlProviderAuthGate,
     transport: OwlAskAnythingTransporting,
-    searchResolver: OwlAskSearchResolver,
-    isWebSearchEnabled: @escaping () -> Bool = { OwlAskWebSearchSettings.isEnabled },
-    preferredWebSearchBackend: @escaping () -> OwlWebSearchBackend = {
-      OwlWebSearchBackendSettings.backend
-    },
-    webSearchKeyProvider: @escaping (OwlWebSearchBackend) -> String?,
-    webSearchClientFactory: @escaping (OwlWebSearchBackend) -> OwlWebSearching = { $0.makeClient() },
-    webSearchResultCount: Int = 5
+    searchResolver: OwlAskSearchResolver
   ) {
     self.gate = gate
     self.transport = transport
     self.searchResolver = searchResolver
-    self.isWebSearchEnabled = isWebSearchEnabled
-    self.preferredWebSearchBackend = preferredWebSearchBackend
-    self.webSearchKeyProvider = webSearchKeyProvider
-    self.webSearchClientFactory = webSearchClientFactory
-    self.webSearchResultCount = webSearchResultCount
   }
 
   func readiness() -> OwlStreamingReadiness {
@@ -211,17 +157,18 @@ final class OwlAskAnythingModule: OwlAskAnythingOpening {
   func open(
     messages: [OwlDeepSeekMessage]
   ) -> Result<OwlAskStreamOpen, OwlStreamingReadiness> {
-    let attempts = askAttempts(messages: messages)
+    let attempts = searchResolver.resolveAll()
     guard let first = attempts.first else {
       return plainOpen(messages: messages).map {
         OwlAskStreamOpen(stream: $0, searchProviderID: nil)
       }
     }
 
-    let attribution = OwlAskAttribution(searchProviderID: first.attributionID)
-    // A built-in route can be opened synchronously. Keeping it primed preserves the existing
-    // synchronous opening timing, while the outer stream owns cancellation of the active adapter.
-    let primed = openImmediately(attempt: first, messages: messages)
+    let attribution = OwlAskAttribution(searchProviderID: first.providerID)
+    // The first route is opened synchronously. Keeping it primed preserves the existing synchronous
+    // opening timing, while the outer stream owns cancellation of the active adapter.
+    let primed = transport.streamBuiltInSearch(
+      messages: messages, routing: first.routing, apiKey: first.apiKey)
     let stream = AsyncThrowingStream<String, Error> { continuation in
       let task = Task { [weak self] in
         guard let self else { return continuation.finish() }
@@ -237,42 +184,9 @@ final class OwlAskAnythingModule: OwlAskAnythingOpening {
     return .success(OwlAskStreamOpen(stream: stream, attribution: attribution))
   }
 
-  /// 这一问可以依次尝试的联网候选。独立搜索层在前，模型内置联网在后；具体 provider
-  /// 顺位完全封装在 resolver/module 内，不穿过 caller seam。
-  private func askAttempts(messages: [OwlDeepSeekMessage]) -> [OwlAskAttempt] {
-    guard isWebSearchEnabled() else { return [] }
-    var attempts: [OwlAskAttempt] = []
-    if let query = OwlWebSearchContext.query(from: messages),
-       case let .ready(routing, apiKey) = gate.resolve() {
-      for backend in webSearchBackends() {
-        attempts.append(.grounded(
-          backend: backend.backend,
-          searchKey: backend.apiKey,
-          query: query,
-          routing: routing,
-          apiKey: apiKey))
-      }
-    }
-    attempts.append(contentsOf: searchResolver.resolveAll().map(OwlAskAttempt.builtIn))
-    return attempts
-  }
-
-  /// 已配好 Key 的独立搜索后端，用户选择只重排、不设门槛。
-  ///
-  /// 偏好后端缺 Key 时只淘汰它自己；其余已配置后端仍按产品顺位进入同一尝试矩阵。把
-  /// 「偏好 + Key」绑成一个可选值会在偏好缺 Key 时错误丢掉所有后端，所以两者必须分开解析。
-  private func webSearchBackends() -> [(backend: OwlWebSearchBackend, apiKey: String)] {
-    OwlWebSearchBackend.orderedCandidates(preferred: preferredWebSearchBackend()).compactMap { backend in
-      guard let rawKey = webSearchKeyProvider(backend) else { return nil }
-      let apiKey = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !apiKey.isEmpty else { return nil }
-      return (backend, apiKey)
-    }
-  }
-
   /// 逐家尝试到首个 delta；一旦有内容，后续失败不能换家，避免拼出两家各半的答案。
   private func pump(
-    attempts: [OwlAskAttempt],
+    attempts: [OwlAskSearchRoute],
     primed: AsyncThrowingStream<String, Error>?,
     messages: [OwlDeepSeekMessage],
     attribution: OwlAskAttribution,
@@ -283,14 +197,14 @@ final class OwlAskAnythingModule: OwlAskAnythingOpening {
 
     for (index, attempt) in attempts.enumerated() {
       if Task.isCancelled { return continuation.finish() }
-      attribution.update(searchProviderID: attempt.attributionID)
+      attribution.update(searchProviderID: attempt.providerID)
 
       let inner: AsyncThrowingStream<String, Error>
       do {
         if index == 0, let ready = primed {
           inner = ready
         } else {
-          inner = try await open(attempt: attempt, messages: messages)
+          inner = try open(route: attempt, messages: messages)
         }
       } catch {
         if error is CancellationError || Task.isCancelled {
@@ -342,38 +256,16 @@ final class OwlAskAnythingModule: OwlAskAnythingOpening {
     }
   }
 
-  /// Built-in routes do not need an async search phase and retain the existing synchronous open.
-  private func openImmediately(
-    attempt: OwlAskAttempt,
-    messages: [OwlDeepSeekMessage]
-  ) -> AsyncThrowingStream<String, Error>? {
-    guard case let .builtIn(route) = attempt else { return nil }
-    return transport.streamBuiltInSearch(
-      messages: messages, routing: route.routing, apiKey: route.apiKey)
-  }
-
   private func open(
-    attempt: OwlAskAttempt,
+    route: OwlAskSearchRoute,
     messages: [OwlDeepSeekMessage]
-  ) async throws -> AsyncThrowingStream<String, Error> {
+  ) throws -> AsyncThrowingStream<String, Error> {
     try Task.checkCancellation()
-    switch attempt {
-    case let .grounded(backend, searchKey, query, routing, apiKey):
-      let results = try await webSearchClientFactory(backend).search(
-        query: query, apiKey: searchKey, limit: webSearchResultCount)
-      try Task.checkCancellation()
-      guard !results.isEmpty else { throw OwlWebSearchError.noResults }
-      return transport.streamPlain(
-        messages: OwlWebSearchContext.injecting(results: results, into: messages),
-        routing: routing,
-        apiKey: apiKey)
-    case let .builtIn(route):
-      guard let stream = transport.streamBuiltInSearch(
-        messages: messages, routing: route.routing, apiKey: route.apiKey) else {
-        throw OwlWebSearchError.invalidEndpoint
-      }
-      return stream
+    guard let stream = transport.streamBuiltInSearch(
+      messages: messages, routing: route.routing, apiKey: route.apiKey) else {
+      throw OwlStreamingError.invalidEndpoint
     }
+    return stream
   }
 
   private func plainOpen(
