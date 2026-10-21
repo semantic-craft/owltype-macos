@@ -188,13 +188,12 @@ final class OwlStreamingChatClientTests: XCTestCase {
     }
   }
 
-  // MARK: - Request body (联网搜索 extras merged onto the wire)
+  // MARK: - Request body (关思考 extras merged onto the wire)
 
   /// Capture the `URLRequest` the client builds, without opening a socket. The scripted source
   /// finishes immediately; we only care about what was about to be sent.
   private func captureRequestBody(
-    routing: OwlCloudRouting,
-    extraBody: [String: Any]
+    routing: OwlCloudRouting
   ) async throws -> [String: Any] {
     let box = RequestBox()
     let client = OwlStreamingChatClient(bytesProvider: { request in
@@ -205,7 +204,7 @@ final class OwlStreamingChatClientTests: XCTestCase {
         chunks: AsyncThrowingStream { $0.finish() })
     })
     _ = try await collect(
-      client.stream(messages: [], routing: routing, apiKey: "sk-test", extraBody: extraBody))
+      client.stream(messages: [], routing: routing, apiKey: "sk-test"))
     guard let body = await box.get()?.httpBody,
           let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else {
       XCTFail("expected a JSON request body")
@@ -215,7 +214,7 @@ final class OwlStreamingChatClientTests: XCTestCase {
   }
 
   func testPlainChatBodyCarriesNoSearchFields() async throws {
-    let object = try await captureRequestBody(routing: makeRouting(), extraBody: [:])
+    let object = try await captureRequestBody(routing: makeRouting())
     XCTAssertEqual(object["model"] as? String, "gpt-4o")
     XCTAssertEqual(object["stream"] as? Bool, true)
     XCTAssertEqual(object["temperature"] as? Double, 0.2)
@@ -223,62 +222,25 @@ final class OwlStreamingChatClientTests: XCTestCase {
     XCTAssertNil(object["tools"])
   }
 
-  func testGemini38StreamOmitsSamplingAndPreservesReasoningEffort() async throws {
+  func testGemini38StreamOmitsSamplingParameters() async throws {
     let routing = OwlCloudRouting(
       providerID: "gemini",
       endpoint: URL(string: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")!,
       model: "gemini-3.8-flash", secretName: nil, authHeaderStyle: .bearer)
-    let body = try await captureRequestBody(routing: routing, extraBody: ["reasoning_effort": "low"])
+    let body = try await captureRequestBody(routing: routing)
     XCTAssertNil(body["temperature"])
     XCTAssertNil(body["top_p"])
     XCTAssertNil(body["top_k"])
-    XCTAssertEqual(body["reasoning_effort"] as? String, "low")
     XCTAssertNil(body["thinking_level"])
     XCTAssertEqual(body["stream"] as? Bool, true)
     XCTAssertEqual(body["model"] as? String, routing.model)
     XCTAssertNotNil(body["messages"])
   }
 
-  func testQwenSearchExtrasNoLongerBelongOnTheChatClient() async throws {
-    let routing = OwlCloudRouting(
-      providerID: "qwen",
-      endpoint: URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")!,
-      model: "qwen3.6-flash",
-      secretName: "owltype.provider.qwen.apiKey",
-      authHeaderStyle: .bearer
-    )
-    let extras = OwlSearchControl.extraBody(providerID: "qwen", host: routing.endpoint.host ?? "")
-    let object = try await captureRequestBody(routing: routing, extraBody: extras)
-    XCTAssertTrue(extras.isEmpty)
-    XCTAssertNil(object["enable_search"], "Qwen 搜索已经迁到 Responses，不得再混入旧字段")
-    XCTAssertEqual(object["model"] as? String, "qwen3.6-flash")
-    XCTAssertEqual(object["stream"] as? Bool, true)
-    XCTAssertNotNil(object["messages"])
-  }
-
-  func testMiMoToolsSurviveTheMergeAsStructuredJSON() async throws {
-    let routing = OwlCloudRouting(
-      providerID: "mimo",
-      endpoint: URL(string: "https://api.xiaomimimo.com/v1/chat/completions")!,
-      model: "mimo-v2.5",
-      secretName: "owltype.provider.mimo.apiKey",
-      authHeaderStyle: .apiKey
-    )
-    let extras = OwlSearchControl.extraBody(providerID: "mimo", host: routing.endpoint.host ?? "")
-    let object = try await captureRequestBody(routing: routing, extraBody: extras)
-    guard let tools = object["tools"] as? [[String: Any]], let tool = tools.first else {
-      return XCTFail("MiMo tools must survive the JSON merge as an array of objects")
-    }
-    XCTAssertEqual(tool["type"] as? String, "web_search")
-    XCTAssertEqual(tool["force_search"] as? Bool, true)
-    XCTAssertEqual((object["thinking"] as? [String: Any])?["type"] as? String, "disabled",
-                   "嵌套字典也要原样过 merge —— 思考没关掉 MiMo 就不触发搜索")
-  }
-
   // MARK: - 强制关思考（`OwlThinkingControl`）
 
   /// 设置页写着「任意提问一律强制关闭深度思考」。这条断言那句话在**普通问答**上也成立 ——
-  /// 之前只有划词链路和 MiMo/豆包的联网请求关了，任意提问的主链路一个字段都没带。
+  /// 之前只有划词链路和豆包的联网请求关了，任意提问的主链路一个字段都没带。
   func testPlainAskForcesThinkingOffForEveryKnownProvider() async throws {
     func routing(_ id: String, _ model: String, _ host: String) -> OwlCloudRouting {
       OwlCloudRouting(
@@ -292,10 +254,9 @@ final class OwlStreamingChatClientTests: XCTestCase {
 
     for (id, model, host) in [
       ("deepseek", "deepseek-v4-flash", "api.deepseek.com"),
-      ("mimo", "mimo-v2.5", "api.xiaomimimo.com"),
       ("doubao", "doubao-seed-2-1-turbo-260628", "ark.cn-beijing.volces.com"),
     ] {
-      let object = try await captureRequestBody(routing: routing(id, model, host), extraBody: [:])
+      let object = try await captureRequestBody(routing: routing(id, model, host))
       XCTAssertEqual((object["thinking"] as? [String: Any])?["type"] as? String, "disabled",
                      "\(id) 的普通问答也必须关思考")
     }
@@ -304,7 +265,7 @@ final class OwlStreamingChatClientTests: XCTestCase {
 
   /// OpenAI 在 `/chat/completions` 上没有思考开关：请求体必须逐字节不变，不能凭空多字段。
   func testUnknownThinkingSwitchLeavesBodyUntouched() async throws {
-    let object = try await captureRequestBody(routing: makeRouting(), extraBody: [:])
+    let object = try await captureRequestBody(routing: makeRouting())
     XCTAssertNil(object["thinking"])
     XCTAssertNil(object["enable_thinking"])
   }
@@ -313,7 +274,7 @@ final class OwlStreamingChatClientTests: XCTestCase {
     let routing = OwlCloudRouting(
       providerID: "minimax", endpoint: URL(string: "https://api.minimax.cn/v1/chat/completions")!,
       model: "MiniMax-M3.1-Flash-Preview", secretName: nil, authHeaderStyle: .bearer)
-    let body = try await captureRequestBody(routing: routing, extraBody: [:])
+    let body = try await captureRequestBody(routing: routing)
     XCTAssertEqual(body["reasoning_effort"] as? String, "low")
     XCTAssertEqual(body["reasoning_split"] as? Bool, true)
     XCTAssertNil(body["thinking"])
@@ -564,7 +525,6 @@ final class OwlStreamingChatClientTests: XCTestCase {
     }
     XCTAssertNil(open.searchProviderID, "没联网就不能署名联网")
     XCTAssertEqual(chat.callCount, 1)
-    XCTAssertEqual(chat.lastExtraBody?.isEmpty, true, "普通问答不带任何联网字段")
     XCTAssertEqual(responses.callCount, 0)
   }
 
@@ -801,22 +761,19 @@ final class OwlStreamingChatClientTests: XCTestCase {
   }
 }
 
-/// Records which transport the 任意提问 module picked, and with what search payload. Driven synchronously
+/// Records which transport the 任意提问 module picked. Driven synchronously
 /// from the `@MainActor` tests (the stream is never consumed), so plain mutable state is enough.
 private final class RecordingChatClient: OwlChatStreaming, @unchecked Sendable {
   private(set) var callCount = 0
-  private(set) var lastExtraBody: [String: Any]?
   /// 独立搜索层把检索结果作为 system 消息插在最前面，所以断言要看得到发出去的 messages。
   private(set) var lastMessages: [OwlDeepSeekMessage]?
 
   func stream(
     messages: [OwlDeepSeekMessage],
     routing: OwlCloudRouting,
-    apiKey: String,
-    extraBody: [String: Any]
+    apiKey: String
   ) -> AsyncThrowingStream<String, Error> {
     callCount += 1
-    lastExtraBody = extraBody
     lastMessages = messages
     return AsyncThrowingStream { $0.finish() }
   }
@@ -869,8 +826,7 @@ private struct NeverStreamingClient: OwlChatStreaming {
   func stream(
     messages: [OwlDeepSeekMessage],
     routing: OwlCloudRouting,
-    apiKey: String,
-    extraBody: [String: Any]
+    apiKey: String
   ) -> AsyncThrowingStream<String, Error> {
     AsyncThrowingStream { $0.finish() }
   }

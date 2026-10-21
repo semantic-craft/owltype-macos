@@ -90,7 +90,7 @@ enum OwlSelectionPolish {
       OwlDeepSeekMessage(role: "user", content: userContent),
     ]
     // Interactive selection polish — disable hidden thinking so it returns in ~1s (see
-    // OwlDeepSeekThinking). deepseek/mimo 沿用 Chat 的 `thinking:{disabled}` 形状
+    // OwlDeepSeekThinking). deepseek 沿用 Chat 的 `thinking:{disabled}` 形状
     // （OwlThinkingControl 的 deepSeekStyle）；下方 typed payload 保留旧 Chat 方言供
     // 非 Responses 供应商使用。真正的 Qwen / 豆包 请求会在 client 层改走 Responses，
     // 关思考由 OwlResponsesWire 统一带上（qwen `reasoning.effort:none`、方舟
@@ -444,41 +444,11 @@ final class OwlSourceVerificationService {
     let user = Self.userPrompt(for: selectedText)
 
     switch routing.providerID {
-    case "mimo":
-      return try makeChatSearchRequest(system: system, user: user, routing: routing, apiKey: apiKey)
     case "qwen", "doubao", "openai":
       return try makeResponsesSearchRequest(system: system, user: user, routing: routing, apiKey: apiKey)
     default:
       throw OwlSourceVerificationError.unsupportedProvider
     }
-  }
-
-  private func makeChatSearchRequest(
-    system: String,
-    user: String,
-    routing: OwlCloudRouting,
-    apiKey: String
-  ) throws -> URLRequest {
-    var body: [String: Any] = [
-      "model": routing.model,
-      "messages": [
-        ["role": "system", "content": system],
-        ["role": "user", "content": user],
-      ],
-      "temperature": 0.2,
-      "stream": false,
-    ]
-    if routing.providerID == "mimo" {
-      body["thinking"] = ["type": "disabled"]
-      body["tool_choice"] = "auto"
-      body["tools"] = [[
-        "type": "web_search",
-        "max_keyword": 3,
-        "force_search": true,
-        "limit": 2,
-      ]]
-    }
-    return try makeJSONRequest(url: routing.endpoint, body: body, routing: routing, apiKey: apiKey)
   }
 
   private func makeResponsesSearchRequest(
@@ -566,11 +536,6 @@ final class OwlSourceVerificationService {
 
   private nonisolated static func firstContent(in object: Any) -> String {
     if let dict = object as? [String: Any] {
-      if let choices = dict["choices"] as? [[String: Any]],
-         let message = choices.first?["message"] as? [String: Any],
-         let content = message["content"] as? String {
-        return content
-      }
       if let output = dict["output"] as? [String: Any] {
         if let text = output["text"] as? String { return text }
         if let choices = output["choices"] as? [[String: Any]],

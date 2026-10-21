@@ -89,7 +89,7 @@ Source verification groups entry points into legislation, cases and literature, 
 
 ### 🔌 Configure models and search separately
 
-Presets include Alibaba Cloud Bailian, Doubao, MiMo, DeepSeek and MiniMax. You can also configure OpenAI-compatible services. Set an endpoint, model and key for your account, then test the connection.
+Presets include Alibaba Cloud Bailian, Doubao, DeepSeek and MiniMax. You can also configure OpenAI-compatible services. Set an endpoint, model and key for your account, then test the connection.
 
 Independent search can supply results to an answering model from a different provider. MiniMax China subscription search requires a matching subscription key. Model access, independent search and source-verification capabilities are handled separately. M3.1 supports reasoning-depth controls; reasoning cannot be disabled.
 

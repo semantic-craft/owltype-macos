@@ -57,7 +57,7 @@ final class OwlAIConversationModel {
   /// 超出时丢最早的轮，保留离当前话题最近的对话。
   static let maxHistoryTurns = 10
 
-  /// 面向用户的联网模型署名（通义千问 / MiMo / 豆包 / OpenAI），或 nil 表示这一问没走联网搜索。Set per submit
+  /// 面向用户的联网模型署名（通义千问 / 豆包 / OpenAI），或 nil 表示这一问没走联网搜索。Set per submit
   /// (and per regenerate — a route can change between attempts if the user configures a key
   /// mid-conversation), read by the window's 署名 chip.
   private(set) var searchAttribution: String?

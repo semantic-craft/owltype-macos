@@ -86,15 +86,15 @@ struct OwlAIPage: View {
 
   /// 任意提问 的联网搜索开关 + 联网模型选择。只作用于「任意提问」：划词技能、候选、听写都不受影响。
   ///
-  /// 开启后这一问会路由到一个**已配好密钥的可联网供应商**（阿里云百炼 / 小米MiMo / 豆包 /
-  /// OpenAI / DeepSeek），与上面选定的默认供应商解耦 —— 默认供应商不支持联网时，这一问
-  /// 仍能真的搜到。五家都没配密钥时自动退回普通问答，不报错。
+  /// 开启后这一问会路由到一个**已配好密钥的可联网供应商**（阿里云百炼 / 豆包 / OpenAI /
+  /// DeepSeek），与上面选定的默认供应商解耦 —— 默认供应商不支持联网时，这一问
+  /// 仍能真的搜到。四家都没配密钥时自动退回普通问答，不报错。
   private var askWebSearchCard: some View {
     SettingsCard(title: "任意提问 · 联网搜索", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
       VStack(spacing: 0) {
         SettingsToggleRow(
           title: "联网搜索",
-          subtitle: "开启后，「任意提问」会交给已配好密钥的联网模型（阿里云百炼 / 小米MiMo / 豆包 / OpenAI / DeepSeek）联网作答；关闭时用模型自有知识回答。只作用于任意提问，不影响划词技能与打字候选。",
+          subtitle: "开启后，「任意提问」会交给已配好密钥的联网模型（阿里云百炼 / 豆包 / OpenAI / DeepSeek）联网作答；关闭时用模型自有知识回答。只作用于任意提问，不影响划词技能与打字候选。",
           isOn: state.askWebSearchEnabled,
           palette: palette,
           onToggle: {
@@ -235,7 +235,7 @@ struct OwlAIPage: View {
         .labelsHidden()
         .fixedSize()
       }
-      Text("「自动」= 当前默认供应商本身能联网就用它，否则按 阿里云百炼 → 小米MiMo → 豆包 → OpenAI 找第一个填了 API Key 的。指定某一家只是把它排到最前；那家没填 Key 时仍会顺位到下一家，不会因此不联网。")
+      Text("「自动」= 当前默认供应商本身能联网就用它，否则按 阿里云百炼 → 豆包 → OpenAI 找第一个填了 API Key 的。指定某一家只是把它排到最前；那家没填 Key 时仍会顺位到下一家，不会因此不联网。")
         .font(.system(size: 12))
         .foregroundStyle(palette.ink3)
         .fixedSize(horizontal: false, vertical: true)
@@ -606,7 +606,7 @@ struct OwlAIPage: View {
     let typed = providerKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
     let key = typed.isEmpty ? (storedKey(for: editingProfile) ?? "") : typed
     guard !key.isEmpty else { providerStatus = "请先填入 API Key 再拉取"; return }
-    let authStyle = OwlLLMProviderCatalog.preset(id: providerID)?.authHeaderStyle ?? .bearer
+    let authStyle = OwlProviderAuthHeaderStyle.bearer
     providerStatus = "拉取模型中…"
     Task {
       do {
@@ -647,7 +647,7 @@ struct OwlAIPage: View {
     let typed = providerKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
     let key = typed.isEmpty ? (storedKey(for: editingProfile) ?? "") : typed
     guard !key.isEmpty else { providerStatus = "请先填入 API Key 再验证"; return }
-    let authStyle = OwlLLMProviderCatalog.preset(id: providerID)?.authHeaderStyle ?? .bearer
+    let authStyle = OwlProviderAuthHeaderStyle.bearer
 
     providerStatus = "验证中…（\(model)）"
     Task {

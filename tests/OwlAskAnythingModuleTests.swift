@@ -157,17 +157,18 @@ final class OwlAskAnythingModuleTests: XCTestCase {
       "standalone search injects context, then the default Qwen profile answers on plain Responses")
   }
 
-  func testBuiltInMatrixFailsOverFromResponsesToChatBeforeFirstDelta() async throws {
+  func testBuiltInMatrixFailsOverBetweenResponsesProvidersBeforeFirstDelta() async throws {
     let qwen = Self.qwenProfile
-    let mimo = Self.mimoProfile
+    let doubao = Self.doubaoProfile
     let responses = ScriptedResponsesClient(streams: [
       Self.failingStream(OwlStreamingError.badHTTPStatus(404)),
+      Self.stream(deltas: ["豆包 回答"]),
     ])
-    let chat = ScriptedChatClient(streams: [Self.stream(deltas: ["MiMo 回答"])])
+    let chat = ScriptedChatClient(streams: [Self.stream(deltas: ["不应出现"])])
     let module = makeMatrixModule(
       gateProfile: qwen,
-      builtInProfiles: [mimo, qwen],
-      builtInKeys: [qwen.secretName: "sk-qwen", mimo.secretName: "sk-mimo"],
+      builtInProfiles: [doubao, qwen],
+      builtInKeys: [qwen.secretName: "sk-qwen", doubao.secretName: "sk-doubao"],
       transport: OwlAskAnythingTransportAdapter(chatClient: chat, responsesClient: responses))
 
     guard case let .success(open) = module.open(messages: Self.question) else {
@@ -176,24 +177,28 @@ final class OwlAskAnythingModuleTests: XCTestCase {
     XCTAssertEqual(open.searchProviderID, "qwen", "Qwen is first in the canonical provider order")
 
     let deltas = try await collect(open.stream)
-    XCTAssertEqual(deltas, ["MiMo 回答"])
+    XCTAssertEqual(deltas, ["豆包 回答"])
     XCTAssertEqual(
-      responses.calls, [.init(providerID: "qwen", dialect: .qwen, webSearch: true)])
-    XCTAssertEqual(chat.calls, [.init(providerID: "mimo", carriesSearchFields: true)])
-    XCTAssertEqual(open.searchProviderID, "mimo", "attribution follows the route that yielded")
+      responses.calls,
+      [
+        .init(providerID: "qwen", dialect: .qwen, webSearch: true),
+        .init(providerID: "doubao", dialect: .ark, webSearch: true),
+      ])
+    XCTAssertTrue(chat.calls.isEmpty, "all built-in search now rides on /responses")
+    XCTAssertEqual(open.searchProviderID, "doubao", "attribution follows the route that yielded")
   }
 
   func testGenericHTTP400IsReportedWithoutOpeningAnotherBuiltInProvider() async {
     let qwen = Self.qwenProfile
-    let mimo = Self.mimoProfile
+    let doubao = Self.doubaoProfile
     let responses = ScriptedResponsesClient(streams: [
       Self.failingStream(OwlStreamingError.badHTTPStatus(400)),
     ])
     let chat = ScriptedChatClient(streams: [Self.stream(deltas: ["不应出现"])])
     let module: OwlAskAnythingOpening = makeMatrixModule(
       gateProfile: qwen,
-      builtInProfiles: [qwen, mimo],
-      builtInKeys: [qwen.secretName: "sk-qwen", mimo.secretName: "sk-mimo"],
+      builtInProfiles: [qwen, doubao],
+      builtInKeys: [qwen.secretName: "sk-qwen", doubao.secretName: "sk-doubao"],
       transport: OwlAskAnythingTransportAdapter(chatClient: chat, responsesClient: responses))
 
     guard case let .success(open) = module.open(messages: Self.question) else {
@@ -255,7 +260,7 @@ final class OwlAskAnythingModuleTests: XCTestCase {
       XCTAssertEqual(
         searches.calls.map(\.backend), [.doubaoGlobal, .qwen], refusal.purpose)
       XCTAssertEqual(
-        chat.calls, [.init(providerID: "custom", carriesSearchFields: false)],
+        chat.calls, [.init(providerID: "custom")],
         refusal.purpose)
       XCTAssertTrue(responses.calls.isEmpty, refusal.purpose)
       XCTAssertEqual(
@@ -265,13 +270,13 @@ final class OwlAskAnythingModuleTests: XCTestCase {
 
   func testEmptyStreamIsReportedWithoutOpeningAnotherProvider() async {
     let qwen = Self.qwenProfile
-    let mimo = Self.mimoProfile
+    let doubao = Self.doubaoProfile
     let responses = ScriptedResponsesClient(streams: [Self.stream(deltas: [])])
     let chat = ScriptedChatClient(streams: [Self.stream(deltas: ["不应出现"])])
     let module = makeMatrixModule(
       gateProfile: qwen,
-      builtInProfiles: [qwen, mimo],
-      builtInKeys: [qwen.secretName: "sk-qwen", mimo.secretName: "sk-mimo"],
+      builtInProfiles: [qwen, doubao],
+      builtInKeys: [qwen.secretName: "sk-qwen", doubao.secretName: "sk-doubao"],
       transport: OwlAskAnythingTransportAdapter(chatClient: chat, responsesClient: responses))
 
     guard case let .success(open) = module.open(messages: Self.question) else {
@@ -289,15 +294,15 @@ final class OwlAskAnythingModuleTests: XCTestCase {
 
   func testConfigurationRefusalAfterFirstDeltaIsReportedWithoutOpeningNextAttempt() async {
     let qwen = Self.qwenProfile
-    let mimo = Self.mimoProfile
+    let doubao = Self.doubaoProfile
     let responses = ScriptedResponsesClient(streams: [
       Self.stream(deltas: ["半句"], failure: OwlStreamingError.badHTTPStatus(401)),
     ])
     let chat = ScriptedChatClient(streams: [Self.stream(deltas: ["不应出现"])])
     let module = makeMatrixModule(
       gateProfile: qwen,
-      builtInProfiles: [qwen, mimo],
-      builtInKeys: [qwen.secretName: "sk-qwen", mimo.secretName: "sk-mimo"],
+      builtInProfiles: [qwen, doubao],
+      builtInKeys: [qwen.secretName: "sk-qwen", doubao.secretName: "sk-doubao"],
       transport: OwlAskAnythingTransportAdapter(chatClient: chat, responsesClient: responses))
 
     guard case let .success(open) = module.open(messages: Self.question) else {
@@ -315,18 +320,18 @@ final class OwlAskAnythingModuleTests: XCTestCase {
 
   func testEveryOnlineRefusalFallsBackToPlainAndClearsAttribution() async throws {
     let qwen = Self.qwenProfile
-    let mimo = Self.mimoProfile
+    let doubao = Self.doubaoProfile
     let responses = ScriptedResponsesClient(streams: [
       Self.failingStream(OwlStreamingError.badHTTPStatus(401)),
+      Self.failingStream(OwlStreamingError.badHTTPStatus(403)),
     ])
     let chat = ScriptedChatClient(streams: [
-      Self.failingStream(OwlStreamingError.badHTTPStatus(403)),
       Self.stream(deltas: ["普通回答"]),
     ])
     let module = makeMatrixModule(
       gateProfile: Self.chatOnlyProfile,
-      builtInProfiles: [mimo, qwen],
-      builtInKeys: [qwen.secretName: "sk-qwen", mimo.secretName: "sk-mimo"],
+      builtInProfiles: [doubao, qwen],
+      builtInKeys: [qwen.secretName: "sk-qwen", doubao.secretName: "sk-doubao"],
       transport: OwlAskAnythingTransportAdapter(chatClient: chat, responsesClient: responses))
 
     guard case let .success(open) = module.open(messages: Self.question) else {
@@ -336,32 +341,31 @@ final class OwlAskAnythingModuleTests: XCTestCase {
     XCTAssertEqual(deltas, ["普通回答"])
     XCTAssertNil(open.searchProviderID, "plain fallback must remove every online attribution")
     XCTAssertEqual(
-      responses.calls, [.init(providerID: "qwen", dialect: .qwen, webSearch: true)])
-    XCTAssertEqual(
-      chat.calls,
+      responses.calls,
       [
-        .init(providerID: "mimo", carriesSearchFields: true),
-        .init(providerID: "custom", carriesSearchFields: false),
+        .init(providerID: "qwen", dialect: .qwen, webSearch: true),
+        .init(providerID: "doubao", dialect: .ark, webSearch: true),
       ])
+    XCTAssertEqual(chat.calls, [.init(providerID: "custom")])
   }
 
-  func testCompleteAttemptMatrixFallsFromStandaloneThroughResponsesAndChatToPlain() async throws {
+  func testCompleteAttemptMatrixFallsFromStandaloneThroughResponsesToPlain() async throws {
     let qwen = Self.qwenProfile
-    let mimo = Self.mimoProfile
+    let doubao = Self.doubaoProfile
     let searches = WebSearchRecorder(
       results: [],
       failures: [.doubaoGlobal: .serviceError(code: "invalid_api_key", message: "invalid")])
     let responses = ScriptedResponsesClient(streams: [
       Self.failingStream(OwlStreamingError.badHTTPStatus(404)),
+      Self.failingStream(OwlStreamingError.badHTTPStatus(401)),
     ])
     let chat = ScriptedChatClient(streams: [
-      Self.failingStream(OwlStreamingError.badHTTPStatus(401)),
       Self.stream(deltas: ["普通回答"]),
     ])
     let module = makeMatrixModule(
       gateProfile: Self.chatOnlyProfile,
-      builtInProfiles: [mimo, qwen],
-      builtInKeys: [qwen.secretName: "sk-qwen", mimo.secretName: "sk-mimo"],
+      builtInProfiles: [doubao, qwen],
+      builtInKeys: [qwen.secretName: "sk-qwen", doubao.secretName: "sk-doubao"],
       transport: OwlAskAnythingTransportAdapter(chatClient: chat, responsesClient: responses),
       webSearchKeys: [.doubaoGlobal: "sk-search"],
       searches: searches)
@@ -377,30 +381,29 @@ final class OwlAskAnythingModuleTests: XCTestCase {
       searches.calls,
       [.init(backend: .doubaoGlobal, query: "问题", apiKey: "sk-search", limit: 5)])
     XCTAssertEqual(
-      responses.calls, [.init(providerID: "qwen", dialect: .qwen, webSearch: true)])
-    XCTAssertEqual(
-      chat.calls,
+      responses.calls,
       [
-        .init(providerID: "mimo", carriesSearchFields: true),
-        .init(providerID: "custom", carriesSearchFields: false),
+        .init(providerID: "qwen", dialect: .qwen, webSearch: true),
+        .init(providerID: "doubao", dialect: .ark, webSearch: true),
       ])
+    XCTAssertEqual(chat.calls, [.init(providerID: "custom")])
     XCTAssertNil(open.searchProviderID, "the final plain attempt must clear online attribution")
   }
 
   func testEveryOnlineAttemptAndPlainAnswerFailThroughTheInterface() async {
     let qwen = Self.qwenProfile
-    let mimo = Self.mimoProfile
+    let doubao = Self.doubaoProfile
     let responses = ScriptedResponsesClient(streams: [
       Self.failingStream(OwlStreamingError.badHTTPStatus(401)),
+      Self.failingStream(OwlStreamingError.badHTTPStatus(403)),
     ])
     let chat = ScriptedChatClient(streams: [
-      Self.failingStream(OwlStreamingError.badHTTPStatus(403)),
       Self.failingStream(OwlStreamingError.badHTTPStatus(503)),
     ])
     let module: OwlAskAnythingOpening = makeMatrixModule(
       gateProfile: Self.chatOnlyProfile,
-      builtInProfiles: [qwen, mimo],
-      builtInKeys: [qwen.secretName: "sk-qwen", mimo.secretName: "sk-mimo"],
+      builtInProfiles: [qwen, doubao],
+      builtInKeys: [qwen.secretName: "sk-qwen", doubao.secretName: "sk-doubao"],
       transport: OwlAskAnythingTransportAdapter(chatClient: chat, responsesClient: responses))
 
     guard case let .success(open) = module.open(messages: Self.question) else {
@@ -415,13 +418,12 @@ final class OwlAskAnythingModuleTests: XCTestCase {
 
     XCTAssertNil(open.searchProviderID, "plain fallback clears every online attribution")
     XCTAssertEqual(
-      responses.calls, [.init(providerID: "qwen", dialect: .qwen, webSearch: true)])
-    XCTAssertEqual(
-      chat.calls,
+      responses.calls,
       [
-        .init(providerID: "mimo", carriesSearchFields: true),
-        .init(providerID: "custom", carriesSearchFields: false),
+        .init(providerID: "qwen", dialect: .qwen, webSearch: true),
+        .init(providerID: "doubao", dialect: .ark, webSearch: true),
       ])
+    XCTAssertEqual(chat.calls, [.init(providerID: "custom")])
   }
 
   func testCancellationDuringStandaloneSearchDoesNotOpenAnyLaterAttempt() async {
@@ -432,11 +434,11 @@ final class OwlAskAnythingModuleTests: XCTestCase {
     let responses = ScriptedResponsesClient(streams: [Self.stream(deltas: ["不应出现"])])
     let chat = ScriptedChatClient(streams: [Self.stream(deltas: ["不应出现"])])
     let qwen = Self.qwenProfile
-    let mimo = Self.mimoProfile
+    let doubao = Self.doubaoProfile
     let module = makeMatrixModule(
       gateProfile: Self.chatOnlyProfile,
-      builtInProfiles: [qwen, mimo],
-      builtInKeys: [qwen.secretName: "sk-qwen", mimo.secretName: "sk-mimo"],
+      builtInProfiles: [qwen, doubao],
+      builtInKeys: [qwen.secretName: "sk-qwen", doubao.secretName: "sk-doubao"],
       transport: OwlAskAnythingTransportAdapter(chatClient: chat, responsesClient: responses),
       webSearchKeys: [.doubaoGlobal: "sk-search"],
       searches: searches)
@@ -483,7 +485,7 @@ final class OwlAskAnythingModuleTests: XCTestCase {
     message: String
   ) async {
     let qwen = Self.qwenProfile
-    let mimo = Self.mimoProfile
+    let doubao = Self.doubaoProfile
     let expected = OwlWebSearchError.serviceError(
       code: "InvalidParameter", message: message)
     let searches = WebSearchRecorder(
@@ -492,8 +494,8 @@ final class OwlAskAnythingModuleTests: XCTestCase {
     let responses = ScriptedResponsesClient(streams: [Self.stream(deltas: ["不应出现"])])
     let module: OwlAskAnythingOpening = makeMatrixModule(
       gateProfile: Self.chatOnlyProfile,
-      builtInProfiles: [qwen, mimo],
-      builtInKeys: [qwen.secretName: "sk-qwen", mimo.secretName: "sk-mimo"],
+      builtInProfiles: [qwen, doubao],
+      builtInKeys: [qwen.secretName: "sk-qwen", doubao.secretName: "sk-doubao"],
       transport: OwlAskAnythingTransportAdapter(
         chatClient: chat, responsesClient: responses),
       webSearchKeys: [.doubaoGlobal: "sk-doubao", .qwen: "sk-qwen-search"],
@@ -555,14 +557,14 @@ final class OwlAskAnythingModuleTests: XCTestCase {
       isDefault: true)
   }
 
-  private static var mimoProfile: OwlProviderProfile {
+  private static var doubaoProfile: OwlProviderProfile {
     OwlProviderProfile(
-      id: "mimo",
-      displayName: "MiMo",
-      endpoint: URL(string: "https://api.xiaomimimo.com/v1/chat/completions")!,
-      model: "mimo-v2.5",
-      providerID: "mimo",
-      secretName: "owltype.provider.mimo.apiKey")
+      id: "doubao",
+      displayName: "豆包",
+      endpoint: URL(string: "https://ark.cn-beijing.volces.com/api/v3/responses")!,
+      model: "doubao-seed-2-1-pro-260628",
+      providerID: "doubao",
+      secretName: "owltype.provider.doubao.apiKey")
   }
 
   private static var chatOnlyProfile: OwlProviderProfile {
@@ -652,7 +654,6 @@ private final class InMemoryAskTransport: OwlAskAnythingTransporting {
 private final class ScriptedChatClient: OwlChatStreaming, @unchecked Sendable {
   struct Call: Equatable {
     let providerID: String
-    let carriesSearchFields: Bool
   }
 
   private var streams: [AsyncThrowingStream<String, Error>]
@@ -665,10 +666,9 @@ private final class ScriptedChatClient: OwlChatStreaming, @unchecked Sendable {
   func stream(
     messages: [OwlDeepSeekMessage],
     routing: OwlCloudRouting,
-    apiKey: String,
-    extraBody: [String: Any]
+    apiKey: String
   ) -> AsyncThrowingStream<String, Error> {
-    calls.append(.init(providerID: routing.providerID, carriesSearchFields: !extraBody.isEmpty))
+    calls.append(.init(providerID: routing.providerID))
     guard !streams.isEmpty else {
       return AsyncThrowingStream { $0.finish() }
     }

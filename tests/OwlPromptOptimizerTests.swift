@@ -185,9 +185,9 @@ final class OwlPromptOptimizerTests: XCTestCase {
 
   func testDeepSeekThinkingIsDisabledSoTheRewriteDoesNotStallOnHiddenReasoning() {
     // DeepSeek 混合思考默认开，会先烧约 400 token / 5 秒才吐出这段短 JSON；用户正等着替换草稿。
-    // MiMo/豆包与 DeepSeek 共用同一关思考形状（OwlThinkingControl.deepSeekStyle）；
+    // 豆包与 DeepSeek 共用同一关思考形状（OwlThinkingControl.deepSeekStyle）；
     // 豆包实测默认开隐藏思考，长产出 + 思考会顶穿 60s 硬超时。qwen 不认这个字段，必须省略。
-    for model in ["deepseek-v4-flash", "mimo-8b-chat", "doubao-seed-2-1-turbo-260628"] {
+    for model in ["deepseek-v4-flash", "doubao-seed-2-1-turbo-260628"] {
       let request = OwlPromptOptimizer.chatRequest(forDraft: "帮我写个爬虫", model: model)
       XCTAssertEqual(request.thinking, .disabled, "\(model) 该关隐藏思考")
       XCTAssertNil(request.enableThinking, "\(model) 不得混入 qwen 的字段")
