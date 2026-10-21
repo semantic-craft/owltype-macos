@@ -28,6 +28,36 @@ final class OwlInMemorySecretStore: OwlSecretStoring {
 
 final class ProviderProfileStoreTests: XCTestCase {
 
+  private final class FailingSecretStore: OwlSecretStoring {
+    let backing = OwlInMemorySecretStore()
+    func secret(named name: String) throws -> String? { try backing.secret(named: name) }
+    func setSecret(_ value: String, named name: String) throws {
+      throw OwlProviderKeychainError.unexpectedStatus(-25293)
+    }
+    func deleteSecret(named name: String) throws { try backing.deleteSecret(named: name) }
+  }
+
+  func testEditingRetiredDefaultPreservesEndpointWhenKeyStorageFails() throws {
+    let store = makeStore()
+    let secrets = FailingSecretStore()
+    let retired = try store.add(OwlProviderProfile(
+      displayName: "retired", endpoint: URL(string: "https://retired.example.com/v1/chat/completions")!,
+      model: "retired-model", providerID: "retired-provider", isDefault: true))
+    let oldKey = UUID().uuidString
+    try secrets.backing.setSecret(oldKey, named: retired.secretName)
+    XCTAssertNil(store.defaultProfile)
+
+    let result = OwlSettingsActions.updateProviderProfile(
+      retired, endpoint: "https://custom.example.com/v1/chat/completions", model: "custom-model",
+      apiKey: UUID().uuidString, store: store, secrets: secrets)
+
+    XCTAssertEqual(result.status, "保存供应商失败。")
+    XCTAssertTrue(try secrets.secret(named: retired.secretName) == oldKey)
+    XCTAssertNil(store.defaultProfile, "Failed key storage must not activate the retired default")
+    XCTAssertEqual(makeStore().profile(id: retired.id)?.endpoint, retired.endpoint,
+                   "Failed key storage must preserve the endpoint on disk")
+  }
+
   func testLatestFlashPresetsAndProbeRouting() throws {
     let deepseek = try XCTUnwrap(OwlLLMProviderCatalog.preset(id: "deepseek"))
     XCTAssertEqual(deepseek.model, "deepseek-flash")

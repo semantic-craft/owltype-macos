@@ -276,7 +276,13 @@ extension OwlSettingsActions {
       let saved = try store.update(updated)
       let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
       if !key.isEmpty {
-        try secrets.setSecret(key, named: saved.secretName)
+        do {
+          try secrets.setSecret(key, named: saved.secretName)
+        } catch {
+          // Restore the endpoint and provider ID so the old key cannot route to the new host.
+          _ = try store.update(profile)
+          throw error
+        }
         // 换了钥匙 → 上一次验证作废（留空＝保持原 Key，验证状态也就该保持）。
         OwlProviderKeyVerification.clear(secretName: saved.secretName)
       }
