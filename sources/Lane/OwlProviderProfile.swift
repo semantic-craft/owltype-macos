@@ -104,7 +104,7 @@ enum OwlLLMProviderCatalog {
       id: "mimo",
       displayName: "小米 MiMo",
       endpoint: "https://api.xiaomimimo.com/v1/chat/completions",
-      model: "mimo-v2.5",
+      model: "mimo-v2.6-flash",
       keyHint: "按量付费 sk-…；Token Plan 填 tp-…",
       sourceSupport: .sourceResults,
       authHeaderStyle: .apiKey
