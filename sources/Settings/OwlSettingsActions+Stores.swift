@@ -227,7 +227,10 @@ extension OwlSettingsActions {
             : OwlQwenWorkspace.responsesEndpoint(for: trimmed) else {
       return (store.profiles(), "Workspace ID / API Host 格式无效，未覆盖原配置。", false)
     }
-    let qwenProfiles = store.profiles().filter {
+    guard let profiles = store.readableProfiles() else {
+      return (store.profiles(), "保存 Workspace API Host 失败。", false)
+    }
+    let qwenProfiles = profiles.filter {
       OwlLLMProviderCatalog.inferredProviderID(for: $0) == "qwen"
     }
     for profile in qwenProfiles {
@@ -403,6 +406,13 @@ extension OwlSettingsActions {
     _ profile: OwlProviderProfile, profiles: [OwlProviderProfile]
   ) -> OwlProviderProfile? {
     profiles.first { $0.id == profile.id }
+  }
+
+  static func editingProfileAfterWorkspaceSave(
+    _ editing: OwlProviderProfile?, profiles: [OwlProviderProfile]
+  ) -> OwlProviderProfile? {
+    guard let editing else { return nil }
+    return providerProfileForRetry(editing, profiles: profiles) ?? editing
   }
 
   /// Make a profile the default (the active one the cloud lane routes through).

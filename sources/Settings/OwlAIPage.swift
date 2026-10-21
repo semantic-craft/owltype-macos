@@ -552,6 +552,8 @@ struct OwlAIPage: View {
     let result = OwlSettingsActions.saveQwenWorkspace(
       qwenWorkspaceInput, apiKey: qwenWorkspaceKeyInput, store: providerStore, secrets: providerSecrets)
     providers = result.profiles
+    editingProfile = OwlSettingsActions.editingProfileAfterWorkspaceSave(
+      editingProfile, profiles: result.profiles)
     providerStatus = result.status
     guard result.saved else { return }
     qwenWorkspaceKeyInput = ""
