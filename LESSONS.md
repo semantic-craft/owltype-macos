@@ -124,6 +124,7 @@ review dates, not retries. Keep deterministic checks in the local gate.
   Compare scheme/host/default-normalized port against the persisted profile: origin changes
   require a nonblank replacement key. Same-origin edits preserve the persisted key reference,
   and failed-save retries refresh the editing profile from the reloaded list.
+  Probe requests also require a replacement key when the origin changes.
 - Regression: `ProviderProfileStoreTests` reloads the real JSON store and checks both
   `defaultProfile` and `OwlCloudRouting` for retired/custom defaults. Post-write errors and
   key-write plus rollback failures produced 8 assertion failures before the fix.

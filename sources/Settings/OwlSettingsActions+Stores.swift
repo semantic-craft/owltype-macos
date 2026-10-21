@@ -248,6 +248,32 @@ extension OwlSettingsActions {
     }
   }
 
+  private static func origin(_ url: URL) -> (String?, String?, Int?) {
+    let scheme = url.scheme?.lowercased()
+    let port: Int? = url.port ?? (scheme == "https" ? 443 : scheme == "http" ? 80 : nil)
+    return (scheme, url.host?.lowercased(), port)
+  }
+
+  /// 「拉取最新」「验证连通性」要用的 Key。
+  static func providerProbeKey(
+    editing profile: OwlProviderProfile?,
+    endpoint: URL,
+    typedKey: String,
+    store: OwlProviderProfileStore,
+    secrets: OwlSecretStoring
+  ) -> (key: String?, status: String?) {
+    let typed = typedKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard typed.isEmpty else { return (typed, nil) }
+    guard let profile else { return (nil, nil) }
+    let current = store.profile(id: profile.id) ?? profile
+    guard origin(endpoint) == origin(current.endpoint) else {
+      return (nil, "更换地址后请重新填写 API Key。")
+    }
+    guard let stored = try? secrets.secret(named: current.secretName),
+          !stored.isEmpty else { return (nil, nil) }
+    return (stored, nil)
+  }
+
   /// Edit the persisted profile; a blank key is allowed only within the same origin.
   /// A replacement key gets an independent reference before the endpoint is committed.
   static func updateProviderProfile(
@@ -265,11 +291,6 @@ extension OwlSettingsActions {
       return (store.profiles(), "端点必须是 https。")
     }
     let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-    func origin(_ url: URL) -> (String?, String?, Int?) {
-      let scheme = url.scheme?.lowercased()
-      let port: Int? = url.port ?? (scheme == "https" ? 443 : scheme == "http" ? 80 : nil)
-      return (scheme, url.host?.lowercased(), port)
-    }
     guard !key.isEmpty || origin(url) == origin(current.endpoint) else {
       return (store.profiles(), "更换地址后请重新填写 API Key。")
     }
