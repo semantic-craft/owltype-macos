@@ -230,9 +230,17 @@ extension OwlSettingsActions {
         false)
     }
 
+    let qwenProfiles = store.profiles().filter {
+      OwlLLMProviderCatalog.inferredProviderID(for: $0) == "qwen"
+    }
+    for profile in qwenProfiles {
+      if let rejection = originChangeKeyRejection(current: profile, endpoint: endpoint, apiKey: "") {
+        return (store.profiles(), rejection, false)
+      }
+    }
+
     do {
-      for var profile in store.profiles() where
-        OwlLLMProviderCatalog.inferredProviderID(for: profile) == "qwen" {
+      for var profile in qwenProfiles {
         profile.endpoint = endpoint
         _ = try store.update(profile)
       }
@@ -259,6 +267,16 @@ extension OwlSettingsActions {
     return (scheme, url.host?.lowercased(), port)
   }
 
+  static func originChangeKeyRejection(
+    current: OwlProviderProfile,
+    endpoint: URL,
+    apiKey: String
+  ) -> String? {
+    guard apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+          origin(endpoint) != origin(current.endpoint) else { return nil }
+    return "更换地址后请重新填写 API Key。"
+  }
+
   /// 「拉取最新」「验证连通性」要用的 Key。
   static func providerProbeKey(
     editing profile: OwlProviderProfile?,
@@ -271,8 +289,8 @@ extension OwlSettingsActions {
     guard typed.isEmpty else { return (typed, nil) }
     guard let profile else { return (nil, nil) }
     let current = store.profile(id: profile.id) ?? profile
-    guard origin(endpoint) == origin(current.endpoint) else {
-      return (nil, "更换地址后请重新填写 API Key。")
+    if let rejection = originChangeKeyRejection(current: current, endpoint: endpoint, apiKey: typed) {
+      return (nil, rejection)
     }
     guard let stored = try? secrets.secret(named: current.secretName),
           !stored.isEmpty else { return (nil, nil) }
@@ -296,8 +314,8 @@ extension OwlSettingsActions {
       return (store.profiles(), "端点必须是 https。")
     }
     let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !key.isEmpty || origin(url) == origin(current.endpoint) else {
-      return (store.profiles(), "更换地址后请重新填写 API Key。")
+    if let rejection = originChangeKeyRejection(current: current, endpoint: url, apiKey: key) {
+      return (store.profiles(), rejection)
     }
     guard isHTTPSEndpoint(url) else {
       return (store.profiles(), "端点必须是 https。")
