@@ -21,12 +21,14 @@ There is no hosted CI. GitHub Actions remains disabled; checks and release crede
 stay on the maintainer's Mac. Repository visibility changes do not enable hosted runners. A missing hosted check is not a pass: the merger owns the local gate
 result for the exact pull-request head.
 
-`scripts/gate.sh` runs the public-source and privacy boundaries, portable-script
-syntax and self-tests, the secret-finding policy with gitleaks and trufflehog over
-reachable history, licensing checks, dependency bootstrap, clean-room seed generation,
-SwiftLint, release self-tests, the Swift test suite, Debug and Release builds, manifest,
-identity-residual, artifact-chain, cohort and release-chain gates, built-App secret
-checks, and Periphery. `--quick` stops after the test suite.
+`scripts/gate.sh` checks the required tools, initializes the submodules at their pinned
+revisions (a fresh worktree needs no manual setup before its first run), then runs the
+public-source and privacy boundaries, portable-script syntax and self-tests, the
+secret-finding policy with gitleaks and trufflehog over reachable history, licensing
+checks, dependency bootstrap, clean-room seed generation, SwiftLint, release self-tests,
+the Swift test suite, Debug and Release builds, manifest, identity-residual,
+artifact-chain, cohort and release-chain gates, built-App secret checks, and Periphery.
+`--quick` stops after the test suite.
 
 ## Focused feedback and retained evidence
 
@@ -63,9 +65,12 @@ outside the checkout. These files survive worktree/build cleanup. They are local
 evidence and may contain machine paths; review and redact before sharing.
 
 The receipt captures HEAD, working-tree status, tracked diff hashes, untracked file
-hashes and initialized submodule state before and after execution. A changed source
-snapshot returns failure even when every command passed. Ignored build inputs and
-edits reverted before the final snapshot are outside this check. A dirty-tree pass
+hashes and submodule state before and after execution. A submodule that matches its
+gitlink records as `pinned` whether or not it is initialized, so the gate's own submodule
+initialization is not a source change; a modified or re-pointed submodule is recorded in
+full. A changed source snapshot returns failure even when every command passed. Ignored
+build inputs and edits reverted before the final snapshot are outside this check. A
+dirty-tree pass
 describes that snapshot, not an exact committed PR head. Failed commands retain their
 exit status and later commands remain `not-run`; a `running` record left by a hard
 kill is incomplete evidence. Normal interruption terminates the check subprocesses.
