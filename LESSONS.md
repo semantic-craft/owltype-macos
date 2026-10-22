@@ -1,6 +1,8 @@
 # Lessons from verified work
 
-Each entry keeps the rule, reason, regression, and dates observed. Count distinct
+Each entry keeps the rule, reason, regression, a `Verify (验证点):` line (how to check later
+that the lesson is in place: which file to read, which command to run, what result to expect),
+and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
 ## A failed self-check must say which step failed and what it saw
@@ -29,6 +31,7 @@ review dates, not retries. Keep deterministic checks in the local gate.
   `test_recordRecovered_consumesPromptAndKeepsRecordMarkedRecovered` in
   [OwlUpdateLogoutPromptTests](tests/OwlUpdateLogoutPromptTests.swift). The host re-probe and a
   real failure's diagnosis line remain unverified on a tester's Mac.
+- Verify (验证点): `make test TEST_ONLY='OwlSessionRestartTests OwlUpdateLogoutPromptTests'` passes; a real failed self-check prints an `INSTALL_SESSION_DIAGNOSIS:` line after `INSTALL_SESSION_FAILED:`.
 - Seen on 2 distinct dates: 2026-10-11, 2026-10-22.
 
 ## Run live tests through scripts/live-test.sh
@@ -47,6 +50,7 @@ review dates, not retries. Keep deterministic checks in the local gate.
   `direnv allow`.
 - Regression: [live-test.selftest.sh](scripts/live-test.selftest.sh) in the gate covers the
   stale-environment case, skip-as-failure, a blocked `.envrc` and keys never printed.
+- Verify (验证点): `scripts/live-test.selftest.sh` passes; a live run through `scripts/live-test.sh` exits non-zero when a named live test skips.
 - Seen on 1 distinct date: 2026-10-21.
 
 ## A web_search tool in the request is not a search
@@ -69,6 +73,7 @@ review dates, not retries. Keep deterministic checks in the local gate.
   [OwlSourceVerificationTests](tests/OwlSourceVerificationTests.swift); live checks
   `testAskWebSearchOnDeepSeekSearch` and `testSourceVerificationOnDeepSeekSearch` in
   [OwlSkillsLiveTests](tests/OwlSkillsLiveTests.swift).
+- Verify (验证点): `make test TEST_ONLY='OwlAskAnythingModuleTests'` passes (includes `testSearchedAnswerNeverCarriesModelInventedSources`).
 - Seen on 1 distinct date: 2026-10-21.
 
 ## The self-check budget must not include the user's consent
@@ -89,6 +94,7 @@ review dates, not retries. Keep deterministic checks in the local gate.
   `testUpdateOfDisabledSourceRequestsEnableOnceSoRetryRecovers` in
   [OwlSessionRestartTests](tests/OwlSessionRestartTests.swift). A native GUI first install with
   consent remains unverified.
+- Verify (验证点): `make test TEST_ONLY='OwlSessionRestartTests'` passes (includes `testConsentWaitDoesNotSpendTheSelfCheckBudget`).
 - Seen on 1 distinct date: 2026-10-21.
 
 ## An existing App directory is not an existing install
@@ -105,6 +111,7 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Regression: `testIncompleteLiveAppIsRetainedOutsideInputMethodsAndInstalledFresh` in
   [OwlInstallFilesTests](tests/OwlInstallFilesTests.swift). The GUI and preinstall
   classification has no offline test; a native install over an empty shell remains unverified.
+- Verify (验证点): `make test TEST_ONLY='OwlInstallFilesTests'` passes (includes `testIncompleteLiveAppIsRetainedOutsideInputMethodsAndInstalledFresh`).
 - Seen on 1 distinct date: 2026-10-21.
 
 ## Compare canonical paths with realpath, and test under /private
@@ -123,6 +130,7 @@ review dates, not retries. Keep deterministic checks in the local gate.
   [OwlBundleSwapTests](tests/OwlBundleSwapTests.swift); the old check fails 4 of 8
   OwlInstallFilesTests. They run in [the merge gate](scripts/gate.sh). Offline tests still do not
   replace a real signed PKG install before publishing.
+- Verify (验证点): `make test TEST_ONLY='OwlInstallFilesTests OwlBundleSwapTests'` passes; `rg -n realpath installer/Shared/OwlBundleSwap.swift` finds the check in `isCanonical`.
 - Seen on 1 distinct date: 2026-10-20.
 
 ## Pin every gzip parameter a fixture depends on
@@ -139,6 +147,7 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Regression: [release-source-archive.selftest.py](scripts/release-source-archive.selftest.py)
   now recompresses a valid archive at level 6 and requires the gzip-metadata rejection.
   It runs in [the merge gate](scripts/gate.sh).
+- Verify (验证点): `python3 scripts/release-source-archive.selftest.py` passes.
 - Seen on 1 distinct date: 2026-10-19.
 
 ## Never install an ad hoc build as the input method
@@ -158,6 +167,7 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Regression: [install-dev.selftest.sh](scripts/install-dev.selftest.sh) runs the real script
   with a fake bundle and mocked `codesign`/`security`; it failed 8/8 cases on the old script.
   It runs in [the merge gate](scripts/gate.sh).
+- Verify (验证点): `scripts/install-dev.selftest.sh` passes.
 - Seen in this project on 1 distinct date: 2026-10-19 (found by audit; same class as Sonori).
 
 ## Every bundle that claims the id is a menu entry
@@ -176,6 +186,7 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Regression: [uninstall-repair.selftest.sh](scripts/uninstall-repair.selftest.sh) runs both
   scripts against a fake system root with mocked privileged tools. It runs in
   [the merge gate](scripts/gate.sh). Not yet run on the affected Mac.
+- Verify (验证点): `scripts/uninstall-repair.selftest.sh` passes.
 - Seen on 1 distinct date: 2026-10-20.
 
 ## A librime session id is not a session identity
@@ -197,6 +208,7 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Regression: [OwlInputHabitsIntegrationTests](tests/OwlInputHabitsIntegrationTests.swift)
   now checks wrapper identity, which is independent of allocator reuse. It runs in
   [the merge gate](scripts/gate.sh).
+- Verify (验证点): `make test TEST_ONLY='OwlInputHabitsIntegrationTests'` passes; `scripts/gate.sh` runs it.
 - Seen on 1 distinct date: 2026-10-20.
 
 ## Require positive evidence before judging a live trace
@@ -213,6 +225,7 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Regression: [smoke-live.selftest.py](scripts/smoke-live.selftest.py) invokes the
   actual shell judge with empty, unrelated, clear-only, unfinished, valid and
   forced-finalize logs. It runs in [the merge gate](scripts/gate.sh).
+- Verify (验证点): `python3 scripts/smoke-live.selftest.py` passes.
 - Seen on 1 distinct date: 2026-10-15.
 
 ## Commit endpoint and replacement key reference together
@@ -234,6 +247,7 @@ review dates, not retries. Keep deterministic checks in the local gate.
   key-write plus rollback failures produced 8 assertion failures before the fix.
 - Scope: isolated file storage and injected secret-store failures; no live Keychain or
   installed-app upgrade acceptance is claimed.
+- Verify (验证点): `make test TEST_ONLY='ProviderProfileStoreTests'` passes.
 - Seen on 1 distinct date: 2026-10-21.
 
 ## Make one live call before merging a new external-API capability
@@ -249,5 +263,6 @@ review dates, not retries. Keep deterministic checks in the local gate.
   per-test timings; #236 ran live checks before merge.
 - Prevention: when no key is available, keep the PR open or behind a disabled default and ask for
   the key instead of merging on mocks.
+- Verify (验证点):
 - Seen on 1 distinct date: 2026-10-21.
 
