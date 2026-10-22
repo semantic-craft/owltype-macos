@@ -143,6 +143,26 @@ final class OwlSessionRestartTests: XCTestCase {
     XCTAssertFalse(OwlSessionRestart.mapsInstalledExecutable("p400\nftxt\ni100\nn/retired/Owltype\nftxt\ni99\nn\(path)\n", inode: 100))
   }
 
+  func testServerQueryListsTheProcessThatRunsIt() throws {
+    // The hosted test process stands in for the App re-checking itself: pgrep runs as its child.
+    let query = OwlSessionRestart.serverQuery(uid: getuid(), name: ProcessInfo.processInfo.processName)
+    let pids = try output(of: "/usr/bin/pgrep", query)
+    XCTAssertTrue(pids.split(separator: "\n").contains("\(getpid())"), pids)
+  }
+
+  func testServerFactsComeFromTheKernelAndTheBundle() throws {
+    // The hosted test process maps its host App's executable, as the server maps the installed one.
+    let pid = getpid()
+    let mapping = try output(of: "/usr/sbin/lsof", ["-a", "-p", "\(pid)", "-d", "txt", "-F", "fin"])
+    let server = OwlSessionRestart.server(pid: pid, mapping: mapping, installedInode: 0)
+    let executable = try XCTUnwrap(Bundle.main.executablePath.flatMap { realpath($0, nil) })
+    defer { free(executable) }
+    XCTAssertEqual(server.executable, String(cString: executable))
+    XCTAssertEqual(server.version, Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String)
+    // Another file now at that path is not the binary the process runs.
+    XCTAssertEqual(OwlSessionRestart.bundleVersion(of: server.executable, mapping: "p\(pid)\nftxt\ni1\nn\(server.executable)\n"), "")
+  }
+
   // MARK: #207 —— 失败归因：阶段、原因、未满足条件（安装日志、恢复弹窗、诊断包共用）
 
   func testStagesAreEnteredInOrderBeforeEachStepsFirstEffect() throws {
@@ -256,6 +276,18 @@ final class OwlSessionRestartTests: XCTestCase {
       return OwlSessionRestart.diagnose(error, request: request, stage: effects.stages.last ?? .stopOldProcesses,
                                         lastObservation: effects.lastObservation)
     }
+  }
+
+  private func output(of path: String, _ arguments: [String]) throws -> String {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: path)
+    process.arguments = arguments
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    try process.run()
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    process.waitUntilExit()
+    return String(decoding: data, as: UTF8.self)
   }
 
   private func request(first: Bool = false, source: String = OwlSessionRestart.primarySource) -> OwlSessionRestart.Request {

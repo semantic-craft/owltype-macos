@@ -90,11 +90,49 @@ enum OwlSessionRestart {
     }
   }
 
+  /// pgrep arguments for this user's server processes. pgrep leaves out its own ancestors unless
+  /// given `-a`, and the App re-checking itself before recovery guidance is the probe's parent
+  /// (#207); the probe drops the driver and itself from the result.
+  static func serverQuery(uid: uid_t, name: String = "Owltype") -> [String] {
+    ["-a", "-U", "\(uid)", "-x", name]
+  }
+
   static func mapsInstalledExecutable(_ lsof: String, inode: UInt64) -> Bool {
+    maps(lsof, path: installedExecutable, inode: inode)
+  }
+
+  /// True when one text record of `lsof -F fin` names both this path and this inode.
+  static func maps(_ lsof: String, path: String, inode: UInt64) -> Bool {
     lsof.components(separatedBy: "ftxt\n").dropFirst().contains { record in
       let fields = record.components(separatedBy: .newlines)
-      return fields.contains("n\(installedExecutable)") && fields.contains("i\(inode)")
+      return fields.contains("n\(path)") && fields.contains("i\(inode)")
     }
+  }
+
+  /// One server as the kernel and its bundle describe it. No LaunchServices text (#207): on a
+  /// tester's Mac `lsappinfo info -only` gave neither path nor version in the layout macOS 27
+  /// prints, so a healthy update failed its self-check.
+  static func server(pid: Int32, mapping: String, installedInode: UInt64) -> Server {
+    let executable = executablePath(of: pid)
+    return Server(pid: pid, executable: executable, version: bundleVersion(of: executable, mapping: mapping),
+                  mapsInstalledExecutable: installedInode != 0 && mapsInstalledExecutable(mapping, inode: installedInode))
+  }
+
+  /// proc_pidpath; empty once the process has exited.
+  static func executablePath(of pid: Int32) -> String {
+    var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))  // PROC_PIDPATHINFO_MAXSIZE
+    guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return "" }
+    return String(cString: buffer)
+  }
+
+  /// CFBundleVersion of the bundle around `executable`, read only while the process maps the file
+  /// now at that path: a bundle replaced since launch describes some other binary.
+  static func bundleVersion(of executable: String, mapping: String) -> String {
+    var file = stat()
+    guard !executable.isEmpty, stat(executable, &file) == 0,
+          maps(mapping, path: executable, inode: UInt64(file.st_ino)) else { return "" }
+    let contents = URL(fileURLWithPath: executable).deletingLastPathComponent().deletingLastPathComponent()
+    return NSDictionary(contentsOf: contents.appendingPathComponent("Info.plist"))?["CFBundleVersion"] as? String ?? ""
   }
 
   /// Conditions the running server must meet whatever is selected. The App re-checks exactly

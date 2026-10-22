@@ -318,7 +318,7 @@ final class OwlUpdateLogoutScheduler {
 
   /// #207：安全时机到了先重探一次——同一探针、同一服务器条件（不含选中态，用户此后可能有意换过）。
   /// 已恢复就不弹，记录标 recovered；仍有问题或探针失败才激活并呈现，弹窗写明两次看到的事实。
-  /// 探针跑子进程（pgrep/lsof/lsappinfo，≤8 秒），放后台队列，不占 IME 主线程。
+  /// 探针跑子进程（pgrep/lsof，≤8 秒），放后台队列，不占 IME 主线程。
   private func beginRecheck(version: String) {
     phase = .rechecking
     let defaults = self.defaults
