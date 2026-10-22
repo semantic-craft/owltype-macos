@@ -122,8 +122,12 @@ focused checks plus `scripts/gate.sh` on the exact head and record the commands 
 result in the pull request. Merge through GitHub only while that baseline is still current:
 
 ```bash
-gh pr merge <number> --merge --delete-branch
+gh pr merge <number> --squash --delete-branch
 ```
+
+The repository accepts only squash merges. The commit on `main` takes the pull request
+title as its subject and the pull request body as its message, so write the body to
+stand as the commit message.
 
 The default-branch ruleset requires a pull request and resolved review threads. It
 requires zero approving reviews while the project has one maintainer and has no required
