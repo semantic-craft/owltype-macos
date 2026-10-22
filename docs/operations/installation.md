@@ -14,7 +14,7 @@ Both the GUI installer and package scripts invoke the installed payload's CLI:
 | Stage | PackageKit / privileged file helper | PKG payload contains only `/Library/Input Methods/.Owltype.pkg-staging/Owltype.app.zip`. postinstall unpacks into a fresh root-only directory under the installer state directory, verifies and commits, then removes that unpack directory, the consumed archive and the staging directory before session recovery. The live App and all nested bundles are absent from the PackageKit payload. |
 | Commit | `--commit-install` as root | Copy into a protected candidate in the work directory, validate signature and unchanged identities, preserve the live App shell, exchange `Contents` and `.Contents.update` with `RENAME_SWAP`. Move retired contents outside the App before strict signature verification. First install uses `RENAME_EXCL`. A live App without `Contents/Info.plist` counts as absent: GUI and preinstall classify the run as a first install, and the commit moves that shell to `retained` first. After the installed App validates, remove the retired contents and the candidate wrapper. |
 | Activate | `--finish-install` as console user | End old installed server instances, register/enable parent and primary mode only on first install, read back selection, refresh only TextInputMenuAgent/TextInputSwitcher, launch the installed App, and poll its state. |
-| Verify | Fresh user-session probe | First wait up to 120 seconds for the parent and mode to be enabled (the user's consent); an update that finds them disabled requests enabling once, so a retry after a first install without consent recovers. Failure is `inputSourceNotEnabled`. Then require expected selection, one server at the installed executable path, expected LS version and current executable inode within 45 seconds. Every running process with the bundle id is stopped first, wherever it lives. |
+| Verify | Fresh user-session probe | First wait up to 120 seconds for the parent and mode to be enabled (the user's consent); an update that finds them disabled requests enabling once, so a retry after a first install without consent recovers. Failure is `inputSourceNotEnabled`. Then require expected selection, one server whose executable (`proc_pidpath`) is the installed path, the expected `CFBundleVersion` in the Info.plist beside the executable it maps, and the current executable inode within 45 seconds; the probe parses no `lsappinfo` text. Every running process with the bundle id is stopped first, wherever it lives. |
 
 Implementation: [file primitive](../../installer/Shared/OwlBundleSwap.swift),
 [privileged file phase](../../sources/Activation/OwlInstallFiles.swift),
@@ -89,8 +89,11 @@ changed since; when every condition holds it marks the record recovered and show
 the alert states what failed then and what the re-probe saw, and the support bundle (设置 → 诊断支持包)
 carries the record under 「安装自检」 until a later self-check passes. Offline regression:
 [OwlSessionRestartTests](../../tests/OwlSessionRestartTests.swift) and
-[OwlUpdateLogoutPromptTests](../../tests/OwlUpdateLogoutPromptTests.swift); the re-probe on a
-tester's Mac and a real failure's diagnosis line are not yet verified.
+[OwlUpdateLogoutPromptTests](../../tests/OwlUpdateLogoutPromptTests.swift). A tester's 2.0.20 alert
+(2026-10-22) carried a real failure's diagnosis and showed two probe faults: the re-probe could not
+see the App that runs it (`pgrep` hides its ancestors without `-a`), and the server's path and
+version parsed from `lsappinfo` were empty. Both are fixed; a passing re-probe on a tester's Mac is
+not yet verified.
 
 The user approved retaining official Sparkle on 2026-10-11 (#204): Sparkle owns downloading,
 EdDSA verification and invoking the system package installer; the package owns atomic file commit

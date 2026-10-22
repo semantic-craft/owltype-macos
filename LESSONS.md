@@ -29,6 +29,32 @@ review dates, not retries. Keep deterministic checks in the local gate.
   this change ran first in a worktree with no initialized submodule (PR #242).
 - Seen on 1 distinct date: 2026-10-22.
 
+## A probe must see the process that runs it and must not parse display text
+
+**List servers with `pgrep -a`, because the App re-checking itself is the probe's parent; take a server's path and version from `proc_pidpath` and its bundle, not from `lsappinfo` text.**
+
+- Reason: a tester's update to 2.0.20 through 检查更新 (2026-10-22) showed 「阶段「核验会话」失败：
+  自检超时（selfCheckTimedOut）；未满足：运行中的猫头鹰不在 /Library/Input Methods（）；运行中的版本为 ，
+  预期 2.0.20」 above 「刚才重新探测：没有运行中的猫头鹰进程」, while typing worked. Two faults. The
+  installer's probe saw exactly one server mapping the installed executable's inode, but the path
+  and version it parsed from `lsappinfo info -only executablepath,CFBundleVersion` were empty: the
+  parser matched only `executable path="…"` and `Version="…"`, the layout macOS 27.0.1 prints
+  (checked on Helios and Janus). What the tester's Mac printed is unknown; a 2020 write-up of
+  `lsappinfo` on Catalina shows raw `"Key"="Value"` pairs, and a pid LaunchServices does not know
+  prints nothing. Separately, the App's re-probe (#240) runs the probe as its child, and macOS
+  `pgrep` leaves out its own ancestors unless given `-a`, so the running App never saw itself and
+  every re-probe reported no server. Only fakes had exercised the re-probe before release.
+- Prevention: `OwlSessionRestart.serverQuery` passes `-a`; the probe still drops the driver and
+  itself. `OwlSessionRestart.server` takes the path from `proc_pidpath` and the version from the
+  Info.plist beside the executable, read only while the process maps the file at that path. The
+  probe no longer runs `lsappinfo`.
+- Regression: `testServerQueryListsTheProcessThatRunsIt` (fails without `-a`) and
+  `testServerFactsComeFromTheKernelAndTheBundle` in
+  [OwlSessionRestartTests](tests/OwlSessionRestartTests.swift). Not verified: the fixed probe on the
+  tester's Mac, whose macOS version is unknown.
+- Verify (验证点): `make test TEST_ONLY='OwlSessionRestartTests'` passes; `rg -n 'usr/bin/lsappinfo' sources installer` finds nothing.
+- Seen on 1 distinct date: 2026-10-22.
+
 ## A failed self-check must say which step failed and what it saw
 
 **Record the stage, the error and the unmet conditions of a failed install self-check; re-probe before guidance and keep the reason in the support bundle.**
@@ -53,8 +79,9 @@ review dates, not retries. Keep deterministic checks in the local gate.
   `test_selfCheck_failureStoresDiagnosisBesideVersion_passClearsBoth`,
   `test_recheckDecision_onlyACleanProbeCountsAsRecovered` and
   `test_recordRecovered_consumesPromptAndKeepsRecordMarkedRecovered` in
-  [OwlUpdateLogoutPromptTests](tests/OwlUpdateLogoutPromptTests.swift). The host re-probe and a
-  real failure's diagnosis line remain unverified on a tester's Mac.
+  [OwlUpdateLogoutPromptTests](tests/OwlUpdateLogoutPromptTests.swift). A tester's 2.0.20 alert
+  (2026-10-22) carried a real failure's diagnosis and exposed two probe faults (previous entry); a
+  passing re-probe on a tester's Mac remains unverified.
 - Verify (验证点): `make test TEST_ONLY='OwlSessionRestartTests OwlUpdateLogoutPromptTests'` passes; a real failed self-check prints an `INSTALL_SESSION_DIAGNOSIS:` line after `INSTALL_SESSION_FAILED:`.
 - Seen on 2 distinct dates: 2026-10-11, 2026-10-22.
 

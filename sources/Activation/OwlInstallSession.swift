@@ -156,7 +156,7 @@ final class OwlInstallSession: OwlSessionRestart.Effects {
     let parent = source(parentID, all: true)
     let parentEnabled = parent.flatMap { TISGetInputSourceProperty($0, kTISPropertyInputSourceIsEnabled) }
       .map { CFBooleanGetValue(unsafeBitCast($0, to: CFBoolean.self)) } ?? false
-    let output = try command("/usr/bin/pgrep", ["-U", "\(getuid())", "-x", "Owltype"], acceptedStatuses: [0, 1])
+    let output = try command("/usr/bin/pgrep", OwlSessionRestart.serverQuery(uid: getuid()), acceptedStatuses: [0, 1])
     let pids = output.split(whereSeparator: \.isNewline).compactMap { Int32($0) }.filter { $0 != driver && $0 != getpid() }
     let attributes = try FileManager.default.attributesOfItem(atPath: OwlSessionRestart.installedExecutable)
     let inode = (attributes[.systemFileNumber] as? NSNumber)?.uint64Value ?? 0
@@ -164,13 +164,7 @@ final class OwlInstallSession: OwlSessionRestart.Effects {
     // Multiple servers already fail the self-check; avoid an unbounded per-PID command loop.
     if pids.count == 1, let pid = pids.first {
       let mapping = try command("/usr/sbin/lsof", ["-a", "-p", "\(pid)", "-d", "txt", "-F", "fin"], acceptedStatuses: [0, 1])
-      let info = try command("/usr/bin/lsappinfo", ["info", "-only", "executablepath,CFBundleVersion", "\(pid)"])
-      func value(_ key: String) -> String {
-        guard let range = info.range(of: key + "=\"") else { return "" }
-        return String(info[range.upperBound...].prefix { $0 != "\"" })
-      }
-      servers = [.init(pid: pid, executable: value("executable path"), version: value("Version"),
-                       mapsInstalledExecutable: inode != 0 && OwlSessionRestart.mapsInstalledExecutable(mapping, inode: inode))]
+      servers = [OwlSessionRestart.server(pid: pid, mapping: mapping, installedInode: inode)]
     } else {
       servers = pids.map { .init(pid: $0, executable: "", version: "", mapsInstalledExecutable: false) }
     }
