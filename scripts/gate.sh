@@ -81,6 +81,7 @@ portable_scripts() {
   bash scripts/pkg-leftovers.selftest.sh
   bash scripts/uninstall-repair.selftest.sh
   bash scripts/live-test.selftest.sh
+  bash scripts/clean-dev.selftest.sh
   python3 scripts/check-ime-host-evidence.selftest.py
   xcrun swiftc -typecheck scripts/ime-acceptance-host.swift
 }

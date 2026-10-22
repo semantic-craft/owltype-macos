@@ -11,12 +11,18 @@
 # the code. Left alone this grows without bound: one sweep found 98 dead claims
 # against a single live one, next to 66 GB of orphaned Xcode DerivedData.
 #
+# Builds also register the apps they contain or produce: Sparkle's Updater.app
+# inside every Owltype.app, OwltypeInstaller.app with the Owltype.app it carries,
+# the UI-test runner, and the patched Sparkle build. Their dead records pile up
+# the same way and are swept with the rest.
+#
 # Scope is deliberately narrow. This touches only artifacts belonging to *this*
-# repository and only registrations for *this* app. It never removes another
-# project's DerivedData, never deletes a Time Machine snapshot, and never
-# rebuilds the LaunchServices database — a global rebuild would reset file
-# associations far outside this project, and unregistering the exact stale
-# paths achieves the same thing without that blast radius.
+# repository and only dead registrations for *this* app and the apps its builds
+# contain. It never removes another project's DerivedData, never deletes a Time
+# Machine snapshot, and never rebuilds the LaunchServices database — a global
+# rebuild would reset file associations far outside this project, and
+# unregistering the exact stale paths achieves the same thing without that
+# blast radius.
 #
 # Usage, from anywhere inside the worktree:
 #
@@ -121,18 +127,28 @@ if [[ -d "$dd" ]]; then
 fi
 
 # --- Stale LaunchServices registrations for this app -------------------------
+#
+# A path counts as this app's when it names Owltype.app, OwltypeInstaller.app or
+# OwltypeUITests-Runner.app (wherever it was built), an app nested inside one of
+# them, or an app under the build/sparkle-patched/ directory that
+# scripts/build-sparkle.py writes. A generic Updater.app anywhere else belongs to
+# another product and is left alone. Only a path that no longer exists is
+# unregistered. OWL_LSREGISTER stands in for the tool in scripts/clean-dev.selftest.sh.
 
-stage "stale LaunchServices registrations for Owltype.app"
+stage "stale LaunchServices registrations for Owltype.app and the apps its builds contain"
 
-lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+lsregister="${OWL_LSREGISTER:-/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister}"
 if [[ -x "$lsregister" ]]; then
   stale=0
   live=0
   while IFS= read -r bundle; do
     [[ -n "$bundle" ]] || continue
     if [[ -e "$bundle" ]]; then
-      live=$((live + 1))
-      printf '  live          %s\n' "$bundle"
+      # Only Owltype.app claims the input-method id; a live nested app is no hazard.
+      if [[ "$bundle" == */Owltype.app ]]; then
+        live=$((live + 1))
+        printf '  live          %s\n' "$bundle"
+      fi
       continue
     fi
     stale=$((stale + 1))
@@ -142,13 +158,13 @@ if [[ -x "$lsregister" ]]; then
   done < <("$lsregister" -dump 2>/dev/null \
     | grep -E '^path:' \
     | sed -E 's/^path:[[:space:]]*//; s/ \(0x[0-9a-f]+\)$//' \
-    | grep -E '/Owltype\.app$' \
+    | grep -E '/(Owltype|OwltypeInstaller|OwltypeUITests-Runner)\.app(/.*\.app)?$|/build/sparkle-patched/.*\.app$' \
     | sort -u)
 
   if ((apply)); then
-    printf '  unregistered  %d stale bundle path(s); %d live registration(s) remain\n' "$stale" "$live"
+    printf '  unregistered  %d stale bundle path(s); %d live Owltype.app registration(s) remain\n' "$stale" "$live"
   else
-    printf '  would unregister  %d stale bundle path(s); %d live registration(s) remain\n' "$stale" "$live"
+    printf '  would unregister  %d stale bundle path(s); %d live Owltype.app registration(s) remain\n' "$stale" "$live"
   fi
   if ((live > 1)); then
     printf '  NOTE: more than one live Owltype.app is registered. Only the installed\n'
