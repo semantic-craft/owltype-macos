@@ -20,7 +20,8 @@ LIMITS = ['installed input-method acceptance', 'credential-gated Live suites',
           'signing, notarization and remote publication']
 
 
-def snapshot(root=ROOT):
+def snapshot(root=ROOT, pinned=None):
+    """Describe the checkout at root; a submodule that matches its gitlink is 'pinned'."""
     def git(*args):
         return subprocess.check_output(['git', *args], cwd=root)
 
@@ -37,10 +38,15 @@ def snapshot(root=ROOT):
     for entry in git('ls-files', '--stage', '-z').split(b'\0'):
         if not entry.startswith(b'160000 '):
             continue
-        name = os.fsdecode(entry.split(b'\t', 1)[1])
+        metadata, name = entry.split(b'\t', 1)
+        name = os.fsdecode(name)
         path = root / name
-        submodules[name] = snapshot(path) if (path / '.git').exists() else 'uninitialized'
-    return {
+        # The gate initializes submodules at their gitlinks. An uninitialized submodule cannot
+        # differ from its gitlink, so it records like a clean initialized one and the
+        # initialization is not a source change; any other state is recorded in full.
+        submodules[name] = (snapshot(path, metadata.split()[1].decode())
+                            if (path / '.git').exists() else 'pinned')
+    state = {
         'head': git('rev-parse', 'HEAD').decode().strip(),
         'status': git('status', '--porcelain=v1', '--untracked-files=all', '--ignore-submodules=none').decode(),
         'tracked_diff_sha256': hashlib.sha256(git('diff', 'HEAD', '--binary', '--no-ext-diff',
@@ -48,6 +54,11 @@ def snapshot(root=ROOT):
         'untracked_sha256': untracked,
         'submodules': submodules,
     }
+    if pinned is not None and state == {
+            'head': pinned, 'status': '', 'tracked_diff_sha256': hashlib.sha256(b'').hexdigest(),
+            'untracked_sha256': {}, 'submodules': dict.fromkeys(submodules, 'pinned')}:
+        return 'pinned'
+    return state
 
 
 def plan(scope, tests):

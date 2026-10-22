@@ -13,8 +13,8 @@ for argument in "$@"; do
 done
 
 # This is the single execution order, also exposed to the verification recorder.
-gate_steps=(tools source_boundary navigation portable_scripts secret_policy history_scan
-            licensing bootstrap_seed lint_release_tests product_tests)
+gate_steps=(tools submodules source_boundary navigation portable_scripts secret_policy
+            history_scan licensing bootstrap_seed lint_release_tests product_tests)
 if [[ "$mode" == full ]]; then
   gate_steps+=(builds release_checks unused_code)
 fi
@@ -36,6 +36,15 @@ tools() {
   need trufflehog "brew install trufflehog"
   need swiftlint "brew install swiftlint"
   need xcodegen "brew install xcodegen"
+}
+
+# A fresh worktree starts with empty submodule directories and any later stage may read them
+# (portable_scripts archives Sparkle/ at its pinned revision), so the checkout is completed
+# before the first check. The recorder treats a submodule at its gitlink as unchanged,
+# initialized or not, so this stage is never a source change.
+submodules() {
+  stage "submodules at their pinned revisions"
+  git submodule update --init --recursive
 }
 
 source_boundary() {
@@ -106,7 +115,6 @@ licensing() {
 
 bootstrap_seed() {
   stage "bootstrap and seed"
-  git submodule update --init --recursive
   make bootstrap
   make owl-seed
 }

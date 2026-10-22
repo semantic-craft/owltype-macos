@@ -3,6 +3,30 @@
 Each entry keeps the rule, reason, regression, and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## The gate completes the checkout before the first check reads it
+
+**`submodules` is the gate's second stage, right after `tools`; no later stage may be the first to need a submodule, and the receipt must not count that initialization as a source change.**
+
+- Reason: the first full gate in a fresh worktree (`20261022T000748Z-full-60z149yn`, the head of
+  PR #241) failed in `portable_scripts`: `build-sparkle.selftest.py` runs `git archive` against
+  the pinned revision inside `Sparkle/`, still an empty directory, so git answered
+  `fatal: not a tree object`. `git submodule update --init --recursive` lived in `bootstrap_seed`,
+  four stages later. The main checkout has always had its submodules, so the order was never
+  exercised; the run was repeated after a manual initialization. A gate that had reached the
+  end would still have failed: [verify.py](scripts/verify.py) recorded every submodule as
+  `uninitialized` before and in full after, which reads as `source-changed`.
+- Prevention: `submodules` is the second entry of `gate_steps` in both modes and `bootstrap_seed`
+  no longer initializes. The receipt records a submodule that matches its gitlink as `pinned`
+  whether or not it is initialized, so initialization alone is never a source change, while a
+  modified or re-pointed submodule is still recorded in full.
+- Regression: `test_gate_initializes_submodules_before_any_check_reads_the_tree`,
+  `test_submodule_initialization_during_check_is_not_a_source_change` and
+  `test_edit_inside_a_submodule_during_check_is_a_source_change` in
+  [verify.selftest.py](scripts/verify.selftest.py), run by the `navigation` stage of
+  [the merge gate](scripts/gate.sh); all three fail on the previous scripts. The full gate of
+  this change ran first in a worktree with no initialized submodule (PR #242).
+- Seen on 1 distinct date: 2026-10-22.
+
 ## A failed self-check must say which step failed and what it saw
 
 **Record the stage, the error and the unmet conditions of a failed install self-check; re-probe before guidance and keep the reason in the support bundle.**

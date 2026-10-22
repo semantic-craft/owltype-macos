@@ -28,6 +28,18 @@ class VerificationTests(unittest.TestCase):
                  'commit', '-qm', 'fixture')
         self.records = Path(self.temp.name) / 'records'
 
+    def add_submodule(self):
+        upstream = Path(self.temp.name) / 'upstream'
+        upstream.mkdir()
+        (upstream / 'vendored.txt').write_text('vendored\n')
+        for command in (['init', '-q'], ['add', '.'], ['commit', '-qm', 'vendored']):
+            subprocess.check_call(['git', '-c', 'user.name=Fixture',
+                                   '-c', 'user.email=fixture@users.noreply.github.com', *command],
+                                  cwd=upstream)
+        self.git('-c', 'protocol.file.allow=always', 'submodule', 'add', '--quiet', str(upstream), 'vendor')
+        self.git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@users.noreply.github.com',
+                 'commit', '-qm', 'vendor submodule')
+
     def git(self, *args):
         return subprocess.check_output(['git', *args], cwd=self.root, text=True).strip()
 
@@ -67,6 +79,30 @@ class VerificationTests(unittest.TestCase):
         self.assertEqual(receipt['status'], 'source-changed')
         self.assertFalse(receipt['source_unchanged'])
 
+    def test_submodule_initialization_during_check_is_not_a_source_change(self):
+        self.add_submodule()
+        self.git('submodule', 'deinit', '--force', '--', 'vendor')
+        self.assertFalse((self.root / 'vendor/.git').exists())
+        (self.root / 'scripts/check-navigation.py').write_text(
+            'import subprocess\nsubprocess.run(["git", "-c", "protocol.file.allow=always", '
+            '"submodule", "update", "--init", "--recursive"], check=True)\n')
+        result, receipt, _ = self.run_check()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(receipt['status'], 'passed')
+        self.assertTrue((self.root / 'vendor/.git').exists())
+        self.assertEqual(receipt['before']['submodules'], {'vendor': 'pinned'})
+        self.assertEqual(receipt['after']['submodules'], {'vendor': 'pinned'})
+
+    def test_edit_inside_a_submodule_during_check_is_a_source_change(self):
+        self.add_submodule()
+        (self.root / 'scripts/check-navigation.py').write_text(
+            'from pathlib import Path\nPath("vendor/vendored.txt").write_text("changed")\n')
+        result, receipt, _ = self.run_check()
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(receipt['status'], 'source-changed')
+        self.assertEqual(receipt['before']['submodules'], {'vendor': 'pinned'})
+        self.assertEqual(receipt['after']['submodules']['vendor']['status'], ' M vendored.txt\n')
+
     def test_unknown_swift_selection_is_rejected_before_building(self):
         result = subprocess.run(
             [sys.executable, str(self.root / 'scripts/verify.py'), 'swift', '--test', 'MissingTests'],
@@ -100,6 +136,14 @@ class VerificationTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertEqual(receipt['steps'][0]['unverified_tests'], ['FixtureTests/testTwo'])
 
+    def test_gate_initializes_submodules_before_any_check_reads_the_tree(self):
+        shutil.copy(Path(__file__).with_name('gate.sh'), self.root / 'scripts/gate.sh')
+        for mode in ([], ['--quick']):
+            stages = subprocess.check_output(['bash', 'scripts/gate.sh', '--list-stages', *mode],
+                                             cwd=self.root, text=True).split()
+            self.assertEqual(stages[:2], ['tools', 'submodules'], stages)
+            self.assertIn('portable_scripts', stages)
+
     def test_gate_failure_records_completed_failed_and_unrun_stages(self):
         shutil.copy(Path(__file__).with_name('gate.sh'), self.root / 'scripts/gate.sh')
         (self.root / 'scripts/check-public-source.sh').write_text('exit 9\n')
@@ -112,10 +156,11 @@ class VerificationTests(unittest.TestCase):
         result, receipt, _ = self.run_check('full', env={'PATH': str(adapters) + os.pathsep + os.environ['PATH']})
         self.assertEqual(result.returncode, 9)
         stages = receipt['gate_stages']
-        self.assertEqual(stages[0]['status'], 'passed')
-        self.assertEqual(stages[1]['status'], 'failed')
-        self.assertTrue(all(stage['status'] == 'not-run' for stage in stages[2:]))
-        self.assertGreaterEqual(stages[1]['elapsed_seconds'], 0)
+        failed = [stage['name'] for stage in stages].index('source_boundary')
+        self.assertEqual({stage['status'] for stage in stages[:failed]}, {'passed'})
+        self.assertEqual(stages[failed]['status'], 'failed')
+        self.assertTrue(all(stage['status'] == 'not-run' for stage in stages[failed + 1:]))
+        self.assertGreaterEqual(stages[failed]['elapsed_seconds'], 0)
 
     def test_interrupt_stops_descendants_even_when_leader_exits_first(self):
         pidfile = Path(self.temp.name) / 'child.pid'
