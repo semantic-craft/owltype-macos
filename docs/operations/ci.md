@@ -175,8 +175,13 @@ The cleanup covers three bounded surfaces:
   directory is retained because it is the signed record of a shipped version.
 - Orphaned Xcode DerivedData whose recorded workspace belonged to this repository and
   no longer exists. Other projects and live workspaces are untouched.
-- Stale LaunchServices registrations for `Owltype.app`, removed one exact dead path at
-  a time. The script never rebuilds the whole LaunchServices database.
+- Stale LaunchServices registrations for `Owltype.app` and the apps its builds contain
+  or produce: Sparkle's `Updater.app`, `OwltypeInstaller.app` with the `Owltype.app` it
+  carries, the UI-test runner, and the patched Sparkle build under
+  `build/sparkle-patched/`. Each is removed by its exact dead path; live paths and other
+  products' apps are left alone. The script never rebuilds the whole LaunchServices
+  database. [clean-dev.selftest.sh](../../scripts/clean-dev.selftest.sh) checks the
+  selection against a canned registration dump.
 
 It never deletes Time Machine snapshots. Recently deleted files may stay pinned by a
 local snapshot, so free space can lag behind a successful cleanup.
