@@ -317,3 +317,11 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Verify (验证点):
 - Seen on 1 distinct date: 2026-10-21.
 
+
+## 删除开发产物前先检查运行引用与应用注册
+
+- 起因与后果：2026-10-23 本机盘点发现多个项目已删除的构建／验收 App 仍有 LaunchServices 注册；删除目录不会自动注销。历史引入提交未确定。
+- 修复：本次清理入口改为精确目录注销，包含嵌套辅助 App、已失效路径和同路径多条记录；注销失败或目录内有运行中的可执行文件就保留产物。删除后再核对注册。
+- Done right：只处理调用方拥有的临时目录，不停止进程、不重建数据库；正式安装与其他工作区不在清理范围。
+- Verify (验证点)：运行 cleanup_app_registrations 的回归，检查运行中副本、符号链接、注销失败及嵌套／重复记录；真实隔离 App 验证另记 PR，模拟测试不替代本机证据。
+- Seen 1x (2026-10-23)。

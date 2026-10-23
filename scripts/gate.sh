@@ -62,6 +62,7 @@ navigation() {
 }
 
 portable_scripts() {
+  python3 scripts/test_cleanup_app_registrations.py
   stage "portable scripts"
   bash -n action-install.sh scripts/*.sh package/apple_tool_adapter package/make_package \
     package/*.command

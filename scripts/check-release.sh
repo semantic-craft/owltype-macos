@@ -122,7 +122,19 @@ fi
 # 所以 1.5.1 出包时才逮住这处陈旧断言。
 tmp=$(mktemp -u /tmp/owl-pkg.XXXXXX)
 tmp_update=$(mktemp -u /tmp/owl-update-pkg.XXXXXX)
-trap 'rm -rf "$tmp" "$tmp_update"' EXIT
+cleanup_packages() {
+  local status=$?
+  trap - EXIT
+  for path in "$tmp" "$tmp_update"; do
+    if ! python3 "$ROOT/scripts/cleanup_app_registrations.py" --remove "$path"; then
+      [[ "$status" != 0 ]] || status=1
+    fi
+  done
+  exit "$status"
+}
+trap cleanup_packages EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 pkgutil --expand-full "$PKG" "$tmp"
 package_info="$tmp/Owltype-component.pkg/PackageInfo"
