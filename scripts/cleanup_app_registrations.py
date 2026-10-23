@@ -47,7 +47,7 @@ def registered_apps():
     for block in re.split(r'\n-{10,}\n', dump):
         if not block.lstrip().startswith('bundle id:'):
             continue
-        match = re.search(r'^path:\s+(.+)$', block, re.MULTILINE)
+        match = re.search(r'^\s*path:\s+(.+)$', block, re.MULTILINE)
         if match:
             result.append(Path(re.sub(r' \(0x[0-9a-fA-F]+\)$', '', match[1])))
     return result
@@ -90,8 +90,14 @@ def prepare(root):
     # Read registered paths, including nested helpers and already-deleted products.
     # Do not follow a symlink out of the disposable tree.
     empty_seen = False
-    for _ in range(8):
-        paths = {p for p in registered_apps() if inside(p, root)}
+    previous_count = None
+    stalled = 0
+    deadline = time.monotonic() + 120
+    while stalled < 8 and time.monotonic() < deadline:
+        records = [p for p in registered_apps() if inside(p, root)]
+        stalled = 0 if previous_count is None or len(records) < previous_count else stalled + 1
+        previous_count = len(records)
+        paths = set(records)
         if not paths:
             if any(inside(path, root) for path in running_executables()):
                 raise RuntimeError(f'Running executable inside {root}; retained')
@@ -108,8 +114,7 @@ def prepare(root):
             if result.returncode and '-10814' not in result.stdout + result.stderr:
                 raise RuntimeError(f'Unregister failed for {app}: {result.returncode}')
         # Duplicate records can share one path; one -u need not remove them all.
-    if any(inside(p, root) for p in registered_apps()):
-        raise RuntimeError(f'Registrations survived cleanup in {root}; retained')
+    raise RuntimeError(f'Registration cleanup did not settle in {root}; retained')
 
 
 if __name__ == '__main__':

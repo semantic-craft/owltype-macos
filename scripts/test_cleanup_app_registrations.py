@@ -49,6 +49,21 @@ class CleanupTests(unittest.TestCase):
         self.records.remove(Path(command[-1]))
         return subprocess.CompletedProcess(command, 0, '', '')
 
+    def test_indented_dump_paths_are_registered(self):
+        with patch.object(cleanup.subprocess, 'check_output', return_value=f'    bundle id: app\n    path: {self.app} (0x123)\n'):
+            self.assertEqual(cleanup.registered_apps(), [self.app])
+
+    def test_many_duplicates_are_drained_while_progress_continues(self):
+        self.records = [self.app] * 12 + [self.other]
+        cleanup.prepare(self.root)
+        self.assertEqual(self.records, [self.other])
+
+    def test_success_without_progress_is_bounded(self):
+        with patch.object(cleanup.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, '', '')) as run:
+            with self.assertRaises(RuntimeError):
+                cleanup.prepare(self.root)
+        self.assertLessEqual(run.call_count, 18)
+
     def test_case_alias_cannot_hide_running_app(self):
         mixed = self.root / 'MixedCase'
         mixed.mkdir()
