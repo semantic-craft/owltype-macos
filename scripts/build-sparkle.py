@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 import re
 import shutil
+from cleanup_app_registrations import prepare as prepare_registrations
 import subprocess
 import tempfile
 
@@ -102,11 +103,17 @@ def build():
         # Publish only the validated build, preserving the previous framework on build failure.
         staged = destination.with_name("Sparkle.framework.new")
         if staged.exists():
+            prepare_registrations(staged)
             shutil.rmtree(staged)
+            prepare_registrations(staged)
         shutil.copytree(built, staged, symlinks=True)
         if destination.exists():
+            prepare_registrations(destination)
             shutil.rmtree(destination)
+            prepare_registrations(destination)
+        prepare_registrations(staged)
         staged.rename(destination)
+        prepare_registrations(staged)
         print("Built official Sparkle pin with application-relaunch patch")
 
 

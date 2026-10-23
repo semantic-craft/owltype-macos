@@ -31,6 +31,7 @@ class CleanupTests(unittest.TestCase):
         self.failure = False
         self.addCleanup(patch.stopall)
         patch.object(cleanup.sys, 'platform', 'darwin').start()
+        patch.object(cleanup, 'SETTLE_SECONDS', 0).start()
         patch.object(cleanup.subprocess, 'check_output', side_effect=self.output).start()
         patch.object(cleanup.subprocess, 'run', side_effect=self.run_command).start()
         patch.object(cleanup, 'running_executables', side_effect=lambda: [Path(self.live.strip())] if self.live else []).start()
@@ -47,6 +48,23 @@ class CleanupTests(unittest.TestCase):
             return subprocess.CompletedProcess(command, 2, '', 'denied')
         self.records.remove(Path(command[-1]))
         return subprocess.CompletedProcess(command, 0, '', '')
+
+    def test_case_alias_cannot_hide_running_app(self):
+        mixed = self.root / 'MixedCase'
+        mixed.mkdir()
+        alias = self.root / 'mixedcase'
+        if not alias.exists():
+            self.skipTest('case-sensitive volume')
+        self.live = str(mixed / 'Product.app/Contents/MacOS/Product')
+        with self.assertRaises(RuntimeError):
+            cleanup.prepare(alias)
+        self.assertEqual(self.commands, [])
+
+    def test_delayed_registration_after_empty_dump_is_removed(self):
+        self.records = [self.app]
+        with patch.object(cleanup, 'registered_apps', side_effect=[[], [self.app], [], []]):
+            cleanup.prepare(self.root)
+        self.assertEqual(self.records, [])
 
     def test_nested_duplicate_and_missing_apps_leave_other_tree_alone(self):
         missing = self.root / 'Already deleted.app'

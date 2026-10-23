@@ -174,8 +174,9 @@ package/sign_update:
 	cp download/bin/sign_update package/sign_update
 
 clean-sparkle:
-	rm -rf Frameworks/* > /dev/null 2>&1 || true
-	rm -rf Sparkle/build build/sparkle-patched > /dev/null 2>&1 || true
+	python3 scripts/cleanup_app_registrations.py --remove Frameworks
+	python3 scripts/cleanup_app_registrations.py --remove Sparkle/build
+	python3 scripts/cleanup_app_registrations.py --remove build/sparkle-patched
 
 .PHONY: notarized-app package $(PACKAGE)
 

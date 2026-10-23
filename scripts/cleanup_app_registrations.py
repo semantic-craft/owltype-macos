@@ -12,12 +12,33 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 LSREGISTER = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
 
 
+SETTLE_SECONDS = 0.65
+
+
 def inside(path, root):
-    return path == root or root in path.parents
+    if path == root or root in path.parents:
+        return True
+    # On case-insensitive APFS resolve() preserves the caller's spelling.
+    # Probe an existing ancestor on this volume; do not fold case on a
+    # case-sensitive volume where these names can denote separate trees.
+    probe = root
+    while not probe.exists() and probe != probe.parent:
+        probe = probe.parent
+    while probe != probe.parent:
+        alternate = probe.with_name(probe.name.swapcase())
+        if alternate != probe:
+            if alternate.exists() and probe.samefile(alternate):
+                parts = tuple(part.casefold() for part in path.parts)
+                prefix = tuple(part.casefold() for part in root.parts)
+                return parts[:len(prefix)] == prefix
+            return False
+        probe = probe.parent
+    return False
 
 
 def registered_apps():
@@ -55,7 +76,8 @@ def prepare(root):
     if raw.is_symlink():
         raise RuntimeError(f'Refusing redirected cleanup root: {raw}')
     root = raw.resolve()
-    if (root in (Path('/'), Path.home().resolve(), Path('/Library'))
+    if (any(len(root.parts) == len(protected.parts) and inside(root, protected)
+            for protected in (Path('/'), Path.home().resolve(), Path('/Library')))
             or inside(root, Path('/Applications'))
             or inside(root, Path.home().resolve() / 'Applications')
             or inside(root, Path('/Library/Input Methods'))):
@@ -67,10 +89,18 @@ def prepare(root):
         raise RuntimeError(f'Running executable inside {root}; retained')
     # Read registered paths, including nested helpers and already-deleted products.
     # Do not follow a symlink out of the disposable tree.
+    empty_seen = False
     for _ in range(8):
         paths = {p for p in registered_apps() if inside(p, root)}
         if not paths:
-            return
+            if any(inside(path, root) for path in running_executables()):
+                raise RuntimeError(f'Running executable inside {root}; retained')
+            if empty_seen:
+                return
+            empty_seen = True
+            time.sleep(SETTLE_SECONDS)
+            continue
+        empty_seen = False
         for app in sorted(paths, key=lambda p: len(p.parts), reverse=True):
             if app.resolve() != app or not inside(app.resolve(), root):
                 raise RuntimeError(f'Redirected registered path: {app}')
