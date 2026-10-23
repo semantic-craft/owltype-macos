@@ -223,7 +223,7 @@ install install-debug install-release:
 .PHONY: clean clean-deps
 
 clean:
-	rm -rf build > /dev/null 2>&1 || true
+	python3 scripts/cleanup_app_registrations.py --remove build
 	rm build.log > /dev/null 2>&1 || true
 	rm bin/* > /dev/null 2>&1 || true
 	rm lib/* > /dev/null 2>&1 || true

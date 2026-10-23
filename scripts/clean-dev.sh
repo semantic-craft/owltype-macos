@@ -60,7 +60,7 @@ reclaim() {
   kb="$(du -sk "$target" 2>/dev/null | cut -f1)" || kb=0
   freed=$((freed + kb))
   if ((apply)); then
-    rm -rf "$target"
+    python3 "$root/scripts/cleanup_app_registrations.py" --remove "$target"
     printf '  removed       %8s  %s%s\n' "$(du_human "$kb")" "$target" "${label:+  ($label)}"
   else
     printf '  would remove  %8s  %s%s\n' "$(du_human "$kb")" "$target" "${label:+  ($label)}"
