@@ -226,55 +226,75 @@ final class OwlRustEngineTests: XCTestCase {
     OwlExperimentalPreferences.settledRerankEnabled = true
 
     let engine = try makeSharedSupportSeedEngine()
-    let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
-    defer { session.destroy() }
-    waitForSettledRerankReady(session)
+    for usesToken in [false, true] {
+      let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
+      defer { session.destroy() }
+      waitForSettledRerankReady(session)
 
-    typeText("zhongguoren", into: session)
-    let before = try XCTUnwrap(session.composition())
-    let beforeGeneration = session.generation
+      typeText("zhongguoren", into: session)
+      let before = try XCTUnwrap(session.composition())
+      let beforeGeneration = session.generation
 
-    let started = session.startSettledRerank()
-    let moved: Bool
-    let current: Bool
-    if let token = started.token {
-      var result = OwlSettledRerankPollResult(
-        pending: true,
-        current: false,
-        moved: false,
-        error: nil
+      let started = session.startSettledRerank()
+      let moved: Bool
+      let current: Bool
+      if let token = started.token {
+        var result = OwlSettledRerankPollResult(
+          pending: true,
+          current: false,
+          moved: false,
+          error: nil
+        )
+        let deadline = Date().addingTimeInterval(30)
+        repeat {
+          RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+          result = session.pollSettledRerank(token: token, accept: true)
+        } while result.pending && Date() < deadline
+        XCTAssertFalse(result.pending, "settled rerank poll did not finish")
+        XCTAssertNil(result.error)
+        moved = result.moved
+        current = result.current
+      } else {
+        XCTAssertNil(started.error)
+        moved = started.moved
+        current = started.current
+      }
+
+      XCTAssertTrue(current)
+      XCTAssertTrue(moved, "real settled model must move the zhongguoren candidate order")
+      let refreshed = try XCTUnwrap(session.composition())
+      XCTAssertGreaterThan(session.generation, beforeGeneration)
+      XCTAssertNotEqual(
+        refreshed.candidates.map(\.text),
+        before.candidates.map(\.text),
+        "a moved settled result must refresh the visible candidate order"
       )
-      let deadline = Date().addingTimeInterval(30)
-      repeat {
-        RunLoop.current.run(until: Date().addingTimeInterval(0.02))
-        result = session.pollSettledRerank(token: token, accept: true)
-      } while result.pending && Date() < deadline
-      XCTAssertFalse(result.pending, "settled rerank poll did not finish")
-      XCTAssertNil(result.error)
-      moved = result.moved
-      current = result.current
-    } else {
-      XCTAssertNil(started.error)
-      moved = started.moved
-      current = started.current
+      let visibleFirst = try XCTUnwrap(refreshed.candidates.first)
+      if usesToken {
+        let stale = OwlCandidateToken(
+          sessionID: session.sessionID,
+          generation: beforeGeneration,
+          candidateID: 0,
+          isAbsolute: false
+        )
+        XCTAssertFalse(session.selectCandidate(stale))
+        XCTAssertNil(session.takeCommit())
+        let fresh = OwlCandidateToken(
+          sessionID: session.sessionID,
+          generation: session.generation,
+          candidateID: 0,
+          isAbsolute: false
+        )
+        XCTAssertTrue(session.selectCandidate(fresh))
+      } else {
+        XCTAssertTrue(session.process(keycode: UInt32(XK_1), modifiers: 0))
+      }
+      XCTAssertEqual(
+        session.takeCommit(),
+        visibleFirst.text,
+        "selection must commit the candidate currently visible after reranking"
+      )
     }
-
-    XCTAssertTrue(current)
-    XCTAssertTrue(moved, "real settled model must move the zhongguoren candidate order")
-    let refreshed = try XCTUnwrap(session.composition())
-    XCTAssertGreaterThan(session.generation, beforeGeneration)
-    XCTAssertNotEqual(
-      refreshed.candidates.map(\.text),
-      before.candidates.map(\.text),
-      "a moved settled result must refresh the visible candidate order"
-    )
-    let visibleFirst = try XCTUnwrap(refreshed.candidates.first)
-    XCTAssertTrue(session.process(keycode: UInt32(XK_1), modifiers: 0))
-    XCTAssertEqual(
-      session.takeCommit(),
-      visibleFirst.text,
-      "digit selection must commit the candidate currently visible after reranking"
-    )
   }
 
   func testEngineMetadataAndSchemaSelection() throws {
@@ -921,11 +941,8 @@ final class OwlRustEngineTests: XCTestCase {
     defer { session.destroy() }
 
     XCTAssertTrue(session.process(keycode: asciiKeycode("V"), modifiers: kShiftMask.rawValue))
-    guard session.process(keycode: UInt32(XK_KP_1), modifiers: 0) else {
-      // Product options still disable V in lib.rs; the entry itself must no longer be swallowed.
-      XCTAssertEqual(session.input(), "V")
-      return
-    }
+    XCTAssertEqual(session.input(), "V")
+    XCTAssertTrue(session.process(keycode: UInt32(XK_KP_1), modifiers: 0))
     XCTAssertTrue(session.process(keycode: asciiKeycode("+"), modifiers: kShiftMask.rawValue))
     XCTAssertTrue(session.process(keycode: UInt32(XK_KP_2), modifiers: 0))
     let composition = try XCTUnwrap(session.composition())
