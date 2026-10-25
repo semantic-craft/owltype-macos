@@ -1146,10 +1146,6 @@ final class OwlRustEngine: RimeEngine {
     notificationHandler = handler
   }
 
-  func syncUserData() -> Bool {
-    true
-  }
-
   func cleanupAllSessions() {
     let currentSessions = Array(sessions.values)
     sessions.removeAll()
