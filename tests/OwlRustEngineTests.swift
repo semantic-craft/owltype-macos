@@ -376,11 +376,11 @@ final class OwlRustEngineTests: XCTestCase {
     let session = engine.createSession()
     defer { session.destroy() }
 
-    // 1. Pure Wubi 4-code unique auto-commit: gggg -> 王
-    for scalar in "gggg".unicodeScalars {
+    // 1. Pure Wubi 4-code unique auto-commit: sebv -> 极限
+    for scalar in "sebv".unicodeScalars {
       XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
     }
-    XCTAssertEqual(session.takeCommit(), "王")
+    XCTAssertEqual(session.takeCommit(), "极限")
     XCTAssertEqual(session.input(), "")
 
     // 2. Z reverse lookup in pure Wubi: zhao -> 找 / 好 with Wubi code comment even when wubiCodeHint is false
@@ -410,9 +410,9 @@ final class OwlRustEngineTests: XCTestCase {
     session.clearComposition()
     OwlKeyboardPreferences.wubiZReverseLookup = true
 
-    // 3. wubiAutoClear on 4-code empty miss (`ffff` miss -> auto-cleared)
+    // 3. wubiAutoClear on 4-code empty miss (`aaab` miss -> auto-cleared)
     OwlKeyboardPreferences.wubiAutoClear = true
-    for scalar in "ffff".unicodeScalars {
+    for scalar in "aaab".unicodeScalars {
       _ = session.process(keycode: scalar.value, modifiers: 0)
     }
     XCTAssertEqual(session.input(), "")
@@ -575,19 +575,85 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.takeCommit(), templateCandidate)
     XCTAssertEqual(session.lastCommittedInput(), "ft")
 
-    // 4. Deleting or replacing a weight-100000 host phrase removes the stale row from staged SQLite
+    // 4. Replacing a host phrase refreshes the runtime table without duplicating it.
+    let updatedQuickPhrase = "updated@example.com\tyx\t100000\n"
+    try updatedQuickPhrase.write(
+      to: userDir.appendingPathComponent(OwlQuickSendStore.dictFileName),
+      atomically: true,
+      encoding: .utf8
+    )
+    XCTAssertTrue(engine.deployConfigFile(OwlQuickSendStore.dictFileName, versionKey: "config_version"))
+    for scalar in "yx".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    let updatedComp = try XCTUnwrap(session.composition())
+    XCTAssertEqual(
+      updatedComp.candidates.filter { $0.text == "updated@example.com" }.count,
+      1
+    )
+    XCTAssertFalse(updatedComp.candidates.contains(where: { $0.text == "user@example.com" }))
+    session.clearComposition()
+
+    // Duplicate rows in the packed host table still produce exactly one candidate.
+    try (updatedQuickPhrase + updatedQuickPhrase).write(
+      to: userDir.appendingPathComponent(OwlQuickSendStore.dictFileName),
+      atomically: true,
+      encoding: .utf8
+    )
+    XCTAssertTrue(engine.deployConfigFile(OwlQuickSendStore.dictFileName, versionKey: "config_version"))
+    for scalar in "yx".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    let deduplicatedComp = try XCTUnwrap(session.composition())
+    XCTAssertEqual(
+      deduplicatedComp.candidates.filter { $0.text == "updated@example.com" }.count,
+      1
+    )
+    session.clearComposition()
+
+    // 5. A newly created session reads the current host files and keeps the base phrase table.
+    session.destroy()
+    let restarted = engine.createSession()
+    defer { restarted.destroy() }
+    for scalar in "yx".unicodeScalars {
+      XCTAssertTrue(restarted.process(keycode: scalar.value, modifiers: 0))
+    }
+    let restartedComp = try XCTUnwrap(restarted.composition())
+    XCTAssertEqual(
+      restartedComp.candidates.filter { $0.text == "updated@example.com" }.count,
+      1
+    )
+    restarted.clearComposition()
+
+    // 6. Clearing the host file removes only host rows. Prompts, templates and seed quick phrases remain.
     try "".write(
       to: userDir.appendingPathComponent(OwlQuickSendStore.dictFileName),
       atomically: true,
       encoding: .utf8
     )
     XCTAssertTrue(engine.deployConfigFile(OwlQuickSendStore.dictFileName, versionKey: "config_version"))
-    session.setOption(.transcription, false)
+    restarted.setOption(.transcription, false)
     for scalar in "yx".unicodeScalars {
-      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+      XCTAssertTrue(restarted.process(keycode: scalar.value, modifiers: 0))
     }
-    let yxAfterDelete = try XCTUnwrap(session.composition())
+    let yxAfterDelete = try XCTUnwrap(restarted.composition())
     XCTAssertFalse(yxAfterDelete.candidates.contains(where: { $0.text == "user@example.com" }))
-    session.clearComposition()
+    XCTAssertFalse(yxAfterDelete.candidates.contains(where: { $0.text == "updated@example.com" }))
+    restarted.clearComposition()
+
+    for scalar in "zb".unicodeScalars {
+      XCTAssertTrue(restarted.process(keycode: scalar.value, modifiers: 0))
+    }
+    XCTAssertEqual(try XCTUnwrap(restarted.composition()).candidates.first?.text, "📝周报生成")
+    restarted.clearComposition()
+
+    for (input, expected) in [("xguang", "X光"), ("ft", templateCandidate)] {
+      for scalar in input.unicodeScalars {
+        XCTAssertTrue(restarted.process(keycode: scalar.value, modifiers: 0))
+      }
+      let comp = try XCTUnwrap(restarted.composition())
+      XCTAssertTrue(comp.candidates.contains(where: { $0.text == expected }))
+      restarted.clearComposition()
+    }
   }
 }

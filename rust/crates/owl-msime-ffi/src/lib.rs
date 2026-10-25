@@ -171,6 +171,7 @@ impl CandidateTransform for OwlPinnedTransform {
 pub struct OwlMsimeSession {
     runtime: Runtime<EngineSession>,
     options: EngineOptions,
+    source_pinyin_path: PathBuf,
     staged_pinyin_path: PathBuf,
     page_size: u8,
     input_mode: String,
@@ -439,6 +440,161 @@ fn stage_file_if_needed(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+fn reconcile_quick_phrases(
+    source: &Path,
+    staged: &Path,
+    user_journal: &Path,
+    only_when_tracking: bool,
+) -> Result<bool, String> {
+    if source == staged {
+        return Ok(false);
+    }
+    let mut conn = Connection::open(staged)
+        .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: open database: {e}"))?;
+    let has_legacy_tracking: bool = conn
+        .query_row(
+            "SELECT EXISTS(
+                 SELECT 1 FROM sqlite_master
+                 WHERE type='table' AND name='owl_host_quick_phrases'
+             )",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: inspect legacy tracking: {e}"))?;
+    if only_when_tracking && !has_legacy_tracking {
+        return Ok(false);
+    }
+
+    conn.execute(
+        "ATTACH DATABASE ?1 AS owl_seed_source",
+        [source.to_string_lossy().as_ref()],
+    )
+    .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: attach seed source: {e}"))?;
+    if let Some(moved) = msime_engine::quarantine_corrupt_journal(user_journal)
+        .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: quarantine user journal: {e}"))?
+    {
+        eprintln!(
+            "msime: user dictionary journal is not a database, moved aside to {}",
+            moved.display()
+        );
+    }
+    let has_journal = user_journal.is_file();
+    if has_journal {
+        conn.execute(
+            "ATTACH DATABASE ?1 AS personal_journal",
+            [user_journal.to_string_lossy().as_ref()],
+        )
+        .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: attach user journal: {e}"))?;
+    }
+    let transaction = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: begin transaction: {e}"))?;
+    transaction
+        .execute_batch(
+            "DROP TABLE IF EXISTS quick_parases_migrated;
+             CREATE TABLE quick_parases_migrated (
+                 \"key\" TEXT,
+                 \"value\" TEXT,
+                 \"weight\" INTEGER DEFAULT 0
+             );
+             INSERT INTO quick_parases_migrated (\"key\", \"value\", \"weight\")
+             SELECT \"key\", \"value\", \"weight\"
+             FROM owl_seed_source.quick_parases;",
+        )
+        .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: copy base rows: {e}"))?;
+
+    let has_operations = if has_journal {
+        transaction
+            .query_row(
+                "SELECT EXISTS(
+                     SELECT 1 FROM personal_journal.sqlite_master
+                     WHERE type='table' AND name='user_dictionary_operations'
+                 )",
+                [],
+                |row| row.get::<_, bool>(0),
+            )
+            .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: inspect user journal: {e}"))?
+    } else {
+        false
+    };
+    if has_operations {
+        let operations = {
+            let mut statement = transaction
+                .prepare(
+                    "SELECT \"key\", \"value\", \"operation\", \"weight\"
+                     FROM personal_journal.user_dictionary_operations
+                     WHERE dictionary='quick'
+                     ORDER BY updated_at, rowid",
+                )
+                .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: read user journal: {e}"))?;
+            let operations = statement
+                .query_map([], |row| {
+                    Ok((
+                        row.get::<_, rusqlite::types::Value>(0)?,
+                        row.get::<_, rusqlite::types::Value>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, Option<i64>>(3)?.unwrap_or(0),
+                    ))
+                })
+                .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: read user journal: {e}"))?
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: read user journal: {e}"))?;
+            operations
+        };
+        for (key, value, operation, weight) in operations {
+            match operation.as_str() {
+                "delete" => {
+                    transaction
+                        .execute(
+                            "DELETE FROM quick_parases_migrated
+                             WHERE \"key\"=?1 AND \"value\"=?2",
+                            rusqlite::params![key, value],
+                        )
+                        .map_err(|e| {
+                            format!("HOST_PHRASE_CLEANUP_FAILED: replay user deletion: {e}")
+                        })?;
+                }
+                "upsert" => {
+                    let changed = transaction
+                        .execute(
+                            "UPDATE quick_parases_migrated SET \"weight\"=?1
+                             WHERE \"key\"=?2 AND \"value\"=?3",
+                            rusqlite::params![weight, key, value],
+                        )
+                        .map_err(|e| {
+                            format!("HOST_PHRASE_CLEANUP_FAILED: replay user weight: {e}")
+                        })?;
+                    if changed == 0 {
+                        transaction
+                            .execute(
+                                "INSERT INTO quick_parases_migrated
+                                 (\"key\", \"value\", \"weight\") VALUES (?1, ?2, ?3)",
+                                rusqlite::params![key, value, weight],
+                            )
+                            .map_err(|e| {
+                                format!("HOST_PHRASE_CLEANUP_FAILED: replay user row: {e}")
+                            })?;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    transaction
+        .execute_batch(
+            "DROP TABLE quick_parases;
+             ALTER TABLE quick_parases_migrated RENAME TO quick_parases;
+             DROP TABLE IF EXISTS owl_host_quick_phrases;
+             CREATE INDEX idx_quick_parases_key_weight
+             ON quick_parases (\"key\", \"weight\" DESC);",
+        )
+        .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: replace base rows: {e}"))?;
+    transaction
+        .commit()
+        .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: commit: {e}"))?;
+    Ok(true)
+}
+
 impl OwlMsimeSession {
     pub fn create(
         pinyin_db_path: &str,
@@ -482,6 +638,8 @@ impl OwlMsimeSession {
         let staged_pinyin = dict_dir.join("msime-pinyin.db");
         stage_file_if_needed(&pinyin_src, &staged_pinyin)
             .map_err(|e| format!("failed to stage msime-pinyin.db: {e}"))?;
+        let user_journal = user_dir.join(msime_engine::assets::USER_JOURNAL);
+        reconcile_quick_phrases(&pinyin_src, &staged_pinyin, &user_journal, false)?;
 
         let staged_english = dict_dir.join("msime-english.db");
         let trimmed_english = english_db_path.trim();
@@ -598,6 +756,7 @@ impl OwlMsimeSession {
         Ok(Self {
             runtime,
             options,
+            source_pinyin_path: pinyin_src,
             staged_pinyin_path: staged_pinyin,
             page_size: page_size_u8,
             input_mode: "chinese".to_owned(),
@@ -1171,6 +1330,7 @@ impl OwlMsimeSession {
             }
             "set_host_phrases" => {
                 let packed = payload.text.unwrap_or_default();
+                let mut seen = HashSet::new();
                 let mut rows: Vec<(String, String, i64)> = Vec::new();
                 for line in packed.lines() {
                     let trimmed = line.trim();
@@ -1191,37 +1351,39 @@ impl OwlMsimeSession {
                         .and_then(|w| w.trim().parse::<i64>().ok())
                         .unwrap_or(1_000_000)
                         .max(1);
-                    rows.push((code, phrase.to_owned(), weight));
+                    let row = (code, phrase.to_owned(), weight);
+                    if seen.insert((row.0.clone(), row.1.clone())) {
+                        rows.push(row);
+                    }
                 }
-                self.options.quick_phrase_table = rows
+
+                // Host phrases are merged from EngineOptions at query time. Importing them into
+                // quick_parases loses provenance and can delete or duplicate identical base rows.
+                // Migrate rows written by the earlier implementation, then keep the host table
+                // solely in runtime state.
+                let user_journal =
+                    Path::new(&self.options.user_data).join(msime_engine::assets::USER_JOURNAL);
+                if let Err(err) = reconcile_quick_phrases(
+                    &self.source_pinyin_path,
+                    &self.staged_pinyin_path,
+                    &user_journal,
+                    true,
+                ) {
+                    return error_response(err);
+                }
+                let previous_table = std::mem::replace(
+                    &mut self.options.quick_phrase_table,
+                    rows
                     .iter()
                     .map(|(code, text, _)| QuickPhraseEntry {
                         key: code.clone(),
                         text: text.clone(),
                     })
-                    .collect();
-                if let Ok(conn) = Connection::open(&self.staged_pinyin_path) {
-                    let _ = conn.execute_batch(
-                        "CREATE TABLE IF NOT EXISTS owl_host_quick_phrases (\"key\" TEXT NOT NULL, \"value\" TEXT NOT NULL);
-                         DELETE FROM quick_parases WHERE weight >= 900000 OR EXISTS (
-                             SELECT 1 FROM owl_host_quick_phrases h
-                             WHERE h.\"key\" = quick_parases.\"key\" AND h.\"value\" = quick_parases.\"value\"
-                         );
-                         DELETE FROM owl_host_quick_phrases;",
-                    );
-                    for (idx, (code, value, weight)) in rows.iter().enumerate() {
-                        let adjusted_weight = weight.saturating_sub(idx as i64);
-                        let _ = conn.execute(
-                            "INSERT INTO quick_parases (\"key\", \"value\", \"weight\") VALUES (?1, ?2, ?3)",
-                            rusqlite::params![code, value, adjusted_weight],
-                        );
-                        let _ = conn.execute(
-                            "INSERT INTO owl_host_quick_phrases (\"key\", \"value\") VALUES (?1, ?2)",
-                            rusqlite::params![code, value],
-                        );
-                    }
-                }
+                    .collect(),
+                );
                 if let Err(err) = self.force_rebuild_engine() {
+                    self.options.quick_phrase_table = previous_table;
+                    let _ = self.force_rebuild_engine();
                     return error_response(err);
                 }
                 self.build_snapshot(self.runtime.view(), true, None, false)
@@ -1492,7 +1654,10 @@ mod tests {
                ('shi', 's', '使', 5000),
                ('shi', 's', '世', 4000),
                ('shi', 's', '市', 3000),
-               ('shi', 's', '式', 2000);",
+               ('shi', 's', '式', 2000);
+
+             CREATE TABLE quick_parases (\"key\" TEXT, \"value\" TEXT, \"weight\" INTEGER);
+             CREATE INDEX idx_quick_parases_key_weight ON quick_parases (\"key\", \"weight\" DESC);",
         )
         .expect("populate test sqlite db");
     }
@@ -1512,6 +1677,23 @@ mod tests {
         let resp_str = unsafe { CStr::from_ptr(raw) }.to_str().unwrap().to_owned();
         owl_msime_string_free(raw);
         serde_json::from_str(&resp_str).expect("valid snapshot json")
+    }
+
+    fn staged_pinyin_path(session: *const OwlMsimeSession) -> PathBuf {
+        assert!(!session.is_null());
+        unsafe { (*session).staged_pinyin_path.clone() }
+    }
+
+    fn host_phrase_texts(session: *const OwlMsimeSession) -> Vec<String> {
+        assert!(!session.is_null());
+        unsafe {
+            (*session)
+                .options
+                .quick_phrase_table
+                .iter()
+                .map(|entry| entry.text.clone())
+                .collect()
+        }
     }
 
     #[test]
@@ -1783,6 +1965,507 @@ mod tests {
     }
 
     #[test]
+    fn host_phrase_sync_preserves_base_rows_and_removes_only_legacy_imports() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&db_path);
+        let conn = Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "INSERT INTO quick_parases VALUES
+               ('base', 'BaseHigh', 950000),
+               ('same', 'Same', 10),
+               ('same', 'Same', 100000);",
+        )
+        .unwrap();
+        drop(conn);
+
+        let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_empty.as_ptr(), 5);
+        assert!(!session.is_null());
+
+        let staged = staged_pinyin_path(session);
+        let conn = Connection::open(&staged).unwrap();
+        conn.execute_batch(
+            "INSERT INTO quick_parases VALUES
+               ('same', 'Same', 100000),
+               ('host', 'HostOnly', 100000),
+               ('same', 'Same', 100000),
+               ('host', 'HostOnly', 100000),
+               ('host', 'HostOnly', 100000);
+             CREATE TABLE owl_host_quick_phrases(key TEXT NOT NULL, value TEXT NOT NULL);
+             INSERT INTO owl_host_quick_phrases VALUES
+               ('same', 'Same'),
+               ('host', 'HostOnly'),
+               ('host', 'HostOnly');",
+        )
+        .unwrap();
+        drop(conn);
+
+        let response = call_action(
+            session,
+            "{\"op\":\"set_host_phrases\",\"text\":\"HostNew\\thost\\t100000\\nHostNew\\thost\\t10\"}",
+        );
+        assert!(response.ok);
+        assert_eq!(host_phrase_texts(session), vec!["HostNew"]);
+
+        let conn = Connection::open(&staged).unwrap();
+        let rows: Vec<(String, String, i64)> = conn
+            .prepare(
+                "SELECT key, value, weight FROM quick_parases ORDER BY key, value, weight",
+            )
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            rows,
+            vec![
+                ("base".to_owned(), "BaseHigh".to_owned(), 950000),
+                ("same".to_owned(), "Same".to_owned(), 10),
+                ("same".to_owned(), "Same".to_owned(), 100000),
+            ],
+            "the legacy host row must be removed without touching identical or high-weight base rows"
+        );
+        let tracking_table_count: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='owl_host_quick_phrases'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(tracking_table_count, 0);
+        drop(conn);
+
+        for ch in ['h', 'o', 's', 't'] {
+            call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+        }
+        let snapshot = call_snapshot(session);
+        assert!(
+            snapshot
+                .candidates
+                .iter()
+                .any(|candidate| candidate.text == "HostNew"),
+            "host phrases must remain available from runtime state"
+        );
+
+        let cleared = call_action(session, "{\"op\":\"set_host_phrases\",\"text\":\"\"}");
+        assert!(cleared.ok);
+        assert!(host_phrase_texts(session).is_empty());
+        let conn = Connection::open(staged_pinyin_path(session)).unwrap();
+        let quick_count: i64 = conn
+            .query_row("SELECT count(*) FROM quick_parases", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(
+            quick_count, 3,
+            "clearing host phrases must not remove base rows"
+        );
+
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn host_phrase_cleanup_failure_is_reported_and_atomic() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&db_path);
+        let conn = Connection::open(&db_path).unwrap();
+        conn.execute(
+            "INSERT INTO quick_parases VALUES ('base', 'BaseHigh', 950000)",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+
+        let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_empty.as_ptr(), 5);
+        assert!(!session.is_null());
+        let old = call_action(
+            session,
+            "{\"op\":\"set_host_phrases\",\"text\":\"HostOld\\thost\"}",
+        );
+        assert!(old.ok);
+
+        let staged = staged_pinyin_path(session);
+        let conn = Connection::open(&staged).unwrap();
+        conn.execute_batch(
+            "INSERT INTO quick_parases VALUES
+               ('host', 'HostOld', 100000),
+               ('host', 'HostOld', 100000);
+             CREATE TABLE owl_host_quick_phrases(key TEXT NOT NULL, value TEXT NOT NULL);
+             INSERT INTO owl_host_quick_phrases VALUES
+               ('host', 'HostOld'),
+               ('host', 'HostOld');",
+        )
+        .unwrap();
+
+        let source = Connection::open(&db_path).unwrap();
+        source
+            .execute_batch("ALTER TABLE quick_parases RENAME TO missing_quick_parases;")
+            .unwrap();
+        drop(source);
+
+        let failed = call_action(
+            session,
+            "{\"op\":\"set_host_phrases\",\"text\":\"HostNew\\thost\"}",
+        );
+        assert!(!failed.ok);
+        assert!(
+            failed.error.as_deref().is_some_and(|err| {
+                err.contains("HOST_PHRASE_CLEANUP_FAILED")
+                    && err.contains("copy base rows")
+            }),
+            "the SQL failure must be exposed instead of swallowed: {:?}",
+            failed.error
+        );
+        assert_eq!(
+            host_phrase_texts(session),
+            vec!["HostOld"],
+            "a failed synchronization must not install the new table"
+        );
+
+        let rows: Vec<(String, String, i64)> = conn
+            .prepare(
+                "SELECT key, value, weight FROM quick_parases ORDER BY key, value, weight",
+            )
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            rows,
+            vec![
+                ("base".to_owned(), "BaseHigh".to_owned(), 950000),
+                ("host".to_owned(), "HostOld".to_owned(), 100000),
+                ("host".to_owned(), "HostOld".to_owned(), 100000),
+            ]
+        );
+
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn session_creation_restores_base_quick_phrases_before_first_snapshot() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test-pinyin.db");
+        let user_dir = tmp.path().join("user-data");
+        build_minimal_test_pinyin_db(&db_path);
+        let conn = Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "INSERT INTO quick_parases VALUES
+               ('base', 'BaseHigh', 950000),
+               ('same', 'Same', 10),
+               ('same', 'Same', 100000),
+               ('host', 'SourcePhrase', 100000);
+             CREATE TABLE owl_host_quick_phrases(key TEXT NOT NULL, value TEXT NOT NULL);
+             INSERT INTO owl_host_quick_phrases VALUES ('host', 'SourcePhrase');",
+        )
+        .unwrap();
+        drop(conn);
+
+        let staged_dir = user_dir.join("msime-dicts");
+        fs::create_dir_all(&staged_dir).unwrap();
+        let staged = staged_dir.join("msime-pinyin.db");
+        fs::copy(&db_path, &staged).unwrap();
+        let conn = Connection::open(&staged).unwrap();
+        conn.execute(
+            "UPDATE quick_parases SET value = 'StaleHostPhr' WHERE key = 'host'",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+        assert_eq!(
+            fs::metadata(&db_path).unwrap().len(),
+            fs::metadata(&staged).unwrap().len(),
+            "the fixture must keep the same file length so create does not re-stage it"
+        );
+
+        let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let c_user = CString::new(user_dir.to_str().unwrap()).unwrap();
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_user.as_ptr(), 5);
+        assert!(!session.is_null());
+
+        // This is the first session operation: no snapshot or start maintenance happened first.
+        let initial = call_snapshot(session);
+        assert!(initial.ok);
+        for ch in ['h', 'o', 's', 't'] {
+            let typed = call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+            assert!(typed.ok);
+        }
+        let first_frame = call_snapshot(session);
+        assert!(
+            first_frame
+                .candidates
+                .iter()
+                .any(|candidate| candidate.text == "SourcePhrase"),
+            "the first engine generation must read the restored base rows"
+        );
+        assert!(
+            first_frame
+                .candidates
+                .iter()
+                .all(|candidate| candidate.text != "StaleHostPhr"),
+            "a stale host row in the staged database must not survive the first frame"
+        );
+        let conn = Connection::open(staged_pinyin_path(session)).unwrap();
+        let values: Vec<String> = conn
+            .prepare("SELECT value FROM quick_parases ORDER BY value")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            values,
+            vec!["BaseHigh", "Same", "Same", "SourcePhrase"]
+        );
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn legacy_host_migration_preserves_user_quick_phrase_state() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test-pinyin.db");
+        let user_dir = tmp.path().join("user-data");
+        build_minimal_test_pinyin_db(&db_path);
+        let conn = Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "INSERT INTO quick_parases VALUES
+               ('base', 'Base', 100),
+               ('learned', 'Learned', 10),
+               ('removed', 'Removed', 100),
+               ('shared', 'Shared', 50),
+               ('host', 'HostConflict', 10);
+             CREATE TABLE owl_host_quick_phrases(key TEXT NOT NULL, value TEXT NOT NULL);
+             INSERT INTO owl_host_quick_phrases VALUES ('host', 'HostConflict');",
+        )
+        .unwrap();
+        drop(conn);
+
+        let staged_dir = user_dir.join("msime-dicts");
+        fs::create_dir_all(&staged_dir).unwrap();
+        let staged = staged_dir.join("msime-pinyin.db");
+        fs::copy(&db_path, &staged).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(1_100));
+        let conn = Connection::open(&staged).unwrap();
+        for weight in [101, 100] {
+            conn.execute(
+                "UPDATE quick_parases SET weight=?1 WHERE key='base'",
+                [weight],
+            )
+            .unwrap();
+        }
+        let tracking_before: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='owl_host_quick_phrases'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(tracking_before, 1);
+        drop(conn);
+
+        let engine_user_dir = user_dir.join("msime-user");
+        fs::create_dir_all(&engine_user_dir).unwrap();
+        let journal = engine_user_dir.join(msime_engine::assets::USER_JOURNAL);
+        let conn = Connection::open(&journal).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE user_dictionary_operations(
+                 dictionary TEXT NOT NULL,
+                 key TEXT NOT NULL,
+                 value TEXT NOT NULL,
+                 operation TEXT NOT NULL,
+                 weight INTEGER NOT NULL DEFAULT 0,
+                 display TEXT NOT NULL DEFAULT '',
+                 user_inserted INTEGER NOT NULL DEFAULT 0,
+                 updated_at INTEGER NOT NULL DEFAULT 0,
+                 PRIMARY KEY(dictionary,key,value)
+             );
+             INSERT INTO user_dictionary_operations
+                 (dictionary,key,value,operation,weight,user_inserted,updated_at)
+             VALUES
+                 ('quick','base','Base','upsert',125,0,1),
+                 ('quick','removed','Removed','delete',0,1,2),
+                 ('quick','shared','Shared','upsert',75,1,3),
+                 ('quick','mine','Mine','upsert',700,1,4);",
+        )
+        .unwrap();
+        drop(conn);
+
+        let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let c_user = CString::new(user_dir.to_str().unwrap()).unwrap();
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_user.as_ptr(), 5);
+        assert!(!session.is_null());
+
+        let conn = Connection::open(staged_pinyin_path(session)).unwrap();
+        let tracking_after: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='owl_host_quick_phrases'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(tracking_after, 0, "legacy tracking must be consumed");
+        let rows: Vec<(String, String, i64)> = conn
+            .prepare(
+                "SELECT key, value, weight FROM quick_parases ORDER BY key, value, weight",
+            )
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            rows,
+            vec![
+                ("base".to_owned(), "Base".to_owned(), 125),
+                ("host".to_owned(), "HostConflict".to_owned(), 10),
+                ("learned".to_owned(), "Learned".to_owned(), 10),
+                ("mine".to_owned(), "Mine".to_owned(), 700),
+                ("shared".to_owned(), "Shared".to_owned(), 75),
+            ],
+            "migration must restore base rows, replay quick-phrase journal state, and drop only legacy host rows"
+        );
+        let tracking_table_count: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='owl_host_quick_phrases'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(tracking_table_count, 0);
+        drop(conn);
+
+        for ch in ['m', 'i', 'n', 'e'] {
+            call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+        }
+        assert_eq!(
+            call_snapshot(session)
+                .candidates
+                .first()
+                .map(|candidate| candidate.text.as_str()),
+            Some("Mine")
+        );
+
+        // With no legacy tracking table, later host-phrase updates must leave main rows alone.
+        let conn = Connection::open(staged_pinyin_path(session)).unwrap();
+        conn.execute(
+            "UPDATE quick_parases SET weight=701 WHERE key='mine' AND value='Mine'",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+        let updated = call_action(
+            session,
+            "{\"op\":\"set_host_phrases\",\"text\":\"HostNew\\thost\"}",
+        );
+        assert!(updated.ok);
+        let conn = Connection::open(staged_pinyin_path(session)).unwrap();
+        let weight: i64 = conn
+            .query_row(
+                "SELECT weight FROM quick_parases WHERE key='mine' AND value='Mine'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(weight, 701);
+        drop(conn);
+
+        owl_msime_session_destroy(session);
+        Connection::open(&journal)
+            .unwrap()
+            .execute(
+                "UPDATE user_dictionary_operations SET weight=701, updated_at=5
+                 WHERE dictionary='quick' AND key='mine' AND value='Mine'",
+                [],
+            )
+            .unwrap();
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_user.as_ptr(), 5);
+        assert!(!session.is_null());
+        let conn = Connection::open(staged_pinyin_path(session)).unwrap();
+        let weight: i64 = conn
+            .query_row(
+                "SELECT weight FROM quick_parases WHERE key='mine' AND value='Mine'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            weight, 701,
+            "creating another session must not reset user rows"
+        );
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn corrupt_user_journal_is_quarantined_before_quick_phrase_replay() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test-pinyin.db");
+        let user_dir = tmp.path().join("user-data");
+        build_minimal_test_pinyin_db(&db_path);
+        Connection::open(&db_path)
+            .unwrap()
+            .execute(
+                "INSERT INTO quick_parases VALUES ('base', 'Base', 100)",
+                [],
+            )
+            .unwrap();
+
+        let engine_user_dir = user_dir.join("msime-user");
+        fs::create_dir_all(&engine_user_dir).unwrap();
+        let journal = engine_user_dir.join(msime_engine::assets::USER_JOURNAL);
+        fs::write(&journal, b"synthetic invalid database").unwrap();
+
+        let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let c_user = CString::new(user_dir.to_str().unwrap()).unwrap();
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_user.as_ptr(), 5);
+        assert!(
+            !session.is_null(),
+            "a corrupt journal must not prevent session creation"
+        );
+        assert!(!journal.exists());
+        assert!(
+            fs::read_dir(&engine_user_dir)
+                .unwrap()
+                .filter_map(Result::ok)
+                .any(|entry| {
+                    entry
+                        .file_name()
+                        .to_string_lossy()
+                        .starts_with("msime_user.db.corrupt-")
+                }),
+            "the corrupt journal must be retained beside the new journal path"
+        );
+
+        let conn = Connection::open(staged_pinyin_path(session)).unwrap();
+        let values: Vec<String> = conn
+            .prepare("SELECT value FROM quick_parases ORDER BY value")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            values,
+            vec!["Base"],
+            "a corrupt journal contributes no operations, so the base table must still be restored"
+        );
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
     fn loads_seed_msime_pinyin_db_when_present() {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let repo_root = manifest_dir
@@ -1815,6 +2498,37 @@ mod tests {
         }
         let snap = call_snapshot(session);
         assert!(snap.candidates.iter().any(|c| c.text == "你好"));
+
+        let wubi_mode = call_action(session, r#"{"op":"set_input_mode","mode":"wubi"}"#);
+        assert!(wubi_mode.ok);
+        let wubi_scheme = call_action(session, r#"{"op":"set_pinyin_scheme","scheme":"wubi"}"#);
+        assert!(wubi_scheme.ok);
+
+        for (code, expected) in [("a", "工"), ("ifcy", "法"), ("hang", "虛")] {
+            for ch in code.chars() {
+                let typed = call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+                assert!(typed.ok);
+            }
+            let candidates = call_snapshot(session).candidates;
+            assert!(
+                candidates.iter().any(|candidate| candidate.text == expected),
+                "production Wubi seed must answer {code} with {expected}"
+            );
+            let _ = call_action(session, r#"{"op":"clear"}"#);
+        }
+
+        let mut cold = None;
+        for ch in "edui".chars() {
+            let typed = call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+            assert!(typed.ok);
+            cold = Some(typed);
+        }
+        let cold = cold.expect("edui has four keys");
+        assert!(
+            cold.committed_text.as_deref() == Some("膫")
+                || cold.candidates.iter().any(|candidate| candidate.text == "膫"),
+            "production Wubi seed must contain the cold full code edui -> 膫"
+        );
 
         owl_msime_session_destroy(session);
     }

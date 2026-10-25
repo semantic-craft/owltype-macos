@@ -4,13 +4,73 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
+import os
 import re
 import sqlite3
 import sys
+import urllib.error
+import urllib.request
+import uuid
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 INITIALS = "abcdefghjklmnopqrstwxyz"
 SYLLABLE_RE = re.compile(r"^[a-z]+$")
+WUBI86_SOURCE_REPO = "KyleBing/rime-wubi86-jidian"
+WUBI86_SOURCE_COMMIT = "a194fb8b3ec41ef9dcf079d3a67876fa75f79135"
+WUBI86_SOURCE_PATH = "wubi86_jidian.dict.yaml"
+WUBI86_LICENSE_PATH = "LICENSE"
+WUBI86_SOURCE_SHA256 = "8ccf1358b91028ed234bbe82647a0bcd0f554a8d5994042de28b146e517633e6"
+WUBI86_LICENSE_SHA256 = "43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1"
+WUBI86_SOURCE_TOTAL_ROWS = 89_273
+WUBI86_ACCEPTED_ROWS = 89_272
+WUBI86_UNIQUE_ROWS = 89_269
+WUBI86_DUPLICATE_ROWS = 3
+WUBI86_REJECTED_ROWS = 1
+WUBI86_REJECTIONS = [
+    {
+        "sourceLine": 7911,
+        "reason": "empty text column",
+        "row": "\tcokg\t10\t全角空格",
+    }
+]
+WUBI86_REQUIRED_PAIRS = {
+    ("a", "工"),
+    ("aaaa", "工"),
+    ("ifcy", "法"),
+    ("wq", "你"),
+    ("wqiy", "你"),
+    ("edui", "膫"),
+    ("jixu", "曳光弹"),
+    ("hang", "歫"),
+    ("hang", "虛"),
+}
+WUBI86_FORBIDDEN_PAIRS = {
+    # Mappings from the old 50-row production fixture that do not exist in the real table.
+    ("bian", "便"),
+    ("qigu", "乐平"),
+}
+WUBI86_LICENSE_OUTPUT = "wubi86-jidian.LICENSE"
+WUBI86_SOURCE_METADATA_OUTPUT = "msime-wubi86-source.json"
+
+
+class SeedSourceError(RuntimeError):
+    """A source failure with a stable category for build logs and regressions."""
+
+    def __init__(self, code: str, detail: str):
+        super().__init__(f"{code}: {detail}")
+        self.code = code
+
+
+@dataclass(frozen=True)
+class WubiImportStats:
+    source_total_rows: int
+    accepted_rows: int
+    unique_rows: int
+    duplicate_rows: int
+    rejected_rows: int
 
 SEED_ENGLISH_WORDS: list[tuple[str, str, int, str]] = [
     ("hello", "hello", 1000, ""),
@@ -54,59 +114,6 @@ SEED_PINYIN_EXTRA: list[tuple[str, str, str, str, int]] = [
     ("2_q", "q'qun", "qq", "QQ群", 3000),
 ]
 
-SEED_WUBI86_ENTRIES: list[tuple[str, str, int]] = [
-    ("a", "工", 20),
-    ("aaaa", "工", 20),
-    ("aaad", "工期", 10),
-    ("b", "了", 20),
-    ("c", "以", 20),
-    ("d", "在", 20),
-    ("dddd", "大", 30),
-    ("e", "有", 20),
-    ("f", "地", 20),
-    ("g", "一", 20),
-    ("ggll", "一", 20),
-    ("gggg", "王", 40),
-    ("h", "上", 20),
-    ("i", "不", 20),
-    ("ifcy", "法", 30),
-    ("j", "是", 20),
-    ("jf", "时", 10),
-    ("k", "中", 20),
-    ("khl", "中", 10),
-    ("khlg", "中国", 30),
-    ("l", "国", 20),
-    ("m", "同", 20),
-    ("o", "为", 20),
-    ("p", "这", 20),
-    ("q", "我", 20),
-    ("r", "白", 20),
-    ("s", "要", 20),
-    ("t", "和", 20),
-    ("u", "产", 20),
-    ("v", "发", 20),
-    ("vb", "好", 10),
-    ("vbg", "好", 20),
-    ("w", "人", 20),
-    ("wo", "人", 90),
-    ("wq", "你", 10),
-    ("wqi", "你", 10),
-    ("wqiy", "你", 20),
-    ("wqvb", "你好", 30),
-    ("x", "经", 20),
-    ("y", "主", 20),
-    ("edui", "膫", 10),
-    ("eduq", "须将", 9),
-    ("jixu", "曳光弹", 10),
-    ("hang", "歫", 20),
-    ("hang", "虛", 10),
-    ("xuq", "绞", 10),
-    ("xuqi", "纯音乐", 9),
-    ("bian", "便", 100),
-    ("qigu", "乐平", 100),
-    ("gege", "静静", 10),
-]
-
 SEED_EN_ZH_GLOSSES: list[tuple[str, str, int]] = [
     ("hello", "你好", 0),
     ("world", "世界", 0),
@@ -140,6 +147,192 @@ def normalize_syllable(raw: str) -> str:
         .replace("u:", "v")
         .replace("v:", "v")
     )
+
+
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def read_pinned_source(path: Path, expected_sha256: str, label: str) -> bytes:
+    try:
+        data = path.read_bytes()
+    except OSError as error:
+        raise SeedSourceError(
+            "MSIME_SOURCE_READ_FAILED", f"{label} at {path}: {error}"
+        ) from error
+    actual = sha256_bytes(data)
+    if actual != expected_sha256:
+        raise SeedSourceError(
+            "MSIME_SOURCE_HASH_MISMATCH",
+            f"{label} expected sha256 {expected_sha256}, got {actual}",
+        )
+    return data
+
+
+def fetch_pinned_source(url: str, expected_sha256: str, target: Path, label: str) -> bytes:
+    if target.is_file():
+        try:
+            return read_pinned_source(target, expected_sha256, label)
+        except SeedSourceError as error:
+            if error.code != "MSIME_SOURCE_HASH_MISMATCH":
+                raise
+            target.unlink(missing_ok=True)
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with urllib.request.urlopen(url, timeout=30) as response:
+            data = response.read()
+    except (OSError, urllib.error.URLError) as error:
+        raise SeedSourceError(
+            "MSIME_SOURCE_DOWNLOAD_FAILED", f"{label} from {url}: {error}"
+        ) from error
+
+    actual = sha256_bytes(data)
+    if actual != expected_sha256:
+        raise SeedSourceError(
+            "MSIME_SOURCE_HASH_MISMATCH",
+            f"{label} expected sha256 {expected_sha256}, got {actual}",
+        )
+    target.write_bytes(data)
+    return data
+
+
+def import_wubi86_entries(dict_path: Path) -> tuple[list[tuple[str, str, int]], WubiImportStats]:
+    rows: dict[tuple[str, str], int] = {}
+    source_total_rows = 0
+    accepted_rows = 0
+    duplicate_rows = 0
+    rejected_rows = 0
+    in_header = True
+
+    try:
+        lines = dict_path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError) as error:
+        raise SeedSourceError(
+            "MSIME_SOURCE_READ_FAILED", f"Wubi86 dictionary at {dict_path}: {error}"
+        ) from error
+
+    for line in lines:
+        if in_header:
+            if line.strip() == "...":
+                in_header = False
+            continue
+        if not line.strip() or line.startswith("#"):
+            continue
+        source_total_rows += 1
+
+        parts = line.split("\t")
+        if len(parts) < 2:
+            rejected_rows += 1
+            continue
+        value = parts[0].strip()
+        code = parts[1].strip().lower()
+        if not value or not code or not code.isascii() or not code.isalpha():
+            rejected_rows += 1
+            continue
+        try:
+            weight = (
+                int(float(parts[2].strip()))
+                if len(parts) >= 3 and parts[2].strip()
+                else 1
+            )
+        except ValueError:
+            rejected_rows += 1
+            continue
+
+        accepted_rows += 1
+        pair = (code, value)
+        if pair in rows:
+            duplicate_rows += 1
+            rows[pair] = max(rows[pair], weight)
+        else:
+            rows[pair] = weight
+
+    if in_header:
+        raise SeedSourceError(
+            "MSIME_SOURCE_FORMAT_INVALID",
+            "Wubi86 dictionary ended before the YAML header terminator",
+        )
+
+    stats = WubiImportStats(
+        source_total_rows=source_total_rows,
+        accepted_rows=accepted_rows,
+        unique_rows=len(rows),
+        duplicate_rows=duplicate_rows,
+        rejected_rows=rejected_rows,
+    )
+    expected = WubiImportStats(
+        source_total_rows=WUBI86_SOURCE_TOTAL_ROWS,
+        accepted_rows=WUBI86_ACCEPTED_ROWS,
+        unique_rows=WUBI86_UNIQUE_ROWS,
+        duplicate_rows=WUBI86_DUPLICATE_ROWS,
+        rejected_rows=WUBI86_REJECTED_ROWS,
+    )
+    if stats != expected:
+        raise SeedSourceError(
+            "MSIME_SOURCE_COUNT_MISMATCH",
+            f"Wubi86 expected {asdict(expected)}, got {asdict(stats)}",
+        )
+    missing_pairs = sorted(WUBI86_REQUIRED_PAIRS - rows.keys())
+    if missing_pairs:
+        raise SeedSourceError(
+            "MSIME_SOURCE_CONTENT_MISMATCH",
+            f"Wubi86 missing required code/text pairs: {missing_pairs[:5]}",
+        )
+    forbidden_pairs = sorted(WUBI86_FORBIDDEN_PAIRS & rows.keys())
+    if forbidden_pairs:
+        raise SeedSourceError(
+            "MSIME_SOURCE_CONTENT_MISMATCH",
+            f"Wubi86 contains known synthetic code/text pairs: {forbidden_pairs[:5]}",
+        )
+
+    entries = [(code, value, weight) for (code, value), weight in rows.items()]
+    entries.sort(key=lambda row: (row[0], -row[2], row[1]))
+    return entries, stats
+
+
+def temporary_path(path: Path, suffix: str) -> Path:
+    return path.with_name(f".{path.name}.{os.getpid()}.{uuid.uuid4().hex}.{suffix}")
+
+
+def stage_bytes(path: Path, data: bytes) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = temporary_path(path, "tmp")
+    try:
+        with tmp_path.open("xb") as output:
+            output.write(data)
+            output.flush()
+            os.fsync(output.fileno())
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    return tmp_path
+
+
+def publish_artifacts(artifacts: list[tuple[Path, Path]]) -> None:
+    """Replace a set of files together, restoring every old file on failure."""
+    backups: list[tuple[Path, Path]] = []
+    installed: list[Path] = []
+    try:
+        for target, staged in artifacts:
+            if target.exists():
+                backup = temporary_path(target, "bak")
+                target.replace(backup)
+                backups.append((target, backup))
+            staged.replace(target)
+            installed.append(target)
+    except Exception:
+        for target in reversed(installed):
+            target.unlink(missing_ok=True)
+        for target, backup in reversed(backups):
+            if backup.exists():
+                backup.replace(target)
+        for _, staged in artifacts:
+            staged.unlink(missing_ok=True)
+        raise
+    else:
+        for _, backup in backups:
+            backup.unlink(missing_ok=True)
 
 
 def iter_rime_dict_entries(
@@ -189,13 +382,33 @@ def iter_rime_dict_entries(
     return results
 
 
-def build_pinyin_db(seed_dir: Path, pinyin_db_path: Path) -> None:
+def build_pinyin_db(
+    seed_dir: Path,
+    pinyin_db_path: Path,
+    wubi_dict_path: Path,
+    wubi_license_path: Path,
+) -> WubiImportStats:
     base_dict = seed_dir / "cn_dicts" / "owltype_base.dict.yaml"
     unicode_dict = seed_dir / "cn_dicts" / "owltype_unicode.dict.yaml"
     if not base_dict.is_file():
         raise FileNotFoundError(f"Missing required base dict: {base_dict}")
     if not unicode_dict.is_file():
         raise FileNotFoundError(f"Missing required unicode dict: {unicode_dict}")
+
+    wubi_entries, wubi_stats = import_wubi86_entries(wubi_dict_path)
+    license_bytes = read_pinned_source(
+        wubi_license_path, WUBI86_LICENSE_SHA256, "Wubi86 Apache-2.0 license"
+    )
+    source_metadata = {
+        "repo": WUBI86_SOURCE_REPO,
+        "revision": WUBI86_SOURCE_COMMIT,
+        "sourcePath": WUBI86_SOURCE_PATH,
+        "sourceSha256": WUBI86_SOURCE_SHA256,
+        "licensePath": WUBI86_LICENSE_PATH,
+        "licenseSha256": WUBI86_LICENSE_SHA256,
+        "counts": asdict(wubi_stats),
+        "rejections": WUBI86_REJECTIONS,
+    }
 
     suffixes = all_pinyin_suffixes()
     assert len(suffixes) == 184
@@ -221,62 +434,126 @@ def build_pinyin_db(seed_dir: Path, pinyin_db_path: Path) -> None:
             table_map[pair] = (jp, weight)
 
     pinyin_db_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = pinyin_db_path.with_suffix(".db.tmp")
-    if tmp_path.exists():
-        tmp_path.unlink()
+    tmp_path = temporary_path(pinyin_db_path, "tmp")
 
-    conn = sqlite3.connect(str(tmp_path))
     try:
-        conn.execute("PRAGMA journal_mode = OFF;")
-        conn.execute("PRAGMA synchronous = OFF;")
-        with conn:
-            for suffix in suffixes:
-                conn.execute(
-                    f'CREATE TABLE tbl_{suffix} ("key" text, "jp" text, "value" text, "weight" integer default 0);'
-                )
-                rows = [
-                    (key, jp, value, weight)
-                    for (key, value), (jp, weight) in buckets[suffix].items()
-                ]
-                rows.sort(key=lambda r: (r[0], -r[3], r[2]))
-                if rows:
-                    conn.executemany(
-                        f'INSERT INTO tbl_{suffix} ("key", "jp", "value", "weight") VALUES (?, ?, ?, ?);',
-                        rows,
+        conn = sqlite3.connect(str(tmp_path))
+        try:
+            conn.execute("PRAGMA journal_mode = OFF;")
+            conn.execute("PRAGMA synchronous = OFF;")
+            with conn:
+                for suffix in suffixes:
+                    conn.execute(
+                        f'CREATE TABLE tbl_{suffix} ("key" text, "jp" text, "value" text, "weight" integer default 0);'
                     )
-                conn.execute(f'CREATE INDEX idx_key_{suffix} ON tbl_{suffix} ("key");')
-                conn.execute(f'CREATE INDEX idx_jp_{suffix} ON tbl_{suffix} ("jp");')
+                    rows = [
+                        (key, jp, value, weight)
+                        for (key, value), (jp, weight) in buckets[suffix].items()
+                    ]
+                    rows.sort(key=lambda r: (r[0], -r[3], r[2]))
+                    if rows:
+                        conn.executemany(
+                            f'INSERT INTO tbl_{suffix} ("key", "jp", "value", "weight") VALUES (?, ?, ?, ?);',
+                            rows,
+                        )
+                    conn.execute(
+                        f'CREATE INDEX idx_key_{suffix} ON tbl_{suffix} ("key");'
+                    )
+                    conn.execute(
+                        f'CREATE INDEX idx_jp_{suffix} ON tbl_{suffix} ("jp");'
+                    )
 
-            conn.executescript(
-                """
-                CREATE TABLE wubi86 ("key" text, "value" text, "weight" integer default 0, UNIQUE("key", "value"));
-                CREATE INDEX idx_wubi86_key_weight ON wubi86 ("key", "weight" DESC);
-                CREATE INDEX idx_wubi86_value ON wubi86 ("value");
-                CREATE TABLE wubi98 ("key" text, "value" text, "weight" integer default 0, UNIQUE("key", "value"));
-                CREATE INDEX idx_wubi98_key_weight ON wubi98 ("key", "weight" DESC);
-                CREATE INDEX idx_wubi98_value ON wubi98 ("value");
-                CREATE TABLE quick_parases ("key" text, "value" text, "weight" integer default 0);
-                CREATE INDEX idx_quick_parases_key_weight ON quick_parases ("key", "weight" DESC);
-                """
+                conn.executescript(
+                    """
+                    CREATE TABLE wubi86 ("key" text, "value" text, "weight" integer default 0, UNIQUE("key", "value"));
+                    CREATE INDEX idx_wubi86_key_weight ON wubi86 ("key", "weight" DESC);
+                    CREATE INDEX idx_wubi86_value ON wubi86 ("value");
+                    CREATE TABLE wubi98 ("key" text, "value" text, "weight" integer default 0, UNIQUE("key", "value"));
+                    CREATE INDEX idx_wubi98_key_weight ON wubi98 ("key", "weight" DESC);
+                    CREATE INDEX idx_wubi98_value ON wubi98 ("value");
+                    CREATE TABLE quick_parases ("key" text, "value" text, "weight" integer default 0);
+                    CREATE INDEX idx_quick_parases_key_weight ON quick_parases ("key", "weight" DESC);
+                    """
+                )
+                conn.executemany(
+                    'INSERT INTO quick_parases ("key", "value", "weight") VALUES (?, ?, ?);',
+                    [
+                        ("xguang", "X光", 3000),
+                        ("txu", "T恤", 3000),
+                        ("agu", "A股", 3000),
+                        ("upan", "U盘", 3000),
+                        ("qqqun", "QQ群", 3000),
+                    ],
+                )
+                conn.executemany(
+                    'INSERT INTO wubi86 ("key", "value", "weight") VALUES (?, ?, ?);',
+                    wubi_entries,
+                )
+                conn.execute(
+                    """
+                    CREATE TABLE owl_seed_wubi86_source (
+                        repo TEXT NOT NULL,
+                        revision TEXT NOT NULL,
+                        source_path TEXT NOT NULL,
+                        source_sha256 TEXT NOT NULL,
+                        license_path TEXT NOT NULL,
+                        license_sha256 TEXT NOT NULL,
+                        source_total_rows INTEGER NOT NULL,
+                        accepted_rows INTEGER NOT NULL,
+                        unique_rows INTEGER NOT NULL,
+                        duplicate_rows INTEGER NOT NULL,
+                        rejected_rows INTEGER NOT NULL
+                    );
+                    """
+                )
+                conn.execute(
+                    """
+                    INSERT INTO owl_seed_wubi86_source VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    """,
+                    (
+                        WUBI86_SOURCE_REPO,
+                        WUBI86_SOURCE_COMMIT,
+                        WUBI86_SOURCE_PATH,
+                        WUBI86_SOURCE_SHA256,
+                        WUBI86_LICENSE_PATH,
+                        WUBI86_LICENSE_SHA256,
+                        wubi_stats.source_total_rows,
+                        wubi_stats.accepted_rows,
+                        wubi_stats.unique_rows,
+                        wubi_stats.duplicate_rows,
+                        wubi_stats.rejected_rows,
+                    ),
+                )
+        finally:
+            conn.close()
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    license_output = seed_dir / WUBI86_LICENSE_OUTPUT
+    metadata_output = seed_dir / "msime" / WUBI86_SOURCE_METADATA_OUTPUT
+    staged_sidecars: list[tuple[Path, Path]] = []
+    try:
+        staged_sidecars.append((license_output, stage_bytes(license_output, license_bytes)))
+        staged_sidecars.append(
+            (
+                metadata_output,
+                stage_bytes(
+                    metadata_output,
+                    (
+                        json.dumps(source_metadata, ensure_ascii=False, indent=2) + "\n"
+                    ).encode("utf-8"),
+                ),
             )
-            conn.executemany(
-                'INSERT INTO quick_parases ("key", "value", "weight") VALUES (?, ?, ?);',
-                [
-                    ("xguang", "X光", 3000),
-                    ("txu", "T恤", 3000),
-                    ("agu", "A股", 3000),
-                    ("upan", "U盘", 3000),
-                    ("qqqun", "QQ群", 3000),
-                ],
-            )
-            conn.executemany(
-                'INSERT OR REPLACE INTO wubi86 ("key", "value", "weight") VALUES (?, ?, ?);',
-                SEED_WUBI86_ENTRIES,
-            )
-    finally:
-        conn.close()
-
-    tmp_path.replace(pinyin_db_path)
+        )
+        publish_artifacts(
+            [(pinyin_db_path, tmp_path), *staged_sidecars],
+        )
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        for _, staged in staged_sidecars:
+            staged.unlink(missing_ok=True)
+        raise
+    return wubi_stats
 
 
 def build_english_db(english_db_path: Path) -> None:
@@ -331,7 +608,12 @@ def build_english_db(english_db_path: Path) -> None:
     tmp_path.replace(english_db_path)
 
 
-def check_seed_dbs(pinyin_db_path: Path, english_db_path: Path) -> None:
+def check_seed_dbs(
+    pinyin_db_path: Path,
+    english_db_path: Path,
+    wubi_license_path: Path | None = None,
+    wubi_metadata_path: Path | None = None,
+) -> None:
     if not pinyin_db_path.is_file():
         raise RuntimeError(f"Missing msime-pinyin.db at {pinyin_db_path}")
     if not english_db_path.is_file():
@@ -370,10 +652,94 @@ def check_seed_dbs(pinyin_db_path: Path, english_db_path: Path) -> None:
             raise RuntimeError("Expected '你好' for key \"ni'hao\" in tbl_2_n")
 
         wubi_count = conn.execute("SELECT count(*) FROM wubi86;").fetchone()[0]
-        if wubi_count < 10:
-            raise RuntimeError(f"Expected populated wubi86 seed rows, got {wubi_count}")
+        if wubi_count != WUBI86_UNIQUE_ROWS:
+            raise RuntimeError(
+                f"Expected {WUBI86_UNIQUE_ROWS} unique Wubi86 rows, got {wubi_count}"
+            )
+        try:
+            provenance = conn.execute(
+                """
+                SELECT repo, revision, source_sha256, license_sha256,
+                       source_total_rows, accepted_rows, unique_rows,
+                       duplicate_rows, rejected_rows
+                FROM owl_seed_wubi86_source;
+                """
+            ).fetchone()
+        except sqlite3.Error as error:
+            raise RuntimeError(f"Missing Wubi86 seed provenance: {error}") from error
+        expected_provenance = (
+            WUBI86_SOURCE_REPO,
+            WUBI86_SOURCE_COMMIT,
+            WUBI86_SOURCE_SHA256,
+            WUBI86_LICENSE_SHA256,
+            WUBI86_SOURCE_TOTAL_ROWS,
+            WUBI86_ACCEPTED_ROWS,
+            WUBI86_UNIQUE_ROWS,
+            WUBI86_DUPLICATE_ROWS,
+            WUBI86_REJECTED_ROWS,
+        )
+        if provenance != expected_provenance:
+            raise RuntimeError(
+                f"Unexpected Wubi86 seed provenance: expected {expected_provenance}, got {provenance}"
+            )
+        missing_pairs = [
+            pair
+            for pair in sorted(WUBI86_REQUIRED_PAIRS)
+            if conn.execute(
+                'SELECT 1 FROM wubi86 WHERE "key" = ? AND "value" = ? LIMIT 1;',
+                pair,
+            ).fetchone()
+            is None
+        ]
+        if missing_pairs:
+            raise RuntimeError(
+                f"Wubi86 seed missing required code/text pairs: {missing_pairs[:5]}"
+            )
+        forbidden_pairs = [
+            pair
+            for pair in sorted(WUBI86_FORBIDDEN_PAIRS)
+            if conn.execute(
+                'SELECT 1 FROM wubi86 WHERE "key" = ? AND "value" = ? LIMIT 1;',
+                pair,
+            ).fetchone()
+            is not None
+        ]
+        if forbidden_pairs:
+            raise RuntimeError(
+                f"Wubi86 seed contains known synthetic code/text pairs: {forbidden_pairs[:5]}"
+            )
     finally:
         conn.close()
+
+    if wubi_license_path is not None:
+        read_pinned_source(
+            wubi_license_path, WUBI86_LICENSE_SHA256, "Wubi86 Apache-2.0 license"
+        )
+    if wubi_metadata_path is not None:
+        try:
+            metadata = json.loads(wubi_metadata_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            raise RuntimeError(f"Invalid Wubi86 seed metadata: {error}") from error
+        expected_metadata = {
+            "repo": WUBI86_SOURCE_REPO,
+            "revision": WUBI86_SOURCE_COMMIT,
+            "sourcePath": WUBI86_SOURCE_PATH,
+            "sourceSha256": WUBI86_SOURCE_SHA256,
+            "licensePath": WUBI86_LICENSE_PATH,
+            "licenseSha256": WUBI86_LICENSE_SHA256,
+            "counts": asdict(
+                WubiImportStats(
+                    source_total_rows=WUBI86_SOURCE_TOTAL_ROWS,
+                    accepted_rows=WUBI86_ACCEPTED_ROWS,
+                    unique_rows=WUBI86_UNIQUE_ROWS,
+                    duplicate_rows=WUBI86_DUPLICATE_ROWS,
+                    rejected_rows=WUBI86_REJECTED_ROWS,
+                )
+            ),
+            "rejections": WUBI86_REJECTIONS,
+        }
+        if metadata != expected_metadata:
+            raise RuntimeError("Wubi86 seed metadata does not match the pinned source")
 
     conn = sqlite3.connect(str(english_db_path))
     try:
@@ -407,6 +773,10 @@ def main(argv: list[str] | None = None) -> int:
         help="Verify existing msime-pinyin.db and msime-english.db without rebuilding.",
     )
     parser.add_argument(
+        "--wubi-source-dir",
+        help="Use already-downloaded pinned Wubi86 source files from this directory.",
+    )
+    parser.add_argument(
         "seed_dir",
         nargs="?",
         default=str(default_seed_dir),
@@ -418,14 +788,68 @@ def main(argv: list[str] | None = None) -> int:
     msime_dir = seed_dir / "msime"
     pinyin_db_path = msime_dir / "msime-pinyin.db"
     english_db_path = msime_dir / "msime-english.db"
+    wubi_license_output = seed_dir / WUBI86_LICENSE_OUTPUT
+    wubi_metadata_path = msime_dir / WUBI86_SOURCE_METADATA_OUTPUT
 
     if args.check:
-        check_seed_dbs(pinyin_db_path, english_db_path)
+        check_seed_dbs(
+            pinyin_db_path,
+            english_db_path,
+            wubi_license_output,
+            wubi_metadata_path,
+        )
         return 0
 
-    build_pinyin_db(seed_dir, pinyin_db_path)
+    if args.wubi_source_dir:
+        source_dir = Path(args.wubi_source_dir).resolve()
+        wubi_dict_path = source_dir / WUBI86_SOURCE_PATH
+        wubi_license_path = source_dir / WUBI86_LICENSE_PATH
+        read_pinned_source(wubi_dict_path, WUBI86_SOURCE_SHA256, "Wubi86 dictionary")
+        read_pinned_source(
+            wubi_license_path, WUBI86_LICENSE_SHA256, "Wubi86 Apache-2.0 license"
+        )
+    else:
+        cache_root = Path(
+            os.environ.get("OWLTYPE_MSIME_SOURCE_CACHE", "/tmp/owltype-msime-source")
+        ).expanduser()
+        cache_dir = cache_root / WUBI86_SOURCE_COMMIT
+        dict_url = (
+            f"https://raw.githubusercontent.com/{WUBI86_SOURCE_REPO}/"
+            f"{WUBI86_SOURCE_COMMIT}/{WUBI86_SOURCE_PATH}"
+        )
+        wubi_dict_path = cache_dir / WUBI86_SOURCE_PATH
+        wubi_license_path = repo_root / "data" / "licenses" / WUBI86_LICENSE_OUTPUT
+        fetch_pinned_source(
+            dict_url, WUBI86_SOURCE_SHA256, wubi_dict_path, "Wubi86 dictionary"
+        )
+        read_pinned_source(
+            wubi_license_path,
+            WUBI86_LICENSE_SHA256,
+            "Wubi86 Apache-2.0 license",
+        )
+
+    wubi_stats = build_pinyin_db(
+        seed_dir, pinyin_db_path, wubi_dict_path, wubi_license_path
+    )
     build_english_db(english_db_path)
-    check_seed_dbs(pinyin_db_path, english_db_path)
+    check_seed_dbs(
+        pinyin_db_path,
+        english_db_path,
+        wubi_license_output,
+        wubi_metadata_path,
+    )
+    print(
+        "[msime-seed] "
+        f"wubi86={WUBI86_SOURCE_COMMIT[:12]} "
+        f"source_total_rows={wubi_stats.source_total_rows} "
+        f"accepted_rows={wubi_stats.accepted_rows} "
+        f"unique_rows={wubi_stats.unique_rows} "
+        f"duplicate_rows={wubi_stats.duplicate_rows} "
+        f"rejected_rows={wubi_stats.rejected_rows} "
+        f"dict_sha256={WUBI86_SOURCE_SHA256} "
+        f"license_sha256={WUBI86_LICENSE_SHA256}",
+        file=sys.stderr,
+    )
     return 0
 
 

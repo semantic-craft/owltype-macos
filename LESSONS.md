@@ -345,3 +345,34 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - #249 real TextEdit acceptance on `0621f6e` found that Esc hid the candidate panel but left underlined `ni'hao` in the host. Rust had cleared its input; `OwlRustSession.composition()` discarded every empty snapshot as nil. The existing IMK renderer sends empty marked text for a valid empty context, whereas nil only hides the panel.
 - Preserve a valid empty Rust snapshot as an empty `RimeComposition`, matching the librime seam. `testCancelReturnsEmptyContextToClearHostMarkedText` fails on the old adapter at the non-nil context assertion; it also covers deleting the last input character. An empty committed session now exposes an empty context, while destroyed/unavailable sessions still return nil.
 - Engine cancellation alone is insufficient evidence: verify the actual host loses its marked text after Esc and after backspacing the last character, with no phantom commit on the next key.
+
+### Host phrase cleanup must identify its own rows
+
+- The FFI host-phrase synchronizer deleted `quick_parases` rows by `weight >= 900000` or by a tracked key/value pair. A tracked host row that shared the code and text of a base row therefore deleted the base row too, and the weight rule could delete unrelated high-weight base data. SQL errors were ignored.
+- Keep host phrases in `EngineOptions` at query time. At session creation, quarantine an unreadable user journal through the engine's existing `quarantine_corrupt_journal` rule, rebuild `quick_parases` from the pinned source and replay quick-phrase operations from `msime_user.db`; this preserves user additions, deletions and learned weights while removing unjournaled legacy host rows without letting a corrupt journal block startup. A live host sync only performs that transaction when the old tracking table exists, and never infers row provenance from weight.
+- Regression: `host_phrase_sync_preserves_base_rows_and_removes_only_legacy_imports` covers high-weight and same key/value base rows; `host_phrase_cleanup_failure_is_reported_and_atomic` checks failure atomicity; `legacy_host_migration_preserves_user_quick_phrase_state` covers journaled edits across two sessions; `corrupt_user_journal_is_quarantined_before_quick_phrase_replay` checks startup recovery.
+- Verify (验证点): `cargo test --locked --manifest-path rust/Cargo.toml -p owl-msime-ffi` passes with all four named tests.
+- Seen on 1 distinct date: 2026-10-25.
+
+### A Rime dictionary row may omit its weight column
+
+- A valid source row such as `好\tvbg` has no third column and means weight 1. Treating three columns as mandatory rejects real Wubi data while the count assertions only report the downstream mismatch.
+- Parse the text and code from the first two columns, default an absent or empty weight to 1, and reject only an explicitly unparsable weight.
+- Regression: `test_parser_keeps_max_weight_and_reports_duplicate_and_rejected_rows` includes the two-column row and asserts `("vbg", "好", 1)`.
+- Verify (验证点): `python3 scripts/build-owltype-msime-seed-db.selftest.py` passes.
+- Seen on 1 distinct date: 2026-10-25.
+
+### Synthetic test codes are not production dictionary evidence
+
+- `testWubi86PureAndMixedSchemasZLookupAndPreferences` treated `gggg` as a unique four-code and `ffff` as empty, both inherited from the removed 50-row fixture. The real Wubi86 table has multiple `gggg` candidates and non-empty `ffff`, so seven assertions failed and later mixed-input checks cascaded.
+- Choose uniqueness and empty-code fixtures from the pinned production table; currently `sebv → 极限` and nonexistent `aaab`. Keep the production provenance assertions in the seed selftest so the fixture cannot silently return.
+- Regression and Verify (验证点): `python3 scripts/verify.py swift --test OwlRustEngineTests` passes 15/15 after the fixture update. This is automated engine evidence, not native-host acceptance.
+- Seen on 1 distinct date: 2026-10-25.
+
+### Publish seed data and its sidecars as one set
+
+- The Wubi seed builder replaced `msime-pinyin.db` before writing the pinned license and source metadata. A later write failure could leave a new database beside old provenance files.
+- Stage the database, license and metadata as sibling temporary files, replace them through a rollback-capable publisher, and restore every prior file if one installation step fails.
+- Regression: `test_publish_failure_restores_existing_wubi_artifacts` forces the metadata rename to fail after the database and license were installed, then checks all three old files are restored and no temporary file remains.
+- Verify (验证点): `python3 scripts/build-owltype-msime-seed-db.selftest.py` passes 9/9.
+- Seen on 1 distinct date: 2026-10-25.

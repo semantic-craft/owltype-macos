@@ -27,7 +27,7 @@
 | **rime-ice（雾凇拼音）** | Owltype 自包含 seed（`data/owl-rime` → `SharedSupport`）的**拼音底座**：rime_ice 全拼方案 / cn_dicts / en_dicts / Lua / OpenCC / default.yaml | **GPL-3.0**（打包保留 `rime-ice.LICENSE`） | https://github.com/iDvel/rime-ice |
 | **jieba（结巴分词）** | 公开种子词库 `cn_dicts/owltype_base.dict.yaml` 的词表与词频来源（`jieba/dict.txt`，pin tag `v0.42.1`） | **MIT**（打包保留 `jieba.LICENSE`） | https://github.com/fxsjy/jieba |
 | **phrase-pinyin-data** | owltype_base 的词语注音来源（**仅用 MIT 的 `pinyin.txt`**；`large_pinyin.txt` / `cc_cedict.txt` / `zdic_*` 因 CC BY-SA / 爬取来源明确排除） | **MIT**（打包保留 `phrase-pinyin-data.LICENSE`） | https://github.com/mozillazg/phrase-pinyin-data |
-| **rime-wubi86-jidian（极点五笔86）** | Owltype seed 的**五笔全套** overlay：`wubi86_jidian` / `_pinyin` / `_trad` / `_trad_pinyin` 方案、码表、反查依赖 `pinyin_simp`、`numbers` 与 Lua（rime-ice 无自带五笔；无法学五笔） | **Apache-2.0**（打包保留 `wubi86-jidian.LICENSE`） | https://github.com/KyleBing/rime-wubi86-jidian |
+| **rime-wubi86-jidian（极点五笔86）** | Owltype seed 的**五笔全套** overlay：`wubi86_jidian` / `_pinyin` / `_trad` / `_trad_pinyin` 方案、反查依赖 `pinyin_simp`、`numbers` 与 Lua；生产 `msime-pinyin.db:wubi86` 也直接导入该项目的 `wubi86_jidian.dict.yaml`（固定 commit `a194fb8b…`，词典 SHA-256 `8ccf1358…`） | **Apache-2.0**；许可证原文见 [`data/licenses/wubi86-jidian.LICENSE`](data/licenses/wubi86-jidian.LICENSE)，生成 seed 时校验 SHA 并保留 `wubi86-jidian.LICENSE` | https://github.com/KyleBing/rime-wubi86-jidian |
 
 ## 说明
 
