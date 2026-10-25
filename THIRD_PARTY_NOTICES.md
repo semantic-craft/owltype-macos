@@ -28,6 +28,7 @@
 | **jieba（结巴分词）** | 公开种子词库 `cn_dicts/owltype_base.dict.yaml` 的词表与词频来源（`jieba/dict.txt`，pin tag `v0.42.1`） | **MIT**（打包保留 `jieba.LICENSE`） | https://github.com/fxsjy/jieba |
 | **phrase-pinyin-data** | owltype_base 的词语注音来源（**仅用 MIT 的 `pinyin.txt`**；`large_pinyin.txt` / `cc_cedict.txt` / `zdic_*` 因 CC BY-SA / 爬取来源明确排除） | **MIT**（打包保留 `phrase-pinyin-data.LICENSE`） | https://github.com/mozillazg/phrase-pinyin-data |
 | **rime-wubi86-jidian（极点五笔86）** | Owltype seed 的**五笔全套** overlay：`wubi86_jidian` / `_pinyin` / `_trad` / `_trad_pinyin` 方案、反查依赖 `pinyin_simp`、`numbers` 与 Lua；生产 `msime-pinyin.db:wubi86` 也直接导入该项目的 `wubi86_jidian.dict.yaml`（固定 commit `a194fb8b…`，词典 SHA-256 `8ccf1358…`） | **Apache-2.0**；许可证原文见 [`licenses/wubi86-jidian.LICENSE`](licenses/wubi86-jidian.LICENSE)，生成 seed 时校验 SHA 并保留 `wubi86-jidian.LICENSE` | https://github.com/KyleBing/rime-wubi86-jidian |
+| **chinese-ime-lm 模型权重（keyboard / settled）** | `model-v1` 发布的两个固定 safetensors：逐键候选重排与输入停顿后的候选重排。权重许可与项目代码许可分开；文件内保留 C4（ODC-BY）与 LCCC（MIT）的训练语料署名 | **Apache-2.0**（见 [`resources/licenses/chinese-ime-lm-model-Apache-2.0.txt`](resources/licenses/chinese-ime-lm-model-Apache-2.0.txt) 与 [`NOTICE`](resources/licenses/chinese-ime-lm-model-NOTICE.txt)） | https://github.com/metasequoiaime/chinese-ime-lm/releases/tag/model-v1 |
 
 ## 说明
 
