@@ -100,10 +100,12 @@ def query_wubi(db: Path, code: str, page_size: int) -> list[dict[str, object]]:
         ).fetchone()
         if not exists:
             return []
+        key = code.lower()
         rows = conn.execute(
             'SELECT "value", "weight" FROM "wubi86" WHERE "key" LIKE ? '
-            'ORDER BY "weight" DESC, "key", "value" LIMIT ?',
-            (code.lower() + "%", page_size),
+            'ORDER BY ("key" = ?) DESC, "weight" DESC, "key" ASC, rowid ASC '
+            "LIMIT ?",
+            (key + "%", key, page_size),
         )
         return [{"text": value, "weight": int(weight or 0)} for value, weight in rows]
 
@@ -355,14 +357,23 @@ def selftest() -> int:
                 'CREATE TABLE wubi86 ("key" TEXT, "value" TEXT, "weight" INTEGER)'
             )
             conn.executemany(
-                'INSERT INTO wubi86 VALUES ("saaw", ?, 10)',
-                [("西蓝花",), ("横巷",)],
+                'INSERT INTO wubi86 VALUES (?, ?, ?)',
+                [
+                    ("saaw", "西蓝花", 10),
+                    ("saaw", "横巷", 10),
+                    ("saaws", "高权补全", 100),
+                ],
             )
         build_report(tie_baseline, tie_full, tie_output, tie_baseline)
         tie_row = (
             tie_output / "wubi-lost-four-code-unique.tsv"
         ).read_text().splitlines()[1].split("\t")
         assert tie_row[3] == "西蓝花 / 横巷", tie_row
+        assert query_wubi(tie_full, "saaw", 9) == [
+            {"text": "西蓝花", "weight": 10},
+            {"text": "横巷", "weight": 10},
+            {"text": "高权补全", "weight": 100},
+        ]
     print("owl-rust-resource-report selftest: ok")
     return 0
 
