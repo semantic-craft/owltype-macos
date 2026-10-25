@@ -440,6 +440,81 @@ fn stage_file_if_needed(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+#[derive(Debug, Clone)]
+struct SessionRoots {
+    resources: PathBuf,
+    user: PathBuf,
+    cache: PathBuf,
+    dictionaries: PathBuf,
+}
+
+fn prepare_explicit_root(raw: &str, label: &str) -> Result<PathBuf, String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(format!("{label} is empty"));
+    }
+    let path = PathBuf::from(trimmed);
+    fs::create_dir_all(&path)
+        .map_err(|e| format!("failed to create {label} {}: {e}", path.display()))?;
+    let canonical = fs::canonicalize(&path)
+        .map_err(|e| format!("failed to canonicalize {label} {}: {e}", path.display()))?;
+    if !canonical.is_dir() {
+        return Err(format!("{label} is not a directory: {}", canonical.display()));
+    }
+    Ok(canonical)
+}
+
+fn paths_overlap(left: &Path, right: &Path) -> bool {
+    left == right || left.starts_with(right) || right.starts_with(left)
+}
+
+fn prepare_explicit_roots(
+    resources: &str,
+    user: &str,
+    cache: &str,
+    dictionaries: &str,
+) -> Result<SessionRoots, String> {
+    let roots = SessionRoots {
+        resources: prepare_explicit_root(resources, "resources_dir")?,
+        user: prepare_explicit_root(user, "user_data_dir")?,
+        cache: prepare_explicit_root(cache, "cache_dir")?,
+        dictionaries: prepare_explicit_root(dictionaries, "dictionaries_dir")?,
+    };
+    for (left, right) in [
+        (&roots.resources, &roots.user),
+        (&roots.resources, &roots.cache),
+        (&roots.resources, &roots.dictionaries),
+        (&roots.user, &roots.cache),
+        (&roots.user, &roots.dictionaries),
+        (&roots.cache, &roots.dictionaries),
+    ] {
+        if paths_overlap(left, right) {
+            return Err(format!(
+                "session roots overlap: {} and {}",
+                left.display(),
+                right.display()
+            ));
+        }
+    }
+    Ok(roots)
+}
+
+fn resolve_pinyin_source(raw: &str) -> Result<PathBuf, String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err("pinyin_db_path is empty".to_owned());
+    }
+    let source = fs::canonicalize(trimmed)
+        .map_err(|e| format!("failed to resolve pinyin_db_path {trimmed}: {e}"))?;
+    if !source.is_file() {
+        return Err(format!(
+            "pinyin_db_path is not a file: {}",
+            source.display()
+        ));
+    }
+    Ok(source)
+}
+
 fn reconcile_quick_phrases(
     source: &Path,
     staged: &Path,
@@ -602,16 +677,7 @@ impl OwlMsimeSession {
         user_data_dir: &str,
         page_size: u32,
     ) -> Result<Self, String> {
-        let trimmed_pinyin = pinyin_db_path.trim();
-        if trimmed_pinyin.is_empty() {
-            return Err("pinyin_db_path is empty".to_owned());
-        }
-        let pinyin_src = fs::canonicalize(trimmed_pinyin)
-            .map_err(|e| format!("failed to resolve pinyin_db_path {trimmed_pinyin}: {e}"))?;
-        if !pinyin_src.is_file() {
-            return Err(format!("pinyin_db_path is not a file: {}", pinyin_src.display()));
-        }
-
+        let pinyin_src = resolve_pinyin_source(pinyin_db_path)?;
         let (base_dir, temp_dir) = if user_data_dir.trim().is_empty() {
             let tmp = TempDir::new().map_err(|e| format!("failed to create temp dir: {e}"))?;
             let canonical = fs::canonicalize(tmp.path())
@@ -625,23 +691,60 @@ impl OwlMsimeSession {
                 .map_err(|e| format!("failed to canonicalize user_data_dir: {e}"))?;
             (canonical, None)
         };
+        let roots = prepare_explicit_roots(
+            &base_dir.join("msime-resources").to_string_lossy(),
+            &base_dir.join("msime-user").to_string_lossy(),
+            &base_dir.join("msime-cache").to_string_lossy(),
+            &base_dir.join("msime-dicts").to_string_lossy(),
+        )?;
+        Self::create_with_prepared_roots(
+            &pinyin_src,
+            english_db_path,
+            roots,
+            page_size,
+            temp_dir,
+        )
+    }
 
-        let resources_dir = base_dir.join("msime-resources");
-        let user_dir = base_dir.join("msime-user");
-        let cache_dir = base_dir.join("msime-cache");
-        let dict_dir = base_dir.join("msime-dicts");
-        for dir in [&resources_dir, &user_dir, &cache_dir, &dict_dir] {
-            fs::create_dir_all(dir)
-                .map_err(|e| format!("failed to create runtime dir {}: {e}", dir.display()))?;
-        }
+    pub fn create_with_explicit_roots(
+        pinyin_db_path: &str,
+        english_db_path: &str,
+        resources_dir: &str,
+        user_data_dir: &str,
+        cache_dir: &str,
+        dictionaries_dir: &str,
+        page_size: u32,
+    ) -> Result<Self, String> {
+        let pinyin_src = resolve_pinyin_source(pinyin_db_path)?;
+        let roots = prepare_explicit_roots(
+            resources_dir,
+            user_data_dir,
+            cache_dir,
+            dictionaries_dir,
+        )?;
+        Self::create_with_prepared_roots(
+            &pinyin_src,
+            english_db_path,
+            roots,
+            page_size,
+            None,
+        )
+    }
 
-        let staged_pinyin = dict_dir.join("msime-pinyin.db");
-        stage_file_if_needed(&pinyin_src, &staged_pinyin)
+    fn create_with_prepared_roots(
+        pinyin_src: &Path,
+        english_db_path: &str,
+        roots: SessionRoots,
+        page_size: u32,
+        temp_dir: Option<TempDir>,
+    ) -> Result<Self, String> {
+        let staged_pinyin = roots.dictionaries.join("msime-pinyin.db");
+        stage_file_if_needed(pinyin_src, &staged_pinyin)
             .map_err(|e| format!("failed to stage msime-pinyin.db: {e}"))?;
-        let user_journal = user_dir.join(msime_engine::assets::USER_JOURNAL);
-        reconcile_quick_phrases(&pinyin_src, &staged_pinyin, &user_journal, false)?;
+        let user_journal = roots.user.join(msime_engine::assets::USER_JOURNAL);
+        reconcile_quick_phrases(pinyin_src, &staged_pinyin, &user_journal, false)?;
 
-        let staged_english = dict_dir.join("msime-english.db");
+        let staged_english = roots.dictionaries.join("msime-english.db");
         let trimmed_english = english_db_path.trim();
         if !trimmed_english.is_empty() && Path::new(trimmed_english).is_file() {
             let english_src = fs::canonicalize(trimmed_english)
@@ -655,10 +758,10 @@ impl OwlMsimeSession {
 
         let page_size_u8 = clamp_page_size(page_size);
         let options = EngineOptions {
-            resources: resources_dir.to_string_lossy().into_owned(),
-            user_data: user_dir.to_string_lossy().into_owned(),
-            cache: cache_dir.to_string_lossy().into_owned(),
-            dictionaries: dict_dir.to_string_lossy().into_owned(),
+            resources: roots.resources.to_string_lossy().into_owned(),
+            user_data: roots.user.to_string_lossy().into_owned(),
+            cache: roots.cache.to_string_lossy().into_owned(),
+            dictionaries: roots.dictionaries.to_string_lossy().into_owned(),
             scheme: SchemeType::Quanpin as u8,
             enabled_schemes: SchemeSet::ALL,
             shuangpin_profile: ShuangpinProfileKind::Xiaohe as u8,
@@ -756,7 +859,7 @@ impl OwlMsimeSession {
         Ok(Self {
             runtime,
             options,
-            source_pinyin_path: pinyin_src,
+            source_pinyin_path: pinyin_src.to_path_buf(),
             staged_pinyin_path: staged_pinyin,
             page_size: page_size_u8,
             input_mode: "chinese".to_owned(),
@@ -1521,6 +1624,17 @@ fn is_live_session(ptr: *const OwlMsimeSession) -> bool {
         .unwrap_or(false)
 }
 
+fn store_ffi_error(error_out: *mut *mut c_char, message: &str) {
+    if error_out.is_null() {
+        return;
+    }
+    let message = CString::new(message)
+        .unwrap_or_else(|_| CString::new("session creation failed").expect("static C string"));
+    unsafe {
+        *error_out = message.into_raw();
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn owl_msime_session_create(
     pinyin_db_path: *const c_char,
@@ -1544,6 +1658,58 @@ pub extern "C" fn owl_msime_session_create(
         }
     }))
     .unwrap_or(ptr::null_mut())
+}
+
+#[no_mangle]
+pub extern "C" fn owl_msime_session_create_with_roots(
+    pinyin_db_path: *const c_char,
+    english_db_path: *const c_char,
+    resources_dir: *const c_char,
+    user_data_dir: *const c_char,
+    cache_dir: *const c_char,
+    dictionaries_dir: *const c_char,
+    page_size: u32,
+    error_out: *mut *mut c_char,
+) -> *mut OwlMsimeSession {
+    if !error_out.is_null() {
+        unsafe {
+            *error_out = ptr::null_mut();
+        }
+    }
+    let created = catch_unwind(AssertUnwindSafe(|| {
+        let pinyin = cstr_to_string(pinyin_db_path).unwrap_or_default();
+        let english = cstr_to_string(english_db_path).unwrap_or_default();
+        let resources = cstr_to_string(resources_dir).unwrap_or_default();
+        let user = cstr_to_string(user_data_dir).unwrap_or_default();
+        let cache = cstr_to_string(cache_dir).unwrap_or_default();
+        let dictionaries = cstr_to_string(dictionaries_dir).unwrap_or_default();
+        OwlMsimeSession::create_with_explicit_roots(
+            &pinyin,
+            &english,
+            &resources,
+            &user,
+            &cache,
+            &dictionaries,
+            page_size,
+        )
+    }));
+    match created {
+        Ok(Ok(session)) => {
+            let raw = Box::into_raw(Box::new(session));
+            if let Ok(mut set) = live_sessions().lock() {
+                set.insert(raw as usize);
+            }
+            raw
+        }
+        Ok(Err(message)) => {
+            store_ffi_error(error_out, &message);
+            ptr::null_mut()
+        }
+        Err(_) => {
+            store_ffi_error(error_out, "panic in session creation with explicit roots");
+            ptr::null_mut()
+        }
+    }
 }
 
 #[no_mangle]
@@ -1694,6 +1860,232 @@ mod tests {
                 .map(|entry| entry.text.clone())
                 .collect()
         }
+    }
+
+    fn create_with_explicit_roots(
+        pinyin: &Path,
+        resources: &Path,
+        user: &Path,
+        cache: &Path,
+        dictionaries: &Path,
+    ) -> (*mut OwlMsimeSession, Option<String>) {
+        let c_pinyin = CString::new(pinyin.to_string_lossy().as_bytes()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let c_resources = CString::new(resources.to_string_lossy().as_bytes()).unwrap();
+        let c_user = CString::new(user.to_string_lossy().as_bytes()).unwrap();
+        let c_cache = CString::new(cache.to_string_lossy().as_bytes()).unwrap();
+        let c_dictionaries =
+            CString::new(dictionaries.to_string_lossy().as_bytes()).unwrap();
+        let mut error = ptr::null_mut();
+        let session = owl_msime_session_create_with_roots(
+            c_pinyin.as_ptr(),
+            c_empty.as_ptr(),
+            c_resources.as_ptr(),
+            c_user.as_ptr(),
+            c_cache.as_ptr(),
+            c_dictionaries.as_ptr(),
+            5,
+            &mut error,
+        );
+        let message = if error.is_null() {
+            None
+        } else {
+            let value = unsafe { CStr::from_ptr(error) }
+                .to_string_lossy()
+                .into_owned();
+            owl_msime_string_free(error);
+            Some(value)
+        };
+        (session, message)
+    }
+
+    fn session_options(session: *const OwlMsimeSession) -> &'static EngineOptions {
+        assert!(!session.is_null());
+        unsafe { &(*session).options }
+    }
+
+    fn assertion_journal_count(journal: &Path) -> i64 {
+        Connection::open(journal)
+            .unwrap()
+            .query_row(
+                "SELECT selection_count
+                 FROM candidate_selection_state
+                 WHERE context_key='codex-boundary' AND entry_key='ni' AND value='你'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap()
+    }
+
+    #[test]
+    fn explicit_roots_keep_session_runtime_separate_from_the_shared_user_journal() {
+        let tmp = TempDir::new().unwrap();
+        let pinyin = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&pinyin);
+        let user = tmp.path().join("persistent-user");
+        fs::create_dir_all(&user).unwrap();
+        let journal = user.join(msime_engine::assets::USER_JOURNAL);
+        Connection::open(&journal)
+            .unwrap()
+            .execute_batch(
+                "CREATE TABLE candidate_selection_state(
+                     context_key TEXT NOT NULL,
+                     entry_key TEXT NOT NULL,
+                     value TEXT NOT NULL,
+                     selection_count INTEGER NOT NULL DEFAULT 0,
+                     PRIMARY KEY(context_key,entry_key,value)
+                 );
+                 INSERT INTO candidate_selection_state
+                     (context_key,entry_key,value,selection_count)
+                 VALUES ('codex-boundary','ni','你',7);",
+            )
+            .unwrap();
+
+        let runtime_a = tmp.path().join("runtime-a");
+        let runtime_b = tmp.path().join("runtime-b");
+        let resources_a = runtime_a.join("resources");
+        let cache_a = runtime_a.join("cache");
+        let dictionaries_a = runtime_a.join("dictionaries");
+        let resources_b = runtime_b.join("resources");
+        let cache_b = runtime_b.join("cache");
+        let dictionaries_b = runtime_b.join("dictionaries");
+
+        let (session_a, error_a) = create_with_explicit_roots(
+            &pinyin,
+            &resources_a,
+            &user,
+            &cache_a,
+            &dictionaries_a,
+        );
+        assert!(error_a.is_none(), "{error_a:?}");
+        assert!(!session_a.is_null());
+        let (session_b, error_b) = create_with_explicit_roots(
+            &pinyin,
+            &resources_b,
+            &user,
+            &cache_b,
+            &dictionaries_b,
+        );
+        assert!(error_b.is_none(), "{error_b:?}");
+        assert!(!session_b.is_null());
+
+        let options_a = session_options(session_a);
+        let options_b = session_options(session_b);
+        assert_eq!(
+            Path::new(&options_a.resources),
+            fs::canonicalize(&resources_a).unwrap()
+        );
+        assert_eq!(
+            Path::new(&options_a.cache),
+            fs::canonicalize(&cache_a).unwrap()
+        );
+        assert_eq!(
+            Path::new(&options_a.dictionaries),
+            fs::canonicalize(&dictionaries_a).unwrap()
+        );
+        assert_eq!(
+            Path::new(&options_b.resources),
+            fs::canonicalize(&resources_b).unwrap()
+        );
+        assert_eq!(
+            Path::new(&options_a.user_data),
+            Path::new(&options_b.user_data)
+        );
+        assert_ne!(options_a.resources, options_b.resources);
+        assert_ne!(options_a.cache, options_b.cache);
+        assert_ne!(options_a.dictionaries, options_b.dictionaries);
+        assert!(!resources_a.join("msime-resources").exists());
+        assert!(!user.join("msime-user").exists());
+        assert!(dictionaries_a.join("msime-pinyin.db").is_file());
+        assert!(dictionaries_a.join("msime-english.db").is_file());
+        assert_eq!(assertion_journal_count(&journal), 7);
+
+        for session in [session_a, session_b] {
+            for ch in ['n', 'i'] {
+                let typed =
+                    call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+                assert!(typed.ok);
+            }
+            assert!(
+                call_snapshot(session)
+                    .candidates
+                    .iter()
+                    .any(|candidate| candidate.text == "你")
+            );
+        }
+
+        owl_msime_session_destroy(session_a);
+        fs::remove_dir_all(&runtime_a).unwrap();
+        assert!(journal.is_file());
+        assert_eq!(assertion_journal_count(&journal), 7);
+
+        owl_msime_session_destroy(session_b);
+        fs::remove_dir_all(&runtime_b).unwrap();
+        assert!(journal.is_file());
+        assert_eq!(assertion_journal_count(&journal), 7);
+
+        let runtime_c = tmp.path().join("runtime-c");
+        let (reopened, error_c) = create_with_explicit_roots(
+            &pinyin,
+            &runtime_c.join("resources"),
+            &user,
+            &runtime_c.join("cache"),
+            &runtime_c.join("dictionaries"),
+        );
+        assert!(error_c.is_none(), "{error_c:?}");
+        assert!(!reopened.is_null());
+        assert_eq!(assertion_journal_count(&journal), 7);
+        for ch in ['n', 'i'] {
+            let typed = call_action(
+                reopened,
+                &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"),
+            );
+            assert!(typed.ok);
+        }
+        assert!(
+            call_snapshot(reopened)
+                .candidates
+                .iter()
+                .any(|candidate| candidate.text == "你")
+        );
+        owl_msime_session_destroy(reopened);
+    }
+
+    #[test]
+    fn explicit_roots_reject_overlap_and_report_creation_errors() {
+        let tmp = TempDir::new().unwrap();
+        let pinyin = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&pinyin);
+        let shared = tmp.path().join("shared-root");
+
+        let (session, error) = create_with_explicit_roots(
+            &pinyin,
+            &shared,
+            &shared,
+            &tmp.path().join("cache"),
+            &tmp.path().join("dictionaries"),
+        );
+        assert!(session.is_null());
+        assert!(
+            error
+                .as_deref()
+                .is_some_and(|message| message.contains("session roots overlap"))
+        );
+
+        let missing_pinyin = tmp.path().join("missing-pinyin.db");
+        let (session, error) = create_with_explicit_roots(
+            &missing_pinyin,
+            &tmp.path().join("resources-2"),
+            &tmp.path().join("user-2"),
+            &tmp.path().join("cache-2"),
+            &tmp.path().join("dictionaries-2"),
+        );
+        assert!(session.is_null());
+        assert!(
+            error
+                .as_deref()
+                .is_some_and(|message| message.contains("pinyin_db_path"))
+        );
     }
 
     #[test]
