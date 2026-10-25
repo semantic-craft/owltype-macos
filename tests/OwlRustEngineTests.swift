@@ -185,6 +185,22 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertNil(session.composition()?.candidates.first)
   }
 
+  func testRustCurrencyMenuOffersDollarThenYuan() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
+    defer { session.destroy() }
+
+    let four = UInt32(XK_4)
+    XCTAssertTrue(session.process(keycode: four, modifiers: kShiftMask.rawValue))
+    XCTAssertEqual(session.composition()?.preedit, "$")
+    XCTAssertEqual(session.composition()?.candidates.map(\.text), ["$", "¥"])
+
+    XCTAssertTrue(session.process(keycode: four, modifiers: kShiftMask.rawValue))
+    XCTAssertEqual(session.composition()?.highlightedIndex, 1)
+    XCTAssertTrue(session.process(keycode: UInt32(XK_2), modifiers: 0))
+    XCTAssertEqual(session.takeCommit(), "¥")
+  }
+
   func testUpstreamGenerationKeepsJournalUnderMsimeUserAndResourcesUntouched() throws {
     let repoRoot = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()

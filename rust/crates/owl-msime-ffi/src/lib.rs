@@ -287,6 +287,20 @@ fn clamp_page_size(page_size: u32) -> u8 {
     }
 }
 
+const HOST_GENERATION_SEQUENCE_MASK: u64 = (1_u64 << 63) - 1;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum HostGenerationNamespace {
+    Runtime = 0,
+    PunctuationMenu = 1,
+}
+
+impl HostGenerationNamespace {
+    fn encode(self, sequence: u64) -> u64 {
+        ((self as u64) << 63) | (sequence & HOST_GENERATION_SEQUENCE_MASK)
+    }
+}
+
 fn cstr_to_string(ptr: *const c_char) -> Option<String> {
     if ptr.is_null() {
         return None;
@@ -426,7 +440,7 @@ fn snapshot_from_view(
         consumed,
         committed_text,
         cleared,
-        generation: view.generation,
+        generation: HostGenerationNamespace::Runtime.encode(view.generation),
         raw_input,
         preedit,
         caret_position,
@@ -1059,9 +1073,10 @@ impl OwlMsimeSession {
     }
 
     fn next_punctuation_menu_generation(&mut self) -> u64 {
-        let next = self.punctuation_menu_generation.wrapping_add(1);
+        let next =
+            (self.punctuation_menu_generation & HOST_GENERATION_SEQUENCE_MASK).wrapping_add(1);
         self.punctuation_menu_generation = if next == 0 { 1 } else { next };
-        self.punctuation_menu_generation
+        HostGenerationNamespace::PunctuationMenu.encode(self.punctuation_menu_generation)
     }
 
     fn build_punctuation_menu_snapshot(
@@ -1776,8 +1791,9 @@ impl OwlMsimeSession {
                     );
                 }
                 let view = self.runtime.view();
-                let token_gen = payload.generation.unwrap_or(view.generation);
-                if payload.generation.is_some() && token_gen != view.generation {
+                let current_generation = HostGenerationNamespace::Runtime.encode(view.generation);
+                let token_gen = payload.generation.unwrap_or(current_generation);
+                if payload.generation.is_some() && token_gen != current_generation {
                     return self.build_snapshot(view, false, None, false);
                 }
                 let is_absolute = payload.is_absolute.unwrap_or(false);
@@ -1817,7 +1833,7 @@ impl OwlMsimeSession {
                 let show_ann = self.show_engine_annotation(&view);
                 let input_len = view.editing_text.len();
                 let mut dto = self.build_snapshot(view, true, None, false);
-                dto.generation = all.generation;
+                dto.generation = HostGenerationNamespace::Runtime.encode(all.generation);
                 dto.candidates = all
                     .candidates
                     .into_iter()
@@ -3595,6 +3611,96 @@ mod tests {
         assert_eq!(typed.committed_text.as_deref(), Some("《"));
         assert_eq!(typed.raw_input, "a");
         assert_eq!(typed.preedit, "a");
+
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn host_generation_namespace_rejects_cross_mode_tokens() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&db_path);
+        let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_empty.as_ptr(), 5);
+        assert!(!session.is_null());
+
+        let runtime = call_snapshot(session);
+        assert!(runtime.generation > 0);
+        let menu = call_action(session, r#"{"op":"punctuation_menu","ch":"<"}"#);
+        assert!(menu.ok);
+        assert_eq!(menu.raw_input, "<");
+
+        // A candidate token published by the composition must not become valid merely
+        // because the first punctuation menu happened to use the same counter value.
+        let stale_runtime = call_action(
+            session,
+            &format!(
+                r#"{{"op":"select_token","index":1,"generation":{}}}"#,
+                runtime.generation
+            ),
+        );
+        assert!(stale_runtime.ok);
+        assert!(!stale_runtime.consumed);
+        assert!(stale_runtime.committed_text.is_none());
+        assert_eq!(stale_runtime.raw_input, "<");
+
+        // The reverse direction must fail too: a menu token cannot select a candidate
+        // from a runtime composition after the menu has closed.
+        let closed = call_action(session, r#"{"op":"clear"}"#);
+        assert!(closed.cleared);
+        for ch in ['n', 'i'] {
+            let typed = call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
+            assert!(typed.ok);
+        }
+        let composed = call_snapshot(session);
+        assert!(!composed.candidates.is_empty());
+        let stale_menu = call_action(
+            session,
+            &format!(
+                r#"{{"op":"select_token","index":0,"generation":{}}}"#,
+                menu.generation
+            ),
+        );
+        assert!(stale_menu.ok);
+        assert!(!stale_menu.consumed);
+        assert!(stale_menu.committed_text.is_none());
+        assert_eq!(stale_menu.raw_input, composed.raw_input);
+
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn currency_menu_offers_dollar_then_yuan() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&db_path);
+        let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_empty.as_ptr(), 5);
+        assert!(!session.is_null());
+
+        let currency = call_action(session, r#"{"op":"punctuation_menu","ch":"$"}"#);
+        assert!(currency.ok);
+        assert_eq!(
+            currency
+                .candidates
+                .iter()
+                .map(|candidate| candidate.text.as_str())
+                .collect::<Vec<_>>(),
+            ["$", "¥"]
+        );
+        let selected = call_action(
+            session,
+            &format!(
+                r#"{{"op":"select_token","index":1,"generation":{}}}"#,
+                currency.generation
+            ),
+        );
+        assert!(selected.consumed);
+        assert_eq!(selected.committed_text.as_deref(), Some("¥"));
 
         owl_msime_session_destroy(session);
     }
