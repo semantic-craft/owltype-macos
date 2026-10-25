@@ -411,6 +411,10 @@ impl Session {
         self.input.set_wubi_mixed_pinyin(enabled);
     }
 
+    pub fn set_wubi_z_pinyin_lookup(&mut self, enabled: bool) {
+        self.input.set_wubi_z_pinyin_lookup(enabled);
+    }
+
     /// 五笔拼音混输是否打开。
     pub fn wubi_mixed_pinyin(&self) -> bool {
         self.input.engine.wubi_input_options().mixed_pinyin

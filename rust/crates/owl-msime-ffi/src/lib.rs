@@ -8,14 +8,18 @@ use std::path::{Path, PathBuf};
 use std::ptr;
 use std::sync::{Arc, Mutex, OnceLock};
 
-use msime_engine::host::{Command, EngineOptions, HelpcodeKeymap, Session as EngineSession};
+use msime_engine::host::{
+    Command, EngineOptions, HelpcodeKeymap, QuickPhraseEntry, Session as EngineSession,
+};
 use msime_engine::{
-    ensure_english_schema, FrequencyAdjustmentMode, SchemeSet, SchemeType,
-    SentenceAssociationOptions, ShuangpinHelpcodeModes, ShuangpinProfileKind, WubiProfileKind,
+    ensure_english_schema, fuzzy_rule, is_complete_pinyin_input, CandidateSource,
+    FrequencyAdjustmentMode, SchemeSet, SchemeType, SentenceAssociationOptions,
+    ShuangpinHelpcodeModes, ShuangpinProfileKind, WubiProfileKind,
 };
 use msime_input_runtime::{
     Action, CandidateId, CandidateOps, CandidateTransform, Runtime, TransformRow, View,
 };
+use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 
@@ -26,6 +30,11 @@ struct OwlPinnedState {
     traditional: bool,
     active_input: String,
     caret_at_end: bool,
+    input_mode: String,
+    pinyin_scheme: String,
+    page_size: usize,
+    wubi_single_first: bool,
+    wubi_z_reverse_lookup: bool,
 }
 
 struct OwlPinnedTransform {
@@ -66,33 +75,94 @@ impl CandidateTransform for OwlPinnedTransform {
         let Ok(guard) = self.state.lock() else {
             return;
         };
-        if !guard.enabled || !guard.caret_at_end || guard.active_input.is_empty() {
-            return;
-        }
-        let Some(pins) = guard
-            .words
-            .get(&(guard.active_input.clone(), guard.traditional))
-        else {
-            return;
-        };
-        if pins.is_empty() {
-            return;
-        }
-        let target_norm = normalized_pinyin(&guard.active_input);
         let mut ops = CandidateOps::default();
-        for pin_word in pins {
-            if let Some((seat, _)) = window.iter().enumerate().find(|(_, row)| {
-                row.text == pin_word
-                    && (row.code.is_empty() || normalized_pinyin(row.code) == target_norm)
-            }) {
-                let seat_u32 = seat as u32;
-                if !ops.order.contains(&seat_u32) {
-                    ops.order.push(seat_u32);
-                    ops.annotations.push((seat_u32, "置顶".to_owned()));
+        fn push_unique(order: &mut Vec<u32>, seat: usize) {
+            let seat_u32 = seat as u32;
+            if !order.contains(&seat_u32) {
+                order.push(seat_u32);
+            }
+        }
+
+        // 1. User pinned words at the very top when composing full Quanpin input at end caret.
+        if guard.enabled && guard.caret_at_end && !guard.active_input.is_empty() {
+            if let Some(pins) = guard
+                .words
+                .get(&(guard.active_input.clone(), guard.traditional))
+            {
+                let target_norm = normalized_pinyin(&guard.active_input);
+                for pin_word in pins {
+                    if let Some((seat, _)) = window.iter().enumerate().find(|(_, row)| {
+                        row.text == pin_word
+                            && (row.code.is_empty() || normalized_pinyin(row.code) == target_norm)
+                    }) {
+                        let seat_u32 = seat as u32;
+                        if !ops.order.contains(&seat_u32) {
+                            ops.order.push(seat_u32);
+                            ops.annotations.push((seat_u32, "置顶".to_owned()));
+                        }
+                    }
                 }
             }
         }
-        if !ops.order.is_empty() {
+
+        // 2. Host quick phrases / templates / prompts (CandidateSource::QuickPhrase == 5)
+        //    appear at the top of page 0 (matching Owltype's initial_quality: 99 table translators).
+        let quick_phrase_src = CandidateSource::QuickPhrase as u8;
+        for (seat, row) in window.iter().enumerate() {
+            if row.source == quick_phrase_src {
+                push_unique(&mut ops.order, seat);
+            }
+        }
+
+        // 3. Wubi single-character-first mode (#250): place single-character candidates ahead of phrases
+        //    (except during z-prefix reverse lookup).
+        let in_z_lookup = guard.input_mode == "wubi"
+            && guard.pinyin_scheme != "wubi_pinyin"
+            && guard.wubi_z_reverse_lookup
+            && guard.active_input.starts_with('z');
+        if guard.input_mode == "wubi" && guard.wubi_single_first && !in_z_lookup {
+            for (seat, row) in window.iter().enumerate() {
+                if row.text.chars().count() == 1 {
+                    push_unique(&mut ops.order, seat);
+                }
+            }
+            for (seat, _) in window.iter().enumerate() {
+                push_unique(&mut ops.order, seat);
+            }
+        }
+
+        // 4. Whole-syllable Chinese-first protection (#259 AC 1):
+        //    When typing complete Quanpin syllables (e.g., `di`, `shi`, `nihao`, `you`), keep at least
+        //    the first page of Chinese candidates ahead of mixed English dictionary rows.
+        let english_src = CandidateSource::EnglishDictionary as u8;
+        if guard.input_mode == "chinese"
+            && guard.pinyin_scheme == "quanpin"
+            && !guard.active_input.is_empty()
+            && is_complete_pinyin_input(guard.active_input.trim_end_matches('\''))
+            && window.iter().any(|r| r.source == english_src)
+        {
+            let page_sz = guard.page_size.max(5);
+            let mut chinese_kept = 0usize;
+            for (seat, row) in window.iter().enumerate() {
+                if row.source != english_src {
+                    push_unique(&mut ops.order, seat);
+                    chinese_kept += 1;
+                    if chinese_kept >= page_sz {
+                        break;
+                    }
+                }
+            }
+            for (seat, row) in window.iter().enumerate() {
+                if row.source == english_src {
+                    push_unique(&mut ops.order, seat);
+                }
+            }
+            for (seat, _) in window.iter().enumerate() {
+                push_unique(&mut ops.order, seat);
+            }
+        }
+
+        if !ops.order.is_empty() || !ops.annotations.is_empty() {
             out.push(ops);
         }
     }
@@ -101,9 +171,17 @@ impl CandidateTransform for OwlPinnedTransform {
 pub struct OwlMsimeSession {
     runtime: Runtime<EngineSession>,
     options: EngineOptions,
+    source_pinyin_path: PathBuf,
+    staged_pinyin_path: PathBuf,
     page_size: u8,
     input_mode: String,
     pinyin_scheme: String,
+    wubi_code_hint: bool,
+    wubi_auto_clear: bool,
+    wubi_candidate_mode: String,
+    wubi_z_reverse_lookup: bool,
+    wubi_english_channel: bool,
+    wubi_user_dict_learning: bool,
     pinned_state: Arc<Mutex<OwlPinnedState>>,
     _temp_dir: Option<TempDir>,
 }
@@ -139,6 +217,8 @@ struct ActionPayload {
     scheme: Option<String>,
     #[serde(default)]
     page_size: Option<u32>,
+    #[serde(default)]
+    mask: Option<u32>,
     #[serde(default)]
     name: Option<String>,
     #[serde(default)]
@@ -251,6 +331,8 @@ fn snapshot_from_view(
     consumed: bool,
     committed_text: Option<String>,
     cleared: bool,
+    show_engine_annotation: bool,
+    temp_english_backtick_prefix: bool,
 ) -> SnapshotResponseDto {
     let highlighted_index = view
         .candidates
@@ -258,18 +340,38 @@ fn snapshot_from_view(
         .position(|c| c.highlighted)
         .unwrap_or(0);
     let has_more_pages = view.page + 1 < view.page_count;
-    let input_len = view.editing_text.len();
-    let caret_position = view.caret_position.min(input_len);
-    let preedit_caret_byte = map_caret_to_preedit_byte(
-        &view.editing_text,
-        &view.phrase_prefix,
-        &view.preedit,
-        caret_position,
-    );
-    let preedit = if view.phrase_prefix.is_empty() {
-        view.preedit
+    let is_temp_eng = temp_english_backtick_prefix && view.local_mode == "temporary_english";
+    let raw_input = if is_temp_eng {
+        let suffix = view
+            .editing_text
+            .strip_prefix('Y')
+            .unwrap_or(&view.editing_text);
+        format!("`{suffix}")
+    } else {
+        view.editing_text.clone()
+    };
+    let input_len = raw_input.len();
+    let caret_position = if is_temp_eng {
+        view.caret_position.min(input_len)
+    } else {
+        view.caret_position.min(input_len)
+    };
+    let preedit = if is_temp_eng {
+        raw_input.clone()
+    } else if view.phrase_prefix.is_empty() {
+        view.preedit.clone()
     } else {
         format!("{}{}", view.phrase_prefix, view.preedit)
+    };
+    let preedit_caret_byte = if is_temp_eng {
+        caret_position
+    } else {
+        map_caret_to_preedit_byte(
+            &view.editing_text,
+            &view.phrase_prefix,
+            &view.preedit,
+            caret_position,
+        )
     };
     let candidates = view
         .candidates
@@ -278,7 +380,9 @@ fn snapshot_from_view(
             let comment = c
                 .script_annotation
                 .filter(|s| !s.is_empty())
-                .or_else(|| (!c.annotation.is_empty()).then_some(c.annotation));
+                .or_else(|| {
+                    (show_engine_annotation && !c.annotation.is_empty()).then_some(c.annotation)
+                });
             CandidateDto {
                 text: c.text,
                 comment,
@@ -294,7 +398,7 @@ fn snapshot_from_view(
         committed_text,
         cleared,
         generation: view.generation,
-        raw_input: view.editing_text,
+        raw_input,
         preedit,
         caret_position,
         preedit_caret_byte,
@@ -336,6 +440,236 @@ fn stage_file_if_needed(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+#[derive(Debug, Clone)]
+struct SessionRoots {
+    resources: PathBuf,
+    user: PathBuf,
+    cache: PathBuf,
+    dictionaries: PathBuf,
+}
+
+fn prepare_explicit_root(raw: &str, label: &str) -> Result<PathBuf, String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(format!("{label} is empty"));
+    }
+    let path = PathBuf::from(trimmed);
+    fs::create_dir_all(&path)
+        .map_err(|e| format!("failed to create {label} {}: {e}", path.display()))?;
+    let canonical = fs::canonicalize(&path)
+        .map_err(|e| format!("failed to canonicalize {label} {}: {e}", path.display()))?;
+    if !canonical.is_dir() {
+        return Err(format!("{label} is not a directory: {}", canonical.display()));
+    }
+    Ok(canonical)
+}
+
+fn paths_overlap(left: &Path, right: &Path) -> bool {
+    left == right || left.starts_with(right) || right.starts_with(left)
+}
+
+fn prepare_explicit_roots(
+    resources: &str,
+    user: &str,
+    cache: &str,
+    dictionaries: &str,
+) -> Result<SessionRoots, String> {
+    let roots = SessionRoots {
+        resources: prepare_explicit_root(resources, "resources_dir")?,
+        user: prepare_explicit_root(user, "user_data_dir")?,
+        cache: prepare_explicit_root(cache, "cache_dir")?,
+        dictionaries: prepare_explicit_root(dictionaries, "dictionaries_dir")?,
+    };
+    for (left, right) in [
+        (&roots.resources, &roots.user),
+        (&roots.resources, &roots.cache),
+        (&roots.resources, &roots.dictionaries),
+        (&roots.user, &roots.cache),
+        (&roots.user, &roots.dictionaries),
+        (&roots.cache, &roots.dictionaries),
+    ] {
+        if paths_overlap(left, right) {
+            return Err(format!(
+                "session roots overlap: {} and {}",
+                left.display(),
+                right.display()
+            ));
+        }
+    }
+    Ok(roots)
+}
+
+fn resolve_pinyin_source(raw: &str) -> Result<PathBuf, String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err("pinyin_db_path is empty".to_owned());
+    }
+    let source = fs::canonicalize(trimmed)
+        .map_err(|e| format!("failed to resolve pinyin_db_path {trimmed}: {e}"))?;
+    if !source.is_file() {
+        return Err(format!(
+            "pinyin_db_path is not a file: {}",
+            source.display()
+        ));
+    }
+    Ok(source)
+}
+
+fn reconcile_quick_phrases(
+    source: &Path,
+    staged: &Path,
+    user_journal: &Path,
+    only_when_tracking: bool,
+) -> Result<bool, String> {
+    if source == staged {
+        return Ok(false);
+    }
+    let mut conn = Connection::open(staged)
+        .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: open database: {e}"))?;
+    let has_legacy_tracking: bool = conn
+        .query_row(
+            "SELECT EXISTS(
+                 SELECT 1 FROM sqlite_master
+                 WHERE type='table' AND name='owl_host_quick_phrases'
+             )",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: inspect legacy tracking: {e}"))?;
+    if only_when_tracking && !has_legacy_tracking {
+        return Ok(false);
+    }
+
+    conn.execute(
+        "ATTACH DATABASE ?1 AS owl_seed_source",
+        [source.to_string_lossy().as_ref()],
+    )
+    .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: attach seed source: {e}"))?;
+    if let Some(moved) = msime_engine::quarantine_corrupt_journal(user_journal)
+        .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: quarantine user journal: {e}"))?
+    {
+        eprintln!(
+            "msime: user dictionary journal is not a database, moved aside to {}",
+            moved.display()
+        );
+    }
+    let has_journal = user_journal.is_file();
+    if has_journal {
+        conn.execute(
+            "ATTACH DATABASE ?1 AS personal_journal",
+            [user_journal.to_string_lossy().as_ref()],
+        )
+        .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: attach user journal: {e}"))?;
+    }
+    let transaction = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: begin transaction: {e}"))?;
+    transaction
+        .execute_batch(
+            "DROP TABLE IF EXISTS quick_parases_migrated;
+             CREATE TABLE quick_parases_migrated (
+                 \"key\" TEXT,
+                 \"value\" TEXT,
+                 \"weight\" INTEGER DEFAULT 0
+             );
+             INSERT INTO quick_parases_migrated (\"key\", \"value\", \"weight\")
+             SELECT \"key\", \"value\", \"weight\"
+             FROM owl_seed_source.quick_parases;",
+        )
+        .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: copy base rows: {e}"))?;
+
+    let has_operations = if has_journal {
+        transaction
+            .query_row(
+                "SELECT EXISTS(
+                     SELECT 1 FROM personal_journal.sqlite_master
+                     WHERE type='table' AND name='user_dictionary_operations'
+                 )",
+                [],
+                |row| row.get::<_, bool>(0),
+            )
+            .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: inspect user journal: {e}"))?
+    } else {
+        false
+    };
+    if has_operations {
+        let operations = {
+            let mut statement = transaction
+                .prepare(
+                    "SELECT \"key\", \"value\", \"operation\", \"weight\"
+                     FROM personal_journal.user_dictionary_operations
+                     WHERE dictionary='quick'
+                     ORDER BY updated_at, rowid",
+                )
+                .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: read user journal: {e}"))?;
+            let operations = statement
+                .query_map([], |row| {
+                    Ok((
+                        row.get::<_, rusqlite::types::Value>(0)?,
+                        row.get::<_, rusqlite::types::Value>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, Option<i64>>(3)?.unwrap_or(0),
+                    ))
+                })
+                .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: read user journal: {e}"))?
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: read user journal: {e}"))?;
+            operations
+        };
+        for (key, value, operation, weight) in operations {
+            match operation.as_str() {
+                "delete" => {
+                    transaction
+                        .execute(
+                            "DELETE FROM quick_parases_migrated
+                             WHERE \"key\"=?1 AND \"value\"=?2",
+                            rusqlite::params![key, value],
+                        )
+                        .map_err(|e| {
+                            format!("HOST_PHRASE_CLEANUP_FAILED: replay user deletion: {e}")
+                        })?;
+                }
+                "upsert" => {
+                    let changed = transaction
+                        .execute(
+                            "UPDATE quick_parases_migrated SET \"weight\"=?1
+                             WHERE \"key\"=?2 AND \"value\"=?3",
+                            rusqlite::params![weight, key, value],
+                        )
+                        .map_err(|e| {
+                            format!("HOST_PHRASE_CLEANUP_FAILED: replay user weight: {e}")
+                        })?;
+                    if changed == 0 {
+                        transaction
+                            .execute(
+                                "INSERT INTO quick_parases_migrated
+                                 (\"key\", \"value\", \"weight\") VALUES (?1, ?2, ?3)",
+                                rusqlite::params![key, value, weight],
+                            )
+                            .map_err(|e| {
+                                format!("HOST_PHRASE_CLEANUP_FAILED: replay user row: {e}")
+                            })?;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    transaction
+        .execute_batch(
+            "DROP TABLE quick_parases;
+             ALTER TABLE quick_parases_migrated RENAME TO quick_parases;
+             DROP TABLE IF EXISTS owl_host_quick_phrases;
+             CREATE INDEX idx_quick_parases_key_weight
+             ON quick_parases (\"key\", \"weight\" DESC);",
+        )
+        .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: replace base rows: {e}"))?;
+    transaction
+        .commit()
+        .map_err(|e| format!("HOST_PHRASE_CLEANUP_FAILED: commit: {e}"))?;
+    Ok(true)
+}
+
 impl OwlMsimeSession {
     pub fn create(
         pinyin_db_path: &str,
@@ -343,16 +677,7 @@ impl OwlMsimeSession {
         user_data_dir: &str,
         page_size: u32,
     ) -> Result<Self, String> {
-        let trimmed_pinyin = pinyin_db_path.trim();
-        if trimmed_pinyin.is_empty() {
-            return Err("pinyin_db_path is empty".to_owned());
-        }
-        let pinyin_src = fs::canonicalize(trimmed_pinyin)
-            .map_err(|e| format!("failed to resolve pinyin_db_path {trimmed_pinyin}: {e}"))?;
-        if !pinyin_src.is_file() {
-            return Err(format!("pinyin_db_path is not a file: {}", pinyin_src.display()));
-        }
-
+        let pinyin_src = resolve_pinyin_source(pinyin_db_path)?;
         let (base_dir, temp_dir) = if user_data_dir.trim().is_empty() {
             let tmp = TempDir::new().map_err(|e| format!("failed to create temp dir: {e}"))?;
             let canonical = fs::canonicalize(tmp.path())
@@ -366,21 +691,60 @@ impl OwlMsimeSession {
                 .map_err(|e| format!("failed to canonicalize user_data_dir: {e}"))?;
             (canonical, None)
         };
+        let roots = prepare_explicit_roots(
+            &base_dir.join("msime-resources").to_string_lossy(),
+            &base_dir.join("msime-user").to_string_lossy(),
+            &base_dir.join("msime-cache").to_string_lossy(),
+            &base_dir.join("msime-dicts").to_string_lossy(),
+        )?;
+        Self::create_with_prepared_roots(
+            &pinyin_src,
+            english_db_path,
+            roots,
+            page_size,
+            temp_dir,
+        )
+    }
 
-        let resources_dir = base_dir.join("msime-resources");
-        let user_dir = base_dir.join("msime-user");
-        let cache_dir = base_dir.join("msime-cache");
-        let dict_dir = base_dir.join("msime-dicts");
-        for dir in [&resources_dir, &user_dir, &cache_dir, &dict_dir] {
-            fs::create_dir_all(dir)
-                .map_err(|e| format!("failed to create runtime dir {}: {e}", dir.display()))?;
-        }
+    pub fn create_with_explicit_roots(
+        pinyin_db_path: &str,
+        english_db_path: &str,
+        resources_dir: &str,
+        user_data_dir: &str,
+        cache_dir: &str,
+        dictionaries_dir: &str,
+        page_size: u32,
+    ) -> Result<Self, String> {
+        let pinyin_src = resolve_pinyin_source(pinyin_db_path)?;
+        let roots = prepare_explicit_roots(
+            resources_dir,
+            user_data_dir,
+            cache_dir,
+            dictionaries_dir,
+        )?;
+        Self::create_with_prepared_roots(
+            &pinyin_src,
+            english_db_path,
+            roots,
+            page_size,
+            None,
+        )
+    }
 
-        let staged_pinyin = dict_dir.join("msime-pinyin.db");
-        stage_file_if_needed(&pinyin_src, &staged_pinyin)
+    fn create_with_prepared_roots(
+        pinyin_src: &Path,
+        english_db_path: &str,
+        roots: SessionRoots,
+        page_size: u32,
+        temp_dir: Option<TempDir>,
+    ) -> Result<Self, String> {
+        let staged_pinyin = roots.dictionaries.join("msime-pinyin.db");
+        stage_file_if_needed(pinyin_src, &staged_pinyin)
             .map_err(|e| format!("failed to stage msime-pinyin.db: {e}"))?;
+        let user_journal = roots.user.join(msime_engine::assets::USER_JOURNAL);
+        reconcile_quick_phrases(pinyin_src, &staged_pinyin, &user_journal, false)?;
 
-        let staged_english = dict_dir.join("msime-english.db");
+        let staged_english = roots.dictionaries.join("msime-english.db");
         let trimmed_english = english_db_path.trim();
         if !trimmed_english.is_empty() && Path::new(trimmed_english).is_file() {
             let english_src = fs::canonicalize(trimmed_english)
@@ -394,10 +758,10 @@ impl OwlMsimeSession {
 
         let page_size_u8 = clamp_page_size(page_size);
         let options = EngineOptions {
-            resources: resources_dir.to_string_lossy().into_owned(),
-            user_data: user_dir.to_string_lossy().into_owned(),
-            cache: cache_dir.to_string_lossy().into_owned(),
-            dictionaries: dict_dir.to_string_lossy().into_owned(),
+            resources: roots.resources.to_string_lossy().into_owned(),
+            user_data: roots.user.to_string_lossy().into_owned(),
+            cache: roots.cache.to_string_lossy().into_owned(),
+            dictionaries: roots.dictionaries.to_string_lossy().into_owned(),
             scheme: SchemeType::Quanpin as u8,
             enabled_schemes: SchemeSet::ALL,
             shuangpin_profile: ShuangpinProfileKind::Xiaohe as u8,
@@ -406,8 +770,8 @@ impl OwlMsimeSession {
             single_character_only: false,
             learning: true,
             learn_english_on_enter: true,
-            autocorrect_transposition: false,
-            autocorrect_neighbor: false,
+            autocorrect_transposition: true,
+            autocorrect_neighbor: true,
             fuzzy_pinyin_rules: 0,
             wubi_mixed_pinyin: false,
             wubi_z_wildcard: false,
@@ -431,8 +795,8 @@ impl OwlMsimeSession {
             frequency_linear_step: 1,
             mixed_candidates: true,
             mixed_english: true,
-            english_minimum_prefix: 5,
-            english_first_page_count: 1,
+            english_minimum_prefix: 2,
+            english_first_page_count: 3,
             mixed_emoji: false,
             mixed_kaomoji: false,
             mixed_symbols: false,
@@ -452,13 +816,13 @@ impl OwlMsimeSession {
             local_mention: false,
             local_chaizi: false,
             local_symbol: false,
-            local_shift_letter_entry: false,
+            local_shift_letter_entry: true,
             chaizi_traditional_output: false,
             command_table: Vec::new(),
             plugin_commands: Vec::new(),
             mention_entries: Vec::new(),
             quick_phrase_table: Vec::new(),
-            quick_phrase_candidates: false,
+            quick_phrase_candidates: true,
             quick_phrase_frequency: true,
             sentence_association: SentenceAssociationOptions::default(),
             rescoring_context: String::new(),
@@ -482,6 +846,11 @@ impl OwlMsimeSession {
             traditional: false,
             active_input: String::new(),
             caret_at_end: true,
+            input_mode: "chinese".to_owned(),
+            pinyin_scheme: "quanpin".to_owned(),
+            page_size: usize::from(page_size_u8),
+            wubi_single_first: false,
+            wubi_z_reverse_lookup: true,
         }));
         runtime.set_candidate_transform(Some(Box::new(OwlPinnedTransform {
             state: Arc::clone(&pinned_state),
@@ -490,16 +859,53 @@ impl OwlMsimeSession {
         Ok(Self {
             runtime,
             options,
+            source_pinyin_path: pinyin_src.to_path_buf(),
+            staged_pinyin_path: staged_pinyin,
             page_size: page_size_u8,
             input_mode: "chinese".to_owned(),
             pinyin_scheme: "quanpin".to_owned(),
+            wubi_code_hint: false,
+            wubi_auto_clear: false,
+            wubi_candidate_mode: "normal".to_owned(),
+            wubi_z_reverse_lookup: true,
+            wubi_english_channel: false,
+            wubi_user_dict_learning: false,
             pinned_state,
             _temp_dir: temp_dir,
         })
     }
 
+    fn show_engine_annotation(&self, view: &View) -> bool {
+        if self.input_mode == "wubi" {
+            let in_z_lookup = !self.options.wubi_mixed_pinyin
+                && self.wubi_z_reverse_lookup
+                && view.editing_text.starts_with('z');
+            in_z_lookup || self.wubi_code_hint
+        } else {
+            false
+        }
+    }
+
+    fn temp_english_backtick(&self, view: &View) -> bool {
+        self.input_mode == "wubi"
+            && self.wubi_english_channel
+            && view.local_mode == "temporary_english"
+    }
+
+    fn build_snapshot(
+        &self,
+        view: View,
+        consumed: bool,
+        committed_text: Option<String>,
+        cleared: bool,
+    ) -> SnapshotResponseDto {
+        let show_ann = self.show_engine_annotation(&view);
+        let backtick = self.temp_english_backtick(&view);
+        snapshot_from_view(view, consumed, committed_text, cleared, show_ann, backtick)
+    }
+
     pub fn snapshot(&self) -> SnapshotResponseDto {
-        snapshot_from_view(self.runtime.view(), false, None, false)
+        self.build_snapshot(self.runtime.view(), false, None, false)
     }
 
     fn sync_pinned_state_for_upcoming_input(&self, next_input: String, caret_at_end: bool) {
@@ -507,6 +913,11 @@ impl OwlMsimeSession {
             guard.enabled = self.input_mode == "chinese" && self.pinyin_scheme == "quanpin";
             guard.active_input = next_input;
             guard.caret_at_end = caret_at_end;
+            guard.input_mode = self.input_mode.clone();
+            guard.pinyin_scheme = self.pinyin_scheme.clone();
+            guard.page_size = usize::from(self.page_size);
+            guard.wubi_single_first = self.wubi_candidate_mode == "single_first";
+            guard.wubi_z_reverse_lookup = self.wubi_z_reverse_lookup;
         }
     }
 
@@ -516,6 +927,11 @@ impl OwlMsimeSession {
             guard.active_input = view.editing_text.clone();
             guard.caret_at_end =
                 view.phrase_prefix.is_empty() && view.caret_position == view.editing_text.len();
+            guard.input_mode = self.input_mode.clone();
+            guard.pinyin_scheme = self.pinyin_scheme.clone();
+            guard.page_size = usize::from(self.page_size);
+            guard.wubi_single_first = self.wubi_candidate_mode == "single_first";
+            guard.wubi_z_reverse_lookup = self.wubi_z_reverse_lookup;
         }
     }
 
@@ -529,27 +945,58 @@ impl OwlMsimeSession {
         };
         let desired_profile = shuangpin_profile_for_name(&self.pinyin_scheme)
             .unwrap_or(ShuangpinProfileKind::Xiaohe) as u8;
+        let desired_wubi_mixed =
+            self.input_mode == "wubi" && self.pinyin_scheme == "wubi_pinyin";
+        let desired_single_only =
+            self.input_mode == "wubi" && self.wubi_candidate_mode == "single_only";
+        let desired_learning = if self.input_mode == "wubi" {
+            self.wubi_user_dict_learning
+        } else {
+            true
+        };
 
         if self.options.scheme != desired_scheme
             || self.options.shuangpin_profile != desired_profile
+            || self.options.wubi_mixed_pinyin != desired_wubi_mixed
+            || self.options.single_character_only != desired_single_only
+            || self.options.learning != desired_learning
         {
             let _ = self.runtime.dispatch(Action::Command(Command::Cancel));
             self.options.scheme = desired_scheme;
             self.options.shuangpin_profile = desired_profile;
+            self.options.wubi_mixed_pinyin = desired_wubi_mixed;
+            self.options.single_character_only = desired_single_only;
+            self.options.learning = desired_learning;
             self.options.first_page_rows = usize::from(self.page_size);
-            let new_engine = EngineSession::new(&self.options).map_err(|e| e.to_string())?;
+            let mut new_engine = EngineSession::new(&self.options).map_err(|e| e.to_string())?;
+            new_engine.set_wubi_z_pinyin_lookup(self.wubi_z_reverse_lookup);
             self.runtime
                 .replace_engine(new_engine, self.page_size)
                 .map_err(|e| e.to_string())?;
         }
+        let _ = self
+            .runtime
+            .set_wubi_z_pinyin_lookup(self.wubi_z_reverse_lookup);
         let dedicated_english = self.input_mode == "english";
         let _ = self
             .runtime
             .set_dedicated_english(dedicated_english)
             .map_err(|e| e.to_string())?;
-        if let Ok(mut guard) = self.pinned_state.lock() {
-            guard.enabled = self.input_mode == "chinese" && self.pinyin_scheme == "quanpin";
-        }
+        let view = self.runtime.view();
+        self.sync_pinned_state_from_view(&view);
+        Ok(())
+    }
+
+    fn force_rebuild_engine(&mut self) -> Result<(), String> {
+        let _ = self.runtime.dispatch(Action::Command(Command::Cancel));
+        self.options.first_page_rows = usize::from(self.page_size);
+        let mut new_engine = EngineSession::new(&self.options).map_err(|e| e.to_string())?;
+        new_engine.set_wubi_z_pinyin_lookup(self.wubi_z_reverse_lookup);
+        self.runtime
+            .replace_engine(new_engine, self.page_size)
+            .map_err(|e| e.to_string())?;
+        let view = self.runtime.view();
+        self.sync_pinned_state_from_view(&view);
         Ok(())
     }
 
@@ -568,8 +1015,27 @@ impl OwlMsimeSession {
                     return error_response("insert ch is empty");
                 };
                 if !ch.is_ascii() {
-                    return snapshot_from_view(self.runtime.view(), false, None, false);
+                    return self.build_snapshot(self.runtime.view(), false, None, false);
                 }
+                if ch == '`'
+                    && self.input_mode == "wubi"
+                    && self.wubi_english_channel
+                    && self.runtime.view().editing_text.is_empty()
+                {
+                    self.sync_pinned_state_for_upcoming_input(String::new(), true);
+                    return match self.runtime.dispatch(Action::Character {
+                        value: b'Y',
+                        shift: true,
+                    }) {
+                        Ok(transition) => {
+                            self.sync_pinned_state_from_view(&transition.view);
+                            self.build_snapshot(transition.view, transition.handled, transition.commit, false)
+                        }
+                        Err(err) => error_response(err.to_string()),
+                    };
+                }
+                let is_wubi_letter =
+                    self.input_mode == "wubi" && ch.is_ascii_lowercase() && ch != 'z';
                 let byte = ch as u8;
                 let shift = byte.is_ascii_uppercase();
                 let before = self.runtime.view();
@@ -581,8 +1047,28 @@ impl OwlMsimeSession {
                 self.sync_pinned_state_for_upcoming_input(next_input, next_caret_at_end);
                 match self.runtime.dispatch(Action::Character { value: byte, shift }) {
                     Ok(transition) => {
+                        if is_wubi_letter
+                            && self.wubi_auto_clear
+                            && transition.commit.is_none()
+                            && transition.view.local_mode == "none"
+                            && transition.view.editing_text.len() == 4
+                            && transition.view.candidates.is_empty()
+                        {
+                            self.sync_pinned_state_for_upcoming_input(String::new(), true);
+                            if let Ok(cleared_t) =
+                                self.runtime.dispatch(Action::Command(Command::Cancel))
+                            {
+                                self.sync_pinned_state_from_view(&cleared_t.view);
+                                return self.build_snapshot(
+                                    cleared_t.view,
+                                    true,
+                                    None,
+                                    true,
+                                );
+                            }
+                        }
                         self.sync_pinned_state_from_view(&transition.view);
-                        snapshot_from_view(
+                        self.build_snapshot(
                             transition.view,
                             transition.handled,
                             transition.commit,
@@ -606,7 +1092,7 @@ impl OwlMsimeSession {
                 match self.runtime.dispatch(Action::Command(Command::Backspace)) {
                     Ok(transition) => {
                         self.sync_pinned_state_from_view(&transition.view);
-                        snapshot_from_view(
+                        self.build_snapshot(
                             transition.view,
                             transition.handled,
                             transition.commit,
@@ -624,19 +1110,27 @@ impl OwlMsimeSession {
                     return error_response("punctuation ch is empty");
                 };
                 if !ch.is_ascii() {
-                    return snapshot_from_view(self.runtime.view(), false, None, false);
+                    return self.build_snapshot(self.runtime.view(), false, None, false);
                 }
                 let byte = ch as u8;
                 let use_ascii = payload.ascii.unwrap_or(false) || !self.options.chinese_punctuation;
+                let in_temp_eng = self.temp_english_backtick(&self.runtime.view());
                 let action = if use_ascii {
                     Action::PunctuationAscii(byte)
                 } else {
                     Action::Punctuation(byte)
                 };
                 match self.runtime.dispatch(action) {
-                    Ok(transition) => {
+                    Ok(mut transition) => {
+                        if in_temp_eng {
+                            if let Some(ref mut c) = transition.commit {
+                                if let Some(stripped) = c.strip_prefix('Y') {
+                                    *c = stripped.to_owned();
+                                }
+                            }
+                        }
                         self.sync_pinned_state_from_view(&transition.view);
-                        snapshot_from_view(
+                        self.build_snapshot(
                             transition.view,
                             transition.handled,
                             transition.commit,
@@ -659,7 +1153,7 @@ impl OwlMsimeSession {
                         } else if delta > 0 {
                             Command::MoveRight
                         } else {
-                            return snapshot_from_view(self.runtime.view(), false, None, false);
+                            return self.build_snapshot(self.runtime.view(), false, None, false);
                         }
                     }
                 };
@@ -678,7 +1172,7 @@ impl OwlMsimeSession {
                 match self.runtime.dispatch(Action::Command(cmd)) {
                     Ok(transition) => {
                         self.sync_pinned_state_from_view(&transition.view);
-                        snapshot_from_view(
+                        self.build_snapshot(
                             transition.view,
                             transition.handled,
                             transition.commit,
@@ -702,7 +1196,7 @@ impl OwlMsimeSession {
                     return match self.runtime.dispatch(Action::Command(Command::MoveEnd)) {
                         Ok(transition) => {
                             self.sync_pinned_state_from_view(&transition.view);
-                            snapshot_from_view(transition.view, true, transition.commit, false)
+                            self.build_snapshot(transition.view, true, transition.commit, false)
                         }
                         Err(err) => error_response(err.to_string()),
                     };
@@ -711,40 +1205,62 @@ impl OwlMsimeSession {
                     Ok(()) => {
                         let view = self.runtime.view();
                         self.sync_pinned_state_from_view(&view);
-                        snapshot_from_view(view, true, None, false)
+                        self.build_snapshot(view, true, None, false)
                     }
                     Err(err) => error_response(err.to_string()),
                 }
             }
-            "commit_raw" => match self.runtime.dispatch(Action::Command(Command::CommitRaw)) {
-                Ok(transition) => {
-                    self.sync_pinned_state_from_view(&transition.view);
-                    snapshot_from_view(
-                        transition.view,
-                        transition.handled,
-                        transition.commit,
-                        false,
-                    )
+            "commit_raw" => {
+                let in_temp_eng = self.temp_english_backtick(&self.runtime.view());
+                match self.runtime.dispatch(Action::Command(Command::CommitRaw)) {
+                    Ok(mut transition) => {
+                        if in_temp_eng {
+                            if let Some(ref mut c) = transition.commit {
+                                if let Some(stripped) = c.strip_prefix('Y') {
+                                    *c = format!("`{stripped}");
+                                }
+                            }
+                        }
+                        self.sync_pinned_state_from_view(&transition.view);
+                        self.build_snapshot(
+                            transition.view,
+                            transition.handled,
+                            transition.commit,
+                            false,
+                        )
+                    }
+                    Err(err) => error_response(err.to_string()),
                 }
-                Err(err) => error_response(err.to_string()),
-            },
-            "space" => match self.runtime.dispatch(Action::SelectHighlighted) {
-                Ok(transition) => {
-                    self.sync_pinned_state_from_view(&transition.view);
-                    snapshot_from_view(
-                        transition.view,
-                        transition.handled,
-                        transition.commit,
-                        false,
-                    )
+            }
+            "space" => {
+                let in_temp_eng = self.temp_english_backtick(&self.runtime.view());
+                match self.runtime.dispatch(Action::SelectHighlighted) {
+                    Ok(mut transition) => {
+                        if in_temp_eng {
+                            if let Some(ref mut c) = transition.commit {
+                                if *c == "Y" {
+                                    *c = "`".to_owned();
+                                } else if let Some(stripped) = c.strip_prefix('Y') {
+                                    *c = stripped.to_owned();
+                                }
+                            }
+                        }
+                        self.sync_pinned_state_from_view(&transition.view);
+                        self.build_snapshot(
+                            transition.view,
+                            transition.handled,
+                            transition.commit,
+                            false,
+                        )
+                    }
+                    Err(err) => error_response(err.to_string()),
                 }
-                Err(err) => error_response(err.to_string()),
-            },
+            }
             "clear" => {
                 let had_input = !self.runtime.view().editing_text.is_empty();
                 self.sync_pinned_state_for_upcoming_input(String::new(), true);
                 match self.runtime.dispatch(Action::Command(Command::Cancel)) {
-                    Ok(transition) => snapshot_from_view(
+                    Ok(transition) => self.build_snapshot(
                         transition.view,
                         transition.handled || had_input,
                         transition.commit,
@@ -756,7 +1272,7 @@ impl OwlMsimeSession {
             "move_highlight" => {
                 let delta = payload.delta.unwrap_or(0);
                 if delta == 0 {
-                    return snapshot_from_view(self.runtime.view(), true, None, false);
+                    return self.build_snapshot(self.runtime.view(), true, None, false);
                 }
                 let steps = delta.unsigned_abs() as usize;
                 let mut last_transition = None;
@@ -772,14 +1288,14 @@ impl OwlMsimeSession {
                     }
                 }
                 match last_transition {
-                    Some(t) => snapshot_from_view(t.view, t.handled, t.commit, false),
-                    None => snapshot_from_view(self.runtime.view(), false, None, false),
+                    Some(t) => self.build_snapshot(t.view, t.handled, t.commit, false),
+                    None => self.build_snapshot(self.runtime.view(), false, None, false),
                 }
             }
             "turn_page" => {
                 let delta = payload.delta.unwrap_or(0);
                 if delta == 0 {
-                    return snapshot_from_view(self.runtime.view(), false, None, false);
+                    return self.build_snapshot(self.runtime.view(), false, None, false);
                 }
                 let before_page = self.runtime.view().page;
                 let steps = delta.unsigned_abs() as usize;
@@ -798,9 +1314,9 @@ impl OwlMsimeSession {
                 match last_transition {
                     Some(t) => {
                         let moved = t.view.page != before_page;
-                        snapshot_from_view(t.view, t.handled && moved, t.commit, false)
+                        self.build_snapshot(t.view, t.handled && moved, t.commit, false)
                     }
-                    None => snapshot_from_view(self.runtime.view(), false, None, false),
+                    None => self.build_snapshot(self.runtime.view(), false, None, false),
                 }
             }
             "select_visible" => {
@@ -809,13 +1325,13 @@ impl OwlMsimeSession {
                 };
                 let view = self.runtime.view();
                 let Some(candidate) = view.candidates.get(index) else {
-                    return snapshot_from_view(view, false, None, false);
+                    return self.build_snapshot(view, false, None, false);
                 };
                 let id = candidate.id;
                 match self.runtime.dispatch(Action::Select(id)) {
                     Ok(transition) => {
                         self.sync_pinned_state_from_view(&transition.view);
-                        snapshot_from_view(
+                        self.build_snapshot(
                             transition.view,
                             transition.handled,
                             transition.commit,
@@ -832,7 +1348,7 @@ impl OwlMsimeSession {
                 let view = self.runtime.view();
                 let token_gen = payload.generation.unwrap_or(view.generation);
                 if payload.generation.is_some() && token_gen != view.generation {
-                    return snapshot_from_view(view, false, None, false);
+                    return self.build_snapshot(view, false, None, false);
                 }
                 let is_absolute = payload.is_absolute.unwrap_or(false);
                 let action = if is_absolute {
@@ -843,21 +1359,21 @@ impl OwlMsimeSession {
                     })
                 } else {
                     let Some(candidate) = view.candidates.get(index) else {
-                        return snapshot_from_view(view, false, None, false);
+                        return self.build_snapshot(view, false, None, false);
                     };
                     Action::Select(candidate.id)
                 };
                 match self.runtime.dispatch(action) {
                     Ok(transition) => {
                         self.sync_pinned_state_from_view(&transition.view);
-                        snapshot_from_view(
+                        self.build_snapshot(
                             transition.view,
                             transition.handled,
                             transition.commit,
                             false,
                         )
                     }
-                    Err(_) => snapshot_from_view(self.runtime.view(), false, None, false),
+                    Err(_) => self.build_snapshot(self.runtime.view(), false, None, false),
                 }
             }
             "peek_candidates" => {
@@ -865,8 +1381,9 @@ impl OwlMsimeSession {
                 let count = payload.count.unwrap_or(0);
                 let all = self.runtime.all_candidates_cached();
                 let view = self.runtime.view();
+                let show_ann = self.show_engine_annotation(&view);
                 let input_len = view.editing_text.len();
-                let mut dto = snapshot_from_view(view, true, None, false);
+                let mut dto = self.build_snapshot(view, true, None, false);
                 dto.generation = all.generation;
                 dto.candidates = all
                     .candidates
@@ -877,7 +1394,9 @@ impl OwlMsimeSession {
                         let comment = c
                             .script_annotation
                             .filter(|s| !s.is_empty())
-                            .or_else(|| (!c.annotation.is_empty()).then_some(c.annotation));
+                            .or_else(|| {
+                                (show_ann && !c.annotation.is_empty()).then_some(c.annotation)
+                            });
                         CandidateDto {
                             text: c.text,
                             comment,
@@ -910,7 +1429,87 @@ impl OwlMsimeSession {
                 if let Ok(mut guard) = self.pinned_state.lock() {
                     guard.words = parsed;
                 }
-                snapshot_from_view(self.runtime.view(), true, None, false)
+                self.build_snapshot(self.runtime.view(), true, None, false)
+            }
+            "set_host_phrases" => {
+                let packed = payload.text.unwrap_or_default();
+                let mut seen = HashSet::new();
+                let mut rows: Vec<(String, String, i64)> = Vec::new();
+                for line in packed.lines() {
+                    let trimmed = line.trim();
+                    if trimmed.is_empty() || trimmed.starts_with('#') {
+                        continue;
+                    }
+                    let parts: Vec<&str> = line.split('\t').collect();
+                    if parts.len() < 2 {
+                        continue;
+                    }
+                    let phrase = parts[0].trim();
+                    let code = parts[1].trim().to_ascii_lowercase();
+                    if phrase.is_empty() || code.is_empty() || !code.chars().all(|c| c.is_ascii_alphabetic()) {
+                        continue;
+                    }
+                    let weight = parts
+                        .get(2)
+                        .and_then(|w| w.trim().parse::<i64>().ok())
+                        .unwrap_or(1_000_000)
+                        .max(1);
+                    let row = (code, phrase.to_owned(), weight);
+                    if seen.insert((row.0.clone(), row.1.clone())) {
+                        rows.push(row);
+                    }
+                }
+
+                // Host phrases are merged from EngineOptions at query time. Importing them into
+                // quick_parases loses provenance and can delete or duplicate identical base rows.
+                // Migrate rows written by the earlier implementation, then keep the host table
+                // solely in runtime state.
+                let user_journal =
+                    Path::new(&self.options.user_data).join(msime_engine::assets::USER_JOURNAL);
+                if let Err(err) = reconcile_quick_phrases(
+                    &self.source_pinyin_path,
+                    &self.staged_pinyin_path,
+                    &user_journal,
+                    true,
+                ) {
+                    return error_response(err);
+                }
+                let previous_table = std::mem::replace(
+                    &mut self.options.quick_phrase_table,
+                    rows
+                    .iter()
+                    .map(|(code, text, _)| QuickPhraseEntry {
+                        key: code.clone(),
+                        text: text.clone(),
+                    })
+                    .collect(),
+                );
+                if let Err(err) = self.force_rebuild_engine() {
+                    self.options.quick_phrase_table = previous_table;
+                    let _ = self.force_rebuild_engine();
+                    return error_response(err);
+                }
+                self.build_snapshot(self.runtime.view(), true, None, false)
+            }
+            "set_fuzzy_rules" => {
+                let mask = payload.mask.unwrap_or(0) & fuzzy_rule::ALL;
+                if self.options.fuzzy_pinyin_rules != mask {
+                    self.options.fuzzy_pinyin_rules = mask;
+                    if let Err(err) = self.force_rebuild_engine() {
+                        return error_response(err);
+                    }
+                }
+                self.build_snapshot(self.runtime.view(), true, None, false)
+            }
+            "set_wubi_candidate_mode" => {
+                let Some(mode) = payload.mode else {
+                    return error_response("set_wubi_candidate_mode requires mode");
+                };
+                self.wubi_candidate_mode = mode;
+                if let Err(err) = self.rebuild_engine_if_needed() {
+                    return error_response(err);
+                }
+                self.build_snapshot(self.runtime.view(), true, None, false)
             }
             "set_input_mode" => {
                 let Some(mode) = payload.mode else {
@@ -920,7 +1519,7 @@ impl OwlMsimeSession {
                 if let Err(err) = self.rebuild_engine_if_needed() {
                     return error_response(err);
                 }
-                snapshot_from_view(self.runtime.view(), true, None, false)
+                self.build_snapshot(self.runtime.view(), true, None, false)
             }
             "set_pinyin_scheme" => {
                 let Some(scheme) = payload.scheme else {
@@ -930,7 +1529,7 @@ impl OwlMsimeSession {
                 if let Err(err) = self.rebuild_engine_if_needed() {
                     return error_response(err);
                 }
-                snapshot_from_view(self.runtime.view(), true, None, false)
+                self.build_snapshot(self.runtime.view(), true, None, false)
             }
             "set_page_size" => {
                 let Some(ps) = payload.page_size else {
@@ -940,7 +1539,7 @@ impl OwlMsimeSession {
                 self.page_size = clamped;
                 self.options.first_page_rows = usize::from(clamped);
                 let _ = self.runtime.set_page_size(clamped);
-                snapshot_from_view(self.runtime.view(), true, None, false)
+                self.build_snapshot(self.runtime.view(), true, None, false)
             }
             "set_option" => {
                 let Some(name) = payload.name.as_deref() else {
@@ -972,9 +1571,38 @@ impl OwlMsimeSession {
                     "linear" => {
                         self.runtime.set_vertical_candidates(!value);
                     }
+                    "wubi_code_hint" => {
+                        self.wubi_code_hint = value;
+                    }
+                    "wubi_auto_clear" => {
+                        self.wubi_auto_clear = value;
+                    }
+                    "wubi_z_reverse_lookup" => {
+                        self.wubi_z_reverse_lookup = value;
+                        let _ = self.runtime.set_wubi_z_pinyin_lookup(value);
+                        self.sync_pinned_state_from_view(&self.runtime.view());
+                    }
+                    "wubi_english_channel" => {
+                        self.wubi_english_channel = value;
+                    }
+                    "wubi_user_dict_learning" => {
+                        self.wubi_user_dict_learning = value;
+                        let _ = self.rebuild_engine_if_needed();
+                    }
+                    "pinyin_autocorrect" => {
+                        if self.options.autocorrect_transposition != value
+                            || self.options.autocorrect_neighbor != value
+                        {
+                            self.options.autocorrect_transposition = value;
+                            self.options.autocorrect_neighbor = value;
+                            if let Err(err) = self.force_rebuild_engine() {
+                                return error_response(err);
+                            }
+                        }
+                    }
                     _ => {}
                 }
-                snapshot_from_view(self.runtime.view(), true, None, false)
+                self.build_snapshot(self.runtime.view(), true, None, false)
             }
             other => error_response(format!("unsupported op: {other}")),
         }
@@ -994,6 +1622,17 @@ fn is_live_session(ptr: *const OwlMsimeSession) -> bool {
         .lock()
         .map(|set| set.contains(&(ptr as usize)))
         .unwrap_or(false)
+}
+
+fn store_ffi_error(error_out: *mut *mut c_char, message: &str) {
+    if error_out.is_null() {
+        return;
+    }
+    let message = CString::new(message)
+        .unwrap_or_else(|_| CString::new("session creation failed").expect("static C string"));
+    unsafe {
+        *error_out = message.into_raw();
+    }
 }
 
 #[no_mangle]
@@ -1019,6 +1658,58 @@ pub extern "C" fn owl_msime_session_create(
         }
     }))
     .unwrap_or(ptr::null_mut())
+}
+
+#[no_mangle]
+pub extern "C" fn owl_msime_session_create_with_roots(
+    pinyin_db_path: *const c_char,
+    english_db_path: *const c_char,
+    resources_dir: *const c_char,
+    user_data_dir: *const c_char,
+    cache_dir: *const c_char,
+    dictionaries_dir: *const c_char,
+    page_size: u32,
+    error_out: *mut *mut c_char,
+) -> *mut OwlMsimeSession {
+    if !error_out.is_null() {
+        unsafe {
+            *error_out = ptr::null_mut();
+        }
+    }
+    let created = catch_unwind(AssertUnwindSafe(|| {
+        let pinyin = cstr_to_string(pinyin_db_path).unwrap_or_default();
+        let english = cstr_to_string(english_db_path).unwrap_or_default();
+        let resources = cstr_to_string(resources_dir).unwrap_or_default();
+        let user = cstr_to_string(user_data_dir).unwrap_or_default();
+        let cache = cstr_to_string(cache_dir).unwrap_or_default();
+        let dictionaries = cstr_to_string(dictionaries_dir).unwrap_or_default();
+        OwlMsimeSession::create_with_explicit_roots(
+            &pinyin,
+            &english,
+            &resources,
+            &user,
+            &cache,
+            &dictionaries,
+            page_size,
+        )
+    }));
+    match created {
+        Ok(Ok(session)) => {
+            let raw = Box::into_raw(Box::new(session));
+            if let Ok(mut set) = live_sessions().lock() {
+                set.insert(raw as usize);
+            }
+            raw
+        }
+        Ok(Err(message)) => {
+            store_ffi_error(error_out, &message);
+            ptr::null_mut()
+        }
+        Err(_) => {
+            store_ffi_error(error_out, "panic in session creation with explicit roots");
+            ptr::null_mut()
+        }
+    }
 }
 
 #[no_mangle]
@@ -1129,7 +1820,10 @@ mod tests {
                ('shi', 's', '使', 5000),
                ('shi', 's', '世', 4000),
                ('shi', 's', '市', 3000),
-               ('shi', 's', '式', 2000);",
+               ('shi', 's', '式', 2000);
+
+             CREATE TABLE quick_parases (\"key\" TEXT, \"value\" TEXT, \"weight\" INTEGER);
+             CREATE INDEX idx_quick_parases_key_weight ON quick_parases (\"key\", \"weight\" DESC);",
         )
         .expect("populate test sqlite db");
     }
@@ -1149,6 +1843,249 @@ mod tests {
         let resp_str = unsafe { CStr::from_ptr(raw) }.to_str().unwrap().to_owned();
         owl_msime_string_free(raw);
         serde_json::from_str(&resp_str).expect("valid snapshot json")
+    }
+
+    fn staged_pinyin_path(session: *const OwlMsimeSession) -> PathBuf {
+        assert!(!session.is_null());
+        unsafe { (*session).staged_pinyin_path.clone() }
+    }
+
+    fn host_phrase_texts(session: *const OwlMsimeSession) -> Vec<String> {
+        assert!(!session.is_null());
+        unsafe {
+            (*session)
+                .options
+                .quick_phrase_table
+                .iter()
+                .map(|entry| entry.text.clone())
+                .collect()
+        }
+    }
+
+    fn create_with_explicit_roots(
+        pinyin: &Path,
+        resources: &Path,
+        user: &Path,
+        cache: &Path,
+        dictionaries: &Path,
+    ) -> (*mut OwlMsimeSession, Option<String>) {
+        let c_pinyin = CString::new(pinyin.to_string_lossy().as_bytes()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let c_resources = CString::new(resources.to_string_lossy().as_bytes()).unwrap();
+        let c_user = CString::new(user.to_string_lossy().as_bytes()).unwrap();
+        let c_cache = CString::new(cache.to_string_lossy().as_bytes()).unwrap();
+        let c_dictionaries =
+            CString::new(dictionaries.to_string_lossy().as_bytes()).unwrap();
+        let mut error = ptr::null_mut();
+        let session = owl_msime_session_create_with_roots(
+            c_pinyin.as_ptr(),
+            c_empty.as_ptr(),
+            c_resources.as_ptr(),
+            c_user.as_ptr(),
+            c_cache.as_ptr(),
+            c_dictionaries.as_ptr(),
+            5,
+            &mut error,
+        );
+        let message = if error.is_null() {
+            None
+        } else {
+            let value = unsafe { CStr::from_ptr(error) }
+                .to_string_lossy()
+                .into_owned();
+            owl_msime_string_free(error);
+            Some(value)
+        };
+        (session, message)
+    }
+
+    fn session_options(session: *const OwlMsimeSession) -> &'static EngineOptions {
+        assert!(!session.is_null());
+        unsafe { &(*session).options }
+    }
+
+    fn assertion_journal_count(journal: &Path) -> i64 {
+        Connection::open(journal)
+            .unwrap()
+            .query_row(
+                "SELECT selection_count
+                 FROM candidate_selection_state
+                 WHERE context_key='codex-boundary' AND entry_key='ni' AND value='你'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap()
+    }
+
+    #[test]
+    fn explicit_roots_keep_session_runtime_separate_from_the_shared_user_journal() {
+        let tmp = TempDir::new().unwrap();
+        let pinyin = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&pinyin);
+        let user = tmp.path().join("persistent-user");
+        fs::create_dir_all(&user).unwrap();
+        let journal = user.join(msime_engine::assets::USER_JOURNAL);
+        Connection::open(&journal)
+            .unwrap()
+            .execute_batch(
+                "CREATE TABLE candidate_selection_state(
+                     context_key TEXT NOT NULL,
+                     entry_key TEXT NOT NULL,
+                     value TEXT NOT NULL,
+                     selection_count INTEGER NOT NULL DEFAULT 0,
+                     PRIMARY KEY(context_key,entry_key,value)
+                 );
+                 INSERT INTO candidate_selection_state
+                     (context_key,entry_key,value,selection_count)
+                 VALUES ('codex-boundary','ni','你',7);",
+            )
+            .unwrap();
+
+        let runtime_a = tmp.path().join("runtime-a");
+        let runtime_b = tmp.path().join("runtime-b");
+        let resources_a = runtime_a.join("resources");
+        let cache_a = runtime_a.join("cache");
+        let dictionaries_a = runtime_a.join("dictionaries");
+        let resources_b = runtime_b.join("resources");
+        let cache_b = runtime_b.join("cache");
+        let dictionaries_b = runtime_b.join("dictionaries");
+
+        let (session_a, error_a) = create_with_explicit_roots(
+            &pinyin,
+            &resources_a,
+            &user,
+            &cache_a,
+            &dictionaries_a,
+        );
+        assert!(error_a.is_none(), "{error_a:?}");
+        assert!(!session_a.is_null());
+        let (session_b, error_b) = create_with_explicit_roots(
+            &pinyin,
+            &resources_b,
+            &user,
+            &cache_b,
+            &dictionaries_b,
+        );
+        assert!(error_b.is_none(), "{error_b:?}");
+        assert!(!session_b.is_null());
+
+        let options_a = session_options(session_a);
+        let options_b = session_options(session_b);
+        assert_eq!(
+            Path::new(&options_a.resources),
+            fs::canonicalize(&resources_a).unwrap()
+        );
+        assert_eq!(
+            Path::new(&options_a.cache),
+            fs::canonicalize(&cache_a).unwrap()
+        );
+        assert_eq!(
+            Path::new(&options_a.dictionaries),
+            fs::canonicalize(&dictionaries_a).unwrap()
+        );
+        assert_eq!(
+            Path::new(&options_b.resources),
+            fs::canonicalize(&resources_b).unwrap()
+        );
+        assert_eq!(
+            Path::new(&options_a.user_data),
+            Path::new(&options_b.user_data)
+        );
+        assert_ne!(options_a.resources, options_b.resources);
+        assert_ne!(options_a.cache, options_b.cache);
+        assert_ne!(options_a.dictionaries, options_b.dictionaries);
+        assert!(!resources_a.join("msime-resources").exists());
+        assert!(!user.join("msime-user").exists());
+        assert!(dictionaries_a.join("msime-pinyin.db").is_file());
+        assert!(dictionaries_a.join("msime-english.db").is_file());
+        assert_eq!(assertion_journal_count(&journal), 7);
+
+        for session in [session_a, session_b] {
+            for ch in ['n', 'i'] {
+                let typed =
+                    call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+                assert!(typed.ok);
+            }
+            assert!(
+                call_snapshot(session)
+                    .candidates
+                    .iter()
+                    .any(|candidate| candidate.text == "你")
+            );
+        }
+
+        owl_msime_session_destroy(session_a);
+        fs::remove_dir_all(&runtime_a).unwrap();
+        assert!(journal.is_file());
+        assert_eq!(assertion_journal_count(&journal), 7);
+
+        owl_msime_session_destroy(session_b);
+        fs::remove_dir_all(&runtime_b).unwrap();
+        assert!(journal.is_file());
+        assert_eq!(assertion_journal_count(&journal), 7);
+
+        let runtime_c = tmp.path().join("runtime-c");
+        let (reopened, error_c) = create_with_explicit_roots(
+            &pinyin,
+            &runtime_c.join("resources"),
+            &user,
+            &runtime_c.join("cache"),
+            &runtime_c.join("dictionaries"),
+        );
+        assert!(error_c.is_none(), "{error_c:?}");
+        assert!(!reopened.is_null());
+        assert_eq!(assertion_journal_count(&journal), 7);
+        for ch in ['n', 'i'] {
+            let typed = call_action(
+                reopened,
+                &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"),
+            );
+            assert!(typed.ok);
+        }
+        assert!(
+            call_snapshot(reopened)
+                .candidates
+                .iter()
+                .any(|candidate| candidate.text == "你")
+        );
+        owl_msime_session_destroy(reopened);
+    }
+
+    #[test]
+    fn explicit_roots_reject_overlap_and_report_creation_errors() {
+        let tmp = TempDir::new().unwrap();
+        let pinyin = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&pinyin);
+        let shared = tmp.path().join("shared-root");
+
+        let (session, error) = create_with_explicit_roots(
+            &pinyin,
+            &shared,
+            &shared,
+            &tmp.path().join("cache"),
+            &tmp.path().join("dictionaries"),
+        );
+        assert!(session.is_null());
+        assert!(
+            error
+                .as_deref()
+                .is_some_and(|message| message.contains("session roots overlap"))
+        );
+
+        let missing_pinyin = tmp.path().join("missing-pinyin.db");
+        let (session, error) = create_with_explicit_roots(
+            &missing_pinyin,
+            &tmp.path().join("resources-2"),
+            &tmp.path().join("user-2"),
+            &tmp.path().join("cache-2"),
+            &tmp.path().join("dictionaries-2"),
+        );
+        assert!(session.is_null());
+        assert!(
+            error
+                .as_deref()
+                .is_some_and(|message| message.contains("pinyin_db_path"))
+        );
     }
 
     #[test]
@@ -1254,12 +2191,14 @@ mod tests {
             conn.execute(
                 "INSERT INTO tbl_1_n (key, jp, value, weight) VALUES ('ni', 'n', ?1, ?2)",
                 rusqlite::params![word, 10000 - index],
-            ).unwrap();
+            )
+            .unwrap();
         }
         drop(conn);
         let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
         let c_empty = CString::new("").unwrap();
-        let session = owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_empty.as_ptr(), 5);
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_empty.as_ptr(), 5);
         assert!(!session.is_null());
         call_action(session, r#"{"op":"insert","ch":"n"}"#);
         call_action(session, r#"{"op":"turn_page","delta":1}"#);
@@ -1267,13 +2206,20 @@ mod tests {
         let expected = before.candidates[0].text.clone();
         let peek = call_action(session, r#"{"op":"peek_candidates","start":10,"count":20}"#);
         let after = call_snapshot(session);
-        assert_eq!(peek.generation, before.generation, "passive prefetch must not expand or retag displayed rows");
+        assert_eq!(
+            peek.generation, before.generation,
+            "passive prefetch must not expand or retag displayed rows"
+        );
         assert_eq!(after.generation, before.generation);
         assert_eq!(after.page, before.page);
         assert_eq!(after.candidates[0].text, expected);
-        let selected = call_action(session, &format!(
-            r#"{{"op":"select_token","index":0,"generation":{}}}"#, before.generation
-        ));
+        let selected = call_action(
+            session,
+            &format!(
+                r#"{{"op":"select_token","index":0,"generation":{}}}"#,
+                before.generation
+            ),
+        );
         assert_eq!(selected.committed_text.as_deref(), Some(expected.as_str()));
         // The passive read must not permanently hide the withheld tail: real paging still releases it.
         call_action(session, r#"{"op":"insert","ch":"n"}"#);
@@ -1281,13 +2227,23 @@ mod tests {
             call_action(session, r#"{"op":"turn_page","delta":1}"#);
         }
         let tail = call_snapshot(session);
-        assert!(tail.page >= 5, "paging must reach beyond the initial 24 candidates");
+        assert!(
+            tail.page >= 5,
+            "paging must reach beyond the initial 24 candidates"
+        );
         let tail_text = tail.candidates[0].text.clone();
-        let absolute = call_action(session, &format!(
-            r#"{{"op":"select_token","index":{},"is_absolute":true,"generation":{}}}"#,
-            tail.page * tail.page_size, tail.generation
-        ));
-        assert_eq!(absolute.committed_text.as_deref(), Some(tail_text.as_str()));
+        let absolute = call_action(
+            session,
+            &format!(
+                r#"{{"op":"select_token","index":{},"is_absolute":true,"generation":{}}}"#,
+                tail.page * tail.page_size,
+                tail.generation
+            ),
+        );
+        assert_eq!(
+            absolute.committed_text.as_deref(),
+            Some(tail_text.as_str())
+        );
         owl_msime_session_destroy(session);
     }
 
@@ -1401,6 +2357,507 @@ mod tests {
     }
 
     #[test]
+    fn host_phrase_sync_preserves_base_rows_and_removes_only_legacy_imports() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&db_path);
+        let conn = Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "INSERT INTO quick_parases VALUES
+               ('base', 'BaseHigh', 950000),
+               ('same', 'Same', 10),
+               ('same', 'Same', 100000);",
+        )
+        .unwrap();
+        drop(conn);
+
+        let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_empty.as_ptr(), 5);
+        assert!(!session.is_null());
+
+        let staged = staged_pinyin_path(session);
+        let conn = Connection::open(&staged).unwrap();
+        conn.execute_batch(
+            "INSERT INTO quick_parases VALUES
+               ('same', 'Same', 100000),
+               ('host', 'HostOnly', 100000),
+               ('same', 'Same', 100000),
+               ('host', 'HostOnly', 100000),
+               ('host', 'HostOnly', 100000);
+             CREATE TABLE owl_host_quick_phrases(key TEXT NOT NULL, value TEXT NOT NULL);
+             INSERT INTO owl_host_quick_phrases VALUES
+               ('same', 'Same'),
+               ('host', 'HostOnly'),
+               ('host', 'HostOnly');",
+        )
+        .unwrap();
+        drop(conn);
+
+        let response = call_action(
+            session,
+            "{\"op\":\"set_host_phrases\",\"text\":\"HostNew\\thost\\t100000\\nHostNew\\thost\\t10\"}",
+        );
+        assert!(response.ok);
+        assert_eq!(host_phrase_texts(session), vec!["HostNew"]);
+
+        let conn = Connection::open(&staged).unwrap();
+        let rows: Vec<(String, String, i64)> = conn
+            .prepare(
+                "SELECT key, value, weight FROM quick_parases ORDER BY key, value, weight",
+            )
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            rows,
+            vec![
+                ("base".to_owned(), "BaseHigh".to_owned(), 950000),
+                ("same".to_owned(), "Same".to_owned(), 10),
+                ("same".to_owned(), "Same".to_owned(), 100000),
+            ],
+            "the legacy host row must be removed without touching identical or high-weight base rows"
+        );
+        let tracking_table_count: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='owl_host_quick_phrases'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(tracking_table_count, 0);
+        drop(conn);
+
+        for ch in ['h', 'o', 's', 't'] {
+            call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+        }
+        let snapshot = call_snapshot(session);
+        assert!(
+            snapshot
+                .candidates
+                .iter()
+                .any(|candidate| candidate.text == "HostNew"),
+            "host phrases must remain available from runtime state"
+        );
+
+        let cleared = call_action(session, "{\"op\":\"set_host_phrases\",\"text\":\"\"}");
+        assert!(cleared.ok);
+        assert!(host_phrase_texts(session).is_empty());
+        let conn = Connection::open(staged_pinyin_path(session)).unwrap();
+        let quick_count: i64 = conn
+            .query_row("SELECT count(*) FROM quick_parases", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(
+            quick_count, 3,
+            "clearing host phrases must not remove base rows"
+        );
+
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn host_phrase_cleanup_failure_is_reported_and_atomic() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&db_path);
+        let conn = Connection::open(&db_path).unwrap();
+        conn.execute(
+            "INSERT INTO quick_parases VALUES ('base', 'BaseHigh', 950000)",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+
+        let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_empty.as_ptr(), 5);
+        assert!(!session.is_null());
+        let old = call_action(
+            session,
+            "{\"op\":\"set_host_phrases\",\"text\":\"HostOld\\thost\"}",
+        );
+        assert!(old.ok);
+
+        let staged = staged_pinyin_path(session);
+        let conn = Connection::open(&staged).unwrap();
+        conn.execute_batch(
+            "INSERT INTO quick_parases VALUES
+               ('host', 'HostOld', 100000),
+               ('host', 'HostOld', 100000);
+             CREATE TABLE owl_host_quick_phrases(key TEXT NOT NULL, value TEXT NOT NULL);
+             INSERT INTO owl_host_quick_phrases VALUES
+               ('host', 'HostOld'),
+               ('host', 'HostOld');",
+        )
+        .unwrap();
+
+        let source = Connection::open(&db_path).unwrap();
+        source
+            .execute_batch("ALTER TABLE quick_parases RENAME TO missing_quick_parases;")
+            .unwrap();
+        drop(source);
+
+        let failed = call_action(
+            session,
+            "{\"op\":\"set_host_phrases\",\"text\":\"HostNew\\thost\"}",
+        );
+        assert!(!failed.ok);
+        assert!(
+            failed.error.as_deref().is_some_and(|err| {
+                err.contains("HOST_PHRASE_CLEANUP_FAILED")
+                    && err.contains("copy base rows")
+            }),
+            "the SQL failure must be exposed instead of swallowed: {:?}",
+            failed.error
+        );
+        assert_eq!(
+            host_phrase_texts(session),
+            vec!["HostOld"],
+            "a failed synchronization must not install the new table"
+        );
+
+        let rows: Vec<(String, String, i64)> = conn
+            .prepare(
+                "SELECT key, value, weight FROM quick_parases ORDER BY key, value, weight",
+            )
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            rows,
+            vec![
+                ("base".to_owned(), "BaseHigh".to_owned(), 950000),
+                ("host".to_owned(), "HostOld".to_owned(), 100000),
+                ("host".to_owned(), "HostOld".to_owned(), 100000),
+            ]
+        );
+
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn session_creation_restores_base_quick_phrases_before_first_snapshot() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test-pinyin.db");
+        let user_dir = tmp.path().join("user-data");
+        build_minimal_test_pinyin_db(&db_path);
+        let conn = Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "INSERT INTO quick_parases VALUES
+               ('base', 'BaseHigh', 950000),
+               ('same', 'Same', 10),
+               ('same', 'Same', 100000),
+               ('host', 'SourcePhrase', 100000);
+             CREATE TABLE owl_host_quick_phrases(key TEXT NOT NULL, value TEXT NOT NULL);
+             INSERT INTO owl_host_quick_phrases VALUES ('host', 'SourcePhrase');",
+        )
+        .unwrap();
+        drop(conn);
+
+        let staged_dir = user_dir.join("msime-dicts");
+        fs::create_dir_all(&staged_dir).unwrap();
+        let staged = staged_dir.join("msime-pinyin.db");
+        fs::copy(&db_path, &staged).unwrap();
+        let conn = Connection::open(&staged).unwrap();
+        conn.execute(
+            "UPDATE quick_parases SET value = 'StaleHostPhr' WHERE key = 'host'",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+        assert_eq!(
+            fs::metadata(&db_path).unwrap().len(),
+            fs::metadata(&staged).unwrap().len(),
+            "the fixture must keep the same file length so create does not re-stage it"
+        );
+
+        let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let c_user = CString::new(user_dir.to_str().unwrap()).unwrap();
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_user.as_ptr(), 5);
+        assert!(!session.is_null());
+
+        // This is the first session operation: no snapshot or start maintenance happened first.
+        let initial = call_snapshot(session);
+        assert!(initial.ok);
+        for ch in ['h', 'o', 's', 't'] {
+            let typed = call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+            assert!(typed.ok);
+        }
+        let first_frame = call_snapshot(session);
+        assert!(
+            first_frame
+                .candidates
+                .iter()
+                .any(|candidate| candidate.text == "SourcePhrase"),
+            "the first engine generation must read the restored base rows"
+        );
+        assert!(
+            first_frame
+                .candidates
+                .iter()
+                .all(|candidate| candidate.text != "StaleHostPhr"),
+            "a stale host row in the staged database must not survive the first frame"
+        );
+        let conn = Connection::open(staged_pinyin_path(session)).unwrap();
+        let values: Vec<String> = conn
+            .prepare("SELECT value FROM quick_parases ORDER BY value")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            values,
+            vec!["BaseHigh", "Same", "Same", "SourcePhrase"]
+        );
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn legacy_host_migration_preserves_user_quick_phrase_state() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test-pinyin.db");
+        let user_dir = tmp.path().join("user-data");
+        build_minimal_test_pinyin_db(&db_path);
+        let conn = Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "INSERT INTO quick_parases VALUES
+               ('base', 'Base', 100),
+               ('learned', 'Learned', 10),
+               ('removed', 'Removed', 100),
+               ('shared', 'Shared', 50),
+               ('host', 'HostConflict', 10);
+             CREATE TABLE owl_host_quick_phrases(key TEXT NOT NULL, value TEXT NOT NULL);
+             INSERT INTO owl_host_quick_phrases VALUES ('host', 'HostConflict');",
+        )
+        .unwrap();
+        drop(conn);
+
+        let staged_dir = user_dir.join("msime-dicts");
+        fs::create_dir_all(&staged_dir).unwrap();
+        let staged = staged_dir.join("msime-pinyin.db");
+        fs::copy(&db_path, &staged).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(1_100));
+        let conn = Connection::open(&staged).unwrap();
+        for weight in [101, 100] {
+            conn.execute(
+                "UPDATE quick_parases SET weight=?1 WHERE key='base'",
+                [weight],
+            )
+            .unwrap();
+        }
+        let tracking_before: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='owl_host_quick_phrases'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(tracking_before, 1);
+        drop(conn);
+
+        let engine_user_dir = user_dir.join("msime-user");
+        fs::create_dir_all(&engine_user_dir).unwrap();
+        let journal = engine_user_dir.join(msime_engine::assets::USER_JOURNAL);
+        let conn = Connection::open(&journal).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE user_dictionary_operations(
+                 dictionary TEXT NOT NULL,
+                 key TEXT NOT NULL,
+                 value TEXT NOT NULL,
+                 operation TEXT NOT NULL,
+                 weight INTEGER NOT NULL DEFAULT 0,
+                 display TEXT NOT NULL DEFAULT '',
+                 user_inserted INTEGER NOT NULL DEFAULT 0,
+                 updated_at INTEGER NOT NULL DEFAULT 0,
+                 PRIMARY KEY(dictionary,key,value)
+             );
+             INSERT INTO user_dictionary_operations
+                 (dictionary,key,value,operation,weight,user_inserted,updated_at)
+             VALUES
+                 ('quick','base','Base','upsert',125,0,1),
+                 ('quick','removed','Removed','delete',0,1,2),
+                 ('quick','shared','Shared','upsert',75,1,3),
+                 ('quick','mine','Mine','upsert',700,1,4);",
+        )
+        .unwrap();
+        drop(conn);
+
+        let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let c_user = CString::new(user_dir.to_str().unwrap()).unwrap();
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_user.as_ptr(), 5);
+        assert!(!session.is_null());
+
+        let conn = Connection::open(staged_pinyin_path(session)).unwrap();
+        let tracking_after: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='owl_host_quick_phrases'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(tracking_after, 0, "legacy tracking must be consumed");
+        let rows: Vec<(String, String, i64)> = conn
+            .prepare(
+                "SELECT key, value, weight FROM quick_parases ORDER BY key, value, weight",
+            )
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            rows,
+            vec![
+                ("base".to_owned(), "Base".to_owned(), 125),
+                ("host".to_owned(), "HostConflict".to_owned(), 10),
+                ("learned".to_owned(), "Learned".to_owned(), 10),
+                ("mine".to_owned(), "Mine".to_owned(), 700),
+                ("shared".to_owned(), "Shared".to_owned(), 75),
+            ],
+            "migration must restore base rows, replay quick-phrase journal state, and drop only legacy host rows"
+        );
+        let tracking_table_count: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='owl_host_quick_phrases'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(tracking_table_count, 0);
+        drop(conn);
+
+        for ch in ['m', 'i', 'n', 'e'] {
+            call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+        }
+        assert_eq!(
+            call_snapshot(session)
+                .candidates
+                .first()
+                .map(|candidate| candidate.text.as_str()),
+            Some("Mine")
+        );
+
+        // With no legacy tracking table, later host-phrase updates must leave main rows alone.
+        let conn = Connection::open(staged_pinyin_path(session)).unwrap();
+        conn.execute(
+            "UPDATE quick_parases SET weight=701 WHERE key='mine' AND value='Mine'",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+        let updated = call_action(
+            session,
+            "{\"op\":\"set_host_phrases\",\"text\":\"HostNew\\thost\"}",
+        );
+        assert!(updated.ok);
+        let conn = Connection::open(staged_pinyin_path(session)).unwrap();
+        let weight: i64 = conn
+            .query_row(
+                "SELECT weight FROM quick_parases WHERE key='mine' AND value='Mine'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(weight, 701);
+        drop(conn);
+
+        owl_msime_session_destroy(session);
+        Connection::open(&journal)
+            .unwrap()
+            .execute(
+                "UPDATE user_dictionary_operations SET weight=701, updated_at=5
+                 WHERE dictionary='quick' AND key='mine' AND value='Mine'",
+                [],
+            )
+            .unwrap();
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_user.as_ptr(), 5);
+        assert!(!session.is_null());
+        let conn = Connection::open(staged_pinyin_path(session)).unwrap();
+        let weight: i64 = conn
+            .query_row(
+                "SELECT weight FROM quick_parases WHERE key='mine' AND value='Mine'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            weight, 701,
+            "creating another session must not reset user rows"
+        );
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn corrupt_user_journal_is_quarantined_before_quick_phrase_replay() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test-pinyin.db");
+        let user_dir = tmp.path().join("user-data");
+        build_minimal_test_pinyin_db(&db_path);
+        Connection::open(&db_path)
+            .unwrap()
+            .execute(
+                "INSERT INTO quick_parases VALUES ('base', 'Base', 100)",
+                [],
+            )
+            .unwrap();
+
+        let engine_user_dir = user_dir.join("msime-user");
+        fs::create_dir_all(&engine_user_dir).unwrap();
+        let journal = engine_user_dir.join(msime_engine::assets::USER_JOURNAL);
+        fs::write(&journal, b"synthetic invalid database").unwrap();
+
+        let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let c_user = CString::new(user_dir.to_str().unwrap()).unwrap();
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_user.as_ptr(), 5);
+        assert!(
+            !session.is_null(),
+            "a corrupt journal must not prevent session creation"
+        );
+        assert!(!journal.exists());
+        assert!(
+            fs::read_dir(&engine_user_dir)
+                .unwrap()
+                .filter_map(Result::ok)
+                .any(|entry| {
+                    entry
+                        .file_name()
+                        .to_string_lossy()
+                        .starts_with("msime_user.db.corrupt-")
+                }),
+            "the corrupt journal must be retained beside the new journal path"
+        );
+
+        let conn = Connection::open(staged_pinyin_path(session)).unwrap();
+        let values: Vec<String> = conn
+            .prepare("SELECT value FROM quick_parases ORDER BY value")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            values,
+            vec!["Base"],
+            "a corrupt journal contributes no operations, so the base table must still be restored"
+        );
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
     fn loads_seed_msime_pinyin_db_when_present() {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let repo_root = manifest_dir
@@ -1433,6 +2890,37 @@ mod tests {
         }
         let snap = call_snapshot(session);
         assert!(snap.candidates.iter().any(|c| c.text == "你好"));
+
+        let wubi_mode = call_action(session, r#"{"op":"set_input_mode","mode":"wubi"}"#);
+        assert!(wubi_mode.ok);
+        let wubi_scheme = call_action(session, r#"{"op":"set_pinyin_scheme","scheme":"wubi"}"#);
+        assert!(wubi_scheme.ok);
+
+        for (code, expected) in [("a", "工"), ("ifcy", "法"), ("hang", "虛")] {
+            for ch in code.chars() {
+                let typed = call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+                assert!(typed.ok);
+            }
+            let candidates = call_snapshot(session).candidates;
+            assert!(
+                candidates.iter().any(|candidate| candidate.text == expected),
+                "production Wubi seed must answer {code} with {expected}"
+            );
+            let _ = call_action(session, r#"{"op":"clear"}"#);
+        }
+
+        let mut cold = None;
+        for ch in "edui".chars() {
+            let typed = call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+            assert!(typed.ok);
+            cold = Some(typed);
+        }
+        let cold = cold.expect("edui has four keys");
+        assert!(
+            cold.committed_text.as_deref() == Some("膫")
+                || cold.candidates.iter().any(|candidate| candidate.text == "膫"),
+            "production Wubi seed must contain the cold full code edui -> 膫"
+        );
 
         owl_msime_session_destroy(session);
     }

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
 # Build the self-contained Rime data used by the open-source local core.
-# Every network input is pinned. Wubi and octagram data are intentionally absent
-# until their provenance and redistribution bundle pass the repository license gate.
+# Every network input is pinned. The Wubi86 table uses a reviewed Apache-2.0
+# source at a fixed commit; octagram data remains absent from the public seed.
 
 set -euo pipefail
 
@@ -12,6 +12,9 @@ source_dir="$cache_root/rime-ice"
 output_dir="$repo_root/data/owl-rime"
 rime_ice_remote="https://github.com/iDvel/rime-ice.git"
 rime_ice_sha="b681a34f788795034b3b288830f4861980bc8b0d"
+wubi86_sha="a194fb8b3ec41ef9dcf079d3a67876fa75f79135"
+wubi86_sha256="8ccf1358b91028ed234bbe82647a0bcd0f554a8d5994042de28b146e517633e6"
+wubi86_license_sha256="43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1"
 unihan_version="16.0.0"
 unihan_remote="https://www.unicode.org/Public/$unihan_version/ucd/Unihan.zip"
 unihan_sha="b8f000df69de7828d21326a2ffea462b04bc7560022989f7cc704f10521ef3e0"
@@ -201,7 +204,7 @@ python3 "$repo_root/scripts/build-owltype-msime-seed-db.py" --check "$output_dir
 cat > "$output_dir/OWLTYPE-SEED-SOURCES.md" <<EOF
 # Owltype public seed source map
 
-The Chinese dictionary in this seed has exactly three data inputs:
+The Chinese dictionary in this seed has exactly these data inputs:
 
 - \`cn_dicts/owltype_base.dict.yaml\` is generated from jieba \`dict.txt\` at
   tag \`$jieba_tag\` (MIT), phrase-pinyin-data \`pinyin.txt\` at revision
@@ -212,6 +215,14 @@ The Chinese dictionary in this seed has exactly three data inputs:
 - \`cn_dicts/owltype_unicode.dict.yaml\` is generated from Unicode $unihan_version
   \`Unihan_Readings.txt\` field \`kMandarin\` under Unicode-3.0. It carries no
   weights, so it only serves as a rare-character fallback below owltype_base.
+- \`msime/msime-pinyin.db:wubi86\` imports
+  KyleBing/rime-wubi86-jidian \`$wubi86_sha\`'s \`wubi86_jidian.dict.yaml\`
+  (Apache-2.0). The pinned source SHA-256 is \`$wubi86_sha256\`. It has
+  89,273 data rows: 89,272 shape-valid rows are accepted, 3 are duplicate
+  pairs merged by highest weight, 89,269 unique rows are written, and 1 row
+  is rejected because its text column is empty (source line 7911).
+  \`licenses/wubi86-jidian.LICENSE\` is verified as
+  SHA-256 \`$wubi86_license_sha256\` and copied to the seed unchanged.
 
 Only the curated \`pinyin.txt\` file of phrase-pinyin-data is used. Its
 \`large_pinyin.txt\`, \`cc_cedict.txt\`, and \`zdic_*\` files are excluded
@@ -237,10 +248,16 @@ EOF
   echo "phrase-pinyin-data $ppd_sha $ppd_pinyin_sha"
   echo "source https://github.com/mozillazg/phrase-pinyin-data"
   echo "license-texts SPDX license-list-data $spdx_license_tag"
-  echo "dictionary inputs limited to Unicode Unihan, jieba dict.txt, and phrase-pinyin-data pinyin.txt"
+  echo "dictionary inputs include Unicode Unihan, jieba dict.txt, phrase-pinyin-data pinyin.txt, and pinned rime-wubi86-jidian wubi86_jidian.dict.yaml"
+  echo "rime-wubi86-jidian $wubi86_sha"
+  echo "source https://github.com/KyleBing/rime-wubi86-jidian"
+  echo "wubi86-dictionary $wubi86_sha256"
+  echo "wubi86-license $wubi86_license_sha256 licenses/wubi86-jidian.LICENSE"
+  echo "wubi86-counts source-total=89273 accepted=89272 unique=89269 duplicate=3 rejected=1"
+  echo "wubi86-rejected source-line-7911 empty-text cokg"
   echo "rime-essay removed from the public seed after traditional-form review"
   echo "rime-ice cn_dicts and en_dicts omitted after provenance review"
-  echo "wubi omitted pending provenance review"
+  echo "wubi derivation: pinned Apache-2.0 wubi86_jidian.dict.yaml imported into msime-pinyin.db"
   echo "octagram data omitted from the local-core seed"
 } > "$output_dir/OWLTYPE-SEED-MANIFEST.txt"
 

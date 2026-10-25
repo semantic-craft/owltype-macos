@@ -383,6 +383,11 @@ impl Runtime<Session> {
         self.refresh_idle_spelling_symbols()
     }
 
+    pub fn set_wubi_z_pinyin_lookup(&mut self, enabled: bool) -> Result<(), RuntimeError> {
+        self.engine.set_wubi_z_pinyin_lookup(enabled);
+        self.refresh()
+    }
+
     pub fn online_query(&self) -> Result<Option<OnlineQuery>, RuntimeError> {
         let query = self
             .engine

@@ -18,7 +18,15 @@
 ## 内置数据与方案 Bundled data & schemas
 
 - 雾凇拼音 rime-ice —— <https://github.com/iDvel/rime-ice>
-- 极点五笔 86 —— <https://github.com/KyleBing/rime-wubi86-jidian>
+- 极点五笔 86 —— <https://github.com/KyleBing/rime-wubi86-jidian>（Apache-2.0）
+  生产 `msime-pinyin.db` 的 `wubi86` 表直接导入固定
+  [`a194fb8b3ec41ef9dcf079d3a67876fa75f79135`](https://github.com/KyleBing/rime-wubi86-jidian/tree/a194fb8b3ec41ef9dcf079d3a67876fa75f79135)
+  中的 `wubi86_jidian.dict.yaml`（SHA-256
+  `8ccf1358b91028ed234bbe82647a0bcd0f554a8d5994042de28b146e517633e6`）。
+  固定源文件共有 89,273 条数据行；89,272 条形状有效接受，其中 3 条重复以最高权重合并，
+  去重后写入 89,269 条唯一记录，拒绝 1 条。拒绝项是第 7911 行 `\tcokg\t10\t全角空格`
+  （文本列为空），不会被静默当作 Wubi 词条导入。
+  许可证原文逐字保留在 [`licenses/wubi86-jidian.LICENSE`](licenses/wubi86-jidian.LICENSE)。
 - OpenCC 简繁转换等
 
 各组件的完整许可条款见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。

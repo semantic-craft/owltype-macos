@@ -70,6 +70,35 @@ enum OwlRustSchemaMap {
     }
   }
 
+  static func pinyinScheme(forSchema schemaId: String) -> String {
+    switch schemaId {
+    case "wubi86_jidian_pinyin", "wubi86_jidian_trad_pinyin":
+      return "wubi_pinyin"
+    case "wubi86_jidian", "wubi86_jidian_trad":
+      return "wubi86"
+    default:
+      return doublePinyinScheme(forSchema: schemaId)
+    }
+  }
+
+  static func isTraditionalSchema(_ schemaId: String) -> Bool {
+    schemaId == "wubi86_jidian_trad" || schemaId == "wubi86_jidian_trad_pinyin"
+  }
+
+  static func fuzzyBitmask(from snapshot: OwlFuzzySnapshot) -> UInt32 {
+    var mask: UInt32 = 0
+    if snapshot.zhz { mask |= (1 << 0) }
+    if snapshot.chc { mask |= (1 << 1) }
+    if snapshot.shs { mask |= (1 << 2) }
+    if snapshot.nl { mask |= (1 << 3) }
+    if snapshot.fh { mask |= (1 << 4) }
+    if snapshot.rl { mask |= (1 << 5) }
+    if snapshot.anang { mask |= (1 << 6) }
+    if snapshot.eneng { mask |= (1 << 7) }
+    if snapshot.ining { mask |= (1 << 8) }
+    return mask
+  }
+
   static let supportedSchemas: [(id: String, name: String)] = [
     (id: "rime_ice", name: "雾凇拼音"),
     (id: "double_pinyin_flypy", name: "小鹤双拼"),
@@ -80,7 +109,9 @@ enum OwlRustSchemaMap {
     (id: "double_pinyin_ziguang", name: "紫光双拼"),
     (id: "double_pinyin_jiajia", name: "拼音加加双拼"),
     (id: "wubi86_jidian", name: "极点五笔86"),
-    (id: "wubi86_jidian_pinyin", name: "五笔拼音混输")
+    (id: "wubi86_jidian_pinyin", name: "五笔拼音混输"),
+    (id: "wubi86_jidian_trad", name: "五笔简入繁出"),
+    (id: "wubi86_jidian_trad_pinyin", name: "五笔拼音混输·简入繁出")
   ]
 }
 
@@ -92,12 +123,21 @@ final class OwlRustSession: RimeSession {
   private weak var ownerEngine: OwlRustEngine?
   private var activeSchemaId: String
   private var pendingCommitText: String?
+  private var lastCommittedRawInput: String?
   private var latestSnapshot: OwlRustSnapshotDTO?
   private var latestGeneration: UInt64 = 0
   private var caretByteOffset: Int = 0
   private var preeditCaretByteOffset: Int = 0
   private var customCaretPos: Int?
   private var lastAppliedPageSize: Int = 0
+  private var lastAppliedFuzzyMask: UInt32 = 0
+  private var lastAppliedWubiCandidateMode: String = ""
+  private var lastAppliedWubiCodeHint: Bool?
+  private var lastAppliedWubiAutoClear: Bool?
+  private var lastAppliedWubiZReverseLookup: Bool?
+  private var lastAppliedWubiEnglishChannel: Bool?
+  private var lastAppliedWubiUserDictLearning: Bool?
+  private var lastAppliedHostPhrases: String = ""
   private var optionFlags: [RimeOption: Bool] = [
     .simplification: true,
     .linear: true
@@ -111,7 +151,7 @@ final class OwlRustSession: RimeSession {
   }
 
   private var isTraditionalEnabled: Bool {
-    if activeSchemaId == "wubi86_jidian_trad" || activeSchemaId == "wubi86_jidian_trad_pinyin" {
+    if OwlRustSchemaMap.isTraditionalSchema(activeSchemaId) {
       return true
     }
     if (optionFlags[.traditional] ?? false)
@@ -160,6 +200,7 @@ final class OwlRustSession: RimeSession {
       let initialASCIIPunct = OwlKeyboardPreferences.cjkPunctToggle
       optionFlags[.asciiPunct] = initialASCIIPunct
       _ = sendAction(["op": "set_option", "name": RimeOption.asciiPunct.rawValue, "value": initialASCIIPunct])
+      syncRuntimePreferences(includeHostPhrases: true)
       refreshSnapshot()
     }
   }
@@ -215,13 +256,14 @@ final class OwlRustSession: RimeSession {
     }
 
     let hasActiveInput = !(latestSnapshot?.rawInput.isEmpty ?? true)
-    let pageSize = max(3, min(9, OwlKeyboardPreferences.pageSize))
-    if pageSize != lastAppliedPageSize {
-      _ = sendAction(["op": "set_page_size", "page_size": pageSize])
-      lastAppliedPageSize = pageSize
-    }
+    syncRuntimePreferences(includeHostPhrases: false)
 
     if !hasActiveInput {
+      if keycode == UInt32(XK_grave)
+         && activeSchemaId.hasPrefix("wubi")
+         && OwlKeyboardPreferences.wubiEnglishChannel {
+        return applyActionResponse(sendAction(["op": "insert", "ch": "`"]))
+      }
       if keycode >= UInt32(XK_a) && keycode <= UInt32(XK_z),
          let scalar = UnicodeScalar(keycode) {
         return applyActionResponse(sendAction(["op": "insert", "ch": String(scalar)]))
@@ -351,6 +393,10 @@ final class OwlRustSession: RimeSession {
   func takeCommit() -> String? {
     defer { pendingCommitText = nil }
     return pendingCommitText
+  }
+
+  func lastCommittedInput() -> String? {
+    lastCommittedRawInput
   }
 
   func status() -> RimeStatus? {
@@ -500,14 +546,66 @@ final class OwlRustSession: RimeSession {
     activeSchemaId = id
     ownerEngine?.recordSelectedSchema(id)
     let mode = OwlRustSchemaMap.inputMode(forSchema: id)
-    let scheme = OwlRustSchemaMap.doublePinyinScheme(forSchema: id)
+    let scheme = OwlRustSchemaMap.pinyinScheme(forSchema: id)
     let pageSize = max(3, min(9, OwlKeyboardPreferences.pageSize))
     _ = sendAction(["op": "set_input_mode", "mode": mode])
     _ = sendAction(["op": "set_pinyin_scheme", "scheme": scheme])
     _ = sendAction(["op": "set_page_size", "page_size": pageSize])
     lastAppliedPageSize = pageSize
+    syncRuntimePreferences(includeHostPhrases: true)
     _ = applyActionResponse(sendAction(["op": "clear"]))
     return true
+  }
+
+  func syncRuntimePreferences(includeHostPhrases: Bool) {
+    guard handle != nil else { return }
+    let pageSize = max(3, min(9, OwlKeyboardPreferences.pageSize))
+    if pageSize != lastAppliedPageSize {
+      _ = sendAction(["op": "set_page_size", "page_size": pageSize])
+      lastAppliedPageSize = pageSize
+    }
+    let fuzzyMask = OwlRustSchemaMap.fuzzyBitmask(from: OwlFuzzySnapshot.current())
+    if fuzzyMask != lastAppliedFuzzyMask {
+      _ = sendAction(["op": "set_fuzzy_rules", "mask": fuzzyMask])
+      lastAppliedFuzzyMask = fuzzyMask
+    }
+    let candMode = OwlKeyboardPreferences.wubiCandidateMode.rawValue
+    if candMode != lastAppliedWubiCandidateMode {
+      _ = sendAction(["op": "set_wubi_candidate_mode", "mode": candMode])
+      lastAppliedWubiCandidateMode = candMode
+    }
+    let codeHint = OwlKeyboardPreferences.wubiCodeHint
+    if codeHint != lastAppliedWubiCodeHint {
+      _ = sendAction(["op": "set_option", "name": "wubi_code_hint", "value": codeHint])
+      lastAppliedWubiCodeHint = codeHint
+    }
+    let autoClear = OwlKeyboardPreferences.wubiAutoClear
+    if autoClear != lastAppliedWubiAutoClear {
+      _ = sendAction(["op": "set_option", "name": "wubi_auto_clear", "value": autoClear])
+      lastAppliedWubiAutoClear = autoClear
+    }
+    let zLookup = OwlKeyboardPreferences.wubiZReverseLookup
+    if zLookup != lastAppliedWubiZReverseLookup {
+      _ = sendAction(["op": "set_option", "name": "wubi_z_reverse_lookup", "value": zLookup])
+      lastAppliedWubiZReverseLookup = zLookup
+    }
+    let engChannel = OwlKeyboardPreferences.wubiEnglishChannel
+    if engChannel != lastAppliedWubiEnglishChannel {
+      _ = sendAction(["op": "set_option", "name": "wubi_english_channel", "value": engChannel])
+      lastAppliedWubiEnglishChannel = engChannel
+    }
+    let userDict = OwlKeyboardPreferences.wubiUserDictLearning
+    if userDict != lastAppliedWubiUserDictLearning {
+      _ = sendAction(["op": "set_option", "name": "wubi_user_dict_learning", "value": userDict])
+      lastAppliedWubiUserDictLearning = userDict
+    }
+    if includeHostPhrases, let ownerEngine {
+      let packed = ownerEngine.loadPackedHostPhrases()
+      if packed != lastAppliedHostPhrases {
+        _ = sendAction(["op": "set_host_phrases", "text": packed])
+        lastAppliedHostPhrases = packed
+      }
+    }
   }
 
   func option(_ option: RimeOption) -> Bool {
@@ -605,12 +703,16 @@ final class OwlRustSession: RimeSession {
 
   private func applyActionResponse(_ dto: OwlRustSnapshotDTO?) -> Bool {
     guard let dto, dto.isOK else { return false }
+    let priorRawInput = latestSnapshot?.rawInput
     latestSnapshot = dto
     latestGeneration = dto.generation ?? latestGeneration
     caretByteOffset = dto.caretPosition ?? dto.rawInput.utf8.count
     preeditCaretByteOffset = dto.preeditCaretByte ?? dto.preedit.utf8.count
     customCaretPos = nil
     if let committed = dto.committedText, !committed.isEmpty {
+      if let priorRawInput, !priorRawInput.isEmpty {
+        lastCommittedRawInput = priorRawInput
+      }
       pendingCommitText = convertToTraditionalIfNeeded(committed, forCandidateDisplay: false)
     }
     return dto.consumed ?? true
@@ -665,6 +767,7 @@ final class OwlRustEngine: RimeEngine {
   func startMaintenance(fullCheck: Bool) -> Bool {
     _ = fullCheck
     notifyDeploy(status: "start")
+    refreshAllSessionsPreferences(includeHostPhrases: true)
     notifyDeploy(status: "success")
     return true
   }
@@ -674,6 +777,7 @@ final class OwlRustEngine: RimeEngine {
   func deployConfigFile(_ fileName: String, versionKey: String) -> Bool {
     _ = fileName
     _ = versionKey
+    refreshAllSessionsPreferences(includeHostPhrases: true)
     return true
   }
 
@@ -766,6 +870,38 @@ final class OwlRustEngine: RimeEngine {
 
   fileprivate func recordSelectedSchema(_ id: String) {
     selectedSchemaId = id
+  }
+
+  fileprivate func refreshAllSessionsPreferences(includeHostPhrases: Bool) {
+    for session in sessions.values {
+      session.syncRuntimePreferences(includeHostPhrases: includeHostPhrases)
+    }
+  }
+
+  fileprivate func loadPackedHostPhrases() -> String {
+    let userRoot = userDataURL ?? OwlApp.userDir
+    let sharedRoot = sharedSupportURL ?? Bundle.main.sharedSupportURL
+    let fileNames = [
+      OwlTemplateStore.dictFileName,
+      OwlPromptStore.dictFileName,
+      OwlQuickSendStore.dictFileName,
+      "custom_phrase.txt"
+    ]
+    var lines: [String] = []
+    for name in fileNames {
+      let userFile = userRoot.appendingPathComponent(name)
+      if let content = try? String(contentsOf: userFile, encoding: .utf8), !content.isEmpty {
+        lines.append(content)
+        continue
+      }
+      if name == "custom_phrase.txt",
+         let sharedFile = sharedRoot?.appendingPathComponent(name),
+         let content = try? String(contentsOf: sharedFile, encoding: .utf8),
+         !content.isEmpty {
+        lines.append(content)
+      }
+    }
+    return lines.joined(separator: "\n")
   }
 
   fileprivate func notifyOptionChanged(sessionID: UInt64, optionName: String, value: Bool) {

@@ -17,6 +17,34 @@ OwlMsimeSession *owl_msime_session_create(
     uint32_t page_size
 );
 
+/*
+ * Creates a session over four exact, non-overlapping EngineOptions roots.
+ * Every root is created if absent and used as given: no msime-* child is
+ * appended. They are canonicalized before use, so the supplied strings need
+ * not already be canonical.
+ *
+ * On success, returns an opaque session and leaves *error_out NULL when
+ * error_out is non-NULL. On failure, returns NULL; when error_out is
+ * non-NULL it receives a newly allocated UTF-8 message that the caller frees
+ * with owl_msime_string_free. Pass NULL for error_out when no message is
+ * needed.
+ *
+ * The returned session does not own or delete any of these roots. A caller
+ * may remove a disposable runtime root only after owl_msime_session_destroy;
+ * the persistent user_data_dir must outlive runtime updates and lease
+ * releases. page_size 0 means 5 and other values clamp to 1...10.
+ */
+OwlMsimeSession *owl_msime_session_create_with_roots(
+    const char *pinyin_db_path,
+    const char *english_db_path,
+    const char *resources_dir,
+    const char *user_data_dir,
+    const char *cache_dir,
+    const char *dictionaries_dir,
+    uint32_t page_size,
+    char **error_out
+);
+
 void owl_msime_session_destroy(OwlMsimeSession *session);
 
 char *owl_msime_session_handle_action_json(
