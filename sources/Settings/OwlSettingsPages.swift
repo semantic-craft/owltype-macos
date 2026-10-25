@@ -149,7 +149,6 @@ struct OwlAboutPage: View {
         creditLine(name: "水杉输入法（Metasequoia IME）", license: "GPLv3 · Rust 引擎")
         creditLine(name: "雾凇拼音 rime-ice（iDvel）", license: "GPLv3 · 拼音底座")
         creditLine(name: "极点五笔86（KyleBing）", license: "Apache-2.0 · 五笔全套")
-        creditLine(name: "rime-octagram-data（lotem）", license: "八股文语法模型")
       }
     }
   }
