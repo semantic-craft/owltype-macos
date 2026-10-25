@@ -110,6 +110,41 @@ final class OwlRustSession: RimeSession {
     latestGeneration
   }
 
+  private var isTraditionalEnabled: Bool {
+    if activeSchemaId == "wubi86_jidian_trad" || activeSchemaId == "wubi86_jidian_trad_pinyin" {
+      return true
+    }
+    if (optionFlags[.traditional] ?? false)
+      || (optionFlags[.traditionalization] ?? false)
+      || (optionFlags[.zhTrad] ?? false)
+      || (optionFlags[.transcription] ?? false) {
+      return true
+    }
+    if let simp = optionFlags[.simplification], !simp {
+      return true
+    }
+    return false
+  }
+
+  private func convertToTraditionalIfNeeded(_ text: String, forCandidateDisplay: Bool = false) -> String {
+    guard isTraditionalEnabled, !text.isEmpty else { return text }
+    if text.hasPrefix(OwlPromptStore.candidateMarker) {
+      return text
+    }
+    if text.hasPrefix(OwlTemplateStore.candidatePrefix) {
+      guard forCandidateDisplay else { return text }
+      if let closeBracket = text.firstIndex(of: "]") {
+        let nextIdx = text.index(after: closeBracket)
+        let prefix = String(text[..<nextIdx])
+        let title = String(text[nextIdx...])
+        let convertedTitle = (title as NSString).applyingTransform(StringTransform("Hans-Hant"), reverse: false) ?? title
+        return prefix + convertedTitle
+      }
+      return text
+    }
+    return (text as NSString).applyingTransform(StringTransform("Hans-Hant"), reverse: false) ?? text
+  }
+
   init(
     sessionID: UInt64,
     handle: OpaquePointer?,
@@ -336,7 +371,10 @@ final class OwlRustSession: RimeSession {
     let preedit = snap.preedit.isEmpty ? snap.rawInput : snap.preedit
     let utf8Count = preedit.utf8.count
     let candidates = snap.candidates.map {
-      RimeCandidate(text: $0.text, comment: $0.comment)
+      RimeCandidate(
+        text: convertToTraditionalIfNeeded($0.text, forCandidateDisplay: true),
+        comment: $0.comment
+      )
     }
     let pageSize = max(1, snap.pageSize)
     let labels = (1...pageSize).map { "\($0)" }
@@ -433,7 +471,12 @@ final class OwlRustSession: RimeSession {
     if let gen = dto.generation {
       latestGeneration = gen
     }
-    return dto.candidates.map { RimeCandidate(text: $0.text, comment: $0.comment) }
+    return dto.candidates.map {
+      RimeCandidate(
+        text: convertToTraditionalIfNeeded($0.text, forCandidateDisplay: true),
+        comment: $0.comment
+      )
+    }
   }
 
   func changePage(up: Bool) -> Bool {
@@ -563,7 +606,7 @@ final class OwlRustSession: RimeSession {
     preeditCaretByteOffset = dto.preeditCaretByte ?? dto.preedit.utf8.count
     customCaretPos = nil
     if let committed = dto.committedText, !committed.isEmpty {
-      pendingCommitText = committed
+      pendingCommitText = convertToTraditionalIfNeeded(committed, forCandidateDisplay: false)
     }
     return dto.consumed ?? true
   }
