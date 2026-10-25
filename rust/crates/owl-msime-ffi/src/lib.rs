@@ -34,9 +34,27 @@ mod user_migration;
 use punctuation_menu::PunctuationMenu;
 pub use user_migration::owl_msime_user_migration_import;
 
+#[derive(Clone, Debug)]
+struct PinnedWord {
+    text: String,
+    traditional_source: Option<String>,
+}
+
+impl PinnedWord {
+    fn new(text: String, traditional: bool, traditional_source: Option<String>) -> Self {
+        Self {
+            text,
+            traditional_source: traditional
+                .then_some(traditional_source)
+                .flatten()
+                .filter(|source| !source.is_empty()),
+        }
+    }
+}
+
 #[derive(Default)]
 struct OwlPinnedState {
-    words: HashMap<(String, bool), Vec<String>>,
+    words: HashMap<(String, bool), Vec<PinnedWord>>,
     enabled: bool,
     traditional: bool,
     active_input: String,
@@ -101,11 +119,10 @@ impl CandidateTransform for OwlPinnedTransform {
                 .get(&(guard.active_input.clone(), guard.traditional))
             {
                 let target_norm = normalized_pinyin(&guard.active_input);
-                for pin_word in pins {
-                    if let Some((seat, _)) = window.iter().enumerate().find(|(_, row)| {
-                        row.text == pin_word
-                            && (row.code.is_empty() || normalized_pinyin(row.code) == target_norm)
-                    }) {
+                for pin in pins {
+                    if let Some(seat) =
+                        pinned_candidate_seat(window, &target_norm, pin, guard.traditional)
+                    {
                         let seat_u32 = seat as u32;
                         if !ops.order.contains(&seat_u32) {
                             ops.order.push(seat_u32);
@@ -179,6 +196,34 @@ impl CandidateTransform for OwlPinnedTransform {
     }
 }
 
+fn pinned_candidate_seat(
+    window: &[TransformRow<'_>],
+    target_norm: &str,
+    pin: &PinnedWord,
+    traditional: bool,
+) -> Option<usize> {
+    let matching_code =
+        |row: &TransformRow<'_>| row.code.is_empty() || normalized_pinyin(row.code) == target_norm;
+    if let Some((seat, _)) = window
+        .iter()
+        .enumerate()
+        .find(|(_, row)| matching_code(row) && row.text == pin.text)
+    {
+        return Some(seat);
+    }
+    if !traditional {
+        return None;
+    }
+
+    // The host converts candidate text after this transform. It supplies the exact source row
+    // only when converting that row back produces this pin, so a lossy inverse lookup such as
+    // 髮 -> 发 -> 發 cannot silently pin the wrong word.
+    let source = pin.traditional_source.as_deref()?;
+    window
+        .iter()
+        .position(|row| matching_code(row) && row.text == source)
+}
+
 pub struct OwlMsimeSession {
     runtime: Runtime<EngineSession>,
     rerank: rerank::RerankState,
@@ -226,6 +271,8 @@ struct ActionPayload {
     #[serde(default)]
     text: Option<String>,
     #[serde(default)]
+    traditional_sources: Vec<TraditionalPinSourceDto>,
+    #[serde(default)]
     mode: Option<String>,
     #[serde(default)]
     scheme: Option<String>,
@@ -239,6 +286,15 @@ struct ActionPayload {
     name: Option<String>,
     #[serde(default)]
     value: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TraditionalPinSourceDto {
+    code: String,
+    /// The final text shown to the user for this pin.
+    text: String,
+    /// The exact candidate text whose host display conversion produces `text`.
+    source: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -276,6 +332,8 @@ pub struct SnapshotResponseDto {
     pub generation: u64,
     pub raw_input: String,
     pub preedit: String,
+    pub local_mode: String,
+    pub spelling_symbols: String,
     pub caret_position: usize,
     pub preedit_caret_byte: usize,
     pub page: usize,
@@ -318,7 +376,7 @@ fn cstr_to_string(ptr: *const c_char) -> Option<String> {
 fn into_c_string_ptr<T: Serialize>(value: &T) -> *mut c_char {
     let json = serde_json::to_string(value).unwrap_or_else(|err| {
         format!(
-            "{{\"ok\":false,\"error\":{},\"consumed\":false,\"committed_text\":null,\"cleared\":false,\"generation\":0,\"raw_input\":\"\",\"preedit\":\"\",\"caret_position\":0,\"preedit_caret_byte\":0,\"page\":0,\"page_size\":5,\"highlighted_index\":0,\"has_more_pages\":false,\"candidates\":[]}}",
+            "{{\"ok\":false,\"error\":{},\"consumed\":false,\"committed_text\":null,\"cleared\":false,\"generation\":0,\"raw_input\":\"\",\"preedit\":\"\",\"local_mode\":\"none\",\"spelling_symbols\":\"\",\"caret_position\":0,\"preedit_caret_byte\":0,\"page\":0,\"page_size\":5,\"highlighted_index\":0,\"has_more_pages\":false,\"candidates\":[]}}",
             serde_json::to_string(&err.to_string()).unwrap_or_else(|_| "\"serialization error\"".to_owned())
         )
     });
@@ -338,6 +396,8 @@ fn error_response(message: impl Into<String>) -> SnapshotResponseDto {
         generation: 0,
         raw_input: String::new(),
         preedit: String::new(),
+        local_mode: "none".to_owned(),
+        spelling_symbols: String::new(),
         caret_position: 0,
         preedit_caret_byte: 0,
         page: 0,
@@ -449,6 +509,8 @@ fn snapshot_from_view(
         generation: HostGenerationNamespace::Runtime.encode(view.generation),
         raw_input,
         preedit,
+        local_mode: view.local_mode,
+        spelling_symbols: view.spelling_symbols,
         caret_position,
         preedit_caret_byte,
         page: view.page,
@@ -824,16 +886,16 @@ fn product_engine_options(
         mixed_symbols: false,
         mixed_japanese: false,
         local_unicode: true,
-        local_date_time: false,
-        local_date_time_inline: false,
-        local_date_time_menu: false,
+        local_date_time: true,
+        local_date_time_inline: true,
+        local_date_time_menu: true,
         local_quick_phrase: true,
         local_emoji: false,
         local_kaomoji: false,
         local_super_jianpin: true,
         local_temporary_english: true,
         local_temporary_japanese: false,
-        local_expression: false,
+        local_expression: true,
         local_command: false,
         local_mention: false,
         local_chaizi: false,
@@ -1109,6 +1171,8 @@ impl OwlMsimeSession {
             generation: menu.generation(),
             raw_input: trigger.clone(),
             preedit: trigger.clone(),
+            local_mode: "none".to_owned(),
+            spelling_symbols: String::new(),
             caret_position: trigger.len(),
             preedit_caret_byte: trigger.len(),
             page,
@@ -1866,7 +1930,26 @@ impl OwlMsimeSession {
             }
             "set_pinned_words" => {
                 let packed = payload.text.unwrap_or_default();
-                let mut parsed: HashMap<(String, bool), Vec<String>> = HashMap::new();
+                let mut traditional_sources = HashMap::new();
+                let mut conflicting_sources = HashSet::new();
+                for source in payload.traditional_sources {
+                    if source.code.is_empty() || source.text.is_empty() || source.source.is_empty()
+                    {
+                        continue;
+                    }
+                    let key = (source.code, source.text);
+                    if let Some(previous) =
+                        traditional_sources.insert(key.clone(), source.source.clone())
+                    {
+                        if previous != source.source {
+                            conflicting_sources.insert(key);
+                        }
+                    }
+                }
+                for key in conflicting_sources {
+                    traditional_sources.remove(&key);
+                }
+                let mut parsed: HashMap<(String, bool), Vec<PinnedWord>> = HashMap::new();
                 for line in packed.lines() {
                     let mut parts = line.splitn(3, '\t');
                     let (Some(code), Some(mode), Some(word)) =
@@ -1878,10 +1961,14 @@ impl OwlMsimeSession {
                         continue;
                     }
                     let trad = mode == "1";
+                    let source = trad
+                        .then(|| traditional_sources.get(&(code.to_owned(), word.to_owned())))
+                        .flatten()
+                        .cloned();
                     parsed
                         .entry((code.to_owned(), trad))
                         .or_default()
-                        .push(word.to_owned());
+                        .push(PinnedWord::new(word.to_owned(), trad, source));
                 }
                 if let Ok(mut guard) = self.pinned_state.lock() {
                     guard.words = parsed;
@@ -2591,6 +2678,69 @@ mod tests {
     fn staged_pinyin_path(session: *const OwlMsimeSession) -> PathBuf {
         assert!(!session.is_null());
         unsafe { (*session).staged_pinyin_path.clone() }
+    }
+
+    fn transform_row<'a>(text: &'a str, code: &'a str) -> TransformRow<'a> {
+        TransformRow {
+            text,
+            code,
+            annotation: "",
+            source: 0,
+        }
+    }
+
+    #[test]
+    fn traditional_pin_uses_only_host_verified_display_sources() {
+        let source = PinnedWord::new("發".to_owned(), true, Some("发".to_owned()));
+        let simplified = [transform_row("罚", "fa"), transform_row("发", "fa")];
+        assert_eq!(
+            pinned_candidate_seat(&simplified, "fa", &source, true),
+            Some(1)
+        );
+        assert_eq!(
+            pinned_candidate_seat(&simplified, "fa", &source, false),
+            None,
+            "traditional fallback must not leak into simplified mode"
+        );
+
+        let lossy = PinnedWord::new("髮".to_owned(), true, None);
+        let simplified_only = [transform_row("发", "fa")];
+        assert_eq!(
+            pinned_candidate_seat(&simplified_only, "fa", &lossy, true),
+            None,
+            "a unique Simplified source does not prove that it displays the pinned word"
+        );
+
+        let exact = PinnedWord::new("髮".to_owned(), true, None);
+        let raw_traditional = [transform_row("发", "fa"), transform_row("髮", "fa")];
+        assert_eq!(
+            pinned_candidate_seat(&raw_traditional, "fa", &exact, true),
+            Some(1),
+            "an exact candidate must win before a host source"
+        );
+
+        let phrase = PinnedWord::new("頭髮".to_owned(), true, Some("头发".to_owned()));
+        let phrase_row = [transform_row("头发", "toufa")];
+        assert_eq!(
+            pinned_candidate_seat(&phrase_row, "toufa", &phrase, true),
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn product_options_enable_builtin_local_features() {
+        let options = product_engine_options(
+            Path::new("/resources"),
+            Path::new("/user"),
+            Path::new("/cache"),
+            Path::new("/dictionaries"),
+            5,
+        );
+        assert!(options.local_unicode);
+        assert!(options.local_date_time);
+        assert!(options.local_date_time_inline);
+        assert!(options.local_date_time_menu);
+        assert!(options.local_expression);
     }
 
     fn host_phrase_texts(session: *const OwlMsimeSession) -> Vec<String> {
@@ -3946,6 +4096,121 @@ mod tests {
             ),
         );
         assert_eq!(absolute.committed_text.as_deref(), Some(tail_text.as_str()));
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn builtin_date_and_expression_modes_are_reachable_from_product_options() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&db_path);
+        let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_empty.as_ptr(), 5);
+        assert!(!session.is_null());
+
+        let date_mode = call_action(session, r#"{"op":"insert","ch":"T"}"#);
+        assert!(date_mode.ok);
+        assert!(date_mode.consumed);
+        assert_eq!(date_mode.local_mode, "date_time");
+        for ch in ["r", "q"] {
+            let response = call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
+            assert!(response.ok, "{response:?}");
+        }
+        let date = call_snapshot(session);
+        assert!(date.candidates.iter().any(|candidate| {
+            candidate.text.contains('年')
+                && candidate.text.contains('月')
+                && candidate.text.contains('日')
+        }));
+
+        assert!(call_action(session, r#"{"op":"clear"}"#).ok);
+        let expression_mode = call_action(session, r#"{"op":"insert","ch":"V"}"#);
+        assert!(expression_mode.ok);
+        assert!(expression_mode.consumed);
+        assert_eq!(expression_mode.local_mode, "expression");
+        assert!(expression_mode.spelling_symbols.contains('0'));
+        for action in [
+            r#"{"op":"insert","ch":"1"}"#,
+            r#"{"op":"punctuation","ch":"+"}"#,
+            r#"{"op":"insert","ch":"2"}"#,
+        ] {
+            let response = call_action(session, action);
+            assert!(response.ok, "{response:?}");
+        }
+        let evaluated = call_snapshot(session);
+        assert!(evaluated
+            .candidates
+            .iter()
+            .any(|candidate| candidate.text == "3"));
+
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn traditional_pin_ranks_its_simplified_source_candidate() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&db_path);
+        let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_empty.as_ptr(), 5);
+        assert!(!session.is_null());
+
+        assert!(
+            call_action(
+                session,
+                r#"{"op":"set_option","name":"traditional","value":true}"#,
+            )
+            .ok
+        );
+        assert!(call_action(
+            session,
+            r#"{"op":"set_pinned_words","text":"shi\t1\t時","traditional_sources":[{"code":"shi","text":"時","source":"时"}]}"#,
+        )
+        .ok);
+        for ch in ["s", "h", "i"] {
+            assert!(call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#)).ok);
+        }
+        let pinned = call_snapshot(session);
+        assert_eq!(pinned.candidates[0].text, "时");
+        assert_eq!(pinned.candidates[0].comment.as_deref(), Some("置顶"));
+
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn uncertified_traditional_pin_never_ranks_a_lossy_simplified_source() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&db_path);
+        let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_empty.as_ptr(), 5);
+        assert!(!session.is_null());
+
+        assert!(
+            call_action(
+                session,
+                r#"{"op":"set_option","name":"traditional","value":true}"#,
+            )
+            .ok
+        );
+        assert!(call_action(session, r#"{"op":"set_pinned_words","text":"shi\t1\t髮"}"#).ok);
+        for ch in ["s", "h", "i"] {
+            assert!(call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#)).ok);
+        }
+        let candidates = call_snapshot(session).candidates;
+        assert!(
+            !candidates
+                .iter()
+                .any(|candidate| candidate.comment.as_deref() == Some("置顶")),
+            "the lossy simplified source must not be promoted without a host-verified mapping"
+        );
+
         owl_msime_session_destroy(session);
     }
 
