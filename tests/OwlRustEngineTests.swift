@@ -72,6 +72,72 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertFalse(engine.selectSchema("unknown_schema"))
   }
 
+  func testRustAppEnglishListOverridesTheDefaultWithoutBecomingGlobal() {
+    let listed = OwlRustSchemaMap.initialASCIIMode(
+      forApp: "com.example.Editor",
+      englishBundleIDs: ["com.example.Editor"],
+      defaultASCIIMode: false
+    )
+    let unlisted = OwlRustSchemaMap.initialASCIIMode(
+      forApp: "com.example.Notes",
+      englishBundleIDs: ["com.example.Editor"],
+      defaultASCIIMode: false
+    )
+
+    XCTAssertTrue(listed)
+    XCTAssertFalse(unlisted)
+  }
+
+  func testRustSessionSelectsCustomShuangpinProfilesAndRejectsUnknownSchema() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
+    defer { session.destroy() }
+
+    let cases = [
+      ("double_pinyin_sogou", "nihk"),
+      ("double_pinyin_ziguang", "nihq"),
+      ("double_pinyin_jiajia", "nihd")
+    ]
+    for (schema, code) in cases {
+      session.clearComposition()
+      XCTAssertTrue(session.selectSchema(schema), schema)
+      XCTAssertEqual(session.status()?.schemaId, schema)
+      typeText(code, into: session)
+      XCTAssertEqual(session.composition()?.preedit, code, schema)
+      XCTAssertTrue(
+        session.composition()?.candidates.contains(where: { $0.text == "你好" }) == true,
+        schema
+      )
+    }
+
+    XCTAssertFalse(session.selectSchema("unknown_schema"))
+    XCTAssertEqual(session.status()?.schemaId, "double_pinyin_jiajia")
+    session.clearComposition()
+    typeText("nihd", into: session)
+    XCTAssertEqual(
+      session.composition()?.candidates.contains(where: { $0.text == "你好" }),
+      true,
+      "a rejected schema must leave the previous custom table active"
+    )
+  }
+
+  func testRuntimePreferenceSyncAppliesCJKPunctuationOnlyAfterSuccess() throws {
+    let original = OwlKeyboardPreferences.cjkPunctToggle
+    defer { OwlKeyboardPreferences.cjkPunctToggle = original }
+
+    let engine = try makeSharedSupportSeedEngine()
+    let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
+    defer { session.destroy() }
+
+    OwlKeyboardPreferences.cjkPunctToggle = true
+    XCTAssertTrue(session.syncRuntimePreferences(includeHostPhrases: false))
+    XCTAssertTrue(session.option(.asciiPunct))
+
+    OwlKeyboardPreferences.cjkPunctToggle = false
+    XCTAssertTrue(session.syncRuntimePreferences(includeHostPhrases: false))
+    XCTAssertFalse(session.option(.asciiPunct))
+  }
+
   func testUpstreamGenerationKeepsJournalUnderMsimeUserAndResourcesUntouched() throws {
     let repoRoot = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()

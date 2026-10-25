@@ -1115,7 +1115,8 @@ impl ImeSession {
         if !raw.is_empty() && !raw.starts_with('z') {
             let full_raw = format!("z{raw}");
             let full_cases = format!("z{raw_with_cases}");
-            self.mixed_pinyin_scheme.set_raw_input(&full_raw, &full_cases);
+            self.mixed_pinyin_scheme
+                .set_raw_input(&full_raw, &full_cases);
             let mut full_req = QueryRequest::default();
             self.mixed_pinyin_scheme.build_request_into(&mut full_req);
             self.apply_request_options(&mut full_req);
@@ -1502,11 +1503,7 @@ mod tests {
     #[test]
     fn mixed_wubi_rows_deduplicate_without_losing_the_first_code() {
         let list = merge_pinyin_fallback(
-            vec![
-                wubi("yaht", "讶"),
-                wubi("yah", "讶"),
-                wubi("ya", "呀"),
-            ],
+            vec![wubi("yaht", "讶"), wubi("yah", "讶"), wubi("ya", "呀")],
             vec![quanpin("ya", "讶"), quanpin("ya", "呀")],
         );
 

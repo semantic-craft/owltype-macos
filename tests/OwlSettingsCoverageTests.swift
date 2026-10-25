@@ -184,7 +184,7 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "` 临时英文",
     "逗号句号翻页",
     "设置模糊拼音",
-    "保存并重新应用",
+    "保存并重新应用", "重新应用",
     // 完整词库卡（方案B dict-pack）：Rust 后端先把 generation 准备成候选，用户再显式启用或回退；
     // legacy Rime 后端仍走下载后 deploy。事务与不自动切换由 OwlRustResourceTransactionTests、
     // OwlRustEngineTests 和 OwlDictPackTests 的中心层门控覆盖。

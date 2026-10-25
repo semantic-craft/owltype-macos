@@ -57,7 +57,9 @@ final class OwlSettingsWindow: NSWindowController {
     onOpenRimeFolder: @escaping () -> Void,
     onOpenLog: @escaping () -> Void,
     onShowOnboarding: @escaping () -> Void,
-    onPanelPreferencesChanged: @escaping () -> Void
+    onPanelPreferencesChanged: @escaping () -> Void,
+    supportsRimeOnlySymbolMenus: Bool = true,
+    writesRimeConfiguration: Bool = true
   ) {
     self.state = state
 
@@ -73,7 +75,9 @@ final class OwlSettingsWindow: NSWindowController {
       onOpenRimeFolder: onOpenRimeFolder,
       onOpenLog: onOpenLog,
       onShowOnboarding: onShowOnboarding,
-      onPanelPreferencesChanged: onPanelPreferencesChanged
+      onPanelPreferencesChanged: onPanelPreferencesChanged,
+      supportsRimeOnlySymbolMenus: supportsRimeOnlySymbolMenus,
+      writesRimeConfiguration: writesRimeConfiguration
     )
     // NavigationSplitView installs a native toolbar. Constrain the hosting surface to
     // AppKit's actual content layout guide, which updates with toolbar/titlebar size;

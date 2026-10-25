@@ -566,6 +566,14 @@ final class OwlSettingsActionTests: XCTestCase {
       OwlKeyboardPage.autoApplyStatusMessage(written: ["default.custom.yaml"], deploySucceeded: true),
       "已生效：default.custom.yaml。"
     )
+    XCTAssertEqual(
+      OwlKeyboardPage.autoApplyStatusMessage(
+        written: [],
+        deploySucceeded: true,
+        writesRimeConfiguration: false
+      ),
+      "配置已生效。"
+    )
     let kbFail = OwlKeyboardPage.autoApplyStatusMessage(written: ["default.custom.yaml"], deploySucceeded: false)
     XCTAssertTrue(kbFail.contains("应用失败"))
     XCTAssertFalse(kbFail.contains("重新部署"))
@@ -574,9 +582,19 @@ final class OwlSettingsActionTests: XCTestCase {
       OwlSettingsView.candidatePageSizeApplyStatusMessage(written: ["default.custom.yaml"], deploySucceeded: true),
       "候选个数已生效：default.custom.yaml。"
     )
+    XCTAssertEqual(
+      OwlSettingsView.candidatePageSizeApplyStatusMessage(
+        written: [],
+        deploySucceeded: true,
+        writesRimeConfiguration: false
+      ),
+      "候选个数已生效。"
+    )
     let pageFail = OwlSettingsView.candidatePageSizeApplyStatusMessage(written: [], deploySucceeded: false)
     XCTAssertTrue(pageFail.contains("候选个数未生效"))
     XCTAssertFalse(pageFail.contains("重新部署"))
+    XCTAssertTrue(OwlKeyboardPage.unsupportedSymbolMenuMessage("/").contains("暂不支持"))
+    XCTAssertTrue(OwlKeyboardPage.unsupportedSymbolMenuMessage("<").contains("暂不支持"))
   }
 
   /// PR3 Track 2 (fuzzy): `applyFuzzyConfigFast` runs the async `start_maintenance(fullCheck:false)`

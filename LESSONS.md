@@ -376,3 +376,17 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Regression: `test_publish_failure_restores_existing_wubi_artifacts` forces the metadata rename to fail after the database and license were installed, then checks all three old files are restored and no temporary file remains.
 - Verify (验证点): `python3 scripts/build-owltype-msime-seed-db.selftest.py` passes 9/9; `bash scripts/check-public-source.sh` passes with `licenses/wubi86-jidian.LICENSE` tracked.
 - Seen on 1 distinct date: 2026-10-25.
+
+### A Rust archive existing is not evidence that it matches Rust source
+
+- The Makefile treated `lib/libowl_msime_ffi.a` as up to date whenever the archive existed, so
+  Swift kept linking an old archive after Rust source changed. Four Swift test candidates failed
+  together for that one stale build; rebuilding the archive made the suite pass with 1399 tests
+  and 0 failures.
+- `20b59a1` made the archive depend on a phony `rust-ffi-check` target so Cargo decides whether
+  the Rust inputs changed. A real Makefile plus an isolated fake builder showed `old` from the
+  previous rule and `new-source` after the fix.
+- Verify (验证点): inspect the `rust-ffi-check` dependency in `Makefile`; run the isolated fake
+  builder and require `new-source`. The four Swift failures are one stale-archive event, not four
+  independent regressions.
+- Seen on 1 distinct date: 2026-10-25.

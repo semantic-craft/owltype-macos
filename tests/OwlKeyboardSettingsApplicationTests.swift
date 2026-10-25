@@ -64,4 +64,66 @@ final class OwlKeyboardSettingsApplicationTests: XCTestCase {
     XCTAssertFalse(outcome.succeeded)
     XCTAssertFalse(outcome.written.isEmpty)
   }
+
+  func testNativeApplyUsesTheEngineSeamWithoutWritingRimeFiles() throws {
+    let engine = FakeRimeEngine()
+    let application = OwlKeyboardSettingsApplication(
+      engine: engine,
+      directory: directory,
+      activeSchema: { "rime_ice" },
+      refresh: {},
+      nativeApply: true
+    )
+
+    let outcome = try application.apply(.current(), mode: .config)
+
+    XCTAssertTrue(outcome.succeeded)
+    XCTAssertEqual(outcome.written, [])
+    XCTAssertEqual(engine.deployedConfigFiles, ["default.yaml"])
+    XCTAssertFalse(FileManager.default.fileExists(
+      atPath: directory.appendingPathComponent("default.custom.yaml").path
+    ))
+  }
+
+  func testNativeApplyFailureIsNotReportedAsEffective() throws {
+    let engine = FakeRimeEngine(deployConfigFileResult: false)
+    let application = OwlKeyboardSettingsApplication(
+      engine: engine,
+      directory: directory,
+      activeSchema: { "rime_ice" },
+      refresh: {},
+      nativeApply: true
+    )
+
+    let outcome = try application.apply(.current(), mode: .config)
+
+    XCTAssertFalse(outcome.succeeded)
+    XCTAssertEqual(outcome.written, [])
+  }
+
+  func testNativeApplyStillRefusesPendingMigrationRecovery() throws {
+    let journal = directory
+      .appendingPathComponent(".owl-template-migration", isDirectory: true)
+      .appendingPathComponent("journal.json")
+    try FileManager.default.createDirectory(
+      at: journal.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    try Data("{broken".utf8).write(to: journal)
+    let engine = FakeRimeEngine()
+    let application = OwlKeyboardSettingsApplication(
+      engine: engine,
+      directory: directory,
+      activeSchema: { "rime_ice" },
+      refresh: { XCTFail("Recovery-pending apply must not refresh") },
+      nativeApply: true
+    )
+
+    XCTAssertThrowsError(try application.apply(.current(), mode: .config)) { error in
+      XCTAssertEqual((error as? OwlKeyboardSettingsApplication.Failure)?.errorDescription,
+                     OwlKeyboardSettingsApplication.Failure.recoveryPending.errorDescription)
+    }
+    XCTAssertTrue(engine.deployedConfigFiles.isEmpty)
+    XCTAssertTrue(engine.lifecycleTrace.isEmpty)
+  }
 }

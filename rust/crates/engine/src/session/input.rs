@@ -1963,9 +1963,7 @@ impl InputSession {
         // 拆字和快捷短语一样在五笔下也能进入：它查的是编进引擎的部件拼音表，不经过当前方案的拼写，五笔用户同样会遇到不会读的字。
         let scheme_opens = if matches!(
             mode,
-            LocalInputMode::QuickPhrase
-                | LocalInputMode::Chaizi
-                | LocalInputMode::TemporaryEnglish
+            LocalInputMode::QuickPhrase | LocalInputMode::Chaizi | LocalInputMode::TemporaryEnglish
         ) {
             self.scheme().opens_table_modes()
         } else {

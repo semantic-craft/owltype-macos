@@ -462,6 +462,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
 
     let window = owlSettingsWindow ?? OwlSettingsWindow()
     owlSettingsWindow = window
+    let usesRustEngine = engine is OwlRustEngine
     OwlLatencyTrace.event("window.settings.controllerSelected")
 
     window.show(
@@ -514,7 +515,9 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
         guard let self else { return }
         OwlCandidatePanelSettings.live.applyInlineCandidate(to: &self.styleFlags)
         self.owlPanel?.refreshPreferences()
-      }
+      },
+      supportsRimeOnlySymbolMenus: !usesRustEngine,
+      writesRimeConfiguration: !usesRustEngine
     )
     OwlLatencyTrace.event("window.settings.firstVisible")
   }

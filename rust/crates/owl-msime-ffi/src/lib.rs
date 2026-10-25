@@ -9,13 +9,13 @@ use std::ptr;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use msime_engine::host::{
-    prepare_options, Command, EngineOptions, HelpcodeKeymap, QuickPhraseEntry,
-    Session as EngineSession,
+    check_shuangpin_custom_profile, prepare_options, Command, EngineOptions, HelpcodeKeymap,
+    QuickPhraseEntry, Session as EngineSession,
 };
 use msime_engine::{
-    ensure_english_schema, fuzzy_rule, is_complete_pinyin_input, CandidateSource,
-    reject_redirected_directory, roots_overlap, weakly_canonical, FrequencyAdjustmentMode,
-    SchemeSet, SchemeType, SentenceAssociationOptions, ShuangpinHelpcodeModes,
+    ensure_english_schema, fuzzy_rule, is_complete_pinyin_input, reject_redirected_directory,
+    roots_overlap, weakly_canonical, CandidateSource, FrequencyAdjustmentMode, SchemeSet,
+    SchemeType, SentenceAssociationOptions, ShuangpinCustomTable, ShuangpinHelpcodeModes,
     ShuangpinProfileKind, WubiProfileKind,
 };
 use msime_input_runtime::{
@@ -218,6 +218,8 @@ struct ActionPayload {
     #[serde(default)]
     scheme: Option<String>,
     #[serde(default)]
+    custom_profile: Option<ShuangpinCustomTableDto>,
+    #[serde(default)]
     page_size: Option<u32>,
     #[serde(default)]
     mask: Option<u32>,
@@ -225,6 +227,23 @@ struct ActionPayload {
     name: Option<String>,
     #[serde(default)]
     value: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ShuangpinCustomTableDto {
+    initials: Vec<(String, String)>,
+    finals: Vec<(String, String)>,
+    zero_initials: Vec<(String, String)>,
+}
+
+impl From<ShuangpinCustomTableDto> for ShuangpinCustomTable {
+    fn from(value: ShuangpinCustomTableDto) -> Self {
+        Self {
+            initials: value.initials,
+            finals: value.finals,
+            zero_initials: value.zero_initials,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -303,7 +322,12 @@ fn error_response(message: impl Into<String>) -> SnapshotResponseDto {
     }
 }
 
-fn map_caret_to_preedit_byte(editing_text: &str, phrase_prefix: &str, raw_preedit: &str, caret_pos: usize) -> usize {
+fn map_caret_to_preedit_byte(
+    editing_text: &str,
+    phrase_prefix: &str,
+    raw_preedit: &str,
+    caret_pos: usize,
+) -> usize {
     let clamped_caret = caret_pos.min(editing_text.len());
     if clamped_caret == 0 {
         return phrase_prefix.len();
@@ -379,12 +403,9 @@ fn snapshot_from_view(
         .candidates
         .into_iter()
         .map(|c| {
-            let comment = c
-                .script_annotation
-                .filter(|s| !s.is_empty())
-                .or_else(|| {
-                    (show_engine_annotation && !c.annotation.is_empty()).then_some(c.annotation)
-                });
+            let comment = c.script_annotation.filter(|s| !s.is_empty()).or_else(|| {
+                (show_engine_annotation && !c.annotation.is_empty()).then_some(c.annotation)
+            });
             CandidateDto {
                 text: c.text,
                 comment,
@@ -415,12 +436,17 @@ fn snapshot_from_view(
 fn shuangpin_profile_for_name(name: &str) -> Option<ShuangpinProfileKind> {
     match name {
         "xiaohe" => Some(ShuangpinProfileKind::Xiaohe),
-        "microsoft" | "sogou" => Some(ShuangpinProfileKind::Microsoft),
-        "ziranma" | "ziguang" | "jiajia" => Some(ShuangpinProfileKind::Ziranma),
+        "microsoft" => Some(ShuangpinProfileKind::Microsoft),
+        "ziranma" => Some(ShuangpinProfileKind::Ziranma),
         "abc" => Some(ShuangpinProfileKind::SmartAbc),
         "shoudao" => Some(ShuangpinProfileKind::Shoudao),
+        "custom" => Some(ShuangpinProfileKind::Custom),
         _ => None,
     }
+}
+
+fn is_known_pinyin_scheme(name: &str) -> bool {
+    matches!(name, "quanpin" | "wubi" | "wubi_pinyin") || shuangpin_profile_for_name(name).is_some()
 }
 
 fn stage_file_if_needed(src: &Path, dst: &Path) -> std::io::Result<()> {
@@ -477,8 +503,14 @@ fn prepare_explicit_roots(
     dictionaries: &str,
 ) -> Result<SessionRoots, String> {
     let requested = [
-        ("resources_dir", absolute_explicit_root(resources, "resources_dir")?),
-        ("user_data_dir", absolute_explicit_root(user, "user_data_dir")?),
+        (
+            "resources_dir",
+            absolute_explicit_root(resources, "resources_dir")?,
+        ),
+        (
+            "user_data_dir",
+            absolute_explicit_root(user, "user_data_dir")?,
+        ),
         ("cache_dir", absolute_explicit_root(cache, "cache_dir")?),
         (
             "dictionaries_dir",
@@ -542,7 +574,6 @@ fn materialize_explicit_root(path: &Path, label: &str) -> Result<PathBuf, String
     fs::canonicalize(path)
         .map_err(|e| format!("failed to canonicalize {label} {}: {e}", path.display()))
 }
-
 
 fn resolve_pinyin_source(raw: &str) -> Result<PathBuf, String> {
     let trimmed = raw.trim();
@@ -830,13 +861,7 @@ impl OwlMsimeSession {
             &base_dir.join("msime-cache").to_string_lossy(),
             &base_dir.join("msime-dicts").to_string_lossy(),
         )?;
-        Self::create_with_prepared_roots(
-            &pinyin_src,
-            english_db_path,
-            roots,
-            page_size,
-            temp_dir,
-        )
+        Self::create_with_prepared_roots(&pinyin_src, english_db_path, roots, page_size, temp_dir)
     }
 
     pub fn create_with_explicit_roots(
@@ -849,19 +874,9 @@ impl OwlMsimeSession {
         page_size: u32,
     ) -> Result<Self, String> {
         let pinyin_src = resolve_pinyin_source(pinyin_db_path)?;
-        let roots = prepare_explicit_roots(
-            resources_dir,
-            user_data_dir,
-            cache_dir,
-            dictionaries_dir,
-        )?;
-        Self::create_with_prepared_roots(
-            &pinyin_src,
-            english_db_path,
-            roots,
-            page_size,
-            None,
-        )
+        let roots =
+            prepare_explicit_roots(resources_dir, user_data_dir, cache_dir, dictionaries_dir)?;
+        Self::create_with_prepared_roots(&pinyin_src, english_db_path, roots, page_size, None)
     }
 
     pub fn create_with_generation(
@@ -877,7 +892,10 @@ impl OwlMsimeSession {
         ] {
             let path = Path::new(resources_dir).join(name);
             let metadata = fs::symlink_metadata(&path).map_err(|e| {
-                format!("generation resource {name} is missing at {}: {e}", path.display())
+                format!(
+                    "generation resource {name} is missing at {}: {e}",
+                    path.display()
+                )
             })?;
             if !metadata.file_type().is_file() {
                 return Err(format!(
@@ -887,13 +905,8 @@ impl OwlMsimeSession {
             }
         }
 
-        let prepared = prepare_options(
-            resources_dir,
-            user_data_dir,
-            cache_dir,
-            content_id,
-        )
-        .map_err(|e| format!("failed to prepare dictionary generation: {e}"))?;
+        let prepared = prepare_options(resources_dir, user_data_dir, cache_dir, content_id)
+            .map_err(|e| format!("failed to prepare dictionary generation: {e}"))?;
         let resources = PathBuf::from(&prepared.resources);
         let user = PathBuf::from(&prepared.user_data);
         let cache = PathBuf::from(&prepared.cache);
@@ -908,20 +921,8 @@ impl OwlMsimeSession {
         )?;
 
         let page_size = clamp_page_size(page_size);
-        let options = product_engine_options(
-            &resources,
-            &user,
-            &cache,
-            &dictionaries,
-            page_size,
-        );
-        Self::create_with_options(
-            options,
-            source_pinyin,
-            staged_pinyin,
-            page_size,
-            None,
-        )
+        let options = product_engine_options(&resources, &user, &cache, &dictionaries, page_size);
+        Self::create_with_options(options, source_pinyin, staged_pinyin, page_size, None)
     }
 
     fn create_with_prepared_roots(
@@ -1073,6 +1074,10 @@ impl OwlMsimeSession {
     }
 
     fn rebuild_engine_if_needed(&mut self) -> Result<(), String> {
+        self.rebuild_engine_if_needed_with_force(false)
+    }
+
+    fn rebuild_engine_if_needed_with_force(&mut self, force: bool) -> Result<(), String> {
         let desired_scheme = if self.input_mode == "wubi" {
             SchemeType::Wubi as u8
         } else if shuangpin_profile_for_name(&self.pinyin_scheme).is_some() {
@@ -1082,8 +1087,7 @@ impl OwlMsimeSession {
         };
         let desired_profile = shuangpin_profile_for_name(&self.pinyin_scheme)
             .unwrap_or(ShuangpinProfileKind::Xiaohe) as u8;
-        let desired_wubi_mixed =
-            self.input_mode == "wubi" && self.pinyin_scheme == "wubi_pinyin";
+        let desired_wubi_mixed = self.input_mode == "wubi" && self.pinyin_scheme == "wubi_pinyin";
         let desired_single_only =
             self.input_mode == "wubi" && self.wubi_candidate_mode == "single_only";
         let desired_learning = if self.input_mode == "wubi" {
@@ -1092,7 +1096,8 @@ impl OwlMsimeSession {
             true
         };
 
-        if self.options.scheme != desired_scheme
+        if force
+            || self.options.scheme != desired_scheme
             || self.options.shuangpin_profile != desired_profile
             || self.options.wubi_mixed_pinyin != desired_wubi_mixed
             || self.options.single_character_only != desired_single_only
@@ -1166,7 +1171,12 @@ impl OwlMsimeSession {
                     }) {
                         Ok(transition) => {
                             self.sync_pinned_state_from_view(&transition.view);
-                            self.build_snapshot(transition.view, transition.handled, transition.commit, false)
+                            self.build_snapshot(
+                                transition.view,
+                                transition.handled,
+                                transition.commit,
+                                false,
+                            )
                         }
                         Err(err) => error_response(err.to_string()),
                     };
@@ -1182,7 +1192,10 @@ impl OwlMsimeSession {
                 let next_caret_at_end =
                     before.phrase_prefix.is_empty() && (caret + 1 == next_input.len());
                 self.sync_pinned_state_for_upcoming_input(next_input, next_caret_at_end);
-                match self.runtime.dispatch(Action::Character { value: byte, shift }) {
+                match self
+                    .runtime
+                    .dispatch(Action::Character { value: byte, shift })
+                {
                     Ok(transition) => {
                         if is_wubi_letter
                             && self.wubi_auto_clear
@@ -1196,12 +1209,7 @@ impl OwlMsimeSession {
                                 self.runtime.dispatch(Action::Command(Command::Cancel))
                             {
                                 self.sync_pinned_state_from_view(&cleared_t.view);
-                                return self.build_snapshot(
-                                    cleared_t.view,
-                                    true,
-                                    None,
-                                    true,
-                                );
+                                return self.build_snapshot(cleared_t.view, true, None, true);
                             }
                         }
                         self.sync_pinned_state_from_view(&transition.view);
@@ -1299,7 +1307,9 @@ impl OwlMsimeSession {
                     Command::MoveHome => 0,
                     Command::MoveEnd => before.editing_text.len(),
                     Command::MoveLeft => before.caret_position.saturating_sub(1),
-                    Command::MoveRight => (before.caret_position + 1).min(before.editing_text.len()),
+                    Command::MoveRight => {
+                        (before.caret_position + 1).min(before.editing_text.len())
+                    }
                     _ => before.caret_position,
                 };
                 self.sync_pinned_state_for_upcoming_input(
@@ -1528,12 +1538,9 @@ impl OwlMsimeSession {
                     .skip(start)
                     .take(count)
                     .map(|c| {
-                        let comment = c
-                            .script_annotation
-                            .filter(|s| !s.is_empty())
-                            .or_else(|| {
-                                (show_ann && !c.annotation.is_empty()).then_some(c.annotation)
-                            });
+                        let comment = c.script_annotation.filter(|s| !s.is_empty()).or_else(|| {
+                            (show_ann && !c.annotation.is_empty()).then_some(c.annotation)
+                        });
                         CandidateDto {
                             text: c.text,
                             comment,
@@ -1583,7 +1590,10 @@ impl OwlMsimeSession {
                     }
                     let phrase = parts[0].trim();
                     let code = parts[1].trim().to_ascii_lowercase();
-                    if phrase.is_empty() || code.is_empty() || !code.chars().all(|c| c.is_ascii_alphabetic()) {
+                    if phrase.is_empty()
+                        || code.is_empty()
+                        || !code.chars().all(|c| c.is_ascii_alphabetic())
+                    {
                         continue;
                     }
                     let weight = parts
@@ -1613,13 +1623,12 @@ impl OwlMsimeSession {
                 }
                 let previous_table = std::mem::replace(
                     &mut self.options.quick_phrase_table,
-                    rows
-                    .iter()
-                    .map(|(code, text, _)| QuickPhraseEntry {
-                        key: code.clone(),
-                        text: text.clone(),
-                    })
-                    .collect(),
+                    rows.iter()
+                        .map(|(code, text, _)| QuickPhraseEntry {
+                            key: code.clone(),
+                            text: text.clone(),
+                        })
+                        .collect(),
                 );
                 if let Err(err) = self.force_rebuild_engine() {
                     self.options.quick_phrase_table = previous_table;
@@ -1667,8 +1676,36 @@ impl OwlMsimeSession {
                 let Some(scheme) = payload.scheme else {
                     return error_response("set_pinyin_scheme requires scheme");
                 };
+                if !is_known_pinyin_scheme(&scheme) {
+                    return error_response(format!("UNKNOWN_PINYIN_SCHEME: {scheme}"));
+                }
+                let custom_profile = if scheme == "custom" {
+                    let Some(table) = payload.custom_profile else {
+                        return error_response("INVALID_CUSTOM_SHUANGPIN_PROFILE: missing table");
+                    };
+                    let table = ShuangpinCustomTable::from(table);
+                    if let Err(error) = check_shuangpin_custom_profile(&table) {
+                        return error_response(format!(
+                            "INVALID_CUSTOM_SHUANGPIN_PROFILE: {error}"
+                        ));
+                    }
+                    Some(table)
+                } else {
+                    None
+                };
+                let previous_scheme = self.pinyin_scheme.clone();
+                let previous_profile = self.options.shuangpin_profile;
+                let previous_custom = self.options.shuangpin_custom_profile.clone();
                 self.pinyin_scheme = scheme;
-                if let Err(err) = self.rebuild_engine_if_needed() {
+                self.options.shuangpin_custom_profile = custom_profile;
+                let rebuild = self.rebuild_engine_if_needed_with_force(
+                    previous_custom != self.options.shuangpin_custom_profile,
+                );
+                if let Err(err) = rebuild {
+                    self.pinyin_scheme = previous_scheme;
+                    self.options.shuangpin_profile = previous_profile;
+                    self.options.shuangpin_custom_profile = previous_custom;
+                    let _ = self.rebuild_engine_if_needed();
                     return error_response(err);
                 }
                 self.build_snapshot(self.runtime.view(), true, None, false)
@@ -1873,13 +1910,7 @@ pub extern "C" fn owl_msime_session_create_with_generation(
         let user = cstr_to_string(user_data_dir).unwrap_or_default();
         let cache = cstr_to_string(cache_dir).unwrap_or_default();
         let content_id = cstr_to_string(content_id).unwrap_or_default();
-        OwlMsimeSession::create_with_generation(
-            &resources,
-            &user,
-            &cache,
-            &content_id,
-            page_size,
-        )
+        OwlMsimeSession::create_with_generation(&resources, &user, &cache, &content_id, page_size)
     }));
     match created {
         Ok(Ok(session)) => {
@@ -1937,9 +1968,7 @@ pub extern "C" fn owl_msime_session_handle_action_json(
 }
 
 #[no_mangle]
-pub extern "C" fn owl_msime_session_snapshot_json(
-    session: *const OwlMsimeSession,
-) -> *mut c_char {
+pub extern "C" fn owl_msime_session_snapshot_json(session: *const OwlMsimeSession) -> *mut c_char {
     catch_unwind(AssertUnwindSafe(|| {
         if !is_live_session(session) {
             return into_c_string_ptr(&error_response("session is null or destroyed"));
@@ -1965,6 +1994,7 @@ pub extern "C" fn owl_msime_string_free(ptr: *mut c_char) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use msime_engine::host::shuangpin_builtin_table;
     use rusqlite::Connection;
 
     fn build_minimal_test_pinyin_db(path: &Path) {
@@ -1976,7 +2006,9 @@ mod tests {
              INSERT INTO tbl_1_n (\"key\", \"jp\", \"value\", \"weight\") VALUES
                ('ni', 'n', '你', 5000),
                ('ni', 'n', '尼', 3000),
-               ('ni', 'n', '泥', 2000);
+               ('ni', 'n', '泥', 2000),
+               ('xin', 'x', '新', 2000),
+               ('ping', 'p', '平', 2000);
 
              CREATE TABLE tbl_1_h (\"key\" TEXT, \"jp\" TEXT, \"value\" TEXT, \"weight\" INTEGER DEFAULT 0);
              CREATE INDEX idx_key_1_h ON tbl_1_h (\"key\");
@@ -1995,7 +2027,8 @@ mod tests {
                ('ni''hao', 'nh', '泥嚎', 2000),
                ('ni''hao', 'nh', '拟好', 1500),
                ('ni''hao', 'nh', '逆号', 1200),
-               ('ni''hao', 'nh', '昵号', 1000);
+               ('ni''hao', 'nh', '昵号', 1000),
+               ('ping''ping', 'pp', '平平', 9000);
 
              CREATE TABLE tbl_1_s (\"key\" TEXT, \"jp\" TEXT, \"value\" TEXT, \"weight\" INTEGER DEFAULT 0);
              CREATE INDEX idx_key_1_s ON tbl_1_s (\"key\");
@@ -2024,6 +2057,15 @@ mod tests {
         root.to_path_buf()
     }
 
+    fn shuangpin_table_json(kind: ShuangpinProfileKind) -> serde_json::Value {
+        let table = shuangpin_builtin_table(kind).expect("built-in shuangpin table");
+        serde_json::json!({
+            "initials": table.initials,
+            "finals": table.finals,
+            "zero_initials": table.zero_initials,
+        })
+    }
+
     fn call_action(session: *mut OwlMsimeSession, json: &str) -> SnapshotResponseDto {
         let c_req = CString::new(json).unwrap();
         let raw = owl_msime_session_handle_action_json(session, c_req.as_ptr());
@@ -2041,10 +2083,7 @@ mod tests {
         serde_json::from_str(&resp_str).expect("valid snapshot json")
     }
 
-    fn select_visible_text(
-        session: *mut OwlMsimeSession,
-        expected: &str,
-    ) -> SnapshotResponseDto {
+    fn select_visible_text(session: *mut OwlMsimeSession, expected: &str) -> SnapshotResponseDto {
         loop {
             let frame = call_snapshot(session);
             if let Some(index) = frame
@@ -2094,8 +2133,7 @@ mod tests {
         let c_resources = CString::new(resources.to_string_lossy().as_bytes()).unwrap();
         let c_user = CString::new(user.to_string_lossy().as_bytes()).unwrap();
         let c_cache = CString::new(cache.to_string_lossy().as_bytes()).unwrap();
-        let c_dictionaries =
-            CString::new(dictionaries.to_string_lossy().as_bytes()).unwrap();
+        let c_dictionaries = CString::new(dictionaries.to_string_lossy().as_bytes()).unwrap();
         let mut error = ptr::null_mut();
         let session = owl_msime_session_create_with_roots(
             c_pinyin.as_ptr(),
@@ -2252,22 +2290,12 @@ mod tests {
         let cache_b = runtime_b.join("cache");
         let dictionaries_b = runtime_b.join("dictionaries");
 
-        let (session_a, error_a) = create_with_explicit_roots(
-            &pinyin,
-            &resources_a,
-            &user,
-            &cache_a,
-            &dictionaries_a,
-        );
+        let (session_a, error_a) =
+            create_with_explicit_roots(&pinyin, &resources_a, &user, &cache_a, &dictionaries_a);
         assert!(error_a.is_none(), "{error_a:?}");
         assert!(!session_a.is_null());
-        let (session_b, error_b) = create_with_explicit_roots(
-            &pinyin,
-            &resources_b,
-            &user,
-            &cache_b,
-            &dictionaries_b,
-        );
+        let (session_b, error_b) =
+            create_with_explicit_roots(&pinyin, &resources_b, &user, &cache_b, &dictionaries_b);
         assert!(error_b.is_none(), "{error_b:?}");
         assert!(!session_b.is_null());
 
@@ -2304,16 +2332,13 @@ mod tests {
 
         for session in [session_a, session_b] {
             for ch in ['n', 'i'] {
-                let typed =
-                    call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+                let typed = call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
                 assert!(typed.ok);
             }
-            assert!(
-                call_snapshot(session)
-                    .candidates
-                    .iter()
-                    .any(|candidate| candidate.text == "你")
-            );
+            assert!(call_snapshot(session)
+                .candidates
+                .iter()
+                .any(|candidate| candidate.text == "你"));
         }
 
         owl_msime_session_destroy(session_a);
@@ -2338,18 +2363,13 @@ mod tests {
         assert!(!reopened.is_null());
         assert_eq!(assertion_journal_count(&journal), 7);
         for ch in ['n', 'i'] {
-            let typed = call_action(
-                reopened,
-                &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"),
-            );
+            let typed = call_action(reopened, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
             assert!(typed.ok);
         }
-        assert!(
-            call_snapshot(reopened)
-                .candidates
-                .iter()
-                .any(|candidate| candidate.text == "你")
-        );
+        assert!(call_snapshot(reopened)
+            .candidates
+            .iter()
+            .any(|candidate| candidate.text == "你"));
         owl_msime_session_destroy(reopened);
     }
 
@@ -2369,11 +2389,9 @@ mod tests {
             &tmp.path().join("future-runtime/dictionaries"),
         );
         assert!(session.is_null());
-        assert!(
-            error
-                .as_deref()
-                .is_some_and(|message| message.contains("session roots overlap"))
-        );
+        assert!(error
+            .as_deref()
+            .is_some_and(|message| message.contains("session roots overlap")));
         assert_eq!(
             directory_tree(tmp.path()),
             before,
@@ -2392,11 +2410,9 @@ mod tests {
             &tmp.path().join("existing-runtime/dictionaries"),
         );
         assert!(session.is_null());
-        assert!(
-            error
-                .as_deref()
-                .is_some_and(|message| message.contains("session roots overlap"))
-        );
+        assert!(error
+            .as_deref()
+            .is_some_and(|message| message.contains("session roots overlap")));
         assert_eq!(
             directory_tree(tmp.path()),
             before,
@@ -2412,11 +2428,9 @@ mod tests {
             &tmp.path().join("dictionaries-2"),
         );
         assert!(session.is_null());
-        assert!(
-            error
-                .as_deref()
-                .is_some_and(|message| message.contains("pinyin_db_path"))
-        );
+        assert!(error
+            .as_deref()
+            .is_some_and(|message| message.contains("pinyin_db_path")));
     }
 
     #[cfg(unix)]
@@ -2555,7 +2569,11 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
         let pinyin = repository.join("data/owl-rime/msime/msime-pinyin.db");
-        assert!(pinyin.is_file(), "missing production seed at {}", pinyin.display());
+        assert!(
+            pinyin.is_file(),
+            "missing production seed at {}",
+            pinyin.display()
+        );
         let resources = tmp.path().join("resources");
         fs::create_dir_all(&resources).unwrap();
         let user = tmp.path().join("user");
@@ -2567,8 +2585,7 @@ mod tests {
         assert!(!session.is_null());
 
         for ch in ['n', 'i', 'h', 's', 'o'] {
-            let response =
-                call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
+            let response = call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
             assert!(response.ok, "{:?}", response.error);
         }
         let initial = unsafe { (*session).runtime.all_candidates() };
@@ -2595,8 +2612,7 @@ mod tests {
         assert_eq!(suppressions, vec!["nihso"]);
 
         for ch in ['n', 'i', 'h', 's', 'o'] {
-            let response =
-                call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
+            let response = call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
             assert!(response.ok, "{:?}", response.error);
         }
         let repeated = unsafe { (*session).runtime.all_candidates() };
@@ -2616,7 +2632,11 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
         let pinyin = repository.join("data/owl-rime/msime/msime-pinyin.db");
-        assert!(pinyin.is_file(), "missing production seed at {}", pinyin.display());
+        assert!(
+            pinyin.is_file(),
+            "missing production seed at {}",
+            pinyin.display()
+        );
         let resources = tmp.path().join("resources");
         fs::create_dir_all(&resources).unwrap();
         let user = tmp.path().join("user");
@@ -2633,15 +2653,17 @@ mod tests {
         assert!(wubi_scheme.ok, "{:?}", wubi_scheme.error);
 
         for ch in ['a', 'a', 'a', 'a'] {
-            let response =
-                call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
+            let response = call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
             assert!(response.ok, "{:?}", response.error);
         }
         let before = call_snapshot(session);
         assert_eq!(before.committed_text, None);
         assert_eq!(before.raw_input, "aaaa");
         assert_eq!(
-            before.candidates.first().map(|candidate| candidate.text.as_str()),
+            before
+                .candidates
+                .first()
+                .map(|candidate| candidate.text.as_str()),
             Some("工")
         );
 
@@ -2673,7 +2695,10 @@ mod tests {
         owl_msime_session_destroy(first);
 
         let journal = user.join(msime_engine::assets::USER_JOURNAL);
-        assert!(journal.is_file(), "journal must live directly under user_data");
+        assert!(
+            journal.is_file(),
+            "journal must live directly under user_data"
+        );
         let journal_weight: i64 = Connection::open(&journal)
             .unwrap()
             .query_row(
@@ -2685,8 +2710,7 @@ mod tests {
             .unwrap();
         assert!(journal_weight > 2000, "{journal_weight}");
 
-        let (second, error) =
-            create_with_generation(&resources, &user, &cache, "seed-replayed");
+        let (second, error) = create_with_generation(&resources, &user, &cache, "seed-replayed");
         assert!(error.is_none(), "{error:?}");
         assert!(!second.is_null());
         let replayed_weight: i64 = Connection::open(
@@ -2754,8 +2778,7 @@ mod tests {
         owl_msime_session_destroy(session_a);
         owl_msime_session_destroy(session_b);
 
-        let (reopened_a, error) =
-            create_with_generation(&resources, &user, &cache, "content-a");
+        let (reopened_a, error) = create_with_generation(&resources, &user, &cache, "content-a");
         assert!(error.is_none(), "{error:?}");
         assert!(!reopened_a.is_null());
         let weight: i64 = Connection::open(
@@ -2781,8 +2804,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let resources = build_minimal_test_resources(&tmp.path().join("resources"));
 
-        let overlap_resources =
-            build_minimal_test_resources(&tmp.path().join("overlap-resources"));
+        let overlap_resources = build_minimal_test_resources(&tmp.path().join("overlap-resources"));
         let before = directory_tree(tmp.path());
         let (session, error) = create_with_generation(
             &overlap_resources,
@@ -2818,9 +2840,7 @@ mod tests {
 
         let missing_english = tmp.path().join("missing-english");
         fs::create_dir_all(&missing_english).unwrap();
-        build_minimal_test_pinyin_db(
-            &missing_english.join(msime_engine::assets::MAIN_DICTIONARY),
-        );
+        build_minimal_test_pinyin_db(&missing_english.join(msime_engine::assets::MAIN_DICTIONARY));
         let before = directory_tree(tmp.path());
         let (session, error) = create_with_generation(
             &missing_english,
@@ -2836,10 +2856,8 @@ mod tests {
 
         let missing_pinyin = tmp.path().join("missing-pinyin");
         fs::create_dir_all(&missing_pinyin).unwrap();
-        ensure_english_schema(
-            &missing_pinyin.join(msime_engine::assets::ENGLISH_DICTIONARY),
-        )
-        .unwrap();
+        ensure_english_schema(&missing_pinyin.join(msime_engine::assets::ENGLISH_DICTIONARY))
+            .unwrap();
         let before = directory_tree(tmp.path());
         let (session, error) = create_with_generation(
             &missing_pinyin,
@@ -2950,7 +2968,10 @@ mod tests {
         let second_text = call_snapshot(session).candidates[1].text.clone();
         let selected = call_action(session, "{\"op\":\"select_visible\",\"index\":1}");
         assert!(selected.ok);
-        assert_eq!(selected.committed_text.as_deref(), Some(second_text.as_str()));
+        assert_eq!(
+            selected.committed_text.as_deref(),
+            Some(second_text.as_str())
+        );
         assert_eq!(selected.raw_input, "");
 
         // Backspace and commit_raw
@@ -3111,10 +3132,7 @@ mod tests {
                 tail.generation
             ),
         );
-        assert_eq!(
-            absolute.committed_text.as_deref(),
-            Some(tail_text.as_str())
-        );
+        assert_eq!(absolute.committed_text.as_deref(), Some(tail_text.as_str()));
         owl_msime_session_destroy(session);
     }
 
@@ -3152,10 +3170,7 @@ mod tests {
         assert_eq!(snap.candidates[0].comment.as_deref(), Some("置顶"));
 
         // Peek candidates across pages
-        let peeked = call_action(
-            session,
-            r#"{"op":"peek_candidates","start":0,"count":6}"#,
-        );
+        let peeked = call_action(session, r#"{"op":"peek_candidates","start":0,"count":6}"#);
         assert!(peeked.ok);
         assert_eq!(peeked.candidates.len(), 6);
         assert_eq!(peeked.candidates[0].text, "拟好");
@@ -3207,9 +3222,7 @@ mod tests {
         let gen2 = call_snapshot(session).generation;
         let selected_abs = call_action(
             session,
-            &format!(
-                r#"{{"op":"select_token","index":5,"is_absolute":true,"generation":{gen2}}}"#
-            ),
+            &format!(r#"{{"op":"select_token","index":5,"is_absolute":true,"generation":{gen2}}}"#),
         );
         assert!(selected_abs.ok);
         assert!(selected_abs.consumed);
@@ -3275,9 +3288,7 @@ mod tests {
 
         let conn = Connection::open(&staged).unwrap();
         let rows: Vec<(String, String, i64)> = conn
-            .prepare(
-                "SELECT key, value, weight FROM quick_parases ORDER BY key, value, weight",
-            )
+            .prepare("SELECT key, value, weight FROM quick_parases ORDER BY key, value, weight")
             .unwrap()
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
             .unwrap()
@@ -3379,8 +3390,7 @@ mod tests {
         assert!(!failed.ok);
         assert!(
             failed.error.as_deref().is_some_and(|err| {
-                err.contains("HOST_PHRASE_CLEANUP_FAILED")
-                    && err.contains("copy base rows")
+                err.contains("HOST_PHRASE_CLEANUP_FAILED") && err.contains("copy base rows")
             }),
             "the SQL failure must be exposed instead of swallowed: {:?}",
             failed.error
@@ -3392,9 +3402,7 @@ mod tests {
         );
 
         let rows: Vec<(String, String, i64)> = conn
-            .prepare(
-                "SELECT key, value, weight FROM quick_parases ORDER BY key, value, weight",
-            )
+            .prepare("SELECT key, value, weight FROM quick_parases ORDER BY key, value, weight")
             .unwrap()
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
             .unwrap()
@@ -3485,10 +3493,7 @@ mod tests {
             .unwrap()
             .collect::<Result<_, _>>()
             .unwrap();
-        assert_eq!(
-            values,
-            vec!["BaseHigh", "Same", "Same", "SourcePhrase"]
-        );
+        assert_eq!(values, vec!["BaseHigh", "Same", "Same", "SourcePhrase"]);
         owl_msime_session_destroy(session);
     }
 
@@ -3579,9 +3584,7 @@ mod tests {
             .unwrap();
         assert_eq!(tracking_after, 0, "legacy tracking must be consumed");
         let rows: Vec<(String, String, i64)> = conn
-            .prepare(
-                "SELECT key, value, weight FROM quick_parases ORDER BY key, value, weight",
-            )
+            .prepare("SELECT key, value, weight FROM quick_parases ORDER BY key, value, weight")
             .unwrap()
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
             .unwrap()
@@ -3678,10 +3681,7 @@ mod tests {
         build_minimal_test_pinyin_db(&db_path);
         Connection::open(&db_path)
             .unwrap()
-            .execute(
-                "INSERT INTO quick_parases VALUES ('base', 'Base', 100)",
-                [],
-            )
+            .execute("INSERT INTO quick_parases VALUES ('base', 'Base', 100)", [])
             .unwrap();
 
         let engine_user_dir = user_dir.join("msime-user");
@@ -3774,7 +3774,9 @@ mod tests {
             }
             let candidates = call_snapshot(session).candidates;
             assert!(
-                candidates.iter().any(|candidate| candidate.text == expected),
+                candidates
+                    .iter()
+                    .any(|candidate| candidate.text == expected),
                 "production Wubi seed must answer {code} with {expected}"
             );
             let _ = call_action(session, r#"{"op":"clear"}"#);
@@ -3789,10 +3791,193 @@ mod tests {
         let cold = cold.expect("edui has four keys");
         assert!(
             cold.committed_text.as_deref() == Some("膫")
-                || cold.candidates.iter().any(|candidate| candidate.text == "膫"),
+                || cold
+                    .candidates
+                    .iter()
+                    .any(|candidate| candidate.text == "膫"),
             "production Wubi seed must contain the cold full code edui -> 膫"
         );
 
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn unknown_pinyin_scheme_fails_without_replacing_the_active_scheme() {
+        let tmp = TempDir::new().unwrap();
+        let resources = build_minimal_test_resources(&tmp.path().join("resources"));
+        let user = tmp.path().join("user");
+        let cache = tmp.path().join("cache");
+        let (session, error) = create_with_generation(&resources, &user, &cache, "scheme-unknown");
+        assert!(error.is_none(), "{error:?}");
+        assert!(!session.is_null());
+
+        let selected = call_action(session, r#"{"op":"set_pinyin_scheme","scheme":"xiaohe"}"#);
+        assert!(selected.ok, "{:?}", selected.error);
+        let rejected = call_action(
+            session,
+            r#"{"op":"set_pinyin_scheme","scheme":"not-a-real-scheme"}"#,
+        );
+        assert!(!rejected.ok);
+        assert!(rejected
+            .error
+            .as_deref()
+            .is_some_and(|message| message.contains("UNKNOWN_PINYIN_SCHEME")));
+        assert_eq!(unsafe { (*session).pinyin_scheme.as_str() }, "xiaohe");
+        assert_eq!(
+            session_options(session).shuangpin_profile,
+            ShuangpinProfileKind::Xiaohe as u8
+        );
+
+        for ch in "ni".chars() {
+            let typed = call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
+            assert!(typed.ok, "{:?}", typed.error);
+        }
+        assert!(
+            call_snapshot(session)
+                .candidates
+                .iter()
+                .any(|candidate| candidate.text == "你"),
+            "the rejected scheme must leave the previous xiaohe mapping working"
+        );
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn custom_shuangpin_requires_a_valid_table_and_preserves_the_previous_profile() {
+        let tmp = TempDir::new().unwrap();
+        let resources = build_minimal_test_resources(&tmp.path().join("resources"));
+        let user = tmp.path().join("user");
+        let cache = tmp.path().join("cache");
+        let (session, error) = create_with_generation(&resources, &user, &cache, "scheme-invalid");
+        assert!(error.is_none(), "{error:?}");
+        assert!(!session.is_null());
+
+        let selected = call_action(session, r#"{"op":"set_pinyin_scheme","scheme":"xiaohe"}"#);
+        assert!(selected.ok, "{:?}", selected.error);
+
+        let missing_table = call_action(session, r#"{"op":"set_pinyin_scheme","scheme":"custom"}"#);
+        assert!(!missing_table.ok);
+        assert!(missing_table
+            .error
+            .as_deref()
+            .is_some_and(|message| message.contains("missing table")));
+
+        let mut invalid_table = shuangpin_table_json(ShuangpinProfileKind::Xiaohe);
+        invalid_table["finals"]
+            .as_array_mut()
+            .unwrap()
+            .pop()
+            .unwrap();
+        let invalid = call_action(
+            session,
+            &serde_json::json!({
+                "op": "set_pinyin_scheme",
+                "scheme": "custom",
+                "custom_profile": invalid_table,
+            })
+            .to_string(),
+        );
+        assert!(!invalid.ok);
+        assert!(invalid
+            .error
+            .as_deref()
+            .is_some_and(|message| message.contains("INVALID_CUSTOM_SHUANGPIN_PROFILE")));
+        assert_eq!(unsafe { (*session).pinyin_scheme.as_str() }, "xiaohe");
+        assert_eq!(
+            session_options(session).shuangpin_profile,
+            ShuangpinProfileKind::Xiaohe as u8
+        );
+        assert!(session_options(session).shuangpin_custom_profile.is_none());
+
+        for ch in "ni".chars() {
+            let typed = call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
+            assert!(typed.ok, "{:?}", typed.error);
+        }
+        assert!(
+            call_snapshot(session)
+                .candidates
+                .iter()
+                .any(|candidate| candidate.text == "你"),
+            "invalid custom profiles must not disturb the active xiaohe mapping"
+        );
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn custom_shuangpin_table_is_applied_and_a_changed_table_rebuilds_the_engine() {
+        let tmp = TempDir::new().unwrap();
+        let resources = build_minimal_test_resources(&tmp.path().join("resources"));
+        let user = tmp.path().join("user");
+        let cache = tmp.path().join("cache");
+        let (session, error) = create_with_generation(&resources, &user, &cache, "scheme-custom");
+        assert!(error.is_none(), "{error:?}");
+        assert!(!session.is_null());
+        unsafe {
+            (*session).options.shuangpin_preedit_uses_raw = false;
+        }
+
+        let original = shuangpin_table_json(ShuangpinProfileKind::Xiaohe);
+        let applied = call_action(
+            session,
+            &serde_json::json!({
+                "op": "set_pinyin_scheme",
+                "scheme": "custom",
+                "custom_profile": original,
+            })
+            .to_string(),
+        );
+        assert!(applied.ok, "{:?}", applied.error);
+        assert_eq!(
+            session_options(session).shuangpin_profile,
+            ShuangpinProfileKind::Custom as u8
+        );
+        for ch in "pkpk".chars() {
+            let typed = call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
+            assert!(typed.ok, "{:?}", typed.error);
+        }
+        let first_snapshot = call_snapshot(session);
+        assert_eq!(first_snapshot.raw_input, "pkpk");
+        assert_eq!(
+            first_snapshot.preedit, "ping'ping",
+            "xiaohe's k final must resolve ping"
+        );
+
+        // A second valid table with the same `custom` profile must rebuild the engine,
+        // not retain the first table's key map. Ziranma moves `in` from `b` to `n`.
+        let second_table = shuangpin_table_json(ShuangpinProfileKind::Ziranma);
+        let reapplied = call_action(
+            session,
+            &serde_json::json!({
+                "op": "set_pinyin_scheme",
+                "scheme": "custom",
+                "custom_profile": second_table,
+            })
+            .to_string(),
+        );
+        assert!(reapplied.ok, "{:?}", reapplied.error);
+
+        for ch in "pypy".chars() {
+            let typed = call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
+            assert!(typed.ok, "{:?}", typed.error);
+        }
+        let snapshot = call_snapshot(session);
+        assert_eq!(snapshot.raw_input, "pypy");
+        assert_eq!(
+            snapshot.preedit, "ping'ping",
+            "the changed custom table must be the one used by the rebuilt engine"
+        );
+
+        let cleared = call_action(session, r#"{"op":"clear"}"#);
+        assert!(cleared.ok, "{:?}", cleared.error);
+        for ch in "pkpk".chars() {
+            let typed = call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
+            assert!(typed.ok, "{:?}", typed.error);
+        }
+        assert_eq!(
+            call_snapshot(session).preedit,
+            "pao'pao",
+            "the previous xiaohe key map must not survive the rebuild"
+        );
         owl_msime_session_destroy(session);
     }
 }

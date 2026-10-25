@@ -49,6 +49,8 @@ struct OwlSettingsView: View {
   let onShowOnboarding: () -> Void
   /// Candidate setting changed → refresh all live runtime consumers.
   let onPanelPreferencesChanged: () -> Void
+  var supportsRimeOnlySymbolMenus = true
+  var writesRimeConfiguration = true
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -189,7 +191,9 @@ struct OwlSettingsView: View {
           onSelectSchema: onSelectSchema,
           onRedeploy: onRedeploy,
           onApplyKeyboardConfigFast: onApplyKeyboardConfigFast,
-          onApplyFuzzyConfigFast: onApplyFuzzyConfigFast
+          onApplyFuzzyConfigFast: onApplyFuzzyConfigFast,
+          supportsRimeOnlySymbolMenus: supportsRimeOnlySymbolMenus,
+          writesRimeConfiguration: writesRimeConfiguration
         )
       case .shortcuts:
         OwlKeyboardPage(
@@ -201,6 +205,8 @@ struct OwlSettingsView: View {
           onRedeploy: onRedeploy,
           onApplyKeyboardConfigFast: onApplyKeyboardConfigFast,
           onApplyFuzzyConfigFast: onApplyFuzzyConfigFast,
+          supportsRimeOnlySymbolMenus: supportsRimeOnlySymbolMenus,
+          writesRimeConfiguration: writesRimeConfiguration,
           variant: .shortcuts
         )
       case .appearance:
@@ -665,20 +671,28 @@ struct OwlSettingsView: View {
       } catch OwlConfigWriteError.refusedNeverTouch(let name) {
         candidatePageSizeApplyStatus = "已拒绝写入受保护文件：\(name)。候选个数未生效，请查看诊断日志。"
       } catch {
-        candidatePageSizeApplyStatus = "写入失败，候选个数未生效，请查看诊断日志：\(error.localizedDescription)"
+        candidatePageSizeApplyStatus = writesRimeConfiguration
+          ? "写入失败，候选个数未生效，请查看诊断日志：\(error.localizedDescription)"
+          : "应用失败，候选个数未生效，请查看诊断日志：\(error.localizedDescription)"
       }
       isApplyingCandidatePageSize = false
     }
   }
 
-  static func candidatePageSizeApplyStatusMessage(written: [String], deploySucceeded: Bool) -> String {
+  static func candidatePageSizeApplyStatusMessage(
+    written: [String],
+    deploySucceeded: Bool,
+    writesRimeConfiguration: Bool = true
+  ) -> String {
     let files = written.joined(separator: "、")
     if deploySucceeded {
       return files.isEmpty ? "候选个数已生效。" : "候选个数已生效：\(files)。"
     }
     return files.isEmpty
       ? "应用失败，候选个数未生效，请查看诊断日志。"
-      : "已写入 \(files)，但应用失败；候选个数未生效，请查看诊断日志。"
+      : writesRimeConfiguration
+        ? "已写入 \(files)，但应用失败；候选个数未生效，请查看诊断日志。"
+        : "应用失败，候选个数未生效，请查看诊断日志。"
   }
 
   // MARK: - Status line

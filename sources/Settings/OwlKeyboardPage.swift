@@ -44,6 +44,8 @@ struct OwlKeyboardPage: View {
   /// 模糊拼音 fast-ish apply (mtime-gated `fullCheck:false` maintenance — rebuilds the schema
   /// prism, not octagram — + reselect + replay). NOT instant; copy stays honest.
   let onApplyFuzzyConfigFast: () throws -> OwlKeyboardSettingsApplication.Outcome
+  var supportsRimeOnlySymbolMenus = true
+  var writesRimeConfiguration = true
 
   /// Which card group this instance renders. 键盘输入 shows everything except the three
   /// shortcut cards; 快捷键设置 (a separate sidebar page) shows only those three. One view
@@ -136,7 +138,7 @@ struct OwlKeyboardPage: View {
                 .font(.system(size: 13))
                 .foregroundStyle(OwlProvenanceColor.verified)
             }
-            Text(autoApplyStatus ?? "改动已自动保存并应用")
+            Text(autoApplyStatus ?? defaultApplyStatus)
               .font(.system(size: 12, weight: .medium))
               .foregroundStyle(isAutoApplyingRimeConfig ? palette.ink2 : palette.ink3)
           }
@@ -145,7 +147,7 @@ struct OwlKeyboardPage: View {
             HStack(spacing: 6) {
               Image(systemName: "arrow.clockwise")
                 .font(.system(size: 12))
-              Text("保存并重新应用")
+              Text(reapplyButtonTitle)
                 .font(.system(size: 13, weight: .medium))
             }
             .foregroundStyle(palette.accentDeep)
@@ -164,10 +166,10 @@ struct OwlKeyboardPage: View {
           .buttonStyle(.plain)
           .disabled(!rimeBackedRowsEnabled)
           .opacity(rimeBackedRowsEnabled ? 1 : 0.5)
-          .accessibilityLabel("保存并重新应用")
+          .accessibilityLabel(writesRimeConfiguration ? "保存并重新应用" : "重新应用")
         }
 
-        Text("配置改动即时生效；此处仅用于异常时重新写入并应用当前键盘设置。")
+        Text(applyFootnote)
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .frame(maxWidth: .infinity, alignment: .leading)
@@ -821,12 +823,14 @@ struct OwlKeyboardPage: View {
         SettingsCardDivider(palette: palette)
         SettingsToggleRow(
           title: "输入中文时 “/” 弹出符号选单",
-          isOn: state.keyboardSlashSymbolMenu,
+          isOn: supportsRimeOnlySymbolMenus && state.keyboardSlashSymbolMenu,
           palette: palette,
-          isEnabled: rimeBackedRowsEnabled,
+          isEnabled: symbolMenusEnabled,
           onToggle: { toggleSlashSymbolMenu() }
         )
-        Text("打开后按 / 键从 、 / ／ ÷ 里挑一个；关闭时维持默认行为：提交当前中文候选、切到英文并直接输入 /。")
+        Text(supportsRimeOnlySymbolMenus
+          ? "打开后按 / 键从 、 / ／ ÷ 里挑一个；关闭时维持默认行为：提交当前中文候选、切到英文并直接输入 /。"
+          : Self.unsupportedSymbolMenuMessage("/"))
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .frame(maxWidth: .infinity, alignment: .leading)
@@ -835,12 +839,14 @@ struct OwlKeyboardPage: View {
         SettingsCardDivider(palette: palette)
         SettingsToggleRow(
           title: "输入中文时 “<” 弹出符号选单",
-          isOn: state.keyboardAngleSymbolMenu,
+          isOn: supportsRimeOnlySymbolMenus && state.keyboardAngleSymbolMenu,
           palette: palette,
-          isEnabled: rimeBackedRowsEnabled,
+          isEnabled: symbolMenusEnabled,
           onToggle: { toggleAngleSymbolMenu() }
         )
-        Text("按 < 键从 《 〈 < 「 “ 里挑一个；首选仍是 《，继续打字会自动上屏首选。配合「成对输入」，选出的开括号（含弯引号）会自动补全成对。")
+        Text(supportsRimeOnlySymbolMenus
+          ? "按 < 键从 《 〈 < 「 “ 里挑一个；首选仍是 《，继续打字会自动上屏首选。配合「成对输入」，选出的开括号（含弯引号）会自动补全成对。"
+          : Self.unsupportedSymbolMenuMessage("<"))
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .frame(maxWidth: .infinity, alignment: .leading)
@@ -935,7 +941,9 @@ struct OwlKeyboardPage: View {
       reduceTransparency: reduceTransparency
     ) {
       VStack(alignment: .leading, spacing: 6) {
-        Text("快捷键配置会自动写入 ~/Library/Application Support/Owltype 并应用。")
+        Text(writesRimeConfiguration
+          ? "快捷键配置会自动写入 ~/Library/Application Support/Owltype 并应用。"
+          : "快捷键配置会即时应用；Rust 引擎不写入 Rime YAML。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .frame(maxWidth: .infinity, alignment: .leading)
@@ -945,6 +953,24 @@ struct OwlKeyboardPage: View {
 
   private var rimeBackedRowsEnabled: Bool {
     !isAutoApplyingRimeConfig
+  }
+
+  private var symbolMenusEnabled: Bool {
+    rimeBackedRowsEnabled && supportsRimeOnlySymbolMenus
+  }
+
+  private var defaultApplyStatus: String {
+    writesRimeConfiguration ? "改动已自动保存并应用" : "改动已即时应用"
+  }
+
+  private var reapplyButtonTitle: String {
+    writesRimeConfiguration ? "保存并重新应用" : "重新应用"
+  }
+
+  private var applyFootnote: String {
+    writesRimeConfiguration
+      ? "配置改动即时生效；此处仅用于异常时重新写入并应用当前键盘设置。"
+      : "配置改动即时生效；此处仅用于重新应用当前键盘设置。"
   }
 
   private func persistAndApplyRimeConfig(_ mutation: () -> Void) {
@@ -982,7 +1008,9 @@ struct OwlKeyboardPage: View {
       } catch OwlConfigWriteError.refusedNeverTouch(let name) {
         autoApplyStatus = "已拒绝写入受保护文件：\(name)。改动未生效，请查看诊断日志。"
       } catch {
-        autoApplyStatus = "写入失败，改动未生效，请查看诊断日志：\(error.localizedDescription)"
+        autoApplyStatus = writesRimeConfiguration
+          ? "写入失败，改动未生效，请查看诊断日志：\(error.localizedDescription)"
+          : "应用失败，改动未生效，请查看诊断日志：\(error.localizedDescription)"
       }
       isAutoApplyingRimeConfig = false
     }
@@ -1002,14 +1030,24 @@ struct OwlKeyboardPage: View {
     }
   }
 
-  static func autoApplyStatusMessage(written: [String], deploySucceeded: Bool) -> String {
+  static func autoApplyStatusMessage(
+    written: [String],
+    deploySucceeded: Bool,
+    writesRimeConfiguration: Bool = true
+  ) -> String {
     let files = written.joined(separator: "、")
     if deploySucceeded {
       return files.isEmpty ? "配置已生效。" : "已生效：\(files)。"
     }
     return files.isEmpty
       ? "应用失败，改动未生效，请查看诊断日志。"
-      : "已写入 \(files)，但应用失败；改动未生效，请查看诊断日志。"
+      : writesRimeConfiguration
+        ? "已写入 \(files)，但应用失败；改动未生效，请查看诊断日志。"
+        : "应用失败，改动未生效，请查看诊断日志。"
+  }
+
+  static func unsupportedSymbolMenuMessage(_ key: String) -> String {
+    "暂不支持：Rust 引擎不执行 Rime 的 \(key) 符号选单配置。"
   }
 
   // MARK: - Bool write-through helpers
