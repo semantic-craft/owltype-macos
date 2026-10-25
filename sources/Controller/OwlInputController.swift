@@ -93,6 +93,15 @@ final class OwlInputController: IMKInputController {
   // seam: internal so OwlInputController+Menu.swift / +Lifecycle.swift can reach it across files.
   let aiTasks = OwlLaneTasks()
 
+  // Settled reranking is owned by this controller/session. Timers run on the IMK thread's
+  // run loop; the Rust model forward pass itself runs on its own worker.
+  var settledRerankDebounceTimer: Timer?
+  var settledRerankPollTimer: Timer?
+  var settledRerankJob: (token: UInt64, ticket: OwlSettledRerankTicket)?
+  var settledRerankLastInputAt: UInt64?
+  var settledRerankWaitingForDrain = false
+  var applyingSettledRerank = false
+
   // Tokens of the block-based NotificationCenter observers registered in init. Block observers are
   // NOT covered by `removeObserver(self)` — the token must be removed explicitly in deinit, or every
   // dead controller (one per input session, in a process that lives for weeks) stays registered in
@@ -188,8 +197,12 @@ final class OwlInputController: IMKInputController {
       return handled
 
     case let .keyDown(rimeKeycode, rimeModifiers):
+      invalidateSettledRerankForAction()
       let handled = processKey(rimeKeycode, modifiers: rimeModifiers)
       rimeUpdate()
+      if shouldArmSettledRerank(after: rimeKeycode) {
+        armSettledRerankAfterInput()
+      }
       return handled
 
     case .commandPassthrough, .ignored:
@@ -199,6 +212,7 @@ final class OwlInputController: IMKInputController {
 
   func selectCandidate(_ index: Int) -> Bool {
     guard let rime else { return false }
+    invalidateSettledRerankForAction()
     let success = rime.selectCandidate(index)
     if success {
       rimeUpdate()
@@ -210,6 +224,7 @@ final class OwlInputController: IMKInputController {
   /// click path, where the clicked candidate is visible but not on librime's current page.
   func selectCandidateAbsolute(_ index: Int) -> Bool {
     guard let rime else { return false }
+    invalidateSettledRerankForAction()
     let success = rime.selectCandidateAbsolute(index)
     if success {
       rimeUpdate()
@@ -219,6 +234,7 @@ final class OwlInputController: IMKInputController {
 
   func selectCandidate(_ token: OwlCandidateToken) -> Bool {
     guard let rime else { return false }
+    invalidateSettledRerankForAction()
     let success = rime.selectCandidate(token)
     if success {
       rimeUpdate()
@@ -229,6 +245,7 @@ final class OwlInputController: IMKInputController {
   // swiftlint:disable:next identifier_name
   func page(up: Bool) -> Bool {
     guard let rime else { return false }
+    invalidateSettledRerankForAction()
     var handled = false
     handled = rime.changePage(up: up)
     if handled {
@@ -282,6 +299,18 @@ final class OwlInputController: IMKInputController {
       object: nil,
       queue: nil
     ) { [weak self] _ in self?.toggleFullShapeFromMenu() })
+    notificationTokens.append(NotificationCenter.default.addObserver(
+      forName: .owlRerankPreferencesDidChange,
+      object: nil,
+      queue: nil
+    ) { [weak self] _ in
+      guard let self else { return }
+      if Thread.isMainThread {
+        self.rerankPreferencesDidChange()
+      } else {
+        DispatchQueue.main.async { [weak self] in self?.rerankPreferencesDidChange() }
+      }
+    })
   }
 
   func processKey(_ rimeKeycode: UInt32, modifiers rimeModifiers: UInt32) -> Bool {
@@ -361,6 +390,7 @@ final class OwlInputController: IMKInputController {
 
   deinit {
     discardAutomaticExpansion()
+    resetSettledRerankRuntime()
     // B8: cancel any in-flight AI lane tasks for this session (nonisolated deinit — `cancelAll()`
     // only calls `Task.cancel()`, which is thread safe and needs no main actor).
     aiTasks.cancelAll()

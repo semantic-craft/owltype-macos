@@ -749,6 +749,7 @@ dependencies = [
  "msime-client-core",
  "msime-engine",
  "msime-input-runtime",
+ "msime-path-trust",
  "rusqlite",
  "serde",
  "serde_json",

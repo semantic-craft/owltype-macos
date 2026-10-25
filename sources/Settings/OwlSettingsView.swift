@@ -96,6 +96,8 @@ struct OwlSettingsView: View {
       state.translationSkillEnabled = OwlSelectionMenuPreferences.translationEnabled
       state.promptOptimizeSkillEnabled = OwlSelectionMenuPreferences.promptOptimizeEnabled
       state.goalBriefSkillEnabled = OwlSelectionMenuPreferences.goalBriefEnabled
+      state.keyboardRerankEnabled = OwlExperimentalPreferences.keyboardRerankEnabled
+      state.settledRerankEnabled = OwlExperimentalPreferences.settledRerankEnabled
     }
   }
 

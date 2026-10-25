@@ -511,6 +511,8 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     state.keyboardCJKEnglishSpacing = OwlKeyboardPreferences.cjkEnglishSpacing
     state.keyboardCJKNumberSpacing = OwlKeyboardPreferences.cjkNumberSpacing
     state.keyboardAutoPairBrackets = OwlKeyboardPreferences.autoPairBrackets
+    state.keyboardRerankEnabled = OwlExperimentalPreferences.keyboardRerankEnabled
+    state.settledRerankEnabled = OwlExperimentalPreferences.settledRerankEnabled
     state.keyboardAppEnglishBundleIDsText = OwlKeyboardPreferences.appEnglishBundleIDs.joined(separator: ", ")
     // Seed Cloud lane preferences. These remain default-off and explicit-trigger only.
     state.cloudEnabled = OwlCloudPreferences.isEnabled

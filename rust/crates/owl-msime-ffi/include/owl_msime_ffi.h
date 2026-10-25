@@ -155,6 +155,43 @@ char *owl_msime_session_snapshot_json(
     const OwlMsimeSession *session
 );
 
+/*
+ * Optional local candidate reranking. Models load on worker threads; configuration
+ * and keystrokes never read the model synchronously. All functions return a newly
+ * allocated UTF-8 JSON string released with owl_msime_string_free.
+ *
+ * configure_rerank_json accepts:
+ * {
+ *   "keyboard": {"enabled": bool, "path": "/absolute/file",
+ *                "source": "...", "version": "...", "expected_sha256": "..."},
+ *   "settled":  {...}
+ * }
+ * Both models default to disabled. The path must be absolute, a regular
+ * non-symlink file, and at most 64 MiB.
+ *
+ * start_settled_rerank_json may return {"status":"pending","token":N}.
+ * poll_settled_rerank_json must run on the session thread. Pass accept=false
+ * when the composition that started the job is no longer current.
+ */
+char *owl_msime_session_configure_rerank_json(
+    OwlMsimeSession *session,
+    const char *config_json
+);
+
+char *owl_msime_session_rerank_status_json(
+    OwlMsimeSession *session
+);
+
+char *owl_msime_session_start_settled_rerank_json(
+    OwlMsimeSession *session
+);
+
+char *owl_msime_session_poll_settled_rerank_json(
+    OwlMsimeSession *session,
+    uint64_t token,
+    bool accept
+);
+
 void owl_msime_string_free(char *ptr);
 
 #ifdef __cplusplus

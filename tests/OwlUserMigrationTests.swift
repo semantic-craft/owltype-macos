@@ -450,7 +450,6 @@ final class OwlUserMigrationTests: XCTestCase {
     XCTAssertEqual(second.report.recordsKept, 1)
 
     let engine = OwlRustEngine(sharedSupportURL: sharedSupport, userDataURL: root)
-    engine.initialize(nil)
     let session = engine.createSession()
     defer { session.destroy() }
     XCTAssertTrue(session.isValid)

@@ -127,6 +127,9 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "zh = z（翘舌）",
     "中文与英文间加入空格",
     "成对输入",                       // task 07-02 本地便捷输入：commit 层配对补全（默认关；07-21 由「自动配对括号」改名）
+    // 本地模型重排（#257/#258）：默认关；模型资源、许可、SHA 与运行状态同卡展示。
+    "逐键候选重排",
+    "停顿候选重排",
     "中文下使用英文标点",
     "使用 Shift 切换中英文",
     "下载 Noto Serif SC 字体",
@@ -241,6 +244,8 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "OwlRimeSchemaCompatibilityReport.inspect(fileURLs: panel.urls)",
     "panel.allowsMultipleSelection = true",
     "外部自定义 schema/Lua 不执行；原文不改；内置日期、农历、Unicode、表达式由 Rust 原生实现。",
+    "OwlExperimentalPreferences.keyboardRerankEnabled",
+    "OwlExperimentalPreferences.settledRerankEnabled",
   ]
 
   private static let labelPatterns = [

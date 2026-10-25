@@ -27,6 +27,7 @@
 //  No network, no librime, no disk: the fake is pure in-memory scripted state.
 //
 
+import AppKit
 import Foundation
 import XCTest
 @testable import Owltype
@@ -44,6 +45,7 @@ final class FakeRimeSession: RimeSession {
   // --- Scripted read-back state -------------------------------------------------
 
   var sessionID: UInt64
+  var generation: UInt64
   var isValid: Bool
   /// `process(keycode:modifiers:)` returns this (whether librime "consumed" the key).
   var processResult: Bool
@@ -59,8 +61,19 @@ final class FakeRimeSession: RimeSession {
   var changePageResult: Bool
   /// Returned by `selectSchema(_:)` on this live session (the fast-apply reselect).
   var selectSchemaResult: Bool
+  /// The settled rerank model load state exposed through `RimeSession`.
+  var settledRerankReady: Bool
+  var settledRerankLoading: Bool
+  var rerankConfigurationEpoch: UInt64
   /// Returned by `stateLabel(option:state:abbreviated:)`; keyed by the option name.
   var stateLabels: [String: String]
+  /// Optional transition after a forced status refresh. The debounce retry path calls
+  /// `syncRerankPreferences()` when the first pause finds the model still loading.
+  var syncRerankPreferencesTransition: (() -> Void)?
+  /// Scripted results for the next `startSettledRerank()` call.
+  var settledRerankStartResult: OwlSettledRerankStartResult
+  /// Scripted results consumed by successive `pollSettledRerank` calls. The last result repeats.
+  var settledRerankPollResults: [OwlSettledRerankPollResult]
 
   // --- Recorded drives ----------------------------------------------------------
 
@@ -75,9 +88,13 @@ final class FakeRimeSession: RimeSession {
   private(set) var clearCompositionCount = 0
   private(set) var destroyed = false
   private(set) var takeCommitCount = 0
+  private(set) var rerankPreferenceSyncCount = 0
+  private(set) var settledRerankStartCount = 0
+  private(set) var settledRerankPolls: [(token: UInt64, accept: Bool)] = []
 
   init(
     sessionID: UInt64 = 1,
+    generation: UInt64 = 0,
     isValid: Bool = true,
     processResult: Bool = true,
     pendingCommit: String? = nil,
@@ -89,9 +106,13 @@ final class FakeRimeSession: RimeSession {
     selectCandidateResult: Bool = false,
     changePageResult: Bool = false,
     selectSchemaResult: Bool = true,
+    settledRerankReady: Bool = false,
+    settledRerankLoading: Bool = false,
+    rerankConfigurationEpoch: UInt64 = 0,
     stateLabels: [String: String] = [:]
   ) {
     self.sessionID = sessionID
+    self.generation = generation
     self.isValid = isValid
     self.processResult = processResult
     self.pendingCommit = pendingCommit
@@ -103,7 +124,12 @@ final class FakeRimeSession: RimeSession {
     self.selectCandidateResult = selectCandidateResult
     self.changePageResult = changePageResult
     self.selectSchemaResult = selectSchemaResult
+    self.settledRerankReady = settledRerankReady
+    self.settledRerankLoading = settledRerankLoading
+    self.rerankConfigurationEpoch = rerankConfigurationEpoch
     self.stateLabels = stateLabels
+    self.settledRerankStartResult = .noWork
+    self.settledRerankPollResults = [.doneWithoutChange]
   }
 
   func process(keycode: UInt32, modifiers: UInt32) -> Bool {
@@ -145,6 +171,22 @@ final class FakeRimeSession: RimeSession {
   func selectSchema(_ id: String) -> Bool {
     selectedLiveSchemas.append(id)
     return selectSchemaResult
+  }
+
+  func syncRerankPreferences() {
+    rerankPreferenceSyncCount += 1
+    syncRerankPreferencesTransition?()
+  }
+
+  func startSettledRerank() -> OwlSettledRerankStartResult {
+    settledRerankStartCount += 1
+    return settledRerankStartResult
+  }
+
+  func pollSettledRerank(token: UInt64, accept: Bool) -> OwlSettledRerankPollResult {
+    settledRerankPolls.append((token, accept))
+    guard !settledRerankPollResults.isEmpty else { return .doneWithoutChange }
+    return settledRerankPollResults.removeFirst()
   }
 
   func option(_ option: RimeOption) -> Bool { optionState[option] ?? false }
@@ -593,6 +635,264 @@ final class RimeSeamTests: XCTestCase {
     let session = FakeRimeSession(stateLabels: ["ascii_mode": "英"])
     XCTAssertEqual(session.stateLabel(option: "ascii_mode", state: true, abbreviated: true), "英")
     XCTAssertNil(session.stateLabel(option: "full_shape", state: true, abbreviated: true))
+  }
+
+  // MARK: 3c. Settled rerank timers and stale-result ownership
+
+  @MainActor
+  private func makeSettledRerankController(
+    session: FakeRimeSession
+  ) throws -> (
+    controller: OwlInputController,
+    delegate: OwlApplicationDelegate,
+    previousEngine: RimeEngine
+  ) {
+    OwlExperimentalPreferences.resetForTesting()
+    OwlExperimentalPreferences.settledRerankEnabled = true
+    let delegate = NSApp.owlAppDelegate
+    let previousEngine = delegate.engine
+    delegate.engine = FakeRimeEngine(vendedSession: session)
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    return (controller, delegate, previousEngine)
+  }
+
+  @MainActor
+  @discardableResult
+  private func waitForMainRunLoop(
+    timeout: TimeInterval = 0.8,
+    until condition: () -> Bool
+  ) -> Bool {
+    let deadline = Date().addingTimeInterval(timeout)
+    repeat {
+      if condition() { return true }
+      RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+    } while Date() < deadline
+    return condition()
+  }
+
+  @MainActor
+  private func spinMainRunLoop(_ interval: TimeInterval) {
+    RunLoop.main.run(until: Date().addingTimeInterval(interval))
+  }
+
+  @MainActor
+  func testSettledRerankRetriesWhileModelIsStillLoading() throws {
+    let session = FakeRimeSession(input: "ni", settledRerankLoading: true)
+    session.syncRerankPreferencesTransition = {
+      guard session.rerankPreferenceSyncCount >= 2 else { return }
+      session.settledRerankLoading = false
+      session.settledRerankReady = true
+    }
+    session.settledRerankStartResult = OwlSettledRerankStartResult(
+      token: 99,
+      current: false,
+      moved: false,
+      error: nil
+    )
+    let fixture = try makeSettledRerankController(session: session)
+    let controller = fixture.controller
+    defer {
+      controller.destroySession()
+      fixture.delegate.engine = fixture.previousEngine
+      OwlExperimentalPreferences.resetForTesting()
+      fixture.delegate.owlPanel?.hidePanel()
+    }
+
+    controller.armSettledRerankAfterInput()
+    XCTAssertTrue(waitForMainRunLoop {
+      session.settledRerankStartCount == 1
+    }, "a model still loading after the first pause must be polled again")
+    XCTAssertGreaterThanOrEqual(session.rerankPreferenceSyncCount, 2)
+  }
+
+  @MainActor
+  func testNewInputCancelsThePreviousSettledRerankPause() throws {
+    let session = FakeRimeSession(input: "ni", settledRerankReady: true)
+    session.settledRerankStartResult = OwlSettledRerankStartResult(
+      token: 7,
+      current: false,
+      moved: false,
+      error: nil
+    )
+    let fixture = try makeSettledRerankController(session: session)
+    let controller = fixture.controller
+    defer {
+      controller.invalidateSettledRerankForAction()
+      controller.destroySession()
+      fixture.delegate.engine = fixture.previousEngine
+      OwlExperimentalPreferences.resetForTesting()
+      fixture.delegate.owlPanel?.hidePanel()
+    }
+
+    controller.armSettledRerankAfterInput()
+    spinMainRunLoop(0.05)
+    let event = try XCTUnwrap(NSEvent.keyEvent(
+      with: .keyDown,
+      location: .zero,
+      modifierFlags: [],
+      timestamp: 0,
+      windowNumber: 0,
+      context: nil,
+      characters: "a",
+      charactersIgnoringModifiers: "a",
+      isARepeat: false,
+      keyCode: 0
+    ))
+    XCTAssertTrue(controller.handle(event, client: nil))
+    // The first pause was due at 150 ms; the replacement is due at about 200 ms.
+    spinMainRunLoop(0.12)
+    XCTAssertEqual(session.settledRerankStartCount, 0)
+  }
+
+  @MainActor
+  func testStaleSettledResultIsDrainedWithoutRefreshingThePanel() throws {
+    let session = FakeRimeSession(
+      sessionID: 41,
+      generation: 8,
+      input: "ni",
+      settledRerankReady: true
+    )
+    session.settledRerankStartResult = OwlSettledRerankStartResult(
+      token: 101,
+      current: false,
+      moved: false,
+      error: nil
+    )
+    session.settledRerankPollResults = [
+      OwlSettledRerankPollResult(pending: true, current: false, moved: false, error: nil),
+      OwlSettledRerankPollResult(pending: false, current: false, moved: true, error: nil),
+    ]
+    let fixture = try makeSettledRerankController(session: session)
+    let controller = fixture.controller
+    defer {
+      controller.destroySession()
+      fixture.delegate.engine = fixture.previousEngine
+      OwlExperimentalPreferences.resetForTesting()
+      fixture.delegate.owlPanel?.hidePanel()
+    }
+
+    let updatesBefore = session.takeCommitCount
+    controller.armSettledRerankAfterInput()
+    XCTAssertTrue(waitForMainRunLoop { session.settledRerankStartCount == 1 })
+    session.scriptedInput = "nia"
+    session.generation += 1
+    XCTAssertTrue(waitForMainRunLoop {
+      controller.settledRerankJob == nil
+        && session.settledRerankPolls.contains { !$0.accept }
+    })
+    XCTAssertNil(controller.settledRerankJob)
+    XCTAssertEqual(session.takeCommitCount, updatesBefore, "stale results must not refresh the panel")
+  }
+
+  @MainActor
+  func testSymbolMenuGenerationDrainsRunningSettledResultWithoutRefreshingThePanel() throws {
+    let session = FakeRimeSession(
+      sessionID: 45,
+      generation: 0x1234,
+      input: "ni",
+      settledRerankReady: true
+    )
+    session.settledRerankStartResult = OwlSettledRerankStartResult(
+      token: 103,
+      current: false,
+      moved: false,
+      error: nil
+    )
+    session.settledRerankPollResults = [
+      OwlSettledRerankPollResult(pending: true, current: false, moved: false, error: nil),
+      OwlSettledRerankPollResult(pending: false, current: true, moved: true, error: nil),
+    ]
+    let fixture = try makeSettledRerankController(session: session)
+    let controller = fixture.controller
+    defer {
+      controller.destroySession()
+      fixture.delegate.engine = fixture.previousEngine
+      OwlExperimentalPreferences.resetForTesting()
+      fixture.delegate.owlPanel?.hidePanel()
+    }
+
+    let updatesBefore = session.takeCommitCount
+    controller.armSettledRerankAfterInput()
+    XCTAssertTrue(waitForMainRunLoop { session.settledRerankStartCount == 1 })
+
+    // A punctuation menu is a different presentation namespace, so a running runtime result
+    // must be drained even if its stale response claims it is current and moved.
+    session.scriptedInput = "<"
+    session.generation = (UInt64(1) << 63) | 0x51
+    XCTAssertTrue(waitForMainRunLoop {
+      controller.settledRerankJob == nil
+        && session.settledRerankPolls.contains { !$0.accept }
+    })
+    XCTAssertEqual(session.takeCommitCount, updatesBefore)
+  }
+
+  @MainActor
+  func testCurrentMovedSettledResultRefreshesOnlyOnce() throws {
+    let session = FakeRimeSession(sessionID: 51, input: "ni", settledRerankReady: true)
+    session.settledRerankStartResult = OwlSettledRerankStartResult(
+      token: 102,
+      current: false,
+      moved: false,
+      error: nil
+    )
+    session.settledRerankPollResults = [
+      OwlSettledRerankPollResult(pending: true, current: false, moved: false, error: nil),
+      OwlSettledRerankPollResult(pending: false, current: true, moved: true, error: nil),
+    ]
+    let fixture = try makeSettledRerankController(session: session)
+    let controller = fixture.controller
+    defer {
+      controller.destroySession()
+      fixture.delegate.engine = fixture.previousEngine
+      OwlExperimentalPreferences.resetForTesting()
+      fixture.delegate.owlPanel?.hidePanel()
+    }
+
+    controller.armSettledRerankAfterInput()
+    XCTAssertTrue(waitForMainRunLoop { session.settledRerankStartCount == 1 })
+    let updatesBefore = session.takeCommitCount
+    XCTAssertTrue(waitForMainRunLoop {
+      session.settledRerankPolls.count >= 2 && controller.settledRerankJob == nil
+    })
+    XCTAssertEqual(session.takeCommitCount, updatesBefore + 1)
+    XCTAssertEqual(session.settledRerankPolls.map(\.accept), [true, true])
+    spinMainRunLoop(0.08)
+    XCTAssertEqual(session.takeCommitCount, updatesBefore + 1, "one result must cause one refresh")
+    XCTAssertEqual(session.settledRerankPolls.count, 2)
+  }
+
+  @MainActor
+  func testSettledRerankDebounceIsClearedBySessionLifecycle() throws {
+    let session = FakeRimeSession(sessionID: 61, input: "ni", settledRerankReady: true)
+    let fixture = try makeSettledRerankController(session: session)
+    let controller = fixture.controller
+    defer {
+      controller.destroySession()
+      fixture.delegate.engine = fixture.previousEngine
+      OwlExperimentalPreferences.resetForTesting()
+      fixture.delegate.owlPanel?.hidePanel()
+    }
+
+    controller.armSettledRerankAfterInput()
+    XCTAssertNotNil(controller.settledRerankDebounceTimer)
+    controller.resetSettledRerankRuntime()
+    XCTAssertNil(controller.settledRerankDebounceTimer)
+
+    controller.armSettledRerankAfterInput()
+    controller.createSession()
+    XCTAssertNil(controller.settledRerankDebounceTimer)
+
+    controller.armSettledRerankAfterInput()
+    controller.destroySession()
+    XCTAssertNil(controller.settledRerankDebounceTimer)
+
+    session.isValid = true
+    session.sessionID = 62
+    controller.createSession()
+    controller.armSettledRerankAfterInput()
+    XCTAssertNotNil(controller.settledRerankDebounceTimer)
+    controller.deactivateServer(nil)
+    XCTAssertNil(controller.settledRerankDebounceTimer)
   }
 
   // MARK: 4. FakeRimeEngine — vending + lifecycle recording
