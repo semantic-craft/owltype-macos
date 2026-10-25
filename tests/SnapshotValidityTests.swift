@@ -354,31 +354,6 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     XCTAssertThrowsError(try OwlQuickSendStore.entry(text: "猫头鹰", code: "bad:key"))
   }
 
-  func testConfigWriterAllowsManagedLawFormsLuaFile() throws {
-    let dir = try makeTempDir()
-    defer { try? FileManager.default.removeItem(at: dir) }
-
-    let writer = OwlConfigWriter(rimeDir: dir)
-    try writer.applyTextFile(
-      fileName: "lua/law_forms.lua",
-      contents: "return {}\n",
-      marker: "OWL MANAGED LAW FORMS TEST",
-      timestamp: "20260621-lawforms"
-    )
-
-    XCTAssertEqual(
-      try String(contentsOf: dir.appendingPathComponent("lua/law_forms.lua"), encoding: .utf8),
-      "return {}\n"
-    )
-    XCTAssertTrue(
-      FileManager.default.fileExists(
-        atPath: dir
-          .appendingPathComponent(".owl-backup/20260621-lawforms/lua/law_forms.lua")
-          .path
-      )
-    )
-  }
-
   func testClipboardStoreDefaultsOffAndLimitsLocalEntries() throws {
     let suite = "OwlClipboardTests-\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

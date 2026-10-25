@@ -1944,7 +1944,7 @@ final class OwlRustEngineTests: XCTestCase {
 
   func testUnifiedHostPhrasesIgnoreLegacyCatalogAndDropDeletedTemplates() throws {
     let userDir = try makeHostPhraseUserDirectory()
-    var entry = OwlTemplateEntry(title: "法条引用", body: "《民法典》第一条")
+    var entry = OwlTemplateEntry(title: "项目记录", body: "整理项目记录")
     entry.trigger = "ft"
     entry.invocationMode = .candidate
     try OwlTemplateStore.save(

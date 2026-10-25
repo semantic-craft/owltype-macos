@@ -11,7 +11,7 @@
 //  reordering function (`OwlTerminology.apply`). NO disk IO, no Rime handle, no hot-path call.
 //  Enforcement happens only in the ENHANCEMENT layer (the smart lane, via `OwlSnapshotEmitter`),
 //  exactly like project-word injection — it NEVER touches the IMK hot path, the Rime main lane,
-//  the owl_law_* legal layer, or rime config/deploy. No Lua filter in this MVP.
+//  or rime config/deploy. No Lua filter in this MVP.
 //
 //  Not in MVP (left as comments for a later pass):
 //    - firstForm vs shortForm context tracking (needs document-level state).

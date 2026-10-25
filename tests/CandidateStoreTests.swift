@@ -149,17 +149,12 @@ final class CandidateStoreTests: XCTestCase {
   }
 }
 
-/// G3: the pure (lane, source[, law signals]) → Provenance? mapping. No registry, no
+/// G3: the pure (lane, source) → Provenance? mapping. No registry, no
 /// MainActor — it's a deterministic function, exactly the property that keeps it off the
 /// key hot path.
 final class ProvenanceMappingTests: XCTestCase {
-  private func prov(
-    _ source: EnhancedCandidate.Source,
-    _ lane: EnhancedCandidate.Lane,
-    law: Bool = false,
-    version: Bool = false
-  ) -> OwlProvenance? {
-    EnhancedCandidate.provenance(source: source, lane: lane, isLawObject: law, lawVersionKnown: version)
+  private func prov(_ source: EnhancedCandidate.Source, _ lane: EnhancedCandidate.Lane) -> OwlProvenance? {
+    EnhancedCandidate.provenance(source: source, lane: lane)
   }
 
   func testSmartLaneSplitsBySource() {
@@ -171,16 +166,9 @@ final class ProvenanceMappingTests: XCTestCase {
     XCTAssertNil(prov(.rime, .main), "普通拼音主词典候选不加来源标签（避免噪声）")
   }
 
-  func testLawObjectVersionKnownIsVerifiedElseRule() {
-    XCTAssertEqual(prov(.rime, .main, law: true, version: true), .verified)
-    XCTAssertEqual(prov(.rime, .main, law: true, version: false), .rule)
-    // Law signal overrides lane bucketing (even a smart-lane law object stays verified/rule).
-    XCTAssertEqual(prov(.localNeural, .smart, law: true, version: true), .verified)
-  }
-
   func testAINeedsConfirmation() {
     XCTAssertTrue(OwlProvenance.ai.needsConfirmation)
-    XCTAssertFalse(OwlProvenance.verified.needsConfirmation)
+    XCTAssertFalse(OwlProvenance.project.needsConfirmation)
   }
 }
 

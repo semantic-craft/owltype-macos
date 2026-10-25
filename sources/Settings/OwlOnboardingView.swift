@@ -200,7 +200,7 @@ struct OwlOnboardingView: View {
 
   private var welcomeChips: some View {
     HStack(spacing: 8) {
-      ForEach(["本地运行 · 隐私优先", "水杉 Rust 引擎", "为法律与编程优化"], id: \.self) { text in
+      ForEach(["本地运行 · 隐私优先", "水杉 Rust 引擎"], id: \.self) { text in
         HStack(spacing: 6) {
           Circle().fill(palette.accent).frame(width: 5, height: 5)
           Text(text).font(.system(size: 12.5)).foregroundStyle(palette.ink2)
@@ -685,7 +685,7 @@ struct OwlOnboardingView: View {
       ZStack {
         Circle().strokeBorder(palette.onAccent.opacity(0.22), lineWidth: 1.5).frame(width: 200, height: 200)
         Circle().strokeBorder(palette.onAccent.opacity(0.16), lineWidth: 1.5).frame(width: 150, height: 150)
-        Text("法")
+        Text("猫")
           .font(.system(size: 58, weight: .semibold))
           .foregroundStyle(palette.onAccent)
           .frame(width: 104, height: 104)

@@ -3,13 +3,13 @@
 //  猫头鹰输入法 (Owltype) — SwiftUI candidate panel
 //
 //  Visual spec: the Claude Design handoff "Owltype Candidate Window" (claude.ai/design).
-//  Implements the three forms it specified — ① compact horizontal pill bar (default),
-//  ② expanded vertical list, ③ law-citation candidate with the 「法」 badge + source line —
-//  in 深大红 (light/dark via colorScheme), honoring Reduce Motion / Reduce Transparency.
+//  Implements the two forms it specified — ① compact horizontal pill bar (default) and
+//  ② expanded vertical list — in 深大红 (light/dark via colorScheme), honoring Reduce Motion /
+//  Reduce Transparency.
 //
 //  Color source of truth stays `packages/rime-law-config/skins/colors.md` (shenda):
 //  the 8 palette tokens come from there; the design's extra structural tints (subtle
-//  border, hairline divider, badge fill, selected-pill shadow) are DERIVED from those
+//  border, hairline divider, selected-pill shadow) are DERIVED from those
 //  tokens here rather than hardcoded, so colors.md remains authoritative.
 //
 //  Boundary (ADR-0001 / 0002): this view renders candidates only; key events, marked
@@ -87,7 +87,6 @@ struct OwlCandidatePanelView: View {
   // Structural tints derived from the canonical tokens (relationships per the design).
   private var panelBorder: Color { palette.accentDeep.opacity(0.16) }
   private var divider: Color { palette.ink.opacity(0.09) }
-  private var badgeFill: Color { palette.accent.opacity(0.14) }
 
   /// 所有候选形态都消费一次解析完成的 geometry。
   private var resolvedGeometry: OwlCandidatePanelGeometry {
@@ -539,9 +538,8 @@ struct OwlCandidatePanelView: View {
     Circle().fill(color).frame(width: diameter, height: diameter)
   }
 
-  /// G3 来源小标签：复用「法」徽章的小药丸语法（圆角 5、横 4 纵 3、base*0.68）。
-  /// 颜色取自 provenance token（`OwlProvenance.color`）；选中态与 badge 同款反白。
-  /// 仅 `provenance != nil`（smart/cloud/法库候选）才渲染；普通拼音候选不调用。
+  /// G3 来源小标签：小药丸语法（圆角 5、横 4 纵 3、base*0.68）。
+  /// 颜色取自 provenance token（`OwlProvenance.color`）；仅 `provenance != nil` 才渲染。
   private func provenanceTag(
     _ prov: OwlProvenance,
     selected: Bool,
@@ -559,7 +557,7 @@ struct OwlCandidatePanelView: View {
       .accessibilityLabel("来源 \(prov.displayName)\(prov.needsConfirmation ? "，需确认" : "")")
   }
 
-  // MARK: Vertical list (expanded / Rime vertical / citation)
+  // MARK: Vertical list (expanded / Rime vertical)
 
   private func verticalList(geometry: OwlCandidatePanelGeometry) -> some View {
     VStack(alignment: .leading, spacing: geometry.verticalList.spacing) {
@@ -591,8 +589,7 @@ struct OwlCandidatePanelView: View {
     }
   }
 
-  /// A list row: number + optional 「法」 badge + word + reading/释义 note; a citation
-  /// candidate adds a muted source line beneath, indented under the word.
+  /// A list row: number + word + optional provenance tag + reading/释义 note.
   ///
   /// 铺满结构（07-26 grilling 定案）：大号带点序号（`1.`，base*0.9）让左侧不再是
   /// 低密度空气；行内左右各 10pt 相等；行铺满面板宽，高亮胶囊左右到边、边距目视对称。
@@ -610,17 +607,6 @@ struct OwlCandidatePanelView: View {
             .font(.system(size: row.labelFontSize))
             .monospacedDigit()
             .foregroundStyle(selected ? palette.onAccent.opacity(0.85) : palette.ink2)
-        }
-        if candidate.badge {
-          Text("法")
-            .font(.system(size: row.badge.fontSize, weight: .semibold))
-            .padding(.horizontal, row.badge.horizontalPadding)
-            .padding(.vertical, row.badge.verticalPadding)
-            .background {
-              RoundedRectangle(cornerRadius: row.badge.cornerRadius, style: .continuous)
-                .fill(selected ? palette.onAccent.opacity(0.2) : badgeFill)
-            }
-            .foregroundStyle(selected ? palette.onAccent : palette.accent)
         }
         pinBadge(candidate)
         Text(candidate.text)
@@ -640,12 +626,6 @@ struct OwlCandidatePanelView: View {
             geometry: row.provenance
           )
         }
-      }
-      if let source = candidate.source, !source.isEmpty {
-        Text(source)
-          .font(.system(size: row.sourceLine.fontSize))
-          .foregroundStyle(selected ? palette.onAccent.opacity(0.82) : palette.ink3)
-          .padding(.leading, row.sourceLine.leadingPadding)
       }
     }
     // 左右边距相等：「1」到左边 = 末字到右边（参照图的对称感）。中档行内 9 +

@@ -180,15 +180,6 @@ final class OwlConfigWriter {
     "owl_templates_state.json",
     "owl_prompts.json",         // 提示词 source of truth（code·title·body·category）
     "owl_prompts.txt",          // 提示词派生 Rime 表（只含 📝title \t code \t score，正文不进表）
-    "law_phrase.txt",            // 法律短码表
-    "owl_law_terms_pinyin.dict.yaml",  // 法律词拼音 wrapper dict
-    "owl_law_terms_wubi86.dict.yaml",  // 法律词五笔 wrapper dict
-    "wubi86_law.schema.yaml",    // 派生五笔法学 schema
-    "wubi86_law.dict.yaml",      // 五笔法学 dict
-    "lua/law_citation.lua",      // 引注 Lua translator
-    "lua/law_data.lua",          // 引注静态数据
-    "lua/law_num.lua",           // 中文数字（千/万）
-    "lua/law_forms.lua",         // 引注三形式纯生成层
   ]
 
   /// **必须保留 / 默认绝不碰** 的文件 —— 用户私有数据、用户自定义、运行时状态。`apply`
