@@ -177,4 +177,117 @@ final class OwlRustEngineTests: XCTestCase {
     // In ASCII mode, typing letters is not consumed by the IME.
     XCTAssertFalse(session.process(keycode: UInt32(XK_a), modifiers: 0))
   }
+
+  func testTokenBasedSelectionPeekCandidatesAndStaleGenerationRejection() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+
+    for scalar in "shi".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    let comp = try XCTUnwrap(session.composition())
+    let gen = session.generation
+    XCTAssertGreaterThan(gen, 0)
+
+    // Peek candidates beyond the first page without changing the session's current page.
+    let peeked = session.peekCandidates(from: comp.pageSize, count: comp.pageSize)
+    XCTAssertFalse(peeked.isEmpty)
+    XCTAssertEqual(session.composition()?.pageNo, 0)
+
+    // Stale generation token must be rejected without committing.
+    let staleToken = OwlCandidateToken(
+      sessionID: session.sessionID,
+      generation: gen + 777,
+      candidateID: 0,
+      isAbsolute: false
+    )
+    XCTAssertFalse(session.selectCandidate(staleToken))
+    XCTAssertNil(session.takeCommit())
+
+    // Wrong sessionID token must be rejected.
+    let wrongSessionToken = OwlCandidateToken(
+      sessionID: session.sessionID + 99,
+      generation: session.generation,
+      candidateID: 0,
+      isAbsolute: false
+    )
+    XCTAssertFalse(session.selectCandidate(wrongSessionToken))
+    XCTAssertNil(session.takeCommit())
+
+    // Valid absolute token selects candidate from peeked page directly.
+    let absTargetText = peeked[0].text
+    let absToken = OwlCandidateToken(
+      sessionID: session.sessionID,
+      generation: session.generation,
+      candidateID: comp.pageSize,
+      isAbsolute: true
+    )
+    XCTAssertTrue(session.selectCandidate(absToken))
+    XCTAssertEqual(session.takeCommit(), absTargetText)
+  }
+
+  func testPinnedWordsReorderingAndCaretOffsets() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+
+    for scalar in "shijie".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    let initialComp = try XCTUnwrap(session.composition())
+    guard initialComp.candidates.count >= 2 else {
+      XCTFail("Expected at least 2 candidates for shijie")
+      return
+    }
+    // Verify raw_input caretPos vs preedit cursorPos ("shijie" = 6 bytes, "shi'jie" = 7 bytes).
+    XCTAssertEqual(session.caretPos(), 6)
+    XCTAssertEqual(initialComp.cursorPos, initialComp.preedit.utf8.count)
+    let targetWord = initialComp.candidates[1].text
+    XCTAssertNotNil(
+      OwlPinnedWords.target(
+        schema: "rime_ice",
+        input: session.input() ?? "",
+        composition: initialComp,
+        candidate: targetWord,
+        traditional: false,
+        caret: session.caretPos()
+      )
+    )
+
+    // Pin the second candidate to the top and replay "shijie".
+    session.setProperty(name: OwlPinnedWords.property, value: "shijie\t0\t\(targetWord)")
+    session.clearComposition()
+    for scalar in "shijie".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    let pinnedComp = try XCTUnwrap(session.composition())
+    XCTAssertEqual(pinnedComp.candidates.first?.text, targetWord)
+    XCTAssertEqual(pinnedComp.candidates.first?.comment, "置顶")
+    XCTAssertTrue(session.selectCandidate(0))
+    XCTAssertEqual(session.takeCommit(), targetWord)
+  }
+
+  func testPunctuationAndCaretNavigation() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+    session.setOption(.asciiPunct, false)
+
+    for scalar in "nihao".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    // Move caret to Home (0) and back to End (5).
+    XCTAssertTrue(session.process(keycode: UInt32(XK_Home), modifiers: 0))
+    XCTAssertEqual(session.caretPos(), 0)
+    XCTAssertEqual(session.composition()?.cursorPos, 0)
+
+    session.setCaretPos(5)
+    XCTAssertEqual(session.caretPos(), 5)
+    XCTAssertEqual(session.composition()?.cursorPos, 6)
+
+    // Comma in Chinese punctuation mode commits highlighted candidate + "，".
+    XCTAssertTrue(session.process(keycode: UInt32(XK_comma), modifiers: 0))
+    XCTAssertEqual(session.takeCommit(), "你好，")
+  }
 }

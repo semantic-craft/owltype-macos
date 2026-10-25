@@ -25,6 +25,9 @@ private struct OwlRustSnapshotDTO: Decodable {
   let pageSize: Int
   let highlightedIndex: Int
   let hasMorePages: Bool
+  let generation: UInt64?
+  let caretPosition: Int?
+  let preeditCaretByte: Int?
   let candidates: [OwlRustCandidateDTO]
 
   enum CodingKeys: String, CodingKey {
@@ -37,6 +40,9 @@ private struct OwlRustSnapshotDTO: Decodable {
     case pageSize = "page_size"
     case highlightedIndex = "highlighted_index"
     case hasMorePages = "has_more_pages"
+    case generation
+    case caretPosition = "caret_position"
+    case preeditCaretByte = "preedit_caret_byte"
     case candidates
   }
 }
@@ -87,15 +93,22 @@ final class OwlRustSession: RimeSession {
   private var activeSchemaId: String
   private var pendingCommitText: String?
   private var latestSnapshot: OwlRustSnapshotDTO?
+  private var latestGeneration: UInt64 = 0
   private var caretByteOffset: Int = 0
+  private var preeditCaretByteOffset: Int = 0
   private var customCaretPos: Int?
   private var lastAppliedPageSize: Int = 0
   private var optionFlags: [RimeOption: Bool] = [
-    .simplification: true
+    .simplification: true,
+    .linear: true
   ]
   private var appOptionFlags: [String: Bool] = [:]
   private var properties: [String: String] = [:]
   private var shiftKeyArmed = false
+
+  var generation: UInt64 {
+    latestGeneration
+  }
 
   init(
     sessionID: UInt64,
@@ -109,6 +122,9 @@ final class OwlRustSession: RimeSession {
     self.activeSchemaId = initialSchemaId
     if handle != nil {
       _ = selectSchema(initialSchemaId)
+      let initialASCIIPunct = OwlKeyboardPreferences.cjkPunctToggle
+      optionFlags[.asciiPunct] = initialASCIIPunct
+      _ = sendAction(["op": "set_option", "name": RimeOption.asciiPunct.rawValue, "value": initialASCIIPunct])
       refreshSnapshot()
     }
   }
@@ -142,6 +158,17 @@ final class OwlRustSession: RimeSession {
       return false
     }
 
+    // Control+Shift+3 / Control+Shift+# toggles Chinese/ASCII punctuation (when: always).
+    let hasControl = (modifiers & kControlMask.rawValue) != 0
+    let hasShift = (modifiers & kShiftMask.rawValue) != 0
+    let hasAltOrSuper = (modifiers & (kAltMask.rawValue | kSuperMask.rawValue)) != 0
+    if hasControl && hasShift && !hasAltOrSuper
+       && (keycode == UInt32(XK_3) || keycode == UInt32(XK_numbersign)) {
+      let nextPunct = !(optionFlags[.asciiPunct] ?? false)
+      setOption(.asciiPunct, nextPunct)
+      return true
+    }
+
     let disallowedModifiers = kControlMask.rawValue | kAltMask.rawValue | kSuperMask.rawValue
     if (modifiers & disallowedModifiers) != 0 {
       return false
@@ -164,6 +191,10 @@ final class OwlRustSession: RimeSession {
          let scalar = UnicodeScalar(keycode) {
         return applyActionResponse(sendAction(["op": "insert", "ch": String(scalar)]))
       }
+      if !(optionFlags[.asciiPunct] ?? false),
+         let punct = asciiPunctuationString(for: keycode) {
+        return applyActionResponse(sendAction(["op": "punctuation", "ch": punct, "ascii": false]))
+      }
       return false
     }
 
@@ -182,6 +213,10 @@ final class OwlRustSession: RimeSession {
     }
     if let candidateIndex = candidateSelectionIndex(for: keycode) {
       return selectCandidate(candidateIndex)
+    }
+    if let punct = asciiPunctuationString(for: keycode) {
+      let ascii = optionFlags[.asciiPunct] ?? false
+      return applyActionResponse(sendAction(["op": "punctuation", "ch": punct, "ascii": ascii]))
     }
     return false
   }
@@ -206,6 +241,12 @@ final class OwlRustSession: RimeSession {
     if keycode == UInt32(XK_Escape) {
       return ["op": "clear"]
     }
+    if keycode == UInt32(XK_Home) {
+      return ["op": "move_caret", "target": "home"]
+    }
+    if keycode == UInt32(XK_End) {
+      return ["op": "move_caret", "target": "end"]
+    }
     let linear = optionFlags[.linear] ?? true
     if keycode == UInt32(XK_Down) || (linear && keycode == UInt32(XK_Right)) {
       return ["op": "move_highlight", "delta": 1]
@@ -213,7 +254,24 @@ final class OwlRustSession: RimeSession {
     if keycode == UInt32(XK_Up) || (linear && keycode == UInt32(XK_Left)) {
       return ["op": "move_highlight", "delta": -1]
     }
+    if !linear && keycode == UInt32(XK_Left) {
+      return ["op": "move_caret", "target": "left"]
+    }
+    if !linear && keycode == UInt32(XK_Right) {
+      return ["op": "move_caret", "target": "right"]
+    }
     return nil
+  }
+
+  private func asciiPunctuationString(for keycode: UInt32) -> String? {
+    guard keycode >= 0x21 && keycode <= 0x7E,
+          let scalar = UnicodeScalar(keycode) else { return nil }
+    let byte = UInt8(keycode)
+    let isAlphaNum = (byte >= UInt8(ascii: "a") && byte <= UInt8(ascii: "z"))
+      || (byte >= UInt8(ascii: "A") && byte <= UInt8(ascii: "Z"))
+      || (byte >= UInt8(ascii: "0") && byte <= UInt8(ascii: "9"))
+    guard !isAlphaNum else { return nil }
+    return String(scalar)
   }
 
   private func candidateSelectionIndex(for keycode: UInt32) -> Int? {
@@ -284,7 +342,7 @@ final class OwlRustSession: RimeSession {
     let labels = (1...pageSize).map { "\($0)" }
     let highlighted = min(max(0, snap.highlightedIndex), max(0, candidates.count - 1))
     let preview = candidates.indices.contains(highlighted) ? candidates[highlighted].text : preedit
-    let effectiveCaret = min(max(0, customCaretPos ?? caretByteOffset), utf8Count)
+    let effectiveCaret = min(max(0, customCaretPos ?? preeditCaretByteOffset), utf8Count)
 
     return RimeComposition(
       preedit: preedit,
@@ -318,6 +376,13 @@ final class OwlRustSession: RimeSession {
     let clamped = max(0, pos)
     caretByteOffset = clamped
     customCaretPos = clamped
+    if handle != nil, let dto = sendAction(["op": "set_caret", "pos": clamped]), dto.isOK {
+      latestSnapshot = dto
+      latestGeneration = dto.generation ?? latestGeneration
+      caretByteOffset = dto.caretPosition ?? clamped
+      preeditCaretByteOffset = dto.preeditCaretByte ?? dto.preedit.utf8.count
+      customCaretPos = nil
+    }
   }
 
   func clearComposition() {
@@ -333,15 +398,42 @@ final class OwlRustSession: RimeSession {
 
   func selectCandidateAbsolute(_ index: Int) -> Bool {
     guard handle != nil, index >= 0 else { return false }
-    let pageSize = max(1, latestSnapshot?.pageSize ?? OwlKeyboardPreferences.pageSize)
-    let currentPage = latestSnapshot?.page ?? 0
-    let targetPage = index / pageSize
-    let visibleIndex = index % pageSize
-    if targetPage != currentPage {
-      let delta = targetPage - currentPage
-      _ = applyActionResponse(sendAction(["op": "turn_page", "delta": delta]))
+    return applyActionResponse(sendAction([
+      "op": "select_token",
+      "index": index,
+      "is_absolute": true
+    ]))
+  }
+
+  func selectCandidate(_ token: OwlCandidateToken) -> Bool {
+    guard handle != nil, token.candidateID >= 0 else { return false }
+    if token.sessionID != 0 && token.sessionID != sessionID {
+      return false
     }
-    return selectCandidate(visibleIndex)
+    var payload: [String: Any] = [
+      "op": "select_token",
+      "index": token.candidateID,
+      "is_absolute": token.isAbsolute
+    ]
+    if token.generation != 0 {
+      payload["generation"] = token.generation
+    }
+    return applyActionResponse(sendAction(payload))
+  }
+
+  func peekCandidates(from index: Int, count: Int) -> [RimeCandidate] {
+    guard handle != nil, count > 0 else { return [] }
+    guard let dto = sendAction([
+      "op": "peek_candidates",
+      "start": max(0, index),
+      "count": count
+    ]), dto.isOK else {
+      return []
+    }
+    if let gen = dto.generation {
+      latestGeneration = gen
+    }
+    return dto.candidates.map { RimeCandidate(text: $0.text, comment: $0.comment) }
   }
 
   func changePage(up: Bool) -> Bool {
@@ -392,6 +484,14 @@ final class OwlRustSession: RimeSession {
 
   func setProperty(name: String, value: String) {
     properties[name] = value
+    if name == OwlPinnedWords.property, handle != nil {
+      if let dto = sendAction(["op": "set_pinned_words", "text": value]), dto.isOK {
+        latestSnapshot = dto
+        latestGeneration = dto.generation ?? latestGeneration
+        caretByteOffset = dto.caretPosition ?? dto.rawInput.utf8.count
+        preeditCaretByteOffset = dto.preeditCaretByte ?? dto.preedit.utf8.count
+      }
+    }
   }
 
   func stateLabel(option name: String, state: Bool, abbreviated: Bool) -> String? {
@@ -433,7 +533,9 @@ final class OwlRustSession: RimeSession {
        let decoded = try? JSONDecoder().decode(OwlRustSnapshotDTO.self, from: data),
        decoded.isOK {
       latestSnapshot = decoded
-      caretByteOffset = decoded.preedit.utf8.count
+      latestGeneration = decoded.generation ?? latestGeneration
+      caretByteOffset = decoded.caretPosition ?? decoded.rawInput.utf8.count
+      preeditCaretByteOffset = decoded.preeditCaretByte ?? decoded.preedit.utf8.count
     }
   }
 
@@ -456,7 +558,9 @@ final class OwlRustSession: RimeSession {
   private func applyActionResponse(_ dto: OwlRustSnapshotDTO?) -> Bool {
     guard let dto, dto.isOK else { return false }
     latestSnapshot = dto
-    caretByteOffset = dto.preedit.utf8.count
+    latestGeneration = dto.generation ?? latestGeneration
+    caretByteOffset = dto.caretPosition ?? dto.rawInput.utf8.count
+    preeditCaretByteOffset = dto.preeditCaretByte ?? dto.preedit.utf8.count
     customCaretPos = nil
     if let committed = dto.committedText, !committed.isEmpty {
       pendingCommitText = committed
@@ -481,12 +585,12 @@ final class OwlRustEngine: RimeEngine {
     self.userDataURL = userDataURL
   }
 
-  /// Create the active engine according to `OWL_ENGINE_BACKEND` (`rust` vs default `rime`).
+  /// Create the active engine according to `OWL_ENGINE_BACKEND` (default `rust`; `rime` for rollback).
   static func makeConfiguredEngine(fallback: @autoclosure () -> RimeEngine = LiveRimeEngine()) -> RimeEngine {
-    if ProcessInfo.processInfo.environment["OWL_ENGINE_BACKEND"]?.lowercased() == "rust" {
-      return OwlRustEngine()
+    if ProcessInfo.processInfo.environment["OWL_ENGINE_BACKEND"]?.lowercased() == "rime" {
+      return fallback()
     }
-    return fallback()
+    return OwlRustEngine()
   }
 
   func setup(_ traits: inout RimeTraits) {

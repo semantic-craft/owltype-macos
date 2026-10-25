@@ -212,6 +212,15 @@ final class OwlInputController: IMKInputController {
     return success
   }
 
+  func selectCandidate(_ token: OwlCandidateToken) -> Bool {
+    guard let rime else { return false }
+    let success = rime.selectCandidate(token)
+    if success {
+      rimeUpdate()
+    }
+    return success
+  }
+
   // swiftlint:disable:next identifier_name
   func page(up: Bool) -> Bool {
     guard let rime else { return false }

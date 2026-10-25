@@ -885,7 +885,14 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     let opened = candidate.openBaseConfig()
     let usable = opened && Self.isUsable(candidate)
     OwlLiveInputTrace.write { "loadSettings openBase=\(opened) usable=\(usable)" }
-    guard usable else { return }
+    guard usable else {
+      if engine is OwlRustEngine && config == nil {
+        var flags = OwlStyleFlags(linear: true, vertical: false, inlinePreedit: true, inlineCandidate: false)
+        OwlCandidatePanelSettings.live.applyInlineCandidate(to: &flags)
+        styleFlags = flags
+      }
+      return
+    }
     config = candidate
     // Layout flags from the global `style/*` (was `panel.load(...)` into OwlTheme).
     styleFlags = OwlStyleFlags.base(config: candidate)

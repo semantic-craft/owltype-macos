@@ -18,7 +18,8 @@ extension OwlInputController {
   }
 
   func pinnedTarget(text: String) -> OwlPinnedWord? {
-    guard OwlPinyinCandidateDeployment.available, let rime, rime.isValid,
+    guard let rime, rime.isValid,
+          OwlPinyinCandidateDeployment.available || rime is OwlRustSession,
           !rime.option(.asciiMode), let composition = rime.composition() else { return nil }
     return OwlPinnedWords.target(schema: schemaId, input: rime.input() ?? "", composition: composition,
       candidate: text, traditional: currentTraditionalOutputEnabled(), caret: rime.caretPos())

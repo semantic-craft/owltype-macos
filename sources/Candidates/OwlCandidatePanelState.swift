@@ -113,6 +113,23 @@ struct OwlScrollRow: Identifiable, Sendable, Equatable {
   let candidates: [CandidateViewModel]
 }
 
+/// Stable identity token for selecting a candidate across the SwiftUI panel and engine seam (#264).
+/// Carries the session and generation when the snapshot was produced so stale clicks or async
+/// events never select the wrong candidate after a composition change.
+struct OwlCandidateToken: Hashable, Sendable, Codable {
+  let sessionID: UInt64
+  let generation: UInt64
+  let candidateID: Int
+  let isAbsolute: Bool
+
+  init(sessionID: UInt64 = 0, generation: UInt64 = 0, candidateID: Int, isAbsolute: Bool = false) {
+    self.sessionID = sessionID
+    self.generation = generation
+    self.candidateID = candidateID
+    self.isAbsolute = isAbsolute
+  }
+}
+
 /// One candidate row. `Sendable` so a snapshot can be built off the hot path and
 /// handed to the panel without sharing mutable Rime state.
 struct CandidateViewModel: Identifiable, Sendable, Equatable {
@@ -129,8 +146,18 @@ struct CandidateViewModel: Identifiable, Sendable, Equatable {
   /// G3: user-visible provenance (个人/项目/规则/已核验/AI). `nil` = ordinary main-lane
   /// Rime pinyin candidate → no label rendered (avoids per-candidate noise).
   let provenance: OwlProvenance?
+  let token: OwlCandidateToken
 
-  init(id: Int, label: String, text: String, comment: String? = nil, badge: Bool = false, source: String? = nil, provenance: OwlProvenance? = nil) {
+  init(
+    id: Int,
+    label: String,
+    text: String,
+    comment: String? = nil,
+    badge: Bool = false,
+    source: String? = nil,
+    provenance: OwlProvenance? = nil,
+    token: OwlCandidateToken? = nil
+  ) {
     self.id = id
     self.label = label
     self.text = text
@@ -138,6 +165,7 @@ struct CandidateViewModel: Identifiable, Sendable, Equatable {
     self.badge = badge
     self.source = source
     self.provenance = provenance
+    self.token = token ?? OwlCandidateToken(sessionID: 0, generation: 0, candidateID: id, isAbsolute: false)
   }
 }
 

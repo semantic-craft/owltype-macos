@@ -490,6 +490,52 @@ extension OwlInputController {
     NSApp.owlAppDelegate.activeInputController = self
     NSApp.owlAppDelegate.registerLiveController(self)
 
+    let isVertical = rime?.option(.vertical) ?? false
+    let candidatePanelSettings = OwlCandidatePanelSettings.live.snapshot()
+    let currentSessionID = rime?.sessionID ?? 0
+
+    // 多行（翻页才展开，2026-07-28）：本次组字翻过页后，预取紧邻的前 1 页 + 有界上限 4 个后页。
+    // 面板按 runtime snapshot 的 scrollRows 限制可见后页，因此设置从 1 调到 4 时无需再次触碰
+    // Rime 就能即时揭示已经预取的行；默认仍是 4，取数上限没有扩大。
+    // 没翻过页时保持单行——展开是翻页动作换来的。取数走 `peekCandidates`（librime
+    // candidate_list_from_index 只读迭代器）——不真翻页、不动 menu 页游标、无 IMK 客户端
+    // 往返，故不在 Chromium 死锁禁区内。页宽用 librime 的 page_size：末页 candidates.count
+    // 不满页，拿它当页宽会把前页的绝对下标全算错。
+    var prevPeeked: [RimeCandidate]?
+    var nextPeeked: [RimeCandidate]?
+    if let rime, pageSize > 0 {
+      if OwlScrollRowsPlan.wantsPrevRow(
+        settings: candidatePanelSettings, didPage: scrollDidPage, page: page,
+        candidateCount: candidates.count,
+        rimeVertical: isVertical, schemaID: schemaId
+      ) {
+        prevPeeked = rime.peekCandidates(from: (page - 1) * pageSize, count: pageSize)
+      }
+      if OwlScrollRowsPlan.wantsRows(
+        settings: candidatePanelSettings, didPage: scrollDidPage, lastPage: lastPage,
+        candidateCount: candidates.count,
+        rimeVertical: isVertical, schemaID: schemaId
+      ) {
+        nextPeeked = rime.peekCandidates(from: (page + 1) * pageSize,
+                                         count: OwlCandidatePanelSettings.maximumScrollRows * pageSize)
+      }
+    }
+
+    let currentGen = rime?.generation ?? 0
+    var scrollRows: [OwlScrollRow] = []
+    if let prevPeeked {
+      scrollRows += OwlScrollRowsPlan.rows(
+        from: prevPeeked, pageSize: pageSize, startPage: page - 1,
+        sessionID: currentSessionID, generation: currentGen
+      )
+    }
+    if let nextPeeked {
+      scrollRows += OwlScrollRowsPlan.rows(
+        from: nextPeeked, pageSize: pageSize, startPage: page + 1,
+        sessionID: currentSessionID, generation: currentGen
+      )
+    }
+
     // The inline AI candidate lane was removed: the candidate panel shows ONLY authoritative Rime
     // rows now, so there is no async store-driven merge/refresh. Build the Rime view models and push
     // them straight to the panel here (was the `lastRimePanel` cache + `renderPanel` merge step).
@@ -511,39 +557,14 @@ extension OwlInputController {
         comment: isCitation ? nil : rawComment,
         badge: isCitation,
         source: isCitation ? (rawComment?.isEmpty == false ? rawComment : nil) : nil,
-        provenance: provenance
+        provenance: provenance,
+        token: OwlCandidateToken(
+          sessionID: currentSessionID,
+          generation: currentGen,
+          candidateID: i,
+          isAbsolute: false
+        )
       )
-    }
-
-    let isVertical = rime?.option(.vertical) ?? false
-    let candidatePanelSettings = OwlCandidatePanelSettings.live.snapshot()
-
-    // 多行（翻页才展开，2026-07-28）：本次组字翻过页后，预取紧邻的前 1 页 + 有界上限 4 个后页。
-    // 面板按 runtime snapshot 的 scrollRows 限制可见后页，因此设置从 1 调到 4 时无需再次触碰
-    // Rime 就能即时揭示已经预取的行；默认仍是 4，取数上限没有扩大。
-    // 没翻过页时保持单行——展开是翻页动作换来的。取数走 `peekCandidates`（librime
-    // candidate_list_from_index 只读迭代器）——不真翻页、不动 menu 页游标、无 IMK 客户端
-    // 往返，故不在 Chromium 死锁禁区内。页宽用 librime 的 page_size：末页 candidates.count
-    // 不满页，拿它当页宽会把前页的绝对下标全算错。
-    var scrollRows: [OwlScrollRow] = []
-    if let rime, pageSize > 0 {
-      if OwlScrollRowsPlan.wantsPrevRow(
-        settings: candidatePanelSettings, didPage: scrollDidPage, page: page,
-        candidateCount: candidates.count,
-        rimeVertical: isVertical, schemaID: schemaId
-      ) {
-        let peeked = rime.peekCandidates(from: (page - 1) * pageSize, count: pageSize)
-        scrollRows += OwlScrollRowsPlan.rows(from: peeked, pageSize: pageSize, startPage: page - 1)
-      }
-      if OwlScrollRowsPlan.wantsRows(
-        settings: candidatePanelSettings, didPage: scrollDidPage, lastPage: lastPage,
-        candidateCount: candidates.count,
-        rimeVertical: isVertical, schemaID: schemaId
-      ) {
-        let peeked = rime.peekCandidates(from: (page + 1) * pageSize,
-                                         count: OwlCandidatePanelSettings.maximumScrollRows * pageSize)
-        scrollRows += OwlScrollRowsPlan.rows(from: peeked, pageSize: pageSize, startPage: page + 1)
-      }
     }
 
     let owlPanel = NSApp.owlAppDelegate.ensureOwltypePanel()
@@ -557,6 +578,7 @@ extension OwlInputController {
     owlPanel.onSelect = { [weak self] index in self?.selectPanelIndex(index) }
     owlPanel.onPage = { [weak self] up in _ = self?.page(up: up) }
     owlPanel.onSelectAbsolute = { [weak self] index in _ = self?.selectCandidateAbsolute(index) }
+    owlPanel.onSelectToken = { [weak self] token in _ = self?.selectCandidate(token) }
     let content = OwlPanelContent(
       preedit: preedit,
       cursor: cursor,
