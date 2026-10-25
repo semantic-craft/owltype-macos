@@ -31,6 +31,13 @@ REQUIRED_RUST_SYMBOLS = {
 REQUIRED_RESOURCES = {
     "msime-pinyin.db": {"tbl_1_n", "tbl_2_n", "wubi86", "quick_parases"},
     "msime-english.db": {"english_words"},
+    "msime-others.db": {"emoji", "emoji_pinyin"},
+}
+FORBIDDEN_RESOURCE_TABLES = {
+    "msime-others.db": {"kaomoji", "kaomoji_catalog", "symbol_catalog"},
+}
+EXACT_RESOURCE_TABLES = {
+    "msime-others.db": {"emoji", "emoji_pinyin"},
 }
 
 
@@ -153,7 +160,12 @@ def verify_rust_symbols(binaries: list[Path]) -> None:
         )
 
 
-def verify_database(path: Path, tables: set[str]) -> None:
+def verify_database(
+    path: Path,
+    tables: set[str],
+    forbidden: set[str],
+    exact: bool = False,
+) -> None:
     if not path.is_file() or path.stat().st_size == 0:
         raise DeliveryError(f"Rust resource is missing or empty: {path}")
     try:
@@ -173,6 +185,16 @@ def verify_database(path: Path, tables: set[str]) -> None:
                 raise DeliveryError(
                     f"{path.name} is missing required tables: {', '.join(missing)}"
                 )
+            excluded = sorted(forbidden & present)
+            if excluded:
+                raise DeliveryError(
+                    f"{path.name} contains forbidden tables: {', '.join(excluded)}"
+                )
+            unexpected = sorted(present - tables)
+            if exact and unexpected:
+                raise DeliveryError(
+                    f"{path.name} contains unexpected tables: {', '.join(unexpected)}"
+                )
             for table in sorted(tables):
                 if connection.execute(f'SELECT 1 FROM "{table}" LIMIT 1').fetchone() is None:
                     raise DeliveryError(f"{path.name} has an empty required table: {table}")
@@ -185,7 +207,12 @@ def verify_database(path: Path, tables: set[str]) -> None:
 def verify_resources(app: Path) -> None:
     resource_root = app / "Contents/SharedSupport/msime"
     for filename, tables in REQUIRED_RESOURCES.items():
-        verify_database(resource_root / filename, tables)
+        verify_database(
+            resource_root / filename,
+            tables,
+            FORBIDDEN_RESOURCE_TABLES.get(filename, set()),
+            filename in EXACT_RESOURCE_TABLES,
+        )
 
 
 def validate_app(app: Path) -> tuple[int, int]:

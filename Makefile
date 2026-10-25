@@ -58,6 +58,7 @@ owl-seed:
 copy-owl-seed:
 	@test -s data/owl-rime/msime/msime-pinyin.db || { echo "[owltype] ERROR: missing data/owl-rime/msime/msime-pinyin.db; run 'make owl-seed'" >&2; exit 1; }
 	@test -s data/owl-rime/msime/msime-english.db || { echo "[owltype] ERROR: missing data/owl-rime/msime/msime-english.db; run 'make owl-seed'" >&2; exit 1; }
+	@test -s data/owl-rime/msime/msime-others.db || { echo "[owltype] ERROR: missing data/owl-rime/msime/msime-others.db; run 'make owl-seed'" >&2; exit 1; }
 	@echo "[owltype] bundling generated resources -> SharedSupport ($(OWL_CONFIG))"
 	@rsync -a --delete data/owl-rime/. "$(DERIVED_DATA_PATH)/Build/Products/$(OWL_CONFIG)/Owltype.app/Contents/SharedSupport/"
 	@echo "[owltype] re-signing after seed copy (local ad-hoc)"

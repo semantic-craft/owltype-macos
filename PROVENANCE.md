@@ -25,6 +25,19 @@
   （Apache-2.0）。模型权重与上述源码 crate 是独立许可证据，不共用许可证文件。固定 keyboard
   与 settled 两个 safetensors，训练语料为 C4 中文部分（ODC-BY）与 LCCC（MIT）；署名随权重元数据和
   [`NOTICE`](resources/licenses/chinese-ime-lm-model-NOTICE.txt) 一同保留。
+- **msime-others.db（派生 emoji 目录）** ——
+  [`dict-v2.0.24`](https://github.com/metasequoiaime/msime-dictionary/releases/tag/dict-v2.0.24)，
+  固定大小 1,314,816 字节、SHA-256
+  `9f3cae5b407038e0e4536c40582a0bc0feb732657f0ae2d38196374cede52f94`。发布清单记录的
+  msime 构建器提交为 `128a332cabc5fa42b1cf5f827033ad5697ff528b`，msime-dictionary
+  数据提交为 `71dc6f6cc7a451231ee29c0a39b39adbf2e04d32`。Owltype 不发布该多来源
+  整包，只在生成 seed 时保留 `emoji` 与 `emoji_pinyin` 两表。中文关键词来自
+  rime-ice（GPL-3.0-only，固定提交 `9e66b072…`），英文名称来自 Unicode Emoji
+  17.0、CLDR annotations 与 Emoji 1.0 names（Unicode-3.0），多音词读音覆盖表
+  由 mozillazg/python-pinyin 0.55.0 `lazy_pinyin` 生成（MIT）。发布清单、构建
+  代码、输入文件摘要与许可证原文的定位见
+  [`msime-others-NOTICE.txt`](data/msime-others-NOTICE.txt)。其余 kaomoji、
+  PiliApp `symbol_catalog` 等表均被排除。
 
 ## 内置数据与方案 Bundled data & schemas
 

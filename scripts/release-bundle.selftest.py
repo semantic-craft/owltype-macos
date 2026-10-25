@@ -46,11 +46,15 @@ class ReleaseLicenseEntriesTests(unittest.TestCase):
         (app / FINALIZER.WUBI86_JIDIAN_LICENSE).write_bytes(
             (ROOT / "licenses/wubi86-jidian.LICENSE").read_bytes()
         )
+        (app / FINALIZER.PYTHON_PINYIN_LICENSE).write_bytes(
+            (ROOT / "licenses/python-pinyin.LICENSE").read_bytes()
+        )
 
     def test_current_seed_licenses_pass_without_retired_runtime_files(self) -> None:
         paths = set(FINALIZER.REQUIRED_LICENSES)
         self.assertFalse(paths & RETIRED_LICENSES)
         self.assertIn(WUBI_LICENSE, paths)
+        self.assertIn(FINALIZER.PYTHON_PINYIN_LICENSE, paths)
         self.assertEqual(FINALIZER.missing_required_license_entries(paths), set())
         with tempfile.TemporaryDirectory(prefix="owltype-licenses-") as temporary:
             app = Path(temporary) / "Owltype.app"
@@ -86,7 +90,18 @@ class ReleaseSBOMTests(unittest.TestCase):
 
         packages = {package["SPDXID"]: package for package in sbom["packages"]}
         names = {package["name"] for package in packages.values()}
-        self.assertTrue({"OpenCC data", "rime-wubi86-jidian", "chinese-ime-lm model weights"} <= names)
+        self.assertTrue(
+            {
+                "OpenCC data",
+                "rime-wubi86-jidian",
+                "Owltype emoji catalog (msime-others.db)",
+                "rime-ice emoji data",
+                "Unicode Emoji, CLDR annotations, and Emoji 1.0 names",
+                "python-pinyin emoji reading overrides",
+                "chinese-ime-lm model weights",
+            }
+            <= names
+        )
         self.assertFalse({"librime", "librime-lua", "plum"} & names)
         by_name = {package["name"]: package for package in packages.values()}
         self.assertEqual(
@@ -97,6 +112,19 @@ class ReleaseSBOMTests(unittest.TestCase):
             by_name["chinese-ime-lm model weights"]["versionInfo"],
             "model-v1",
         )
+        self.assertEqual(
+            by_name["Owltype emoji catalog (msime-others.db)"]["licenseConcluded"],
+            "GPL-3.0-only AND Unicode-3.0 AND MIT",
+        )
+        self.assertEqual(
+            by_name["rime-ice emoji data"]["versionInfo"],
+            "9e66b0729083b37d217312294f6d516c8d7234be",
+        )
+        self.assertEqual(
+            by_name["python-pinyin emoji reading overrides"]["versionInfo"],
+            "v0.55.0",
+        )
+        self.assertFalse({"PiliApp symbol catalog", "rime_kaomoji_dict"} & names)
 
         owltype_id = next(
             package_id

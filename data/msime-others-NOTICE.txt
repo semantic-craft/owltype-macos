@@ -1,0 +1,85 @@
+Owltype derived emoji catalog notice
+
+Runtime file:
+  msime-others.db
+
+Owltype derives this database at seed time from the pinned release artifact:
+
+  https://github.com/metasequoiaime/msime-dictionary/releases/download/dict-v2.0.24/msime-others.db
+  Size: 1314816 bytes
+  SHA-256: 9f3cae5b407038e0e4536c40582a0bc0feb732657f0ae2d38196374cede52f94
+
+Release manifest:
+  https://github.com/metasequoiaime/msime-dictionary/releases/download/dict-v2.0.24/msime-dictionary-manifest.json
+  Size: 4627 bytes
+  SHA-256: 5b656a5db35b4dcf804ce4348d8584c899d0012fe62bbbe3689204ddaba8722f
+  source.repository: metasequoiaime/msime
+  source.path: resources/dictionary-sources
+  source.commit: 128a332cabc5fa42b1cf5f827033ad5697ff528b
+  source.dirty: false
+  custom_dictionary_commit: 71dc6f6cc7a451231ee29c0a39b39adbf2e04d32
+  references.rime-ice.commit: 9e66b0729083b37d217312294f6d516c8d7234be
+
+The release artifact is a multi-source database whose overall licensing is not
+asserted. Owltype does not redistribute that artifact. It copies only the
+following two tables into its runtime database:
+
+  emoji
+  emoji_pinyin
+
+All other tables in the release artifact, including kaomoji, kaomoji_catalog
+and symbol_catalog, are excluded and are not part of Owltype's runtime file.
+
+The pinned builder code reads the emoji inputs in the Emoji stage here:
+
+  https://github.com/metasequoiaime/msime/blob/128a332cabc5fa42b1cf5f827033ad5697ff528b/crates/dict-builder/src/main.rs
+  https://github.com/metasequoiaime/msime/blob/128a332cabc5fa42b1cf5f827033ad5697ff528b/crates/dict-builder/src/others.rs
+  https://github.com/metasequoiaime/msime/blob/128a332cabc5fa42b1cf5f827033ad5697ff528b/crates/dict-builder/src/pinyin.rs
+
+Sources for the retained tables at the builder commit:
+
+  Chinese emoji keywords
+    rime-ice, others/emoji-map.txt, source header version 2026-01-26
+    msime input: resources/dictionary-sources/emoji/emoji.txt
+    Size: 90178 bytes
+    SHA-256: a6a0af0c00e6e359eb2f1be247d15a5735c2240bc248181b6946e0377e991002
+    https://github.com/iDvel/rime-ice
+    License: GPL-3.0-only. The seed carries rime-ice.LICENSE and
+    rime-ice-Credits.md.
+
+  English emoji names
+    Unicode Emoji 17.0 emoji-test.txt (fully-qualified rows and components),
+    Unicode CLDR English annotations, and Unicode Emoji 1.0 names
+    msime input: resources/dictionary-sources/emoji/emoji_en.txt
+    Size: 183514 bytes
+    SHA-256: c1b0a92e5cfc6d23a972e4afac1770b1df5e8bc848ef397d2f785161e04cac48
+    https://unicode.org/Public/emoji/17.0/
+    License: Unicode-3.0. The seed carries licenses/Unicode-3.0.txt.
+
+  Emoji catalog order
+    Unicode emoji-test.txt, regenerated into the msime input below
+    msime input: resources/dictionary-sources/emoji/emoji_catalog.txt
+    Size: 47198 bytes
+    SHA-256: 71b4027b02b457a2cea8b988cda907763e6ee8e241a8c9c353829a464f291d60
+    License: Unicode-3.0. The seed carries licenses/Unicode-3.0.txt.
+
+  Keyword pinyin
+    Base per-character readings use the Rust pinyin crate 0.11 in the pinned
+    msime builder. Polyphone phrase readings come from mozillazg/python-pinyin
+    0.55.0 lazy_pinyin (tag v0.55.0, commit
+    df101577145af2eb1abe5656e592e34e3bb56d23).
+    msime input: resources/dictionary-sources/pinyin-overrides.txt
+    Size: 1582 bytes
+    SHA-256: e2770db162955de16cf82f82368c469e5a0060dcb4ff9911424998bb4d9a0a8d
+    https://github.com/mozillazg/python-pinyin/tree/v0.55.0
+    License: MIT. The seed carries the verbatim python-pinyin.LICENSE.
+
+Validation:
+  emoji: 1935 rows, canonical row SHA-256
+  b3939c2005a8d46b18a5421eeee35698ba7b1ae01b3c24e6f470a524710905a7
+
+  emoji_pinyin: 21541 rows, canonical row SHA-256
+  e761e06bb14331d27d48786fe6be4e998f289344e139e1252ce53f9090a4c306
+
+This notice records provenance and licensing for the retained data. It does
+not grant rights beyond the terms supplied by each upstream source.

@@ -390,3 +390,26 @@ review dates, not retries. Keep deterministic checks in the local gate.
   builder and require `new-source`. The four Swift failures are one stale-archive event, not four
   independent regressions.
 - Seen on 1 distinct date: 2026-10-25.
+
+### Process-wide dictionary caches belong to the session lifecycle
+
+- The Rust FFI kept process-wide journal and dictionary caches open after the last session wrapper
+  was destroyed. B's real reset reproduced the consequence: a new session learned `尼`, but the
+  learning did not reach the reset journal because the new session still used the old cached
+  connection. The Swift `finalize()` contract was `Void`, so callers could neither wait for cache
+  teardown nor fail closed when a session remained live.
+- `owl_msime_engine_finalize()` now returns `false` without touching any cache while a session is
+  live, then closes the upstream caches and returns `true` once all sessions are gone. Session
+  create takes the read side of one lifecycle lock; destroy and finalize take the write side, and
+  destroy holds it through session drop and flush. Swift destroys all wrappers before calling the
+  hook. Deploy, user-dictionary reset, and legacy migration stop without deleting or importing data
+  when finalize fails.
+- Regression: `finalize_waits_for_sessions_and_allows_reopen` in
+  [engine_lifecycle.rs](rust/crates/owl-msime-ffi/tests/engine_lifecycle.rs) proves that finalize
+  fails with a live session, succeeds twice after destroy, and permits a reopened session; B also
+  passed the real FFI reset path (51 focused tests plus the lifecycle integration) before merging
+  it. [RimeSeamTests](tests/RimeSeamTests.swift) covers the Swift Boolean lifecycle contract.
+- Verify (验证点): `cargo test --locked --manifest-path rust/Cargo.toml --package owl-msime-ffi`
+  passes, `make test TEST_ONLY='RimeSeamTests'` passes, and reset/deploy/migration call sites guard
+  `finalize()` instead of ignoring it. Real reset acceptance remains distinct from the unit test.
+- Seen on 1 distinct date: 2026-10-26.
