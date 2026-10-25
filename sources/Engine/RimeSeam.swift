@@ -34,6 +34,8 @@ protocol RimeSession: AnyObject {
   /// A stable opaque identifier for this session, used only to tag composition snapshots
   /// (`OwlSnapshotEmitter`). For the live adapter this is the raw `RimeSessionId`.
   var sessionID: UInt64 { get }
+  /// Monotonic composition generation counter for `OwlCandidateToken` (#264).
+  var generation: UInt64 { get }
 
   /// True if this session id is still valid (`find_session`). 0/destroyed → false.
   var isValid: Bool { get }
@@ -71,6 +73,8 @@ protocol RimeSession: AnyObject {
   /// still goes through librime's own current-page number keys). A default implementation
   /// returns `false` so existing fakes stay source-compatible.
   func selectCandidateAbsolute(_ index: Int) -> Bool
+  /// Select a candidate using its `OwlCandidateToken` (#264).
+  func selectCandidate(_ token: OwlCandidateToken) -> Bool
 
   /// `change_page`; `up == true` pages backward.
   func changePage(up: Bool) -> Bool
@@ -111,6 +115,8 @@ protocol RimeSession: AnyObject {
 }
 
 extension RimeSession {
+  var generation: UInt64 { 0 }
+
   /// Default no-preview implementation — keeps fakes/spies source-compatible; the live
   /// adapter overrides with the real iterator walk.
   func peekCandidates(from _: Int, count _: Int) -> [RimeCandidate] { [] }
@@ -118,6 +124,16 @@ extension RimeSession {
   /// Default no-op — keeps fakes/spies source-compatible; the live adapter overrides with
   /// `select_candidate`.
   func selectCandidateAbsolute(_: Int) -> Bool { false }
+
+  func selectCandidate(_ token: OwlCandidateToken) -> Bool {
+    if token.sessionID != 0 && token.sessionID != sessionID {
+      return false
+    }
+    if token.isAbsolute {
+      return selectCandidateAbsolute(token.candidateID)
+    }
+    return selectCandidate(token.candidateID)
+  }
 }
 
 /// The global Rime lifecycle. Vends Sessions. All calls are on the IMK input thread.

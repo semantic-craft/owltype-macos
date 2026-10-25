@@ -45,6 +45,9 @@ struct OwlCandidatePanelView: View {
   /// list. Separate from `onSelect` (which is a current-page offset) because the two land on
   /// different librime calls. Optional so the settings skin-preview call site is unaffected.
   var onSelectAbsolute: ((Int) -> Void)? = nil
+  /// Unified token-based candidate selection callback (#264). When set, current-page and
+  /// scroll-row taps pass `candidate.token` here instead of separate `onSelect` / `onSelectAbsolute`.
+  var onSelectToken: ((OwlCandidateToken) -> Void)? = nil
   /// Called after the expand chevron toggles `state.isExpanded`, so the hosting panel
   /// can re-fit its frame to the new content size. Optional (default nil) so the
   /// settings skin-preview call site is unaffected. NEEDS REAL-MACHINE VERIFICATION:
@@ -408,7 +411,13 @@ struct OwlCandidatePanelView: View {
     .padding(.vertical, geometry.verticalPadding)
     .contentShape(Rectangle())
     // `candidate.id` 在前/后页行里是整张候选列表的绝对下标（见 `OwlScrollRow`）。
-    .onTapGesture { onSelectAbsolute?(candidate.id) }
+    .onTapGesture {
+      if let onSelectToken {
+        onSelectToken(candidate.token)
+      } else {
+        onSelectAbsolute?(candidate.id)
+      }
+    }
     .contextMenu { pinMenu(candidate) }
     .accessibilityElement(children: .combine)
     .accessibilityLabel(Text(candidate.text))
@@ -477,7 +486,13 @@ struct OwlCandidatePanelView: View {
     // 离面板内壁恒为容器的 resolved inset（多行相邻行距也从同一 geometry 取得）。
     .background { if selected { selectionFill(cornerRadius: geometry.selectionRadius) } }
     .contentShape(Rectangle())
-    .onTapGesture { onSelect(candidate.id) }
+    .onTapGesture {
+      if let onSelectToken {
+        onSelectToken(candidate.token)
+      } else {
+        onSelect(candidate.id)
+      }
+    }
     .contextMenu { pinMenu(candidate) }
     .accessibilityElement(children: .combine)
     .accessibilityIdentifier("current-candidate-\(candidate.id)")
@@ -644,7 +659,13 @@ struct OwlCandidatePanelView: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .background { if selected { selectionFill(cornerRadius: geometry.selectionRadius) } }
     .contentShape(Rectangle())
-    .onTapGesture { onSelect(candidate.id) }
+    .onTapGesture {
+      if let onSelectToken {
+        onSelectToken(candidate.token)
+      } else {
+        onSelect(candidate.id)
+      }
+    }
     .contextMenu { pinMenu(candidate) }
     .accessibilityElement(children: .combine)
   }

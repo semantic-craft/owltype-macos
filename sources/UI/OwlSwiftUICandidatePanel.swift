@@ -195,14 +195,32 @@ enum OwlScrollRowsPlan {
   /// `startPage` = 该段首页的页号（后页 = 主行页号 + 1，前页 = 主行页号 − 1）；行 id 取
   /// 页号（多行动画的身份），候选 id 取**绝对下标**（`startPage * pageSize + …`），点击时
   /// 直接喂给 `select_candidate`。
-  static func rows(from peeked: [RimeCandidate], pageSize: Int, startPage: Int) -> [OwlScrollRow] {
+  static func rows(
+    from peeked: [RimeCandidate],
+    pageSize: Int,
+    startPage: Int,
+    sessionID: UInt64 = 0,
+    generation: UInt64 = 0
+  ) -> [OwlScrollRow] {
     guard pageSize > 0 else { return [] }
     return stride(from: 0, to: peeked.count, by: pageSize).map { base in
       let page = startPage + base / pageSize
       return OwlScrollRow(
         id: page,
         candidates: peeked[base..<min(base + pageSize, peeked.count)].enumerated().map { offset, cand in
-          CandidateViewModel(id: page * pageSize + offset, label: "", text: cand.text, comment: cand.comment)
+          let absID = page * pageSize + offset
+          return CandidateViewModel(
+            id: absID,
+            label: "",
+            text: cand.text,
+            comment: cand.comment,
+            token: OwlCandidateToken(
+              sessionID: sessionID,
+              generation: generation,
+              candidateID: absID,
+              isAbsolute: true
+            )
+          )
         })
     }
   }
@@ -237,6 +255,8 @@ final class OwlSwiftUICandidatePanel: NSPanel {
   /// `select_candidate` instead of `select_candidate_on_current_page`. Mouse-only path —
   /// the keyboard hot path is untouched.
   var onSelectAbsolute: ((Int) -> Void)?
+  /// Unified token-based candidate selection callback (#264).
+  var onSelectToken: ((OwlCandidateToken) -> Void)?
 
   init() {
     super.init(
@@ -266,6 +286,16 @@ final class OwlSwiftUICandidatePanel: NSPanel {
         onSelect: { [weak self] index in self?.onSelect?(index) },
         onPage: { [weak self] up in self?.onPage?(up) },
         onSelectAbsolute: { [weak self] index in self?.onSelectAbsolute?(index) },
+        onSelectToken: { [weak self] token in
+          guard let self else { return }
+          if let onSelectToken = self.onSelectToken {
+            onSelectToken(token)
+          } else if token.isAbsolute {
+            self.onSelectAbsolute?(token.candidateID)
+          } else {
+            self.onSelect?(token.candidateID)
+          }
+        },
         onToggleExpand: { [weak self] in self?.reframeToFit() },
         canPin: { [weak self] in self?.canPin?($0) ?? false },
         onPin: { [weak self] in self?.onPin?($0) }

@@ -1,7 +1,7 @@
 #![allow(unsafe_code)]
 
+use std::collections::{HashMap, HashSet};
 use std::ffi::{c_char, CStr, CString};
-use std::collections::HashSet;
 use std::fs;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
@@ -13,9 +13,90 @@ use msime_engine::{
     ensure_english_schema, FrequencyAdjustmentMode, SchemeSet, SchemeType,
     SentenceAssociationOptions, ShuangpinHelpcodeModes, ShuangpinProfileKind, WubiProfileKind,
 };
-use msime_input_runtime::{Action, Runtime, View};
+use msime_input_runtime::{
+    Action, CandidateId, CandidateOps, CandidateTransform, Runtime, TransformRow, View,
+};
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
+
+#[derive(Default)]
+struct OwlPinnedState {
+    words: HashMap<(String, bool), Vec<String>>,
+    enabled: bool,
+    traditional: bool,
+    active_input: String,
+    caret_at_end: bool,
+}
+
+struct OwlPinnedTransform {
+    state: Arc<Mutex<OwlPinnedState>>,
+}
+
+fn normalized_pinyin(value: &str) -> String {
+    let mut cleaned = String::with_capacity(value.len());
+    for ch in value.chars() {
+        if ch != '\'' && ch != ' ' {
+            cleaned.push(ch);
+        }
+    }
+    let mut result = cleaned.replace('ü', "v");
+    for initial in ["j", "q", "x", "y"] {
+        let from = format!("{initial}v");
+        let to = format!("{initial}u");
+        result = result.replace(&from, &to);
+    }
+    for initial in ["n", "l"] {
+        let from = format!("{initial}ue");
+        let to = format!("{initial}ve");
+        result = result.replace(&from, &to);
+    }
+    result
+}
+
+impl CandidateTransform for OwlPinnedTransform {
+    fn transform(
+        &mut self,
+        window: &[TransformRow<'_>],
+        local_mode: &str,
+        out: &mut Vec<CandidateOps>,
+    ) {
+        if local_mode != "none" || window.is_empty() {
+            return;
+        }
+        let Ok(guard) = self.state.lock() else {
+            return;
+        };
+        if !guard.enabled || !guard.caret_at_end || guard.active_input.is_empty() {
+            return;
+        }
+        let Some(pins) = guard
+            .words
+            .get(&(guard.active_input.clone(), guard.traditional))
+        else {
+            return;
+        };
+        if pins.is_empty() {
+            return;
+        }
+        let target_norm = normalized_pinyin(&guard.active_input);
+        let mut ops = CandidateOps::default();
+        for pin_word in pins {
+            if let Some((seat, _)) = window.iter().enumerate().find(|(_, row)| {
+                row.text == pin_word
+                    && (row.code.is_empty() || normalized_pinyin(row.code) == target_norm)
+            }) {
+                let seat_u32 = seat as u32;
+                if !ops.order.contains(&seat_u32) {
+                    ops.order.push(seat_u32);
+                    ops.annotations.push((seat_u32, "置顶".to_owned()));
+                }
+            }
+        }
+        if !ops.order.is_empty() {
+            out.push(ops);
+        }
+    }
+}
 
 pub struct OwlMsimeSession {
     runtime: Runtime<EngineSession>,
@@ -23,6 +104,7 @@ pub struct OwlMsimeSession {
     page_size: u8,
     input_mode: String,
     pinyin_scheme: String,
+    pinned_state: Arc<Mutex<OwlPinnedState>>,
     _temp_dir: Option<TempDir>,
 }
 
@@ -36,15 +118,31 @@ struct ActionPayload {
     #[serde(default)]
     index: Option<usize>,
     #[serde(default)]
+    start: Option<usize>,
+    #[serde(default)]
+    count: Option<usize>,
+    #[serde(default)]
+    pos: Option<usize>,
+    #[serde(default)]
+    generation: Option<u64>,
+    #[serde(default)]
+    is_absolute: Option<bool>,
+    #[serde(default)]
+    ascii: Option<bool>,
+    #[serde(default)]
+    target: Option<String>,
+    #[serde(default)]
+    text: Option<String>,
+    #[serde(default)]
     mode: Option<String>,
     #[serde(default)]
     scheme: Option<String>,
     #[serde(default)]
     page_size: Option<u32>,
-  #[serde(default)]
-  name: Option<String>,
-  #[serde(default)]
-  value: Option<bool>,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    value: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -62,8 +160,11 @@ pub struct SnapshotResponseDto {
     pub consumed: bool,
     pub committed_text: Option<String>,
     pub cleared: bool,
+    pub generation: u64,
     pub raw_input: String,
     pub preedit: String,
+    pub caret_position: usize,
+    pub preedit_caret_byte: usize,
     pub page: usize,
     pub page_size: usize,
     pub highlighted_index: usize,
@@ -90,7 +191,7 @@ fn cstr_to_string(ptr: *const c_char) -> Option<String> {
 fn into_c_string_ptr<T: Serialize>(value: &T) -> *mut c_char {
     let json = serde_json::to_string(value).unwrap_or_else(|err| {
         format!(
-            "{{\"ok\":false,\"error\":{},\"consumed\":false,\"committed_text\":null,\"cleared\":false,\"raw_input\":\"\",\"preedit\":\"\",\"page\":0,\"page_size\":5,\"highlighted_index\":0,\"has_more_pages\":false,\"candidates\":[]}}",
+            "{{\"ok\":false,\"error\":{},\"consumed\":false,\"committed_text\":null,\"cleared\":false,\"generation\":0,\"raw_input\":\"\",\"preedit\":\"\",\"caret_position\":0,\"preedit_caret_byte\":0,\"page\":0,\"page_size\":5,\"highlighted_index\":0,\"has_more_pages\":false,\"candidates\":[]}}",
             serde_json::to_string(&err.to_string()).unwrap_or_else(|_| "\"serialization error\"".to_owned())
         )
     });
@@ -107,14 +208,42 @@ fn error_response(message: impl Into<String>) -> SnapshotResponseDto {
         consumed: false,
         committed_text: None,
         cleared: false,
+        generation: 0,
         raw_input: String::new(),
         preedit: String::new(),
+        caret_position: 0,
+        preedit_caret_byte: 0,
         page: 0,
         page_size: 5,
         highlighted_index: 0,
         has_more_pages: false,
         candidates: Vec::new(),
     }
+}
+
+fn map_caret_to_preedit_byte(editing_text: &str, phrase_prefix: &str, raw_preedit: &str, caret_pos: usize) -> usize {
+    let clamped_caret = caret_pos.min(editing_text.len());
+    if clamped_caret == 0 {
+        return phrase_prefix.len();
+    }
+    if clamped_caret >= editing_text.len() {
+        return phrase_prefix.len() + raw_preedit.len();
+    }
+    let raw_bytes = editing_text.as_bytes();
+    let mut raw_idx = 0usize;
+    let mut preedit_bytes = 0usize;
+    for ch in raw_preedit.chars() {
+        if raw_idx >= clamped_caret {
+            break;
+        }
+        if ch == '\'' && raw_bytes.get(raw_idx) != Some(&b'\'') {
+            preedit_bytes += 1;
+            continue;
+        }
+        raw_idx += 1;
+        preedit_bytes += ch.len_utf8();
+    }
+    phrase_prefix.len() + preedit_bytes
 }
 
 fn snapshot_from_view(
@@ -130,6 +259,13 @@ fn snapshot_from_view(
         .unwrap_or(0);
     let has_more_pages = view.page + 1 < view.page_count;
     let input_len = view.editing_text.len();
+    let caret_position = view.caret_position.min(input_len);
+    let preedit_caret_byte = map_caret_to_preedit_byte(
+        &view.editing_text,
+        &view.phrase_prefix,
+        &view.preedit,
+        caret_position,
+    );
     let preedit = if view.phrase_prefix.is_empty() {
         view.preedit
     } else {
@@ -138,15 +274,17 @@ fn snapshot_from_view(
     let candidates = view
         .candidates
         .into_iter()
-        .map(|c| CandidateDto {
-            text: c.text,
-            comment: if c.annotation.is_empty() {
-                None
-            } else {
-                Some(c.annotation)
-            },
-            kind: "Phrase".to_owned(),
-            input_len,
+        .map(|c| {
+            let comment = c
+                .script_annotation
+                .filter(|s| !s.is_empty())
+                .or_else(|| (!c.annotation.is_empty()).then_some(c.annotation));
+            CandidateDto {
+                text: c.text,
+                comment,
+                kind: "Phrase".to_owned(),
+                input_len,
+            }
         })
         .collect();
     SnapshotResponseDto {
@@ -155,8 +293,11 @@ fn snapshot_from_view(
         consumed,
         committed_text,
         cleared,
+        generation: view.generation,
         raw_input: view.editing_text,
         preedit,
+        caret_position,
+        preedit_caret_byte,
         page: view.page,
         page_size: view.page_size,
         highlighted_index,
@@ -335,6 +476,16 @@ impl OwlMsimeSession {
         let engine_session = EngineSession::new(&options).map_err(|e| e.to_string())?;
         let mut runtime = Runtime::new(engine_session, page_size_u8).map_err(|e| e.to_string())?;
         let _ = runtime.focus(true).map_err(|e| e.to_string())?;
+        let pinned_state = Arc::new(Mutex::new(OwlPinnedState {
+            words: HashMap::new(),
+            enabled: true,
+            traditional: false,
+            active_input: String::new(),
+            caret_at_end: true,
+        }));
+        runtime.set_candidate_transform(Some(Box::new(OwlPinnedTransform {
+            state: Arc::clone(&pinned_state),
+        })));
 
         Ok(Self {
             runtime,
@@ -342,12 +493,30 @@ impl OwlMsimeSession {
             page_size: page_size_u8,
             input_mode: "chinese".to_owned(),
             pinyin_scheme: "quanpin".to_owned(),
+            pinned_state,
             _temp_dir: temp_dir,
         })
     }
 
     pub fn snapshot(&self) -> SnapshotResponseDto {
         snapshot_from_view(self.runtime.view(), false, None, false)
+    }
+
+    fn sync_pinned_state_for_upcoming_input(&self, next_input: String, caret_at_end: bool) {
+        if let Ok(mut guard) = self.pinned_state.lock() {
+            guard.enabled = self.input_mode == "chinese" && self.pinyin_scheme == "quanpin";
+            guard.active_input = next_input;
+            guard.caret_at_end = caret_at_end;
+        }
+    }
+
+    fn sync_pinned_state_from_view(&self, view: &View) {
+        if let Ok(mut guard) = self.pinned_state.lock() {
+            guard.enabled = self.input_mode == "chinese" && self.pinyin_scheme == "quanpin";
+            guard.active_input = view.editing_text.clone();
+            guard.caret_at_end =
+                view.phrase_prefix.is_empty() && view.caret_position == view.editing_text.len();
+        }
     }
 
     fn rebuild_engine_if_needed(&mut self) -> Result<(), String> {
@@ -378,6 +547,9 @@ impl OwlMsimeSession {
             .runtime
             .set_dedicated_english(dedicated_english)
             .map_err(|e| e.to_string())?;
+        if let Ok(mut guard) = self.pinned_state.lock() {
+            guard.enabled = self.input_mode == "chinese" && self.pinyin_scheme == "quanpin";
+        }
         Ok(())
     }
 
@@ -400,45 +572,177 @@ impl OwlMsimeSession {
                 }
                 let byte = ch as u8;
                 let shift = byte.is_ascii_uppercase();
+                let before = self.runtime.view();
+                let caret = before.caret_position.min(before.editing_text.len());
+                let mut next_input = before.editing_text.clone();
+                next_input.insert(caret, ch);
+                let next_caret_at_end =
+                    before.phrase_prefix.is_empty() && (caret + 1 == next_input.len());
+                self.sync_pinned_state_for_upcoming_input(next_input, next_caret_at_end);
                 match self.runtime.dispatch(Action::Character { value: byte, shift }) {
-                    Ok(transition) => snapshot_from_view(
+                    Ok(transition) => {
+                        self.sync_pinned_state_from_view(&transition.view);
+                        snapshot_from_view(
+                            transition.view,
+                            transition.handled,
+                            transition.commit,
+                            false,
+                        )
+                    }
+                    Err(err) => error_response(err.to_string()),
+                }
+            }
+            "backspace" => {
+                let before = self.runtime.view();
+                let caret = before.caret_position.min(before.editing_text.len());
+                let mut next_input = before.editing_text.clone();
+                let next_caret_at_end = if caret > 0 && caret <= next_input.len() {
+                    next_input.remove(caret - 1);
+                    before.phrase_prefix.is_empty() && (caret - 1 == next_input.len())
+                } else {
+                    false
+                };
+                self.sync_pinned_state_for_upcoming_input(next_input, next_caret_at_end);
+                match self.runtime.dispatch(Action::Command(Command::Backspace)) {
+                    Ok(transition) => {
+                        self.sync_pinned_state_from_view(&transition.view);
+                        snapshot_from_view(
+                            transition.view,
+                            transition.handled,
+                            transition.commit,
+                            false,
+                        )
+                    }
+                    Err(err) => error_response(err.to_string()),
+                }
+            }
+            "punctuation" => {
+                let Some(ch_str) = payload.ch.as_deref() else {
+                    return error_response("punctuation requires ch");
+                };
+                let Some(ch) = ch_str.chars().next() else {
+                    return error_response("punctuation ch is empty");
+                };
+                if !ch.is_ascii() {
+                    return snapshot_from_view(self.runtime.view(), false, None, false);
+                }
+                let byte = ch as u8;
+                let use_ascii = payload.ascii.unwrap_or(false) || !self.options.chinese_punctuation;
+                let action = if use_ascii {
+                    Action::PunctuationAscii(byte)
+                } else {
+                    Action::Punctuation(byte)
+                };
+                match self.runtime.dispatch(action) {
+                    Ok(transition) => {
+                        self.sync_pinned_state_from_view(&transition.view);
+                        snapshot_from_view(
+                            transition.view,
+                            transition.handled,
+                            transition.commit,
+                            false,
+                        )
+                    }
+                    Err(err) => error_response(err.to_string()),
+                }
+            }
+            "move_caret" => {
+                let cmd = match payload.target.as_deref() {
+                    Some("home") => Command::MoveHome,
+                    Some("end") => Command::MoveEnd,
+                    Some("left") => Command::MoveLeft,
+                    Some("right") => Command::MoveRight,
+                    _ => {
+                        let delta = payload.delta.unwrap_or(0);
+                        if delta < 0 {
+                            Command::MoveLeft
+                        } else if delta > 0 {
+                            Command::MoveRight
+                        } else {
+                            return snapshot_from_view(self.runtime.view(), false, None, false);
+                        }
+                    }
+                };
+                let before = self.runtime.view();
+                let next_caret = match cmd {
+                    Command::MoveHome => 0,
+                    Command::MoveEnd => before.editing_text.len(),
+                    Command::MoveLeft => before.caret_position.saturating_sub(1),
+                    Command::MoveRight => (before.caret_position + 1).min(before.editing_text.len()),
+                    _ => before.caret_position,
+                };
+                self.sync_pinned_state_for_upcoming_input(
+                    before.editing_text.clone(),
+                    before.phrase_prefix.is_empty() && next_caret == before.editing_text.len(),
+                );
+                match self.runtime.dispatch(Action::Command(cmd)) {
+                    Ok(transition) => {
+                        self.sync_pinned_state_from_view(&transition.view);
+                        snapshot_from_view(
+                            transition.view,
+                            transition.handled,
+                            transition.commit,
+                            false,
+                        )
+                    }
+                    Err(err) => error_response(err.to_string()),
+                }
+            }
+            "set_caret" => {
+                let Some(pos) = payload.pos else {
+                    return error_response("set_caret requires pos");
+                };
+                let before = self.runtime.view();
+                let clamped = pos.min(before.editing_text.len());
+                self.sync_pinned_state_for_upcoming_input(
+                    before.editing_text.clone(),
+                    before.phrase_prefix.is_empty() && clamped == before.editing_text.len(),
+                );
+                if clamped == before.editing_text.len() {
+                    return match self.runtime.dispatch(Action::Command(Command::MoveEnd)) {
+                        Ok(transition) => {
+                            self.sync_pinned_state_from_view(&transition.view);
+                            snapshot_from_view(transition.view, true, transition.commit, false)
+                        }
+                        Err(err) => error_response(err.to_string()),
+                    };
+                }
+                match self.runtime.set_caret(Some(clamped)) {
+                    Ok(()) => {
+                        let view = self.runtime.view();
+                        self.sync_pinned_state_from_view(&view);
+                        snapshot_from_view(view, true, None, false)
+                    }
+                    Err(err) => error_response(err.to_string()),
+                }
+            }
+            "commit_raw" => match self.runtime.dispatch(Action::Command(Command::CommitRaw)) {
+                Ok(transition) => {
+                    self.sync_pinned_state_from_view(&transition.view);
+                    snapshot_from_view(
                         transition.view,
                         transition.handled,
                         transition.commit,
                         false,
-                    ),
-                    Err(err) => error_response(err.to_string()),
+                    )
                 }
-            }
-            "backspace" => match self.runtime.dispatch(Action::Command(Command::Backspace)) {
-                Ok(transition) => snapshot_from_view(
-                    transition.view,
-                    transition.handled,
-                    transition.commit,
-                    false,
-                ),
-                Err(err) => error_response(err.to_string()),
-            },
-            "commit_raw" => match self.runtime.dispatch(Action::Command(Command::CommitRaw)) {
-                Ok(transition) => snapshot_from_view(
-                    transition.view,
-                    transition.handled,
-                    transition.commit,
-                    false,
-                ),
                 Err(err) => error_response(err.to_string()),
             },
             "space" => match self.runtime.dispatch(Action::SelectHighlighted) {
-                Ok(transition) => snapshot_from_view(
-                    transition.view,
-                    transition.handled,
-                    transition.commit,
-                    false,
-                ),
+                Ok(transition) => {
+                    self.sync_pinned_state_from_view(&transition.view);
+                    snapshot_from_view(
+                        transition.view,
+                        transition.handled,
+                        transition.commit,
+                        false,
+                    )
+                }
                 Err(err) => error_response(err.to_string()),
             },
             "clear" => {
                 let had_input = !self.runtime.view().editing_text.is_empty();
+                self.sync_pinned_state_for_upcoming_input(String::new(), true);
                 match self.runtime.dispatch(Action::Command(Command::Cancel)) {
                     Ok(transition) => snapshot_from_view(
                         transition.view,
@@ -509,14 +813,104 @@ impl OwlMsimeSession {
                 };
                 let id = candidate.id;
                 match self.runtime.dispatch(Action::Select(id)) {
-                    Ok(transition) => snapshot_from_view(
-                        transition.view,
-                        transition.handled,
-                        transition.commit,
-                        false,
-                    ),
+                    Ok(transition) => {
+                        self.sync_pinned_state_from_view(&transition.view);
+                        snapshot_from_view(
+                            transition.view,
+                            transition.handled,
+                            transition.commit,
+                            false,
+                        )
+                    }
                     Err(err) => error_response(err.to_string()),
                 }
+            }
+            "select_token" => {
+                let Some(index) = payload.index else {
+                    return error_response("select_token requires index");
+                };
+                let view = self.runtime.view();
+                let token_gen = payload.generation.unwrap_or(view.generation);
+                if payload.generation.is_some() && token_gen != view.generation {
+                    return snapshot_from_view(view, false, None, false);
+                }
+                let is_absolute = payload.is_absolute.unwrap_or(false);
+                let action = if is_absolute {
+                    Action::SelectAnyCandidate(CandidateId {
+                        session: view.session,
+                        generation: token_gen,
+                        index,
+                    })
+                } else {
+                    let Some(candidate) = view.candidates.get(index) else {
+                        return snapshot_from_view(view, false, None, false);
+                    };
+                    Action::Select(candidate.id)
+                };
+                match self.runtime.dispatch(action) {
+                    Ok(transition) => {
+                        self.sync_pinned_state_from_view(&transition.view);
+                        snapshot_from_view(
+                            transition.view,
+                            transition.handled,
+                            transition.commit,
+                            false,
+                        )
+                    }
+                    Err(_) => snapshot_from_view(self.runtime.view(), false, None, false),
+                }
+            }
+            "peek_candidates" => {
+                let start = payload.start.unwrap_or(0);
+                let count = payload.count.unwrap_or(0);
+                let all = self.runtime.all_candidates();
+                let view = self.runtime.view();
+                let input_len = view.editing_text.len();
+                let mut dto = snapshot_from_view(view, true, None, false);
+                dto.generation = all.generation;
+                dto.candidates = all
+                    .candidates
+                    .into_iter()
+                    .skip(start)
+                    .take(count)
+                    .map(|c| {
+                        let comment = c
+                            .script_annotation
+                            .filter(|s| !s.is_empty())
+                            .or_else(|| (!c.annotation.is_empty()).then_some(c.annotation));
+                        CandidateDto {
+                            text: c.text,
+                            comment,
+                            kind: "Phrase".to_owned(),
+                            input_len,
+                        }
+                    })
+                    .collect();
+                dto
+            }
+            "set_pinned_words" => {
+                let packed = payload.text.unwrap_or_default();
+                let mut parsed: HashMap<(String, bool), Vec<String>> = HashMap::new();
+                for line in packed.lines() {
+                    let mut parts = line.splitn(3, '\t');
+                    let (Some(code), Some(mode), Some(word)) =
+                        (parts.next(), parts.next(), parts.next())
+                    else {
+                        continue;
+                    };
+                    if code.is_empty() || word.is_empty() {
+                        continue;
+                    }
+                    let trad = mode == "1";
+                    parsed
+                        .entry((code.to_owned(), trad))
+                        .or_default()
+                        .push(word.to_owned());
+                }
+                if let Ok(mut guard) = self.pinned_state.lock() {
+                    guard.words = parsed;
+                }
+                snapshot_from_view(self.runtime.view(), true, None, false)
             }
             "set_input_mode" => {
                 let Some(mode) = payload.mode else {
@@ -556,10 +950,27 @@ impl OwlMsimeSession {
                 match name {
                     "ascii_punct" => {
                         self.options.chinese_punctuation = !value;
+                        let _ = self.runtime.set_chinese_punctuation_enabled(!value);
                     }
                     "emoji_suggestion" => {
                         self.options.mixed_emoji = value;
                         self.options.local_emoji = value;
+                    }
+                    "traditional" | "traditionalization" | "zh_trad" | "transcription" => {
+                        if let Ok(mut guard) = self.pinned_state.lock() {
+                            guard.traditional = value;
+                        }
+                    }
+                    "simplification" => {
+                        if let Ok(mut guard) = self.pinned_state.lock() {
+                            guard.traditional = !value;
+                        }
+                    }
+                    "vertical" => {
+                        self.runtime.set_vertical_candidates(value);
+                    }
+                    "linear" => {
+                        self.runtime.set_vertical_candidates(!value);
                     }
                     _ => {}
                 }
@@ -830,6 +1241,115 @@ mod tests {
         assert!(!post_destroy_snap.ok);
         let post_destroy_act = call_action(session, "{\"op\":\"space\"}");
         assert!(!post_destroy_act.ok);
+    }
+
+    #[test]
+    fn supports_tokens_peek_pinned_words_punctuation_and_caret() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&db_path);
+        let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+        let c_empty = CString::new("").unwrap();
+
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_empty.as_ptr(), 5);
+        assert!(!session.is_null());
+
+        // Pin "拟好" to the front for "ni hao"
+        let pin_res = call_action(
+            session,
+            r#"{"op":"set_pinned_words","text":"nihao\t0\t拟好"}"#,
+        );
+        assert!(pin_res.ok);
+
+        for ch in ['n', 'i', 'h', 'a', 'o'] {
+            let _ = call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+        }
+
+        let snap = call_snapshot(session);
+        assert!(snap.ok);
+        assert_eq!(snap.raw_input, "nihao");
+        assert_eq!(snap.preedit, "ni'hao");
+        assert_eq!(snap.caret_position, 5);
+        assert_eq!(snap.preedit_caret_byte, 6);
+        assert!(snap.generation > 0);
+        assert_eq!(snap.candidates[0].text, "拟好");
+        assert_eq!(snap.candidates[0].comment.as_deref(), Some("置顶"));
+
+        // Peek candidates across pages
+        let peeked = call_action(
+            session,
+            r#"{"op":"peek_candidates","start":0,"count":6}"#,
+        );
+        assert!(peeked.ok);
+        assert_eq!(peeked.candidates.len(), 6);
+        assert_eq!(peeked.candidates[0].text, "拟好");
+        assert_eq!(peeked.candidates[5].text, "逆号");
+
+        // Move caret left and home, then end
+        let moved_left = call_action(session, r#"{"op":"move_caret","target":"left"}"#);
+        assert!(moved_left.ok);
+        assert!(moved_left.consumed);
+        assert_eq!(moved_left.caret_position, 4);
+        assert_eq!(moved_left.preedit_caret_byte, 5);
+
+        let moved_home = call_action(session, r#"{"op":"move_caret","target":"home"}"#);
+        assert_eq!(moved_home.caret_position, 0);
+        assert_eq!(moved_home.preedit_caret_byte, 0);
+
+        let set_caret = call_action(session, r#"{"op":"set_caret","pos":5}"#);
+        assert_eq!(set_caret.caret_position, 5);
+        assert_eq!(set_caret.preedit_caret_byte, 6);
+
+        // Stale generation token must be rejected without committing
+        let stale_gen = snap.generation + 999;
+        let stale = call_action(
+            session,
+            &format!(
+                r#"{{"op":"select_token","index":0,"is_absolute":false,"generation":{stale_gen}}}"#
+            ),
+        );
+        assert!(stale.ok);
+        assert!(!stale.consumed);
+        assert!(stale.committed_text.is_none());
+
+        // Valid token selects pinned candidate ("拟好")
+        let cur_gen = call_snapshot(session).generation;
+        let selected_pinned = call_action(
+            session,
+            &format!(
+                r#"{{"op":"select_token","index":0,"is_absolute":false,"generation":{cur_gen}}}"#
+            ),
+        );
+        assert!(selected_pinned.ok);
+        assert!(selected_pinned.consumed);
+        assert_eq!(selected_pinned.committed_text.as_deref(), Some("拟好"));
+
+        // Absolute token across pages (index 5 -> "逆号")
+        for ch in ['n', 'i', 'h', 'a', 'o'] {
+            let _ = call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+        }
+        let gen2 = call_snapshot(session).generation;
+        let selected_abs = call_action(
+            session,
+            &format!(
+                r#"{{"op":"select_token","index":5,"is_absolute":true,"generation":{gen2}}}"#
+            ),
+        );
+        assert!(selected_abs.ok);
+        assert!(selected_abs.consumed);
+        assert_eq!(selected_abs.committed_text.as_deref(), Some("逆号"));
+
+        // Chinese punctuation while composing commits highlighted candidate + full-width punctuation
+        for ch in ['n', 'i', 'h', 'a', 'o'] {
+            let _ = call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+        }
+        let punct_cn = call_action(session, r#"{"op":"punctuation","ch":",","ascii":false}"#);
+        assert!(punct_cn.ok);
+        assert!(punct_cn.consumed);
+        assert_eq!(punct_cn.committed_text.as_deref(), Some("拟好，"));
+
+        owl_msime_session_destroy(session);
     }
 
     #[test]
