@@ -606,7 +606,7 @@ struct OwlSettingsView: View {
             options: [("标准", .full), ("隐藏注释", .noComment), ("仅候选", .candidateOnly)],
             palette: palette
           )
-          Text("标准=序号+候选+注释；隐藏注释=去掉拼音/释义；仅候选=只留候选字。法务徽章不受影响。")
+          Text("标准=序号+候选+注释；隐藏注释=去掉拼音/释义；仅候选=只留候选字。")
             .font(.system(size: 11))
             .foregroundStyle(palette.ink3)
         }
