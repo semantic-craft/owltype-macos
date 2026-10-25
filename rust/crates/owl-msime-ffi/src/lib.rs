@@ -13,8 +13,9 @@ use msime_engine::host::{
 };
 use msime_engine::{
     ensure_english_schema, fuzzy_rule, is_complete_pinyin_input, CandidateSource,
-    FrequencyAdjustmentMode, SchemeSet, SchemeType, SentenceAssociationOptions,
-    ShuangpinHelpcodeModes, ShuangpinProfileKind, WubiProfileKind,
+    reject_redirected_directory, roots_overlap, weakly_canonical, FrequencyAdjustmentMode,
+    SchemeSet, SchemeType, SentenceAssociationOptions, ShuangpinHelpcodeModes,
+    ShuangpinProfileKind, WubiProfileKind,
 };
 use msime_input_runtime::{
     Action, CandidateId, CandidateOps, CandidateTransform, Runtime, TransformRow, View,
@@ -448,68 +449,70 @@ struct SessionRoots {
     dictionaries: PathBuf,
 }
 
-fn preflight_explicit_root(raw: &str, label: &str) -> Result<PathBuf, String> {
+fn absolute_explicit_root(raw: &str, label: &str) -> Result<PathBuf, String> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         return Err(format!("{label} is empty"));
     }
     let raw_path = PathBuf::from(trimmed);
-    let absolute = if raw_path.is_absolute() {
-        raw_path
+    if raw_path.is_absolute() {
+        Ok(raw_path)
     } else {
-        std::env::current_dir()
+        Ok(std::env::current_dir()
             .map_err(|e| format!("failed to resolve {label} against cwd: {e}"))?
-            .join(raw_path)
-    };
-    let mut normalized = PathBuf::new();
-    for component in absolute.components() {
-        match component {
-            std::path::Component::RootDir | std::path::Component::Prefix(_) => {
-                normalized.push(component.as_os_str());
-            }
-            std::path::Component::CurDir => {}
-            std::path::Component::Normal(part) => normalized.push(part),
-            std::path::Component::ParentDir => {
-                return Err(format!("{label} must not contain '..': {}", absolute.display()));
-            }
-        }
-    }
-    let mut probe = normalized.as_path();
-    loop {
-        match fs::symlink_metadata(probe) {
-            Ok(_) => {
-                let canonical = fs::canonicalize(probe)
-                    .map_err(|e| format!("failed to resolve {label} ancestor {}: {e}", probe.display()))?;
-                if !canonical.is_dir() {
-                    return Err(format!(
-                        "{label} ancestor is not a directory: {}",
-                        canonical.display()
-                    ));
-                }
-                let suffix = normalized.strip_prefix(probe).map_err(|e| {
-                    format!("failed to resolve remaining {label} components: {e}")
-                })?;
-                return Ok(suffix
-                    .iter()
-                    .fold(canonical, |path, component| path.join(component)));
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                probe = probe
-                    .parent()
-                    .ok_or_else(|| format!("{label} has no existing ancestor"))?;
-            }
-            Err(error) => {
-                return Err(format!(
-                    "failed to inspect {label} ancestor {}: {error}",
-                    probe.display()
-                ));
-            }
-        }
+            .join(raw_path))
     }
 }
 
-fn paths_overlap(left: &Path, right: &Path) -> bool {
-    left == right || left.starts_with(right) || right.starts_with(left)
+fn resolved_explicit_root(absolute: &Path, label: &str) -> Result<PathBuf, String> {
+    weakly_canonical(absolute)
+        .map_err(|e| format!("failed to resolve {label} {}: {e}", absolute.display()))
+}
+
+fn prepare_explicit_roots(
+    resources: &str,
+    user: &str,
+    cache: &str,
+    dictionaries: &str,
+) -> Result<SessionRoots, String> {
+    let requested = [
+        ("resources_dir", absolute_explicit_root(resources, "resources_dir")?),
+        ("user_data_dir", absolute_explicit_root(user, "user_data_dir")?),
+        ("cache_dir", absolute_explicit_root(cache, "cache_dir")?),
+        (
+            "dictionaries_dir",
+            absolute_explicit_root(dictionaries, "dictionaries_dir")?,
+        ),
+    ];
+    for (label, path) in &requested {
+        reject_redirected_directory(path)
+            .map_err(|e| format!("failed to validate {label} {}: {e}", path.display()))?;
+    }
+    let planned = SessionRoots {
+        resources: resolved_explicit_root(&requested[0].1, requested[0].0)?,
+        user: resolved_explicit_root(&requested[1].1, requested[1].0)?,
+        cache: resolved_explicit_root(&requested[2].1, requested[2].0)?,
+        dictionaries: resolved_explicit_root(&requested[3].1, requested[3].0)?,
+    };
+    validate_explicit_roots(&planned)?;
+
+    let roots = SessionRoots {
+        resources: materialize_explicit_root(&planned.resources, "resources_dir")?,
+        user: materialize_explicit_root(&planned.user, "user_data_dir")?,
+        cache: materialize_explicit_root(&planned.cache, "cache_dir")?,
+        dictionaries: materialize_explicit_root(&planned.dictionaries, "dictionaries_dir")?,
+    };
+    for (label, path) in &requested {
+        reject_redirected_directory(path).map_err(|e| {
+            format!(
+                "failed to revalidate {label} {} after creation: {e}",
+                path.display()
+            )
+        })?;
+    }
+    // Re-check after following any symlink changes made between planning and creation.
+    validate_explicit_roots(&roots)?;
+    Ok(roots)
 }
 
 fn validate_explicit_roots(roots: &SessionRoots) -> Result<(), String> {
@@ -521,7 +524,7 @@ fn validate_explicit_roots(roots: &SessionRoots) -> Result<(), String> {
         (&roots.user, &roots.dictionaries),
         (&roots.cache, &roots.dictionaries),
     ] {
-        if paths_overlap(left, right) {
+        if roots_overlap(left, right) {
             return Err(format!(
                 "session roots overlap: {} and {}",
                 left.display(),
@@ -539,30 +542,6 @@ fn materialize_explicit_root(path: &Path, label: &str) -> Result<PathBuf, String
         .map_err(|e| format!("failed to canonicalize {label} {}: {e}", path.display()))
 }
 
-fn prepare_explicit_roots(
-    resources: &str,
-    user: &str,
-    cache: &str,
-    dictionaries: &str,
-) -> Result<SessionRoots, String> {
-    let planned = SessionRoots {
-        resources: preflight_explicit_root(resources, "resources_dir")?,
-        user: preflight_explicit_root(user, "user_data_dir")?,
-        cache: preflight_explicit_root(cache, "cache_dir")?,
-        dictionaries: preflight_explicit_root(dictionaries, "dictionaries_dir")?,
-    };
-    validate_explicit_roots(&planned)?;
-
-    let roots = SessionRoots {
-        resources: materialize_explicit_root(&planned.resources, "resources_dir")?,
-        user: materialize_explicit_root(&planned.user, "user_data_dir")?,
-        cache: materialize_explicit_root(&planned.cache, "cache_dir")?,
-        dictionaries: materialize_explicit_root(&planned.dictionaries, "dictionaries_dir")?,
-    };
-    // Re-check after following any symlink changes made between planning and creation.
-    validate_explicit_roots(&roots)?;
-    Ok(roots)
-}
 
 fn resolve_pinyin_source(raw: &str) -> Result<PathBuf, String> {
     let trimmed = raw.trim();
@@ -2206,6 +2185,48 @@ mod tests {
                 .as_deref()
                 .is_some_and(|message| message.contains("pinyin_db_path"))
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn explicit_roots_reject_redirected_directories_before_creation() {
+        use std::os::unix::fs::symlink;
+
+        for redirected in ["resources", "user", "cache", "dictionaries"] {
+            let tmp = TempDir::new().unwrap();
+            let outside = TempDir::new().unwrap();
+            let pinyin = tmp.path().join("test-pinyin.db");
+            build_minimal_test_pinyin_db(&pinyin);
+            let linked = tmp.path().join(redirected);
+            symlink(outside.path(), &linked).unwrap();
+
+            let root = |name: &str| {
+                if name == redirected {
+                    linked.clone()
+                } else {
+                    tmp.path().join(name)
+                }
+            };
+            let (session, error) = create_with_explicit_roots(
+                &pinyin,
+                &root("resources"),
+                &root("user"),
+                &root("cache"),
+                &root("dictionaries"),
+            );
+            assert!(session.is_null(), "{redirected}");
+            assert!(
+                error
+                    .as_deref()
+                    .is_some_and(|message| message.contains("symbolic-link ancestor")),
+                "{redirected}: {error:?}"
+            );
+            assert_eq!(
+                fs::read_dir(outside.path()).unwrap().count(),
+                0,
+                "{redirected} must be rejected without writing through the link"
+            );
+        }
     }
 
     #[test]
