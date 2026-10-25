@@ -69,6 +69,10 @@ pass_clean "installed app carries GPL license and third-party notices"
 python3 "$ROOT/scripts/check-rust-delivery.py" "$APP"
 pass_clean "installed app delivers the Rust engine and complete SQLite resources"
 
+python3 "$ROOT/scripts/fetch-rerank-models.py" --check \
+  --out "$APP/Contents/SharedSupport/msime/models"
+pass_clean "installed app rerank models and notices match the lock"
+
 # 五笔/简体拼音/小鹤双拼不进包是方案B的设计，但必须由 dictpack 清单兜住——清单一旦漏项，
 # 新用户首启拉不到这些方案，而包里也没有，等于永久缺失（本机看不出来：老用户目录有历史文件垫着）。
 DICTPACK_MANIFEST="$ROOT/sources/DictPack/OwlDictPackManifestData.swift"

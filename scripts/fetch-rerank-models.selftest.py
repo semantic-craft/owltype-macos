@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -118,6 +119,11 @@ class FetcherSelfTest(unittest.TestCase):
         (self.sources / "sentence-model-desktop.safetensors").write_bytes(settled)
 
     def run_fetcher(self, *arguments: str) -> subprocess.CompletedProcess[str]:
+        return self.run_fetcher_for(self.output, *arguments)
+
+    def run_fetcher_for(
+        self, output: Path, *arguments: str
+    ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [
                 sys.executable,
@@ -125,7 +131,7 @@ class FetcherSelfTest(unittest.TestCase):
                 "--lock",
                 str(self.lock),
                 "--out",
-                str(self.output),
+                str(output),
                 *arguments,
             ],
             text=True,
@@ -257,6 +263,56 @@ class FetcherSelfTest(unittest.TestCase):
         passed = self.run_fetcher("--check")
         self.assertEqual(passed.returncode, 0, passed.stderr)
         self.assert_output_materialized()
+
+    def test_check_targets_the_app_not_a_valid_source_cache(self) -> None:
+        self.write_sources()
+        source_cache = self.root / "data/owl-rime/msime/models"
+        materialized = self.run_fetcher_for(
+            source_cache, "--source-dir", str(self.sources)
+        )
+        self.assertEqual(materialized.returncode, 0, materialized.stderr)
+        source_check = self.run_fetcher_for(source_cache, "--check")
+        self.assertEqual(source_check.returncode, 0, source_check.stderr)
+
+        app_models = (
+            self.root / "Owltype.app/Contents/SharedSupport/msime/models"
+        )
+        shutil.copytree(source_cache, app_models)
+        keyboard = app_models / "keyboard-model.bin"
+        keyboard.unlink()
+        missing = self.run_fetcher_for(app_models, "--check")
+        self.assertNotEqual(missing.returncode, 0)
+        self.assertIn("keyboard-model.bin", missing.stderr)
+
+        shutil.copy2(source_cache / keyboard.name, keyboard)
+        copied = self.run_fetcher_for(app_models, "--check")
+        self.assertEqual(copied.returncode, 0, copied.stderr)
+        (app_models / "settled-model.bin").write_bytes(
+            b"X" * len(self.payloads["settled"])
+        )
+        damaged = self.run_fetcher_for(app_models, "--check")
+        self.assertNotEqual(damaged.returncode, 0)
+        self.assertIn("settled", damaged.stderr)
+
+    def test_release_gates_check_bundle_model_directories(self) -> None:
+        expected = {
+            ROOT / "scripts/finalize-release-bundle.py": (
+                '"--out"',
+                'str(app / "Contents/SharedSupport/msime/models")',
+            ),
+            ROOT / "scripts/check-release.sh": (
+                '--out "$APP/Contents/SharedSupport/msime/models"',
+                '--out "$pkg_app/Contents/SharedSupport/msime/models"',
+            ),
+            ROOT / "scripts/check-installed.sh": (
+                '--out "$APP/Contents/SharedSupport/msime/models"',
+            ),
+        }
+        for path, fragments in expected.items():
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("fetch-rerank-models.py", text, path.name)
+            for fragment in fragments:
+                self.assertIn(fragment, text, path.name)
 
     def test_symlink_output_is_not_accepted_as_materialized(self) -> None:
         self.write_sources()
