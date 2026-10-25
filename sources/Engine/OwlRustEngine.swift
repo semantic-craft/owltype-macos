@@ -317,6 +317,9 @@ final class OwlRustSession: RimeSession {
     if keycode >= UInt32(XK_1) && keycode <= UInt32(XK_9) {
       return Int(keycode - UInt32(XK_1))
     }
+    if keycode >= UInt32(XK_KP_1) && keycode <= UInt32(XK_KP_9) {
+      return Int(keycode - UInt32(XK_KP_1))
+    }
     return nil
   }
 

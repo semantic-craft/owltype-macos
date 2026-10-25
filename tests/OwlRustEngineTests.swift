@@ -178,6 +178,18 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertFalse(session.process(keycode: UInt32(XK_a), modifiers: 0))
   }
 
+  func testKeypadDigitSelectsVisibleCandidate() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+    for scalar in "nihao".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    let expected = try XCTUnwrap(session.composition()?.candidates.first?.text)
+    XCTAssertTrue(session.process(keycode: UInt32(XK_KP_1), modifiers: 0))
+    XCTAssertEqual(session.takeCommit(), expected)
+  }
+
   func testTraditionalOutputMatchesVisibleAndPeekedCandidatesAndCanBeDisabled() throws {
     let engine = try makeSharedSupportSeedEngine()
     let session = engine.createSession()
