@@ -452,10 +452,12 @@ final class OwlModernUISmokeTests: XCTestCase {
       onRedeploy: { true },
       onApplyKeyboardConfigFast: { .init(written: [], succeeded: true) },
       onApplyFuzzyConfigFast: { .init(written: [], succeeded: true) },
-      onSyncUserData: {},
-      onMigrateLegacyUserData: {},
-      onResetUserDict: {},
-      onChooseSyncDirectory: {},
+      userDataActions: .init(
+        sync: {},
+        migrateLegacy: {},
+        resetUserDict: {},
+        chooseSyncDirectory: {}
+      ),
       onOpenRimeFolder: {},
       onOpenLog: {},
       onShowOnboarding: {},
@@ -471,10 +473,12 @@ final class OwlModernUISmokeTests: XCTestCase {
       onRedeploy: { true },
       onApplyKeyboardConfigFast: { .init(written: [], succeeded: true) },
       onApplyFuzzyConfigFast: { .init(written: [], succeeded: true) },
-      onSyncUserData: {},
-      onMigrateLegacyUserData: {},
-      onResetUserDict: {},
-      onChooseSyncDirectory: {},
+      userDataActions: .init(
+        sync: {},
+        migrateLegacy: {},
+        resetUserDict: {},
+        chooseSyncDirectory: {}
+      ),
       onOpenRimeFolder: {},
       onOpenLog: {},
       onShowOnboarding: {},
