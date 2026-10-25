@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "upstream": {
+    "project": "chinese-ime-lm",
+    "repository": "https://github.com/metasequoiaime/chinese-ime-lm",
+    "release": "model-v1",
+    "release_url": "https://github.com/metasequoiaime/chinese-ime-lm/releases/tag/model-v1",
+    "source_commit": "15caab4fdeb59c11f452b91884371cf30e2e5608",
+    "msime_pin": "09e3d53c16eb11420bef708c35d425c31eff41e2",
+    "license": "Apache-2.0",
+    "license_file": "licenses/chinese-ime-lm-model-Apache-2.0.txt",
+    "license_size": 11358,
+    "license_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "notice_file": "licenses/chinese-ime-lm-model-NOTICE.txt",
+    "notice_size": 1525,
+    "notice_sha256": "b9489e8c8e3a271bf23131a57a7323264847d57561d36fc135101bf1eefd32f2"
+  },
+  "deployment": {
+    "directory": "data/owl-rime/msime/models",
+    "license_name": "LICENSE-Apache-2.0.txt",
+    "notice_name": "NOTICE.txt"
+  },
+  "models": [
+    {
+      "role": "keyboard",
+      "upstream_preset": "keyboard",
+      "upstream_name": "sentence-model.safetensors",
+      "output_name": "keyboard-model.bin",
+      "format": "safetensors",
+      "description": "Synchronous candidate reranking on the keyboard path.",
+      "url": "https://github.com/metasequoiaime/chinese-ime-lm/releases/download/model-v1/sentence-model.safetensors",
+      "size": 4486280,
+      "sha256": "86ac529510cb3b4968a5e6ade83ec8080f5b34a0a681e75c362accbbd387d1c1"
+    },
+    {
+      "role": "settled",
+      "upstream_preset": "desktop",
+      "upstream_name": "sentence-model-desktop.safetensors",
+      "output_name": "settled-model.bin",
+      "format": "safetensors",
+      "description": "Reranking after typing pauses; disabled by default by the host setting.",
+      "url": "https://github.com/metasequoiaime/chinese-ime-lm/releases/download/model-v1/sentence-model-desktop.safetensors",
+      "size": 25480184,
+      "sha256": "0a6ecba69bf1d39c7eb49549c716477dd6c03fdf05757773e1f50435262fb469"
+    }
+  ]
+}

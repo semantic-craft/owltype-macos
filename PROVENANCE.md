@@ -14,6 +14,10 @@
 - **水杉输入法 Metasequoia IME (`msime`)** —— <https://github.com/metasequoiaime/msime>（GPLv3）
   Rust 输入引擎与运行时 crate（`rust/crates/`，经窄 C-ABI 静态链接入 `Owltype.app`），以及配套语言模型库
   `chinese-ime-lm`（<https://github.com/metasequoiaime/chinese-ime-lm>，GPLv3）。
+- **chinese-ime-lm 模型权重** —— [`model-v1`](https://github.com/metasequoiaime/chinese-ime-lm/releases/tag/model-v1)
+  （Apache-2.0；不是该项目的 GPLv3 代码许可）。固定 keyboard 与 settled 两个 safetensors，
+  训练语料为 C4 中文部分（ODC-BY）与 LCCC（MIT）；署名随权重元数据和
+  [`NOTICE`](resources/licenses/chinese-ime-lm-model-NOTICE.txt) 一同保留。
 
 ## 内置数据与方案 Bundled data & schemas
 
