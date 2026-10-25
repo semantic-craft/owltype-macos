@@ -325,3 +325,11 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Done right：只处理调用方拥有的临时目录，不停止进程、不重建数据库；正式安装与其他工作区不在清理范围。
 - Verify (验证点)：运行 cleanup_app_registrations 的回归，检查运行中副本、符号链接、注销失败及嵌套／重复记录；真实隔离 App 验证另记 PR，模拟测试不替代本机证据。
 - Seen 1x (2026-10-23)。
+
+## 被动候选预取不能改变已发布的选择身份
+
+- 起因与后果：#266 的 Rust FFI `peek_candidates` 调用会展开候选的 `all_candidates`，在单字母候选超过初始上限时推进代次；控制器先取得当前页，再预取相邻页，旧文本可能被配上新代次 token。
+- 修复：被动预取只读取当前缓存；显式翻页仍负责释放后续候选。不得仅更新代次而保留旧页快照。
+- 回归与证据：`peek_preserves_published_generation_and_selection_with_withheld_candidates` 使用真实 FFI、SQLite 合成词库与单字母输入；修前代次从 3 变为 4 导致失败，修后同代次选择提交可见词，继续翻页能访问第 24 项之后的候选。
+- Verify (验证点)：`cargo test --locked --manifest-path rust/Cargo.toml -p owl-msime-ffi`；该结果只证明 FFI 行为，真实安装宿主验收另记对应 PR。
+- Seen 1x (2026-10-25)。

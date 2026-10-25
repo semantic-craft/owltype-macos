@@ -863,7 +863,7 @@ impl OwlMsimeSession {
             "peek_candidates" => {
                 let start = payload.start.unwrap_or(0);
                 let count = payload.count.unwrap_or(0);
-                let all = self.runtime.all_candidates();
+                let all = self.runtime.all_candidates_cached();
                 let view = self.runtime.view();
                 let input_len = view.editing_text.len();
                 let mut dto = snapshot_from_view(view, true, None, false);
@@ -1241,6 +1241,54 @@ mod tests {
         assert!(!post_destroy_snap.ok);
         let post_destroy_act = call_action(session, "{\"op\":\"space\"}");
         assert!(!post_destroy_act.ok);
+    }
+
+    #[test]
+    fn peek_preserves_published_generation_and_selection_with_withheld_candidates() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&db_path);
+        let conn = Connection::open(&db_path).unwrap();
+        for index in 0..60 {
+            let word = char::from_u32(0x4e00 + index).unwrap().to_string();
+            conn.execute(
+                "INSERT INTO tbl_1_n (key, jp, value, weight) VALUES ('ni', 'n', ?1, ?2)",
+                rusqlite::params![word, 10000 - index],
+            ).unwrap();
+        }
+        drop(conn);
+        let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let session = owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_empty.as_ptr(), 5);
+        assert!(!session.is_null());
+        call_action(session, r#"{"op":"insert","ch":"n"}"#);
+        call_action(session, r#"{"op":"turn_page","delta":1}"#);
+        let before = call_snapshot(session);
+        let expected = before.candidates[0].text.clone();
+        let peek = call_action(session, r#"{"op":"peek_candidates","start":10,"count":20}"#);
+        let after = call_snapshot(session);
+        assert_eq!(peek.generation, before.generation, "passive prefetch must not expand or retag displayed rows");
+        assert_eq!(after.generation, before.generation);
+        assert_eq!(after.page, before.page);
+        assert_eq!(after.candidates[0].text, expected);
+        let selected = call_action(session, &format!(
+            r#"{{"op":"select_token","index":0,"generation":{}}}"#, before.generation
+        ));
+        assert_eq!(selected.committed_text.as_deref(), Some(expected.as_str()));
+        // The passive read must not permanently hide the withheld tail: real paging still releases it.
+        call_action(session, r#"{"op":"insert","ch":"n"}"#);
+        for _ in 0..6 {
+            call_action(session, r#"{"op":"turn_page","delta":1}"#);
+        }
+        let tail = call_snapshot(session);
+        assert!(tail.page >= 5, "paging must reach beyond the initial 24 candidates");
+        let tail_text = tail.candidates[0].text.clone();
+        let absolute = call_action(session, &format!(
+            r#"{{"op":"select_token","index":{},"is_absolute":true,"generation":{}}}"#,
+            tail.page * tail.page_size, tail.generation
+        ));
+        assert_eq!(absolute.committed_text.as_deref(), Some(tail_text.as_str()));
+        owl_msime_session_destroy(session);
     }
 
     #[test]
