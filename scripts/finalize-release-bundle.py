@@ -42,6 +42,8 @@ REQUIRED_LICENSES = {
     "Contents/SharedSupport/licenses/LGPL-3.0-only.txt",
     "Contents/SharedSupport/licenses/MIT.txt",
     "Contents/SharedSupport/licenses/Unicode-3.0.txt",
+    "Contents/SharedSupport/msime/models/LICENSE-Apache-2.0.txt",
+    "Contents/SharedSupport/msime/models/NOTICE.txt",
     "Contents/SharedSupport/phrase-pinyin-data.LICENSE",
     "Contents/SharedSupport/plum.LICENSE",
     "Contents/SharedSupport/rime-ice-Credits.md",
@@ -131,6 +133,10 @@ def main() -> None:
     subprocess.run([sys.executable, str(ROOT / "scripts/build-sparkle.py"), "--check",
                     str(app / "Contents/Frameworks/Sparkle.framework")], check=True)
     verify_seed(app)
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts/fetch-rerank-models.py"), "--check"],
+        check=True,
+    )
     subprocess.run(
         [sys.executable, str(ROOT / "scripts/check-rust-delivery.py"), str(app)],
         check=True,

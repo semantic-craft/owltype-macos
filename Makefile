@@ -51,6 +51,7 @@ BUILD_SETTINGS += COMPILER_INDEX_STORE_ENABLE=YES
 # Assemble the pinned dictionary inputs, including the Rust SQLite resources.
 owl-seed:
 	bash scripts/owl-seed.sh
+	python3 scripts/fetch-rerank-models.py
 
 # Merge the assembled seed into the built app's SharedSupport. The Rust engine
 # cannot start without its SQLite resources, so a missing seed is a hard failure.
