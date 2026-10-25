@@ -375,6 +375,16 @@ impl Runtime<Session> {
         self.refresh()
     }
 
+    /// Recompute the open composition after the candidate-emoji preference changes.
+    pub fn set_mixed_emoji_candidates(&mut self, enabled: bool) -> Result<(), RuntimeError> {
+        if self.engine.mixed_emoji_candidates_enabled() == enabled {
+            return Ok(());
+        }
+        self.advance()?;
+        InputEngine::set_mixed_emoji_candidates(&mut self.engine, enabled)?;
+        self.refresh()
+    }
+
     /// A live host mode changes neither composition nor candidate identity.
     pub fn set_chinese_punctuation_enabled(&mut self, enabled: bool) -> Result<(), RuntimeError> {
         self.engine
