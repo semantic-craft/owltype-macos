@@ -1,10 +1,12 @@
 const SLASH_SYMBOLS: &[&str] = &["、", "/", "／", "÷"];
 const ANGLE_SYMBOLS: &[&str] = &["《", "〈", "<", "「", "“"];
+const CURRENCY_SYMBOLS: &[&str] = &["$", "¥"];
 
 pub(crate) fn candidates_for(trigger: char) -> Option<&'static [&'static str]> {
     match trigger {
         '/' => Some(SLASH_SYMBOLS),
         '<' => Some(ANGLE_SYMBOLS),
+        '$' => Some(CURRENCY_SYMBOLS),
         _ => None,
     }
 }

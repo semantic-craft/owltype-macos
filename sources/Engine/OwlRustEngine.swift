@@ -335,7 +335,7 @@ final class OwlRustSession: RimeSession {
     let hasActiveInput = !(latestSnapshot?.rawInput.isEmpty ?? true)
     syncRuntimePreferences(includeHostPhrases: false)
 
-    if let trigger = punctuationMenuTrigger(for: keycode) {
+    if let trigger = punctuationMenuTrigger(for: keycode, modifiers: modifiers) {
       return applyActionResponse(sendAction([
         "op": "punctuation_menu",
         "ch": trigger
@@ -362,8 +362,11 @@ final class OwlRustSession: RimeSession {
     return processActiveCompositionKey(keycode: keycode)
   }
 
-  private func punctuationMenuTrigger(for keycode: UInt32) -> String? {
+  private func punctuationMenuTrigger(for keycode: UInt32, modifiers: UInt32) -> String? {
     guard !(optionFlags[.asciiPunct] ?? false) else { return nil }
+    if keycode == UInt32(XK_4), (modifiers & kShiftMask.rawValue) != 0 {
+      return "$"
+    }
     if keycode == UInt32(XK_slash), OwlKeyboardPreferences.slashSymbolMenu {
       return "/"
     }
