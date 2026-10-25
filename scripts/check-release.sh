@@ -73,6 +73,10 @@ pass "Release app carries license and third-party notices"
 python3 "$ROOT/scripts/check-rust-delivery.py" "$APP"
 pass "Release app delivers the Rust engine without the legacy Rime runtime"
 
+python3 "$ROOT/scripts/fetch-rerank-models.py" --check \
+  --out "$APP/Contents/SharedSupport/msime/models"
+pass "Release app rerank models and notices match the lock"
+
 codesign_details=$(/usr/bin/codesign -dv --verbose=2 "$APP" 2>&1)
 if grep -q '^Authority=Developer ID Application:' <<<"$codesign_details"; then
   pass "Release app is Developer ID Application signed"
@@ -185,6 +189,10 @@ assert_installer_scripts() {
 
 python3 "$ROOT/scripts/check-rust-delivery.py" "$pkg_app"
 pass "pkg payload app delivers the Rust engine without the legacy Rime runtime"
+
+python3 "$ROOT/scripts/fetch-rerank-models.py" --check \
+  --out "$pkg_app/Contents/SharedSupport/msime/models"
+pass "pkg payload app rerank models and notices match the lock"
 
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$pkg_app"
 pass "pkg payload app codesign verifies"

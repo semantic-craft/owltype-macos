@@ -134,7 +134,13 @@ def main() -> None:
                     str(app / "Contents/Frameworks/Sparkle.framework")], check=True)
     verify_seed(app)
     subprocess.run(
-        [sys.executable, str(ROOT / "scripts/fetch-rerank-models.py"), "--check"],
+        [
+            sys.executable,
+            str(ROOT / "scripts/fetch-rerank-models.py"),
+            "--check",
+            "--out",
+            str(app / "Contents/SharedSupport/msime/models"),
+        ],
         check=True,
     )
     subprocess.run(
