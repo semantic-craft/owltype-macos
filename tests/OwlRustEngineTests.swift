@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import Carbon
 import SQLite3
 import XCTest
 @testable import Owltype
@@ -54,6 +55,36 @@ final class OwlRustEngineTests: XCTestCase {
         line: line
       )
     }
+  }
+
+  private func classifiedCapsLockTransition(
+    physicalLockBefore: Bool,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) throws -> (keycode: UInt32, modifiers: UInt32) {
+    let lastModifiers: NSEvent.ModifierFlags = physicalLockBefore ? [.capsLock] : []
+    let modifierFlags: NSEvent.ModifierFlags = physicalLockBefore ? [] : [.capsLock]
+    let event = OwlKeyEvent(
+      type: .flagsChanged,
+      keyCode: UInt16(kVK_CapsLock),
+      characters: nil,
+      charactersIgnoringModifiers: nil,
+      modifierFlags: modifierFlags,
+      lastModifiers: lastModifiers
+    )
+    guard case let .flagsChanged(revert, events, _, handled) =
+      OwlUserActionClassifier.classify(event) else {
+      XCTFail("Expected classified Caps Lock flagsChanged", file: file, line: line)
+      return (keycode: 0, modifiers: 0)
+    }
+    XCTAssertTrue(events.isEmpty, file: file, line: line)
+    XCTAssertFalse(handled, file: file, line: line)
+    guard let transition = revert else {
+      XCTFail("Expected a Caps Lock revert event", file: file, line: line)
+      return (keycode: 0, modifiers: 0)
+    }
+    XCTAssertEqual(transition.keycode, UInt32(XK_Caps_Lock), file: file, line: line)
+    return transition
   }
 
   private func asciiKeycode(_ character: Character) -> UInt32 {
@@ -861,7 +892,7 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertFalse(session.process(keycode: UInt32(XK_a), modifiers: 0))
   }
 
-  func testCapsLockTogglesASCIIModeAndCommitsInFlightComposition() throws {
+  func testCapsLockUsesClassifiedPreFlipLockStateAndCommitsInFlightComposition() throws {
     let engine = try makeSharedSupportSeedEngine()
     let originalShiftSwitch = OwlKeyboardPreferences.shiftSwitchCJK
     let originalGoodOldCapsLock = OwlKeyboardPreferences.goodOldCapsLock
@@ -871,29 +902,120 @@ final class OwlRustEngineTests: XCTestCase {
     }
 
     OwlKeyboardPreferences.shiftSwitchCJK = true
-    OwlKeyboardPreferences.goodOldCapsLock = false
-    let consumedSession = engine.createSession()
-    defer { consumedSession.destroy() }
-    typeText("ni", into: consumedSession)
+    let transition = try classifiedCapsLockTransition(physicalLockBefore: false)
+    XCTAssertEqual(transition.modifiers & kLockMask.rawValue, 0,
+                   "Caps Lock must reach the session with the pre-flip lock state")
 
-    XCTAssertTrue(
-      consumedSession.process(keycode: UInt32(XK_Caps_Lock), modifiers: 0),
-      "Without good_old_caps_lock the IME must consume Caps Lock so it only switches input mode"
+    for (goodOldCapsLock, expectedHandled) in [(false, true), (true, false)] {
+      OwlKeyboardPreferences.goodOldCapsLock = goodOldCapsLock
+      let session = engine.createSession()
+      defer { session.destroy() }
+      typeText("ni", into: session)
+
+      XCTAssertEqual(
+        session.process(keycode: transition.keycode, modifiers: transition.modifiers),
+        expectedHandled
+      )
+      XCTAssertTrue(session.option(.asciiMode))
+      XCTAssertEqual(session.takeCommit(), "ni")
+    }
+  }
+
+  func testGoodOldCapsLockFalseAlignsModeToEachPhysicalDirection() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let originalShiftSwitch = OwlKeyboardPreferences.shiftSwitchCJK
+    let originalGoodOldCapsLock = OwlKeyboardPreferences.goodOldCapsLock
+    defer {
+      OwlKeyboardPreferences.shiftSwitchCJK = originalShiftSwitch
+      OwlKeyboardPreferences.goodOldCapsLock = originalGoodOldCapsLock
+    }
+    OwlKeyboardPreferences.shiftSwitchCJK = true
+    OwlKeyboardPreferences.goodOldCapsLock = false
+
+    for (physicalLockBefore, initialASCII, expectedASCII) in [
+      (false, false, true),
+      (true, true, false)
+    ] {
+      let session = engine.createSession()
+      defer { session.destroy() }
+      session.setOption(.asciiMode, initialASCII)
+      let transition = try classifiedCapsLockTransition(physicalLockBefore: physicalLockBefore)
+
+      XCTAssertEqual(
+        (transition.modifiers & kLockMask.rawValue) != 0,
+        physicalLockBefore
+      )
+      XCTAssertTrue(session.process(keycode: transition.keycode, modifiers: transition.modifiers))
+      XCTAssertEqual(session.option(.asciiMode), expectedASCII)
+    }
+  }
+
+  func testGoodOldCapsLockTrueAlignsAndKeepsASCIISetByOtherInput() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let originalShiftSwitch = OwlKeyboardPreferences.shiftSwitchCJK
+    let originalGoodOldCapsLock = OwlKeyboardPreferences.goodOldCapsLock
+    defer {
+      OwlKeyboardPreferences.shiftSwitchCJK = originalShiftSwitch
+      OwlKeyboardPreferences.goodOldCapsLock = originalGoodOldCapsLock
+    }
+    OwlKeyboardPreferences.shiftSwitchCJK = true
+    OwlKeyboardPreferences.goodOldCapsLock = true
+
+    let aligned = engine.createSession()
+    defer { aligned.destroy() }
+    let turnOn = try classifiedCapsLockTransition(physicalLockBefore: false)
+    let turnOff = try classifiedCapsLockTransition(physicalLockBefore: true)
+    XCTAssertFalse(aligned.process(keycode: turnOn.keycode, modifiers: turnOn.modifiers))
+    XCTAssertTrue(aligned.option(.asciiMode))
+    XCTAssertFalse(aligned.process(keycode: turnOff.keycode, modifiers: turnOff.modifiers))
+    XCTAssertFalse(aligned.option(.asciiMode))
+
+    let switchedByOtherInput = engine.createSession()
+    defer { switchedByOtherInput.destroy() }
+    switchedByOtherInput.setOption(.asciiMode, true)
+    XCTAssertFalse(
+      switchedByOtherInput.process(keycode: turnOn.keycode, modifiers: turnOn.modifiers),
+      "The first Caps Lock press must not blindly reverse ASCII entered by Shift/defaults"
     )
-    XCTAssertTrue(consumedSession.option(.asciiMode))
-    XCTAssertEqual(consumedSession.takeCommit(), "ni")
+    XCTAssertTrue(switchedByOtherInput.option(.asciiMode))
+  }
+
+  func testCapsLockedLettersFollowGoodOldCapsLockForHostAndIME() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let originalShiftSwitch = OwlKeyboardPreferences.shiftSwitchCJK
+    let originalGoodOldCapsLock = OwlKeyboardPreferences.goodOldCapsLock
+    defer {
+      OwlKeyboardPreferences.shiftSwitchCJK = originalShiftSwitch
+      OwlKeyboardPreferences.goodOldCapsLock = originalGoodOldCapsLock
+    }
+    OwlKeyboardPreferences.shiftSwitchCJK = true
+    let event = OwlKeyEvent(
+      type: .keyDown,
+      keyCode: 0,
+      characters: "A",
+      charactersIgnoringModifiers: "a",
+      modifierFlags: [.capsLock],
+      lastModifiers: [.capsLock]
+    )
+    guard case let .keyDown(keycode, modifiers) = OwlUserActionClassifier.classify(event) else {
+      return XCTFail("Expected classified Caps Locked A keyDown")
+    }
+    XCTAssertEqual(keycode, "A".unicodeScalars.first!.value)
+    XCTAssertEqual(modifiers & kLockMask.rawValue, kLockMask.rawValue)
+
+    OwlKeyboardPreferences.goodOldCapsLock = false
+    let imeSession = engine.createSession()
+    defer { imeSession.destroy() }
+    imeSession.setOption(.asciiMode, false)
+    XCTAssertTrue(imeSession.process(keycode: keycode, modifiers: modifiers))
+    XCTAssertEqual(imeSession.takeCommit(), "a")
 
     OwlKeyboardPreferences.goodOldCapsLock = true
-    let passthroughSession = engine.createSession()
-    defer { passthroughSession.destroy() }
-    typeText("ni", into: passthroughSession)
-
-    XCTAssertFalse(
-      passthroughSession.process(keycode: UInt32(XK_Caps_Lock), modifiers: 0),
-      "With good_old_caps_lock the host must still receive Caps Lock to toggle its physical lock"
-    )
-    XCTAssertTrue(passthroughSession.option(.asciiMode))
-    XCTAssertEqual(passthroughSession.takeCommit(), "ni")
+    let hostSession = engine.createSession()
+    defer { hostSession.destroy() }
+    hostSession.setOption(.asciiMode, false)
+    XCTAssertFalse(hostSession.process(keycode: keycode, modifiers: modifiers))
+    XCTAssertNil(hostSession.takeCommit())
   }
 
   func testCapsLockDoesNotOverrideShiftSwitchWhenMasterPreferenceIsOff() throws {
@@ -905,8 +1027,9 @@ final class OwlRustEngineTests: XCTestCase {
     let session = engine.createSession()
     defer { session.destroy() }
     typeText("ni", into: session)
+    let transition = try classifiedCapsLockTransition(physicalLockBefore: false)
 
-    XCTAssertFalse(session.process(keycode: UInt32(XK_Caps_Lock), modifiers: 0))
+    XCTAssertFalse(session.process(keycode: transition.keycode, modifiers: transition.modifiers))
     XCTAssertFalse(session.option(.asciiMode))
     XCTAssertNil(session.takeCommit())
     XCTAssertEqual(session.input(), "ni")
