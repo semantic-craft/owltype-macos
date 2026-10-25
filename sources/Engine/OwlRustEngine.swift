@@ -48,6 +48,91 @@ private struct OwlRustSnapshotDTO: Decodable {
   }
 }
 
+private struct OwlRustRerankModelStatusDTO: Decodable {
+  let enabled: Bool?
+  let state: String
+  let source: String?
+  let version: String?
+  let expectedSHA256: String?
+  let sha256: String?
+  let size: UInt64?
+  let license: String?
+  let attribution: String?
+  let attached: Bool?
+  let error: String?
+
+  enum CodingKeys: String, CodingKey {
+    case enabled
+    case state
+    case source
+    case version
+    case expectedSHA256 = "expected_sha256"
+    case sha256
+    case size
+    case license
+    case attribution
+    case attached
+    case error
+  }
+}
+
+private struct OwlRustRerankStatusDTO: Decodable {
+  let ok: Bool
+  let error: String?
+  let keyboard: OwlRustRerankModelStatusDTO?
+  let settled: OwlRustRerankModelStatusDTO?
+}
+
+private struct OwlRustSettledRerankResponseDTO: Decodable {
+  let status: String
+  let token: UInt64?
+  let current: Bool?
+  let moved: Bool?
+  let error: String?
+}
+
+struct OwlRerankConfiguration: Codable, Equatable {
+  struct Model: Codable, Equatable {
+    let enabled: Bool
+    let path: String
+    let source: String
+    let version: String
+    let expectedSHA256: String
+
+    enum CodingKeys: String, CodingKey {
+      case enabled
+      case path
+      case source
+      case version
+      case expectedSHA256 = "expected_sha256"
+    }
+  }
+
+  let keyboard: Model
+  let settled: Model
+
+  static func current(sharedSupportURL: URL?) -> Self {
+    func model(for kind: OwlRerankModelKind) -> Model {
+      let descriptor = OwlRerankModelDescriptor.descriptor(for: kind)
+      return Model(
+        enabled: OwlExperimentalPreferences.rerankEnabled(for: kind),
+        path: descriptor.url(sharedSupportURL: sharedSupportURL)?.path ?? "",
+        source: descriptor.source,
+        version: descriptor.version,
+        expectedSHA256: descriptor.expectedSHA256
+      )
+    }
+    return Self(keyboard: model(for: .keyboard), settled: model(for: .settled))
+  }
+
+  func serialized() -> String? {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+    guard let data = try? encoder.encode(self) else { return nil }
+    return String(data: data, encoding: .utf8)
+  }
+}
+
 // MARK: - Schema Mapping
 
 enum OwlRustSchemaMap {
@@ -139,6 +224,11 @@ final class OwlRustSession: RimeSession {
   private var lastAppliedWubiEnglishChannel: Bool?
   private var lastAppliedWubiUserDictLearning: Bool?
   private var lastAppliedHostPhrases: String = ""
+  private var lastAppliedRerankConfiguration: String?
+  private var lastRerankStatusRefresh: UInt64 = 0
+  private(set) var rerankConfigurationEpoch: UInt64 = 0
+  private(set) var settledRerankReady = false
+  private(set) var settledRerankLoading = false
   private var optionFlags: [RimeOption: Bool] = [
     .simplification: true,
     .linear: true
@@ -607,6 +697,54 @@ final class OwlRustSession: RimeSession {
         lastAppliedHostPhrases = packed
       }
     }
+    syncRerankConfiguration()
+  }
+
+  func syncRerankPreferences() {
+    syncRerankConfiguration(forceStatus: true)
+  }
+
+  func startSettledRerank() -> OwlSettledRerankStartResult {
+    guard handle != nil, settledRerankReady else { return .noWork }
+    let result = callRerankJSON(
+      owl_msime_session_start_settled_rerank_json,
+      fallback: OwlRustSettledRerankResponseDTO(
+        status: "done",
+        token: nil,
+        current: false,
+        moved: false,
+        error: "cannot start settled rerank"
+      )
+    )
+    let token = result.status == "pending" ? result.token : nil
+    return OwlSettledRerankStartResult(
+      token: token,
+      current: result.current ?? false,
+      moved: result.moved ?? false,
+      error: result.error
+    )
+  }
+
+  func pollSettledRerank(token: UInt64, accept: Bool) -> OwlSettledRerankPollResult {
+    guard handle != nil else { return .doneWithoutChange }
+    let result = callRerankJSON(
+      { ptr in
+        owl_msime_session_poll_settled_rerank_json(ptr, token, accept)
+      },
+      fallback: OwlRustSettledRerankResponseDTO(
+        status: "done",
+        token: nil,
+        current: false,
+        moved: false,
+        error: "cannot poll settled rerank"
+      )
+    )
+    return OwlSettledRerankPollResult(
+      pending: result.status == "pending",
+      current: result.current ?? false,
+      moved: result.moved ?? false,
+      error: result.error
+    )
   }
 
   func option(_ option: RimeOption) -> Bool {
@@ -670,6 +808,82 @@ final class OwlRustSession: RimeSession {
   }
 
   // MARK: - FFI Bridge Helpers
+
+  private func syncRerankConfiguration(forceStatus: Bool = false) {
+    guard handle != nil, let ownerEngine else { return }
+    let configuration = ownerEngine.rerankConfiguration()
+    guard let serialized = configuration.serialized() else { return }
+    if serialized != lastAppliedRerankConfiguration {
+      lastAppliedRerankConfiguration = serialized
+      rerankConfigurationEpoch &+= 1
+      let status = serialized.withCString { config in
+        decodeRerankStatus(owl_msime_session_configure_rerank_json(handle, config))
+      }
+      applyRerankStatus(status)
+      lastRerankStatusRefresh = DispatchTime.now().uptimeNanoseconds
+      return
+    }
+
+    let rerankingEnabled = configuration.keyboard.enabled || configuration.settled.enabled
+    guard rerankingEnabled else {
+      settledRerankReady = false
+      settledRerankLoading = false
+      return
+    }
+    let now = DispatchTime.now().uptimeNanoseconds
+    let throttle: UInt64 = 500_000_000
+    guard forceStatus || now &- lastRerankStatusRefresh >= throttle else { return }
+    lastRerankStatusRefresh = now
+    let status = decodeRerankStatus(owl_msime_session_rerank_status_json(handle))
+    applyRerankStatus(status)
+  }
+
+  private func applyRerankStatus(_ status: OwlRustRerankStatusDTO?) {
+    guard let status else {
+      settledRerankReady = false
+      settledRerankLoading = false
+      return
+    }
+    if let keyboard = status.keyboard {
+      OwlRerankRuntimeStatusRegistry.shared.update(
+        kind: .keyboard,
+        state: keyboard.state,
+        error: keyboard.error
+      )
+    }
+    if let settled = status.settled {
+      OwlRerankRuntimeStatusRegistry.shared.update(
+        kind: .settled,
+        state: settled.state,
+        error: settled.error
+      )
+      settledRerankReady = settled.enabled == true
+        && settled.state == "ready"
+        && settled.attached == true
+      settledRerankLoading = settled.enabled == true && settled.state == "loading"
+    } else {
+      settledRerankReady = false
+      settledRerankLoading = false
+    }
+  }
+
+  private func decodeRerankStatus(_ rawPtr: UnsafeMutablePointer<CChar>?) -> OwlRustRerankStatusDTO? {
+    guard let rawPtr else { return nil }
+    defer { owl_msime_string_free(rawPtr) }
+    let data = Data(String(cString: rawPtr).utf8)
+    return try? JSONDecoder().decode(OwlRustRerankStatusDTO.self, from: data)
+  }
+
+  private func callRerankJSON(
+    _ call: (OpaquePointer) -> UnsafeMutablePointer<CChar>?,
+    fallback: OwlRustSettledRerankResponseDTO
+  ) -> OwlRustSettledRerankResponseDTO {
+    guard let handle, let rawPtr = call(handle) else { return fallback }
+    defer { owl_msime_string_free(rawPtr) }
+    let data = Data(String(cString: rawPtr).utf8)
+    return (try? JSONDecoder().decode(OwlRustSettledRerankResponseDTO.self, from: data))
+      ?? fallback
+  }
 
   private func refreshSnapshot() {
     guard let ptr = handle,
@@ -982,6 +1196,12 @@ final class OwlRustEngine: RimeEngine {
     for session in sessions.values {
       session.syncRuntimePreferences(includeHostPhrases: includeHostPhrases)
     }
+  }
+
+  fileprivate func rerankConfiguration() -> OwlRerankConfiguration {
+    OwlRerankConfiguration.current(
+      sharedSupportURL: sharedSupportURL ?? Bundle.main.sharedSupportURL
+    )
   }
 
   fileprivate func loadPackedHostPhrases() -> String {

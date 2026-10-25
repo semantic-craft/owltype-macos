@@ -70,6 +70,9 @@ struct OwlKeyboardPage: View {
   /// stay live-only and do not use this status line.
   @State private var isAutoApplyingRimeConfig = false
   @State private var autoApplyStatus: String?
+  @State private var rerankRuntimeStatuses =
+    OwlRerankRuntimeStatusRegistry.shared.snapshot()
+  @State private var rerankStatusTimer: Timer?
 
   var body: some View {
     ScrollView {
@@ -82,6 +85,7 @@ struct OwlKeyboardPage: View {
           defaultStateCard
           wubiCard
           fuzzyCard
+          rerankCard
           symbolCard
           candidateEmojiCard
           localConvenienceCard
@@ -97,7 +101,14 @@ struct OwlKeyboardPage: View {
       }
       .padding(20)
     }
-    .onAppear { refreshFuzzySnapshot() }
+    .onAppear {
+      refreshFuzzySnapshot()
+      startRerankStatusRefresh()
+    }
+    .onDisappear {
+      rerankStatusTimer?.invalidate()
+      rerankStatusTimer = nil
+    }
     .sheet(isPresented: $showFuzzySheet, onDismiss: {
       refreshFuzzySnapshotAndApplyIfNeeded()
     }) {
@@ -802,6 +813,54 @@ struct OwlKeyboardPage: View {
 
   // MARK: - 符号
 
+  private var rerankCard: some View {
+    SettingsCard(
+      title: "本地轻量重排（实验）",
+      palette: palette,
+      theme: theme,
+      reduceTransparency: reduceTransparency
+    ) {
+      VStack(alignment: .leading, spacing: 10) {
+        SettingsToggleRow(
+          title: "逐键候选重排",
+          isOn: state.keyboardRerankEnabled,
+          palette: palette,
+          onToggle: { toggleKeyboardRerank() }
+        )
+        Text("每次按键用 4.3 MB 本地模型轻量排序；按真实来源保护精确词、用户置顶、快捷短语和生成句。\(rerankResourceSummary(.keyboard))")
+          .font(.system(size: 12))
+          .foregroundStyle(palette.ink3)
+          .fixedSize(horizontal: false, vertical: true)
+        Text(rerankStatusLine(.keyboard))
+          .font(.system(size: 12, weight: .medium))
+          .foregroundStyle(palette.ink2)
+          .frame(maxWidth: .infinity, alignment: .leading)
+
+        SettingsCardDivider(palette: palette)
+
+        SettingsToggleRow(
+          title: "停顿候选重排",
+          isOn: state.settledRerankEnabled,
+          palette: palette,
+          onToggle: { toggleSettledRerank() }
+        )
+        Text("停止输入 150 ms 后用 24.3 MB 桌面模型在后台重排；旧结果会丢弃并归还模型，不阻塞继续输入。\(rerankResourceSummary(.settled))")
+          .font(.system(size: 12))
+          .foregroundStyle(palette.ink3)
+          .fixedSize(horizontal: false, vertical: true)
+        Text(rerankStatusLine(.settled))
+          .font(.system(size: 12, weight: .medium))
+          .foregroundStyle(palette.ink2)
+          .frame(maxWidth: .infinity, alignment: .leading)
+
+        Text("两个开关默认关闭。模型来自 metasequoiaime/chinese-ime-lm model-v1；权重许可 Apache-2.0，来源与完整 SHA-256 随模型 manifest 提供。")
+          .font(.system(size: 11))
+          .foregroundStyle(palette.ink3)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   /// 中文标点模式、`/` 与 `<` 的可选候选菜单。
   private var symbolCard: some View {
     SettingsCard(
@@ -994,6 +1053,61 @@ struct OwlKeyboardPage: View {
     fuzzyEnabledCount = current.enabledCount
   }
 
+  private func startRerankStatusRefresh() {
+    rerankRuntimeStatuses = OwlRerankRuntimeStatusRegistry.shared.snapshot()
+    rerankStatusTimer?.invalidate()
+    let timer = Timer(timeInterval: 0.5, repeats: true) { _ in
+      rerankRuntimeStatuses = OwlRerankRuntimeStatusRegistry.shared.snapshot()
+    }
+    rerankStatusTimer = timer
+    RunLoop.main.add(timer, forMode: .common)
+  }
+
+  private func rerankResourceSummary(_ kind: OwlRerankModelKind) -> String {
+    let descriptor = OwlRerankModelDescriptor.descriptor(for: kind)
+    return "\(descriptor.version) · \(descriptor.license) · SHA-256 \(descriptor.sha256Prefix)…"
+  }
+
+  private func rerankStatusLine(_ kind: OwlRerankModelKind) -> String {
+    guard OwlExperimentalPreferences.rerankEnabled(for: kind) else {
+      return "状态：已关闭"
+    }
+    if let runtime = rerankRuntimeStatuses[kind] {
+      switch runtime.state {
+      case "ready":
+        return "状态：已加载并完成 SHA-256 校验"
+      case "loading":
+        return "状态：正在后台校验并加载…"
+      case "missing":
+        return "状态：包内模型缺失，输入继续使用普通排序"
+      case "corrupt":
+        return "状态：模型校验失败，输入继续使用普通排序"
+      case "oversized":
+        return "状态：模型文件超出大小上限，已拒绝加载"
+      case "error":
+        return "状态：加载失败，输入继续使用普通排序"
+      case "disabled":
+        return "状态：已关闭"
+      default:
+        return "状态：\(runtime.state)"
+      }
+    }
+
+    let descriptor = OwlRerankModelDescriptor.descriptor(for: kind)
+    guard let url = descriptor.url(sharedSupportURL: Bundle.main.sharedSupportURL) else {
+      return "状态：应用资源目录不可用"
+    }
+    let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+    let size = (attributes?[.size] as? NSNumber)?.uint64Value
+    guard let size else {
+      return "状态：包内模型缺失"
+    }
+    guard size == descriptor.expectedSize else {
+      return "状态：文件大小不符（\(size) bytes）"
+    }
+    return "状态：随包文件已就位，输入后加载"
+  }
+
   private func refreshFuzzySnapshotAndApplyIfNeeded() {
     let previous = fuzzySnapshot
     refreshFuzzySnapshot()
@@ -1147,5 +1261,19 @@ struct OwlKeyboardPage: View {
     OwlSettingsActions.toggle(state: state, keyPath: \.keyboardAutoPairBrackets) {
       OwlKeyboardPreferences.autoPairBrackets = $0
     }
+  }
+
+  private func toggleKeyboardRerank() {
+    OwlSettingsActions.toggle(state: state, keyPath: \.keyboardRerankEnabled) {
+      OwlExperimentalPreferences.keyboardRerankEnabled = $0
+    }
+    rerankRuntimeStatuses = OwlRerankRuntimeStatusRegistry.shared.snapshot()
+  }
+
+  private func toggleSettledRerank() {
+    OwlSettingsActions.toggle(state: state, keyPath: \.settledRerankEnabled) {
+      OwlExperimentalPreferences.settledRerankEnabled = $0
+    }
+    rerankRuntimeStatuses = OwlRerankRuntimeStatusRegistry.shared.snapshot()
   }
 }

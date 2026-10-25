@@ -23,7 +23,10 @@ use msime_input_runtime::{
 };
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use tempfile::TempDir;
+
+mod rerank;
 
 #[derive(Default)]
 struct OwlPinnedState {
@@ -172,6 +175,7 @@ impl CandidateTransform for OwlPinnedTransform {
 
 pub struct OwlMsimeSession {
     runtime: Runtime<EngineSession>,
+    rerank: rerank::RerankState,
     options: EngineOptions,
     source_pinyin_path: PathBuf,
     staged_pinyin_path: PathBuf,
@@ -995,6 +999,7 @@ impl OwlMsimeSession {
 
         Ok(Self {
             runtime,
+            rerank: rerank::RerankState::default(),
             options,
             source_pinyin_path,
             staged_pinyin_path,
@@ -1142,6 +1147,10 @@ impl OwlMsimeSession {
             Ok(p) => p,
             Err(err) => return error_response(format!("invalid action_json: {err}")),
         };
+        self.rerank.apply_pending(&mut self.runtime);
+        if payload.op != "peek_candidates" {
+            self.rerank.invalidate(&mut self.runtime);
+        }
 
         match payload.op.as_str() {
             "insert" => {
@@ -1749,6 +1758,25 @@ impl OwlMsimeSession {
             other => error_response(format!("unsupported op: {other}")),
         }
     }
+
+    pub fn configure_rerank(&mut self, config_json: &str) -> Value {
+        match self.rerank.configure(&mut self.runtime, config_json) {
+            Ok(()) => self.rerank.status(&mut self.runtime),
+            Err(error) => json!({"ok": false, "error": error}),
+        }
+    }
+
+    pub fn rerank_status(&mut self) -> Value {
+        self.rerank.status(&mut self.runtime)
+    }
+
+    pub fn start_settled_rerank(&mut self) -> Value {
+        self.rerank.start_settled(&mut self.runtime)
+    }
+
+    pub fn poll_settled_rerank(&mut self, token: u64, accept: bool) -> Value {
+        self.rerank.poll_settled(&mut self.runtime, token, accept)
+    }
 }
 
 fn live_sessions() -> &'static Mutex<HashSet<usize>> {
@@ -1909,6 +1937,8 @@ pub extern "C" fn owl_msime_session_destroy(session: *mut OwlMsimeSession) {
                 .map(|mut set| set.remove(&(session as usize)))
                 .unwrap_or(false);
             if was_live {
+                let session_ref = unsafe { &mut *session };
+                session_ref.rerank.invalidate(&mut session_ref.runtime);
                 unsafe {
                     drop(Box::from_raw(session));
                 }
@@ -1949,6 +1979,94 @@ pub extern "C" fn owl_msime_session_snapshot_json(
         into_c_string_ptr(&response)
     }))
     .unwrap_or_else(|_| into_c_string_ptr(&error_response("panic in snapshot_json")))
+}
+
+#[no_mangle]
+pub extern "C" fn owl_msime_session_configure_rerank_json(
+    session: *mut OwlMsimeSession,
+    config_json: *const c_char,
+) -> *mut c_char {
+    catch_unwind(AssertUnwindSafe(|| {
+        if !is_live_session(session) {
+            return into_c_string_ptr(
+                &json!({"ok": false, "error": "session is null or destroyed"}),
+            );
+        }
+        let Some(config_str) = cstr_to_string(config_json) else {
+            return into_c_string_ptr(&json!({"ok": false, "error": "config_json is null"}));
+        };
+        let session_ref = unsafe { &mut *session };
+        into_c_string_ptr(&session_ref.configure_rerank(&config_str))
+    }))
+    .unwrap_or_else(|_| {
+        into_c_string_ptr(&json!({"ok": false, "error": "panic in configure_rerank_json"}))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn owl_msime_session_rerank_status_json(
+    session: *mut OwlMsimeSession,
+) -> *mut c_char {
+    catch_unwind(AssertUnwindSafe(|| {
+        if !is_live_session(session) {
+            return into_c_string_ptr(
+                &json!({"ok": false, "error": "session is null or destroyed"}),
+            );
+        }
+        let session_ref = unsafe { &mut *session };
+        into_c_string_ptr(&session_ref.rerank_status())
+    }))
+    .unwrap_or_else(|_| {
+        into_c_string_ptr(&json!({"ok": false, "error": "panic in rerank_status_json"}))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn owl_msime_session_start_settled_rerank_json(
+    session: *mut OwlMsimeSession,
+) -> *mut c_char {
+    catch_unwind(AssertUnwindSafe(|| {
+        if !is_live_session(session) {
+            return into_c_string_ptr(
+                &json!({"ok": false, "error": "session is null or destroyed"}),
+            );
+        }
+        let session_ref = unsafe { &mut *session };
+        into_c_string_ptr(&session_ref.start_settled_rerank())
+    }))
+    .unwrap_or_else(|_| {
+        into_c_string_ptr(&json!({
+            "status": "done",
+            "current": false,
+            "moved": false,
+            "error": "panic in start_settled_rerank_json"
+        }))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn owl_msime_session_poll_settled_rerank_json(
+    session: *mut OwlMsimeSession,
+    token: u64,
+    accept: bool,
+) -> *mut c_char {
+    catch_unwind(AssertUnwindSafe(|| {
+        if !is_live_session(session) {
+            return into_c_string_ptr(
+                &json!({"ok": false, "error": "session is null or destroyed"}),
+            );
+        }
+        let session_ref = unsafe { &mut *session };
+        into_c_string_ptr(&session_ref.poll_settled_rerank(token, accept))
+    }))
+    .unwrap_or_else(|_| {
+        into_c_string_ptr(&json!({
+            "status": "done",
+            "current": false,
+            "moved": false,
+            "error": "panic in poll_settled_rerank_json"
+        }))
+    })
 }
 
 #[no_mangle]
@@ -2039,6 +2157,64 @@ mod tests {
         let resp_str = unsafe { CStr::from_ptr(raw) }.to_str().unwrap().to_owned();
         owl_msime_string_free(raw);
         serde_json::from_str(&resp_str).expect("valid snapshot json")
+    }
+
+    fn call_json(raw: *mut c_char) -> Value {
+        assert!(!raw.is_null());
+        let text = unsafe { CStr::from_ptr(raw) }.to_str().unwrap().to_owned();
+        owl_msime_string_free(raw);
+        serde_json::from_str(&text).expect("valid rerank response json")
+    }
+
+    fn configure_rerank(session: *mut OwlMsimeSession, config: &str) -> Value {
+        let config = CString::new(config).unwrap();
+        call_json(owl_msime_session_configure_rerank_json(
+            session,
+            config.as_ptr(),
+        ))
+    }
+
+    fn rerank_status(session: *mut OwlMsimeSession) -> Value {
+        call_json(owl_msime_session_rerank_status_json(session))
+    }
+
+    fn start_settled_rerank(session: *mut OwlMsimeSession) -> Value {
+        call_json(owl_msime_session_start_settled_rerank_json(session))
+    }
+
+    fn poll_settled_rerank(session: *mut OwlMsimeSession, token: u64, accept: bool) -> Value {
+        call_json(owl_msime_session_poll_settled_rerank_json(
+            session, token, accept,
+        ))
+    }
+
+    fn wait_for_rerank_state(session: *mut OwlMsimeSession, model: &str, expected: &str) -> Value {
+        for _ in 0..500 {
+            let status = rerank_status(session);
+            if status[model]["state"] == expected {
+                return status;
+            }
+            assert_eq!(
+                status[model]["state"], "loading",
+                "rerank model did not reach {expected}: {status}"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        panic!(
+            "rerank model did not reach {expected}: {}",
+            rerank_status(session)
+        );
+    }
+
+    fn wait_for_settled_job(session: *mut OwlMsimeSession, token: u64, accept: bool) -> Value {
+        for _ in 0..500 {
+            let response = poll_settled_rerank(session, token, accept);
+            if response["status"] == "done" {
+                return response;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        panic!("settled rerank job {token} did not finish");
     }
 
     fn select_visible_text(
@@ -2351,6 +2527,335 @@ mod tests {
                 .any(|candidate| candidate.text == "你")
         );
         owl_msime_session_destroy(reopened);
+    }
+
+    #[test]
+    fn missing_rerank_model_degrades_without_blocking_input() {
+        let tmp = TempDir::new().unwrap();
+        let pinyin = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&pinyin);
+        Connection::open(&pinyin)
+            .unwrap()
+            .execute("DELETE FROM tbl_2_n", [])
+            .unwrap();
+        let resources = tmp.path().join("resources");
+        let user = tmp.path().join("user");
+        let cache = tmp.path().join("cache");
+        let dictionaries = tmp.path().join("dictionaries");
+        let (session, error) =
+            create_with_explicit_roots(&pinyin, &resources, &user, &cache, &dictionaries);
+        assert!(error.is_none(), "{error:?}");
+        assert!(!session.is_null());
+
+        let missing = tmp.path().join("missing.safetensors");
+        let config = json!({
+            "keyboard": {
+                "enabled": true,
+                "path": missing.to_string_lossy(),
+                "source": "test",
+                "version": "1"
+            },
+            "settled": {"enabled": false}
+        });
+        let configured = configure_rerank(session, &config.to_string());
+        assert_eq!(configured["keyboard"]["state"], "loading");
+        let status = wait_for_rerank_state(session, "keyboard", "missing");
+        assert_eq!(status["keyboard"]["enabled"], true);
+        assert!(status["keyboard"]["error"].is_string());
+
+        let frame = call_action(session, r#"{"op":"insert","ch":"n"}"#);
+        assert!(frame.ok);
+        assert_eq!(frame.raw_input, "n");
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn shipped_models_rerank_settled_candidates_and_preserve_visible_selection() {
+        let Some(directory) = std::env::var_os("MSIME_NEURAL_MODEL_DIR").map(PathBuf::from) else {
+            eprintln!("skipping: MSIME_NEURAL_MODEL_DIR is not set");
+            return;
+        };
+        let keyboard = directory.join("sentence-model.safetensors");
+        let desktop = directory.join("sentence-model-desktop.safetensors");
+        if !keyboard.is_file() || !desktop.is_file() {
+            eprintln!("skipping: shipped sentence models are absent from {directory:?}");
+            return;
+        }
+
+        let tmp = TempDir::new().unwrap();
+        let pinyin = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&pinyin);
+        Connection::open(&pinyin)
+            .unwrap()
+            .execute("DELETE FROM tbl_2_n", [])
+            .unwrap();
+        let resources = tmp.path().join("resources");
+        let user = tmp.path().join("user");
+        let cache = tmp.path().join("cache");
+        let dictionaries = tmp.path().join("dictionaries");
+        let (session, error) =
+            create_with_explicit_roots(&pinyin, &resources, &user, &cache, &dictionaries);
+        assert!(error.is_none(), "{error:?}");
+        assert!(!session.is_null());
+
+        let config = json!({
+            "keyboard": {
+                "enabled": true,
+                "path": keyboard.to_string_lossy(),
+                "source": "metasequoiaime/chinese-ime-lm",
+                "version": "model-v1",
+                "expected_sha256": "86ac529510cb3b4968a5e6ade83ec8080f5b34a0a681e75c362accbbd387d1c1"
+            },
+            "settled": {
+                "enabled": true,
+                "path": desktop.to_string_lossy(),
+                "source": "metasequoiaime/chinese-ime-lm",
+                "version": "model-v1",
+                "expected_sha256": "0a6ecba69bf1d39c7eb49549c716477dd6c03fdf05757773e1f50435262fb469"
+            }
+        });
+        let _ = configure_rerank(session, &config.to_string());
+        wait_for_rerank_state(session, "keyboard", "ready");
+        let status = wait_for_rerank_state(session, "settled", "ready");
+        assert_eq!(status["keyboard"]["license"], "Apache-2.0");
+        assert_eq!(status["settled"]["attached"], true);
+        assert!(status["settled"]["attribution"]
+            .as_str()
+            .is_some_and(|value| value.contains("LCCC")));
+
+        for ch in ["n", "i", "h", "a", "o"] {
+            let frame = call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
+            assert!(frame.ok);
+        }
+        let _ = call_action(session, r#"{"op":"move_highlight","delta":1}"#);
+        let before = call_snapshot(session);
+        assert!(!before.candidates.is_empty());
+        let highlighted_text = before.candidates[before.highlighted_index].text.clone();
+        let started = start_settled_rerank(session);
+        assert_eq!(started["status"], "pending", "{started}");
+        let token = started["token"].as_u64().unwrap();
+        let duplicate = start_settled_rerank(session);
+        assert_eq!(duplicate["token"], token);
+        let applied = wait_for_settled_job(session, token, true);
+        assert_eq!(applied["current"], true);
+        let after = call_snapshot(session);
+        assert_eq!(
+            after.candidates[after.highlighted_index].text, highlighted_text,
+            "settled rerank must preserve the highlighted candidate identity"
+        );
+
+        let full_index = after
+            .candidates
+            .iter()
+            .position(|candidate| candidate.input_len == after.raw_input.len())
+            .unwrap_or_else(|| panic!("no full-coverage candidate in {after:?}"));
+        let selected_text = after.candidates[full_index].text.clone();
+        let selected = call_action(
+            session,
+            &format!(r#"{{"op":"select_visible","index":{full_index}}}"#),
+        );
+        assert_eq!(
+            selected.committed_text.as_deref(),
+            Some(selected_text.as_str())
+        );
+
+        for ch in ["n", "i", "h", "a", "o"] {
+            assert!(call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#)).ok);
+        }
+        let tokenized = call_snapshot(session);
+        let full_index = tokenized
+            .candidates
+            .iter()
+            .position(|candidate| candidate.input_len == tokenized.raw_input.len())
+            .unwrap_or_else(|| panic!("no full-coverage candidate in {tokenized:?}"));
+        let selected_text = tokenized.candidates[full_index].text.clone();
+        let selected = call_action(
+            session,
+            &format!(
+                r#"{{"op":"select_token","index":{full_index},"generation":{},"is_absolute":false}}"#,
+                tokenized.generation
+            ),
+        );
+        assert_eq!(
+            selected.committed_text.as_deref(),
+            Some(selected_text.as_str())
+        );
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn stale_settled_result_is_discarded_and_its_model_is_reused() {
+        let Some(directory) = std::env::var_os("MSIME_NEURAL_MODEL_DIR").map(PathBuf::from) else {
+            eprintln!("skipping: MSIME_NEURAL_MODEL_DIR is not set");
+            return;
+        };
+        let desktop = directory.join("sentence-model-desktop.safetensors");
+        if !desktop.is_file() {
+            eprintln!("skipping: desktop sentence model is absent from {directory:?}");
+            return;
+        }
+
+        let tmp = TempDir::new().unwrap();
+        let pinyin = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&pinyin);
+        Connection::open(&pinyin)
+            .unwrap()
+            .execute("DELETE FROM tbl_2_n", [])
+            .unwrap();
+        let resources = tmp.path().join("resources");
+        let user = tmp.path().join("user");
+        let cache = tmp.path().join("cache");
+        let dictionaries = tmp.path().join("dictionaries");
+        let (session, error) =
+            create_with_explicit_roots(&pinyin, &resources, &user, &cache, &dictionaries);
+        assert!(error.is_none(), "{error:?}");
+        assert!(!session.is_null());
+        let config = json!({
+            "keyboard": {"enabled": false},
+            "settled": {
+                "enabled": true,
+                "path": desktop.to_string_lossy(),
+                "expected_sha256": "0a6ecba69bf1d39c7eb49549c716477dd6c03fdf05757773e1f50435262fb469"
+            }
+        });
+        let _ = configure_rerank(session, &config.to_string());
+        wait_for_rerank_state(session, "settled", "ready");
+
+        for ch in ["n", "i", "h", "a", "o"] {
+            assert!(call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#)).ok);
+        }
+        let started = start_settled_rerank(session);
+        assert_eq!(started["status"], "pending", "{started}");
+        let token = started["token"].as_u64().unwrap();
+        assert!(
+            call_action(session, r#"{"op":"insert","ch":"a"}"#).ok,
+            "input must continue while settled scoring is running"
+        );
+        let stale = wait_for_settled_job(session, token, false);
+        assert_eq!(stale["current"], false);
+        assert_eq!(call_snapshot(session).raw_input, "nihaoa");
+
+        // The discarded result returns its model to the runtime: a later pause can rank again.
+        let _ = call_action(session, r#"{"op":"clear"}"#);
+        for ch in ["n", "i", "h", "a", "o"] {
+            assert!(call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#)).ok);
+        }
+        let restarted = start_settled_rerank(session);
+        assert_eq!(restarted["status"], "pending", "{restarted}");
+        let token = restarted["token"].as_u64().unwrap();
+        let done = wait_for_settled_job(session, token, false);
+        assert_eq!(done["current"], false);
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn settled_rerank_without_model_work_completes_without_a_stale_job() {
+        let Some(directory) = std::env::var_os("MSIME_NEURAL_MODEL_DIR").map(PathBuf::from) else {
+            eprintln!("skipping: MSIME_NEURAL_MODEL_DIR is not set");
+            return;
+        };
+        let desktop = directory.join("sentence-model-desktop.safetensors");
+        if !desktop.is_file() {
+            eprintln!("skipping: desktop sentence model is absent from {directory:?}");
+            return;
+        }
+
+        let tmp = TempDir::new().unwrap();
+        let pinyin = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&pinyin);
+        let resources = tmp.path().join("resources");
+        let user = tmp.path().join("user");
+        let cache = tmp.path().join("cache");
+        let dictionaries = tmp.path().join("dictionaries");
+        let (session, error) =
+            create_with_explicit_roots(&pinyin, &resources, &user, &cache, &dictionaries);
+        assert!(error.is_none(), "{error:?}");
+        assert!(!session.is_null());
+        let config = json!({
+            "keyboard": {"enabled": false},
+            "settled": {
+                "enabled": true,
+                "path": desktop.to_string_lossy(),
+                "expected_sha256": "0a6ecba69bf1d39c7eb49549c716477dd6c03fdf05757773e1f50435262fb469"
+            }
+        });
+        let _ = configure_rerank(session, &config.to_string());
+        wait_for_rerank_state(session, "settled", "ready");
+
+        // A trusted dictionary leader needs no neural comparison. Put the pin in place before
+        // typing so the composition carries candidate operations that the settled presentation
+        // pass can replay after the host removes the pin.
+        assert!(call_action(session, r#"{"op":"set_pinned_words","text":"ni\t0\t尼"}"#).ok);
+        for ch in ["n", "i"] {
+            assert!(call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#)).ok);
+        }
+        let before = call_snapshot(session);
+        assert_eq!(before.candidates[0].text, "尼");
+        assert!(call_action(session, r#"{"op":"set_pinned_words","text":""}"#).ok);
+        let started = start_settled_rerank(session);
+        assert_eq!(started["status"], "done", "{started}");
+        assert_eq!(started["current"], true);
+        assert_eq!(started["moved"], false);
+        assert_eq!(call_snapshot(session).candidates[0].text, "尼");
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn settled_model_is_reattached_after_worker_launch_failure() {
+        let Some(directory) = std::env::var_os("MSIME_NEURAL_MODEL_DIR").map(PathBuf::from) else {
+            eprintln!("skipping: MSIME_NEURAL_MODEL_DIR is not set");
+            return;
+        };
+        let desktop = directory.join("sentence-model-desktop.safetensors");
+        if !desktop.is_file() {
+            eprintln!("skipping: desktop sentence model is absent from {directory:?}");
+            return;
+        }
+
+        let tmp = TempDir::new().unwrap();
+        let pinyin = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&pinyin);
+        Connection::open(&pinyin)
+            .unwrap()
+            .execute("DELETE FROM tbl_2_n", [])
+            .unwrap();
+        let resources = tmp.path().join("resources");
+        let user = tmp.path().join("user");
+        let cache = tmp.path().join("cache");
+        let dictionaries = tmp.path().join("dictionaries");
+        let (session, error) =
+            create_with_explicit_roots(&pinyin, &resources, &user, &cache, &dictionaries);
+        assert!(error.is_none(), "{error:?}");
+        assert!(!session.is_null());
+        let config = json!({
+            "keyboard": {"enabled": false},
+            "settled": {
+                "enabled": true,
+                "path": desktop.to_string_lossy(),
+                "expected_sha256": "0a6ecba69bf1d39c7eb49549c716477dd6c03fdf05757773e1f50435262fb469"
+            }
+        });
+        let _ = configure_rerank(session, &config.to_string());
+        wait_for_rerank_state(session, "settled", "ready");
+
+        // Simulate begin_settled_rerank taking the model while worker creation then fails.
+        let session_ref = unsafe { &mut *session };
+        let OwlMsimeSession {
+            runtime, rerank, ..
+        } = session_ref;
+        runtime.set_settled_reranker(None);
+        rerank.recover_settled_worker_failure(runtime);
+        assert_eq!(rerank_status(session)["settled"]["attached"], true);
+
+        for ch in ["n", "i", "h", "a", "o"] {
+            assert!(call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#)).ok);
+        }
+        let started = start_settled_rerank(session);
+        assert_eq!(started["status"], "pending", "{started}");
+        let token = started["token"].as_u64().unwrap();
+        let discarded = wait_for_settled_job(session, token, false);
+        assert_eq!(discarded["current"], false);
+        owl_msime_session_destroy(session);
     }
 
     #[test]

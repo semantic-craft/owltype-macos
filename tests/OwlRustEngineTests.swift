@@ -60,6 +60,94 @@ final class OwlRustEngineTests: XCTestCase {
     return composition.candidates + session.peekCandidates(from: start, count: count)
   }
 
+  func testRerankConfigurationDefaultsOffAndUsesStablePackagePaths() throws {
+    let defaults = OwlDefaults.standard
+    let keyboardKey = "OwlExperimentalKeyboardRerankEnabled"
+    let settledKey = "OwlExperimentalSettledRerankEnabled"
+    let savedKeyboard = defaults.object(forKey: keyboardKey)
+    let savedSettled = defaults.object(forKey: settledKey)
+    defer {
+      if let savedKeyboard {
+        defaults.set(savedKeyboard, forKey: keyboardKey)
+      } else {
+        defaults.removeObject(forKey: keyboardKey)
+      }
+      if let savedSettled {
+        defaults.set(savedSettled, forKey: settledKey)
+      } else {
+        defaults.removeObject(forKey: settledKey)
+      }
+    }
+    defaults.removeObject(forKey: keyboardKey)
+    defaults.removeObject(forKey: settledKey)
+
+    let root = URL(fileURLWithPath: "/private/tmp/owl-rerank-config", isDirectory: true)
+    let disabled = OwlRerankConfiguration.current(sharedSupportURL: root)
+    XCTAssertFalse(disabled.keyboard.enabled)
+    XCTAssertFalse(disabled.settled.enabled)
+    XCTAssertEqual(
+      disabled.keyboard.path,
+      root.appendingPathComponent("msime/models/keyboard-model.bin").path
+    )
+    XCTAssertEqual(
+      disabled.settled.path,
+      root.appendingPathComponent("msime/models/settled-model.bin").path
+    )
+
+    let first = try XCTUnwrap(disabled.serialized())
+    XCTAssertEqual(first, disabled.serialized())
+    XCTAssertTrue(first.contains("\"expected_sha256\""))
+    XCTAssertTrue(first.contains(OwlRerankModelDescriptor.keyboard.expectedSHA256))
+    XCTAssertTrue(first.contains(OwlRerankModelDescriptor.settled.expectedSHA256))
+
+    OwlExperimentalPreferences.keyboardRerankEnabled = true
+    OwlExperimentalPreferences.settledRerankEnabled = true
+    let enabled = OwlRerankConfiguration.current(sharedSupportURL: root)
+    XCTAssertTrue(enabled.keyboard.enabled)
+    XCTAssertTrue(enabled.settled.enabled)
+    XCTAssertNotEqual(enabled.serialized(), first)
+  }
+
+  func testSettledRerankTicketPreservesFullGenerationAndRejectsStalePresentations() {
+    let highGeneration = (UInt64(1) << 63) | 0x5a5a
+    let ticket = OwlSettledRerankTicket(
+      sessionID: 42,
+      generation: highGeneration,
+      rawInput: "nihao",
+      configurationEpoch: 7
+    )
+    XCTAssertTrue(ticket.isCurrent(
+      sessionID: 42,
+      generation: highGeneration,
+      rawInput: "nihao",
+      configurationEpoch: 7
+    ))
+    XCTAssertFalse(ticket.isCurrent(
+      sessionID: 43,
+      generation: highGeneration,
+      rawInput: "nihao",
+      configurationEpoch: 7
+    ))
+    XCTAssertFalse(ticket.isCurrent(
+      sessionID: 42,
+      generation: highGeneration + 1,
+      rawInput: "nihao",
+      configurationEpoch: 7
+    ))
+    XCTAssertFalse(ticket.isCurrent(
+      sessionID: 42,
+      generation: highGeneration,
+      rawInput: "nihaoa",
+      configurationEpoch: 7
+    ))
+    XCTAssertFalse(ticket.isCurrent(
+      sessionID: 42,
+      generation: highGeneration,
+      rawInput: "nihao",
+      configurationEpoch: 8
+    ))
+  }
+
   func testEngineMetadataAndSchemaSelection() throws {
     let engine = try makeSharedSupportSeedEngine()
     XCTAssertEqual(engine.version(), "msime-rust-0.1")

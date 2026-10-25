@@ -68,7 +68,197 @@ extension OwlInputController {
     }
   }
 
+  // MARK: - Settled reranking
+
+  func shouldArmSettledRerank(after keycode: UInt32) -> Bool {
+    if keycode >= UInt32(XK_a) && keycode <= UInt32(XK_z) {
+      return true
+    }
+    if keycode == UInt32(XK_BackSpace) || keycode == UInt32(XK_Delete) {
+      return true
+    }
+    return keycode == UInt32(XK_apostrophe) && !OwlKeyboardPreferences.select23Semicolon
+  }
+
+  func armSettledRerankAfterInput() {
+    guard !applyingSettledRerank,
+          OwlExperimentalPreferences.settledRerankEnabled,
+          let rime, rime.isValid,
+          let input = rime.input(), !input.isEmpty else {
+      return
+    }
+    settledRerankLastInputAt = DispatchTime.now().uptimeNanoseconds
+    scheduleSettledRerankDebounce(after: OwlSettledRerankTiming.debounce)
+  }
+
+  private func scheduleSettledRerankDebounce(after interval: TimeInterval) {
+    settledRerankDebounceTimer?.invalidate()
+    let timer = Timer(timeInterval: interval, repeats: false) {
+      [weak self] _ in
+      self?.settledRerankDebounceFired()
+    }
+    settledRerankDebounceTimer = timer
+    RunLoop.main.add(timer, forMode: .common)
+  }
+
+  /// A new key, selection, page turn, schema switch, or focus change invalidates the pause
+  /// window. An already-running job is deliberately left alive so poll can return its model.
+  func invalidateSettledRerankForAction() {
+    settledRerankDebounceTimer?.invalidate()
+    settledRerankDebounceTimer = nil
+    settledRerankWaitingForDrain = false
+  }
+
+  func rerankPreferencesDidChange() {
+    invalidateSettledRerankForAction()
+    settledRerankLastInputAt = nil
+    guard let rime, rime.isValid else { return }
+    rime.syncRerankPreferences()
+    if !applyingSettledRerank,
+       OwlExperimentalPreferences.settledRerankEnabled,
+       let input = rime.input(), !input.isEmpty {
+      armSettledRerankAfterInput()
+    }
+  }
+
+  func resetSettledRerankRuntime() {
+    settledRerankDebounceTimer?.invalidate()
+    settledRerankPollTimer?.invalidate()
+    settledRerankDebounceTimer = nil
+    settledRerankPollTimer = nil
+    settledRerankJob = nil
+    settledRerankLastInputAt = nil
+    settledRerankWaitingForDrain = false
+  }
+
+  private func settledRerankDebounceFired() {
+    settledRerankDebounceTimer = nil
+    guard !applyingSettledRerank else { return }
+    guard let rime, rime.isValid,
+          OwlExperimentalPreferences.settledRerankEnabled else {
+      return
+    }
+
+    // The model loads on the FFI worker. Querying here runs after the pause is already over and
+    // lets a slow first load become ready without putting file IO on a keystroke.
+    rime.syncRerankPreferences()
+    guard let input = rime.input(), !input.isEmpty else { return }
+    if rime.settledRerankLoading {
+      scheduleSettledRerankDebounce(after: OwlSettledRerankTiming.modelLoadPollInterval)
+      return
+    }
+    guard rime.settledRerankReady else { return }
+    if settledRerankJob != nil {
+      settledRerankWaitingForDrain = true
+      return
+    }
+    startSettledRerankIfDue(session: rime, input: input)
+  }
+
+  private func startSettledRerankIfDue(session: RimeSession, input: String) {
+    guard !applyingSettledRerank,
+          session.isValid,
+          session.settledRerankReady,
+          !input.isEmpty,
+          let lastInput = settledRerankLastInputAt else {
+      return
+    }
+    let now = DispatchTime.now().uptimeNanoseconds
+    let debounceNanos = UInt64(OwlSettledRerankTiming.debounce * 1_000_000_000)
+    guard now &- lastInput >= debounceNanos else {
+      let remaining = Double(debounceNanos - (now &- lastInput)) / 1_000_000_000
+      scheduleSettledRerankDebounce(after: remaining)
+      return
+    }
+
+    let ticket = OwlSettledRerankTicket(
+      sessionID: session.sessionID,
+      generation: session.generation,
+      rawInput: input,
+      configurationEpoch: session.rerankConfigurationEpoch
+    )
+    let started = session.startSettledRerank()
+    if let token = started.token {
+      settledRerankJob = (token: token, ticket: ticket)
+      settledRerankWaitingForDrain = false
+      startSettledRerankPolling()
+      return
+    }
+    if let error = started.error {
+      debugLiveInputTrace("settled rerank did not start: \(error)")
+    }
+    if started.current, started.moved,
+       ticket.isCurrent(
+         sessionID: session.sessionID,
+         generation: session.generation,
+         rawInput: session.input() ?? "",
+         configurationEpoch: session.rerankConfigurationEpoch
+       ) {
+      applySettledRerankRefresh()
+    }
+  }
+
+  private func startSettledRerankPolling() {
+    settledRerankPollTimer?.invalidate()
+    let timer = Timer(timeInterval: OwlSettledRerankTiming.pollInterval, repeats: true) {
+      [weak self] _ in
+      self?.settledRerankPollFired()
+    }
+    settledRerankPollTimer = timer
+    RunLoop.main.add(timer, forMode: .common)
+  }
+
+  private func settledRerankPollFired() {
+    guard let job = settledRerankJob else {
+      settledRerankPollTimer?.invalidate()
+      settledRerankPollTimer = nil
+      return
+    }
+    guard let rime, rime.isValid else {
+      resetSettledRerankRuntime()
+      return
+    }
+
+    let input = rime.input() ?? ""
+    let accepts = job.ticket.isCurrent(
+      sessionID: rime.sessionID,
+      generation: rime.generation,
+      rawInput: input,
+      configurationEpoch: rime.rerankConfigurationEpoch
+    )
+    let result = rime.pollSettledRerank(token: job.token, accept: accepts)
+    if result.pending {
+      return
+    }
+
+    settledRerankPollTimer?.invalidate()
+    settledRerankPollTimer = nil
+    settledRerankJob = nil
+    if let error = result.error {
+      debugLiveInputTrace("settled rerank finished with an error: \(error)")
+    }
+    if accepts, result.current, result.moved {
+      applySettledRerankRefresh()
+    }
+
+    if settledRerankWaitingForDrain {
+      settledRerankWaitingForDrain = false
+      if OwlExperimentalPreferences.settledRerankEnabled,
+         rime.isValid,
+         let input = rime.input(), !input.isEmpty {
+        startSettledRerankIfDue(session: rime, input: input)
+      }
+    }
+  }
+
+  private func applySettledRerankRefresh() {
+    applyingSettledRerank = true
+    defer { applyingSettledRerank = false }
+    rimeUpdate()
+  }
+
   func createSession() {
+    resetSettledRerankRuntime()
     let app = client?.bundleIdentifier() ?? {
       OwlInputController.unknownAppCnt &+= 1
       return "UnknownApp\(OwlInputController.unknownAppCnt)"
@@ -164,6 +354,7 @@ extension OwlInputController {
 
   func destroySession() {
     finishAutomaticExpansion(replaySemicolon: false)
+    resetSettledRerankRuntime()
     // print("[DEBUG] destroySession:")
     rime?.destroy()
     rime = nil
@@ -279,6 +470,7 @@ extension OwlInputController {
   @discardableResult
   func switchLiveSessionSchema(to id: String) -> SchemaSwitchResult {
     guard !id.isEmpty, let rime, rime.isValid else { return .noLiveSession }
+    invalidateSettledRerankForAction()
     finishAutomaticExpansion(replaySemicolon: false)
     let ascii = rime.option(.asciiMode)
     let selected = rime.selectSchema(id)   // re-reads build/<id>.schema.yaml in place; clears composition

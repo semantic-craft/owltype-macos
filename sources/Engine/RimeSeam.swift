@@ -29,6 +29,59 @@ import Foundation
 
 // MARK: - Protocols
 
+enum OwlSettledRerankTiming {
+  static let debounce: TimeInterval = 0.15
+  static let pollInterval: TimeInterval = 0.02
+  static let modelLoadPollInterval: TimeInterval = 0.05
+}
+
+struct OwlSettledRerankTicket: Equatable, Sendable {
+  let sessionID: UInt64
+  let generation: UInt64
+  let rawInput: String
+  let configurationEpoch: UInt64
+
+  func isCurrent(
+    sessionID: UInt64,
+    generation: UInt64,
+    rawInput: String,
+    configurationEpoch: UInt64
+  ) -> Bool {
+    self.sessionID == sessionID
+      && self.generation == generation
+      && self.rawInput == rawInput
+      && self.configurationEpoch == configurationEpoch
+  }
+}
+
+struct OwlSettledRerankStartResult: Equatable, Sendable {
+  let token: UInt64?
+  let current: Bool
+  let moved: Bool
+  let error: String?
+
+  static let noWork = OwlSettledRerankStartResult(
+    token: nil,
+    current: true,
+    moved: false,
+    error: nil
+  )
+}
+
+struct OwlSettledRerankPollResult: Equatable, Sendable {
+  let pending: Bool
+  let current: Bool
+  let moved: Bool
+  let error: String?
+
+  static let doneWithoutChange = OwlSettledRerankPollResult(
+    pending: false,
+    current: false,
+    moved: false,
+    error: nil
+  )
+}
+
 /// One composition's conversation with librime. All calls are on the IMK input thread.
 protocol RimeSession: AnyObject {
   /// A stable opaque identifier for this session, used only to tag composition snapshots
@@ -92,6 +145,28 @@ protocol RimeSession: AnyObject {
   /// implementation returns `[]` so existing fakes stay source-compatible.
   func peekCandidates(from index: Int, count: Int) -> [RimeCandidate]
 
+  /// The configured model generation. Changes whenever enabled/path/version/hash changes, so a
+  /// settled result started under an older model configuration is discarded.
+  var rerankConfigurationEpoch: UInt64 { get }
+
+  /// The settled model has loaded and is attached to this runtime. The controller does not
+  /// start a pause job until this is true.
+  var settledRerankReady: Bool { get }
+
+  /// The settled model is still loading on the FFI worker. A pause timer normally consumes the
+  /// whole debounce interval, so the controller keeps a short retry alive while this is true.
+  var settledRerankLoading: Bool { get }
+
+  /// Re-read rerank preferences and apply them to this session on its own IMK thread.
+  func syncRerankPreferences()
+
+  /// Start the model worker for the current composition. The returned token must be polled on
+  /// this same session thread, even after the composition becomes stale.
+  func startSettledRerank() -> OwlSettledRerankStartResult
+
+  /// Poll a settled job. `accept=false` drains the job without applying or moving candidates.
+  func pollSettledRerank(token: UInt64, accept: Bool) -> OwlSettledRerankPollResult
+
   /// `select_schema` on THIS live session — re-reads the compiled `build/<schema>.schema.yaml`
   /// in place (no engine restart, no dict/octagram rebuild; clears the current composition).
   /// Used by the fast settings-apply path to make a just-deployed config effective on the
@@ -120,6 +195,9 @@ protocol RimeSession: AnyObject {
 
 extension RimeSession {
   var generation: UInt64 { 0 }
+  var rerankConfigurationEpoch: UInt64 { 0 }
+  var settledRerankReady: Bool { false }
+  var settledRerankLoading: Bool { false }
 
   func lastCommittedInput() -> String? { nil }
 
@@ -130,6 +208,14 @@ extension RimeSession {
   /// Default no-op — keeps fakes/spies source-compatible; the live adapter overrides with
   /// `select_candidate`.
   func selectCandidateAbsolute(_: Int) -> Bool { false }
+
+  func syncRerankPreferences() {}
+
+  func startSettledRerank() -> OwlSettledRerankStartResult { .noWork }
+
+  func pollSettledRerank(token _: UInt64, accept _: Bool) -> OwlSettledRerankPollResult {
+    .doneWithoutChange
+  }
 
   func selectCandidate(_ token: OwlCandidateToken) -> Bool {
     if token.sessionID != 0 && token.sessionID != sessionID {

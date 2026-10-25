@@ -215,6 +215,10 @@ final class OwlSettingsState {
   var keyboardAutoPairBrackets: Bool = false
   /// 这些 App 默认英文 (mirror of `OwlKeyboardPreferences.appEnglishBundleIDs`).
   var keyboardAppEnglishBundleIDsText: String = ""
+  /// 逐键候选重排 (mirror of `OwlExperimentalPreferences.keyboardRerankEnabled`). Default false.
+  var keyboardRerankEnabled: Bool = false
+  /// 停顿候选重排 (mirror of `OwlExperimentalPreferences.settledRerankEnabled`). Default false.
+  var settledRerankEnabled: Bool = false
 
   // MARK: - 皮肤外观 / 候选 emoji
 
