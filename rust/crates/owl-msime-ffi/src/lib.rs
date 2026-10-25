@@ -883,6 +883,7 @@ impl OwlMsimeSession {
 
         let engine_session = EngineSession::new(&options).map_err(|e| e.to_string())?;
         let mut runtime = Runtime::new(engine_session, page_size_u8).map_err(|e| e.to_string())?;
+        runtime.set_phrase_preedit(true);
         let _ = runtime.focus(true).map_err(|e| e.to_string())?;
         let pinned_state = Arc::new(Mutex::new(OwlPinnedState {
             words: HashMap::new(),
@@ -1889,6 +1890,30 @@ mod tests {
         serde_json::from_str(&resp_str).expect("valid snapshot json")
     }
 
+    fn select_visible_text(
+        session: *mut OwlMsimeSession,
+        expected: &str,
+    ) -> SnapshotResponseDto {
+        loop {
+            let frame = call_snapshot(session);
+            if let Some(index) = frame
+                .candidates
+                .iter()
+                .position(|candidate| candidate.text == expected)
+            {
+                return call_action(
+                    session,
+                    &format!(r#"{{"op":"select_visible","index":{index}}}"#),
+                );
+            }
+            assert!(
+                frame.has_more_pages,
+                "candidate {expected:?} was not in the loaded pages"
+            );
+            call_action(session, r#"{"op":"turn_page","delta":1}"#);
+        }
+    }
+
     fn staged_pinyin_path(session: *const OwlMsimeSession) -> PathBuf {
         assert!(!session.is_null());
         unsafe { (*session).staged_pinyin_path.clone() }
@@ -2319,6 +2344,76 @@ mod tests {
         assert!(!post_destroy_snap.ok);
         let post_destroy_act = call_action(session, "{\"op\":\"space\"}");
         assert!(!post_destroy_act.ok);
+    }
+
+    #[test]
+    fn ffi_partial_phrase_selection_stays_in_preedit_until_the_phrase_ends() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&db_path);
+        let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_empty.as_ptr(), 5);
+        assert!(!session.is_null());
+
+        for ch in ['n', 'i', 'h', 'a', 'o'] {
+            call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+        }
+        let held = select_visible_text(session, "你");
+        assert!(held.consumed);
+        assert_eq!(
+            held.committed_text, None,
+            "a candidate that consumes only the first syllable must stay in the composition"
+        );
+        assert_eq!(held.raw_input, "hao");
+        assert_eq!(held.preedit, "你hao");
+        assert_eq!(held.preedit_caret_byte, "你hao".len());
+
+        // Continuing and then editing the remaining spelling must keep the chosen piece held.
+        let continued = call_action(session, r#"{"op":"insert","ch":"n"}"#);
+        assert_eq!(continued.committed_text, None);
+        assert_eq!(continued.raw_input, "haon");
+        assert_eq!(continued.preedit, "你hao'n");
+        let edited = call_action(session, r#"{"op":"backspace"}"#);
+        assert_eq!(edited.committed_text, None);
+        assert_eq!(edited.raw_input, "hao");
+        assert_eq!(edited.preedit, "你hao");
+
+        // Ordinary Backspace retreats the latest selection when the tail reaches one character.
+        let shorter = call_action(session, r#"{"op":"backspace"}"#);
+        assert_eq!(shorter.committed_text, None);
+        assert_eq!(shorter.preedit, "你ha");
+        let shorter = call_action(session, r#"{"op":"backspace"}"#);
+        assert_eq!(shorter.committed_text, None);
+        assert_eq!(shorter.preedit, "你h");
+        let restored = call_action(session, r#"{"op":"backspace"}"#);
+        assert_eq!(restored.committed_text, None);
+        assert_eq!(restored.raw_input, "ni");
+        assert_eq!(restored.preedit, "ni");
+
+        // Select the same piece again and finish the phrase; the pieces go out as one commit.
+        for ch in ['h', 'a', 'o'] {
+            call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+        }
+        select_visible_text(session, "你");
+        let committed = select_visible_text(session, "好");
+        assert_eq!(committed.committed_text.as_deref(), Some("你好"));
+        assert!(committed.raw_input.is_empty());
+        assert!(committed.preedit.is_empty());
+
+        // Escape discards both the unfinished spelling and the held piece.
+        for ch in ['n', 'i', 'h', 'a', 'o'] {
+            call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+        }
+        select_visible_text(session, "你");
+        let cancelled = call_action(session, r#"{"op":"clear"}"#);
+        assert!(cancelled.cleared);
+        assert_eq!(cancelled.committed_text, None);
+        assert!(cancelled.raw_input.is_empty());
+        assert!(cancelled.preedit.is_empty());
+
+        owl_msime_session_destroy(session);
     }
 
     #[test]
