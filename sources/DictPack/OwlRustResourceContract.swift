@@ -225,6 +225,12 @@ struct OwlRustResourceManifest: Codable, Equatable, Sendable {
       throw OwlRustResourceError.invalidManifest("files 不得为空")
     }
 
+    try Self.validateFileEntries(files)
+    try Self.validateLicenseEntries(license, files: files)
+    try Self.validateEngineCompatibility(engineCompatibility)
+  }
+
+  private static func validateFileEntries(_ files: [OwlRustResourceFile]) throws {
     var paths = Set<String>()
     var singletonRoles = Set<OwlRustResourceFileRole>()
     for file in files {
@@ -253,7 +259,12 @@ struct OwlRustResourceManifest: Codable, Equatable, Sendable {
         }
       }
     }
+  }
 
+  private static func validateLicenseEntries(
+    _ license: [OwlRustResourceLicense],
+    files: [OwlRustResourceFile]
+  ) throws {
     let licenseFiles = Set(files.filter { $0.role == .license }.map(\.path))
     for notice in license {
       guard !notice.identifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -268,7 +279,11 @@ struct OwlRustResourceManifest: Codable, Equatable, Sendable {
         }
       }
     }
+  }
 
+  private static func validateEngineCompatibility(
+    _ engineCompatibility: OwlRustResourceEngineCompatibility
+  ) throws {
     guard engineCompatibility.minimumContractVersion > 0,
           engineCompatibility.maximumContractVersion >= engineCompatibility.minimumContractVersion else {
       throw OwlRustResourceError.invalidManifest("engineCompatibility 版本区间无效")
