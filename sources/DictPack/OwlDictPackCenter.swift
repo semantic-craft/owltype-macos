@@ -95,7 +95,7 @@ final class OwlDictPackCenter {
   }
 
   init(
-    usesRustResources: Bool? = nil,
+    usesRustResources: Bool = true,
     rustBackend: OwlDictPackCenterRustBackend = .production(),
     makeFetcher: @escaping () -> OwlDictPackFetcher = {
       OwlDictPackFetcher(manifest: .current, userDir: OwlApp.userDir)
@@ -107,9 +107,7 @@ final class OwlDictPackCenter {
       NSApp.owlAppDelegate.requestLiveSessionRefreshWhenIdle(completion: completion)
     }
   ) {
-    self.usesRustResources = usesRustResources ?? (
-      ProcessInfo.processInfo.environment["OWL_ENGINE_BACKEND"]?.lowercased() != "rime"
-    )
+    self.usesRustResources = usesRustResources
     self.rustBackend = rustBackend
     self.makeFetcher = makeFetcher
     self.deploy = deploy
