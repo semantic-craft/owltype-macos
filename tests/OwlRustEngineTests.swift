@@ -29,9 +29,14 @@ final class OwlRustEngineTests: XCTestCase {
       try? FileManager.default.removeItem(at: userDir)
     }
     let engine = OwlRustEngine(sharedSupportURL: seedDir, userDataURL: userDir)
-    var traits = RimeTraits.rimeStructInit()
-    engine.setup(&traits)
-    engine.initialize(nil)
+    engine.setup(
+      OwlEngineTraits(
+        sharedDataDir: seedDir,
+        userDataDir: userDir,
+        logDir: userDir,
+        appName: OwlRimeIdentity.appName
+      )
+    )
     return engine
   }
 

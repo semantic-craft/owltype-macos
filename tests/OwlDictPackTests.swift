@@ -460,6 +460,21 @@ private final class ProgressCollector: @unchecked Sendable {
 
 @MainActor
 final class OwlDictPackCenterTests: XCTestCase {
+  func testDefaultResourcePathIgnoresRemovedLegacyEngineSelector() {
+    let key = "OWL_ENGINE_BACKEND"
+    let previous = ProcessInfo.processInfo.environment[key]
+    setenv(key, "rime", 1)
+    defer {
+      if let previous {
+        setenv(key, previous, 1)
+      } else {
+        unsetenv(key)
+      }
+    }
+
+    XCTAssertTrue(OwlDictPackCenter().usesRustResources)
+  }
+
   func testRustPrepareActivateAndRollbackNeverDeploy() async throws {
     let root = FileManager.default.temporaryDirectory
       .appending(component: "owl-dictpack-center-\(UUID().uuidString)", directoryHint: .isDirectory)

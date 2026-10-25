@@ -25,6 +25,7 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 
+mod config;
 mod punctuation_menu;
 mod user_migration;
 

@@ -875,7 +875,6 @@ final class OwlRustEngine: RimeEngine {
   private var nextSessionID: UInt64 = 1
   private var sessions: [UInt64: OwlRustSession] = [:]
   private var notificationHandler: RimeNotificationHandler?
-  private var notificationContext: UnsafeMutableRawPointer?
 
   init(
     sharedSupportURL: URL? = Bundle.main.sharedSupportURL,
@@ -887,34 +886,14 @@ final class OwlRustEngine: RimeEngine {
     self.activeGenerationProvider = activeGenerationProvider
   }
 
-  /// Create the active engine according to `OWL_ENGINE_BACKEND` (default `rust`; `rime` for rollback).
-  static func makeConfiguredEngine(fallback: @autoclosure () -> RimeEngine = LiveRimeEngine()) -> RimeEngine {
-    if ProcessInfo.processInfo.environment["OWL_ENGINE_BACKEND"]?.lowercased() == "rime" {
-      return fallback()
-    }
+  static func makeConfiguredEngine() -> RimeEngine {
     return OwlRustEngine()
   }
 
-  func setup(_ traits: inout RimeTraits) {
-    if let sharedC = traits.shared_data_dir {
-      let path = String(cString: sharedC).trimmingCharacters(in: .whitespacesAndNewlines)
-      if !path.isEmpty {
-        sharedSupportURL = URL(fileURLWithPath: path, isDirectory: true)
-        cachedBundledGeneration = nil
-      }
-    }
-    if let userC = traits.user_data_dir {
-      let path = String(cString: userC).trimmingCharacters(in: .whitespacesAndNewlines)
-      if !path.isEmpty {
-        userDataURL = URL(fileURLWithPath: path, isDirectory: true)
-      }
-    }
-  }
-
-  func initialize(_ traits: UnsafeMutablePointer<RimeTraits>?) {
-    if let traits {
-      setup(&traits.pointee)
-    }
+  func setup(_ traits: OwlEngineTraits) {
+    sharedSupportURL = traits.sharedDataDir
+    userDataURL = traits.userDataDir
+    cachedBundledGeneration = nil
   }
 
   func startMaintenance(fullCheck: Bool) -> Bool {
@@ -933,9 +912,8 @@ final class OwlRustEngine: RimeEngine {
     return refreshAllSessionsPreferences(includeHostPhrases: true)
   }
 
-  func setNotificationHandler(_ handler: @escaping RimeNotificationHandler, context: UnsafeMutableRawPointer?) {
+  func setNotificationHandler(_ handler: @escaping RimeNotificationHandler) {
     notificationHandler = handler
-    notificationContext = context
   }
 
   func syncUserData() -> Bool {
@@ -1105,12 +1083,12 @@ final class OwlRustEngine: RimeEngine {
     return hasher.finalize().map { String(format: "%02x", $0) }.joined()
   }
 
-  func session(for id: RimeSessionId) -> RimeSession {
-    if let existing = sessions[UInt64(id)] {
+  func session(for id: UInt64) -> RimeSession {
+    if let existing = sessions[id] {
       return existing
     }
     return OwlRustSession(
-      sessionID: UInt64(id),
+      sessionID: id,
       handle: nil,
       ownerEngine: self,
       initialSchemaId: selectedSchemaId
@@ -1169,29 +1147,17 @@ final class OwlRustEngine: RimeEngine {
   fileprivate func notifyOptionChanged(sessionID: UInt64, optionName: String, value: Bool) {
     guard let handler = notificationHandler else { return }
     let payload = value ? optionName : "!\(optionName)"
-    "option".withCString { typeCStr in
-      payload.withCString { valCStr in
-        handler(notificationContext, RimeSessionId(sessionID), typeCStr, valCStr)
-      }
-    }
+    handler(sessionID, "option", payload)
   }
 
   private func notifySchemaChanged(schemaId: String, schemaName: String) {
     guard let handler = notificationHandler else { return }
     let payload = "\(schemaId)/\(schemaName)"
-    "schema".withCString { typeCStr in
-      payload.withCString { valCStr in
-        handler(notificationContext, 0, typeCStr, valCStr)
-      }
-    }
+    handler(0, "schema", payload)
   }
 
   private func notifyDeploy(status: String) {
     guard let handler = notificationHandler else { return }
-    "deploy".withCString { typeCStr in
-      status.withCString { valCStr in
-        handler(notificationContext, 0, typeCStr, valCStr)
-      }
-    }
+    handler(0, "deploy", status)
   }
 }

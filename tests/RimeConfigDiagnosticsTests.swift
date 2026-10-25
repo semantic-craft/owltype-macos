@@ -123,16 +123,16 @@ final class RimeConfigDiagnosticsTests: XCTestCase {
   }
 }
 
-// `--build` 回归（2026-07-24）：builderTraits 只设 app_name 时，librime 把所有未设目录 trait
-// 解析到进程 cwd —— 任意目录跑 `Owltype --build` 就地生成 installation.yaml + build/，而真正的
+// `--build` 回归（2026-07-24）：目录 trait 缺失时，构建会落到进程 cwd；任意目录跑
+// `Owltype --build` 会就地生成 installation.yaml + build/，而真正的
 // ~/Library/Application Support/Owltype 完全没被构建。锁死 --build 的 traits 与主启动路径
 // (setupRime) 同一目录三元组。放本文件以免动 project.pbxproj（仓库先例：Main.swift 注释）。
 final class OwlBuilderTraitsTests: XCTestCase {
   func testBuilderTraitsCarrySameDirectoryTripleAsMainLaunchPath() {
     let traits = OwlApp.makeBuilderTraits()
-    XCTAssertEqual(traits.shared_data_dir.map { String(cString: $0) }, Bundle.main.sharedSupportPath)
-    XCTAssertEqual(traits.user_data_dir.map { String(cString: $0) }, OwlApp.userDir.path)
-    XCTAssertEqual(traits.log_dir.map { String(cString: $0) }, OwlApp.logDir.path)
-    XCTAssertEqual(traits.app_name.map { String(cString: $0) }, OwlRimeIdentity.builderAppName)
+    XCTAssertEqual(traits.sharedDataDir.path, Bundle.main.sharedSupportPath)
+    XCTAssertEqual(traits.userDataDir.path, OwlApp.userDir.path)
+    XCTAssertEqual(traits.logDir.path, OwlApp.logDir.path)
+    XCTAssertEqual(traits.appName, OwlRimeIdentity.builderAppName)
   }
 }

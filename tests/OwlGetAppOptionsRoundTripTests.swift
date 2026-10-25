@@ -1,128 +1,154 @@
 //
 //  OwlGetAppOptionsRoundTripTests.swift
-//  OwltypeTests — task 07-11-app-english-domain-crack-followup (AC3)
+//  OwltypeTests
 //
-//  The correct regression seam for the "应用默认英文 config 域裂缝" fix (archived task
-//  07-08, 修法 ③: per-app `app_options` collapsed into the owltype config domain via
-//  `owltype.custom.yaml`). Every existing test only asserts the WRITTEN patch TEXT
-//  (`OwlSettingsE2ETests` / `OwlKeyboardPatchBuilderTests`); NONE exercises the READ
-//  side `OwlConfig.getAppOptions`. That "假覆盖" is exactly what let the cross-domain
-//  crack ship. `RimeSeamTests` uses `FakeRimeSession` (no librime), so it cannot reach the
-//  real `config_open` this bug lived in.
-//
-//  This test drives the real bug mode: deploy a `owltype.custom.yaml` carrying
-//  `app_options/<bundle>/ascii_mode: true` into a temp `user_data_dir`, compile it with a
-//  REAL librime deploy, then `config_open("owltype")` → `getAppOptions(bundle)` and assert the
-//  option reads back. It also asserts the factory Terminal preset (which lives in the owltype
-//  base `owltype.yaml`) still reads back — proving the fix did not regress the factory block.
-//
-//  Feasibility: `main()` skips IMK/Rime startup under XCTest (`runningUnitTests`,
-//  Main.swift), so the process-global librime singleton is idle. This test owns a
-//  one-time `setup`/`initialize`/deploy against a temp dir. No other test inits real
-//  librime, so there is no double-init conflict. Only forward is locked: the fix is
-//  already shipped, so "red before" is not reproducible — this is a防复发 invariant.
+//  Regression coverage for the app-options config boundary without installing Rime
+//  or touching a real user directory. The base YAML and its `.custom.yaml` patch are
+//  synthetic temporary files loaded through the production Rust-backed OwlConfig.
 //
 
 import XCTest
 @testable import Owltype
 
 final class OwlGetAppOptionsRoundTripTests: XCTestCase {
-  /// bundle id only this test writes into `owltype.custom.yaml` — never a factory preset.
   private static let testBundleID = "com.owltype.test.roundtrip"
 
-  private static var tmpUserDir: URL?
-  private static var engine: LiveRimeEngine?
-  private static var deployOK = false
-  private static var sharedSupportPresent = false
+  private var temporaryRoot: URL!
+  private var sharedSupport: URL!
+  private var userData: URL!
 
-  override class func setUp() {
-    super.setUp()
-    let fm = FileManager.default
-    let base = fm.temporaryDirectory
-      .appending(component: "owl-getappoptions-roundtrip-\(UUID().uuidString)", directoryHint: .isDirectory)
-    let logDir = base.appending(component: "log", directoryHint: .isDirectory)
-    tmpUserDir = base
-    try? fm.createDirectory(at: base, withIntermediateDirectories: true)
-    try? fm.createDirectory(at: logDir, withIntermediateDirectories: true)
+  override func setUpWithError() throws {
+    try super.setUpWithError()
+    temporaryRoot = FileManager.default.temporaryDirectory
+      .appendingPathComponent("owl-config-\(UUID().uuidString)", isDirectory: true)
+    sharedSupport = temporaryRoot.appendingPathComponent("SharedSupport", isDirectory: true)
+    userData = temporaryRoot.appendingPathComponent("UserData", isDirectory: true)
+    try FileManager.default.createDirectory(at: sharedSupport, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: userData, withIntermediateDirectories: true)
 
-    // A `owltype.custom.yaml` structurally identical to the write side's
-    // `owlAppOptionsCustomYAML` output: a `patch:` root carrying per-app app_options in
-    // the OWLTYPE domain (base = owltype.yaml, patch = owltype.custom.yaml).
-    let customYAML = """
-    # 猫头鹰 test fixture — getAppOptions 真 librime 往返回归测试 (task 07-11)
+    try """
+    # synthetic base
+    keyboard_layout: last
+    chord_duration: 0.1
+    style:
+      candidate_list_layout: stacked
+      inline_preedit: true
+      inline_candidate: false
+    app_options:
+      com.apple.Terminal:
+        ascii_mode: true
+        no_inline: true
+    """.write(
+      to: sharedSupport.appendingPathComponent("owltype.yaml"),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    try """
+    # The write side emits quoted flat paths under a Rime-style patch map.
     patch:
-      "app_options/\(testBundleID)/ascii_mode": true
-    """
-    let customURL = base.appending(component: OwlRimeIdentity.customConfigFile, directoryHint: .notDirectory)
-    try? Data(customYAML.utf8).write(to: customURL)
-
-    guard let sharedSupport = Bundle.main.sharedSupportPath else { return }
-    sharedSupportPresent = true
-
-    // Drive the real librime lifecycle through the production `LiveRimeEngine` seam rather
-    // than the raw `rime_get_api_stdbool()` C symbol: that symbol is linked into the Owltype
-    // binary but not re-exported to the OwltypeTests bundle, so referencing it directly fails to
-    // link. `LiveRimeEngine`'s calls are compiled into the Owltype module (reachable via
-    // `@testable import`), and so is `OwlConfig` below.
-    let engine = LiveRimeEngine()
-    self.engine = engine
-    // Traits mirror production `setupRime`, but point user_data_dir at the temp dir so the
-    // compiled `build/owltype.yaml` (base + custom patch) lands there for `config_open("owltype")`.
-    var traits = RimeTraits.rimeStructInit()
-    traits.setCString(sharedSupport, to: \.shared_data_dir)
-    traits.setCString(base.path, to: \.user_data_dir)
-    traits.setCString(logDir.path, to: \.log_dir)
-    traits.setCString(OwlRimeIdentity.appName, to: \.app_name)
-    engine.setup(&traits)
-    engine.initialize(nil)
-    // Full workspace deploy first (creates `build/`, compiles default + schemas). The
-    // config-only `deploy_config_file` alone fails on a COLD temp user_data_dir (no `build/`
-    // yet), so we replay the production boot order: `start_maintenance` builds the workspace,
-    // `join_maintenance_thread` waits for the async prism/dict work to land, then
-    // `deploy_config_file("owltype.yaml")` compiles `build/owltype.yaml` (base + custom patch) —
-    // exactly what `startRime` does after `initialize`.
-    if engine.startMaintenance(fullCheck: true) {
-      engine.joinMaintenance()
-    }
-    deployOK = engine.deployConfigFile(OwlRimeIdentity.configFile, versionKey: "config_version")
+      "app_options/\(Self.testBundleID)/ascii_mode": true
+      style/inline_preedit: false
+    """.write(
+      to: userData.appendingPathComponent("owltype.custom.yaml"),
+      atomically: true,
+      encoding: .utf8
+    )
   }
 
-  override class func tearDown() {
-    // This class is the suite's only real-librime integration exception. Release the
-    // process-global engine before deleting its user_data_dir so no initialized singleton keeps
-    // paths into a directory that no longer exists. No other OwltypeTests case initializes librime.
-    engine?.cleanupAllSessions()
-    engine?.finalize()
-    engine = nil
-    if let dir = tmpUserDir {
-      try? FileManager.default.removeItem(at: dir)
+  override func tearDownWithError() throws {
+    if let temporaryRoot {
+      try? FileManager.default.removeItem(at: temporaryRoot)
     }
-    super.tearDown()
+    try super.tearDownWithError()
   }
 
-  private func openOwltypeConfig() -> OwlConfig {
-    XCTAssertTrue(Self.sharedSupportPresent, "Bundle.main.sharedSupportPath is nil in the test host")
-    XCTAssertTrue(Self.deployOK, "deploy_config_file(\"owltype.yaml\") failed — build/owltype.yaml not compiled")
-    let config = OwlConfig()
-    XCTAssertTrue(config.openBaseConfig(), "config_open(\"owltype\") failed — build/owltype.yaml missing?")
+  private func openConfig() -> OwlConfig {
+    let config = OwlConfig(sharedSupportURL: sharedSupport, userDataURL: userData)
+    XCTAssertTrue(config.openBaseConfig())
     return config
   }
 
-  /// AC3 mechanism lock: a user-added bundle written into the owltype domain (`owltype.custom.yaml`)
-  /// reads back through the real `config_open("owltype")` → `getAppOptions` path. Pre-fix this
-  /// value lived in the `default` domain that `getAppOptions` never opened → silent failure.
-  func testUserAddedAppOptionReadsBackFromOwltypeDomain() {
-    let config = openOwltypeConfig()
-    let options = config.getAppOptions(Self.testBundleID)
-    XCTAssertEqual(options, ["ascii_mode": true])
+  func testBundledFactoryConfigReadsWithoutRimeBuildArtifacts() throws {
+    let shared = try XCTUnwrap(Bundle.main.sharedSupportURL)
+    let emptyUserData = temporaryRoot.appendingPathComponent("EmptyUserData", isDirectory: true)
+    try FileManager.default.createDirectory(at: emptyUserData, withIntermediateDirectories: true)
+
+    let config = OwlConfig(sharedSupportURL: shared, userDataURL: emptyUserData)
+    XCTAssertTrue(config.openBaseConfig())
+    XCTAssertTrue(config.has(section: "style"))
+    XCTAssertEqual(config.getString("style/candidate_list_layout"), "stacked")
+    XCTAssertEqual(config.getBool("style/inline_preedit"), true)
+    XCTAssertEqual(config.getBool("style/inline_candidate"), false)
+    XCTAssertEqual(config.getDouble("chord_duration"), 0.1)
+    XCTAssertEqual(
+      config.getAppOptions("com.apple.Terminal"),
+      ["ascii_mode": true, "no_inline": true]
+    )
   }
 
-  /// AC2 factory-preset non-regression: the factory `com.apple.Terminal` block (from the
-  /// owltype.yaml base, data/owltype.yaml) still reads back with both flags after the fix.
-  func testFactoryTerminalPresetNotRegressed() {
-    let config = openOwltypeConfig()
-    let options = config.getAppOptions("com.apple.Terminal")
-    XCTAssertEqual(options["ascii_mode"], true)
-    XCTAssertEqual(options["no_inline"], true)
+  func testUserAddedAppOptionReadsBackFromOwltypeDomain() {
+    XCTAssertEqual(openConfig().getAppOptions(Self.testBundleID), ["ascii_mode": true])
+  }
+
+  func testFactoryPresetAndStylePatchReadBackTogether() {
+    let config = openConfig()
+    XCTAssertEqual(
+      config.getAppOptions("com.apple.Terminal"),
+      ["ascii_mode": true, "no_inline": true]
+    )
+    XCTAssertTrue(config.has(section: "style"))
+    XCTAssertEqual(config.getString("style/candidate_list_layout"), "stacked")
+    XCTAssertEqual(config.getBool("style/inline_preedit"), false)
+    XCTAssertEqual(config.getDouble("chord_duration"), 0.1)
+    XCTAssertNil(config.getString("missing"))
+  }
+
+  func testSchemaStyleOverlaysGlobalAndFallsBackToBaseConfig() throws {
+    try """
+    name: Synthetic
+    style:
+      candidate_list_layout: linear
+      text_orientation: vertical
+    """.write(
+      to: sharedSupport.appendingPathComponent("synthetic.schema.yaml"),
+      atomically: true,
+      encoding: .utf8
+    )
+    try """
+    patch:
+      style/text_orientation: horizontal
+    """.write(
+      to: userData.appendingPathComponent("synthetic.custom.yaml"),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    let global = openConfig()
+    let schema = OwlConfig(sharedSupportURL: sharedSupport, userDataURL: userData)
+    XCTAssertTrue(schema.open(schemaID: "synthetic", baseConfig: global))
+    XCTAssertTrue(schema.has(section: "style"))
+    XCTAssertEqual(schema.getString("style/candidate_list_layout"), "linear")
+    XCTAssertEqual(schema.getString("style/text_orientation"), "horizontal")
+    XCTAssertEqual(schema.getBool("style/inline_preedit"), false) // global fallback
+  }
+
+  func testMalformedPatchFailsWithoutTouchingAnotherConfig() throws {
+    try "patch: [\n".write(
+      to: userData.appendingPathComponent("owltype.custom.yaml"),
+      atomically: true,
+      encoding: .utf8
+    )
+    let config = OwlConfig(sharedSupportURL: sharedSupport, userDataURL: userData)
+    XCTAssertFalse(config.openBaseConfig())
+    XCTAssertFalse(config.isOpen)
+    XCTAssertFalse(config.has(section: "style"))
+  }
+
+  func testRejectedSchemaIDClosesPreviouslyOpenedConfig() {
+    let config = openConfig()
+    XCTAssertFalse(config.open(schemaID: "../escape", baseConfig: nil))
+    XCTAssertFalse(config.isOpen)
+    XCTAssertFalse(config.has(section: "style"))
   }
 }

@@ -2,18 +2,16 @@
 //  RimeSeam.swift
 //  Owltype
 //
-//  The Rime Engine/Session seam (PR1b of the Rime engine seam refactor). Two small
-//  protocols put a testable boundary in front of the librime C API:
+//  The input Engine/Session seam. Two small protocols put a testable boundary
+//  in front of the production Rust engine:
 //
 //    • `RimeEngine`  — the global Rime lifecycle (setup/initialize/deploy/sync/finalize,
 //                      schema list & selection, notification handler). Vends Sessions.
 //    • `RimeSession` — one composition's conversation (process key, take commit, read
 //                      status/composition, candidate select/page/caret, options).
 //
-//  `LiveRimeEngine` / `LiveRimeSession` are the production adapters. They are the ONLY
-//  owners of the `rimeAPI` singleton (`RimeApi_stdbool`) and the raw `RimeSessionId`.
-//  Every C-struct alloc → read → free happens INSIDE the adapter; only the value types
-//  in RimeValueTypes.swift cross the protocol boundary.
+//  `OwlRustEngine` / `OwlRustSession` are the production adapters. Opaque native
+//  handles stay inside them; only value types cross the protocol boundary.
 //
 //  Threading invariant: these are synchronous and MUST be called on the IMK input
 //  thread (the thread IMK delivers `handle(_:client:)` on). There is no actor and no
@@ -32,7 +30,7 @@ import Foundation
 /// One composition's conversation with librime. All calls are on the IMK input thread.
 protocol RimeSession: AnyObject {
   /// A stable opaque identifier for this session, used only to tag composition snapshots
-  /// (`OwlSnapshotEmitter`). For the live adapter this is the raw `RimeSessionId`.
+  /// (`OwlSnapshotEmitter`). The engine assigns it.
   var sessionID: UInt64 { get }
   /// Monotonic composition generation counter for `OwlCandidateToken` (#264).
   var generation: UInt64 { get }
@@ -142,336 +140,33 @@ extension RimeSession {
   }
 }
 
-/// The global Rime lifecycle. Vends Sessions. All calls are on the IMK input thread.
+struct OwlEngineTraits {
+  let sharedDataDir: URL
+  let userDataDir: URL
+  let logDir: URL
+  let appName: String
+}
+
+/// Swift-owned engine notification. No C callback or context pointer crosses the seam.
+typealias RimeNotificationHandler = (UInt64, String, String?) -> Void
+
+/// The global input-engine lifecycle. Vends Sessions. All calls are on the IMK input thread.
 protocol RimeEngine: AnyObject {
-  /// `setup`.
-  func setup(_ traits: inout RimeTraits)
-
-  /// `initialize`.
-  func initialize(_ traits: UnsafeMutablePointer<RimeTraits>?)
-
-  /// `start_maintenance`.
+  func setup(_ traits: OwlEngineTraits)
   func startMaintenance(fullCheck: Bool) -> Bool
-
-  /// `join_maintenance_thread` — block until the async `start_maintenance` work thread
-  /// (`workspace_update`, prism/dict rebuild) has finished. MUST be called before re-reading
-  /// the freshly-built `build/` (e.g. the fast fuzzy-apply reselect), since `start_maintenance`
-  /// schedules its work on a background thread and returns immediately. Off the hot path.
   func joinMaintenance()
-
-  /// `deploy_config_file`.
   func deployConfigFile(_ fileName: String, versionKey: String) -> Bool
-
-  /// `set_notification_handler`.
-  func setNotificationHandler(_ handler: @escaping RimeNotificationHandler, context: UnsafeMutableRawPointer?)
-
-  /// `sync_user_data`.
+  func setNotificationHandler(_ handler: @escaping RimeNotificationHandler)
   func syncUserData() -> Bool
-
-  /// `cleanup_all_sessions`.
   func cleanupAllSessions()
-
-  /// `finalize`.
   func finalize()
-
-  /// `get_schema_list` + `free_schema_list`, decoded to value tuples.
   func schemaList() -> [(id: String, name: String)]
-
-  /// Current schema id via a transient session (`get_current_schema`); "" when unavailable.
   func currentSchema() -> String
-
-  /// Select a schema via a transient session (`select_schema`). Returns false when the target
-  /// is not compiled, including the clean-install dict-pack case with no active IMK session.
   func selectSchema(_ id: String) -> Bool
-
-  /// `get_version`; nil when unavailable.
   func version() -> String?
-
-  /// `create_session`. Returns a live Session wrapping the new id (0 → invalid session).
   func createSession() -> RimeSession
-
-  /// Wrap a session id librime handed back (e.g. in the notification handler) without
-  /// creating a new one, so its read-only helpers (`stateLabel`) are reachable through
-  /// the seam. Does NOT own the id's lifetime — the engine/owner created/destroys it.
-  func session(for id: RimeSessionId) -> RimeSession
+  func session(for id: UInt64) -> RimeSession
 }
-
-// MARK: - Live adapters
-
-/// Production `RimeSession`: wraps the `rimeAPI` singleton + one `RimeSessionId`. Owns
-/// all C-struct lifetime for this session. The controller holds one of these via its
-/// swappable `rime` property (live default vended by `LiveRimeEngine.createSession()`).
-final class LiveRimeSession: RimeSession {
-  private let rimeAPI: RimeApi_stdbool
-  private(set) var sessionId: RimeSessionId
-
-  init(rimeAPI: RimeApi_stdbool, sessionId: RimeSessionId) {
-    self.rimeAPI = rimeAPI
-    self.sessionId = sessionId
-  }
-
-  var sessionID: UInt64 { UInt64(sessionId) }
-
-  var isValid: Bool {
-    sessionId != 0 && rimeAPI.find_session(sessionId)
-  }
-
-  func process(keycode: UInt32, modifiers: UInt32) -> Bool {
-    rimeAPI.process_key(sessionId, Int32(keycode), Int32(modifiers))
-  }
-
-  func takeCommit() -> String? {
-    var commit = RimeCommit.rimeStructInit()
-    defer { _ = rimeAPI.free_commit(&commit) }
-    guard rimeAPI.get_commit(sessionId, &commit) else { return nil }
-    return commit.text.map { String(cString: $0) }
-  }
-
-  func status() -> RimeStatus? {
-    var status = RimeStatus_stdbool.rimeStructInit()
-    guard rimeAPI.get_status(sessionId, &status) else { return nil }
-    defer { _ = rimeAPI.free_status(&status) }
-    let schemaId = status.schema_id.map { String(cString: $0) } ?? ""
-    return RimeStatus(
-      schemaId: schemaId,
-      isASCIIMode: status.is_ascii_mode,
-      isASCIIPunct: status.is_ascii_punct,
-      isFullShape: status.is_full_shape
-    )
-  }
-
-  // swiftlint:disable:next identifier_name
-  func composition() -> RimeComposition? {
-    var ctx = RimeContext_stdbool.rimeStructInit()
-    guard rimeAPI.get_context(sessionId, &ctx) else { return nil }
-    defer { _ = rimeAPI.free_context(&ctx) }
-
-    let preedit = ctx.composition.preedit.map { String(cString: $0) } ?? ""
-    let commitTextPreview = ctx.commit_text_preview.map { String(cString: $0) }
-
-    let numCandidates = Int(ctx.menu.num_candidates)
-    var candidates = [RimeCandidate]()
-    candidates.reserveCapacity(numCandidates)
-    for i in 0..<numCandidates {
-      let candidate = ctx.menu.candidates[i]
-      candidates.append(RimeCandidate(
-        text: candidate.text.map { String(cString: $0) } ?? "",
-        comment: candidate.comment.map { String(cString: $0) }
-      ))
-    }
-
-    // Label precedence preserved exactly from the old `rimeUpdate`: select_keys (one
-    // label per character) wins; otherwise select_labels[0..<page_size].
-    var labels = [String]()
-    if let select_keys = ctx.menu.select_keys {
-      labels = String(cString: select_keys).map { String($0) }
-    } else if let select_labels = ctx.select_labels {
-      let pageSize = Int(ctx.menu.page_size)
-      for i in 0..<pageSize {
-        labels.append(select_labels[i].map { String(cString: $0) } ?? "")
-      }
-    }
-
-    return RimeComposition(
-      preedit: preedit,
-      selStart: Int(ctx.composition.sel_start),
-      selEnd: Int(ctx.composition.sel_end),
-      cursorPos: Int(ctx.composition.cursor_pos),
-      commitTextPreview: commitTextPreview,
-      candidates: candidates,
-      labels: labels,
-      pageNo: Int(ctx.menu.page_no),
-      pageSize: Int(ctx.menu.page_size),
-      isLastPage: ctx.menu.is_last_page,
-      highlightedIndex: Int(ctx.menu.highlighted_candidate_index),
-      numCandidates: numCandidates
-    )
-  }
-
-  func input() -> String? {
-    rimeAPI.get_input(sessionId).map { String(cString: $0) }
-  }
-
-  func caretPos() -> Int {
-    Int(rimeAPI.get_caret_pos(sessionId))
-  }
-
-  func setCaretPos(_ pos: Int) {
-    rimeAPI.set_caret_pos(sessionId, pos)
-  }
-
-  func clearComposition() {
-    rimeAPI.clear_composition(sessionId)
-  }
-
-  func selectCandidate(_ index: Int) -> Bool {
-    rimeAPI.select_candidate_on_current_page(sessionId, index)
-  }
-
-  func selectCandidateAbsolute(_ index: Int) -> Bool {
-    rimeAPI.select_candidate(sessionId, index)
-  }
-
-  func changePage(up: Bool) -> Bool {
-    rimeAPI.change_page(sessionId, up)
-  }
-
-  func peekCandidates(from index: Int, count: Int) -> [RimeCandidate] {
-    // Guarded like `get_version`: the function pointers ride librime's data_size
-    // versioning, so an older dylib may not carry them — degrade to "no preview".
-    guard count > 0,
-          let fromIndex = rimeAPI.candidate_list_from_index,
-          let next = rimeAPI.candidate_list_next,
-          let end = rimeAPI.candidate_list_end else { return [] }
-    var iterator = RimeCandidateListIterator()
-    guard fromIndex(sessionId, &iterator, Int32(index)) else { return [] }
-    defer { end(&iterator) }
-    var peeked: [RimeCandidate] = []
-    peeked.reserveCapacity(count)
-    while peeked.count < count, next(&iterator) {
-      peeked.append(RimeCandidate(
-        text: iterator.candidate.text.map { String(cString: $0) } ?? "",
-        comment: iterator.candidate.comment.map { String(cString: $0) }
-      ))
-    }
-    return peeked
-  }
-
-  func selectSchema(_ id: String) -> Bool {
-    id.withCString { rimeAPI.select_schema(sessionId, $0) }
-  }
-
-  func option(_ option: RimeOption) -> Bool {
-    option.rawValue.withCString { rimeAPI.get_option(sessionId, $0) }
-  }
-
-  func setOption(_ option: RimeOption, _ value: Bool) {
-    option.rawValue.withCString { rimeAPI.set_option(sessionId, $0, value) }
-  }
-
-  func setAppOption(_ key: String, _ value: Bool) {
-    rimeAPI.set_option(sessionId, key, value)
-  }
-
-  func setProperty(name: String, value: String) {
-    value.withCString { rimeAPI.set_property(sessionId, name, $0) }
-  }
-
-  func stateLabel(option name: String, state: Bool, abbreviated: Bool) -> String? {
-    name.withCString { rimeAPI.get_state_label_abbreviated(sessionId, $0, state, abbreviated).asString }
-  }
-
-  func destroy() {
-    if sessionId != 0 {
-      _ = rimeAPI.destroy_session(sessionId)
-      sessionId = 0
-    }
-  }
-}
-
-/// Production `RimeEngine`: the single owner of the global `rimeAPI` lifecycle. The
-/// AppDelegate holds one and the controller obtains its Session from it (via
-/// `NSApp.owlAppDelegate.engine`, the same indirection as `ensureOwltypePanel`).
-final class LiveRimeEngine: RimeEngine {
-  private let rimeAPI: RimeApi_stdbool
-
-  init(rimeAPI: RimeApi_stdbool = rime_get_api_stdbool().pointee) {
-    self.rimeAPI = rimeAPI
-  }
-
-  func setup(_ traits: inout RimeTraits) {
-    rimeAPI.setup(&traits)
-  }
-
-  func initialize(_ traits: UnsafeMutablePointer<RimeTraits>?) {
-    rimeAPI.initialize(traits)
-  }
-
-  func startMaintenance(fullCheck: Bool) -> Bool {
-    rimeAPI.start_maintenance(fullCheck)
-  }
-
-  func joinMaintenance() {
-    rimeAPI.join_maintenance_thread()
-  }
-
-  func deployConfigFile(_ fileName: String, versionKey: String) -> Bool {
-    rimeAPI.deploy_config_file(fileName, versionKey)
-  }
-
-  func setNotificationHandler(_ handler: @escaping RimeNotificationHandler, context: UnsafeMutableRawPointer?) {
-    rimeAPI.set_notification_handler(handler, context)
-  }
-
-  func syncUserData() -> Bool {
-    rimeAPI.sync_user_data()
-  }
-
-  func cleanupAllSessions() {
-    rimeAPI.cleanup_all_sessions()
-  }
-
-  func finalize() {
-    rimeAPI.finalize()
-  }
-
-  func schemaList() -> [(id: String, name: String)] {
-    var list = RimeSchemaList()
-    guard rimeAPI.get_schema_list(&list) else { return [] }
-    defer { rimeAPI.free_schema_list(&list) }
-
-    var items: [(id: String, name: String)] = []
-    let count = Int(list.size)
-    if let base = list.list {
-      for index in 0..<count {
-        let entry = base[index]
-        guard let idC = entry.schema_id else { continue }
-        let id = String(cString: idC)
-        let name = entry.name.map { String(cString: $0) } ?? id
-        items.append((id: id, name: name))
-      }
-    }
-    return items
-  }
-
-  func currentSchema() -> String {
-    let session = rimeAPI.create_session()
-    guard session != 0 else { return "" }
-    defer { _ = rimeAPI.destroy_session(session) }
-
-    let bufferSize = 256
-    var buffer = [CChar](repeating: 0, count: bufferSize)
-    guard rimeAPI.get_current_schema(session, &buffer, bufferSize) else { return "" }
-    return String(cString: buffer)
-  }
-
-  func selectSchema(_ id: String) -> Bool {
-    guard !id.isEmpty else { return false }
-    let session = rimeAPI.create_session()
-    guard session != 0 else { return false }
-    defer { _ = rimeAPI.destroy_session(session) }
-    return id.withCString { rimeAPI.select_schema(session, $0) }
-  }
-
-  func version() -> String? {
-    guard let getVersion = rimeAPI.get_version else { return nil }
-    guard let cString = getVersion() else { return nil }
-    let version = String(cString: cString)
-    return version.isEmpty ? nil : version
-  }
-
-  func createSession() -> RimeSession {
-    LiveRimeSession(rimeAPI: rimeAPI, sessionId: rimeAPI.create_session())
-  }
-
-  func session(for id: RimeSessionId) -> RimeSession {
-    LiveRimeSession(rimeAPI: rimeAPI, sessionId: id)
-  }
-}
-
-/// The C notification-handler function-pointer type librime expects.
-typealias RimeNotificationHandler =
-  @convention(c) (UnsafeMutableRawPointer?, RimeSessionId, UnsafePointer<CChar>?, UnsafePointer<CChar>?) -> Void
 
 // MARK: - Snapshot-reading port (god-object reduction)
 //

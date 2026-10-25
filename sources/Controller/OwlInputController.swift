@@ -330,7 +330,12 @@ final class OwlInputController: IMKInputController {
     // TODO add special key event postprocessing here
 
     if !handled {
-      let isVimBackInCommandMode = rimeKeycode == XK_Escape || ((rimeModifiers & kControlMask.rawValue != 0) && (rimeKeycode == XK_c || rimeKeycode == XK_C || rimeKeycode == XK_bracketleft))
+      let hasControl = rimeModifiers & kControlMask.rawValue != 0
+      let isVimCommandKey = rimeKeycode == UInt32(XK_c)
+        || rimeKeycode == UInt32(XK_C)
+        || rimeKeycode == UInt32(XK_bracketleft)
+      let isVimBackInCommandMode = rimeKeycode == UInt32(XK_Escape)
+        || (hasControl && isVimCommandKey)
       if isVimBackInCommandMode && rime.option(.vimMode) &&
           !rime.option(.asciiMode) {
         rime.setOption(.asciiMode, true)

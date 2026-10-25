@@ -9,6 +9,58 @@ extern "C" {
 #endif
 
 typedef struct OwlMsimeSession OwlMsimeSession;
+typedef struct OwlMsimeConfig OwlMsimeConfig;
+
+/*
+ * Loads a base YAML document and an optional Rime-style custom document whose
+ * root `patch:` map is overlaid on it. Both nested maps and flat slash paths
+ * (for example `style/inline_preedit` or
+ * `"app_options/com.example.App/ascii_mode"`) are supported. A missing patch
+ * file is accepted; a missing or malformed base file is an error.
+ *
+ * On failure this returns NULL and, when error_out is non-NULL, stores a newly
+ * allocated UTF-8 message released by owl_msime_string_free.
+ */
+OwlMsimeConfig *owl_msime_config_open(
+    const char *base_path,
+    const char *patch_path,
+    char **error_out
+);
+
+void owl_msime_config_destroy(OwlMsimeConfig *config);
+
+bool owl_msime_config_get_bool(
+    const OwlMsimeConfig *config,
+    const char *path,
+    bool *value_out
+);
+
+bool owl_msime_config_get_double(
+    const OwlMsimeConfig *config,
+    const char *path,
+    double *value_out
+);
+
+/* Returns NULL for a missing or non-scalar value. Free with owl_msime_string_free. */
+char *owl_msime_config_get_string(
+    const OwlMsimeConfig *config,
+    const char *path
+);
+
+bool owl_msime_config_has_map(
+    const OwlMsimeConfig *config,
+    const char *path
+);
+
+/*
+ * Returns a deterministic JSON object containing the boolean direct children
+ * of app_options/<bundle_id>. An absent section is `{}`. Free the result with
+ * owl_msime_string_free.
+ */
+char *owl_msime_config_app_options_json(
+    const OwlMsimeConfig *config,
+    const char *bundle_id
+);
 
 OwlMsimeSession *owl_msime_session_create(
     const char *pinyin_db_path,

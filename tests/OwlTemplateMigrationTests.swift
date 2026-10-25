@@ -286,8 +286,7 @@ final class OwlTemplateMigrationTests: XCTestCase {
     XCTAssertEqual(try migration.prepare().entries.map(\.id), plan.entries.map(\.id))
   }
 
-  /// Pending recovery must block recompiling half-written sources, never input itself: the engine
-  /// still initializes so sessions run on the last build (an uninitialized engine = no candidates).
+  /// Pending recovery must block configuration deployment, never input itself.
   func testPendingRecoveryKeepsRimeRunningButSkipsDeployment() throws {
     try seed()
     try migration.prepareTransaction(migration.prepare())
@@ -295,7 +294,6 @@ final class OwlTemplateMigrationTests: XCTestCase {
     let engine = FakeRimeEngine()
     delegate.engine = engine
     XCTAssertFalse(delegate.startRime(fullCheck: true, migrationDirectory: root))
-    XCTAssertEqual(engine.initializeCount, 1)
     XCTAssertTrue(engine.lifecycleTrace.isEmpty)
     XCTAssertTrue(engine.deployedConfigFiles.isEmpty)
     // The complete settings path must reject edits before touching recovery inputs.
