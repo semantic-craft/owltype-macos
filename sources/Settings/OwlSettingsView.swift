@@ -21,6 +21,14 @@
 import AppKit
 import SwiftUI
 
+/// Delegate-owned user-data actions exposed by the settings maintenance page.
+struct OwlSettingsUserDataActions {
+  let sync: () -> Void
+  let migrateLegacy: () -> Void
+  let resetUserDict: () -> Void
+  let chooseSyncDirectory: () -> Void
+}
+
 struct OwlSettingsView: View {
   @Bindable var state: OwlSettingsState
 
@@ -35,14 +43,8 @@ struct OwlSettingsView: View {
   /// 模糊拼音 fast-ish apply → shared settings application (mtime-gated `fullCheck:false`
   /// maintenance — rebuilds the affected schema prism, not octagram — + reselect + replay).
   let onApplyFuzzyConfigFast: () throws -> OwlKeyboardSettingsApplication.Outcome
-  /// 同步用户数据 → delegate `syncUserData()`.
-  let onSyncUserData: () -> Void
-  /// 迁移旧版输入记录 → delegate `migrateLegacyUserData()`.
-  let onMigrateLegacyUserData: () -> Void
-  /// 重置用户词典… → delegate-owned 确认弹窗 + `resetUserDict()`（备份 → 删 userdb → 重新部署）。
-  let onResetUserDict: () -> Void
-  /// 设置同步目录 → delegate-owned NSOpenPanel + installation.yaml write.
-  let onChooseSyncDirectory: () -> Void
+  /// 同步、迁移、重置与选择同步目录 → delegate-owned user-data operations.
+  let userDataActions: OwlSettingsUserDataActions
   /// 打开用户目录 → delegate `openRimeFolder()`.
   let onOpenRimeFolder: () -> Void
   /// 日志 → delegate `openLogFolder()`.
@@ -352,10 +354,10 @@ struct OwlSettingsView: View {
         actionButton(title: OwlInputMenuTitles.deploy, systemImage: "arrow.triangle.2.circlepath") {
           _ = onRedeploy()
         }
-        actionButton(title: OwlInputMenuTitles.syncDirectory, systemImage: "folder.badge.gearshape", action: onChooseSyncDirectory)
-        actionButton(title: OwlInputMenuTitles.syncUserData, systemImage: "arrow.triangle.2.circlepath.icloud", action: onSyncUserData)
-        actionButton(title: OwlInputMenuTitles.migrateLegacyUserData, systemImage: "arrow.right.arrow.left.square", action: onMigrateLegacyUserData)
-        actionButton(title: OwlInputMenuTitles.resetUserDict, systemImage: "trash", action: onResetUserDict)
+        actionButton(title: OwlInputMenuTitles.syncDirectory, systemImage: "folder.badge.gearshape", action: userDataActions.chooseSyncDirectory)
+        actionButton(title: OwlInputMenuTitles.syncUserData, systemImage: "arrow.triangle.2.circlepath.icloud", action: userDataActions.sync)
+        actionButton(title: OwlInputMenuTitles.migrateLegacyUserData, systemImage: "arrow.right.arrow.left.square", action: userDataActions.migrateLegacy)
+        actionButton(title: OwlInputMenuTitles.resetUserDict, systemImage: "trash", action: userDataActions.resetUserDict)
         actionButton(title: OwlInputMenuTitles.rimeConfig, systemImage: "folder", action: onOpenRimeFolder)
         actionButton(title: OwlInputMenuTitles.logs, systemImage: "doc.text.magnifyingglass", action: onOpenLog)
         actionButton(title: OwlInputMenuTitles.onboarding, systemImage: "sparkles", action: onShowOnboarding)

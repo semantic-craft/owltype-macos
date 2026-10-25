@@ -557,21 +557,23 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       onApplyFuzzyConfigFast: { [weak self] in
         try self?.applyKeyboardSettings(.fuzzy) ?? .init(written: [], succeeded: false)
       },
-      onSyncUserData: { [weak self] in
-        self?.syncUserData()
-        state.statusMessage = NSLocalizedString("已请求同步用户数据。", comment: "sync user data")
-      },
-      onMigrateLegacyUserData: { [weak self] in
-        guard let self, OwlUserMigrationPrompt.confirm() else { return }
-        state.statusMessage = self.migrateLegacyUserData()
-      },
-      onResetUserDict: { [weak self] in
-        guard let self, OwlUserDictResetPrompt.confirm() else { return }
-        state.statusMessage = self.resetUserDict()
-      },
-      onChooseSyncDirectory: { [weak self] in
-        self?.chooseSyncDirectory(for: state)
-      },
+      userDataActions: .init(
+        sync: { [weak self] in
+          self?.syncUserData()
+          state.statusMessage = NSLocalizedString("已请求同步用户数据。", comment: "sync user data")
+        },
+        migrateLegacy: { [weak self] in
+          guard let self, OwlUserMigrationPrompt.confirm() else { return }
+          state.statusMessage = self.migrateLegacyUserData()
+        },
+        resetUserDict: { [weak self] in
+          guard let self, OwlUserDictResetPrompt.confirm() else { return }
+          state.statusMessage = self.resetUserDict()
+        },
+        chooseSyncDirectory: { [weak self] in
+          self?.chooseSyncDirectory(for: state)
+        }
+      ),
       onOpenRimeFolder: { [weak self] in
         self?.openRimeFolder()
       },
@@ -606,10 +608,12 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       onRedeploy: { true },
       onApplyKeyboardConfigFast: { .init(written: [], succeeded: true) },
       onApplyFuzzyConfigFast: { .init(written: [], succeeded: true) },
-      onSyncUserData: {},
-      onMigrateLegacyUserData: {},
-      onResetUserDict: {},
-      onChooseSyncDirectory: {},
+      userDataActions: .init(
+        sync: {},
+        migrateLegacy: {},
+        resetUserDict: {},
+        chooseSyncDirectory: {}
+      ),
       onOpenRimeFolder: {},
       onOpenLog: {},
       onShowOnboarding: {},
