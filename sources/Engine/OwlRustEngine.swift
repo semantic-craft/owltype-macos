@@ -987,12 +987,21 @@ final class OwlRustEngine: RimeEngine {
   fileprivate func loadPackedHostPhrases() -> String {
     let userRoot = userDataURL ?? OwlApp.userDir
     let sharedRoot = sharedSupportURL ?? Bundle.main.sharedSupportURL
-    let fileNames = [
-      OwlTemplateStore.dictFileName,
-      OwlPromptStore.dictFileName,
-      OwlQuickSendStore.dictFileName,
-      "custom_phrase.txt"
-    ]
+    let fileNames: [String]
+    switch OwlTemplateStore.mode(rimeDir: userRoot) {
+    case .unified:
+      fileNames = [OwlTemplateStore.dictFileName, "custom_phrase.txt"]
+    case .legacy:
+      fileNames = [
+        OwlPromptStore.dictFileName,
+        OwlQuickSendStore.dictFileName,
+        "custom_phrase.txt"
+      ]
+    case .empty:
+      fileNames = ["custom_phrase.txt"]
+    case .unavailable:
+      return ""
+    }
     var lines: [String] = []
     for name in fileNames {
       let userFile = userRoot.appendingPathComponent(name)
