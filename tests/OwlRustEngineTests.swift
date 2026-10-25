@@ -35,6 +35,31 @@ final class OwlRustEngineTests: XCTestCase {
     return engine
   }
 
+  private func typeText(
+    _ text: String,
+    into session: RimeSession,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) {
+    for scalar in text.unicodeScalars {
+      XCTAssertTrue(
+        session.process(keycode: scalar.value, modifiers: 0),
+        "Expected \(String(scalar)) in \(text) to be consumed",
+        file: file,
+        line: line
+      )
+    }
+  }
+
+  private func visibleAndPeekedCandidates(
+    in session: RimeSession,
+    count: Int = 100
+  ) -> [RimeCandidate] {
+    guard let composition = session.composition() else { return [] }
+    let start = composition.pageSize
+    return composition.candidates + session.peekCandidates(from: start, count: count)
+  }
+
   func testEngineMetadataAndSchemaSelection() throws {
     let engine = try makeSharedSupportSeedEngine()
     XCTAssertEqual(engine.version(), "msime-rust-0.1")
@@ -720,12 +745,12 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertTrue(engComp.candidates.contains(where: { $0.text.lowercased() == "hello" }))
     session.clearComposition()
 
-    // 5. Switch to Mixed Wubi-Pinyin (`wubi86_jidian_pinyin`, #251-#254)
+    // 5. Switch to Mixed Wubi-Pinyin (`wubi86_jidian_pinyin`, #252-#254)
     XCTAssertTrue(session.selectSchema("wubi86_jidian_pinyin"))
     for scalar in "jixu".unicodeScalars {
       XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
     }
-    // Must NOT auto-commit 曳光弹 on 4th key when pinyin "继续" also matches (#251)
+    // Must NOT auto-commit 曳光弹 on 4th key when pinyin "继续" also matches (#252).
     XCTAssertNil(session.takeCommit())
     let jixuComp = try XCTUnwrap(session.composition())
     let jixuTexts = jixuComp.candidates.map(\.text)
@@ -733,21 +758,544 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertTrue(jixuTexts.contains("曳光弹"))
     session.clearComposition()
 
-    // Exact 3-key pinyin `edu` (`额度`) outranks 4-code Wubi completion `edui`/`eduq` (#252)
+    // Exact 3-key pinyin `edu` (`额度`) outranks 4-code Wubi completion `edui`/`eduq` (#251).
     for scalar in "edu".unicodeScalars {
       XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
     }
     let eduComp = try XCTUnwrap(session.composition())
     XCTAssertEqual(eduComp.candidates.first?.text, "额度")
     session.clearComposition()
+  }
 
-    // 5th-key continuation into multi-syllable pinyin (#253): hang -> hanguo -> 韩国
-    for scalar in "hanguo".unicodeScalars {
-      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+  func testMixedWubiExactPinyinCompletionsDedupAndSelectionIdentity() throws {
+    let origCandidateMode = OwlKeyboardPreferences.wubiCandidateMode
+    let origCodeHint = OwlKeyboardPreferences.wubiCodeHint
+    let origAutoClear = OwlKeyboardPreferences.wubiAutoClear
+    let origZLookup = OwlKeyboardPreferences.wubiZReverseLookup
+    defer {
+      OwlKeyboardPreferences.wubiCandidateMode = origCandidateMode
+      OwlKeyboardPreferences.wubiCodeHint = origCodeHint
+      OwlKeyboardPreferences.wubiAutoClear = origAutoClear
+      OwlKeyboardPreferences.wubiZReverseLookup = origZLookup
     }
-    let hanguoComp = try XCTUnwrap(session.composition())
-    XCTAssertTrue(hanguoComp.candidates.contains(where: { $0.text == "韩国" }))
+
+    OwlKeyboardPreferences.wubiCandidateMode = .normal
+    OwlKeyboardPreferences.wubiCodeHint = true
+    OwlKeyboardPreferences.wubiAutoClear = false
+    OwlKeyboardPreferences.wubiZReverseLookup = true
+
+    let engine = try makeSharedSupportSeedEngine()
+    XCTAssertTrue(engine.selectSchema("wubi86_jidian_pinyin"))
+    let session = engine.createSession()
+    defer { session.destroy() }
+
+    // #251 AC 1: an exact pinyin word outranks Wubi rows that only complete a longer code.
+    typeText("edu", into: session)
+    let exactPinyin = try XCTUnwrap(session.composition())
+    XCTAssertEqual(exactPinyin.candidates.first?.text, "额度")
+    let eduCandidates = visibleAndPeekedCandidates(in: session)
+    XCTAssertTrue(
+      eduCandidates.contains(where: { $0.text == "膫" }),
+      "edu candidates: \(eduCandidates.map(\.text))"
+    )
     session.clearComposition()
+
+    // The same letters without an exact pinyin word still return the full Wubi code.
+    typeText("edui", into: session)
+    XCTAssertNil(session.takeCommit())
+    XCTAssertEqual(session.input(), "edui")
+    XCTAssertTrue(
+      visibleAndPeekedCandidates(in: session).contains(where: { $0.text == "膫" }),
+      "edui candidates: \(visibleAndPeekedCandidates(in: session).map(\.text))"
+    )
+    session.clearComposition()
+
+    // Mixed Wubi can still answer a longer ASCII sequence with pinyin fallback, so the
+    // key contract is that it stays open instead of silently committing or dropping keys.
+    typeText("aaab", into: session)
+    XCTAssertEqual(session.input(), "aaab")
+    XCTAssertNil(session.takeCommit())
+    XCTAssertNotNil(session.composition())
+    session.clearComposition()
+
+    // #251 AC 2: `ya` is exact pinyin for 讶 and also a prefix of Wubi codes yaht/ya.
+    // The two routes surface one selectable row, not two indistinguishable copies.
+    typeText("ya", into: session)
+    let yaCandidates = visibleAndPeekedCandidates(in: session)
+    let yaRows = yaCandidates.enumerated().filter { $0.element.text == "讶" }
+    XCTAssertEqual(yaRows.count, 1)
+    let yaIndex = try XCTUnwrap(yaRows.first?.offset)
+    let yaToken = OwlCandidateToken(
+      sessionID: session.sessionID,
+      generation: session.generation,
+      candidateID: yaIndex,
+      isAbsolute: yaIndex >= (session.composition()?.pageSize ?? 0)
+    )
+    XCTAssertTrue(session.selectCandidate(yaToken))
+    XCTAssertEqual(session.takeCommit(), "讶")
+
+    // #251 AC 3: paging keeps a stable, unique candidate list and selection commits the
+    // candidate visible on the page that the user actually navigated to.
+    typeText("shi", into: session)
+    let candidates = visibleAndPeekedCandidates(in: session)
+    XCTAssertGreaterThan(candidates.count, (session.composition()?.pageSize ?? 9))
+    XCTAssertEqual(
+      candidates.map(\.text).count,
+      Set(candidates.map(\.text)).count,
+      "shi candidates: \(candidates.map(\.text))"
+    )
+    XCTAssertTrue(session.changePage(up: false))
+    let secondPage = try XCTUnwrap(session.composition())
+    XCTAssertEqual(secondPage.pageNo, 1)
+    XCTAssertFalse(secondPage.candidates.isEmpty)
+    let secondPageFirst = try XCTUnwrap(secondPage.candidates.first?.text)
+    XCTAssertTrue(session.process(keycode: UInt32(XK_1), modifiers: 0))
+    XCTAssertEqual(session.takeCommit(), secondPageFirst)
+  }
+
+  func testWubiSingleFirstModeReordersAmbiguousCandidates() throws {
+    let origCandidateMode = OwlKeyboardPreferences.wubiCandidateMode
+    defer { OwlKeyboardPreferences.wubiCandidateMode = origCandidateMode }
+
+    OwlKeyboardPreferences.wubiCandidateMode = .normal
+    let normalEngine = try makeSharedSupportSeedEngine()
+    XCTAssertTrue(normalEngine.selectSchema("wubi86_jidian"))
+    let normal = normalEngine.createSession()
+    typeText("aaar", into: normal)
+    XCTAssertEqual(normal.composition()?.candidates.first?.text, "工匠")
+    normal.destroy()
+
+    OwlKeyboardPreferences.wubiCandidateMode = .singleFirst
+    let reorderedEngine = try makeSharedSupportSeedEngine()
+    XCTAssertTrue(reorderedEngine.selectSchema("wubi86_jidian"))
+    let reordered = reorderedEngine.createSession()
+    defer { reordered.destroy() }
+    typeText("aaar", into: reordered)
+    let first = try XCTUnwrap(reordered.composition()?.candidates.first?.text)
+    XCTAssertEqual(first.unicodeScalars.count, 1)
+    XCTAssertNotEqual(first, "工匠")
+    XCTAssertTrue(visibleAndPeekedCandidates(in: reordered).contains(where: { $0.text == "工匠" }))
+  }
+
+  func testPureWubiAmbiguityFifthKeyBackspaceSpaceAndModeSwitch() throws {
+    let origAutoClear = OwlKeyboardPreferences.wubiAutoClear
+    let origCandidateMode = OwlKeyboardPreferences.wubiCandidateMode
+    defer {
+      OwlKeyboardPreferences.wubiAutoClear = origAutoClear
+      OwlKeyboardPreferences.wubiCandidateMode = origCandidateMode
+    }
+    OwlKeyboardPreferences.wubiAutoClear = false
+    OwlKeyboardPreferences.wubiCandidateMode = .normal
+
+    let engine = try makeSharedSupportSeedEngine()
+    XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
+    let session = engine.createSession()
+    defer { session.destroy() }
+
+    // #252 AC 3: a unique four-code in pure Wubi commits on the fourth key. The next
+    // physical key starts a new composition rather than disappearing.
+    typeText("jixu", into: session)
+    XCTAssertEqual(session.takeCommit(), "曳光弹")
+    XCTAssertEqual(session.input(), "")
+    typeText("n", into: session)
+    XCTAssertEqual(session.input(), "n")
+    session.clearComposition()
+
+    // An ambiguous four-code stays open. A non-continuing fifth key commits its first
+    // visible candidate and starts the next code with that key.
+    typeText("aaaa", into: session)
+    XCTAssertNil(session.takeCommit())
+    let ambiguous = try XCTUnwrap(session.composition())
+    XCTAssertGreaterThan(ambiguous.candidates.count, 1)
+    let firstAmbiguous = try XCTUnwrap(ambiguous.candidates.first?.text)
+    typeText("x", into: session)
+    XCTAssertEqual(
+      session.takeCommit(),
+      firstAmbiguous,
+      "four-code candidates: \(ambiguous.candidates.map(\.text)), input: \(session.input() ?? "nil")"
+    )
+    XCTAssertEqual(session.input(), "x")
+    session.clearComposition()
+
+    // Backspace restores a shorter code and keeps its candidate list live.
+    typeText("aaaa", into: session)
+    XCTAssertTrue(session.process(keycode: UInt32(XK_BackSpace), modifiers: 0))
+    XCTAssertEqual(session.input(), "aaa")
+    XCTAssertFalse(session.composition()?.candidates.isEmpty ?? true)
+    typeText("r", into: session)
+    XCTAssertEqual(session.input(), "aaar")
+    XCTAssertTrue(session.composition()?.candidates.contains(where: { $0.text == "工匠" }) == true)
+    session.clearComposition()
+
+    // Space commits the visible first candidate of an ambiguous complete code.
+    typeText("aaaa", into: session)
+    let spaceCommit = try XCTUnwrap(session.composition()?.candidates.first?.text)
+    XCTAssertTrue(session.process(keycode: UInt32(XK_space), modifiers: 0))
+    XCTAssertEqual(session.takeCommit(), spaceCommit)
+    XCTAssertEqual(session.input(), "")
+
+    // #252 AC 1: the same jixu code remains open in mixed mode, then restores the
+    // pure-Wubi top-on-fourth-key behavior when the mode is switched back.
+    XCTAssertTrue(session.selectSchema("wubi86_jidian_pinyin"))
+    typeText("jixu", into: session)
+    XCTAssertNil(session.takeCommit())
+    let mixed = try XCTUnwrap(session.composition())
+    XCTAssertTrue(mixed.candidates.contains(where: { $0.text == "继续" }))
+    XCTAssertTrue(mixed.candidates.contains(where: { $0.text == "曳光弹" }))
+    XCTAssertTrue(session.selectSchema("wubi86_jidian"))
+    typeText("jixu", into: session)
+    XCTAssertEqual(session.takeCommit(), "曳光弹")
+  }
+
+  func testMixedWubiPartialPhraseSelectionContinuesInPinyinTail() throws {
+    let origCandidateMode = OwlKeyboardPreferences.wubiCandidateMode
+    defer { OwlKeyboardPreferences.wubiCandidateMode = origCandidateMode }
+    OwlKeyboardPreferences.wubiCandidateMode = .normal
+
+    let engine = try makeSharedSupportSeedEngine()
+    XCTAssertTrue(engine.selectSchema("wubi86_jidian_pinyin"))
+    let session = engine.createSession()
+    defer { session.destroy() }
+
+    // #253 AC 1 and 3: selecting a leading pinyin word with the keyboard keeps the
+    // composition open in phrase preedit; the remaining letters stay pinyin.
+    typeText("nihaowo", into: session)
+    let prefixPage = try XCTUnwrap(session.composition())
+    let prefixIndex = try XCTUnwrap(prefixPage.candidates.firstIndex(where: { $0.text == "你好" }))
+    XCTAssertLessThan(prefixIndex, 9)
+    XCTAssertTrue(session.process(
+      keycode: UInt32(XK_1) + UInt32(prefixIndex),
+      modifiers: 0
+    ))
+    XCTAssertNil(session.takeCommit())
+    XCTAssertEqual(session.input(), "wo")
+    let tail = try XCTUnwrap(session.composition())
+    XCTAssertTrue(tail.preedit.contains("你好"))
+    XCTAssertTrue(tail.candidates.contains(where: { $0.text == "我" }))
+
+    // Appending `men` updates the consumed reading to `women`; selecting the tail
+    // with the mouse path commits one combined phrase.
+    typeText("men", into: session)
+    XCTAssertEqual(session.input(), "women")
+    let tailPage = try XCTUnwrap(session.composition())
+    let tailIndex = try XCTUnwrap(tailPage.candidates.firstIndex(where: { $0.text == "我们" }))
+    XCTAssertTrue(session.selectCandidate(tailIndex))
+    XCTAssertEqual(session.takeCommit(), "你好我们")
+    XCTAssertEqual(session.input(), "")
+
+    // A pure-Wubi selection commits at once and cannot leave a pinyin tail behind.
+    XCTAssertTrue(session.selectSchema("wubi86_jidian"))
+    typeText("aaaa", into: session)
+    let pureFirst = try XCTUnwrap(session.composition()?.candidates.first?.text)
+    XCTAssertTrue(session.selectCandidate(0))
+    XCTAssertEqual(session.takeCommit(), pureFirst)
+    XCTAssertEqual(session.input(), "")
+
+    // #253 AC 2: clear, cancel and schema changes discard the tail. A following Wubi
+    // code behaves as a fresh composition instead of inheriting pinyin state.
+    XCTAssertTrue(session.selectSchema("wubi86_jidian_pinyin"))
+    typeText("nihaowo", into: session)
+    let clearPrefix = try XCTUnwrap(session.composition())
+    let clearIndex = try XCTUnwrap(clearPrefix.candidates.firstIndex(where: { $0.text == "你好" }))
+    XCTAssertTrue(session.selectCandidate(clearIndex))
+    XCTAssertEqual(session.input(), "wo")
+    session.clearComposition()
+    XCTAssertEqual(session.input(), "")
+    typeText("sebv", into: session)
+    XCTAssertEqual(session.takeCommit(), "极限")
+
+    typeText("nihaowo", into: session)
+    let cancelPrefix = try XCTUnwrap(session.composition())
+    let cancelIndex = try XCTUnwrap(cancelPrefix.candidates.firstIndex(where: { $0.text == "你好" }))
+    XCTAssertTrue(session.selectCandidate(cancelIndex))
+    XCTAssertEqual(session.input(), "wo")
+    XCTAssertTrue(session.process(keycode: UInt32(XK_Escape), modifiers: 0))
+    XCTAssertEqual(session.input(), "")
+    typeText("sebv", into: session)
+    XCTAssertEqual(session.takeCommit(), "极限")
+
+    typeText("nihaowo", into: session)
+    let switchPrefix = try XCTUnwrap(session.composition())
+    let switchIndex = try XCTUnwrap(switchPrefix.candidates.firstIndex(where: { $0.text == "你好" }))
+    XCTAssertTrue(session.selectCandidate(switchIndex))
+    XCTAssertEqual(session.input(), "wo")
+    XCTAssertTrue(session.selectSchema("wubi86_jidian"))
+    XCTAssertEqual(session.input(), "")
+    typeText("jixu", into: session)
+    XCTAssertEqual(session.takeCommit(), "曳光弹")
+  }
+
+  func testWubiZReverseLookupAcrossSchemasSwitchesDeletionAndSelection() throws {
+    let origZLookup = OwlKeyboardPreferences.wubiZReverseLookup
+    let origCodeHint = OwlKeyboardPreferences.wubiCodeHint
+    let origCandidateMode = OwlKeyboardPreferences.wubiCandidateMode
+    defer {
+      OwlKeyboardPreferences.wubiZReverseLookup = origZLookup
+      OwlKeyboardPreferences.wubiCodeHint = origCodeHint
+      OwlKeyboardPreferences.wubiCandidateMode = origCandidateMode
+    }
+    OwlKeyboardPreferences.wubiCandidateMode = .normal
+    OwlKeyboardPreferences.wubiCodeHint = false
+    OwlKeyboardPreferences.wubiZReverseLookup = true
+
+    let engine = try makeSharedSupportSeedEngine()
+    XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
+    let session = engine.createSession()
+    defer { session.destroy() }
+
+    // #254 AC 1 and 3: pure-Wubi reverse lookup is on even when ordinary code hints
+    // are off, and the reverse-lookup rows carry their own Wubi-code comments.
+    typeText("zhao", into: session)
+    let zhao = visibleAndPeekedCandidates(in: session)
+    let lookupRow = try XCTUnwrap(
+      zhao.first(where: { $0.text == "好" }),
+      "zhao candidates: \(zhao.map { "\($0.text)[\($0.comment ?? "")]" })"
+    )
+    XCTAssertTrue(lookupRow.comment?.isEmpty == false)
+    session.clearComposition()
+
+    typeText("a", into: session)
+    XCTAssertTrue(session.composition()?.candidates.allSatisfy({ $0.comment?.isEmpty != false }) == true)
+    session.clearComposition()
+
+    // Numeric and mouse selection both commit the reverse-lookup row.
+    typeText("zhao", into: session)
+    let firstLookupText = try XCTUnwrap(session.composition()?.candidates.first?.text)
+    XCTAssertTrue(session.process(keycode: UInt32(XK_1), modifiers: 0))
+    XCTAssertEqual(session.takeCommit(), firstLookupText)
+
+    typeText("zzhongguo", into: session)
+    let lookupPage = try XCTUnwrap(session.composition())
+    let lookupCandidates = visibleAndPeekedCandidates(in: session)
+    XCTAssertGreaterThan(lookupCandidates.count, lookupPage.pageSize)
+    let lookupIndex = try XCTUnwrap(
+      lookupCandidates.firstIndex(where: { $0.text == "中国" }),
+      "zzhongguo candidates: \(lookupCandidates.map(\.text))"
+    )
+    let lookupToken = OwlCandidateToken(
+      sessionID: session.sessionID,
+      generation: session.generation,
+      candidateID: lookupIndex,
+      isAbsolute: true
+    )
+    XCTAssertTrue(session.selectCandidate(lookupToken))
+    XCTAssertEqual(session.takeCommit(), "中国")
+    XCTAssertEqual(session.input(), "")
+
+    // Multi-syllable reverse lookup and deleting the last key both leave a clean
+    // composition that accepts the next code normally.
+    typeText("zzhongguo", into: session)
+    XCTAssertTrue(visibleAndPeekedCandidates(in: session).contains(where: { $0.text == "中国" }))
+    while session.input()?.isEmpty == false {
+      XCTAssertTrue(session.process(keycode: UInt32(XK_BackSpace), modifiers: 0))
+    }
+    XCTAssertEqual(session.input(), "")
+    XCTAssertTrue(session.composition()?.candidates.isEmpty == true)
+    typeText("a", into: session)
+    XCTAssertTrue(session.composition()?.candidates.contains(where: { $0.text == "工" }) == true)
+    session.clearComposition()
+
+    // Turning the setting off disables the z-guided lookup in pure Wubi.
+    OwlKeyboardPreferences.wubiZReverseLookup = false
+    XCTAssertFalse(session.process(keycode: UInt32(Character("z").asciiValue!), modifiers: 0))
+    XCTAssertEqual(session.input(), "")
+
+    // In mixed Wubi, z is an ordinary pinyin letter and the dedicated lookup switch
+    // does not change that route.
+    XCTAssertTrue(session.selectSchema("wubi86_jidian_pinyin"))
+    typeText("zhao", into: session)
+    XCTAssertEqual(session.input(), "zhao")
+    XCTAssertFalse(visibleAndPeekedCandidates(in: session).isEmpty)
+    session.clearComposition()
+    OwlKeyboardPreferences.wubiZReverseLookup = true
+    typeText("zhao", into: session)
+    XCTAssertEqual(session.input(), "zhao")
+    XCTAssertFalse(visibleAndPeekedCandidates(in: session).isEmpty)
+  }
+
+  func testPinyinAutocorrectAmbiguityJianpinFuzzyReturnAndContinuation() throws {
+    let origFuzzy = OwlFuzzySnapshot.current()
+    defer {
+      OwlFuzzyPreferences.zhz = origFuzzy.zhz
+      OwlFuzzyPreferences.chc = origFuzzy.chc
+      OwlFuzzyPreferences.shs = origFuzzy.shs
+      OwlFuzzyPreferences.nl = origFuzzy.nl
+      OwlFuzzyPreferences.rl = origFuzzy.rl
+      OwlFuzzyPreferences.fh = origFuzzy.fh
+      OwlFuzzyPreferences.anang = origFuzzy.anang
+      OwlFuzzyPreferences.eneng = origFuzzy.eneng
+      OwlFuzzyPreferences.ining = origFuzzy.ining
+    }
+    OwlFuzzyPreferences.zhz = false
+    OwlFuzzyPreferences.chc = false
+    OwlFuzzyPreferences.shs = false
+    OwlFuzzyPreferences.nl = false
+    OwlFuzzyPreferences.rl = false
+    OwlFuzzyPreferences.fh = false
+    OwlFuzzyPreferences.anang = false
+    OwlFuzzyPreferences.eneng = false
+    OwlFuzzyPreferences.ining = false
+
+    let engine = try makeSharedSupportSeedEngine()
+    XCTAssertTrue(engine.selectSchema("rime_ice"))
+    let session = engine.createSession()
+    defer { session.destroy() }
+
+    // #256 AC 1: legal whole-syllable ambiguity stays literal instead of being
+    // rewritten to one correction, while both common readings remain selectable.
+    typeText("xian", into: session)
+    XCTAssertEqual(session.input(), "xian")
+    let xian = visibleAndPeekedCandidates(in: session)
+    XCTAssertTrue(xian.contains(where: { $0.text == "先" }))
+    XCTAssertTrue(xian.contains(where: { $0.text == "西安" }))
+    session.clearComposition()
+
+    // Initials are not treated as a misspelling: they remain a normal short input.
+    typeText("nh", into: session)
+    XCTAssertEqual(session.input(), "nh")
+    XCTAssertTrue(visibleAndPeekedCandidates(in: session).contains(where: { $0.text == "你好" }))
+    session.clearComposition()
+
+    // Committing raw input rejects the correction for this spelling. The FFI
+    // regression above checks the corrected flag directly; this engine-facing test
+    // checks that the exact input remains usable without surfacing a stale annotation.
+    typeText("nihso", into: session)
+    XCTAssertTrue(visibleAndPeekedCandidates(in: session).contains(where: { $0.text == "你好" }))
+    XCTAssertTrue(session.process(keycode: UInt32(XK_Return), modifiers: 0))
+    XCTAssertEqual(session.takeCommit(), "nihso")
+    typeText("nihso", into: session)
+    XCTAssertEqual(session.input(), "nihso")
+    let repeatedCorrection = visibleAndPeekedCandidates(in: session)
+    XCTAssertFalse(
+      repeatedCorrection.contains(where: { $0.text == "你好" && $0.comment == "nihso" }),
+      "repeated nihso candidates: \(repeatedCorrection.map { "\($0.text)[\($0.comment ?? "")]" })"
+    )
+
+    // Backspace and retype keep the rejected spelling stable rather than reviving
+    // the correction on a stale composition generation.
+    XCTAssertTrue(session.process(keycode: UInt32(XK_BackSpace), modifiers: 0))
+    XCTAssertEqual(session.input(), "nihs")
+    typeText("o", into: session)
+    XCTAssertEqual(session.input(), "nihso")
+    let retypedCorrection = visibleAndPeekedCandidates(in: session)
+    XCTAssertFalse(
+      retypedCorrection.contains(where: { $0.text == "你好" && $0.comment == "nihso" }),
+      "retyped nihso candidates: \(retypedCorrection.map { "\($0.text)[\($0.comment ?? "")]" })"
+    )
+    session.clearComposition()
+
+    // After a normal exact selection, continued typing starts from a clean
+    // composition and does not carry stale autocorrect state.
+    typeText("nihao", into: session)
+    let niHaoIndex = try XCTUnwrap(session.composition()?.candidates.firstIndex(where: { $0.text == "你好" }))
+    XCTAssertTrue(session.selectCandidate(niHaoIndex))
+    XCTAssertEqual(session.takeCommit(), "你好")
+    typeText("shijie", into: session)
+    let shiJieIndex = try XCTUnwrap(session.composition()?.candidates.firstIndex(where: { $0.text == "世界" }))
+    XCTAssertTrue(session.selectCandidate(shiJieIndex))
+    XCTAssertEqual(session.takeCommit(), "世界")
+    session.clearComposition()
+
+    // With the existing fuzzy zh=z rule enabled, the relaxed spelling reaches the
+    // exact Chinese word without changing the user's typed preedit.
+    OwlFuzzyPreferences.zhz = true
+    XCTAssertTrue(engine.selectSchema("rime_ice"))
+    let fuzzySession = engine.createSession()
+    defer { fuzzySession.destroy() }
+    typeText("zongguo", into: fuzzySession)
+    XCTAssertEqual(fuzzySession.input(), "zongguo")
+    XCTAssertTrue(
+      visibleAndPeekedCandidates(in: fuzzySession).contains(where: { $0.text == "中国" })
+    )
+  }
+
+  func testMixedChineseEnglishRankingCompletionPagingPinBackspaceAndLatency() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    XCTAssertTrue(engine.selectSchema("rime_ice"))
+    let session = engine.createSession()
+    defer { session.destroy() }
+
+    // #259 AC 1: complete Chinese readings, including ambiguous `you`, keep a
+    // Chinese-only first page; mixed English rows remain available after that.
+    for input in ["di", "shi", "nihao", "you"] {
+      typeText(input, into: session)
+      let page = try XCTUnwrap(session.composition(), "Missing composition for \(input)")
+      XCTAssertFalse(page.candidates.isEmpty)
+      XCTAssertTrue(
+        page.candidates.allSatisfy { candidate in
+          candidate.text.unicodeScalars.contains(where: { !$0.isASCII })
+        },
+        "First page for \(input) leaked an ASCII-only candidate"
+      )
+      session.clearComposition()
+    }
+
+    // Exact English words and prefixes are selectable through the bounded candidate
+    // list. The display spelling of GitHub is preserved.
+    for input in ["hello", "dir", "github"] {
+      typeText(input, into: session)
+      let candidates = visibleAndPeekedCandidates(in: session)
+      let expected = input == "github" ? "GitHub" : input
+      XCTAssertTrue(candidates.contains(where: { $0.text == expected }))
+      session.clearComposition()
+    }
+    for (prefix, expected) in [("hel", "hello"), ("gith", "GitHub")] {
+      typeText(prefix, into: session)
+      let candidates = visibleAndPeekedCandidates(in: session)
+      XCTAssertTrue(candidates.contains(where: { $0.text == expected }))
+      session.clearComposition()
+    }
+
+    // Returning raw input always commits exactly what was typed.
+    typeText("owltypo", into: session)
+    XCTAssertEqual(session.input(), "owltypo")
+    XCTAssertTrue(session.process(keycode: UInt32(XK_Return), modifiers: 0))
+    XCTAssertEqual(session.takeCommit(), "owltypo")
+
+    // Multi-page expansion exposes each candidate once, and cursor/page changes do
+    // not lose or duplicate words.
+    typeText("shi", into: session)
+    let expanded = visibleAndPeekedCandidates(in: session, count: 200)
+    XCTAssertGreaterThan(expanded.count, session.composition()?.pageSize ?? 9)
+    XCTAssertEqual(expanded.map(\.text).count, Set(expanded.map(\.text)).count)
+    var visited = Set(session.composition()?.candidates.map(\.text) ?? [])
+    while session.composition()?.isLastPage == false {
+      XCTAssertTrue(session.changePage(up: false))
+      let pageTexts = session.composition()?.candidates.map(\.text) ?? []
+      XCTAssertTrue(visited.isDisjoint(with: pageTexts))
+      visited.formUnion(pageTexts)
+    }
+    session.clearComposition()
+
+    // A pinned candidate keeps its exact input identity and leads on replay.
+    typeText("you", into: session)
+    let pinTarget = try XCTUnwrap(
+      visibleAndPeekedCandidates(in: session).first(where: { $0.text == "又" })?.text
+    )
+    session.setProperty(name: OwlPinnedWords.property, value: "you\t0\t\(pinTarget)")
+    session.clearComposition()
+    typeText("you", into: session)
+    XCTAssertEqual(session.composition()?.candidates.first?.text, pinTarget)
+    XCTAssertEqual(session.composition()?.candidates.first?.comment, "置顶")
+    session.clearComposition()
+
+    // Backspace preserves the live prefix and still finds the expected completion.
+    typeText("github", into: session)
+    XCTAssertTrue(session.process(keycode: UInt32(XK_BackSpace), modifiers: 0))
+    XCTAssertEqual(session.input(), "githu")
+    XCTAssertTrue(visibleAndPeekedCandidates(in: session).contains(where: { $0.text == "GitHub" }))
+    XCTAssertTrue(session.process(keycode: UInt32(XK_BackSpace), modifiers: 0))
+    XCTAssertEqual(session.input(), "gith")
+    session.clearComposition()
+
+    // The production seed answers a six-letter full reading well inside one frame
+    // budget at the engine boundary; this is not native host latency evidence.
+    let started = Date()
+    typeText("zhongguo", into: session)
+    XCTAssertTrue(
+      visibleAndPeekedCandidates(in: session).contains(where: { $0.text == "中国" })
+    )
+    XCTAssertLessThan(Date().timeIntervalSince(started), 1.0)
   }
 
   func testPinyinTypoAutocorrectAndMixedChineseEnglishCandidates() throws {

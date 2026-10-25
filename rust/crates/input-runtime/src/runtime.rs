@@ -2085,7 +2085,11 @@ impl<E: InputEngine> Runtime<E> {
             return;
         }
         let composing = !self.cached.editing_text.is_empty();
-        if picked && result.has_commit && composing {
+        let wubi_top = self
+            .facts
+            .selection
+            .is_some_and(|selection| selection.how == SelectionHow::WubiTop);
+        if picked && result.has_commit && composing && !wubi_top {
             if !consumed.is_empty() {
                 self.phrase_selections.push(PhraseSelection {
                     word_before: self.phrase_prefix.clone(),

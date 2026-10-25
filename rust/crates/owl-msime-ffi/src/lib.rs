@@ -1642,7 +1642,12 @@ impl OwlMsimeSession {
                 let Some(mode) = payload.mode else {
                     return error_response("set_wubi_candidate_mode requires mode");
                 };
-                self.wubi_candidate_mode = mode;
+                self.wubi_candidate_mode = match mode.as_str() {
+                    "singleFirst" | "single_first" => "single_first",
+                    "singleOnly" | "single_only" => "single_only",
+                    _ => "normal",
+                }
+                .to_owned();
                 if let Err(err) = self.rebuild_engine_if_needed() {
                     return error_response(err);
                 }
@@ -2543,6 +2548,108 @@ mod tests {
 
         owl_msime_session_destroy(explicit);
         owl_msime_session_destroy(generated);
+    }
+
+    #[test]
+    fn raw_commit_suppresses_a_production_autocorrect_candidate() {
+        let tmp = TempDir::new().unwrap();
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let pinyin = repository.join("data/owl-rime/msime/msime-pinyin.db");
+        assert!(pinyin.is_file(), "missing production seed at {}", pinyin.display());
+        let resources = tmp.path().join("resources");
+        fs::create_dir_all(&resources).unwrap();
+        let user = tmp.path().join("user");
+        let cache = tmp.path().join("cache");
+        let dictionaries = tmp.path().join("dictionaries");
+        let (session, error) =
+            create_with_explicit_roots(&pinyin, &resources, &user, &cache, &dictionaries);
+        assert!(session.is_null() || error.is_none(), "{error:?}");
+        assert!(!session.is_null());
+
+        for ch in ['n', 'i', 'h', 's', 'o'] {
+            let response =
+                call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
+            assert!(response.ok, "{:?}", response.error);
+        }
+        let initial = unsafe { (*session).runtime.all_candidates() };
+        let initial_rows = initial
+            .candidates
+            .iter()
+            .filter(|candidate| candidate.text == "你好")
+            .collect::<Vec<_>>();
+        assert_eq!(initial_rows.len(), 1);
+        assert!(initial_rows[0].corrected);
+        assert_eq!(initial_rows[0].annotation, "nihso");
+        let raw = call_action(session, r#"{"op":"commit_raw"}"#);
+        assert_eq!(raw.committed_text.as_deref(), Some("nihso"));
+
+        let journal = user.join(msime_engine::assets::USER_JOURNAL);
+        let suppressions: Vec<String> = Connection::open(&journal)
+            .unwrap()
+            .prepare("SELECT input FROM pinyin_autocorrect_suppressions ORDER BY input")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(suppressions, vec!["nihso"]);
+
+        for ch in ['n', 'i', 'h', 's', 'o'] {
+            let response =
+                call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
+            assert!(response.ok, "{:?}", response.error);
+        }
+        let repeated = unsafe { (*session).runtime.all_candidates() };
+        let repeated_rows = repeated
+            .candidates
+            .iter()
+            .filter(|candidate| candidate.text == "你好")
+            .collect::<Vec<_>>();
+        assert_eq!(repeated_rows.len(), 1);
+        assert!(!repeated_rows[0].corrected);
+        assert!(repeated_rows[0].annotation.is_empty());
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn pure_wubi_fifth_key_tops_an_ambiguous_four_code() {
+        let tmp = TempDir::new().unwrap();
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let pinyin = repository.join("data/owl-rime/msime/msime-pinyin.db");
+        assert!(pinyin.is_file(), "missing production seed at {}", pinyin.display());
+        let resources = tmp.path().join("resources");
+        fs::create_dir_all(&resources).unwrap();
+        let user = tmp.path().join("user");
+        let cache = tmp.path().join("cache");
+        let dictionaries = tmp.path().join("dictionaries");
+        let (session, error) =
+            create_with_explicit_roots(&pinyin, &resources, &user, &cache, &dictionaries);
+        assert!(session.is_null() || error.is_none(), "{error:?}");
+        assert!(!session.is_null());
+
+        let wubi_mode = call_action(session, r#"{"op":"set_input_mode","mode":"wubi"}"#);
+        assert!(wubi_mode.ok, "{:?}", wubi_mode.error);
+        let wubi_scheme = call_action(session, r#"{"op":"set_pinyin_scheme","scheme":"wubi"}"#);
+        assert!(wubi_scheme.ok, "{:?}", wubi_scheme.error);
+
+        for ch in ['a', 'a', 'a', 'a'] {
+            let response =
+                call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
+            assert!(response.ok, "{:?}", response.error);
+        }
+        let before = call_snapshot(session);
+        assert_eq!(before.committed_text, None);
+        assert_eq!(before.raw_input, "aaaa");
+        assert_eq!(
+            before.candidates.first().map(|candidate| candidate.text.as_str()),
+            Some("工")
+        );
+
+        let topped = call_action(session, r#"{"op":"insert","ch":"x"}"#);
+        assert!(topped.ok, "{:?}", topped.error);
+        assert_eq!(topped.committed_text.as_deref(), Some("工"));
+        assert_eq!(topped.raw_input, "x");
+        owl_msime_session_destroy(session);
     }
 
     #[test]

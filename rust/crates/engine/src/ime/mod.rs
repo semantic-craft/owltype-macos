@@ -1279,6 +1279,10 @@ fn merge_mixed_candidates(
         retain_unique_pinyin_rows(&mut pinyin_rows);
         return pinyin_rows;
     }
+    // A Wubi table can answer a prefix with several rows that point at the same word
+    // under different complete codes. Keep the first row so its own code continues to
+    // drive selection and sentence learning identity.
+    retain_unique_rows(&mut candidates);
     if candidates.len().saturating_add(pinyin_rows.len()) <= SMALL_PINYIN_FALLBACK {
         candidates.reserve(pinyin_rows.len());
         for item in pinyin_rows {
@@ -1316,29 +1320,32 @@ fn merge_mixed_candidates(
     candidates
 }
 
+fn retain_unique_rows(rows: &mut Vec<WordItem>) {
+    let mut seen = HashSet::with_capacity(rows.len());
+    let duplicates = rows
+        .iter()
+        .enumerate()
+        .filter_map(|(index, item)| (!seen.insert(item.word.as_str())).then_some(index))
+        .collect::<Vec<_>>();
+    drop(seen);
+    let mut duplicates = duplicates.into_iter().peekable();
+    let mut write = 0;
+    for read in 0..rows.len() {
+        if duplicates.peek() == Some(&read) {
+            duplicates.next();
+            continue;
+        }
+        if write != read {
+            rows.swap(write, read);
+        }
+        write += 1;
+    }
+    rows.truncate(write);
+}
+
 fn retain_unique_pinyin_rows(rows: &mut Vec<WordItem>) {
     if rows.len() > SMALL_PINYIN_FALLBACK {
-        // 借用词面计算重复项，释放集合后再原地保留唯一行。
-        let mut seen = HashSet::with_capacity(rows.len());
-        let duplicates = rows
-            .iter()
-            .enumerate()
-            .filter_map(|(index, item)| (!seen.insert(item.word.as_str())).then_some(index))
-            .collect::<Vec<_>>();
-        drop(seen);
-        let mut duplicates = duplicates.into_iter().peekable();
-        let mut write = 0;
-        for read in 0..rows.len() {
-            if duplicates.peek() == Some(&read) {
-                duplicates.next();
-                continue;
-            }
-            if write != read {
-                rows.swap(write, read);
-            }
-            write += 1;
-        }
-        rows.truncate(write);
+        retain_unique_rows(rows);
         return;
     }
     let mut write = 0;
@@ -1490,6 +1497,24 @@ mod tests {
         assert_eq!(list[0].scheme, SchemeType::Wubi);
         assert_eq!(list[2].scheme, SchemeType::Quanpin);
         assert!(!only_pinyin_rows(&list));
+    }
+
+    #[test]
+    fn mixed_wubi_rows_deduplicate_without_losing_the_first_code() {
+        let list = merge_pinyin_fallback(
+            vec![
+                wubi("yaht", "讶"),
+                wubi("yah", "讶"),
+                wubi("ya", "呀"),
+            ],
+            vec![quanpin("ya", "讶"), quanpin("ya", "呀")],
+        );
+
+        assert_eq!(words(&list), vec!["讶", "呀"]);
+        assert_eq!(list[0].pinyin, "yaht");
+        assert_eq!(list[0].scheme, SchemeType::Wubi);
+        assert_eq!(list[1].pinyin, "ya");
+        assert_eq!(list[1].scheme, SchemeType::Wubi);
     }
 
     #[test]
