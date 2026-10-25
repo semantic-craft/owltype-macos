@@ -762,7 +762,7 @@ mod tests {
     use std::ffi::CString;
     use std::ptr;
 
-    use rusqlite::Connection;
+    use rusqlite::{params, Connection};
     use serde_json::{json, Value};
     use tempfile::TempDir;
 
@@ -998,6 +998,239 @@ mod tests {
             (path, bytes)
         })
         .collect()
+    }
+
+    #[cfg(unix)]
+    fn preserve_journal_inode(fixture: &Fixture, name: &str) -> PathBuf {
+        let probe = fixture._temp.path().join(name);
+        fs::hard_link(fixture.journal(), &probe).unwrap();
+        probe
+    }
+
+    #[cfg(unix)]
+    fn remove_journal_artifacts(fixture: &Fixture) {
+        for entry in fs::read_dir(&fixture.user).unwrap() {
+            let entry = entry.unwrap();
+            let name = entry.file_name().into_string().unwrap();
+            let journal_name = assets::USER_JOURNAL;
+            let reset_artifact = name == journal_name
+                || name.starts_with(&format!("{journal_name}-"))
+                || name.starts_with(&format!("{journal_name}.corrupt-"));
+            if reset_artifact {
+                assert!(entry.file_type().unwrap().is_file(), "{name}");
+                fs::remove_file(entry.path()).unwrap();
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    fn reset_user_data(fixture: &Fixture) {
+        remove_journal_artifacts(fixture);
+        fs::remove_dir_all(&fixture.dictionaries).unwrap();
+        fs::create_dir_all(&fixture.dictionaries).unwrap();
+        for name in [assets::MAIN_DICTIONARY, assets::ENGLISH_DICTIONARY] {
+            fs::copy(
+                fixture.resources.join(name),
+                fixture.dictionaries.join(name),
+            )
+            .unwrap();
+        }
+    }
+
+    #[cfg(unix)]
+    fn journal_operation_exists(path: &Path, dictionary: &str, key: &str, value: &str) -> bool {
+        if !path.is_file() {
+            return false;
+        }
+        Connection::open(path)
+            .unwrap()
+            .query_row(
+                "SELECT EXISTS(
+                    SELECT 1 FROM user_dictionary_operations
+                    WHERE dictionary=?1 AND key=?2 AND value=?3
+                      AND operation='upsert'
+                )",
+                params![dictionary, key, value],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap()
+            != 0
+    }
+
+    #[cfg(unix)]
+    fn ngram_word_count(path: &Path, word: &str) -> i64 {
+        Connection::open(path)
+            .unwrap()
+            .query_row(
+                "SELECT
+                    (SELECT COALESCE(SUM(count), 0) FROM personal_bigram WHERE word=?1)
+                  + (SELECT COALESCE(SUM(count), 0) FROM personal_trigram WHERE word=?1)",
+                params![word],
+                |row| row.get(0),
+            )
+            .unwrap()
+    }
+
+    #[cfg(unix)]
+    fn wait_for_ngram_word(path: &Path, word: &str) -> bool {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(6);
+        while std::time::Instant::now() < deadline {
+            if ngram_word_count(path, word) > 0 {
+                return true;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        false
+    }
+
+    #[cfg(unix)]
+    fn finalize_after_sessions_close() {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        while !crate::owl_msime_engine_finalize() {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "other tests kept a session live for the entire finalize window"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn reset_after_session_destroy_does_not_reuse_the_old_journal_cache() {
+        let fixture = Fixture::new(true);
+        let session = fixture.session();
+        type_text(session, "ni");
+        select_text(session, "泥");
+        crate::owl_msime_session_destroy(session);
+        finalize_after_sessions_close();
+
+        let old_journal = preserve_journal_inode(&fixture, "old-reset-journal.db");
+        let learned_before_reset = ngram_word_count(&old_journal, "泥");
+        assert!(
+            learned_before_reset > 0,
+            "the real selection did not reach the personal-context journal"
+        );
+
+        reset_user_data(&fixture);
+        assert!(!fixture.journal().exists());
+
+        let reset_session = fixture.session();
+        type_text(reset_session, "ni");
+        let reset_snapshot = snapshot(reset_session);
+        assert_ne!(
+            reset_snapshot["candidates"][0]["text"], "泥",
+            "a reset journal must not restore the previous selection's ranking"
+        );
+        select_text(reset_session, "尼");
+        let new_learning_landed = wait_for_ngram_word(&fixture.journal(), "尼");
+        let old_inode_received_new_learning = ngram_word_count(&old_journal, "尼");
+        crate::owl_msime_session_destroy(reset_session);
+
+        assert_eq!(
+            old_inode_received_new_learning, 0,
+            "the new session wrote its learning into the reset journal's old inode"
+        );
+        assert!(
+            new_learning_landed,
+            "the new session's delayed personal-context write did not reach the new journal"
+        );
+        assert_eq!(
+            ngram_word_count(&old_journal, "泥"),
+            learned_before_reset,
+            "the old inode changed after the reset"
+        );
+        assert!(!journal_operation_exists(
+            &fixture.journal(),
+            "pinyin",
+            "ni",
+            "泥"
+        ));
+        assert!(journal_operation_exists(
+            &fixture.journal(),
+            "pinyin",
+            "ni",
+            "尼"
+        ));
+
+        let restarted = fixture.session();
+        type_text(restarted, "ni");
+        let restarted_snapshot = snapshot(restarted);
+        assert_ne!(
+            restarted_snapshot["candidates"][0]["text"], "泥",
+            "restarting must not replay the deleted journal's learning"
+        );
+        assert!(candidate_index(&restarted_snapshot, "尼").is_some());
+        crate::owl_msime_session_destroy(restarted);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn migration_import_does_not_reuse_an_older_session_journal_cache() {
+        let fixture = Fixture::new(true);
+        let staged = fixture.stage(
+            &[record("wubi", "abcd", "迁移字", 9_000_000, false, false)],
+            &[],
+        );
+        let session = fixture.session();
+        type_text(session, "ni");
+        select_text(session, "泥");
+        crate::owl_msime_session_destroy(session);
+        finalize_after_sessions_close();
+
+        let old_journal = preserve_journal_inode(&fixture, "old-migration-journal.db");
+        let learned_before_migration = ngram_word_count(&old_journal, "泥");
+        assert!(learned_before_migration > 0);
+        remove_journal_artifacts(&fixture);
+        assert!(!fixture.journal().exists());
+
+        let report = fixture.import(&staged.request_id).unwrap();
+        assert!(report.ok);
+        assert!(journal_operation_exists(
+            &fixture.journal(),
+            "wubi",
+            "abcd",
+            "迁移字"
+        ));
+        assert!(!journal_operation_exists(
+            &fixture.journal(),
+            "pinyin",
+            "ni",
+            "泥"
+        ));
+
+        let migrated = fixture.session();
+        type_text(migrated, "ni");
+        select_text(migrated, "尼");
+        let migrated_learning_landed = wait_for_ngram_word(&fixture.journal(), "尼");
+        let old_inode_received_new_learning = ngram_word_count(&old_journal, "尼");
+        crate::owl_msime_session_destroy(migrated);
+
+        assert_eq!(
+            old_inode_received_new_learning, 0,
+            "a pre-migration session cache wrote into the replaced journal inode"
+        );
+        assert!(
+            migrated_learning_landed,
+            "learning after migration did not reach the replacement journal"
+        );
+        assert_eq!(
+            ngram_word_count(&old_journal, "泥"),
+            learned_before_migration
+        );
+        assert_eq!(
+            Connection::open(&old_journal)
+                .unwrap()
+                .query_row(
+                    "SELECT count(*) FROM user_dictionary_operations
+                     WHERE dictionary='wubi' AND value='迁移字'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0,
+            "migration data was written into the replaced journal inode"
+        );
     }
 
     #[test]
