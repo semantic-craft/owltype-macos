@@ -9,6 +9,8 @@
 |---|---|---|---|
 | **Squirrel（鼠须管）** | 本项目 fork 的基座（IMK 输入法 app、候选窗、Rime 部署） | **GPL-3.0**（见 `LICENSE.txt`） | https://github.com/rime/squirrel |
 | **librime（中州韵）** | 输入引擎核心（C++，预编译 universal dylib + 头文件子模块） | **BSD-3-Clause**（"Copyright (c) 2014, RIME Developers"） | https://github.com/rime/librime |
+| **水杉输入法（Metasequoia IME / msime）** | Rust 输入引擎核心与运行时（`rust/crates/`，pin `09e3d53c16eb11420bef708c35d425c31eff41e2`） | **GPL-3.0** | https://github.com/metasequoiaime/msime |
+| **chinese-ime-lm** | 中文输入法语言模型参考库（`rust/crates/chinese-ime-lm`，pin `15caab4fdeb59c11f452b91884371cf30e2e5608`） | **GPL-3.0** | https://github.com/metasequoiaime/chinese-ime-lm |
 
 > 因基座为 GPL-3.0：**分发本 fork 的二进制时，必须提供对应修改源码、GPL-3.0 许可证文本、版权声明与构建说明，
 > 不得作为闭源制品分发。**

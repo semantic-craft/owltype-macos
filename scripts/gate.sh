@@ -69,6 +69,7 @@ portable_scripts() {
   python3 -m py_compile \
     scripts/owl_distribution.py \
     scripts/owl_bundle.py \
+    scripts/build-owltype-msime-seed-db.py \
     scripts/inventory-release-bundle.py \
     scripts/release-cohort-state.py \
     scripts/release_source.py \
@@ -128,6 +129,8 @@ lint_release_tests() {
 }
 
 product_tests() {
+  stage "cargo test (owl-msime-ffi)"
+  cargo test --locked --manifest-path rust/Cargo.toml --package owl-msime-ffi
   stage "make test"
   make test DERIVED_DATA_PATH=build/gate-tests TEST_ONLY=
 }

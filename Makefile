@@ -22,6 +22,7 @@ NOTARY_PROFILE ?= xw-notary
 
 RIME_LIBRARY_FILE_NAME = librime.1.dylib
 RIME_LIBRARY = lib/$(RIME_LIBRARY_FILE_NAME)
+RUST_FFI_LIBRARY = lib/libowl_msime_ffi.a
 
 RIME_DEPS = librime/lib/libmarisa.a \
 	librime/lib/libleveldb.a \
@@ -36,7 +37,7 @@ OPENCC_DATA = data/opencc/TSCharacters.ocd2 \
 	data/opencc/t2s.json
 SPARKLE_FRAMEWORK = Frameworks/Sparkle.framework
 PACKAGE = package/Owltype.pkg
-DEPS_CHECK = $(RIME_LIBRARY) $(PLUM_DATA) $(OPENCC_DATA) sparkle
+DEPS_CHECK = $(RIME_LIBRARY) $(RUST_FFI_LIBRARY) $(PLUM_DATA) $(OPENCC_DATA) sparkle
 
 OPENCC_DATA_OUTPUT = librime/share/opencc/*.*
 PLUM_DATA_OUTPUT = plum/output/*.*
@@ -47,6 +48,9 @@ INSTALL_NAME_TOOL = $(shell xcrun -find install_name_tool)
 INSTALL_NAME_TOOL_ARGS = -add_rpath @loader_path/../Frameworks
 
 .PHONY: librime copy-rime-binaries
+
+$(RUST_FFI_LIBRARY):
+	bash scripts/build-rust-ffi.sh
 
 $(RIME_LIBRARY):
 	$(MAKE) librime
@@ -148,6 +152,7 @@ release: $(DEPS_CHECK)
 		build
 	lipo "$(RELEASE_APP)/Contents/MacOS/Owltype" -verify_arch arm64
 	lipo "$(RELEASE_APP)/Contents/MacOS/Owltype" -verify_arch x86_64
+	strip -S "$(RELEASE_APP)/Contents/MacOS/Owltype"
 	$(MAKE) copy-owl-seed OWL_CONFIG=Release DERIVED_DATA_PATH="$(RELEASE_OUTPUT_ROOT)"
 	python3 scripts/finalize-release-bundle.py \
 		"$(RELEASE_APP)"

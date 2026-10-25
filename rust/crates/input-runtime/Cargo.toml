@@ -1,0 +1,29 @@
+[package]
+name = "msime-input-runtime"
+description = "Session orchestration for input hosts: focus, candidate paging and generational selection."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+msime-engine = { path = "../engine" }
+msime-client-core = { path = "../client-core" }
+msime-path-trust = { path = "../path-trust" }
+rustix = { workspace = true, features = ["process"] }
+# The model and its reference implementation live upstream, where other input methods
+# can use them too. Pinned by commit: this is a build input, not a moving target.
+chinese-ime-lm = { path = "../chinese-ime-lm" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+msime-path-trust = { path = "../path-trust", features = ["test-support"] }
+# Writes the msime-cantonese.db fixture and reads the journal back in the Cantonese tests.
+rusqlite.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

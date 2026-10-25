@@ -195,6 +195,8 @@ cp "$repo_root/plum/LICENSE" "$output_dir/plum.LICENSE"
 cp "$repo_root/librime/deps/opencc/LICENSE" "$output_dir/OpenCC.LICENSE"
 cp "$repo_root/data/owltype.yaml" "$output_dir/owltype.yaml"
 cp "$repo_root/rime/"*.custom.yaml "$output_dir/_user_seed/"
+python3 "$repo_root/scripts/build-owltype-msime-seed-db.py" "$output_dir"
+python3 "$repo_root/scripts/build-owltype-msime-seed-db.py" --check "$output_dir"
 
 cat > "$output_dir/OWLTYPE-SEED-SOURCES.md" <<EOF
 # Owltype public seed source map

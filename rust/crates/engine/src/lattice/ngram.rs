@@ -1,0 +1,639 @@
+//! `msime-bigram.bin` / `msime-trigram.bin` (MSNG v1, quanpin.md §12.1, data-formats.md §7). The files are copied into a generation through `<name>.incoming` and renamed into place, never written in place, so a table read once stays the table of that generation.
+//!
+//! The table is mapped read-only, as ngram_table.cpp:108 did (MapViewOfFile on Windows, :131-133), so its pages are clean and file-backed: the system can evict them under memory pressure, which the iOS keyboard extension's limit needs, instead of holding two 12 MB tables of dirty heap per generation. The `unsafe` map (decisions.md: memmap2 for msime-bigram.bin/msime-trigram.bin; `japanese::decoder` and `handwriting::recognizer` map their packaged models the same way) rests on the generation contract above. Like the reference, a table stays mapped for the life of the process once loaded.
+
+use std::io::Read;
+use std::num::NonZeroUsize;
+use std::path::{Path, PathBuf};
+
+use lru::LruCache;
+use memmap2::{Mmap, MmapOptions};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
+
+/// The sentence-start token in n-gram keys. Not a character any dictionary value can contain, so it cannot be confused with a real first word (NG:61-66).
+pub const SENTENCE_START: &str = "\u{1}";
+/// An entry count past any plausible table: a truncated or foreign file that happens to carry the magic must not turn into a nonsense allocation (NG:29-31).
+pub const MAX_ENTRIES: usize = 40_000_000;
+const SHARED_CACHE_CAPACITY: usize = 8;
+
+const MAGIC: &[u8; 4] = b"MSNG";
+const VERSION: u32 = 1;
+/// Magic, version, count, reserved.
+const HEADER_BYTES: usize = 16;
+const ENTRY_BYTES: usize = 8 + 4;
+
+const FNV_OFFSET: u64 = 0xCBF2_9CE4_8422_2325;
+const FNV_PRIME: u64 = 0x0100_0000_01B3;
+/// 按键的最高若干位分桶，桶边界先算好，查找时只在一个桶里二分。百万条的表每桶平均十几条，二分落在相邻几条缓存行里，不再在 12 MB 的映射上跳二十次；索引本身是 `(1 << INDEX_BITS) + 1` 个 `u32`，每张表 256 KB。
+const INDEX_BITS: u32 = 16;
+const INDEX_SHIFT: u32 = u64::BITS - INDEX_BITS;
+
+pub struct NgramTable {
+    /// The header and the entries, exactly `HEADER_BYTES + count * ENTRY_BYTES` bytes.
+    bytes: Mmap,
+    count: usize,
+    /// `index[b]` 是第一个高位桶号不小于 `b` 的键的下标，`index[b + 1]` 是这个桶的结尾；末项等于 `count`。键有序，所以整张表上的 `lower_bound` 一定落在键所在桶的这段区间里，查到的结果和全表二分完全一样。
+    index: Vec<u32>,
+}
+
+/// 同一二元评分行的前词及分隔符散列，只在模块内部继续混入后词。
+#[cfg(test)]
+#[derive(Clone, Copy)]
+pub(super) struct BigramPrefix(u64);
+
+#[cfg(test)]
+impl BigramPrefix {
+    pub(super) fn key(self, next: &str) -> Option<u64> {
+        (!next.is_empty()).then(|| fnv1a_mix(self.0, next))
+    }
+}
+
+static SHARED: OnceLock<Mutex<LruCache<PathBuf, Option<Arc<NgramTable>>>>> = OnceLock::new();
+
+impl NgramTable {
+    /// `None` for a missing, short, wrong-magic, wrong-version, oversized or unsorted file; the decoder then runs without the table.
+    #[allow(unsafe_code)]
+    pub fn load(path: &Path) -> Option<NgramTable> {
+        if !std::fs::symlink_metadata(path).ok()?.file_type().is_file() {
+            return None;
+        }
+        let mut file = crate::paths::open_file_no_follow(path).ok()?;
+        let size = file.metadata().ok()?.len();
+        let mut header = [0u8; HEADER_BYTES];
+        file.read_exact(&mut header).ok()?;
+        if &header[..4] != MAGIC || read_u32(&header, 4) != VERSION {
+            return None;
+        }
+        let count = read_u32(&header, 8) as usize;
+        let needed = table_size(count)?;
+        if needed as u64 > size {
+            return None;
+        }
+        // Only `needed` bytes are mapped: trailing bytes are legal (NG:124-126), and the header alone bounds the mapping, so a foreign file cannot make it larger than the largest valid table.
+        // SAFETY: a mapping is only sound while nothing changes the file underneath it. Tables reach a generation as `<name>.incoming` and are renamed into place, never written in place (module doc, assets.rs), so the mapped inode keeps its bytes for as long as the map lives; `needed <= size` was checked above.
+        let bytes = unsafe { MmapOptions::new().len(needed).map(&file) }.ok()?;
+        if bytes.len() != needed {
+            return None;
+        }
+        let mut table = NgramTable {
+            bytes,
+            count,
+            index: Vec::new(),
+        };
+        // Binary search returns wrong answers rather than misses on an unsorted file, so a file built by a different tool is refused here (NG:131-134). 桶索引在同一遍里建好，不再多扫一遍映射。
+        let mut index = Vec::with_capacity((1 << INDEX_BITS) + 1);
+        let mut previous = 0;
+        for position in 0..count {
+            let key = table.key_at(position);
+            if position > 0 && previous > key {
+                return None;
+            }
+            previous = key;
+            let bucket = (key >> INDEX_SHIFT) as usize;
+            while index.len() <= bucket {
+                index.push(position as u32);
+            }
+        }
+        index.resize((1 << INDEX_BITS) + 1, count as u32);
+        table.index = index;
+        Some(table)
+    }
+
+    /// Cache recent tables by path, remembering a missing file too, so a generation without tables is not probed on every query (NG:138-147).
+    pub fn shared(path: &Path) -> Option<Arc<NgramTable>> {
+        let mut loaded = SHARED
+            .get_or_init(|| {
+                Mutex::new(LruCache::new(
+                    NonZeroUsize::new(SHARED_CACHE_CAPACITY).unwrap(),
+                ))
+            })
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        Self::shared_cached(&mut loaded, path)
+    }
+
+    fn shared_cached(
+        loaded: &mut LruCache<PathBuf, Option<Arc<NgramTable>>>,
+        path: &Path,
+    ) -> Option<Arc<NgramTable>> {
+        if let Some(cached) = loaded.get(path) {
+            return cached.clone();
+        }
+        let table = NgramTable::load(path).map(Arc::new);
+        loaded.put(path.to_path_buf(), table.clone());
+        table
+    }
+
+    #[cfg(test)]
+    pub fn len(&self) -> usize {
+        self.count
+    }
+
+    #[cfg(test)]
+    pub fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+
+    /// `ln(P(next | previous) / P(next))`, 0 on a miss or an empty `next`.
+    pub fn bigram(&self, previous: &str, next: &str) -> f32 {
+        self.bigram_key(previous, next)
+            .map_or(0.0, |key| self.lookup(key))
+    }
+
+    /// `bigram` 查表用的键；不必查表就知道是 0 时（空表、`next` 为空）为 `None`。
+    pub fn bigram_key(&self, previous: &str, next: &str) -> Option<u64> {
+        if self.count == 0 || next.is_empty() {
+            return None;
+        }
+        Some(fnv1a_words(&[previous, next]))
+    }
+
+    /// 前词在一整行出边中不变，提前混入原来的零字节分隔符。
+    #[cfg(test)]
+    pub(super) fn bigram_prefix(&self, previous: &str) -> Option<BigramPrefix> {
+        (self.count != 0).then(|| BigramPrefix(fnv1a_separate(fnv1a_mix(FNV_OFFSET, previous))))
+    }
+
+    /// 按 `bigram_key` 给出的键查表，与 `bigram` 的结果相同。
+    pub fn score(&self, key: u64) -> f32 {
+        self.lookup(key)
+    }
+
+    /// `ln(P(next | before, previous) / P(next | previous))`, 0 on a miss.
+    pub fn trigram(&self, before: &str, previous: &str, next: &str) -> f32 {
+        if self.count == 0 || next.is_empty() {
+            return 0.0;
+        }
+        self.lookup(fnv1a_words(&[before, previous, next]))
+    }
+
+    fn key_at(&self, index: usize) -> u64 {
+        let at = HEADER_BYTES + index * 8;
+        u64::from_le_bytes(self.bytes[at..at + 8].try_into().expect("eight key bytes"))
+    }
+
+    fn value_at(&self, index: usize) -> f32 {
+        let at = HEADER_BYTES + self.count * 8 + index * 4;
+        f32::from_le_bytes(self.bytes[at..at + 4].try_into().expect("four value bytes"))
+    }
+
+    /// 在本桶的定长键切片中求下界，重复键取首项；桶尾未命中不读取下一桶。
+    fn lookup(&self, key: u64) -> f32 {
+        let bucket = (key >> INDEX_SHIFT) as usize;
+        let (start, end) = (self.index[bucket] as usize, self.index[bucket + 1] as usize);
+        let (keys, _) =
+            self.bytes[HEADER_BYTES + start * 8..HEADER_BYTES + end * 8].as_chunks::<8>();
+        let position = keys.partition_point(|bytes| u64::from_le_bytes(*bytes) < key);
+        if keys
+            .get(position)
+            .is_some_and(|bytes| u64::from_le_bytes(*bytes) == key)
+        {
+            self.value_at(start + position)
+        } else {
+            0.0
+        }
+    }
+}
+
+/// 先检查条目上限，再用 checked 算术计算映射长度，避免 32 位目标上的恶意计数触发整数溢出。
+fn table_size(count: usize) -> Option<usize> {
+    if count > MAX_ENTRIES {
+        return None;
+    }
+    count
+        .checked_mul(ENTRY_BYTES)
+        .and_then(|entries| HEADER_BYTES.checked_add(entries))
+}
+
+fn read_u32(bytes: &[u8], at: usize) -> u32 {
+    u32::from_le_bytes(bytes[at..at + 4].try_into().expect("four header bytes"))
+}
+
+/// 把 `text` 的字节混入已有 FNV-1a 状态。
+pub(crate) fn fnv1a_mix(mut state: u64, text: &str) -> u64 {
+    #[cfg(all(test, debug_assertions))]
+    hash_work::record(text.len());
+    for byte in text.bytes() {
+        state ^= u64::from(byte);
+        state = state.wrapping_mul(FNV_PRIME);
+    }
+    state
+}
+
+/// The 0x00 byte between two words; xor with zero is a no-op, so only the multiply remains.
+pub(crate) fn fnv1a_separate(state: u64) -> u64 {
+    state.wrapping_mul(FNV_PRIME)
+}
+
+/// 64-bit FNV-1a over the words joined by one 0x00 byte (NG:40-57); the personal model derives its keys from the same hash.
+pub fn fnv1a_words(words: &[&str]) -> u64 {
+    let mut state = FNV_OFFSET;
+    for (index, word) in words.iter().enumerate() {
+        if index > 0 {
+            state = fnv1a_separate(state);
+        }
+        state = fnv1a_mix(state, word);
+    }
+    state
+}
+
+#[cfg(test)]
+pub(super) mod tests {
+    use super::*;
+
+    /// Recomputed here rather than borrowed from the implementation: the table is written by `build_ngram.py`, so the format is a contract between two programs, and a test that reused the engine's own hash would keep passing if both sides drifted together.
+    fn hash_joined(joined: &[u8]) -> u64 {
+        let mut digest: u64 = 0xCBF29CE484222325;
+        for &byte in joined {
+            digest ^= u64::from(byte);
+            digest = digest.wrapping_mul(0x100000001B3);
+        }
+        digest
+    }
+
+    fn hash_pair(previous: &str, next: &str) -> u64 {
+        hash_joined(format!("{previous}\0{next}").as_bytes())
+    }
+
+    fn hash_triple(before: &str, previous: &str, next: &str) -> u64 {
+        hash_joined(format!("{before}\0{previous}\0{next}").as_bytes())
+    }
+
+    pub(crate) fn write_table(path: &Path, entries: &[(u64, f32)], magic: &[u8; 4], version: u32) {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(magic);
+        bytes.extend_from_slice(&version.to_le_bytes());
+        bytes.extend_from_slice(&(entries.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        for (key, _) in entries {
+            bytes.extend_from_slice(&key.to_le_bytes());
+        }
+        for (_, value) in entries {
+            bytes.extend_from_slice(&value.to_le_bytes());
+        }
+        std::fs::write(path, bytes).unwrap();
+    }
+
+    pub(crate) fn sorted(mut entries: Vec<(u64, f32)>) -> Vec<(u64, f32)> {
+        entries.sort_by_key(|entry| entry.0);
+        entries
+    }
+
+    /// A valid table holding the given pairs, written into `directory`.
+    pub(crate) fn pair_table(
+        directory: &Path,
+        name: &str,
+        pairs: &[(&str, &str, f32)],
+    ) -> NgramTable {
+        let path = directory.join(name);
+        let entries = pairs
+            .iter()
+            .map(|(previous, next, value)| (hash_pair(previous, next), *value))
+            .collect();
+        write_table(&path, &sorted(entries), MAGIC, VERSION);
+        NgramTable::load(&path).expect("the fixture table loads")
+    }
+
+    pub(crate) fn triple_table(
+        directory: &Path,
+        name: &str,
+        triples: &[(&str, &str, &str, f32)],
+    ) -> NgramTable {
+        let path = directory.join(name);
+        let entries = triples
+            .iter()
+            .map(|(before, previous, next, value)| (hash_triple(before, previous, next), *value))
+            .collect();
+        write_table(&path, &sorted(entries), MAGIC, VERSION);
+        NgramTable::load(&path).expect("the fixture table loads")
+    }
+
+    #[test]
+    fn hash_matches_the_builder() {
+        assert_eq!(fnv1a_words(&["配置", "与"]), hash_pair("配置", "与"));
+        assert_eq!(fnv1a_words(&["a", "b", "c"]), hash_triple("a", "b", "c"));
+        assert_eq!(fnv1a_words(&[]), 0xCBF29CE484222325);
+    }
+
+    #[test]
+    fn lookup_round_trips() {
+        let directory = tempfile::tempdir().unwrap();
+        let table = pair_table(
+            directory.path(),
+            "lookup.bin",
+            &[("配置", "与", 2.5), (SENTENCE_START, "本仓", -1.25)],
+        );
+        assert_eq!(table.len(), 2);
+        assert!(!table.is_empty());
+        assert!((table.bigram("配置", "与") - 2.5).abs() < 0.01);
+        assert!(table.bigram(SENTENCE_START, "本仓") < -1.24);
+        assert_eq!(
+            table.bigram("配置", "于"),
+            0.0,
+            "an absent pair scores zero rather than a penalty"
+        );
+        assert_eq!(
+            table.bigram("与", "配置"),
+            0.0,
+            "the pair is ordered, not a set"
+        );
+        assert_eq!(
+            table.bigram("配置", ""),
+            0.0,
+            "an empty second word scores zero"
+        );
+    }
+
+    /// The generation contract that makes the mapping sound: a new table arrives as `<name>.incoming` and is renamed over the old one, so a table already mapped keeps answering from the file it mapped.
+    #[test]
+    fn a_mapped_table_survives_a_rename_replacement() {
+        let directory = tempfile::tempdir().unwrap();
+        let table = pair_table(directory.path(), "msime-bigram.bin", &[("配置", "与", 2.5)]);
+        let path = directory.path().join("msime-bigram.bin");
+        let incoming = directory.path().join("msime-bigram.bin.incoming");
+        write_table(
+            &incoming,
+            &sorted(vec![(hash_pair("配置", "与"), -2.0)]),
+            MAGIC,
+            VERSION,
+        );
+        std::fs::rename(&incoming, &path).unwrap();
+        assert!((table.bigram("配置", "与") - 2.5).abs() < 0.01);
+        let replaced = NgramTable::load(&path).expect("the new table loads");
+        assert!((replaced.bigram("配置", "与") + 2.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn trigram_lookup_uses_three_words() {
+        let directory = tempfile::tempdir().unwrap();
+        let table = triple_table(
+            directory.path(),
+            "triple.bin",
+            &[(SENTENCE_START, "输入", "法", 4.0)],
+        );
+        assert_eq!(table.trigram(SENTENCE_START, "输入", "法"), 4.0);
+        assert_eq!(table.trigram("输入", SENTENCE_START, "法"), 0.0);
+        assert_eq!(table.bigram("输入", "法"), 0.0);
+        assert_eq!(table.trigram(SENTENCE_START, "输入", ""), 0.0);
+    }
+
+    #[test]
+    fn rejects_counts_before_calculating_the_table_size() {
+        assert_eq!(
+            table_size(MAX_ENTRIES),
+            Some(HEADER_BYTES + MAX_ENTRIES * ENTRY_BYTES)
+        );
+        assert_eq!(table_size(MAX_ENTRIES + 1), None);
+        assert_eq!(table_size(u32::MAX as usize), None);
+    }
+
+    #[test]
+    fn rejects_bad_files() {
+        let directory = tempfile::tempdir().unwrap();
+        let dir = directory.path();
+        assert!(
+            NgramTable::load(&dir.join("absent.bin")).is_none(),
+            "a missing file yields no table"
+        );
+
+        let wrong_magic = dir.join("magic.bin");
+        write_table(&wrong_magic, &[(1, 1.0)], b"XXXX", 1);
+        assert!(
+            NgramTable::load(&wrong_magic).is_none(),
+            "a foreign file is rejected"
+        );
+
+        let wrong_version = dir.join("version.bin");
+        write_table(&wrong_version, &[(1, 1.0)], MAGIC, 99);
+        assert!(
+            NgramTable::load(&wrong_version).is_none(),
+            "a future version is rejected"
+        );
+
+        let unsorted = dir.join("unsorted.bin");
+        write_table(&unsorted, &[(9, 1.0), (2, 2.0)], MAGIC, 1);
+        assert!(
+            NgramTable::load(&unsorted).is_none(),
+            "unsorted keys are rejected"
+        );
+
+        let duplicate = dir.join("duplicate.bin");
+        write_table(&duplicate, &[(2, 1.0), (2, 2.0)], MAGIC, 1);
+        assert!(
+            NgramTable::load(&duplicate).is_some(),
+            "non-decreasing keys pass std::is_sorted"
+        );
+
+        let truncated = dir.join("truncated.bin");
+        write_table(&truncated, &[(1, 1.0), (2, 2.0)], MAGIC, 1);
+        let bytes = std::fs::read(&truncated).unwrap();
+        std::fs::write(&truncated, &bytes[..bytes.len() - 6]).unwrap();
+        assert!(
+            NgramTable::load(&truncated).is_none(),
+            "a truncated file is rejected"
+        );
+
+        let short = dir.join("short.bin");
+        std::fs::write(&short, b"MSNG\x01\0\0").unwrap();
+        assert!(
+            NgramTable::load(&short).is_none(),
+            "a file shorter than the header is rejected"
+        );
+
+        let oversized = dir.join("oversized.bin");
+        let mut header = Vec::new();
+        header.extend_from_slice(MAGIC);
+        header.extend_from_slice(&1u32.to_le_bytes());
+        header.extend_from_slice(&(MAX_ENTRIES as u32 + 1).to_le_bytes());
+        header.extend_from_slice(&0u32.to_le_bytes());
+        std::fs::write(&oversized, header).unwrap();
+        assert!(
+            NgramTable::load(&oversized).is_none(),
+            "a count past the cap is rejected"
+        );
+
+        let overflowing_count = dir.join("overflowing-count.bin");
+        let mut header = Vec::new();
+        header.extend_from_slice(MAGIC);
+        header.extend_from_slice(&1u32.to_le_bytes());
+        header.extend_from_slice(&u32::MAX.to_le_bytes());
+        header.extend_from_slice(&0u32.to_le_bytes());
+        std::fs::write(&overflowing_count, header).unwrap();
+        assert!(
+            NgramTable::load(&overflowing_count).is_none(),
+            "a count whose size arithmetic overflows on 32-bit targets is rejected"
+        );
+
+        let trailing = dir.join("trailing.bin");
+        write_table(&trailing, &[(1, 1.0)], MAGIC, 1);
+        let mut bytes = std::fs::read(&trailing).unwrap();
+        bytes.extend_from_slice(&[0; 5]);
+        std::fs::write(&trailing, bytes).unwrap();
+        assert!(
+            NgramTable::load(&trailing).is_some(),
+            "only needed <= size is checked"
+        );
+
+        let empty = dir.join("empty.bin");
+        write_table(&empty, &[], MAGIC, 1);
+        let table = NgramTable::load(&empty).expect("an empty but valid table loads");
+        assert!(table.is_empty());
+        assert_eq!(
+            table.bigram("配置", "与"),
+            0.0,
+            "an empty table scores everything zero"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_a_symlinked_valid_table() {
+        use std::os::unix::fs::symlink;
+
+        let directory = tempfile::tempdir().unwrap();
+        let external = directory.path().join("external.bin");
+        write_table(&external, &[(1, 1.0)], MAGIC, VERSION);
+        let linked = directory.path().join("linked.bin");
+        symlink(&external, &linked).unwrap();
+
+        assert!(NgramTable::load(&external).is_some());
+        assert!(NgramTable::load(&linked).is_none());
+    }
+
+    #[test]
+    fn shared_remembers_the_table_and_a_missing_file() {
+        // Other tests use the process-wide cache concurrently and can evict either entry.
+        let mut loaded = LruCache::new(NonZeroUsize::new(SHARED_CACHE_CAPACITY).unwrap());
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("shared.bin");
+        assert!(NgramTable::shared_cached(&mut loaded, &path).is_none());
+        write_table(&path, &[(1, 1.0)], MAGIC, 1);
+        assert!(
+            NgramTable::shared_cached(&mut loaded, &path).is_none(),
+            "a remembered miss is not re-probed"
+        );
+
+        let present = directory.path().join("present.bin");
+        write_table(&present, &[(1, 1.0)], MAGIC, 1);
+        let first = NgramTable::shared_cached(&mut loaded, &present).expect("loads");
+        let second = NgramTable::shared_cached(&mut loaded, &present).expect("cached");
+        assert!(Arc::ptr_eq(&first, &second));
+    }
+
+    #[test]
+    fn the_shared_cache_is_bounded_across_database_paths() {
+        let mut directories = Vec::new();
+        for index in 0..=SHARED_CACHE_CAPACITY {
+            let directory = tempfile::tempdir().unwrap();
+            let path = directory.path().join(format!("table-{index}.bin"));
+            write_table(&path, &[], MAGIC, VERSION);
+            assert!(NgramTable::shared(&path).is_some());
+            directories.push(directory);
+        }
+        let cache = SHARED.get().unwrap().lock().unwrap();
+        assert!(cache.len() <= SHARED_CACHE_CAPACITY);
+    }
+
+    /// 分桶查找必须和整张表上的 `lower_bound` 给出同样的答案：桶边界两侧的键、首尾的键、重复键（取第一条）和落在两键之间的未命中都覆盖到。
+    #[test]
+    fn bucketed_lookup_matches_the_whole_table_search() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("bucketed.bin");
+        let edge = 1u64 << INDEX_SHIFT;
+        let mut keys = vec![
+            0,
+            1,
+            edge - 1,
+            edge,
+            edge + 1,
+            5 * edge,
+            u64::MAX - 1,
+            u64::MAX,
+        ];
+        let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+        for _ in 0..4000 {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            keys.push(state);
+        }
+        keys.sort_unstable();
+        keys.dedup();
+        let mut entries: Vec<(u64, f32)> = keys
+            .iter()
+            .enumerate()
+            .map(|(index, &key)| (key, index as f32 + 1.0))
+            .collect();
+        // 桶边界上的重复键：两边的查找都应取第一条。
+        let at = entries.iter().position(|&(key, _)| key == edge).unwrap();
+        entries.insert(at + 1, (edge, -7.0));
+        write_table(&path, &entries, MAGIC, VERSION);
+        let table = NgramTable::load(&path).unwrap();
+        assert_eq!(table.index.len(), (1 << INDEX_BITS) + 1);
+        assert_eq!(table.index[1 << INDEX_BITS] as usize, entries.len());
+        for (position, &(key, value)) in entries.iter().enumerate() {
+            if position > 0 && entries[position - 1].0 == key {
+                continue;
+            }
+            assert_eq!(table.score(key), value, "{key:#x}");
+        }
+        for &key in &keys {
+            for probe in [key.wrapping_add(1), key.wrapping_sub(1)] {
+                if keys.binary_search(&probe).is_err() {
+                    assert_eq!(table.score(probe), 0.0, "{probe:#x}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn reads_the_shipped_tables() {
+        let Some(resources) = std::env::var_os("MSIME_EVAL_RESOURCES") else {
+            eprintln!("skipping reads_the_shipped_tables: MSIME_EVAL_RESOURCES is not set");
+            return;
+        };
+        let resources = PathBuf::from(resources);
+        for name in [crate::assets::BIGRAM_TABLE, crate::assets::TRIGRAM_TABLE] {
+            let table = NgramTable::load(&resources.join(name))
+                .unwrap_or_else(|| panic!("{name} in MSIME_EVAL_RESOURCES loads"));
+            assert_eq!(table.len(), 1_000_000, "{name}");
+            assert_eq!(table.bigram(SENTENCE_START, ""), 0.0);
+            // data-formats.md §7 measured every value in [-3, 3].
+            assert!((0..table.len()).all(|index| table.value_at(index).abs() <= 3.0));
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "ngram_lookup_tests.rs"]
+mod lookup_tests;
+
+// 字节计数仅进入 debug 单测；release 配对计时与产品不含计数分支。
+#[cfg(all(test, debug_assertions))]
+pub(super) mod hash_work {
+    use std::cell::Cell;
+    thread_local! {
+        static BYTES: Cell<Option<usize>> = const { Cell::new(None) };
+    }
+    pub(super) fn record(bytes: usize) {
+        BYTES.with(|count| {
+            if let Some(current) = count.get() {
+                count.set(Some(current + bytes));
+            }
+        });
+    }
+    pub(crate) fn measure<T>(run: impl FnOnce() -> T) -> (T, usize) {
+        struct Reset;
+        impl Drop for Reset {
+            fn drop(&mut self) {
+                BYTES.with(|count| count.set(None));
+            }
+        }
+        BYTES.with(|count| assert!(count.replace(Some(0)).is_none()));
+        let reset = Reset;
+        let value = run();
+        let bytes = BYTES.with(|count| count.get().unwrap());
+        drop(reset);
+        (value, bytes)
+    }
+}

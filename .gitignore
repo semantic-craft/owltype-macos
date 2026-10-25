@@ -5,6 +5,8 @@ Owltype.xcodeproj/xcuserdata/
 build/
 build.log
 *.profraw
+rust/target/
+include/owl_msime_ffi.h
 Frameworks/*
 bin/*
 lib/*

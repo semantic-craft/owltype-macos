@@ -11,6 +11,9 @@
 - **librime** —— <https://github.com/rime/librime>（BSD-3 / 组件各自许可）
   输入引擎。Owltype 不重写 librime，将其与数据自包含进 `Owltype.app`。
 - **RIME / 中州韻输入法引擎** —— <https://rime.im>
+- **水杉输入法 Metasequoia IME (`msime`)** —— <https://github.com/metasequoiaime/msime>（GPLv3）
+  Rust 输入引擎与运行时 crate（`rust/crates/`，经窄 C-ABI 静态链接入 `Owltype.app`），以及配套语言模型库
+  `chinese-ime-lm`（<https://github.com/metasequoiaime/chinese-ime-lm>，GPLv3）。
 
 ## 内置数据与方案 Bundled data & schemas
 

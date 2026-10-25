@@ -1,0 +1,296 @@
+//! Session-free dictionary calls on `EngineOptions` paths (api-contract §1b), and the snapshot record stream.
+
+use std::path::Path;
+
+use super::options::{runtime_paths, EngineOptions};
+use crate::diagnostics;
+use crate::error::{EngineError, Result};
+use crate::types::{PersonalDictionaryEntry, PersonalDictionaryKind};
+use crate::user_dictionary::journal::release_thread_journal;
+use crate::user_dictionary::{bundled, habits, personal, replay, reset, state};
+
+pub type DictionaryKind = PersonalDictionaryKind;
+pub type DictionaryEntry = PersonalDictionaryEntry;
+pub use crate::user_dictionary::bundled::{DictionaryTableEntry, DictionaryTablePage};
+pub use crate::user_dictionary::habits::{habit_is_storable, LearningHabit, LearningHabitsMerge};
+pub use crate::user_dictionary::personal::PersonalDictionaryPage as DictionaryPage;
+pub use crate::user_dictionary::state::{DictionaryStateMerge, DictionaryStateRecord};
+
+/// A sanitised transport failure (cancellation, truncation, bad checksum).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("Snapshot record stream failed")]
+pub struct SnapshotReadError;
+
+/// 代次里有没有 `msime-pinyin.db`：会话允许的方案里有读它的方案时才有（`SchemeSet::reads_main_dictionary`）。没有它的版本，个人词库只收英文词。
+fn main_dictionary(options: &EngineOptions) -> bool {
+    options.enabled_schemes.reads_main_dictionary()
+}
+
+/// These calls come from pool threads (a Tauri blocking task, the MCP server) that may never touch the journal again, so each one closes its thread's cached connection before returning, on success and failure alike.
+fn released<T>(value: T) -> T {
+    release_thread_journal();
+    value
+}
+
+pub fn dictionary_entries(
+    options: &EngineOptions,
+    offset: usize,
+    limit: usize,
+) -> Result<DictionaryPage> {
+    released(personal::personal_dictionary_entries_with(
+        &runtime_paths(options),
+        main_dictionary(options),
+        offset,
+        limit,
+        false,
+    ))
+}
+
+pub fn dictionary_export_entries(
+    options: &EngineOptions,
+    offset: usize,
+    limit: usize,
+    include_learned_pinyin: bool,
+) -> Result<DictionaryPage> {
+    released(personal::personal_dictionary_entries_with(
+        &runtime_paths(options),
+        main_dictionary(options),
+        offset,
+        limit,
+        include_learned_pinyin,
+    ))
+}
+
+/// 只查询指定词库的一页，偏移和后续页状态都以该词库为准。
+pub fn dictionary_export_entries_for_kind(
+    options: &EngineOptions,
+    kind: DictionaryKind,
+    offset: usize,
+    limit: usize,
+) -> Result<DictionaryPage> {
+    released(personal::personal_dictionary_export_entries_for_kind(
+        &runtime_paths(options),
+        main_dictionary(options),
+        kind,
+        offset,
+        limit,
+    ))
+}
+
+/// 只查询指定词库的用户词条一页，供设置列表在数据库层先筛选再分页。
+pub fn dictionary_entries_for_kind(
+    options: &EngineOptions,
+    kind: DictionaryKind,
+    offset: usize,
+    limit: usize,
+) -> Result<DictionaryPage> {
+    released(personal::personal_dictionary_entries_for_kind(
+        &runtime_paths(options),
+        main_dictionary(options),
+        kind,
+        offset,
+        limit,
+    ))
+}
+
+pub fn dictionary_table_entries(
+    options: &EngineOptions,
+    kind: DictionaryKind,
+    query: &str,
+    offset: usize,
+    limit: usize,
+) -> Result<DictionaryTablePage> {
+    released(bundled::dictionary_table_entries(
+        &runtime_paths(options),
+        kind,
+        query,
+        offset,
+        limit,
+    ))
+}
+
+pub fn dictionary_edit_bundled(
+    options: &EngineOptions,
+    previous: &DictionaryEntry,
+    weight: Option<i64>,
+    request_id: &str,
+) -> Result<()> {
+    released(bundled::edit_bundled_dictionary_entry_with(
+        &runtime_paths(options),
+        main_dictionary(options),
+        previous,
+        weight,
+        request_id,
+    ))
+}
+
+pub fn dictionary_validate(entry: &DictionaryEntry) -> Result<DictionaryEntry> {
+    personal::validate_personal_dictionary_entry(entry)
+}
+
+/// `dictionary_validate` for the row an edit or removal starts from: a listed row keeps whatever weight learning gave it, so only the floor applies to its weight.
+pub fn dictionary_validate_previous(entry: &DictionaryEntry) -> Result<DictionaryEntry> {
+    personal::validate_existing_entry(entry)
+}
+
+pub fn dictionary_edit(
+    options: &EngineOptions,
+    previous: Option<&DictionaryEntry>,
+    replacement: Option<&DictionaryEntry>,
+    request_id: &str,
+) -> Result<()> {
+    released(personal::edit_personal_dictionary_with(
+        &runtime_paths(options),
+        main_dictionary(options),
+        previous,
+        replacement,
+        request_id,
+    ))
+}
+
+/// 有界批量编辑的参数；维护租约由 host-api 持有。
+pub use personal::{
+    PersonalDictionaryApplied as DictionaryApplied, PersonalDictionaryEdit as DictionaryEdit,
+};
+
+/// 一次事务提交一批编辑，逐项结果只在外层提交成功后返回。
+pub fn dictionary_edit_batch(
+    options: &EngineOptions,
+    edits: &[DictionaryEdit<'_>],
+) -> Result<Vec<Result<DictionaryApplied>>> {
+    released(personal::edit_personal_dictionary_batch_with(
+        &runtime_paths(options),
+        main_dictionary(options),
+        edits,
+    ))
+}
+
+/// 集合直达导入的专用批量入口，使用更大的有界事务；普通编辑仍限制为 128 项。
+pub fn dictionary_edit_collection_batch(
+    options: &EngineOptions,
+    edits: &[DictionaryEdit<'_>],
+) -> Result<Vec<Result<DictionaryApplied>>> {
+    released(personal::edit_personal_dictionary_collection_batch_with(
+        &runtime_paths(options),
+        main_dictionary(options),
+        edits,
+    ))
+}
+
+/// Refuses to reset the packaged bundle in place and needs both packaged dictionaries. 方案集合不读 `msime-pinyin.db` 时只需要、也只换回 `msime-english.db`。
+pub fn reset_learned_data(options: &EngineOptions) -> Result<()> {
+    released(reset::reset_learned_data_with(
+        &runtime_paths(options),
+        main_dictionary(options),
+    ))
+}
+
+/// `(applied, skipped, failed, error)`; never errors.
+pub fn replay_user_dictionary(
+    user_db_path: &str,
+    main_db_path: &str,
+    english_db_path: &str,
+) -> (i32, i32, i32, String) {
+    let result = released(replay::replay(
+        Path::new(user_db_path),
+        Path::new(main_db_path),
+        Path::new(english_db_path),
+    ));
+    (result.applied, result.skipped, result.failed, result.error)
+}
+
+/// `INVALID_SNAPSHOT_RECORD_LIMIT` for a zero limit; returns `options` with the four paths of the staged generation.
+pub fn stage_dictionary_state(
+    options: &EngineOptions,
+    generation: &str,
+    content_id: &str,
+    maximum_records: usize,
+    records: impl Iterator<Item = std::result::Result<DictionaryStateRecord, SnapshotReadError>>,
+) -> Result<EngineOptions> {
+    if maximum_records == 0 {
+        return Err(EngineError::invalid(
+            diagnostics::INVALID_SNAPSHOT_RECORD_LIMIT,
+        ));
+    }
+    // A transport failure reaches the stager as an error, never as the end of the stream: only verified EOF may finish a generation (bridge.cpp:473-476).
+    let mut records = records
+        .map(|record| record.map_err(|_| EngineError::failed(diagnostics::SNAPSHOT_STREAM_FAILED)));
+    let paths = released(state::stage_dictionary_state_for(
+        Path::new(&options.resources),
+        Path::new(generation),
+        content_id,
+        &mut records,
+        maximum_records,
+        options.enabled_schemes,
+    ))?;
+    let text = |path: &Path| path.to_string_lossy().into_owned();
+    Ok(EngineOptions {
+        resources: text(&paths.resources),
+        user_data: text(&paths.user_data),
+        cache: text(&paths.cache),
+        dictionaries: text(&paths.dictionaries),
+        ..options.clone()
+    })
+}
+
+pub fn dictionary_state_revision(options: &EngineOptions) -> Result<String> {
+    released(state::dictionary_state_revision(&runtime_paths(options)))
+}
+
+/// 在一个只读事务里依次读出日志的全部操作行（含学习调权和删除记录）、固定位置和选词计数，交给 `emit`；`emit` 返回假时停下并报 `INVALID_DICTIONARY_STATE`。本地备份导出输入记录用它。
+pub fn stream_dictionary_state(
+    options: &EngineOptions,
+    emit: &mut dyn FnMut(&DictionaryStateRecord) -> bool,
+) -> Result<()> {
+    released(state::stream_dictionary_state(
+        &runtime_paths(options),
+        emit,
+    ))
+}
+
+/// 把一串词库状态记录合并进本机正在用的日志和词库，本机已有的保留本机、选词计数取大（规则见 `state::merge_dictionary_state`）。读流失败与 [`stage_dictionary_state`] 一样报 `SNAPSHOT_STREAM_FAILED`，整体回滚。调用方必须持有独占维护权。
+pub fn merge_dictionary_state(
+    options: &EngineOptions,
+    maximum_records: usize,
+    records: impl Iterator<Item = std::result::Result<DictionaryStateRecord, SnapshotReadError>>,
+) -> Result<DictionaryStateMerge> {
+    let mut records = records
+        .map(|record| record.map_err(|_| EngineError::failed(diagnostics::SNAPSHOT_STREAM_FAILED)));
+    released(state::merge_dictionary_state(
+        &runtime_paths(options),
+        main_dictionary(options),
+        &mut records,
+        maximum_records,
+    ))
+}
+
+/// 在一个只读事务里依次读出日志里的六张输入习惯表（整句联想、选词对、拼写纠错、自动纠错抑制、置顶），交给 `emit`；`emit` 返回假时停下并报 `INVALID_DICTIONARY_STATE`。本地备份导出输入习惯用它，规则见 `habits::stream_learning_habits`。
+pub fn stream_learning_habits(
+    options: &EngineOptions,
+    emit: &mut dyn FnMut(&LearningHabit) -> bool,
+) -> Result<()> {
+    released(habits::stream_learning_habits(
+        &runtime_paths(options),
+        emit,
+    ))
+}
+
+/// 本机输入习惯的行数，只读。
+pub fn count_learning_habits(options: &EngineOptions) -> Result<usize> {
+    released(habits::count_learning_habits(&runtime_paths(options)))
+}
+
+/// 把一串输入习惯合并进本机正在用的日志，计数取大、置顶保留本机，写完压回各表的上限（规则见 `habits::merge_learning_habits`）。读流失败报 `SNAPSHOT_STREAM_FAILED`，整体回滚。调用方必须持有独占维护权。
+pub fn merge_learning_habits(
+    options: &EngineOptions,
+    maximum_records: usize,
+    records: impl Iterator<Item = std::result::Result<LearningHabit, SnapshotReadError>>,
+) -> Result<LearningHabitsMerge> {
+    let mut records = records
+        .map(|record| record.map_err(|_| EngineError::failed(diagnostics::SNAPSHOT_STREAM_FAILED)));
+    released(habits::merge_learning_habits(
+        &runtime_paths(options),
+        &mut records,
+        maximum_records,
+    ))
+}
