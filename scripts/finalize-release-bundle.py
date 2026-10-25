@@ -8,7 +8,6 @@ the notarization ticket, so anything inventoried here describes a state that nev
 ships. inventory-release-bundle.py takes that inventory after those steps instead.
 """
 
-import os
 import plistlib
 import shutil
 import subprocess
@@ -20,18 +19,12 @@ from owl_bundle import MANIFEST_NAME, SBOM_NAME, relative_files, sha256
 
 ROOT = Path(__file__).resolve().parent.parent
 EXPECTED_NATIVE = {
-    "Contents/Frameworks/librime.1.dylib",
-    "Contents/Frameworks/rime-plugins/librime-lua.dylib",
-    "Contents/Frameworks/rime-plugins/librime-octagram.dylib",
-    "Contents/Frameworks/rime-plugins/librime-predict.dylib",
     "Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate",
     "Contents/Frameworks/Sparkle.framework/Versions/B/Sparkle",
     "Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app/Contents/MacOS/Updater",
     "Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc/Contents/MacOS/Downloader",
     "Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc/Contents/MacOS/Installer",
     "Contents/MacOS/Owltype",
-    "Contents/MacOS/rime_deployer",
-    "Contents/MacOS/rime_dict_manager",
 }
 REQUIRED_LICENSES = {
     "Contents/Resources/LICENSE.txt",
@@ -54,22 +47,14 @@ REQUIRED_LICENSES = {
     "Contents/SharedSupport/rime-ice-Credits.md",
     "Contents/SharedSupport/rime-ice.LICENSE",
 }
-# Single-repo era: the full product legitimately bundles the KyleBing wubi
-# schemas (Apache-2.0) and the librime predict/octagram plugins (BSD).
-# The remaining license blocker is upstream grammar data (*.gram from
-# lotem/rime-octagram-data), which ships without a redistribution license.
+# The Rust runtime uses the seeded SQLite dictionaries. Upstream grammar data
+# (*.gram from lotem/rime-octagram-data) still has no redistribution license.
 FORBIDDEN_RELEASE_SUFFIXES = (".gram",)
-# The privacy gate exists to keep PRIVATE home directories out of public artifacts
-# (PUBLISHING_CHECKLIST: "absolute home-directory paths"). Upstream librime CI
-# prebuilts (rime_deployer, librime.1.dylib, rime-plugins/*.dylib) embed the public
-# GitHub-runner macOS build prefix in glog __FILE__ strings — 410+ occurrences of
-# the "runner" account's "work/librime" checkout path — which identifies no person
-# and cannot be scrubbed without rebuilding upstream binaries. Allow exactly that
-# one public account; any other home-directory account still fails the gate.
-# (Prefix strings below stay split so the public-source privacy scanner does not
-# match its own gate definition.)
+# The privacy gate keeps home-directory paths out of public artifacts. The Rust
+# build scrubs its CI runner prefix, so no account-specific exception is needed.
+# (The prefix stays split so the public-source privacy scanner does not match its
+# own gate definition.)
 FORBIDDEN_HOME_PREFIX = b"/" + b"Users/"
-ALLOWED_HOME_ACCOUNTS = (b"runner/",)
 SPARKLE_LICENSE_SHA256 = "78babcec24fb8447551f9b5ece67042a82fd4ed14deab863d6e8f0619d0d25f6"
 
 
@@ -102,13 +87,7 @@ def remove_linker_signatures(app: Path, native_paths: set[str]) -> None:
 
 
 def contains_private_home_path(data: bytes) -> bool:
-    index = data.find(FORBIDDEN_HOME_PREFIX)
-    while index >= 0:
-        rest = data[index + len(FORBIDDEN_HOME_PREFIX):]
-        if not any(rest.startswith(account) for account in ALLOWED_HOME_ACCOUNTS):
-            return True
-        index = data.find(FORBIDDEN_HOME_PREFIX, index + len(FORBIDDEN_HOME_PREFIX))
-    return False
+    return FORBIDDEN_HOME_PREFIX in data
 
 
 def verify_no_private_build_paths(files: list[tuple[str, Path]]) -> None:
@@ -152,6 +131,10 @@ def main() -> None:
     subprocess.run([sys.executable, str(ROOT / "scripts/build-sparkle.py"), "--check",
                     str(app / "Contents/Frameworks/Sparkle.framework")], check=True)
     verify_seed(app)
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts/check-rust-delivery.py"), str(app)],
+        check=True,
+    )
     files = relative_files(app)
     verify_no_private_build_paths(files)
     paths = {relative for relative, _ in files}
@@ -174,8 +157,6 @@ def main() -> None:
     if native_targets != EXPECTED_NATIVE:
         fail(f"native inventory differs: expected {sorted(EXPECTED_NATIVE)}, got {sorted(native_targets)}")
     remove_linker_signatures(app, native_targets)
-    if not os.access(app / "Contents/MacOS/rime-install", os.X_OK):
-        fail("Contents/MacOS/rime-install is not executable")
 
     with (app / "Contents/Info.plist").open("rb") as handle:
         info = plistlib.load(handle)

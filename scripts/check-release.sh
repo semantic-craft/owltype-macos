@@ -45,13 +45,6 @@ else
   fail "NOTARY_PROFILE 指向的 notarytool keychain profile 不可用"
 fi
 
-# 07-07-schema-consistency-guard: derive the packaged pinyin schema from the App source of truth.
-# Keep every expansion braced when adjacent to CJK punctuation: under some locale/Bash combinations,
-# an unbraced name can be parsed past the intended variable boundary and trip `set -u`.
-expected_pinyin=$(grep -oE 'case \.pinyin: return "[a-z][a-z0-9_]*"' "$ROOT/sources/Settings/OwlKeyboardPreferences.swift" | sed -E 's/.*"([a-z0-9_]+)".*/\1/' | head -1)
-[[ -n "$expected_pinyin" ]] || fail "cannot derive expected pinyin schema from OwlKeyboardPreferences.swift"
-pass "代码默认拼音 schema 已解析（.pinyin = ${expected_pinyin}）"
-
 if (( preflight_only )); then
   pass "release environment preflight complete"
   exit 0
@@ -76,6 +69,9 @@ pass "Release bundle id is $DOMAIN"
 [[ -s "$APP/Contents/Resources/LICENSE.txt" ]] || fail "Release app missing LICENSE.txt"
 [[ -s "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md" ]] || fail "Release app missing THIRD_PARTY_NOTICES.md"
 pass "Release app carries license and third-party notices"
+
+python3 "$ROOT/scripts/check-rust-delivery.py" "$APP"
+pass "Release app delivers the Rust engine without the legacy Rime runtime"
 
 codesign_details=$(/usr/bin/codesign -dv --verbose=2 "$APP" 2>&1)
 if grep -q '^Authority=Developer ID Application:' <<<"$codesign_details"; then
@@ -149,19 +145,11 @@ for path in \
 	  './Owltype.app/Contents/Resources/THIRD_PARTY_NOTICES.md' \
 	  './Owltype.app/Contents/SharedSupport/OWLTYPE-SEED-MANIFEST.txt' \
 	  './Owltype.app/Contents/SharedSupport/owltype.yaml' \
-	  './Owltype.app/Contents/SharedSupport/rime_ice.schema.yaml' \
-	  './Owltype.app/Contents/SharedSupport/rime_ice.dict.yaml' \
-  './Owltype.app/Contents/SharedSupport/cn_dicts/owltype_unicode.dict.yaml' \
-  './Owltype.app/Contents/SharedSupport/cn_dicts/owltype_base.dict.yaml'
+	  './Owltype.app/Contents/SharedSupport/msime/msime-pinyin.db' \
+	  './Owltype.app/Contents/SharedSupport/msime/msime-english.db'
 do
   grep -qxF "$path" <<<"$payload" || fail "pkg payload missing $path"
 done
-grep -qxF './Owltype.app/Contents/SharedSupport/_user_seed/owltype.custom.yaml' <<<"$payload" ||
-  fail "pkg payload missing Owltype _user_seed/owltype.custom.yaml"
-if grep -qxF './Owltype.app/Contents/SharedSupport/squirrel.yaml' <<<"$payload" ||
-   grep -qxF './Owltype.app/Contents/SharedSupport/_user_seed/squirrel.custom.yaml' <<<"$payload"; then
-  fail "pkg payload still carries Squirrel frontend config names"
-fi
 # 反倒退：dict-pack 载荷（未过再分发审计的第三方词库）绝不允许出现在公开 payload 里。
 for forbidden in \
   '/cn_dicts/base\.dict\.yaml$' \
@@ -175,15 +163,7 @@ do
     fail "pkg payload carries dict-pack material (matched: $forbidden) — 完整词库只能用户侧拉取，不得随包再分发"
   fi
 done
-pass "pkg payload = 清洁室种子（rime_ice + owltype_base + owltype_unicode），无 dict-pack 再分发载荷"
-
-# 07-07-schema-consistency-guard: cross-check the payload's 拼音 schema against the code's default
-# (OwlKeyboardPreferences .pinyin), so a future schema rename / stale seed can't silently ship a
-# payload whose pinyin base no longer matches what the app selects at runtime. Derives the expected
-# id from source (single truth) instead of hardcoding it.
-grep -qxF "./Owltype.app/Contents/SharedSupport/${expected_pinyin}.schema.yaml" <<<"$payload" ||
-  fail "pkg payload 拼音 schema 不符：代码默认 .pinyin = ${expected_pinyin}，但 payload 无 ${expected_pinyin}.schema.yaml（seed 陈旧？重跑 make owl-seed 再发版）"
-pass "pkg payload 拼音 schema 与代码默认一致（.pinyin = ${expected_pinyin}）"
+pass "pkg payload carries the Rust SQLite resources and no dict-pack redistribution material"
 
 assert_installer_scripts() {
   local component_root="$1" label="$2" package_info_path="$1/PackageInfo"
@@ -203,26 +183,8 @@ assert_installer_scripts() {
     fail "$label Scripts contains files beyond preinstall/postinstall: ${unexpected_installer_script##*/}"
 }
 
-# 方案B：静态 _user_seed 只启用 rime_ice（清洁室基线）。五笔/双拼/简体拼音的 schema_list
-# 由 App 首启的 OwlManagedKeyboardPatchPlan 按当前偏好写入（setupRime，seed 之后、首次
-# deploy 之前），其源文件由 dict-pack 用户侧拉取后补建 —— 静态种子里再断言全套属全量种子
-# 时代的陈旧期望（2026-07-24 1.5.0 出包时逮住）。
-seed="$pkg_app/Contents/SharedSupport/_user_seed/default.custom.yaml"
-grep -q "schema: rime_ice" "$seed" || fail "pkg seed does not enable rime_ice"
-pass "pkg seed 启用清洁室基线（rime_ice；全套 schema_list 由首启 managed patch + dict-pack 接管）"
-# emoji 出厂关 = 共享 rime_ice.schema.yaml 的 reset（不在 _user_seed）。纯雾凇无带声调 preedit。
-ice_schema="$pkg_app/Contents/SharedSupport/rime_ice.schema.yaml"
-grep -A3 'name: emoji' "$ice_schema" | grep -q 'reset: 0' ||
-  fail "pkg rime_ice.schema.yaml does not default emoji off (reset: 0)"
-pass "pkg rime_ice default: emoji off"
-# emoji off 态标签 = 👍（rime-ice 默认 💀 骷髅；reset 每次部署都弹一次 toast，2026-07-26 用户要求换）。
-grep -A3 'name: emoji' "$ice_schema" | grep -q 'states: \[ 👍, 😄 \]' ||
-  fail "pkg rime_ice.schema.yaml emoji states not [ 👍, 😄 ] (skull regression?)"
-pass "pkg rime_ice emoji off label: 👍"
-# ascii_mode 英文态标签 = 英（rime-ice 默认「Ａ」；task 06-27 用户要求，2026-07-26 搬入公开种子）。
-grep -A3 'name: ascii_mode' "$ice_schema" | grep -q 'states: \[ 中, 英 \]' ||
-  fail "pkg rime_ice.schema.yaml ascii_mode states not [ 中, 英 ]"
-pass "pkg rime_ice ascii_mode label: 中/英"
+python3 "$ROOT/scripts/check-rust-delivery.py" "$pkg_app"
+pass "pkg payload app delivers the Rust engine without the legacy Rime runtime"
 
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$pkg_app"
 pass "pkg payload app codesign verifies"

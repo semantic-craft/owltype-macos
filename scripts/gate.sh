@@ -70,11 +70,14 @@ portable_scripts() {
     scripts/owl_distribution.py \
     scripts/owl_bundle.py \
     scripts/build-owltype-msime-seed-db.py \
+    scripts/check-rust-delivery.py \
+    scripts/finalize-release-bundle.py \
     scripts/inventory-release-bundle.py \
     scripts/release-cohort-state.py \
     scripts/release_source.py \
     scripts/safe-extract-tar.py
   python3 scripts/build-owltype-msime-seed-db.selftest.py
+  python3 scripts/check-rust-delivery.selftest.py
   python3 scripts/owl-distribution.selftest.py
   python3 scripts/release-source-archive.selftest.py
   python3 scripts/build-sparkle.selftest.py
