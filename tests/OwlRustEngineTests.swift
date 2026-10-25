@@ -69,7 +69,7 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(committed, "你好")
     XCTAssertNil(session.takeCommit())
     XCTAssertEqual(session.input(), "")
-    XCTAssertNil(session.composition())
+    XCTAssertEqual(session.composition()?.preedit, "")
   }
 
   func testCandidateSelectionByDigitAndSelectCandidateMethod() throws {
@@ -176,6 +176,24 @@ final class OwlRustEngineTests: XCTestCase {
 
     // In ASCII mode, typing letters is not consumed by the IME.
     XCTAssertFalse(session.process(keycode: UInt32(XK_a), modifiers: 0))
+  }
+
+  func testCancelReturnsEmptyContextToClearHostMarkedText() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+    for scalar in "nihao".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    XCTAssertTrue(session.process(keycode: UInt32(XK_Escape), modifiers: 0))
+    let cleared = try XCTUnwrap(session.composition(), "The IMK renderer needs an empty context to clear marked text")
+    XCTAssertEqual(cleared.preedit, "")
+    XCTAssertTrue(cleared.candidates.isEmpty)
+    XCTAssertNil(session.takeCommit())
+    XCTAssertTrue(session.process(keycode: UInt32(XK_n), modifiers: 0))
+    XCTAssertTrue(session.process(keycode: UInt32(XK_BackSpace), modifiers: 0))
+    XCTAssertEqual(session.composition()?.preedit, "")
+    XCTAssertTrue(session.composition()?.candidates.isEmpty == true)
   }
 
   func testKeypadDigitSelectsVisibleCandidate() throws {

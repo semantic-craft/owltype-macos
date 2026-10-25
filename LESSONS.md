@@ -339,3 +339,9 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - During #249 installed TextEdit acceptance, System Events `keystroke "1"` produced macOS keycode 83 / `XK_KP_1` (65457). The Rust adapter handled only `XK_1...XK_9`, so the event passed through instead of selecting the visible candidate. Physical top-row keycode 18 correctly committed the displayed candidate.
 - Map `XK_KP_1...XK_KP_9` through the same visible-index selection path. `OwlRustEngineTests.testKeypadDigitSelectsVisibleCandidate` fails before the mapping (unhandled key and missing commit) and exercises a real seed-backed session.
 - Native input evidence must state the event path. CUA printable-key injection did not reproduce the physical IMK path on this host; the authorized System Events script did. Assert the intended foreground host/document and use actual key codes when a test means top-row digits. Keep keypad selection as its own regression instead of dismissing it as a script artifact.
+
+### An empty engine context must clear native marked text
+
+- #249 real TextEdit acceptance on `0621f6e` found that Esc hid the candidate panel but left underlined `ni'hao` in the host. Rust had cleared its input; `OwlRustSession.composition()` discarded every empty snapshot as nil. The existing IMK renderer sends empty marked text for a valid empty context, whereas nil only hides the panel.
+- Preserve a valid empty Rust snapshot as an empty `RimeComposition`, matching the librime seam. `testCancelReturnsEmptyContextToClearHostMarkedText` fails on the old adapter at the non-nil context assertion; it also covers deleting the last input character. An empty committed session now exposes an empty context, while destroyed/unavailable sessions still return nil.
+- Engine cancellation alone is insufficient evidence: verify the actual host loses its marked text after Esc and after backspacing the last character, with no phantom commit on the next key.

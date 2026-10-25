@@ -368,7 +368,9 @@ final class OwlRustSession: RimeSession {
     if latestSnapshot == nil {
       refreshSnapshot()
     }
-    guard let snap = latestSnapshot, !snap.rawInput.isEmpty else {
+    // Like librime's valid empty context, a cleared snapshot must reach the renderer:
+    // nil only hides the panel and leaves the host's previous marked text in place.
+    guard let snap = latestSnapshot else {
       return nil
     }
     let preedit = snap.preedit.isEmpty ? snap.rawInput : snap.preedit
