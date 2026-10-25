@@ -312,6 +312,7 @@ final class OwlRustSession: RimeSession {
   private var appOptionFlags: [String: Bool] = [:]
   private var properties: [String: String] = [:]
   private var shiftKeyArmed = false
+  private var capsLockKeyState = OwlCapsLockKeyState()
 
   var generation: UInt64 {
     latestGeneration
@@ -387,25 +388,31 @@ final class OwlRustSession: RimeSession {
         shiftKeyArmed = OwlKeyboardPreferences.shiftSwitchCJK
       } else if shiftKeyArmed {
         shiftKeyArmed = false
-        toggleASCIIModeCommittingRawInput()
+        setASCIIModeCommittingRawInput(!(optionFlags[.asciiMode] ?? false))
+        capsLockKeyState.resetForOtherASCIIModeSwitch()
       }
       return false
     }
 
     if isCapsLockKey {
-      shiftKeyArmed = false
-      guard OwlKeyboardPreferences.shiftSwitchCJK else { return false }
-      if !isRelease {
-        toggleASCIIModeCommittingRawInput()
-      }
-      // Classic good_old_caps_lock toggles the system lock too. Without it, Caps Lock is a
-      // pure IME mode key, so the consumed synthetic event must not reach the host.
-      return !OwlKeyboardPreferences.goodOldCapsLock
+      return processCapsLockKey(modifiers: modifiers, isRelease: isRelease)
     }
 
     if !isRelease {
       shiftKeyArmed = false
     } else {
+      return false
+    }
+
+    // Mirror ascii_composer's post-Caps handling. With good_old_caps_lock off, letters under a
+    // physical Caps Lock are inverted and committed by the IME; everything else passes through.
+    if OwlKeyboardPreferences.shiftSwitchCJK, (modifiers & kLockMask.rawValue) != 0 {
+      if !OwlKeyboardPreferences.goodOldCapsLock,
+         (modifiers & (kControlMask.rawValue | kAltMask.rawValue | kSuperMask.rawValue)) == 0,
+         let replacement = invertedASCIILetter(for: keycode) {
+        pendingCommitText = convertToTraditionalIfNeeded(replacement)
+        return true
+      }
       return false
     }
 
@@ -466,6 +473,27 @@ final class OwlRustSession: RimeSession {
     }
 
     return processActiveCompositionKey(keycode: keycode)
+  }
+
+  private func processCapsLockKey(modifiers: UInt32, isRelease: Bool) -> Bool {
+    shiftKeyArmed = false
+    guard OwlKeyboardPreferences.shiftSwitchCJK else {
+      capsLockKeyState.resetForOtherASCIIModeSwitch()
+      return false
+    }
+    guard !isRelease else { return false }
+    let transition = capsLockKeyState.processPress(
+      preFlipCapsLocked: (modifiers & kLockMask.rawValue) != 0,
+      asciiMode: optionFlags[.asciiMode] ?? false,
+      goodOldCapsLock: OwlKeyboardPreferences.goodOldCapsLock
+    )
+    switch transition {
+    case .passThrough:
+      return false
+    case let .setASCIIMode(asciiMode, consumed):
+      setASCIIModeCommittingRawInput(asciiMode)
+      return consumed
+    }
   }
 
   private func localModeInsertionAction(for keycode: UInt32) -> [String: Any]? {
@@ -560,61 +588,12 @@ final class OwlRustSession: RimeSession {
     return nil
   }
 
-  private func asciiKeyCharacter(for keycode: UInt32) -> Character? {
-    let keypad = keycode >= UInt32(XK_KP_0) && keycode <= UInt32(XK_KP_9)
-    let value = keypad ? UInt32(XK_0) + (keycode - UInt32(XK_KP_0)) : keycode
-    guard value >= 0x21, value <= 0x7E, let scalar = UnicodeScalar(value) else { return nil }
-    return Character(String(scalar))
-  }
-
-  private func asciiPunctuationString(for keycode: UInt32) -> String? {
-    guard keycode >= 0x21 && keycode <= 0x7E,
-          let scalar = UnicodeScalar(keycode) else { return nil }
-    let byte = UInt8(keycode)
-    let isAlphaNum = (byte >= UInt8(ascii: "a") && byte <= UInt8(ascii: "z"))
-      || (byte >= UInt8(ascii: "A") && byte <= UInt8(ascii: "Z"))
-      || (byte >= UInt8(ascii: "0") && byte <= UInt8(ascii: "9"))
-    guard !isAlphaNum else { return nil }
-    return String(scalar)
-  }
-
-  private func candidateSelectionIndex(for keycode: UInt32) -> Int? {
-    if OwlKeyboardPreferences.select23Semicolon {
-      if keycode == UInt32(XK_semicolon) { return 1 }
-      if keycode == UInt32(XK_apostrophe) { return 2 }
-    }
-    if keycode >= UInt32(XK_1) && keycode <= UInt32(XK_9) {
-      return Int(keycode - UInt32(XK_1))
-    }
-    if keycode >= UInt32(XK_KP_1) && keycode <= UInt32(XK_KP_9) {
-      return Int(keycode - UInt32(XK_KP_1))
-    }
-    return nil
-  }
-
-  private func isPageUpKey(_ keycode: UInt32) -> Bool {
-    if keycode == UInt32(XK_Page_Up) { return true }
-    if OwlKeyboardPreferences.pageMinusEquals && keycode == UInt32(XK_minus) { return true }
-    if OwlKeyboardPreferences.pageBrackets && keycode == UInt32(XK_bracketleft) { return true }
-    if OwlKeyboardPreferences.pageCommaPeriod && keycode == UInt32(XK_comma) { return true }
-    return false
-  }
-
-  private func isPageDownKey(_ keycode: UInt32) -> Bool {
-    if keycode == UInt32(XK_Page_Down) { return true }
-    if OwlKeyboardPreferences.pageMinusEquals && keycode == UInt32(XK_equal) { return true }
-    if OwlKeyboardPreferences.pageBrackets && keycode == UInt32(XK_bracketright) { return true }
-    if OwlKeyboardPreferences.pageCommaPeriod && keycode == UInt32(XK_period) { return true }
-    return false
-  }
-
-  private func toggleASCIIModeCommittingRawInput() {
+  private func setASCIIModeCommittingRawInput(_ asciiMode: Bool) {
     let raw = latestSnapshot?.rawInput ?? ""
     if !raw.isEmpty {
       _ = applyActionResponse(sendAction(["op": "commit_raw"]))
     }
-    let nextASCII = !(optionFlags[.asciiMode] ?? false)
-    setOption(.asciiMode, nextASCII)
+    setOption(.asciiMode, asciiMode)
   }
 
   func takeCommit() -> String? {
