@@ -90,28 +90,23 @@ struct OwlApp {
     return roots.contains(parent)
   }
 
-  /// Builder traits for `--build`. Must carry the SAME directory triple as the main launch
-  /// path (setupRime): librime resolves every unset directory trait against the process cwd,
-  /// so an app_name-only traits struct made `Owltype --build` scatter installation.yaml + build/
-  /// into whatever directory it was run from while the real user dir stayed unbuilt (2026-07-24).
-  static func makeBuilderTraits() -> RimeTraits {
-    var builderTraits = RimeTraits.rimeStructInit()
-    builderTraits.setCString(Bundle.main.sharedSupportPath!, to: \.shared_data_dir)
-    builderTraits.setCString(userDir.path, to: \.user_data_dir)
-    builderTraits.setCString(logDir.path, to: \.log_dir)
-    builderTraits.setCString(OwlRimeIdentity.builderAppName, to: \.app_name)
-    return builderTraits
+  static func makeBuilderTraits() -> OwlEngineTraits {
+    OwlEngineTraits(
+      sharedDataDir: URL(fileURLWithPath: Bundle.main.sharedSupportPath!, isDirectory: true),
+      userDataDir: userDir,
+      logDir: logDir,
+      appName: OwlRimeIdentity.builderAppName
+    )
   }
 
-  private static func buildSchemas(rimeAPI: RimeApi_stdbool) {
+  private static func buildSchemas() {
     // Notification
     OwlApplicationDelegate.showMessage(msgText: NSLocalizedString("deploy_update", comment: ""))
     // Build all schemas into Owltype's own data root — never the process cwd (see makeBuilderTraits).
     try? OwlPrivateStorage.prepareDirectory(userDir)
     try? FileManager.default.createDirectory(at: logDir, withIntermediateDirectories: true)
-    var builderTraits = makeBuilderTraits()
-    rimeAPI.setup(&builderTraits)
-    rimeAPI.deployer_initialize(nil)
+    let engine = OwlRustEngine()
+    engine.setup(makeBuilderTraits())
     do {
       if let sharedSupport = Bundle.main.sharedSupportURL {
         try OwlPinyinMixedInput.apply(userDir: userDir, sharedDir: sharedSupport)
@@ -121,13 +116,15 @@ struct OwlApp {
       fputs("Failed to configure English candidates: \(error)\n", stderr)
       exit(1)
     }
-    _ = rimeAPI.deploy()
+    guard engine.startMaintenance(fullCheck: true) else {
+      fputs("Failed to refresh Rust engine resources\n", stderr)
+      exit(1)
+    }
+    engine.finalize()
   }
 
   // swiftlint:disable:next cyclomatic_complexity
   static func main() {
-    let rimeAPI: RimeApi_stdbool = rime_get_api_stdbool().pointee
-
     let handled = autoreleasepool {
       let installer = OwlInstaller()
       let args = CommandLine.arguments
@@ -275,7 +272,7 @@ struct OwlApp {
           }
           return true
         case "--build":
-          buildSchemas(rimeAPI: rimeAPI)
+          buildSchemas()
           return true
         case "--sync":
           DistributedNotificationCenter.default().postNotificationName(.init("OwlSyncNotification"), object: nil, userInfo: nil, deliverImmediately: true)
@@ -391,7 +388,7 @@ struct OwlApp {
       app.run()
       print("Owltype is quitting...")
       if !runningUnitTests {
-        rimeAPI.finalize()
+        delegate.engine.finalize()
       }
     }
     return

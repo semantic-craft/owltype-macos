@@ -766,21 +766,26 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     // profile. No-op on a fresh install (no legacy key) or once a profile already exists. Off the
     // IMK hot path — runs only here at app launch.
     OwlProviderMigration.migrateLegacyDeepSeekIfNeeded()
-    // swiftlint:disable identifier_name
-    let notification_handler: RimeNotificationHandler = notificationHandler
-    let context_object = Unmanaged.passUnretained(self).toOpaque()
-    // swiftlint:enable identifier_name
-    engine.setNotificationHandler(notification_handler, context: context_object)
-
-    var owlTraits = RimeTraits.rimeStructInit()
-    owlTraits.setCString(Bundle.main.sharedSupportPath!, to: \.shared_data_dir)
-    owlTraits.setCString(OwlApp.userDir.path, to: \.user_data_dir)
-    owlTraits.setCString(OwlApp.logDir.path, to: \.log_dir)
-    owlTraits.setCString("Owltype", to: \.distribution_code_name)
-    owlTraits.setCString("猫头鹰输入法", to: \.distribution_name)
-    owlTraits.setCString(Bundle.main.object(forInfoDictionaryKey: kCFBundleVersionKey as String) as! String, to: \.distribution_version)
-    owlTraits.setCString(OwlRimeIdentity.appName, to: \.app_name)
-    engine.setup(&owlTraits)
+    engine.setNotificationHandler { [weak self] sessionID, messageType, messageValue in
+      guard let self else { return }
+      notificationHandler(
+        delegate: self,
+        sessionId: sessionID,
+        messageType: messageType,
+        messageValue: messageValue
+      )
+    }
+    engine.setup(
+      OwlEngineTraits(
+        sharedDataDir: URL(
+          fileURLWithPath: Bundle.main.sharedSupportPath!,
+          isDirectory: true
+        ),
+        userDataDir: OwlApp.userDir,
+        logDir: OwlApp.logDir,
+        appName: OwlRimeIdentity.appName
+      )
+    )
   }
 
   /// ADR-0004 cycle 3: on first run, seed Owltype's OWN `user_data_dir`
@@ -827,10 +832,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   func startRime(fullCheck: Bool, migrationDirectory: URL = OwlApp.userDir) -> Bool {
     let trace = OwlLatencyTrace.begin("deploy.startRime")
     defer { OwlLatencyTrace.end("deploy.startRime", trace) }
-    print("Initializing la rime...")
-    // Always bring the engine up: returning before initialize left every session dead, and
-    // deploy() had already called shutdownRime — one unfinished migration meant no input at all.
-    engine.initialize(nil)
+    print("Initializing the Rust input engine...")
     guard !templateRecoveryBlocksDeployment(migrationDirectory) else { return false }
     do {
       if let sharedSupport = Bundle.main.sharedSupportURL {
@@ -1048,23 +1050,12 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
 
 }
 
-extension RimeStringSlice {
-  /// Bridge the slice's pointer + length to a Swift String, honoring `.length`.
-  /// librime clips `.length` to the first Unicode character for abbreviated labels
-  /// when no explicit `abbrev:` field is defined, so reading past `.length` (e.g. with
-  /// `String(cString:)`) would incorrectly return the full `states:` value.
-  var asString: String? {
-    guard let ptr = str else { return nil }
-    let data = Data(bytes: UnsafeRawPointer(ptr), count: Int(length))
-    return String(data: data, encoding: .utf8)
-  }
-}
-
-private func notificationHandler(contextObject: UnsafeMutableRawPointer?, sessionId: RimeSessionId, messageTypeC: UnsafePointer<CChar>?, messageValueC: UnsafePointer<CChar>?) {
-  let delegate: OwlApplicationDelegate = Unmanaged<OwlApplicationDelegate>.fromOpaque(contextObject!).takeUnretainedValue()
-
-  let messageType = messageTypeC.map { String(cString: $0) }
-  let messageValue = messageValueC.map { String(cString: $0) }
+private func notificationHandler(
+  delegate: OwlApplicationDelegate,
+  sessionId: UInt64,
+  messageType: String,
+  messageValue: String?
+) {
   if messageType == "deploy" {
     switch messageValue {
     case "start":

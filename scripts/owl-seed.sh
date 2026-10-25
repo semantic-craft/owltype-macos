@@ -192,10 +192,9 @@ cp "$source_dir/LICENSE" "$output_dir/rime-ice.LICENSE"
 cp "$source_dir/others/docs/Credits.md" "$output_dir/rime-ice-Credits.md"
 cp "$jieba_license_file" "$output_dir/jieba.LICENSE"
 cp "$ppd_license_file" "$output_dir/phrase-pinyin-data.LICENSE"
-cp "$repo_root/librime/LICENSE" "$output_dir/librime.LICENSE"
-cp "$repo_root/librime-lua/LICENSE" "$output_dir/librime-lua.LICENSE"
-cp "$repo_root/plum/LICENSE" "$output_dir/plum.LICENSE"
-cp "$repo_root/librime/deps/opencc/LICENSE" "$output_dir/OpenCC.LICENSE"
+# The retained OpenCC conversion tables are Apache-2.0 data. Copy the pinned,
+# hash-checked SPDX text instead of reaching into an uninitialized librime tree.
+cp "$license_cache/Apache-2.0.txt" "$output_dir/OpenCC.LICENSE"
 cp "$repo_root/data/owltype.yaml" "$output_dir/owltype.yaml"
 cp "$repo_root/rime/"*.custom.yaml "$output_dir/_user_seed/"
 python3 "$repo_root/scripts/build-owltype-msime-seed-db.py" "$output_dir"

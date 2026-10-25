@@ -190,7 +190,6 @@ final class FakeRimeEngine: RimeEngine {
   var selectSchemaResult: Bool
 
   private(set) var setupCount = 0
-  private(set) var initializeCount = 0
   private(set) var finalizeCount = 0
   private(set) var cleanupAllSessionsCount = 0
   private(set) var joinMaintenanceCount = 0
@@ -202,7 +201,7 @@ final class FakeRimeEngine: RimeEngine {
   private(set) var deployedConfigFiles: [String] = []
   private(set) var createdSessionCount = 0
   private(set) var selectedSchemas: [String] = []
-  private(set) var sessionForIDs: [RimeSessionId] = []
+  private(set) var sessionForIDs: [UInt64] = []
   private(set) var notificationHandlerSet = false
 
   init(
@@ -225,8 +224,7 @@ final class FakeRimeEngine: RimeEngine {
     self.selectSchemaResult = selectSchemaResult
   }
 
-  func setup(_ traits: inout RimeTraits) { setupCount += 1 }
-  func initialize(_ traits: UnsafeMutablePointer<RimeTraits>?) { initializeCount += 1 }
+  func setup(_ traits: OwlEngineTraits) { setupCount += 1 }
   func startMaintenance(fullCheck: Bool) -> Bool {
     lifecycleTrace.append("startMaintenance")
     return startMaintenanceResult
@@ -239,7 +237,7 @@ final class FakeRimeEngine: RimeEngine {
     deployedConfigFiles.append(fileName)
     return deployConfigFileResult
   }
-  func setNotificationHandler(_ handler: @escaping RimeNotificationHandler, context: UnsafeMutableRawPointer?) {
+  func setNotificationHandler(_ handler: @escaping RimeNotificationHandler) {
     notificationHandlerSet = true
   }
   func syncUserData() -> Bool { syncUserDataResult }
@@ -258,7 +256,7 @@ final class FakeRimeEngine: RimeEngine {
     return vendedSession
   }
 
-  func session(for id: RimeSessionId) -> RimeSession {
+  func session(for id: UInt64) -> RimeSession {
     sessionForIDs.append(id)
     return vendedSession
   }
@@ -612,9 +610,9 @@ final class RimeSeamTests: XCTestCase {
   func testEngineSessionForIDRecordsAndVends() {
     let scripted = FakeRimeSession(sessionID: 7)
     let engine = FakeRimeEngine(vendedSession: scripted)
-    let wrapped = engine.session(for: RimeSessionId(7))
+    let wrapped = engine.session(for: UInt64(7))
     XCTAssertTrue(wrapped === scripted)
-    XCTAssertEqual(engine.sessionForIDs, [RimeSessionId(7)])
+    XCTAssertEqual(engine.sessionForIDs, [UInt64(7)])
   }
 
   func testEngineLifecycleAndSchemaScripting() {
