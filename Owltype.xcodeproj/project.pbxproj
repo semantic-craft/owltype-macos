@@ -16,6 +16,7 @@
 		FA260001CAFE0260CAFE0001 /* OwlRimeUserDBSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA260002CAFE0260CAFE0002 /* OwlRimeUserDBSnapshot.swift */; };
 		FA260003CAFE0260CAFE0003 /* OwlUserMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA260004CAFE0260CAFE0004 /* OwlUserMigration.swift */; };
 		FA260005CAFE0260CAFE0005 /* OwlUserMigrationStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA260006CAFE0260CAFE0006 /* OwlUserMigrationStage.swift */; };
+		FA260009CAFE0260CAFE0009 /* OwlUserMigrationImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA26000ACAFE0260CAFE000A /* OwlUserMigrationImport.swift */; };
 		FA260007CAFE0260CAFE0007 /* OwlUserMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA260008CAFE0260CAFE0008 /* OwlUserMigrationTests.swift */; };
 		4F1F9D8AFC93488EAF08D264 /* OwlOnboardingPractice.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5C93C517B5248478C7A8FBE /* OwlOnboardingPractice.swift */; };
 		7AB6866332B74789A8C5A6CC /* OwlAppInputMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99C1AA462FD34768AB99C65B /* OwlAppInputMemory.swift */; };
@@ -482,6 +483,7 @@
 		FA260002CAFE0260CAFE0002 /* OwlRimeUserDBSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRimeUserDBSnapshot.swift; path = sources/UserMigration/OwlRimeUserDBSnapshot.swift; sourceTree = "<group>"; };
 		FA260004CAFE0260CAFE0004 /* OwlUserMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlUserMigration.swift; path = sources/UserMigration/OwlUserMigration.swift; sourceTree = "<group>"; };
 		FA260006CAFE0260CAFE0006 /* OwlUserMigrationStage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlUserMigrationStage.swift; path = sources/UserMigration/OwlUserMigrationStage.swift; sourceTree = "<group>"; };
+		FA26000ACAFE0260CAFE000A /* OwlUserMigrationImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlUserMigrationImport.swift; path = sources/UserMigration/OwlUserMigrationImport.swift; sourceTree = "<group>"; };
 		FA260008CAFE0260CAFE0008 /* OwlUserMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlUserMigrationTests.swift; path = tests/OwlUserMigrationTests.swift; sourceTree = "<group>"; };
 		D5C93C517B5248478C7A8FBE /* OwlOnboardingPractice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlOnboardingPractice.swift"; path = "sources/Settings/OwlOnboardingPractice.swift"; sourceTree = "<group>"; };
 		99C1AA462FD34768AB99C65B /* OwlAppInputMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlAppInputMemory.swift"; path = "sources/Settings/OwlAppInputMemory.swift"; sourceTree = "<group>"; };
@@ -932,6 +934,7 @@
 				FA260002CAFE0260CAFE0002 /* OwlRimeUserDBSnapshot.swift */,
 				FA260004CAFE0260CAFE0004 /* OwlUserMigration.swift */,
 				FA260006CAFE0260CAFE0006 /* OwlUserMigrationStage.swift */,
+				FA26000ACAFE0260CAFE000A /* OwlUserMigrationImport.swift */,
 				D5C93C517B5248478C7A8FBE /* OwlOnboardingPractice.swift */,
 				99C1AA462FD34768AB99C65B /* OwlAppInputMemory.swift */,
 				FAD1CF03CAFEDF03CAFEDF03 /* OwlDictPackFetcher.swift */,
@@ -1527,6 +1530,7 @@
 				FA260001CAFE0260CAFE0001 /* OwlRimeUserDBSnapshot.swift in Sources */,
 				FA260003CAFE0260CAFE0003 /* OwlUserMigration.swift in Sources */,
 				FA260005CAFE0260CAFE0005 /* OwlUserMigrationStage.swift in Sources */,
+				FA260009CAFE0260CAFE0009 /* OwlUserMigrationImport.swift in Sources */,
 				4F1F9D8AFC93488EAF08D264 /* OwlOnboardingPractice.swift in Sources */,
 				7AB6866332B74789A8C5A6CC /* OwlAppInputMemory.swift in Sources */,
 				FAD1CF04CAFEDF04CAFEDF04 /* OwlDictPackFetcher.swift in Sources */,

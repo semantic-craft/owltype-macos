@@ -46,6 +46,7 @@ enum OwlUserMigrationStage {
 
   static func prepare(
     _ plan: OwlUserMigrationPlan,
+    sourceRoot: URL? = nil,
     in userData: URL,
     fileManager fm: FileManager = .default
   ) throws -> OwlUserMigrationStageResult {
@@ -57,7 +58,8 @@ enum OwlUserMigrationStage {
       throw OwlUserMigrationError.invalidPlan("manifest 版本、requestID 或 recordDigest 不匹配")
     }
 
-    let before = try OwlRimeUserDBSnapshotReader.scan(root: userData, fileManager: fm)
+    let sourceRoot = sourceRoot ?? userData
+    let before = try OwlRimeUserDBSnapshotReader.scan(root: sourceRoot, fileManager: fm)
     guard before.sourceDigest == plan.manifest.sourceDigest else {
       throw OwlUserMigrationStageError.sourceChanged
     }
@@ -72,7 +74,11 @@ enum OwlUserMigrationStage {
     if pathKind(destination) != .missing {
       switch inspectExisting(destination, plan: plan, fileManager: fm) {
       case .reused:
-        guard try sourceDigestUnchanged(userData, expected: plan.manifest.sourceDigest, fm: fm) else {
+        guard try sourceDigestUnchanged(
+          sourceRoot,
+          expected: plan.manifest.sourceDigest,
+          fm: fm
+        ) else {
           throw OwlUserMigrationStageError.sourceChanged
         }
         return result(.reused, destination, plan)
@@ -94,7 +100,7 @@ enum OwlUserMigrationStage {
       try syncDirectory(migrationRoot)
 
       guard try sourceDigestUnchanged(
-        userData,
+        sourceRoot,
         expected: plan.manifest.sourceDigest,
         fm: fm
       ) else {

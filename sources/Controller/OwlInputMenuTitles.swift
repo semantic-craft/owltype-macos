@@ -14,6 +14,7 @@ enum OwlInputMenuTitles {
   static let settings = "设置…"
   static let deploy = "应用配置改动"
   static let syncUserData = "同步用户数据"
+  static let migrateLegacyUserData = "迁移旧版输入记录…"
   static let resetUserDict = "重置用户词典…"
   static let syncDirectory = "设置同步目录..."
   static let onboarding = "欢迎与引导…"

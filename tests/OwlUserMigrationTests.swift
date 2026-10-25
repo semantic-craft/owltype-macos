@@ -229,6 +229,37 @@ final class OwlUserMigrationTests: XCTestCase {
     XCTAssertEqual(body["user_inserted"] as? Bool, false)
   }
 
+  func testStagingCanLiveOutsideTheLegacyRimeRoot() throws {
+    let snapshot = try writeSnapshot(
+      installation: "install-a",
+      schema: "rime_ice",
+      lines: ["ni hao \t你好\tc=4 d=0 t=1"]
+    )
+    let sourceBefore = try Data(contentsOf: snapshot)
+    let plan = try OwlUserMigration.makePlan(userData: root, pinnedWordsData: nil)
+    let rustUserRoot = root.appendingPathComponent("msime-user", isDirectory: true)
+    try FileManager.default.createDirectory(
+      at: rustUserRoot,
+      withIntermediateDirectories: false
+    )
+
+    let staged = try OwlUserMigrationStage.prepare(
+      plan,
+      sourceRoot: root,
+      in: rustUserRoot
+    )
+
+    XCTAssertEqual(staged.disposition, .prepared)
+    XCTAssertEqual(
+      staged.directory.deletingLastPathComponent(),
+      rustUserRoot.appendingPathComponent(".owl-user-migration", isDirectory: true)
+    )
+    XCTAssertFalse(FileManager.default.fileExists(
+      atPath: root.appendingPathComponent(".owl-user-migration").path
+    ))
+    XCTAssertEqual(try Data(contentsOf: snapshot), sourceBefore)
+  }
+
   func testPinnedChangeProducesADistinctRequestAndStage() throws {
     try writeSnapshot(
       installation: "install-a",
@@ -358,6 +389,92 @@ final class OwlUserMigrationTests: XCTestCase {
     XCTAssertEqual(try Data(contentsOf: staged.directory.appendingPathComponent(
       "dictionary-state.ndjson"
     )), Data())
+  }
+
+  func testRustImportUsesBundledGenerationAndImportedEntryCanBeTyped() throws {
+    let repository = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+    let sharedSupport = repository.appendingPathComponent("data/owl-rime", isDirectory: true)
+    let resources = sharedSupport.appendingPathComponent("msime", isDirectory: true)
+    for name in ["msime-pinyin.db", "msime-english.db"] {
+      guard FileManager.default.fileExists(
+        atPath: resources.appendingPathComponent(name).path
+      ) else {
+        throw XCTSkip("Rust seed dictionaries are not generated at \(resources.path)")
+      }
+    }
+    let resourceDigest = try OwlRustEngine.contentDigest(of: resources)
+    let snapshot = try writeSnapshot(
+      installation: "install-a",
+      schema: "rime_ice",
+      lines: ["zhuang qiang \t迁移混输\tc=10 d=0 t=1"]
+    )
+    let snapshotBefore = try Data(contentsOf: snapshot)
+    let plan = try OwlUserMigration.makePlan(userData: root, pinnedWordsData: nil)
+    let rustUserRoot = root.appendingPathComponent("msime-user", isDirectory: true)
+    try FileManager.default.createDirectory(
+      at: rustUserRoot,
+      withIntermediateDirectories: false
+    )
+    let staged = try OwlUserMigrationStage.prepare(
+      plan,
+      sourceRoot: root,
+      in: rustUserRoot
+    )
+
+    let first = try OwlUserMigrationImport.run(
+      staged,
+      userRoot: root,
+      sharedSupportURL: sharedSupport
+    )
+
+    XCTAssertEqual(first.report.requestID, plan.manifest.requestID)
+    XCTAssertEqual(first.report.sourceCount, 1)
+    XCTAssertEqual(first.report.recordCount, 1)
+    XCTAssertEqual(first.report.entriesWritten, 1)
+    XCTAssertTrue(first.generation.contentID.hasPrefix("seed-"))
+    XCTAssertEqual(try OwlRustEngine.contentDigest(of: resources), resourceDigest)
+    XCTAssertEqual(try Data(contentsOf: snapshot), snapshotBefore)
+    XCTAssertTrue(FileManager.default.fileExists(
+      atPath: rustUserRoot.appendingPathComponent("msime_user.db").path
+    ))
+
+    let second = try OwlUserMigrationImport.run(
+      staged,
+      userRoot: root,
+      sharedSupportURL: sharedSupport
+    )
+    XCTAssertEqual(second.report.requestID, first.report.requestID)
+    XCTAssertEqual(second.report.entriesWritten, 0)
+    XCTAssertEqual(second.report.recordsKept, 1)
+
+    let engine = OwlRustEngine(sharedSupportURL: sharedSupport, userDataURL: root)
+    engine.initialize(nil)
+    let session = engine.createSession()
+    defer { session.destroy() }
+    XCTAssertTrue(session.isValid)
+    typeText("zhuangqiang", into: session)
+    let index = try XCTUnwrap(
+      visibleAndPeekedCandidates(in: session).firstIndex { $0.text == "迁移混输" }
+    )
+    XCTAssertTrue(session.selectCandidateAbsolute(index))
+    XCTAssertEqual(session.takeCommit(), "迁移混输")
+  }
+
+  private func typeText(_ text: String, into session: RimeSession) {
+    for scalar in text.unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+  }
+
+  private func visibleAndPeekedCandidates(
+    in session: RimeSession,
+    count: Int = 100
+  ) -> [RimeCandidate] {
+    guard let composition = session.composition() else { return [] }
+    let start = composition.pageSize
+    return composition.candidates + session.peekCandidates(from: start, count: count)
   }
 
   @discardableResult

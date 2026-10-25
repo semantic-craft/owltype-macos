@@ -926,7 +926,7 @@ final class OwlRustEngine: RimeEngine {
     }
   }
 
-  private static func contentDigest(of directory: URL) throws -> String {
+  static func contentDigest(of directory: URL) throws -> String {
     let keys: [URLResourceKey] = [.isRegularFileKey, .isSymbolicLinkKey]
     guard let enumerator = FileManager.default.enumerator(
       at: directory,

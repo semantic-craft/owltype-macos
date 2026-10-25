@@ -25,6 +25,9 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 
+mod user_migration;
+pub use user_migration::owl_msime_user_migration_import;
+
 #[derive(Default)]
 struct OwlPinnedState {
     words: HashMap<(String, bool), Vec<String>>,
