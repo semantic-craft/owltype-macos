@@ -119,6 +119,9 @@ licensing() {
   test -s PROVENANCE.md
   test -s PRIVACY.md
   test -s SECURITY.md
+  test -s rust/crates/chinese-ime-lm/LICENSE
+  printf 'cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30  rust/crates/chinese-ime-lm/LICENSE\n' |
+    shasum -a 256 --check --status
   grep -q 'GPL-3.0' README.md
 }
 

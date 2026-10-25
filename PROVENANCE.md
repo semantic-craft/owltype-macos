@@ -12,11 +12,17 @@
   输入引擎。Owltype 不重写 librime，将其与数据自包含进 `Owltype.app`。
 - **RIME / 中州韻输入法引擎** —— <https://rime.im>
 - **水杉输入法 Metasequoia IME (`msime`)** —— <https://github.com/metasequoiaime/msime>（GPLv3）
-  Rust 输入引擎与运行时 crate（`rust/crates/`，经窄 C-ABI 静态链接入 `Owltype.app`），以及配套语言模型库
-  `chinese-ime-lm`（<https://github.com/metasequoiaime/chinese-ime-lm>，GPLv3）。
+  Rust 输入引擎与运行时 crate（`rust/crates/`，经窄 C-ABI 静态链接入 `Owltype.app`）。
+- **chinese-ime-lm reference crate** —— <https://github.com/metasequoiaime/chinese-ime-lm>（Apache-2.0）
+  Owltype 仅 vendored 上游 `reference/` 子树到 `rust/crates/chinese-ime-lm`，固定于
+  `15caab4fdeb59c11f452b91884371cf30e2e5608`。该子树的 `Cargo.toml` 声明 Apache-2.0，
+  许可证原文逐字保存在 [`rust/crates/chinese-ime-lm/LICENSE`](rust/crates/chinese-ime-lm/LICENSE)
+  （Git blob `d645695673349e3947e8e5ae42332d0ac3164cd7`，SHA-256
+  `cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30`）。上游项目根目录及其
+  未 vendor 的训练脚本不在本源码 crate 的许可证声明范围内。
 - **chinese-ime-lm 模型权重** —— [`model-v1`](https://github.com/metasequoiaime/chinese-ime-lm/releases/tag/model-v1)
-  （Apache-2.0；不是该项目的 GPLv3 代码许可）。固定 keyboard 与 settled 两个 safetensors，
-  训练语料为 C4 中文部分（ODC-BY）与 LCCC（MIT）；署名随权重元数据和
+  （Apache-2.0）。模型权重与上述源码 crate 是独立许可证据，不共用许可证文件。固定 keyboard
+  与 settled 两个 safetensors，训练语料为 C4 中文部分（ODC-BY）与 LCCC（MIT）；署名随权重元数据和
   [`NOTICE`](resources/licenses/chinese-ime-lm-model-NOTICE.txt) 一同保留。
 
 ## 内置数据与方案 Bundled data & schemas

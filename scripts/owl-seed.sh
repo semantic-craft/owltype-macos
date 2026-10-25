@@ -15,6 +15,9 @@ rime_ice_sha="b681a34f788795034b3b288830f4861980bc8b0d"
 wubi86_sha="a194fb8b3ec41ef9dcf079d3a67876fa75f79135"
 wubi86_sha256="8ccf1358b91028ed234bbe82647a0bcd0f554a8d5994042de28b146e517633e6"
 wubi86_license_sha256="43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1"
+chinese_ime_lm_sha="15caab4fdeb59c11f452b91884371cf30e2e5608"
+chinese_ime_lm_license="$repo_root/rust/crates/chinese-ime-lm/LICENSE"
+chinese_ime_lm_license_sha256="cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
 unihan_version="16.0.0"
 unihan_remote="https://www.unicode.org/Public/$unihan_version/ucd/Unihan.zip"
 unihan_sha="b8f000df69de7828d21326a2ffea462b04bc7560022989f7cc704f10521ef3e0"
@@ -95,6 +98,11 @@ for license_spec in "${license_specs[@]}"; do
   fetch_license "$license_id" "$license_sha"
   cp "$license_cache/$license_id.txt" "$output_dir/licenses/"
 done
+
+# The vendored reference crate has its own Apache-2.0 license. Keep its exact
+# upstream text separate from both the SPDX template and the model-weight files.
+echo "$chinese_ime_lm_license_sha256  $chinese_ime_lm_license" | shasum -a 256 --check
+cp "$chinese_ime_lm_license" "$output_dir/licenses/chinese-ime-lm.LICENSE"
 
 cp -R \
   "$source_dir/lua" \
@@ -231,6 +239,11 @@ distributed with this seed.
 The rime-ice schemas, Lua helpers, OpenCC tables, symbols, and configuration are
 from revision \`$rime_ice_sha\` under GPL-3.0-only with its retained Credits.
 
+\`licenses/chinese-ime-lm.LICENSE\` is the verbatim Apache-2.0 text from the
+chinese-ime-lm \`reference/\` source crate at revision \`$chinese_ime_lm_sha\`.
+It covers that vendored source crate only; the project's model weights have a
+separate model lock, license, and notice.
+
 No rime-ice \`cn_dicts\` or \`en_dicts\` file is distributed. In particular,
 the upstream 8105, base, ext, 41448, Tencent, and miscellaneous dictionaries are
 excluded rather than relying on an unverified or mixed-source license chain.
@@ -254,6 +267,10 @@ EOF
   echo "wubi86-license $wubi86_license_sha256 licenses/wubi86-jidian.LICENSE"
   echo "wubi86-counts source-total=89273 accepted=89272 unique=89269 duplicate=3 rejected=1"
   echo "wubi86-rejected source-line-7911 empty-text cokg"
+  echo "chinese-ime-lm-reference $chinese_ime_lm_sha"
+  echo "source https://github.com/metasequoiaime/chinese-ime-lm/tree/$chinese_ime_lm_sha/reference"
+  echo "chinese-ime-lm-license $chinese_ime_lm_license_sha256 licenses/chinese-ime-lm.LICENSE"
+  echo "chinese-ime-lm-license-scope vendored-reference-source-not-model-weights"
   echo "rime-essay removed from the public seed after traditional-form review"
   echo "rime-ice cn_dicts and en_dicts omitted after provenance review"
   echo "wubi derivation: pinned Apache-2.0 wubi86_jidian.dict.yaml imported into msime-pinyin.db"
