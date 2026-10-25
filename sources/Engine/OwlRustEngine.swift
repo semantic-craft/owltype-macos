@@ -1148,6 +1148,7 @@ final class OwlRustEngine: RimeEngine {
 
   func finalize() {
     cleanupAllSessions()
+    _ = owl_msime_engine_finalize()
   }
 
   func schemaList() -> [(id: String, name: String)] {
