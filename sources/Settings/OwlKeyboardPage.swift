@@ -1262,59 +1262,54 @@ struct OwlKeyboardPage: View {
   // Each toggle flips the mirror + writes through to `OwlKeyboardPreferences` in one
   // place, keeping the card bodies declarative and the key literals out of this file.
 
-  private func toggleShiftSwitchCJK() {
+  private func persistRimeToggle(
+    _ keyPath: ReferenceWritableKeyPath<OwlSettingsState, Bool>,
+    write: (Bool) -> Void
+  ) {
     persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardShiftSwitchCJK) {
-        OwlKeyboardPreferences.shiftSwitchCJK = $0
-      }
+      OwlSettingsActions.toggle(state: state, keyPath: keyPath, write: write)
+    }
+  }
+
+  private func toggleShiftSwitchCJK() {
+    persistRimeToggle(\.keyboardShiftSwitchCJK) {
+      OwlKeyboardPreferences.shiftSwitchCJK = $0
     }
   }
 
   private func toggleCJKPunct() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardCJKPunctToggle) {
-        OwlKeyboardPreferences.cjkPunctToggle = $0
-      }
+    persistRimeToggle(\.keyboardCJKPunctToggle) {
+      OwlKeyboardPreferences.cjkPunctToggle = $0
     }
   }
 
   private func toggleGoodOldCapsLock() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardGoodOldCapsLock) {
-        OwlKeyboardPreferences.goodOldCapsLock = $0
-      }
+    persistRimeToggle(\.keyboardGoodOldCapsLock) {
+      OwlKeyboardPreferences.goodOldCapsLock = $0
     }
   }
 
   private func togglePageMinusEquals() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardPageMinusEquals) {
-        OwlKeyboardPreferences.pageMinusEquals = $0
-      }
+    persistRimeToggle(\.keyboardPageMinusEquals) {
+      OwlKeyboardPreferences.pageMinusEquals = $0
     }
   }
 
   private func togglePageBrackets() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardPageBrackets) {
-        OwlKeyboardPreferences.pageBrackets = $0
-      }
+    persistRimeToggle(\.keyboardPageBrackets) {
+      OwlKeyboardPreferences.pageBrackets = $0
     }
   }
 
   private func togglePageCommaPeriod() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardPageCommaPeriod) {
-        OwlKeyboardPreferences.pageCommaPeriod = $0
-      }
+    persistRimeToggle(\.keyboardPageCommaPeriod) {
+      OwlKeyboardPreferences.pageCommaPeriod = $0
     }
   }
 
   private func toggleSelect23Semicolon() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardSelect23Semicolon) {
-        OwlKeyboardPreferences.select23Semicolon = $0
-      }
+    persistRimeToggle(\.keyboardSelect23Semicolon) {
+      OwlKeyboardPreferences.select23Semicolon = $0
     }
   }
 
@@ -1323,58 +1318,44 @@ struct OwlKeyboardPage: View {
   // toggle handler；别再加回来，否则就是一个永远不会被调用的死开关。
 
   private func toggleWubiCodeHint() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardWubiCodeHint) {
-        OwlKeyboardPreferences.wubiCodeHint = $0
-      }
+    persistRimeToggle(\.keyboardWubiCodeHint) {
+      OwlKeyboardPreferences.wubiCodeHint = $0
     }
   }
 
   private func toggleWubiAutoClear() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardWubiAutoClear) {
-        OwlKeyboardPreferences.wubiAutoClear = $0
-      }
+    persistRimeToggle(\.keyboardWubiAutoClear) {
+      OwlKeyboardPreferences.wubiAutoClear = $0
     }
   }
 
   private func toggleWubiZReverseLookup() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardWubiZReverseLookup) {
-        OwlKeyboardPreferences.wubiZReverseLookup = $0
-      }
+    persistRimeToggle(\.keyboardWubiZReverseLookup) {
+      OwlKeyboardPreferences.wubiZReverseLookup = $0
     }
   }
 
   private func toggleWubiEnglishChannel() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardWubiEnglishChannel) {
-        OwlKeyboardPreferences.wubiEnglishChannel = $0
-      }
+    persistRimeToggle(\.keyboardWubiEnglishChannel) {
+      OwlKeyboardPreferences.wubiEnglishChannel = $0
     }
   }
 
   private func toggleWubiUserDictLearning() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardWubiUserDictLearning) {
-        OwlKeyboardPreferences.wubiUserDictLearning = $0
-      }
+    persistRimeToggle(\.keyboardWubiUserDictLearning) {
+      OwlKeyboardPreferences.wubiUserDictLearning = $0
     }
   }
 
   private func toggleAngleSymbolMenu() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardAngleSymbolMenu) {
-        OwlKeyboardPreferences.angleSymbolMenu = $0
-      }
+    persistRimeToggle(\.keyboardAngleSymbolMenu) {
+      OwlKeyboardPreferences.angleSymbolMenu = $0
     }
   }
 
   private func toggleSlashSymbolMenu() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardSlashSymbolMenu) {
-        OwlKeyboardPreferences.slashSymbolMenu = $0
-      }
+    persistRimeToggle(\.keyboardSlashSymbolMenu) {
+      OwlKeyboardPreferences.slashSymbolMenu = $0
     }
   }
 

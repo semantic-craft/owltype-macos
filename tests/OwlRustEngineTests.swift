@@ -56,6 +56,10 @@ final class OwlRustEngineTests: XCTestCase {
     }
   }
 
+  private func asciiKeycode(_ character: Character) -> UInt32 {
+    UInt32(character.asciiValue!)
+  }
+
   private func visibleAndPeekedCandidates(
     in session: RimeSession,
     count: Int = 100
@@ -83,6 +87,21 @@ final class OwlRustEngineTests: XCTestCase {
       throw XCTSkip("msime-pinyin.db not generated yet at \(pinyinDB.path)")
     }
     return OwlRustEngine(sharedSupportURL: seedDir, userDataURL: userDataURL)
+  }
+
+  private func waitForSettledRerankReady(
+    _ session: OwlRustSession,
+    timeout: TimeInterval = 30
+  ) {
+    let deadline = Date().addingTimeInterval(timeout)
+    repeat {
+      session.syncRerankPreferences()
+      if session.settledRerankReady {
+        return
+      }
+      RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+    } while Date() < deadline
+    XCTFail("settled rerank model did not become ready within \(timeout) seconds")
   }
 
   private func writeHostPhrase(
@@ -183,6 +202,79 @@ final class OwlRustEngineTests: XCTestCase {
       rawInput: "nihao",
       configurationEpoch: 8
     ))
+  }
+
+  func testSettledRerankRefreshesVisibleSnapshotBeforeDigitSelection() throws {
+    let defaults = OwlDefaults.standard
+    let keyboardKey = "OwlExperimentalKeyboardRerankEnabled"
+    let settledKey = "OwlExperimentalSettledRerankEnabled"
+    let savedKeyboard = defaults.object(forKey: keyboardKey)
+    let savedSettled = defaults.object(forKey: settledKey)
+    defer {
+      if let savedKeyboard {
+        defaults.set(savedKeyboard, forKey: keyboardKey)
+      } else {
+        defaults.removeObject(forKey: keyboardKey)
+      }
+      if let savedSettled {
+        defaults.set(savedSettled, forKey: settledKey)
+      } else {
+        defaults.removeObject(forKey: settledKey)
+      }
+    }
+    OwlExperimentalPreferences.keyboardRerankEnabled = false
+    OwlExperimentalPreferences.settledRerankEnabled = true
+
+    let engine = try makeSharedSupportSeedEngine()
+    let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
+    defer { session.destroy() }
+    waitForSettledRerankReady(session)
+
+    typeText("zhongguoren", into: session)
+    let before = try XCTUnwrap(session.composition())
+    let beforeGeneration = session.generation
+
+    let started = session.startSettledRerank()
+    let moved: Bool
+    let current: Bool
+    if let token = started.token {
+      var result = OwlSettledRerankPollResult(
+        pending: true,
+        current: false,
+        moved: false,
+        error: nil
+      )
+      let deadline = Date().addingTimeInterval(30)
+      repeat {
+        RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+        result = session.pollSettledRerank(token: token, accept: true)
+      } while result.pending && Date() < deadline
+      XCTAssertFalse(result.pending, "settled rerank poll did not finish")
+      XCTAssertNil(result.error)
+      moved = result.moved
+      current = result.current
+    } else {
+      XCTAssertNil(started.error)
+      moved = started.moved
+      current = started.current
+    }
+
+    XCTAssertTrue(current)
+    XCTAssertTrue(moved, "real settled model must move the zhongguoren candidate order")
+    let refreshed = try XCTUnwrap(session.composition())
+    XCTAssertGreaterThan(session.generation, beforeGeneration)
+    XCTAssertNotEqual(
+      refreshed.candidates.map(\.text),
+      before.candidates.map(\.text),
+      "a moved settled result must refresh the visible candidate order"
+    )
+    let visibleFirst = try XCTUnwrap(refreshed.candidates.first)
+    XCTAssertTrue(session.process(keycode: UInt32(XK_1), modifiers: 0))
+    XCTAssertEqual(
+      session.takeCommit(),
+      visibleFirst.text,
+      "digit selection must commit the candidate currently visible after reranking"
+    )
   }
 
   func testEngineMetadataAndSchemaSelection() throws {
@@ -779,6 +871,70 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.takeCommit(), expected)
   }
 
+  func testUnicodeModeRoutesDigitsHexAndKeypadBeforeCandidateSelection() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+
+    XCTAssertTrue(session.process(keycode: asciiKeycode("U"), modifiers: kShiftMask.rawValue))
+    XCTAssertEqual(session.input(), "U")
+    XCTAssertTrue(session.process(keycode: asciiKeycode("+"), modifiers: kShiftMask.rawValue))
+    XCTAssertTrue(session.process(keycode: asciiKeycode("4"), modifiers: 0))
+    XCTAssertTrue(session.process(keycode: asciiKeycode("E"), modifiers: kShiftMask.rawValue))
+    XCTAssertTrue(session.process(keycode: asciiKeycode("2"), modifiers: 0))
+    XCTAssertTrue(session.process(keycode: asciiKeycode("D"), modifiers: kShiftMask.rawValue))
+    XCTAssertEqual(session.input(), "U+4E2D")
+    let plusHex = try XCTUnwrap(session.composition())
+    let middleIndex = try XCTUnwrap(plusHex.candidates.firstIndex { $0.text == "中" })
+    XCTAssertTrue(session.selectCandidate(middleIndex))
+    XCTAssertEqual(session.takeCommit(), "中")
+
+    XCTAssertTrue(session.process(keycode: asciiKeycode("U"), modifiers: kShiftMask.rawValue))
+    for keycode in [UInt32(XK_KP_0), UInt32(XK_KP_0), UInt32(XK_KP_4), UInt32(XK_KP_1)] {
+      XCTAssertTrue(session.process(keycode: keycode, modifiers: 0))
+    }
+    XCTAssertEqual(session.input(), "U0041")
+    let keypadHex = try XCTUnwrap(session.composition())
+    let aIndex = try XCTUnwrap(keypadHex.candidates.firstIndex { $0.text == "A" })
+    XCTAssertTrue(session.selectCandidate(aIndex))
+    XCTAssertEqual(session.takeCommit(), "A")
+  }
+
+  func testShiftTForwardingKeepsDigitSelectionForVisibleCandidate() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+
+    XCTAssertTrue(session.process(keycode: asciiKeycode("T"), modifiers: kShiftMask.rawValue))
+    typeText("rq", into: session)
+    let composition = try XCTUnwrap(session.composition())
+    XCTAssertEqual(composition.preedit, "Trq")
+    let visibleFirst = try XCTUnwrap(composition.candidates.first)
+
+    XCTAssertTrue(session.process(keycode: UInt32(XK_1), modifiers: 0))
+    XCTAssertEqual(session.takeCommit(), visibleFirst.text)
+  }
+
+  func testShiftVForwardingRoutesExpressionSpellingWhenRustOptionIsEnabled() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+
+    XCTAssertTrue(session.process(keycode: asciiKeycode("V"), modifiers: kShiftMask.rawValue))
+    guard session.process(keycode: UInt32(XK_KP_1), modifiers: 0) else {
+      // Product options still disable V in lib.rs; the entry itself must no longer be swallowed.
+      XCTAssertEqual(session.input(), "V")
+      return
+    }
+    XCTAssertTrue(session.process(keycode: asciiKeycode("+"), modifiers: kShiftMask.rawValue))
+    XCTAssertTrue(session.process(keycode: UInt32(XK_KP_2), modifiers: 0))
+    let composition = try XCTUnwrap(session.composition())
+    XCTAssertEqual(composition.preedit, "V1+2")
+    let resultIndex = try XCTUnwrap(composition.candidates.firstIndex { $0.text == "3" })
+    XCTAssertTrue(session.selectCandidate(resultIndex))
+    XCTAssertEqual(session.takeCommit(), "3")
+  }
+
   func testTraditionalOutputMatchesVisibleAndPeekedCandidatesAndCanBeDisabled() throws {
     let engine = try makeSharedSupportSeedEngine()
     let session = engine.createSession()
@@ -897,6 +1053,40 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(pinnedComp.candidates.first?.comment, "置顶")
     XCTAssertTrue(session.selectCandidate(0))
     XCTAssertEqual(session.takeCommit(), targetWord)
+  }
+
+  func testTraditionalPinUsesCertifiedSourceBeforeHostConversion() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+
+    session.setOption(.traditionalization, true)
+    session.setOption(.simplification, false)
+    typeText("shi", into: session)
+    let initial = try XCTUnwrap(session.composition())
+    let initialIndex = try XCTUnwrap(initial.candidates.firstIndex { $0.text == "時" })
+    XCTAssertGreaterThan(initialIndex, 0)
+
+    let packed = "shi\t1\t時"
+    let sources = OwlPinnedWords.traditionalSources(engineValue: packed)
+    XCTAssertEqual(sources, [
+      OwlTraditionalPinSource(code: "shi", text: "時", source: "时")
+    ])
+    session.setProperty(name: OwlPinnedWords.property, value: packed)
+    session.clearComposition()
+    typeText("shi", into: session)
+
+    let pinned = try XCTUnwrap(session.composition())
+    XCTAssertEqual(pinned.candidates.first?.text, "時")
+    XCTAssertEqual(pinned.candidates.first?.comment, "置顶")
+  }
+
+  func testTraditionalPinSourcesRejectLossyFoundationRoundTrips() {
+    let packed = "fa\t1\t髮\nfa\t1\t發\ntoufa\t1\t頭髮\nshi\t1\t時"
+    XCTAssertEqual(
+      OwlPinnedWords.traditionalSources(engineValue: packed).map(\.text),
+      ["發", "頭髮", "時"]
+    )
   }
 
   func testPunctuationAndCaretNavigation() throws {

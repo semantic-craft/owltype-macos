@@ -8,6 +8,13 @@ struct OwlPinnedWord: Codable, Equatable, Identifiable {
   var id: String { "\(code)\t\(traditional)\t\(text)" }
 }
 
+struct OwlTraditionalPinSource: Equatable {
+  let code: String
+  let text: String
+  let source: String
+  var actionPayload: [String: String] { ["code": code, "text": text, "source": source] }
+}
+
 /// Small local library; engine properties carry a cached copy to Lua, so typing does no file IO.
 @Observable
 final class OwlPinnedWords {
@@ -47,6 +54,25 @@ final class OwlPinnedWords {
 
   private func updateEngineValue() {
     engineValue = words.map { "\($0.code)\t\($0.traditional ? 1 : 0)\t\($0.text)" }.joined(separator: "\n")
+  }
+
+  static func hansToHant(_ text: String) -> String {
+    (text as NSString).applyingTransform(StringTransform("Hans-Hant"), reverse: false) ?? text
+  }
+
+  static func hantToHans(_ text: String) -> String {
+    (text as NSString).applyingTransform(StringTransform("Hant-Hans"), reverse: false) ?? text
+  }
+
+  static func traditionalSources(engineValue: String) -> [OwlTraditionalPinSource] {
+    engineValue.split(separator: "\n", omittingEmptySubsequences: true).compactMap { line in
+      let parts = line.split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false)
+      guard parts.count == 3, parts[1] == "1" else { return nil }
+      let text = String(parts[2])
+      let source = hantToHans(text)
+      guard !source.isEmpty, hansToHant(source) == text else { return nil }
+      return OwlTraditionalPinSource(code: String(parts[0]), text: text, source: source)
+    }
   }
 
   /// Require a complete, unconfirmed full-pinyin composition. Initials, completions,

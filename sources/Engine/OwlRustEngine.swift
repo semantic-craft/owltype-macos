@@ -29,22 +29,17 @@ private struct OwlRustSnapshotDTO: Decodable {
   let generation: UInt64?
   let caretPosition: Int?
   let preeditCaretByte: Int?
+  let localMode: String
+  let spellingSymbols: String
   let candidates: [OwlRustCandidateDTO]
 
   enum CodingKeys: String, CodingKey {
-    case isOK = "ok"
-    case consumed
-    case committedText = "committed_text"
-    case rawInput = "raw_input"
-    case preedit
-    case page
-    case pageSize = "page_size"
-    case highlightedIndex = "highlighted_index"
-    case hasMorePages = "has_more_pages"
-    case generation
-    case caretPosition = "caret_position"
-    case preeditCaretByte = "preedit_caret_byte"
-    case candidates
+    case isOK = "ok", consumed, preedit, page, generation, candidates
+    case committedText = "committed_text", rawInput = "raw_input"
+    case pageSize = "page_size", highlightedIndex = "highlighted_index"
+    case hasMorePages = "has_more_pages", caretPosition = "caret_position"
+    case preeditCaretByte = "preedit_caret_byte", localMode = "local_mode"
+    case spellingSymbols = "spelling_symbols"
   }
 }
 
@@ -283,6 +278,7 @@ enum OwlRustSchemaMap {
 // MARK: - OwlRustSession
 
 final class OwlRustSession: RimeSession {
+  private static let localModeEntryLetters = Set("UTKEMJYRVCS")
   let sessionID: UInt64
   private var handle: OpaquePointer?
   private weak var ownerEngine: OwlRustEngine?
@@ -348,12 +344,12 @@ final class OwlRustSession: RimeSession {
         let nextIdx = text.index(after: closeBracket)
         let prefix = String(text[..<nextIdx])
         let title = String(text[nextIdx...])
-        let convertedTitle = (title as NSString).applyingTransform(StringTransform("Hans-Hant"), reverse: false) ?? title
+        let convertedTitle = OwlPinnedWords.hansToHant(title)
         return prefix + convertedTitle
       }
       return text
     }
-    return (text as NSString).applyingTransform(StringTransform("Hans-Hant"), reverse: false) ?? text
+    return OwlPinnedWords.hansToHant(text)
   }
 
   init(
@@ -425,6 +421,10 @@ final class OwlRustSession: RimeSession {
     let hasActiveInput = !(latestSnapshot?.rawInput.isEmpty ?? true)
     syncRuntimePreferences(includeHostPhrases: false)
 
+    if let action = localModeInsertionAction(for: keycode) {
+      return applyActionResponse(sendAction(action))
+    }
+
     if let trigger = punctuationMenuTrigger(for: keycode, modifiers: modifiers) {
       return applyActionResponse(sendAction([
         "op": "punctuation_menu",
@@ -442,6 +442,10 @@ final class OwlRustSession: RimeSession {
          let scalar = UnicodeScalar(keycode) {
         return applyActionResponse(sendAction(["op": "insert", "ch": String(scalar)]))
       }
+      if hasShift, let character = asciiKeyCharacter(for: keycode),
+         Self.localModeEntryLetters.contains(character) {
+        return applyActionResponse(sendAction(["op": "insert", "ch": String(character)]))
+      }
       if !(optionFlags[.asciiPunct] ?? false),
          let punct = asciiPunctuationString(for: keycode) {
         return applyActionResponse(sendAction(["op": "punctuation", "ch": punct, "ascii": false]))
@@ -450,6 +454,23 @@ final class OwlRustSession: RimeSession {
     }
 
     return processActiveCompositionKey(keycode: keycode)
+  }
+
+  private func localModeInsertionAction(for keycode: UInt32) -> [String: Any]? {
+    guard let snapshot = latestSnapshot,
+          snapshot.localMode != "none",
+          let character = asciiKeyCharacter(for: keycode) else { return nil }
+    switch snapshot.localMode {
+    case "unicode":
+      guard character.isHexDigit || (snapshot.rawInput == "U" && character == "+") else {
+        return nil
+      }
+    case "expression":
+      guard snapshot.spellingSymbols.contains(character) else { return nil }
+    default:
+      return nil
+    }
+    return ["op": "insert", "ch": String(character)]
   }
 
   private func punctuationMenuTrigger(for keycode: UInt32, modifiers: UInt32) -> String? {
@@ -487,9 +508,8 @@ final class OwlRustSession: RimeSession {
   }
 
   private func directCompositionAction(for keycode: UInt32) -> [String: Any]? {
-    if keycode >= UInt32(XK_a) && keycode <= UInt32(XK_z),
-       let scalar = UnicodeScalar(keycode) {
-      return ["op": "insert", "ch": String(scalar)]
+    if let character = asciiKeyCharacter(for: keycode), character.isLetter {
+      return ["op": "insert", "ch": String(character)]
     }
     if keycode == UInt32(XK_apostrophe) && !OwlKeyboardPreferences.select23Semicolon {
       return ["op": "insert", "ch": "'"]
@@ -526,6 +546,13 @@ final class OwlRustSession: RimeSession {
       return ["op": "move_caret", "target": "right"]
     }
     return nil
+  }
+
+  private func asciiKeyCharacter(for keycode: UInt32) -> Character? {
+    let keypad = keycode >= UInt32(XK_KP_0) && keycode <= UInt32(XK_KP_9)
+    let value = keypad ? UInt32(XK_0) + (keycode - UInt32(XK_KP_0)) : keycode
+    guard value >= 0x21, value <= 0x7E, let scalar = UnicodeScalar(value) else { return nil }
+    return Character(String(scalar))
   }
 
   private func asciiPunctuationString(for keycode: UInt32) -> String? {
@@ -762,85 +789,67 @@ final class OwlRustSession: RimeSession {
 
   @discardableResult
   func syncRuntimePreferences(includeHostPhrases: Bool) -> Bool {
-    guard handle != nil else { return false }
-    let pageSize = max(3, min(9, OwlKeyboardPreferences.pageSize))
-    if pageSize != lastAppliedPageSize {
-      guard sendAction(["op": "set_page_size", "page_size": pageSize])?.isOK == true else {
-        return false
-      }
-      lastAppliedPageSize = pageSize
-    }
-    let fuzzyMask = OwlRustSchemaMap.fuzzyBitmask(from: OwlFuzzySnapshot.current())
-    if fuzzyMask != lastAppliedFuzzyMask {
-      guard sendAction(["op": "set_fuzzy_rules", "mask": fuzzyMask])?.isOK == true else {
-        return false
-      }
-      lastAppliedFuzzyMask = fuzzyMask
-    }
-    let candMode = OwlKeyboardPreferences.wubiCandidateMode.rawValue
-    if candMode != lastAppliedWubiCandidateMode {
-      guard sendAction(["op": "set_wubi_candidate_mode", "mode": candMode])?.isOK == true else {
-        return false
-      }
-      lastAppliedWubiCandidateMode = candMode
-    }
-    let codeHint = OwlKeyboardPreferences.wubiCodeHint
-    if codeHint != lastAppliedWubiCodeHint {
-      guard sendAction(["op": "set_option", "name": "wubi_code_hint", "value": codeHint])?.isOK == true else {
-        return false
-      }
-      lastAppliedWubiCodeHint = codeHint
-    }
-    let autoClear = OwlKeyboardPreferences.wubiAutoClear
-    if autoClear != lastAppliedWubiAutoClear {
-      guard sendAction(["op": "set_option", "name": "wubi_auto_clear", "value": autoClear])?.isOK == true else {
-        return false
-      }
-      lastAppliedWubiAutoClear = autoClear
-    }
-    let zLookup = OwlKeyboardPreferences.wubiZReverseLookup
-    if zLookup != lastAppliedWubiZReverseLookup {
-      guard sendAction(["op": "set_option", "name": "wubi_z_reverse_lookup", "value": zLookup])?.isOK == true else {
-        return false
-      }
-      lastAppliedWubiZReverseLookup = zLookup
-    }
-    let engChannel = OwlKeyboardPreferences.wubiEnglishChannel
-    if engChannel != lastAppliedWubiEnglishChannel {
-      guard sendAction(["op": "set_option", "name": "wubi_english_channel", "value": engChannel])?.isOK == true else {
-        return false
-      }
-      lastAppliedWubiEnglishChannel = engChannel
-    }
-    let userDict = OwlKeyboardPreferences.wubiUserDictLearning
-    if userDict != lastAppliedWubiUserDictLearning {
-      guard sendAction(["op": "set_option", "name": "wubi_user_dict_learning", "value": userDict])?.isOK == true else {
-        return false
-      }
-      lastAppliedWubiUserDictLearning = userDict
-    }
-    let asciiPunct = OwlKeyboardPreferences.cjkPunctToggle
-    if asciiPunct != lastAppliedASCIIPunct {
-      guard sendAction([
-        "op": "set_option",
-        "name": RimeOption.asciiPunct.rawValue,
-        "value": asciiPunct
-      ])?.isOK == true else {
-        return false
-      }
-      lastAppliedASCIIPunct = asciiPunct
-      optionFlags[.asciiPunct] = asciiPunct
-    }
-    if includeHostPhrases, let ownerEngine {
-      let packed = ownerEngine.loadPackedHostPhrases()
-      if packed != lastAppliedHostPhrases {
-        guard sendAction(["op": "set_host_phrases", "text": packed])?.isOK == true else {
-          return false
-        }
-        lastAppliedHostPhrases = packed
-      }
+    guard handle != nil, applyRuntimePreferences(includeHostPhrases: includeHostPhrases) else {
+      return false
     }
     syncRerankConfiguration()
+    return true
+  }
+
+  private func applyRuntimePreferences(includeHostPhrases: Bool) -> Bool {
+    let pageSize = max(3, min(9, OwlKeyboardPreferences.pageSize))
+    let fuzzyMask = OwlRustSchemaMap.fuzzyBitmask(from: OwlFuzzySnapshot.current())
+    let candMode = OwlKeyboardPreferences.wubiCandidateMode.rawValue
+    let booleanOptions: [(String, Bool?, ReferenceWritableKeyPath<OwlRustSession, Bool?>)] = [
+      ("wubi_code_hint", OwlKeyboardPreferences.wubiCodeHint, \.lastAppliedWubiCodeHint),
+      ("wubi_auto_clear", OwlKeyboardPreferences.wubiAutoClear, \.lastAppliedWubiAutoClear),
+      ("wubi_z_reverse_lookup",
+       OwlKeyboardPreferences.wubiZReverseLookup, \.lastAppliedWubiZReverseLookup),
+      ("wubi_english_channel",
+       OwlKeyboardPreferences.wubiEnglishChannel, \.lastAppliedWubiEnglishChannel),
+      ("wubi_user_dict_learning",
+       OwlKeyboardPreferences.wubiUserDictLearning, \.lastAppliedWubiUserDictLearning)
+    ]
+    guard
+      applyChanged(pageSize, at: \.lastAppliedPageSize,
+                   action: { ["op": "set_page_size", "page_size": pageSize] }),
+      applyChanged(fuzzyMask, at: \.lastAppliedFuzzyMask,
+                   action: { ["op": "set_fuzzy_rules", "mask": fuzzyMask] }),
+      applyChanged(candMode, at: \.lastAppliedWubiCandidateMode,
+                   action: { ["op": "set_wubi_candidate_mode", "mode": candMode] })
+    else { return false }
+    guard
+      (booleanOptions.allSatisfy { option in
+        applyChanged(option.1, at: option.2) {
+          ["op": "set_option", "name": option.0, "value": option.1 as Any]
+        }
+      }),
+      applyASCIIPunctIfNeeded()
+    else { return false }
+    guard includeHostPhrases, let ownerEngine else { return true }
+    let packed = ownerEngine.loadPackedHostPhrases()
+    return applyChanged(packed, at: \.lastAppliedHostPhrases) {
+      ["op": "set_host_phrases", "text": packed]
+    }
+  }
+
+  private func applyASCIIPunctIfNeeded() -> Bool {
+    let value = OwlKeyboardPreferences.cjkPunctToggle
+    guard applyChanged(value, at: \.lastAppliedASCIIPunct, action: {
+      ["op": "set_option", "name": RimeOption.asciiPunct.rawValue, "value": value]
+    }) else { return false }
+    optionFlags[.asciiPunct] = value
+    return true
+  }
+
+  private func applyChanged<Value: Equatable>(
+    _ value: Value,
+    at keyPath: ReferenceWritableKeyPath<OwlRustSession, Value>,
+    action: () -> [String: Any]
+  ) -> Bool {
+    guard value != self[keyPath: keyPath] else { return true }
+    guard sendAction(action())?.isOK == true else { return false }
+    self[keyPath: keyPath] = value
     return true
   }
 
@@ -861,6 +870,9 @@ final class OwlRustSession: RimeSession {
       )
     )
     let token = result.status == "pending" ? result.token : nil
+    if result.current == true, result.moved == true {
+      refreshSnapshot()
+    }
     return OwlSettledRerankStartResult(
       token: token,
       current: result.current ?? false,
@@ -883,6 +895,9 @@ final class OwlRustSession: RimeSession {
         error: "cannot poll settled rerank"
       )
     )
+    if result.current == true, result.moved == true {
+      refreshSnapshot()
+    }
     return OwlSettledRerankPollResult(
       pending: result.status == "pending",
       current: result.current ?? false,
@@ -914,7 +929,8 @@ final class OwlRustSession: RimeSession {
   func setProperty(name: String, value: String) {
     properties[name] = value
     if name == OwlPinnedWords.property, handle != nil {
-      if let dto = sendAction(["op": "set_pinned_words", "text": value]), dto.isOK {
+      let sources = OwlPinnedWords.traditionalSources(engineValue: value)
+      if let dto = sendAction(["op": "set_pinned_words", "text": value, "traditional_sources": sources.map(\.actionPayload)]), dto.isOK {
         latestSnapshot = dto
         latestGeneration = dto.generation ?? latestGeneration
         caretByteOffset = dto.caretPosition ?? dto.rawInput.utf8.count
