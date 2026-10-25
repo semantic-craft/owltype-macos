@@ -104,8 +104,7 @@
 		FAAB0001CAFE0001CAFE0001 /* OwlAutoPair.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAAB0002CAFE0002CAFE0002 /* OwlAutoPair.swift */; };
 		FA07070001CAFE0001CAFE07 /* OwlForcedFinalize.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA07070002CAFE0002CAFE07 /* OwlForcedFinalize.swift */; };
 		FA0707510001CAFE0051CA07 /* OwlSchemaSelectionGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0707510002CAFE0052CA07 /* OwlSchemaSelectionGate.swift */; };
-		FA0707520001CAFE0061CA07 /* RimeConfigDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0707520002CAFE0062CA07 /* RimeConfigDiagnostics.swift */; };
-		FA0707520003CAFE0063CA07 /* RimeConfigDiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0707520004CAFE0064CA07 /* RimeConfigDiagnosticsTests.swift */; };
+		FA0707520003CAFE0063CA07 /* OwlCLIEntryPointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0707520004CAFE0064CA07 /* OwlCLIEntryPointTests.swift */; };
 		FAAB0003CAFE0003CAFE0003 /* OwlAutoPairTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAAB0004CAFE0004CAFE0004 /* OwlAutoPairTests.swift */; };
 		FA07070003CAFE0003CAFE07 /* OwlForcedFinalizeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA07070004CAFE0004CAFE07 /* OwlForcedFinalizeTests.swift */; };
 		FA07070013CAFE0013CAFE07 /* OwlStyleFlagsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA07070014CAFE0014CAFE07 /* OwlStyleFlagsTests.swift */; };
@@ -413,8 +412,7 @@
 		FA0709890004CAFE0090CA07 /* OwlMarkedTextResendPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlMarkedTextResendPolicy.swift; path = sources/Engine/OwlMarkedTextResendPolicy.swift; sourceTree = "<group>"; };
 		FA0709900004CAFE0092CA07 /* OwlMarkedTextResendPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlMarkedTextResendPolicyTests.swift; path = tests/OwlMarkedTextResendPolicyTests.swift; sourceTree = "<group>"; };
 		FA0709350002CAFE0038CA07 /* OwlLiveInputTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlLiveInputTrace.swift; path = sources/Engine/OwlLiveInputTrace.swift; sourceTree = "<group>"; };
-		FA0707520002CAFE0062CA07 /* RimeConfigDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeConfigDiagnostics.swift; path = sources/Activation/RimeConfigDiagnostics.swift; sourceTree = "<group>"; };
-		FA0707520004CAFE0064CA07 /* RimeConfigDiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeConfigDiagnosticsTests.swift; path = tests/RimeConfigDiagnosticsTests.swift; sourceTree = "<group>"; };
+		FA0707520004CAFE0064CA07 /* OwlCLIEntryPointTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlCLIEntryPointTests.swift; path = tests/OwlCLIEntryPointTests.swift; sourceTree = "<group>"; };
 		FAAB0004CAFE0004CAFE0004 /* OwlAutoPairTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAutoPairTests.swift; path = tests/OwlAutoPairTests.swift; sourceTree = "<group>"; };
 		FA07070004CAFE0004CAFE07 /* OwlForcedFinalizeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlForcedFinalizeTests.swift; path = tests/OwlForcedFinalizeTests.swift; sourceTree = "<group>"; };
 		FA07070014CAFE0014CAFE07 /* OwlStyleFlagsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlStyleFlagsTests.swift; path = tests/OwlStyleFlagsTests.swift; sourceTree = "<group>"; };
@@ -615,7 +613,6 @@
 				FA000131CAFE0131CAFE0131 /* OwlUserAction.swift */,
 				FA000133CAFE0133CAFE0133 /* OwlInputController+ClientAction.swift */,
 				B397712C2BEEB39D0093A49B /* InputSource.swift */,
-				FA0707520002CAFE0062CA07 /* RimeConfigDiagnostics.swift */,
 				B397712E2BEECBED0093A49B /* Main.swift */,
 				FA000202CAFE0202CAFE0202 /* OwlStyleFlags.swift */,
 				FA000200CAFE0200CAFE0200 /* OwlStatusHUD.swift */,
@@ -810,7 +807,7 @@
 				FA0721000002CAFE0002CA07 /* OwlSelectionMenuTriggerTests.swift */,
 				FA0709360004CAFE0042CA07 /* OwlLiveInputTraceTests.swift */,
 				FA0709900004CAFE0092CA07 /* OwlMarkedTextResendPolicyTests.swift */,
-				FA0707520004CAFE0064CA07 /* RimeConfigDiagnosticsTests.swift */,
+				FA0707520004CAFE0064CA07 /* OwlCLIEntryPointTests.swift */,
 				FA000913CAFE0099CAFE0099 /* OwlPromptInterceptionTests.swift */,
 				FADADA03CAFE0003CAFE0003 /* OwlPromptPageRenderTests.swift */,
 				FA000600CAFE0600CAFE0600 /* OwlPanelContentTests.swift */,
@@ -1167,7 +1164,6 @@
 				FA0709340003CAFE0035CA07 /* OwlLatencyTrace.swift in Sources */,
 				FA0709890003CAFE0089CA07 /* OwlMarkedTextResendPolicy.swift in Sources */,
 				FA0709350001CAFE0037CA07 /* OwlLiveInputTrace.swift in Sources */,
-				FA0707520001CAFE0061CA07 /* RimeConfigDiagnostics.swift in Sources */,
 				FA000021CAFE0021CAFE0021 /* OwlKeyboardPage.swift in Sources */,
 				1FBC34F271A24C5CBED74345 /* OwlKeyboardSettingsApplication.swift in Sources */,
 				FACE0106FACE0106FACE0106 /* OwlSelectionMenuCoordinator.swift in Sources */,
@@ -1313,7 +1309,7 @@
 				FA0721000001CAFE0001CA07 /* OwlSelectionMenuTriggerTests.swift in Sources */,
 				FA0709360003CAFE0041CA07 /* OwlLiveInputTraceTests.swift in Sources */,
 				FA0709900003CAFE0091CA07 /* OwlMarkedTextResendPolicyTests.swift in Sources */,
-				FA0707520003CAFE0063CA07 /* RimeConfigDiagnosticsTests.swift in Sources */,
+				FA0707520003CAFE0063CA07 /* OwlCLIEntryPointTests.swift in Sources */,
 				FA000912CAFE0098CAFE0098 /* OwlPromptInterceptionTests.swift in Sources */,
 				FADADA04CAFE0004CAFE0004 /* OwlPromptPageRenderTests.swift in Sources */,
 				FA000601CAFE0601CAFE0601 /* OwlPanelContentTests.swift in Sources */,

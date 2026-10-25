@@ -64,6 +64,10 @@ struct MigrationManifest {
 struct MigrationPin {
     code: String,
     text: String,
+    // Required by the versioned manifest schema. Whether a pin was captured in
+    // traditional mode remains owned by owl_pinned_words and does not decide
+    // whether Rust can import the pin.
+    #[allow(dead_code)]
     traditional: bool,
 }
 
@@ -450,7 +454,7 @@ fn map_pins(pins: &[MigrationPin]) -> Result<(Vec<LearningHabit>, usize), String
         }
         let expected_syllables = pin.text.chars().count();
         let context = normalize_full_pinyin(&pin.code, expected_syllables);
-        if pin.traditional || context.is_empty() || !contexts.insert(context.clone()) {
+        if context.is_empty() || !contexts.insert(context.clone()) {
             external_only += 1;
             continue;
         }
@@ -669,7 +673,7 @@ fn import_validated(
     };
     let mut warnings = validated.manifest.limitations.clone();
     warnings.extend([
-        "pinned_candidates keeps one non-traditional value per normalized full-pinyin context; owl_pinned_words remains the source for complete pin order and traditional state.".to_owned(),
+        "pinned_candidates keeps one value per normalized full-pinyin context in owl_pinned_words order; later pins and pins without a valid context remain only in owl_pinned_words.".to_owned(),
         "Rime decay and tick are not represented in Rust dictionary state; the staged commit-count mapping remains visible in manifest limitations.".to_owned(),
         "user_inserted=true is rejected instead of being silently dropped because the personal-dictionary queue is outside this importer.".to_owned(),
     ]);
@@ -923,6 +927,10 @@ mod tests {
         json!({"code": code, "text": text, "traditional": false})
     }
 
+    fn traditional_pin(code: &str, text: &str) -> Value {
+        json!({"code": code, "text": text, "traditional": true})
+    }
+
     fn action(session: *mut crate::OwlMsimeSession, value: Value) -> Value {
         let request = CString::new(serde_json::to_vec(&value).unwrap()).unwrap();
         let raw = crate::owl_msime_session_handle_action_json(session, request.as_ptr());
@@ -1152,6 +1160,42 @@ mod tests {
             "{mixed}"
         );
         crate::owl_msime_session_destroy(reopened);
+    }
+
+    #[test]
+    fn traditional_pin_is_imported_and_later_context_conflict_is_reported() {
+        let fixture = Fixture::new(true);
+        let pins = vec![
+            traditional_pin("shi xing", "試行"),
+            pin("shi xing", "施行"),
+            traditional_pin("fa", "發"),
+        ];
+        let staged = fixture.stage(&[], &pins);
+
+        let report = fixture.import(&staged.request_id).unwrap();
+
+        assert!(report.ok);
+        assert_eq!(report.pins_total, 3);
+        assert_eq!(report.pins_written, 2);
+        assert_eq!(report.pins_external_only, 1);
+        close_cached_databases();
+        let connection = Connection::open(fixture.journal()).unwrap();
+        let shixing: String = connection
+            .query_row(
+                "SELECT value FROM pinned_candidates WHERE context_key='shi''xing'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let fa: String = connection
+            .query_row(
+                "SELECT value FROM pinned_candidates WHERE context_key='fa'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(shixing, "試行");
+        assert_eq!(fa, "發");
     }
 
     #[test]

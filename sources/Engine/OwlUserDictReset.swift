@@ -2,144 +2,258 @@
 //  OwlUserDictReset.swift
 //  Owltype
 //
-//  「重置用户词典…」的纯文件系统部分 (#37)：备份 → 删除 `*.userdb`，让下一次
-//  `start_maintenance` 重建空库。
+//  「重置用户词典…」的 Rust 用户数据部分：完整备份 → 删除 → 失败时恢复。
 //
-//  由来：1.4.23 → 1.5.0 那三天种子是 Unihan 全汉字表，用户上屏过的繁体被学进
-//  `<schema>.userdb`；换上干净词库后 userdb 里的旧词频仍把繁体排在第一。已否决静默净化
-//  (#34)——改用户数据必须是用户自己按的、看得见、可撤销的动作。
-//
-//  只碰 `*.userdb`，一个字节都不碰方案 / 设置 / 词库。注意 `OwlConfigWriter` 把
-//  `*.userdb*` 列为 `neverTouch`：那条守卫管的是**配置写入层**（猫头鹰自动改用户文件时永不
-//  波及学习数据），本模块是它唯一的、由用户显式发起的例外，故是独立类型而不是给写入层
-//  开后门。
-//
-//  纯 Foundation：无 librime、无 AppKit、无单例，root / timestamp / FileManager 全注入，
-//  测试可在临时目录里跑完整链路。引擎侧的顺序约束（LevelDB 独占锁 → 必须先 `finalize()`）
-//  由唯一调用者 `OwlApplicationDelegate.resetUserDict()` 负责。
+//  只处理 `msime-user/msime_user.db*` 与 `msime-user/dictionaries/`。旧版 Rime
+//  `*.userdb`、`sync/*.userdb.txt`、设置和置顶词属于迁移原件或独立设置，本动作不碰。
+//  引擎侧顺序约束由唯一调用者 `OwlApplicationDelegate.resetUserDict()` 负责：先关闭
+//  Rust 会话与缓存数据库，再运行这里，最后重新启动引擎。
 //
 
+import Darwin
 import Foundation
 
-/// 一次重置的结果：清了哪些方案、备份落在哪。
+/// 一次重置的结果：清了哪些 Rust 数据项、备份落在哪。
 struct OwlUserDictResetOutcome: Equatable {
-  /// 被清掉的方案 id（目录名去掉 `.userdb` 后缀），按字典序。空 = 本机没有用户词典。
-  let schemaIDs: [String]
-  /// 备份目录；`schemaIDs` 为空时没有创建备份，故为 nil。
+  /// 逻辑项名，例如 `msime_user.db`、`msime_user.db-wal`、`dictionaries`。
+  let removedItems: [String]
+  /// 备份目录；没有可重置数据时为 nil。
   let backupDir: URL?
 }
 
-/// 重置过程中的失败。两支都保证**已经从备份还原**，不留中间态。
 enum OwlUserDictResetError: LocalizedError, Equatable {
-  /// 备份阶段失败。此时一个 userdb 都还没删。
-  case backupFailed(schemaID: String, reason: String)
-  /// 删除阶段失败，已删的部分已从备份还原回去。
-  case removeFailed(schemaID: String, reason: String)
+  case inspectionFailed(item: String, reason: String)
+  case backupFailed(item: String, reason: String)
+  case removeFailed(
+    item: String,
+    reason: String,
+    restored: Bool,
+    restoreReason: String?
+  )
 
   var errorDescription: String? {
     switch self {
-    case .backupFailed(let schemaID, let reason):
-      return "备份 \(schemaID) 的用户词典失败：\(reason)"
-    case .removeFailed(let schemaID, let reason):
-      return "删除 \(schemaID) 的用户词典失败：\(reason)"
+    case .inspectionFailed(let item, let reason):
+      return "检查 Rust 用户数据 \(item) 失败：\(reason)"
+    case .backupFailed(let item, let reason):
+      return "备份 Rust 用户数据 \(item) 失败：\(reason)"
+    case .removeFailed(let item, let reason, let restored, let restoreReason):
+      var message = "删除 Rust 用户数据 \(item) 失败：\(reason)"
+      if restored {
+        message += "；已从备份恢复"
+      } else if let restoreReason {
+        message += "；恢复也失败：\(restoreReason)"
+      } else {
+        message += "；恢复失败"
+      }
+      return message
     }
   }
 }
 
 enum OwlUserDictReset {
-  /// 备份目录名前缀，`.owl-backup/userdb-reset-<ts>/`（与配置写入层的
-  /// `.owl-backup/<ts>/` 同一个根，靠前缀区分来源）。
-  static let backupDirPrefix = "userdb-reset-"
-  static let userDBSuffix = ".userdb"
+  static let rustDirectoryName = "msime-user"
+  static let journalName = "msime_user.db"
+  static let dictionariesName = "dictionaries"
+  static let backupDirPrefix = "rust-userdict-reset-"
 
-  /// root 下所有 `*.userdb`，按名字排序（顺序固定，便于断言与日志阅读）。
-  /// 不递归：`sync/` 里的 `<schema>.userdb.txt` 同步快照是另一台机器也在读的数据，不在本
-  /// 动作范围内（见 #37「只做一个按钮」）。
-  static func userDatabases(in root: URL, fileManager fm: FileManager = .default) -> [URL] {
-    let entries = (try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
-    return entries
-      .filter { $0.lastPathComponent.hasSuffix(userDBSuffix) }
-      .sorted { $0.lastPathComponent < $1.lastPathComponent }
+  private struct Item {
+    let name: String
+    let url: URL
   }
 
-  static func schemaID(of database: URL) -> String {
-    String(database.lastPathComponent.dropLast(userDBSuffix.count))
+  /// root 下 Rust 用户数据中应由「重置」清空的项目，顺序固定。
+  static func resetItemNames(
+    in root: URL,
+    fileManager fm: FileManager = .default
+  ) throws -> [String] {
+    try items(in: root, fileManager: fm).map(\.name)
   }
 
-  /// 备份 → 删除。两段式的顺序是刻意的：**先把每一个 userdb 都备份完**再开始删，所以
-  /// 备份阶段失败时磁盘还原封不动；删除阶段失败才需要还原，且还原源必定齐全。
-  ///
-  /// 无 userdb（全新机器）时安静返回空 outcome，不建备份目录、不报错。
+  /// 备份 → 删除。删除前的 checkpoint 只用于测试故障注入，正常调用为空操作。
   @discardableResult
   static func run(
     root: URL,
     timestamp: String,
-    fileManager fm: FileManager = .default
+    fileManager fm: FileManager = .default,
+    removeCheckpoint: (String) throws -> Void = { _ in }
   ) throws -> OwlUserDictResetOutcome {
-    let databases = userDatabases(in: root, fileManager: fm)
-    guard !databases.isEmpty else {
-      return OwlUserDictResetOutcome(schemaIDs: [], backupDir: nil)
+    let items = try items(in: root, fileManager: fm)
+    guard !items.isEmpty else {
+      return OwlUserDictResetOutcome(removedItems: [], backupDir: nil)
     }
 
-    let backupDir = root
-      .appendingPathComponent(".owl-backup", isDirectory: true)
-      .appendingPathComponent(backupDirPrefix + timestamp, isDirectory: true)
-    try OwlPrivateStorage.prepareDirectory(backupDir, fileManager: fm)
-
-    for database in databases {
-      do {
-        try fm.copyItem(at: database, to: backupDir.appendingPathComponent(database.lastPathComponent))
-      } catch {
-        throw OwlUserDictResetError.backupFailed(
-          schemaID: schemaID(of: database),
-          reason: error.localizedDescription
+    let backupDir = uniqueBackupDirectory(
+      root: root,
+      timestamp: timestamp,
+      fileManager: fm
+    )
+    var currentItem = items[0].name
+    do {
+      try OwlPrivateStorage.prepareDirectory(backupDir, fileManager: fm)
+      for item in items {
+        currentItem = item.name
+        try fm.copyItem(
+          at: item.url,
+          to: backupDir.appendingPathComponent(item.name)
         )
       }
+    } catch {
+      try? fm.removeItem(at: backupDir)
+      throw OwlUserDictResetError.backupFailed(
+        item: currentItem,
+        reason: error.localizedDescription
+      )
     }
 
-    var removed: [URL] = []
-    for database in databases {
+    for item in items {
       do {
-        try fm.removeItem(at: database)
-        removed.append(database)
+        try removeCheckpoint(item.name)
+        try fm.removeItem(at: item.url)
       } catch {
-        restore(removed, from: backupDir, fileManager: fm)
+        let restoration = restore(
+          items,
+          rustRoot: rustRoot(in: root),
+          backupDir: backupDir,
+          fileManager: fm
+        )
         throw OwlUserDictResetError.removeFailed(
-          schemaID: schemaID(of: database),
-          reason: error.localizedDescription
+          item: item.name,
+          reason: error.localizedDescription,
+          restored: restoration == nil,
+          restoreReason: restoration
         )
       }
     }
 
     return OwlUserDictResetOutcome(
-      schemaIDs: databases.map(schemaID(of:)),
+      removedItems: items.map(\.name),
       backupDir: backupDir
     )
   }
 
-  /// best-effort 还原：单个还原失败不中断其余，尽量把磁盘拉回动作前的样子。
-  private static func restore(_ databases: [URL], from backupDir: URL, fileManager fm: FileManager) {
-    for database in databases {
-      let backup = backupDir.appendingPathComponent(database.lastPathComponent)
-      guard fm.fileExists(atPath: backup.path), !fm.fileExists(atPath: database.path) else { continue }
-      try? fm.copyItem(at: backup, to: database)
+  private static func items(
+    in root: URL,
+    fileManager fm: FileManager
+  ) throws -> [Item] {
+    let rustRoot = rustRoot(in: root)
+    var isDirectory: ObjCBool = false
+    guard fm.fileExists(atPath: rustRoot.path, isDirectory: &isDirectory) else {
+      return []
+    }
+    guard isDirectory.boolValue, isRealDirectory(rustRoot) else {
+      throw OwlUserDictResetError.inspectionFailed(
+        item: rustDirectoryName,
+        reason: "不是普通目录"
+      )
+    }
+
+    let names: [String]
+    do {
+      names = try fm.contentsOfDirectory(atPath: rustRoot.path)
+    } catch {
+      throw OwlUserDictResetError.inspectionFailed(
+        item: rustDirectoryName,
+        reason: error.localizedDescription
+      )
+    }
+
+    var items = names
+      .filter(isJournalArtifact)
+      .sorted()
+      .map {
+        Item(
+          name: $0,
+          url: rustRoot.appendingPathComponent($0, isDirectory: false)
+        )
+      }
+    let dictionaries = rustRoot.appendingPathComponent(
+      dictionariesName,
+      isDirectory: true
+    )
+    if fm.fileExists(atPath: dictionaries.path) {
+      items.append(Item(name: dictionariesName, url: dictionaries))
+    }
+    return items
+  }
+
+  private static func isJournalArtifact(_ name: String) -> Bool {
+    name == journalName
+      || name.hasPrefix(journalName + "-")
+      || name.hasPrefix(journalName + ".corrupt-")
+  }
+
+  private static func rustRoot(in root: URL) -> URL {
+    root.appendingPathComponent(rustDirectoryName, isDirectory: true)
+  }
+
+  private static func uniqueBackupDirectory(
+    root: URL,
+    timestamp: String,
+    fileManager fm: FileManager
+  ) -> URL {
+    let backups = root.appendingPathComponent(".owl-backup", isDirectory: true)
+    let baseName = backupDirPrefix + timestamp
+    var candidate = backups.appendingPathComponent(baseName, isDirectory: true)
+    var suffix = 2
+    while fm.fileExists(atPath: candidate.path) {
+      candidate = backups.appendingPathComponent(
+        "\(baseName)-\(suffix)",
+        isDirectory: true
+      )
+      suffix += 1
+    }
+    return candidate
+  }
+
+  /// 恢复整组 Rust 数据。先移除中途残留，再从完整备份重建，避免半个目录留在原位。
+  /// 成功返回 nil；失败返回首个错误说明。
+  private static func restore(
+    _ items: [Item],
+    rustRoot: URL,
+    backupDir: URL,
+    fileManager fm: FileManager
+  ) -> String? {
+    do {
+      try OwlPrivateStorage.prepareDirectory(rustRoot, fileManager: fm)
+      for item in items where fm.fileExists(atPath: item.url.path) {
+        try fm.removeItem(at: item.url)
+      }
+      for item in items {
+        try fm.copyItem(
+          at: backupDir.appendingPathComponent(item.name),
+          to: item.url
+        )
+      }
+      return nil
+    } catch {
+      return error.localizedDescription
     }
   }
 
-  // MARK: - 状态行文案（回到「维护与诊断」卡的 statusLine）
+  private static func isRealDirectory(_ url: URL) -> Bool {
+    var info = stat()
+    guard lstat(url.path, &info) == 0 else { return false }
+    return info.st_mode & S_IFMT == S_IFDIR
+  }
 
-  static func statusMessage(outcome: OwlUserDictResetOutcome, redeployed: Bool) -> String {
-    guard let backupDir = outcome.backupDir, !outcome.schemaIDs.isEmpty else {
-      return "本机还没有用户词典，无需重置。"
+  // MARK: - 状态行文案
+
+  static func statusMessage(
+    outcome: OwlUserDictResetOutcome,
+    redeployed: Bool
+  ) -> String {
+    guard let backupDir = outcome.backupDir, !outcome.removedItems.isEmpty else {
+      return "本机还没有 Rust 用户词典数据，无需重置。"
     }
-    let schemas = outcome.schemaIDs.joined(separator: "、")
-    let cleared = "已重置 \(outcome.schemaIDs.count) 个方案的用户词典（\(schemas)）；原词典已备份到 \(backupDir.path)。"
-    return redeployed ? cleared : "\(cleared)但重新部署失败，请查看诊断日志。"
+    let items = outcome.removedItems.joined(separator: "、")
+    let cleared = "已重置 Rust 用户词典数据（\(items)）；原数据已备份到 \(backupDir.path)。"
+    return redeployed ? cleared : "\(cleared)但重新启动 Rust 引擎失败，请查看诊断日志。"
   }
 
   static func failureMessage(error: Error, redeployed: Bool) -> String {
     let reason = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-    let head = "重置用户词典失败，已还原原词典：\(reason)"
-    return redeployed ? head : "\(head)重新部署也失败了，请查看诊断日志。"
+    let head = "重置 Rust 用户词典数据失败：\(reason)"
+    return redeployed ? head : "\(head)重新启动 Rust 引擎也失败了，请查看诊断日志。"
   }
 }

@@ -84,7 +84,19 @@ enum OwlRimeUserDBSnapshotReader {
     root: URL,
     fileManager fm: FileManager = .default
   ) throws -> OwlRimeUserDBSnapshotScan {
-    let sync = root.appendingPathComponent("sync", isDirectory: true)
+    try scan(
+      syncDirectory: root.appendingPathComponent("sync", isDirectory: true),
+      fileManager: fm
+    )
+  }
+
+  /// Scans a resolved sync root. Manifest paths stay relative to the stable logical
+  /// `sync/<installation>/` layout even when `installation.yaml` points elsewhere.
+  static func scan(
+    syncDirectory: URL,
+    fileManager fm: FileManager = .default
+  ) throws -> OwlRimeUserDBSnapshotScan {
+    let sync = syncDirectory
     guard pathKind(sync) != .missing else {
       return OwlRimeUserDBSnapshotScan(
         captures: [],

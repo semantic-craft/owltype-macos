@@ -76,8 +76,6 @@ final class OwlSettingsCoverageTests: XCTestCase {
     // 重置用户词典…（#37）：备份+删除+还原全链路覆盖在 OwlUserDictResetTests，
     // 确认弹窗默认按钮同处断言。
     "OwlInputMenuTitles.resetUserDict",
-    "OwlInputMenuTitles.syncDirectory",
-    "OwlInputMenuTitles.syncUserData",
     "OwlInputMenuTitles.migrateLegacyUserData",
     "https 端点",
     // 辅助功能权限：状态即入口的单一按钮，accessibilityLabel 随授权态切换。

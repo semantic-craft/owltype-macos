@@ -123,7 +123,6 @@ final class OwlSettingsState {
   /// Transient status line shown under the action buttons (deploy result, etc.).
   var statusMessage: String = ""
   /// Current librime user-data sync directory. Empty only before delegate seeding.
-  var syncDirectoryDisplayPath: String = ""
   /// Candidate-panel appearance editing value (跟随系统/浅色/深色). Seeded and persisted through
   /// `OwlCandidatePanelSettings` together with skin, font, and animation preference.
   var panelAppearance: OwlPanelAppearance = .system
@@ -340,40 +339,16 @@ struct OwlRimeSyncSettings {
     rimeDir.appendingPathComponent("installation.yaml")
   }
 
-  var defaultSyncDirectory: URL {
-    rimeDir.appendingPathComponent("sync", isDirectory: true)
-  }
-
-  var syncDirectoryDisplayPath: String {
-    Self.displayPath(for: currentSyncDirectory())
-  }
-
   func currentSyncDirectory() -> URL {
     guard let text = try? String(contentsOf: installationURL, encoding: .utf8),
           let raw = Self.topLevelValue("sync_dir", in: text),
           !raw.isEmpty else {
-      return defaultSyncDirectory
+      return rimeDir.appendingPathComponent("sync", isDirectory: true)
     }
-    return URL(fileURLWithPath: raw, isDirectory: true)
-  }
-
-  func setSyncDirectory(_ directory: URL) throws {
-    try FileManager.default.createDirectory(at: rimeDir, withIntermediateDirectories: true)
-    let path = directory.standardizedFileURL.path
-    let line = "sync_dir: \(Self.yamlDoubleQuoted(path))"
-    let text = (try? String(contentsOf: installationURL, encoding: .utf8)) ?? ""
-    let updated = Self.replacingTopLevelValue("sync_dir", with: line, in: text)
-    try updated.write(to: installationURL, atomically: true, encoding: .utf8)
-  }
-
-  static func displayPath(for url: URL) -> String {
-    let path = url.standardizedFileURL.path
-    let home = FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
-    if path == home { return "~" }
-    if path.hasPrefix(home + "/") {
-      return "~" + path.dropFirst(home.count)
-    }
-    return path
+    return URL(
+      fileURLWithPath: (raw as NSString).expandingTildeInPath,
+      isDirectory: true
+    ).standardizedFileURL
   }
 
   static func topLevelValue(_ key: String, in text: String) -> String? {
@@ -383,24 +358,6 @@ struct OwlRimeSyncSettings {
       return yamlStringValue(String(raw))
     }
     return nil
-  }
-
-  private static func replacingTopLevelValue(_ key: String, with line: String, in text: String) -> String {
-    var replaced = false
-    var lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-    for index in lines.indices where lines[index].hasPrefix("\(key):") {
-      lines[index] = line
-      replaced = true
-      break
-    }
-    if !replaced {
-      if lines.last == "" {
-        lines.insert(line, at: lines.index(before: lines.endIndex))
-      } else {
-        lines.append(line)
-      }
-    }
-    return lines.joined(separator: "\n").trimmingCharacters(in: .newlines) + "\n"
   }
 
   private static func yamlStringValue(_ raw: String) -> String {
@@ -415,12 +372,6 @@ struct OwlRimeSyncSettings {
     return raw
   }
 
-  private static func yamlDoubleQuoted(_ value: String) -> String {
-    let escaped = value
-      .replacingOccurrences(of: "\\", with: "\\\\")
-      .replacingOccurrences(of: "\"", with: "\\\"")
-    return "\"\(escaped)\""
-  }
 }
 
 enum OwlSettingsActions {

@@ -73,6 +73,7 @@ struct OwlUserMigrationPlan: Equatable, Sendable {
   let recordData: Data
   let manifestData: Data
   let captures: [OwlRimeUserDBSnapshotCapture]
+  let syncDirectory: URL
 }
 
 enum OwlUserMigrationError: LocalizedError, Equatable {
@@ -103,9 +104,15 @@ enum OwlUserMigration {
   static func makePlan(
     userData: URL,
     pinnedWordsData: Data?,
+    syncDirectory: URL? = nil,
     fileManager fm: FileManager = .default
   ) throws -> OwlUserMigrationPlan {
-    let scan = try OwlRimeUserDBSnapshotReader.scan(root: userData, fileManager: fm)
+    let syncDirectory = syncDirectory
+      ?? userData.appendingPathComponent("sync", isDirectory: true)
+    let scan = try OwlRimeUserDBSnapshotReader.scan(
+      syncDirectory: syncDirectory,
+      fileManager: fm
+    )
     var issues = scan.issues
     let pins = decodePins(pinnedWordsData, issues: &issues)
     var mapped: [RecordKey: (record: OwlUserMigrationRecord, commits: Int64)] = [:]
@@ -196,7 +203,8 @@ enum OwlUserMigration {
       records: records,
       recordData: recordData,
       manifestData: manifestData,
-      captures: scan.captures
+      captures: scan.captures,
+      syncDirectory: syncDirectory
     )
   }
 

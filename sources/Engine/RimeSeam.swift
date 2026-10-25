@@ -243,7 +243,6 @@ protocol RimeEngine: AnyObject {
   func joinMaintenance()
   func deployConfigFile(_ fileName: String, versionKey: String) -> Bool
   func setNotificationHandler(_ handler: @escaping RimeNotificationHandler)
-  func syncUserData() -> Bool
   func cleanupAllSessions()
   func finalize()
   func schemaList() -> [(id: String, name: String)]

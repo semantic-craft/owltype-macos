@@ -280,6 +280,12 @@ enum OwlUserMigrationImport {
     if report.recordsSkipped > 0 {
       message += "另跳过 \(report.recordsSkipped) 条无效或越界记录。"
     }
+    if report.pinsExternalOnly > 0 {
+      message += """
+      另有 \(report.pinsExternalOnly) 条置顶仍保留在 owl_pinned_words 中；\
+      Rust pinned_candidates 每个拼音上下文只能保存一条，因此这些置顶没有写入 Rust。
+      """
+    }
     if report.issueCount > 0 {
       message += "迁移清单记录了 \(report.issueCount) 条提示。"
     }

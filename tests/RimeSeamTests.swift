@@ -228,7 +228,6 @@ final class FakeRimeEngine: RimeEngine {
   var scriptedVersion: String?
   var startMaintenanceResult: Bool
   var deployConfigFileResult: Bool
-  var syncUserDataResult: Bool
   var selectSchemaResult: Bool
 
   private(set) var setupCount = 0
@@ -253,7 +252,6 @@ final class FakeRimeEngine: RimeEngine {
     version: String? = nil,
     startMaintenanceResult: Bool = true,
     deployConfigFileResult: Bool = true,
-    syncUserDataResult: Bool = true,
     selectSchemaResult: Bool = true
   ) {
     self.vendedSession = vendedSession
@@ -262,7 +260,6 @@ final class FakeRimeEngine: RimeEngine {
     self.scriptedVersion = version
     self.startMaintenanceResult = startMaintenanceResult
     self.deployConfigFileResult = deployConfigFileResult
-    self.syncUserDataResult = syncUserDataResult
     self.selectSchemaResult = selectSchemaResult
   }
 
@@ -282,7 +279,6 @@ final class FakeRimeEngine: RimeEngine {
   func setNotificationHandler(_ handler: @escaping RimeNotificationHandler) {
     notificationHandlerSet = true
   }
-  func syncUserData() -> Bool { syncUserDataResult }
   func cleanupAllSessions() { cleanupAllSessionsCount += 1 }
   func finalize() { finalizeCount += 1 }
   func schemaList() -> [(id: String, name: String)] { scriptedSchemaList }
@@ -922,7 +918,6 @@ final class RimeSeamTests: XCTestCase {
       version: "1.0.0"
     )
     XCTAssertTrue(engine.startMaintenance(fullCheck: true))
-    XCTAssertTrue(engine.syncUserData())
     XCTAssertEqual(engine.currentSchema(), "rime_ice")
     XCTAssertEqual(engine.version(), "1.0.0")
 
