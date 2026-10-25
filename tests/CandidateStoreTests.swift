@@ -453,10 +453,8 @@ final class OwlModernUISmokeTests: XCTestCase {
       onApplyKeyboardConfigFast: { .init(written: [], succeeded: true) },
       onApplyFuzzyConfigFast: { .init(written: [], succeeded: true) },
       userDataActions: .init(
-        sync: {},
         migrateLegacy: {},
-        resetUserDict: {},
-        chooseSyncDirectory: {}
+        resetUserDict: {}
       ),
       onOpenRimeFolder: {},
       onOpenLog: {},
@@ -474,10 +472,8 @@ final class OwlModernUISmokeTests: XCTestCase {
       onApplyKeyboardConfigFast: { .init(written: [], succeeded: true) },
       onApplyFuzzyConfigFast: { .init(written: [], succeeded: true) },
       userDataActions: .init(
-        sync: {},
         migrateLegacy: {},
-        resetUserDict: {},
-        chooseSyncDirectory: {}
+        resetUserDict: {}
       ),
       onOpenRimeFolder: {},
       onOpenLog: {},
@@ -566,8 +562,6 @@ final class OwlModernUISmokeTests: XCTestCase {
     XCTAssertEqual(OwlInputMenuTitles.emoji, "表情符号…")
     XCTAssertEqual(OwlInputMenuTitles.quickSend, "快捷片段…")
     XCTAssertEqual(OwlInputMenuTitles.deploy, "应用配置改动")
-    XCTAssertEqual(OwlInputMenuTitles.syncDirectory, "设置同步目录...")
-    XCTAssertEqual(OwlInputMenuTitles.syncUserData, "同步用户数据")
   }
 
   func testWritePreviewReportsDeployFailureAfterSuccessfulWrite() {

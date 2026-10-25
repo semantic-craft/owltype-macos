@@ -23,10 +23,8 @@ import SwiftUI
 
 /// Delegate-owned user-data actions exposed by the settings maintenance page.
 struct OwlSettingsUserDataActions {
-  let sync: () -> Void
   let migrateLegacy: () -> Void
   let resetUserDict: () -> Void
-  let chooseSyncDirectory: () -> Void
 }
 
 struct OwlSettingsView: View {
@@ -43,7 +41,7 @@ struct OwlSettingsView: View {
   /// 模糊拼音 fast-ish apply → shared settings application (mtime-gated `fullCheck:false`
   /// maintenance — rebuilds the affected schema prism, not octagram — + reselect + replay).
   let onApplyFuzzyConfigFast: () throws -> OwlKeyboardSettingsApplication.Outcome
-  /// 同步、迁移、重置与选择同步目录 → delegate-owned user-data operations.
+  /// 迁移与重置 → delegate-owned user-data operations.
   let userDataActions: OwlSettingsUserDataActions
   /// 打开用户目录 → delegate `openRimeFolder()`.
   let onOpenRimeFolder: () -> Void
@@ -124,16 +122,26 @@ struct OwlSettingsView: View {
     .safeAreaInset(edge: .bottom) { sidebarFooter }
   }
 
-  /// Footer pinned to the sidebar bottom — engine + version (the design's "librime · v…").
+  /// Footer pinned to the sidebar bottom — Rust engine + version.
   private var sidebarFooter: some View {
     HStack(spacing: 0) {
-      Text(state.librimeVersion.isEmpty ? "librime" : "librime · v\(state.librimeVersion)")
+      Text(engineFooterText)
         .font(.system(size: 11))
         .foregroundStyle(palette.ink3)
       Spacer(minLength: 0)
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 10)
+  }
+
+  private var engineFooterText: String {
+    let version = state.librimeVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !version.isEmpty else { return "Rust 引擎" }
+    let prefix = "msime-rust-"
+    if version.hasPrefix(prefix) {
+      return "msime-rust · v\(version.dropFirst(prefix.count))"
+    }
+    return "Rust 引擎 · \(version)"
   }
 
   private var sidebarHeader: some View {
@@ -350,17 +358,14 @@ struct OwlSettingsView: View {
   private var actionSection: some View {
     sectionCard(title: "维护与诊断") {
       VStack(spacing: 10) {
-        Text("这些操作通常不需要每天使用；当设置没有立即生效、需要同步输入习惯，或排查问题时再打开。")
+        Text("这些操作通常不需要每天使用；当设置没有立即生效、需要迁移旧版记录或排查问题时再打开。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .frame(maxWidth: .infinity, alignment: .leading)
-        OwlSyncDirectoryInfo(path: state.syncDirectoryDisplayPath, palette: palette)
 
         actionButton(title: OwlInputMenuTitles.deploy, systemImage: "arrow.triangle.2.circlepath") {
           _ = onRedeploy()
         }
-        actionButton(title: OwlInputMenuTitles.syncDirectory, systemImage: "folder.badge.gearshape", action: userDataActions.chooseSyncDirectory)
-        actionButton(title: OwlInputMenuTitles.syncUserData, systemImage: "arrow.triangle.2.circlepath.icloud", action: userDataActions.sync)
         actionButton(title: OwlInputMenuTitles.migrateLegacyUserData, systemImage: "arrow.right.arrow.left.square", action: userDataActions.migrateLegacy)
         actionButton(title: OwlInputMenuTitles.resetUserDict, systemImage: "trash", action: userDataActions.resetUserDict)
         actionButton(title: OwlInputMenuTitles.rimeConfig, systemImage: "folder", action: onOpenRimeFolder)
@@ -736,31 +741,6 @@ struct OwlSettingsView: View {
       palette.card2.ignoresSafeArea()
     } else {
       palette.card2.opacity(0.94).ignoresSafeArea()
-    }
-  }
-}
-
-private struct OwlSyncDirectoryInfo: View {
-  let path: String
-  let palette: OwlCandidatePalette
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text("同步用户数据会合并并备份 Rime 用户词典、自造词、词频和输入习惯快照；目录可放在 iCloud、Dropbox 或 OneDrive，Owltype 不会自动上传。")
-        .font(.system(size: 12))
-        .foregroundStyle(palette.ink3)
-        .frame(maxWidth: .infinity, alignment: .leading)
-      VStack(alignment: .leading, spacing: 3) {
-        Text("同步目录")
-          .font(.system(size: 11, weight: .semibold))
-          .foregroundStyle(palette.ink2)
-        Text(path.isEmpty ? "未读取" : path)
-          .font(.system(size: 11, design: .monospaced))
-          .foregroundStyle(palette.ink3)
-          .lineLimit(2)
-          .textSelection(.enabled)
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
     }
   }
 }

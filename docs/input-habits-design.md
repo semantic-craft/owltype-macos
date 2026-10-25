@@ -2,13 +2,41 @@
 
 2026-10-02 用户确认采用原型推荐的 A 版布局，本文件保留正式实现的决定。A 版融入现有键盘设置、欢迎引导与候选窗；新增独立「输入习惯」页的 B 版、集中在菜单栏的 C 版未采用。一次性网页原型没有纳入正式源码或 Xcode 构建；正式实现和设计记录已覆盖其用途，原型分支于 2026-10-08 收尾时清理。设计确认不等于安装后的运行验收。
 
+## 当前 Rust 数据边界（2026-10-26）
+
+本节的“当前”以 Rust 引擎和现有 Swift 控制器的源码为准；后面的 Lua、librime、同步和
+真实 Rime 回放记录是 2.1.0 前实现的历史证据，不是现行命令或数据契约。
+
+- **学习数据**：Rust 引擎把学习、排序、固定位置、选择、纠错、个人词组与置顶等状态写入
+  `Application Support/Owltype/msime-user/msime_user.db`；SQLite 的 `-wal`、`-shm`、
+  `-journal` 和 `msime_user.db.corrupt-*` 属于同一学习日志组。工作词典在
+  `msime-user/dictionaries/<content-id>/`，资源代次切换时由引擎重建。
+- **界面置顶词**：右键置顶仍保存于 `owl_pinned_words`，按原始全拼、简繁状态和用户操作
+  顺序排列，并通过 session property 提供给当前会话。旧版迁移把它完整复制到迁移清单，
+  Rust 的 `pinned_candidates` 只按规范化全拼上下文写入每项上下文的第一条；后续同上下文
+  冲突或没有有效全拼的置顶保留在 `owl_pinned_words`，迁移结果显示
+  `pinsExternalOnly`，不声称 Rust 表能无损代替原列表。
+- **旧 Rime 原件**：迁移只读取 `installation.yaml` 指向的同步根（未配置时为
+  `sync/`）下、固定两层布局中的 `*.userdb.txt` 快照，不读取正在使用的 LevelDB。
+  自定义同步路径只改变读取位置，不写回 `installation.yaml`，迁移清单仍使用
+  `sync/<installation>/...` 的逻辑路径。阶段写入前后重新核对同一同步根。
+- **重置用户词典**：只完整备份并删除 `msime-user/msime_user.db*` 与
+  `msime-user/dictionaries/`；旧版 `*.userdb`、同步快照、`installation.yaml`、
+  旧输入习惯文件、方案与界面设置均保留。删除失败时整组从备份恢复。
+- **同步入口**：旧 Rime 的“同步用户数据”和“设置同步目录”已从菜单、设置页、通知与
+  App CLI 退役。需要迁移旧学习记录时使用“迁移旧版输入记录…”；Rust 日志本身没有
+  旧 Rime 同步导出。
+
 ## 入口与行为
 
 - **键盘输入 → 中英文与初始状态**：默认开启按应用记忆，跨进程重启保留。只保存 bundle ID 与中英文布尔值。已有记忆优先于应用初始英文和全局初始语言；简繁体、全半角沿用已有设置。管理面板可逐个忘记应用。
 - **欢迎与引导 → 第 5 步试打**：使用原生 NSTextView，核验当前猫头鹰输入源以及真实组字提交。输入「你好，猫头鹰」后开放「开始使用」。粘贴不计入，其他输入源的内容需要清空重试；允许稍后再试。从前一步重新进入会重新验证。引导仍可从现有「关于」入口打开。
 - **候选窗**：右键候选词可置顶或取消置顶；单击仍然直接上屏。默认快捷键为 Control Shift P，只在有效全拼候选中处理，不注册为全局热键。若该组合已被其他功能占用，则不自动占用，用户可在「快捷键设置 → 候选词置顶」录制其他组合及管理置顶词。
 
-## 数据与引擎边界
+## 历史 Rime/Lua 数据边界（已退役）
+
+以下描述记录 2.1.0 前以 librime、Lua filter 和 `*.userdb` 为实现主体的行为。保留它是为了
+解释迁移原件与旧验收证据，不得据此新增部署、同步或探针脚本。
 
 状态记忆只观察实际模式变化，初始状态与恢复过程不反过来产生新记录，防止后台旧会话覆盖另一个窗口的新选择。恢复时一次确定最终模式，避免先切默认、再切记忆的中间通知。
 
@@ -20,30 +48,57 @@ Lua 过滤器在最终候选流中排入置顶词并去重，Rime 自身继续�
 
 联合回归发现 Rime 用整秒时间戳识别配置变化，快速连续部署会漏掉英文通道。中英混输块或置顶块实际变化时，仅失效 `build/rime_ice.schema.yaml` 这一生成缓存；原始方案、用户词典与用户短语不变。无变化时不失效缓存。
 
-## 验证与交付状态
+## 历史 Rime/Lua 验证与交付状态
 
-以下记录按实现与验收阶段保留。初期基线为 `3be472b25d18427ccde759f93071f02babcf4f4a` 加本地改动；最终发布结果见文末，覆盖早期尚未完成的门禁与发布状态。
+以下记录按实现与验收阶段保留。文中旧 Rime 复现脚本已随 2.1.0 的 Rime 路径退役。初期
+基线为 `3be472b25d18427ccde759f93071f02babcf4f4a` 加本地改动；最终发布结果见文末，
+覆盖早期尚未完成的门禁与发布状态。
 
 - Debug 构建通过；90 项相关 XCTest 通过，覆盖记忆持久化/恢复/忘记、试打来源与粘贴、原生布局、置顶约束和存储、快捷键冲突、配置所有权和幂等，以及既有设置/引擎适配行为。
-- `scripts/check-pinyin-pinning.py --app <built-app>`：真实 librime 验证首位排序、去重、空格和数字键提交、简拼及简繁隔离、同会话置顶/取消重放。
-- `scripts/check-pinyin-mixed-input.py --app <built-app> --dicts <pinned-dictionary-root>`：与中英混输修复共同验证初次下载、升级、模板共存、自定义覆盖和重复部署。
+- 当时的 Rime 置顶脚本使用真实 librime 验证首位排序、去重、空格和数字键提交、简拼及简繁隔离、同会话置顶/取消重放。
+- 当时的中英混输脚本验证初次下载、升级、模板共存、自定义覆盖和重复部署。
 - 原生设置 UI 通过 CUA 实际点击：记忆开关开/关、管理记忆、管理置顶词、录制 Control Shift P。顺带将置顶快捷键行的「唤起热键」改为「置顶 / 取消置顶」。
 - 新增 `OwlInputHabitsIntegrationTests`：生产控制器的 `handle` → 真实 Rime → 原生 NSTextView，覆盖完整试打、置顶菜单回调、快捷键取消、空格/数字提交、Esc 清空、20 次应用身份切换、同一应用两个控制器、关闭/开启记忆与忘记。仅替代 IMK 跨进程客户端传输及 TIS 来源检测；不把它计为系统宿主验收。
 - 端到端回归发现 `lue` 的候选「略」不能置顶：Rime 将其 preedit 显示为 `lve`，原先直接比较拼写而拒绝。最小用例及真实控制器用例修复前失败，规范化 `lue/lve`、`jv/ju` 和 `ü/v` 后通过；保存和重放仍使用原始输入码。
-- `scripts/check-input-replay.sh`：16 条金样本中 9 条通过；7 条双拼/五笔因种子未含对应方案而跳过，未计入通过。
+- 当时的输入金样本回放：16 条中 9 条通过；7 条双拼/五笔因种子未含对应方案而跳过，未计入通过。
 - 回放使用临时用户目录。随后经用户明确授权，临时安装 Developer ID 签名并通过 Apple 公证的测试版，在 TextEdit 中逐键输入 `nihao` + 空格得到「你好」，连续输入得到「你好 hello」；Control Shift P 保存/取消置顶，重新组字及数字键提交通过。测试后已恢复原版 2.0.10、偏好和词库，并实测原版五笔 `wqvb` →「你好」。
 - 实机验收仍有缺口：CUA 不支持单独按 Shift，候选窗的原生右键 UI 读取不稳定；跨应用切换和右键菜单未计为通过。完整引导试打仍只有真实控制器集成测试证据，未完成已安装宿主验收。这一阶段尚未运行完整 gate；后续合并前完整门禁已通过，见文末。
 - 用户已授权提交、推送与发布 2.0.11；正式改动没有依赖原型文件。具体发布状态以 Git 与发布记录为准。
 
-## 重跑与证据
+## 当前验证入口与历史证据
 
 ```sh
-OWL_HABITS_DICTS=/tmp/owltype-mixed-integration/full bash scripts/check-input-habits.sh
+cd rust
+cargo fmt --all -- --check
+cargo test -p owl-msime-ffi
 ```
 
-`OWL_HABITS_DICTS` 是此前按固定 manifest 校验的完整词库测试副本，不是用户数据。无此副本时不设置该变量，脚本会明确跳过完整英文词库回放。脚本构建、补齐 seed、运行上述 90 项检查与引擎回放，并退出时清除该构建的 LaunchServices 登记；不安装或选择输入法。
+在仓库根目录运行 Swift 聚焦检查：
 
-本次结果：`/tmp/owltype-habits-acceptance.7nSKXH/`（构建、种子、XCTest 结果包、回放日志、基线及可执行文件 SHA-256）。修复前证据：`/tmp/owltype-habits-integration-red.log` 与 `/tmp/owltype-habits-eligibility-red.log`。本轮新增/修改的 4 个 Swift 文件 lint 零问题，脚本语法及 `git diff --check` 通过。
+```sh
+python3 scripts/verify.py swift \
+  --test OwlUserMigrationTests \
+  --test OwlUserDictResetTests \
+  --test OwlInputHabitsTests \
+  --test OwlInputHabitsIntegrationTests \
+  --test OwlRustEngineTests \
+  --test OwlCLIEntryPointTests
+```
+
+`verify.py` 负责补齐 Rust seed、签名本地测试宿主并保留回执。Rust crate 测试需要先在
+仓库根目录执行 `make owl-seed`；`make test` 会自动完成这一步。上述检查不使用真实用户
+数据，也不安装或选择输入法。
+
+2026-10-26 的迁移/重置聚焦结果记录在
+`/Users/xianweizhang/Projects/_shared-work/owltype/verification/20261025T163724Z-swift-vezhjkjf/`。
+该回执覆盖当时选中的 7 个 Swift suite；它不覆盖已安装宿主、重启后的真实置顶同步、
+完整生产 seed FFI 以外的实机迁移或完整 gate。
+
+历史 Rime 证据：`/tmp/owltype-habits-acceptance.7nSKXH/`（构建、种子、XCTest 结果包、
+回放日志、基线及可执行文件 SHA-256）。修复前记录：
+`/tmp/owltype-habits-integration-red.log` 与
+`/tmp/owltype-habits-eligibility-red.log`。这些路径只描述旧实现当时的验收，不作为现行
+可重跑入口。
 
 
 ## 临时安装验收与回退（2026-10-02）

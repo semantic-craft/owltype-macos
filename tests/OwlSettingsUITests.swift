@@ -113,7 +113,7 @@ final class OwlSettingsUITests: XCTestCase {
 
     openPage("about", in: app)
     // 重置用户词典… 在 UI-test 模式下接的是空闭包（确认弹窗归 delegate），点它只验按钮可命中。
-    tapMany(["应用配置改动", "同步用户数据", "迁移旧版输入记录…", "重置用户词典…", "打开猫头鹰配置目录…", "查看诊断日志…", "欢迎与引导…"], in: app)
+    tapMany(["应用配置改动", "迁移旧版输入记录…", "重置用户词典…", "打开猫头鹰配置目录…", "查看诊断日志…", "欢迎与引导…"], in: app)
   }
 
   func testSnippetCategoryFilterKeepsBothKindsAccessible() throws {

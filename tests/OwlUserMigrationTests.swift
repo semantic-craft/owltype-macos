@@ -245,7 +245,6 @@ final class OwlUserMigrationTests: XCTestCase {
 
     let staged = try OwlUserMigrationStage.prepare(
       plan,
-      sourceRoot: root,
       in: rustUserRoot
     )
 
@@ -391,6 +390,83 @@ final class OwlUserMigrationTests: XCTestCase {
     )), Data())
   }
 
+  func testPlanAndStageUseCustomSyncDirectoryWithoutLeakingItsPath() throws {
+    let customSync = root.appendingPathComponent(
+      "Cloud Sync/Owltype",
+      isDirectory: true
+    )
+    let snapshot = try writeSnapshot(
+      installation: "install-a",
+      schema: "rime_ice",
+      baseDirectory: customSync,
+      lines: ["ni hao \t你好\tc=4 d=0 t=1"]
+    )
+    try Data("sync_dir: \"\(customSync.path)\"\n".utf8).write(
+      to: root.appendingPathComponent("installation.yaml")
+    )
+    let resolved = OwlRimeSyncSettings(rimeDir: root).currentSyncDirectory()
+    let plan = try OwlUserMigration.makePlan(
+      userData: root,
+      pinnedWordsData: nil,
+      syncDirectory: resolved
+    )
+
+    XCTAssertEqual(plan.syncDirectory, customSync)
+    XCTAssertEqual(
+      plan.manifest.sources.map(\.path),
+      ["sync/install-a/rime_ice.userdb.txt"]
+    )
+    XCTAssertNil(plan.manifestData.range(of: Data(customSync.path.utf8)))
+
+    let staged = try OwlUserMigrationStage.prepare(plan, in: root)
+    XCTAssertEqual(staged.disposition, .prepared)
+    XCTAssertEqual(staged.recordCount, 1)
+
+    try Data("changed\n".utf8).write(to: snapshot)
+    XCTAssertThrowsError(try OwlUserMigrationStage.prepare(plan, in: root)) { error in
+      XCTAssertEqual(error as? OwlUserMigrationStageError, .sourceChanged)
+    }
+  }
+
+  func testSuccessMessageDisclosesPinsNotRepresentableInRust() {
+    let report = OwlUserMigrationImportReport(
+      ok: true,
+      error: nil,
+      requestID: "owlrime-migrate-\(String(repeating: "0", count: 64))",
+      sourceCount: 0,
+      issueCount: 0,
+      recordCount: 0,
+      entriesWritten: 0,
+      positionsWritten: 0,
+      selectionsWritten: 0,
+      recordsKept: 0,
+      recordsSkipped: 0,
+      userWordsPreserved: 0,
+      pinsTotal: 3,
+      pinsWritten: 1,
+      pinsKept: 0,
+      pinsExternalOnly: 2,
+      habitsTrimmed: 0,
+      warnings: []
+    )
+    let outcome = OwlUserMigrationImportOutcome(
+      report: report,
+      generation: OwlRustResourceGeneration(
+        resourcesURL: root,
+        contentID: "test"
+      ),
+      warnings: []
+    )
+
+    let message = OwlUserMigrationImport.successMessage(
+      outcome,
+      engineRestarted: true
+    )
+
+    XCTAssertTrue(message.contains("2 条置顶仍保留在 owl_pinned_words"), message)
+    XCTAssertTrue(message.contains("每个拼音上下文只能保存一条"), message)
+  }
+
   func testRustImportUsesBundledGenerationAndImportedEntryCanBeTyped() throws {
     let repository = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
@@ -419,7 +495,6 @@ final class OwlUserMigrationTests: XCTestCase {
     )
     let staged = try OwlUserMigrationStage.prepare(
       plan,
-      sourceRoot: root,
       in: rustUserRoot
     )
 
@@ -481,9 +556,11 @@ final class OwlUserMigrationTests: XCTestCase {
     installation: String,
     schema: String,
     relativeDirectory: String? = nil,
+    baseDirectory: URL? = nil,
     lines: [String]
   ) throws -> URL {
-    var directory = root.appendingPathComponent("sync", isDirectory: true)
+    var directory = (baseDirectory
+      ?? root.appendingPathComponent("sync", isDirectory: true))
       .appendingPathComponent(installation, isDirectory: true)
     if let relativeDirectory {
       directory.appendPathComponent(relativeDirectory, isDirectory: true)

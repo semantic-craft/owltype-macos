@@ -90,37 +90,29 @@ struct OwlApp {
     return roots.contains(parent)
   }
 
-  static func makeBuilderTraits() -> OwlEngineTraits {
-    OwlEngineTraits(
-      sharedDataDir: URL(fileURLWithPath: Bundle.main.sharedSupportPath!, isDirectory: true),
-      userDataDir: userDir,
-      logDir: logDir,
-      appName: OwlRimeIdentity.builderAppName
-    )
-  }
+  static let retiredCLIArguments: Set<String> = [
+    "--apply-keyboard-patch",
+    "--build",
+    "--diagnose-rime-config",
+    "--sync",
+  ]
 
-  private static func buildSchemas() {
-    // Notification
-    OwlApplicationDelegate.showMessage(msgText: NSLocalizedString("deploy_update", comment: ""))
-    // Build all schemas into Owltype's own data root — never the process cwd (see makeBuilderTraits).
-    try? OwlPrivateStorage.prepareDirectory(userDir)
-    try? FileManager.default.createDirectory(at: logDir, withIntermediateDirectories: true)
-    let engine = OwlRustEngine()
-    engine.setup(makeBuilderTraits())
-    do {
-      if let sharedSupport = Bundle.main.sharedSupportURL {
-        try OwlPinyinMixedInput.apply(userDir: userDir, sharedDir: sharedSupport)
-        do { try OwlPinyinCandidateDeployment.apply(userDir: userDir, sharedDir: sharedSupport) } catch { fputs("Pinyin candidate priorities unavailable: \(error)\n", stderr) }
-      }
-    } catch {
-      fputs("Failed to configure English candidates: \(error)\n", stderr)
-      exit(1)
+  private static func failRetiredCLI(_ argument: String) -> Never {
+    let replacement: String
+    switch argument {
+    case "--apply-keyboard-patch":
+      replacement = "请在设置窗口修改键盘输入；保存后会直接应用到 Rust 引擎。"
+    case "--build":
+      replacement = "Rust 词库会在 App 启动或“设置 → 维护与诊断 → 应用配置改动”时准备，不再构建 Rime 方案。"
+    case "--diagnose-rime-config":
+      replacement = "Rime 配置诊断已退役；Rust 引擎问题请查看“设置 → 维护与诊断 → 查看诊断日志”。"
+    case "--sync":
+      replacement = "Rust 学习库不提供旧 Rime 同步导出；旧快照请用“迁移旧版输入记录”导入。"
+    default:
+      replacement = "请在设置窗口执行对应操作。"
     }
-    guard engine.startMaintenance(fullCheck: true) else {
-      fputs("Failed to refresh Rust engine resources\n", stderr)
-      exit(1)
-    }
-    engine.finalize()
+    fputs("\(argument) 已退役，未执行。\(replacement)\n", stderr)
+    exit(64)
   }
 
   // swiftlint:disable:next cyclomatic_complexity
@@ -143,15 +135,7 @@ struct OwlApp {
           DistributedNotificationCenter.default().postNotificationName(.init("OwlReloadNotification"), object: nil, userInfo: nil, deliverImmediately: true)
           return true
         case "--apply-keyboard-patch":
-          do {
-            let written = try OwlManagedKeyboardPatchPlan.apply(snapshot: OwlKeyboardSnapshot.current())
-            print("Applied Owltype managed keyboard patch: \(written.joined(separator: ", "))")
-            DistributedNotificationCenter.default().postNotificationName(.init("OwlReloadNotification"), object: nil, userInfo: nil, deliverImmediately: true)
-          } catch {
-            fputs("Failed to apply Owltype managed keyboard patch: \(error)\n", stderr)
-            exit(1)
-          }
-          return true
+          failRetiredCLI("--apply-keyboard-patch")
         case "--register-input-source", "--install":
           installer.register()
           return true
@@ -248,17 +232,7 @@ struct OwlApp {
           }
           return true
         case "--diagnose-rime-config":
-          // 07-07-schema-consistency-guard: read-only schema-consistency diagnosis as JSON — prefs ↔
-          // running-bundle seed ↔ user build/ ↔ user schema_list ↔ default.yaml shadow, plus a
-          // ~/Library/Rime advisory (系统 Rime 目录，猫头鹰不读它) + OWL-SCHEMA-* codes. Never mutates
-          // config. Honours OWL_TEST_USER_DIR so it can be pointed at a drift sample.
-          let rimeConfigEncoder = JSONEncoder()
-          rimeConfigEncoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-          if let data = try? rimeConfigEncoder.encode(OwlRimeConfigDiagnostics.buildReport()),
-             let json = String(data: data, encoding: .utf8) {
-            print(json)
-          }
-          return true
+          failRetiredCLI("--diagnose-rime-config")
         case "--diagnose-tis":
           // W1.4: read-only six-layer TIS diagnosis as JSON (register/enumerate/enable/select/menu/
           // client-attach + OWL-* codes + install identity + data-root + who else claims the
@@ -272,11 +246,9 @@ struct OwlApp {
           }
           return true
         case "--build":
-          buildSchemas()
-          return true
+          failRetiredCLI("--build")
         case "--sync":
-          DistributedNotificationCenter.default().postNotificationName(.init("OwlSyncNotification"), object: nil, userInfo: nil, deliverImmediately: true)
-          return true
+          failRetiredCLI("--sync")
         case "--ascii":
           DistributedNotificationCenter.default().postNotificationName(.init("OwlToggleASCIIModeNotification"), object: "ascii", userInfo: nil, deliverImmediately: true)
           return true
@@ -399,9 +371,6 @@ struct OwlApp {
   Perform actions:
     --quit                     quit all Owltype processes
     --reload                   deploy
-    --apply-keyboard-patch     write Owltype managed keyboard patch, then request deploy
-    --sync                     sync user data
-    --build                    build all schemas into Owltype's user data dir
     --ascii                    turn on ASCII mode
     --nascii                   turn off ASCII mode
     --getascii                 get current ASCII mode status
@@ -415,7 +384,6 @@ struct OwlApp {
     --current-input-source                print the current system input source id
     --detect-activation                   diagnose selected-but-not-enabled dead half-state
     --diagnose-tis                        print read-only six-layer TIS activation diagnosis (JSON)
-    --diagnose-rime-config                print read-only schema-consistency diagnosis (JSON)
     --ui-test-show-settings               open settings without IMK/Rime startup
   """
 }

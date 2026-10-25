@@ -43,6 +43,9 @@ Rime 合并翻译时按质量排序，英文压过中文。原过滤器只把一
 
 ## 验证
 
-[check-pinyin-short-code.py](../scripts/check-pinyin-short-code.py) 用真实 Rime 和固定哈希的英文词典核对：
+当时的 `scripts/check-pinyin-short-code.py` 用真实 Rime 和固定哈希的英文词典核对：
 `di`、`shi`、`nihao` 第一页没有英文且候选不丢不重；`hello`、`dir`、`github` 英文领先；
 `hel`、`gith` 英文在第二位；另用夹具翻译器覆盖“只看第一个英文”、大小写匹配和末尾补位。
+该脚本与 Rime 路径已退役；现行 Rust 中英排序、补全、分页和置顶回归见
+[OwlRustEngineTests](../tests/OwlRustEngineTests.swift) 的
+`testMixedChineseEnglishRankingCompletionPagingPinBackspaceAndLatency`。
