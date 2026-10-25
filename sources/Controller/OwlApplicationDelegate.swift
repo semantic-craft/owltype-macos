@@ -264,6 +264,73 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     }
   }
 
+  /// Imports Rime's stable userdb text snapshots into the Rust journal.
+  ///
+  /// Planning and staging happen before shutdown, so a missing or changing snapshot leaves
+  /// typing untouched. Once shutdown begins, every exit path restarts the engine.
+  func migrateLegacyUserData() -> String {
+    let trace = OwlLatencyTrace.begin("migrate.rimeUserData")
+    defer { OwlLatencyTrace.end("migrate.rimeUserData", trace) }
+    guard engine is OwlRustEngine else {
+      return "当前使用的是旧版 Rime 引擎，不需要迁移到 Rust 学习库。"
+    }
+
+    let userRoot = OwlApp.userDir
+    let rustUserRoot = userRoot.appendingPathComponent("msime-user", isDirectory: true)
+    let staged: OwlUserMigrationStageResult
+    do {
+      let pinsData = try JSONEncoder().encode(OwlPinnedWords.shared.words)
+      let plan = try OwlUserMigration.makePlan(
+        userData: userRoot,
+        pinnedWordsData: pinsData
+      )
+      guard !plan.captures.isEmpty else {
+        return "没有找到旧版稳定快照；请先在旧版猫头鹰执行“同步用户数据”。"
+      }
+      try FileManager.default.createDirectory(
+        at: rustUserRoot,
+        withIntermediateDirectories: true,
+        attributes: [.posixPermissions: 0o700]
+      )
+      staged = try OwlUserMigrationStage.prepare(
+        plan,
+        sourceRoot: userRoot,
+        in: rustUserRoot
+      )
+    } catch {
+      let reason = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+      Self.deployLog.error(
+        "legacy user migration staging FAILED: \(reason, privacy: .public)"
+      )
+      return "迁移准备失败，输入引擎未中断：\(reason)"
+    }
+
+    shutdownRime()
+    let imported = Result {
+      try OwlUserMigrationImport.run(staged, userRoot: userRoot)
+    }
+    let restarted = startRime(fullCheck: true)
+    loadSettings()
+
+    switch imported {
+    case .success(let outcome):
+      Self.deployLog.notice("""
+        legacy user migration succeeded: sources=\(outcome.report.sourceCount, privacy: .public) \
+        records=\(outcome.report.recordCount, privacy: .public) \
+        written=\(outcome.report.entriesWritten, privacy: .public) \
+        pins=\(outcome.report.pinsWritten, privacy: .public) \
+        restart=\(restarted, privacy: .public)
+        """)
+      return OwlUserMigrationImport.successMessage(outcome, engineRestarted: restarted)
+    case .failure(let error):
+      Self.deployLog.error("""
+        legacy user migration FAILED: \(error.localizedDescription, privacy: .public), \
+        restart=\(restarted, privacy: .public)
+        """)
+      return OwlUserMigrationImport.failureMessage(error, engineRestarted: restarted)
+    }
+  }
+
   /// 备份目录名用的文件系统安全时间戳。只在用户显式点击时调用，故直接读 `Date()`。
   private static func backupTimestamp() -> String {
     let formatter = DateFormatter()
@@ -495,6 +562,10 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
         self?.syncUserData()
         state.statusMessage = NSLocalizedString("已请求同步用户数据。", comment: "sync user data")
       },
+      onMigrateLegacyUserData: { [weak self] in
+        guard let self, OwlUserMigrationPrompt.confirm() else { return }
+        state.statusMessage = self.migrateLegacyUserData()
+      },
       onResetUserDict: { [weak self] in
         guard let self, OwlUserDictResetPrompt.confirm() else { return }
         state.statusMessage = self.resetUserDict()
@@ -538,6 +609,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       onApplyKeyboardConfigFast: { .init(written: [], succeeded: true) },
       onApplyFuzzyConfigFast: { .init(written: [], succeeded: true) },
       onSyncUserData: {},
+      onMigrateLegacyUserData: {},
       onResetUserDict: {},
       onChooseSyncDirectory: {},
       onOpenRimeFolder: {},

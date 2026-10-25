@@ -37,6 +37,8 @@ struct OwlSettingsView: View {
   let onApplyFuzzyConfigFast: () throws -> OwlKeyboardSettingsApplication.Outcome
   /// 同步用户数据 → delegate `syncUserData()`.
   let onSyncUserData: () -> Void
+  /// 迁移旧版输入记录 → delegate `migrateLegacyUserData()`.
+  let onMigrateLegacyUserData: () -> Void
   /// 重置用户词典… → delegate-owned 确认弹窗 + `resetUserDict()`（备份 → 删 userdb → 重新部署）。
   let onResetUserDict: () -> Void
   /// 设置同步目录 → delegate-owned NSOpenPanel + installation.yaml write.
@@ -355,6 +357,7 @@ struct OwlSettingsView: View {
         }
         actionButton(title: OwlInputMenuTitles.syncDirectory, systemImage: "folder.badge.gearshape", action: onChooseSyncDirectory)
         actionButton(title: OwlInputMenuTitles.syncUserData, systemImage: "arrow.triangle.2.circlepath.icloud", action: onSyncUserData)
+        actionButton(title: OwlInputMenuTitles.migrateLegacyUserData, systemImage: "arrow.right.arrow.left.square", action: onMigrateLegacyUserData)
         actionButton(title: OwlInputMenuTitles.resetUserDict, systemImage: "trash", action: onResetUserDict)
         actionButton(title: OwlInputMenuTitles.rimeConfig, systemImage: "folder", action: onOpenRimeFolder)
         actionButton(title: OwlInputMenuTitles.logs, systemImage: "doc.text.magnifyingglass", action: onOpenLog)

@@ -70,6 +70,30 @@ OwlMsimeSession *owl_msime_session_create_with_generation(
 
 void owl_msime_session_destroy(OwlMsimeSession *session);
 
+/*
+ * Imports one fully prepared Owltype Rime migration into four exact runtime
+ * roots. request_id must name an existing
+ * <user_data_dir>/.owl-user-migration/<request_id> directory containing the
+ * manifest, record stream and prepared marker written by the Swift stager.
+ *
+ * The caller must stop sessions that use these roots before this call. The
+ * four roots and the staged directory are never deleted or rewritten by a
+ * failed import. Dictionary and learning-habit changes are rolled back from a
+ * database snapshot if either merge fails.
+ *
+ * Returns a newly allocated UTF-8 JSON report. Success is
+ * {"ok":true,...}; failure is {"ok":false,"error":"..."}. Release the result
+ * with owl_msime_string_free. A malformed argument or caller invariant returns
+ * a failure report rather than NULL whenever the report can be serialized.
+ */
+char *owl_msime_user_migration_import(
+    const char *resources_dir,
+    const char *user_data_dir,
+    const char *cache_dir,
+    const char *dictionaries_dir,
+    const char *request_id
+);
+
 char *owl_msime_session_handle_action_json(
     OwlMsimeSession *session,
     const char *action_json

@@ -26,8 +26,10 @@ use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 
 mod punctuation_menu;
+mod user_migration;
 
 use punctuation_menu::PunctuationMenu;
+pub use user_migration::owl_msime_user_migration_import;
 
 #[derive(Default)]
 struct OwlPinnedState {

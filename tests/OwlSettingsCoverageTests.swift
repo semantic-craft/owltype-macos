@@ -78,6 +78,7 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "OwlInputMenuTitles.resetUserDict",
     "OwlInputMenuTitles.syncDirectory",
     "OwlInputMenuTitles.syncUserData",
+    "OwlInputMenuTitles.migrateLegacyUserData",
     "https 端点",
     // 辅助功能权限：状态即入口的单一按钮，accessibilityLabel 随授权态切换。
     "辅助功能已授权，点此打开权限设置",
