@@ -24,6 +24,8 @@ SPEC.loader.exec_module(CHECKER)
 
 VALID_SOURCE = """
 #include <stddef.h>
+#include <stdbool.h>
+bool owl_msime_engine_finalize(void) { return true; }
 void *owl_msime_session_create_with_generation(void) { return NULL; }
 char *owl_msime_session_handle_action_json(void) { return NULL; }
 void owl_msime_string_free(char *value) { (void)value; }

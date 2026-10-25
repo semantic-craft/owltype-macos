@@ -244,7 +244,7 @@ protocol RimeEngine: AnyObject {
   func deployConfigFile(_ fileName: String, versionKey: String) -> Bool
   func setNotificationHandler(_ handler: @escaping RimeNotificationHandler)
   func cleanupAllSessions()
-  func finalize()
+  func finalize() -> Bool
   func schemaList() -> [(id: String, name: String)]
   func currentSchema() -> String
   func selectSchema(_ id: String) -> Bool

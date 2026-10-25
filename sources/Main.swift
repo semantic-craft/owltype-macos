@@ -360,7 +360,7 @@ struct OwlApp {
       app.run()
       print("Owltype is quitting...")
       if !runningUnitTests {
-        delegate.engine.finalize()
+        _ = delegate.engine.finalize()
       }
     }
     return

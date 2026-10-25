@@ -6,7 +6,7 @@ use std::fs;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 use std::ptr;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
 use msime_engine::host::{
     check_shuangpin_custom_profile, prepare_options, Command, EngineOptions, HelpcodeKeymap,
@@ -2216,6 +2216,12 @@ fn live_sessions() -> &'static Mutex<HashSet<usize>> {
     LIVE.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
+/// Serializes process-wide cache teardown against session creation and destruction.
+fn session_lifecycle() -> &'static RwLock<()> {
+    static LIFECYCLE: OnceLock<RwLock<()>> = OnceLock::new();
+    LIFECYCLE.get_or_init(|| RwLock::new(()))
+}
+
 fn is_live_session(ptr: *const OwlMsimeSession) -> bool {
     if ptr.is_null() {
         return false;
@@ -2245,15 +2251,19 @@ pub extern "C" fn owl_msime_session_create(
     page_size: u32,
 ) -> *mut OwlMsimeSession {
     catch_unwind(AssertUnwindSafe(|| {
+        let _lifecycle = session_lifecycle()
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let pinyin = cstr_to_string(pinyin_db_path).unwrap_or_default();
         let english = cstr_to_string(english_db_path).unwrap_or_default();
         let user = cstr_to_string(user_data_dir).unwrap_or_default();
         match OwlMsimeSession::create(&pinyin, &english, &user, page_size) {
             Ok(session) => {
                 let raw = Box::into_raw(Box::new(session));
-                if let Ok(mut set) = live_sessions().lock() {
-                    set.insert(raw as usize);
-                }
+                live_sessions()
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .insert(raw as usize);
                 raw
             }
             Err(_) => ptr::null_mut(),
@@ -2278,6 +2288,9 @@ pub extern "C" fn owl_msime_session_create_with_roots(
             *error_out = ptr::null_mut();
         }
     }
+    let lifecycle = session_lifecycle()
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let created = catch_unwind(AssertUnwindSafe(|| {
         let pinyin = cstr_to_string(pinyin_db_path).unwrap_or_default();
         let english = cstr_to_string(english_db_path).unwrap_or_default();
@@ -2295,12 +2308,13 @@ pub extern "C" fn owl_msime_session_create_with_roots(
             page_size,
         )
     }));
-    match created {
+    let session = match created {
         Ok(Ok(session)) => {
             let raw = Box::into_raw(Box::new(session));
-            if let Ok(mut set) = live_sessions().lock() {
-                set.insert(raw as usize);
-            }
+            live_sessions()
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .insert(raw as usize);
             raw
         }
         Ok(Err(message)) => {
@@ -2311,7 +2325,9 @@ pub extern "C" fn owl_msime_session_create_with_roots(
             store_ffi_error(error_out, "panic in session creation with explicit roots");
             ptr::null_mut()
         }
-    }
+    };
+    drop(lifecycle);
+    session
 }
 
 #[no_mangle]
@@ -2328,6 +2344,9 @@ pub extern "C" fn owl_msime_session_create_with_generation(
             *error_out = ptr::null_mut();
         }
     }
+    let lifecycle = session_lifecycle()
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let created = catch_unwind(AssertUnwindSafe(|| {
         let resources = cstr_to_string(resources_dir).unwrap_or_default();
         let user = cstr_to_string(user_data_dir).unwrap_or_default();
@@ -2335,12 +2354,13 @@ pub extern "C" fn owl_msime_session_create_with_generation(
         let content_id = cstr_to_string(content_id).unwrap_or_default();
         OwlMsimeSession::create_with_generation(&resources, &user, &cache, &content_id, page_size)
     }));
-    match created {
+    let session = match created {
         Ok(Ok(session)) => {
             let raw = Box::into_raw(Box::new(session));
-            if let Ok(mut set) = live_sessions().lock() {
-                set.insert(raw as usize);
-            }
+            live_sessions()
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .insert(raw as usize);
             raw
         }
         Ok(Err(message)) => {
@@ -2351,26 +2371,50 @@ pub extern "C" fn owl_msime_session_create_with_generation(
             store_ffi_error(error_out, "panic in session creation with generation");
             ptr::null_mut()
         }
-    }
+    };
+    drop(lifecycle);
+    session
 }
 
 #[no_mangle]
 pub extern "C" fn owl_msime_session_destroy(session: *mut OwlMsimeSession) {
     let _ = catch_unwind(AssertUnwindSafe(|| {
-        if !session.is_null() {
-            let was_live = live_sessions()
-                .lock()
-                .map(|mut set| set.remove(&(session as usize)))
-                .unwrap_or(false);
-            if was_live {
-                let session_ref = unsafe { &mut *session };
-                session_ref.rerank.invalidate(&mut session_ref.runtime);
-                unsafe {
-                    drop(Box::from_raw(session));
-                }
+        let _lifecycle = session_lifecycle()
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut set = live_sessions()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if !session.is_null() && set.remove(&(session as usize)) {
+            let session_ref = unsafe { &mut *session };
+            session_ref.rerank.invalidate(&mut session_ref.runtime);
+            unsafe {
+                drop(Box::from_raw(session));
             }
         }
     }));
+}
+
+/// Closes process-wide database caches after every session has been destroyed.
+///
+/// Returns false without touching any cache while a session is live. Returns true after
+/// `msime_engine::close_cached_databases` completes, and is safe to call repeatedly.
+#[no_mangle]
+pub extern "C" fn owl_msime_engine_finalize() -> bool {
+    catch_unwind(AssertUnwindSafe(|| {
+        let _lifecycle = session_lifecycle()
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let sessions = live_sessions()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if !sessions.is_empty() {
+            return false;
+        }
+        msime_engine::close_cached_databases();
+        true
+    }))
+    .unwrap_or(false)
 }
 
 #[no_mangle]

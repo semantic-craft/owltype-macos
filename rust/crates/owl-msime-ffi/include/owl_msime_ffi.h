@@ -123,6 +123,14 @@ OwlMsimeSession *owl_msime_session_create_with_generation(
 void owl_msime_session_destroy(OwlMsimeSession *session);
 
 /*
+ * Releases process-wide journal, personal-context and local-mode database
+ * connections. Destroy every session first. While any session remains live,
+ * this returns false without changing a cache. Once all sessions are gone it
+ * closes the caches and returns true. Repeated calls are safe.
+ */
+bool owl_msime_engine_finalize(void);
+
+/*
  * Imports one fully prepared Owltype Rime migration into four exact runtime
  * roots. request_id must name an existing
  * <user_data_dir>/.owl-user-migration/<request_id> directory containing the

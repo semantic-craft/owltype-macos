@@ -208,7 +208,10 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     defer { OwlLatencyTrace.end("deploy.full", trace) }
     print("Start maintenance...")
     OwlLatencyTrace.event("deploy.maintenanceStart")
-    self.shutdownRime()
+    guard self.shutdownRime() else {
+      Self.deployLog.error("deploy BLOCKED: Rust engine still has live sessions")
+      return false
+    }
     let ok = self.startRime(fullCheck: true)
     OwlLatencyTrace.event("deploy.restoreSettings")
     self.loadSettings()
@@ -230,7 +233,12 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     let trace = OwlLatencyTrace.begin("reset.userDict")
     defer { OwlLatencyTrace.end("reset.userDict", trace) }
     Self.deployLog.notice("reset Rust user dictionary requested")
-    shutdownRime()
+    guard shutdownRime() else {
+      Self.deployLog.error(
+        "reset user dict BLOCKED: Rust engine still has live sessions; no data deleted"
+      )
+      return "重置失败：Rust 引擎仍有活动会话，未删除用户词典。请重新打开猫头鹰后再试。"
+    }
 
     let result = Result {
       try OwlUserDictReset.run(root: OwlApp.userDir, timestamp: Self.backupTimestamp())
@@ -296,7 +304,12 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       return "迁移准备失败，输入引擎未中断：\(reason)"
     }
 
-    shutdownRime()
+    guard shutdownRime() else {
+      Self.deployLog.error(
+        "legacy user migration BLOCKED: Rust engine still has live sessions; nothing imported"
+      )
+      return "迁移失败：Rust 引擎仍有活动会话，未写入迁移数据。请重新打开猫头鹰后再试。"
+    }
     let imported = Result {
       try OwlUserMigrationImport.run(staged, userRoot: userRoot)
     }
@@ -1081,7 +1094,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
 
   func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
     print("Owltype is quitting.")
-    engine.cleanupAllSessions()
+    _ = engine.finalize()
     return .terminateNow
   }
 
@@ -1190,15 +1203,16 @@ private extension OwlApplicationDelegate {
     }
   }
 
-  func shutdownRime() {
+  @discardableResult
+  func shutdownRime() -> Bool {
     OwlLatencyTrace.event("deploy.rimeFinalize")
     config?.close()
-    engine.finalize()
+    return engine.finalize()
   }
 
   func workspaceWillPowerOff(_: Notification) {
     print("Finalizing before logging out.")
-    self.shutdownRime()
+    _ = self.shutdownRime()
   }
 
   @objc func rimeNeedsReload(_: Notification) {
