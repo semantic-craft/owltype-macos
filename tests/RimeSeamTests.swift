@@ -229,6 +229,7 @@ final class FakeRimeEngine: RimeEngine {
   var startMaintenanceResult: Bool
   var deployConfigFileResult: Bool
   var syncUserDataResult: Bool
+  var finalizeResult: Bool
   var selectSchemaResult: Bool
 
   private(set) var setupCount = 0
@@ -254,6 +255,7 @@ final class FakeRimeEngine: RimeEngine {
     startMaintenanceResult: Bool = true,
     deployConfigFileResult: Bool = true,
     syncUserDataResult: Bool = true,
+    finalizeResult: Bool = true,
     selectSchemaResult: Bool = true
   ) {
     self.vendedSession = vendedSession
@@ -263,6 +265,7 @@ final class FakeRimeEngine: RimeEngine {
     self.startMaintenanceResult = startMaintenanceResult
     self.deployConfigFileResult = deployConfigFileResult
     self.syncUserDataResult = syncUserDataResult
+    self.finalizeResult = finalizeResult
     self.selectSchemaResult = selectSchemaResult
   }
 
@@ -284,7 +287,10 @@ final class FakeRimeEngine: RimeEngine {
   }
   func syncUserData() -> Bool { syncUserDataResult }
   func cleanupAllSessions() { cleanupAllSessionsCount += 1 }
-  func finalize() { finalizeCount += 1 }
+  func finalize() -> Bool {
+    finalizeCount += 1
+    return finalizeResult
+  }
   func schemaList() -> [(id: String, name: String)] { scriptedSchemaList }
   func currentSchema() -> String { scriptedCurrentSchema }
   func selectSchema(_ id: String) -> Bool {
@@ -935,7 +941,7 @@ final class RimeSeamTests: XCTestCase {
     XCTAssertEqual(engine.selectedSchemas, ["wubi86_jidian"])
 
     engine.cleanupAllSessions()
-    engine.finalize()
+    XCTAssertTrue(engine.finalize())
     XCTAssertEqual(engine.cleanupAllSessionsCount, 1)
     XCTAssertEqual(engine.finalizeCount, 1)
   }

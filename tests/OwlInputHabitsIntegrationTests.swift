@@ -29,7 +29,7 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
         appName: OwlRimeIdentity.appName
       )
     )
-    defer { engine.cleanupAllSessions(); engine.finalize() }
+    defer { engine.cleanupAllSessions(); _ = engine.finalize() }
     XCTAssertTrue(engine.startMaintenance(fullCheck: true))
     engine.joinMaintenance()
     let delegate = NSApp.owlAppDelegate

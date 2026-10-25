@@ -120,7 +120,10 @@ struct OwlApp {
       fputs("Failed to refresh Rust engine resources\n", stderr)
       exit(1)
     }
-    engine.finalize()
+    guard engine.finalize() else {
+      fputs("Rust engine still has live sessions; cache teardown failed\n", stderr)
+      exit(1)
+    }
   }
 
   // swiftlint:disable:next cyclomatic_complexity
@@ -388,7 +391,7 @@ struct OwlApp {
       app.run()
       print("Owltype is quitting...")
       if !runningUnitTests {
-        delegate.engine.finalize()
+        _ = delegate.engine.finalize()
       }
     }
     return

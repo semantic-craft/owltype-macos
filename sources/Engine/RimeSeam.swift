@@ -245,7 +245,7 @@ protocol RimeEngine: AnyObject {
   func setNotificationHandler(_ handler: @escaping RimeNotificationHandler)
   func syncUserData() -> Bool
   func cleanupAllSessions()
-  func finalize()
+  func finalize() -> Bool
   func schemaList() -> [(id: String, name: String)]
   func currentSchema() -> String
   func selectSchema(_ id: String) -> Bool

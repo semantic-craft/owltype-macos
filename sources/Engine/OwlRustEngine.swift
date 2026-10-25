@@ -1146,9 +1146,9 @@ final class OwlRustEngine: RimeEngine {
     sessions.removeValue(forKey: id)
   }
 
-  func finalize() {
+  func finalize() -> Bool {
     cleanupAllSessions()
-    _ = owl_msime_engine_finalize()
+    return owl_msime_engine_finalize()
   }
 
   func schemaList() -> [(id: String, name: String)] {
