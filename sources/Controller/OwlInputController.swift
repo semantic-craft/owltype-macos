@@ -181,10 +181,11 @@ final class OwlInputController: IMKInputController {
 
     case let .flagsChanged(capsLockRevert, events, updateLastModifiers, handled):
       // print("[DEBUG] FLAGSCHANGED modifiers: \(updateLastModifiers)")
+      var capsLockHandled = false
       OwlAutomaticExpansionControllerEntry.processModifiers(pending: automaticRecognizer.buffer,
         finishSemicolon: { finishAutomaticExpansion(replaySemicolon: true) }, process: {
         if let revert = capsLockRevert {
-          _ = processKey(revert.keycode, modifiers: revert.modifiers)
+          capsLockHandled = processKey(revert.keycode, modifiers: revert.modifiers)
         }
         for event in events {
           _ = processKey(event.keycode, modifiers: event.modifiers)
@@ -193,8 +194,9 @@ final class OwlInputController: IMKInputController {
       lastModifiers = updateLastModifiers
       if !refreshAutomaticExpansionAfterModifiers() { rimeUpdate() }
       // `handled` mirrors the original: true only for the couldn't-infer bail; false on the
-      // normal modifier path so the host app still receives the modifier event.
-      return handled
+      // normal modifier path so the host app still receives the modifier event. Caps Lock may
+      // additionally be consumed by the session when good_old_caps_lock is off.
+      return handled || capsLockHandled
 
     case let .keyDown(rimeKeycode, rimeModifiers):
       invalidateSettledRerankForAction()
