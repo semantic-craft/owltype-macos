@@ -63,6 +63,10 @@ struct OwlDictPackCenterRustBackend: Sendable {
   }
 }
 
+typealias OwlDictPackLiveSessionRefresh = @MainActor (
+  _ completion: @escaping @MainActor () -> Void
+) -> Bool
+
 @Observable
 @MainActor
 final class OwlDictPackCenter {
@@ -71,6 +75,9 @@ final class OwlDictPackCenter {
   private(set) var status: OwlDictPackStatus = .notInstalled
   private(set) var preparedCandidate: OwlDictPackCandidate?
   private(set) var rollbackTargetVersion: Int?
+  /// The transaction is committed, but the active session is waiting for its current
+  /// composition to finish before it can switch without dropping selected phrase progress.
+  private(set) var isAwaitingLiveSessionRefresh = false
   let usesRustResources: Bool
 
   private var running = false
@@ -79,6 +86,7 @@ final class OwlDictPackCenter {
   private let rustBackend: OwlDictPackCenterRustBackend
   private let makeFetcher: () -> OwlDictPackFetcher
   private let deploy: @MainActor @Sendable () -> Bool
+  private let liveSessionRefresh: OwlDictPackLiveSessionRefresh
 
   private enum FailedOperation {
     case prepare
@@ -94,6 +102,9 @@ final class OwlDictPackCenter {
     },
     deploy: @escaping @MainActor @Sendable () -> Bool = {
       NSApp.owlAppDelegate.deploy()
+    },
+    liveSessionRefresh: @escaping OwlDictPackLiveSessionRefresh = { completion in
+      NSApp.owlAppDelegate.requestLiveSessionRefreshWhenIdle(completion: completion)
     }
   ) {
     self.usesRustResources = usesRustResources ?? (
@@ -102,6 +113,7 @@ final class OwlDictPackCenter {
     self.rustBackend = rustBackend
     self.makeFetcher = makeFetcher
     self.deploy = deploy
+    self.liveSessionRefresh = liveSessionRefresh
   }
 
   func refresh() {
@@ -340,6 +352,7 @@ final class OwlDictPackCenter {
     let current = result.state.current
     status = .installed(version: current.manifest.version)
     rollbackTargetVersion = result.state.previous?.manifest.version
+    scheduleLiveSessionRefresh()
     OwlDictPackPrompt.log.log(
       "activated Rust dict-pack generation v\(current.manifest.version, privacy: .public); no Rime deploy"
     )
@@ -352,9 +365,20 @@ final class OwlDictPackCenter {
     preparedCandidate = nil
     status = .installed(version: state.current.manifest.version)
     rollbackTargetVersion = state.previous?.manifest.version
+    scheduleLiveSessionRefresh()
     OwlDictPackPrompt.log.log(
       "rolled back Rust dict-pack generation to v\(state.current.manifest.version, privacy: .public); no Rime deploy"
     )
+  }
+
+  private func scheduleLiveSessionRefresh() {
+    isAwaitingLiveSessionRefresh = true
+    let deferred = liveSessionRefresh { [weak self] in
+      self?.isAwaitingLiveSessionRefresh = false
+    }
+    if !deferred {
+      isAwaitingLiveSessionRefresh = false
+    }
   }
 
   private func refreshRustStatus() {

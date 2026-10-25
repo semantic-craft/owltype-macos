@@ -434,11 +434,13 @@ struct OwlOnboardingView: View {
             .font(.system(size: 13))
             .foregroundStyle(palette.ink2)
           Spacer(minLength: 8)
-        case .installed:
+        case .installed(let version):
           Image(systemName: "checkmark.circle.fill")
             .font(.system(size: 16))
             .foregroundStyle(Color.green)
-          Text("完整词库已就绪")
+          Text(center.isAwaitingLiveSessionRefresh
+            ? "完整词库 v\(version) 已启用；当前输入完成后自动生效"
+            : "完整词库已就绪")
             .font(.system(size: 13))
             .foregroundStyle(palette.ink)
           Spacer(minLength: 8)

@@ -68,6 +68,10 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   /// freshly-deployed `build/` (a fresh session reads the new config; a same-id reselect does
   /// NOT, which was the page_size-not-applying bug). Off the IMK keystroke hot path.
   let liveControllers = NSHashTable<OwlInputController>.weakObjects()
+  /// Resource activation changes the generation read by `createSession()`, not an existing
+  /// session. These completions are drained at an idle composition boundary so enabling or
+  /// rolling back a dict-pack never discards a partially selected phrase.
+  var liveSessionRefreshCompletions: [@MainActor () -> Void] = []
 
   /// Register a controller as live (idempotent — `NSHashTable` ignores duplicates). Called by
   /// the controller from `createSession` / `showPanel`. Off the IMK keystroke hot path.

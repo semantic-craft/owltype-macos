@@ -192,6 +192,11 @@ extension OwlInputController {
       hidePalettes()
       MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.emitCleared() }
     }
+    // This is the normal idle boundary after a key or candidate selection. The delegate is a
+    // no-op unless a resource-generation switch is queued.
+    MainActor.assumeIsolated {
+      NSApp.owlAppDelegate.applyPendingLiveSessionRefreshIfIdle()
+    }
   }
 
   func commit(string: String) {

@@ -235,7 +235,9 @@ struct OwlKeyboardPage: View {
             Image(systemName: "checkmark.circle.fill")
               .font(.system(size: 13))
               .foregroundStyle(OwlProvenanceColor.verified)
-            Text("完整词库已安装（v\(version)）")
+            Text(center.isAwaitingLiveSessionRefresh
+              ? "完整词库 v\(version) 已启用；当前输入完成后自动生效"
+              : "完整词库已安装（v\(version)）")
               .font(.system(size: 12, weight: .medium))
               .foregroundStyle(palette.ink3)
             Spacer(minLength: 8)

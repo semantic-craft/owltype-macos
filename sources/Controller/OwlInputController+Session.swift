@@ -170,10 +170,21 @@ extension OwlInputController {
     clearChord()
   }
 
-  /// Fast settings-apply re-entry (Track 2, PR3; live-session-reload rewrite, 2026-06-22). Runs
-  /// OUTSIDE the IMK keystroke hot path — called by `OwlApplicationDelegate.reapplyToLiveSession()`
-  /// for every LIVE controller after a `deploy_config_file` refreshed the compiled `build/`,
-  /// never from `handle`/`processKey`.
+  /// Resource-generation switches cannot use `rawInput` replay: Rust keeps partially selected
+  /// phrase progress outside that string. The generation handoff therefore waits for an idle
+  /// composition instead of recreating this session mid-selection.
+  var hasInFlightComposition: Bool {
+    guard let rime, rime.isValid else { return false }
+    if let input = rime.input(), !input.isEmpty { return true }
+    guard let composition = rime.composition() else { return false }
+    return !composition.preedit.isEmpty
+  }
+
+  /// Fast settings-apply re-entry (Track 2, PR3; live-session-reload rewrite, 2026-06-22).
+  /// Called for every LIVE controller after a `deploy_config_file` refreshed the compiled
+  /// `build/`, or for a queued Rust generation switch after the last live session becomes idle.
+  /// The latter reaches this code only from an outermost `rimeUpdate` / next-key boundary, never
+  /// from the middle of `handle` / `processKey`.
   ///
   /// WHY destroy rather than `select_schema(sameId)`: a same-id reselect does NOT force librime
   /// to rebuild the cached `Schema` for that id, so the running session kept the OLD

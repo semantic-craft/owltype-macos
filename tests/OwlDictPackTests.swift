@@ -500,6 +500,7 @@ final class OwlDictPackCenterTests: XCTestCase {
       rolledBackState: rolledBackState
     )
     let deployRecorder = OwlDictPackDeployRecorder()
+    let refreshRecorder = OwlDictPackLiveSessionRefreshRecorder(deferred: true)
     let backend = OwlDictPackCenterRustBackend(
       environment: OwlRustResourceEnvironment.production(userRoot: root),
       prepare: { _, progress in
@@ -516,7 +517,8 @@ final class OwlDictPackCenterTests: XCTestCase {
     let center = OwlDictPackCenter(
       usesRustResources: true,
       rustBackend: backend,
-      deploy: { deployRecorder.deploy() }
+      deploy: { deployRecorder.deploy() },
+      liveSessionRefresh: refreshRecorder.schedule
     )
 
     center.start()
@@ -538,6 +540,8 @@ final class OwlDictPackCenterTests: XCTestCase {
     let activateCalls = await calls.activateCalls
     XCTAssertEqual(activateCalls, 1)
     XCTAssertEqual(center.rollbackTargetVersion, 6)
+    XCTAssertTrue(center.isAwaitingLiveSessionRefresh)
+    XCTAssertEqual(refreshRecorder.calls, 1)
     XCTAssertEqual(deployRecorder.calls, 0, "Rust activation must not invoke Rime deploy")
 
     center.rollback()
@@ -546,7 +550,144 @@ final class OwlDictPackCenterTests: XCTestCase {
     let rollbackCalls = await calls.rollbackCalls
     XCTAssertEqual(rollbackCalls, 1)
     XCTAssertNil(center.rollbackTargetVersion)
+    XCTAssertTrue(center.isAwaitingLiveSessionRefresh)
+    XCTAssertEqual(refreshRecorder.calls, 2)
     XCTAssertEqual(deployRecorder.calls, 0, "Rust rollback must not invoke Rime deploy")
+
+    refreshRecorder.finish()
+    XCTAssertFalse(center.isAwaitingLiveSessionRefresh)
+  }
+
+  func testRustActivationWaitsForPartialSelectionToFinishBeforeSwitchingSessions() async throws {
+    let root = FileManager.default.temporaryDirectory
+      .appending(component: "owl-dictpack-idle-refresh-\(UUID().uuidString)", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let previous = fixtureRecord(version: 6, seed: "b")
+    let current = fixtureRecord(version: 7, seed: "a")
+    let activeState = OwlRustResourceActiveState(
+      schemaVersion: 1,
+      inputKind: .pinyinWubi,
+      current: current,
+      previous: previous,
+      activatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let prepared = OwlRustDictPackPreparedResources(
+      resource: OwlRustResourcePrepared(record: current, previousGenerationId: previous.generationId),
+      stats: OwlRustResourceBuildStats(
+        pinyinEntries: 21,
+        wubiEntries: 22,
+        englishEntries: 23,
+        rejectedPinyinEntries: 1,
+        rejectedWubiEntries: 2,
+        rejectedEnglishEntries: 3
+      )
+    )
+    let backend = OwlDictPackCenterRustBackend(
+      environment: OwlRustResourceEnvironment.production(userRoot: root),
+      prepare: { _, _ in prepared },
+      activate: { _, _ in
+        OwlRustResourceInstallResult(disposition: .installed, state: activeState)
+      },
+      rollback: { _, _ in
+        XCTFail("rollback is not part of this activation path")
+        return activeState
+      }
+    )
+    let deployRecorder = OwlDictPackDeployRecorder()
+
+    let delegate = NSApp.owlAppDelegate
+    let previousEngine = delegate.engine
+    let previousActive = delegate.activeInputController
+    delegate.engine = FakeRimeEngine()
+    let active = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    let background = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    active.destroySession()
+    background.destroySession()
+    defer {
+      delegate.liveControllers.remove(active)
+      delegate.liveControllers.remove(background)
+      delegate.activeInputController = previousActive
+      delegate.engine = previousEngine
+      _ = delegate.applyPendingLiveSessionRefreshIfIdle()
+    }
+
+    let partialSelection = RimeComposition(
+      preedit: "西te'le",
+      selStart: 3,
+      selEnd: 9,
+      cursorPos: 9,
+      commitTextPreview: "西特乐",
+      candidates: [RimeCandidate(text: "西特乐", comment: "xi'te'le")],
+      labels: ["1"],
+      pageNo: 0,
+      pageSize: 1,
+      isLastPage: true,
+      highlightedIndex: 0,
+      numCandidates: 1
+    )
+    let activeOld = FakeRimeSession(
+      sessionID: 10,
+      composition: partialSelection,
+      input: "te'le"
+    )
+    let backgroundOld = FakeRimeSession(
+      sessionID: 20,
+      composition: partialSelection,
+      input: "te'le"
+    )
+    let activeFresh = FakeRimeSession(sessionID: 11)
+    let engine = FakeRimeEngine(vendedSession: activeFresh)
+    delegate.engine = engine
+
+    active.rime = activeOld
+    active.schemaId = "rime_ice"
+    active.preedit = "西te'le"
+    background.rime = backgroundOld
+    background.schemaId = "rime_ice"
+    delegate.registerLiveController(active)
+    delegate.registerLiveController(background)
+    delegate.activeInputController = active
+
+    let center = OwlDictPackCenter(
+      usesRustResources: true,
+      rustBackend: backend,
+      deploy: { deployRecorder.deploy() }
+    )
+    center.start()
+    try await waitUntil { center.status == .prepared(version: 7) }
+    center.activatePrepared()
+    try await waitUntil { center.status == .installed(version: 7) }
+
+    XCTAssertTrue(center.isAwaitingLiveSessionRefresh)
+    XCTAssertFalse(activeOld.destroyed, "an in-flight partial selection must not be torn down")
+    XCTAssertFalse(backgroundOld.destroyed, "all live sessions wait for the active composition")
+    XCTAssertEqual(engine.createdSessionCount, 0)
+    XCTAssertEqual(deployRecorder.calls, 0)
+
+    activeOld.scriptedInput = ""
+    activeOld.scriptedComposition = nil
+    active.preedit = ""
+    active.rimeUpdate()
+
+    XCTAssertFalse(activeOld.destroyed, "an unfinished background session must also block the handoff")
+    XCTAssertFalse(backgroundOld.destroyed)
+    XCTAssertEqual(engine.createdSessionCount, 0)
+    XCTAssertTrue(center.isAwaitingLiveSessionRefresh)
+
+    backgroundOld.scriptedInput = ""
+    backgroundOld.scriptedComposition = nil
+    // A stale UI preedit is not source of truth: the underlying session is idle.
+    background.preedit = "stale"
+    active.rimeUpdate()
+
+    XCTAssertTrue(activeOld.destroyed)
+    XCTAssertTrue(backgroundOld.destroyed)
+    XCTAssertEqual(engine.createdSessionCount, 1, "only the active controller is eagerly recreated")
+    XCTAssertTrue(activeFresh.processedKeys.isEmpty, "the idle handoff must not replay stale raw input")
+    XCTAssertFalse(center.isAwaitingLiveSessionRefresh)
+    XCTAssertEqual(deployRecorder.calls, 0)
   }
 
   private func waitUntil(
@@ -628,6 +769,35 @@ private final class OwlDictPackDeployRecorder {
   func deploy() -> Bool {
     calls += 1
     return true
+  }
+}
+
+@MainActor
+private final class OwlDictPackLiveSessionRefreshRecorder {
+  private(set) var calls = 0
+  private let deferred: Bool
+  private var completions: [@MainActor () -> Void] = []
+
+  init(deferred: Bool) {
+    self.deferred = deferred
+  }
+
+  func schedule(completion: @escaping @MainActor () -> Void) -> Bool {
+    calls += 1
+    guard deferred else {
+      completion()
+      return false
+    }
+    completions.append(completion)
+    return true
+  }
+
+  func finish() {
+    let pending = completions
+    completions.removeAll()
+    for completion in pending {
+      completion()
+    }
   }
 }
 

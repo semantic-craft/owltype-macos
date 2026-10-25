@@ -124,6 +124,11 @@ final class OwlInputController: IMKInputController {
         return false
       }
     }
+    // A Rust resource switch that arrived mid-composition is queued. If the host or a
+    // previous command already completed it, switch before this key reaches the old session.
+    MainActor.assumeIsolated {
+      NSApp.owlAppDelegate.applyPendingLiveSessionRefreshIfIdle()
+    }
 
     if let incoming = sender as? IMKTextInput, let previous = self.client, incoming !== previous {
       // The old field is no longer the target; never recover into the new field.
