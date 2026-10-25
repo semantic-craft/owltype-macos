@@ -519,13 +519,13 @@ final class OwlRustEngineTests: XCTestCase {
     try FileManager.default.createDirectory(at: userDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: userDir) }
 
-    let quickSendContent = "user@example.com\tyx\t1000000\n"
+    let quickSendContent = "user@example.com\tyx\t100000\n"
     try quickSendContent.write(
       to: userDir.appendingPathComponent(OwlQuickSendStore.dictFileName),
       atomically: true,
       encoding: .utf8
     )
-    let promptContent = "📝周报生成\tzb\t1000000\n"
+    let promptContent = "📝周报生成\tzb\t100000\n"
     try promptContent.write(
       to: userDir.appendingPathComponent(OwlPromptStore.dictFileName),
       atomically: true,
@@ -533,7 +533,7 @@ final class OwlRustEngineTests: XCTestCase {
     )
     let templateID = UUID()
     let templateCandidate = "\(OwlTemplateStore.candidatePrefix)\(templateID.uuidString)]法条引用"
-    let templateContent = "\(templateCandidate)\tft\t1000000\n"
+    let templateContent = "\(templateCandidate)\tft\t100000\n"
     try templateContent.write(
       to: userDir.appendingPathComponent(OwlTemplateStore.dictFileName),
       atomically: true,
@@ -574,5 +574,20 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertTrue(session.selectCandidate(0))
     XCTAssertEqual(session.takeCommit(), templateCandidate)
     XCTAssertEqual(session.lastCommittedInput(), "ft")
+
+    // 4. Deleting or replacing a weight-100000 host phrase removes the stale row from staged SQLite
+    try "".write(
+      to: userDir.appendingPathComponent(OwlQuickSendStore.dictFileName),
+      atomically: true,
+      encoding: .utf8
+    )
+    XCTAssertTrue(engine.deployConfigFile(OwlQuickSendStore.dictFileName, versionKey: "config_version"))
+    session.setOption(.transcription, false)
+    for scalar in "yx".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    let yxAfterDelete = try XCTUnwrap(session.composition())
+    XCTAssertFalse(yxAfterDelete.candidates.contains(where: { $0.text == "user@example.com" }))
+    session.clearComposition()
   }
 }

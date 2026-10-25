@@ -1201,12 +1201,23 @@ impl OwlMsimeSession {
                     })
                     .collect();
                 if let Ok(conn) = Connection::open(&self.staged_pinyin_path) {
-                    let _ = conn.execute("DELETE FROM quick_parases WHERE weight >= 900000", []);
+                    let _ = conn.execute_batch(
+                        "CREATE TABLE IF NOT EXISTS owl_host_quick_phrases (\"key\" TEXT NOT NULL, \"value\" TEXT NOT NULL);
+                         DELETE FROM quick_parases WHERE weight >= 900000 OR EXISTS (
+                             SELECT 1 FROM owl_host_quick_phrases h
+                             WHERE h.\"key\" = quick_parases.\"key\" AND h.\"value\" = quick_parases.\"value\"
+                         );
+                         DELETE FROM owl_host_quick_phrases;",
+                    );
                     for (idx, (code, value, weight)) in rows.iter().enumerate() {
                         let adjusted_weight = weight.saturating_sub(idx as i64);
                         let _ = conn.execute(
                             "INSERT INTO quick_parases (\"key\", \"value\", \"weight\") VALUES (?1, ?2, ?3)",
                             rusqlite::params![code, value, adjusted_weight],
+                        );
+                        let _ = conn.execute(
+                            "INSERT INTO owl_host_quick_phrases (\"key\", \"value\") VALUES (?1, ?2)",
+                            rusqlite::params![code, value],
                         );
                     }
                 }
