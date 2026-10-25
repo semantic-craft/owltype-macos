@@ -39,6 +39,7 @@ fi
 EXE="$APP/Contents/MacOS/Owltype"
 DOMAIN="$OWL_BUNDLE_ID"
 SQUIRREL_DOMAIN="$SQUIRREL_BUNDLE_ID"
+CHINESE_IME_LM_CRATE_LICENSE_SHA256="cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
 TIS_MODE="${OWL_TIS_MODE:-interactive}"
 
 case "$TIS_MODE" in
@@ -65,6 +66,15 @@ pass_clean "installed Owltype Hans menu label is localized"
 grep -Eq 'msime|Metasequoia' "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md" || fail "third-party notices do not mention the msime Rust engine"
 grep -q 'wubi86' "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md" || fail "third-party notices do not mention wubi86"
 pass_clean "installed app carries GPL license and third-party notices"
+
+source_crate_license="$APP/Contents/SharedSupport/licenses/chinese-ime-lm.LICENSE"
+[[ -s "$source_crate_license" ]] || fail "installed app missing chinese-ime-lm source crate LICENSE"
+if [[ -s "$source_crate_license" ]]; then
+  printf '%s  %s\n' "$CHINESE_IME_LM_CRATE_LICENSE_SHA256" "$source_crate_license" |
+    shasum -a 256 --check --status ||
+    fail "installed chinese-ime-lm source crate LICENSE differs from the pinned text"
+fi
+pass_clean "installed app carries the pinned chinese-ime-lm source crate license"
 
 python3 "$ROOT/scripts/check-rust-delivery.py" "$APP"
 pass_clean "installed app delivers the Rust engine and complete SQLite resources"

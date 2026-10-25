@@ -46,7 +46,7 @@ COMPONENTS = (
     ("Unicode Unihan", "16.0.0", "Unicode-3.0", "https://www.unicode.org/Public/16.0.0/ucd/Unihan.zip"),
     ("OpenCC", "556ed22496d650bd0b13b6c163be9814637970ae", "Apache-2.0", "https://github.com/BYVoid/OpenCC"),
     ("Metasequoia IME (msime)", "09e3d53c16eb11420bef708c35d425c31eff41e2", "GPL-3.0-only", "https://github.com/metasequoiaime/msime"),
-    ("chinese-ime-lm", "15caab4fdeb59c11f452b91884371cf30e2e5608", "GPL-3.0-only", "https://github.com/metasequoiaime/chinese-ime-lm"),
+    ("chinese-ime-lm reference crate", "15caab4fdeb59c11f452b91884371cf30e2e5608", "Apache-2.0", "https://github.com/metasequoiaime/chinese-ime-lm"),
 )
 
 

@@ -13,6 +13,7 @@ APP="$RELEASE_OUTPUT_ROOT/Build/Products/Release/Owltype.app"
 PKG="$ROOT/package/Owltype.pkg"
 UPDATE_PKG="$ROOT/package/Owltype-update.pkg"
 APPCAST="$ROOT/package/appcast.xml"
+CHINESE_IME_LM_CRATE_LICENSE_SHA256="cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
 # Manual smoke evidence lives outside the public tree; point OWL_MANUAL_SMOKE at the current
 # release's manual-host-app-smoke document.
 MANUAL_SMOKE="${OWL_MANUAL_SMOKE:-}"
@@ -68,7 +69,13 @@ pass "Release bundle id is $DOMAIN"
 
 [[ -s "$APP/Contents/Resources/LICENSE.txt" ]] || fail "Release app missing LICENSE.txt"
 [[ -s "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md" ]] || fail "Release app missing THIRD_PARTY_NOTICES.md"
-pass "Release app carries license and third-party notices"
+source_crate_license="$APP/Contents/SharedSupport/licenses/chinese-ime-lm.LICENSE"
+[[ -s "$source_crate_license" ]] ||
+  fail "Release app missing chinese-ime-lm source crate LICENSE"
+printf '%s  %s\n' "$CHINESE_IME_LM_CRATE_LICENSE_SHA256" "$source_crate_license" |
+  shasum -a 256 --check --status ||
+  fail "Release app chinese-ime-lm source crate LICENSE differs from the pinned text"
+pass "Release app carries license, third-party notices, and pinned source crate license"
 
 python3 "$ROOT/scripts/check-rust-delivery.py" "$APP"
 pass "Release app delivers the Rust engine without the legacy Rime runtime"
@@ -147,6 +154,7 @@ payload=$(cd "$tmp/checked-app" && find ./Owltype.app -print)
 for path in \
 	  './Owltype.app/Contents/Resources/LICENSE.txt' \
 	  './Owltype.app/Contents/Resources/THIRD_PARTY_NOTICES.md' \
+	  './Owltype.app/Contents/SharedSupport/licenses/chinese-ime-lm.LICENSE' \
 	  './Owltype.app/Contents/SharedSupport/OWLTYPE-SEED-MANIFEST.txt' \
 	  './Owltype.app/Contents/SharedSupport/owltype.yaml' \
 	  './Owltype.app/Contents/SharedSupport/msime/msime-pinyin.db' \
@@ -154,6 +162,10 @@ for path in \
 do
   grep -qxF "$path" <<<"$payload" || fail "pkg payload missing $path"
 done
+pkg_source_crate_license="$tmp/checked-app/Owltype.app/Contents/SharedSupport/licenses/chinese-ime-lm.LICENSE"
+printf '%s  %s\n' "$CHINESE_IME_LM_CRATE_LICENSE_SHA256" "$pkg_source_crate_license" |
+  shasum -a 256 --check --status ||
+  fail "pkg payload chinese-ime-lm source crate LICENSE differs from the pinned text"
 # 反倒退：dict-pack 载荷（未过再分发审计的第三方词库）绝不允许出现在公开 payload 里。
 for forbidden in \
   '/cn_dicts/base\.dict\.yaml$' \

@@ -42,6 +42,7 @@ REQUIRED_LICENSES = {
     "Contents/SharedSupport/licenses/LGPL-3.0-only.txt",
     "Contents/SharedSupport/licenses/MIT.txt",
     "Contents/SharedSupport/licenses/Unicode-3.0.txt",
+    "Contents/SharedSupport/licenses/chinese-ime-lm.LICENSE",
     "Contents/SharedSupport/msime/models/LICENSE-Apache-2.0.txt",
     "Contents/SharedSupport/msime/models/NOTICE.txt",
     "Contents/SharedSupport/phrase-pinyin-data.LICENSE",
@@ -58,6 +59,8 @@ FORBIDDEN_RELEASE_SUFFIXES = (".gram",)
 # own gate definition.)
 FORBIDDEN_HOME_PREFIX = b"/" + b"Users/"
 SPARKLE_LICENSE_SHA256 = "78babcec24fb8447551f9b5ece67042a82fd4ed14deab863d6e8f0619d0d25f6"
+CHINESE_IME_LM_CRATE_LICENSE = "Contents/SharedSupport/licenses/chinese-ime-lm.LICENSE"
+CHINESE_IME_LM_CRATE_LICENSE_SHA256 = "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
 
 
 def fail(message: str) -> None:
@@ -153,6 +156,11 @@ def main() -> None:
     missing_licenses = REQUIRED_LICENSES - paths
     if missing_licenses:
         fail(f"missing license bundle entries: {', '.join(sorted(missing_licenses))}")
+    if (
+        sha256(app / CHINESE_IME_LM_CRATE_LICENSE)
+        != CHINESE_IME_LM_CRATE_LICENSE_SHA256
+    ):
+        fail("chinese-ime-lm source crate license differs from the pinned upstream text")
 
     forbidden = sorted(
         relative for relative in paths
