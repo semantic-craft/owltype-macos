@@ -70,6 +70,8 @@ final class FakeRimeSession: RimeSession {
   /// Optional transition after a forced status refresh. The debounce retry path calls
   /// `syncRerankPreferences()` when the first pause finds the model still loading.
   var syncRerankPreferencesTransition: (() -> Void)?
+  /// Optional transition before a scripted synchronous settled result is returned.
+  var settledRerankStartTransition: (() -> Void)?
   /// Scripted results for the next `startSettledRerank()` call.
   var settledRerankStartResult: OwlSettledRerankStartResult
   /// Scripted results consumed by successive `pollSettledRerank` calls. The last result repeats.
@@ -180,6 +182,7 @@ final class FakeRimeSession: RimeSession {
 
   func startSettledRerank() -> OwlSettledRerankStartResult {
     settledRerankStartCount += 1
+    settledRerankStartTransition?()
     return settledRerankStartResult
   }
 
@@ -699,6 +702,44 @@ final class RimeSeamTests: XCTestCase {
       session.settledRerankStartCount == 1
     }, "a model still loading after the first pause must be polled again")
     XCTAssertGreaterThanOrEqual(session.rerankPreferenceSyncCount, 2)
+  }
+
+  @MainActor
+  func testSynchronousMovedSettledResultRefreshesAfterGenerationAdvance() throws {
+    let session = FakeRimeSession(
+      sessionID: 52,
+      generation: 17,
+      input: "ni",
+      settledRerankReady: true
+    )
+    session.settledRerankStartResult = OwlSettledRerankStartResult(
+      token: nil,
+      current: true,
+      moved: true,
+      error: nil
+    )
+    session.settledRerankStartTransition = {
+      session.generation += 1
+    }
+    let fixture = try makeSettledRerankController(session: session)
+    let controller = fixture.controller
+    defer {
+      controller.destroySession()
+      fixture.delegate.engine = fixture.previousEngine
+      OwlExperimentalPreferences.resetForTesting()
+      fixture.delegate.owlPanel?.hidePanel()
+    }
+
+    let updatesBefore = session.takeCommitCount
+    controller.armSettledRerankAfterInput()
+    XCTAssertTrue(waitForMainRunLoop { session.settledRerankStartCount == 1 })
+    XCTAssertEqual(
+      session.takeCommitCount,
+      updatesBefore + 1,
+      "an accepted synchronous move must refresh after its snapshot advances generation"
+    )
+    XCTAssertNil(controller.settledRerankJob)
+    XCTAssertTrue(session.settledRerankPolls.isEmpty)
   }
 
   @MainActor

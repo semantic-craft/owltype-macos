@@ -187,13 +187,12 @@ extension OwlInputController {
     if let error = started.error {
       debugLiveInputTrace("settled rerank did not start: \(error)")
     }
+    // A synchronous result may refresh the snapshot and advance generation before it returns.
+    // Its current bit already vouches for the accepted result, so compare only stable identity.
     if started.current, started.moved,
-       ticket.isCurrent(
-         sessionID: session.sessionID,
-         generation: session.generation,
-         rawInput: session.input() ?? "",
-         configurationEpoch: session.rerankConfigurationEpoch
-       ) {
+       ticket.sessionID == session.sessionID,
+       ticket.rawInput == (session.input() ?? ""),
+       ticket.configurationEpoch == session.rerankConfigurationEpoch {
       applySettledRerankRefresh()
     }
   }
