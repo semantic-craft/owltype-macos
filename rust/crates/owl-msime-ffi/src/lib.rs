@@ -9,12 +9,14 @@ use std::ptr;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use msime_engine::host::{
-    Command, EngineOptions, HelpcodeKeymap, QuickPhraseEntry, Session as EngineSession,
+    prepare_options, Command, EngineOptions, HelpcodeKeymap, QuickPhraseEntry,
+    Session as EngineSession,
 };
 use msime_engine::{
     ensure_english_schema, fuzzy_rule, is_complete_pinyin_input, CandidateSource,
-    FrequencyAdjustmentMode, SchemeSet, SchemeType, SentenceAssociationOptions,
-    ShuangpinHelpcodeModes, ShuangpinProfileKind, WubiProfileKind,
+    reject_redirected_directory, roots_overlap, weakly_canonical, FrequencyAdjustmentMode,
+    SchemeSet, SchemeType, SentenceAssociationOptions, ShuangpinHelpcodeModes,
+    ShuangpinProfileKind, WubiProfileKind,
 };
 use msime_input_runtime::{
     Action, CandidateId, CandidateOps, CandidateTransform, Runtime, TransformRow, View,
@@ -448,68 +450,70 @@ struct SessionRoots {
     dictionaries: PathBuf,
 }
 
-fn preflight_explicit_root(raw: &str, label: &str) -> Result<PathBuf, String> {
+fn absolute_explicit_root(raw: &str, label: &str) -> Result<PathBuf, String> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         return Err(format!("{label} is empty"));
     }
     let raw_path = PathBuf::from(trimmed);
-    let absolute = if raw_path.is_absolute() {
-        raw_path
+    if raw_path.is_absolute() {
+        Ok(raw_path)
     } else {
-        std::env::current_dir()
+        Ok(std::env::current_dir()
             .map_err(|e| format!("failed to resolve {label} against cwd: {e}"))?
-            .join(raw_path)
-    };
-    let mut normalized = PathBuf::new();
-    for component in absolute.components() {
-        match component {
-            std::path::Component::RootDir | std::path::Component::Prefix(_) => {
-                normalized.push(component.as_os_str());
-            }
-            std::path::Component::CurDir => {}
-            std::path::Component::Normal(part) => normalized.push(part),
-            std::path::Component::ParentDir => {
-                return Err(format!("{label} must not contain '..': {}", absolute.display()));
-            }
-        }
-    }
-    let mut probe = normalized.as_path();
-    loop {
-        match fs::symlink_metadata(probe) {
-            Ok(_) => {
-                let canonical = fs::canonicalize(probe)
-                    .map_err(|e| format!("failed to resolve {label} ancestor {}: {e}", probe.display()))?;
-                if !canonical.is_dir() {
-                    return Err(format!(
-                        "{label} ancestor is not a directory: {}",
-                        canonical.display()
-                    ));
-                }
-                let suffix = normalized.strip_prefix(probe).map_err(|e| {
-                    format!("failed to resolve remaining {label} components: {e}")
-                })?;
-                return Ok(suffix
-                    .iter()
-                    .fold(canonical, |path, component| path.join(component)));
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                probe = probe
-                    .parent()
-                    .ok_or_else(|| format!("{label} has no existing ancestor"))?;
-            }
-            Err(error) => {
-                return Err(format!(
-                    "failed to inspect {label} ancestor {}: {error}",
-                    probe.display()
-                ));
-            }
-        }
+            .join(raw_path))
     }
 }
 
-fn paths_overlap(left: &Path, right: &Path) -> bool {
-    left == right || left.starts_with(right) || right.starts_with(left)
+fn resolved_explicit_root(absolute: &Path, label: &str) -> Result<PathBuf, String> {
+    weakly_canonical(absolute)
+        .map_err(|e| format!("failed to resolve {label} {}: {e}", absolute.display()))
+}
+
+fn prepare_explicit_roots(
+    resources: &str,
+    user: &str,
+    cache: &str,
+    dictionaries: &str,
+) -> Result<SessionRoots, String> {
+    let requested = [
+        ("resources_dir", absolute_explicit_root(resources, "resources_dir")?),
+        ("user_data_dir", absolute_explicit_root(user, "user_data_dir")?),
+        ("cache_dir", absolute_explicit_root(cache, "cache_dir")?),
+        (
+            "dictionaries_dir",
+            absolute_explicit_root(dictionaries, "dictionaries_dir")?,
+        ),
+    ];
+    for (label, path) in &requested {
+        reject_redirected_directory(path)
+            .map_err(|e| format!("failed to validate {label} {}: {e}", path.display()))?;
+    }
+    let planned = SessionRoots {
+        resources: resolved_explicit_root(&requested[0].1, requested[0].0)?,
+        user: resolved_explicit_root(&requested[1].1, requested[1].0)?,
+        cache: resolved_explicit_root(&requested[2].1, requested[2].0)?,
+        dictionaries: resolved_explicit_root(&requested[3].1, requested[3].0)?,
+    };
+    validate_explicit_roots(&planned)?;
+
+    let roots = SessionRoots {
+        resources: materialize_explicit_root(&planned.resources, "resources_dir")?,
+        user: materialize_explicit_root(&planned.user, "user_data_dir")?,
+        cache: materialize_explicit_root(&planned.cache, "cache_dir")?,
+        dictionaries: materialize_explicit_root(&planned.dictionaries, "dictionaries_dir")?,
+    };
+    for (label, path) in &requested {
+        reject_redirected_directory(path).map_err(|e| {
+            format!(
+                "failed to revalidate {label} {} after creation: {e}",
+                path.display()
+            )
+        })?;
+    }
+    // Re-check after following any symlink changes made between planning and creation.
+    validate_explicit_roots(&roots)?;
+    Ok(roots)
 }
 
 fn validate_explicit_roots(roots: &SessionRoots) -> Result<(), String> {
@@ -521,7 +525,7 @@ fn validate_explicit_roots(roots: &SessionRoots) -> Result<(), String> {
         (&roots.user, &roots.dictionaries),
         (&roots.cache, &roots.dictionaries),
     ] {
-        if paths_overlap(left, right) {
+        if roots_overlap(left, right) {
             return Err(format!(
                 "session roots overlap: {} and {}",
                 left.display(),
@@ -539,30 +543,6 @@ fn materialize_explicit_root(path: &Path, label: &str) -> Result<PathBuf, String
         .map_err(|e| format!("failed to canonicalize {label} {}: {e}", path.display()))
 }
 
-fn prepare_explicit_roots(
-    resources: &str,
-    user: &str,
-    cache: &str,
-    dictionaries: &str,
-) -> Result<SessionRoots, String> {
-    let planned = SessionRoots {
-        resources: preflight_explicit_root(resources, "resources_dir")?,
-        user: preflight_explicit_root(user, "user_data_dir")?,
-        cache: preflight_explicit_root(cache, "cache_dir")?,
-        dictionaries: preflight_explicit_root(dictionaries, "dictionaries_dir")?,
-    };
-    validate_explicit_roots(&planned)?;
-
-    let roots = SessionRoots {
-        resources: materialize_explicit_root(&planned.resources, "resources_dir")?,
-        user: materialize_explicit_root(&planned.user, "user_data_dir")?,
-        cache: materialize_explicit_root(&planned.cache, "cache_dir")?,
-        dictionaries: materialize_explicit_root(&planned.dictionaries, "dictionaries_dir")?,
-    };
-    // Re-check after following any symlink changes made between planning and creation.
-    validate_explicit_roots(&roots)?;
-    Ok(roots)
-}
 
 fn resolve_pinyin_source(raw: &str) -> Result<PathBuf, String> {
     let trimmed = raw.trim();
@@ -735,6 +715,94 @@ fn reconcile_quick_phrases(
     Ok(true)
 }
 
+fn product_engine_options(
+    resources: &Path,
+    user_data: &Path,
+    cache: &Path,
+    dictionaries: &Path,
+    page_size: u8,
+) -> EngineOptions {
+    EngineOptions {
+        resources: resources.to_string_lossy().into_owned(),
+        user_data: user_data.to_string_lossy().into_owned(),
+        cache: cache.to_string_lossy().into_owned(),
+        dictionaries: dictionaries.to_string_lossy().into_owned(),
+        scheme: SchemeType::Quanpin as u8,
+        enabled_schemes: SchemeSet::ALL,
+        shuangpin_profile: ShuangpinProfileKind::Xiaohe as u8,
+        shuangpin_custom_profile: None,
+        shuangpin_preedit_uses_raw: true,
+        single_character_only: false,
+        learning: true,
+        learn_english_on_enter: true,
+        autocorrect_transposition: true,
+        autocorrect_neighbor: true,
+        fuzzy_pinyin_rules: 0,
+        wubi_mixed_pinyin: false,
+        wubi_z_wildcard: false,
+        wubi_profile: WubiProfileKind::Wubi86 as u8,
+        helpcode: false,
+        show_helpcode: false,
+        shuangpin_helpcode_modes: ShuangpinHelpcodeModes::default(),
+        helpcode_schema: "ziranma".to_owned(),
+        helpcode_trigger_key: None,
+        helpcode_table: Some(Arc::new(HelpcodeKeymap::default())),
+        helpcode_fallback_resources: None,
+        chinese_punctuation: true,
+        paired_punctuation: true,
+        punctuation_lock: 0,
+        corner_quotes: false,
+        hollow_brackets: false,
+        enumeration_comma_backslash: true,
+        enumeration_comma_slash: false,
+        frequency_mode: FrequencyAdjustmentMode::Promote.name().to_owned(),
+        frequency_trigger_count: 1,
+        frequency_linear_step: 1,
+        mixed_candidates: true,
+        mixed_english: true,
+        english_minimum_prefix: 2,
+        english_first_page_count: 3,
+        mixed_emoji: false,
+        mixed_kaomoji: false,
+        mixed_symbols: false,
+        mixed_japanese: false,
+        local_unicode: true,
+        local_date_time: false,
+        local_date_time_inline: false,
+        local_date_time_menu: false,
+        local_quick_phrase: true,
+        local_emoji: false,
+        local_kaomoji: false,
+        local_super_jianpin: true,
+        local_temporary_english: true,
+        local_temporary_japanese: false,
+        local_expression: false,
+        local_command: false,
+        local_mention: false,
+        local_chaizi: false,
+        local_symbol: false,
+        local_shift_letter_entry: true,
+        chaizi_traditional_output: false,
+        command_table: Vec::new(),
+        plugin_commands: Vec::new(),
+        mention_entries: Vec::new(),
+        quick_phrase_table: Vec::new(),
+        quick_phrase_candidates: true,
+        quick_phrase_frequency: true,
+        sentence_association: SentenceAssociationOptions::default(),
+        rescoring_context: String::new(),
+        sentence_alternatives: false,
+        first_page_rows: usize::from(page_size),
+        vietnamese_input_method: 0,
+        vietnamese_tone_style: 0,
+        cantonese_dictionary: String::new(),
+        zhuyin_dictionary: String::new(),
+        stroke_dictionary: String::new(),
+        japanese_dictionary: String::new(),
+        wubi_dictionary: String::new(),
+    }
+}
+
 impl OwlMsimeSession {
     pub fn create(
         pinyin_db_path: &str,
@@ -796,6 +864,66 @@ impl OwlMsimeSession {
         )
     }
 
+    pub fn create_with_generation(
+        resources_dir: &str,
+        user_data_dir: &str,
+        cache_dir: &str,
+        content_id: &str,
+        page_size: u32,
+    ) -> Result<Self, String> {
+        for name in [
+            msime_engine::assets::MAIN_DICTIONARY,
+            msime_engine::assets::ENGLISH_DICTIONARY,
+        ] {
+            let path = Path::new(resources_dir).join(name);
+            let metadata = fs::symlink_metadata(&path).map_err(|e| {
+                format!("generation resource {name} is missing at {}: {e}", path.display())
+            })?;
+            if !metadata.file_type().is_file() {
+                return Err(format!(
+                    "generation resource {name} is not a regular file: {}",
+                    path.display()
+                ));
+            }
+        }
+
+        let prepared = prepare_options(
+            resources_dir,
+            user_data_dir,
+            cache_dir,
+            content_id,
+        )
+        .map_err(|e| format!("failed to prepare dictionary generation: {e}"))?;
+        let resources = PathBuf::from(&prepared.resources);
+        let user = PathBuf::from(&prepared.user_data);
+        let cache = PathBuf::from(&prepared.cache);
+        let dictionaries = PathBuf::from(&prepared.dictionaries);
+        let source_pinyin = resources.join(msime_engine::assets::MAIN_DICTIONARY);
+        let staged_pinyin = dictionaries.join(msime_engine::assets::MAIN_DICTIONARY);
+        reconcile_quick_phrases(
+            &source_pinyin,
+            &staged_pinyin,
+            &user.join(msime_engine::assets::USER_JOURNAL),
+            false,
+        )?;
+
+        let page_size = clamp_page_size(page_size);
+        let options = product_engine_options(
+            &resources,
+            &user,
+            &cache,
+            &dictionaries,
+            page_size,
+        );
+        Self::create_with_options(
+            options,
+            source_pinyin,
+            staged_pinyin,
+            page_size,
+            None,
+        )
+    }
+
     fn create_with_prepared_roots(
         pinyin_src: &Path,
         english_db_path: &str,
@@ -821,89 +949,33 @@ impl OwlMsimeSession {
                 .map_err(|e| format!("failed to initialize msime-english.db: {e}"))?;
         }
 
-        let page_size_u8 = clamp_page_size(page_size);
-        let options = EngineOptions {
-            resources: roots.resources.to_string_lossy().into_owned(),
-            user_data: roots.user.to_string_lossy().into_owned(),
-            cache: roots.cache.to_string_lossy().into_owned(),
-            dictionaries: roots.dictionaries.to_string_lossy().into_owned(),
-            scheme: SchemeType::Quanpin as u8,
-            enabled_schemes: SchemeSet::ALL,
-            shuangpin_profile: ShuangpinProfileKind::Xiaohe as u8,
-            shuangpin_custom_profile: None,
-            shuangpin_preedit_uses_raw: true,
-            single_character_only: false,
-            learning: true,
-            learn_english_on_enter: true,
-            autocorrect_transposition: true,
-            autocorrect_neighbor: true,
-            fuzzy_pinyin_rules: 0,
-            wubi_mixed_pinyin: false,
-            wubi_z_wildcard: false,
-            wubi_profile: WubiProfileKind::Wubi86 as u8,
-            helpcode: false,
-            show_helpcode: false,
-            shuangpin_helpcode_modes: ShuangpinHelpcodeModes::default(),
-            helpcode_schema: "ziranma".to_owned(),
-            helpcode_trigger_key: None,
-            helpcode_table: Some(Arc::new(HelpcodeKeymap::default())),
-            helpcode_fallback_resources: None,
-            chinese_punctuation: true,
-            paired_punctuation: true,
-            punctuation_lock: 0,
-            corner_quotes: false,
-            hollow_brackets: false,
-            enumeration_comma_backslash: true,
-            enumeration_comma_slash: false,
-            frequency_mode: FrequencyAdjustmentMode::Promote.name().to_owned(),
-            frequency_trigger_count: 1,
-            frequency_linear_step: 1,
-            mixed_candidates: true,
-            mixed_english: true,
-            english_minimum_prefix: 2,
-            english_first_page_count: 3,
-            mixed_emoji: false,
-            mixed_kaomoji: false,
-            mixed_symbols: false,
-            mixed_japanese: false,
-            local_unicode: true,
-            local_date_time: false,
-            local_date_time_inline: false,
-            local_date_time_menu: false,
-            local_quick_phrase: true,
-            local_emoji: false,
-            local_kaomoji: false,
-            local_super_jianpin: true,
-            local_temporary_english: true,
-            local_temporary_japanese: false,
-            local_expression: false,
-            local_command: false,
-            local_mention: false,
-            local_chaizi: false,
-            local_symbol: false,
-            local_shift_letter_entry: true,
-            chaizi_traditional_output: false,
-            command_table: Vec::new(),
-            plugin_commands: Vec::new(),
-            mention_entries: Vec::new(),
-            quick_phrase_table: Vec::new(),
-            quick_phrase_candidates: true,
-            quick_phrase_frequency: true,
-            sentence_association: SentenceAssociationOptions::default(),
-            rescoring_context: String::new(),
-            sentence_alternatives: false,
-            first_page_rows: usize::from(page_size_u8),
-            vietnamese_input_method: 0,
-            vietnamese_tone_style: 0,
-            cantonese_dictionary: String::new(),
-            zhuyin_dictionary: String::new(),
-            stroke_dictionary: String::new(),
-            japanese_dictionary: String::new(),
-            wubi_dictionary: String::new(),
-        };
+        let page_size = clamp_page_size(page_size);
+        let options = product_engine_options(
+            &roots.resources,
+            &roots.user,
+            &roots.cache,
+            &roots.dictionaries,
+            page_size,
+        );
+        Self::create_with_options(
+            options,
+            pinyin_src.to_path_buf(),
+            staged_pinyin,
+            page_size,
+            temp_dir,
+        )
+    }
 
+    fn create_with_options(
+        options: EngineOptions,
+        source_pinyin_path: PathBuf,
+        staged_pinyin_path: PathBuf,
+        page_size: u8,
+        temp_dir: Option<TempDir>,
+    ) -> Result<Self, String> {
         let engine_session = EngineSession::new(&options).map_err(|e| e.to_string())?;
-        let mut runtime = Runtime::new(engine_session, page_size_u8).map_err(|e| e.to_string())?;
+        let mut runtime = Runtime::new(engine_session, page_size).map_err(|e| e.to_string())?;
+        runtime.set_phrase_preedit(true);
         let _ = runtime.focus(true).map_err(|e| e.to_string())?;
         let pinned_state = Arc::new(Mutex::new(OwlPinnedState {
             words: HashMap::new(),
@@ -913,7 +985,7 @@ impl OwlMsimeSession {
             caret_at_end: true,
             input_mode: "chinese".to_owned(),
             pinyin_scheme: "quanpin".to_owned(),
-            page_size: usize::from(page_size_u8),
+            page_size: usize::from(page_size),
             wubi_single_first: false,
             wubi_z_reverse_lookup: true,
         }));
@@ -924,9 +996,9 @@ impl OwlMsimeSession {
         Ok(Self {
             runtime,
             options,
-            source_pinyin_path: pinyin_src.to_path_buf(),
-            staged_pinyin_path: staged_pinyin,
-            page_size: page_size_u8,
+            source_pinyin_path,
+            staged_pinyin_path,
+            page_size,
             input_mode: "chinese".to_owned(),
             pinyin_scheme: "quanpin".to_owned(),
             wubi_code_hint: false,
@@ -1778,6 +1850,52 @@ pub extern "C" fn owl_msime_session_create_with_roots(
 }
 
 #[no_mangle]
+pub extern "C" fn owl_msime_session_create_with_generation(
+    resources_dir: *const c_char,
+    user_data_dir: *const c_char,
+    cache_dir: *const c_char,
+    content_id: *const c_char,
+    page_size: u32,
+    error_out: *mut *mut c_char,
+) -> *mut OwlMsimeSession {
+    if !error_out.is_null() {
+        unsafe {
+            *error_out = ptr::null_mut();
+        }
+    }
+    let created = catch_unwind(AssertUnwindSafe(|| {
+        let resources = cstr_to_string(resources_dir).unwrap_or_default();
+        let user = cstr_to_string(user_data_dir).unwrap_or_default();
+        let cache = cstr_to_string(cache_dir).unwrap_or_default();
+        let content_id = cstr_to_string(content_id).unwrap_or_default();
+        OwlMsimeSession::create_with_generation(
+            &resources,
+            &user,
+            &cache,
+            &content_id,
+            page_size,
+        )
+    }));
+    match created {
+        Ok(Ok(session)) => {
+            let raw = Box::into_raw(Box::new(session));
+            if let Ok(mut set) = live_sessions().lock() {
+                set.insert(raw as usize);
+            }
+            raw
+        }
+        Ok(Err(message)) => {
+            store_ffi_error(error_out, &message);
+            ptr::null_mut()
+        }
+        Err(_) => {
+            store_ffi_error(error_out, "panic in session creation with generation");
+            ptr::null_mut()
+        }
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn owl_msime_session_destroy(session: *mut OwlMsimeSession) {
     let _ = catch_unwind(AssertUnwindSafe(|| {
         if !session.is_null() {
@@ -1893,6 +2011,14 @@ mod tests {
         .expect("populate test sqlite db");
     }
 
+    fn build_minimal_test_resources(root: &Path) -> PathBuf {
+        fs::create_dir_all(root).unwrap();
+        let pinyin = root.join(msime_engine::assets::MAIN_DICTIONARY);
+        build_minimal_test_pinyin_db(&pinyin);
+        ensure_english_schema(&root.join(msime_engine::assets::ENGLISH_DICTIONARY)).unwrap();
+        root.to_path_buf()
+    }
+
     fn call_action(session: *mut OwlMsimeSession, json: &str) -> SnapshotResponseDto {
         let c_req = CString::new(json).unwrap();
         let raw = owl_msime_session_handle_action_json(session, c_req.as_ptr());
@@ -1908,6 +2034,30 @@ mod tests {
         let resp_str = unsafe { CStr::from_ptr(raw) }.to_str().unwrap().to_owned();
         owl_msime_string_free(raw);
         serde_json::from_str(&resp_str).expect("valid snapshot json")
+    }
+
+    fn select_visible_text(
+        session: *mut OwlMsimeSession,
+        expected: &str,
+    ) -> SnapshotResponseDto {
+        loop {
+            let frame = call_snapshot(session);
+            if let Some(index) = frame
+                .candidates
+                .iter()
+                .position(|candidate| candidate.text == expected)
+            {
+                return call_action(
+                    session,
+                    &format!(r#"{{"op":"select_visible","index":{index}}}"#),
+                );
+            }
+            assert!(
+                frame.has_more_pages,
+                "candidate {expected:?} was not in the loaded pages"
+            );
+            call_action(session, r#"{"op":"turn_page","delta":1}"#);
+        }
     }
 
     fn staged_pinyin_path(session: *const OwlMsimeSession) -> PathBuf {
@@ -1964,6 +2114,37 @@ mod tests {
         (session, message)
     }
 
+    fn create_with_generation(
+        resources: &Path,
+        user: &Path,
+        cache: &Path,
+        content_id: &str,
+    ) -> (*mut OwlMsimeSession, Option<String>) {
+        let c_resources = CString::new(resources.to_string_lossy().as_bytes()).unwrap();
+        let c_user = CString::new(user.to_string_lossy().as_bytes()).unwrap();
+        let c_cache = CString::new(cache.to_string_lossy().as_bytes()).unwrap();
+        let c_content_id = CString::new(content_id).unwrap();
+        let mut error = ptr::null_mut();
+        let session = owl_msime_session_create_with_generation(
+            c_resources.as_ptr(),
+            c_user.as_ptr(),
+            c_cache.as_ptr(),
+            c_content_id.as_ptr(),
+            5,
+            &mut error,
+        );
+        let message = if error.is_null() {
+            None
+        } else {
+            let value = unsafe { CStr::from_ptr(error) }
+                .to_string_lossy()
+                .into_owned();
+            owl_msime_string_free(error);
+            Some(value)
+        };
+        (session, message)
+    }
+
     fn session_options(session: *const OwlMsimeSession) -> &'static EngineOptions {
         assert!(!session.is_null());
         unsafe { &(*session).options }
@@ -1999,6 +2180,31 @@ mod tests {
                     entries.push(format!("link:{relative}"));
                 } else {
                     entries.push(format!("file:{relative}:{}", metadata.len()));
+                }
+            }
+        }
+
+        let mut entries = Vec::new();
+        visit(root, root, &mut entries);
+        entries
+    }
+
+    fn file_contents(root: &Path) -> Vec<(String, Vec<u8>)> {
+        fn visit(base: &Path, directory: &Path, entries: &mut Vec<(String, Vec<u8>)>) {
+            let mut children: Vec<PathBuf> = fs::read_dir(directory)
+                .unwrap()
+                .map(|entry| entry.unwrap().path())
+                .collect();
+            children.sort();
+            for child in children {
+                let relative = child.strip_prefix(base).unwrap().display().to_string();
+                let metadata = fs::symlink_metadata(&child).unwrap();
+                if metadata.is_dir() {
+                    visit(base, &child, entries);
+                } else if metadata.file_type().is_symlink() {
+                    entries.push((format!("link:{relative}"), Vec::new()));
+                } else {
+                    entries.push((format!("file:{relative}"), fs::read(&child).unwrap()));
                 }
             }
         }
@@ -2208,6 +2414,374 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn explicit_roots_reject_redirected_directories_before_creation() {
+        use std::os::unix::fs::symlink;
+
+        for redirected in ["resources", "user", "cache", "dictionaries"] {
+            let tmp = TempDir::new().unwrap();
+            let outside = TempDir::new().unwrap();
+            let pinyin = tmp.path().join("test-pinyin.db");
+            build_minimal_test_pinyin_db(&pinyin);
+            let linked = tmp.path().join(redirected);
+            symlink(outside.path(), &linked).unwrap();
+
+            let root = |name: &str| {
+                if name == redirected {
+                    linked.clone()
+                } else {
+                    tmp.path().join(name)
+                }
+            };
+            let (session, error) = create_with_explicit_roots(
+                &pinyin,
+                &root("resources"),
+                &root("user"),
+                &root("cache"),
+                &root("dictionaries"),
+            );
+            assert!(session.is_null(), "{redirected}");
+            assert!(
+                error
+                    .as_deref()
+                    .is_some_and(|message| message.contains("symbolic-link ancestor")),
+                "{redirected}: {error:?}"
+            );
+            assert_eq!(
+                fs::read_dir(outside.path()).unwrap().count(),
+                0,
+                "{redirected} must be rejected without writing through the link"
+            );
+        }
+    }
+
+    #[test]
+    fn upstream_generation_matches_explicit_roots_and_keeps_product_defaults() {
+        let tmp = TempDir::new().unwrap();
+        let resources = build_minimal_test_resources(&tmp.path().join("resources"));
+        Connection::open(resources.join(msime_engine::assets::MAIN_DICTIONARY))
+            .unwrap()
+            .execute(
+                "INSERT INTO quick_parases VALUES ('ni', '基础短语', 1000000)",
+                [],
+            )
+            .unwrap();
+        let resources_before = file_contents(&resources);
+
+        let (explicit, explicit_error) = create_with_explicit_roots(
+            &resources.join(msime_engine::assets::MAIN_DICTIONARY),
+            &resources,
+            &tmp.path().join("explicit-user"),
+            &tmp.path().join("explicit-cache"),
+            &tmp.path().join("explicit-dictionaries"),
+        );
+        assert!(explicit_error.is_none(), "{explicit_error:?}");
+        assert!(!explicit.is_null());
+
+        let user = tmp.path().join("msime-user");
+        let cache = tmp.path().join("msime-cache");
+        let (generated, generated_error) =
+            create_with_generation(&resources, &user, &cache, "seed-fixture");
+        assert!(generated_error.is_none(), "{generated_error:?}");
+        assert!(!generated.is_null());
+        assert!(user
+            .join("dictionaries/seed-fixture")
+            .join(msime_engine::assets::GENERATION_READY)
+            .is_file());
+
+        let options = session_options(generated);
+        assert!(options.learning);
+        assert!(options.autocorrect_transposition);
+        assert!(options.autocorrect_neighbor);
+        assert!(options.mixed_english);
+        assert_eq!(options.english_minimum_prefix, 2);
+        assert_eq!(options.english_first_page_count, 3);
+        assert!(options.quick_phrase_candidates);
+        assert_eq!(options.first_page_rows, 5);
+        assert!(!options.helpcode);
+
+        let mut frames = Vec::new();
+        for session in [explicit, generated] {
+            for ch in ['n', 'i'] {
+                call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+            }
+            frames.push(call_snapshot(session));
+        }
+        assert_eq!(frames[0].raw_input, frames[1].raw_input);
+        assert_eq!(frames[0].preedit, frames[1].preedit);
+        assert_eq!(
+            frames[0]
+                .candidates
+                .iter()
+                .map(|candidate| candidate.text.as_str())
+                .collect::<Vec<_>>(),
+            frames[1]
+                .candidates
+                .iter()
+                .map(|candidate| candidate.text.as_str())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(frames[0].candidates[0].text, "基础短语");
+
+        call_action(generated, r#"{"op":"clear"}"#);
+        let host = call_action(
+            generated,
+            r#"{"op":"set_host_phrases","text":"主机短语\tni"}"#,
+        );
+        assert!(host.ok);
+        call_action(generated, r#"{"op":"insert","ch":"n"}"#);
+        call_action(generated, r#"{"op":"insert","ch":"i"}"#);
+        assert!(
+            call_snapshot(generated)
+                .candidates
+                .iter()
+                .any(|candidate| candidate.text == "主机短语"),
+            "host phrases/templates must remain first-page candidates through the generation seam"
+        );
+        assert_eq!(file_contents(&resources), resources_before);
+
+        owl_msime_session_destroy(explicit);
+        owl_msime_session_destroy(generated);
+    }
+
+    #[test]
+    fn upstream_generation_keeps_the_journal_at_user_root_and_replays_learning() {
+        let tmp = TempDir::new().unwrap();
+        let resources = build_minimal_test_resources(&tmp.path().join("resources"));
+        let user = tmp.path().join("msime-user");
+        let cache = tmp.path().join("msime-cache");
+
+        let (first, error) = create_with_generation(&resources, &user, &cache, "seed-first");
+        assert!(error.is_none(), "{error:?}");
+        assert!(!first.is_null());
+        for ch in ['n', 'i'] {
+            call_action(first, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+        }
+        assert_eq!(
+            select_visible_text(first, "泥").committed_text.as_deref(),
+            Some("泥")
+        );
+        msime_engine::flush_personal_learning();
+        owl_msime_session_destroy(first);
+
+        let journal = user.join(msime_engine::assets::USER_JOURNAL);
+        assert!(journal.is_file(), "journal must live directly under user_data");
+        let journal_weight: i64 = Connection::open(&journal)
+            .unwrap()
+            .query_row(
+                "SELECT weight FROM user_dictionary_operations
+                 WHERE dictionary='pinyin' AND key='ni' AND value='泥'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(journal_weight > 2000, "{journal_weight}");
+
+        let (second, error) =
+            create_with_generation(&resources, &user, &cache, "seed-replayed");
+        assert!(error.is_none(), "{error:?}");
+        assert!(!second.is_null());
+        let replayed_weight: i64 = Connection::open(
+            user.join("dictionaries/seed-replayed")
+                .join(msime_engine::assets::MAIN_DICTIONARY),
+        )
+        .unwrap()
+        .query_row(
+            "SELECT weight FROM tbl_1_n WHERE key='ni' AND value='泥'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+        assert_eq!(
+            replayed_weight, journal_weight,
+            "a new generation must replay the learning journal"
+        );
+        owl_msime_session_destroy(second);
+    }
+
+    #[test]
+    fn upstream_generations_switch_without_discarding_journal_learning() {
+        let tmp = TempDir::new().unwrap();
+        let resources = build_minimal_test_resources(&tmp.path().join("resources"));
+        let user = tmp.path().join("msime-user");
+        let cache = tmp.path().join("msime-cache");
+
+        let (session_a, error_a) = create_with_generation(&resources, &user, &cache, "content-a");
+        assert!(error_a.is_none(), "{error_a:?}");
+        assert!(!session_a.is_null());
+        call_action(session_a, r#"{"op":"insert","ch":"n"}"#);
+
+        let (session_b, error_b) = create_with_generation(&resources, &user, &cache, "content-b");
+        assert!(error_b.is_none(), "{error_b:?}");
+        assert!(!session_b.is_null());
+        assert!(user
+            .join("dictionaries/content-a")
+            .join(msime_engine::assets::GENERATION_READY)
+            .is_file());
+        assert!(user
+            .join("dictionaries/content-b")
+            .join(msime_engine::assets::GENERATION_READY)
+            .is_file());
+
+        let continued = call_action(session_a, r#"{"op":"insert","ch":"i"}"#);
+        assert_eq!(continued.raw_input, "ni");
+        assert!(
+            call_snapshot(session_a)
+                .candidates
+                .iter()
+                .any(|candidate| candidate.text == "你"),
+            "preparing a second content id must not disturb the live first session"
+        );
+
+        for ch in ['n', 'i'] {
+            call_action(session_b, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+        }
+        assert_eq!(
+            select_visible_text(session_b, "泥")
+                .committed_text
+                .as_deref(),
+            Some("泥")
+        );
+        msime_engine::flush_personal_learning();
+        owl_msime_session_destroy(session_a);
+        owl_msime_session_destroy(session_b);
+
+        let (reopened_a, error) =
+            create_with_generation(&resources, &user, &cache, "content-a");
+        assert!(error.is_none(), "{error:?}");
+        assert!(!reopened_a.is_null());
+        let weight: i64 = Connection::open(
+            user.join("dictionaries/content-a")
+                .join(msime_engine::assets::MAIN_DICTIONARY),
+        )
+        .unwrap()
+        .query_row(
+            "SELECT weight FROM tbl_1_n WHERE key='ni' AND value='泥'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+        assert!(
+            weight > 2000,
+            "switching back to content-a must keep learning written while content-b was active"
+        );
+        owl_msime_session_destroy(reopened_a);
+    }
+
+    #[test]
+    fn upstream_generation_rejects_invalid_inputs_before_user_writes() {
+        let tmp = TempDir::new().unwrap();
+        let resources = build_minimal_test_resources(&tmp.path().join("resources"));
+
+        let overlap_resources =
+            build_minimal_test_resources(&tmp.path().join("overlap-resources"));
+        let before = directory_tree(tmp.path());
+        let (session, error) = create_with_generation(
+            &overlap_resources,
+            &overlap_resources.join("user"),
+            &tmp.path().join("overlap-cache"),
+            "v1",
+        );
+        assert!(session.is_null());
+        assert!(error.is_some());
+        assert_eq!(directory_tree(tmp.path()), before);
+
+        let before = directory_tree(tmp.path());
+        let (session, error) = create_with_generation(
+            &resources,
+            Path::new("relative-user"),
+            &tmp.path().join("relative-cache"),
+            "v1",
+        );
+        assert!(session.is_null());
+        assert!(error.is_some());
+        assert_eq!(directory_tree(tmp.path()), before);
+
+        let before = directory_tree(tmp.path());
+        let (session, error) = create_with_generation(
+            &resources,
+            &tmp.path().join("invalid-id-user"),
+            &tmp.path().join("invalid-id-cache"),
+            "../escape",
+        );
+        assert!(session.is_null());
+        assert!(error.is_some());
+        assert_eq!(directory_tree(tmp.path()), before);
+
+        let missing_english = tmp.path().join("missing-english");
+        fs::create_dir_all(&missing_english).unwrap();
+        build_minimal_test_pinyin_db(
+            &missing_english.join(msime_engine::assets::MAIN_DICTIONARY),
+        );
+        let before = directory_tree(tmp.path());
+        let (session, error) = create_with_generation(
+            &missing_english,
+            &tmp.path().join("missing-english-user"),
+            &tmp.path().join("missing-english-cache"),
+            "v1",
+        );
+        assert!(session.is_null());
+        assert!(error
+            .as_deref()
+            .is_some_and(|message| message.contains("msime-english.db")));
+        assert_eq!(directory_tree(tmp.path()), before);
+
+        let missing_pinyin = tmp.path().join("missing-pinyin");
+        fs::create_dir_all(&missing_pinyin).unwrap();
+        ensure_english_schema(
+            &missing_pinyin.join(msime_engine::assets::ENGLISH_DICTIONARY),
+        )
+        .unwrap();
+        let before = directory_tree(tmp.path());
+        let (session, error) = create_with_generation(
+            &missing_pinyin,
+            &tmp.path().join("missing-pinyin-user"),
+            &tmp.path().join("missing-pinyin-cache"),
+            "v1",
+        );
+        assert!(session.is_null());
+        assert!(error
+            .as_deref()
+            .is_some_and(|message| message.contains("msime-pinyin.db")));
+        assert_eq!(directory_tree(tmp.path()), before);
+    }
+
+    #[test]
+    fn upstream_generation_reports_replay_failure_without_publishing() {
+        let tmp = TempDir::new().unwrap();
+        let resources = build_minimal_test_resources(&tmp.path().join("resources"));
+        let user = tmp.path().join("msime-user");
+        fs::create_dir_all(user.join("dictionaries")).unwrap();
+        let journal = user.join(msime_engine::assets::USER_JOURNAL);
+        Connection::open(&journal)
+            .unwrap()
+            .execute_batch(
+                "CREATE TABLE user_dictionary_operations(bad INTEGER);
+                 INSERT INTO user_dictionary_operations VALUES (1);",
+            )
+            .unwrap();
+        let user_before = file_contents(&user);
+
+        let (session, error) = create_with_generation(
+            &resources,
+            &user,
+            &tmp.path().join("msime-cache"),
+            "broken-replay",
+        );
+        assert!(session.is_null());
+        assert!(error
+            .as_deref()
+            .is_some_and(|message| message.contains("dictionary generation")));
+        assert!(!user.join("dictionaries/broken-replay").exists());
+        assert!(!user.join("dictionaries/broken-replay.incoming").exists());
+        assert_eq!(
+            file_contents(&user),
+            user_before,
+            "a failed replay must not rewrite the journal or user files"
+        );
+    }
+
     #[test]
     fn ffi_quanpin_typing_pagination_and_editing() {
         let tmp = TempDir::new().unwrap();
@@ -2298,6 +2872,76 @@ mod tests {
         assert!(!post_destroy_snap.ok);
         let post_destroy_act = call_action(session, "{\"op\":\"space\"}");
         assert!(!post_destroy_act.ok);
+    }
+
+    #[test]
+    fn ffi_partial_phrase_selection_stays_in_preedit_until_the_phrase_ends() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&db_path);
+        let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_empty.as_ptr(), 5);
+        assert!(!session.is_null());
+
+        for ch in ['n', 'i', 'h', 'a', 'o'] {
+            call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+        }
+        let held = select_visible_text(session, "你");
+        assert!(held.consumed);
+        assert_eq!(
+            held.committed_text, None,
+            "a candidate that consumes only the first syllable must stay in the composition"
+        );
+        assert_eq!(held.raw_input, "hao");
+        assert_eq!(held.preedit, "你hao");
+        assert_eq!(held.preedit_caret_byte, "你hao".len());
+
+        // Continuing and then editing the remaining spelling must keep the chosen piece held.
+        let continued = call_action(session, r#"{"op":"insert","ch":"n"}"#);
+        assert_eq!(continued.committed_text, None);
+        assert_eq!(continued.raw_input, "haon");
+        assert_eq!(continued.preedit, "你hao'n");
+        let edited = call_action(session, r#"{"op":"backspace"}"#);
+        assert_eq!(edited.committed_text, None);
+        assert_eq!(edited.raw_input, "hao");
+        assert_eq!(edited.preedit, "你hao");
+
+        // Ordinary Backspace retreats the latest selection when the tail reaches one character.
+        let shorter = call_action(session, r#"{"op":"backspace"}"#);
+        assert_eq!(shorter.committed_text, None);
+        assert_eq!(shorter.preedit, "你ha");
+        let shorter = call_action(session, r#"{"op":"backspace"}"#);
+        assert_eq!(shorter.committed_text, None);
+        assert_eq!(shorter.preedit, "你h");
+        let restored = call_action(session, r#"{"op":"backspace"}"#);
+        assert_eq!(restored.committed_text, None);
+        assert_eq!(restored.raw_input, "ni");
+        assert_eq!(restored.preedit, "ni");
+
+        // Select the same piece again and finish the phrase; the pieces go out as one commit.
+        for ch in ['h', 'a', 'o'] {
+            call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+        }
+        select_visible_text(session, "你");
+        let committed = select_visible_text(session, "好");
+        assert_eq!(committed.committed_text.as_deref(), Some("你好"));
+        assert!(committed.raw_input.is_empty());
+        assert!(committed.preedit.is_empty());
+
+        // Escape discards both the unfinished spelling and the held piece.
+        for ch in ['n', 'i', 'h', 'a', 'o'] {
+            call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+        }
+        select_visible_text(session, "你");
+        let cancelled = call_action(session, r#"{"op":"clear"}"#);
+        assert!(cancelled.cleared);
+        assert_eq!(cancelled.committed_text, None);
+        assert!(cancelled.raw_input.is_empty());
+        assert!(cancelled.preedit.is_empty());
+
+        owl_msime_session_destroy(session);
     }
 
     #[test]

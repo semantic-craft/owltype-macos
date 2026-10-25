@@ -46,6 +46,28 @@ OwlMsimeSession *owl_msime_session_create_with_roots(
     char **error_out
 );
 
+/*
+ * Prepares an upstream dictionary generation and creates one session over it.
+ * resources_dir must contain msime-pinyin.db and msime-english.db directly.
+ * The generation is created at
+ * <user_data_dir>/dictionaries/<content_id>, while the persistent journal is
+ * <user_data_dir>/msime_user.db. content_id is 1...128 bytes of
+ * [0-9A-Za-z_-]. user_data_dir and cache_dir must be exact, non-overlapping
+ * absolute roots.
+ *
+ * The legacy and explicit-roots constructors above are unchanged. On failure,
+ * this entry returns NULL and, when error_out is non-NULL, stores a newly
+ * allocated UTF-8 message released by owl_msime_string_free.
+ */
+OwlMsimeSession *owl_msime_session_create_with_generation(
+    const char *resources_dir,
+    const char *user_data_dir,
+    const char *cache_dir,
+    const char *content_id,
+    uint32_t page_size,
+    char **error_out
+);
+
 void owl_msime_session_destroy(OwlMsimeSession *session);
 
 char *owl_msime_session_handle_action_json(

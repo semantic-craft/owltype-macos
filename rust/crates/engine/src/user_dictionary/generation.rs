@@ -445,7 +445,7 @@ fn is_real_file(path: &Path) -> bool {
 }
 
 /// `std::filesystem::weakly_canonical`: the longest existing prefix resolved through symlinks, the rest appended with `.` and `..` folded lexically, so roots that do not exist yet compare by what they will resolve to. No crate resolves symlinks for a partly missing path, which the overlap check needs (a symlinked resource alias must still be caught).
-pub(super) fn weakly_canonical(path: &Path) -> Result<PathBuf> {
+pub fn weakly_canonical(path: &Path) -> Result<PathBuf> {
     let components: Vec<Component<'_>> = path.components().collect();
     for split in (1..=components.len()).rev() {
         let head: PathBuf = components[..split].iter().collect();
@@ -475,7 +475,7 @@ fn append_lexically(base: &mut PathBuf, rest: &[Component<'_>]) {
     }
 }
 
-fn reject_redirected_directory(path: &Path) -> std::io::Result<()> {
+pub fn reject_redirected_directory(path: &Path) -> std::io::Result<()> {
     for ancestor in path.ancestors() {
         match fs::symlink_metadata(ancestor) {
             Ok(metadata) if metadata.file_type().is_symlink() => {
@@ -502,7 +502,7 @@ fn reject_redirected_directory(path: &Path) -> std::io::Result<()> {
 }
 
 /// One root contains the other, compared by whole components (RP:34-37).
-pub(super) fn roots_overlap(first: &Path, second: &Path) -> bool {
+pub fn roots_overlap(first: &Path, second: &Path) -> bool {
     first.starts_with(second) || second.starts_with(first)
 }
 
