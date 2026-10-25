@@ -44,6 +44,10 @@ COMPONENTS = (
     ("Unicode Unihan", "16.0.0", "Unicode-3.0", "https://www.unicode.org/Public/16.0.0/ucd/Unihan.zip"),
     ("OpenCC data", "556ed22496d650bd0b13b6c163be9814637970ae", "Apache-2.0", "https://github.com/BYVoid/OpenCC"),
     ("Metasequoia IME (msime)", "09e3d53c16eb11420bef708c35d425c31eff41e2", "GPL-3.0-only", "https://github.com/metasequoiaime/msime"),
+    ("Owltype emoji catalog (msime-others.db)", "dict-v2.0.24", "GPL-3.0-only AND Unicode-3.0 AND MIT", "https://github.com/metasequoiaime/msime-dictionary/releases/tag/dict-v2.0.24"),
+    ("rime-ice emoji data", "9e66b0729083b37d217312294f6d516c8d7234be", "GPL-3.0-only", "https://github.com/iDvel/rime-ice"),
+    ("Unicode Emoji, CLDR annotations, and Emoji 1.0 names", "17.0", "Unicode-3.0", "https://unicode.org/Public/emoji/17.0/"),
+    ("python-pinyin emoji reading overrides", "v0.55.0", "MIT", "https://github.com/mozillazg/python-pinyin"),
     ("chinese-ime-lm reference crate", "15caab4fdeb59c11f452b91884371cf30e2e5608", "Apache-2.0", "https://github.com/metasequoiaime/chinese-ime-lm"),
     ("chinese-ime-lm model weights", "model-v1", "Apache-2.0", "https://github.com/metasequoiaime/chinese-ime-lm/releases/tag/model-v1"),
 )
@@ -307,6 +311,14 @@ def make_sbom(app: Path, version: str, revision: str, created: str) -> dict:
         if name == "Sparkle":
             patch = Path(__file__).resolve().parent.parent / "patches/sparkle/application-relaunch.patch"
             packages[-1]["sourceInfo"] = "Official upstream pin with Owltype application-relaunch.patch SHA256 " + sha256(patch)
+        elif name == "Owltype emoji catalog (msime-others.db)":
+            packages[-1]["sourceInfo"] = (
+                "Derived from the pinned dict-v2.0.24 release artifact with msime "
+                "builder commit 128a332cabc5fa42b1cf5f827033ad5697ff528b and "
+                "msime-dictionary data commit 71dc6f6cc7a451231ee29c0a39b39adbf2e04d32; "
+                "only emoji and emoji_pinyin are retained. The upstream artifact's "
+                "other tables, including kaomoji and PiliApp symbol_catalog, are excluded."
+            )
 
     return {
         "SPDXID": "SPDXRef-DOCUMENT",

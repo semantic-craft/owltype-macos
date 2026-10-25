@@ -66,6 +66,12 @@ class RustDeliveryTests(unittest.TestCase):
         with closing(sqlite3.connect(english)) as connection, connection:
             connection.execute("CREATE TABLE english_words (key TEXT, value TEXT, weight INTEGER)")
             connection.execute("INSERT INTO english_words VALUES ('hello', 'hello', 1)")
+        others = resource_root / "msime-others.db"
+        with closing(sqlite3.connect(others)) as connection, connection:
+            connection.execute("CREATE TABLE emoji (emoji TEXT PRIMARY KEY)")
+            connection.execute("CREATE TABLE emoji_pinyin (key TEXT, emoji TEXT)")
+            connection.execute("INSERT INTO emoji VALUES ('🍎')")
+            connection.execute("INSERT INTO emoji_pinyin VALUES ('ping', '🍎')")
 
     def compile_fixture(self, app: Path, source: str, *linker_inputs: Path) -> None:
         subprocess.run(
@@ -175,7 +181,37 @@ class RustDeliveryTests(unittest.TestCase):
         app = self.make_app("Valid.app")
         self.compile_fixture(app, VALID_SOURCE)
         result = CHECKER.validate_app(app)
-        self.assertEqual(result, (1, 2))
+        self.assertEqual(result, (1, 3))
+
+    def test_rejects_forbidden_msime_others_catalogs(self) -> None:
+        app = self.make_app("ForbiddenOthers.app")
+        self.compile_fixture(app, VALID_SOURCE)
+        others = app / "Contents/SharedSupport/msime/msime-others.db"
+        with closing(sqlite3.connect(others)) as connection, connection:
+            connection.execute("CREATE TABLE symbol_catalog (symbol TEXT PRIMARY KEY)")
+        with self.assertRaisesRegex(CHECKER.DeliveryError, "forbidden tables: symbol_catalog"):
+            CHECKER.validate_app(app)
+
+    def test_rejects_unknown_msime_others_tables(self) -> None:
+        app = self.make_app("UnknownOthers.app")
+        self.compile_fixture(app, VALID_SOURCE)
+        others = app / "Contents/SharedSupport/msime/msime-others.db"
+        with closing(sqlite3.connect(others)) as connection, connection:
+            connection.execute("CREATE TABLE unexpected_catalog (symbol TEXT PRIMARY KEY)")
+        with self.assertRaisesRegex(
+            CHECKER.DeliveryError,
+            "unexpected tables: unexpected_catalog",
+        ):
+            CHECKER.validate_app(app)
+
+    def test_rejects_missing_msime_others_emoji_table(self) -> None:
+        app = self.make_app("IncompleteOthers.app")
+        self.compile_fixture(app, VALID_SOURCE)
+        others = app / "Contents/SharedSupport/msime/msime-others.db"
+        with closing(sqlite3.connect(others)) as connection, connection:
+            connection.execute("DROP TABLE emoji_pinyin")
+        with self.assertRaisesRegex(CHECKER.DeliveryError, "emoji_pinyin"):
+            CHECKER.validate_app(app)
 
 
 if __name__ == "__main__":

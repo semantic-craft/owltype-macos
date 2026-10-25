@@ -2745,6 +2745,26 @@ mod tests {
         }
     }
 
+    fn candidate_texts_across_pages(session: *mut OwlMsimeSession) -> Vec<String> {
+        let mut texts = Vec::new();
+        let mut expected_page = 0;
+        loop {
+            let frame = call_snapshot(session);
+            assert_eq!(frame.page, expected_page);
+            texts.extend(frame.candidates.into_iter().map(|candidate| candidate.text));
+            if !frame.has_more_pages {
+                return texts;
+            }
+            let next = call_action(session, r#"{"op":"turn_page","delta":1}"#);
+            assert!(next.ok, "{:?}", next.error);
+            expected_page += 1;
+            assert!(
+                expected_page < 512,
+                "candidate pagination did not terminate"
+            );
+        }
+    }
+
     fn staged_pinyin_path(session: *const OwlMsimeSession) -> PathBuf {
         assert!(!session.is_null());
         unsafe { (*session).staged_pinyin_path.clone() }
@@ -2880,6 +2900,56 @@ mod tests {
         let options = session_options(session);
         assert!(options.mixed_emoji);
         assert!(!options.local_emoji);
+
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn production_seed_delivers_emoji_rows_through_ffi() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+        let resources = repository.join("data/owl-rime/msime");
+        let pinyin = resources.join(msime_engine::assets::MAIN_DICTIONARY);
+        if !pinyin.is_file() {
+            return;
+        }
+        let others = resources.join(msime_engine::assets::OTHER_DICTIONARY);
+        assert!(
+            others.is_file(),
+            "missing production emoji catalog at {}; run make owl-seed",
+            others.display()
+        );
+
+        let tmp = TempDir::new().unwrap();
+        let (session, error) = create_with_explicit_roots(
+            &pinyin,
+            &resources,
+            &tmp.path().join("user"),
+            &tmp.path().join("cache"),
+            &tmp.path().join("dictionaries"),
+        );
+        assert!(error.is_none(), "{error:?}");
+        assert!(!session.is_null());
+        let enabled = call_action(
+            session,
+            r#"{"op":"set_option","name":"emoji","value":true}"#,
+        );
+        assert!(enabled.ok, "{:?}", enabled.error);
+
+        for ch in "pingguo".chars() {
+            let frame = call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
+            assert!(frame.ok, "{:?}", frame.error);
+        }
+        let apple = candidate_texts_across_pages(session);
+        assert!(apple.iter().any(|text| text == "🍎"), "{apple:?}");
+        assert!(apple.iter().any(|text| text == "🍏"), "{apple:?}");
+
+        call_action(session, r#"{"op":"clear"}"#);
+        for ch in "ping".chars() {
+            let frame = call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
+            assert!(frame.ok, "{:?}", frame.error);
+        }
+        let ping = candidate_texts_across_pages(session);
+        assert!(ping.iter().any(|text| text == "🏓"), "{ping:?}");
 
         owl_msime_session_destroy(session);
     }

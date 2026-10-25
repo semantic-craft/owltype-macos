@@ -14,6 +14,7 @@ PKG="$ROOT/package/Owltype.pkg"
 UPDATE_PKG="$ROOT/package/Owltype-update.pkg"
 APPCAST="$ROOT/package/appcast.xml"
 CHINESE_IME_LM_CRATE_LICENSE_SHA256="cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+PYTHON_PINYIN_LICENSE_SHA256="1e6c90014b4912815c296ee64bb6f6280af47e6d4c5d80e86232dfc5defe764c"
 WUBI86_JIDIAN_LICENSE_SHA256="43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1"
 # Manual smoke evidence lives outside the public tree; point OWL_MANUAL_SMOKE at the current
 # release's manual-host-app-smoke document.
@@ -76,6 +77,12 @@ source_crate_license="$APP/Contents/SharedSupport/licenses/chinese-ime-lm.LICENS
 printf '%s  %s\n' "$CHINESE_IME_LM_CRATE_LICENSE_SHA256" "$source_crate_license" |
   shasum -a 256 --check --status ||
   fail "Release app chinese-ime-lm source crate LICENSE differs from the pinned text"
+python_pinyin_license="$APP/Contents/SharedSupport/python-pinyin.LICENSE"
+[[ -s "$python_pinyin_license" ]] ||
+  fail "Release app missing python-pinyin LICENSE"
+printf '%s  %s\n' "$PYTHON_PINYIN_LICENSE_SHA256" "$python_pinyin_license" |
+  shasum -a 256 --check --status ||
+  fail "Release app python-pinyin LICENSE differs from the pinned text"
 wubi_license="$APP/Contents/SharedSupport/wubi86-jidian.LICENSE"
 [[ -s "$wubi_license" ]] ||
   fail "Release app missing rime-wubi86-jidian LICENSE"
@@ -163,10 +170,13 @@ for path in \
 	  './Owltype.app/Contents/Resources/THIRD_PARTY_NOTICES.md' \
 	  './Owltype.app/Contents/SharedSupport/licenses/chinese-ime-lm.LICENSE' \
 	  './Owltype.app/Contents/SharedSupport/wubi86-jidian.LICENSE' \
+	  './Owltype.app/Contents/SharedSupport/python-pinyin.LICENSE' \
 	  './Owltype.app/Contents/SharedSupport/OWLTYPE-SEED-MANIFEST.txt' \
 	  './Owltype.app/Contents/SharedSupport/owltype.yaml' \
+	  './Owltype.app/Contents/SharedSupport/msime-others-NOTICE.txt' \
 	  './Owltype.app/Contents/SharedSupport/msime/msime-pinyin.db' \
-	  './Owltype.app/Contents/SharedSupport/msime/msime-english.db'
+	  './Owltype.app/Contents/SharedSupport/msime/msime-english.db' \
+	  './Owltype.app/Contents/SharedSupport/msime/msime-others.db'
 do
   grep -qxF "$path" <<<"$payload" || fail "pkg payload missing $path"
 done
@@ -174,6 +184,10 @@ pkg_source_crate_license="$tmp/checked-app/Owltype.app/Contents/SharedSupport/li
 printf '%s  %s\n' "$CHINESE_IME_LM_CRATE_LICENSE_SHA256" "$pkg_source_crate_license" |
   shasum -a 256 --check --status ||
   fail "pkg payload chinese-ime-lm source crate LICENSE differs from the pinned text"
+pkg_python_pinyin_license="$tmp/checked-app/Owltype.app/Contents/SharedSupport/python-pinyin.LICENSE"
+printf '%s  %s\n' "$PYTHON_PINYIN_LICENSE_SHA256" "$pkg_python_pinyin_license" |
+  shasum -a 256 --check --status ||
+  fail "pkg payload python-pinyin LICENSE differs from the pinned text"
 pkg_wubi_license="$tmp/checked-app/Owltype.app/Contents/SharedSupport/wubi86-jidian.LICENSE"
 printf '%s  %s\n' "$WUBI86_JIDIAN_LICENSE_SHA256" "$pkg_wubi_license" |
   shasum -a 256 --check --status ||
