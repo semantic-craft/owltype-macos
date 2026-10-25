@@ -49,7 +49,12 @@ INSTALL_NAME_TOOL_ARGS = -add_rpath @loader_path/../Frameworks
 
 .PHONY: librime copy-rime-binaries
 
-$(RUST_FFI_LIBRARY):
+# Cargo owns the Rust dependency graph, including source deletions and branch
+# switches. An existing archive alone must never bypass its incremental check.
+.PHONY: rust-ffi-check
+rust-ffi-check:
+
+$(RUST_FFI_LIBRARY): rust-ffi-check
 	bash scripts/build-rust-ffi.sh
 
 $(RIME_LIBRARY):
