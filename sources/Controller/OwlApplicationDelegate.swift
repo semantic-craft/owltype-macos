@@ -516,7 +516,6 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
         OwlCandidatePanelSettings.live.applyInlineCandidate(to: &self.styleFlags)
         self.owlPanel?.refreshPreferences()
       },
-      supportsRimeOnlySymbolMenus: !usesRustEngine,
       writesRimeConfiguration: !usesRustEngine
     )
     OwlLatencyTrace.event("window.settings.firstVisible")

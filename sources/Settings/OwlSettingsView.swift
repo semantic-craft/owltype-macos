@@ -49,7 +49,6 @@ struct OwlSettingsView: View {
   let onShowOnboarding: () -> Void
   /// Candidate setting changed → refresh all live runtime consumers.
   let onPanelPreferencesChanged: () -> Void
-  var supportsRimeOnlySymbolMenus = true
   var writesRimeConfiguration = true
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -192,7 +191,6 @@ struct OwlSettingsView: View {
           onRedeploy: onRedeploy,
           onApplyKeyboardConfigFast: onApplyKeyboardConfigFast,
           onApplyFuzzyConfigFast: onApplyFuzzyConfigFast,
-          supportsRimeOnlySymbolMenus: supportsRimeOnlySymbolMenus,
           writesRimeConfiguration: writesRimeConfiguration
         )
       case .shortcuts:
@@ -205,7 +203,6 @@ struct OwlSettingsView: View {
           onRedeploy: onRedeploy,
           onApplyKeyboardConfigFast: onApplyKeyboardConfigFast,
           onApplyFuzzyConfigFast: onApplyFuzzyConfigFast,
-          supportsRimeOnlySymbolMenus: supportsRimeOnlySymbolMenus,
           writesRimeConfiguration: writesRimeConfiguration,
           variant: .shortcuts
         )

@@ -58,7 +58,6 @@ final class OwlSettingsWindow: NSWindowController {
     onOpenLog: @escaping () -> Void,
     onShowOnboarding: @escaping () -> Void,
     onPanelPreferencesChanged: @escaping () -> Void,
-    supportsRimeOnlySymbolMenus: Bool = true,
     writesRimeConfiguration: Bool = true
   ) {
     self.state = state
@@ -76,7 +75,6 @@ final class OwlSettingsWindow: NSWindowController {
       onOpenLog: onOpenLog,
       onShowOnboarding: onShowOnboarding,
       onPanelPreferencesChanged: onPanelPreferencesChanged,
-      supportsRimeOnlySymbolMenus: supportsRimeOnlySymbolMenus,
       writesRimeConfiguration: writesRimeConfiguration
     )
     // NavigationSplitView installs a native toolbar. Constrain the hosting surface to

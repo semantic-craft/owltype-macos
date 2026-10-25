@@ -17,7 +17,7 @@ final class OwlSettingsActionTests: XCTestCase {
     "OwlKeyboardFullShapeToggle", "OwlKeyboardCJKPunctToggle",
     "OwlKeyboardDefaultAsciiMode", "OwlKeyboardDefaultFullShape", "OwlKeyboardPageMinusEquals",
     "OwlKeyboardPageBrackets", "OwlKeyboardPageCommaPeriod", "OwlKeyboardSelect23Semicolon",
-    "OwlKeyboardSelect23Command", "OwlKeyboardSlashSymbolMenu",
+    "OwlKeyboardSelect23Command", "OwlKeyboardSlashSymbolMenu", "OwlKeyboardAngleSymbolMenu",
     "OwlKeyboardCJKEnglishSpacing", "OwlKeyboardCJKNumberSpacing",
     "OwlKeyboardAppEnglishBundleIDs",
     "OwlFuzzyZhZ", "OwlFuzzyChC", "OwlFuzzyShS", "OwlFuzzyNL", "OwlFuzzyRL",
@@ -100,6 +100,7 @@ final class OwlSettingsActionTests: XCTestCase {
     assertToggle(\.keyboardPageCommaPeriod, state, { OwlKeyboardPreferences.pageCommaPeriod }) { OwlKeyboardPreferences.pageCommaPeriod = $0 }
     assertToggle(\.keyboardSelect23Semicolon, state, { OwlKeyboardPreferences.select23Semicolon }) { OwlKeyboardPreferences.select23Semicolon = $0 }
     assertToggle(\.keyboardSlashSymbolMenu, state, { OwlKeyboardPreferences.slashSymbolMenu }) { OwlKeyboardPreferences.slashSymbolMenu = $0 }
+    assertToggle(\.keyboardAngleSymbolMenu, state, { OwlKeyboardPreferences.angleSymbolMenu }) { OwlKeyboardPreferences.angleSymbolMenu = $0 }
     assertToggle(\.keyboardCJKAlnumSpacing, state, { OwlKeyboardPreferences.cjkAlnumSpacing }) { OwlKeyboardPreferences.cjkAlnumSpacing = $0 }
     panelSettings.edit(.animationsEnabled(false), state: state, onChange: {})
     XCTAssertFalse(panelSettings.snapshot().animationsEnabled)
@@ -593,8 +594,6 @@ final class OwlSettingsActionTests: XCTestCase {
     let pageFail = OwlSettingsView.candidatePageSizeApplyStatusMessage(written: [], deploySucceeded: false)
     XCTAssertTrue(pageFail.contains("候选个数未生效"))
     XCTAssertFalse(pageFail.contains("重新部署"))
-    XCTAssertTrue(OwlKeyboardPage.unsupportedSymbolMenuMessage("/").contains("暂不支持"))
-    XCTAssertTrue(OwlKeyboardPage.unsupportedSymbolMenuMessage("<").contains("暂不支持"))
   }
 
   /// PR3 Track 2 (fuzzy): `applyFuzzyConfigFast` runs the async `start_maintenance(fullCheck:false)`

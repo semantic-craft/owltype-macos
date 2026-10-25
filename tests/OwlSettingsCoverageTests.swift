@@ -179,6 +179,8 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "输入中文时 “/” 弹出符号选单",
     // 「<」与「/」符号选单的 patch coverage 在 OwlKeyboardPatchBuilderTests。
     "输入中文时 “<” 弹出符号选单",
+    "选择方案文件…",
+    "清除检查结果",
     // N3 ` 临时英文（键盘页 五笔 卡，2026-07-21）：patch coverage 在 OwlKeyboardPatchBuilderTests
     // 的 wubiEnglishChannel 断言。
     "` 临时英文",
@@ -235,6 +237,9 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "API Key（\\(hint)留空＝保持现有 Key 不变）",
     "OwlSettingsActions.saveDoubaoSearchKey(",
     "OwlSettingsActions.clearDoubaoSearchKey(",
+    "OwlRimeSchemaCompatibilityReport.inspect(fileURLs: panel.urls)",
+    "panel.allowsMultipleSelection = true",
+    "外部自定义 schema/Lua 不执行；原文不改；内置日期、农历、Unicode、表达式由 Rust 原生实现。",
   ]
 
   private static let labelPatterns = [

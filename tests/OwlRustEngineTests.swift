@@ -138,6 +138,53 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertFalse(session.option(.asciiPunct))
   }
 
+  func testRustPunctuationMenusMatchRimeOrderAndContinueTyping() throws {
+    let originalSlash = OwlKeyboardPreferences.slashSymbolMenu
+    let originalAngle = OwlKeyboardPreferences.angleSymbolMenu
+    defer {
+      OwlKeyboardPreferences.slashSymbolMenu = originalSlash
+      OwlKeyboardPreferences.angleSymbolMenu = originalAngle
+    }
+    OwlKeyboardPreferences.slashSymbolMenu = true
+    OwlKeyboardPreferences.angleSymbolMenu = true
+
+    let engine = try makeSharedSupportSeedEngine()
+    let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
+    defer { session.destroy() }
+
+    let slash = UInt32(UInt8(ascii: "/"))
+    XCTAssertTrue(session.process(keycode: slash, modifiers: 0))
+    XCTAssertEqual(session.composition()?.preedit, "/")
+    XCTAssertEqual(session.composition()?.candidates.map(\.text), ["、", "/", "／", "÷"])
+    XCTAssertFalse(session.option(.asciiMode), "the slash menu must not switch to English")
+
+    XCTAssertTrue(session.process(keycode: slash, modifiers: 0))
+    XCTAssertEqual(session.composition()?.highlightedIndex, 1)
+    XCTAssertTrue(session.process(keycode: UInt32(UInt8(ascii: "2")), modifiers: 0))
+    XCTAssertEqual(session.takeCommit(), "/")
+
+    let angle = UInt32(UInt8(ascii: "<"))
+    XCTAssertTrue(session.process(keycode: angle, modifiers: 0))
+    XCTAssertEqual(session.composition()?.candidates.map(\.text), ["《", "〈", "<", "「", "“"])
+    XCTAssertTrue(session.process(keycode: UInt32(UInt8(ascii: "a")), modifiers: 0))
+    XCTAssertEqual(session.takeCommit(), "《")
+    XCTAssertEqual(session.composition()?.preedit, "a", "typing continues after the selected symbol")
+  }
+
+  func testRustAngleMenuOffKeepsDirectPunctuation() throws {
+    let original = OwlKeyboardPreferences.angleSymbolMenu
+    defer { OwlKeyboardPreferences.angleSymbolMenu = original }
+    OwlKeyboardPreferences.angleSymbolMenu = false
+
+    let engine = try makeSharedSupportSeedEngine()
+    let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
+    defer { session.destroy() }
+
+    XCTAssertTrue(session.process(keycode: UInt32(UInt8(ascii: "<")), modifiers: 0))
+    XCTAssertEqual(session.takeCommit(), "《")
+    XCTAssertNil(session.composition()?.candidates.first)
+  }
+
   func testUpstreamGenerationKeepsJournalUnderMsimeUserAndResourcesUntouched() throws {
     let repoRoot = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()

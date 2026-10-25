@@ -49,6 +49,11 @@ enum OwlRimeSchemaCompatibilityReport {
     pattern: #"lua_(?:translator|processor|filter)@[A-Za-z0-9_@*./-]+|[A-Za-z0-9_@*./-]+\.lua"#
   )
 
+  static func supports(fileURL: URL) -> Bool {
+    let name = fileURL.lastPathComponent
+    return name.hasSuffix(".schema.yaml") || name.hasSuffix(".custom.yaml")
+  }
+
   static func inspect(fileURLs: [URL]) throws -> Report {
     let entries = try fileURLs.map(inspect(fileURL:))
     return Report(
@@ -62,14 +67,10 @@ enum OwlRimeSchemaCompatibilityReport {
 
   private static func inspect(fileURL: URL) throws -> FileEntry {
     let name = fileURL.lastPathComponent
-    let kind: FileEntry.Kind
-    if name.hasSuffix(".schema.yaml") {
-      kind = .schema
-    } else if name.hasSuffix(".custom.yaml") {
-      kind = .custom
-    } else {
+    guard supports(fileURL: fileURL) else {
       throw Failure.unsupportedFile(name)
     }
+    let kind: FileEntry.Kind = name.hasSuffix(".schema.yaml") ? .schema : .custom
     guard let data = try? Data(contentsOf: fileURL) else {
       throw Failure.unreadable(name)
     }

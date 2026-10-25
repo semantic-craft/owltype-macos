@@ -25,6 +25,10 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 
+mod punctuation_menu;
+
+use punctuation_menu::PunctuationMenu;
+
 #[derive(Default)]
 struct OwlPinnedState {
     words: HashMap<(String, bool), Vec<String>>,
@@ -185,6 +189,8 @@ pub struct OwlMsimeSession {
     wubi_english_channel: bool,
     wubi_user_dict_learning: bool,
     pinned_state: Arc<Mutex<OwlPinnedState>>,
+    punctuation_menu: Option<PunctuationMenu>,
+    punctuation_menu_generation: u64,
     _temp_dir: Option<TempDir>,
 }
 
@@ -1009,6 +1015,8 @@ impl OwlMsimeSession {
             wubi_english_channel: false,
             wubi_user_dict_learning: false,
             pinned_state,
+            punctuation_menu: None,
+            punctuation_menu_generation: 0,
             _temp_dir: temp_dir,
         })
     }
@@ -1043,7 +1051,213 @@ impl OwlMsimeSession {
     }
 
     pub fn snapshot(&self) -> SnapshotResponseDto {
-        self.build_snapshot(self.runtime.view(), false, None, false)
+        if self.punctuation_menu.is_some() {
+            self.build_punctuation_menu_snapshot(false, None, false)
+        } else {
+            self.build_snapshot(self.runtime.view(), false, None, false)
+        }
+    }
+
+    fn next_punctuation_menu_generation(&mut self) -> u64 {
+        let next = self.punctuation_menu_generation.wrapping_add(1);
+        self.punctuation_menu_generation = if next == 0 { 1 } else { next };
+        self.punctuation_menu_generation
+    }
+
+    fn build_punctuation_menu_snapshot(
+        &self,
+        consumed: bool,
+        committed_text: Option<String>,
+        cleared: bool,
+    ) -> SnapshotResponseDto {
+        let Some(menu) = self.punctuation_menu.as_ref() else {
+            return self.build_snapshot(self.runtime.view(), consumed, committed_text, cleared);
+        };
+        let page_size = usize::from(self.page_size).max(1);
+        let page = menu.page(page_size);
+        let start = page * page_size;
+        let end = (start + page_size).min(menu.candidates().len());
+        let trigger = menu.trigger().to_string();
+        SnapshotResponseDto {
+            ok: true,
+            error: None,
+            consumed,
+            committed_text,
+            cleared,
+            generation: menu.generation(),
+            raw_input: trigger.clone(),
+            preedit: trigger.clone(),
+            caret_position: trigger.len(),
+            preedit_caret_byte: trigger.len(),
+            page,
+            page_size,
+            highlighted_index: menu.highlighted().saturating_sub(start),
+            has_more_pages: end < menu.candidates().len(),
+            candidates: menu.candidates()[start..end]
+                .iter()
+                .map(|candidate| CandidateDto {
+                    text: (*candidate).to_owned(),
+                    comment: None,
+                    kind: "Phrase".to_owned(),
+                    input_len: trigger.len(),
+                })
+                .collect(),
+        }
+    }
+
+    fn open_punctuation_menu(&mut self, trigger: char) -> Result<SnapshotResponseDto, String> {
+        if PunctuationMenu::new(trigger, 0).is_none() {
+            return Err(format!("unsupported punctuation menu trigger: {trigger}"));
+        }
+
+        if let Some(mut menu) = self.punctuation_menu.take() {
+            if menu.trigger() == trigger {
+                menu.cycle();
+                menu.set_generation(self.next_punctuation_menu_generation());
+                self.punctuation_menu = Some(menu);
+                return Ok(self.build_punctuation_menu_snapshot(true, None, false));
+            }
+            let previous = menu.selected().to_owned();
+            let generation = self.next_punctuation_menu_generation();
+            self.punctuation_menu = PunctuationMenu::new(trigger, generation);
+            return Ok(self.build_punctuation_menu_snapshot(true, Some(previous), false));
+        }
+
+        let view = self.runtime.view();
+        let has_composition = !view.phrase_prefix.is_empty()
+            || !view.editing_text.is_empty()
+            || !view.preedit.is_empty()
+            || !view.candidates.is_empty();
+        let committed_text = if has_composition {
+            let transition = self
+                .runtime
+                .dispatch(Action::Finish)
+                .map_err(|error| error.to_string())?;
+            self.sync_pinned_state_from_view(&transition.view);
+            transition.commit
+        } else {
+            None
+        };
+        let generation = self.next_punctuation_menu_generation();
+        self.punctuation_menu = PunctuationMenu::new(trigger, generation);
+        Ok(self.build_punctuation_menu_snapshot(true, committed_text, false))
+    }
+
+    fn select_punctuation_candidate(&mut self, index: usize) -> SnapshotResponseDto {
+        let Some(selected) = self
+            .punctuation_menu
+            .as_ref()
+            .and_then(|menu| menu.candidate(index))
+        else {
+            return self.build_punctuation_menu_snapshot(false, None, false);
+        };
+        self.punctuation_menu = None;
+        self.build_snapshot(self.runtime.view(), true, Some(selected.to_owned()), false)
+    }
+
+    fn select_punctuation_token(
+        &mut self,
+        index: usize,
+        is_absolute: bool,
+        generation: Option<u64>,
+    ) -> SnapshotResponseDto {
+        let page_size = usize::from(self.page_size).max(1);
+        let Some(menu) = self.punctuation_menu.as_ref() else {
+            return self.build_snapshot(self.runtime.view(), false, None, false);
+        };
+        if generation.is_some_and(|value| value != menu.generation()) {
+            return self.build_punctuation_menu_snapshot(false, None, false);
+        }
+        let page_start = menu.page(page_size) * page_size;
+        let absolute = if is_absolute {
+            index
+        } else {
+            page_start + index
+        };
+        self.select_punctuation_candidate(absolute)
+    }
+
+    fn move_punctuation_highlight(&mut self, delta: i32) -> SnapshotResponseDto {
+        let changed = {
+            let Some(menu) = self.punctuation_menu.as_mut() else {
+                return self.build_snapshot(self.runtime.view(), false, None, false);
+            };
+            if delta == 0 {
+                return self.build_punctuation_menu_snapshot(true, None, false);
+            }
+            menu.move_highlight(delta)
+        };
+        if changed {
+            let generation = self.next_punctuation_menu_generation();
+            if let Some(menu) = self.punctuation_menu.as_mut() {
+                menu.set_generation(generation);
+            }
+        }
+        self.build_punctuation_menu_snapshot(true, None, false)
+    }
+
+    fn turn_punctuation_page(&mut self, delta: i32) -> SnapshotResponseDto {
+        let page_size = usize::from(self.page_size).max(1);
+        let changed = {
+            let Some(menu) = self.punctuation_menu.as_mut() else {
+                return self.build_snapshot(self.runtime.view(), false, None, false);
+            };
+            if delta == 0 {
+                return self.build_punctuation_menu_snapshot(false, None, false);
+            }
+            let current = menu.page(page_size);
+            let next = if delta < 0 {
+                current.saturating_sub(delta.unsigned_abs() as usize)
+            } else {
+                current
+                    .saturating_add(delta as usize)
+                    .min(menu.page_count(page_size).saturating_sub(1))
+            };
+            menu.set_page(next, page_size)
+        };
+        if changed {
+            let generation = self.next_punctuation_menu_generation();
+            if let Some(menu) = self.punctuation_menu.as_mut() {
+                menu.set_generation(generation);
+            }
+        }
+        self.build_punctuation_menu_snapshot(true, None, false)
+    }
+
+    fn peek_punctuation_candidates(&self, start: usize, count: usize) -> SnapshotResponseDto {
+        let mut dto = self.build_punctuation_menu_snapshot(true, None, false);
+        let Some(menu) = self.punctuation_menu.as_ref() else {
+            return dto;
+        };
+        let input_len = menu.trigger().len_utf8();
+        dto.candidates = menu
+            .candidates()
+            .iter()
+            .skip(start)
+            .take(count)
+            .map(|candidate| CandidateDto {
+                text: (*candidate).to_owned(),
+                comment: None,
+                kind: "Phrase".to_owned(),
+                input_len,
+            })
+            .collect();
+        dto
+    }
+
+    fn merge_punctuation_menu_commit(&mut self, dto: &mut SnapshotResponseDto) {
+        if !dto.ok {
+            return;
+        }
+        let Some(menu) = self.punctuation_menu.take() else {
+            return;
+        };
+        let selected = menu.selected();
+        dto.committed_text = Some(match dto.committed_text.take() {
+            Some(committed) => format!("{selected}{committed}"),
+            None => selected.to_owned(),
+        });
+        dto.consumed = true;
     }
 
     fn sync_pinned_state_for_upcoming_input(&self, next_input: String, caret_at_end: bool) {
@@ -1171,12 +1385,14 @@ impl OwlMsimeSession {
                     }) {
                         Ok(transition) => {
                             self.sync_pinned_state_from_view(&transition.view);
-                            self.build_snapshot(
+                            let mut dto = self.build_snapshot(
                                 transition.view,
                                 transition.handled,
                                 transition.commit,
                                 false,
-                            )
+                            );
+                            self.merge_punctuation_menu_commit(&mut dto);
+                            dto
                         }
                         Err(err) => error_response(err.to_string()),
                     };
@@ -1209,21 +1425,29 @@ impl OwlMsimeSession {
                                 self.runtime.dispatch(Action::Command(Command::Cancel))
                             {
                                 self.sync_pinned_state_from_view(&cleared_t.view);
-                                return self.build_snapshot(cleared_t.view, true, None, true);
+                                let mut dto = self.build_snapshot(cleared_t.view, true, None, true);
+                                self.merge_punctuation_menu_commit(&mut dto);
+                                return dto;
                             }
                         }
                         self.sync_pinned_state_from_view(&transition.view);
-                        self.build_snapshot(
+                        let mut dto = self.build_snapshot(
                             transition.view,
                             transition.handled,
                             transition.commit,
                             false,
-                        )
+                        );
+                        self.merge_punctuation_menu_commit(&mut dto);
+                        dto
                     }
                     Err(err) => error_response(err.to_string()),
                 }
             }
             "backspace" => {
+                if self.punctuation_menu.is_some() {
+                    self.punctuation_menu = None;
+                    return self.build_snapshot(self.runtime.view(), true, None, false);
+                }
                 let before = self.runtime.view();
                 let caret = before.caret_position.min(before.editing_text.len());
                 let mut next_input = before.editing_text.clone();
@@ -1275,14 +1499,32 @@ impl OwlMsimeSession {
                             }
                         }
                         self.sync_pinned_state_from_view(&transition.view);
-                        self.build_snapshot(
+                        let mut dto = self.build_snapshot(
                             transition.view,
                             transition.handled,
                             transition.commit,
                             false,
-                        )
+                        );
+                        self.merge_punctuation_menu_commit(&mut dto);
+                        dto
                     }
                     Err(err) => error_response(err.to_string()),
+                }
+            }
+            "punctuation_menu" => {
+                let Some(ch_str) = payload.ch.as_deref() else {
+                    return error_response("punctuation_menu requires ch");
+                };
+                let mut chars = ch_str.chars();
+                let Some(trigger) = chars.next() else {
+                    return error_response("punctuation_menu ch is empty");
+                };
+                if chars.next().is_some() || !trigger.is_ascii() {
+                    return error_response("punctuation_menu ch must be one ASCII character");
+                }
+                match self.open_punctuation_menu(trigger) {
+                    Ok(dto) => dto,
+                    Err(err) => error_response(err),
                 }
             }
             "move_caret" => {
@@ -1319,12 +1561,14 @@ impl OwlMsimeSession {
                 match self.runtime.dispatch(Action::Command(cmd)) {
                     Ok(transition) => {
                         self.sync_pinned_state_from_view(&transition.view);
-                        self.build_snapshot(
+                        let mut dto = self.build_snapshot(
                             transition.view,
                             transition.handled,
                             transition.commit,
                             false,
-                        )
+                        );
+                        self.merge_punctuation_menu_commit(&mut dto);
+                        dto
                     }
                     Err(err) => error_response(err.to_string()),
                 }
@@ -1358,6 +1602,13 @@ impl OwlMsimeSession {
                 }
             }
             "commit_raw" => {
+                if self.punctuation_menu.is_some() {
+                    let index = self
+                        .punctuation_menu
+                        .as_ref()
+                        .map_or(0, PunctuationMenu::highlighted);
+                    return self.select_punctuation_candidate(index);
+                }
                 let in_temp_eng = self.temp_english_backtick(&self.runtime.view());
                 match self.runtime.dispatch(Action::Command(Command::CommitRaw)) {
                     Ok(mut transition) => {
@@ -1380,6 +1631,13 @@ impl OwlMsimeSession {
                 }
             }
             "space" => {
+                if self.punctuation_menu.is_some() {
+                    let index = self
+                        .punctuation_menu
+                        .as_ref()
+                        .map_or(0, PunctuationMenu::highlighted);
+                    return self.select_punctuation_candidate(index);
+                }
                 let in_temp_eng = self.temp_english_backtick(&self.runtime.view());
                 match self.runtime.dispatch(Action::SelectHighlighted) {
                     Ok(mut transition) => {
@@ -1404,6 +1662,10 @@ impl OwlMsimeSession {
                 }
             }
             "clear" => {
+                if self.punctuation_menu.is_some() {
+                    self.punctuation_menu = None;
+                    return self.build_snapshot(self.runtime.view(), true, None, true);
+                }
                 let had_input = !self.runtime.view().editing_text.is_empty();
                 self.sync_pinned_state_for_upcoming_input(String::new(), true);
                 match self.runtime.dispatch(Action::Command(Command::Cancel)) {
@@ -1418,6 +1680,9 @@ impl OwlMsimeSession {
             }
             "move_highlight" => {
                 let delta = payload.delta.unwrap_or(0);
+                if self.punctuation_menu.is_some() {
+                    return self.move_punctuation_highlight(delta);
+                }
                 if delta == 0 {
                     return self.build_snapshot(self.runtime.view(), true, None, false);
                 }
@@ -1441,6 +1706,9 @@ impl OwlMsimeSession {
             }
             "turn_page" => {
                 let delta = payload.delta.unwrap_or(0);
+                if self.punctuation_menu.is_some() {
+                    return self.turn_punctuation_page(delta);
+                }
                 if delta == 0 {
                     return self.build_snapshot(self.runtime.view(), false, None, false);
                 }
@@ -1470,6 +1738,14 @@ impl OwlMsimeSession {
                 let Some(index) = payload.index else {
                     return error_response("select_visible requires index");
                 };
+                if self.punctuation_menu.is_some() {
+                    let page_size = usize::from(self.page_size).max(1);
+                    let page_start = self
+                        .punctuation_menu
+                        .as_ref()
+                        .map_or(0, |menu| menu.page(page_size) * page_size);
+                    return self.select_punctuation_candidate(page_start + index);
+                }
                 let view = self.runtime.view();
                 let Some(candidate) = view.candidates.get(index) else {
                     return self.build_snapshot(view, false, None, false);
@@ -1492,6 +1768,13 @@ impl OwlMsimeSession {
                 let Some(index) = payload.index else {
                     return error_response("select_token requires index");
                 };
+                if self.punctuation_menu.is_some() {
+                    return self.select_punctuation_token(
+                        index,
+                        payload.is_absolute.unwrap_or(false),
+                        payload.generation,
+                    );
+                }
                 let view = self.runtime.view();
                 let token_gen = payload.generation.unwrap_or(view.generation);
                 if payload.generation.is_some() && token_gen != view.generation {
@@ -1526,6 +1809,9 @@ impl OwlMsimeSession {
             "peek_candidates" => {
                 let start = payload.start.unwrap_or(0);
                 let count = payload.count.unwrap_or(0);
+                if self.punctuation_menu.is_some() {
+                    return self.peek_punctuation_candidates(start, count);
+                }
                 let all = self.runtime.all_candidates_cached();
                 let view = self.runtime.view();
                 let show_ann = self.show_engine_annotation(&view);
@@ -1718,7 +2004,11 @@ impl OwlMsimeSession {
                 self.page_size = clamped;
                 self.options.first_page_rows = usize::from(clamped);
                 let _ = self.runtime.set_page_size(clamped);
-                self.build_snapshot(self.runtime.view(), true, None, false)
+                if self.punctuation_menu.is_some() {
+                    self.build_punctuation_menu_snapshot(true, None, false)
+                } else {
+                    self.build_snapshot(self.runtime.view(), true, None, false)
+                }
             }
             "set_option" => {
                 let Some(name) = payload.name.as_deref() else {
@@ -3236,6 +3526,152 @@ mod tests {
         assert!(punct_cn.ok);
         assert!(punct_cn.consumed);
         assert_eq!(punct_cn.committed_text.as_deref(), Some("拟好，"));
+
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn punctuation_menus_cycle_commit_and_yield_to_typing() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&db_path);
+        let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_empty.as_ptr(), 5);
+        assert!(!session.is_null());
+
+        let slash = call_action(session, r#"{"op":"punctuation_menu","ch":"/"}"#);
+        assert!(slash.ok);
+        assert!(slash.consumed);
+        assert_eq!(slash.raw_input, "/");
+        assert_eq!(slash.preedit, "/");
+        assert_eq!(
+            slash
+                .candidates
+                .iter()
+                .map(|candidate| candidate.text.as_str())
+                .collect::<Vec<_>>(),
+            ["、", "/", "／", "÷"]
+        );
+        assert_eq!(slash.highlighted_index, 0);
+
+        let cycled = call_action(session, r#"{"op":"punctuation_menu","ch":"/"}"#);
+        assert_eq!(cycled.highlighted_index, 1);
+        assert_ne!(cycled.generation, slash.generation);
+        assert!(cycled.candidates == slash.candidates);
+
+        let selected = call_action(session, r#"{"op":"select_visible","index":1}"#);
+        assert!(selected.ok);
+        assert!(selected.consumed);
+        assert_eq!(selected.committed_text.as_deref(), Some("/"));
+        assert!(selected.raw_input.is_empty());
+        assert!(selected.candidates.is_empty());
+
+        let angle = call_action(session, r#"{"op":"punctuation_menu","ch":"<"}"#);
+        assert_eq!(
+            angle
+                .candidates
+                .iter()
+                .map(|candidate| candidate.text.as_str())
+                .collect::<Vec<_>>(),
+            ["《", "〈", "<", "「", "“"]
+        );
+        let stale = call_action(
+            session,
+            &format!(
+                r#"{{"op":"select_token","index":0,"generation":{}}}"#,
+                angle.generation + 1
+            ),
+        );
+        assert!(stale.ok);
+        assert!(!stale.consumed);
+        assert!(stale.committed_text.is_none());
+        assert_eq!(stale.candidates.len(), 5);
+
+        let typed = call_action(session, r#"{"op":"insert","ch":"a"}"#);
+        assert!(typed.ok);
+        assert!(typed.consumed);
+        assert_eq!(typed.committed_text.as_deref(), Some("《"));
+        assert_eq!(typed.raw_input, "a");
+        assert_eq!(typed.preedit, "a");
+
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn punctuation_menu_pages_and_rejects_invalid_triggers_without_losing_state() {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().join("test-pinyin.db");
+        build_minimal_test_pinyin_db(&db_path);
+        let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+        let c_empty = CString::new("").unwrap();
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_empty.as_ptr(), 3);
+        assert!(!session.is_null());
+
+        let angle = call_action(session, r#"{"op":"punctuation_menu","ch":"<"}"#);
+        assert_eq!(angle.page, 0);
+        assert!(angle.has_more_pages);
+        assert_eq!(
+            angle
+                .candidates
+                .iter()
+                .map(|candidate| candidate.text.as_str())
+                .collect::<Vec<_>>(),
+            ["《", "〈", "<"]
+        );
+
+        let invalid = call_action(session, r#"{"op":"punctuation_menu","ch":";"}"#);
+        assert!(!invalid.ok);
+        assert!(invalid
+            .error
+            .as_deref()
+            .is_some_and(|error| error.contains("unsupported punctuation menu trigger")));
+        let preserved = call_snapshot(session);
+        assert_eq!(preserved.raw_input, "<");
+        assert_eq!(preserved.candidates.len(), 3);
+
+        let page = call_action(session, r#"{"op":"turn_page","delta":1}"#);
+        assert!(page.ok);
+        assert!(page.consumed);
+        assert_eq!(page.page, 1);
+        assert_eq!(page.highlighted_index, 0);
+        assert!(!page.has_more_pages);
+        assert_eq!(
+            page.candidates
+                .iter()
+                .map(|candidate| candidate.text.as_str())
+                .collect::<Vec<_>>(),
+            ["「", "“"]
+        );
+
+        let past_last_page = call_action(session, r#"{"op":"turn_page","delta":1}"#);
+        assert!(past_last_page.consumed);
+        assert_eq!(past_last_page.page, 1);
+
+        let selected = call_action(
+            session,
+            &format!(
+                r#"{{"op":"select_token","index":1,"generation":{}}}"#,
+                page.generation
+            ),
+        );
+        assert!(selected.consumed);
+        assert_eq!(selected.committed_text.as_deref(), Some("“"));
+
+        for ch in ['n', 'i'] {
+            call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
+        }
+        let composed = call_snapshot(session);
+        let expected = composed.candidates[0].text.clone();
+        let menu_while_composing = call_action(session, r#"{"op":"punctuation_menu","ch":"<"}"#);
+        assert_eq!(
+            menu_while_composing.committed_text.as_deref(),
+            Some(expected.as_str())
+        );
+        assert_eq!(menu_while_composing.raw_input, "<");
+        assert_eq!(menu_while_composing.candidates[0].text, "《");
 
         owl_msime_session_destroy(session);
     }

@@ -74,6 +74,17 @@ final class OwlRimeSchemaCompatibilityReportTests: XCTestCase {
     let unsupported = root.appendingPathComponent("synthetic.yaml")
     try Data("schema_id: wrong".utf8).write(to: unsupported)
 
+    XCTAssertFalse(OwlRimeSchemaCompatibilityReport.supports(fileURL: unsupported))
+    XCTAssertTrue(
+      OwlRimeSchemaCompatibilityReport.supports(
+        fileURL: root.appendingPathComponent("synthetic.schema.yaml")
+      )
+    )
+    XCTAssertTrue(
+      OwlRimeSchemaCompatibilityReport.supports(
+        fileURL: root.appendingPathComponent("synthetic.custom.yaml")
+      )
+    )
     XCTAssertThrowsError(try OwlRimeSchemaCompatibilityReport.inspect(fileURLs: [unsupported])) {
       XCTAssertEqual(
         $0 as? OwlRimeSchemaCompatibilityReport.Failure,

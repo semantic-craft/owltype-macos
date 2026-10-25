@@ -27,6 +27,13 @@
 
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
+
+private final class SchemaCompatibilityPanelDelegate: NSObject, NSOpenSavePanelDelegate {
+  func panel(_ sender: Any, shouldEnable url: URL) -> Bool {
+    url.hasDirectoryPath || OwlRimeSchemaCompatibilityReport.supports(fileURL: url)
+  }
+}
 
 /// The 键盘输入 detail page. Palette/theme/reduceTransparency come from
 /// `OwlSettingsView` (same arg style as the other pages); `state` carries the mirror
@@ -44,7 +51,6 @@ struct OwlKeyboardPage: View {
   /// 模糊拼音 fast-ish apply (mtime-gated `fullCheck:false` maintenance — rebuilds the schema
   /// prism, not octagram — + reselect + replay). NOT instant; copy stays honest.
   let onApplyFuzzyConfigFast: () throws -> OwlKeyboardSettingsApplication.Outcome
-  var supportsRimeOnlySymbolMenus = true
   var writesRimeConfiguration = true
 
   /// Which card group this instance renders. 键盘输入 shows everything except the three
@@ -72,6 +78,8 @@ struct OwlKeyboardPage: View {
   /// stay live-only and do not use this status line.
   @State private var isAutoApplyingRimeConfig = false
   @State private var autoApplyStatus: String?
+  @State private var compatibilityReport: OwlRimeSchemaCompatibilityReport.Report?
+  @State private var compatibilityReportError: String?
 
   var body: some View {
     ScrollView {
@@ -80,6 +88,7 @@ struct OwlKeyboardPage: View {
         case .keyboard:
           applyConfigCard
           inputMethodCard
+          schemaCompatibilityCard
           dictPackCard
           defaultStateCard
           wubiCard
@@ -384,6 +393,98 @@ struct OwlKeyboardPage: View {
       }
       .disabled(!rimeBackedRowsEnabled)
       .opacity(rimeBackedRowsEnabled ? 1 : 0.55)
+    }
+  }
+
+  private var schemaCompatibilityCard: some View {
+    SettingsCard(
+      title: "自定义 Rime 方案兼容检查",
+      palette: palette,
+      theme: theme,
+      reduceTransparency: reduceTransparency
+    ) {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("仅检查你主动选择的 .schema.yaml / .custom.yaml；不扫描目录，也不改写原文。")
+          .font(.system(size: 12))
+          .foregroundStyle(palette.ink3)
+        HStack(spacing: 10) {
+          Button("选择方案文件…") {
+            chooseSchemaCompatibilityFiles()
+          }
+          .buttonStyle(.borderedProminent)
+          if compatibilityReport != nil {
+            Button("清除检查结果") {
+              compatibilityReport = nil
+              compatibilityReportError = nil
+            }
+            .buttonStyle(.bordered)
+          }
+        }
+        if let compatibilityReportError {
+          Text(compatibilityReportError)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        if let report = compatibilityReport {
+          VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(report.files.enumerated()), id: \.offset) { _, file in
+              VStack(alignment: .leading, spacing: 3) {
+                Text("\(file.fileName) · \(file.kind == .schema ? "方案" : "补丁")")
+                  .font(.system(size: 13, weight: .medium))
+                  .foregroundStyle(palette.ink)
+                Text("schema id：\(file.schemaID ?? "未找到")")
+                  .font(.system(size: 11.5, design: .monospaced))
+                  .foregroundStyle(palette.ink3)
+                Text(
+                  "Lua 引用：\(file.luaReferences.isEmpty ? "无" : file.luaReferences.joined(separator: "、"))"
+                )
+                .font(.system(size: 11.5))
+                .foregroundStyle(palette.ink3)
+              }
+              .padding(9)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                  .fill(palette.card2)
+              }
+            }
+            Text("原生等价能力：\(report.nativeEquivalentCapabilities.joined(separator: "、"))")
+              .font(.system(size: 12, weight: .medium))
+              .foregroundStyle(palette.ink2)
+            Text(report.notice)
+              .font(.system(size: 12))
+              .foregroundStyle(palette.ink3)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+        Text("外部自定义 schema/Lua 不执行；原文不改；内置日期、农历、Unicode、表达式由 Rust 原生实现。")
+          .font(.system(size: 12))
+          .foregroundStyle(palette.ink3)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
+  private func chooseSchemaCompatibilityFiles() {
+    let panel = NSOpenPanel()
+    panel.title = "选择自定义 Rime 方案文件"
+    panel.prompt = "检查"
+    panel.canChooseFiles = true
+    panel.canChooseDirectories = false
+    panel.allowsMultipleSelection = true
+    panel.allowedContentTypes = [.yaml]
+    let delegate = SchemaCompatibilityPanelDelegate()
+    panel.delegate = delegate
+    let response = withExtendedLifetime(delegate) { panel.runModal() }
+    guard response == .OK else { return }
+    do {
+      compatibilityReport = try OwlRimeSchemaCompatibilityReport.inspect(fileURLs: panel.urls)
+      compatibilityReportError = nil
+    } catch {
+      compatibilityReport = nil
+      compatibilityReportError = error.localizedDescription
     }
   }
 
@@ -823,14 +924,12 @@ struct OwlKeyboardPage: View {
         SettingsCardDivider(palette: palette)
         SettingsToggleRow(
           title: "输入中文时 “/” 弹出符号选单",
-          isOn: supportsRimeOnlySymbolMenus && state.keyboardSlashSymbolMenu,
+          isOn: state.keyboardSlashSymbolMenu,
           palette: palette,
           isEnabled: symbolMenusEnabled,
           onToggle: { toggleSlashSymbolMenu() }
         )
-        Text(supportsRimeOnlySymbolMenus
-          ? "打开后按 / 键从 、 / ／ ÷ 里挑一个；关闭时维持默认行为：提交当前中文候选、切到英文并直接输入 /。"
-          : Self.unsupportedSymbolMenuMessage("/"))
+        Text("打开后按 / 键从 、 / ／ ÷ 里挑一个；关闭时维持默认行为：提交当前中文候选、切到英文并直接输入 /。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .frame(maxWidth: .infinity, alignment: .leading)
@@ -839,14 +938,12 @@ struct OwlKeyboardPage: View {
         SettingsCardDivider(palette: palette)
         SettingsToggleRow(
           title: "输入中文时 “<” 弹出符号选单",
-          isOn: supportsRimeOnlySymbolMenus && state.keyboardAngleSymbolMenu,
+          isOn: state.keyboardAngleSymbolMenu,
           palette: palette,
           isEnabled: symbolMenusEnabled,
           onToggle: { toggleAngleSymbolMenu() }
         )
-        Text(supportsRimeOnlySymbolMenus
-          ? "按 < 键从 《 〈 < 「 “ 里挑一个；首选仍是 《，继续打字会自动上屏首选。配合「成对输入」，选出的开括号（含弯引号）会自动补全成对。"
-          : Self.unsupportedSymbolMenuMessage("<"))
+        Text("按 < 键从 《 〈 < 「 “ 里挑一个；首选仍是 《，继续打字会自动上屏首选。配合「成对输入」，选出的开括号（含弯引号）会自动补全成对。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .frame(maxWidth: .infinity, alignment: .leading)
@@ -956,7 +1053,7 @@ struct OwlKeyboardPage: View {
   }
 
   private var symbolMenusEnabled: Bool {
-    rimeBackedRowsEnabled && supportsRimeOnlySymbolMenus
+    rimeBackedRowsEnabled
   }
 
   private var defaultApplyStatus: String {
@@ -1044,10 +1141,6 @@ struct OwlKeyboardPage: View {
       : writesRimeConfiguration
         ? "已写入 \(files)，但应用失败；改动未生效，请查看诊断日志。"
         : "应用失败，改动未生效，请查看诊断日志。"
-  }
-
-  static func unsupportedSymbolMenuMessage(_ key: String) -> String {
-    "暂不支持：Rust 引擎不执行 Rime 的 \(key) 符号选单配置。"
   }
 
   // MARK: - Bool write-through helpers
