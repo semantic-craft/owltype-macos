@@ -55,20 +55,22 @@ def read_pinyin(db: Path) -> dict[tuple[str, str, str], int]:
     return result
 
 
-def read_wubi(db: Path) -> dict[str, list[tuple[str, int]]]:
-    grouped: dict[str, list[tuple[str, int]]] = defaultdict(list)
+def read_wubi(db: Path) -> dict[str, list[tuple[str, int, int]]]:
+    grouped: dict[str, list[tuple[str, int, int]]] = defaultdict(list)
     with sqlite3.connect(db) as conn:
         exists = conn.execute(
             "SELECT 1 FROM sqlite_master WHERE type='table' AND name='wubi86'"
         ).fetchone()
         if not exists:
             return grouped
-        for key, value, weight in conn.execute(
-            'SELECT "key", "value", "weight" FROM "wubi86"'
+        for key, value, weight, rowid in conn.execute(
+            'SELECT "key", "value", "weight", rowid FROM "wubi86"'
         ):
-            grouped[key].append((value, int(weight or 0)))
+            grouped[key].append((value, int(weight or 0), int(rowid)))
     for key in grouped:
-        grouped[key].sort(key=lambda row: (-row[1], row[0]))
+        # The provider groups one key at a time, so its key ASC tie-break is a
+        # no-op here; preserve the weight and rowid ordering users see.
+        grouped[key].sort(key=lambda row: (-row[1], row[2]))
     return grouped
 
 
@@ -335,6 +337,32 @@ def selftest() -> int:
             "distinct-new-code",
             "existing-code-new-collision",
         }
+
+        # Historical tie: the real imported database has 西蓝花 before 横巷 at
+        # the same weight, so the provider's rowid tie-break must be visible.
+        tie_baseline = root / "tie-baseline.db"
+        tie_full = root / "tie-full.db"
+        tie_output = root / "tie-report"
+        with sqlite3.connect(tie_baseline) as conn:
+            conn.execute(
+                'CREATE TABLE wubi86 ("key" TEXT, "value" TEXT, "weight" INTEGER)'
+            )
+            conn.execute(
+                'INSERT INTO wubi86 VALUES ("saaw", "横巷", 10)'
+            )
+        with sqlite3.connect(tie_full) as conn:
+            conn.execute(
+                'CREATE TABLE wubi86 ("key" TEXT, "value" TEXT, "weight" INTEGER)'
+            )
+            conn.executemany(
+                'INSERT INTO wubi86 VALUES ("saaw", ?, 10)',
+                [("西蓝花",), ("横巷",)],
+            )
+        build_report(tie_baseline, tie_full, tie_output, tie_baseline)
+        tie_row = (
+            tie_output / "wubi-lost-four-code-unique.tsv"
+        ).read_text().splitlines()[1].split("\t")
+        assert tie_row[3] == "西蓝花 / 横巷", tie_row
     print("owl-rust-resource-report selftest: ok")
     return 0
 
