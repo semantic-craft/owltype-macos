@@ -89,6 +89,10 @@ pub trait InputEngine {
     fn set_cloud_candidates_enabled(&mut self, _enabled: bool) -> Result<(), RuntimeError> {
         Ok(())
     }
+    /// Toggle only the emoji rows mixed into ordinary candidates.
+    fn set_mixed_emoji_candidates(&mut self, _enabled: bool) -> Result<(), RuntimeError> {
+        Ok(())
+    }
     fn set_paired_punctuation_enabled(&mut self, _enabled: bool) -> Result<(), RuntimeError> {
         Ok(())
     }
@@ -334,6 +338,10 @@ impl InputEngine for Session {
     }
     fn set_cloud_candidates_enabled(&mut self, enabled: bool) -> Result<(), RuntimeError> {
         Session::set_cloud_candidates_enabled(self, enabled);
+        Ok(())
+    }
+    fn set_mixed_emoji_candidates(&mut self, enabled: bool) -> Result<(), RuntimeError> {
+        Session::set_mixed_emoji_candidates(self, enabled);
         Ok(())
     }
     fn set_paired_punctuation_enabled(&mut self, enabled: bool) -> Result<(), RuntimeError> {

@@ -389,6 +389,15 @@ impl Session {
         self.inner.set_english_online_candidates_enabled(enabled);
     }
 
+    /// Toggle candidate emoji without enabling the independent Shift+E local mode.
+    pub fn set_mixed_emoji_candidates(&mut self, enabled: bool) {
+        self.inner.set_mixed_emoji_candidates(enabled);
+    }
+
+    pub fn mixed_emoji_candidates_enabled(&self) -> bool {
+        self.inner.mixed_emoji_candidates_enabled()
+    }
+
     pub fn set_caret(&mut self, caret: Option<usize>) {
         self.inner.set_caret(caret);
     }

@@ -2134,9 +2134,11 @@ impl OwlMsimeSession {
                         self.options.chinese_punctuation = !value;
                         let _ = self.runtime.set_chinese_punctuation_enabled(!value);
                     }
-                    "emoji_suggestion" => {
+                    "emoji" | "emoji_suggestion" => {
+                        if let Err(error) = self.runtime.set_mixed_emoji_candidates(value) {
+                            return error_response(error.to_string());
+                        }
                         self.options.mixed_emoji = value;
-                        self.options.local_emoji = value;
                     }
                     "traditional" | "traditionalization" | "zh_trad" | "transcription" => {
                         if let Ok(mut guard) = self.pinned_state.lock() {
@@ -2614,6 +2616,30 @@ mod tests {
         root.to_path_buf()
     }
 
+    fn build_minimal_test_others_db(root: &Path) {
+        let connection =
+            Connection::open(root.join(msime_engine::assets::OTHER_DICTIONARY)).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE emoji (
+                     emoji TEXT NOT NULL PRIMARY KEY,
+                     category TEXT NOT NULL,
+                     sort_order INTEGER NOT NULL,
+                     keywords TEXT NOT NULL,
+                     pinyin TEXT NOT NULL
+                 ) WITHOUT ROWID;
+                 CREATE TABLE emoji_pinyin (
+                     key TEXT NOT NULL,
+                     emoji TEXT NOT NULL,
+                     sort_order INTEGER NOT NULL,
+                     PRIMARY KEY (key, emoji)
+                 ) WITHOUT ROWID;
+                 INSERT INTO emoji VALUES ('🍎', 'Food and drink', 0, '苹果', 'pingguo');
+                 INSERT INTO emoji_pinyin VALUES ('ping', '🍎', 0);",
+            )
+            .unwrap();
+    }
+
     fn shuangpin_table_json(kind: ShuangpinProfileKind) -> serde_json::Value {
         let table = shuangpin_builtin_table(kind).expect("built-in shuangpin table");
         serde_json::json!({
@@ -2785,6 +2811,77 @@ mod tests {
         assert!(options.local_date_time_inline);
         assert!(options.local_date_time_menu);
         assert!(options.local_expression);
+        assert!(!options.mixed_emoji);
+        assert!(!options.local_emoji);
+    }
+
+    #[test]
+    fn candidate_emoji_option_refreshes_the_live_composition_only() {
+        let tmp = TempDir::new().unwrap();
+        let resources = build_minimal_test_resources(&tmp.path().join("resources"));
+        build_minimal_test_others_db(&resources);
+        let (session, error) = create_with_explicit_roots(
+            &resources.join(msime_engine::assets::MAIN_DICTIONARY),
+            &resources,
+            &tmp.path().join("user"),
+            &tmp.path().join("cache"),
+            &tmp.path().join("dictionaries"),
+        );
+        assert!(error.is_none(), "{error:?}");
+        assert!(!session.is_null());
+
+        for ch in ['p', 'i', 'n', 'g'] {
+            let frame = call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
+            assert!(frame.ok);
+        }
+        let initial = call_snapshot(session);
+        assert!(!initial.candidates.iter().any(|row| row.text == "🍎"));
+        let options = session_options(session);
+        assert!(!options.mixed_emoji);
+        assert!(!options.local_emoji);
+
+        let enabled = call_action(
+            session,
+            r#"{"op":"set_option","name":"emoji","value":true}"#,
+        );
+        assert!(enabled.candidates.iter().any(|row| row.text == "🍎"));
+        assert_eq!(enabled.local_mode, "none");
+        let options = session_options(session);
+        assert!(options.mixed_emoji);
+        assert!(!options.local_emoji);
+
+        let repeated = call_action(
+            session,
+            r#"{"op":"set_option","name":"emoji","value":true}"#,
+        );
+        assert_eq!(repeated.generation, enabled.generation);
+        assert!(repeated.candidates.iter().any(|row| row.text == "🍎"));
+
+        let disabled_by_alias = call_action(
+            session,
+            r#"{"op":"set_option","name":"emoji_suggestion","value":false}"#,
+        );
+        assert!(!disabled_by_alias
+            .candidates
+            .iter()
+            .any(|row| row.text == "🍎"));
+        let options = session_options(session);
+        assert!(!options.mixed_emoji);
+        assert!(!options.local_emoji);
+
+        let enabled_by_alias = call_action(
+            session,
+            r#"{"op":"set_option","name":"emoji_suggestion","value":true}"#,
+        );
+        assert!(enabled_by_alias
+            .candidates
+            .iter()
+            .any(|row| row.text == "🍎"));
+        let options = session_options(session);
+        assert!(options.mixed_emoji);
+        assert!(!options.local_emoji);
+
+        owl_msime_session_destroy(session);
     }
 
     fn host_phrase_texts(session: *const OwlMsimeSession) -> Vec<String> {

@@ -485,6 +485,15 @@ impl Session {
         self.input.set_english_online_candidates_enabled(enabled);
     }
 
+    /// Toggle only the emoji rows mixed into ordinary candidates; local `E` mode is independent.
+    pub fn set_mixed_emoji_candidates(&mut self, enabled: bool) {
+        self.input.set_mixed_emoji_candidates(enabled);
+    }
+
+    pub fn mixed_emoji_candidates_enabled(&self) -> bool {
+        self.input.mixed_emoji_candidates_enabled()
+    }
+
     /// The committed text the neural sentence models condition on, updated without rebuilding the session. Only the last 64 characters matter.
     pub fn set_rescoring_context(&mut self, context: &str) {
         self.input.set_rescoring_context(context);

@@ -1527,6 +1527,20 @@ impl InputSession {
         self.invalidate_online_requests();
     }
 
+    /// Change only the emoji rows mixed into ordinary candidates. Local emoji (`E`) keeps its
+    /// independent option, and an open composition is refreshed so the switch takes effect now.
+    pub(super) fn mixed_emoji_candidates_enabled(&self) -> bool {
+        self.expressive_options.emoji_candidates
+    }
+
+    pub(super) fn set_mixed_emoji_candidates(&mut self, enabled: bool) {
+        if self.expressive_options.emoji_candidates == enabled {
+            return;
+        }
+        self.expressive_options.emoji_candidates = enabled;
+        self.update_mixed_candidates();
+    }
+
     /// 输入或模式变化同时撤回英文在线行，不能只让旧查询失效却继续显示它的回答。
     pub(super) fn invalidate_online_requests(&mut self) {
         self.online_requests.invalidate();
