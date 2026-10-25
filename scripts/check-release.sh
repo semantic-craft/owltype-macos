@@ -14,6 +14,7 @@ PKG="$ROOT/package/Owltype.pkg"
 UPDATE_PKG="$ROOT/package/Owltype-update.pkg"
 APPCAST="$ROOT/package/appcast.xml"
 CHINESE_IME_LM_CRATE_LICENSE_SHA256="cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+WUBI86_JIDIAN_LICENSE_SHA256="43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1"
 # Manual smoke evidence lives outside the public tree; point OWL_MANUAL_SMOKE at the current
 # release's manual-host-app-smoke document.
 MANUAL_SMOKE="${OWL_MANUAL_SMOKE:-}"
@@ -75,7 +76,13 @@ source_crate_license="$APP/Contents/SharedSupport/licenses/chinese-ime-lm.LICENS
 printf '%s  %s\n' "$CHINESE_IME_LM_CRATE_LICENSE_SHA256" "$source_crate_license" |
   shasum -a 256 --check --status ||
   fail "Release app chinese-ime-lm source crate LICENSE differs from the pinned text"
-pass "Release app carries license, third-party notices, and pinned source crate license"
+wubi_license="$APP/Contents/SharedSupport/wubi86-jidian.LICENSE"
+[[ -s "$wubi_license" ]] ||
+  fail "Release app missing rime-wubi86-jidian LICENSE"
+printf '%s  %s\n' "$WUBI86_JIDIAN_LICENSE_SHA256" "$wubi_license" |
+  shasum -a 256 --check --status ||
+  fail "Release app rime-wubi86-jidian LICENSE differs from the pinned text"
+pass "Release app carries license, third-party notices, and pinned component licenses"
 
 python3 "$ROOT/scripts/check-rust-delivery.py" "$APP"
 pass "Release app delivers the Rust engine without the legacy Rime runtime"
@@ -155,6 +162,7 @@ for path in \
 	  './Owltype.app/Contents/Resources/LICENSE.txt' \
 	  './Owltype.app/Contents/Resources/THIRD_PARTY_NOTICES.md' \
 	  './Owltype.app/Contents/SharedSupport/licenses/chinese-ime-lm.LICENSE' \
+	  './Owltype.app/Contents/SharedSupport/wubi86-jidian.LICENSE' \
 	  './Owltype.app/Contents/SharedSupport/OWLTYPE-SEED-MANIFEST.txt' \
 	  './Owltype.app/Contents/SharedSupport/owltype.yaml' \
 	  './Owltype.app/Contents/SharedSupport/msime/msime-pinyin.db' \
@@ -166,6 +174,10 @@ pkg_source_crate_license="$tmp/checked-app/Owltype.app/Contents/SharedSupport/li
 printf '%s  %s\n' "$CHINESE_IME_LM_CRATE_LICENSE_SHA256" "$pkg_source_crate_license" |
   shasum -a 256 --check --status ||
   fail "pkg payload chinese-ime-lm source crate LICENSE differs from the pinned text"
+pkg_wubi_license="$tmp/checked-app/Owltype.app/Contents/SharedSupport/wubi86-jidian.LICENSE"
+printf '%s  %s\n' "$WUBI86_JIDIAN_LICENSE_SHA256" "$pkg_wubi_license" |
+  shasum -a 256 --check --status ||
+  fail "pkg payload rime-wubi86-jidian LICENSE differs from the pinned text"
 # 反倒退：dict-pack 载荷（未过再分发审计的第三方词库）绝不允许出现在公开 payload 里。
 for forbidden in \
   '/cn_dicts/base\.dict\.yaml$' \

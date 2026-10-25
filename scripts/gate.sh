@@ -74,12 +74,14 @@ portable_scripts() {
     scripts/fetch-rerank-models.py \
     scripts/finalize-release-bundle.py \
     scripts/inventory-release-bundle.py \
+    scripts/release-bundle.selftest.py \
     scripts/release-cohort-state.py \
     scripts/release_source.py \
     scripts/safe-extract-tar.py
   python3 scripts/build-owltype-msime-seed-db.selftest.py
   python3 scripts/check-rust-delivery.selftest.py
   python3 scripts/fetch-rerank-models.selftest.py
+  python3 scripts/release-bundle.selftest.py
   python3 scripts/owl-distribution.selftest.py
   python3 scripts/release-source-archive.selftest.py
   python3 scripts/build-sparkle.selftest.py
