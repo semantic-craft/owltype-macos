@@ -2308,12 +2308,13 @@ pub extern "C" fn owl_msime_session_create_with_roots(
             page_size,
         )
     }));
-    match created {
+    let session = match created {
         Ok(Ok(session)) => {
             let raw = Box::into_raw(Box::new(session));
-            if let Ok(mut set) = live_sessions().lock() {
-                set.insert(raw as usize);
-            }
+            live_sessions()
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .insert(raw as usize);
             raw
         }
         Ok(Err(message)) => {
@@ -2353,12 +2354,13 @@ pub extern "C" fn owl_msime_session_create_with_generation(
         let content_id = cstr_to_string(content_id).unwrap_or_default();
         OwlMsimeSession::create_with_generation(&resources, &user, &cache, &content_id, page_size)
     }));
-    match created {
+    let session = match created {
         Ok(Ok(session)) => {
             let raw = Box::into_raw(Box::new(session));
-            if let Ok(mut set) = live_sessions().lock() {
-                set.insert(raw as usize);
-            }
+            live_sessions()
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .insert(raw as usize);
             raw
         }
         Ok(Err(message)) => {
