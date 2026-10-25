@@ -372,7 +372,7 @@ review dates, not retries. Keep deterministic checks in the local gate.
 ### Publish seed data and its sidecars as one set
 
 - The Wubi seed builder replaced `msime-pinyin.db` before writing the pinned license and source metadata. A later write failure could leave a new database beside old provenance files.
-- Stage the database, license and metadata as sibling temporary files, replace them through a rollback-capable publisher, and restore every prior file if one installation step fails.
+- Stage the database, license and metadata as sibling temporary files, replace them through a rollback-capable publisher, and restore every prior file if one installation step fails. Keep the tracked source license under `licenses/`, outside `data/`: the public-source boundary rejects tracked `data/*wubi*` paths as restricted data even when the file is only the upstream license.
 - Regression: `test_publish_failure_restores_existing_wubi_artifacts` forces the metadata rename to fail after the database and license were installed, then checks all three old files are restored and no temporary file remains.
-- Verify (验证点): `python3 scripts/build-owltype-msime-seed-db.selftest.py` passes 9/9.
+- Verify (验证点): `python3 scripts/build-owltype-msime-seed-db.selftest.py` passes 9/9; `bash scripts/check-public-source.sh` passes with `licenses/wubi86-jidian.LICENSE` tracked.
 - Seen on 1 distinct date: 2026-10-25.

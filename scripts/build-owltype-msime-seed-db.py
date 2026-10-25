@@ -818,7 +818,7 @@ def main(argv: list[str] | None = None) -> int:
             f"{WUBI86_SOURCE_COMMIT}/{WUBI86_SOURCE_PATH}"
         )
         wubi_dict_path = cache_dir / WUBI86_SOURCE_PATH
-        wubi_license_path = repo_root / "data" / "licenses" / WUBI86_LICENSE_OUTPUT
+        wubi_license_path = repo_root / "licenses" / WUBI86_LICENSE_OUTPUT
         fetch_pinned_source(
             dict_url, WUBI86_SOURCE_SHA256, wubi_dict_path, "Wubi86 dictionary"
         )

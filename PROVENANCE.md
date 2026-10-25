@@ -26,7 +26,7 @@
   固定源文件共有 89,273 条数据行；89,272 条形状有效接受，其中 3 条重复以最高权重合并，
   去重后写入 89,269 条唯一记录，拒绝 1 条。拒绝项是第 7911 行 `\tcokg\t10\t全角空格`
   （文本列为空），不会被静默当作 Wubi 词条导入。
-  许可证原文逐字保留在 [`data/licenses/wubi86-jidian.LICENSE`](data/licenses/wubi86-jidian.LICENSE)。
+  许可证原文逐字保留在 [`licenses/wubi86-jidian.LICENSE`](licenses/wubi86-jidian.LICENSE)。
 - OpenCC 简繁转换等
 
 各组件的完整许可条款见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。

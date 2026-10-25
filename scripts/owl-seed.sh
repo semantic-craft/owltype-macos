@@ -221,7 +221,7 @@ The Chinese dictionary in this seed has exactly these data inputs:
   89,273 data rows: 89,272 shape-valid rows are accepted, 3 are duplicate
   pairs merged by highest weight, 89,269 unique rows are written, and 1 row
   is rejected because its text column is empty (source line 7911).
-  \`data/licenses/wubi86-jidian.LICENSE\` is verified as
+  \`licenses/wubi86-jidian.LICENSE\` is verified as
   SHA-256 \`$wubi86_license_sha256\` and copied to the seed unchanged.
 
 Only the curated \`pinyin.txt\` file of phrase-pinyin-data is used. Its
@@ -252,7 +252,7 @@ EOF
   echo "rime-wubi86-jidian $wubi86_sha"
   echo "source https://github.com/KyleBing/rime-wubi86-jidian"
   echo "wubi86-dictionary $wubi86_sha256"
-  echo "wubi86-license $wubi86_license_sha256 data/licenses/wubi86-jidian.LICENSE"
+  echo "wubi86-license $wubi86_license_sha256 licenses/wubi86-jidian.LICENSE"
   echo "wubi86-counts source-total=89273 accepted=89272 unique=89269 duplicate=3 rejected=1"
   echo "wubi86-rejected source-line-7911 empty-text cokg"
   echo "rime-essay removed from the public seed after traditional-form review"
