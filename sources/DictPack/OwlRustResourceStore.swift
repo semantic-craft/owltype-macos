@@ -283,6 +283,11 @@ struct OwlRustResourceInstallResult: Equatable, Sendable {
   let state: OwlRustResourceActiveState
 }
 
+struct OwlRustResourcePrepared: Equatable, Sendable {
+  let record: OwlRustResourceRecord
+  let previousGenerationId: String?
+}
+
 struct OwlRustResourceLease: Codable, Equatable, Sendable {
   let id: UUID
   let inputKind: OwlRustResourceInputKind
@@ -380,6 +385,27 @@ actor OwlRustResourceStore {
     }
   }
 
+  func prepare(
+    _ source: any OwlRustResourceSource,
+    progress: (@Sendable (Double) -> Void)? = nil
+  ) async throws -> OwlRustResourcePrepared {
+    let worker = worker
+    return try await runResourceWorker {
+      try Task.checkCancellation()
+      return try await worker.prepare(source, progress: progress)
+    }
+  }
+
+  func activate(
+    _ prepared: OwlRustResourcePrepared
+  ) async throws -> OwlRustResourceInstallResult {
+    let worker = worker
+    return try await runResourceWorker {
+      try Task.checkCancellation()
+      return try await worker.activate(prepared)
+    }
+  }
+
   func acquireLease(inputKind: OwlRustResourceInputKind) async throws -> OwlRustResourceLease {
     let worker = worker
     return try await runResourceWorker {
@@ -438,6 +464,14 @@ private struct OwlRustResourceWorker: Sendable {
     _ source: any OwlRustResourceSource,
     progress: (@Sendable (Double) -> Void)?
   ) async throws -> OwlRustResourceInstallResult {
+    let prepared = try await prepare(source, progress: progress)
+    return try await activate(prepared)
+  }
+
+  func prepare(
+    _ source: any OwlRustResourceSource,
+    progress: (@Sendable (Double) -> Void)?
+  ) async throws -> OwlRustResourcePrepared {
     let manifestData = try await source.readManifest()
     let manifest: OwlRustResourceManifest
     do {
@@ -455,8 +489,9 @@ private struct OwlRustResourceWorker: Sendable {
       if let active = try readActive(manifest.inputKind) {
         try verifyCurrentActive(active, expectedManifest: manifest)
         if active.current.digest == manifest.digest {
-          return OwlRustResourceInstallResult(
-            disposition: .alreadyActive, state: active
+          return OwlRustResourcePrepared(
+            record: active.current,
+            previousGenerationId: active.previous?.generationId
           )
         }
         guard active.current.manifest.version < manifest.version else {
@@ -510,29 +545,9 @@ private struct OwlRustResourceWorker: Sendable {
             message: nil
           )
         )
-        let nextState = OwlRustResourceActiveState(
-          schemaVersion: 1,
-          inputKind: manifest.inputKind,
-          current: newRecord,
-          previous: oldState?.current,
-          activatedAt: Self.currentTimestamp()
-        )
-        try Task.checkCancellation()
-        try writeActive(nextState)
-        try writeJournal(
-          OwlRustResourceTransactionJournal(
-            schemaVersion: 1,
-            id: transactionId,
-            inputKind: manifest.inputKind,
-            phase: .activeWritten,
-            oldGenerationId: oldState?.current.generationId,
-            newGenerationId: newRecord.generationId,
-            updatedAt: Self.currentTimestamp(),
-            message: nil
-          )
-        )
-        return OwlRustResourceInstallResult(
-          disposition: .installed, state: nextState
+        return OwlRustResourcePrepared(
+          record: newRecord,
+          previousGenerationId: oldState?.current.generationId
         )
       } catch {
         try? writeJournal(
@@ -547,6 +562,92 @@ private struct OwlRustResourceWorker: Sendable {
             message: String(describing: error)
           )
         )
+        throw error
+      }
+    }
+  }
+
+  func activate(
+    _ prepared: OwlRustResourcePrepared
+  ) async throws -> OwlRustResourceInstallResult {
+    let inputKind = prepared.record.manifest.inputKind
+    return try await withInputLock(inputKind) {
+      try Task.checkCancellation()
+      guard prepared.record.digest == prepared.record.manifest.digest,
+            prepared.record.generationId
+              == Self.generationId(for: prepared.record.digest) else {
+        throw OwlRustResourceError.activeStateInvalid(
+          "prepared generation identity is inconsistent"
+        )
+      }
+      try OwlRustResourceVerifier.verifyGeneration(
+        at: generationURL(for: prepared.record),
+        manifest: prepared.record.manifest,
+        engine: engine,
+        requireCompleteMarker: true
+      )
+
+      let active = try readActive(inputKind)
+      if let active, active.current.digest == prepared.record.digest {
+        return OwlRustResourceInstallResult(
+          disposition: .alreadyActive, state: active
+        )
+      }
+      guard active?.current.generationId == prepared.previousGenerationId else {
+        throw OwlRustResourceError.activeStateInvalid(
+          "active generation changed after preparation"
+        )
+      }
+      if let active {
+        guard active.current.manifest.version < prepared.record.manifest.version else {
+          if active.current.manifest.version == prepared.record.manifest.version {
+            throw OwlRustResourceError.versionDigestConflict(
+              packageId: prepared.record.manifest.packageId,
+              inputKind: inputKind,
+              version: prepared.record.manifest.version
+            )
+          }
+          throw OwlRustResourceError.invalidManifest(
+            "新资源版本 \(prepared.record.manifest.version) 不高于 active "
+              + "\(active.current.manifest.version)"
+          )
+        }
+      }
+
+      let transactionId = UUID()
+      let oldGenerationId = active?.current.generationId
+      try writeJournal(OwlRustResourceTransactionJournal(
+        schemaVersion: 1, id: transactionId, inputKind: inputKind,
+        phase: .generationPublished, oldGenerationId: oldGenerationId,
+        newGenerationId: prepared.record.generationId,
+        updatedAt: Self.currentTimestamp(), message: "activation"
+      ))
+      let nextState = OwlRustResourceActiveState(
+        schemaVersion: 1,
+        inputKind: inputKind,
+        current: prepared.record,
+        previous: active?.current,
+        activatedAt: Self.currentTimestamp()
+      )
+      do {
+        try Task.checkCancellation()
+        try writeActive(nextState)
+        try writeJournal(OwlRustResourceTransactionJournal(
+          schemaVersion: 1, id: transactionId, inputKind: inputKind,
+          phase: .activeWritten, oldGenerationId: oldGenerationId,
+          newGenerationId: prepared.record.generationId,
+          updatedAt: Self.currentTimestamp(), message: "activation"
+        ))
+        return OwlRustResourceInstallResult(
+          disposition: .installed, state: nextState
+        )
+      } catch {
+        try? writeJournal(OwlRustResourceTransactionJournal(
+          schemaVersion: 1, id: transactionId, inputKind: inputKind,
+          phase: .failed, oldGenerationId: oldGenerationId,
+          newGenerationId: prepared.record.generationId,
+          updatedAt: Self.currentTimestamp(), message: String(describing: error)
+        ))
         throw error
       }
     }

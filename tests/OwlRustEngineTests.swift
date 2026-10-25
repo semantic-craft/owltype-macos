@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import SQLite3
 import XCTest
 @testable import Owltype
 
@@ -44,6 +45,297 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertTrue(engine.selectSchema("double_pinyin_flypy"))
     XCTAssertEqual(engine.currentSchema(), "double_pinyin_flypy")
     XCTAssertFalse(engine.selectSchema("unknown_schema"))
+  }
+
+  func testUpstreamGenerationKeepsJournalUnderMsimeUserAndResourcesUntouched() throws {
+    let repoRoot = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+    let seedDir = repoRoot.appendingPathComponent("data/owl-rime")
+    let resourcesDir = seedDir.appendingPathComponent("msime")
+    let pinyinURL = resourcesDir.appendingPathComponent("msime-pinyin.db")
+    guard FileManager.default.fileExists(atPath: pinyinURL.path) else {
+      throw XCTSkip("msime-pinyin.db not generated yet at \(pinyinURL.path)")
+    }
+    let userDir = FileManager.default.temporaryDirectory
+      .appendingPathComponent("owl-rust-roots-test-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: userDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: userDir) }
+    let resourcesBefore = try Data(contentsOf: pinyinURL)
+
+    let engine = OwlRustEngine(sharedSupportURL: seedDir, userDataURL: userDir)
+    let session = engine.createSession()
+    defer { session.destroy() }
+
+    XCTAssertTrue(session.isValid)
+    for scalar in "nihao".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    XCTAssertTrue(session.process(keycode: UInt32(XK_space), modifiers: 0))
+    XCTAssertNotNil(session.takeCommit())
+    XCTAssertTrue(FileManager.default.fileExists(
+      atPath: userDir.appendingPathComponent("msime-user/msime_user.db").path
+    ))
+    XCTAssertFalse(FileManager.default.fileExists(
+      atPath: userDir.appendingPathComponent("msime_user.db").path
+    ))
+    let generationsURL = userDir.appendingPathComponent(
+      "msime-user/dictionaries", isDirectory: true
+    )
+    let generationURLs = try FileManager.default.contentsOfDirectory(
+      at: generationsURL, includingPropertiesForKeys: nil
+    )
+    let generationURL = try XCTUnwrap(generationURLs.first)
+    XCTAssertEqual(generationURLs.count, 1)
+    XCTAssertTrue(generationURL.lastPathComponent.hasPrefix("seed-"))
+    XCTAssertTrue(FileManager.default.fileExists(
+      atPath: generationURL.appendingPathComponent(".ready").path
+    ))
+    XCTAssertTrue(FileManager.default.fileExists(
+      atPath: generationURL.appendingPathComponent("msime-pinyin.db").path
+    ))
+    XCTAssertEqual(try Data(contentsOf: pinyinURL), resourcesBefore)
+  }
+
+  func testGenerationSwitchRollbackColdStartAndJournalReplayKeepUserState() async throws {
+    let repoRoot = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+    let seedDir = repoRoot.appendingPathComponent("data/owl-rime")
+    let seedResources = seedDir.appendingPathComponent("msime", isDirectory: true)
+    let pinyinURL = seedResources.appendingPathComponent("msime-pinyin.db")
+    let englishURL = seedResources.appendingPathComponent("msime-english.db")
+    guard FileManager.default.fileExists(atPath: pinyinURL.path),
+          FileManager.default.fileExists(atPath: englishURL.path) else {
+      throw XCTSkip("Rust seed dictionaries are not generated at \(seedResources.path)")
+    }
+
+    let userRoot = URL(
+      fileURLWithPath: "/private/tmp/owl-rust-generation-lifecycle-\(UUID().uuidString)",
+      isDirectory: true
+    )
+    try FileManager.default.createDirectory(
+      at: userRoot, withIntermediateDirectories: true
+    )
+    defer { try? FileManager.default.removeItem(at: userRoot) }
+
+    let protectedFiles: [String: Data] = [
+      "owltype/settings.json": Data(#"{"skin":"deepred","pageSize":7}"#.utf8),
+      "owltype/skins/deepred.json": Data(##"{"accent":"#8f1d22"}"##.utf8),
+      "rime_ice.custom.yaml": Data("patch:\n  style/inline_preedit: true\n".utf8),
+      "notes/personal.txt": Data("not dictionary state\n".utf8),
+    ]
+    for (relativePath, data) in protectedFiles {
+      let url = userRoot.appendingPathComponent(relativePath)
+      try FileManager.default.createDirectory(
+        at: url.deletingLastPathComponent(), withIntermediateDirectories: true
+      )
+      try data.write(to: url)
+    }
+
+    let environment = OwlRustResourceEnvironment.production(userRoot: userRoot)
+    let store = try environment.makeStore()
+    let packagesRoot = userRoot.deletingLastPathComponent()
+      .appendingPathComponent("owl-rust-generation-packages-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: packagesRoot) }
+
+    func makePackage(version: Int) throws -> URL {
+      let packageRoot = packagesRoot.appendingPathComponent(
+        "v\(version)", isDirectory: true
+      )
+      let filesRoot = packageRoot.appendingPathComponent("files", isDirectory: true)
+      try FileManager.default.createDirectory(
+        at: filesRoot, withIntermediateDirectories: true
+      )
+      let pinyin = filesRoot.appendingPathComponent("msime-pinyin.db")
+      let english = filesRoot.appendingPathComponent("msime-english.db")
+      let license = filesRoot.appendingPathComponent("rime-ice.LICENSE")
+      try FileManager.default.copyItem(at: pinyinURL, to: pinyin)
+      try FileManager.default.copyItem(at: englishURL, to: english)
+      try FileManager.default.copyItem(
+        at: seedDir.appendingPathComponent("rime-ice.LICENSE"), to: license
+      )
+      let fileEntries = try [
+        ("files/msime-pinyin.db", pinyin, OwlRustResourceFileRole.mainDictionary),
+        ("files/msime-english.db", english, OwlRustResourceFileRole.englishDictionary),
+        ("files/rime-ice.LICENSE", license, OwlRustResourceFileRole.license),
+      ].map { path, url, role in
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        return OwlRustResourceFile(
+          path: path,
+          role: role,
+          mediaType: role == .license ? "text/plain" : "application/vnd.sqlite3",
+          size: (attributes[.size] as? NSNumber)?.intValue ?? 0,
+          digest: try OwlRustResourceVerifier.digestOfFile(url)
+        )
+      }
+      let unsigned = OwlRustResourceManifest(
+        schemaVersion: OwlRustResourceManifest.schemaVersionV1,
+        packageId: "owltype-dictpack",
+        inputKind: .pinyinWubi,
+        version: version,
+        digest: OwlRustResourceManifest.zeroDigest,
+        license: [
+          OwlRustResourceLicense(
+            identifier: "GPL-3.0-only",
+            attribution: "test fixture",
+            files: ["files/rime-ice.LICENSE"]
+          )
+        ],
+        engineCompatibility: OwlRustResourceEngineCompatibility(
+          minimumContractVersion: 1,
+          maximumContractVersion: 1,
+          requiredCapabilities: [
+            "dictionary-contract-v1",
+            "pinyin-wubi-v1",
+            "persistent-user-journal-v1",
+          ]
+        ),
+        files: fileEntries
+      )
+      let digest = try unsigned.calculatedDigest()
+      let manifest = OwlRustResourceManifest(
+        schemaVersion: unsigned.schemaVersion,
+        packageId: unsigned.packageId,
+        inputKind: unsigned.inputKind,
+        version: unsigned.version,
+        digest: digest,
+        license: unsigned.license,
+        engineCompatibility: unsigned.engineCompatibility,
+        files: unsigned.files
+      )
+      try manifest.canonicalData().write(
+        to: packageRoot.appendingPathComponent("manifest.json")
+      )
+      return packageRoot
+    }
+
+    let provider: @Sendable () -> OwlRustResourceGeneration? = {
+      try? environment.activeGeneration()
+    }
+    let installedA = try await store.install(
+      OwlRustResourceDirectorySource(root: makePackage(version: 1))
+    )
+    let engineA = OwlRustEngine(
+      sharedSupportURL: seedDir,
+      userDataURL: userRoot,
+      activeGenerationProvider: provider
+    )
+    let sessionA = engineA.createSession()
+    XCTAssertTrue(sessionA.isValid)
+    XCTAssertTrue(sessionA.process(keycode: UInt32(XK_n), modifiers: 0))
+
+    let installedB = try await store.install(
+      OwlRustResourceDirectorySource(root: makePackage(version: 2))
+    )
+    XCTAssertEqual(installedB.disposition, .installed)
+    XCTAssertEqual(
+      installedB.state.previous?.generationId,
+      installedA.state.current.generationId
+    )
+    XCTAssertTrue(
+      sessionA.process(keycode: UInt32(XK_i), modifiers: 0),
+      "activating another generation must not disturb the live old session"
+    )
+    XCTAssertEqual(sessionA.input(), "ni")
+    sessionA.destroy()
+
+    let dictionaries = userRoot.appendingPathComponent(
+      "msime-user/dictionaries", isDirectory: true
+    )
+    XCTAssertTrue(FileManager.default.fileExists(
+      atPath: dictionaries.appendingPathComponent(
+        "\(installedA.state.current.generationId)/.ready"
+      ).path
+    ))
+
+    // A fresh engine instance sees the persisted active generation.
+    let engineB = OwlRustEngine(
+      sharedSupportURL: seedDir,
+      userDataURL: userRoot,
+      activeGenerationProvider: provider
+    )
+    let sessionB = engineB.createSession()
+    XCTAssertTrue(sessionB.isValid)
+    XCTAssertTrue(FileManager.default.fileExists(
+      atPath: dictionaries.appendingPathComponent(
+        "\(installedB.state.current.generationId)/.ready"
+      ).path
+    ))
+    for scalar in "nigu".unicodeScalars {
+      XCTAssertTrue(sessionB.process(keycode: scalar.value, modifiers: 0))
+    }
+    let learned = "拟古"
+    let learnedIndex = try XCTUnwrap(
+      sessionB.peekCandidates(from: 0, count: 1_000)
+        .firstIndex(where: { $0.text == learned })
+    )
+    XCTAssertTrue(sessionB.selectCandidateAbsolute(learnedIndex))
+    XCTAssertEqual(sessionB.takeCommit(), learned)
+    sessionB.destroy()
+
+    let journal = userRoot.appendingPathComponent("msime-user/msime_user.db")
+    func learnedOperationCount() -> Int {
+      var database: OpaquePointer?
+      guard sqlite3_open_v2(
+        journal.path, &database, SQLITE_OPEN_READONLY, nil
+      ) == SQLITE_OK, let database else {
+        if let database { sqlite3_close(database) }
+        return 0
+      }
+      defer { sqlite3_close(database) }
+      var statement: OpaquePointer?
+      guard sqlite3_prepare_v2(
+        database,
+        "SELECT count(*) FROM user_dictionary_operations",
+        -1,
+        &statement,
+        nil
+      ) == SQLITE_OK, let statement else {
+        if let statement { sqlite3_finalize(statement) }
+        return 0
+      }
+      defer { sqlite3_finalize(statement) }
+      guard sqlite3_step(statement) == SQLITE_ROW else { return 0 }
+      return Int(sqlite3_column_int(statement, 0))
+    }
+    let journalDeadline = Date().addingTimeInterval(5)
+    var persistedOperations = learnedOperationCount()
+    while persistedOperations == 0, Date() < journalDeadline {
+      try await Task.sleep(nanoseconds: 100_000_000)
+      persistedOperations = learnedOperationCount()
+    }
+    XCTAssertGreaterThan(
+      persistedOperations, 0,
+      "personal learning must reach the shared journal before rollback"
+    )
+    XCTAssertTrue(FileManager.default.fileExists(atPath: journal.path))
+    XCTAssertFalse(FileManager.default.fileExists(
+      atPath: userRoot.appendingPathComponent("msime_user.db").path
+    ))
+
+    let rolledBack = try await store.rollback(
+      inputKind: OwlRustResourceEnvironment.activeInputKind
+    )
+    XCTAssertEqual(rolledBack.current.generationId, installedA.state.current.generationId)
+    let sessionAReopened = engineB.createSession()
+    XCTAssertTrue(sessionAReopened.isValid)
+    for scalar in "nigu".unicodeScalars {
+      XCTAssertTrue(sessionAReopened.process(keycode: scalar.value, modifiers: 0))
+    }
+    XCTAssertEqual(
+      sessionAReopened.composition()?.candidates.first?.text, learned,
+      "a rolled-back generation must replay learning from the shared journal"
+    )
+    sessionAReopened.destroy()
+
+    for (relativePath, expected) in protectedFiles {
+      XCTAssertEqual(
+        try Data(contentsOf: userRoot.appendingPathComponent(relativePath)),
+        expected,
+        "generation switching must not rewrite \(relativePath)"
+      )
+    }
   }
 
   func testQuanpinTypingProducesPreeditAndCandidatesAndSpaceCommits() throws {

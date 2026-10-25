@@ -330,14 +330,22 @@ struct OwlOnboardingView: View {
         .padding(.vertical, 13)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background { RoundedRectangle(cornerRadius: 11, style: .continuous).fill(palette.card2) }
-      Text(needsDictConsent
-        ? "同意后，猫头鹰会从这些项目的官方仓库按固定版本获取（约 90 MB）并逐文件校验，完成后自动编译启用。下载在后台进行，你可以继续下面的步骤。选「以后再说」也不影响使用，之后随时能在「设置 → 键盘输入 → 完整词库」里下载。"
-        : "词库按固定版本从上游原仓库（雾凇拼音 / 极点五笔 / 八股文语法模型）下载并逐文件校验，中途退出或注销会自动续传，完成后自动编译生效。等待期间可以先看下一步。")
+      Text(dictExplanation)
         .font(.system(size: 12))
         .foregroundStyle(palette.ink3)
         .lineSpacing(2)
         .fixedSize(horizontal: false, vertical: true)
     }
+  }
+
+  private var dictExplanation: String {
+    if OwlDictPackCenter.shared.preparedCandidate != nil {
+      return "资源候选已完成版本、摘要、许可证和 SQLite 校验。核对上面的生成统计后点「启用」，新输入会话才会使用它；旧资源代次会保留，可随时回退。整个切换不改写学习库，也不依赖 Rime 部署。"
+    }
+    if needsDictConsent {
+      return "同意后，猫头鹰会从这些项目的官方仓库按固定版本获取（约 90 MB）并逐文件校验，然后生成待确认的 Rust 资源。下载在后台进行，你可以继续下面的步骤。选「以后再说」也不影响使用，之后随时能在「设置 → 键盘输入 → 完整词库」里下载。"
+    }
+    return "词库按固定版本从上游原仓库（雾凇拼音 / 极点五笔 / 八股文语法模型）下载并逐文件校验，中途退出或注销会自动续传。生成完成后需要你确认才会启用，等待期间可以先看下一步。"
   }
 
   /// 仍需征求同意：词库没装，且本次没在这一步作出过选择。
@@ -364,68 +372,111 @@ struct OwlOnboardingView: View {
   @ViewBuilder
   private var dictStatusRow: some View {
     let center = OwlDictPackCenter.shared
-    HStack(spacing: 10) {
-      switch center.status {
-      case .notInstalled:
-        Image(systemName: "arrow.down.circle")
-          .font(.system(size: 16))
-          .foregroundStyle(palette.ink3)
-        Text(dictDecided
-          ? "未下载 —— 当前为精简词库"
-          : "当前为精简词库 —— 五笔 / 简体拼音 / 小鹤双拼 等方案需要它才能使用（约 90 MB）")
-          .font(.system(size: 13))
-          .foregroundStyle(palette.ink2)
-          .fixedSize(horizontal: false, vertical: true)
-        Spacer(minLength: 8)
-        if dictDecided {
-          // 已问过（含从「关于」页重开引导的回访者）：主按钮不再是同意键，这里补一个入口，
-          // 否则这一步只剩一句「未下载」而无从下手。
-          Button("现在下载") { acceptDictDownload() }
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(spacing: 10) {
+        switch center.status {
+        case .notInstalled:
+          Image(systemName: "arrow.down.circle")
+            .font(.system(size: 16))
+            .foregroundStyle(palette.ink3)
+          Text(dictDecided
+            ? "未启用 —— 当前使用随包精简资源"
+            : "当前为精简词库 —— 五笔 / 简体拼音 / 小鹤双拼 等方案需要它才能使用（约 90 MB）")
+            .font(.system(size: 13))
+            .foregroundStyle(palette.ink2)
+            .fixedSize(horizontal: false, vertical: true)
+          Spacer(minLength: 8)
+          if dictDecided {
+            // 已问过（含从「关于」页重开引导的回访者）：主按钮不再是同意键，这里补一个入口，
+            // 否则这一步只剩一句「未下载」而无从下手。
+            Button("现在下载") { acceptDictDownload() }
+              .buttonStyle(.plain)
+              .font(.system(size: 12, weight: .medium))
+              .foregroundStyle(palette.accent)
+          }
+        case .downloading(let progress):
+          dictProgressBar(progress)
+          Text(center.usesRustResources
+            ? "下载、校验并生成资源 \(Int(progress * 100))%"
+            : "下载中 \(Int(progress * 100))%")
+            .font(.system(size: 12.5)).monospacedDigit()
+            .foregroundStyle(palette.ink2)
+        case .deploying:
+          ProgressView()
+            .controlSize(.small)
+          Text("已下载，正在编译词库…")
+            .font(.system(size: 13))
+            .foregroundStyle(palette.ink2)
+          Spacer(minLength: 8)
+        case .prepared(let version):
+          Image(systemName: "checkmark.seal")
+            .font(.system(size: 16))
+            .foregroundStyle(palette.accent)
+          Text("候选 v\(version) 已生成，等待启用")
+            .font(.system(size: 13))
+            .foregroundStyle(palette.ink)
+          Spacer(minLength: 8)
+          Button("启用") { center.activatePrepared() }
+            .buttonStyle(.plain)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(palette.accent)
+        case .activating:
+          ProgressView()
+            .controlSize(.small)
+          Text("正在校验并启用资源…")
+            .font(.system(size: 13))
+            .foregroundStyle(palette.ink2)
+          Spacer(minLength: 8)
+        case .rollingBack:
+          ProgressView()
+            .controlSize(.small)
+          Text("正在校验并回退资源…")
+            .font(.system(size: 13))
+            .foregroundStyle(palette.ink2)
+          Spacer(minLength: 8)
+        case .installed:
+          Image(systemName: "checkmark.circle.fill")
+            .font(.system(size: 16))
+            .foregroundStyle(Color.green)
+          Text("完整词库已就绪")
+            .font(.system(size: 13))
+            .foregroundStyle(palette.ink)
+          Spacer(minLength: 8)
+        case .userProvided:
+          Image(systemName: "checkmark.circle")
+            .font(.system(size: 16))
+            .foregroundStyle(Color.green)
+          Text("检测到自备完整词库，无需下载")
+            .font(.system(size: 13))
+            .foregroundStyle(palette.ink)
+          Spacer(minLength: 8)
+        case .failed(let message):
+          Image(systemName: "exclamationmark.triangle.fill")
+            .font(.system(size: 15))
+            .foregroundStyle(.orange)
+          Text(message)
+            .font(.system(size: 12.5))
+            .foregroundStyle(palette.ink2)
+            .lineLimit(2)
+          Spacer(minLength: 8)
+          Button("重试") { center.retryFailedOperation() }
             .buttonStyle(.plain)
             .font(.system(size: 12, weight: .medium))
             .foregroundStyle(palette.accent)
         }
-      case .downloading(let progress):
-        dictProgressBar(progress)
-        Text("下载中 \(Int(progress * 100))%")
-          .font(.system(size: 12.5)).monospacedDigit()
-          .foregroundStyle(palette.ink2)
-      case .deploying:
-        ProgressView()
-          .controlSize(.small)
-        Text("已下载，正在编译词库…")
-          .font(.system(size: 13))
-          .foregroundStyle(palette.ink2)
-        Spacer(minLength: 8)
-      case .installed:
-        Image(systemName: "checkmark.circle.fill")
-          .font(.system(size: 16))
-          .foregroundStyle(Color.green)
-        Text("完整词库已就绪")
-          .font(.system(size: 13))
-          .foregroundStyle(palette.ink)
-        Spacer(minLength: 8)
-      case .userProvided:
-        Image(systemName: "checkmark.circle")
-          .font(.system(size: 16))
-          .foregroundStyle(Color.green)
-        Text("检测到自备完整词库，无需下载")
-          .font(.system(size: 13))
-          .foregroundStyle(palette.ink)
-        Spacer(minLength: 8)
-      case .failed(let message):
-        Image(systemName: "exclamationmark.triangle.fill")
-          .font(.system(size: 15))
-          .foregroundStyle(.orange)
-        Text("下载失败：\(message)")
-          .font(.system(size: 12.5))
-          .foregroundStyle(palette.ink2)
-          .lineLimit(2)
-        Spacer(minLength: 8)
-        Button("重试") { center.start() }
-          .buttonStyle(.plain)
-          .font(.system(size: 12, weight: .medium))
-          .foregroundStyle(palette.accent)
+      }
+      if let candidate = center.preparedCandidate {
+        Text(
+          "拼音 \(candidate.pinyinEntries.formatted()) · "
+            + "五笔 \(candidate.wubiEntries.formatted()) · "
+            + "英文 \(candidate.englishEntries.formatted()) · "
+            + "拒绝 \(candidate.rejectedEntries.formatted())"
+        )
+        .font(.system(size: 11.5, design: .monospaced))
+        .foregroundStyle(palette.ink3)
+        Text("许可证：\(candidate.licenseIdentifiers.joined(separator: "、"))")
+          .font(.system(size: 11.5))
+          .foregroundStyle(palette.ink3)
       }
     }
   }
@@ -559,6 +610,12 @@ struct OwlOnboardingView: View {
         return ("词库下载中 \(Int(progress * 100))%…", {}, true)
       case .deploying:
         return ("词库编译中…", {}, true)
+      case .prepared:
+        return ("启用词库", { OwlDictPackCenter.shared.activatePrepared() }, false)
+      case .activating:
+        return ("词库启用中…", {}, true)
+      case .rollingBack:
+        return ("词库回退中…", {}, true)
       default:
         return ("开始使用", onFinish, !practiceComplete)
       }

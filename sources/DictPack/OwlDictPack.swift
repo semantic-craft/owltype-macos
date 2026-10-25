@@ -75,6 +75,10 @@ enum OwlDictPackStatus: Equatable {
   case notInstalled
   case downloading(progress: Double)   // 0...1，按累计字节
   case deploying
+  /// Rust resources are fully prepared but not active until the user confirms.
+  case prepared(version: Int)
+  case activating
+  case rollingBack
   case installed(version: Int)
   /// 完整词库已存在但不是 dict-pack 写的（无记录）——用户自备，永不覆盖。
   case userProvided

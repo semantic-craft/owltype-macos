@@ -119,6 +119,75 @@ final class OwlRustResourceTransactionTests: XCTestCase {
     XCTAssertEqual(try userBytes(environment), before)
   }
 
+  func testPreparePublishesWithoutSwitchingAndActivateIsExplicitAndIdempotent() async throws {
+    let environment = try makeEnvironment()
+    let first = try makePackage(
+      in: environment, name: "v1", version: 1, candidate: "合成甲"
+    )
+    let second = try makePackage(
+      in: environment, name: "v2", version: 2, candidate: "合成乙"
+    )
+    let store = try makeStore(environment)
+    let installedFirst = try await store.install(source(for: first))
+    let activeBefore = try Data(contentsOf: activeURL(environment, inputKind: .pinyin))
+    let userBefore = try userBytes(environment)
+
+    let prepared = try await store.prepare(source(for: second))
+
+    XCTAssertEqual(prepared.record.manifest.version, 2)
+    XCTAssertEqual(
+      prepared.previousGenerationId, installedFirst.state.current.generationId
+    )
+    XCTAssertTrue(FileManager.default.fileExists(
+      atPath: generationURL(environment, record: prepared.record)
+        .appendingPathComponent(".complete").path
+    ))
+    XCTAssertEqual(
+      try Data(contentsOf: activeURL(environment, inputKind: .pinyin)),
+      activeBefore
+    )
+    XCTAssertEqual(try userBytes(environment), userBefore)
+
+    let activated = try await store.activate(prepared)
+    XCTAssertEqual(activated.disposition, .installed)
+    XCTAssertEqual(activated.state.current, prepared.record)
+    XCTAssertEqual(
+      activated.state.previous, installedFirst.state.current
+    )
+    XCTAssertEqual(try userBytes(environment), userBefore)
+
+    let repeated = try await store.activate(prepared)
+    XCTAssertEqual(repeated.disposition, .alreadyActive)
+    XCTAssertEqual(repeated.state, activated.state)
+  }
+
+  func testStalePreparedActivationCannotOverwriteANewerActiveGeneration() async throws {
+    let environment = try makeEnvironment()
+    let first = try makePackage(in: environment, name: "v1", version: 1)
+    let second = try makePackage(in: environment, name: "v2", version: 2)
+    let third = try makePackage(in: environment, name: "v3", version: 3)
+    let store = try makeStore(environment)
+    _ = try await store.install(source(for: first))
+    let preparedSecond = try await store.prepare(source(for: second))
+    let preparedThird = try await store.prepare(source(for: third))
+    let installedThird = try await store.activate(preparedThird)
+    let activeBefore = try Data(contentsOf: activeURL(environment, inputKind: .pinyin))
+
+    let error = await thrownError {
+      _ = try await store.activate(preparedSecond)
+    }
+    XCTAssertResourceError(error) {
+      guard case .activeStateInvalid(let message) = $0 else { return false }
+      return message.contains("changed after preparation")
+    }
+    XCTAssertEqual(
+      try Data(contentsOf: activeURL(environment, inputKind: .pinyin)),
+      activeBefore
+    )
+    let recovered = try await store.recover(inputKind: .pinyin)
+    XCTAssertEqual(recovered, installedThird.state)
+  }
+
   func testSameVersionWithDifferentDigestIsRejectedWithoutReplacingActive() async throws {
     let environment = try makeEnvironment()
     let firstPackage = try makePackage(

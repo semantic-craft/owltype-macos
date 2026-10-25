@@ -17,25 +17,117 @@ import CoreGraphics
 import Observation
 import os
 
+struct OwlDictPackCenterRustBackend: Sendable {
+  typealias Prepare = @Sendable (
+    OwlRustResourceEnvironment,
+    (@Sendable (Double) -> Void)?
+  ) async throws -> OwlRustDictPackPreparedResources
+  typealias Activate = @Sendable (
+    OwlRustResourceEnvironment,
+    OwlRustResourcePrepared
+  ) async throws -> OwlRustResourceInstallResult
+  typealias Rollback = @Sendable (
+    OwlRustResourceEnvironment,
+    OwlRustResourceInputKind
+  ) async throws -> OwlRustResourceActiveState
+
+  let environment: OwlRustResourceEnvironment
+  let prepare: Prepare
+  let activate: Activate
+  let rollback: Rollback
+
+  static func production(
+    userRoot: URL = OwlApp.userDir
+  ) -> Self {
+    let environment = OwlRustResourceEnvironment.production(userRoot: userRoot)
+    return Self(
+      environment: environment,
+      prepare: { environment, progress in
+        let store = try environment.makeStore()
+        let installer = OwlRustDictPackResourceInstaller(
+          store: store,
+          dictionaryRoot: environment.dictionaryRoot,
+          packageRoot: environment.packageRoot
+        )
+        return try await installer.prepare(progress: progress)
+      },
+      activate: { environment, prepared in
+        let store = try environment.makeStore()
+        return try await store.activate(prepared)
+      },
+      rollback: { environment, inputKind in
+        let store = try environment.makeStore()
+        return try await store.rollback(inputKind: inputKind)
+      }
+    )
+  }
+}
+
 @Observable
 @MainActor
 final class OwlDictPackCenter {
   static let shared = OwlDictPackCenter()
 
   private(set) var status: OwlDictPackStatus = .notInstalled
-  private var running = false
+  private(set) var preparedCandidate: OwlDictPackCandidate?
+  private(set) var rollbackTargetVersion: Int?
+  let usesRustResources: Bool
 
-  private func makeFetcher() -> OwlDictPackFetcher {
-    OwlDictPackFetcher(manifest: .current, userDir: OwlApp.userDir)
+  private var running = false
+  private var preparedResources: OwlRustDictPackPreparedResources?
+  private var failedOperation: FailedOperation?
+  private let rustBackend: OwlDictPackCenterRustBackend
+  private let makeFetcher: () -> OwlDictPackFetcher
+  private let deploy: @MainActor @Sendable () -> Bool
+
+  private enum FailedOperation {
+    case prepare
+    case activate
+    case rollback
+  }
+
+  init(
+    usesRustResources: Bool? = nil,
+    rustBackend: OwlDictPackCenterRustBackend = .production(),
+    makeFetcher: @escaping () -> OwlDictPackFetcher = {
+      OwlDictPackFetcher(manifest: .current, userDir: OwlApp.userDir)
+    },
+    deploy: @escaping @MainActor @Sendable () -> Bool = {
+      NSApp.owlAppDelegate.deploy()
+    }
+  ) {
+    self.usesRustResources = usesRustResources ?? (
+      ProcessInfo.processInfo.environment["OWL_ENGINE_BACKEND"]?.lowercased() != "rime"
+    )
+    self.rustBackend = rustBackend
+    self.makeFetcher = makeFetcher
+    self.deploy = deploy
   }
 
   func refresh() {
-    guard !running else { return }
-    status = makeFetcher().assess()
+    guard !running, preparedCandidate == nil else { return }
+    failedOperation = nil
+    if usesRustResources {
+      refreshRustStatus()
+    } else {
+      status = makeFetcher().assess()
+      rollbackTargetVersion = nil
+    }
   }
 
   /// 提示调度器用：是否仍需提示。轮询期间用户可能已从设置页手动装好，届时静默收摊。
-  var needsPrompt: Bool { makeFetcher().needsFetch() }
+  var needsPrompt: Bool {
+    if usesRustResources {
+      if let state = try? rustBackend.environment.activeState() {
+        return state.current.manifest.version < OwlDictPackManifest.current.version
+      }
+    }
+    return makeFetcher().needsFetch()
+  }
+
+  var canRollback: Bool {
+    usesRustResources && rollbackTargetVersion != nil
+  }
 
   /// 启动时机（Main.swift，loadSettings 之后）调用。知情同意改版（2026-07-27）：不再静默自动
   /// 下载——未装则**武装提示调度器**，等安全时机弹窗说明版权缘由；用户点「同意并下载」才拉。
@@ -48,7 +140,7 @@ final class OwlDictPackCenter {
   func promptOrFetchIfNeeded() {
     refresh()
     switch OwlDictPackPrompt.launchAction(
-      needsFetch: makeFetcher().needsFetch(),
+      needsFetch: needsPrompt,
       autoFetch: OwlDictPackPreferences.autoFetch,
       promptShown: OwlDictPackPreferences.promptShown,
       onboardingDone: OwlOnboarding.isDone
@@ -73,23 +165,117 @@ final class OwlDictPackCenter {
 
   /// 设置页「立即下载完整词库」按钮 / 自动拉取共用入口。幂等：进行中再点无效。
   func start() {
-    guard !running else { return }
+    guard !running, preparedCandidate == nil else { return }
     running = true
+    failedOperation = nil
     status = .downloading(progress: 0)
-    let fetcher = makeFetcher()
-    Task.detached(priority: .utility) {
+    if usesRustResources {
+      startRustPreparation()
+    } else {
+      startLegacyFetch()
+    }
+  }
+
+  /// User confirmation for a prepared Rust generation. Legacy Rime has no
+  /// equivalent two-step path: it keeps the existing fetch-and-deploy flow.
+  func activatePrepared() {
+    guard usesRustResources, !running, let preparedResources else { return }
+    running = true
+    failedOperation = nil
+    status = .activating
+    let backend = rustBackend
+    let resource = preparedResources.resource
+    Task.detached(priority: .utility) { [self] in
       do {
-        let result = try await fetcher.run { fraction in
-          Task { @MainActor in
-            OwlDictPackCenter.shared.noteProgress(fraction)
-          }
-        }
+        let result = try await backend.activate(backend.environment, resource)
         await MainActor.run {
-          OwlDictPackCenter.shared.finish(result: result)
+          self.finishRustActivation(result)
         }
       } catch {
         await MainActor.run {
-          OwlDictPackCenter.shared.fail(error)
+          self.fail(error, operation: .activate)
+        }
+      }
+    }
+  }
+
+  func rollback() {
+    guard usesRustResources, !running, canRollback else { return }
+    running = true
+    failedOperation = nil
+    status = .rollingBack
+    let backend = rustBackend
+    Task.detached(priority: .utility) { [self] in
+      do {
+        let state = try await backend.rollback(
+          backend.environment,
+          OwlRustResourceEnvironment.activeInputKind
+        )
+        await MainActor.run {
+          self.finishRustRollback(state)
+        }
+      } catch {
+        await MainActor.run {
+          self.fail(error, operation: .rollback)
+        }
+      }
+    }
+  }
+
+  func discardPrepared() {
+    guard !running, preparedCandidate != nil else { return }
+    preparedCandidate = nil
+    preparedResources = nil
+    failedOperation = nil
+    refresh()
+  }
+
+  func retryFailedOperation() {
+    switch failedOperation {
+    case .activate:
+      activatePrepared()
+    case .rollback:
+      rollback()
+    case .prepare, nil:
+      start()
+    }
+  }
+
+  private func startRustPreparation() {
+    let backend = rustBackend
+    Task.detached(priority: .utility) { [self] in
+      do {
+        let prepared = try await backend.prepare(backend.environment) { fraction in
+          Task { @MainActor [weak self] in
+            self?.noteProgress(fraction)
+          }
+        }
+        await MainActor.run {
+          self.finishRustPreparation(prepared)
+        }
+      } catch {
+        await MainActor.run {
+          self.fail(error, operation: .prepare)
+        }
+      }
+    }
+  }
+
+  private func startLegacyFetch() {
+    let fetcher = makeFetcher()
+    Task.detached(priority: .utility) { [self] in
+      do {
+        let result = try await fetcher.run { fraction in
+          Task { @MainActor [weak self] in
+            self?.noteProgress(fraction)
+          }
+        }
+        await MainActor.run {
+          self.finishLegacyFetch(result: result)
+        }
+      } catch {
+        await MainActor.run {
+          self.fail(error, operation: .prepare)
         }
       }
     }
@@ -100,7 +286,7 @@ final class OwlDictPackCenter {
     status = .downloading(progress: fraction)
   }
 
-  private func finish(result: OwlDictPackInstallResult) {
+  private func finishLegacyFetch(result: OwlDictPackInstallResult) {
     if !result.skippedUserFiles.isEmpty {
       print("Owltype dict-pack: kept \(result.skippedUserFiles.count) user-provided files untouched.")
     }
@@ -109,7 +295,7 @@ final class OwlDictPackCenter {
     // 这里保持 .deploying（running 仍占位，挡住 refresh()/start() 重入），直到 librime 的
     // deploy 通知（notificationHandler → noteDeployFinished）宣告编译真正结束 —— 引导页
     // 的「开始使用」按钮以此为就绪判据，注销收尾必须等到编译完成才有意义。
-    guard NSApp.owlAppDelegate.deploy() else {
+    guard deploy() else {
       running = false
       status = .failed("词库已下载，但部署未能启动 —— 可在设置里手动「保存并重新应用」")
       return
@@ -135,12 +321,84 @@ final class OwlDictPackCenter {
 
   private var deployTimeout: Task<Void, Never>?
 
-  private func fail(_ error: Error) {
+  private func finishRustPreparation(_ prepared: OwlRustDictPackPreparedResources) {
     running = false
+    failedOperation = nil
+    preparedResources = prepared
+    preparedCandidate = OwlDictPackCandidate(prepared: prepared)
+    status = .prepared(version: prepared.version)
+    OwlDictPackPrompt.log.log(
+      "prepared Rust dict-pack generation v\(prepared.version, privacy: .public)"
+    )
+  }
+
+  private func finishRustActivation(_ result: OwlRustResourceInstallResult) {
+    running = false
+    failedOperation = nil
+    preparedResources = nil
+    preparedCandidate = nil
+    let current = result.state.current
+    status = .installed(version: current.manifest.version)
+    rollbackTargetVersion = result.state.previous?.manifest.version
+    OwlDictPackPrompt.log.log(
+      "activated Rust dict-pack generation v\(current.manifest.version, privacy: .public); no Rime deploy"
+    )
+  }
+
+  private func finishRustRollback(_ state: OwlRustResourceActiveState) {
+    running = false
+    failedOperation = nil
+    preparedResources = nil
+    preparedCandidate = nil
+    status = .installed(version: state.current.manifest.version)
+    rollbackTargetVersion = state.previous?.manifest.version
+    OwlDictPackPrompt.log.log(
+      "rolled back Rust dict-pack generation to v\(state.current.manifest.version, privacy: .public); no Rime deploy"
+    )
+  }
+
+  private func refreshRustStatus() {
+    do {
+      if let state = try rustBackend.environment.activeState() {
+        _ = try rustBackend.environment.activeGeneration()
+        status = .installed(version: state.current.manifest.version)
+        rollbackTargetVersion = state.previous?.manifest.version
+        return
+      }
+    } catch {
+      rollbackTargetVersion = nil
+      status = .failed("Rust 词库状态无法读取：\(error.localizedDescription)")
+      return
+    }
+
+    rollbackTargetVersion = nil
+    if case .userProvided = makeFetcher().assess() {
+      status = .failed("检测到无 Owltype 安装记录的词库源；为保护用户文件，Rust 资源不会使用它")
+    } else {
+      status = .notInstalled
+    }
+  }
+
+  private func fail(_ error: Error, operation: FailedOperation) {
+    running = false
+    failedOperation = operation
+    if operation == .prepare {
+      preparedResources = nil
+      preparedCandidate = nil
+    }
     let message = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
-    print("Owltype dict-pack: fetch failed: \(message)")
-    OwlDictPackPrompt.log.error("fetch failed: \(message, privacy: .public)")
-    status = .failed(message)
+    let label: String
+    switch operation {
+    case .prepare:
+      label = "词库准备失败"
+    case .activate:
+      label = "词库启用失败"
+    case .rollback:
+      label = "词库回退失败"
+    }
+    print("Owltype dict-pack: \(label): \(message)")
+    OwlDictPackPrompt.log.error("\(label, privacy: .public): \(message, privacy: .public)")
+    status = .failed("\(label)：\(message)")
   }
 }
 
@@ -199,7 +457,9 @@ enum OwlDictPackPrompt {
     status: OwlDictPackStatus
   ) -> Bool {
     switch status {
-    case .installed, .userProvided, .downloading, .deploying: return false
+    case .installed, .userProvided, .downloading, .deploying,
+         .prepared, .activating, .rollingBack:
+      return false
     case .notInstalled, .failed: break
     }
     return isDictPackManagedSchema(schemaID, manifest: manifest)

@@ -185,10 +185,13 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "逗号句号翻页",
     "设置模糊拼音",
     "保存并重新应用",
-    // 完整词库卡（方案B dict-pack，2026-07-24）：下载/重试按钮。行为覆盖在 OwlDictPackTests
-    // （下载/校验/装配/所有权全链路）；按钮 action 只是 OwlDictPackCenter.start() 转发。
+    // 完整词库卡（方案B dict-pack）：Rust 后端先把 generation 准备成候选，用户再显式启用或回退；
+    // legacy Rime 后端仍走下载后 deploy。事务与不自动切换由 OwlRustResourceTransactionTests、
+    // OwlRustEngineTests 和 OwlDictPackTests 的中心层门控覆盖。
     "立即下载（约 90 MB）",
     "重试",
+    "启用",
+    "回退到 v\\(target)",
     "辅助检索",
     "分号引号选 2/3 位",
     // 「唤起热键」不再列入：快捷短语面板与划词菜单都改用 UI 层的 OwlHotKeyRecorderRow 录制器，

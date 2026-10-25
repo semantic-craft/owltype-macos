@@ -6,6 +6,7 @@
 //  (`msime`) Rust engine via the narrow C-ABI (`owl_msime_ffi.h`, issue #249).
 //
 
+import CryptoKit
 import Foundation
 
 // MARK: - FFI JSON Payloads
@@ -724,15 +725,22 @@ final class OwlRustSession: RimeSession {
 final class OwlRustEngine: RimeEngine {
   private var sharedSupportURL: URL?
   private var userDataURL: URL?
+  private let activeGenerationProvider: (@Sendable () -> OwlRustResourceGeneration?)?
+  private var cachedBundledGeneration: OwlRustResourceGeneration?
   private var selectedSchemaId: String = "rime_ice"
   private var nextSessionID: UInt64 = 1
   private var sessions: [UInt64: OwlRustSession] = [:]
   private var notificationHandler: RimeNotificationHandler?
   private var notificationContext: UnsafeMutableRawPointer?
 
-  init(sharedSupportURL: URL? = Bundle.main.sharedSupportURL, userDataURL: URL? = OwlApp.userDir) {
+  init(
+    sharedSupportURL: URL? = Bundle.main.sharedSupportURL,
+    userDataURL: URL? = OwlApp.userDir,
+    activeGenerationProvider: (@Sendable () -> OwlRustResourceGeneration?)? = nil
+  ) {
     self.sharedSupportURL = sharedSupportURL
     self.userDataURL = userDataURL
+    self.activeGenerationProvider = activeGenerationProvider
   }
 
   /// Create the active engine according to `OWL_ENGINE_BACKEND` (default `rust`; `rime` for rollback).
@@ -748,6 +756,7 @@ final class OwlRustEngine: RimeEngine {
       let path = String(cString: sharedC).trimmingCharacters(in: .whitespacesAndNewlines)
       if !path.isEmpty {
         sharedSupportURL = URL(fileURLWithPath: path, isDirectory: true)
+        cachedBundledGeneration = nil
       }
     }
     if let userC = traits.user_data_dir {
@@ -832,19 +841,37 @@ final class OwlRustEngine: RimeEngine {
   func createSession() -> RimeSession {
     let id = nextSessionID
     nextSessionID &+= 1
-    let sharedRoot = sharedSupportURL ?? Bundle.main.sharedSupportURL
     let userRoot = userDataURL ?? OwlApp.userDir
-    let pinyinDB = sharedRoot?.appendingPathComponent("msime/msime-pinyin.db").path ?? ""
-    let englishDB = sharedRoot?.appendingPathComponent("msime/msime-english.db").path ?? ""
-    let userDir = userRoot.path
+    let userDir = userRoot.appendingPathComponent("msime-user", isDirectory: true).path
+    let cacheDir = userRoot.appendingPathComponent("msime-cache", isDirectory: true).path
     let pageSize = UInt32(max(3, min(9, OwlKeyboardPreferences.pageSize)))
+    let generation = resolvedSessionGeneration()
 
-    let handle = pinyinDB.withCString { pinyinCStr in
-      englishDB.withCString { englishCStr in
+    var creationError: UnsafeMutablePointer<CChar>?
+    let handle: OpaquePointer?
+    if let generation {
+      handle = generation.resourcesURL.path.withCString { resourcesCStr in
         userDir.withCString { userCStr in
-          owl_msime_session_create(pinyinCStr, englishCStr, userCStr, pageSize)
+          cacheDir.withCString { cacheCStr in
+            generation.contentID.withCString { contentIDCStr in
+              owl_msime_session_create_with_generation(
+                resourcesCStr,
+                userCStr,
+                cacheCStr,
+                contentIDCStr,
+                pageSize,
+                &creationError
+              )
+            }
+          }
         }
       }
+    } else {
+      handle = nil
+    }
+    if let creationError {
+      NSLog("OwlRustEngine: session creation failed: %s", creationError)
+      owl_msime_string_free(creationError)
     }
     let session = OwlRustSession(
       sessionID: id,
@@ -854,6 +881,85 @@ final class OwlRustEngine: RimeEngine {
     )
     sessions[id] = session
     return session
+  }
+
+  private func resolvedSessionGeneration() -> OwlRustResourceGeneration? {
+    if let activeGenerationProvider {
+      if let generation = activeGenerationProvider() {
+        return generation
+      }
+    } else {
+      let environment = OwlRustResourceEnvironment.production(
+        userRoot: userDataURL ?? OwlApp.userDir
+      )
+      do {
+        if let generation = try environment.activeGeneration() {
+          return generation
+        }
+      } catch {
+        NSLog(
+          "OwlRustEngine: active resource generation is unusable: %@",
+          error.localizedDescription
+        )
+      }
+    }
+
+    if let cachedBundledGeneration {
+      return cachedBundledGeneration
+    }
+    guard let sharedRoot = sharedSupportURL ?? Bundle.main.sharedSupportURL else {
+      NSLog("OwlRustEngine: shared support directory is unavailable")
+      return nil
+    }
+    let resourcesURL = sharedRoot.appendingPathComponent("msime", isDirectory: true)
+    do {
+      let digest = try Self.contentDigest(of: resourcesURL)
+      let generation = OwlRustResourceGeneration(
+        resourcesURL: resourcesURL,
+        contentID: "seed-\(digest)"
+      )
+      cachedBundledGeneration = generation
+      return generation
+    } catch {
+      NSLog("OwlRustEngine: cannot identify bundled resources: %@", error.localizedDescription)
+      return nil
+    }
+  }
+
+  private static func contentDigest(of directory: URL) throws -> String {
+    let keys: [URLResourceKey] = [.isRegularFileKey, .isSymbolicLinkKey]
+    guard let enumerator = FileManager.default.enumerator(
+      at: directory,
+      includingPropertiesForKeys: keys,
+      options: [.skipsHiddenFiles]
+    ) else {
+      throw CocoaError(.fileNoSuchFile)
+    }
+    let rootPrefix = directory.path.hasSuffix("/") ? directory.path : directory.path + "/"
+    var files: [(relativePath: String, url: URL)] = []
+    for case let fileURL as URL in enumerator {
+      let values = try fileURL.resourceValues(forKeys: Set(keys))
+      guard values.isRegularFile == true, values.isSymbolicLink != true else { continue }
+      let relativePath = fileURL.path.hasPrefix(rootPrefix)
+        ? String(fileURL.path.dropFirst(rootPrefix.count))
+        : fileURL.lastPathComponent
+      files.append((relativePath, fileURL))
+    }
+    guard !files.isEmpty else { throw CocoaError(.fileReadNoSuchFile) }
+
+    var hasher = SHA256()
+    let separator = Data([0])
+    for file in files.sorted(by: { $0.relativePath < $1.relativePath }) {
+      hasher.update(data: Data(file.relativePath.utf8))
+      hasher.update(data: separator)
+      let handle = try FileHandle(forReadingFrom: file.url)
+      defer { try? handle.close() }
+      while let chunk = try handle.read(upToCount: 256 * 1024), !chunk.isEmpty {
+        hasher.update(data: chunk)
+      }
+      hasher.update(data: separator)
+    }
+    return hasher.finalize().map { String(format: "%02x", $0) }.joined()
   }
 
   func session(for id: RimeSessionId) -> RimeSession {

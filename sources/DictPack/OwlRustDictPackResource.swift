@@ -32,6 +32,143 @@ enum OwlRustDictPackResourceError: Error, LocalizedError, Equatable {
   }
 }
 
+struct OwlRustResourceGeneration: Equatable, Sendable {
+  let resourcesURL: URL
+  let contentID: String
+}
+
+struct OwlRustResourceEnvironment: Sendable {
+  static let activeInputKind = OwlRustResourceInputKind.pinyinWubi
+
+  let dictionaryRoot: URL
+  let packageRoot: URL
+  let configuration: OwlRustResourceConfiguration
+
+  static func production(userRoot: URL = OwlApp.userDir) -> Self {
+    let resourcesRoot = userRoot.appendingPathComponent(
+      "rust-resources", isDirectory: true
+    )
+    return Self(
+      dictionaryRoot: userRoot,
+      packageRoot: resourcesRoot.appendingPathComponent("candidate", isDirectory: true),
+      configuration: OwlRustResourceConfiguration(
+        libraryRoot: resourcesRoot.appendingPathComponent("library", isDirectory: true),
+        stagingRoot: resourcesRoot.appendingPathComponent("staging", isDirectory: true),
+        runtimeRoot: resourcesRoot.appendingPathComponent("runtime", isDirectory: true),
+        stateRoot: resourcesRoot.appendingPathComponent("state", isDirectory: true),
+        userRoot: userRoot.appendingPathComponent("msime-user", isDirectory: true),
+        cacheRoot: userRoot.appendingPathComponent("msime-cache", isDirectory: true)
+      )
+    )
+  }
+
+  func makeStore() throws -> OwlRustResourceStore {
+    try FileManager.default.createDirectory(
+      at: configuration.userRoot, withIntermediateDirectories: true
+    )
+    return try OwlRustResourceStore(
+      configuration: configuration, engine: .owlRustResourceV1
+    )
+  }
+
+  func activeState(
+    inputKind: OwlRustResourceInputKind = Self.activeInputKind
+  ) throws -> OwlRustResourceActiveState? {
+    let url = configuration.stateRoot
+      .appendingPathComponent("active", isDirectory: true)
+      .appendingPathComponent(inputKind.rawValue + ".json", isDirectory: false)
+    guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+    let state: OwlRustResourceActiveState
+    do {
+      let decoder = JSONDecoder()
+      decoder.dateDecodingStrategy = .iso8601
+      state = try decoder.decode(
+        OwlRustResourceActiveState.self, from: Data(contentsOf: url)
+      )
+    } catch {
+      throw OwlRustResourceError.activeStateInvalid(
+        "active pointer is unreadable: \(error.localizedDescription)"
+      )
+    }
+    guard state.schemaVersion == 1, state.inputKind == inputKind else {
+      throw OwlRustResourceError.activeStateInvalid("schema or inputKind mismatch")
+    }
+    return state
+  }
+
+  func activeGeneration() throws -> OwlRustResourceGeneration? {
+    guard let state = try activeState() else { return nil }
+    let record = state.current
+    let expectedGenerationId = "sha256-" + record.digest.dropFirst("sha256:".count)
+    guard record.digest == record.manifest.digest,
+          record.generationId == expectedGenerationId else {
+      throw OwlRustResourceError.activeStateInvalid(
+        "active generation identity is inconsistent"
+      )
+    }
+
+    let generation = configuration.libraryRoot
+      .appendingPathComponent(record.manifest.packageId, isDirectory: true)
+      .appendingPathComponent("generations", isDirectory: true)
+      .appendingPathComponent(record.generationId, isDirectory: true)
+    let marker = generation.appendingPathComponent(".complete", isDirectory: false)
+    guard let markerData = try? Data(contentsOf: marker),
+          markerData == Data((record.digest + "\n").utf8) else {
+      throw OwlRustResourceError.generationCorrupt(
+        "active generation is incomplete: \(generation.path)"
+      )
+    }
+    let resources = generation.appendingPathComponent("files", isDirectory: true)
+    for name in ["msime-pinyin.db", "msime-english.db"] {
+      let file = resources.appendingPathComponent(name, isDirectory: false)
+      let values = try? file.resourceValues(
+        forKeys: [.isRegularFileKey, .isSymbolicLinkKey]
+      )
+      guard values?.isRegularFile == true, values?.isSymbolicLink != true else {
+        throw OwlRustResourceError.generationCorrupt(
+          "active generation lacks \(name): \(resources.path)"
+        )
+      }
+    }
+    return OwlRustResourceGeneration(
+      resourcesURL: resources,
+      contentID: record.generationId
+    )
+  }
+}
+
+struct OwlRustDictPackPreparedResources: Equatable, Sendable {
+  let resource: OwlRustResourcePrepared
+  let stats: OwlRustResourceBuildStats
+
+  var version: Int { resource.record.manifest.version }
+  var licenseIdentifiers: [String] {
+    resource.record.manifest.license.map(\.identifier).sorted()
+  }
+}
+
+struct OwlDictPackCandidate: Equatable, Sendable {
+  let version: Int
+  let digest: String
+  let licenseIdentifiers: [String]
+  let pinyinEntries: Int
+  let wubiEntries: Int
+  let englishEntries: Int
+  let rejectedEntries: Int
+
+  init(prepared: OwlRustDictPackPreparedResources) {
+    version = prepared.version
+    digest = prepared.resource.record.digest
+    licenseIdentifiers = prepared.licenseIdentifiers
+    pinyinEntries = prepared.stats.pinyinEntries
+    wubiEntries = prepared.stats.wubiEntries
+    englishEntries = prepared.stats.englishEntries
+    rejectedEntries = prepared.stats.rejectedPinyinEntries
+      + prepared.stats.rejectedWubiEntries
+      + prepared.stats.rejectedEnglishEntries
+  }
+}
+
 struct OwlRustDictPackResourceInstaller {
   private static let candidateMarkerName = ".owl-rust-resource-builder"
   private static let candidateMarker = Data("owltype-dictpack-v1\n".utf8)
@@ -80,6 +217,13 @@ struct OwlRustDictPackResourceInstaller {
   func downloadAndInstall(
     progress: (@Sendable (Double) -> Void)? = nil
   ) async throws -> OwlRustResourceInstallResult {
+    let prepared = try await prepare(progress: progress)
+    return try await activate(prepared)
+  }
+
+  func prepare(
+    progress: (@Sendable (Double) -> Void)? = nil
+  ) async throws -> OwlRustDictPackPreparedResources {
     let fetcher = OwlDictPackFetcher(
       manifest: manifest,
       userDir: dictionaryRoot,
@@ -100,7 +244,7 @@ struct OwlRustDictPackResourceInstaller {
       }
     case .userProvided:
       throw OwlRustDictPackResourceError.userProvidedDictionaryPack(dictionaryRoot)
-    case .downloading, .deploying, .failed:
+    case .downloading, .deploying, .prepared, .activating, .rollingBack, .failed:
       throw OwlRustDictPackResourceError.dictionaryPackNotInstalled
     }
     guard let record = OwlDictPackRecord.load(userDir: dictionaryRoot),
@@ -112,13 +256,19 @@ struct OwlRustDictPackResourceInstaller {
 
     let built = try buildPackage()
     progress?(0.95)
-    let installed = try await store.install(
+    let resource = try await store.prepare(
       OwlRustResourceDirectorySource(root: built.root)
     ) { value in
       progress?(0.95 + value * 0.05)
     }
     progress?(1)
-    return installed
+    return OwlRustDictPackPreparedResources(resource: resource, stats: built.stats)
+  }
+
+  func activate(
+    _ prepared: OwlRustDictPackPreparedResources
+  ) async throws -> OwlRustResourceInstallResult {
+    try await store.activate(prepared.resource)
   }
 
   private func buildPackage() throws -> OwlRustResourcePackageBuild {

@@ -11,6 +11,7 @@ import argparse
 import json
 import sqlite3
 import sys
+import tempfile
 from collections import defaultdict
 from pathlib import Path
 
@@ -144,11 +145,13 @@ def build_report(
         and seed_pinyin[(table, key, value)] != weight
     )
 
-    new_collisions: list[tuple[str, int, int, str]] = []
+    new_codes: list[tuple[str, int, int, str]] = []
+    existing_code_collisions: list[tuple[str, int, int, str]] = []
     for key, full_rows in full_wubi.items():
         baseline_rows = wubi_baseline.get(key, [])
         if len(full_rows) > 1 and len(full_rows) > len(baseline_rows):
-            new_collisions.append(
+            destination = new_codes if not baseline_rows else existing_code_collisions
+            destination.append(
                 (
                     key,
                     len(baseline_rows),
@@ -156,6 +159,15 @@ def build_report(
                     " / ".join(row[0] for row in full_rows),
                 )
             )
+    new_codes.sort()
+    existing_code_collisions.sort()
+    new_collisions = [
+        (key, baseline_count, full_count, candidates, "distinct-new-code")
+        for key, baseline_count, full_count, candidates in new_codes
+    ] + [
+        (key, baseline_count, full_count, candidates, "existing-code-new-collision")
+        for key, baseline_count, full_count, candidates in existing_code_collisions
+    ]
     new_collisions.sort()
 
     lost_four_code_unique: list[tuple[str, str, int, str]] = []
@@ -206,8 +218,18 @@ def build_report(
     )
     write_tsv(
         output / "wubi-new-collisions.tsv",
-        ["code", "baseline_values", "full_values", "full_candidates"],
+        ["code", "baseline_values", "full_values", "full_candidates", "classification"],
         [list(row) for row in new_collisions],
+    )
+    write_tsv(
+        output / "wubi-new-codes.tsv",
+        ["code", "baseline_values", "full_values", "full_candidates"],
+        [list(row) for row in new_codes],
+    )
+    write_tsv(
+        output / "wubi-existing-code-new-collisions.tsv",
+        ["code", "baseline_values", "full_values", "full_candidates"],
+        [list(row) for row in existing_code_collisions],
     )
     write_tsv(
         output / "wubi-lost-four-code-unique.tsv",
@@ -231,12 +253,18 @@ def build_report(
             "wubiBaselineRows": sum(len(rows) for rows in wubi_baseline.values()),
             "fullWubiRows": sum(len(rows) for rows in full_wubi.values()),
             "wubiNewCollisions": len(new_collisions),
+            "wubiDistinctNewCodes": len(new_codes),
+            "wubiExistingCodeNewCollisions": len(existing_code_collisions),
             "wubiLostFourCodeUnique": len(lost_four_code_unique),
         },
         "samples": {
             "missingSeedEntries": [list(row) for row in missing[:100]],
             "weightChanges": [list(row) for row in weight_changes[:100]],
             "wubiNewCollisions": [list(row) for row in new_collisions[:100]],
+            "wubiDistinctNewCodes": [list(row) for row in new_codes[:100]],
+            "wubiExistingCodeNewCollisions": [
+                list(row) for row in existing_code_collisions[:100]
+            ],
             "wubiLostFourCodeUnique": [
                 list(row) for row in lost_four_code_unique[:100]
             ],
@@ -254,10 +282,68 @@ def build_report(
     return summary
 
 
+def selftest() -> int:
+    with tempfile.TemporaryDirectory(prefix="owl-rust-resource-report-") as temporary:
+        root = Path(temporary)
+        seed = root / "seed.db"
+        full = root / "full.db"
+        baseline = root / "wubi-core.db"
+        output = root / "report"
+
+        with sqlite3.connect(baseline) as conn:
+            conn.execute(
+                'CREATE TABLE wubi86 ("key" TEXT, "value" TEXT, "weight" INTEGER)'
+            )
+            conn.execute(
+                'INSERT INTO wubi86 VALUES ("bbbb", "baseline", 10)'
+            )
+        with sqlite3.connect(seed) as conn:
+            conn.execute("CREATE TABLE tbl_2_a (\"key\" TEXT, \"value\" TEXT, \"weight\" INTEGER)")
+        with sqlite3.connect(full) as conn:
+            conn.execute(
+                'CREATE TABLE wubi86 ("key" TEXT, "value" TEXT, "weight" INTEGER)'
+            )
+            conn.executemany(
+                'INSERT INTO wubi86 VALUES (?, ?, ?)',
+                [
+                    ("aaaa", "new-b", 5),
+                    ("aaaa", "new-a", 6),
+                    ("bbbb", "baseline", 10),
+                    ("bbbb", "collision", 9),
+                ],
+            )
+
+        summary = build_report(seed, full, output, baseline)
+        counts = summary["counts"]
+        assert counts["wubiDistinctNewCodes"] == 1
+        assert counts["wubiExistingCodeNewCollisions"] == 1
+        assert counts["wubiNewCollisions"] == 2
+        assert (
+            counts["wubiNewCollisions"]
+            == counts["wubiDistinctNewCodes"]
+            + counts["wubiExistingCodeNewCollisions"]
+        )
+        assert len((output / "wubi-new-codes.tsv").read_text().splitlines()) == 2
+        assert len(
+            (output / "wubi-existing-code-new-collisions.tsv").read_text().splitlines()
+        ) == 2
+        classifications = {
+            line.split("\t")[-1]
+            for line in (output / "wubi-new-collisions.tsv").read_text().splitlines()[1:]
+        }
+        assert classifications == {
+            "distinct-new-code",
+            "existing-code-new-collision",
+        }
+    print("owl-rust-resource-report selftest: ok")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--seed-db", type=Path, required=True)
-    parser.add_argument("--full-db", type=Path, required=True)
+    parser.add_argument("--selftest", action="store_true")
+    parser.add_argument("--seed-db", type=Path)
+    parser.add_argument("--full-db", type=Path)
     parser.add_argument(
         "--wubi-baseline-db",
         type=Path,
@@ -266,8 +352,21 @@ def main(argv: list[str] | None = None) -> int:
             "to --seed-db only when that seed already has Wubi rows"
         ),
     )
-    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--output", type=Path)
     args = parser.parse_args(argv)
+    if args.selftest:
+        return selftest()
+    missing = [
+        option
+        for option, value in (
+            ("--seed-db", args.seed_db),
+            ("--full-db", args.full_db),
+            ("--output", args.output),
+        )
+        if value is None
+    ]
+    if missing:
+        parser.error("the following arguments are required: " + ", ".join(missing))
     try:
         summary = build_report(
             args.seed_db.resolve(),
