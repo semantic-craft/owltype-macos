@@ -325,3 +325,23 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Done right：只处理调用方拥有的临时目录，不停止进程、不重建数据库；正式安装与其他工作区不在清理范围。
 - Verify (验证点)：运行 cleanup_app_registrations 的回归，检查运行中副本、符号链接、注销失败及嵌套／重复记录；真实隔离 App 验证另记 PR，模拟测试不替代本机证据。
 - Seen 1x (2026-10-23)。
+
+## 被动候选预取不能改变已发布的选择身份
+
+- 起因与后果：#266 的 Rust FFI `peek_candidates` 调用会展开候选的 `all_candidates`，在单字母候选超过初始上限时推进代次；控制器先取得当前页，再预取相邻页，旧文本可能被配上新代次 token。
+- 修复：被动预取只读取当前缓存；显式翻页仍负责释放后续候选。不得仅更新代次而保留旧页快照。
+- 回归与证据：`peek_preserves_published_generation_and_selection_with_withheld_candidates` 使用真实 FFI、SQLite 合成词库与单字母输入；修前代次从 3 变为 4 导致失败，修后同代次选择提交可见词，继续翻页能访问第 24 项之后的候选。
+- Verify (验证点)：`cargo test --locked --manifest-path rust/Cargo.toml -p owl-msime-ffi`；该结果只证明 FFI 行为，真实安装宿主验收另记对应 PR。
+- Seen 1x (2026-10-25)。
+
+### Real host numeric selection must include keypad keysyms
+
+- During #249 installed TextEdit acceptance, System Events `keystroke "1"` produced macOS keycode 83 / `XK_KP_1` (65457). The Rust adapter handled only `XK_1...XK_9`, so the event passed through instead of selecting the visible candidate. Physical top-row keycode 18 correctly committed the displayed candidate.
+- Map `XK_KP_1...XK_KP_9` through the same visible-index selection path. `OwlRustEngineTests.testKeypadDigitSelectsVisibleCandidate` fails before the mapping (unhandled key and missing commit) and exercises a real seed-backed session.
+- Native input evidence must state the event path. CUA printable-key injection did not reproduce the physical IMK path on this host; the authorized System Events script did. Assert the intended foreground host/document and use actual key codes when a test means top-row digits. Keep keypad selection as its own regression instead of dismissing it as a script artifact.
+
+### An empty engine context must clear native marked text
+
+- #249 real TextEdit acceptance on `0621f6e` found that Esc hid the candidate panel but left underlined `ni'hao` in the host. Rust had cleared its input; `OwlRustSession.composition()` discarded every empty snapshot as nil. The existing IMK renderer sends empty marked text for a valid empty context, whereas nil only hides the panel.
+- Preserve a valid empty Rust snapshot as an empty `RimeComposition`, matching the librime seam. `testCancelReturnsEmptyContextToClearHostMarkedText` fails on the old adapter at the non-nil context assertion; it also covers deleting the last input character. An empty committed session now exposes an empty context, while destroyed/unavailable sessions still return nil.
+- Engine cancellation alone is insufficient evidence: verify the actual host loses its marked text after Esc and after backspacing the last character, with no phantom commit on the next key.

@@ -1527,7 +1527,8 @@ impl<E: InputEngine> Runtime<E> {
     }
 
     /// The generation as it stands, without asking the engine for more.
-    fn all_candidates_cached(&self) -> CandidateSnapshot {
+    /// Passive host prefetch must use this view so already displayed candidate IDs remain valid.
+    pub fn all_candidates_cached(&self) -> CandidateSnapshot {
         let visible = self.visible_len();
         let mut candidates = Vec::with_capacity(visible);
         candidates.extend(

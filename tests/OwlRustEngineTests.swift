@@ -69,7 +69,7 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(committed, "你好")
     XCTAssertNil(session.takeCommit())
     XCTAssertEqual(session.input(), "")
-    XCTAssertNil(session.composition())
+    XCTAssertEqual(session.composition()?.preedit, "")
   }
 
   func testCandidateSelectionByDigitAndSelectCandidateMethod() throws {
@@ -176,6 +176,66 @@ final class OwlRustEngineTests: XCTestCase {
 
     // In ASCII mode, typing letters is not consumed by the IME.
     XCTAssertFalse(session.process(keycode: UInt32(XK_a), modifiers: 0))
+  }
+
+  func testCancelReturnsEmptyContextToClearHostMarkedText() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+    for scalar in "nihao".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    XCTAssertTrue(session.process(keycode: UInt32(XK_Escape), modifiers: 0))
+    let cleared = try XCTUnwrap(session.composition(), "The IMK renderer needs an empty context to clear marked text")
+    XCTAssertEqual(cleared.preedit, "")
+    XCTAssertTrue(cleared.candidates.isEmpty)
+    XCTAssertNil(session.takeCommit())
+    XCTAssertTrue(session.process(keycode: UInt32(XK_n), modifiers: 0))
+    XCTAssertTrue(session.process(keycode: UInt32(XK_BackSpace), modifiers: 0))
+    XCTAssertEqual(session.composition()?.preedit, "")
+    XCTAssertTrue(session.composition()?.candidates.isEmpty == true)
+  }
+
+  func testKeypadDigitSelectsVisibleCandidate() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+    for scalar in "nihao".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    let expected = try XCTUnwrap(session.composition()?.candidates.first?.text)
+    XCTAssertTrue(session.process(keycode: UInt32(XK_KP_1), modifiers: 0))
+    XCTAssertEqual(session.takeCommit(), expected)
+  }
+
+  func testTraditionalOutputMatchesVisibleAndPeekedCandidatesAndCanBeDisabled() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+    for scalar in "zhongguo".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    let simplified = try XCTUnwrap(session.composition())
+    let index = try XCTUnwrap(simplified.candidates.firstIndex { $0.text == "中国" })
+    let options: [RimeOption] = [.traditional, .traditionalization, .zhTrad, .transcription]
+    for option in options { session.setOption(option, true) }
+    session.setOption(.simplification, false)
+    let traditional = try XCTUnwrap(session.composition())
+    XCTAssertEqual(traditional.candidates[index].text, "中國")
+    XCTAssertEqual(session.peekCandidates(from: index, count: 1).first?.text, "中國")
+    let token = OwlCandidateToken(sessionID: session.sessionID, generation: session.generation,
+                                  candidateID: index, isAbsolute: false)
+    XCTAssertTrue(session.selectCandidate(token))
+    XCTAssertEqual(session.takeCommit(), "中國")
+    for option in options { session.setOption(option, false) }
+    session.setOption(.simplification, true)
+    for scalar in "zhongguo".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    let restored = try XCTUnwrap(session.composition())
+    let restoredIndex = try XCTUnwrap(restored.candidates.firstIndex { $0.text == "中国" })
+    XCTAssertTrue(session.selectCandidate(restoredIndex))
+    XCTAssertEqual(session.takeCommit(), "中国")
   }
 
   func testTokenBasedSelectionPeekCandidatesAndStaleGenerationRejection() throws {
