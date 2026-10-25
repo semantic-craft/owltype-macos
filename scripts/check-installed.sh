@@ -40,6 +40,7 @@ EXE="$APP/Contents/MacOS/Owltype"
 DOMAIN="$OWL_BUNDLE_ID"
 SQUIRREL_DOMAIN="$SQUIRREL_BUNDLE_ID"
 CHINESE_IME_LM_CRATE_LICENSE_SHA256="cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+WUBI86_JIDIAN_LICENSE_SHA256="43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1"
 TIS_MODE="${OWL_TIS_MODE:-interactive}"
 
 case "$TIS_MODE" in
@@ -75,6 +76,15 @@ if [[ -s "$source_crate_license" ]]; then
     fail "installed chinese-ime-lm source crate LICENSE differs from the pinned text"
 fi
 pass_clean "installed app carries the pinned chinese-ime-lm source crate license"
+
+wubi_license="$APP/Contents/SharedSupport/wubi86-jidian.LICENSE"
+[[ -s "$wubi_license" ]] || fail "installed app missing rime-wubi86-jidian LICENSE"
+if [[ -s "$wubi_license" ]]; then
+  printf '%s  %s\n' "$WUBI86_JIDIAN_LICENSE_SHA256" "$wubi_license" |
+    shasum -a 256 --check --status ||
+    fail "installed rime-wubi86-jidian LICENSE differs from the pinned text"
+fi
+pass_clean "installed app carries the pinned rime-wubi86-jidian license"
 
 python3 "$ROOT/scripts/check-rust-delivery.py" "$APP"
 pass_clean "installed app delivers the Rust engine and complete SQLite resources"

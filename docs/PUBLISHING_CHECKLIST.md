@@ -18,7 +18,8 @@ binary. Exclude only:
 - credentials, Keychain contents, EdDSA private keys, signing/notarization identities and release
   credentials (source code that uses Keychain or implements packaging remains corresponding source);
 - private audit reports, absolute home-directory paths, private email addresses and local caches;
-- Wubi dictionary data until its complete relicensing chain is publicly verifiable;
+- Wubi dictionary data without a pinned source, preserved Apache-2.0 license, and verified derived
+  SQLite digest; the reviewed `rime-wubi86-jidian` pin used by the public seed meets those conditions;
 - octagram model data and plugin binaries until corresponding-source and license obligations are
   satisfied for the exact release.
 

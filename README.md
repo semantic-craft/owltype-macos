@@ -204,9 +204,10 @@ CI：合并前的门禁由开发机上的 `scripts/gate.sh` 执行，详见
 
 ## 来源与许可
 
-本项目以 **GPL-3.0** 发布，许可证全文见 [LICENSE.txt](LICENSE.txt)。猫头鹰是
-[RIME 鼠须管（Squirrel）](https://github.com/rime/squirrel) 与
-[librime](https://github.com/rime/librime) 的派生作品。基于本项目分发二进制时，必须同时提供
+本项目以 **GPL-3.0** 发布，许可证全文见 [LICENSE.txt](LICENSE.txt)。猫头鹰的 macOS 前端历史上
+派生自 [RIME 鼠须管（Squirrel）](https://github.com/rime/squirrel) 与
+[librime](https://github.com/rime/librime)；自 2.1.0 起输入核心改为水杉 msime Rust 引擎，
+公开 App 不再打包或动态链接 librime。基于本项目分发二进制时，必须同时提供
 对应的修改源码、GPL-3.0 许可证文本与版权声明，不得作为闭源制品分发。
 每个二进制版本的完整对应源码可从[官网固定入口](https://responsay.com/owltype/source.tar.gz)取得；
 欢迎依 GPL 使用、修改和再分发源码；开发分支与已发布二进制可能处于不同版本。
@@ -216,6 +217,7 @@ CI：合并前的门禁由开发机上的 `scripts/gate.sh` 执行，详见
 
 ## 致谢
 
-- [RIME / 中州韻输入法引擎](https://rime.im)——librime 与 Squirrel
+- [水杉输入法（Metasequoia IME）](https://github.com/metasequoiaime/msime)——Rust 输入引擎与运行时
+- [RIME / 中州韻输入法引擎](https://rime.im)——历史前端与方案生态
 - [雾凇拼音 rime-ice](https://github.com/iDvel/rime-ice)
 - [极点五笔 86](https://github.com/KyleBing/rime-wubi86-jidian)

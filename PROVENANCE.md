@@ -9,7 +9,8 @@
   Owltype 的 macOS IMK 前端复用并精简自鼠须管的输入热路径。候选窗 / 设置 / 引导 / 表情符号面板由
   SwiftUI 重做，运行时身份、数据根与安装位置全部改为 Owltype（见下方「与鼠须管并存」）。
 - **librime** —— <https://github.com/rime/librime>（BSD-3 / 组件各自许可）
-  输入引擎。Owltype 不重写 librime，将其与数据自包含进 `Owltype.app`。
+  2.0.x 及以前的输入引擎基座。自 2.1.0 起 Owltype 改用水杉 Rust 引擎，公开 App 不再打包或
+  动态链接 librime；保留此项以说明前端与方案配置的历史派生谱系。
 - **RIME / 中州韻输入法引擎** —— <https://rime.im>
 - **水杉输入法 Metasequoia IME (`msime`)** —— <https://github.com/metasequoiaime/msime>（GPLv3）
   Rust 输入引擎与运行时 crate（`rust/crates/`，经窄 C-ABI 静态链接入 `Owltype.app`）。
@@ -36,8 +37,10 @@
   固定源文件共有 89,273 条数据行；89,272 条形状有效接受，其中 3 条重复以最高权重合并，
   去重后写入 89,269 条唯一记录，拒绝 1 条。拒绝项是第 7911 行 `\tcokg\t10\t全角空格`
   （文本列为空），不会被静默当作 Wubi 词条导入。
-  许可证原文逐字保留在 [`licenses/wubi86-jidian.LICENSE`](licenses/wubi86-jidian.LICENSE)。
-- OpenCC 简繁转换等
+  许可证原文逐字保留为 seed 根目录的 `wubi86-jidian.LICENSE`；完整五笔方案由用户侧固定源拉取，
+  不进入公开 App payload。
+- OpenCC 简繁转换数据 —— <https://github.com/BYVoid/OpenCC>（Apache-2.0）
+  公开 seed 只携带转换表与配置，不链接或分发 libopencc。
 
 各组件的完整许可条款见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
 

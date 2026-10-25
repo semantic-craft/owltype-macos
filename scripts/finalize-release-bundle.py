@@ -12,6 +12,7 @@ import plistlib
 import shutil
 import subprocess
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 
 from owl_bundle import MANIFEST_NAME, SBOM_NAME, relative_files, sha256
@@ -33,8 +34,6 @@ REQUIRED_LICENSES = {
     "Contents/SharedSupport/OWLTYPE-SEED-SOURCES.md",
     "Contents/SharedSupport/OpenCC.LICENSE",
     "Contents/SharedSupport/jieba.LICENSE",
-    "Contents/SharedSupport/librime-lua.LICENSE",
-    "Contents/SharedSupport/librime.LICENSE",
     "Contents/SharedSupport/licenses/Apache-2.0.txt",
     "Contents/SharedSupport/licenses/BSD-3-Clause.txt",
     "Contents/SharedSupport/licenses/CC-BY-3.0.txt",
@@ -46,9 +45,9 @@ REQUIRED_LICENSES = {
     "Contents/SharedSupport/msime/models/LICENSE-Apache-2.0.txt",
     "Contents/SharedSupport/msime/models/NOTICE.txt",
     "Contents/SharedSupport/phrase-pinyin-data.LICENSE",
-    "Contents/SharedSupport/plum.LICENSE",
     "Contents/SharedSupport/rime-ice-Credits.md",
     "Contents/SharedSupport/rime-ice.LICENSE",
+    "Contents/SharedSupport/wubi86-jidian.LICENSE",
 }
 # The Rust runtime uses the seeded SQLite dictionaries. Upstream grammar data
 # (*.gram from lotem/rime-octagram-data) still has no redistribution license.
@@ -61,6 +60,12 @@ FORBIDDEN_HOME_PREFIX = b"/" + b"Users/"
 SPARKLE_LICENSE_SHA256 = "78babcec24fb8447551f9b5ece67042a82fd4ed14deab863d6e8f0619d0d25f6"
 CHINESE_IME_LM_CRATE_LICENSE = "Contents/SharedSupport/licenses/chinese-ime-lm.LICENSE"
 CHINESE_IME_LM_CRATE_LICENSE_SHA256 = "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+WUBI86_JIDIAN_LICENSE = "Contents/SharedSupport/wubi86-jidian.LICENSE"
+WUBI86_JIDIAN_LICENSE_SHA256 = "43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1"
+PINNED_COMPONENT_LICENSES = {
+    CHINESE_IME_LM_CRATE_LICENSE: CHINESE_IME_LM_CRATE_LICENSE_SHA256,
+    WUBI86_JIDIAN_LICENSE: WUBI86_JIDIAN_LICENSE_SHA256,
+}
 
 
 def fail(message: str) -> None:
@@ -99,6 +104,20 @@ def verify_no_private_build_paths(files: list[tuple[str, Path]]) -> None:
     for relative, path in files:
         if contains_private_home_path(path.read_bytes()):
             fail(f"absolute home path embedded in release file: {relative}")
+
+
+def missing_required_license_entries(paths: Iterable[str]) -> set[str]:
+    return REQUIRED_LICENSES - set(paths)
+
+
+def verify_required_licenses(app: Path) -> None:
+    paths = {relative for relative, _ in relative_files(app)}
+    missing_licenses = missing_required_license_entries(paths)
+    if missing_licenses:
+        fail(f"missing license bundle entries: {', '.join(sorted(missing_licenses))}")
+    for relative, expected_sha256 in PINNED_COMPONENT_LICENSES.items():
+        if sha256(app / relative) != expected_sha256:
+            fail(f"license differs from the pinned upstream text: {relative}")
 
 
 def verify_seed(app: Path) -> None:
@@ -153,14 +172,7 @@ def main() -> None:
     files = relative_files(app)
     verify_no_private_build_paths(files)
     paths = {relative for relative, _ in files}
-    missing_licenses = REQUIRED_LICENSES - paths
-    if missing_licenses:
-        fail(f"missing license bundle entries: {', '.join(sorted(missing_licenses))}")
-    if (
-        sha256(app / CHINESE_IME_LM_CRATE_LICENSE)
-        != CHINESE_IME_LM_CRATE_LICENSE_SHA256
-    ):
-        fail("chinese-ime-lm source crate license differs from the pinned upstream text")
+    verify_required_licenses(app)
 
     forbidden = sorted(
         relative for relative in paths
