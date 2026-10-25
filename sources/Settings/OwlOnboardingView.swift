@@ -188,7 +188,7 @@ struct OwlOnboardingView: View {
   }
   private var desc: String {
     [
-      "现代、本地、为简体中文而生的开源输入法 —— 由 RIME / librime 驱动，词库与按键都在你掌心。",
+      "现代、本地、为简体中文而生的开源输入法 —— 由水杉 Rust 引擎驱动，词库与按键都在你掌心。",
       "猫头鹰只内置自建的清洁室精简词库。五笔、简体拼音、小鹤双拼等方案的词库来自第三方开源项目（雾凇拼音 rime-ice、极点五笔86）—— 为避免版权争议，猫头鹰不随安装包分发它们，也不会在你不知情的情况下替你下载。",
       "打开「系统设置 → 键盘 → 输入法」，在列表中勾选「猫头鹰」即可。点下方按钮可直达设置面板。",
       "挑一个方案先用起来，随时能在设置里增删与切换。推荐从拼音开始。",
@@ -200,7 +200,7 @@ struct OwlOnboardingView: View {
 
   private var welcomeChips: some View {
     HStack(spacing: 8) {
-      ForEach(["本地运行 · 隐私优先", "RIME 引擎", "为法律与编程优化"], id: \.self) { text in
+      ForEach(["本地运行 · 隐私优先", "水杉 Rust 引擎", "为法律与编程优化"], id: \.self) { text in
         HStack(spacing: 6) {
           Circle().fill(palette.accent).frame(width: 5, height: 5)
           Text(text).font(.system(size: 12.5)).foregroundStyle(palette.ink2)
