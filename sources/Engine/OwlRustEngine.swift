@@ -380,15 +380,27 @@ final class OwlRustSession: RimeSession {
     guard handle != nil else { return false }
     let isRelease = (modifiers & kReleaseMask.rawValue) != 0
     let isShiftKey = (keycode == UInt32(XK_Shift_L) || keycode == UInt32(XK_Shift_R))
+    let isCapsLockKey = keycode == UInt32(XK_Caps_Lock)
 
     if isShiftKey {
       if !isRelease {
         shiftKeyArmed = OwlKeyboardPreferences.shiftSwitchCJK
       } else if shiftKeyArmed {
         shiftKeyArmed = false
-        toggleASCIIModeOnShiftRelease()
+        toggleASCIIModeCommittingRawInput()
       }
       return false
+    }
+
+    if isCapsLockKey {
+      shiftKeyArmed = false
+      guard OwlKeyboardPreferences.shiftSwitchCJK else { return false }
+      if !isRelease {
+        toggleASCIIModeCommittingRawInput()
+      }
+      // Classic good_old_caps_lock toggles the system lock too. Without it, Caps Lock is a
+      // pure IME mode key, so the consumed synthetic event must not reach the host.
+      return !OwlKeyboardPreferences.goodOldCapsLock
     }
 
     if !isRelease {
@@ -596,7 +608,7 @@ final class OwlRustSession: RimeSession {
     return false
   }
 
-  private func toggleASCIIModeOnShiftRelease() {
+  private func toggleASCIIModeCommittingRawInput() {
     let raw = latestSnapshot?.rawInput ?? ""
     if !raw.isEmpty {
       _ = applyActionResponse(sendAction(["op": "commit_raw"]))

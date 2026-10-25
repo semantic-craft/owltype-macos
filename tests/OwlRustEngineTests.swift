@@ -861,6 +861,57 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertFalse(session.process(keycode: UInt32(XK_a), modifiers: 0))
   }
 
+  func testCapsLockTogglesASCIIModeAndCommitsInFlightComposition() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let originalShiftSwitch = OwlKeyboardPreferences.shiftSwitchCJK
+    let originalGoodOldCapsLock = OwlKeyboardPreferences.goodOldCapsLock
+    defer {
+      OwlKeyboardPreferences.shiftSwitchCJK = originalShiftSwitch
+      OwlKeyboardPreferences.goodOldCapsLock = originalGoodOldCapsLock
+    }
+
+    OwlKeyboardPreferences.shiftSwitchCJK = true
+    OwlKeyboardPreferences.goodOldCapsLock = false
+    let consumedSession = engine.createSession()
+    defer { consumedSession.destroy() }
+    typeText("ni", into: consumedSession)
+
+    XCTAssertTrue(
+      consumedSession.process(keycode: UInt32(XK_Caps_Lock), modifiers: 0),
+      "Without good_old_caps_lock the IME must consume Caps Lock so it only switches input mode"
+    )
+    XCTAssertTrue(consumedSession.option(.asciiMode))
+    XCTAssertEqual(consumedSession.takeCommit(), "ni")
+
+    OwlKeyboardPreferences.goodOldCapsLock = true
+    let passthroughSession = engine.createSession()
+    defer { passthroughSession.destroy() }
+    typeText("ni", into: passthroughSession)
+
+    XCTAssertFalse(
+      passthroughSession.process(keycode: UInt32(XK_Caps_Lock), modifiers: 0),
+      "With good_old_caps_lock the host must still receive Caps Lock to toggle its physical lock"
+    )
+    XCTAssertTrue(passthroughSession.option(.asciiMode))
+    XCTAssertEqual(passthroughSession.takeCommit(), "ni")
+  }
+
+  func testCapsLockDoesNotOverrideShiftSwitchWhenMasterPreferenceIsOff() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let originalShiftSwitch = OwlKeyboardPreferences.shiftSwitchCJK
+    defer { OwlKeyboardPreferences.shiftSwitchCJK = originalShiftSwitch }
+    OwlKeyboardPreferences.shiftSwitchCJK = false
+
+    let session = engine.createSession()
+    defer { session.destroy() }
+    typeText("ni", into: session)
+
+    XCTAssertFalse(session.process(keycode: UInt32(XK_Caps_Lock), modifiers: 0))
+    XCTAssertFalse(session.option(.asciiMode))
+    XCTAssertNil(session.takeCommit())
+    XCTAssertEqual(session.input(), "ni")
+  }
+
   func testCancelReturnsEmptyContextToClearHostMarkedText() throws {
     let engine = try makeSharedSupportSeedEngine()
     let session = engine.createSession()
