@@ -1,0 +1,48 @@
+[package]
+name = "msime-engine"
+description = "Pure Rust input engine: composition state, schemes, dictionaries and learning. Replaces the C++ MSIME-Engine."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+msime-path-trust = { path = "../path-trust" }
+chinese-ime-lm = { path = "../chinese-ime-lm" }
+chinese-number = { version = "0.8", default-features = false, features = ["std", "number-to-chinese"] }
+# 藏文方案的 EWTS（扩展威利转写）到 Unicode 藏文的转换。MIT OR Apache-2.0，无依赖。
+ewts = "0.1.3"
+exmex = "0.21"
+hex = "0.4"
+libc.workspace = true
+lru = "0.18"
+lunar-lite = "0.1"
+memmap2 = "0.9"
+# V-mode unit conversion. MPL-2.0, used unmodified, so shipping the licence text (resources/licenses/MPL-2.0.txt) and naming the crate is all it asks. `bundle-files` embeds definitions.units; the live currency data, the one part that would need the network, is never loaded.
+rink-core = { version = "0.9.0", default-features = false, features = ["bundle-files"] }
+rusqlite = { workspace = true, features = ["bundled", "backup"] }
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+time = { workspace = true, features = ["formatting", "local-offset"] }
+unicode-segmentation.workspace = true
+# Vietnamese Telex and VNI transforms. MIT; pinned exactly because the uppercase workaround in vietnamese/scheme.rs is written against this version's output.
+vi = "=0.8.0"
+
+# 翻译 sidecar 写入前在 Windows 上读硬链接数，见 host/options.rs 的 `has_single_link`；与 client-base 用的是同一版。
+[target.'cfg(windows)'.dependencies]
+winapi-util = "0.1.11"
+
+[target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dependencies]
+# web.rs 通过 rusqlite::ffi::MemVfsUtil 导入词库，依赖这个 feature
+rusqlite = { workspace = true, features = ["bundled", "backup", "ffi-sqlite-wasm-rs"] }
+
+[dev-dependencies]
+# 片假名逐字符转换的旧行为对照，固定版本以免测试基线漂移。
+wana_kana = "=5.0.0"
+
+[lints]
+workspace = true

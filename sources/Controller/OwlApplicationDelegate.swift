@@ -26,7 +26,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   /// The single owner of the global librime lifecycle. The input controller obtains its
   /// per-composition Session from this engine (via `NSApp.owlAppDelegate.engine`), the
   /// same indirection pattern as `ensureOwltypePanel`. Swappable so tests can inject a fake.
-  var engine: RimeEngine = LiveRimeEngine()
+  var engine: RimeEngine = OwlRustEngine.makeConfiguredEngine()
   /// The controller's read-only view of the live composition snapshot, behind the narrow
   /// `SnapshotReading` port (same composition-root pattern as `engine`). Default is the
   /// production `.shared` registry; swappable so tests can inject a scripted snapshot.

@@ -1,0 +1,49 @@
+[workspace]
+members = [
+    "crates/path-trust",
+    "crates/chinese-ime-lm",
+    "crates/engine",
+    "crates/client-core",
+    "crates/input-runtime",
+    "crates/owl-msime-ffi",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.89"
+license = "GPL-3.0-only"
+repository = "https://github.com/metasequoiaime/msime"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tempfile = "3"
+unicode-segmentation = "1.13"
+sha2 = "0.11"
+rusqlite = "0.40"
+time = "0.3"
+rustix = "1.1"
+libc = "0.2"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[profile.dev]
+debug = 0
+incremental = false
+
+[profile.dev.package.chinese-ime-lm]
+opt-level = 3
+
+[profile.dev.package.serde_json]
+opt-level = 3
+
+[profile.dev.package.ewts]
+overflow-checks = false
+
+[profile.release.package.ewts]
+debug-assertions = true
+overflow-checks = false
