@@ -448,38 +448,71 @@ struct SessionRoots {
     dictionaries: PathBuf,
 }
 
-fn prepare_explicit_root(raw: &str, label: &str) -> Result<PathBuf, String> {
+fn preflight_explicit_root(raw: &str, label: &str) -> Result<PathBuf, String> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         return Err(format!("{label} is empty"));
     }
-    let path = PathBuf::from(trimmed);
-    fs::create_dir_all(&path)
-        .map_err(|e| format!("failed to create {label} {}: {e}", path.display()))?;
-    let canonical = fs::canonicalize(&path)
-        .map_err(|e| format!("failed to canonicalize {label} {}: {e}", path.display()))?;
-    if !canonical.is_dir() {
-        return Err(format!("{label} is not a directory: {}", canonical.display()));
+    let raw_path = PathBuf::from(trimmed);
+    let absolute = if raw_path.is_absolute() {
+        raw_path
+    } else {
+        std::env::current_dir()
+            .map_err(|e| format!("failed to resolve {label} against cwd: {e}"))?
+            .join(raw_path)
+    };
+    let mut normalized = PathBuf::new();
+    for component in absolute.components() {
+        match component {
+            std::path::Component::RootDir | std::path::Component::Prefix(_) => {
+                normalized.push(component.as_os_str());
+            }
+            std::path::Component::CurDir => {}
+            std::path::Component::Normal(part) => normalized.push(part),
+            std::path::Component::ParentDir => {
+                return Err(format!("{label} must not contain '..': {}", absolute.display()));
+            }
+        }
     }
-    Ok(canonical)
+    let mut probe = normalized.as_path();
+    loop {
+        match fs::symlink_metadata(probe) {
+            Ok(_) => {
+                let canonical = fs::canonicalize(probe)
+                    .map_err(|e| format!("failed to resolve {label} ancestor {}: {e}", probe.display()))?;
+                if !canonical.is_dir() {
+                    return Err(format!(
+                        "{label} ancestor is not a directory: {}",
+                        canonical.display()
+                    ));
+                }
+                let suffix = normalized.strip_prefix(probe).map_err(|e| {
+                    format!("failed to resolve remaining {label} components: {e}")
+                })?;
+                return Ok(suffix
+                    .iter()
+                    .fold(canonical, |path, component| path.join(component)));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                probe = probe
+                    .parent()
+                    .ok_or_else(|| format!("{label} has no existing ancestor"))?;
+            }
+            Err(error) => {
+                return Err(format!(
+                    "failed to inspect {label} ancestor {}: {error}",
+                    probe.display()
+                ));
+            }
+        }
+    }
 }
 
 fn paths_overlap(left: &Path, right: &Path) -> bool {
     left == right || left.starts_with(right) || right.starts_with(left)
 }
 
-fn prepare_explicit_roots(
-    resources: &str,
-    user: &str,
-    cache: &str,
-    dictionaries: &str,
-) -> Result<SessionRoots, String> {
-    let roots = SessionRoots {
-        resources: prepare_explicit_root(resources, "resources_dir")?,
-        user: prepare_explicit_root(user, "user_data_dir")?,
-        cache: prepare_explicit_root(cache, "cache_dir")?,
-        dictionaries: prepare_explicit_root(dictionaries, "dictionaries_dir")?,
-    };
+fn validate_explicit_roots(roots: &SessionRoots) -> Result<(), String> {
     for (left, right) in [
         (&roots.resources, &roots.user),
         (&roots.resources, &roots.cache),
@@ -496,6 +529,38 @@ fn prepare_explicit_roots(
             ));
         }
     }
+    Ok(())
+}
+
+fn materialize_explicit_root(path: &Path, label: &str) -> Result<PathBuf, String> {
+    fs::create_dir_all(path)
+        .map_err(|e| format!("failed to create {label} {}: {e}", path.display()))?;
+    fs::canonicalize(path)
+        .map_err(|e| format!("failed to canonicalize {label} {}: {e}", path.display()))
+}
+
+fn prepare_explicit_roots(
+    resources: &str,
+    user: &str,
+    cache: &str,
+    dictionaries: &str,
+) -> Result<SessionRoots, String> {
+    let planned = SessionRoots {
+        resources: preflight_explicit_root(resources, "resources_dir")?,
+        user: preflight_explicit_root(user, "user_data_dir")?,
+        cache: preflight_explicit_root(cache, "cache_dir")?,
+        dictionaries: preflight_explicit_root(dictionaries, "dictionaries_dir")?,
+    };
+    validate_explicit_roots(&planned)?;
+
+    let roots = SessionRoots {
+        resources: materialize_explicit_root(&planned.resources, "resources_dir")?,
+        user: materialize_explicit_root(&planned.user, "user_data_dir")?,
+        cache: materialize_explicit_root(&planned.cache, "cache_dir")?,
+        dictionaries: materialize_explicit_root(&planned.dictionaries, "dictionaries_dir")?,
+    };
+    // Re-check after following any symlink changes made between planning and creation.
+    validate_explicit_roots(&roots)?;
     Ok(roots)
 }
 
@@ -1917,6 +1982,32 @@ mod tests {
             .unwrap()
     }
 
+    fn directory_tree(root: &Path) -> Vec<String> {
+        fn visit(base: &Path, directory: &Path, entries: &mut Vec<String>) {
+            let mut children: Vec<PathBuf> = fs::read_dir(directory)
+                .unwrap()
+                .map(|entry| entry.unwrap().path())
+                .collect();
+            children.sort();
+            for child in children {
+                let relative = child.strip_prefix(base).unwrap().display();
+                let metadata = fs::symlink_metadata(&child).unwrap();
+                if metadata.is_dir() {
+                    entries.push(format!("dir:{relative}"));
+                    visit(base, &child, entries);
+                } else if metadata.file_type().is_symlink() {
+                    entries.push(format!("link:{relative}"));
+                } else {
+                    entries.push(format!("file:{relative}:{}", metadata.len()));
+                }
+            }
+        }
+
+        let mut entries = Vec::new();
+        visit(root, root, &mut entries);
+        entries
+    }
+
     #[test]
     fn explicit_roots_keep_session_runtime_separate_from_the_shared_user_journal() {
         let tmp = TempDir::new().unwrap();
@@ -2056,20 +2147,49 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let pinyin = tmp.path().join("test-pinyin.db");
         build_minimal_test_pinyin_db(&pinyin);
-        let shared = tmp.path().join("shared-root");
 
+        let future_user = tmp.path().join("future-user");
+        let before = directory_tree(tmp.path());
         let (session, error) = create_with_explicit_roots(
             &pinyin,
-            &shared,
-            &shared,
-            &tmp.path().join("cache"),
-            &tmp.path().join("dictionaries"),
+            &tmp.path().join("future-runtime/resources"),
+            &future_user,
+            &future_user.join("cache"),
+            &tmp.path().join("future-runtime/dictionaries"),
         );
         assert!(session.is_null());
         assert!(
             error
                 .as_deref()
                 .is_some_and(|message| message.contains("session roots overlap"))
+        );
+        assert_eq!(
+            directory_tree(tmp.path()),
+            before,
+            "a future nested root must be rejected before creating any directory"
+        );
+
+        let existing_user = tmp.path().join("existing-user");
+        fs::create_dir_all(&existing_user).unwrap();
+        fs::write(existing_user.join("sentinel.txt"), b"keep").unwrap();
+        let before = directory_tree(tmp.path());
+        let (session, error) = create_with_explicit_roots(
+            &pinyin,
+            &tmp.path().join("existing-runtime/resources"),
+            &existing_user,
+            &existing_user.join("cache"),
+            &tmp.path().join("existing-runtime/dictionaries"),
+        );
+        assert!(session.is_null());
+        assert!(
+            error
+                .as_deref()
+                .is_some_and(|message| message.contains("session roots overlap"))
+        );
+        assert_eq!(
+            directory_tree(tmp.path()),
+            before,
+            "an existing user tree must be unchanged when the requested cache root is nested"
         );
 
         let missing_pinyin = tmp.path().join("missing-pinyin.db");

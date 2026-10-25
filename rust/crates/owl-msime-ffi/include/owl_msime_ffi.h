@@ -20,8 +20,9 @@ OwlMsimeSession *owl_msime_session_create(
 /*
  * Creates a session over four exact, non-overlapping EngineOptions roots.
  * Every root is created if absent and used as given: no msime-* child is
- * appended. They are canonicalized before use, so the supplied strings need
- * not already be canonical.
+ * appended. Their existing ancestors are resolved before any directory is
+ * created, so the supplied strings need not already be canonical. Paths
+ * containing ".." are rejected before writes.
  *
  * On success, returns an opaque session and leaves *error_out NULL when
  * error_out is non-NULL. On failure, returns NULL; when error_out is
