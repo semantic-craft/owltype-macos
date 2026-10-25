@@ -492,6 +492,10 @@ impl Session {
         self.inner.set_first_page_rows(FirstPageRows::new(rows));
     }
 
+    pub fn set_wubi_z_pinyin_lookup(&mut self, enabled: bool) {
+        self.inner.set_wubi_z_pinyin_lookup(enabled);
+    }
+
     /// Whether an apostrophe now is input (`3jin'g`, `/fyhello'world`) rather than punctuation that ends the composition.
     pub fn takes_local_separator(&self) -> bool {
         self.inner.takes_local_separator()

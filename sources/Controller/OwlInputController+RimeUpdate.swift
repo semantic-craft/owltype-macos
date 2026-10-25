@@ -25,6 +25,7 @@ extension OwlInputController {
     // ID-marked unified candidates bypass normal input formatting. Ordinary commits do no IO.
     if text.hasPrefix(OwlTemplateStore.candidatePrefix) {
       let code = MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshots.current?.rawInput }
+        ?? rime?.lastCommittedInput()
       let entry = OwlTemplateStore.resolveCandidate(code: code, text: text) {
         guard OwlTemplateStore.mode() == .unified else { throw OwlTemplateError.legacyRequiresMigration }
         return try OwlTemplateStore.load()
@@ -50,6 +51,7 @@ extension OwlInputController {
     // precedent (commit out-of-band + cancel the normal commit).
     let action: OwlPromptCommitAction = MainActor.assumeIsolated {
       let code = NSApp.owlAppDelegate.snapshots.current?.rawInput
+        ?? rime?.lastCommittedInput()
       return resolvePromptCommit(code: code, committedTitle: text, store: NSApp.owlAppDelegate.promptStore)
     }
     switch action {

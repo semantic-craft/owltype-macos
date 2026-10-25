@@ -55,6 +55,10 @@ protocol RimeSession: AnyObject {
   /// The raw input string (`get_input`); nil if unavailable.
   func input() -> String?
 
+  /// The raw input string that originated the most recent commit, when the engine already
+  /// cleared `input()` upon committing (used by prompt/template commit interception).
+  func lastCommittedInput() -> String?
+
   /// Caret position in UTF-8 bytes (`get_caret_pos`).
   func caretPos() -> Int
 
@@ -116,6 +120,8 @@ protocol RimeSession: AnyObject {
 
 extension RimeSession {
   var generation: UInt64 { 0 }
+
+  func lastCommittedInput() -> String? { nil }
 
   /// Default no-preview implementation — keeps fakes/spies source-compatible; the live
   /// adapter overrides with the real iterator walk.

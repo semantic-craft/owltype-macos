@@ -14,6 +14,15 @@ SYLLABLE_RE = re.compile(r"^[a-z]+$")
 
 SEED_ENGLISH_WORDS: list[tuple[str, str, int, str]] = [
     ("hello", "hello", 1000, ""),
+    ("held", "held", 850, ""),
+    ("help", "help", 900, ""),
+    ("dir", "dir", 800, ""),
+    ("github", "GitHub", 950, ""),
+    ("git", "git", 850, ""),
+    ("you", "you", 950, ""),
+    ("did", "did", 700, ""),
+    ("ship", "ship", 700, ""),
+    ("shin", "shin", 600, ""),
     ("world", "world", 900, ""),
     ("owltype", "Owltype", 800, ""),
     ("test", "test", 700, ""),
@@ -23,6 +32,79 @@ SEED_ENGLISH_WORDS: list[tuple[str, str, int, str]] = [
     ("macos", "macOS", 550, ""),
     ("apple", "Apple", 500, ""),
     ("code", "code", 500, ""),
+]
+
+SEED_PINYIN_EXTRA: list[tuple[str, str, str, str, int]] = [
+    ("2_e", "e'du", "ed", "额度", 5000),
+    ("2_j", "ji'xu", "jx", "继续", 5000),
+    ("2_z", "zhong'guo", "zg", "中国", 8000),
+    ("1_z", "zhao", "z", "找", 5000),
+    ("1_z", "zhao", "z", "着", 4500),
+    ("1_h", "hao", "h", "好", 8000),
+    ("2_h", "han'guo", "hg", "韩国", 5000),
+    ("2_x", "xu'qiu", "xq", "需求", 5000),
+    ("2_b", "bian'yi", "by", "编译", 5000),
+    ("2_q", "qi'guai", "qg", "奇怪", 5000),
+    ("2_s", "shi'jie", "sj", "世界", 6000),
+    ("2_n", "ni'hao", "nh", "你好", 8000),
+    ("2_x", "x'guang", "xg", "X光", 3000),
+    ("2_t", "t'xu", "tx", "T恤", 3000),
+    ("2_a", "a'gu", "ag", "A股", 3000),
+    ("2_q", "qq'qun", "qq", "QQ群", 3000),
+    ("2_q", "q'qun", "qq", "QQ群", 3000),
+]
+
+SEED_WUBI86_ENTRIES: list[tuple[str, str, int]] = [
+    ("a", "工", 20),
+    ("aaaa", "工", 20),
+    ("aaad", "工期", 10),
+    ("b", "了", 20),
+    ("c", "以", 20),
+    ("d", "在", 20),
+    ("dddd", "大", 30),
+    ("e", "有", 20),
+    ("f", "地", 20),
+    ("g", "一", 20),
+    ("ggll", "一", 20),
+    ("gggg", "王", 40),
+    ("h", "上", 20),
+    ("i", "不", 20),
+    ("ifcy", "法", 30),
+    ("j", "是", 20),
+    ("jf", "时", 10),
+    ("k", "中", 20),
+    ("khl", "中", 10),
+    ("khlg", "中国", 30),
+    ("l", "国", 20),
+    ("m", "同", 20),
+    ("o", "为", 20),
+    ("p", "这", 20),
+    ("q", "我", 20),
+    ("r", "白", 20),
+    ("s", "要", 20),
+    ("t", "和", 20),
+    ("u", "产", 20),
+    ("v", "发", 20),
+    ("vb", "好", 10),
+    ("vbg", "好", 20),
+    ("w", "人", 20),
+    ("wo", "人", 90),
+    ("wq", "你", 10),
+    ("wqi", "你", 10),
+    ("wqiy", "你", 20),
+    ("wqvb", "你好", 30),
+    ("x", "经", 20),
+    ("y", "主", 20),
+    ("edui", "膫", 10),
+    ("eduq", "须将", 9),
+    ("jixu", "曳光弹", 10),
+    ("hang", "歫", 20),
+    ("hang", "虛", 10),
+    ("xuq", "绞", 10),
+    ("xuqi", "纯音乐", 9),
+    ("bian", "便", 100),
+    ("qigu", "乐平", 100),
+    ("gege", "静静", 10),
 ]
 
 SEED_EN_ZH_GLOSSES: list[tuple[str, str, int]] = [
@@ -131,6 +213,13 @@ def build_pinyin_db(seed_dir: Path, pinyin_db_path: Path) -> None:
             if existing is None or weight > existing[1]:
                 table_map[pair] = (jp, weight)
 
+    for suffix, key, jp, value, weight in SEED_PINYIN_EXTRA:
+        table_map = buckets[suffix]
+        pair = (key, value)
+        existing = table_map.get(pair)
+        if existing is None or weight > existing[1]:
+            table_map[pair] = (jp, weight)
+
     pinyin_db_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = pinyin_db_path.with_suffix(".db.tmp")
     if tmp_path.exists():
@@ -169,6 +258,20 @@ def build_pinyin_db(seed_dir: Path, pinyin_db_path: Path) -> None:
                 CREATE TABLE quick_parases ("key" text, "value" text, "weight" integer default 0);
                 CREATE INDEX idx_quick_parases_key_weight ON quick_parases ("key", "weight" DESC);
                 """
+            )
+            conn.executemany(
+                'INSERT INTO quick_parases ("key", "value", "weight") VALUES (?, ?, ?);',
+                [
+                    ("xguang", "X光", 3000),
+                    ("txu", "T恤", 3000),
+                    ("agu", "A股", 3000),
+                    ("upan", "U盘", 3000),
+                    ("qqqun", "QQ群", 3000),
+                ],
+            )
+            conn.executemany(
+                'INSERT OR REPLACE INTO wubi86 ("key", "value", "weight") VALUES (?, ?, ?);',
+                SEED_WUBI86_ENTRIES,
             )
     finally:
         conn.close()
@@ -265,6 +368,10 @@ def check_seed_dbs(pinyin_db_path: Path, english_db_path: Path) -> None:
         ).fetchone()[0]
         if nihao_count < 1:
             raise RuntimeError("Expected '你好' for key \"ni'hao\" in tbl_2_n")
+
+        wubi_count = conn.execute("SELECT count(*) FROM wubi86;").fetchone()[0]
+        if wubi_count < 10:
+            raise RuntimeError(f"Expected populated wubi86 seed rows, got {wubi_count}")
     finally:
         conn.close()
 

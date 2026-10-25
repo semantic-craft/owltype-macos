@@ -1494,6 +1494,13 @@ impl InputSession {
         });
     }
 
+    pub fn set_wubi_z_pinyin_lookup(&mut self, enabled: bool) {
+        self.set_wubi_input_options(WubiInputOptions {
+            z_pinyin_lookup: enabled,
+            ..self.engine.wubi_input_options()
+        });
+    }
+
     pub fn set_personal_context_enabled(&mut self, enabled: bool) {
         if self.personal_context_enabled == enabled {
             return;
@@ -1954,7 +1961,12 @@ impl InputSession {
             _ => return None,
         };
         // 拆字和快捷短语一样在五笔下也能进入：它查的是编进引擎的部件拼音表，不经过当前方案的拼写，五笔用户同样会遇到不会读的字。
-        let scheme_opens = if matches!(mode, LocalInputMode::QuickPhrase | LocalInputMode::Chaizi) {
+        let scheme_opens = if matches!(
+            mode,
+            LocalInputMode::QuickPhrase
+                | LocalInputMode::Chaizi
+                | LocalInputMode::TemporaryEnglish
+        ) {
             self.scheme().opens_table_modes()
         } else {
             self.scheme().opens_local_modes()

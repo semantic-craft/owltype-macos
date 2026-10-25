@@ -8,14 +8,18 @@ use std::path::{Path, PathBuf};
 use std::ptr;
 use std::sync::{Arc, Mutex, OnceLock};
 
-use msime_engine::host::{Command, EngineOptions, HelpcodeKeymap, Session as EngineSession};
+use msime_engine::host::{
+    Command, EngineOptions, HelpcodeKeymap, QuickPhraseEntry, Session as EngineSession,
+};
 use msime_engine::{
-    ensure_english_schema, FrequencyAdjustmentMode, SchemeSet, SchemeType,
-    SentenceAssociationOptions, ShuangpinHelpcodeModes, ShuangpinProfileKind, WubiProfileKind,
+    ensure_english_schema, fuzzy_rule, is_complete_pinyin_input, CandidateSource,
+    FrequencyAdjustmentMode, SchemeSet, SchemeType, SentenceAssociationOptions,
+    ShuangpinHelpcodeModes, ShuangpinProfileKind, WubiProfileKind,
 };
 use msime_input_runtime::{
     Action, CandidateId, CandidateOps, CandidateTransform, Runtime, TransformRow, View,
 };
+use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 
@@ -26,6 +30,11 @@ struct OwlPinnedState {
     traditional: bool,
     active_input: String,
     caret_at_end: bool,
+    input_mode: String,
+    pinyin_scheme: String,
+    page_size: usize,
+    wubi_single_first: bool,
+    wubi_z_reverse_lookup: bool,
 }
 
 struct OwlPinnedTransform {
@@ -66,33 +75,94 @@ impl CandidateTransform for OwlPinnedTransform {
         let Ok(guard) = self.state.lock() else {
             return;
         };
-        if !guard.enabled || !guard.caret_at_end || guard.active_input.is_empty() {
-            return;
-        }
-        let Some(pins) = guard
-            .words
-            .get(&(guard.active_input.clone(), guard.traditional))
-        else {
-            return;
-        };
-        if pins.is_empty() {
-            return;
-        }
-        let target_norm = normalized_pinyin(&guard.active_input);
         let mut ops = CandidateOps::default();
-        for pin_word in pins {
-            if let Some((seat, _)) = window.iter().enumerate().find(|(_, row)| {
-                row.text == pin_word
-                    && (row.code.is_empty() || normalized_pinyin(row.code) == target_norm)
-            }) {
-                let seat_u32 = seat as u32;
-                if !ops.order.contains(&seat_u32) {
-                    ops.order.push(seat_u32);
-                    ops.annotations.push((seat_u32, "置顶".to_owned()));
+        fn push_unique(order: &mut Vec<u32>, seat: usize) {
+            let seat_u32 = seat as u32;
+            if !order.contains(&seat_u32) {
+                order.push(seat_u32);
+            }
+        }
+
+        // 1. User pinned words at the very top when composing full Quanpin input at end caret.
+        if guard.enabled && guard.caret_at_end && !guard.active_input.is_empty() {
+            if let Some(pins) = guard
+                .words
+                .get(&(guard.active_input.clone(), guard.traditional))
+            {
+                let target_norm = normalized_pinyin(&guard.active_input);
+                for pin_word in pins {
+                    if let Some((seat, _)) = window.iter().enumerate().find(|(_, row)| {
+                        row.text == pin_word
+                            && (row.code.is_empty() || normalized_pinyin(row.code) == target_norm)
+                    }) {
+                        let seat_u32 = seat as u32;
+                        if !ops.order.contains(&seat_u32) {
+                            ops.order.push(seat_u32);
+                            ops.annotations.push((seat_u32, "置顶".to_owned()));
+                        }
+                    }
                 }
             }
         }
-        if !ops.order.is_empty() {
+
+        // 2. Host quick phrases / templates / prompts (CandidateSource::QuickPhrase == 5)
+        //    appear at the top of page 0 (matching Owltype's initial_quality: 99 table translators).
+        let quick_phrase_src = CandidateSource::QuickPhrase as u8;
+        for (seat, row) in window.iter().enumerate() {
+            if row.source == quick_phrase_src {
+                push_unique(&mut ops.order, seat);
+            }
+        }
+
+        // 3. Wubi single-character-first mode (#250): place single-character candidates ahead of phrases
+        //    (except during z-prefix reverse lookup).
+        let in_z_lookup = guard.input_mode == "wubi"
+            && guard.pinyin_scheme != "wubi_pinyin"
+            && guard.wubi_z_reverse_lookup
+            && guard.active_input.starts_with('z');
+        if guard.input_mode == "wubi" && guard.wubi_single_first && !in_z_lookup {
+            for (seat, row) in window.iter().enumerate() {
+                if row.text.chars().count() == 1 {
+                    push_unique(&mut ops.order, seat);
+                }
+            }
+            for (seat, _) in window.iter().enumerate() {
+                push_unique(&mut ops.order, seat);
+            }
+        }
+
+        // 4. Whole-syllable Chinese-first protection (#259 AC 1):
+        //    When typing complete Quanpin syllables (e.g., `di`, `shi`, `nihao`, `you`), keep at least
+        //    the first page of Chinese candidates ahead of mixed English dictionary rows.
+        let english_src = CandidateSource::EnglishDictionary as u8;
+        if guard.input_mode == "chinese"
+            && guard.pinyin_scheme == "quanpin"
+            && !guard.active_input.is_empty()
+            && is_complete_pinyin_input(guard.active_input.trim_end_matches('\''))
+            && window.iter().any(|r| r.source == english_src)
+        {
+            let page_sz = guard.page_size.max(5);
+            let mut chinese_kept = 0usize;
+            for (seat, row) in window.iter().enumerate() {
+                if row.source != english_src {
+                    push_unique(&mut ops.order, seat);
+                    chinese_kept += 1;
+                    if chinese_kept >= page_sz {
+                        break;
+                    }
+                }
+            }
+            for (seat, row) in window.iter().enumerate() {
+                if row.source == english_src {
+                    push_unique(&mut ops.order, seat);
+                }
+            }
+            for (seat, _) in window.iter().enumerate() {
+                push_unique(&mut ops.order, seat);
+            }
+        }
+
+        if !ops.order.is_empty() || !ops.annotations.is_empty() {
             out.push(ops);
         }
     }
@@ -101,9 +171,16 @@ impl CandidateTransform for OwlPinnedTransform {
 pub struct OwlMsimeSession {
     runtime: Runtime<EngineSession>,
     options: EngineOptions,
+    staged_pinyin_path: PathBuf,
     page_size: u8,
     input_mode: String,
     pinyin_scheme: String,
+    wubi_code_hint: bool,
+    wubi_auto_clear: bool,
+    wubi_candidate_mode: String,
+    wubi_z_reverse_lookup: bool,
+    wubi_english_channel: bool,
+    wubi_user_dict_learning: bool,
     pinned_state: Arc<Mutex<OwlPinnedState>>,
     _temp_dir: Option<TempDir>,
 }
@@ -139,6 +216,8 @@ struct ActionPayload {
     scheme: Option<String>,
     #[serde(default)]
     page_size: Option<u32>,
+    #[serde(default)]
+    mask: Option<u32>,
     #[serde(default)]
     name: Option<String>,
     #[serde(default)]
@@ -251,6 +330,8 @@ fn snapshot_from_view(
     consumed: bool,
     committed_text: Option<String>,
     cleared: bool,
+    show_engine_annotation: bool,
+    temp_english_backtick_prefix: bool,
 ) -> SnapshotResponseDto {
     let highlighted_index = view
         .candidates
@@ -258,18 +339,38 @@ fn snapshot_from_view(
         .position(|c| c.highlighted)
         .unwrap_or(0);
     let has_more_pages = view.page + 1 < view.page_count;
-    let input_len = view.editing_text.len();
-    let caret_position = view.caret_position.min(input_len);
-    let preedit_caret_byte = map_caret_to_preedit_byte(
-        &view.editing_text,
-        &view.phrase_prefix,
-        &view.preedit,
-        caret_position,
-    );
-    let preedit = if view.phrase_prefix.is_empty() {
-        view.preedit
+    let is_temp_eng = temp_english_backtick_prefix && view.local_mode == "temporary_english";
+    let raw_input = if is_temp_eng {
+        let suffix = view
+            .editing_text
+            .strip_prefix('Y')
+            .unwrap_or(&view.editing_text);
+        format!("`{suffix}")
+    } else {
+        view.editing_text.clone()
+    };
+    let input_len = raw_input.len();
+    let caret_position = if is_temp_eng {
+        view.caret_position.min(input_len)
+    } else {
+        view.caret_position.min(input_len)
+    };
+    let preedit = if is_temp_eng {
+        raw_input.clone()
+    } else if view.phrase_prefix.is_empty() {
+        view.preedit.clone()
     } else {
         format!("{}{}", view.phrase_prefix, view.preedit)
+    };
+    let preedit_caret_byte = if is_temp_eng {
+        caret_position
+    } else {
+        map_caret_to_preedit_byte(
+            &view.editing_text,
+            &view.phrase_prefix,
+            &view.preedit,
+            caret_position,
+        )
     };
     let candidates = view
         .candidates
@@ -278,7 +379,9 @@ fn snapshot_from_view(
             let comment = c
                 .script_annotation
                 .filter(|s| !s.is_empty())
-                .or_else(|| (!c.annotation.is_empty()).then_some(c.annotation));
+                .or_else(|| {
+                    (show_engine_annotation && !c.annotation.is_empty()).then_some(c.annotation)
+                });
             CandidateDto {
                 text: c.text,
                 comment,
@@ -294,7 +397,7 @@ fn snapshot_from_view(
         committed_text,
         cleared,
         generation: view.generation,
-        raw_input: view.editing_text,
+        raw_input,
         preedit,
         caret_position,
         preedit_caret_byte,
@@ -406,8 +509,8 @@ impl OwlMsimeSession {
             single_character_only: false,
             learning: true,
             learn_english_on_enter: true,
-            autocorrect_transposition: false,
-            autocorrect_neighbor: false,
+            autocorrect_transposition: true,
+            autocorrect_neighbor: true,
             fuzzy_pinyin_rules: 0,
             wubi_mixed_pinyin: false,
             wubi_z_wildcard: false,
@@ -431,8 +534,8 @@ impl OwlMsimeSession {
             frequency_linear_step: 1,
             mixed_candidates: true,
             mixed_english: true,
-            english_minimum_prefix: 5,
-            english_first_page_count: 1,
+            english_minimum_prefix: 2,
+            english_first_page_count: 3,
             mixed_emoji: false,
             mixed_kaomoji: false,
             mixed_symbols: false,
@@ -452,13 +555,13 @@ impl OwlMsimeSession {
             local_mention: false,
             local_chaizi: false,
             local_symbol: false,
-            local_shift_letter_entry: false,
+            local_shift_letter_entry: true,
             chaizi_traditional_output: false,
             command_table: Vec::new(),
             plugin_commands: Vec::new(),
             mention_entries: Vec::new(),
             quick_phrase_table: Vec::new(),
-            quick_phrase_candidates: false,
+            quick_phrase_candidates: true,
             quick_phrase_frequency: true,
             sentence_association: SentenceAssociationOptions::default(),
             rescoring_context: String::new(),
@@ -482,6 +585,11 @@ impl OwlMsimeSession {
             traditional: false,
             active_input: String::new(),
             caret_at_end: true,
+            input_mode: "chinese".to_owned(),
+            pinyin_scheme: "quanpin".to_owned(),
+            page_size: usize::from(page_size_u8),
+            wubi_single_first: false,
+            wubi_z_reverse_lookup: true,
         }));
         runtime.set_candidate_transform(Some(Box::new(OwlPinnedTransform {
             state: Arc::clone(&pinned_state),
@@ -490,16 +598,52 @@ impl OwlMsimeSession {
         Ok(Self {
             runtime,
             options,
+            staged_pinyin_path: staged_pinyin,
             page_size: page_size_u8,
             input_mode: "chinese".to_owned(),
             pinyin_scheme: "quanpin".to_owned(),
+            wubi_code_hint: false,
+            wubi_auto_clear: false,
+            wubi_candidate_mode: "normal".to_owned(),
+            wubi_z_reverse_lookup: true,
+            wubi_english_channel: false,
+            wubi_user_dict_learning: false,
             pinned_state,
             _temp_dir: temp_dir,
         })
     }
 
+    fn show_engine_annotation(&self, view: &View) -> bool {
+        if self.input_mode == "wubi" {
+            let in_z_lookup = !self.options.wubi_mixed_pinyin
+                && self.wubi_z_reverse_lookup
+                && view.editing_text.starts_with('z');
+            in_z_lookup || self.wubi_code_hint
+        } else {
+            false
+        }
+    }
+
+    fn temp_english_backtick(&self, view: &View) -> bool {
+        self.input_mode == "wubi"
+            && self.wubi_english_channel
+            && view.local_mode == "temporary_english"
+    }
+
+    fn build_snapshot(
+        &self,
+        view: View,
+        consumed: bool,
+        committed_text: Option<String>,
+        cleared: bool,
+    ) -> SnapshotResponseDto {
+        let show_ann = self.show_engine_annotation(&view);
+        let backtick = self.temp_english_backtick(&view);
+        snapshot_from_view(view, consumed, committed_text, cleared, show_ann, backtick)
+    }
+
     pub fn snapshot(&self) -> SnapshotResponseDto {
-        snapshot_from_view(self.runtime.view(), false, None, false)
+        self.build_snapshot(self.runtime.view(), false, None, false)
     }
 
     fn sync_pinned_state_for_upcoming_input(&self, next_input: String, caret_at_end: bool) {
@@ -507,6 +651,11 @@ impl OwlMsimeSession {
             guard.enabled = self.input_mode == "chinese" && self.pinyin_scheme == "quanpin";
             guard.active_input = next_input;
             guard.caret_at_end = caret_at_end;
+            guard.input_mode = self.input_mode.clone();
+            guard.pinyin_scheme = self.pinyin_scheme.clone();
+            guard.page_size = usize::from(self.page_size);
+            guard.wubi_single_first = self.wubi_candidate_mode == "single_first";
+            guard.wubi_z_reverse_lookup = self.wubi_z_reverse_lookup;
         }
     }
 
@@ -516,6 +665,11 @@ impl OwlMsimeSession {
             guard.active_input = view.editing_text.clone();
             guard.caret_at_end =
                 view.phrase_prefix.is_empty() && view.caret_position == view.editing_text.len();
+            guard.input_mode = self.input_mode.clone();
+            guard.pinyin_scheme = self.pinyin_scheme.clone();
+            guard.page_size = usize::from(self.page_size);
+            guard.wubi_single_first = self.wubi_candidate_mode == "single_first";
+            guard.wubi_z_reverse_lookup = self.wubi_z_reverse_lookup;
         }
     }
 
@@ -529,27 +683,58 @@ impl OwlMsimeSession {
         };
         let desired_profile = shuangpin_profile_for_name(&self.pinyin_scheme)
             .unwrap_or(ShuangpinProfileKind::Xiaohe) as u8;
+        let desired_wubi_mixed =
+            self.input_mode == "wubi" && self.pinyin_scheme == "wubi_pinyin";
+        let desired_single_only =
+            self.input_mode == "wubi" && self.wubi_candidate_mode == "single_only";
+        let desired_learning = if self.input_mode == "wubi" {
+            self.wubi_user_dict_learning
+        } else {
+            true
+        };
 
         if self.options.scheme != desired_scheme
             || self.options.shuangpin_profile != desired_profile
+            || self.options.wubi_mixed_pinyin != desired_wubi_mixed
+            || self.options.single_character_only != desired_single_only
+            || self.options.learning != desired_learning
         {
             let _ = self.runtime.dispatch(Action::Command(Command::Cancel));
             self.options.scheme = desired_scheme;
             self.options.shuangpin_profile = desired_profile;
+            self.options.wubi_mixed_pinyin = desired_wubi_mixed;
+            self.options.single_character_only = desired_single_only;
+            self.options.learning = desired_learning;
             self.options.first_page_rows = usize::from(self.page_size);
-            let new_engine = EngineSession::new(&self.options).map_err(|e| e.to_string())?;
+            let mut new_engine = EngineSession::new(&self.options).map_err(|e| e.to_string())?;
+            new_engine.set_wubi_z_pinyin_lookup(self.wubi_z_reverse_lookup);
             self.runtime
                 .replace_engine(new_engine, self.page_size)
                 .map_err(|e| e.to_string())?;
         }
+        let _ = self
+            .runtime
+            .set_wubi_z_pinyin_lookup(self.wubi_z_reverse_lookup);
         let dedicated_english = self.input_mode == "english";
         let _ = self
             .runtime
             .set_dedicated_english(dedicated_english)
             .map_err(|e| e.to_string())?;
-        if let Ok(mut guard) = self.pinned_state.lock() {
-            guard.enabled = self.input_mode == "chinese" && self.pinyin_scheme == "quanpin";
-        }
+        let view = self.runtime.view();
+        self.sync_pinned_state_from_view(&view);
+        Ok(())
+    }
+
+    fn force_rebuild_engine(&mut self) -> Result<(), String> {
+        let _ = self.runtime.dispatch(Action::Command(Command::Cancel));
+        self.options.first_page_rows = usize::from(self.page_size);
+        let mut new_engine = EngineSession::new(&self.options).map_err(|e| e.to_string())?;
+        new_engine.set_wubi_z_pinyin_lookup(self.wubi_z_reverse_lookup);
+        self.runtime
+            .replace_engine(new_engine, self.page_size)
+            .map_err(|e| e.to_string())?;
+        let view = self.runtime.view();
+        self.sync_pinned_state_from_view(&view);
         Ok(())
     }
 
@@ -568,8 +753,27 @@ impl OwlMsimeSession {
                     return error_response("insert ch is empty");
                 };
                 if !ch.is_ascii() {
-                    return snapshot_from_view(self.runtime.view(), false, None, false);
+                    return self.build_snapshot(self.runtime.view(), false, None, false);
                 }
+                if ch == '`'
+                    && self.input_mode == "wubi"
+                    && self.wubi_english_channel
+                    && self.runtime.view().editing_text.is_empty()
+                {
+                    self.sync_pinned_state_for_upcoming_input(String::new(), true);
+                    return match self.runtime.dispatch(Action::Character {
+                        value: b'Y',
+                        shift: true,
+                    }) {
+                        Ok(transition) => {
+                            self.sync_pinned_state_from_view(&transition.view);
+                            self.build_snapshot(transition.view, transition.handled, transition.commit, false)
+                        }
+                        Err(err) => error_response(err.to_string()),
+                    };
+                }
+                let is_wubi_letter =
+                    self.input_mode == "wubi" && ch.is_ascii_lowercase() && ch != 'z';
                 let byte = ch as u8;
                 let shift = byte.is_ascii_uppercase();
                 let before = self.runtime.view();
@@ -581,8 +785,28 @@ impl OwlMsimeSession {
                 self.sync_pinned_state_for_upcoming_input(next_input, next_caret_at_end);
                 match self.runtime.dispatch(Action::Character { value: byte, shift }) {
                     Ok(transition) => {
+                        if is_wubi_letter
+                            && self.wubi_auto_clear
+                            && transition.commit.is_none()
+                            && transition.view.local_mode == "none"
+                            && transition.view.editing_text.len() == 4
+                            && transition.view.candidates.is_empty()
+                        {
+                            self.sync_pinned_state_for_upcoming_input(String::new(), true);
+                            if let Ok(cleared_t) =
+                                self.runtime.dispatch(Action::Command(Command::Cancel))
+                            {
+                                self.sync_pinned_state_from_view(&cleared_t.view);
+                                return self.build_snapshot(
+                                    cleared_t.view,
+                                    true,
+                                    None,
+                                    true,
+                                );
+                            }
+                        }
                         self.sync_pinned_state_from_view(&transition.view);
-                        snapshot_from_view(
+                        self.build_snapshot(
                             transition.view,
                             transition.handled,
                             transition.commit,
@@ -606,7 +830,7 @@ impl OwlMsimeSession {
                 match self.runtime.dispatch(Action::Command(Command::Backspace)) {
                     Ok(transition) => {
                         self.sync_pinned_state_from_view(&transition.view);
-                        snapshot_from_view(
+                        self.build_snapshot(
                             transition.view,
                             transition.handled,
                             transition.commit,
@@ -624,19 +848,27 @@ impl OwlMsimeSession {
                     return error_response("punctuation ch is empty");
                 };
                 if !ch.is_ascii() {
-                    return snapshot_from_view(self.runtime.view(), false, None, false);
+                    return self.build_snapshot(self.runtime.view(), false, None, false);
                 }
                 let byte = ch as u8;
                 let use_ascii = payload.ascii.unwrap_or(false) || !self.options.chinese_punctuation;
+                let in_temp_eng = self.temp_english_backtick(&self.runtime.view());
                 let action = if use_ascii {
                     Action::PunctuationAscii(byte)
                 } else {
                     Action::Punctuation(byte)
                 };
                 match self.runtime.dispatch(action) {
-                    Ok(transition) => {
+                    Ok(mut transition) => {
+                        if in_temp_eng {
+                            if let Some(ref mut c) = transition.commit {
+                                if let Some(stripped) = c.strip_prefix('Y') {
+                                    *c = stripped.to_owned();
+                                }
+                            }
+                        }
                         self.sync_pinned_state_from_view(&transition.view);
-                        snapshot_from_view(
+                        self.build_snapshot(
                             transition.view,
                             transition.handled,
                             transition.commit,
@@ -659,7 +891,7 @@ impl OwlMsimeSession {
                         } else if delta > 0 {
                             Command::MoveRight
                         } else {
-                            return snapshot_from_view(self.runtime.view(), false, None, false);
+                            return self.build_snapshot(self.runtime.view(), false, None, false);
                         }
                     }
                 };
@@ -678,7 +910,7 @@ impl OwlMsimeSession {
                 match self.runtime.dispatch(Action::Command(cmd)) {
                     Ok(transition) => {
                         self.sync_pinned_state_from_view(&transition.view);
-                        snapshot_from_view(
+                        self.build_snapshot(
                             transition.view,
                             transition.handled,
                             transition.commit,
@@ -702,7 +934,7 @@ impl OwlMsimeSession {
                     return match self.runtime.dispatch(Action::Command(Command::MoveEnd)) {
                         Ok(transition) => {
                             self.sync_pinned_state_from_view(&transition.view);
-                            snapshot_from_view(transition.view, true, transition.commit, false)
+                            self.build_snapshot(transition.view, true, transition.commit, false)
                         }
                         Err(err) => error_response(err.to_string()),
                     };
@@ -711,40 +943,62 @@ impl OwlMsimeSession {
                     Ok(()) => {
                         let view = self.runtime.view();
                         self.sync_pinned_state_from_view(&view);
-                        snapshot_from_view(view, true, None, false)
+                        self.build_snapshot(view, true, None, false)
                     }
                     Err(err) => error_response(err.to_string()),
                 }
             }
-            "commit_raw" => match self.runtime.dispatch(Action::Command(Command::CommitRaw)) {
-                Ok(transition) => {
-                    self.sync_pinned_state_from_view(&transition.view);
-                    snapshot_from_view(
-                        transition.view,
-                        transition.handled,
-                        transition.commit,
-                        false,
-                    )
+            "commit_raw" => {
+                let in_temp_eng = self.temp_english_backtick(&self.runtime.view());
+                match self.runtime.dispatch(Action::Command(Command::CommitRaw)) {
+                    Ok(mut transition) => {
+                        if in_temp_eng {
+                            if let Some(ref mut c) = transition.commit {
+                                if let Some(stripped) = c.strip_prefix('Y') {
+                                    *c = format!("`{stripped}");
+                                }
+                            }
+                        }
+                        self.sync_pinned_state_from_view(&transition.view);
+                        self.build_snapshot(
+                            transition.view,
+                            transition.handled,
+                            transition.commit,
+                            false,
+                        )
+                    }
+                    Err(err) => error_response(err.to_string()),
                 }
-                Err(err) => error_response(err.to_string()),
-            },
-            "space" => match self.runtime.dispatch(Action::SelectHighlighted) {
-                Ok(transition) => {
-                    self.sync_pinned_state_from_view(&transition.view);
-                    snapshot_from_view(
-                        transition.view,
-                        transition.handled,
-                        transition.commit,
-                        false,
-                    )
+            }
+            "space" => {
+                let in_temp_eng = self.temp_english_backtick(&self.runtime.view());
+                match self.runtime.dispatch(Action::SelectHighlighted) {
+                    Ok(mut transition) => {
+                        if in_temp_eng {
+                            if let Some(ref mut c) = transition.commit {
+                                if *c == "Y" {
+                                    *c = "`".to_owned();
+                                } else if let Some(stripped) = c.strip_prefix('Y') {
+                                    *c = stripped.to_owned();
+                                }
+                            }
+                        }
+                        self.sync_pinned_state_from_view(&transition.view);
+                        self.build_snapshot(
+                            transition.view,
+                            transition.handled,
+                            transition.commit,
+                            false,
+                        )
+                    }
+                    Err(err) => error_response(err.to_string()),
                 }
-                Err(err) => error_response(err.to_string()),
-            },
+            }
             "clear" => {
                 let had_input = !self.runtime.view().editing_text.is_empty();
                 self.sync_pinned_state_for_upcoming_input(String::new(), true);
                 match self.runtime.dispatch(Action::Command(Command::Cancel)) {
-                    Ok(transition) => snapshot_from_view(
+                    Ok(transition) => self.build_snapshot(
                         transition.view,
                         transition.handled || had_input,
                         transition.commit,
@@ -756,7 +1010,7 @@ impl OwlMsimeSession {
             "move_highlight" => {
                 let delta = payload.delta.unwrap_or(0);
                 if delta == 0 {
-                    return snapshot_from_view(self.runtime.view(), true, None, false);
+                    return self.build_snapshot(self.runtime.view(), true, None, false);
                 }
                 let steps = delta.unsigned_abs() as usize;
                 let mut last_transition = None;
@@ -772,14 +1026,14 @@ impl OwlMsimeSession {
                     }
                 }
                 match last_transition {
-                    Some(t) => snapshot_from_view(t.view, t.handled, t.commit, false),
-                    None => snapshot_from_view(self.runtime.view(), false, None, false),
+                    Some(t) => self.build_snapshot(t.view, t.handled, t.commit, false),
+                    None => self.build_snapshot(self.runtime.view(), false, None, false),
                 }
             }
             "turn_page" => {
                 let delta = payload.delta.unwrap_or(0);
                 if delta == 0 {
-                    return snapshot_from_view(self.runtime.view(), false, None, false);
+                    return self.build_snapshot(self.runtime.view(), false, None, false);
                 }
                 let before_page = self.runtime.view().page;
                 let steps = delta.unsigned_abs() as usize;
@@ -798,9 +1052,9 @@ impl OwlMsimeSession {
                 match last_transition {
                     Some(t) => {
                         let moved = t.view.page != before_page;
-                        snapshot_from_view(t.view, t.handled && moved, t.commit, false)
+                        self.build_snapshot(t.view, t.handled && moved, t.commit, false)
                     }
-                    None => snapshot_from_view(self.runtime.view(), false, None, false),
+                    None => self.build_snapshot(self.runtime.view(), false, None, false),
                 }
             }
             "select_visible" => {
@@ -809,13 +1063,13 @@ impl OwlMsimeSession {
                 };
                 let view = self.runtime.view();
                 let Some(candidate) = view.candidates.get(index) else {
-                    return snapshot_from_view(view, false, None, false);
+                    return self.build_snapshot(view, false, None, false);
                 };
                 let id = candidate.id;
                 match self.runtime.dispatch(Action::Select(id)) {
                     Ok(transition) => {
                         self.sync_pinned_state_from_view(&transition.view);
-                        snapshot_from_view(
+                        self.build_snapshot(
                             transition.view,
                             transition.handled,
                             transition.commit,
@@ -832,7 +1086,7 @@ impl OwlMsimeSession {
                 let view = self.runtime.view();
                 let token_gen = payload.generation.unwrap_or(view.generation);
                 if payload.generation.is_some() && token_gen != view.generation {
-                    return snapshot_from_view(view, false, None, false);
+                    return self.build_snapshot(view, false, None, false);
                 }
                 let is_absolute = payload.is_absolute.unwrap_or(false);
                 let action = if is_absolute {
@@ -843,21 +1097,21 @@ impl OwlMsimeSession {
                     })
                 } else {
                     let Some(candidate) = view.candidates.get(index) else {
-                        return snapshot_from_view(view, false, None, false);
+                        return self.build_snapshot(view, false, None, false);
                     };
                     Action::Select(candidate.id)
                 };
                 match self.runtime.dispatch(action) {
                     Ok(transition) => {
                         self.sync_pinned_state_from_view(&transition.view);
-                        snapshot_from_view(
+                        self.build_snapshot(
                             transition.view,
                             transition.handled,
                             transition.commit,
                             false,
                         )
                     }
-                    Err(_) => snapshot_from_view(self.runtime.view(), false, None, false),
+                    Err(_) => self.build_snapshot(self.runtime.view(), false, None, false),
                 }
             }
             "peek_candidates" => {
@@ -865,8 +1119,9 @@ impl OwlMsimeSession {
                 let count = payload.count.unwrap_or(0);
                 let all = self.runtime.all_candidates_cached();
                 let view = self.runtime.view();
+                let show_ann = self.show_engine_annotation(&view);
                 let input_len = view.editing_text.len();
-                let mut dto = snapshot_from_view(view, true, None, false);
+                let mut dto = self.build_snapshot(view, true, None, false);
                 dto.generation = all.generation;
                 dto.candidates = all
                     .candidates
@@ -877,7 +1132,9 @@ impl OwlMsimeSession {
                         let comment = c
                             .script_annotation
                             .filter(|s| !s.is_empty())
-                            .or_else(|| (!c.annotation.is_empty()).then_some(c.annotation));
+                            .or_else(|| {
+                                (show_ann && !c.annotation.is_empty()).then_some(c.annotation)
+                            });
                         CandidateDto {
                             text: c.text,
                             comment,
@@ -910,7 +1167,73 @@ impl OwlMsimeSession {
                 if let Ok(mut guard) = self.pinned_state.lock() {
                     guard.words = parsed;
                 }
-                snapshot_from_view(self.runtime.view(), true, None, false)
+                self.build_snapshot(self.runtime.view(), true, None, false)
+            }
+            "set_host_phrases" => {
+                let packed = payload.text.unwrap_or_default();
+                let mut rows: Vec<(String, String, i64)> = Vec::new();
+                for line in packed.lines() {
+                    let trimmed = line.trim();
+                    if trimmed.is_empty() || trimmed.starts_with('#') {
+                        continue;
+                    }
+                    let parts: Vec<&str> = line.split('\t').collect();
+                    if parts.len() < 2 {
+                        continue;
+                    }
+                    let phrase = parts[0].trim();
+                    let code = parts[1].trim().to_ascii_lowercase();
+                    if phrase.is_empty() || code.is_empty() || !code.chars().all(|c| c.is_ascii_alphabetic()) {
+                        continue;
+                    }
+                    let weight = parts
+                        .get(2)
+                        .and_then(|w| w.trim().parse::<i64>().ok())
+                        .unwrap_or(1_000_000)
+                        .max(1);
+                    rows.push((code, phrase.to_owned(), weight));
+                }
+                self.options.quick_phrase_table = rows
+                    .iter()
+                    .map(|(code, text, _)| QuickPhraseEntry {
+                        key: code.clone(),
+                        text: text.clone(),
+                    })
+                    .collect();
+                if let Ok(conn) = Connection::open(&self.staged_pinyin_path) {
+                    let _ = conn.execute("DELETE FROM quick_parases WHERE weight >= 900000", []);
+                    for (idx, (code, value, weight)) in rows.iter().enumerate() {
+                        let adjusted_weight = weight.saturating_sub(idx as i64);
+                        let _ = conn.execute(
+                            "INSERT INTO quick_parases (\"key\", \"value\", \"weight\") VALUES (?1, ?2, ?3)",
+                            rusqlite::params![code, value, adjusted_weight],
+                        );
+                    }
+                }
+                if let Err(err) = self.force_rebuild_engine() {
+                    return error_response(err);
+                }
+                self.build_snapshot(self.runtime.view(), true, None, false)
+            }
+            "set_fuzzy_rules" => {
+                let mask = payload.mask.unwrap_or(0) & fuzzy_rule::ALL;
+                if self.options.fuzzy_pinyin_rules != mask {
+                    self.options.fuzzy_pinyin_rules = mask;
+                    if let Err(err) = self.force_rebuild_engine() {
+                        return error_response(err);
+                    }
+                }
+                self.build_snapshot(self.runtime.view(), true, None, false)
+            }
+            "set_wubi_candidate_mode" => {
+                let Some(mode) = payload.mode else {
+                    return error_response("set_wubi_candidate_mode requires mode");
+                };
+                self.wubi_candidate_mode = mode;
+                if let Err(err) = self.rebuild_engine_if_needed() {
+                    return error_response(err);
+                }
+                self.build_snapshot(self.runtime.view(), true, None, false)
             }
             "set_input_mode" => {
                 let Some(mode) = payload.mode else {
@@ -920,7 +1243,7 @@ impl OwlMsimeSession {
                 if let Err(err) = self.rebuild_engine_if_needed() {
                     return error_response(err);
                 }
-                snapshot_from_view(self.runtime.view(), true, None, false)
+                self.build_snapshot(self.runtime.view(), true, None, false)
             }
             "set_pinyin_scheme" => {
                 let Some(scheme) = payload.scheme else {
@@ -930,7 +1253,7 @@ impl OwlMsimeSession {
                 if let Err(err) = self.rebuild_engine_if_needed() {
                     return error_response(err);
                 }
-                snapshot_from_view(self.runtime.view(), true, None, false)
+                self.build_snapshot(self.runtime.view(), true, None, false)
             }
             "set_page_size" => {
                 let Some(ps) = payload.page_size else {
@@ -940,7 +1263,7 @@ impl OwlMsimeSession {
                 self.page_size = clamped;
                 self.options.first_page_rows = usize::from(clamped);
                 let _ = self.runtime.set_page_size(clamped);
-                snapshot_from_view(self.runtime.view(), true, None, false)
+                self.build_snapshot(self.runtime.view(), true, None, false)
             }
             "set_option" => {
                 let Some(name) = payload.name.as_deref() else {
@@ -972,9 +1295,38 @@ impl OwlMsimeSession {
                     "linear" => {
                         self.runtime.set_vertical_candidates(!value);
                     }
+                    "wubi_code_hint" => {
+                        self.wubi_code_hint = value;
+                    }
+                    "wubi_auto_clear" => {
+                        self.wubi_auto_clear = value;
+                    }
+                    "wubi_z_reverse_lookup" => {
+                        self.wubi_z_reverse_lookup = value;
+                        let _ = self.runtime.set_wubi_z_pinyin_lookup(value);
+                        self.sync_pinned_state_from_view(&self.runtime.view());
+                    }
+                    "wubi_english_channel" => {
+                        self.wubi_english_channel = value;
+                    }
+                    "wubi_user_dict_learning" => {
+                        self.wubi_user_dict_learning = value;
+                        let _ = self.rebuild_engine_if_needed();
+                    }
+                    "pinyin_autocorrect" => {
+                        if self.options.autocorrect_transposition != value
+                            || self.options.autocorrect_neighbor != value
+                        {
+                            self.options.autocorrect_transposition = value;
+                            self.options.autocorrect_neighbor = value;
+                            if let Err(err) = self.force_rebuild_engine() {
+                                return error_response(err);
+                            }
+                        }
+                    }
                     _ => {}
                 }
-                snapshot_from_view(self.runtime.view(), true, None, false)
+                self.build_snapshot(self.runtime.view(), true, None, false)
             }
             other => error_response(format!("unsupported op: {other}")),
         }
@@ -1254,12 +1606,14 @@ mod tests {
             conn.execute(
                 "INSERT INTO tbl_1_n (key, jp, value, weight) VALUES ('ni', 'n', ?1, ?2)",
                 rusqlite::params![word, 10000 - index],
-            ).unwrap();
+            )
+            .unwrap();
         }
         drop(conn);
         let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
         let c_empty = CString::new("").unwrap();
-        let session = owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_empty.as_ptr(), 5);
+        let session =
+            owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_empty.as_ptr(), 5);
         assert!(!session.is_null());
         call_action(session, r#"{"op":"insert","ch":"n"}"#);
         call_action(session, r#"{"op":"turn_page","delta":1}"#);
@@ -1267,13 +1621,20 @@ mod tests {
         let expected = before.candidates[0].text.clone();
         let peek = call_action(session, r#"{"op":"peek_candidates","start":10,"count":20}"#);
         let after = call_snapshot(session);
-        assert_eq!(peek.generation, before.generation, "passive prefetch must not expand or retag displayed rows");
+        assert_eq!(
+            peek.generation, before.generation,
+            "passive prefetch must not expand or retag displayed rows"
+        );
         assert_eq!(after.generation, before.generation);
         assert_eq!(after.page, before.page);
         assert_eq!(after.candidates[0].text, expected);
-        let selected = call_action(session, &format!(
-            r#"{{"op":"select_token","index":0,"generation":{}}}"#, before.generation
-        ));
+        let selected = call_action(
+            session,
+            &format!(
+                r#"{{"op":"select_token","index":0,"generation":{}}}"#,
+                before.generation
+            ),
+        );
         assert_eq!(selected.committed_text.as_deref(), Some(expected.as_str()));
         // The passive read must not permanently hide the withheld tail: real paging still releases it.
         call_action(session, r#"{"op":"insert","ch":"n"}"#);
@@ -1281,13 +1642,23 @@ mod tests {
             call_action(session, r#"{"op":"turn_page","delta":1}"#);
         }
         let tail = call_snapshot(session);
-        assert!(tail.page >= 5, "paging must reach beyond the initial 24 candidates");
+        assert!(
+            tail.page >= 5,
+            "paging must reach beyond the initial 24 candidates"
+        );
         let tail_text = tail.candidates[0].text.clone();
-        let absolute = call_action(session, &format!(
-            r#"{{"op":"select_token","index":{},"is_absolute":true,"generation":{}}}"#,
-            tail.page * tail.page_size, tail.generation
-        ));
-        assert_eq!(absolute.committed_text.as_deref(), Some(tail_text.as_str()));
+        let absolute = call_action(
+            session,
+            &format!(
+                r#"{{"op":"select_token","index":{},"is_absolute":true,"generation":{}}}"#,
+                tail.page * tail.page_size,
+                tail.generation
+            ),
+        );
+        assert_eq!(
+            absolute.committed_text.as_deref(),
+            Some(tail_text.as_str())
+        );
         owl_msime_session_destroy(session);
     }
 

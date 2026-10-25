@@ -343,6 +343,7 @@ pub fn session_options(options: &EngineOptions) -> Result<SessionOptions> {
         mixed_pinyin: options.wubi_mixed_pinyin,
         z_wildcard: options.wubi_z_wildcard,
         profile: wubi_profile,
+        z_pinyin_lookup: true,
     };
     session.chinese_punctuation = options.chinese_punctuation;
     session.paired_punctuation = options.paired_punctuation;

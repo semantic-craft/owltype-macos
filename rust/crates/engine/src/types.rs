@@ -1456,7 +1456,7 @@ pub struct MixedExpressiveOptions {
     pub symbol_candidates: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WubiInputOptions {
     /// Answer an unmatched wubi code with quanpin candidates for the same letters.
     pub mixed_pinyin: bool,
@@ -1466,6 +1466,19 @@ pub struct WubiInputOptions {
     ///
     /// 与混输无关：混输里 `z` 是普通拼音字母，这里它是未知码位。两者都关时 `z` 不进码。
     pub z_wildcard: bool,
+    /// 纯五笔且未开启通配时，`z` 是否打开临时拼音反查（默认开启）。
+    pub z_pinyin_lookup: bool,
+}
+
+impl Default for WubiInputOptions {
+    fn default() -> Self {
+        Self {
+            mixed_pinyin: false,
+            profile: WubiProfileKind::default(),
+            z_wildcard: false,
+            z_pinyin_lookup: true,
+        }
+    }
 }
 
 /// 在线请求的输入语义；缺省沿用原有的拼音及方案转换路径。

@@ -350,4 +350,229 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertTrue(session.process(keycode: UInt32(XK_comma), modifiers: 0))
     XCTAssertEqual(session.takeCommit(), "你好，")
   }
+
+  func testWubi86PureAndMixedSchemasZLookupAndPreferences() throws {
+    let origCodeHint = OwlKeyboardPreferences.wubiCodeHint
+    let origAutoClear = OwlKeyboardPreferences.wubiAutoClear
+    let origCandMode = OwlKeyboardPreferences.wubiCandidateMode
+    let origZLookup = OwlKeyboardPreferences.wubiZReverseLookup
+    let origEngChannel = OwlKeyboardPreferences.wubiEnglishChannel
+    defer {
+      OwlKeyboardPreferences.wubiCodeHint = origCodeHint
+      OwlKeyboardPreferences.wubiAutoClear = origAutoClear
+      OwlKeyboardPreferences.wubiCandidateMode = origCandMode
+      OwlKeyboardPreferences.wubiZReverseLookup = origZLookup
+      OwlKeyboardPreferences.wubiEnglishChannel = origEngChannel
+    }
+
+    OwlKeyboardPreferences.wubiCodeHint = false
+    OwlKeyboardPreferences.wubiAutoClear = false
+    OwlKeyboardPreferences.wubiCandidateMode = .normal
+    OwlKeyboardPreferences.wubiZReverseLookup = true
+    OwlKeyboardPreferences.wubiEnglishChannel = false
+
+    let engine = try makeSharedSupportSeedEngine()
+    XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
+    let session = engine.createSession()
+    defer { session.destroy() }
+
+    // 1. Pure Wubi 4-code unique auto-commit: gggg -> 王
+    for scalar in "gggg".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    XCTAssertEqual(session.takeCommit(), "王")
+    XCTAssertEqual(session.input(), "")
+
+    // 2. Z reverse lookup in pure Wubi: zhao -> 找 / 好 with Wubi code comment even when wubiCodeHint is false
+    for scalar in "zhao".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    let zComp = try XCTUnwrap(session.composition())
+    XCTAssertTrue(zComp.candidates.contains(where: { $0.text == "找" || $0.text == "好" }))
+    XCTAssertTrue(zComp.candidates.contains(where: { ($0.comment ?? "").isEmpty == false }))
+    session.clearComposition()
+
+    // Multi-syllable z reverse lookup: zzhongguo -> 中国
+    for scalar in "zzhongguo".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    let zzComp = try XCTUnwrap(session.composition())
+    XCTAssertTrue(zzComp.candidates.contains(where: { $0.text == "中国" }))
+    session.clearComposition()
+
+    // Disabling wubiZReverseLookup stops z from triggering pinyin lookup
+    OwlKeyboardPreferences.wubiZReverseLookup = false
+    for scalar in "zhao".unicodeScalars {
+      _ = session.process(keycode: scalar.value, modifiers: 0)
+    }
+    let zDisabledCandidates = session.composition()?.candidates.map(\.text) ?? []
+    XCTAssertFalse(zDisabledCandidates.contains("找"))
+    session.clearComposition()
+    OwlKeyboardPreferences.wubiZReverseLookup = true
+
+    // 3. wubiAutoClear on 4-code empty miss (`ffff` miss -> auto-cleared)
+    OwlKeyboardPreferences.wubiAutoClear = true
+    for scalar in "ffff".unicodeScalars {
+      _ = session.process(keycode: scalar.value, modifiers: 0)
+    }
+    XCTAssertEqual(session.input(), "")
+    OwlKeyboardPreferences.wubiAutoClear = false
+
+    // 4. wubiEnglishChannel (`hello)
+    OwlKeyboardPreferences.wubiEnglishChannel = true
+    for scalar in "`hello".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    XCTAssertEqual(session.input(), "`hello")
+    let engComp = try XCTUnwrap(session.composition())
+    XCTAssertTrue(engComp.candidates.contains(where: { $0.text.lowercased() == "hello" }))
+    session.clearComposition()
+
+    // 5. Switch to Mixed Wubi-Pinyin (`wubi86_jidian_pinyin`, #251-#254)
+    XCTAssertTrue(session.selectSchema("wubi86_jidian_pinyin"))
+    for scalar in "jixu".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    // Must NOT auto-commit 曳光弹 on 4th key when pinyin "继续" also matches (#251)
+    XCTAssertNil(session.takeCommit())
+    let jixuComp = try XCTUnwrap(session.composition())
+    let jixuTexts = jixuComp.candidates.map(\.text)
+    XCTAssertTrue(jixuTexts.contains("继续"))
+    XCTAssertTrue(jixuTexts.contains("曳光弹"))
+    session.clearComposition()
+
+    // Exact 3-key pinyin `edu` (`额度`) outranks 4-code Wubi completion `edui`/`eduq` (#252)
+    for scalar in "edu".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    let eduComp = try XCTUnwrap(session.composition())
+    XCTAssertEqual(eduComp.candidates.first?.text, "额度")
+    session.clearComposition()
+
+    // 5th-key continuation into multi-syllable pinyin (#253): hang -> hanguo -> 韩国
+    for scalar in "hanguo".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    let hanguoComp = try XCTUnwrap(session.composition())
+    XCTAssertTrue(hanguoComp.candidates.contains(where: { $0.text == "韩国" }))
+    session.clearComposition()
+  }
+
+  func testPinyinTypoAutocorrectAndMixedChineseEnglishCandidates() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+
+    // #256: Adjacent-key (`nihso`), transposition (`niaho`), missing-letter (`zhngguo`), and extra-letter (`nihaao`) typo tolerance
+    for (typo, expected) in [("nihso", "你好"), ("niaho", "你好"), ("zhngguo", "中国"), ("nihaao", "你好")] {
+      for scalar in typo.unicodeScalars {
+        XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+      }
+      let comp = try XCTUnwrap(session.composition())
+      let all = comp.candidates + session.peekCandidates(from: comp.pageSize, count: 15)
+      XCTAssertTrue(all.contains(where: { $0.text == expected }), "Expected \(expected) for typo \(typo)")
+      session.clearComposition()
+    }
+
+    // #259 AC 1: Complete Chinese syllables (`di`, `shi`, `nihao`) have all-Chinese first page
+    for py in ["di", "shi", "nihao"] {
+      for scalar in py.unicodeScalars {
+        XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+      }
+      let comp = try XCTUnwrap(session.composition())
+      XCTAssertFalse(comp.candidates.isEmpty)
+      for cand in comp.candidates {
+        let isASCIIOnly = cand.text.unicodeScalars.allSatisfy(\.isASCII)
+        XCTAssertFalse(isASCIIOnly, "First page for \(py) should not contain pure ASCII candidate \(cand.text)")
+      }
+      session.clearComposition()
+    }
+
+    // #259 AC 2 & 3: Direct English word & prefix completion (`hello`, `github`)
+    for scalar in "github".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    let ghComp = try XCTUnwrap(session.composition())
+    let ghAll = ghComp.candidates + session.peekCandidates(from: ghComp.pageSize, count: 10)
+    XCTAssertTrue(ghAll.contains(where: { $0.text == "GitHub" }))
+    session.clearComposition()
+
+    // #259 AC 4: Mixed CN-EN lexicon entries (`xguang` -> `X光`, `txu` -> `T恤`, `upan` -> `U盘`)
+    for (input, expected) in [("xguang", "X光"), ("txu", "T恤"), ("upan", "U盘")] {
+      for scalar in input.unicodeScalars {
+        XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+      }
+      let comp = try XCTUnwrap(session.composition())
+      let all = comp.candidates + session.peekCandidates(from: comp.pageSize, count: 10)
+      XCTAssertTrue(all.contains(where: { $0.text == expected }), "Expected \(expected) for \(input)")
+      session.clearComposition()
+    }
+  }
+
+  func testHostQuickPhrasesPromptsAndTemplatesAtTopOfFirstPage() throws {
+    let repoRoot = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+    let seedDir = repoRoot.appendingPathComponent("data/owl-rime")
+    let userDir = FileManager.default.temporaryDirectory
+      .appendingPathComponent("owl-rust-phrases-test-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: userDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: userDir) }
+
+    let quickSendContent = "user@example.com\tyx\t1000000\n"
+    try quickSendContent.write(
+      to: userDir.appendingPathComponent(OwlQuickSendStore.dictFileName),
+      atomically: true,
+      encoding: .utf8
+    )
+    let promptContent = "📝周报生成\tzb\t1000000\n"
+    try promptContent.write(
+      to: userDir.appendingPathComponent(OwlPromptStore.dictFileName),
+      atomically: true,
+      encoding: .utf8
+    )
+    let templateID = UUID()
+    let templateCandidate = "\(OwlTemplateStore.candidatePrefix)\(templateID.uuidString)]法条引用"
+    let templateContent = "\(templateCandidate)\tft\t1000000\n"
+    try templateContent.write(
+      to: userDir.appendingPathComponent(OwlTemplateStore.dictFileName),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    let engine = OwlRustEngine(sharedSupportURL: seedDir, userDataURL: userDir)
+    let session = engine.createSession()
+    defer { session.destroy() }
+
+    // 1. Quick phrase `yx` -> `user@example.com` at top of page 0
+    for scalar in "yx".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    let yxComp = try XCTUnwrap(session.composition())
+    XCTAssertEqual(yxComp.candidates.first?.text, "user@example.com")
+    XCTAssertTrue(session.selectCandidate(0))
+    XCTAssertEqual(session.takeCommit(), "user@example.com")
+    XCTAssertEqual(session.lastCommittedInput(), "yx")
+
+    // 2. Prompt `zb` -> `📝周报生成` at top of page 0
+    for scalar in "zb".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    let zbComp = try XCTUnwrap(session.composition())
+    XCTAssertEqual(zbComp.candidates.first?.text, "📝周报生成")
+    XCTAssertTrue(session.selectCandidate(0))
+    XCTAssertEqual(session.takeCommit(), "📝周报生成")
+    XCTAssertEqual(session.lastCommittedInput(), "zb")
+
+    // 3. Unified template `ft` -> `🦉[UUID]法条引用` preserves ID marker even in Traditional mode
+    session.setOption(.transcription, true)
+    for scalar in "ft".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    }
+    let ftComp = try XCTUnwrap(session.composition())
+    XCTAssertTrue(ftComp.candidates.first?.text.hasPrefix("\(OwlTemplateStore.candidatePrefix)\(templateID.uuidString)]") == true)
+    XCTAssertTrue(session.selectCandidate(0))
+    XCTAssertEqual(session.takeCommit(), templateCandidate)
+    XCTAssertEqual(session.lastCommittedInput(), "ft")
+  }
 }
