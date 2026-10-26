@@ -3946,7 +3946,8 @@ mod tests {
         let user = tmp.path().join("user");
         let cache = tmp.path().join("cache");
         for learned in [false, true] {
-            let (session, error) = create_with_generation(&resources, &user, &cache, "wubi-learning");
+            let (session, error) =
+                create_with_generation(&resources, &user, &cache, "wubi-learning");
             assert!(error.is_none(), "{error:?}");
             assert!(!session.is_null());
             assert!(call_action(session, r#"{"op":"set_input_mode","mode":"wubi"}"#).ok);
@@ -3956,7 +3957,10 @@ mod tests {
             }
             let frame = call_snapshot(session);
             // Native Host API defaults: the second row moves first after one selection.
-            assert_eq!(frame.candidates[0].text, if learned { "五一" } else { "王" });
+            assert_eq!(
+                frame.candidates[0].text,
+                if learned { "五一" } else { "王" }
+            );
             if !learned {
                 let selected = call_action(session, r#"{"op":"select_visible","index":1}"#);
                 assert_eq!(selected.committed_text.as_deref(), Some("五一"));
