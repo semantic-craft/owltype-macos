@@ -588,6 +588,7 @@ final class OwlRustEngineTests: XCTestCase {
     let changed = OwlRustResourceManifest(schemaVersion: 1, packageId: unsigned.packageId,
       inputKind: unsigned.inputKind, version: 3, digest: try unsigned.calculatedDigest(),
       license: unsigned.license, engineCompatibility: unsigned.engineCompatibility, files: files)
+    try changed.canonicalData().write(to: temporary.appendingPathComponent("manifest.json"))
     // Both tables still have valid schemas and every byte agrees with this new manifest.
     XCTAssertNoThrow(try OwlRustResourceVerifier.verifyGeneration(at: temporary, manifest: changed,
       engine: .owlRustNativeInputV1, requireCompleteMarker: false))
