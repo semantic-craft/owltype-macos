@@ -499,6 +499,10 @@ struct OwlTemplatePage: View {
         Text("候选确认").tag(OwlTemplateEntry.InvocationMode.candidate)
         Text("自动展开").tag(OwlTemplateEntry.InvocationMode.automatic)
       }
+      if model.draft.invocationMode == .candidate {
+        Text("输入大写 K 后接触发词，选择候选调用；普通拼音不会混入模板。也可从模板面板搜索调用。")
+          .font(.caption).foregroundStyle(.secondary)
+      }
       if model.draft.invocationMode == .automatic {
         Picker("展开时机", selection: $model.draft.expansionMode) {
           Text("立即展开").tag(OwlTemplateEntry.ExpansionMode.immediate)

@@ -155,6 +155,8 @@ pub struct EngineOptions {
     pub mention_entries: Vec<MentionEntry>,
     /// K 模式在数据库行之后追加的宿主短语（已启用的短语表插件）。用不了的行被丢弃，最多保留 `local::quick_phrase::TABLE_LIMIT` 行。
     pub quick_phrase_table: Vec<QuickPhraseEntry>,
+    /// Owl adapter: allow host rows in ordinary candidates and K prefix matches; false requires K plus a complete host trigger.
+    pub quick_phrase_table_in_candidates: bool,
     /// 普通候选是否追加编码匹配的快捷短语。仅 macOS 桌面宿主打开。
     pub quick_phrase_candidates: bool,
     /// 快捷短语参与调频（`SessionOptions::quick_phrase_frequency`）。
@@ -279,6 +281,7 @@ pub fn prepare_options_for(
         plugin_commands: Vec::new(),
         mention_entries: Vec::new(),
         quick_phrase_table: Vec::new(),
+        quick_phrase_table_in_candidates: true,
         quick_phrase_candidates: false,
         quick_phrase_frequency: true,
         sentence_association: SentenceAssociationOptions::default(),
@@ -425,6 +428,7 @@ pub fn session_options(options: &EngineOptions) -> Result<SessionOptions> {
     session.plugin_commands = options.plugin_commands.clone();
     session.mention_entries = options.mention_entries.clone();
     session.quick_phrase_table = options.quick_phrase_table.clone();
+    session.quick_phrase_table_in_candidates = options.quick_phrase_table_in_candidates;
     session.quick_phrase_candidates = options.quick_phrase_candidates;
     session.quick_phrase_frequency = options.quick_phrase_frequency;
     session.sentence_alternatives = options.sentence_alternatives;

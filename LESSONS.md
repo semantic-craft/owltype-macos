@@ -534,6 +534,24 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Verify: run `RimeSeamTests` and the named native integration test through the seeded Swift test host, together with existing `OwlRustEngineTests` model/ticket checks. Timer firing and a monotonic clock are controlled; no fixed sleep determines whether a worker result is stale. This checks in-process native host behavior, not installed IMK IPC delivery.
 - Seen 1x (2026-10-26).
 
+## Owl enhancement rows are distinct from native quick phrases
+
+- Seen 1x (2026-10-26): treating bare host-api defaults as native macOS defaults would disable
+  legitimate upstream quick-phrase candidates. Native `MSIMESessionOptions` enables them; Owl
+  template/prompt/custom host rows instead require explicit K plus the complete stored trigger.
+- Keep the native database candidate order and K prefix browsing intact. The thin host-table
+  adapter switch defaults to upstream behavior; Owl alone disables ordinary host-table injection.
+  Preserve stored content and codes, and strip the explicit mode prefix only when resolving an
+  Owl invocation. Partial host triggers must never publish internal invocation markers.
+- Regression: `OwlRustEngineTests.testOwlEnhancementsRequireExplicitKWithoutChangingOrdinaryCandidates`
+  compares real ordinary candidates with/without a template, checks partial/full K triggers,
+  visible commits, cancellation and return to ordinary input. Prompt interception and existing
+  host delivery tests cover context, stale targets and single delivery.
+- Verify (验证点): `cargo test --locked --manifest-path rust/Cargo.toml -p owl-msime-ffi` and
+  `python3 scripts/verify.py swift --test OwlRustEngineTests --test OwlPromptInterceptionTests
+  --test OwlTemplateHostDeliveryTests` pass. These are isolated automated sessions, not installed
+  IMK or live-provider acceptance.
+
 ## Learning parity must cross a process boundary and reach a real consumer
 
 - Seen 1x (2026-10-26): T09 found that upstream `RemoveCandidate` had no Owl FFI or
@@ -575,3 +593,58 @@ review dates, not retries. Keep deterministic checks in the local gate.
   forbidden-symbol and unknown-table rejection regressions still pass.
 - Verify (验证点): `python3 scripts/check-rust-delivery.selftest.py` passes 9 tests; run the
   checker against the actual generated resources before treating a fixture pass as packaging evidence.
+## FFI session identity cannot be an allocator address
+
+- Seen on 1 distinct date: 2026-10-26. The default-parallel FFI suite aborted with
+  `POINTER_BEING_FREED_WAS_NOT_ALLOCATED` while dropping a refreshed `EngineSnapshot`.
+  The guard was a set of live Box addresses: after one test destroyed its session,
+  another session could reuse that address. The first test's idempotent destroy and
+  post-destroy calls then targeted the new session. Checking membership before a bare
+  dereference also did not preserve ownership across the call.
+- Fix: non-recycled opaque identities resolve through a thread-local owning registry.
+  The engine's existing thread confinement is preserved; stale and foreign-thread
+  handles fail closed. Async host tests must remain on MainActor across awaits when
+  retaining a session, matching the production IMK thread contract. Destroy and thread
+  exit drop/flush sessions under the lifecycle
+  lock before retiring active identities, so finalize cannot close a live cache.
+- Regression: `destroyed_handle_cannot_alias_a_reopened_session` reaches the real
+  create/destroy/reopen FFI path and fails on the previous source in 0.05 seconds:
+  stale destroy removes the reopened session. `session_rejects_foreign_thread_calls_and_destroy`
+  guards the owner-thread boundary; `finalize_waits_for_sessions_and_allows_reopen`
+  also covers host-thread exit with an unclosed wrapper.
+- Verify (验证点): `cargo test --locked --manifest-path rust/Cargo.toml -p owl-msime-ffi`
+  must pass with the default parallel runner. Repeat with AddressSanitizer when
+  investigating memory regressions; a successful ordinary retry alone is not evidence
+  that an observed invalid free has been resolved.
+
+## Resource activation must capture the complete compatibility set
+
+**A resource generation includes auxiliary dictionaries, context sidecars, models and the binary's configuration version; each session captures that generation for both dictionary and model loading.**
+
+- Reason: the parity update audit found the production updater still rebuilding reduced Pinyin from legacy YAML. Activation switched only the main/English databases while session creation and model configuration kept reading the current bundle. A synthetic activated emoji database returned bundled apples instead of its own candidate; the focused host-seam regression failed before the fix.
+- Prevention: production preparation copies the binary-pinned complete resource set into the existing transaction. Activation and rollback validate the whole manifest and configuration/model compatibility. Session model and auxiliary paths belong to the captured generation. A missing/corrupt active member falls back to a fully verified previous combination, then the bundled seed if none is usable; incomplete generations are never supplemented member-by-member.
+- Regression: `testActivatedGenerationUsesItsOwnAuxiliaryResources`, `testProductionUpdatePreparesTheCompletePinnedCombination`, `testIncompleteGenerationCannotOmitAuxiliaryResources`, and `testGenerationSwitchRollbackColdStartAndJournalReplayKeepUserState` in `OwlRustEngineTests` cover actual sidecar candidates, official model scoring with unavailable bundle models, complete preparation, interrupted activation/retry, missing/corrupt sidecars, rollback, and learning replay in isolated roots.
+- Verify (验证点): run those focused Swift tests and `OwlRustResourceTransactionTests`; the synthetic candidate changes with the active generation and returns after rollback, while the learned candidate remains first. Future binary/model/config changes must advance the compatible package/configuration version together. No old-user migration is implied.
+- Seen on 1 distinct date: 2026-10-26.
+
+## Preserve lint failure status when reviewing merged source
+
+- Seen 1x (2026-10-26): T04 segment routing raised `OwlRustSession.process` complexity to22. The merger reported lint clean after searching `error:` even though the configured GitHub reporter writes `::error`; later shell commands also masked its failure status. T12 correctly surfaced the blocker.
+- Fix: extract the existing segment-chord route into a dedicated private helper, preserving active-composition/modifier guards and false-versus-not-applicable behavior. Run lint as its own command and inspect both exit status and reporter errors; do not infer success from a later command. No lint configuration was relaxed.
+- Verify: `swiftlint lint --quiet` exits0 with no `::error`; existing `testSegmentChordEditsPinyinRatherThanPassingToHost` and `testShuangpinSegmentEditingAndShoudaoSelection` still pass. This fixes the source gate, not installed IMK acceptance.
+
+### Imported Wubi goldens must retain Owl's existing z lookup
+
+- Seen 1x (2026-10-26): the newly imported `wubi_mixed_matched_code` and
+  `wubi_mixed_plain_mode` goldens expected no candidate for pure-Wubi `zi`, although
+  the pre-parity `274fad9` implementation already queries both the lookup suffix
+  and the complete z-prefixed pinyin. Their own fixture contains `zi → 子`.
+- The exact pre-model integration `1fce6c6` reproduces the same six differences,
+  proving these observations predate the keyboard-model adapter. Preserve this
+  existing Owl behavior; do not disable the complete-spelling lookup to satisfy
+  an imported snapshot. The mixed-on step independently already pins the same
+  `子` row, weight, source and pinyin metadata.
+- Verify: run `MSIME_GOLDEN_SCENARIO=wubi_mixed_matched_code,wubi_mixed_plain_mode
+  cargo test --locked --manifest-path rust/Cargo.toml -p msime-engine --test golden
+  scripted_scenarios_match_the_reference`, then all scripted scenarios. The strict
+  comparator retains every field; only the two stale expected snapshots change.

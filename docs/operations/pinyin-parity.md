@@ -191,3 +191,30 @@ never falls through to normal commit. The engine retains its single-Han-characte
 protection and source eligibility checks. A deleted dictionary phrase may still
 be generated as a sentence; deletion means the upstream dictionary operation,
 not a blanket text blacklist.
+
+## Double pinyin
+
+`--trace tests/fixtures/pinyin-parity/shuangpin.json` switches the same live session
+through Xiaohe, Ziranma, Shoudao, Microsoft, Smart ABC and the existing
+Sogou/Ziguang/Jiajia custom-table adapters. Each `schema` event records the Owl
+schema and the independently supplied reference profile/table, then applies the
+same navigation preference. It covers real visible selection and commit, every
+final, multi-letter initial and zero-initial encoding, plus semicolon deletion
+and re-entry. Built-in tables are reused from the pinned engine; custom tables
+are explicit public test configuration. Invalid/unknown profile rejection and
+changed-table rebuild behavior remain covered by the existing Swift/FFI tests.
+
+For `left_right=false`, pinned macOS `InputController.mm:7703-7717` sends
+`MSIME_MOVE_LEFT_SEGMENT` / `MSIME_MOVE_RIGHT_SEGMENT` for shuangpin, including
+positions inside a two-key syllable. The reference transport applies that native
+routing; Owl's existing `.linear=false` caret-editing path forwards the same
+runtime segment actions. Candidate navigation remains enabled by default. The
+trace records this explicit configuration; full-pinyin default observations are
+unchanged. This does not add an arbitrary custom-table editor to Settings.
+
+The same segment action also handles native Ctrl/Shift+Left/Right and
+Ctrl+Backspace while composing (InputController.mm:7551-7576). The corpus checks
+both full and double pinyin, starting inside a spelling unit, then compares
+remaining input and complete candidates after deletion. Empty compositions keep
+these chords available to the host. This is a shared runtime action, so the
+adapter does not infer syllable boundaries in Swift.

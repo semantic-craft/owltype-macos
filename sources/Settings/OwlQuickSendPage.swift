@@ -350,8 +350,8 @@ struct OwlQuickSendPage: View {
             .foregroundStyle(palette.ink2)
             .fixedSize(horizontal: false, vertical: true)
           HStack(spacing: 6) {
-            // The trigger IS the bare code, typed in full (enable_completion is off, so a
-            // partial code shows nothing). No prefix — see renderDict for why both prefix
+            // Stored codes remain unchanged; native K mode is the explicit candidate entry.
+            // Legacy Rime projection details are documented in renderDict; both prefix
             // schemes (`v` variant rows, ` lead) were retired.
             Text(example.entry.code)
               .font(.system(size: 11, design: .monospaced))
@@ -415,7 +415,7 @@ struct OwlQuickSendPage: View {
 
   private var noteCard: some View {
     SettingsCard(title: "", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
-      Text("这里添加的是 Owltype 本地快捷短语，只影响本页列表，不会改动其他词库。")
+      Text("输入大写 K 后接编码，再选择快捷短语；也可从快捷短语面板选用。这里的内容不会混入普通拼音候选。")
         .font(.system(size: 12))
         .foregroundStyle(palette.ink3)
         .frame(maxWidth: .infinity, alignment: .leading)

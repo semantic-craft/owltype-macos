@@ -26,7 +26,8 @@ INPUT_SCHEMES = {
     'wubi98': ('wubi', 'wubi98', {'wubi_profile': 'wubi98', 'wubi_mixed_pinyin': False}),
 }
 COMMANDS = {'backspace': 0, 'commit': 2, 'cancel': 3, 'left': 4, 'right': 5,
-            'home': 6, 'end': 7, 'delete': 8, 'next-page': 100, 'previous-page': 101}
+            'home': 6, 'end': 7, 'delete': 8, 'next-page': 100, 'previous-page': 101,
+            'ctrl-left': 13, 'shift-left': 13, 'ctrl-right': 14, 'shift-right': 14, 'ctrl-backspace': 12}
 
 
 def sha256(path):
@@ -96,14 +97,37 @@ class Reference:
         steps, views = [], []
         try:
             self.call('focus', [C.c_uint64, C.c_bool], handle, True)
+            revision = 0
             for event in events:
                 op = event['op']
                 self.bind('key', [C.c_uint64, C.c_uint32], C.c_uint32)(handle, 0 if op == 'character' else 0x80)
-                if op == 'character':
+                if op == 'schema':
+                    revision += 1
+                    preferences = options['preferences']
+                    preferences['scheme'] = event.get('reference_scheme', 'shuangpin')
+                    preferences['shuangpin_profile'] = event.get('profile', 'xiaohe')
+                    if 'custom_profile' in event:
+                        preferences['shuangpin_custom_profile'] = event['custom_profile']
+                    preferences['navigation']['left_right'] = event.get('left_right', True)
+                    snapshot = json.dumps(dict(format_version=1, revision=revision,
+                                               preferences=preferences)).encode()
+                    self.call('update_preferences', [C.c_uint64, C.c_char_p, C.c_size_t],
+                              handle, snapshot, len(snapshot))
+                    response = {'handled': True, 'commit': None,
+                                'view': self.call('view', [C.c_uint64], handle)}
+                elif op == 'character':
                     response = self.call('character', [C.c_uint64, C.c_uint8, C.c_bool],
                                          handle, ord(event['value']), False)
                 elif op == 'command':
-                    response = self.call('command', [C.c_uint64, C.c_uint32], handle, COMMANDS[event['value']])
+                    command = COMMANDS[event['value']]
+                    # InputController.mm:7711: native shuangpin with candidate-arrow
+                    # navigation disabled uses runtime segment actions, even inside a pair.
+                    if (profile == 'native-mac-host'
+                            and options['preferences']['scheme'] == 'shuangpin'
+                            and not options['preferences']['navigation']['left_right']
+                            and event['value'] in ('left', 'right')):
+                        command = 13 if event['value'] == 'left' else 14
+                    response = self.call('command', [C.c_uint64, C.c_uint32], handle, command)
                 elif op in ('select', 'remove'):
                     view = self.call('view', [C.c_uint64], handle)
                     candidate = view['candidates'][event['index']]
@@ -313,10 +337,11 @@ def main():
                       'upstream_commit': baseline['upstream_commit'],
                       'overrides': ({'phrase_preedit': True, 'korean_romaja': True, 'quick_phrase_candidates': True}
                                     if args.reference_profile == 'native-mac-host' else {})},
-                  'owl': 'empty isolated defaults, requested input schema, equal page size; other differences retained',
+                  'owl': 'empty isolated defaults, requested input schema, equal page size; explicit schema/profile/custom-table/navigation events retained',
                   'scheme': scheme,
-                  'forced_equal': [f'schema={INPUT_SCHEMES[scheme][0]}/{INPUT_SCHEMES[scheme][1]}',
-                                   f'page_size={reference["preferences"]["candidate_page_size"]}']},
+                  'forced_equal': [f'initial_schema={INPUT_SCHEMES[scheme][0]}/{INPUT_SCHEMES[scheme][1]}',
+                                   f'page_size={reference["preferences"]["candidate_page_size"]}',
+                                   'explicit schema/profile/custom-table/navigation events']},
               'trace_sha256': sha256(args.trace), 'owl_resources': {
                   p.name: sha256(p) for p in sorted((args.owl_resources / 'msime').glob('*')) if p.is_file()}}
     (args.output / 'comparison.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
