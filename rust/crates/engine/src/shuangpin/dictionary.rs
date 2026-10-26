@@ -817,8 +817,13 @@ impl ShuangpinDictionary {
         self.sentence_association = options.clone();
         self.rerankers.clear();
         if options.neural_keyboard {
-            if let Some(model) =
-                shared_sentence_model(&self.paths.resource(assets::NEURAL_MODEL_KEYBOARD))
+            if let Some(model) = options
+                .keyboard_model
+                .as_ref()
+                .map(|model| std::sync::Arc::clone(&model.0))
+                .or_else(|| {
+                    shared_sentence_model(&self.paths.resource(assets::NEURAL_MODEL_KEYBOARD))
+                })
             {
                 self.rerankers
                     .push(NeuralReranker::new(CandidateSource::NeuralKeyboard, model));

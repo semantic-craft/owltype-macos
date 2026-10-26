@@ -1615,6 +1615,12 @@ impl InputSession {
         self.local_candidates.retain(|row| !row.source.is_online());
     }
 
+    /// Update the keyboard lattice scorer using the host's validated model.
+    pub fn set_keyboard_model(&mut self, model: Option<crate::types::LoadedKeyboardModel>) {
+        self.engine.set_keyboard_model(model);
+        self.update_mixed_candidates();
+    }
+
     pub fn set_rescoring_context(&mut self, context: &str) {
         self.engine.set_rescoring_context(context);
     }

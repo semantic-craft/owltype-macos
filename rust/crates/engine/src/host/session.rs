@@ -522,6 +522,11 @@ impl Session {
         }
     }
 
+    /// Update the keyboard lattice scorer using the host's validated model.
+    pub fn set_keyboard_model(&mut self, model: Option<crate::types::LoadedKeyboardModel>) {
+        self.inner.set_keyboard_model(model);
+    }
+
     /// Live update of the neural rescoring context without a rebuild.
     pub fn set_rescoring_context(&mut self, context: &str) {
         self.inner.set_rescoring_context(context);

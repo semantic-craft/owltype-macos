@@ -859,6 +859,16 @@ impl ImeSession {
         self.first_page_rows = rows;
     }
 
+    /// Apply host-loaded keyboard weights through the existing lattice scorer, without file I/O.
+    pub fn set_keyboard_model(&mut self, model: Option<crate::types::LoadedKeyboardModel>) {
+        if self.sentence_association.keyboard_model == model {
+            return;
+        }
+        self.sentence_association.neural_keyboard = model.is_some();
+        self.sentence_association.keyboard_model = model;
+        self.reset_cache();
+    }
+
     pub fn set_rescoring_context(&mut self, context: &str) {
         context.clone_into(&mut self.rescoring_context);
     }

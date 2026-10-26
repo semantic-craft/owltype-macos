@@ -357,6 +357,17 @@ pub fn score_settled_rerank(mut request: SettledRerankRequest) -> SettledRerankS
 }
 
 impl Runtime<Session> {
+    /// Host-loaded weights also drive the engine's neural lattice path. Refreshing advances
+    /// candidate identity before exposing a different order, including while input is active.
+    pub fn set_keyboard_model(
+        &mut self,
+        model: Option<msime_engine::LoadedKeyboardModel>,
+    ) -> Result<(), RuntimeError> {
+        self.advance()?;
+        self.engine.set_keyboard_model(model);
+        self.refresh()
+    }
+
     pub fn set_mixed_emoji_candidates(&mut self, enabled: bool) -> Result<(), RuntimeError> {
         if self.engine.mixed_emoji_candidates_enabled() == enabled {
             return Ok(());
