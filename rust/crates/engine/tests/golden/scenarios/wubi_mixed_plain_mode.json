@@ -1,7 +1,7 @@
 {
  "name": "wubi_mixed_plain_mode",
  "source": "tests/src/test_wubi_mixed_input_session.cpp:70-79; cases :106-109,121-125,134-137",
- "note": "Reference ctest wubi_mixed_input_session fails against this build: overlay apply_engine_wubi_mixed_candidates.py appends quanpin rows after wubi rows and recomputes the table answer per keystroke, so a tail after selection can get wubi rows too. The overlay behaviour is the product intent and is what is recorded. 2026-10-11（#6789）起，混输关闭时组字开头的 `z` 打开临时拼音反查，`zi` 记录的是反查组字 `zi`，不再是参考实现里被拒绝的 `z`。",
+ "note": "Reference ctest wubi_mixed_input_session fails against this build: overlay apply_engine_wubi_mixed_candidates.py appends quanpin rows after wubi rows and recomputes the table answer per keystroke, so a tail after selection can get wubi rows too. The overlay behaviour is the product intent and is what is recorded. 2026-10-11（#6789）起，混输关闭时组字开头的 `z` 打开临时拼音反查，`zi` 记录的是反查组字 `zi`，不再是参考实现里被拒绝的 `z`。 Owl baseline 274fad9 already queries both the lookup suffix and the complete z-prefixed pinyin in query_pinyin_lookup; therefore zi also yields the fixture row 子 with mixed input off. The imported empty-candidate expectation was stale (reproduced before model changes at 1fce6c6).",
  "covers": [
   "wubi"
  ],

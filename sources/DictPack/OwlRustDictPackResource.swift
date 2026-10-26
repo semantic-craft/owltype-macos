@@ -8,6 +8,7 @@
 //
 
 import Foundation
+import SQLite3
 
 enum OwlRustDictPackResourceError: Error, LocalizedError, Equatable {
   case dictionaryPackNotInstalled
@@ -98,7 +99,13 @@ struct OwlRustResourceEnvironment: Sendable {
 
   func activeGeneration() throws -> OwlRustResourceGeneration? {
     guard let state = try activeState() else { return nil }
-    let record = state.current
+    do { return try validatedGeneration(state.current) } catch {
+      if let previous = state.previous { return try validatedGeneration(previous) }
+      throw error
+    }
+  }
+
+  func validatedGeneration(_ record: OwlRustResourceRecord) throws -> OwlRustResourceGeneration {
     let expectedGenerationId = "sha256-" + record.digest.dropFirst("sha256:".count)
     guard record.digest == record.manifest.digest,
           record.generationId == expectedGenerationId else {
@@ -111,25 +118,8 @@ struct OwlRustResourceEnvironment: Sendable {
       .appendingPathComponent(record.manifest.packageId, isDirectory: true)
       .appendingPathComponent("generations", isDirectory: true)
       .appendingPathComponent(record.generationId, isDirectory: true)
-    let marker = generation.appendingPathComponent(".complete", isDirectory: false)
-    guard let markerData = try? Data(contentsOf: marker),
-          markerData == Data((record.digest + "\n").utf8) else {
-      throw OwlRustResourceError.generationCorrupt(
-        "active generation is incomplete: \(generation.path)"
-      )
-    }
+    try OwlRustCompatibleResources.validate(at: generation, manifest: record.manifest, requireCompleteMarker: true)
     let resources = generation.appendingPathComponent("files", isDirectory: true)
-    for name in ["msime-pinyin.db", "msime-english.db"] {
-      let file = resources.appendingPathComponent(name, isDirectory: false)
-      let values = try? file.resourceValues(
-        forKeys: [.isRegularFileKey, .isSymbolicLinkKey]
-      )
-      guard values?.isRegularFile == true, values?.isSymbolicLink != true else {
-        throw OwlRustResourceError.generationCorrupt(
-          "active generation lacks \(name): \(resources.path)"
-        )
-      }
-    }
     return OwlRustResourceGeneration(
       resourcesURL: resources,
       contentID: record.generationId
@@ -379,5 +369,133 @@ struct OwlRustDictPackResourceInstaller {
         throw OwlRustDictPackResourceError.unverifiedDictionaryInput(path)
       }
     }
+  }
+}
+
+/// An update is the same immutable compatibility set shipped by this binary.
+/// Never rebuild ordinary Pinyin from the legacy YAML download after activation.
+enum OwlRustCompatibleResources {
+  static let packageVersion = 2
+  static let configurationVersion = "msime-macos-v0.55.0-native-pinyin-v1"
+  static let requiredFiles = [
+    "msime-pinyin.db", "msime-english.db", "msime-others.db",
+    "msime-bigram.bin", "msime-trigram.bin", "msime-dictionary-manifest.json",
+    "OWLTYPE-UPSTREAM-RESOURCES.json", "msime-wubi86-source.json",
+    "msime-scowl_Copyright.txt", "models/keyboard-model.bin", "models/settled-model.bin",
+    "models/LICENSE-Apache-2.0.txt", "models/NOTICE.txt"
+  ]
+
+  static func build(sharedSupport: URL, at root: URL, version: Int) throws -> OwlRustResourcePackageBuild {
+    let manager = FileManager.default
+    let resources = sharedSupport.appendingPathComponent("msime")
+    let files = root.appendingPathComponent("files")
+    try manager.createDirectory(at: files, withIntermediateDirectories: true)
+    var entries: [OwlRustResourceFile] = []
+    let notices = ["rime-ice.LICENSE", "wubi86-jidian.LICENSE", "rime-kaomoji.LICENSE",
+      "OpenCC.LICENSE", "jieba.LICENSE", "phrase-pinyin-data.LICENSE", "python-pinyin.LICENSE",
+      "rime-ice-Credits.md", "msime-others-NOTICE.txt", "msime-resources-NOTICE.md",
+      "msime-upstream-licensing-NOTICE.md", "licenses/LGPL-3.0-only.txt",
+      "licenses/rime-wanxiang-CC-BY-4.0.txt", "licenses/msime-latex-symbols-MIT.txt",
+      "licenses/CC-BY-3.0.txt", "licenses/chinese-ime-lm.LICENSE", "licenses/Unicode-3.0.txt",
+      "licenses/MIT.txt", "licenses/GPL-3.0-only.txt", "licenses/CC-BY-SA-4.0.txt",
+      "licenses/BSD-3-Clause.txt", "licenses/Apache-2.0.txt"]
+    for name in requiredFiles + notices {
+      let source = try OwlRustResourceVerifier.safeFileURL(
+        relativePath: name, under: notices.contains(name) ? sharedSupport : resources)
+      let destination = files.appendingPathComponent(name)
+      try manager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try manager.copyItem(at: source, to: destination)
+      let role: OwlRustResourceFileRole
+      switch name {
+      case "msime-pinyin.db": role = .mainDictionary
+      case "msime-english.db": role = .englishDictionary
+      case "msime-bigram.bin": role = .bigram
+      case "msime-trigram.bin": role = .trigram
+      default: role = notices.contains(name) ? .license : .other
+      }
+      entries.append(try entry(destination, name: name, role: role))
+    }
+    let marker = files.appendingPathComponent("compatibility.txt")
+    try Data((configurationVersion + "\n").utf8).write(to: marker)
+    entries.append(try entry(marker, name: "compatibility.txt", role: .other))
+    let unsigned = OwlRustResourceManifest(schemaVersion: 1,
+      packageId: OwlRustResourcePackageBuilder.packageId, inputKind: .pinyinWubi, version: version,
+      digest: OwlRustResourceManifest.zeroDigest,
+      license: [
+        OwlRustResourceLicense(identifier: "GPL-3.0-only", attribution: "Pinned MSIME dictionary sources and resource notices",
+          files: notices.map { "files/" + $0 }),
+        OwlRustResourceLicense(identifier: "Apache-2.0", attribution: "Pinned chinese-ime-lm models and Owl Wubi source",
+          files: ["files/licenses/chinese-ime-lm.LICENSE", "files/wubi86-jidian.LICENSE"]),
+        OwlRustResourceLicense(identifier: "MIT", attribution: "Pinned static symbol tables and kaomoji sources",
+          files: ["files/licenses/msime-latex-symbols-MIT.txt", "files/rime-kaomoji.LICENSE"])
+      ],
+      engineCompatibility: OwlRustResourceEngineCompatibility(minimumContractVersion: 1,
+        maximumContractVersion: 1, requiredCapabilities: ["pinyin-wubi-v1", "persistent-user-journal-v1"]),
+      files: entries.sorted { $0.path < $1.path })
+    let manifest = OwlRustResourceManifest(schemaVersion: unsigned.schemaVersion,
+      packageId: unsigned.packageId, inputKind: unsigned.inputKind, version: unsigned.version,
+      digest: try unsigned.calculatedDigest(), license: unsigned.license,
+      engineCompatibility: unsigned.engineCompatibility, files: unsigned.files)
+    try manifest.canonicalData().write(to: root.appendingPathComponent("manifest.json"))
+    try validate(at: root, manifest: manifest, requireCompleteMarker: false)
+    // Counts describe this copied payload, rather than the retired YAML builder.
+    let stats = OwlRustResourceBuildStats(pinyinEntries: try rowCount(files.appendingPathComponent("msime-pinyin.db"), prefix: "tbl_"),
+      wubiEntries: try rowCount(files.appendingPathComponent("msime-pinyin.db"), prefix: "wubi86"),
+      englishEntries: try rowCount(files.appendingPathComponent("msime-english.db"), prefix: "english_words"),
+      rejectedPinyinEntries: 0, rejectedWubiEntries: 0, rejectedEnglishEntries: 0)
+    return OwlRustResourcePackageBuild(root: root, manifest: manifest, stats: stats)
+  }
+
+  static func validate(at root: URL, manifest: OwlRustResourceManifest, requireCompleteMarker: Bool) throws {
+    let names = Set(manifest.files.map(\.path))
+    for name in requiredFiles + ["compatibility.txt"] where !names.contains("files/" + name) {
+      throw OwlRustResourceError.fileMissing("files/" + name)
+    }
+    try OwlRustResourceVerifier.verifyGeneration(at: root, manifest: manifest,
+      engine: .owlRustResourceV1, requireCompleteMarker: requireCompleteMarker)
+    let resources = root.appendingPathComponent("files")
+    guard try String(contentsOf: resources.appendingPathComponent("compatibility.txt"), encoding: .utf8)
+      == configurationVersion + "\n" else {
+      throw OwlRustResourceError.incompatibleEngine("resource configuration version differs from this binary")
+    }
+    for kind in OwlRerankModelKind.allCases {
+      let descriptor = OwlRerankModelDescriptor.descriptor(for: kind)
+      let model = resources.appendingPathComponent("models/" + descriptor.fileName)
+      guard try OwlRustResourceVerifier.digestOfFile(model) == "sha256:" + descriptor.expectedSHA256 else {
+        throw OwlRustResourceError.incompatibleEngine("resource model differs from this binary: " + kind.rawValue)
+      }
+    }
+  }
+
+  private static func rowCount(_ file: URL, prefix: String) throws -> Int {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(file.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK,
+          let database else { throw OwlRustResourceBuildError.sqlite("cannot open resource") }
+    defer { sqlite3_close(database) }
+    var tables: OpaquePointer?
+    guard sqlite3_prepare_v2(database, "SELECT name FROM sqlite_master WHERE type='table'", -1, &tables, nil) == SQLITE_OK else {
+      throw OwlRustResourceBuildError.sqlite("cannot list resource tables")
+    }
+    defer { sqlite3_finalize(tables) }
+    var total = 0
+    while sqlite3_step(tables) == SQLITE_ROW {
+      let name = String(cString: sqlite3_column_text(tables, 0))
+      guard name.hasPrefix(prefix) else { continue }
+      var count: OpaquePointer?
+      let escaped = name.replacingOccurrences(of: "\"", with: "\"\"")
+      guard sqlite3_prepare_v2(database, "SELECT COUNT(*) FROM \"\(escaped)\"", -1, &count, nil) == SQLITE_OK else {
+        throw OwlRustResourceBuildError.sqlite("cannot count resource rows")
+      }
+      if sqlite3_step(count) == SQLITE_ROW { total += Int(sqlite3_column_int64(count, 0)) }
+      sqlite3_finalize(count)
+    }
+    return total
+  }
+
+  private static func entry(_ file: URL, name: String, role: OwlRustResourceFileRole) throws -> OwlRustResourceFile {
+    let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+    return OwlRustResourceFile(path: "files/" + name, role: role,
+      mediaType: "application/octet-stream", size: (attributes[.size] as? NSNumber)?.intValue ?? 0,
+      digest: try OwlRustResourceVerifier.digestOfFile(file))
   }
 }

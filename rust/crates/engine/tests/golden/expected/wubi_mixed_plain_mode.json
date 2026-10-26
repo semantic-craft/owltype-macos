@@ -135,8 +135,19 @@
     "caret": 2,
     "dedicated_english": false,
     "shuangpin_profile": "xiaohe",
-    "candidate_count": 0,
-    "candidates": []
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "子",
+      "pinyin": "i",
+      "canonical_pinyin": "zi",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 10000,
+      "answers_key": true
+     }
+    ],
+    "answered_by_pinyin_fallback": true
    }
   }
  ]

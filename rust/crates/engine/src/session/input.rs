@@ -275,6 +275,7 @@ impl InputSession {
             .queries
             .set_plugin_commands(&options.plugin_commands);
         session.queries.set_mentions(&options.mention_entries);
+        session.queries.quick_phrase_table_in_candidates = options.quick_phrase_table_in_candidates;
         session
             .queries
             .set_quick_phrase_table(&options.quick_phrase_table);

@@ -6,7 +6,7 @@ use std::fs;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 use std::ptr;
-use std::sync::{Arc, Mutex, OnceLock, RwLock};
+use std::sync::{Arc, Mutex};
 
 use msime_engine::host::{
     check_shuangpin_custom_profile, prepare_options, Command, EngineOptions, HelpcodeKeymap,
@@ -887,7 +887,7 @@ fn product_engine_options(
         local_super_jianpin: true,
         local_temporary_english: true,
         local_temporary_japanese: false,
-        local_expression: true,
+        local_expression: false,
         local_command: false,
         local_mention: false,
         local_chaizi: false,
@@ -898,6 +898,7 @@ fn product_engine_options(
         plugin_commands: Vec::new(),
         mention_entries: Vec::new(),
         quick_phrase_table: Vec::new(),
+        quick_phrase_table_in_candidates: false,
         // MSIMESessionOptions enables these candidates in the native macOS host.
         quick_phrase_candidates: true,
         quick_phrase_frequency: true,
@@ -1639,6 +1640,33 @@ impl OwlMsimeSession {
                     Err(err) => error_response(err),
                 }
             }
+            "segment" => {
+                let action = match payload.target.as_deref() {
+                    Some("left") => Action::SegmentMoveLeft,
+                    Some("right") => Action::SegmentMoveRight,
+                    Some("backspace") => Action::SegmentBackspace,
+                    _ => return error_response("segment requires left, right or backspace"),
+                };
+                match self.runtime.dispatch(action) {
+                    Ok(transition) => {
+                        self.sync_pinned_state_from_view(&transition.view);
+                        // Refresh the existing transform with the engine-owned input/caret;
+                        // segment deletion and movement can change Quanpin pin eligibility.
+                        if let Err(error) =
+                            self.runtime.set_caret(Some(transition.view.caret_position))
+                        {
+                            return error_response(error.to_string());
+                        }
+                        self.build_snapshot(
+                            self.runtime.view(),
+                            transition.handled,
+                            transition.commit,
+                            false,
+                        )
+                    }
+                    Err(error) => error_response(error.to_string()),
+                }
+            }
             "move_caret" => {
                 let cmd = match payload.target.as_deref() {
                     Some("home") => Command::MoveHome,
@@ -2259,26 +2287,9 @@ impl OwlMsimeSession {
     }
 }
 
-fn live_sessions() -> &'static Mutex<HashSet<usize>> {
-    static LIVE: OnceLock<Mutex<HashSet<usize>>> = OnceLock::new();
-    LIVE.get_or_init(|| Mutex::new(HashSet::new()))
-}
+mod sessions;
 
-/// Serializes process-wide cache teardown against session creation and destruction.
-fn session_lifecycle() -> &'static RwLock<()> {
-    static LIFECYCLE: OnceLock<RwLock<()>> = OnceLock::new();
-    LIFECYCLE.get_or_init(|| RwLock::new(()))
-}
-
-fn is_live_session(ptr: *const OwlMsimeSession) -> bool {
-    if ptr.is_null() {
-        return false;
-    }
-    live_sessions()
-        .lock()
-        .map(|set| set.contains(&(ptr as usize)))
-        .unwrap_or(false)
-}
+use sessions::{destroy_session, live_sessions, register_session, session_lifecycle, with_session};
 
 fn store_ffi_error(error_out: *mut *mut c_char, message: &str) {
     if error_out.is_null() {
@@ -2306,14 +2317,7 @@ pub extern "C" fn owl_msime_session_create(
         let english = cstr_to_string(english_db_path).unwrap_or_default();
         let user = cstr_to_string(user_data_dir).unwrap_or_default();
         match OwlMsimeSession::create(&pinyin, &english, &user, page_size) {
-            Ok(session) => {
-                let raw = Box::into_raw(Box::new(session));
-                live_sessions()
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .insert(raw as usize);
-                raw
-            }
+            Ok(session) => register_session(session),
             Err(_) => ptr::null_mut(),
         }
     }))
@@ -2357,14 +2361,7 @@ pub extern "C" fn owl_msime_session_create_with_roots(
         )
     }));
     let session = match created {
-        Ok(Ok(session)) => {
-            let raw = Box::into_raw(Box::new(session));
-            live_sessions()
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .insert(raw as usize);
-            raw
-        }
+        Ok(Ok(session)) => register_session(session),
         Ok(Err(message)) => {
             store_ffi_error(error_out, &message);
             ptr::null_mut()
@@ -2432,14 +2429,7 @@ pub extern "C" fn owl_msime_session_create_with_auxiliary_resources(
         )
     }));
     let session = match created {
-        Ok(Ok(session)) => {
-            let raw = Box::into_raw(Box::new(session));
-            live_sessions()
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .insert(raw as usize);
-            raw
-        }
+        Ok(Ok(session)) => register_session(session),
         Ok(Err(message)) => {
             store_ffi_error(error_out, &message);
             ptr::null_mut()
@@ -2459,16 +2449,7 @@ pub extern "C" fn owl_msime_session_destroy(session: *mut OwlMsimeSession) {
         let _lifecycle = session_lifecycle()
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let mut set = live_sessions()
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if !session.is_null() && set.remove(&(session as usize)) {
-            let session_ref = unsafe { &mut *session };
-            session_ref.rerank.invalidate(&mut session_ref.runtime);
-            unsafe {
-                drop(Box::from_raw(session));
-            }
-        }
+        destroy_session(session);
     }));
 }
 
@@ -2500,14 +2481,13 @@ pub extern "C" fn owl_msime_session_handle_action_json(
     action_json: *const c_char,
 ) -> *mut c_char {
     catch_unwind(AssertUnwindSafe(|| {
-        if !is_live_session(session) {
-            return into_c_string_ptr(&error_response("session is null or destroyed"));
-        }
-        let Some(action_str) = cstr_to_string(action_json) else {
-            return into_c_string_ptr(&error_response("action_json is null"));
-        };
-        let session_ref = unsafe { &mut *session };
-        let response = session_ref.handle_action_json(&action_str);
+        let response = with_session(session, |session| {
+            let Some(action) = cstr_to_string(action_json) else {
+                return error_response("action_json is null");
+            };
+            session.handle_action_json(&action)
+        })
+        .unwrap_or_else(|| error_response("session is null or destroyed"));
         into_c_string_ptr(&response)
     }))
     .unwrap_or_else(|_| into_c_string_ptr(&error_response("panic in handle_action_json")))
@@ -2516,14 +2496,20 @@ pub extern "C" fn owl_msime_session_handle_action_json(
 #[no_mangle]
 pub extern "C" fn owl_msime_session_snapshot_json(session: *const OwlMsimeSession) -> *mut c_char {
     catch_unwind(AssertUnwindSafe(|| {
-        if !is_live_session(session) {
-            return into_c_string_ptr(&error_response("session is null or destroyed"));
-        }
-        let session_ref = unsafe { &*session };
-        let response = session_ref.snapshot();
+        let response = with_session(session, |session| session.snapshot())
+            .unwrap_or_else(|| error_response("session is null or destroyed"));
         into_c_string_ptr(&response)
     }))
     .unwrap_or_else(|_| into_c_string_ptr(&error_response("panic in snapshot_json")))
+}
+
+fn rerank_response(
+    session: *const OwlMsimeSession,
+    operation: impl FnOnce(&mut OwlMsimeSession) -> Value,
+) -> *mut c_char {
+    let response = with_session(session, operation)
+        .unwrap_or_else(|| json!({"ok": false, "error": "session is null or destroyed"}));
+    into_c_string_ptr(&response)
 }
 
 #[no_mangle]
@@ -2532,16 +2518,12 @@ pub extern "C" fn owl_msime_session_configure_rerank_json(
     config_json: *const c_char,
 ) -> *mut c_char {
     catch_unwind(AssertUnwindSafe(|| {
-        if !is_live_session(session) {
-            return into_c_string_ptr(
-                &json!({"ok": false, "error": "session is null or destroyed"}),
-            );
-        }
-        let Some(config_str) = cstr_to_string(config_json) else {
-            return into_c_string_ptr(&json!({"ok": false, "error": "config_json is null"}));
-        };
-        let session_ref = unsafe { &mut *session };
-        into_c_string_ptr(&session_ref.configure_rerank(&config_str))
+        rerank_response(session, |session| {
+            let Some(config) = cstr_to_string(config_json) else {
+                return json!({"ok": false, "error": "config_json is null"});
+            };
+            session.configure_rerank(&config)
+        })
     }))
     .unwrap_or_else(|_| {
         into_c_string_ptr(&json!({"ok": false, "error": "panic in configure_rerank_json"}))
@@ -2553,13 +2535,7 @@ pub extern "C" fn owl_msime_session_rerank_status_json(
     session: *mut OwlMsimeSession,
 ) -> *mut c_char {
     catch_unwind(AssertUnwindSafe(|| {
-        if !is_live_session(session) {
-            return into_c_string_ptr(
-                &json!({"ok": false, "error": "session is null or destroyed"}),
-            );
-        }
-        let session_ref = unsafe { &mut *session };
-        into_c_string_ptr(&session_ref.rerank_status())
+        rerank_response(session, OwlMsimeSession::rerank_status)
     }))
     .unwrap_or_else(|_| {
         into_c_string_ptr(&json!({"ok": false, "error": "panic in rerank_status_json"}))
@@ -2570,23 +2546,8 @@ pub extern "C" fn owl_msime_session_rerank_status_json(
 pub extern "C" fn owl_msime_session_start_settled_rerank_json(
     session: *mut OwlMsimeSession,
 ) -> *mut c_char {
-    catch_unwind(AssertUnwindSafe(|| {
-        if !is_live_session(session) {
-            return into_c_string_ptr(
-                &json!({"ok": false, "error": "session is null or destroyed"}),
-            );
-        }
-        let session_ref = unsafe { &mut *session };
-        into_c_string_ptr(&session_ref.start_settled_rerank())
-    }))
-    .unwrap_or_else(|_| {
-        into_c_string_ptr(&json!({
-            "status": "done",
-            "current": false,
-            "moved": false,
-            "error": "panic in start_settled_rerank_json"
-        }))
-    })
+    catch_unwind(AssertUnwindSafe(|| rerank_response(session, OwlMsimeSession::start_settled_rerank)))
+        .unwrap_or_else(|_| into_c_string_ptr(&json!({"status": "done", "current": false, "moved": false, "error": "panic in start_settled_rerank_json"})))
 }
 
 #[no_mangle]
@@ -2595,23 +2556,8 @@ pub extern "C" fn owl_msime_session_poll_settled_rerank_json(
     token: u64,
     accept: bool,
 ) -> *mut c_char {
-    catch_unwind(AssertUnwindSafe(|| {
-        if !is_live_session(session) {
-            return into_c_string_ptr(
-                &json!({"ok": false, "error": "session is null or destroyed"}),
-            );
-        }
-        let session_ref = unsafe { &mut *session };
-        into_c_string_ptr(&session_ref.poll_settled_rerank(token, accept))
-    }))
-    .unwrap_or_else(|_| {
-        into_c_string_ptr(&json!({
-            "status": "done",
-            "current": false,
-            "moved": false,
-            "error": "panic in poll_settled_rerank_json"
-        }))
-    })
+    catch_unwind(AssertUnwindSafe(|| rerank_response(session, |session| session.poll_settled_rerank(token, accept))))
+        .unwrap_or_else(|_| into_c_string_ptr(&json!({"status": "done", "current": false, "moved": false, "error": "panic in poll_settled_rerank_json"})))
 }
 
 /// Stateless transport for the pinned host punctuation policy.
@@ -2879,7 +2825,7 @@ mod tests {
 
     fn staged_pinyin_path(session: *const OwlMsimeSession) -> PathBuf {
         assert!(!session.is_null());
-        unsafe { (*session).staged_pinyin_path.clone() }
+        with_session(session, |session| session.staged_pinyin_path.clone()).unwrap()
     }
 
     fn transform_row<'a>(text: &'a str, code: &'a str) -> TransformRow<'a> {
@@ -2942,7 +2888,7 @@ mod tests {
         assert!(options.local_date_time);
         assert!(options.local_date_time_inline);
         assert!(options.local_date_time_menu);
-        assert!(options.local_expression);
+        assert!(!options.local_expression);
         assert!(options.mixed_emoji);
         assert!(options.mixed_symbols);
         assert!(options.local_emoji);
@@ -3075,14 +3021,15 @@ mod tests {
 
     fn host_phrase_texts(session: *const OwlMsimeSession) -> Vec<String> {
         assert!(!session.is_null());
-        unsafe {
-            (*session)
+        with_session(session, |session| {
+            session
                 .options
                 .quick_phrase_table
                 .iter()
                 .map(|entry| entry.text.clone())
                 .collect()
-        }
+        })
+        .unwrap()
     }
 
     fn create_with_explicit_roots(
@@ -3152,9 +3099,9 @@ mod tests {
         (session, message)
     }
 
-    fn session_options(session: *const OwlMsimeSession) -> &'static EngineOptions {
+    fn session_options(session: *const OwlMsimeSession) -> EngineOptions {
         assert!(!session.is_null());
-        unsafe { &(*session).options }
+        with_session(session, |session| session.options.clone()).unwrap()
     }
 
     fn assertion_journal_count(journal: &Path) -> i64 {
@@ -3651,12 +3598,13 @@ mod tests {
         wait_for_rerank_state(session, "settled", "ready");
 
         // Simulate begin_settled_rerank taking the model while worker creation then fails.
-        let session_ref = unsafe { &mut *session };
-        let OwlMsimeSession {
-            runtime, rerank, ..
-        } = session_ref;
-        runtime.set_settled_reranker(None);
-        rerank.recover_settled_worker_failure(runtime);
+        with_session(session, |session| {
+            session.runtime.set_settled_reranker(None);
+            session
+                .rerank
+                .recover_settled_worker_failure(&mut session.runtime);
+        })
+        .unwrap();
         assert_eq!(rerank_status(session)["settled"]["attached"], true);
 
         for ch in ["n", "i", "h", "a", "o"] {
@@ -3851,11 +3799,27 @@ mod tests {
         assert!(host.ok);
         call_action(generated, r#"{"op":"insert","ch":"n"}"#);
         call_action(generated, r#"{"op":"insert","ch":"i"}"#);
+        let ordinary = candidate_texts_across_pages(generated);
         assert!(
-            candidate_texts_across_pages(generated)
-                .iter()
-                .any(|text| text == "主机短语"),
-            "macOS requests quick-phrase candidates without forcing them to the first row"
+            !ordinary.iter().any(|text| text == "主机短语"),
+            "Owl host enhancements require explicit K mode"
+        );
+        assert!(
+            ordinary.iter().any(|text| text == "基础短语"),
+            "native database quick phrases remain in ordinary macOS candidates"
+        );
+        call_action(generated, r#"{"op":"clear"}"#);
+        for ch in ['K', 'n'] {
+            call_action(generated, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
+        }
+        let prefix_candidates = candidate_texts_across_pages(generated);
+        assert!(
+            prefix_candidates.iter().any(|text| text == "基础短语"),
+            "native database K prefix browsing is preserved"
+        );
+        assert!(
+            !prefix_candidates.iter().any(|text| text == "主机短语"),
+            "Owl invocations require the complete stored trigger even in explicit K mode"
         );
         call_action(generated, r#"{"op":"clear"}"#);
         for ch in ['K', 'n', 'i'] {
@@ -3898,7 +3862,7 @@ mod tests {
             let response = call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
             assert!(response.ok, "{:?}", response.error);
         }
-        let initial = unsafe { (*session).runtime.all_candidates() };
+        let initial = with_session(session, |session| session.runtime.all_candidates()).unwrap();
         let initial_rows = initial
             .candidates
             .iter()
@@ -3925,7 +3889,7 @@ mod tests {
             let response = call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
             assert!(response.ok, "{:?}", response.error);
         }
-        let repeated = unsafe { (*session).runtime.all_candidates() };
+        let repeated = with_session(session, |session| session.runtime.all_candidates()).unwrap();
         let repeated_rows = repeated
             .candidates
             .iter()
@@ -3981,6 +3945,59 @@ mod tests {
         assert!(topped.ok, "{:?}", topped.error);
         assert_eq!(topped.committed_text.as_deref(), Some("工"));
         assert_eq!(topped.raw_input, "x");
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn destroyed_handle_cannot_alias_a_reopened_session() {
+        let tmp = TempDir::new().unwrap();
+        let resources = build_minimal_test_resources(&tmp.path().join("resources"));
+        let user = tmp.path().join("user");
+        let cache = tmp.path().join("cache");
+        let mut retired = HashSet::new();
+        for _ in 0..32 {
+            let (session, error) = create_with_generation(&resources, &user, &cache, "aba");
+            assert!(error.is_none(), "{error:?}");
+            assert!(!session.is_null());
+            for stale in retired.iter().copied() {
+                let stale = stale as *mut OwlMsimeSession;
+                owl_msime_session_destroy(stale);
+                assert!(!call_action(stale, r#"{"op":"insert","ch":"h"}"#).ok);
+                assert!(!call_snapshot(stale).ok);
+            }
+            assert!(
+                call_action(session, r#"{"op":"insert","ch":"n"}"#).ok,
+                "stale handles must not destroy or mutate the reopened session"
+            );
+            assert_eq!(call_snapshot(session).raw_input, "n");
+            retired.insert(session as usize);
+            owl_msime_session_destroy(session);
+        }
+    }
+
+    #[test]
+    fn session_rejects_foreign_thread_calls_and_destroy() {
+        let tmp = TempDir::new().unwrap();
+        let resources = build_minimal_test_resources(&tmp.path().join("resources"));
+        let (session, error) = create_with_generation(
+            &resources,
+            &tmp.path().join("user"),
+            &tmp.path().join("cache"),
+            "thread-confined",
+        );
+        assert!(error.is_none(), "{error:?}");
+        assert!(!session.is_null());
+        let handle = session as usize;
+        std::thread::spawn(move || {
+            let session = handle as *mut OwlMsimeSession;
+            assert!(!call_action(session, r#"{"op":"insert","ch":"h"}"#).ok);
+            assert!(!call_snapshot(session).ok);
+            owl_msime_session_destroy(session);
+        })
+        .join()
+        .unwrap();
+        assert!(call_action(session, r#"{"op":"insert","ch":"n"}"#).ok);
+        assert_eq!(call_snapshot(session).raw_input, "n");
         owl_msime_session_destroy(session);
     }
 
@@ -4495,7 +4512,7 @@ mod tests {
     }
 
     #[test]
-    fn builtin_date_and_expression_modes_are_reachable_from_product_options() {
+    fn builtin_date_is_enabled_and_expression_uses_upstream_disabled_default() {
         let tmp = TempDir::new().unwrap();
         let db_path = tmp.path().join("test-pinyin.db");
         build_minimal_test_pinyin_db(&db_path);
@@ -4523,22 +4540,8 @@ mod tests {
         assert!(call_action(session, r#"{"op":"clear"}"#).ok);
         let expression_mode = call_action(session, r#"{"op":"insert","ch":"V"}"#);
         assert!(expression_mode.ok);
-        assert!(expression_mode.consumed);
-        assert_eq!(expression_mode.local_mode, "expression");
-        assert!(expression_mode.spelling_symbols.contains('0'));
-        for action in [
-            r#"{"op":"insert","ch":"1"}"#,
-            r#"{"op":"punctuation","ch":"+"}"#,
-            r#"{"op":"insert","ch":"2"}"#,
-        ] {
-            let response = call_action(session, action);
-            assert!(response.ok, "{response:?}");
-        }
-        let evaluated = call_snapshot(session);
-        assert!(evaluated
-            .candidates
-            .iter()
-            .any(|candidate| candidate.text == "3"));
+        assert_ne!(expression_mode.local_mode, "expression");
+        assert!(!expression_mode.spelling_symbols.contains('0'));
 
         owl_msime_session_destroy(session);
     }
@@ -5531,7 +5534,10 @@ mod tests {
             .error
             .as_deref()
             .is_some_and(|message| message.contains("UNKNOWN_PINYIN_SCHEME")));
-        assert_eq!(unsafe { (*session).pinyin_scheme.as_str() }, "xiaohe");
+        assert_eq!(
+            with_session(session, |session| session.pinyin_scheme.clone()).unwrap(),
+            "xiaohe"
+        );
         assert_eq!(
             session_options(session).shuangpin_profile,
             ShuangpinProfileKind::Xiaohe as u8
@@ -5591,7 +5597,10 @@ mod tests {
             .error
             .as_deref()
             .is_some_and(|message| message.contains("INVALID_CUSTOM_SHUANGPIN_PROFILE")));
-        assert_eq!(unsafe { (*session).pinyin_scheme.as_str() }, "xiaohe");
+        assert_eq!(
+            with_session(session, |session| session.pinyin_scheme.clone()).unwrap(),
+            "xiaohe"
+        );
         assert_eq!(
             session_options(session).shuangpin_profile,
             ShuangpinProfileKind::Xiaohe as u8
@@ -5621,9 +5630,10 @@ mod tests {
         let (session, error) = create_with_generation(&resources, &user, &cache, "scheme-custom");
         assert!(error.is_none(), "{error:?}");
         assert!(!session.is_null());
-        unsafe {
-            (*session).options.shuangpin_preedit_uses_raw = false;
-        }
+        with_session(session, |session| {
+            session.options.shuangpin_preedit_uses_raw = false
+        })
+        .unwrap();
 
         let original = shuangpin_table_json(ShuangpinProfileKind::Xiaohe);
         let applied = call_action(
