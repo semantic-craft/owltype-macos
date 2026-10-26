@@ -33,10 +33,10 @@ and effective rerank configuration. Rust options remain source-bound by a fresh
 build. Ordinary pinyin uses pinned 0.55.0 engine/runtime and official resources;
 Wubi uses the pinned native sentence-alternative, distinct-code-row and phrase-preedit selection semantics. Native macOS exposes quick-phrase
 capability, but the pinned fresh-install `preferences.mixed_input.quick_phrase`
-default is false. These are separate controls: pinyin defaults OFF, explicit ON
-uses the complete upstream insertion/ranking path, and K browsing stays available.
-The Owl setting “拼音候选中显示快捷短语” controls this preference; Wubi retains #307's
-post-mixing placement. Owl AI/template invocation is a separate host feature.
+default is false. These are separate controls: ordinary Pinyin and Wubi candidates
+default OFF; explicit ON uses the pinned pre-mixing insertion/counting path for both.
+The shared Owl setting “普通候选中显示快捷短语” retains the original persisted key,
+and K browsing stays available. Owl AI/template invocation is a separate host feature.
 Model switches default off on both.
 
 ## Run
@@ -280,3 +280,8 @@ phases retain only their own root. Batch comparison receipts are written under
 `--output/<trace-stem>/` only after the shared build's cleanup succeeds. A semantic
 difference does not skip later corpora; a build/replay/cleanup failure remains
 incomplete evidence. Source identity must remain unchanged throughout the batch.
+
+Pure-Wubi z lookup removes one leading marker and queries only the remaining
+Pinyin spelling: `zi` queries `i`, while `zzhongguo` queries `zhongguo`.
+Lookup rows retain Wubi code annotations; choosing them does not adjust Pinyin
+frequency or learn a sentence. This uses the pinned runtime's existing rules.

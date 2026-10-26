@@ -648,21 +648,16 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Fix: extract the existing segment-chord route into a dedicated private helper, preserving active-composition/modifier guards and false-versus-not-applicable behavior. Run lint as its own command and inspect both exit status and reporter errors; do not infer success from a later command. No lint configuration was relaxed.
 - Verify: `swiftlint lint --quiet` exits0 with no `::error`; existing `testSegmentChordEditsPinyinRatherThanPassingToHost` and `testShuangpinSegmentEditingAndShoudaoSelection` still pass. This fixes the source gate, not installed IMK acceptance.
 
-### Imported Wubi goldens must retain Owl's existing z lookup
+### Wubi lookup goldens follow the pinned native suffix query
 
-- Seen 1x (2026-10-26): the newly imported `wubi_mixed_matched_code` and
-  `wubi_mixed_plain_mode` goldens expected no candidate for pure-Wubi `zi`, although
-  the pre-parity `274fad9` implementation already queries both the lookup suffix
-  and the complete z-prefixed pinyin. Their own fixture contains `zi → 子`.
-- The exact pre-model integration `1fce6c6` reproduces the same six differences,
-  proving these observations predate the keyboard-model adapter. Preserve this
-  existing Owl behavior; do not disable the complete-spelling lookup to satisfy
-  an imported snapshot. The mixed-on step independently already pins the same
-  `子` row, weight, source and pinyin metadata.
-- Verify: run `MSIME_GOLDEN_SCENARIO=wubi_mixed_matched_code,wubi_mixed_plain_mode
-  cargo test --locked --manifest-path rust/Cargo.toml -p msime-engine --test golden
-  scripted_scenarios_match_the_reference`, then all scripted scenarios. The strict
-  comparator retains every field; only the two stale expected snapshots change.
+- Seen 1x (2026-10-26): preserving Owl's former full-z-spelling lookup kept `zi → 子`,
+  but fixed native 0.55 only queries the suffix `i` and returns no candidates.
+  Spec #294 supersedes the earlier instruction to retain this local difference.
+- Restore the pinned suffix-only query and original two Wubi golden files. A real
+  session checks `zi`, the `zhai → 海` code annotation, and that selecting a lookup
+  row does not promote it in the subsequent Pinyin query.
+- Verify (验证点): `testWubiZLookupUsesOnlyNativeSuffixAndDoesNotLearnPinyinFrequency`
+  and the two `wubi_mixed_*` scripted golden scenarios, with strict fields retained.
 
 ### Preserve native Wubi candidate rows and phrase selection
 
@@ -763,10 +758,10 @@ review dates, not retries. Keep deterministic checks in the local gate.
   true, but pinned 0.55 `MixedInputPreferences::default()` sets `quick_phrase`
   false. Treating capability as preference hard-enabled ordinary dictionary
   phrases; all seven official codes produced 14 candidate-order differences.
-- Keep the fresh pinyin default OFF and expose the actual preference; explicit ON
-  follows the pinned pre-mixing insertion/counting rules. Wubi keeps #307's
-  post-mixing visible-seat policy. Neither disables K browsing or Owl's explicit
-  AI/template entry. A live toggle queues until the native runtime is idle, preserving the current
+- Keep the shared fresh default OFF for Pinyin and Wubi; explicit ON follows
+  the pinned pre-mixing insertion/counting rules for both. Wubi must not retain
+  #307's post-mixing visible-seat exception under #294. Neither disables K
+  browsing or Owl's explicit AI/template entry. A live toggle queues until the native runtime is idle, preserving the current
   raw composition and IDs; the next composition applies the preference.
 - Verify: replay `native-quick-phrases.json` and `native-quick-phrases-on.json`
   against native-mac-host. The ON corpus selects all eight official rows and

@@ -434,8 +434,9 @@ enum OwlKeyboardPreferences {
   /// 自动配对括号 (task 07-02). Key `"OwlKeyboardAutoPairBrackets"`, native pinyin default `true`
   /// Native pinyin keeps a marked closing tail; Wubi retains its original opt-in
   /// pair decision. The setting applies immediately without an engine deployment.
-  /// Native 0.55 fresh-install mixed_input.quick_phrase default; K browsing stays available.
-  static var pinyinQuickPhraseCandidates: Bool {
+  /// Shared native mixed_input.quick_phrase preference; retain the original persisted key.
+  /// Fresh installs default off for all schemes; K browsing stays available.
+  static var quickPhraseCandidates: Bool {
     get { boolValue("OwlKeyboardPinyinQuickPhraseCandidates", default: false) }
     set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardPinyinQuickPhraseCandidates") }
   }

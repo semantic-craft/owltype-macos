@@ -59,7 +59,7 @@ final class OwlRustEngineTests: XCTestCase {
       let consumed: Bool
       switch op {
       case "quick-phrases":
-        OwlKeyboardPreferences.pinyinQuickPhraseCandidates = event["enabled"] as? Bool ?? false
+        OwlKeyboardPreferences.quickPhraseCandidates = event["enabled"] as? Bool ?? false
         XCTAssertTrue(session.syncRuntimePreferences(includeHostPhrases: false))
         consumed = true
       case "schema":
@@ -2369,6 +2369,39 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.takeCommit(), "曳光弹")
   }
 
+  func testWubiZLookupUsesOnlyNativeSuffixAndDoesNotLearnPinyinFrequency() throws {
+    let defaults = OwlDefaults.standard
+    let keys = ["OwlKeyboardWubiZReverseLookup", "OwlKeyboardWubiZWildcard", "OwlKeyboardWubiUserDictLearning"]
+    let saved = keys.map { defaults.object(forKey: $0) }
+    defer {
+      for (key, value) in zip(keys, saved) {
+        if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
+      }
+    }
+    OwlKeyboardPreferences.wubiZReverseLookup = true
+    OwlKeyboardPreferences.wubiZWildcard = false
+    OwlKeyboardPreferences.wubiUserDictLearning = true
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+    XCTAssertTrue(session.selectSchema("wubi86_jidian"))
+    typeText("zi", into: session)
+    XCTAssertEqual(session.composition()?.candidates.count, 0, "native queries i, not the full spelling zi")
+    XCTAssertEqual(session.composition()?.isLastPage, true)
+    XCTAssertTrue(session.process(keycode: UInt32(XK_Return), modifiers: 0))
+    XCTAssertEqual(session.takeCommit(), "i", "unanswered native lookup commits the suffix without marker z")
+    typeText("zhai", into: session)
+    let lookup = try XCTUnwrap(session.composition())
+    XCTAssertEqual(lookup.candidates.map(\.text), ["还", "海", "孩", "害", "骇", "嗨"])
+    XCTAssertEqual(lookup.candidates[1].comment, "itxu")
+    XCTAssertTrue(session.selectCandidate(1))
+    XCTAssertEqual(session.takeCommit(), "海")
+    XCTAssertTrue(session.selectSchema("rime_ice"))
+    typeText("hai", into: session)
+    XCTAssertEqual(session.composition()?.candidates.first?.text, "还",
+      "native Wubi lookup selection must not promote the Pinyin row")
+  }
+
   func testWubiZReverseLookupAcrossSchemasSwitchesDeletionAndSelection() throws {
     let origZLookup = OwlKeyboardPreferences.wubiZReverseLookup
     let origCodeHint = OwlKeyboardPreferences.wubiCodeHint
@@ -3117,7 +3150,7 @@ final class OwlRustEngineTests: XCTestCase {
     }
     defaults.removeObject(forKey: keys[0])
     OwlKeyboardPreferences.pageSize = 6
-    XCTAssertFalse(OwlKeyboardPreferences.pinyinQuickPhraseCandidates)
+    XCTAssertFalse(OwlKeyboardPreferences.quickPhraseCandidates)
     let engine = try makeSharedSupportSeedEngine()
     let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
     defer { session.destroy() }
@@ -3136,7 +3169,8 @@ final class OwlRustEngineTests: XCTestCase {
     }
     XCTAssertTrue(try XCTUnwrap(session.composition()).candidates.contains { $0.text == "示例大学" })
     session.clearComposition()
-    OwlKeyboardPreferences.pinyinQuickPhraseCandidates = true
+    defaults.set(true, forKey: keys[0])
+    XCTAssertTrue(OwlKeyboardPreferences.quickPhraseCandidates, "existing stored value retains shared meaning")
     typeText("xx", into: session)
     let enabled = try XCTUnwrap(session.composition())
     let all = enabled.candidates + session.peekCandidates(from: 6, count: 100)
@@ -3146,14 +3180,14 @@ final class OwlRustEngineTests: XCTestCase {
   }
 
   func testNativeQuickPhrasePreferencePreservesLiveComposition() throws {
-    let saved = OwlKeyboardPreferences.pinyinQuickPhraseCandidates
+    let saved = OwlKeyboardPreferences.quickPhraseCandidates
     let page = OwlKeyboardPreferences.pageSize
     defer {
-      OwlKeyboardPreferences.pinyinQuickPhraseCandidates = saved
+      OwlKeyboardPreferences.quickPhraseCandidates = saved
       OwlKeyboardPreferences.pageSize = page
     }
     OwlKeyboardPreferences.pageSize = 6
-    OwlKeyboardPreferences.pinyinQuickPhraseCandidates = false
+    OwlKeyboardPreferences.quickPhraseCandidates = false
     let engine = try makeSharedSupportSeedEngine()
     let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
     defer { session.destroy() }
@@ -3163,8 +3197,8 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(plain.candidates.map(\.text), ["按当地", "addr", "按订单", "矮墩墩", "按到底", "啊对对"])
     let generation = session.generation
     let state = OwlSettingsState()
-    OwlSettingsActions.toggle(state: state, keyPath: \.pinyinQuickPhraseCandidates) {
-      OwlKeyboardPreferences.pinyinQuickPhraseCandidates = $0
+    OwlSettingsActions.toggle(state: state, keyPath: \.quickPhraseCandidates) {
+      OwlKeyboardPreferences.quickPhraseCandidates = $0
     }
     XCTAssertTrue(session.syncRuntimePreferences(includeHostPhrases: false))
     XCTAssertEqual(session.input(), "addr")
@@ -3175,8 +3209,8 @@ final class OwlRustEngineTests: XCTestCase {
     let enabled = try XCTUnwrap(session.composition())
     XCTAssertEqual(enabled.candidates.map(\.text),
       ["按当地", "addr", "按订单", "矮墩墩", "按到底", "示例大学示例校区1栋101"])
-    OwlSettingsActions.toggle(state: state, keyPath: \.pinyinQuickPhraseCandidates) {
-      OwlKeyboardPreferences.pinyinQuickPhraseCandidates = $0
+    OwlSettingsActions.toggle(state: state, keyPath: \.quickPhraseCandidates) {
+      OwlKeyboardPreferences.quickPhraseCandidates = $0
     }
     XCTAssertTrue(session.syncRuntimePreferences(includeHostPhrases: false))
     XCTAssertEqual(session.input(), "addr")

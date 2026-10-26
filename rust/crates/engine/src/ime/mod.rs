@@ -1169,26 +1169,6 @@ impl ImeSession {
         } else {
             Vec::new()
         };
-        if !raw.is_empty() && !raw.starts_with('z') {
-            let full_raw = format!("z{raw}");
-            let full_cases = format!("z{raw_with_cases}");
-            self.mixed_pinyin_scheme
-                .set_raw_input(&full_raw, &full_cases);
-            let mut full_req = QueryRequest::default();
-            self.mixed_pinyin_scheme.build_request_into(&mut full_req);
-            self.apply_request_options(&mut full_req);
-            self.apply_autocorrect_suppression(&mut full_req);
-            if full_req.valid
-                && !full_req.segmentation.starts_with("z'")
-                && full_req.segmentation.len() >= 2
-            {
-                let full_rows = self.registry.query(&full_req);
-                for mut item in full_rows {
-                    item.pinyin = crate::shared_string::SharedString::from(raw.to_owned());
-                    rows.push(item);
-                }
-            }
-        }
         self.mixed_pinyin_request = request;
         retain_unique_pinyin_rows(&mut rows);
         rows
