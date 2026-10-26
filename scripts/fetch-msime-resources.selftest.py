@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 SPEC = importlib.util.spec_from_file_location('resources', Path(__file__).with_name('fetch-msime-resources.py'))
 resources = importlib.util.module_from_spec(SPEC)
@@ -39,6 +40,47 @@ class AcquisitionTests(unittest.TestCase):
             files = {'dictionary': {'size':len(payload), 'sha256':hashlib.sha256(payload).hexdigest()}}
             resources.acquire(files, source.as_uri()+'/', output)
             self.assertEqual((output/'dictionary').read_bytes(), payload)
+
+    def test_cache_publish_failure_restores_existing_and_absent_members(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source, output = root/'source', root/'output'
+            source.mkdir(); output.mkdir()
+            names = ('dictionary', 'new-sidecar', 'manifest.json')
+            old = {'dictionary': b'old dictionary', 'manifest.json': b'old manifest'}
+            for name, payload in old.items(): (output/name).write_bytes(payload)
+            files = {}
+            for name in names:
+                payload = ('new '+name).encode()
+                (source/name).write_bytes(payload)
+                files[name] = {'size':len(payload), 'sha256':hashlib.sha256(payload).hexdigest()}
+            real_replace = resources.os.replace
+            def fail_manifest(path, target):
+                if Path(path).name == 'manifest.json' and Path(target).name == 'manifest.json' and Path(target).parent == output:
+                    raise OSError('injected cache publication failure')
+                return real_replace(path, target)
+            with mock.patch.object(resources.os, 'replace', fail_manifest), self.assertRaises(OSError):
+                resources.acquire(files, source.as_uri()+'/', output)
+            self.assertEqual({p.name:p.read_bytes() for p in output.iterdir()}, old)
+
+    def test_product_publish_failure_restores_resources_manifest_and_record(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            staged, output = root/'staged', root/'product'
+            staged.mkdir(); output.mkdir()
+            names = ('msime-pinyin.db', 'msime-english.db', 'new-sidecar',
+                     'msime-dictionary-manifest.json', 'OWLTYPE-UPSTREAM-RESOURCES.json')
+            old = {name:('old '+name).encode() for name in names if name != 'new-sidecar'}
+            for name, payload in old.items(): (output/name).write_bytes(payload)
+            for name in names: (staged/name).write_bytes(('new '+name).encode())
+            real_replace = resources.os.replace
+            def fail_record(path, target):
+                if Path(path).name == 'OWLTYPE-UPSTREAM-RESOURCES.json' and Path(target).name == 'OWLTYPE-UPSTREAM-RESOURCES.json' and Path(target).parent == output:
+                    raise OSError('injected product publication failure')
+                return real_replace(path, target)
+            with mock.patch.object(resources.os, 'replace', fail_record), self.assertRaises(OSError):
+                resources.publish_set(staged, output, names)
+            self.assertEqual({p.name:p.read_bytes() for p in output.iterdir()}, old)
 
     def test_wubi_overlay_preserves_all_upstream_pinyin_rows(self):
         import sqlite3

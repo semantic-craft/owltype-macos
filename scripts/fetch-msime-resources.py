@@ -15,6 +15,8 @@ import sqlite3
 import tempfile
 import urllib.request
 
+from resource_publish import publish_artifacts
+
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE = 'dict-v2.0.24'
 BASE_URL = f'https://github.com/metasequoiaime/msime-dictionary/releases/download/{RELEASE}/'
@@ -37,6 +39,10 @@ def verify(path, spec):
     if path.is_symlink() or not path.is_file() or path.stat().st_size != spec['size'] or digest(path) != spec['sha256']:
         raise Failure(f'resource size/hash mismatch: {path.name}')
 
+def publish_set(staged, output, names):
+    """Publish verified resources and their identity metadata with the seed transaction."""
+    publish_artifacts([(output/name, staged/name) for name in names])
+
 def acquire(files, base_url, output):
     """Verify every downloaded member before publishing any of the set."""
     output.mkdir(parents=True, exist_ok=True)
@@ -52,8 +58,7 @@ def acquire(files, base_url, output):
                 with urllib.request.urlopen(base_url+name, timeout=120) as response, (staged/name).open('wb') as stream:
                     shutil.copyfileobj(response, stream)
             verify(staged/name, spec)
-        for name in files:
-            os.replace(staged/name, output/name)
+        publish_set(staged, output, files)
 
 def overlay_wubi(upstream, owl, output):
     """Keep upstream pinyin tables intact; add only Owl's existing Wubi tables."""
@@ -100,8 +105,7 @@ def main():
                   'pinyinAdaptation':'Only wubi86, wubi98 and owl_seed_wubi86_source replaced from Owl audited seed',
                   'othersPolicy':'Full artifact retained in build cache; product uses audited emoji-only derivative; symbol_catalog redistribution unconfirmed'}
         (stage/'OWLTYPE-UPSTREAM-RESOURCES.json').write_text(json.dumps(record, ensure_ascii=False, indent=2)+'\n')
-        for path in stage.iterdir():
-            os.replace(path, output/path.name)
+        publish_set(stage, output, [path.name for path in stage.iterdir()])
     print(f'[msime-resources] verified {RELEASE}, full pinyin/English/context; Owl Wubi preserved')
 
 if __name__ == '__main__': main()
