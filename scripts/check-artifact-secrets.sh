@@ -21,7 +21,10 @@ cleanup() {
   local result=$?
   trap - EXIT
   if [[ -n "$mounted_dmg" ]]; then
-    /usr/bin/hdiutil detach "$mounted_dmg" >/dev/null 2>&1 || result=70
+    if ! /usr/bin/hdiutil detach "$mounted_dmg" >/dev/null 2>&1; then
+      echo "ERROR: scan-tree detach failed; disposable tree retained: $work_dir" >&2
+      exit 70
+    fi
     mounted_dmg=""
   fi
   if (( owns_apps )); then
@@ -67,11 +70,12 @@ for artifact in "$@"; do
       ;;
     *.pkg)
       target="$work_dir/$scanned-pkg"
+      # Even a failed expansion can leave App bundles registered in this owned tree.
+      owns_apps=1
       /usr/sbin/pkgutil --expand-full "$artifact" "$target" >/dev/null || {
         echo "ERROR: pkgutil failed to safely expand $label" >&2
         exit 70
       }
-      owns_apps=1
       python3 "$repo_root/scripts/normalize-package-scan.py" "$target"
       ;;
     *.dmg)

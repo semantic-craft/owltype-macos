@@ -108,7 +108,7 @@ def scan_archive_metadata(archive, zipped):
     Names, both extra fields, all comments and link-target member data are scanned.
     """
     members = zipped.infolist()
-    opaque = [zipped.comment]
+    opaque = []
     with archive.open('rb') as stream:
         def read_exact(count):
             value = stream.read(count)
@@ -121,7 +121,7 @@ def scan_archive_metadata(archive, zipped):
         stream.seek(end)
         end_header = read_exact(22)
         record = struct.unpack('<4s4H2IH', end_header)
-        opaque.append(end_header[4:])  # Fixed ZIP signatures are not opaque content.
+        opaque.append(end_header[4:] + zipped.comment)  # Fixed ZIP signatures are not opaque content.
         if (record[0] != b'PK\x05\x06' or record[1:3] != (0, 0)
                 or record[3] != len(members) or record[4] != len(members)
                 or len(members) >= 65535 or record[7] != len(zipped.comment)
@@ -132,7 +132,6 @@ def scan_archive_metadata(archive, zipped):
         for member in members:
             raw_header = read_exact(46)
             header = struct.unpack('<4s6H3I5H2I', raw_header)
-            opaque.append(raw_header[4:])
             name = read_exact(header[10]); extra = read_exact(header[11]); comment = read_exact(header[12])
             encoding = 'utf-8' if member.flag_bits & 0x800 else 'cp437'
             if (header[0] != b'PK\x01\x02' or header[13] != 0
@@ -141,7 +140,8 @@ def scan_archive_metadata(archive, zipped):
                     or header[16] != member.header_offset or name.decode(encoding) != member.orig_filename
                     or extra != member.extra or comment != member.comment):
                 raise ValueError('inconsistent ZIP central directory')
-            opaque.extend([name, extra, comment])
+            # Adjacent fields may share a token; never insert separators inside a record.
+            opaque.append(raw_header[4:] + name + extra + comment)
         if stream.tell() != end:
             raise ValueError('unaccounted ZIP directory data')
         cursor = 0
@@ -152,7 +152,6 @@ def scan_archive_metadata(archive, zipped):
             stream.seek(cursor)
             raw_header = read_exact(30)
             header = struct.unpack('<4s5H3I2H', raw_header)
-            opaque.append(raw_header[4:])
             name = read_exact(header[9]); extra = read_exact(header[10])
             encoding = 'utf-8' if member.flag_bits & 0x800 else 'cp437'
             if (header[0] != b'PK\x03\x04' or header[2] != member.flag_bits
@@ -164,7 +163,7 @@ def scan_archive_metadata(archive, zipped):
                     raise ValueError('unsupported ZIP64/local sizes')
             elif header[6:9] != expected:
                 raise ValueError('inconsistent ZIP CRC/sizes')
-            opaque.extend([name, extra])
+            opaque.append(raw_header[4:] + name + extra)
             cursor = stream.tell() + member.compress_size
             if member.flag_bits & 8:
                 stream.seek(cursor)

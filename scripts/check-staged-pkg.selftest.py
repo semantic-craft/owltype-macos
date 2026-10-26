@@ -227,13 +227,17 @@ class StagedPackageTests(unittest.TestCase):
         key = ('0123456789abcdef' * 4)
         marked = ('api_key = "' + key + '"').encode()
         for location in ('member', 'archive-comment', 'member-comment', 'member-extra',
-                         'appledouble', 'script', 'distribution'):
+                         'appledouble', 'script', 'distribution', 'extra-comment-boundary'):
             with self.subTest(location=location), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 component = root / 'Owltype-component.pkg'; component.mkdir()
                 archive = self.fixture(component)
                 info = zipfile.ZipInfo('Owltype.app/Contents/Resources/data')
                 if location == 'member-comment': info.comment = marked
+                if location == 'extra-comment-boundary':
+                    prefix, suffix = marked[:17], marked[17:]
+                    info.extra = struct.pack('<HH', 0xcafe, len(prefix)) + prefix
+                    info.comment = suffix
                 if location == 'member-extra': info.extra = struct.pack('<HH', 0xcafe, len(marked)) + marked
                 extras = [(info, marked if location == 'member' else b'plain')]
                 if location == 'appledouble': extras.append(('__MACOSX/._Owltype.app', marked))

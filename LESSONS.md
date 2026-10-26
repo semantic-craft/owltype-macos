@@ -853,3 +853,16 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Verify (验证点): `scripts/progress-sync.selftest.py` covers141 commits/151 files,
   head/base drift, empty/error/duplicate pages and cursor failures; it runs in the
   existing portable_scripts gate. A rejected snapshot preserves prior output.
+
+## Preserve metadata adjacency and cleanup ownership on failed expansion
+
+- Seen 1x (2026-10-26): joining ZIP header/name/extra/comment fields with newlines
+  split a synthetic generic key across adjacent central extra/comment fields.
+  The real Gitleaks regression returned clean before the fix. Keep each ZIP
+  record contiguous in the scan view; separators belong only between records.
+- A failed pkgutil expansion may already leave partial App bundles. Mark the
+  disposable tree as App-owning before expansion, so failures still use the
+  exact registration cleanup. If DMG detach fails, retain the tree and fail
+  before removing anything inside the still-mounted image.
+- Verify (验证点): staged-package real-scanner extra/comment boundary case and
+  secret-policy partial-expansion shell regression pin these failure paths.
