@@ -63,6 +63,7 @@ pub struct CandidateQueries {
     plugin_commands: Vec<PluginCommand>,
     /// 宿主的短语表（插件），只保留能用的行，按编码排序。
     quick_phrase_table: Vec<QuickPhraseEntry>,
+    pub(crate) quick_phrase_table_in_candidates: bool,
     /// The host's mention list, usable entries only.
     mentions: Vec<MentionEntry>,
     /// Whether `@` mode offers the embedded places after the list.
@@ -81,6 +82,7 @@ impl CandidateQueries {
             requested_plugin_commands: Vec::new(),
             plugin_commands: Vec::new(),
             quick_phrase_table: Vec::new(),
+            quick_phrase_table_in_candidates: true,
             mentions: Vec::new(),
             mention_places: false,
             chaizi_traditional_output: false,
@@ -133,7 +135,11 @@ impl CandidateQueries {
         let merged = query_exact_quick_phrases(
             code,
             &self.paths.dictionary(assets::MAIN_DICTIONARY),
-            &self.quick_phrase_table,
+            if self.quick_phrase_table_in_candidates {
+                &self.quick_phrase_table
+            } else {
+                &[]
+            },
         );
         let phrases: Vec<WordItem> = merged
             .candidates
@@ -289,11 +295,26 @@ impl CandidateQueries {
             LocalInputMode::None => LocalQueryResult::default(),
             LocalInputMode::Unicode => rows(query_unicode(code)),
             LocalInputMode::DateTime => rows(query_date_time(code, now)),
-            LocalInputMode::QuickPhrase => merge_quick_phrases(
-                code,
-                query_quick_phrases(code, &self.paths.dictionary(assets::MAIN_DICTIONARY)),
-                &self.quick_phrase_table,
-            ),
+            LocalInputMode::QuickPhrase => {
+                // Owl invocation resolvers require a complete trigger; preserve native DB prefix
+                // browsing and the upstream host-table behavior when this adapter switch is on.
+                let table = if self.quick_phrase_table_in_candidates {
+                    &self.quick_phrase_table[..]
+                } else {
+                    let start = self
+                        .quick_phrase_table
+                        .partition_point(|row| row.key.as_str() < code);
+                    let end = self
+                        .quick_phrase_table
+                        .partition_point(|row| row.key.as_str() <= code);
+                    &self.quick_phrase_table[start..end]
+                };
+                merge_quick_phrases(
+                    code,
+                    query_quick_phrases(code, &self.paths.dictionary(assets::MAIN_DICTIONARY)),
+                    table,
+                )
+            }
             LocalInputMode::Emoji => query_emoji(
                 code,
                 scheme,

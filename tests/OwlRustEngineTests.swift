@@ -495,7 +495,7 @@ final class OwlRustEngineTests: XCTestCase {
   }
 
   func testProductionUpdatePreparesTheCompletePinnedCombination() async throws {
-    let user = FileManager.default.temporaryDirectory.appendingPathComponent("owl-pinned-update-\(UUID().uuidString)").resolvingSymlinksInPath()
+    let user = URL(fileURLWithPath: "/private/tmp/owl-pinned-update-\(UUID().uuidString)")
     defer { try? FileManager.default.removeItem(at: user) }
     let backend = OwlDictPackCenterRustBackend.production(userRoot: user)
     let prepared = try await backend.prepare(backend.environment, nil)
@@ -1392,21 +1392,23 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.takeCommit(), visibleFirst.text)
   }
 
-  func testShiftVForwardingRoutesExpressionSpellingWhenRustOptionIsEnabled() throws {
+  func testShiftVUsesUpstreamDisabledExpressionDefault() throws {
     let engine = try makeSharedSupportSeedEngine()
     let session = engine.createSession()
     defer { session.destroy() }
-
     XCTAssertTrue(session.process(keycode: asciiKeycode("V"), modifiers: kShiftMask.rawValue))
     XCTAssertEqual(session.input(), "V")
-    XCTAssertTrue(session.process(keycode: UInt32(XK_KP_1), modifiers: 0))
-    XCTAssertTrue(session.process(keycode: asciiKeycode("+"), modifiers: kShiftMask.rawValue))
-    XCTAssertTrue(session.process(keycode: UInt32(XK_KP_2), modifiers: 0))
-    let composition = try XCTUnwrap(session.composition())
-    XCTAssertEqual(composition.preedit, "V1+2")
-    let resultIndex = try XCTUnwrap(composition.candidates.firstIndex { $0.text == "3" })
-    XCTAssertTrue(session.selectCandidate(resultIndex))
-    XCTAssertEqual(session.takeCommit(), "3")
+    // Keep the native default: these keys may use ordinary selection/punctuation routes,
+    // but must not activate expression spelling and offer the calculated result.
+    _ = session.process(keycode: UInt32(XK_KP_1), modifiers: 0)
+    _ = session.process(keycode: asciiKeycode("+"), modifiers: kShiftMask.rawValue)
+    _ = session.process(keycode: UInt32(XK_KP_2), modifiers: 0)
+    XCTAssertNotEqual(session.composition()?.preedit, "V1+2")
+    XCTAssertFalse(session.composition()?.candidates.contains { $0.text == "3" } == true)
+    _ = session.takeCommit()
+    session.clearComposition()
+    typeText("ni", into: session)
+    XCTAssertFalse(try XCTUnwrap(session.composition()).candidates.isEmpty)
   }
 
   func testTraditionalOutputMatchesVisibleAndPeekedCandidatesAndCanBeDisabled() throws {
@@ -2298,22 +2300,68 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.composition()?.candidates.count, 0)
   }
 
+  func testOwlEnhancementsRequireExplicitKWithoutChangingOrdinaryCandidates() throws {
+    let userDir = try makeHostPhraseUserDirectory()
+    let baselineDir = try makeHostPhraseUserDirectory()
+    var entry = OwlTemplateEntry(title: "增强测试", body: "模板正文")
+    entry.trigger = "ni"
+    entry.invocationMode = .candidate
+    try OwlTemplateStore.save(.init(entries: [entry]), writer: OwlConfigWriter(rimeDir: userDir))
+    let engine = try makeHostPhraseEngine(userDataURL: userDir)
+    let baselineEngine = try makeHostPhraseEngine(userDataURL: baselineDir)
+    let session = engine.createSession()
+    let baseline = baselineEngine.createSession()
+    defer { session.destroy(); baseline.destroy() }
+    typeText("ni", into: session)
+    typeText("ni", into: baseline)
+    XCTAssertEqual(visibleAndPeekedCandidates(in: session).map(\.text),
+                   visibleAndPeekedCandidates(in: baseline).map(\.text))
+    let visible = try XCTUnwrap(session.composition()?.candidates.first?.text)
+    XCTAssertTrue(session.process(keycode: UInt32(XK_space), modifiers: 0))
+    XCTAssertEqual(session.takeCommit(), visible)
+    XCTAssertNil(session.takeCommit())
+    let templateText = OwlTemplateStore.candidateText(entry)
+    XCTAssertTrue(session.process(keycode: asciiKeycode("K"), modifiers: kShiftMask.rawValue))
+    typeText("n", into: session)
+    XCTAssertFalse(visibleAndPeekedCandidates(in: session).contains { $0.text == templateText })
+    XCTAssertTrue(session.process(keycode: UInt32(XK_space), modifiers: 0))
+    XCTAssertNotEqual(session.takeCommit(), templateText)
+    session.clearComposition()
+    XCTAssertTrue(session.process(keycode: asciiKeycode("K"), modifiers: kShiftMask.rawValue))
+    typeText("ni", into: session)
+    let candidates = visibleAndPeekedCandidates(in: session)
+    let index = try XCTUnwrap(candidates.firstIndex { $0.text == templateText })
+    XCTAssertTrue(session.selectCandidate(OwlCandidateToken(sessionID: session.sessionID,
+      generation: session.generation, candidateID: index, isAbsolute: true)))
+    XCTAssertEqual(session.takeCommit(), templateText)
+    XCTAssertEqual(session.lastCommittedInput(), "Kni")
+    XCTAssertEqual(OwlTemplateStore.resolveCandidate(code: session.lastCommittedInput(), text: templateText,
+      loadLibrary: { try OwlTemplateStore.load(rimeDir: userDir) })?.id, entry.id)
+    XCTAssertNil(session.takeCommit())
+    XCTAssertTrue(session.process(keycode: asciiKeycode("K"), modifiers: kShiftMask.rawValue))
+    typeText("ni", into: session)
+    XCTAssertTrue(session.process(keycode: UInt32(XK_Escape), modifiers: 0))
+    XCTAssertNil(session.takeCommit())
+    typeText("ni", into: session)
+    XCTAssertFalse(visibleAndPeekedCandidates(in: session).contains { $0.text == templateText })
+  }
+
   func testLegacyHostPhrasesLoadPromptsQuickSendAndCustomPhrase() throws {
     let userDir = try makeHostPhraseUserDirectory()
-    let quickSendContent = "user@example.com\tyx\t100000\n"
+    let quickSendContent = "user@example.com\towlmail\t100000\n"
     try writeHostPhrase(
       quickSendContent,
       fileName: OwlQuickSendStore.dictFileName,
       to: userDir
     )
-    let promptContent = "📝周报生成\tzb\t100000\n"
+    let promptContent = "📝周报生成\towlreport\t100000\n"
     try writeHostPhrase(
       promptContent,
       fileName: OwlPromptStore.dictFileName,
       to: userDir
     )
     try writeHostPhrase(
-      "共享短语\tcst\t100000\n",
+      "共享短语\towlcustom\t100000\n",
       fileName: "custom_phrase.txt",
       to: userDir
     )
@@ -2324,45 +2372,45 @@ final class OwlRustEngineTests: XCTestCase {
     defer { session.destroy() }
 
     // 1. Quick phrase `yx` -> `user@example.com` at top of page 0
-    for scalar in "yx".unicodeScalars {
-      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    for scalar in "Kowlmail".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
     }
     let yxComp = try XCTUnwrap(session.composition())
     XCTAssertEqual(yxComp.candidates.first?.text, "user@example.com")
     XCTAssertTrue(session.selectCandidate(0))
     XCTAssertEqual(session.takeCommit(), "user@example.com")
-    XCTAssertEqual(session.lastCommittedInput(), "yx")
+    XCTAssertEqual(session.lastCommittedInput(), "Kowlmail")
 
     // 2. Prompt `zb` -> `📝周报生成` at top of page 0
-    for scalar in "zb".unicodeScalars {
-      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    for scalar in "Kowlreport".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
     }
     let zbComp = try XCTUnwrap(session.composition())
     XCTAssertEqual(zbComp.candidates.first?.text, "📝周报生成")
     XCTAssertTrue(session.selectCandidate(0))
     XCTAssertEqual(session.takeCommit(), "📝周报生成")
-    XCTAssertEqual(session.lastCommittedInput(), "zb")
+    XCTAssertEqual(session.lastCommittedInput(), "Kowlreport")
 
     // 3. The shared custom phrase remains available in legacy mode.
-    for scalar in "cst".unicodeScalars {
-      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    for scalar in "Kowlcustom".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
     }
     let cstComp = try XCTUnwrap(session.composition())
     XCTAssertEqual(cstComp.candidates.first?.text, "共享短语")
     XCTAssertTrue(session.selectCandidate(0))
     XCTAssertEqual(session.takeCommit(), "共享短语")
-    XCTAssertEqual(session.lastCommittedInput(), "cst")
+    XCTAssertEqual(session.lastCommittedInput(), "Kowlcustom")
 
     // 4. Replacing a host phrase refreshes the runtime table without duplicating it.
-    let updatedQuickPhrase = "updated@example.com\tyx\t100000\n"
+    let updatedQuickPhrase = "updated@example.com\towlmail\t100000\n"
     try writeHostPhrase(
       updatedQuickPhrase,
       fileName: OwlQuickSendStore.dictFileName,
       to: userDir
     )
     XCTAssertTrue(engine.deployConfigFile(OwlQuickSendStore.dictFileName, versionKey: "config_version"))
-    for scalar in "yx".unicodeScalars {
-      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    for scalar in "Kowlmail".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
     }
     let updatedComp = try XCTUnwrap(session.composition())
     XCTAssertEqual(
@@ -2379,8 +2427,8 @@ final class OwlRustEngineTests: XCTestCase {
       to: userDir
     )
     XCTAssertTrue(engine.deployConfigFile(OwlQuickSendStore.dictFileName, versionKey: "config_version"))
-    for scalar in "yx".unicodeScalars {
-      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    for scalar in "Kowlmail".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
     }
     let deduplicatedComp = try XCTUnwrap(session.composition())
     XCTAssertEqual(
@@ -2393,8 +2441,8 @@ final class OwlRustEngineTests: XCTestCase {
     session.destroy()
     let restarted = engine.createSession()
     defer { restarted.destroy() }
-    for scalar in "yx".unicodeScalars {
-      XCTAssertTrue(restarted.process(keycode: scalar.value, modifiers: 0))
+    for scalar in "Kowlmail".unicodeScalars {
+      XCTAssertTrue(restarted.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
     }
     let restartedComp = try XCTUnwrap(restarted.composition())
     XCTAssertEqual(
@@ -2410,22 +2458,22 @@ final class OwlRustEngineTests: XCTestCase {
       to: userDir
     )
     XCTAssertTrue(engine.deployConfigFile(OwlQuickSendStore.dictFileName, versionKey: "config_version"))
-    for scalar in "yx".unicodeScalars {
-      XCTAssertTrue(restarted.process(keycode: scalar.value, modifiers: 0))
+    for scalar in "Kowlmail".unicodeScalars {
+      XCTAssertTrue(restarted.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
     }
     let yxAfterDelete = try XCTUnwrap(restarted.composition())
     XCTAssertFalse(yxAfterDelete.candidates.contains(where: { $0.text == "user@example.com" }))
     XCTAssertFalse(yxAfterDelete.candidates.contains(where: { $0.text == "updated@example.com" }))
     restarted.clearComposition()
 
-    for scalar in "zb".unicodeScalars {
-      XCTAssertTrue(restarted.process(keycode: scalar.value, modifiers: 0))
+    for scalar in "Kowlreport".unicodeScalars {
+      XCTAssertTrue(restarted.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
     }
     XCTAssertEqual(try XCTUnwrap(restarted.composition()).candidates.first?.text, "📝周报生成")
     restarted.clearComposition()
 
-    for scalar in "cst".unicodeScalars {
-      XCTAssertTrue(restarted.process(keycode: scalar.value, modifiers: 0))
+    for scalar in "Kowlcustom".unicodeScalars {
+      XCTAssertTrue(restarted.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
     }
     XCTAssertEqual(try XCTUnwrap(restarted.composition()).candidates.first?.text, "共享短语")
   }
@@ -2433,7 +2481,7 @@ final class OwlRustEngineTests: XCTestCase {
   func testUnifiedHostPhrasesIgnoreLegacyCatalogAndDropDeletedTemplates() throws {
     let userDir = try makeHostPhraseUserDirectory()
     var entry = OwlTemplateEntry(title: "项目记录", body: "整理项目记录")
-    entry.trigger = "ft"
+    entry.trigger = "owlrecord"
     entry.invocationMode = .candidate
     try OwlTemplateStore.save(
       OwlTemplateLibrary(entries: [entry]),
@@ -2443,17 +2491,17 @@ final class OwlRustEngineTests: XCTestCase {
 
     // These stale projections must not be merged back after migration to the unified store.
     try writeHostPhrase(
-      "📝遗留提示词\tzb\t100000\n",
+      "📝遗留提示词\towlreport\t100000\n",
       fileName: OwlPromptStore.dictFileName,
       to: userDir
     )
     try writeHostPhrase(
-      "legacy@example.com\tyx\t100000\n",
+      "legacy@example.com\towlmail\t100000\n",
       fileName: OwlQuickSendStore.dictFileName,
       to: userDir
     )
     try writeHostPhrase(
-      "共享短语\tcst\t100000\n",
+      "共享短语\towlcustom\t100000\n",
       fileName: "custom_phrase.txt",
       to: userDir
     )
@@ -2463,15 +2511,15 @@ final class OwlRustEngineTests: XCTestCase {
     defer { session.destroy() }
 
     session.setOption(.transcription, true)
-    for scalar in "ft".unicodeScalars {
-      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    for scalar in "Kowlrecord".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
     }
     let ftComp = try XCTUnwrap(session.composition())
     let templatePrefix = "\(OwlTemplateStore.candidatePrefix)\(entry.id.uuidString)]"
     XCTAssertTrue(ftComp.candidates.first?.text.hasPrefix(templatePrefix) == true)
     XCTAssertTrue(session.selectCandidate(0))
     let committedTemplate = try XCTUnwrap(session.takeCommit())
-    XCTAssertEqual(session.lastCommittedInput(), "ft")
+    XCTAssertEqual(session.lastCommittedInput(), "Kowlrecord")
     XCTAssertEqual(
       OwlTemplateStore.resolveCandidate(
         code: session.lastCommittedInput(),
@@ -2482,17 +2530,17 @@ final class OwlRustEngineTests: XCTestCase {
     )
     session.setOption(.transcription, false)
 
-    for (input, staleText) in [("zb", "📝遗留提示词"), ("yx", "legacy@example.com")] {
-      for scalar in input.unicodeScalars {
-        XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    for (input, staleText) in [("owlreport", "📝遗留提示词"), ("owlmail", "legacy@example.com")] {
+      for scalar in ("K" + input).unicodeScalars {
+        XCTAssertTrue(session.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
       }
       let comp = try XCTUnwrap(session.composition())
       XCTAssertFalse(comp.candidates.contains(where: { $0.text == staleText }))
       session.clearComposition()
     }
 
-    for scalar in "cst".unicodeScalars {
-      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    for scalar in "Kowlcustom".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
     }
     XCTAssertEqual(try XCTUnwrap(session.composition()).candidates.first?.text, "共享短语")
     session.clearComposition()
@@ -2503,8 +2551,8 @@ final class OwlRustEngineTests: XCTestCase {
       writer: OwlConfigWriter(rimeDir: userDir)
     )
     XCTAssertTrue(engine.deployConfigFile(OwlTemplateStore.dictFileName, versionKey: "config_version"))
-    for scalar in "ft".unicodeScalars {
-      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    for scalar in "Kowlrecord".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
     }
     let deletedComp = try XCTUnwrap(session.composition())
     XCTAssertFalse(
@@ -2514,17 +2562,20 @@ final class OwlRustEngineTests: XCTestCase {
     )
     session.clearComposition()
 
-    for scalar in "xguang".unicodeScalars {
-      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
-    }
-    let seedCandidates = visibleAndPeekedCandidates(in: session)
-    XCTAssertTrue(seedCandidates.contains(where: { $0.text == "X光" }))
+    // This native row is in the pinned full resource set (the old synthetic X光 row is not).
+    typeText("yyds", into: session)
+    XCTAssertTrue(visibleAndPeekedCandidates(in: session).contains { $0.text == "永远滴神" })
+    session.clearComposition()
+    XCTAssertTrue(session.process(keycode: asciiKeycode("K"), modifiers: kShiftMask.rawValue))
+    typeText("yy", into: session)
+    XCTAssertTrue(visibleAndPeekedCandidates(in: session).contains { $0.text == "永远滴神" },
+                  "native database K prefix matching survives the Owl enhancement boundary")
   }
 
   func testHostPhraseModesEmptyAndUnavailableFailClosed() throws {
     let emptyDir = try makeHostPhraseUserDirectory()
     try writeHostPhrase(
-      "共享短语\tcst\t100000\n",
+      "共享短语\towlcustom\t100000\n",
       fileName: "custom_phrase.txt",
       to: emptyDir
     )
@@ -2532,24 +2583,24 @@ final class OwlRustEngineTests: XCTestCase {
     let emptyEngine = try makeHostPhraseEngine(userDataURL: emptyDir)
     let emptySession = emptyEngine.createSession()
     defer { emptySession.destroy() }
-    for scalar in "cst".unicodeScalars {
-      XCTAssertTrue(emptySession.process(keycode: scalar.value, modifiers: 0))
+    for scalar in "Kowlcustom".unicodeScalars {
+      XCTAssertTrue(emptySession.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
     }
     XCTAssertEqual(try XCTUnwrap(emptySession.composition()).candidates.first?.text, "共享短语")
 
     let unavailableDir = try makeHostPhraseUserDirectory()
     try writeHostPhrase(
-      "📝旧提示词\tzb\t100000\n",
+      "📝旧提示词\towlreport\t100000\n",
       fileName: OwlPromptStore.dictFileName,
       to: unavailableDir
     )
     try writeHostPhrase(
-      "old@example.com\tyx\t100000\n",
+      "old@example.com\towlmail\t100000\n",
       fileName: OwlQuickSendStore.dictFileName,
       to: unavailableDir
     )
     try writeHostPhrase(
-      "不可回退短语\tcst\t100000\n",
+      "不可回退短语\towlcustom\t100000\n",
       fileName: "custom_phrase.txt",
       to: unavailableDir
     )
@@ -2565,12 +2616,12 @@ final class OwlRustEngineTests: XCTestCase {
     let unavailableSession = unavailableEngine.createSession()
     defer { unavailableSession.destroy() }
     for (input, staleText) in [
-      ("zb", "📝旧提示词"),
-      ("yx", "old@example.com"),
-      ("cst", "不可回退短语")
+      ("owlreport", "📝旧提示词"),
+      ("owlmail", "old@example.com"),
+      ("owlcustom", "不可回退短语")
     ] {
-      for scalar in input.unicodeScalars {
-        XCTAssertTrue(unavailableSession.process(keycode: scalar.value, modifiers: 0))
+      for scalar in ("K" + input).unicodeScalars {
+        XCTAssertTrue(unavailableSession.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
       }
       let comp = try XCTUnwrap(unavailableSession.composition())
       XCTAssertFalse(comp.candidates.contains(where: { $0.text == staleText }))
@@ -2581,7 +2632,7 @@ final class OwlRustEngineTests: XCTestCase {
   func testUnifiedHostCandidateDigitAndMouseSelectionStayAligned() throws {
     let userDir = try makeHostPhraseUserDirectory()
     var entry = OwlTemplateEntry(title: "映射测试", body: "模板正文")
-    entry.trigger = "hm"
+    entry.trigger = "owlmapping"
     entry.invocationMode = .candidate
     try OwlTemplateStore.save(
       OwlTemplateLibrary(entries: [entry]),
@@ -2589,7 +2640,7 @@ final class OwlRustEngineTests: XCTestCase {
     )
     let templateText = OwlTemplateStore.candidateText(entry)
     try writeHostPhrase(
-      "自定义映射\thm\t100000\n",
+      "自定义映射\towlmapping\t100000\n",
       fileName: "custom_phrase.txt",
       to: userDir
     )
@@ -2598,8 +2649,8 @@ final class OwlRustEngineTests: XCTestCase {
     let session = engine.createSession()
     defer { session.destroy() }
 
-    for scalar in "hm".unicodeScalars {
-      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    for scalar in "Kowlmapping".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
     }
     let composition = try XCTUnwrap(session.composition())
     let templateIndex = try XCTUnwrap(composition.candidates.firstIndex { $0.text == templateText })
@@ -2611,7 +2662,7 @@ final class OwlRustEngineTests: XCTestCase {
     let digitKeycode = UInt32(XK_1) + UInt32(templateIndex)
     XCTAssertTrue(session.process(keycode: digitKeycode, modifiers: 0))
     XCTAssertEqual(session.takeCommit(), templateText)
-    XCTAssertEqual(session.lastCommittedInput(), "hm")
+    XCTAssertEqual(session.lastCommittedInput(), "Kowlmapping")
     XCTAssertNil(session.takeCommit())
     XCTAssertEqual(
       OwlTemplateStore.resolveCandidate(
@@ -2622,8 +2673,8 @@ final class OwlRustEngineTests: XCTestCase {
       entry.id
     )
 
-    for scalar in "hm".unicodeScalars {
-      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    for scalar in "Kowlmapping".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
     }
     let mouseComposition = try XCTUnwrap(session.composition())
     let mouseIndex = try XCTUnwrap(mouseComposition.candidates.firstIndex { $0.text == templateText })
@@ -2635,11 +2686,11 @@ final class OwlRustEngineTests: XCTestCase {
     )
     XCTAssertTrue(session.selectCandidate(token))
     XCTAssertEqual(session.takeCommit(), templateText)
-    XCTAssertEqual(session.lastCommittedInput(), "hm")
+    XCTAssertEqual(session.lastCommittedInput(), "Kowlmapping")
     XCTAssertNil(session.takeCommit())
 
-    for scalar in "hm".unicodeScalars {
-      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    for scalar in "Kowlmapping".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
     }
     XCTAssertTrue(session.process(keycode: UInt32(XK_Escape), modifiers: 0))
     XCTAssertNil(session.takeCommit())
@@ -2647,8 +2698,8 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertTrue(session.composition()?.candidates.isEmpty == true)
 
     XCTAssertTrue(session.selectSchema("wubi86_jidian"))
-    for scalar in "hm".unicodeScalars {
-      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
+    for scalar in "Kowlmapping".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
     }
     let switched = try XCTUnwrap(session.composition())
     XCTAssertEqual(switched.candidates.filter { $0.text == templateText }.count, 1)

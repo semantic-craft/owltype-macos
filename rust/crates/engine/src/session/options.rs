@@ -94,6 +94,8 @@ pub struct SessionOptions {
     pub mention_entries: Vec<MentionEntry>,
     /// K 模式在数据库行之后追加的宿主短语；`Session::set_quick_phrase_table` 可以实时替换。
     pub quick_phrase_table: Vec<QuickPhraseEntry>,
+    /// Owl adapter: allow host rows in ordinary candidates and K prefix matches; false requires K plus a complete host trigger.
+    pub quick_phrase_table_in_candidates: bool,
     /// 普通候选是否追加编码匹配的快捷短语。仅 macOS 桌面宿主打开；其他宿主保留独立 K 模式。
     pub quick_phrase_candidates: bool,
     /// 快捷短语参与调频：追加进普通候选的整组短语有自己的槽位（`quick_phrase_slots` 日志表），越过它选普通候选让整组后退（最多退到首页末位），选中组内短语让整组前移。关掉时组固定在默认位置（首页最后几格，普通候选不满一页时接在它们之后，见 `default_quick_phrase_slot`），槽位记录保留但不读。
@@ -152,6 +154,7 @@ impl SessionOptions {
             plugin_commands: Vec::new(),
             mention_entries: Vec::new(),
             quick_phrase_table: Vec::new(),
+            quick_phrase_table_in_candidates: true,
             quick_phrase_candidates: false,
             quick_phrase_frequency: true,
             chaizi_traditional_output: false,
