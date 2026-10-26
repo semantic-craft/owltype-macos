@@ -167,3 +167,27 @@ existing upstream lattice scorer and runtime reranker. This avoids a second file
 lookup under the engine's canonical filename and keeps candidate identity tied to
 the refreshed view. The model algorithms and default switches remain upstream's.
 Desktop pause scheduling and installed IMK behavior require their own acceptance.
+
+## Learning and process restart
+
+`--trace tests/fixtures/pinyin-parity/learning.json` starts both sides with new,
+separate learning roots. It selects 尼 from the second row, verifies the changed
+complete paged order, restarts, removes the dictionary phrase 你好吗 and restarts again.
+The fixture also checks independent six-row learning checkpoints, so equal but
+unchanged ranking or a reset learning root cannot pass.
+Every `restart` begins a fresh reference Python process and a fresh Owl XCTest
+host process while reusing only that endpoint's temporary learning directory.
+The runner removes both directories on completion. The output records the process
+run count. Thus persistence is observed through candidates after process exit,
+without reading a journal table or a user's existing dictionary.
+
+The `remove` action addresses a visible row by its current generation and index.
+The Owl adapter rejects stale/foreign session tokens, absolute preview rows and
+punctuation-menu generations before dispatching upstream `RemoveCandidate`.
+The existing candidate context menu exposes deletion for multi-scalar visible
+rows. The macOS upstream shortcut, Ctrl–Option–Shift + physical number-row 1–8,
+is also reserved while candidates are present; rejected or repeated deletion
+never falls through to normal commit. The engine retains its single-Han-character
+protection and source eligibility checks. A deleted dictionary phrase may still
+be generated as a sentence; deletion means the upstream dictionary operation,
+not a blanket text blacklist.

@@ -38,6 +38,10 @@ def differences(reference, owl):
             missing = sorted(set(FIELDS) - step.keys())
             if missing:
                 result.append({'field': 'incomplete_step', 'side': name, 'step': index, 'missing': missing})
+            for field, expected in step.get('event', {}).get('expect', {}).items():
+                if field not in FIELDS or step.get(field) != expected:
+                    result.append({'field': 'fixture_expectation', 'side': name, 'step': index,
+                                   'observation': field, 'expected': expected, 'actual': step.get(field)})
     if len(a) != len(b):
         result.append({'field': 'step_count', 'reference': len(a), 'owl': len(b)})
     for index, (left, right) in enumerate(zip(a, b)):
@@ -92,12 +96,19 @@ class Reference:
                                          handle, ord(event['value']), False)
                 elif op == 'command':
                     response = self.call('command', [C.c_uint64, C.c_uint32], handle, COMMANDS[event['value']])
-                elif op == 'select':
+                elif op in ('select', 'remove'):
                     view = self.call('view', [C.c_uint64], handle)
                     candidate = view['candidates'][event['index']]
                     identity = candidate['id']
-                    response = self.call('select', [C.c_uint64, C.c_uint64, C.c_size_t],
+                    response = self.call('select' if op == 'select' else 'remove_candidate', [C.c_uint64, C.c_uint64, C.c_size_t],
                                          handle, identity['generation'], identity['index'])
+                elif op == 'restart':
+                    self.call('focus', [C.c_uint64, C.c_bool], handle, False)
+                    self.call('destroy', [C.c_uint64], handle)
+                    handle = self.call('create', [C.c_char_p, C.c_size_t], request, len(request))['session']
+                    self.call('focus', [C.c_uint64, C.c_bool], handle, True)
+                    response = {'handled': True, 'commit': None,
+                                'view': self.call('view', [C.c_uint64], handle)}
                 else:
                     raise ValueError(f'unsupported event {event}')
                 view = response['view']
@@ -113,6 +124,40 @@ class Reference:
         finally:
             self.call('destroy', [C.c_uint64], handle)
         return {'options': options, 'preferences': options['preferences'], 'steps': steps, 'raw_views': views}
+
+
+def restart_phases(events):
+    phases = [[]]
+    for event in events:
+        if event['op'] == 'restart' and phases[-1]:
+            phases.append([])
+        phases[-1].append(event)
+    return phases
+
+
+def reference_replay(library, resources, state, events, profile):
+    # A fresh interpreter per restart proves recovery from disk, beyond in-process caches.
+    traces = []
+    worker = """import importlib.util,json,sys
+from pathlib import Path
+spec=importlib.util.spec_from_file_location('parity',sys.argv[1])
+module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+request=json.loads(sys.stdin.read())
+trace=module.Reference(request['library']).replay(Path(request['resources']),Path(request['state']),request['events'],request['profile'])
+sys.stdout.write(json.dumps(trace,ensure_ascii=False))
+"""
+    for phase in restart_phases(events):
+        request = dict(library=str(library), resources=str(resources), state=str(state),
+                       events=phase, profile=profile)
+        result = subprocess.run([sys.executable, '-c', worker, str(Path(__file__).resolve())],
+                                input=json.dumps(request), capture_output=True, text=True,
+                                check=True, timeout=120)
+        traces.append(json.loads(result.stdout))
+    output = traces[-1]
+    output['steps'] = [step for trace in traces for step in trace['steps']]
+    output['raw_views'] = [view for trace in traces for view in trace['raw_views']]
+    output['process_runs'] = len(traces)
+    return output
 
 
 def source_identity():
@@ -153,7 +198,7 @@ def build_owl(xctestrun):
             'rust_archive_sha256': sha256(ROOT / 'lib/libowl_msime_ffi.a')}
 
 
-def owl_replay(xctestrun, request, output):
+def owl_replay_once(xctestrun, request, output):
     if output.exists():
         output.unlink()
     document = plistlib.loads(xctestrun.read_bytes())
@@ -178,6 +223,22 @@ def owl_replay(xctestrun, request, output):
     if trace.get('run_id') != json.loads(request.read_text())['run_id']:
         raise ValueError('Owl export belongs to a different replay')
     return trace
+
+
+def owl_replay(xctestrun, request, output):
+    original = json.loads(request.read_text())
+    traces = []
+    try:
+        for phase in restart_phases(original['events']):
+            request.write_text(json.dumps(dict(original, events=phase)))
+            traces.append(owl_replay_once(xctestrun, request, output))
+    finally:
+        request.write_text(json.dumps(original))
+    result = traces[-1]
+    result['steps'] = [step for trace in traces for step in trace['steps']]
+    result['process_runs'] = len(traces)
+    output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
+    return result
 
 
 def main():
@@ -213,10 +274,10 @@ def main():
     events = json.loads(args.trace.read_text())['events']
     build = build_owl(args.xctestrun.resolve())
     with tempfile.TemporaryDirectory(prefix='owl-pinyin-parity-') as state:
-        reference = Reference(args.reference_library.resolve()).replay(args.reference_resources.resolve(), Path(state), events, args.reference_profile)
+        reference = reference_replay(args.reference_library.resolve(), args.reference_resources.resolve(), Path(state) / 'reference', events, args.reference_profile)
         request = args.output.resolve() / 'owl-request.json'
         request.write_text(json.dumps({'run_id': str(uuid.uuid4()), 'events': events, 'resources': str(args.owl_resources.resolve()),
-                                       'page_size': reference['preferences']['candidate_page_size']}))
+                                       'state_root': str(Path(state) / 'owl'), 'page_size': reference['preferences']['candidate_page_size']}))
         owl = owl_replay(args.xctestrun.resolve(), request, args.output.resolve() / 'owl.json')
     if source_identity() != build['source']:
         raise ValueError('source changed during replay')
