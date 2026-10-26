@@ -102,6 +102,16 @@ class BuildLifecycleTests(unittest.TestCase):
                     self.assertEqual(cleaned, [owned, owned])
                     self.assertEqual(sentinel.read_text(), 'caller data')
 
+    def test_fresh_reference_worker_imports_its_script_dependencies(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as directory:
+            missing = Path(directory) / 'missing-oracle-library.dylib'
+            with self.assertRaises(subprocess.CalledProcessError) as failure:
+                parity.reference_replay(missing, Path(directory), Path(directory),
+                                        [{'op': 'character', 'value': 'a'}], 'native-mac-host')
+            self.assertIn(str(missing), failure.exception.stderr)
+            self.assertNotIn('ModuleNotFoundError', failure.exception.stderr)
+
     def test_sigterm_runs_owned_build_cleanup(self):
         import subprocess
         import signal
