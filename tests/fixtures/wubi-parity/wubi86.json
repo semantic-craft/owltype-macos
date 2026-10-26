@@ -1,0 +1,86 @@
+{
+  "description": "Fixed Wubi 86 native-host baseline: short codes, ambiguity, an exact phrase and an empty code. Record differences; no candidate whitelist or suppressed fields.",
+  "scheme": "wubi86",
+  "events": [
+    {
+      "op": "character",
+      "value": "i"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "s"
+    },
+    {
+      "op": "character",
+      "value": "e"
+    },
+    {
+      "op": "character",
+      "value": "b"
+    },
+    {
+      "op": "character",
+      "value": "v"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "b"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    }
+  ]
+}
