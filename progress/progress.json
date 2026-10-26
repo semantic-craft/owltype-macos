@@ -1,0 +1,577 @@
+{
+  "facts": {
+    "main": "274fad9d2d3bd667e32c9a66a1812199f1ad3f77",
+    "default_branch": "main",
+    "pulls": [],
+    "open_pulls": [
+      {
+        "number": 305,
+        "head": "227dadd9f59191751fe69f8964e262c53ffe7355"
+      }
+    ],
+    "issues": [
+      {
+        "number": 280,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:47:32Z"
+      },
+      {
+        "number": 281,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T07:04:28Z"
+      },
+      {
+        "number": 282,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T07:04:30Z"
+      },
+      {
+        "number": 283,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:40:44Z"
+      },
+      {
+        "number": 284,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:40:45Z"
+      },
+      {
+        "number": 285,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:40:46Z"
+      },
+      {
+        "number": 286,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:40:48Z"
+      },
+      {
+        "number": 287,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:40:49Z"
+      },
+      {
+        "number": 288,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:40:50Z"
+      },
+      {
+        "number": 289,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:40:51Z"
+      },
+      {
+        "number": 290,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:40:52Z"
+      },
+      {
+        "number": 291,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:40:54Z"
+      },
+      {
+        "number": 292,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:41:59Z"
+      },
+      {
+        "number": 293,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:40:56Z"
+      },
+      {
+        "number": 294,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:48:37Z"
+      },
+      {
+        "number": 295,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:55:11Z"
+      },
+      {
+        "number": 296,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:55:12Z"
+      },
+      {
+        "number": 297,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:55:13Z"
+      },
+      {
+        "number": 298,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:55:14Z"
+      },
+      {
+        "number": 299,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:55:15Z"
+      },
+      {
+        "number": 300,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:55:17Z"
+      },
+      {
+        "number": 301,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:55:18Z"
+      },
+      {
+        "number": 302,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:55:19Z"
+      },
+      {
+        "number": 303,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:55:20Z"
+      },
+      {
+        "number": 304,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-26T06:55:21Z"
+      }
+    ],
+    "releases": []
+  },
+  "inputs": [
+    "docs/input-alignment.md",
+    "progress/sync.py",
+    "progress/teslahub.mjs"
+  ],
+  "observed_at": "2026-10-26T07:06:10Z",
+  "outputs": [
+    "progress/index.html"
+  ],
+  "page": "progress/index.html",
+  "related_repositories": [],
+  "renderer": null,
+  "repository": "semantic-craft/owltype-macos",
+  "schema_version": 1,
+  "sections": [
+    {
+      "id": "contract",
+      "title": "共同入口与领取",
+      "items": [
+        {
+          "id": "coordination",
+          "title": "GitHub 为真源；两个输入方案共用设施",
+          "status": "in_progress",
+          "summary": "本页是带观察时间的快照。阻塞按 GitHub 原生依赖计算；负责人只表示 GitHub 指派，不冒充 agent 会话。工单关闭不自动等于产品验收。",
+          "next": "按 docs/input-alignment.md 使用 TeslaHub 唯一领取入口；不要从静态 HTML 启动第二个执行器。刷新：python3 progress/sync.py。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 280,
+              "note": "拼音规格与已存在工单"
+            },
+            {
+              "kind": "issue",
+              "ref": 294,
+              "note": "五笔规格与十张子票"
+            },
+            {
+              "kind": "file",
+              "ref": "docs/input-alignment.md",
+              "note": "共用依赖、领取及同步协议"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pinyin",
+      "title": "拼音对齐（现有执行线）",
+      "items": [
+        {
+          "id": "issue-281",
+          "title": "#281 [拼音对齐 T01] 固定水杉基线，建立双端按键对照",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：无。",
+          "next": "沿用当前执行会话，勿重复领取。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 281,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-282",
+          "title": "#282 [拼音对齐 T02] 默认全拼使用水杉完整资源与组句行为",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#281。",
+          "next": "沿用当前执行会话，勿重复领取。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 282,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-283",
+          "title": "#283 [拼音对齐 T03] 中英混输、纠错和模糊音对齐",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#282。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 283,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-284",
+          "title": "#284 [拼音对齐 T04] 双拼及自定义双拼对齐",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#282。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 284,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-285",
+          "title": "#285 [拼音对齐 T05] 简繁、标点及特殊输入对齐",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#282。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 285,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-286",
+          "title": "#286 [拼音对齐 T06] 即时模型评分与候选排序对齐",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#282。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 286,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-287",
+          "title": "#287 [拼音对齐 T07] 停顿重排和异步候选更新对齐",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#286。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 287,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-288",
+          "title": "#288 [拼音对齐 T08] 编辑、部分选词和翻页行为对齐",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#282。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 288,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-289",
+          "title": "#289 [拼音对齐 T09] 选词学习与重启后的调频对齐",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#282。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 289,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-290",
+          "title": "#290 [拼音对齐 T11] 保留 AI、模板入口，隔离普通拼音候选",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#282。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 290,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-291",
+          "title": "#291 [拼音对齐 T12] 词库和模型更新、回退后仍保持对齐",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#289, #286。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 291,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-292",
+          "title": "#292 [拼音对齐 T13] 差异及跨功能风险对照收口",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#291, #290, #288, #287, #285, #284, #283。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 292,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-293",
+          "title": "#293 [拼音对齐 T14] 正式交付包与已验证版本一致性核对",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#292。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 293,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wubi",
+      "title": "五笔对齐（本轮工单）",
+      "items": [
+        {
+          "id": "issue-295",
+          "title": "#295 [五笔对齐 W01] 五笔基线与双端差异样例",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#281。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 295,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-296",
+          "title": "#296 [五笔对齐 W02] 五笔 86 正式资源与候选对齐",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#295。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 296,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-297",
+          "title": "#297 [五笔对齐 W03] 连打与上屏规则对齐",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#296。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 297,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-298",
+          "title": "#298 [五笔对齐 W04] 五笔拼音混输对齐",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#283, #296。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 298,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-299",
+          "title": "#299 [五笔对齐 W05] z 反查、通配与编码提示",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#282, #296。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 299,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-300",
+          "title": "#300 [五笔对齐 W06] 五笔 98 完整输入",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#296。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 300,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-301",
+          "title": "#301 [五笔对齐 W07] 五笔学习与重启恢复",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#289, #296。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 301,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-302",
+          "title": "#302 [五笔对齐 W08] Owltype 增强入口与普通五笔隔离",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#290, #296。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 302,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-303",
+          "title": "#303 [五笔对齐 W09] 五笔资源更新与回退",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#291, #301。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 303,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-304",
+          "title": "#304 [五笔对齐 W10] 差异收口与交付一致性",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#303, #302, #300, #299, #298, #297。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 304,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "title": "Owltype · 水杉输入对齐",
+  "tracked": {
+    "issues": [
+      280,
+      294,
+      281,
+      282,
+      283,
+      284,
+      285,
+      286,
+      287,
+      288,
+      289,
+      290,
+      291,
+      292,
+      293,
+      295,
+      296,
+      297,
+      298,
+      299,
+      300,
+      301,
+      302,
+      303,
+      304
+    ],
+    "pulls": []
+  }
+}

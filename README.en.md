@@ -4,7 +4,7 @@
 
 # Owltype · 猫头鹰输入法
 
-**An open-source Rime input method, made for everyday typing and AI workflows.**
+**An open-source Rust input method, made for everyday typing and AI workflows.**
 
 Native macOS UI · Pinyin / Double Pinyin / Wubi · Prompt snippets · Raycast import
 
@@ -20,7 +20,7 @@ Native macOS UI · Pinyin / Double Pinyin / Wubi · Prompt snippets · Raycast i
 
 </div>
 
-Owltype is an **open-source Chinese input method for macOS, built on Rime**. Describe a task in Chinese, type a `/` command or a `$` skill name, then insert a reusable prompt: the little steps of working with AI agents belong in the input experience.
+Owltype is an **open-source Chinese input method for macOS, built on the MSIME Rust engine**. Describe a task in Chinese, type a `/` command or a `$` skill name, then insert a reusable prompt: the little steps of working with AI agents belong in the input experience.
 
 Native SwiftUI candidates, nine colour palettes, familiar input schemes and mixed Chinese/English typing keep everyday writing comfortable. Typing and snippets run locally. Optional cloud AI runs only after you configure and explicitly invoke it.
 
@@ -66,7 +66,7 @@ Copy the material, type `;;review` in a supported text field, fill or confirm pa
 
 ### ⌨️ Familiar ways to type
 
-Full Pinyin, Flypy double Pinyin, Wubi 86 Jidian, and simplified-to-traditional output. Adjust candidate count, fonts, orientation, initial language and per-app initial English rules in the keyboard and candidate settings. Rime keeps vocabulary learning and user frequency data on-device.
+Full Pinyin, Flypy double Pinyin, Wubi 86 Jidian, and simplified-to-traditional output. Adjust candidate count, fonts, orientation, initial language and per-app initial English rules in the keyboard and candidate settings. The Rust engine keeps vocabulary learning and user frequency data on-device.
 
 The app bundles its engine and a basic seed dictionary. Full dictionaries are downloaded from upstream through the app. Initial downloads require a network connection; everyday typing then runs locally.
 
@@ -150,7 +150,7 @@ Settings screenshots use sample data in the isolated 2.0.12 demo window; candida
 <details>
 <summary>Acceptance scope and previous release</summary>
 
-Mixed input and keyboard pinning have TextEdit evidence. The context menu, cross-app Shift switching and full onboarding flow still need installed-app verification. Native-controller and real-Rime integration tests cover the feature logic. See the [design and acceptance record](docs/input-habits-design.md) (Chinese).
+Mixed input and keyboard pinning have TextEdit evidence. The context menu, cross-app Shift switching and full onboarding flow still need installed-app verification. Historical host evidence and current Rust checks have separate coverage boundaries. See the [design and acceptance record](docs/input-habits-design.md) (Chinese).
 
 **2.0.10 (2026-10-01)** added the MiniMax M3.1 preset and China subscription search, and restored the update channel. Users on 2.0.9 or earlier need one manual installation of 2.0.10 or later before receiving subsequent in-app updates.
 
@@ -201,7 +201,7 @@ Public builds use a clean-room dictionary seed (`scripts/owl-seed.sh`) assembled
 with an auditable redistribution grant; generated word entries are restricted to the 8,105
 characters of the 通用规范汉字表. The full dictionary set is fetched from its upstream repositories
 by the app on first run — Owltype does not redistribute that data. Per-input provenance is written
-to `OWLTYPE-SEED-SOURCES.md` inside the build product.
+to OWLTYPE-SEED-SOURCES.md inside the build product.
 
 Signing, notarization and packaging are handled by `scripts/release.sh`. After verification,
 `scripts/owl_distribution.py --publish` publishes the complete cohort through responsay.com. There
