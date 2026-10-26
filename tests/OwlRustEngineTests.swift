@@ -137,6 +137,20 @@ final class OwlRustEngineTests: XCTestCase {
     return engine
   }
 
+  private func removeResourceTestTree(_ root: URL) {
+    guard FileManager.default.fileExists(atPath: root.path) else { return }
+    do {
+      try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: root.path)
+      let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isDirectoryKey])
+      while let url = enumerator?.nextObject() as? URL {
+        if try url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true {
+          try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
+        }
+      }
+      try FileManager.default.removeItem(at: root)
+    } catch { XCTFail("isolated resource cleanup failed: \(error)") }
+  }
+
   private func typeText(
     _ text: String,
     into session: RimeSession,
@@ -538,7 +552,7 @@ final class OwlRustEngineTests: XCTestCase {
 
   func testProductionUpdatePreparesTheCompletePinnedCombination() async throws {
     let user = URL(fileURLWithPath: "/private/tmp/owl-pinned-update-\(UUID().uuidString)")
-    defer { try? FileManager.default.removeItem(at: user) }
+    defer { removeResourceTestTree(user) }
     let backend = OwlDictPackCenterRustBackend.production(userRoot: user)
     let prepared = try await backend.prepare(backend.environment, nil)
     XCTAssertNil(try backend.environment.activeState(), "preparing must not activate")
@@ -823,7 +837,7 @@ final class OwlRustEngineTests: XCTestCase {
     try FileManager.default.createDirectory(
       at: userRoot, withIntermediateDirectories: true
     )
-    defer { try? FileManager.default.removeItem(at: userRoot) }
+    defer { removeResourceTestTree(userRoot) }
 
     let protectedFiles: [String: Data] = [
       "owltype/settings.json": Data(#"{"skin":"deepred","pageSize":7}"#.utf8),
