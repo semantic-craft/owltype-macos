@@ -19,3 +19,5 @@ For input, settings, dictionaries, AI, installation, or verification work, start
 
 Before changing acceptance scripts or interpreting live evidence, read [LESSONS.md](LESSONS.md).
 Record observed acceptance failures there with their regression and scope.
+
+When a repository's documentation and its existing code disagree, follow the conventions used in the existing code, and in your final reply point out each inconsistency you found between the documentation and the code.
