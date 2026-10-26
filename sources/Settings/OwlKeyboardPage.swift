@@ -1003,10 +1003,10 @@ struct OwlKeyboardPage: View {
           }
         )
         SettingsToggleRow(
-          title: "拼音候选中显示快捷短语", isOn: state.pinyinQuickPhraseCandidates,
+          title: "普通候选中显示快捷短语", isOn: state.quickPhraseCandidates,
           palette: palette, onToggle: {
-            OwlSettingsActions.toggle(state: state, keyPath: \.pinyinQuickPhraseCandidates) {
-              OwlKeyboardPreferences.pinyinQuickPhraseCandidates = $0
+            OwlSettingsActions.toggle(state: state, keyPath: \.quickPhraseCandidates) {
+              OwlKeyboardPreferences.quickPhraseCandidates = $0
             }
           }
         )

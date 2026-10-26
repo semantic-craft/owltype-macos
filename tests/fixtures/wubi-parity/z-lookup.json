@@ -1,0 +1,75 @@
+{
+  "description": "Pinned pure-Wubi suffix-only z lookup, raw fallback and no Pinyin promotion after lookup selection.",
+  "scheme": "wubi86",
+  "events": [
+    {
+      "op": "character",
+      "value": "z"
+    },
+    {
+      "op": "character",
+      "value": "i",
+      "expect": {
+        "candidates": [],
+        "has_more": false
+      }
+    },
+    {
+      "op": "command",
+      "value": "commit",
+      "expect": {
+        "commit": "i"
+      }
+    },
+    {
+      "op": "character",
+      "value": "z"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "i"
+    },
+    {
+      "op": "select",
+      "index": 1,
+      "expect": {
+        "commit": "海"
+      }
+    },
+    {
+      "op": "schema",
+      "schema": "rime_ice",
+      "reference_scheme": "quanpin"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "i",
+      "expect": {
+        "candidates": [
+          "还",
+          "海",
+          "孩",
+          "害",
+          "骇",
+          "嗨"
+        ]
+      }
+    }
+  ]
+}

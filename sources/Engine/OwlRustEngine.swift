@@ -178,7 +178,7 @@ final class OwlRustSession: RimeSession {
   private var preeditCaretByteOffset: Int = 0
   private var customCaretPos: Int?
   private var lastAppliedPageSize: Int = 0
-  private var lastAppliedPinyinQuickPhrases: Bool?
+  private var lastAppliedQuickPhrases: Bool?
   private var lastAppliedASCIIPunct: Bool?
   private var lastAppliedFuzzyMask: UInt32 = 0
   private var lastAppliedWubiCandidateMode: String = ""
@@ -761,11 +761,11 @@ final class OwlRustSession: RimeSession {
   }
 
   private func applyRuntimePreferences(includeHostPhrases: Bool) -> Bool {
-    let quickPhrases = OwlKeyboardPreferences.pinyinQuickPhraseCandidates
-    if quickPhrases != lastAppliedPinyinQuickPhrases {
-      guard let response = sendAction(["op": "set_option", "name": "pinyin_quick_phrase_candidates",
+    let quickPhrases = OwlKeyboardPreferences.quickPhraseCandidates
+    if quickPhrases != lastAppliedQuickPhrases {
+      guard let response = sendAction(["op": "set_option", "name": "quick_phrase_candidates",
                                        "value": quickPhrases]), response.isOK else { return false }
-      lastAppliedPinyinQuickPhrases = quickPhrases
+      lastAppliedQuickPhrases = quickPhrases
       _ = applyActionResponse(response)
     }
     let pageSize = max(3, min(9, OwlKeyboardPreferences.pageSize))

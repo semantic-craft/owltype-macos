@@ -17,13 +17,13 @@
     "Public root/path validator exports used by the C ABI.",
     "Candidate emoji live toggle and cached-candidate view exposure.",
     "Custom shuangpin semicolon spelling precedence.",
-    "Wubi independent Z lookup switch and complete-spelling fallback; native mixed candidate code-row identity and group order.",
+    "Wubi independent Z lookup switch; pinned suffix-only reverse lookup, native mixed candidate code-row identity and group order.",
     "Wubi follows native phrase holding and upstream sentence-alternative defaults, shared with ordinary pinyin.",
     "Host-loaded verified keyboard model handoff and live candidate refresh through existing neural lattice scorer; no synchronous model file read on the key path.",
     "Native host-context smart punctuation uses upstream route/repeat/space-convert decisions; C ABI transports JSON without changing candidate IDs.",
     "Owl enhancement boundary: quick_phrase_table_in_candidates defaults true upstream; Owl false requires explicit K plus a complete host trigger. Native database quick phrases retain ordinary placement and K prefix browsing; no native candidate algorithm change.",
     "Native host adapters expose existing runtime Finish and paired-book balance actions; Swift mirrors the pinned macOS marked-closing tail and quote reopening contract. Application chords finish before passthrough; slash-to-English remains an explicit Owl product exception.",
-    "Native quick-phrase capability is distinct from fresh mixed_input.quick_phrase=false; live preference forwarding queues until runtime idle and preserves composition. Pinyin keeps pinned pre-mixing placement/counts while Wubi retains #307 visible-seat placement."
+    "Native quick-phrase capability is distinct from fresh mixed_input.quick_phrase=false; live preference forwarding queues until runtime idle and preserves composition. One shared preference preserves its existing storage key; Pinyin and Wubi use pinned pre-mixing placement/counts."
   ],
   "defaultPinyin": {
     "sentence_alternatives": true,
