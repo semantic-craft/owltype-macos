@@ -34,6 +34,10 @@ EXPECTED_ROW_HASHES = {
     "emoji_pinyin": "e761e06bb14331d27d48786fe6be4e998f289344e139e1252ce53f9090a4c306",
 }
 LICENSE_EXPRESSION = "GPL-3.0-only AND Unicode-3.0 AND MIT"
+REQUIRED_NOTICE_HASHES = {
+    "rime-kaomoji.LICENSE": "bc4f44c16c8a6ea28e30ac4e1e9a737e8711ba3140f241fea9c8404a86f3ffe1",
+    "msime-others-NOTICE.txt": "b1ac4e7efbc3c97d44cd65ecfb43ef30042ce8c91bad57bbb1dc1b94ef4ba7a3",
+}
 TABLE_ORDER = {
     "kaomoji": ("pinyin", "jianpin", "kaomoji"),
     "kaomoji_catalog": ("kaomoji",),
@@ -172,6 +176,15 @@ def verify_database(
             connection.close()
     except sqlite3.Error as error:
         raise Failure(f"cannot read SQLite resource {path}: {error}") from error
+
+
+def verify_distribution(shared_support: Path) -> None:
+    """Use the same pinned four-table and notice contract at delivery time."""
+    verify_database(shared_support / "msime/msime-others.db")
+    for name, expected in REQUIRED_NOTICE_HASHES.items():
+        path = shared_support / name
+        if not path.is_file() or path.is_symlink() or sha256(path) != expected:
+            raise Failure(f"missing or changed pinned others notice: {name}")
 
 
 def read_source_tables(path: Path) -> dict[str, list[tuple[object, ...]]]:

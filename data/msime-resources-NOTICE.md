@@ -45,8 +45,12 @@ notice and pinned builder. The CC-BY-SA license applies to those sidecars.
 
 Upstream explicitly states that PiliApp `symbol_catalog` redistribution permission
 is unconfirmed. Owl therefore does not ship the complete `msime-others.db` in
-this change. The existing emoji-only extraction and `msime-others-NOTICE.txt`
-remain the production contract. The full auxiliary release is retained in the
+this change. Only the audited `emoji`, `emoji_pinyin`, `kaomoji` and
+`kaomoji_catalog` tables enter the product. The latter two retain the MIT-licensed
+aoguai/rime_kaomoji_dict data unchanged from the pinned release, with the verbatim
+`rime-kaomoji.LICENSE`. Their exact row counts and canonical hashes and the emoji
+source licenses are recorded in `msime-others-NOTICE.txt`; the acquisition and
+delivery checks enforce that same four-table production contract. The full auxiliary release is retained in the
 build cache for future reviewed use; acquisition does not claim redistribution
 permission. Japanese/Wubi release members and their notices likewise remain in
 the build cache; Owl's existing Wubi resource stays authoritative. Neural model
