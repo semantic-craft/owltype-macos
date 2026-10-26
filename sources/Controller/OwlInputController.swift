@@ -156,6 +156,7 @@ final class OwlInputController: IMKInputController {
     }
     ensurePreferredSchemaForIdleSession()
     syncPinnedWords()
+    if event.type == .keyDown, handleCandidateDeletionHotKey(event) { return true }
     if event.type == .keyDown, handlePinHotKey(event) { return true }
 
     if handleAutomaticExpansion(event) { return true }

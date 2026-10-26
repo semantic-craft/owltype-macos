@@ -31,6 +31,16 @@ class DifferentialTests(unittest.TestCase):
             with self.subTest(field=field):
                 self.assertEqual(parity.differences(trace, changed)[0]['field'], field)
 
+    def test_equal_traces_cannot_hide_failed_learning_checkpoint(self):
+        event = {'op': 'restart', 'expect': {'candidates': ['尼', '你']}}
+        step = dict(event=event, consumed=True, input='', preedit='', caret=0,
+                    page=0, page_size=6, has_more=False, highlighted=0,
+                    candidates=['你', '尼'], commit=None)
+        trace = {'steps': [step]}
+        differences = parity.differences(trace, copy.deepcopy(trace))
+        self.assertEqual([d['field'] for d in differences],
+                         ['fixture_expectation', 'fixture_expectation'])
+
     def test_incomplete_trace_cannot_pass(self):
         self.assertTrue(parity.differences({"steps": [{}]}, {"steps": [{}]}))
         self.assertTrue(parity.differences({"steps": []}, {"steps": []}))
@@ -49,7 +59,7 @@ class ExportTransportTests(unittest.TestCase):
             output.write_text(json.dumps({'run_id': 'old', 'steps': []}))
             with patch.object(parity.subprocess, 'run'):
                 with self.assertRaisesRegex(ValueError, 'did not export'):
-                    parity.owl_replay(config, request, output)
+                    parity.owl_replay_once(config, request, output)
             self.assertFalse(output.exists())
 
     def test_export_from_another_run_fails(self):
@@ -62,7 +72,7 @@ class ExportTransportTests(unittest.TestCase):
                 output.write_text(json.dumps({'run_id': 'other'}))
             with patch.object(parity.subprocess, 'run', side_effect=export_other_run):
                 with self.assertRaisesRegex(ValueError, 'different replay'):
-                    parity.owl_replay(config, request, output)
+                    parity.owl_replay_once(config, request, output)
 
 
 if __name__ == '__main__':

@@ -35,13 +35,13 @@ final class OwlRustEngineTests: XCTestCase {
       if let saved { defaults.setPersistentDomain(saved, forName: OwlDefaults.testSuiteName) }
     }
     OwlKeyboardPreferences.pageSize = try XCTUnwrap(request["page_size"] as? Int)
-    let temporary = FileManager.default.temporaryDirectory
-      .appendingPathComponent("owl-pinyin-parity-\(UUID().uuidString)")
+    // The runner owns this fresh temporary root across separate test-host processes.
+    let stateRoot = try XCTUnwrap(request["state_root"] as? String)
+    let temporary = URL(fileURLWithPath: stateRoot)
     try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: temporary) }
     let engine = OwlRustEngine(sharedSupportURL: resources, userDataURL: temporary,
                                activeGenerationProvider: { nil })
-    let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
+    var session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
     defer { session.destroy() }
     XCTAssertTrue(session.selectSchema("rime_ice"))
     let commands: [String: UInt32] = [
@@ -67,6 +67,16 @@ final class OwlRustEngineTests: XCTestCase {
         let visible = try XCTUnwrap(session.composition())
         XCTAssertTrue(visible.candidates.indices.contains(index))
         consumed = session.selectCandidate(index)
+      case "remove":
+        let index = try XCTUnwrap(event["index"] as? Int)
+        consumed = session.removeCandidate(OwlCandidateToken(
+          sessionID: session.sessionID, generation: session.generation, candidateID: index))
+      case "restart":
+        session.destroy()
+        XCTAssertTrue(engine.finalize(), "Restart must close cached learning handles")
+        session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
+        XCTAssertTrue(session.selectSchema("rime_ice"))
+        consumed = true
       default:
         XCTFail("Unsupported parity event: \(op)")
         return
