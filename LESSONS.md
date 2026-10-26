@@ -453,3 +453,19 @@ review dates, not retries. Keep deterministic checks in the local gate.
   `testShuangpinSemicolonSpellingPrecedesCandidateShortcut` pass together (9 tests). The FFI
   `pure_wubi_fifth_key_tops_an_ambiguous_four_code` reproduces the missing commit before the
   adapter correction and passes afterwards. This proves the session/resource seam, not IMK installation.
+
+## Fresh upstream defaults own ordinary pinyin candidate order
+
+- Seen 1x (2026-10-26): after importing the pinned full dictionary, the real host
+  differential still showed nine candidate-order differences. Owl's Chinese-only
+  first-page transform hid upstream's exact English seats (`xi`, `chan`), and an
+  emoji-off default removed default mixed rows. Host quick-phrase promotion also
+  overrode upstream's fresh-install ordinary-mode boundary.
+- Keep ordinary ranking in the pinned engine; retain the transform only for explicit
+  user pins and Wubi policy. Enable macOS default emoji and static symbol names,
+  disable fresh ordinary quick-phrase injection, and retain explicit K-mode access.
+- Verify: `tests/fixtures/pinyin-parity/full-pinyin.json` and `mixed-input.json`
+  against the unmodified pinned host; `testPinnedUpstreamMixedEnglishAndEmojiOrder`
+  and the existing fuzzy/typo/English tests check the Swift session seam. The pinned
+  engine treats legal `nihaao` literally; the former fixture's forced 你好 result
+  must not be restored by another local correction policy.
