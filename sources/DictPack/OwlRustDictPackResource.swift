@@ -68,7 +68,7 @@ struct OwlRustResourceEnvironment: Sendable {
       at: configuration.userRoot, withIntermediateDirectories: true
     )
     return try OwlRustResourceStore(
-      configuration: configuration, engine: .owlRustResourceV1
+      configuration: configuration, engine: .owlRustNativeInputV1
     )
   }
 
@@ -377,6 +377,9 @@ struct OwlRustDictPackResourceInstaller {
 enum OwlRustCompatibleResources {
   static let packageVersion = 3
   static let configurationVersion = "msime-macos-v0.55.0-native-input-v1"
+  // data/msime-dictionary-manifest.json, dict-v2.0.24: both official 86/98 tables.
+  // Like the model hashes, this identity belongs to the fixed binary configuration.
+  static let wubiDictionaryDigest = "sha256:851ed68211311a76847fe6a26096702747abbaab8dffb141698e0365143b31c1"
   static let requiredFiles = [
     "msime-pinyin.db", "msime-wubi.db", "msime-english.db", "msime-others.db",
     "msime-bigram.bin", "msime-trigram.bin", "msime-dictionary-manifest.json",
@@ -458,11 +461,15 @@ enum OwlRustCompatibleResources {
       throw OwlRustResourceError.fileMissing("files/" + name)
     }
     try OwlRustResourceVerifier.verifyGeneration(at: root, manifest: manifest,
-      engine: .owlRustResourceV1, requireCompleteMarker: requireCompleteMarker)
+      engine: .owlRustNativeInputV1, requireCompleteMarker: requireCompleteMarker)
     let resources = root.appendingPathComponent("files")
     guard try String(contentsOf: resources.appendingPathComponent("compatibility.txt"), encoding: .utf8)
       == configurationVersion + "\n" else {
       throw OwlRustResourceError.incompatibleEngine("resource configuration version differs from this binary")
+    }
+    guard try OwlRustResourceVerifier.digestOfFile(resources.appendingPathComponent("msime-wubi.db"))
+      == wubiDictionaryDigest else {
+      throw OwlRustResourceError.incompatibleEngine("official Wubi tables differ from this binary")
     }
     for kind in OwlRerankModelKind.allCases {
       let descriptor = OwlRerankModelDescriptor.descriptor(for: kind)

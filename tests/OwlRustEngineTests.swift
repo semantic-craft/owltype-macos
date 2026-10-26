@@ -563,10 +563,48 @@ final class OwlRustEngineTests: XCTestCase {
                                                                requireCompleteMarker: false))
   }
 
+  func testPinnedWubiIdentityRejectsAValidDigestWithAnEmpty98Table() throws {
+    let seed = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+      .deletingLastPathComponent().appendingPathComponent("data/owl-rime")
+    let temporary = FileManager.default.temporaryDirectory
+      .appendingPathComponent("owl-empty-wubi98-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: temporary) }
+    let built = try OwlRustCompatibleResources.build(sharedSupport: seed, at: temporary, version: 3)
+    let wubi = temporary.appendingPathComponent("files/msime-wubi.db")
+    var database: OpaquePointer?
+    XCTAssertEqual(sqlite3_open(wubi.path, &database), SQLITE_OK)
+    XCTAssertEqual(sqlite3_exec(database, "DELETE FROM wubi98", nil, nil, nil), SQLITE_OK)
+    sqlite3_close(database)
+    let files = try built.manifest.files.map { file -> OwlRustResourceFile in
+      guard file.path == "files/msime-wubi.db" else { return file }
+      let attributes = try FileManager.default.attributesOfItem(atPath: wubi.path)
+      return OwlRustResourceFile(path: file.path, role: file.role, mediaType: file.mediaType,
+        size: (attributes[.size] as? NSNumber)?.intValue ?? 0,
+        digest: try OwlRustResourceVerifier.digestOfFile(wubi))
+    }
+    let unsigned = OwlRustResourceManifest(schemaVersion: 1, packageId: built.manifest.packageId,
+      inputKind: .pinyinWubi, version: 3, digest: OwlRustResourceManifest.zeroDigest,
+      license: built.manifest.license, engineCompatibility: built.manifest.engineCompatibility, files: files)
+    let changed = OwlRustResourceManifest(schemaVersion: 1, packageId: unsigned.packageId,
+      inputKind: unsigned.inputKind, version: 3, digest: try unsigned.calculatedDigest(),
+      license: unsigned.license, engineCompatibility: unsigned.engineCompatibility, files: files)
+    // Both tables still have valid schemas and every byte agrees with this new manifest.
+    XCTAssertNoThrow(try OwlRustResourceVerifier.verifyGeneration(at: temporary, manifest: changed,
+      engine: .owlRustNativeInputV1, requireCompleteMarker: false))
+    XCTAssertThrowsError(try OwlRustCompatibleResources.validate(at: temporary, manifest: changed,
+      requireCompleteMarker: false)) { error in
+      guard case OwlRustResourceError.incompatibleEngine = error else {
+        return XCTFail("unexpected error: \(error)")
+      }
+    }
+  }
+
   func testProductionUpdatePreparesTheCompletePinnedCombination() async throws {
     let user = URL(fileURLWithPath: "/private/tmp/owl-pinned-update-\(UUID().uuidString)")
     defer { removeResourceTestTree(user) }
-    let backend = OwlDictPackCenterRustBackend.production(userRoot: user)
+    let seed = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+      .deletingLastPathComponent().appendingPathComponent("data/owl-rime")
+    let backend = OwlDictPackCenterRustBackend.production(userRoot: user, sharedSupport: seed)
     let prepared = try await backend.prepare(backend.environment, nil)
     XCTAssertNil(try backend.environment.activeState(), "preparing must not activate")
     XCTAssertEqual(prepared.version, OwlRustCompatibleResources.packageVersion)
@@ -575,7 +613,7 @@ final class OwlRustEngineTests: XCTestCase {
       XCTAssertTrue(names.contains("files/" + name), "complete payload lacks \(name)")
     }
     XCTAssertGreaterThan(prepared.stats.pinyinEntries, 900_000)
-    XCTAssertGreaterThan(prepared.stats.wubiEntries, 80_000)
+    XCTAssertEqual(prepared.stats.wubiEntries, 126_078)
     XCTAssertGreaterThan(prepared.stats.englishEntries, 70_000)
     let preparedResources = try backend.environment.validatedGeneration(prepared.resource.record).resourcesURL
     let model = preparedResources.appendingPathComponent("models/keyboard-model.bin")
@@ -591,7 +629,7 @@ final class OwlRustEngineTests: XCTestCase {
     try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: model.path)
     let installed = try await backend.activate(backend.environment, prepared.resource)
     XCTAssertEqual(try backend.environment.activeGeneration()?.contentID, installed.state.current.generationId)
-    let engine = OwlRustEngine(sharedSupportURL: Bundle.main.sharedSupportURL, userDataURL: user)
+    let engine = OwlRustEngine(sharedSupportURL: seed, userDataURL: user)
     let session = engine.createSession()
     defer { session.destroy() }
     XCTAssertTrue(session.isValid)
@@ -867,6 +905,36 @@ final class OwlRustEngineTests: XCTestCase {
       try data.write(to: url)
     }
 
+    let defaults = OwlDefaults.standard
+    let learningKey = "OwlKeyboardWubiUserDictLearning"
+    let savedLearning = defaults.object(forKey: learningKey)
+    defaults.set(true, forKey: learningKey)
+    defer {
+      if let savedLearning { defaults.set(savedLearning, forKey: learningKey) }
+      else { defaults.removeObject(forKey: learningKey) }
+    }
+
+    func assertWubi(_ session: any RimeSession, learned86: Bool, learned98: Bool) {
+      for (schema, code, learned) in [("wubi86_jidian", "go", learned86), ("wubi98", "gu", learned98)] {
+        XCTAssertTrue(session.selectSchema(schema))
+        typeText(code, into: session)
+        XCTAssertEqual(session.composition()?.candidates.first?.text, "来")
+        session.clearComposition()
+        typeText("gggg", into: session)
+        XCTAssertEqual(session.composition()?.candidates.first?.text, learned ? "五一" : "王")
+        session.clearComposition()
+      }
+      XCTAssertTrue(session.selectSchema("rime_ice"))
+    }
+
+    func learnWubi(_ session: any RimeSession, schema: String) {
+      XCTAssertTrue(session.selectSchema(schema))
+      typeText("gggg", into: session)
+      XCTAssertTrue(session.selectCandidate(1))
+      XCTAssertEqual(session.takeCommit(), "五一")
+      XCTAssertTrue(session.selectSchema("rime_ice"))
+    }
+
     let environment = OwlRustResourceEnvironment.production(userRoot: userRoot)
     let store = try environment.makeStore()
     let packagesRoot = userRoot.deletingLastPathComponent()
@@ -919,11 +987,13 @@ final class OwlRustEngineTests: XCTestCase {
     )
     let sessionA = engineA.createSession()
     XCTAssertTrue(sessionA.isValid)
+    assertWubi(sessionA, learned86: false, learned98: false)
+    learnWubi(sessionA, schema: "wubi86_jidian")
     XCTAssertTrue(sessionA.process(keycode: UInt32(XK_n), modifiers: 0))
 
     let packageB = try makePackage(version: 2)
     let faulting = try OwlRustResourceStore(configuration: environment.configuration,
-      engine: .owlRustResourceV1, faults: .fail(at: .beforeActiveRename))
+      engine: .owlRustNativeInputV1, faults: .fail(at: .beforeActiveRename))
     do {
       _ = try await faulting.install(OwlRustResourceDirectorySource(root: packageB))
       XCTFail("interrupted activation must fail")
@@ -949,6 +1019,8 @@ final class OwlRustEngineTests: XCTestCase {
     typeText("pingguo", into: sessionA)
     XCTAssertTrue(sessionA.peekCandidates(from: 0, count: 100).contains { $0.text == "🍎" || $0.text == "🍏" })
     XCTAssertFalse(sessionA.peekCandidates(from: 0, count: 100).contains { $0.text == "🦉🦉" })
+    sessionA.clearComposition()
+    assertWubi(sessionA, learned86: true, learned98: false)
     sessionA.destroy()
 
     let dictionaries = userRoot.appendingPathComponent(
@@ -968,6 +1040,9 @@ final class OwlRustEngineTests: XCTestCase {
     )
     let sessionB = engineB.createSession()
     XCTAssertTrue(sessionB.isValid)
+    assertWubi(sessionB, learned86: true, learned98: false)
+    learnWubi(sessionB, schema: "wubi98")
+    assertWubi(sessionB, learned86: true, learned98: true)
     XCTAssertTrue(FileManager.default.fileExists(
       atPath: dictionaries.appendingPathComponent(
         "\(installedB.state.current.generationId)/.ready"
@@ -1049,6 +1124,8 @@ final class OwlRustEngineTests: XCTestCase {
       recoveredSession.clearComposition()
       typeText("nigu", into: recoveredSession)
       XCTAssertEqual(recoveredSession.composition()?.candidates.first?.text, learned)
+      recoveredSession.clearComposition()
+      assertWubi(recoveredSession, learned86: true, learned98: true)
       recoveredSession.destroy()
       try originalSidecar.write(to: sidecar)
       try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: sidecar.path)
@@ -1073,6 +1150,8 @@ final class OwlRustEngineTests: XCTestCase {
     typeText("pingguo", into: sessionAReopened)
     XCTAssertTrue(sessionAReopened.peekCandidates(from: 0, count: 100).contains { $0.text == "🍎" || $0.text == "🍏" })
     XCTAssertFalse(sessionAReopened.peekCandidates(from: 0, count: 100).contains { $0.text == "🦉🦉" })
+    sessionAReopened.clearComposition()
+    assertWubi(sessionAReopened, learned86: true, learned98: true)
     sessionAReopened.destroy()
 
     for (relativePath, expected) in protectedFiles {

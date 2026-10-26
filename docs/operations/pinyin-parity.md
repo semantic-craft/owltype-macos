@@ -240,3 +240,13 @@ learning preferences follow the native enabled default; an explicit stored false
 continues to disable learning. No user dictionary reset or migration is involved. After a journal exists, native
 fixed-position processing keeps Wubi producer rows ahead of Pinyin rows, even
 when the decoder initially preferred exact Pinyin over Wubi prefix completions.
+
+Production native resource generations use the split86/98 SQLite descriptor,
+separate from the retained legacy merged/custom descriptor. Under the fixed
+native configuration marker, the official Wubi file digest is pinned alongside
+model digests; regenerate the binary configuration identity when changing that
+resource combination. `testProductionUpdatePreparesTheCompletePinnedCombination`
+uses the real production backend with an explicit offline seed. The existing
+`testGenerationSwitchRollbackColdStartAndJournalReplayKeepUserState` checks both
+profile-specific code candidates and learning across the shared update, recovery
+and rollback transactions; no additional downloader or failure matrix is used.
