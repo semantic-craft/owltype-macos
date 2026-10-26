@@ -581,7 +581,9 @@ review dates, not retries. Keep deterministic checks in the local gate.
   dereference also did not preserve ownership across the call.
 - Fix: non-recycled opaque identities resolve through a thread-local owning registry.
   The engine's existing thread confinement is preserved; stale and foreign-thread
-  handles fail closed. Destroy and thread exit drop/flush sessions under the lifecycle
+  handles fail closed. Async host tests must remain on MainActor across awaits when
+  retaining a session, matching the production IMK thread contract. Destroy and thread
+  exit drop/flush sessions under the lifecycle
   lock before retiring active identities, so finalize cannot close a live cache.
 - Regression: `destroyed_handle_cannot_alias_a_reopened_session` reaches the real
   create/destroy/reopen FFI path and fails on the previous source in 0.05 seconds:
