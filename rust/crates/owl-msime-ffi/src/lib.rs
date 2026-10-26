@@ -3909,19 +3909,16 @@ mod tests {
     fn pure_wubi_fifth_key_tops_an_ambiguous_four_code() {
         let tmp = TempDir::new().unwrap();
         let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
-        let pinyin = repository.join("data/owl-rime/msime/msime-pinyin.db");
+        let resources = repository.join("data/owl-rime/msime");
         assert!(
-            pinyin.is_file(),
-            "missing production seed at {}",
-            pinyin.display()
+            resources.join(msime_engine::assets::WUBI_DICTIONARY).is_file(),
+            "missing official split Wubi seed at {}",
+            resources.display()
         );
-        let resources = tmp.path().join("resources");
-        fs::create_dir_all(&resources).unwrap();
         let user = tmp.path().join("user");
         let cache = tmp.path().join("cache");
-        let dictionaries = tmp.path().join("dictionaries");
-        let (session, error) =
-            create_with_explicit_roots(&pinyin, &resources, &user, &cache, &dictionaries);
+        // Use production generation preparation, which assembles the official split tables.
+        let (session, error) = create_with_generation(&resources, &user, &cache, "wubi-fifth");
         assert!(session.is_null() || error.is_none(), "{error:?}");
         assert!(!session.is_null());
 
