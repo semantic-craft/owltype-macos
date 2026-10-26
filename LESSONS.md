@@ -685,3 +685,42 @@ review dates, not retries. Keep deterministic checks in the local gate.
   replay; `testWubiLearningDefaultsToNativeAndPreservesExplicitOptOut` and
   `wubi_learning_default_persists_native_selection`. The final combined Wubi98
   path is checked after its schema/profile plumbing is integrated.
+
+## Native parity includes the controller and marked-text host
+
+- Seen 1x (2026-10-26): strict session traces did not exercise controller shortcut
+  passthrough or the native host's paired punctuation. Command/ordinary Control/Option
+  left a live conversion behind; pairing used the old insert-and-move convenience.
+- Native pinyin now finishes through pinned runtime `Action::Finish` before returning
+  application chords, while dedicated IME shortcuts and segment editing keep ownership.
+  Pairing follows the pinned macOS host: committed opening, marked closing tail,
+  closing on commit/focus, and fresh quote opening despite engine alternation.
+- Regression and Verify (验证点): run `python3 scripts/verify.py swift --test
+  OwlInputHabitsIntegrationTests --test OwlAutoPairTests --test KeyTranslationTests`.
+  The native tests drive actual controller → Rust → NSTextView and failed before the
+  fix. Session-only differential evidence cannot substitute for this boundary.
+- The differential runner now owns a separate temporary DerivedData tree and calls
+  `cleanup_app_registrations.prepare` before removal and after removal, also on failure
+  or interruption. `python3 scripts/pinyin-parity.selftest.py` preserves caller data
+  and fails closed when unregistering fails; JSON evidence stays outside that tree.
+- Explicit product exception: slash-to-English remains an Owltype feature per the
+  user's current decision. No unlicensed symbol catalog was imported.
+### Test hosts must not share a persistent preferences domain
+
+- Seen 1x (2026-10-26): the real settled-model oracle intermittently saw eight
+  candidates after explicitly setting six. Every worktree used the fixed
+  `im.owltype.inputmethod.Owltype.tests` suite; another test host's settings baseline
+  writes eight. Main-actor isolation does not isolate CFPreferences across processes.
+- `test-defaults-isolation.selftest.py` compiles the actual `OwlDefaults` selector
+  and runs two Foundation processes with page sizes six and eight. Before the fix
+  they publish the same suite and the first process reads the peer's eight.
+- Give each test/UI-test process a unique suite and remove it on normal exit.
+  Synchronize domain removal and remove its exact UUID plist on exit: a removed
+  domain can remain observable as `{}`, and a `defaults read` observer can itself
+  recreate an empty plist. Verify the file before reading and require the saved
+  key to be absent. The first cleanup assertion was initially misreported green;
+  independent review caught it before integration.
+  Production preferences still use `UserDefaults.standard`. The existing exact
+  six-row model oracle and its page-size precondition remain unchanged.
+- Verify: `python3 scripts/test-defaults-isolation.selftest.py` passes; the real
+  model/controller regression must also pass through the ordinary native host.

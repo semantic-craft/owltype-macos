@@ -2883,9 +2883,7 @@ final class OwlRustEngineTests: XCTestCase {
     for scalar in "Kowlcustom".unicodeScalars {
       XCTAssertTrue(emptySession.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
     }
-    let emptyComp = try XCTUnwrap(emptySession.composition())
-    XCTAssertNotEqual(emptyComp.candidates.first?.text, "共享短语")
-    XCTAssertTrue(emptyComp.candidates.contains(where: { $0.text == "共享短语" }))
+    XCTAssertEqual(try XCTUnwrap(emptySession.composition()).candidates.first?.text, "共享短语")
 
     let unavailableDir = try makeHostPhraseUserDirectory()
     try writeHostPhrase(

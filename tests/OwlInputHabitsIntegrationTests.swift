@@ -7,6 +7,101 @@ import XCTest
 /// The IMK IPC transport and TIS source detection are the only substituted boundaries.
 final class OwlInputHabitsIntegrationTests: XCTestCase {
   @MainActor
+  func testNativeApplicationChordsFinishCompositionBeforePassthrough() throws {
+    for flags: NSEvent.ModifierFlags in [.command, .control, .option] {
+      let root = FileManager.default.temporaryDirectory.appendingPathComponent("owl-finish-chord-\(UUID())")
+      defer { try? FileManager.default.removeItem(at: root) }
+      let engine = OwlRustEngine(sharedSupportURL: try XCTUnwrap(Bundle.main.sharedSupportURL),
+        userDataURL: root, activeGenerationProvider: { nil })
+      let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+      controller.destroySession()
+      controller.rime = engine.createSession()
+      let client = HabitsTextClient()
+      client.appID = "com.apple.TextEdit"
+      controller.client = client
+      defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
+      controller.rime?.setOption(.asciiMode, false)
+      try type("ni", into: controller, client: client)
+      XCTAssertFalse(controller.handle(try key("c", code: 8, flags: flags), client: client))
+      XCTAssertEqual(client.text.string, "你", "application receives its chord only after native FinishComposition")
+      XCTAssertEqual(controller.rime?.input(), "")
+      XCTAssertFalse(client.text.hasMarkedText())
+      // The input method's own segment-editing chord must keep ownership.
+      try type("nihao", into: controller, client: client)
+      XCTAssertTrue(controller.handle(try key("\u{f702}", code: 123, flags: .control), client: client))
+      XCTAssertEqual(controller.rime?.input(), "nihao")
+      XCTAssertTrue(client.text.hasMarkedText())
+    }
+  }
+
+  @MainActor
+  func testNativePairedPunctuationHoldsClosingAndReopensQuotes() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("owl-native-pairs-\(UUID())")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let engine = OwlRustEngine(sharedSupportURL: try XCTUnwrap(Bundle.main.sharedSupportURL),
+      userDataURL: root, activeGenerationProvider: { nil })
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    controller.destroySession()
+    controller.rime = engine.createSession()
+    let client = HabitsTextClient()
+    client.appID = "com.apple.TextEdit"
+    controller.client = client
+    defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
+    XCTAssertTrue(OwlKeyboardPreferences.autoPairBrackets, "pinned native default is paired punctuation on")
+    controller.rime?.setOption(.asciiMode, false)
+    controller.rime?.setOption(.asciiPunct, false)
+    XCTAssertTrue(controller.handle(try key("(", code: 25, flags: .shift), client: client))
+    XCTAssertEqual(client.text.string, "（）")
+    XCTAssertEqual(client.text.markedRange(), NSRange(location: 1, length: 1))
+    XCTAssertEqual(client.text.selectedRange(), NSRange(location: 1, length: 0))
+    try type("ni", into: controller, client: client)
+    XCTAssertTrue(client.text.string.hasSuffix("）"))
+    XCTAssertLessThanOrEqual(client.text.selectedRange().location, NSMaxRange(client.text.markedRange()) - 1)
+    try type(" ", into: controller, client: client)
+    XCTAssertEqual(client.text.string, "（你）")
+    XCTAssertFalse(client.text.hasMarkedText())
+    client.text.setSelectedRange(NSRange(location: 2, length: 0))
+    XCTAssertTrue(controller.handle(try key("）", code: 0), client: client))
+    XCTAssertEqual(client.text.string, "（你）", "skip only a closing mark this host owns")
+    XCTAssertEqual(client.text.selectedRange().location, 3)
+    for _ in 0..<2 {
+      XCTAssertTrue(controller.handle(try key("\"", code: 39, flags: .shift), client: client))
+      XCTAssertTrue(client.text.string.hasSuffix("“”"), "each fresh paired quote reopens upstream alternation")
+      XCTAssertEqual(client.text.markedRange().length, 1)
+      try type("hao ", into: controller, client: client)
+    }
+    XCTAssertEqual(client.text.string, "（你）“好”“好”")
+    for _ in 0..<2 {
+      XCTAssertTrue(controller.handle(try key("<", code: 43, flags: .shift), client: client))
+      XCTAssertTrue(client.text.string.hasSuffix("《》"), "host autoclose must balance the engine nesting state")
+      controller.commitComposition(client)
+    }
+    try type("nihao", into: controller, client: client)
+    XCTAssertTrue(controller.handle(try key("(", code: 25, flags: .shift), client: client))
+    XCTAssertTrue(client.text.string.hasSuffix("你好（）"), "punctuation tail after a candidate opens a pair")
+    controller.commitComposition(client)
+    XCTAssertFalse(client.text.hasMarkedText(), "host composition end must flush the held closing exactly once")
+    XCTAssertTrue(client.text.string.hasSuffix("你好（）"))
+    let complete = client.text.string
+    client.appID = "org.owltype.untrusted-host"
+    client.text.setSelectedRange(NSRange(location: complete.utf16.count - 1, length: 0))
+    XCTAssertFalse(controller.handle(try key("）", code: 0), client: client),
+      "an unverified host must receive the key without a replacement write")
+    XCTAssertEqual(client.text.string, complete)
+    client.appID = "com.apple.TextEdit"
+    client.text.setSelectedRange(NSRange(location: complete.utf16.count, length: 0))
+    XCTAssertTrue(controller.handle(try key("(", code: 25, flags: .shift), client: client))
+    try type("ni", into: controller, client: client)
+    let nextClient = HabitsTextClient()
+    nextClient.appID = "com.apple.TextEdit"
+    XCTAssertTrue(controller.handle(try key("h", code: 4), client: nextClient))
+    XCTAssertTrue(client.text.string.hasSuffix("（你）"), "old field completes before client replacement")
+    XCTAssertFalse(client.text.hasMarkedText())
+    XCTAssertFalse(nextClient.text.string.contains("）"), "a closing tail cannot move to another field")
+    controller.deactivateServer(nextClient)
+  }
+
+  @MainActor
   func testCandidateDeletionUsesPhysicalChordAndRejectsOldMenuToken() throws {
     let shared = try XCTUnwrap(Bundle.main.sharedSupportURL)
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("owl-delete-\(UUID())")

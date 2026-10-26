@@ -326,6 +326,7 @@ final class OwlRustSession: RimeSession {
 
     let disallowedModifiers = kControlMask.rawValue | kAltMask.rawValue | kSuperMask.rawValue
     if (modifiers & disallowedModifiers) != 0 {
+      finishNativeComposition()
       return false
     }
 
@@ -415,6 +416,17 @@ final class OwlRustSession: RimeSession {
     }
 
     return nil
+  }
+
+  /// Native application chords finish the highlighted conversion before passthrough.
+  /// Dedicated IME shortcuts and segment editing are resolved before this boundary.
+  func finishNativeComposition() {
+    guard !activeSchemaId.hasPrefix("wubi") else { return }
+    _ = applyActionResponse(sendAction(["op": "finish"]))
+  }
+
+  func balanceHostPairedPunctuation() {
+    _ = applyActionResponse(sendAction(["op": "balance_pair"]))
   }
 
   var acceptsHostSmartPunctuation: Bool { latestSnapshot?.localMode == "none" }
