@@ -717,3 +717,27 @@ review dates, not retries. Keep deterministic checks in the local gate.
   positive/negative public-row cases and unchanged generic-key/container checks,
   then `scripts/check-secrets.sh --artifacts` on the actual built App. Keep only
   hashes, classification, source identity and redacted scanner decisions as evidence.
+
+
+## Scan one validated view of an inert package payload
+
+- Seen 1x (2026-10-26): the formal Release PKG scan extracted the inert App ZIP,
+  then scanned the original ZIP too. TruffleHog's recursive archive result named
+  only the ZIP, so the strict public-dictionary exception correctly could not
+  prove its exact DB bytes and same-row content. Do not extend that exception to
+  an archive or waive a detector/path to compensate for the duplicated view.
+- In disposable scan trees only, the existing staged-package checker validates
+  every ZIP member/path/link and a complete ZIP32 layout. All member bytes are
+  CRC checked with full compressed-stream consumption; internal link targets
+  and AppleDouble members become ordinary scan files, and comments, extra fields
+  and header metadata are retained in a scanner-visible text-named file. Prefix,
+  trailer, gap, overlap, duplicates, corrupt CRC and unsupported layouts fail closed.
+  Remove the temporary original only after the complete scan view exists.
+- Outer package scripts and Distribution remain scanned. DMGs stay read only;
+  their owned scan copy expands nested PKGs through the same path. Ordinary ZIPs
+  are retained. Temporary App registrations are checked before and after cleanup.
+- Verify (验证点): `python3 scripts/check-staged-pkg.selftest.py` checks full
+  content/metadata coverage, rejection boundaries and real generic-key detection
+  in seven layers. Run `secret-finding-policy.selftest.py` and the actual artifact
+  gate on installer PKG, update PKG and DMG; retain source artifact/receipt hashes
+  before and after. Product tests/builds alone do not establish this gate.
