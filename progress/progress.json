@@ -1,16 +1,12 @@
 {
   "facts": {
-    "main": "86148c79295d069b0b914a99bdab9ecdc72d2bf2",
+    "main": "9bcaa20d28e39db91532b9ec59fa08a3eb292d7e",
     "default_branch": "main",
     "pulls": [],
     "open_pulls": [
       {
         "number": 308,
         "head": "229d4379da96242a5fe1598c09b40ba8c1418c6e"
-      },
-      {
-        "number": 309,
-        "head": "eadccb64138250dbba0aa22de72cef341d46c7e4"
       },
       {
         "number": 310,
@@ -100,73 +96,73 @@
         "number": 293,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T13:09:20Z"
+        "updated_at": "2026-10-26T14:12:47Z"
       },
       {
         "number": 294,
-        "state": "open",
-        "reason": null,
-        "updated_at": "2026-10-26T06:48:37Z"
+        "state": "closed",
+        "reason": "completed",
+        "updated_at": "2026-10-26T14:12:45Z"
       },
       {
         "number": 295,
-        "state": "open",
-        "reason": null,
-        "updated_at": "2026-10-26T09:41:02Z"
+        "state": "closed",
+        "reason": "completed",
+        "updated_at": "2026-10-26T14:10:00Z"
       },
       {
         "number": 296,
-        "state": "open",
-        "reason": null,
-        "updated_at": "2026-10-26T09:54:35Z"
+        "state": "closed",
+        "reason": "completed",
+        "updated_at": "2026-10-26T14:10:01Z"
       },
       {
         "number": 297,
-        "state": "open",
-        "reason": null,
-        "updated_at": "2026-10-26T10:10:27Z"
+        "state": "closed",
+        "reason": "completed",
+        "updated_at": "2026-10-26T14:10:01Z"
       },
       {
         "number": 298,
-        "state": "open",
-        "reason": null,
-        "updated_at": "2026-10-26T10:24:04Z"
+        "state": "closed",
+        "reason": "completed",
+        "updated_at": "2026-10-26T14:10:02Z"
       },
       {
         "number": 299,
-        "state": "open",
-        "reason": null,
-        "updated_at": "2026-10-26T10:24:06Z"
+        "state": "closed",
+        "reason": "completed",
+        "updated_at": "2026-10-26T14:10:02Z"
       },
       {
         "number": 300,
-        "state": "open",
-        "reason": null,
-        "updated_at": "2026-10-26T11:01:37Z"
+        "state": "closed",
+        "reason": "completed",
+        "updated_at": "2026-10-26T14:10:02Z"
       },
       {
         "number": 301,
-        "state": "open",
-        "reason": null,
-        "updated_at": "2026-10-26T11:01:39Z"
+        "state": "closed",
+        "reason": "completed",
+        "updated_at": "2026-10-26T14:10:02Z"
       },
       {
         "number": 302,
-        "state": "open",
-        "reason": null,
-        "updated_at": "2026-10-26T10:34:31Z"
+        "state": "closed",
+        "reason": "completed",
+        "updated_at": "2026-10-26T14:10:03Z"
       },
       {
         "number": 303,
-        "state": "open",
-        "reason": null,
-        "updated_at": "2026-10-26T11:10:05Z"
+        "state": "closed",
+        "reason": "completed",
+        "updated_at": "2026-10-26T14:10:03Z"
       },
       {
         "number": 304,
-        "state": "open",
-        "reason": null,
-        "updated_at": "2026-10-26T13:46:12Z"
+        "state": "closed",
+        "reason": "completed",
+        "updated_at": "2026-10-26T14:10:03Z"
       }
     ],
     "releases": []
@@ -176,7 +172,7 @@
     "progress/sync.py",
     "progress/teslahub.mjs"
   ],
-  "observed_at": "2026-10-26T13:46:30Z",
+  "observed_at": "2026-10-26T14:18:49Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -413,9 +409,9 @@
         {
           "id": "issue-295",
           "title": "#295 [五笔对齐 W01] 五笔基线与双端差异样例",
-          "status": "in_progress",
-          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：无。",
-          "next": "沿用当前执行会话，勿重复领取。",
+          "status": "unverified",
+          "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
@@ -427,9 +423,9 @@
         {
           "id": "issue-296",
           "title": "#296 [五笔对齐 W02] 五笔 86 正式资源与候选对齐",
-          "status": "in_progress",
-          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#295。",
-          "next": "沿用当前执行会话，勿重复领取。",
+          "status": "unverified",
+          "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
@@ -441,9 +437,9 @@
         {
           "id": "issue-297",
           "title": "#297 [五笔对齐 W03] 连打与上屏规则对齐",
-          "status": "in_progress",
-          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#296。",
-          "next": "沿用当前执行会话，勿重复领取。",
+          "status": "unverified",
+          "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
@@ -455,9 +451,9 @@
         {
           "id": "issue-298",
           "title": "#298 [五笔对齐 W04] 五笔拼音混输对齐",
-          "status": "in_progress",
-          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#296。",
-          "next": "沿用当前执行会话，勿重复领取。",
+          "status": "unverified",
+          "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
@@ -469,9 +465,9 @@
         {
           "id": "issue-299",
           "title": "#299 [五笔对齐 W05] z 反查、通配与编码提示",
-          "status": "in_progress",
-          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#296。",
-          "next": "沿用当前执行会话，勿重复领取。",
+          "status": "unverified",
+          "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
@@ -483,9 +479,9 @@
         {
           "id": "issue-300",
           "title": "#300 [五笔对齐 W06] 五笔 98 完整输入",
-          "status": "in_progress",
-          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#296。",
-          "next": "沿用当前执行会话，勿重复领取。",
+          "status": "unverified",
+          "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
@@ -497,9 +493,9 @@
         {
           "id": "issue-301",
           "title": "#301 [五笔对齐 W07] 五笔学习与重启恢复",
-          "status": "in_progress",
-          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#296。",
-          "next": "沿用当前执行会话，勿重复领取。",
+          "status": "unverified",
+          "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
@@ -511,9 +507,9 @@
         {
           "id": "issue-302",
           "title": "#302 [五笔对齐 W08] Owltype 增强入口与普通五笔隔离",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#296。",
-          "next": "等待前置完成，复用其成果。",
+          "status": "unverified",
+          "summary": "GitHub: closed；负责人：未指派；未关闭前置：无。",
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
@@ -525,9 +521,9 @@
         {
           "id": "issue-303",
           "title": "#303 [五笔对齐 W09] 五笔资源更新与回退",
-          "status": "in_progress",
-          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#301。",
-          "next": "沿用当前执行会话，勿重复领取。",
+          "status": "unverified",
+          "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
@@ -539,9 +535,9 @@
         {
           "id": "issue-304",
           "title": "#304 [五笔对齐 W10] 差异收口与交付一致性",
-          "status": "in_progress",
-          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#303, #302, #300, #299, #298, #297。",
-          "next": "沿用当前执行会话，勿重复领取。",
+          "status": "unverified",
+          "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
