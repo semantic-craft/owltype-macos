@@ -103,7 +103,7 @@ def main():
                   'files': {name:{'size':(stage/name).stat().st_size, 'sha256':digest(stage/name),
                                    'upstream':manifest['files'][name]} for name in PRODUCT_FILES},
                   'pinyinAdaptation':'Only wubi86, wubi98 and owl_seed_wubi86_source replaced from Owl audited seed',
-                  'othersPolicy':'Full artifact retained in build cache; product uses audited emoji-only derivative; symbol_catalog redistribution unconfirmed'}
+                  'othersPolicy':'Full artifact retained in build cache; product uses audited four-table emoji/kaomoji derivative; symbol_catalog redistribution unconfirmed'}
         (stage/'OWLTYPE-UPSTREAM-RESOURCES.json').write_text(json.dumps(record, ensure_ascii=False, indent=2)+'\n')
         publish_set(stage, output, [path.name for path in stage.iterdir()])
     print(f'[msime-resources] verified {RELEASE}, full pinyin/English/context; Owl Wubi preserved')

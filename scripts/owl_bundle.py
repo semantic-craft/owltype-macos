@@ -43,11 +43,12 @@ COMPONENTS = (
     ("phrase-pinyin-data", "cee0ed6e6e4898580cafd2bd5e3723e20b214aa0", "MIT", "https://github.com/mozillazg/phrase-pinyin-data"),
     ("Unicode Unihan", "16.0.0", "Unicode-3.0", "https://www.unicode.org/Public/16.0.0/ucd/Unihan.zip"),
     ("OpenCC data", "556ed22496d650bd0b13b6c163be9814637970ae", "Apache-2.0", "https://github.com/BYVoid/OpenCC"),
-    ("Metasequoia IME (msime)", "09e3d53c16eb11420bef708c35d425c31eff41e2", "GPL-3.0-only", "https://github.com/metasequoiaime/msime"),
-    ("Owltype emoji catalog (msime-others.db)", "dict-v2.0.24", "GPL-3.0-only AND Unicode-3.0 AND MIT", "https://github.com/metasequoiaime/msime-dictionary/releases/tag/dict-v2.0.24"),
+    ("Metasequoia IME (msime)", "208c10e848bbed99373ca8b609fd2142b6b0b4e2", "GPL-3.0-only", "https://github.com/metasequoiaime/msime"),
+    ("Owltype emoji and kaomoji catalog (msime-others.db)", "dict-v2.0.24", "GPL-3.0-only AND Unicode-3.0 AND MIT", "https://github.com/metasequoiaime/msime-dictionary/releases/tag/dict-v2.0.24"),
     ("rime-ice emoji data", "9e66b0729083b37d217312294f6d516c8d7234be", "GPL-3.0-only", "https://github.com/iDvel/rime-ice"),
     ("Unicode Emoji, CLDR annotations, and Emoji 1.0 names", "17.0", "Unicode-3.0", "https://unicode.org/Public/emoji/17.0/"),
     ("python-pinyin emoji reading overrides", "v0.55.0", "MIT", "https://github.com/mozillazg/python-pinyin"),
+    ("rime_kaomoji_dict", "dict-v2.0.24-derived", "MIT", "https://github.com/aoguai/rime_kaomoji_dict"),
     ("chinese-ime-lm reference crate", "15caab4fdeb59c11f452b91884371cf30e2e5608", "Apache-2.0", "https://github.com/metasequoiaime/chinese-ime-lm"),
     ("chinese-ime-lm model weights", "model-v1", "Apache-2.0", "https://github.com/metasequoiaime/chinese-ime-lm/releases/tag/model-v1"),
 )
@@ -311,7 +312,18 @@ def make_sbom(app: Path, version: str, revision: str, created: str) -> dict:
         if name == "Sparkle":
             patch = Path(__file__).resolve().parent.parent / "patches/sparkle/application-relaunch.patch"
             packages[-1]["sourceInfo"] = "Official upstream pin with Owltype application-relaunch.patch SHA256 " + sha256(patch)
-        elif name == "Owltype emoji catalog (msime-others.db)":
+        elif name == "rime_kaomoji_dict":
+            packages[-1]["sourceInfo"] = (
+                "MIT, Copyright (c) 2023 aoguai; verbatim rime-kaomoji.LICENSE SHA256 "
+                "bc4f44c16c8a6ea28e30ac4e1e9a737e8711ba3140f241fea9c8404a86f3ffe1. "
+                "Only kaomoji (1675 rows) and kaomoji_catalog (1400 rows), retained unchanged "
+                "from msime dict-v2.0.24 (source artifact SHA256 "
+                "9f3cae5b407038e0e4536c40582a0bc0feb732657f0ae2d38196374cede52f94), "
+                "builder commit 128a332cabc5fa42b1cf5f827033ad5697ff528b, "
+                "resources/dictionary-sources/kaomoji/kaomoji.txt. "
+                "The version identifies the pinned derived release, not an aoguai repository revision."
+            )
+        elif name == "Owltype emoji and kaomoji catalog (msime-others.db)":
             packages[-1]["sourceInfo"] = (
                 "Derived from the pinned dict-v2.0.24 release artifact with msime "
                 "builder commit 128a332cabc5fa42b1cf5f827033ad5697ff528b and "
