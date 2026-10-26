@@ -381,6 +381,7 @@ extension OwlInputController {
   /// composition instead of recreating this session mid-selection.
   var hasInFlightComposition: Bool {
     guard let rime, rime.isValid else { return false }
+    if pendingPairedClosing != nil { return true }
     if let input = rime.input(), !input.isEmpty { return true }
     guard let composition = rime.composition() else { return false }
     return !composition.preedit.isEmpty

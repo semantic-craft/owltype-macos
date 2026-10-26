@@ -210,8 +210,8 @@ final class OwlSettingsState {
   var keyboardCJKEnglishSpacing: Bool = false
   /// 中文与数字自动空格 legacy mirror.
   var keyboardCJKNumberSpacing: Bool = false
-  /// 自动配对括号 (mirror of `OwlKeyboardPreferences.autoPairBrackets`). Default false（出厂关）.
-  var keyboardAutoPairBrackets: Bool = false
+  /// 自动配对括号 (mirror of `OwlKeyboardPreferences.autoPairBrackets`); native pinyin defaults on.
+  var keyboardAutoPairBrackets: Bool = true
   var keyboardSmartPunctuation: Bool = true
   var keyboardSmartPunctuationRepeat: Bool = true
   var keyboardSmartPunctuationSpace: Bool = false

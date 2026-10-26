@@ -34,6 +34,7 @@
 		AB170002CAFE0001CAFE0001 /* OwlInputController+AutomaticExpansion.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB170002CAFE0002CAFE0002 /* OwlInputController+AutomaticExpansion.swift */; };
 		AB285005CAFE0003CAFE0003 /* OwlKeyboardPage+SmartPunctuation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB285005CAFE0004CAFE0004 /* OwlKeyboardPage+SmartPunctuation.swift */; };
 		AB285005CAFE0001CAFE0001 /* OwlInputController+SmartPunctuation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB285005CAFE0002CAFE0002 /* OwlInputController+SmartPunctuation.swift */; };
+		AB285006CAFE0001CAFE0001 /* OwlInputController+NativePunctuation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB285006CAFE0002CAFE0002 /* OwlInputController+NativePunctuation.swift */; };
 		AB170001CAFE0001CAFE0001 /* OwlAutomaticExpansion.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB170001CAFE0002CAFE0002 /* OwlAutomaticExpansion.swift */; };
 		AB167001CAFE0001CAFE0001 /* OwlTemplateTemporalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB167001CAFE0002CAFE0002 /* OwlTemplateTemporalTests.swift */; };
 		AB166002CAFE0001CAFE0001 /* OwlTemplateClipboardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB166002CAFE0002CAFE0002 /* OwlTemplateClipboardTests.swift */; };
@@ -334,6 +335,7 @@
 		AB170002CAFE0002CAFE0002 /* OwlInputController+AutomaticExpansion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+AutomaticExpansion.swift"; path = "sources/Controller/OwlInputController+AutomaticExpansion.swift"; sourceTree = "<group>"; };
 		AB285005CAFE0004CAFE0004 /* OwlKeyboardPage+SmartPunctuation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlKeyboardPage+SmartPunctuation.swift"; path = "sources/Settings/OwlKeyboardPage+SmartPunctuation.swift"; sourceTree = "<group>"; };
 		AB285005CAFE0002CAFE0002 /* OwlInputController+SmartPunctuation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+SmartPunctuation.swift"; path = "sources/Controller/OwlInputController+SmartPunctuation.swift"; sourceTree = "<group>"; };
+		AB285006CAFE0002CAFE0002 /* OwlInputController+NativePunctuation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+NativePunctuation.swift"; path = "sources/Controller/OwlInputController+NativePunctuation.swift"; sourceTree = "<group>"; };
 		AB170001CAFE0002CAFE0002 /* OwlAutomaticExpansion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAutomaticExpansion.swift; path = "sources/Controller/OwlAutomaticExpansion.swift"; sourceTree = "<group>"; };
 		AB167001CAFE0002CAFE0002 /* OwlTemplateTemporalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateTemporalTests.swift; path = tests/OwlTemplateTemporalTests.swift; sourceTree = "<group>"; };
 		AB166002CAFE0002CAFE0002 /* OwlTemplateClipboardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateClipboardTests.swift; path = tests/OwlTemplateClipboardTests.swift; sourceTree = "<group>"; };
@@ -662,6 +664,7 @@
 				AB170002CAFE0002CAFE0002 /* OwlInputController+AutomaticExpansion.swift */,
 				AB285005CAFE0004CAFE0004 /* OwlKeyboardPage+SmartPunctuation.swift */,
 				AB285005CAFE0002CAFE0002 /* OwlInputController+SmartPunctuation.swift */,
+				AB285006CAFE0002CAFE0002 /* OwlInputController+NativePunctuation.swift */,
 				AB163001CAFE0002CAFE0002 /* OwlTemplateMigration.swift */,
 				FA0000D6CAFE00D6CAFE00D6 /* OwlQuickSendPanel.swift */,
 				FA0000E8CAFE00E8CAFE00E8 /* OwlQuickSendHotKey.swift */,
@@ -1166,6 +1169,7 @@
 				AB170002CAFE0001CAFE0001 /* OwlInputController+AutomaticExpansion.swift in Sources */,
 				AB285005CAFE0003CAFE0003 /* OwlKeyboardPage+SmartPunctuation.swift in Sources */,
 				AB285005CAFE0001CAFE0001 /* OwlInputController+SmartPunctuation.swift in Sources */,
+				AB285006CAFE0001CAFE0001 /* OwlInputController+NativePunctuation.swift in Sources */,
 				AB163001CAFE0001CAFE0001 /* OwlTemplateMigration.swift in Sources */,
 				FA0000D5CAFE00D5CAFE00D5 /* OwlQuickSendPanel.swift in Sources */,
 				FA0000E7CAFE00E7CAFE00E7 /* OwlQuickSendHotKey.swift in Sources */,

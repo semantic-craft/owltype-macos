@@ -23,6 +23,7 @@ extension OwlInputController {
     templateHostGeneration &+= 1
     automaticEpoch &+= 1
     discardAutomaticExpansion()
+    finishPairBeforeChangingClient(to: sender as? IMKTextInput)
     self.client ?= sender as? IMKTextInput
     pendingTemplateDelivery?.hostDidActivate()
     // print("[DEBUG] activateServer:")
@@ -61,6 +62,7 @@ extension OwlInputController {
     aiTasks.cancelAll()
     hidePalettes()
     commitComposition(sender)
+    pairedClosings.removeAll()
     // Focus is leaving this field — drop the cross-commit spacing seed so the next field's first
     // commit doesn't inherit a stale boundary char.
     lastCommittedCharacter = nil
@@ -91,6 +93,7 @@ extension OwlInputController {
       discardAutomaticExpansion()
     }
     finishAutomaticExpansion(replaySemicolon: true)
+    finishPairBeforeChangingClient(to: sender as? IMKTextInput)
     self.client ?= sender as? IMKTextInput
     // print("[DEBUG] commitComposition: \(sender ?? "nil")")
     // Forced finalize (focus loss / IME switch / a host — notably Chromium omnibox — ending the
@@ -115,6 +118,7 @@ extension OwlInputController {
       emitCleared: { MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.emitCleared() } },
       trace: { self.debugLiveInputTrace($0) }
     )
+    flushPendingPairedClosing()
   }
 
   // seam: was private; internal so OwlInputController.swift's init observer closure can reach it across files.
