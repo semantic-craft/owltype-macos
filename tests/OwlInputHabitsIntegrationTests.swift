@@ -132,10 +132,18 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     let second = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     defer { second.destroySession() }
     second.activateServer(client)
+    let statusPanel = OwlInputStatusPanel.shared
+    XCTAssertTrue(statusPanel.isVisible)
+    let currentStatusView = statusPanel.contentView
+    statusPanel.refresh(controller)
+    statusPanel.deactivate(controller)
+    XCTAssertTrue(statusPanel.isVisible, "Old sessions cannot hide the active status bar")
+    XCTAssertTrue(statusPanel.contentView === currentStatusView, "Old sessions cannot repaint the active status bar")
     XCTAssertTrue(second.rime?.option(.asciiMode) == true)
     second.rime?.setOption(.asciiMode, false)
     second.rimeUpdate()
     second.deactivateServer(client)
+    XCTAssertFalse(statusPanel.isVisible)
     controller.deactivateServer(client)
     XCTAssertEqual(memory.modes[client.appID], false)
     controller.activateServer(client)

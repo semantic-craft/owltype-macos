@@ -52,6 +52,10 @@ extension OwlInputController {
     menu.addItem(asciiPunctuation)
     menu.addItem(fullShape)
     menu.addItem(.separator())
+    let statusBar = NSMenuItem(title: "显示浮动状态栏", action: #selector(toggleInputStatusPanel), keyEquivalent: "")
+    statusBar.target = self
+    statusBar.state = MainActor.assumeIsolated { OwlInputStatusPanel.shared.isEnabled ? .on : .off }
+    menu.addItem(statusBar)
     menu.addItem(owlSettings)
     menu.addItem(owlQuickSend)
     menu.addItem(owlClipboard)
@@ -63,6 +67,10 @@ extension OwlInputController {
 
     debugLiveInputTrace("menu called items=\(menu.items.count) schema=\(schemaId) ascii=\(flags.asciiMode)")
     return menu
+  }
+
+  @objc func toggleInputStatusPanel() {
+    MainActor.assumeIsolated { OwlInputStatusPanel.shared.toggleVisibility(self) }
   }
 
   @objc func deploy() {

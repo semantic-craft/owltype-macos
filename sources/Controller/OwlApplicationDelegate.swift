@@ -566,6 +566,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
         guard let self else { return }
         OwlCandidatePanelSettings.live.applyInlineCandidate(to: &self.styleFlags)
         self.owlPanel?.refreshPreferences()
+        OwlInputStatusPanel.shared.refreshPreferences()
       },
       writesRimeConfiguration: !usesRustEngine
     )
