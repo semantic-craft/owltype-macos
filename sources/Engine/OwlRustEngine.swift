@@ -164,6 +164,7 @@ enum OwlRustSchemaMap {
     switch schemaId {
     case "double_pinyin_flypy": return "xiaohe"
     case "double_pinyin_mspy": return "microsoft"
+    case "double_pinyin_shoudao": return "shoudao"
     case "double_pinyin": return "ziranma"
     case "double_pinyin_abc": return "abc"
     case "double_pinyin_sogou", "double_pinyin_ziguang", "double_pinyin_jiajia":
@@ -263,6 +264,7 @@ enum OwlRustSchemaMap {
     (id: "rime_ice", name: "雾凇拼音"),
     (id: "double_pinyin_flypy", name: "小鹤双拼"),
     (id: "double_pinyin_mspy", name: "微软双拼"),
+    (id: "double_pinyin_shoudao", name: "手心双拼"),
     (id: "double_pinyin", name: "自然码双拼"),
     (id: "double_pinyin_sogou", name: "搜狗双拼"),
     (id: "double_pinyin_abc", name: "智能ABC双拼"),
@@ -585,6 +587,16 @@ final class OwlRustSession: RimeSession {
       return ["op": "move_caret", "target": "end"]
     }
     let linear = optionFlags[.linear] ?? true
+    // Native macOS shuangpin edits syllables when Left/Right do not navigate
+    // candidates (InputController.mm:7711). Keep the candidate-navigation preference.
+    if !linear && activeSchemaId.hasPrefix("double_pinyin") {
+      if keycode == UInt32(XK_Left) {
+        return ["op": "move_caret", "target": "left_segment"]
+      }
+      if keycode == UInt32(XK_Right) {
+        return ["op": "move_caret", "target": "right_segment"]
+      }
+    }
     let firstCandidate = latestSnapshot?.page == 0 && latestSnapshot?.highlightedIndex == 0
     if firstCandidate && keycode == UInt32(XK_Left) {
       return ["op": "move_caret", "target": "left"]

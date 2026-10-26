@@ -54,6 +54,10 @@ final class OwlRustEngineTests: XCTestCase {
       let op = try XCTUnwrap(event["op"] as? String)
       let consumed: Bool
       switch op {
+      case "schema":
+        XCTAssertTrue(session.selectSchema(try XCTUnwrap(event["schema"] as? String)))
+        session.setOption(.linear, event["left_right"] as? Bool ?? true)
+        consumed = true
       case "character":
         let value = try XCTUnwrap(event["value"] as? String)
         let scalar = try XCTUnwrap(value.unicodeScalars.first)
@@ -480,6 +484,22 @@ final class OwlRustEngineTests: XCTestCase {
         XCTAssertEqual(session.takeCommit(), visible)
       }
     }
+  }
+
+  func testShuangpinSegmentEditingAndShoudaoSelection() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
+    defer { session.destroy() }
+    XCTAssertTrue(session.selectSchema(OwlDoublePinyin.shoudao.schemaId))
+    typeText("nihd", into: session)
+    XCTAssertTrue(session.composition()?.candidates.contains { $0.text == "你好" } == true)
+    session.setOption(.linear, false)
+    XCTAssertTrue(session.process(keycode: UInt32(XK_Left), modifiers: 0))
+    XCTAssertEqual(session.caretPos(), 2, "double pinyin edits whole syllables")
+    XCTAssertTrue(session.process(keycode: UInt32(XK_Right), modifiers: 0))
+    XCTAssertEqual(session.caretPos(), 4)
+    XCTAssertTrue(session.selectCandidate(0))
+    XCTAssertNotNil(session.takeCommit())
   }
 
   func testActivatedDictionaryKeepsBundledEmojiCandidates() throws {

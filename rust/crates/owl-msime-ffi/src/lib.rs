@@ -1610,8 +1610,8 @@ impl OwlMsimeSession {
                 let cmd = match payload.target.as_deref() {
                     Some("home") => Command::MoveHome,
                     Some("end") => Command::MoveEnd,
-                    Some("left") => Command::MoveLeft,
-                    Some("right") => Command::MoveRight,
+                    Some("left" | "left_segment") => Command::MoveLeft,
+                    Some("right" | "right_segment") => Command::MoveRight,
                     _ => {
                         let delta = payload.delta.unwrap_or(0);
                         if delta < 0 {
@@ -1637,7 +1637,12 @@ impl OwlMsimeSession {
                     before.editing_text.clone(),
                     before.phrase_prefix.is_empty() && next_caret == before.editing_text.len(),
                 );
-                match self.runtime.dispatch(Action::Command(cmd)) {
+                let action = match payload.target.as_deref() {
+                    Some("left_segment") => Action::SegmentMoveLeft,
+                    Some("right_segment") => Action::SegmentMoveRight,
+                    _ => Action::Command(cmd),
+                };
+                match self.runtime.dispatch(action) {
                     Ok(transition) => {
                         self.sync_pinned_state_from_view(&transition.view);
                         let mut dto = self.build_snapshot(
