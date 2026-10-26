@@ -149,7 +149,7 @@ final class OwlSettingsState {
   var panelScrollRows = OwlCandidatePanelSettings.defaultScrollRows
   /// G8 候选个数 mirror of `OwlKeyboardPreferences.pageSize` (Rime menu/page_size).
   /// Unlike the panel mirrors, this flows through the keyboard patch + 应用配置改动.
-  var candidatePageSize: Int = 8
+  var candidatePageSize: Int = 6
 
   // MARK: - 键盘输入 page mirrors (v0.3.1)
 
@@ -216,7 +216,7 @@ final class OwlSettingsState {
   var keyboardCJKEnglishSpacing: Bool = false
   /// 中文与数字自动空格 legacy mirror.
   var keyboardCJKNumberSpacing: Bool = false
-  /// 自动配对括号 (mirror of `OwlKeyboardPreferences.autoPairBrackets`); native pinyin defaults on.
+  /// 自动配对括号 (mirror of `OwlKeyboardPreferences.autoPairBrackets`); native input defaults on.
   var keyboardAutoPairBrackets: Bool = true
   var keyboardSmartPunctuation: Bool = true
   var keyboardSmartPunctuationRepeat: Bool = true

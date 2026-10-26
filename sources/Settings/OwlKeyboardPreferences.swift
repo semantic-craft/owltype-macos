@@ -194,13 +194,13 @@ enum OwlKeyboardPreferences {
     }
   }
 
-  /// 候选个数 — Rime `menu/page_size` (G8). Key `"OwlKeyboardPageSize"`, default 8
-  /// (the Owltype baseline). Clamped to 3…9 so the candidate window stays usable; flows
+  /// 候选个数 — Rime `menu/page_size` (G8). Key `"OwlKeyboardPageSize"`, default 6
+  /// (the pinned native baseline). Clamped to 3…9 so the candidate window stays usable; flows
   /// through the keyboard patch (`owlDefaultCustomYAML`) + 应用配置改动, not the live panel.
   static var pageSize: Int {
     get {
       let stored = OwlDefaults.standard.integer(forKey: "OwlKeyboardPageSize")
-      return stored == 0 ? 8 : min(max(stored, 3), 9)
+      return stored == 0 ? 6 : min(max(stored, 3), 9)
     }
     set {
       OwlDefaults.standard.set(min(max(newValue, 3), 9), forKey: "OwlKeyboardPageSize")
@@ -450,7 +450,7 @@ enum OwlKeyboardPreferences {
   static var autoPairBrackets: Bool {
     get {
       if OwlDefaults.standard.object(forKey: "OwlKeyboardAutoPairBrackets") == nil {
-        return inputMethod != .wubi
+        return true
       }
       return cachedAutoPairBrackets
     }

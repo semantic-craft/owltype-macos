@@ -420,9 +420,12 @@ final class OwlRustSession: RimeSession {
 
   /// Native application chords finish the highlighted conversion before passthrough.
   /// Dedicated IME shortcuts and segment editing are resolved before this boundary.
-  func finishNativeComposition() {
-    guard !activeSchemaId.hasPrefix("wubi") else { return }
-    _ = applyActionResponse(sendAction(["op": "finish"]))
+  @discardableResult
+  func finishNativeComposition(onFocusLoss: Bool = false) -> Bool {
+    let action = onFocusLoss ? "finish_on_focus_loss" : "finish"
+    guard let response = sendAction(["op": action]), response.isOK else { return false }
+    _ = applyActionResponse(response)
+    return true
   }
 
   func balanceHostPairedPunctuation() {

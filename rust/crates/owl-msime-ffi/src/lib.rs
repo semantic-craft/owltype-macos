@@ -1666,7 +1666,7 @@ impl OwlMsimeSession {
                     Err(err) => error_response(err),
                 }
             }
-            "finish" => {
+            "finish" | "finish_on_focus_loss" => {
                 if let Some(menu) = self.punctuation_menu.take() {
                     return self.build_snapshot(
                         self.runtime.view(),
@@ -1675,7 +1675,12 @@ impl OwlMsimeSession {
                         false,
                     );
                 }
-                match self.runtime.dispatch(Action::Finish) {
+                let action = if payload.op == "finish_on_focus_loss" {
+                    Action::FinishOnFocusLoss
+                } else {
+                    Action::Finish
+                };
+                match self.runtime.dispatch(action) {
                     Ok(transition) => {
                         self.sync_pinned_state_from_view(&transition.view);
                         self.build_snapshot(
