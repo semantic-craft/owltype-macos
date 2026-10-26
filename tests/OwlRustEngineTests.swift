@@ -1700,6 +1700,72 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.takeCommit(), "你好，")
   }
 
+  func testWubi98ProfileSwitchUsesOfficialTableAndHints() throws {
+    let defaults = OwlDefaults.standard
+    let keys = ["OwlKeyboardWubiScheme", "OwlKeyboardInputMethod", "OwlKeyboardWubiCodeHint"]
+    let saved = keys.map { defaults.object(forKey: $0) }
+    defer {
+      for (key, value) in zip(keys, saved) {
+        if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
+      }
+    }
+    defaults.set(true, forKey: keys[2])
+    let engine = try makeSharedSupportSeedEngine()
+    XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
+    let session = engine.createSession()
+    defer { session.destroy() }
+    typeText("go", into: session)
+    XCTAssertEqual(session.composition()?.candidates.first?.text, "来")
+    XCTAssertEqual(session.composition()?.candidates.first?.comment, "goi")
+    session.clearComposition()
+    XCTAssertTrue(session.selectSchema("wubi98"))
+    typeText("gu", into: session)
+    XCTAssertEqual(session.composition()?.candidates.first?.text, "来")
+    XCTAssertEqual(session.composition()?.candidates.first?.comment, "gusi")
+    XCTAssertTrue(session.selectCandidate(0))
+    XCTAssertEqual(session.takeCommit(), "来")
+    typeText("sbbv", into: session)
+    XCTAssertEqual(session.takeCommit(), "极限")
+    session.clearComposition()
+    XCTAssertTrue(session.selectSchema("wubi98_pinyin"))
+    typeText("zhongguo", into: session)
+    XCTAssertTrue(try XCTUnwrap(session.composition()).candidates.contains { $0.text == "中国" })
+    session.clearComposition()
+    XCTAssertTrue(session.selectSchema("wubi98_trad"))
+    typeText("gu", into: session)
+    XCTAssertEqual(session.composition()?.candidates.first?.text, "來")
+    XCTAssertTrue(session.selectCandidate(0))
+    XCTAssertEqual(session.takeCommit(), "來")
+    XCTAssertTrue(session.selectSchema("wubi98_trad_pinyin"))
+    typeText("zhongguo", into: session)
+    XCTAssertTrue(try XCTUnwrap(session.composition()).candidates.contains { $0.text == "中國" })
+    session.clearComposition()
+    XCTAssertTrue(session.selectSchema("wubi86_jidian"))
+    typeText("go", into: session)
+    XCTAssertEqual(session.composition()?.candidates.first?.text, "来")
+    XCTAssertEqual(session.composition()?.candidates.first?.comment, "goi")
+    session.clearComposition()
+    typeText("sebv", into: session)
+    XCTAssertEqual(session.takeCommit(), "极限")
+    let choice = try XCTUnwrap(OwlWubiScheme(rawValue: "jidian98"))
+    let state = OwlSettingsState(rimeDir: FileManager.default.temporaryDirectory)
+    state.keyboardInputMethod = .wubi
+    OwlKeyboardPreferences.inputMethod = .wubi
+    OwlSettingsActions.selectWubiScheme(choice, state: state) { schema in
+      XCTAssertTrue(session.selectSchema(schema))
+    }
+    XCTAssertEqual(state.keyboardWubiScheme, choice)
+    XCTAssertEqual(OwlKeyboardPreferences.preferredSchemaID, "wubi98")
+    XCTAssertEqual(choice.schemaId, "wubi98")
+    XCTAssertEqual(OwlWubiScheme(rawValue: "pinyinMix")?.schemaId, "wubi86_jidian_pinyin")
+    XCTAssertTrue(engine.selectSchema(choice.schemaId))
+    let restored = engine.createSession()
+    defer { restored.destroy() }
+    typeText("gu", into: restored)
+    XCTAssertEqual(restored.composition()?.candidates.first?.text, "来")
+    XCTAssertEqual(restored.composition()?.candidates.first?.comment, "gusi")
+  }
+
   func testWubiNativeCodeHintsWildcardAndLookupUseCurrentSettings() throws {
     let defaults = OwlDefaults.standard
     let keys = ["OwlKeyboardWubiCodeHint", "OwlKeyboardWubiZWildcard", "OwlKeyboardWubiZReverseLookup"]
