@@ -156,6 +156,9 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "启用划词工具箱",                  // 2026-07-26 重设计：自动弹出改双击 ⌥ 召唤，开关随之改名
     "启用剪贴板面板",
     "在候选中显示 emoji",
+    // Real settings toggle → persisted preference → queued live engine ON/OFF is covered by
+    // OwlRustEngineTests.testNativeQuickPhrasePreferencePreservesLiveComposition.
+    "拼音候选中显示快捷短语",
     "回滚最近写入",
     "完成",
     "左右中括号翻页",
@@ -246,6 +249,8 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "OwlRimeSchemaCompatibilityReport.inspect(fileURLs: panel.urls)",
     "panel.allowsMultipleSelection = true",
     "外部自定义 schema/Lua 不执行；原文不改；内置日期、农历、Unicode、表达式由 Rust 原生实现。",
+    "keyPath: \\.pinyinQuickPhraseCandidates",
+    "OwlKeyboardPreferences.pinyinQuickPhraseCandidates = $0",
     "OwlExperimentalPreferences.keyboardRerankEnabled",
     "OwlExperimentalPreferences.settledRerankEnabled",
   ]

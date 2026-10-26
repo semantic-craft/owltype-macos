@@ -3123,7 +3123,10 @@ final class OwlRustEngineTests: XCTestCase {
     let plain = try XCTUnwrap(session.composition())
     XCTAssertEqual(plain.candidates.map(\.text), ["按当地", "addr", "按订单", "矮墩墩", "按到底", "啊对对"])
     let generation = session.generation
-    OwlKeyboardPreferences.pinyinQuickPhraseCandidates = true
+    let state = OwlSettingsState()
+    OwlSettingsActions.toggle(state: state, keyPath: \.pinyinQuickPhraseCandidates) {
+      OwlKeyboardPreferences.pinyinQuickPhraseCandidates = $0
+    }
     XCTAssertTrue(session.syncRuntimePreferences(includeHostPhrases: false))
     XCTAssertEqual(session.input(), "addr")
     XCTAssertEqual(session.generation, generation, "native settings queue until composition is idle")
@@ -3133,7 +3136,9 @@ final class OwlRustEngineTests: XCTestCase {
     let enabled = try XCTUnwrap(session.composition())
     XCTAssertEqual(enabled.candidates.map(\.text),
       ["按当地", "addr", "按订单", "矮墩墩", "按到底", "示例大学示例校区1栋101"])
-    OwlKeyboardPreferences.pinyinQuickPhraseCandidates = false
+    OwlSettingsActions.toggle(state: state, keyPath: \.pinyinQuickPhraseCandidates) {
+      OwlKeyboardPreferences.pinyinQuickPhraseCandidates = $0
+    }
     XCTAssertTrue(session.syncRuntimePreferences(includeHostPhrases: false))
     XCTAssertEqual(session.input(), "addr")
     XCTAssertEqual(session.composition()?.candidates.map(\.text), enabled.candidates.map(\.text))
