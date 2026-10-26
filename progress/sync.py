@@ -2,6 +2,7 @@
 """Refresh the shared input-alignment view from GitHub; never dispatch agents."""
 import argparse
 import json
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -106,7 +107,8 @@ def main():
         args.hub_out.mkdir(parents=True,exist_ok=True)
         fixture=args.hub_out.resolve()/'github-snapshot.json'
         snapshot={'observed_at':observed,'repositories':{'owltype-macos':{
-          'issues':[data[n][0] for n in sum(GROUPS.values(),[]) if data[n][0]['state']=='open'], 'open':prs,'merged':[]}}}
+          'issues':[data[n][0] for n in sum(GROUPS.values(),[]) if data[n][0]['state']=='open'],
+          'open':[p for p in prs if set(map(int,re.findall(r'(?i)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)',p['body'] or '')+re.findall(r'\(#(\d+)\)',p['title']))) & set(sum(GROUPS.values(),[]))], 'merged':[]}}}
         fixture.write_text(json.dumps(snapshot,ensure_ascii=False))
         subprocess.run(['node',str(ROOT/'progress/teslahub.mjs'),str(args.teslahub.resolve()),str(fixture),str(args.hub_out.resolve())],cwd=ROOT,check=True)
     print('Refreshed 13 pinyin and 10 wubi tickets; no dispatch or issue mutation.')
