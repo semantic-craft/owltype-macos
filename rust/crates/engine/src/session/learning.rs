@@ -10,7 +10,7 @@ use super::composition::{
 use super::input::InputSession;
 use crate::assets;
 use crate::diagnostics;
-use crate::ime::queries::counts_toward_quick_phrase_slot;
+use crate::ime::queries::counts_toward_quick_phrase_slot_with_policy;
 use crate::lattice::personal::PersonalTransition;
 use crate::local::jianpin::jianpin_ranking_context;
 use crate::pinyin::autocorrect::autocorrect_suppression_key;
@@ -121,7 +121,7 @@ impl InputSession {
             .position(|item| item.source == CandidateSource::QuickPhrase)?;
         let slot = ordered[..group_start]
             .iter()
-            .filter(|item| counts_toward_quick_phrase_slot(item))
+            .filter(|item| counts_toward_quick_phrase_slot_with_policy(item, self.is_wubi()))
             .count();
         let journal = self.journal_path().to_owned();
         if selected.source == CandidateSource::QuickPhrase {
@@ -143,12 +143,12 @@ impl InputSession {
             .err()
             .map(|_| diagnostics::FREQUENCY_NOT_PERSISTED.to_owned());
         }
-        if !counts_toward_quick_phrase_slot(selected) {
+        if !counts_toward_quick_phrase_slot_with_policy(selected, self.is_wubi()) {
             return None;
         }
         let ordinary_rank = ordered[..index]
             .iter()
-            .filter(|item| counts_toward_quick_phrase_slot(item))
+            .filter(|item| counts_toward_quick_phrase_slot_with_policy(item, self.is_wubi()))
             .count();
         let max_slot = self.first_page_rows.saturating_sub(1);
         learn_quick_phrase_bypass(

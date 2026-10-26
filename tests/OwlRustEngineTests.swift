@@ -54,6 +54,10 @@ final class OwlRustEngineTests: XCTestCase {
       let op = try XCTUnwrap(event["op"] as? String)
       let consumed: Bool
       switch op {
+      case "quick-phrases":
+        OwlKeyboardPreferences.pinyinQuickPhraseCandidates = event["enabled"] as? Bool ?? false
+        XCTAssertTrue(session.syncRuntimePreferences(includeHostPhrases: false))
+        consumed = true
       case "schema":
         XCTAssertTrue(session.selectSchema(try XCTUnwrap(event["schema"] as? String)))
         session.setOption(.linear, event["left_right"] as? Bool ?? true)
@@ -2778,6 +2782,35 @@ final class OwlRustEngineTests: XCTestCase {
     let switched = try XCTUnwrap(session.composition())
     XCTAssertEqual(switched.candidates.filter { $0.text == templateText }.count, 1)
     XCTAssertNil(session.takeCommit())
+  }
+
+  func testNativeQuickPhrasePreferencePreservesLiveComposition() throws {
+    let saved = OwlKeyboardPreferences.pinyinQuickPhraseCandidates
+    let page = OwlKeyboardPreferences.pageSize
+    defer {
+      OwlKeyboardPreferences.pinyinQuickPhraseCandidates = saved
+      OwlKeyboardPreferences.pageSize = page
+    }
+    OwlKeyboardPreferences.pageSize = 6
+    OwlKeyboardPreferences.pinyinQuickPhraseCandidates = false
+    let engine = try makeSharedSupportSeedEngine()
+    let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
+    defer { session.destroy() }
+    XCTAssertTrue(session.selectSchema("rime_ice"))
+    typeText("addr", into: session)
+    let plain = try XCTUnwrap(session.composition())
+    XCTAssertEqual(plain.candidates.map(\.text), ["按当地", "addr", "按订单", "矮墩墩", "按到底", "啊对对"])
+    let generation = session.generation
+    OwlKeyboardPreferences.pinyinQuickPhraseCandidates = true
+    XCTAssertTrue(session.syncRuntimePreferences(includeHostPhrases: false))
+    XCTAssertEqual(session.input(), "addr")
+    XCTAssertGreaterThan(session.generation, generation)
+    XCTAssertEqual(session.composition()?.candidates.map(\.text),
+      ["按当地", "addr", "按订单", "矮墩墩", "按到底", "示例大学示例校区1栋101"])
+    OwlKeyboardPreferences.pinyinQuickPhraseCandidates = false
+    XCTAssertTrue(session.syncRuntimePreferences(includeHostPhrases: false))
+    XCTAssertEqual(session.input(), "addr")
+    XCTAssertEqual(session.composition()?.candidates.map(\.text), plain.candidates.map(\.text))
   }
 
   func testWubiDoesNotLeakLegacyCustomPhraseOrUsurpFirstSlotForHostPhrases() throws {

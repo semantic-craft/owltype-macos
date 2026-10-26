@@ -97,7 +97,16 @@ class Reference:
             for event in events:
                 op = event['op']
                 self.bind('key', [C.c_uint64, C.c_uint32], C.c_uint32)(handle, 0 if op == 'character' else 0x80)
-                if op == 'schema':
+                if op == 'quick-phrases':
+                    revision += 1
+                    options['preferences']['mixed_input']['quick_phrase'] = event['enabled']
+                    snapshot = json.dumps(dict(format_version=1, revision=revision,
+                                               preferences=options['preferences'])).encode()
+                    self.call('update_preferences', [C.c_uint64, C.c_char_p, C.c_size_t],
+                              handle, snapshot, len(snapshot))
+                    response = {'handled': True, 'commit': None,
+                                'view': self.call('view', [C.c_uint64], handle)}
+                elif op == 'schema':
                     revision += 1
                     preferences = options['preferences']
                     preferences['scheme'] = event.get('reference_scheme', 'shuangpin')
@@ -306,7 +315,7 @@ def main():
     parser.add_argument('--owl-resources', type=Path, default=ROOT / 'data/owl-rime')
     parser.add_argument('--xctestrun', type=Path, required=True,
                         help='expected xctestrun filename; build uses a separate owned temporary directory')
-    parser.add_argument('--trace', type=Path, default=ROOT / 'tests/fixtures/pinyin-parity/tadefangjian.json')
+    parser.add_argument('--trace', type=Path, action='append', help='repeat to share one owned build; every trace gets fresh state')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     baseline = json.loads((ROOT / 'tests/fixtures/pinyin-parity/baseline.json').read_text())
@@ -324,39 +333,50 @@ def main():
     for name, expected in baseline['resources'].items():
         if sha256(args.reference_resources / name) != expected:
             parser.error(f'reference resource differs from pinned baseline: {name}')
-    args.output.mkdir(parents=True, exist_ok=True)
-    (args.output / 'comparison.json').unlink(missing_ok=True)
-    events = json.loads(args.trace.read_text())['events']
+    traces = args.trace or [ROOT / 'tests/fixtures/pinyin-parity/tadefangjian.json']
+    if len({trace.stem for trace in traces}) != len(traces):
+        parser.error('batch trace filenames must have unique stems')
+    outputs = [args.output / trace.stem if len(traces) > 1 else args.output for trace in traces]
+    for output in outputs:
+        output.mkdir(parents=True, exist_ok=True)
+        (output / 'comparison.json').unlink(missing_ok=True)
+    results = []
     with owned_owl_build(args.xctestrun) as xctestrun:
         build = build_owl(xctestrun)
-        with tempfile.TemporaryDirectory(prefix='owl-pinyin-parity-') as state:
-            reference = reference_replay(args.reference_library.resolve(), args.reference_resources.resolve(), Path(state) / 'reference', events, args.reference_profile)
-            request = args.output.resolve() / 'owl-request.json'
-            request.write_text(json.dumps({'run_id': str(uuid.uuid4()), 'events': events, 'resources': str(args.owl_resources.resolve()),
-                                           'state_root': str(Path(state) / 'owl'), 'page_size': reference['preferences']['candidate_page_size']}))
-            owl = owl_replay(xctestrun, request, args.output.resolve() / 'owl.json')
+        for trace, output in zip(traces, outputs):
+            events = json.loads(trace.read_text())['events']
+            with tempfile.TemporaryDirectory(prefix='owl-pinyin-parity-') as state:
+                reference = reference_replay(args.reference_library.resolve(), args.reference_resources.resolve(), Path(state) / 'reference', events, args.reference_profile)
+                request = output.resolve() / 'owl-request.json'
+                request.write_text(json.dumps({'run_id': str(uuid.uuid4()), 'events': events, 'resources': str(args.owl_resources.resolve()),
+                                               'state_root': str(Path(state) / 'owl'), 'page_size': reference['preferences']['candidate_page_size']}))
+                owl = owl_replay(xctestrun, request, output.resolve() / 'owl.json')
+            results.append((trace, output, events, reference, owl))
     if source_identity() != build['source']:
         raise ValueError('source changed during replay')
-    diff = differences(reference, owl)
-    if len(owl['steps']) != len(events) or len(reference['steps']) != len(events):
-        raise ValueError('trace did not replay every requested input event')
-    result = {'baseline': baseline, 'reference': reference, 'owl': owl,
-              'differences': diff, 'equal': not diff,
-              'owl_build': build, 'owned_build_cleanup_verified': True,
-              'configuration_contract': {'reference': args.reference_profile,
-                  'reference_host_capabilities': {
-                      'source': 'platforms/macos/src/input/InputController.mm:6050-6070 MSIMESessionOptions',
-                      'upstream_commit': baseline['upstream_commit'],
-                      'overrides': ({'phrase_preedit': True, 'korean_romaja': True, 'quick_phrase_candidates': True}
-                                    if args.reference_profile == 'native-mac-host' else {})},
-                  'owl': 'empty isolated defaults, equal page size; explicit schema events retained in trace',
-                  'forced_equal': ['initial_schema=quanpin/rime_ice', 'page_size=6',
-                                   'explicit schema/profile/custom-table/navigation events']},
-              'trace_sha256': sha256(args.trace), 'owl_resources': {
-                  p.name: sha256(p) for p in sorted((args.owl_resources / 'msime').glob('*')) if p.is_file()}}
-    (args.output / 'comparison.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
-    print(json.dumps({'equal': not diff, 'differences': len(diff), 'output': str(args.output)}, ensure_ascii=False))
-    return int(bool(diff))
+    failed = False
+    for trace, output, events, reference, owl in results:
+        diff = differences(reference, owl)
+        if len(owl['steps']) != len(events) or len(reference['steps']) != len(events):
+            raise ValueError('trace did not replay every requested input event')
+        result = {'baseline': baseline, 'reference': reference, 'owl': owl,
+                  'differences': diff, 'equal': not diff,
+                  'owl_build': build, 'owned_build_cleanup_verified': True,
+                  'configuration_contract': {'reference': args.reference_profile,
+                      'reference_host_capabilities': {
+                          'source': 'platforms/macos/src/input/InputController.mm:6050-6070 MSIMESessionOptions',
+                          'upstream_commit': baseline['upstream_commit'],
+                          'overrides': ({'phrase_preedit': True, 'korean_romaja': True, 'quick_phrase_candidates': True}
+                                        if args.reference_profile == 'native-mac-host' else {})},
+                      'owl': 'empty isolated defaults, equal page size; explicit schema events retained in trace',
+                      'forced_equal': ['initial_schema=quanpin/rime_ice', 'page_size=6',
+                                       'explicit schema/profile/custom-table/navigation events']},
+                  'trace_sha256': sha256(trace), 'owl_resources': {
+                      p.name: sha256(p) for p in sorted((args.owl_resources / 'msime').glob('*')) if p.is_file()}}
+        (output / 'comparison.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
+        print(json.dumps({'equal': not diff, 'differences': len(diff), 'output': str(output)}, ensure_ascii=False))
+        failed = failed or bool(diff)
+    return int(failed)
 
 
 if __name__ == '__main__':

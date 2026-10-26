@@ -413,6 +413,12 @@ enum OwlKeyboardPreferences {
   /// 自动配对括号 (task 07-02). Key `"OwlKeyboardAutoPairBrackets"`, native pinyin default `true`
   /// Native pinyin keeps a marked closing tail; Wubi retains its original opt-in
   /// pair decision. The setting applies immediately without an engine deployment.
+  /// Native 0.55 fresh-install mixed_input.quick_phrase default; K browsing stays available.
+  static var pinyinQuickPhraseCandidates: Bool {
+    get { boolValue("OwlKeyboardPinyinQuickPhraseCandidates", default: false) }
+    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardPinyinQuickPhraseCandidates") }
+  }
+
   static var smartPunctuation: Bool {
     get { boolValue("OwlKeyboardSmartPunctuation", default: true) }
     set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardSmartPunctuation") }

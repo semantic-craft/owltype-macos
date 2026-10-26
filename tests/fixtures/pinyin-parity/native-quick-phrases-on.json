@@ -1,0 +1,317 @@
+{
+  "description": "Pinned native 0.55 explicit mixed_input.quick_phrase ON: select all eight official rows (yyds deduplicates to its dictionary row), page around their positions, preserve learning, then toggle live without clearing input.",
+  "events": [
+    {
+      "op": "quick-phrases",
+      "enabled": true
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "d"
+    },
+    {
+      "op": "character",
+      "value": "d"
+    },
+    {
+      "op": "character",
+      "value": "r"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "previous-page"
+    },
+    {
+      "op": "select",
+      "index": 5
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "d"
+    },
+    {
+      "op": "character",
+      "value": "d"
+    },
+    {
+      "op": "character",
+      "value": "r"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "previous-page"
+    },
+    {
+      "op": "select",
+      "index": 5
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "m"
+    },
+    {
+      "op": "character",
+      "value": "m"
+    },
+    {
+      "op": "character",
+      "value": "m"
+    },
+    {
+      "op": "character",
+      "value": "m"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "previous-page"
+    },
+    {
+      "op": "select",
+      "index": 5
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "s"
+    },
+    {
+      "op": "character",
+      "value": "d"
+    },
+    {
+      "op": "character",
+      "value": "d"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "previous-page"
+    },
+    {
+      "op": "select",
+      "index": 5
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "p"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "e"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "previous-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "select",
+      "index": 3
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "s"
+    },
+    {
+      "op": "character",
+      "value": "c"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "character",
+      "value": "l"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "previous-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "select",
+      "index": 1
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "x"
+    },
+    {
+      "op": "character",
+      "value": "x"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "previous-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "select",
+      "index": 1
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "y"
+    },
+    {
+      "op": "character",
+      "value": "y"
+    },
+    {
+      "op": "character",
+      "value": "d"
+    },
+    {
+      "op": "character",
+      "value": "s"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "previous-page"
+    },
+    {
+      "op": "select",
+      "index": 3
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "d"
+    },
+    {
+      "op": "character",
+      "value": "d"
+    },
+    {
+      "op": "character",
+      "value": "r"
+    },
+    {
+      "op": "quick-phrases",
+      "enabled": false
+    },
+    {
+      "op": "quick-phrases",
+      "enabled": true
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    }
+  ]
+}

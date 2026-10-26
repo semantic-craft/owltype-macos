@@ -93,7 +93,35 @@ impl InputSession {
         }
     }
 
-    /// 前缀或引擎候选经过个人上下文重排，再混入英文、表情、颜文字并应用固定位置。
+    /// Native pinyin inserts before mixing; #307 Wubi reserves visible seats after mixing.
+    fn insert_ordinary_quick_phrases(&self, candidates: &mut Vec<WordItem>) {
+        // Keep host-table enhancement rows out of this upstream dictionary path.
+        if !self.prefix_active
+            && !self.dedicated_english
+            && self.local_mode == LocalInputMode::None
+            && self.quick_phrase_candidates
+            && self.mixed_candidates_enabled
+            && self.local_mode_options.quick_phrase
+            && !self.wubi_grid_composing()
+        {
+            let code = self.engine.request().raw_input.clone();
+            // 调频开着时整组按学下来的槽位放；没有记录（或调频关掉）时落在首页尾部，普通候选不满一页时接在它们后面。
+            let slot = (self.quick_phrase_frequency
+                && self.frequency.mode != FrequencyAdjustmentMode::Disabled)
+                .then(|| {
+                    crate::user_dictionary::ranking::quick_phrase_slot(self.journal_path(), &code)
+                })
+                .flatten();
+            self.queries.insert_quick_phrase_candidates_with_policy(
+                self.is_wubi(),
+                &code,
+                candidates,
+                slot,
+                self.first_page_rows,
+            );
+        }
+    }
+
     pub(super) fn update_mixed_candidates(&mut self) {
         self.multilingual_conversion = None;
         if self.update_literal_candidates() {
@@ -109,6 +137,9 @@ impl InputSession {
             clone_candidate_rows(&self.prefix_candidates, &mut decoded);
         } else {
             clone_candidate_rows(self.engine.candidates(), &mut decoded);
+            if !self.is_wubi() {
+                self.insert_ordinary_quick_phrases(&mut decoded);
+            }
         }
         self.personal_reranked = false;
         // 日文整段转换只算一次：个人上下文重排生效时下面要混排两张表。
@@ -745,29 +776,9 @@ impl InputSession {
         }
         // 放在最后：网址补全不参与固定位置，也不被挪开。
         self.insert_url_scheme_completions(&mut mixed);
-        // 快捷短语的独立开关同时约束普通候选入口，在混输行、固定位置、云占位和网址补全之后按首页可用席位落位，联系人在最终混排后单独加入。
-        if !self.prefix_active
-            && !self.dedicated_english
-            && self.local_mode == LocalInputMode::None
-            && self.quick_phrase_candidates
-            && self.mixed_candidates_enabled
-            && self.local_mode_options.quick_phrase
-            && !self.wubi_grid_composing()
-        {
-            let code = self.engine.request().raw_input.clone();
-            // 调频开着时整组按学下来的槽位放；没有记录（或调频关掉）时落在首页尾部，普通候选不满一页时接在它们后面。
-            let slot = (self.quick_phrase_frequency
-                && self.frequency.mode != FrequencyAdjustmentMode::Disabled)
-                .then(|| {
-                    crate::user_dictionary::ranking::quick_phrase_slot(self.journal_path(), &code)
-                })
-                .flatten();
-            self.queries.insert_quick_phrase_candidates(
-                &code,
-                &mut mixed,
-                slot,
-                self.first_page_rows,
-            );
+        // Keep #307's post-mixing Wubi placement; pinyin follows pinned native 0.55.
+        if self.is_wubi() {
+            self.insert_ordinary_quick_phrases(&mut mixed);
         }
         // 联系人优先级高于固定位置和云候选；两行相邻，不能让云占位插进姓名与组合文本之间。
         // 光标前缀只解码局部，联系人选择却会结束整段组字，因此只在完整普通拼音组字中加入。

@@ -75,6 +75,70 @@ class ExportTransportTests(unittest.TestCase):
                     parity.owl_replay_once(config, request, output)
 
 
+class BatchReplayTests(unittest.TestCase):
+    def test_batch_builds_once_and_keeps_independent_states_even_with_a_diff(self):
+        for scenario in ('equal', 'difference', 'failure', 'interrupt'):
+            mismatch = scenario == 'difference'
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                fixtures = root / 'tests/fixtures/pinyin-parity'
+                fixtures.mkdir(parents=True)
+                library = root / 'oracle.dylib'
+                library.write_bytes(b'isolated oracle fixture')
+                (fixtures / 'baseline.json').write_text(json.dumps({
+                    'reference_library_sha256': parity.sha256(library), 'resources': {}, 'upstream_commit': 'fixed'}))
+                traces = [root / 'first.json', root / 'second.json']
+                for trace, value in zip(traces, ('a', 'b')):
+                    trace.write_text(json.dumps({'events': [{'op': 'character', 'value': value}]}))
+                roots = []
+                def observation(events):
+                    return {'steps': [dict(event=e, consumed=True, input=e['value'],
+                        preedit=e['value'], caret=1, page=0, page_size=6, has_more=False,
+                        highlighted=0, candidates=['fixture'], commit=None) for e in events]}
+                def reference(_library, _resources, state, events, _profile):
+                    roots.append(state.parent)
+                    return dict(observation(events), preferences={'candidate_page_size': 6})
+                def owl(_xctestrun, request, _output):
+                    data = json.loads(request.read_text())
+                    self.assertEqual(Path(data['state_root']).parent, roots[-1])
+                    if data['events'][0]['value'] == 'b':
+                        if scenario == 'failure':
+                            raise RuntimeError('second replay failed')
+                        if scenario == 'interrupt':
+                            raise KeyboardInterrupt()
+                    result = observation(data['events'])
+                    if mismatch and data['events'][0]['value'] == 'a':
+                        result['steps'][0]['commit'] = 'different'
+                    return result
+                argv = ['parity', '--reference-library', str(library),
+                    '--reference-resources', str(root), '--xctestrun', 'Build/Products/probe.xctestrun',
+                    '--trace', str(traces[0]), '--trace', str(traces[1]), '--output', str(root / 'out')]
+                with patch.object(parity, 'ROOT', root), patch.object(parity.sys, 'argv', argv), \
+                        patch.object(parity, 'source_identity', return_value={'head': 'fixed'}), \
+                        patch.object(parity, 'prepare_registrations'), \
+                        patch.object(parity, 'build_owl', return_value={'source': {'head': 'fixed'}}) as build, \
+                        patch.object(parity, 'reference_replay', side_effect=reference), \
+                        patch.object(parity, 'owl_replay', side_effect=owl):
+                    if scenario in ('failure', 'interrupt'):
+                        with self.assertRaises((RuntimeError, KeyboardInterrupt)):
+                            parity.main()
+                    else:
+                        self.assertEqual(parity.main(), int(mismatch))
+                    self.assertEqual(build.call_count, 1)
+                    owned = build.call_args.args[0].parent.parent.parent
+                self.assertFalse(owned.exists())
+                self.assertNotEqual(roots[0], roots[1])
+                self.assertTrue(all(not state.exists() for state in roots))
+                for trace in traces:
+                    receipt_path = root / 'out' / trace.stem / 'comparison.json'
+                    if scenario in ('failure', 'interrupt'):
+                        self.assertFalse(receipt_path.exists(), 'incomplete batches cannot publish passing receipts')
+                        continue
+                    receipt = json.loads(receipt_path.read_text())
+                    self.assertTrue(receipt['owned_build_cleanup_verified'])
+                    self.assertEqual(receipt['owl_build']['source'], {'head': 'fixed'})
+
+
 class BuildLifecycleTests(unittest.TestCase):
     def test_owned_build_is_removed_after_success_failure_and_interruption(self):
         for failure in [None, RuntimeError("build failed"), KeyboardInterrupt()]:
