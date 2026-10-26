@@ -1460,11 +1460,25 @@ impl OwlMsimeSession {
         Ok(())
     }
 
+    fn apply_quick_phrase_preference_if_idle(&mut self) -> Result<(), String> {
+        let enabled = self.input_mode == "wubi" || self.pinyin_quick_phrase_candidates;
+        if self.options.quick_phrase_candidates != enabled && self.runtime.is_idle() {
+            self.runtime
+                .set_quick_phrase_candidates(enabled)
+                .map_err(|error| error.to_string())?;
+            self.options.quick_phrase_candidates = enabled;
+        }
+        Ok(())
+    }
+
     pub fn handle_action_json(&mut self, action_json: &str) -> SnapshotResponseDto {
         let payload: ActionPayload = match serde_json::from_str(action_json) {
             Ok(p) => p,
             Err(err) => return error_response(format!("invalid action_json: {err}")),
         };
+        if let Err(error) = self.apply_quick_phrase_preference_if_idle() {
+            return error_response(error);
+        }
         self.rerank.apply_pending(&mut self.runtime);
         if payload.op != "peek_candidates" {
             self.rerank.invalidate(&mut self.runtime);
@@ -2241,10 +2255,8 @@ impl OwlMsimeSession {
                 match name {
                     "pinyin_quick_phrase_candidates" => {
                         self.pinyin_quick_phrase_candidates = value;
-                        let enabled = self.input_mode == "wubi" || value;
-                        self.options.quick_phrase_candidates = enabled;
-                        if let Err(error) = self.runtime.set_quick_phrase_candidates(enabled) {
-                            return error_response(error.to_string());
+                        if let Err(error) = self.apply_quick_phrase_preference_if_idle() {
+                            return error_response(error);
                         }
                     }
                     "ascii_punct" => {
@@ -3844,11 +3856,20 @@ mod tests {
                 r#"{"op":"set_option","name":"pinyin_quick_phrase_candidates","value":true}"#,
             );
             assert!(enabled.ok);
-            frames[index] = call_snapshot(session);
+            let pending = call_snapshot(session);
             assert_eq!(
-                frames[index].raw_input, "ni",
-                "live settings must preserve composition"
+                pending.raw_input, "ni",
+                "queued preferences preserve composition"
             );
+            assert_eq!(pending.generation, previous_generation);
+            assert!(!pending
+                .candidates
+                .iter()
+                .any(|candidate| candidate.text == "基础短语"));
+            call_action(session, r#"{"op":"clear"}"#);
+            call_action(session, r#"{"op":"insert","ch":"n"}"#);
+            call_action(session, r#"{"op":"insert","ch":"i"}"#);
+            frames[index] = call_snapshot(session);
             assert!(frames[index].generation > previous_generation);
         }
         assert!(frames[0]

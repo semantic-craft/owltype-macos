@@ -676,7 +676,8 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Keep the fresh pinyin default OFF and expose the actual preference; explicit ON
   follows the pinned pre-mixing insertion/counting rules. Wubi keeps #307's
   post-mixing visible-seat policy. Neither disables K browsing or Owl's explicit
-  AI/template entry. A live toggle must preserve raw composition and refresh IDs.
+  AI/template entry. A live toggle queues until the native runtime is idle, preserving the current
+  raw composition and IDs; the next composition applies the preference.
 - Verify: replay `native-quick-phrases.json` and `native-quick-phrases-on.json`
   against native-mac-host. The ON corpus selects all eight official rows and
   requires deduplication of the existing dictionary `yyds` row. Keep all six

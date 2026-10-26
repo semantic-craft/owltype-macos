@@ -2804,12 +2804,19 @@ final class OwlRustEngineTests: XCTestCase {
     OwlKeyboardPreferences.pinyinQuickPhraseCandidates = true
     XCTAssertTrue(session.syncRuntimePreferences(includeHostPhrases: false))
     XCTAssertEqual(session.input(), "addr")
-    XCTAssertGreaterThan(session.generation, generation)
-    XCTAssertEqual(session.composition()?.candidates.map(\.text),
+    XCTAssertEqual(session.generation, generation, "native settings queue until composition is idle")
+    XCTAssertEqual(session.composition()?.candidates.map(\.text), plain.candidates.map(\.text))
+    session.clearComposition()
+    typeText("addr", into: session)
+    let enabled = try XCTUnwrap(session.composition())
+    XCTAssertEqual(enabled.candidates.map(\.text),
       ["按当地", "addr", "按订单", "矮墩墩", "按到底", "示例大学示例校区1栋101"])
     OwlKeyboardPreferences.pinyinQuickPhraseCandidates = false
     XCTAssertTrue(session.syncRuntimePreferences(includeHostPhrases: false))
     XCTAssertEqual(session.input(), "addr")
+    XCTAssertEqual(session.composition()?.candidates.map(\.text), enabled.candidates.map(\.text))
+    session.clearComposition()
+    typeText("addr", into: session)
     XCTAssertEqual(session.composition()?.candidates.map(\.text), plain.candidates.map(\.text))
   }
 

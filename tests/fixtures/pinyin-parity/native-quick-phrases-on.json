@@ -1,5 +1,5 @@
 {
-  "description": "Pinned native 0.55 explicit mixed_input.quick_phrase ON: select all eight official rows (yyds deduplicates to its dictionary row), page around their positions, preserve learning, then toggle live without clearing input.",
+  "description": "Pinned native 0.55 explicit mixed_input.quick_phrase ON: select all eight official rows (yyds deduplicates to its dictionary row), page around their positions, preserve learning, then queue live changes without clearing input, then apply them at the next idle composition.",
   "events": [
     {
       "op": "quick-phrases",
@@ -306,8 +306,56 @@
       "enabled": false
     },
     {
+      "op": "command",
+      "value": "end"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "d"
+    },
+    {
+      "op": "character",
+      "value": "d"
+    },
+    {
+      "op": "character",
+      "value": "r"
+    },
+    {
       "op": "quick-phrases",
       "enabled": true
+    },
+    {
+      "op": "command",
+      "value": "end"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "d"
+    },
+    {
+      "op": "character",
+      "value": "d"
+    },
+    {
+      "op": "character",
+      "value": "r"
     },
     {
       "op": "command",

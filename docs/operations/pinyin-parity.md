@@ -226,8 +226,8 @@ adapter does not infer syllable boundaries in Swift.
 `native-quick-phrases.json` covers all seven official codes (eight rows) with
 untouched fresh native preferences. `native-quick-phrases-on.json` explicitly
 turns `mixed_input.quick_phrase` on, selects every official row through its visible
-identity, checks paging and deduplication, then toggles the preference during an
-active composition. The `yyds` row already exists in the dictionary and must not
+identity, checks paging and deduplication, then queues the preference during an active composition and applies it after
+the composition becomes idle, matching the native host preference contract. The `yyds` row already exists in the dictionary and must not
 appear twice. The reference capability remains enabled in both groups.
 
 Repeat `--trace` to replay several corpora with one fresh owned build. Every
