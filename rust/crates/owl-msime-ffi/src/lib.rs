@@ -5646,19 +5646,15 @@ mod tests {
         if !seed_pinyin.is_file() {
             return;
         }
-        let seed_english = repo_root.join("data/owl-rime/msime/msime-english.db");
-        let c_pinyin = CString::new(seed_pinyin.to_str().unwrap()).unwrap();
-        let c_english = CString::new(
-            seed_english
-                .is_file()
-                .then(|| seed_english.to_str().unwrap())
-                .unwrap_or(""),
-        )
-        .unwrap();
-        let c_empty = CString::new("").unwrap();
-
-        let session =
-            owl_msime_session_create(c_pinyin.as_ptr(), c_english.as_ptr(), c_empty.as_ptr(), 5);
+        // Match the product's resource-generation path: official Wubi is a separate file.
+        let temporary = TempDir::new().unwrap();
+        let (session, error) = create_with_generation(
+            seed_pinyin.parent().unwrap(),
+            &temporary.path().join("user"),
+            &temporary.path().join("cache"),
+            "official-seed-smoke",
+        );
+        assert!(error.is_none(), "{error:?}");
         assert!(!session.is_null());
 
         for ch in ['n', 'i', 'h', 'a', 'o'] {
