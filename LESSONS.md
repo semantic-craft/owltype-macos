@@ -543,3 +543,22 @@ review dates, not retries. Keep deterministic checks in the local gate.
   `python3 scripts/verify.py swift --test OwlRustEngineTests --test OwlPromptInterceptionTests
   --test OwlTemplateHostDeliveryTests` pass. These are isolated automated sessions, not installed
   IMK or live-provider acceptance.
+
+## Learning parity must cross a process boundary and reach a real consumer
+
+- Seen 1x (2026-10-26): T09 found that upstream `RemoveCandidate` had no Owl FFI or
+  native consumer. Selection learning already worked, but a session-only reopen
+  could still observe a process-wide dictionary cache instead of journal recovery.
+- Fix: validated visible candidate tokens reach upstream removal from the existing
+  context menu and macOS Ctrl-Option-Shift physical digits 1–8. Stale menu tokens
+  and preview/punctuation identities are rejected. Single-character/source
+  protection stays in the upstream engine.
+- Regression: `testCandidateDeletionUsesPhysicalChordAndRejectsOldMenuToken` drives
+  the controller shortcut/menu into a real session; `removal_uses_current_visible_identity_and_survives_reopen`
+  covers the ABI. `tests/fixtures/pinyin-parity/learning.json` compares every page
+  before/after selection, deletion and two restarts in fresh processes per endpoint,
+  with independent checkpoints for the actual learning and recovery effects.
+- Verify: run the learning fixture through `scripts/pinyin-parity.py` against the
+  pinned reference library/resources, the named Swift test, and
+  `cargo test --locked --manifest-path rust/Cargo.toml -p owl-msime-ffi`.
+  This proves the offline host seam; installed IMK acceptance remains separate.
