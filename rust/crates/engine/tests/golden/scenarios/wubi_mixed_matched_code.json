@@ -1,0 +1,60 @@
+{
+ "name": "wubi_mixed_matched_code",
+ "source": "tests/src/test_wubi_mixed_input_session.cpp:70-79; cases :121-162",
+ "note": "Reference ctest wubi_mixed_input_session fails against this build: overlay apply_engine_wubi_mixed_candidates.py appends quanpin rows after wubi rows and recomputes the table answer per keystroke, so a tail after selection can get wubi rows too. The overlay behaviour is the product intent and is what is recorded. 2026-10-11（#6789）起，混输关闭时组字开头的 `z` 打开临时拼音反查，`zi` 记录的是反查组字 `zi`，不再是参考实现里被拒绝的 `z`。",
+ "covers": [
+  "wubi"
+ ],
+ "fixture": {
+  "english_schema": true,
+  "databases": {
+   "msime-pinyin.db": "CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_n VALUES('ni','n','你',10000);CREATE TABLE tbl_1_z(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_z VALUES('zi','z','子',10000);CREATE TABLE tbl_2_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',10000),('ni''hao','nh','拟好',9000);CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);INSERT INTO wubi86 VALUES('wq','你好',10000),('wqaa','众人',9000);"
+  }
+ },
+ "options": {
+  "scheme": "wubi",
+  "wubi_mixed_pinyin": true
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "wq"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "wqaa"
+  },
+  {
+   "op": "char",
+   "arg": "a"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "set_wubi_mixed_pinyin",
+   "arg": false
+  },
+  {
+   "op": "type",
+   "arg": "zi"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "set_wubi_mixed_pinyin",
+   "arg": true
+  },
+  {
+   "op": "type",
+   "arg": "zi"
+  }
+ ]
+}

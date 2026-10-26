@@ -1,0 +1,31 @@
+{
+ "name": "wubi_mixed_tail_after_selection",
+ "source": "tests/src/test_wubi_mixed_input_session.cpp:70-79; case :197-212",
+ "note": "product decision 2026-09-30 overrides the reference: the tail stays pinyin. After 你好 is picked out of nihaowq, the rest (wq) keeps decoding as quanpin until the composition ends, the intent of test_wubi_mixed_input_session.cpp:194-212 (its ctest failed against the recorded build, whose wubi_mixed_candidates overlay recomputed the table answer per keystroke and answered wq with the wubi rows 你好, 众人). Step 2 was rewritten to the quanpin answer, which this fixture leaves empty, as wubi_mixed_tail_quanpin_reference records.",
+ "covers": [
+  "wubi",
+  "partial commit"
+ ],
+ "fixture": {
+  "english_schema": true,
+  "databases": {
+   "msime-pinyin.db": "CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_n VALUES('ni','n','你',10000);CREATE TABLE tbl_1_z(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_z VALUES('zi','z','子',10000);CREATE TABLE tbl_2_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',10000),('ni''hao','nh','拟好',9000);CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);INSERT INTO wubi86 VALUES('wq','你好',10000),('wqaa','众人',9000);"
+  }
+ },
+ "options": {
+  "scheme": "wubi",
+  "wubi_mixed_pinyin": true
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "nihaowq"
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "你好"
+   }
+  }
+ ]
+}

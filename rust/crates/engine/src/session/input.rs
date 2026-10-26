@@ -92,6 +92,10 @@ pub(super) struct InputSession {
     pub expressive_options: MixedExpressiveOptions,
     /// 日文混输开着（`SessionOptions::japanese_mixing`）。
     pub japanese_mixing: bool,
+    /// 所选语言的独立词库查询状态，不修改活动方案的提供者。
+    pub multilingual: Option<crate::multilingual::DictionaryComposer>,
+    /// 当前唯一的完整混合备选；快照据此保留语言边界。
+    pub multilingual_conversion: Option<crate::multilingual::Conversion>,
     pub dedicated_english: bool,
     pub dedicated_english_preedit: String,
     pub dedicated_english_candidates: Vec<WordItem>,
@@ -160,6 +164,7 @@ impl InputSession {
         engine.set_autocorrect_types(0);
         engine.set_quanpin_helpcode_enabled(true);
         engine.set_shuangpin_helpcode_enabled(true);
+        engine.set_korean_layout(options.korean_layout);
         engine.set_vietnamese_options(
             options.vietnamese_input_method,
             options.vietnamese_tone_style,
@@ -194,6 +199,19 @@ impl InputSession {
             english_options: EnglishInputOptions::default(),
             expressive_options: MixedExpressiveOptions::default(),
             japanese_mixing: false,
+            multilingual: (options.multilingual_languages.len() >= 2).then(|| {
+                let model = if options.japanese_dictionary.as_os_str().is_empty() {
+                    paths.resource(assets::JAPANESE_MODEL)
+                } else {
+                    options.japanese_dictionary.clone()
+                };
+                crate::multilingual::DictionaryComposer::with_japanese_model(
+                    &paths,
+                    &options.multilingual_languages,
+                    &model,
+                )
+            }),
+            multilingual_conversion: None,
             dedicated_english: false,
             dedicated_english_preedit: String::new(),
             dedicated_english_candidates: Vec::new(),
@@ -267,6 +285,11 @@ impl InputSession {
         session.japanese_mixing = options.japanese_mixing;
         if options.japanese_mixing {
             session.engine.warm_up_japanese();
+        }
+        if options.mixed_candidates {
+            if let Some(composer) = &session.multilingual {
+                composer.warm_up_in_background();
+            }
         }
         session.set_wubi_input_options(options.wubi);
         session.set_personal_context_enabled(options.personal_context);
@@ -438,6 +461,40 @@ impl InputSession {
         }
         self.invalidate_online_requests();
         KeyResult::handled()
+    }
+
+    /// 五笔 14 键的一键：`representative` 是这一组的代表字母（[`crate::wubi::grid::representative`]）。不是五笔、在本地模式或专用英文里、整句改字中、光标不在末尾，或者正在打 26 键的五笔码时不处理，组字不变。
+    pub fn handle_wubi_grid_key(&mut self, representative: u8) -> KeyResult {
+        if !self.is_wubi()
+            || self.dedicated_english
+            || self.local_mode != LocalInputMode::None
+            || self.conversion.is_some()
+            || self
+                .caret
+                .is_some_and(|caret| caret < self.editing_text_len())
+        {
+            return KeyResult::unhandled();
+        }
+        if !self.has_composition()
+            && self.chain.previous.is_some()
+            && self.chain.paused(self.steady_now())
+        {
+            self.chain.reset();
+        }
+        if !self.engine.handle_wubi_grid_key(representative) {
+            return KeyResult::unhandled();
+        }
+        self.caret = None;
+        self.update_mixed_candidates();
+        self.invalidate_online_requests();
+        KeyResult::handled()
+    }
+
+    /// 当前组字是五笔 14 键打的组码。
+    pub fn wubi_grid_composing(&self) -> bool {
+        self.local_mode == LocalInputMode::None
+            && !self.dedicated_english
+            && self.engine.wubi_grid_composing()
     }
 
     /// input_session.cpp:958-1036.
@@ -1511,6 +1568,18 @@ impl InputSession {
         });
     }
 
+    pub(super) fn mixed_emoji_candidates_enabled(&self) -> bool {
+        self.expressive_options.emoji_candidates
+    }
+
+    pub(super) fn set_mixed_emoji_candidates(&mut self, enabled: bool) {
+        if self.expressive_options.emoji_candidates == enabled {
+            return;
+        }
+        self.expressive_options.emoji_candidates = enabled;
+        self.update_mixed_candidates();
+    }
+
     pub fn set_personal_context_enabled(&mut self, enabled: bool) {
         if self.personal_context_enabled == enabled {
             return;
@@ -1535,20 +1604,6 @@ impl InputSession {
         }
         self.english_online_candidates_enabled = enabled;
         self.invalidate_online_requests();
-    }
-
-    /// Change only the emoji rows mixed into ordinary candidates. Local emoji (`E`) keeps its
-    /// independent option, and an open composition is refreshed so the switch takes effect now.
-    pub(super) fn mixed_emoji_candidates_enabled(&self) -> bool {
-        self.expressive_options.emoji_candidates
-    }
-
-    pub(super) fn set_mixed_emoji_candidates(&mut self, enabled: bool) {
-        if self.expressive_options.emoji_candidates == enabled {
-            return;
-        }
-        self.expressive_options.emoji_candidates = enabled;
-        self.update_mixed_candidates();
     }
 
     /// 输入或模式变化同时撤回英文在线行，不能只让旧查询失效却继续显示它的回答。
@@ -1611,6 +1666,7 @@ impl InputSession {
         self.dedicated_english_preedit.clear();
         self.dedicated_english_candidates.clear();
         self.mixed_candidates.clear();
+        self.multilingual_conversion = None;
         self.personal_reranked = false;
         self.ranking_candidates = None;
         self.engine.reset();
@@ -1636,6 +1692,9 @@ impl InputSession {
 
     pub fn reset_cache(&mut self) {
         self.engine.reset_cache();
+        if let Some(composer) = &mut self.multilingual {
+            composer.clear();
+        }
         if let Some(engine) = self.canonical_phrase_engine.as_mut() {
             engine.reset_cache();
         }
@@ -1984,10 +2043,15 @@ impl InputSession {
             b'S' => (LocalInputMode::Symbol, options.symbol),
             _ => return None,
         };
-        // 拆字和快捷短语一样在五笔下也能进入：它查的是编进引擎的部件拼音表，不经过当前方案的拼写，五笔用户同样会遇到不会读的字。
+        // 五笔编码只用小写字母，没有组字时的 Shift+字母不会和编码冲突，所以不经过当前方案拼写的模式在五笔下也能进入（`opens_table_modes`）：快捷短语、Unicode 码位、日期时间关键词、临时英文和符号分组码各有自己的输入，拆字查的是编进引擎的部件拼音表，五笔用户同样会遇到不会读的字（#9696）。Emoji、颜文字和超级简拼按当前方案的拼音拼写查，计算模式的数字和运算符要宿主按方案路由（Windows 的 LocalModeTriggersChanged），它们仍只在全拼、双拼下进入（`opens_local_modes`）。
         let scheme_opens = if matches!(
             mode,
-            LocalInputMode::QuickPhrase | LocalInputMode::Chaizi | LocalInputMode::TemporaryEnglish
+            LocalInputMode::QuickPhrase
+                | LocalInputMode::Chaizi
+                | LocalInputMode::Unicode
+                | LocalInputMode::DateTime
+                | LocalInputMode::TemporaryEnglish
+                | LocalInputMode::Symbol
         ) {
             self.scheme().opens_table_modes()
         } else {

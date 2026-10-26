@@ -1,0 +1,211 @@
+{
+ "name": "remove_english_mixed",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "he",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "he",
+    "raw_segmentation": "he",
+    "normalized_segmentation": "he",
+    "editing_text": "he",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "hello",
+      "pinyin": "hello",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": true
+     },
+     {
+      "word": "help",
+      "pinyin": "help",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 50,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "he",
+     "cache_key": "he",
+     "pinyin_segments": [
+      "he"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "remove",
+   "arg": {
+    "word": "help"
+   },
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "he",
+    "raw_segmentation": "he",
+    "normalized_segmentation": "he",
+    "editing_text": "he",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2
+    ],
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "hello",
+      "pinyin": "hello",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "he",
+     "cache_key": "he",
+     "pinyin_segments": [
+      "he"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "dump_journal",
+   "journal": {
+    "user_dictionary_operations": {
+     "columns": [
+      "dictionary",
+      "key",
+      "value",
+      "operation",
+      "weight",
+      "display",
+      "user_inserted"
+     ],
+     "rows": [
+      [
+       "english",
+       "help",
+       "help",
+       "delete",
+       0,
+       "",
+       0
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "op": "new_generation",
+   "arg": "v2",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "set_dedicated_english",
+   "arg": true,
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "he",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "he",
+    "raw_segmentation": "he",
+    "normalized_segmentation": "he",
+    "editing_text": "he",
+    "caret": 2,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "hello",
+      "pinyin": "hello",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": true
+     }
+    ]
+   }
+  }
+ ]
+}

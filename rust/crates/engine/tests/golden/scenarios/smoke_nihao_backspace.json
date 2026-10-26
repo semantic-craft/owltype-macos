@@ -1,0 +1,25 @@
+{
+ "name": "smoke_nihao_backspace",
+ "source": "tests/src/test_engine_smoke.cpp:284-312",
+ "note": "The ctest drives the internal ImeSession::handle_key; this is the same key sequence through Session::character/command.",
+ "covers": [
+  "quanpin basics",
+  "backspace"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-pinyin.db": "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);INSERT INTO tbl_2_n VALUES('ni''hao', 'nh', '你好', 100)"
+  }
+ },
+ "options": {},
+ "steps": [
+  {
+   "op": "type",
+   "arg": "nihao"
+  },
+  {
+   "op": "command",
+   "arg": "Backspace"
+  }
+ ]
+}

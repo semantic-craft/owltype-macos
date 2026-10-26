@@ -729,11 +729,9 @@ mod tests {
 
     // engine-bridge/src/tests.rs:512-545: the carried jiajia table loads whole.
     #[test]
+    #[ignore = "Optional upstream helpcode table is not redistributed by Owl"]
     fn the_carried_jiajia_table_loads_whole() {
         let resources = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../resources");
-        if !resources.join("helpcodes/jiajia_helpcode.txt").is_file() {
-            return;
-        }
         let loaded = load_helpcode_keymap(&resources, "jiajia").unwrap();
         assert_eq!(loaded.len(), 7968);
         for (character, code) in [("好", "nz"), ("你", "de"), ("中", "ks"), ("国", "ky")] {
@@ -743,11 +741,9 @@ mod tests {
 
     // 仓库里的五笔 86 码表（由 dict-builder 的 wubi86-helpcode 生成）整表载入，表头的 `#` 行不算数，码是全码的前两码。
     #[test]
+    #[ignore = "Optional upstream helpcode table is not redistributed by Owl"]
     fn the_generated_wubi86_table_loads_whole() {
         let resources = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../resources");
-        if !resources.join("helpcodes/wubi86_helpcode.txt").is_file() {
-            return;
-        }
         let loaded = load_helpcode_keymap(&resources, "wubi86").unwrap();
         assert_eq!(loaded.len(), 20614);
         for (character, code) in [("码", "dc"), ("一", "gg"), ("我", "tr"), ("工", "aa")] {

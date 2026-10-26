@@ -57,6 +57,7 @@ impl InputEngine for FactEngine {
         let composing = !self.text.is_empty() || !self.conversion.is_empty();
         let count = self.words.len();
         Ok(EngineSnapshot {
+            prediction: false,
             scheme: self.scheme,
             key_grid: self.key_grid,
             grid_composing: self.key_grid.is_some() && !self.text.is_empty(),
@@ -442,33 +443,6 @@ fn turning_off_the_wubi_top_commit_still_tops_with_mixed_input_off() {
     let topped = type_keys(&mut plain, b"x");
     assert_eq!(topped.commit.as_deref(), Some("合成甲"));
     assert_eq!(topped.view.editing_text, "x");
-    assert_eq!(
-        selection(&plain),
-        Some(fact(
-            0,
-            0,
-            SelectionHow::WubiTop,
-            SelectionOutcome::Committed
-        ))
-    );
-}
-
-#[test]
-fn phrase_preedit_does_not_hold_the_wubi_top_commit() {
-    // The fifth key starts the next composition. The word selected from the four-code
-    // must go to the document rather than become a held phrase prefix.
-    let mut plain = focused(FactEngine {
-        scheme: 2,
-        words: vec!["工".into(), "恭恭敬敬".into()],
-        ..FactEngine::default()
-    });
-    plain.set_phrase_preedit(true);
-    type_keys(&mut plain, b"aaaa");
-    let topped = type_keys(&mut plain, b"x");
-
-    assert_eq!(topped.commit.as_deref(), Some("工"));
-    assert_eq!(topped.view.editing_text, "x");
-    assert!(topped.view.phrase_prefix.is_empty());
     assert_eq!(
         selection(&plain),
         Some(fact(

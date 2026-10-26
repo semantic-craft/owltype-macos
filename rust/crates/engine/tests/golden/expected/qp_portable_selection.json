@@ -1,0 +1,309 @@
+{
+ "name": "qp_portable_selection",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "xi'te'le",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "xi'te'le",
+    "raw_segmentation": "xi'te'le",
+    "normalized_segmentation": "xi'te'le",
+    "editing_text": "xi'te'le",
+    "caret": 8,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     3,
+     6,
+     8
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "西特乐",
+      "pinyin": "xi'te'le",
+      "canonical_pinyin": "xi'te'le",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 15394,
+      "sentence_association": true,
+      "sentence_words": [
+       "西",
+       "特乐"
+      ],
+      "answers_key": true
+     },
+     {
+      "word": "西",
+      "pinyin": "xi",
+      "canonical_pinyin": "xi",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "xi'te'le",
+     "cache_key": "xi'te'le",
+     "pinyin_segments": [
+      "xi",
+      "te",
+      "le"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "西"
+   },
+   "result": {
+    "handled": true,
+    "commit": "西"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "te'le",
+    "raw_segmentation": "te'le",
+    "normalized_segmentation": "te'le",
+    "editing_text": "te'le",
+    "caret": 5,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     3,
+     5
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "特乐",
+      "pinyin": "te'le",
+      "canonical_pinyin": "te'le",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": true
+     },
+     {
+      "word": "特",
+      "pinyin": "te",
+      "canonical_pinyin": "te",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "te'le",
+     "cache_key": "te'le",
+     "pinyin_segments": [
+      "te",
+      "le"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "特乐"
+   },
+   "result": {
+    "handled": true,
+    "commit": "特乐"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "query",
+   "arg": "SELECT key,value FROM tbl_3_x ORDER BY 1,2",
+   "rows": [
+    [
+     "xi'te'le",
+     "西特乐"
+    ]
+   ]
+  },
+  {
+   "op": "type",
+   "arg": "xi'te'le",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "xi'te'le",
+    "raw_segmentation": "xi'te'le",
+    "normalized_segmentation": "xi'te'le",
+    "editing_text": "xi'te'le",
+    "caret": 8,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     3,
+     6,
+     8
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "西特乐",
+      "pinyin": "xi'te'le",
+      "canonical_pinyin": "xi'te'le",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 10000,
+      "answers_key": true
+     },
+     {
+      "word": "西",
+      "pinyin": "xi",
+      "canonical_pinyin": "xi",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "xi'te'le",
+     "cache_key": "xi'te'le",
+     "pinyin_segments": [
+      "xi",
+      "te",
+      "le"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "西"
+   },
+   "result": {
+    "handled": true,
+    "commit": "西"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "te'le",
+    "raw_segmentation": "te'le",
+    "normalized_segmentation": "te'le",
+    "editing_text": "te'le",
+    "caret": 5,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     3,
+     5
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "特乐",
+      "pinyin": "te'le",
+      "canonical_pinyin": "te'le",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": true
+     },
+     {
+      "word": "特",
+      "pinyin": "te",
+      "canonical_pinyin": "te",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "te'le",
+     "cache_key": "te'le",
+     "pinyin_segments": [
+      "te",
+      "le"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  }
+ ]
+}

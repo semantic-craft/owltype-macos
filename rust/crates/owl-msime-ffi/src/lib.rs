@@ -842,6 +842,9 @@ fn product_engine_options(
     page_size: u8,
 ) -> EngineOptions {
     EngineOptions {
+        korean_layout: 0,
+        multilingual_languages: Vec::new(),
+        next_word_prediction: false,
         resources: resources.to_string_lossy().into_owned(),
         user_data: user_data.to_string_lossy().into_owned(),
         cache: cache.to_string_lossy().into_owned(),
@@ -879,8 +882,8 @@ fn product_engine_options(
         frequency_linear_step: 1,
         mixed_candidates: true,
         mixed_english: true,
-        english_minimum_prefix: 2,
-        english_first_page_count: 3,
+        english_minimum_prefix: 5,
+        english_first_page_count: 1,
         mixed_emoji: false,
         mixed_kaomoji: false,
         mixed_symbols: false,
@@ -910,7 +913,7 @@ fn product_engine_options(
         quick_phrase_frequency: true,
         sentence_association: SentenceAssociationOptions::default(),
         rescoring_context: String::new(),
-        sentence_alternatives: false,
+        sentence_alternatives: true,
         first_page_rows: usize::from(page_size),
         vietnamese_input_method: 0,
         vietnamese_tone_style: 0,
@@ -1421,6 +1424,8 @@ impl OwlMsimeSession {
         {
             let _ = self.runtime.dispatch(Action::Command(Command::Cancel));
             self.options.scheme = desired_scheme;
+            // Keep Owl Wubi composition policy; upstream sentence alternatives own ordinary pinyin.
+            self.options.sentence_alternatives = self.input_mode != "wubi";
             self.options.shuangpin_profile = desired_profile;
             self.options.wubi_mixed_pinyin = desired_wubi_mixed;
             self.options.single_character_only = desired_single_only;
@@ -3737,8 +3742,8 @@ mod tests {
         assert!(options.autocorrect_transposition);
         assert!(options.autocorrect_neighbor);
         assert!(options.mixed_english);
-        assert_eq!(options.english_minimum_prefix, 2);
-        assert_eq!(options.english_first_page_count, 3);
+        assert_eq!(options.english_minimum_prefix, 5);
+        assert_eq!(options.english_first_page_count, 1);
         assert!(options.quick_phrase_candidates);
         assert_eq!(options.first_page_rows, 5);
         assert!(!options.helpcode);

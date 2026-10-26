@@ -1,0 +1,47 @@
+{
+ "name": "wubi_prefix_codes",
+ "source": "tests/src/test_wubi_input_session.cpp:68-74; cases :100-138",
+ "note": "Reference ctest wubi_input_session fails against this build: overlay apply_engine_wubi_prefix_learning.py orders exact code first then weight, and drops the word dedup, so wq gives [你, 父子, 爷, 你]. The overlay behaviour is the product intent and is what is recorded.",
+ "covers": [
+  "wubi"
+ ],
+ "fixture": {
+  "english_schema": true,
+  "databases": {
+   "msime-pinyin.db": "CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);INSERT INTO wubi86 VALUES('w','人',20);INSERT INTO wubi86 VALUES('wq','你',10);INSERT INTO wubi86 VALUES('wqb','爷',20);INSERT INTO wubi86 VALUES('wqi','你',10);INSERT INTO wubi86 VALUES('wqbb','父子',30);"
+  }
+ },
+ "options": {
+  "scheme": "wubi"
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "wq"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "w"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "wqbb"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "wx"
+  }
+ ]
+}

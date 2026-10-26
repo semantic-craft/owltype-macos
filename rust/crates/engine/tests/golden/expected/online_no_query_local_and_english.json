@@ -1,0 +1,118 @@
+{
+ "name": "online_no_query_local_and_english",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "char",
+   "arg": "U",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "unicode",
+    "preedit": "U",
+    "raw_segmentation": "U",
+    "normalized_segmentation": "U",
+    "editing_text": "U",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "U",
+      "pinyin": "U",
+      "canonical_pinyin": "",
+      "source": 9,
+      "scheme": "quanpin",
+      "weight": 1,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "set_dedicated_english",
+   "arg": true,
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "word",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "word",
+    "raw_segmentation": "word",
+    "normalized_segmentation": "word",
+    "editing_text": "word",
+    "caret": 4,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "word",
+      "pinyin": "",
+      "canonical_pinyin": "",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 0,
+      "answers_key": true
+     }
+    ]
+   }
+  }
+ ]
+}

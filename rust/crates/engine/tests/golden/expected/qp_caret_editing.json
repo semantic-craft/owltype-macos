@@ -1,0 +1,793 @@
+{
+ "name": "qp_caret_editing",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "nihaoma",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "nihaoma",
+    "raw_segmentation": "ni'hao'ma",
+    "normalized_segmentation": "ni'hao'ma",
+    "editing_text": "nihaoma",
+    "caret": 7,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2,
+     5,
+     7
+    ],
+    "candidate_count": 5,
+    "candidates": [
+     {
+      "word": "你好",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 200,
+      "annotation": "(AE)",
+      "answers_key": false
+     },
+     {
+      "word": "拟好",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "annotation": "(CE)",
+      "answers_key": false
+     },
+     {
+      "word": "𠀀方案𠮷",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 90,
+      "answers_key": false
+     },
+     {
+      "word": "C语言 2",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 80,
+      "answers_key": false
+     },
+     {
+      "word": "GitHub",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 70,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "ni'hao'ma",
+     "cache_key": "nihaoma",
+     "pinyin_segments": [
+      "ni",
+      "hao",
+      "ma"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "MoveLeft",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "nihaoma",
+    "raw_segmentation": "ni'hao'ma",
+    "normalized_segmentation": "ni'hao'ma",
+    "editing_text": "nihaoma",
+    "caret": 6,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2,
+     5,
+     7
+    ],
+    "candidate_count": 5,
+    "candidates": [
+     {
+      "word": "你好",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 200,
+      "annotation": "(AE)",
+      "answers_key": false
+     },
+     {
+      "word": "拟好",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "annotation": "(CE)",
+      "answers_key": false
+     },
+     {
+      "word": "𠀀方案𠮷",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 90,
+      "answers_key": false
+     },
+     {
+      "word": "C语言 2",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 80,
+      "answers_key": false
+     },
+     {
+      "word": "GitHub",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 70,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "ni'hao'ma",
+     "cache_key": "nihaoma",
+     "pinyin_segments": [
+      "ni",
+      "hao",
+      "ma"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "MoveLeft",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "nihaoma",
+    "raw_segmentation": "ni'hao'ma",
+    "normalized_segmentation": "ni'hao'ma",
+    "editing_text": "nihaoma",
+    "caret": 5,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2,
+     5,
+     7
+    ],
+    "candidate_count": 5,
+    "candidates": [
+     {
+      "word": "你好",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 200,
+      "annotation": "(AE)",
+      "answers_key": false
+     },
+     {
+      "word": "拟好",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "annotation": "(CE)",
+      "answers_key": false
+     },
+     {
+      "word": "𠀀方案𠮷",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 90,
+      "answers_key": false
+     },
+     {
+      "word": "C语言 2",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 80,
+      "answers_key": false
+     },
+     {
+      "word": "GitHub",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 70,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "ni'hao'ma",
+     "cache_key": "nihaoma",
+     "pinyin_segments": [
+      "ni",
+      "hao",
+      "ma"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "MoveHome",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "nihaoma",
+    "raw_segmentation": "ni'hao'ma",
+    "normalized_segmentation": "ni'hao'ma",
+    "editing_text": "nihaoma",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2,
+     5,
+     7
+    ],
+    "candidate_count": 5,
+    "candidates": [
+     {
+      "word": "你好",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 200,
+      "annotation": "(AE)",
+      "answers_key": false
+     },
+     {
+      "word": "拟好",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "annotation": "(CE)",
+      "answers_key": false
+     },
+     {
+      "word": "𠀀方案𠮷",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 90,
+      "answers_key": false
+     },
+     {
+      "word": "C语言 2",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 80,
+      "answers_key": false
+     },
+     {
+      "word": "GitHub",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 70,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "ni'hao'ma",
+     "cache_key": "nihaoma",
+     "pinyin_segments": [
+      "ni",
+      "hao",
+      "ma"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "MoveRight",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "nihaoma",
+    "raw_segmentation": "ni'hao'ma",
+    "normalized_segmentation": "ni'hao'ma",
+    "editing_text": "nihaoma",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2,
+     5,
+     7
+    ],
+    "candidate_count": 5,
+    "candidates": [
+     {
+      "word": "你好",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 200,
+      "annotation": "(AE)",
+      "answers_key": false
+     },
+     {
+      "word": "拟好",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "annotation": "(CE)",
+      "answers_key": false
+     },
+     {
+      "word": "𠀀方案𠮷",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 90,
+      "answers_key": false
+     },
+     {
+      "word": "C语言 2",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 80,
+      "answers_key": false
+     },
+     {
+      "word": "GitHub",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 70,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "ni'hao'ma",
+     "cache_key": "nihaoma",
+     "pinyin_segments": [
+      "ni",
+      "hao",
+      "ma"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "DeleteForward",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "nhaoma",
+    "raw_segmentation": "n'hao'ma",
+    "normalized_segmentation": "n'hao'ma",
+    "editing_text": "nhaoma",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     1,
+     4,
+     6
+    ],
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "虐",
+      "pinyin": "n",
+      "canonical_pinyin": "nve",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "n'hao'ma",
+     "cache_key": "nhaoma",
+     "pinyin_segments": [
+      "n",
+      "hao",
+      "ma"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "MoveEnd",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "nhaoma",
+    "raw_segmentation": "n'hao'ma",
+    "normalized_segmentation": "n'hao'ma",
+    "editing_text": "nhaoma",
+    "caret": 6,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     1,
+     4,
+     6
+    ],
+    "candidate_count": 6,
+    "candidates": [
+     {
+      "word": "你好",
+      "pinyin": "n'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 200,
+      "annotation": "(AE)",
+      "answers_key": false
+     },
+     {
+      "word": "拟好",
+      "pinyin": "n'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "annotation": "(CE)",
+      "answers_key": false
+     },
+     {
+      "word": "𠀀方案𠮷",
+      "pinyin": "n'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 90,
+      "answers_key": false
+     },
+     {
+      "word": "C语言 2",
+      "pinyin": "n'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 80,
+      "answers_key": false
+     },
+     {
+      "word": "GitHub",
+      "pinyin": "n'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 70,
+      "answers_key": false
+     },
+     {
+      "word": "虐",
+      "pinyin": "n",
+      "canonical_pinyin": "nve",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "n'hao'ma",
+     "cache_key": "nhaoma",
+     "pinyin_segments": [
+      "n",
+      "hao",
+      "ma"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Backspace",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "nhaom",
+    "raw_segmentation": "n'hao'm",
+    "normalized_segmentation": "n'hao'm",
+    "editing_text": "nhaom",
+    "caret": 5,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     1,
+     4,
+     5
+    ],
+    "candidate_count": 6,
+    "candidates": [
+     {
+      "word": "你好",
+      "pinyin": "n'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 200,
+      "annotation": "(AE)",
+      "answers_key": false
+     },
+     {
+      "word": "拟好",
+      "pinyin": "n'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "annotation": "(CE)",
+      "answers_key": false
+     },
+     {
+      "word": "𠀀方案𠮷",
+      "pinyin": "n'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 90,
+      "answers_key": false
+     },
+     {
+      "word": "C语言 2",
+      "pinyin": "n'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 80,
+      "answers_key": false
+     },
+     {
+      "word": "GitHub",
+      "pinyin": "n'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 70,
+      "answers_key": false
+     },
+     {
+      "word": "虐",
+      "pinyin": "n",
+      "canonical_pinyin": "nve",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "n'hao'm",
+     "cache_key": "nhaom",
+     "pinyin_segments": [
+      "n",
+      "hao",
+      "m"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "ni'hao",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "ni'hao",
+    "raw_segmentation": "ni'hao",
+    "normalized_segmentation": "ni'hao",
+    "editing_text": "ni'hao",
+    "caret": 6,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     3,
+     6
+    ],
+    "candidate_count": 5,
+    "candidates": [
+     {
+      "word": "你好",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 200,
+      "annotation": "(AE)",
+      "answers_key": true
+     },
+     {
+      "word": "拟好",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "annotation": "(CE)",
+      "answers_key": true
+     },
+     {
+      "word": "𠀀方案𠮷",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 90,
+      "answers_key": true
+     },
+     {
+      "word": "C语言 2",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 80,
+      "answers_key": true
+     },
+     {
+      "word": "GitHub",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 70,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "ni'hao",
+     "cache_key": "ni'hao",
+     "pinyin_segments": [
+      "ni",
+      "hao"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  }
+ ]
+}

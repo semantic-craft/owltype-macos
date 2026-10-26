@@ -13,7 +13,12 @@
   动态链接 librime；保留此项以说明前端与方案配置的历史派生谱系。
 - **RIME / 中州韻输入法引擎** —— <https://rime.im>
 - **水杉输入法 Metasequoia IME (`msime`)** —— <https://github.com/metasequoiaime/msime>（GPLv3）
-  Rust 输入引擎与运行时 crate（`rust/crates/`，经窄 C-ABI 静态链接入 `Owltype.app`）。
+  Rust 输入引擎与运行时 crate 固定于 `macos-v0.55.0` /
+  `208c10e848bbed99373ca8b609fd2142b6b0b4e2`（`rust/crates/`，经窄 C-ABI 静态链接入
+  `Owltype.app`）。提取边界与宿主适配见 [`rust/msime-source.json`](rust/msime-source.json)。
+- **完整官方拼音、英文与上下文资源** —— 固定 `dict-v2.0.24`，来源、大小、摘要和逐项许可见
+  [`msime-resources-NOTICE.md`](data/msime-resources-NOTICE.md)。生产拼音保留全部上游表与记录，
+  只 overlay 现有 Owl Wubi；英文和 bigram/trigram 原样交付。
 - **chinese-ime-lm reference crate** —— <https://github.com/metasequoiaime/chinese-ime-lm>（Apache-2.0）
   Owltype 仅 vendored 上游 `reference/` 子树到 `rust/crates/chinese-ime-lm`，固定于
   `15caab4fdeb59c11f452b91884371cf30e2e5608`。该子树的 `Cargo.toml` 声明 Apache-2.0，

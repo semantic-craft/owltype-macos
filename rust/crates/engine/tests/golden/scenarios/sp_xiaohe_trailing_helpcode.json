@@ -1,0 +1,34 @@
+{
+ "name": "sp_xiaohe_trailing_helpcode",
+ "source": "tests/src/test_shuangpin.cpp:129-136; cases :137-158",
+ "note": "Step 1 is not the reference's output: the reference appended every shorter shuangpin prefix group whole (shuangpin/shuangpin_dictionary.cpp:214-229) and, for a single trailing helpcode, appended the whole-input series and then the unmatched rows after the matched ones (SD:370-372), so a word several of those lists answer was listed once per list. Showing the same candidate more than once is a bug (decision 2026-09-30): the port keeps each word at its first seat and drops the later copies, and the step was rewritten to that output.",
+ "covers": [
+  "shuangpin",
+  "helpcode"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-pinyin.db": "CREATE TABLE tbl_1_s(key TEXT, jp TEXT, value TEXT, weight INTEGER);INSERT INTO tbl_1_s VALUES('shi', 's', '使', 200);INSERT INTO tbl_1_s VALUES('shi', 's', '是', 100);"
+  },
+  "files": {
+   "helpcodes/helpcode.txt": "使=ab\n是=uc\n"
+  }
+ },
+ "options": {
+  "scheme": "shuangpin"
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "uiu"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "ui'u"
+  }
+ ]
+}

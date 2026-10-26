@@ -1,0 +1,113 @@
+{
+ "name": "remove_single_character_refused",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "ni",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "ni",
+    "raw_segmentation": "ni",
+    "normalized_segmentation": "ni",
+    "editing_text": "ni",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2
+    ],
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "你",
+      "pinyin": "ni",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 10000,
+      "annotation": "(AA)",
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "ni",
+     "cache_key": "ni",
+     "pinyin_segments": [
+      "ni"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "remove",
+   "arg": {
+    "word": "你"
+   },
+   "result": {
+    "handled": false
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "ni",
+    "raw_segmentation": "ni",
+    "normalized_segmentation": "ni",
+    "editing_text": "ni",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2
+    ],
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "你",
+      "pinyin": "ni",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 10000,
+      "annotation": "(AA)",
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "ni",
+     "cache_key": "ni",
+     "pinyin_segments": [
+      "ni"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  }
+ ]
+}

@@ -81,6 +81,7 @@ portable_scripts() {
     scripts/safe-extract-tar.py
   python3 scripts/build-owltype-msime-seed-db.selftest.py
   python3 scripts/check-rust-delivery.selftest.py
+  python3 scripts/fetch-msime-resources.selftest.py
   python3 scripts/fetch-msime-others.selftest.py
   python3 scripts/fetch-rerank-models.selftest.py
   python3 scripts/pinyin-parity.selftest.py

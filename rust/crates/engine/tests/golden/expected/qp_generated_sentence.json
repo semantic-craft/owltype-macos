@@ -1,0 +1,192 @@
+{
+ "name": "qp_generated_sentence",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "xi'te'le'hao",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "xi'te'le'hao",
+    "raw_segmentation": "xi'te'le'hao",
+    "normalized_segmentation": "xi'te'le'hao",
+    "editing_text": "xi'te'le'hao",
+    "caret": 12,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     3,
+     6,
+     9,
+     12
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "西特乐好",
+      "pinyin": "xi'te'le'hao",
+      "canonical_pinyin": "xi'te'le'hao",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 6184,
+      "sentence_association": true,
+      "sentence_words": [
+       "西",
+       "特乐",
+       "好"
+      ],
+      "answers_key": true
+     },
+     {
+      "word": "西",
+      "pinyin": "xi",
+      "canonical_pinyin": "xi",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "xi'te'le'hao",
+     "cache_key": "xi'te'le'hao",
+     "pinyin_segments": [
+      "xi",
+      "te",
+      "le",
+      "hao"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "西"
+   },
+   "result": {
+    "handled": true,
+    "commit": "西"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "te'le'hao",
+    "raw_segmentation": "te'le'hao",
+    "normalized_segmentation": "te'le'hao",
+    "editing_text": "te'le'hao",
+    "caret": 9,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     3,
+     6,
+     9
+    ],
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "特乐好",
+      "pinyin": "te'le'hao",
+      "canonical_pinyin": "te'le'hao",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 15394,
+      "sentence_association": true,
+      "sentence_words": [
+       "特乐",
+       "好"
+      ],
+      "answers_key": true
+     },
+     {
+      "word": "特乐",
+      "pinyin": "te'le",
+      "canonical_pinyin": "te'le",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": false
+     },
+     {
+      "word": "特",
+      "pinyin": "te",
+      "canonical_pinyin": "te",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "te'le'hao",
+     "cache_key": "te'le'hao",
+     "pinyin_segments": [
+      "te",
+      "le",
+      "hao"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": 0,
+   "result": {
+    "handled": true,
+    "commit": "特乐好",
+    "diagnostic": "Unable to persist the selected sentence."
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "query",
+   "arg": "SELECT key,value FROM tbl_4_x ORDER BY 1,2",
+   "rows": [
+    [
+     "xi'te'le'hao",
+     "西特乐好"
+    ]
+   ]
+  }
+ ]
+}

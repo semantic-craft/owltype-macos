@@ -1,0 +1,58 @@
+{
+ "name": "local_emoji_kaomoji",
+ "source": "tests/src/test_input_session.cpp:1501-1595",
+ "covers": [
+  "local modes"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-others.db": "CREATE TABLE emoji_pinyin(key TEXT,emoji TEXT,sort_order INTEGER);INSERT INTO emoji_pinyin VALUES('xiaolian','😀',10);INSERT INTO emoji_pinyin VALUES('xiao''lian','😄',20);CREATE TABLE kaomoji(pinyin TEXT,jianpin TEXT,kaomoji TEXT,sort_order INTEGER);INSERT INTO kaomoji VALUES('haixiu','hx','(*/ω＼*)',10);"
+  }
+ },
+ "options": {},
+ "steps": [
+  {
+   "op": "char",
+   "arg": "E",
+   "shift": true
+  },
+  {
+   "op": "type",
+   "arg": "xiaolian"
+  },
+  {
+   "op": "select",
+   "arg": 0
+  },
+  {
+   "op": "char",
+   "arg": "E",
+   "shift": true
+  },
+  {
+   "op": "type",
+   "arg": "xiao'lian"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "switch_scheme",
+   "arg": "shuangpin"
+  },
+  {
+   "op": "char",
+   "arg": "M",
+   "shift": true
+  },
+  {
+   "op": "type",
+   "arg": "hx"
+  },
+  {
+   "op": "select",
+   "arg": 0
+  }
+ ]
+}

@@ -1,0 +1,53 @@
+{
+ "name": "bridge_wubi_selection_promotes",
+ "source": "92d382bac:crates/engine-bridge/src/dictionary_stage/tests.rs:227-268",
+ "covers": [
+  "wubi",
+  "learning"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-pinyin.db": "CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);INSERT INTO wubi86 VALUES('a','工',100),('a','七',90),('ab','干',80);",
+   "msime-english.db": "CREATE TABLE english_words(word TEXT COLLATE BINARY NOT NULL,display TEXT NOT NULL,weight INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(word,display)) WITHOUT ROWID;CREATE TABLE en_zh_glosses(english TEXT COLLATE BINARY PRIMARY KEY,chinese_gloss TEXT NOT NULL) WITHOUT ROWID;CREATE TABLE zh_en_glosses(chinese TEXT COLLATE BINARY PRIMARY KEY,english_gloss TEXT NOT NULL) WITHOUT ROWID;PRAGMA user_version=3;"
+  }
+ },
+ "options": {
+  "learning": true,
+  "autocorrect_types": 3,
+  "helpcode": false,
+  "helpcode_schema": "ziranma",
+  "frequency": {
+   "mode": "promote",
+   "trigger_count": 1,
+   "linear_step": 1
+  },
+  "english": {
+   "mixed_candidates": true,
+   "minimum_prefix": 5
+  },
+  "sentence_alternatives": true,
+  "scheme": "wubi"
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "a"
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "七"
+   }
+  },
+  {
+   "op": "dump_journal"
+  },
+  {
+   "op": "reopen"
+  },
+  {
+   "op": "type",
+   "arg": "a"
+  }
+ ]
+}

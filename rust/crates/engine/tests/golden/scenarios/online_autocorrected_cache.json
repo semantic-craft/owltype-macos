@@ -1,0 +1,38 @@
+{
+ "name": "online_autocorrected_cache",
+ "source": "tests/src/test_online_input_session.cpp:107-138; case :191-206",
+ "covers": [
+  "online",
+  "autocorrect"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-pinyin.db": "BEGIN;CREATE TABLE tbl_1_a(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_a VALUES('ang','a','昂',200);CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_n VALUES('ni','n','你',200);INSERT INTO tbl_1_n VALUES('ni','n','倪',100);CREATE TABLE tbl_2_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',200);INSERT INTO tbl_1_n VALUES('nin','n','您',100);INSERT INTO tbl_1_n VALUES('nve','n','虐',100);CREATE TABLE tbl_1_h(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_h VALUES('hao','h','好',200);CREATE TABLE tbl_1_z(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_z VALUES('zi','z','字',100);CREATE TABLE tbl_1_g(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_g VALUES('gu','g','股',100);CREATE TABLE tbl_1_d(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_d VALUES('de','d','的',300);INSERT INTO tbl_1_d VALUES('di','d','的',50);CREATE TABLE tbl_2_a(key TEXT,jp TEXT,value TEXT,weight INTEGER);CREATE TABLE tbl_2_d(key TEXT,jp TEXT,value TEXT,weight INTEGER);COMMIT;",
+   "msime-english.db": "CREATE TABLE english_words(word TEXT COLLATE BINARY NOT NULL,display TEXT NOT NULL,weight INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(word,display)) WITHOUT ROWID;INSERT INTO english_words VALUES('ninja','Ninja',100);"
+  }
+ },
+ "options": {
+  "autocorrect_types": 2
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "abg"
+  },
+  {
+   "op": "apply_online_candidates",
+   "arg": [
+    "盎"
+   ],
+   "source": "cloud"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "ang"
+  }
+ ]
+}

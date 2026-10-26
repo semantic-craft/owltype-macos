@@ -1,0 +1,109 @@
+{
+ "name": "jp_commit_reading",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "nihon",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "nihon",
+    "raw_segmentation": "nihon",
+    "normalized_segmentation": "にほん",
+    "editing_text": "nihon",
+    "caret": 5,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "にほん",
+      "pinyin": "nihon",
+      "canonical_pinyin": "nihon",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 1000000,
+      "answers_key": true
+     },
+     {
+      "word": "ニホン",
+      "pinyin": "nihon",
+      "canonical_pinyin": "nihon",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 999999,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "japanese",
+     "query_text": "nihon",
+     "cache_key": "nihon",
+     "pinyin_segments": [],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "CommitReading",
+   "result": {
+    "handled": true,
+    "commit": "にほん"
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "command",
+   "arg": "CommitReading",
+   "result": {
+    "handled": false
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  }
+ ]
+}

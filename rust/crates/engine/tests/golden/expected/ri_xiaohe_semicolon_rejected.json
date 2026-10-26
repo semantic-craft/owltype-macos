@@ -1,0 +1,111 @@
+{
+ "name": "ri_xiaohe_semicolon_rejected",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "char",
+   "arg": "n",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "n",
+    "raw_segmentation": "n",
+    "normalized_segmentation": "n",
+    "editing_text": "n",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     1
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "你",
+      "pinyin": "n",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 10000,
+      "annotation": "(aA)",
+      "answers_key": true
+     },
+     {
+      "word": "拟",
+      "pinyin": "n",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 9000,
+      "annotation": "(cC)",
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "char",
+   "arg": ";",
+   "result": {
+    "handled": false
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "n",
+    "raw_segmentation": "n",
+    "normalized_segmentation": "n",
+    "editing_text": "n",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     1
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "你",
+      "pinyin": "n",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 10000,
+      "annotation": "(aA)",
+      "answers_key": true
+     },
+     {
+      "word": "拟",
+      "pinyin": "n",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 9000,
+      "annotation": "(cC)",
+      "answers_key": true
+     }
+    ]
+   }
+  }
+ ]
+}

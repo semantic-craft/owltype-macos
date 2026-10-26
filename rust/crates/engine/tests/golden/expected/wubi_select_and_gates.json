@@ -1,0 +1,264 @@
+{
+ "name": "wubi_select_and_gates",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "wqbb",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "wqbb",
+    "raw_segmentation": "wqbb",
+    "normalized_segmentation": "wqbb",
+    "editing_text": "wqbb",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "wubi_unique_four_code": true,
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "父子",
+      "pinyin": "wqbb",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 30,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "select",
+   "arg": 0,
+   "result": {
+    "handled": true,
+    "commit": "父子"
+   },
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "wqb",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "wqb",
+    "raw_segmentation": "wqb",
+    "normalized_segmentation": "wqb",
+    "editing_text": "wqb",
+    "caret": 3,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "爷",
+      "pinyin": "wqb",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 20,
+      "answers_key": true
+     },
+     {
+      "word": "父子",
+      "pinyin": "wqbb",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 30,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "char",
+   "arg": "z",
+   "result": {
+    "handled": false
+   },
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "wqb",
+    "raw_segmentation": "wqb",
+    "normalized_segmentation": "wqb",
+    "editing_text": "wqb",
+    "caret": 3,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "爷",
+      "pinyin": "wqb",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 20,
+      "answers_key": true
+     },
+     {
+      "word": "父子",
+      "pinyin": "wqbb",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 30,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "char",
+   "arg": "b",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "wqbb",
+    "raw_segmentation": "wqbb",
+    "normalized_segmentation": "wqbb",
+    "editing_text": "wqbb",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "wubi_unique_four_code": true,
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "父子",
+      "pinyin": "wqbb",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 30,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "char",
+   "arg": "b",
+   "result": {
+    "handled": false
+   },
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "wqbb",
+    "raw_segmentation": "wqbb",
+    "normalized_segmentation": "wqbb",
+    "editing_text": "wqbb",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "wubi_unique_four_code": true,
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "父子",
+      "pinyin": "wqbb",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 30,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "char",
+   "arg": "'",
+   "result": {
+    "handled": false
+   },
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "wqbb",
+    "raw_segmentation": "wqbb",
+    "normalized_segmentation": "wqbb",
+    "editing_text": "wqbb",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "wubi_unique_four_code": true,
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "父子",
+      "pinyin": "wqbb",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 30,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  }
+ ]
+}

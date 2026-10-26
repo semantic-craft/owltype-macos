@@ -1,0 +1,226 @@
+{
+ "name": "remove_canonical_xi_an",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "xi'an",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "xi'an",
+    "raw_segmentation": "xi'an",
+    "normalized_segmentation": "xi'an",
+    "editing_text": "xi'an",
+    "caret": 5,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     3,
+     5
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "西安",
+      "pinyin": "xi'an",
+      "canonical_pinyin": "xi'an",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": true
+     },
+     {
+      "word": "西安",
+      "pinyin": "xi",
+      "canonical_pinyin": "xian",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "xi'an",
+     "cache_key": "xi'an",
+     "pinyin_segments": [
+      "xi",
+      "an"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "remove",
+   "arg": {
+    "word": "西安"
+   },
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "xi'an",
+    "raw_segmentation": "xi'an",
+    "normalized_segmentation": "xi'an",
+    "editing_text": "xi'an",
+    "caret": 5,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     3,
+     5
+    ],
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "西安",
+      "pinyin": "xi",
+      "canonical_pinyin": "xian",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "xi'an",
+     "cache_key": "xi'an",
+     "pinyin_segments": [
+      "xi",
+      "an"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "query",
+   "arg": "SELECT 'tbl_1_x',key,value FROM tbl_1_x UNION ALL SELECT 'tbl_2_x',key,value FROM tbl_2_x ORDER BY 1,2",
+   "rows": [
+    [
+     "tbl_1_x",
+     "xian",
+     "西安"
+    ]
+   ]
+  },
+  {
+   "op": "dump_journal",
+   "journal": {
+    "user_dictionary_operations": {
+     "columns": [
+      "dictionary",
+      "key",
+      "value",
+      "operation",
+      "weight",
+      "display",
+      "user_inserted"
+     ],
+     "rows": [
+      [
+       "pinyin",
+       "xi'an",
+       "西安",
+       "delete",
+       0,
+       "",
+       0
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "xian",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "xian",
+    "raw_segmentation": "xian",
+    "normalized_segmentation": "xian",
+    "editing_text": "xian",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     4
+    ],
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "西安",
+      "pinyin": "xian",
+      "canonical_pinyin": "xian",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "xian",
+     "cache_key": "xian",
+     "pinyin_segments": [
+      "xian"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  }
+ ]
+}

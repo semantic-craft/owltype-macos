@@ -12,9 +12,10 @@ import sqlite3
 import sys
 import urllib.error
 import urllib.request
-import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path
+
+from resource_publish import publish_artifacts, temporary_path
 
 INITIALS = "abcdefghjklmnopqrstwxyz"
 SYLLABLE_RE = re.compile(r"^[a-z]+$")
@@ -291,10 +292,6 @@ def import_wubi86_entries(dict_path: Path) -> tuple[list[tuple[str, str, int]], 
     return entries, stats
 
 
-def temporary_path(path: Path, suffix: str) -> Path:
-    return path.with_name(f".{path.name}.{os.getpid()}.{uuid.uuid4().hex}.{suffix}")
-
-
 def stage_bytes(path: Path, data: bytes) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = temporary_path(path, "tmp")
@@ -307,32 +304,6 @@ def stage_bytes(path: Path, data: bytes) -> Path:
         tmp_path.unlink(missing_ok=True)
         raise
     return tmp_path
-
-
-def publish_artifacts(artifacts: list[tuple[Path, Path]]) -> None:
-    """Replace a set of files together, restoring every old file on failure."""
-    backups: list[tuple[Path, Path]] = []
-    installed: list[Path] = []
-    try:
-        for target, staged in artifacts:
-            if target.exists():
-                backup = temporary_path(target, "bak")
-                target.replace(backup)
-                backups.append((target, backup))
-            staged.replace(target)
-            installed.append(target)
-    except Exception:
-        for target in reversed(installed):
-            target.unlink(missing_ok=True)
-        for target, backup in reversed(backups):
-            if backup.exists():
-                backup.replace(target)
-        for _, staged in artifacts:
-            staged.unlink(missing_ok=True)
-        raise
-    else:
-        for _, backup in backups:
-            backup.unlink(missing_ok=True)
 
 
 def iter_rime_dict_entries(

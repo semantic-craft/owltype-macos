@@ -24,6 +24,7 @@ fn frozen_snapshot(session: &Session) -> Result<EngineSnapshot> {
         value.normalized_segmentation.clone()
     };
     let mut output = EngineSnapshot {
+        prediction: false,
         local_mode: value.local_mode.name().to_owned(),
         spelling_symbols: value.spelling_symbols,
         dedicated_english: value.dedicated_english,
@@ -58,6 +59,7 @@ fn frozen_snapshot(session: &Session) -> Result<EngineSnapshot> {
         wubi_unique_four_code: value.wubi_unique_four_code,
         candidate_annotations: Vec::with_capacity(count),
         candidate_sources: Vec::with_capacity(count),
+        multilingual_conversion: None,
         candidate_positions: Vec::with_capacity(count),
         candidate_corrected: Vec::with_capacity(count),
         candidate_answers_key: Vec::with_capacity(count),

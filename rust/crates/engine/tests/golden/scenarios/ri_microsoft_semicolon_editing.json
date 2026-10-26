@@ -1,0 +1,125 @@
+{
+ "name": "ri_microsoft_semicolon_editing",
+ "source": "tests/src/test_runtime_isolation.cpp:39-85; case :203-247",
+ "note": "Steps 18-20 are not the reference's output. Step 18 listed [你, 拟] four times in the reference: the reference appended every shorter shuangpin prefix group whole (shuangpin/shuangpin_dictionary.cpp:214-229) and, for a single trailing helpcode, appended the whole-input series and then the unmatched rows after the matched ones (SD:370-372), so a word several of those lists answer was listed once per list. Showing the same candidate more than once is a bug (decision 2026-09-30): the port keeps each word at its first seat and drops the later copies, and step 18 was rewritten to [你, 拟]. Steps 19-20 (MoveLeft) hold the Rust caret-prefix decode. In the reference, MoveLeft only stores the caret and returns without recomputing (core/input_session_editing.cpp:132-134 and :157-158), because the caret_prefix overlay failed to apply to the recorded build (.migration/spec/overlays.md §7.6), so it kept showing the step-18 list. The port decodes only the complete units before the caret (decisions.md: caret_prefix follows upstream bc46f27), so caret 5 decodes ni'nn and caret 4 decodes ni', each answering [你, 拟]; steps 19-20 were rewritten to that output.",
+ "covers": [
+  "shuangpin",
+  "caret"
+ ],
+ "fixture": {
+  "english_schema": true,
+  "databases": {
+   "msime-pinyin.db": "CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_n VALUES('ni','n','你',10000),('ni','n','拟',9000);CREATE TABLE quick_parases(key TEXT,value TEXT,weight INTEGER);INSERT INTO quick_parases VALUES('x','你短语',10);",
+   "msime-english.db": "INSERT INTO english_words(word,display,weight) VALUES('hello','hello',10);"
+  },
+  "files": {
+   "custom_translations.txt": "hello\t你翻译\n",
+   "helpcodes/helpcode.txt": "你=aa\n拟=cc\n",
+   "helpcodes/xiaohe_helpcode.txt": "你=cc\n拟=aa\n",
+   "msime-japanese.dat": "MSJPDT1\u0000\u0001\u0000\u0000\u0000\u0001\u0000\u0000\u0000\u0001\u0000\u0000\u0000\u0000\u0000\u0000\u00008\u0000\u0000\u0000\u0000\u0000\u0000\u0000L\u0000\u0000\u0000\u0000\u0000\u0000\u0000N\u0000\u0000\u0000\u0000\u0000\u0000\u0000\t\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0006\u0000\u0006\u0000\u0000\u0000\u0003\u0000\u0000\u0000\u0000\u0000\u0001\u0000\u0000\u0000\u0000\u0000かな甲"
+  }
+ },
+ "options": {
+  "scheme": "shuangpin",
+  "shuangpin_profile": "microsoft",
+  "learning": false
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "b;ni"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "nihkb;"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "nihcb;"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "char",
+   "arg": ";"
+  },
+  {
+   "op": "char",
+   "arg": "n"
+  },
+  {
+   "op": "char",
+   "arg": ";"
+  },
+  {
+   "op": "char",
+   "arg": ";"
+  },
+  {
+   "op": "command",
+   "arg": "Backspace"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "ni'n"
+  },
+  {
+   "op": "char",
+   "arg": ";"
+  },
+  {
+   "op": "command",
+   "arg": "MoveLeft"
+  },
+  {
+   "op": "command",
+   "arg": "DeleteForward"
+  },
+  {
+   "op": "command",
+   "arg": "MoveEnd"
+  },
+  {
+   "op": "type",
+   "arg": "ni"
+  },
+  {
+   "op": "command",
+   "arg": "MoveLeft"
+  },
+  {
+   "op": "command",
+   "arg": "MoveLeft"
+  },
+  {
+   "op": "char",
+   "arg": ";"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "ni'"
+  },
+  {
+   "op": "char",
+   "arg": ";"
+  }
+ ]
+}

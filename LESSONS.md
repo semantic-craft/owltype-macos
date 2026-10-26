@@ -372,9 +372,13 @@ review dates, not retries. Keep deterministic checks in the local gate.
 ### Publish seed data and its sidecars as one set
 
 - The Wubi seed builder replaced `msime-pinyin.db` before writing the pinned license and source metadata. A later write failure could leave a new database beside old provenance files.
-- Stage the database, license and metadata as sibling temporary files, replace them through a rollback-capable publisher, and restore every prior file if one installation step fails. Keep the tracked source license under `licenses/`, outside `data/`: the public-source boundary rejects tracked `data/*wubi*` paths as restricted data even when the file is only the upstream license.
+- Stage the database, license and metadata as sibling temporary files, replace them through the shared rollback-capable publisher in `scripts/resource_publish.py`, and restore every prior file if one installation step fails. Keep the tracked source license under `licenses/`, outside `data/`: the public-source boundary rejects tracked `data/*wubi*` paths as restricted data even when the file is only the upstream license.
 - Regression: `test_publish_failure_restores_existing_wubi_artifacts` forces the metadata rename to fail after the database and license were installed, then checks all three old files are restored and no temporary file remains.
 - Verify (验证点): `python3 scripts/build-owltype-msime-seed-db.selftest.py` passes 9/9; `bash scripts/check-public-source.sh` passes with `licenses/wubi86-jidian.LICENSE` tracked.
+- The pinned official cache and product-set publishers reuse that same transaction.
+  `fetch-msime-resources.selftest.py` injects failure after earlier members were replaced and
+  proves resources, manifest and identity record restore byte-for-byte, including removal of
+  members absent before publication (2026-10-26).
 - Seen on 1 distinct date: 2026-10-25.
 
 ### A Rust archive existing is not evidence that it matches Rust source
@@ -432,3 +436,20 @@ review dates, not retries. Keep deterministic checks in the local gate.
   checks establish adapter behavior; installed-host timing is a separate measurement.
 
 - 2026-10-26：异步模型配置返回时 worker 可能已从 loading 进入 missing；回归应接受这两种合法即时状态并继续等待/断言 missing。只接受 loading 的测试竞态会在销毁 session 前 panic，连带污染全局生命周期测试。本次 53 个 FFI 单测及 engine_lifecycle 重跑通过。
+
+## Official resource schemas and Wubi composition survive pinyin alignment
+
+- Seen 1x (2026-10-26): adopting the pinned official dictionary set exposed that the resource
+  activation contract required Owl's optional `english_words.phonetic` column. The upstream
+  database has `word`, `display`, and `weight`; requiring the extra column rejected a valid set
+  before activation. Validate the upstream required schema and allow Owl's extra column.
+- The same acceptance run exposed two Wubi adapter boundaries: enabling ordinary-pinyin sentence
+  alternatives crowded out the prior Wubi partial-selection page, and treating the fifth-key top
+  commit as a partial phrase held `工` instead of committing it before the next code. Retain the
+  existing Wubi sentence policy and deduplication, and exclude its completed top commit from
+  phrase holding. These rules do not change ordinary-pinyin sentence generation.
+- Regression and Verify (验证点): `OwlRustEngineTests.testGenerationSwitchRollbackColdStartAndJournalReplayKeepUserState`,
+  the existing six Wubi tests, `testActivatedDictionaryKeepsBundledEmojiCandidates`, and
+  `testShuangpinSemicolonSpellingPrecedesCandidateShortcut` pass together (9 tests). The FFI
+  `pure_wubi_fifth_key_tops_an_ambiguous_four_code` reproduces the missing commit before the
+  adapter correction and passes afterwards. This proves the session/resource seam, not IMK installation.

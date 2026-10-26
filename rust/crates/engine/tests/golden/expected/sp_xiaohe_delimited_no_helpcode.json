@@ -1,0 +1,152 @@
+{
+ "name": "sp_xiaohe_delimited_no_helpcode",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "ui'u",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "ui'u",
+    "raw_segmentation": "ui'u",
+    "normalized_segmentation": "shi'sh",
+    "editing_text": "ui'u",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2,
+     3,
+     4
+    ],
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "使使",
+      "pinyin": "uiu",
+      "canonical_pinyin": "shi'shi",
+      "source": 8,
+      "scheme": "shuangpin",
+      "weight": -17034,
+      "sentence_association": true,
+      "sentence_words": ["使", "使"],
+      "answers_key": true
+     },
+     {
+      "word": "使",
+      "pinyin": "ui",
+      "canonical_pinyin": "shi",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 200,
+      "answers_key": false
+     },
+     {
+      "word": "是",
+      "pinyin": "ui",
+      "canonical_pinyin": "shi",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 100,
+      "answers_key": false
+     }
+    ]
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "uiu",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "uiu",
+    "raw_segmentation": "ui'u",
+    "normalized_segmentation": "shi'sh",
+    "editing_text": "uiu",
+    "caret": 3,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2,
+     3
+    ],
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "使使",
+      "pinyin": "uiu",
+      "canonical_pinyin": "shi'shi",
+      "source": 8,
+      "scheme": "shuangpin",
+      "weight": -17034,
+      "sentence_association": true,
+      "sentence_words": ["使", "使"],
+      "answers_key": true
+     },
+     {
+      "word": "使",
+      "pinyin": "ui",
+      "canonical_pinyin": "shi",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 200,
+      "answers_key": false
+     },
+     {
+      "word": "是",
+      "pinyin": "ui",
+      "canonical_pinyin": "shi",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 100,
+      "answers_key": false
+     }
+    ]
+   }
+  }
+ ]
+}

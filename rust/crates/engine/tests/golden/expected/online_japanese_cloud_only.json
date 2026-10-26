@@ -1,0 +1,184 @@
+{
+ "name": "online_japanese_cloud_only",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "ka",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "ka",
+    "raw_segmentation": "ka",
+    "normalized_segmentation": "か",
+    "editing_text": "ka",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "か",
+      "pinyin": "ka",
+      "canonical_pinyin": "ka",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 1000000,
+      "answers_key": true
+     },
+     {
+      "word": "カ",
+      "pinyin": "ka",
+      "canonical_pinyin": "ka",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 999999,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "japanese",
+     "query_text": "ka",
+     "cache_key": "ka",
+     "pinyin_segments": [],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "apply_online_candidates",
+   "arg": [
+    "蚊"
+   ],
+   "result": {
+    "applied": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "ka",
+    "raw_segmentation": "ka",
+    "normalized_segmentation": "か",
+    "editing_text": "ka",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "か",
+      "pinyin": "ka",
+      "canonical_pinyin": "ka",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 1000000,
+      "answers_key": true
+     },
+     {
+      "word": "カ",
+      "pinyin": "ka",
+      "canonical_pinyin": "ka",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 999999,
+      "answers_key": true
+     },
+     {
+      "word": "蚊",
+      "pinyin": "ka",
+      "canonical_pinyin": "ka",
+      "source": 2,
+      "scheme": "quanpin",
+      "weight": 1,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "japanese",
+     "query_text": "ka",
+     "cache_key": "ka",
+     "pinyin_segments": [],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "apply_online_candidates",
+   "arg": [
+    "AI"
+   ],
+   "result": {
+    "applied": false
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "ka",
+    "raw_segmentation": "ka",
+    "normalized_segmentation": "か",
+    "editing_text": "ka",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "か",
+      "pinyin": "ka",
+      "canonical_pinyin": "ka",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 1000000,
+      "answers_key": true
+     },
+     {
+      "word": "カ",
+      "pinyin": "ka",
+      "canonical_pinyin": "ka",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 999999,
+      "answers_key": true
+     },
+     {
+      "word": "蚊",
+      "pinyin": "ka",
+      "canonical_pinyin": "ka",
+      "source": 2,
+      "scheme": "quanpin",
+      "weight": 1,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "japanese",
+     "query_text": "ka",
+     "cache_key": "ka",
+     "pinyin_segments": [],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  }
+ ]
+}

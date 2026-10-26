@@ -1,0 +1,38 @@
+{
+ "name": "sp_microsoft_semicolon",
+ "source": "tests/src/test_runtime_isolation.cpp:203-253 (keys only; fixture FSP)",
+ "covers": [
+  "shuangpin"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-pinyin.db": "BEGIN;CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);INSERT INTO tbl_2_n VALUES('ni''hao', 'nh', '你好', 100);INSERT INTO tbl_2_n VALUES('ni''hao', 'nh', '拟好', 50);COMMIT;"
+  }
+ },
+ "options": {
+  "scheme": "shuangpin",
+  "shuangpin_profile": "microsoft"
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "b;"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "nihkb;"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "nihcb;"
+  }
+ ]
+}

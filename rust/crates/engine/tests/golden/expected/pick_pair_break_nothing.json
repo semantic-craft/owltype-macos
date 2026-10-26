@@ -1,0 +1,231 @@
+{
+ "name": "pick_pair_break_nothing",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "shan",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "shan",
+    "raw_segmentation": "shan",
+    "normalized_segmentation": "shan",
+    "editing_text": "shan",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     4
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "闪",
+      "pinyin": "shan",
+      "canonical_pinyin": "shan",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": true
+     },
+     {
+      "word": "山",
+      "pinyin": "shan",
+      "canonical_pinyin": "shan",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 90,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "shan",
+     "cache_key": "shan",
+     "pinyin_segments": [
+      "shan"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "山"
+   },
+   "result": {
+    "handled": true,
+    "commit": "山"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "shui",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "shui",
+    "raw_segmentation": "shui",
+    "normalized_segmentation": "shui",
+    "editing_text": "shui",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     4
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "睡",
+      "pinyin": "shui",
+      "canonical_pinyin": "shui",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": true
+     },
+     {
+      "word": "水",
+      "pinyin": "shui",
+      "canonical_pinyin": "shui",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 90,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "shui",
+     "cache_key": "shui",
+     "pinyin_segments": [
+      "shui"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "水"
+   },
+   "result": {
+    "handled": true,
+    "commit": "水"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dump_journal",
+   "journal": {
+    "personal_bigram": {
+     "columns": [
+      "previous",
+      "word",
+      "count"
+     ],
+     "rows": [
+      [
+       "\u0001",
+       "山",
+       2
+      ],
+      [
+       "山",
+       "水",
+       2
+      ]
+     ]
+    },
+    "personal_trigram": {
+     "columns": [
+      "earlier",
+      "previous",
+      "word",
+      "count"
+     ],
+     "rows": [
+      [
+       "\u0001",
+       "山",
+       "水",
+       2
+      ]
+     ]
+    },
+    "pick_transitions": {
+     "columns": [
+      "previous_key",
+      "previous_value",
+      "key",
+      "value",
+      "count"
+     ],
+     "rows": [
+      [
+       "shan",
+       "山",
+       "shui",
+       "水",
+       1
+      ]
+     ]
+    }
+   }
+  }
+ ]
+}

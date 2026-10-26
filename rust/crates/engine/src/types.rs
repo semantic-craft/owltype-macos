@@ -33,6 +33,8 @@ pub enum CandidateSource {
     /// octagram `.gram` 语法模型参与词格解码时，解码首选的整句行。句子仍是词格
     /// 解出来的，搭配强度表只负责逐边加分；落库/学习判定与 `Generated` 同类。
     Collocation = 17,
+    /// 连续多语言转换的完整路径；整段消费，不调频、不学习跨语言整句，也不参与候选管理。
+    Multilingual = 18,
 }
 
 impl CandidateSource {
@@ -55,6 +57,7 @@ impl CandidateSource {
             15 => Self::CloudPending,
             16 => Self::Contact,
             17 => Self::Collocation,
+            18 => Self::Multilingual,
             _ => return None,
         })
     }
@@ -102,7 +105,7 @@ pub enum SchemeType {
     Shuangpin = 1,
     Wubi = 2,
     JapaneseRomaji = 3,
-    /// Korean Hangul on the Dubeolsik layout: syllables compose in the preedit and commit themselves; the only candidates are the composing syllable's Hanja, after `Command::ConvertHanja`.
+    /// 韩语两套式或罗马字布局：音节在预编辑中组合，稳定前缀逐步上屏；`Command::ConvertHanja` 打开当前音节的汉字候选。
     Korean = 4,
     /// Cantonese in toneless Jyutping read against `msime-cantonese.db`: candidates are Traditional as stored, a candidate covering the leading syllables commits at once and leaves the rest composing, and nothing is learned.
     Cantonese = 5,
@@ -253,7 +256,7 @@ impl SchemeType {
         }
     }
 
-    /// Shift+字母打开除 K 以外的本地模式；K、`/` 和 `@` 由 `opens_table_modes` 单独判断。
+    /// 没有组字时，Shift+字母打开按拼音拼写查的本地模式（E、M、J、R）和计算模式 V；K、C、U、T、Y、S 和 `/`、`@` 由 `opens_table_modes` 判断（`InputSession::local_mode_for_entry`）。
     pub const fn opens_local_modes(self) -> bool {
         match self {
             Self::Quanpin | Self::Shuangpin => true,
@@ -268,7 +271,7 @@ impl SchemeType {
         }
     }
 
-    /// 没有组字时，Shift+K 打开短语模式，`/` 和 `@` 打开指令和提及模式；五笔也提供这些只查本地表的入口。
+    /// 没有组字时，Shift+K 打开短语模式，`/` 和 `@` 打开指令和提及模式，Shift+C、U、T、Y、S 打开拆字、Unicode、日期时间、临时英文和符号模式；五笔也提供这些不经过方案拼写的入口。
     pub const fn opens_table_modes(self) -> bool {
         match self {
             Self::Quanpin | Self::Shuangpin | Self::Wubi => true,
@@ -1046,6 +1049,8 @@ pub struct QueryRequest {
     pub korean_hanja: bool,
     /// 五笔通配：码里确实有 `z`，provider 改用模式匹配而不是前缀范围扫描（见 [`WubiInputOptions::z_wildcard`]）。
     pub wubi_z_wildcard: bool,
+    /// 五笔 14 键：`normalized_input` 每一位是一组字母的代表字母（`wubi::grid`），provider 展开成这几组字母的每种组合再查码表。
+    pub wubi_grid: bool,
     /// False means no query at all.
     pub valid: bool,
 }
@@ -1179,6 +1184,16 @@ impl KeyResult {
 pub enum CandidateEdge {
     FirstHan = 0,
     LastHan = 1,
+}
+
+impl CandidateEdge {
+    /// 引擎以词定字使用的首个或末个汉字；没有汉字时返回空串。
+    pub fn character(self, text: &str) -> &str {
+        match self {
+            Self::FirstHan => crate::text::first_han_char(text),
+            Self::LastHan => crate::text::last_han_char(text),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]

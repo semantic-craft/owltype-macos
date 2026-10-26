@@ -1,0 +1,93 @@
+{
+ "name": "typo_gating_shuangpin",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "mwgjxi",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "mwgjxi",
+    "raw_segmentation": "mw'gj'xi",
+    "normalized_segmentation": "mei'gan'xi",
+    "editing_text": "mwgjxi",
+    "caret": 6,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2,
+     4,
+     6
+    ],
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "没干系",
+      "pinyin": "mwgjxi",
+      "canonical_pinyin": "mei'gan'xi",
+      "source": 8,
+      "scheme": "shuangpin",
+      "weight": -20723,
+      "sentence_association": true,
+      "sentence_words": [
+       "没",
+       "干",
+       "系"
+      ],
+      "answers_key": true
+     },
+     {
+      "word": "没",
+      "pinyin": "mw",
+      "canonical_pinyin": "mei",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 1000,
+      "answers_key": false
+     },
+     {
+      "word": "美",
+      "pinyin": "mw",
+      "canonical_pinyin": "mei",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 900,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "shuangpin",
+     "query_text": "mei'gan'xi",
+     "cache_key": "mwgjxi",
+     "pinyin_segments": [
+      "mei",
+      "gan",
+      "xi"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  }
+ ]
+}

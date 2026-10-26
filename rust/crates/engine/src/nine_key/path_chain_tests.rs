@@ -279,3 +279,77 @@ fn complete_split_paths_paired_budget() {
     }
     assert!(failures.is_empty(), "完整切分配对预算失败：{failures:?}");
 }
+
+#[test]
+#[ignore = "四轮端到端结果有漂移，单独配对评测集全部实际按键前缀"]
+fn evaluation_prefixes_complete_split_paths_paired_budget() {
+    let grid = KeyGrid::NineKey;
+    let table = grid.spelling_table();
+    let inputs: Vec<String> = include_str!("../../../../resources/eval/sentences-nine-key-v1.tsv")
+        .lines()
+        .filter(|line| !line.starts_with('#') && !line.is_empty() && !line.starts_with("id\t"))
+        .flat_map(|line| {
+            let digits = grid.encode(line.split('\t').nth(1).unwrap());
+            (1..=digits.len())
+                .map(|end| digits[..end].to_owned())
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    assert_eq!(inputs.len(), 1791);
+    let elapsed_batch = |split: SplitPaths, prior: &SyllablePrior, repeats: usize| {
+        let start = Instant::now();
+        for _ in 0..repeats {
+            for digits in &inputs {
+                // 全部实际按键前缀均计入，包含最终结果的析构。
+                black_box(split(
+                    black_box(table),
+                    black_box(digits),
+                    black_box(&[]),
+                    black_box(prior),
+                ));
+            }
+        }
+        start.elapsed().as_secs_f64()
+    };
+    let mut failures = Vec::new();
+    for (weighted, prior) in [SyllablePrior::default(), weighted_prior(table)]
+        .into_iter()
+        .enumerate()
+    {
+        for digits in &inputs {
+            assert_eq!(
+                production(table, digits, &[], &prior),
+                reference(table, digits, &[], &prior)
+            );
+        }
+        let mut repeats = 1;
+        while elapsed_batch(reference, &prior, repeats) < 0.010 {
+            repeats *= 2;
+        }
+        let mut ratios = Vec::new();
+        for pair in 0..40 {
+            let (old, new) = if pair % 2 == 0 {
+                let old = elapsed_batch(reference, &prior, repeats);
+                (old, elapsed_batch(production, &prior, repeats))
+            } else {
+                let new = elapsed_batch(production, &prior, repeats);
+                (elapsed_batch(reference, &prior, repeats), new)
+            };
+            ratios.push(new / old);
+        }
+        ratios.sort_by(f64::total_cmp);
+        let ratio = ratios[19];
+        println!(
+            "evaluation_prefixes weighted={} count={} repeats={repeats} paired_ratio_p50={ratio:.4}",
+            weighted != 0,
+            inputs.len()
+        );
+        if ratio >= 1.0 {
+            failures.push((weighted, ratio));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "实际按键前缀完整切分回退：{failures:?}"
+    );
+}

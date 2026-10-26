@@ -67,3 +67,6 @@ installer/build/
 .windsurf/
 .continue/
 .aider*
+
+# Python build-input helpers for the extracted upstream client base.
+rust/scripts/__pycache__/
