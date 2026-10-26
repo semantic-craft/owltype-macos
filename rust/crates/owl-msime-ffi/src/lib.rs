@@ -1392,6 +1392,7 @@ impl OwlMsimeSession {
             self.runtime
                 .replace_engine(new_engine, self.page_size)
                 .map_err(|e| e.to_string())?;
+            self.rerank.engine_replaced(&mut self.runtime);
         }
         let _ = self
             .runtime
@@ -1414,6 +1415,7 @@ impl OwlMsimeSession {
         self.runtime
             .replace_engine(new_engine, self.page_size)
             .map_err(|e| e.to_string())?;
+        self.rerank.engine_replaced(&mut self.runtime);
         let view = self.runtime.view();
         self.sync_pinned_state_from_view(&view);
         Ok(())

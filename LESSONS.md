@@ -454,6 +454,16 @@ review dates, not retries. Keep deterministic checks in the local gate.
   `pure_wubi_fifth_key_tops_an_ambiguous_four_code` reproduces the missing commit before the
   adapter correction and passes afterwards. This proves the session/resource seam, not IMK installation.
 
+## Verify both keyboard model scoring paths against the pinned host
+
+**A ready model and a changed first candidate do not prove the engine lattice scorer is connected.**
+
+- Reason: after pinning MSIME 0.55.0, the host's existing worker attached the keyboard model to the runtime reranker only. `tadefangjian` changed its first row to `他的房间`, but its later sentence and completion rows differed from the pinned Host API with `neural_keyboard` enabled. The existing settled-selection regression still passed.
+- Prevention: hand the same validated worker-loaded model to the existing engine lattice scorer and runtime reranker. Refresh the published candidate identity when weights attach or detach; reattach after engine replacement. Missing, malformed and digest-mismatched models retain the ordinary non-neural candidate order.
+- Regression: [model_parity.rs](rust/crates/owl-msime-ffi/tests/model_parity.rs) compares all six model-on/off rows with the pinned Host API oracle, cold/shared-cache sessions, selection, engine replacement, active-composition disable and failure fallback. It failed before the lattice handoff and passes after it. The Swift settled-selection regression uses `tadefangjian`, which the pinned desktop model actually moves with the official dictionary; each digit/token selection path starts with its own learning journal so the first selection cannot pre-promote the second case.
+- Verify (验证点): materialize the official seed and locked models, then run `OWL_MODEL_PARITY_RESOURCES="$PWD/data/owl-rime/msime" cargo test --manifest-path rust/Cargo.toml -p owl-msime-ffi --test model_parity -- --ignored --nocapture`; expect one passed test. This checks the C ABI, not installed IMK delivery or pause scheduling.
+- Seen on 1 distinct date: 2026-10-26.
+
 ## Fresh upstream defaults own ordinary pinyin candidate order
 
 - Seen 1x (2026-10-26): after importing the pinned full dictionary, the real host
