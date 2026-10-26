@@ -666,3 +666,19 @@ review dates, not retries. Keep deterministic checks in the local gate.
   Swift/reference differential seam, plus existing Swift commit-preference,
   mixed-code-row selection and pure ambiguity tests. Installed IMK acceptance is
   outside these isolated-source observations.
+
+### Compare learning defaults through selection and restart
+
+- Seen 1x (2026-10-26): Wubi's Swift preference and FFI constructor defaulted
+  learning off although pinned MSIME 0.55.0 defaults it on. The actual Swift/native
+  53-event selection, personal phrase, deletion and process-restart trace exposed
+  33 differences: 五一 stayed behind王 and new你尼 was absent at codewqnx. The
+  focused Swift and FFI selection/reopen regressions independently failed.
+- Fix: align only the absent preference, initial settings state and FFI default;
+  preserve an explicit false and reuse upstream per-code/profile learning,
+  reverse-lookup guard, shared journal and generation replay. No new learning
+  algorithm, reset or migration is needed.
+- Verify: `tests/fixtures/wubi-parity/learning.json` through strict native/Swift
+  replay; `testWubiLearningDefaultsToNativeAndPreservesExplicitOptOut` and
+  `wubi_learning_default_persists_native_selection`. The final combined Wubi98
+  path is checked after its schema/profile plumbing is integrated.

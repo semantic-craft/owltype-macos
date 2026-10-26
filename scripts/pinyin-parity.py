@@ -106,6 +106,9 @@ class Reference:
                     preferences = options['preferences']
                     preferences['scheme'] = event.get('reference_scheme', 'shuangpin')
                     preferences['shuangpin_profile'] = event.get('profile', 'xiaohe')
+                    for name in ('wubi_profile', 'wubi_mixed_pinyin'):
+                        if name in event:
+                            preferences[name] = event[name]
                     if 'custom_profile' in event:
                         preferences['shuangpin_custom_profile'] = event['custom_profile']
                     preferences['navigation']['left_right'] = event.get('left_right', True)

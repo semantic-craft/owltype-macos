@@ -1756,6 +1756,34 @@ final class OwlRustEngineTests: XCTestCase {
                   "Mixed input uses z as a spelling letter even when temporary lookup is disabled")
   }
 
+  func testWubiLearningDefaultsToNativeAndPreservesExplicitOptOut() throws {
+    let defaults = OwlDefaults.standard
+    let key = "OwlKeyboardWubiUserDictLearning"
+    let saved = defaults.object(forKey: key)
+    defer {
+      if let saved { defaults.set(saved, forKey: key) } else { defaults.removeObject(forKey: key) }
+    }
+    for learning in [true, false] {
+      if learning { defaults.removeObject(forKey: key) } else { defaults.set(false, forKey: key) }
+      let engine = try makeSharedSupportSeedEngine()
+      XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
+      var session = engine.createSession()
+      typeText("gggg", into: session)
+      XCTAssertEqual(Array(try XCTUnwrap(session.composition()).candidates.prefix(2).map(\.text)), ["王", "五一"])
+      XCTAssertTrue(session.selectCandidate(1))
+      XCTAssertEqual(session.takeCommit(), "五一")
+      session.destroy()
+      XCTAssertTrue(engine.finalize())
+      session = engine.createSession()
+      typeText("gggg", into: session)
+      // Independently pinned Host API: a single selection promotes 五一 only with learning on.
+      XCTAssertEqual(session.composition()?.candidates.first?.text, learning ? "五一" : "王")
+      session.destroy()
+      XCTAssertTrue(engine.finalize())
+      XCTAssertEqual(OwlKeyboardPreferences.wubiUserDictLearning, learning)
+    }
+  }
+
   func testWubiCommitPreferencesApplyToCurrentSession() throws {
     let defaults = OwlDefaults.standard
     let keys = ["OwlKeyboardWubiAutoCommitUnique", "OwlKeyboardWubiFifthCodeTopCommit"]

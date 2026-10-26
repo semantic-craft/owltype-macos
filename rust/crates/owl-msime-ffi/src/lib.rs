@@ -1143,7 +1143,7 @@ impl OwlMsimeSession {
             wubi_candidate_mode: "normal".to_owned(),
             wubi_z_reverse_lookup: true,
             wubi_english_channel: false,
-            wubi_user_dict_learning: false,
+            wubi_user_dict_learning: true,
             pinned_state,
             punctuation_menu: None,
             punctuation_menu_generation: 0,
@@ -3937,6 +3937,32 @@ mod tests {
         assert!(!repeated_rows[0].corrected);
         assert!(repeated_rows[0].annotation.is_empty());
         owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn wubi_learning_default_persists_native_selection() {
+        let tmp = TempDir::new().unwrap();
+        let resources = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../data/owl-rime/msime");
+        let user = tmp.path().join("user");
+        let cache = tmp.path().join("cache");
+        for learned in [false, true] {
+            let (session, error) = create_with_generation(&resources, &user, &cache, "wubi-learning");
+            assert!(error.is_none(), "{error:?}");
+            assert!(!session.is_null());
+            assert!(call_action(session, r#"{"op":"set_input_mode","mode":"wubi"}"#).ok);
+            assert!(call_action(session, r#"{"op":"set_pinyin_scheme","scheme":"wubi"}"#).ok);
+            for ch in ['g', 'g', 'g', 'g'] {
+                assert!(call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#)).ok);
+            }
+            let frame = call_snapshot(session);
+            // Native Host API defaults: the second row moves first after one selection.
+            assert_eq!(frame.candidates[0].text, if learned { "五一" } else { "王" });
+            if !learned {
+                let selected = call_action(session, r#"{"op":"select_visible","index":1}"#);
+                assert_eq!(selected.committed_text.as_deref(), Some("五一"));
+            }
+            owl_msime_session_destroy(session);
+        }
     }
 
     #[test]
