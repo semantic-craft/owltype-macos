@@ -1748,7 +1748,7 @@ final class OwlRustEngineTests: XCTestCase {
     typeText("sebv", into: session)
     XCTAssertEqual(session.takeCommit(), "极限")
     let choice = try XCTUnwrap(OwlWubiScheme(rawValue: "jidian98"))
-    let state = OwlSettingsState(rimeDir: FileManager.default.temporaryDirectory)
+    let state = OwlSettingsState()
     state.keyboardInputMethod = .wubi
     OwlKeyboardPreferences.inputMethod = .wubi
     OwlSettingsActions.selectWubiScheme(choice, state: state) { schema in
