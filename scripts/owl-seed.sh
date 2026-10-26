@@ -249,7 +249,7 @@ All official dictionary files are published unchanged; no Owl Wubi overlay is ap
 See msime-resources-NOTICE.md, msime-upstream-licensing-NOTICE.md,
 msime/msime-dictionary-manifest.json and msime/OWLTYPE-UPSTREAM-RESOURCES.json
 for sources, byte sizes, digests, adaptations, and redistribution boundaries.
-The product's others DB remains the audited emoji and MIT kaomoji derivative.
+The product's others DB remains the audited four-table emoji/kaomoji derivative.
 EOF
 cat > "$output_dir/OWLTYPE-SEED-MANIFEST.txt" <<EOF
 Owltype production seed
@@ -258,7 +258,7 @@ manifest-sha256 5b656a5db35b4dcf804ce4348d8584c899d0012fe62bbbe3689204ddaba8722f
 resource-identities msime/OWLTYPE-UPSTREAM-RESOURCES.json
 wubi-resource msime/msime-wubi.db; upstream identity in resource-identities
 wubi86-license $wubi86_license_sha256 wubi86-jidian.LICENSE
-others-policy audited-emoji-and-MIT-kaomoji; full upstream auxiliary artifact retained in build cache
+others-policy audited-emoji-kaomoji-four-tables; full upstream auxiliary artifact retained in build cache
 model-policy separately pinned; defaults unchanged
 EOF
 

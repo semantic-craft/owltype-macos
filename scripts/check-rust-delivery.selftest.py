@@ -12,6 +12,7 @@ import tempfile
 import unittest
 from contextlib import closing
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -37,6 +38,18 @@ class RustDeliveryTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory(prefix="owl-rust-delivery-")
         self.root = Path(self.temporary.name)
+        # Synthetic rows have literal independent hashes. Production never uses
+        # these fixture overrides and verifies the pinned 1,935/21,541/1,675/1,400.
+        self.rows_patch = patch.dict(CHECKER.OTHERS.EXPECTED_ROWS,
+            {name: 1 for name in ("emoji", "emoji_pinyin", "kaomoji", "kaomoji_catalog")}, clear=True)
+        self.hashes_patch = patch.dict(CHECKER.OTHERS.EXPECTED_ROW_HASHES, {
+            "emoji": "95faaea3549f7c04ee182359916f77b52a5c9265f4af041bd699a0edb98a6679",
+            "emoji_pinyin": "08e9d4c3cf7df90657adf5554a071f9ccd13360811c8707343df16478e6e2f30",
+            "kaomoji": "9129a4113ceda0b06e681a15264a29eec49b440e278b3757d4f69171d262d0c9",
+            "kaomoji_catalog": "19f71b9703e9454451454f7e3755f0cc46e561260a41d19d61a5a4f97fb4496b",
+        }, clear=True)
+        self.rows_patch.start(); self.hashes_patch.start()
+        self.addCleanup(self.rows_patch.stop); self.addCleanup(self.hashes_patch.stop)
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
@@ -70,14 +83,15 @@ class RustDeliveryTests(unittest.TestCase):
             connection.execute("INSERT INTO english_words VALUES ('hello', 'hello', 1)")
         others = resource_root / "msime-others.db"
         with closing(sqlite3.connect(others)) as connection, connection:
-            connection.execute("CREATE TABLE emoji (emoji TEXT PRIMARY KEY)")
-            connection.execute("CREATE TABLE emoji_pinyin (key TEXT, emoji TEXT)")
-            connection.execute("INSERT INTO emoji VALUES ('🍎')")
-            connection.execute("INSERT INTO emoji_pinyin VALUES ('ping', '🍎')")
-            connection.execute("CREATE TABLE kaomoji (key TEXT, value TEXT)")
-            connection.execute("CREATE TABLE kaomoji_catalog (text TEXT PRIMARY KEY)")
-            connection.execute("INSERT INTO kaomoji VALUES ('happy', '^_^')")
-            connection.execute("INSERT INTO kaomoji_catalog VALUES ('^_^')")
+            for statement in CHECKER.OTHERS.SCHEMA_SQL:
+                connection.execute(statement)
+            connection.execute("INSERT INTO emoji VALUES ('🍎', 'Food', 0, '苹果', 'pingguo')")
+            connection.execute("INSERT INTO emoji_pinyin VALUES ('ping', '🍎', 0)")
+            connection.execute("INSERT INTO kaomoji VALUES ('haixiu', 'hx', '(^_^)', 0)")
+            connection.execute("INSERT INTO kaomoji_catalog VALUES ('(^_^)', 0, '害羞')")
+        shared = resource_root.parent
+        shutil.copyfile(ROOT / 'licenses/rime-kaomoji.LICENSE', shared / 'rime-kaomoji.LICENSE')
+        shutil.copyfile(ROOT / 'data/msime-others-NOTICE.txt', shared / 'msime-others-NOTICE.txt')
 
     def compile_fixture(self, app: Path, source: str, *linker_inputs: Path) -> None:
         subprocess.run(
@@ -197,6 +211,40 @@ class RustDeliveryTests(unittest.TestCase):
             connection.execute("CREATE TABLE symbol_catalog (symbol TEXT PRIMARY KEY)")
         with self.assertRaisesRegex(CHECKER.DeliveryError, "forbidden tables: symbol_catalog"):
             CHECKER.validate_app(app)
+
+    def test_rejects_changed_kaomoji_rows_even_with_same_count(self) -> None:
+        for table, column in [('kaomoji', 'kaomoji'), ('kaomoji_catalog', 'keywords')]:
+            with self.subTest(table=table):
+                app = self.make_app(f"Changed{table}.app")
+                with closing(sqlite3.connect(app / "Contents/SharedSupport/msime/msime-others.db")) as db, db:
+                    db.execute(f"UPDATE {table} SET {column} = 'tampered'")
+                with self.assertRaisesRegex(CHECKER.DeliveryError, "row hash"):
+                    CHECKER.verify_resources(app)
+
+    def test_rejects_missing_empty_or_extra_kaomoji_rows(self) -> None:
+        for operation, expected in [
+            ("DROP TABLE kaomoji_catalog", "missing required tables"),
+            ("DELETE FROM kaomoji", "empty required table"),
+            ("INSERT INTO kaomoji VALUES ('a', 'a', 'x', 1)", "has 2 rows")]:
+            with self.subTest(operation=operation):
+                app = self.make_app(f"BadRows{len(list(self.root.iterdir()))}.app")
+                with closing(sqlite3.connect(app / "Contents/SharedSupport/msime/msime-others.db")) as db, db:
+                    db.execute(operation)
+                with self.assertRaisesRegex(CHECKER.DeliveryError, expected):
+                    CHECKER.verify_resources(app)
+
+    def test_rejects_missing_or_changed_kaomoji_license_and_source_notice(self) -> None:
+        for name in ('rime-kaomoji.LICENSE', 'msime-others-NOTICE.txt'):
+            for missing in (True, False):
+                with self.subTest(name=name, missing=missing):
+                    app = self.make_app(f"Notice{len(list(self.root.iterdir()))}.app")
+                    path = app / 'Contents/SharedSupport' / name
+                    if missing:
+                        path.unlink()
+                    else:
+                        path.write_text('changed')
+                    with self.assertRaisesRegex(CHECKER.DeliveryError, 'pinned others notice'):
+                        CHECKER.verify_resources(app)
 
     def test_rejects_unknown_msime_others_tables(self) -> None:
         app = self.make_app("UnknownOthers.app")

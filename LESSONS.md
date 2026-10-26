@@ -742,3 +742,19 @@ review dates, not retries. Keep deterministic checks in the local gate.
   The legacy builder retains its own merged contract. Bare Xcode test hosts have
   no full SharedSupport payload; offline production-factory tests explicitly
   supply the pinned seed, without treating that fixture omission as product proof.
+
+## Delivery and acquisition share the licensed resource contract
+
+- Seen 1x (2026-10-26): final Release validation still rejected `kaomoji` and
+  `kaomoji_catalog` after the seed importer had accepted their fixed MIT data and
+  bundled the original license. Provenance and generated seed metadata still said
+  emoji-only, and the SBOM regression still excluded the retained source component.
+- The delivery checker now reuses `fetch-msime-others.py`'s exact four-table,
+  row-count and canonical-content-hash contract and pins the kaomoji MIT text and
+  source notice. `symbol_catalog` and unknown tables remain forbidden. Metadata
+  names the licensed retained subset without licensing the complete upstream DB.
+- Verify (验证点): `python3 scripts/check-rust-delivery.selftest.py` rejects missing,
+  empty, added or changed kaomoji rows and missing/modified attribution;
+  `python3 scripts/release-bundle.selftest.py` verifies its SBOM component and
+  pinned license. Run the real `scripts/check-rust-delivery.py` against the Release
+  App as well; passing synthetic fixtures alone cannot establish shipped content.
