@@ -1065,7 +1065,7 @@ struct OwlKeyboardPage: View {
           palette: palette,
           onToggle: { toggleAutoPairBrackets() }
         )
-        Text("输入下列开符号自动补全成对：（） 【】 《》 〈〉 「」 『』 〔〕 “” ‘’ <> () [] {}。标准文本应用中光标停在符号中间，其余应用光标在符号后。")
+        Text("拼音输入括号或引号时补全闭合符，闭合符随当前组合一起提交。五笔保留原有配对方式。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .frame(maxWidth: .infinity, alignment: .leading)

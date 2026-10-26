@@ -31,6 +31,9 @@ final class OwlInputController: IMKInputController {
   var automaticApplyingClientAction = false
   var automaticEpoch: UInt64 = 0
   let smartPunctuation = OwlSmartPunctuation()
+  var pendingPairedClosing: String?
+  var pairedClosings: [String] = []
+  var punctuationKeyInFlight: UInt32?
   /// The current composition's Session, vended by the Engine seam. `nil` (or `!isValid`)
   /// means "no live session — recreate before use". Swappable so PR2 can inject a fake;
   /// the live default comes from `NSApp.owlAppDelegate.engine` (same indirection as
@@ -144,6 +147,7 @@ final class OwlInputController: IMKInputController {
     }
 
     if let incoming = sender as? IMKTextInput, let previous = self.client, incoming !== previous {
+      finishPairBeforeChangingClient(to: incoming)
       // The old field is no longer the target; never recover into the new field.
       templateHostGeneration &+= 1
       automaticEpoch &+= 1
@@ -159,6 +163,7 @@ final class OwlInputController: IMKInputController {
     if event.type == .keyDown, handleCandidateDeletionHotKey(event) { return true }
     if event.type == .keyDown, handlePinHotKey(event) { return true }
 
+    if handleNativePairedClosing(event) { return true }
     if handleAutomaticExpansion(event) { return true }
 
     // 全局热键的唯一路径（#118）: 快捷短语面板与划词菜单召唤只在猫头鹰为活跃输入法时有意义 —— 此时
@@ -207,12 +212,22 @@ final class OwlInputController: IMKInputController {
       invalidateSettledRerankForAction()
       let handled = processKey(rimeKeycode, modifiers: rimeModifiers)
       rimeUpdate()
+      if !handled, (rimeModifiers & (kControlMask.rawValue | kAltMask.rawValue)) != 0 {
+        flushPendingPairedClosing()
+      }
       if shouldArmSettledRerank(after: rimeKeycode) {
         armSettledRerankAfterInput()
       }
       return handled
 
-    case .commandPassthrough, .ignored:
+    case .commandPassthrough:
+      invalidateSettledRerankForAction()
+      (rime as? OwlRustSession)?.finishNativeComposition()
+      rimeUpdate()
+      flushPendingPairedClosing()
+      return false
+
+    case .ignored:
       return false
     }
   }
@@ -324,6 +339,9 @@ final class OwlInputController: IMKInputController {
     // TODO add special key event preprocessing here
     guard let rime else { return false }
 
+    punctuationKeyInFlight = (rimeModifiers & (kControlMask.rawValue | kAltMask.rawValue
+      | kSuperMask.rawValue | kReleaseMask.rawValue)) == 0
+      && (32..<127).contains(rimeKeycode) ? rimeKeycode : nil
     if handleSmartPunctuation(rimeKeycode, modifiers: rimeModifiers) { return true }
 
     // '/' → English, globally & schema-agnostically (programming convenience), unless the user

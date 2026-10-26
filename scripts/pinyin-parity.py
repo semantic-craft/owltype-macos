@@ -6,11 +6,15 @@ Then supply its .xctestrun, the reference library and resources explicitly. Exit
 semantic differences, 2 means invalid/incomplete evidence. No installed app is launched.
 """
 import argparse
+from contextlib import contextmanager
+from cleanup_app_registrations import prepare as prepare_registrations
 import ctypes as C
 import hashlib
 import json
 from pathlib import Path
 import plistlib
+import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -198,6 +202,31 @@ def source_identity():
             'untracked_sha256': untracked}
 
 
+@contextmanager
+def owned_owl_build(requested):
+    """Build only in our disposable tree; never remove caller-supplied data.
+
+    Keep trace/identity JSON in --output. Unregister exact main/nested bundles
+    before removal and recheck delayed claims using the existing safety boundary.
+    If a running process or unregister failure prevents cleanup, retain the tree.
+    """
+    root = Path(tempfile.mkdtemp(prefix='owl-pinyin-parity-build-')).resolve()
+    (root / '.owl-parity-owned.json').write_text(json.dumps({'purpose': 'pinyin-parity-build'}))
+    handlers = {}
+    def interrupt(signum, _frame):
+        raise SystemExit(128 + signum)
+    try:
+        for signum in (signal.SIGTERM, signal.SIGHUP):
+            handlers[signum] = signal.signal(signum, interrupt)
+        yield root / 'Build/Products' / requested.name
+    finally:
+        for signum, handler in handlers.items():
+            signal.signal(signum, handler)
+        prepare_registrations(root)
+        shutil.rmtree(root)
+        prepare_registrations(root)
+
+
 def build_owl(xctestrun):
     if xctestrun.parent.name != 'Products' or xctestrun.parent.parent.name != 'Build':
         raise ValueError('xctestrun must be in the chosen derived-data Build/Products directory')
@@ -274,7 +303,8 @@ def main():
     parser.add_argument('--reference-profile', choices=('native-mac-host', 'raw-host-api'),
                         default='native-mac-host', help='pinned macOS host capabilities or bare API defaults')
     parser.add_argument('--owl-resources', type=Path, default=ROOT / 'data/owl-rime')
-    parser.add_argument('--xctestrun', type=Path, required=True)
+    parser.add_argument('--xctestrun', type=Path, required=True,
+                        help='expected xctestrun filename; build uses a separate owned temporary directory')
     parser.add_argument('--trace', type=Path, default=ROOT / 'tests/fixtures/pinyin-parity/tadefangjian.json')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
@@ -296,13 +326,14 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     (args.output / 'comparison.json').unlink(missing_ok=True)
     events = json.loads(args.trace.read_text())['events']
-    build = build_owl(args.xctestrun.resolve())
-    with tempfile.TemporaryDirectory(prefix='owl-pinyin-parity-') as state:
-        reference = reference_replay(args.reference_library.resolve(), args.reference_resources.resolve(), Path(state) / 'reference', events, args.reference_profile)
-        request = args.output.resolve() / 'owl-request.json'
-        request.write_text(json.dumps({'run_id': str(uuid.uuid4()), 'events': events, 'resources': str(args.owl_resources.resolve()),
-                                       'state_root': str(Path(state) / 'owl'), 'page_size': reference['preferences']['candidate_page_size']}))
-        owl = owl_replay(args.xctestrun.resolve(), request, args.output.resolve() / 'owl.json')
+    with owned_owl_build(args.xctestrun) as xctestrun:
+        build = build_owl(xctestrun)
+        with tempfile.TemporaryDirectory(prefix='owl-pinyin-parity-') as state:
+            reference = reference_replay(args.reference_library.resolve(), args.reference_resources.resolve(), Path(state) / 'reference', events, args.reference_profile)
+            request = args.output.resolve() / 'owl-request.json'
+            request.write_text(json.dumps({'run_id': str(uuid.uuid4()), 'events': events, 'resources': str(args.owl_resources.resolve()),
+                                           'state_root': str(Path(state) / 'owl'), 'page_size': reference['preferences']['candidate_page_size']}))
+            owl = owl_replay(xctestrun, request, args.output.resolve() / 'owl.json')
     if source_identity() != build['source']:
         raise ValueError('source changed during replay')
     diff = differences(reference, owl)
@@ -310,7 +341,7 @@ def main():
         raise ValueError('trace did not replay every requested input event')
     result = {'baseline': baseline, 'reference': reference, 'owl': owl,
               'differences': diff, 'equal': not diff,
-              'owl_build': build,
+              'owl_build': build, 'owned_build_cleanup_verified': True,
               'configuration_contract': {'reference': args.reference_profile,
                   'reference_host_capabilities': {
                       'source': 'platforms/macos/src/input/InputController.mm:6050-6070 MSIMESessionOptions',

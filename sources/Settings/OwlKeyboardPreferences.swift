@@ -410,10 +410,9 @@ enum OwlKeyboardPreferences {
     }
   }
 
-  /// 自动配对括号 (task 07-02). Key `"OwlKeyboardAutoPairBrackets"`, default `false`
-  /// (PRD D3: 兼容性未大面积真机验证前默认关). Runtime mapping: cached flag + pure pair
-  /// decision in `OwlAutoPair`, executed at the commit seam — hot-effective, NO Rime
-  /// apply/deploy. OFF must stay byte-identical to today's commit behavior.
+  /// 自动配对括号 (task 07-02). Key `"OwlKeyboardAutoPairBrackets"`, native pinyin default `true`
+  /// Native pinyin keeps a marked closing tail; Wubi retains its original opt-in
+  /// pair decision. The setting applies immediately without an engine deployment.
   static var smartPunctuation: Bool {
     get { boolValue("OwlKeyboardSmartPunctuation", default: true) }
     set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardSmartPunctuation") }
@@ -428,7 +427,12 @@ enum OwlKeyboardPreferences {
   }
 
   static var autoPairBrackets: Bool {
-    get { cachedAutoPairBrackets }
+    get {
+      if OwlDefaults.standard.object(forKey: "OwlKeyboardAutoPairBrackets") == nil {
+        return inputMethod != .wubi
+      }
+      return cachedAutoPairBrackets
+    }
     set {
       cachedAutoPairBrackets = newValue
       OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardAutoPairBrackets")
@@ -459,7 +463,7 @@ enum OwlKeyboardPreferences {
 
   private static var cachedCJKEnglishSpacing = boolValue("OwlKeyboardCJKEnglishSpacing", default: false)
   private static var cachedCJKNumberSpacing = boolValue("OwlKeyboardCJKNumberSpacing", default: false)
-  private static var cachedAutoPairBrackets = boolValue("OwlKeyboardAutoPairBrackets", default: false)
+  private static var cachedAutoPairBrackets = boolValue("OwlKeyboardAutoPairBrackets", default: true)
   private static var cachedSlashSymbolMenu = boolValue("OwlKeyboardSlashSymbolMenu", default: false)
 
   /// Read a Bool that defaults to `defaultValue` when the key was never written,
