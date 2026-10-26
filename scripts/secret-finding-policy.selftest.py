@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import importlib.util
 import hashlib
+import contextlib
+import io
 import sqlite3
 import dataclasses
 import json
@@ -331,6 +333,123 @@ class PublicEnglishDictionaryTests(unittest.TestCase):
                 changed = hashlib.sha256(path.read_bytes()).hexdigest()
                 with patch.object(POLICY, 'PUBLIC_ENGLISH_DB_SHA256', changed):
                     self.assertTrue(POLICY.decide(finding).rejected, 'matching public word/display row is required')
+
+
+
+class PublicSourceArchiveTests(unittest.TestCase):
+    def source_fixture(self, temporary):
+        import release_source
+        root = pathlib.Path(temporary)
+        repo = root / 'repo'; repo.mkdir()
+        for name in ('LICENSE.txt', 'Makefile', 'THIRD_PARTY_NOTICES.md',
+                     'Owltype.xcodeproj/project.pbxproj', 'rust/msime-source.json'):
+            path = repo / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_text('public source fixture')
+        subprocess.run(['git', '-C', str(repo), 'init', '-q'], check=True, capture_output=True)
+        subprocess.run(['git', '-C', str(repo), 'add', '.'], check=True, capture_output=True)
+        subprocess.run(['git', '-C', str(repo), '-c', 'core.hooksPath=/dev/null',
+            '-c', 'commit.gpgsign=false', '-c', 'user.name=SourceScanTest',
+            '-c', 'user.email=source-scan@example.invalid', 'commit', '-qm', 'source fixture'],
+            check=True, capture_output=True)
+        revision = subprocess.check_output(['git', '-C', str(repo), 'rev-parse', 'HEAD'], text=True).strip()
+        checker = POLICY.source_cohort_checker()
+        output = root / 'output'; release = output / 'release'; release.mkdir(parents=True)
+        source = root / 'stage/Owltype-macOS-9.8.7-source'
+        release_source.stage_git_source(repo, revision, source)
+        db = source / 'data/owl-rime/msime/msime-english.db'; db.parent.mkdir(parents=True)
+        with sqlite3.connect(db) as connection:
+            connection.execute('CREATE TABLE english_words(word TEXT, display TEXT, weight INTEGER)')
+            connection.execute('INSERT INTO english_words VALUES (?, ?, 1)', ('dictionary', 'dictionary'))
+        db.chmod(0o644)
+        seed = output / 'Build/Products/Release/Owltype.app/Contents/SharedSupport'
+        (seed / 'msime').mkdir(parents=True)
+        shutil.copyfile(db, seed / 'msime/msime-english.db'); (seed / 'msime/msime-english.db').chmod(0o644)
+        db_hash = hashlib.sha256(db.read_bytes()).hexdigest()
+        app_manifest = release / 'OWLTYPE-FILE-MANIFEST.sha256'
+        app_manifest.write_text(db_hash + '  Contents/SharedSupport/msime/msime-english.db\n')
+        entries, submodules = release_source.git_source_snapshot(repo, revision)
+        source_sha = release_source.tree_fingerprint(entries)
+        seed_sha = release_source.tree_fingerprint(release_source.file_tree_snapshot(seed))
+        cohort = {'schemaVersion': checker.COHORT_SCHEMA_VERSION, 'status': 'complete',
+            'version': '9.8.7', 'buildVersion': '9.8.7', 'revision': revision,
+            'sourceSha256': source_sha, 'seedSha256': seed_sha, 'submodules': submodules,
+            'outputRootSha256': checker.output_root_fingerprint(output), 'buildAppSha256': 'a' * 64,
+            'artifacts': {name: {'state': 'stapled'} for name in ('app', 'installer-pkg', 'update-pkg', 'dmg')}}
+        cohort['cohortId'] = checker.cohort_identifier(revision, '9.8.7', '9.8.7',
+            cohort['outputRootSha256'], cohort['buildAppSha256'], source_sha, seed_sha, submodules)
+        (source / 'OWLTYPE-SOURCE-PROVENANCE.txt').write_text(
+            'Owltype source release 9.8.7\nbuild-version 9.8.7\nroot ' + revision +
+            '\ncohort ' + cohort['cohortId'] + '\nsource-tree ' + source_sha + '\nseed-tree ' + seed_sha +
+            '\napp-manifest ' + checker.sha256(app_manifest) + '\n')
+        manifest = source / 'OWLTYPE-SOURCE-MANIFEST.sha256'
+        manifest.write_text(''.join(entry.sha256 + '  ' + name + '\n' for name, entry in
+            sorted(release_source.file_tree_snapshot(source).items())))
+        archive = release / (source.name + '.tar.gz')
+        release_source.write_deterministic_archive(source, archive)
+        digest = checker.sha256(archive)
+        archive.with_name(archive.name + '.sha256').write_text(digest + '  ' + archive.name + '\n')
+        cohort['outputs'] = {'source-archive': {'base': 'outputRoot', 'path': 'release/' + archive.name, 'sha256': digest}}
+        (release / 'OWLTYPE-RELEASE-COHORT.json').write_text(json.dumps(cohort))
+        raw = 'dictionary' * 2
+        record = artifact_record(raw, detector='Eraser', path=str(db)); record['Verified'] = False
+        return repo, archive, source, db_hash, raw, record
+
+    def fixture_scope(self, repo, digest, raw):
+        stack = contextlib.ExitStack()
+        stack.enter_context(patch.object(POLICY.source_cohort_checker(), 'ROOT', repo))
+        stack.enter_context(patch.object(POLICY, 'PUBLIC_ENGLISH_DB_SHA256', digest))
+        stack.enter_context(patch.object(POLICY, 'PUBLIC_ENGLISH_PAIR_SHA256', hashlib.sha256(raw.encode()).hexdigest()))
+        return stack
+
+    def test_real_source_contract_is_required_in_addition_to_all_row_predicates(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            repo, archive, root, digest, raw, record = self.source_fixture(temporary)
+            with self.fixture_scope(repo, digest, raw):
+                record['source_archive_root'] = str(root)
+                finding = POLICY.normalize_artifact_trufflehog(record)
+                self.assertEqual(finding.source_archive_root, '', 'scanner JSON cannot assert trusted context')
+                self.assertTrue(POLICY.decide(finding).rejected, 'source-shaped path alone is not evidence')
+                context = POLICY.validated_source_scan_root(archive, root)
+                self.assertEqual(context, root.resolve())
+                trusted = dataclasses.replace(finding, source_archive_root=str(context))
+                self.assertEqual(POLICY.decide(trusted).waiver, '固定公开英文词库的词条列拼接')
+                for changes in ({'verified': True}, {'verified': None}, {'raw': 'dictionaryotherwords'},
+                                {'detector': 'Other'}, {'detector': 'generic-api-key'},
+                                {'source': 'history'}, {'path': str(root / 'other/msime-english.db')}):
+                    with self.subTest(fields=sorted(changes)):
+                        self.assertTrue(POLICY.decide(dataclasses.replace(trusted, **changes)).rejected)
+
+    def test_forged_non_source_and_modified_contexts_fail_closed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            repo, archive, root, digest, raw, record = self.source_fixture(temporary)
+            with self.fixture_scope(repo, digest, raw):
+                self.assertIsNone(POLICY.validated_source_scan_root(root / 'data/owl-rime/msime/msime-english.db', root))
+                fake = pathlib.Path(temporary) / 'fake' / root.name; fake.mkdir(parents=True)
+                self.assertIsNone(POLICY.validated_source_scan_root(archive, fake))
+                manifest = root / 'OWLTYPE-SOURCE-MANIFEST.sha256'; original = manifest.read_bytes()
+                manifest.write_bytes(original + b'forged metadata')
+                self.assertIsNone(POLICY.validated_source_scan_root(archive, root))
+                manifest.write_bytes(original)
+                db = root / 'data/owl-rime/msime/msime-english.db'; original = db.read_bytes()
+                db.write_bytes(original + b'modified DB')
+                self.assertIsNone(POLICY.validated_source_scan_root(archive, root))
+                db.write_bytes(original)
+                cohort_file = archive.parent / 'OWLTYPE-RELEASE-COHORT.json'
+                cohort = json.loads(cohort_file.read_text()); cohort['outputs']['source-archive']['sha256'] = '0' * 64
+                cohort_file.write_text(json.dumps(cohort))
+                self.assertIsNone(POLICY.validated_source_scan_root(archive, root))
+
+    def test_source_policy_context_never_waives_other_findings(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            repo, archive, root, digest, raw, record = self.source_fixture(temporary)
+            report = pathlib.Path(temporary) / 'scan.jsonl'
+            report.write_text(json.dumps(record) + '\n')
+            with self.fixture_scope(repo, digest, raw), contextlib.redirect_stdout(io.StringIO()), \
+                    contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(POLICY.run_policy('artifact', 'trufflehog', report, str(archive), root), 0)
+                self.assertEqual(POLICY.run_policy('artifact', 'trufflehog', report, str(archive)), 1)
+                other = artifact_record(synthetic_generic_api_key(), detector='generic-api-key', path=record['SourceMetadata']['Data']['Filesystem']['file'])
+                report.write_text(json.dumps(record) + '\n' + json.dumps(other) + '\n')
+                self.assertEqual(POLICY.run_policy('artifact', 'trufflehog', report, str(archive), root), 1)
 
 
 

@@ -63,10 +63,12 @@ for artifact in "$@"; do
   fi
 
   label="$artifact"
+  source_policy_args=()
   case "$artifact" in
     *.tar.gz|*.tgz)
       target="$work_dir/$scanned-tar"
       python3 "$repo_root/scripts/safe-extract-tar.py" "$artifact" "$target"
+      source_policy_args=(--source-root "$target/$(basename "${artifact%.tar.gz}")")
       ;;
     *.pkg)
       target="$work_dir/$scanned-pkg"
@@ -152,7 +154,7 @@ for artifact in "$@"; do
   # The filesystem adapter only normalizes scanner metadata.  The same deep
   # policy used for reachable history owns every exemption and rejection.
   python3 "$repo_root/scripts/secret-finding-policy.py" \
-    artifact trufflehog "$trufflehog_output" --label "$label"
+    artifact trufflehog "$trufflehog_output" --label "$label" "${source_policy_args[@]}"
 
   if [[ -n "$mounted_dmg" ]]; then
     /usr/bin/hdiutil detach "$mounted_dmg" >/dev/null || {
