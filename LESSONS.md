@@ -552,3 +552,13 @@ review dates, not retries. Keep deterministic checks in the local gate.
   pinned reference library/resources, the named Swift test, and
   `cargo test --locked --manifest-path rust/Cargo.toml -p owl-msime-ffi`.
   This proves the offline host seam; installed IMK acceptance remains separate.
+
+## Resource activation must capture the complete compatibility set
+
+**A resource generation includes auxiliary dictionaries, context sidecars, models and the binary's configuration version; each session captures that generation for both dictionary and model loading.**
+
+- Reason: the parity update audit found the production updater still rebuilding reduced Pinyin from legacy YAML. Activation switched only the main/English databases while session creation and model configuration kept reading the current bundle. A synthetic activated emoji database returned bundled apples instead of its own candidate; the focused host-seam regression failed before the fix.
+- Prevention: production preparation copies the binary-pinned complete resource set into the existing transaction. Activation and rollback validate the whole manifest and configuration/model compatibility. Session model and auxiliary paths belong to the captured generation. A missing/corrupt active member falls back to a fully verified previous combination, then the bundled seed if none is usable; incomplete generations are never supplemented member-by-member.
+- Regression: `testActivatedGenerationUsesItsOwnAuxiliaryResources`, `testProductionUpdatePreparesTheCompletePinnedCombination`, `testIncompleteGenerationCannotOmitAuxiliaryResources`, and `testGenerationSwitchRollbackColdStartAndJournalReplayKeepUserState` in `OwlRustEngineTests` cover actual sidecar candidates, official model scoring with unavailable bundle models, complete preparation, interrupted activation/retry, missing/corrupt sidecars, rollback, and learning replay in isolated roots.
+- Verify (验证点): run those focused Swift tests and `OwlRustResourceTransactionTests`; the synthetic candidate changes with the active generation and returns after rollback, while the learned candidate remains first. Future binary/model/config changes must advance the compatible package/configuration version together. No old-user migration is implied.
+- Seen on 1 distinct date: 2026-10-26.
