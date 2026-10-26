@@ -1642,18 +1642,31 @@ impl OwlMsimeSession {
             }
             "finish" => {
                 if let Some(menu) = self.punctuation_menu.take() {
-                    return self.build_snapshot(self.runtime.view(), true, Some(menu.selected().to_owned()), false);
+                    return self.build_snapshot(
+                        self.runtime.view(),
+                        true,
+                        Some(menu.selected().to_owned()),
+                        false,
+                    );
                 }
                 match self.runtime.dispatch(Action::Finish) {
                     Ok(transition) => {
                         self.sync_pinned_state_from_view(&transition.view);
-                        self.build_snapshot(transition.view, transition.handled, transition.commit, false)
+                        self.build_snapshot(
+                            transition.view,
+                            transition.handled,
+                            transition.commit,
+                            false,
+                        )
                     }
                     Err(error) => error_response(error.to_string()),
                 }
             }
             "balance_pair" => {
-                match self.runtime.balance_paired_punctuation_after_auto_close(b'<') {
+                match self
+                    .runtime
+                    .balance_paired_punctuation_after_auto_close(b'<')
+                {
                     Ok(()) => self.build_snapshot(self.runtime.view(), true, None, false),
                     Err(error) => error_response(error.to_string()),
                 }
