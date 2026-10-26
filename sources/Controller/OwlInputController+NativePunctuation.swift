@@ -55,15 +55,20 @@ extension OwlInputController {
 
   /// Pinned PairedPunctuationTracker owns at most sixteen closing marks. A host
   /// read must confirm the exact owned neighbor before a skip can replace it.
-  func handleNativePairedClosing(_ event: NSEvent) -> Bool {
+  func handleNativePairedClosing(_ event: NSEvent) -> Bool? {
     guard usesNativePairedPunctuation, let closing = pairedClosings.last,
           event.type == .keyDown,
           event.modifierFlags.intersection([.control, .option, .command]).isEmpty,
           event.characters == closing, let client,
-          rime?.input()?.isEmpty != false else { return false }
+          rime?.input()?.isEmpty != false else { return nil }
     let policy = clientCapabilityDecisions(for: client)
+    let replacementTrusted = policy.replacementRange.reason == .allowedAppKitClient
+      || policy.replacementRange.reason == .userForcedAllow
     guard policy.selectedRange.allowed, policy.surroundingText.allowed,
-          policy.replacementRange.allowed else { pairedClosings.removeAll(); return false }
+          policy.replacementRange.allowed, replacementTrusted else {
+      pairedClosings.removeAll()
+      return false
+    }
     let selected = client.selectedRange()
     guard selected.location != NSNotFound, selected.length == 0,
           let following = client.attributedSubstring(from:

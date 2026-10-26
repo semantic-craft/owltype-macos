@@ -82,6 +82,14 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     controller.commitComposition(client)
     XCTAssertFalse(client.text.hasMarkedText(), "host composition end must flush the held closing exactly once")
     XCTAssertTrue(client.text.string.hasSuffix("你好（）"))
+    let complete = client.text.string
+    client.appID = "org.owltype.untrusted-host"
+    client.text.setSelectedRange(NSRange(location: complete.utf16.count - 1, length: 0))
+    XCTAssertFalse(controller.handle(try key("）", code: 0), client: client),
+      "an unverified host must receive the key without a replacement write")
+    XCTAssertEqual(client.text.string, complete)
+    client.appID = "com.apple.TextEdit"
+    client.text.setSelectedRange(NSRange(location: complete.utf16.count, length: 0))
     XCTAssertTrue(controller.handle(try key("(", code: 25, flags: .shift), client: client))
     try type("ni", into: controller, client: client)
     let nextClient = HabitsTextClient()

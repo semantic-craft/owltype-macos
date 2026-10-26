@@ -163,7 +163,7 @@ final class OwlInputController: IMKInputController {
     if event.type == .keyDown, handleCandidateDeletionHotKey(event) { return true }
     if event.type == .keyDown, handlePinHotKey(event) { return true }
 
-    if handleNativePairedClosing(event) { return true }
+    if let handled = handleNativePairedClosing(event) { return handled }
     if handleAutomaticExpansion(event) { return true }
 
     // 全局热键的唯一路径（#118）: 快捷短语面板与划词菜单召唤只在猫头鹰为活跃输入法时有意义 —— 此时
