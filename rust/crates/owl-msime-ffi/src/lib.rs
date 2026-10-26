@@ -133,33 +133,52 @@ impl CandidateTransform for OwlPinnedTransform {
             }
         }
 
-        // 2. Host quick phrases / templates / prompts (CandidateSource::QuickPhrase == 5)
-        //    appear at the top of page 0 (matching Owltype's initial_quality: 99 table translators).
+        // 2. Wubi single-character-first mode (#250): place single-character candidates ahead of phrases
+        //    (except during z-prefix reverse lookup), while preserving page 0's quick-phrase slots.
         let quick_phrase_src = CandidateSource::QuickPhrase as u8;
-        for (seat, row) in window.iter().enumerate() {
-            if row.source == quick_phrase_src {
-                push_unique(&mut ops.order, seat);
-            }
-        }
-
-        // 3. Wubi single-character-first mode (#250): place single-character candidates ahead of phrases
-        //    (except during z-prefix reverse lookup).
         let in_z_lookup = guard.input_mode == "wubi"
             && guard.pinyin_scheme != "wubi_pinyin"
             && guard.wubi_z_reverse_lookup
             && guard.active_input.starts_with('z');
         if guard.input_mode == "wubi" && guard.wubi_single_first && !in_z_lookup {
+            let page_sz = guard.page_size.max(1);
+            let page0_quick: Vec<usize> = window
+                .iter()
+                .take(page_sz)
+                .enumerate()
+                .filter(|(_, row)| row.source == quick_phrase_src)
+                .map(|(seat, _)| seat)
+                .collect();
+            let mut non_quick_order = Vec::with_capacity(window.len());
             for (seat, row) in window.iter().enumerate() {
-                if row.text.chars().count() == 1 {
+                if row.source != quick_phrase_src && row.text.chars().count() == 1 {
+                    non_quick_order.push(seat);
+                }
+            }
+            for (seat, row) in window.iter().enumerate() {
+                if row.source != quick_phrase_src && row.text.chars().count() != 1 {
+                    non_quick_order.push(seat);
+                }
+            }
+            let mut non_quick_iter = non_quick_order.into_iter();
+            let head_slots = page0_quick.first().copied().unwrap_or(page_sz);
+            for _ in 0..head_slots {
+                if let Some(seat) = non_quick_iter.next() {
                     push_unique(&mut ops.order, seat);
                 }
+            }
+            for seat in page0_quick {
+                push_unique(&mut ops.order, seat);
+            }
+            for seat in non_quick_iter {
+                push_unique(&mut ops.order, seat);
             }
             for (seat, _) in window.iter().enumerate() {
                 push_unique(&mut ops.order, seat);
             }
         }
 
-        // 4. Whole-syllable Chinese-first protection (#259 AC 1):
+        // 3. Whole-syllable Chinese-first protection (#259 AC 1):
         //    When typing complete Quanpin syllables (e.g., `di`, `shi`, `nihao`, `you`), keep at least
         //    the first page of Chinese candidates ahead of mixed English dictionary rows.
         let english_src = CandidateSource::EnglishDictionary as u8;
@@ -169,7 +188,7 @@ impl CandidateTransform for OwlPinnedTransform {
             && is_complete_pinyin_input(guard.active_input.trim_end_matches('\''))
             && window.iter().any(|r| r.source == english_src)
         {
-            let page_sz = guard.page_size.max(5);
+            let page_sz = guard.page_size.max(1);
             let mut chinese_kept = 0usize;
             for (seat, row) in window.iter().enumerate() {
                 if row.source != english_src {
@@ -3764,7 +3783,11 @@ mod tests {
                 .map(|candidate| candidate.text.as_str())
                 .collect::<Vec<_>>()
         );
-        assert_eq!(frames[0].candidates[0].text, "基础短语");
+        assert_eq!(frames[0].candidates[0].text, "你");
+        assert!(frames[0]
+            .candidates
+            .iter()
+            .any(|candidate| candidate.text == "基础短语"));
 
         call_action(generated, r#"{"op":"clear"}"#);
         let host = call_action(

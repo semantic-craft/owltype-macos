@@ -119,12 +119,13 @@ impl CandidateQueries {
         self.quick_phrase_table = usable_quick_phrase_table(table);
     }
 
-    /// 普通组字的编码恰好是某条快捷短语的编码时，把短语并进候选：`slot` 为 `None` 时追加在末尾（`quick_phrase_frequency` 关着或还没有学习记录的默认落位）；`Some(n)` 时插在第 n 个计位候选之后（`quick_phrase_slots` 学下来的位置）。只认整个编码，不按前缀匹配（见 [`query_exact_quick_phrases`]）。
+    /// 普通组字的编码恰好是某条快捷短语的编码时，把短语并进候选：`slot` 为 `Some(n)` 时插在第 n 个计位候选之后（`quick_phrase_slots` 学下来的位置）；为 `None`（`quick_phrase_frequency` 关着或还没有学习记录）时按 `first_page_rows`（宿主每页候选数）落在首页尾部，规则见 [`default_quick_phrase_slot`]。只认整个编码，不按前缀匹配（见 [`query_exact_quick_phrases`]）。
     pub fn insert_quick_phrase_candidates(
         &self,
         code: &str,
         candidates: &mut Vec<WordItem>,
         slot: Option<usize>,
+        first_page_rows: usize,
     ) {
         if code.is_empty() || !code.bytes().all(|byte| byte.is_ascii_lowercase()) {
             return;
@@ -143,12 +144,10 @@ impl CandidateQueries {
                     .any(|existing| existing.word == candidate.word)
             })
             .collect();
+        let slot =
+            slot.or_else(|| default_quick_phrase_slot(candidates, phrases.len(), first_page_rows));
         let Some(slot) = slot else {
-            if self.quick_phrase_table.is_empty() {
-                candidates.extend(phrases);
-            } else {
-                candidates.splice(0..0, phrases);
-            }
+            candidates.extend(phrases);
             return;
         };
         // slot 是「组前面有几个计位候选」：0 放最前，n 放第 n 个之后，超出放回末尾。
@@ -453,6 +452,31 @@ impl CandidateQueries {
     }
 }
 
+/// 没有学习记录时整组快捷短语的默认槽位（组前面有几个计位候选），#9702：追加在全部普通候选之后，高频码的短语会落到十几页之外。记每页 `P = max(first_page_rows, 1)` 个、计位的普通候选 `N` 个、短语 `phrases` 条：`N < P` 时返回 `None`，整组照旧接在普通候选之后；否则首页让出 `k = max(min(phrases, ⌊P/2⌋), 1)` 格，槽位是 `max(P - k, 1)`。首页至少留下前一半普通候选，首选永远是普通候选；整组连在一起，放不下的接在下一页开头。
+pub(crate) fn default_quick_phrase_slot(
+    candidates: &[WordItem],
+    phrases: usize,
+    first_page_rows: usize,
+) -> Option<usize> {
+    let page = first_page_rows.max(1);
+    let ordinary = candidates
+        .iter()
+        .filter(|item| counts_toward_quick_phrase_slot(item))
+        .count();
+    if phrases == 0 || ordinary < page {
+        return None;
+    }
+    let seats = phrases.min(page / 2).max(1);
+    let target_index = page.saturating_sub(seats).max(1).min(candidates.len());
+    Some(
+        candidates[..target_index]
+            .iter()
+            .filter(|item| counts_toward_quick_phrase_slot(item))
+            .count()
+            .max(1),
+    )
+}
+
 /// 槽位计数的普通候选（`counts_toward_quick_phrase_slot`，quick_phrase_query.cpp:123-143）：固定位置的行、快捷短语自己和混输/在线/插件/联系人行都不算。
 pub(crate) fn counts_toward_quick_phrase_slot(item: &WordItem) -> bool {
     if item.fixed_position > 0 {
@@ -471,6 +495,7 @@ pub(crate) fn counts_toward_quick_phrase_slot(item: &WordItem) -> bool {
             | CandidateSource::MixedJapanese
             | CandidateSource::Plugin
             | CandidateSource::Contact
+            | CandidateSource::Fallback
     )
 }
 
