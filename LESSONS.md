@@ -784,3 +784,20 @@ review dates, not retries. Keep deterministic checks in the local gate.
   `python3 scripts/release-bundle.selftest.py` verifies its SBOM component and
   pinned license. Run the real `scripts/check-rust-delivery.py` against the Release
   App as well; passing synthetic fixtures alone cannot establish shipped content.
+
+### Legacy resource fixtures must use the product's split-Wubi generation preparation
+
+- Seen 1x (2026-10-26): the final gate's FFI library suite had54passes/3failures.
+  The seed smoke test called the legacy Pinyin/English constructor without a
+  Wubi resource root; migration fixtures directly copied those two databases
+  and skipped split-Wubi assembly. The official seed was present, including
+  Wubi86=126078 andWubi98=135372; skipping missing resources was not the cause.
+- Production `OwlUserMigrationImport.prepareGeneration` already creates the
+  complete generation before calling the importer. Align only the test fixtures
+  and their reset/session helpers with that public generation path. Keep every
+  original migrated-row count, idempotence, learning/reopen, replaced-journal
+  inode and rollback assertion; do not change the migration algorithm or weaken
+  distinct-root validation to accommodate an obsolete fixture layout.
+- Verify: `cargo test --locked --manifest-path rust/Cargo.toml -p owl-msime-ffi
+  --lib` passes57/57 with verified official split dictionaries. This is isolated
+  fixture coverage, not a production-data reset or a new full-gate pass.
