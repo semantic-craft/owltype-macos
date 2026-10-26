@@ -636,6 +636,21 @@ struct OwlRustResourcePackageBuilder: Sendable {
 }
 
 extension OwlRustEngineIdentity {
+  /// Native desktop resources split the two official Wubi tables out of the main database.
+  /// The legacy YAML/custom builder retains its merged layout under owlRustResourceV1.
+  static let owlRustNativeInputV1 = OwlRustEngineIdentity(
+    contractVersion: owlRustResourceV1.contractVersion,
+    capabilities: owlRustResourceV1.capabilities,
+    sqliteRequirements: owlRustResourceV1.sqliteRequirements.map { requirement in
+      guard requirement.role == .mainDictionary else { return requirement }
+      return OwlRustResourceSQLiteRequirement(role: .mainDictionary,
+        tables: requirement.tables.filter { $0.table != "wubi86" })
+    } + [OwlRustResourceSQLiteRequirement(role: .wubiDictionary, tables: [
+      OwlRustResourceSQLiteTableRequirement(table: "wubi86", columns: ["key", "value", "weight"]),
+      OwlRustResourceSQLiteTableRequirement(table: "wubi98", columns: ["key", "value", "weight"])
+    ])]
+  )
+
   static let owlRustResourceV1 = OwlRustEngineIdentity(
     contractVersion: 1,
     capabilities: ["dictionary-contract-v1", "pinyin-wubi-v1", "persistent-user-journal-v1"],

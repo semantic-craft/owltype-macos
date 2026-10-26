@@ -724,3 +724,21 @@ review dates, not retries. Keep deterministic checks in the local gate.
   six-row model oracle and its page-size precondition remain unchanged.
 - Verify: `python3 scripts/test-defaults-isolation.selftest.py` passes; the real
   model/controller regression must also pass through the ordinary native host.
+
+### A split resource file needs the native resource schema contract
+
+- Seen 1x (2026-10-26): W02 correctly published original split `msime-wubi.db`,
+  but the shared legacy engine-resource descriptor still required `wubi86` in
+  `msime-pinyin.db`. The existing complete-resource test failed while building
+  the real official package, before any activation, with missing-tablewubi86.
+- Fix: retain the legacy merged/custom descriptor and derive the production
+  native descriptor from its common requirements, locating both86/98 tables in
+  the split role. The fixed native configuration also pins the official Wubi
+  resource digest, like its existing model pins: a self-consistent manifest with
+  an empty98 table cannot claim native alignment.
+- Verify: actual official production prepare/activate, a self-digested empty98
+  rejection, and the existing generation lifecycle extended with86/98 candidates
+  and shared-journal replay before update, after update, recovery and rollback.
+  The legacy builder retains its own merged contract. Bare Xcode test hosts have
+  no full SharedSupport payload; offline production-factory tests explicitly
+  supply the pinned seed, without treating that fixture omission as product proof.

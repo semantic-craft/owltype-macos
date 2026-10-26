@@ -37,14 +37,15 @@ struct OwlDictPackCenterRustBackend: Sendable {
   let rollback: Rollback
 
   static func production(
-    userRoot: URL = OwlApp.userDir
+    userRoot: URL = OwlApp.userDir,
+    sharedSupport: URL? = Bundle.main.sharedSupportURL
   ) -> Self {
     let environment = OwlRustResourceEnvironment.production(userRoot: userRoot)
     return Self(
       environment: environment,
       prepare: { environment, progress in
         let store = try environment.makeStore()
-        guard let sharedSupport = Bundle.main.sharedSupportURL else {
+        guard let sharedSupport else {
           throw OwlRustResourceError.invalidConfiguration("bundled resources unavailable")
         }
         let temporary = environment.packageRoot.deletingLastPathComponent()
