@@ -95,6 +95,7 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
         RunLoop.main.run(until: Date().addingTimeInterval(0.001))
       } while Date() < readyDeadline
       XCTAssertTrue(session.settledRerankReady)
+      XCTAssertEqual(OwlKeyboardPreferences.pageSize, 6, "isolated model oracle requires native six-row page")
       try type("tadefangjian", into: controller, client: client)
       let before = try XCTUnwrap(session.composition())
       XCTAssertEqual(before.candidates.map(\.text),

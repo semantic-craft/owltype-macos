@@ -817,6 +817,7 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(try Data(contentsOf: pinyinURL), resourcesBefore)
   }
 
+  @MainActor
   func testGenerationSwitchRollbackColdStartAndJournalReplayKeepUserState() async throws {
     let repoRoot = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
