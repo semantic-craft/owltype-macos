@@ -102,4 +102,26 @@ fn finalize_waits_for_sessions_and_allows_reopen() {
     assert_eq!(frame["ok"], true);
     owl_msime_session_destroy(reopened);
     assert!(owl_msime_engine_finalize());
+
+    // A session remains confined to its host thread; thread exit must flush/drop
+    // forgotten wrappers and retire their identities before finalize is allowed.
+    let worker_root = TempDir::new().unwrap();
+    let worker_resources = build_resources(worker_root.path());
+    let root_path = worker_root.path().to_owned();
+    let retired_handle = std::thread::spawn(move || {
+        let session = create_session(&root_path, &worker_resources);
+        assert_eq!(
+            call_json(session, r#"{"op":"insert","ch":"n"}"#)["ok"],
+            true
+        );
+        assert!(!owl_msime_engine_finalize());
+        session as usize
+    })
+    .join()
+    .unwrap();
+    assert!(owl_msime_engine_finalize());
+    assert_eq!(
+        call_json(retired_handle as *mut _, r#"{"op":"space"}"#)["ok"],
+        false
+    );
 }

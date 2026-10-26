@@ -571,6 +571,30 @@ review dates, not retries. Keep deterministic checks in the local gate.
   `cargo test --locked --manifest-path rust/Cargo.toml -p owl-msime-ffi`.
   This proves the offline host seam; installed IMK acceptance remains separate.
 
+## FFI session identity cannot be an allocator address
+
+- Seen on 1 distinct date: 2026-10-26. The default-parallel FFI suite aborted with
+  `POINTER_BEING_FREED_WAS_NOT_ALLOCATED` while dropping a refreshed `EngineSnapshot`.
+  The guard was a set of live Box addresses: after one test destroyed its session,
+  another session could reuse that address. The first test's idempotent destroy and
+  post-destroy calls then targeted the new session. Checking membership before a bare
+  dereference also did not preserve ownership across the call.
+- Fix: non-recycled opaque identities resolve through a thread-local owning registry.
+  The engine's existing thread confinement is preserved; stale and foreign-thread
+  handles fail closed. Async host tests must remain on MainActor across awaits when
+  retaining a session, matching the production IMK thread contract. Destroy and thread
+  exit drop/flush sessions under the lifecycle
+  lock before retiring active identities, so finalize cannot close a live cache.
+- Regression: `destroyed_handle_cannot_alias_a_reopened_session` reaches the real
+  create/destroy/reopen FFI path and fails on the previous source in 0.05 seconds:
+  stale destroy removes the reopened session. `session_rejects_foreign_thread_calls_and_destroy`
+  guards the owner-thread boundary; `finalize_waits_for_sessions_and_allows_reopen`
+  also covers host-thread exit with an unclosed wrapper.
+- Verify (验证点): `cargo test --locked --manifest-path rust/Cargo.toml -p owl-msime-ffi`
+  must pass with the default parallel runner. Repeat with AddressSanitizer when
+  investigating memory regressions; a successful ordinary retry alone is not evidence
+  that an observed invalid free has been resolved.
+
 ## Resource activation must capture the complete compatibility set
 
 **A resource generation includes auxiliary dictionaries, context sidecars, models and the binary's configuration version; each session captures that generation for both dictionary and model loading.**
