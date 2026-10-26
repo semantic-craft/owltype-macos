@@ -11,11 +11,14 @@ from __future__ import annotations
 import argparse
 import collections
 import dataclasses
+import hashlib
 import json
 import pathlib
 import re
+import sqlite3
 import sys
 from collections.abc import Callable, Iterable
+from contextlib import closing
 from typing import Any, Literal
 
 
@@ -33,6 +36,7 @@ class Finding:
     location: Literal["file", "commit_message"] = "file"
     commit: str = ""
     line: int | None = None
+    verified: bool | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -147,6 +151,7 @@ def normalize_artifact_trufflehog(record: dict[str, Any]) -> Finding | None:
         path=_text(filesystem.get("file"), "unknown"),
         raw=_text(record.get("Raw")),
         line=_line_number(filesystem.get("line")),
+        verified=record.get("Verified") if isinstance(record.get("Verified"), bool) else None,
     )
 
 
@@ -195,11 +200,47 @@ def lob_test_identifier(finding: Finding) -> bool:
     return in_test_directory or is_selftest_source
 
 
+# Public dict-v2.0.24 msime-english.db is shipped byte-for-byte from the
+# SHA-pinned official manifest. Eraser matches one serialized word/display
+# pair rather than a credential. Pin this single raw match as well as the
+# complete public file; do not exempt a path, table, detector or generic shape.
+PUBLIC_ENGLISH_DB_SHA256 = "d216f66cab7edb9072ba7a07f3fe35623e76870438b76d360a89cc2a4795d3cd"
+PUBLIC_ENGLISH_PAIR_SHA256 = "0765860a9a46aa632108905db5870971f1e74c377435cf6df910651abd976298"
+
+
+def public_english_row_pair(finding: Finding) -> bool:
+    """Allow only the proven unverified Eraser match in the unchanged public DB."""
+    if (finding.source != "artifact" or finding.scanner != "trufflehog"
+            or finding.detector != "Eraser" or finding.verified is not False):
+        return False
+    raw = finding.raw
+    if (len(raw) != 20 or not raw.isascii() or not raw.isalpha() or not raw.islower()
+            or hashlib.sha256(raw.encode()).hexdigest() != PUBLIC_ENGLISH_PAIR_SHA256):
+        return False
+    path = pathlib.Path(finding.path)
+    if (path.parts[-4:] != ("Contents", "SharedSupport", "msime", "msime-english.db")
+            or not path.parents[3].name.endswith(".app") or path.is_symlink()):
+        return False
+    try:
+        if hashlib.sha256(path.read_bytes()).hexdigest() != PUBLIC_ENGLISH_DB_SHA256:
+            return False
+        # Read exactly the hashed DB; do not incorporate an ambient WAL/journal.
+        with closing(sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro&immutable=1", uri=True)) as db:
+            row = db.execute(
+                "SELECT COUNT(*) FROM english_words WHERE word = display AND word || display = ?",
+                (raw,),
+            ).fetchone()
+            return row == (1,)
+    except (OSError, sqlite3.Error):
+        return False
+
+
 Predicate = tuple[str, Callable[[Finding], bool]]
 ALLOWED: tuple[Predicate, ...] = (
     ("SHA-256 清单的哈希列", manifest_hash_column),
     ("Swift 符号修饰", swift_symbol),
     ("Lob 撞测试函数名", lob_test_identifier),
+    ("固定公开英文词库的词条列拼接", public_english_row_pair),
 )
 
 

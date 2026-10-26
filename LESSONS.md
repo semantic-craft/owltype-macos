@@ -699,3 +699,21 @@ review dates, not retries. Keep deterministic checks in the local gate.
   `python3 scripts/release-bundle.selftest.py` verifies its SBOM component and
   pinned license. Run the real `scripts/check-rust-delivery.py` against the Release
   App as well; passing synthetic fixtures alone cannot establish shipped content.
+
+
+## Public dictionary scanner collisions require content proof
+
+- Seen 1x (2026-10-26): the final artifact scan's Eraser detector matched the
+  adjacent serialization of one public English word and its identical display
+  column in the unchanged official dict-v2.0.24 English DB. The hit was unverified;
+  the complete DB matched the pinned official manifest and the match was not a
+  standalone database cell. No matched bytes were printed or retained in evidence.
+- The shared policy permits only that exact artifact/TruffleHog/Eraser unverified
+  finding, with both the raw-match digest and complete public-file digest pinned,
+  the expected App resource location, and a read-only same-row word/display proof.
+  This does not exempt the DB/path, the detector or generic keys. Modified DBs,
+  different raw matches/detectors, history and verified/unknown findings still fail.
+- Verify (验证点): run `python3 scripts/secret-finding-policy.selftest.py`, including
+  positive/negative public-row cases and unchanged generic-key/container checks,
+  then `scripts/check-secrets.sh --artifacts` on the actual built App. Keep only
+  hashes, classification, source identity and redacted scanner decisions as evidence.
