@@ -62,6 +62,19 @@ class ExportTransportTests(unittest.TestCase):
                     parity.owl_replay_once(config, request, output)
             self.assertFalse(output.exists())
 
+    def test_export_from_another_scheme_fails(self):
+        # A transport that silently stays in Pinyin must not certify a Wubi trace.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config, request, output = [root / name for name in ('test.xctestrun', 'request.json', 'owl.json')]
+            config.write_bytes(plistlib.dumps({'TestConfigurations': [{'TestTargets': [{}]}]}))
+            request.write_text(json.dumps({'run_id': 'current', 'schema': 'wubi86_jidian'}))
+            def export_pinyin(*args, **kwargs):
+                output.write_text(json.dumps({'run_id': 'current', 'configuration': {'schema': 'rime_ice'}}))
+            with patch.object(parity.subprocess, 'run', side_effect=export_pinyin):
+                with self.assertRaisesRegex(ValueError, 'different input scheme'):
+                    parity.owl_replay_once(config, request, output)
+
     def test_export_from_another_run_fails(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

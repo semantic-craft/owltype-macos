@@ -43,7 +43,11 @@ final class OwlRustEngineTests: XCTestCase {
                                activeGenerationProvider: { nil })
     var session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
     defer { session.destroy() }
-    XCTAssertTrue(session.selectSchema("rime_ice"))
+    let schema = request["schema"] as? String ?? "rime_ice"
+    guard session.selectSchema(schema) else {
+      XCTFail("Requested parity schema is unsupported: \(schema)")
+      return
+    }
     let commands: [String: UInt32] = [
       "backspace": 0xff08, "commit": 0xff0d, "cancel": 0xff1b,
       "left": 0xff51, "right": 0xff53, "home": 0xff50, "end": 0xff57,
@@ -75,7 +79,7 @@ final class OwlRustEngineTests: XCTestCase {
         session.destroy()
         XCTAssertTrue(engine.finalize(), "Restart must close cached learning handles")
         session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
-        XCTAssertTrue(session.selectSchema("rime_ice"))
+        XCTAssertTrue(session.selectSchema(schema))
         consumed = true
       default:
         XCTFail("Unsupported parity event: \(op)")
@@ -95,7 +99,13 @@ final class OwlRustEngineTests: XCTestCase {
       "run_id": try XCTUnwrap(request["run_id"] as? String),
       "steps": steps,
       "preferences": defaults.persistentDomain(forName: OwlDefaults.testSuiteName) ?? [:],
-      "configuration": ["schema": "rime_ice", "page_size": OwlKeyboardPreferences.pageSize,
+      "configuration": ["schema": schema, "page_size": OwlKeyboardPreferences.pageSize,
+                        "wubi_code_hint": OwlKeyboardPreferences.wubiCodeHint,
+                        "wubi_auto_clear": OwlKeyboardPreferences.wubiAutoClear,
+                        "wubi_candidate_mode": OwlKeyboardPreferences.wubiCandidateMode.rawValue,
+                        "wubi_z_reverse_lookup": OwlKeyboardPreferences.wubiZReverseLookup,
+                        "wubi_english_channel": OwlKeyboardPreferences.wubiEnglishChannel,
+                        "wubi_user_dict_learning": OwlKeyboardPreferences.wubiUserDictLearning,
                         "rerank": OwlRerankConfiguration.current(sharedSupportURL: resources).serialized() ?? ""]
     ]
     try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])

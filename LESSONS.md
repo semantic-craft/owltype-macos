@@ -552,3 +552,11 @@ review dates, not retries. Keep deterministic checks in the local gate.
   pinned reference library/resources, the named Swift test, and
   `cargo test --locked --manifest-path rust/Cargo.toml -p owl-msime-ffi`.
   This proves the offline host seam; installed IMK acceptance remains separate.
+
+
+## A parity trace must identify the input scheme it actually ran
+
+- W01's inherited differential exporter always selected `rime_ice`; a Wubi request could therefore produce a valid-looking Pinyin export with the current run nonce. Selecting a requested scheme must succeed before export, and the runner must reject a returned configuration for another scheme.
+- Regression: `ExportTransportTests.test_export_from_another_scheme_fails` failed before this check and passes after it. The real Wubi trace uses the existing Swift session and pinned MSIME Host API, retaining candidate and paging differences rather than ignoring them.
+- Verify (验证点): `python3 scripts/pinyin-parity.selftest.py`; the exported `configuration.schema` must equal the requested schema. This is transport validity, not evidence that Wubi behavior is aligned.
+- Seen on 1 distinct date: 2026-10-26.

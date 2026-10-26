@@ -19,6 +19,12 @@ import uuid
 ROOT = Path(__file__).resolve().parent.parent
 FIELDS = ('event', 'consumed', 'input', 'preedit', 'caret', 'page', 'page_size',
           'has_more', 'highlighted', 'candidates', 'commit')
+INPUT_SCHEMES = {
+    'quanpin': ('quanpin', 'rime_ice', {}),
+    'wubi86': ('wubi', 'wubi86_jidian', {'wubi_profile': 'wubi86', 'wubi_mixed_pinyin': False}),
+    'wubi86-mixed': ('wubi', 'wubi86_jidian_pinyin', {'wubi_profile': 'wubi86', 'wubi_mixed_pinyin': True}),
+    'wubi98': ('wubi', 'wubi98', {'wubi_profile': 'wubi98', 'wubi_mixed_pinyin': False}),
+}
 COMMANDS = {'backspace': 0, 'commit': 2, 'cancel': 3, 'left': 4, 'right': 5,
             'home': 6, 'end': 7, 'delete': 8, 'next-page': 100, 'previous-page': 101}
 
@@ -74,7 +80,7 @@ class Reference:
             raise ValueError(f'{name} failed: {response}')
         return response['value']
 
-    def replay(self, resources, state, events, profile="native-mac-host"):
+    def replay(self, resources, state, events, profile="native-mac-host", scheme="quanpin"):
         request = json.dumps({'resources': str(resources), 'state_root': str(state)}).encode()
         options = self.call('prepare_host', [C.c_char_p, C.c_size_t], request, len(request))
         # macOS requests these host capabilities after prepare_host; they are not
@@ -83,6 +89,8 @@ class Reference:
             options.update(phrase_preedit=True, korean_romaja=True, quick_phrase_candidates=True)
         elif profile != "raw-host-api":
             raise ValueError(f"unsupported reference profile: {profile}")
+        reference_scheme, _, preferences = INPUT_SCHEMES[scheme]
+        options['preferences'].update(scheme=reference_scheme, **preferences)
         request = json.dumps(options).encode()
         handle = self.call('create', [C.c_char_p, C.c_size_t], request, len(request))['session']
         steps, views = [], []
@@ -135,7 +143,7 @@ def restart_phases(events):
     return phases
 
 
-def reference_replay(library, resources, state, events, profile):
+def reference_replay(library, resources, state, events, profile, scheme="quanpin"):
     # A fresh interpreter per restart proves recovery from disk, beyond in-process caches.
     traces = []
     worker = """import importlib.util,json,sys
@@ -143,12 +151,12 @@ from pathlib import Path
 spec=importlib.util.spec_from_file_location('parity',sys.argv[1])
 module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
 request=json.loads(sys.stdin.read())
-trace=module.Reference(request['library']).replay(Path(request['resources']),Path(request['state']),request['events'],request['profile'])
+trace=module.Reference(request['library']).replay(Path(request['resources']),Path(request['state']),request['events'],request['profile'],request['scheme'])
 sys.stdout.write(json.dumps(trace,ensure_ascii=False))
 """
     for phase in restart_phases(events):
         request = dict(library=str(library), resources=str(resources), state=str(state),
-                       events=phase, profile=profile)
+                       events=phase, profile=profile, scheme=scheme)
         result = subprocess.run([sys.executable, '-c', worker, str(Path(__file__).resolve())],
                                 input=json.dumps(request), capture_output=True, text=True,
                                 check=True, timeout=120)
@@ -220,7 +228,10 @@ def owl_replay_once(xctestrun, request, output):
     if not output.is_file():
         raise ValueError('Owl test did not export a trace (rebuild the current test host)')
     trace = json.loads(output.read_text())
-    if trace.get('run_id') != json.loads(request.read_text())['run_id']:
+    requested = json.loads(request.read_text())
+    if requested.get('schema') and trace.get('configuration', {}).get('schema') != requested['schema']:
+        raise ValueError('Owl export used a different input scheme')
+    if trace.get('run_id') != requested['run_id']:
         raise ValueError('Owl export belongs to a different replay')
     return trace
 
@@ -249,12 +260,18 @@ def main():
                         help='build.json from build-pinyin-reference.py; omit for the pinned historical build')
     parser.add_argument('--reference-profile', choices=('native-mac-host', 'raw-host-api'),
                         default='native-mac-host', help='pinned macOS host capabilities or bare API defaults')
+    parser.add_argument('--scheme', choices=tuple(INPUT_SCHEMES),
+                        help='input scheme; defaults to the trace scheme, then quanpin')
     parser.add_argument('--owl-resources', type=Path, default=ROOT / 'data/owl-rime')
     parser.add_argument('--xctestrun', type=Path, required=True)
     parser.add_argument('--trace', type=Path, default=ROOT / 'tests/fixtures/pinyin-parity/tadefangjian.json')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     baseline = json.loads((ROOT / 'tests/fixtures/pinyin-parity/baseline.json').read_text())
+    trace_document = json.loads(args.trace.read_text())
+    scheme = args.scheme or trace_document.get('scheme', 'quanpin')
+    if scheme not in INPUT_SCHEMES:
+        parser.error('unsupported trace scheme: ' + scheme)
     library_hash = sha256(args.reference_library)
     if args.reference_build_receipt:
         receipt = json.loads(args.reference_build_receipt.read_text())
@@ -266,18 +283,21 @@ def main():
             parser.error('reference build receipt does not match the pinned source, builder and library')
     elif library_hash != baseline['reference_library_sha256']:
         parser.error('reference library differs from historical build; use build-pinyin-reference.py and its receipt')
-    for name, expected in baseline['resources'].items():
+    required_resources = dict(baseline['resources'])
+    if scheme.startswith('wubi'):
+        required_resources.update(baseline['wubi_resources'])
+    for name, expected in required_resources.items():
         if sha256(args.reference_resources / name) != expected:
             parser.error(f'reference resource differs from pinned baseline: {name}')
     args.output.mkdir(parents=True, exist_ok=True)
     (args.output / 'comparison.json').unlink(missing_ok=True)
-    events = json.loads(args.trace.read_text())['events']
+    events = trace_document['events']
     build = build_owl(args.xctestrun.resolve())
     with tempfile.TemporaryDirectory(prefix='owl-pinyin-parity-') as state:
-        reference = reference_replay(args.reference_library.resolve(), args.reference_resources.resolve(), Path(state) / 'reference', events, args.reference_profile)
+        reference = reference_replay(args.reference_library.resolve(), args.reference_resources.resolve(), Path(state) / 'reference', events, args.reference_profile, scheme)
         request = args.output.resolve() / 'owl-request.json'
         request.write_text(json.dumps({'run_id': str(uuid.uuid4()), 'events': events, 'resources': str(args.owl_resources.resolve()),
-                                       'state_root': str(Path(state) / 'owl'), 'page_size': reference['preferences']['candidate_page_size']}))
+                                       'state_root': str(Path(state) / 'owl'), 'schema': INPUT_SCHEMES[scheme][1], 'page_size': reference['preferences']['candidate_page_size']}))
         owl = owl_replay(args.xctestrun.resolve(), request, args.output.resolve() / 'owl.json')
     if source_identity() != build['source']:
         raise ValueError('source changed during replay')
@@ -293,8 +313,10 @@ def main():
                       'upstream_commit': baseline['upstream_commit'],
                       'overrides': ({'phrase_preedit': True, 'korean_romaja': True, 'quick_phrase_candidates': True}
                                     if args.reference_profile == 'native-mac-host' else {})},
-                  'owl': 'empty isolated defaults, full pinyin schema, equal page size; other differences retained',
-                  'forced_equal': ['schema=quanpin/rime_ice', 'page_size=6']},
+                  'owl': 'empty isolated defaults, requested input schema, equal page size; other differences retained',
+                  'scheme': scheme,
+                  'forced_equal': [f'schema={INPUT_SCHEMES[scheme][0]}/{INPUT_SCHEMES[scheme][1]}',
+                                   f'page_size={reference["preferences"]["candidate_page_size"]}']},
               'trace_sha256': sha256(args.trace), 'owl_resources': {
                   p.name: sha256(p) for p in sorted((args.owl_resources / 'msime').glob('*')) if p.is_file()}}
     (args.output / 'comparison.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
