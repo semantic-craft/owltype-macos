@@ -1,0 +1,145 @@
+{
+  "description": "Native profile identity: learn the same word/code separately in Wubi86 and Wubi98, then process-restart and recover both profiles independently.",
+  "scheme": "wubi86",
+  "events": [
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g",
+      "expect": {
+        "candidates": [
+          "王",
+          "五一",
+          "琵琶",
+          "",
+          "龶",
+          "一一"
+        ]
+      }
+    },
+    {
+      "op": "select",
+      "index": 1,
+      "expect": {
+        "commit": "五一"
+      }
+    },
+    {
+      "op": "schema",
+      "schema": "wubi98",
+      "reference_scheme": "wubi",
+      "wubi_profile": "wubi98",
+      "wubi_mixed_pinyin": false
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g",
+      "expect": {
+        "candidates": [
+          "王",
+          "五一",
+          "琵琶",
+          "瑟瑟",
+          "龶",
+          "一一"
+        ]
+      }
+    },
+    {
+      "op": "select",
+      "index": 1,
+      "expect": {
+        "commit": "五一"
+      }
+    },
+    {
+      "op": "restart"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g",
+      "expect": {
+        "candidates": [
+          "五一",
+          "王",
+          "琵琶",
+          "",
+          "龶",
+          "一一"
+        ]
+      }
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "schema",
+      "schema": "wubi98",
+      "reference_scheme": "wubi",
+      "wubi_profile": "wubi98",
+      "wubi_mixed_pinyin": false
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g",
+      "expect": {
+        "candidates": [
+          "五一",
+          "王",
+          "琵琶",
+          "瑟瑟",
+          "龶",
+          "一一"
+        ]
+      }
+    }
+  ]
+}

@@ -16,7 +16,6 @@ extension OwlInputController {
 
   var usesNativePairedPunctuation: Bool {
     guard let session = rime as? OwlRustSession,
-          session.status()?.schemaId.hasPrefix("wubi") != true,
           session.acceptsHostSmartPunctuation,
           !session.option(.asciiMode), !session.option(.asciiPunct),
           client?.bundleIdentifier()?.caseInsensitiveCompare("com.microsoft.Excel") != .orderedSame

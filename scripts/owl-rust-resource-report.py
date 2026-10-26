@@ -55,7 +55,13 @@ def read_pinyin(db: Path) -> dict[tuple[str, str, str], int]:
     return result
 
 
+def wubi_database(db: Path) -> Path:
+    split = db.with_name("msime-wubi.db")
+    return split if db.name == "msime-pinyin.db" and split.is_file() else db
+
+
 def read_wubi(db: Path) -> dict[str, list[tuple[str, int, int]]]:
+    db = wubi_database(db)
     grouped: dict[str, list[tuple[str, int, int]]] = defaultdict(list)
     with sqlite3.connect(db) as conn:
         exists = conn.execute(
@@ -94,6 +100,7 @@ def query_pinyin(db: Path, code: str, page_size: int) -> list[dict[str, object]]
 
 
 def query_wubi(db: Path, code: str, page_size: int) -> list[dict[str, object]]:
+    db = wubi_database(db)
     with sqlite3.connect(db) as conn:
         exists = conn.execute(
             "SELECT 1 FROM sqlite_master WHERE type='table' AND name='wubi86'"
@@ -316,6 +323,18 @@ def selftest() -> int:
                     ("bbbb", "collision", 9),
                 ],
             )
+
+        split_root = root / "split"
+        split_root.mkdir()
+        split_main = split_root / "msime-pinyin.db"
+        split_wubi = split_root / "msime-wubi.db"
+        with sqlite3.connect(split_main) as conn:
+            conn.execute("CREATE TABLE pinyin (value TEXT)")
+        with sqlite3.connect(split_wubi) as conn:
+            conn.execute('CREATE TABLE wubi86 ("key" TEXT, "value" TEXT, "weight" INTEGER)')
+            conn.execute("INSERT INTO wubi86 VALUES ('go', '来', 10)")
+        assert query_wubi(split_main, "go", 5) == [{"text":"来", "weight":10}]
+        assert read_wubi(split_main)["go"][0][0] == "来"
 
         summary = build_report(seed, full, output, baseline)
         counts = summary["counts"]

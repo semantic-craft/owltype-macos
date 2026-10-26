@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Acquire the pinned official desktop dictionaries; retain Owl's audited Wubi overlay.
+"""Acquire and publish the pinned official desktop dictionaries without candidate-data overlays.
 
 Never reads an installed input method or a personal resource directory. The complete
 release stays in the download cache; only the reviewed product subset is published.
@@ -11,7 +11,6 @@ import json
 import os
 from pathlib import Path
 import shutil
-import sqlite3
 import tempfile
 import urllib.request
 
@@ -21,9 +20,8 @@ ROOT = Path(__file__).resolve().parents[1]
 RELEASE = 'dict-v2.0.24'
 BASE_URL = f'https://github.com/metasequoiaime/msime-dictionary/releases/download/{RELEASE}/'
 MANIFEST_SHA = '5b656a5db35b4dcf804ce4348d8584c899d0012fe62bbbe3689204ddaba8722f'
-PRODUCT_FILES = ('msime-pinyin.db', 'msime-english.db', 'msime-bigram.bin',
+PRODUCT_FILES = ('msime-pinyin.db', 'msime-wubi.db', 'msime-english.db', 'msime-bigram.bin',
                  'msime-trigram.bin', 'msime-scowl_Copyright.txt')
-WUBI_TABLES = ('wubi86', 'wubi98', 'owl_seed_wubi86_source')
 
 class Failure(RuntimeError):
     pass
@@ -60,23 +58,23 @@ def acquire(files, base_url, output):
             verify(staged/name, spec)
         publish_set(staged, output, files)
 
-def overlay_wubi(upstream, owl, output):
-    """Keep upstream pinyin tables intact; add only Owl's existing Wubi tables."""
-    shutil.copyfile(upstream, output)
-    with sqlite3.connect(output) as connection:
-        connection.execute('ATTACH DATABASE ? AS owl', (str(owl),))
-        with connection:
-            for table in WUBI_TABLES:
-                connection.execute(f'DROP TABLE IF EXISTS main."{table}"')
-                sql = connection.execute('SELECT sql FROM owl.sqlite_master WHERE type=? AND name=?', ('table', table)).fetchone()
-                if sql is None:
-                    raise Failure(f'missing Owl Wubi table: {table}')
-                connection.execute(sql[0])
-                connection.execute(f'INSERT INTO main."{table}" SELECT * FROM owl."{table}"')
-                for (index_sql,) in connection.execute('SELECT sql FROM owl.sqlite_master WHERE type=? AND tbl_name=? AND sql IS NOT NULL', ('index', table)).fetchall():
-                    connection.execute(index_sql)
-        if connection.execute('PRAGMA quick_check').fetchone()[0] != 'ok':
-            raise Failure('invalid assembled pinyin database')
+def publish_product(cache, output, manifest, manifest_path):
+    """Publish original pinyin and split Wubi data together with verified identities."""
+    output.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='.official-', dir=output.parent) as tmp:
+        stage = Path(tmp)
+        for name in PRODUCT_FILES:
+            verify(cache/name, manifest['files'][name])
+            shutil.copyfile(cache/name, stage/name)
+        shutil.copyfile(manifest_path, stage/'msime-dictionary-manifest.json')
+        record = {'release': RELEASE, 'manifestSha256': digest(manifest_path),
+                  'upstreamSource': manifest['source'], 'dictionaryCommit': manifest['custom_dictionary_commit'],
+                  'files': {name:{'size':(stage/name).stat().st_size, 'sha256':digest(stage/name),
+                                   'upstream':manifest['files'][name]} for name in PRODUCT_FILES},
+                  'dictionaryAdaptation':'None; official pinyin, Wubi86/Wubi98, English and context files are unchanged',
+                  'othersPolicy':'Full artifact retained in build cache; product uses audited emoji and MIT kaomoji derivative; symbol_catalog redistribution unconfirmed'}
+        (stage/'OWLTYPE-UPSTREAM-RESOURCES.json').write_text(json.dumps(record, ensure_ascii=False, indent=2)+'\n')
+        publish_set(stage, output, [path.name for path in stage.iterdir()])
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -91,21 +89,7 @@ def main():
     cache = args.cache/RELEASE
     # Retain the full release, including unused auxiliary files, under one pin.
     acquire(manifest['files'], BASE_URL, cache)
-    output = args.seed/'msime'
-    with tempfile.TemporaryDirectory(prefix='.official-', dir=args.seed) as tmp:
-        stage = Path(tmp)
-        for name in PRODUCT_FILES:
-            shutil.copyfile(cache/name, stage/name)
-        overlay_wubi(cache/'msime-pinyin.db', output/'msime-pinyin.db', stage/'msime-pinyin.db')
-        shutil.copyfile(manifest_path, stage/'msime-dictionary-manifest.json')
-        record = {'release': RELEASE, 'manifestSha256': MANIFEST_SHA,
-                  'upstreamSource': manifest['source'], 'dictionaryCommit': manifest['custom_dictionary_commit'],
-                  'files': {name:{'size':(stage/name).stat().st_size, 'sha256':digest(stage/name),
-                                   'upstream':manifest['files'][name]} for name in PRODUCT_FILES},
-                  'pinyinAdaptation':'Only wubi86, wubi98 and owl_seed_wubi86_source replaced from Owl audited seed',
-                  'othersPolicy':'Full artifact retained in build cache; product uses audited four-table emoji/kaomoji derivative; symbol_catalog redistribution unconfirmed'}
-        (stage/'OWLTYPE-UPSTREAM-RESOURCES.json').write_text(json.dumps(record, ensure_ascii=False, indent=2)+'\n')
-        publish_set(stage, output, [path.name for path in stage.iterdir()])
-    print(f'[msime-resources] verified {RELEASE}, full pinyin/English/context; Owl Wubi preserved')
+    publish_product(cache, args.seed/'msime', manifest, manifest_path)
+    print(f'[msime-resources] verified {RELEASE}, official pinyin/Wubi86/Wubi98/English/context unchanged')
 
 if __name__ == '__main__': main()

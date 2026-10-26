@@ -35,6 +35,149 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
   }
 
   @MainActor
+  func testWubiApplicationChordFinishesCandidateBeforePassthrough() throws {
+    let restore = useWubiPreferences()
+    defer { restore() }
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("owl-wubi-chord-\(UUID())")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let engine = OwlRustEngine(sharedSupportURL: try XCTUnwrap(Bundle.main.sharedSupportURL),
+      userDataURL: root, activeGenerationProvider: { nil })
+    XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    controller.destroySession()
+    controller.rime = engine.createSession()
+    let client = HabitsTextClient()
+    client.appID = "com.apple.TextEdit"
+    controller.client = client
+    defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
+    controller.rime?.setOption(.asciiMode, false)
+    try type("i", into: controller, client: client)
+    XCTAssertEqual(controller.rime?.status()?.schemaId, "wubi86_jidian")
+    XCTAssertEqual(controller.rime?.composition()?.candidates.first?.text, "不")
+    XCTAssertFalse(controller.handle(try key("c", code: 8, flags: .command), client: client))
+    XCTAssertEqual(client.text.string, "不")
+    XCTAssertEqual(controller.rime?.input(), "")
+    XCTAssertFalse(client.text.hasMarkedText())
+  }
+
+  @MainActor
+  func testWubiFactoryPairingUsesNativeMarkedClosingAndPunctuationTail() throws {
+    let restore = useWubiPreferences()
+    let defaults = OwlDefaults.standard
+    let pairKey = "OwlKeyboardAutoPairBrackets"
+    let savedPair = defaults.object(forKey: pairKey)
+    defer {
+      restore()
+      OwlKeyboardPreferences.autoPairBrackets = (savedPair as? NSNumber)?.boolValue ?? true
+      if let savedPair { defaults.set(savedPair, forKey: pairKey) } else { defaults.removeObject(forKey: pairKey) }
+    }
+    defaults.removeObject(forKey: pairKey)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("owl-wubi-pair-\(UUID())")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let engine = OwlRustEngine(sharedSupportURL: try XCTUnwrap(Bundle.main.sharedSupportURL),
+      userDataURL: root, activeGenerationProvider: { nil })
+    XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    controller.destroySession()
+    controller.rime = engine.createSession()
+    let client = HabitsTextClient()
+    client.appID = "com.apple.TextEdit"
+    controller.client = client
+    defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
+    controller.rime?.setOption(.asciiMode, false)
+    controller.rime?.setOption(.asciiPunct, false)
+    XCTAssertTrue(OwlKeyboardPreferences.autoPairBrackets)
+    XCTAssertTrue(controller.handle(try key("(", code: 25, flags: .shift), client: client))
+    XCTAssertEqual(client.text.string, "（）")
+    XCTAssertEqual(client.text.markedRange(), NSRange(location: 1, length: 1))
+    try type("i ", into: controller, client: client)
+    XCTAssertEqual(client.text.string, "（不）")
+    XCTAssertFalse(client.text.hasMarkedText())
+    try type("i", into: controller, client: client)
+    XCTAssertTrue(controller.handle(try key("(", code: 25, flags: .shift), client: client))
+    // Pinned Host API commits 不（; native InputController holds ） after that punctuation tail.
+    XCTAssertEqual(client.text.string, "（不）不（）")
+    XCTAssertEqual(client.text.markedRange().length, 1)
+    controller.commitComposition(client)
+    XCTAssertFalse(client.text.hasMarkedText())
+    OwlKeyboardPreferences.autoPairBrackets = false
+    XCTAssertTrue(controller.handle(try key("(", code: 25, flags: .shift), client: client))
+    XCTAssertEqual(client.text.string, "（不）不（）（", "explicit stored false keeps pairing off")
+  }
+
+  @MainActor
+  func testWubiFocusFinishCommitsAndLearnsHighlightedCandidate() throws {
+    let restore = useWubiPreferences()
+    defer { restore() }
+    let defaults = OwlDefaults.standard
+    let learningKey = "OwlKeyboardWubiUserDictLearning"
+    let saved = defaults.object(forKey: learningKey)
+    defer {
+      if let saved { defaults.set(saved, forKey: learningKey) } else { defaults.removeObject(forKey: learningKey) }
+    }
+    defaults.removeObject(forKey: learningKey)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("owl-wubi-focus-\(UUID())")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let engine = OwlRustEngine(sharedSupportURL: try XCTUnwrap(Bundle.main.sharedSupportURL),
+      userDataURL: root, activeGenerationProvider: { nil })
+    XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    controller.destroySession()
+    controller.rime = engine.createSession()
+    let client = HabitsTextClient()
+    client.appID = "com.apple.TextEdit"
+    controller.client = client
+    defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
+    controller.rime?.setOption(.asciiMode, false)
+    try type("gggg", into: controller, client: client)
+    XCTAssertEqual(controller.rime?.composition()?.candidates.prefix(2).map(\.text), ["王", "五一"])
+    XCTAssertTrue(controller.handle(try key("\u{f701}", code: 125), client: client))
+    XCTAssertEqual(controller.rime?.composition()?.highlightedIndex, 1)
+    controller.commitComposition(client)
+    XCTAssertEqual(client.text.string, "五一")
+    XCTAssertEqual(controller.rime?.input(), "")
+    XCTAssertFalse(client.text.hasMarkedText())
+    controller.destroySession()
+    XCTAssertTrue(engine.finalize())
+    let reopened = engine.createSession()
+    defer { reopened.destroy() }
+    for scalar in "gggg".unicodeScalars {
+      XCTAssertTrue(reopened.process(keycode: scalar.value, modifiers: 0))
+    }
+    // Independent pinned native FinishOnFocusLoss replay promotes 五一 after this one finish.
+    XCTAssertEqual(reopened.composition()?.candidates.first?.text, "五一")
+  }
+
+  @MainActor
+  func testNativePinyinFocusFinishCommitsConvertedText() throws {
+    let defaults = OwlDefaults.standard
+    let methodKey = "OwlKeyboardInputMethod"
+    let saved = defaults.object(forKey: methodKey)
+    defer {
+      if let saved { defaults.set(saved, forKey: methodKey) } else { defaults.removeObject(forKey: methodKey) }
+    }
+    OwlKeyboardPreferences.inputMethod = .pinyin
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("owl-pinyin-focus-\(UUID())")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let engine = OwlRustEngine(sharedSupportURL: try XCTUnwrap(Bundle.main.sharedSupportURL),
+      userDataURL: root, activeGenerationProvider: { nil })
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    controller.destroySession()
+    controller.rime = engine.createSession()
+    let client = HabitsTextClient()
+    client.appID = "com.apple.TextEdit"
+    controller.client = client
+    defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
+    controller.rime?.setOption(.asciiMode, false)
+    try type("tadefangjian", into: controller, client: client)
+    controller.commitComposition(client)
+    // Fixed native fresh-state baseline; focus end must not leak the typed Latin letters.
+    XCTAssertEqual(client.text.string, "它的房间")
+    XCTAssertEqual(controller.rime?.input(), "")
+    XCTAssertFalse(client.text.hasMarkedText())
+  }
+
+  @MainActor
   func testNativePairedPunctuationHoldsClosingAndReopensQuotes() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("owl-native-pairs-\(UUID())")
     defer { try? FileManager.default.removeItem(at: root) }
@@ -537,6 +680,19 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
   }
 
   @MainActor
+  private func useWubiPreferences() -> () -> Void {
+    let defaults = OwlDefaults.standard
+    let keys = ["OwlKeyboardInputMethod", "OwlKeyboardWubiScheme"]
+    let saved = keys.map { defaults.object(forKey: $0) }
+    OwlKeyboardPreferences.inputMethod = .wubi
+    OwlKeyboardPreferences.wubiScheme = .jidian86
+    return {
+      for (key, value) in zip(keys, saved) {
+        if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
+      }
+    }
+  }
+
   private func clear(_ client: HabitsTextClient) {
     client.text.string = ""
     client.text.didChangeText()

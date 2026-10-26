@@ -96,20 +96,16 @@ extension OwlInputController {
     finishPairBeforeChangingClient(to: sender as? IMKTextInput)
     self.client ?= sender as? IMKTextInput
     // print("[DEBUG] commitComposition: \(sender ?? "nil")")
-    // Forced finalize (focus loss / IME switch / a host — notably Chromium omnibox — ending the
-    // composition on a backspace shrink). Land the ALREADY-CONVERTED preview (`commit_text_preview`,
-    // = what space would commit) instead of the raw `input()` stream: raw pinyin dumped here is the
-    // "退格全退" source (task 07-07). `OwlForcedFinalize.commitText` falls back to raw when no
-    // preview exists, so a forced finalize never loses the user's input.
-    //
-    // #37: this override is the ONE convergence point of every non-key composition end
-    // (deactivateServer → here; TIS input-source fallback → deactivateServer → here; hosts —
-    // Chromium/Electron during ordinary typing — call it directly). The sequence therefore also
-    // clears the snapshot registry, which before #37 only `rimeUpdate()` (next-key path) did:
-    // a forced finalize without it strands the snapshot and blocks every snapshot-gated
-    // consumer for the process lifetime (#131's wild samples). Sequence is XCTest-locked in
-    // OwlForcedFinalizeTests; this adapter only feeds it the live reads/effects.
+    // Native finish performs the selection and learning, preserving focus-loss local-mode rules.
+    // Non-Rust sessions and failed native actions retain the converted-preview/raw fallback.
+    // Every path clears the snapshot registry, even when no composition remains (#37).
     let live: RimeSession? = (rime?.isValid == true) ? rime : nil
+    if let native = live as? OwlRustSession, native.finishNativeComposition(onFocusLoss: true) {
+      if let text = native.takeCommit(), !text.isEmpty { commit(string: text) }
+      MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.emitCleared() }
+      flushPendingPairedClosing()
+      return
+    }
     OwlForcedFinalize.finalize(
       input: live?.input(),
       preview: { live?.composition()?.commitTextPreview },

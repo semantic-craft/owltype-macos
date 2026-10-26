@@ -1,29 +1,4 @@
-//
-//  OwlKeyboardPage.swift
-//  猫头鹰输入法 (Owltype) — 键盘输入 settings page
-//
-//  v0.3.1: the input-method option groups (输入方式 / 中英文切换 / 候选翻页快捷键 /
-//  候选快速选词 / 符号), modeled on the 豆包输入法 reference. Built from the shared
-//  card kit (`SettingsCard` / `SettingsCheckRow` / `SettingsRadioRow` / `KeyChip` in
-//  `OwlSettingsComponents.swift`) and persisted via `OwlKeyboardPreferences`.
-//
-//  Write-through pattern (v0.2.1/2.2): each control uses an explicit
-//  `Binding(get:set:)` that updates BOTH the `OwlSettingsState` mirror AND
-//  `OwlKeyboardPreferences`, so the UserDefaults key strings live solely in
-//  `OwlKeyboardPreferences` (this file contains NO key literals). `@Observable`
-//  `didSet` is intentionally avoided — it does not fire reliably under the macro.
-//
-//  Persistence boundary (see `.trellis/spec/frontend/owl-modern-ui-direction.md`):
-//  these options map to Rime YAML. The page saves choices in UserDefaults and routes
-//  Rime-backed toggles through the managed-block writer plus the existing deploy path.
-//  Settings auto-apply; the page-level apply button is only a manual fallback for
-//  forcing those derived patches again.
-//
-//  Boundary (ADR-0001 / 0002 / 0003): SwiftUI is the settings UI layer only — never
-//  touches the IMK key-event hot path (OwlInputController).
-//
-//  Concurrency: not `@MainActor`-isolated (matches the rest of the settings UI).
-//
+// Keyboard input settings persist preferences and apply them to active Rust sessions.
 
 import AppKit
 import SwiftUI
@@ -656,14 +631,24 @@ struct OwlKeyboardPage: View {
       reduceTransparency: reduceTransparency
     ) {
       VStack(spacing: 0) {
-        SettingsToggleRow(
-          title: "候选编码提示",
-          isOn: state.keyboardWubiCodeHint,
+        OwlWubiCommitSettings(
+          autoCommitUnique: state.keyboardWubiAutoCommitUnique,
+          fifthCodeTopCommit: state.keyboardWubiFifthCodeTopCommit,
           palette: palette,
           isEnabled: rimeBackedRowsEnabled,
-          onToggle: { toggleWubiCodeHint() }
+          onToggleAutoCommitUnique: { toggleWubiAutoCommitUnique() },
+          onToggleFifthCodeTopCommit: { toggleWubiFifthCodeTopCommit() }
         )
-        SettingsCardDivider(palette: palette)
+        OwlWubiLookupSettings(
+          codeHint: state.keyboardWubiCodeHint,
+          zWildcard: state.keyboardWubiZWildcard,
+          zReverseLookup: state.keyboardWubiZReverseLookup,
+          palette: palette,
+          isEnabled: rimeBackedRowsEnabled,
+          onToggleCodeHint: { toggleWubiCodeHint() },
+          onToggleZWildcard: { toggleWubiZWildcard() },
+          onToggleZReverseLookup: { toggleWubiZReverseLookup() }
+        )
         SettingsToggleRow(
           title: "空码自动清码",
           isOn: state.keyboardWubiAutoClear,
@@ -687,20 +672,6 @@ struct OwlKeyboardPage: View {
         }
         .padding(.vertical, 8)
         .opacity(rimeBackedRowsEnabled ? 1 : 0.55)
-        SettingsCardDivider(palette: palette)
-        SettingsToggleRow(
-          title: "z 临时拼音反查",
-          isOn: state.keyboardWubiZReverseLookup,
-          palette: palette,
-          isEnabled: rimeBackedRowsEnabled,
-          onToggle: { toggleWubiZReverseLookup() }
-        )
-        Text("按 z 加拼音查字，候选右侧始终显示该字的五笔编码，边打边记；不受上面的「候选编码提示」影响。")
-          .font(.system(size: 12))
-          .foregroundStyle(palette.ink3)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.top, 4)
-          .padding(.bottom, 4)
         SettingsCardDivider(palette: palette)
         SettingsToggleRow(
           title: "` 临时英文",
@@ -1032,10 +1003,10 @@ struct OwlKeyboardPage: View {
           }
         )
         SettingsToggleRow(
-          title: "拼音候选中显示快捷短语", isOn: state.pinyinQuickPhraseCandidates,
+          title: "普通候选中显示快捷短语", isOn: state.quickPhraseCandidates,
           palette: palette, onToggle: {
-            OwlSettingsActions.toggle(state: state, keyPath: \.pinyinQuickPhraseCandidates) {
-              OwlKeyboardPreferences.pinyinQuickPhraseCandidates = $0
+            OwlSettingsActions.toggle(state: state, keyPath: \.quickPhraseCandidates) {
+              OwlKeyboardPreferences.quickPhraseCandidates = $0
             }
           }
         )
@@ -1326,6 +1297,18 @@ struct OwlKeyboardPage: View {
   // OwlSettingsE2ETests 锁死（macOS 优先处理 ⌘，待真机验证后再加绑定）。故此处刻意没有
   // toggle handler；别再加回来，否则就是一个永远不会被调用的死开关。
 
+  private func toggleWubiAutoCommitUnique() {
+    persistRimeToggle(\.keyboardWubiAutoCommitUnique) {
+      OwlKeyboardPreferences.wubiAutoCommitUnique = $0
+    }
+  }
+
+  private func toggleWubiFifthCodeTopCommit() {
+    persistRimeToggle(\.keyboardWubiFifthCodeTopCommit) {
+      OwlKeyboardPreferences.wubiFifthCodeTopCommit = $0
+    }
+  }
+
   private func toggleWubiCodeHint() {
     persistRimeToggle(\.keyboardWubiCodeHint) {
       OwlKeyboardPreferences.wubiCodeHint = $0
@@ -1335,6 +1318,12 @@ struct OwlKeyboardPage: View {
   private func toggleWubiAutoClear() {
     persistRimeToggle(\.keyboardWubiAutoClear) {
       OwlKeyboardPreferences.wubiAutoClear = $0
+    }
+  }
+
+  private func toggleWubiZWildcard() {
+    persistRimeToggle(\.keyboardWubiZWildcard) {
+      OwlKeyboardPreferences.wubiZWildcard = $0
     }
   }
 

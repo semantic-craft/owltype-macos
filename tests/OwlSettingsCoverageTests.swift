@@ -28,6 +28,8 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "sources/Settings/OwlSettingsView.swift",
     "sources/Settings/OwlKeyboardPage.swift",
     "sources/Settings/OwlKeyboardPage+SmartPunctuation.swift",
+    "sources/Settings/OwlWubiCommitSettings.swift",
+    "sources/Settings/OwlWubiLookupSettings.swift",
     "sources/Settings/OwlInputHabitsSettings.swift",
     "sources/Settings/OwlKeyboardPreferences.swift",
     "sources/Settings/OwlSettingsPages.swift",
@@ -140,7 +142,11 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "我已了解：写入会修改 ~/Library/Application Support/Owltype（需真机；备份+manifest 已就绪，可回滚）",
     "候选条动画",
     "候选窗显示输入串",
-    "候选编码提示",
+    // Actual runtime toggles are covered by the existing Wubi commit and hint/wildcard tests.
+    "候选剩余编码提示",
+    "四码唯一候选自动上屏",
+    "第五码将首选上屏",
+    "z 通配",
     // 候选个数 is now a OwlSegmentedControl (was a Stepper); its option labels are 3…9.
     "3", "4", "5", "6", "7", "8", "9",
     "关闭",
@@ -156,6 +162,9 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "启用划词工具箱",                  // 2026-07-26 重设计：自动弹出改双击 ⌥ 召唤，开关随之改名
     "启用剪贴板面板",
     "在候选中显示 emoji",
+    // Real settings toggle → persisted preference → queued live engine ON/OFF is covered by
+    // OwlRustEngineTests.testNativeQuickPhrasePreferencePreservesLiveComposition.
+    "普通候选中显示快捷短语",
     "回滚最近写入",
     "完成",
     "左右中括号翻页",
@@ -246,6 +255,8 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "OwlRimeSchemaCompatibilityReport.inspect(fileURLs: panel.urls)",
     "panel.allowsMultipleSelection = true",
     "外部自定义 schema/Lua 不执行；原文不改；内置日期、农历、Unicode、表达式由 Rust 原生实现。",
+    "keyPath: \\.quickPhraseCandidates",
+    "OwlKeyboardPreferences.quickPhraseCandidates = $0",
     "OwlExperimentalPreferences.keyboardRerankEnabled",
     "OwlExperimentalPreferences.settledRerankEnabled",
   ]
