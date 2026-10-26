@@ -897,11 +897,30 @@ pub fn request_autocorrect_mask(transposition: bool, neighbor: bool) -> u32 {
     }
 }
 
+/// A model already validated and loaded by a host worker. Equality follows the shared model
+/// identity, so changing weights invalidates dictionary caches without comparing model tensors.
+#[derive(Clone)]
+pub struct LoadedKeyboardModel(pub std::sync::Arc<chinese_ime_lm::SentenceModel>);
+impl std::fmt::Debug for LoadedKeyboardModel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("LoadedKeyboardModel")
+            .field(&std::sync::Arc::as_ptr(&self.0))
+            .finish()
+    }
+}
+impl PartialEq for LoadedKeyboardModel {
+    fn eq(&self, other: &Self) -> bool {
+        std::sync::Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
 /// Neural sentence association switches. The desktop-model switch is not among them: that model runs only as the input runtime's settled reranker, which the host gates on the preference.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SentenceAssociationOptions {
     pub word_lattice: bool,
     pub neural_keyboard: bool,
+    /// Optional host-loaded weights; absent keeps the upstream bundle loader.
+    pub keyboard_model: Option<LoadedKeyboardModel>,
     pub show_next_on_duplicate: bool,
     /// octagram `.gram` 语法模型的路径（宿主按模型包解析好后传入）；空 = 关闭。
     /// 路径无效时词典静默退回无搭配打分，与 `msime-bigram.bin` 缺失的回退一致。
@@ -919,6 +938,7 @@ impl Default for SentenceAssociationOptions {
         Self {
             word_lattice: true,
             neural_keyboard: false,
+            keyboard_model: None,
             show_next_on_duplicate: false,
             collocation_model: std::path::PathBuf::new(),
             collocation_weight: 1.0,

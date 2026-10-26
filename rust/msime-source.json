@@ -18,7 +18,8 @@
     "Candidate emoji live toggle and cached-candidate view exposure.",
     "Custom shuangpin semicolon spelling precedence.",
     "Wubi independent Z lookup switch, complete-spelling fallback and stable dedup/group order.",
-    "Wubi top-commit bypasses phrase holding; sentence alternatives enabled only for ordinary pinyin."
+    "Wubi top-commit bypasses phrase holding; sentence alternatives enabled only for ordinary pinyin.",
+    "Host-loaded verified keyboard model handoff and live candidate refresh through existing neural lattice scorer; no synchronous model file read on the key path."
   ],
   "defaultPinyin": {
     "sentence_alternatives": true,

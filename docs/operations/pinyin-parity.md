@@ -114,3 +114,30 @@ resource activation, asynchronous pause-phase model behavior, or private
 learned-state parity. Model files and defaults are pinned; this initial trace
 uses the upstream default model settings. Those limitations do not change the
 observable synchronous differences reported by this runner.
+
+## Keyboard model control
+
+The ordinary differential replay leaves both neural switches off, as upstream does.
+Use the explicit official-resource C ABI regression to compare keyboard scoring with
+its pinned Host API oracle. Prepare the normal seed and locked models first, then run:
+
+```sh
+python3 scripts/fetch-rerank-models.py --check
+OWL_MODEL_PARITY_RESOURCES="$PWD/data/owl-rime/msime" \
+  cargo test --manifest-path rust/Cargo.toml -p owl-msime-ffi --test model_parity -- --ignored --nocapture
+```
+
+The opt-in test fails when the requested resources are absent. It compares all six
+visible `tadefangjian` rows with model-off and model-on orders captured through
+macOS 0.55.0's Host API, checks cold and shared-cache sessions, selection identity,
+engine replacement, disabling during composition, and missing/corrupt/digest-error
+fallback. It prints measured loading and typing time without treating a machine's
+latency as a portable pass threshold. Model-on changes the first row to `他的房间`
+and also changes later sentence/completion rows; checking only the first row misses
+a disconnected engine lattice scorer.
+
+The host passes its already validated worker-loaded keyboard weights into the
+existing upstream lattice scorer and runtime reranker. This avoids a second file
+lookup under the engine's canonical filename and keeps candidate identity tied to
+the refreshed view. The model algorithms and default switches remain upstream's.
+Desktop pause scheduling and installed IMK behavior require their own acceptance.

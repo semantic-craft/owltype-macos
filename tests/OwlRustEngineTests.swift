@@ -334,13 +334,16 @@ final class OwlRustEngineTests: XCTestCase {
     OwlExperimentalPreferences.keyboardRerankEnabled = false
     OwlExperimentalPreferences.settledRerankEnabled = true
 
-    let engine = try makeSharedSupportSeedEngine()
     for usesToken in [false, true] {
+      // Each selection path starts with a blank learning journal.
+      let engine = try makeSharedSupportSeedEngine()
       let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
       defer { session.destroy() }
       waitForSettledRerankReady(session)
 
-      typeText("zhongguoren", into: session)
+      // Pinned 0.55.0 with the official dictionary keeps zhongguoren unchanged.
+      // The desktop model changes this sentence's first two rows in a blank state.
+      typeText("tadefangjian", into: session)
       let before = try XCTUnwrap(session.composition())
       let beforeGeneration = session.generation
 
@@ -370,7 +373,7 @@ final class OwlRustEngineTests: XCTestCase {
       }
 
       XCTAssertTrue(current)
-      XCTAssertTrue(moved, "real settled model must move the zhongguoren candidate order")
+      XCTAssertTrue(moved, "real settled model must move the tadefangjian candidate order")
       let refreshed = try XCTUnwrap(session.composition())
       XCTAssertGreaterThan(session.generation, beforeGeneration)
       XCTAssertNotEqual(

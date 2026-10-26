@@ -577,6 +577,11 @@ impl Session {
         self.input.set_english_online_candidates_enabled(enabled);
     }
 
+    /// Update the keyboard lattice scorer using the host's validated model.
+    pub fn set_keyboard_model(&mut self, model: Option<crate::types::LoadedKeyboardModel>) {
+        self.input.set_keyboard_model(model);
+    }
+
     /// The committed text the neural sentence models condition on, updated without rebuilding the session. Only the last 64 characters matter.
     pub fn set_rescoring_context(&mut self, context: &str) {
         self.input.set_rescoring_context(context);
