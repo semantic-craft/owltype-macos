@@ -9,6 +9,9 @@ credentials, signing identities, notarization, or Keychain state.
 from __future__ import annotations
 
 import importlib.util
+import hashlib
+import sqlite3
+import dataclasses
 import json
 import os
 import pathlib
@@ -22,6 +25,7 @@ import tempfile
 import textwrap
 import unittest
 from typing import Any
+from unittest.mock import patch
 
 
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
@@ -275,6 +279,59 @@ class PolicyTableTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 2)
         self.assertIn("invalid JSON", completed.stderr)
         self.assertNotIn("synthetic malformed scanner output", completed.stderr)
+
+
+class PublicEnglishDictionaryTests(unittest.TestCase):
+    def test_waives_only_exact_unverified_public_row_pair(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = pathlib.Path(temporary) / 'Owltype.app/Contents/SharedSupport/msime/msime-english.db'
+            path.parent.mkdir(parents=True)
+            with sqlite3.connect(path) as db:
+                db.execute('CREATE TABLE english_words(word TEXT, display TEXT, weight INTEGER)')
+                db.execute('INSERT INTO english_words VALUES (?, ?, 1)', ('dictionary', 'dictionary'))
+            raw = 'dictionary' * 2
+            record = artifact_record(raw, detector='Eraser', path=str(path))
+            record['Verified'] = False
+            finding = POLICY.normalize_artifact_trufflehog(record)
+            trusted = hashlib.sha256(path.read_bytes()).hexdigest()
+            with patch.object(POLICY, 'PUBLIC_ENGLISH_DB_SHA256', trusted), \
+                 patch.object(POLICY, 'PUBLIC_ENGLISH_PAIR_SHA256', hashlib.sha256(raw.encode()).hexdigest()):
+                self.assertEqual(POLICY.decide(finding).waiver, '固定公开英文词库的词条列拼接')
+                cases = [
+                    {'source': 'history'},
+                    {'scanner': 'gitleaks', 'detector': 'generic-api-key'},
+                    {'detector': 'Other'},
+                    {'detector': 'generic-api-key'},
+                    {'verified': True},
+                    {'verified': None},
+                    {'raw': 'dictionary' + 'otherwords'},
+                    {'path': str(path.with_name('other.db'))},
+                    {'path': str(pathlib.Path(temporary) / 'msime-english.db')},
+                ]
+                for changes in cases:
+                    with self.subTest(changes=sorted(changes)):
+                        self.assertTrue(POLICY.decide(dataclasses.replace(finding, **changes)).rejected)
+                for value in (None, 0, 'false'):
+                    malformed = dict(record)
+                    malformed['Verified'] = value
+                    self.assertTrue(POLICY.decide(POLICY.normalize_artifact_trufflehog(malformed)).rejected)
+                original = path.read_bytes()
+                path.write_bytes(original + b'untrusted modification')
+                self.assertTrue(POLICY.decide(finding).rejected, 'same path cannot waive a changed database')
+                path.write_bytes(b'not a SQLite database')
+                with patch.object(POLICY, 'PUBLIC_ENGLISH_DB_SHA256', hashlib.sha256(path.read_bytes()).hexdigest()):
+                    self.assertTrue(POLICY.decide(finding).rejected, 'a digest alone cannot establish public database content')
+                path.write_bytes(original)
+                link = path.parent / 'link.app/Contents/SharedSupport/msime/msime-english.db'
+                link.parent.mkdir(parents=True)
+                link.symlink_to(path)
+                self.assertTrue(POLICY.decide(dataclasses.replace(finding, path=str(link))).rejected)
+                with sqlite3.connect(path) as db:
+                    db.execute('UPDATE english_words SET display = ?', ('different',))
+                changed = hashlib.sha256(path.read_bytes()).hexdigest()
+                with patch.object(POLICY, 'PUBLIC_ENGLISH_DB_SHA256', changed):
+                    self.assertTrue(POLICY.decide(finding).rejected, 'matching public word/display row is required')
+
 
 
 class ShellAdapterTests(unittest.TestCase):
