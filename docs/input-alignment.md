@@ -48,7 +48,7 @@ python3 progress/sync.py --teslahub "$TESLAHUB_HOME" --hub-out "$OWLTYPE_BOARD_O
 3. 启动后 `bind` 真实会话 ID；交付用 `in-review` 写真实 PR/head 和验证边界；阻塞用 `stuck`，返工沿用 `rework`。已合入且核验 SHA 后才 `integrate`，释放锁。入口参数详见 [TeslaHub 领取协议](https://github.com/semantic-craft/TeslaHub/blob/main/docs/coordinator-claims.md)。
 4. 每次状态变化写回 GitHub 后运行上面的同步命令。状态未知先核实原会话，不换幂等键重复派工。看板“执行”评论只代表请求，不代表成功领取。
 
-静态项目 HTML 是共享进度与工单入口；真正领取在同一协调账本完成。本轮准备入口与 scope，不自行启动实施 agent，也不把本地服务接线说成公网部署。
+静态项目 HTML 是共享进度与工单入口；真正领取在同一协调账本完成。2026-10-26 用户通过 implement-spec 启动整项实施：使用独立集成分支 codex/wubi-parity-integration，复用固定的拼音集成成果；子代理在各自 worktree 工作。当前 #281 已在 PR #305 集成分支交付但尚未主线关闭，#295 的实际执行通过 GitHub 指派及开工评论登记。Hub 原生闸门仍显示未关闭依赖；不伪造依赖完成、领取成功或公网部署状态。
 
 ## 验证范围
 

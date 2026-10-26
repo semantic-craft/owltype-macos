@@ -14,8 +14,9 @@ use msime_engine::host::{
 };
 use msime_engine::{
     ensure_english_schema, fuzzy_rule, reject_redirected_directory, roots_overlap,
-    weakly_canonical, FrequencyAdjustmentMode, SchemeSet, SchemeType, SentenceAssociationOptions,
-    ShuangpinCustomTable, ShuangpinHelpcodeModes, ShuangpinProfileKind, WubiProfileKind,
+    weakly_canonical, CandidateSource, FrequencyAdjustmentMode, SchemeSet, SchemeType,
+    SentenceAssociationOptions, ShuangpinCustomTable, ShuangpinHelpcodeModes, ShuangpinProfileKind,
+    WubiProfileKind,
 };
 use msime_input_runtime::{
     Action, CandidateId, CandidateOps, CandidateTransform, Runtime, TransformRow, View,
@@ -62,6 +63,7 @@ struct OwlPinnedState {
     input_mode: String,
     pinyin_scheme: String,
     wubi_single_first: bool,
+    page_size: usize,
     wubi_z_reverse_lookup: bool,
 }
 
@@ -133,16 +135,44 @@ impl CandidateTransform for OwlPinnedTransform {
         }
 
         // 2. Wubi single-character-first mode (#250): place single-character candidates ahead of phrases
-        //    (except during z-prefix reverse lookup).
+        //    (except during z-prefix reverse lookup), while preserving page 0's quick-phrase slots.
+        let quick_phrase_src = CandidateSource::QuickPhrase as u8;
         let in_z_lookup = guard.input_mode == "wubi"
             && guard.pinyin_scheme != "wubi_pinyin"
             && guard.wubi_z_reverse_lookup
             && guard.active_input.starts_with('z');
         if guard.input_mode == "wubi" && guard.wubi_single_first && !in_z_lookup {
+            let page_sz = guard.page_size.max(1);
+            let page0_quick: Vec<usize> = window
+                .iter()
+                .take(page_sz)
+                .enumerate()
+                .filter(|(_, row)| row.source == quick_phrase_src)
+                .map(|(seat, _)| seat)
+                .collect();
+            let mut non_quick_order = Vec::with_capacity(window.len());
             for (seat, row) in window.iter().enumerate() {
-                if row.text.chars().count() == 1 {
+                if row.source != quick_phrase_src && row.text.chars().count() == 1 {
+                    non_quick_order.push(seat);
+                }
+            }
+            for (seat, row) in window.iter().enumerate() {
+                if row.source != quick_phrase_src && row.text.chars().count() != 1 {
+                    non_quick_order.push(seat);
+                }
+            }
+            let mut non_quick_iter = non_quick_order.into_iter();
+            let head_slots = page0_quick.first().copied().unwrap_or(page_sz);
+            for _ in 0..head_slots {
+                if let Some(seat) = non_quick_iter.next() {
                     push_unique(&mut ops.order, seat);
                 }
+            }
+            for seat in page0_quick {
+                push_unique(&mut ops.order, seat);
+            }
+            for seat in non_quick_iter {
+                push_unique(&mut ops.order, seat);
             }
             for (seat, _) in window.iter().enumerate() {
                 push_unique(&mut ops.order, seat);
@@ -1054,6 +1084,7 @@ impl OwlMsimeSession {
             input_mode: "chinese".to_owned(),
             pinyin_scheme: "quanpin".to_owned(),
             wubi_single_first: false,
+            page_size: usize::from(page_size),
             wubi_z_reverse_lookup: true,
         }));
         runtime.set_candidate_transform(Some(Box::new(OwlPinnedTransform {
@@ -1332,6 +1363,7 @@ impl OwlMsimeSession {
             guard.input_mode = self.input_mode.clone();
             guard.pinyin_scheme = self.pinyin_scheme.clone();
             guard.wubi_single_first = self.wubi_candidate_mode == "single_first";
+            guard.page_size = usize::from(self.page_size);
             guard.wubi_z_reverse_lookup = self.wubi_z_reverse_lookup;
         }
     }
@@ -1345,6 +1377,7 @@ impl OwlMsimeSession {
             guard.input_mode = self.input_mode.clone();
             guard.pinyin_scheme = self.pinyin_scheme.clone();
             guard.wubi_single_first = self.wubi_candidate_mode == "single_first";
+            guard.page_size = usize::from(self.page_size);
             guard.wubi_z_reverse_lookup = self.wubi_z_reverse_lookup;
         }
     }
@@ -3804,9 +3837,11 @@ mod tests {
                 .map(|candidate| candidate.text.as_str())
                 .collect::<Vec<_>>()
         );
-        assert!(candidate_texts_across_pages(explicit)
+        assert_eq!(frames[0].candidates[0].text, "你");
+        assert!(frames[0]
+            .candidates
             .iter()
-            .any(|text| text == "基础短语"));
+            .any(|candidate| candidate.text == "基础短语"));
 
         call_action(generated, r#"{"op":"clear"}"#);
         let host = call_action(
