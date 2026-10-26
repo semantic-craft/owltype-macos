@@ -648,3 +648,21 @@ review dates, not retries. Keep deterministic checks in the local gate.
   cargo test --locked --manifest-path rust/Cargo.toml -p msime-engine --test golden
   scripted_scenarios_match_the_reference`, then all scripted scenarios. The strict
   comparator retains every field; only the two stale expected snapshots change.
+
+### Preserve native Wubi candidate rows and phrase selection
+
+- Seen 1x (2026-10-26): the real Swift mixed-Wubi trace differed from pinned
+  MSIME 0.55.0 at 39 fields. Owl disabled sentence alternatives in Wubi and removed
+  repeated visible words across distinct code rows, changing candidate positions
+  and partial selection. After restoring those upstream paths, fifth-code handling
+  still committed the selected prefix early instead of holding it in native
+  phrase preedit.
+- Fix: keep the upstream sentence-alternative default and mixed candidate merge;
+  retain Pinyin-specific dedup. Restore the runtime selection predicate shared by
+  native fifth-code handling. Direct Host API probes confirm pure fifth-code
+  continuation holds the prefix with either flag; mixed continuation does so only
+  when enabled, and refuses the invalid continuation when disabled.
+- Verify: `tests/fixtures/wubi-parity/wubi86-mixed.json` through the actual
+  Swift/reference differential seam, plus existing Swift commit-preference,
+  mixed-code-row selection and pure ambiguity tests. Installed IMK acceptance is
+  outside these isolated-source observations.

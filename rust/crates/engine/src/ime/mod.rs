@@ -1349,7 +1349,6 @@ fn merge_mixed_candidates(
         retain_unique_pinyin_rows(&mut pinyin_rows);
         return pinyin_rows;
     }
-    retain_unique_rows(&mut candidates);
     if candidates.len().saturating_add(pinyin_rows.len()) <= SMALL_PINYIN_FALLBACK {
         candidates.reserve(pinyin_rows.len());
         for item in pinyin_rows {
@@ -1385,29 +1384,6 @@ fn merge_mixed_candidates(
             }),
     );
     candidates
-}
-
-fn retain_unique_rows(rows: &mut Vec<WordItem>) {
-    let mut seen = HashSet::with_capacity(rows.len());
-    let duplicates = rows
-        .iter()
-        .enumerate()
-        .filter_map(|(index, item)| (!seen.insert(item.word.as_str())).then_some(index))
-        .collect::<Vec<_>>();
-    drop(seen);
-    let mut duplicates = duplicates.into_iter().peekable();
-    let mut write = 0;
-    for read in 0..rows.len() {
-        if duplicates.peek() == Some(&read) {
-            duplicates.next();
-            continue;
-        }
-        if write != read {
-            rows.swap(write, read);
-        }
-        write += 1;
-    }
-    rows.truncate(write);
 }
 
 fn retain_unique_pinyin_rows(rows: &mut Vec<WordItem>) {

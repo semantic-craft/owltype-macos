@@ -30,8 +30,9 @@ effective options; the comparator applies the same strict fields to both.
 The Owl test starts with empty isolated preferences and sets only the same page
 size (upstream default 6) and full-pinyin schema. It records persisted preferences
 and effective rerank configuration. Rust options remain source-bound by a fresh
-build. Ordinary pinyin uses pinned 0.55.0 engine/runtime and official resources;
-Wubi retains its existing composition policy. Native quick-phrase candidates are
+build. Ordinary pinyin and mixed Wubi use pinned 0.55.0 engine/runtime and official
+resources. Wubi preserves upstream sentence alternatives, distinct code rows,
+and native phrase-preedit selection semantics. Native quick-phrase candidates are
 enabled without Owl's former blanket promotion. The earlier bare-API conclusion
 that ordinary quick phrases should be disabled was corrected from the macOS
 session-options source. Owl AI/template invocation is a separate host feature.
@@ -218,3 +219,13 @@ both full and double pinyin, starting inside a spelling unit, then compares
 remaining input and complete candidates after deletion. Empty compositions keep
 these chords available to the host. This is a shared runtime action, so the
 adapter does not infer syllable boundaries in Swift.
+
+## Mixed Wubi replay
+
+Use `--trace tests/fixtures/wubi-parity/wubi86-mixed.json` to replay native Wubi
+exact/prefix results against Pinyin exact/completion fallback, ordinary z spelling,
+long input, and partial selection followed by remaining Pinyin. The 43 events
+retain the same strict fields as the Pinyin comparator. The native host holds a
+fifth-code selected word in the composition prefix while receiving the next code;
+it does not immediately commit that word to the client. Distinct Wubi code rows
+may display the same word and must retain their visible selection positions.

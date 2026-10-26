@@ -189,7 +189,12 @@
     },
     {
       "op": "character",
-      "value": "a"
+      "value": "a",
+      "expect": {
+        "preedit": "王a",
+        "input": "a",
+        "commit": null
+      }
     },
     {
       "op": "command",

@@ -1415,8 +1415,6 @@ impl OwlMsimeSession {
         {
             let _ = self.runtime.dispatch(Action::Command(Command::Cancel));
             self.options.scheme = desired_scheme;
-            // Keep Owl Wubi composition policy; upstream sentence alternatives own ordinary pinyin.
-            self.options.sentence_alternatives = self.input_mode != "wubi";
             self.options.shuangpin_profile = desired_profile;
             self.options.wubi_mixed_pinyin = desired_wubi_mixed;
             self.options.single_character_only = desired_single_only;
@@ -3949,8 +3947,9 @@ mod tests {
 
         let topped = call_action(session, r#"{"op":"insert","ch":"x"}"#);
         assert!(topped.ok, "{:?}", topped.error);
-        assert_eq!(topped.committed_text.as_deref(), Some("工"));
+        assert_eq!(topped.committed_text, None);
         assert_eq!(topped.raw_input, "x");
+        assert_eq!(topped.preedit, "工x");
         owl_msime_session_destroy(session);
     }
 
