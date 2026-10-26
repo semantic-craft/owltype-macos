@@ -3106,6 +3106,45 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertNil(session.takeCommit())
   }
 
+  func testSharedQuickPhrasePreferenceMatchesNativeWubiOrderingAndKeepsK() throws {
+    let defaults = OwlDefaults.standard
+    let keys = ["OwlKeyboardPinyinQuickPhraseCandidates", "OwlKeyboardPageSize"]
+    let saved = keys.map { defaults.object(forKey: $0) }
+    defer {
+      for (key, value) in zip(keys, saved) {
+        if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
+      }
+    }
+    defaults.removeObject(forKey: keys[0])
+    OwlKeyboardPreferences.pageSize = 6
+    XCTAssertFalse(OwlKeyboardPreferences.pinyinQuickPhraseCandidates)
+    let engine = try makeSharedSupportSeedEngine()
+    let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
+    defer { session.destroy() }
+    XCTAssertTrue(session.selectSchema("wubi86_jidian"))
+    typeText("xx", into: session)
+    let first = try XCTUnwrap(session.composition())
+    let plain = first.candidates + session.peekCandidates(from: 6, count: 100)
+    // Pinned native, official resources: OFF has50 rows; ON appends the phrase after all50.
+    XCTAssertEqual(first.candidates.map(\.text), ["比", "缘", "丝", "比价", "纰", "丝丝"])
+    XCTAssertEqual(plain.count, 50)
+    XCTAssertFalse(plain.contains { $0.text == "示例大学" })
+    session.clearComposition()
+    for scalar in "Kxx".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value,
+        modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
+    }
+    XCTAssertTrue(try XCTUnwrap(session.composition()).candidates.contains { $0.text == "示例大学" })
+    session.clearComposition()
+    OwlKeyboardPreferences.pinyinQuickPhraseCandidates = true
+    typeText("xx", into: session)
+    let enabled = try XCTUnwrap(session.composition())
+    let all = enabled.candidates + session.peekCandidates(from: 6, count: 100)
+    XCTAssertEqual(enabled.candidates.map(\.text), ["比", "缘", "丝", "比价", "纰", "丝丝"])
+    XCTAssertEqual(all.count, 51)
+    XCTAssertEqual(all.firstIndex { $0.text == "示例大学" }, 50)
+  }
+
   func testNativeQuickPhrasePreferencePreservesLiveComposition() throws {
     let saved = OwlKeyboardPreferences.pinyinQuickPhraseCandidates
     let page = OwlKeyboardPreferences.pageSize
