@@ -1228,6 +1228,19 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.takeCommit(), "A")
   }
 
+  func testTraditionalUnicodeModePreservesNullScalar() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+    session.setOption(.traditionalization, true)
+    XCTAssertTrue(session.process(keycode: asciiKeycode("U"), modifiers: kShiftMask.rawValue))
+    typeText("0000", into: session)
+    let composition = try XCTUnwrap(session.composition())
+    XCTAssertEqual(composition.candidates.first?.text, "\0")
+    XCTAssertTrue(session.selectCandidate(0))
+    XCTAssertEqual(session.takeCommit(), "\0")
+  }
+
   func testShiftTForwardingKeepsDigitSelectionForVisibleCandidate() throws {
     let engine = try makeSharedSupportSeedEngine()
     let session = engine.createSession()

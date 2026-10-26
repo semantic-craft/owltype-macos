@@ -8,9 +8,9 @@
 extern "C" {
 #endif
 
-/* Pinned upstream OpenCC s2t output. Free with owl_msime_string_free.
+/* Pinned upstream OpenCC s2t JSON-string input/output. Free with owl_msime_string_free.
  * NULL input or invalid UTF-8 returns NULL. Does not access user state. */
-char *owl_msime_simplified_to_traditional(const char *text);
+char *owl_msime_simplified_to_traditional_json(const char *text);
 
 typedef struct OwlMsimeSession OwlMsimeSession;
 typedef struct OwlMsimeConfig OwlMsimeConfig;

@@ -2589,10 +2589,10 @@ pub extern "C" fn owl_msime_session_poll_settled_rerank_json(
     })
 }
 
-/// Convert output using the pinned upstream OpenCC standard configuration.
+/// Convert a JSON string using the pinned upstream OpenCC standard configuration.
 /// Returns an owned UTF-8 string, or null for invalid input/panic.
 #[no_mangle]
-pub extern "C" fn owl_msime_simplified_to_traditional(text: *const c_char) -> *mut c_char {
+pub extern "C" fn owl_msime_simplified_to_traditional_json(text: *const c_char) -> *mut c_char {
     catch_unwind(AssertUnwindSafe(|| {
         if text.is_null() {
             return std::ptr::null_mut();
@@ -2600,9 +2600,10 @@ pub extern "C" fn owl_msime_simplified_to_traditional(text: *const c_char) -> *m
         let Ok(text) = (unsafe { CStr::from_ptr(text) }).to_str() else {
             return std::ptr::null_mut();
         };
-        CString::new(msime_client_core::chinese_conversion::simplified_to_traditional(text))
-            .map(CString::into_raw)
-            .unwrap_or(std::ptr::null_mut())
+        let Ok(text) = serde_json::from_str::<String>(text) else {
+            return std::ptr::null_mut();
+        };
+        into_c_string_ptr(&msime_client_core::chinese_conversion::simplified_to_traditional(&text))
     }))
     .unwrap_or(std::ptr::null_mut())
 }
