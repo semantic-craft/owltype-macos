@@ -7,6 +7,110 @@ import XCTest
 /// The IMK IPC transport and TIS source detection are the only substituted boundaries.
 final class OwlInputHabitsIntegrationTests: XCTestCase {
   @MainActor
+  func testSettledPauseUsesRealModelAndKeepsNativeSelectionAndEditsCurrent() throws {
+    let defaults = OwlDefaults.standard
+    let saved = defaults.persistentDomain(forName: OwlDefaults.testSuiteName)
+    defaults.removePersistentDomain(forName: OwlDefaults.testSuiteName)
+    defer {
+      defaults.removePersistentDomain(forName: OwlDefaults.testSuiteName)
+      if let saved { defaults.setPersistentDomain(saved, forName: OwlDefaults.testSuiteName) }
+    }
+    OwlKeyboardPreferences.inputMethod = .pinyin
+    OwlKeyboardPreferences.pageSize = 6
+    OwlExperimentalPreferences.keyboardRerankEnabled = false
+    OwlExperimentalPreferences.settledRerankEnabled = true
+    let shared = try XCTUnwrap(Bundle.main.sharedSupportURL)
+    XCTAssertTrue(FileManager.default.fileExists(
+      atPath: shared.appendingPathComponent("msime/models/settled-model.bin").path
+    ), "the official desktop model must run, not skip")
+
+    for action in ["token", "digit", "backspace", "schema", "focus", "select-before-poll", "page"] {
+      let root = FileManager.default.temporaryDirectory.appendingPathComponent("owl-settled-host-\(UUID())")
+      defer { try? FileManager.default.removeItem(at: root) }
+      let engine = OwlRustEngine(sharedSupportURL: shared, userDataURL: root, activeGenerationProvider: { nil })
+      let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+      controller.destroySession()
+      let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
+      controller.rime = session
+      let client = HabitsTextClient()
+      controller.client = client
+      defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
+      XCTAssertTrue(session.selectSchema("rime_ice"))
+      session.setOption(.asciiMode, false)
+      var now: UInt64 = 1_000_000_000
+      controller.settledRerankNow = { now }
+      let readyDeadline = Date().addingTimeInterval(30)
+      repeat {
+        session.syncRerankPreferences()
+        if session.settledRerankReady { break }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.001))
+      } while Date() < readyDeadline
+      XCTAssertTrue(session.settledRerankReady)
+      try type("tadefangjian", into: controller, client: client)
+      let before = try XCTUnwrap(session.composition())
+      XCTAssertEqual(before.candidates.map(\.text),
+        ["它的房间", "他的房间", "她的房间", "它的放吉安", "他的放吉安", "她的放吉安"])
+      let oldToken = OwlCandidateToken(sessionID: session.sessionID, generation: session.generation,
+        candidateID: 0, isAbsolute: false)
+      now += 149_999_999
+      try XCTUnwrap(controller.settledRerankDebounceTimer).fire()
+      XCTAssertNil(controller.settledRerankJob)
+      now += 1
+      try XCTUnwrap(controller.settledRerankDebounceTimer).fire()
+      XCTAssertNotNil(controller.settledRerankJob, "real model work starts only at the pause: \(action)")
+
+      switch action {
+      case "backspace":
+        XCTAssertTrue(controller.handle(try key("\u{7f}", code: 51), client: client))
+      case "schema":
+        XCTAssertEqual(controller.switchLiveSessionSchema(to: "double_pinyin_flypy"), .ok)
+      case "focus":
+        controller.deactivateServer(client)
+      case "select-before-poll":
+        XCTAssertTrue(controller.selectCandidate(oldToken))
+        XCTAssertEqual(client.text.string, before.candidates[0].text)
+      case "page":
+        XCTAssertTrue(controller.page(up: false))
+        XCTAssertEqual(session.composition()?.pageNo, 1)
+      default: break
+      }
+      let afterAction = try XCTUnwrap(session.composition())
+      let actionInput = session.input()
+      let actionGeneration = session.generation
+      let textAfterAction = client.text.string
+      let deadline = Date().addingTimeInterval(30)
+      repeat {
+        controller.settledRerankPollTimer?.fire()
+        if controller.settledRerankJob == nil { break }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.001))
+      } while Date() < deadline
+      XCTAssertNil(controller.settledRerankJob, action)
+      let published = try XCTUnwrap(session.composition())
+      if action == "token" || action == "digit" {
+        XCTAssertEqual(published.candidates.map(\.text),
+          ["他的房间", "它的房间", "她的房间", "它的放吉安", "他的放吉安", "她的放吉安"])
+        XCTAssertGreaterThan(session.generation, oldToken.generation)
+        XCTAssertFalse(controller.selectCandidate(oldToken), "stale visible identities cannot select a new seat")
+        if action == "token" {
+          let fresh = OwlCandidateToken(sessionID: session.sessionID, generation: session.generation,
+            candidateID: 1, isAbsolute: false)
+          XCTAssertTrue(controller.selectCandidate(fresh))
+        } else {
+          XCTAssertTrue(controller.handle(try key("2", code: 19), client: client))
+        }
+        XCTAssertEqual(client.text.string, published.candidates[1].text)
+        XCTAssertFalse(client.text.hasMarkedText())
+      } else {
+        XCTAssertEqual(session.generation, actionGeneration, action)
+        XCTAssertEqual(session.input(), actionInput, action)
+        XCTAssertEqual(published.candidates.map(\.text), afterAction.candidates.map(\.text), action)
+        XCTAssertEqual(published.pageNo, afterAction.pageNo, action)
+        XCTAssertEqual(client.text.string, textAfterAction, action)
+      }
+    }
+  }
+
+  @MainActor
   func testSmartPunctuationUsesHostContextAndRepeatCorrection() throws {
     let shared = try XCTUnwrap(Bundle.main.sharedSupportURL)
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("owl-smart-punct-\(UUID())")

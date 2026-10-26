@@ -29,7 +29,7 @@ import Foundation
 
 enum OwlSettledRerankTiming {
   static let debounce: TimeInterval = 0.15
-  static let pollInterval: TimeInterval = 0.02
+  static let pollInterval: TimeInterval = 1.0 / 60.0
   static let modelLoadPollInterval: TimeInterval = 0.05
 }
 

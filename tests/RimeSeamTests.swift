@@ -681,6 +681,118 @@ final class RimeSeamTests: XCTestCase {
   }
 
   @MainActor
+  func testSettledActionInvalidationRejectsAResultEvenWithoutEngineMutation() throws {
+    let session = FakeRimeSession(sessionID: 71, generation: 9, input: "ni", settledRerankReady: true)
+    session.settledRerankStartResult = OwlSettledRerankStartResult(
+      token: 104, current: false, moved: false, error: nil
+    )
+    session.settledRerankPollResults = [
+      OwlSettledRerankPollResult(pending: false, current: true, moved: true, error: nil)
+    ]
+    let fixture = try makeSettledRerankController(session: session)
+    let controller = fixture.controller
+    defer {
+      controller.destroySession()
+      fixture.delegate.engine = fixture.previousEngine
+      OwlExperimentalPreferences.resetForTesting()
+      fixture.delegate.owlPanel?.hidePanel()
+    }
+    controller.armSettledRerankAfterInput()
+    // Fire the actual timer only after the pause is due; no wall-clock sleep races the worker.
+    controller.settledRerankLastInputAt = 0
+    try XCTUnwrap(controller.settledRerankDebounceTimer).fire()
+    XCTAssertEqual(session.settledRerankStartCount, 1)
+    let updatesBefore = session.takeCommitCount
+    // A boundary-page action can be unconsumed and leave generation/raw input unchanged.
+    // It nevertheless ends the pause during which this worker was started.
+    session.changePageResult = false
+    XCTAssertFalse(controller.page(up: true))
+    try XCTUnwrap(controller.settledRerankPollTimer).fire()
+    XCTAssertEqual(session.settledRerankPolls.map(\.accept), [false])
+    XCTAssertEqual(session.takeCommitCount, updatesBefore)
+    XCTAssertNil(controller.settledRerankJob)
+  }
+
+  @MainActor
+  func testSettledPauseUsesLastInputAndDrainsOldScoringBeforeRestarting() throws {
+    let session = FakeRimeSession(sessionID: 72, generation: 10, input: "ni", settledRerankReady: true)
+    session.settledRerankStartResult = OwlSettledRerankStartResult(
+      token: 105, current: false, moved: false, error: nil
+    )
+    session.settledRerankPollResults = [
+      OwlSettledRerankPollResult(pending: false, current: false, moved: false, error: nil)
+    ]
+    let fixture = try makeSettledRerankController(session: session)
+    let controller = fixture.controller
+    defer {
+      controller.destroySession()
+      fixture.delegate.engine = fixture.previousEngine
+      OwlExperimentalPreferences.resetForTesting()
+      fixture.delegate.owlPanel?.hidePanel()
+    }
+    var now: UInt64 = 1_000_000_000
+    controller.settledRerankNow = { now }
+    controller.armSettledRerankAfterInput()
+    now += 149_999_999
+    try XCTUnwrap(controller.settledRerankDebounceTimer).fire()
+    XCTAssertEqual(session.settledRerankStartCount, 0, "149.999999 ms is still typing")
+    controller.invalidateSettledRerankForAction()
+    session.scriptedInput = "nia"
+    session.generation += 1
+    controller.armSettledRerankAfterInput()
+    now += 149_999_999
+    try XCTUnwrap(controller.settledRerankDebounceTimer).fire()
+    XCTAssertEqual(session.settledRerankStartCount, 0, "new input resets the entire pause")
+    now += 1
+    try XCTUnwrap(controller.settledRerankDebounceTimer).fire()
+    XCTAssertEqual(session.settledRerankStartCount, 1)
+
+    // A second composition reaches its pause while the first score still owns the model.
+    controller.invalidateSettledRerankForAction()
+    session.scriptedInput = "ni"
+    session.generation += 1
+    controller.armSettledRerankAfterInput()
+    now += 150_000_000
+    try XCTUnwrap(controller.settledRerankDebounceTimer).fire()
+    XCTAssertEqual(session.settledRerankStartCount, 1, "only one score owns the model")
+    try XCTUnwrap(controller.settledRerankPollTimer).fire()
+    XCTAssertEqual(session.settledRerankPolls.map(\.accept), [false])
+    XCTAssertEqual(session.settledRerankStartCount, 2, "draining returns the model to the due composition")
+  }
+
+  @MainActor
+  func testFocusLossRejectsSettledResultWithoutRelyingOnEngineClear() throws {
+    let session = FakeRimeSession(sessionID: 73, generation: 11, input: "ni", settledRerankReady: true)
+    session.settledRerankStartResult = OwlSettledRerankStartResult(
+      token: 106, current: false, moved: false, error: nil
+    )
+    session.settledRerankPollResults = [
+      OwlSettledRerankPollResult(pending: false, current: true, moved: true, error: nil)
+    ]
+    let fixture = try makeSettledRerankController(session: session)
+    let controller = fixture.controller
+    defer {
+      controller.destroySession()
+      fixture.delegate.engine = fixture.previousEngine
+      OwlExperimentalPreferences.resetForTesting()
+      fixture.delegate.owlPanel?.hidePanel()
+    }
+    var now: UInt64 = 1_000_000_000
+    controller.settledRerankNow = { now }
+    controller.armSettledRerankAfterInput()
+    now += 150_000_000
+    try XCTUnwrap(controller.settledRerankDebounceTimer).fire()
+    controller.deactivateServer(nil)
+    let updatesAfterBlur = session.takeCommitCount
+    // The fake deliberately keeps generation/input on clear: focus owns invalidation itself.
+    try XCTUnwrap(controller.settledRerankPollTimer).fire()
+    XCTAssertEqual(session.settledRerankPolls.map(\.accept), [false])
+    XCTAssertEqual(session.takeCommitCount, updatesAfterBlur)
+    XCTAssertNil(controller.settledRerankJob)
+    XCTAssertNil(controller.settledRerankDebounceTimer)
+  }
+
+  @MainActor
   func testSettledRerankRetriesWhileModelIsStillLoading() throws {
     let session = FakeRimeSession(input: "ni", settledRerankLoading: true)
     session.syncRerankPreferencesTransition = {

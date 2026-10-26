@@ -98,7 +98,9 @@ final class OwlInputController: IMKInputController {
   // run loop; the Rust model forward pass itself runs on its own worker.
   var settledRerankDebounceTimer: Timer?
   var settledRerankPollTimer: Timer?
-  var settledRerankJob: (token: UInt64, ticket: OwlSettledRerankTicket)?
+  var settledRerankJob: (token: UInt64, ticket: OwlSettledRerankTicket, actionEpoch: UInt64)?
+  var settledRerankActionEpoch: UInt64 = 0
+  var settledRerankNow: () -> UInt64 = { DispatchTime.now().uptimeNanoseconds }
   var settledRerankLastInputAt: UInt64?
   var settledRerankWaitingForDrain = false
   var applyingSettledRerank = false

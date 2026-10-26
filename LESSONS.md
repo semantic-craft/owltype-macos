@@ -525,3 +525,11 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Verify: replay `editing.json` and `tadefangjian.json` against the pinned native
   host profile; the original raw profile remains explicitly reproducible. These
   checks prove the public session/marked-context contract, not installed IMK delivery.
+
+## Host actions invalidate settled scoring even when the engine does not change
+
+- Reason: a boundary-page action can return unconsumed without changing input or candidate generation. The controller only invalidated its debounce timer, so an already-running desktop score still passed its ticket check and refreshed candidates after that action. Engine identity alone did not cover the host pause lifecycle.
+- Fix: capture a host action epoch with each settled job and reject publication after any invalidating host action; continue polling with `accept: false` to return the model. The pinned native host uses the same epoch ownership guard. Keep the existing 150 ms debounce and match its 60 Hz result poll.
+- Regression: `testSettledActionInvalidationRejectsAResultEvenWithoutEngineMutation` failed before the fix (`accept` was true and the panel refreshed once), then passed. Controlled-clock coverage proves the 150 ms last-input pause and old-job drain/restart; a separate focus test deliberately retains engine state when clearing. `testSettledPauseUsesRealModelAndKeepsNativeSelectionAndEditsCurrent` connects the production controller, official desktop model, isolated journal and native text client, checking complete candidate order, stale/fresh token and digit commits, backspace, schema switch, focus loss, selection while scoring and page preservation.
+- Verify: run `RimeSeamTests` and the named native integration test through the seeded Swift test host, together with existing `OwlRustEngineTests` model/ticket checks. Timer firing and a monotonic clock are controlled; no fixed sleep determines whether a worker result is stale. This checks in-process native host behavior, not installed IMK IPC delivery.
+- Seen 1x (2026-10-26).
