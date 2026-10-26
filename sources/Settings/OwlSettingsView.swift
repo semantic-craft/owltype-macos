@@ -84,6 +84,7 @@ struct OwlSettingsView: View {
       // candidate appearance lifecycle from its module boundary.
       OwlCandidatePanelSettings.live.seed(state)
       state.candidateEmojiEnabled = OwlEmojiPreferences.candidateEmojiEnabled
+      state.pinyinQuickPhraseCandidates = OwlKeyboardPreferences.pinyinQuickPhraseCandidates
       state.cloudEnabled = OwlCloudPreferences.isEnabled
       state.cloudModel = OwlCloudPreferences.deepSeekModel
       state.selectionMenuEnabled = OwlSelectionMenuPreferences.isEnabled

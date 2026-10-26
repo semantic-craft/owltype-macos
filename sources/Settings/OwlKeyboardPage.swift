@@ -1002,6 +1002,14 @@ struct OwlKeyboardPage: View {
             NSApp.owlAppDelegate.applyEmojiSuggestionToLiveSession(state.candidateEmojiEnabled)
           }
         )
+        SettingsToggleRow(
+          title: "拼音候选中显示快捷短语", isOn: state.pinyinQuickPhraseCandidates,
+          palette: palette, onToggle: {
+            OwlSettingsActions.toggle(state: state, keyPath: \.pinyinQuickPhraseCandidates) {
+              OwlKeyboardPreferences.pinyinQuickPhraseCandidates = $0
+            }
+          }
+        )
         Text("打开后，打字时 emoji 会作为候选出现（如 weixiao → 微笑 😊）。默认关闭；也可用 ⌃⇧E 或输入法菜单临时切换。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
