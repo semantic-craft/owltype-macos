@@ -631,28 +631,14 @@ struct OwlKeyboardPage: View {
       reduceTransparency: reduceTransparency
     ) {
       VStack(spacing: 0) {
-        SettingsToggleRow(
-          title: "四码唯一候选自动上屏",
-          isOn: state.keyboardWubiAutoCommitUnique,
+        OwlWubiCommitSettings(
+          autoCommitUnique: state.keyboardWubiAutoCommitUnique,
+          fifthCodeTopCommit: state.keyboardWubiFifthCodeTopCommit,
           palette: palette,
           isEnabled: rimeBackedRowsEnabled,
-          onToggle: { toggleWubiAutoCommitUnique() }
+          onToggleAutoCommitUnique: { toggleWubiAutoCommitUnique() },
+          onToggleFifthCodeTopCommit: { toggleWubiFifthCodeTopCommit() }
         )
-        SettingsCardDivider(palette: palette)
-        SettingsToggleRow(
-          title: "第五码将首选上屏",
-          isOn: state.keyboardWubiFifthCodeTopCommit,
-          palette: palette,
-          isEnabled: rimeBackedRowsEnabled,
-          onToggle: { toggleWubiFifthCodeTopCommit() }
-        )
-        Text("关闭仅影响五笔拼音混输，续输遵循拼音组字规则；纯五笔仍将首选上屏，并把第五码留作下一组开头。")
-          .font(.system(size: 12))
-          .foregroundStyle(palette.ink3)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.top, 4)
-          .padding(.bottom, 4)
-        SettingsCardDivider(palette: palette)
         SettingsToggleRow(
           title: "候选编码提示",
           isOn: state.keyboardWubiCodeHint,
