@@ -48,6 +48,7 @@ extension OwlInputController {
   }
 
   override func deactivateServer(_ sender: Any!) {
+    smartPunctuation.reset()
     MainActor.assumeIsolated { OwlInputStatusPanel.shared.deactivate(self) }
     rememberAppInputMode()
     invalidateSettledRerankForAction()

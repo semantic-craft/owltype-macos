@@ -46,6 +46,9 @@ class ReleaseLicenseEntriesTests(unittest.TestCase):
         (app / FINALIZER.WUBI86_JIDIAN_LICENSE).write_bytes(
             (ROOT / "licenses/wubi86-jidian.LICENSE").read_bytes()
         )
+        (app / FINALIZER.RIME_KAOMOJI_LICENSE).write_bytes(
+            (ROOT / "licenses/rime-kaomoji.LICENSE").read_bytes()
+        )
         (app / FINALIZER.PYTHON_PINYIN_LICENSE).write_bytes(
             (ROOT / "licenses/python-pinyin.LICENSE").read_bytes()
         )

@@ -464,6 +464,32 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Verify (验证点): materialize the official seed and locked models, then run `OWL_MODEL_PARITY_RESOURCES="$PWD/data/owl-rime/msime" cargo test --manifest-path rust/Cargo.toml -p owl-msime-ffi --test model_parity -- --ignored --nocapture`; expect one passed test. This checks the C ABI, not installed IMK delivery or pause scheduling.
 - Seen on 1 distinct date: 2026-10-26.
 
+## Traditional output follows the pinned phrase converter
+
+- Seen 1x (2026-10-26): platform `Hans-Hant` converted `里面` to `裡面`, while the
+  pinned upstream OpenCC standard configuration returns `裏面`. Consistent display
+  and commit alone did not establish equivalent output.
+- Use the upstream client-core converter through the C ABI for both visible and
+  committed text. Keep the original candidate generation and selection identity.
+- Regression and Verify (验证点):
+  `OwlRustEngineTests/testPhraseAwareTraditionalOutputKeepsSelectionIdentity`
+  fails at visible, peeked and committed output before the change, and passes after;
+  it also selects with the pre-conversion token and turns conversion off again.
+
+## Smart punctuation requires the native document context
+
+- Seen 1x (2026-10-26): forwarding every idle punctuation key to the engine wrote
+  `1。` where pinned macOS MSIME writes `1.`. Engine punctuation alone cannot infer
+  the preceding document character or replace a previously committed mark.
+- Reuse upstream client-core route/repeat/space-convert policy. The native host owns
+  the client/caret fingerprint and checks actual text before replacement. An unreadable
+  host may use only its owned shadow; posted replacement remains permission- and
+  foreground-checked and cannot run in a secure or explicitly denied client.
+- Verify (验证点): `OwlInputHabitsIntegrationTests` covers context and repeat,
+  caret movement, immediate setting changes, opt-in space correction/revert and an
+  unreadable host through a substituted posting boundary. No real terminal receives
+  injected keys. These tests do not establish installed-host event timing acceptance.
+
 ## Fresh upstream defaults own ordinary pinyin candidate order
 
 - Seen 1x (2026-10-26): after importing the pinned full dictionary, the real host

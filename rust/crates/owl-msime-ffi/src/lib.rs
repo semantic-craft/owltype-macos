@@ -28,6 +28,7 @@ use tempfile::TempDir;
 mod config;
 mod punctuation_menu;
 mod rerank;
+mod smart_punctuation;
 mod user_migration;
 
 use punctuation_menu::PunctuationMenu;
@@ -851,8 +852,8 @@ fn product_engine_options(
         local_date_time_inline: true,
         local_date_time_menu: true,
         local_quick_phrase: true,
-        local_emoji: false,
-        local_kaomoji: false,
+        local_emoji: true,
+        local_kaomoji: true,
         local_super_jianpin: true,
         local_temporary_english: true,
         local_temporary_japanese: false,
@@ -860,7 +861,7 @@ fn product_engine_options(
         local_command: false,
         local_mention: false,
         local_chaizi: false,
-        local_symbol: false,
+        local_symbol: true,
         local_shift_letter_entry: true,
         chaizi_traditional_output: false,
         command_table: Vec::new(),
@@ -2546,6 +2547,43 @@ pub extern "C" fn owl_msime_session_poll_settled_rerank_json(
     })
 }
 
+/// Stateless transport for the pinned host punctuation policy.
+#[no_mangle]
+pub extern "C" fn owl_msime_smart_punctuation_json(request: *const c_char) -> *mut c_char {
+    catch_unwind(AssertUnwindSafe(|| {
+        if request.is_null() {
+            return std::ptr::null_mut();
+        }
+        let Ok(request) = (unsafe { CStr::from_ptr(request) }).to_str() else {
+            return std::ptr::null_mut();
+        };
+        let Ok(request) = serde_json::from_str::<Value>(request) else {
+            return std::ptr::null_mut();
+        };
+        into_c_string_ptr(&smart_punctuation::dispatch(&request))
+    }))
+    .unwrap_or(std::ptr::null_mut())
+}
+
+/// Convert a JSON string using the pinned upstream OpenCC standard configuration.
+/// Returns an owned UTF-8 string, or null for invalid input/panic.
+#[no_mangle]
+pub extern "C" fn owl_msime_simplified_to_traditional_json(text: *const c_char) -> *mut c_char {
+    catch_unwind(AssertUnwindSafe(|| {
+        if text.is_null() {
+            return std::ptr::null_mut();
+        }
+        let Ok(text) = (unsafe { CStr::from_ptr(text) }).to_str() else {
+            return std::ptr::null_mut();
+        };
+        let Ok(text) = serde_json::from_str::<String>(text) else {
+            return std::ptr::null_mut();
+        };
+        into_c_string_ptr(&msime_client_core::chinese_conversion::simplified_to_traditional(&text))
+    }))
+    .unwrap_or(std::ptr::null_mut())
+}
+
 #[no_mangle]
 pub extern "C" fn owl_msime_string_free(ptr: *mut c_char) {
     let _ = catch_unwind(AssertUnwindSafe(|| {
@@ -2840,7 +2878,9 @@ mod tests {
         assert!(options.local_expression);
         assert!(options.mixed_emoji);
         assert!(options.mixed_symbols);
-        assert!(!options.local_emoji);
+        assert!(options.local_emoji);
+        assert!(options.local_kaomoji);
+        assert!(options.local_symbol);
     }
 
     #[test]
@@ -2870,7 +2910,7 @@ mod tests {
         assert!(!initial.candidates.iter().any(|row| row.text == "🍎"));
         let options = session_options(session);
         assert!(!options.mixed_emoji);
-        assert!(!options.local_emoji);
+        assert!(options.local_emoji);
 
         let enabled = call_action(
             session,
@@ -2880,7 +2920,7 @@ mod tests {
         assert_eq!(enabled.local_mode, "none");
         let options = session_options(session);
         assert!(options.mixed_emoji);
-        assert!(!options.local_emoji);
+        assert!(options.local_emoji);
 
         let repeated = call_action(
             session,
@@ -2899,7 +2939,7 @@ mod tests {
             .any(|row| row.text == "🍎"));
         let options = session_options(session);
         assert!(!options.mixed_emoji);
-        assert!(!options.local_emoji);
+        assert!(options.local_emoji);
 
         let enabled_by_alias = call_action(
             session,
@@ -2911,7 +2951,7 @@ mod tests {
             .any(|row| row.text == "🍎"));
         let options = session_options(session);
         assert!(options.mixed_emoji);
-        assert!(!options.local_emoji);
+        assert!(options.local_emoji);
 
         owl_msime_session_destroy(session);
     }

@@ -224,6 +224,7 @@ extension OwlInputController {
       apply(.insertText(transformed), client: client)
       lastCommittedCharacter = transformed.last
     }
+    noteSmartPunctuationCommit(transformed)
     preedit = ""
     hidePalettes()
     MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.noteCommit() }
@@ -624,7 +625,7 @@ extension OwlInputController {
     client.bundleIdentifier() ?? (currentApp.isEmpty ? nil : currentApp)
   }
 
-  private func clientCapabilityDecisions(for client: IMKTextInput) -> OwlClientCapabilities {
+  func clientCapabilityDecisions(for client: IMKTextInput) -> OwlClientCapabilities {
     let bundleID = hostIdentity(for: client)
     return NSApp.owlAppDelegate.clientCapabilityPolicy.evaluate(
       OwlClientCapabilityInput(
