@@ -17,8 +17,8 @@
     "Public root/path validator exports used by the C ABI.",
     "Candidate emoji live toggle and cached-candidate view exposure.",
     "Custom shuangpin semicolon spelling precedence.",
-    "Wubi independent Z lookup switch, complete-spelling fallback and stable dedup/group order.",
-    "Wubi top-commit bypasses phrase holding; sentence alternatives enabled only for ordinary pinyin.",
+    "Wubi independent Z lookup switch and complete-spelling fallback; native mixed candidate code-row identity and group order.",
+    "Wubi follows native phrase holding and upstream sentence-alternative defaults, shared with ordinary pinyin.",
     "Host-loaded verified keyboard model handoff and live candidate refresh through existing neural lattice scorer; no synchronous model file read on the key path.",
     "Native host-context smart punctuation uses upstream route/repeat/space-convert decisions; C ABI transports JSON without changing candidate IDs.",
     "Owl enhancement boundary: quick_phrase_table_in_candidates defaults true upstream; Owl false requires explicit K plus a complete host trigger. Native database quick phrases retain ordinary placement and K prefix browsing; no native candidate algorithm change."

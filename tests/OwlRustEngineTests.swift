@@ -1742,8 +1742,9 @@ final class OwlRustEngineTests: XCTestCase {
     typeText("gggg", into: session)
     let mixedFirst = try XCTUnwrap(session.composition()?.candidates.first?.text)
     typeText("x", into: session)
-    XCTAssertEqual(session.takeCommit(), mixedFirst)
+    XCTAssertNil(session.takeCommit())
     XCTAssertEqual(session.input(), "x")
+    XCTAssertEqual(session.composition()?.preedit, mixedFirst + "x")
     session.clearComposition()
 
     // Upstream still tops in pure Wubi: the fifth letter cannot fit the four-code buffer.
@@ -1752,8 +1753,9 @@ final class OwlRustEngineTests: XCTestCase {
     typeText("gggg", into: session)
     let pureFirst = try XCTUnwrap(session.composition()?.candidates.first?.text)
     typeText("x", into: session)
-    XCTAssertEqual(session.takeCommit(), pureFirst)
+    XCTAssertNil(session.takeCommit())
     XCTAssertEqual(session.input(), "x")
+    XCTAssertEqual(session.composition()?.preedit, pureFirst + "x")
     session.clearComposition()
     typeText("aaab", into: session)
     XCTAssertFalse(session.process(keycode: asciiKeycode("x"), modifiers: 0))
@@ -1860,7 +1862,7 @@ final class OwlRustEngineTests: XCTestCase {
     session.clearComposition()
   }
 
-  func testMixedWubiExactPinyinCompletionsDedupAndSelectionIdentity() throws {
+  func testMixedWubiExactPinyinCodeRowsAndSelectionIdentity() throws {
     let origCandidateMode = OwlKeyboardPreferences.wubiCandidateMode
     let origCodeHint = OwlKeyboardPreferences.wubiCodeHint
     let origAutoClear = OwlKeyboardPreferences.wubiAutoClear
@@ -1927,16 +1929,14 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertTrue(session.selectCandidate(yaToken))
     XCTAssertEqual(session.takeCommit(), "讶")
 
-    // #251 AC 3: paging keeps a stable, unique candidate list and selection commits the
+    // Paging keeps the upstream code rows and selection commits the
     // candidate visible on the page that the user actually navigated to.
     typeText("shi", into: session)
     let candidates = visibleAndPeekedCandidates(in: session)
     XCTAssertGreaterThan(candidates.count, (session.composition()?.pageSize ?? 9))
-    XCTAssertEqual(
-      candidates.map(\.text).count,
-      Set(candidates.map(\.text)).count,
-      "shi candidates: \(candidates.map(\.text))"
-    )
+    // The official Wubi table keeps different code rows with the same text.
+    // Native MSIME displays both 椒 rows; removing one changes later visible selection.
+    XCTAssertEqual(Array(candidates.prefix(2).map(\.text)), ["椒", "椒"])
     XCTAssertTrue(session.changePage(up: false))
     let secondPage = try XCTUnwrap(session.composition())
     XCTAssertEqual(secondPage.pageNo, 1)
@@ -1994,20 +1994,17 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.input(), "n")
     session.clearComposition()
 
-    // An ambiguous four-code stays open. A non-continuing fifth key commits its first
-    // visible candidate and starts the next code with that key.
+    // An ambiguous four-code stays open. Native phrase_preedit holds its first
+    // candidate before the next code; it is not committed to the client yet.
     typeText("aaaa", into: session)
     XCTAssertNil(session.takeCommit())
     let ambiguous = try XCTUnwrap(session.composition())
     XCTAssertGreaterThan(ambiguous.candidates.count, 1)
     let firstAmbiguous = try XCTUnwrap(ambiguous.candidates.first?.text)
     typeText("x", into: session)
-    XCTAssertEqual(
-      session.takeCommit(),
-      firstAmbiguous,
-      "four-code candidates: \(ambiguous.candidates.map(\.text)), input: \(session.input() ?? "nil")"
-    )
+    XCTAssertNil(session.takeCommit())
     XCTAssertEqual(session.input(), "x")
+    XCTAssertEqual(session.composition()?.preedit, firstAmbiguous + "x")
     session.clearComposition()
 
     // Backspace restores a shorter code and keeps its candidate list live.
