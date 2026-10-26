@@ -68,7 +68,7 @@ class AcquisitionTests(unittest.TestCase):
             root = Path(tmp)
             staged, output = root/'staged', root/'product'
             staged.mkdir(); output.mkdir()
-            names = ('msime-pinyin.db', 'msime-english.db', 'new-sidecar',
+            names = ('msime-pinyin.db', 'msime-wubi.db', 'msime-english.db', 'new-sidecar',
                      'msime-dictionary-manifest.json', 'OWLTYPE-UPSTREAM-RESOURCES.json')
             old = {name:('old '+name).encode() for name in names if name != 'new-sidecar'}
             for name, payload in old.items(): (output/name).write_bytes(payload)
@@ -82,24 +82,36 @@ class AcquisitionTests(unittest.TestCase):
                 resources.publish_set(staged, output, names)
             self.assertEqual({p.name:p.read_bytes() for p in output.iterdir()}, old)
 
-    def test_wubi_overlay_preserves_all_upstream_pinyin_rows(self):
+    def test_product_keeps_official_split_wubi_and_pinyin_bytes(self):
         import sqlite3
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            upstream, owl, output = root/'official.db', root/'owl.db', root/'product.db'
-            with sqlite3.connect(upstream) as db:
+            cache, output = root/'cache', root/'product'
+            cache.mkdir(); output.mkdir()
+            with sqlite3.connect(cache/'msime-pinyin.db') as db:
                 db.execute('CREATE TABLE pinyin (word TEXT, weight INTEGER)')
-                db.executemany('INSERT INTO pinyin VALUES (?, ?)', [('他的房间', 73), ('她的房间', 71)])
-                db.execute('CREATE TABLE other_sidecar (value TEXT)')
-                db.execute("INSERT INTO other_sidecar VALUES ('retained')")
-            with sqlite3.connect(owl) as db:
-                for table in resources.WUBI_TABLES:
-                    db.execute(f'CREATE TABLE {table} (value TEXT)')
-                    db.execute(f"INSERT INTO {table} VALUES ('Owl Wubi')")
-            resources.overlay_wubi(upstream, owl, output)
-            with sqlite3.connect(output) as db:
-                self.assertEqual(db.execute('SELECT * FROM pinyin').fetchall(), [('他的房间',73), ('她的房间',71)])
-                self.assertEqual(db.execute('SELECT * FROM other_sidecar').fetchall(), [('retained',)])
-                self.assertEqual(db.execute('SELECT * FROM wubi86').fetchall(), [('Owl Wubi',)])
+                db.execute("INSERT INTO pinyin VALUES ('他的房间', 73)")
+            with sqlite3.connect(cache/'msime-wubi.db') as db:
+                for table in ('wubi86', 'wubi98'):
+                    db.execute(f'CREATE TABLE {table} (key TEXT, value TEXT, weight INTEGER)')
+                    db.executemany(f'INSERT INTO {table} VALUES (?, ?, ?)',
+                                   [('a', '工', 20), ('a', '戈', 10), ('aaaa', '劳斯莱斯', 9)])
+            # A previous product has an Owl overlay. Official publication replaces it,
+            # preserving the original upstream pinyin file and row-order-sensitive Wubi.
+            (output/'msime-pinyin.db').write_bytes(b'old Owl overlay')
+            for name in ('msime-english.db', 'msime-bigram.bin', 'msime-trigram.bin', 'msime-scowl_Copyright.txt'):
+                (cache/name).write_bytes(('official '+name).encode())
+            manifest = {'source': {'commit':'fixed-builder'}, 'custom_dictionary_commit':'fixed-data',
+                        'files':{p.name:{'size':p.stat().st_size,'sha256':resources.digest(p)} for p in cache.iterdir()}}
+            manifest_path = root/'manifest.json'
+            manifest_path.write_text(json.dumps(manifest))
+            resources.publish_product(cache, output, manifest, manifest_path)
+            for name in ('msime-pinyin.db', 'msime-wubi.db'):
+                self.assertEqual((output/name).read_bytes(), (cache/name).read_bytes())
+            with sqlite3.connect(output/'msime-wubi.db') as db:
+                self.assertEqual(db.execute('SELECT value FROM wubi86 ORDER BY rowid').fetchall(),
+                                 [('工',), ('戈',), ('劳斯莱斯',)])
+            record=json.loads((output/'OWLTYPE-UPSTREAM-RESOURCES.json').read_text())
+            self.assertEqual(record['files']['msime-wubi.db']['sha256'], manifest['files']['msime-wubi.db']['sha256'])
 
 if __name__ == '__main__': unittest.main()
