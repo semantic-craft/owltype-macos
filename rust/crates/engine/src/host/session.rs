@@ -421,6 +421,14 @@ impl Session {
         self.inner.set_wubi_z_pinyin_lookup(enabled);
     }
 
+    pub fn set_quick_phrase_candidates(&mut self, enabled: bool) {
+        self.inner.set_quick_phrase_candidates(enabled);
+    }
+
+    pub fn quick_phrase_candidates_enabled(&self) -> bool {
+        self.inner.quick_phrase_candidates_enabled()
+    }
+
     pub fn set_mixed_emoji_candidates(&mut self, enabled: bool) {
         self.inner.set_mixed_emoji_candidates(enabled);
     }

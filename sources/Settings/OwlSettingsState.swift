@@ -235,6 +235,7 @@ final class OwlSettingsState {
   var skin: OwlSkin = .deepred
   /// 在候选中显示 emoji (mirror of `OwlEmojiPreferences.candidateEmojiEnabled`). Default true（上游 macOS 默认）.
   var candidateEmojiEnabled: Bool = true
+  var pinyinQuickPhraseCandidates: Bool = false
   /// Cloud AI enable — 全部划词技能的总闸 (mirror of `OwlCloudPreferences.isEnabled`).
   var cloudEnabled: Bool = false
   /// DeepSeek model id (mirror of `OwlCloudPreferences.deepSeekModel`).

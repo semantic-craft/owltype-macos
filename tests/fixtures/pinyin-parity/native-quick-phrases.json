@@ -1,0 +1,205 @@
+{
+  "description": "Seven official quick-phrase codes (eight rows) against untouched native macOS 0.55 fresh preferences; English and emoji rows also count toward visible first-page geometry.",
+  "events": [
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "d"
+    },
+    {
+      "op": "character",
+      "value": "d"
+    },
+    {
+      "op": "character",
+      "value": "r"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "previous-page"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "p"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "e"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "previous-page"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "s"
+    },
+    {
+      "op": "character",
+      "value": "c"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "character",
+      "value": "l"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "previous-page"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "x"
+    },
+    {
+      "op": "character",
+      "value": "x"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "previous-page"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "s"
+    },
+    {
+      "op": "character",
+      "value": "d"
+    },
+    {
+      "op": "character",
+      "value": "d"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "previous-page"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "y"
+    },
+    {
+      "op": "character",
+      "value": "y"
+    },
+    {
+      "op": "character",
+      "value": "d"
+    },
+    {
+      "op": "character",
+      "value": "s"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "previous-page"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "m"
+    },
+    {
+      "op": "character",
+      "value": "m"
+    },
+    {
+      "op": "character",
+      "value": "m"
+    },
+    {
+      "op": "character",
+      "value": "m"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "previous-page"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    }
+  ]
+}

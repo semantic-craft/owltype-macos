@@ -368,6 +368,15 @@ impl Runtime<Session> {
         self.refresh()
     }
 
+    pub fn set_quick_phrase_candidates(&mut self, enabled: bool) -> Result<(), RuntimeError> {
+        if self.engine.quick_phrase_candidates_enabled() == enabled {
+            return Ok(());
+        }
+        self.advance()?;
+        self.engine.set_quick_phrase_candidates(enabled);
+        self.refresh()
+    }
+
     pub fn set_mixed_emoji_candidates(&mut self, enabled: bool) -> Result<(), RuntimeError> {
         if self.engine.mixed_emoji_candidates_enabled() == enabled {
             return Ok(());

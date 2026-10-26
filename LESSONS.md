@@ -757,6 +757,22 @@ review dates, not retries. Keep deterministic checks in the local gate.
   The legacy builder retains its own merged contract. Bare Xcode test hosts have
   no full SharedSupport payload; offline production-factory tests explicitly
   supply the pinned seed, without treating that fixture omission as product proof.
+### Native capabilities and fresh preferences are different controls
+
+- Seen 1x (2026-10-26): the native macOS `quick_phrase_candidates` capability is
+  true, but pinned 0.55 `MixedInputPreferences::default()` sets `quick_phrase`
+  false. Treating capability as preference hard-enabled ordinary dictionary
+  phrases; all seven official codes produced 14 candidate-order differences.
+- Keep the fresh pinyin default OFF and expose the actual preference; explicit ON
+  follows the pinned pre-mixing insertion/counting rules. Wubi keeps #307's
+  post-mixing visible-seat policy. Neither disables K browsing or Owl's explicit
+  AI/template entry. A live toggle queues until the native runtime is idle, preserving the current
+  raw composition and IDs; the next composition applies the preference.
+- Verify: replay `native-quick-phrases.json` and `native-quick-phrases-on.json`
+  against native-mac-host. The ON corpus selects all eight official rows and
+  requires deduplication of the existing dictionary `yyds` row. Keep all six
+  earlier corpora, Wubi regressions and the normal gates; do not waive an ON
+  mismatch with the OFF group. See `testNativeQuickPhrasePreferencePreservesLiveComposition`.
 
 ## Delivery and acquisition share the licensed resource contract
 

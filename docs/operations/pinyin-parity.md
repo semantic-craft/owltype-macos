@@ -30,12 +30,13 @@ effective options; the comparator applies the same strict fields to both.
 The Owl test starts with empty isolated preferences and sets only the same page
 size (upstream default 6) and full-pinyin schema. It records persisted preferences
 and effective rerank configuration. Rust options remain source-bound by a fresh
-build. Ordinary pinyin and mixed Wubi use pinned 0.55.0 engine/runtime and official
-resources. Wubi preserves upstream sentence alternatives, distinct code rows,
-and native phrase-preedit selection semantics. Native quick-phrase candidates are
-enabled without Owl's former blanket promotion. The earlier bare-API conclusion
-that ordinary quick phrases should be disabled was corrected from the macOS
-session-options source. Owl AI/template invocation is a separate host feature.
+build. Ordinary pinyin uses pinned 0.55.0 engine/runtime and official resources;
+Wubi uses the pinned native sentence-alternative, distinct-code-row and phrase-preedit selection semantics. Native macOS exposes quick-phrase
+capability, but the pinned fresh-install `preferences.mixed_input.quick_phrase`
+default is false. These are separate controls: pinyin defaults OFF, explicit ON
+uses the complete upstream insertion/ranking path, and K browsing stays available.
+The Owl setting “拼音候选中显示快捷短语” controls this preference; Wubi retains #307's
+post-mixing placement. Owl AI/template invocation is a separate host feature.
 Model switches default off on both.
 
 ## Run
@@ -264,3 +265,18 @@ uses the real production backend with an explicit offline seed. The existing
 `testGenerationSwitchRollbackColdStartAndJournalReplayKeepUserState` checks both
 profile-specific code candidates and learning across the shared update, recovery
 and rollback transactions; no additional downloader or failure matrix is used.
+## Native quick phrases and batched replay
+
+`native-quick-phrases.json` covers all seven official codes (eight rows) with
+untouched fresh native preferences. `native-quick-phrases-on.json` explicitly
+turns `mixed_input.quick_phrase` on, selects every official row through its visible
+identity, checks paging and deduplication, then queues the preference during an active composition and applies it after
+the composition becomes idle, matching the native host preference contract. The `yyds` row already exists in the dictionary and must not
+appear twice. The reference capability remains enabled in both groups.
+
+Repeat `--trace` to replay several corpora with one fresh owned build. Every
+corpus still receives separate empty preferences/learning roots; learning restart
+phases retain only their own root. Batch comparison receipts are written under
+`--output/<trace-stem>/` only after the shared build's cleanup succeeds. A semantic
+difference does not skip later corpora; a build/replay/cleanup failure remains
+incomplete evidence. Source identity must remain unchanged throughout the batch.
