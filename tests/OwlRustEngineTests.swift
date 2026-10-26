@@ -356,6 +356,62 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertFalse(unlisted)
   }
 
+  func testShuangpinSemicolonSpellingPrecedesCandidateShortcut() throws {
+    let original = OwlKeyboardPreferences.select23Semicolon
+    defer { OwlKeyboardPreferences.select23Semicolon = original }
+    let engine = try makeSharedSupportSeedEngine()
+    let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
+    defer { session.destroy() }
+    for shortcut in [false, true] {
+      OwlKeyboardPreferences.select23Semicolon = shortcut
+      for schema in ["double_pinyin_sogou", "double_pinyin_ziguang"] {
+        session.clearComposition()
+        XCTAssertTrue(session.selectSchema(schema))
+        typeText("y;", into: session)
+        XCTAssertNil(session.takeCommit(), "\(schema), shortcut=\(shortcut)")
+        XCTAssertEqual(session.composition()?.preedit, "y;")
+        XCTAssertFalse(session.composition()?.candidates.isEmpty ?? true)
+        // Backspace must restore the semicolon as a spelling key.
+        XCTAssertTrue(session.process(keycode: UInt32(XK_BackSpace), modifiers: 0))
+        XCTAssertEqual(session.composition()?.preedit, "y")
+        typeText(";", into: session)
+        let visible = try XCTUnwrap(session.composition()?.candidates.first?.text)
+        XCTAssertTrue(session.process(keycode: UInt32(XK_space), modifiers: 0))
+        XCTAssertEqual(session.takeCommit(), visible)
+      }
+    }
+  }
+
+  func testActivatedDictionaryKeepsBundledEmojiCandidates() throws {
+    let seed = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+      .deletingLastPathComponent().appendingPathComponent("data/owl-rime")
+    let temporary = FileManager.default.temporaryDirectory
+      .appendingPathComponent("owl-emoji-generation-\(UUID().uuidString)")
+    let resources = temporary.appendingPathComponent("generation")
+    try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: temporary) }
+    for name in ["msime-pinyin.db", "msime-english.db"] {
+      try FileManager.default.copyItem(
+        at: seed.appendingPathComponent("msime/" + name),
+        to: resources.appendingPathComponent(name)
+      )
+    }
+    // An already activated 2.1.0 generation has no auxiliary DB. No redownload or
+    // mutation of that immutable generation should be necessary after upgrading.
+    let generation = OwlRustResourceGeneration(resourcesURL: resources, contentID: "emoji-regression")
+    let engine = OwlRustEngine(
+      sharedSupportURL: seed, userDataURL: temporary.appendingPathComponent("user"),
+      activeGenerationProvider: { generation }
+    )
+    let session = engine.createSession()
+    defer { session.destroy() }
+    session.setOption(.emojiSuggestion, true)
+    typeText("pingguo", into: session)
+    let candidates = session.peekCandidates(from: 0, count: 100)
+    XCTAssertTrue(candidates.contains { $0.text == "🍎" || $0.text == "🍏" })
+    XCTAssertFalse(FileManager.default.fileExists(atPath: resources.appendingPathComponent("msime-others.db").path))
+  }
+
   func testRustSessionSelectsCustomShuangpinProfilesAndRejectsUnknownSchema() throws {
     let engine = try makeSharedSupportSeedEngine()
     let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)

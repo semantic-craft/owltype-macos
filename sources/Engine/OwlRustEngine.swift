@@ -440,6 +440,10 @@ final class OwlRustSession: RimeSession {
     let hasActiveInput = !(latestSnapshot?.rawInput.isEmpty ?? true)
     syncRuntimePreferences(includeHostPhrases: false)
 
+    if keycode == UInt32(XK_semicolon), latestSnapshot?.spellingSymbols.contains(";") == true {
+      return applyActionResponse(sendAction(["op": "insert", "ch": ";"]))
+    }
+
     if let action = localModeInsertionAction(for: keycode) {
       return applyActionResponse(sendAction(action))
     }
@@ -1188,19 +1192,23 @@ final class OwlRustEngine: RimeEngine {
 
     var creationError: UnsafeMutablePointer<CChar>?
     let handle: OpaquePointer?
-    if let generation {
-      handle = generation.resourcesURL.path.withCString { resourcesCStr in
-        userDir.withCString { userCStr in
-          cacheDir.withCString { cacheCStr in
-            generation.contentID.withCString { contentIDCStr in
-              owl_msime_session_create_with_generation(
-                resourcesCStr,
-                userCStr,
-                cacheCStr,
-                contentIDCStr,
-                pageSize,
-                &creationError
-              )
+    if let generation, let sharedRoot = sharedSupportURL ?? Bundle.main.sharedSupportURL {
+      let auxiliaryResources = sharedRoot.appendingPathComponent("msime", isDirectory: true)
+      handle = auxiliaryResources.path.withCString { auxiliaryCStr in
+        generation.resourcesURL.path.withCString { resourcesCStr in
+          userDir.withCString { userCStr in
+            cacheDir.withCString { cacheCStr in
+              generation.contentID.withCString { contentIDCStr in
+                owl_msime_session_create_with_auxiliary_resources(
+                  resourcesCStr,
+                  auxiliaryCStr,
+                  userCStr,
+                  cacheCStr,
+                  contentIDCStr,
+                  pageSize,
+                  &creationError
+                )
+              }
             }
           }
         }

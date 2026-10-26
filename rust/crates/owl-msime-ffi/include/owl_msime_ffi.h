@@ -120,6 +120,22 @@ OwlMsimeSession *owl_msime_session_create_with_generation(
     char **error_out
 );
 
+/* Same generation lifecycle, with a separate immutable auxiliary catalog root.
+ * resources_dir supplies the main/English dictionaries to stage and replay.
+ * auxiliary_resources_dir supplies bundled catalogs (including msime-others.db),
+ * is never written, and must not overlap writable roots. Existing generations
+ * need not be rebuilt when the application supplies updated auxiliary catalogs.
+ */
+OwlMsimeSession *owl_msime_session_create_with_auxiliary_resources(
+    const char *resources_dir,
+    const char *auxiliary_resources_dir,
+    const char *user_data_dir,
+    const char *cache_dir,
+    const char *content_id,
+    uint32_t page_size,
+    char **error_out
+);
+
 void owl_msime_session_destroy(OwlMsimeSession *session);
 
 /*
