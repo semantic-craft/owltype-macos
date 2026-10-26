@@ -14,6 +14,84 @@ import XCTest
 
 final class OwlRustEngineTests: XCTestCase {
 
+  // Opt-in transport for scripts/pinyin-parity.py. Uses the same public host seam as IMK;
+  // all preferences and learning state are isolated from the installed input method.
+  func testExportPinyinParityTrace() throws {
+    let environment = ProcessInfo.processInfo.environment
+    guard let requestPath = environment["OWL_PINYIN_PARITY_REQUEST"],
+          let outputPath = environment["OWL_PINYIN_PARITY_OUTPUT"] else {
+      throw XCTSkip("Run scripts/pinyin-parity.py with a current .xctestrun to export a trace")
+    }
+    let request = try XCTUnwrap(JSONSerialization.jsonObject(
+      with: Data(contentsOf: URL(fileURLWithPath: requestPath))) as? [String: Any])
+    let events = try XCTUnwrap(request["events"] as? [[String: Any]])
+    let resources = URL(fileURLWithPath: try XCTUnwrap(request["resources"] as? String))
+    let defaults = OwlDefaults.standard
+    XCTAssertTrue(OwlDefaults.isRunningUnitTests)
+    let saved = defaults.persistentDomain(forName: OwlDefaults.testSuiteName)
+    defaults.removePersistentDomain(forName: OwlDefaults.testSuiteName)
+    defer {
+      defaults.removePersistentDomain(forName: OwlDefaults.testSuiteName)
+      if let saved { defaults.setPersistentDomain(saved, forName: OwlDefaults.testSuiteName) }
+    }
+    OwlKeyboardPreferences.pageSize = try XCTUnwrap(request["page_size"] as? Int)
+    let temporary = FileManager.default.temporaryDirectory
+      .appendingPathComponent("owl-pinyin-parity-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: temporary) }
+    let engine = OwlRustEngine(sharedSupportURL: resources, userDataURL: temporary,
+                               activeGenerationProvider: { nil })
+    let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
+    defer { session.destroy() }
+    XCTAssertTrue(session.selectSchema("rime_ice"))
+    let commands: [String: UInt32] = [
+      "backspace": 0xff08, "commit": 0x20, "cancel": 0xff1b,
+      "left": 0xff51, "right": 0xff53, "home": 0xff50, "end": 0xff57,
+      "delete": 0xffff, "next-page": 0xff56, "previous-page": 0xff55
+    ]
+    var steps: [[String: Any]] = []
+    for event in events {
+      let op = try XCTUnwrap(event["op"] as? String)
+      let consumed: Bool
+      switch op {
+      case "character":
+        let value = try XCTUnwrap(event["value"] as? String)
+        let scalar = try XCTUnwrap(value.unicodeScalars.first)
+        XCTAssertEqual(value.utf8.count, 1)
+        consumed = session.process(keycode: scalar.value, modifiers: 0)
+      case "command":
+        let value = try XCTUnwrap(event["value"] as? String)
+        consumed = session.process(keycode: try XCTUnwrap(commands[value]), modifiers: 0)
+      case "select":
+        let index = try XCTUnwrap(event["index"] as? Int)
+        let visible = try XCTUnwrap(session.composition())
+        XCTAssertTrue(visible.candidates.indices.contains(index))
+        consumed = session.selectCandidate(index)
+      default:
+        XCTFail("Unsupported parity event: \(op)")
+        return
+      }
+      let composition = try XCTUnwrap(session.composition())
+      steps.append([
+        "event": event, "consumed": consumed, "input": session.input() ?? "",
+        "preedit": composition.preedit, "caret": session.caretPos(),
+        "page": composition.pageNo, "page_size": composition.pageSize,
+        "has_more": !composition.isLastPage, "highlighted": composition.highlightedIndex,
+        "candidates": composition.candidates.map(\.text),
+        "commit": session.takeCommit() as Any? ?? NSNull()
+      ])
+    }
+    let result: [String: Any] = [
+      "run_id": try XCTUnwrap(request["run_id"] as? String),
+      "steps": steps,
+      "preferences": defaults.persistentDomain(forName: OwlDefaults.testSuiteName) ?? [:],
+      "configuration": ["schema": "rime_ice", "page_size": OwlKeyboardPreferences.pageSize,
+                        "rerank": OwlRerankConfiguration.current(sharedSupportURL: resources).serialized() ?? ""]
+    ]
+    try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
+      .write(to: URL(fileURLWithPath: outputPath), options: .atomic)
+  }
+
   private func makeSharedSupportSeedEngine() throws -> OwlRustEngine {
     let repoRoot = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
