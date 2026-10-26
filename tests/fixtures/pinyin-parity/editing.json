@@ -1,0 +1,152 @@
+{
+  "events": [
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "i"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "character",
+      "value": "w"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "select",
+      "index": 4
+    },
+    {
+      "op": "character",
+      "value": "m"
+    },
+    {
+      "op": "character",
+      "value": "e"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "command",
+      "value": "backspace"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "command",
+      "value": "commit"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "i"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "command",
+      "value": "home"
+    },
+    {
+      "op": "command",
+      "value": "right"
+    },
+    {
+      "op": "command",
+      "value": "delete"
+    },
+    {
+      "op": "command",
+      "value": "end"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "command",
+      "value": "backspace"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "i"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "character",
+      "value": "w"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "select",
+      "index": 4
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    }
+  ]
+}

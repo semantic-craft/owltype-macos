@@ -505,3 +505,23 @@ review dates, not retries. Keep deterministic checks in the local gate.
   and the existing fuzzy/typo/English tests check the Swift session seam. The pinned
   engine treats legal `nihaao` literally; the former fixture's forced 你好 result
   must not be restored by another local correction policy.
+
+## Native host capabilities belong in parity evidence
+
+- Seen 1x (2026-10-26): the strict room trace exposed two boundary-page consumed
+  differences. Both adapter layers filtered upstream `handled` through page
+  movement, allowing composition-owned page keys to reach the document at an edge.
+  Preserve `handled`; `testPaginationAndHighlightNavigation` fails at both boundary
+  assertions before the fix and passes afterwards; the 75-event trace is equal.
+- A new partial-selection trace also exposed a harness omission: bare
+  `prepare_host` does not request macOS `MSIMESessionOptions` capabilities. The
+  native profile now records the pinned three boolean overrides and joins
+  `phrase_prefix` with `preedit` for native marked text, retaining raw views.
+  Preserve `phrase_preedit`; do not remove held selections to fit a bare API trace.
+- The same trace caught Left/Right always selecting candidates even at the first
+  candidate with an unfinished caret, and Delete being dispatched as Backspace.
+  Use the pinned macOS first-candidate/caret rule and `DeleteForward`. The parity
+  transport also sends Return for `CommitRaw`, rather than Space selection.
+- Verify: replay `editing.json` and `tadefangjian.json` against the pinned native
+  host profile; the original raw profile remains explicitly reproducible. These
+  checks prove the public session/marked-context contract, not installed IMK delivery.

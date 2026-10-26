@@ -45,7 +45,7 @@ final class OwlRustEngineTests: XCTestCase {
     defer { session.destroy() }
     XCTAssertTrue(session.selectSchema("rime_ice"))
     let commands: [String: UInt32] = [
-      "backspace": 0xff08, "commit": 0x20, "cancel": 0xff1b,
+      "backspace": 0xff08, "commit": 0xff0d, "cancel": 0xff1b,
       "left": 0xff51, "right": 0xff53, "home": 0xff50, "end": 0xff57,
       "delete": 0xffff, "next-page": 0xff56, "previous-page": 0xff55
     ]
@@ -993,6 +993,12 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(page0.pageNo, 0)
     XCTAssertEqual(page0.highlightedIndex, 0)
 
+    // The pinned host consumes paging while composition is active even when
+    // already at a boundary; passing it through would scroll the host document.
+    XCTAssertTrue(session.process(keycode: UInt32(XK_Page_Up), modifiers: 0))
+    XCTAssertEqual(session.composition()?.pageNo, 0)
+    XCTAssertEqual(session.composition()?.candidates.map(\.text), page0.candidates.map(\.text))
+
     // Down arrow moves highlight within current page.
     XCTAssertTrue(session.process(keycode: UInt32(XK_Down), modifiers: 0))
     let afterDown = try XCTUnwrap(session.composition())
@@ -1007,6 +1013,15 @@ final class OwlRustEngineTests: XCTestCase {
       let backTo0 = try XCTUnwrap(session.composition())
       XCTAssertEqual(backTo0.pageNo, 0)
     }
+    while session.composition()?.isLastPage == false {
+      XCTAssertTrue(session.changePage(up: false))
+    }
+    let lastPage = try XCTUnwrap(session.composition())
+    XCTAssertTrue(session.process(keycode: UInt32(XK_Page_Down), modifiers: 0))
+    XCTAssertEqual(session.composition()?.pageNo, lastPage.pageNo)
+    XCTAssertEqual(session.composition()?.candidates.map(\.text), lastPage.candidates.map(\.text))
+    XCTAssertNil(session.takeCommit())
+    XCTAssertEqual(session.input(), "shi")
   }
 
   func testShiftToggleSwitchesASCIIModeAndCommitsInFlightComposition() throws {
