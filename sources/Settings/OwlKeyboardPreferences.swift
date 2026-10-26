@@ -105,6 +105,8 @@ enum OwlDoublePinyin: String, CaseIterable, Sendable {
   case flypy
   /// 微软双拼 — rime-ice `schema_id`: `double_pinyin_mspy`.
   case mspy
+  /// 手心双拼 — pinned upstream built-in profile.
+  case shoudao
   /// 自然码双拼 — rime-ice `schema_id`: `double_pinyin` (the base double-pinyin schema).
   case ziranma
   /// 搜狗双拼 — rime-ice `schema_id`: `double_pinyin_sogou`.
@@ -121,6 +123,7 @@ enum OwlDoublePinyin: String, CaseIterable, Sendable {
     switch self {
     case .flypy: return "小鹤双拼"
     case .mspy: return "微软双拼"
+    case .shoudao: return "手心双拼"
     case .ziranma: return "自然码双拼"
     case .sogou: return "搜狗双拼"
     case .abc: return "智能ABC双拼"
@@ -135,6 +138,7 @@ enum OwlDoublePinyin: String, CaseIterable, Sendable {
     switch self {
     case .flypy: return "double_pinyin_flypy"
     case .mspy: return "double_pinyin_mspy"
+    case .shoudao: return "double_pinyin_shoudao"
     case .ziranma: return "double_pinyin"
     case .sogou: return "double_pinyin_sogou"
     case .abc: return "double_pinyin_abc"
