@@ -819,3 +819,14 @@ review dates, not retries. Keep deterministic checks in the local gate.
   positive/negative public-row cases and unchanged generic-key/container checks,
   then `scripts/check-secrets.sh --artifacts` on the actual built App. Keep only
   hashes, classification, source identity and redacted scanner decisions as evidence.
+
+## Progress snapshots must paginate PR commits as well as files
+
+- Seen 1x (2026-10-26): PR #309 reached141 commits; its files fit one page, but
+  the old commits(last:100) query correctly failed closed and could not refresh.
+- Read both connections completely, validating counts, unique rows and advancing
+  cursors. Fence every page and the final read with the same PR head and base.
+  Other bounded connections still reject truncation before writing any page.
+- Verify (验证点): `scripts/progress-sync.selftest.py` covers141 commits/151 files,
+  head/base drift, empty/error/duplicate pages and cursor failures; it runs in the
+  existing portable_scripts gate. A rejected snapshot preserves prior output.

@@ -14,6 +14,82 @@ GROUPS = {'pinyin': list(range(281, 294)), 'wubi': list(range(295, 305))}
 def run(*args):
     return subprocess.check_output(args, cwd=ROOT, text=True)
 
+def checked_pr_node(pr, query):
+    page = json.loads(run('gh', 'api', 'graphql', '-f', 'query='+query))
+    node = (page.get('data') or {}).get('node')
+    if page.get('errors') or not node or node.get('id') != pr['id']:
+        raise RuntimeError('PR page failed; prior snapshot preserved')
+    for ref in ('headRefOid', 'baseRefOid'):
+        if node.get(ref) != pr[ref]:
+            raise RuntimeError(f'PR {ref} changed during pagination; prior snapshot preserved')
+    return node
+
+
+def paginate_pull_request(pr):
+    # Both connections have stable forward cursors. Never publish a truncated PR.
+    for name, fields in [('files', 'path'), ('commits', 'commit{oid committedDate}')]:
+        connection = pr[name]
+        expected = connection['totalCount']
+        seen = set()
+        while connection['pageInfo']['hasNextPage']:
+            cursor = connection['pageInfo']['endCursor']
+            if not connection['nodes'] or not cursor or cursor in seen:
+                raise RuntimeError(f'Invalid PR {name} pagination cursor or empty page')
+            seen.add(cursor)
+            query = ('{node(id:'+json.dumps(pr['id'])+'){... on PullRequest{id headRefOid baseRefOid '
+                     +name+'(first:100,after:'+json.dumps(cursor)+'){totalCount nodes{'
+                     +fields+'} pageInfo{hasNextPage endCursor}}}}}')
+            following = checked_pr_node(pr, query)[name]
+            next_cursor = following['pageInfo']['endCursor']
+            if (not following['nodes'] or not next_cursor or next_cursor in seen
+                    or following['totalCount'] != expected
+                    or len(connection['nodes']) + len(following['nodes']) > expected):
+                raise RuntimeError(f'Invalid PR {name} page; prior snapshot preserved')
+            connection['nodes'].extend(following['nodes'])
+            connection['pageInfo'] = following['pageInfo']
+        identities = [row['path'] if name == 'files' else row['commit']['oid']
+                      for row in connection['nodes']]
+        if len(identities) != expected or len(set(identities)) != expected:
+            raise RuntimeError(f'Incomplete or duplicate PR {name}; prior snapshot preserved')
+    # Also fence single-page PRs and changes after the last connection page.
+    checked_pr_node(pr, '{node(id:'+json.dumps(pr['id'])
+                    +'){... on PullRequest{id headRefOid baseRefOid}}}')
+
+
+def fetch_snapshot(numbers):
+    fields = """number title url body state stateReason updatedAt
+      assignees(first:100) {nodes {login} pageInfo {hasNextPage}}
+      labels(first:100) {nodes {name} pageInfo {hasNextPage}}
+      comments(first:100) {nodes {databaseId body createdAt author {login}} pageInfo {hasNextPage}}
+      parent {number}
+      blockedBy(first:100) {nodes {number state} pageInfo {hasNextPage}}
+      subIssues(first:100) {nodes {number} pageInfo {hasNextPage}}"""
+    issue_query = ' '.join(f'i{n}:issue(number:{n}) {{{fields}}}' for n in numbers)
+    query = '{repository(owner:"semantic-craft",name:"owltype-macos"){defaultBranchRef{name target{oid}} '+issue_query+"""
+      pullRequests(first:100,states:OPEN) {nodes {id number title url body state updatedAt headRefOid baseRefOid mergedAt
+        labels(first:100){nodes{name} pageInfo{hasNextPage}}
+        comments(first:100){nodes{databaseId body createdAt author{login}} pageInfo{hasNextPage}}
+        files(first:100){totalCount nodes{path} pageInfo{hasNextPage endCursor}}
+        commits(first:100){totalCount nodes{commit{oid committedDate}} pageInfo{hasNextPage endCursor}}
+      } pageInfo{hasNextPage}}
+      releases(first:10,orderBy:{field:CREATED_AT,direction:DESC}){nodes{databaseId tagName isDraft isPrerelease publishedAt}}
+    }}"""
+    result = json.loads(run('gh','api','graphql','-f','query='+query))
+    if result.get('errors'):
+        raise RuntimeError('GraphQL snapshot failed; prior page preserved')
+    remote = result['data']['repository']
+    for pr in remote['pullRequests']['nodes']:
+        paginate_pull_request(pr)
+    def complete(value, location="repository"):
+        if isinstance(value, dict):
+            if value.get('hasNextPage') or value.get('hasPreviousPage'):
+                raise RuntimeError(f'Snapshot exceeds bounded query at {location}; paginate before publishing')
+            for key, child in value.items(): complete(child, location+"."+key)
+        elif isinstance(value,list):
+            for index, child in enumerate(value): complete(child, location+"."+str(index))
+    complete(remote)
+    return remote
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--teslahub', type=Path, help='Existing TeslaHub checkout with board/cli.mjs')
@@ -24,51 +100,7 @@ def main():
     config_path = ROOT / 'progress/progress.json'
     config = json.loads(config_path.read_text())
     numbers = [280, 294] + sum(GROUPS.values(), [])
-    fields = """number title url body state stateReason updatedAt
-      assignees(first:100) {nodes {login} pageInfo {hasNextPage}}
-      labels(first:100) {nodes {name} pageInfo {hasNextPage}}
-      comments(first:100) {nodes {databaseId body createdAt author {login}} pageInfo {hasNextPage}}
-      parent {number}
-      blockedBy(first:100) {nodes {number state} pageInfo {hasNextPage}}
-      subIssues(first:100) {nodes {number} pageInfo {hasNextPage}}"""
-    issue_query = ' '.join(f'i{n}:issue(number:{n}) {{{fields}}}' for n in numbers)
-    query = '{repository(owner:"semantic-craft",name:"owltype-macos"){defaultBranchRef{name target{oid}} '+issue_query+"""
-      pullRequests(first:100,states:OPEN) {nodes {id number title url body state updatedAt headRefOid mergedAt
-        labels(first:100){nodes{name} pageInfo{hasNextPage}}
-        comments(first:100){nodes{databaseId body createdAt author{login}} pageInfo{hasNextPage}}
-        files(first:100){nodes{path} pageInfo{hasNextPage endCursor}}
-        commits(last:100){nodes{commit{committedDate}} pageInfo{hasPreviousPage}}
-      } pageInfo{hasNextPage}}
-      releases(first:10,orderBy:{field:CREATED_AT,direction:DESC}){nodes{databaseId tagName isDraft isPrerelease publishedAt}}
-    }}"""
-    result = json.loads(run('gh','api','graphql','-f','query='+query))
-    if result.get('errors'):
-        raise RuntimeError('GraphQL snapshot failed; prior page preserved')
-    remote = result['data']['repository']
-    # Large integration PRs exceed one file page; never omit later paths.
-    for pr in remote['pullRequests']['nodes']:
-        connection = pr['files']
-        seen = set()
-        while connection['pageInfo']['hasNextPage']:
-            cursor = connection['pageInfo']['endCursor']
-            if not cursor or cursor in seen:
-                raise RuntimeError('Invalid PR file pagination cursor')
-            seen.add(cursor)
-            query = '{node(id:'+json.dumps(pr['id'])+'){... on PullRequest{files(first:100,after:'+json.dumps(cursor)+'){nodes{path} pageInfo{hasNextPage endCursor}}}}}'
-            page = json.loads(run('gh','api','graphql','-f','query='+query))
-            if page.get('errors'):
-                raise RuntimeError('PR file page failed; prior snapshot preserved')
-            following = page['data']['node']['files']
-            connection['nodes'].extend(following['nodes'])
-            connection['pageInfo'] = following['pageInfo']
-    def complete(value, location="repository"):
-        if isinstance(value, dict):
-            if value.get('hasNextPage') or value.get('hasPreviousPage'):
-                raise RuntimeError(f'Snapshot exceeds bounded query at {location}; paginate before publishing')
-            for key, child in value.items(): complete(child, location+"."+key)
-        elif isinstance(value,list):
-            for index, child in enumerate(value): complete(child, location+"."+str(index))
-    complete(remote)
+    remote = fetch_snapshot(numbers)
     data = {}
     for n in numbers:
         issue = remote['i'+str(n)]
