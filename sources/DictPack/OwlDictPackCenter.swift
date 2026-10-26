@@ -44,19 +44,26 @@ struct OwlDictPackCenterRustBackend: Sendable {
       environment: environment,
       prepare: { environment, progress in
         let store = try environment.makeStore()
-        let installer = OwlRustDictPackResourceInstaller(
-          store: store,
-          dictionaryRoot: environment.dictionaryRoot,
-          packageRoot: environment.packageRoot
-        )
-        return try await installer.prepare(progress: progress)
+        guard let sharedSupport = Bundle.main.sharedSupportURL else {
+          throw OwlRustResourceError.invalidConfiguration("bundled resources unavailable")
+        }
+        let temporary = environment.packageRoot.deletingLastPathComponent()
+          .appendingPathComponent("compatible-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: temporary) }
+        let built = try OwlRustCompatibleResources.build(sharedSupport: sharedSupport, at: temporary, version: OwlRustCompatibleResources.packageVersion)
+        let prepared = try await store.prepare(OwlRustResourceDirectorySource(root: built.root)) { value in progress?(value) }
+        return OwlRustDictPackPreparedResources(resource: prepared, stats: built.stats)
       },
       activate: { environment, prepared in
         let store = try environment.makeStore()
+        _ = try environment.validatedGeneration(prepared.record)
         return try await store.activate(prepared)
       },
       rollback: { environment, inputKind in
         let store = try environment.makeStore()
+        if let previous = try environment.activeState(inputKind: inputKind)?.previous {
+          _ = try environment.validatedGeneration(previous)
+        }
         return try await store.rollback(inputKind: inputKind)
       }
     )
@@ -129,7 +136,7 @@ final class OwlDictPackCenter {
   var needsPrompt: Bool {
     if usesRustResources {
       if let state = try? rustBackend.environment.activeState() {
-        return state.current.manifest.version < OwlDictPackManifest.current.version
+        return state.current.manifest.version < OwlRustCompatibleResources.packageVersion
       }
     }
     return makeFetcher().needsFetch()

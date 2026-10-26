@@ -592,3 +592,19 @@ review dates, not retries. Keep deterministic checks in the local gate.
   must pass with the default parallel runner. Repeat with AddressSanitizer when
   investigating memory regressions; a successful ordinary retry alone is not evidence
   that an observed invalid free has been resolved.
+
+## Resource activation must capture the complete compatibility set
+
+**A resource generation includes auxiliary dictionaries, context sidecars, models and the binary's configuration version; each session captures that generation for both dictionary and model loading.**
+
+- Reason: the parity update audit found the production updater still rebuilding reduced Pinyin from legacy YAML. Activation switched only the main/English databases while session creation and model configuration kept reading the current bundle. A synthetic activated emoji database returned bundled apples instead of its own candidate; the focused host-seam regression failed before the fix.
+- Prevention: production preparation copies the binary-pinned complete resource set into the existing transaction. Activation and rollback validate the whole manifest and configuration/model compatibility. Session model and auxiliary paths belong to the captured generation. A missing/corrupt active member falls back to a fully verified previous combination, then the bundled seed if none is usable; incomplete generations are never supplemented member-by-member.
+- Regression: `testActivatedGenerationUsesItsOwnAuxiliaryResources`, `testProductionUpdatePreparesTheCompletePinnedCombination`, `testIncompleteGenerationCannotOmitAuxiliaryResources`, and `testGenerationSwitchRollbackColdStartAndJournalReplayKeepUserState` in `OwlRustEngineTests` cover actual sidecar candidates, official model scoring with unavailable bundle models, complete preparation, interrupted activation/retry, missing/corrupt sidecars, rollback, and learning replay in isolated roots.
+- Verify (验证点): run those focused Swift tests and `OwlRustResourceTransactionTests`; the synthetic candidate changes with the active generation and returns after rollback, while the learned candidate remains first. Future binary/model/config changes must advance the compatible package/configuration version together. No old-user migration is implied.
+- Seen on 1 distinct date: 2026-10-26.
+
+## Preserve lint failure status when reviewing merged source
+
+- Seen 1x (2026-10-26): T04 segment routing raised `OwlRustSession.process` complexity to22. The merger reported lint clean after searching `error:` even though the configured GitHub reporter writes `::error`; later shell commands also masked its failure status. T12 correctly surfaced the blocker.
+- Fix: extract the existing segment-chord route into a dedicated private helper, preserving active-composition/modifier guards and false-versus-not-applicable behavior. Run lint as its own command and inspect both exit status and reporter errors; do not infer success from a later command. No lint configuration was relaxed.
+- Verify: `swiftlint lint --quiet` exits0 with no `::error`; existing `testSegmentChordEditsPinyinRatherThanPassingToHost` and `testShuangpinSegmentEditingAndShoudaoSelection` still pass. This fixes the source gate, not installed IMK acceptance.

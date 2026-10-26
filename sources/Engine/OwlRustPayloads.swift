@@ -99,12 +99,13 @@ struct OwlRerankConfiguration: Codable, Equatable {
   let keyboard: Model
   let settled: Model
 
-  static func current(sharedSupportURL: URL?) -> Self {
+  static func current(sharedSupportURL: URL?, resourcesURL: URL? = nil) -> Self {
     func model(for kind: OwlRerankModelKind) -> Model {
       let descriptor = OwlRerankModelDescriptor.descriptor(for: kind)
       return Model(
         enabled: OwlExperimentalPreferences.rerankEnabled(for: kind),
-        path: descriptor.url(sharedSupportURL: sharedSupportURL)?.path ?? "",
+        path: resourcesURL?.appendingPathComponent("models/" + descriptor.fileName).path
+          ?? descriptor.url(sharedSupportURL: sharedSupportURL)?.path ?? "",
         source: descriptor.source,
         version: descriptor.version,
         expectedSHA256: descriptor.expectedSHA256

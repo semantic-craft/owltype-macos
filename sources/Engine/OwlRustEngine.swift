@@ -45,6 +45,7 @@ enum OwlRustSchemaMap {
     switch schemaId {
     case "double_pinyin_flypy": return "xiaohe"
     case "double_pinyin_mspy": return "microsoft"
+    case "double_pinyin_shoudao": return "shoudao"
     case "double_pinyin": return "ziranma"
     case "double_pinyin_abc": return "abc"
     case "double_pinyin_sogou", "double_pinyin_ziguang", "double_pinyin_jiajia":
@@ -144,6 +145,7 @@ enum OwlRustSchemaMap {
     (id: "rime_ice", name: "雾凇拼音"),
     (id: "double_pinyin_flypy", name: "小鹤双拼"),
     (id: "double_pinyin_mspy", name: "微软双拼"),
+    (id: "double_pinyin_shoudao", name: "手心双拼"),
     (id: "double_pinyin", name: "自然码双拼"),
     (id: "double_pinyin_sogou", name: "搜狗双拼"),
     (id: "double_pinyin_abc", name: "智能ABC双拼"),
@@ -183,6 +185,7 @@ final class OwlRustSession: RimeSession {
   private var lastAppliedHostPhrases: String = ""
   private var lastAppliedRerankConfiguration: String?
   private var lastRerankStatusRefresh: UInt64 = 0
+  private let resourceRoot: URL?
   private(set) var rerankConfigurationEpoch: UInt64 = 0
   private(set) var settledRerankReady = false
   private(set) var settledRerankLoading = false
@@ -238,9 +241,11 @@ final class OwlRustSession: RimeSession {
     sessionID: UInt64,
     handle: OpaquePointer?,
     ownerEngine: OwlRustEngine,
-    initialSchemaId: String
+    initialSchemaId: String,
+    resourceRoot: URL? = nil
   ) {
     self.sessionID = sessionID
+    self.resourceRoot = resourceRoot
     self.handle = handle
     self.ownerEngine = ownerEngine
     self.activeSchemaId = initialSchemaId
@@ -306,6 +311,10 @@ final class OwlRustSession: RimeSession {
       let nextPunct = !(optionFlags[.asciiPunct] ?? false)
       setOption(.asciiPunct, nextPunct)
       return true
+    }
+
+    if let handled = processSegmentEditingChord(keycode: keycode, modifiers: modifiers) {
+      return handled
     }
 
     let disallowedModifiers = kControlMask.rawValue | kAltMask.rawValue | kSuperMask.rawValue
@@ -379,6 +388,26 @@ final class OwlRustSession: RimeSession {
       setASCIIModeCommittingRawInput(asciiMode)
       return consumed
     }
+  }
+
+  private func processSegmentEditingChord(keycode: UInt32, modifiers: UInt32) -> Bool? {
+    // Native segment-editing chords belong to an active composition, before the
+    // usual Control passthrough. The runtime owns boundaries for every scheme.
+    let segmentModifiers = modifiers & (kControlMask.rawValue | kShiftMask.rawValue
+      | kAltMask.rawValue | kSuperMask.rawValue)
+    if !(optionFlags[.asciiMode] ?? false), !(latestSnapshot?.rawInput.isEmpty ?? true),
+       segmentModifiers == kControlMask.rawValue || segmentModifiers == kShiftMask.rawValue {
+      if keycode == UInt32(XK_Left) || keycode == UInt32(XK_Right) {
+        return applyActionResponse(sendAction([
+          "op": "segment", "target": keycode == UInt32(XK_Left) ? "left" : "right"
+        ]))
+      }
+      if keycode == UInt32(XK_BackSpace), segmentModifiers == kControlMask.rawValue {
+        return applyActionResponse(sendAction(["op": "segment", "target": "backspace"]))
+      }
+    }
+
+    return nil
   }
 
   var acceptsHostSmartPunctuation: Bool { latestSnapshot?.localMode == "none" }
@@ -466,6 +495,16 @@ final class OwlRustSession: RimeSession {
       return ["op": "move_caret", "target": "end"]
     }
     let linear = optionFlags[.linear] ?? true
+    // Native macOS shuangpin edits syllables when Left/Right do not navigate
+    // candidates (InputController.mm:7711). Keep the candidate-navigation preference.
+    if !linear && activeSchemaId.hasPrefix("double_pinyin") {
+      if keycode == UInt32(XK_Left) {
+        return ["op": "segment", "target": "left"]
+      }
+      if keycode == UInt32(XK_Right) {
+        return ["op": "segment", "target": "right"]
+      }
+    }
     let firstCandidate = latestSnapshot?.page == 0 && latestSnapshot?.highlightedIndex == 0
     if firstCandidate && keycode == UInt32(XK_Left) {
       return ["op": "move_caret", "target": "left"]
@@ -869,7 +908,7 @@ final class OwlRustSession: RimeSession {
 
   private func syncRerankConfiguration(forceStatus: Bool = false) {
     guard handle != nil, let ownerEngine else { return }
-    let configuration = ownerEngine.rerankConfiguration()
+    let configuration = ownerEngine.rerankConfiguration(resourcesURL: resourceRoot)
     guard let serialized = configuration.serialized() else { return }
     if serialized != lastAppliedRerankConfiguration {
       lastAppliedRerankConfiguration = serialized
@@ -1095,8 +1134,8 @@ final class OwlRustEngine: RimeEngine {
 
     var creationError: UnsafeMutablePointer<CChar>?
     let handle: OpaquePointer?
-    if let generation, let sharedRoot = sharedSupportURL ?? Bundle.main.sharedSupportURL {
-      let auxiliaryResources = sharedRoot.appendingPathComponent("msime", isDirectory: true)
+    if let generation {
+      let auxiliaryResources = generation.resourcesURL
       handle = auxiliaryResources.path.withCString { auxiliaryCStr in
         generation.resourcesURL.path.withCString { resourcesCStr in
           userDir.withCString { userCStr in
@@ -1127,7 +1166,8 @@ final class OwlRustEngine: RimeEngine {
       sessionID: id,
       handle: handle,
       ownerEngine: self,
-      initialSchemaId: selectedSchemaId
+      initialSchemaId: selectedSchemaId,
+      resourceRoot: generation?.resourcesURL
     )
     sessions[id] = session
     return session
@@ -1238,9 +1278,10 @@ final class OwlRustEngine: RimeEngine {
     return succeeded
   }
 
-  fileprivate func rerankConfiguration() -> OwlRerankConfiguration {
+  fileprivate func rerankConfiguration(resourcesURL: URL?) -> OwlRerankConfiguration {
     OwlRerankConfiguration.current(
-      sharedSupportURL: sharedSupportURL ?? Bundle.main.sharedSupportURL
+      sharedSupportURL: sharedSupportURL ?? Bundle.main.sharedSupportURL,
+      resourcesURL: resourcesURL
     )
   }
 
