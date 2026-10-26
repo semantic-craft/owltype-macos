@@ -57,7 +57,11 @@ final class OwlPinnedWords {
   }
 
   static func hansToHant(_ text: String) -> String {
-    (text as NSString).applyingTransform(StringTransform("Hans-Hant"), reverse: false) ?? text
+    guard let converted = text.withCString({ owl_msime_simplified_to_traditional($0) }) else {
+      return text
+    }
+    defer { owl_msime_string_free(converted) }
+    return String(cString: converted)
   }
 
   static func hantToHans(_ text: String) -> String {

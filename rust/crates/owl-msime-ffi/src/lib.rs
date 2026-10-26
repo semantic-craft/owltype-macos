@@ -2589,6 +2589,24 @@ pub extern "C" fn owl_msime_session_poll_settled_rerank_json(
     })
 }
 
+/// Convert output using the pinned upstream OpenCC standard configuration.
+/// Returns an owned UTF-8 string, or null for invalid input/panic.
+#[no_mangle]
+pub extern "C" fn owl_msime_simplified_to_traditional(text: *const c_char) -> *mut c_char {
+    catch_unwind(AssertUnwindSafe(|| {
+        if text.is_null() {
+            return std::ptr::null_mut();
+        }
+        let Ok(text) = (unsafe { CStr::from_ptr(text) }).to_str() else {
+            return std::ptr::null_mut();
+        };
+        CString::new(msime_client_core::chinese_conversion::simplified_to_traditional(text))
+            .map(CString::into_raw)
+            .unwrap_or(std::ptr::null_mut())
+    }))
+    .unwrap_or(std::ptr::null_mut())
+}
+
 #[no_mangle]
 pub extern "C" fn owl_msime_string_free(ptr: *mut c_char) {
     let _ = catch_unwind(AssertUnwindSafe(|| {

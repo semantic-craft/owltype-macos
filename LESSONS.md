@@ -453,3 +453,15 @@ review dates, not retries. Keep deterministic checks in the local gate.
   `testShuangpinSemicolonSpellingPrecedesCandidateShortcut` pass together (9 tests). The FFI
   `pure_wubi_fifth_key_tops_an_ambiguous_four_code` reproduces the missing commit before the
   adapter correction and passes afterwards. This proves the session/resource seam, not IMK installation.
+
+## Traditional output follows the pinned phrase converter
+
+- Seen 1x (2026-10-26): platform `Hans-Hant` converted `里面` to `裡面`, while the
+  pinned upstream OpenCC standard configuration returns `裏面`. Consistent display
+  and commit alone did not establish equivalent output.
+- Use the upstream client-core converter through the C ABI for both visible and
+  committed text. Keep the original candidate generation and selection identity.
+- Regression and Verify (验证点):
+  `OwlRustEngineTests/testPhraseAwareTraditionalOutputKeepsSelectionIdentity`
+  fails at visible, peeked and committed output before the change, and passes after;
+  it also selects with the pre-conversion token and turns conversion off again.
