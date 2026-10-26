@@ -88,13 +88,13 @@ extension OwlInputController {
     let revert = state.revert
     state.revert = nil
     if let revert, revert.ascii == character, OwlKeyboardPreferences.smartPunctuation,
-       OwlKeyboardPreferences.smartPunctuationRepeat, !composing, candidates == 0,
+       OwlKeyboardPreferences.smartPunctuationRepeat, !session.option(.fullShape), !composing, candidates == 0,
        state.timestamp >= revert.timestamp, state.timestamp - revert.timestamp <= 2000,
        preceding == text, replace(text, revert.chinese) { return true }
     if let snapshot = state.spaceSnapshot {
       state.spaceSnapshot = nil
       if OwlKeyboardPreferences.smartPunctuation, OwlKeyboardPreferences.smartPunctuationSpace,
-         !session.option(.fullShape), modifiers == 0 {
+         !session.option(.fullShape), (modifiers & kShiftMask.rawValue) == 0 {
         context["op"] = "space"; context["snapshot"] = snapshot
         if let replacement = state.policy(context)["replacement"] as? String,
            let preceding, replace(preceding, replacement) {
