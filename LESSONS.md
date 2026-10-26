@@ -637,6 +637,11 @@ review dates, not retries. Keep deterministic checks in the local gate.
   and runs two Foundation processes with page sizes six and eight. Before the fix
   they publish the same suite and the first process reads the peer's eight.
 - Give each test/UI-test process a unique suite and remove it on normal exit.
+  Synchronize domain removal and remove its exact UUID plist on exit: a removed
+  domain can remain observable as `{}`, and a `defaults read` observer can itself
+  recreate an empty plist. Verify the file before reading and require the saved
+  key to be absent. The first cleanup assertion was initially misreported green;
+  independent review caught it before integration.
   Production preferences still use `UserDefaults.standard`. The existing exact
   six-row model oracle and its page-size precondition remain unchanged.
 - Verify: `python3 scripts/test-defaults-isolation.selftest.py` passes; the real

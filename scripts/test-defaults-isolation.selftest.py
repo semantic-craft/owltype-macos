@@ -50,8 +50,12 @@ if CommandLine.arguments.count > 2 {
                                     f'Concurrent hosts shared preferences; first page size after peer write: {value}')
                 self.assertEqual(value, '6', 'A peer writing page size 8 must not change this host')
                 for domain in (first_domain, second_domain):
-                    read = subprocess.run(['defaults', 'read', domain], capture_output=True)
-                    self.assertNotEqual(read.returncode, 0, 'Exited probes must remove their temporary domain')
+                    # Reading a nonexistent suite can itself create an empty CFPreferences plist.
+                    # Check the file before invoking the observer, then verify no value survives.
+                    plist = Path.home() / 'Library/Preferences' / f'{domain}.plist'
+                    self.assertFalse(plist.exists(), 'Exited probes must not leave an empty preferences plist')
+                    read = subprocess.run(['defaults', 'read', domain, 'pageSize'], capture_output=True)
+                    self.assertNotEqual(read.returncode, 0, 'Exited probes must remove temporary preferences')
             finally:
                 if first.poll() is None:
                     first.kill()

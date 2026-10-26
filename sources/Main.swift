@@ -402,8 +402,15 @@ enum OwlDefaults {
     defaults.removePersistentDomain(forName: testSuiteName)
     // Concurrent worktrees and XCTest hosts must never overwrite one another.
     atexit {
-      UserDefaults(suiteName: OwlDefaults.testSuiteName)?
-        .removePersistentDomain(forName: OwlDefaults.testSuiteName)
+      let testDefaults = UserDefaults(suiteName: OwlDefaults.testSuiteName)
+      testDefaults?.removePersistentDomain(forName: OwlDefaults.testSuiteName)
+      testDefaults?.synchronize()
+      // CFPreferences can leave an empty plist after removing a domain.
+      if let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first {
+        let file = library.appendingPathComponent("Preferences", isDirectory: true)
+          .appendingPathComponent("\(OwlDefaults.testSuiteName).plist")
+        try? FileManager.default.removeItem(at: file)
+      }
     }
     return defaults
   }()
