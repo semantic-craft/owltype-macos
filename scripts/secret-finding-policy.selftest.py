@@ -648,6 +648,68 @@ class ShellAdapterTests(unittest.TestCase):
         self.assertIn("failed to scan", completed.stderr)
         self.assertNotIn("potential secret found", completed.stderr)
 
+    def test_partial_package_expansion_uses_registration_cleanup(self) -> None:
+        package = self.root / "partial.pkg"
+        package.write_bytes(b"synthetic")
+        marker = self.root / "cleanup-observed"
+        expander = self.root / "partial-expand"
+        expander.write_text('#!/bin/bash\nmkdir -p "$3/Partial.app"\nexit 42\n')
+        expander.chmod(0o700)
+        cleanup = self.root / "cleanup.py"
+        cleanup.write_text(
+            "import pathlib, shutil, sys\n"
+            "root = pathlib.Path(sys.argv[2])\n"
+            "assert (root / '0-pkg/Partial.app').is_dir()\n"
+            f"pathlib.Path({str(marker)!r}).write_text('checked before deletion')\n"
+            "shutil.rmtree(root)\n"
+        )
+        source = (SCRIPT_DIR / "check-artifact-secrets.sh").read_text()
+        source = source.replace('/usr/sbin/pkgutil', str(expander))
+        source = source.replace('$repo_root/scripts/cleanup_app_registrations.py', str(cleanup))
+        runner = self.root / "artifact-gate.sh"
+        runner.write_text(source)
+        environment = os.environ.copy()
+        environment['PATH'] = str(self.fake_bin) + os.pathsep + environment['PATH']
+        result = subprocess.run(['bash', str(runner), str(package)],
+                                env=environment, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 70)
+        self.assertTrue(marker.is_file(), 'partial App tree must use checked cleanup')
+
+    def test_failed_detach_retains_tree_before_any_removal(self) -> None:
+        image = self.root / 'synthetic.dmg'
+        image.touch()
+        mounted = self.root / 'mounted-path'
+        removed = self.root / 'removal-attempted'
+        self._write_executable('hdiutil', '#!/bin/bash\n'
+                               'if [[ "$1" == attach ]]; then printf "%s" "$5" > "$MOUNTED_PATH"; exit 0; fi\n'
+                               'exit 23\n')
+        self._write_executable('ditto', '#!/bin/bash\nmkdir -p "$2"\n')
+        normalizer = self.root / 'normalize.py'
+        normalizer.write_text('pass\n')
+        cleanup = self.root / 'cleanup.py'
+        cleanup.write_text('import pathlib, shutil, sys\n'
+                           f'pathlib.Path({str(removed)!r}).touch()\n'
+                           'shutil.rmtree(sys.argv[2])\n')
+        source = (SCRIPT_DIR / 'check-artifact-secrets.sh').read_text()
+        source = source.replace('/usr/bin/hdiutil', str(self.fake_bin / 'hdiutil'))
+        source = source.replace('/usr/bin/ditto', str(self.fake_bin / 'ditto'))
+        source = source.replace('$repo_root/scripts/normalize-package-scan.py', str(normalizer))
+        source = source.replace('$repo_root/scripts/cleanup_app_registrations.py', str(cleanup))
+        runner = self.root / 'artifact-gate.sh'
+        runner.write_text(source)
+        environment = os.environ.copy()
+        environment.update(PATH=str(self.fake_bin) + os.pathsep + environment['PATH'],
+                           MOUNTED_PATH=str(mounted), FAKE_GITLEAKS_MODE='error')
+        result = subprocess.run(['bash', str(runner), str(image)],
+                                env=environment, capture_output=True, text=True)
+        retained = pathlib.Path(mounted.read_text()).parent
+        try:
+            self.assertEqual(result.returncode, 70)
+            self.assertTrue(retained.is_dir())
+            self.assertFalse(removed.exists(), 'failed detach forbids tree removal')
+        finally:
+            shutil.rmtree(retained, ignore_errors=True)  # The mount is synthetic only.
+
     @unittest.skipUnless(
         sys.platform == "darwin",
         "PKG and DMG adapter coverage requires macOS packaging tools",

@@ -820,6 +820,29 @@ review dates, not retries. Keep deterministic checks in the local gate.
   then `scripts/check-secrets.sh --artifacts` on the actual built App. Keep only
   hashes, classification, source identity and redacted scanner decisions as evidence.
 
+
+## Scan one validated view of an inert package payload
+
+- Seen 1x (2026-10-26): the formal Release PKG scan extracted the inert App ZIP,
+  then scanned the original ZIP too. TruffleHog's recursive archive result named
+  only the ZIP, so the strict public-dictionary exception correctly could not
+  prove its exact DB bytes and same-row content. Do not extend that exception to
+  an archive or waive a detector/path to compensate for the duplicated view.
+- In disposable scan trees only, the existing staged-package checker validates
+  every ZIP member/path/link and a complete ZIP32 layout. All member bytes are
+  CRC checked with full compressed-stream consumption; internal link targets
+  and AppleDouble members become ordinary scan files, and comments, extra fields
+  and header metadata are retained in a scanner-visible text-named file. Prefix,
+  trailer, gap, overlap, duplicates, corrupt CRC and unsupported layouts fail closed.
+  Remove the temporary original only after the complete scan view exists.
+- Outer package scripts and Distribution remain scanned. DMGs stay read only;
+  their owned scan copy expands nested PKGs through the same path. Ordinary ZIPs
+  are retained. Temporary App registrations are checked before and after cleanup.
+- Verify (验证点): `python3 scripts/check-staged-pkg.selftest.py` checks full
+  content/metadata coverage, rejection boundaries and real generic-key detection
+  in seven layers. Run `secret-finding-policy.selftest.py` and the actual artifact
+  gate on installer PKG, update PKG and DMG; retain source artifact/receipt hashes
+  before and after. Product tests/builds alone do not establish this gate.
 ## Progress snapshots must paginate PR commits as well as files
 
 - Seen 1x (2026-10-26): PR #309 reached141 commits; its files fit one page, but
@@ -830,3 +853,16 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Verify (验证点): `scripts/progress-sync.selftest.py` covers141 commits/151 files,
   head/base drift, empty/error/duplicate pages and cursor failures; it runs in the
   existing portable_scripts gate. A rejected snapshot preserves prior output.
+
+## Preserve metadata adjacency and cleanup ownership on failed expansion
+
+- Seen 1x (2026-10-26): joining ZIP header/name/extra/comment fields with newlines
+  split a synthetic generic key across adjacent central extra/comment fields.
+  The real Gitleaks regression returned clean before the fix. Keep each ZIP
+  record contiguous in the scan view; separators belong only between records.
+- A failed pkgutil expansion may already leave partial App bundles. Mark the
+  disposable tree as App-owning before expansion, so failures still use the
+  exact registration cleanup. If DMG detach fails, retain the tree and fail
+  before removing anything inside the still-mounted image.
+- Verify (验证点): staged-package real-scanner extra/comment boundary case and
+  secret-policy partial-expansion shell regression pin these failure paths.

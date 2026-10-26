@@ -16,14 +16,25 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 work_dir="$(mktemp -d)"
 mounted_dmg=""
+owns_apps=0
 cleanup() {
   local result=$?
   trap - EXIT
   if [[ -n "$mounted_dmg" ]]; then
-    /usr/bin/hdiutil detach "$mounted_dmg" >/dev/null 2>&1 || result=70
+    if ! /usr/bin/hdiutil detach "$mounted_dmg" >/dev/null 2>&1; then
+      echo "ERROR: scan-tree detach failed; disposable tree retained: $work_dir" >&2
+      exit 70
+    fi
     mounted_dmg=""
   fi
-  rm -rf "$work_dir"
+  if (( owns_apps )); then
+    if ! python3 "$repo_root/scripts/cleanup_app_registrations.py" --remove "$work_dir" >/dev/null 2>&1; then
+      echo "ERROR: scan-tree registration cleanup failed; disposable tree retained: $work_dir" >&2
+      exit 70
+    fi
+  else
+    rm -rf "$work_dir"
+  fi
   exit "$result"
 }
 trap cleanup EXIT
@@ -59,17 +70,13 @@ for artifact in "$@"; do
       ;;
     *.pkg)
       target="$work_dir/$scanned-pkg"
+      # Even a failed expansion can leave App bundles registered in this owned tree.
+      owns_apps=1
       /usr/sbin/pkgutil --expand-full "$artifact" "$target" >/dev/null || {
         echo "ERROR: pkgutil failed to safely expand $label" >&2
         exit 70
       }
-      # Packaging now hides the App from PackageKit inside a ZIP. Scan its unpacked contents
-      # under the same target, so compression cannot hide a credential from either scanner.
-      component="$target/Owltype-component.pkg"
-      if [[ -f "$component/Payload/Library/Input Methods/.Owltype.pkg-staging/Owltype.app.zip" ]]; then
-        python3 "$repo_root/scripts/check-staged-pkg.py" "$component" \
-          --extract-to "$target/checked-app" >/dev/null
-      fi
+      python3 "$repo_root/scripts/normalize-package-scan.py" "$target"
       ;;
     *.dmg)
       target="$work_dir/$scanned-dmg"
@@ -80,6 +87,11 @@ for artifact in "$@"; do
         exit 70
       }
       mounted_dmg="$target"
+      # Work on an owned copy: the mounted release artifact is always read only.
+      target="$work_dir/$scanned-dmg-scan"
+      owns_apps=1
+      /usr/bin/ditto "$mounted_dmg" "$target"
+      python3 "$repo_root/scripts/normalize-package-scan.py" "$target"
       ;;
     *)
       target="$artifact"
