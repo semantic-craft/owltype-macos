@@ -3292,7 +3292,11 @@ mod tests {
             "settled": {"enabled": false}
         });
         let configured = configure_rerank(session, &config.to_string());
-        assert_eq!(configured["keyboard"]["state"], "loading");
+        // The worker can finish before configure returns its status snapshot.
+        assert!(matches!(
+            configured["keyboard"]["state"].as_str(),
+            Some("loading" | "missing")
+        ));
         let status = wait_for_rerank_state(session, "keyboard", "missing");
         assert_eq!(status["keyboard"]["enabled"], true);
         assert!(status["keyboard"]["error"].is_string());
