@@ -674,10 +674,13 @@ review dates, not retries. Keep deterministic checks in the local gate.
   53-event selection, personal phrase, deletion and process-restart trace exposed
   33 differences: 五一 stayed behind王 and new你尼 was absent at codewqnx. The
   focused Swift and FFI selection/reopen regressions independently failed.
-- Fix: align only the absent preference, initial settings state and FFI default;
+- Fix: align the absent preference, initial settings state and FFI default;
   preserve an explicit false and reuse upstream per-code/profile learning,
-  reverse-lookup guard, shared journal and generation replay. No new learning
-  algorithm, reset or migration is needed.
+  reverse-lookup guard, shared journal and generation replay. The remaining
+  `nin` difference after learning came from another Owl fork: once a journal
+  exists, native fixed-position processing restores Wubi-first producer groups,
+  while Owl preserved decoder Pinyin-first order. Restore only that Wubi branch;
+  leave general Pinyin positioning unchanged. No new algorithm, reset or migration.
 - Verify: `tests/fixtures/wubi-parity/learning.json` through strict native/Swift
   replay; `testWubiLearningDefaultsToNativeAndPreservesExplicitOptOut` and
   `wubi_learning_default_persists_native_selection`. The final combined Wubi98

@@ -237,4 +237,6 @@ run in separate processes against the same isolated state roots. Schema events
 can explicitly project `wubi_profile` and `wubi_mixed_pinyin`, matching the Swift
 schema switch rather than retaining the initial reference options. Absent Wubi
 learning preferences follow the native enabled default; an explicit stored false
-continues to disable learning. No user dictionary reset or migration is involved.
+continues to disable learning. No user dictionary reset or migration is involved. After a journal exists, native
+fixed-position processing keeps Wubi producer rows ahead of Pinyin rows, even
+when the decoder initially preferred exact Pinyin over Wubi prefix completions.

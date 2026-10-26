@@ -3964,6 +3964,21 @@ mod tests {
             if !learned {
                 let selected = call_action(session, r#"{"op":"select_visible","index":1}"#);
                 assert_eq!(selected.committed_text.as_deref(), Some("五一"));
+                assert!(
+                    call_action(
+                        session,
+                        r#"{"op":"set_pinyin_scheme","scheme":"wubi_pinyin"}"#
+                    )
+                    .ok
+                );
+                for ch in ['n', 'i', 'n'] {
+                    assert!(call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#)).ok);
+                }
+                let next = call_snapshot(session);
+                assert_eq!(
+                    next.candidates[0].text, "恍悟",
+                    "Native mixed query after the learned Wubi selection"
+                );
             }
             owl_msime_session_destroy(session);
         }
