@@ -522,11 +522,14 @@ final class OwlModernUISmokeTests: XCTestCase {
       OwlInputMethod.allCases.map(\.displayName),
       ["拼音输入", "双拼输入", "五笔输入"]
     )
-    XCTAssertEqual(OwlWubiScheme.allCases.map(\.displayName), ["86 版五笔", "五笔拼音混输"])
+    XCTAssertEqual(OwlWubiScheme.allCases.map(\.displayName),
+      ["86 版五笔", "86 版五笔拼音混输", "98 版五笔", "98 版五笔拼音混输"])
     XCTAssertEqual(OwlInputMethod.pinyin.schemaId(doublePinyin: .flypy, wubiScheme: .jidian86), "rime_ice")
     XCTAssertEqual(OwlInputMethod.doublePinyin.schemaId(doublePinyin: .flypy, wubiScheme: .jidian86), "double_pinyin_flypy")
     XCTAssertEqual(OwlInputMethod.wubi.schemaId(doublePinyin: .flypy, wubiScheme: .jidian86), "wubi86_jidian")
     XCTAssertEqual(OwlInputMethod.wubi.schemaId(doublePinyin: .flypy, wubiScheme: .pinyinMix), "wubi86_jidian_pinyin")
+    XCTAssertEqual(OwlInputMethod.wubi.schemaId(doublePinyin: .flypy, wubiScheme: .jidian98), "wubi98")
+    XCTAssertEqual(OwlInputMethod.wubi.schemaId(doublePinyin: .flypy, wubiScheme: .pinyinMix98), "wubi98_pinyin")
     XCTAssertFalse(OwlKeyboardPage.isDoublePinyinPickerEnabled(for: .pinyin))
     XCTAssertTrue(OwlKeyboardPage.isDoublePinyinPickerEnabled(for: .doublePinyin))
     XCTAssertFalse(OwlKeyboardPage.isDoublePinyinPickerEnabled(for: .wubi))

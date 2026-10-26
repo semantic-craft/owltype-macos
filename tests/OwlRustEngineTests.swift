@@ -218,6 +218,18 @@ final class OwlRustEngineTests: XCTestCase {
     UInt32(character.asciiValue!)
   }
 
+  private func pageToVisibleCandidate(_ text: String, in session: RimeSession) throws -> Int {
+    var page = try XCTUnwrap(session.composition())
+    while !page.candidates.contains(where: { $0.text == text }) && !page.isLastPage {
+      let previous = page.pageNo
+      XCTAssertTrue(session.process(keycode: UInt32(XK_Page_Down), modifiers: 0))
+      page = try XCTUnwrap(session.composition())
+      XCTAssertGreaterThan(page.pageNo, previous)
+      if page.pageNo <= previous { break }
+    }
+    return try XCTUnwrap(page.candidates.firstIndex { $0.text == text })
+  }
+
   private func visibleAndPeekedCandidates(
     in session: RimeSession,
     count: Int = 100
@@ -2293,8 +2305,13 @@ final class OwlRustEngineTests: XCTestCase {
 
   func testMixedWubiPartialPhraseSelectionContinuesInPinyinTail() throws {
     let origCandidateMode = OwlKeyboardPreferences.wubiCandidateMode
-    defer { OwlKeyboardPreferences.wubiCandidateMode = origCandidateMode }
+    let origPageSize = OwlKeyboardPreferences.pageSize
+    defer {
+      OwlKeyboardPreferences.wubiCandidateMode = origCandidateMode
+      OwlKeyboardPreferences.pageSize = origPageSize
+    }
     OwlKeyboardPreferences.wubiCandidateMode = .normal
+    OwlKeyboardPreferences.pageSize = 6
 
     let engine = try makeSharedSupportSeedEngine()
     XCTAssertTrue(engine.selectSchema("wubi86_jidian_pinyin"))
@@ -2305,8 +2322,13 @@ final class OwlRustEngineTests: XCTestCase {
     // composition open in phrase preedit; the remaining letters stay pinyin.
     typeText("nihaowo", into: session)
     let prefixPage = try XCTUnwrap(session.composition())
-    let prefixIndex = try XCTUnwrap(prefixPage.candidates.firstIndex(where: { $0.text == "你好" }))
-    XCTAssertLessThan(prefixIndex, 9)
+    XCTAssertEqual(prefixPage.pageSize, 6)
+    XCTAssertFalse(prefixPage.candidates.contains { $0.text == "你好" })
+    let prefixIndex = try pageToVisibleCandidate("你好", in: session)
+    // Pinned W04 native/Swift trace: page1, visible row4 at native six-row page size.
+    XCTAssertEqual(session.composition()?.pageNo, 1)
+    XCTAssertEqual(prefixIndex, 4)
+    XCTAssertLessThan(prefixIndex, prefixPage.pageSize)
     XCTAssertTrue(session.process(
       keycode: UInt32(XK_1) + UInt32(prefixIndex),
       modifiers: 0
@@ -2339,8 +2361,7 @@ final class OwlRustEngineTests: XCTestCase {
     // code behaves as a fresh composition instead of inheriting pinyin state.
     XCTAssertTrue(session.selectSchema("wubi86_jidian_pinyin"))
     typeText("nihaowo", into: session)
-    let clearPrefix = try XCTUnwrap(session.composition())
-    let clearIndex = try XCTUnwrap(clearPrefix.candidates.firstIndex(where: { $0.text == "你好" }))
+    let clearIndex = try pageToVisibleCandidate("你好", in: session)
     XCTAssertTrue(session.selectCandidate(clearIndex))
     XCTAssertEqual(session.input(), "wo")
     session.clearComposition()
@@ -2349,8 +2370,7 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.takeCommit(), "极限")
 
     typeText("nihaowo", into: session)
-    let cancelPrefix = try XCTUnwrap(session.composition())
-    let cancelIndex = try XCTUnwrap(cancelPrefix.candidates.firstIndex(where: { $0.text == "你好" }))
+    let cancelIndex = try pageToVisibleCandidate("你好", in: session)
     XCTAssertTrue(session.selectCandidate(cancelIndex))
     XCTAssertEqual(session.input(), "wo")
     XCTAssertTrue(session.process(keycode: UInt32(XK_Escape), modifiers: 0))
@@ -2359,8 +2379,7 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.takeCommit(), "极限")
 
     typeText("nihaowo", into: session)
-    let switchPrefix = try XCTUnwrap(session.composition())
-    let switchIndex = try XCTUnwrap(switchPrefix.candidates.firstIndex(where: { $0.text == "你好" }))
+    let switchIndex = try pageToVisibleCandidate("你好", in: session)
     XCTAssertTrue(session.selectCandidate(switchIndex))
     XCTAssertEqual(session.input(), "wo")
     XCTAssertTrue(session.selectSchema("wubi86_jidian"))
