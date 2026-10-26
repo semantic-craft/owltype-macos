@@ -1,0 +1,495 @@
+{
+ "name": "personal_dictionary_lifecycle",
+ "source": "tests/src/test_personal_dictionary.cpp:53-60; cases :101-163",
+ "note": "Reference ctest personal_dictionary fails against this build (test_personal_dictionary.cpp:67-76): overlay apply_engine_english_display.py lets an English code differ from its display, so {English, hello, different} is accepted. Recorded as-is. The invalid-UTF-8 and kind-99 entries of that loop cannot be expressed in JSON and are left to a Rust unit test. The journal-failure trigger (:145-150) is not recorded (msime_user.db lives in the user directory), so the failure-retry request id is applied on its first attempt. Each candidate check reopens the Session, as the ctest's has() builds a new one.",
+ "covers": [
+  "personal dictionary"
+ ],
+ "fixture": {
+  "english_schema": true,
+  "databases": {
+   "msime-pinyin.db": "CREATE TABLE tbl_2_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);CREATE TABLE tbl_7_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);CREATE TABLE tbl_others_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);CREATE TABLE quick_parases(key TEXT,value TEXT,weight INTEGER);"
+  }
+ },
+ "options": {
+  "learning": false,
+  "content_id": "first"
+ },
+ "steps": [
+  {
+   "op": "dict_list",
+   "arg": {}
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "拟好",
+     "weight": 12345
+    }
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "replacement": {
+     "kind": "wubi",
+     "key": "wq",
+     "value": "拟好",
+     "weight": 12345
+    }
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "replacement": {
+     "kind": "english",
+     "key": "metasequoia",
+     "value": "Metasequoia",
+     "weight": 12345
+    }
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "replacement": {
+     "kind": "quick_phrase",
+     "key": "test1",
+     "value": "fixture\nsecond line",
+     "weight": 12345
+    }
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "quick_phrase",
+     "key": "test1",
+     "value": "fixture\nsecond line",
+     "weight": 12345
+    },
+    "replacement": {
+     "kind": "english",
+     "key": "fixtureword",
+     "value": "FixtureWord",
+     "weight": 12345
+    }
+   }
+  },
+  {
+   "op": "reopen"
+  },
+  {
+   "op": "set_dedicated_english",
+   "arg": true
+  },
+  {
+   "op": "type",
+   "arg": "fixtureword"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "set_dedicated_english",
+   "arg": false
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "english",
+     "key": "fixtureword",
+     "value": "FixtureWord",
+     "weight": 12345
+    },
+    "replacement": {
+     "kind": "quick_phrase",
+     "key": "test1",
+     "value": "fixture\nsecond line",
+     "weight": 12345
+    }
+   }
+  },
+  {
+   "op": "reopen"
+  },
+  {
+   "op": "set_dedicated_english",
+   "arg": true
+  },
+  {
+   "op": "type",
+   "arg": "fixtureword"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "set_dedicated_english",
+   "arg": false
+  },
+  {
+   "op": "dict_list",
+   "arg": {
+    "offset": 0,
+    "limit": 2
+   }
+  },
+  {
+   "op": "dict_list",
+   "arg": {
+    "offset": 2,
+    "limit": 2
+   }
+  },
+  {
+   "op": "dict_list",
+   "arg": {
+    "offset": 0,
+    "limit": 1001
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'ni'ni'ni'ni'ni'ni",
+     "value": "你你你你你你你"
+    }
+   }
+  },
+  {
+   "op": "reopen"
+  },
+  {
+   "op": "type",
+   "arg": "ni'ni'ni'ni'ni'ni'ni"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'ni'ni'ni'ni'ni'ni'ni",
+     "value": "你你你你你你你你"
+    }
+   }
+  },
+  {
+   "op": "reopen"
+  },
+  {
+   "op": "type",
+   "arg": "ni'ni'ni'ni'ni'ni'ni'ni"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'ni'ni'ni'ni'ni'ni'ni'ni",
+     "value": "你你你你你你你你你"
+    }
+   }
+  },
+  {
+   "op": "reopen"
+  },
+  {
+   "op": "type",
+   "arg": "ni'ni'ni'ni'ni'ni'ni'ni'ni"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "拟好",
+     "weight": 12344
+    },
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "你好",
+     "weight": 12345
+    }
+   }
+  },
+  {
+   "op": "reopen"
+  },
+  {
+   "op": "type",
+   "arg": "nihao"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "拟好",
+     "weight": 12345
+    },
+    "replacement": {
+     "kind": "pinyin",
+     "key": "bu'hao",
+     "value": "补好",
+     "weight": 12345
+    }
+   }
+  },
+  {
+   "op": "reopen"
+  },
+  {
+   "op": "type",
+   "arg": "nihao"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "拟好",
+     "weight": 12345
+    },
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "你好",
+     "weight": 12345
+    },
+    "request_id": "edit-1"
+   }
+  },
+  {
+   "op": "reopen"
+  },
+  {
+   "op": "type",
+   "arg": "nihao"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "拟好",
+     "weight": 12345
+    },
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "你好",
+     "weight": 12345
+    },
+    "request_id": "edit-1"
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "你好",
+     "weight": 12345
+    },
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "拟好",
+     "weight": 12345
+    },
+    "request_id": "edit-1"
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "你好",
+     "weight": 12345
+    },
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "拟好",
+     "weight": 12345
+    },
+    "request_id": "bad id"
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "你好",
+     "weight": 12345
+    },
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "拟好",
+     "weight": 12345
+    },
+    "request_id": "failure-retry"
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "拟好",
+     "weight": 12345
+    },
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "你好",
+     "weight": 12345
+    }
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "你好",
+     "weight": 12345
+    }
+   }
+  },
+  {
+   "op": "dump_journal"
+  },
+  {
+   "op": "new_generation",
+   "arg": "second"
+  },
+  {
+   "op": "type",
+   "arg": "nihao"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "switch_scheme",
+   "arg": "wubi"
+  },
+  {
+   "op": "type",
+   "arg": "wq"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "switch_scheme",
+   "arg": "quanpin"
+  },
+  {
+   "op": "reopen"
+  },
+  {
+   "op": "set_dedicated_english",
+   "arg": true
+  },
+  {
+   "op": "type",
+   "arg": "metasequoia"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "set_dedicated_english",
+   "arg": false
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "拟好",
+     "weight": 12345
+    },
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "你好",
+     "weight": 12345
+    },
+    "request_id": "edit-1"
+   }
+  },
+  {
+   "op": "reopen"
+  },
+  {
+   "op": "type",
+   "arg": "nihao"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "dict_list",
+   "arg": {}
+  },
+  {
+   "op": "dump_journal"
+  }
+ ]
+}

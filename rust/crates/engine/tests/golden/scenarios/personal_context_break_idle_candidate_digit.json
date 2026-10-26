@@ -1,0 +1,47 @@
+{
+ "name": "personal_context_break_idle_candidate_digit",
+ "source": "tests/src/test_personal_context_input_session.cpp:136-149; chain-break case \"idle candidate digit\" :681-762",
+ "note": "Each case gets its own data directory here (the ctest shares one and compares counter deltas). The \"state reset\" case (InputSession::reset_state) has no public Session call, and the 3 s / 30 s pause cases need the internal steady-clock provider; neither is recorded.",
+ "covers": [
+  "personal context"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-pinyin.db": "BEGIN;CREATE TABLE tbl_1_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);INSERT INTO tbl_1_n VALUES('ni','n','甲',100),('ni','n','乙',90),('ni','n','丙',80);CREATE TABLE tbl_1_h(key TEXT, jp TEXT, value TEXT, weight INTEGER);INSERT INTO tbl_1_h VALUES('hao','h','子',100),('hao','h','丑',90),('hao','h','寅',80);CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',1000);COMMIT;"
+  }
+ },
+ "options": {
+  "frequency": {
+   "mode": "disabled"
+  }
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "ni"
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "甲"
+   }
+  },
+  {
+   "op": "candidate_key",
+   "arg": "3"
+  },
+  {
+   "op": "type",
+   "arg": "hao"
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "丑"
+   }
+  },
+  {
+   "op": "dump_journal"
+  }
+ ]
+}

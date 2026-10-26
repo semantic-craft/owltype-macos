@@ -1,0 +1,69 @@
+{
+ "name": "bridge_shuangpin_semicolon_ziranma",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "ziranma",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "char",
+   "arg": "b",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "b",
+    "raw_segmentation": "b",
+    "normalized_segmentation": "b",
+    "editing_text": "b",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "ziranma",
+    "segment_boundaries": [
+     0,
+     1
+    ],
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "char",
+   "arg": ";",
+   "result": {
+    "handled": false
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "b",
+    "raw_segmentation": "b",
+    "normalized_segmentation": "b",
+    "editing_text": "b",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "ziranma",
+    "segment_boundaries": [
+     0,
+     1
+    ],
+    "candidate_count": 0,
+    "candidates": []
+   }
+  }
+ ]
+}

@@ -658,7 +658,7 @@ extension OwlRustEngineIdentity {
         role: .englishDictionary,
         tables: [
           OwlRustResourceSQLiteTableRequirement(
-            table: "english_words", columns: ["word", "display", "weight", "phonetic"]
+            table: "english_words", columns: ["word", "display", "weight"]
           ),
         ]
       ),

@@ -1,0 +1,172 @@
+{
+ "name": "qp_learning_disabled",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "buhao",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "buhao",
+    "raw_segmentation": "bu'hao",
+    "normalized_segmentation": "bu'hao",
+    "editing_text": "buhao",
+    "caret": 5,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2,
+     5
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "不好",
+      "pinyin": "bu'hao",
+      "canonical_pinyin": "bu'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 200,
+      "answers_key": true
+     },
+     {
+      "word": "补好",
+      "pinyin": "bu'hao",
+      "canonical_pinyin": "bu'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "bu'hao",
+     "cache_key": "buhao",
+     "pinyin_segments": [
+      "bu",
+      "hao"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": 1,
+   "result": {
+    "handled": true,
+    "commit": "补好"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dump_journal",
+   "journal": {}
+  },
+  {
+   "op": "reopen",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "buhao",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "buhao",
+    "raw_segmentation": "bu'hao",
+    "normalized_segmentation": "bu'hao",
+    "editing_text": "buhao",
+    "caret": 5,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2,
+     5
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "不好",
+      "pinyin": "bu'hao",
+      "canonical_pinyin": "bu'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 200,
+      "answers_key": true
+     },
+     {
+      "word": "补好",
+      "pinyin": "bu'hao",
+      "canonical_pinyin": "bu'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "bu'hao",
+     "cache_key": "buhao",
+     "pinyin_segments": [
+      "bu",
+      "hao"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  }
+ ]
+}

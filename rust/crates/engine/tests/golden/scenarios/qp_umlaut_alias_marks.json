@@ -1,0 +1,126 @@
+{
+ "name": "qp_umlaut_alias_marks",
+ "source": "tests/src/test_input_session.cpp:217-243; cases :245-366",
+ "note": "The ctest opens a fresh InputSession per case; here one session types each key and cancels, which commits nothing until the final nue selection (AC6). AC6 (:355-365) expects the nve row to reach weight 101: that comes from InputSession's unconfigured-frequency compatibility path (core/input_session.cpp:1296-1305), which the public Session never takes because it always calls set_frequency_adjustment (core/session.cpp:22). Through the public Session (default mode Disabled) the weight stays 100.",
+ "covers": [
+  "quanpin basics",
+  "autocorrect",
+  "learning"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-pinyin.db": "CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_n VALUES('nve', 'n', '虐', 100);INSERT INTO tbl_1_n VALUES('nv', 'n', '女', 90);INSERT INTO tbl_1_n VALUES('nu', 'n', '怒', 80);CREATE TABLE tbl_1_l(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_l VALUES('lve', 'l', '略', 100);INSERT INTO tbl_1_l VALUES('lv', 'l', '绿', 90);INSERT INTO tbl_1_l VALUES('lu', 'l', '路', 80);CREATE TABLE tbl_1_j(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_j VALUES('jue', 'j', '决', 100);CREATE TABLE tbl_1_e(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_e VALUES('e', 'e', '鹅', 50);CREATE TABLE tbl_2_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_2_n VALUES('nu''e', 'ne', '怒鹅', 30);"
+  }
+ },
+ "options": {
+  "autocorrect_types": 3
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "nue"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "nve"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "lue"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "lve"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "jve"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "jue"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "nu"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "nv"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "lu"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "lv"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "nu'e"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "nue"
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "虐"
+   }
+  },
+  {
+   "op": "query",
+   "db": "msime-pinyin.db",
+   "arg": "SELECT key,value,weight FROM tbl_1_n ORDER BY 1,2"
+  },
+  {
+   "op": "dump_journal"
+  }
+ ]
+}

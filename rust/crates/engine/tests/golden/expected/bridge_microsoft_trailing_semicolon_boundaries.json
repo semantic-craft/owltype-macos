@@ -1,0 +1,106 @@
+{
+ "name": "bridge_microsoft_trailing_semicolon_boundaries",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "microsoft",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "nihkb;",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "nihkb;",
+    "raw_segmentation": "ni'hk'b;",
+    "normalized_segmentation": "ni'hao'bing",
+    "editing_text": "nihkb;",
+    "caret": 6,
+    "dedicated_english": false,
+    "shuangpin_profile": "microsoft",
+    "segment_boundaries": [
+     0,
+     2,
+     4,
+     6
+    ],
+    "candidate_count": 0,
+    "candidates": [],
+    "online_query": {
+     "scheme": "shuangpin",
+     "query_text": "ni'hao'bing",
+     "cache_key": "nihkb;",
+     "pinyin_segments": [
+      "ni",
+      "hao",
+      "bing"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "microsoft",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "nihcb;",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "nihcb;",
+    "raw_segmentation": "ni'h'cb';",
+    "normalized_segmentation": "ni'h'cou';",
+    "editing_text": "nihcb;",
+    "caret": 6,
+    "dedicated_english": false,
+    "shuangpin_profile": "microsoft",
+    "segment_boundaries": [
+     0,
+     2,
+     3,
+     5,
+     6
+    ],
+    "candidate_count": 0,
+    "candidates": []
+   }
+  }
+ ]
+}

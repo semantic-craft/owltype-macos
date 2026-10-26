@@ -1,0 +1,82 @@
+{
+ "name": "local_emoji_missing_db",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "char",
+   "arg": "E",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "emoji",
+    "preedit": "E",
+    "raw_segmentation": "E",
+    "normalized_segmentation": "E",
+    "editing_text": "E",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "E",
+      "pinyin": "E",
+      "canonical_pinyin": "",
+      "source": 9,
+      "scheme": "quanpin",
+      "weight": 1,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "char",
+   "arg": "x",
+   "result": {
+    "handled": true,
+    "diagnostic": "Emoji database is unavailable."
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "emoji",
+    "preedit": "Ex",
+    "raw_segmentation": "Ex",
+    "normalized_segmentation": "Ex",
+    "editing_text": "Ex",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "Ex",
+      "pinyin": "Ex",
+      "canonical_pinyin": "",
+      "source": 9,
+      "scheme": "quanpin",
+      "weight": 1,
+      "answers_key": true
+     }
+    ]
+   }
+  }
+ ]
+}

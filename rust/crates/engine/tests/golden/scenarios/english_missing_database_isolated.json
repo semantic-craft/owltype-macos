@@ -1,0 +1,24 @@
+{
+ "name": "english_missing_database_isolated",
+ "source": "tests/src/test_english_input_session.cpp:82-93 (prepare_main_database false); case :316-328",
+ "note": "The ctest has no msime-english.db at all; the recorder stages a schema-only msime-english.db (the product always has one), so this records an empty English dictionary rather than a missing one.",
+ "covers": [
+  "english"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-pinyin.db": "CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_n VALUES('ni','n','你',200);"
+  }
+ },
+ "options": {
+  "english": {
+   "mixed_candidates": true
+  }
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "ni"
+  }
+ ]
+}

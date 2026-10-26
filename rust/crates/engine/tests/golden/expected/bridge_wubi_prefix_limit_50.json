@@ -1,0 +1,492 @@
+{
+ "name": "bridge_wubi_prefix_limit_50",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "b",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "b",
+    "raw_segmentation": "b",
+    "normalized_segmentation": "b",
+    "editing_text": "b",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 50,
+    "candidates": [
+     {
+      "word": "合成00",
+      "pinyin": "b00",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 1000,
+      "answers_key": true
+     },
+     {
+      "word": "合成01",
+      "pinyin": "b01",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 999,
+      "answers_key": true
+     },
+     {
+      "word": "合成02",
+      "pinyin": "b02",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 998,
+      "answers_key": true
+     },
+     {
+      "word": "合成03",
+      "pinyin": "b03",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 997,
+      "answers_key": true
+     },
+     {
+      "word": "合成04",
+      "pinyin": "b04",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 996,
+      "answers_key": true
+     },
+     {
+      "word": "合成05",
+      "pinyin": "b05",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 995,
+      "answers_key": true
+     },
+     {
+      "word": "合成06",
+      "pinyin": "b06",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 994,
+      "answers_key": true
+     },
+     {
+      "word": "合成07",
+      "pinyin": "b07",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 993,
+      "answers_key": true
+     },
+     {
+      "word": "合成08",
+      "pinyin": "b08",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 992,
+      "answers_key": true
+     },
+     {
+      "word": "合成09",
+      "pinyin": "b09",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 991,
+      "answers_key": true
+     },
+     {
+      "word": "合成10",
+      "pinyin": "b10",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 990,
+      "answers_key": true
+     },
+     {
+      "word": "合成11",
+      "pinyin": "b11",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 989,
+      "answers_key": true
+     },
+     {
+      "word": "合成12",
+      "pinyin": "b12",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 988,
+      "answers_key": true
+     },
+     {
+      "word": "合成13",
+      "pinyin": "b13",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 987,
+      "answers_key": true
+     },
+     {
+      "word": "合成14",
+      "pinyin": "b14",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 986,
+      "answers_key": true
+     },
+     {
+      "word": "合成15",
+      "pinyin": "b15",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 985,
+      "answers_key": true
+     },
+     {
+      "word": "合成16",
+      "pinyin": "b16",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 984,
+      "answers_key": true
+     },
+     {
+      "word": "合成17",
+      "pinyin": "b17",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 983,
+      "answers_key": true
+     },
+     {
+      "word": "合成18",
+      "pinyin": "b18",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 982,
+      "answers_key": true
+     },
+     {
+      "word": "合成19",
+      "pinyin": "b19",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 981,
+      "answers_key": true
+     },
+     {
+      "word": "合成20",
+      "pinyin": "b20",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 980,
+      "answers_key": true
+     },
+     {
+      "word": "合成21",
+      "pinyin": "b21",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 979,
+      "answers_key": true
+     },
+     {
+      "word": "合成22",
+      "pinyin": "b22",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 978,
+      "answers_key": true
+     },
+     {
+      "word": "合成23",
+      "pinyin": "b23",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 977,
+      "answers_key": true
+     },
+     {
+      "word": "合成24",
+      "pinyin": "b24",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 976,
+      "answers_key": true
+     },
+     {
+      "word": "合成25",
+      "pinyin": "b25",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 975,
+      "answers_key": true
+     },
+     {
+      "word": "合成26",
+      "pinyin": "b26",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 974,
+      "answers_key": true
+     },
+     {
+      "word": "合成27",
+      "pinyin": "b27",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 973,
+      "answers_key": true
+     },
+     {
+      "word": "合成28",
+      "pinyin": "b28",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 972,
+      "answers_key": true
+     },
+     {
+      "word": "合成29",
+      "pinyin": "b29",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 971,
+      "answers_key": true
+     },
+     {
+      "word": "合成30",
+      "pinyin": "b30",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 970,
+      "answers_key": true
+     },
+     {
+      "word": "合成31",
+      "pinyin": "b31",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 969,
+      "answers_key": true
+     },
+     {
+      "word": "合成32",
+      "pinyin": "b32",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 968,
+      "answers_key": true
+     },
+     {
+      "word": "合成33",
+      "pinyin": "b33",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 967,
+      "answers_key": true
+     },
+     {
+      "word": "合成34",
+      "pinyin": "b34",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 966,
+      "answers_key": true
+     },
+     {
+      "word": "合成35",
+      "pinyin": "b35",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 965,
+      "answers_key": true
+     },
+     {
+      "word": "合成36",
+      "pinyin": "b36",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 964,
+      "answers_key": true
+     },
+     {
+      "word": "合成37",
+      "pinyin": "b37",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 963,
+      "answers_key": true
+     },
+     {
+      "word": "合成38",
+      "pinyin": "b38",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 962,
+      "answers_key": true
+     },
+     {
+      "word": "合成39",
+      "pinyin": "b39",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 961,
+      "answers_key": true
+     },
+     {
+      "word": "合成40",
+      "pinyin": "b40",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 960,
+      "answers_key": true
+     },
+     {
+      "word": "合成41",
+      "pinyin": "b41",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 959,
+      "answers_key": true
+     },
+     {
+      "word": "合成42",
+      "pinyin": "b42",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 958,
+      "answers_key": true
+     },
+     {
+      "word": "合成43",
+      "pinyin": "b43",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 957,
+      "answers_key": true
+     },
+     {
+      "word": "合成44",
+      "pinyin": "b44",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 956,
+      "answers_key": true
+     },
+     {
+      "word": "合成45",
+      "pinyin": "b45",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 955,
+      "answers_key": true
+     },
+     {
+      "word": "合成46",
+      "pinyin": "b46",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 954,
+      "answers_key": true
+     },
+     {
+      "word": "合成47",
+      "pinyin": "b47",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 953,
+      "answers_key": true
+     },
+     {
+      "word": "合成48",
+      "pinyin": "b48",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 952,
+      "answers_key": true
+     },
+     {
+      "word": "合成49",
+      "pinyin": "b49",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 951,
+      "answers_key": true
+     }
+    ]
+   }
+  }
+ ]
+}

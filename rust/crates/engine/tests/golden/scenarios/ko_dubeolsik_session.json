@@ -1,0 +1,85 @@
+{
+ "name": "ko_dubeolsik_session",
+ "source": "crates/engine/src/korean (no C++ reference: the Korean scheme is Rust-only, so the expected file was recorded from this engine and checked by hand)",
+ "covers": [
+  "korean dubeolsik",
+  "korean auto commit",
+  "korean jamo backspace",
+  "korean half-width punctuation"
+ ],
+ "fixture": {},
+ "options": {
+  "scheme": "korean"
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "dkssud"
+  },
+  {
+   "op": "type",
+   "arg": "gktpdy"
+  },
+  {
+   "op": "punctuation",
+   "arg": "."
+  },
+  {
+   "op": "type",
+   "arg": "ekfr"
+  },
+  {
+   "op": "char",
+   "arg": "k"
+  },
+  {
+   "op": "command",
+   "arg": "Backspace"
+  },
+  {
+   "op": "command",
+   "arg": "Backspace"
+  },
+  {
+   "op": "char",
+   "arg": "R",
+   "shift": true
+  },
+  {
+   "op": "type",
+   "arg": "k"
+  },
+  {
+   "op": "command",
+   "arg": "CommitCandidate"
+  },
+  {
+   "op": "type",
+   "arg": "rhkd"
+  },
+  {
+   "op": "command",
+   "arg": "CommitRaw"
+  },
+  {
+   "op": "type",
+   "arg": "rk"
+  },
+  {
+   "op": "char",
+   "arg": "1"
+  },
+  {
+   "op": "type",
+   "arg": "rk"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "command",
+   "arg": "Backspace"
+  }
+ ]
+}

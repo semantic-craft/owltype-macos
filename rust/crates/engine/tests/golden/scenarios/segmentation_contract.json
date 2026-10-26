@@ -1,0 +1,47 @@
+{
+ "name": "segmentation_contract",
+ "source": "tests/src/test_segmentation_contract.cpp:9-46",
+ "note": "The ctest calls QuanpinDictionary::query directly; the Session adds lattice sentences and prefix rows around the same dictionary rows.",
+ "covers": [
+  "segmentation",
+  "quanpin basics"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-pinyin.db": "PRAGMA journal_mode=WAL;CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);CREATE TABLE tbl_1_a(key TEXT,jp TEXT,value TEXT,weight INTEGER);CREATE TABLE tbl_1_x(key TEXT,jp TEXT,value TEXT,weight INTEGER);CREATE TABLE tbl_2_a(key TEXT,jp TEXT,value TEXT,weight INTEGER);CREATE TABLE tbl_2_x(key TEXT,jp TEXT,value TEXT,weight INTEGER);CREATE TABLE tbl_3_a(key TEXT,jp TEXT,value TEXT,weight INTEGER);CREATE TABLE tbl_3_x(key TEXT,jp TEXT,value TEXT,weight INTEGER);CREATE TABLE tbl_4_x(key TEXT,jp TEXT,value TEXT,weight INTEGER);CREATE TABLE tbl_5_x(key TEXT,jp TEXT,value TEXT,weight INTEGER);CREATE TABLE tbl_6_x(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_3_a VALUES('ao''shi''ke','ask','奥湿克',1);INSERT INTO tbl_1_x VALUES('xian','x','__primary_xian_1__',1000);INSERT INTO tbl_1_x VALUES('xian','x','__primary_xian_2__',900);INSERT INTO tbl_1_x VALUES('xian','x','__primary_xian_3__',800);INSERT INTO tbl_2_x VALUES('xi''an','xa','__alternative_xi_an__',1);INSERT INTO tbl_4_x VALUES('xi''an''xian''xian','xaxx','__three_syllable_alternative__',100);INSERT INTO tbl_5_x VALUES('xi''an''xian''xian''xian','xaxxx','__four_syllable_alternative__',100);INSERT INTO tbl_6_x VALUES('xi''an''xian''xian''xian''xian','xaxxxx','__five_syllable_alternative__',100);"
+  }
+ },
+ "options": {
+  "learning": false
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "xianxianxianxian"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "xianxianxianxianxian"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "xian'xian'xian'xian"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "aoshike"
+  }
+ ]
+}

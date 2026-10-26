@@ -207,6 +207,144 @@ mod tests {
         keys.bytes().map(|key| policy.translate(key)).collect()
     }
 
+    /// The table is the one `shared/contracts/punctuation/policy.json` defines, and `policy.h`, which English-mode output on macOS, IBus and Fcitx5 reads, carries the same rows, so a key gives the same mark in either mode.
+    #[test]
+    fn matches_the_shared_contract() {
+        let spec: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../shared/contracts/punctuation/policy.json"
+        ))
+        .expect("policy.json");
+        assert_eq!(spec["contractVersion"], 4);
+        let simple = spec["simple"].as_array().expect("simple");
+        assert_eq!(simple.len(), SIMPLE.len());
+        for ((input, output), row) in SIMPLE.iter().zip(simple) {
+            assert_eq!(
+                row["input"].as_str().map(str::as_bytes),
+                Some(&[*input][..])
+            );
+            assert_eq!(row["output"], *output);
+        }
+        let alternating = spec["alternating"].as_array().expect("alternating");
+        assert_eq!(alternating.len(), 4);
+        for (row, (input, (opening, closing))) in alternating.iter().zip([
+            ("\"", DOUBLE_QUOTE),
+            ("'", SINGLE_QUOTE),
+            ("{", CORNER_SINGLE_QUOTE),
+            ("}", CORNER_DOUBLE_QUOTE),
+        ]) {
+            assert_eq!(row["input"], input);
+            assert_eq!(row["opening"], opening);
+            assert_eq!(row["closing"], closing);
+        }
+        let nested = &spec["nested"];
+        assert_eq!(
+            nested["openingInput"].as_str().map(str::as_bytes),
+            Some(&[NESTED_OPENING_INPUT][..])
+        );
+        assert_eq!(
+            nested["closingInput"].as_str().map(str::as_bytes),
+            Some(&[NESTED_CLOSING_INPUT][..])
+        );
+        assert_eq!(nested["opening"], NESTED_OPENING);
+        assert_eq!(nested["nestedOpening"], NESTED_OPENING_INNER);
+        assert_eq!(nested["closing"], NESTED_CLOSING);
+        assert_eq!(nested["nestedClosing"], NESTED_CLOSING_INNER);
+
+        let styles = &spec["styles"];
+        let corner = styles["cornerQuotes"].as_array().expect("cornerQuotes");
+        assert_eq!(corner.len(), 4);
+        for (row, (input, (opening, closing))) in corner.iter().zip([
+            ("\"", CORNER_DOUBLE_QUOTE),
+            ("'", CORNER_SINGLE_QUOTE),
+            ("{", CORNER_SINGLE_QUOTE),
+            ("}", CORNER_DOUBLE_QUOTE),
+        ]) {
+            assert_eq!(row["input"], input);
+            assert_eq!(row["opening"], opening);
+            assert_eq!(row["closing"], closing);
+        }
+        let hollow = styles["hollowBrackets"].as_array().expect("hollowBrackets");
+        assert_eq!(hollow.len(), HOLLOW_BRACKETS.len());
+        for ((input, output), row) in HOLLOW_BRACKETS.iter().zip(hollow) {
+            assert_eq!(
+                row["input"].as_str().map(str::as_bytes),
+                Some(&[*input][..])
+            );
+            assert_eq!(row["output"], *output);
+        }
+        let enumeration = spec["enumerationComma"]
+            .as_array()
+            .expect("enumerationComma");
+        assert_eq!(enumeration.len(), ENUMERATION_COMMA.len());
+        for ((input, output), row) in ENUMERATION_COMMA.iter().zip(enumeration) {
+            assert_eq!(
+                row["input"].as_str().map(str::as_bytes),
+                Some(&[*input][..])
+            );
+            assert_eq!(row["output"], *output);
+        }
+
+        let header = include_str!("../../../shared/contracts/punctuation/policy.h");
+        let literal = |input: u8| match input {
+            b'\\' => "'\\\\'".to_owned(),
+            b'\'' => "'\\''".to_owned(),
+            _ => format!("'{}'", input as char),
+        };
+        assert!(header.contains(&format!("std::array<Mapping, {}> simple", SIMPLE.len())));
+        for (input, output) in SIMPLE {
+            let row = format!("{{{}, \"{output}\"}}", literal(input));
+            assert!(header.contains(&row), "policy.h lacks {row}");
+        }
+        for (input, (opening, closing)) in [
+            (b'"', DOUBLE_QUOTE),
+            (b'\'', SINGLE_QUOTE),
+            (b'{', CORNER_SINGLE_QUOTE),
+            (b'}', CORNER_DOUBLE_QUOTE),
+            (b'"', CORNER_DOUBLE_QUOTE),
+            (b'\'', CORNER_SINGLE_QUOTE),
+            (b'{', CORNER_SINGLE_QUOTE),
+            (b'}', CORNER_DOUBLE_QUOTE),
+        ] {
+            let row = format!("{{{}, \"{opening}\", \"{closing}\"}}", literal(input));
+            assert!(header.contains(&row), "policy.h lacks {row}");
+        }
+        assert!(header.contains("std::array<AlternatingMapping, 4> alternating"));
+        assert!(header.contains("std::array<AlternatingMapping, 4> corner_quotes"));
+        assert!(header.contains(&format!(
+            "std::array<Mapping, {}> hollow_brackets",
+            HOLLOW_BRACKETS.len()
+        )));
+        for (input, output) in HOLLOW_BRACKETS {
+            let row = format!("{{{}, \"{output}\"}}", literal(input));
+            assert!(header.contains(&row), "policy.h lacks {row}");
+        }
+        assert!(header.contains(&format!(
+            "std::array<Mapping, {}> enumeration_comma",
+            ENUMERATION_COMMA.len()
+        )));
+        for (input, output) in ENUMERATION_COMMA {
+            let row = format!("{{{}, \"{output}\"}}", literal(input));
+            assert!(header.contains(&row), "policy.h lacks {row}");
+        }
+        for (name, value) in [
+            ("nested_opening_input", literal(NESTED_OPENING_INPUT)),
+            ("nested_closing_input", literal(NESTED_CLOSING_INPUT)),
+            ("nested_opening[]", format!("\"{NESTED_OPENING}\"")),
+            (
+                "nested_opening_inner[]",
+                format!("\"{NESTED_OPENING_INNER}\""),
+            ),
+            ("nested_closing[]", format!("\"{NESTED_CLOSING}\"")),
+            (
+                "nested_closing_inner[]",
+                format!("\"{NESTED_CLOSING_INNER}\""),
+            ),
+        ] {
+            let line = format!("{name} = {value};");
+            assert!(header.contains(&line), "policy.h lacks {line}");
+        }
+    }
+
     /// contracts/tests/punctuation_contract.cpp.
     #[test]
     fn contract_table() {

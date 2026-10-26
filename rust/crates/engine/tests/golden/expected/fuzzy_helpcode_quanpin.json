@@ -1,0 +1,81 @@
+{
+ "name": "fuzzy_helpcode_quanpin",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "zongAB",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "zongAB",
+    "raw_segmentation": "zong'AB",
+    "normalized_segmentation": "zong",
+    "editing_text": "zongAB",
+    "caret": 6,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     4,
+     6
+    ],
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "中",
+      "pinyin": "zong",
+      "canonical_pinyin": "zhong",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "fuzzy": true,
+      "annotation": "(AB)",
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "中"
+   },
+   "result": {
+    "handled": true,
+    "commit": "中"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  }
+ ]
+}

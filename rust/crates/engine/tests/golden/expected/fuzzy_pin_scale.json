@@ -1,0 +1,339 @@
+{
+ "name": "fuzzy_pin_scale",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "xie",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "xie",
+    "raw_segmentation": "xie",
+    "normalized_segmentation": "xie",
+    "editing_text": "xie",
+    "caret": 3,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     3
+    ],
+    "candidate_count": 4,
+    "candidates": [
+     {
+      "word": "些",
+      "pinyin": "xie",
+      "canonical_pinyin": "xie",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 3752167,
+      "answers_key": true
+     },
+     {
+      "word": "写",
+      "pinyin": "xie",
+      "canonical_pinyin": "xie",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 605147,
+      "answers_key": true
+     },
+     {
+      "word": "西鄂",
+      "pinyin": "xi'e",
+      "canonical_pinyin": "xi'e",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 6,
+      "answers_key": true
+     },
+     {
+      "word": "先",
+      "pinyin": "xi",
+      "canonical_pinyin": "xian",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1662684,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "xie",
+     "cache_key": "xie",
+     "pinyin_segments": [
+      "xie"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "写"
+   },
+   "result": {
+    "handled": true,
+    "commit": "写"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "query",
+   "arg": "SELECT key,value,weight FROM tbl_1_x UNION ALL SELECT key,value,weight FROM tbl_2_x ORDER BY 1,2",
+   "rows": [
+    [
+     "xi'an",
+     "西安",
+     55003
+    ],
+    [
+     "xi'e",
+     "西鄂",
+     6
+    ],
+    [
+     "xian",
+     "先",
+     1662684
+    ],
+    [
+     "xie",
+     "些",
+     3752167
+    ],
+    [
+     "xie",
+     "写",
+     3752667
+    ]
+   ]
+  },
+  {
+   "op": "type",
+   "arg": "xie",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "xie",
+    "raw_segmentation": "xie",
+    "normalized_segmentation": "xie",
+    "editing_text": "xie",
+    "caret": 3,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     3
+    ],
+    "candidate_count": 4,
+    "candidates": [
+     {
+      "word": "写",
+      "pinyin": "xie",
+      "canonical_pinyin": "xie",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 3752667,
+      "answers_key": true
+     },
+     {
+      "word": "些",
+      "pinyin": "xie",
+      "canonical_pinyin": "xie",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 3752167,
+      "answers_key": true
+     },
+     {
+      "word": "西鄂",
+      "pinyin": "xi'e",
+      "canonical_pinyin": "xi'e",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 6,
+      "answers_key": true
+     },
+     {
+      "word": "先",
+      "pinyin": "xi",
+      "canonical_pinyin": "xian",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1662684,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "xie",
+     "cache_key": "xie",
+     "pinyin_segments": [
+      "xie"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": 0,
+   "result": {
+    "handled": true,
+    "commit": "写"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "query",
+   "arg": "SELECT key,value,weight FROM tbl_1_x ORDER BY 1,2",
+   "rows": [
+    [
+     "xian",
+     "先",
+     1662684
+    ],
+    [
+     "xie",
+     "些",
+     3752167
+    ],
+    [
+     "xie",
+     "写",
+     3752667
+    ]
+   ]
+  },
+  {
+   "op": "dump_journal",
+   "journal": {
+    "personal_bigram": {
+     "columns": [
+      "previous",
+      "word",
+      "count"
+     ],
+     "rows": [
+      [
+       "\u0001",
+       "写",
+       2
+      ],
+      [
+       "写",
+       "写",
+       2
+      ]
+     ]
+    },
+    "personal_trigram": {
+     "columns": [
+      "earlier",
+      "previous",
+      "word",
+      "count"
+     ],
+     "rows": [
+      [
+       "\u0001",
+       "写",
+       "写",
+       2
+      ]
+     ]
+    },
+    "pick_transitions": {
+     "columns": [
+      "previous_key",
+      "previous_value",
+      "key",
+      "value",
+      "count"
+     ],
+     "rows": [
+      [
+       "xie",
+       "写",
+       "xie",
+       "写",
+       1
+      ]
+     ]
+    },
+    "user_dictionary_operations": {
+     "columns": [
+      "dictionary",
+      "key",
+      "value",
+      "operation",
+      "weight",
+      "display",
+      "user_inserted"
+     ],
+     "rows": [
+      [
+       "pinyin",
+       "xie",
+       "写",
+       "upsert",
+       3752667,
+       "",
+       0
+      ]
+     ]
+    }
+   }
+  }
+ ]
+}

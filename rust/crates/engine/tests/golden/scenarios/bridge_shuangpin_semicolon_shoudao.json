@@ -1,0 +1,36 @@
+{
+ "name": "bridge_shuangpin_semicolon_shoudao",
+ "source": "92d382bac:crates/engine-bridge/src/tests.rs:561-576",
+ "covers": [
+  "shuangpin"
+ ],
+ "fixture": {},
+ "options": {
+  "learning": false,
+  "autocorrect_types": 3,
+  "helpcode": false,
+  "helpcode_schema": "ziranma",
+  "frequency": {
+   "mode": "promote",
+   "trigger_count": 1,
+   "linear_step": 1
+  },
+  "english": {
+   "mixed_candidates": true,
+   "minimum_prefix": 5
+  },
+  "sentence_alternatives": true,
+  "scheme": "shuangpin",
+  "shuangpin_profile": "shoudao"
+ },
+ "steps": [
+  {
+   "op": "char",
+   "arg": "b"
+  },
+  {
+   "op": "char",
+   "arg": ";"
+  }
+ ]
+}

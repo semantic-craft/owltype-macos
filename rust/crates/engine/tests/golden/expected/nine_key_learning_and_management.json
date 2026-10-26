@@ -1,0 +1,1612 @@
+{
+ "name": "nine_key_learning_and_management",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "set_nine_key_enabled",
+   "arg": true,
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "64",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "64",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "64",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "",
+    "nine_key_spellings": [
+     "ni",
+     "mi",
+     "mie",
+     "min",
+     "miu",
+     "nie",
+     "nin",
+     "niu",
+     "mian",
+     "miao",
+     "ming",
+     "nian",
+     "niao",
+     "ning",
+     "niang",
+     "o",
+     "M",
+     "N",
+     "O",
+     "6"
+    ],
+    "candidate_count": 4,
+    "candidates": [
+     {
+      "word": "你",
+      "pinyin": "64",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": true
+     },
+     {
+      "word": "米",
+      "pinyin": "64",
+      "canonical_pinyin": "mi",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 50,
+      "answers_key": true
+     },
+     {
+      "word": "你好",
+      "pinyin": "64",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1000,
+      "answers_key": true
+     },
+     {
+      "word": "ogham",
+      "pinyin": "ogham",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 0,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "米"
+   },
+   "result": {
+    "handled": true,
+    "commit": "米"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dump_journal",
+   "journal": {
+    "user_dictionary_operations": {
+     "columns": [
+      "dictionary",
+      "key",
+      "value",
+      "operation",
+      "weight",
+      "display",
+      "user_inserted"
+     ],
+     "rows": [
+      [
+       "pinyin",
+       "mi",
+       "米",
+       "upsert",
+       550,
+       "",
+       0
+      ]
+     ]
+    },
+    "fixed_candidate_positions": {
+     "columns": [
+      "context_key",
+      "entry_key",
+      "value",
+      "position"
+     ],
+     "rows": [
+      [
+       "nine-key:64:",
+       "mi",
+       "米",
+       1
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "op": "reopen",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "set_nine_key_enabled",
+   "arg": true,
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "64",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "64",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "64",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "",
+    "nine_key_spellings": [
+     "mi",
+     "ni",
+     "mie",
+     "min",
+     "miu",
+     "nie",
+     "nin",
+     "niu",
+     "mian",
+     "miao",
+     "ming",
+     "nian",
+     "niao",
+     "ning",
+     "niang",
+     "o",
+     "M",
+     "N",
+     "O",
+     "6"
+    ],
+    "candidate_count": 4,
+    "candidates": [
+     {
+      "word": "米",
+      "pinyin": "64",
+      "canonical_pinyin": "mi",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 550,
+      "answers_key": true,
+      "fixed_position": 1
+     },
+     {
+      "word": "你",
+      "pinyin": "64",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": true
+     },
+     {
+      "word": "你好",
+      "pinyin": "64",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1000,
+      "answers_key": true
+     },
+     {
+      "word": "ogham",
+      "pinyin": "ogham",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 0,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "pin",
+   "arg": {
+    "word": "你"
+   },
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "64",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "64",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "",
+    "nine_key_spellings": [
+     "ni",
+     "mi",
+     "mie",
+     "min",
+     "miu",
+     "nie",
+     "nin",
+     "niu",
+     "mian",
+     "miao",
+     "ming",
+     "nian",
+     "niao",
+     "ning",
+     "niang",
+     "o",
+     "M",
+     "N",
+     "O",
+     "6"
+    ],
+    "candidate_count": 4,
+    "candidates": [
+     {
+      "word": "你",
+      "pinyin": "64",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1500,
+      "answers_key": true,
+      "fixed_position": 1
+     },
+     {
+      "word": "米",
+      "pinyin": "64",
+      "canonical_pinyin": "mi",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 550,
+      "answers_key": true
+     },
+     {
+      "word": "你好",
+      "pinyin": "64",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1000,
+      "answers_key": true
+     },
+     {
+      "word": "ogham",
+      "pinyin": "ogham",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 0,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "remove",
+   "arg": {
+    "word": "你"
+   },
+   "result": {
+    "handled": false
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "64",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "64",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "",
+    "nine_key_spellings": [
+     "ni",
+     "mi",
+     "mie",
+     "min",
+     "miu",
+     "nie",
+     "nin",
+     "niu",
+     "mian",
+     "miao",
+     "ming",
+     "nian",
+     "niao",
+     "ning",
+     "niang",
+     "o",
+     "M",
+     "N",
+     "O",
+     "6"
+    ],
+    "candidate_count": 4,
+    "candidates": [
+     {
+      "word": "你",
+      "pinyin": "64",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1500,
+      "answers_key": true,
+      "fixed_position": 1
+     },
+     {
+      "word": "米",
+      "pinyin": "64",
+      "canonical_pinyin": "mi",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 550,
+      "answers_key": true
+     },
+     {
+      "word": "你好",
+      "pinyin": "64",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1000,
+      "answers_key": true
+     },
+     {
+      "word": "ogham",
+      "pinyin": "ogham",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 0,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "pin",
+   "arg": 999,
+   "result": {
+    "handled": false
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "64",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "64",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "",
+    "nine_key_spellings": [
+     "ni",
+     "mi",
+     "mie",
+     "min",
+     "miu",
+     "nie",
+     "nin",
+     "niu",
+     "mian",
+     "miao",
+     "ming",
+     "nian",
+     "niao",
+     "ning",
+     "niang",
+     "o",
+     "M",
+     "N",
+     "O",
+     "6"
+    ],
+    "candidate_count": 4,
+    "candidates": [
+     {
+      "word": "你",
+      "pinyin": "64",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1500,
+      "answers_key": true,
+      "fixed_position": 1
+     },
+     {
+      "word": "米",
+      "pinyin": "64",
+      "canonical_pinyin": "mi",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 550,
+      "answers_key": true
+     },
+     {
+      "word": "你好",
+      "pinyin": "64",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1000,
+      "answers_key": true
+     },
+     {
+      "word": "ogham",
+      "pinyin": "ogham",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 0,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "remove",
+   "arg": 999,
+   "result": {
+    "handled": false
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "64",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "64",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "",
+    "nine_key_spellings": [
+     "ni",
+     "mi",
+     "mie",
+     "min",
+     "miu",
+     "nie",
+     "nin",
+     "niu",
+     "mian",
+     "miao",
+     "ming",
+     "nian",
+     "niao",
+     "ning",
+     "niang",
+     "o",
+     "M",
+     "N",
+     "O",
+     "6"
+    ],
+    "candidate_count": 4,
+    "candidates": [
+     {
+      "word": "你",
+      "pinyin": "64",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1500,
+      "answers_key": true,
+      "fixed_position": 1
+     },
+     {
+      "word": "米",
+      "pinyin": "64",
+      "canonical_pinyin": "mi",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 550,
+      "answers_key": true
+     },
+     {
+      "word": "你好",
+      "pinyin": "64",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1000,
+      "answers_key": true
+     },
+     {
+      "word": "ogham",
+      "pinyin": "ogham",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 0,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "fix_position",
+   "arg": 0,
+   "result": {
+    "handled": false
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "64",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "64",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "",
+    "nine_key_spellings": [
+     "ni",
+     "mi",
+     "mie",
+     "min",
+     "miu",
+     "nie",
+     "nin",
+     "niu",
+     "mian",
+     "miao",
+     "ming",
+     "nian",
+     "niao",
+     "ning",
+     "niang",
+     "o",
+     "M",
+     "N",
+     "O",
+     "6"
+    ],
+    "candidate_count": 4,
+    "candidates": [
+     {
+      "word": "你",
+      "pinyin": "64",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1500,
+      "answers_key": true,
+      "fixed_position": 1
+     },
+     {
+      "word": "米",
+      "pinyin": "64",
+      "canonical_pinyin": "mi",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 550,
+      "answers_key": true
+     },
+     {
+      "word": "你好",
+      "pinyin": "64",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1000,
+      "answers_key": true
+     },
+     {
+      "word": "ogham",
+      "pinyin": "ogham",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 0,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "clear_position",
+   "arg": 999,
+   "result": {
+    "handled": false
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "64",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "64",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "",
+    "nine_key_spellings": [
+     "ni",
+     "mi",
+     "mie",
+     "min",
+     "miu",
+     "nie",
+     "nin",
+     "niu",
+     "mian",
+     "miao",
+     "ming",
+     "nian",
+     "niao",
+     "ning",
+     "niang",
+     "o",
+     "M",
+     "N",
+     "O",
+     "6"
+    ],
+    "candidate_count": 4,
+    "candidates": [
+     {
+      "word": "你",
+      "pinyin": "64",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1500,
+      "answers_key": true,
+      "fixed_position": 1
+     },
+     {
+      "word": "米",
+      "pinyin": "64",
+      "canonical_pinyin": "mi",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 550,
+      "answers_key": true
+     },
+     {
+      "word": "你好",
+      "pinyin": "64",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1000,
+      "answers_key": true
+     },
+     {
+      "word": "ogham",
+      "pinyin": "ogham",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 0,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "fix_position",
+   "arg": {
+    "word": "米"
+   },
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "64",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "64",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "",
+    "nine_key_spellings": [
+     "mi",
+     "ni",
+     "mie",
+     "min",
+     "miu",
+     "nie",
+     "nin",
+     "niu",
+     "mian",
+     "miao",
+     "ming",
+     "nian",
+     "niao",
+     "ning",
+     "niang",
+     "o",
+     "M",
+     "N",
+     "O",
+     "6"
+    ],
+    "candidate_count": 4,
+    "candidates": [
+     {
+      "word": "米",
+      "pinyin": "64",
+      "canonical_pinyin": "mi",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 550,
+      "fixed_position": 1,
+      "answers_key": true
+     },
+     {
+      "word": "你",
+      "pinyin": "64",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1500,
+      "answers_key": true
+     },
+     {
+      "word": "你好",
+      "pinyin": "64",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1000,
+      "answers_key": true
+     },
+     {
+      "word": "ogham",
+      "pinyin": "ogham",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 0,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "dump_journal",
+   "journal": {
+    "fixed_candidate_positions": {
+     "columns": [
+      "context_key",
+      "entry_key",
+      "value",
+      "position"
+     ],
+     "rows": [
+      [
+       "nine-key:64:",
+       "mi",
+       "米",
+       1
+      ]
+     ]
+    },
+    "user_dictionary_operations": {
+     "columns": [
+      "dictionary",
+      "key",
+      "value",
+      "operation",
+      "weight",
+      "display",
+      "user_inserted"
+     ],
+     "rows": [
+      [
+       "pinyin",
+       "mi",
+       "米",
+       "upsert",
+       550,
+       "",
+       0
+      ],
+      [
+       "pinyin",
+       "ni",
+       "你",
+       "upsert",
+       1500,
+       "",
+       0
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "op": "reopen",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "set_nine_key_enabled",
+   "arg": true,
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "64",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "64",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "64",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "",
+    "nine_key_spellings": [
+     "mi",
+     "ni",
+     "mie",
+     "min",
+     "miu",
+     "nie",
+     "nin",
+     "niu",
+     "mian",
+     "miao",
+     "ming",
+     "nian",
+     "niao",
+     "ning",
+     "niang",
+     "o",
+     "M",
+     "N",
+     "O",
+     "6"
+    ],
+    "candidate_count": 4,
+    "candidates": [
+     {
+      "word": "米",
+      "pinyin": "64",
+      "canonical_pinyin": "mi",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 550,
+      "fixed_position": 1,
+      "answers_key": true
+     },
+     {
+      "word": "你",
+      "pinyin": "64",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1500,
+      "answers_key": true
+     },
+     {
+      "word": "你好",
+      "pinyin": "64",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1000,
+      "answers_key": true
+     },
+     {
+      "word": "ogham",
+      "pinyin": "ogham",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 0,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "choose_nine_key_spelling",
+   "arg": {
+    "spelling": "ni"
+   },
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "ni",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "64",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "",
+    "nine_key_spellings": [
+     "mi",
+     "ni",
+     "mie",
+     "min",
+     "miu",
+     "nie",
+     "nin",
+     "niu",
+     "mian",
+     "miao",
+     "ming",
+     "nian",
+     "niao",
+     "ning",
+     "niang",
+     "o",
+     "M",
+     "N",
+     "O",
+     "6"
+    ],
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "你",
+      "pinyin": "64",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1500,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "64",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "64",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "64",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "",
+    "nine_key_spellings": [
+     "mi",
+     "ni",
+     "mie",
+     "min",
+     "miu",
+     "nie",
+     "nin",
+     "niu",
+     "mian",
+     "miao",
+     "ming",
+     "nian",
+     "niao",
+     "ning",
+     "niang",
+     "o",
+     "M",
+     "N",
+     "O",
+     "6"
+    ],
+    "candidate_count": 4,
+    "candidates": [
+     {
+      "word": "米",
+      "pinyin": "64",
+      "canonical_pinyin": "mi",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 550,
+      "fixed_position": 1,
+      "answers_key": true
+     },
+     {
+      "word": "你",
+      "pinyin": "64",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1500,
+      "answers_key": true
+     },
+     {
+      "word": "你好",
+      "pinyin": "64",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1000,
+      "answers_key": true
+     },
+     {
+      "word": "ogham",
+      "pinyin": "ogham",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 0,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "clear_position",
+   "arg": {
+    "word": "米"
+   },
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "64",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "64",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "",
+    "nine_key_spellings": [
+     "ni",
+     "mi",
+     "mie",
+     "min",
+     "miu",
+     "nie",
+     "nin",
+     "niu",
+     "mian",
+     "miao",
+     "ming",
+     "nian",
+     "niao",
+     "ning",
+     "niang",
+     "o",
+     "M",
+     "N",
+     "O",
+     "6"
+    ],
+    "candidate_count": 4,
+    "candidates": [
+     {
+      "word": "你",
+      "pinyin": "64",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1500,
+      "answers_key": true
+     },
+     {
+      "word": "米",
+      "pinyin": "64",
+      "canonical_pinyin": "mi",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 550,
+      "answers_key": true
+     },
+     {
+      "word": "你好",
+      "pinyin": "64",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1000,
+      "answers_key": true
+     },
+     {
+      "word": "ogham",
+      "pinyin": "ogham",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 0,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "64426",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "64426",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "64426",
+    "caret": 5,
+    "dedicated_english": false,
+    "shuangpin_profile": "",
+    "nine_key_spellings": [
+     "ni",
+     "mi",
+     "o",
+     "M",
+     "N",
+     "O",
+     "6"
+    ],
+    "candidate_count": 5,
+    "candidates": [
+     {
+      "word": "你好",
+      "pinyin": "64426",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1000,
+      "answers_key": true
+     },
+     {
+      "word": "米好",
+      "pinyin": "64426",
+      "canonical_pinyin": "mi'hao",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": -16715,
+      "sentence_association": true,
+      "sentence_words": [
+       "米",
+       "好"
+      ],
+      "answers_key": true
+     },
+     {
+      "word": "你",
+      "pinyin": "64",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1500,
+      "answers_key": false
+     },
+     {
+      "word": "米",
+      "pinyin": "64",
+      "canonical_pinyin": "mi",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 550,
+      "answers_key": false
+     },
+     {
+      "word": "ogham",
+      "pinyin": "ogham",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 0,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "remove",
+   "arg": {
+    "word": "你好"
+   },
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "64426",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "64426",
+    "caret": 5,
+    "dedicated_english": false,
+    "shuangpin_profile": "",
+    "nine_key_spellings": [
+     "ni",
+     "mi",
+     "o",
+     "M",
+     "N",
+     "O",
+     "6"
+    ],
+    "candidate_count": 5,
+    "candidates": [
+     {
+      "word": "你好",
+      "pinyin": "64426",
+      "canonical_pinyin": "ni'hao",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": -15712,
+      "sentence_association": true,
+      "sentence_words": [
+       "你",
+       "好"
+      ],
+      "answers_key": true
+     },
+     {
+      "word": "米好",
+      "pinyin": "64426",
+      "canonical_pinyin": "mi'hao",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": -16715,
+      "sentence_association": true,
+      "sentence_words": [
+       "米",
+       "好"
+      ],
+      "answers_key": true
+     },
+     {
+      "word": "你",
+      "pinyin": "64",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1500,
+      "answers_key": false
+     },
+     {
+      "word": "米",
+      "pinyin": "64",
+      "canonical_pinyin": "mi",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 550,
+      "answers_key": false
+     },
+     {
+      "word": "ogham",
+      "pinyin": "ogham",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 0,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "dump_journal",
+   "journal": {
+    "user_dictionary_operations": {
+     "columns": [
+      "dictionary",
+      "key",
+      "value",
+      "operation",
+      "weight",
+      "display",
+      "user_inserted"
+     ],
+     "rows": [
+      [
+       "pinyin",
+       "mi",
+       "米",
+       "upsert",
+       550,
+       "",
+       0
+      ],
+      [
+       "pinyin",
+       "ni",
+       "你",
+       "upsert",
+       1500,
+       "",
+       0
+      ],
+      [
+       "pinyin",
+       "ni'hao",
+       "你好",
+       "delete",
+       0,
+       "",
+       0
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "op": "reopen",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "set_nine_key_enabled",
+   "arg": true,
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "64426",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "64426",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "64426",
+    "caret": 5,
+    "dedicated_english": false,
+    "shuangpin_profile": "",
+    "nine_key_spellings": [
+     "ni",
+     "mi",
+     "o",
+     "M",
+     "N",
+     "O",
+     "6"
+    ],
+    "candidate_count": 5,
+    "candidates": [
+     {
+      "word": "你好",
+      "pinyin": "64426",
+      "canonical_pinyin": "ni'hao",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": -15712,
+      "sentence_association": true,
+      "sentence_words": [
+       "你",
+       "好"
+      ],
+      "answers_key": true
+     },
+     {
+      "word": "米好",
+      "pinyin": "64426",
+      "canonical_pinyin": "mi'hao",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": -16715,
+      "sentence_association": true,
+      "sentence_words": [
+       "米",
+       "好"
+      ],
+      "answers_key": true
+     },
+     {
+      "word": "你",
+      "pinyin": "64",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1500,
+      "answers_key": false
+     },
+     {
+      "word": "米",
+      "pinyin": "64",
+      "canonical_pinyin": "mi",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 550,
+      "answers_key": false
+     },
+     {
+      "word": "ogham",
+      "pinyin": "ogham",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 0,
+      "answers_key": true
+     }
+    ]
+   }
+  }
+ ]
+}

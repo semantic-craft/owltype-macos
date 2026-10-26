@@ -24,11 +24,7 @@ sets only the same page size (upstream default 6) and the full-pinyin schema.
 It writes its persisted preferences and effective rerank configuration alongside
 the complete reference host options. Rust EngineOptions do not have a public
 getter at this seam; their remaining defaults are source-bound by the build
-identity. In the starting code, `rust/crates/owl-msime-ffi/src/lib.rs` sets
-`sentence_alternatives=false`, English prefix 2 / first-page count 3; upstream
-uses sentence alternatives, prefix 5 / first-page count 1. These known differences
-are retained and visible in the resulting candidates; matching page size is not
-a claim that all configuration already matches. Model switches default off on
+identity. Ordinary pinyin now uses pinned 0.55.0 engine/runtime and full official pinyin, English and context tables. Sentence alternatives are enabled, with desktop English prefix 5 / first-page count 1. Wubi retains its existing composition policy. Model switches default off on
 both endpoints.
 
 ## Run
@@ -109,9 +105,9 @@ effective configuration and learned state were not captured, so the screenshot
 order cannot be attributed to one of those causes. Its three sentence readings
 are present in this baseline, but its exact order is not reproduced. The oracle
 preserves the actual isolated default rather than editing it to match either
-the screenshot or Owltype. The baseline Owl packaged seed returns 塔德房间;
-this is an intentionally failing differential command until subsequent parity
-work fixes production.
+the screenshot or Owltype. The default `tadefangjian` trace matches all candidate pages and the second-row commit. Two boundary-page event-consumption differences remain visible for the host-input ticket; the comparator still returns 1 for them.
+
+Use `--trace tests/fixtures/pinyin-parity/full-pinyin.json` for the small sentence, segmentation-ambiguity and initial-letter corpus. Remaining mixed-emoji/default and Chinese-first host transforms remain observable and belong to the mixed-input alignment work. Auxiliary resources retain the audited emoji derivative because the upstream notice identifies an unresolved PiliApp redistribution permission; see the production resource notice. No equality waiver is applied.
 
 This seam does not prove IMK event delivery, installed-app rendering, installed
 resource activation, asynchronous pause-phase model behavior, or private

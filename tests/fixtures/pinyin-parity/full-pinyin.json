@@ -1,0 +1,173 @@
+{
+  "description": "Pinned default full pinyin: sentence composition, ambiguous syllable boundaries, and initial-letter abbreviation. Candidate identity/commit exercised at both endpoints.",
+  "events": [
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "i"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "character",
+      "value": "s"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "i"
+    },
+    {
+      "op": "character",
+      "value": "j"
+    },
+    {
+      "op": "character",
+      "value": "i"
+    },
+    {
+      "op": "character",
+      "value": "e"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "previous-page"
+    },
+    {
+      "op": "select",
+      "index": 1
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "x"
+    },
+    {
+      "op": "character",
+      "value": "i"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "previous-page"
+    },
+    {
+      "op": "select",
+      "index": 1
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "c"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "previous-page"
+    },
+    {
+      "op": "select",
+      "index": 1
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "s"
+    },
+    {
+      "op": "character",
+      "value": "j"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "previous-page"
+    },
+    {
+      "op": "select",
+      "index": 1
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    }
+  ]
+}

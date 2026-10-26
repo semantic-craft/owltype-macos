@@ -1,0 +1,125 @@
+{
+ "name": "sp_valid_letter_and_cloud_spelling",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "char",
+   "arg": "n",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "n",
+    "raw_segmentation": "n",
+    "normalized_segmentation": "n",
+    "editing_text": "n",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     1
+    ],
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "虐",
+      "pinyin": "n",
+      "canonical_pinyin": "nve",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 100,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "ntdddswu",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "ntdddswu",
+    "raw_segmentation": "nt'dd'ds'wu",
+    "normalized_segmentation": "nve'dai'dong'wu",
+    "editing_text": "ntdddswu",
+    "caret": 8,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2,
+     4,
+     6,
+     8
+    ],
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "虐",
+      "pinyin": "nt",
+      "canonical_pinyin": "nve",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 100,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "shuangpin",
+     "query_text": "nue'dai'dong'wu",
+     "cache_key": "ntdddswu",
+     "pinyin_segments": [
+      "nve",
+      "dai",
+      "dong",
+      "wu"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  }
+ ]
+}

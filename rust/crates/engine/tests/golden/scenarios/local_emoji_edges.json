@@ -1,0 +1,50 @@
+{
+ "name": "local_emoji_edges",
+ "source": "tests/src/test_input_session.cpp:1499-1508; cases :1511-1540",
+ "covers": [
+  "local modes"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-others.db": "CREATE TABLE emoji_pinyin(key TEXT,emoji TEXT,sort_order INTEGER);INSERT INTO emoji_pinyin VALUES('xiaolian','😀',10);INSERT INTO emoji_pinyin VALUES('xiao''lian','😄',20);CREATE TABLE kaomoji(pinyin TEXT,jianpin TEXT,kaomoji TEXT,sort_order INTEGER);INSERT INTO kaomoji VALUES('haixiu','hx','(*/ω＼*)',10);"
+  }
+ },
+ "options": {},
+ "steps": [
+  {
+   "op": "char",
+   "arg": "E",
+   "shift": true
+  },
+  {
+   "op": "type",
+   "arg": "XIAOLIAN"
+  },
+  {
+   "op": "command",
+   "arg": "CommitCandidate"
+  },
+  {
+   "op": "char",
+   "arg": "E",
+   "shift": true
+  },
+  {
+   "op": "type",
+   "arg": "xiao'lian"
+  },
+  {
+   "op": "char",
+   "arg": "1"
+  },
+  {
+   "op": "command",
+   "arg": "Backspace"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  }
+ ],
+ "note": "#8043：模式不接受的字符先提交当前原文并退出，再以未处理结果交还当前键；后续空组字的取消或退格也不消费。此处刻意偏离固定 C++ 参考的静默吞键行为。"
+}

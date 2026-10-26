@@ -1,0 +1,378 @@
+{
+ "name": "english_ranking_trigger_count",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "set_dedicated_english",
+   "arg": true,
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "nick",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "nick",
+    "raw_segmentation": "nick",
+    "normalized_segmentation": "nick",
+    "editing_text": "nick",
+    "caret": 4,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "Nickel",
+      "pinyin": "nickel",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 400,
+      "answers_key": true
+     },
+     {
+      "word": "Nicker",
+      "pinyin": "nicker",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 300,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "select",
+   "arg": 0,
+   "result": {
+    "handled": true,
+    "commit": "Nickel"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dump_journal",
+   "journal": {}
+  },
+  {
+   "op": "type",
+   "arg": "nick",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "nick",
+    "raw_segmentation": "nick",
+    "normalized_segmentation": "nick",
+    "editing_text": "nick",
+    "caret": 4,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "Nickel",
+      "pinyin": "nickel",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 400,
+      "answers_key": true
+     },
+     {
+      "word": "Nicker",
+      "pinyin": "nicker",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 300,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "Nicker"
+   },
+   "result": {
+    "handled": true,
+    "commit": "Nicker"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dump_journal",
+   "journal": {
+    "candidate_selection_state": {
+     "columns": [
+      "context_key",
+      "entry_key",
+      "value",
+      "selection_count"
+     ],
+     "rows": [
+      [
+       "english:nick",
+       "nicker",
+       "Nicker",
+       1
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "op": "query",
+   "arg": "SELECT word,display,weight FROM english_words WHERE word LIKE 'nick%' ORDER BY 1,2",
+   "rows": [
+    [
+     "nickel",
+     "Nickel",
+     400
+    ],
+    [
+     "nicker",
+     "Nicker",
+     300
+    ]
+   ]
+  },
+  {
+   "op": "type",
+   "arg": "nick",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "nick",
+    "raw_segmentation": "nick",
+    "normalized_segmentation": "nick",
+    "editing_text": "nick",
+    "caret": 4,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "Nickel",
+      "pinyin": "nickel",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 400,
+      "answers_key": true
+     },
+     {
+      "word": "Nicker",
+      "pinyin": "nicker",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 300,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "Nicker"
+   },
+   "result": {
+    "handled": true,
+    "commit": "Nicker"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dump_journal",
+   "journal": {
+    "user_dictionary_operations": {
+     "columns": [
+      "dictionary",
+      "key",
+      "value",
+      "operation",
+      "weight",
+      "display",
+      "user_inserted"
+     ],
+     "rows": [
+      [
+       "english",
+       "nicker",
+       "Nicker",
+       "upsert",
+       1400,
+       "Nicker",
+       0
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "op": "query",
+   "arg": "SELECT word,display,weight FROM english_words WHERE word LIKE 'nick%' ORDER BY 1,2",
+   "rows": [
+    [
+     "nickel",
+     "Nickel",
+     400
+    ],
+    [
+     "nicker",
+     "Nicker",
+     1400
+    ]
+   ]
+  },
+  {
+   "op": "reopen",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "set_dedicated_english",
+   "arg": true,
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "nick",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "nick",
+    "raw_segmentation": "nick",
+    "normalized_segmentation": "nick",
+    "editing_text": "nick",
+    "caret": 4,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "Nicker",
+      "pinyin": "nicker",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 1400,
+      "answers_key": true
+     },
+     {
+      "word": "Nickel",
+      "pinyin": "nickel",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 400,
+      "answers_key": true
+     }
+    ]
+   }
+  }
+ ]
+}

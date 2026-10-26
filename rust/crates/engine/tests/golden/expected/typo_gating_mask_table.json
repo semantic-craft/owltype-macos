@@ -1,0 +1,220 @@
+{
+ "name": "typo_gating_mask_table",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "meiganxi",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "meiganxi",
+    "raw_segmentation": "mei'gan'xi",
+    "normalized_segmentation": "mei'gan'xi",
+    "editing_text": "meiganxi",
+    "caret": 8,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     3,
+     6,
+     8
+    ],
+    "candidate_count": 4,
+    "candidates": [
+     {
+      "word": "没干系",
+      "pinyin": "mei'gan'xi",
+      "canonical_pinyin": "mei'gan'xi",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": -20723,
+      "sentence_association": true,
+      "sentence_words": [
+       "没",
+       "干",
+       "系"
+      ],
+      "answers_key": true
+     },
+     {
+      "word": "没关系",
+      "pinyin": "mei'gan'xi",
+      "canonical_pinyin": "mei'guan'xi",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 605,
+      "corrected_from": "meiganxi",
+      "sentence_association": true,
+      "sentence_words": [
+       "没",
+       "关系"
+      ],
+      "annotation": "meiganxi",
+      "answers_key": true
+     },
+     {
+      "word": "没",
+      "pinyin": "mei",
+      "canonical_pinyin": "mei",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1000,
+      "answers_key": false
+     },
+     {
+      "word": "美",
+      "pinyin": "mei",
+      "canonical_pinyin": "mei",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 900,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "mei'gan'xi",
+     "cache_key": "meiganxi",
+     "pinyin_segments": [
+      "mei",
+      "gan",
+      "xi"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "meiguanxi",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "meiguanxi",
+    "raw_segmentation": "mei'guan'xi",
+    "normalized_segmentation": "mei'guan'xi",
+    "editing_text": "meiguanxi",
+    "caret": 9,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     3,
+     7,
+     9
+    ],
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "没关系",
+      "pinyin": "mei'guan'xi",
+      "canonical_pinyin": "mei'guan'xi",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 24605,
+      "sentence_association": true,
+      "sentence_words": [
+       "没",
+       "关系"
+      ],
+      "answers_key": true
+     },
+     {
+      "word": "没",
+      "pinyin": "mei",
+      "canonical_pinyin": "mei",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1000,
+      "answers_key": false
+     },
+     {
+      "word": "美",
+      "pinyin": "mei",
+      "canonical_pinyin": "mei",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 900,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "mei'guan'xi",
+     "cache_key": "meiguanxi",
+     "pinyin_segments": [
+      "mei",
+      "guan",
+      "xi"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  }
+ ]
+}

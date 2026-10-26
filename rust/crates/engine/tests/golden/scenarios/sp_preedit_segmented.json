@@ -1,0 +1,26 @@
+{
+ "name": "sp_preedit_segmented",
+ "source": "tests/src/test_fuzzy_pinyin.cpp:174-264 (shuangpin_preedit_uses_raw off; fixture FSP)",
+ "covers": [
+  "shuangpin"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-pinyin.db": "BEGIN;CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);INSERT INTO tbl_2_n VALUES('ni''hao', 'nh', '你好', 100);INSERT INTO tbl_2_n VALUES('ni''hao', 'nh', '拟好', 50);COMMIT;"
+  }
+ },
+ "options": {
+  "scheme": "shuangpin",
+  "shuangpin_preedit_uses_raw": false
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "nihc"
+  },
+  {
+   "op": "select",
+   "arg": 0
+  }
+ ]
+}

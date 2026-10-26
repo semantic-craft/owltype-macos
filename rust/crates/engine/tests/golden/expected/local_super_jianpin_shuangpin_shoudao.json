@@ -1,0 +1,181 @@
+{
+ "name": "local_super_jianpin_shuangpin_shoudao",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "shoudao",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "char",
+   "arg": "J",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "super_jianpin",
+    "preedit": "J",
+    "raw_segmentation": "J",
+    "normalized_segmentation": "J",
+    "editing_text": "J",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "shoudao",
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "J",
+      "pinyin": "J",
+      "canonical_pinyin": "",
+      "source": 9,
+      "scheme": "quanpin",
+      "weight": 1,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "type",
+   "arg": "ne",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "super_jianpin",
+    "preedit": "Jne",
+    "raw_segmentation": "Jne",
+    "normalized_segmentation": "Jne",
+    "editing_text": "Jne",
+    "caret": 3,
+    "dedicated_english": false,
+    "shuangpin_profile": "shoudao",
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "你说",
+      "pinyin": "n'sh",
+      "canonical_pinyin": "ni'shuo",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 290,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "shoudao",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "char",
+   "arg": "J",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "super_jianpin",
+    "preedit": "J",
+    "raw_segmentation": "J",
+    "normalized_segmentation": "J",
+    "editing_text": "J",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "shoudao",
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "J",
+      "pinyin": "J",
+      "canonical_pinyin": "",
+      "source": 9,
+      "scheme": "quanpin",
+      "weight": 1,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "type",
+   "arg": "nu",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "super_jianpin",
+    "preedit": "Jnu",
+    "raw_segmentation": "Jnu",
+    "normalized_segmentation": "Jnu",
+    "editing_text": "Jnu",
+    "caret": 3,
+    "dedicated_english": false,
+    "shuangpin_profile": "shoudao",
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "你屋",
+      "pinyin": "n'u",
+      "canonical_pinyin": "ni'u",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "shoudao",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  }
+ ]
+}

@@ -430,3 +430,98 @@ fn path_scratch_paired_budget() {
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
+
+#[test]
+#[ignore = "手动普通System分配器逐句复用工作区，完整配对1791个按键前缀"]
+fn evaluation_prefixes_path_scratch_paired_budget() {
+    let grid = KeyGrid::NineKey;
+    let table = grid.spelling_table();
+    let inputs: Vec<Vec<String>> =
+        include_str!("../../../../resources/eval/sentences-nine-key-v1.tsv")
+            .lines()
+            .filter(|line| !line.starts_with('#') && !line.is_empty() && !line.starts_with("id\t"))
+            .map(|line| {
+                let digits = grid.encode(line.split('\t').nth(1).unwrap());
+                (1..=digits.len())
+                    .map(|end| digits[..end].to_owned())
+                    .collect()
+            })
+            .collect();
+    assert_eq!(inputs.len(), 81);
+    assert_eq!(inputs.iter().map(Vec::len).sum::<usize>(), 1791);
+    let batch = |split: Split, prior: &SyllablePrior, repeats: usize| {
+        let start = std::time::Instant::now();
+        for _ in 0..repeats {
+            for case in &inputs {
+                // 一句内逐键复用页与输出，两臂都在句末释放全部状态。
+                let mut paths = Vec::new();
+                let mut scratch = PathScratch::default();
+                for digits in case {
+                    split(
+                        std::hint::black_box(table),
+                        std::hint::black_box(digits),
+                        &[],
+                        std::hint::black_box(prior),
+                        PATH_LIMIT,
+                        &mut scratch,
+                        &mut paths,
+                    );
+                    std::hint::black_box(&paths);
+                }
+            }
+        }
+        start.elapsed().as_secs_f64()
+    };
+    let mut failures = Vec::new();
+    for (weighted, prior) in [SyllablePrior::default(), weighted_prior(table)]
+        .into_iter()
+        .enumerate()
+    {
+        for case in &inputs {
+            let mut expected = Vec::new();
+            let mut actual = Vec::new();
+            let mut scratch = PathScratch::default();
+            for digits in case {
+                frozen_into(table, digits, &[], &prior, PATH_LIMIT, &mut expected);
+                table.split_paths_with_scratch(
+                    digits,
+                    &[],
+                    &prior,
+                    PATH_LIMIT,
+                    &mut scratch,
+                    &mut actual,
+                );
+                assert_eq!(actual, expected);
+            }
+        }
+        let mut repeats = 1;
+        while batch(before, &prior, repeats) < 0.010 {
+            repeats *= 2;
+        }
+        let mut ratios = Vec::new();
+        for pair in 0..40 {
+            let (old_time, new_time) = if pair % 2 == 0 {
+                let old_time = batch(before, &prior, repeats);
+                (
+                    old_time,
+                    batch(SpellingTable::split_paths_with_scratch, &prior, repeats),
+                )
+            } else {
+                let new_time = batch(SpellingTable::split_paths_with_scratch, &prior, repeats);
+                (batch(before, &prior, repeats), new_time)
+            };
+            ratios.push(new_time / old_time);
+            println!(
+                "prefix_pair {weighted} {pair} {old_time:.9} {new_time:.9} {:.6}",
+                new_time / old_time
+            );
+        }
+        ratios.sort_by(f64::total_cmp);
+        let median = (ratios[19] + ratios[20]) / 2.0;
+        println!("prefix_median {weighted} {median:.6}");
+        if median >= 0.98 {
+            failures.push((weighted, median));
+        }
+    }
+    assert!(failures.is_empty(), "{failures:?}");
+}

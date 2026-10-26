@@ -1,0 +1,77 @@
+{
+ "name": "ri_japanese_model_b",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "kana",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "kana",
+    "raw_segmentation": "kana",
+    "normalized_segmentation": "かな",
+    "editing_text": "kana",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "乙",
+      "pinyin": "kana",
+      "canonical_pinyin": "kana",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 899999,
+      "answers_key": true
+     },
+     {
+      "word": "かな",
+      "pinyin": "kana",
+      "canonical_pinyin": "kana",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 876000,
+      "answers_key": true
+     },
+     {
+      "word": "カナ",
+      "pinyin": "kana",
+      "canonical_pinyin": "kana",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 999999,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "japanese",
+     "query_text": "kana",
+     "cache_key": "kana",
+     "pinyin_segments": [],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,163 @@
+{
+ "name": "personal_context_rerank",
+ "source": "tests/src/test_personal_context_input_session.cpp:136-149; cases :545-589 and pin :610-623",
+ "note": "Session::reset_context stands for InputSession::reset_commit_context. The halve-mode case (:591-608) needs a different frequency mode for a later Session on the same data and is not in this scenario.",
+ "covers": [
+  "personal context",
+  "learning",
+  "pin"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-pinyin.db": "BEGIN;CREATE TABLE tbl_1_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);INSERT INTO tbl_1_n VALUES('ni','n','甲',100),('ni','n','乙',90),('ni','n','丙',80);CREATE TABLE tbl_1_h(key TEXT, jp TEXT, value TEXT, weight INTEGER);INSERT INTO tbl_1_h VALUES('hao','h','子',100),('hao','h','丑',90),('hao','h','寅',80);CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',1000);COMMIT;"
+  }
+ },
+ "options": {
+  "frequency": {
+   "mode": "disabled"
+  }
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "ni"
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "甲"
+   }
+  },
+  {
+   "op": "type",
+   "arg": "hao"
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "寅"
+   }
+  },
+  {
+   "op": "dump_journal"
+  },
+  {
+   "op": "type",
+   "arg": "hao"
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "寅"
+   }
+  },
+  {
+   "op": "reopen"
+  },
+  {
+   "op": "type",
+   "arg": "ni"
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "甲"
+   }
+  },
+  {
+   "op": "type",
+   "arg": "hao"
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "寅"
+   }
+  },
+  {
+   "op": "reopen"
+  },
+  {
+   "op": "type",
+   "arg": "hao"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "ni"
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "甲"
+   }
+  },
+  {
+   "op": "type",
+   "arg": "hao"
+  },
+  {
+   "op": "reset_context"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "reset_context"
+  },
+  {
+   "op": "type",
+   "arg": "nihao"
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "甲"
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "reopen"
+  },
+  {
+   "op": "type",
+   "arg": "hao"
+  },
+  {
+   "op": "pin",
+   "arg": 0
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "ni"
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "甲"
+   }
+  },
+  {
+   "op": "type",
+   "arg": "hao"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "dump_journal"
+  }
+ ]
+}

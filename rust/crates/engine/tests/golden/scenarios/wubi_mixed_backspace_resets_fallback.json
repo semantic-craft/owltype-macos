@@ -1,0 +1,53 @@
+{
+ "name": "wubi_mixed_backspace_resets_fallback",
+ "source": "tests/src/test_wubi_mixed_input_session.cpp:70-79; case :171-191",
+ "note": "Reference ctest wubi_mixed_input_session fails against this build: overlay apply_engine_wubi_mixed_candidates.py appends quanpin rows after wubi rows and recomputes the table answer per keystroke, so a tail after selection can get wubi rows too. The overlay behaviour is the product intent and is what is recorded.",
+ "covers": [
+  "wubi",
+  "backspace"
+ ],
+ "fixture": {
+  "english_schema": true,
+  "databases": {
+   "msime-pinyin.db": "CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_n VALUES('ni','n','你',10000);CREATE TABLE tbl_1_z(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_z VALUES('zi','z','子',10000);CREATE TABLE tbl_2_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',10000),('ni''hao','nh','拟好',9000);CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);INSERT INTO wubi86 VALUES('wq','你好',10000),('wqaa','众人',9000);"
+  }
+ },
+ "options": {
+  "scheme": "wubi",
+  "wubi_mixed_pinyin": true
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "nihao"
+  },
+  {
+   "op": "command",
+   "arg": "Backspace"
+  },
+  {
+   "op": "command",
+   "arg": "Backspace"
+  },
+  {
+   "op": "command",
+   "arg": "Backspace"
+  },
+  {
+   "op": "command",
+   "arg": "Backspace"
+  },
+  {
+   "op": "command",
+   "arg": "Backspace"
+  },
+  {
+   "op": "type",
+   "arg": "wq"
+  },
+  {
+   "op": "type",
+   "arg": "aa"
+  }
+ ]
+}

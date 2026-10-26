@@ -1,0 +1,97 @@
+{
+ "name": "sp_preedit_segmented",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "nihc",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "ni'hao",
+    "raw_segmentation": "ni'hc",
+    "normalized_segmentation": "ni'hao",
+    "editing_text": "nihc",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2,
+     4
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "你好",
+      "pinyin": "nihc",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 100,
+      "answers_key": true
+     },
+     {
+      "word": "拟好",
+      "pinyin": "nihc",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 50,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "shuangpin",
+     "query_text": "ni'hao",
+     "cache_key": "nihc",
+     "pinyin_segments": [
+      "ni",
+      "hao"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": 0,
+   "result": {
+    "handled": true,
+    "commit": "你好"
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  }
+ ]
+}

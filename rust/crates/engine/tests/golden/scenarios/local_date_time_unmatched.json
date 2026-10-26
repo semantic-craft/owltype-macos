@@ -1,0 +1,29 @@
+{
+ "name": "local_date_time_unmatched",
+ "source": "tests/src/test_temporary_input_session.cpp:246-259",
+ "note": "Only the clock-independent part of date/time mode: the public Session exposes no date/time provider (InputSession::set_local_date_time_provider, core/input_session.h:109), so rq/sj/xq candidates are not recorded.",
+ "covers": [
+  "local modes"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-english.db": "CREATE TABLE english_words(word TEXT COLLATE BINARY NOT NULL,display TEXT NOT NULL,weight INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(word,display)) WITHOUT ROWID;CREATE TABLE en_zh_glosses(english TEXT PRIMARY KEY,chinese_gloss TEXT NOT NULL);CREATE TABLE zh_en_glosses(chinese TEXT PRIMARY KEY,english_gloss TEXT NOT NULL);INSERT INTO english_words VALUES('he','HE',110);INSERT INTO english_words VALUES('hello','Hello',100);INSERT INTO english_words VALUES('help','Help',90);"
+  }
+ },
+ "options": {},
+ "steps": [
+  {
+   "op": "char",
+   "arg": "T",
+   "shift": true
+  },
+  {
+   "op": "type",
+   "arg": "xin"
+  },
+  {
+   "op": "command",
+   "arg": "CommitCandidate"
+  }
+ ]
+}

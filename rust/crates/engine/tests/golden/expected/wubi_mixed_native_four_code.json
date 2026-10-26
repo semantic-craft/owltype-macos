@@ -1,0 +1,52 @@
+{
+ "name": "wubi_mixed_native_four_code",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "wqaa",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "wqaa",
+    "raw_segmentation": "wqaa",
+    "normalized_segmentation": "wqaa",
+    "editing_text": "wqaa",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "wubi_unique_four_code": true,
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "众人",
+      "pinyin": "wqaa",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 9000,
+      "answers_key": true
+     }
+    ]
+   }
+  }
+ ]
+}

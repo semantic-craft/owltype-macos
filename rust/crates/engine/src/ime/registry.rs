@@ -92,9 +92,12 @@ impl ProviderRegistry {
             shuangpin: enabled
                 .contains(SchemeType::Shuangpin)
                 .then(|| ShuangpinEngine::new(profile, paths)),
-            wubi: enabled
-                .contains(SchemeType::Wubi)
-                .then(|| WubiProvider::new(&wubi_database(paths))),
+            wubi: enabled.contains(SchemeType::Wubi).then(|| {
+                WubiProvider::with_pinyin_dictionary(
+                    &wubi_database(paths),
+                    &paths.dictionary(assets::MAIN_DICTIONARY),
+                )
+            }),
             japanese: enabled
                 .contains(SchemeType::JapaneseRomaji)
                 .then(|| JapaneseProvider::new(&japanese_model)),
@@ -432,7 +435,11 @@ impl ProviderRegistry {
         &mut self,
         request: &QueryRequest,
     ) -> Option<WholeReadingLemma> {
-        self.japanese.as_mut()?.whole_reading_lemma(request)
+        let japanese = self.japanese.as_mut()?;
+        if !japanese.prepare_if_cached() {
+            return None;
+        }
+        japanese.whole_reading_lemma(request)
     }
 
     /// 日文混输：整段罗马字读音的最佳整句。没有 provider 时答 `None`；其余见 `JapaneseProvider::whole_reading_best_path`。
