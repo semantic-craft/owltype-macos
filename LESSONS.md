@@ -586,3 +586,19 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Seen 1x (2026-10-26): T04 segment routing raised `OwlRustSession.process` complexity to22. The merger reported lint clean after searching `error:` even though the configured GitHub reporter writes `::error`; later shell commands also masked its failure status. T12 correctly surfaced the blocker.
 - Fix: extract the existing segment-chord route into a dedicated private helper, preserving active-composition/modifier guards and false-versus-not-applicable behavior. Run lint as its own command and inspect both exit status and reporter errors; do not infer success from a later command. No lint configuration was relaxed.
 - Verify: `swiftlint lint --quiet` exits0 with no `::error`; existing `testSegmentChordEditsPinyinRatherThanPassingToHost` and `testShuangpinSegmentEditingAndShoudaoSelection` still pass. This fixes the source gate, not installed IMK acceptance.
+
+### Imported Wubi goldens must retain Owl's existing z lookup
+
+- Seen 1x (2026-10-26): the newly imported `wubi_mixed_matched_code` and
+  `wubi_mixed_plain_mode` goldens expected no candidate for pure-Wubi `zi`, although
+  the pre-parity `274fad9` implementation already queries both the lookup suffix
+  and the complete z-prefixed pinyin. Their own fixture contains `zi → 子`.
+- The exact pre-model integration `1fce6c6` reproduces the same six differences,
+  proving these observations predate the keyboard-model adapter. Preserve this
+  existing Owl behavior; do not disable the complete-spelling lookup to satisfy
+  an imported snapshot. The mixed-on step independently already pins the same
+  `子` row, weight, source and pinyin metadata.
+- Verify: run `MSIME_GOLDEN_SCENARIO=wubi_mixed_matched_code,wubi_mixed_plain_mode
+  cargo test --locked --manifest-path rust/Cargo.toml -p msime-engine --test golden
+  scripted_scenarios_match_the_reference`, then all scripted scenarios. The strict
+  comparator retains every field; only the two stale expected snapshots change.
