@@ -84,6 +84,7 @@ portable_scripts() {
   python3 scripts/fetch-msime-resources.selftest.py
   python3 scripts/fetch-msime-others.selftest.py
   python3 scripts/fetch-rerank-models.selftest.py
+  python3 scripts/test-defaults-isolation.selftest.py
   python3 scripts/pinyin-parity.selftest.py
   python3 scripts/release-bundle.selftest.py
   python3 scripts/owl-distribution.selftest.py

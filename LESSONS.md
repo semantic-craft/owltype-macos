@@ -626,3 +626,23 @@ review dates, not retries. Keep deterministic checks in the local gate.
   cargo test --locked --manifest-path rust/Cargo.toml -p msime-engine --test golden
   scripted_scenarios_match_the_reference`, then all scripted scenarios. The strict
   comparator retains every field; only the two stale expected snapshots change.
+
+### Test hosts must not share a persistent preferences domain
+
+- Seen 1x (2026-10-26): the real settled-model oracle intermittently saw eight
+  candidates after explicitly setting six. Every worktree used the fixed
+  `im.owltype.inputmethod.Owltype.tests` suite; another test host's settings baseline
+  writes eight. Main-actor isolation does not isolate CFPreferences across processes.
+- `test-defaults-isolation.selftest.py` compiles the actual `OwlDefaults` selector
+  and runs two Foundation processes with page sizes six and eight. Before the fix
+  they publish the same suite and the first process reads the peer's eight.
+- Give each test/UI-test process a unique suite and remove it on normal exit.
+  Synchronize domain removal and remove its exact UUID plist on exit: a removed
+  domain can remain observable as `{}`, and a `defaults read` observer can itself
+  recreate an empty plist. Verify the file before reading and require the saved
+  key to be absent. The first cleanup assertion was initially misreported green;
+  independent review caught it before integration.
+  Production preferences still use `UserDefaults.standard`. The existing exact
+  six-row model oracle and its page-size precondition remain unchanged.
+- Verify: `python3 scripts/test-defaults-isolation.selftest.py` passes; the real
+  model/controller regression must also pass through the ordinary native host.
