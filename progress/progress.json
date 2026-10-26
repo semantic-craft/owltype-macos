@@ -173,7 +173,9 @@
     "progress/index.html"
   ],
   "page": "progress/index.html",
-  "related_repositories": [],
+  "related_repositories": [
+    "semantic-craft/TeslaHub"
+  ],
   "renderer": null,
   "repository": "semantic-craft/owltype-macos",
   "schema_version": 1,
