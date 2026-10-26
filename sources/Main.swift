@@ -394,12 +394,17 @@ struct OwlApp {
 // --ui-test-show-settings 启动）改写到独立 suite 并每次从空域开始，真实域零写入。
 // Lives in Main.swift to avoid a project.pbxproj edit (same `Owltype` module, callable everywhere).
 enum OwlDefaults {
-  static let testSuiteName = "im.owltype.inputmethod.Owltype.tests"
+  static let testSuiteName = "im.owltype.inputmethod.Owltype.tests.\(UUID().uuidString)"
   static var isRunningUnitTests: Bool { OwlApp.isRunningUnitTests }
   static let standard: UserDefaults = {
     guard OwlApp.isRunningUnitTests || OwlApp.isShowingSettingsForUITests else { return .standard }
     let defaults = UserDefaults(suiteName: testSuiteName)!
     defaults.removePersistentDomain(forName: testSuiteName)
+    // Concurrent worktrees and XCTest hosts must never overwrite one another.
+    atexit {
+      UserDefaults(suiteName: OwlDefaults.testSuiteName)?
+        .removePersistentDomain(forName: OwlDefaults.testSuiteName)
+    }
     return defaults
   }()
 }
