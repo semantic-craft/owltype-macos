@@ -624,7 +624,7 @@ final class OwlRustEngineTests: XCTestCase {
     let backend = OwlDictPackCenterRustBackend.production(userRoot: user, sharedSupport: seed)
     let prepared = try await backend.prepare(backend.environment, nil)
     XCTAssertNil(try backend.environment.activeState(), "preparing must not activate")
-    XCTAssertEqual(prepared.version, OwlRustCompatibleResources.packageVersion)
+    XCTAssertEqual(prepared.version, 3, "the native-input-v1 production combination is version 3")
     let names = Set(prepared.resource.record.manifest.files.map(\.path))
     for name in OwlRustCompatibleResources.requiredFiles + ["compatibility.txt"] {
       XCTAssertTrue(names.contains("files/" + name), "complete payload lacks \(name)")
@@ -963,7 +963,12 @@ final class OwlRustEngineTests: XCTestCase {
         "v\(version)", isDirectory: true
       )
       let built = try OwlRustCompatibleResources.build(sharedSupport: seedDir, at: packageRoot, version: version)
-      if version == 2 {
+      XCTAssertEqual(try String(contentsOf: packageRoot.appendingPathComponent("files/compatibility.txt")),
+        "msime-macos-v0.55.0-native-input-v1\n")
+      XCTAssertEqual(try OwlRustResourceVerifier.digestOfFile(
+        packageRoot.appendingPathComponent("files/msime-wubi.db")),
+        "sha256:851ed68211311a76847fe6a26096702747abbaab8dffb141698e0365143b31c1")
+      if version == 4 {
         let others = packageRoot.appendingPathComponent("files/msime-others.db")
         var database: OpaquePointer?
         XCTAssertEqual(sqlite3_open(others.path, &database), SQLITE_OK)
@@ -995,7 +1000,7 @@ final class OwlRustEngineTests: XCTestCase {
       try? environment.activeGeneration()
     }
     let installedA = try await store.install(
-      OwlRustResourceDirectorySource(root: makePackage(version: 1))
+      OwlRustResourceDirectorySource(root: makePackage(version: 3))
     )
     let engineA = OwlRustEngine(
       sharedSupportURL: seedDir,
@@ -1008,7 +1013,7 @@ final class OwlRustEngineTests: XCTestCase {
     learnWubi(sessionA, schema: "wubi86_jidian")
     XCTAssertTrue(sessionA.process(keycode: UInt32(XK_n), modifiers: 0))
 
-    let packageB = try makePackage(version: 2)
+    let packageB = try makePackage(version: 4)
     let faulting = try OwlRustResourceStore(configuration: environment.configuration,
       engine: .owlRustNativeInputV1, faults: .fail(at: .beforeActiveRename))
     do {
