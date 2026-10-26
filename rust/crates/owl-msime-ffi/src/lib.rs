@@ -13,10 +13,9 @@ use msime_engine::host::{
     QuickPhraseEntry, Session as EngineSession,
 };
 use msime_engine::{
-    ensure_english_schema, fuzzy_rule, is_complete_pinyin_input, reject_redirected_directory,
-    roots_overlap, weakly_canonical, CandidateSource, FrequencyAdjustmentMode, SchemeSet,
-    SchemeType, SentenceAssociationOptions, ShuangpinCustomTable, ShuangpinHelpcodeModes,
-    ShuangpinProfileKind, WubiProfileKind,
+    ensure_english_schema, fuzzy_rule, reject_redirected_directory, roots_overlap,
+    weakly_canonical, FrequencyAdjustmentMode, SchemeSet, SchemeType, SentenceAssociationOptions,
+    ShuangpinCustomTable, ShuangpinHelpcodeModes, ShuangpinProfileKind, WubiProfileKind,
 };
 use msime_input_runtime::{
     Action, CandidateId, CandidateOps, CandidateTransform, Runtime, TransformRow, View,
@@ -61,7 +60,6 @@ struct OwlPinnedState {
     caret_at_end: bool,
     input_mode: String,
     pinyin_scheme: String,
-    page_size: usize,
     wubi_single_first: bool,
     wubi_z_reverse_lookup: bool,
 }
@@ -133,16 +131,7 @@ impl CandidateTransform for OwlPinnedTransform {
             }
         }
 
-        // 2. Host quick phrases / templates / prompts (CandidateSource::QuickPhrase == 5)
-        //    appear at the top of page 0 (matching Owltype's initial_quality: 99 table translators).
-        let quick_phrase_src = CandidateSource::QuickPhrase as u8;
-        for (seat, row) in window.iter().enumerate() {
-            if row.source == quick_phrase_src {
-                push_unique(&mut ops.order, seat);
-            }
-        }
-
-        // 3. Wubi single-character-first mode (#250): place single-character candidates ahead of phrases
+        // 2. Wubi single-character-first mode (#250): place single-character candidates ahead of phrases
         //    (except during z-prefix reverse lookup).
         let in_z_lookup = guard.input_mode == "wubi"
             && guard.pinyin_scheme != "wubi_pinyin"
@@ -151,37 +140,6 @@ impl CandidateTransform for OwlPinnedTransform {
         if guard.input_mode == "wubi" && guard.wubi_single_first && !in_z_lookup {
             for (seat, row) in window.iter().enumerate() {
                 if row.text.chars().count() == 1 {
-                    push_unique(&mut ops.order, seat);
-                }
-            }
-            for (seat, _) in window.iter().enumerate() {
-                push_unique(&mut ops.order, seat);
-            }
-        }
-
-        // 4. Whole-syllable Chinese-first protection (#259 AC 1):
-        //    When typing complete Quanpin syllables (e.g., `di`, `shi`, `nihao`, `you`), keep at least
-        //    the first page of Chinese candidates ahead of mixed English dictionary rows.
-        let english_src = CandidateSource::EnglishDictionary as u8;
-        if guard.input_mode == "chinese"
-            && guard.pinyin_scheme == "quanpin"
-            && !guard.active_input.is_empty()
-            && is_complete_pinyin_input(guard.active_input.trim_end_matches('\''))
-            && window.iter().any(|r| r.source == english_src)
-        {
-            let page_sz = guard.page_size.max(5);
-            let mut chinese_kept = 0usize;
-            for (seat, row) in window.iter().enumerate() {
-                if row.source != english_src {
-                    push_unique(&mut ops.order, seat);
-                    chinese_kept += 1;
-                    if chinese_kept >= page_sz {
-                        break;
-                    }
-                }
-            }
-            for (seat, row) in window.iter().enumerate() {
-                if row.source == english_src {
                     push_unique(&mut ops.order, seat);
                 }
             }
@@ -884,9 +842,9 @@ fn product_engine_options(
         mixed_english: true,
         english_minimum_prefix: 5,
         english_first_page_count: 1,
-        mixed_emoji: false,
+        mixed_emoji: true,
         mixed_kaomoji: false,
-        mixed_symbols: false,
+        mixed_symbols: true,
         mixed_japanese: false,
         local_unicode: true,
         local_date_time: true,
@@ -909,7 +867,7 @@ fn product_engine_options(
         plugin_commands: Vec::new(),
         mention_entries: Vec::new(),
         quick_phrase_table: Vec::new(),
-        quick_phrase_candidates: true,
+        quick_phrase_candidates: false,
         quick_phrase_frequency: true,
         sentence_association: SentenceAssociationOptions::default(),
         rescoring_context: String::new(),
@@ -1093,7 +1051,6 @@ impl OwlMsimeSession {
             caret_at_end: true,
             input_mode: "chinese".to_owned(),
             pinyin_scheme: "quanpin".to_owned(),
-            page_size: usize::from(page_size),
             wubi_single_first: false,
             wubi_z_reverse_lookup: true,
         }));
@@ -1372,7 +1329,6 @@ impl OwlMsimeSession {
             guard.caret_at_end = caret_at_end;
             guard.input_mode = self.input_mode.clone();
             guard.pinyin_scheme = self.pinyin_scheme.clone();
-            guard.page_size = usize::from(self.page_size);
             guard.wubi_single_first = self.wubi_candidate_mode == "single_first";
             guard.wubi_z_reverse_lookup = self.wubi_z_reverse_lookup;
         }
@@ -1386,7 +1342,6 @@ impl OwlMsimeSession {
                 view.phrase_prefix.is_empty() && view.caret_position == view.editing_text.len();
             guard.input_mode = self.input_mode.clone();
             guard.pinyin_scheme = self.pinyin_scheme.clone();
-            guard.page_size = usize::from(self.page_size);
             guard.wubi_single_first = self.wubi_candidate_mode == "single_first";
             guard.wubi_z_reverse_lookup = self.wubi_z_reverse_lookup;
         }
@@ -2881,7 +2836,8 @@ mod tests {
         assert!(options.local_date_time_inline);
         assert!(options.local_date_time_menu);
         assert!(options.local_expression);
-        assert!(!options.mixed_emoji);
+        assert!(options.mixed_emoji);
+        assert!(options.mixed_symbols);
         assert!(!options.local_emoji);
     }
 
@@ -2900,6 +2856,10 @@ mod tests {
         assert!(error.is_none(), "{error:?}");
         assert!(!session.is_null());
 
+        call_action(
+            session,
+            r#"{"op":"set_option","name":"emoji","value":false}"#,
+        );
         for ch in ['p', 'i', 'n', 'g'] {
             let frame = call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
             assert!(frame.ok);
@@ -3744,7 +3704,7 @@ mod tests {
         assert!(options.mixed_english);
         assert_eq!(options.english_minimum_prefix, 5);
         assert_eq!(options.english_first_page_count, 1);
-        assert!(options.quick_phrase_candidates);
+        assert!(!options.quick_phrase_candidates);
         assert_eq!(options.first_page_rows, 5);
         assert!(!options.helpcode);
 
@@ -3769,7 +3729,10 @@ mod tests {
                 .map(|candidate| candidate.text.as_str())
                 .collect::<Vec<_>>()
         );
-        assert_eq!(frames[0].candidates[0].text, "基础短语");
+        assert!(!frames[0]
+            .candidates
+            .iter()
+            .any(|row| row.text == "基础短语"));
 
         call_action(generated, r#"{"op":"clear"}"#);
         let host = call_action(
@@ -3780,11 +3743,22 @@ mod tests {
         call_action(generated, r#"{"op":"insert","ch":"n"}"#);
         call_action(generated, r#"{"op":"insert","ch":"i"}"#);
         assert!(
+            !call_snapshot(generated)
+                .candidates
+                .iter()
+                .any(|row| row.text == "主机短语"),
+            "fresh upstream defaults keep host phrases out of ordinary pinyin"
+        );
+        call_action(generated, r#"{"op":"clear"}"#);
+        for ch in ['K', 'n', 'i'] {
+            call_action(generated, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
+        }
+        assert!(
             call_snapshot(generated)
                 .candidates
                 .iter()
-                .any(|candidate| candidate.text == "主机短语"),
-            "host phrases/templates must remain first-page candidates through the generation seam"
+                .any(|row| row.text == "主机短语"),
+            "explicit K mode retains the host phrase table"
         );
         assert_eq!(file_contents(&resources), resources_before);
 
@@ -4892,7 +4866,7 @@ mod tests {
         assert_eq!(tracking_table_count, 0);
         drop(conn);
 
-        for ch in ['h', 'o', 's', 't'] {
+        for ch in ['K', 'h', 'o', 's', 't'] {
             call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
         }
         let snapshot = call_snapshot(session);
@@ -5045,7 +5019,7 @@ mod tests {
         // This is the first session operation: no snapshot or start maintenance happened first.
         let initial = call_snapshot(session);
         assert!(initial.ok);
-        for ch in ['h', 'o', 's', 't'] {
+        for ch in ['K', 'h', 'o', 's', 't'] {
             let typed = call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
             assert!(typed.ok);
         }
@@ -5190,7 +5164,7 @@ mod tests {
         assert_eq!(tracking_table_count, 0);
         drop(conn);
 
-        for ch in ['m', 'i', 'n', 'e'] {
+        for ch in ['K', 'm', 'i', 'n', 'e'] {
             call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
         }
         assert_eq!(
