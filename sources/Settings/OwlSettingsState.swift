@@ -169,7 +169,9 @@ final class OwlSettingsState {
   /// 第五码顶字上屏 (mirror of `OwlKeyboardPreferences.wubiFifthCodeTopCommit`).
   var keyboardWubiFifthCodeTopCommit: Bool = true
   /// 五笔编码提示 (mirror of `OwlKeyboardPreferences.wubiCodeHint`).
-  var keyboardWubiCodeHint: Bool = false
+  var keyboardWubiCodeHint: Bool = true
+  /// z 通配 (mirror of `OwlKeyboardPreferences.wubiZWildcard`).
+  var keyboardWubiZWildcard: Bool = false
   /// 五笔空码自动清码 (mirror of `OwlKeyboardPreferences.wubiAutoClear`).
   var keyboardWubiAutoClear: Bool = false
   /// 五笔单字候选模式 (mirror of `OwlKeyboardPreferences.wubiCandidateMode`).
