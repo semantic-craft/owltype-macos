@@ -164,6 +164,10 @@ final class OwlSettingsState {
   var keyboardInputMethod: OwlInputMethod = .pinyin
   /// 双拼方案 (mirror of `OwlKeyboardPreferences.doublePinyin`).
   var keyboardDoublePinyin: OwlDoublePinyin = .flypy
+  /// 四码唯一自动上屏 (mirror of `OwlKeyboardPreferences.wubiAutoCommitUnique`).
+  var keyboardWubiAutoCommitUnique: Bool = true
+  /// 第五码顶字上屏 (mirror of `OwlKeyboardPreferences.wubiFifthCodeTopCommit`).
+  var keyboardWubiFifthCodeTopCommit: Bool = true
   /// 五笔编码提示 (mirror of `OwlKeyboardPreferences.wubiCodeHint`).
   var keyboardWubiCodeHint: Bool = false
   /// 五笔空码自动清码 (mirror of `OwlKeyboardPreferences.wubiAutoClear`).

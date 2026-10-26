@@ -2230,6 +2230,12 @@ impl OwlMsimeSession {
                     "linear" => {
                         self.runtime.set_vertical_candidates(!value);
                     }
+                    "wubi_auto_commit_unique" => {
+                        self.runtime.set_wubi_auto_commit_unique(value);
+                    }
+                    "wubi_fifth_code_top_commit" => {
+                        self.runtime.set_wubi_fifth_code_top_commit(value);
+                    }
                     "wubi_code_hint" => {
                         self.wubi_code_hint = value;
                     }
