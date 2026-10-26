@@ -27,6 +27,13 @@
 
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
+
+private final class SchemaCompatibilityPanelDelegate: NSObject, NSOpenSavePanelDelegate {
+  func panel(_ sender: Any, shouldEnable url: URL) -> Bool {
+    url.hasDirectoryPath || OwlRimeSchemaCompatibilityReport.supports(fileURL: url)
+  }
+}
 
 /// The 键盘输入 detail page. Palette/theme/reduceTransparency come from
 /// `OwlSettingsView` (same arg style as the other pages); `state` carries the mirror
@@ -44,6 +51,7 @@ struct OwlKeyboardPage: View {
   /// 模糊拼音 fast-ish apply (mtime-gated `fullCheck:false` maintenance — rebuilds the schema
   /// prism, not octagram — + reselect + replay). NOT instant; copy stays honest.
   let onApplyFuzzyConfigFast: () throws -> OwlKeyboardSettingsApplication.Outcome
+  var writesRimeConfiguration = true
 
   /// Which card group this instance renders. 键盘输入 shows everything except the three
   /// shortcut cards; 快捷键设置 (a separate sidebar page) shows only those three. One view
@@ -70,6 +78,11 @@ struct OwlKeyboardPage: View {
   /// stay live-only and do not use this status line.
   @State private var isAutoApplyingRimeConfig = false
   @State private var autoApplyStatus: String?
+  @State private var compatibilityReport: OwlRimeSchemaCompatibilityReport.Report?
+  @State private var compatibilityReportError: String?
+  @State private var rerankRuntimeStatuses =
+    OwlRerankRuntimeStatusRegistry.shared.snapshot()
+  @State private var rerankStatusTimer: Timer?
 
   var body: some View {
     ScrollView {
@@ -78,10 +91,12 @@ struct OwlKeyboardPage: View {
         case .keyboard:
           applyConfigCard
           inputMethodCard
+          schemaCompatibilityCard
           dictPackCard
           defaultStateCard
           wubiCard
           fuzzyCard
+          rerankCard
           symbolCard
           candidateEmojiCard
           localConvenienceCard
@@ -97,7 +112,14 @@ struct OwlKeyboardPage: View {
       }
       .padding(20)
     }
-    .onAppear { refreshFuzzySnapshot() }
+    .onAppear {
+      refreshFuzzySnapshot()
+      startRerankStatusRefresh()
+    }
+    .onDisappear {
+      rerankStatusTimer?.invalidate()
+      rerankStatusTimer = nil
+    }
     .sheet(isPresented: $showFuzzySheet, onDismiss: {
       refreshFuzzySnapshotAndApplyIfNeeded()
     }) {
@@ -136,7 +158,7 @@ struct OwlKeyboardPage: View {
                 .font(.system(size: 13))
                 .foregroundStyle(OwlProvenanceColor.verified)
             }
-            Text(autoApplyStatus ?? "改动已自动保存并应用")
+            Text(autoApplyStatus ?? defaultApplyStatus)
               .font(.system(size: 12, weight: .medium))
               .foregroundStyle(isAutoApplyingRimeConfig ? palette.ink2 : palette.ink3)
           }
@@ -145,7 +167,7 @@ struct OwlKeyboardPage: View {
             HStack(spacing: 6) {
               Image(systemName: "arrow.clockwise")
                 .font(.system(size: 12))
-              Text("保存并重新应用")
+              Text(reapplyButtonTitle)
                 .font(.system(size: 13, weight: .medium))
             }
             .foregroundStyle(palette.accentDeep)
@@ -164,10 +186,10 @@ struct OwlKeyboardPage: View {
           .buttonStyle(.plain)
           .disabled(!rimeBackedRowsEnabled)
           .opacity(rimeBackedRowsEnabled ? 1 : 0.5)
-          .accessibilityLabel("保存并重新应用")
+          .accessibilityLabel(writesRimeConfiguration ? "保存并重新应用" : "重新应用")
         }
 
-        Text("配置改动即时生效；此处仅用于异常时重新写入并应用当前键盘设置。")
+        Text(applyFootnote)
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .frame(maxWidth: .infinity, alignment: .leading)
@@ -184,7 +206,9 @@ struct OwlKeyboardPage: View {
         HStack(spacing: 10) {
           switch center.status {
           case .notInstalled:
-            Text("未安装 — 当前为精简词库，候选质量受限")
+            Text(center.usesRustResources
+              ? "未启用 — 当前使用随包精简资源"
+              : "未安装 — 当前为精简词库，候选质量受限")
               .font(.system(size: 12, weight: .medium))
               .foregroundStyle(palette.ink2)
             Spacer(minLength: 8)
@@ -193,7 +217,9 @@ struct OwlKeyboardPage: View {
             ProgressView(value: progress)
               .controlSize(.small)
               .frame(maxWidth: 180)
-            Text("下载中 \(Int(progress * 100))%")
+            Text(center.usesRustResources
+              ? "下载、校验并生成资源 \(Int(progress * 100))%"
+              : "下载中 \(Int(progress * 100))%")
               .font(.system(size: 12))
               .foregroundStyle(palette.ink2)
             Spacer(minLength: 8)
@@ -204,14 +230,42 @@ struct OwlKeyboardPage: View {
               .font(.system(size: 12))
               .foregroundStyle(palette.ink2)
             Spacer(minLength: 8)
+          case .prepared(let version):
+            Image(systemName: "checkmark.seal")
+              .font(.system(size: 13))
+              .foregroundStyle(palette.accentDeep)
+            Text("候选 v\(version) 已生成，尚未启用")
+              .font(.system(size: 12, weight: .medium))
+              .foregroundStyle(palette.ink2)
+            Spacer(minLength: 8)
+            dictPackActionButton("启用") { center.activatePrepared() }
+          case .activating:
+            ProgressView()
+              .controlSize(.small)
+            Text("正在校验并启用资源…")
+              .font(.system(size: 12))
+              .foregroundStyle(palette.ink2)
+            Spacer(minLength: 8)
+          case .rollingBack:
+            ProgressView()
+              .controlSize(.small)
+            Text("正在校验并回退资源…")
+              .font(.system(size: 12))
+              .foregroundStyle(palette.ink2)
+            Spacer(minLength: 8)
           case .installed(let version):
             Image(systemName: "checkmark.circle.fill")
               .font(.system(size: 13))
               .foregroundStyle(OwlProvenanceColor.verified)
-            Text("完整词库已安装（v\(version)）")
+            Text(center.isAwaitingLiveSessionRefresh
+              ? "完整词库 v\(version) 已启用；当前输入完成后自动生效"
+              : "完整词库已安装（v\(version)）")
               .font(.system(size: 12, weight: .medium))
               .foregroundStyle(palette.ink3)
             Spacer(minLength: 8)
+            if let target = center.rollbackTargetVersion {
+              dictPackActionButton("回退到 v\(target)") { center.rollback() }
+            }
           case .userProvided:
             Image(systemName: "checkmark.circle")
               .font(.system(size: 13))
@@ -224,15 +278,32 @@ struct OwlKeyboardPage: View {
             Image(systemName: "exclamationmark.triangle.fill")
               .font(.system(size: 13))
               .foregroundStyle(.orange)
-            Text("下载失败：\(message)")
+            Text(message)
               .font(.system(size: 12))
               .foregroundStyle(palette.ink2)
               .lineLimit(2)
             Spacer(minLength: 8)
-            dictPackActionButton("重试") { center.start() }
+            dictPackActionButton("重试") { center.retryFailedOperation() }
           }
         }
-        Text("完整词库来自第三方开源项目，为避免版权争议不随安装包分发，也不会在你不知情时自动下载。点下载后按固定版本从上游原仓库（雾凇拼音 / 极点五笔 / 八股文语法模型）获取并逐文件校验，完成后自动重新部署。")
+        if let candidate = center.preparedCandidate {
+          Text(
+            "生成统计：拼音 \(candidate.pinyinEntries.formatted()) 条 · "
+              + "五笔 \(candidate.wubiEntries.formatted()) 条 · "
+              + "英文 \(candidate.englishEntries.formatted()) 条 · "
+              + "拒绝 \(candidate.rejectedEntries.formatted()) 条"
+          )
+          .font(.system(size: 11.5, design: .monospaced))
+          .foregroundStyle(palette.ink3)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          Text("许可证：\(candidate.licenseIdentifiers.joined(separator: "、")) · 摘要 \(candidate.digest.prefix(19))…")
+            .font(.system(size: 11.5))
+            .foregroundStyle(palette.ink3)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        Text(center.usesRustResources
+          ? "完整词库来自第三方开源项目，为避免版权争议不随安装包分发，也不会在你不知情时自动下载。下载后会先校验版本、摘要和许可证，再显示生成统计；只有点「启用」才切换资源代次，旧版本保留可回退。更新不改写 msime-user 学习库，也不触发 Rime 部署。"
+          : "完整词库来自第三方开源项目，为避免版权争议不随安装包分发，也不会在你不知情时自动下载。点下载后按固定版本从上游原仓库（雾凇拼音 / 极点五笔 / 八股文语法模型）获取并逐文件校验，完成后自动重新部署。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .frame(maxWidth: .infinity, alignment: .leading)
@@ -333,6 +404,98 @@ struct OwlKeyboardPage: View {
       }
       .disabled(!rimeBackedRowsEnabled)
       .opacity(rimeBackedRowsEnabled ? 1 : 0.55)
+    }
+  }
+
+  private var schemaCompatibilityCard: some View {
+    SettingsCard(
+      title: "自定义 Rime 方案兼容检查",
+      palette: palette,
+      theme: theme,
+      reduceTransparency: reduceTransparency
+    ) {
+      VStack(alignment: .leading, spacing: 10) {
+        Text("仅检查你主动选择的 .schema.yaml / .custom.yaml；不扫描目录，也不改写原文。")
+          .font(.system(size: 12))
+          .foregroundStyle(palette.ink3)
+        HStack(spacing: 10) {
+          Button("选择方案文件…") {
+            chooseSchemaCompatibilityFiles()
+          }
+          .buttonStyle(.borderedProminent)
+          if compatibilityReport != nil {
+            Button("清除检查结果") {
+              compatibilityReport = nil
+              compatibilityReportError = nil
+            }
+            .buttonStyle(.bordered)
+          }
+        }
+        if let compatibilityReportError {
+          Text(compatibilityReportError)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        if let report = compatibilityReport {
+          VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(report.files.enumerated()), id: \.offset) { _, file in
+              VStack(alignment: .leading, spacing: 3) {
+                Text("\(file.fileName) · \(file.kind == .schema ? "方案" : "补丁")")
+                  .font(.system(size: 13, weight: .medium))
+                  .foregroundStyle(palette.ink)
+                Text("schema id：\(file.schemaID ?? "未找到")")
+                  .font(.system(size: 11.5, design: .monospaced))
+                  .foregroundStyle(palette.ink3)
+                Text(
+                  "Lua 引用：\(file.luaReferences.isEmpty ? "无" : file.luaReferences.joined(separator: "、"))"
+                )
+                .font(.system(size: 11.5))
+                .foregroundStyle(palette.ink3)
+              }
+              .padding(9)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                  .fill(palette.card2)
+              }
+            }
+            Text("原生等价能力：\(report.nativeEquivalentCapabilities.joined(separator: "、"))")
+              .font(.system(size: 12, weight: .medium))
+              .foregroundStyle(palette.ink2)
+            Text(report.notice)
+              .font(.system(size: 12))
+              .foregroundStyle(palette.ink3)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+        Text("外部自定义 schema/Lua 不执行；原文不改；内置日期、农历、Unicode、表达式由 Rust 原生实现。")
+          .font(.system(size: 12))
+          .foregroundStyle(palette.ink3)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
+  private func chooseSchemaCompatibilityFiles() {
+    let panel = NSOpenPanel()
+    panel.title = "选择自定义 Rime 方案文件"
+    panel.prompt = "检查"
+    panel.canChooseFiles = true
+    panel.canChooseDirectories = false
+    panel.allowsMultipleSelection = true
+    panel.allowedContentTypes = [.yaml]
+    let delegate = SchemaCompatibilityPanelDelegate()
+    panel.delegate = delegate
+    let response = withExtendedLifetime(delegate) { panel.runModal() }
+    guard response == .OK else { return }
+    do {
+      compatibilityReport = try OwlRimeSchemaCompatibilityReport.inspect(fileURLs: panel.urls)
+      compatibilityReportError = nil
+    } catch {
+      compatibilityReport = nil
+      compatibilityReportError = error.localizedDescription
     }
   }
 
@@ -753,6 +916,54 @@ struct OwlKeyboardPage: View {
 
   // MARK: - 符号
 
+  private var rerankCard: some View {
+    SettingsCard(
+      title: "本地轻量重排（实验）",
+      palette: palette,
+      theme: theme,
+      reduceTransparency: reduceTransparency
+    ) {
+      VStack(alignment: .leading, spacing: 10) {
+        SettingsToggleRow(
+          title: "逐键候选重排",
+          isOn: state.keyboardRerankEnabled,
+          palette: palette,
+          onToggle: { toggleKeyboardRerank() }
+        )
+        Text("每次按键用 4.3 MB 本地模型轻量排序；按真实来源保护精确词、用户置顶、快捷短语和生成句。\(rerankResourceSummary(.keyboard))")
+          .font(.system(size: 12))
+          .foregroundStyle(palette.ink3)
+          .fixedSize(horizontal: false, vertical: true)
+        Text(rerankStatusLine(.keyboard))
+          .font(.system(size: 12, weight: .medium))
+          .foregroundStyle(palette.ink2)
+          .frame(maxWidth: .infinity, alignment: .leading)
+
+        SettingsCardDivider(palette: palette)
+
+        SettingsToggleRow(
+          title: "停顿候选重排",
+          isOn: state.settledRerankEnabled,
+          palette: palette,
+          onToggle: { toggleSettledRerank() }
+        )
+        Text("停止输入 150 ms 后用 24.3 MB 桌面模型在后台重排；旧结果会丢弃并归还模型，不阻塞继续输入。\(rerankResourceSummary(.settled))")
+          .font(.system(size: 12))
+          .foregroundStyle(palette.ink3)
+          .fixedSize(horizontal: false, vertical: true)
+        Text(rerankStatusLine(.settled))
+          .font(.system(size: 12, weight: .medium))
+          .foregroundStyle(palette.ink2)
+          .frame(maxWidth: .infinity, alignment: .leading)
+
+        Text("两个开关默认关闭。模型来自 metasequoiaime/chinese-ime-lm model-v1；权重许可 Apache-2.0，来源与完整 SHA-256 随模型 manifest 提供。")
+          .font(.system(size: 11))
+          .foregroundStyle(palette.ink3)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   /// 中文标点模式、`/` 与 `<` 的可选候选菜单。
   private var symbolCard: some View {
     SettingsCard(
@@ -774,7 +985,7 @@ struct OwlKeyboardPage: View {
           title: "输入中文时 “/” 弹出符号选单",
           isOn: state.keyboardSlashSymbolMenu,
           palette: palette,
-          isEnabled: rimeBackedRowsEnabled,
+          isEnabled: symbolMenusEnabled,
           onToggle: { toggleSlashSymbolMenu() }
         )
         Text("打开后按 / 键从 、 / ／ ÷ 里挑一个；关闭时维持默认行为：提交当前中文候选、切到英文并直接输入 /。")
@@ -788,7 +999,7 @@ struct OwlKeyboardPage: View {
           title: "输入中文时 “<” 弹出符号选单",
           isOn: state.keyboardAngleSymbolMenu,
           palette: palette,
-          isEnabled: rimeBackedRowsEnabled,
+          isEnabled: symbolMenusEnabled,
           onToggle: { toggleAngleSymbolMenu() }
         )
         Text("按 < 键从 《 〈 < 「 “ 里挑一个；首选仍是 《，继续打字会自动上屏首选。配合「成对输入」，选出的开括号（含弯引号）会自动补全成对。")
@@ -886,7 +1097,9 @@ struct OwlKeyboardPage: View {
       reduceTransparency: reduceTransparency
     ) {
       VStack(alignment: .leading, spacing: 6) {
-        Text("快捷键配置会自动写入 ~/Library/Application Support/Owltype 并应用。")
+        Text(writesRimeConfiguration
+          ? "快捷键配置会自动写入 ~/Library/Application Support/Owltype 并应用。"
+          : "快捷键配置会即时应用；Rust 引擎不写入 Rime YAML。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .frame(maxWidth: .infinity, alignment: .leading)
@@ -896,6 +1109,24 @@ struct OwlKeyboardPage: View {
 
   private var rimeBackedRowsEnabled: Bool {
     !isAutoApplyingRimeConfig
+  }
+
+  private var symbolMenusEnabled: Bool {
+    rimeBackedRowsEnabled
+  }
+
+  private var defaultApplyStatus: String {
+    writesRimeConfiguration ? "改动已自动保存并应用" : "改动已即时应用"
+  }
+
+  private var reapplyButtonTitle: String {
+    writesRimeConfiguration ? "保存并重新应用" : "重新应用"
+  }
+
+  private var applyFootnote: String {
+    writesRimeConfiguration
+      ? "配置改动即时生效；此处仅用于异常时重新写入并应用当前键盘设置。"
+      : "配置改动即时生效；此处仅用于重新应用当前键盘设置。"
   }
 
   private func persistAndApplyRimeConfig(_ mutation: () -> Void) {
@@ -933,7 +1164,9 @@ struct OwlKeyboardPage: View {
       } catch OwlConfigWriteError.refusedNeverTouch(let name) {
         autoApplyStatus = "已拒绝写入受保护文件：\(name)。改动未生效，请查看诊断日志。"
       } catch {
-        autoApplyStatus = "写入失败，改动未生效，请查看诊断日志：\(error.localizedDescription)"
+        autoApplyStatus = writesRimeConfiguration
+          ? "写入失败，改动未生效，请查看诊断日志：\(error.localizedDescription)"
+          : "应用失败，改动未生效，请查看诊断日志：\(error.localizedDescription)"
       }
       isAutoApplyingRimeConfig = false
     }
@@ -945,6 +1178,61 @@ struct OwlKeyboardPage: View {
     fuzzyEnabledCount = current.enabledCount
   }
 
+  private func startRerankStatusRefresh() {
+    rerankRuntimeStatuses = OwlRerankRuntimeStatusRegistry.shared.snapshot()
+    rerankStatusTimer?.invalidate()
+    let timer = Timer(timeInterval: 0.5, repeats: true) { _ in
+      rerankRuntimeStatuses = OwlRerankRuntimeStatusRegistry.shared.snapshot()
+    }
+    rerankStatusTimer = timer
+    RunLoop.main.add(timer, forMode: .common)
+  }
+
+  private func rerankResourceSummary(_ kind: OwlRerankModelKind) -> String {
+    let descriptor = OwlRerankModelDescriptor.descriptor(for: kind)
+    return "\(descriptor.version) · \(descriptor.license) · SHA-256 \(descriptor.sha256Prefix)…"
+  }
+
+  private func rerankStatusLine(_ kind: OwlRerankModelKind) -> String {
+    guard OwlExperimentalPreferences.rerankEnabled(for: kind) else {
+      return "状态：已关闭"
+    }
+    if let runtime = rerankRuntimeStatuses[kind] {
+      switch runtime.state {
+      case "ready":
+        return "状态：已加载并完成 SHA-256 校验"
+      case "loading":
+        return "状态：正在后台校验并加载…"
+      case "missing":
+        return "状态：包内模型缺失，输入继续使用普通排序"
+      case "corrupt":
+        return "状态：模型校验失败，输入继续使用普通排序"
+      case "oversized":
+        return "状态：模型文件超出大小上限，已拒绝加载"
+      case "error":
+        return "状态：加载失败，输入继续使用普通排序"
+      case "disabled":
+        return "状态：已关闭"
+      default:
+        return "状态：\(runtime.state)"
+      }
+    }
+
+    let descriptor = OwlRerankModelDescriptor.descriptor(for: kind)
+    guard let url = descriptor.url(sharedSupportURL: Bundle.main.sharedSupportURL) else {
+      return "状态：应用资源目录不可用"
+    }
+    let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+    let size = (attributes?[.size] as? NSNumber)?.uint64Value
+    guard let size else {
+      return "状态：包内模型缺失"
+    }
+    guard size == descriptor.expectedSize else {
+      return "状态：文件大小不符（\(size) bytes）"
+    }
+    return "状态：随包文件已就位，输入后加载"
+  }
+
   private func refreshFuzzySnapshotAndApplyIfNeeded() {
     let previous = fuzzySnapshot
     refreshFuzzySnapshot()
@@ -953,14 +1241,20 @@ struct OwlKeyboardPage: View {
     }
   }
 
-  static func autoApplyStatusMessage(written: [String], deploySucceeded: Bool) -> String {
+  static func autoApplyStatusMessage(
+    written: [String],
+    deploySucceeded: Bool,
+    writesRimeConfiguration: Bool = true
+  ) -> String {
     let files = written.joined(separator: "、")
     if deploySucceeded {
       return files.isEmpty ? "配置已生效。" : "已生效：\(files)。"
     }
     return files.isEmpty
       ? "应用失败，改动未生效，请查看诊断日志。"
-      : "已写入 \(files)，但应用失败；改动未生效，请查看诊断日志。"
+      : writesRimeConfiguration
+        ? "已写入 \(files)，但应用失败；改动未生效，请查看诊断日志。"
+        : "应用失败，改动未生效，请查看诊断日志。"
   }
 
   // MARK: - Bool write-through helpers
@@ -968,59 +1262,54 @@ struct OwlKeyboardPage: View {
   // Each toggle flips the mirror + writes through to `OwlKeyboardPreferences` in one
   // place, keeping the card bodies declarative and the key literals out of this file.
 
-  private func toggleShiftSwitchCJK() {
+  private func persistRimeToggle(
+    _ keyPath: ReferenceWritableKeyPath<OwlSettingsState, Bool>,
+    write: (Bool) -> Void
+  ) {
     persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardShiftSwitchCJK) {
-        OwlKeyboardPreferences.shiftSwitchCJK = $0
-      }
+      OwlSettingsActions.toggle(state: state, keyPath: keyPath, write: write)
+    }
+  }
+
+  private func toggleShiftSwitchCJK() {
+    persistRimeToggle(\.keyboardShiftSwitchCJK) {
+      OwlKeyboardPreferences.shiftSwitchCJK = $0
     }
   }
 
   private func toggleCJKPunct() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardCJKPunctToggle) {
-        OwlKeyboardPreferences.cjkPunctToggle = $0
-      }
+    persistRimeToggle(\.keyboardCJKPunctToggle) {
+      OwlKeyboardPreferences.cjkPunctToggle = $0
     }
   }
 
   private func toggleGoodOldCapsLock() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardGoodOldCapsLock) {
-        OwlKeyboardPreferences.goodOldCapsLock = $0
-      }
+    persistRimeToggle(\.keyboardGoodOldCapsLock) {
+      OwlKeyboardPreferences.goodOldCapsLock = $0
     }
   }
 
   private func togglePageMinusEquals() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardPageMinusEquals) {
-        OwlKeyboardPreferences.pageMinusEquals = $0
-      }
+    persistRimeToggle(\.keyboardPageMinusEquals) {
+      OwlKeyboardPreferences.pageMinusEquals = $0
     }
   }
 
   private func togglePageBrackets() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardPageBrackets) {
-        OwlKeyboardPreferences.pageBrackets = $0
-      }
+    persistRimeToggle(\.keyboardPageBrackets) {
+      OwlKeyboardPreferences.pageBrackets = $0
     }
   }
 
   private func togglePageCommaPeriod() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardPageCommaPeriod) {
-        OwlKeyboardPreferences.pageCommaPeriod = $0
-      }
+    persistRimeToggle(\.keyboardPageCommaPeriod) {
+      OwlKeyboardPreferences.pageCommaPeriod = $0
     }
   }
 
   private func toggleSelect23Semicolon() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardSelect23Semicolon) {
-        OwlKeyboardPreferences.select23Semicolon = $0
-      }
+    persistRimeToggle(\.keyboardSelect23Semicolon) {
+      OwlKeyboardPreferences.select23Semicolon = $0
     }
   }
 
@@ -1029,58 +1318,44 @@ struct OwlKeyboardPage: View {
   // toggle handler；别再加回来，否则就是一个永远不会被调用的死开关。
 
   private func toggleWubiCodeHint() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardWubiCodeHint) {
-        OwlKeyboardPreferences.wubiCodeHint = $0
-      }
+    persistRimeToggle(\.keyboardWubiCodeHint) {
+      OwlKeyboardPreferences.wubiCodeHint = $0
     }
   }
 
   private func toggleWubiAutoClear() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardWubiAutoClear) {
-        OwlKeyboardPreferences.wubiAutoClear = $0
-      }
+    persistRimeToggle(\.keyboardWubiAutoClear) {
+      OwlKeyboardPreferences.wubiAutoClear = $0
     }
   }
 
   private func toggleWubiZReverseLookup() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardWubiZReverseLookup) {
-        OwlKeyboardPreferences.wubiZReverseLookup = $0
-      }
+    persistRimeToggle(\.keyboardWubiZReverseLookup) {
+      OwlKeyboardPreferences.wubiZReverseLookup = $0
     }
   }
 
   private func toggleWubiEnglishChannel() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardWubiEnglishChannel) {
-        OwlKeyboardPreferences.wubiEnglishChannel = $0
-      }
+    persistRimeToggle(\.keyboardWubiEnglishChannel) {
+      OwlKeyboardPreferences.wubiEnglishChannel = $0
     }
   }
 
   private func toggleWubiUserDictLearning() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardWubiUserDictLearning) {
-        OwlKeyboardPreferences.wubiUserDictLearning = $0
-      }
+    persistRimeToggle(\.keyboardWubiUserDictLearning) {
+      OwlKeyboardPreferences.wubiUserDictLearning = $0
     }
   }
 
   private func toggleAngleSymbolMenu() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardAngleSymbolMenu) {
-        OwlKeyboardPreferences.angleSymbolMenu = $0
-      }
+    persistRimeToggle(\.keyboardAngleSymbolMenu) {
+      OwlKeyboardPreferences.angleSymbolMenu = $0
     }
   }
 
   private func toggleSlashSymbolMenu() {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: \.keyboardSlashSymbolMenu) {
-        OwlKeyboardPreferences.slashSymbolMenu = $0
-      }
+    persistRimeToggle(\.keyboardSlashSymbolMenu) {
+      OwlKeyboardPreferences.slashSymbolMenu = $0
     }
   }
 
@@ -1098,5 +1373,19 @@ struct OwlKeyboardPage: View {
     OwlSettingsActions.toggle(state: state, keyPath: \.keyboardAutoPairBrackets) {
       OwlKeyboardPreferences.autoPairBrackets = $0
     }
+  }
+
+  private func toggleKeyboardRerank() {
+    OwlSettingsActions.toggle(state: state, keyPath: \.keyboardRerankEnabled) {
+      OwlExperimentalPreferences.keyboardRerankEnabled = $0
+    }
+    rerankRuntimeStatuses = OwlRerankRuntimeStatusRegistry.shared.snapshot()
+  }
+
+  private func toggleSettledRerank() {
+    OwlSettingsActions.toggle(state: state, keyPath: \.settledRerankEnabled) {
+      OwlExperimentalPreferences.settledRerankEnabled = $0
+    }
+    rerankRuntimeStatuses = OwlRerankRuntimeStatusRegistry.shared.snapshot()
   }
 }

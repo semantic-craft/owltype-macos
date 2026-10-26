@@ -5,8 +5,8 @@
 //  Locks the pure `OwlPanelContent` that lets the candidate panel skip its two SwiftUI
 //  layout passes when an `update(...)` is byte-identical to the one already on screen. The
 //  correctness contract: identical inputs → equal signature (→ early-out); flipping ANY single
-//  field — preedit, EACH `CandidateViewModel` rendering field (id/label/text/comment/badge/
-//  source/provenance), highlightedIndex, page, hasPrevPage, hasNextPage, isVertical, schemaID,
+//  field — preedit, EACH `CandidateViewModel` rendering field (id/label/text/comment/provenance),
+//  highlightedIndex, page, hasPrevPage, hasNextPage, isVertical, schemaID,
 //  or the caret anchor — → unequal signature (→ full render). The dedup must NEVER skip a
 //  visible change, so this field-by-field test is the safety net.
 //
@@ -28,10 +28,8 @@ final class OwlPanelContentTests: XCTestCase {
   // off this baseline so each assertion isolates a single rendering input.
   private func baselineCandidates() -> [CandidateViewModel] {
     [
-      CandidateViewModel(id: 1, label: "1", text: "你好", comment: "nǐ hǎo",
-                         badge: false, source: nil, provenance: .personal),
-      CandidateViewModel(id: 2, label: "2", text: "拟好", comment: nil,
-                         badge: true, source: "《民法典》第1条", provenance: .verified),
+      CandidateViewModel(id: 1, label: "1", text: "你好", comment: "nǐ hǎo", provenance: .personal),
+      CandidateViewModel(id: 2, label: "2", text: "拟好", provenance: .project),
     ]
   }
 
@@ -192,7 +190,7 @@ final class OwlPanelContentTests: XCTestCase {
     var cands = baselineCandidates()
     let c = cands[0]
     cands[0] = CandidateViewModel(id: 99, label: c.label, text: c.text, comment: c.comment,
-                                  badge: c.badge, source: c.source, provenance: c.provenance)
+                                  provenance: c.provenance)
     XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
   }
 
@@ -200,7 +198,7 @@ final class OwlPanelContentTests: XCTestCase {
     var cands = baselineCandidates()
     let c = cands[0]
     cands[0] = CandidateViewModel(id: c.id, label: "9", text: c.text, comment: c.comment,
-                                  badge: c.badge, source: c.source, provenance: c.provenance)
+                                  provenance: c.provenance)
     XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
   }
 
@@ -208,7 +206,7 @@ final class OwlPanelContentTests: XCTestCase {
     var cands = baselineCandidates()
     let c = cands[0]
     cands[0] = CandidateViewModel(id: c.id, label: c.label, text: "您好", comment: c.comment,
-                                  badge: c.badge, source: c.source, provenance: c.provenance)
+                                  provenance: c.provenance)
     XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
   }
 
@@ -216,7 +214,7 @@ final class OwlPanelContentTests: XCTestCase {
     var cands = baselineCandidates()
     let c = cands[0]
     cands[0] = CandidateViewModel(id: c.id, label: c.label, text: c.text, comment: "ní hǎo",
-                                  badge: c.badge, source: c.source, provenance: c.provenance)
+                                  provenance: c.provenance)
     XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
   }
 
@@ -224,23 +222,7 @@ final class OwlPanelContentTests: XCTestCase {
     var cands = baselineCandidates()
     let c = cands[0]
     cands[0] = CandidateViewModel(id: c.id, label: c.label, text: c.text, comment: nil,
-                                  badge: c.badge, source: c.source, provenance: c.provenance)
-    XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
-  }
-
-  func testCandidateBadgeChangeIsUnequal() {
-    var cands = baselineCandidates()
-    let c = cands[0]
-    cands[0] = CandidateViewModel(id: c.id, label: c.label, text: c.text, comment: c.comment,
-                                  badge: true, source: c.source, provenance: c.provenance)
-    XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
-  }
-
-  func testCandidateSourceChangeIsUnequal() {
-    var cands = baselineCandidates()
-    let c = cands[1]
-    cands[1] = CandidateViewModel(id: c.id, label: c.label, text: c.text, comment: c.comment,
-                                  badge: c.badge, source: "《民法典》第2条", provenance: c.provenance)
+                                  provenance: c.provenance)
     XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
   }
 
@@ -248,7 +230,7 @@ final class OwlPanelContentTests: XCTestCase {
     var cands = baselineCandidates()
     let c = cands[0]
     cands[0] = CandidateViewModel(id: c.id, label: c.label, text: c.text, comment: c.comment,
-                                  badge: c.badge, source: c.source, provenance: .ai)
+                                  provenance: .ai)
     XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
   }
 
@@ -256,7 +238,7 @@ final class OwlPanelContentTests: XCTestCase {
     var cands = baselineCandidates()
     let c = cands[0]
     cands[0] = CandidateViewModel(id: c.id, label: c.label, text: c.text, comment: c.comment,
-                                  badge: c.badge, source: c.source, provenance: nil)
+                                  provenance: nil)
     XCTAssertNotEqual(signature(candidates: baselineCandidates()), signature(candidates: cands))
   }
 
@@ -416,14 +398,13 @@ final class OwlScrollRowsPlanTests: XCTestCase {
   }
 
   func testRowsRenderTextWithComment() {
-    // 前/后页行无序号（label 空）、无徽章/来源——序号只属于主行（数字键只选得中主行）；
+    // 前/后页行无序号（label 空）——序号只属于主行（数字键只选得中主行）；
     // 注释保留（码提示，2026-07-28 截图定案：信息密度与主行一致）。
     let rows = OwlScrollRowsPlan.rows(
       from: [RimeCandidate(text: "甲", comment: "wg"), cand("乙")], pageSize: 2, startPage: 1)
     XCTAssertEqual(rows.count, 1)
     XCTAssertEqual(rows[0].candidates.map(\.label), ["", ""])
     XCTAssertEqual(rows[0].candidates.map(\.comment), ["wg", nil])
-    XCTAssertEqual(rows[0].candidates.filter(\.badge), [])
   }
 
   func testRowsGuardsZeroPageSize() {
@@ -609,7 +590,6 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
       XCTAssertEqual(geometry.header.caret.width, 1.5, size.rawValue)
       XCTAssertEqual(geometry.header.caret.minimumHeight, 8, size.rawValue)
       XCTAssertEqual(geometry.compactPill.provenance.cornerRadius, 5, size.rawValue)
-      XCTAssertEqual(geometry.listRow.badge.cornerRadius, 5, size.rawValue)
       XCTAssertEqual(geometry.listRow.provenance.cornerRadius, 5, size.rawValue)
     }
   }
@@ -647,13 +627,9 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
       XCTAssertEqual(geometry.listRow.itemSpacing, listItemSpacing[index], size.rawValue)
       XCTAssertEqual(geometry.listRow.candidateFontSize, size.base, size.rawValue)
       XCTAssertEqual(geometry.listRow.labelFontSize, size.base * 0.9, accuracy: 0.0001, size.rawValue)
-      XCTAssertEqual(geometry.listRow.badge.fontSize, size.base * 0.68, accuracy: 0.0001,
-                     size.rawValue)
       XCTAssertEqual(geometry.listRow.commentFontSize, size.base * 0.8, accuracy: 0.0001, size.rawValue)
       XCTAssertEqual(geometry.listRow.horizontalPadding, listHorizontalPadding[index], size.rawValue)
       XCTAssertEqual(geometry.listRow.verticalPadding, listVerticalPadding[index], size.rawValue)
-      XCTAssertEqual(geometry.listRow.sourceLine.fontSize, size.base * 0.78, accuracy: 0.0001,
-                     size.rawValue)
 
       XCTAssertEqual(geometry.scrollStack.spacing, scrollStackSpacing[index], size.rawValue)
       XCTAssertEqual(geometry.scrollStack.inset, geometry.selectionInset, size.rawValue)
@@ -684,7 +660,7 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
     }
   }
 
-  func testVerticalHeaderSourceLineAndCollapseKeepClearanceInvariants() {
+  func testVerticalHeaderAndCollapseKeepClearanceInvariants() {
     for size in OwlPanelFontSize.allCases {
       let geometry = OwlCandidatePanelGeometry(
         candidateFontSize: size.base,
@@ -695,14 +671,6 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
       XCTAssertEqual(
         geometry.verticalHeader.leadingPadding,
         geometry.verticalList.inset + geometry.listRow.horizontalPadding,
-        size.rawValue
-      )
-
-      // 来源行从序号列之后起笔，不会压到序号；字号与行内组合一次解析。
-      XCTAssertEqual(
-        geometry.listRow.sourceLine.leadingPadding,
-        geometry.listRow.labelFontSize + geometry.listRow.itemSpacing,
-        accuracy: 0.0001,
         size.rawValue
       )
 

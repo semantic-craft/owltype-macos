@@ -6,6 +6,7 @@
 //  (`msime`) Rust engine via the narrow C-ABI (`owl_msime_ffi.h`, issue #249).
 //
 
+import CryptoKit
 import Foundation
 
 // MARK: - FFI JSON Payloads
@@ -28,28 +29,130 @@ private struct OwlRustSnapshotDTO: Decodable {
   let generation: UInt64?
   let caretPosition: Int?
   let preeditCaretByte: Int?
+  let localMode: String
+  let spellingSymbols: String
   let candidates: [OwlRustCandidateDTO]
 
   enum CodingKeys: String, CodingKey {
-    case isOK = "ok"
-    case consumed
-    case committedText = "committed_text"
-    case rawInput = "raw_input"
-    case preedit
-    case page
-    case pageSize = "page_size"
-    case highlightedIndex = "highlighted_index"
-    case hasMorePages = "has_more_pages"
-    case generation
-    case caretPosition = "caret_position"
-    case preeditCaretByte = "preedit_caret_byte"
-    case candidates
+    case isOK = "ok", consumed, preedit, page, generation, candidates
+    case committedText = "committed_text", rawInput = "raw_input"
+    case pageSize = "page_size", highlightedIndex = "highlighted_index"
+    case hasMorePages = "has_more_pages", caretPosition = "caret_position"
+    case preeditCaretByte = "preedit_caret_byte", localMode = "local_mode"
+    case spellingSymbols = "spelling_symbols"
+  }
+}
+
+private struct OwlRustRerankModelStatusDTO: Decodable {
+  let enabled: Bool?
+  let state: String
+  let source: String?
+  let version: String?
+  let expectedSHA256: String?
+  let sha256: String?
+  let size: UInt64?
+  let license: String?
+  let attribution: String?
+  let attached: Bool?
+  let error: String?
+
+  enum CodingKeys: String, CodingKey {
+    case enabled
+    case state
+    case source
+    case version
+    case expectedSHA256 = "expected_sha256"
+    case sha256
+    case size
+    case license
+    case attribution
+    case attached
+    case error
+  }
+}
+
+private struct OwlRustRerankStatusDTO: Decodable {
+  let ok: Bool
+  let error: String?
+  let keyboard: OwlRustRerankModelStatusDTO?
+  let settled: OwlRustRerankModelStatusDTO?
+}
+
+private struct OwlRustSettledRerankResponseDTO: Decodable {
+  let status: String
+  let token: UInt64?
+  let current: Bool?
+  let moved: Bool?
+  let error: String?
+}
+
+struct OwlRerankConfiguration: Codable, Equatable {
+  struct Model: Codable, Equatable {
+    let enabled: Bool
+    let path: String
+    let source: String
+    let version: String
+    let expectedSHA256: String
+
+    enum CodingKeys: String, CodingKey {
+      case enabled
+      case path
+      case source
+      case version
+      case expectedSHA256 = "expected_sha256"
+    }
+  }
+
+  let keyboard: Model
+  let settled: Model
+
+  static func current(sharedSupportURL: URL?) -> Self {
+    func model(for kind: OwlRerankModelKind) -> Model {
+      let descriptor = OwlRerankModelDescriptor.descriptor(for: kind)
+      return Model(
+        enabled: OwlExperimentalPreferences.rerankEnabled(for: kind),
+        path: descriptor.url(sharedSupportURL: sharedSupportURL)?.path ?? "",
+        source: descriptor.source,
+        version: descriptor.version,
+        expectedSHA256: descriptor.expectedSHA256
+      )
+    }
+    return Self(keyboard: model(for: .keyboard), settled: model(for: .settled))
+  }
+
+  func serialized() -> String? {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+    guard let data = try? encoder.encode(self) else { return nil }
+    return String(data: data, encoding: .utf8)
   }
 }
 
 // MARK: - Schema Mapping
 
+private struct OwlRustShuangpinTable {
+  let initials: [String: String]
+  let finals: [String: String]
+  let zeroInitials: [String: String]
+
+  var actionPayload: [String: Any] {
+    [
+      "initials": initials.sorted { $0.key < $1.key }.map { [$0.key, $0.value] },
+      "finals": finals.sorted { $0.key < $1.key }.map { [$0.key, $0.value] },
+      "zero_initials": zeroInitials.sorted { $0.key < $1.key }.map { [$0.key, $0.value] }
+    ]
+  }
+}
+
 enum OwlRustSchemaMap {
+  static func initialASCIIMode(
+    forApp bundleID: String,
+    englishBundleIDs: [String],
+    defaultASCIIMode: Bool
+  ) -> Bool {
+    englishBundleIDs.contains(bundleID) ? true : defaultASCIIMode
+  }
+
   static func inputMode(forSchema schemaId: String) -> String {
     if schemaId.hasPrefix("wubi") {
       return "wubi"
@@ -62,12 +165,98 @@ enum OwlRustSchemaMap {
     case "double_pinyin_flypy": return "xiaohe"
     case "double_pinyin_mspy": return "microsoft"
     case "double_pinyin": return "ziranma"
-    case "double_pinyin_sogou": return "sogou"
     case "double_pinyin_abc": return "abc"
-    case "double_pinyin_ziguang": return "ziguang"
-    case "double_pinyin_jiajia": return "jiajia"
+    case "double_pinyin_sogou", "double_pinyin_ziguang", "double_pinyin_jiajia":
+      return "custom"
     default: return "quanpin"
     }
+  }
+
+  fileprivate static func customShuangpinTable(forSchema schemaId: String) -> OwlRustShuangpinTable? {
+    switch schemaId {
+    case "double_pinyin_sogou":
+      return OwlRustShuangpinTable(
+        initials: ["zh": "v", "ch": "i", "sh": "u"],
+        finals: [
+          "a": "a", "o": "o", "e": "e", "i": "i", "u": "u", "v": "y",
+          "ai": "l", "ei": "z", "ui": "v", "ao": "k", "ou": "b", "iu": "q",
+          "ie": "x", "ve": "t", "ue": "t", "an": "j", "en": "f", "in": "n",
+          "un": "p", "ang": "h", "eng": "g", "ing": ";", "ong": "s",
+          "ia": "w", "ua": "w", "uo": "o", "uai": "y", "ian": "m",
+          "uan": "r", "iao": "c", "iang": "d", "uang": "d", "iong": "s"
+        ],
+        zeroInitials: [
+          "a": "oa", "ai": "ol", "an": "oj", "ang": "oh", "ao": "ok",
+          "e": "oe", "ei": "oz", "en": "of", "eng": "og", "er": "or",
+          "o": "oo", "ou": "ob"
+        ]
+      )
+    case "double_pinyin_ziguang":
+      return OwlRustShuangpinTable(
+        initials: ["zh": "u", "ch": "a", "sh": "i"],
+        finals: [
+          "a": "a", "o": "o", "e": "e", "i": "i", "u": "u", "v": "v",
+          "ai": "p", "ei": "k", "ui": "n", "ao": "q", "ou": "z", "iu": "j",
+          "ie": "d", "ve": "n", "ue": "n", "an": "r", "en": "w", "in": "y",
+          "un": "m", "ang": "s", "eng": "t", "ing": ";", "ong": "h",
+          "ia": "x", "ua": "x", "uo": "o", "uai": "y", "ian": "f",
+          "uan": "l", "iao": "b", "iang": "g", "uang": "g", "iong": "h"
+        ],
+        zeroInitials: [
+          "a": "oa", "ai": "op", "an": "or", "ang": "os", "ao": "oq",
+          "e": "oe", "ei": "ok", "en": "ow", "eng": "ot", "er": "oj",
+          "o": "oo", "ou": "oz"
+        ]
+      )
+    case "double_pinyin_jiajia":
+      return OwlRustShuangpinTable(
+        initials: ["zh": "v", "ch": "u", "sh": "i"],
+        finals: [
+          "a": "a", "o": "o", "e": "e", "i": "i", "u": "u", "v": "v",
+          "ai": "s", "ei": "w", "ui": "v", "ao": "d", "ou": "p", "iu": "n",
+          "ie": "m", "ve": "x", "ue": "x", "an": "f", "en": "r", "in": "l",
+          "un": "z", "ang": "g", "eng": "t", "ing": "q", "ong": "y",
+          "ia": "b", "ua": "b", "uo": "o", "uai": "x", "ian": "j",
+          "uan": "c", "iao": "k", "iang": "h", "uang": "h", "iong": "y"
+        ],
+        zeroInitials: [
+          "a": "aa", "ai": "as", "an": "af", "ang": "ag", "ao": "ad",
+          "e": "ee", "ei": "ew", "en": "er", "eng": "et", "er": "eq",
+          "o": "oo", "ou": "op"
+        ]
+      )
+    default:
+      return nil
+    }
+  }
+
+  static func pinyinScheme(forSchema schemaId: String) -> String {
+    switch schemaId {
+    case "wubi86_jidian_pinyin", "wubi86_jidian_trad_pinyin":
+      return "wubi_pinyin"
+    case "wubi86_jidian", "wubi86_jidian_trad":
+      return "wubi"
+    default:
+      return doublePinyinScheme(forSchema: schemaId)
+    }
+  }
+
+  static func isTraditionalSchema(_ schemaId: String) -> Bool {
+    schemaId == "wubi86_jidian_trad" || schemaId == "wubi86_jidian_trad_pinyin"
+  }
+
+  static func fuzzyBitmask(from snapshot: OwlFuzzySnapshot) -> UInt32 {
+    var mask: UInt32 = 0
+    if snapshot.zhz { mask |= (1 << 0) }
+    if snapshot.chc { mask |= (1 << 1) }
+    if snapshot.shs { mask |= (1 << 2) }
+    if snapshot.nl { mask |= (1 << 3) }
+    if snapshot.fh { mask |= (1 << 4) }
+    if snapshot.rl { mask |= (1 << 5) }
+    if snapshot.anang { mask |= (1 << 6) }
+    if snapshot.eneng { mask |= (1 << 7) }
+    if snapshot.ining { mask |= (1 << 8) }
+    return mask
   }
 
   static let supportedSchemas: [(id: String, name: String)] = [
@@ -80,24 +269,42 @@ enum OwlRustSchemaMap {
     (id: "double_pinyin_ziguang", name: "紫光双拼"),
     (id: "double_pinyin_jiajia", name: "拼音加加双拼"),
     (id: "wubi86_jidian", name: "极点五笔86"),
-    (id: "wubi86_jidian_pinyin", name: "五笔拼音混输")
+    (id: "wubi86_jidian_pinyin", name: "五笔拼音混输"),
+    (id: "wubi86_jidian_trad", name: "五笔简入繁出"),
+    (id: "wubi86_jidian_trad_pinyin", name: "五笔拼音混输·简入繁出")
   ]
 }
 
 // MARK: - OwlRustSession
 
 final class OwlRustSession: RimeSession {
+  private static let localModeEntryLetters = Set("UTKEMJYRVCS")
   let sessionID: UInt64
   private var handle: OpaquePointer?
   private weak var ownerEngine: OwlRustEngine?
   private var activeSchemaId: String
   private var pendingCommitText: String?
+  private var lastCommittedRawInput: String?
   private var latestSnapshot: OwlRustSnapshotDTO?
   private var latestGeneration: UInt64 = 0
   private var caretByteOffset: Int = 0
   private var preeditCaretByteOffset: Int = 0
   private var customCaretPos: Int?
   private var lastAppliedPageSize: Int = 0
+  private var lastAppliedASCIIPunct: Bool?
+  private var lastAppliedFuzzyMask: UInt32 = 0
+  private var lastAppliedWubiCandidateMode: String = ""
+  private var lastAppliedWubiCodeHint: Bool?
+  private var lastAppliedWubiAutoClear: Bool?
+  private var lastAppliedWubiZReverseLookup: Bool?
+  private var lastAppliedWubiEnglishChannel: Bool?
+  private var lastAppliedWubiUserDictLearning: Bool?
+  private var lastAppliedHostPhrases: String = ""
+  private var lastAppliedRerankConfiguration: String?
+  private var lastRerankStatusRefresh: UInt64 = 0
+  private(set) var rerankConfigurationEpoch: UInt64 = 0
+  private(set) var settledRerankReady = false
+  private(set) var settledRerankLoading = false
   private var optionFlags: [RimeOption: Bool] = [
     .simplification: true,
     .linear: true
@@ -105,13 +312,14 @@ final class OwlRustSession: RimeSession {
   private var appOptionFlags: [String: Bool] = [:]
   private var properties: [String: String] = [:]
   private var shiftKeyArmed = false
+  private var capsLockKeyState = OwlCapsLockKeyState()
 
   var generation: UInt64 {
     latestGeneration
   }
 
   private var isTraditionalEnabled: Bool {
-    if activeSchemaId == "wubi86_jidian_trad" || activeSchemaId == "wubi86_jidian_trad_pinyin" {
+    if OwlRustSchemaMap.isTraditionalSchema(activeSchemaId) {
       return true
     }
     if (optionFlags[.traditional] ?? false)
@@ -137,12 +345,12 @@ final class OwlRustSession: RimeSession {
         let nextIdx = text.index(after: closeBracket)
         let prefix = String(text[..<nextIdx])
         let title = String(text[nextIdx...])
-        let convertedTitle = (title as NSString).applyingTransform(StringTransform("Hans-Hant"), reverse: false) ?? title
+        let convertedTitle = OwlPinnedWords.hansToHant(title)
         return prefix + convertedTitle
       }
       return text
     }
-    return (text as NSString).applyingTransform(StringTransform("Hans-Hant"), reverse: false) ?? text
+    return OwlPinnedWords.hansToHant(text)
   }
 
   init(
@@ -157,9 +365,6 @@ final class OwlRustSession: RimeSession {
     self.activeSchemaId = initialSchemaId
     if handle != nil {
       _ = selectSchema(initialSchemaId)
-      let initialASCIIPunct = OwlKeyboardPreferences.cjkPunctToggle
-      optionFlags[.asciiPunct] = initialASCIIPunct
-      _ = sendAction(["op": "set_option", "name": RimeOption.asciiPunct.rawValue, "value": initialASCIIPunct])
       refreshSnapshot()
     }
   }
@@ -176,20 +381,38 @@ final class OwlRustSession: RimeSession {
     guard handle != nil else { return false }
     let isRelease = (modifiers & kReleaseMask.rawValue) != 0
     let isShiftKey = (keycode == UInt32(XK_Shift_L) || keycode == UInt32(XK_Shift_R))
+    let isCapsLockKey = keycode == UInt32(XK_Caps_Lock)
 
     if isShiftKey {
       if !isRelease {
         shiftKeyArmed = OwlKeyboardPreferences.shiftSwitchCJK
       } else if shiftKeyArmed {
         shiftKeyArmed = false
-        toggleASCIIModeOnShiftRelease()
+        setASCIIModeCommittingRawInput(!(optionFlags[.asciiMode] ?? false))
+        capsLockKeyState.resetForOtherASCIIModeSwitch()
       }
       return false
+    }
+
+    if isCapsLockKey {
+      return processCapsLockKey(modifiers: modifiers, isRelease: isRelease)
     }
 
     if !isRelease {
       shiftKeyArmed = false
     } else {
+      return false
+    }
+
+    // Mirror ascii_composer's post-Caps handling. With good_old_caps_lock off, letters under a
+    // physical Caps Lock are inverted and committed by the IME; everything else passes through.
+    if OwlKeyboardPreferences.shiftSwitchCJK, (modifiers & kLockMask.rawValue) != 0 {
+      if !OwlKeyboardPreferences.goodOldCapsLock,
+         (modifiers & (kControlMask.rawValue | kAltMask.rawValue | kSuperMask.rawValue)) == 0,
+         let replacement = invertedASCIILetter(for: keycode) {
+        pendingCommitText = convertToTraditionalIfNeeded(replacement)
+        return true
+      }
       return false
     }
 
@@ -215,16 +438,32 @@ final class OwlRustSession: RimeSession {
     }
 
     let hasActiveInput = !(latestSnapshot?.rawInput.isEmpty ?? true)
-    let pageSize = max(3, min(9, OwlKeyboardPreferences.pageSize))
-    if pageSize != lastAppliedPageSize {
-      _ = sendAction(["op": "set_page_size", "page_size": pageSize])
-      lastAppliedPageSize = pageSize
+    syncRuntimePreferences(includeHostPhrases: false)
+
+    if let action = localModeInsertionAction(for: keycode) {
+      return applyActionResponse(sendAction(action))
+    }
+
+    if let trigger = punctuationMenuTrigger(for: keycode, modifiers: modifiers) {
+      return applyActionResponse(sendAction([
+        "op": "punctuation_menu",
+        "ch": trigger
+      ]))
     }
 
     if !hasActiveInput {
+      if keycode == UInt32(XK_grave)
+         && activeSchemaId.hasPrefix("wubi")
+         && OwlKeyboardPreferences.wubiEnglishChannel {
+        return applyActionResponse(sendAction(["op": "insert", "ch": "`"]))
+      }
       if keycode >= UInt32(XK_a) && keycode <= UInt32(XK_z),
          let scalar = UnicodeScalar(keycode) {
         return applyActionResponse(sendAction(["op": "insert", "ch": String(scalar)]))
+      }
+      if hasShift, let character = asciiKeyCharacter(for: keycode),
+         Self.localModeEntryLetters.contains(character) {
+        return applyActionResponse(sendAction(["op": "insert", "ch": String(character)]))
       }
       if !(optionFlags[.asciiPunct] ?? false),
          let punct = asciiPunctuationString(for: keycode) {
@@ -234,6 +473,58 @@ final class OwlRustSession: RimeSession {
     }
 
     return processActiveCompositionKey(keycode: keycode)
+  }
+
+  private func processCapsLockKey(modifiers: UInt32, isRelease: Bool) -> Bool {
+    shiftKeyArmed = false
+    guard OwlKeyboardPreferences.shiftSwitchCJK else {
+      capsLockKeyState.resetForOtherASCIIModeSwitch()
+      return false
+    }
+    guard !isRelease else { return false }
+    let transition = capsLockKeyState.processPress(
+      preFlipCapsLocked: (modifiers & kLockMask.rawValue) != 0,
+      asciiMode: optionFlags[.asciiMode] ?? false,
+      goodOldCapsLock: OwlKeyboardPreferences.goodOldCapsLock
+    )
+    switch transition {
+    case .passThrough:
+      return false
+    case let .setASCIIMode(asciiMode, consumed):
+      setASCIIModeCommittingRawInput(asciiMode)
+      return consumed
+    }
+  }
+
+  private func localModeInsertionAction(for keycode: UInt32) -> [String: Any]? {
+    guard let snapshot = latestSnapshot,
+          snapshot.localMode != "none",
+          let character = asciiKeyCharacter(for: keycode) else { return nil }
+    switch snapshot.localMode {
+    case "unicode":
+      guard character.isHexDigit || (snapshot.rawInput == "U" && character == "+") else {
+        return nil
+      }
+    case "expression":
+      guard snapshot.spellingSymbols.contains(character) else { return nil }
+    default:
+      return nil
+    }
+    return ["op": "insert", "ch": String(character)]
+  }
+
+  private func punctuationMenuTrigger(for keycode: UInt32, modifiers: UInt32) -> String? {
+    guard !(optionFlags[.asciiPunct] ?? false) else { return nil }
+    if keycode == UInt32(XK_4), (modifiers & kShiftMask.rawValue) != 0 {
+      return "$"
+    }
+    if keycode == UInt32(XK_slash), OwlKeyboardPreferences.slashSymbolMenu {
+      return "/"
+    }
+    if keycode == UInt32(XK_less), OwlKeyboardPreferences.angleSymbolMenu {
+      return "<"
+    }
+    return nil
   }
 
   private func processActiveCompositionKey(keycode: UInt32) -> Bool {
@@ -257,9 +548,8 @@ final class OwlRustSession: RimeSession {
   }
 
   private func directCompositionAction(for keycode: UInt32) -> [String: Any]? {
-    if keycode >= UInt32(XK_a) && keycode <= UInt32(XK_z),
-       let scalar = UnicodeScalar(keycode) {
-      return ["op": "insert", "ch": String(scalar)]
+    if let character = asciiKeyCharacter(for: keycode), character.isLetter {
+      return ["op": "insert", "ch": String(character)]
     }
     if keycode == UInt32(XK_apostrophe) && !OwlKeyboardPreferences.select23Semicolon {
       return ["op": "insert", "ch": "'"]
@@ -298,59 +588,21 @@ final class OwlRustSession: RimeSession {
     return nil
   }
 
-  private func asciiPunctuationString(for keycode: UInt32) -> String? {
-    guard keycode >= 0x21 && keycode <= 0x7E,
-          let scalar = UnicodeScalar(keycode) else { return nil }
-    let byte = UInt8(keycode)
-    let isAlphaNum = (byte >= UInt8(ascii: "a") && byte <= UInt8(ascii: "z"))
-      || (byte >= UInt8(ascii: "A") && byte <= UInt8(ascii: "Z"))
-      || (byte >= UInt8(ascii: "0") && byte <= UInt8(ascii: "9"))
-    guard !isAlphaNum else { return nil }
-    return String(scalar)
-  }
-
-  private func candidateSelectionIndex(for keycode: UInt32) -> Int? {
-    if OwlKeyboardPreferences.select23Semicolon {
-      if keycode == UInt32(XK_semicolon) { return 1 }
-      if keycode == UInt32(XK_apostrophe) { return 2 }
-    }
-    if keycode >= UInt32(XK_1) && keycode <= UInt32(XK_9) {
-      return Int(keycode - UInt32(XK_1))
-    }
-    if keycode >= UInt32(XK_KP_1) && keycode <= UInt32(XK_KP_9) {
-      return Int(keycode - UInt32(XK_KP_1))
-    }
-    return nil
-  }
-
-  private func isPageUpKey(_ keycode: UInt32) -> Bool {
-    if keycode == UInt32(XK_Page_Up) { return true }
-    if OwlKeyboardPreferences.pageMinusEquals && keycode == UInt32(XK_minus) { return true }
-    if OwlKeyboardPreferences.pageBrackets && keycode == UInt32(XK_bracketleft) { return true }
-    if OwlKeyboardPreferences.pageCommaPeriod && keycode == UInt32(XK_comma) { return true }
-    return false
-  }
-
-  private func isPageDownKey(_ keycode: UInt32) -> Bool {
-    if keycode == UInt32(XK_Page_Down) { return true }
-    if OwlKeyboardPreferences.pageMinusEquals && keycode == UInt32(XK_equal) { return true }
-    if OwlKeyboardPreferences.pageBrackets && keycode == UInt32(XK_bracketright) { return true }
-    if OwlKeyboardPreferences.pageCommaPeriod && keycode == UInt32(XK_period) { return true }
-    return false
-  }
-
-  private func toggleASCIIModeOnShiftRelease() {
+  private func setASCIIModeCommittingRawInput(_ asciiMode: Bool) {
     let raw = latestSnapshot?.rawInput ?? ""
     if !raw.isEmpty {
       _ = applyActionResponse(sendAction(["op": "commit_raw"]))
     }
-    let nextASCII = !(optionFlags[.asciiMode] ?? false)
-    setOption(.asciiMode, nextASCII)
+    setOption(.asciiMode, asciiMode)
   }
 
   func takeCommit() -> String? {
     defer { pendingCommitText = nil }
     return pendingCommitText
+  }
+
+  func lastCommittedInput() -> String? {
+    lastCommittedRawInput
   }
 
   func status() -> RimeStatus? {
@@ -497,17 +749,152 @@ final class OwlRustSession: RimeSession {
           OwlRustSchemaMap.supportedSchemas.contains(where: { $0.id == id }) else {
       return false
     }
+    let mode = OwlRustSchemaMap.inputMode(forSchema: id)
+    let scheme = OwlRustSchemaMap.pinyinScheme(forSchema: id)
+    let pageSize = max(3, min(9, OwlKeyboardPreferences.pageSize))
+    guard sendAction(["op": "set_input_mode", "mode": mode])?.isOK == true else {
+      return false
+    }
+    var schemeAction: [String: Any] = ["op": "set_pinyin_scheme", "scheme": scheme]
+    if scheme == "custom" {
+      guard let table = OwlRustSchemaMap.customShuangpinTable(forSchema: id) else {
+        return false
+      }
+      schemeAction["custom_profile"] = table.actionPayload
+    }
+    guard sendAction(schemeAction)?.isOK == true,
+          sendAction(["op": "set_page_size", "page_size": pageSize])?.isOK == true else {
+      return false
+    }
+    lastAppliedPageSize = pageSize
+    guard syncRuntimePreferences(includeHostPhrases: true),
+          let cleared = sendAction(["op": "clear"]),
+          cleared.isOK else {
+      return false
+    }
+    _ = applyActionResponse(cleared)
     activeSchemaId = id
     ownerEngine?.recordSelectedSchema(id)
-    let mode = OwlRustSchemaMap.inputMode(forSchema: id)
-    let scheme = OwlRustSchemaMap.doublePinyinScheme(forSchema: id)
-    let pageSize = max(3, min(9, OwlKeyboardPreferences.pageSize))
-    _ = sendAction(["op": "set_input_mode", "mode": mode])
-    _ = sendAction(["op": "set_pinyin_scheme", "scheme": scheme])
-    _ = sendAction(["op": "set_page_size", "page_size": pageSize])
-    lastAppliedPageSize = pageSize
-    _ = applyActionResponse(sendAction(["op": "clear"]))
     return true
+  }
+
+  @discardableResult
+  func syncRuntimePreferences(includeHostPhrases: Bool) -> Bool {
+    guard handle != nil, applyRuntimePreferences(includeHostPhrases: includeHostPhrases) else {
+      return false
+    }
+    syncRerankConfiguration()
+    return true
+  }
+
+  private func applyRuntimePreferences(includeHostPhrases: Bool) -> Bool {
+    let pageSize = max(3, min(9, OwlKeyboardPreferences.pageSize))
+    let fuzzyMask = OwlRustSchemaMap.fuzzyBitmask(from: OwlFuzzySnapshot.current())
+    let candMode = OwlKeyboardPreferences.wubiCandidateMode.rawValue
+    let booleanOptions: [(String, Bool?, ReferenceWritableKeyPath<OwlRustSession, Bool?>)] = [
+      ("wubi_code_hint", OwlKeyboardPreferences.wubiCodeHint, \.lastAppliedWubiCodeHint),
+      ("wubi_auto_clear", OwlKeyboardPreferences.wubiAutoClear, \.lastAppliedWubiAutoClear),
+      ("wubi_z_reverse_lookup",
+       OwlKeyboardPreferences.wubiZReverseLookup, \.lastAppliedWubiZReverseLookup),
+      ("wubi_english_channel",
+       OwlKeyboardPreferences.wubiEnglishChannel, \.lastAppliedWubiEnglishChannel),
+      ("wubi_user_dict_learning",
+       OwlKeyboardPreferences.wubiUserDictLearning, \.lastAppliedWubiUserDictLearning)
+    ]
+    guard
+      applyChanged(pageSize, at: \.lastAppliedPageSize,
+                   action: { ["op": "set_page_size", "page_size": pageSize] }),
+      applyChanged(fuzzyMask, at: \.lastAppliedFuzzyMask,
+                   action: { ["op": "set_fuzzy_rules", "mask": fuzzyMask] }),
+      applyChanged(candMode, at: \.lastAppliedWubiCandidateMode,
+                   action: { ["op": "set_wubi_candidate_mode", "mode": candMode] })
+    else { return false }
+    guard
+      (booleanOptions.allSatisfy { option in
+        applyChanged(option.1, at: option.2) {
+          ["op": "set_option", "name": option.0, "value": option.1 as Any]
+        }
+      }),
+      applyASCIIPunctIfNeeded()
+    else { return false }
+    guard includeHostPhrases, let ownerEngine else { return true }
+    let packed = ownerEngine.loadPackedHostPhrases()
+    return applyChanged(packed, at: \.lastAppliedHostPhrases) {
+      ["op": "set_host_phrases", "text": packed]
+    }
+  }
+
+  private func applyASCIIPunctIfNeeded() -> Bool {
+    let value = OwlKeyboardPreferences.cjkPunctToggle
+    guard applyChanged(value, at: \.lastAppliedASCIIPunct, action: {
+      ["op": "set_option", "name": RimeOption.asciiPunct.rawValue, "value": value]
+    }) else { return false }
+    optionFlags[.asciiPunct] = value
+    return true
+  }
+
+  private func applyChanged<Value: Equatable>(
+    _ value: Value,
+    at keyPath: ReferenceWritableKeyPath<OwlRustSession, Value>,
+    action: () -> [String: Any]
+  ) -> Bool {
+    guard value != self[keyPath: keyPath] else { return true }
+    guard sendAction(action())?.isOK == true else { return false }
+    self[keyPath: keyPath] = value
+    return true
+  }
+
+  func syncRerankPreferences() {
+    syncRerankConfiguration(forceStatus: true)
+  }
+
+  func startSettledRerank() -> OwlSettledRerankStartResult {
+    guard handle != nil, settledRerankReady else { return .noWork }
+    let result = callRerankJSON(
+      owl_msime_session_start_settled_rerank_json,
+      fallback: OwlRustSettledRerankResponseDTO(
+        status: "done",
+        token: nil,
+        current: false,
+        moved: false,
+        error: "cannot start settled rerank"
+      )
+    )
+    let token = result.status == "pending" ? result.token : nil
+    if result.current == true, result.moved == true {
+      refreshSnapshot()
+    }
+    return OwlSettledRerankStartResult(
+      token: token,
+      current: result.current ?? false,
+      moved: result.moved ?? false,
+      error: result.error
+    )
+  }
+
+  func pollSettledRerank(token: UInt64, accept: Bool) -> OwlSettledRerankPollResult {
+    guard handle != nil else { return .doneWithoutChange }
+    let result = callRerankJSON(
+      { ptr in
+        owl_msime_session_poll_settled_rerank_json(ptr, token, accept)
+      },
+      fallback: OwlRustSettledRerankResponseDTO(
+        status: "done",
+        token: nil,
+        current: false,
+        moved: false,
+        error: "cannot poll settled rerank"
+      )
+    )
+    if result.current == true, result.moved == true {
+      refreshSnapshot()
+    }
+    return OwlSettledRerankPollResult(
+      pending: result.status == "pending",
+      current: result.current ?? false,
+      moved: result.moved ?? false,
+      error: result.error
+    )
   }
 
   func option(_ option: RimeOption) -> Bool {
@@ -533,7 +920,8 @@ final class OwlRustSession: RimeSession {
   func setProperty(name: String, value: String) {
     properties[name] = value
     if name == OwlPinnedWords.property, handle != nil {
-      if let dto = sendAction(["op": "set_pinned_words", "text": value]), dto.isOK {
+      let sources = OwlPinnedWords.traditionalSources(engineValue: value)
+      if let dto = sendAction(["op": "set_pinned_words", "text": value, "traditional_sources": sources.map(\.actionPayload)]), dto.isOK {
         latestSnapshot = dto
         latestGeneration = dto.generation ?? latestGeneration
         caretByteOffset = dto.caretPosition ?? dto.rawInput.utf8.count
@@ -572,6 +960,82 @@ final class OwlRustSession: RimeSession {
 
   // MARK: - FFI Bridge Helpers
 
+  private func syncRerankConfiguration(forceStatus: Bool = false) {
+    guard handle != nil, let ownerEngine else { return }
+    let configuration = ownerEngine.rerankConfiguration()
+    guard let serialized = configuration.serialized() else { return }
+    if serialized != lastAppliedRerankConfiguration {
+      lastAppliedRerankConfiguration = serialized
+      rerankConfigurationEpoch &+= 1
+      let status = serialized.withCString { config in
+        decodeRerankStatus(owl_msime_session_configure_rerank_json(handle, config))
+      }
+      applyRerankStatus(status)
+      lastRerankStatusRefresh = DispatchTime.now().uptimeNanoseconds
+      return
+    }
+
+    let rerankingEnabled = configuration.keyboard.enabled || configuration.settled.enabled
+    guard rerankingEnabled else {
+      settledRerankReady = false
+      settledRerankLoading = false
+      return
+    }
+    let now = DispatchTime.now().uptimeNanoseconds
+    let throttle: UInt64 = 500_000_000
+    guard forceStatus || now &- lastRerankStatusRefresh >= throttle else { return }
+    lastRerankStatusRefresh = now
+    let status = decodeRerankStatus(owl_msime_session_rerank_status_json(handle))
+    applyRerankStatus(status)
+  }
+
+  private func applyRerankStatus(_ status: OwlRustRerankStatusDTO?) {
+    guard let status else {
+      settledRerankReady = false
+      settledRerankLoading = false
+      return
+    }
+    if let keyboard = status.keyboard {
+      OwlRerankRuntimeStatusRegistry.shared.update(
+        kind: .keyboard,
+        state: keyboard.state,
+        error: keyboard.error
+      )
+    }
+    if let settled = status.settled {
+      OwlRerankRuntimeStatusRegistry.shared.update(
+        kind: .settled,
+        state: settled.state,
+        error: settled.error
+      )
+      settledRerankReady = settled.enabled == true
+        && settled.state == "ready"
+        && settled.attached == true
+      settledRerankLoading = settled.enabled == true && settled.state == "loading"
+    } else {
+      settledRerankReady = false
+      settledRerankLoading = false
+    }
+  }
+
+  private func decodeRerankStatus(_ rawPtr: UnsafeMutablePointer<CChar>?) -> OwlRustRerankStatusDTO? {
+    guard let rawPtr else { return nil }
+    defer { owl_msime_string_free(rawPtr) }
+    let data = Data(String(cString: rawPtr).utf8)
+    return try? JSONDecoder().decode(OwlRustRerankStatusDTO.self, from: data)
+  }
+
+  private func callRerankJSON(
+    _ call: (OpaquePointer) -> UnsafeMutablePointer<CChar>?,
+    fallback: OwlRustSettledRerankResponseDTO
+  ) -> OwlRustSettledRerankResponseDTO {
+    guard let handle, let rawPtr = call(handle) else { return fallback }
+    defer { owl_msime_string_free(rawPtr) }
+    let data = Data(String(cString: rawPtr).utf8)
+    return (try? JSONDecoder().decode(OwlRustSettledRerankResponseDTO.self, from: data))
+      ?? fallback
+  }
+
   private func refreshSnapshot() {
     guard let ptr = handle,
           let raw = owl_msime_session_snapshot_json(ptr) else { return }
@@ -605,12 +1069,16 @@ final class OwlRustSession: RimeSession {
 
   private func applyActionResponse(_ dto: OwlRustSnapshotDTO?) -> Bool {
     guard let dto, dto.isOK else { return false }
+    let priorRawInput = latestSnapshot?.rawInput
     latestSnapshot = dto
     latestGeneration = dto.generation ?? latestGeneration
     caretByteOffset = dto.caretPosition ?? dto.rawInput.utf8.count
     preeditCaretByteOffset = dto.preeditCaretByte ?? dto.preedit.utf8.count
     customCaretPos = nil
     if let committed = dto.committedText, !committed.isEmpty {
+      if let priorRawInput, !priorRawInput.isEmpty {
+        lastCommittedRawInput = priorRawInput
+      }
       pendingCommitText = convertToTraditionalIfNeeded(committed, forCandidateDisplay: false)
     }
     return dto.consumed ?? true
@@ -622,51 +1090,39 @@ final class OwlRustSession: RimeSession {
 final class OwlRustEngine: RimeEngine {
   private var sharedSupportURL: URL?
   private var userDataURL: URL?
+  private let activeGenerationProvider: (@Sendable () -> OwlRustResourceGeneration?)?
+  private var cachedBundledGeneration: OwlRustResourceGeneration?
   private var selectedSchemaId: String = "rime_ice"
   private var nextSessionID: UInt64 = 1
   private var sessions: [UInt64: OwlRustSession] = [:]
   private var notificationHandler: RimeNotificationHandler?
-  private var notificationContext: UnsafeMutableRawPointer?
 
-  init(sharedSupportURL: URL? = Bundle.main.sharedSupportURL, userDataURL: URL? = OwlApp.userDir) {
+  init(
+    sharedSupportURL: URL? = Bundle.main.sharedSupportURL,
+    userDataURL: URL? = OwlApp.userDir,
+    activeGenerationProvider: (@Sendable () -> OwlRustResourceGeneration?)? = nil
+  ) {
     self.sharedSupportURL = sharedSupportURL
     self.userDataURL = userDataURL
+    self.activeGenerationProvider = activeGenerationProvider
   }
 
-  /// Create the active engine according to `OWL_ENGINE_BACKEND` (default `rust`; `rime` for rollback).
-  static func makeConfiguredEngine(fallback: @autoclosure () -> RimeEngine = LiveRimeEngine()) -> RimeEngine {
-    if ProcessInfo.processInfo.environment["OWL_ENGINE_BACKEND"]?.lowercased() == "rime" {
-      return fallback()
-    }
+  static func makeConfiguredEngine() -> RimeEngine {
     return OwlRustEngine()
   }
 
-  func setup(_ traits: inout RimeTraits) {
-    if let sharedC = traits.shared_data_dir {
-      let path = String(cString: sharedC).trimmingCharacters(in: .whitespacesAndNewlines)
-      if !path.isEmpty {
-        sharedSupportURL = URL(fileURLWithPath: path, isDirectory: true)
-      }
-    }
-    if let userC = traits.user_data_dir {
-      let path = String(cString: userC).trimmingCharacters(in: .whitespacesAndNewlines)
-      if !path.isEmpty {
-        userDataURL = URL(fileURLWithPath: path, isDirectory: true)
-      }
-    }
-  }
-
-  func initialize(_ traits: UnsafeMutablePointer<RimeTraits>?) {
-    if let traits {
-      setup(&traits.pointee)
-    }
+  func setup(_ traits: OwlEngineTraits) {
+    sharedSupportURL = traits.sharedDataDir
+    userDataURL = traits.userDataDir
+    cachedBundledGeneration = nil
   }
 
   func startMaintenance(fullCheck: Bool) -> Bool {
     _ = fullCheck
     notifyDeploy(status: "start")
-    notifyDeploy(status: "success")
-    return true
+    let succeeded = refreshAllSessionsPreferences(includeHostPhrases: true)
+    notifyDeploy(status: succeeded ? "success" : "failure")
+    return succeeded
   }
 
   func joinMaintenance() {}
@@ -674,16 +1130,11 @@ final class OwlRustEngine: RimeEngine {
   func deployConfigFile(_ fileName: String, versionKey: String) -> Bool {
     _ = fileName
     _ = versionKey
-    return true
+    return refreshAllSessionsPreferences(includeHostPhrases: true)
   }
 
-  func setNotificationHandler(_ handler: @escaping RimeNotificationHandler, context: UnsafeMutableRawPointer?) {
+  func setNotificationHandler(_ handler: @escaping RimeNotificationHandler) {
     notificationHandler = handler
-    notificationContext = context
-  }
-
-  func syncUserData() -> Bool {
-    true
   }
 
   func cleanupAllSessions() {
@@ -698,8 +1149,9 @@ final class OwlRustEngine: RimeEngine {
     sessions.removeValue(forKey: id)
   }
 
-  func finalize() {
+  func finalize() -> Bool {
     cleanupAllSessions()
+    return owl_msime_engine_finalize()
   }
 
   func schemaList() -> [(id: String, name: String)] {
@@ -728,19 +1180,37 @@ final class OwlRustEngine: RimeEngine {
   func createSession() -> RimeSession {
     let id = nextSessionID
     nextSessionID &+= 1
-    let sharedRoot = sharedSupportURL ?? Bundle.main.sharedSupportURL
     let userRoot = userDataURL ?? OwlApp.userDir
-    let pinyinDB = sharedRoot?.appendingPathComponent("msime/msime-pinyin.db").path ?? ""
-    let englishDB = sharedRoot?.appendingPathComponent("msime/msime-english.db").path ?? ""
-    let userDir = userRoot.path
+    let userDir = userRoot.appendingPathComponent("msime-user", isDirectory: true).path
+    let cacheDir = userRoot.appendingPathComponent("msime-cache", isDirectory: true).path
     let pageSize = UInt32(max(3, min(9, OwlKeyboardPreferences.pageSize)))
+    let generation = resolvedSessionGeneration()
 
-    let handle = pinyinDB.withCString { pinyinCStr in
-      englishDB.withCString { englishCStr in
+    var creationError: UnsafeMutablePointer<CChar>?
+    let handle: OpaquePointer?
+    if let generation {
+      handle = generation.resourcesURL.path.withCString { resourcesCStr in
         userDir.withCString { userCStr in
-          owl_msime_session_create(pinyinCStr, englishCStr, userCStr, pageSize)
+          cacheDir.withCString { cacheCStr in
+            generation.contentID.withCString { contentIDCStr in
+              owl_msime_session_create_with_generation(
+                resourcesCStr,
+                userCStr,
+                cacheCStr,
+                contentIDCStr,
+                pageSize,
+                &creationError
+              )
+            }
+          }
         }
       }
+    } else {
+      handle = nil
+    }
+    if let creationError {
+      NSLog("OwlRustEngine: session creation failed: %s", creationError)
+      owl_msime_string_free(creationError)
     }
     let session = OwlRustSession(
       sessionID: id,
@@ -752,12 +1222,91 @@ final class OwlRustEngine: RimeEngine {
     return session
   }
 
-  func session(for id: RimeSessionId) -> RimeSession {
-    if let existing = sessions[UInt64(id)] {
+  private func resolvedSessionGeneration() -> OwlRustResourceGeneration? {
+    if let activeGenerationProvider {
+      if let generation = activeGenerationProvider() {
+        return generation
+      }
+    } else {
+      let environment = OwlRustResourceEnvironment.production(
+        userRoot: userDataURL ?? OwlApp.userDir
+      )
+      do {
+        if let generation = try environment.activeGeneration() {
+          return generation
+        }
+      } catch {
+        NSLog(
+          "OwlRustEngine: active resource generation is unusable: %@",
+          error.localizedDescription
+        )
+      }
+    }
+
+    if let cachedBundledGeneration {
+      return cachedBundledGeneration
+    }
+    guard let sharedRoot = sharedSupportURL ?? Bundle.main.sharedSupportURL else {
+      NSLog("OwlRustEngine: shared support directory is unavailable")
+      return nil
+    }
+    let resourcesURL = sharedRoot.appendingPathComponent("msime", isDirectory: true)
+    do {
+      let digest = try Self.contentDigest(of: resourcesURL)
+      let generation = OwlRustResourceGeneration(
+        resourcesURL: resourcesURL,
+        contentID: "seed-\(digest)"
+      )
+      cachedBundledGeneration = generation
+      return generation
+    } catch {
+      NSLog("OwlRustEngine: cannot identify bundled resources: %@", error.localizedDescription)
+      return nil
+    }
+  }
+
+  static func contentDigest(of directory: URL) throws -> String {
+    let keys: [URLResourceKey] = [.isRegularFileKey, .isSymbolicLinkKey]
+    guard let enumerator = FileManager.default.enumerator(
+      at: directory,
+      includingPropertiesForKeys: keys,
+      options: [.skipsHiddenFiles]
+    ) else {
+      throw CocoaError(.fileNoSuchFile)
+    }
+    let rootPrefix = directory.path.hasSuffix("/") ? directory.path : directory.path + "/"
+    var files: [(relativePath: String, url: URL)] = []
+    for case let fileURL as URL in enumerator {
+      let values = try fileURL.resourceValues(forKeys: Set(keys))
+      guard values.isRegularFile == true, values.isSymbolicLink != true else { continue }
+      let relativePath = fileURL.path.hasPrefix(rootPrefix)
+        ? String(fileURL.path.dropFirst(rootPrefix.count))
+        : fileURL.lastPathComponent
+      files.append((relativePath, fileURL))
+    }
+    guard !files.isEmpty else { throw CocoaError(.fileReadNoSuchFile) }
+
+    var hasher = SHA256()
+    let separator = Data([0])
+    for file in files.sorted(by: { $0.relativePath < $1.relativePath }) {
+      hasher.update(data: Data(file.relativePath.utf8))
+      hasher.update(data: separator)
+      let handle = try FileHandle(forReadingFrom: file.url)
+      defer { try? handle.close() }
+      while let chunk = try handle.read(upToCount: 256 * 1024), !chunk.isEmpty {
+        hasher.update(data: chunk)
+      }
+      hasher.update(data: separator)
+    }
+    return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+  }
+
+  func session(for id: UInt64) -> RimeSession {
+    if let existing = sessions[id] {
       return existing
     }
     return OwlRustSession(
-      sessionID: UInt64(id),
+      sessionID: id,
       handle: nil,
       ownerEngine: self,
       initialSchemaId: selectedSchemaId
@@ -768,32 +1317,71 @@ final class OwlRustEngine: RimeEngine {
     selectedSchemaId = id
   }
 
+  fileprivate func refreshAllSessionsPreferences(includeHostPhrases: Bool) -> Bool {
+    var succeeded = true
+    for session in sessions.values {
+      if !session.syncRuntimePreferences(includeHostPhrases: includeHostPhrases) {
+        succeeded = false
+      }
+    }
+    return succeeded
+  }
+
+  fileprivate func rerankConfiguration() -> OwlRerankConfiguration {
+    OwlRerankConfiguration.current(
+      sharedSupportURL: sharedSupportURL ?? Bundle.main.sharedSupportURL
+    )
+  }
+
+  fileprivate func loadPackedHostPhrases() -> String {
+    let userRoot = userDataURL ?? OwlApp.userDir
+    let sharedRoot = sharedSupportURL ?? Bundle.main.sharedSupportURL
+    let fileNames: [String]
+    switch OwlTemplateStore.mode(rimeDir: userRoot) {
+    case .unified:
+      fileNames = [OwlTemplateStore.dictFileName, "custom_phrase.txt"]
+    case .legacy:
+      fileNames = [
+        OwlPromptStore.dictFileName,
+        OwlQuickSendStore.dictFileName,
+        "custom_phrase.txt"
+      ]
+    case .empty:
+      fileNames = ["custom_phrase.txt"]
+    case .unavailable:
+      return ""
+    }
+    var lines: [String] = []
+    for name in fileNames {
+      let userFile = userRoot.appendingPathComponent(name)
+      if let content = try? String(contentsOf: userFile, encoding: .utf8), !content.isEmpty {
+        lines.append(content)
+        continue
+      }
+      if name == "custom_phrase.txt",
+         let sharedFile = sharedRoot?.appendingPathComponent(name),
+         let content = try? String(contentsOf: sharedFile, encoding: .utf8),
+         !content.isEmpty {
+        lines.append(content)
+      }
+    }
+    return lines.joined(separator: "\n")
+  }
+
   fileprivate func notifyOptionChanged(sessionID: UInt64, optionName: String, value: Bool) {
     guard let handler = notificationHandler else { return }
     let payload = value ? optionName : "!\(optionName)"
-    "option".withCString { typeCStr in
-      payload.withCString { valCStr in
-        handler(notificationContext, RimeSessionId(sessionID), typeCStr, valCStr)
-      }
-    }
+    handler(sessionID, "option", payload)
   }
 
   private func notifySchemaChanged(schemaId: String, schemaName: String) {
     guard let handler = notificationHandler else { return }
     let payload = "\(schemaId)/\(schemaName)"
-    "schema".withCString { typeCStr in
-      payload.withCString { valCStr in
-        handler(notificationContext, 0, typeCStr, valCStr)
-      }
-    }
+    handler(0, "schema", payload)
   }
 
   private func notifyDeploy(status: String) {
     guard let handler = notificationHandler else { return }
-    "deploy".withCString { typeCStr in
-      status.withCString { valCStr in
-        handler(notificationContext, 0, typeCStr, valCStr)
-      }
-    }
+    handler(0, "deploy", status)
   }
 }

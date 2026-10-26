@@ -82,7 +82,7 @@ enum OwlNotificationWhen: String, CaseIterable, Sendable {
 
 /// Candidate cell layout preset (Feature 7). Owltype draws label + text + comment itself, so
 /// `squirrel.yaml candidate_format` is inert — these presets drive the SwiftUI panel directly.
-/// 法务徽章「法」/ citation source line / provenance tags are NOT governed here (design core).
+/// Provenance tags are NOT governed here (design core).
 enum OwlCandidateFormat: String, CaseIterable, Sendable {
   /// 标签 + 候选 + 注释 (the shipping default).
   case full

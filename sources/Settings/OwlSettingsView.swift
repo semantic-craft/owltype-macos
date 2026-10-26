@@ -21,6 +21,12 @@
 import AppKit
 import SwiftUI
 
+/// Delegate-owned user-data actions exposed by the settings maintenance page.
+struct OwlSettingsUserDataActions {
+  let migrateLegacy: () -> Void
+  let resetUserDict: () -> Void
+}
+
 struct OwlSettingsView: View {
   @Bindable var state: OwlSettingsState
 
@@ -35,12 +41,8 @@ struct OwlSettingsView: View {
   /// 模糊拼音 fast-ish apply → shared settings application (mtime-gated `fullCheck:false`
   /// maintenance — rebuilds the affected schema prism, not octagram — + reselect + replay).
   let onApplyFuzzyConfigFast: () throws -> OwlKeyboardSettingsApplication.Outcome
-  /// 同步用户数据 → delegate `syncUserData()`.
-  let onSyncUserData: () -> Void
-  /// 重置用户词典… → delegate-owned 确认弹窗 + `resetUserDict()`（备份 → 删 userdb → 重新部署）。
-  let onResetUserDict: () -> Void
-  /// 设置同步目录 → delegate-owned NSOpenPanel + installation.yaml write.
-  let onChooseSyncDirectory: () -> Void
+  /// 迁移与重置 → delegate-owned user-data operations.
+  let userDataActions: OwlSettingsUserDataActions
   /// 打开用户目录 → delegate `openRimeFolder()`.
   let onOpenRimeFolder: () -> Void
   /// 日志 → delegate `openLogFolder()`.
@@ -49,6 +51,7 @@ struct OwlSettingsView: View {
   let onShowOnboarding: () -> Void
   /// Candidate setting changed → refresh all live runtime consumers.
   let onPanelPreferencesChanged: () -> Void
+  var writesRimeConfiguration = true
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -91,6 +94,8 @@ struct OwlSettingsView: View {
       state.translationSkillEnabled = OwlSelectionMenuPreferences.translationEnabled
       state.promptOptimizeSkillEnabled = OwlSelectionMenuPreferences.promptOptimizeEnabled
       state.goalBriefSkillEnabled = OwlSelectionMenuPreferences.goalBriefEnabled
+      state.keyboardRerankEnabled = OwlExperimentalPreferences.keyboardRerankEnabled
+      state.settledRerankEnabled = OwlExperimentalPreferences.settledRerankEnabled
     }
   }
 
@@ -117,16 +122,26 @@ struct OwlSettingsView: View {
     .safeAreaInset(edge: .bottom) { sidebarFooter }
   }
 
-  /// Footer pinned to the sidebar bottom — engine + version (the design's "librime · v…").
+  /// Footer pinned to the sidebar bottom — Rust engine + version.
   private var sidebarFooter: some View {
     HStack(spacing: 0) {
-      Text(state.librimeVersion.isEmpty ? "librime" : "librime · v\(state.librimeVersion)")
+      Text(engineFooterText)
         .font(.system(size: 11))
         .foregroundStyle(palette.ink3)
       Spacer(minLength: 0)
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 10)
+  }
+
+  private var engineFooterText: String {
+    let version = state.librimeVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !version.isEmpty else { return "Rust 引擎" }
+    let prefix = "msime-rust-"
+    if version.hasPrefix(prefix) {
+      return "msime-rust · v\(version.dropFirst(prefix.count))"
+    }
+    return "Rust 引擎 · \(version)"
   }
 
   private var sidebarHeader: some View {
@@ -189,7 +204,8 @@ struct OwlSettingsView: View {
           onSelectSchema: onSelectSchema,
           onRedeploy: onRedeploy,
           onApplyKeyboardConfigFast: onApplyKeyboardConfigFast,
-          onApplyFuzzyConfigFast: onApplyFuzzyConfigFast
+          onApplyFuzzyConfigFast: onApplyFuzzyConfigFast,
+          writesRimeConfiguration: writesRimeConfiguration
         )
       case .shortcuts:
         OwlKeyboardPage(
@@ -201,6 +217,7 @@ struct OwlSettingsView: View {
           onRedeploy: onRedeploy,
           onApplyKeyboardConfigFast: onApplyKeyboardConfigFast,
           onApplyFuzzyConfigFast: onApplyFuzzyConfigFast,
+          writesRimeConfiguration: writesRimeConfiguration,
           variant: .shortcuts
         )
       case .appearance:
@@ -341,18 +358,16 @@ struct OwlSettingsView: View {
   private var actionSection: some View {
     sectionCard(title: "维护与诊断") {
       VStack(spacing: 10) {
-        Text("这些操作通常不需要每天使用；当设置没有立即生效、需要同步输入习惯，或排查问题时再打开。")
+        Text("这些操作通常不需要每天使用；当设置没有立即生效、需要迁移旧版记录或排查问题时再打开。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .frame(maxWidth: .infinity, alignment: .leading)
-        OwlSyncDirectoryInfo(path: state.syncDirectoryDisplayPath, palette: palette)
 
         actionButton(title: OwlInputMenuTitles.deploy, systemImage: "arrow.triangle.2.circlepath") {
           _ = onRedeploy()
         }
-        actionButton(title: OwlInputMenuTitles.syncDirectory, systemImage: "folder.badge.gearshape", action: onChooseSyncDirectory)
-        actionButton(title: OwlInputMenuTitles.syncUserData, systemImage: "arrow.triangle.2.circlepath.icloud", action: onSyncUserData)
-        actionButton(title: OwlInputMenuTitles.resetUserDict, systemImage: "trash", action: onResetUserDict)
+        actionButton(title: OwlInputMenuTitles.migrateLegacyUserData, systemImage: "arrow.right.arrow.left.square", action: userDataActions.migrateLegacy)
+        actionButton(title: OwlInputMenuTitles.resetUserDict, systemImage: "trash", action: userDataActions.resetUserDict)
         actionButton(title: OwlInputMenuTitles.rimeConfig, systemImage: "folder", action: onOpenRimeFolder)
         actionButton(title: OwlInputMenuTitles.logs, systemImage: "doc.text.magnifyingglass", action: onOpenLog)
         actionButton(title: OwlInputMenuTitles.onboarding, systemImage: "sparkles", action: onShowOnboarding)
@@ -591,7 +606,7 @@ struct OwlSettingsView: View {
             options: [("标准", .full), ("隐藏注释", .noComment), ("仅候选", .candidateOnly)],
             palette: palette
           )
-          Text("标准=序号+候选+注释；隐藏注释=去掉拼音/释义；仅候选=只留候选字。法务徽章不受影响。")
+          Text("标准=序号+候选+注释；隐藏注释=去掉拼音/释义；仅候选=只留候选字。")
             .font(.system(size: 11))
             .foregroundStyle(palette.ink3)
         }
@@ -665,20 +680,28 @@ struct OwlSettingsView: View {
       } catch OwlConfigWriteError.refusedNeverTouch(let name) {
         candidatePageSizeApplyStatus = "已拒绝写入受保护文件：\(name)。候选个数未生效，请查看诊断日志。"
       } catch {
-        candidatePageSizeApplyStatus = "写入失败，候选个数未生效，请查看诊断日志：\(error.localizedDescription)"
+        candidatePageSizeApplyStatus = writesRimeConfiguration
+          ? "写入失败，候选个数未生效，请查看诊断日志：\(error.localizedDescription)"
+          : "应用失败，候选个数未生效，请查看诊断日志：\(error.localizedDescription)"
       }
       isApplyingCandidatePageSize = false
     }
   }
 
-  static func candidatePageSizeApplyStatusMessage(written: [String], deploySucceeded: Bool) -> String {
+  static func candidatePageSizeApplyStatusMessage(
+    written: [String],
+    deploySucceeded: Bool,
+    writesRimeConfiguration: Bool = true
+  ) -> String {
     let files = written.joined(separator: "、")
     if deploySucceeded {
       return files.isEmpty ? "候选个数已生效。" : "候选个数已生效：\(files)。"
     }
     return files.isEmpty
       ? "应用失败，候选个数未生效，请查看诊断日志。"
-      : "已写入 \(files)，但应用失败；候选个数未生效，请查看诊断日志。"
+      : writesRimeConfiguration
+        ? "已写入 \(files)，但应用失败；候选个数未生效，请查看诊断日志。"
+        : "应用失败，候选个数未生效，请查看诊断日志。"
   }
 
   // MARK: - Status line
@@ -718,31 +741,6 @@ struct OwlSettingsView: View {
       palette.card2.ignoresSafeArea()
     } else {
       palette.card2.opacity(0.94).ignoresSafeArea()
-    }
-  }
-}
-
-private struct OwlSyncDirectoryInfo: View {
-  let path: String
-  let palette: OwlCandidatePalette
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      Text("同步用户数据会合并并备份 Rime 用户词典、自造词、词频和输入习惯快照；目录可放在 iCloud、Dropbox 或 OneDrive，Owltype 不会自动上传。")
-        .font(.system(size: 12))
-        .foregroundStyle(palette.ink3)
-        .frame(maxWidth: .infinity, alignment: .leading)
-      VStack(alignment: .leading, spacing: 3) {
-        Text("同步目录")
-          .font(.system(size: 11, weight: .semibold))
-          .foregroundStyle(palette.ink2)
-        Text(path.isEmpty ? "未读取" : path)
-          .font(.system(size: 11, design: .monospaced))
-          .foregroundStyle(palette.ink3)
-          .lineLimit(2)
-          .textSelection(.enabled)
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
     }
   }
 }

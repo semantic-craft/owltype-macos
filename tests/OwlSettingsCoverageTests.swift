@@ -76,8 +76,7 @@ final class OwlSettingsCoverageTests: XCTestCase {
     // 重置用户词典…（#37）：备份+删除+还原全链路覆盖在 OwlUserDictResetTests，
     // 确认弹窗默认按钮同处断言。
     "OwlInputMenuTitles.resetUserDict",
-    "OwlInputMenuTitles.syncDirectory",
-    "OwlInputMenuTitles.syncUserData",
+    "OwlInputMenuTitles.migrateLegacyUserData",
     "https 端点",
     // 辅助功能权限：状态即入口的单一按钮，accessibilityLabel 随授权态切换。
     "辅助功能已授权，点此打开权限设置",
@@ -126,6 +125,9 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "zh = z（翘舌）",
     "中文与英文间加入空格",
     "成对输入",                       // task 07-02 本地便捷输入：commit 层配对补全（默认关；07-21 由「自动配对括号」改名）
+    // 本地模型重排（#257/#258）：默认关；模型资源、许可、SHA 与运行状态同卡展示。
+    "逐键候选重排",
+    "停顿候选重排",
     "中文下使用英文标点",
     "使用 Shift 切换中英文",
     "下载 Noto Serif SC 字体",
@@ -179,16 +181,21 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "输入中文时 “/” 弹出符号选单",
     // 「<」与「/」符号选单的 patch coverage 在 OwlKeyboardPatchBuilderTests。
     "输入中文时 “<” 弹出符号选单",
+    "选择方案文件…",
+    "清除检查结果",
     // N3 ` 临时英文（键盘页 五笔 卡，2026-07-21）：patch coverage 在 OwlKeyboardPatchBuilderTests
     // 的 wubiEnglishChannel 断言。
     "` 临时英文",
     "逗号句号翻页",
     "设置模糊拼音",
-    "保存并重新应用",
-    // 完整词库卡（方案B dict-pack，2026-07-24）：下载/重试按钮。行为覆盖在 OwlDictPackTests
-    // （下载/校验/装配/所有权全链路）；按钮 action 只是 OwlDictPackCenter.start() 转发。
+    "保存并重新应用", "重新应用",
+    // 完整词库卡（方案B dict-pack）：Rust 后端先把 generation 准备成候选，用户再显式启用或回退；
+    // legacy Rime 后端仍走下载后 deploy。事务与不自动切换由 OwlRustResourceTransactionTests、
+    // OwlRustEngineTests 和 OwlDictPackTests 的中心层门控覆盖。
     "立即下载（约 90 MB）",
     "重试",
+    "启用",
+    "回退到 v\\(target)",
     "辅助检索",
     "分号引号选 2/3 位",
     // 「唤起热键」不再列入：快捷短语面板与划词菜单都改用 UI 层的 OwlHotKeyRecorderRow 录制器，
@@ -232,6 +239,11 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "API Key（\\(hint)留空＝保持现有 Key 不变）",
     "OwlSettingsActions.saveDoubaoSearchKey(",
     "OwlSettingsActions.clearDoubaoSearchKey(",
+    "OwlRimeSchemaCompatibilityReport.inspect(fileURLs: panel.urls)",
+    "panel.allowsMultipleSelection = true",
+    "外部自定义 schema/Lua 不执行；原文不改；内置日期、农历、Unicode、表达式由 Rust 原生实现。",
+    "OwlExperimentalPreferences.keyboardRerankEnabled",
+    "OwlExperimentalPreferences.settledRerankEnabled",
   ]
 
   private static let labelPatterns = [

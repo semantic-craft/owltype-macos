@@ -137,13 +137,7 @@ struct CandidateViewModel: Identifiable, Sendable, Equatable {
   let label: String
   let text: String
   let comment: String?
-  /// Law-citation candidate (from `law_citation.lua`, shape 《…》第…条…) → render the
-  /// small 「法」 badge in the vertical list (the Claude Design "citation" variant).
-  let badge: Bool
-  /// Citation source line shown under the word in the vertical list; nil for ordinary
-  /// candidates (whose reading/释义 stays in `comment`).
-  let source: String?
-  /// G3: user-visible provenance (个人/项目/规则/已核验/AI). `nil` = ordinary main-lane
+  /// G3: user-visible provenance (个人/场景/AI). `nil` = ordinary main-lane
   /// Rime pinyin candidate → no label rendered (avoids per-candidate noise).
   let provenance: OwlProvenance?
   let token: OwlCandidateToken
@@ -153,8 +147,6 @@ struct CandidateViewModel: Identifiable, Sendable, Equatable {
     label: String,
     text: String,
     comment: String? = nil,
-    badge: Bool = false,
-    source: String? = nil,
     provenance: OwlProvenance? = nil,
     token: OwlCandidateToken? = nil
   ) {
@@ -162,8 +154,6 @@ struct CandidateViewModel: Identifiable, Sendable, Equatable {
     self.label = label
     self.text = text
     self.comment = comment
-    self.badge = badge
-    self.source = source
     self.provenance = provenance
     self.token = token ?? OwlCandidateToken(sessionID: 0, generation: 0, candidateID: id, isAbsolute: false)
   }
@@ -239,25 +229,22 @@ struct OwlCandidateTheme: Sendable, Equatable {
   )
 }
 
-/// G3 候选来源标签五色（provenance）。G2 在此预留命名位，G3 负责把它们渲染进候选窗。
+/// G3 候选来源标签颜色（provenance）。
 /// AI 与 Claude design accent 同值 (#C96442)，确保 AI 候选与强调色一致。
 /// 单一真相源 `packages/rime-law-config/skins/colors.md`（provenance 段）。
 enum OwlProvenanceColor {
   static let personal = owlColor(hex: "5E7F6B")  // 个人
   static let project  = owlColor(hex: "3F6E9C")  // 场景
-  static let rule     = owlColor(hex: "9A7234")  // 规则
   static let verified = owlColor(hex: "3C7A52")  // 已核验
   static let ai       = owlColor(hex: "C96442")  // AI（= Claude accent）
 }
 
-/// G3 候选来源（五类）。由 `EnhancedCandidate` 的 lane/source 经纯函数派生
+/// G3 候选来源。由 `EnhancedCandidate` 的 lane/source 经纯函数派生
 /// (`EnhancedCandidate.provenance(...)`)；`nil` 表示普通拼音候选，不渲染标签。
 /// 展示名 + token 颜色都在此集中，视图层不散落硬编码 hex。
 enum OwlProvenance: String, Sendable, Equatable, CaseIterable {
   case personal   // 个人 — 本地词频/个人词库
   case project    // 场景 — 当前场景词库排序
-  case rule       // 规则 — 本地法律对象/引注（版本未知）
-  case verified   // 已核验 — 法律对象且字段完整、版本已知
   case ai         // AI — DeepSeek/cloud lane，始终需确认、不自动上屏/学习
 
   /// Short pill label.
@@ -265,8 +252,6 @@ enum OwlProvenance: String, Sendable, Equatable, CaseIterable {
     switch self {
     case .personal: return "个人"
     case .project:  return "场景"
-    case .rule:     return "规则"
-    case .verified: return "已核验"
     case .ai:       return "AI"
     }
   }
@@ -276,8 +261,6 @@ enum OwlProvenance: String, Sendable, Equatable, CaseIterable {
     switch self {
     case .personal: return OwlProvenanceColor.personal
     case .project:  return OwlProvenanceColor.project
-    case .rule:     return OwlProvenanceColor.rule
-    case .verified: return OwlProvenanceColor.verified
     case .ai:       return OwlProvenanceColor.ai
     }
   }

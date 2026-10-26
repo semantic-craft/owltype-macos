@@ -70,11 +70,6 @@ extension OwlInputController {
     NSApp.owlAppDelegate.deploy()
   }
 
-  @objc func syncUserData() {
-    OwlLatencyTrace.event("button.open.sync")
-    NSApp.owlAppDelegate.syncUserData()
-  }
-
   @objc func toggleASCIIModeFromMenu() {
     toggleRimeOption(.asciiMode)
   }

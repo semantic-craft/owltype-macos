@@ -384,7 +384,8 @@ final class OwlDictPackTests: XCTestCase {
         "\(status) 应判为缺失")
     }
     let present: [OwlDictPackStatus] = [
-      .installed(version: 1), .userProvided, .downloading(progress: 0.5), .deploying
+      .installed(version: 1), .userProvided, .downloading(progress: 0.5), .deploying,
+      .prepared(version: 2), .activating, .rollingBack,
     ]
     for status in present {
       XCTAssertFalse(
@@ -455,6 +456,364 @@ private final class ProgressCollector: @unchecked Sendable {
   private var storage: [Double] = []
   var values: [Double] { lock.withLock { storage } }
   func add(_ value: Double) { lock.withLock { storage.append(value) } }
+}
+
+@MainActor
+final class OwlDictPackCenterTests: XCTestCase {
+  func testDefaultResourcePathIgnoresRemovedLegacyEngineSelector() {
+    let key = "OWL_ENGINE_BACKEND"
+    let previous = ProcessInfo.processInfo.environment[key]
+    setenv(key, "rime", 1)
+    defer {
+      if let previous {
+        setenv(key, previous, 1)
+      } else {
+        unsetenv(key)
+      }
+    }
+
+    XCTAssertTrue(OwlDictPackCenter().usesRustResources)
+  }
+
+  func testRustPrepareActivateAndRollbackNeverDeploy() async throws {
+    let root = FileManager.default.temporaryDirectory
+      .appending(component: "owl-dictpack-center-\(UUID().uuidString)", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let previous = fixtureRecord(version: 6, seed: "b")
+    let current = fixtureRecord(version: 7, seed: "a")
+    let activeState = OwlRustResourceActiveState(
+      schemaVersion: 1,
+      inputKind: .pinyinWubi,
+      current: current,
+      previous: previous,
+      activatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let rolledBackState = OwlRustResourceActiveState(
+      schemaVersion: 1,
+      inputKind: .pinyinWubi,
+      current: previous,
+      previous: nil,
+      activatedAt: Date(timeIntervalSince1970: 1_700_000_001)
+    )
+    let prepared = OwlRustDictPackPreparedResources(
+      resource: OwlRustResourcePrepared(record: current, previousGenerationId: previous.generationId),
+      stats: OwlRustResourceBuildStats(
+        pinyinEntries: 21,
+        wubiEntries: 22,
+        englishEntries: 23,
+        rejectedPinyinEntries: 1,
+        rejectedWubiEntries: 2,
+        rejectedEnglishEntries: 3
+      )
+    )
+
+    let calls = OwlDictPackCenterBackendCalls(
+      prepared: prepared,
+      activeState: activeState,
+      rolledBackState: rolledBackState
+    )
+    let deployRecorder = OwlDictPackDeployRecorder()
+    let refreshRecorder = OwlDictPackLiveSessionRefreshRecorder(deferred: true)
+    let backend = OwlDictPackCenterRustBackend(
+      environment: OwlRustResourceEnvironment.production(userRoot: root),
+      prepare: { _, progress in
+        progress?(0.5)
+        return await calls.prepare()
+      },
+      activate: { _, _ in
+        await calls.activate()
+      },
+      rollback: { _, _ in
+        await calls.rollback()
+      }
+    )
+    let center = OwlDictPackCenter(
+      usesRustResources: true,
+      rustBackend: backend,
+      deploy: { deployRecorder.deploy() },
+      liveSessionRefresh: refreshRecorder.schedule
+    )
+
+    center.start()
+    try await waitUntil { center.status == .prepared(version: 7) }
+
+    XCTAssertEqual(center.status, .prepared(version: 7))
+    XCTAssertEqual(center.preparedCandidate, OwlDictPackCandidate(prepared: prepared))
+    XCTAssertEqual(center.preparedCandidate?.licenseIdentifiers, ["MIT", "Zlib"])
+    XCTAssertEqual(center.preparedCandidate?.rejectedEntries, 6)
+    let prepareCalls = await calls.prepareCalls
+    let activateCallsBeforeConfirmation = await calls.activateCalls
+    XCTAssertEqual(prepareCalls, 1)
+    XCTAssertEqual(activateCallsBeforeConfirmation, 0, "preparing a candidate must not activate it")
+    XCTAssertEqual(deployRecorder.calls, 0)
+
+    center.activatePrepared()
+    try await waitUntil { center.status == .installed(version: 7) }
+
+    let activateCalls = await calls.activateCalls
+    XCTAssertEqual(activateCalls, 1)
+    XCTAssertEqual(center.rollbackTargetVersion, 6)
+    XCTAssertTrue(center.isAwaitingLiveSessionRefresh)
+    XCTAssertEqual(refreshRecorder.calls, 1)
+    XCTAssertEqual(deployRecorder.calls, 0, "Rust activation must not invoke Rime deploy")
+
+    center.rollback()
+    try await waitUntil { center.status == .installed(version: 6) }
+
+    let rollbackCalls = await calls.rollbackCalls
+    XCTAssertEqual(rollbackCalls, 1)
+    XCTAssertNil(center.rollbackTargetVersion)
+    XCTAssertTrue(center.isAwaitingLiveSessionRefresh)
+    XCTAssertEqual(refreshRecorder.calls, 2)
+    XCTAssertEqual(deployRecorder.calls, 0, "Rust rollback must not invoke Rime deploy")
+
+    refreshRecorder.finish()
+    XCTAssertFalse(center.isAwaitingLiveSessionRefresh)
+  }
+
+  func testRustActivationWaitsForPartialSelectionToFinishBeforeSwitchingSessions() async throws {
+    let root = FileManager.default.temporaryDirectory
+      .appending(component: "owl-dictpack-idle-refresh-\(UUID().uuidString)", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let previous = fixtureRecord(version: 6, seed: "b")
+    let current = fixtureRecord(version: 7, seed: "a")
+    let activeState = OwlRustResourceActiveState(
+      schemaVersion: 1,
+      inputKind: .pinyinWubi,
+      current: current,
+      previous: previous,
+      activatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let prepared = OwlRustDictPackPreparedResources(
+      resource: OwlRustResourcePrepared(record: current, previousGenerationId: previous.generationId),
+      stats: OwlRustResourceBuildStats(
+        pinyinEntries: 21,
+        wubiEntries: 22,
+        englishEntries: 23,
+        rejectedPinyinEntries: 1,
+        rejectedWubiEntries: 2,
+        rejectedEnglishEntries: 3
+      )
+    )
+    let backend = OwlDictPackCenterRustBackend(
+      environment: OwlRustResourceEnvironment.production(userRoot: root),
+      prepare: { _, _ in prepared },
+      activate: { _, _ in
+        OwlRustResourceInstallResult(disposition: .installed, state: activeState)
+      },
+      rollback: { _, _ in
+        XCTFail("rollback is not part of this activation path")
+        return activeState
+      }
+    )
+    let deployRecorder = OwlDictPackDeployRecorder()
+
+    let delegate = NSApp.owlAppDelegate
+    let previousEngine = delegate.engine
+    let previousActive = delegate.activeInputController
+    delegate.engine = FakeRimeEngine()
+    let active = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    let background = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    active.destroySession()
+    background.destroySession()
+    defer {
+      delegate.liveControllers.remove(active)
+      delegate.liveControllers.remove(background)
+      delegate.activeInputController = previousActive
+      delegate.engine = previousEngine
+      _ = delegate.applyPendingLiveSessionRefreshIfIdle()
+    }
+
+    let partialSelection = RimeComposition(
+      preedit: "西te'le",
+      selStart: 3,
+      selEnd: 9,
+      cursorPos: 9,
+      commitTextPreview: "西特乐",
+      candidates: [RimeCandidate(text: "西特乐", comment: "xi'te'le")],
+      labels: ["1"],
+      pageNo: 0,
+      pageSize: 1,
+      isLastPage: true,
+      highlightedIndex: 0,
+      numCandidates: 1
+    )
+    let activeOld = FakeRimeSession(
+      sessionID: 10,
+      composition: partialSelection,
+      input: "te'le"
+    )
+    let backgroundOld = FakeRimeSession(
+      sessionID: 20,
+      composition: partialSelection,
+      input: "te'le"
+    )
+    let activeFresh = FakeRimeSession(sessionID: 11)
+    let engine = FakeRimeEngine(vendedSession: activeFresh)
+    delegate.engine = engine
+
+    active.rime = activeOld
+    active.schemaId = "rime_ice"
+    active.preedit = "西te'le"
+    background.rime = backgroundOld
+    background.schemaId = "rime_ice"
+    delegate.registerLiveController(active)
+    delegate.registerLiveController(background)
+    delegate.activeInputController = active
+
+    let center = OwlDictPackCenter(
+      usesRustResources: true,
+      rustBackend: backend,
+      deploy: { deployRecorder.deploy() }
+    )
+    center.start()
+    try await waitUntil { center.status == .prepared(version: 7) }
+    center.activatePrepared()
+    try await waitUntil { center.status == .installed(version: 7) }
+
+    XCTAssertTrue(center.isAwaitingLiveSessionRefresh)
+    XCTAssertFalse(activeOld.destroyed, "an in-flight partial selection must not be torn down")
+    XCTAssertFalse(backgroundOld.destroyed, "all live sessions wait for the active composition")
+    XCTAssertEqual(engine.createdSessionCount, 0)
+    XCTAssertEqual(deployRecorder.calls, 0)
+
+    activeOld.scriptedInput = ""
+    activeOld.scriptedComposition = nil
+    active.preedit = ""
+    active.rimeUpdate()
+
+    XCTAssertFalse(activeOld.destroyed, "an unfinished background session must also block the handoff")
+    XCTAssertFalse(backgroundOld.destroyed)
+    XCTAssertEqual(engine.createdSessionCount, 0)
+    XCTAssertTrue(center.isAwaitingLiveSessionRefresh)
+
+    backgroundOld.scriptedInput = ""
+    backgroundOld.scriptedComposition = nil
+    // A stale UI preedit is not source of truth: the underlying session is idle.
+    background.preedit = "stale"
+    active.rimeUpdate()
+
+    XCTAssertTrue(activeOld.destroyed)
+    XCTAssertTrue(backgroundOld.destroyed)
+    XCTAssertEqual(engine.createdSessionCount, 1, "only the active controller is eagerly recreated")
+    XCTAssertTrue(activeFresh.processedKeys.isEmpty, "the idle handoff must not replay stale raw input")
+    XCTAssertFalse(center.isAwaitingLiveSessionRefresh)
+    XCTAssertEqual(deployRecorder.calls, 0)
+  }
+
+  private func waitUntil(
+    _ condition: @escaping @MainActor () -> Bool
+  ) async throws {
+    for _ in 0..<200 {
+      if condition() { return }
+      try await Task.sleep(for: .milliseconds(10))
+    }
+    XCTFail("timed out waiting for dict-pack center state")
+  }
+
+  private func fixtureRecord(version: Int, seed: Character) -> OwlRustResourceRecord {
+    let digest = "sha256:" + String(repeating: String(seed), count: 64)
+    let licenseFiles = ["files/msime-pinyin.db"]
+    let manifest = OwlRustResourceManifest(
+      schemaVersion: 1,
+      packageId: "owltype-dictpack",
+      inputKind: .pinyinWubi,
+      version: version,
+      digest: digest,
+      license: [
+        OwlRustResourceLicense(identifier: "Zlib", attribution: "Fixture Z", files: licenseFiles),
+        OwlRustResourceLicense(identifier: "MIT", attribution: "Fixture M", files: licenseFiles),
+      ],
+      engineCompatibility: OwlRustResourceEngineCompatibility(
+        minimumContractVersion: 1,
+        maximumContractVersion: 1,
+        requiredCapabilities: []
+      ),
+      files: []
+    )
+    return OwlRustResourceRecord(
+      generationId: "sha256-" + String(repeating: String(seed), count: 64),
+      digest: digest,
+      manifest: manifest
+    )
+  }
+}
+
+private actor OwlDictPackCenterBackendCalls {
+  private let prepared: OwlRustDictPackPreparedResources
+  private let activeState: OwlRustResourceActiveState
+  private let rolledBackState: OwlRustResourceActiveState
+  private(set) var prepareCalls = 0
+  private(set) var activateCalls = 0
+  private(set) var rollbackCalls = 0
+
+  init(
+    prepared: OwlRustDictPackPreparedResources,
+    activeState: OwlRustResourceActiveState,
+    rolledBackState: OwlRustResourceActiveState
+  ) {
+    self.prepared = prepared
+    self.activeState = activeState
+    self.rolledBackState = rolledBackState
+  }
+
+  func prepare() -> OwlRustDictPackPreparedResources {
+    prepareCalls += 1
+    return prepared
+  }
+
+  func activate() -> OwlRustResourceInstallResult {
+    activateCalls += 1
+    return OwlRustResourceInstallResult(disposition: .installed, state: activeState)
+  }
+
+  func rollback() -> OwlRustResourceActiveState {
+    rollbackCalls += 1
+    return rolledBackState
+  }
+}
+
+@MainActor
+private final class OwlDictPackDeployRecorder {
+  private(set) var calls = 0
+
+  func deploy() -> Bool {
+    calls += 1
+    return true
+  }
+}
+
+@MainActor
+private final class OwlDictPackLiveSessionRefreshRecorder {
+  private(set) var calls = 0
+  private let deferred: Bool
+  private var completions: [@MainActor () -> Void] = []
+
+  init(deferred: Bool) {
+    self.deferred = deferred
+  }
+
+  func schedule(completion: @escaping @MainActor () -> Void) -> Bool {
+    calls += 1
+    guard deferred else {
+      completion()
+      return false
+    }
+    completions.append(completion)
+    return true
+  }
+
+  func finish() {
+    let pending = completions
+    completions.removeAll()
+    for completion in pending {
+      completion()
+    }
+  }
 }
 
 final class OwlPinyinMixedInputTests: XCTestCase {

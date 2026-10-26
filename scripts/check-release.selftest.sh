@@ -76,10 +76,11 @@ fi
 if env LC_ALL=C LANG=C PATH="$work/valid-bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     NOTARY_PROFILE=fixture-profile EXPECTED_NOTARY_PROFILE=fixture-profile \
     bash "$GATE" --preflight-only >"$output" 2>&1 &&
-    grep -q 'PASS:.*\.pinyin = rime_ice' "$output"; then
-  ok "explicit NOTARY_PROFILE overrides the canonical default and the locale parses"
+    grep -q 'PASS: release environment preflight complete' "$output" &&
+    [[ "$(grep -c 'check-rust-delivery.py' "$GATE")" -ge 2 ]]; then
+  ok "explicit NOTARY_PROFILE overrides the default and both release Apps use the Rust gate"
 else
-  bad "explicit NOTARY_PROFILE should override the canonical default"
+  bad "explicit NOTARY_PROFILE should override the default and the Rust gate must cover both Apps"
 fi
 
 if grep -qE '^NOTARY_PROFILE[[:space:]]*\?=[[:space:]]*\$\(DEV_ID\)' "$ROOT/Makefile"; then

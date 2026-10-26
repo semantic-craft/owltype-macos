@@ -375,12 +375,27 @@ impl Runtime<Session> {
         self.refresh()
     }
 
+    /// Recompute the open composition after the candidate-emoji preference changes.
+    pub fn set_mixed_emoji_candidates(&mut self, enabled: bool) -> Result<(), RuntimeError> {
+        if self.engine.mixed_emoji_candidates_enabled() == enabled {
+            return Ok(());
+        }
+        self.advance()?;
+        InputEngine::set_mixed_emoji_candidates(&mut self.engine, enabled)?;
+        self.refresh()
+    }
+
     /// A live host mode changes neither composition nor candidate identity.
     pub fn set_chinese_punctuation_enabled(&mut self, enabled: bool) -> Result<(), RuntimeError> {
         self.engine
             .set_chinese_punctuation_enabled(enabled)
             .map_err(|error| RuntimeError::Engine(error.to_string()))?;
         self.refresh_idle_spelling_symbols()
+    }
+
+    pub fn set_wubi_z_pinyin_lookup(&mut self, enabled: bool) -> Result<(), RuntimeError> {
+        self.engine.set_wubi_z_pinyin_lookup(enabled);
+        self.refresh()
     }
 
     pub fn online_query(&self) -> Result<Option<OnlineQuery>, RuntimeError> {
@@ -2080,7 +2095,11 @@ impl<E: InputEngine> Runtime<E> {
             return;
         }
         let composing = !self.cached.editing_text.is_empty();
-        if picked && result.has_commit && composing {
+        let wubi_top = self
+            .facts
+            .selection
+            .is_some_and(|selection| selection.how == SelectionHow::WubiTop);
+        if picked && result.has_commit && composing && !wubi_top {
             if !consumed.is_empty() {
                 self.phrase_selections.push(PhraseSelection {
                     word_before: self.phrase_prefix.clone(),

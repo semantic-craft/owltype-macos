@@ -95,7 +95,9 @@ struct OwlDictPackFetcher {
     switch assess() {
     case .notInstalled: return true
     case .installed(let version): return version < manifest.version
-    case .userProvided, .downloading, .deploying, .failed: return false
+    case .userProvided, .downloading, .deploying, .prepared,
+         .activating, .rollingBack, .failed:
+      return false
     }
   }
 

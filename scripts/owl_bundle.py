@@ -36,17 +36,20 @@ RELEASE_OUTPUTS = ("appcast", "source-archive")
 COMPONENTS = (
     ("Owltype", None, "GPL-3.0-only", "https://responsay.com/owltype/"),
     ("Squirrel-derived frontend", "4db2c85ac639c229e14fd9424f79c3c4f97ce478", "GPL-3.0-only", "https://github.com/rime/squirrel"),
-    ("librime", "33e78140250125871856cdc5b42ddc6a5fcd3cd4", "BSD-3-Clause", "https://github.com/rime/librime"),
-    ("librime-lua", "ec52e48ea18f11af37717a01c337f853215cf70b", "BSD-3-Clause", "https://github.com/hchunhui/librime-lua"),
-    ("plum", "b1be1969f914cc005add4090631b855db00c2591", "LGPL-3.0-only", "https://github.com/rime/plum"),
     ("Sparkle", "41847a58cdef7506b257591fcca6f9495df591d4", "MIT", "https://github.com/sparkle-project/Sparkle"),
     ("rime-ice configuration", "b681a34f788795034b3b288830f4861980bc8b0d", "GPL-3.0-only", "https://github.com/iDvel/rime-ice"),
+    ("rime-wubi86-jidian", "a194fb8b3ec41ef9dcf079d3a67876fa75f79135", "Apache-2.0", "https://github.com/KyleBing/rime-wubi86-jidian"),
     ("jieba", "v0.42.1", "MIT", "https://github.com/fxsjy/jieba"),
     ("phrase-pinyin-data", "cee0ed6e6e4898580cafd2bd5e3723e20b214aa0", "MIT", "https://github.com/mozillazg/phrase-pinyin-data"),
     ("Unicode Unihan", "16.0.0", "Unicode-3.0", "https://www.unicode.org/Public/16.0.0/ucd/Unihan.zip"),
-    ("OpenCC", "556ed22496d650bd0b13b6c163be9814637970ae", "Apache-2.0", "https://github.com/BYVoid/OpenCC"),
+    ("OpenCC data", "556ed22496d650bd0b13b6c163be9814637970ae", "Apache-2.0", "https://github.com/BYVoid/OpenCC"),
     ("Metasequoia IME (msime)", "09e3d53c16eb11420bef708c35d425c31eff41e2", "GPL-3.0-only", "https://github.com/metasequoiaime/msime"),
-    ("chinese-ime-lm", "15caab4fdeb59c11f452b91884371cf30e2e5608", "GPL-3.0-only", "https://github.com/metasequoiaime/chinese-ime-lm"),
+    ("Owltype emoji catalog (msime-others.db)", "dict-v2.0.24", "GPL-3.0-only AND Unicode-3.0 AND MIT", "https://github.com/metasequoiaime/msime-dictionary/releases/tag/dict-v2.0.24"),
+    ("rime-ice emoji data", "9e66b0729083b37d217312294f6d516c8d7234be", "GPL-3.0-only", "https://github.com/iDvel/rime-ice"),
+    ("Unicode Emoji, CLDR annotations, and Emoji 1.0 names", "17.0", "Unicode-3.0", "https://unicode.org/Public/emoji/17.0/"),
+    ("python-pinyin emoji reading overrides", "v0.55.0", "MIT", "https://github.com/mozillazg/python-pinyin"),
+    ("chinese-ime-lm reference crate", "15caab4fdeb59c11f452b91884371cf30e2e5608", "Apache-2.0", "https://github.com/metasequoiaime/chinese-ime-lm"),
+    ("chinese-ime-lm model weights", "model-v1", "Apache-2.0", "https://github.com/metasequoiaime/chinese-ime-lm/releases/tag/model-v1"),
 )
 
 
@@ -308,6 +311,14 @@ def make_sbom(app: Path, version: str, revision: str, created: str) -> dict:
         if name == "Sparkle":
             patch = Path(__file__).resolve().parent.parent / "patches/sparkle/application-relaunch.patch"
             packages[-1]["sourceInfo"] = "Official upstream pin with Owltype application-relaunch.patch SHA256 " + sha256(patch)
+        elif name == "Owltype emoji catalog (msime-others.db)":
+            packages[-1]["sourceInfo"] = (
+                "Derived from the pinned dict-v2.0.24 release artifact with msime "
+                "builder commit 128a332cabc5fa42b1cf5f827033ad5697ff528b and "
+                "msime-dictionary data commit 71dc6f6cc7a451231ee29c0a39b39adbf2e04d32; "
+                "only emoji and emoji_pinyin are retained. The upstream artifact's "
+                "other tables, including kaomoji and PiliApp symbol_catalog, are excluded."
+            )
 
     return {
         "SPDXID": "SPDXRef-DOCUMENT",
@@ -320,7 +331,7 @@ def make_sbom(app: Path, version: str, revision: str, created: str) -> dict:
         "relationships": [
             {"spdxElementId": "SPDXRef-DOCUMENT", "relationshipType": "DESCRIBES", "relatedSpdxElement": "SPDXRef-Package-1"},
             *(
-                {"spdxElementId": "SPDXRef-Package-1", "relationshipType": "DEPENDS_ON", "relatedSpdxElement": f"SPDXRef-Package-{index}"}
+                {"spdxElementId": "SPDXRef-Package-1", "relationshipType": "CONTAINS", "relatedSpdxElement": f"SPDXRef-Package-{index}"}
                 for index in range(2, len(packages) + 1)
             ),
         ],

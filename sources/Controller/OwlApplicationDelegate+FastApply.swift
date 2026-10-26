@@ -3,15 +3,53 @@
 //  Owltype
 //
 //  Fast settings-apply (Track 2 / PR3). Extracted from OwlApplicationDelegate.swift to keep
-//  that file under the SwiftLint file_length warning. None of this runs on the IMK keystroke
-//  hot path — every entry point here is invoked only from the settings-apply closures
-//  (`onApplyKeyboardConfigFast` / `onApplyFuzzyConfigFast`) or the schema picker.
+//  that file under the SwiftLint file_length warning. Persistence and deploy entry points run
+//  from the settings-apply closures (`onApplyKeyboardConfigFast` / `onApplyFuzzyConfigFast`) or
+//  the schema picker. The queued Rust generation handoff only drains at the outermost idle
+//  `rimeUpdate` / next-key boundary, never in the middle of a composition transaction.
 //
 
 import AppKit
 
 extension OwlApplicationDelegate {
   // MARK: - Fast settings-apply (Track 2 / PR3)
+
+  /// Apply a resource-generation switch only when the active composition is idle.
+  ///
+  /// Replaying `rawInput` cannot reconstruct the Rust session's selected phrase progress
+  /// (`phrase_progress`). Therefore a resource switch never tears down a session with live
+  /// content: it queues one refresh, and the controller calls this again when a composition
+  /// ends. The active generation pointer is already updated, so this is only the live-session
+  /// handoff, not another storage transaction.
+  @discardableResult
+  @MainActor
+  func requestLiveSessionRefreshWhenIdle(
+    completion: @escaping @MainActor () -> Void
+  ) -> Bool {
+    liveSessionRefreshCompletions.append(completion)
+    return applyPendingLiveSessionRefreshIfIdle()
+  }
+
+  /// Drain queued resource refreshes at a safe boundary. Returns true when any live session
+  /// still has content and the refresh remains queued. Background sessions normally committed
+  /// on `deactivateServer`; checking all live sessions protects a stale lifecycle from
+  /// turning the destroy-only background branch into silent content loss.
+  @discardableResult
+  @MainActor
+  func applyPendingLiveSessionRefreshIfIdle() -> Bool {
+    guard !liveSessionRefreshCompletions.isEmpty else { return false }
+    guard !liveControllers.allObjects.contains(where: \.hasInFlightComposition) else {
+      return true
+    }
+
+    let completions = liveSessionRefreshCompletions
+    liveSessionRefreshCompletions.removeAll()
+    reapplyToLiveSession()
+    for completion in completions {
+      completion()
+    }
+    return false
+  }
 
   /// Owns persistence and activation together; callers only choose the kind of edit.
   func applyKeyboardSettings(

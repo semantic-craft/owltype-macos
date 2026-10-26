@@ -1,10 +1,9 @@
 //
 //  OwlUserDictResetTests.swift
-//  OwltypeTests — 「重置用户词典…」(#37)
+//  OwltypeTests — 「重置用户词典…」
 //
-//  在临时目录里跑完整的备份 → 删除链路：无 librime、无 AppKit、不碰真实用户目录。
-//  锁住 #37 验收里属于纯逻辑的那几条：备份存在且可手工还原、只碰 `*.userdb`、
-//  全新机器（无 userdb）点它不报错、失败不留中间态、确认弹窗默认按钮是取消。
+//  Synthetic coverage for the Rust data reset: complete backup, deletion, failure
+//  restoration, and preserving the legacy Rime data retained for migration/rollback.
 //
 
 import AppKit
@@ -30,14 +29,51 @@ final class OwlUserDictResetTests: XCTestCase {
 
   // MARK: - Helpers
 
-  /// 造一个形似 LevelDB 的 `<schema>.userdb/` 目录（几个文件足够验证「整目录」搬运）。
-  @discardableResult
-  private func makeUserDB(_ schemaID: String, marker: String = "learned") throws -> URL {
-    let db = root.appendingPathComponent("\(schemaID).userdb", isDirectory: true)
-    try FileManager.default.createDirectory(at: db, withIntermediateDirectories: true)
-    try Data(marker.utf8).write(to: db.appendingPathComponent("000095.ldb"))
-    try Data("16".utf8).write(to: db.appendingPathComponent("CURRENT"))
-    return db
+  private var rustRoot: URL {
+    root.appendingPathComponent("msime-user", isDirectory: true)
+  }
+
+  private func makeRustData() throws {
+    try FileManager.default.createDirectory(
+      at: rustRoot,
+      withIntermediateDirectories: true
+    )
+    try Data("journal".utf8).write(
+      to: rustRoot.appendingPathComponent("msime_user.db")
+    )
+    try Data("wal".utf8).write(
+      to: rustRoot.appendingPathComponent("msime_user.db-wal")
+    )
+    try Data("corrupt".utf8).write(
+      to: rustRoot.appendingPathComponent("msime_user.db.corrupt-100")
+    )
+    let generation = rustRoot
+      .appendingPathComponent("dictionaries/seed-abc", isDirectory: true)
+    try FileManager.default.createDirectory(
+      at: generation,
+      withIntermediateDirectories: true
+    )
+    try Data("working dictionary".utf8).write(
+      to: generation.appendingPathComponent("msime-pinyin.db")
+    )
+  }
+
+  private func makeLegacyData() throws {
+    let userDB = root.appendingPathComponent("rime_ice.userdb", isDirectory: true)
+    try FileManager.default.createDirectory(at: userDB, withIntermediateDirectories: true)
+    try Data("legacy learned".utf8).write(to: userDB.appendingPathComponent("000095.ldb"))
+
+    let snapshot = root.appendingPathComponent("sync/install-a", isDirectory: true)
+    try FileManager.default.createDirectory(at: snapshot, withIntermediateDirectories: true)
+    try Data("legacy snapshot".utf8).write(
+      to: snapshot.appendingPathComponent("rime_ice.userdb.txt")
+    )
+    try Data("installation_id: abc\n".utf8).write(
+      to: root.appendingPathComponent("installation.yaml")
+    )
+    try Data("pins".utf8).write(
+      to: root.appendingPathComponent("owl_input_habits.json")
+    )
   }
 
   private func exists(_ url: URL) -> Bool {
@@ -48,180 +84,267 @@ final class OwlUserDictResetTests: XCTestCase {
     ((try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []).sorted()
   }
 
-  // MARK: - 正常路径
+  private func assertLegacyDataUnchanged() throws {
+    XCTAssertEqual(
+      try Data(contentsOf: root.appendingPathComponent("rime_ice.userdb/000095.ldb")),
+      Data("legacy learned".utf8)
+    )
+    XCTAssertEqual(
+      try Data(contentsOf: root.appendingPathComponent(
+        "sync/install-a/rime_ice.userdb.txt"
+      )),
+      Data("legacy snapshot".utf8)
+    )
+    XCTAssertEqual(
+      try Data(contentsOf: root.appendingPathComponent("installation.yaml")),
+      Data("installation_id: abc\n".utf8)
+    )
+    XCTAssertEqual(
+      try Data(contentsOf: root.appendingPathComponent("owl_input_habits.json")),
+      Data("pins".utf8)
+    )
+  }
 
-  func testBacksUpEveryUserDBThenDeletesIt() throws {
-    try makeUserDB("rime_ice", marker: "繁體字")
-    try makeUserDB("wubi86_jidian")
+  // MARK: - Normal path
 
-    let outcome = try OwlUserDictReset.run(root: root, timestamp: "20260726-120000")
+  func testBacksUpAndRemovesOnlyRustJournalAndGeneration() throws {
+    try makeRustData()
+    try makeLegacyData()
 
-    XCTAssertEqual(outcome.schemaIDs, ["rime_ice", "wubi86_jidian"])
-    XCTAssertFalse(exists(root.appendingPathComponent("rime_ice.userdb")), "userdb 应已删除")
-    XCTAssertFalse(exists(root.appendingPathComponent("wubi86_jidian.userdb")), "userdb 应已删除")
+    let outcome = try OwlUserDictReset.run(
+      root: root,
+      timestamp: "20261026-120000"
+    )
+
+    XCTAssertEqual(
+      Set(outcome.removedItems),
+      Set([
+        "dictionaries",
+        "msime_user.db",
+        "msime_user.db-wal",
+        "msime_user.db.corrupt-100",
+      ])
+    )
+    XCTAssertFalse(exists(rustRoot.appendingPathComponent("msime_user.db")))
+    XCTAssertFalse(exists(rustRoot.appendingPathComponent("msime_user.db-wal")))
+    XCTAssertFalse(exists(rustRoot.appendingPathComponent("msime_user.db.corrupt-100")))
+    XCTAssertFalse(exists(rustRoot.appendingPathComponent("dictionaries")))
+    try assertLegacyDataUnchanged()
 
     let backupDir = try XCTUnwrap(outcome.backupDir)
-    XCTAssertEqual(backupDir.lastPathComponent, "userdb-reset-20260726-120000")
+    XCTAssertEqual(backupDir.lastPathComponent, "rust-userdict-reset-20261026-120000")
     XCTAssertEqual(
       backupDir.deletingLastPathComponent().lastPathComponent,
-      ".owl-backup",
-      "备份要落在配置目录既有的 .owl-backup 根下"
+      ".owl-backup"
     )
-    XCTAssertEqual(names(in: backupDir), ["rime_ice.userdb", "wubi86_jidian.userdb"])
-  }
-
-  /// 验收「备份目录存在且可手工还原」：备份里是整目录的逐字节副本，`mv` 回去即还原。
-  func testBackupIsAByteForByteCopySoItCanBeRestoredByHand() throws {
-    try makeUserDB("rime_ice", marker: "繁體字")
-
-    let outcome = try OwlUserDictReset.run(root: root, timestamp: "20260726-120000")
-    let backup = try XCTUnwrap(outcome.backupDir).appendingPathComponent("rime_ice.userdb")
-
-    XCTAssertEqual(names(in: backup), ["000095.ldb", "CURRENT"])
     XCTAssertEqual(
-      try Data(contentsOf: backup.appendingPathComponent("000095.ldb")),
-      Data("繁體字".utf8)
+      Set(try FileManager.default.contentsOfDirectory(atPath: backupDir.path)),
+      Set(outcome.removedItems)
     )
+  }
 
-    // 手工还原就是把目录搬回去。
-    let original = root.appendingPathComponent("rime_ice.userdb", isDirectory: true)
-    try FileManager.default.moveItem(at: backup, to: original)
+  func testBackupIsCompleteAndCanBeRestoredByHand() throws {
+    try makeRustData()
+
+    let outcome = try OwlUserDictReset.run(
+      root: root,
+      timestamp: "20261026-120000"
+    )
+    let backup = try XCTUnwrap(outcome.backupDir)
+
     XCTAssertEqual(
-      try Data(contentsOf: original.appendingPathComponent("000095.ldb")),
-      Data("繁體字".utf8)
+      try Data(contentsOf: backup.appendingPathComponent("msime_user.db")),
+      Data("journal".utf8)
+    )
+    XCTAssertEqual(
+      try Data(contentsOf: backup.appendingPathComponent(
+        "dictionaries/seed-abc/msime-pinyin.db"
+      )),
+      Data("working dictionary".utf8)
+    )
+
+    try FileManager.default.moveItem(
+      at: backup.appendingPathComponent("msime_user.db"),
+      to: rustRoot.appendingPathComponent("msime_user.db")
+    )
+    try FileManager.default.moveItem(
+      at: backup.appendingPathComponent("dictionaries"),
+      to: rustRoot.appendingPathComponent("dictionaries")
+    )
+    XCTAssertEqual(
+      try Data(contentsOf: rustRoot.appendingPathComponent("msime_user.db")),
+      Data("journal".utf8)
+    )
+    XCTAssertEqual(
+      try Data(contentsOf: rustRoot.appendingPathComponent(
+        "dictionaries/seed-abc/msime-pinyin.db"
+      )),
+      Data("working dictionary".utf8)
     )
   }
 
-  /// 验收「方案选择、皮肤、快捷短语等设置不受影响」的文件系统那一半：同目录其余文件一个不动。
-  func testLeavesEverythingThatIsNotAUserDBAlone() throws {
-    try makeUserDB("rime_ice")
-    let untouched = [
-      "default.custom.yaml", "owltype.custom.yaml", "owl_quick_send.txt",
-      "installation.yaml", "rime_ice.dict.yaml", "clipboard-history.json",
-    ]
-    for name in untouched {
-      try Data(name.utf8).write(to: root.appendingPathComponent(name))
-    }
-    let buildDir = root.appendingPathComponent("build", isDirectory: true)
-    try FileManager.default.createDirectory(at: buildDir, withIntermediateDirectories: true)
+  // MARK: - No-op
 
-    _ = try OwlUserDictReset.run(root: root, timestamp: "20260726-120000")
+  func testLegacyOnlyDataIsNotMistakenForTheRustDictionary() throws {
+    try makeLegacyData()
 
-    for name in untouched {
-      XCTAssertEqual(
-        try Data(contentsOf: root.appendingPathComponent(name)),
-        Data(name.utf8),
-        "\(name) 不该被重置动作碰到"
-      )
-    }
-    XCTAssertTrue(exists(buildDir))
-  }
+    let outcome = try OwlUserDictReset.run(
+      root: root,
+      timestamp: "20261026-120000"
+    )
 
-  /// `sync/` 里的 `<schema>.userdb.txt` 快照是别的机器也在读的数据，本动作不递归、不碰。
-  func testDoesNotRecurseIntoTheSyncDirectory() throws {
-    try makeUserDB("rime_ice")
-    let syncDir = root.appendingPathComponent("sync/a94a2c5e", isDirectory: true)
-    try FileManager.default.createDirectory(at: syncDir, withIntermediateDirectories: true)
-    let snapshot = syncDir.appendingPathComponent("rime_ice.userdb.txt")
-    try Data("snapshot".utf8).write(to: snapshot)
-
-    let outcome = try OwlUserDictReset.run(root: root, timestamp: "20260726-120000")
-
-    XCTAssertEqual(outcome.schemaIDs, ["rime_ice"])
-    XCTAssertTrue(exists(snapshot), "同步快照不在本动作范围内")
-  }
-
-  // MARK: - 全新机器
-
-  /// 验收「无 userdb 的全新机器上点它不报错」。
-  func testFreshMachineWithNoUserDBIsANoOp() throws {
-    try Data("seed".utf8).write(to: root.appendingPathComponent("default.custom.yaml"))
-
-    let outcome = try OwlUserDictReset.run(root: root, timestamp: "20260726-120000")
-
-    XCTAssertEqual(outcome.schemaIDs, [])
+    XCTAssertEqual(outcome.removedItems, [])
     XCTAssertNil(outcome.backupDir)
-    XCTAssertFalse(
-      exists(root.appendingPathComponent(".owl-backup")),
-      "什么都没清就不该留下空备份目录"
-    )
+    XCTAssertFalse(exists(root.appendingPathComponent(".owl-backup")))
+    try assertLegacyDataUnchanged()
     XCTAssertEqual(
       OwlUserDictReset.statusMessage(outcome: outcome, redeployed: true),
-      "本机还没有用户词典，无需重置。"
+      "本机还没有 Rust 用户词典数据，无需重置。"
     )
   }
 
   func testMissingRootDirectoryIsANoOpRatherThanAThrow() throws {
     let missing = root.appendingPathComponent("nope", isDirectory: true)
-    let outcome = try OwlUserDictReset.run(root: missing, timestamp: "20260726-120000")
-    XCTAssertEqual(outcome, OwlUserDictResetOutcome(schemaIDs: [], backupDir: nil))
+    let outcome = try OwlUserDictReset.run(
+      root: missing,
+      timestamp: "20261026-120000"
+    )
+    XCTAssertEqual(
+      outcome,
+      OwlUserDictResetOutcome(removedItems: [], backupDir: nil)
+    )
   }
 
-  // MARK: - 失败不留中间态
+  // MARK: - Failure leaves no intermediate state
 
-  /// 备份阶段失败（备份目标已被同名文件占住 → copyItem 抛）时，磁盘必须原封不动：
-  /// 一个 userdb 都没删。
-  func testBackupFailureLeavesEveryUserDBInPlace() throws {
-    try makeUserDB("rime_ice", marker: "繁體字")
-    try makeUserDB("wubi86_jidian")
+  func testBackupFailureLeavesEveryRustItemInPlace() throws {
+    try makeRustData()
+    try Data("blocks backup root".utf8).write(
+      to: root.appendingPathComponent(".owl-backup")
+    )
 
-    // 预先占位：`.owl-backup/userdb-reset-<ts>/rime_ice.userdb` 是个普通文件，copyItem 必失败。
-    let backupDir = root
-      .appendingPathComponent(".owl-backup", isDirectory: true)
-      .appendingPathComponent("userdb-reset-20260726-120000", isDirectory: true)
-    try FileManager.default.createDirectory(at: backupDir, withIntermediateDirectories: true)
-    try Data("blocker".utf8).write(to: backupDir.appendingPathComponent("rime_ice.userdb"))
-
-    XCTAssertThrowsError(try OwlUserDictReset.run(root: root, timestamp: "20260726-120000")) { error in
-      guard case OwlUserDictResetError.backupFailed(let schemaID, _) = error else {
+    XCTAssertThrowsError(try OwlUserDictReset.run(
+      root: root,
+      timestamp: "20261026-120000"
+    )) { error in
+      guard case OwlUserDictResetError.backupFailed(let item, _) = error else {
         return XCTFail("expected backupFailed, got \(error)")
       }
-      XCTAssertEqual(schemaID, "rime_ice")
+      XCTAssertEqual(item, "msime_user.db")
     }
 
     XCTAssertEqual(
-      try Data(contentsOf: root.appendingPathComponent("rime_ice.userdb/000095.ldb")),
-      Data("繁體字".utf8),
-      "备份失败时用户词典必须原封不动"
+      try Data(contentsOf: rustRoot.appendingPathComponent("msime_user.db")),
+      Data("journal".utf8)
     )
-    XCTAssertTrue(exists(root.appendingPathComponent("wubi86_jidian.userdb")))
+    XCTAssertEqual(
+      try Data(contentsOf: rustRoot.appendingPathComponent(
+        "dictionaries/seed-abc/msime-pinyin.db"
+      )),
+      Data("working dictionary".utf8)
+    )
   }
 
-  // MARK: - 状态行文案
+  func testDeletionFailureRestoresTheWholeRustDataSet() throws {
+    try makeRustData()
 
-  func testStatusMessageReportsSchemaCountAndBackupLocation() throws {
-    let backupDir = root.appendingPathComponent(".owl-backup/userdb-reset-20260726-120000")
-    let outcome = OwlUserDictResetOutcome(schemaIDs: ["rime_ice", "wubi86_jidian"], backupDir: backupDir)
+    XCTAssertThrowsError(try OwlUserDictReset.run(
+      root: root,
+      timestamp: "20261026-120000"
+    ) { item in
+      if item == "dictionaries" {
+        throw CocoaError(.fileWriteUnknown)
+      }
+    }) { error in
+      guard case OwlUserDictResetError.removeFailed(
+        let item,
+        _,
+        let restored,
+        let restoreReason
+      ) = error else {
+        return XCTFail("expected removeFailed, got \(error)")
+      }
+      XCTAssertEqual(item, "dictionaries")
+      XCTAssertTrue(restored)
+      XCTAssertNil(restoreReason)
+    }
 
-    let message = OwlUserDictReset.statusMessage(outcome: outcome, redeployed: true)
+    XCTAssertEqual(
+      try Data(contentsOf: rustRoot.appendingPathComponent("msime_user.db")),
+      Data("journal".utf8)
+    )
+    XCTAssertEqual(
+      try Data(contentsOf: rustRoot.appendingPathComponent("msime_user.db-wal")),
+      Data("wal".utf8)
+    )
+    XCTAssertEqual(
+      try Data(contentsOf: rustRoot.appendingPathComponent(
+        "msime_user.db.corrupt-100"
+      )),
+      Data("corrupt".utf8)
+    )
+    XCTAssertEqual(
+      try Data(contentsOf: rustRoot.appendingPathComponent(
+        "dictionaries/seed-abc/msime-pinyin.db"
+      )),
+      Data("working dictionary".utf8)
+    )
+  }
 
-    XCTAssertTrue(message.contains("2 个方案"), message)
-    XCTAssertTrue(message.contains("rime_ice、wubi86_jidian"), message)
+  // MARK: - Status copy
+
+  func testStatusMessageReportsTheBackupAndRustItems() {
+    let backupDir = root.appendingPathComponent(
+      ".owl-backup/rust-userdict-reset-20261026-120000"
+    )
+    let outcome = OwlUserDictResetOutcome(
+      removedItems: ["msime_user.db", "dictionaries"],
+      backupDir: backupDir
+    )
+
+    let message = OwlUserDictReset.statusMessage(
+      outcome: outcome,
+      redeployed: true
+    )
+
+    XCTAssertTrue(message.contains("Rust 用户词典数据"), message)
+    XCTAssertTrue(message.contains("msime_user.db、dictionaries"), message)
     XCTAssertTrue(message.contains(backupDir.path), message)
     XCTAssertFalse(message.contains("失败"), message)
   }
 
-  func testStatusMessageSurfacesARedeployFailure() {
+  func testStatusMessageSurfacesARestartFailure() {
     let outcome = OwlUserDictResetOutcome(
-      schemaIDs: ["rime_ice"],
-      backupDir: root.appendingPathComponent(".owl-backup/userdb-reset-20260726-120000")
+      removedItems: ["msime_user.db"],
+      backupDir: root.appendingPathComponent(
+        ".owl-backup/rust-userdict-reset-20261026-120000"
+      )
     )
-    let message = OwlUserDictReset.statusMessage(outcome: outcome, redeployed: false)
-    XCTAssertTrue(message.contains("重新部署失败"), message)
+    let message = OwlUserDictReset.statusMessage(
+      outcome: outcome,
+      redeployed: false
+    )
+    XCTAssertTrue(message.contains("重新启动 Rust 引擎失败"), message)
   }
 
-  func testFailureMessageSaysTheDictionaryWasRestored() {
-    let error = OwlUserDictResetError.removeFailed(schemaID: "rime_ice", reason: "Permission denied")
-    let message = OwlUserDictReset.failureMessage(error: error, redeployed: true)
-    XCTAssertTrue(message.contains("已还原"), message)
-    XCTAssertTrue(message.contains("rime_ice"), message)
+  func testFailureMessageReportsRestoration() {
+    let error = OwlUserDictResetError.removeFailed(
+      item: "dictionaries",
+      reason: "Permission denied",
+      restored: true,
+      restoreReason: nil
+    )
+    let message = OwlUserDictReset.failureMessage(
+      error: error,
+      redeployed: true
+    )
+    XCTAssertTrue(message.contains("已从备份恢复"), message)
+    XCTAssertTrue(message.contains("dictionaries"), message)
     XCTAssertTrue(message.contains("Permission denied"), message)
   }
 
-  // MARK: - 确认弹窗
+  // MARK: - Confirmation
 
-  /// 验收「确认弹窗默认按钮是取消」。NSAlert 把回车（keyEquivalent "\r"）给第一个
-  /// addButton，所以「取消」必须排在第一位。
   @MainActor
   func testConfirmationAlertDefaultsToCancel() {
     let alert = OwlUserDictResetPrompt.makeAlert()
@@ -231,17 +354,23 @@ final class OwlUserDictResetTests: XCTestCase {
     XCTAssertEqual(alert.buttons.count, 2)
     XCTAssertEqual(alert.buttons.last?.title, "重置")
     XCTAssertTrue(alert.buttons.last?.hasDestructiveAction ?? false)
-    // 「重置」是第二个按钮 → confirm() 判 .alertSecondButtonReturn。
-    XCTAssertEqual(alert.buttons.last?.tag, NSApplication.ModalResponse.alertSecondButtonReturn.rawValue)
+    XCTAssertEqual(
+      alert.buttons.last?.tag,
+      NSApplication.ModalResponse.alertSecondButtonReturn.rawValue
+    )
   }
 
-  /// 弹窗必须讲清代价，并说明什么**不**受影响（#37 设计第 1 条）。
   @MainActor
-  func testConfirmationAlertExplainsTheCost() {
+  func testConfirmationExplainsRustScopeAndPreservedLegacyData() {
     let alert = OwlUserDictResetPrompt.makeAlert()
+    XCTAssertTrue(alert.informativeText.contains("Rust"), alert.informativeText)
     XCTAssertTrue(alert.informativeText.contains("输入习惯"), alert.informativeText)
     XCTAssertTrue(alert.informativeText.contains("自造词"), alert.informativeText)
-    XCTAssertTrue(alert.informativeText.contains("设置不受影响"), alert.informativeText)
-    XCTAssertTrue(alert.informativeText.contains(".owl-backup"), alert.informativeText)
+    XCTAssertTrue(alert.informativeText.contains(".userdb"), alert.informativeText)
+    XCTAssertTrue(alert.informativeText.contains("置顶词列表"), alert.informativeText)
+    XCTAssertTrue(
+      alert.informativeText.contains(".owl-backup/rust-userdict-reset-"),
+      alert.informativeText
+    )
   }
 }

@@ -144,7 +144,11 @@ impl CandidateQueries {
             })
             .collect();
         let Some(slot) = slot else {
-            candidates.extend(phrases);
+            if self.quick_phrase_table.is_empty() {
+                candidates.extend(phrases);
+            } else {
+                candidates.splice(0..0, phrases);
+            }
             return;
         };
         // slot 是「组前面有几个计位候选」：0 放最前，n 放第 n 个之后，超出放回末尾。

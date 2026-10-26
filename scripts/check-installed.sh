@@ -39,8 +39,8 @@ fi
 EXE="$APP/Contents/MacOS/Owltype"
 DOMAIN="$OWL_BUNDLE_ID"
 SQUIRREL_DOMAIN="$SQUIRREL_BUNDLE_ID"
-PROBE="$ROOT/build/owl-rime-probe"
-PROBE_SRC="$ROOT/tools/owl-rime-probe.cc"
+CHINESE_IME_LM_CRATE_LICENSE_SHA256="cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+WUBI86_JIDIAN_LICENSE_SHA256="43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1"
 TIS_MODE="${OWL_TIS_MODE:-interactive}"
 
 case "$TIS_MODE" in
@@ -64,34 +64,34 @@ pass_clean "installed Owltype Hans menu label is localized"
 
 [[ -s "$APP/Contents/Resources/LICENSE.txt" ]] || fail "missing GPL license in installed app resources"
 [[ -s "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md" ]] || fail "missing third-party notices in installed app resources"
-grep -q 'librime' "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md" || fail "third-party notices do not mention librime"
+grep -Eq 'msime|Metasequoia' "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md" || fail "third-party notices do not mention the msime Rust engine"
 grep -q 'wubi86' "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md" || fail "third-party notices do not mention wubi86"
 pass_clean "installed app carries GPL license and third-party notices"
 
-# 方案B（2026-07-24 单仓公开化）：公开包只携带清洁室种子，五笔/双拼/简体拼音等改由 dictpack
-# 首启用户侧拉取。口径与发布 gate check-release.sh 一致——这里曾停在公开化前的旧世界，断言
-# SharedSupport 必须带 wubi86_jidian* 全套，在任何按方案B安装的机器上恒报 FAIL。
-for file in \
-  "owltype.yaml" \
-  "rime_ice.schema.yaml" \
-  "rime_ice.dict.yaml" \
-  "cn_dicts/owltype_base.dict.yaml" \
-  "cn_dicts/owltype_unicode.dict.yaml"
-do
-  [[ -s "$APP/Contents/SharedSupport/$file" ]] || fail "installed app missing SharedSupport/$file"
-done
-pass_clean "installed app bundles Owltype frontend config and the clean-room rime_ice (雾凇全拼) seed"
+source_crate_license="$APP/Contents/SharedSupport/licenses/chinese-ime-lm.LICENSE"
+[[ -s "$source_crate_license" ]] || fail "installed app missing chinese-ime-lm source crate LICENSE"
+if [[ -s "$source_crate_license" ]]; then
+  printf '%s  %s\n' "$CHINESE_IME_LM_CRATE_LICENSE_SHA256" "$source_crate_license" |
+    shasum -a 256 --check --status ||
+    fail "installed chinese-ime-lm source crate LICENSE differs from the pinned text"
+fi
+pass_clean "installed app carries the pinned chinese-ime-lm source crate license"
 
-[[ ! -e "$APP/Contents/SharedSupport/squirrel.yaml" ]] || fail "installed Owltype app still bundles SharedSupport/squirrel.yaml"
-! grep -q "$HOME/Library/Input Methods/Owltype.app" "$APP/Contents/SharedSupport/owltype.yaml" ||
-  fail "installed Owltype frontend config still references user-level Owltype.app"
-[[ -s "$APP/Contents/SharedSupport/_user_seed/owltype.custom.yaml" ]] || fail "installed seed missing owltype.custom.yaml"
-[[ ! -e "$APP/Contents/SharedSupport/_user_seed/squirrel.custom.yaml" ]] || fail "installed Owltype seed still bundles squirrel.custom.yaml"
-pass_clean "installed app uses Owltype frontend config names"
+wubi_license="$APP/Contents/SharedSupport/wubi86-jidian.LICENSE"
+[[ -s "$wubi_license" ]] || fail "installed app missing rime-wubi86-jidian LICENSE"
+if [[ -s "$wubi_license" ]]; then
+  printf '%s  %s\n' "$WUBI86_JIDIAN_LICENSE_SHA256" "$wubi_license" |
+    shasum -a 256 --check --status ||
+    fail "installed rime-wubi86-jidian LICENSE differs from the pinned text"
+fi
+pass_clean "installed app carries the pinned rime-wubi86-jidian license"
 
-grep -q "schema: rime_ice" "$APP/Contents/SharedSupport/_user_seed/default.custom.yaml" ||
-  fail "installed seed does not enable rime_ice"
-pass_clean "installed seed enables 雾凇全拼"
+python3 "$ROOT/scripts/check-rust-delivery.py" "$APP"
+pass_clean "installed app delivers the Rust engine and complete SQLite resources"
+
+python3 "$ROOT/scripts/fetch-rerank-models.py" --check \
+  --out "$APP/Contents/SharedSupport/msime/models"
+pass_clean "installed app rerank models and notices match the lock"
 
 # 五笔/简体拼音/小鹤双拼不进包是方案B的设计，但必须由 dictpack 清单兜住——清单一旦漏项，
 # 新用户首启拉不到这些方案，而包里也没有，等于永久缺失（本机看不出来：老用户目录有历史文件垫着）。
@@ -238,53 +238,6 @@ if [[ -d "$HOME/Library/Rime" ]] &&
   fail "found Owltype-specific files under live ~/Library/Rime"
 fi
 pass_clean "live ~/Library/Rime has no Owltype-specific files"
-
-if [[ ! -x "$PROBE" || "$PROBE_SRC" -nt "$PROBE" ]]; then
-  mkdir -p "$ROOT/build"
-  clang++ -std=c++17 \
-    -I"$ROOT/librime/src" \
-    -Wl,-rpath,"$APP/Contents/Frameworks" \
-    "$PROBE_SRC" \
-    "$APP/Contents/Frameworks/librime.1.dylib" \
-    -o "$PROBE"
-fi
-pass_clean "probe binary is built from source"
-
-PROBE_USER_DIR="$(mktemp -d "${TMPDIR:-/tmp}/owl-rime-probe.XXXXXX")"
-trap 'rm -rf "$PROBE_USER_DIR"' EXIT
-cp -R "$APP/Contents/SharedSupport/_user_seed/." "$PROBE_USER_DIR/"
-mkdir -p "$PROBE_USER_DIR/build"
-export DYLD_LIBRARY_PATH="$APP/Contents/Frameworks:$APP/Contents/Frameworks/rime-plugins:${DYLD_LIBRARY_PATH:-}"
-
-pinyin_output=$("$PROBE" "$APP/Contents/SharedSupport" "$PROBE_USER_DIR" rime_ice nihao)
-printf '%s\n' "$pinyin_output"
-grep -q $'candidate\\[1\\]=你好' <<<"$pinyin_output" || fail "rime_ice nihao did not return 你好 first"
-pass_clean "rime_ice nihao probe returns 你好"
-
-# 方案B 的包里只有 rime_ice，五笔/简体拼音要等 dictpack 首启拉取后才落到用户目录，探针无从加载。
-# 仅在方案确实进了 SharedSupport 时才跑——全量种子构建（owl-seed-full.sh）下这几条照常生效，
-# 不因为公开包的口径而丢掉候选级保护。
-probe_schema_if_bundled() {
-  local schema="$1" input="$2" expected="$3" output
-  if [[ ! -s "$APP/Contents/SharedSupport/$schema.schema.yaml" ]]; then
-    pass "$schema not bundled (方案B: dictpack 首启拉取) — candidate probe skipped"
-    return
-  fi
-  output=$("$PROBE" "$APP/Contents/SharedSupport" "$PROBE_USER_DIR" "$schema" "$input")
-  printf '%s\n' "$output"
-  grep -q "candidate\[1\]=$expected" <<<"$output" || fail "$schema $input did not return $expected first"
-  pass_clean "$schema $input probe returns $expected"
-}
-
-probe_schema_if_bundled pinyin_simp nihao 你好
-probe_schema_if_bundled wubi86_jidian wqvb 你好
-probe_schema_if_bundled wubi86_jidian_pinyin nihao 你好
-
-# 出厂默认（落共享 rime_ice.schema.yaml 的 reset）：emoji 关（纯雾凇无带声调 preedit）。
-ice_schema="$APP/Contents/SharedSupport/rime_ice.schema.yaml"
-grep -A3 'name: emoji' "$ice_schema" | grep -q 'reset: 0' ||
-  fail "installed rime_ice.schema.yaml does not default emoji off (reset: 0)"
-pass_clean "installed rime_ice default: emoji off"
 
 if (( ${#FAILURES[@]} > 0 )); then
   printf '\n%d check(s) failed:\n' "${#FAILURES[@]}" >&2

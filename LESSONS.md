@@ -345,3 +345,71 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - #249 real TextEdit acceptance on `0621f6e` found that Esc hid the candidate panel but left underlined `ni'hao` in the host. Rust had cleared its input; `OwlRustSession.composition()` discarded every empty snapshot as nil. The existing IMK renderer sends empty marked text for a valid empty context, whereas nil only hides the panel.
 - Preserve a valid empty Rust snapshot as an empty `RimeComposition`, matching the librime seam. `testCancelReturnsEmptyContextToClearHostMarkedText` fails on the old adapter at the non-nil context assertion; it also covers deleting the last input character. An empty committed session now exposes an empty context, while destroyed/unavailable sessions still return nil.
 - Engine cancellation alone is insufficient evidence: verify the actual host loses its marked text after Esc and after backspacing the last character, with no phantom commit on the next key.
+
+### Host phrase cleanup must identify its own rows
+
+- The FFI host-phrase synchronizer deleted `quick_parases` rows by `weight >= 900000` or by a tracked key/value pair. A tracked host row that shared the code and text of a base row therefore deleted the base row too, and the weight rule could delete unrelated high-weight base data. SQL errors were ignored.
+- Keep host phrases in `EngineOptions` at query time. At session creation, quarantine an unreadable user journal through the engine's existing `quarantine_corrupt_journal` rule, rebuild `quick_parases` from the pinned source and replay quick-phrase operations from `msime_user.db`; this preserves user additions, deletions and learned weights while removing unjournaled legacy host rows without letting a corrupt journal block startup. A live host sync only performs that transaction when the old tracking table exists, and never infers row provenance from weight.
+- Regression: `host_phrase_sync_preserves_base_rows_and_removes_only_legacy_imports` covers high-weight and same key/value base rows; `host_phrase_cleanup_failure_is_reported_and_atomic` checks failure atomicity; `legacy_host_migration_preserves_user_quick_phrase_state` covers journaled edits across two sessions; `corrupt_user_journal_is_quarantined_before_quick_phrase_replay` checks startup recovery.
+- Verify (验证点): `cargo test --locked --manifest-path rust/Cargo.toml -p owl-msime-ffi` passes with all four named tests.
+- Seen on 1 distinct date: 2026-10-25.
+
+### A Rime dictionary row may omit its weight column
+
+- A valid source row such as `好\tvbg` has no third column and means weight 1. Treating three columns as mandatory rejects real Wubi data while the count assertions only report the downstream mismatch.
+- Parse the text and code from the first two columns, default an absent or empty weight to 1, and reject only an explicitly unparsable weight.
+- Regression: `test_parser_keeps_max_weight_and_reports_duplicate_and_rejected_rows` includes the two-column row and asserts `("vbg", "好", 1)`.
+- Verify (验证点): `python3 scripts/build-owltype-msime-seed-db.selftest.py` passes.
+- Seen on 1 distinct date: 2026-10-25.
+
+### Synthetic test codes are not production dictionary evidence
+
+- `testWubi86PureAndMixedSchemasZLookupAndPreferences` treated `gggg` as a unique four-code and `ffff` as empty, both inherited from the removed 50-row fixture. The real Wubi86 table has multiple `gggg` candidates and non-empty `ffff`, so seven assertions failed and later mixed-input checks cascaded.
+- Choose uniqueness and empty-code fixtures from the pinned production table; currently `sebv → 极限` and nonexistent `aaab`. Keep the production provenance assertions in the seed selftest so the fixture cannot silently return.
+- Regression and Verify (验证点): `python3 scripts/verify.py swift --test OwlRustEngineTests` passes 15/15 after the fixture update. This is automated engine evidence, not native-host acceptance.
+- Seen on 1 distinct date: 2026-10-25.
+
+### Publish seed data and its sidecars as one set
+
+- The Wubi seed builder replaced `msime-pinyin.db` before writing the pinned license and source metadata. A later write failure could leave a new database beside old provenance files.
+- Stage the database, license and metadata as sibling temporary files, replace them through a rollback-capable publisher, and restore every prior file if one installation step fails. Keep the tracked source license under `licenses/`, outside `data/`: the public-source boundary rejects tracked `data/*wubi*` paths as restricted data even when the file is only the upstream license.
+- Regression: `test_publish_failure_restores_existing_wubi_artifacts` forces the metadata rename to fail after the database and license were installed, then checks all three old files are restored and no temporary file remains.
+- Verify (验证点): `python3 scripts/build-owltype-msime-seed-db.selftest.py` passes 9/9; `bash scripts/check-public-source.sh` passes with `licenses/wubi86-jidian.LICENSE` tracked.
+- Seen on 1 distinct date: 2026-10-25.
+
+### A Rust archive existing is not evidence that it matches Rust source
+
+- The Makefile treated `lib/libowl_msime_ffi.a` as up to date whenever the archive existed, so
+  Swift kept linking an old archive after Rust source changed. Four Swift test candidates failed
+  together for that one stale build; rebuilding the archive made the suite pass with 1399 tests
+  and 0 failures.
+- `20b59a1` made the archive depend on a phony `rust-ffi-check` target so Cargo decides whether
+  the Rust inputs changed. A real Makefile plus an isolated fake builder showed `old` from the
+  previous rule and `new-source` after the fix.
+- Verify (验证点): inspect the `rust-ffi-check` dependency in `Makefile`; run the isolated fake
+  builder and require `new-source`. The four Swift failures are one stale-archive event, not four
+  independent regressions.
+- Seen on 1 distinct date: 2026-10-25.
+
+### Process-wide dictionary caches belong to the session lifecycle
+
+- The Rust FFI kept process-wide journal and dictionary caches open after the last session wrapper
+  was destroyed. B's real reset reproduced the consequence: a new session learned `尼`, but the
+  learning did not reach the reset journal because the new session still used the old cached
+  connection. The Swift `finalize()` contract was `Void`, so callers could neither wait for cache
+  teardown nor fail closed when a session remained live.
+- `owl_msime_engine_finalize()` now returns `false` without touching any cache while a session is
+  live, then closes the upstream caches and returns `true` once all sessions are gone. Session
+  create takes the read side of one lifecycle lock; destroy and finalize take the write side, and
+  destroy holds it through session drop and flush. Swift destroys all wrappers before calling the
+  hook. Deploy, user-dictionary reset, and legacy migration stop without deleting or importing data
+  when finalize fails.
+- Regression: `finalize_waits_for_sessions_and_allows_reopen` in
+  [engine_lifecycle.rs](rust/crates/owl-msime-ffi/tests/engine_lifecycle.rs) proves that finalize
+  fails with a live session, succeeds twice after destroy, and permits a reopened session; B also
+  passed the real FFI reset path (51 focused tests plus the lifecycle integration) before merging
+  it. [RimeSeamTests](tests/RimeSeamTests.swift) covers the Swift Boolean lifecycle contract.
+- Verify (验证点): `cargo test --locked --manifest-path rust/Cargo.toml --package owl-msime-ffi`
+  passes, `make test TEST_ONLY='RimeSeamTests'` passes, and reset/deploy/migration call sites guard
+  `finalize()` instead of ignoring it. Real reset acceptance remains distinct from the unit test.
+- Seen on 1 distinct date: 2026-10-26.

@@ -83,19 +83,8 @@ extension EnhancedCandidate {
   ///
   /// Pure, deterministic, side-effect free — safe to call off the hot path (in the
   /// `showPanel` data-prep step / view-model construction, never inside key handling).
-  /// `isLawObject` / `lawVersionKnown` are signals from the law-citation layer (G4):
-  /// a law object with a known version is 「已核验」, otherwise 「规则」 (high bar — when
-  /// in doubt, downgrade to rule, never falsely claim verified).
-  ///
   /// Returns `nil` for ordinary main-lane Rime pinyin candidates → no label, no noise.
-  static func provenance(
-    source: Source,
-    lane: Lane,
-    isLawObject: Bool = false,
-    lawVersionKnown: Bool = false
-  ) -> OwlProvenance? {
-    // Law objects (law_citation.lua, G4 signals) take precedence over lane bucketing.
-    if isLawObject { return lawVersionKnown ? .verified : .rule }
+  static func provenance(source: Source, lane: Lane) -> OwlProvenance? {
     switch lane {
     case .smart:
       return source == .localNeural ? .project : .personal  // neural=项目排序, stat=个人词频
@@ -105,8 +94,8 @@ extension EnhancedCandidate {
   }
 
   /// Instance form: this candidate's provenance (consumes its own lane/source).
-  func provenance(isLawObject: Bool = false, lawVersionKnown: Bool = false) -> OwlProvenance? {
-    Self.provenance(source: source, lane: lane, isLawObject: isLawObject, lawVersionKnown: lawVersionKnown)
+  func provenance() -> OwlProvenance? {
+    Self.provenance(source: source, lane: lane)
   }
 }
 

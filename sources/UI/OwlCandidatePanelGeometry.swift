@@ -86,22 +86,15 @@ struct OwlCandidatePanelGeometry: Equatable, Sendable {
     let collapseTopPadding: CGFloat
   }
 
-  struct SourceLine: Equatable, Sendable {
-    let fontSize: CGFloat
-    let leadingPadding: CGFloat
-  }
-
   struct ListRow: Equatable, Sendable {
     let contentSpacing: CGFloat
     let itemSpacing: CGFloat
     let labelFontSize: CGFloat
     let candidateFontSize: CGFloat
-    let badge: Tag
     let commentFontSize: CGFloat
     let provenance: Tag
     let horizontalPadding: CGFloat
     let verticalPadding: CGFloat
-    let sourceLine: SourceLine
   }
 
   struct ScrollStack: Equatable, Sendable {
@@ -256,15 +249,10 @@ struct OwlCandidatePanelGeometry: Equatable, Sendable {
       itemSpacing: listItemSpacing,
       labelFontSize: labelFontSize,
       candidateFontSize: candidateFontSize,
-      badge: tag,
       commentFontSize: candidateFontSize * 0.8,
       provenance: tag,
       horizontalPadding: listHorizontalPadding,
-      verticalPadding: resolve(7),
-      sourceLine: SourceLine(
-        fontSize: candidateFontSize * 0.78,
-        leadingPadding: labelFontSize + listItemSpacing
-      )
+      verticalPadding: resolve(7)
     )
     scrollStack = ScrollStack(
       spacing: resolve(5),

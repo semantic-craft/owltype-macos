@@ -93,6 +93,15 @@ final class OwlInputController: IMKInputController {
   // seam: internal so OwlInputController+Menu.swift / +Lifecycle.swift can reach it across files.
   let aiTasks = OwlLaneTasks()
 
+  // Settled reranking is owned by this controller/session. Timers run on the IMK thread's
+  // run loop; the Rust model forward pass itself runs on its own worker.
+  var settledRerankDebounceTimer: Timer?
+  var settledRerankPollTimer: Timer?
+  var settledRerankJob: (token: UInt64, ticket: OwlSettledRerankTicket)?
+  var settledRerankLastInputAt: UInt64?
+  var settledRerankWaitingForDrain = false
+  var applyingSettledRerank = false
+
   // Tokens of the block-based NotificationCenter observers registered in init. Block observers are
   // NOT covered by `removeObserver(self)` — the token must be removed explicitly in deinit, or every
   // dead controller (one per input session, in a process that lives for weeks) stays registered in
@@ -123,6 +132,11 @@ final class OwlInputController: IMKInputController {
       if rime?.isValid != true {
         return false
       }
+    }
+    // A Rust resource switch that arrived mid-composition is queued. If the host or a
+    // previous command already completed it, switch before this key reaches the old session.
+    MainActor.assumeIsolated {
+      NSApp.owlAppDelegate.applyPendingLiveSessionRefreshIfIdle()
     }
 
     if let incoming = sender as? IMKTextInput, let previous = self.client, incoming !== previous {
@@ -167,10 +181,11 @@ final class OwlInputController: IMKInputController {
 
     case let .flagsChanged(capsLockRevert, events, updateLastModifiers, handled):
       // print("[DEBUG] FLAGSCHANGED modifiers: \(updateLastModifiers)")
+      var capsLockHandled = false
       OwlAutomaticExpansionControllerEntry.processModifiers(pending: automaticRecognizer.buffer,
         finishSemicolon: { finishAutomaticExpansion(replaySemicolon: true) }, process: {
         if let revert = capsLockRevert {
-          _ = processKey(revert.keycode, modifiers: revert.modifiers)
+          capsLockHandled = processKey(revert.keycode, modifiers: revert.modifiers)
         }
         for event in events {
           _ = processKey(event.keycode, modifiers: event.modifiers)
@@ -179,12 +194,17 @@ final class OwlInputController: IMKInputController {
       lastModifiers = updateLastModifiers
       if !refreshAutomaticExpansionAfterModifiers() { rimeUpdate() }
       // `handled` mirrors the original: true only for the couldn't-infer bail; false on the
-      // normal modifier path so the host app still receives the modifier event.
-      return handled
+      // normal modifier path so the host app still receives the modifier event. Caps Lock may
+      // additionally be consumed by the session when good_old_caps_lock is off.
+      return handled || capsLockHandled
 
     case let .keyDown(rimeKeycode, rimeModifiers):
+      invalidateSettledRerankForAction()
       let handled = processKey(rimeKeycode, modifiers: rimeModifiers)
       rimeUpdate()
+      if shouldArmSettledRerank(after: rimeKeycode) {
+        armSettledRerankAfterInput()
+      }
       return handled
 
     case .commandPassthrough, .ignored:
@@ -194,6 +214,7 @@ final class OwlInputController: IMKInputController {
 
   func selectCandidate(_ index: Int) -> Bool {
     guard let rime else { return false }
+    invalidateSettledRerankForAction()
     let success = rime.selectCandidate(index)
     if success {
       rimeUpdate()
@@ -205,6 +226,7 @@ final class OwlInputController: IMKInputController {
   /// click path, where the clicked candidate is visible but not on librime's current page.
   func selectCandidateAbsolute(_ index: Int) -> Bool {
     guard let rime else { return false }
+    invalidateSettledRerankForAction()
     let success = rime.selectCandidateAbsolute(index)
     if success {
       rimeUpdate()
@@ -214,6 +236,7 @@ final class OwlInputController: IMKInputController {
 
   func selectCandidate(_ token: OwlCandidateToken) -> Bool {
     guard let rime else { return false }
+    invalidateSettledRerankForAction()
     let success = rime.selectCandidate(token)
     if success {
       rimeUpdate()
@@ -224,6 +247,7 @@ final class OwlInputController: IMKInputController {
   // swiftlint:disable:next identifier_name
   func page(up: Bool) -> Bool {
     guard let rime else { return false }
+    invalidateSettledRerankForAction()
     var handled = false
     handled = rime.changePage(up: up)
     if handled {
@@ -277,6 +301,18 @@ final class OwlInputController: IMKInputController {
       object: nil,
       queue: nil
     ) { [weak self] _ in self?.toggleFullShapeFromMenu() })
+    notificationTokens.append(NotificationCenter.default.addObserver(
+      forName: .owlRerankPreferencesDidChange,
+      object: nil,
+      queue: nil
+    ) { [weak self] _ in
+      guard let self else { return }
+      if Thread.isMainThread {
+        self.rerankPreferencesDidChange()
+      } else {
+        DispatchQueue.main.async { [weak self] in self?.rerankPreferencesDidChange() }
+      }
+    })
   }
 
   func processKey(_ rimeKeycode: UInt32, modifiers rimeModifiers: UInt32) -> Bool {
@@ -325,7 +361,12 @@ final class OwlInputController: IMKInputController {
     // TODO add special key event postprocessing here
 
     if !handled {
-      let isVimBackInCommandMode = rimeKeycode == XK_Escape || ((rimeModifiers & kControlMask.rawValue != 0) && (rimeKeycode == XK_c || rimeKeycode == XK_C || rimeKeycode == XK_bracketleft))
+      let hasControl = rimeModifiers & kControlMask.rawValue != 0
+      let isVimCommandKey = rimeKeycode == UInt32(XK_c)
+        || rimeKeycode == UInt32(XK_C)
+        || rimeKeycode == UInt32(XK_bracketleft)
+      let isVimBackInCommandMode = rimeKeycode == UInt32(XK_Escape)
+        || (hasControl && isVimCommandKey)
       if isVimBackInCommandMode && rime.option(.vimMode) &&
           !rime.option(.asciiMode) {
         rime.setOption(.asciiMode, true)
@@ -351,6 +392,7 @@ final class OwlInputController: IMKInputController {
 
   deinit {
     discardAutomaticExpansion()
+    resetSettledRerankRuntime()
     // B8: cancel any in-flight AI lane tasks for this session (nonisolated deinit — `cancelAll()`
     // only calls `Task.cancel()`, which is thread safe and needs no main actor).
     aiTasks.cancelAll()

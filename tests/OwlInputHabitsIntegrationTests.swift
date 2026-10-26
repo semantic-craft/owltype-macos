@@ -3,7 +3,7 @@ import InputMethodKit
 import XCTest
 @testable import Owltype
 
-/// Exercises production controller → live librime → native text storage without registering an IME.
+/// Exercises production controller → Rust engine → native text storage without registering an IME.
 /// The IMK IPC transport and TIS source detection are the only substituted boundaries.
 final class OwlInputHabitsIntegrationTests: XCTestCase {
   @MainActor
@@ -20,15 +20,16 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     let availability = OwlPinyinCandidateDeployment.available
     defer { OwlPinyinCandidateDeployment.available = availability }
     try OwlPinyinCandidateDeployment.apply(userDir: root, sharedDir: shared)
-    let engine = LiveRimeEngine()
-    var traits = RimeTraits.rimeStructInit()
-    traits.setCString(shared.path, to: \.shared_data_dir)
-    traits.setCString(root.path, to: \.user_data_dir)
-    traits.setCString(root.path, to: \.log_dir)
-    traits.setCString(OwlRimeIdentity.appName, to: \.app_name)
-    engine.setup(&traits)
-    engine.initialize(nil)
-    defer { engine.cleanupAllSessions(); engine.finalize() }
+    let engine = OwlRustEngine(sharedSupportURL: shared, userDataURL: root)
+    engine.setup(
+      OwlEngineTraits(
+        sharedDataDir: shared,
+        userDataDir: root,
+        logDir: root,
+        appName: OwlRimeIdentity.appName
+      )
+    )
+    defer { engine.cleanupAllSessions(); _ = engine.finalize() }
     XCTAssertTrue(engine.startMaintenance(fullCheck: true))
     engine.joinMaintenance()
     let delegate = NSApp.owlAppDelegate
@@ -84,7 +85,12 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     try type("shixing", into: controller, client: client)
     XCTAssertTrue(controller.handle(try key("P", code: 35, flags: [.control, .shift]), client: client))
     XCTAssertFalse(pins.words.contains(pin), "The hotkey must unpin the highlighted word")
-    XCTAssertNotEqual(controller.rime?.composition()?.candidates.first?.text, pin.text)
+    XCTAssertFalse(
+      controller.rime?.composition()?.candidates.contains {
+        $0.text == pin.text && $0.comment == "置顶"
+      } ?? true,
+      "Unpinning must remove the candidate annotation even when it otherwise ranks first"
+    )
     XCTAssertTrue(controller.handle(try key("\u{1b}", code: 53), client: client))
     XCTAssertEqual(client.text.string, "", "Escape must leave no committed text or keep-alive character")
 
@@ -161,7 +167,6 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     OwlKeyboardPreferences.pageSize = 3
     let applied = try delegate.applyKeyboardSettings(.config, directory: root)
     XCTAssertTrue(applied.succeeded)
-    // librime's session id is the Session's heap address, so destroy-then-create may reuse it.
     // Prove the recreate by the wrapper instead: the old one is destroyed, a new one is live.
     XCTAssertFalse(previousSession.isValid, "Applying settings must destroy the old session")
     XCTAssertFalse(controller.rime === previousSession, "The active controller must get a new session")

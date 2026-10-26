@@ -389,6 +389,15 @@ impl Session {
         self.inner.set_english_online_candidates_enabled(enabled);
     }
 
+    /// Toggle candidate emoji without enabling the independent Shift+E local mode.
+    pub fn set_mixed_emoji_candidates(&mut self, enabled: bool) {
+        self.inner.set_mixed_emoji_candidates(enabled);
+    }
+
+    pub fn mixed_emoji_candidates_enabled(&self) -> bool {
+        self.inner.mixed_emoji_candidates_enabled()
+    }
+
     pub fn set_caret(&mut self, caret: Option<usize>) {
         self.inner.set_caret(caret);
     }
@@ -490,6 +499,10 @@ impl Session {
     /// Live update of the first page size without a rebuild; it only moves the longer-phrase gate.
     pub fn set_first_page_rows(&mut self, rows: usize) {
         self.inner.set_first_page_rows(FirstPageRows::new(rows));
+    }
+
+    pub fn set_wubi_z_pinyin_lookup(&mut self, enabled: bool) {
+        self.inner.set_wubi_z_pinyin_lookup(enabled);
     }
 
     /// Whether an apostrophe now is input (`3jin'g`, `/fyhello'world`) rather than punctuation that ends the composition.

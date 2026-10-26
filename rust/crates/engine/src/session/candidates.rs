@@ -317,6 +317,7 @@ impl InputSession {
         let engine = &self.engine;
         if regular && self.is_wubi() {
             // Each producer's rows are fixed within their own group and under their own context, and the groups keep the wubi-first order.
+            let wubi_first = items.first().is_some_and(Self::is_wubi_native_candidate);
             let mut pinyin_items = split_wubi_candidates(items);
             if !items.is_empty() {
                 let context = self.position_context(false, true);
@@ -346,7 +347,12 @@ impl InputSession {
                     journal_exists,
                 );
             }
-            items.append(&mut pinyin_items);
+            if wubi_first {
+                items.append(&mut pinyin_items);
+            } else {
+                pinyin_items.append(items);
+                *items = pinyin_items;
+            }
         } else if regular {
             let context = self.position_context(false, false);
             let scheme = self.scheme();

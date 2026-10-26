@@ -110,7 +110,10 @@ patch:
 
 这是**全拼中文模式下英文候选/补全的接入缺陷**；不能扩大成英文字符完全不能输入，也不能直接推广到双拼、用户自定义方案或朋友尚未取得的具体环境。`cn_en` 也被移除是静态事实，本次未单独测试中英混合词。
 
-保留的复现脚本：[scripts/repro-pinyin-english.sh](../scripts/repro-pinyin-english.sh)。运行 `bash scripts/repro-pinyin-english.sh` 检查已装应用的出厂配置；可传入 fixture 用户目录，脚本先复制到临时目录再部署。断言仅检查首页是否有 `hello`，候选通道缺失另由编译后的方案核实。它是诊断脚本，未接入发布门禁。
+当时保留的复现脚本是 `scripts/repro-pinyin-english.sh`，已随 2.1.0 的 Rime 路径退役。
+它检查已装应用的出厂配置；可传入 fixture 用户目录，脚本先复制到临时目录再部署。
+断言仅检查首页是否有 `hello`，候选通道缺失另由编译后的方案核实。它是诊断脚本，未接入
+发布门禁。以下命令只保留历史记录，不可在现行 checkout 执行。
 
 本次实际运行：
 
@@ -132,7 +135,10 @@ PASS: hello is available as a candidate              (exit 0)
 - 插入项使用独立的列表插入键，与快捷短语 `engine/translators/+` 共存；重复应用不重复挂载。缺失数据时不挂载对应通道。
 - 保留用户自定义的 schema、整个 translator 列表和间接 include；这类配置由用户控制，不自动覆盖。已有英文挂载也不重复添加。
 - 配置写入器在追加托管块前展开种子的 `patch: {}`，避免空 flow map 下追加缩进项产生无效 YAML。
-- [回归脚本](../scripts/check-pinyin-mixed-input.py) 使用指定 App 和本清单 SHA-256 验证过的五个英文资源，全程只操作临时用户目录。`tools/owl-rime-probe.cc` 新增可选候选数量，能核对后续页而不把“没在首页”误判为“无候选”。
+- 当时的 `scripts/check-pinyin-mixed-input.py` 使用指定 App 和本清单 SHA-256 验证过的
+  五个英文资源，全程只操作临时用户目录。`tools/owl-rime-probe.cc` 能核对后续页而不把
+  “没在首页”误判为“无候选”。这两个 Rime 工具已随 2.1.0 退役；现行中英排序由
+  `OwlRustEngineTests` 覆盖。
 
 验证基线：`3be472b25d18427ccde759f93071f02babcf4f4a` 加当前未提交修复。
 
@@ -141,7 +147,9 @@ PASS: hello is available as a candidate              (exit 0)
 3. 保持雾凇原有排序：前缀或中英混合词不保证首选。例如隔离出厂中文数据中 `hell → hello` 在第 13 项，`xguang → X光` 在第 19 项；均可翻页选择。这次没有另改候选排序策略。
 4. 修改文件 SwiftLint 无错误（有既有警告），Python/Bash 语法检查及 `git diff --check` 通过。未跑全量门禁；未进行 TextEdit/微信等实际宿主的界面输入验收，未替换用户正在使用的输入法。
 
-复跑：先运行 `make debug` 和 `make copy-owl-seed`（默认构建目录 `build`），再运行下列命令。之前 `/tmp/owltype-mixed-input-build` 中的临时构建已清理；测试词库仍保留，受 manifest 校验且不包含用户数据。
+当时的复跑步骤是先运行 `make debug` 和 `make copy-owl-seed`（默认构建目录 `build`），
+再运行下列命令。之前 `/tmp/owltype-mixed-input-build` 中的临时构建已清理；测试词库仍
+保留，受 manifest 校验且不包含用户数据。该命令依赖已删除的 Rime 探针，仅作历史记录。
 
 ```bash
 python3 scripts/check-pinyin-mixed-input.py \

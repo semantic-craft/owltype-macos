@@ -25,6 +25,7 @@ extension OwlInputController {
     // ID-marked unified candidates bypass normal input formatting. Ordinary commits do no IO.
     if text.hasPrefix(OwlTemplateStore.candidatePrefix) {
       let code = MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshots.current?.rawInput }
+        ?? rime?.lastCommittedInput()
       let entry = OwlTemplateStore.resolveCandidate(code: code, text: text) {
         guard OwlTemplateStore.mode() == .unified else { throw OwlTemplateError.legacyRequiresMigration }
         return try OwlTemplateStore.load()
@@ -50,6 +51,7 @@ extension OwlInputController {
     // precedent (commit out-of-band + cancel the normal commit).
     let action: OwlPromptCommitAction = MainActor.assumeIsolated {
       let code = NSApp.owlAppDelegate.snapshots.current?.rawInput
+        ?? rime?.lastCommittedInput()
       return resolvePromptCommit(code: code, committedTitle: text, store: NSApp.owlAppDelegate.promptStore)
     }
     switch action {
@@ -189,6 +191,11 @@ extension OwlInputController {
     } else {
       hidePalettes()
       MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.emitCleared() }
+    }
+    // This is the normal idle boundary after a key or candidate selection. The delegate is a
+    // no-op unless a resource-generation switch is queued.
+    MainActor.assumeIsolated {
+      NSApp.owlAppDelegate.applyPendingLiveSessionRefreshIfIdle()
     }
   }
 
@@ -542,22 +549,11 @@ extension OwlInputController {
     let rimeModels: [CandidateViewModel] = candidates.indices.map { i in
       let text = candidates[i]
       let rawComment = i < comments.count ? comments[i] : nil
-      // Law-citation candidates (from law_citation.lua) render as 《…》第…条… — surface
-      // them with the 「法」 badge + a source line (the design's citation form) instead of
-      // an inline note. Conservative shape match: won't fire on ordinary 《书名》 candidates.
-      // NEEDS REAL-MACHINE VERIFICATION: the law layer isn't deployed on the dev box yet.
-      let isCitation = text.hasPrefix("《") && text.contains("》第") && text.contains("条")
-      // G3 provenance: the only signal available at this seam is the law-citation shape
-      // (→ 规则; version unknown here so never 已核验). Ordinary Rime pinyin → nil (no label).
-      let provenance = EnhancedCandidate.provenance(source: .rime, lane: .main, isLawObject: isCitation)
       return CandidateViewModel(
         id: i,
         label: i < labels.count ? labels[i] : "",
         text: text,
-        comment: isCitation ? nil : rawComment,
-        badge: isCitation,
-        source: isCitation ? (rawComment?.isEmpty == false ? rawComment : nil) : nil,
-        provenance: provenance,
+        comment: rawComment,
         token: OwlCandidateToken(
           sessionID: currentSessionID,
           generation: currentGen,

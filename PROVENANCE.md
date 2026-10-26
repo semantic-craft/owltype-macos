@@ -9,17 +9,51 @@
   Owltype 的 macOS IMK 前端复用并精简自鼠须管的输入热路径。候选窗 / 设置 / 引导 / 表情符号面板由
   SwiftUI 重做，运行时身份、数据根与安装位置全部改为 Owltype（见下方「与鼠须管并存」）。
 - **librime** —— <https://github.com/rime/librime>（BSD-3 / 组件各自许可）
-  输入引擎。Owltype 不重写 librime，将其与数据自包含进 `Owltype.app`。
+  2.0.x 及以前的输入引擎基座。自 2.1.0 起 Owltype 改用水杉 Rust 引擎，公开 App 不再打包或
+  动态链接 librime；保留此项以说明前端与方案配置的历史派生谱系。
 - **RIME / 中州韻输入法引擎** —— <https://rime.im>
 - **水杉输入法 Metasequoia IME (`msime`)** —— <https://github.com/metasequoiaime/msime>（GPLv3）
-  Rust 输入引擎与运行时 crate（`rust/crates/`，经窄 C-ABI 静态链接入 `Owltype.app`），以及配套语言模型库
-  `chinese-ime-lm`（<https://github.com/metasequoiaime/chinese-ime-lm>，GPLv3）。
+  Rust 输入引擎与运行时 crate（`rust/crates/`，经窄 C-ABI 静态链接入 `Owltype.app`）。
+- **chinese-ime-lm reference crate** —— <https://github.com/metasequoiaime/chinese-ime-lm>（Apache-2.0）
+  Owltype 仅 vendored 上游 `reference/` 子树到 `rust/crates/chinese-ime-lm`，固定于
+  `15caab4fdeb59c11f452b91884371cf30e2e5608`。该子树的 `Cargo.toml` 声明 Apache-2.0，
+  许可证原文逐字保存在 [`rust/crates/chinese-ime-lm/LICENSE`](rust/crates/chinese-ime-lm/LICENSE)
+  （Git blob `d645695673349e3947e8e5ae42332d0ac3164cd7`，SHA-256
+  `cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30`）。上游项目根目录及其
+  未 vendor 的训练脚本不在本源码 crate 的许可证声明范围内。
+- **chinese-ime-lm 模型权重** —— [`model-v1`](https://github.com/metasequoiaime/chinese-ime-lm/releases/tag/model-v1)
+  （Apache-2.0）。模型权重与上述源码 crate 是独立许可证据，不共用许可证文件。固定 keyboard
+  与 settled 两个 safetensors，训练语料为 C4 中文部分（ODC-BY）与 LCCC（MIT）；署名随权重元数据和
+  [`NOTICE`](resources/licenses/chinese-ime-lm-model-NOTICE.txt) 一同保留。
+- **msime-others.db（派生 emoji 目录）** ——
+  [`dict-v2.0.24`](https://github.com/metasequoiaime/msime-dictionary/releases/tag/dict-v2.0.24)，
+  固定大小 1,314,816 字节、SHA-256
+  `9f3cae5b407038e0e4536c40582a0bc0feb732657f0ae2d38196374cede52f94`。发布清单记录的
+  msime 构建器提交为 `128a332cabc5fa42b1cf5f827033ad5697ff528b`，msime-dictionary
+  数据提交为 `71dc6f6cc7a451231ee29c0a39b39adbf2e04d32`。Owltype 不发布该多来源
+  整包，只在生成 seed 时保留 `emoji` 与 `emoji_pinyin` 两表。中文关键词来自
+  rime-ice（GPL-3.0-only，固定提交 `9e66b072…`），英文名称来自 Unicode Emoji
+  17.0、CLDR annotations 与 Emoji 1.0 names（Unicode-3.0），多音词读音覆盖表
+  由 mozillazg/python-pinyin 0.55.0 `lazy_pinyin` 生成（MIT）。发布清单、构建
+  代码、输入文件摘要与许可证原文的定位见
+  [`msime-others-NOTICE.txt`](data/msime-others-NOTICE.txt)。其余 kaomoji、
+  PiliApp `symbol_catalog` 等表均被排除。
 
 ## 内置数据与方案 Bundled data & schemas
 
 - 雾凇拼音 rime-ice —— <https://github.com/iDvel/rime-ice>
-- 极点五笔 86 —— <https://github.com/KyleBing/rime-wubi86-jidian>
-- OpenCC 简繁转换等
+- 极点五笔 86 —— <https://github.com/KyleBing/rime-wubi86-jidian>（Apache-2.0）
+  生产 `msime-pinyin.db` 的 `wubi86` 表直接导入固定
+  [`a194fb8b3ec41ef9dcf079d3a67876fa75f79135`](https://github.com/KyleBing/rime-wubi86-jidian/tree/a194fb8b3ec41ef9dcf079d3a67876fa75f79135)
+  中的 `wubi86_jidian.dict.yaml`（SHA-256
+  `8ccf1358b91028ed234bbe82647a0bcd0f554a8d5994042de28b146e517633e6`）。
+  固定源文件共有 89,273 条数据行；89,272 条形状有效接受，其中 3 条重复以最高权重合并，
+  去重后写入 89,269 条唯一记录，拒绝 1 条。拒绝项是第 7911 行 `\tcokg\t10\t全角空格`
+  （文本列为空），不会被静默当作 Wubi 词条导入。
+  许可证原文逐字保留为 seed 根目录的 `wubi86-jidian.LICENSE`；完整五笔方案由用户侧固定源拉取，
+  不进入公开 App payload。
+- OpenCC 简繁转换数据 —— <https://github.com/BYVoid/OpenCC>（Apache-2.0）
+  公开 seed 只携带转换表与配置，不链接或分发 libopencc。
 
 各组件的完整许可条款见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
 

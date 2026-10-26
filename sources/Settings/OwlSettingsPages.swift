@@ -22,7 +22,7 @@ import SwiftUI
 
 // MARK: - 关于 (About)
 
-/// About page: app version, librime version, installed-schema count, maintenance /
+/// About page: app version, input-engine version, installed-schema count, maintenance /
 /// diagnostic actions + status line, and a credits card.
 ///
 /// `actionSection` / `statusLine` are passed in as builders so the page reuses
@@ -67,7 +67,7 @@ struct OwlAboutPage: View {
         infoRow(label: "设计与开发", value: "深圳大学法律人工智能实训实验室")
         if !state.librimeVersion.isEmpty {
           SettingsCardDivider(palette: palette)
-          infoRow(label: "librime", value: state.librimeVersion)
+          infoRow(label: "水杉 Rust 引擎", value: state.librimeVersion)
         }
         SettingsCardDivider(palette: palette)
         infoRow(label: "已安装方案", value: "\(state.schemas.count) 个")
@@ -146,10 +146,9 @@ struct OwlAboutPage: View {
     ) {
       VStack(alignment: .leading, spacing: 8) {
         creditLine(name: "Squirrel（鼠须管）", license: "GPLv3")
-        creditLine(name: "librime（中州韵输入法引擎）", license: "BSD-3-Clause")
+        creditLine(name: "水杉输入法（Metasequoia IME）", license: "GPLv3 · Rust 引擎")
         creditLine(name: "雾凇拼音 rime-ice（iDvel）", license: "GPLv3 · 拼音底座")
         creditLine(name: "极点五笔86（KyleBing）", license: "Apache-2.0 · 五笔全套")
-        creditLine(name: "rime-octagram-data（lotem）", license: "八股文语法模型")
       }
     }
   }

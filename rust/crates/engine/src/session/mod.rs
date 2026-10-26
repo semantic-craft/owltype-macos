@@ -411,6 +411,10 @@ impl Session {
         self.input.set_wubi_mixed_pinyin(enabled);
     }
 
+    pub fn set_wubi_z_pinyin_lookup(&mut self, enabled: bool) {
+        self.input.set_wubi_z_pinyin_lookup(enabled);
+    }
+
     /// 五笔拼音混输是否打开。
     pub fn wubi_mixed_pinyin(&self) -> bool {
         self.input.engine.wubi_input_options().mixed_pinyin
@@ -479,6 +483,15 @@ impl Session {
 
     pub fn set_english_online_candidates_enabled(&mut self, enabled: bool) {
         self.input.set_english_online_candidates_enabled(enabled);
+    }
+
+    /// Toggle only the emoji rows mixed into ordinary candidates; local `E` mode is independent.
+    pub fn set_mixed_emoji_candidates(&mut self, enabled: bool) {
+        self.input.set_mixed_emoji_candidates(enabled);
+    }
+
+    pub fn mixed_emoji_candidates_enabled(&self) -> bool {
+        self.input.mixed_emoji_candidates_enabled()
     }
 
     /// The committed text the neural sentence models condition on, updated without rebuilding the session. Only the last 64 characters matter.

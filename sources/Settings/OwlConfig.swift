@@ -2,40 +2,65 @@
 //  OwlConfig.swift
 //  Owltype
 //
-//  Created by Leo Liu on 5/9/24.
+//  Read-only Swift adapter over the Rust YAML config API. Rime's compiled
+//  `build/` tree is not involved: the shared YAML is loaded directly and the
+//  user's `.custom.yaml` `patch:` map is overlaid by owl-msime-ffi.
 //
 
 import AppKit
+import Foundation
 
 final class OwlConfig {
-  private let rimeAPI: RimeApi_stdbool = rime_get_api_stdbool().pointee
-  private(set) var isOpen = false
-
+  private let sharedSupportURL: URL
+  private let userDataURL: URL
+  private var config: OpaquePointer?
   private var cache: [String: Any] = [:]
-  private var config: RimeConfig = .init()
   private var baseConfig: OwlConfig?
 
+  private(set) var isOpen = false
+
+  init(
+    sharedSupportURL: URL? = Bundle.main.sharedSupportURL,
+    userDataURL: URL = OwlApp.userDir
+  ) {
+    self.sharedSupportURL = sharedSupportURL
+      ?? URL(fileURLWithPath: Bundle.main.sharedSupportPath ?? "", isDirectory: true)
+    self.userDataURL = userDataURL
+  }
+
   func openBaseConfig() -> Bool {
-    close()
-    isOpen = rimeAPI.config_open(OwlRimeIdentity.baseConfig, &config)
-    return isOpen
+    open(
+      base: sharedSupportURL.appendingPathComponent("owltype.yaml"),
+      patch: userDataURL.appendingPathComponent("owltype.custom.yaml")
+    )
   }
 
   func open(schemaID: String, baseConfig: OwlConfig?) -> Bool {
     close()
-    isOpen = rimeAPI.schema_open(schemaID, &config)
-    if isOpen {
+    guard !schemaID.isEmpty,
+          schemaID.first != ".",
+          !schemaID.contains("/"),
+          !schemaID.contains("..") else {
+      return false
+    }
+    let opened = open(
+      base: sharedSupportURL.appendingPathComponent("\(schemaID).schema.yaml"),
+      patch: userDataURL.appendingPathComponent("\(schemaID).custom.yaml")
+    )
+    if opened {
       self.baseConfig = baseConfig
     }
-    return isOpen
+    return opened
   }
 
   func close() {
-    if isOpen {
-      _ = rimeAPI.config_close(&config)
-      baseConfig = nil
-      isOpen = false
+    if let config {
+      owl_msime_config_destroy(config)
+      self.config = nil
     }
+    cache.removeAll()
+    baseConfig = nil
+    isOpen = false
   }
 
   deinit {
@@ -43,36 +68,38 @@ final class OwlConfig {
   }
 
   func has(section: String) -> Bool {
-    if isOpen {
-      var iterator: RimeConfigIterator = .init()
-      if rimeAPI.config_begin_map(&iterator, &config, section) {
-        rimeAPI.config_end(&iterator)
-        return true
-      }
-    }
-    return false
+    guard let config else { return false }
+    return section.withCString { owl_msime_config_has_map(config, $0) }
   }
 
   func getBool(_ option: String) -> Bool? {
     if let cachedValue = cachedValue(of: Bool.self, forKey: option) {
       return cachedValue
     }
-    var value = false
-    if isOpen && rimeAPI.config_get_bool(&config, option, &value) {
-      cache[option] = value
-      return value
+    if let config {
+      var value = false
+      if option.withCString({
+        owl_msime_config_get_bool(config, $0, &value)
+      }) {
+        cache[option] = value
+        return value
+      }
     }
     return baseConfig?.getBool(option)
   }
 
   func getDouble(_ option: String) -> CGFloat? {
     if let cachedValue = cachedValue(of: Double.self, forKey: option) {
-      return cachedValue
+      return CGFloat(cachedValue)
     }
-    var value: Double = 0
-    if isOpen && rimeAPI.config_get_double(&config, option, &value) {
-      cache[option] = value
-      return value
+    if let config {
+      var value = 0.0
+      if option.withCString({
+        owl_msime_config_get_double(config, $0, &value)
+      }) {
+        cache[option] = value
+        return CGFloat(value)
+      }
     }
     return baseConfig?.getDouble(option)
   }
@@ -81,31 +108,56 @@ final class OwlConfig {
     if let cachedValue = cachedValue(of: String.self, forKey: option) {
       return cachedValue
     }
-    if isOpen, let value = rimeAPI.config_get_cstring(&config, option) {
-      cache[option] = String(cString: value)
-      return String(cString: value)
+    if let config {
+      let value = option.withCString {
+        owl_msime_config_get_string(config, $0)
+      }
+      if let value {
+        defer { owl_msime_string_free(value) }
+        let string = String(cString: value)
+        cache[option] = string
+        return string
+      }
     }
     return baseConfig?.getString(option)
   }
 
   func getAppOptions(_ appName: String) -> [String: Bool] {
-    let rootKey = "app_options/\(appName)"
-    var appOptions = [String: Bool]()
-    var iterator = RimeConfigIterator()
-    _ = rimeAPI.config_begin_map(&iterator, &config, rootKey)
-    while rimeAPI.config_next(&iterator) {
-      // print("[DEBUG] option[\(iterator.index)]: \(String(cString: iterator.key)), path: (\(String(cString: iterator.path))")
-      if let key = iterator.key, let path = iterator.path, let value = getBool(String(cString: path)) {
-        appOptions[String(cString: key)] = value
-      }
+    guard let config else { return [:] }
+    let value = appName.withCString {
+      owl_msime_config_app_options_json(config, $0)
     }
-    rimeAPI.config_end(&iterator)
-    return appOptions
+    guard let value else { return [:] }
+    defer { owl_msime_string_free(value) }
+    let data = Data(bytes: value, count: strlen(value))
+    return (try? JSONDecoder().decode([String: Bool].self, from: data)) ?? [:]
   }
 }
 
 private extension OwlConfig {
+  func open(base: URL, patch: URL) -> Bool {
+    close()
+    var error: UnsafeMutablePointer<CChar>?
+    let opened = base.path.withCString { baseCString in
+      patch.path.withCString { patchCString in
+        owl_msime_config_open(baseCString, patchCString, &error)
+      }
+    }
+    if let error {
+      NSLog(
+        "OwlConfig: cannot open %@ with %@: %s",
+        base.path,
+        patch.path,
+        error
+      )
+      owl_msime_string_free(error)
+    }
+    config = opened
+    isOpen = opened != nil
+    return isOpen
+  }
+
   func cachedValue<T>(of: T.Type, forKey key: String) -> T? {
-    return cache[key] as? T
+    cache[key] as? T
   }
 }

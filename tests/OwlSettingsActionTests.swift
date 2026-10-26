@@ -17,7 +17,7 @@ final class OwlSettingsActionTests: XCTestCase {
     "OwlKeyboardFullShapeToggle", "OwlKeyboardCJKPunctToggle",
     "OwlKeyboardDefaultAsciiMode", "OwlKeyboardDefaultFullShape", "OwlKeyboardPageMinusEquals",
     "OwlKeyboardPageBrackets", "OwlKeyboardPageCommaPeriod", "OwlKeyboardSelect23Semicolon",
-    "OwlKeyboardSelect23Command", "OwlKeyboardSlashSymbolMenu",
+    "OwlKeyboardSelect23Command", "OwlKeyboardSlashSymbolMenu", "OwlKeyboardAngleSymbolMenu",
     "OwlKeyboardCJKEnglishSpacing", "OwlKeyboardCJKNumberSpacing",
     "OwlKeyboardAppEnglishBundleIDs",
     "OwlFuzzyZhZ", "OwlFuzzyChC", "OwlFuzzyShS", "OwlFuzzyNL", "OwlFuzzyRL",
@@ -100,6 +100,7 @@ final class OwlSettingsActionTests: XCTestCase {
     assertToggle(\.keyboardPageCommaPeriod, state, { OwlKeyboardPreferences.pageCommaPeriod }) { OwlKeyboardPreferences.pageCommaPeriod = $0 }
     assertToggle(\.keyboardSelect23Semicolon, state, { OwlKeyboardPreferences.select23Semicolon }) { OwlKeyboardPreferences.select23Semicolon = $0 }
     assertToggle(\.keyboardSlashSymbolMenu, state, { OwlKeyboardPreferences.slashSymbolMenu }) { OwlKeyboardPreferences.slashSymbolMenu = $0 }
+    assertToggle(\.keyboardAngleSymbolMenu, state, { OwlKeyboardPreferences.angleSymbolMenu }) { OwlKeyboardPreferences.angleSymbolMenu = $0 }
     assertToggle(\.keyboardCJKAlnumSpacing, state, { OwlKeyboardPreferences.cjkAlnumSpacing }) { OwlKeyboardPreferences.cjkAlnumSpacing = $0 }
     panelSettings.edit(.animationsEnabled(false), state: state, onChange: {})
     XCTAssertFalse(panelSettings.snapshot().animationsEnabled)
@@ -566,6 +567,14 @@ final class OwlSettingsActionTests: XCTestCase {
       OwlKeyboardPage.autoApplyStatusMessage(written: ["default.custom.yaml"], deploySucceeded: true),
       "已生效：default.custom.yaml。"
     )
+    XCTAssertEqual(
+      OwlKeyboardPage.autoApplyStatusMessage(
+        written: [],
+        deploySucceeded: true,
+        writesRimeConfiguration: false
+      ),
+      "配置已生效。"
+    )
     let kbFail = OwlKeyboardPage.autoApplyStatusMessage(written: ["default.custom.yaml"], deploySucceeded: false)
     XCTAssertTrue(kbFail.contains("应用失败"))
     XCTAssertFalse(kbFail.contains("重新部署"))
@@ -573,6 +582,14 @@ final class OwlSettingsActionTests: XCTestCase {
     XCTAssertEqual(
       OwlSettingsView.candidatePageSizeApplyStatusMessage(written: ["default.custom.yaml"], deploySucceeded: true),
       "候选个数已生效：default.custom.yaml。"
+    )
+    XCTAssertEqual(
+      OwlSettingsView.candidatePageSizeApplyStatusMessage(
+        written: [],
+        deploySucceeded: true,
+        writesRimeConfiguration: false
+      ),
+      "候选个数已生效。"
     )
     let pageFail = OwlSettingsView.candidatePageSizeApplyStatusMessage(written: [], deploySucceeded: false)
     XCTAssertTrue(pageFail.contains("候选个数未生效"))

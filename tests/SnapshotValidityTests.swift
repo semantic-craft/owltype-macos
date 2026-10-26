@@ -192,26 +192,26 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     )
   }
 
-  func testRimeSyncSettingsWriteSyncDirectoryPreservesInstallationFields() throws {
+  func testRimeSyncSettingsExpandsTildeWithoutRewritingInstallationFile() throws {
     let dir = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: dir) }
 
     let installation = dir.appendingPathComponent("installation.yaml")
     try """
     installation_id: abc
+    sync_dir: "~/Library/CloudStorage/Owltype Sync"
     distribution_code_name: owltype
 
     """.write(to: installation, atomically: true, encoding: .utf8)
+    let before = try Data(contentsOf: installation)
 
-    let target = dir.appendingPathComponent("Cloud Sync/Owltype", isDirectory: true)
     let settings = OwlRimeSyncSettings(rimeDir: dir)
-    try settings.setSyncDirectory(target)
-
-    let text = try String(contentsOf: installation, encoding: .utf8)
-    XCTAssertTrue(text.contains("installation_id: abc"))
-    XCTAssertTrue(text.contains("distribution_code_name: owltype"))
-    XCTAssertTrue(text.contains("sync_dir: \"\(target.path)\""))
-    XCTAssertEqual(settings.currentSyncDirectory().path, target.path)
+    XCTAssertEqual(
+      settings.currentSyncDirectory().path,
+      FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/CloudStorage/Owltype Sync").path
+    )
+    XCTAssertEqual(try Data(contentsOf: installation), before)
   }
 
   func testKeyboardPatchPlanDefaultsSlashSymbolMenuOff() {
@@ -352,31 +352,6 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
   func testQuickSendStoreRejectsUnsafeEntries() {
     XCTAssertThrowsError(try OwlQuickSendStore.entry(text: "bad\ttext", code: "fm"))
     XCTAssertThrowsError(try OwlQuickSendStore.entry(text: "猫头鹰", code: "bad:key"))
-  }
-
-  func testConfigWriterAllowsManagedLawFormsLuaFile() throws {
-    let dir = try makeTempDir()
-    defer { try? FileManager.default.removeItem(at: dir) }
-
-    let writer = OwlConfigWriter(rimeDir: dir)
-    try writer.applyTextFile(
-      fileName: "lua/law_forms.lua",
-      contents: "return {}\n",
-      marker: "OWL MANAGED LAW FORMS TEST",
-      timestamp: "20260621-lawforms"
-    )
-
-    XCTAssertEqual(
-      try String(contentsOf: dir.appendingPathComponent("lua/law_forms.lua"), encoding: .utf8),
-      "return {}\n"
-    )
-    XCTAssertTrue(
-      FileManager.default.fileExists(
-        atPath: dir
-          .appendingPathComponent(".owl-backup/20260621-lawforms/lua/law_forms.lua")
-          .path
-      )
-    )
   }
 
   func testClipboardStoreDefaultsOffAndLimitsLocalEntries() throws {

@@ -68,6 +68,10 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   /// freshly-deployed `build/` (a fresh session reads the new config; a same-id reselect does
   /// NOT, which was the page_size-not-applying bug). Off the IMK keystroke hot path.
   let liveControllers = NSHashTable<OwlInputController>.weakObjects()
+  /// Resource activation changes the generation read by `createSession()`, not an existing
+  /// session. These completions are drained at an idle composition boundary so enabling or
+  /// rolling back a dict-pack never discards a partially selected phrase.
+  var liveSessionRefreshCompletions: [@MainActor () -> Void] = []
 
   /// Register a controller as live (idempotent — `NSHashTable` ignores duplicates). Called by
   /// the controller from `createSession` / `showPanel`. Off the IMK keystroke hot path.
@@ -204,7 +208,10 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     defer { OwlLatencyTrace.end("deploy.full", trace) }
     print("Start maintenance...")
     OwlLatencyTrace.event("deploy.maintenanceStart")
-    self.shutdownRime()
+    guard self.shutdownRime() else {
+      Self.deployLog.error("deploy BLOCKED: Rust engine still has live sessions")
+      return false
+    }
     let ok = self.startRime(fullCheck: true)
     OwlLatencyTrace.event("deploy.restoreSettings")
     self.loadSettings()
@@ -214,28 +221,24 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
 
   // Fast settings-apply (Track 2 / PR3) lives in `OwlApplicationDelegate+FastApply.swift`.
 
-  func syncUserData() {
-    let trace = OwlLatencyTrace.begin("sync.userData")
-    defer { OwlLatencyTrace.end("sync.userData", trace) }
-    print("Sync Owltype user data")
-    _ = engine.syncUserData()
-  }
-
-  /// 「重置用户词典…」(#37)：整目录备份 `*.userdb` → 删除 → 重新部署，Rime 重建空库。
+  /// 「重置用户词典…」：备份并删除 Rust 学习日志与词典代次，随后重新启动引擎。
   /// 返回给「维护与诊断」卡状态行的文案。
   ///
-  /// 顺序是硬约束，不是风格选择：userdb 的 LevelDB 被**猫头鹰自己这个进程**独占锁着
-  /// （2026-07-25 实测，外部 `rime_dict_manager -e` 报 `Error opening db read-only`），
-  /// 所以必须先 `finalize()` 放锁才删得动。`deploy()` 已经在跑同一条
-  /// shutdownRime → startRime(fullCheck:) → loadSettings 的路，这里只是在中间插入删除。
+  /// 顺序是硬约束：Rust SQLite 日志由当前进程缓存持有，必须先关闭会话和缓存数据库，
+  /// 备份/删除才有确定结果。
   ///
   /// 无论删除成败都把引擎重新拉起来：半死在「已 finalize」状态会让输入法整个不能打字，
   /// 比重置失败严重得多。
   func resetUserDict() -> String {
     let trace = OwlLatencyTrace.begin("reset.userDict")
     defer { OwlLatencyTrace.end("reset.userDict", trace) }
-    Self.deployLog.notice("reset user dict requested — finalizing rime to release the userdb lock")
-    shutdownRime()
+    Self.deployLog.notice("reset Rust user dictionary requested")
+    guard shutdownRime() else {
+      Self.deployLog.error(
+        "reset user dict BLOCKED: Rust engine still has live sessions; no data deleted"
+      )
+      return "重置失败：Rust 引擎仍有活动会话，未删除用户词典。请重新打开猫头鹰后再试。"
+    }
 
     let result = Result {
       try OwlUserDictReset.run(root: OwlApp.userDir, timestamp: Self.backupTimestamp())
@@ -247,7 +250,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     switch result {
     case .success(let outcome):
       Self.deployLog.notice("""
-        reset user dict cleared \(outcome.schemaIDs.count, privacy: .public) schema(s), \
+        reset Rust user dictionary cleared \(outcome.removedItems.count, privacy: .public) item(s), \
         redeploy=\(redeployed, privacy: .public)
         """)
       return OwlUserDictReset.statusMessage(outcome: outcome, redeployed: redeployed)
@@ -260,31 +263,83 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     }
   }
 
+  /// Imports Rime's stable userdb text snapshots into the Rust journal.
+  ///
+  /// Planning and staging happen before shutdown, so a missing or changing snapshot leaves
+  /// typing untouched. Once shutdown begins, every exit path restarts the engine.
+  func migrateLegacyUserData() -> String {
+    let trace = OwlLatencyTrace.begin("migrate.rimeUserData")
+    defer { OwlLatencyTrace.end("migrate.rimeUserData", trace) }
+    guard engine is OwlRustEngine else {
+      return "当前使用的是旧版 Rime 引擎，不需要迁移到 Rust 学习库。"
+    }
+
+    let userRoot = OwlApp.userDir
+    let rustUserRoot = userRoot.appendingPathComponent("msime-user", isDirectory: true)
+    let staged: OwlUserMigrationStageResult
+    do {
+      let pinsData = try JSONEncoder().encode(OwlPinnedWords.shared.words)
+      let plan = try OwlUserMigration.makePlan(
+        userData: userRoot,
+        pinnedWordsData: pinsData,
+        syncDirectory: OwlRimeSyncSettings(rimeDir: userRoot).currentSyncDirectory()
+      )
+      guard !plan.captures.isEmpty || !plan.manifest.pins.isEmpty else {
+        return "没有找到旧版稳定快照或置顶词；请确认旧版猫头鹰的同步目录和设置。"
+      }
+      try FileManager.default.createDirectory(
+        at: rustUserRoot,
+        withIntermediateDirectories: true,
+        attributes: [.posixPermissions: 0o700]
+      )
+      staged = try OwlUserMigrationStage.prepare(
+        plan,
+        in: rustUserRoot
+      )
+    } catch {
+      let reason = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+      Self.deployLog.error(
+        "legacy user migration staging FAILED: \(reason, privacy: .public)"
+      )
+      return "迁移准备失败，输入引擎未中断：\(reason)"
+    }
+
+    guard shutdownRime() else {
+      Self.deployLog.error(
+        "legacy user migration BLOCKED: Rust engine still has live sessions; nothing imported"
+      )
+      return "迁移失败：Rust 引擎仍有活动会话，未写入迁移数据。请重新打开猫头鹰后再试。"
+    }
+    let imported = Result {
+      try OwlUserMigrationImport.run(staged, userRoot: userRoot)
+    }
+    let restarted = startRime(fullCheck: true)
+    loadSettings()
+
+    switch imported {
+    case .success(let outcome):
+      Self.deployLog.notice("""
+        legacy user migration succeeded: sources=\(outcome.report.sourceCount, privacy: .public) \
+        records=\(outcome.report.recordCount, privacy: .public) \
+        written=\(outcome.report.entriesWritten, privacy: .public) \
+        pins=\(outcome.report.pinsWritten, privacy: .public) \
+        restart=\(restarted, privacy: .public)
+        """)
+      return OwlUserMigrationImport.successMessage(outcome, engineRestarted: restarted)
+    case .failure(let error):
+      Self.deployLog.error("""
+        legacy user migration FAILED: \(error.localizedDescription, privacy: .public), \
+        restart=\(restarted, privacy: .public)
+        """)
+      return OwlUserMigrationImport.failureMessage(error, engineRestarted: restarted)
+    }
+  }
+
   /// 备份目录名用的文件系统安全时间戳。只在用户显式点击时调用，故直接读 `Date()`。
   private static func backupTimestamp() -> String {
     let formatter = DateFormatter()
     formatter.dateFormat = "yyyyMMdd-HHmmss"
     return formatter.string(from: Date())
-  }
-
-  func chooseSyncDirectory(for state: OwlSettingsState) {
-    let settings = OwlRimeSyncSettings()
-    let panel = NSOpenPanel()
-    panel.title = NSLocalizedString("选择同步目录", comment: "choose Rime user-data sync directory")
-    panel.canChooseFiles = false
-    panel.canChooseDirectories = true
-    panel.allowsMultipleSelection = false
-    panel.canCreateDirectories = true
-    panel.directoryURL = settings.currentSyncDirectory()
-    guard panel.runModal() == .OK, let url = panel.url else { return }
-    do {
-      try settings.setSyncDirectory(url)
-      state.syncDirectoryDisplayPath = settings.syncDirectoryDisplayPath
-      state.statusMessage = NSLocalizedString("已设置同步目录。再次点击同步用户数据即可写入快照。", comment: "sync dir set")
-    } catch {
-      state.statusMessage = NSLocalizedString("设置同步目录失败，请查看诊断日志。", comment: "sync dir failed")
-      print("Failed to set Owltype sync directory: \(error)")
-    }
   }
 
   func openLogFolder() {
@@ -440,6 +495,8 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     state.keyboardCJKEnglishSpacing = OwlKeyboardPreferences.cjkEnglishSpacing
     state.keyboardCJKNumberSpacing = OwlKeyboardPreferences.cjkNumberSpacing
     state.keyboardAutoPairBrackets = OwlKeyboardPreferences.autoPairBrackets
+    state.keyboardRerankEnabled = OwlExperimentalPreferences.keyboardRerankEnabled
+    state.settledRerankEnabled = OwlExperimentalPreferences.settledRerankEnabled
     state.keyboardAppEnglishBundleIDsText = OwlKeyboardPreferences.appEnglishBundleIDs.joined(separator: ", ")
     // Seed Cloud lane preferences. These remain default-off and explicit-trigger only.
     state.cloudEnabled = OwlCloudPreferences.isEnabled
@@ -453,11 +510,11 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     state.translationSkillEnabled = OwlSelectionMenuPreferences.translationEnabled
     // Seed the librime version for the 关于 page (best-effort; empty when absent).
     state.librimeVersion = rimeVersion() ?? ""
-    state.syncDirectoryDisplayPath = OwlRimeSyncSettings().syncDirectoryDisplayPath
     OwlLatencyTrace.event("window.settings.dataLoaded")
 
     let window = owlSettingsWindow ?? OwlSettingsWindow()
     owlSettingsWindow = window
+    let usesRustEngine = engine is OwlRustEngine
     OwlLatencyTrace.event("window.settings.controllerSelected")
 
     window.show(
@@ -486,17 +543,16 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       onApplyFuzzyConfigFast: { [weak self] in
         try self?.applyKeyboardSettings(.fuzzy) ?? .init(written: [], succeeded: false)
       },
-      onSyncUserData: { [weak self] in
-        self?.syncUserData()
-        state.statusMessage = NSLocalizedString("已请求同步用户数据。", comment: "sync user data")
-      },
-      onResetUserDict: { [weak self] in
-        guard let self, OwlUserDictResetPrompt.confirm() else { return }
-        state.statusMessage = self.resetUserDict()
-      },
-      onChooseSyncDirectory: { [weak self] in
-        self?.chooseSyncDirectory(for: state)
-      },
+      userDataActions: .init(
+        migrateLegacy: { [weak self] in
+          guard let self, OwlUserMigrationPrompt.confirm() else { return }
+          state.statusMessage = self.migrateLegacyUserData()
+        },
+        resetUserDict: { [weak self] in
+          guard let self, OwlUserDictResetPrompt.confirm() else { return }
+          state.statusMessage = self.resetUserDict()
+        }
+      ),
       onOpenRimeFolder: { [weak self] in
         self?.openRimeFolder()
       },
@@ -510,7 +566,8 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
         guard let self else { return }
         OwlCandidatePanelSettings.live.applyInlineCandidate(to: &self.styleFlags)
         self.owlPanel?.refreshPreferences()
-      }
+      },
+      writesRimeConfiguration: !usesRustEngine
     )
     OwlLatencyTrace.event("window.settings.firstVisible")
   }
@@ -521,7 +578,6 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     state.currentSchemaId = "rime_ice"
     state.currentInputSourceDisplayName = "Owltype UI Test"
     state.librimeVersion = "ui-test"
-    state.syncDirectoryDisplayPath = OwlRimeSyncSettings().syncDirectoryDisplayPath
 
     let window = owlSettingsWindow ?? OwlSettingsWindow()
     owlSettingsWindow = window
@@ -531,9 +587,10 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       onRedeploy: { true },
       onApplyKeyboardConfigFast: { .init(written: [], succeeded: true) },
       onApplyFuzzyConfigFast: { .init(written: [], succeeded: true) },
-      onSyncUserData: {},
-      onResetUserDict: {},
-      onChooseSyncDirectory: {},
+      userDataActions: .init(
+        migrateLegacy: {},
+        resetUserDict: {}
+      ),
       onOpenRimeFolder: {},
       onOpenLog: {},
       onShowOnboarding: {},
@@ -694,7 +751,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   /// 通知，不静默——否则 UI 显示新方案而实际输出仍是旧方案（设置显示拼音 / 打字出五笔）。
   /// 抽成具名方法：dict-pack 分流后有两个调用点（同步路径 + 主线程补发）。
   static func notifySchemaNotCompiled(_ failedID: String) {
-    showMessage(msgText: "无法切换到方案「\(failedID)」：该方案可能尚未编译。请在设置里「应用配置改动」后重试，或运行 Owltype --diagnose-rime-config 排查。")
+    showMessage(msgText: "无法切换到方案「\(failedID)」：请在设置里「应用配置改动」后重试；仍失败时请查看诊断日志。")
   }
 
   static func showMessage(msgText: String?) {
@@ -760,21 +817,26 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     // profile. No-op on a fresh install (no legacy key) or once a profile already exists. Off the
     // IMK hot path — runs only here at app launch.
     OwlProviderMigration.migrateLegacyDeepSeekIfNeeded()
-    // swiftlint:disable identifier_name
-    let notification_handler: RimeNotificationHandler = notificationHandler
-    let context_object = Unmanaged.passUnretained(self).toOpaque()
-    // swiftlint:enable identifier_name
-    engine.setNotificationHandler(notification_handler, context: context_object)
-
-    var owlTraits = RimeTraits.rimeStructInit()
-    owlTraits.setCString(Bundle.main.sharedSupportPath!, to: \.shared_data_dir)
-    owlTraits.setCString(OwlApp.userDir.path, to: \.user_data_dir)
-    owlTraits.setCString(OwlApp.logDir.path, to: \.log_dir)
-    owlTraits.setCString("Owltype", to: \.distribution_code_name)
-    owlTraits.setCString("猫头鹰输入法", to: \.distribution_name)
-    owlTraits.setCString(Bundle.main.object(forInfoDictionaryKey: kCFBundleVersionKey as String) as! String, to: \.distribution_version)
-    owlTraits.setCString(OwlRimeIdentity.appName, to: \.app_name)
-    engine.setup(&owlTraits)
+    engine.setNotificationHandler { [weak self] sessionID, messageType, messageValue in
+      guard let self else { return }
+      notificationHandler(
+        delegate: self,
+        sessionId: sessionID,
+        messageType: messageType,
+        messageValue: messageValue
+      )
+    }
+    engine.setup(
+      OwlEngineTraits(
+        sharedDataDir: URL(
+          fileURLWithPath: Bundle.main.sharedSupportPath!,
+          isDirectory: true
+        ),
+        userDataDir: OwlApp.userDir,
+        logDir: OwlApp.logDir,
+        appName: OwlRimeIdentity.appName
+      )
+    )
   }
 
   /// ADR-0004 cycle 3: on first run, seed Owltype's OWN `user_data_dir`
@@ -821,10 +883,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   func startRime(fullCheck: Bool, migrationDirectory: URL = OwlApp.userDir) -> Bool {
     let trace = OwlLatencyTrace.begin("deploy.startRime")
     defer { OwlLatencyTrace.end("deploy.startRime", trace) }
-    print("Initializing la rime...")
-    // Always bring the engine up: returning before initialize left every session dead, and
-    // deploy() had already called shutdownRime — one unfinished migration meant no input at all.
-    engine.initialize(nil)
+    print("Initializing the Rust input engine...")
     guard !templateRecoveryBlocksDeployment(migrationDirectory) else { return false }
     do {
       if let sharedSupport = Bundle.main.sharedSupportURL {
@@ -1006,7 +1065,6 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     // `.deliverImmediately` keeps these observers reachable from ANY poster (including an
     // older CLI binary that posts without deliverImmediately).
     notifCenter.addObserver(self, selector: #selector(rimeNeedsReload(_:)), name: .init("OwlReloadNotification"), object: nil, suspensionBehavior: .deliverImmediately)
-    notifCenter.addObserver(self, selector: #selector(rimeNeedsSync(_:)), name: .init("OwlSyncNotification"), object: nil, suspensionBehavior: .deliverImmediately)
     notifCenter.addObserver(self, selector: #selector(rimeToggleASCIIMode(_:)), name: .init("OwlToggleASCIIModeNotification"), object: nil, suspensionBehavior: .deliverImmediately)
     notifCenter.addObserver(self, selector: #selector(rimeGetASCIIMode(_:)), name: .init("OwlGetASCIIModeNotification"), object: nil, suspensionBehavior: .deliverImmediately)
     // 授权后补装 tap 的第二保险（第一保险=applicationDidBecomeActive）：TCC 辅助功能表变更时
@@ -1036,29 +1094,18 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
 
   func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
     print("Owltype is quitting.")
-    engine.cleanupAllSessions()
+    _ = engine.finalize()
     return .terminateNow
   }
 
 }
 
-extension RimeStringSlice {
-  /// Bridge the slice's pointer + length to a Swift String, honoring `.length`.
-  /// librime clips `.length` to the first Unicode character for abbreviated labels
-  /// when no explicit `abbrev:` field is defined, so reading past `.length` (e.g. with
-  /// `String(cString:)`) would incorrectly return the full `states:` value.
-  var asString: String? {
-    guard let ptr = str else { return nil }
-    let data = Data(bytes: UnsafeRawPointer(ptr), count: Int(length))
-    return String(data: data, encoding: .utf8)
-  }
-}
-
-private func notificationHandler(contextObject: UnsafeMutableRawPointer?, sessionId: RimeSessionId, messageTypeC: UnsafePointer<CChar>?, messageValueC: UnsafePointer<CChar>?) {
-  let delegate: OwlApplicationDelegate = Unmanaged<OwlApplicationDelegate>.fromOpaque(contextObject!).takeUnretainedValue()
-
-  let messageType = messageTypeC.map { String(cString: $0) }
-  let messageValue = messageValueC.map { String(cString: $0) }
+private func notificationHandler(
+  delegate: OwlApplicationDelegate,
+  sessionId: UInt64,
+  messageType: String,
+  messageValue: String?
+) {
   if messageType == "deploy" {
     switch messageValue {
     case "start":
@@ -1156,15 +1203,16 @@ private extension OwlApplicationDelegate {
     }
   }
 
-  func shutdownRime() {
+  @discardableResult
+  func shutdownRime() -> Bool {
     OwlLatencyTrace.event("deploy.rimeFinalize")
     config?.close()
-    engine.finalize()
+    return engine.finalize()
   }
 
   func workspaceWillPowerOff(_: Notification) {
     print("Finalizing before logging out.")
-    self.shutdownRime()
+    _ = self.shutdownRime()
   }
 
   @objc func rimeNeedsReload(_: Notification) {
@@ -1179,11 +1227,6 @@ private extension OwlApplicationDelegate {
     } else {
       OwlApplicationDelegate.deployLog.error("reload deploy FAILED — see rime glog in \(OwlApp.logDir.path, privacy: .public)")
     }
-  }
-
-  @objc func rimeNeedsSync(_: Notification) {
-    print("Sync rime on demand.")
-    self.syncUserData()
   }
 
   @objc func rimeToggleASCIIMode(_ notification: Notification) {

@@ -70,10 +70,20 @@ portable_scripts() {
     scripts/owl_distribution.py \
     scripts/owl_bundle.py \
     scripts/build-owltype-msime-seed-db.py \
+    scripts/check-rust-delivery.py \
+    scripts/fetch-msime-others.py \
+    scripts/fetch-rerank-models.py \
+    scripts/finalize-release-bundle.py \
     scripts/inventory-release-bundle.py \
+    scripts/release-bundle.selftest.py \
     scripts/release-cohort-state.py \
     scripts/release_source.py \
     scripts/safe-extract-tar.py
+  python3 scripts/build-owltype-msime-seed-db.selftest.py
+  python3 scripts/check-rust-delivery.selftest.py
+  python3 scripts/fetch-msime-others.selftest.py
+  python3 scripts/fetch-rerank-models.selftest.py
+  python3 scripts/release-bundle.selftest.py
   python3 scripts/owl-distribution.selftest.py
   python3 scripts/release-source-archive.selftest.py
   python3 scripts/build-sparkle.selftest.py
@@ -113,6 +123,9 @@ licensing() {
   test -s PROVENANCE.md
   test -s PRIVACY.md
   test -s SECURITY.md
+  test -s rust/crates/chinese-ime-lm/LICENSE
+  printf 'cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30  rust/crates/chinese-ime-lm/LICENSE\n' |
+    shasum -a 256 --check --status
   grep -q 'GPL-3.0' README.md
 }
 

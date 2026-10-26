@@ -51,13 +51,12 @@ final class OwlSettingsWindow: NSWindowController {
     onRedeploy: @escaping () -> Bool,
     onApplyKeyboardConfigFast: @escaping () throws -> OwlKeyboardSettingsApplication.Outcome,
     onApplyFuzzyConfigFast: @escaping () throws -> OwlKeyboardSettingsApplication.Outcome,
-    onSyncUserData: @escaping () -> Void,
-    onResetUserDict: @escaping () -> Void,
-    onChooseSyncDirectory: @escaping () -> Void,
+    userDataActions: OwlSettingsUserDataActions,
     onOpenRimeFolder: @escaping () -> Void,
     onOpenLog: @escaping () -> Void,
     onShowOnboarding: @escaping () -> Void,
-    onPanelPreferencesChanged: @escaping () -> Void
+    onPanelPreferencesChanged: @escaping () -> Void,
+    writesRimeConfiguration: Bool = true
   ) {
     self.state = state
 
@@ -67,13 +66,12 @@ final class OwlSettingsWindow: NSWindowController {
       onRedeploy: onRedeploy,
       onApplyKeyboardConfigFast: onApplyKeyboardConfigFast,
       onApplyFuzzyConfigFast: onApplyFuzzyConfigFast,
-      onSyncUserData: onSyncUserData,
-      onResetUserDict: onResetUserDict,
-      onChooseSyncDirectory: onChooseSyncDirectory,
+      userDataActions: userDataActions,
       onOpenRimeFolder: onOpenRimeFolder,
       onOpenLog: onOpenLog,
       onShowOnboarding: onShowOnboarding,
-      onPanelPreferencesChanged: onPanelPreferencesChanged
+      onPanelPreferencesChanged: onPanelPreferencesChanged,
+      writesRimeConfiguration: writesRimeConfiguration
     )
     // NavigationSplitView installs a native toolbar. Constrain the hosting surface to
     // AppKit's actual content layout guide, which updates with toolbar/titlebar size;
