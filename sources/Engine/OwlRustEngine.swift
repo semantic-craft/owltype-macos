@@ -9,7 +9,6 @@
 import CryptoKit
 import Foundation
 
-
 // MARK: - Schema Mapping
 
 private struct OwlRustShuangpinTable {
@@ -314,20 +313,8 @@ final class OwlRustSession: RimeSession {
       return true
     }
 
-    // Native segment-editing chords belong to an active composition, before the
-    // usual Control passthrough. The runtime owns boundaries for every scheme.
-    let segmentModifiers = modifiers & (kControlMask.rawValue | kShiftMask.rawValue
-      | kAltMask.rawValue | kSuperMask.rawValue)
-    if !(optionFlags[.asciiMode] ?? false), !(latestSnapshot?.rawInput.isEmpty ?? true),
-       segmentModifiers == kControlMask.rawValue || segmentModifiers == kShiftMask.rawValue {
-      if keycode == UInt32(XK_Left) || keycode == UInt32(XK_Right) {
-        return applyActionResponse(sendAction([
-          "op": "segment", "target": keycode == UInt32(XK_Left) ? "left" : "right"
-        ]))
-      }
-      if keycode == UInt32(XK_BackSpace), segmentModifiers == kControlMask.rawValue {
-        return applyActionResponse(sendAction(["op": "segment", "target": "backspace"]))
-      }
+    if let handled = processSegmentEditingChord(keycode: keycode, modifiers: modifiers) {
+      return handled
     }
 
     let disallowedModifiers = kControlMask.rawValue | kAltMask.rawValue | kSuperMask.rawValue
@@ -401,6 +388,26 @@ final class OwlRustSession: RimeSession {
       setASCIIModeCommittingRawInput(asciiMode)
       return consumed
     }
+  }
+
+  private func processSegmentEditingChord(keycode: UInt32, modifiers: UInt32) -> Bool? {
+    // Native segment-editing chords belong to an active composition, before the
+    // usual Control passthrough. The runtime owns boundaries for every scheme.
+    let segmentModifiers = modifiers & (kControlMask.rawValue | kShiftMask.rawValue
+      | kAltMask.rawValue | kSuperMask.rawValue)
+    if !(optionFlags[.asciiMode] ?? false), !(latestSnapshot?.rawInput.isEmpty ?? true),
+       segmentModifiers == kControlMask.rawValue || segmentModifiers == kShiftMask.rawValue {
+      if keycode == UInt32(XK_Left) || keycode == UInt32(XK_Right) {
+        return applyActionResponse(sendAction([
+          "op": "segment", "target": keycode == UInt32(XK_Left) ? "left" : "right"
+        ]))
+      }
+      if keycode == UInt32(XK_BackSpace), segmentModifiers == kControlMask.rawValue {
+        return applyActionResponse(sendAction(["op": "segment", "target": "backspace"]))
+      }
+    }
+
+    return nil
   }
 
   var acceptsHostSmartPunctuation: Bool { latestSnapshot?.localMode == "none" }

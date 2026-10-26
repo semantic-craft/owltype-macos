@@ -580,3 +580,9 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Regression: `testActivatedGenerationUsesItsOwnAuxiliaryResources`, `testProductionUpdatePreparesTheCompletePinnedCombination`, `testIncompleteGenerationCannotOmitAuxiliaryResources`, and `testGenerationSwitchRollbackColdStartAndJournalReplayKeepUserState` in `OwlRustEngineTests` cover actual sidecar candidates, official model scoring with unavailable bundle models, complete preparation, interrupted activation/retry, missing/corrupt sidecars, rollback, and learning replay in isolated roots.
 - Verify (验证点): run those focused Swift tests and `OwlRustResourceTransactionTests`; the synthetic candidate changes with the active generation and returns after rollback, while the learned candidate remains first. Future binary/model/config changes must advance the compatible package/configuration version together. No old-user migration is implied.
 - Seen on 1 distinct date: 2026-10-26.
+
+## Preserve lint failure status when reviewing merged source
+
+- Seen 1x (2026-10-26): T04 segment routing raised `OwlRustSession.process` complexity to22. The merger reported lint clean after searching `error:` even though the configured GitHub reporter writes `::error`; later shell commands also masked its failure status. T12 correctly surfaced the blocker.
+- Fix: extract the existing segment-chord route into a dedicated private helper, preserving active-composition/modifier guards and false-versus-not-applicable behavior. Run lint as its own command and inspect both exit status and reporter errors; do not infer success from a later command. No lint configuration was relaxed.
+- Verify: `swiftlint lint --quiet` exits0 with no `::error`; existing `testSegmentChordEditsPinyinRatherThanPassingToHost` and `testShuangpinSegmentEditingAndShoudaoSelection` still pass. This fixes the source gate, not installed IMK acceptance.
