@@ -183,7 +183,7 @@ final class OwlSettingsState {
   /// ` 临时英文（五笔前缀英文通道，mirror of `OwlKeyboardPreferences.wubiEnglishChannel`）。Default false（出厂关）.
   var keyboardWubiEnglishChannel: Bool = false
   /// 记住我常用的词·个性化 (mirror of `OwlKeyboardPreferences.wubiUserDictLearning`).
-  var keyboardWubiUserDictLearning: Bool = false
+  var keyboardWubiUserDictLearning: Bool = true
   /// 使用 Shift 切换中英文 (mirror of `OwlKeyboardPreferences.shiftSwitchCJK`).
   var keyboardShiftSwitchCJK: Bool = true
   /// 中文下中英标点切换 (mirror of `OwlKeyboardPreferences.cjkPunctToggle`).

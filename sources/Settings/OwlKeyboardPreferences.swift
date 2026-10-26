@@ -284,10 +284,10 @@ enum OwlKeyboardPreferences {
     set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiEnglishChannel") }
   }
 
-  /// 记住我常用的词（个性化）. Key `"OwlKeyboardWubiUserDictLearning"`, default `false`.
-  /// Rime mapping: `translator/enable_user_dict: true`（词频学习；userdb 由引擎自建自管，猫头鹰写入层不碰）.
+  /// 记住我常用的词（个性化）. Key `"OwlKeyboardWubiUserDictLearning"`, default `true` (native MSIME).
+  /// Rust learning and its shared journal own selection frequency, composed words and restart replay.
   static var wubiUserDictLearning: Bool {
-    get { boolValue("OwlKeyboardWubiUserDictLearning", default: false) }
+    get { boolValue("OwlKeyboardWubiUserDictLearning", default: true) }
     set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiUserDictLearning") }
   }
 

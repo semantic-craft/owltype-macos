@@ -229,3 +229,14 @@ retain the same strict fields as the Pinyin comparator. The native host holds a
 fifth-code selected word in the composition prefix while receiving the next code;
 it does not immediately commit that word to the client. Distinct Wubi code rows
 may display the same word and must retain their visible selection positions.
+
+Wubi learning replay uses `--trace tests/fixtures/wubi-parity/learning.json`.
+It selects and promotes a native row, deletes it, creates a new phrase through
+mixed Pinyin, finds that phrase by its derived Wubi code and deletes it. Restarts
+run in separate processes against the same isolated state roots. Schema events
+can explicitly project `wubi_profile` and `wubi_mixed_pinyin`, matching the Swift
+schema switch rather than retaining the initial reference options. Absent Wubi
+learning preferences follow the native enabled default; an explicit stored false
+continues to disable learning. No user dictionary reset or migration is involved. After a journal exists, native
+fixed-position processing keeps Wubi producer rows ahead of Pinyin rows, even
+when the decoder initially preferred exact Pinyin over Wubi prefix completions.
