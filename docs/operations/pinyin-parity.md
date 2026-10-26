@@ -16,16 +16,26 @@ bigram/trigram and sentence models. The manifest identifies dictionary release
 `dict-v2.0.24`, builder commit `128a332cabc5fa42b1cf5f827033ad5697ff528b` and
 custom dictionary commit `71dc6f6cc7a451231ee29c0a39b39adbf2e04d32`.
 
-Reference preferences come directly from `prepare_host` in an empty state root.
-No reference preference is overridden. In particular, sentence alternatives,
-mixed input, correction, learning, and model defaults stay enabled or disabled
-exactly as upstream chooses. The Owl test starts with empty test preferences and
-sets only the same page size (upstream default 6) and the full-pinyin schema.
-It writes its persisted preferences and effective rerank configuration alongside
-the complete reference host options. Rust EngineOptions do not have a public
-getter at this seam; their remaining defaults are source-bound by the build
-identity. Ordinary pinyin now uses pinned 0.55.0 engine/runtime and full official pinyin, English and context tables. Sentence alternatives are enabled, with desktop English prefix 5 / first-page count 1. Wubi retains its existing composition policy. Model switches default off on
-both endpoints.
+The default `native-mac-host` profile preserves `prepare_host` preferences and
+adds the three boolean capabilities requested by the pinned macOS
+`MSIMESessionOptions` (`platforms/macos/src/input/InputController.mm:6050-6070`):
+`phrase_preedit=true`, `korean_romaja=true`, and `quick_phrase_candidates=true`.
+These are host capabilities, not persisted preferences. The sound-pack and
+helpcode fallback paths in that function are resource locators; this pinyin
+replay uses the pinned complete resource set and does not test sounds/helpcode.
+`--reference-profile raw-host-api` reproduces the original bare API contract.
+Every evidence file names the profile, source commit, overrides and complete
+effective options; the comparator applies the same strict fields to both.
+
+The Owl test starts with empty isolated preferences and sets only the same page
+size (upstream default 6) and full-pinyin schema. It records persisted preferences
+and effective rerank configuration. Rust options remain source-bound by a fresh
+build. Ordinary pinyin uses pinned 0.55.0 engine/runtime and official resources;
+Wubi retains its existing composition policy. Native quick-phrase candidates are
+enabled without Owl's former blanket promotion. The earlier bare-API conclusion
+that ordinary quick phrases should be disabled was corrected from the macOS
+session-options source. Owl AI/template invocation is a separate host feature.
+Model switches default off on both.
 
 ## Run
 
@@ -105,9 +115,25 @@ effective configuration and learned state were not captured, so the screenshot
 order cannot be attributed to one of those causes. Its three sentence readings
 are present in this baseline, but its exact order is not reproduced. The oracle
 preserves the actual isolated default rather than editing it to match either
-the screenshot or Owltype. The default `tadefangjian` trace matches all candidate pages and the second-row commit. Two boundary-page event-consumption differences remain visible for the host-input ticket; the comparator still returns 1 for them.
+the screenshot or Owltype. The default `tadefangjian` trace now matches all 75 events, including all
+candidate pages, first/last-page consumption and the second-row commit. The
+boundary-page adapter must preserve the upstream `handled` result even when the
+page number stays unchanged; the key belongs to the composition and must not
+scroll the host document.
 
-Use `--trace tests/fixtures/pinyin-parity/full-pinyin.json` for the small sentence, segmentation-ambiguity and initial-letter corpus. Remaining mixed-emoji/default and Chinese-first host transforms remain observable and belong to the mixed-input alignment work. Auxiliary resources retain the audited emoji derivative because the upstream notice identifies an unresolved PiliApp redistribution permission; see the production resource notice. No equality waiver is applied.
+Use `--trace tests/fixtures/pinyin-parity/full-pinyin.json` for sentence,
+segmentation and initial-letter checks, `mixed-input.json` for mixed input, and
+`editing.json` for partial selection from a later page, continuation/backspace,
+raw commit, caret movement, forward delete, Esc and deletion to empty. The
+reference's native marked text joins `phrase_prefix` with `preedit`, as the macOS
+presenter does; original host views are preserved in `reference.raw_views`.
+`commit` means upstream `Command::CommitRaw` and sends Return through Owl's
+public key seam. Selection always uses each endpoint's current visible identity.
+The strict comparator has no field exclusions.
+
+Auxiliary resources retain the audited emoji derivative because the upstream
+notice identifies unresolved PiliApp redistribution permission; see the
+production resource notice.
 
 This seam does not prove IMK event delivery, installed-app rendering, installed
 resource activation, asynchronous pause-phase model behavior, or private

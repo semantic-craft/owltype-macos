@@ -212,6 +212,9 @@ final class OwlSettingsState {
   var keyboardCJKNumberSpacing: Bool = false
   /// 自动配对括号 (mirror of `OwlKeyboardPreferences.autoPairBrackets`). Default false（出厂关）.
   var keyboardAutoPairBrackets: Bool = false
+  var keyboardSmartPunctuation: Bool = true
+  var keyboardSmartPunctuationRepeat: Bool = true
+  var keyboardSmartPunctuationSpace: Bool = false
   /// 这些 App 默认英文 (mirror of `OwlKeyboardPreferences.appEnglishBundleIDs`).
   var keyboardAppEnglishBundleIDsText: String = ""
   /// 逐键候选重排 (mirror of `OwlExperimentalPreferences.keyboardRerankEnabled`). Default false.

@@ -70,13 +70,18 @@ class Reference:
             raise ValueError(f'{name} failed: {response}')
         return response['value']
 
-    def replay(self, resources, state, events):
+    def replay(self, resources, state, events, profile="native-mac-host"):
         request = json.dumps({'resources': str(resources), 'state_root': str(state)}).encode()
         options = self.call('prepare_host', [C.c_char_p, C.c_size_t], request, len(request))
-        # Preserve every upstream default, including sentence alternatives and mixed input.
+        # macOS requests these host capabilities after prepare_host; they are not
+        # persisted preferences. Keep raw-host-api available to reproduce old traces.
+        if profile == "native-mac-host":
+            options.update(phrase_preedit=True, korean_romaja=True, quick_phrase_candidates=True)
+        elif profile != "raw-host-api":
+            raise ValueError(f"unsupported reference profile: {profile}")
         request = json.dumps(options).encode()
         handle = self.call('create', [C.c_char_p, C.c_size_t], request, len(request))['session']
-        steps = []
+        steps, views = [], []
         try:
             self.call('focus', [C.c_uint64, C.c_bool], handle, True)
             for event in events:
@@ -96,9 +101,10 @@ class Reference:
                 else:
                     raise ValueError(f'unsupported event {event}')
                 view = response['view']
+                views.append(view)
                 candidates = view['candidates']
                 steps.append({'event': event, 'consumed': response['handled'],
-                              'input': view['editing_text'], 'preedit': view['preedit'],
+                              'input': view['editing_text'], 'preedit': view.get('phrase_prefix', '') + view['preedit'],
                               'caret': view['caret_position'], 'page': view['page'],
                               'page_size': view['page_size'],
                               'has_more': view['page'] + 1 < view['page_count'],
@@ -106,7 +112,7 @@ class Reference:
                               'candidates': [c['text'] for c in candidates], 'commit': response['commit']})
         finally:
             self.call('destroy', [C.c_uint64], handle)
-        return {'options': options, 'preferences': options['preferences'], 'steps': steps}
+        return {'options': options, 'preferences': options['preferences'], 'steps': steps, 'raw_views': views}
 
 
 def source_identity():
@@ -180,6 +186,8 @@ def main():
     parser.add_argument('--reference-resources', type=Path, required=True)
     parser.add_argument('--reference-build-receipt', type=Path,
                         help='build.json from build-pinyin-reference.py; omit for the pinned historical build')
+    parser.add_argument('--reference-profile', choices=('native-mac-host', 'raw-host-api'),
+                        default='native-mac-host', help='pinned macOS host capabilities or bare API defaults')
     parser.add_argument('--owl-resources', type=Path, default=ROOT / 'data/owl-rime')
     parser.add_argument('--xctestrun', type=Path, required=True)
     parser.add_argument('--trace', type=Path, default=ROOT / 'tests/fixtures/pinyin-parity/tadefangjian.json')
@@ -205,7 +213,7 @@ def main():
     events = json.loads(args.trace.read_text())['events']
     build = build_owl(args.xctestrun.resolve())
     with tempfile.TemporaryDirectory(prefix='owl-pinyin-parity-') as state:
-        reference = Reference(args.reference_library.resolve()).replay(args.reference_resources.resolve(), Path(state), events)
+        reference = Reference(args.reference_library.resolve()).replay(args.reference_resources.resolve(), Path(state), events, args.reference_profile)
         request = args.output.resolve() / 'owl-request.json'
         request.write_text(json.dumps({'run_id': str(uuid.uuid4()), 'events': events, 'resources': str(args.owl_resources.resolve()),
                                        'page_size': reference['preferences']['candidate_page_size']}))
@@ -218,7 +226,12 @@ def main():
     result = {'baseline': baseline, 'reference': reference, 'owl': owl,
               'differences': diff, 'equal': not diff,
               'owl_build': build,
-              'configuration_contract': {'reference': 'unmodified prepare_host defaults',
+              'configuration_contract': {'reference': args.reference_profile,
+                  'reference_host_capabilities': {
+                      'source': 'platforms/macos/src/input/InputController.mm:6050-6070 MSIMESessionOptions',
+                      'upstream_commit': baseline['upstream_commit'],
+                      'overrides': ({'phrase_preedit': True, 'korean_romaja': True, 'quick_phrase_candidates': True}
+                                    if args.reference_profile == 'native-mac-host' else {})},
                   'owl': 'empty isolated defaults, full pinyin schema, equal page size; other differences retained',
                   'forced_equal': ['schema=quanpin/rime_ice', 'page_size=6']},
               'trace_sha256': sha256(args.trace), 'owl_resources': {

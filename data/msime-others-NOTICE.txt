@@ -1,4 +1,4 @@
-Owltype derived emoji catalog notice
+Owltype derived emoji and kaomoji catalog notice
 
 Runtime file:
   msime-others.db
@@ -22,13 +22,14 @@ Release manifest:
 
 The release artifact is a multi-source database whose overall licensing is not
 asserted. Owltype does not redistribute that artifact. It copies only the
-following two tables into its runtime database:
+following four tables into its runtime database:
 
   emoji
   emoji_pinyin
+  kaomoji
+  kaomoji_catalog
 
-All other tables in the release artifact, including kaomoji, kaomoji_catalog
-and symbol_catalog, are excluded and are not part of Owltype's runtime file.
+All other tables in the release artifact, including symbol_catalog, are excluded and are not part of Owltype's runtime file.
 
 The pinned builder code reads the emoji inputs in the Emoji stage here:
 
@@ -83,3 +84,14 @@ Validation:
 
 This notice records provenance and licensing for the retained data. It does
 not grant rights beyond the terms supplied by each upstream source.
+
+Retained kaomoji data:
+  Source: https://github.com/aoguai/rime_kaomoji_dict
+  License: MIT, Copyright (c) 2023 aoguai. Full notice: rime-kaomoji.LICENSE.
+  The pinned upstream builder deduplicates keyword/text pairs, resolves pinyin
+  and initials, and preserves catalog order from resources/dictionary-sources/
+  kaomoji/kaomoji.txt. Runtime rows are copied unchanged from the pinned release.
+  kaomoji: 1675 rows; canonical row SHA-256
+  31ecdb996b3d5dcd30d350d779651685fbc0d9d83578d846ac16c241b89b506f
+  kaomoji_catalog: 1400 rows; canonical row SHA-256
+  149d3a2bea71d38cc5b4d853d5b889abac3c5deb1a098c518ffa42c63d36d15f

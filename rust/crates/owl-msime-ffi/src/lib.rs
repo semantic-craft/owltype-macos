@@ -28,6 +28,7 @@ use tempfile::TempDir;
 mod config;
 mod punctuation_menu;
 mod rerank;
+mod smart_punctuation;
 mod user_migration;
 
 use punctuation_menu::PunctuationMenu;
@@ -851,8 +852,8 @@ fn product_engine_options(
         local_date_time_inline: true,
         local_date_time_menu: true,
         local_quick_phrase: true,
-        local_emoji: false,
-        local_kaomoji: false,
+        local_emoji: true,
+        local_kaomoji: true,
         local_super_jianpin: true,
         local_temporary_english: true,
         local_temporary_japanese: false,
@@ -860,14 +861,15 @@ fn product_engine_options(
         local_command: false,
         local_mention: false,
         local_chaizi: false,
-        local_symbol: false,
+        local_symbol: true,
         local_shift_letter_entry: true,
         chaizi_traditional_output: false,
         command_table: Vec::new(),
         plugin_commands: Vec::new(),
         mention_entries: Vec::new(),
         quick_phrase_table: Vec::new(),
-        quick_phrase_candidates: false,
+        // MSIMESessionOptions enables these candidates in the native macOS host.
+        quick_phrase_candidates: true,
         quick_phrase_frequency: true,
         sentence_association: SentenceAssociationOptions::default(),
         rescoring_context: String::new(),
@@ -1511,7 +1513,7 @@ impl OwlMsimeSession {
                     Err(err) => error_response(err.to_string()),
                 }
             }
-            "backspace" => {
+            "backspace" | "delete" => {
                 if self.punctuation_menu.is_some() {
                     self.punctuation_menu = None;
                     return self.build_snapshot(self.runtime.view(), true, None, false);
@@ -1519,14 +1521,23 @@ impl OwlMsimeSession {
                 let before = self.runtime.view();
                 let caret = before.caret_position.min(before.editing_text.len());
                 let mut next_input = before.editing_text.clone();
-                let next_caret_at_end = if caret > 0 && caret <= next_input.len() {
+                let delete_forward = payload.op == "delete";
+                let next_caret_at_end = if delete_forward && caret < next_input.len() {
+                    next_input.remove(caret);
+                    before.phrase_prefix.is_empty() && caret == next_input.len()
+                } else if !delete_forward && caret > 0 && caret <= next_input.len() {
                     next_input.remove(caret - 1);
                     before.phrase_prefix.is_empty() && (caret - 1 == next_input.len())
                 } else {
                     false
                 };
                 self.sync_pinned_state_for_upcoming_input(next_input, next_caret_at_end);
-                match self.runtime.dispatch(Action::Command(Command::Backspace)) {
+                let command = if delete_forward {
+                    Command::DeleteForward
+                } else {
+                    Command::Backspace
+                };
+                match self.runtime.dispatch(Action::Command(command)) {
                     Ok(transition) => {
                         self.sync_pinned_state_from_view(&transition.view);
                         self.build_snapshot(
@@ -1780,7 +1791,6 @@ impl OwlMsimeSession {
                 if delta == 0 {
                     return self.build_snapshot(self.runtime.view(), false, None, false);
                 }
-                let before_page = self.runtime.view().page;
                 let steps = delta.unsigned_abs() as usize;
                 let mut last_transition = None;
                 for _ in 0..steps {
@@ -1795,10 +1805,7 @@ impl OwlMsimeSession {
                     }
                 }
                 match last_transition {
-                    Some(t) => {
-                        let moved = t.view.page != before_page;
-                        self.build_snapshot(t.view, t.handled && moved, t.commit, false)
-                    }
+                    Some(t) => self.build_snapshot(t.view, t.handled, t.commit, false),
                     None => self.build_snapshot(self.runtime.view(), false, None, false),
                 }
             }
@@ -2569,6 +2576,43 @@ pub extern "C" fn owl_msime_session_poll_settled_rerank_json(
     })
 }
 
+/// Stateless transport for the pinned host punctuation policy.
+#[no_mangle]
+pub extern "C" fn owl_msime_smart_punctuation_json(request: *const c_char) -> *mut c_char {
+    catch_unwind(AssertUnwindSafe(|| {
+        if request.is_null() {
+            return std::ptr::null_mut();
+        }
+        let Ok(request) = (unsafe { CStr::from_ptr(request) }).to_str() else {
+            return std::ptr::null_mut();
+        };
+        let Ok(request) = serde_json::from_str::<Value>(request) else {
+            return std::ptr::null_mut();
+        };
+        into_c_string_ptr(&smart_punctuation::dispatch(&request))
+    }))
+    .unwrap_or(std::ptr::null_mut())
+}
+
+/// Convert a JSON string using the pinned upstream OpenCC standard configuration.
+/// Returns an owned UTF-8 string, or null for invalid input/panic.
+#[no_mangle]
+pub extern "C" fn owl_msime_simplified_to_traditional_json(text: *const c_char) -> *mut c_char {
+    catch_unwind(AssertUnwindSafe(|| {
+        if text.is_null() {
+            return std::ptr::null_mut();
+        }
+        let Ok(text) = (unsafe { CStr::from_ptr(text) }).to_str() else {
+            return std::ptr::null_mut();
+        };
+        let Ok(text) = serde_json::from_str::<String>(text) else {
+            return std::ptr::null_mut();
+        };
+        into_c_string_ptr(&msime_client_core::chinese_conversion::simplified_to_traditional(&text))
+    }))
+    .unwrap_or(std::ptr::null_mut())
+}
+
 #[no_mangle]
 pub extern "C" fn owl_msime_string_free(ptr: *mut c_char) {
     let _ = catch_unwind(AssertUnwindSafe(|| {
@@ -2863,7 +2907,9 @@ mod tests {
         assert!(options.local_expression);
         assert!(options.mixed_emoji);
         assert!(options.mixed_symbols);
-        assert!(!options.local_emoji);
+        assert!(options.local_emoji);
+        assert!(options.local_kaomoji);
+        assert!(options.local_symbol);
     }
 
     #[test]
@@ -2893,7 +2939,7 @@ mod tests {
         assert!(!initial.candidates.iter().any(|row| row.text == "🍎"));
         let options = session_options(session);
         assert!(!options.mixed_emoji);
-        assert!(!options.local_emoji);
+        assert!(options.local_emoji);
 
         let enabled = call_action(
             session,
@@ -2903,7 +2949,7 @@ mod tests {
         assert_eq!(enabled.local_mode, "none");
         let options = session_options(session);
         assert!(options.mixed_emoji);
-        assert!(!options.local_emoji);
+        assert!(options.local_emoji);
 
         let repeated = call_action(
             session,
@@ -2922,7 +2968,7 @@ mod tests {
             .any(|row| row.text == "🍎"));
         let options = session_options(session);
         assert!(!options.mixed_emoji);
-        assert!(!options.local_emoji);
+        assert!(options.local_emoji);
 
         let enabled_by_alias = call_action(
             session,
@@ -2934,7 +2980,7 @@ mod tests {
             .any(|row| row.text == "🍎"));
         let options = session_options(session);
         assert!(options.mixed_emoji);
-        assert!(!options.local_emoji);
+        assert!(options.local_emoji);
 
         owl_msime_session_destroy(session);
     }
@@ -3729,7 +3775,6 @@ mod tests {
         assert!(options.mixed_english);
         assert_eq!(options.english_minimum_prefix, 5);
         assert_eq!(options.english_first_page_count, 1);
-        assert!(!options.quick_phrase_candidates);
         assert_eq!(options.first_page_rows, 5);
         assert!(!options.helpcode);
 
@@ -3754,10 +3799,9 @@ mod tests {
                 .map(|candidate| candidate.text.as_str())
                 .collect::<Vec<_>>()
         );
-        assert!(!frames[0]
-            .candidates
+        assert!(candidate_texts_across_pages(explicit)
             .iter()
-            .any(|row| row.text == "基础短语"));
+            .any(|text| text == "基础短语"));
 
         call_action(generated, r#"{"op":"clear"}"#);
         let host = call_action(
@@ -3768,11 +3812,10 @@ mod tests {
         call_action(generated, r#"{"op":"insert","ch":"n"}"#);
         call_action(generated, r#"{"op":"insert","ch":"i"}"#);
         assert!(
-            !call_snapshot(generated)
-                .candidates
+            candidate_texts_across_pages(generated)
                 .iter()
-                .any(|row| row.text == "主机短语"),
-            "fresh upstream defaults keep host phrases out of ordinary pinyin"
+                .any(|text| text == "主机短语"),
+            "macOS requests quick-phrase candidates without forcing them to the first row"
         );
         call_action(generated, r#"{"op":"clear"}"#);
         for ch in ['K', 'n', 'i'] {
