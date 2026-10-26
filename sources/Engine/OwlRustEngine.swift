@@ -1365,7 +1365,6 @@ final class OwlRustEngine: RimeEngine {
 
   fileprivate func loadPackedHostPhrases() -> String {
     let userRoot = userDataURL ?? OwlApp.userDir
-    let sharedRoot = sharedSupportURL ?? Bundle.main.sharedSupportURL
     let fileNames: [String]
     switch OwlTemplateStore.mode(rimeDir: userRoot) {
     case .unified:
@@ -1385,13 +1384,6 @@ final class OwlRustEngine: RimeEngine {
     for name in fileNames {
       let userFile = userRoot.appendingPathComponent(name)
       if let content = try? String(contentsOf: userFile, encoding: .utf8), !content.isEmpty {
-        lines.append(content)
-        continue
-      }
-      if name == "custom_phrase.txt",
-         let sharedFile = sharedRoot?.appendingPathComponent(name),
-         let content = try? String(contentsOf: sharedFile, encoding: .utf8),
-         !content.isEmpty {
         lines.append(content)
       }
     }

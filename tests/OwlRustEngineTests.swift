@@ -2242,23 +2242,25 @@ final class OwlRustEngineTests: XCTestCase {
     let session = engine.createSession()
     defer { session.destroy() }
 
-    // 1. Quick phrase `yx` -> `user@example.com` at top of page 0
+    // 1. Quick phrase `yx` -> `user@example.com` on page 0 (tail slot of first page per msime)
     for scalar in "yx".unicodeScalars {
       XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
     }
     let yxComp = try XCTUnwrap(session.composition())
-    XCTAssertEqual(yxComp.candidates.first?.text, "user@example.com")
-    XCTAssertTrue(session.selectCandidate(0))
+    XCTAssertNotEqual(yxComp.candidates.first?.text, "user@example.com")
+    let yxIndex = try XCTUnwrap(yxComp.candidates.firstIndex(where: { $0.text == "user@example.com" }))
+    XCTAssertTrue(session.selectCandidate(yxIndex))
     XCTAssertEqual(session.takeCommit(), "user@example.com")
     XCTAssertEqual(session.lastCommittedInput(), "yx")
 
-    // 2. Prompt `zb` -> `📝周报生成` at top of page 0
+    // 2. Prompt `zb` -> `📝周报生成` on page 0 (tail slot of first page per msime)
     for scalar in "zb".unicodeScalars {
       XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
     }
     let zbComp = try XCTUnwrap(session.composition())
-    XCTAssertEqual(zbComp.candidates.first?.text, "📝周报生成")
-    XCTAssertTrue(session.selectCandidate(0))
+    XCTAssertNotEqual(zbComp.candidates.first?.text, "📝周报生成")
+    let zbIndex = try XCTUnwrap(zbComp.candidates.firstIndex(where: { $0.text == "📝周报生成" }))
+    XCTAssertTrue(session.selectCandidate(zbIndex))
     XCTAssertEqual(session.takeCommit(), "📝周报生成")
     XCTAssertEqual(session.lastCommittedInput(), "zb")
 
@@ -2267,8 +2269,9 @@ final class OwlRustEngineTests: XCTestCase {
       XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
     }
     let cstComp = try XCTUnwrap(session.composition())
-    XCTAssertEqual(cstComp.candidates.first?.text, "共享短语")
-    XCTAssertTrue(session.selectCandidate(0))
+    XCTAssertNotEqual(cstComp.candidates.first?.text, "共享短语")
+    let cstIndex = try XCTUnwrap(cstComp.candidates.firstIndex(where: { $0.text == "共享短语" }))
+    XCTAssertTrue(session.selectCandidate(cstIndex))
     XCTAssertEqual(session.takeCommit(), "共享短语")
     XCTAssertEqual(session.lastCommittedInput(), "cst")
 
@@ -2340,13 +2343,13 @@ final class OwlRustEngineTests: XCTestCase {
     for scalar in "zb".unicodeScalars {
       XCTAssertTrue(restarted.process(keycode: scalar.value, modifiers: 0))
     }
-    XCTAssertEqual(try XCTUnwrap(restarted.composition()).candidates.first?.text, "📝周报生成")
+    XCTAssertTrue(try XCTUnwrap(restarted.composition()).candidates.contains(where: { $0.text == "📝周报生成" }))
     restarted.clearComposition()
 
     for scalar in "cst".unicodeScalars {
       XCTAssertTrue(restarted.process(keycode: scalar.value, modifiers: 0))
     }
-    XCTAssertEqual(try XCTUnwrap(restarted.composition()).candidates.first?.text, "共享短语")
+    XCTAssertTrue(try XCTUnwrap(restarted.composition()).candidates.contains(where: { $0.text == "共享短语" }))
   }
 
   func testUnifiedHostPhrasesIgnoreLegacyCatalogAndDropDeletedTemplates() throws {
@@ -2387,8 +2390,9 @@ final class OwlRustEngineTests: XCTestCase {
     }
     let ftComp = try XCTUnwrap(session.composition())
     let templatePrefix = "\(OwlTemplateStore.candidatePrefix)\(entry.id.uuidString)]"
-    XCTAssertTrue(ftComp.candidates.first?.text.hasPrefix(templatePrefix) == true)
-    XCTAssertTrue(session.selectCandidate(0))
+    let ftIndex = try XCTUnwrap(ftComp.candidates.firstIndex(where: { $0.text.hasPrefix(templatePrefix) }))
+    XCTAssertGreaterThan(ftIndex, 0)
+    XCTAssertTrue(session.selectCandidate(ftIndex))
     let committedTemplate = try XCTUnwrap(session.takeCommit())
     XCTAssertEqual(session.lastCommittedInput(), "ft")
     XCTAssertEqual(
@@ -2413,7 +2417,7 @@ final class OwlRustEngineTests: XCTestCase {
     for scalar in "cst".unicodeScalars {
       XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
     }
-    XCTAssertEqual(try XCTUnwrap(session.composition()).candidates.first?.text, "共享短语")
+    XCTAssertTrue(try XCTUnwrap(session.composition()).candidates.contains(where: { $0.text == "共享短语" }))
     session.clearComposition()
 
     // Deleting the committed record refreshes the projection without touching the seed table.
@@ -2454,7 +2458,9 @@ final class OwlRustEngineTests: XCTestCase {
     for scalar in "cst".unicodeScalars {
       XCTAssertTrue(emptySession.process(keycode: scalar.value, modifiers: 0))
     }
-    XCTAssertEqual(try XCTUnwrap(emptySession.composition()).candidates.first?.text, "共享短语")
+    let emptyComp = try XCTUnwrap(emptySession.composition())
+    XCTAssertNotEqual(emptyComp.candidates.first?.text, "共享短语")
+    XCTAssertTrue(emptyComp.candidates.contains(where: { $0.text == "共享短语" }))
 
     let unavailableDir = try makeHostPhraseUserDirectory()
     try writeHostPhrase(
@@ -2572,5 +2578,62 @@ final class OwlRustEngineTests: XCTestCase {
     let switched = try XCTUnwrap(session.composition())
     XCTAssertEqual(switched.candidates.filter { $0.text == templateText }.count, 1)
     XCTAssertNil(session.takeCommit())
+  }
+
+  func testWubiDoesNotLeakLegacyCustomPhraseOrUsurpFirstSlotForHostPhrases() throws {
+    let origCandidateMode = OwlKeyboardPreferences.wubiCandidateMode
+    defer { OwlKeyboardPreferences.wubiCandidateMode = origCandidateMode }
+    OwlKeyboardPreferences.wubiCandidateMode = .normal
+
+    let engine = try makeSharedSupportSeedEngine()
+    for schema in ["wubi86_jidian", "wubi86_jidian_pinyin"] {
+      XCTAssertTrue(engine.selectSchema(schema))
+      let session = engine.createSession()
+      defer { session.destroy() }
+
+      typeText("i", into: session)
+      let iComp = try XCTUnwrap(session.composition(), "schema: \(schema)")
+      XCTAssertEqual(iComp.candidates.first?.text, "不", "schema: \(schema)")
+      for leaked in ["一", "以", "已", "亦"] {
+        XCTAssertFalse(
+          iComp.candidates.contains(where: { $0.text == leaked }),
+          "schema \(schema) leaked \(leaked) into `i`: \(iComp.candidates.map(\.text))"
+        )
+      }
+      session.clearComposition()
+
+      typeText("go", into: session)
+      let goComp = try XCTUnwrap(session.composition(), "schema: \(schema)")
+      XCTAssertEqual(goComp.candidates.first?.text, "来", "schema: \(schema)")
+      XCTAssertFalse(
+        goComp.candidates.contains(where: { $0.text == "go" }),
+        "schema \(schema) leaked English `go` into `go`: \(goComp.candidates.map(\.text))"
+      )
+      session.clearComposition()
+    }
+
+    // Even when a user defines custom host phrases with codes `i` or `go`, Wubi's primary
+    // candidate remains at slot 0 and the unlearned host phrase sits at the first-page tail.
+    let userDir = try makeHostPhraseUserDirectory()
+    try writeHostPhrase(
+      "自定一\ti\t100000\n自定GO\tgo\t100000\n",
+      fileName: "custom_phrase.txt",
+      to: userDir
+    )
+    let customEngine = try makeHostPhraseEngine(userDataURL: userDir)
+    XCTAssertTrue(customEngine.selectSchema("wubi86_jidian"))
+    let customSession = customEngine.createSession()
+    defer { customSession.destroy() }
+
+    typeText("i", into: customSession)
+    let customIComp = try XCTUnwrap(customSession.composition())
+    XCTAssertEqual(customIComp.candidates.first?.text, "不")
+    XCTAssertEqual(customIComp.candidates.last?.text, "自定一")
+    customSession.clearComposition()
+
+    typeText("go", into: customSession)
+    let customGoComp = try XCTUnwrap(customSession.composition())
+    XCTAssertEqual(customGoComp.candidates.first?.text, "来")
+    XCTAssertEqual(customGoComp.candidates.last?.text, "自定GO")
   }
 }

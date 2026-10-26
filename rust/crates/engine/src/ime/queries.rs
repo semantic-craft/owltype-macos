@@ -467,7 +467,14 @@ pub(crate) fn default_quick_phrase_slot(
         return None;
     }
     let seats = phrases.min(page / 2).max(1);
-    Some(page.saturating_sub(seats).max(1))
+    let target_index = page.saturating_sub(seats).max(1).min(candidates.len());
+    Some(
+        candidates[..target_index]
+            .iter()
+            .filter(|item| counts_toward_quick_phrase_slot(item))
+            .count()
+            .max(1),
+    )
 }
 
 /// 槽位计数的普通候选（`counts_toward_quick_phrase_slot`，quick_phrase_query.cpp:123-143）：固定位置的行、快捷短语自己和混输/在线/插件/联系人行都不算。
@@ -489,6 +496,7 @@ pub(crate) fn counts_toward_quick_phrase_slot(item: &WordItem) -> bool {
             | CandidateSource::Multilingual
             | CandidateSource::Plugin
             | CandidateSource::Contact
+            | CandidateSource::Fallback
     )
 }
 
