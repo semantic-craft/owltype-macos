@@ -8,7 +8,43 @@
     },
     {
       "op": "command",
-      "value": "cancel"
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "previous-page"
+    },
+    {
+      "op": "select",
+      "index": 0
     },
     {
       "op": "character",

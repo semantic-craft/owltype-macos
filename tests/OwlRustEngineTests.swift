@@ -100,6 +100,12 @@ final class OwlRustEngineTests: XCTestCase {
       "steps": steps,
       "preferences": defaults.persistentDomain(forName: OwlDefaults.testSuiteName) ?? [:],
       "configuration": ["schema": schema, "page_size": OwlKeyboardPreferences.pageSize,
+                        "wubi_code_hint": OwlKeyboardPreferences.wubiCodeHint,
+                        "wubi_auto_clear": OwlKeyboardPreferences.wubiAutoClear,
+                        "wubi_candidate_mode": OwlKeyboardPreferences.wubiCandidateMode.rawValue,
+                        "wubi_z_reverse_lookup": OwlKeyboardPreferences.wubiZReverseLookup,
+                        "wubi_english_channel": OwlKeyboardPreferences.wubiEnglishChannel,
+                        "wubi_user_dict_learning": OwlKeyboardPreferences.wubiUserDictLearning,
                         "rerank": OwlRerankConfiguration.current(sharedSupportURL: resources).serialized() ?? ""]
     ]
     try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
