@@ -266,6 +266,8 @@ struct ActionPayload {
     #[serde(default)]
     scheme: Option<String>,
     #[serde(default)]
+    profile: Option<String>,
+    #[serde(default)]
     custom_profile: Option<ShuangpinCustomTableDto>,
     #[serde(default)]
     page_size: Option<u32>,
@@ -2167,6 +2169,25 @@ impl OwlMsimeSession {
                 self.input_mode = mode;
                 if let Err(err) = self.rebuild_engine_if_needed() {
                     return error_response(err);
+                }
+                self.build_snapshot(self.runtime.view(), true, None, false)
+            }
+            "set_wubi_profile" => {
+                let Some(profile) = payload
+                    .profile
+                    .as_deref()
+                    .and_then(WubiProfileKind::from_name)
+                else {
+                    return error_response("set_wubi_profile requires wubi86 or wubi98 profile");
+                };
+                let previous = self.options.wubi_profile;
+                if previous != profile as u8 {
+                    self.options.wubi_profile = profile as u8;
+                    if let Err(error) = self.force_rebuild_engine() {
+                        self.options.wubi_profile = previous;
+                        let _ = self.force_rebuild_engine();
+                        return error_response(error);
+                    }
                 }
                 self.build_snapshot(self.runtime.view(), true, None, false)
             }
