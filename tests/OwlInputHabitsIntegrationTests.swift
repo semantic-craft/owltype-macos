@@ -7,6 +7,55 @@ import XCTest
 /// The IMK IPC transport and TIS source detection are the only substituted boundaries.
 final class OwlInputHabitsIntegrationTests: XCTestCase {
   @MainActor
+  func testCandidateDeletionUsesPhysicalChordAndRejectsOldMenuToken() throws {
+    let shared = try XCTUnwrap(Bundle.main.sharedSupportURL)
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("owl-delete-\(UUID())")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let engine = OwlRustEngine(sharedSupportURL: shared, userDataURL: root,
+                               activeGenerationProvider: { nil })
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    controller.destroySession()
+    controller.rime = engine.createSession()
+    let client = HabitsTextClient()
+    controller.client = client
+    defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
+    let session = try XCTUnwrap(controller.rime)
+    XCTAssertTrue(session.selectSchema("rime_ice"))
+    for ch in "nihao".unicodeScalars { XCTAssertTrue(session.process(keycode: ch.value, modifiers: 0)) }
+    let before = try XCTUnwrap(session.composition())
+    let index = try XCTUnwrap(before.candidates.firstIndex { $0.text == "你好吗" })
+    let token = OwlCandidateToken(sessionID: session.sessionID, generation: session.generation,
+                                  candidateID: index)
+    session.clearComposition()
+    for ch in "nihao".unicodeScalars { XCTAssertTrue(session.process(keycode: ch.value, modifiers: 0)) }
+    XCTAssertFalse(controller.removeCandidate(token), "An old context menu cannot delete a new row")
+    XCTAssertTrue(session.composition()?.candidates.contains { $0.text == "你好吗" } == true)
+    let codes: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28]
+    let current = try XCTUnwrap(session.composition()?.candidates.firstIndex { $0.text == "你好吗" })
+    // Deliberately layout-dependent text: deletion must use the physical key code.
+    XCTAssertTrue(controller.handle(try key("$", code: codes[current],
+      flags: [.control, .option, .shift]), client: client))
+    XCTAssertFalse(session.composition()?.candidates.contains { $0.text == "你好吗" } == true)
+    XCTAssertNil(session.takeCommit())
+    XCTAssertTrue(controller.handle(try key("\u{1b}", code: 53), client: client))
+    XCTAssertEqual(client.text.string, "", "Cancel clears only marked text; deletion must not commit the chord")
+    controller.destroySession()
+    XCTAssertTrue(engine.finalize())
+    controller.rime = engine.createSession()
+    let reopened = try XCTUnwrap(controller.rime)
+    XCTAssertTrue(reopened.selectSchema("rime_ice"))
+    for ch in "nihao".unicodeScalars { XCTAssertTrue(reopened.process(keycode: ch.value, modifiers: 0)) }
+    XCTAssertFalse(reopened.composition()?.candidates.contains { $0.text == "你好吗" } == true)
+    controller.rimeUpdate()
+    let menuIndex = try XCTUnwrap(reopened.composition()?.candidates.firstIndex { $0.text == "你好啊" })
+    let menuToken = OwlCandidateToken(sessionID: reopened.sessionID, generation: reopened.generation,
+                                      candidateID: menuIndex)
+    let menuAction = try XCTUnwrap(NSApp.owlAppDelegate.owlPanel?.onRemove)
+    menuAction(menuToken)
+    XCTAssertFalse(reopened.composition()?.candidates.contains { $0.text == "你好啊" } == true)
+  }
+
+  @MainActor
   func testSmartPunctuationUsesHostContextAndRepeatCorrection() throws {
     let shared = try XCTUnwrap(Bundle.main.sharedSupportURL)
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("owl-smart-punct-\(UUID())")

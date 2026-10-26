@@ -1857,7 +1857,12 @@ impl OwlMsimeSession {
                 match self.runtime.dispatch(Action::RemoveCandidate(candidate.id)) {
                     Ok(transition) => {
                         self.sync_pinned_state_from_view(&transition.view);
-                        self.build_snapshot(transition.view, transition.handled, transition.commit, false)
+                        self.build_snapshot(
+                            transition.view,
+                            transition.handled,
+                            transition.commit,
+                            false,
+                        )
                     }
                     Err(_) => self.build_snapshot(self.runtime.view(), false, None, false),
                 }
@@ -3956,14 +3961,25 @@ mod tests {
             call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
         }
         let before = call_snapshot(session);
-        let index = before.candidates.iter().position(|c| c.text == "你号").unwrap();
+        let index = before
+            .candidates
+            .iter()
+            .position(|c| c.text == "你号")
+            .unwrap();
         let generation = before.generation;
-        let stale = call_action(session, &format!(
-            r#"{{"op":"remove_token","index":{index},"generation":{}}}"#, generation.wrapping_add(1)));
+        let stale = call_action(
+            session,
+            &format!(
+                r#"{{"op":"remove_token","index":{index},"generation":{}}}"#,
+                generation.wrapping_add(1)
+            ),
+        );
         assert!(!stale.consumed);
         assert!(stale.candidates.iter().any(|c| c.text == "你号"));
-        let removed = call_action(session, &format!(
-            r#"{{"op":"remove_token","index":{index},"generation":{generation}}}"#));
+        let removed = call_action(
+            session,
+            &format!(r#"{{"op":"remove_token","index":{index},"generation":{generation}}}"#),
+        );
         assert!(removed.ok, "{:?}", removed.error);
         assert!(removed.consumed);
         assert!(!removed.candidates.iter().any(|c| c.text == "你号"));
@@ -3974,7 +3990,10 @@ mod tests {
         for ch in ['n', 'i', 'h', 'a', 'o'] {
             call_action(reopened, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
         }
-        assert!(!call_snapshot(reopened).candidates.iter().any(|c| c.text == "你号"));
+        assert!(!call_snapshot(reopened)
+            .candidates
+            .iter()
+            .any(|c| c.text == "你号"));
         owl_msime_session_destroy(reopened);
     }
 

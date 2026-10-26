@@ -218,10 +218,9 @@ extension RimeSession {
     .doneWithoutChange
   }
 
-  func selectCandidate(_ token: OwlCandidateToken) -> Bool
+  func removeCandidate(_: OwlCandidateToken) -> Bool { false }
 
-  /// Remove a currently visible candidate through the engine learning journal.
-  func removeCandidate(_ token: OwlCandidateToken) -> Bool {
+  func selectCandidate(_ token: OwlCandidateToken) -> Bool {
     if token.sessionID != 0 && token.sessionID != sessionID {
       return false
     }

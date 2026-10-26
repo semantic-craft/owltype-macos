@@ -573,6 +573,7 @@ extension OwlInputController {
       guard let self, self.rime?.sessionID == pinSession, self.rime?.input() == pinInput else { return }
       self.togglePinnedWord(text: text)
     }
+    owlPanel.onRemove = { [weak self] token in _ = self?.removeCandidate(token) }
     owlPanel.onSelect = { [weak self] index in self?.selectPanelIndex(index) }
     owlPanel.onPage = { [weak self] up in _ = self?.page(up: up) }
     owlPanel.onSelectAbsolute = { [weak self] index in _ = self?.selectCandidateAbsolute(index) }

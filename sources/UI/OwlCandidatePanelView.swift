@@ -55,6 +55,7 @@ struct OwlCandidatePanelView: View {
   var onToggleExpand: (() -> Void)? = nil
   var canPin: ((String) -> Bool)? = nil
   var onPin: ((String) -> Void)? = nil
+  var onRemove: ((OwlCandidateToken) -> Void)? = nil
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -191,6 +192,9 @@ struct OwlCandidatePanelView: View {
   @ViewBuilder private func pinMenu(_ candidate: CandidateViewModel) -> some View {
     if canPin?(candidate.text) == true {
       Button(candidate.comment == "置顶" ? "取消置顶" : "置顶此候选") { onPin?(candidate.text) }
+    }
+    if !candidate.token.isAbsolute, candidate.text.unicodeScalars.count > 1 {
+      Button("删除候选", role: .destructive) { onRemove?(candidate.token) }
     }
   }
 

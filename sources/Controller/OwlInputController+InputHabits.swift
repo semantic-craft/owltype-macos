@@ -25,6 +25,30 @@ extension OwlInputController {
       candidate: text, traditional: currentTraditionalOutputEnabled(), caret: rime.caretPos())
   }
 
+  /// Pinned macOS MSIME reserves Ctrl-Option-Shift + physical number row 1...8.
+  func handleCandidateDeletionHotKey(_ event: NSEvent) -> Bool {
+    let flags = event.modifierFlags.intersection([.control, .option, .shift, .command])
+    let codes: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28]
+    guard flags == [.control, .option, .shift],
+          let index = codes.firstIndex(of: event.keyCode),
+          let rime, let composition = rime.composition(),
+          !composition.candidates.isEmpty else { return false }
+    if !event.isARepeat, composition.candidates.indices.contains(index) {
+      _ = removeCandidate(OwlCandidateToken(sessionID: rime.sessionID,
+        generation: rime.generation, candidateID: index))
+    }
+    return true
+  }
+
+  @discardableResult
+  func removeCandidate(_ token: OwlCandidateToken) -> Bool {
+    guard let rime else { return false }
+    invalidateSettledRerankForAction()
+    let removed = rime.removeCandidate(token)
+    if removed { rimeUpdate() }
+    return removed
+  }
+
   func handlePinHotKey(_ event: NSEvent) -> Bool {
     let flags = event.modifierFlags.intersection([.control, .option, .shift, .command])
     guard flags.rawValue.nonzeroBitCount >= 2, !OwlHotKeyEventTap.isSuppressed,
