@@ -210,7 +210,7 @@ struct OwlPromptPage: View {
           }
           if !codeDraft.trimmingCharacters(in: .whitespaces).isEmpty {
             // 动态用法提示：拿用户自己的码和标题现身说法，同时给五笔用户指面板热键那条路。
-            Text("拼音模式下打出「\(codeDraft.trimmingCharacters(in: .whitespaces))」，候选条出现「📝\(titleDraft.isEmpty ? "标题" : titleDraft)」，选中即插入正文并填空。任意输入方案（含五笔）也可按快捷短语面板热键，切到「提示词」页选用。")
+            Text("输入大写 K 后接触发码「\(codeDraft.trimmingCharacters(in: .whitespaces))」，候选条出现「📝\(titleDraft.isEmpty ? "标题" : titleDraft)」，选中即插入正文并填空。任意输入方案（含五笔）也可按快捷短语面板热键，切到「提示词」页选用。")
               .font(.system(size: 11.5))
               .foregroundStyle(palette.ink3)
               .fixedSize(horizontal: false, vertical: true)

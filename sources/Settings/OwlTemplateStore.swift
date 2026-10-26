@@ -287,7 +287,9 @@ enum OwlTemplateStore {
 
   /// A stale title/code/ID must not resolve to a different or edited record.
   static func resolveCandidate(code: String?, text: String, loadLibrary: () throws -> OwlTemplateLibrary) -> OwlTemplateEntry? {
-    guard let id = candidateID(text), let code else { return nil }
+    guard let id = candidateID(text), let rawCode = code else { return nil }
+    // Native K mode adds a mode prefix; stored trigger codes and user content stay unchanged.
+    let code = rawCode.hasPrefix("K") ? String(rawCode.dropFirst()) : rawCode
     guard let library = try? loadLibrary() else { return nil }
     return library.entries.first {
       $0.id == id && !$0.isPendingReview && $0.invocationMode == .candidate && ($0.trigger == code || $0.candidateAliases.contains(code)) && candidateText($0) == text
