@@ -1,0 +1,59 @@
+{
+ "name": "bridge_cloud_query_manual_segmentation",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "qi'e'huan",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "qi'e'huan",
+    "raw_segmentation": "qi'e'huan",
+    "normalized_segmentation": "qi'e'huan",
+    "editing_text": "qi'e'huan",
+    "caret": 9,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     3,
+     5,
+     9
+    ],
+    "candidate_count": 0,
+    "candidates": [],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "qi'e'huan",
+     "cache_key": "qi'e'huan",
+     "pinyin_segments": [
+      "qi",
+      "e",
+      "huan"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  }
+ ]
+}

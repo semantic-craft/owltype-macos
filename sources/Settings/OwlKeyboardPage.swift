@@ -1031,6 +1031,14 @@ struct OwlKeyboardPage: View {
             NSApp.owlAppDelegate.applyEmojiSuggestionToLiveSession(state.candidateEmojiEnabled)
           }
         )
+        SettingsToggleRow(
+          title: "拼音候选中显示快捷短语", isOn: state.pinyinQuickPhraseCandidates,
+          palette: palette, onToggle: {
+            OwlSettingsActions.toggle(state: state, keyPath: \.pinyinQuickPhraseCandidates) {
+              OwlKeyboardPreferences.pinyinQuickPhraseCandidates = $0
+            }
+          }
+        )
         Text("打开后，打字时 emoji 会作为候选出现（如 weixiao → 微笑 😊）。默认关闭；也可用 ⌃⇧E 或输入法菜单临时切换。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
@@ -1056,6 +1064,7 @@ struct OwlKeyboardPage: View {
           onToggle: { toggleCJKAlnumSpacing() }
         )
         SettingsCardDivider(palette: palette)
+        smartPunctuationRows
         // 07-21 机主拍板改名：配对表早已不限于括号（含引号 + ASCII），名称与最初需求「成对输入」对齐。
         // 注释必须在 SettingsToggleRow( 之外——覆盖清单的提取正则不容 `(` 与 `title:` 之间有注释行。
         SettingsToggleRow(
@@ -1064,7 +1073,7 @@ struct OwlKeyboardPage: View {
           palette: palette,
           onToggle: { toggleAutoPairBrackets() }
         )
-        Text("输入下列开符号自动补全成对：（） 【】 《》 〈〉 「」 『』 〔〕 “” ‘’ <> () [] {}。标准文本应用中光标停在符号中间，其余应用光标在符号后。")
+        Text("拼音输入括号或引号时补全闭合符，闭合符随当前组合一起提交。五笔保留原有配对方式。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .frame(maxWidth: .infinity, alignment: .leading)

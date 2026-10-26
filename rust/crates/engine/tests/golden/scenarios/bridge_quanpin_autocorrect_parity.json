@@ -1,0 +1,79 @@
+{
+ "name": "bridge_quanpin_autocorrect_parity",
+ "source": "92d382bac:crates/engine-bridge/src/dictionary_stage/tests.rs:315-375",
+ "covers": [
+  "autocorrect"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-pinyin.db": "CREATE TABLE tbl_2_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',100),('ni''hao','nh','拟好',80);CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);CREATE TABLE quick_parases(key TEXT,value TEXT,weight INTEGER);CREATE INDEX idx_quick_parases_key_weight ON quick_parases(key,weight DESC);CREATE TABLE tbl_1_g(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_g VALUES('gua','g','挂',10),('gai','g','该',1000);CREATE TABLE tbl_1_s(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_s VALUES('shang','s','上',100);CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_n VALUES('nve','n','虐',100);CREATE TABLE tbl_2_h(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_2_h VALUES('hua''zhong','hz','华中',100);",
+   "msime-english.db": "CREATE TABLE english_words(word TEXT COLLATE BINARY NOT NULL,display TEXT NOT NULL,weight INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(word,display)) WITHOUT ROWID;CREATE TABLE en_zh_glosses(english TEXT COLLATE BINARY PRIMARY KEY,chinese_gloss TEXT NOT NULL) WITHOUT ROWID;CREATE TABLE zh_en_glosses(chinese TEXT COLLATE BINARY PRIMARY KEY,english_gloss TEXT NOT NULL) WITHOUT ROWID;PRAGMA user_version=3;"
+  }
+ },
+ "options": {
+  "learning": false,
+  "autocorrect_types": 3,
+  "helpcode": false,
+  "helpcode_schema": "ziranma",
+  "frequency": {
+   "mode": "promote",
+   "trigger_count": 1,
+   "linear_step": 1
+  },
+  "english": {
+   "mixed_candidates": true,
+   "minimum_prefix": 5
+  },
+  "sentence_alternatives": true
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "gau"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "hauzh"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "shng"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "sshang"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "nue"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "nve"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  }
+ ]
+}

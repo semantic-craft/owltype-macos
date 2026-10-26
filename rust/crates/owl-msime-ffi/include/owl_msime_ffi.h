@@ -8,6 +8,17 @@
 extern "C" {
 #endif
 
+/* Pinned upstream OpenCC s2t JSON-string input/output. Free with owl_msime_string_free.
+ * NULL input or invalid UTF-8 returns NULL. Does not access user state. */
+char *owl_msime_simplified_to_traditional_json(const char *text);
+
+/* Host punctuation policy JSON transport; free with owl_msime_string_free. */
+char *owl_msime_smart_punctuation_json(const char *request);
+
+/* Opaque, non-recycled token. Never dereference it. Session operations and
+ * destruction must run on the creating thread. Foreign-thread calls fail closed;
+ * stale calls/destroy cannot target a later session, even after allocator reuse.
+ */
 typedef struct OwlMsimeSession OwlMsimeSession;
 typedef struct OwlMsimeConfig OwlMsimeConfig;
 

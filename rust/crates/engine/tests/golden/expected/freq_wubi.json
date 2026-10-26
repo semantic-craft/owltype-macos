@@ -1,0 +1,165 @@
+{
+ "name": "freq_wubi",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "aaaa",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "aaaa",
+    "raw_segmentation": "aaaa",
+    "normalized_segmentation": "aaaa",
+    "editing_text": "aaaa",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "工",
+      "pinyin": "aaaa",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 100,
+      "answers_key": true
+     },
+     {
+      "word": "或",
+      "pinyin": "aaaa",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 50,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "或"
+   },
+   "result": {
+    "handled": true,
+    "commit": "或"
+   },
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "reopen",
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "aaaa",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "aaaa",
+    "raw_segmentation": "aaaa",
+    "normalized_segmentation": "aaaa",
+    "editing_text": "aaaa",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "或",
+      "pinyin": "aaaa",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 600,
+      "answers_key": true
+     },
+     {
+      "word": "工",
+      "pinyin": "aaaa",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 100,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "dump_journal",
+   "journal": {
+    "user_dictionary_operations": {
+     "columns": [
+      "dictionary",
+      "key",
+      "value",
+      "operation",
+      "weight",
+      "display",
+      "user_inserted"
+     ],
+     "rows": [
+      [
+       "wubi",
+       "aaaa",
+       "或",
+       "upsert",
+       600,
+       "",
+       0
+      ]
+     ]
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,98 @@
+{
+ "name": "personal_context_halve_leader",
+ "source": "tests/src/test_personal_context_input_session.cpp:136-149; case :591-608",
+ "note": "The ctest trains the context with frequency Disabled and only the final Session uses Halve; one scenario has one set of options, so the training commits here also run under Halve (寅 is picked at index 2 and halving applies), which changes the weights the ctest checks at :600-603.",
+ "covers": [
+  "personal context",
+  "learning"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-pinyin.db": "BEGIN;CREATE TABLE tbl_1_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);INSERT INTO tbl_1_n VALUES('ni','n','甲',100),('ni','n','乙',90),('ni','n','丙',80);CREATE TABLE tbl_1_h(key TEXT, jp TEXT, value TEXT, weight INTEGER);INSERT INTO tbl_1_h VALUES('hao','h','子',100),('hao','h','丑',90),('hao','h','寅',80);CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',1000);COMMIT;"
+  }
+ },
+ "options": {
+  "frequency": {
+   "mode": "halve"
+  }
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "ni"
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "甲"
+   }
+  },
+  {
+   "op": "type",
+   "arg": "hao"
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "寅"
+   }
+  },
+  {
+   "op": "reopen"
+  },
+  {
+   "op": "dump_journal"
+  },
+  {
+   "op": "type",
+   "arg": "ni"
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "甲"
+   }
+  },
+  {
+   "op": "type",
+   "arg": "hao"
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "寅"
+   }
+  },
+  {
+   "op": "reopen"
+  },
+  {
+   "op": "type",
+   "arg": "ni"
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "甲"
+   }
+  },
+  {
+   "op": "type",
+   "arg": "hao"
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "子"
+   }
+  },
+  {
+   "op": "query",
+   "db": "msime-pinyin.db",
+   "arg": "SELECT key,value,weight FROM tbl_1_h ORDER BY 1,2"
+  },
+  {
+   "op": "dump_journal"
+  }
+ ]
+}

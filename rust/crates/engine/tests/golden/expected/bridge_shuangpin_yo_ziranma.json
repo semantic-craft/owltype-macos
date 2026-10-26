@@ -1,0 +1,55 @@
+{
+ "name": "bridge_shuangpin_yo_ziranma",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "ziranma",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "yo",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "yo",
+    "raw_segmentation": "yo",
+    "normalized_segmentation": "yo",
+    "editing_text": "yo",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "ziranma",
+    "segment_boundaries": [
+     0,
+     2
+    ],
+    "candidate_count": 0,
+    "candidates": [],
+    "online_query": {
+     "scheme": "shuangpin",
+     "query_text": "yo",
+     "cache_key": "yo",
+     "pinyin_segments": [
+      "yo"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  }
+ ]
+}

@@ -307,6 +307,203 @@ struct Fixture {
     directory: tempfile::TempDir,
 }
 
+fn prediction_fixture() -> Fixture {
+    Fixture::new(
+        "CREATE TABLE tbl_1_c(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+INSERT INTO tbl_1_c VALUES('chi','c','吃',1000);
+CREATE TABLE tbl_2_c(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+INSERT INTO tbl_2_c VALUES('chi''fan','cf','吃饭',100);
+CREATE TABLE tbl_3_c(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+INSERT INTO tbl_3_c VALUES('chi''dong''xi','cdx','吃东西',80);
+INSERT INTO tbl_3_c VALUES('chi''fan''cai','cfc','吃饭菜',60);
+CREATE TABLE tbl_1_f(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+INSERT INTO tbl_1_f VALUES('fan','f','饭',1000);
+CREATE TABLE tbl_2_f(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+INSERT INTO tbl_2_f VALUES('fan''hou','fh','饭后',50);
+CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+INSERT INTO tbl_1_n VALUES('ni','n','你',1000);",
+    )
+}
+
+#[test]
+fn next_word_prediction_is_opt_in_and_has_no_composing_text() {
+    let fixture = prediction_fixture();
+    let mut off = fixture.session_with(|options| options.learning = false);
+    type_text(&mut off, "chi");
+    assert_eq!(select_word(&mut off, "吃").commit.as_deref(), Some("吃"));
+    assert!(off.snapshot().candidates.is_empty());
+    let mut on = fixture.session_with(|options| {
+        options.next_word_prediction = true;
+        options.learning = false;
+    });
+    type_text(&mut on, "chi");
+    assert_eq!(select_word(&mut on, "吃").commit.as_deref(), Some("吃"));
+    let snapshot = on.snapshot();
+    assert!(snapshot.prediction);
+    assert!(snapshot.preedit.is_empty() && snapshot.editing_text.is_empty());
+    assert!(snapshot.candidates.iter().any(|row| row.word == "饭"));
+    assert!(snapshot.candidates.iter().any(|row| row.word == "东西"));
+    assert!(snapshot.candidates.iter().all(|row| row.pinyin.is_empty()));
+    assert_eq!(select_word(&mut on, "饭").commit.as_deref(), Some("饭"));
+    assert!(on.snapshot().candidates.iter().any(|row| row.word == "菜"));
+}
+
+#[test]
+fn next_word_prediction_never_commits_on_space_return_delete_or_finish() {
+    let fixture = prediction_fixture();
+    for command in [
+        Command::CommitCandidate,
+        Command::CommitRaw,
+        Command::Backspace,
+        Command::DeleteForward,
+    ] {
+        let mut session = fixture.session_with(|options| options.next_word_prediction = true);
+        type_text(&mut session, "chi");
+        select_word(&mut session, "吃");
+        let result = session.command(command);
+        assert!(!result.handled && result.commit.is_none(), "{command:?}");
+        assert!(!session.snapshot().prediction);
+    }
+    let mut session = fixture.session_with(|options| options.next_word_prediction = true);
+    type_text(&mut session, "chi");
+    select_word(&mut session, "吃");
+    assert!(session.finish(0).commit.is_none());
+    assert!(session.snapshot().candidates.is_empty());
+}
+
+#[test]
+fn next_word_prediction_clears_for_new_input_layout_mode_and_external_context() {
+    let fixture = prediction_fixture();
+    for action in 0..6 {
+        let mut session = fixture.session_with(|options| options.next_word_prediction = true);
+        type_text(&mut session, "chi");
+        select_word(&mut session, "吃");
+        match action {
+            0 => {
+                assert!(!session.character(b'1', false).handled);
+            }
+            1 => {
+                session.character(b'n', false);
+            }
+            2 => session.set_key_grid(Some(KeyGrid::NineKey)),
+            3 => session.set_dedicated_english(true),
+            4 => session.reset_context(),
+            _ => {
+                session.punctuation(b',');
+            }
+        }
+        assert!(!session.snapshot().prediction);
+    }
+}
+
+#[test]
+fn next_word_prediction_works_after_shuangpin_and_nine_key_selection() {
+    let fixture = prediction_fixture();
+    for grid in [false, true] {
+        let mut session = fixture.session_with(|options| {
+            options.next_word_prediction = true;
+            if !grid {
+                options.scheme = SchemeType::Shuangpin;
+            }
+        });
+        if grid {
+            session.set_nine_key_enabled(true);
+        }
+        type_text(&mut session, if grid { "244" } else { "ii" });
+        select_word(&mut session, "吃");
+        assert!(session.snapshot().prediction);
+        assert!(session
+            .snapshot()
+            .candidates
+            .iter()
+            .any(|row| row.word == "饭"));
+    }
+}
+
+#[test]
+fn next_word_prediction_works_after_letter_grid_selection() {
+    let fixture = prediction_fixture();
+    for grid in [KeyGrid::FourteenKey, KeyGrid::EighteenKey] {
+        let mut session = fixture.session_with(|options| options.next_word_prediction = true);
+        session.set_key_grid(Some(grid));
+        for value in b"chi" {
+            assert!(session.grid_key(*value).handled);
+        }
+        assert_eq!(
+            select_word(&mut session, "吃").commit.as_deref(),
+            Some("吃")
+        );
+        assert!(session.snapshot().prediction);
+        assert!(session.snapshot_for_host(false).prediction);
+        assert_eq!(
+            select_word(&mut session, "饭").commit.as_deref(),
+            Some("饭")
+        );
+    }
+}
+
+#[test]
+fn next_word_prediction_clears_on_direct_candidate_key_and_conversion_navigation() {
+    let fixture = prediction_fixture();
+    for conversion in [false, true] {
+        let mut session = fixture.session_with(|options| options.next_word_prediction = true);
+        type_text(&mut session, "chi");
+        select_word(&mut session, "吃");
+        let result = if conversion {
+            session.conversion_left_from(0)
+        } else {
+            session.candidate_key(b'1')
+        };
+        assert!(!result.handled && result.commit.is_none());
+        assert!(!session.snapshot().prediction);
+    }
+}
+
+#[test]
+fn next_word_prediction_uses_learned_transitions_only_when_learning_is_enabled() {
+    let fixture = prediction_fixture();
+    let store =
+        crate::user_dictionary::ngram_store::PersonalNgramStore::for_journal(&fixture.journal());
+    store
+        .record(&[crate::lattice::personal::PersonalTransition {
+            earlier: String::new(),
+            previous: "吃".into(),
+            word: "合成词".into(),
+            times: 3,
+        }])
+        .unwrap();
+    for learning in [false, true] {
+        let mut session = fixture.session_with(|options| {
+            options.next_word_prediction = true;
+            options.learning = learning;
+        });
+        type_text(&mut session, "chi");
+        select_word(&mut session, "吃");
+        assert_eq!(
+            session
+                .snapshot()
+                .candidates
+                .iter()
+                .any(|row| row.word == "合成词"),
+            learning
+        );
+    }
+}
+
+#[test]
+fn next_word_prediction_reset_does_not_learn_across_the_discarded_context() {
+    let fixture = prediction_fixture();
+    let mut session = fixture.session_with(|options| options.next_word_prediction = true);
+    type_text(&mut session, "chi");
+    select_word(&mut session, "吃");
+    session.reset_context();
+    type_text(&mut session, "fan");
+    select_word(&mut session, "饭");
+    let store =
+        crate::user_dictionary::ngram_store::PersonalNgramStore::for_journal(&fixture.journal());
+    assert!(store.next_words("吃", 8).is_empty());
+}
+
 impl Fixture {
     fn new(main_sql: &str) -> Self {
         let directory = tempfile::tempdir().expect("temporary directory");
@@ -1612,11 +1809,22 @@ fn japanese_mixing_fixture() -> Fixture {
     fixture
 }
 
-fn japanese_session(fixture: &Fixture, configure: impl FnOnce(&mut SessionOptions)) -> Session {
-    fixture.session_with(|options| {
+fn japanese_session(
+    fixture: &Fixture,
+    configure: impl FnOnce(&mut SessionOptions),
+) -> (
+    Session,
+    Option<std::sync::Arc<crate::japanese::decoder::JapaneseDictionary>>,
+) {
+    // 行为断言持有已就绪的模型，避免并行用例的全局清缓存把它在首个查询前释放。
+    let model = crate::japanese::decoder::JapaneseDictionary::shared(
+        &fixture.path().join(assets::JAPANESE_MODEL),
+    );
+    let session = fixture.session_with(|options| {
         options.japanese_mixing = true;
         configure(options);
-    })
+    });
+    (session, model)
 }
 
 /// 列表里日文混输行的下标；没有时为 `None`，有两行就失败。
@@ -1636,7 +1844,7 @@ fn japanese_index(session: &Session) -> Option<usize> {
 #[test]
 fn a_japanese_conversion_leads_or_follows_the_whole_chinese_word() {
     let fixture = japanese_mixing_fixture();
-    let mut session = japanese_session(&fixture, |_| {});
+    let (mut session, _japanese_model) = japanese_session(&fixture, |_| {});
 
     type_text(&mut session, "ohayou");
     assert_eq!(japanese_index(&session), Some(0), "{:?}", words(&session));
@@ -1685,7 +1893,7 @@ fn a_japanese_conversion_leads_or_follows_the_whole_chinese_word() {
 #[test]
 fn short_exact_readings_stay_out_and_unknown_readings_do_not_lead() {
     let fixture = japanese_mixing_fixture();
-    let mut session = japanese_session(&fixture, |_| {});
+    let (mut session, _japanese_model) = japanese_session(&fixture, |_| {});
     for raw in ["kai", "shou"] {
         type_text(&mut session, raw);
         assert_eq!(
@@ -1710,18 +1918,18 @@ fn japanese_mixing_stays_out_unless_every_gate_passes() {
     type_text(&mut off, "ohayou");
     assert_eq!(japanese_index(&off), None);
 
-    let mut quanpin_only = japanese_session(&fixture, |options| {
+    let (mut quanpin_only, _japanese_model) = japanese_session(&fixture, |options| {
         options.enabled_schemes = SchemeSet::of(&[SchemeType::Quanpin]);
     });
     type_text(&mut quanpin_only, "ohayou");
     assert_eq!(japanese_index(&quanpin_only), None);
 
     let missing = Fixture::new(JAPANESE_MIXING_FIXTURE);
-    let mut missing = japanese_session(&missing, |_| {});
+    let (mut missing, _japanese_model) = japanese_session(&missing, |_| {});
     type_text(&mut missing, "ohayou");
     assert_eq!(japanese_index(&missing), None);
 
-    let mut session = japanese_session(&fixture, |_| {});
+    let (mut session, _japanese_model) = japanese_session(&fixture, |_| {});
     for raw in ["kai'shi", "su", "kaish"] {
         type_text(&mut session, raw);
         assert_eq!(
@@ -1755,13 +1963,14 @@ fn japanese_mixing_stays_out_unless_every_gate_passes() {
 #[test]
 fn shuangpin_mixes_a_japanese_conversion_too() {
     let fixture = japanese_mixing_fixture();
-    let mut session = japanese_session(&fixture, |options| options.scheme = SchemeType::Shuangpin);
+    let (mut session, _japanese_model) =
+        japanese_session(&fixture, |options| options.scheme = SchemeType::Shuangpin);
     type_text(&mut session, "sugoi");
     // 双拼辅助码开着时奇数长度的第五键算辅助码，不混日文。
     assert!(session.input.has_active_helpcode());
     assert_eq!(japanese_index(&session), None, "{:?}", words(&session));
 
-    let mut session = japanese_session(&fixture, |options| {
+    let (mut session, _japanese_model) = japanese_session(&fixture, |options| {
         options.scheme = SchemeType::Shuangpin;
         options.helpcode = false;
     });
@@ -1775,7 +1984,7 @@ fn shuangpin_mixes_a_japanese_conversion_too() {
 fn a_leading_japanese_conversion_follows_a_leading_english_word() {
     let fixture = japanese_mixing_fixture()
         .with_english("INSERT INTO english_words VALUES('tabemasu','tabemasu',100);");
-    let mut session = japanese_session(&fixture, |options| {
+    let (mut session, _japanese_model) = japanese_session(&fixture, |options| {
         options.english.mixed_candidates = true;
         options.personal_context = false;
         options.frequency.mode = FrequencyAdjustmentMode::Promote;
@@ -1809,7 +2018,7 @@ fn japanese_rows_skip_duplicates_and_respect_the_online_seats() {
             connection.execute_batch("INSERT INTO tbl_2_k VALUES('kai''shi','ks','開始',50);")
         })
         .unwrap();
-    let mut session = japanese_session(&fixture, |_| {});
+    let (mut session, _japanese_model) = japanese_session(&fixture, |_| {});
     type_text(&mut session, "kaishi");
     assert_eq!(japanese_index(&session), None, "{:?}", words(&session));
     assert_eq!(
@@ -1822,7 +2031,7 @@ fn japanese_rows_skip_duplicates_and_respect_the_online_seats() {
     session.command(Command::Cancel);
 
     let fixture = japanese_mixing_fixture();
-    let mut session = japanese_session(&fixture, |_| {});
+    let (mut session, _japanese_model) = japanese_session(&fixture, |_| {});
     type_text(&mut session, "kaishi");
     let query = session.online_query().expect("全拼查询");
     assert!(session.apply_online_candidates(
@@ -1852,7 +2061,7 @@ fn japanese_rows_skip_duplicates_and_respect_the_online_seats() {
 #[test]
 fn committing_a_japanese_row_ends_the_composition_and_learns_nothing() {
     let fixture = japanese_mixing_fixture();
-    let mut session = japanese_session(&fixture, |options| {
+    let (mut session, _japanese_model) = japanese_session(&fixture, |options| {
         options.frequency.mode = FrequencyAdjustmentMode::Promote;
         options.frequency.trigger_count = 1;
     });
@@ -1903,7 +2112,7 @@ fn committing_a_japanese_row_ends_the_composition_and_learns_nothing() {
 #[test]
 fn picking_the_chinese_row_behind_a_leading_japanese_row_is_the_default_pick() {
     let fixture = japanese_mixing_fixture();
-    let mut session = japanese_session(&fixture, |options| {
+    let (mut session, _japanese_model) = japanese_session(&fixture, |options| {
         options.personal_context = false;
         options.frequency.mode = FrequencyAdjustmentMode::Promote;
     });
@@ -1924,7 +2133,7 @@ fn japanese_rows_carry_no_helpcode() {
         crate::japanese::decoder::test_model::bytes(&[("すごい", "好", 0, 0, 600)], 1, &[0]),
     )
     .unwrap();
-    let mut session = japanese_session(&fixture, |_| {});
+    let (mut session, _japanese_model) = japanese_session(&fixture, |_| {});
     type_text(&mut session, "sugoi");
     let index = japanese_index(&session).unwrap();
     assert_eq!(words(&session)[index], "好");
@@ -1943,7 +2152,8 @@ fn japanese_mixing_warms_the_model_when_the_session_is_built() {
     let _off = fixture.session();
     JapaneseDictionary::wait_until_warmed(&model);
     assert!(!JapaneseDictionary::is_shared(&model));
-    let _on = japanese_session(&fixture, |_| {});
+    // 预热专项直接建会话，不经行为夹具预先读取模型。
+    let _on = fixture.session_with(|options| options.japanese_mixing = true);
     JapaneseDictionary::wait_until_warmed(&model);
     assert!(JapaneseDictionary::is_shared(&model));
 }
@@ -2106,6 +2316,95 @@ INSERT INTO tbl_1_h VALUES('hao','h','好',100);",
 // ---- shuangpin candidate assembly ----
 
 #[test]
+fn shuangpin_trailing_initial_prediction_consumes_keys_and_learns_full_reading() {
+    for kind in [
+        ShuangpinProfileKind::Xiaohe,
+        ShuangpinProfileKind::Ziranma,
+        ShuangpinProfileKind::Shoudao,
+        ShuangpinProfileKind::Microsoft,
+    ] {
+        let profile = crate::shuangpin::profile::profile(kind).unwrap();
+        let mut encoded = crate::shuangpin::utils::encode_pinyin("ni'hao'te'le", profile).unwrap();
+        encoded.pop();
+        for manual in [false, true] {
+            let fixture = Fixture::new(&format!(
+                "{QUANPIN_FIXTURE} CREATE TABLE tbl_4_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+            ));
+            let typed = if manual {
+                encoded.clone()
+            } else {
+                encoded.replace('\'', "")
+            };
+            let mut session = fixture.session_with(|options| {
+                options.scheme = SchemeType::Shuangpin;
+                options.shuangpin_profile = kind;
+                options.helpcode = false;
+                options.autocorrect_types = 0;
+            });
+            type_text(&mut session, &typed);
+            assert_eq!(words(&session)[0], "你好特乐", "{kind:?}, {manual}");
+            let snapshot = session.snapshot();
+            assert_eq!(snapshot.candidates[0].canonical_pinyin, "ni'hao'te'le");
+            assert_eq!(snapshot.candidates[0].pinyin, typed.replace('\'', ""));
+            let selected = session.select(0);
+            assert_eq!(selected.diagnostic, None);
+            assert_eq!(selected.commit.as_deref(), Some("你好特乐"));
+            assert!(session.snapshot().editing_text.is_empty());
+            let journal = Connection::open(fixture.journal()).unwrap();
+            let learned: i64 = journal
+                .query_row(
+                    "SELECT count(*) FROM user_dictionary_operations \
+                     WHERE key='ni''hao''te''le' AND value='你好特乐' AND operation<>'delete'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert!(learned > 0, "{kind:?}, {manual}");
+        }
+    }
+}
+
+#[test]
+fn shuangpin_incomplete_tail_selection_preserves_the_unfinished_syllable() {
+    for kind in [
+        ShuangpinProfileKind::Xiaohe,
+        ShuangpinProfileKind::Ziranma,
+        ShuangpinProfileKind::Shoudao,
+        ShuangpinProfileKind::Microsoft,
+    ] {
+        let profile = crate::shuangpin::profile::profile(kind).unwrap();
+        let encoded = crate::shuangpin::utils::encode_pinyin("ni'hao'te'le", profile).unwrap();
+        for manual in [false, true] {
+            let fixture = Fixture::new(&format!(
+                "{QUANPIN_FIXTURE} CREATE TABLE tbl_4_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+            ));
+            let prefix = if manual {
+                encoded.clone()
+            } else {
+                encoded.replace('\'', "")
+            };
+            let typed = format!("{prefix}{}q", if manual { "'" } else { "" });
+            let mut session = fixture.session_with(|options| {
+                options.scheme = SchemeType::Shuangpin;
+                options.shuangpin_profile = kind;
+                options.helpcode = false;
+                options.autocorrect_types = 0;
+            });
+            type_text(&mut session, &typed);
+            assert_eq!(words(&session)[0], "你好特乐", "{kind:?}, {manual}");
+            assert_eq!(
+                session.snapshot().candidates[0].source,
+                CandidateSource::Generated
+            );
+            let selected = session.select(0);
+            assert_eq!(selected.diagnostic, None);
+            assert_eq!(selected.commit.as_deref(), Some("你好特乐"));
+            assert_eq!(session.snapshot().editing_text, "q", "{kind:?}, {manual}");
+        }
+    }
+}
+
+#[test]
 fn complete_shuangpin_and_ambiguous_direct_helpcodes_both_commit_the_whole_input() {
     let fixture = Fixture::new(
         "CREATE TABLE tbl_1_s(key TEXT,jp TEXT,value TEXT,weight INTEGER);\
@@ -2160,9 +2459,7 @@ fn ziranma_shouyou_complete_phrases_keep_the_plain_reading_and_commit_once() {
          INSERT INTO tbl_4_n VALUES('ni''chang''wo''ma','ncwm','怩偿我吗',100000);",
     );
     let codes = Arc::new(
-        crate::helpcode::HelpcodeKeymap::from_table_bytes(
-            "偿=rs\n法=ut\n分=pp\n浮=up\n欢=vp\n靠=ph\n考=tv\n吗=kv\n你=rp\n入=pd\n势=fp\n试=ah\n输=hr\n舒=rv\n数=dp\n我=pd\n喜=tk\n谌=ac\n怩=xv\n".as_bytes(),
-        )
+        crate::helpcode::HelpcodeKeymap::from_table_bytes("偿=rs\n法=ut\n分=pp\n浮=up\n欢=vp\n靠=ph\n考=tv\n吗=kv\n你=rp\n入=pd\n势=fp\n试=ah\n输=hr\n舒=rv\n数=dp\n我=pd\n喜=tk\n谌=ac\n怩=xv\n".as_bytes())
         .unwrap(),
     );
     // 使用随产品分发的真实码表；这两个首码正好让三音节输入与两音节直接辅助码重叠。
@@ -2860,6 +3157,18 @@ INSERT INTO tbl_2_g VALUES('guan''xi','gx','关系',100000);\
 CREATE TABLE tbl_2_m(key TEXT,jp TEXT,value TEXT,weight INTEGER);\
 CREATE TABLE tbl_3_m(key TEXT,jp TEXT,value TEXT,weight INTEGER);";
 
+/// 生产词库里字面整句可能比纠错词更高频；纠错候选仍应出现在候选列表中，而不是只在它胜过字面整句时出现。
+const SHUANGPIN_NONLEADING_TYPO_FIXTURE: &str =
+    "CREATE TABLE tbl_1_m(key TEXT,jp TEXT,value TEXT,weight INTEGER);\
+INSERT INTO tbl_1_m VALUES('mei','m','没',1000000);\
+CREATE TABLE tbl_1_g(key TEXT,jp TEXT,value TEXT,weight INTEGER);\
+INSERT INTO tbl_1_g VALUES('gen','g','跟',1000000),('guan','g','关',1000);\
+CREATE TABLE tbl_1_x(key TEXT,jp TEXT,value TEXT,weight INTEGER);\
+INSERT INTO tbl_1_x VALUES('xi','x','系',1000000);\
+CREATE TABLE tbl_2_g(key TEXT,jp TEXT,value TEXT,weight INTEGER);\
+INSERT INTO tbl_2_g VALUES('guan''xi','gx','关系',1);\
+CREATE TABLE tbl_3_m(key TEXT,jp TEXT,value TEXT,weight INTEGER);";
+
 const QUANPIN_EXTRA_LETTER_FIXTURE: &str =
     "CREATE TABLE tbl_1_s(key TEXT,jp TEXT,value TEXT,weight INTEGER);\
 INSERT INTO tbl_1_s VALUES('shang','s','上',1000);\
@@ -2950,6 +3259,26 @@ fn shuangpin_offers_the_typo_sentence_under_the_autocorrect_switch() {
         "{:?}",
         words(&plain)
     );
+}
+
+#[test]
+fn shuangpin_offers_a_nonleading_typo_sentence_from_a_full_dictionary() {
+    let fixture = Fixture::new(SHUANGPIN_NONLEADING_TYPO_FIXTURE);
+    let mut session = fixture.session_with(|options| {
+        options.scheme = SchemeType::Shuangpin;
+        options.shuangpin_profile = ShuangpinProfileKind::Xiaohe;
+        options.autocorrect_types = crate::types::autocorrect_type::TRANSPOSITION
+            | crate::types::autocorrect_type::NEIGHBOR;
+    });
+    type_text(&mut session, "mwgfxi");
+    let snapshot = session.snapshot();
+    let corrected = snapshot
+        .candidates
+        .iter()
+        .position(|item| item.word == "没关系")
+        .unwrap_or_else(|| panic!("{:?}", words(&session)));
+    assert!(corrected > 0, "{:?}", words(&session));
+    assert_eq!(snapshot.candidates[corrected].corrected_from, "mwgfxi");
 }
 
 /// 双拼方案在宿主重建会话时切换。重建后的会话按新方案的编码纠错：自然码下 `mzgrci` 纠回没关系，小鹤的误触串 `mwgfxi` 不再纠；切回小鹤后反过来。
@@ -4908,6 +5237,152 @@ fn fourteen_key_shuangpin_separates_touch_groups_from_hardware_letters() {
     assert!(!quanpin.grid_key(b'n').handled);
 }
 
+/// 无候选时仍上屏小写字母，不能泄漏内部精确标记。
+#[test]
+fn eighteen_key_shuangpin_exact_markers_do_not_escape_raw_fallback() {
+    let fixture = Fixture::new(QUANPIN_FIXTURE);
+    for finish in [false, true] {
+        let mut session = fixture.session_with(|options| {
+            options.scheme = SchemeType::Shuangpin;
+            options.shuangpin_profile = ShuangpinProfileKind::Xiaohe;
+            options.english.mixed_candidates = false;
+        });
+        let table = crate::nine_key_shuangpin::resolve_eighteen_key_shuangpin(
+            ShuangpinProfileKind::Xiaohe,
+            None,
+        )
+        .unwrap();
+        session.set_key_grid(Some(KeyGrid::EighteenKeyShuangpin(table)));
+        assert!(session.grid_key(b'I').handled);
+        assert!(session.snapshot().candidates.is_empty());
+        let result = if finish {
+            session.finish(0)
+        } else {
+            session.command(Command::CommitRaw)
+        };
+        assert_eq!(result.commit.as_deref(), Some("i"));
+        assert!(session.snapshot().editing_text.is_empty());
+    }
+}
+
+/// 逐段结束中文后，无候选的余码也不能泄漏内部精确标记。
+#[test]
+fn eighteen_key_shuangpin_exact_markers_do_not_escape_finish_tail() {
+    let fixture = Fixture::new(QUANPIN_FIXTURE);
+    let mut session = fixture.session_with(|options| {
+        options.scheme = SchemeType::Shuangpin;
+        options.shuangpin_profile = ShuangpinProfileKind::Xiaohe;
+        options.english.mixed_candidates = false;
+    });
+    let table = crate::nine_key_shuangpin::resolve_eighteen_key_shuangpin(
+        ShuangpinProfileKind::Xiaohe,
+        None,
+    )
+    .unwrap();
+    session.set_key_grid(Some(KeyGrid::EighteenKeyShuangpin(table)));
+    for key in b"NiI" {
+        assert!(session.grid_key(*key).handled);
+    }
+    assert_eq!(session.snapshot().candidates[0].word, "你");
+    assert_eq!(session.finish(0).commit.as_deref(), Some("你i"));
+    assert!(session.snapshot().editing_text.is_empty());
+}
+
+/// 横滑的确定字母保留在同一组码串；点按仍可与它交替。
+#[test]
+fn eighteen_key_shuangpin_exact_letters_constrain_the_current_grid() {
+    let fixture = Fixture::new(QUANPIN_FIXTURE);
+    let mut session = fixture.session_with(|options| {
+        options.scheme = SchemeType::Shuangpin;
+        options.shuangpin_profile = ShuangpinProfileKind::Xiaohe;
+    });
+    let table = crate::nine_key_shuangpin::resolve_eighteen_key_shuangpin(
+        ShuangpinProfileKind::Xiaohe,
+        None,
+    )
+    .unwrap();
+    session.set_key_grid(Some(KeyGrid::EighteenKeyShuangpin(table)));
+    for key in b"bi" {
+        assert!(session.grid_key(*key).handled);
+    }
+    let ambiguous = session.snapshot().nine_key_spellings;
+    assert!(ambiguous.iter().any(|s| s == "bi") && ambiguous.iter().any(|s| s == "ni"));
+    session.command(Command::Cancel);
+
+    assert!(session.grid_key(b'N').handled, "十八键双拼应接收精确字母");
+    assert!(session.grid_key(b'i').handled);
+    let exact = session.snapshot();
+    assert_eq!(exact.editing_text, "Ni");
+    assert!(exact.nine_key_spellings.iter().any(|s| s == "ni"));
+    assert!(!exact.nine_key_spellings.iter().any(|s| s == "bi"));
+    assert_eq!(
+        exact
+            .nine_key_spellings
+            .iter()
+            .collect::<std::collections::HashSet<_>>()
+            .len(),
+        exact.nine_key_spellings.len()
+    );
+    for key in b"hC" {
+        assert!(session.grid_key(*key).handled);
+    }
+    assert_eq!(
+        select_word(&mut session, "你好").commit.as_deref(),
+        Some("你好")
+    );
+
+    // 中间编辑仍在精确网格中；退格只删除当前位置之前的一位。
+    for key in b"Ni" {
+        assert!(session.grid_key(*key).handled);
+    }
+    session.command(Command::MoveLeft);
+    assert!(session.grid_key(b'H').handled);
+    assert_eq!(session.snapshot().editing_text, "NHi");
+    session.command(Command::Backspace);
+    assert_eq!(session.snapshot().editing_text, "Ni");
+    session.command(Command::DeleteForward);
+    assert_eq!(session.snapshot().editing_text, "N");
+    assert!(session.grid_key(b'I').handled);
+    assert_eq!(session.snapshot().editing_text, "NI");
+    let ni = session
+        .snapshot()
+        .nine_key_spellings
+        .iter()
+        .position(|s| s == "ni")
+        .unwrap();
+    assert!(session.choose_nine_key_spelling(ni).handled);
+    assert_eq!(session.snapshot().nine_key_reading, "ni");
+    session.command(Command::Backspace);
+    assert_eq!(session.snapshot().editing_text, "NI");
+    assert!(!session
+        .snapshot()
+        .nine_key_spellings
+        .iter()
+        .any(|s| s == "bi"));
+    session.command(Command::Cancel);
+    assert!(session.character(b'n', false).handled);
+    assert!(!session.grid_composing());
+    assert!(!session.grid_key(b'I').handled);
+    assert_eq!(session.snapshot().editing_text, "n");
+    session.command(Command::Cancel);
+    session.set_dedicated_english(true);
+    assert!(!session.grid_key(b'N').handled);
+
+    let mut quanpin = fixture.session();
+    quanpin.set_key_grid(Some(KeyGrid::EighteenKey));
+    assert!(!quanpin.grid_key(b'N').handled);
+    assert!(quanpin.grid_key(b'n').handled);
+    let fourteen = crate::nine_key_shuangpin::resolve_fourteen_key_shuangpin(
+        ShuangpinProfileKind::Xiaohe,
+        None,
+    )
+    .unwrap();
+    session.set_dedicated_english(false);
+    session.set_key_grid(Some(KeyGrid::FourteenKeyShuangpin(fourteen)));
+    assert!(!session.grid_key(b'N').handled);
+    assert!(session.grid_key(b'n').handled);
+}
+
 /// 14 键：组码只从 `grid_key` 进九宫格，组里任一字母都归成首字母；硬件键盘的字母照常走全拼，九宫格组字中不处理。
 #[test]
 fn fourteen_key_letters_enter_the_grid_only_through_grid_key() {
@@ -6314,6 +6789,62 @@ fn shift_letter_entry_switch_off_types_every_capital() {
     assert_eq!(session.input.local_mode, LocalInputMode::DateTime);
 }
 
+/// #9696：五笔编码只用小写字母，没有组字时的 Shift+字母不会和编码冲突。输入不经过拼音拼写的 U、T、Y、S 和 K、C 一样在五笔下进入；E、M、J 按拼音查，V 的数字和运算符要宿主按方案路由，这几个仍只在全拼、双拼下进入，大写字母交还宿主。
+#[test]
+fn wubi_opens_the_shift_letter_modes_that_spell_no_pinyin() {
+    let fixture = Fixture::new(QUANPIN_FIXTURE).with_english(ENGLISH_FIXTURE);
+    let mut session = fixture.session_with(|options| {
+        options.scheme = SchemeType::Wubi;
+        options.local_modes.expression = true;
+    });
+    TestClock::install(&mut session);
+    for (letter, mode) in [
+        (b'U', LocalInputMode::Unicode),
+        (b'T', LocalInputMode::DateTime),
+        (b'Y', LocalInputMode::TemporaryEnglish),
+        (b'S', LocalInputMode::Symbol),
+    ] {
+        assert!(
+            session.character(letter, true).handled,
+            "{}",
+            letter as char
+        );
+        assert_eq!(session.snapshot().local_mode, mode, "{}", letter as char);
+        assert!(session.command(Command::Cancel).handled);
+        assert_eq!(session.snapshot().local_mode, LocalInputMode::None);
+    }
+
+    // 报告里的两个例子：Shift+Y 后打 superuser 上屏原文，Shift+T 后打 date 上屏日期，都不进五笔组字。
+    assert!(session.character(b'Y', true).handled);
+    type_text(&mut session, "superuser");
+    let snapshot = session.snapshot();
+    assert_eq!(snapshot.scheme, SchemeType::Wubi);
+    assert_eq!(snapshot.preedit, "Ysuperuser");
+    assert_eq!(session.select(0).commit.as_deref(), Some("superuser"));
+    assert_eq!(session.snapshot().local_mode, LocalInputMode::None);
+
+    assert!(session.character(b'T', true).handled);
+    type_text(&mut session, "date");
+    assert_eq!(session.snapshot().preedit, "Tdate");
+    assert!(
+        words(&session).contains(&"2026-08-09".to_owned()),
+        "{:?}",
+        words(&session)
+    );
+    assert_eq!(session.select(0).commit.as_deref(), Some("2026年8月9日"));
+    assert_eq!(session.snapshot().local_mode, LocalInputMode::None);
+
+    for letter in *b"EMJV" {
+        assert!(
+            !session.character(letter, true).handled,
+            "{}",
+            letter as char
+        );
+        assert_eq!(session.input.local_mode, LocalInputMode::None);
+        assert!(!session.input.has_composition());
+    }
+}
+
 fn chaizi_session(fixture: &Fixture, configure: impl FnOnce(&mut SessionOptions)) -> Session {
     fixture.session_with(|options| {
         options.local_modes.chaizi = true;
@@ -7160,6 +7691,77 @@ const HAN_FIRST: [&str; 3] = ["韓", "漢", "寒"];
 
 fn korean_session(fixture: &Fixture) -> Session {
     fixture.session_with(|options| options.scheme = SchemeType::Korean)
+}
+
+fn romaja_session(fixture: &Fixture) -> Session {
+    fixture.session_with(|options| {
+        options.scheme = SchemeType::Korean;
+        options.korean_layout = crate::KoreanLayout::Romaja;
+    })
+}
+
+#[test]
+fn korean_romaja_retains_raw_keys_for_backspace_and_commits_stable_syllables() {
+    let fixture = Fixture::new(QUANPIN_FIXTURE);
+    for (keys, expected, backspaced) in [("bang", "방", "반"), ("gwa", "과", "구")] {
+        let mut session = romaja_session(&fixture);
+        assert!(type_korean(&mut session, keys).iter().all(Option::is_none));
+        assert_eq!(session.snapshot().preedit, expected);
+        assert!(session.command(Command::Backspace).handled);
+        assert_eq!(session.snapshot().preedit, backspaced);
+    }
+    let mut session = romaja_session(&fixture);
+    assert!(type_korean(&mut session, "hang")
+        .iter()
+        .all(Option::is_none));
+    assert_eq!(session.snapshot().preedit, "항");
+    let commits = type_korean(&mut session, "ug");
+    assert_eq!(commits.into_iter().flatten().collect::<String>(), "한");
+    assert_eq!(session.snapshot().preedit, "국");
+    assert_eq!(session.snapshot().editing_text, "gug");
+    assert_eq!(
+        session.command(Command::CommitReading).commit.as_deref(),
+        Some("국")
+    );
+    session.switch_scheme(SchemeType::Quanpin).unwrap();
+    session.switch_scheme(SchemeType::Korean).unwrap();
+    type_korean(&mut session, "xa");
+    assert_eq!(session.snapshot().preedit, "아");
+}
+
+#[test]
+fn korean_romaja_keeps_hanja_ascii_punctuation_and_unmapped_letters() {
+    let fixture = Fixture::new(QUANPIN_FIXTURE);
+    let mut session = romaja_session(&fixture);
+    type_korean(&mut session, "han");
+    assert!(session.command(Command::ConvertHanja).handled);
+    assert_eq!(words(&session)[..3], HAN_FIRST);
+    assert_eq!(
+        session.command(Command::CommitCandidate).commit.as_deref(),
+        Some("韓")
+    );
+    for (keys, expected) in [
+        ("Ga", "까"),
+        ("Da", "따"),
+        ("Ba", "빠"),
+        ("Ja", "짜"),
+        ("Sa", "싸"),
+    ] {
+        type_korean(&mut session, keys);
+        assert_eq!(session.snapshot().local_mode, LocalInputMode::None);
+        assert_eq!(
+            session.punctuation(b',').commit.as_deref(),
+            Some(format!("{expected},").as_str())
+        );
+    }
+    for letter in *b"qvzQVZ" {
+        type_korean(&mut session, "han");
+        let result = session.character(letter, letter.is_ascii_uppercase());
+        assert!(result.handled);
+        assert_eq!(result.commit, Some(format!("한{}", char::from(letter))));
+        assert!(session.snapshot().preedit.is_empty());
+        assert!(!session.command(Command::Backspace).handled);
+    }
 }
 
 /// Rows in every table of the user journal, 0 when nothing ever opened it.
@@ -12770,4 +13372,153 @@ fn eighteen_key_uses_ambiguous_groups_and_preserves_exact_hardware_input() {
     assert!(session.snapshot().editing_text.is_empty());
     session.set_dedicated_english(true);
     assert!(!session.grid_key(b'n').handled);
+}
+
+/// 五笔 14 键：拼音主词库给词频，码表与它同在一个工作副本里。
+const WUBI_GRID_FIXTURE: &str = "CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);\
+INSERT INTO tbl_1_n VALUES('ni','n','你',3000000);\
+CREATE TABLE tbl_1_d(key TEXT,jp TEXT,value TEXT,weight INTEGER);\
+INSERT INTO tbl_1_d VALUES('duo','d','多',1500000);\
+CREATE TABLE tbl_1_c(key TEXT,jp TEXT,value TEXT,weight INTEGER);\
+INSERT INTO tbl_1_c VALUES('cong','c','从',1400000);\
+CREATE TABLE tbl_1_w(key TEXT,jp TEXT,value TEXT,weight INTEGER);\
+INSERT INTO tbl_1_w VALUES('wo','w','我',9000000);\
+CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);\
+INSERT INTO wubi86 VALUES('q','我',20),('w','人',20),('qq','多',20),('qw','欠',10),('wq','你',10),('ww','从',10),\
+('wqiy','你',20),('qqiy','铄',20),('x','经',20),('xxxx','纟',10);";
+
+fn wubi_grid_session(fixture: &Fixture, configure: impl FnOnce(&mut SessionOptions)) -> Session {
+    let mut session = fixture.session_with(|options| {
+        options.scheme = SchemeType::Wubi;
+        configure(options);
+    });
+    session.set_key_grid(Some(KeyGrid::FourteenKey));
+    session
+}
+
+fn grid_type(session: &mut Session, letters: &[u8]) {
+    for &letter in letters {
+        assert!(
+            session.grid_key(letter).handled,
+            "{:?} was not handled",
+            char::from(letter)
+        );
+    }
+}
+
+#[test]
+fn wubi_fourteen_key_expands_each_key_into_its_letters() {
+    let fixture = Fixture::new(WUBI_GRID_FIXTURE);
+    let mut session = wubi_grid_session(&fixture, |_| {});
+    // 宿主送这一组的首字母；W 也归 QW 组。
+    grid_type(&mut session, b"qw");
+    assert!(session.grid_composing());
+    let snapshot = session.snapshot();
+    assert_eq!(
+        words(&session)[..4],
+        [
+            "你".to_owned(),
+            "多".to_owned(),
+            "从".to_owned(),
+            "欠".to_owned()
+        ]
+    );
+    // 组码是每组的代表字母；预编辑和读音行显示首选的编码。
+    assert_eq!(snapshot.editing_text, "qq");
+    assert_eq!(snapshot.preedit, "wq");
+    assert_eq!(snapshot.nine_key_reading, "wq");
+    assert!(snapshot.nine_key_spellings.is_empty());
+    assert_eq!(snapshot.scheme, SchemeType::Wubi);
+    // 选词照常是五笔的选词。
+    let result = session.select(0);
+    assert_eq!(result.commit.as_deref(), Some("你"));
+    assert!(!session.grid_composing());
+    assert!(session.snapshot().editing_text.is_empty());
+}
+
+#[test]
+fn wubi_fourteen_key_keeps_hardware_letters_apart() {
+    let fixture = Fixture::new(WUBI_GRID_FIXTURE);
+    let mut session = wubi_grid_session(&fixture, |_| {});
+    grid_type(&mut session, b"q");
+    // 14 键组字中硬件键盘的字母不处理，组字不变。
+    assert!(!session.character(b'w', false).handled);
+    assert_eq!(session.snapshot().editing_text, "q");
+    // 退格到空，硬件字母照常打 26 键的码，这时 14 键的键不处理。
+    assert!(session.command(Command::Backspace).handled);
+    assert!(!session.grid_composing());
+    type_text(&mut session, "w");
+    assert_eq!(words(&session).first().map(String::as_str), Some("人"));
+    assert!(!session.grid_composing());
+    assert!(!session.grid_key(b'q').handled);
+    assert_eq!(session.snapshot().editing_text, "w");
+    // 14 键组码没有可落脚的光标。
+    session.command(Command::Cancel);
+    grid_type(&mut session, b"qq");
+    session.set_caret(Some(0));
+    assert_eq!(session.snapshot().caret_position, 2);
+}
+
+#[test]
+fn wubi_fourteen_key_stops_at_four_codes_and_ignores_mixed_pinyin() {
+    let fixture = Fixture::new(WUBI_GRID_FIXTURE);
+    let mut session = wubi_grid_session(&fixture, |options| {
+        options.wubi.mixed_pinyin = true;
+        options.wubi.z_wildcard = true;
+    });
+    // W Q I Y：QW QW UI TY，四码只有「你」「铄」两个字。
+    grid_type(&mut session, b"wqiy");
+    let snapshot = session.snapshot();
+    assert_eq!(snapshot.editing_text, "qqut");
+    assert!(snapshot
+        .candidates
+        .iter()
+        .all(|item| item.scheme == SchemeType::Wubi));
+    assert!(!snapshot.answered_by_pinyin_fallback);
+    assert!(!snapshot.wubi_unique_four_code);
+    // 第五键由 runtime 顶字；引擎自己不收。
+    assert!(!session.grid_key(b'q').handled);
+    assert_eq!(session.snapshot().editing_text, "qqut");
+
+    // ZX 键代表 x，四码唯一时报告给 runtime 自动上屏。
+    session.command(Command::Cancel);
+    grid_type(&mut session, b"zxzx");
+    let snapshot = session.snapshot();
+    assert_eq!(snapshot.editing_text, "xxxx");
+    assert_eq!(words(&session), ["纟"]);
+    assert!(snapshot.wubi_unique_four_code);
+}
+
+#[test]
+fn wubi_fourteen_key_needs_the_wubi_scheme_and_plain_input() {
+    let fixture = Fixture::new(WUBI_GRID_FIXTURE);
+    let mut session = wubi_grid_session(&fixture, |_| {});
+    session.set_dedicated_english(true);
+    assert!(!session.grid_key(b'q').handled);
+    session.set_dedicated_english(false);
+    // 没有 14 键网格时不处理。
+    session.set_key_grid(None);
+    assert!(!session.grid_key(b'q').handled);
+    // 全拼 14 键照旧走九宫格会话。
+    let mut quanpin = fixture.session();
+    quanpin.set_key_grid(Some(KeyGrid::FourteenKey));
+    assert!(quanpin.grid_key(b'n').handled);
+    assert!(!quanpin.input.wubi_grid_composing());
+}
+
+/// 快捷短语按用户打出的字母对码；五笔 14 键的组码（`qq`）不是这样的字母，不拿它去对。26 键照旧。
+#[test]
+fn wubi_fourteen_key_codes_do_not_match_quick_phrases() {
+    let fixture = Fixture::new(&format!(
+        "{WUBI_GRID_FIXTURE}CREATE TABLE quick_parases(key TEXT,value TEXT,weight INTEGER);\
+INSERT INTO quick_parases VALUES('qq','腾讯',20);"
+    ));
+    let mut session = wubi_grid_session(&fixture, |options| {
+        options.quick_phrase_candidates = true;
+    });
+    grid_type(&mut session, b"qq");
+    assert!(!words(&session).contains(&"腾讯".to_owned()));
+    session.command(Command::Cancel);
+    type_text(&mut session, "qq");
+    assert!(words(&session).contains(&"腾讯".to_owned()));
 }

@@ -1,0 +1,51 @@
+{
+ "name": "wubi_select_and_gates",
+ "source": "tests/src/test_wubi_input_session.cpp:68-74; test_input_session.cpp:775-782 gates",
+ "note": "2026-10-11（#6789）起，混输关闭时组字开头的 `z` 打开临时拼音反查，所以 `z` 的拒绝改在五笔码中间检验：`wqb` 之后的 `z` 仍交回宿主，组字不变。",
+ "covers": [
+  "wubi"
+ ],
+ "fixture": {
+  "english_schema": true,
+  "databases": {
+   "msime-pinyin.db": "CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);INSERT INTO wubi86 VALUES('w','人',20);INSERT INTO wubi86 VALUES('wq','你',10);INSERT INTO wubi86 VALUES('wqb','爷',20);INSERT INTO wubi86 VALUES('wqi','你',10);INSERT INTO wubi86 VALUES('wqbb','父子',30);"
+  }
+ },
+ "options": {
+  "scheme": "wubi"
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "wqbb"
+  },
+  {
+   "op": "select",
+   "arg": 0
+  },
+  {
+   "op": "type",
+   "arg": "wqb"
+  },
+  {
+   "op": "char",
+   "arg": "z"
+  },
+  {
+   "op": "char",
+   "arg": "b"
+  },
+  {
+   "op": "char",
+   "arg": "b"
+  },
+  {
+   "op": "char",
+   "arg": "'"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  }
+ ]
+}

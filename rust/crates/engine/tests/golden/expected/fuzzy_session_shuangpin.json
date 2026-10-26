@@ -1,0 +1,168 @@
+{
+ "name": "fuzzy_session_shuangpin",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "zsgo",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "zsgo",
+    "raw_segmentation": "zs'go",
+    "normalized_segmentation": "zong'guo",
+    "editing_text": "zsgo",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2,
+     4
+    ],
+    "candidate_count": 4,
+    "candidates": [
+     {
+      "word": "中国",
+      "pinyin": "zs'go",
+      "canonical_pinyin": "zhong'guo",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 100,
+      "fuzzy": true,
+      "answers_key": true
+     },
+     {
+      "word": "宗国",
+      "pinyin": "zsgo",
+      "canonical_pinyin": "zong'guo",
+      "source": 8,
+      "scheme": "shuangpin",
+      "weight": -18420,
+      "sentence_association": true,
+      "sentence_words": [
+       "宗",
+       "国"
+      ],
+      "answers_key": true
+     },
+     {
+      "word": "宗",
+      "pinyin": "zs",
+      "canonical_pinyin": "zong",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 100,
+      "answers_key": false
+     },
+     {
+      "word": "中",
+      "pinyin": "zs",
+      "canonical_pinyin": "zhong",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 100,
+      "fuzzy": true,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "shuangpin",
+     "query_text": "zong'guo",
+     "cache_key": "zsgo",
+     "pinyin_segments": [
+      "zong",
+      "guo"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "中"
+   },
+   "result": {
+    "handled": true,
+    "commit": "中"
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "go",
+    "raw_segmentation": "go",
+    "normalized_segmentation": "guo",
+    "editing_text": "go",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2
+    ],
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "国",
+      "pinyin": "go",
+      "canonical_pinyin": "guo",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 100,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "shuangpin",
+     "query_text": "guo",
+     "cache_key": "go",
+     "pinyin_segments": [
+      "guo"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "finish",
+   "result": {
+    "handled": true,
+    "commit": "国"
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  }
+ ]
+}

@@ -105,6 +105,8 @@ enum OwlDoublePinyin: String, CaseIterable, Sendable {
   case flypy
   /// 微软双拼 — rime-ice `schema_id`: `double_pinyin_mspy`.
   case mspy
+  /// 手心双拼 — pinned upstream built-in profile.
+  case shoudao
   /// 自然码双拼 — rime-ice `schema_id`: `double_pinyin` (the base double-pinyin schema).
   case ziranma
   /// 搜狗双拼 — rime-ice `schema_id`: `double_pinyin_sogou`.
@@ -121,6 +123,7 @@ enum OwlDoublePinyin: String, CaseIterable, Sendable {
     switch self {
     case .flypy: return "小鹤双拼"
     case .mspy: return "微软双拼"
+    case .shoudao: return "手心双拼"
     case .ziranma: return "自然码双拼"
     case .sogou: return "搜狗双拼"
     case .abc: return "智能ABC双拼"
@@ -135,6 +138,7 @@ enum OwlDoublePinyin: String, CaseIterable, Sendable {
     switch self {
     case .flypy: return "double_pinyin_flypy"
     case .mspy: return "double_pinyin_mspy"
+    case .shoudao: return "double_pinyin_shoudao"
     case .ziranma: return "double_pinyin"
     case .sogou: return "double_pinyin_sogou"
     case .abc: return "double_pinyin_abc"
@@ -406,12 +410,35 @@ enum OwlKeyboardPreferences {
     }
   }
 
-  /// 自动配对括号 (task 07-02). Key `"OwlKeyboardAutoPairBrackets"`, default `false`
-  /// (PRD D3: 兼容性未大面积真机验证前默认关). Runtime mapping: cached flag + pure pair
-  /// decision in `OwlAutoPair`, executed at the commit seam — hot-effective, NO Rime
-  /// apply/deploy. OFF must stay byte-identical to today's commit behavior.
+  /// 自动配对括号 (task 07-02). Key `"OwlKeyboardAutoPairBrackets"`, native pinyin default `true`
+  /// Native pinyin keeps a marked closing tail; Wubi retains its original opt-in
+  /// pair decision. The setting applies immediately without an engine deployment.
+  /// Native 0.55 fresh-install mixed_input.quick_phrase default; K browsing stays available.
+  static var pinyinQuickPhraseCandidates: Bool {
+    get { boolValue("OwlKeyboardPinyinQuickPhraseCandidates", default: false) }
+    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardPinyinQuickPhraseCandidates") }
+  }
+
+  static var smartPunctuation: Bool {
+    get { boolValue("OwlKeyboardSmartPunctuation", default: true) }
+    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardSmartPunctuation") }
+  }
+  static var smartPunctuationRepeat: Bool {
+    get { boolValue("OwlKeyboardSmartPunctuationRepeat", default: true) }
+    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardSmartPunctuationRepeat") }
+  }
+  static var smartPunctuationSpace: Bool {
+    get { boolValue("OwlKeyboardSmartPunctuationSpace", default: false) }
+    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardSmartPunctuationSpace") }
+  }
+
   static var autoPairBrackets: Bool {
-    get { cachedAutoPairBrackets }
+    get {
+      if OwlDefaults.standard.object(forKey: "OwlKeyboardAutoPairBrackets") == nil {
+        return inputMethod != .wubi
+      }
+      return cachedAutoPairBrackets
+    }
     set {
       cachedAutoPairBrackets = newValue
       OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardAutoPairBrackets")
@@ -442,7 +469,7 @@ enum OwlKeyboardPreferences {
 
   private static var cachedCJKEnglishSpacing = boolValue("OwlKeyboardCJKEnglishSpacing", default: false)
   private static var cachedCJKNumberSpacing = boolValue("OwlKeyboardCJKNumberSpacing", default: false)
-  private static var cachedAutoPairBrackets = boolValue("OwlKeyboardAutoPairBrackets", default: false)
+  private static var cachedAutoPairBrackets = boolValue("OwlKeyboardAutoPairBrackets", default: true)
   private static var cachedSlashSymbolMenu = boolValue("OwlKeyboardSlashSymbolMenu", default: false)
 
   /// Read a Bool that defaults to `defaultValue` when the key was never written,

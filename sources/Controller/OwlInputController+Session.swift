@@ -87,7 +87,7 @@ extension OwlInputController {
           let input = rime.input(), !input.isEmpty else {
       return
     }
-    settledRerankLastInputAt = DispatchTime.now().uptimeNanoseconds
+    settledRerankLastInputAt = settledRerankNow()
     scheduleSettledRerankDebounce(after: OwlSettledRerankTiming.debounce)
   }
 
@@ -104,6 +104,9 @@ extension OwlInputController {
   /// A new key, selection, page turn, schema switch, or focus change invalidates the pause
   /// window. An already-running job is deliberately left alive so poll can return its model.
   func invalidateSettledRerankForAction() {
+    // A host action need not mutate the engine (for example, a boundary-page key).
+    // Match the native host epoch so its earlier scoring can only return the model.
+    settledRerankActionEpoch &+= 1
     settledRerankDebounceTimer?.invalidate()
     settledRerankDebounceTimer = nil
     settledRerankWaitingForDrain = false
@@ -163,7 +166,7 @@ extension OwlInputController {
           let lastInput = settledRerankLastInputAt else {
       return
     }
-    let now = DispatchTime.now().uptimeNanoseconds
+    let now = settledRerankNow()
     let debounceNanos = UInt64(OwlSettledRerankTiming.debounce * 1_000_000_000)
     guard now &- lastInput >= debounceNanos else {
       let remaining = Double(debounceNanos - (now &- lastInput)) / 1_000_000_000
@@ -179,7 +182,7 @@ extension OwlInputController {
     )
     let started = session.startSettledRerank()
     if let token = started.token {
-      settledRerankJob = (token: token, ticket: ticket)
+      settledRerankJob = (token: token, ticket: ticket, actionEpoch: settledRerankActionEpoch)
       settledRerankWaitingForDrain = false
       startSettledRerankPolling()
       return
@@ -219,12 +222,14 @@ extension OwlInputController {
     }
 
     let input = rime.input() ?? ""
-    let accepts = job.ticket.isCurrent(
-      sessionID: rime.sessionID,
-      generation: rime.generation,
-      rawInput: input,
-      configurationEpoch: rime.rerankConfigurationEpoch
-    )
+    let accepts = job.actionEpoch == settledRerankActionEpoch
+      && OwlExperimentalPreferences.settledRerankEnabled
+      && job.ticket.isCurrent(
+        sessionID: rime.sessionID,
+        generation: rime.generation,
+        rawInput: input,
+        configurationEpoch: rime.rerankConfigurationEpoch
+      )
     let result = rime.pollSettledRerank(token: job.token, accept: accepts)
     if result.pending {
       return
@@ -362,6 +367,7 @@ extension OwlInputController {
   }
 
   func destroySession() {
+    smartPunctuation.reset()
     finishAutomaticExpansion(replaySemicolon: false)
     resetSettledRerankRuntime()
     // print("[DEBUG] destroySession:")
@@ -375,6 +381,7 @@ extension OwlInputController {
   /// composition instead of recreating this session mid-selection.
   var hasInFlightComposition: Bool {
     guard let rime, rime.isValid else { return false }
+    if pendingPairedClosing != nil { return true }
     if let input = rime.input(), !input.isEmpty { return true }
     guard let composition = rime.composition() else { return false }
     return !composition.preedit.isEmpty

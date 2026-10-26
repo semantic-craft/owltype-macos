@@ -6,3 +6,5 @@ pub mod text;
 pub mod translation;
 
 pub use text::*;
+
+pub mod chinese_conversion;

@@ -1,0 +1,20 @@
+{
+ "name": "local_emoji_missing_db",
+ "source": "tests/src/test_input_session.cpp:1586-1595",
+ "covers": [
+  "local modes"
+ ],
+ "fixture": {},
+ "options": {},
+ "steps": [
+  {
+   "op": "char",
+   "arg": "E",
+   "shift": true
+  },
+  {
+   "op": "char",
+   "arg": "x"
+  }
+ ]
+}

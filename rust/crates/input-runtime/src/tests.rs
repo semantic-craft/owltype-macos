@@ -48,6 +48,9 @@ struct Fixture {
     first_page_rows: usize,
     /// 九宫格组码的上限，代替引擎的 `DIGIT_LIMIT`；0 表示没有上限。到上限且有候选时，`grid_limit_pick_ready` 说可以先选首选。
     grid_limit: usize,
+    multilingual_conversion: Option<msime_engine::host::session::MultilingualComposition>,
+    /// 边缘选字回归直接给出引擎已确认的字符，不在夹具里复制汉字判断。
+    edge_commits: Option<[String; 2]>,
 }
 
 #[cfg(unix)]
@@ -1050,6 +1053,7 @@ impl InputEngine for Fixture {
             return Err(RuntimeError::Engine("injected snapshot failure".into()));
         }
         Ok(EngineSnapshot {
+            prediction: false,
             scheme: self.scheme,
             nine_key: self.key_grid == Some(KeyGrid::NineKey),
             key_grid: self.key_grid,
@@ -1092,6 +1096,7 @@ impl InputEngine for Fixture {
             reading: self.reading.clone(),
             display_reading: self.reading.clone(),
             editing_text: self.text.clone(),
+            multilingual_conversion: self.multilingual_conversion.clone(),
             caret_position: self.text.len(),
             segment_raw_boundaries: vec![],
             candidates: if self.text.is_empty() {
@@ -1145,7 +1150,15 @@ impl InputEngine for Fixture {
         index: usize,
         edge: CandidateEdge,
     ) -> Result<EngineResult, RuntimeError> {
+        let edge_commit = self
+            .edge_commits
+            .as_ref()
+            .map(|values| values[edge as usize].clone());
         let mut result = self.select(index)?;
+        if let Some(text) = edge_commit {
+            result.commit = text;
+            return Ok(result);
+        }
         result.commit.push_str(match edge {
             CandidateEdge::FirstHan => "-first",
             CandidateEdge::LastHan => "-last",
@@ -1717,6 +1730,8 @@ fn runtime() -> Runtime<Fixture> {
             microsoft_shuangpin: false,
             first_page_rows: 0,
             grid_limit: 0,
+            multilingual_conversion: None,
+            edge_commits: None,
         },
         5,
     )
@@ -1774,6 +1789,8 @@ fn several_candidates_from_one_provider_take_their_seat_as_a_group() {
                 microsoft_shuangpin: false,
                 first_page_rows: 0,
                 grid_limit: 0,
+                multilingual_conversion: None,
+                edge_commits: None,
             },
             9,
         )
@@ -2022,6 +2039,8 @@ fn promoted_english_candidate_keeps_the_first_seat_with_cloud_and_ai() {
                 microsoft_shuangpin: false,
                 first_page_rows: 0,
                 grid_limit: 0,
+                multilingual_conversion: None,
+                edge_commits: None,
             },
             9,
         )
@@ -2359,6 +2378,8 @@ fn a_chosen_phrase_piece_waits_for_the_rest_of_the_phrase() {
                 microsoft_shuangpin: false,
                 first_page_rows: 0,
                 grid_limit: 0,
+                multilingual_conversion: None,
+                edge_commits: None,
             },
             5,
         )
@@ -2464,6 +2485,8 @@ fn a_phrase_piece_survives_the_reading_being_deleted() {
             microsoft_shuangpin: false,
             first_page_rows: 0,
             grid_limit: 0,
+            multilingual_conversion: None,
+            edge_commits: None,
         },
         5,
     )
@@ -2661,6 +2684,7 @@ impl PhraseEngine {
 impl InputEngine for PhraseEngine {
     fn snapshot(&self) -> Result<EngineSnapshot, RuntimeError> {
         Ok(EngineSnapshot {
+            prediction: false,
             scheme: 0,
             nine_key: false,
             nine_key_spellings: Vec::new(),
@@ -3339,6 +3363,8 @@ fn candidate_codes_follow_candidates_in_page_and_complete_snapshots() {
             microsoft_shuangpin: false,
             first_page_rows: 0,
             grid_limit: 0,
+            multilingual_conversion: None,
+            edge_commits: None,
         },
         2,
     )
@@ -5159,6 +5185,7 @@ fn real_engine_options(root: &std::path::Path) -> msime_engine::host::EngineOpti
         single_character_only: false,
         learning: false,
         learn_english_on_enter: true,
+        next_word_prediction: false,
         autocorrect_transposition: true,
         autocorrect_neighbor: true,
         fuzzy_pinyin_rules: 0,
@@ -5188,6 +5215,7 @@ fn real_engine_options(root: &std::path::Path) -> msime_engine::host::EngineOpti
         mixed_kaomoji: false,
         mixed_symbols: false,
         mixed_japanese: false,
+        multilingual_languages: Vec::new(),
         local_unicode: true,
         local_date_time: true,
         local_date_time_inline: true,
@@ -5223,12 +5251,196 @@ fn real_engine_options(root: &std::path::Path) -> msime_engine::host::EngineOpti
         sentence_alternatives: true,
         vietnamese_input_method: 0,
         vietnamese_tone_style: 0,
+        korean_layout: 0,
         cantonese_dictionary: String::new(),
         zhuyin_dictionary: String::new(),
         stroke_dictionary: String::new(),
         japanese_dictionary: String::new(),
         wubi_dictionary: String::new(),
     }
+}
+
+fn prediction_runtime() -> (tempfile::TempDir, Runtime) {
+    let directory = tempfile::tempdir().unwrap();
+    let mut options = real_engine_options(directory.path());
+    options.next_word_prediction = true;
+    let database = std::path::Path::new(&options.dictionaries).join("msime-pinyin.db");
+    rusqlite::Connection::open(database)
+        .unwrap()
+        .execute_batch(
+            "CREATE TABLE tbl_1_c(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+         INSERT INTO tbl_1_c VALUES('chi','c','吃',1000);
+         CREATE TABLE tbl_2_c(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+         INSERT INTO tbl_2_c VALUES('chi''fan','cf','吃饭',100);
+         INSERT INTO tbl_2_c VALUES('chi''hao','ch','吃好',90);",
+        )
+        .unwrap();
+    let engine = msime_engine::host::Session::new(&options).unwrap();
+    let mut runtime = Runtime::new(engine, 6).unwrap();
+    runtime.focus(true).unwrap();
+    for value in b"chi" {
+        runtime
+            .dispatch(Action::Character {
+                value: *value,
+                shift: false,
+            })
+            .unwrap();
+    }
+    let id = runtime
+        .view()
+        .candidates
+        .iter()
+        .find(|row| row.text == "吃")
+        .unwrap()
+        .id;
+    assert_eq!(
+        runtime
+            .dispatch(Action::Select(id))
+            .unwrap()
+            .commit
+            .as_deref(),
+        Some("吃")
+    );
+    (directory, runtime)
+}
+
+#[test]
+fn next_word_prediction_is_idle_and_only_explicit_selection_commits_it() {
+    let (_directory, mut runtime) = prediction_runtime();
+    assert!(runtime.is_idle());
+    assert!(!runtime.has_composition());
+    assert!(runtime.view().prediction);
+    let id = runtime
+        .view()
+        .candidates
+        .iter()
+        .find(|row| row.text == "饭")
+        .unwrap()
+        .id;
+    assert_eq!(
+        runtime
+            .dispatch(Action::Select(id))
+            .unwrap()
+            .commit
+            .as_deref(),
+        Some("饭")
+    );
+}
+
+#[test]
+fn next_word_prediction_passes_space_return_and_digits_to_the_editor() {
+    for action in [
+        Action::SelectHighlighted,
+        Action::Command(Command::CommitRaw),
+        Action::Character {
+            value: b'1',
+            shift: false,
+        },
+        Action::Command(Command::Backspace),
+        Action::Finish,
+    ] {
+        let (_directory, mut runtime) = prediction_runtime();
+        let transition = runtime.dispatch(action).unwrap();
+        assert!(!transition.handled && transition.commit.is_none());
+        assert!(transition.view.candidates.is_empty());
+    }
+}
+
+#[test]
+fn next_word_prediction_does_not_survive_focus_or_a_new_generation() {
+    let (_directory, mut runtime) = prediction_runtime();
+    let id = runtime.view().candidates[0].id;
+    runtime
+        .dispatch(Action::Character {
+            value: b'n',
+            shift: false,
+        })
+        .unwrap();
+    assert!(matches!(
+        runtime.dispatch(Action::Select(id)),
+        Err(RuntimeError::StaleCandidate)
+    ));
+    let (_directory, mut runtime) = prediction_runtime();
+    let transition = runtime.focus(false).unwrap();
+    assert!(transition.commit.is_none() && transition.view.candidates.is_empty());
+}
+
+#[test]
+fn next_word_prediction_privacy_gate_clears_and_suppresses_suggestions_immediately() {
+    let (_directory, mut runtime) = prediction_runtime();
+    let id = runtime.view().candidates[0].id;
+    runtime.set_prediction_allowed(false).unwrap();
+    assert!(runtime.view().candidates.is_empty());
+    assert!(matches!(
+        runtime.dispatch(Action::Select(id)),
+        Err(RuntimeError::StaleCandidate)
+    ));
+    for value in b"chi" {
+        runtime
+            .dispatch(Action::Character {
+                value: *value,
+                shift: false,
+            })
+            .unwrap();
+    }
+    let id = runtime
+        .view()
+        .candidates
+        .iter()
+        .find(|row| row.text == "吃")
+        .unwrap()
+        .id;
+    assert_eq!(
+        runtime
+            .dispatch(Action::Select(id))
+            .unwrap()
+            .commit
+            .as_deref(),
+        Some("吃")
+    );
+    assert!(runtime.view().candidates.is_empty());
+}
+
+#[test]
+fn next_word_prediction_leaves_navigation_and_shortcuts_to_the_editor() {
+    for (index, action) in [
+        Action::NextCandidate,
+        Action::PreviousCandidate,
+        Action::NextPage,
+        Action::PreviousPage,
+        Action::FirstCandidateOrHome,
+        Action::LastCandidate,
+        Action::Command(Command::MoveRight),
+        Action::Command(Command::ConversionLeft),
+        Action::SegmentMoveLeft,
+        Action::SegmentMoveRight,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let (_directory, mut runtime) = prediction_runtime();
+        runtime.set_left_right_navigation(true);
+        let transition = runtime.dispatch(action).unwrap();
+        assert!(
+            !transition.handled && transition.commit.is_none(),
+            "action {index}"
+        );
+        assert!(transition.view.candidates.is_empty(), "action {index}");
+    }
+}
+
+#[test]
+fn next_word_prediction_is_not_held_as_a_phrase_piece() {
+    let (_directory, mut runtime) = prediction_runtime();
+    runtime.set_phrase_preedit(true);
+    let composition_epoch = runtime.composition_epoch();
+    let id = runtime.view().candidates[0].id;
+    let transition = runtime.dispatch(Action::Select(id)).unwrap();
+    assert_eq!(transition.commit.as_deref(), Some("饭"));
+    assert!(transition.view.editing_text.is_empty());
+    assert!(runtime.is_idle());
+    assert_eq!(runtime.composition_epoch(), composition_epoch);
+    assert!(runtime.focus(false).unwrap().commit.is_none());
 }
 
 #[test]
@@ -5719,6 +5931,61 @@ fn korean_runtime(directory: &std::path::Path) -> Runtime {
     runtime
 }
 
+#[test]
+fn korean_romaja_focus_commits_the_reading_and_new_client_discards_old_keys() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut options = real_engine_options(directory.path());
+    options.scheme = KOREAN_SCHEME;
+    options.korean_layout = 1;
+    let session = msime_engine::host::Session::new(&options).unwrap();
+    let mut runtime = Runtime::new(session, 5).unwrap();
+    assert_eq!(runtime.set_phrase_preedit(true), None);
+    runtime.focus(true).unwrap();
+    let mut committed = String::new();
+    for value in *b"hangug" {
+        let result = runtime
+            .dispatch(Action::Character {
+                value,
+                shift: false,
+            })
+            .unwrap();
+        assert!(result.handled);
+        assert!(result.view.phrase_prefix.is_empty());
+        committed.push_str(result.commit.as_deref().unwrap_or_default());
+    }
+    assert_eq!(committed, "한");
+    assert_eq!(runtime.view().preedit, "국");
+    let blur = runtime.focus(false).unwrap();
+    assert_eq!(blur.commit.as_deref(), Some("국"));
+    assert!(blur.view.editing_text.is_empty());
+    runtime.focus(true).unwrap();
+    for value in *b"bang" {
+        runtime
+            .dispatch(Action::Character {
+                value,
+                shift: false,
+            })
+            .unwrap();
+    }
+    assert_eq!(runtime.view().preedit, "방");
+    let attached = runtime.focus(true).unwrap();
+    assert!(attached.commit.is_none());
+    assert!(attached.view.editing_text.is_empty());
+    runtime
+        .dispatch(Action::Character {
+            value: b'a',
+            shift: false,
+        })
+        .unwrap();
+    assert_eq!(runtime.view().preedit, "ㅏ");
+    assert!(runtime
+        .dispatch(Action::Command(Command::Cancel))
+        .unwrap()
+        .view
+        .preedit
+        .is_empty());
+}
+
 /// Types `keys` and opens the Hanja list of the syllable they leave composing.
 fn open_korean_hanja(runtime: &mut Runtime, keys: &str) -> Transition {
     for value in keys.bytes() {
@@ -5964,6 +6231,7 @@ impl InputEngine for DigitCommitsEngine {
         };
         let count = words.len();
         Ok(EngineSnapshot {
+            prediction: false,
             scheme: KOREAN_SCHEME,
             nine_key: false,
             nine_key_spellings: Vec::new(),
@@ -6955,6 +7223,7 @@ impl InputEngine for WubiMixedEngine {
         };
         let count = words.len();
         Ok(EngineSnapshot {
+            prediction: false,
             scheme: self.scheme,
             nine_key: false,
             nine_key_spellings: Vec::new(),
@@ -7112,6 +7381,8 @@ fn withholding_runtime(offered: usize, withheld: usize, page_size: u8) -> Runtim
             microsoft_shuangpin: false,
             first_page_rows: 0,
             grid_limit: 0,
+            multilingual_conversion: None,
+            edge_commits: None,
         },
         page_size,
     )
@@ -8044,6 +8315,7 @@ struct SpellingMarksEngine {
 impl InputEngine for SpellingMarksEngine {
     fn snapshot(&self) -> Result<EngineSnapshot, RuntimeError> {
         Ok(EngineSnapshot {
+            prediction: false,
             scheme: self.scheme,
             nine_key: false,
             nine_key_spellings: Vec::new(),
@@ -10205,4 +10477,111 @@ fn literal_symbol_survives_runtime_punctuation_without_early_commit() {
             }
         }
     }
+}
+
+mod multilingual;
+
+/// 五笔 14 键的真实引擎：拼音主词库给词频，码表在同一个工作副本里。
+fn wubi_grid_runtime(root: &std::path::Path) -> Runtime {
+    let dictionaries = root.join("dictionaries");
+    std::fs::create_dir_all(&dictionaries).unwrap();
+    rusqlite::Connection::open(dictionaries.join(msime_engine::assets::MAIN_DICTIONARY))
+        .unwrap()
+        .execute_batch(
+            "CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);\
+             INSERT INTO tbl_1_n VALUES('ni','n','你',3000000);\
+             CREATE TABLE tbl_1_d(key TEXT,jp TEXT,value TEXT,weight INTEGER);\
+             INSERT INTO tbl_1_d VALUES('duo','d','多',1500000);\
+             CREATE TABLE tbl_1_h(key TEXT,jp TEXT,value TEXT,weight INTEGER);\
+             INSERT INTO tbl_1_h VALUES('hao','h','好',2000000);\
+             CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);\
+             INSERT INTO wubi86 VALUES('qq','多',20),('wq','你',10),('wqiy','你',20),('qqiy','铄',20),\
+             ('vb','好',10),('xxxx','纟',10);",
+        )
+        .unwrap();
+    let mut options = real_engine_options(root);
+    options.scheme = 2;
+    let session = msime_engine::host::Session::new(&options).unwrap();
+    let mut runtime = Runtime::new(session, 5).unwrap();
+    runtime.focus(true).unwrap();
+    runtime.set_key_grid(Some(KeyGrid::FourteenKey)).unwrap();
+    runtime
+}
+
+fn grid_keys(runtime: &mut Runtime, letters: &[u8]) -> Transition {
+    let mut last = None;
+    for &letter in letters {
+        last = Some(runtime.dispatch(Action::GridKey(letter)).unwrap());
+    }
+    last.expect("至少一个键")
+}
+
+#[test]
+fn wubi_fourteen_key_reports_the_grid_and_the_top_code() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut runtime = wubi_grid_runtime(directory.path());
+    let view = grid_keys(&mut runtime, b"wq").view;
+    assert_eq!(view.key_grid, "fourteen_key");
+    assert_eq!(view.candidates[0].text, "你");
+    assert_eq!(view.nine_key_reading, "wq");
+    assert!(view.nine_key_spellings.is_empty());
+    assert_eq!(view.editing_text, "qq");
+}
+
+/// 四码之后的一键先顶首选，再开始下一组编码；「第五码顶字」关着也一样，因为 14 键没有混输拼音可以容纳这一键。
+#[test]
+fn wubi_fourteen_key_tops_the_first_candidate_on_a_fifth_key() {
+    for top_commit in [true, false] {
+        let directory = tempfile::tempdir().unwrap();
+        let mut runtime = wubi_grid_runtime(directory.path());
+        runtime.set_wubi_fifth_code_top_commit(top_commit);
+        grid_keys(&mut runtime, b"wqiy");
+        let topped = runtime.dispatch(Action::GridKey(b'v')).unwrap();
+        assert_eq!(topped.commit.as_deref(), Some("你"), "{top_commit}");
+        assert_eq!(topped.view.editing_text, "c");
+        let next = runtime.dispatch(Action::GridKey(b'b')).unwrap();
+        assert_eq!(next.view.candidates[0].text, "好");
+    }
+}
+
+#[test]
+fn wubi_fourteen_key_auto_commits_a_unique_fourth_code() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut runtime = wubi_grid_runtime(directory.path());
+    let committed = grid_keys(&mut runtime, b"zxzx");
+    assert_eq!(committed.commit.as_deref(), Some("纟"));
+    assert!(committed.view.editing_text.is_empty());
+
+    runtime.set_wubi_auto_commit_unique(false);
+    let kept = grid_keys(&mut runtime, b"zxzx");
+    assert!(kept.commit.is_none());
+    assert_eq!(kept.view.editing_text, "xxxx");
+}
+
+/// 14 键的组码不是可上屏的字母：原样上屏从高亮行结束组字，与全拼 14 键相同。
+#[test]
+fn wubi_fourteen_key_commit_raw_finishes_from_the_highlighted_row() {
+    for command in [Command::CommitRaw, Command::CommitRawWithoutLearning] {
+        let directory = tempfile::tempdir().unwrap();
+        let mut runtime = wubi_grid_runtime(directory.path());
+        grid_keys(&mut runtime, b"wq");
+        let highlighted = runtime.dispatch(Action::NextCandidate).unwrap().view;
+        let expected = highlighted.candidates[1].text.clone();
+        assert_eq!(expected, "多");
+        let committed = runtime.dispatch(Action::Command(command)).unwrap();
+        assert_eq!(committed.commit.as_deref(), Some("多"), "{command:?}");
+        assert!(committed.view.editing_text.is_empty());
+    }
+}
+
+#[test]
+fn the_fourteen_key_grid_is_offered_to_quanpin_and_wubi_only() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut runtime = wubi_grid_runtime(directory.path());
+    runtime.set_key_grid(None).unwrap();
+    assert!(runtime.set_key_grid(Some(KeyGrid::FourteenKey)).is_ok());
+    assert!(matches!(
+        runtime.set_key_grid(Some(KeyGrid::EighteenKey)),
+        Err(RuntimeError::InvalidNineKeyScheme)
+    ));
 }

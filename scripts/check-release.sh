@@ -134,13 +134,8 @@ else
   block "Release app has no valid stapled notarization ticket"
 fi
 
-# 方案B（2026-07-24）：公开 pkg 只携带清洁室种子（owl-seed.sh：owltype_base 词库 +
-# Unihan 单字表兜底），完整词库（雾凇 cn_dicts/en_dicts、KyleBing 五笔、octagram gram）由 App
-# 首启在用户侧按 dict-pack manifest 拉取，绝不进公开 payload。旧的「payload 必含 wubi/pinyin_simp」
-# 断言属全量种子时代，已按新口径改写为反向断言。
-# 2026-07-25：essay.txt 随 rime-essay 一并移出种子（繁体字形 + LGPL 数据项，见 PR #22），
-# 这里改为断言取代它的 owltype_base；本组断言要真 pkg 才跑得到，CI 只到 make package，
-# 所以 1.5.1 出包时才逮住这处陈旧断言。
+# The package carries the pinned official full pinyin/English/context set, Owl Wubi,
+# and the audited emoji derivative. Restricted auxiliary catalogs stay excluded.
 tmp=$(mktemp -u /tmp/owl-pkg.XXXXXX)
 tmp_update=$(mktemp -u /tmp/owl-update-pkg.XXXXXX)
 cleanup_packages() {
@@ -170,13 +165,19 @@ for path in \
 	  './Owltype.app/Contents/Resources/THIRD_PARTY_NOTICES.md' \
 	  './Owltype.app/Contents/SharedSupport/licenses/chinese-ime-lm.LICENSE' \
 	  './Owltype.app/Contents/SharedSupport/wubi86-jidian.LICENSE' \
+	  './Owltype.app/Contents/SharedSupport/rime-kaomoji.LICENSE' \
 	  './Owltype.app/Contents/SharedSupport/python-pinyin.LICENSE' \
 	  './Owltype.app/Contents/SharedSupport/OWLTYPE-SEED-MANIFEST.txt' \
 	  './Owltype.app/Contents/SharedSupport/owltype.yaml' \
 	  './Owltype.app/Contents/SharedSupport/msime-others-NOTICE.txt' \
 	  './Owltype.app/Contents/SharedSupport/msime/msime-pinyin.db' \
 	  './Owltype.app/Contents/SharedSupport/msime/msime-english.db' \
-	  './Owltype.app/Contents/SharedSupport/msime/msime-others.db'
+	  './Owltype.app/Contents/SharedSupport/msime/msime-others.db' \
+	  './Owltype.app/Contents/SharedSupport/msime/msime-bigram.bin' \
+	  './Owltype.app/Contents/SharedSupport/msime/msime-trigram.bin' \
+	  './Owltype.app/Contents/SharedSupport/msime/OWLTYPE-UPSTREAM-RESOURCES.json' \
+	  './Owltype.app/Contents/SharedSupport/msime-resources-NOTICE.md' \
+	  './Owltype.app/Contents/SharedSupport/licenses/CC-BY-SA-4.0.txt'
 do
   grep -qxF "$path" <<<"$payload" || fail "pkg payload missing $path"
 done

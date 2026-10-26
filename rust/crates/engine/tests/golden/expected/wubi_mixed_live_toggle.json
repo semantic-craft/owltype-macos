@@ -1,0 +1,153 @@
+{
+ "name": "wubi_mixed_live_toggle",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "nihao",
+   "result": {
+    "handled": false,
+    "unhandled_at": [
+     4
+    ]
+   },
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "niha",
+    "raw_segmentation": "niha",
+    "normalized_segmentation": "niha",
+    "editing_text": "niha",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "set_wubi_mixed_pinyin",
+   "arg": true,
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "niha",
+    "raw_segmentation": "niha",
+    "normalized_segmentation": "niha",
+    "editing_text": "niha",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "answered_by_pinyin_fallback": true,
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "你好",
+      "pinyin": "ni'ha",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 10000,
+      "answers_key": true
+     },
+     {
+      "word": "拟好",
+      "pinyin": "ni'ha",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 9000,
+      "answers_key": true
+     },
+     {
+      "word": "你",
+      "pinyin": "ni",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 10000,
+      "answers_key": false
+     }
+    ]
+   }
+  },
+  {
+   "op": "set_wubi_mixed_pinyin",
+   "arg": false,
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "niha",
+    "raw_segmentation": "niha",
+    "normalized_segmentation": "niha",
+    "editing_text": "niha",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "set_wubi_mixed_pinyin",
+   "arg": true,
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "niha",
+    "raw_segmentation": "niha",
+    "normalized_segmentation": "niha",
+    "editing_text": "niha",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "answered_by_pinyin_fallback": true,
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "你好",
+      "pinyin": "ni'ha",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 10000,
+      "answers_key": true
+     },
+     {
+      "word": "拟好",
+      "pinyin": "ni'ha",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 9000,
+      "answers_key": true
+     },
+     {
+      "word": "你",
+      "pinyin": "ni",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 10000,
+      "answers_key": false
+     }
+    ]
+   }
+  }
+ ]
+}

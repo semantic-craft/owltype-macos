@@ -1,0 +1,198 @@
+{
+ "name": "ri_english_fixed_slot_temporary",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "char",
+   "arg": "Y",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "temporary_english",
+    "preedit": "Y",
+    "raw_segmentation": "Y",
+    "normalized_segmentation": "Y",
+    "editing_text": "Y",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "Y",
+      "pinyin": "Y",
+      "canonical_pinyin": "",
+      "source": 9,
+      "scheme": "quanpin",
+      "weight": 1,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "type",
+   "arg": "he",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "temporary_english",
+    "preedit": "Yhe",
+    "raw_segmentation": "Yhe",
+    "normalized_segmentation": "Yhe",
+    "editing_text": "Yhe",
+    "caret": 3,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "he",
+      "pinyin": "",
+      "canonical_pinyin": "",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 0,
+      "answers_key": true
+     },
+     {
+      "word": "hello",
+      "pinyin": "hello",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 10,
+      "answers_key": true
+     },
+     {
+      "word": "help",
+      "pinyin": "help",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 5,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "fix_position",
+   "arg": {
+    "word": "help"
+   },
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "temporary_english",
+    "preedit": "Yhe",
+    "raw_segmentation": "Yhe",
+    "normalized_segmentation": "Yhe",
+    "editing_text": "Yhe",
+    "caret": 3,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "help",
+      "pinyin": "help",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 5,
+      "fixed_position": 1,
+      "answers_key": true
+     },
+     {
+      "word": "he",
+      "pinyin": "",
+      "canonical_pinyin": "",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 0,
+      "answers_key": true
+     },
+     {
+      "word": "hello",
+      "pinyin": "hello",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 10,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "clear_position",
+   "arg": 0,
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "temporary_english",
+    "preedit": "Yhe",
+    "raw_segmentation": "Yhe",
+    "normalized_segmentation": "Yhe",
+    "editing_text": "Yhe",
+    "caret": 3,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "he",
+      "pinyin": "",
+      "canonical_pinyin": "",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 0,
+      "answers_key": true
+     },
+     {
+      "word": "hello",
+      "pinyin": "hello",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 10,
+      "answers_key": true
+     },
+     {
+      "word": "help",
+      "pinyin": "help",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 5,
+      "answers_key": true
+     }
+    ]
+   }
+  }
+ ]
+}

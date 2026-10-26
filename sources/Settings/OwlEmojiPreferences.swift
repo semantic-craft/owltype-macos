@@ -10,14 +10,13 @@
 
 import Foundation
 
-/// Single UserDefaults home for the 候选 emoji preference. Default: off（出厂关）.
+/// Single UserDefaults home for the 候选 emoji preference. Default: on, matching the pinned macOS upstream host.
 enum OwlEmojiPreferences {
   private static let candidateEmojiKey = "OwlEmojiInCandidates"
 
-  /// 在打字候选里显示 emoji（rime-ice 原生 `emoji` switch）. Default `false` — Owltype 出厂把
-  /// schema switch reset 1→0（owl-seed.sh），这是面向用户的开关。
+  /// 在打字候选里显示 emoji。未保存偏好时遵循 macOS 上游默认开启。
   static var candidateEmojiEnabled: Bool {
-    get { OwlDefaults.standard.bool(forKey: candidateEmojiKey) }
+    get { (OwlDefaults.standard.object(forKey: candidateEmojiKey) as? Bool) ?? true }
     set { OwlDefaults.standard.set(newValue, forKey: candidateEmojiKey) }
   }
 }

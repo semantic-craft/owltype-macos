@@ -18,9 +18,11 @@ pub mod host;
 mod ime;
 mod japanese;
 mod korean;
+pub use korean::KoreanLayout;
 pub mod language_dictionary;
 mod lattice;
 mod local;
+pub mod multilingual;
 mod nine_key;
 mod nine_key_shuangpin;
 pub mod ordering;
@@ -44,7 +46,7 @@ mod wubi;
 pub mod zhuyin;
 
 pub use error::{EngineError, Result};
-#[cfg(not(any(target_os = "android", target_env = "ohos")))]
+#[cfg(not(target_os = "android"))]
 pub use handwriting::handwriting_recognize;
 pub use handwriting::order_handwriting_candidates;
 // 按需下载的 `.gram` 语法模型由宿主侧资源包管理，删除包时需要释放
@@ -60,9 +62,9 @@ pub use session::{Clock, Session, SessionOptions, SessionSnapshot};
 pub use types::{
     autocorrect_type, fuzzy_rule, request_autocorrect_mask, CandidateEdge, CandidateSource,
     Command, CommandTranslationQuery, EnglishInputOptions, FrequencyAdjustmentMode,
-    FrequencyAdjustmentOptions, FuzzyPinyinOptions, KeyResult, LocalInputMode, LocalModeOptions,
-    MixedExpressiveOptions, NineKeyShuangpinKind, NineKeyShuangpinTable, OnlineInputMode,
-    OnlineQuery, PersonalDictionaryEntry, PersonalDictionaryKind, PluginCommand,
+    FrequencyAdjustmentOptions, FuzzyPinyinOptions, KeyResult, LoadedKeyboardModel, LocalInputMode,
+    LocalModeOptions, MixedExpressiveOptions, NineKeyShuangpinKind, NineKeyShuangpinTable,
+    OnlineInputMode, OnlineQuery, PersonalDictionaryEntry, PersonalDictionaryKind, PluginCommand,
     PluginCommandQuery, SchemeSet, SchemeType, SentenceAssociationOptions, ShuangpinCustomTable,
     ShuangpinHelpcodeModes, ShuangpinProfileKind, SyllableHelpcode, WordItem, WubiInputOptions,
     WubiProfileKind, DEFAULT_FIRST_PAGE_ROWS,

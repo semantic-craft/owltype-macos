@@ -63,6 +63,7 @@ pub struct CandidateQueries {
     plugin_commands: Vec<PluginCommand>,
     /// 宿主的短语表（插件），只保留能用的行，按编码排序。
     quick_phrase_table: Vec<QuickPhraseEntry>,
+    pub(crate) quick_phrase_table_in_candidates: bool,
     /// The host's mention list, usable entries only.
     mentions: Vec<MentionEntry>,
     /// Whether `@` mode offers the embedded places after the list.
@@ -81,6 +82,7 @@ impl CandidateQueries {
             requested_plugin_commands: Vec::new(),
             plugin_commands: Vec::new(),
             quick_phrase_table: Vec::new(),
+            quick_phrase_table_in_candidates: true,
             mentions: Vec::new(),
             mention_places: false,
             chaizi_traditional_output: false,
@@ -120,8 +122,9 @@ impl CandidateQueries {
     }
 
     /// 普通组字的编码恰好是某条快捷短语的编码时，把短语并进候选：`slot` 为 `Some(n)` 时插在第 n 个计位候选之后（`quick_phrase_slots` 学下来的位置）；为 `None`（`quick_phrase_frequency` 关着或还没有学习记录）时按 `first_page_rows`（宿主每页候选数）落在首页尾部，规则见 [`default_quick_phrase_slot`]。只认整个编码，不按前缀匹配（见 [`query_exact_quick_phrases`]）。
-    pub fn insert_quick_phrase_candidates(
+    pub fn insert_quick_phrase_candidates_with_policy(
         &self,
+        wubi: bool,
         code: &str,
         candidates: &mut Vec<WordItem>,
         slot: Option<usize>,
@@ -133,7 +136,11 @@ impl CandidateQueries {
         let merged = query_exact_quick_phrases(
             code,
             &self.paths.dictionary(assets::MAIN_DICTIONARY),
-            &self.quick_phrase_table,
+            if self.quick_phrase_table_in_candidates {
+                &self.quick_phrase_table
+            } else {
+                &[]
+            },
         );
         let phrases: Vec<WordItem> = merged
             .candidates
@@ -144,8 +151,19 @@ impl CandidateQueries {
                     .any(|existing| existing.word == candidate.word)
             })
             .collect();
-        let slot =
-            slot.or_else(|| default_quick_phrase_slot(candidates, phrases.len(), first_page_rows));
+        let counts = |item: &WordItem| counts_toward_quick_phrase_slot_with_policy(item, wubi);
+        let slot = slot.or_else(|| {
+            if wubi {
+                default_quick_phrase_slot(candidates, phrases.len(), first_page_rows)
+            } else {
+                let page = first_page_rows.max(1);
+                let ordinary = candidates.iter().filter(|item| counts(item)).count();
+                (!phrases.is_empty() && ordinary >= page).then(|| {
+                    page.saturating_sub(phrases.len().min(page / 2).max(1))
+                        .max(1)
+                })
+            }
+        });
         let Some(slot) = slot else {
             candidates.extend(phrases);
             return;
@@ -157,7 +175,7 @@ impl CandidateQueries {
             candidates
                 .iter()
                 .enumerate()
-                .filter(|(_, item)| counts_toward_quick_phrase_slot(item))
+                .filter(|(_, item)| counts(item))
                 .nth(slot - 1)
                 .map(|(index, _)| index + 1)
                 .unwrap_or(candidates.len())
@@ -289,11 +307,26 @@ impl CandidateQueries {
             LocalInputMode::None => LocalQueryResult::default(),
             LocalInputMode::Unicode => rows(query_unicode(code)),
             LocalInputMode::DateTime => rows(query_date_time(code, now)),
-            LocalInputMode::QuickPhrase => merge_quick_phrases(
-                code,
-                query_quick_phrases(code, &self.paths.dictionary(assets::MAIN_DICTIONARY)),
-                &self.quick_phrase_table,
-            ),
+            LocalInputMode::QuickPhrase => {
+                // Owl invocation resolvers require a complete trigger; preserve native DB prefix
+                // browsing and the upstream host-table behavior when this adapter switch is on.
+                let table = if self.quick_phrase_table_in_candidates {
+                    &self.quick_phrase_table[..]
+                } else {
+                    let start = self
+                        .quick_phrase_table
+                        .partition_point(|row| row.key.as_str() < code);
+                    let end = self
+                        .quick_phrase_table
+                        .partition_point(|row| row.key.as_str() <= code);
+                    &self.quick_phrase_table[start..end]
+                };
+                merge_quick_phrases(
+                    code,
+                    query_quick_phrases(code, &self.paths.dictionary(assets::MAIN_DICTIONARY)),
+                    table,
+                )
+            }
             LocalInputMode::Emoji => query_emoji(
                 code,
                 scheme,
@@ -478,6 +511,11 @@ pub(crate) fn default_quick_phrase_slot(
 }
 
 /// 槽位计数的普通候选（`counts_toward_quick_phrase_slot`，quick_phrase_query.cpp:123-143）：固定位置的行、快捷短语自己和混输/在线/插件/联系人行都不算。
+pub(crate) fn counts_toward_quick_phrase_slot_with_policy(item: &WordItem, wubi: bool) -> bool {
+    counts_toward_quick_phrase_slot(item)
+        || (!wubi && item.fixed_position == 0 && item.source == CandidateSource::Fallback)
+}
+
 pub(crate) fn counts_toward_quick_phrase_slot(item: &WordItem) -> bool {
     if item.fixed_position > 0 {
         return false;
@@ -493,6 +531,7 @@ pub(crate) fn counts_toward_quick_phrase_slot(item: &WordItem) -> bool {
             | CandidateSource::Emoji
             | CandidateSource::Kaomoji
             | CandidateSource::MixedJapanese
+            | CandidateSource::Multilingual
             | CandidateSource::Plugin
             | CandidateSource::Contact
             | CandidateSource::Fallback

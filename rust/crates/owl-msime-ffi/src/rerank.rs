@@ -233,6 +233,11 @@ impl RerankState {
         Ok(())
     }
 
+    pub(super) fn engine_replaced(&mut self, runtime: &mut OwlRuntime) {
+        self.keyboard.attached = false;
+        self.attach(ModelKind::Keyboard, runtime);
+    }
+
     pub(super) fn status(&mut self, runtime: &mut OwlRuntime) -> Value {
         self.apply_pending(runtime);
         json!({
@@ -448,6 +453,9 @@ impl RerankState {
         };
         match kind {
             ModelKind::Keyboard => {
+                let _ = runtime.set_keyboard_model(Some(msime_engine::LoadedKeyboardModel(
+                    Arc::clone(&model.model),
+                )));
                 runtime.set_reranker(Some(Reranker::new(Arc::clone(&model.model))));
             }
             ModelKind::Settled => {
@@ -519,7 +527,12 @@ impl Preference {
 
 fn detach(kind: ModelKind, runtime: &mut OwlRuntime) {
     match kind {
-        ModelKind::Keyboard => runtime.set_reranker(None),
+        ModelKind::Keyboard => {
+            if runtime.has_reranker() {
+                runtime.set_reranker(None);
+                let _ = runtime.set_keyboard_model(None);
+            }
+        }
         ModelKind::Settled => {
             runtime.set_settled_reranker(None);
             runtime.set_settled_rerank_enabled(false);

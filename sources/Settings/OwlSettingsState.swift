@@ -210,8 +210,11 @@ final class OwlSettingsState {
   var keyboardCJKEnglishSpacing: Bool = false
   /// 中文与数字自动空格 legacy mirror.
   var keyboardCJKNumberSpacing: Bool = false
-  /// 自动配对括号 (mirror of `OwlKeyboardPreferences.autoPairBrackets`). Default false（出厂关）.
-  var keyboardAutoPairBrackets: Bool = false
+  /// 自动配对括号 (mirror of `OwlKeyboardPreferences.autoPairBrackets`); native pinyin defaults on.
+  var keyboardAutoPairBrackets: Bool = true
+  var keyboardSmartPunctuation: Bool = true
+  var keyboardSmartPunctuationRepeat: Bool = true
+  var keyboardSmartPunctuationSpace: Bool = false
   /// 这些 App 默认英文 (mirror of `OwlKeyboardPreferences.appEnglishBundleIDs`).
   var keyboardAppEnglishBundleIDsText: String = ""
   /// 逐键候选重排 (mirror of `OwlExperimentalPreferences.keyboardRerankEnabled`). Default false.
@@ -224,8 +227,9 @@ final class OwlSettingsState {
   /// Selected candidate-panel skin. `OwlSettingsView` reads `skin.theme`, so editing it through
   /// `OwlCandidatePanelSettings` re-skins both the settings window and live candidate panel.
   var skin: OwlSkin = .deepred
-  /// 在候选中显示 emoji (mirror of `OwlEmojiPreferences.candidateEmojiEnabled`). Default false（出厂关）.
-  var candidateEmojiEnabled: Bool = false
+  /// 在候选中显示 emoji (mirror of `OwlEmojiPreferences.candidateEmojiEnabled`). Default true（上游 macOS 默认）.
+  var candidateEmojiEnabled: Bool = true
+  var pinyinQuickPhraseCandidates: Bool = false
   /// Cloud AI enable — 全部划词技能的总闸 (mirror of `OwlCloudPreferences.isEnabled`).
   var cloudEnabled: Bool = false
   /// DeepSeek model id (mirror of `OwlCloudPreferences.deepSeekModel`).

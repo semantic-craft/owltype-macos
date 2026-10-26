@@ -1,0 +1,30 @@
+{
+ "name": "freq_leading_pick_no_state",
+ "source": "tests/src/test_input_session.cpp:1141-1151",
+ "covers": [
+  "learning"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-pinyin.db": "BEGIN;CREATE TABLE tbl_1_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);INSERT INTO tbl_1_n VALUES('ni', 'n', '甲', 100);INSERT INTO tbl_1_n VALUES('ni', 'n', '乙', 90);INSERT INTO tbl_1_n VALUES('ni', 'n', '丙', 80);INSERT INTO tbl_1_n VALUES('ni', 'n', '丁', 70);INSERT INTO tbl_1_n VALUES('ni', 'n', '戊', 60);INSERT INTO tbl_1_n VALUES('ni', 'n', '己', 50);COMMIT;"
+  }
+ },
+ "options": {
+  "frequency": {
+   "mode": "pin"
+  }
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "ni"
+  },
+  {
+   "op": "select",
+   "arg": 0
+  },
+  {
+   "op": "dump_journal"
+  }
+ ]
+}

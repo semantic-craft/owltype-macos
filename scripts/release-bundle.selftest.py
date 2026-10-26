@@ -46,6 +46,9 @@ class ReleaseLicenseEntriesTests(unittest.TestCase):
         (app / FINALIZER.WUBI86_JIDIAN_LICENSE).write_bytes(
             (ROOT / "licenses/wubi86-jidian.LICENSE").read_bytes()
         )
+        (app / FINALIZER.RIME_KAOMOJI_LICENSE).write_bytes(
+            (ROOT / "licenses/rime-kaomoji.LICENSE").read_bytes()
+        )
         (app / FINALIZER.PYTHON_PINYIN_LICENSE).write_bytes(
             (ROOT / "licenses/python-pinyin.LICENSE").read_bytes()
         )
@@ -75,6 +78,21 @@ class ReleaseLicenseEntriesTests(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "missing license bundle entries.*wubi86"):
                 FINALIZER.verify_required_licenses(app)
 
+    def test_missing_or_changed_kaomoji_license_fails(self) -> None:
+        for missing in (True, False):
+            with self.subTest(missing=missing), tempfile.TemporaryDirectory(prefix="owl-kaomoji-license-") as temporary:
+                app = Path(temporary) / "Owltype.app"
+                self.materialize_licenses(app)
+                license_path = app / FINALIZER.RIME_KAOMOJI_LICENSE
+                if missing:
+                    license_path.unlink()
+                    message = "missing license bundle entries.*rime-kaomoji"
+                else:
+                    license_path.write_text("MIT but missing original attribution")
+                    message = "license differs from the pinned upstream text.*rime-kaomoji"
+                with self.assertRaisesRegex(SystemExit, message):
+                    FINALIZER.verify_required_licenses(app)
+
 
 class ReleaseSBOMTests(unittest.TestCase):
     def test_sbom_names_only_current_components_and_contains_them(self) -> None:
@@ -94,10 +112,11 @@ class ReleaseSBOMTests(unittest.TestCase):
             {
                 "OpenCC data",
                 "rime-wubi86-jidian",
-                "Owltype emoji catalog (msime-others.db)",
+                "Owltype emoji and kaomoji catalog (msime-others.db)",
                 "rime-ice emoji data",
                 "Unicode Emoji, CLDR annotations, and Emoji 1.0 names",
                 "python-pinyin emoji reading overrides",
+                "rime_kaomoji_dict",
                 "chinese-ime-lm model weights",
             }
             <= names
@@ -108,12 +127,14 @@ class ReleaseSBOMTests(unittest.TestCase):
             by_name["rime-wubi86-jidian"]["versionInfo"],
             "a194fb8b3ec41ef9dcf079d3a67876fa75f79135",
         )
+        self.assertEqual(by_name["Metasequoia IME (msime)"]["versionInfo"],
+                         "208c10e848bbed99373ca8b609fd2142b6b0b4e2")
         self.assertEqual(
             by_name["chinese-ime-lm model weights"]["versionInfo"],
             "model-v1",
         )
         self.assertEqual(
-            by_name["Owltype emoji catalog (msime-others.db)"]["licenseConcluded"],
+            by_name["Owltype emoji and kaomoji catalog (msime-others.db)"]["licenseConcluded"],
             "GPL-3.0-only AND Unicode-3.0 AND MIT",
         )
         self.assertEqual(
@@ -124,7 +145,10 @@ class ReleaseSBOMTests(unittest.TestCase):
             by_name["python-pinyin emoji reading overrides"]["versionInfo"],
             "v0.55.0",
         )
-        self.assertFalse({"PiliApp symbol catalog", "rime_kaomoji_dict"} & names)
+        self.assertNotIn("PiliApp symbol catalog", names)
+        self.assertEqual(by_name["rime_kaomoji_dict"]["licenseConcluded"], "MIT")
+        self.assertEqual(by_name["rime_kaomoji_dict"]["versionInfo"], "dict-v2.0.24-derived")
+        self.assertIn("1675 rows", by_name["rime_kaomoji_dict"]["sourceInfo"])
 
         owltype_id = next(
             package_id

@@ -1,0 +1,360 @@
+{
+ "name": "fuzzy_protected_slots",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "xian",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "xian",
+    "raw_segmentation": "xian",
+    "normalized_segmentation": "xian",
+    "editing_text": "xian",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     4
+    ],
+    "candidate_count": 4,
+    "candidates": [
+     {
+      "word": "先",
+      "pinyin": "xian",
+      "canonical_pinyin": "xian",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1662684,
+      "answers_key": true
+     },
+     {
+      "word": "西安",
+      "pinyin": "xi'an",
+      "canonical_pinyin": "xi'an",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 55003,
+      "answers_key": true
+     },
+     {
+      "word": "些",
+      "pinyin": "xi",
+      "canonical_pinyin": "xie",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 3752167,
+      "answers_key": false
+     },
+     {
+      "word": "写",
+      "pinyin": "xi",
+      "canonical_pinyin": "xie",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 605147,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "xian",
+     "cache_key": "xian",
+     "pinyin_segments": [
+      "xian"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "xie",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "xie",
+    "raw_segmentation": "xie",
+    "normalized_segmentation": "xie",
+    "editing_text": "xie",
+    "caret": 3,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     3
+    ],
+    "candidate_count": 4,
+    "candidates": [
+     {
+      "word": "些",
+      "pinyin": "xie",
+      "canonical_pinyin": "xie",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 3752167,
+      "answers_key": true
+     },
+     {
+      "word": "写",
+      "pinyin": "xie",
+      "canonical_pinyin": "xie",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 605147,
+      "answers_key": true
+     },
+     {
+      "word": "西鄂",
+      "pinyin": "xi'e",
+      "canonical_pinyin": "xi'e",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 6,
+      "answers_key": true
+     },
+     {
+      "word": "先",
+      "pinyin": "xi",
+      "canonical_pinyin": "xian",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1662684,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "xie",
+     "cache_key": "xie",
+     "pinyin_segments": [
+      "xie"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "jiang",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "jiang",
+    "raw_segmentation": "jiang",
+    "normalized_segmentation": "jiang",
+    "editing_text": "jiang",
+    "caret": 5,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     5
+    ],
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "将",
+      "pinyin": "jiang",
+      "canonical_pinyin": "jiang",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 2629219,
+      "answers_key": true
+     },
+     {
+      "word": "僵",
+      "pinyin": "jiang",
+      "canonical_pinyin": "jiang",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 94955,
+      "answers_key": true
+     },
+     {
+      "word": "激昂",
+      "pinyin": "ji'ang",
+      "canonical_pinyin": "ji'ang",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 23740,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "jiang",
+     "cache_key": "jiang",
+     "pinyin_segments": [
+      "jiang"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "youdian",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "youdian",
+    "raw_segmentation": "you'dian",
+    "normalized_segmentation": "you'dian",
+    "editing_text": "youdian",
+    "caret": 7,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     3,
+     7
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "邮电",
+      "pinyin": "you'dian",
+      "canonical_pinyin": "you'dian",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 999,
+      "answers_key": true
+     },
+     {
+      "word": "尤迪安",
+      "pinyin": "you'di'an",
+      "canonical_pinyin": "you'di'an",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 7,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "you'dian",
+     "cache_key": "youdian",
+     "pinyin_segments": [
+      "you",
+      "dian"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  }
+ ]
+}

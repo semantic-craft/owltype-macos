@@ -32,6 +32,9 @@
 		AB168001CAFE0001CAFE0001 /* OwlRaycastImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB168001CAFE0002CAFE0002 /* OwlRaycastImport.swift */; };
 		AB170003CAFE0001CAFE0001 /* OwlAutomaticExpansionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB170003CAFE0002CAFE0002 /* OwlAutomaticExpansionTests.swift */; };
 		AB170002CAFE0001CAFE0001 /* OwlInputController+AutomaticExpansion.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB170002CAFE0002CAFE0002 /* OwlInputController+AutomaticExpansion.swift */; };
+		AB285005CAFE0003CAFE0003 /* OwlKeyboardPage+SmartPunctuation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB285005CAFE0004CAFE0004 /* OwlKeyboardPage+SmartPunctuation.swift */; };
+		AB285005CAFE0001CAFE0001 /* OwlInputController+SmartPunctuation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB285005CAFE0002CAFE0002 /* OwlInputController+SmartPunctuation.swift */; };
+		AB285006CAFE0001CAFE0001 /* OwlInputController+NativePunctuation.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB285006CAFE0002CAFE0002 /* OwlInputController+NativePunctuation.swift */; };
 		AB170001CAFE0001CAFE0001 /* OwlAutomaticExpansion.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB170001CAFE0002CAFE0002 /* OwlAutomaticExpansion.swift */; };
 		AB167001CAFE0001CAFE0001 /* OwlTemplateTemporalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB167001CAFE0002CAFE0002 /* OwlTemplateTemporalTests.swift */; };
 		AB166002CAFE0001CAFE0001 /* OwlTemplateClipboardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB166002CAFE0002CAFE0002 /* OwlTemplateClipboardTests.swift */; };
@@ -206,6 +209,7 @@
 		FAA0000DCAFE000DCAFE000D /* RimeCompositionRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA0000ECAFE000ECAFE000E /* RimeCompositionRenderer.swift */; };
 		FA0000F6CAFE00F6CAFE00F6 /* RimeSeam.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F5CAFE00F5CAFE00F5 /* RimeSeam.swift */; };
 		FA000249CAFE0249CAFE0001 /* OwlRustEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000249CAFE0249CAFE0002 /* OwlRustEngine.swift */; };
+		AB286009CAFE0001CAFE0001 /* OwlRustPayloads.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB286009CAFE0002CAFE0002 /* OwlRustPayloads.swift */; };
 		FA257C01CAFE2570CAFE0001 /* OwlRustEngine+KeyRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA257C02CAFE2570CAFE0002 /* OwlRustEngine+KeyRouting.swift */; };
 		FA000249CAFE0249CAFE0003 /* OwlRustEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000249CAFE0249CAFE0004 /* OwlRustEngineTests.swift */; };
 		FA262001CAFE0001CAFE0001 /* OwlRimeSchemaCompatibilityReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA262002CAFE0002CAFE0002 /* OwlRimeSchemaCompatibilityReport.swift */; };
@@ -329,6 +333,9 @@
 		AB168001CAFE0002CAFE0002 /* OwlRaycastImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRaycastImport.swift; path = sources/Settings/OwlRaycastImport.swift; sourceTree = "<group>"; };
 		AB170003CAFE0002CAFE0002 /* OwlAutomaticExpansionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAutomaticExpansionTests.swift; path = "tests/OwlAutomaticExpansionTests.swift"; sourceTree = "<group>"; };
 		AB170002CAFE0002CAFE0002 /* OwlInputController+AutomaticExpansion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+AutomaticExpansion.swift"; path = "sources/Controller/OwlInputController+AutomaticExpansion.swift"; sourceTree = "<group>"; };
+		AB285005CAFE0004CAFE0004 /* OwlKeyboardPage+SmartPunctuation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlKeyboardPage+SmartPunctuation.swift"; path = "sources/Settings/OwlKeyboardPage+SmartPunctuation.swift"; sourceTree = "<group>"; };
+		AB285005CAFE0002CAFE0002 /* OwlInputController+SmartPunctuation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+SmartPunctuation.swift"; path = "sources/Controller/OwlInputController+SmartPunctuation.swift"; sourceTree = "<group>"; };
+		AB285006CAFE0002CAFE0002 /* OwlInputController+NativePunctuation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+NativePunctuation.swift"; path = "sources/Controller/OwlInputController+NativePunctuation.swift"; sourceTree = "<group>"; };
 		AB170001CAFE0002CAFE0002 /* OwlAutomaticExpansion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAutomaticExpansion.swift; path = "sources/Controller/OwlAutomaticExpansion.swift"; sourceTree = "<group>"; };
 		AB167001CAFE0002CAFE0002 /* OwlTemplateTemporalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateTemporalTests.swift; path = tests/OwlTemplateTemporalTests.swift; sourceTree = "<group>"; };
 		AB166002CAFE0002CAFE0002 /* OwlTemplateClipboardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTemplateClipboardTests.swift; path = tests/OwlTemplateClipboardTests.swift; sourceTree = "<group>"; };
@@ -505,6 +512,7 @@
 		FAA0000ECAFE000ECAFE000E /* RimeCompositionRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeCompositionRenderer.swift; path = sources/Engine/RimeCompositionRenderer.swift; sourceTree = "<group>"; };
 		FA0000F5CAFE00F5CAFE00F5 /* RimeSeam.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeSeam.swift; path = sources/Engine/RimeSeam.swift; sourceTree = "<group>"; };
 		FA000249CAFE0249CAFE0002 /* OwlRustEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRustEngine.swift; path = sources/Engine/OwlRustEngine.swift; sourceTree = "<group>"; };
+		AB286009CAFE0002CAFE0002 /* OwlRustPayloads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRustPayloads.swift; path = sources/Engine/OwlRustPayloads.swift; sourceTree = "<group>"; };
 		FA257C02CAFE2570CAFE0002 /* OwlRustEngine+KeyRouting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlRustEngine+KeyRouting.swift"; path = "sources/Engine/OwlRustEngine+KeyRouting.swift"; sourceTree = "<group>"; };
 		FA262002CAFE0002CAFE0002 /* OwlRimeSchemaCompatibilityReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRimeSchemaCompatibilityReport.swift; path = sources/Engine/OwlRimeSchemaCompatibilityReport.swift; sourceTree = "<group>"; };
 		FA262004CAFE0004CAFE0004 /* OwlRimeSchemaCompatibilityReportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRimeSchemaCompatibilityReportTests.swift; path = tests/OwlRimeSchemaCompatibilityReportTests.swift; sourceTree = "<group>"; };
@@ -654,6 +662,9 @@
 				AB166001CAFE0002CAFE0002 /* OwlTemplateContextCapture.swift */,
 				AB170001CAFE0002CAFE0002 /* OwlAutomaticExpansion.swift */,
 				AB170002CAFE0002CAFE0002 /* OwlInputController+AutomaticExpansion.swift */,
+				AB285005CAFE0004CAFE0004 /* OwlKeyboardPage+SmartPunctuation.swift */,
+				AB285005CAFE0002CAFE0002 /* OwlInputController+SmartPunctuation.swift */,
+				AB285006CAFE0002CAFE0002 /* OwlInputController+NativePunctuation.swift */,
 				AB163001CAFE0002CAFE0002 /* OwlTemplateMigration.swift */,
 				FA0000D6CAFE00D6CAFE00D6 /* OwlQuickSendPanel.swift */,
 				FA0000E8CAFE00E8CAFE00E8 /* OwlQuickSendHotKey.swift */,
@@ -746,6 +757,7 @@
 				FAA0000ECAFE000ECAFE000E /* RimeCompositionRenderer.swift */,
 				FA0000F5CAFE00F5CAFE00F5 /* RimeSeam.swift */,
 				FA000249CAFE0249CAFE0002 /* OwlRustEngine.swift */,
+				AB286009CAFE0002CAFE0002 /* OwlRustPayloads.swift */,
 				FA257C02CAFE2570CAFE0002 /* OwlRustEngine+KeyRouting.swift */,
 				FA262002CAFE0002CAFE0002 /* OwlRimeSchemaCompatibilityReport.swift */,
 				FAA00033CAFE0033CAFE0033 /* OwlUserDictReset.swift */,
@@ -1155,6 +1167,9 @@
 				AB166001CAFE0001CAFE0001 /* OwlTemplateContextCapture.swift in Sources */,
 				AB170001CAFE0001CAFE0001 /* OwlAutomaticExpansion.swift in Sources */,
 				AB170002CAFE0001CAFE0001 /* OwlInputController+AutomaticExpansion.swift in Sources */,
+				AB285005CAFE0003CAFE0003 /* OwlKeyboardPage+SmartPunctuation.swift in Sources */,
+				AB285005CAFE0001CAFE0001 /* OwlInputController+SmartPunctuation.swift in Sources */,
+				AB285006CAFE0001CAFE0001 /* OwlInputController+NativePunctuation.swift in Sources */,
 				AB163001CAFE0001CAFE0001 /* OwlTemplateMigration.swift in Sources */,
 				FA0000D5CAFE00D5CAFE00D5 /* OwlQuickSendPanel.swift in Sources */,
 				FA0000E7CAFE00E7CAFE00E7 /* OwlQuickSendHotKey.swift in Sources */,
@@ -1248,6 +1263,7 @@
 				FAA0000DCAFE000DCAFE000D /* RimeCompositionRenderer.swift in Sources */,
 				FA0000F6CAFE00F6CAFE00F6 /* RimeSeam.swift in Sources */,
 				FA000249CAFE0249CAFE0001 /* OwlRustEngine.swift in Sources */,
+				AB286009CAFE0001CAFE0001 /* OwlRustPayloads.swift in Sources */,
 				FA257C01CAFE2570CAFE0001 /* OwlRustEngine+KeyRouting.swift in Sources */,
 				FA262001CAFE0001CAFE0001 /* OwlRimeSchemaCompatibilityReport.swift in Sources */,
 				FAA00032CAFE0032CAFE0032 /* OwlUserDictReset.swift in Sources */,
@@ -1389,7 +1405,7 @@
 				CODE_SIGN_ENTITLEMENTS = resources/Owltype.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2.1.0;
+				CURRENT_PROJECT_VERSION = 2.1.1;
 				DEAD_CODE_STRIPPING = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1426,7 +1442,7 @@
 				OTHER_LDFLAGS = (
 					"-lowl_msime_ffi",
 				);
-				MARKETING_VERSION = 2.1.0;
+				MARKETING_VERSION = 2.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.Owltype;
 				PRODUCT_NAME = Owltype;
 				SDKROOT = macosx;
@@ -1448,7 +1464,7 @@
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CODE_SIGN_ENTITLEMENTS = resources/Owltype.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.1.0;
+				CURRENT_PROJECT_VERSION = 2.1.1;
 				DEAD_CODE_STRIPPING = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1484,7 +1500,7 @@
 				OTHER_LDFLAGS = (
 					"-lowl_msime_ffi",
 				);
-				MARKETING_VERSION = 2.1.0;
+				MARKETING_VERSION = 2.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.Owltype;
 				PRODUCT_NAME = Owltype;
 				SDKROOT = macosx;
@@ -1610,7 +1626,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2.1.0;
+				CURRENT_PROJECT_VERSION = 2.1.1;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)",
@@ -1623,7 +1639,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.1.0;
+				MARKETING_VERSION = 2.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.OwltypeTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -1638,7 +1654,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2.1.0;
+				CURRENT_PROJECT_VERSION = 2.1.1;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)",
@@ -1651,7 +1667,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.1.0;
+				MARKETING_VERSION = 2.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.OwltypeTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -1665,7 +1681,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2.1.0;
+				CURRENT_PROJECT_VERSION = 2.1.1;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1673,7 +1689,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.1.0;
+				MARKETING_VERSION = 2.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.OwltypeUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -1687,7 +1703,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2.1.0;
+				CURRENT_PROJECT_VERSION = 2.1.1;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1695,7 +1711,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.1.0;
+				MARKETING_VERSION = 2.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.OwltypeUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;

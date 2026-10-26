@@ -1,0 +1,277 @@
+{
+ "name": "jp_romaji_gates",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "char",
+   "arg": "k",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "k",
+    "raw_segmentation": "k",
+    "normalized_segmentation": "k",
+    "editing_text": "k",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": [],
+    "online_query": {
+     "scheme": "japanese",
+     "query_text": "k",
+     "cache_key": "k",
+     "pinyin_segments": [],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "ra",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "ra",
+    "raw_segmentation": "ra",
+    "normalized_segmentation": "ら",
+    "editing_text": "ra",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "ら",
+      "pinyin": "ra",
+      "canonical_pinyin": "ra",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 1000000,
+      "answers_key": true
+     },
+     {
+      "word": "ラ",
+      "pinyin": "ra",
+      "canonical_pinyin": "ra",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 999999,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "japanese",
+     "query_text": "ra",
+     "cache_key": "ra",
+     "pinyin_segments": [],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "char",
+   "arg": "-",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "ra-",
+    "raw_segmentation": "ra-",
+    "normalized_segmentation": "らー",
+    "editing_text": "ra-",
+    "caret": 3,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "らー",
+      "pinyin": "ra-",
+      "canonical_pinyin": "ra-",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 1000000,
+      "answers_key": true
+     },
+     {
+      "word": "ラー",
+      "pinyin": "ra-",
+      "canonical_pinyin": "ra-",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 999999,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "japanese",
+     "query_text": "ra-",
+     "cache_key": "ra-",
+     "pinyin_segments": [],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "type",
+   "arg": "menn",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "ra-menn",
+    "raw_segmentation": "ra-menn",
+    "normalized_segmentation": "らーめん",
+    "editing_text": "ra-menn",
+    "caret": 7,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "らーめん",
+      "pinyin": "ra-menn",
+      "canonical_pinyin": "ra-menn",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 1000000,
+      "answers_key": true
+     },
+     {
+      "word": "ラーメン",
+      "pinyin": "ra-menn",
+      "canonical_pinyin": "ra-menn",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 999999,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "japanese",
+     "query_text": "ra-menn",
+     "cache_key": "ra-menn",
+     "pinyin_segments": [],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "char",
+   "arg": "-",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "-",
+    "raw_segmentation": "-",
+    "normalized_segmentation": "ー",
+    "editing_text": "-",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "ー",
+      "pinyin": "-",
+      "canonical_pinyin": "-",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 1000000,
+      "answers_key": true
+     },
+     {
+      "word": "-",
+      "pinyin": "-",
+      "canonical_pinyin": "-",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 999999,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "japanese",
+     "query_text": "-",
+     "cache_key": "-",
+     "pinyin_segments": [],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  }
+ ]
+}

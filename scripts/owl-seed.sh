@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 #
-# Build the self-contained Rime data used by the open-source local core.
-# Every network input is pinned. The Wubi86 table uses a reviewed Apache-2.0
-# source at a fixed commit; octagram data remains absent from the public seed.
+# Assemble the pinned official full-pinyin/English/context set and Owl Wubi.
+# Rime configuration assets remain for the existing host presentation contract.
 
 set -euo pipefail
 
@@ -119,6 +118,8 @@ done
 # upstream text separate from both the SPDX template and the model-weight files.
 echo "$chinese_ime_lm_license_sha256  $chinese_ime_lm_license" | shasum -a 256 --check
 cp "$chinese_ime_lm_license" "$output_dir/licenses/chinese-ime-lm.LICENSE"
+cp "$repo_root/rust/plugins/phrase_table/LICENSE" "$output_dir/licenses/msime-latex-symbols-MIT.txt"
+cp "$repo_root/rust/resources/licenses/rime-wanxiang-CC-BY-4.0.txt" "$output_dir/licenses/"
 
 cp -R \
   "$source_dir/lua" \
@@ -134,11 +135,7 @@ sed \
   -e '/reverse_lookup_filter@radical_reverse_lookup/d' \
   -e '/lua_filter@\*search@radical_pinyin/d' \
   "$source_dir/rime_ice.schema.yaml" > "$output_dir/rime_ice.schema.yaml"
-# Owltype 出厂默认：候选 emoji 关（emoji switch reset 1→0）+ off 态标签 💀→👍（rime-ice 的骷髅
-# 不吉利，每次重新部署 reset 都会弹一次；2026-07-26 用户要求换大拇指，on 态保留 😄）。
-# 必须落共享 schema——用户目录 custom.yaml 覆盖不到升级用户（首次 seed 不覆盖已有文件）。
-# 锚定编辑，找不到即硬失败；check-release.sh 有对应断言。清洁室重写时曾把 reset 补丁弄丢
-# （1.4.23 带 reset:1 出厂，2026-07-24 复补）。
+# Keep the legacy schema export aligned with the pinned macOS emoji default.
 python3 - "$output_dir/rime_ice.schema.yaml" <<'PYEOF'
 import sys
 path = sys.argv[1]
@@ -183,7 +180,7 @@ def set_states_after(name, states_literal):
                 return True
     return False
 
-if not set_reset_after("emoji", 0):
+if not set_reset_after("emoji", 1):
     sys.exit("[owltype-seed][schema-patch] ERROR: emoji switch (with reset:) not found in rime_ice.schema.yaml")
 if not set_states_after("emoji", "[ 👍, 😄 ]"):
     sys.exit("[owltype-seed][schema-patch] ERROR: emoji switch states not found in rime_ice.schema.yaml")
@@ -192,7 +189,7 @@ if not set_states_after("ascii_mode", "[ 中, 英 ]"):
     sys.exit("[owltype-seed][schema-patch] ERROR: ascii_mode switch states not found in rime_ice.schema.yaml")
 with open(path, "w", encoding="utf-8") as f:
     f.writelines(lines)
-print("[owltype-seed] patched rime_ice.schema.yaml: emoji reset 1 -> 0 (factory off) states -> [👍, 😄], ascii_mode states -> [中, 英]")
+print("[owltype-seed] patched rime_ice.schema.yaml: emoji reset 1 (upstream default on) states -> [👍, 😄], ascii_mode states -> [中, 英]")
 PYEOF
 cp "$repo_root/data/rime_ice.public.dict.yaml" "$output_dir/rime_ice.dict.yaml"
 python3 "$repo_root/scripts/unihan-to-rime.py" \
@@ -218,121 +215,46 @@ cp "$jieba_license_file" "$output_dir/jieba.LICENSE"
 cp "$ppd_license_file" "$output_dir/phrase-pinyin-data.LICENSE"
 echo "$python_pinyin_license_sha256  $python_pinyin_license" | shasum -a 256 --check
 cp "$python_pinyin_license" "$output_dir/python-pinyin.LICENSE"
+cp "$repo_root/licenses/rime-kaomoji.LICENSE" "$output_dir/rime-kaomoji.LICENSE"
 # The retained OpenCC conversion tables are Apache-2.0 data. Copy the pinned,
 # hash-checked SPDX text instead of reaching into an uninitialized librime tree.
 cp "$license_cache/Apache-2.0.txt" "$output_dir/OpenCC.LICENSE"
 cp "$repo_root/data/owltype.yaml" "$output_dir/owltype.yaml"
 cp "$repo_root/rime/"*.custom.yaml "$output_dir/_user_seed/"
+# Build the audited Owl Wubi overlay through its existing importer. The slim
+# pinyin/English intermediates are replaced below before this seed is usable.
 python3 "$repo_root/scripts/build-owltype-msime-seed-db.py" "$output_dir"
 python3 "$repo_root/scripts/build-owltype-msime-seed-db.py" --check "$output_dir"
 python3 "$repo_root/scripts/fetch-msime-others.py" \
   --output "$output_dir/msime/msime-others.db"
+python3 "$repo_root/scripts/fetch-msime-resources.py" --seed "$output_dir"
 cp "$repo_root/data/msime-others-NOTICE.txt" "$output_dir/"
 
-cat > "$output_dir/OWLTYPE-SEED-SOURCES.md" <<EOF
-# Owltype public seed source map
+# The resource set above supersedes the legacy Rime dictionary intermediate.
+cp "$repo_root/licenses/CC-BY-SA-4.0.txt" "$output_dir/licenses/CC-BY-SA-4.0.txt"
+cp "$repo_root/data/msime-resources-NOTICE.md" "$output_dir/msime-resources-NOTICE.md"
+cp "$repo_root/data/msime-upstream-licensing-NOTICE.md" "$output_dir/msime-upstream-licensing-NOTICE.md"
+cat > "$output_dir/OWLTYPE-SEED-SOURCES.md" <<'EOF'
+# Owltype production resource sources
 
-The Chinese dictionary in this seed has exactly these data inputs:
-
-- \`cn_dicts/owltype_base.dict.yaml\` is generated from jieba \`dict.txt\` at
-  tag \`$jieba_tag\` (MIT), phrase-pinyin-data \`pinyin.txt\` at revision
-  \`$ppd_sha\` (MIT), and Unicode $unihan_version Unihan fields \`kTGH\`,
-  \`kTGHZ2013\`, \`kMandarin\`, and \`kHanyuPinlu\` under Unicode-3.0. Every
-  entry is restricted to the 通用规范汉字表 character set (Unihan \`kTGH\` 2013),
-  which keeps traditional-form and rare characters out of the word candidates.
-- \`cn_dicts/owltype_unicode.dict.yaml\` is generated from Unicode $unihan_version
-  \`Unihan_Readings.txt\` field \`kMandarin\` under Unicode-3.0. It carries no
-  weights, so it only serves as a rare-character fallback below owltype_base.
-- \`msime/msime-pinyin.db:wubi86\` imports
-  KyleBing/rime-wubi86-jidian \`$wubi86_sha\`'s \`wubi86_jidian.dict.yaml\`
-  (Apache-2.0). The pinned source SHA-256 is \`$wubi86_sha256\`. It has
-  89,273 data rows: 89,272 shape-valid rows are accepted, 3 are duplicate
-  pairs merged by highest weight, 89,269 unique rows are written, and 1 row
-  is rejected because its text column is empty (source line 7911).
-  \`wubi86-jidian.LICENSE\` is verified as
-  SHA-256 \`$wubi86_license_sha256\` and copied to the seed unchanged.
-
-Only the curated \`pinyin.txt\` file of phrase-pinyin-data is used. Its
-\`large_pinyin.txt\`, \`cc_cedict.txt\`, and \`zdic_*\` files are excluded
-because their provenance is CC BY-SA or crawled data. rime-essay is no longer
-distributed with this seed.
-
-The rime-ice schemas, Lua helpers, OpenCC tables, symbols, and configuration are
-from revision \`$rime_ice_sha\` under GPL-3.0-only with its retained Credits.
-
-\`msime/msime-others.db\` is derived at seed time from the pinned
-\`$msime_others_version\` release artifact (size $msime_others_size, SHA-256
-\`$msime_others_sha\`). The release manifest records msime builder commit
-\`$msime_others_builder_sha\` and msime-dictionary data commit
-\`$msime_others_data_sha\`. Owltype retains only these two tables:
-
-- \`emoji\`: $msime_emoji_rows rows, canonical row SHA-256
-  \`$msime_emoji_row_sha\`.
-- \`emoji_pinyin\`: $msime_emoji_pinyin_rows rows, canonical row SHA-256
-  \`$msime_emoji_pinyin_row_sha\`.
-
-Chinese keywords come from rime-ice's emoji map (GPL-3.0-only); English names
-use Unicode Emoji 17.0, CLDR annotations and Emoji 1.0 names (Unicode-3.0).
-The pinned msime builder computes per-character readings with the Rust
-\`pinyin\` crate and applies phrase overrides generated by
-mozillazg/python-pinyin \`$python_pinyin_version\` (MIT); the verbatim
-\`python-pinyin.LICENSE\` is included. The release artifact's other tables,
-including kaomoji and PiliApp symbol data, are not copied into Owltype. See
-\`msime-others-NOTICE.txt\` for the release manifest, fixed builder/input paths
-and input file hashes.
-
-\`licenses/chinese-ime-lm.LICENSE\` is the verbatim Apache-2.0 text from the
-chinese-ime-lm \`reference/\` source crate at revision \`$chinese_ime_lm_sha\`.
-It covers that vendored source crate only; the project's model weights have a
-separate model lock, license, and notice.
-
-No rime-ice \`cn_dicts\` or \`en_dicts\` file is distributed. In particular,
-the upstream 8105, base, ext, 41448, Tencent, and miscellaneous dictionaries are
-excluded rather than relying on an unverified or mixed-source license chain.
+The production Rust engine uses the complete pinned official dict-v2.0.24
+pinyin and English data plus both bigram/trigram scoring sidecars. Legacy Rime
+YAML files are build intermediates and do not supply the production pinyin DB.
+Only the existing audited Owl Wubi tables are overlaid into the pinyin DB.
+See msime-resources-NOTICE.md, msime-upstream-licensing-NOTICE.md,
+msime/msime-dictionary-manifest.json and msime/OWLTYPE-UPSTREAM-RESOURCES.json
+for sources, byte sizes, digests, adaptations, and redistribution boundaries.
+The product's others DB remains the audited four-table emoji/kaomoji derivative.
+EOF
+cat > "$output_dir/OWLTYPE-SEED-MANIFEST.txt" <<EOF
+Owltype production seed
+official-resource-set dict-v2.0.24
+manifest-sha256 5b656a5db35b4dcf804ce4348d8584c899d0012fe62bbbe3689204ddaba8722f
+resource-identities msime/OWLTYPE-UPSTREAM-RESOURCES.json
+wubi86-source $wubi86_sha
+wubi86-license $wubi86_license_sha256 wubi86-jidian.LICENSE
+others-policy audited-emoji-kaomoji-four-tables; full upstream auxiliary artifact retained in build cache
+model-policy separately pinned; defaults unchanged
 EOF
 
-{
-  echo "Owltype local-core Rime seed"
-  echo "rime-ice $rime_ice_sha"
-  echo "source $rime_ice_remote"
-  echo "unicode-unihan $unihan_version $unihan_sha"
-  echo "source $unihan_remote"
-  echo "jieba $jieba_tag $jieba_dict_sha"
-  echo "source https://github.com/fxsjy/jieba"
-  echo "phrase-pinyin-data $ppd_sha $ppd_pinyin_sha"
-  echo "source https://github.com/mozillazg/phrase-pinyin-data"
-  echo "license-texts SPDX license-list-data $spdx_license_tag"
-  echo "dictionary inputs include Unicode Unihan, jieba dict.txt, phrase-pinyin-data pinyin.txt, and pinned rime-wubi86-jidian wubi86_jidian.dict.yaml"
-  echo "rime-wubi86-jidian $wubi86_sha"
-  echo "source https://github.com/KyleBing/rime-wubi86-jidian"
-  echo "wubi86-dictionary $wubi86_sha256"
-  echo "wubi86-license $wubi86_license_sha256 wubi86-jidian.LICENSE"
-  echo "wubi86-counts source-total=89273 accepted=89272 unique=89269 duplicate=3 rejected=1"
-  echo "wubi86-rejected source-line-7911 empty-text cokg"
-  echo "msime-others derived-emoji $msime_others_version source-sha256=$msime_others_sha source-size=$msime_others_size"
-  echo "source https://github.com/metasequoiaime/msime-dictionary/releases/download/$msime_others_version/msime-others.db"
-  echo "msime-others-manifest $msime_others_manifest_sha size=$msime_others_manifest_size"
-  echo "source https://github.com/metasequoiaime/msime-dictionary/releases/download/$msime_others_version/msime-dictionary-manifest.json"
-  echo "msime-others-builder metasequoiaime/msime $msime_others_builder_sha"
-  echo "msime-others-data metasequoiaime/msime-dictionary $msime_others_data_sha"
-  echo "msime-others-rime-ice $msime_others_rime_ice_sha"
-  echo "msime-others-tables emoji,emoji_pinyin"
-  echo "msime-others-emoji rows=$msime_emoji_rows row-sha256=$msime_emoji_row_sha"
-  echo "msime-others-emoji-pinyin rows=$msime_emoji_pinyin_rows row-sha256=$msime_emoji_pinyin_row_sha"
-  echo "msime-others-licensing GPL-3.0-only+Unicode-3.0+MIT"
-  echo "msime-others-sources emoji=rime-ice-GPL-3.0-only names=Unicode-Emoji-17.0+CLDR+Emoji-1.0-Unicode-3.0 readings=pinyin-crate+Rust-builder overrides=python-pinyin-$python_pinyin_version-MIT"
-  echo "python-pinyin $python_pinyin_version $python_pinyin_sha"
-  echo "python-pinyin-license $python_pinyin_license_sha256 python-pinyin.LICENSE"
-  echo "source https://github.com/mozillazg/python-pinyin/tree/v$python_pinyin_version"
-  echo "msime-others-notice msime-others-NOTICE.txt"
-  echo "chinese-ime-lm-reference $chinese_ime_lm_sha"
-  echo "source https://github.com/metasequoiaime/chinese-ime-lm/tree/$chinese_ime_lm_sha/reference"
-  echo "chinese-ime-lm-license $chinese_ime_lm_license_sha256 licenses/chinese-ime-lm.LICENSE"
-  echo "chinese-ime-lm-license-scope vendored-reference-source-not-model-weights"
-  echo "rime-essay removed from the public seed after traditional-form review"
-  echo "rime-ice cn_dicts and en_dicts omitted after provenance review"
-  echo "wubi derivation: pinned Apache-2.0 wubi86_jidian.dict.yaml imported into msime-pinyin.db"
-  echo "octagram data omitted from the local-core seed"
-} > "$output_dir/OWLTYPE-SEED-MANIFEST.txt"
-
-echo "[owltype-seed] assembled pinned rime-ice seed at $output_dir"
+echo "[owltype-seed] assembled official pinned production resources at $output_dir"

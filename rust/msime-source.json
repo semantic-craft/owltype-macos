@@ -1,0 +1,41 @@
+{
+  "repository": "https://github.com/metasequoiaime/msime",
+  "tag": "macos-v0.55.0",
+  "revision": "208c10e848bbed99373ca8b609fd2142b6b0b4e2",
+  "fullCrates": [
+    "engine",
+    "input-runtime",
+    "path-trust"
+  ],
+  "extraction": {
+    "client-core": "Existing light client types plus client-base chinese_conversion.rs and pinned OpenCC inputs, and client-core host-context punctuation policy functions/types (snapshot serde derives only for the thin ABI); no client services.",
+    "input-runtime examples": "Excluded: require full client-core resource service outside the Owl extraction.",
+    "test data": "Shared punctuation contract, grammar model lock and public nine-key sentences; retain prior synthetic helpcode fixture instead of restricted author tables."
+  },
+  "adaptations": [
+    "Local path dependency to the separately pinned chinese-ime-lm crate.",
+    "Public root/path validator exports used by the C ABI.",
+    "Candidate emoji live toggle and cached-candidate view exposure.",
+    "Custom shuangpin semicolon spelling precedence.",
+    "Wubi independent Z lookup switch, complete-spelling fallback and stable dedup/group order.",
+    "Wubi top-commit bypasses phrase holding; sentence alternatives enabled only for ordinary pinyin.",
+    "Host-loaded verified keyboard model handoff and live candidate refresh through existing neural lattice scorer; no synchronous model file read on the key path.",
+    "Native host-context smart punctuation uses upstream route/repeat/space-convert decisions; C ABI transports JSON without changing candidate IDs.",
+    "Owl enhancement boundary: quick_phrase_table_in_candidates defaults true upstream; Owl false requires explicit K plus a complete host trigger. Native database quick phrases retain ordinary placement and K prefix browsing; no native candidate algorithm change.",
+    "Native host adapters expose existing runtime Finish and paired-book balance actions; Swift mirrors the pinned macOS marked-closing tail and quote reopening contract. Application chords finish before passthrough; slash-to-English remains an explicit Owl product exception.",
+    "Native quick-phrase capability is distinct from fresh mixed_input.quick_phrase=false; live preference forwarding queues until runtime idle and preserves composition. Pinyin keeps pinned pre-mixing placement/counts while Wubi retains #307 visible-seat placement."
+  ],
+  "defaultPinyin": {
+    "sentence_alternatives": true,
+    "english_minimum_prefix": 5,
+    "english_first_page_count": 1,
+    "local_expression": false,
+    "quick_phrase_candidates": false
+  },
+  "resources": {
+    "release": "dict-v2.0.24",
+    "manifest": "../data/msime-dictionary-manifest.json",
+    "sourceNotice": "../data/msime-resources-NOTICE.md"
+  },
+  "license": "GPL-3.0-only; dependency, model and data licenses remain separate."
+}

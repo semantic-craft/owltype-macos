@@ -1,0 +1,71 @@
+{
+ "name": "remove_quanpin_after_pin",
+ "source": "tests/src/test_candidate_removal.cpp:77-89; cases :90-129",
+ "covers": [
+  "removal",
+  "learning"
+ ],
+ "fixture": {
+  "english_schema": true,
+  "databases": {
+   "msime-pinyin.db": "CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_n VALUES('ni','n','你',10000);CREATE TABLE tbl_2_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',10000),('ni''hao','nh','拟好',9000);CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);INSERT INTO wubi86 VALUES('wq','你好',10000),('wq','拟好',9000);",
+   "msime-english.db": "INSERT INTO english_words(word,display,weight) VALUES('hello','hello',100),('help','help',50);"
+  },
+  "files": {
+   "helpcodes/helpcode.txt": "你=aa\n拟=cc\n"
+  }
+ },
+ "options": {
+  "scheme": "quanpin",
+  "learning": false
+ },
+ "steps": [
+  {
+   "op": "remove",
+   "arg": 0
+  },
+  {
+   "op": "type",
+   "arg": "nihao"
+  },
+  {
+   "op": "remove",
+   "arg": 99
+  },
+  {
+   "op": "pin",
+   "arg": {
+    "word": "拟好"
+   }
+  },
+  {
+   "op": "remove",
+   "arg": {
+    "word": "拟好"
+   }
+  },
+  {
+   "op": "dump_journal"
+  },
+  {
+   "op": "new_generation",
+   "arg": "v2"
+  },
+  {
+   "op": "type",
+   "arg": "nihao"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "new_generation",
+   "arg": "v1"
+  },
+  {
+   "op": "type",
+   "arg": "nihao"
+  }
+ ]
+}

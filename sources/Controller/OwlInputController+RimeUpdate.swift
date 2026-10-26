@@ -113,6 +113,7 @@ extension OwlInputController {
     //   so the only ordering nuance is that `free_status` now happens inside `status()`
     //   (i.e. before the option reads); freeing the status struct is independent of those
     //   option queries, so the behaviour is identical.
+    defer { punctuationKeyInFlight = nil }
     rimeConsumeCommittedText()
     rememberAppInputMode()
 
@@ -156,7 +157,7 @@ extension OwlInputController {
       // raw-preedit caret (UTF-16) that the composition Snapshot records.
       let marked = RimeCompositionRenderer.markedText(
         composition: composition, inlinePreedit: inlinePreedit, inlineCandidate: inlineCandidate)
-      show(preedit: marked.preedit, selRange: marked.selRange, caretPos: marked.caretPos)
+      show(preedit: marked.preedit + (pendingPairedClosing ?? ""), selRange: marked.selRange, caretPos: marked.caretPos)
 
       // update candidates. The value type already decoded the C arrays (null comment → nil,
       // labels resolved with the same select_keys/select_labels precedence as before); the
@@ -217,13 +218,24 @@ extension OwlInputController {
     // is identity on them — the order is inert in practice, fixed here so the decision input is
     // well-defined (transform identity on pair chars is locked by OwlAutoPairTests).
     let transformed = OwlCommitTransform.apply(to: string, previous: lastCommittedCharacter)
-    if OwlKeyboardPreferences.autoPairBrackets {
+    if usesNativePairedPunctuation {
+      commitNativePairedPunctuation(transformed, client: client)
+    } else if pendingPairedClosing != nil {
+      // A live settings change must still close the pair already owned by this host.
+      let closing = pendingPairedClosing ?? ""
+      pendingPairedClosing = nil
+      apply(.insertText(transformed + closing), client: client)
+      lastCommittedCharacter = (transformed + closing).last
+    } else if rime?.status()?.schemaId.hasPrefix("wubi") == true,
+              OwlKeyboardPreferences.autoPairBrackets,
+              OwlDefaults.standard.object(forKey: "OwlKeyboardAutoPairBrackets") != nil {
       commitApplyingAutoPair(transformed, client: client)
     } else {
       // Switch OFF: byte-identical to the pre-07-02 commit path.
       apply(.insertText(transformed), client: client)
       lastCommittedCharacter = transformed.last
     }
+    noteSmartPunctuationCommit(transformed)
     preedit = ""
     hidePalettes()
     MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.noteCommit() }
@@ -572,6 +584,7 @@ extension OwlInputController {
       guard let self, self.rime?.sessionID == pinSession, self.rime?.input() == pinInput else { return }
       self.togglePinnedWord(text: text)
     }
+    owlPanel.onRemove = { [weak self] token in _ = self?.removeCandidate(token) }
     owlPanel.onSelect = { [weak self] index in self?.selectPanelIndex(index) }
     owlPanel.onPage = { [weak self] up in _ = self?.page(up: up) }
     owlPanel.onSelectAbsolute = { [weak self] index in _ = self?.selectCandidateAbsolute(index) }
@@ -624,7 +637,7 @@ extension OwlInputController {
     client.bundleIdentifier() ?? (currentApp.isEmpty ? nil : currentApp)
   }
 
-  private func clientCapabilityDecisions(for client: IMKTextInput) -> OwlClientCapabilities {
+  func clientCapabilityDecisions(for client: IMKTextInput) -> OwlClientCapabilities {
     let bundleID = hostIdentity(for: client)
     return NSApp.owlAppDelegate.clientCapabilityPolicy.evaluate(
       OwlClientCapabilityInput(

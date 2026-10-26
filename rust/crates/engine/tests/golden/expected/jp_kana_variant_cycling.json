@@ -1,0 +1,580 @@
+{
+ "name": "jp_kana_variant_cycling",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "ka",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "ka",
+    "raw_segmentation": "ka",
+    "normalized_segmentation": "か",
+    "editing_text": "ka",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "か",
+      "pinyin": "ka",
+      "canonical_pinyin": "ka",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 1000000,
+      "answers_key": true
+     },
+     {
+      "word": "カ",
+      "pinyin": "ka",
+      "canonical_pinyin": "ka",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 999999,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "japanese",
+     "query_text": "ka",
+     "cache_key": "ka",
+     "pinyin_segments": [],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "CycleKanaVariant",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "ga",
+    "raw_segmentation": "ga",
+    "normalized_segmentation": "が",
+    "editing_text": "ga",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "が",
+      "pinyin": "ga",
+      "canonical_pinyin": "ga",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 1000000,
+      "answers_key": true
+     },
+     {
+      "word": "ガ",
+      "pinyin": "ga",
+      "canonical_pinyin": "ga",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 999999,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "japanese",
+     "query_text": "ga",
+     "cache_key": "ga",
+     "pinyin_segments": [],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "CycleKanaVariant",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "ka",
+    "raw_segmentation": "ka",
+    "normalized_segmentation": "か",
+    "editing_text": "ka",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "か",
+      "pinyin": "ka",
+      "canonical_pinyin": "ka",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 1000000,
+      "answers_key": true
+     },
+     {
+      "word": "カ",
+      "pinyin": "ka",
+      "canonical_pinyin": "ka",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 999999,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "japanese",
+     "query_text": "ka",
+     "cache_key": "ka",
+     "pinyin_segments": [],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "kaha",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "kaha",
+    "raw_segmentation": "kaha",
+    "normalized_segmentation": "かは",
+    "editing_text": "kaha",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "かは",
+      "pinyin": "kaha",
+      "canonical_pinyin": "kaha",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 1000000,
+      "answers_key": true
+     },
+     {
+      "word": "カハ",
+      "pinyin": "kaha",
+      "canonical_pinyin": "kaha",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 999999,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "japanese",
+     "query_text": "kaha",
+     "cache_key": "kaha",
+     "pinyin_segments": [],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "CycleKanaVariant",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "kaba",
+    "raw_segmentation": "kaba",
+    "normalized_segmentation": "かば",
+    "editing_text": "kaba",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "かば",
+      "pinyin": "kaba",
+      "canonical_pinyin": "kaba",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 1000000,
+      "answers_key": true
+     },
+     {
+      "word": "カバ",
+      "pinyin": "kaba",
+      "canonical_pinyin": "kaba",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 999999,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "japanese",
+     "query_text": "kaba",
+     "cache_key": "kaba",
+     "pinyin_segments": [],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "CycleKanaVariant",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "kapa",
+    "raw_segmentation": "kapa",
+    "normalized_segmentation": "かぱ",
+    "editing_text": "kapa",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "かぱ",
+      "pinyin": "kapa",
+      "canonical_pinyin": "kapa",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 1000000,
+      "answers_key": true
+     },
+     {
+      "word": "カパ",
+      "pinyin": "kapa",
+      "canonical_pinyin": "kapa",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 999999,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "japanese",
+     "query_text": "kapa",
+     "cache_key": "kapa",
+     "pinyin_segments": [],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "CycleKanaVariant",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "kaha",
+    "raw_segmentation": "kaha",
+    "normalized_segmentation": "かは",
+    "editing_text": "kaha",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "かは",
+      "pinyin": "kaha",
+      "canonical_pinyin": "kaha",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 1000000,
+      "answers_key": true
+     },
+     {
+      "word": "カハ",
+      "pinyin": "kaha",
+      "canonical_pinyin": "kaha",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 999999,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "japanese",
+     "query_text": "kaha",
+     "cache_key": "kaha",
+     "pinyin_segments": [],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "tsu",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "tsu",
+    "raw_segmentation": "tsu",
+    "normalized_segmentation": "つ",
+    "editing_text": "tsu",
+    "caret": 3,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "つ",
+      "pinyin": "tsu",
+      "canonical_pinyin": "tsu",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 1000000,
+      "answers_key": true
+     },
+     {
+      "word": "ツ",
+      "pinyin": "tsu",
+      "canonical_pinyin": "tsu",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 999999,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "japanese",
+     "query_text": "tsu",
+     "cache_key": "tsu",
+     "pinyin_segments": [],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "CycleKanaVariant",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "xtsu",
+    "raw_segmentation": "xtsu",
+    "normalized_segmentation": "っ",
+    "editing_text": "xtsu",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "っ",
+      "pinyin": "xtsu",
+      "canonical_pinyin": "xtsu",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 1000000,
+      "answers_key": true
+     },
+     {
+      "word": "ッ",
+      "pinyin": "xtsu",
+      "canonical_pinyin": "xtsu",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 999999,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "japanese",
+     "query_text": "xtsu",
+     "cache_key": "xtsu",
+     "pinyin_segments": [],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "k",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "k",
+    "raw_segmentation": "k",
+    "normalized_segmentation": "k",
+    "editing_text": "k",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": [],
+    "online_query": {
+     "scheme": "japanese",
+     "query_text": "k",
+     "cache_key": "k",
+     "pinyin_segments": [],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "CycleKanaVariant",
+   "result": {
+    "handled": false
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "k",
+    "raw_segmentation": "k",
+    "normalized_segmentation": "k",
+    "editing_text": "k",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": [],
+    "online_query": {
+     "scheme": "japanese",
+     "query_text": "k",
+     "cache_key": "k",
+     "pinyin_segments": [],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "japanese",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  }
+ ]
+}

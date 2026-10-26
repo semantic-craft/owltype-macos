@@ -1,0 +1,680 @@
+{
+ "name": "personal_context_public_session",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "ni",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "ni",
+    "raw_segmentation": "ni",
+    "normalized_segmentation": "ni",
+    "editing_text": "ni",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2
+    ],
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "甲",
+      "pinyin": "ni",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": true
+     },
+     {
+      "word": "乙",
+      "pinyin": "ni",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 90,
+      "answers_key": true
+     },
+     {
+      "word": "丙",
+      "pinyin": "ni",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 80,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "ni",
+     "cache_key": "ni",
+     "pinyin_segments": [
+      "ni"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "甲"
+   },
+   "result": {
+    "handled": true,
+    "commit": "甲"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "reset_context",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "hao",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "hao",
+    "raw_segmentation": "hao",
+    "normalized_segmentation": "hao",
+    "editing_text": "hao",
+    "caret": 3,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     3
+    ],
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "子",
+      "pinyin": "hao",
+      "canonical_pinyin": "hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": true
+     },
+     {
+      "word": "丑",
+      "pinyin": "hao",
+      "canonical_pinyin": "hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 90,
+      "answers_key": true
+     },
+     {
+      "word": "寅",
+      "pinyin": "hao",
+      "canonical_pinyin": "hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 80,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "hao",
+     "cache_key": "hao",
+     "pinyin_segments": [
+      "hao"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "子"
+   },
+   "result": {
+    "handled": true,
+    "commit": "子"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "ni",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "ni",
+    "raw_segmentation": "ni",
+    "normalized_segmentation": "ni",
+    "editing_text": "ni",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2
+    ],
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "甲",
+      "pinyin": "ni",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": true
+     },
+     {
+      "word": "乙",
+      "pinyin": "ni",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 90,
+      "answers_key": true
+     },
+     {
+      "word": "丙",
+      "pinyin": "ni",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 80,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "ni",
+     "cache_key": "ni",
+     "pinyin_segments": [
+      "ni"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "乙"
+   },
+   "result": {
+    "handled": true,
+    "commit": "乙"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "set_nine_key_enabled",
+   "arg": true,
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "char",
+   "arg": "6",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "6",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "6",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "",
+    "nine_key_spellings": [
+     "ni",
+     "ma",
+     "mai",
+     "man",
+     "mang",
+     "mao",
+     "me",
+     "mei",
+     "men",
+     "meng",
+     "mi",
+     "mian",
+     "miao",
+     "mie",
+     "min",
+     "ming",
+     "miu",
+     "mo",
+     "mou",
+     "mu",
+     "na",
+     "nai",
+     "nan",
+     "nang",
+     "nao",
+     "ne",
+     "nei",
+     "nen",
+     "neng",
+     "nian",
+     "niang",
+     "niao",
+     "nie",
+     "nin",
+     "ning",
+     "niu",
+     "nong",
+     "nou",
+     "nu",
+     "nuan",
+     "nue",
+     "nun",
+     "nuo",
+     "nv",
+     "nve",
+     "o",
+     "ou",
+     "M",
+     "N",
+     "O",
+     "6"
+    ],
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "甲",
+      "pinyin": "6",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": true
+     },
+     {
+      "word": "乙",
+      "pinyin": "6",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 90,
+      "answers_key": true
+     },
+     {
+      "word": "丙",
+      "pinyin": "6",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 80,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "char",
+   "arg": "4",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "64",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "64",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "",
+    "nine_key_spellings": [
+     "ni",
+     "mi",
+     "mie",
+     "min",
+     "miu",
+     "nie",
+     "nin",
+     "niu",
+     "mian",
+     "miao",
+     "ming",
+     "nian",
+     "niao",
+     "ning",
+     "niang",
+     "o",
+     "M",
+     "N",
+     "O",
+     "6"
+    ],
+    "candidate_count": 4,
+    "candidates": [
+     {
+      "word": "甲",
+      "pinyin": "64",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": true
+     },
+     {
+      "word": "乙",
+      "pinyin": "64",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 90,
+      "answers_key": true
+     },
+     {
+      "word": "丙",
+      "pinyin": "64",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 80,
+      "answers_key": true
+     },
+     {
+      "word": "你好",
+      "pinyin": "64",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1000,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "select",
+   "arg": 0,
+   "result": {
+    "handled": true,
+    "commit": "甲"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "set_nine_key_enabled",
+   "arg": false,
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "hao",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "hao",
+    "raw_segmentation": "hao",
+    "normalized_segmentation": "hao",
+    "editing_text": "hao",
+    "caret": 3,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     3
+    ],
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "子",
+      "pinyin": "hao",
+      "canonical_pinyin": "hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": true
+     },
+     {
+      "word": "丑",
+      "pinyin": "hao",
+      "canonical_pinyin": "hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 90,
+      "answers_key": true
+     },
+     {
+      "word": "寅",
+      "pinyin": "hao",
+      "canonical_pinyin": "hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 80,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "hao",
+     "cache_key": "hao",
+     "pinyin_segments": [
+      "hao"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "丑"
+   },
+   "result": {
+    "handled": true,
+    "commit": "丑"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dump_journal",
+   "journal": {
+    "personal_bigram": {
+     "columns": [
+      "previous",
+      "word",
+      "count"
+     ],
+     "rows": [
+      [
+       "\u0001",
+       "丑",
+       2
+      ],
+      [
+       "\u0001",
+       "子",
+       2
+      ],
+      [
+       "\u0001",
+       "甲",
+       2
+      ],
+      [
+       "子",
+       "乙",
+       2
+      ]
+     ]
+    },
+    "personal_trigram": {
+     "columns": [
+      "earlier",
+      "previous",
+      "word",
+      "count"
+     ],
+     "rows": [
+      [
+       "\u0001",
+       "子",
+       "乙",
+       2
+      ]
+     ]
+    },
+    "pick_transitions": {
+     "columns": [
+      "previous_key",
+      "previous_value",
+      "key",
+      "value",
+      "count"
+     ],
+     "rows": [
+      [
+       "hao",
+       "子",
+       "ni",
+       "乙",
+       1
+      ]
+     ]
+    }
+   }
+  }
+ ]
+}

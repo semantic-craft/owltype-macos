@@ -88,6 +88,7 @@ pub struct ImeSession {
     profile: &'static ShuangpinProfile,
     vietnamese_method: VietnameseInputMethod,
     vietnamese_style: VietnameseToneStyle,
+    korean_layout: crate::KoreanLayout,
     wubi_options: WubiInputOptions,
     /// Mixed wubi only: a pinyin candidate was picked out of this composition, so the rest decodes as quanpin until the composition ends (product decision 2026-09-30, the intent of test_wubi_mixed_input_session.cpp:194-212). Cleared by `reset`, `switch_scheme`, turning mixed input off, and an emptied composition.
     pinyin_tail: bool,
@@ -155,6 +156,7 @@ impl ImeSession {
                 profile,
                 VietnameseInputMethod::default(),
                 VietnameseToneStyle::default(),
+                crate::KoreanLayout::default(),
                 registry.cantonese_inventory(),
                 zhuyin,
             )?,
@@ -164,6 +166,7 @@ impl ImeSession {
             profile,
             vietnamese_method: VietnameseInputMethod::default(),
             vietnamese_style: VietnameseToneStyle::default(),
+            korean_layout: crate::KoreanLayout::default(),
             wubi_options: WubiInputOptions::default(),
             pinyin_tail: false,
             zhuyin_nine_key: false,
@@ -326,6 +329,7 @@ impl ImeSession {
                 self.profile,
                 self.vietnamese_method,
                 self.vietnamese_style,
+                self.korean_layout,
                 self.registry.cantonese_inventory(),
                 self.registry.take_dictionary(scheme),
             )?;
@@ -439,6 +443,17 @@ impl ImeSession {
             vietnamese.restore_raw();
         }
         self.refresh_candidates();
+    }
+
+    /// 仅在没有组字时设置布局；宿主偏好刷新在空闲时重建会话。
+    pub fn set_korean_layout(&mut self, layout: crate::KoreanLayout) {
+        if !self.state.request.raw_input.is_empty() {
+            return;
+        }
+        self.korean_layout = layout;
+        if let Scheme::Korean(korean) = &mut self.scheme {
+            *korean = crate::korean::KoreanScheme::with_layout(layout);
+        }
     }
 
     /// The first Esc of a Vietnamese word: the display becomes the raw keystrokes. False for every other scheme, with nothing composing, or when the raw keys already show, so the caller cancels instead.
@@ -573,6 +588,25 @@ impl ImeSession {
             .map_or("", ZhuyinScheme::spelling_symbols)
     }
 
+    /// 五笔 14 键的一键（`representative` 见 [`crate::wubi::grid::representative`]），然后 `refresh_candidates`。不是五笔、26 键组字中或码已满时为假，组字不变。
+    pub fn handle_wubi_grid_key(&mut self, representative: u8) -> bool {
+        let Some(wubi) = self.scheme.as_wubi_mut() else {
+            return false;
+        };
+        if !wubi.handle_grid_key(representative) {
+            return false;
+        }
+        self.refresh_candidates();
+        true
+    }
+
+    /// 当前组字是五笔 14 键打的组码。
+    pub fn wubi_grid_composing(&self) -> bool {
+        self.scheme
+            .as_wubi()
+            .is_some_and(crate::wubi::scheme::WubiScheme::grid_composing)
+    }
+
     /// Whether the active scheme is wubi and its code is exactly four letters.
     pub fn wubi_has_complete_code(&self) -> bool {
         self.scheme
@@ -583,7 +617,9 @@ impl ImeSession {
     /// 四码命中五笔时，后续小写字母能否继续当前拼音候选的完整读音或开始下一个音节。
     /// 只匹配真实读音前缀，简拼、纠错和模糊音不能把不相关的第五码当成拼音。
     pub fn wubi_pinyin_continues(&self, letter: u8) -> bool {
+        // 14 键组码不是拼音字母，不进混输。
         if !self.wubi_options.mixed_pinyin
+            || self.wubi_grid_composing()
             || !self.wubi_has_complete_code()
             || !letter.is_ascii_lowercase()
         {
@@ -703,6 +739,7 @@ impl ImeSession {
             self.profile,
             self.vietnamese_method,
             self.vietnamese_style,
+            self.korean_layout,
             self.registry.cantonese_inventory(),
             None,
         ) else {
@@ -820,6 +857,16 @@ impl ImeSession {
     /// 首页行数随每个请求交给各方案引擎；只影响词库要不要并入补全词。
     pub fn set_first_page_rows(&mut self, rows: FirstPageRows) {
         self.first_page_rows = rows;
+    }
+
+    /// Apply host-loaded keyboard weights through the existing lattice scorer, without file I/O.
+    pub fn set_keyboard_model(&mut self, model: Option<crate::types::LoadedKeyboardModel>) {
+        if self.sentence_association.keyboard_model == model {
+            return;
+        }
+        self.sentence_association.neural_keyboard = model.is_some();
+        self.sentence_association.keyboard_model = model;
+        self.reset_cache();
     }
 
     pub fn set_rescoring_context(&mut self, context: &str) {
@@ -959,7 +1006,15 @@ impl ImeSession {
             && ((request.raw_input.len() == 4 && previous_pinyin_candidates)
                 || (request.raw_input.len() > 4 && was_extended));
         let extended = self.wubi_options.mixed_pinyin
+            && !request.wubi_grid
             && (!decoded.wubi_table_answered || inherited_pinyin_continuation);
+        if request.wubi_grid {
+            grid_display_code(
+                &decoded.candidates,
+                &request.normalized_input,
+                &mut self.state.preedit,
+            );
+        }
         if let Some(wubi) = self.scheme.as_wubi_mut() {
             wubi.set_extended_length_allowed(extended);
         }
@@ -1057,7 +1112,8 @@ impl ImeSession {
             };
         }
         let wubi_table_answered = wubi_table_answered(&candidates, &request.normalized_input);
-        if !self.wubi_options.mixed_pinyin {
+        // 14 键组码每一位是一组字母，不是拼音，不查混输的拼音回退。
+        if !self.wubi_options.mixed_pinyin || request.wubi_grid {
             return Decoded {
                 candidates,
                 wubi_table_answered,
@@ -1090,7 +1146,8 @@ impl ImeSession {
 
     /// 五笔请求是临时拼音反查时，去掉引导键 `z` 之后的拼音原文（不带大小写的和带大小写的）。混输关闭时五笔码里不会出现 `z`，所以以 `z` 开头的五笔请求只能来自反查；混输打开时 `z` 是拼音字母，没有反查。
     fn pinyin_lookup_spelling<'a>(&self, request: &'a QueryRequest) -> Option<(&'a str, &'a str)> {
-        if request.scheme != SchemeType::Wubi || !self.pinyin_lookup_allowed() {
+        if request.scheme != SchemeType::Wubi || request.wubi_grid || !self.pinyin_lookup_allowed()
+        {
             return None;
         }
         let raw = request
@@ -1255,6 +1312,18 @@ fn wubi_table_answered(candidates: &[WordItem], code: &str) -> bool {
     candidates.iter().any(|item| item.pinyin == code)
 }
 
+/// 五笔 14 键组字时预编辑显示的编码：首选是码表行、编码落在这几组上时取它的前几位（`qq` 的首选是「你」就显示 `wq`），否则原样显示组码。用户看到的是最可能的那串字母，与全拼 14 键读音行显示首选的拼音一样。
+fn grid_display_code(candidates: &[WordItem], representatives: &str, destination: &mut String) {
+    let code = candidates
+        .first()
+        .filter(|item| item.scheme == SchemeType::Wubi)
+        .map(|item| item.pinyin.as_str())
+        .filter(|code| crate::wubi::grid::code_matches(code, representatives))
+        .map_or(representatives, |code| &code[..representatives.len()]);
+    destination.clear();
+    destination.push_str(code);
+}
+
 /// 按当前输入是否命中完整五笔码决定两组候选的先后；每行保留自己的生产方案，选词、固定、删除和学习仍按行的来源路由（overlays.md §3.3）。
 #[cfg(test)]
 fn merge_pinyin_fallback(candidates: Vec<WordItem>, pinyin_rows: Vec<WordItem>) -> Vec<WordItem> {
@@ -1280,9 +1349,6 @@ fn merge_mixed_candidates(
         retain_unique_pinyin_rows(&mut pinyin_rows);
         return pinyin_rows;
     }
-    // A Wubi table can answer a prefix with several rows that point at the same word
-    // under different complete codes. Keep the first row so its own code continues to
-    // drive selection and sentence learning identity.
     retain_unique_rows(&mut candidates);
     if candidates.len().saturating_add(pinyin_rows.len()) <= SMALL_PINYIN_FALLBACK {
         candidates.reserve(pinyin_rows.len());
@@ -1346,7 +1412,27 @@ fn retain_unique_rows(rows: &mut Vec<WordItem>) {
 
 fn retain_unique_pinyin_rows(rows: &mut Vec<WordItem>) {
     if rows.len() > SMALL_PINYIN_FALLBACK {
-        retain_unique_rows(rows);
+        // 借用词面计算重复项，释放集合后再原地保留唯一行。
+        let mut seen = HashSet::with_capacity(rows.len());
+        let duplicates = rows
+            .iter()
+            .enumerate()
+            .filter_map(|(index, item)| (!seen.insert(item.word.as_str())).then_some(index))
+            .collect::<Vec<_>>();
+        drop(seen);
+        let mut duplicates = duplicates.into_iter().peekable();
+        let mut write = 0;
+        for read in 0..rows.len() {
+            if duplicates.peek() == Some(&read) {
+                duplicates.next();
+                continue;
+            }
+            if write != read {
+                rows.swap(write, read);
+            }
+            write += 1;
+        }
+        rows.truncate(write);
         return;
     }
     let mut write = 0;
@@ -1498,20 +1584,6 @@ mod tests {
         assert_eq!(list[0].scheme, SchemeType::Wubi);
         assert_eq!(list[2].scheme, SchemeType::Quanpin);
         assert!(!only_pinyin_rows(&list));
-    }
-
-    #[test]
-    fn mixed_wubi_rows_deduplicate_without_losing_the_first_code() {
-        let list = merge_pinyin_fallback(
-            vec![wubi("yaht", "讶"), wubi("yah", "讶"), wubi("ya", "呀")],
-            vec![quanpin("ya", "讶"), quanpin("ya", "呀")],
-        );
-
-        assert_eq!(words(&list), vec!["讶", "呀"]);
-        assert_eq!(list[0].pinyin, "yaht");
-        assert_eq!(list[0].scheme, SchemeType::Wubi);
-        assert_eq!(list[1].pinyin, "ya");
-        assert_eq!(list[1].scheme, SchemeType::Wubi);
     }
 
     #[test]

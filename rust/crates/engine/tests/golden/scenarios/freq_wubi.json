@@ -1,0 +1,41 @@
+{
+ "name": "freq_wubi",
+ "source": "tests/src/test_input_session.cpp:172-181,1189-1202",
+ "covers": [
+  "learning",
+  "wubi"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-pinyin.db": "BEGIN;CREATE TABLE wubi86(key TEXT, value TEXT, weight INTEGER);INSERT INTO wubi86 VALUES('aaaa', '工', 100);INSERT INTO wubi86 VALUES('aaaa', '或', 50);COMMIT;"
+  }
+ },
+ "options": {
+  "scheme": "wubi",
+  "frequency": {
+   "mode": "pin"
+  }
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "aaaa"
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "或"
+   }
+  },
+  {
+   "op": "reopen"
+  },
+  {
+   "op": "type",
+   "arg": "aaaa"
+  },
+  {
+   "op": "dump_journal"
+  }
+ ]
+}

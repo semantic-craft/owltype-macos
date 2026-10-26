@@ -1,0 +1,368 @@
+{
+ "name": "ko_dubeolsik_session",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "korean",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "dkssud",
+   "result": {
+    "handled": true,
+    "commit": "안"
+   },
+   "snapshot": {
+    "scheme": "korean",
+    "local_mode": "none",
+    "preedit": "녕",
+    "raw_segmentation": "sud",
+    "normalized_segmentation": "녕",
+    "editing_text": "sud",
+    "caret": 3,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "gktpdy",
+   "result": {
+    "handled": true,
+    "commit": "녕하세"
+   },
+   "snapshot": {
+    "scheme": "korean",
+    "local_mode": "none",
+    "preedit": "요",
+    "raw_segmentation": "dy",
+    "normalized_segmentation": "요",
+    "editing_text": "dy",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "punctuation",
+   "arg": ".",
+   "result": {
+    "handled": true,
+    "commit": "요."
+   },
+   "snapshot": {
+    "scheme": "korean",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "ekfr",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "korean",
+    "local_mode": "none",
+    "preedit": "닭",
+    "raw_segmentation": "ekfr",
+    "normalized_segmentation": "닭",
+    "editing_text": "ekfr",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "char",
+   "arg": "k",
+   "result": {
+    "handled": true,
+    "commit": "달"
+   },
+   "snapshot": {
+    "scheme": "korean",
+    "local_mode": "none",
+    "preedit": "가",
+    "raw_segmentation": "rk",
+    "normalized_segmentation": "가",
+    "editing_text": "rk",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Backspace",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "korean",
+    "local_mode": "none",
+    "preedit": "ㄱ",
+    "raw_segmentation": "r",
+    "normalized_segmentation": "ㄱ",
+    "editing_text": "r",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Backspace",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "korean",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "char",
+   "arg": "R",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "korean",
+    "local_mode": "none",
+    "preedit": "ㄲ",
+    "raw_segmentation": "R",
+    "normalized_segmentation": "ㄲ",
+    "editing_text": "R",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "k",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "korean",
+    "local_mode": "none",
+    "preedit": "까",
+    "raw_segmentation": "Rk",
+    "normalized_segmentation": "까",
+    "editing_text": "Rk",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "command",
+   "arg": "CommitCandidate",
+   "result": {
+    "handled": false,
+    "commit": "까"
+   },
+   "snapshot": {
+    "scheme": "korean",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "rhkd",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "korean",
+    "local_mode": "none",
+    "preedit": "광",
+    "raw_segmentation": "rhkd",
+    "normalized_segmentation": "광",
+    "editing_text": "rhkd",
+    "caret": 4,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "command",
+   "arg": "CommitRaw",
+   "result": {
+    "handled": false,
+    "commit": "광"
+   },
+   "snapshot": {
+    "scheme": "korean",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "rk",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "korean",
+    "local_mode": "none",
+    "preedit": "가",
+    "raw_segmentation": "rk",
+    "normalized_segmentation": "가",
+    "editing_text": "rk",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "char",
+   "arg": "1",
+   "result": {
+    "handled": false,
+    "commit": "가"
+   },
+   "snapshot": {
+    "scheme": "korean",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "rk",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "korean",
+    "local_mode": "none",
+    "preedit": "가",
+    "raw_segmentation": "rk",
+    "normalized_segmentation": "가",
+    "editing_text": "rk",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "korean",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Backspace",
+   "result": {
+    "handled": false
+   },
+   "snapshot": {
+    "scheme": "korean",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  }
+ ]
+}

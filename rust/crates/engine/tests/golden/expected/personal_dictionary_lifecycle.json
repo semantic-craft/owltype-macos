@@ -1,0 +1,2034 @@
+{
+ "name": "personal_dictionary_lifecycle",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dict_list",
+   "arg": {},
+   "result": {
+    "entries": [],
+    "has_more": false
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "拟好",
+     "weight": 12345
+    }
+   },
+   "result": {
+    "success": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "replacement": {
+     "kind": "wubi",
+     "key": "wq",
+     "value": "拟好",
+     "weight": 12345
+    }
+   },
+   "result": {
+    "success": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "replacement": {
+     "kind": "english",
+     "key": "metasequoia",
+     "value": "Metasequoia",
+     "weight": 12345
+    }
+   },
+   "result": {
+    "success": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "replacement": {
+     "kind": "quick_phrase",
+     "key": "test1",
+     "value": "fixture\nsecond line",
+     "weight": 12345
+    }
+   },
+   "result": {
+    "success": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "quick_phrase",
+     "key": "test1",
+     "value": "fixture\nsecond line",
+     "weight": 12345
+    },
+    "replacement": {
+     "kind": "english",
+     "key": "fixtureword",
+     "value": "FixtureWord",
+     "weight": 12345
+    }
+   },
+   "result": {
+    "success": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "reopen",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "set_dedicated_english",
+   "arg": true,
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "fixtureword",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "fixtureword",
+    "raw_segmentation": "fixtureword",
+    "normalized_segmentation": "fixtureword",
+    "editing_text": "fixtureword",
+    "caret": 11,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "FixtureWord",
+      "pinyin": "fixtureword",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 12345,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "set_dedicated_english",
+   "arg": false,
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "english",
+     "key": "fixtureword",
+     "value": "FixtureWord",
+     "weight": 12345
+    },
+    "replacement": {
+     "kind": "quick_phrase",
+     "key": "test1",
+     "value": "fixture\nsecond line",
+     "weight": 12345
+    }
+   },
+   "result": {
+    "success": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "reopen",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "set_dedicated_english",
+   "arg": true,
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "fixtureword",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "fixtureword",
+    "raw_segmentation": "fixtureword",
+    "normalized_segmentation": "fixtureword",
+    "editing_text": "fixtureword",
+    "caret": 11,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "fixtureword",
+      "pinyin": "",
+      "canonical_pinyin": "",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 0,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "set_dedicated_english",
+   "arg": false,
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dict_list",
+   "arg": {
+    "offset": 0,
+    "limit": 2
+   },
+   "result": {
+    "entries": [
+     {
+      "kind": "english",
+      "key": "metasequoia",
+      "value": "Metasequoia",
+      "weight": 12345
+     },
+     {
+      "kind": "pinyin",
+      "key": "ni'hao",
+      "value": "拟好",
+      "weight": 12345
+     }
+    ],
+    "has_more": true
+   }
+  },
+  {
+   "op": "dict_list",
+   "arg": {
+    "offset": 2,
+    "limit": 2
+   },
+   "result": {
+    "entries": [
+     {
+      "kind": "quick_phrase",
+      "key": "test1",
+      "value": "fixture\nsecond line",
+      "weight": 12345
+     },
+     {
+      "kind": "wubi",
+      "key": "wq",
+      "value": "拟好",
+      "weight": 12345
+     }
+    ],
+    "has_more": false
+   }
+  },
+  {
+   "op": "dict_list",
+   "arg": {
+    "offset": 0,
+    "limit": 1001
+   },
+   "result": {
+    "entries": [],
+    "has_more": false,
+    "error": "Invalid personal dictionary page"
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'ni'ni'ni'ni'ni'ni",
+     "value": "你你你你你你你"
+    }
+   },
+   "result": {
+    "success": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "reopen",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "ni'ni'ni'ni'ni'ni'ni",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "ni'ni'ni'ni'ni'ni'ni",
+    "raw_segmentation": "ni'ni'ni'ni'ni'ni'ni",
+    "normalized_segmentation": "ni'ni'ni'ni'ni'ni'ni",
+    "editing_text": "ni'ni'ni'ni'ni'ni'ni",
+    "caret": 20,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     3,
+     6,
+     9,
+     12,
+     15,
+     18,
+     20
+    ],
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "你你你你你你你",
+      "pinyin": "ni'ni'ni'ni'ni'ni'ni",
+      "canonical_pinyin": "ni'ni'ni'ni'ni'ni'ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100000,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "ni'ni'ni'ni'ni'ni'ni",
+     "cache_key": "ni'ni'ni'ni'ni'ni'ni",
+     "pinyin_segments": [
+      "ni",
+      "ni",
+      "ni",
+      "ni",
+      "ni",
+      "ni",
+      "ni"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'ni'ni'ni'ni'ni'ni'ni",
+     "value": "你你你你你你你你"
+    }
+   },
+   "result": {
+    "success": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "reopen",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "ni'ni'ni'ni'ni'ni'ni'ni",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "ni'ni'ni'ni'ni'ni'ni'ni",
+    "raw_segmentation": "ni'ni'ni'ni'ni'ni'ni'ni",
+    "normalized_segmentation": "ni'ni'ni'ni'ni'ni'ni'ni",
+    "editing_text": "ni'ni'ni'ni'ni'ni'ni'ni",
+    "caret": 23,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     3,
+     6,
+     9,
+     12,
+     15,
+     18,
+     21,
+     23
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "你你你你你你你你",
+      "pinyin": "ni'ni'ni'ni'ni'ni'ni'ni",
+      "canonical_pinyin": "ni'ni'ni'ni'ni'ni'ni'ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100000,
+      "answers_key": true
+     },
+     {
+      "word": "你你你你你你你",
+      "pinyin": "ni'ni'ni'ni'ni'ni'ni",
+      "canonical_pinyin": "ni'ni'ni'ni'ni'ni'ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100000,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "ni'ni'ni'ni'ni'ni'ni'ni",
+     "cache_key": "ni'ni'ni'ni'ni'ni'ni'ni",
+     "pinyin_segments": [
+      "ni",
+      "ni",
+      "ni",
+      "ni",
+      "ni",
+      "ni",
+      "ni",
+      "ni"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'ni'ni'ni'ni'ni'ni'ni'ni",
+     "value": "你你你你你你你你你"
+    }
+   },
+   "result": {
+    "success": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "reopen",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "ni'ni'ni'ni'ni'ni'ni'ni'ni",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "ni'ni'ni'ni'ni'ni'ni'ni'ni",
+    "raw_segmentation": "ni'ni'ni'ni'ni'ni'ni'ni'ni",
+    "normalized_segmentation": "ni'ni'ni'ni'ni'ni'ni'ni'ni",
+    "editing_text": "ni'ni'ni'ni'ni'ni'ni'ni'ni",
+    "caret": 26,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     3,
+     6,
+     9,
+     12,
+     15,
+     18,
+     21,
+     24,
+     26
+    ],
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "你你你你你你你你你",
+      "pinyin": "ni'ni'ni'ni'ni'ni'ni'ni'ni",
+      "canonical_pinyin": "ni'ni'ni'ni'ni'ni'ni'ni'ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100000,
+      "answers_key": true
+     },
+     {
+      "word": "你你你你你你你你",
+      "pinyin": "ni'ni'ni'ni'ni'ni'ni'ni",
+      "canonical_pinyin": "ni'ni'ni'ni'ni'ni'ni'ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100000,
+      "answers_key": false
+     },
+     {
+      "word": "你你你你你你你",
+      "pinyin": "ni'ni'ni'ni'ni'ni'ni",
+      "canonical_pinyin": "ni'ni'ni'ni'ni'ni'ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100000,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "ni'ni'ni'ni'ni'ni'ni'ni'ni",
+     "cache_key": "ni'ni'ni'ni'ni'ni'ni'ni'ni",
+     "pinyin_segments": [
+      "ni",
+      "ni",
+      "ni",
+      "ni",
+      "ni",
+      "ni",
+      "ni",
+      "ni",
+      "ni"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "拟好",
+     "weight": 12344
+    },
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "你好",
+     "weight": 12345
+    }
+   },
+   "result": {
+    "success": false,
+    "error": "The entry changed; reload it before editing"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "reopen",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "nihao",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "nihao",
+    "raw_segmentation": "ni'hao",
+    "normalized_segmentation": "ni'hao",
+    "editing_text": "nihao",
+    "caret": 5,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2,
+     5
+    ],
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "拟好",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 12345,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "ni'hao",
+     "cache_key": "nihao",
+     "pinyin_segments": [
+      "ni",
+      "hao"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "拟好",
+     "weight": 12345
+    },
+    "replacement": {
+     "kind": "pinyin",
+     "key": "bu'hao",
+     "value": "补好",
+     "weight": 12345
+    }
+   },
+   "result": {
+    "success": false,
+    "error": "Cannot save personal entry"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "reopen",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "nihao",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "nihao",
+    "raw_segmentation": "ni'hao",
+    "normalized_segmentation": "ni'hao",
+    "editing_text": "nihao",
+    "caret": 5,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2,
+     5
+    ],
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "拟好",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 12345,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "ni'hao",
+     "cache_key": "nihao",
+     "pinyin_segments": [
+      "ni",
+      "hao"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "拟好",
+     "weight": 12345
+    },
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "你好",
+     "weight": 12345
+    },
+    "request_id": "edit-1"
+   },
+   "result": {
+    "success": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "reopen",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "nihao",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "nihao",
+    "raw_segmentation": "ni'hao",
+    "normalized_segmentation": "ni'hao",
+    "editing_text": "nihao",
+    "caret": 5,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2,
+     5
+    ],
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "你好",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 12345,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "ni'hao",
+     "cache_key": "nihao",
+     "pinyin_segments": [
+      "ni",
+      "hao"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "拟好",
+     "weight": 12345
+    },
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "你好",
+     "weight": 12345
+    },
+    "request_id": "edit-1"
+   },
+   "result": {
+    "success": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "你好",
+     "weight": 12345
+    },
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "拟好",
+     "weight": 12345
+    },
+    "request_id": "edit-1"
+   },
+   "result": {
+    "success": false,
+    "error": "Request ID was already used for another edit"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "你好",
+     "weight": 12345
+    },
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "拟好",
+     "weight": 12345
+    },
+    "request_id": "bad id"
+   },
+   "result": {
+    "success": false,
+    "error": "Invalid personal dictionary request ID"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "你好",
+     "weight": 12345
+    },
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "拟好",
+     "weight": 12345
+    },
+    "request_id": "failure-retry"
+   },
+   "result": {
+    "success": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "拟好",
+     "weight": 12345
+    },
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "你好",
+     "weight": 12345
+    }
+   },
+   "result": {
+    "success": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "你好",
+     "weight": 12345
+    }
+   },
+   "result": {
+    "success": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dump_journal",
+   "journal": {
+    "personal_dictionary_receipts": {
+     "columns": [
+      "request_id",
+      "payload"
+     ],
+     "rows": [
+      [
+       "edit-1",
+       "0;12345;6:ni'hao6:拟好0;12345;6:ni'hao6:你好"
+      ],
+      [
+       "failure-retry",
+       "0;12345;6:ni'hao6:你好0;12345;6:ni'hao6:拟好"
+      ]
+     ]
+    },
+    "user_dictionary_operations": {
+     "columns": [
+      "dictionary",
+      "key",
+      "value",
+      "operation",
+      "weight",
+      "display",
+      "user_inserted"
+     ],
+     "rows": [
+      [
+       "english",
+       "fixtureword",
+       "FixtureWord",
+       "delete",
+       0,
+       "FixtureWord",
+       1
+      ],
+      [
+       "english",
+       "metasequoia",
+       "Metasequoia",
+       "upsert",
+       12345,
+       "Metasequoia",
+       1
+      ],
+      [
+       "pinyin",
+       "ni'hao",
+       "你好",
+       "delete",
+       0,
+       "",
+       1
+      ],
+      [
+       "pinyin",
+       "ni'hao",
+       "拟好",
+       "delete",
+       0,
+       "",
+       1
+      ],
+      [
+       "pinyin",
+       "ni'ni'ni'ni'ni'ni'ni",
+       "你你你你你你你",
+       "upsert",
+       100000,
+       "",
+       1
+      ],
+      [
+       "pinyin",
+       "ni'ni'ni'ni'ni'ni'ni'ni",
+       "你你你你你你你你",
+       "upsert",
+       100000,
+       "",
+       1
+      ],
+      [
+       "pinyin",
+       "ni'ni'ni'ni'ni'ni'ni'ni'ni",
+       "你你你你你你你你你",
+       "upsert",
+       100000,
+       "",
+       1
+      ],
+      [
+       "quick",
+       "test1",
+       "fixture\nsecond line",
+       "upsert",
+       12345,
+       "",
+       1
+      ],
+      [
+       "wubi",
+       "wq",
+       "拟好",
+       "upsert",
+       12345,
+       "",
+       1
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "op": "new_generation",
+   "arg": "second",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "nihao",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "nihao",
+    "raw_segmentation": "ni'hao",
+    "normalized_segmentation": "ni'hao",
+    "editing_text": "nihao",
+    "caret": 5,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2,
+     5
+    ],
+    "candidate_count": 0,
+    "candidates": [],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "ni'hao",
+     "cache_key": "nihao",
+     "pinyin_segments": [
+      "ni",
+      "hao"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "switch_scheme",
+   "arg": "wubi",
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "wq",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "wq",
+    "raw_segmentation": "wq",
+    "normalized_segmentation": "wq",
+    "editing_text": "wq",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "拟好",
+      "pinyin": "wq",
+      "canonical_pinyin": "",
+      "source": 0,
+      "scheme": "wubi",
+      "weight": 12345,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "wubi",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "switch_scheme",
+   "arg": "quanpin",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "reopen",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "set_dedicated_english",
+   "arg": true,
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "metasequoia",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "metasequoia",
+    "raw_segmentation": "metasequoia",
+    "normalized_segmentation": "metasequoia",
+    "editing_text": "metasequoia",
+    "caret": 11,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "word": "Metasequoia",
+      "pinyin": "metasequoia",
+      "canonical_pinyin": "",
+      "source": 4,
+      "scheme": "quanpin",
+      "weight": 12345,
+      "answers_key": true
+     }
+    ]
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": true,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "set_dedicated_english",
+   "arg": false,
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dict_edit",
+   "arg": {
+    "previous": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "拟好",
+     "weight": 12345
+    },
+    "replacement": {
+     "kind": "pinyin",
+     "key": "ni'hao",
+     "value": "你好",
+     "weight": 12345
+    },
+    "request_id": "edit-1"
+   },
+   "result": {
+    "success": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "reopen",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "nihao",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "nihao",
+    "raw_segmentation": "ni'hao",
+    "normalized_segmentation": "ni'hao",
+    "editing_text": "nihao",
+    "caret": 5,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2,
+     5
+    ],
+    "candidate_count": 0,
+    "candidates": [],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "ni'hao",
+     "cache_key": "nihao",
+     "pinyin_segments": [
+      "ni",
+      "hao"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "command",
+   "arg": "Cancel",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dict_list",
+   "arg": {},
+   "result": {
+    "entries": [
+     {
+      "kind": "english",
+      "key": "metasequoia",
+      "value": "Metasequoia",
+      "weight": 12345
+     },
+     {
+      "kind": "pinyin",
+      "key": "ni'ni'ni'ni'ni'ni'ni",
+      "value": "你你你你你你你",
+      "weight": 100000
+     },
+     {
+      "kind": "pinyin",
+      "key": "ni'ni'ni'ni'ni'ni'ni'ni",
+      "value": "你你你你你你你你",
+      "weight": 100000
+     },
+     {
+      "kind": "pinyin",
+      "key": "ni'ni'ni'ni'ni'ni'ni'ni'ni",
+      "value": "你你你你你你你你你",
+      "weight": 100000
+     },
+     {
+      "kind": "quick_phrase",
+      "key": "test1",
+      "value": "fixture\nsecond line",
+      "weight": 12345
+     },
+     {
+      "kind": "wubi",
+      "key": "wq",
+      "value": "拟好",
+      "weight": 12345
+     }
+    ],
+    "has_more": false
+   }
+  },
+  {
+   "op": "dump_journal",
+   "journal": {
+    "personal_dictionary_receipts": {
+     "columns": [
+      "request_id",
+      "payload"
+     ],
+     "rows": [
+      [
+       "edit-1",
+       "0;12345;6:ni'hao6:拟好0;12345;6:ni'hao6:你好"
+      ],
+      [
+       "failure-retry",
+       "0;12345;6:ni'hao6:你好0;12345;6:ni'hao6:拟好"
+      ]
+     ]
+    },
+    "user_dictionary_operations": {
+     "columns": [
+      "dictionary",
+      "key",
+      "value",
+      "operation",
+      "weight",
+      "display",
+      "user_inserted"
+     ],
+     "rows": [
+      [
+       "english",
+       "fixtureword",
+       "FixtureWord",
+       "delete",
+       0,
+       "FixtureWord",
+       1
+      ],
+      [
+       "english",
+       "metasequoia",
+       "Metasequoia",
+       "upsert",
+       12345,
+       "Metasequoia",
+       1
+      ],
+      [
+       "pinyin",
+       "ni'hao",
+       "你好",
+       "delete",
+       0,
+       "",
+       1
+      ],
+      [
+       "pinyin",
+       "ni'hao",
+       "拟好",
+       "delete",
+       0,
+       "",
+       1
+      ],
+      [
+       "pinyin",
+       "ni'ni'ni'ni'ni'ni'ni",
+       "你你你你你你你",
+       "upsert",
+       100000,
+       "",
+       1
+      ],
+      [
+       "pinyin",
+       "ni'ni'ni'ni'ni'ni'ni'ni",
+       "你你你你你你你你",
+       "upsert",
+       100000,
+       "",
+       1
+      ],
+      [
+       "pinyin",
+       "ni'ni'ni'ni'ni'ni'ni'ni'ni",
+       "你你你你你你你你你",
+       "upsert",
+       100000,
+       "",
+       1
+      ],
+      [
+       "quick",
+       "test1",
+       "fixture\nsecond line",
+       "upsert",
+       12345,
+       "",
+       1
+      ],
+      [
+       "wubi",
+       "wq",
+       "拟好",
+       "upsert",
+       12345,
+       "",
+       1
+      ]
+     ]
+    }
+   }
+  }
+ ]
+}

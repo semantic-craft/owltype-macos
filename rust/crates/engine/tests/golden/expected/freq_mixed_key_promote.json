@@ -1,0 +1,225 @@
+{
+ "name": "freq_mixed_key_promote",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "n",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "n",
+    "raw_segmentation": "n",
+    "normalized_segmentation": "n",
+    "editing_text": "n",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     1
+    ],
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "甲",
+      "pinyin": "n",
+      "canonical_pinyin": "na",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 5000000,
+      "answers_key": true
+     },
+     {
+      "word": "乙",
+      "pinyin": "n",
+      "canonical_pinyin": "ne",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 5000000,
+      "answers_key": true
+     },
+     {
+      "word": "丙",
+      "pinyin": "n",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 3000000,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "n",
+     "cache_key": "n",
+     "pinyin_segments": [
+      "n"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "丙"
+   },
+   "result": {
+    "handled": true,
+    "commit": "丙"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "reopen",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "n",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "n",
+    "raw_segmentation": "n",
+    "normalized_segmentation": "n",
+    "editing_text": "n",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     1
+    ],
+    "candidate_count": 3,
+    "candidates": [
+     {
+      "word": "丙",
+      "pinyin": "n",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 5001000,
+      "answers_key": true
+     },
+     {
+      "word": "甲",
+      "pinyin": "n",
+      "canonical_pinyin": "na",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 5000000,
+      "answers_key": true
+     },
+     {
+      "word": "乙",
+      "pinyin": "n",
+      "canonical_pinyin": "ne",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 5000000,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "n",
+     "cache_key": "n",
+     "pinyin_segments": [
+      "n"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": false
+    }
+   }
+  },
+  {
+   "op": "dump_journal",
+   "journal": {
+    "personal_bigram": {
+     "columns": [
+      "previous",
+      "word",
+      "count"
+     ],
+     "rows": [
+      [
+       "\u0001",
+       "丙",
+       2
+      ]
+     ]
+    },
+    "user_dictionary_operations": {
+     "columns": [
+      "dictionary",
+      "key",
+      "value",
+      "operation",
+      "weight",
+      "display",
+      "user_inserted"
+     ],
+     "rows": [
+      [
+       "pinyin",
+       "ni",
+       "丙",
+       "upsert",
+       5001000,
+       "",
+       0
+      ]
+     ]
+    }
+   }
+  }
+ ]
+}

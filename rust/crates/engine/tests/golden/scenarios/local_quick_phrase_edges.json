@@ -1,0 +1,42 @@
+{
+ "name": "local_quick_phrase_edges",
+ "source": "tests/src/test_input_session.cpp:1434-1441; cases :1443-1465",
+ "covers": [
+  "local modes"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-pinyin.db": "CREATE TABLE quick_parases(key TEXT,value TEXT,weight INTEGER);INSERT INTO quick_parases VALUES('ab','快捷短语一',20);INSERT INTO quick_parases VALUES('aa','快捷短语二',10);"
+  }
+ },
+ "options": {},
+ "steps": [
+  {
+   "op": "char",
+   "arg": "K",
+   "shift": true
+  },
+  {
+   "op": "char",
+   "arg": "a"
+  },
+  {
+   "op": "select",
+   "arg": 1
+  },
+  {
+   "op": "char",
+   "arg": "K",
+   "shift": true
+  },
+  {
+   "op": "char",
+   "arg": "1"
+  },
+  {
+   "op": "command",
+   "arg": "Backspace"
+  }
+ ],
+ "note": "#8043：模式不接受的字符先提交当前原文并退出，再以未处理结果交还当前键；后续空组字的取消或退格也不消费。此处刻意偏离固定 C++ 参考的静默吞键行为。"
+}

@@ -1,0 +1,376 @@
+{
+ "name": "personal_context_sentence_commit",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "nihaohao",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "nihaohao",
+    "raw_segmentation": "ni'hao'hao",
+    "normalized_segmentation": "ni'hao'hao",
+    "editing_text": "nihaohao",
+    "caret": 8,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2,
+     5,
+     8
+    ],
+    "candidate_count": 5,
+    "candidates": [
+     {
+      "word": "你好子",
+      "pinyin": "ni'hao'hao",
+      "canonical_pinyin": "ni'hao'hao",
+      "source": 8,
+      "scheme": "quanpin",
+      "weight": 17697,
+      "sentence_association": true,
+      "sentence_words": [
+       "你好",
+       "子"
+      ],
+      "answers_key": true
+     },
+     {
+      "word": "你好",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1000,
+      "answers_key": false
+     },
+     {
+      "word": "甲",
+      "pinyin": "ni",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": false
+     },
+     {
+      "word": "乙",
+      "pinyin": "ni",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 90,
+      "answers_key": false
+     },
+     {
+      "word": "丙",
+      "pinyin": "ni",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 80,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "ni'hao'hao",
+     "cache_key": "nihaohao",
+     "pinyin_segments": [
+      "ni",
+      "hao",
+      "hao"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": 0,
+   "result": {
+    "handled": true,
+    "commit": "你好子"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dump_journal",
+   "journal": {
+    "personal_bigram": {
+     "columns": [
+      "previous",
+      "word",
+      "count"
+     ],
+     "rows": [
+      [
+       "\u0001",
+       "你好",
+       1
+      ],
+      [
+       "你好",
+       "子",
+       1
+      ]
+     ]
+    },
+    "personal_trigram": {
+     "columns": [
+      "earlier",
+      "previous",
+      "word",
+      "count"
+     ],
+     "rows": [
+      [
+       "\u0001",
+       "你好",
+       "子",
+       1
+      ]
+     ]
+    },
+    "user_dictionary_operations": {
+     "columns": [
+      "dictionary",
+      "key",
+      "value",
+      "operation",
+      "weight",
+      "display",
+      "user_inserted"
+     ],
+     "rows": [
+      [
+       "pinyin",
+       "ni'hao'hao",
+       "你好子",
+       "upsert",
+       10000,
+       "",
+       1
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "op": "reset_context",
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "nihaohao",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "nihaohao",
+    "raw_segmentation": "ni'hao'hao",
+    "normalized_segmentation": "ni'hao'hao",
+    "editing_text": "nihaohao",
+    "caret": 8,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2,
+     5,
+     8
+    ],
+    "candidate_count": 5,
+    "candidates": [
+     {
+      "word": "你好子",
+      "pinyin": "ni'hao'hao",
+      "canonical_pinyin": "ni'hao'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 10000,
+      "answers_key": true
+     },
+     {
+      "word": "你好",
+      "pinyin": "ni'hao",
+      "canonical_pinyin": "ni'hao",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 1000,
+      "answers_key": false
+     },
+     {
+      "word": "甲",
+      "pinyin": "ni",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 100,
+      "answers_key": false
+     },
+     {
+      "word": "乙",
+      "pinyin": "ni",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 90,
+      "answers_key": false
+     },
+     {
+      "word": "丙",
+      "pinyin": "ni",
+      "canonical_pinyin": "ni",
+      "source": 0,
+      "scheme": "quanpin",
+      "weight": 80,
+      "answers_key": false
+     }
+    ],
+    "online_query": {
+     "scheme": "quanpin",
+     "query_text": "ni'hao'hao",
+     "cache_key": "nihaohao",
+     "pinyin_segments": [
+      "ni",
+      "hao",
+      "hao"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": 0,
+   "result": {
+    "handled": true,
+    "commit": "你好子"
+   },
+   "snapshot": {
+    "scheme": "quanpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "dump_journal",
+   "journal": {
+    "personal_bigram": {
+     "columns": [
+      "previous",
+      "word",
+      "count"
+     ],
+     "rows": [
+      [
+       "\u0001",
+       "你好",
+       1
+      ],
+      [
+       "你好",
+       "子",
+       1
+      ]
+     ]
+    },
+    "personal_trigram": {
+     "columns": [
+      "earlier",
+      "previous",
+      "word",
+      "count"
+     ],
+     "rows": [
+      [
+       "\u0001",
+       "你好",
+       "子",
+       1
+      ]
+     ]
+    },
+    "user_dictionary_operations": {
+     "columns": [
+      "dictionary",
+      "key",
+      "value",
+      "operation",
+      "weight",
+      "display",
+      "user_inserted"
+     ],
+     "rows": [
+      [
+       "pinyin",
+       "ni'hao'hao",
+       "你好子",
+       "upsert",
+       10000,
+       "",
+       1
+      ]
+     ]
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,29 @@
+{
+ "name": "temp_japanese_enter",
+ "source": "tests/src/test_temporary_input_session.cpp:86-95; case :230-244",
+ "note": "#7616 之后回车原样上屏所见预编辑，临时日文的入口字母 `R` 算文本：参考实现在这里记的是去掉入口字母的 `ka`。进词库的词仍不带 `R`。",
+ "covers": [
+  "temporary japanese"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-english.db": "CREATE TABLE english_words(word TEXT COLLATE BINARY NOT NULL,display TEXT NOT NULL,weight INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(word,display)) WITHOUT ROWID;CREATE TABLE en_zh_glosses(english TEXT PRIMARY KEY,chinese_gloss TEXT NOT NULL);CREATE TABLE zh_en_glosses(chinese TEXT PRIMARY KEY,english_gloss TEXT NOT NULL);INSERT INTO english_words VALUES('he','HE',110);INSERT INTO english_words VALUES('hello','Hello',100);INSERT INTO english_words VALUES('help','Help',90);"
+  }
+ },
+ "options": {},
+ "steps": [
+  {
+   "op": "char",
+   "arg": "R",
+   "shift": true
+  },
+  {
+   "op": "type",
+   "arg": "ka"
+  },
+  {
+   "op": "command",
+   "arg": "CommitRaw"
+  }
+ ]
+}

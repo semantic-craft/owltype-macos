@@ -1,0 +1,43 @@
+{
+ "name": "online_shuangpin",
+ "source": "tests/src/test_online_input_session.cpp:107-138; case :242-256",
+ "note": "Step 4 is not the reference's output: the reference appended every shorter shuangpin prefix group whole (shuangpin/shuangpin_dictionary.cpp:214-229) and, for a single trailing helpcode, appended the whole-input series and then the unmatched rows after the matched ones (SD:370-372), so a word several of those lists answer was listed once per list. Showing the same candidate more than once is a bug (decision 2026-09-30): the port keeps each word at its first seat and drops the later copies, and the step was rewritten to that output.",
+ "covers": [
+  "online",
+  "shuangpin",
+  "helpcode"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-pinyin.db": "BEGIN;CREATE TABLE tbl_1_a(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_a VALUES('ang','a','昂',200);CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_n VALUES('ni','n','你',200);INSERT INTO tbl_1_n VALUES('ni','n','倪',100);CREATE TABLE tbl_2_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',200);INSERT INTO tbl_1_n VALUES('nin','n','您',100);INSERT INTO tbl_1_n VALUES('nve','n','虐',100);CREATE TABLE tbl_1_h(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_h VALUES('hao','h','好',200);CREATE TABLE tbl_1_z(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_z VALUES('zi','z','字',100);CREATE TABLE tbl_1_g(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_g VALUES('gu','g','股',100);CREATE TABLE tbl_1_d(key TEXT,jp TEXT,value TEXT,weight INTEGER);INSERT INTO tbl_1_d VALUES('de','d','的',300);INSERT INTO tbl_1_d VALUES('di','d','的',50);CREATE TABLE tbl_2_a(key TEXT,jp TEXT,value TEXT,weight INTEGER);CREATE TABLE tbl_2_d(key TEXT,jp TEXT,value TEXT,weight INTEGER);COMMIT;",
+   "msime-english.db": "CREATE TABLE english_words(word TEXT COLLATE BINARY NOT NULL,display TEXT NOT NULL,weight INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(word,display)) WITHOUT ROWID;INSERT INTO english_words VALUES('ninja','Ninja',100);"
+  }
+ },
+ "options": {
+  "scheme": "shuangpin"
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "ni"
+  },
+  {
+   "op": "apply_online_candidates",
+   "arg": [
+    "拟"
+   ],
+   "source": "ai"
+  },
+  {
+   "op": "apply_online_candidates",
+   "arg": [
+    "泥"
+   ],
+   "source": "cloud"
+  },
+  {
+   "op": "char",
+   "arg": "A"
+  }
+ ]
+}

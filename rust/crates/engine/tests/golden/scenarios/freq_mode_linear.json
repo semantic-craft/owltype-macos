@@ -1,0 +1,41 @@
+{
+ "name": "freq_mode_linear",
+ "source": "tests/src/test_input_session.cpp:131-144,1086-1120",
+ "covers": [
+  "learning"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-pinyin.db": "BEGIN;CREATE TABLE tbl_1_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);INSERT INTO tbl_1_n VALUES('ni', 'n', '甲', 100);INSERT INTO tbl_1_n VALUES('ni', 'n', '乙', 90);INSERT INTO tbl_1_n VALUES('ni', 'n', '丙', 80);INSERT INTO tbl_1_n VALUES('ni', 'n', '丁', 70);INSERT INTO tbl_1_n VALUES('ni', 'n', '戊', 60);INSERT INTO tbl_1_n VALUES('ni', 'n', '己', 50);COMMIT;"
+  }
+ },
+ "options": {
+  "frequency": {
+   "mode": "linear",
+   "trigger_count": 1,
+   "linear_step": 2
+  }
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "ni"
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "己"
+   }
+  },
+  {
+   "op": "reopen"
+  },
+  {
+   "op": "type",
+   "arg": "ni"
+  },
+  {
+   "op": "dump_journal"
+  }
+ ]
+}

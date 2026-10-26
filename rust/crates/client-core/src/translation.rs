@@ -17,7 +17,7 @@ pub struct TranslationRun {
 }
 
 pub fn source_gets_no_gloss(source: u8) -> bool {
-    matches!(source, 6 | 7 | 13 | 14 | 15 | 16)
+    matches!(source, 6 | 7 | 13 | 14 | 15 | 16 | 18)
 }
 
 pub fn translation_runs(gloss: &str) -> Vec<TranslationRun> {

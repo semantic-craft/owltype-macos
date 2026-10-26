@@ -372,9 +372,13 @@ review dates, not retries. Keep deterministic checks in the local gate.
 ### Publish seed data and its sidecars as one set
 
 - The Wubi seed builder replaced `msime-pinyin.db` before writing the pinned license and source metadata. A later write failure could leave a new database beside old provenance files.
-- Stage the database, license and metadata as sibling temporary files, replace them through a rollback-capable publisher, and restore every prior file if one installation step fails. Keep the tracked source license under `licenses/`, outside `data/`: the public-source boundary rejects tracked `data/*wubi*` paths as restricted data even when the file is only the upstream license.
+- Stage the database, license and metadata as sibling temporary files, replace them through the shared rollback-capable publisher in `scripts/resource_publish.py`, and restore every prior file if one installation step fails. Keep the tracked source license under `licenses/`, outside `data/`: the public-source boundary rejects tracked `data/*wubi*` paths as restricted data even when the file is only the upstream license.
 - Regression: `test_publish_failure_restores_existing_wubi_artifacts` forces the metadata rename to fail after the database and license were installed, then checks all three old files are restored and no temporary file remains.
 - Verify (验证点): `python3 scripts/build-owltype-msime-seed-db.selftest.py` passes 9/9; `bash scripts/check-public-source.sh` passes with `licenses/wubi86-jidian.LICENSE` tracked.
+- The pinned official cache and product-set publishers reuse that same transaction.
+  `fetch-msime-resources.selftest.py` injects failure after earlier members were replaced and
+  proves resources, manifest and identity record restore byte-for-byte, including removal of
+  members absent before publication (2026-10-26).
 - Seen on 1 distinct date: 2026-10-25.
 
 ### A Rust archive existing is not evidence that it matches Rust source
@@ -432,3 +436,284 @@ review dates, not retries. Keep deterministic checks in the local gate.
   checks establish adapter behavior; installed-host timing is a separate measurement.
 
 - 2026-10-26：异步模型配置返回时 worker 可能已从 loading 进入 missing；回归应接受这两种合法即时状态并继续等待/断言 missing。只接受 loading 的测试竞态会在销毁 session 前 panic，连带污染全局生命周期测试。本次 53 个 FFI 单测及 engine_lifecycle 重跑通过。
+
+## Official resource schemas and Wubi composition survive pinyin alignment
+
+- Seen 1x (2026-10-26): adopting the pinned official dictionary set exposed that the resource
+  activation contract required Owl's optional `english_words.phonetic` column. The upstream
+  database has `word`, `display`, and `weight`; requiring the extra column rejected a valid set
+  before activation. Validate the upstream required schema and allow Owl's extra column.
+- The same acceptance run exposed two Wubi adapter boundaries: enabling ordinary-pinyin sentence
+  alternatives crowded out the prior Wubi partial-selection page, and treating the fifth-key top
+  commit as a partial phrase held `工` instead of committing it before the next code. Retain the
+  existing Wubi sentence policy and deduplication, and exclude its completed top commit from
+  phrase holding. These rules do not change ordinary-pinyin sentence generation.
+- Regression and Verify (验证点): `OwlRustEngineTests.testGenerationSwitchRollbackColdStartAndJournalReplayKeepUserState`,
+  the existing six Wubi tests, `testActivatedDictionaryKeepsBundledEmojiCandidates`, and
+  `testShuangpinSemicolonSpellingPrecedesCandidateShortcut` pass together (9 tests). The FFI
+  `pure_wubi_fifth_key_tops_an_ambiguous_four_code` reproduces the missing commit before the
+  adapter correction and passes afterwards. This proves the session/resource seam, not IMK installation.
+
+## Verify both keyboard model scoring paths against the pinned host
+
+**A ready model and a changed first candidate do not prove the engine lattice scorer is connected.**
+
+- Reason: after pinning MSIME 0.55.0, the host's existing worker attached the keyboard model to the runtime reranker only. `tadefangjian` changed its first row to `他的房间`, but its later sentence and completion rows differed from the pinned Host API with `neural_keyboard` enabled. The existing settled-selection regression still passed.
+- Prevention: hand the same validated worker-loaded model to the existing engine lattice scorer and runtime reranker. Refresh the published candidate identity when weights attach or detach; reattach after engine replacement. Missing, malformed and digest-mismatched models retain the ordinary non-neural candidate order.
+- Regression: [model_parity.rs](rust/crates/owl-msime-ffi/tests/model_parity.rs) compares all six model-on/off rows with the pinned Host API oracle, cold/shared-cache sessions, selection, engine replacement, active-composition disable and failure fallback. It failed before the lattice handoff and passes after it. The Swift settled-selection regression uses `tadefangjian`, which the pinned desktop model actually moves with the official dictionary; each digit/token selection path starts with its own learning journal so the first selection cannot pre-promote the second case.
+- Verify (验证点): materialize the official seed and locked models, then run `OWL_MODEL_PARITY_RESOURCES="$PWD/data/owl-rime/msime" cargo test --manifest-path rust/Cargo.toml -p owl-msime-ffi --test model_parity -- --ignored --nocapture`; expect one passed test. This checks the C ABI, not installed IMK delivery or pause scheduling.
+- Seen on 1 distinct date: 2026-10-26.
+
+## Traditional output follows the pinned phrase converter
+
+- Seen 1x (2026-10-26): platform `Hans-Hant` converted `里面` to `裡面`, while the
+  pinned upstream OpenCC standard configuration returns `裏面`. Consistent display
+  and commit alone did not establish equivalent output.
+- Use the upstream client-core converter through the C ABI for both visible and
+  committed text. Keep the original candidate generation and selection identity.
+- Regression and Verify (验证点):
+  `OwlRustEngineTests/testPhraseAwareTraditionalOutputKeepsSelectionIdentity`
+  fails at visible, peeked and committed output before the change, and passes after;
+  it also selects with the pre-conversion token and turns conversion off again.
+
+## Smart punctuation requires the native document context
+
+- Seen 1x (2026-10-26): forwarding every idle punctuation key to the engine wrote
+  `1。` where pinned macOS MSIME writes `1.`. Engine punctuation alone cannot infer
+  the preceding document character or replace a previously committed mark.
+- Reuse upstream client-core route/repeat/space-convert policy. The native host owns
+  the client/caret fingerprint and checks actual text before replacement. An unreadable
+  host may use only its owned shadow; posted replacement remains permission- and
+  foreground-checked and cannot run in a secure or explicitly denied client.
+- Verify (验证点): `OwlInputHabitsIntegrationTests` covers context and repeat,
+  caret movement, immediate setting changes, opt-in space correction/revert and an
+  unreadable host through a substituted posting boundary. No real terminal receives
+  injected keys. These tests do not establish installed-host event timing acceptance.
+
+## Fresh upstream defaults own ordinary pinyin candidate order
+
+- Seen 1x (2026-10-26): after importing the pinned full dictionary, the real host
+  differential still showed nine candidate-order differences. Owl's Chinese-only
+  first-page transform hid upstream's exact English seats (`xi`, `chan`), and an
+  emoji-off default removed default mixed rows. Host quick-phrase promotion also
+  overrode upstream's fresh-install ordinary-mode boundary.
+- Keep ordinary ranking in the pinned engine; retain the transform only for explicit
+  user pins and Wubi policy. Enable macOS default emoji and static symbol names,
+  disable fresh ordinary quick-phrase injection, and retain explicit K-mode access.
+- Verify: `tests/fixtures/pinyin-parity/full-pinyin.json` and `mixed-input.json`
+  against the unmodified pinned host; `testPinnedUpstreamMixedEnglishAndEmojiOrder`
+  and the existing fuzzy/typo/English tests check the Swift session seam. The pinned
+  engine treats legal `nihaao` literally; the former fixture's forced 你好 result
+  must not be restored by another local correction policy.
+
+## Native host capabilities belong in parity evidence
+
+- Seen 1x (2026-10-26): the strict room trace exposed two boundary-page consumed
+  differences. Both adapter layers filtered upstream `handled` through page
+  movement, allowing composition-owned page keys to reach the document at an edge.
+  Preserve `handled`; `testPaginationAndHighlightNavigation` fails at both boundary
+  assertions before the fix and passes afterwards; the 75-event trace is equal.
+- A new partial-selection trace also exposed a harness omission: bare
+  `prepare_host` does not request macOS `MSIMESessionOptions` capabilities. The
+  native profile now records the pinned three boolean overrides and joins
+  `phrase_prefix` with `preedit` for native marked text, retaining raw views.
+  Preserve `phrase_preedit`; do not remove held selections to fit a bare API trace.
+- The same trace caught Left/Right always selecting candidates even at the first
+  candidate with an unfinished caret, and Delete being dispatched as Backspace.
+  Use the pinned macOS first-candidate/caret rule and `DeleteForward`. The parity
+  transport also sends Return for `CommitRaw`, rather than Space selection.
+- Verify: replay `editing.json` and `tadefangjian.json` against the pinned native
+  host profile; the original raw profile remains explicitly reproducible. These
+  checks prove the public session/marked-context contract, not installed IMK delivery.
+
+## Host actions invalidate settled scoring even when the engine does not change
+
+- Reason: a boundary-page action can return unconsumed without changing input or candidate generation. The controller only invalidated its debounce timer, so an already-running desktop score still passed its ticket check and refreshed candidates after that action. Engine identity alone did not cover the host pause lifecycle.
+- Fix: capture a host action epoch with each settled job and reject publication after any invalidating host action; continue polling with `accept: false` to return the model. The pinned native host uses the same epoch ownership guard. Keep the existing 150 ms debounce and match its 60 Hz result poll.
+- Regression: `testSettledActionInvalidationRejectsAResultEvenWithoutEngineMutation` failed before the fix (`accept` was true and the panel refreshed once), then passed. Controlled-clock coverage proves the 150 ms last-input pause and old-job drain/restart; a separate focus test deliberately retains engine state when clearing. `testSettledPauseUsesRealModelAndKeepsNativeSelectionAndEditsCurrent` connects the production controller, official desktop model, isolated journal and native text client, checking complete candidate order, stale/fresh token and digit commits, backspace, schema switch, focus loss, selection while scoring and page preservation.
+- Verify: run `RimeSeamTests` and the named native integration test through the seeded Swift test host, together with existing `OwlRustEngineTests` model/ticket checks. Timer firing and a monotonic clock are controlled; no fixed sleep determines whether a worker result is stale. This checks in-process native host behavior, not installed IMK IPC delivery.
+- Seen 1x (2026-10-26).
+
+## Owl enhancement rows are distinct from native quick phrases
+
+- Seen 1x (2026-10-26): treating bare host-api defaults as native macOS defaults would disable
+  legitimate upstream quick-phrase candidates. Native `MSIMESessionOptions` enables them; Owl
+  template/prompt/custom host rows instead require explicit K plus the complete stored trigger.
+- Keep the native database candidate order and K prefix browsing intact. The thin host-table
+  adapter switch defaults to upstream behavior; Owl alone disables ordinary host-table injection.
+  Preserve stored content and codes, and strip the explicit mode prefix only when resolving an
+  Owl invocation. Partial host triggers must never publish internal invocation markers.
+- Regression: `OwlRustEngineTests.testOwlEnhancementsRequireExplicitKWithoutChangingOrdinaryCandidates`
+  compares real ordinary candidates with/without a template, checks partial/full K triggers,
+  visible commits, cancellation and return to ordinary input. Prompt interception and existing
+  host delivery tests cover context, stale targets and single delivery.
+- Verify (验证点): `cargo test --locked --manifest-path rust/Cargo.toml -p owl-msime-ffi` and
+  `python3 scripts/verify.py swift --test OwlRustEngineTests --test OwlPromptInterceptionTests
+  --test OwlTemplateHostDeliveryTests` pass. These are isolated automated sessions, not installed
+  IMK or live-provider acceptance.
+
+## Learning parity must cross a process boundary and reach a real consumer
+
+- Seen 1x (2026-10-26): T09 found that upstream `RemoveCandidate` had no Owl FFI or
+  native consumer. Selection learning already worked, but a session-only reopen
+  could still observe a process-wide dictionary cache instead of journal recovery.
+- Fix: validated visible candidate tokens reach upstream removal from the existing
+  context menu and macOS Ctrl-Option-Shift physical digits 1–8. Stale menu tokens
+  and preview/punctuation identities are rejected. Single-character/source
+  protection stays in the upstream engine.
+- Regression: `testCandidateDeletionUsesPhysicalChordAndRejectsOldMenuToken` drives
+  the controller shortcut/menu into a real session; `removal_uses_current_visible_identity_and_survives_reopen`
+  covers the ABI. `tests/fixtures/pinyin-parity/learning.json` compares every page
+  before/after selection, deletion and two restarts in fresh processes per endpoint,
+  with independent checkpoints for the actual learning and recovery effects.
+- Verify: run the learning fixture through `scripts/pinyin-parity.py` against the
+  pinned reference library/resources, the named Swift test, and
+  `cargo test --locked --manifest-path rust/Cargo.toml -p owl-msime-ffi`.
+  This proves the offline host seam; installed IMK acceptance remains separate.
+
+## FFI session identity cannot be an allocator address
+
+- Seen on 1 distinct date: 2026-10-26. The default-parallel FFI suite aborted with
+  `POINTER_BEING_FREED_WAS_NOT_ALLOCATED` while dropping a refreshed `EngineSnapshot`.
+  The guard was a set of live Box addresses: after one test destroyed its session,
+  another session could reuse that address. The first test's idempotent destroy and
+  post-destroy calls then targeted the new session. Checking membership before a bare
+  dereference also did not preserve ownership across the call.
+- Fix: non-recycled opaque identities resolve through a thread-local owning registry.
+  The engine's existing thread confinement is preserved; stale and foreign-thread
+  handles fail closed. Async host tests must remain on MainActor across awaits when
+  retaining a session, matching the production IMK thread contract. Destroy and thread
+  exit drop/flush sessions under the lifecycle
+  lock before retiring active identities, so finalize cannot close a live cache.
+- Regression: `destroyed_handle_cannot_alias_a_reopened_session` reaches the real
+  create/destroy/reopen FFI path and fails on the previous source in 0.05 seconds:
+  stale destroy removes the reopened session. `session_rejects_foreign_thread_calls_and_destroy`
+  guards the owner-thread boundary; `finalize_waits_for_sessions_and_allows_reopen`
+  also covers host-thread exit with an unclosed wrapper.
+- Verify (验证点): `cargo test --locked --manifest-path rust/Cargo.toml -p owl-msime-ffi`
+  must pass with the default parallel runner. Repeat with AddressSanitizer when
+  investigating memory regressions; a successful ordinary retry alone is not evidence
+  that an observed invalid free has been resolved.
+
+## Resource activation must capture the complete compatibility set
+
+**A resource generation includes auxiliary dictionaries, context sidecars, models and the binary's configuration version; each session captures that generation for both dictionary and model loading.**
+
+- Reason: the parity update audit found the production updater still rebuilding reduced Pinyin from legacy YAML. Activation switched only the main/English databases while session creation and model configuration kept reading the current bundle. A synthetic activated emoji database returned bundled apples instead of its own candidate; the focused host-seam regression failed before the fix.
+- Prevention: production preparation copies the binary-pinned complete resource set into the existing transaction. Activation and rollback validate the whole manifest and configuration/model compatibility. Session model and auxiliary paths belong to the captured generation. A missing/corrupt active member falls back to a fully verified previous combination, then the bundled seed if none is usable; incomplete generations are never supplemented member-by-member.
+- Regression: `testActivatedGenerationUsesItsOwnAuxiliaryResources`, `testProductionUpdatePreparesTheCompletePinnedCombination`, `testIncompleteGenerationCannotOmitAuxiliaryResources`, and `testGenerationSwitchRollbackColdStartAndJournalReplayKeepUserState` in `OwlRustEngineTests` cover actual sidecar candidates, official model scoring with unavailable bundle models, complete preparation, interrupted activation/retry, missing/corrupt sidecars, rollback, and learning replay in isolated roots.
+- Verify (验证点): run those focused Swift tests and `OwlRustResourceTransactionTests`; the synthetic candidate changes with the active generation and returns after rollback, while the learned candidate remains first. Future binary/model/config changes must advance the compatible package/configuration version together. No old-user migration is implied.
+- Seen on 1 distinct date: 2026-10-26.
+
+## Preserve lint failure status when reviewing merged source
+
+- Seen 1x (2026-10-26): T04 segment routing raised `OwlRustSession.process` complexity to22. The merger reported lint clean after searching `error:` even though the configured GitHub reporter writes `::error`; later shell commands also masked its failure status. T12 correctly surfaced the blocker.
+- Fix: extract the existing segment-chord route into a dedicated private helper, preserving active-composition/modifier guards and false-versus-not-applicable behavior. Run lint as its own command and inspect both exit status and reporter errors; do not infer success from a later command. No lint configuration was relaxed.
+- Verify: `swiftlint lint --quiet` exits0 with no `::error`; existing `testSegmentChordEditsPinyinRatherThanPassingToHost` and `testShuangpinSegmentEditingAndShoudaoSelection` still pass. This fixes the source gate, not installed IMK acceptance.
+
+### Imported Wubi goldens must retain Owl's existing z lookup
+
+- Seen 1x (2026-10-26): the newly imported `wubi_mixed_matched_code` and
+  `wubi_mixed_plain_mode` goldens expected no candidate for pure-Wubi `zi`, although
+  the pre-parity `274fad9` implementation already queries both the lookup suffix
+  and the complete z-prefixed pinyin. Their own fixture contains `zi → 子`.
+- The exact pre-model integration `1fce6c6` reproduces the same six differences,
+  proving these observations predate the keyboard-model adapter. Preserve this
+  existing Owl behavior; do not disable the complete-spelling lookup to satisfy
+  an imported snapshot. The mixed-on step independently already pins the same
+  `子` row, weight, source and pinyin metadata.
+- Verify: run `MSIME_GOLDEN_SCENARIO=wubi_mixed_matched_code,wubi_mixed_plain_mode
+  cargo test --locked --manifest-path rust/Cargo.toml -p msime-engine --test golden
+  scripted_scenarios_match_the_reference`, then all scripted scenarios. The strict
+  comparator retains every field; only the two stale expected snapshots change.
+
+
+## Native parity includes the controller and marked-text host
+
+- Seen 1x (2026-10-26): strict session traces did not exercise controller shortcut
+  passthrough or the native host's paired punctuation. Command/ordinary Control/Option
+  left a live conversion behind; pairing used the old insert-and-move convenience.
+- Native pinyin now finishes through pinned runtime `Action::Finish` before returning
+  application chords, while dedicated IME shortcuts and segment editing keep ownership.
+  Pairing follows the pinned macOS host: committed opening, marked closing tail,
+  closing on commit/focus, and fresh quote opening despite engine alternation.
+- Regression and Verify (验证点): run `python3 scripts/verify.py swift --test
+  OwlInputHabitsIntegrationTests --test OwlAutoPairTests --test KeyTranslationTests`.
+  The native tests drive actual controller → Rust → NSTextView and failed before the
+  fix. Session-only differential evidence cannot substitute for this boundary.
+- The differential runner now owns a separate temporary DerivedData tree and calls
+  `cleanup_app_registrations.prepare` before removal and after removal, also on failure
+  or interruption. `python3 scripts/pinyin-parity.selftest.py` preserves caller data
+  and fails closed when unregistering fails; JSON evidence stays outside that tree.
+- Explicit product exception: slash-to-English remains an Owltype feature per the
+  user's current decision. No unlicensed symbol catalog was imported.
+### Test hosts must not share a persistent preferences domain
+
+- Seen 1x (2026-10-26): the real settled-model oracle intermittently saw eight
+  candidates after explicitly setting six. Every worktree used the fixed
+  `im.owltype.inputmethod.Owltype.tests` suite; another test host's settings baseline
+  writes eight. Main-actor isolation does not isolate CFPreferences across processes.
+- `test-defaults-isolation.selftest.py` compiles the actual `OwlDefaults` selector
+  and runs two Foundation processes with page sizes six and eight. Before the fix
+  they publish the same suite and the first process reads the peer's eight.
+- Give each test/UI-test process a unique suite and remove it on normal exit.
+  Synchronize domain removal and remove its exact UUID plist on exit: a removed
+  domain can remain observable as `{}`, and a `defaults read` observer can itself
+  recreate an empty plist. Verify the file before reading and require the saved
+  key to be absent. The first cleanup assertion was initially misreported green;
+  independent review caught it before integration.
+  Production preferences still use `UserDefaults.standard`. The existing exact
+  six-row model oracle and its page-size precondition remain unchanged.
+- Verify: `python3 scripts/test-defaults-isolation.selftest.py` passes; the real
+  model/controller regression must also pass through the ordinary native host.
+
+### Native capabilities and fresh preferences are different controls
+
+- Seen 1x (2026-10-26): the native macOS `quick_phrase_candidates` capability is
+  true, but pinned 0.55 `MixedInputPreferences::default()` sets `quick_phrase`
+  false. Treating capability as preference hard-enabled ordinary dictionary
+  phrases; all seven official codes produced 14 candidate-order differences.
+- Keep the fresh pinyin default OFF and expose the actual preference; explicit ON
+  follows the pinned pre-mixing insertion/counting rules. Wubi keeps #307's
+  post-mixing visible-seat policy. Neither disables K browsing or Owl's explicit
+  AI/template entry. A live toggle queues until the native runtime is idle, preserving the current
+  raw composition and IDs; the next composition applies the preference.
+- Verify: replay `native-quick-phrases.json` and `native-quick-phrases-on.json`
+  against native-mac-host. The ON corpus selects all eight official rows and
+  requires deduplication of the existing dictionary `yyds` row. Keep all six
+  earlier corpora, Wubi regressions and the normal gates; do not waive an ON
+  mismatch with the OFF group. See `testNativeQuickPhrasePreferencePreservesLiveComposition`.
+
+## Delivery and acquisition share the licensed resource contract
+
+- Seen 1x (2026-10-26): final Release validation still rejected `kaomoji` and
+  `kaomoji_catalog` after the seed importer had accepted their fixed MIT data and
+  bundled the original license. Provenance and generated seed metadata still said
+  emoji-only, and the SBOM regression still excluded the retained source component.
+- The delivery checker now reuses `fetch-msime-others.py`'s exact four-table,
+  row-count and canonical-content-hash contract and pins the kaomoji MIT text and
+  source notice. `symbol_catalog` and unknown tables remain forbidden. Metadata
+  names the licensed retained subset without licensing the complete upstream DB.
+- Verify (验证点): `python3 scripts/check-rust-delivery.selftest.py` rejects missing,
+  empty, added or changed kaomoji rows and missing/modified attribution;
+  `python3 scripts/release-bundle.selftest.py` verifies its SBOM component and
+  pinned license. Run the real `scripts/check-rust-delivery.py` against the Release
+  App as well; passing synthetic fixtures alone cannot establish shipped content.
+
+
+## Public dictionary scanner collisions require content proof
+
+- Seen 1x (2026-10-26): the final artifact scan's Eraser detector matched the
+  adjacent serialization of one public English word and its identical display
+  column in the unchanged official dict-v2.0.24 English DB. The hit was unverified;
+  the complete DB matched the pinned official manifest and the match was not a
+  standalone database cell. No matched bytes were printed or retained in evidence.
+- The shared policy permits only that exact artifact/TruffleHog/Eraser unverified
+  finding, with both the raw-match digest and complete public-file digest pinned,
+  the expected App resource location, and a read-only same-row word/display proof.
+  This does not exempt the DB/path, the detector or generic keys. Modified DBs,
+  different raw matches/detectors, history and verified/unknown findings still fail.
+- Verify (验证点): run `python3 scripts/secret-finding-policy.selftest.py`, including
+  positive/negative public-row cases and unchanged generic-key/container checks,
+  then `scripts/check-secrets.sh --artifacts` on the actual built App. Keep only
+  hashes, classification, source identity and redacted scanner decisions as evidence.

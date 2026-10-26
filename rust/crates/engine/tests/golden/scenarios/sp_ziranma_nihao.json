@@ -1,0 +1,30 @@
+{
+ "name": "sp_ziranma_nihao",
+ "source": "tests/src/test_input_session.cpp:161-170 fixture, ziranma profile",
+ "covers": [
+  "shuangpin"
+ ],
+ "fixture": {
+  "databases": {
+   "msime-pinyin.db": "BEGIN;CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);INSERT INTO tbl_2_n VALUES('ni''hao', 'nh', '你好', 100);INSERT INTO tbl_2_n VALUES('ni''hao', 'nh', '拟好', 50);COMMIT;"
+  }
+ },
+ "options": {
+  "scheme": "shuangpin",
+  "shuangpin_profile": "ziranma"
+ },
+ "steps": [
+  {
+   "op": "type",
+   "arg": "nihk"
+  },
+  {
+   "op": "command",
+   "arg": "Cancel"
+  },
+  {
+   "op": "type",
+   "arg": "nihc"
+  }
+ ]
+}

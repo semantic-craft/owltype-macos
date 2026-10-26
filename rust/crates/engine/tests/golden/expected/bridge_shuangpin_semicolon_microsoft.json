@@ -1,0 +1,79 @@
+{
+ "name": "bridge_shuangpin_semicolon_microsoft",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "microsoft",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "char",
+   "arg": "b",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "b",
+    "raw_segmentation": "b",
+    "normalized_segmentation": "b",
+    "editing_text": "b",
+    "caret": 1,
+    "dedicated_english": false,
+    "shuangpin_profile": "microsoft",
+    "segment_boundaries": [
+     0,
+     1
+    ],
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "char",
+   "arg": ";",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "b;",
+    "raw_segmentation": "b;",
+    "normalized_segmentation": "bing",
+    "editing_text": "b;",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "microsoft",
+    "segment_boundaries": [
+     0,
+     2
+    ],
+    "candidate_count": 0,
+    "candidates": [],
+    "online_query": {
+     "scheme": "shuangpin",
+     "query_text": "bing",
+     "cache_key": "b;",
+     "pinyin_segments": [
+      "bing"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  }
+ ]
+}

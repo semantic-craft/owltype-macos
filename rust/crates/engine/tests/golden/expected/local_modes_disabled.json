@@ -1,0 +1,126 @@
+{
+ "name": "local_modes_disabled",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "candidate_count": 0,
+    "candidates": [],
+    "caret": 0,
+    "dedicated_english": false,
+    "editing_text": "",
+    "local_mode": "none",
+    "normalized_segmentation": "",
+    "preedit": "",
+    "raw_segmentation": "",
+    "scheme": "quanpin",
+    "shuangpin_profile": "xiaohe"
+   }
+  },
+  {
+   "arg": "Y",
+   "op": "char",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "answers_key": true,
+      "canonical_pinyin": "",
+      "pinyin": "Y",
+      "scheme": "quanpin",
+      "source": 9,
+      "weight": 0,
+      "word": "Y"
+     }
+    ],
+    "caret": 1,
+    "dedicated_english": false,
+    "editing_text": "Y",
+    "local_mode": "none",
+    "normalized_segmentation": "y",
+    "preedit": "Y",
+    "raw_segmentation": "Y",
+    "scheme": "quanpin",
+    "segment_boundaries": [
+     0,
+     1
+    ],
+    "shuangpin_profile": "xiaohe"
+   }
+  },
+  {
+   "arg": "R",
+   "op": "char",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "answers_key": true,
+      "canonical_pinyin": "",
+      "pinyin": "YR",
+      "scheme": "quanpin",
+      "source": 9,
+      "weight": 0,
+      "word": "YR"
+     }
+    ],
+    "caret": 2,
+    "dedicated_english": false,
+    "editing_text": "YR",
+    "local_mode": "none",
+    "normalized_segmentation": "y'r",
+    "preedit": "YR",
+    "raw_segmentation": "Y'R",
+    "scheme": "quanpin",
+    "segment_boundaries": [
+     0,
+     1,
+     2
+    ],
+    "shuangpin_profile": "xiaohe"
+   }
+  },
+  {
+   "arg": "J",
+   "op": "char",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "candidate_count": 1,
+    "candidates": [
+     {
+      "answers_key": true,
+      "canonical_pinyin": "",
+      "pinyin": "YRJ",
+      "scheme": "quanpin",
+      "source": 9,
+      "weight": 0,
+      "word": "YRJ"
+     }
+    ],
+    "caret": 3,
+    "dedicated_english": false,
+    "editing_text": "YRJ",
+    "local_mode": "none",
+    "normalized_segmentation": "y'r'j",
+    "preedit": "YRJ",
+    "raw_segmentation": "Y'R'J",
+    "scheme": "quanpin",
+    "segment_boundaries": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "shuangpin_profile": "xiaohe"
+   }
+  }
+ ]
+}

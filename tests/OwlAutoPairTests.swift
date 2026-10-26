@@ -168,9 +168,9 @@ final class OwlAutoPairTests: XCTestCase {
     defer {
       if let saved {
         OwlDefaults.standard.set(saved, forKey: key)
-        OwlKeyboardPreferences.autoPairBrackets = (saved as? NSNumber)?.boolValue ?? false
+        OwlKeyboardPreferences.autoPairBrackets = (saved as? NSNumber)?.boolValue ?? true
       } else {
-        OwlKeyboardPreferences.autoPairBrackets = false
+        OwlKeyboardPreferences.autoPairBrackets = true
         OwlDefaults.standard.removeObject(forKey: key)
       }
     }

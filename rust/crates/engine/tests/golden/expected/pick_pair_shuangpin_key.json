@@ -1,0 +1,598 @@
+{
+ "name": "pick_pair_shuangpin_key",
+ "steps": [
+  {
+   "op": "open",
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "uj",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "uj",
+    "raw_segmentation": "uj",
+    "normalized_segmentation": "shan",
+    "editing_text": "uj",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "闪",
+      "pinyin": "uj",
+      "canonical_pinyin": "shan",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 100,
+      "answers_key": true
+     },
+     {
+      "word": "山",
+      "pinyin": "uj",
+      "canonical_pinyin": "shan",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 90,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "shuangpin",
+     "query_text": "shan",
+     "cache_key": "uj",
+     "pinyin_segments": [
+      "shan"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "山"
+   },
+   "result": {
+    "handled": true,
+    "commit": "山"
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "uv",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "uv",
+    "raw_segmentation": "uv",
+    "normalized_segmentation": "shui",
+    "editing_text": "uv",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "睡",
+      "pinyin": "uv",
+      "canonical_pinyin": "shui",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 100,
+      "answers_key": true
+     },
+     {
+      "word": "水",
+      "pinyin": "uv",
+      "canonical_pinyin": "shui",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 90,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "shuangpin",
+     "query_text": "shui",
+     "cache_key": "uv",
+     "pinyin_segments": [
+      "shui"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "水"
+   },
+   "result": {
+    "handled": true,
+    "commit": "水"
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "reset_context",
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "uj",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "uj",
+    "raw_segmentation": "uj",
+    "normalized_segmentation": "shan",
+    "editing_text": "uj",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "闪",
+      "pinyin": "uj",
+      "canonical_pinyin": "shan",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 100,
+      "answers_key": true
+     },
+     {
+      "word": "山",
+      "pinyin": "uj",
+      "canonical_pinyin": "shan",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 90,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "shuangpin",
+     "query_text": "shan",
+     "cache_key": "uj",
+     "pinyin_segments": [
+      "shan"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "山"
+   },
+   "result": {
+    "handled": true,
+    "commit": "山"
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "uv",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "uv",
+    "raw_segmentation": "uv",
+    "normalized_segmentation": "shui",
+    "editing_text": "uv",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "水",
+      "pinyin": "uv",
+      "canonical_pinyin": "shui",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 90,
+      "answers_key": true
+     },
+     {
+      "word": "睡",
+      "pinyin": "uv",
+      "canonical_pinyin": "shui",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 100,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "shuangpin",
+     "query_text": "shui",
+     "cache_key": "uv",
+     "pinyin_segments": [
+      "shui"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "水"
+   },
+   "result": {
+    "handled": true,
+    "commit": "水"
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "reset_context",
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "uj",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "uj",
+    "raw_segmentation": "uj",
+    "normalized_segmentation": "shan",
+    "editing_text": "uj",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "闪",
+      "pinyin": "uj",
+      "canonical_pinyin": "shan",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 100,
+      "answers_key": true
+     },
+     {
+      "word": "山",
+      "pinyin": "uj",
+      "canonical_pinyin": "shan",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 90,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "shuangpin",
+     "query_text": "shan",
+     "cache_key": "uj",
+     "pinyin_segments": [
+      "shan"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "山"
+   },
+   "result": {
+    "handled": true,
+    "commit": "山"
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "type",
+   "arg": "uv",
+   "result": {
+    "handled": true
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "uv",
+    "raw_segmentation": "uv",
+    "normalized_segmentation": "shui",
+    "editing_text": "uv",
+    "caret": 2,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "segment_boundaries": [
+     0,
+     2
+    ],
+    "candidate_count": 2,
+    "candidates": [
+     {
+      "word": "水",
+      "pinyin": "uv",
+      "canonical_pinyin": "shui",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 90,
+      "answers_key": true
+     },
+     {
+      "word": "睡",
+      "pinyin": "uv",
+      "canonical_pinyin": "shui",
+      "source": 0,
+      "scheme": "shuangpin",
+      "weight": 100,
+      "answers_key": true
+     }
+    ],
+    "online_query": {
+     "scheme": "shuangpin",
+     "query_text": "shui",
+     "cache_key": "uv",
+     "pinyin_segments": [
+      "shui"
+     ],
+     "cloud_eligible": true,
+     "ai_eligible": true
+    }
+   }
+  },
+  {
+   "op": "select",
+   "arg": {
+    "word": "水"
+   },
+   "result": {
+    "handled": true,
+    "commit": "水"
+   },
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "reset_context",
+   "snapshot": {
+    "scheme": "shuangpin",
+    "local_mode": "none",
+    "preedit": "",
+    "raw_segmentation": "",
+    "normalized_segmentation": "",
+    "editing_text": "",
+    "caret": 0,
+    "dedicated_english": false,
+    "shuangpin_profile": "xiaohe",
+    "candidate_count": 0,
+    "candidates": []
+   }
+  },
+  {
+   "op": "query",
+   "arg": "SELECT key,value,weight FROM tbl_2_s ORDER BY 1,2",
+   "rows": [
+    [
+     "shan'shui",
+     "山水",
+     10000
+    ]
+   ]
+  },
+  {
+   "op": "dump_journal",
+   "journal": {
+    "personal_bigram": {
+     "columns": [
+      "previous",
+      "word",
+      "count"
+     ],
+     "rows": [
+      [
+       "\u0001",
+       "山",
+       6
+      ],
+      [
+       "山",
+       "水",
+       6
+      ]
+     ]
+    },
+    "personal_trigram": {
+     "columns": [
+      "earlier",
+      "previous",
+      "word",
+      "count"
+     ],
+     "rows": [
+      [
+       "\u0001",
+       "山",
+       "水",
+       6
+      ]
+     ]
+    },
+    "user_dictionary_operations": {
+     "columns": [
+      "dictionary",
+      "key",
+      "value",
+      "operation",
+      "weight",
+      "display",
+      "user_inserted"
+     ],
+     "rows": [
+      [
+       "pinyin",
+       "shan'shui",
+       "山水",
+       "upsert",
+       10000,
+       "",
+       1
+      ]
+     ]
+    }
+   }
+  }
+ ]
+}

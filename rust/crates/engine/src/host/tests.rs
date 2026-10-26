@@ -28,6 +28,7 @@ fn options(root: &Path) -> EngineOptions {
         single_character_only: false,
         learning: false,
         learn_english_on_enter: true,
+        next_word_prediction: false,
         autocorrect_transposition: true,
         autocorrect_neighbor: true,
         fuzzy_pinyin_rules: 0,
@@ -57,6 +58,7 @@ fn options(root: &Path) -> EngineOptions {
         mixed_kaomoji: false,
         mixed_symbols: false,
         mixed_japanese: false,
+        multilingual_languages: Vec::new(),
         local_unicode: true,
         local_date_time: true,
         local_date_time_inline: true,
@@ -78,6 +80,7 @@ fn options(root: &Path) -> EngineOptions {
         plugin_commands: Vec::new(),
         mention_entries: Vec::new(),
         quick_phrase_table: Vec::new(),
+        quick_phrase_table_in_candidates: true,
         quick_phrase_candidates: false,
         quick_phrase_frequency: true,
         helpcode_table: None,
@@ -92,6 +95,7 @@ fn options(root: &Path) -> EngineOptions {
         sentence_alternatives: true,
         vietnamese_input_method: 0,
         vietnamese_tone_style: 0,
+        korean_layout: 0,
         cantonese_dictionary: String::new(),
         zhuyin_dictionary: String::new(),
         stroke_dictionary: String::new(),
@@ -895,11 +899,9 @@ fn a_missing_fallback_schema_gives_an_empty_helpcode_table() {
 
 /// The jiajia table this repository carries is injected rather than shipped inside a locked archive, so it is the one that can go missing, be truncated by a bad merge or be saved in an encoding the engine reads as nothing. An entry the parser rejects is silently absent at runtime, which is why this loads it through the engine's own loader and counts.
 #[test]
+#[ignore = "Optional upstream helpcode table is not redistributed by Owl"]
 fn the_carried_jiajia_table_parses_the_way_the_engine_reads_it() {
     let resources = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../resources");
-    if !resources.join("helpcodes/jiajia_helpcode.txt").is_file() {
-        return;
-    }
     let text = std::fs::read_to_string(resources.join("helpcodes/jiajia_helpcode.txt")).unwrap();
     let keymap = crate::helpcode::load_helpcode_keymap(&resources, "jiajia").unwrap();
     // Codes quoted in resources/helpcodes/NOTICE.md as coming from the alignment.
@@ -934,6 +936,9 @@ fn invalid_options_return_errors_instead_of_unwinding_into_rust() {
     value.vietnamese_tone_style = 2;
     assert_eq!(message(&value), "Unsupported Vietnamese tone style");
     value.vietnamese_tone_style = 1;
+    value.korean_layout = 2;
+    assert_eq!(message(&value), "Unsupported Korean layout");
+    value.korean_layout = 1;
     assert!(Session::new(&value).is_ok());
     value.resources = "relative".into();
     assert_eq!(message(&value), "Runtime directories must be absolute");
@@ -3791,4 +3796,97 @@ fn resource_dictionary_browse_distinguishes_missing_files_and_preserves_model_pa
     assert_eq!(std::fs::read(path).unwrap(), bytes);
     assert!(dictionary_resource_entries(&options, Japanese, "", 0, 1001).is_err());
     assert!(dictionary_resource_entries(&options, Japanese, "", 1_000_001, 1).is_err());
+}
+
+fn multilingual_fixture(root: &Path) -> EngineOptions {
+    let mut value = helpcode_fixture(root, "", "");
+    value.helpcode = false;
+    value.mixed_english = false;
+    value.multilingual_languages = vec![
+        crate::multilingual::Language::Chinese,
+        crate::multilingual::Language::English,
+        crate::multilingual::Language::Japanese,
+    ];
+    Connection::open(Path::new(&value.dictionaries).join("msime-english.db"))
+        .unwrap()
+        .execute_batch("INSERT INTO english_words VALUES('hello','hello',100);")
+        .unwrap();
+    std::fs::write(
+        Path::new(&value.resources).join("msime-japanese.dat"),
+        crate::japanese::decoder::test_model::bytes(
+            &[("おはよう", "おはよう", 0, 0, 500)],
+            1,
+            &[0],
+        ),
+    )
+    .unwrap();
+    value
+}
+
+#[test]
+fn host_multilingual_options_map_the_selected_languages() {
+    let root = tempfile::tempdir().unwrap();
+    let value = multilingual_fixture(root.path());
+    assert_eq!(
+        options::session_options(&value)
+            .unwrap()
+            .multilingual_languages,
+        value.multilingual_languages
+    );
+}
+
+#[test]
+fn host_multilingual_snapshot_keeps_the_raw_identity_and_language_ranges() {
+    use crate::multilingual::Language;
+    let root = tempfile::tempdir().unwrap();
+    let value = multilingual_fixture(root.path());
+    let mut session = Session::new(&value).unwrap();
+    type_text(&mut session, b"hellonihaoohayou");
+    let snapshot = session.snapshot().unwrap();
+    let index = snapshot
+        .candidate_sources
+        .iter()
+        .position(|source| *source == CandidateSource::Multilingual as u8)
+        .expect("宿主应保留连续混合行");
+    assert_eq!(snapshot.candidates[index], "hello你好おはよう");
+    let metadata = snapshot
+        .multilingual_conversion
+        .expect("宿主快照应保留语言边界");
+    assert_eq!(metadata.raw_input, "hellonihaoohayou");
+    assert_eq!(metadata.raw_input, snapshot.editing_text);
+    assert_eq!(
+        metadata
+            .conversion
+            .segments
+            .iter()
+            .map(|segment| (
+                segment.language,
+                segment.input.clone(),
+                segment.text.as_str()
+            ))
+            .collect::<Vec<_>>(),
+        [
+            (Language::English, 0..5, "hello"),
+            (Language::Chinese, 5..10, "你好"),
+            (Language::Japanese, 10..16, "おはよう"),
+        ]
+    );
+    assert_eq!(session.select(index).unwrap().commit, "hello你好おはよう");
+    assert!(session
+        .snapshot()
+        .unwrap()
+        .multilingual_conversion
+        .is_none());
+    type_text(&mut session, b"nihao");
+    assert!(session
+        .snapshot()
+        .unwrap()
+        .multilingual_conversion
+        .is_none());
+    session.command(Command::Cancel).unwrap();
+    assert!(session
+        .snapshot()
+        .unwrap()
+        .multilingual_conversion
+        .is_none());
 }

@@ -244,6 +244,7 @@ final class OwlSwiftUICandidatePanel: NSPanel {
   var onSelect: ((Int) -> Void)?
   var canPin: ((String) -> Bool)?
   var onPin: ((String) -> Void)?
+  var onRemove: ((OwlCandidateToken) -> Void)?
 
   /// Called when a paging chevron is clicked (up == true → previous page). The
   /// input controller wires this to `page(up:)`. NEEDS REAL-MACHINE VERIFICATION:
@@ -298,7 +299,8 @@ final class OwlSwiftUICandidatePanel: NSPanel {
         },
         onToggleExpand: { [weak self] in self?.reframeToFit() },
         canPin: { [weak self] in self?.canPin?($0) ?? false },
-        onPin: { [weak self] in self?.onPin?($0) }
+        onPin: { [weak self] in self?.onPin?($0) },
+        onRemove: { [weak self] in self?.onRemove?($0) }
       )
     )
   }
