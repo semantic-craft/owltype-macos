@@ -281,6 +281,15 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertTrue(enabled.keyboard.enabled)
     XCTAssertTrue(enabled.settled.enabled)
     XCTAssertNotEqual(enabled.serialized(), first)
+    OwlExperimentalPreferences.keyboardRerankEnabled = false
+    let desktopOnly = OwlRerankConfiguration.current(sharedSupportURL: root)
+    XCTAssertFalse(desktopOnly.keyboard.enabled)
+    XCTAssertTrue(desktopOnly.settled.enabled)
+    OwlExperimentalPreferences.keyboardRerankEnabled = true
+    OwlExperimentalPreferences.settledRerankEnabled = false
+    let keyboardOnly = OwlRerankConfiguration.current(sharedSupportURL: root)
+    XCTAssertTrue(keyboardOnly.keyboard.enabled)
+    XCTAssertFalse(keyboardOnly.settled.enabled)
   }
 
   func testSettledRerankTicketPreservesFullGenerationAndRejectsStalePresentations() {
