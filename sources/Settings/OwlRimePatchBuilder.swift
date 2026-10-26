@@ -30,7 +30,7 @@
 //    关闭时不产出 patch，由 Owltype 前端维持「提交当前候选、切英文、输出 ASCII slash」。
 //  - 全半角 / 中英标点 → `toggle: full_shape|ascii_punct` bindings (Squirrel/Weasel
 //    shifted-key names double-written; the generator DEDUPS) + `switcher/save_options/+`.
-//  - 默认方案顺序 → live `schema_list` (chosen 双拼 first) + `menu/page_size: 8`.
+//  - 默认方案顺序 → live `schema_list` (chosen 双拼 first) + `menu/page_size: 6`.
 //  The `key_binder/bindings/+` list is assembled as a DE-DUPLICATED array before
 //  serializing, so the double-written shifted keys never repeat.
 //

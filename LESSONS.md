@@ -5,6 +5,21 @@ that the lesson is in place: which file to read, which command to run, what resu
 and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## Host composition end must execute the engine selection
+
+**A correct preview inserted into the client does not prove native finish behavior.**
+
+- Reason: Wubi `gggg`, highlight `五一`, then IMK composition end displayed `五一`,
+  but reopening the session still put `王` first. The host inserted a preview and
+  cancelled the engine instead of selecting through `FinishOnFocusLoss`.
+- Prevention: route Rust composition end through the native action before inserting
+  its returned commit; preserve plugin/bare-prefix raw rules and the snapshot clear.
+- Regression: `testWubiFocusFinishCommitsAndLearnsHighlightedCandidate` observes both
+  client text and the reopened session's candidate order, without reading journal tables.
+- Verify (验证点): run that real controller integration test; the client commits `五一`
+  and a new session returns `五一` first for `gggg`.
+- Observed: 2026-10-26.
+
 ## The gate completes the checkout before the first check reads it
 
 **`submodules` is the gate's second stage, right after `tools`; no later stage may be the first to need a submodule, and the receipt must not count that initialization as a source change.**

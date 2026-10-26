@@ -242,6 +242,20 @@ continues to disable learning. No user dictionary reset or migration is involved
 fixed-position processing keeps Wubi producer rows ahead of Pinyin rows, even
 when the decoder initially preferred exact Pinyin over Wubi prefix completions.
 
+Fresh Wubi settings use the pinned native defaults: six candidates per page,
+code hints, unique-four-code commit, fifth-code topping and learning enabled;
+z wildcard disabled. The Settings dropdown selects either full 86 or 98 tables,
+with a Pinyin mixed variant for each. Stored explicit settings remain effective.
+Native paired punctuation is enabled for Wubi as for Pinyin: the engine commits
+the opening mark, and the controller holds the closing mark as a marked tail.
+An explicit stored pairing opt-out remains off.
+
+Application chords finish the highlighted conversion before passing the key to
+the application. IMK composition end uses the distinct native focus-loss action,
+which performs selection and learning; bare mode prefixes and plugin rows retain
+the runtime's raw-text rules. Non-Rust sessions retain the preview/raw fallback.
+The controller clears its snapshot registry on either path.
+
 Production native resource generations use the split86/98 SQLite descriptor,
 separate from the retained legacy merged/custom descriptor. Under the fixed
 native configuration marker, the official Wubi file digest is pinned alongside

@@ -691,7 +691,7 @@ final class OwlCandidateDisplayTests: XCTestCase {
   }
 
   func testPageSizeDefaultAndClamp() {
-    XCTAssertEqual(OwlKeyboardPreferences.pageSize, 8)       // default
+    XCTAssertEqual(OwlKeyboardPreferences.pageSize, 6)       // pinned native default
     OwlKeyboardPreferences.pageSize = 5
     XCTAssertEqual(OwlKeyboardPreferences.pageSize, 5)
     OwlKeyboardPreferences.pageSize = 99                     // clamp high

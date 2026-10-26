@@ -1906,6 +1906,25 @@ final class OwlRustEngineTests: XCTestCase {
                   "Mixed input uses z as a spelling letter even when temporary lookup is disabled")
   }
 
+  func testWubiFactoryPageUsesNativeSixCandidates() throws {
+    let defaults = OwlDefaults.standard
+    let key = "OwlKeyboardPageSize"
+    let saved = defaults.object(forKey: key)
+    defer {
+      if let saved { defaults.set(saved, forKey: key) } else { defaults.removeObject(forKey: key) }
+    }
+    defaults.removeObject(forKey: key)
+    let engine = try makeSharedSupportSeedEngine()
+    XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
+    let session = engine.createSession()
+    defer { session.destroy() }
+    typeText("i", into: session)
+    let page = try XCTUnwrap(session.composition())
+    // Pinned 0.55 native defaults and official dict-v2.0.24, no forced page-size preference.
+    XCTAssertEqual(page.pageSize, 6)
+    XCTAssertEqual(page.candidates.map(\.text), ["不", "水", "淄博", "湛江", "江门", "兴安"])
+  }
+
   func testWubiLearningDefaultsToNativeAndPreservesExplicitOptOut() throws {
     let defaults = OwlDefaults.standard
     let key = "OwlKeyboardWubiUserDictLearning"
