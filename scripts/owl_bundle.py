@@ -316,8 +316,8 @@ def make_sbom(app: Path, version: str, revision: str, created: str) -> dict:
                 "Derived from the pinned dict-v2.0.24 release artifact with msime "
                 "builder commit 128a332cabc5fa42b1cf5f827033ad5697ff528b and "
                 "msime-dictionary data commit 71dc6f6cc7a451231ee29c0a39b39adbf2e04d32; "
-                "only emoji and emoji_pinyin are retained. The upstream artifact's "
-                "other tables, including kaomoji and PiliApp symbol_catalog, are excluded."
+                "only emoji, emoji_pinyin, kaomoji and kaomoji_catalog are retained. The upstream artifact's "
+                "other tables, including PiliApp symbol_catalog, are excluded."
             )
 
     return {

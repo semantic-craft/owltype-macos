@@ -219,6 +219,7 @@ cp "$jieba_license_file" "$output_dir/jieba.LICENSE"
 cp "$ppd_license_file" "$output_dir/phrase-pinyin-data.LICENSE"
 echo "$python_pinyin_license_sha256  $python_pinyin_license" | shasum -a 256 --check
 cp "$python_pinyin_license" "$output_dir/python-pinyin.LICENSE"
+cp "$repo_root/licenses/rime-kaomoji.LICENSE" "$output_dir/rime-kaomoji.LICENSE"
 # The retained OpenCC conversion tables are Apache-2.0 data. Copy the pinned,
 # hash-checked SPDX text instead of reaching into an uninitialized librime tree.
 cp "$license_cache/Apache-2.0.txt" "$output_dir/OpenCC.LICENSE"

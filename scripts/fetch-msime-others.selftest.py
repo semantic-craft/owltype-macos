@@ -44,12 +44,6 @@ class FetchMsimeOthersTests(unittest.TestCase):
             for statement in FETCH.SCHEMA_SQL:
                 connection.execute(statement)
             connection.execute(
-                "CREATE TABLE kaomoji (pinyin TEXT, kaomoji TEXT)"
-            )
-            connection.execute(
-                "CREATE TABLE kaomoji_catalog (kaomoji TEXT PRIMARY KEY)"
-            )
-            connection.execute(
                 "CREATE TABLE symbol_catalog (symbol TEXT PRIMARY KEY)"
             )
             connection.executemany(
@@ -67,8 +61,8 @@ class FetchMsimeOthersTests(unittest.TestCase):
                     ("wei", "🙂", 1),
                 ],
             )
-            connection.execute("INSERT INTO kaomoji VALUES ('hx', '(^_^)')")
-            connection.execute("INSERT INTO kaomoji_catalog VALUES ('(^_^)')")
+            connection.execute("INSERT INTO kaomoji VALUES ('haixiu', 'hx', '(^_^)', 0)")
+            connection.execute("INSERT INTO kaomoji_catalog VALUES ('(^_^)', 0, '害羞')")
             connection.execute("INSERT INTO symbol_catalog VALUES ('→')")
         return source
 
@@ -112,7 +106,8 @@ class FetchMsimeOthersTests(unittest.TestCase):
                         "SELECT name FROM sqlite_master WHERE type='table'"
                     )
                 }
-            self.assertEqual(tables, {"emoji", "emoji_pinyin"})
+            self.assertEqual(tables, {"emoji", "emoji_pinyin", "kaomoji", "kaomoji_catalog"})
+
 
     def test_verification_rejects_forbidden_or_missing_tables(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

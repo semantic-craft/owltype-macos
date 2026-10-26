@@ -1241,6 +1241,19 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.takeCommit(), "\0")
   }
 
+  func testKaomojiModeReadsPinnedLicensedCatalogAndCommitsVisibleRow() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+    XCTAssertTrue(session.process(keycode: asciiKeycode("M"), modifiers: kShiftMask.rawValue))
+    typeText("kiss", into: session)
+    let composition = try XCTUnwrap(session.composition())
+    // First matching row in the hash-pinned upstream kaomoji table (sort_order 0).
+    XCTAssertEqual(composition.candidates.first?.text, "!(*￣(￣　*)")
+    XCTAssertTrue(session.selectCandidate(0))
+    XCTAssertEqual(session.takeCommit(), "!(*￣(￣　*)")
+  }
+
   func testShiftTForwardingKeepsDigitSelectionForVisibleCandidate() throws {
     let engine = try makeSharedSupportSeedEngine()
     let session = engine.createSession()

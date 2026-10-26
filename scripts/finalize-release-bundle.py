@@ -47,6 +47,7 @@ REQUIRED_LICENSES = {
     "Contents/SharedSupport/msime-others-NOTICE.txt",
     "Contents/SharedSupport/phrase-pinyin-data.LICENSE",
     "Contents/SharedSupport/python-pinyin.LICENSE",
+    "Contents/SharedSupport/rime-kaomoji.LICENSE",
     "Contents/SharedSupport/rime-ice-Credits.md",
     "Contents/SharedSupport/rime-ice.LICENSE",
     "Contents/SharedSupport/wubi86-jidian.LICENSE",
@@ -66,7 +67,10 @@ WUBI86_JIDIAN_LICENSE = "Contents/SharedSupport/wubi86-jidian.LICENSE"
 WUBI86_JIDIAN_LICENSE_SHA256 = "43070e2d4e532684de521b885f385d0841030efa2b1a20bafb76133a5e1379c1"
 PYTHON_PINYIN_LICENSE = "Contents/SharedSupport/python-pinyin.LICENSE"
 PYTHON_PINYIN_LICENSE_SHA256 = "1e6c90014b4912815c296ee64bb6f6280af47e6d4c5d80e86232dfc5defe764c"
+RIME_KAOMOJI_LICENSE = "Contents/SharedSupport/rime-kaomoji.LICENSE"
+RIME_KAOMOJI_LICENSE_SHA256 = "bc4f44c16c8a6ea28e30ac4e1e9a737e8711ba3140f241fea9c8404a86f3ffe1"
 PINNED_COMPONENT_LICENSES = {
+    RIME_KAOMOJI_LICENSE: RIME_KAOMOJI_LICENSE_SHA256,
     CHINESE_IME_LM_CRATE_LICENSE: CHINESE_IME_LM_CRATE_LICENSE_SHA256,
     PYTHON_PINYIN_LICENSE: PYTHON_PINYIN_LICENSE_SHA256,
     WUBI86_JIDIAN_LICENSE: WUBI86_JIDIAN_LICENSE_SHA256,

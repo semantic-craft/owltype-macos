@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the deliverable emoji catalog from the pinned msime release artifact."""
+"""Build the deliverable emoji/kaomoji catalog from the pinned msime release artifact."""
 
 from __future__ import annotations
 
@@ -26,22 +26,31 @@ SOURCE_SIZE = 1_314_816
 SOURCE_SHA256 = "9f3cae5b407038e0e4536c40582a0bc0feb732657f0ae2d38196374cede52f94"
 DATA_COMMIT = "71dc6f6cc7a451231ee29c0a39b39adbf2e04d32"
 BUILDER_COMMIT = "128a332cabc5fa42b1cf5f827033ad5697ff528b"
-EXPECTED_ROWS = {"emoji": 1_935, "emoji_pinyin": 21_541}
+EXPECTED_ROWS = {"emoji": 1_935, "emoji_pinyin": 21_541, "kaomoji": 1_675, "kaomoji_catalog": 1_400}
 EXPECTED_ROW_HASHES = {
+    "kaomoji": "31ecdb996b3d5dcd30d350d779651685fbc0d9d83578d846ac16c241b89b506f",
+    "kaomoji_catalog": "149d3a2bea71d38cc5b4d853d5b889abac3c5deb1a098c518ffa42c63d36d15f",
     "emoji": "b3939c2005a8d46b18a5421eeee35698ba7b1ae01b3c24e6f470a524710905a7",
     "emoji_pinyin": "e761e06bb14331d27d48786fe6be4e998f289344e139e1252ce53f9090a4c306",
 }
 LICENSE_EXPRESSION = "GPL-3.0-only AND Unicode-3.0 AND MIT"
 TABLE_ORDER = {
+    "kaomoji": ("pinyin", "jianpin", "kaomoji"),
+    "kaomoji_catalog": ("kaomoji",),
     "emoji": ("emoji",),
     "emoji_pinyin": ("key", "emoji"),
 }
 TABLE_COLUMNS = {
+    "kaomoji": ("pinyin", "jianpin", "kaomoji", "sort_order"),
+    "kaomoji_catalog": ("kaomoji", "sort_order", "keywords"),
     "emoji": ("emoji", "category", "sort_order", "keywords", "pinyin"),
     "emoji_pinyin": ("key", "emoji", "sort_order"),
 }
-FORBIDDEN_TABLES = {"kaomoji", "kaomoji_catalog", "symbol_catalog"}
+FORBIDDEN_TABLES = {"symbol_catalog"}
 SCHEMA_SQL = (
+    "CREATE TABLE kaomoji (pinyin TEXT NOT NULL, jianpin TEXT NOT NULL, kaomoji TEXT NOT NULL, sort_order INTEGER NOT NULL, PRIMARY KEY (pinyin, jianpin, kaomoji)) WITHOUT ROWID",
+    "CREATE INDEX idx_kaomoji_jianpin ON kaomoji(jianpin)",
+    "CREATE TABLE kaomoji_catalog (kaomoji TEXT PRIMARY KEY, sort_order INTEGER NOT NULL, keywords TEXT NOT NULL) WITHOUT ROWID",
     """
     CREATE TABLE emoji (
         emoji TEXT NOT NULL,
@@ -275,7 +284,7 @@ def build_output(output: Path, force: bool) -> None:
         except Failure:
             pass
         else:
-            print(f"verified derived emoji catalog {output}")
+            print(f"verified derived emoji/kaomoji catalog {output}")
             return
 
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -284,14 +293,14 @@ def build_output(output: Path, force: bool) -> None:
         write_derived_database(source, output)
     finally:
         source.unlink(missing_ok=True)
-    print(f"installed derived emoji catalog {output}")
+    print(f"installed derived emoji/kaomoji catalog {output}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
             "Fetch the pinned msime artifact and retain only the emoji and "
-            "emoji_pinyin tables in msime-others.db."
+            "emoji_pinyin, kaomoji and kaomoji_catalog tables in msime-others.db."
         )
     )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
@@ -305,7 +314,7 @@ def main() -> None:
     try:
         if arguments.check:
             verify_database(arguments.output)
-            print(f"verified derived emoji catalog {arguments.output}")
+            print(f"verified derived emoji/kaomoji catalog {arguments.output}")
         else:
             build_output(arguments.output, arguments.force)
     except Failure as error:
@@ -314,7 +323,7 @@ def main() -> None:
     print(
         "source release dict-v2.0.24; "
         f"data commit {DATA_COMMIT}; builder commit {BUILDER_COMMIT}; "
-        f"tables emoji, emoji_pinyin only; licensing {LICENSE_EXPRESSION}"
+        f"tables emoji, emoji_pinyin, kaomoji, kaomoji_catalog only; licensing {LICENSE_EXPRESSION}"
     )
 
 

@@ -165,6 +165,7 @@ for path in \
 	  './Owltype.app/Contents/Resources/THIRD_PARTY_NOTICES.md' \
 	  './Owltype.app/Contents/SharedSupport/licenses/chinese-ime-lm.LICENSE' \
 	  './Owltype.app/Contents/SharedSupport/wubi86-jidian.LICENSE' \
+	  './Owltype.app/Contents/SharedSupport/rime-kaomoji.LICENSE' \
 	  './Owltype.app/Contents/SharedSupport/python-pinyin.LICENSE' \
 	  './Owltype.app/Contents/SharedSupport/OWLTYPE-SEED-MANIFEST.txt' \
 	  './Owltype.app/Contents/SharedSupport/owltype.yaml' \
