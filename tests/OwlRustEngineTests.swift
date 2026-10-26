@@ -65,7 +65,11 @@ final class OwlRustEngineTests: XCTestCase {
         consumed = session.process(keycode: scalar.value, modifiers: 0)
       case "command":
         let value = try XCTUnwrap(event["value"] as? String)
-        consumed = session.process(keycode: try XCTUnwrap(commands[value]), modifiers: 0)
+        let parts = value.split(separator: "-", maxSplits: 1).map(String.init)
+        let chord = parts.count == 2 && ["ctrl", "shift"].contains(parts[0])
+        let key = chord ? parts[1] : value
+        let modifiers = chord ? (parts[0] == "ctrl" ? kControlMask.rawValue : kShiftMask.rawValue) : 0
+        consumed = session.process(keycode: try XCTUnwrap(commands[key]), modifiers: modifiers)
       case "select":
         let index = try XCTUnwrap(event["index"] as? Int)
         let visible = try XCTUnwrap(session.composition())
@@ -483,6 +487,24 @@ final class OwlRustEngineTests: XCTestCase {
         XCTAssertTrue(session.process(keycode: UInt32(XK_space), modifiers: 0))
         XCTAssertEqual(session.takeCommit(), visible)
       }
+    }
+  }
+
+  func testSegmentChordEditsPinyinRatherThanPassingToHost() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
+    defer { session.destroy() }
+    for (schema, code, leftCaret) in [("double_pinyin_flypy", "nihc", 2), ("rime_ice", "nihao", 2)] {
+      XCTAssertTrue(session.selectSchema(schema))
+      typeText(code, into: session)
+      XCTAssertTrue(session.process(keycode: UInt32(XK_Left), modifiers: kControlMask.rawValue))
+      XCTAssertEqual(session.caretPos(), leftCaret)
+      XCTAssertTrue(session.process(keycode: UInt32(XK_Right), modifiers: kShiftMask.rawValue))
+      XCTAssertEqual(session.caretPos(), code.utf8.count)
+      XCTAssertTrue(session.process(keycode: UInt32(XK_BackSpace), modifiers: kControlMask.rawValue))
+      XCTAssertEqual(session.input(), "ni")
+      session.clearComposition()
+      XCTAssertFalse(session.process(keycode: UInt32(XK_Left), modifiers: kControlMask.rawValue))
     }
   }
 

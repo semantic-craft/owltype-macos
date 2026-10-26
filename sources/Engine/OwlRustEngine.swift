@@ -429,6 +429,22 @@ final class OwlRustSession: RimeSession {
       return true
     }
 
+    // Native segment-editing chords belong to an active composition, before the
+    // usual Control passthrough. The runtime owns boundaries for every scheme.
+    let segmentModifiers = modifiers & (kControlMask.rawValue | kShiftMask.rawValue
+      | kAltMask.rawValue | kSuperMask.rawValue)
+    if !(optionFlags[.asciiMode] ?? false), !(latestSnapshot?.rawInput.isEmpty ?? true),
+       segmentModifiers == kControlMask.rawValue || segmentModifiers == kShiftMask.rawValue {
+      if keycode == UInt32(XK_Left) || keycode == UInt32(XK_Right) {
+        return applyActionResponse(sendAction([
+          "op": "segment", "target": keycode == UInt32(XK_Left) ? "left" : "right"
+        ]))
+      }
+      if keycode == UInt32(XK_BackSpace), segmentModifiers == kControlMask.rawValue {
+        return applyActionResponse(sendAction(["op": "segment", "target": "backspace"]))
+      }
+    }
+
     let disallowedModifiers = kControlMask.rawValue | kAltMask.rawValue | kSuperMask.rawValue
     if (modifiers & disallowedModifiers) != 0 {
       return false
@@ -591,10 +607,10 @@ final class OwlRustSession: RimeSession {
     // candidates (InputController.mm:7711). Keep the candidate-navigation preference.
     if !linear && activeSchemaId.hasPrefix("double_pinyin") {
       if keycode == UInt32(XK_Left) {
-        return ["op": "move_caret", "target": "left_segment"]
+        return ["op": "segment", "target": "left"]
       }
       if keycode == UInt32(XK_Right) {
-        return ["op": "move_caret", "target": "right_segment"]
+        return ["op": "segment", "target": "right"]
       }
     }
     let firstCandidate = latestSnapshot?.page == 0 && latestSnapshot?.highlightedIndex == 0

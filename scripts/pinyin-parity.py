@@ -20,7 +20,8 @@ ROOT = Path(__file__).resolve().parent.parent
 FIELDS = ('event', 'consumed', 'input', 'preedit', 'caret', 'page', 'page_size',
           'has_more', 'highlighted', 'candidates', 'commit')
 COMMANDS = {'backspace': 0, 'commit': 2, 'cancel': 3, 'left': 4, 'right': 5,
-            'home': 6, 'end': 7, 'delete': 8, 'next-page': 100, 'previous-page': 101}
+            'home': 6, 'end': 7, 'delete': 8, 'next-page': 100, 'previous-page': 101,
+            'ctrl-left': 13, 'shift-left': 13, 'ctrl-right': 14, 'shift-right': 14, 'ctrl-backspace': 12}
 
 
 def sha256(path):

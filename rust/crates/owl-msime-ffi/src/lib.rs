@@ -1606,12 +1606,39 @@ impl OwlMsimeSession {
                     Err(err) => error_response(err),
                 }
             }
+            "segment" => {
+                let action = match payload.target.as_deref() {
+                    Some("left") => Action::SegmentMoveLeft,
+                    Some("right") => Action::SegmentMoveRight,
+                    Some("backspace") => Action::SegmentBackspace,
+                    _ => return error_response("segment requires left, right or backspace"),
+                };
+                match self.runtime.dispatch(action) {
+                    Ok(transition) => {
+                        self.sync_pinned_state_from_view(&transition.view);
+                        // Refresh the existing transform with the engine-owned input/caret;
+                        // segment deletion and movement can change Quanpin pin eligibility.
+                        if let Err(error) =
+                            self.runtime.set_caret(Some(transition.view.caret_position))
+                        {
+                            return error_response(error.to_string());
+                        }
+                        self.build_snapshot(
+                            self.runtime.view(),
+                            transition.handled,
+                            transition.commit,
+                            false,
+                        )
+                    }
+                    Err(error) => error_response(error.to_string()),
+                }
+            }
             "move_caret" => {
                 let cmd = match payload.target.as_deref() {
                     Some("home") => Command::MoveHome,
                     Some("end") => Command::MoveEnd,
-                    Some("left" | "left_segment") => Command::MoveLeft,
-                    Some("right" | "right_segment") => Command::MoveRight,
+                    Some("left") => Command::MoveLeft,
+                    Some("right") => Command::MoveRight,
                     _ => {
                         let delta = payload.delta.unwrap_or(0);
                         if delta < 0 {
@@ -1637,12 +1664,7 @@ impl OwlMsimeSession {
                     before.editing_text.clone(),
                     before.phrase_prefix.is_empty() && next_caret == before.editing_text.len(),
                 );
-                let action = match payload.target.as_deref() {
-                    Some("left_segment") => Action::SegmentMoveLeft,
-                    Some("right_segment") => Action::SegmentMoveRight,
-                    _ => Action::Command(cmd),
-                };
-                match self.runtime.dispatch(action) {
+                match self.runtime.dispatch(Action::Command(cmd)) {
                     Ok(transition) => {
                         self.sync_pinned_state_from_view(&transition.view);
                         let mut dto = self.build_snapshot(

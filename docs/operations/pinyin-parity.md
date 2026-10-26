@@ -211,3 +211,10 @@ routing; Owl's existing `.linear=false` caret-editing path forwards the same
 runtime segment actions. Candidate navigation remains enabled by default. The
 trace records this explicit configuration; full-pinyin default observations are
 unchanged. This does not add an arbitrary custom-table editor to Settings.
+
+The same segment action also handles native Ctrl/Shift+Left/Right and
+Ctrl+Backspace while composing (InputController.mm:7551-7576). The corpus checks
+both full and double pinyin, starting inside a spelling unit, then compares
+remaining input and complete candidates after deletion. Empty compositions keep
+these chords available to the host. This is a shared runtime action, so the
+adapter does not infer syllable boundaries in Swift.
