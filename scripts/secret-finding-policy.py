@@ -12,11 +12,13 @@ import argparse
 import collections
 import dataclasses
 import hashlib
+import importlib.util
 import json
 import pathlib
 import re
 import sqlite3
 import sys
+import tarfile
 from collections.abc import Callable, Iterable
 from contextlib import closing
 from typing import Any, Literal
@@ -37,6 +39,8 @@ class Finding:
     commit: str = ""
     line: int | None = None
     verified: bool | None = None
+    # Set only after validating the original source artifact and extracted view.
+    source_archive_root: str = ""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -208,6 +212,97 @@ PUBLIC_ENGLISH_DB_SHA256 = "d216f66cab7edb9072ba7a07f3fe35623e76870438b76d360a89
 PUBLIC_ENGLISH_PAIR_SHA256 = "0765860a9a46aa632108905db5870971f1e74c377435cf6df910651abd976298"
 
 
+_COHORT_CHECKER = None
+
+
+def source_cohort_checker():
+    """Reuse the release protocol; never execute code from an input archive."""
+    global _COHORT_CHECKER
+    if _COHORT_CHECKER is None:
+        spec = importlib.util.spec_from_file_location(
+            'owl_source_scan_cohort', pathlib.Path(__file__).with_name('release-cohort-state.py'))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _COHORT_CHECKER = module
+    return _COHORT_CHECKER
+
+
+def validated_source_scan_root(archive: pathlib.Path, root: pathlib.Path) -> pathlib.Path | None:
+    """Require a real, complete corresponding-source artifact context, not a path pattern."""
+    try:
+        checker = source_cohort_checker()
+        output_root = archive.parent.parent
+        if (archive.is_symlink() or not archive.is_file() or archive.parent.name != 'release'
+                or root.is_symlink() or not root.is_dir()):
+            return None
+        for path in (archive.parent / 'OWLTYPE-RELEASE-COHORT.json',
+                     archive.parent / 'OWLTYPE-FILE-MANIFEST.sha256',
+                     archive.with_name(archive.name + '.sha256')):
+            if path.is_symlink() or not path.is_file():
+                return None
+        cohort = checker.read_cohort(archive.parent)
+        checker.validate_cohort_shape(cohort)
+        if (cohort['status'] != 'complete' or not re.fullmatch('[0-9a-f]{40}', cohort['revision'])
+                or not SHA256.fullmatch(cohort['buildAppSha256'])):
+            return None
+        version = cohort['version']
+        if (not re.fullmatch('[0-9][A-Za-z0-9._-]*', version)
+                or archive.name != f'Owltype-macOS-{version}-source.tar.gz'
+                or root.name != f'Owltype-macOS-{version}-source'):
+            return None
+        root_hash = checker.output_root_fingerprint(output_root)
+        if cohort['outputRootSha256'] != root_hash:
+            return None
+        identity = checker.cohort_identifier(cohort['revision'], version, cohort['buildVersion'],
+            root_hash, cohort['buildAppSha256'], cohort['sourceSha256'], cohort['seedSha256'],
+            cohort['submodules'], sparkle_signing_public_key=cohort.get('sparkleSigningPublicKey', ''),
+            sparkle_feed_mode=cohort.get('sparkleFeedMode', ''))
+        if identity != cohort['cohortId']:
+            return None
+        record = cohort['outputs']['source-archive']
+        if (record.get('base') != 'outputRoot' or record.get('path') != 'release/' + archive.name
+                or checker.sha256(archive) != record.get('sha256')):
+            return None
+        # The existing validator reads the bound App seed; reject redirected roots first.
+        seed = output_root / 'Build/Products/Release/Owltype.app/Contents/SharedSupport'
+        for path in (seed, *seed.parents):
+            if path == output_root.parent:
+                break
+            if path.is_symlink():
+                return None
+        checker.validate_source_archive(archive, cohort, archive.parent)
+        # Bind the scanner's actual extracted files to those same canonical source/seed trees.
+        entries = checker.file_tree_snapshot(root)
+        provenance = entries.pop('OWLTYPE-SOURCE-PROVENANCE.txt')
+        manifest = entries.pop('OWLTYPE-SOURCE-MANIFEST.sha256')
+        with tarfile.open(archive, 'r:gz') as source:
+            for name, entry in [('OWLTYPE-SOURCE-PROVENANCE.txt', provenance),
+                                ('OWLTYPE-SOURCE-MANIFEST.sha256', manifest)]:
+                stream = source.extractfile(root.name + '/' + name)
+                if stream is None or hashlib.sha256(stream.read()).hexdigest() != entry.sha256:
+                    return None
+        prefix = 'data/owl-rime/'
+        source_entries = {name: entry for name, entry in entries.items() if not name.startswith(prefix)}
+        seed_entries = {name.removeprefix(prefix): entry for name, entry in entries.items() if name.startswith(prefix)}
+        if (checker.tree_fingerprint(source_entries) != cohort['sourceSha256']
+                or checker.tree_fingerprint(seed_entries) != cohort['seedSha256']):
+            return None
+        return root.resolve()
+    except Exception:
+        # Untrusted metadata and errors can contain secrets. No context is safer than echoing them.
+        return None
+
+
+def public_english_location(finding: Finding, path: pathlib.Path) -> bool:
+    if (path.parts[-4:] == ('Contents', 'SharedSupport', 'msime', 'msime-english.db')
+            and path.parents[3].name.endswith('.app')):
+        return True
+    if finding.source_archive_root:
+        expected = pathlib.Path(finding.source_archive_root) / 'data/owl-rime/msime/msime-english.db'
+        return path.absolute() == expected or path.resolve() == expected
+    return False
+
+
 def public_english_row_pair(finding: Finding) -> bool:
     """Allow only the proven unverified Eraser match in the unchanged public DB."""
     if (finding.source != "artifact" or finding.scanner != "trufflehog"
@@ -218,8 +313,7 @@ def public_english_row_pair(finding: Finding) -> bool:
             or hashlib.sha256(raw.encode()).hexdigest() != PUBLIC_ENGLISH_PAIR_SHA256):
         return False
     path = pathlib.Path(finding.path)
-    if (path.parts[-4:] != ("Contents", "SharedSupport", "msime", "msime-english.db")
-            or not path.parents[3].name.endswith(".app") or path.is_symlink()):
+    if path.is_symlink() or not public_english_location(finding, path):
         return False
     try:
         if hashlib.sha256(path.read_bytes()).hexdigest() != PUBLIC_ENGLISH_DB_SHA256:
@@ -338,13 +432,18 @@ def report_pass(source: Source, scanner: Scanner, label: str | None, waivers: It
         print(f"PASS: TruffleHog found no secrets in reachable history{suffix}")
 
 
-def run_policy(source: Source, scanner: Scanner, report: pathlib.Path, label: str | None) -> int:
+def run_policy(source: Source, scanner: Scanner, report: pathlib.Path, label: str | None,
+               source_root: pathlib.Path | None = None) -> int:
     try:
         findings = load_findings(report, source, scanner)
     except PolicyInputError as error:
         print(f"ERROR: {error}; scanner output was suppressed", file=sys.stderr)
         return 2
 
+    if source == 'artifact' and scanner == 'trufflehog' and source_root is not None and label:
+        context = validated_source_scan_root(pathlib.Path(label), source_root)
+        if context is not None:
+            findings = [dataclasses.replace(finding, source_archive_root=str(context)) for finding in findings]
     decisions = [decide(finding) for finding in findings]
     rejected = [decision.finding for decision in decisions if decision.rejected]
     if rejected:
@@ -367,6 +466,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("scanner", choices=("gitleaks", "trufflehog"))
     parser.add_argument("report", type=pathlib.Path)
     parser.add_argument("--label")
+    parser.add_argument("--source-root", type=pathlib.Path)
     return parser.parse_args(argv)
 
 
@@ -375,7 +475,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.source == "artifact" and not args.label:
         print("ERROR: artifact policy requires --label", file=sys.stderr)
         return 2
-    return run_policy(args.source, args.scanner, args.report, args.label)
+    return run_policy(args.source, args.scanner, args.report, args.label, args.source_root)
 
 
 if __name__ == "__main__":

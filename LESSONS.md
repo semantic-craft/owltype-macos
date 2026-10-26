@@ -866,3 +866,21 @@ review dates, not retries. Keep deterministic checks in the local gate.
   before removing anything inside the still-mounted image.
 - Verify (验证点): staged-package real-scanner extra/comment boundary case and
   secret-policy partial-expansion shell regression pin these failure paths.
+
+## Prove corresponding-source context before applying a public DB exception
+
+- Seen 1x (2026-10-26): the formal corresponding-source TAR correctly retained
+  the full App seed, including the official English SQLite dictionary. Its known
+  unverified Eraser row-pair match was rejected because the existing exception
+  required an App resource location. Do not remove seed data or turn the DB
+  digest, detector or source-looking path into an exception by itself.
+- Reuse the release source validator to bind the original TAR to its cohort,
+  canonical archive metadata, Git source, App seed and source manifest. Bind the
+  actual scanner extraction to those same source/seed fingerprints before
+  accepting only its exact dictionary location. Retain all existing finding,
+  official DB digest and read-only same-row SQL predicates. This content proof
+  does not authorize a release or allow reuse of a cohort after a new commit.
+- Verify (验证点): `secret-finding-policy.selftest.py` builds a real Git/cohort/TAR
+  fixture and rejects forged context, changed DB/manifest/output digest, verified
+  or other findings, history and other locations. Run the actual source TAR
+  scanner red/green and compare original artifact/cohort hashes before and after.
