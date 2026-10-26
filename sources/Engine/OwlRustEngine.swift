@@ -180,6 +180,7 @@ final class OwlRustSession: RimeSession {
   private var lastAppliedWubiAutoCommitUnique: Bool?
   private var lastAppliedWubiFifthCodeTopCommit: Bool?
   private var lastAppliedWubiCodeHint: Bool?
+  private var lastAppliedWubiZWildcard: Bool?
   private var lastAppliedWubiAutoClear: Bool?
   private var lastAppliedWubiZReverseLookup: Bool?
   private var lastAppliedWubiEnglishChannel: Bool?
@@ -745,6 +746,7 @@ final class OwlRustSession: RimeSession {
       ("wubi_fifth_code_top_commit", OwlKeyboardPreferences.wubiFifthCodeTopCommit,
        \.lastAppliedWubiFifthCodeTopCommit),
       ("wubi_code_hint", OwlKeyboardPreferences.wubiCodeHint, \.lastAppliedWubiCodeHint),
+      ("wubi_z_wildcard", OwlKeyboardPreferences.wubiZWildcard, \.lastAppliedWubiZWildcard),
       ("wubi_auto_clear", OwlKeyboardPreferences.wubiAutoClear, \.lastAppliedWubiAutoClear),
       ("wubi_z_reverse_lookup",
        OwlKeyboardPreferences.wubiZReverseLookup, \.lastAppliedWubiZReverseLookup),

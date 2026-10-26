@@ -427,12 +427,49 @@ fn map_caret_to_preedit_byte(
     phrase_prefix.len() + preedit_bytes
 }
 
+// Pinned macOS WubiCodeHintPolicy + CandidateAnnotationRun: a remaining-code
+// hint wins when available, otherwise retain the engine annotation. Script notes
+// keep their existing independent presentation priority in Owltype.
+fn wubi_hint_prefix(view: &View, enabled: bool) -> Option<&str> {
+    (enabled
+        && view.scheme == SchemeType::Wubi as u8
+        && view.local_mode == "none"
+        && !view.answered_by_pinyin_fallback)
+        .then_some(view.preedit.as_str())
+}
+
+fn candidate_comment(
+    candidate: &msime_input_runtime::Candidate,
+    wubi_prefix: Option<&str>,
+    wubi_annotations: bool,
+) -> Option<String> {
+    if let Some(note) = candidate
+        .script_annotation
+        .as_ref()
+        .filter(|note| !note.is_empty())
+    {
+        return Some(note.clone());
+    }
+    if let Some(typed) = wubi_prefix.filter(|typed| !typed.is_empty() && typed.len() <= 64) {
+        if candidate.code.len() <= 64 {
+            if let Some(suffix) = candidate
+                .code
+                .strip_prefix(typed)
+                .filter(|suffix| !suffix.is_empty())
+            {
+                return Some(suffix.to_owned());
+            }
+        }
+    }
+    (wubi_annotations && !candidate.annotation.is_empty()).then(|| candidate.annotation.clone())
+}
+
 fn snapshot_from_view(
     view: View,
     consumed: bool,
     committed_text: Option<String>,
     cleared: bool,
-    show_engine_annotation: bool,
+    wubi_code_hint: bool,
     temp_english_backtick_prefix: bool,
 ) -> SnapshotResponseDto {
     let highlighted_index = view
@@ -474,13 +511,13 @@ fn snapshot_from_view(
             caret_position,
         )
     };
+    let hint_prefix = wubi_hint_prefix(&view, wubi_code_hint).map(str::to_owned);
+    let wubi_annotations = view.scheme == SchemeType::Wubi as u8;
     let candidates = view
         .candidates
         .into_iter()
         .map(|c| {
-            let comment = c.script_annotation.filter(|s| !s.is_empty()).or_else(|| {
-                (show_engine_annotation && !c.annotation.is_empty()).then_some(c.annotation)
-            });
+            let comment = candidate_comment(&c, hint_prefix.as_deref(), wubi_annotations);
             CandidateDto {
                 text: c.text,
                 comment,
@@ -1101,7 +1138,7 @@ impl OwlMsimeSession {
             page_size,
             input_mode: "chinese".to_owned(),
             pinyin_scheme: "quanpin".to_owned(),
-            wubi_code_hint: false,
+            wubi_code_hint: true,
             wubi_auto_clear: false,
             wubi_candidate_mode: "normal".to_owned(),
             wubi_z_reverse_lookup: true,
@@ -1112,17 +1149,6 @@ impl OwlMsimeSession {
             punctuation_menu_generation: 0,
             _temp_dir: temp_dir,
         })
-    }
-
-    fn show_engine_annotation(&self, view: &View) -> bool {
-        if self.input_mode == "wubi" {
-            let in_z_lookup = !self.options.wubi_mixed_pinyin
-                && self.wubi_z_reverse_lookup
-                && view.editing_text.starts_with('z');
-            in_z_lookup || self.wubi_code_hint
-        } else {
-            false
-        }
     }
 
     fn temp_english_backtick(&self, view: &View) -> bool {
@@ -1138,9 +1164,9 @@ impl OwlMsimeSession {
         committed_text: Option<String>,
         cleared: bool,
     ) -> SnapshotResponseDto {
-        let show_ann = self.show_engine_annotation(&view);
+        let show_hint = self.wubi_code_hint;
         let backtick = self.temp_english_backtick(&view);
-        snapshot_from_view(view, consumed, committed_text, cleared, show_ann, backtick)
+        snapshot_from_view(view, consumed, committed_text, cleared, show_hint, backtick)
     }
 
     pub fn snapshot(&self) -> SnapshotResponseDto {
@@ -1979,7 +2005,8 @@ impl OwlMsimeSession {
                 }
                 let all = self.runtime.all_candidates_cached();
                 let view = self.runtime.view();
-                let show_ann = self.show_engine_annotation(&view);
+                let hint_prefix = wubi_hint_prefix(&view, self.wubi_code_hint).map(str::to_owned);
+                let wubi_annotations = view.scheme == SchemeType::Wubi as u8;
                 let input_len = view.editing_text.len();
                 let mut dto = self.build_snapshot(view, true, None, false);
                 dto.generation = HostGenerationNamespace::Runtime.encode(all.generation);
@@ -1989,9 +2016,8 @@ impl OwlMsimeSession {
                     .skip(start)
                     .take(count)
                     .map(|c| {
-                        let comment = c.script_annotation.filter(|s| !s.is_empty()).or_else(|| {
-                            (show_ann && !c.annotation.is_empty()).then_some(c.annotation)
-                        });
+                        let comment =
+                            candidate_comment(&c, hint_prefix.as_deref(), wubi_annotations);
                         CandidateDto {
                             text: c.text,
                             comment,
@@ -2241,6 +2267,14 @@ impl OwlMsimeSession {
                     }
                     "wubi_auto_clear" => {
                         self.wubi_auto_clear = value;
+                    }
+                    "wubi_z_wildcard" => {
+                        if self.options.wubi_z_wildcard != value {
+                            self.options.wubi_z_wildcard = value;
+                            if let Err(error) = self.force_rebuild_engine() {
+                                return error_response(error);
+                            }
+                        }
                     }
                     "wubi_z_reverse_lookup" => {
                         self.wubi_z_reverse_lookup = value;

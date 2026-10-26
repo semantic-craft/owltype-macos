@@ -639,14 +639,16 @@ struct OwlKeyboardPage: View {
           onToggleAutoCommitUnique: { toggleWubiAutoCommitUnique() },
           onToggleFifthCodeTopCommit: { toggleWubiFifthCodeTopCommit() }
         )
-        SettingsToggleRow(
-          title: "候选编码提示",
-          isOn: state.keyboardWubiCodeHint,
+        OwlWubiLookupSettings(
+          codeHint: state.keyboardWubiCodeHint,
+          zWildcard: state.keyboardWubiZWildcard,
+          zReverseLookup: state.keyboardWubiZReverseLookup,
           palette: palette,
           isEnabled: rimeBackedRowsEnabled,
-          onToggle: { toggleWubiCodeHint() }
+          onToggleCodeHint: { toggleWubiCodeHint() },
+          onToggleZWildcard: { toggleWubiZWildcard() },
+          onToggleZReverseLookup: { toggleWubiZReverseLookup() }
         )
-        SettingsCardDivider(palette: palette)
         SettingsToggleRow(
           title: "空码自动清码",
           isOn: state.keyboardWubiAutoClear,
@@ -670,20 +672,6 @@ struct OwlKeyboardPage: View {
         }
         .padding(.vertical, 8)
         .opacity(rimeBackedRowsEnabled ? 1 : 0.55)
-        SettingsCardDivider(palette: palette)
-        SettingsToggleRow(
-          title: "z 临时拼音反查",
-          isOn: state.keyboardWubiZReverseLookup,
-          palette: palette,
-          isEnabled: rimeBackedRowsEnabled,
-          onToggle: { toggleWubiZReverseLookup() }
-        )
-        Text("按 z 加拼音查字，候选右侧始终显示该字的五笔编码，边打边记；不受上面的「候选编码提示」影响。")
-          .font(.system(size: 12))
-          .foregroundStyle(palette.ink3)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.top, 4)
-          .padding(.bottom, 4)
         SettingsCardDivider(palette: palette)
         SettingsToggleRow(
           title: "` 临时英文",
@@ -1322,6 +1310,12 @@ struct OwlKeyboardPage: View {
   private func toggleWubiAutoClear() {
     persistRimeToggle(\.keyboardWubiAutoClear) {
       OwlKeyboardPreferences.wubiAutoClear = $0
+    }
+  }
+
+  private func toggleWubiZWildcard() {
+    persistRimeToggle(\.keyboardWubiZWildcard) {
+      OwlKeyboardPreferences.wubiZWildcard = $0
     }
   }
 

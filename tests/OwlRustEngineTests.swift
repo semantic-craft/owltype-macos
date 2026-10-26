@@ -111,6 +111,7 @@ final class OwlRustEngineTests: XCTestCase {
                         "wubi_auto_commit_unique": OwlKeyboardPreferences.wubiAutoCommitUnique,
                         "wubi_fifth_code_top_commit": OwlKeyboardPreferences.wubiFifthCodeTopCommit,
                         "wubi_code_hint": OwlKeyboardPreferences.wubiCodeHint,
+                        "wubi_z_wildcard": OwlKeyboardPreferences.wubiZWildcard,
                         "wubi_auto_clear": OwlKeyboardPreferences.wubiAutoClear,
                         "wubi_candidate_mode": OwlKeyboardPreferences.wubiCandidateMode.rawValue,
                         "wubi_z_reverse_lookup": OwlKeyboardPreferences.wubiZReverseLookup,
@@ -1699,6 +1700,62 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.takeCommit(), "你好，")
   }
 
+  func testWubiNativeCodeHintsWildcardAndLookupUseCurrentSettings() throws {
+    let defaults = OwlDefaults.standard
+    let keys = ["OwlKeyboardWubiCodeHint", "OwlKeyboardWubiZWildcard", "OwlKeyboardWubiZReverseLookup"]
+    let saved = keys.map { defaults.object(forKey: $0) }
+    defer {
+      for (key, value) in zip(keys, saved) {
+        if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
+      }
+    }
+    keys.forEach { defaults.removeObject(forKey: $0) }
+    XCTAssertTrue(OwlKeyboardPreferences.wubiCodeHint, "Pinned native Wubi code hints default on")
+    let engine = try makeSharedSupportSeedEngine()
+    XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
+    let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
+    defer { session.destroy() }
+    defaults.set(true, forKey: keys[0])
+    typeText("i", into: session)
+    let initial = try XCTUnwrap(session.composition())
+    let zibo = try XCTUnwrap(initial.candidates.firstIndex { $0.text == "淄博" })
+    // Literal native oracle: code=ivfg, typed=i => suffix vfg. Short-code 不 falls back to gii.
+    XCTAssertEqual(initial.candidates[zibo].comment, "vfg")
+    XCTAssertEqual(initial.candidates.first?.comment, "gii")
+    let peek = session.peekCandidates(from: zibo, count: 1)
+    XCTAssertEqual(peek.first?.text, "淄博")
+    XCTAssertEqual(peek.first?.comment, "vfg")
+    defaults.set(false, forKey: keys[0])
+    session.clearComposition()
+    typeText("i", into: session)
+    XCTAssertEqual(session.composition()?.candidates[zibo].comment, "ivfg")
+    XCTAssertTrue(session.selectCandidate(zibo))
+    XCTAssertEqual(session.takeCommit(), "淄博")
+
+    // Hint-off native rendering retains the reverse-lookup annotation.
+    typeText("znihao", into: session)
+    let lookup = try XCTUnwrap(session.composition())
+    let hello = try XCTUnwrap(lookup.candidates.firstIndex { $0.text == "你好" })
+    XCTAssertEqual(lookup.candidates[hello].comment, "wqvb")
+    session.clearComposition()
+    defaults.set(true, forKey: keys[1])
+    typeText("iz", into: session)
+    XCTAssertEqual(session.input(), "iz")
+    XCTAssertFalse(try XCTUnwrap(session.composition()).candidates.isEmpty)
+    session.clearComposition()
+    typeText("z", into: session)
+    XCTAssertEqual(session.input(), "z")
+    XCTAssertFalse(try XCTUnwrap(session.composition()).candidates.isEmpty,
+                   "Leading z is wildcard, not a bare Pinyin lookup prefix")
+    session.clearComposition()
+    defaults.set(false, forKey: keys[1])
+    defaults.set(false, forKey: keys[2])
+    XCTAssertTrue(session.selectSchema("wubi86_jidian_pinyin"))
+    typeText("zhongguo", into: session)
+    XCTAssertTrue(try XCTUnwrap(session.composition()).candidates.contains { $0.text == "中国" },
+                  "Mixed input uses z as a spelling letter even when temporary lookup is disabled")
+  }
+
   func testWubiCommitPreferencesApplyToCurrentSession() throws {
     let defaults = OwlDefaults.standard
     let keys = ["OwlKeyboardWubiAutoCommitUnique", "OwlKeyboardWubiFifthCodeTopCommit"]
@@ -2148,7 +2205,8 @@ final class OwlRustEngineTests: XCTestCase {
     session.clearComposition()
 
     typeText("a", into: session)
-    XCTAssertTrue(session.composition()?.candidates.allSatisfy({ $0.comment?.isEmpty != false }) == true)
+    XCTAssertEqual(session.composition()?.candidates.first?.comment, "aaaa",
+                   "Native hint-off rendering retains the engine full-code annotation")
     session.clearComposition()
 
     // Numeric and mouse selection both commit the reverse-lookup row.

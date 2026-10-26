@@ -475,6 +475,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     state.keyboardWubiAutoCommitUnique = OwlKeyboardPreferences.wubiAutoCommitUnique
     state.keyboardWubiFifthCodeTopCommit = OwlKeyboardPreferences.wubiFifthCodeTopCommit
     state.keyboardWubiCodeHint = OwlKeyboardPreferences.wubiCodeHint
+    state.keyboardWubiZWildcard = OwlKeyboardPreferences.wubiZWildcard
     state.keyboardWubiAutoClear = OwlKeyboardPreferences.wubiAutoClear
     state.keyboardWubiCandidateMode = OwlKeyboardPreferences.wubiCandidateMode
     state.keyboardWubiScheme = OwlKeyboardPreferences.wubiScheme

@@ -233,12 +233,16 @@ enum OwlKeyboardPreferences {
     set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiFifthCodeTopCommit") }
   }
 
-  /// 候选编码提示. Key `"OwlKeyboardWubiCodeHint"`, default `false`.
-  /// Rime mapping: `translator/comment_format`（只管五笔那一路）。z 临时拼音反查的五笔编码
-  /// 注释是练习用的，恒开，不受本开关影响——见 `owlWubiCustomYAML`。
+  /// 优先显示候选尚未输入的五笔编码；无剩余码时沿用引擎完整编码注释。
   static var wubiCodeHint: Bool {
-    get { boolValue("OwlKeyboardWubiCodeHint", default: false) }
+    get { boolValue("OwlKeyboardWubiCodeHint", default: true) }
     set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiCodeHint") }
+  }
+
+  /// z 匹配未知码位；开启时由引擎暂停临时拼音反查，与水杉默认关闭一致。
+  static var wubiZWildcard: Bool {
+    get { boolValue("OwlKeyboardWubiZWildcard", default: false) }
+    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiZWildcard") }
   }
 
   /// 空码自动清码. Key `"OwlKeyboardWubiAutoClear"`, default `false`.
