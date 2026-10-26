@@ -867,7 +867,8 @@ fn product_engine_options(
         plugin_commands: Vec::new(),
         mention_entries: Vec::new(),
         quick_phrase_table: Vec::new(),
-        quick_phrase_candidates: false,
+        // MSIMESessionOptions enables these candidates in the native macOS host.
+        quick_phrase_candidates: true,
         quick_phrase_frequency: true,
         sentence_association: SentenceAssociationOptions::default(),
         rescoring_context: String::new(),
@@ -1509,7 +1510,7 @@ impl OwlMsimeSession {
                     Err(err) => error_response(err.to_string()),
                 }
             }
-            "backspace" => {
+            "backspace" | "delete" => {
                 if self.punctuation_menu.is_some() {
                     self.punctuation_menu = None;
                     return self.build_snapshot(self.runtime.view(), true, None, false);
@@ -1517,14 +1518,23 @@ impl OwlMsimeSession {
                 let before = self.runtime.view();
                 let caret = before.caret_position.min(before.editing_text.len());
                 let mut next_input = before.editing_text.clone();
-                let next_caret_at_end = if caret > 0 && caret <= next_input.len() {
+                let delete_forward = payload.op == "delete";
+                let next_caret_at_end = if delete_forward && caret < next_input.len() {
+                    next_input.remove(caret);
+                    before.phrase_prefix.is_empty() && caret == next_input.len()
+                } else if !delete_forward && caret > 0 && caret <= next_input.len() {
                     next_input.remove(caret - 1);
                     before.phrase_prefix.is_empty() && (caret - 1 == next_input.len())
                 } else {
                     false
                 };
                 self.sync_pinned_state_for_upcoming_input(next_input, next_caret_at_end);
-                match self.runtime.dispatch(Action::Command(Command::Backspace)) {
+                let command = if delete_forward {
+                    Command::DeleteForward
+                } else {
+                    Command::Backspace
+                };
+                match self.runtime.dispatch(Action::Command(command)) {
                     Ok(transition) => {
                         self.sync_pinned_state_from_view(&transition.view);
                         self.build_snapshot(
@@ -1778,7 +1788,6 @@ impl OwlMsimeSession {
                 if delta == 0 {
                     return self.build_snapshot(self.runtime.view(), false, None, false);
                 }
-                let before_page = self.runtime.view().page;
                 let steps = delta.unsigned_abs() as usize;
                 let mut last_transition = None;
                 for _ in 0..steps {
@@ -1793,10 +1802,7 @@ impl OwlMsimeSession {
                     }
                 }
                 match last_transition {
-                    Some(t) => {
-                        let moved = t.view.page != before_page;
-                        self.build_snapshot(t.view, t.handled && moved, t.commit, false)
-                    }
+                    Some(t) => self.build_snapshot(t.view, t.handled, t.commit, false),
                     None => self.build_snapshot(self.runtime.view(), false, None, false),
                 }
             }
@@ -3704,7 +3710,6 @@ mod tests {
         assert!(options.mixed_english);
         assert_eq!(options.english_minimum_prefix, 5);
         assert_eq!(options.english_first_page_count, 1);
-        assert!(!options.quick_phrase_candidates);
         assert_eq!(options.first_page_rows, 5);
         assert!(!options.helpcode);
 
@@ -3729,10 +3734,9 @@ mod tests {
                 .map(|candidate| candidate.text.as_str())
                 .collect::<Vec<_>>()
         );
-        assert!(!frames[0]
-            .candidates
+        assert!(candidate_texts_across_pages(explicit)
             .iter()
-            .any(|row| row.text == "基础短语"));
+            .any(|text| text == "基础短语"));
 
         call_action(generated, r#"{"op":"clear"}"#);
         let host = call_action(
@@ -3743,11 +3747,10 @@ mod tests {
         call_action(generated, r#"{"op":"insert","ch":"n"}"#);
         call_action(generated, r#"{"op":"insert","ch":"i"}"#);
         assert!(
-            !call_snapshot(generated)
-                .candidates
+            candidate_texts_across_pages(generated)
                 .iter()
-                .any(|row| row.text == "主机短语"),
-            "fresh upstream defaults keep host phrases out of ordinary pinyin"
+                .any(|text| text == "主机短语"),
+            "macOS requests quick-phrase candidates without forcing them to the first row"
         );
         call_action(generated, r#"{"op":"clear"}"#);
         for ch in ['K', 'n', 'i'] {

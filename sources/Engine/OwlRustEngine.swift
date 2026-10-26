@@ -558,8 +558,11 @@ final class OwlRustSession: RimeSession {
     if keycode == UInt32(XK_apostrophe) && !OwlKeyboardPreferences.select23Semicolon {
       return ["op": "insert", "ch": "'"]
     }
-    if keycode == UInt32(XK_BackSpace) || keycode == UInt32(XK_Delete) {
+    if keycode == UInt32(XK_BackSpace) {
       return ["op": "backspace"]
+    }
+    if keycode == UInt32(XK_Delete) {
+      return ["op": "delete"]
     }
     if keycode == UInt32(XK_space) {
       return ["op": "space"]
@@ -577,6 +580,14 @@ final class OwlRustSession: RimeSession {
       return ["op": "move_caret", "target": "end"]
     }
     let linear = optionFlags[.linear] ?? true
+    let firstCandidate = latestSnapshot?.page == 0 && latestSnapshot?.highlightedIndex == 0
+    if firstCandidate && keycode == UInt32(XK_Left) {
+      return ["op": "move_caret", "target": "left"]
+    }
+    if firstCandidate && keycode == UInt32(XK_Right)
+       && caretByteOffset < (latestSnapshot?.rawInput.utf8.count ?? 0) {
+      return ["op": "move_caret", "target": "right"]
+    }
     if keycode == UInt32(XK_Down) || (linear && keycode == UInt32(XK_Right)) {
       return ["op": "move_highlight", "delta": 1]
     }
@@ -742,10 +753,7 @@ final class OwlRustSession: RimeSession {
 
   func changePage(up: Bool) -> Bool {
     guard handle != nil else { return false }
-    let beforePage = latestSnapshot?.page ?? 0
-    let consumed = applyActionResponse(sendAction(["op": "turn_page", "delta": up ? -1 : 1]))
-    let afterPage = latestSnapshot?.page ?? 0
-    return consumed && (afterPage != beforePage || !up)
+    return applyActionResponse(sendAction(["op": "turn_page", "delta": up ? -1 : 1]))
   }
 
   func selectSchema(_ id: String) -> Bool {
