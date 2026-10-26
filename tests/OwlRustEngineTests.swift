@@ -1886,6 +1886,9 @@ final class OwlRustEngineTests: XCTestCase {
   }
 
   func testPinyinAutocorrectAmbiguityJianpinFuzzyReturnAndContinuation() throws {
+    let previousPageSize = OwlKeyboardPreferences.pageSize
+    OwlKeyboardPreferences.pageSize = 6
+    defer { OwlKeyboardPreferences.pageSize = previousPageSize }
     let origFuzzy = OwlFuzzySnapshot.current()
     defer {
       OwlFuzzyPreferences.zhz = origFuzzy.zhz
@@ -1968,17 +1971,41 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.takeCommit(), "世界")
     session.clearComposition()
 
-    // With the existing fuzzy zh=z rule enabled, the relaxed spelling reaches the
-    // exact Chinese word without changing the user's typed preedit.
+    // The unmodified pinned host's exact order for zongguo without fuzzy rules,
+    // then with its z-zh rule. The existing Swift switch maps to that same mask.
+    typeText("zongguo", into: session)
+    XCTAssertEqual(session.composition()?.candidates.map(\.text),
+                   ["总国", "纵谷哦", "纵谷噢", "纵谷喔", "纵谷嚄", "宗谷哦"])
+    session.clearComposition()
     OwlFuzzyPreferences.zhz = true
     XCTAssertTrue(engine.selectSchema("rime_ice"))
     let fuzzySession = engine.createSession()
     defer { fuzzySession.destroy() }
     typeText("zongguo", into: fuzzySession)
     XCTAssertEqual(fuzzySession.input(), "zongguo")
-    XCTAssertTrue(
-      visibleAndPeekedCandidates(in: fuzzySession).contains(where: { $0.text == "中国" })
-    )
+    XCTAssertEqual(fuzzySession.composition()?.candidates.map(\.text),
+                   ["中国", "种过", "种果", "中过", "中果", "总国"])
+  }
+
+  // Exact first-page rows observed from the unmodified macOS 0.55.0 host API,
+  // empty learning state and its default six-row page. #280 replaces #259's
+  // former Chinese-only protection with the upstream mixed-input order.
+  func testPinnedUpstreamMixedEnglishAndEmojiOrder() throws {
+    let previousPageSize = OwlKeyboardPreferences.pageSize
+    OwlKeyboardPreferences.pageSize = 6
+    defer { OwlKeyboardPreferences.pageSize = previousPageSize }
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+    for (input, expected) in [
+      ("xi", ["洗", "xi", "西", "喜", "系", "息"]),
+      ("chan", ["产", "chan", "颤", "缠", "禅", "蝉"]),
+      ("nihao", ["你好", "👋", "尼好", "你好吗", "你好啊", "拟好"])
+    ] {
+      typeText(input, into: session)
+      XCTAssertEqual(session.composition()?.candidates.map(\.text), expected, input)
+      session.clearComposition()
+    }
   }
 
   func testMixedChineseEnglishRankingCompletionPagingPinBackspaceAndLatency() throws {
@@ -1987,23 +2014,8 @@ final class OwlRustEngineTests: XCTestCase {
     let session = engine.createSession()
     defer { session.destroy() }
 
-    // #259 AC 1: complete Chinese readings, including ambiguous `you`, keep a
-    // Chinese-only first page; mixed English rows remain available after that.
-    for input in ["di", "shi", "nihao", "you"] {
-      typeText(input, into: session)
-      let page = try XCTUnwrap(session.composition(), "Missing composition for \(input)")
-      XCTAssertFalse(page.candidates.isEmpty)
-      XCTAssertTrue(
-        page.candidates.allSatisfy { candidate in
-          candidate.text.unicodeScalars.contains(where: { !$0.isASCII })
-        },
-        "First page for \(input) leaked an ASCII-only candidate"
-      )
-      session.clearComposition()
-    }
-
-    // Exact English words and prefixes are selectable through the bounded candidate
-    // list. The display spelling of GitHub is preserved.
+    // Exact English words and desktop prefixes of at least five letters are selectable
+    // through the bounded candidate list. The display spelling of GitHub is preserved.
     for input in ["hello", "dir", "github"] {
       typeText(input, into: session)
       let candidates = visibleAndPeekedCandidates(in: session)
@@ -2011,10 +2023,18 @@ final class OwlRustEngineTests: XCTestCase {
       XCTAssertTrue(candidates.contains(where: { $0.text == expected }))
       session.clearComposition()
     }
-    for (prefix, expected) in [("hel", "hello"), ("gith", "GitHub")] {
+    for (prefix, expected) in [("githu", "GitHub")] {
       typeText(prefix, into: session)
       let candidates = visibleAndPeekedCandidates(in: session)
       XCTAssertTrue(candidates.contains(where: { $0.text == expected }))
+      session.clearComposition()
+    }
+
+    // Short exact English remains valid, but shorter-than-five prefixes do not
+    // request English completions in the pinned desktop host.
+    for (prefix, excluded) in [("hel", "hello"), ("gith", "GitHub")] {
+      typeText(prefix, into: session)
+      XCTAssertFalse(visibleAndPeekedCandidates(in: session).contains { $0.text == excluded })
       session.clearComposition()
     }
 
@@ -2075,28 +2095,15 @@ final class OwlRustEngineTests: XCTestCase {
     let session = engine.createSession()
     defer { session.destroy() }
 
-    // #256: Adjacent-key (`nihso`), transposition (`niaho`), missing-letter (`zhngguo`), and extra-letter (`nihaao`) typo tolerance
-    for (typo, expected) in [("nihso", "你好"), ("niaho", "你好"), ("zhngguo", "中国"), ("nihaao", "你好")] {
+    // Pinned 0.55.0: neighbor, transposition and missing-letter correction; the
+    // extra-letter spelling nihaao is also legal pinyin and retains its literal top row.
+    for (typo, expected) in [("nihso", "你好"), ("niaho", "你好"), ("zhngguo", "中国"), ("nihaao", "你哈傲")] {
       for scalar in typo.unicodeScalars {
         XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
       }
       let comp = try XCTUnwrap(session.composition())
       let all = comp.candidates + session.peekCandidates(from: comp.pageSize, count: 15)
       XCTAssertTrue(all.contains(where: { $0.text == expected }), "Expected \(expected) for typo \(typo)")
-      session.clearComposition()
-    }
-
-    // #259 AC 1: Complete Chinese syllables (`di`, `shi`, `nihao`) have all-Chinese first page
-    for py in ["di", "shi", "nihao"] {
-      for scalar in py.unicodeScalars {
-        XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
-      }
-      let comp = try XCTUnwrap(session.composition())
-      XCTAssertFalse(comp.candidates.isEmpty)
-      for cand in comp.candidates {
-        let isASCIIOnly = cand.text.unicodeScalars.allSatisfy(\.isASCII)
-        XCTAssertFalse(isASCIIOnly, "First page for \(py) should not contain pure ASCII candidate \(cand.text)")
-      }
       session.clearComposition()
     }
 
@@ -2109,16 +2116,15 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertTrue(ghAll.contains(where: { $0.text == "GitHub" }))
     session.clearComposition()
 
-    // #259 AC 4: Mixed CN-EN lexicon entries (`xguang` -> `X光`, `txu` -> `T恤`, `upan` -> `U盘`)
-    for (input, expected) in [("xguang", "X光"), ("txu", "T恤"), ("upan", "U盘")] {
-      for scalar in input.unicodeScalars {
-        XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
-      }
-      let comp = try XCTUnwrap(session.composition())
-      let all = comp.candidates + session.peekCandidates(from: comp.pageSize, count: 10)
-      XCTAssertTrue(all.contains(where: { $0.text == expected }), "Expected \(expected) for \(input)")
+    // Pinned full resources replace the former Owl-only mixed lexicon. Keep the
+    // actual upstream top row rather than requiring words absent from its table.
+    for (input, expected) in [("xguang", "星光"), ("txu", "特许")] {
+      typeText(input, into: session)
+      XCTAssertEqual(session.composition()?.candidates.first?.text, expected)
       session.clearComposition()
     }
+    typeText("upan", into: session)
+    XCTAssertEqual(session.composition()?.candidates.count, 0)
   }
 
   func testLegacyHostPhrasesLoadPromptsQuickSendAndCustomPhrase() throws {

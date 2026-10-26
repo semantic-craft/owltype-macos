@@ -1,0 +1,437 @@
+{
+  "description": "Pinned fresh macOS mixed English, four typo classes, literal/fuzzy ambiguity and licensed static symbol order.",
+  "events": [
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "e"
+    },
+    {
+      "op": "character",
+      "value": "l"
+    },
+    {
+      "op": "character",
+      "value": "l"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "d"
+    },
+    {
+      "op": "character",
+      "value": "i"
+    },
+    {
+      "op": "character",
+      "value": "r"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "i"
+    },
+    {
+      "op": "character",
+      "value": "t"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "u"
+    },
+    {
+      "op": "character",
+      "value": "b"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "e"
+    },
+    {
+      "op": "character",
+      "value": "l"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "i"
+    },
+    {
+      "op": "character",
+      "value": "t"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "i"
+    },
+    {
+      "op": "character",
+      "value": "t"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "u"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "x"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "u"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "t"
+    },
+    {
+      "op": "character",
+      "value": "x"
+    },
+    {
+      "op": "character",
+      "value": "u"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "u"
+    },
+    {
+      "op": "character",
+      "value": "p"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "i"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "s"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "i"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "z"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "u"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "i"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "z"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "u"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "z"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "e"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "f"
+    },
+    {
+      "op": "character",
+      "value": "u"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "p"
+    },
+    {
+      "op": "character",
+      "value": "i"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "f"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "m"
+    },
+    {
+      "op": "character",
+      "value": "i"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "m"
+    },
+    {
+      "op": "character",
+      "value": "m"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    }
+  ]
+}

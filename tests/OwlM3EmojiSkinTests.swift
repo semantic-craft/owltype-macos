@@ -48,10 +48,10 @@ final class OwlM3EmojiSkinTests: XCTestCase {
   }
 
   func testEmojiPreferencesAndLocalCategories() {
-    // 候选 emoji 开关默认关（出厂 schema reset 1→0）；面板「启用」开关已移除——面板常驻输入法菜单栏。
-    XCTAssertFalse(OwlEmojiPreferences.candidateEmojiEnabled)
-    OwlEmojiPreferences.candidateEmojiEnabled = true
+    // Fresh macOS defaults include emoji; an explicit saved false remains respected.
     XCTAssertTrue(OwlEmojiPreferences.candidateEmojiEnabled)
+    OwlEmojiPreferences.candidateEmojiEnabled = false
+    XCTAssertFalse(OwlEmojiPreferences.candidateEmojiEnabled)
 
     XCTAssertTrue(OwlEmojiData.items(for: .kaomoji).contains { $0.char == "¯\\_(ツ)_/¯" })
     XCTAssertTrue(OwlEmojiData.search("摊手").contains { $0.char == "¯\\_(ツ)_/¯" })

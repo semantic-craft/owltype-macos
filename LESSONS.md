@@ -463,3 +463,19 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Regression: [model_parity.rs](rust/crates/owl-msime-ffi/tests/model_parity.rs) compares all six model-on/off rows with the pinned Host API oracle, cold/shared-cache sessions, selection, engine replacement, active-composition disable and failure fallback. It failed before the lattice handoff and passes after it. The Swift settled-selection regression uses `tadefangjian`, which the pinned desktop model actually moves with the official dictionary; each digit/token selection path starts with its own learning journal so the first selection cannot pre-promote the second case.
 - Verify (验证点): materialize the official seed and locked models, then run `OWL_MODEL_PARITY_RESOURCES="$PWD/data/owl-rime/msime" cargo test --manifest-path rust/Cargo.toml -p owl-msime-ffi --test model_parity -- --ignored --nocapture`; expect one passed test. This checks the C ABI, not installed IMK delivery or pause scheduling.
 - Seen on 1 distinct date: 2026-10-26.
+
+## Fresh upstream defaults own ordinary pinyin candidate order
+
+- Seen 1x (2026-10-26): after importing the pinned full dictionary, the real host
+  differential still showed nine candidate-order differences. Owl's Chinese-only
+  first-page transform hid upstream's exact English seats (`xi`, `chan`), and an
+  emoji-off default removed default mixed rows. Host quick-phrase promotion also
+  overrode upstream's fresh-install ordinary-mode boundary.
+- Keep ordinary ranking in the pinned engine; retain the transform only for explicit
+  user pins and Wubi policy. Enable macOS default emoji and static symbol names,
+  disable fresh ordinary quick-phrase injection, and retain explicit K-mode access.
+- Verify: `tests/fixtures/pinyin-parity/full-pinyin.json` and `mixed-input.json`
+  against the unmodified pinned host; `testPinnedUpstreamMixedEnglishAndEmojiOrder`
+  and the existing fuzzy/typo/English tests check the Swift session seam. The pinned
+  engine treats legal `nihaao` literally; the former fixture's forced 你好 result
+  must not be restored by another local correction policy.

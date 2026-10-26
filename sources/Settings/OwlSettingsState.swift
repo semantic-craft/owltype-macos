@@ -224,8 +224,8 @@ final class OwlSettingsState {
   /// Selected candidate-panel skin. `OwlSettingsView` reads `skin.theme`, so editing it through
   /// `OwlCandidatePanelSettings` re-skins both the settings window and live candidate panel.
   var skin: OwlSkin = .deepred
-  /// 在候选中显示 emoji (mirror of `OwlEmojiPreferences.candidateEmojiEnabled`). Default false（出厂关）.
-  var candidateEmojiEnabled: Bool = false
+  /// 在候选中显示 emoji (mirror of `OwlEmojiPreferences.candidateEmojiEnabled`). Default true（上游 macOS 默认）.
+  var candidateEmojiEnabled: Bool = true
   /// Cloud AI enable — 全部划词技能的总闸 (mirror of `OwlCloudPreferences.isEnabled`).
   var cloudEnabled: Bool = false
   /// DeepSeek model id (mirror of `OwlCloudPreferences.deepSeekModel`).
