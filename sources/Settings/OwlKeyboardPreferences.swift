@@ -49,16 +49,19 @@ enum OwlInputMethod: String, CaseIterable, Sendable {
 }
 
 /// 五笔方案 sub-selection shown in the 输入方式 dropdown when 五笔输入 is active — mirrors the
-/// 双拼 dropdown pattern. Only the two non-繁 wubi schemas are exposed here; the 简入繁出
-/// variants (`wubi86_jidian_trad*`) stay reachable via the global 简入繁出 toggle.
+/// 双拼 dropdown pattern. 简入繁出 remains available through the global toggle.
 enum OwlWubiScheme: String, CaseIterable, Sendable {
   case jidian86
   case pinyinMix
+  case jidian98
+  case pinyinMix98
 
   var displayName: String {
     switch self {
     case .jidian86: return "86 版五笔"
-    case .pinyinMix: return "五笔拼音混输"
+    case .pinyinMix: return "86 版五笔拼音混输"
+    case .jidian98: return "98 版五笔"
+    case .pinyinMix98: return "98 版五笔拼音混输"
     }
   }
 
@@ -66,6 +69,8 @@ enum OwlWubiScheme: String, CaseIterable, Sendable {
     switch self {
     case .jidian86: return "wubi86_jidian"
     case .pinyinMix: return "wubi86_jidian_pinyin"
+    case .jidian98: return "wubi98"
+    case .pinyinMix98: return "wubi98_pinyin"
     }
   }
 }

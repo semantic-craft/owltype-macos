@@ -24,6 +24,7 @@ INPUT_SCHEMES = {
     'wubi86': ('wubi', 'wubi86_jidian', {'wubi_profile': 'wubi86', 'wubi_mixed_pinyin': False}),
     'wubi86-mixed': ('wubi', 'wubi86_jidian_pinyin', {'wubi_profile': 'wubi86', 'wubi_mixed_pinyin': True}),
     'wubi98': ('wubi', 'wubi98', {'wubi_profile': 'wubi98', 'wubi_mixed_pinyin': False}),
+    'wubi98-mixed': ('wubi', 'wubi98_pinyin', {'wubi_profile': 'wubi98', 'wubi_mixed_pinyin': True}),
 }
 COMMANDS = {'backspace': 0, 'commit': 2, 'cancel': 3, 'left': 4, 'right': 5,
             'home': 6, 'end': 7, 'delete': 8, 'next-page': 100, 'previous-page': 101,
