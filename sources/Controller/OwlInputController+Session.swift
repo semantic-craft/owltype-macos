@@ -362,6 +362,7 @@ extension OwlInputController {
   }
 
   func destroySession() {
+    smartPunctuation.reset()
     finishAutomaticExpansion(replaySemicolon: false)
     resetSettledRerankRuntime()
     // print("[DEBUG] destroySession:")

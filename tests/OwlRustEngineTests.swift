@@ -1246,6 +1246,37 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.takeCommit(), "A")
   }
 
+  func testTraditionalUnicodeModePreservesNullScalar() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+    session.setOption(.traditionalization, true)
+    XCTAssertTrue(session.process(keycode: asciiKeycode("U"), modifiers: kShiftMask.rawValue))
+    typeText("0000", into: session)
+    let composition = try XCTUnwrap(session.composition())
+    XCTAssertEqual(composition.candidates.first?.text, "\0")
+    XCTAssertTrue(session.selectCandidate(0))
+    XCTAssertEqual(session.takeCommit(), "\0")
+  }
+
+  func testKaomojiModeReadsPinnedLicensedCatalogAndCommitsVisibleRow() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+    XCTAssertTrue(session.process(keycode: asciiKeycode("M"), modifiers: kShiftMask.rawValue))
+    typeText("kiss", into: session)
+    let composition = try XCTUnwrap(session.composition())
+    // First matching row in the hash-pinned upstream kaomoji table (sort_order 0).
+    XCTAssertEqual(composition.candidates.first?.text, "!(*￣(￣　*)")
+    XCTAssertTrue(session.selectCandidate(0))
+    XCTAssertEqual(session.takeCommit(), "!(*￣(￣　*)")
+    XCTAssertTrue(session.process(keycode: asciiKeycode("S"), modifiers: kShiftMask.rawValue))
+    typeText("sum", into: session)
+    XCTAssertEqual(session.composition()?.candidates.first?.text, "∑")
+    XCTAssertTrue(session.selectCandidate(0))
+    XCTAssertEqual(session.takeCommit(), "∑")
+  }
+
   func testShiftTForwardingKeepsDigitSelectionForVisibleCandidate() throws {
     let engine = try makeSharedSupportSeedEngine()
     let session = engine.createSession()
@@ -1306,6 +1337,31 @@ final class OwlRustEngineTests: XCTestCase {
     let restoredIndex = try XCTUnwrap(restored.candidates.firstIndex { $0.text == "中国" })
     XCTAssertTrue(session.selectCandidate(restoredIndex))
     XCTAssertEqual(session.takeCommit(), "中国")
+  }
+
+  // Literal oracle: pinned upstream client-base/chinese_conversion.rs s2t fixtures.
+  // ICU Hans-Hant emits 裡面; OpenCC standard emits 裏面.
+  func testPhraseAwareTraditionalOutputKeepsSelectionIdentity() throws {
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+    typeText("limian", into: session)
+    let simplified = try XCTUnwrap(session.composition())
+    let index = try XCTUnwrap(simplified.candidates.firstIndex { $0.text == "里面" })
+    let generation = session.generation
+    session.setOption(.traditionalization, true)
+    let traditional = try XCTUnwrap(session.composition())
+    XCTAssertEqual(traditional.candidates[index].text, "裏面")
+    XCTAssertEqual(session.peekCandidates(from: index, count: 1).first?.text, "裏面")
+    XCTAssertEqual(session.generation, generation)
+    let token = OwlCandidateToken(sessionID: session.sessionID, generation: generation,
+                                  candidateID: index, isAbsolute: false)
+    XCTAssertTrue(session.selectCandidate(token))
+    XCTAssertEqual(session.takeCommit(), "裏面")
+    session.setOption(.traditionalization, false)
+    typeText("limian", into: session)
+    XCTAssertTrue(session.selectCandidate(index))
+    XCTAssertEqual(session.takeCommit(), "里面")
   }
 
   func testTokenBasedSelectionPeekCandidatesAndStaleGenerationRejection() throws {

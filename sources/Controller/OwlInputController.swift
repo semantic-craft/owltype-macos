@@ -30,6 +30,7 @@ final class OwlInputController: IMKInputController {
   var automaticTarget: OwlAutomaticExpansionTarget?
   var automaticApplyingClientAction = false
   var automaticEpoch: UInt64 = 0
+  let smartPunctuation = OwlSmartPunctuation()
   /// The current composition's Session, vended by the Engine seam. `nil` (or `!isValid`)
   /// means "no live session — recreate before use". Swappable so PR2 can inject a fake;
   /// the live default comes from `NSApp.owlAppDelegate.engine` (same indirection as
@@ -110,6 +111,7 @@ final class OwlInputController: IMKInputController {
 
   override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
     guard let event = event else { return false }
+    if event.cgEvent?.getIntegerValueField(.eventSourceUserData) == OwlSmartPunctuation.postedEventTag { return false }
     if event.type == .keyDown { pendingTemplateDelivery?.invalidate() }
     OwlLatencyTrace.event("key.received")
     let handleTrace = OwlLatencyTrace.begin("handle")
@@ -319,6 +321,8 @@ final class OwlInputController: IMKInputController {
     // TODO add special key event preprocessing here
     guard let rime else { return false }
 
+    if handleSmartPunctuation(rimeKeycode, modifiers: rimeModifiers) { return true }
+
     // '/' → English, globally & schema-agnostically (programming convenience), unless the user
     // explicitly enabled the slash symbol menu. That opt-in lets the event fall through to Rime's
     // punctuator candidate list without committing the composition or changing ascii_mode.
@@ -387,6 +391,11 @@ final class OwlInputController: IMKInputController {
       }
     }
 
+    if !handled, rimeKeycode >= 32, rimeKeycode < 127,
+       (rimeModifiers & (kControlMask.rawValue | kAltMask.rawValue | kSuperMask.rawValue | kReleaseMask.rawValue)) == 0 {
+      smartPunctuation.shadow = UnicodeScalar(rimeKeycode).map(String.init)
+      smartPunctuation.expectedCaret = nil
+    }
     return handled
   }
 

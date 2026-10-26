@@ -1056,6 +1056,7 @@ struct OwlKeyboardPage: View {
           onToggle: { toggleCJKAlnumSpacing() }
         )
         SettingsCardDivider(palette: palette)
+        smartPunctuationRows
         // 07-21 机主拍板改名：配对表早已不限于括号（含引号 + ASCII），名称与最初需求「成对输入」对齐。
         // 注释必须在 SettingsToggleRow( 之外——覆盖清单的提取正则不容 `(` 与 `title:` 之间有注释行。
         SettingsToggleRow(

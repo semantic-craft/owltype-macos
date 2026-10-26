@@ -57,7 +57,13 @@ final class OwlPinnedWords {
   }
 
   static func hansToHant(_ text: String) -> String {
-    (text as NSString).applyingTransform(StringTransform("Hans-Hant"), reverse: false) ?? text
+    guard let input = try? JSONEncoder().encode(text),
+          let json = String(data: input, encoding: .utf8),
+          let converted = json.withCString({ owl_msime_simplified_to_traditional_json($0) }) else {
+      return text
+    }
+    defer { owl_msime_string_free(converted) }
+    return (try? JSONDecoder().decode(String.self, from: Data(String(cString: converted).utf8))) ?? text
   }
 
   static func hantToHans(_ text: String) -> String {
