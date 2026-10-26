@@ -82,6 +82,15 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     controller.commitComposition(client)
     XCTAssertFalse(client.text.hasMarkedText(), "host composition end must flush the held closing exactly once")
     XCTAssertTrue(client.text.string.hasSuffix("你好（）"))
+    XCTAssertTrue(controller.handle(try key("(", code: 25, flags: .shift), client: client))
+    try type("ni", into: controller, client: client)
+    let nextClient = HabitsTextClient()
+    nextClient.appID = "com.apple.TextEdit"
+    XCTAssertTrue(controller.handle(try key("h", code: 4), client: nextClient))
+    XCTAssertTrue(client.text.string.hasSuffix("（你）"), "old field completes before client replacement")
+    XCTAssertFalse(client.text.hasMarkedText())
+    XCTAssertFalse(nextClient.text.string.contains("）"), "a closing tail cannot move to another field")
+    controller.deactivateServer(nextClient)
   }
 
   @MainActor

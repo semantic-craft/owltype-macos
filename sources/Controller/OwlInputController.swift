@@ -339,9 +339,7 @@ final class OwlInputController: IMKInputController {
     // TODO add special key event preprocessing here
     guard let rime else { return false }
 
-    punctuationKeyInFlight = (rimeModifiers & (kControlMask.rawValue | kAltMask.rawValue
-      | kSuperMask.rawValue | kReleaseMask.rawValue)) == 0
-      && (32..<127).contains(rimeKeycode) ? rimeKeycode : nil
+    trackNativePunctuationKey(rimeKeycode, modifiers: rimeModifiers)
     if handleSmartPunctuation(rimeKeycode, modifiers: rimeModifiers) { return true }
 
     // '/' → English, globally & schema-agnostically (programming convenience), unless the user
@@ -359,10 +357,12 @@ final class OwlInputController: IMKInputController {
       asciiMode: rime.option(.asciiMode),
       symbolMenuEnabled: OwlKeyboardPreferences.slashSymbolMenu
     ) {
+      punctuationKeyInFlight = nil
       if let preview = rime.composition()?.commitTextPreview, !preview.isEmpty {
         commit(string: preview)
         rime.clearComposition()
       }
+      flushPendingPairedClosing()
       rime.setOption(.asciiMode, true)
     }
 

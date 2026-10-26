@@ -4,6 +4,16 @@ import InputMethodKit
 // shared/apple/TextClient.mm:136ff. The engine supplies the opening mark;
 // the host keeps the closing mark as a visible marked tail until commit.
 extension OwlInputController {
+  func trackNativePunctuationKey(_ key: UInt32, modifiers: UInt32) {
+    punctuationKeyInFlight = nil
+    guard (modifiers & (kControlMask.rawValue | kAltMask.rawValue
+      | kSuperMask.rawValue | kReleaseMask.rawValue)) == 0,
+      (32..<127).contains(key), let scalar = UnicodeScalar(key),
+      let character = String(scalar).first,
+      character.isPunctuation || character.isSymbol else { return }
+    punctuationKeyInFlight = key
+  }
+
   var usesNativePairedPunctuation: Bool {
     guard let session = rime as? OwlRustSession,
           session.status()?.schemaId.hasPrefix("wubi") != true,
