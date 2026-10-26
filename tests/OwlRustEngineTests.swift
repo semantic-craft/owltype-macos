@@ -508,6 +508,18 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertGreaterThan(prepared.stats.pinyinEntries, 900_000)
     XCTAssertGreaterThan(prepared.stats.wubiEntries, 80_000)
     XCTAssertGreaterThan(prepared.stats.englishEntries, 70_000)
+    let preparedResources = try backend.environment.validatedGeneration(prepared.resource.record).resourcesURL
+    let model = preparedResources.appendingPathComponent("models/keyboard-model.bin")
+    let originalModel = try Data(contentsOf: model)
+    try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: model.path)
+    try Data("corrupt model".utf8).write(to: model)
+    do {
+      _ = try await backend.activate(backend.environment, prepared.resource)
+      XCTFail("a corrupt prepared model must never activate")
+    } catch is OwlRustResourceError {}
+    XCTAssertNil(try backend.environment.activeState())
+    try originalModel.write(to: model)
+    try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: model.path)
     let installed = try await backend.activate(backend.environment, prepared.resource)
     XCTAssertEqual(try backend.environment.activeGeneration()?.contentID, installed.state.current.generationId)
     let engine = OwlRustEngine(sharedSupportURL: Bundle.main.sharedSupportURL, userDataURL: user)
@@ -862,6 +874,11 @@ final class OwlRustEngineTests: XCTestCase {
       "activating another generation must not disturb the live old session"
     )
     XCTAssertEqual(sessionA.input(), "ni")
+    sessionA.clearComposition()
+    sessionA.setOption(.emojiSuggestion, true)
+    typeText("pingguo", into: sessionA)
+    XCTAssertTrue(sessionA.peekCandidates(from: 0, count: 100).contains { $0.text == "🍎" || $0.text == "🍏" })
+    XCTAssertFalse(sessionA.peekCandidates(from: 0, count: 100).contains { $0.text == "🦉🦉" })
     sessionA.destroy()
 
     let dictionaries = userRoot.appendingPathComponent(
