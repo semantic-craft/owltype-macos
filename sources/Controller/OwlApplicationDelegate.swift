@@ -495,6 +495,9 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     state.keyboardCJKEnglishSpacing = OwlKeyboardPreferences.cjkEnglishSpacing
     state.keyboardCJKNumberSpacing = OwlKeyboardPreferences.cjkNumberSpacing
     state.keyboardAutoPairBrackets = OwlKeyboardPreferences.autoPairBrackets
+    state.keyboardSmartPunctuation = OwlKeyboardPreferences.smartPunctuation
+    state.keyboardSmartPunctuationRepeat = OwlKeyboardPreferences.smartPunctuationRepeat
+    state.keyboardSmartPunctuationSpace = OwlKeyboardPreferences.smartPunctuationSpace
     state.keyboardRerankEnabled = OwlExperimentalPreferences.keyboardRerankEnabled
     state.settledRerankEnabled = OwlExperimentalPreferences.settledRerankEnabled
     state.keyboardAppEnglishBundleIDsText = OwlKeyboardPreferences.appEnglishBundleIDs.joined(separator: ", ")

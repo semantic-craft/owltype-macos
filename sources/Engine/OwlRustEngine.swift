@@ -500,6 +500,11 @@ final class OwlRustSession: RimeSession {
     }
   }
 
+  var acceptsHostSmartPunctuation: Bool { latestSnapshot?.localMode == "none" }
+  func processHostASCIIPunctuation(_ character: String) -> Bool {
+    applyActionResponse(sendAction(["op": "punctuation", "ch": character, "ascii": true]))
+  }
+
   private func localModeInsertionAction(for keycode: UInt32) -> [String: Any]? {
     guard let snapshot = latestSnapshot,
           snapshot.localMode != "none",

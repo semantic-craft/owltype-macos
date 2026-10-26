@@ -27,6 +27,7 @@ final class OwlSettingsCoverageTests: XCTestCase {
   private static let settingsFiles = [
     "sources/Settings/OwlSettingsView.swift",
     "sources/Settings/OwlKeyboardPage.swift",
+    "sources/Settings/OwlKeyboardPage+SmartPunctuation.swift",
     "sources/Settings/OwlInputHabitsSettings.swift",
     "sources/Settings/OwlKeyboardPreferences.swift",
     "sources/Settings/OwlSettingsPages.swift",
@@ -124,6 +125,9 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "sh = s（翘舌）",
     "zh = z（翘舌）",
     "中文与英文间加入空格",
+    "智能标点",
+    "重复标点改为中文",
+    "标点后空格改为英文",
     "成对输入",                       // task 07-02 本地便捷输入：commit 层配对补全（默认关；07-21 由「自动配对括号」改名）
     // 本地模型重排（#257/#258）：默认关；模型资源、许可、SHA 与运行状态同卡展示。
     "逐键候选重排",

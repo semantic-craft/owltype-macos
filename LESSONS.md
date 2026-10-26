@@ -465,3 +465,17 @@ review dates, not retries. Keep deterministic checks in the local gate.
   `OwlRustEngineTests/testPhraseAwareTraditionalOutputKeepsSelectionIdentity`
   fails at visible, peeked and committed output before the change, and passes after;
   it also selects with the pre-conversion token and turns conversion off again.
+
+## Smart punctuation requires the native document context
+
+- Seen 1x (2026-10-26): forwarding every idle punctuation key to the engine wrote
+  `1。` where pinned macOS MSIME writes `1.`. Engine punctuation alone cannot infer
+  the preceding document character or replace a previously committed mark.
+- Reuse upstream client-core route/repeat/space-convert policy. The native host owns
+  the client/caret fingerprint and checks actual text before replacement. An unreadable
+  host may use only its owned shadow; posted replacement remains permission- and
+  foreground-checked and cannot run in a secure or explicitly denied client.
+- Verify (验证点): `OwlInputHabitsIntegrationTests` covers context and repeat,
+  caret movement, immediate setting changes, opt-in space correction/revert and an
+  unreadable host through a substituted posting boundary. No real terminal receives
+  injected keys. These tests do not establish installed-host event timing acceptance.

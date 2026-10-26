@@ -8,7 +8,7 @@
     "path-trust"
   ],
   "extraction": {
-    "client-core": "Existing light client types plus unmodified client-base chinese_conversion.rs and its pinned OpenCC fetch/build inputs; no client services.",
+    "client-core": "Existing light client types plus client-base chinese_conversion.rs and pinned OpenCC inputs, and client-core host-context punctuation policy functions/types (snapshot serde derives only for the thin ABI); no client services.",
     "input-runtime examples": "Excluded: require full client-core resource service outside the Owl extraction.",
     "test data": "Shared punctuation contract, grammar model lock and public nine-key sentences; retain prior synthetic helpcode fixture instead of restricted author tables."
   },
@@ -18,7 +18,8 @@
     "Candidate emoji live toggle and cached-candidate view exposure.",
     "Custom shuangpin semicolon spelling precedence.",
     "Wubi independent Z lookup switch, complete-spelling fallback and stable dedup/group order.",
-    "Wubi top-commit bypasses phrase holding; sentence alternatives enabled only for ordinary pinyin."
+    "Wubi top-commit bypasses phrase holding; sentence alternatives enabled only for ordinary pinyin.",
+    "Native host-context smart punctuation uses upstream route/repeat/space-convert decisions; C ABI transports JSON without changing candidate IDs."
   ],
   "defaultPinyin": {
     "sentence_alternatives": true,

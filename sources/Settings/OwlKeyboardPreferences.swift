@@ -410,6 +410,19 @@ enum OwlKeyboardPreferences {
   /// (PRD D3: 兼容性未大面积真机验证前默认关). Runtime mapping: cached flag + pure pair
   /// decision in `OwlAutoPair`, executed at the commit seam — hot-effective, NO Rime
   /// apply/deploy. OFF must stay byte-identical to today's commit behavior.
+  static var smartPunctuation: Bool {
+    get { boolValue("OwlKeyboardSmartPunctuation", default: true) }
+    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardSmartPunctuation") }
+  }
+  static var smartPunctuationRepeat: Bool {
+    get { boolValue("OwlKeyboardSmartPunctuationRepeat", default: true) }
+    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardSmartPunctuationRepeat") }
+  }
+  static var smartPunctuationSpace: Bool {
+    get { boolValue("OwlKeyboardSmartPunctuationSpace", default: false) }
+    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardSmartPunctuationSpace") }
+  }
+
   static var autoPairBrackets: Bool {
     get { cachedAutoPairBrackets }
     set {

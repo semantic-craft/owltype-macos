@@ -1252,6 +1252,11 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(composition.candidates.first?.text, "!(*￣(￣　*)")
     XCTAssertTrue(session.selectCandidate(0))
     XCTAssertEqual(session.takeCommit(), "!(*￣(￣　*)")
+    XCTAssertTrue(session.process(keycode: asciiKeycode("S"), modifiers: kShiftMask.rawValue))
+    typeText("sum", into: session)
+    XCTAssertEqual(session.composition()?.candidates.first?.text, "∑")
+    XCTAssertTrue(session.selectCandidate(0))
+    XCTAssertEqual(session.takeCommit(), "∑")
   }
 
   func testShiftTForwardingKeepsDigitSelectionForVisibleCandidate() throws {
