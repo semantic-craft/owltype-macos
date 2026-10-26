@@ -177,6 +177,8 @@ final class OwlRustSession: RimeSession {
   private var lastAppliedASCIIPunct: Bool?
   private var lastAppliedFuzzyMask: UInt32 = 0
   private var lastAppliedWubiCandidateMode: String = ""
+  private var lastAppliedWubiAutoCommitUnique: Bool?
+  private var lastAppliedWubiFifthCodeTopCommit: Bool?
   private var lastAppliedWubiCodeHint: Bool?
   private var lastAppliedWubiAutoClear: Bool?
   private var lastAppliedWubiZReverseLookup: Bool?
@@ -738,6 +740,10 @@ final class OwlRustSession: RimeSession {
     let fuzzyMask = OwlRustSchemaMap.fuzzyBitmask(from: OwlFuzzySnapshot.current())
     let candMode = OwlKeyboardPreferences.wubiCandidateMode.rawValue
     let booleanOptions: [(String, Bool?, ReferenceWritableKeyPath<OwlRustSession, Bool?>)] = [
+      ("wubi_auto_commit_unique", OwlKeyboardPreferences.wubiAutoCommitUnique,
+       \.lastAppliedWubiAutoCommitUnique),
+      ("wubi_fifth_code_top_commit", OwlKeyboardPreferences.wubiFifthCodeTopCommit,
+       \.lastAppliedWubiFifthCodeTopCommit),
       ("wubi_code_hint", OwlKeyboardPreferences.wubiCodeHint, \.lastAppliedWubiCodeHint),
       ("wubi_auto_clear", OwlKeyboardPreferences.wubiAutoClear, \.lastAppliedWubiAutoClear),
       ("wubi_z_reverse_lookup",

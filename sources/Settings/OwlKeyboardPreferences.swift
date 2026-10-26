@@ -221,6 +221,18 @@ enum OwlKeyboardPreferences {
 
   // MARK: - 五笔
 
+  /// 五笔完整四码只有一个候选时自动提交；与水杉默认值一致。
+  static var wubiAutoCommitUnique: Bool {
+    get { boolValue("OwlKeyboardWubiAutoCommitUnique", default: true) }
+    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiAutoCommitUnique") }
+  }
+
+  /// 完整四码后的字母顶字上屏。关闭只影响五笔拼音混输，纯五笔仍顶字保留第五码。
+  static var wubiFifthCodeTopCommit: Bool {
+    get { boolValue("OwlKeyboardWubiFifthCodeTopCommit", default: true) }
+    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiFifthCodeTopCommit") }
+  }
+
   /// 候选编码提示. Key `"OwlKeyboardWubiCodeHint"`, default `false`.
   /// Rime mapping: `translator/comment_format`（只管五笔那一路）。z 临时拼音反查的五笔编码
   /// 注释是练习用的，恒开，不受本开关影响——见 `owlWubiCustomYAML`。

@@ -108,6 +108,8 @@ final class OwlRustEngineTests: XCTestCase {
       "steps": steps,
       "preferences": defaults.persistentDomain(forName: OwlDefaults.testSuiteName) ?? [:],
       "configuration": ["schema": schema, "page_size": OwlKeyboardPreferences.pageSize,
+                        "wubi_auto_commit_unique": OwlKeyboardPreferences.wubiAutoCommitUnique,
+                        "wubi_fifth_code_top_commit": OwlKeyboardPreferences.wubiFifthCodeTopCommit,
                         "wubi_code_hint": OwlKeyboardPreferences.wubiCodeHint,
                         "wubi_auto_clear": OwlKeyboardPreferences.wubiAutoClear,
                         "wubi_candidate_mode": OwlKeyboardPreferences.wubiCandidateMode.rawValue,
@@ -1695,6 +1697,68 @@ final class OwlRustEngineTests: XCTestCase {
     // Comma in Chinese punctuation mode commits highlighted candidate + "，".
     XCTAssertTrue(session.process(keycode: UInt32(XK_comma), modifiers: 0))
     XCTAssertEqual(session.takeCommit(), "你好，")
+  }
+
+  func testWubiCommitPreferencesApplyToCurrentSession() throws {
+    let defaults = OwlDefaults.standard
+    let keys = ["OwlKeyboardWubiAutoCommitUnique", "OwlKeyboardWubiFifthCodeTopCommit"]
+    let saved = keys.map { defaults.object(forKey: $0) }
+    defer {
+      for (key, value) in zip(keys, saved) {
+        if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
+      }
+    }
+    keys.forEach { defaults.removeObject(forKey: $0) }
+    let engine = try makeSharedSupportSeedEngine()
+    XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
+    let session = engine.createSession()
+    defer { session.destroy() }
+
+    // The fixed official table has one exact sebv row: 极限. The upstream default commits it.
+    typeText("sebv", into: session)
+    XCTAssertEqual(session.takeCommit(), "极限")
+    typeText("seb", into: session)
+    defaults.set(false, forKey: keys[0])
+    typeText("v", into: session)
+    XCTAssertNil(session.takeCommit())
+    XCTAssertEqual(session.input(), "sebv", "A changed setting must affect the next key without clearing composition")
+    XCTAssertEqual(session.composition()?.candidates.first?.text, "极限")
+    XCTAssertTrue(session.selectCandidate(0))
+    XCTAssertEqual(session.takeCommit(), "极限")
+    defaults.set(true, forKey: keys[0])
+    typeText("sebv", into: session)
+    XCTAssertEqual(session.takeCommit(), "极限")
+
+    XCTAssertTrue(session.selectSchema("wubi86_jidian_pinyin"))
+    typeText("gggg", into: session)
+    XCTAssertNil(session.takeCommit())
+    defaults.set(false, forKey: keys[1])
+    // Real pinned Host API refuses this invalid Pinyin continuation instead of topping 王.
+    XCTAssertFalse(session.process(keycode: asciiKeycode("x"), modifiers: 0))
+    XCTAssertNil(session.takeCommit())
+    XCTAssertEqual(session.input(), "gggg")
+    session.clearComposition()
+    defaults.set(true, forKey: keys[1])
+    typeText("gggg", into: session)
+    let mixedFirst = try XCTUnwrap(session.composition()?.candidates.first?.text)
+    typeText("x", into: session)
+    XCTAssertEqual(session.takeCommit(), mixedFirst)
+    XCTAssertEqual(session.input(), "x")
+    session.clearComposition()
+
+    // Upstream still tops in pure Wubi: the fifth letter cannot fit the four-code buffer.
+    defaults.set(false, forKey: keys[1])
+    XCTAssertTrue(session.selectSchema("wubi86_jidian"))
+    typeText("gggg", into: session)
+    let pureFirst = try XCTUnwrap(session.composition()?.candidates.first?.text)
+    typeText("x", into: session)
+    XCTAssertEqual(session.takeCommit(), pureFirst)
+    XCTAssertEqual(session.input(), "x")
+    session.clearComposition()
+    typeText("aaab", into: session)
+    XCTAssertFalse(session.process(keycode: asciiKeycode("x"), modifiers: 0))
+    XCTAssertNil(session.takeCommit())
+    XCTAssertEqual(session.input(), "aaab")
   }
 
   func testWubi86PureAndMixedSchemasZLookupAndPreferences() throws {
