@@ -222,6 +222,7 @@ pub struct OwlMsimeSession {
     page_size: u8,
     input_mode: String,
     pinyin_scheme: String,
+    pinyin_quick_phrase_candidates: bool,
     wubi_code_hint: bool,
     wubi_auto_clear: bool,
     wubi_candidate_mode: String,
@@ -899,8 +900,8 @@ fn product_engine_options(
         mention_entries: Vec::new(),
         quick_phrase_table: Vec::new(),
         quick_phrase_table_in_candidates: false,
-        // MSIMESessionOptions enables these candidates in the native macOS host.
-        quick_phrase_candidates: true,
+        // Native capability is available; fresh 0.55 mixed_input.quick_phrase defaults OFF.
+        quick_phrase_candidates: false,
         quick_phrase_frequency: true,
         sentence_association: SentenceAssociationOptions::default(),
         rescoring_context: String::new(),
@@ -1101,6 +1102,7 @@ impl OwlMsimeSession {
             page_size,
             input_mode: "chinese".to_owned(),
             pinyin_scheme: "quanpin".to_owned(),
+            pinyin_quick_phrase_candidates: false,
             wubi_code_hint: false,
             wubi_auto_clear: false,
             wubi_candidate_mode: "normal".to_owned(),
@@ -1415,6 +1417,8 @@ impl OwlMsimeSession {
         {
             let _ = self.runtime.dispatch(Action::Command(Command::Cancel));
             self.options.scheme = desired_scheme;
+            self.options.quick_phrase_candidates =
+                self.input_mode == "wubi" || self.pinyin_quick_phrase_candidates;
             // Keep Owl Wubi composition policy; upstream sentence alternatives own ordinary pinyin.
             self.options.sentence_alternatives = self.input_mode != "wubi";
             self.options.shuangpin_profile = desired_profile;
@@ -1456,11 +1460,25 @@ impl OwlMsimeSession {
         Ok(())
     }
 
+    fn apply_quick_phrase_preference_if_idle(&mut self) -> Result<(), String> {
+        let enabled = self.input_mode == "wubi" || self.pinyin_quick_phrase_candidates;
+        if self.options.quick_phrase_candidates != enabled && self.runtime.is_idle() {
+            self.runtime
+                .set_quick_phrase_candidates(enabled)
+                .map_err(|error| error.to_string())?;
+            self.options.quick_phrase_candidates = enabled;
+        }
+        Ok(())
+    }
+
     pub fn handle_action_json(&mut self, action_json: &str) -> SnapshotResponseDto {
         let payload: ActionPayload = match serde_json::from_str(action_json) {
             Ok(p) => p,
             Err(err) => return error_response(format!("invalid action_json: {err}")),
         };
+        if let Err(error) = self.apply_quick_phrase_preference_if_idle() {
+            return error_response(error);
+        }
         self.rerank.apply_pending(&mut self.runtime);
         if payload.op != "peek_candidates" {
             self.rerank.invalidate(&mut self.runtime);
@@ -2235,6 +2253,12 @@ impl OwlMsimeSession {
                 };
                 let value = payload.value.unwrap_or(false);
                 match name {
+                    "pinyin_quick_phrase_candidates" => {
+                        self.pinyin_quick_phrase_candidates = value;
+                        if let Err(error) = self.apply_quick_phrase_preference_if_idle() {
+                            return error_response(error);
+                        }
+                    }
                     "ascii_punct" => {
                         self.options.chinese_punctuation = !value;
                         let _ = self.runtime.set_chinese_punctuation_enabled(!value);
@@ -3817,6 +3841,37 @@ mod tests {
                 .collect::<Vec<_>>()
         );
         assert_eq!(frames[0].candidates[0].text, "你");
+        assert!(
+            !options.quick_phrase_candidates,
+            "native fresh preferences disable ordinary quick phrases"
+        );
+        for (index, session) in [explicit, generated].into_iter().enumerate() {
+            assert!(!frames[index]
+                .candidates
+                .iter()
+                .any(|candidate| candidate.text == "基础短语"));
+            let previous_generation = frames[index].generation;
+            let enabled = call_action(
+                session,
+                r#"{"op":"set_option","name":"pinyin_quick_phrase_candidates","value":true}"#,
+            );
+            assert!(enabled.ok);
+            let pending = call_snapshot(session);
+            assert_eq!(
+                pending.raw_input, "ni",
+                "queued preferences preserve composition"
+            );
+            assert_eq!(pending.generation, previous_generation);
+            assert!(!pending
+                .candidates
+                .iter()
+                .any(|candidate| candidate.text == "基础短语"));
+            call_action(session, r#"{"op":"clear"}"#);
+            call_action(session, r#"{"op":"insert","ch":"n"}"#);
+            call_action(session, r#"{"op":"insert","ch":"i"}"#);
+            frames[index] = call_snapshot(session);
+            assert!(frames[index].generation > previous_generation);
+        }
         assert!(frames[0]
             .candidates
             .iter()

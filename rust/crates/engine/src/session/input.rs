@@ -1569,6 +1569,18 @@ impl InputSession {
         });
     }
 
+    pub(super) fn quick_phrase_candidates_enabled(&self) -> bool {
+        self.quick_phrase_candidates
+    }
+
+    pub(super) fn set_quick_phrase_candidates(&mut self, enabled: bool) {
+        if self.quick_phrase_candidates == enabled {
+            return;
+        }
+        self.quick_phrase_candidates = enabled;
+        self.update_mixed_candidates();
+    }
+
     pub(super) fn mixed_emoji_candidates_enabled(&self) -> bool {
         self.expressive_options.emoji_candidates
     }

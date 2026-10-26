@@ -122,8 +122,9 @@ impl CandidateQueries {
     }
 
     /// 普通组字的编码恰好是某条快捷短语的编码时，把短语并进候选：`slot` 为 `Some(n)` 时插在第 n 个计位候选之后（`quick_phrase_slots` 学下来的位置）；为 `None`（`quick_phrase_frequency` 关着或还没有学习记录）时按 `first_page_rows`（宿主每页候选数）落在首页尾部，规则见 [`default_quick_phrase_slot`]。只认整个编码，不按前缀匹配（见 [`query_exact_quick_phrases`]）。
-    pub fn insert_quick_phrase_candidates(
+    pub fn insert_quick_phrase_candidates_with_policy(
         &self,
+        wubi: bool,
         code: &str,
         candidates: &mut Vec<WordItem>,
         slot: Option<usize>,
@@ -150,8 +151,19 @@ impl CandidateQueries {
                     .any(|existing| existing.word == candidate.word)
             })
             .collect();
-        let slot =
-            slot.or_else(|| default_quick_phrase_slot(candidates, phrases.len(), first_page_rows));
+        let counts = |item: &WordItem| counts_toward_quick_phrase_slot_with_policy(item, wubi);
+        let slot = slot.or_else(|| {
+            if wubi {
+                default_quick_phrase_slot(candidates, phrases.len(), first_page_rows)
+            } else {
+                let page = first_page_rows.max(1);
+                let ordinary = candidates.iter().filter(|item| counts(item)).count();
+                (!phrases.is_empty() && ordinary >= page).then(|| {
+                    page.saturating_sub(phrases.len().min(page / 2).max(1))
+                        .max(1)
+                })
+            }
+        });
         let Some(slot) = slot else {
             candidates.extend(phrases);
             return;
@@ -163,7 +175,7 @@ impl CandidateQueries {
             candidates
                 .iter()
                 .enumerate()
-                .filter(|(_, item)| counts_toward_quick_phrase_slot(item))
+                .filter(|(_, item)| counts(item))
                 .nth(slot - 1)
                 .map(|(index, _)| index + 1)
                 .unwrap_or(candidates.len())
@@ -499,6 +511,11 @@ pub(crate) fn default_quick_phrase_slot(
 }
 
 /// 槽位计数的普通候选（`counts_toward_quick_phrase_slot`，quick_phrase_query.cpp:123-143）：固定位置的行、快捷短语自己和混输/在线/插件/联系人行都不算。
+pub(crate) fn counts_toward_quick_phrase_slot_with_policy(item: &WordItem, wubi: bool) -> bool {
+    counts_toward_quick_phrase_slot(item)
+        || (!wubi && item.fixed_position == 0 && item.source == CandidateSource::Fallback)
+}
+
 pub(crate) fn counts_toward_quick_phrase_slot(item: &WordItem) -> bool {
     if item.fixed_position > 0 {
         return false;
