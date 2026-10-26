@@ -149,6 +149,35 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
   }
 
   @MainActor
+  func testNativePinyinFocusFinishCommitsConvertedText() throws {
+    let defaults = OwlDefaults.standard
+    let methodKey = "OwlKeyboardInputMethod"
+    let saved = defaults.object(forKey: methodKey)
+    defer {
+      if let saved { defaults.set(saved, forKey: methodKey) } else { defaults.removeObject(forKey: methodKey) }
+    }
+    OwlKeyboardPreferences.inputMethod = .pinyin
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("owl-pinyin-focus-\(UUID())")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let engine = OwlRustEngine(sharedSupportURL: try XCTUnwrap(Bundle.main.sharedSupportURL),
+      userDataURL: root, activeGenerationProvider: { nil })
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    controller.destroySession()
+    controller.rime = engine.createSession()
+    let client = HabitsTextClient()
+    client.appID = "com.apple.TextEdit"
+    controller.client = client
+    defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
+    controller.rime?.setOption(.asciiMode, false)
+    try type("tadefangjian", into: controller, client: client)
+    controller.commitComposition(client)
+    // Fixed native fresh-state baseline; focus end must not leak the typed Latin letters.
+    XCTAssertEqual(client.text.string, "它的房间")
+    XCTAssertEqual(controller.rime?.input(), "")
+    XCTAssertFalse(client.text.hasMarkedText())
+  }
+
+  @MainActor
   func testNativePairedPunctuationHoldsClosingAndReopensQuotes() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("owl-native-pairs-\(UUID())")
     defer { try? FileManager.default.removeItem(at: root) }
