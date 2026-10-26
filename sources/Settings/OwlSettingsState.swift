@@ -149,7 +149,7 @@ final class OwlSettingsState {
   var panelScrollRows = OwlCandidatePanelSettings.defaultScrollRows
   /// G8 候选个数 mirror of `OwlKeyboardPreferences.pageSize` (Rime menu/page_size).
   /// Unlike the panel mirrors, this flows through the keyboard patch + 应用配置改动.
-  var candidatePageSize: Int = 8
+  var candidatePageSize: Int = 6
 
   // MARK: - 键盘输入 page mirrors (v0.3.1)
 
@@ -164,8 +164,14 @@ final class OwlSettingsState {
   var keyboardInputMethod: OwlInputMethod = .pinyin
   /// 双拼方案 (mirror of `OwlKeyboardPreferences.doublePinyin`).
   var keyboardDoublePinyin: OwlDoublePinyin = .flypy
+  /// 四码唯一自动上屏 (mirror of `OwlKeyboardPreferences.wubiAutoCommitUnique`).
+  var keyboardWubiAutoCommitUnique: Bool = true
+  /// 第五码顶字上屏 (mirror of `OwlKeyboardPreferences.wubiFifthCodeTopCommit`).
+  var keyboardWubiFifthCodeTopCommit: Bool = true
   /// 五笔编码提示 (mirror of `OwlKeyboardPreferences.wubiCodeHint`).
-  var keyboardWubiCodeHint: Bool = false
+  var keyboardWubiCodeHint: Bool = true
+  /// z 通配 (mirror of `OwlKeyboardPreferences.wubiZWildcard`).
+  var keyboardWubiZWildcard: Bool = false
   /// 五笔空码自动清码 (mirror of `OwlKeyboardPreferences.wubiAutoClear`).
   var keyboardWubiAutoClear: Bool = false
   /// 五笔单字候选模式 (mirror of `OwlKeyboardPreferences.wubiCandidateMode`).
@@ -177,7 +183,7 @@ final class OwlSettingsState {
   /// ` 临时英文（五笔前缀英文通道，mirror of `OwlKeyboardPreferences.wubiEnglishChannel`）。Default false（出厂关）.
   var keyboardWubiEnglishChannel: Bool = false
   /// 记住我常用的词·个性化 (mirror of `OwlKeyboardPreferences.wubiUserDictLearning`).
-  var keyboardWubiUserDictLearning: Bool = false
+  var keyboardWubiUserDictLearning: Bool = true
   /// 使用 Shift 切换中英文 (mirror of `OwlKeyboardPreferences.shiftSwitchCJK`).
   var keyboardShiftSwitchCJK: Bool = true
   /// 中文下中英标点切换 (mirror of `OwlKeyboardPreferences.cjkPunctToggle`).
@@ -210,7 +216,7 @@ final class OwlSettingsState {
   var keyboardCJKEnglishSpacing: Bool = false
   /// 中文与数字自动空格 legacy mirror.
   var keyboardCJKNumberSpacing: Bool = false
-  /// 自动配对括号 (mirror of `OwlKeyboardPreferences.autoPairBrackets`); native pinyin defaults on.
+  /// 自动配对括号 (mirror of `OwlKeyboardPreferences.autoPairBrackets`); native input defaults on.
   var keyboardAutoPairBrackets: Bool = true
   var keyboardSmartPunctuation: Bool = true
   var keyboardSmartPunctuationRepeat: Bool = true
@@ -229,7 +235,7 @@ final class OwlSettingsState {
   var skin: OwlSkin = .deepred
   /// 在候选中显示 emoji (mirror of `OwlEmojiPreferences.candidateEmojiEnabled`). Default true（上游 macOS 默认）.
   var candidateEmojiEnabled: Bool = true
-  var pinyinQuickPhraseCandidates: Bool = false
+  var quickPhraseCandidates: Bool = false
   /// Cloud AI enable — 全部划词技能的总闸 (mirror of `OwlCloudPreferences.isEnabled`).
   var cloudEnabled: Bool = false
   /// DeepSeek model id (mirror of `OwlCloudPreferences.deepSeekModel`).

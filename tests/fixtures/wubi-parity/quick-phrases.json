@@ -1,0 +1,136 @@
+{
+  "description": "Native Wubi fresh OFF then idle explicit ON: xx full pages retain fixed rows, and the enabled phrase commits from the final page. OFF cancels without changing learning state.",
+  "scheme": "wubi86",
+  "events": [
+    {
+      "op": "character",
+      "value": "x"
+    },
+    {
+      "op": "character",
+      "value": "x",
+      "expect": {
+        "candidates": [
+          "比",
+          "缘",
+          "丝",
+          "比价",
+          "纰",
+          "丝丝"
+        ]
+      }
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page",
+      "expect": {
+        "has_more": false,
+        "candidates": [
+          "緣",
+          "毕"
+        ]
+      }
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "quick-phrases",
+      "enabled": true
+    },
+    {
+      "op": "character",
+      "value": "x"
+    },
+    {
+      "op": "character",
+      "value": "x",
+      "expect": {
+        "candidates": [
+          "比",
+          "缘",
+          "丝",
+          "比价",
+          "纰",
+          "丝丝"
+        ]
+      }
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "command",
+      "value": "next-page",
+      "expect": {
+        "has_more": false,
+        "candidates": [
+          "緣",
+          "毕",
+          "示例大学"
+        ]
+      }
+    },
+    {
+      "op": "select",
+      "index": 2,
+      "expect": {
+        "commit": "示例大学"
+      }
+    }
+  ]
+}

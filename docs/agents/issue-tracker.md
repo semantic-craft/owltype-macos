@@ -86,3 +86,9 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
 - **Frontier query**: list the map's open children, drop tickets with an open blocker or assignee, and take the first remaining ticket in map order.
 - **Claim**: `gh issue edit <n> --add-assignee @me` — the session's first write.
 - **Resolve**: comment with the answer, close the child ticket, then append a context pointer to the map's Decisions-so-far.
+
+## Input alignment work
+
+Pinyin #280 and Wubi #294 share the [coordination entry](../input-alignment.md) and
+[generated progress](../../progress/index.html). Check native blockers and current ownership
+before claiming; use the existing TeslaHub atomic claim workflow, not independent agent ledgers.

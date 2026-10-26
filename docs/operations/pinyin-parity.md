@@ -31,12 +31,12 @@ The Owl test starts with empty isolated preferences and sets only the same page
 size (upstream default 6) and full-pinyin schema. It records persisted preferences
 and effective rerank configuration. Rust options remain source-bound by a fresh
 build. Ordinary pinyin uses pinned 0.55.0 engine/runtime and official resources;
-Wubi retains its existing composition policy. Native macOS exposes quick-phrase
+Wubi uses the pinned native sentence-alternative, distinct-code-row and phrase-preedit selection semantics. Native macOS exposes quick-phrase
 capability, but the pinned fresh-install `preferences.mixed_input.quick_phrase`
-default is false. These are separate controls: pinyin defaults OFF, explicit ON
-uses the complete upstream insertion/ranking path, and K browsing stays available.
-The Owl setting “拼音候选中显示快捷短语” controls this preference; Wubi retains #307's
-post-mixing placement. Owl AI/template invocation is a separate host feature.
+default is false. These are separate controls: ordinary Pinyin and Wubi candidates
+default OFF; explicit ON uses the pinned pre-mixing insertion/counting path for both.
+The shared Owl setting “普通候选中显示快捷短语” retains the original persisted key,
+and K browsing stays available. Owl AI/template invocation is a separate host feature.
 Model switches default off on both.
 
 ## Run
@@ -221,6 +221,50 @@ remaining input and complete candidates after deletion. Empty compositions keep
 these chords available to the host. This is a shared runtime action, so the
 adapter does not infer syllable boundaries in Swift.
 
+## Mixed Wubi replay
+
+Use `--trace tests/fixtures/wubi-parity/wubi86-mixed.json` to replay native Wubi
+exact/prefix results against Pinyin exact/completion fallback, ordinary z spelling,
+long input, and partial selection followed by remaining Pinyin. The 43 events
+retain the same strict fields as the Pinyin comparator. The native host holds a
+fifth-code selected word in the composition prefix while receiving the next code;
+it does not immediately commit that word to the client. Distinct Wubi code rows
+may display the same word and must retain their visible selection positions.
+
+Wubi learning replay uses `--trace tests/fixtures/wubi-parity/learning.json`.
+It selects and promotes a native row, deletes it, creates a new phrase through
+mixed Pinyin, finds that phrase by its derived Wubi code and deletes it. Restarts
+run in separate processes against the same isolated state roots. Schema events
+can explicitly project `wubi_profile` and `wubi_mixed_pinyin`, matching the Swift
+schema switch rather than retaining the initial reference options. Absent Wubi
+learning preferences follow the native enabled default; an explicit stored false
+continues to disable learning. No user dictionary reset or migration is involved. After a journal exists, native
+fixed-position processing keeps Wubi producer rows ahead of Pinyin rows, even
+when the decoder initially preferred exact Pinyin over Wubi prefix completions.
+
+Fresh Wubi settings use the pinned native defaults: six candidates per page,
+code hints, unique-four-code commit, fifth-code topping and learning enabled;
+z wildcard disabled. The Settings dropdown selects either full 86 or 98 tables,
+with a Pinyin mixed variant for each. Stored explicit settings remain effective.
+Native paired punctuation is enabled for Wubi as for Pinyin: the engine commits
+the opening mark, and the controller holds the closing mark as a marked tail.
+An explicit stored pairing opt-out remains off.
+
+Application chords finish the highlighted conversion before passing the key to
+the application. IMK composition end uses the distinct native focus-loss action,
+which performs selection and learning; bare mode prefixes and plugin rows retain
+the runtime's raw-text rules. Non-Rust sessions retain the preview/raw fallback.
+The controller clears its snapshot registry on either path.
+
+Production native resource generations use the split86/98 SQLite descriptor,
+separate from the retained legacy merged/custom descriptor. Under the fixed
+native configuration marker, the official Wubi file digest is pinned alongside
+model digests; regenerate the binary configuration identity when changing that
+resource combination. `testProductionUpdatePreparesTheCompletePinnedCombination`
+uses the real production backend with an explicit offline seed. The existing
+`testGenerationSwitchRollbackColdStartAndJournalReplayKeepUserState` checks both
+profile-specific code candidates and learning across the shared update, recovery
+and rollback transactions; no additional downloader or failure matrix is used.
 ## Native quick phrases and batched replay
 
 `native-quick-phrases.json` covers all seven official codes (eight rows) with
@@ -236,3 +280,8 @@ phases retain only their own root. Batch comparison receipts are written under
 `--output/<trace-stem>/` only after the shared build's cleanup succeeds. A semantic
 difference does not skip later corpora; a build/replay/cleanup failure remains
 incomplete evidence. Source identity must remain unchanged throughout the batch.
+
+Pure-Wubi z lookup removes one leading marker and queries only the remaining
+Pinyin spelling: `zi` queries `i`, while `zzhongguo` queries `zhongguo`.
+Lookup rows retain Wubi code annotations; choosing them does not adjust Pinyin
+frequency or learn a sentence. This uses the pinned runtime's existing rules.

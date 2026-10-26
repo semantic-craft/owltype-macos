@@ -30,7 +30,7 @@
 //    关闭时不产出 patch，由 Owltype 前端维持「提交当前候选、切英文、输出 ASCII slash」。
 //  - 全半角 / 中英标点 → `toggle: full_shape|ascii_punct` bindings (Squirrel/Weasel
 //    shifted-key names double-written; the generator DEDUPS) + `switcher/save_options/+`.
-//  - 默认方案顺序 → live `schema_list` (chosen 双拼 first) + `menu/page_size: 8`.
+//  - 默认方案顺序 → live `schema_list` (chosen 双拼 first) + `menu/page_size: 6`.
 //  The `key_binder/bindings/+` list is assembled as a DE-DUPLICATED array before
 //  serializing, so the double-written shifted keys never repeat.
 //
@@ -183,15 +183,16 @@ func owlDefaultCustomYAML(from s: OwlKeyboardSnapshot) -> String {
     lines.append("    - { schema: wubi86_jidian_trad_pinyin } # 五笔拼音混输·简入繁出")
     lines.append("  \"menu/page_size\": \(s.pageSize)")
   } else if s.inputMethod == .wubi {
-    // 五笔输入：所选子方案（86 / 拼音混输）置顶，另一个紧随；trad 两个仍在表里（由全局简入繁出/手动切换可达）。
-    let primary = s.wubiScheme == .pinyinMix ? "wubi86_jidian_pinyin" : "wubi86_jidian"
-    let secondary = s.wubiScheme == .pinyinMix ? "wubi86_jidian" : "wubi86_jidian_pinyin"
+    let primary = s.wubiScheme.schemaId
     lines.append("  # 默认方案顺序：\(s.wubiScheme.displayName) 置顶（首项=新会话默认方案）")
     lines.append("  schema_list:")
     lines.append("    - { schema: \(primary) }")
-    lines.append("    - { schema: \(secondary) }")
-    lines.append("    - { schema: wubi86_jidian_trad }   # 五笔简入繁出")
-    lines.append("    - { schema: wubi86_jidian_trad_pinyin } # 五笔拼音混输·简入繁出")
+    for scheme in OwlWubiScheme.allCases where scheme.schemaId != primary {
+      lines.append("    - { schema: \(scheme.schemaId) }")
+    }
+    for schema in ["wubi86_jidian_trad", "wubi86_jidian_trad_pinyin", "wubi98_trad", "wubi98_trad_pinyin"] {
+      lines.append("    - { schema: \(schema) }")
+    }
     lines.append("    - { schema: rime_ice }             # 雾凇全拼")
     lines.append("    - { schema: pinyin_simp }          # 简体拼音")
     lines.append("  \"menu/page_size\": \(s.pageSize)")

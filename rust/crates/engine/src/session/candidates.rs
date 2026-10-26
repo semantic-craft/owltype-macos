@@ -93,7 +93,7 @@ impl InputSession {
         }
     }
 
-    /// Native pinyin inserts before mixing; #307 Wubi reserves visible seats after mixing.
+    /// The pinned native session inserts ordinary quick phrases before candidate mixing.
     fn insert_ordinary_quick_phrases(&self, candidates: &mut Vec<WordItem>) {
         // Keep host-table enhancement rows out of this upstream dictionary path.
         if !self.prefix_active
@@ -112,8 +112,7 @@ impl InputSession {
                     crate::user_dictionary::ranking::quick_phrase_slot(self.journal_path(), &code)
                 })
                 .flatten();
-            self.queries.insert_quick_phrase_candidates_with_policy(
-                self.is_wubi(),
+            self.queries.insert_quick_phrase_candidates(
                 &code,
                 candidates,
                 slot,
@@ -137,9 +136,7 @@ impl InputSession {
             clone_candidate_rows(&self.prefix_candidates, &mut decoded);
         } else {
             clone_candidate_rows(self.engine.candidates(), &mut decoded);
-            if !self.is_wubi() {
-                self.insert_ordinary_quick_phrases(&mut decoded);
-            }
+            self.insert_ordinary_quick_phrases(&mut decoded);
         }
         self.personal_reranked = false;
         // 日文整段转换只算一次：个人上下文重排生效时下面要混排两张表。
@@ -331,7 +328,6 @@ impl InputSession {
         let engine = &self.engine;
         if regular && self.is_wubi() {
             // Each producer's rows are fixed within their own group and under their own context, and the groups keep the wubi-first order.
-            let wubi_first = items.first().is_some_and(Self::is_wubi_native_candidate);
             let mut pinyin_items = split_wubi_candidates(items);
             if !items.is_empty() {
                 let context = self.position_context(false, true);
@@ -361,12 +357,7 @@ impl InputSession {
                     journal_exists,
                 );
             }
-            if wubi_first {
-                items.append(&mut pinyin_items);
-            } else {
-                pinyin_items.append(items);
-                *items = pinyin_items;
-            }
+            items.append(&mut pinyin_items);
         } else if regular {
             let context = self.position_context(false, false);
             let scheme = self.scheme();
@@ -776,10 +767,6 @@ impl InputSession {
         }
         // 放在最后：网址补全不参与固定位置，也不被挪开。
         self.insert_url_scheme_completions(&mut mixed);
-        // Keep #307's post-mixing Wubi placement; pinyin follows pinned native 0.55.
-        if self.is_wubi() {
-            self.insert_ordinary_quick_phrases(&mut mixed);
-        }
         // 联系人优先级高于固定位置和云候选；两行相邻，不能让云占位插进姓名与组合文本之间。
         // 光标前缀只解码局部，联系人选择却会结束整段组字，因此只在完整普通拼音组字中加入。
         if !self.prefix_active

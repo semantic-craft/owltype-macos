@@ -49,16 +49,19 @@ enum OwlInputMethod: String, CaseIterable, Sendable {
 }
 
 /// 五笔方案 sub-selection shown in the 输入方式 dropdown when 五笔输入 is active — mirrors the
-/// 双拼 dropdown pattern. Only the two non-繁 wubi schemas are exposed here; the 简入繁出
-/// variants (`wubi86_jidian_trad*`) stay reachable via the global 简入繁出 toggle.
+/// 双拼 dropdown pattern. 简入繁出 remains available through the global toggle.
 enum OwlWubiScheme: String, CaseIterable, Sendable {
   case jidian86
   case pinyinMix
+  case jidian98
+  case pinyinMix98
 
   var displayName: String {
     switch self {
     case .jidian86: return "86 版五笔"
-    case .pinyinMix: return "五笔拼音混输"
+    case .pinyinMix: return "86 版五笔拼音混输"
+    case .jidian98: return "98 版五笔"
+    case .pinyinMix98: return "98 版五笔拼音混输"
     }
   }
 
@@ -66,6 +69,8 @@ enum OwlWubiScheme: String, CaseIterable, Sendable {
     switch self {
     case .jidian86: return "wubi86_jidian"
     case .pinyinMix: return "wubi86_jidian_pinyin"
+    case .jidian98: return "wubi98"
+    case .pinyinMix98: return "wubi98_pinyin"
     }
   }
 }
@@ -189,13 +194,13 @@ enum OwlKeyboardPreferences {
     }
   }
 
-  /// 候选个数 — Rime `menu/page_size` (G8). Key `"OwlKeyboardPageSize"`, default 8
-  /// (the Owltype baseline). Clamped to 3…9 so the candidate window stays usable; flows
+  /// 候选个数 — Rime `menu/page_size` (G8). Key `"OwlKeyboardPageSize"`, default 6
+  /// (the pinned native baseline). Clamped to 3…9 so the candidate window stays usable; flows
   /// through the keyboard patch (`owlDefaultCustomYAML`) + 应用配置改动, not the live panel.
   static var pageSize: Int {
     get {
       let stored = OwlDefaults.standard.integer(forKey: "OwlKeyboardPageSize")
-      return stored == 0 ? 8 : min(max(stored, 3), 9)
+      return stored == 0 ? 6 : min(max(stored, 3), 9)
     }
     set {
       OwlDefaults.standard.set(min(max(newValue, 3), 9), forKey: "OwlKeyboardPageSize")
@@ -221,12 +226,28 @@ enum OwlKeyboardPreferences {
 
   // MARK: - 五笔
 
-  /// 候选编码提示. Key `"OwlKeyboardWubiCodeHint"`, default `false`.
-  /// Rime mapping: `translator/comment_format`（只管五笔那一路）。z 临时拼音反查的五笔编码
-  /// 注释是练习用的，恒开，不受本开关影响——见 `owlWubiCustomYAML`。
+  /// 五笔完整四码只有一个候选时自动提交；与水杉默认值一致。
+  static var wubiAutoCommitUnique: Bool {
+    get { boolValue("OwlKeyboardWubiAutoCommitUnique", default: true) }
+    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiAutoCommitUnique") }
+  }
+
+  /// 完整四码后的字母顶字上屏。关闭只影响五笔拼音混输，纯五笔仍顶字保留第五码。
+  static var wubiFifthCodeTopCommit: Bool {
+    get { boolValue("OwlKeyboardWubiFifthCodeTopCommit", default: true) }
+    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiFifthCodeTopCommit") }
+  }
+
+  /// 优先显示候选尚未输入的五笔编码；无剩余码时沿用引擎完整编码注释。
   static var wubiCodeHint: Bool {
-    get { boolValue("OwlKeyboardWubiCodeHint", default: false) }
+    get { boolValue("OwlKeyboardWubiCodeHint", default: true) }
     set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiCodeHint") }
+  }
+
+  /// z 匹配未知码位；开启时由引擎暂停临时拼音反查，与水杉默认关闭一致。
+  static var wubiZWildcard: Bool {
+    get { boolValue("OwlKeyboardWubiZWildcard", default: false) }
+    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiZWildcard") }
   }
 
   /// 空码自动清码. Key `"OwlKeyboardWubiAutoClear"`, default `false`.
@@ -263,10 +284,10 @@ enum OwlKeyboardPreferences {
     set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiEnglishChannel") }
   }
 
-  /// 记住我常用的词（个性化）. Key `"OwlKeyboardWubiUserDictLearning"`, default `false`.
-  /// Rime mapping: `translator/enable_user_dict: true`（词频学习；userdb 由引擎自建自管，猫头鹰写入层不碰）.
+  /// 记住我常用的词（个性化）. Key `"OwlKeyboardWubiUserDictLearning"`, default `true` (native MSIME).
+  /// Rust learning and its shared journal own selection frequency, composed words and restart replay.
   static var wubiUserDictLearning: Bool {
-    get { boolValue("OwlKeyboardWubiUserDictLearning", default: false) }
+    get { boolValue("OwlKeyboardWubiUserDictLearning", default: true) }
     set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiUserDictLearning") }
   }
 
@@ -413,8 +434,9 @@ enum OwlKeyboardPreferences {
   /// 自动配对括号 (task 07-02). Key `"OwlKeyboardAutoPairBrackets"`, native pinyin default `true`
   /// Native pinyin keeps a marked closing tail; Wubi retains its original opt-in
   /// pair decision. The setting applies immediately without an engine deployment.
-  /// Native 0.55 fresh-install mixed_input.quick_phrase default; K browsing stays available.
-  static var pinyinQuickPhraseCandidates: Bool {
+  /// Shared native mixed_input.quick_phrase preference; retain the original persisted key.
+  /// Fresh installs default off for all schemes; K browsing stays available.
+  static var quickPhraseCandidates: Bool {
     get { boolValue("OwlKeyboardPinyinQuickPhraseCandidates", default: false) }
     set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardPinyinQuickPhraseCandidates") }
   }
@@ -435,7 +457,7 @@ enum OwlKeyboardPreferences {
   static var autoPairBrackets: Bool {
     get {
       if OwlDefaults.standard.object(forKey: "OwlKeyboardAutoPairBrackets") == nil {
-        return inputMethod != .wubi
+        return true
       }
       return cachedAutoPairBrackets
     }

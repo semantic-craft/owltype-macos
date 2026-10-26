@@ -1,0 +1,284 @@
+{
+  "description": "Native Wubi selection learning, deletion, derived personal phrase and separate-process recovery from equal empty states.",
+  "scheme": "wubi86",
+  "events": [
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g",
+      "expect": {
+        "candidates": [
+          "王",
+          "五一",
+          "琵琶",
+          "",
+          "龶",
+          "一一"
+        ]
+      }
+    },
+    {
+      "op": "select",
+      "index": 1,
+      "expect": {
+        "commit": "五一"
+      }
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g",
+      "expect": {
+        "candidates": [
+          "五一",
+          "王",
+          "琵琶",
+          "",
+          "龶",
+          "一一"
+        ]
+      }
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "restart"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g",
+      "expect": {
+        "candidates": [
+          "五一",
+          "王",
+          "琵琶",
+          "",
+          "龶",
+          "一一"
+        ]
+      }
+    },
+    {
+      "op": "remove",
+      "index": 0
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "restart"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g",
+      "expect": {
+        "candidates": [
+          "王",
+          "琵琶",
+          "",
+          "龶",
+          "一一",
+          "一环"
+        ]
+      }
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "w"
+    },
+    {
+      "op": "character",
+      "value": "q"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "x",
+      "expect": {
+        "commit": "伯尔尼"
+      }
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "schema",
+      "schema": "wubi86_jidian_pinyin",
+      "reference_scheme": "wubi",
+      "wubi_profile": "wubi86",
+      "wubi_mixed_pinyin": true
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "i"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "i"
+    },
+    {
+      "op": "select",
+      "index": 4,
+      "expect": {
+        "commit": "你尼"
+      }
+    },
+    {
+      "op": "schema",
+      "schema": "wubi86_jidian",
+      "reference_scheme": "wubi",
+      "wubi_profile": "wubi86",
+      "wubi_mixed_pinyin": false
+    },
+    {
+      "op": "character",
+      "value": "w"
+    },
+    {
+      "op": "character",
+      "value": "q"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "x",
+      "expect": {
+        "candidates": [
+          "伯尔尼",
+          "你尼"
+        ]
+      }
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "restart"
+    },
+    {
+      "op": "character",
+      "value": "w"
+    },
+    {
+      "op": "character",
+      "value": "q"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "x",
+      "expect": {
+        "candidates": [
+          "伯尔尼",
+          "你尼"
+        ]
+      }
+    },
+    {
+      "op": "remove",
+      "index": 1
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "restart"
+    },
+    {
+      "op": "character",
+      "value": "w"
+    },
+    {
+      "op": "character",
+      "value": "q"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "x",
+      "expect": {
+        "commit": "伯尔尼"
+      }
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    }
+  ]
+}

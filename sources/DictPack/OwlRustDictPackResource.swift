@@ -68,7 +68,7 @@ struct OwlRustResourceEnvironment: Sendable {
       at: configuration.userRoot, withIntermediateDirectories: true
     )
     return try OwlRustResourceStore(
-      configuration: configuration, engine: .owlRustResourceV1
+      configuration: configuration, engine: .owlRustNativeInputV1
     )
   }
 
@@ -375,12 +375,15 @@ struct OwlRustDictPackResourceInstaller {
 /// An update is the same immutable compatibility set shipped by this binary.
 /// Never rebuild ordinary Pinyin from the legacy YAML download after activation.
 enum OwlRustCompatibleResources {
-  static let packageVersion = 2
-  static let configurationVersion = "msime-macos-v0.55.0-native-pinyin-v1"
+  static let packageVersion = 3
+  static let configurationVersion = "msime-macos-v0.55.0-native-input-v1"
+  // data/msime-dictionary-manifest.json, dict-v2.0.24: both official 86/98 tables.
+  // Like the model hashes, this identity belongs to the fixed binary configuration.
+  static let wubiDictionaryDigest = "sha256:851ed68211311a76847fe6a26096702747abbaab8dffb141698e0365143b31c1"
   static let requiredFiles = [
-    "msime-pinyin.db", "msime-english.db", "msime-others.db",
+    "msime-pinyin.db", "msime-wubi.db", "msime-english.db", "msime-others.db",
     "msime-bigram.bin", "msime-trigram.bin", "msime-dictionary-manifest.json",
-    "OWLTYPE-UPSTREAM-RESOURCES.json", "msime-wubi86-source.json",
+    "OWLTYPE-UPSTREAM-RESOURCES.json",
     "msime-scowl_Copyright.txt", "models/keyboard-model.bin", "models/settled-model.bin",
     "models/LICENSE-Apache-2.0.txt", "models/NOTICE.txt"
   ]
@@ -398,7 +401,8 @@ enum OwlRustCompatibleResources {
       "licenses/rime-wanxiang-CC-BY-4.0.txt", "licenses/msime-latex-symbols-MIT.txt",
       "licenses/CC-BY-3.0.txt", "licenses/chinese-ime-lm.LICENSE", "licenses/Unicode-3.0.txt",
       "licenses/MIT.txt", "licenses/GPL-3.0-only.txt", "licenses/CC-BY-SA-4.0.txt",
-      "licenses/BSD-3-Clause.txt", "licenses/Apache-2.0.txt"]
+      "licenses/BSD-3-Clause.txt", "licenses/Apache-2.0.txt",
+      "licenses/Unlicense.txt", "licenses/Administrative-divisions-of-China-WTFPL.txt"]
     for name in requiredFiles + notices {
       let source = try OwlRustResourceVerifier.safeFileURL(
         relativePath: name, under: notices.contains(name) ? sharedSupport : resources)
@@ -408,6 +412,7 @@ enum OwlRustCompatibleResources {
       let role: OwlRustResourceFileRole
       switch name {
       case "msime-pinyin.db": role = .mainDictionary
+      case "msime-wubi.db": role = .wubiDictionary
       case "msime-english.db": role = .englishDictionary
       case "msime-bigram.bin": role = .bigram
       case "msime-trigram.bin": role = .trigram
@@ -424,8 +429,12 @@ enum OwlRustCompatibleResources {
       license: [
         OwlRustResourceLicense(identifier: "GPL-3.0-only", attribution: "Pinned MSIME dictionary sources and resource notices",
           files: notices.map { "files/" + $0 }),
-        OwlRustResourceLicense(identifier: "Apache-2.0", attribution: "Pinned chinese-ime-lm models and Owl Wubi source",
+        OwlRustResourceLicense(identifier: "Apache-2.0", attribution: "Pinned chinese-ime-lm models and official Jidian Wubi base",
           files: ["files/licenses/chinese-ime-lm.LICENSE", "files/wubi86-jidian.LICENSE"]),
+        OwlRustResourceLicense(identifier: "Unlicense", attribution: "Pinned 98wubi-tables original data",
+          files: ["files/licenses/Unlicense.txt"]),
+        OwlRustResourceLicense(identifier: "WTFPL", attribution: "Pinned administrative-division names in phrase supplements",
+          files: ["files/licenses/Administrative-divisions-of-China-WTFPL.txt"]),
         OwlRustResourceLicense(identifier: "MIT", attribution: "Pinned static symbol tables and kaomoji sources",
           files: ["files/licenses/msime-latex-symbols-MIT.txt", "files/rime-kaomoji.LICENSE"])
       ],
@@ -440,7 +449,7 @@ enum OwlRustCompatibleResources {
     try validate(at: root, manifest: manifest, requireCompleteMarker: false)
     // Counts describe this copied payload, rather than the retired YAML builder.
     let stats = OwlRustResourceBuildStats(pinyinEntries: try rowCount(files.appendingPathComponent("msime-pinyin.db"), prefix: "tbl_"),
-      wubiEntries: try rowCount(files.appendingPathComponent("msime-pinyin.db"), prefix: "wubi86"),
+      wubiEntries: try rowCount(files.appendingPathComponent("msime-wubi.db"), prefix: "wubi86"),
       englishEntries: try rowCount(files.appendingPathComponent("msime-english.db"), prefix: "english_words"),
       rejectedPinyinEntries: 0, rejectedWubiEntries: 0, rejectedEnglishEntries: 0)
     return OwlRustResourcePackageBuild(root: root, manifest: manifest, stats: stats)
@@ -452,11 +461,15 @@ enum OwlRustCompatibleResources {
       throw OwlRustResourceError.fileMissing("files/" + name)
     }
     try OwlRustResourceVerifier.verifyGeneration(at: root, manifest: manifest,
-      engine: .owlRustResourceV1, requireCompleteMarker: requireCompleteMarker)
+      engine: .owlRustNativeInputV1, requireCompleteMarker: requireCompleteMarker)
     let resources = root.appendingPathComponent("files")
     guard try String(contentsOf: resources.appendingPathComponent("compatibility.txt"), encoding: .utf8)
       == configurationVersion + "\n" else {
       throw OwlRustResourceError.incompatibleEngine("resource configuration version differs from this binary")
+    }
+    guard try OwlRustResourceVerifier.digestOfFile(resources.appendingPathComponent("msime-wubi.db"))
+      == wubiDictionaryDigest else {
+      throw OwlRustResourceError.incompatibleEngine("official Wubi tables differ from this binary")
     }
     for kind in OwlRerankModelKind.allCases {
       let descriptor = OwlRerankModelDescriptor.descriptor(for: kind)
