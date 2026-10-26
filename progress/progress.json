@@ -6,7 +6,7 @@
     "open_pulls": [
       {
         "number": 305,
-        "head": "d9dd2df56b519a6574be5fd2945eb1d37b7df056"
+        "head": "75de4297fc41625087c85be3a94fb62974d7e98c"
       },
       {
         "number": 306,
@@ -18,7 +18,7 @@
       },
       {
         "number": 309,
-        "head": "49f420b0ee180a528e5e25268923aeec60f578c0"
+        "head": "c84a0c0f50e7522ac1642e0de0ca45247c925012"
       },
       {
         "number": 310,
@@ -108,7 +108,7 @@
         "number": 293,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T06:40:56Z"
+        "updated_at": "2026-10-26T12:32:15Z"
       },
       {
         "number": 294,
@@ -174,7 +174,7 @@
         "number": 304,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T12:21:46Z"
+        "updated_at": "2026-10-26T12:39:27Z"
       }
     ],
     "releases": []
@@ -184,7 +184,7 @@
     "progress/sync.py",
     "progress/teslahub.mjs"
   ],
-  "observed_at": "2026-10-26T12:22:07Z",
+  "observed_at": "2026-10-26T12:39:51Z",
   "outputs": [
     "progress/index.html"
   ],
