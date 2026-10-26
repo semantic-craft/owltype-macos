@@ -43,7 +43,11 @@ final class OwlRustEngineTests: XCTestCase {
                                activeGenerationProvider: { nil })
     var session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
     defer { session.destroy() }
-    XCTAssertTrue(session.selectSchema("rime_ice"))
+    let schema = request["schema"] as? String ?? "rime_ice"
+    guard session.selectSchema(schema) else {
+      XCTFail("Requested parity schema is unsupported: \(schema)")
+      return
+    }
     let commands: [String: UInt32] = [
       "backspace": 0xff08, "commit": 0xff0d, "cancel": 0xff1b,
       "left": 0xff51, "right": 0xff53, "home": 0xff50, "end": 0xff57,
@@ -55,7 +59,7 @@ final class OwlRustEngineTests: XCTestCase {
       let consumed: Bool
       switch op {
       case "quick-phrases":
-        OwlKeyboardPreferences.pinyinQuickPhraseCandidates = event["enabled"] as? Bool ?? false
+        OwlKeyboardPreferences.quickPhraseCandidates = event["enabled"] as? Bool ?? false
         XCTAssertTrue(session.syncRuntimePreferences(includeHostPhrases: false))
         consumed = true
       case "schema":
@@ -87,7 +91,7 @@ final class OwlRustEngineTests: XCTestCase {
         session.destroy()
         XCTAssertTrue(engine.finalize(), "Restart must close cached learning handles")
         session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
-        XCTAssertTrue(session.selectSchema("rime_ice"))
+        XCTAssertTrue(session.selectSchema(schema))
         consumed = true
       default:
         XCTFail("Unsupported parity event: \(op)")
@@ -107,7 +111,16 @@ final class OwlRustEngineTests: XCTestCase {
       "run_id": try XCTUnwrap(request["run_id"] as? String),
       "steps": steps,
       "preferences": defaults.persistentDomain(forName: OwlDefaults.testSuiteName) ?? [:],
-      "configuration": ["schema": "rime_ice", "page_size": OwlKeyboardPreferences.pageSize,
+      "configuration": ["schema": schema, "page_size": OwlKeyboardPreferences.pageSize,
+                        "wubi_auto_commit_unique": OwlKeyboardPreferences.wubiAutoCommitUnique,
+                        "wubi_fifth_code_top_commit": OwlKeyboardPreferences.wubiFifthCodeTopCommit,
+                        "wubi_code_hint": OwlKeyboardPreferences.wubiCodeHint,
+                        "wubi_z_wildcard": OwlKeyboardPreferences.wubiZWildcard,
+                        "wubi_auto_clear": OwlKeyboardPreferences.wubiAutoClear,
+                        "wubi_candidate_mode": OwlKeyboardPreferences.wubiCandidateMode.rawValue,
+                        "wubi_z_reverse_lookup": OwlKeyboardPreferences.wubiZReverseLookup,
+                        "wubi_english_channel": OwlKeyboardPreferences.wubiEnglishChannel,
+                        "wubi_user_dict_learning": OwlKeyboardPreferences.wubiUserDictLearning,
                         "rerank": OwlRerankConfiguration.current(sharedSupportURL: resources).serialized() ?? ""]
     ]
     try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
@@ -203,6 +216,18 @@ final class OwlRustEngineTests: XCTestCase {
 
   private func asciiKeycode(_ character: Character) -> UInt32 {
     UInt32(character.asciiValue!)
+  }
+
+  private func pageToVisibleCandidate(_ text: String, in session: RimeSession) throws -> Int {
+    var page = try XCTUnwrap(session.composition())
+    while !page.candidates.contains(where: { $0.text == text }) && !page.isLastPage {
+      let previous = page.pageNo
+      XCTAssertTrue(session.process(keycode: UInt32(XK_Page_Down), modifiers: 0))
+      page = try XCTUnwrap(session.composition())
+      XCTAssertGreaterThan(page.pageNo, previous)
+      if page.pageNo <= previous { break }
+    }
+    return try XCTUnwrap(page.candidates.firstIndex { $0.text == text })
   }
 
   private func visibleAndPeekedCandidates(
@@ -554,10 +579,49 @@ final class OwlRustEngineTests: XCTestCase {
                                                                requireCompleteMarker: false))
   }
 
+  func testPinnedWubiIdentityRejectsAValidDigestWithAnEmpty98Table() throws {
+    let seed = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+      .deletingLastPathComponent().appendingPathComponent("data/owl-rime")
+    let temporary = FileManager.default.temporaryDirectory
+      .appendingPathComponent("owl-empty-wubi98-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: temporary) }
+    let built = try OwlRustCompatibleResources.build(sharedSupport: seed, at: temporary, version: 3)
+    let wubi = temporary.appendingPathComponent("files/msime-wubi.db")
+    var database: OpaquePointer?
+    XCTAssertEqual(sqlite3_open(wubi.path, &database), SQLITE_OK)
+    XCTAssertEqual(sqlite3_exec(database, "DELETE FROM wubi98", nil, nil, nil), SQLITE_OK)
+    sqlite3_close(database)
+    let files = try built.manifest.files.map { file -> OwlRustResourceFile in
+      guard file.path == "files/msime-wubi.db" else { return file }
+      let attributes = try FileManager.default.attributesOfItem(atPath: wubi.path)
+      return OwlRustResourceFile(path: file.path, role: file.role, mediaType: file.mediaType,
+        size: (attributes[.size] as? NSNumber)?.intValue ?? 0,
+        digest: try OwlRustResourceVerifier.digestOfFile(wubi))
+    }
+    let unsigned = OwlRustResourceManifest(schemaVersion: 1, packageId: built.manifest.packageId,
+      inputKind: .pinyinWubi, version: 3, digest: OwlRustResourceManifest.zeroDigest,
+      license: built.manifest.license, engineCompatibility: built.manifest.engineCompatibility, files: files)
+    let changed = OwlRustResourceManifest(schemaVersion: 1, packageId: unsigned.packageId,
+      inputKind: unsigned.inputKind, version: 3, digest: try unsigned.calculatedDigest(),
+      license: unsigned.license, engineCompatibility: unsigned.engineCompatibility, files: files)
+    try changed.canonicalData().write(to: temporary.appendingPathComponent("manifest.json"))
+    // Both tables still have valid schemas and every byte agrees with this new manifest.
+    XCTAssertNoThrow(try OwlRustResourceVerifier.verifyGeneration(at: temporary, manifest: changed,
+      engine: .owlRustNativeInputV1, requireCompleteMarker: false))
+    XCTAssertThrowsError(try OwlRustCompatibleResources.validate(at: temporary, manifest: changed,
+      requireCompleteMarker: false)) { error in
+      guard case OwlRustResourceError.incompatibleEngine = error else {
+        return XCTFail("unexpected error: \(error)")
+      }
+    }
+  }
+
   func testProductionUpdatePreparesTheCompletePinnedCombination() async throws {
     let user = URL(fileURLWithPath: "/private/tmp/owl-pinned-update-\(UUID().uuidString)")
     defer { removeResourceTestTree(user) }
-    let backend = OwlDictPackCenterRustBackend.production(userRoot: user)
+    let seed = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+      .deletingLastPathComponent().appendingPathComponent("data/owl-rime")
+    let backend = OwlDictPackCenterRustBackend.production(userRoot: user, sharedSupport: seed)
     let prepared = try await backend.prepare(backend.environment, nil)
     XCTAssertNil(try backend.environment.activeState(), "preparing must not activate")
     XCTAssertEqual(prepared.version, OwlRustCompatibleResources.packageVersion)
@@ -566,7 +630,7 @@ final class OwlRustEngineTests: XCTestCase {
       XCTAssertTrue(names.contains("files/" + name), "complete payload lacks \(name)")
     }
     XCTAssertGreaterThan(prepared.stats.pinyinEntries, 900_000)
-    XCTAssertGreaterThan(prepared.stats.wubiEntries, 80_000)
+    XCTAssertEqual(prepared.stats.wubiEntries, 126_078)
     XCTAssertGreaterThan(prepared.stats.englishEntries, 70_000)
     let preparedResources = try backend.environment.validatedGeneration(prepared.resource.record).resourcesURL
     let model = preparedResources.appendingPathComponent("models/keyboard-model.bin")
@@ -582,7 +646,7 @@ final class OwlRustEngineTests: XCTestCase {
     try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: model.path)
     let installed = try await backend.activate(backend.environment, prepared.resource)
     XCTAssertEqual(try backend.environment.activeGeneration()?.contentID, installed.state.current.generationId)
-    let engine = OwlRustEngine(sharedSupportURL: Bundle.main.sharedSupportURL, userDataURL: user)
+    let engine = OwlRustEngine(sharedSupportURL: seed, userDataURL: user)
     let session = engine.createSession()
     defer { session.destroy() }
     XCTAssertTrue(session.isValid)
@@ -858,6 +922,36 @@ final class OwlRustEngineTests: XCTestCase {
       try data.write(to: url)
     }
 
+    let defaults = OwlDefaults.standard
+    let learningKey = "OwlKeyboardWubiUserDictLearning"
+    let savedLearning = defaults.object(forKey: learningKey)
+    defaults.set(true, forKey: learningKey)
+    defer {
+      if let savedLearning { defaults.set(savedLearning, forKey: learningKey) }
+      else { defaults.removeObject(forKey: learningKey) }
+    }
+
+    func assertWubi(_ session: any RimeSession, learned86: Bool, learned98: Bool) {
+      for (schema, code, learned) in [("wubi86_jidian", "go", learned86), ("wubi98", "gu", learned98)] {
+        XCTAssertTrue(session.selectSchema(schema))
+        typeText(code, into: session)
+        XCTAssertEqual(session.composition()?.candidates.first?.text, "来")
+        session.clearComposition()
+        typeText("gggg", into: session)
+        XCTAssertEqual(session.composition()?.candidates.first?.text, learned ? "五一" : "王")
+        session.clearComposition()
+      }
+      XCTAssertTrue(session.selectSchema("rime_ice"))
+    }
+
+    func learnWubi(_ session: any RimeSession, schema: String) {
+      XCTAssertTrue(session.selectSchema(schema))
+      typeText("gggg", into: session)
+      XCTAssertTrue(session.selectCandidate(1))
+      XCTAssertEqual(session.takeCommit(), "五一")
+      XCTAssertTrue(session.selectSchema("rime_ice"))
+    }
+
     let environment = OwlRustResourceEnvironment.production(userRoot: userRoot)
     let store = try environment.makeStore()
     let packagesRoot = userRoot.deletingLastPathComponent()
@@ -910,11 +1004,13 @@ final class OwlRustEngineTests: XCTestCase {
     )
     let sessionA = engineA.createSession()
     XCTAssertTrue(sessionA.isValid)
+    assertWubi(sessionA, learned86: false, learned98: false)
+    learnWubi(sessionA, schema: "wubi86_jidian")
     XCTAssertTrue(sessionA.process(keycode: UInt32(XK_n), modifiers: 0))
 
     let packageB = try makePackage(version: 2)
     let faulting = try OwlRustResourceStore(configuration: environment.configuration,
-      engine: .owlRustResourceV1, faults: .fail(at: .beforeActiveRename))
+      engine: .owlRustNativeInputV1, faults: .fail(at: .beforeActiveRename))
     do {
       _ = try await faulting.install(OwlRustResourceDirectorySource(root: packageB))
       XCTFail("interrupted activation must fail")
@@ -940,6 +1036,8 @@ final class OwlRustEngineTests: XCTestCase {
     typeText("pingguo", into: sessionA)
     XCTAssertTrue(sessionA.peekCandidates(from: 0, count: 100).contains { $0.text == "🍎" || $0.text == "🍏" })
     XCTAssertFalse(sessionA.peekCandidates(from: 0, count: 100).contains { $0.text == "🦉🦉" })
+    sessionA.clearComposition()
+    assertWubi(sessionA, learned86: true, learned98: false)
     sessionA.destroy()
 
     let dictionaries = userRoot.appendingPathComponent(
@@ -959,6 +1057,9 @@ final class OwlRustEngineTests: XCTestCase {
     )
     let sessionB = engineB.createSession()
     XCTAssertTrue(sessionB.isValid)
+    assertWubi(sessionB, learned86: true, learned98: false)
+    learnWubi(sessionB, schema: "wubi98")
+    assertWubi(sessionB, learned86: true, learned98: true)
     XCTAssertTrue(FileManager.default.fileExists(
       atPath: dictionaries.appendingPathComponent(
         "\(installedB.state.current.generationId)/.ready"
@@ -1040,6 +1141,8 @@ final class OwlRustEngineTests: XCTestCase {
       recoveredSession.clearComposition()
       typeText("nigu", into: recoveredSession)
       XCTAssertEqual(recoveredSession.composition()?.candidates.first?.text, learned)
+      recoveredSession.clearComposition()
+      assertWubi(recoveredSession, learned86: true, learned98: true)
       recoveredSession.destroy()
       try originalSidecar.write(to: sidecar)
       try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: sidecar.path)
@@ -1064,6 +1167,8 @@ final class OwlRustEngineTests: XCTestCase {
     typeText("pingguo", into: sessionAReopened)
     XCTAssertTrue(sessionAReopened.peekCandidates(from: 0, count: 100).contains { $0.text == "🍎" || $0.text == "🍏" })
     XCTAssertFalse(sessionAReopened.peekCandidates(from: 0, count: 100).contains { $0.text == "🦉🦉" })
+    sessionAReopened.clearComposition()
+    assertWubi(sessionAReopened, learned86: true, learned98: true)
     sessionAReopened.destroy()
 
     for (relativePath, expected) in protectedFiles {
@@ -1691,6 +1796,239 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.takeCommit(), "你好，")
   }
 
+  func testWubi98ProfileSwitchUsesOfficialTableAndHints() throws {
+    let defaults = OwlDefaults.standard
+    let keys = ["OwlKeyboardWubiScheme", "OwlKeyboardInputMethod", "OwlKeyboardWubiCodeHint"]
+    let saved = keys.map { defaults.object(forKey: $0) }
+    defer {
+      for (key, value) in zip(keys, saved) {
+        if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
+      }
+    }
+    defaults.set(true, forKey: keys[2])
+    let engine = try makeSharedSupportSeedEngine()
+    XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
+    let session = engine.createSession()
+    defer { session.destroy() }
+    typeText("go", into: session)
+    XCTAssertEqual(session.composition()?.candidates.first?.text, "来")
+    XCTAssertEqual(session.composition()?.candidates.first?.comment, "goi")
+    session.clearComposition()
+    XCTAssertTrue(session.selectSchema("wubi98"))
+    typeText("gu", into: session)
+    XCTAssertEqual(session.composition()?.candidates.first?.text, "来")
+    XCTAssertEqual(session.composition()?.candidates.first?.comment, "gusi")
+    XCTAssertTrue(session.selectCandidate(0))
+    XCTAssertEqual(session.takeCommit(), "来")
+    typeText("sbbv", into: session)
+    XCTAssertEqual(session.takeCommit(), "极限")
+    session.clearComposition()
+    XCTAssertTrue(session.selectSchema("wubi98_pinyin"))
+    typeText("zhongguo", into: session)
+    XCTAssertTrue(try XCTUnwrap(session.composition()).candidates.contains { $0.text == "中国" })
+    session.clearComposition()
+    XCTAssertTrue(session.selectSchema("wubi98_trad"))
+    typeText("gu", into: session)
+    XCTAssertEqual(session.composition()?.candidates.first?.text, "來")
+    XCTAssertTrue(session.selectCandidate(0))
+    XCTAssertEqual(session.takeCommit(), "來")
+    XCTAssertTrue(session.selectSchema("wubi98_trad_pinyin"))
+    typeText("zhongguo", into: session)
+    XCTAssertTrue(try XCTUnwrap(session.composition()).candidates.contains { $0.text == "中國" })
+    session.clearComposition()
+    XCTAssertTrue(session.selectSchema("wubi86_jidian"))
+    typeText("go", into: session)
+    XCTAssertEqual(session.composition()?.candidates.first?.text, "来")
+    XCTAssertEqual(session.composition()?.candidates.first?.comment, "goi")
+    session.clearComposition()
+    typeText("sebv", into: session)
+    XCTAssertEqual(session.takeCommit(), "极限")
+    let choice = try XCTUnwrap(OwlWubiScheme(rawValue: "jidian98"))
+    let state = OwlSettingsState()
+    state.keyboardInputMethod = .wubi
+    OwlKeyboardPreferences.inputMethod = .wubi
+    OwlSettingsActions.selectWubiScheme(choice, state: state) { schema in
+      XCTAssertTrue(session.selectSchema(schema))
+    }
+    XCTAssertEqual(state.keyboardWubiScheme, choice)
+    XCTAssertEqual(OwlKeyboardPreferences.preferredSchemaID, "wubi98")
+    XCTAssertEqual(choice.schemaId, "wubi98")
+    XCTAssertEqual(OwlWubiScheme(rawValue: "pinyinMix")?.schemaId, "wubi86_jidian_pinyin")
+    XCTAssertTrue(engine.selectSchema(choice.schemaId))
+    let restored = engine.createSession()
+    defer { restored.destroy() }
+    typeText("gu", into: restored)
+    XCTAssertEqual(restored.composition()?.candidates.first?.text, "来")
+    XCTAssertEqual(restored.composition()?.candidates.first?.comment, "gusi")
+  }
+
+  func testWubiNativeCodeHintsWildcardAndLookupUseCurrentSettings() throws {
+    let defaults = OwlDefaults.standard
+    let keys = ["OwlKeyboardWubiCodeHint", "OwlKeyboardWubiZWildcard", "OwlKeyboardWubiZReverseLookup"]
+    let saved = keys.map { defaults.object(forKey: $0) }
+    defer {
+      for (key, value) in zip(keys, saved) {
+        if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
+      }
+    }
+    keys.forEach { defaults.removeObject(forKey: $0) }
+    XCTAssertTrue(OwlKeyboardPreferences.wubiCodeHint, "Pinned native Wubi code hints default on")
+    let engine = try makeSharedSupportSeedEngine()
+    XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
+    let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
+    defer { session.destroy() }
+    defaults.set(true, forKey: keys[0])
+    typeText("i", into: session)
+    let initial = try XCTUnwrap(session.composition())
+    let zibo = try XCTUnwrap(initial.candidates.firstIndex { $0.text == "淄博" })
+    // Literal native oracle: code=ivfg, typed=i => suffix vfg. Short-code 不 falls back to gii.
+    XCTAssertEqual(initial.candidates[zibo].comment, "vfg")
+    XCTAssertEqual(initial.candidates.first?.comment, "gii")
+    let peek = session.peekCandidates(from: zibo, count: 1)
+    XCTAssertEqual(peek.first?.text, "淄博")
+    XCTAssertEqual(peek.first?.comment, "vfg")
+    defaults.set(false, forKey: keys[0])
+    session.clearComposition()
+    typeText("i", into: session)
+    XCTAssertEqual(session.composition()?.candidates[zibo].comment, "ivfg")
+    XCTAssertTrue(session.selectCandidate(zibo))
+    XCTAssertEqual(session.takeCommit(), "淄博")
+
+    // Hint-off native rendering retains the reverse-lookup annotation.
+    typeText("znihao", into: session)
+    let lookup = try XCTUnwrap(session.composition())
+    let hello = try XCTUnwrap(lookup.candidates.firstIndex { $0.text == "你好" })
+    XCTAssertEqual(lookup.candidates[hello].comment, "wqvb")
+    session.clearComposition()
+    defaults.set(true, forKey: keys[1])
+    typeText("iz", into: session)
+    XCTAssertEqual(session.input(), "iz")
+    XCTAssertFalse(try XCTUnwrap(session.composition()).candidates.isEmpty)
+    session.clearComposition()
+    typeText("z", into: session)
+    XCTAssertEqual(session.input(), "z")
+    XCTAssertFalse(try XCTUnwrap(session.composition()).candidates.isEmpty,
+                   "Leading z is wildcard, not a bare Pinyin lookup prefix")
+    session.clearComposition()
+    defaults.set(false, forKey: keys[1])
+    defaults.set(false, forKey: keys[2])
+    XCTAssertTrue(session.selectSchema("wubi86_jidian_pinyin"))
+    typeText("zhongguo", into: session)
+    XCTAssertTrue(try XCTUnwrap(session.composition()).candidates.contains { $0.text == "中国" },
+                  "Mixed input uses z as a spelling letter even when temporary lookup is disabled")
+  }
+
+  func testWubiFactoryPageUsesNativeSixCandidates() throws {
+    let defaults = OwlDefaults.standard
+    let key = "OwlKeyboardPageSize"
+    let saved = defaults.object(forKey: key)
+    defer {
+      if let saved { defaults.set(saved, forKey: key) } else { defaults.removeObject(forKey: key) }
+    }
+    defaults.removeObject(forKey: key)
+    let engine = try makeSharedSupportSeedEngine()
+    XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
+    let session = engine.createSession()
+    defer { session.destroy() }
+    typeText("i", into: session)
+    let page = try XCTUnwrap(session.composition())
+    // Pinned 0.55 native defaults and official dict-v2.0.24, no forced page-size preference.
+    XCTAssertEqual(page.pageSize, 6)
+    XCTAssertEqual(page.candidates.map(\.text), ["不", "水", "淄博", "湛江", "江门", "兴安"])
+  }
+
+  func testWubiLearningDefaultsToNativeAndPreservesExplicitOptOut() throws {
+    let defaults = OwlDefaults.standard
+    let key = "OwlKeyboardWubiUserDictLearning"
+    let saved = defaults.object(forKey: key)
+    defer {
+      if let saved { defaults.set(saved, forKey: key) } else { defaults.removeObject(forKey: key) }
+    }
+    for learning in [true, false] {
+      if learning { defaults.removeObject(forKey: key) } else { defaults.set(false, forKey: key) }
+      let engine = try makeSharedSupportSeedEngine()
+      XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
+      var session = engine.createSession()
+      typeText("gggg", into: session)
+      XCTAssertEqual(Array(try XCTUnwrap(session.composition()).candidates.prefix(2).map(\.text)), ["王", "五一"])
+      XCTAssertTrue(session.selectCandidate(1))
+      XCTAssertEqual(session.takeCommit(), "五一")
+      session.destroy()
+      XCTAssertTrue(engine.finalize())
+      session = engine.createSession()
+      typeText("gggg", into: session)
+      // Independently pinned Host API: a single selection promotes 五一 only with learning on.
+      XCTAssertEqual(session.composition()?.candidates.first?.text, learning ? "五一" : "王")
+      session.destroy()
+      XCTAssertTrue(engine.finalize())
+      XCTAssertEqual(OwlKeyboardPreferences.wubiUserDictLearning, learning)
+    }
+  }
+
+  func testWubiCommitPreferencesApplyToCurrentSession() throws {
+    let defaults = OwlDefaults.standard
+    let keys = ["OwlKeyboardWubiAutoCommitUnique", "OwlKeyboardWubiFifthCodeTopCommit"]
+    let saved = keys.map { defaults.object(forKey: $0) }
+    defer {
+      for (key, value) in zip(keys, saved) {
+        if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
+      }
+    }
+    keys.forEach { defaults.removeObject(forKey: $0) }
+    let engine = try makeSharedSupportSeedEngine()
+    XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
+    let session = engine.createSession()
+    defer { session.destroy() }
+
+    // The fixed official table has one exact sebv row: 极限. The upstream default commits it.
+    typeText("sebv", into: session)
+    XCTAssertEqual(session.takeCommit(), "极限")
+    typeText("seb", into: session)
+    defaults.set(false, forKey: keys[0])
+    typeText("v", into: session)
+    XCTAssertNil(session.takeCommit())
+    XCTAssertEqual(session.input(), "sebv", "A changed setting must affect the next key without clearing composition")
+    XCTAssertEqual(session.composition()?.candidates.first?.text, "极限")
+    XCTAssertTrue(session.selectCandidate(0))
+    XCTAssertEqual(session.takeCommit(), "极限")
+    defaults.set(true, forKey: keys[0])
+    typeText("sebv", into: session)
+    XCTAssertEqual(session.takeCommit(), "极限")
+
+    XCTAssertTrue(session.selectSchema("wubi86_jidian_pinyin"))
+    typeText("gggg", into: session)
+    XCTAssertNil(session.takeCommit())
+    defaults.set(false, forKey: keys[1])
+    // Real pinned Host API refuses this invalid Pinyin continuation instead of topping 王.
+    XCTAssertFalse(session.process(keycode: asciiKeycode("x"), modifiers: 0))
+    XCTAssertNil(session.takeCommit())
+    XCTAssertEqual(session.input(), "gggg")
+    session.clearComposition()
+    defaults.set(true, forKey: keys[1])
+    typeText("gggg", into: session)
+    let mixedFirst = try XCTUnwrap(session.composition()?.candidates.first?.text)
+    typeText("x", into: session)
+    XCTAssertNil(session.takeCommit())
+    XCTAssertEqual(session.input(), "x")
+    XCTAssertEqual(session.composition()?.preedit, mixedFirst + "x")
+    session.clearComposition()
+
+    // Upstream still tops in pure Wubi: the fifth letter cannot fit the four-code buffer.
+    defaults.set(false, forKey: keys[1])
+    XCTAssertTrue(session.selectSchema("wubi86_jidian"))
+    typeText("gggg", into: session)
+    let pureFirst = try XCTUnwrap(session.composition()?.candidates.first?.text)
+    typeText("x", into: session)
+    XCTAssertNil(session.takeCommit())
+    XCTAssertEqual(session.input(), "x")
+    XCTAssertEqual(session.composition()?.preedit, pureFirst + "x")
+    session.clearComposition()
+    typeText("aaab", into: session)
+    XCTAssertFalse(session.process(keycode: asciiKeycode("x"), modifiers: 0))
+    XCTAssertNil(session.takeCommit())
+    XCTAssertEqual(session.input(), "aaab")
+  }
+
   func testWubi86PureAndMixedSchemasZLookupAndPreferences() throws {
     let origCodeHint = OwlKeyboardPreferences.wubiCodeHint
     let origAutoClear = OwlKeyboardPreferences.wubiAutoClear
@@ -1790,7 +2128,7 @@ final class OwlRustEngineTests: XCTestCase {
     session.clearComposition()
   }
 
-  func testMixedWubiExactPinyinCompletionsDedupAndSelectionIdentity() throws {
+  func testMixedWubiExactPinyinCodeRowsAndSelectionIdentity() throws {
     let origCandidateMode = OwlKeyboardPreferences.wubiCandidateMode
     let origCodeHint = OwlKeyboardPreferences.wubiCodeHint
     let origAutoClear = OwlKeyboardPreferences.wubiAutoClear
@@ -1857,16 +2195,14 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertTrue(session.selectCandidate(yaToken))
     XCTAssertEqual(session.takeCommit(), "讶")
 
-    // #251 AC 3: paging keeps a stable, unique candidate list and selection commits the
+    // Paging keeps the upstream code rows and selection commits the
     // candidate visible on the page that the user actually navigated to.
     typeText("shi", into: session)
     let candidates = visibleAndPeekedCandidates(in: session)
     XCTAssertGreaterThan(candidates.count, (session.composition()?.pageSize ?? 9))
-    XCTAssertEqual(
-      candidates.map(\.text).count,
-      Set(candidates.map(\.text)).count,
-      "shi candidates: \(candidates.map(\.text))"
-    )
+    // The official Wubi table keeps different code rows with the same text.
+    // Native MSIME displays both 椒 rows; removing one changes later visible selection.
+    XCTAssertEqual(Array(candidates.prefix(2).map(\.text)), ["椒", "椒"])
     XCTAssertTrue(session.changePage(up: false))
     let secondPage = try XCTUnwrap(session.composition())
     XCTAssertEqual(secondPage.pageNo, 1)
@@ -1924,20 +2260,17 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.input(), "n")
     session.clearComposition()
 
-    // An ambiguous four-code stays open. A non-continuing fifth key commits its first
-    // visible candidate and starts the next code with that key.
+    // An ambiguous four-code stays open. Native phrase_preedit holds its first
+    // candidate before the next code; it is not committed to the client yet.
     typeText("aaaa", into: session)
     XCTAssertNil(session.takeCommit())
     let ambiguous = try XCTUnwrap(session.composition())
     XCTAssertGreaterThan(ambiguous.candidates.count, 1)
     let firstAmbiguous = try XCTUnwrap(ambiguous.candidates.first?.text)
     typeText("x", into: session)
-    XCTAssertEqual(
-      session.takeCommit(),
-      firstAmbiguous,
-      "four-code candidates: \(ambiguous.candidates.map(\.text)), input: \(session.input() ?? "nil")"
-    )
+    XCTAssertNil(session.takeCommit())
     XCTAssertEqual(session.input(), "x")
+    XCTAssertEqual(session.composition()?.preedit, firstAmbiguous + "x")
     session.clearComposition()
 
     // Backspace restores a shorter code and keeps its candidate list live.
@@ -1972,8 +2305,13 @@ final class OwlRustEngineTests: XCTestCase {
 
   func testMixedWubiPartialPhraseSelectionContinuesInPinyinTail() throws {
     let origCandidateMode = OwlKeyboardPreferences.wubiCandidateMode
-    defer { OwlKeyboardPreferences.wubiCandidateMode = origCandidateMode }
+    let origPageSize = OwlKeyboardPreferences.pageSize
+    defer {
+      OwlKeyboardPreferences.wubiCandidateMode = origCandidateMode
+      OwlKeyboardPreferences.pageSize = origPageSize
+    }
     OwlKeyboardPreferences.wubiCandidateMode = .normal
+    OwlKeyboardPreferences.pageSize = 6
 
     let engine = try makeSharedSupportSeedEngine()
     XCTAssertTrue(engine.selectSchema("wubi86_jidian_pinyin"))
@@ -1984,8 +2322,13 @@ final class OwlRustEngineTests: XCTestCase {
     // composition open in phrase preedit; the remaining letters stay pinyin.
     typeText("nihaowo", into: session)
     let prefixPage = try XCTUnwrap(session.composition())
-    let prefixIndex = try XCTUnwrap(prefixPage.candidates.firstIndex(where: { $0.text == "你好" }))
-    XCTAssertLessThan(prefixIndex, 9)
+    XCTAssertEqual(prefixPage.pageSize, 6)
+    XCTAssertFalse(prefixPage.candidates.contains { $0.text == "你好" })
+    let prefixIndex = try pageToVisibleCandidate("你好", in: session)
+    // Pinned W04 native/Swift trace: page1, visible row4 at native six-row page size.
+    XCTAssertEqual(session.composition()?.pageNo, 1)
+    XCTAssertEqual(prefixIndex, 4)
+    XCTAssertLessThan(prefixIndex, prefixPage.pageSize)
     XCTAssertTrue(session.process(
       keycode: UInt32(XK_1) + UInt32(prefixIndex),
       modifiers: 0
@@ -2018,8 +2361,7 @@ final class OwlRustEngineTests: XCTestCase {
     // code behaves as a fresh composition instead of inheriting pinyin state.
     XCTAssertTrue(session.selectSchema("wubi86_jidian_pinyin"))
     typeText("nihaowo", into: session)
-    let clearPrefix = try XCTUnwrap(session.composition())
-    let clearIndex = try XCTUnwrap(clearPrefix.candidates.firstIndex(where: { $0.text == "你好" }))
+    let clearIndex = try pageToVisibleCandidate("你好", in: session)
     XCTAssertTrue(session.selectCandidate(clearIndex))
     XCTAssertEqual(session.input(), "wo")
     session.clearComposition()
@@ -2028,8 +2370,7 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.takeCommit(), "极限")
 
     typeText("nihaowo", into: session)
-    let cancelPrefix = try XCTUnwrap(session.composition())
-    let cancelIndex = try XCTUnwrap(cancelPrefix.candidates.firstIndex(where: { $0.text == "你好" }))
+    let cancelIndex = try pageToVisibleCandidate("你好", in: session)
     XCTAssertTrue(session.selectCandidate(cancelIndex))
     XCTAssertEqual(session.input(), "wo")
     XCTAssertTrue(session.process(keycode: UInt32(XK_Escape), modifiers: 0))
@@ -2038,14 +2379,46 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.takeCommit(), "极限")
 
     typeText("nihaowo", into: session)
-    let switchPrefix = try XCTUnwrap(session.composition())
-    let switchIndex = try XCTUnwrap(switchPrefix.candidates.firstIndex(where: { $0.text == "你好" }))
+    let switchIndex = try pageToVisibleCandidate("你好", in: session)
     XCTAssertTrue(session.selectCandidate(switchIndex))
     XCTAssertEqual(session.input(), "wo")
     XCTAssertTrue(session.selectSchema("wubi86_jidian"))
     XCTAssertEqual(session.input(), "")
     typeText("jixu", into: session)
     XCTAssertEqual(session.takeCommit(), "曳光弹")
+  }
+
+  func testWubiZLookupUsesOnlyNativeSuffixAndDoesNotLearnPinyinFrequency() throws {
+    let defaults = OwlDefaults.standard
+    let keys = ["OwlKeyboardWubiZReverseLookup", "OwlKeyboardWubiZWildcard", "OwlKeyboardWubiUserDictLearning"]
+    let saved = keys.map { defaults.object(forKey: $0) }
+    defer {
+      for (key, value) in zip(keys, saved) {
+        if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
+      }
+    }
+    OwlKeyboardPreferences.wubiZReverseLookup = true
+    OwlKeyboardPreferences.wubiZWildcard = false
+    OwlKeyboardPreferences.wubiUserDictLearning = true
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+    XCTAssertTrue(session.selectSchema("wubi86_jidian"))
+    typeText("zi", into: session)
+    XCTAssertEqual(session.composition()?.candidates.count, 0, "native queries i, not the full spelling zi")
+    XCTAssertEqual(session.composition()?.isLastPage, true)
+    XCTAssertTrue(session.process(keycode: UInt32(XK_Return), modifiers: 0))
+    XCTAssertEqual(session.takeCommit(), "i", "unanswered native lookup commits the suffix without marker z")
+    typeText("zhai", into: session)
+    let lookup = try XCTUnwrap(session.composition())
+    XCTAssertEqual(lookup.candidates.map(\.text), ["还", "海", "孩", "害", "骇", "嗨"])
+    XCTAssertEqual(lookup.candidates[1].comment, "itxu")
+    XCTAssertTrue(session.selectCandidate(1))
+    XCTAssertEqual(session.takeCommit(), "海")
+    XCTAssertTrue(session.selectSchema("rime_ice"))
+    typeText("hai", into: session)
+    XCTAssertEqual(session.composition()?.candidates.first?.text, "还",
+      "native Wubi lookup selection must not promote the Pinyin row")
   }
 
   func testWubiZReverseLookupAcrossSchemasSwitchesDeletionAndSelection() throws {
@@ -2078,7 +2451,8 @@ final class OwlRustEngineTests: XCTestCase {
     session.clearComposition()
 
     typeText("a", into: session)
-    XCTAssertTrue(session.composition()?.candidates.allSatisfy({ $0.comment?.isEmpty != false }) == true)
+    XCTAssertEqual(session.composition()?.candidates.first?.comment, "aaaa",
+                   "Native hint-off rendering retains the engine full-code annotation")
     session.clearComposition()
 
     // Numeric and mouse selection both commit the reverse-lookup row.
@@ -2784,15 +3158,55 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertNil(session.takeCommit())
   }
 
+  func testSharedQuickPhrasePreferenceMatchesNativeWubiOrderingAndKeepsK() throws {
+    let defaults = OwlDefaults.standard
+    let keys = ["OwlKeyboardPinyinQuickPhraseCandidates", "OwlKeyboardPageSize"]
+    let saved = keys.map { defaults.object(forKey: $0) }
+    defer {
+      for (key, value) in zip(keys, saved) {
+        if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
+      }
+    }
+    defaults.removeObject(forKey: keys[0])
+    OwlKeyboardPreferences.pageSize = 6
+    XCTAssertFalse(OwlKeyboardPreferences.quickPhraseCandidates)
+    let engine = try makeSharedSupportSeedEngine()
+    let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
+    defer { session.destroy() }
+    XCTAssertTrue(session.selectSchema("wubi86_jidian"))
+    typeText("xx", into: session)
+    let first = try XCTUnwrap(session.composition())
+    let plain = first.candidates + session.peekCandidates(from: 6, count: 100)
+    // Pinned native, official resources: OFF has50 rows; ON appends the phrase after all50.
+    XCTAssertEqual(first.candidates.map(\.text), ["比", "缘", "丝", "比价", "纰", "丝丝"])
+    XCTAssertEqual(plain.count, 50)
+    XCTAssertFalse(plain.contains { $0.text == "示例大学" })
+    session.clearComposition()
+    for scalar in "Kxx".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value,
+        modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
+    }
+    XCTAssertTrue(try XCTUnwrap(session.composition()).candidates.contains { $0.text == "示例大学" })
+    session.clearComposition()
+    defaults.set(true, forKey: keys[0])
+    XCTAssertTrue(OwlKeyboardPreferences.quickPhraseCandidates, "existing stored value retains shared meaning")
+    typeText("xx", into: session)
+    let enabled = try XCTUnwrap(session.composition())
+    let all = enabled.candidates + session.peekCandidates(from: 6, count: 100)
+    XCTAssertEqual(enabled.candidates.map(\.text), ["比", "缘", "丝", "比价", "纰", "丝丝"])
+    XCTAssertEqual(all.count, 51)
+    XCTAssertEqual(all.firstIndex { $0.text == "示例大学" }, 50)
+  }
+
   func testNativeQuickPhrasePreferencePreservesLiveComposition() throws {
-    let saved = OwlKeyboardPreferences.pinyinQuickPhraseCandidates
+    let saved = OwlKeyboardPreferences.quickPhraseCandidates
     let page = OwlKeyboardPreferences.pageSize
     defer {
-      OwlKeyboardPreferences.pinyinQuickPhraseCandidates = saved
+      OwlKeyboardPreferences.quickPhraseCandidates = saved
       OwlKeyboardPreferences.pageSize = page
     }
     OwlKeyboardPreferences.pageSize = 6
-    OwlKeyboardPreferences.pinyinQuickPhraseCandidates = false
+    OwlKeyboardPreferences.quickPhraseCandidates = false
     let engine = try makeSharedSupportSeedEngine()
     let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
     defer { session.destroy() }
@@ -2802,8 +3216,8 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(plain.candidates.map(\.text), ["按当地", "addr", "按订单", "矮墩墩", "按到底", "啊对对"])
     let generation = session.generation
     let state = OwlSettingsState()
-    OwlSettingsActions.toggle(state: state, keyPath: \.pinyinQuickPhraseCandidates) {
-      OwlKeyboardPreferences.pinyinQuickPhraseCandidates = $0
+    OwlSettingsActions.toggle(state: state, keyPath: \.quickPhraseCandidates) {
+      OwlKeyboardPreferences.quickPhraseCandidates = $0
     }
     XCTAssertTrue(session.syncRuntimePreferences(includeHostPhrases: false))
     XCTAssertEqual(session.input(), "addr")
@@ -2814,8 +3228,8 @@ final class OwlRustEngineTests: XCTestCase {
     let enabled = try XCTUnwrap(session.composition())
     XCTAssertEqual(enabled.candidates.map(\.text),
       ["按当地", "addr", "按订单", "矮墩墩", "按到底", "示例大学示例校区1栋101"])
-    OwlSettingsActions.toggle(state: state, keyPath: \.pinyinQuickPhraseCandidates) {
-      OwlKeyboardPreferences.pinyinQuickPhraseCandidates = $0
+    OwlSettingsActions.toggle(state: state, keyPath: \.quickPhraseCandidates) {
+      OwlKeyboardPreferences.quickPhraseCandidates = $0
     }
     XCTAssertTrue(session.syncRuntimePreferences(includeHostPhrases: false))
     XCTAssertEqual(session.input(), "addr")

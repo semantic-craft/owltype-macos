@@ -5,6 +5,21 @@ that the lesson is in place: which file to read, which command to run, what resu
 and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## Host composition end must execute the engine selection
+
+**A correct preview inserted into the client does not prove native finish behavior.**
+
+- Reason: Wubi `gggg`, highlight `五一`, then IMK composition end displayed `五一`,
+  but reopening the session still put `王` first. The host inserted a preview and
+  cancelled the engine instead of selecting through `FinishOnFocusLoss`.
+- Prevention: route Rust composition end through the native action before inserting
+  its returned commit; preserve plugin/bare-prefix raw rules and the snapshot clear.
+- Regression: `testWubiFocusFinishCommitsAndLearnsHighlightedCandidate` observes both
+  client text and the reopened session's candidate order, without reading journal tables.
+- Verify (验证点): run that real controller integration test; the client commits `五一`
+  and a new session returns `五一` first for `gggg`.
+- Observed: 2026-10-26.
+
 ## The gate completes the checkout before the first check reads it
 
 **`submodules` is the gate's second stage, right after `tools`; no later stage may be the first to need a submodule, and the receipt must not count that initialization as a source change.**
@@ -571,6 +586,28 @@ review dates, not retries. Keep deterministic checks in the local gate.
   `cargo test --locked --manifest-path rust/Cargo.toml -p owl-msime-ffi`.
   This proves the offline host seam; installed IMK acceptance remains separate.
 
+
+## A parity trace must identify the input scheme it actually ran
+
+- W01's inherited differential exporter always selected `rime_ice`; a Wubi request could therefore produce a valid-looking Pinyin export with the current run nonce. Selecting a requested scheme must succeed before export, and the runner must reject a returned configuration for another scheme.
+- Regression: `ExportTransportTests.test_export_from_another_scheme_fails` failed before this check and passes after it. The real Wubi trace uses the existing Swift session and pinned MSIME Host API, retaining candidate and paging differences rather than ignoring them.
+- Verify (验证点): `python3 scripts/pinyin-parity.selftest.py`; the exported `configuration.schema` must equal the requested schema. This is transport validity, not evidence that Wubi behavior is aligned.
+- Seen on 1 distinct date: 2026-10-26.
+
+### Resource delivery checks follow the approved split dictionary and auxiliary catalog
+
+- Seen 1x (2026-10-26): Wubi parity resource assembly exposed two stale delivery assumptions:
+  Wubi86 was required inside the pinyin database, although the fixed official release splits
+  86/98 into `msime-wubi.db`; the approved MIT kaomoji restoration was rejected by an old
+  emoji-only allowlist. The actual seed was valid but the delivery checker rejected it.
+- Keep the split Wubi file and both nonempty tables required. The auxiliary exact-table
+  contract includes emoji and the two MIT kaomoji tables recorded in
+  [the retained notice](data/msime-others-NOTICE.txt); `symbol_catalog` remains forbidden.
+- Regression: the existing complete-resource fixture now uses split Wubi and the approved
+  four-table auxiliary catalog. It failed before the checker update and passes afterward;
+  forbidden-symbol and unknown-table rejection regressions still pass.
+- Verify (验证点): `python3 scripts/check-rust-delivery.selftest.py` passes 9 tests; run the
+  checker against the actual generated resources before treating a fixture pass as packaging evidence.
 ## FFI session identity cannot be an allocator address
 
 - Seen on 1 distinct date: 2026-10-26. The default-parallel FFI suite aborted with
@@ -611,22 +648,53 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Fix: extract the existing segment-chord route into a dedicated private helper, preserving active-composition/modifier guards and false-versus-not-applicable behavior. Run lint as its own command and inspect both exit status and reporter errors; do not infer success from a later command. No lint configuration was relaxed.
 - Verify: `swiftlint lint --quiet` exits0 with no `::error`; existing `testSegmentChordEditsPinyinRatherThanPassingToHost` and `testShuangpinSegmentEditingAndShoudaoSelection` still pass. This fixes the source gate, not installed IMK acceptance.
 
-### Imported Wubi goldens must retain Owl's existing z lookup
+### Wubi lookup goldens follow the pinned native suffix query
 
-- Seen 1x (2026-10-26): the newly imported `wubi_mixed_matched_code` and
-  `wubi_mixed_plain_mode` goldens expected no candidate for pure-Wubi `zi`, although
-  the pre-parity `274fad9` implementation already queries both the lookup suffix
-  and the complete z-prefixed pinyin. Their own fixture contains `zi → 子`.
-- The exact pre-model integration `1fce6c6` reproduces the same six differences,
-  proving these observations predate the keyboard-model adapter. Preserve this
-  existing Owl behavior; do not disable the complete-spelling lookup to satisfy
-  an imported snapshot. The mixed-on step independently already pins the same
-  `子` row, weight, source and pinyin metadata.
-- Verify: run `MSIME_GOLDEN_SCENARIO=wubi_mixed_matched_code,wubi_mixed_plain_mode
-  cargo test --locked --manifest-path rust/Cargo.toml -p msime-engine --test golden
-  scripted_scenarios_match_the_reference`, then all scripted scenarios. The strict
-  comparator retains every field; only the two stale expected snapshots change.
+- Seen 1x (2026-10-26): preserving Owl's former full-z-spelling lookup kept `zi → 子`,
+  but fixed native 0.55 only queries the suffix `i` and returns no candidates.
+  Spec #294 supersedes the earlier instruction to retain this local difference.
+- Restore the pinned suffix-only query and original two Wubi golden files. A real
+  session checks `zi`, the `zhai → 海` code annotation, and that selecting a lookup
+  row does not promote it in the subsequent Pinyin query.
+- Verify (验证点): `testWubiZLookupUsesOnlyNativeSuffixAndDoesNotLearnPinyinFrequency`
+  and the two `wubi_mixed_*` scripted golden scenarios, with strict fields retained.
 
+### Preserve native Wubi candidate rows and phrase selection
+
+- Seen 1x (2026-10-26): the real Swift mixed-Wubi trace differed from pinned
+  MSIME 0.55.0 at 39 fields. Owl disabled sentence alternatives in Wubi and removed
+  repeated visible words across distinct code rows, changing candidate positions
+  and partial selection. After restoring those upstream paths, fifth-code handling
+  still committed the selected prefix early instead of holding it in native
+  phrase preedit.
+- Fix: keep the upstream sentence-alternative default and mixed candidate merge;
+  retain Pinyin-specific dedup. Restore the runtime selection predicate shared by
+  native fifth-code handling. Direct Host API probes confirm pure fifth-code
+  continuation holds the prefix with either flag; mixed continuation does so only
+  when enabled, and refuses the invalid continuation when disabled.
+- Verify: `tests/fixtures/wubi-parity/wubi86-mixed.json` through the actual
+  Swift/reference differential seam, plus existing Swift commit-preference,
+  mixed-code-row selection and pure ambiguity tests. Installed IMK acceptance is
+  outside these isolated-source observations.
+
+### Compare learning defaults through selection and restart
+
+- Seen 1x (2026-10-26): Wubi's Swift preference and FFI constructor defaulted
+  learning off although pinned MSIME 0.55.0 defaults it on. The actual Swift/native
+  53-event selection, personal phrase, deletion and process-restart trace exposed
+  33 differences: 五一 stayed behind王 and new你尼 was absent at codewqnx. The
+  focused Swift and FFI selection/reopen regressions independently failed.
+- Fix: align the absent preference, initial settings state and FFI default;
+  preserve an explicit false and reuse upstream per-code/profile learning,
+  reverse-lookup guard, shared journal and generation replay. The remaining
+  `nin` difference after learning came from another Owl fork: once a journal
+  exists, native fixed-position processing restores Wubi-first producer groups,
+  while Owl preserved decoder Pinyin-first order. Restore only that Wubi branch;
+  leave general Pinyin positioning unchanged. No new algorithm, reset or migration.
+- Verify: `tests/fixtures/wubi-parity/learning.json` through strict native/Swift
+  replay; `testWubiLearningDefaultsToNativeAndPreservesExplicitOptOut` and
+  `wubi_learning_default_persists_native_selection`. The final combined Wubi98
+  path is checked after its schema/profile plumbing is integrated.
 
 ## Native parity includes the controller and marked-text host
 
@@ -667,16 +735,33 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Verify: `python3 scripts/test-defaults-isolation.selftest.py` passes; the real
   model/controller regression must also pass through the ordinary native host.
 
+### A split resource file needs the native resource schema contract
+
+- Seen 1x (2026-10-26): W02 correctly published original split `msime-wubi.db`,
+  but the shared legacy engine-resource descriptor still required `wubi86` in
+  `msime-pinyin.db`. The existing complete-resource test failed while building
+  the real official package, before any activation, with missing-tablewubi86.
+- Fix: retain the legacy merged/custom descriptor and derive the production
+  native descriptor from its common requirements, locating both86/98 tables in
+  the split role. The fixed native configuration also pins the official Wubi
+  resource digest, like its existing model pins: a self-consistent manifest with
+  an empty98 table cannot claim native alignment.
+- Verify: actual official production prepare/activate, a self-digested empty98
+  rejection, and the existing generation lifecycle extended with86/98 candidates
+  and shared-journal replay before update, after update, recovery and rollback.
+  The legacy builder retains its own merged contract. Bare Xcode test hosts have
+  no full SharedSupport payload; offline production-factory tests explicitly
+  supply the pinned seed, without treating that fixture omission as product proof.
 ### Native capabilities and fresh preferences are different controls
 
 - Seen 1x (2026-10-26): the native macOS `quick_phrase_candidates` capability is
   true, but pinned 0.55 `MixedInputPreferences::default()` sets `quick_phrase`
   false. Treating capability as preference hard-enabled ordinary dictionary
   phrases; all seven official codes produced 14 candidate-order differences.
-- Keep the fresh pinyin default OFF and expose the actual preference; explicit ON
-  follows the pinned pre-mixing insertion/counting rules. Wubi keeps #307's
-  post-mixing visible-seat policy. Neither disables K browsing or Owl's explicit
-  AI/template entry. A live toggle queues until the native runtime is idle, preserving the current
+- Keep the shared fresh default OFF for Pinyin and Wubi; explicit ON follows
+  the pinned pre-mixing insertion/counting rules for both. Wubi must not retain
+  #307's post-mixing visible-seat exception under #294. Neither disables K
+  browsing or Owl's explicit AI/template entry. A live toggle queues until the native runtime is idle, preserving the current
   raw composition and IDs; the next composition applies the preference.
 - Verify: replay `native-quick-phrases.json` and `native-quick-phrases-on.json`
   against native-mac-host. The ON corpus selects all eight official rows and
@@ -700,6 +785,23 @@ review dates, not retries. Keep deterministic checks in the local gate.
   pinned license. Run the real `scripts/check-rust-delivery.py` against the Release
   App as well; passing synthetic fixtures alone cannot establish shipped content.
 
+### Legacy resource fixtures must use the product's split-Wubi generation preparation
+
+- Seen 1x (2026-10-26): the final gate's FFI library suite had54passes/3failures.
+  The seed smoke test called the legacy Pinyin/English constructor without a
+  Wubi resource root; migration fixtures directly copied those two databases
+  and skipped split-Wubi assembly. The official seed was present, including
+  Wubi86=126078 andWubi98=135372; skipping missing resources was not the cause.
+- Production `OwlUserMigrationImport.prepareGeneration` already creates the
+  complete generation before calling the importer. Align only the test fixtures
+  and their reset/session helpers with that public generation path. Keep every
+  original migrated-row count, idempotence, learning/reopen, replaced-journal
+  inode and rollback assertion; do not change the migration algorithm or weaken
+  distinct-root validation to accommodate an obsolete fixture layout.
+- Verify: `cargo test --locked --manifest-path rust/Cargo.toml -p owl-msime-ffi
+  --lib` passes57/57 with verified official split dictionaries. This is isolated
+  fixture coverage, not a production-data reset or a new full-gate pass.
+
 
 ## Public dictionary scanner collisions require content proof
 
@@ -717,3 +819,14 @@ review dates, not retries. Keep deterministic checks in the local gate.
   positive/negative public-row cases and unchanged generic-key/container checks,
   then `scripts/check-secrets.sh --artifacts` on the actual built App. Keep only
   hashes, classification, source identity and redacted scanner decisions as evidence.
+
+## Progress snapshots must paginate PR commits as well as files
+
+- Seen 1x (2026-10-26): PR #309 reached141 commits; its files fit one page, but
+  the old commits(last:100) query correctly failed closed and could not refresh.
+- Read both connections completely, validating counts, unique rows and advancing
+  cursors. Fence every page and the final read with the same PR head and base.
+  Other bounded connections still reject truncation before writing any page.
+- Verify (验证点): `scripts/progress-sync.selftest.py` covers141 commits/151 files,
+  head/base drift, empty/error/duplicate pages and cursor failures; it runs in the
+  existing portable_scripts gate. A rejected snapshot preserves prior output.

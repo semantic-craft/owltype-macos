@@ -125,6 +125,8 @@
 		FA000912CAFE0098CAFE0098 /* OwlPromptInterceptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000913CAFE0099CAFE0099 /* OwlPromptInterceptionTests.swift */; };
 		FADADA04CAFE0004CAFE0004 /* OwlPromptPageRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FADADA03CAFE0003CAFE0003 /* OwlPromptPageRenderTests.swift */; };
 		FA000020CAFE0020CAFE0020 /* OwlKeyboardPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000ACAFE000ACAFE000A /* OwlKeyboardPreferences.swift */; };
+		C701A7A8D5A9475DAD05D334 /* OwlWubiLookupSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C701A7A8D5A9475DAD05D335 /* OwlWubiLookupSettings.swift */; };
+		C701A7A8D5A9475DAD03D334 /* OwlWubiCommitSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C701A7A8D5A9475DAD03D335 /* OwlWubiCommitSettings.swift */; };
 		FA000021CAFE0021CAFE0021 /* OwlKeyboardPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000BCAFE000BCAFE000B /* OwlKeyboardPage.swift */; };
 		1FBC34F271A24C5CBED74345 /* OwlKeyboardSettingsApplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEB9B6337F2545DFA543020D /* OwlKeyboardSettingsApplication.swift */; };
 		FACE0106FACE0106FACE0106 /* OwlSelectionMenuCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACE0006FACE0006FACE0006 /* OwlSelectionMenuCoordinator.swift */; };
@@ -433,6 +435,8 @@
 		FA000913CAFE0099CAFE0099 /* OwlPromptInterceptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlPromptInterceptionTests.swift; path = tests/OwlPromptInterceptionTests.swift; sourceTree = "<group>"; };
 		FADADA03CAFE0003CAFE0003 /* OwlPromptPageRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlPromptPageRenderTests.swift; path = tests/OwlPromptPageRenderTests.swift; sourceTree = "<group>"; };
 		FA00000ACAFE000ACAFE000A /* OwlKeyboardPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlKeyboardPreferences.swift; path = sources/Settings/OwlKeyboardPreferences.swift; sourceTree = "<group>"; };
+		C701A7A8D5A9475DAD05D335 /* OwlWubiLookupSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlWubiLookupSettings.swift; path = sources/Settings/OwlWubiLookupSettings.swift; sourceTree = "<group>"; };
+		C701A7A8D5A9475DAD03D335 /* OwlWubiCommitSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlWubiCommitSettings.swift; path = sources/Settings/OwlWubiCommitSettings.swift; sourceTree = "<group>"; };
 		FA00000BCAFE000BCAFE000B /* OwlKeyboardPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlKeyboardPage.swift; path = sources/Settings/OwlKeyboardPage.swift; sourceTree = "<group>"; };
 		CEB9B6337F2545DFA543020D /* OwlKeyboardSettingsApplication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlKeyboardSettingsApplication.swift; path = sources/Settings/OwlKeyboardSettingsApplication.swift; sourceTree = "<group>"; };
 		FACE0006FACE0006FACE0006 /* OwlSelectionMenuCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSelectionMenuCoordinator.swift; path = sources/UI/OwlSelectionMenuCoordinator.swift; sourceTree = "<group>"; };
@@ -682,6 +686,8 @@
 				FA0709890004CAFE0090CA07 /* OwlMarkedTextResendPolicy.swift */,
 				FA0709350002CAFE0038CA07 /* OwlLiveInputTrace.swift */,
 				FA00000BCAFE000BCAFE000B /* OwlKeyboardPage.swift */,
+				C701A7A8D5A9475DAD03D335 /* OwlWubiCommitSettings.swift */,
+				C701A7A8D5A9475DAD05D335 /* OwlWubiLookupSettings.swift */,
 				CEB9B6337F2545DFA543020D /* OwlKeyboardSettingsApplication.swift */,
 				FACE0006FACE0006FACE0006 /* OwlSelectionMenuCoordinator.swift */,
 				8105083C4D654DC69296C0C4 /* OwlSelectionRewrite.swift */,
@@ -1187,6 +1193,8 @@
 				FA0709890003CAFE0089CA07 /* OwlMarkedTextResendPolicy.swift in Sources */,
 				FA0709350001CAFE0037CA07 /* OwlLiveInputTrace.swift in Sources */,
 				FA000021CAFE0021CAFE0021 /* OwlKeyboardPage.swift in Sources */,
+				C701A7A8D5A9475DAD03D334 /* OwlWubiCommitSettings.swift in Sources */,
+				C701A7A8D5A9475DAD05D334 /* OwlWubiLookupSettings.swift in Sources */,
 				1FBC34F271A24C5CBED74345 /* OwlKeyboardSettingsApplication.swift in Sources */,
 				FACE0106FACE0106FACE0106 /* OwlSelectionMenuCoordinator.swift in Sources */,
 				AFA6C063861445639495D6D6 /* OwlSelectionRewrite.swift in Sources */,

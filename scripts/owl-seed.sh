@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Assemble the pinned official full-pinyin/English/context set and Owl Wubi.
+# Assemble the pinned official pinyin/Wubi/English/context resource set.
 # Rime configuration assets remain for the existing host presentation contract.
 
 set -euo pipefail
@@ -221,10 +221,10 @@ cp "$repo_root/licenses/rime-kaomoji.LICENSE" "$output_dir/rime-kaomoji.LICENSE"
 cp "$license_cache/Apache-2.0.txt" "$output_dir/OpenCC.LICENSE"
 cp "$repo_root/data/owltype.yaml" "$output_dir/owltype.yaml"
 cp "$repo_root/rime/"*.custom.yaml "$output_dir/_user_seed/"
-# Build the audited Owl Wubi overlay through its existing importer. The slim
-# pinyin/English intermediates are replaced below before this seed is usable.
-python3 "$repo_root/scripts/build-owltype-msime-seed-db.py" "$output_dir"
-python3 "$repo_root/scripts/build-owltype-msime-seed-db.py" --check "$output_dir"
+# Official split Wubi data supersedes the old generated 86-only overlay.
+# Keep the original extreme-point notice because the official 86 base derives from it.
+echo "$wubi86_license_sha256  $repo_root/licenses/wubi86-jidian.LICENSE" | shasum -a 256 --check
+cp "$repo_root/licenses/wubi86-jidian.LICENSE" "$output_dir/wubi86-jidian.LICENSE"
 python3 "$repo_root/scripts/fetch-msime-others.py" \
   --output "$output_dir/msime/msime-others.db"
 python3 "$repo_root/scripts/fetch-msime-resources.py" --seed "$output_dir"
@@ -234,13 +234,18 @@ cp "$repo_root/data/msime-others-NOTICE.txt" "$output_dir/"
 cp "$repo_root/licenses/CC-BY-SA-4.0.txt" "$output_dir/licenses/CC-BY-SA-4.0.txt"
 cp "$repo_root/data/msime-resources-NOTICE.md" "$output_dir/msime-resources-NOTICE.md"
 cp "$repo_root/data/msime-upstream-licensing-NOTICE.md" "$output_dir/msime-upstream-licensing-NOTICE.md"
+echo "0bdebfeda07d45dada625ae1317c6f833186e798b171d0db640bcf32e92a8240  $repo_root/licenses/Unlicense.txt" | shasum -a 256 --check
+echo "ee820ff0db4ce628569e0975ac27dc926052a9f85d102b101edb104311ef4d90  $repo_root/licenses/Administrative-divisions-of-China-WTFPL.txt" | shasum -a 256 --check
+cp "$repo_root/licenses/Unlicense.txt" "$output_dir/licenses/Unlicense.txt"
+cp "$repo_root/licenses/Administrative-divisions-of-China-WTFPL.txt" "$output_dir/licenses/Administrative-divisions-of-China-WTFPL.txt"
+
 cat > "$output_dir/OWLTYPE-SEED-SOURCES.md" <<'EOF'
 # Owltype production resource sources
 
 The production Rust engine uses the complete pinned official dict-v2.0.24
-pinyin and English data plus both bigram/trigram scoring sidecars. Legacy Rime
+pinyin, split Wubi86/Wubi98 and English data plus both bigram/trigram scoring sidecars. Legacy Rime
 YAML files are build intermediates and do not supply the production pinyin DB.
-Only the existing audited Owl Wubi tables are overlaid into the pinyin DB.
+All official dictionary files are published unchanged; no Owl Wubi overlay is applied.
 See msime-resources-NOTICE.md, msime-upstream-licensing-NOTICE.md,
 msime/msime-dictionary-manifest.json and msime/OWLTYPE-UPSTREAM-RESOURCES.json
 for sources, byte sizes, digests, adaptations, and redistribution boundaries.
@@ -251,7 +256,7 @@ Owltype production seed
 official-resource-set dict-v2.0.24
 manifest-sha256 5b656a5db35b4dcf804ce4348d8584c899d0012fe62bbbe3689204ddaba8722f
 resource-identities msime/OWLTYPE-UPSTREAM-RESOURCES.json
-wubi86-source $wubi86_sha
+wubi-resource msime/msime-wubi.db; upstream identity in resource-identities
 wubi86-license $wubi86_license_sha256 wubi86-jidian.LICENSE
 others-policy audited-emoji-kaomoji-four-tables; full upstream auxiliary artifact retained in build cache
 model-policy separately pinned; defaults unchanged

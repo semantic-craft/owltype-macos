@@ -222,7 +222,7 @@ pub struct OwlMsimeSession {
     page_size: u8,
     input_mode: String,
     pinyin_scheme: String,
-    pinyin_quick_phrase_candidates: bool,
+    quick_phrase_candidates: bool,
     wubi_code_hint: bool,
     wubi_auto_clear: bool,
     wubi_candidate_mode: String,
@@ -266,6 +266,8 @@ struct ActionPayload {
     mode: Option<String>,
     #[serde(default)]
     scheme: Option<String>,
+    #[serde(default)]
+    profile: Option<String>,
     #[serde(default)]
     custom_profile: Option<ShuangpinCustomTableDto>,
     #[serde(default)]
@@ -428,12 +430,49 @@ fn map_caret_to_preedit_byte(
     phrase_prefix.len() + preedit_bytes
 }
 
+// Pinned macOS WubiCodeHintPolicy + CandidateAnnotationRun: a remaining-code
+// hint wins when available, otherwise retain the engine annotation. Script notes
+// keep their existing independent presentation priority in Owltype.
+fn wubi_hint_prefix(view: &View, enabled: bool) -> Option<&str> {
+    (enabled
+        && view.scheme == SchemeType::Wubi as u8
+        && view.local_mode == "none"
+        && !view.answered_by_pinyin_fallback)
+        .then_some(view.preedit.as_str())
+}
+
+fn candidate_comment(
+    candidate: &msime_input_runtime::Candidate,
+    wubi_prefix: Option<&str>,
+    wubi_annotations: bool,
+) -> Option<String> {
+    if let Some(note) = candidate
+        .script_annotation
+        .as_ref()
+        .filter(|note| !note.is_empty())
+    {
+        return Some(note.clone());
+    }
+    if let Some(typed) = wubi_prefix.filter(|typed| !typed.is_empty() && typed.len() <= 64) {
+        if candidate.code.len() <= 64 {
+            if let Some(suffix) = candidate
+                .code
+                .strip_prefix(typed)
+                .filter(|suffix| !suffix.is_empty())
+            {
+                return Some(suffix.to_owned());
+            }
+        }
+    }
+    (wubi_annotations && !candidate.annotation.is_empty()).then(|| candidate.annotation.clone())
+}
+
 fn snapshot_from_view(
     view: View,
     consumed: bool,
     committed_text: Option<String>,
     cleared: bool,
-    show_engine_annotation: bool,
+    wubi_code_hint: bool,
     temp_english_backtick_prefix: bool,
 ) -> SnapshotResponseDto {
     let highlighted_index = view
@@ -475,13 +514,13 @@ fn snapshot_from_view(
             caret_position,
         )
     };
+    let hint_prefix = wubi_hint_prefix(&view, wubi_code_hint).map(str::to_owned);
+    let wubi_annotations = view.scheme == SchemeType::Wubi as u8;
     let candidates = view
         .candidates
         .into_iter()
         .map(|c| {
-            let comment = c.script_annotation.filter(|s| !s.is_empty()).or_else(|| {
-                (show_engine_annotation && !c.annotation.is_empty()).then_some(c.annotation)
-            });
+            let comment = candidate_comment(&c, hint_prefix.as_deref(), wubi_annotations);
             CandidateDto {
                 text: c.text,
                 comment,
@@ -1102,29 +1141,18 @@ impl OwlMsimeSession {
             page_size,
             input_mode: "chinese".to_owned(),
             pinyin_scheme: "quanpin".to_owned(),
-            pinyin_quick_phrase_candidates: false,
-            wubi_code_hint: false,
+            quick_phrase_candidates: false,
+            wubi_code_hint: true,
             wubi_auto_clear: false,
             wubi_candidate_mode: "normal".to_owned(),
             wubi_z_reverse_lookup: true,
             wubi_english_channel: false,
-            wubi_user_dict_learning: false,
+            wubi_user_dict_learning: true,
             pinned_state,
             punctuation_menu: None,
             punctuation_menu_generation: 0,
             _temp_dir: temp_dir,
         })
-    }
-
-    fn show_engine_annotation(&self, view: &View) -> bool {
-        if self.input_mode == "wubi" {
-            let in_z_lookup = !self.options.wubi_mixed_pinyin
-                && self.wubi_z_reverse_lookup
-                && view.editing_text.starts_with('z');
-            in_z_lookup || self.wubi_code_hint
-        } else {
-            false
-        }
     }
 
     fn temp_english_backtick(&self, view: &View) -> bool {
@@ -1140,9 +1168,9 @@ impl OwlMsimeSession {
         committed_text: Option<String>,
         cleared: bool,
     ) -> SnapshotResponseDto {
-        let show_ann = self.show_engine_annotation(&view);
+        let show_hint = self.wubi_code_hint;
         let backtick = self.temp_english_backtick(&view);
-        snapshot_from_view(view, consumed, committed_text, cleared, show_ann, backtick)
+        snapshot_from_view(view, consumed, committed_text, cleared, show_hint, backtick)
     }
 
     pub fn snapshot(&self) -> SnapshotResponseDto {
@@ -1417,10 +1445,7 @@ impl OwlMsimeSession {
         {
             let _ = self.runtime.dispatch(Action::Command(Command::Cancel));
             self.options.scheme = desired_scheme;
-            self.options.quick_phrase_candidates =
-                self.input_mode == "wubi" || self.pinyin_quick_phrase_candidates;
-            // Keep Owl Wubi composition policy; upstream sentence alternatives own ordinary pinyin.
-            self.options.sentence_alternatives = self.input_mode != "wubi";
+            self.options.quick_phrase_candidates = self.quick_phrase_candidates;
             self.options.shuangpin_profile = desired_profile;
             self.options.wubi_mixed_pinyin = desired_wubi_mixed;
             self.options.single_character_only = desired_single_only;
@@ -1461,7 +1486,7 @@ impl OwlMsimeSession {
     }
 
     fn apply_quick_phrase_preference_if_idle(&mut self) -> Result<(), String> {
-        let enabled = self.input_mode == "wubi" || self.pinyin_quick_phrase_candidates;
+        let enabled = self.quick_phrase_candidates;
         if self.options.quick_phrase_candidates != enabled && self.runtime.is_idle() {
             self.runtime
                 .set_quick_phrase_candidates(enabled)
@@ -1658,7 +1683,7 @@ impl OwlMsimeSession {
                     Err(err) => error_response(err),
                 }
             }
-            "finish" => {
+            "finish" | "finish_on_focus_loss" => {
                 if let Some(menu) = self.punctuation_menu.take() {
                     return self.build_snapshot(
                         self.runtime.view(),
@@ -1667,7 +1692,12 @@ impl OwlMsimeSession {
                         false,
                     );
                 }
-                match self.runtime.dispatch(Action::Finish) {
+                let action = if payload.op == "finish_on_focus_loss" {
+                    Action::FinishOnFocusLoss
+                } else {
+                    Action::Finish
+                };
+                match self.runtime.dispatch(action) {
                     Ok(transition) => {
                         self.sync_pinned_state_from_view(&transition.view);
                         self.build_snapshot(
@@ -2028,7 +2058,8 @@ impl OwlMsimeSession {
                 }
                 let all = self.runtime.all_candidates_cached();
                 let view = self.runtime.view();
-                let show_ann = self.show_engine_annotation(&view);
+                let hint_prefix = wubi_hint_prefix(&view, self.wubi_code_hint).map(str::to_owned);
+                let wubi_annotations = view.scheme == SchemeType::Wubi as u8;
                 let input_len = view.editing_text.len();
                 let mut dto = self.build_snapshot(view, true, None, false);
                 dto.generation = HostGenerationNamespace::Runtime.encode(all.generation);
@@ -2038,9 +2069,8 @@ impl OwlMsimeSession {
                     .skip(start)
                     .take(count)
                     .map(|c| {
-                        let comment = c.script_annotation.filter(|s| !s.is_empty()).or_else(|| {
-                            (show_ann && !c.annotation.is_empty()).then_some(c.annotation)
-                        });
+                        let comment =
+                            candidate_comment(&c, hint_prefix.as_deref(), wubi_annotations);
                         CandidateDto {
                             text: c.text,
                             comment,
@@ -2195,6 +2225,25 @@ impl OwlMsimeSession {
                 }
                 self.build_snapshot(self.runtime.view(), true, None, false)
             }
+            "set_wubi_profile" => {
+                let Some(profile) = payload
+                    .profile
+                    .as_deref()
+                    .and_then(WubiProfileKind::from_name)
+                else {
+                    return error_response("set_wubi_profile requires wubi86 or wubi98 profile");
+                };
+                let previous = self.options.wubi_profile;
+                if previous != profile as u8 {
+                    self.options.wubi_profile = profile as u8;
+                    if let Err(error) = self.force_rebuild_engine() {
+                        self.options.wubi_profile = previous;
+                        let _ = self.force_rebuild_engine();
+                        return error_response(error);
+                    }
+                }
+                self.build_snapshot(self.runtime.view(), true, None, false)
+            }
             "set_pinyin_scheme" => {
                 let Some(scheme) = payload.scheme else {
                     return error_response("set_pinyin_scheme requires scheme");
@@ -2253,8 +2302,8 @@ impl OwlMsimeSession {
                 };
                 let value = payload.value.unwrap_or(false);
                 match name {
-                    "pinyin_quick_phrase_candidates" => {
-                        self.pinyin_quick_phrase_candidates = value;
+                    "quick_phrase_candidates" => {
+                        self.quick_phrase_candidates = value;
                         if let Err(error) = self.apply_quick_phrase_preference_if_idle() {
                             return error_response(error);
                         }
@@ -2285,11 +2334,25 @@ impl OwlMsimeSession {
                     "linear" => {
                         self.runtime.set_vertical_candidates(!value);
                     }
+                    "wubi_auto_commit_unique" => {
+                        self.runtime.set_wubi_auto_commit_unique(value);
+                    }
+                    "wubi_fifth_code_top_commit" => {
+                        self.runtime.set_wubi_fifth_code_top_commit(value);
+                    }
                     "wubi_code_hint" => {
                         self.wubi_code_hint = value;
                     }
                     "wubi_auto_clear" => {
                         self.wubi_auto_clear = value;
+                    }
+                    "wubi_z_wildcard" => {
+                        if self.options.wubi_z_wildcard != value {
+                            self.options.wubi_z_wildcard = value;
+                            if let Err(error) = self.force_rebuild_engine() {
+                                return error_response(error);
+                            }
+                        }
                     }
                     "wubi_z_reverse_lookup" => {
                         self.wubi_z_reverse_lookup = value;
@@ -3853,7 +3916,7 @@ mod tests {
             let previous_generation = frames[index].generation;
             let enabled = call_action(
                 session,
-                r#"{"op":"set_option","name":"pinyin_quick_phrase_candidates","value":true}"#,
+                r#"{"op":"set_option","name":"quick_phrase_candidates","value":true}"#,
             );
             assert!(enabled.ok);
             let pending = call_snapshot(session);
@@ -3988,22 +4051,66 @@ mod tests {
     }
 
     #[test]
+    fn wubi_learning_default_persists_native_selection() {
+        let tmp = TempDir::new().unwrap();
+        let resources = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../data/owl-rime/msime");
+        let user = tmp.path().join("user");
+        let cache = tmp.path().join("cache");
+        for learned in [false, true] {
+            let (session, error) =
+                create_with_generation(&resources, &user, &cache, "wubi-learning");
+            assert!(error.is_none(), "{error:?}");
+            assert!(!session.is_null());
+            assert!(call_action(session, r#"{"op":"set_input_mode","mode":"wubi"}"#).ok);
+            assert!(call_action(session, r#"{"op":"set_pinyin_scheme","scheme":"wubi"}"#).ok);
+            for ch in ['g', 'g', 'g', 'g'] {
+                assert!(call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#)).ok);
+            }
+            let frame = call_snapshot(session);
+            // Native Host API defaults: the second row moves first after one selection.
+            assert_eq!(
+                frame.candidates[0].text,
+                if learned { "五一" } else { "王" }
+            );
+            if !learned {
+                let selected = call_action(session, r#"{"op":"select_visible","index":1}"#);
+                assert_eq!(selected.committed_text.as_deref(), Some("五一"));
+                assert!(
+                    call_action(
+                        session,
+                        r#"{"op":"set_pinyin_scheme","scheme":"wubi_pinyin"}"#
+                    )
+                    .ok
+                );
+                for ch in ['n', 'i', 'n'] {
+                    assert!(call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#)).ok);
+                }
+                let next = call_snapshot(session);
+                assert_eq!(
+                    next.candidates[0].text, "恍悟",
+                    "Native mixed query after the learned Wubi selection"
+                );
+            }
+            owl_msime_session_destroy(session);
+        }
+    }
+
+    #[test]
     fn pure_wubi_fifth_key_tops_an_ambiguous_four_code() {
         let tmp = TempDir::new().unwrap();
         let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
-        let pinyin = repository.join("data/owl-rime/msime/msime-pinyin.db");
+        let resources = repository.join("data/owl-rime/msime");
         assert!(
-            pinyin.is_file(),
-            "missing production seed at {}",
-            pinyin.display()
+            resources
+                .join(msime_engine::assets::WUBI_DICTIONARY)
+                .is_file(),
+            "missing official split Wubi seed at {}",
+            resources.display()
         );
-        let resources = tmp.path().join("resources");
-        fs::create_dir_all(&resources).unwrap();
         let user = tmp.path().join("user");
         let cache = tmp.path().join("cache");
-        let dictionaries = tmp.path().join("dictionaries");
-        let (session, error) =
-            create_with_explicit_roots(&pinyin, &resources, &user, &cache, &dictionaries);
+        // Use production generation preparation, which assembles the official split tables.
+        let (session, error) = create_with_generation(&resources, &user, &cache, "wubi-fifth");
         assert!(session.is_null() || error.is_none(), "{error:?}");
         assert!(!session.is_null());
 
@@ -4029,8 +4136,9 @@ mod tests {
 
         let topped = call_action(session, r#"{"op":"insert","ch":"x"}"#);
         assert!(topped.ok, "{:?}", topped.error);
-        assert_eq!(topped.committed_text.as_deref(), Some("工"));
+        assert_eq!(topped.committed_text, None);
         assert_eq!(topped.raw_input, "x");
+        assert_eq!(topped.preedit, "工x");
         owl_msime_session_destroy(session);
     }
 
@@ -5538,19 +5646,15 @@ mod tests {
         if !seed_pinyin.is_file() {
             return;
         }
-        let seed_english = repo_root.join("data/owl-rime/msime/msime-english.db");
-        let c_pinyin = CString::new(seed_pinyin.to_str().unwrap()).unwrap();
-        let c_english = CString::new(
-            seed_english
-                .is_file()
-                .then(|| seed_english.to_str().unwrap())
-                .unwrap_or(""),
-        )
-        .unwrap();
-        let c_empty = CString::new("").unwrap();
-
-        let session =
-            owl_msime_session_create(c_pinyin.as_ptr(), c_english.as_ptr(), c_empty.as_ptr(), 5);
+        // Match the product's resource-generation path: official Wubi is a separate file.
+        let temporary = TempDir::new().unwrap();
+        let (session, error) = create_with_generation(
+            seed_pinyin.parent().unwrap(),
+            &temporary.path().join("user"),
+            &temporary.path().join("cache"),
+            "official-seed-smoke",
+        );
+        assert!(error.is_none(), "{error:?}");
         assert!(!session.is_null());
 
         for ch in ['n', 'i', 'h', 'a', 'o'] {

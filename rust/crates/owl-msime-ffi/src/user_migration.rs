@@ -794,18 +794,37 @@ mod tests {
             if seed {
                 let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
                 let production = repository.join("data/owl-rime/msime");
-                for name in [assets::MAIN_DICTIONARY, assets::ENGLISH_DICTIONARY] {
+                for name in [
+                    assets::MAIN_DICTIONARY,
+                    assets::WUBI_DICTIONARY,
+                    assets::ENGLISH_DICTIONARY,
+                ] {
                     fs::copy(production.join(name), resources.join(name)).unwrap();
-                    fs::copy(production.join(name), dictionaries.join(name)).unwrap();
                 }
             }
-            Self {
+            let mut fixture = Self {
                 _temp: temp,
                 resources,
                 user,
                 cache,
                 dictionaries,
+            };
+            if seed {
+                fixture.dictionaries = fixture.prepare_generation();
             }
+            fixture
+        }
+
+        fn prepare_generation(&self) -> PathBuf {
+            // Swift prepares the live generation before importing; include the same split tables.
+            let options = msime_engine::host::prepare_options(
+                self.resources.to_str().unwrap(),
+                self.user.to_str().unwrap(),
+                self.cache.to_str().unwrap(),
+                "migration-fixture",
+            )
+            .unwrap();
+            PathBuf::from(options.dictionaries)
         }
 
         fn stage(&self, records: &[Value], pins: &[Value]) -> Staged {
@@ -862,27 +881,16 @@ mod tests {
         }
 
         fn session(&self) -> *mut crate::OwlMsimeSession {
-            let pinyin = CString::new(self.main_dictionary().to_string_lossy().as_bytes()).unwrap();
-            let english = CString::new(
-                self.dictionaries
-                    .join(assets::ENGLISH_DICTIONARY)
-                    .to_string_lossy()
-                    .as_bytes(),
-            )
-            .unwrap();
             let resources = CString::new(self.resources.to_string_lossy().as_bytes()).unwrap();
             let user = CString::new(self.user.to_string_lossy().as_bytes()).unwrap();
             let cache = CString::new(self.cache.to_string_lossy().as_bytes()).unwrap();
-            let dictionaries =
-                CString::new(self.dictionaries.to_string_lossy().as_bytes()).unwrap();
+            let content_id = CString::new("migration-fixture").unwrap();
             let mut error = ptr::null_mut();
-            let session = crate::owl_msime_session_create_with_roots(
-                pinyin.as_ptr(),
-                english.as_ptr(),
+            let session = crate::owl_msime_session_create_with_generation(
                 resources.as_ptr(),
                 user.as_ptr(),
                 cache.as_ptr(),
-                dictionaries.as_ptr(),
+                content_id.as_ptr(),
                 9,
                 &mut error,
             );
@@ -1027,14 +1035,7 @@ mod tests {
     fn reset_user_data(fixture: &Fixture) {
         remove_journal_artifacts(fixture);
         fs::remove_dir_all(&fixture.dictionaries).unwrap();
-        fs::create_dir_all(&fixture.dictionaries).unwrap();
-        for name in [assets::MAIN_DICTIONARY, assets::ENGLISH_DICTIONARY] {
-            fs::copy(
-                fixture.resources.join(name),
-                fixture.dictionaries.join(name),
-            )
-            .unwrap();
-        }
+        assert_eq!(fixture.prepare_generation(), fixture.dictionaries);
     }
 
     #[cfg(unix)]

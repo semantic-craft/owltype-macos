@@ -30,5 +30,18 @@
     "她的房间",
     "它的房间"
   ],
-  "screenshot_provenance": "Source version, effective preferences and initial learning state of screenshot are unknown. The fresh-state upstream default does not reproduce its order."
+  "screenshot_provenance": "Source version, effective preferences and initial learning state of screenshot are unknown. The fresh-state upstream default does not reproduce its order.",
+  "wubi_resources": {
+    "msime-wubi.db": "851ed68211311a76847fe6a26096702747abbaab8dffb141698e0365143b31c1"
+  },
+  "wubi_resource_source": "https://github.com/metasequoiaime/msime-dictionary/releases/download/dict-v2.0.24/msime-wubi.db",
+  "wubi_default_preferences": {
+    "wubi_profile": "wubi86",
+    "wubi_mixed_pinyin": false,
+    "wubi_code_hint": true,
+    "wubi_auto_commit_unique": true,
+    "wubi_fifth_code_top_commit": true,
+    "wubi_z_wildcard": false,
+    "learning": true
+  }
 }

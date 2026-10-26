@@ -3465,8 +3465,7 @@ impl<E: InputEngine> Runtime<E> {
             .as_deref()
             .and_then(|reading| reading.strip_suffix(self.cached.editing_text.as_str()))
             .unwrap_or("");
-        // Wubi top-commit has already completed the old code; the remaining input is the next code.
-        let picked = !wubi_top_commit && (selected_by_digit || selection_action || grid_limit_pick);
+        let picked = selected_by_digit || selection_action || grid_limit_pick;
         // Esc 默认丢弃整段组字和已选词，与参考实现的 _HandleCancel 一致。
         // 开启保留已选词时，第一次只丢掉未选拼写，词段留下。
         let discarded = matches!(action, Action::Command(Command::Cancel)) && !escape_keeps_word;

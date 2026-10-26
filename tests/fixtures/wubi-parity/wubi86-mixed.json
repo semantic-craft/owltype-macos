@@ -1,0 +1,204 @@
+{
+  "description": "Pinned native mixed Wubi/Pinyin defaults: exact Wubi and Pinyin, z-spelling and long fallback, English-looking letters, partial selection with remaining Pinyin, and fifth-code handling. Same shared resources; no ranking masks.",
+  "scheme": "wubi86-mixed",
+  "events": [
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "select",
+      "index": 0,
+      "expect": {
+        "commit": "来",
+        "input": ""
+      }
+    },
+    {
+      "op": "character",
+      "value": "e"
+    },
+    {
+      "op": "character",
+      "value": "d"
+    },
+    {
+      "op": "character",
+      "value": "u"
+    },
+    {
+      "op": "select",
+      "index": 0,
+      "expect": {
+        "commit": "额度",
+        "input": ""
+      }
+    },
+    {
+      "op": "character",
+      "value": "z"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "u"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "select",
+      "index": 0,
+      "expect": {
+        "commit": "中国",
+        "input": ""
+      }
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "e"
+    },
+    {
+      "op": "character",
+      "value": "l"
+    },
+    {
+      "op": "character",
+      "value": "l"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "character",
+      "value": "i"
+    },
+    {
+      "op": "character",
+      "value": "h"
+    },
+    {
+      "op": "character",
+      "value": "a"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "character",
+      "value": "w"
+    },
+    {
+      "op": "character",
+      "value": "o"
+    },
+    {
+      "op": "command",
+      "value": "next-page"
+    },
+    {
+      "op": "select",
+      "index": 4,
+      "expect": {
+        "input": "wo",
+        "preedit": "你好wo",
+        "commit": null
+      }
+    },
+    {
+      "op": "character",
+      "value": "m"
+    },
+    {
+      "op": "character",
+      "value": "e"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "command",
+      "value": "backspace"
+    },
+    {
+      "op": "character",
+      "value": "n"
+    },
+    {
+      "op": "select",
+      "index": 0,
+      "expect": {
+        "commit": "你好我们",
+        "input": ""
+      }
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "g"
+    },
+    {
+      "op": "character",
+      "value": "a",
+      "expect": {
+        "preedit": "王a",
+        "input": "a",
+        "commit": null
+      }
+    },
+    {
+      "op": "command",
+      "value": "cancel"
+    }
+  ]
+}

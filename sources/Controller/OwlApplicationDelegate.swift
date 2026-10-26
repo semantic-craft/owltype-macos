@@ -472,7 +472,10 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     // Seed the 键盘输入 option groups from their single home (OwlKeyboardPreferences).
     state.keyboardInputMethod = OwlKeyboardPreferences.inputMethod
     state.keyboardDoublePinyin = OwlKeyboardPreferences.doublePinyin
+    state.keyboardWubiAutoCommitUnique = OwlKeyboardPreferences.wubiAutoCommitUnique
+    state.keyboardWubiFifthCodeTopCommit = OwlKeyboardPreferences.wubiFifthCodeTopCommit
     state.keyboardWubiCodeHint = OwlKeyboardPreferences.wubiCodeHint
+    state.keyboardWubiZWildcard = OwlKeyboardPreferences.wubiZWildcard
     state.keyboardWubiAutoClear = OwlKeyboardPreferences.wubiAutoClear
     state.keyboardWubiCandidateMode = OwlKeyboardPreferences.wubiCandidateMode
     state.keyboardWubiScheme = OwlKeyboardPreferences.wubiScheme

@@ -114,9 +114,9 @@ enum OwlRustSchemaMap {
 
   static func pinyinScheme(forSchema schemaId: String) -> String {
     switch schemaId {
-    case "wubi86_jidian_pinyin", "wubi86_jidian_trad_pinyin":
+    case "wubi86_jidian_pinyin", "wubi86_jidian_trad_pinyin", "wubi98_pinyin", "wubi98_trad_pinyin":
       return "wubi_pinyin"
-    case "wubi86_jidian", "wubi86_jidian_trad":
+    case "wubi86_jidian", "wubi86_jidian_trad", "wubi98", "wubi98_trad":
       return "wubi"
     default:
       return doublePinyinScheme(forSchema: schemaId)
@@ -124,7 +124,7 @@ enum OwlRustSchemaMap {
   }
 
   static func isTraditionalSchema(_ schemaId: String) -> Bool {
-    schemaId == "wubi86_jidian_trad" || schemaId == "wubi86_jidian_trad_pinyin"
+    ["wubi86_jidian_trad", "wubi86_jidian_trad_pinyin", "wubi98_trad", "wubi98_trad_pinyin"].contains(schemaId)
   }
 
   static func fuzzyBitmask(from snapshot: OwlFuzzySnapshot) -> UInt32 {
@@ -154,7 +154,11 @@ enum OwlRustSchemaMap {
     (id: "wubi86_jidian", name: "极点五笔86"),
     (id: "wubi86_jidian_pinyin", name: "五笔拼音混输"),
     (id: "wubi86_jidian_trad", name: "五笔简入繁出"),
-    (id: "wubi86_jidian_trad_pinyin", name: "五笔拼音混输·简入繁出")
+    (id: "wubi86_jidian_trad_pinyin", name: "五笔拼音混输·简入繁出"),
+    (id: "wubi98", name: "五笔98"),
+    (id: "wubi98_pinyin", name: "五笔98拼音混输"),
+    (id: "wubi98_trad", name: "五笔98简入繁出"),
+    (id: "wubi98_trad_pinyin", name: "五笔98拼音混输·简入繁出")
   ]
 }
 
@@ -174,11 +178,14 @@ final class OwlRustSession: RimeSession {
   private var preeditCaretByteOffset: Int = 0
   private var customCaretPos: Int?
   private var lastAppliedPageSize: Int = 0
-  private var lastAppliedPinyinQuickPhrases: Bool?
+  private var lastAppliedQuickPhrases: Bool?
   private var lastAppliedASCIIPunct: Bool?
   private var lastAppliedFuzzyMask: UInt32 = 0
   private var lastAppliedWubiCandidateMode: String = ""
+  private var lastAppliedWubiAutoCommitUnique: Bool?
+  private var lastAppliedWubiFifthCodeTopCommit: Bool?
   private var lastAppliedWubiCodeHint: Bool?
+  private var lastAppliedWubiZWildcard: Bool?
   private var lastAppliedWubiAutoClear: Bool?
   private var lastAppliedWubiZReverseLookup: Bool?
   private var lastAppliedWubiEnglishChannel: Bool?
@@ -414,9 +421,12 @@ final class OwlRustSession: RimeSession {
 
   /// Native application chords finish the highlighted conversion before passthrough.
   /// Dedicated IME shortcuts and segment editing are resolved before this boundary.
-  func finishNativeComposition() {
-    guard !activeSchemaId.hasPrefix("wubi") else { return }
-    _ = applyActionResponse(sendAction(["op": "finish"]))
+  @discardableResult
+  func finishNativeComposition(onFocusLoss: Bool = false) -> Bool {
+    let action = onFocusLoss ? "finish_on_focus_loss" : "finish"
+    guard let response = sendAction(["op": action]), response.isOK else { return false }
+    _ = applyActionResponse(response)
+    return true
   }
 
   func balanceHostPairedPunctuation() {
@@ -714,6 +724,10 @@ final class OwlRustSession: RimeSession {
     guard sendAction(["op": "set_input_mode", "mode": mode])?.isOK == true else {
       return false
     }
+    if mode == "wubi" {
+      let profile = id.hasPrefix("wubi98") ? "wubi98" : "wubi86"
+      guard sendAction(["op": "set_wubi_profile", "profile": profile])?.isOK == true else { return false }
+    }
     var schemeAction: [String: Any] = ["op": "set_pinyin_scheme", "scheme": scheme]
     if scheme == "custom" {
       guard let table = OwlRustSchemaMap.customShuangpinTable(forSchema: id) else {
@@ -747,18 +761,23 @@ final class OwlRustSession: RimeSession {
   }
 
   private func applyRuntimePreferences(includeHostPhrases: Bool) -> Bool {
-    let quickPhrases = OwlKeyboardPreferences.pinyinQuickPhraseCandidates
-    if quickPhrases != lastAppliedPinyinQuickPhrases {
-      guard let response = sendAction(["op": "set_option", "name": "pinyin_quick_phrase_candidates",
+    let quickPhrases = OwlKeyboardPreferences.quickPhraseCandidates
+    if quickPhrases != lastAppliedQuickPhrases {
+      guard let response = sendAction(["op": "set_option", "name": "quick_phrase_candidates",
                                        "value": quickPhrases]), response.isOK else { return false }
-      lastAppliedPinyinQuickPhrases = quickPhrases
+      lastAppliedQuickPhrases = quickPhrases
       _ = applyActionResponse(response)
     }
     let pageSize = max(3, min(9, OwlKeyboardPreferences.pageSize))
     let fuzzyMask = OwlRustSchemaMap.fuzzyBitmask(from: OwlFuzzySnapshot.current())
     let candMode = OwlKeyboardPreferences.wubiCandidateMode.rawValue
     let booleanOptions: [(String, Bool?, ReferenceWritableKeyPath<OwlRustSession, Bool?>)] = [
+      ("wubi_auto_commit_unique", OwlKeyboardPreferences.wubiAutoCommitUnique,
+       \.lastAppliedWubiAutoCommitUnique),
+      ("wubi_fifth_code_top_commit", OwlKeyboardPreferences.wubiFifthCodeTopCommit,
+       \.lastAppliedWubiFifthCodeTopCommit),
       ("wubi_code_hint", OwlKeyboardPreferences.wubiCodeHint, \.lastAppliedWubiCodeHint),
+      ("wubi_z_wildcard", OwlKeyboardPreferences.wubiZWildcard, \.lastAppliedWubiZWildcard),
       ("wubi_auto_clear", OwlKeyboardPreferences.wubiAutoClear, \.lastAppliedWubiAutoClear),
       ("wubi_z_reverse_lookup",
        OwlKeyboardPreferences.wubiZReverseLookup, \.lastAppliedWubiZReverseLookup),
