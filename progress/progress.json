@@ -6,7 +6,7 @@
     "open_pulls": [
       {
         "number": 305,
-        "head": "e0f46d153dbb75d1cb4d25ca8d18cff1ef0755cf"
+        "head": "7ce409e31433af2a61323edbee98cf897c67e231"
       },
       {
         "number": 306,
@@ -15,6 +15,14 @@
       {
         "number": 308,
         "head": "229d4379da96242a5fe1598c09b40ba8c1418c6e"
+      },
+      {
+        "number": 309,
+        "head": "61fb10fd7713a041c18fc191971d57ed75717858"
+      },
+      {
+        "number": 310,
+        "head": "d817d3044d7038a23fe5a4f357909fde85022971"
       }
     ],
     "issues": [
@@ -112,55 +120,55 @@
         "number": 295,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T09:31:42Z"
+        "updated_at": "2026-10-26T09:41:02Z"
       },
       {
         "number": 296,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T06:55:12Z"
+        "updated_at": "2026-10-26T09:54:35Z"
       },
       {
         "number": 297,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T06:55:13Z"
+        "updated_at": "2026-10-26T10:10:27Z"
       },
       {
         "number": 298,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T06:55:14Z"
+        "updated_at": "2026-10-26T10:24:04Z"
       },
       {
         "number": 299,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T06:55:15Z"
+        "updated_at": "2026-10-26T10:24:06Z"
       },
       {
         "number": 300,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T06:55:17Z"
+        "updated_at": "2026-10-26T11:01:37Z"
       },
       {
         "number": 301,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T06:55:18Z"
+        "updated_at": "2026-10-26T11:01:39Z"
       },
       {
         "number": 302,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T06:55:19Z"
+        "updated_at": "2026-10-26T10:34:31Z"
       },
       {
         "number": 303,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T06:55:20Z"
+        "updated_at": "2026-10-26T11:01:42Z"
       },
       {
         "number": 304,
@@ -176,7 +184,7 @@
     "progress/sync.py",
     "progress/teslahub.mjs"
   ],
-  "observed_at": "2026-10-26T09:37:21Z",
+  "observed_at": "2026-10-26T11:01:53Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -427,9 +435,9 @@
         {
           "id": "issue-296",
           "title": "#296 [五笔对齐 W02] 五笔 86 正式资源与候选对齐",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#295。",
-          "next": "等待前置完成，复用其成果。",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#295。",
+          "next": "沿用当前执行会话，勿重复领取。",
           "evidence": [
             {
               "kind": "issue",
@@ -441,9 +449,9 @@
         {
           "id": "issue-297",
           "title": "#297 [五笔对齐 W03] 连打与上屏规则对齐",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#296。",
-          "next": "等待前置完成，复用其成果。",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#296。",
+          "next": "沿用当前执行会话，勿重复领取。",
           "evidence": [
             {
               "kind": "issue",
@@ -455,9 +463,9 @@
         {
           "id": "issue-298",
           "title": "#298 [五笔对齐 W04] 五笔拼音混输对齐",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#283, #296。",
-          "next": "等待前置完成，复用其成果。",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#283, #296。",
+          "next": "沿用当前执行会话，勿重复领取。",
           "evidence": [
             {
               "kind": "issue",
@@ -469,9 +477,9 @@
         {
           "id": "issue-299",
           "title": "#299 [五笔对齐 W05] z 反查、通配与编码提示",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#282, #296。",
-          "next": "等待前置完成，复用其成果。",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#282, #296。",
+          "next": "沿用当前执行会话，勿重复领取。",
           "evidence": [
             {
               "kind": "issue",
@@ -483,9 +491,9 @@
         {
           "id": "issue-300",
           "title": "#300 [五笔对齐 W06] 五笔 98 完整输入",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#296。",
-          "next": "等待前置完成，复用其成果。",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#296。",
+          "next": "沿用当前执行会话，勿重复领取。",
           "evidence": [
             {
               "kind": "issue",
@@ -497,9 +505,9 @@
         {
           "id": "issue-301",
           "title": "#301 [五笔对齐 W07] 五笔学习与重启恢复",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#289, #296。",
-          "next": "等待前置完成，复用其成果。",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#289, #296。",
+          "next": "沿用当前执行会话，勿重复领取。",
           "evidence": [
             {
               "kind": "issue",
@@ -525,9 +533,9 @@
         {
           "id": "issue-303",
           "title": "#303 [五笔对齐 W09] 五笔资源更新与回退",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#291, #301。",
-          "next": "等待前置完成，复用其成果。",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#291, #301。",
+          "next": "沿用当前执行会话，勿重复领取。",
           "evidence": [
             {
               "kind": "issue",
