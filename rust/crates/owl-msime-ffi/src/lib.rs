@@ -3945,7 +3945,9 @@ mod tests {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
         let resources = repository.join("data/owl-rime/msime");
         assert!(
-            resources.join(msime_engine::assets::WUBI_DICTIONARY).is_file(),
+            resources
+                .join(msime_engine::assets::WUBI_DICTIONARY)
+                .is_file(),
             "missing official split Wubi seed at {}",
             resources.display()
         );
