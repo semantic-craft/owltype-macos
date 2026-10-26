@@ -2445,7 +2445,7 @@ final class OwlRustEngineTests: XCTestCase {
     let session = engine.createSession()
     defer { session.destroy() }
 
-    // 1. Quick phrase `yx` -> `user@example.com` at top of page 0
+    // 1. Explicit K invocation exposes the complete host quick phrase.
     for scalar in "Kowlmail".unicodeScalars {
       XCTAssertTrue(session.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
     }
@@ -2455,7 +2455,7 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.takeCommit(), "user@example.com")
     XCTAssertEqual(session.lastCommittedInput(), "Kowlmail")
 
-    // 2. Prompt `zb` -> `📝周报生成` at top of page 0
+    // 2. Explicit K invocation exposes the prompt candidate.
     for scalar in "Kowlreport".unicodeScalars {
       XCTAssertTrue(session.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
     }
@@ -2778,5 +2778,70 @@ final class OwlRustEngineTests: XCTestCase {
     let switched = try XCTUnwrap(session.composition())
     XCTAssertEqual(switched.candidates.filter { $0.text == templateText }.count, 1)
     XCTAssertNil(session.takeCommit())
+  }
+
+  func testWubiDoesNotLeakLegacyCustomPhraseOrUsurpFirstSlotForHostPhrases() throws {
+    let origCandidateMode = OwlKeyboardPreferences.wubiCandidateMode
+    defer { OwlKeyboardPreferences.wubiCandidateMode = origCandidateMode }
+    OwlKeyboardPreferences.wubiCandidateMode = .normal
+
+    let engine = try makeSharedSupportSeedEngine()
+    for schema in ["wubi86_jidian", "wubi86_jidian_pinyin"] {
+      XCTAssertTrue(engine.selectSchema(schema))
+      let session = engine.createSession()
+      defer { session.destroy() }
+
+      typeText("i", into: session)
+      let iComp = try XCTUnwrap(session.composition(), "schema: \(schema)")
+      XCTAssertEqual(iComp.candidates.first?.text, "不", "schema: \(schema)")
+      for leaked in ["一", "以", "已", "亦"] {
+        XCTAssertFalse(
+          iComp.candidates.contains(where: { $0.text == leaked }),
+          "schema \(schema) leaked \(leaked) into `i`: \(iComp.candidates.map(\.text))"
+        )
+      }
+      session.clearComposition()
+
+      typeText("go", into: session)
+      let goComp = try XCTUnwrap(session.composition(), "schema: \(schema)")
+      XCTAssertEqual(goComp.candidates.first?.text, "来", "schema: \(schema)")
+      XCTAssertFalse(
+        goComp.candidates.contains(where: { $0.text == "go" }),
+        "schema \(schema) leaked English `go` into `go`: \(goComp.candidates.map(\.text))"
+      )
+      session.clearComposition()
+    }
+
+    // Host phrases remain explicit Owl enhancements: ordinary Wubi keeps the primary row,
+    // and K plus the complete trigger can still invoke the user's entry.
+    let userDir = try makeHostPhraseUserDirectory()
+    try writeHostPhrase(
+      "自定一\ti\t100000\n自定GO\tgo\t100000\n",
+      fileName: "custom_phrase.txt",
+      to: userDir
+    )
+    let customEngine = try makeHostPhraseEngine(userDataURL: userDir)
+    XCTAssertTrue(customEngine.selectSchema("wubi86_jidian"))
+    let customSession = customEngine.createSession()
+    defer { customSession.destroy() }
+
+    typeText("i", into: customSession)
+    let customIComp = try XCTUnwrap(customSession.composition())
+    XCTAssertEqual(customIComp.candidates.first?.text, "不")
+    XCTAssertFalse(customIComp.candidates.contains { $0.text == "自定一" })
+    customSession.clearComposition()
+    XCTAssertTrue(customSession.process(keycode: asciiKeycode("K"), modifiers: kShiftMask.rawValue))
+    typeText("i", into: customSession)
+    XCTAssertTrue(visibleAndPeekedCandidates(in: customSession).contains { $0.text == "自定一" })
+    customSession.clearComposition()
+
+    typeText("go", into: customSession)
+    let customGoComp = try XCTUnwrap(customSession.composition())
+    XCTAssertEqual(customGoComp.candidates.first?.text, "来")
+    XCTAssertFalse(customGoComp.candidates.contains { $0.text == "自定GO" })
+    customSession.clearComposition()
+    XCTAssertTrue(customSession.process(keycode: asciiKeycode("K"), modifiers: kShiftMask.rawValue))
+    typeText("go", into: customSession)
+    XCTAssertTrue(visibleAndPeekedCandidates(in: customSession).contains { $0.text == "自定GO" })
   }
 }
