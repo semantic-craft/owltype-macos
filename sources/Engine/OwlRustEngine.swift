@@ -9,6 +9,7 @@
 import CryptoKit
 import Foundation
 
+
 // MARK: - Schema Mapping
 
 private struct OwlRustShuangpinTable {
@@ -185,6 +186,7 @@ final class OwlRustSession: RimeSession {
   private var lastAppliedHostPhrases: String = ""
   private var lastAppliedRerankConfiguration: String?
   private var lastRerankStatusRefresh: UInt64 = 0
+  private let resourceRoot: URL?
   private(set) var rerankConfigurationEpoch: UInt64 = 0
   private(set) var settledRerankReady = false
   private(set) var settledRerankLoading = false
@@ -240,9 +242,11 @@ final class OwlRustSession: RimeSession {
     sessionID: UInt64,
     handle: OpaquePointer?,
     ownerEngine: OwlRustEngine,
-    initialSchemaId: String
+    initialSchemaId: String,
+    resourceRoot: URL? = nil
   ) {
     self.sessionID = sessionID
+    self.resourceRoot = resourceRoot
     self.handle = handle
     self.ownerEngine = ownerEngine
     self.activeSchemaId = initialSchemaId
@@ -897,7 +901,7 @@ final class OwlRustSession: RimeSession {
 
   private func syncRerankConfiguration(forceStatus: Bool = false) {
     guard handle != nil, let ownerEngine else { return }
-    let configuration = ownerEngine.rerankConfiguration()
+    let configuration = ownerEngine.rerankConfiguration(resourcesURL: resourceRoot)
     guard let serialized = configuration.serialized() else { return }
     if serialized != lastAppliedRerankConfiguration {
       lastAppliedRerankConfiguration = serialized
@@ -1123,8 +1127,8 @@ final class OwlRustEngine: RimeEngine {
 
     var creationError: UnsafeMutablePointer<CChar>?
     let handle: OpaquePointer?
-    if let generation, let sharedRoot = sharedSupportURL ?? Bundle.main.sharedSupportURL {
-      let auxiliaryResources = sharedRoot.appendingPathComponent("msime", isDirectory: true)
+    if let generation {
+      let auxiliaryResources = generation.resourcesURL
       handle = auxiliaryResources.path.withCString { auxiliaryCStr in
         generation.resourcesURL.path.withCString { resourcesCStr in
           userDir.withCString { userCStr in
@@ -1155,7 +1159,8 @@ final class OwlRustEngine: RimeEngine {
       sessionID: id,
       handle: handle,
       ownerEngine: self,
-      initialSchemaId: selectedSchemaId
+      initialSchemaId: selectedSchemaId,
+      resourceRoot: generation?.resourcesURL
     )
     sessions[id] = session
     return session
@@ -1266,9 +1271,10 @@ final class OwlRustEngine: RimeEngine {
     return succeeded
   }
 
-  fileprivate func rerankConfiguration() -> OwlRerankConfiguration {
+  fileprivate func rerankConfiguration(resourcesURL: URL?) -> OwlRerankConfiguration {
     OwlRerankConfiguration.current(
-      sharedSupportURL: sharedSupportURL ?? Bundle.main.sharedSupportURL
+      sharedSupportURL: sharedSupportURL ?? Bundle.main.sharedSupportURL,
+      resourcesURL: resourcesURL
     )
   }
 
