@@ -969,6 +969,7 @@ impl OwlMsimeSession {
 
     pub fn create_with_generation(
         resources_dir: &str,
+        auxiliary_resources_dir: &str,
         user_data_dir: &str,
         cache_dir: &str,
         content_id: &str,
@@ -1008,8 +1009,23 @@ impl OwlMsimeSession {
             false,
         )?;
 
+        // Dictionary generations own only the mutable working dictionaries. Auxiliary
+        // catalogs remain in the signed application, including for existing 2.1.0 packs.
+        let auxiliary = Path::new(auxiliary_resources_dir);
+        if !auxiliary.is_absolute() || !auxiliary.is_dir() {
+            return Err("auxiliary resources must be an existing absolute directory".into());
+        }
+        reject_redirected_directory(auxiliary)
+            .map_err(|e| format!("invalid auxiliary resources: {e}"))?;
+        let auxiliary = fs::canonicalize(auxiliary)
+            .map_err(|e| format!("cannot resolve auxiliary resources: {e}"))?;
+        for writable in [&user, &cache, &dictionaries] {
+            if roots_overlap(&auxiliary, writable) {
+                return Err("auxiliary resources overlap a writable session root".into());
+            }
+        }
         let page_size = clamp_page_size(page_size);
-        let options = product_engine_options(&resources, &user, &cache, &dictionaries, page_size);
+        let options = product_engine_options(&auxiliary, &user, &cache, &dictionaries, page_size);
         Self::create_with_options(options, source_pinyin, staged_pinyin, page_size, None)
     }
 
@@ -2341,6 +2357,27 @@ pub extern "C" fn owl_msime_session_create_with_generation(
     page_size: u32,
     error_out: *mut *mut c_char,
 ) -> *mut OwlMsimeSession {
+    owl_msime_session_create_with_auxiliary_resources(
+        resources_dir,
+        resources_dir,
+        user_data_dir,
+        cache_dir,
+        content_id,
+        page_size,
+        error_out,
+    )
+}
+
+#[no_mangle]
+pub extern "C" fn owl_msime_session_create_with_auxiliary_resources(
+    resources_dir: *const c_char,
+    auxiliary_resources_dir: *const c_char,
+    user_data_dir: *const c_char,
+    cache_dir: *const c_char,
+    content_id: *const c_char,
+    page_size: u32,
+    error_out: *mut *mut c_char,
+) -> *mut OwlMsimeSession {
     if !error_out.is_null() {
         unsafe {
             *error_out = ptr::null_mut();
@@ -2354,7 +2391,15 @@ pub extern "C" fn owl_msime_session_create_with_generation(
         let user = cstr_to_string(user_data_dir).unwrap_or_default();
         let cache = cstr_to_string(cache_dir).unwrap_or_default();
         let content_id = cstr_to_string(content_id).unwrap_or_default();
-        OwlMsimeSession::create_with_generation(&resources, &user, &cache, &content_id, page_size)
+        let auxiliary = cstr_to_string(auxiliary_resources_dir).unwrap_or_default();
+        OwlMsimeSession::create_with_generation(
+            &resources,
+            &auxiliary,
+            &user,
+            &cache,
+            &content_id,
+            page_size,
+        )
     }));
     let session = match created {
         Ok(Ok(session)) => {
@@ -3247,7 +3292,11 @@ mod tests {
             "settled": {"enabled": false}
         });
         let configured = configure_rerank(session, &config.to_string());
-        assert_eq!(configured["keyboard"]["state"], "loading");
+        // The worker can finish before configure returns its status snapshot.
+        assert!(matches!(
+            configured["keyboard"]["state"].as_str(),
+            Some("loading" | "missing")
+        ));
         let status = wait_for_rerank_state(session, "keyboard", "missing");
         assert_eq!(status["keyboard"]["enabled"], true);
         assert!(status["keyboard"]["error"].is_string());

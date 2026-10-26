@@ -413,3 +413,22 @@ review dates, not retries. Keep deterministic checks in the local gate.
   passes, `make test TEST_ONLY='RimeSeamTests'` passes, and reset/deploy/migration call sites guard
   `finalize()` instead of ignoring it. Real reset acceptance remains distinct from the unit test.
 - Seen on 1 distinct date: 2026-10-26.
+
+
+## Resource activation must preserve auxiliary catalogs and schema-owned keys
+
+- Seen 1x (2026-10-26): PR #272 review found that activating a full dictionary replaced
+  the resource root containing the bundled emoji catalog, and custom shuangpin's `;`
+  was routed to candidate selection/punctuation before reaching its spelling handler.
+- Regression: `OwlRustEngineTests.testActivatedDictionaryKeepsBundledEmojiCandidates`
+  and `testShuangpinSemicolonSpellingPrecedesCandidateShortcut` fail on the shipped
+  2.1.0 source (seven assertions). They exercise real SQLite/FFI sessions, not UI mocks.
+- Fix: stage main dictionaries from the active generation while resolving auxiliary
+  resources from the app; publish caret-aware semicolon spelling eligibility from
+  Rust and consume it before host candidate shortcuts. Existing generations remain
+  immutable and do not need a download to regain emoji suggestions.
+- Verify (验证点): run `python3 scripts/verify.py swift --test OwlRustEngineTests`;
+  test both shortcut settings, deletion/retyping and visible-candidate commit. These
+  checks establish adapter behavior; installed-host timing is a separate measurement.
+
+- 2026-10-26：异步模型配置返回时 worker 可能已从 loading 进入 missing；回归应接受这两种合法即时状态并继续等待/断言 missing。只接受 loading 的测试竞态会在销毁 session 前 panic，连带污染全局生命周期测试。本次 53 个 FFI 单测及 engine_lifecycle 重跑通过。

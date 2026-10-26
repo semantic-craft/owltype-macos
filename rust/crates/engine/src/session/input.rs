@@ -1319,6 +1319,16 @@ impl InputSession {
         }
         // 组字原文是网址触发词时发布触发键，原文能做邮箱的本地部分时发布 `@`，runtime 才会把它当作字符送进来，而不是先结束组字。发布的键必须正是 `url_entry` 接受的键。
         let mut keys = self.url_entry_keys().unwrap_or_default();
+        if self.scheme() == SchemeType::Shuangpin
+            && self.profile.uses_semicolon_key()
+            && crate::shuangpin::mid_sentence::accepts_semicolon_final_at(
+                self.raw_with_cases().as_bytes(),
+                self.caret_position(),
+                self.shuangpin_helpcode_uppercase_triggers(),
+            )
+        {
+            keys.push(';');
+        }
         if self.helpcode_trigger_available() {
             keys.push(self.helpcode_trigger_key.unwrap() as char);
         }
