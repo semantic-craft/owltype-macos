@@ -4,11 +4,22 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import os
 import sqlite3
 import subprocess
 import sys
 from pathlib import Path
+
+
+# Reuse the audited acquisition contract instead of maintaining a second table
+# allowlist that can disagree with seed generation and licensing.
+OTHERS_SPEC = importlib.util.spec_from_file_location(
+    "owl_others_delivery_contract", Path(__file__).with_name("fetch-msime-others.py")
+)
+assert OTHERS_SPEC is not None and OTHERS_SPEC.loader is not None
+OTHERS = importlib.util.module_from_spec(OTHERS_SPEC)
+OTHERS_SPEC.loader.exec_module(OTHERS)
 
 
 LEGACY_EXECUTABLES = {"rime-install", "rime_deployer", "rime_dict_manager"}
@@ -31,13 +42,13 @@ REQUIRED_RUST_SYMBOLS = {
 REQUIRED_RESOURCES = {
     "msime-pinyin.db": {"tbl_1_n", "tbl_2_n", "wubi86", "quick_parases"},
     "msime-english.db": {"english_words"},
-    "msime-others.db": {"emoji", "emoji_pinyin"},
+    "msime-others.db": set(OTHERS.EXPECTED_ROWS),
 }
 FORBIDDEN_RESOURCE_TABLES = {
-    "msime-others.db": {"kaomoji", "kaomoji_catalog", "symbol_catalog"},
+    "msime-others.db": OTHERS.FORBIDDEN_TABLES,
 }
 EXACT_RESOURCE_TABLES = {
-    "msime-others.db": {"emoji", "emoji_pinyin"},
+    "msime-others.db": set(OTHERS.EXPECTED_ROWS),
 }
 
 
@@ -213,6 +224,10 @@ def verify_resources(app: Path) -> None:
             FORBIDDEN_RESOURCE_TABLES.get(filename, set()),
             filename in EXACT_RESOURCE_TABLES,
         )
+    try:
+        OTHERS.verify_distribution(resource_root.parent)
+    except OTHERS.Failure as error:
+        raise DeliveryError(f"pinned others delivery contract failed: {error}") from error
 
 
 def validate_app(app: Path) -> tuple[int, int]:
