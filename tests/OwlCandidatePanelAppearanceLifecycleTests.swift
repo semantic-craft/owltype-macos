@@ -5,6 +5,7 @@
 
 import AppKit
 import XCTest
+import SwiftUI
 @testable import Owltype
 
 @MainActor
@@ -154,5 +155,68 @@ private struct AppearanceLifecycleFontCatalog: OwlCandidateFontCatalog {
 
   func availableFontFamilies() -> [String] {
     families
+  }
+}
+
+@MainActor
+final class OwlInputStatusPanelGeometryTests: XCTestCase {
+  func testDisconnectedDisplayReturnsBarToRemainingVisibleScreen() {
+    let visible = NSRect(x: 0, y: 40, width: 1440, height: 830)
+    let old = NSRect(x: 2300, y: 100, width: 320, height: 48)
+    let result = OwlInputStatusPanel.reachableFrame(old, screens: [visible])
+    XCTAssertTrue(visible.contains(result))
+    XCTAssertEqual(result.size, old.size)
+  }
+
+  func testNegativeOriginDisplayKeepsUserPlacement() {
+    let left = NSRect(x: -1920, y: 0, width: 1920, height: 1080)
+    let right = NSRect(x: 0, y: 40, width: 1440, height: 830)
+    let frame = NSRect(x: -1800, y: 120, width: 320, height: 48)
+    XCTAssertEqual(OwlInputStatusPanel.reachableFrame(frame, screens: [left, right]), frame)
+  }
+
+  func testPartiallyOffscreenBarIsFullyReachableAboveDock() {
+    let visible = NSRect(x: 0, y: 80, width: 1440, height: 790)
+    let frame = NSRect(x: 1400, y: 20, width: 320, height: 48)
+    XCTAssertTrue(visible.contains(OwlInputStatusPanel.reachableFrame(frame, screens: [visible])))
+  }
+}
+
+@MainActor
+final class OwlInputStatusPanelRenderingTests: XCTestCase {
+  func testEverySkinRendersInBothAppearances() throws {
+    let settings = OwlCandidatePanelSettings.live
+    // Render copied snapshots; do not edit the live settings or touch the engine.
+    let base = settings.snapshot()
+    for skin in OwlSkin.allCases {
+      for dark in [false, true] {
+        let snapshot = OwlCandidatePanelSettings.Snapshot(
+          appearance: dark ? .dark : .light, skin: skin, font: base.font,
+          animationsEnabled: false, size: base.size, orientation: base.orientation,
+          showPreedit: base.showPreedit, inlineCandidate: base.inlineCandidate,
+          showPaging: base.showPaging, showNotificationsWhen: base.showNotificationsWhen,
+          candidateFormat: base.candidateFormat, scrollRows: base.scrollRows)
+        let presentation = OwlInputStatusPanel.Presentation(
+          schema: "wubi86_jidian_pinyin", ascii: false, punctuation: false,
+          fullShape: false, traditional: false, settings: snapshot)
+        let host = NSHostingView(rootView: OwlInputStatusView(presentation: presentation, action: { _ in })
+          .environment(\.colorScheme, dark ? .dark : .light))
+        host.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+        let size = host.fittingSize
+        XCTAssertGreaterThan(size.width, 200)
+        XCTAssertLessThan(size.width, 400)
+        XCTAssertLessThanOrEqual(size.height, 60)
+        host.frame = NSRect(origin: .zero, size: size)
+        host.layoutSubtreeIfNeeded()
+        let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        let image = NSImage(size: size)
+        image.addRepresentation(bitmap)
+        let attachment = XCTAttachment(image: image)
+        attachment.name = "status-\(skin.rawValue)-\(dark ? "dark" : "light")"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+      }
+    }
   }
 }

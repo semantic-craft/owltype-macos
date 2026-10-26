@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AB278001CAFE0001CAFE0001 /* OwlInputStatusPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB278002CAFE0002CAFE0002 /* OwlInputStatusPanel.swift */; };
 		7F0DC648D4FA46D8B807DC11 /* OwlInputHabitsIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3C6C24D8ADC4266BE3AFEEE /* OwlInputHabitsIntegrationTests.swift */; };
 		670F2E760700470A9CE045E9 /* OwlInputHabitsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3E22E941504EA49830A2A2 /* OwlInputHabitsTests.swift */; };
 		8E0219EE244D455186692B00 /* OwlInputController+InputHabits.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18655B9FE96489FABD6D0D3 /* OwlInputController+InputHabits.swift */; };
@@ -303,6 +304,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		AB278002CAFE0002CAFE0002 /* OwlInputStatusPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = sources/UI/OwlInputStatusPanel.swift; sourceTree = "<group>"; };
 		C3C6C24D8ADC4266BE3AFEEE /* OwlInputHabitsIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputHabitsIntegrationTests.swift"; path = "tests/OwlInputHabitsIntegrationTests.swift"; sourceTree = "<group>"; };
 		CC3E22E941504EA49830A2A2 /* OwlInputHabitsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputHabitsTests.swift"; path = "tests/OwlInputHabitsTests.swift"; sourceTree = "<group>"; };
 		A18655B9FE96489FABD6D0D3 /* OwlInputController+InputHabits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+InputHabits.swift"; path = "sources/Controller/OwlInputController+InputHabits.swift"; sourceTree = "<group>"; };
@@ -632,6 +634,7 @@
 				FA000009CAFE0009CAFE0009 /* OwlSettingsPages.swift */,
 				FA000046CAFE0046CAFE0046 /* OwlEmojiData.swift */,
 				FA000047CAFE0047CAFE0047 /* OwlEmojiPanelView.swift */,
+				AB278002CAFE0002CAFE0002 /* OwlInputStatusPanel.swift */,
 				FA000048CAFE0048CAFE0048 /* OwlEmojiPanel.swift */,
 				FAA00001CAFE0001CAFE0001 /* OwlFloatingPanelPositioner.swift */,
 				FAA00040CAFE0040CAFE0040 /* OwlHostCaretAnchorMemory.swift */,
@@ -1132,6 +1135,7 @@
 				FA000019CAFE0019CAFE0019 /* OwlSettingsPages.swift in Sources */,
 				FA000050CAFE0050CAFE0050 /* OwlEmojiData.swift in Sources */,
 				FA000051CAFE0051CAFE0051 /* OwlEmojiPanelView.swift in Sources */,
+				AB278001CAFE0001CAFE0001 /* OwlInputStatusPanel.swift in Sources */,
 				FA000052CAFE0052CAFE0052 /* OwlEmojiPanel.swift in Sources */,
 				FAA00002CAFE0002CAFE0002 /* OwlFloatingPanelPositioner.swift in Sources */,
 				FAA00041CAFE0041CAFE0041 /* OwlHostCaretAnchorMemory.swift in Sources */,

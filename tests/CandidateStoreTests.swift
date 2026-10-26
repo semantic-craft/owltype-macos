@@ -584,6 +584,9 @@ final class OwlModernUISmokeTests: XCTestCase {
     XCTAssertFalse(OwlEmojiPanel().canBecomeKey)
     // The status HUD is also a non-activating panel — it must never steal host focus.
     XCTAssertFalse(OwlStatusHUD().canBecomeKey)
+    XCTAssertFalse(OwlInputStatusPanel.shared.canBecomeKey)
+    XCTAssertFalse(OwlInputStatusPanel.shared.canBecomeMain)
+    XCTAssertTrue(OwlInputStatusPanel.shared.styleMask.contains(.nonactivatingPanel))
   }
 
   // NOTE: `testSwiftUICandidatePanelDefaultsOnButCanOptOut` was removed when the

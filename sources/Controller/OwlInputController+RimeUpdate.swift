@@ -103,6 +103,7 @@ extension OwlInputController {
   func rimeUpdate() {
     // print("[DEBUG] rimeUpdate")
     guard let rime else { return }
+    defer { MainActor.assumeIsolated { OwlInputStatusPanel.shared.refresh(self) } }
     let updateTrace = OwlLatencyTrace.begin("composition.update")
     defer { OwlLatencyTrace.end("composition.update", updateTrace) }
     // Same librime call order as before, only the call SITE moved behind the seam:

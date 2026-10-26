@@ -43,9 +43,12 @@ extension OwlInputController {
       updateAppOptions()
     }
     preedit = ""
+    if rime?.isValid != true { createSession() }
+    MainActor.assumeIsolated { OwlInputStatusPanel.shared.activate(self) }
   }
 
   override func deactivateServer(_ sender: Any!) {
+    MainActor.assumeIsolated { OwlInputStatusPanel.shared.deactivate(self) }
     rememberAppInputMode()
     invalidateSettledRerankForAction()
     pendingTemplateDelivery?.hostWillDeactivate()
