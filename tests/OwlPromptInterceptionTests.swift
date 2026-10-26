@@ -55,6 +55,13 @@ final class OwlPromptInterceptionTests: XCTestCase {
     XCTAssertEqual(action, .invoke(prompt))
   }
 
+  func testExplicitQuickPhrasePromptRetainsInvocationContext() {
+    let prompt = entry("fanyi", "翻译", "把下面译成{{语言}}：{{原文}}")
+    let store = FakePromptStore(entries: [prompt])
+    XCTAssertEqual(resolvePromptCommit(code: "Kfanyi", committedTitle: marker + "翻译", store: store), .invoke(prompt))
+    XCTAssertEqual(store.queries.first?.code, "fanyi")
+  }
+
   func testMarkedButUnknownTitlePassesThrough() {
     let store = FakePromptStore(entries: [entry("hetong", "合同审查", "正文")])
     // 📝 present but the store has no entry for this (code,title) → not a Owltype prompt.

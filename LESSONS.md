@@ -534,6 +534,24 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Verify: run `RimeSeamTests` and the named native integration test through the seeded Swift test host, together with existing `OwlRustEngineTests` model/ticket checks. Timer firing and a monotonic clock are controlled; no fixed sleep determines whether a worker result is stale. This checks in-process native host behavior, not installed IMK IPC delivery.
 - Seen 1x (2026-10-26).
 
+## Owl enhancement rows are distinct from native quick phrases
+
+- Seen 1x (2026-10-26): treating bare host-api defaults as native macOS defaults would disable
+  legitimate upstream quick-phrase candidates. Native `MSIMESessionOptions` enables them; Owl
+  template/prompt/custom host rows instead require explicit K plus the complete stored trigger.
+- Keep the native database candidate order and K prefix browsing intact. The thin host-table
+  adapter switch defaults to upstream behavior; Owl alone disables ordinary host-table injection.
+  Preserve stored content and codes, and strip the explicit mode prefix only when resolving an
+  Owl invocation. Partial host triggers must never publish internal invocation markers.
+- Regression: `OwlRustEngineTests.testOwlEnhancementsRequireExplicitKWithoutChangingOrdinaryCandidates`
+  compares real ordinary candidates with/without a template, checks partial/full K triggers,
+  visible commits, cancellation and return to ordinary input. Prompt interception and existing
+  host delivery tests cover context, stale targets and single delivery.
+- Verify (验证点): `cargo test --locked --manifest-path rust/Cargo.toml -p owl-msime-ffi` and
+  `python3 scripts/verify.py swift --test OwlRustEngineTests --test OwlPromptInterceptionTests
+  --test OwlTemplateHostDeliveryTests` pass. These are isolated automated sessions, not installed
+  IMK or live-provider acceptance.
+
 ## Learning parity must cross a process boundary and reach a real consumer
 
 - Seen 1x (2026-10-26): T09 found that upstream `RemoveCandidate` had no Owl FFI or

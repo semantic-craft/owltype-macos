@@ -857,7 +857,7 @@ fn product_engine_options(
         local_super_jianpin: true,
         local_temporary_english: true,
         local_temporary_japanese: false,
-        local_expression: true,
+        local_expression: false,
         local_command: false,
         local_mention: false,
         local_chaizi: false,
@@ -868,6 +868,7 @@ fn product_engine_options(
         plugin_commands: Vec::new(),
         mention_entries: Vec::new(),
         quick_phrase_table: Vec::new(),
+        quick_phrase_table_in_candidates: false,
         // MSIMESessionOptions enables these candidates in the native macOS host.
         quick_phrase_candidates: true,
         quick_phrase_frequency: true,
@@ -2936,7 +2937,7 @@ mod tests {
         assert!(options.local_date_time);
         assert!(options.local_date_time_inline);
         assert!(options.local_date_time_menu);
-        assert!(options.local_expression);
+        assert!(!options.local_expression);
         assert!(options.mixed_emoji);
         assert!(options.mixed_symbols);
         assert!(options.local_emoji);
@@ -3843,11 +3844,27 @@ mod tests {
         assert!(host.ok);
         call_action(generated, r#"{"op":"insert","ch":"n"}"#);
         call_action(generated, r#"{"op":"insert","ch":"i"}"#);
+        let ordinary = candidate_texts_across_pages(generated);
         assert!(
-            candidate_texts_across_pages(generated)
-                .iter()
-                .any(|text| text == "主机短语"),
-            "macOS requests quick-phrase candidates without forcing them to the first row"
+            !ordinary.iter().any(|text| text == "主机短语"),
+            "Owl host enhancements require explicit K mode"
+        );
+        assert!(
+            ordinary.iter().any(|text| text == "基础短语"),
+            "native database quick phrases remain in ordinary macOS candidates"
+        );
+        call_action(generated, r#"{"op":"clear"}"#);
+        for ch in ['K', 'n'] {
+            call_action(generated, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#));
+        }
+        let prefix_candidates = candidate_texts_across_pages(generated);
+        assert!(
+            prefix_candidates.iter().any(|text| text == "基础短语"),
+            "native database K prefix browsing is preserved"
+        );
+        assert!(
+            !prefix_candidates.iter().any(|text| text == "主机短语"),
+            "Owl invocations require the complete stored trigger even in explicit K mode"
         );
         call_action(generated, r#"{"op":"clear"}"#);
         for ch in ['K', 'n', 'i'] {
@@ -4487,7 +4504,7 @@ mod tests {
     }
 
     #[test]
-    fn builtin_date_and_expression_modes_are_reachable_from_product_options() {
+    fn builtin_date_is_enabled_and_expression_uses_upstream_disabled_default() {
         let tmp = TempDir::new().unwrap();
         let db_path = tmp.path().join("test-pinyin.db");
         build_minimal_test_pinyin_db(&db_path);
@@ -4515,22 +4532,8 @@ mod tests {
         assert!(call_action(session, r#"{"op":"clear"}"#).ok);
         let expression_mode = call_action(session, r#"{"op":"insert","ch":"V"}"#);
         assert!(expression_mode.ok);
-        assert!(expression_mode.consumed);
-        assert_eq!(expression_mode.local_mode, "expression");
-        assert!(expression_mode.spelling_symbols.contains('0'));
-        for action in [
-            r#"{"op":"insert","ch":"1"}"#,
-            r#"{"op":"punctuation","ch":"+"}"#,
-            r#"{"op":"insert","ch":"2"}"#,
-        ] {
-            let response = call_action(session, action);
-            assert!(response.ok, "{response:?}");
-        }
-        let evaluated = call_snapshot(session);
-        assert!(evaluated
-            .candidates
-            .iter()
-            .any(|candidate| candidate.text == "3"));
+        assert_ne!(expression_mode.local_mode, "expression");
+        assert!(!expression_mode.spelling_symbols.contains('0'));
 
         owl_msime_session_destroy(session);
     }
