@@ -57,6 +57,7 @@ owl-seed:
 # cannot start without its SQLite resources, so a missing seed is a hard failure.
 copy-owl-seed:
 	@test -s data/owl-rime/msime/msime-pinyin.db || { echo "[owltype] ERROR: missing data/owl-rime/msime/msime-pinyin.db; run 'make owl-seed'" >&2; exit 1; }
+	@test -s data/owl-rime/msime/msime-wubi.db || { echo "[owltype] ERROR: missing official Wubi resource; run 'make owl-seed'" >&2; exit 1; }
 	@test -s data/owl-rime/msime/msime-english.db || { echo "[owltype] ERROR: missing data/owl-rime/msime/msime-english.db; run 'make owl-seed'" >&2; exit 1; }
 	@test -s data/owl-rime/msime/msime-others.db || { echo "[owltype] ERROR: missing data/owl-rime/msime/msime-others.db; run 'make owl-seed'" >&2; exit 1; }
 	@echo "[owltype] bundling generated resources -> SharedSupport ($(OWL_CONFIG))"

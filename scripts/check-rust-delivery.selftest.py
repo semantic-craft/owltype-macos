@@ -56,12 +56,14 @@ class RustDeliveryTests(unittest.TestCase):
         with closing(sqlite3.connect(pinyin)) as connection, connection:
             connection.execute("CREATE TABLE tbl_1_n (key TEXT, value TEXT, weight INTEGER)")
             connection.execute("CREATE TABLE tbl_2_n (key TEXT, value TEXT, weight INTEGER)")
-            connection.execute("CREATE TABLE wubi86 (key TEXT, value TEXT, weight INTEGER)")
             connection.execute("CREATE TABLE quick_parases (key TEXT, value TEXT, weight INTEGER)")
             connection.execute("INSERT INTO tbl_1_n VALUES ('ni', '你', 1)")
             connection.execute("INSERT INTO tbl_2_n VALUES ('ni hao', '你好', 1)")
-            connection.execute("INSERT INTO wubi86 VALUES ('wq', '你', 1)")
             connection.execute("INSERT INTO quick_parases VALUES ('ni', '你', 1)")
+        with closing(sqlite3.connect(resource_root / "msime-wubi.db")) as connection, connection:
+            for table in ("wubi86", "wubi98"):
+                connection.execute(f"CREATE TABLE {table} (key TEXT, value TEXT, weight INTEGER)")
+                connection.execute(f"INSERT INTO {table} VALUES ('a', '工', 20)")
         english = resource_root / "msime-english.db"
         with closing(sqlite3.connect(english)) as connection, connection:
             connection.execute("CREATE TABLE english_words (key TEXT, value TEXT, weight INTEGER)")
@@ -72,6 +74,10 @@ class RustDeliveryTests(unittest.TestCase):
             connection.execute("CREATE TABLE emoji_pinyin (key TEXT, emoji TEXT)")
             connection.execute("INSERT INTO emoji VALUES ('🍎')")
             connection.execute("INSERT INTO emoji_pinyin VALUES ('ping', '🍎')")
+            connection.execute("CREATE TABLE kaomoji (key TEXT, value TEXT)")
+            connection.execute("CREATE TABLE kaomoji_catalog (text TEXT PRIMARY KEY)")
+            connection.execute("INSERT INTO kaomoji VALUES ('happy', '^_^')")
+            connection.execute("INSERT INTO kaomoji_catalog VALUES ('^_^')")
 
     def compile_fixture(self, app: Path, source: str, *linker_inputs: Path) -> None:
         subprocess.run(
@@ -181,7 +187,7 @@ class RustDeliveryTests(unittest.TestCase):
         app = self.make_app("Valid.app")
         self.compile_fixture(app, VALID_SOURCE)
         result = CHECKER.validate_app(app)
-        self.assertEqual(result, (1, 3))
+        self.assertEqual(result, (1, 4))
 
     def test_rejects_forbidden_msime_others_catalogs(self) -> None:
         app = self.make_app("ForbiddenOthers.app")

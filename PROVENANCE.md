@@ -16,9 +16,8 @@
   Rust 输入引擎与运行时 crate 固定于 `macos-v0.55.0` /
   `208c10e848bbed99373ca8b609fd2142b6b0b4e2`（`rust/crates/`，经窄 C-ABI 静态链接入
   `Owltype.app`）。提取边界与宿主适配见 [`rust/msime-source.json`](rust/msime-source.json)。
-- **完整官方拼音、英文与上下文资源** —— 固定 `dict-v2.0.24`，来源、大小、摘要和逐项许可见
-  [`msime-resources-NOTICE.md`](data/msime-resources-NOTICE.md)。生产拼音保留全部上游表与记录，
-  只 overlay 现有 Owl Wubi；英文和 bigram/trigram 原样交付。
+- **完整官方拼音、五笔、英文与上下文资源** —— 固定 `dict-v2.0.24`，来源、大小、摘要和逐项许可见
+  [`msime-resources-NOTICE.md`](data/msime-resources-NOTICE.md)。生产拼音、独立五笔 86/98 码表、英文和 bigram/trigram 均原样交付。
 - **chinese-ime-lm reference crate** —— <https://github.com/metasequoiaime/chinese-ime-lm>（Apache-2.0）
   Owltype 仅 vendored 上游 `reference/` 子树到 `rust/crates/chinese-ime-lm`，固定于
   `15caab4fdeb59c11f452b91884371cf30e2e5608`。该子树的 `Cargo.toml` 声明 Apache-2.0，
@@ -36,27 +35,28 @@
   `9f3cae5b407038e0e4536c40582a0bc0feb732657f0ae2d38196374cede52f94`。发布清单记录的
   msime 构建器提交为 `128a332cabc5fa42b1cf5f827033ad5697ff528b`，msime-dictionary
   数据提交为 `71dc6f6cc7a451231ee29c0a39b39adbf2e04d32`。Owltype 不发布该多来源
-  整包，只在生成 seed 时保留 `emoji` 与 `emoji_pinyin` 两表。中文关键词来自
+  整包，只在生成 seed 时保留 `emoji`、`emoji_pinyin`、`kaomoji` 与 `kaomoji_catalog` 四表。中文关键词来自
   rime-ice（GPL-3.0-only，固定提交 `9e66b072…`），英文名称来自 Unicode Emoji
   17.0、CLDR annotations 与 Emoji 1.0 names（Unicode-3.0），多音词读音覆盖表
   由 mozillazg/python-pinyin 0.55.0 `lazy_pinyin` 生成（MIT）。发布清单、构建
   代码、输入文件摘要与许可证原文的定位见
   [`msime-others-NOTICE.txt`](data/msime-others-NOTICE.txt)。其余 kaomoji、
-  PiliApp `symbol_catalog` 等表均被排除。
+  PiliApp `symbol_catalog` 等表均被排除。颜文字来源 aoguai/rime_kaomoji_dict（MIT），
+  完整出处、行数及摘要见同一 notice，原始许可证随 seed 交付。
 
 ## 内置数据与方案 Bundled data & schemas
 
 - 雾凇拼音 rime-ice —— <https://github.com/iDvel/rime-ice>
-- 极点五笔 86 —— <https://github.com/KyleBing/rime-wubi86-jidian>（Apache-2.0）
-  生产 `msime-pinyin.db` 的 `wubi86` 表直接导入固定
-  [`a194fb8b3ec41ef9dcf079d3a67876fa75f79135`](https://github.com/KyleBing/rime-wubi86-jidian/tree/a194fb8b3ec41ef9dcf079d3a67876fa75f79135)
-  中的 `wubi86_jidian.dict.yaml`（SHA-256
-  `8ccf1358b91028ed234bbe82647a0bcd0f554a8d5994042de28b146e517633e6`）。
-  固定源文件共有 89,273 条数据行；89,272 条形状有效接受，其中 3 条重复以最高权重合并，
-  去重后写入 89,269 条唯一记录，拒绝 1 条。拒绝项是第 7911 行 `\tcokg\t10\t全角空格`
-  （文本列为空），不会被静默当作 Wubi 词条导入。
-  许可证原文逐字保留为 seed 根目录的 `wubi86-jidian.LICENSE`；完整五笔方案由用户侧固定源拉取，
-  不进入公开 App payload。
+- **水杉官方五笔 86 / 98 码表** —— 固定 `dict-v2.0.24/msime-wubi.db`，
+  SHA-256 `851ed68211311a76847fe6a26096702747abbaab8dffb141698e0365143b31c1`。
+  两表包含原表与水杉补充词组，保留官方权重与 rowid 顺序；不再由 Owl 极点原表覆盖。
+  极点 86 基础编码来自 [KyleBing/rime-wubi86-jidian](https://github.com/KyleBing/rime-wubi86-jidian)
+  （Apache-2.0）；98 原表来自 [98wubi-tables](https://github.com/yanhuacuo/98wubi-tables)
+  固定 `6b8b6fb9d3c34e0d5e3b17211e1f1c100e7eb697`（Unlicense），另含 Fcitx
+  `dbc7154a7f0b9fc04313160ae8066ed4d8cbc446`（GPL-3.0-or-later）补充。
+  水杉生成词组依据 rime-ice、人工词条、另一版五笔表及区划名称（GPL-3.0、WTFPL 等）。
+  各项出处与许可保留在 [上游完整声明](data/msime-upstream-licensing-NOTICE.md)，
+  极点原始许可证继续随 seed 交付为 `wubi86-jidian.LICENSE`。
 - OpenCC 简繁转换数据 —— <https://github.com/BYVoid/OpenCC>（Apache-2.0）
   公开 seed 只携带转换表与配置，不链接或分发 libopencc。
 

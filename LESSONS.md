@@ -578,6 +578,21 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Regression: `ExportTransportTests.test_export_from_another_scheme_fails` failed before this check and passes after it. The real Wubi trace uses the existing Swift session and pinned MSIME Host API, retaining candidate and paging differences rather than ignoring them.
 - Verify (验证点): `python3 scripts/pinyin-parity.selftest.py`; the exported `configuration.schema` must equal the requested schema. This is transport validity, not evidence that Wubi behavior is aligned.
 - Seen on 1 distinct date: 2026-10-26.
+
+### Resource delivery checks follow the approved split dictionary and auxiliary catalog
+
+- Seen 1x (2026-10-26): Wubi parity resource assembly exposed two stale delivery assumptions:
+  Wubi86 was required inside the pinyin database, although the fixed official release splits
+  86/98 into `msime-wubi.db`; the approved MIT kaomoji restoration was rejected by an old
+  emoji-only allowlist. The actual seed was valid but the delivery checker rejected it.
+- Keep the split Wubi file and both nonempty tables required. The auxiliary exact-table
+  contract includes emoji and the two MIT kaomoji tables recorded in
+  [the retained notice](data/msime-others-NOTICE.txt); `symbol_catalog` remains forbidden.
+- Regression: the existing complete-resource fixture now uses split Wubi and the approved
+  four-table auxiliary catalog. It failed before the checker update and passes afterward;
+  forbidden-symbol and unknown-table rejection regressions still pass.
+- Verify (验证点): `python3 scripts/check-rust-delivery.selftest.py` passes 9 tests; run the
+  checker against the actual generated resources before treating a fixture pass as packaging evidence.
 ## FFI session identity cannot be an allocator address
 
 - Seen on 1 distinct date: 2026-10-26. The default-parallel FFI suite aborted with

@@ -29,15 +29,16 @@ REQUIRED_RUST_SYMBOLS = {
     "owl_msime_string_free",
 }
 REQUIRED_RESOURCES = {
-    "msime-pinyin.db": {"tbl_1_n", "tbl_2_n", "wubi86", "quick_parases"},
+    "msime-pinyin.db": {"tbl_1_n", "tbl_2_n", "quick_parases"},
+    "msime-wubi.db": {"wubi86", "wubi98"},
     "msime-english.db": {"english_words"},
-    "msime-others.db": {"emoji", "emoji_pinyin"},
+    "msime-others.db": {"emoji", "emoji_pinyin", "kaomoji", "kaomoji_catalog"},
 }
 FORBIDDEN_RESOURCE_TABLES = {
-    "msime-others.db": {"kaomoji", "kaomoji_catalog", "symbol_catalog"},
+    "msime-others.db": {"symbol_catalog"},
 }
 EXACT_RESOURCE_TABLES = {
-    "msime-others.db": {"emoji", "emoji_pinyin"},
+    "msime-others.db": {"emoji", "emoji_pinyin", "kaomoji", "kaomoji_catalog"},
 }
 
 
