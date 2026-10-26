@@ -324,7 +324,9 @@ func resolvePromptCommit(
 ) -> OwlPromptCommitAction {
   guard committedTitle.hasPrefix(OwlPromptStore.candidateMarker) else { return .passThrough }
   let title = OwlPromptStore.strippingMarker(committedTitle)
-  guard let code, let entry = store.entry(forCode: code, title: title) else { return .passThrough }
+  guard let rawCode = code else { return .passThrough }
+  let code = rawCode.hasPrefix("K") ? String(rawCode.dropFirst()) : rawCode
+  guard let entry = store.entry(forCode: code, title: title) else { return .passThrough }
   return .invoke(entry)
 }
 

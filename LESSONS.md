@@ -525,3 +525,21 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Verify: replay `editing.json` and `tadefangjian.json` against the pinned native
   host profile; the original raw profile remains explicitly reproducible. These
   checks prove the public session/marked-context contract, not installed IMK delivery.
+
+## Owl enhancement rows are distinct from native quick phrases
+
+- Seen 1x (2026-10-26): treating bare host-api defaults as native macOS defaults would disable
+  legitimate upstream quick-phrase candidates. Native `MSIMESessionOptions` enables them; Owl
+  template/prompt/custom host rows instead require explicit K plus the complete stored trigger.
+- Keep the native database candidate order and K prefix browsing intact. The thin host-table
+  adapter switch defaults to upstream behavior; Owl alone disables ordinary host-table injection.
+  Preserve stored content and codes, and strip the explicit mode prefix only when resolving an
+  Owl invocation. Partial host triggers must never publish internal invocation markers.
+- Regression: `OwlRustEngineTests.testOwlEnhancementsRequireExplicitKWithoutChangingOrdinaryCandidates`
+  compares real ordinary candidates with/without a template, checks partial/full K triggers,
+  visible commits, cancellation and return to ordinary input. Prompt interception and existing
+  host delivery tests cover context, stale targets and single delivery.
+- Verify (验证点): `cargo test --locked --manifest-path rust/Cargo.toml -p owl-msime-ffi` and
+  `python3 scripts/verify.py swift --test OwlRustEngineTests --test OwlPromptInterceptionTests
+  --test OwlTemplateHostDeliveryTests` pass. These are isolated automated sessions, not installed
+  IMK or live-provider acceptance.
