@@ -1,16 +1,20 @@
 {
   "facts": {
-    "main": "274fad9d2d3bd667e32c9a66a1812199f1ad3f77",
+    "main": "46a7ccf01be992d0e9786e4aaadb40313013c981",
     "default_branch": "main",
     "pulls": [],
     "open_pulls": [
       {
         "number": 305,
-        "head": "227dadd9f59191751fe69f8964e262c53ffe7355"
+        "head": "e0f46d153dbb75d1cb4d25ca8d18cff1ef0755cf"
       },
       {
         "number": 306,
-        "head": "431b96da2a04de2a11069223bdd351b93149ce76"
+        "head": "cce1ca9c855936d29c9476e2d2147952ffb80db3"
+      },
+      {
+        "number": 308,
+        "head": "229d4379da96242a5fe1598c09b40ba8c1418c6e"
       }
     ],
     "issues": [
@@ -30,67 +34,67 @@
         "number": 282,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T07:04:30Z"
+        "updated_at": "2026-10-26T07:40:28Z"
       },
       {
         "number": 283,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T06:40:44Z"
+        "updated_at": "2026-10-26T08:01:35Z"
       },
       {
         "number": 284,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T06:40:45Z"
+        "updated_at": "2026-10-26T08:48:16Z"
       },
       {
         "number": 285,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T06:40:46Z"
+        "updated_at": "2026-10-26T07:40:33Z"
       },
       {
         "number": 286,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T06:40:48Z"
+        "updated_at": "2026-10-26T07:40:36Z"
       },
       {
         "number": 287,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T06:40:49Z"
+        "updated_at": "2026-10-26T08:28:05Z"
       },
       {
         "number": 288,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T06:40:50Z"
+        "updated_at": "2026-10-26T08:01:38Z"
       },
       {
         "number": 289,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T06:40:51Z"
+        "updated_at": "2026-10-26T08:13:31Z"
       },
       {
         "number": 290,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T06:40:52Z"
+        "updated_at": "2026-10-26T08:28:05Z"
       },
       {
         "number": 291,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T06:40:54Z"
+        "updated_at": "2026-10-26T08:49:28Z"
       },
       {
         "number": 292,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T06:41:59Z"
+        "updated_at": "2026-10-26T09:28:42Z"
       },
       {
         "number": 293,
@@ -108,7 +112,7 @@
         "number": 295,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-26T06:55:11Z"
+        "updated_at": "2026-10-26T09:31:42Z"
       },
       {
         "number": 296,
@@ -172,7 +176,7 @@
     "progress/sync.py",
     "progress/teslahub.mjs"
   ],
-  "observed_at": "2026-10-26T07:09:47Z",
+  "observed_at": "2026-10-26T09:37:21Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -249,9 +253,9 @@
         {
           "id": "issue-283",
           "title": "#283 [拼音对齐 T03] 中英混输、纠错和模糊音对齐",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#282。",
-          "next": "等待前置完成，复用其成果。",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#282。",
+          "next": "沿用当前执行会话，勿重复领取。",
           "evidence": [
             {
               "kind": "issue",
@@ -263,9 +267,9 @@
         {
           "id": "issue-284",
           "title": "#284 [拼音对齐 T04] 双拼及自定义双拼对齐",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#282。",
-          "next": "等待前置完成，复用其成果。",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#282。",
+          "next": "沿用当前执行会话，勿重复领取。",
           "evidence": [
             {
               "kind": "issue",
@@ -277,9 +281,9 @@
         {
           "id": "issue-285",
           "title": "#285 [拼音对齐 T05] 简繁、标点及特殊输入对齐",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#282。",
-          "next": "等待前置完成，复用其成果。",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#282。",
+          "next": "沿用当前执行会话，勿重复领取。",
           "evidence": [
             {
               "kind": "issue",
@@ -291,9 +295,9 @@
         {
           "id": "issue-286",
           "title": "#286 [拼音对齐 T06] 即时模型评分与候选排序对齐",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#282。",
-          "next": "等待前置完成，复用其成果。",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#282。",
+          "next": "沿用当前执行会话，勿重复领取。",
           "evidence": [
             {
               "kind": "issue",
@@ -305,9 +309,9 @@
         {
           "id": "issue-287",
           "title": "#287 [拼音对齐 T07] 停顿重排和异步候选更新对齐",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#286。",
-          "next": "等待前置完成，复用其成果。",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#286。",
+          "next": "沿用当前执行会话，勿重复领取。",
           "evidence": [
             {
               "kind": "issue",
@@ -319,9 +323,9 @@
         {
           "id": "issue-288",
           "title": "#288 [拼音对齐 T08] 编辑、部分选词和翻页行为对齐",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#282。",
-          "next": "等待前置完成，复用其成果。",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#282。",
+          "next": "沿用当前执行会话，勿重复领取。",
           "evidence": [
             {
               "kind": "issue",
@@ -333,9 +337,9 @@
         {
           "id": "issue-289",
           "title": "#289 [拼音对齐 T09] 选词学习与重启后的调频对齐",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#282。",
-          "next": "等待前置完成，复用其成果。",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#282。",
+          "next": "沿用当前执行会话，勿重复领取。",
           "evidence": [
             {
               "kind": "issue",
@@ -347,9 +351,9 @@
         {
           "id": "issue-290",
           "title": "#290 [拼音对齐 T11] 保留 AI、模板入口，隔离普通拼音候选",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#282。",
-          "next": "等待前置完成，复用其成果。",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#282。",
+          "next": "沿用当前执行会话，勿重复领取。",
           "evidence": [
             {
               "kind": "issue",
@@ -361,9 +365,9 @@
         {
           "id": "issue-291",
           "title": "#291 [拼音对齐 T12] 词库和模型更新、回退后仍保持对齐",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#289, #286。",
-          "next": "等待前置完成，复用其成果。",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#289, #286。",
+          "next": "沿用当前执行会话，勿重复领取。",
           "evidence": [
             {
               "kind": "issue",
@@ -375,9 +379,9 @@
         {
           "id": "issue-292",
           "title": "#292 [拼音对齐 T13] 差异及跨功能风险对照收口",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#291, #290, #288, #287, #285, #284, #283。",
-          "next": "等待前置完成，复用其成果。",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#291, #290, #288, #287, #285, #284, #283。",
+          "next": "沿用当前执行会话，勿重复领取。",
           "evidence": [
             {
               "kind": "issue",
@@ -409,9 +413,9 @@
         {
           "id": "issue-295",
           "title": "#295 [五笔对齐 W01] 五笔基线与双端差异样例",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#281。",
-          "next": "等待前置完成，复用其成果。",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：semantic-craft；未关闭前置：#281。",
+          "next": "沿用当前执行会话，勿重复领取。",
           "evidence": [
             {
               "kind": "issue",

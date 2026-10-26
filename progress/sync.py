@@ -33,10 +33,10 @@ def main():
       subIssues(first:100) {nodes {number} pageInfo {hasNextPage}}"""
     issue_query = ' '.join(f'i{n}:issue(number:{n}) {{{fields}}}' for n in numbers)
     query = '{repository(owner:"semantic-craft",name:"owltype-macos"){defaultBranchRef{name target{oid}} '+issue_query+"""
-      pullRequests(first:100,states:OPEN) {nodes {number title url body state updatedAt headRefOid mergedAt
+      pullRequests(first:100,states:OPEN) {nodes {id number title url body state updatedAt headRefOid mergedAt
         labels(first:100){nodes{name} pageInfo{hasNextPage}}
         comments(first:100){nodes{databaseId body createdAt author{login}} pageInfo{hasNextPage}}
-        files(first:100){nodes{path} pageInfo{hasNextPage}}
+        files(first:100){nodes{path} pageInfo{hasNextPage endCursor}}
         commits(last:100){nodes{commit{committedDate}} pageInfo{hasPreviousPage}}
       } pageInfo{hasNextPage}}
       releases(first:10,orderBy:{field:CREATED_AT,direction:DESC}){nodes{databaseId tagName isDraft isPrerelease publishedAt}}
@@ -45,13 +45,29 @@ def main():
     if result.get('errors'):
         raise RuntimeError('GraphQL snapshot failed; prior page preserved')
     remote = result['data']['repository']
-    def complete(value):
+    # Large integration PRs exceed one file page; never omit later paths.
+    for pr in remote['pullRequests']['nodes']:
+        connection = pr['files']
+        seen = set()
+        while connection['pageInfo']['hasNextPage']:
+            cursor = connection['pageInfo']['endCursor']
+            if not cursor or cursor in seen:
+                raise RuntimeError('Invalid PR file pagination cursor')
+            seen.add(cursor)
+            query = '{node(id:'+json.dumps(pr['id'])+'){... on PullRequest{files(first:100,after:'+json.dumps(cursor)+'){nodes{path} pageInfo{hasNextPage endCursor}}}}}'
+            page = json.loads(run('gh','api','graphql','-f','query='+query))
+            if page.get('errors'):
+                raise RuntimeError('PR file page failed; prior snapshot preserved')
+            following = page['data']['node']['files']
+            connection['nodes'].extend(following['nodes'])
+            connection['pageInfo'] = following['pageInfo']
+    def complete(value, location="repository"):
         if isinstance(value, dict):
             if value.get('hasNextPage') or value.get('hasPreviousPage'):
-                raise RuntimeError('Snapshot exceeds bounded query; paginate this connection before publishing')
-            for child in value.values(): complete(child)
+                raise RuntimeError(f'Snapshot exceeds bounded query at {location}; paginate before publishing')
+            for key, child in value.items(): complete(child, location+"."+key)
         elif isinstance(value,list):
-            for child in value: complete(child)
+            for index, child in enumerate(value): complete(child, location+"."+str(index))
     complete(remote)
     data = {}
     for n in numbers:
