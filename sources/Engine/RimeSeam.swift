@@ -131,6 +131,9 @@ protocol RimeSession: AnyObject {
   /// Select a candidate using its `OwlCandidateToken` (#264).
   func selectCandidate(_ token: OwlCandidateToken) -> Bool
 
+  /// Remove a currently visible candidate through the engine learning journal.
+  func removeCandidate(_ token: OwlCandidateToken) -> Bool
+
   /// `change_page`; `up == true` pages backward.
   func changePage(up: Bool) -> Bool
 
@@ -215,7 +218,10 @@ extension RimeSession {
     .doneWithoutChange
   }
 
-  func selectCandidate(_ token: OwlCandidateToken) -> Bool {
+  func selectCandidate(_ token: OwlCandidateToken) -> Bool
+
+  /// Remove a currently visible candidate through the engine learning journal.
+  func removeCandidate(_ token: OwlCandidateToken) -> Bool {
     if token.sessionID != 0 && token.sessionID != sessionID {
       return false
     }

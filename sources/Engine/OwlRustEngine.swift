@@ -720,6 +720,15 @@ final class OwlRustSession: RimeSession {
     return applyActionResponse(sendAction(payload))
   }
 
+  func removeCandidate(_ token: OwlCandidateToken) -> Bool {
+    guard handle != nil, token.candidateID >= 0, !token.isAbsolute,
+          token.sessionID == sessionID, token.generation != 0 else { return false }
+    return applyActionResponse(sendAction([
+      "op": "remove_token", "index": token.candidateID,
+      "generation": token.generation, "is_absolute": false
+    ]))
+  }
+
   func peekCandidates(from index: Int, count: Int) -> [RimeCandidate] {
     guard handle != nil, count > 0 else { return [] }
     guard let dto = sendAction([

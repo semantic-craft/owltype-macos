@@ -1832,6 +1832,29 @@ impl OwlMsimeSession {
                     Err(err) => error_response(err.to_string()),
                 }
             }
+            "remove_token" => {
+                let Some(index) = payload.index else {
+                    return error_response("remove_token requires index");
+                };
+                let view = self.runtime.view();
+                let current_generation = HostGenerationNamespace::Runtime.encode(view.generation);
+                if self.punctuation_menu.is_some()
+                    || payload.is_absolute.unwrap_or(false)
+                    || payload.generation != Some(current_generation)
+                {
+                    return self.build_snapshot(view, false, None, false);
+                }
+                let Some(candidate) = view.candidates.get(index) else {
+                    return self.build_snapshot(view, false, None, false);
+                };
+                match self.runtime.dispatch(Action::RemoveCandidate(candidate.id)) {
+                    Ok(transition) => {
+                        self.sync_pinned_state_from_view(&transition.view);
+                        self.build_snapshot(transition.view, transition.handled, transition.commit, false)
+                    }
+                    Err(_) => self.build_snapshot(self.runtime.view(), false, None, false),
+                }
+            }
             "select_token" => {
                 let Some(index) = payload.index else {
                     return error_response("select_token requires index");
@@ -3876,6 +3899,40 @@ mod tests {
         assert_eq!(topped.committed_text.as_deref(), Some("工"));
         assert_eq!(topped.raw_input, "x");
         owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn removal_uses_current_visible_identity_and_survives_reopen() {
+        let tmp = TempDir::new().unwrap();
+        let resources = build_minimal_test_resources(&tmp.path().join("resources"));
+        let user = tmp.path().join("msime-user");
+        let cache = tmp.path().join("msime-cache");
+        let (session, error) = create_with_generation(&resources, &user, &cache, "removal");
+        assert!(error.is_none(), "{error:?}");
+        for ch in ['n', 'i', 'h', 'a', 'o'] {
+            call_action(session, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+        }
+        let before = call_snapshot(session);
+        let index = before.candidates.iter().position(|c| c.text == "你号").unwrap();
+        let generation = before.generation;
+        let stale = call_action(session, &format!(
+            r#"{{"op":"remove_token","index":{index},"generation":{}}}"#, generation.wrapping_add(1)));
+        assert!(!stale.consumed);
+        assert!(stale.candidates.iter().any(|c| c.text == "你号"));
+        let removed = call_action(session, &format!(
+            r#"{{"op":"remove_token","index":{index},"generation":{generation}}}"#));
+        assert!(removed.ok, "{:?}", removed.error);
+        assert!(removed.consumed);
+        assert!(!removed.candidates.iter().any(|c| c.text == "你号"));
+        assert_eq!(removed.committed_text, None);
+        owl_msime_session_destroy(session);
+        let (reopened, error) = create_with_generation(&resources, &user, &cache, "removal");
+        assert!(error.is_none(), "{error:?}");
+        for ch in ['n', 'i', 'h', 'a', 'o'] {
+            call_action(reopened, &format!("{{\"op\":\"insert\",\"ch\":\"{ch}\"}}"));
+        }
+        assert!(!call_snapshot(reopened).candidates.iter().any(|c| c.text == "你号"));
+        owl_msime_session_destroy(reopened);
     }
 
     #[test]
