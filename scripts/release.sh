@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Authoritative local release chain. It never publishes, tags, or mutates a remote release.
 set -euo pipefail
+# Release outputs are public, and the App installs root-owned for the console user.
+umask 022
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STATE="$ROOT/scripts/release-cohort-state.py"

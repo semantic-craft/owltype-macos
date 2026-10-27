@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Verify the real pinned patch also applies without repository metadata."""
 import importlib.util
+import json
 from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location("build_sparkle", ROOT / "scripts/build-sparkle.py")
@@ -31,6 +33,28 @@ class SourceArchiveTests(unittest.TestCase):
                 handle.write("\n// unrecorded modification\n")
             with self.assertRaisesRegex(ValueError, "differs from the pinned"):
                 builder.prepare_source(upstream, work / "modified")
+
+
+class BuildPermissionTests(unittest.TestCase):
+    def test_build_other_users_cannot_read_is_not_current(self):
+        with tempfile.TemporaryDirectory(prefix="owl-sparkle-modes-") as directory:
+            framework = Path(directory) / "Sparkle.framework"
+            binary = framework / "Versions/B/Sparkle"
+            updater = framework / builder.UPDATER
+            updater.parent.mkdir(parents=True)
+            (framework / builder.RECEIPT).parent.mkdir(parents=True)
+            binary.write_bytes(b"\xcf\xfa\xed\xfe")
+            updater.write_bytes(b"openApplicationAtURL:configuration:completionHandler:")
+            updater_uuids = {"arm64": "UUID-ARM64", "x86_64": "UUID-X86-64"}
+            (framework / builder.RECEIPT).write_text(json.dumps({**builder.identity(), "updaterUUIDs": updater_uuids}))
+            for path in [framework, *framework.rglob("*")]:
+                path.chmod(0o755 if path.is_dir() or path in (binary, updater) else 0o644)
+            with mock.patch.object(builder, "uuids", return_value=updater_uuids):
+                builder.verify(framework)
+                # A umask 077 bootstrap built this; build() catches the ValueError and rebuilds.
+                binary.chmod(0o700)
+                with self.assertRaisesRegex(ValueError, r"other users cannot read.*Versions/B/Sparkle \(0700\)"):
+                    builder.verify(framework)
 
 
 if __name__ == "__main__":

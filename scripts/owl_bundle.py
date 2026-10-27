@@ -113,6 +113,26 @@ def validate_app_executable(app: Path) -> None:
         raise ValueError("release App executable is not executable")
 
 
+def unreadable_by_others(root: Path) -> list[str]:
+    """Entries the console user cannot use once the bundle is installed root-owned.
+
+    The installer commits the App as root and finishes the install as the console user,
+    so a 0700 framework binary passes signing, notarization and digest checks and still
+    fails to load. Symlinks are skipped: their targets are entries of the same tree.
+    """
+    unreadable = []
+    for path in sorted([root, *root.rglob("*")]):
+        mode = path.lstat().st_mode
+        if stat.S_ISLNK(mode):
+            continue
+        required = stat.S_IROTH
+        if stat.S_ISDIR(mode) or mode & stat.S_IXUSR:
+            required |= stat.S_IXOTH
+        if mode & required != required:
+            unreadable.append(f"{path.relative_to(root).as_posix()} ({stat.S_IMODE(mode):04o})")
+    return unreadable
+
+
 def release_paths(output_root: Path) -> tuple[Path, Path, Path]:
     """Resolve the one output root and its cohort-owned App/inventory paths."""
     root = output_root.resolve()
