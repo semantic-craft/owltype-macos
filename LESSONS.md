@@ -5,6 +5,31 @@ that the lesson is in place: which file to read, which command to run, what resu
 and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## A release App must be readable by the console user, whatever umask built it
+
+**The PKG commits the App as root and finishes the install as the console user, so a file other users cannot read passes signing, notarization and every digest check and still fails the install.**
+
+- Reason: the first 2.1.1 PKG (cohort `376fd854…`, revision 16026bf) failed in `postinstall`:
+  `--finish-install` aborted because dyld got `errno=13` opening
+  `Sparkle.framework/Versions/B/Sparkle`. The release worktree had been bootstrapped under
+  `umask 077`, so all five Sparkle executables were 0700. `build-sparkle.py verify()` read only the
+  receipt and Updater UUIDs, so the release reused that build as current. Cohort digests record
+  modes, but they compare one copy with another, so the App, both PKG payloads and the DMG
+  agreed on the wrong modes.
+- Prevention: `release.sh` runs under `umask 022`; `build-sparkle.py` builds under `umask 022`,
+  and `verify()` treats entries other users cannot read as not current, which triggers a rebuild.
+  `finalize-release-bundle.py` refuses such entries anywhere in the App before signing.
+- Regression: `test_entries_other_users_cannot_read_fail_the_finalizer` in
+  [release-bundle.selftest.py](scripts/release-bundle.selftest.py) and
+  `test_build_other_users_cannot_read_is_not_current` in
+  [build-sparkle.selftest.py](scripts/build-sparkle.selftest.py).
+- Scope: file modes of the built App only. A failed `--finish-install` still leaves the new
+  files in place without rolling back; that path is not covered here.
+- Verify (验证点): both selftests pass, and for a shipped App
+  `find Owltype.app ! -type l \( ! -perm -o+r -o \( -type d -o -perm -u+x \) ! -perm -o+x \)`
+  prints nothing. On the failed install it printed exactly the five Sparkle executables.
+- Seen on 1 distinct date: 2026-10-27.
+
 ## Host composition end must execute the engine selection
 
 **A correct preview inserted into the client does not prove native finish behavior.**

@@ -7,10 +7,12 @@ UUIDs survive the release pipeline's removal/replacement of code signatures.
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import shutil
 from cleanup_app_registrations import prepare as prepare_registrations
+from owl_bundle import unreadable_by_others
 import subprocess
 import tempfile
 
@@ -40,6 +42,11 @@ def identity():
 
 
 def verify(framework):
+    # A build made under a private umask is not current: the App ships it to other users.
+    unreadable = unreadable_by_others(framework)
+    if unreadable:
+        raise ValueError("Sparkle build has entries other users cannot read (make clean-sparkle "
+                         f"if a rebuild keeps them): {', '.join(unreadable[:10])}")
     receipt = json.loads((framework / RECEIPT).read_text())
     expected = {**identity(), "updaterUUIDs": uuids(framework / UPDATER)}
     if receipt != expected:
@@ -75,6 +82,7 @@ def prepare_source(upstream, source):
 
 
 def build():
+    os.umask(0o022)
     destination = ROOT / "Frameworks/Sparkle.framework"
     try:
         verify(destination)

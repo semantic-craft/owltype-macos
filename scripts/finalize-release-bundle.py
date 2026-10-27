@@ -15,7 +15,7 @@ import sys
 from collections.abc import Iterable
 from pathlib import Path
 
-from owl_bundle import MANIFEST_NAME, SBOM_NAME, relative_files, sha256
+from owl_bundle import MANIFEST_NAME, SBOM_NAME, relative_files, sha256, unreadable_by_others
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -129,6 +129,13 @@ def verify_required_licenses(app: Path) -> None:
             fail(f"license differs from the pinned upstream text: {relative}")
 
 
+def verify_console_user_access(app: Path) -> None:
+    unreadable = unreadable_by_others(app)
+    if unreadable:
+        fail("entries the console user cannot read once installed root-owned: "
+             f"{', '.join(unreadable[:20])}")
+
+
 def verify_seed(app: Path) -> None:
     source_seed = ROOT / "data/owl-rime"
     bundled_seed = app / "Contents/SharedSupport"
@@ -213,6 +220,7 @@ def main() -> None:
         or info.get("SUEnableAutomaticChecks") is not True
     ):
         fail("Sparkle verification key or automatic checks are missing")
+    verify_console_user_access(app)
 
     print(f"PASS: release bundle {version} (build {build}) finalized")
     print(f"PASS: {len(native_targets)} unsigned native targets, {len(relative_files(app))} bundle files")

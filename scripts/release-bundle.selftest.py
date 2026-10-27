@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 import tempfile
 import unittest
@@ -92,6 +93,48 @@ class ReleaseLicenseEntriesTests(unittest.TestCase):
                     message = "license differs from the pinned upstream text.*rime-kaomoji"
                 with self.assertRaisesRegex(SystemExit, message):
                     FINALIZER.verify_required_licenses(app)
+
+
+class ConsoleUserAccessTests(unittest.TestCase):
+    def make_entry(self, path: Path, mode: int, content: bytes | None = None) -> None:
+        if content is None:
+            path.mkdir(parents=True, exist_ok=True)
+        else:
+            path.write_bytes(content)
+        path.chmod(mode)
+
+    def test_entries_other_users_cannot_read_fail_the_finalizer(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="owltype-modes-") as temporary:
+            app = Path(temporary) / "Owltype.app"
+            version = app / "Contents/Frameworks/Sparkle.framework/Versions/B"
+            for directory in (app, app / "Contents", app / "Contents/Frameworks",
+                              version.parent.parent, version.parent, version):
+                self.make_entry(directory, 0o755)
+            self.make_entry(app / "Contents/Info.plist", 0o644, b"plist\n")
+            sparkle = version / "Sparkle"
+            self.make_entry(sparkle, 0o755, b"\xcf\xfa\xed\xfe")
+            link = version.parent.parent / "Sparkle"
+            link.symlink_to("Versions/B/Sparkle")
+            os.lchmod(link, 0o700)
+            self.assertEqual(BUNDLE.unreadable_by_others(app), [])
+            FINALIZER.verify_console_user_access(app)
+
+            # 2.1.1's first PKG shipped these as 0700 after a umask 077 bootstrap.
+            sparkle.chmod(0o700)
+            self.make_entry(version / "Autoupdate", 0o744, b"\xcf\xfa\xed\xfe")
+            self.make_entry(version / "Resources", 0o750)
+            self.make_entry(app / "Contents/PkgInfo", 0o640, b"APPL????")
+            self.assertEqual(
+                BUNDLE.unreadable_by_others(app),
+                [
+                    "Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate (0744)",
+                    "Contents/Frameworks/Sparkle.framework/Versions/B/Resources (0750)",
+                    "Contents/Frameworks/Sparkle.framework/Versions/B/Sparkle (0700)",
+                    "Contents/PkgInfo (0640)",
+                ],
+            )
+            with self.assertRaisesRegex(SystemExit, r"cannot read once installed root-owned: .*Sparkle \(0700\)"):
+                FINALIZER.verify_console_user_access(app)
 
 
 class ReleaseSBOMTests(unittest.TestCase):
