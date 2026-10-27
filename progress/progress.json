@@ -1,6 +1,6 @@
 {
   "facts": {
-    "main": "9bcaa20d28e39db91532b9ec59fa08a3eb292d7e",
+    "main": "902a3c11ebcb8c57d877926596b0909f57cd7156",
     "default_branch": "main",
     "pulls": [],
     "open_pulls": [
@@ -163,6 +163,30 @@
         "state": "closed",
         "reason": "completed",
         "updated_at": "2026-10-26T14:10:03Z"
+      },
+      {
+        "number": 314,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-27T00:10:02Z"
+      },
+      {
+        "number": 315,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-27T00:10:04Z"
+      },
+      {
+        "number": 316,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-27T00:10:07Z"
+      },
+      {
+        "number": 317,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-27T00:10:15Z"
       }
     ],
     "releases": []
@@ -172,7 +196,7 @@
     "progress/sync.py",
     "progress/teslahub.mjs"
   ],
-  "observed_at": "2026-10-26T14:18:49Z",
+  "observed_at": "2026-10-27T00:12:41Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -547,6 +571,68 @@
           ]
         }
       ]
+    },
+    {
+      "id": "followup",
+      "title": "发布后跟进",
+      "items": [
+        {
+          "id": "issue-314",
+          "title": "#314 [上游跟进] 词库升到 dict-v2.0.39，并固化词库与引擎重钉流程",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#293。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 314,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-315",
+          "title": "#315 [设置] 精简键盘与快捷键设置页，默认值跟随水杉",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：无。",
+          "next": "等待用户确认范围，确认前不领取。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 315,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-316",
+          "title": "#316 [性能考查] 端到端输入延迟测量（合并 #274–#277）",
+          "status": "planned",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：无。",
+          "next": "读取工单和开放 PR，经共享领取入口核实后领取。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 316,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-317",
+          "title": "#317 [清理] 移除 Rime 残留子模块、构建路径与命名",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#293。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 317,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        }
+      ]
     }
   ],
   "title": "Owltype · 水杉输入对齐",
@@ -576,7 +662,11 @@
       301,
       302,
       303,
-      304
+      304,
+      314,
+      315,
+      316,
+      317
     ],
     "pulls": []
   }

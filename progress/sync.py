@@ -9,7 +9,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = 'semantic-craft/owltype-macos'
-GROUPS = {'pinyin': list(range(281, 294)), 'wubi': list(range(295, 305))}
+GROUPS = {'pinyin': list(range(281, 294)), 'wubi': list(range(295, 305)), 'followup': [314, 315, 316, 317]}
+TITLES = {'pinyin': '拼音对齐（现有执行线）', 'wubi': '五笔对齐（本轮工单）', 'followup': '发布后跟进'}
 
 def run(*args):
     return subprocess.check_output(args, cwd=ROOT, text=True)
@@ -139,12 +140,13 @@ def main():
             blockers=[d['number'] for d in deps if d['state'] != 'closed']
             owners=[a['login'] for a in issue['assignees']]
             labels={x['name'] for x in issue['labels']}
-            status = 'unverified' if issue['state']=='closed' else 'in_progress' if owners or labels & {'status:doing','status:in-review'} else 'blocked' if blockers or labels & {'on-hold','status:waiting'} else 'planned'
+            triage = bool(labels & {'needs-triage','needs-info'})
+            status = 'unverified' if issue['state']=='closed' else 'in_progress' if owners or labels & {'status:doing','status:in-review'} else 'blocked' if blockers or triage or labels & {'on-hold','status:waiting'} else 'planned'
             items.append({'id':f'issue-{n}','title':f'#{n} {issue["title"]}','status':status,
               'summary':f'GitHub: {issue["state"]}；负责人：{", ".join(owners) or "未指派"}；未关闭前置：{", ".join("#"+str(d) for d in blockers) or "无"}。',
-              'next':'核对工单完成证据。' if issue['state']=='closed' else '沿用当前执行会话，勿重复领取。' if owners else '等待前置完成，复用其成果。' if blockers else '读取工单和开放 PR，经共享领取入口核实后领取。',
+              'next':'核对工单完成证据。' if issue['state']=='closed' else '沿用当前执行会话，勿重复领取。' if owners else '等待前置完成，复用其成果。' if blockers else '等待用户确认范围，确认前不领取。' if triage else '读取工单和开放 PR，经共享领取入口核实后领取。',
               'evidence':[{'kind':'issue','ref':n,'note':'范围、当前状态和证据原件'}]})
-        sections.append({'id':group,'title':'拼音对齐（现有执行线）' if group=='pinyin' else '五笔对齐（本轮工单）','items':items})
+        sections.append({'id':group,'title':TITLES[group],'items':items})
     config['sections']=sections
     config['inputs']=['docs/input-alignment.md','progress/sync.py','progress/teslahub.mjs']
     config_path.write_text(json.dumps(config,ensure_ascii=False,indent=2)+'\n')
@@ -159,7 +161,7 @@ def main():
           'open':[p for p in prs if set(map(int,re.findall(r'(?i)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)',p['body'] or '')+re.findall(r'\(#(\d+)\)',p['title']))) & set(sum(GROUPS.values(),[]))], 'merged':[]}}}
         fixture.write_text(json.dumps(snapshot,ensure_ascii=False))
         subprocess.run(['node',str(ROOT/'progress/teslahub.mjs'),str(args.teslahub.resolve()),str(fixture),str(args.hub_out.resolve())],cwd=ROOT,check=True)
-    print('Refreshed 13 pinyin and 10 wubi tickets; no dispatch or issue mutation.')
+    print('Refreshed '+', '.join(f'{len(m)} {g}' for g, m in GROUPS.items())+' tickets; no dispatch or issue mutation.')
 
 if __name__ == '__main__':
     main()
