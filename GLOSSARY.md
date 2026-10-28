@@ -10,6 +10,12 @@ composition or commit reaching the host. Bounded latency, no network, no blockin
 no failure may stop plain typing. The input method runs inside every host app, so a hang or
 crash here is an outage across apps.
 
+**Composition snapshot** — an immutable copy of the live composition (raw input, preedit, top
+candidates, commit serial) that `OwlSnapshotEmitter` registers in `OwlSnapshotRegistry` after
+each engine update. Readers use it only to tell whether the user is mid-composition (the update
+logout prompt, the dictionary prompt). Candidates come only from the engine's main lane; there is
+no second candidate lane.
+
 **Input session** — one composition's conversation with the engine (`RimeSession`; the engine
 that vends sessions is `RimeEngine`). The Rust session is the only production adapter, and the
 controller never casts past the protocol: a behaviour it needs is a requirement there, so the

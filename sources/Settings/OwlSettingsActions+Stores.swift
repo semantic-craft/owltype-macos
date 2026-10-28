@@ -8,93 +8,6 @@
 import Foundation
 
 extension OwlSettingsActions {
-  static func selectProject(_ project: OwlProject)
-    -> (selectedID: String, renameDraft: String, wordsDraft: String, status: String)
-  {
-    (
-      project.id,
-      project.name,
-      project.normalizedWords.joined(separator: "\n"),
-      ""
-    )
-  }
-
-  static func createProject(
-    name: String,
-    store: OwlProjectStore
-  ) throws -> (project: OwlProject, newProjectName: String, status: String) {
-    let project = try store.create(name: name)
-    return (project, "", "已新建场景词库「\(project.name)」。")
-  }
-
-  static func activateProject(
-    _ project: OwlProject,
-    store: OwlProjectStore
-  ) throws -> (activeID: String?, status: String) {
-    try store.activate(id: project.id)
-    return (store.activeProjectID, "已激活「\(project.name)」。")
-  }
-
-  static func renameProject(
-    _ project: OwlProject,
-    to name: String,
-    store: OwlProjectStore
-  ) throws -> (project: OwlProject, status: String) {
-    let updated = try store.rename(id: project.id, to: name)
-    return (updated, "已重命名为「\(updated.name)」。")
-  }
-
-  static func saveProjectWords(
-    _ project: OwlProject,
-    wordsText: String,
-    store: OwlProjectStore
-  ) throws -> (project: OwlProject, status: String) {
-    let words = wordsText
-      .split(separator: "\n", omittingEmptySubsequences: false)
-      .map { String($0) }
-    let updated = try store.setWords(id: project.id, words: words)
-    return (updated, "已保存 \(updated.normalizedWords.count) 个词条。")
-  }
-
-  static func deleteProject(
-    _ project: OwlProject,
-    selectedID: String?,
-    store: OwlProjectStore
-  ) throws -> (selectedID: String?, status: String) {
-    try store.delete(id: project.id)
-    return (selectedID == project.id ? nil : selectedID, "已删除「\(project.name)」。")
-  }
-
-  static func addProjectTermRule(
-    to project: OwlProject,
-    preferred: String,
-    allowedText: String,
-    forbiddenText: String,
-    store: OwlProjectStore
-  ) throws -> (project: OwlProject?, preferred: String, allowed: String, forbidden: String, status: String) {
-    let trimmed = preferred.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else {
-      return (nil, preferred, allowedText, forbiddenText, "首选术语不能为空。")
-    }
-    let rule = OwlTermRule(
-      preferred: trimmed,
-      allowedVariants: splitTermVariants(allowedText),
-      forbiddenVariants: splitTermVariants(forbiddenText)
-    )
-    let updated = try store.setTermRules(id: project.id, termRules: project.termRules + [rule])
-    return (updated, "", "", "", "已添加术语规则「\(rule.preferred)」（共 \(updated.termRules.count) 条）。")
-  }
-
-  static func removeProjectTermRule(
-    _ rule: OwlTermRule,
-    from project: OwlProject,
-    store: OwlProjectStore
-  ) throws -> (project: OwlProject, status: String) {
-    let remaining = project.termRules.filter { $0.id != rule.id }
-    let updated = try store.setTermRules(id: project.id, termRules: remaining)
-    return (updated, "已删除术语规则「\(rule.preferred)」。")
-  }
-
   static func deepSeekAPIKeyStatus(read: () throws -> String?) -> String {
     do {
       let key = try read()
@@ -170,13 +83,6 @@ extension OwlSettingsActions {
   ) -> OwlProviderProfile? {
     guard let editing else { return nil }
     return providerProfileForRetry(editing, profiles: profiles) ?? editing
-  }
-
-  static func splitTermVariants(_ raw: String) -> [String] {
-    raw
-      .split(whereSeparator: { $0 == "," || $0 == "，" })
-      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-      .filter { !$0.isEmpty }
   }
 
   @discardableResult

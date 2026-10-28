@@ -239,8 +239,7 @@ enum OwlProvenanceColor {
   static let ai       = owlColor(hex: "C96442")  // AI（= Claude accent）
 }
 
-/// G3 候选来源。由 `EnhancedCandidate` 的 lane/source 经纯函数派生
-/// (`EnhancedCandidate.provenance(...)`)；`nil` 表示普通拼音候选，不渲染标签。
+/// G3 候选来源标签；`nil` 表示普通拼音候选，不渲染标签。
 /// 展示名 + token 颜色都在此集中，视图层不散落硬编码 hex。
 enum OwlProvenance: String, Sendable, Equatable, CaseIterable {
   case personal   // 个人 — 本地词频/个人词库

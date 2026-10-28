@@ -300,7 +300,7 @@ struct OwlProviderProfile: Codable, Identifiable, Equatable, Sendable {
     self.createdAt = createdAt
   }
 
-  /// Forward-compatible decode: tolerate missing/extra fields (matches `OwlProject`), so a newer
+  /// Forward-compatible decode: tolerate missing/extra fields, so a newer
   /// schema can add fields without breaking older readers and vice versa. Only `id` + `endpoint`
   /// are required; a record missing either is treated as malformed and skipped by the store.
   init(from decoder: Decoder) throws {
@@ -407,8 +407,8 @@ struct OwlProviderKeychain: OwlSecretStoring {
 // MARK: - Store
 
 /// File-backed CRUD for provider profiles, persisted as a single schema-versioned `providers.json`
-/// under `~/Library/Application Support/Owltype/`. Clone of `OwlProjectStore`'s pattern (pretty-printed,
-/// sorted keys, iso8601, atomic write). `root` is injectable so tests point at a temp dir.
+/// under `~/Library/Application Support/Owltype/` (pretty-printed, sorted keys, iso8601, atomic
+/// write). `root` is injectable so tests point at a temp dir.
 ///
 /// The default-profile invariant (exactly one `isDefault` when non-empty) is enforced on every
 /// mutation, so callers never have to manage it.

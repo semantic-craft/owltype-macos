@@ -26,26 +26,20 @@ final class HotPathLatencyTests: XCTestCase {
   override func setUp() async throws {
     try await super.setUp()
     OwlSnapshotRegistry.shared.update(nil)
-    OwlCandidateStore.shared.clearForSnapshotChange()
   }
 
-  /// Each emit cycle must register a snapshot and mirror the 9 candidates into the main lane,
-  /// then a clear must drop them. Functional sanity for the benchmarked path.
+  /// Each emit cycle must register a snapshot, then a clear must drop it. Functional sanity for
+  /// the benchmarked path.
   func testEmitCycleRegistersThenClears() {
     let emitter = OwlSnapshotEmitter.shared
     emitter.emitComposing(
       sessionID: 100, schemaID: "pinyin_simp", rawInput: "houxuan",
       preedit: "候选", cursor: 2, pageNo: 0, candidates: makeCandidates()
     )
-    XCTAssertNotNil(OwlSnapshotRegistry.shared.current)
-    XCTAssertEqual(OwlCandidateStore.shared.main.count, 9)
-    XCTAssertEqual(OwlCandidateStore.shared.main.first?.source, .rime)
-    XCTAssertEqual(OwlCandidateStore.shared.main.first?.lane, .main)
-    XCTAssertEqual(OwlCandidateStore.shared.main.first?.baseRimeIndex, 0)
+    XCTAssertEqual(OwlSnapshotRegistry.shared.current?.candidates.count, 9)
 
     emitter.emitCleared()
     XCTAssertNil(OwlSnapshotRegistry.shared.current)
-    XCTAssertTrue(OwlCandidateStore.shared.main.isEmpty)
   }
 
   /// `emitCleared` while already idle must be a no-op that does NOT bump `commitSerial`.

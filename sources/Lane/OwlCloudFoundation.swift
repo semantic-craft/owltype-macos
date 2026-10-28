@@ -5,7 +5,7 @@
 //  The common base every explicit cloud-AI feature builds on: 划词润色、提示词优化、流式聊天、
 //  AI 对话窗. P1-lite boundary: the cloud is NEVER an always-on decoder and never sees 逐键
 //  input — every request here is default-off and explicitly user-triggered. Typing candidates
-//  are local-only (Rime main lane + T1 smart lane); the inline lane this file's predecessor
+//  are local-only (the Rime main lane); the inline lane this file's predecessor
 //  (OwlDeepSeekCloudLane.swift) was named for is gone.
 //
 
