@@ -282,33 +282,6 @@ protocol SnapshotReading: AnyObject {
 // shape; this just publishes it through the narrow port.
 extension OwlSnapshotRegistry: SnapshotReading {}
 
-// MARK: - Candidate-store write-sink port (god-object reduction)
-//
-// The SAME injection range, extended to the heaviest remaining singleton coupling: the
-// background/async WRITER services (`OwlSnapshotEmitter`, `OwlExternalCommitBroker`)
-// all write candidates/errors into the global
-// `OwlCandidateStore.shared` sink. Unlike the controller→service ports above, these are
-// service→sink couplings with no delegate hop, so the injection point is the WRITER service
-// instance itself (`var store = OwlCandidateStore.shared`, mirroring `var engine`).
-// A narrow (ISP) port over the methods the writers actually call lets each writer's
-// write-behaviour be asserted against a `Fake` with no librime and no network.
-// is deliberately excluded — it is defined on the store but never called externally via
-// `.shared`. `@MainActor` because the store is, and every writer touches it on the main actor.
-
-/// The writers' outbound view of the candidate sink. Exposes ONLY the write/clear/error
-/// methods the background/async services actually call — not the store's `@Published`
-/// read surface — so a fake can record what a writer wrote without a store.
-@MainActor
-protocol CandidateStoring: AnyObject {
-  func setMainCandidates(_ candidates: [EnhancedCandidate])
-  func upsertSmartCandidates(_ candidates: [EnhancedCandidate], snapshotID: UInt64)
-  func clearForSnapshotChange()
-  func showError(_ message: String, lane: EnhancedCandidate.Lane, snapshotID: UInt64)
-}
-
-// Conformance only — the members already exist with matching signatures.
-extension OwlCandidateStore: CandidateStoring {}
-
 // MARK: - Controller→service ports: snapshot emitter / selection polish
 //
 // The SAME controller→service injection range RimeEngine/SnapshotReading
@@ -329,8 +302,8 @@ extension OwlCandidateStore: CandidateStoring {}
 // inside the controller's `MainActor.assumeIsolated { … }` / `Task { @MainActor in … }`).
 
 /// The controller's view of the composition-timeline snapshot emitter. Exposes ONLY the 4
-/// methods the controller pokes — not the emitter's `commitSerial` / `projectStore` / `store`
-/// internals — so the snapshot path can be driven and asserted without a librime session.
+/// methods the controller pokes — not the emitter's `commitSerial` — so the snapshot path can be
+/// driven and asserted without a librime session.
 @MainActor
 protocol SnapshotEmitting: AnyObject {
   func noteCommit()

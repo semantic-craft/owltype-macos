@@ -10,6 +10,12 @@ composition or commit reaching the host. Bounded latency, no network, no blockin
 no failure may stop plain typing. The input method runs inside every host app, so a hang or
 crash here is an outage across apps.
 
+**Composition snapshot** — an immutable copy of the live composition (raw input, preedit, top
+candidates, commit serial) that `OwlSnapshotEmitter` registers in `OwlSnapshotRegistry` after
+each engine update. Readers use it only to tell whether the user is mid-composition (the update
+logout prompt, the dictionary prompt). Candidates come only from the engine's main lane; there is
+no second candidate lane.
+
 ## AI
 
 **AI skill** — a user-invoked, out-of-band operation that sends text to a cloud model:

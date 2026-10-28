@@ -18,8 +18,8 @@
 //  no librime handle, no client read, no UserDefaults; every side effect stays behind a caller
 //  closure. The impure shell (reading `rime.input()` / `composition().commitTextPreview`,
 //  the `commit(string:)` insertText, `clearComposition`, the snapshot-registry clear) stays at
-//  the commit seam in `OwlInputController+Lifecycle.swift`, mirroring how `OwlAutoPair` /
-//  `OwlBackspaceCorrection` split a pure decision from the controller side effects.
+//  the commit seam in `OwlInputController+Lifecycle.swift`, mirroring how `OwlAutoPair`
+//  splits a pure decision from the controller side effects.
 //
 //  Boundary (ADR-0001 / 0002 / 0003): string/value choice only when reached from the IMK commit
 //  path — no disk IO, no YAML, no network, zero Rime config changes.

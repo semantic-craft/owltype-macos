@@ -142,7 +142,7 @@ struct OwlSelectionPolishClient {
 
 /// B4 service: applies the privacy guards, then fetches rewrites through the LLM gateway, which owns
 /// the bounded retry. Returns rewrites (best-first) or throws a `OwlSelectionPolishError` the
-/// controller can surface. No `OwlCandidateStore`, no lane, no broker — this is a clipboard text op.
+/// controller can surface. This is a clipboard text op, not a candidate.
 @MainActor
 final class OwlSelectionPolishService {
   static let shared = OwlSelectionPolishService()

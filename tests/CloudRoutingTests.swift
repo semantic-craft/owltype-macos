@@ -35,14 +35,12 @@ final class CloudRoutingTests: XCTestCase {
     OwlCloudPreferences.resetForTesting()
     OwlCloudUsageTelemetry.resetForTesting()
     OwlSnapshotRegistry.shared.update(nil)
-    OwlCandidateStore.shared.clearForSnapshotChange()
   }
 
   override func tearDown() async throws {
     OwlCloudPreferences.resetForTesting()
     OwlCloudUsageTelemetry.resetForTesting()
     OwlSnapshotRegistry.shared.update(nil)
-    OwlCandidateStore.shared.clearForSnapshotChange()
     try await super.tearDown()
   }
 

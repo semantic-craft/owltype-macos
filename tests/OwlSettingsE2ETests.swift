@@ -180,20 +180,6 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     XCTAssertEqual(clipboard.map(\.text), ["判决摘要"])
     try OwlClipboardStore.clear(root: rimeDir)
     XCTAssertTrue(OwlClipboardStore.load(root: rimeDir).isEmpty)
-
-    let projectStore = OwlProjectStore(root: rimeDir, defaults: defaults)
-    let project = try projectStore.create(name: "行政法课程")
-    try projectStore.activate(id: project.id)
-    let renamed = try projectStore.rename(id: project.id, to: "行政法案例")
-    let withWords = try projectStore.setWords(id: renamed.id, words: ["行政许可", "行政处罚", "行政许可"])
-    let rule = OwlTermRule(preferred: "正当程序", allowedVariants: ["程序正当"], forbiddenVariants: ["走流程"])
-    let withRule = try projectStore.setTermRules(id: withWords.id, termRules: [rule])
-    XCTAssertEqual(projectStore.activeProjectID, project.id)
-    XCTAssertEqual(withRule.name, "行政法案例")
-    XCTAssertEqual(withRule.normalizedWords, ["行政许可", "行政处罚"])
-    XCTAssertEqual(withRule.termRules.first?.preferred, "正当程序")
-    try projectStore.delete(id: project.id)
-    XCTAssertNil(projectStore.activeProjectID)
   }
 
   func testQuickSendExamplesAreValidAndEnableRoundtripsToRimePatch() throws {

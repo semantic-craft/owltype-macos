@@ -125,7 +125,6 @@ final class OwlForcedFinalizeRegistryReadbackTests: XCTestCase {
   override func setUp() async throws {
     try await super.setUp()
     OwlSnapshotRegistry.shared.update(nil)
-    OwlCandidateStore.shared.clearForSnapshotChange()
   }
 
   // Stranded-composition shape: a snapshot is registered (mid-composition), then the host
