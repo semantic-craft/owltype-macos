@@ -681,7 +681,7 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
     XCTAssertEqual(
       OwlSearchControl.transport(providerID: "deepseek", host: "api.deepseek.com"),
       .deepSeekSearchAPI)
-    XCTAssertEqual(OwlSearchControl.displayName(for: "deepseek"), "DeepSeek")
+    XCTAssertEqual(OwlProviderCapabilities.searchDisplayName(providerID: "deepseek"), "DeepSeek")
     XCTAssertEqual(OwlSearchControl.searchProviderID, "deepseek")
   }
 

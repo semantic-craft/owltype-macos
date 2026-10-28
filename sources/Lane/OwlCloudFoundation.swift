@@ -216,10 +216,14 @@ enum OwlThinkingControl {
   /// Top-level fields for the provider's lowest supported thinking latency.
   ///
   /// `model` is the fallback for a custom profile whose id was never stamped — same precedence as
-  /// `OwlSearchControl.channel(providerID:host:)`, and it keeps the pre-B1 model-prefix behaviour
-  /// (`OwlSelectionPolish.chatRequest`) working unchanged.
+  /// `OwlProviderCapabilities.searchChannel(providerID:host:)`, and it keeps the pre-B1 model-prefix
+  /// behaviour (`OwlSelectionPolish.chatRequest`) working unchanged.
   static func offBody(providerID: String, model: String) -> [String: Any] {
-    let fields = offFields(providerID: providerID, model: model)
+    offBody(offFields(providerID: providerID, model: model))
+  }
+
+  /// `fields` as top-level JSON, for a body built with `JSONSerialization`.
+  static func offBody(_ fields: Fields) -> [String: Any] {
     var body: [String: Any] = [:]
     if let thinking = fields.thinking { body["thinking"] = ["type": thinking.type] }
     if let enabled = fields.enableThinking { body["enable_thinking"] = enabled }

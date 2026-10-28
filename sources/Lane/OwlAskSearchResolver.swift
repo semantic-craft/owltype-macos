@@ -45,7 +45,7 @@ struct OwlAskSearchRoute: Equatable {
 
   var providerID: String { routing.providerID }
   /// 面向用户的品牌名（DeepSeek），供 AI 窗署名 chip 使用。
-  var displayName: String? { OwlSearchControl.displayName(for: providerID) }
+  var displayName: String? { OwlProviderCapabilities.searchDisplayName(providerID: providerID) }
   /// WHICH transport carries this route's search — the 任意提问 module picks its client from this rather
   /// than re-deriving it from the provider id.
   var transport: OwlSearchControl.Transport {

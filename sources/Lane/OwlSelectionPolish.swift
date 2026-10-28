@@ -298,10 +298,7 @@ final class OwlSourceVerificationService {
       profileSecretProvider: profileSecretProvider,
       legacyKeyProvider: legacyKeyProvider
     )
-    self.transport = transport ?? OwlAskAnythingTransportAdapter(
-      chatClient: OwlStreamingChatClient(),
-      responsesClient: OwlResponsesStreamingClient(),
-      searchClient: deepSeekSearchClient)
+    self.transport = transport ?? OwlAskAnythingTransportAdapter(searchClient: deepSeekSearchClient)
   }
 
   func verifyStructured(_ selectedText: String) async throws -> OwlSourceVerificationOutcome {

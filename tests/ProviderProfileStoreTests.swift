@@ -536,7 +536,7 @@ final class ProviderProfileStoreTests: XCTestCase {
 
     // 能力降级：不联网。
     XCTAssertEqual(
-      OwlSearchControl.channel(providerID: "retired-provider", host: "retired.example.com"), .none)
+      OwlProviderCapabilities.searchChannel(providerID: "retired-provider", host: "retired.example.com"), .none)
     XCTAssertFalse(
       OwlSearchControl.supportsSearch(providerID: "retired-provider", host: "retired.example.com"))
   }

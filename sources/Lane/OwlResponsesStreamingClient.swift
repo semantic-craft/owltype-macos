@@ -132,8 +132,9 @@ struct OwlResponsesStreamParser {
 // MARK: - Streaming client
 
 /// The narrow `/responses` streaming port. Kept separate from `OwlChatStreaming` on purpose:
-/// the high-level service decides whether this is a plain generation or a built-in search request.
-protocol OwlResponsesStreaming {
+/// `OwlLLMGateway.stream` picks the dialect; the caller decides whether this is a plain generation
+/// or a built-in search request.
+protocol OwlResponsesStreaming: Sendable {
   /// Stream an assistant answer for `messages` over `/responses`. Yields text deltas in order; a
   /// non-2xx status or an upstream `response.failed` finishes the stream with a `OwlStreamingError`.
   func stream(
@@ -151,38 +152,17 @@ struct OwlResponsesStreamingClient: OwlResponsesStreaming {
   /// Per-request timeout (seconds). Longer than plain chat's 30: a search round-trips to the web
   /// before the first token, so the same budget would time out a working request.
   let timeout: TimeInterval
-  /// Byte/line source. Default = live `URLSession.bytes`; injectable for tests (no socket).
-  private let bytesProvider: (URLRequest) async throws -> OwlStreamingBytesSource
+  /// Byte/line source. Default = the gateway transport (`URLSession.bytes` in production);
+  /// a test may pass a scripted source instead (no socket).
+  private let bytesProvider: @Sendable (URLRequest) async throws -> OwlStreamingBytesSource
 
   init(
     timeout: TimeInterval = 90,
-    bytesProvider: ((URLRequest) async throws -> OwlStreamingBytesSource)? = nil
+    transport: OwlLLMTransport = OwlURLSessionTransport(),
+    bytesProvider: (@Sendable (URLRequest) async throws -> OwlStreamingBytesSource)? = nil
   ) {
     self.timeout = timeout
-    self.bytesProvider = bytesProvider ?? OwlResponsesStreamingClient.liveBytesProvider
-  }
-
-  /// Live source: `URLSession.bytes(for:)` → an async line iterator re-emitted as `\n`-terminated
-  /// text chunks so the parser's chunk-boundary buffering is exercised identically to a raw socket.
-  private static func liveBytesProvider(_ request: URLRequest) async throws -> OwlStreamingBytesSource {
-    let (bytes, response) = try await URLSession.shared.bytes(for: request)
-    let http = response as? HTTPURLResponse
-    let stream = AsyncThrowingStream<String, Error> { continuation in
-      let task = Task {
-        do {
-          for try await line in bytes.lines {
-            // `.lines` strips the newline; restore it so the parser frames events correctly.
-            continuation.yield(line + "\n")
-            if Task.isCancelled { break }
-          }
-          continuation.finish()
-        } catch {
-          continuation.finish(throwing: error)
-        }
-      }
-      continuation.onTermination = { _ in task.cancel() }
-    }
-    return OwlStreamingBytesSource(response: http, chunks: stream)
+    self.bytesProvider = bytesProvider ?? { try await transport.openStream($0) }
   }
 
   func stream(

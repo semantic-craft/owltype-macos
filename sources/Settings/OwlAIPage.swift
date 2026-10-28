@@ -82,6 +82,10 @@ struct OwlAIPage: View {
 
   // MARK: - 任意提问 · 联网搜索
 
+  /// The search provider and answering model the 联网 copy names, from the provider capabilities.
+  static var searchName: String { OwlProviderCapabilities.askSearch.searchDisplayName ?? "" }
+  static var searchModel: String { OwlProviderCapabilities.askSearch.model }
+
   /// 任意提问 的联网搜索开关。只作用于「任意提问」：划词技能、候选、听写都不受影响。
   ///
   /// 开启后这一问会路由到一个**已配好密钥、能联网的 DeepSeek 档案**，与上面选定的默认供应商
@@ -92,7 +96,7 @@ struct OwlAIPage: View {
       VStack(spacing: 0) {
         SettingsToggleRow(
           title: "联网搜索",
-          subtitle: "开启后，「任意提问」会交给已配好密钥的 DeepSeek 联网作答；关闭时用模型自有知识回答。只作用于任意提问，不影响划词技能与打字候选。",
+          subtitle: "开启后，「任意提问」会交给已配好密钥的 \(Self.searchName) 联网作答；关闭时用模型自有知识回答。只作用于任意提问，不影响划词技能与打字候选。",
           isOn: state.askWebSearchEnabled,
           palette: palette,
           onToggle: {
@@ -103,8 +107,8 @@ struct OwlAIPage: View {
         )
         SettingsCardDivider(palette: palette)
         Text("""
-          联网先用 DeepSeek 搜索接口取回网页，再由 deepseek-flash 依据结果作答，需在上面添加 DeepSeek 供应商。\
-          回答末尾列出引用的网页。没有可用的 DeepSeek 档案时，退回普通问答。
+          联网先用 \(Self.searchName) 搜索接口取回网页，再由 \(Self.searchModel) 依据结果作答，需在上面添加 \(Self.searchName) 供应商。\
+          回答末尾列出引用的网页。没有可用的 \(Self.searchName) 档案时，退回普通问答。
 
           任意提问优先减少思考等待：支持关闭思考的模型默认关闭；MiniMax M3.1 Flash 不支持关闭，\
           使用低思考强度，M3 则关闭思考。
@@ -153,8 +157,8 @@ struct OwlAIPage: View {
           }
         }
         Text("""
-          来源核验用豆包搜索（Global 版）与 DeepSeek 搜索取回网页，配了哪个用哪个，来源只取自搜索结果。\
-          配有 DeepSeek 供应商时由 deepseek-flash 对照判断，否则交给默认供应商；只配 DeepSeek 也能核验。\
+          来源核验用豆包搜索（Global 版）与 \(Self.searchName) 搜索取回网页，配了哪个用哪个，来源只取自搜索结果。\
+          配有 \(Self.searchName) 供应商时由 \(Self.searchModel) 对照判断，否则交给默认供应商；只配 \(Self.searchName) 也能核验。\
           这把 Key 与方舟模型 Key 不同：在火山引擎「联网搜索控制台 → API Key 管理 → 按量后付费」创建，\
           每月 500 次免费。\(doubaoSearchKeyStatus.isEmpty ? "" : "\n\n\(doubaoSearchKeyStatus)")
           """)

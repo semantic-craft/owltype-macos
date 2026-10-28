@@ -243,6 +243,6 @@ final class OwlAIConversationModel {
   /// 用谁」，所以在拿到第一段内容与流收场两个时点各重读一次 —— chip 于是写的是真正答了这一问的那家，
   /// 退回普通问答时如实撤掉。
   private func applyAttribution(_ open: OwlAskStreamOpen) {
-    searchAttribution = open.searchProviderID.flatMap(OwlSearchControl.displayName(for:))
+    searchAttribution = open.searchProviderID.flatMap(OwlProviderCapabilities.searchDisplayName(providerID:))
   }
 }

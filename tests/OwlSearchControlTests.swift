@@ -16,9 +16,9 @@ import XCTest
 final class OwlSearchControlTests: XCTestCase {
 
   func testChannelResolvesDeepSeekByProviderIDOrHost() {
-    XCTAssertEqual(OwlSearchControl.channel(providerID: "deepseek", host: ""), .deepSeek)
+    XCTAssertEqual(OwlProviderCapabilities.searchChannel(providerID: "deepseek", host: ""), .deepSeek)
     XCTAssertEqual(
-      OwlSearchControl.channel(providerID: "custom", host: "api.deepseek.com"), .deepSeek,
+      OwlProviderCapabilities.searchChannel(providerID: "custom", host: "api.deepseek.com"), .deepSeek,
       "未盖 id 的自定义档案按 host 兜底")
   }
 
@@ -31,9 +31,9 @@ final class OwlSearchControlTests: XCTestCase {
       ("minimax", "api.minimax.cn"),
       ("zhipu", "open.bigmodel.cn"),
     ] {
-      XCTAssertEqual(OwlSearchControl.channel(providerID: providerID, host: host), .none, providerID)
+      XCTAssertEqual(OwlProviderCapabilities.searchChannel(providerID: providerID, host: host), .none, providerID)
       XCTAssertEqual(OwlSearchControl.transport(providerID: providerID, host: host), .none, providerID)
-      XCTAssertNil(OwlSearchControl.displayName(for: providerID), "不能联网的就不该有联网署名：\(providerID)")
+      XCTAssertNil(OwlProviderCapabilities.searchDisplayName(providerID: providerID), "不能联网的就不该有联网署名：\(providerID)")
     }
   }
 
@@ -43,7 +43,18 @@ final class OwlSearchControlTests: XCTestCase {
       OwlSearchControl.transport(providerID: "deepseek", host: "api.deepseek.com"),
       .deepSeekSearchAPI)
     XCTAssertEqual(OwlSearchControl.searchModel, "deepseek-flash")
-    XCTAssertEqual(OwlSearchControl.displayName(for: OwlSearchControl.searchProviderID), "DeepSeek")
+    XCTAssertEqual(OwlProviderCapabilities.searchDisplayName(providerID: OwlSearchControl.searchProviderID), "DeepSeek")
+  }
+
+  /// The settings copy reads these; the rendered text must stay what it was before they moved.
+  func testSettingsCopyNamesTheSameSearchProviderAndModel() {
+    XCTAssertEqual(OwlAIPage.searchName, "DeepSeek")
+    XCTAssertEqual(OwlAIPage.searchModel, "deepseek-flash")
+    let capabilities = OwlProviderCapabilities(
+      providerID: "deepseek", model: "deepseek-chat",
+      endpoint: URL(string: "https://api.deepseek.com/chat/completions"))
+    XCTAssertEqual(capabilities.searchTransport, .deepSeekSearchAPI)
+    XCTAssertEqual(capabilities.searchDisplayName, "DeepSeek")
   }
 
   func testSearchEndpointSitsOnTheChatHost() {

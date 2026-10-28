@@ -3,8 +3,8 @@
 //  猫头鹰输入法 (Owltype) — 任意提问 use-case seam
 //
 //  The caller-facing interface is deliberately tiny: messages in, streamed answer + attribution
-//  out. Provider ordering, search failover, and Responses dialect selection stay behind this seam.
-//  `OwlResponsesStreamingClient` is consumed only by the transport adapter below; the use-case
+//  out. Provider ordering and search failover stay behind this seam; the wire and its dialect are
+//  `OwlLLMGateway`'s, and whether a route can search is `OwlProviderCapabilities`'. The use-case
 //  module asks for plain generation or a searched answer without knowing either wire dialect.
 //
 
@@ -46,25 +46,32 @@ protocol OwlAskAnythingTransporting {
   ) -> AsyncThrowingStream<String, Error>?
 }
 
-/// Adapts the existing chat and Responses transports to the provider-neutral ask port.
+/// Adapts the LLM gateway and the DeepSeek search client to the provider-neutral ask port.
 ///
 /// 联网 = DeepSeek Search 接口取回网页 → 编号结果放进 system 消息 → 普通生成作答 → 由结果生成来源
 /// 脚注。搜没搜由检索请求本身决定，来源网址只来自检索结果。The module above this type never sees a
 /// Responses dialect, which is the boundary issue #107 establishes.
 @MainActor
 struct OwlAskAnythingTransportAdapter: OwlAskAnythingTransporting {
-  private let chatClient: OwlChatStreaming
-  private let responsesClient: OwlResponsesStreaming
+  private let gateway: OwlLLMGateway
   private let searchClient: OwlDeepSeekSearching
 
+  /// `searchClient` defaults to the DeepSeek search client over the gateway's transport.
+  init(gateway: OwlLLMGateway = OwlLLMGateway(), searchClient: OwlDeepSeekSearching? = nil) {
+    self.gateway = gateway
+    let transport = gateway.transport
+    self.searchClient = searchClient ?? OwlDeepSeekSearchClient(fetch: { try await transport.send($0) })
+  }
+
+  /// Scripted wires for tests; production composes through `init(gateway:searchClient:)`.
   init(
     chatClient: OwlChatStreaming,
     responsesClient: OwlResponsesStreaming,
     searchClient: OwlDeepSeekSearching
   ) {
-    self.chatClient = chatClient
-    self.responsesClient = responsesClient
-    self.searchClient = searchClient
+    self.init(
+      gateway: OwlLLMGateway(chatStreamer: chatClient, responsesStreamer: responsesClient),
+      searchClient: searchClient)
   }
 
   func streamPlain(
@@ -72,16 +79,7 @@ struct OwlAskAnythingTransportAdapter: OwlAskAnythingTransporting {
     routing: OwlCloudRouting,
     apiKey: String
   ) -> AsyncThrowingStream<String, Error> {
-    if let dialect = OwlResponsesWire.dialect(
-      providerID: routing.providerID, model: routing.model, endpoint: routing.endpoint) {
-      return responsesClient.stream(
-        messages: messages,
-        routing: routing,
-        apiKey: apiKey,
-        dialect: dialect,
-        webSearch: false)
-    }
-    return chatClient.stream(messages: messages, routing: routing, apiKey: apiKey)
+    gateway.stream(messages: messages, routing: routing, apiKey: apiKey)
   }
 
   func streamWebSearch(
@@ -89,8 +87,7 @@ struct OwlAskAnythingTransportAdapter: OwlAskAnythingTransporting {
     routing: OwlCloudRouting,
     apiKey: String
   ) -> AsyncThrowingStream<String, Error>? {
-    guard OwlSearchControl.transport(
-      providerID: routing.providerID, host: routing.endpoint.host ?? "") == .deepSeekSearchAPI,
+    guard OwlProviderCapabilities(routing: routing).searchTransport == .deepSeekSearchAPI,
       let endpoint = OwlDeepSeekSearchWire.endpoint(for: routing.endpoint) else { return nil }
     let question = messages.last(where: { $0.role == "user" })?.content ?? ""
     let searchClient = searchClient
@@ -160,9 +157,8 @@ final class OwlAskAnythingModule: OwlAskAnythingOpening {
       profileSecretProvider: profileSecretProvider,
       legacyKeyProvider: legacyKeyProvider)
     let transport = OwlAskAnythingTransportAdapter(
-      chatClient: client ?? OwlStreamingChatClient(),
-      responsesClient: responsesClient ?? OwlResponsesStreamingClient(),
-      searchClient: searchClient ?? OwlDeepSeekSearchClient())
+      gateway: OwlLLMGateway(chatStreamer: client, responsesStreamer: responsesClient),
+      searchClient: searchClient)
     self.init(
       gate: gate,
       transport: transport,

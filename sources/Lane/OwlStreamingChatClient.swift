@@ -200,7 +200,7 @@ struct OwlStreamingBytesSource {
 
 /// The narrow streaming transport port. B10 depends on THIS, not the concrete client, so the window
 /// can be tested against a fake stream.
-protocol OwlChatStreaming {
+protocol OwlChatStreaming: Sendable {
   /// Stream an assistant answer for `messages`, routed by `routing`, authorized with `apiKey`.
   /// Yields content deltas in order and finishes when the upstream sends `[DONE]`. Honors task
   /// cancellation (cancelling the consuming task tears down the upstream byte stream). A non-2xx
@@ -226,38 +226,17 @@ struct OwlStreamingChatClient: OwlChatStreaming {
 
   /// Per-request timeout (seconds). Bounds a hung stream; same spirit as `OwlCloudPreferences.requestTimeout`.
   let timeout: TimeInterval
-  /// Byte/line source. Default = live `URLSession.bytes`; injectable for tests (no socket).
-  private let bytesProvider: (URLRequest) async throws -> OwlStreamingBytesSource
+  /// Byte/line source. Default = the gateway transport (`URLSession.bytes` in production);
+  /// a test may pass a scripted source instead (no socket).
+  private let bytesProvider: @Sendable (URLRequest) async throws -> OwlStreamingBytesSource
 
   init(
     timeout: TimeInterval = 30,
-    bytesProvider: ((URLRequest) async throws -> OwlStreamingBytesSource)? = nil
+    transport: OwlLLMTransport = OwlURLSessionTransport(),
+    bytesProvider: (@Sendable (URLRequest) async throws -> OwlStreamingBytesSource)? = nil
   ) {
     self.timeout = timeout
-    self.bytesProvider = bytesProvider ?? OwlStreamingChatClient.liveBytesProvider
-  }
-
-  /// Live source: `URLSession.bytes(for:)` → an async line iterator re-emitted as `\n`-terminated
-  /// text chunks so the parser's chunk-boundary buffering is exercised identically to a raw socket.
-  private static func liveBytesProvider(_ request: URLRequest) async throws -> OwlStreamingBytesSource {
-    let (bytes, response) = try await URLSession.shared.bytes(for: request)
-    let http = response as? HTTPURLResponse
-    let stream = AsyncThrowingStream<String, Error> { continuation in
-      let task = Task {
-        do {
-          for try await line in bytes.lines {
-            // `.lines` strips the newline; restore it so the parser frames events correctly.
-            continuation.yield(line + "\n")
-            if Task.isCancelled { break }
-          }
-          continuation.finish()
-        } catch {
-          continuation.finish(throwing: error)
-        }
-      }
-      continuation.onTermination = { _ in task.cancel() }
-    }
-    return OwlStreamingBytesSource(response: http, chunks: stream)
+    self.bytesProvider = bytesProvider ?? { try await transport.openStream($0) }
   }
 
   func stream(
@@ -302,7 +281,7 @@ struct OwlStreamingChatClient: OwlChatStreaming {
   /// Build the streaming POST. `routing.endpoint` / `routing.model` come from the active provider
   /// profile (or the legacy globals when none). No `response_format`.
   ///
-  /// `OwlThinkingControl.offBody` — 强制关思考, applied to EVERY 任意提问 request (plain or 联网) —
+  /// `OwlProviderCapabilities.thinkingOffBody` — 强制关思考, applied to EVERY 任意提问 request (plain or 联网) —
   /// is merged onto the encoded request. This is the choke point for the whole ask lane: the
   /// providers' own field names differ, so the dialect lives in one place instead of at each call
   /// site. A provider with no known thinking switch still gets a byte-identical plain-chat body.
@@ -317,15 +296,16 @@ struct OwlStreamingChatClient: OwlChatStreaming {
     request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
     routing.authHeaderStyle.apply(to: &request, apiKey: apiKey)
     request.timeoutInterval = timeout
+    let capabilities = OwlProviderCapabilities(routing: routing)
     let encoded = try JSONEncoder().encode(
       StreamingRequest(
         model: routing.model,
         messages: messages,
-        temperature: OwlChatSamplingControl.temperature(0.2, model: routing.model),
+        temperature: capabilities.temperature(0.2),
         stream: true
       )
     )
-    let extras = OwlThinkingControl.offBody(providerID: routing.providerID, model: routing.model)
+    let extras = capabilities.thinkingOffBody
     request.httpBody = extras.isEmpty ? encoded : Self.merging(extras, into: encoded)
     return request
   }
@@ -370,8 +350,7 @@ final class OwlStreamingChatService {
   /// Resolves the active profile → routing + key (or a typed not-ready outcome). Built from the
   /// injected profile/secret/legacy closures so tests keep injecting exactly as before.
   private let gate: OwlProviderAuthGate
-  /// Provider-neutral transport for plain streaming. Responses dialect selection is private to
-  /// its concrete adapter.
+  /// Provider-neutral transport for plain streaming. The gateway picks the wire.
   private let transport: OwlAskAnythingTransporting
 
   init(
@@ -387,9 +366,7 @@ final class OwlStreamingChatService {
       legacyKeyProvider: legacyKeyProvider
     )
     let transport = OwlAskAnythingTransportAdapter(
-      chatClient: client ?? OwlStreamingChatClient(),
-      responsesClient: responsesClient ?? OwlResponsesStreamingClient(),
-      searchClient: OwlDeepSeekSearchClient())
+      gateway: OwlLLMGateway(chatStreamer: client, responsesStreamer: responsesClient))
     self.gate = gate
     self.transport = transport
   }

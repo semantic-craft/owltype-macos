@@ -30,8 +30,9 @@ enum OwlSearchControl {
 
   /// 联网与作答型号无关：检索是一次独立的 HTTP 请求，任何 DeepSeek 型号都能依据结果作答。
   /// 不靠模型内置的 `web_search` 工具——2026-10-21 实测 V4.1 Flash 收下工具却不搜，凭记忆作答。
+  /// The channel itself is `OwlProviderCapabilities.searchChannel(providerID:host:)`.
   static func transport(providerID: String, host: String) -> Transport {
-    switch channel(providerID: providerID, host: host) {
+    switch OwlProviderCapabilities.searchChannel(providerID: providerID, host: host) {
     case .deepSeek: return .deepSeekSearchAPI
     case .none:     return .none
     }
@@ -48,19 +49,4 @@ enum OwlSearchControl {
   /// 官方端点上依据检索结果作答的型号：V4.1 Flash，便宜、约 1 秒出首字。档案选的作答型号只管普通问答；
   /// 代理端点保留档案型号（代理不一定提供这个型号）。
   static let searchModel = "deepseek-flash"
-
-  /// 面向用户的联网署名名。非可联网 → nil。
-  static func displayName(for providerID: String) -> String? {
-    switch channel(providerID: providerID, host: "") {
-    case .deepSeek: return "DeepSeek"
-    case .none:     return nil
-    }
-  }
-
-  /// Resolve the search channel. `providerID` wins; `host` is the fallback for a custom profile
-  /// whose id was never stamped — same precedence as `OwlLLMProviderCatalog.inferredProviderID`.
-  static func channel(providerID: String, host: String) -> Channel {
-    if providerID.lowercased() == searchProviderID { return .deepSeek }
-    return host.lowercased().contains("deepseek") ? .deepSeek : .none
-  }
 }
