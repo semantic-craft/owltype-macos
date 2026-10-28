@@ -350,7 +350,6 @@ final class OwlStructuredDraftingModuleTests: XCTestCase {
     let request = try XCTUnwrap(remote.requests.first)
     XCTAssertEqual(request.apiKey, "sk-test")
     XCTAssertEqual(request.routing, Self.routing)
-    XCTAssertEqual(request.timeout, 60)
     XCTAssertEqual(request.traceName, "prompt-optimize")
     XCTAssertEqual(request.clarificationCount, 0)
     XCTAssertEqual(request.payload.model, "qwen3.7-plus")

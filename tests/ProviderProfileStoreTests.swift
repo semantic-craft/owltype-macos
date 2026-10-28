@@ -1926,7 +1926,7 @@ final class OwlProviderConnectivityCheckTests: XCTestCase {
     let outcome = await OwlProviderConnectivityCheck.run(
       endpoint: URL(string: "https://api.example.com/v1/chat/completions")!,
       providerID: "custom", model: "m", apiKey: "k", authStyle: .bearer,
-      fetch: { _ in throw URLError(.notConnectedToInternet) })
+      transport: OwlStubTransport { _ in throw URLError(.notConnectedToInternet) })
     guard case .unreachable = outcome else {
       return XCTFail("断网是一种结论，不能抛给调用方：\(outcome)")
     }
@@ -1938,7 +1938,10 @@ final class OwlProviderConnectivityCheckTests: XCTestCase {
     let outcome = await OwlProviderConnectivityCheck.run(
       endpoint: URL(string: "https://api.example.com/v1/chat/completions")!,
       providerID: "custom", model: "m", apiKey: "k", authStyle: .bearer,
-      fetch: { _ in (Data(#"{"choices":[]}"#.utf8), self.response(200)) },
+      transport: OwlStubTransport { request in
+        (Data(#"{"choices":[]}"#.utf8),
+         HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+      },
       clock: { ticks.removeFirst() })
     XCTAssertEqual(outcome, .ok(latencyMS: 1250))
   }

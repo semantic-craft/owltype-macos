@@ -35,7 +35,6 @@ struct OwlStructuredDraftingConfiguration {
   let systemPrompt: String
   let maxDraftLength: Int
   let temperature: Double
-  let requestTimeout: TimeInterval
   let traceName: String
   let admissionError: (OwlStructuredDraftingAdmission) -> Error
 }
@@ -45,7 +44,6 @@ struct OwlStructuredDraftingRemoteRequest {
   let routing: OwlCloudRouting
   let apiKey: String
   let payload: OwlDeepSeekChatRequest
-  let timeout: TimeInterval
   let traceName: String
   let clarificationCount: Int
 }
@@ -119,7 +117,6 @@ final class OwlStructuredDrafting {
       routing: routing,
       apiKey: apiKey,
       payload: payload,
-      timeout: configuration.requestTimeout,
       traceName: configuration.traceName,
       clarificationCount: clarifications.count
     ))
@@ -150,14 +147,14 @@ final class OwlStructuredDrafting {
       ))
     }
 
-    let thinkingOff = OwlThinkingControl.offFields(providerID: providerID, model: model)
+    let capabilities = OwlProviderCapabilities(providerID: providerID, model: model)
+    let thinkingOff = capabilities.thinkingOff
     return OwlDeepSeekChatRequest(
       model: model,
       messages: messages,
-      temperature: OwlChatSamplingControl.temperature(temperature, model: model),
+      temperature: capabilities.temperature(temperature),
       stream: false,
-      // MiniMax documents no JSON mode; keep prompt + local validation as the contract.
-      responseFormat: thinkingOff.reasoningSplit == nil ? .jsonObject : nil,
+      responseFormat: capabilities.sendsChatJSONMode ? .jsonObject : nil,
       thinking: thinkingOff.thinking,
       enableThinking: thinkingOff.enableThinking,
       reasoningEffort: thinkingOff.reasoningEffort,
@@ -227,87 +224,20 @@ final class OwlStructuredDrafting {
   }
 }
 
-/// Live HTTP adapter. Provider routing and wire dialects remain owned by the frozen cloud
-/// foundation; this adapter only translates the module's authorized request into that wire.
+/// Live adapter: the module's authorized request through the LLM gateway, which owns provider
+/// routing, the wire dialects and the drafting timeout.
 struct OwlStructuredDraftingClient: OwlStructuredDraftingRemote {
-  let urlSession: URLSession
+  let gateway: OwlLLMGateway
 
-  init(urlSession: URLSession = .shared) {
-    self.urlSession = urlSession
+  init(gateway: OwlLLMGateway = OwlLLMGateway()) {
+    self.gateway = gateway
   }
 
   func fetch(_ request: OwlStructuredDraftingRemoteRequest) async throws -> String {
-    let routing = request.routing
-    let payload = request.payload
     OwlLiveInputTrace.write {
-      "\(request.traceName) model=\(routing.model) clarifications=\(request.clarificationCount)"
+      "\(request.traceName) model=\(request.routing.model) clarifications=\(request.clarificationCount)"
     }
-
-    let responsesDialect = OwlResponsesWire.dialect(
-      providerID: routing.providerID,
-      model: routing.model,
-      endpoint: routing.endpoint
-    )
-    let urlRequest: URLRequest
-    if let responsesDialect {
-      urlRequest = try OwlResponsesWire.request(
-        endpoint: routing.endpoint,
-        model: routing.model,
-        messages: payload.messages,
-        apiKey: request.apiKey,
-        authHeaderStyle: routing.authHeaderStyle,
-        dialect: responsesDialect,
-        stream: false,
-        webSearch: false,
-        jsonObject: true,
-        temperature: payload.temperature,
-        timeout: request.timeout
-      )
-    } else {
-      var chatRequest = URLRequest(url: routing.endpoint)
-      chatRequest.httpMethod = "POST"
-      chatRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-      routing.authHeaderStyle.apply(to: &chatRequest, apiKey: request.apiKey)
-      chatRequest.timeoutInterval = request.timeout
-      chatRequest.httpBody = try JSONEncoder().encode(payload)
-      urlRequest = chatRequest
-    }
-
-    let (data, response) = try await urlSession.data(for: urlRequest)
-    if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-      throw OwlCloudRequestError.badHTTPStatus(http.statusCode)
-    }
-
-    if responsesDialect != nil {
-      let decoded = try OwlResponsesWire.parse(data)
-      if let usage = decoded.usage {
-        OwlCloudUsageTelemetry.record(OwlCloudUsageSnapshot(
-          model: decoded.model ?? routing.model,
-          completionTokens: usage.outputTokens,
-          promptTokens: usage.inputTokens,
-          promptCacheHitTokens: usage.cachedTokens,
-          promptCacheMissTokens: max(0, usage.inputTokens - usage.cachedTokens),
-          totalTokens: usage.totalTokens
-        ))
-      }
-      guard !decoded.text.isEmpty else { throw OwlCloudRequestError.emptyResponse }
-      return decoded.text
-    }
-
-    let decoded = try JSONDecoder().decode(OwlDeepSeekClient.Response.self, from: data)
-    if let usage = decoded.usage {
-      OwlCloudUsageTelemetry.record(OwlCloudUsageSnapshot(
-        model: decoded.model ?? routing.model,
-        completionTokens: usage.completionTokens,
-        promptTokens: usage.promptTokens,
-        promptCacheHitTokens: usage.promptCacheHitTokens ?? 0,
-        promptCacheMissTokens: usage.promptCacheMissTokens ?? 0,
-        totalTokens: usage.totalTokens
-      ))
-    }
-    guard let content = decoded.choices.first?.message.content else {
-      throw OwlCloudRequestError.emptyResponse
-    }
-    return content
+    return try await gateway.complete(
+      request.payload, routing: request.routing, apiKey: request.apiKey, purpose: .drafting)
   }
 }

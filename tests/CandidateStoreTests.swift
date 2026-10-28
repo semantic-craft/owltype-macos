@@ -725,23 +725,13 @@ final class OwlCandidateDisplayTests: XCTestCase {
 
 // MARK: - B4 选中润色 (OwlSelectionPolish) — pure prompt/policy + service guards
 
-@MainActor
-private final class FakePolishFetcher: OwlSelectionPolishFetching {
-  var calls = 0
-  var capturedSelection: String?
-  var capturedAPIKey: String?
-  let handler: (String) async throws -> [String]
-
-  init(handler: @escaping (String) async throws -> [String]) {
-    self.handler = handler
-  }
-
-  func fetchPolishedRewrites(for selection: String, apiKey: String) async throws -> [String] {
-    calls += 1
-    capturedSelection = selection
-    capturedAPIKey = apiKey
-    return try await handler(selection)
-  }
+/// A reply carrying `content` in both shells (Chat `choices`, Responses `output_text`), so the test
+/// holds whichever wire the routed provider speaks.
+private func polishReply(_ content: String) -> Data {
+  let body: [String: Any] = [
+    "choices": [["message": ["content": content]]], "output_text": content, "model": "m",
+  ]
+  return try! JSONSerialization.data(withJSONObject: body)
 }
 
 final class OwlSelectionPolishPromptTests: XCTestCase {
@@ -826,14 +816,14 @@ final class OwlSelectionPolishServiceTests: XCTestCase {
     try await super.tearDown()
   }
 
-  func testDisabledStopsBeforeKeychainAndFetcher() async {
-    // Default-off: no keychain read, no fetch.
+  func testDisabledStopsBeforeKeychainAndNetwork() async {
+    // Default-off: no keychain read, no request.
     var keychainCalls = 0
-    let fetcher = FakePolishFetcher { _ in
-      XCTFail("Default-off polish must not call the fetcher")
-      return []
+    let transport = OwlRecordingTransport { _ in
+      XCTFail("Default-off polish must not reach the network")
+      return (Data(), URLResponse())
     }
-    let service = OwlSelectionPolishService(fetcher: fetcher, apiKeyProvider: {
+    let service = OwlSelectionPolishService(gateway: OwlLLMGateway(transport: transport), apiKeyProvider: {
       keychainCalls += 1
       return "sk-test"
     })
@@ -847,17 +837,17 @@ final class OwlSelectionPolishServiceTests: XCTestCase {
       XCTFail("unexpected error: \(error)")
     }
     XCTAssertEqual(keychainCalls, 0)
-    XCTAssertEqual(fetcher.calls, 0)
+    XCTAssertTrue(transport.requests.isEmpty)
   }
 
-  func testLengthCapStopsBeforeKeychainAndFetcher() async {
+  func testLengthCapStopsBeforeKeychainAndNetwork() async {
     OwlCloudPreferences.isEnabled = true
     var keychainCalls = 0
-    let fetcher = FakePolishFetcher { _ in
+    let transport = OwlRecordingTransport { _ in
       XCTFail("Over-cap selection must not be uploaded")
-      return []
+      return (Data(), URLResponse())
     }
-    let service = OwlSelectionPolishService(fetcher: fetcher, apiKeyProvider: {
+    let service = OwlSelectionPolishService(gateway: OwlLLMGateway(transport: transport), apiKeyProvider: {
       keychainCalls += 1
       return "sk-test"
     })
@@ -872,16 +862,17 @@ final class OwlSelectionPolishServiceTests: XCTestCase {
       XCTFail("unexpected error: \(error)")
     }
     XCTAssertEqual(keychainCalls, 0, "length cap must stop before any keychain read")
-    XCTAssertEqual(fetcher.calls, 0, "length cap must stop before any upload")
+    XCTAssertTrue(transport.requests.isEmpty, "length cap must stop before any upload")
   }
 
-  func testMissingAPIKeyStopsBeforeFetcher() async {
+  func testMissingAPIKeyStopsBeforeNetwork() async {
     OwlCloudPreferences.isEnabled = true
-    let fetcher = FakePolishFetcher { _ in
-      XCTFail("Missing key must stop before any fetch")
-      return []
+    let transport = OwlRecordingTransport { _ in
+      XCTFail("Missing key must stop before any request")
+      return (Data(), URLResponse())
     }
-    let service = OwlSelectionPolishService(fetcher: fetcher, apiKeyProvider: { nil }, profileProvider: { nil })
+    let service = OwlSelectionPolishService(
+      gateway: OwlLLMGateway(transport: transport), apiKeyProvider: { nil }, profileProvider: { nil })
 
     do {
       _ = try await service.polishSelection("他撤销了合同")
@@ -891,19 +882,22 @@ final class OwlSelectionPolishServiceTests: XCTestCase {
     } catch {
       XCTFail("unexpected error: \(error)")
     }
-    XCTAssertEqual(fetcher.calls, 0)
+    XCTAssertTrue(transport.requests.isEmpty)
   }
 
   func testEnabledPolishReturnsRewritesBestFirst() async throws {
     OwlCloudPreferences.isEnabled = true
-    let fetcher = FakePolishFetcher { _ in ["他解除了合同", "合同被其解除"] }
-    let service = OwlSelectionPolishService(fetcher: fetcher, apiKeyProvider: { "sk-test" }, profileProvider: { nil })
+    let transport = OwlRecordingTransport.replying(
+      polishReply(#"{"candidates": ["他解除了合同", "合同被其解除"]}"#))
+    let service = OwlSelectionPolishService(
+      gateway: OwlLLMGateway(transport: transport), apiKeyProvider: { "sk-test" }, profileProvider: { nil })
 
     let rewrites = try await service.polishSelection("他撤销了合同")
 
-    XCTAssertEqual(fetcher.calls, 1)
-    XCTAssertEqual(fetcher.capturedSelection, "他撤销了合同")
-    XCTAssertEqual(fetcher.capturedAPIKey, "sk-test")
+    XCTAssertEqual(transport.requests.count, 1)
+    let request = try XCTUnwrap(transport.requests.first)
+    XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer sk-test")
+    XCTAssertTrue(String(decoding: request.httpBody ?? Data(), as: UTF8.self).contains("他撤销了合同"))
     XCTAssertEqual(rewrites, ["他解除了合同", "合同被其解除"])
   }
 
@@ -912,7 +906,7 @@ final class OwlSelectionPolishServiceTests: XCTestCase {
     // key), so a user configured with OpenAI / Gemini / 自定义 can polish selections. The legacy
     // key reader must NOT be consulted when a profile with a secret is active.
     OwlCloudPreferences.isEnabled = true
-    let fetcher = FakePolishFetcher { _ in ["他解除了合同"] }
+    let transport = OwlRecordingTransport.replying(polishReply(#"{"candidates": ["他解除了合同"]}"#))
     let profile = OwlProviderProfile(
       id: "unit",
       displayName: "unit",
@@ -922,7 +916,7 @@ final class OwlSelectionPolishServiceTests: XCTestCase {
       isDefault: true
     )
     let service = OwlSelectionPolishService(
-      fetcher: fetcher,
+      gateway: OwlLLMGateway(transport: transport),
       apiKeyProvider: { XCTFail("active profile must not read the legacy DeepSeek key"); return nil },
       profileProvider: { profile },
       profileSecretProvider: { _ in "sk-profile" }
@@ -930,15 +924,19 @@ final class OwlSelectionPolishServiceTests: XCTestCase {
 
     let rewrites = try await service.polishSelection("他撤销了合同")
 
-    XCTAssertEqual(fetcher.capturedAPIKey, "sk-profile", "must use the per-profile key, not the legacy key")
+    let request = try XCTUnwrap(transport.requests.first)
+    XCTAssertEqual(request.url, profile.endpoint)
+    XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer sk-profile",
+                   "must use the per-profile key, not the legacy key")
     XCTAssertEqual(rewrites, ["他解除了合同"])
   }
 
-  func testEmptyResultRetriesOnceThenReturnsEmpty() async throws {
-    // Reuses the candidate lane's bounded-retry policy: empty content is transient → one retry.
+  func testEmptyResultRetriesOnceThenSurfacesTheError() async throws {
+    // Interactive rewrite purpose: empty content is transient → exactly one retry.
     OwlCloudPreferences.isEnabled = true
-    let fetcher = FakePolishFetcher { _ in throw OwlCloudRequestError.emptyResponse }
-    let service = OwlSelectionPolishService(fetcher: fetcher, apiKeyProvider: { "sk-test" }, profileProvider: { nil })
+    let transport = OwlRecordingTransport.replying(Data(#"{"choices":[]}"#.utf8))
+    let service = OwlSelectionPolishService(
+      gateway: OwlLLMGateway(transport: transport), apiKeyProvider: { "sk-test" }, profileProvider: { nil })
 
     do {
       _ = try await service.polishSelection("他撤销了合同")
@@ -948,6 +946,6 @@ final class OwlSelectionPolishServiceTests: XCTestCase {
     } catch {
       XCTFail("unexpected error: \(error)")
     }
-    XCTAssertEqual(fetcher.calls, 2, "empty content is transient → exactly one retry")
+    XCTAssertEqual(transport.requests.count, 2, "empty content is transient → exactly one retry")
   }
 }

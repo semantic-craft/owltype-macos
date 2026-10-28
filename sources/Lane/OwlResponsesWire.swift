@@ -49,10 +49,11 @@ enum OwlResponsesWire {
   /// was the silent fallback this guard used to perform, quietly speaking a wire we no longer
   /// support and calling it success.
   ///
-  /// The host fallback preserves custom profiles created before provider ids were persisted.
-  static func isQwen(providerID: String, endpoint: URL) -> Bool {
+  /// The host fallback preserves custom profiles created before provider ids were persisted; a nil
+  /// endpoint (a form with no URL yet) leaves the provider id alone to decide.
+  static func isQwen(providerID: String, endpoint: URL?) -> Bool {
     if providerID.lowercased() == "qwen" { return true }
-    let host = endpoint.host?.lowercased() ?? ""
+    let host = endpoint?.host?.lowercased() ?? ""
     return host.contains("dashscope") || host.contains("aliyuncs")
   }
 
@@ -60,10 +61,10 @@ enum OwlResponsesWire {
   /// `isQwen`: the model prefix stays a hard requirement here, because 方舟 hosts third-party
   /// models that genuinely keep their own wire — only 百炼 was declared Responses-only. The host
   /// fallback preserves custom profiles created before provider ids were persisted.
-  static func isArk(providerID: String, model: String, endpoint: URL) -> Bool {
+  static func isArk(providerID: String, model: String, endpoint: URL?) -> Bool {
     guard model.lowercased().hasPrefix("doubao") else { return false }
     if providerID.lowercased() == "doubao" { return true }
-    let host = endpoint.host?.lowercased() ?? ""
+    let host = endpoint?.host?.lowercased() ?? ""
     return host.contains("volces") || host.contains("volcengine")
   }
 
@@ -74,10 +75,10 @@ enum OwlResponsesWire {
     return name == "deepseek-flash" || name.hasPrefix("deepseek-v4-flash")
   }
 
-  static func isDeepSeek(providerID: String, model: String, endpoint: URL) -> Bool {
+  static func isDeepSeek(providerID: String, model: String, endpoint: URL?) -> Bool {
     guard supportsDeepSeekModel(model) else { return false }
     if providerID.lowercased() == "deepseek" { return true }
-    let host = endpoint.host?.lowercased() ?? ""
+    let host = endpoint?.host?.lowercased() ?? ""
     return host.contains("deepseek")
   }
 
@@ -90,7 +91,7 @@ enum OwlResponsesWire {
   /// `deepseek-*` 必须先被 `isQwen` 认走 —— 它归百炼的 wire。只有打到 `api.deepseek.com`
   /// 自家端点的才是 `.deepseek`。把 `isDeepSeek` 提到前面会把百炼的托管模型抢过来，用
   /// DeepSeek 的方言去打百炼的端点。
-  static func dialect(providerID: String, model: String, endpoint: URL) -> OwlResponsesDialect? {
+  static func dialect(providerID: String, model: String, endpoint: URL?) -> OwlResponsesDialect? {
     if isQwen(providerID: providerID, endpoint: endpoint) { return .qwen }
     if isArk(providerID: providerID, model: model, endpoint: endpoint) { return .ark }
     if isDeepSeek(providerID: providerID, model: model, endpoint: endpoint) { return .deepseek }

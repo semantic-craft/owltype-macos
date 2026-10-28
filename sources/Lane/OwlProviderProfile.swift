@@ -691,18 +691,9 @@ enum OwlProviderConnectivityCheck {
   /// 关思考（qwen `reasoning.effort:none`、方舟 `thinking.type:disabled`）由
   /// `OwlResponsesWire.body` 统一带上。
   static func body(providerID: String, model: String, endpoint: URL? = nil) -> [String: Any] {
-    let dialect: OwlResponsesDialect? = endpoint.flatMap {
-      OwlResponsesWire.dialect(providerID: providerID, model: model, endpoint: $0)
-    } ?? { () -> OwlResponsesDialect? in
-      // 没有端点可判时只剩 providerID。百炼整体是 Responses 供应商，不看型号；方舟与 DeepSeek
-      // 仍看型号，与 `OwlResponsesWire.isArk` / `.isDeepSeek` 的口径一致（那边写了为何不对称，
-      // DeepSeek 的型号判断同时涵盖 V4.1 Flash 与已有的 V4 Flash 档案）。
-      let id = providerID.lowercased()
-      if id == "qwen" { return .qwen }
-      if id == "doubao", model.lowercased().hasPrefix("doubao") { return .ark }
-      if id == "deepseek", OwlResponsesWire.supportsDeepSeekModel(model) { return .deepseek }
-      return nil
-    }()
+    // 没有端点（表单还没填 URL）时由供应商 id 单独决定，与 `OwlResponsesWire` 的主机回退同一口径。
+    let dialect = OwlProviderCapabilities(providerID: providerID, model: model, endpoint: endpoint)
+      .dialect
     if let dialect {
       return OwlResponsesWire.body(
         model: model,
@@ -735,8 +726,8 @@ enum OwlProviderConnectivityCheck {
     apiKey: String,
     authStyle: OwlProviderAuthHeaderStyle
   ) throws -> URLRequest {
-    let usesResponses = OwlResponsesWire.dialect(
-      providerID: providerID, model: model, endpoint: endpoint) != nil
+    let usesResponses = OwlProviderCapabilities(
+      providerID: providerID, model: model, endpoint: endpoint).dialect != nil
     let requestURL = usesResponses
       ? (OwlResponsesWire.url(from: endpoint) ?? endpoint)
       : endpoint
@@ -744,7 +735,7 @@ enum OwlProviderConnectivityCheck {
     req.httpMethod = "POST"
     req.setValue("application/json", forHTTPHeaderField: "Content-Type")
     authStyle.apply(to: &req, apiKey: apiKey)
-    req.timeoutInterval = 20
+    req.timeoutInterval = OwlLLMCallPurpose.connectivityProbe.timeout
     req.httpBody = try JSONSerialization.data(
       withJSONObject: body(providerID: providerID, model: model, endpoint: endpoint))
     return req
@@ -785,7 +776,7 @@ enum OwlProviderConnectivityCheck {
     model: String,
     apiKey: String,
     authStyle: OwlProviderAuthHeaderStyle,
-    fetch: (URLRequest) async throws -> (Data, URLResponse) = { try await URLSession.shared.data(for: $0) },
+    transport: OwlLLMTransport = OwlURLSessionTransport(),
     clock: () -> Date = Date.init
   ) async -> Outcome {
     let started = clock()
@@ -793,7 +784,7 @@ enum OwlProviderConnectivityCheck {
       let request = try request(
         endpoint: endpoint, providerID: providerID, model: model,
         apiKey: apiKey, authStyle: authStyle)
-      let (data, response) = try await fetch(request)
+      let (data, response) = try await transport.send(request)
       let elapsed = Int(clock().timeIntervalSince(started) * 1000)
       return outcome(data: data, response: response, latencyMS: elapsed)
     } catch {
