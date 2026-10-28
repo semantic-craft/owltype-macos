@@ -151,7 +151,6 @@
 		FA000069CAFE0069CAFE0069 /* OwlExternalCommitBroker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000068CAFE0068CAFE0068 /* OwlExternalCommitBroker.swift */; };
 		FA000071CAFE0071CAFE0071 /* OwlCloudFoundation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000070CAFE0070CAFE0070 /* OwlCloudFoundation.swift */; };
 		FAD1CF02CAFEDF02CAFEDF02 /* OwlDictPack.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1CF01CAFEDF01CAFEDF01 /* OwlDictPack.swift */; };
-		FAD1CF04CAFEDF04CAFEDF04 /* OwlDictPackFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1CF03CAFEDF03CAFEDF03 /* OwlDictPackFetcher.swift */; };
 		FAD1CF06CAFEDF06CAFEDF06 /* OwlDictPackCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1CF05CAFEDF05CAFEDF05 /* OwlDictPackCenter.swift */; };
 		FAD1CF08CAFEDF08CAFEDF08 /* OwlDictPackManifestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1CF07CAFEDF07CAFEDF07 /* OwlDictPackManifestData.swift */; };
 		FAD1CF0ACAFEDF0ACAFEDF0A /* OwlDictPackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1CF09CAFEDF09CAFEDF09 /* OwlDictPackTests.swift */; };
@@ -283,9 +282,7 @@
 		B2550003CAFE0255CAFE0003 /* OwlRustResourceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2550004CAFE0255CAFE0004 /* OwlRustResourceStore.swift */; };
 		B2550005CAFE0255CAFE0005 /* OwlRustResourceContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2550006CAFE0255CAFE0006 /* OwlRustResourceContractTests.swift */; };
 		B2550007CAFE0255CAFE0007 /* OwlRustResourceTransactionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2550008CAFE0255CAFE0008 /* OwlRustResourceTransactionTests.swift */; };
-		B2550009CAFE0255CAFE0009 /* OwlRustResourceBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B255000ACAFE0255CAFE000A /* OwlRustResourceBuilder.swift */; };
 		B255000BCAFE0255CAFE000B /* OwlRustDictPackResource.swift in Sources */ = {isa = PBXBuildFile; fileRef = B255000CCAFE0255CAFE000C /* OwlRustDictPackResource.swift */; };
-		B255000DCAFE0255CAFE000D /* OwlRustResourceBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B255000ECAFE0255CAFE000E /* OwlRustResourceBuilderTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -465,7 +462,6 @@
 		FA000068CAFE0068CAFE0068 /* OwlExternalCommitBroker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlExternalCommitBroker.swift; path = sources/Candidates/OwlExternalCommitBroker.swift; sourceTree = "<group>"; };
 		FA000070CAFE0070CAFE0070 /* OwlCloudFoundation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlCloudFoundation.swift; path = sources/Lane/OwlCloudFoundation.swift; sourceTree = "<group>"; };
 		FAD1CF01CAFEDF01CAFEDF01 /* OwlDictPack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlDictPack.swift; path = sources/DictPack/OwlDictPack.swift; sourceTree = "<group>"; };
-		FAD1CF03CAFEDF03CAFEDF03 /* OwlDictPackFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlDictPackFetcher.swift; path = sources/DictPack/OwlDictPackFetcher.swift; sourceTree = "<group>"; };
 		FAD1CF05CAFEDF05CAFEDF05 /* OwlDictPackCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlDictPackCenter.swift; path = sources/DictPack/OwlDictPackCenter.swift; sourceTree = "<group>"; };
 		FAD1CF07CAFEDF07CAFEDF07 /* OwlDictPackManifestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlDictPackManifestData.swift; path = sources/DictPack/OwlDictPackManifestData.swift; sourceTree = "<group>"; };
 		FAD1CF09CAFEDF09CAFEDF09 /* OwlDictPackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlDictPackTests.swift; path = tests/OwlDictPackTests.swift; sourceTree = "<group>"; };
@@ -596,9 +592,7 @@
 		B2550004CAFE0255CAFE0004 /* OwlRustResourceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRustResourceStore.swift; path = sources/DictPack/OwlRustResourceStore.swift; sourceTree = "<group>"; };
 		B2550006CAFE0255CAFE0006 /* OwlRustResourceContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRustResourceContractTests.swift; path = tests/OwlRustResourceContractTests.swift; sourceTree = "<group>"; };
 		B2550008CAFE0255CAFE0008 /* OwlRustResourceTransactionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRustResourceTransactionTests.swift; path = tests/OwlRustResourceTransactionTests.swift; sourceTree = "<group>"; };
-		B255000ACAFE0255CAFE000A /* OwlRustResourceBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRustResourceBuilder.swift; path = sources/DictPack/OwlRustResourceBuilder.swift; sourceTree = "<group>"; };
 		B255000CCAFE0255CAFE000C /* OwlRustDictPackResource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRustDictPackResource.swift; path = sources/DictPack/OwlRustDictPackResource.swift; sourceTree = "<group>"; };
-		B255000ECAFE0255CAFE000E /* OwlRustResourceBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRustResourceBuilderTests.swift; path = tests/OwlRustResourceBuilderTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -731,12 +725,10 @@
 				FA26000ACAFE0260CAFE000A /* OwlUserMigrationImport.swift */,
 				D5C93C517B5248478C7A8FBE /* OwlOnboardingPractice.swift */,
 				99C1AA462FD34768AB99C65B /* OwlAppInputMemory.swift */,
-				FAD1CF03CAFEDF03CAFEDF03 /* OwlDictPackFetcher.swift */,
 				FAD1CF05CAFEDF05CAFEDF05 /* OwlDictPackCenter.swift */,
 				FAD1CF07CAFEDF07CAFEDF07 /* OwlDictPackManifestData.swift */,
 				B2550002CAFE0255CAFE0002 /* OwlRustResourceContract.swift */,
 				B2550004CAFE0255CAFE0004 /* OwlRustResourceStore.swift */,
-				B255000ACAFE0255CAFE000A /* OwlRustResourceBuilder.swift */,
 				B255000CCAFE0255CAFE000C /* OwlRustDictPackResource.swift */,
 				FA000801CAFE0081CAFE0081 /* OwlStreamingChatClient.swift */,
 				FA000901CAFE0091CAFE0091 /* OwlAIContextAssembler.swift */,
@@ -810,7 +802,6 @@
 				FAD1CF09CAFEDF09CAFEDF09 /* OwlDictPackTests.swift */,
 				B2550006CAFE0255CAFE0006 /* OwlRustResourceContractTests.swift */,
 				B2550008CAFE0255CAFE0008 /* OwlRustResourceTransactionTests.swift */,
-				B255000ECAFE0255CAFE000E /* OwlRustResourceBuilderTests.swift */,
 				C3C6C24D8ADC4266BE3AFEEE /* OwlInputHabitsIntegrationTests.swift */,
 				CC3E22E941504EA49830A2A2 /* OwlInputHabitsTests.swift */,
 				FA000E01CAFE0E01CAFE0E01 /* OwlKeyboardPatchBuilderTests.swift */,
@@ -1240,12 +1231,10 @@
 				FA260009CAFE0260CAFE0009 /* OwlUserMigrationImport.swift in Sources */,
 				4F1F9D8AFC93488EAF08D264 /* OwlOnboardingPractice.swift in Sources */,
 				7AB6866332B74789A8C5A6CC /* OwlAppInputMemory.swift in Sources */,
-				FAD1CF04CAFEDF04CAFEDF04 /* OwlDictPackFetcher.swift in Sources */,
 				FAD1CF06CAFEDF06CAFEDF06 /* OwlDictPackCenter.swift in Sources */,
 				FAD1CF08CAFEDF08CAFEDF08 /* OwlDictPackManifestData.swift in Sources */,
 				B2550001CAFE0255CAFE0001 /* OwlRustResourceContract.swift in Sources */,
 				B2550003CAFE0255CAFE0003 /* OwlRustResourceStore.swift in Sources */,
-				B2550009CAFE0255CAFE0009 /* OwlRustResourceBuilder.swift in Sources */,
 				B255000BCAFE0255CAFE000B /* OwlRustDictPackResource.swift in Sources */,
 				FA000800CAFE0080CAFE0080 /* OwlStreamingChatClient.swift in Sources */,
 				FA000900CAFE0090CAFE0090 /* OwlAIContextAssembler.swift in Sources */,
@@ -1324,7 +1313,6 @@
 				FAD1CF0ACAFEDF0ACAFEDF0A /* OwlDictPackTests.swift in Sources */,
 				B2550005CAFE0255CAFE0005 /* OwlRustResourceContractTests.swift in Sources */,
 				B2550007CAFE0255CAFE0007 /* OwlRustResourceTransactionTests.swift in Sources */,
-				B255000DCAFE0255CAFE000D /* OwlRustResourceBuilderTests.swift in Sources */,
 				7F0DC648D4FA46D8B807DC11 /* OwlInputHabitsIntegrationTests.swift in Sources */,
 				670F2E760700470A9CE045E9 /* OwlInputHabitsTests.swift in Sources */,
 				FA000E02CAFE0E02CAFE0E02 /* OwlKeyboardPatchBuilderTests.swift in Sources */,

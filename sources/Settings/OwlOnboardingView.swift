@@ -355,11 +355,11 @@ struct OwlOnboardingView: View {
   }
 
   /// 「同意并下载」——与 `OwlDictPackPrompt.presentAlert` 的 .download 分支等价：先记已处置
-  /// 再执行。这里用 `start()` 而非 `acceptAndStart()`，后者会把用户甩进设置窗、打断向导。
+  /// 再执行。这里用 `prepare()` 而非 `acceptAndPrepare()`，后者会把用户甩进设置窗、打断向导。
   private func acceptDictDownload() {
     dictDecided = true
     OwlDictPackPreferences.promptShown = true
-    OwlDictPackCenter.shared.start()
+    OwlDictPackCenter.shared.prepare()
   }
 
   /// 「以后再说」——等价于弹窗的 .later：同样记已处置（问过了就别再问），不下载。
@@ -394,20 +394,11 @@ struct OwlOnboardingView: View {
               .font(.system(size: 12, weight: .medium))
               .foregroundStyle(palette.accent)
           }
-        case .downloading(let progress):
+        case .preparing(let progress):
           dictProgressBar(progress)
-          Text(center.usesRustResources
-            ? "下载、校验并生成资源 \(Int(progress * 100))%"
-            : "下载中 \(Int(progress * 100))%")
+          Text("下载、校验并生成资源 \(Int(progress * 100))%")
             .font(.system(size: 12.5)).monospacedDigit()
             .foregroundStyle(palette.ink2)
-        case .deploying:
-          ProgressView()
-            .controlSize(.small)
-          Text("已下载，正在编译词库…")
-            .font(.system(size: 13))
-            .foregroundStyle(palette.ink2)
-          Spacer(minLength: 8)
         case .prepared(let version):
           Image(systemName: "checkmark.seal")
             .font(.system(size: 16))
@@ -416,7 +407,7 @@ struct OwlOnboardingView: View {
             .font(.system(size: 13))
             .foregroundStyle(palette.ink)
           Spacer(minLength: 8)
-          Button("启用") { center.activatePrepared() }
+          Button("启用") { center.activate() }
             .buttonStyle(.plain)
             .font(.system(size: 12, weight: .medium))
             .foregroundStyle(palette.accent)
@@ -441,14 +432,6 @@ struct OwlOnboardingView: View {
           Text(center.isAwaitingLiveSessionRefresh
             ? "完整词库 v\(version) 已启用；当前输入完成后自动生效"
             : "完整词库已就绪")
-            .font(.system(size: 13))
-            .foregroundStyle(palette.ink)
-          Spacer(minLength: 8)
-        case .userProvided:
-          Image(systemName: "checkmark.circle")
-            .font(.system(size: 16))
-            .foregroundStyle(Color.green)
-          Text("检测到自备完整词库，无需下载")
             .font(.system(size: 13))
             .foregroundStyle(palette.ink)
           Spacer(minLength: 8)
@@ -551,7 +534,7 @@ struct OwlOnboardingView: View {
           .font(.system(size: 13))
           .foregroundStyle(palette.ink3)
       } else if primaryInfo.disabled {
-        // 软阻塞的出口：词库还在下载/编译时不扣留用户 —— 下载在 App 级继续，
+        // 软阻塞的出口：词库还在准备或启用时不扣留用户 —— 下载在 App 级继续，
         // 引导关掉也不中断。
         Button("稍后再试", action: onFinish)
           .buttonStyle(.plain)
@@ -605,15 +588,13 @@ struct OwlOnboardingView: View {
       if deploying { return ("应用中…", {}, true) }
       return ("应用配置", { startDeploy() }, false)
     default:
-      // 完成页软阻塞：下载/编译期间置灰、按钮标签就是进度；失败或未下载不扣留
+      // 完成页软阻塞：准备/启用期间置灰、按钮标签就是进度；失败或未下载不扣留
       // （出口在 footer 的「暂不等待」/ 状态自然放行）。
       switch OwlDictPackCenter.shared.status {
-      case .downloading(let progress):
+      case .preparing(let progress):
         return ("词库下载中 \(Int(progress * 100))%…", {}, true)
-      case .deploying:
-        return ("词库编译中…", {}, true)
       case .prepared:
-        return ("启用词库", { OwlDictPackCenter.shared.activatePrepared() }, false)
+        return ("启用词库", { OwlDictPackCenter.shared.activate() }, false)
       case .activating:
         return ("词库启用中…", {}, true)
       case .rollingBack:

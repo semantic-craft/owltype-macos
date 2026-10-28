@@ -2,35 +2,38 @@
 //  OwlRustDictPackResource.swift
 //  Owltype
 //
-//  Connects the existing pinned dict-pack downloader to the transactional Rust
-//  resource store. The dictionary tree and generated package live outside the
-//  Rime user directory; the store sees userRoot only as an exclusion boundary.
+//  The Rust resource environment and the one package it installs: the bundled
+//  msime resources, copied into a generation for the transactional store. The
+//  store sees userRoot only as an exclusion boundary.
 //
 
 import Foundation
 import SQLite3
 
-enum OwlRustDictPackResourceError: Error, LocalizedError, Equatable {
-  case dictionaryPackNotInstalled
-  case userProvidedDictionaryPack(URL)
-  case skippedDictionaryFiles([String])
-  case unverifiedDictionaryInput(String)
-  case candidateRootOccupied(URL)
+enum OwlRustResourceBuildError: Error, LocalizedError, Equatable {
+  case sqlite(String)
 
   var errorDescription: String? {
     switch self {
-    case .dictionaryPackNotInstalled:
-      return "完整词库尚未下载，无法生成 Rust 资源"
-    case .userProvidedDictionaryPack(let root):
-      return "词典输入目录没有 Owltype 装机记录，拒绝把它当作已验证来源：\(root.path)"
-    case .skippedDictionaryFiles(let files):
-      return "隔离词典输入目录含用户文件，拒绝生成资源：\(files.joined(separator: ", "))"
-    case .unverifiedDictionaryInput(let path):
-      return "词典输入与固定 manifest 不符：\(path)"
-    case .candidateRootOccupied(let root):
-      return "资源候选目录不是本安装器生成的，拒绝覆盖：\(root.path)"
+    case .sqlite(let message):
+      return "读取资源 SQLite 失败：\(message)"
     }
   }
+}
+
+struct OwlRustResourceBuildStats: Codable, Equatable, Sendable {
+  let pinyinEntries: Int
+  let wubiEntries: Int
+  let englishEntries: Int
+  let rejectedPinyinEntries: Int
+  let rejectedWubiEntries: Int
+  let rejectedEnglishEntries: Int
+}
+
+struct OwlRustResourcePackageBuild: Equatable, Sendable {
+  let root: URL
+  let manifest: OwlRustResourceManifest
+  let stats: OwlRustResourceBuildStats
 }
 
 struct OwlRustResourceGeneration: Equatable, Sendable {
@@ -159,222 +162,11 @@ struct OwlDictPackCandidate: Equatable, Sendable {
   }
 }
 
-struct OwlRustDictPackResourceInstaller {
-  private static let candidateMarkerName = ".owl-rust-resource-builder"
-  private static let candidateMarker = Data("owltype-dictpack-v1\n".utf8)
-
-  static let requiredInputs: Set<String> = [
-    "rime_ice.dict.yaml",
-    "cn_dicts/8105.dict.yaml",
-    "cn_dicts/base.dict.yaml",
-    "cn_dicts/ext.dict.yaml",
-    "cn_dicts/others.dict.yaml",
-    "cn_dicts/tencent.dict.yaml",
-    "en_dicts/en.dict.yaml",
-    "en_dicts/en_ext.dict.yaml",
-    "wubi86_jidian.dict.yaml",
-    "wubi86_jidian_extra.dict.yaml",
-    "wubi86_jidian_user.dict.yaml",
-    "wubi86_jidian_user_hamster.dict.yaml",
-    "rime-ice.LICENSE",
-    "wubi86-jidian.LICENSE",
-    "octagram-data.LICENSE",
-  ]
-
-  let store: OwlRustResourceStore
-  let dictionaryRoot: URL
-  let packageRoot: URL
-  let manifest: OwlDictPackManifest
-  let baseURLOverride: String?
-  let sourceChainOverride: [OwlDictPackSource]?
-
-  init(
-    store: OwlRustResourceStore,
-    dictionaryRoot: URL,
-    packageRoot: URL,
-    manifest: OwlDictPackManifest = .current,
-    baseURLOverride: String? = nil,
-    sourceChainOverride: [OwlDictPackSource]? = nil
-  ) {
-    self.store = store
-    self.dictionaryRoot = dictionaryRoot
-    self.packageRoot = packageRoot
-    self.manifest = manifest
-    self.baseURLOverride = baseURLOverride
-    self.sourceChainOverride = sourceChainOverride
-  }
-
-  func downloadAndInstall(
-    progress: (@Sendable (Double) -> Void)? = nil
-  ) async throws -> OwlRustResourceInstallResult {
-    let prepared = try await prepare(progress: progress)
-    return try await activate(prepared)
-  }
-
-  func prepare(
-    progress: (@Sendable (Double) -> Void)? = nil
-  ) async throws -> OwlRustDictPackPreparedResources {
-    let fetcher = OwlDictPackFetcher(
-      manifest: manifest,
-      userDir: dictionaryRoot,
-      baseURLOverride: baseURLOverride,
-      sourceChainOverride: sourceChainOverride
-    )
-    switch fetcher.assess() {
-    case .notInstalled, .installed(_):
-      if fetcher.needsFetch() {
-        let result = try await fetcher.run { value in
-          progress?(value * 0.75)
-        }
-        guard result.skippedUserFiles.isEmpty else {
-          throw OwlRustDictPackResourceError.skippedDictionaryFiles(
-            result.skippedUserFiles
-          )
-        }
-      }
-    case .userProvided:
-      throw OwlRustDictPackResourceError.userProvidedDictionaryPack(dictionaryRoot)
-    case .downloading, .deploying, .prepared, .activating, .rollingBack, .failed:
-      throw OwlRustDictPackResourceError.dictionaryPackNotInstalled
-    }
-    guard let record = OwlDictPackRecord.load(userDir: dictionaryRoot),
-          record.version == manifest.version else {
-      throw OwlRustDictPackResourceError.dictionaryPackNotInstalled
-    }
-    try validateRequiredInputs(record: record)
-    progress?(0.8)
-
-    let built = try buildPackage()
-    progress?(0.95)
-    let resource = try await store.prepare(
-      OwlRustResourceDirectorySource(root: built.root)
-    ) { value in
-      progress?(0.95 + value * 0.05)
-    }
-    progress?(1)
-    return OwlRustDictPackPreparedResources(resource: resource, stats: built.stats)
-  }
-
-  func activate(
-    _ prepared: OwlRustDictPackPreparedResources
-  ) async throws -> OwlRustResourceInstallResult {
-    try await store.activate(prepared.resource)
-  }
-
-  private func buildPackage() throws -> OwlRustResourcePackageBuild {
-    let fileManager = FileManager.default
-    let parent = packageRoot.deletingLastPathComponent()
-    try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
-    let attemptRoot = parent.appendingPathComponent(
-      ".\(packageRoot.lastPathComponent).building-\(UUID().uuidString)",
-      isDirectory: true
-    )
-    try fileManager.createDirectory(at: attemptRoot, withIntermediateDirectories: true)
-    defer {
-      if fileManager.fileExists(atPath: attemptRoot.path) {
-        try? fileManager.removeItem(at: attemptRoot)
-      }
-    }
-
-    let built = try OwlRustResourcePackageBuilder(
-      dictionaryRoot: dictionaryRoot,
-      packageVersion: manifest.version
-    ).build(at: attemptRoot)
-    try Self.candidateMarker.write(
-      to: attemptRoot.appendingPathComponent(Self.candidateMarkerName),
-      options: .atomic
-    )
-    try publish(attemptRoot)
-    return OwlRustResourcePackageBuild(
-      root: packageRoot,
-      manifest: built.manifest,
-      stats: built.stats
-    )
-  }
-
-  private func publish(_ attemptRoot: URL) throws {
-    let fileManager = FileManager.default
-    let parent = packageRoot.deletingLastPathComponent()
-    var previousRoot: URL?
-    if fileManager.fileExists(atPath: packageRoot.path) {
-      let values = try packageRoot.resourceValues(
-        forKeys: [.isDirectoryKey, .isSymbolicLinkKey]
-      )
-      guard values.isSymbolicLink != true, values.isDirectory == true else {
-        throw OwlRustDictPackResourceError.candidateRootOccupied(packageRoot)
-      }
-      if try fileManager.contentsOfDirectory(atPath: packageRoot.path).isEmpty {
-        try fileManager.removeItem(at: packageRoot)
-      } else {
-        guard isOwnedCandidate(packageRoot) else {
-          throw OwlRustDictPackResourceError.candidateRootOccupied(packageRoot)
-        }
-        let backup = parent.appendingPathComponent(
-          ".\(packageRoot.lastPathComponent).previous-\(UUID().uuidString)",
-          isDirectory: true
-        )
-        try fileManager.moveItem(at: packageRoot, to: backup)
-        previousRoot = backup
-      }
-    }
-
-    do {
-      try fileManager.moveItem(at: attemptRoot, to: packageRoot)
-    } catch {
-      if let previousRoot, !fileManager.fileExists(atPath: packageRoot.path) {
-        try? fileManager.moveItem(at: previousRoot, to: packageRoot)
-      }
-      throw error
-    }
-    if let previousRoot {
-      try? fileManager.removeItem(at: previousRoot)
-    }
-  }
-
-  private func isOwnedCandidate(_ root: URL) -> Bool {
-    let marker = try? Data(
-      contentsOf: root.appendingPathComponent(Self.candidateMarkerName)
-    )
-    guard marker == Self.candidateMarker else { return false }
-    let manifestURL = root.appendingPathComponent("manifest.json")
-    guard let data = try? Data(contentsOf: manifestURL),
-          let candidate = try? JSONDecoder().decode(
-            OwlRustResourceManifest.self, from: data
-          ),
-          candidate.packageId == OwlRustResourcePackageBuilder.packageId else {
-      return false
-    }
-    return true
-  }
-
-  private func validateRequiredInputs(record: OwlDictPackRecord) throws {
-    for path in Self.requiredInputs.sorted() {
-      guard let entry = manifest.files.first(where: { $0.dest == path }) else {
-        throw OwlRustDictPackResourceError.unverifiedDictionaryInput(path)
-      }
-      let url = dictionaryRoot.appendingPathComponent(path)
-      guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else {
-        throw OwlRustDictPackResourceError.unverifiedDictionaryInput(path)
-      }
-      let actual = OwlDictPackFetcher.sha256Hex(data)
-      let expected: String
-      if entry.patch == nil {
-        expected = entry.sha256
-      } else if let recorded = record.files[path] {
-        expected = recorded
-      } else {
-        throw OwlRustDictPackResourceError.unverifiedDictionaryInput(path)
-      }
-      guard actual == expected else {
-        throw OwlRustDictPackResourceError.unverifiedDictionaryInput(path)
-      }
-    }
-  }
-}
-
 /// An update is the same immutable compatibility set shipped by this binary.
 /// Never rebuild ordinary Pinyin from the legacy YAML download after activation.
 enum OwlRustCompatibleResources {
+  /// Existing generations live under this id in the store library; never change it.
+  static let packageId = "owltype-dictpack"
   static let packageVersion = 3
   static let configurationVersion = "msime-macos-v0.55.0-native-input-v1"
   // data/msime-dictionary-manifest.json, dict-v2.0.24: both official 86/98 tables.
@@ -424,7 +216,7 @@ enum OwlRustCompatibleResources {
     try Data((configurationVersion + "\n").utf8).write(to: marker)
     entries.append(try entry(marker, name: "compatibility.txt", role: .other))
     let unsigned = OwlRustResourceManifest(schemaVersion: 1,
-      packageId: OwlRustResourcePackageBuilder.packageId, inputKind: .pinyinWubi, version: version,
+      packageId: packageId, inputKind: .pinyinWubi, version: version,
       digest: OwlRustResourceManifest.zeroDigest,
       license: [
         OwlRustResourceLicense(identifier: "GPL-3.0-only", attribution: "Pinned MSIME dictionary sources and resource notices",
@@ -511,4 +303,50 @@ enum OwlRustCompatibleResources {
       mediaType: "application/octet-stream", size: (attributes[.size] as? NSNumber)?.intValue ?? 0,
       digest: try OwlRustResourceVerifier.digestOfFile(file))
   }
+}
+
+extension OwlRustEngineIdentity {
+  /// Native desktop resources split the two official Wubi tables out of the main database.
+  /// owlRustResourceV1 is the base contract it derives from (merged Wubi layout).
+  static let owlRustNativeInputV1 = OwlRustEngineIdentity(
+    contractVersion: owlRustResourceV1.contractVersion,
+    capabilities: owlRustResourceV1.capabilities,
+    sqliteRequirements: owlRustResourceV1.sqliteRequirements.map { requirement in
+      guard requirement.role == .mainDictionary else { return requirement }
+      return OwlRustResourceSQLiteRequirement(role: .mainDictionary,
+        tables: requirement.tables.filter { $0.table != "wubi86" })
+    } + [OwlRustResourceSQLiteRequirement(role: .wubiDictionary, tables: [
+      OwlRustResourceSQLiteTableRequirement(table: "wubi86", columns: ["key", "value", "weight"]),
+      OwlRustResourceSQLiteTableRequirement(table: "wubi98", columns: ["key", "value", "weight"])
+    ])]
+  )
+
+  static let owlRustResourceV1 = OwlRustEngineIdentity(
+    contractVersion: 1,
+    capabilities: ["dictionary-contract-v1", "pinyin-wubi-v1", "persistent-user-journal-v1"],
+    sqliteRequirements: [
+      OwlRustResourceSQLiteRequirement(
+        role: .mainDictionary,
+        tables: [
+          OwlRustResourceSQLiteTableRequirement(
+            table: "tbl_1_n", columns: ["key", "jp", "value", "weight"]
+          ),
+          OwlRustResourceSQLiteTableRequirement(
+            table: "wubi86", columns: ["key", "value", "weight"]
+          ),
+          OwlRustResourceSQLiteTableRequirement(
+            table: "quick_parases", columns: ["key", "value", "weight"]
+          ),
+        ]
+      ),
+      OwlRustResourceSQLiteRequirement(
+        role: .englishDictionary,
+        tables: [
+          OwlRustResourceSQLiteTableRequirement(
+            table: "english_words", columns: ["word", "display", "weight"]
+          ),
+        ]
+      ),
+    ]
+  )
 }
