@@ -77,9 +77,12 @@ final class OwlGoalBriefLiveTests: XCTestCase {
     XCTAssertLessThan(elapsed, 55, "整份任务书生成耗时 \(elapsed)s，逼近 60s 硬超时")
 
     // 真实客户端全链路（编码 → POST → 解码 → 解析 → 遥测）。
-    let client = OwlGoalBriefClient(endpoint: endpoint, model: model, authHeaderStyle: .bearer)
-    let outcome = try await client.fetchOptimizedPrompt(
-      forDraft: draft, clarifications: [], apiKey: apiKey)
+    let client = OwlStructuredDrafting.live(
+      OwlGoalBrief.structuredDraftingConfiguration,
+      routing: OwlCloudRouting(providerID: "", endpoint: endpoint, model: model,
+                               secretName: nil, authHeaderStyle: .bearer),
+      apiKey: apiKey)
+    let outcome = try await client.draft(draft)
 
     guard case let .ready(brief) = outcome else {
       return XCTFail("意图可辨的草稿应当直接出任务书，实际 \(outcome)")
@@ -103,9 +106,12 @@ final class OwlGoalBriefLiveTests: XCTestCase {
     let content = try await dumpRawResponse(draft: draft, apiKey: apiKey, label: "clarify")
     XCTAssertFalse(content.isEmpty)
 
-    let client = OwlGoalBriefClient(endpoint: endpoint, model: model, authHeaderStyle: .bearer)
-    let outcome = try await client.fetchOptimizedPrompt(
-      forDraft: draft, clarifications: [], apiKey: apiKey)
+    let client = OwlStructuredDrafting.live(
+      OwlGoalBrief.structuredDraftingConfiguration,
+      routing: OwlCloudRouting(providerID: "", endpoint: endpoint, model: model,
+                               secretName: nil, authHeaderStyle: .bearer),
+      apiKey: apiKey)
+    let outcome = try await client.draft(draft)
 
     switch outcome {
     case let .needsClarification(questions):

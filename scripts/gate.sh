@@ -52,6 +52,7 @@ source_boundary() {
   bash scripts/check-public-source.sh
   bash scripts/check-public-privacy.selftest.sh
   bash scripts/check-public-source.selftest.sh
+  bash scripts/check-ai-off-hot-path.sh
 }
 
 navigation() {

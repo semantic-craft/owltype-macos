@@ -33,57 +33,6 @@ enum OwlGoalBriefError: Error, Equatable {
   }
 }
 
-/// 任务书的 live remote adapter。HTTP/wire 细节统一委托给 structured-drafting client；
-/// 带固定路由的 convenience method 只供既有 live integration test 驱动同一模块全流程。
-struct OwlGoalBriefClient: OwlStructuredDraftingRemote {
-  let endpoint: URL
-  let model: String
-  /// 活跃档案的供应商 id，用来选关思考的字段方言（见 `OwlThinkingControl`）。
-  /// 默认空串 = 不知道档案 id，退回按 model 前缀判定。
-  let providerID: String
-  let authHeaderStyle: OwlProviderAuthHeaderStyle
-  let urlSession: URLSession
-
-  init(
-    endpoint: URL = OwlCloudPreferences.deepSeekEndpoint,
-    model: String = OwlCloudPreferences.deepSeekModel,
-    providerID: String = "",
-    authHeaderStyle: OwlProviderAuthHeaderStyle = .bearer,
-    urlSession: URLSession = .shared
-  ) {
-    self.endpoint = endpoint
-    self.model = model
-    self.providerID = providerID
-    self.authHeaderStyle = authHeaderStyle
-    self.urlSession = urlSession
-  }
-
-  func fetchOptimizedPrompt(
-    forDraft draft: String,
-    clarifications: [OwlPromptClarification],
-    apiKey: String
-  ) async throws -> OwlPromptOptimizeOutcome {
-    let routing = OwlCloudRouting(
-      providerID: providerID,
-      endpoint: endpoint,
-      model: model,
-      secretName: nil,
-      authHeaderStyle: authHeaderStyle
-    )
-    let module = OwlStructuredDrafting(
-      configuration: OwlGoalBrief.structuredDraftingConfiguration,
-      cloudEnabled: { true },
-      authorization: { .ready(routing: routing, apiKey: apiKey) },
-      remote: self
-    )
-    return try await module.draft(draft, clarifications: clarifications)
-  }
-
-  func fetch(_ request: OwlStructuredDraftingRemoteRequest) async throws -> String {
-    try await OwlStructuredDraftingClient(urlSession: urlSession).fetch(request)
-  }
-}
-
 /// UI-facing façade. Shared structured drafting owns admission, auth ordering, request assembly,
 /// transport and safe parsing; this type only supplies live dependencies and keeps `compose`.
 @MainActor
@@ -163,7 +112,6 @@ enum OwlGoalBrief {
     systemPrompt: systemPrompt,
     maxDraftLength: OwlSelectionPolish.maxSelectionLength,
     temperature: 0.2,
-    requestTimeout: 60,
     traceName: "goal-brief",
     admissionError: { admission in
       switch admission {

@@ -78,7 +78,6 @@ final class OwlGoalBriefTests: XCTestCase {
     XCTAssertEqual(configuration.systemPrompt, OwlGoalBrief.systemPrompt)
     XCTAssertEqual(configuration.maxDraftLength, OwlSelectionPolish.maxSelectionLength)
     XCTAssertEqual(configuration.temperature, 0.2)
-    XCTAssertEqual(configuration.requestTimeout, 60)
     XCTAssertEqual(configuration.traceName, "goal-brief")
 
     let disabled = try XCTUnwrap(
@@ -134,7 +133,6 @@ final class OwlGoalBriefServiceTests: XCTestCase {
     XCTAssertEqual(remote.requests.count, 1)
     XCTAssertEqual(request.apiKey, "sk-test")
     XCTAssertEqual(request.traceName, "goal-brief")
-    XCTAssertEqual(request.timeout, 60)
     XCTAssertEqual(request.payload.messages.first?.content, OwlGoalBrief.systemPrompt)
     XCTAssertTrue(request.payload.messages[1].content.contains("把词库下载做稳"))
   }

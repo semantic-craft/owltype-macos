@@ -18,7 +18,7 @@ are only needed when following an engine or third-party call.
 | Pinyin parity against pinned MSIME | [Differential runner](../../scripts/pinyin-parity.py), [baseline and replay guide](../operations/pinyin-parity.md) | `python3 scripts/pinyin-parity.selftest.py`; opt-in `OwlRustEngineTests/testExportPinyinParityTrace` |
 | Dictionary download and activation | [Fetcher](../../sources/DictPack/OwlDictPackFetcher.swift), [center](../../sources/DictPack/OwlDictPackCenter.swift), [manifest](../../sources/DictPack/OwlDictPackManifestData.swift) | [Dict pack tests](../../tests/OwlDictPackTests.swift) |
 | Legacy Rime migration or Rust user-data reset | [migration plan](../../sources/UserMigration/OwlUserMigration.swift), [staging](../../sources/UserMigration/OwlUserMigrationStage.swift), [Rust import](../../sources/UserMigration/OwlUserMigrationImport.swift), [user-data reset](../../sources/Engine/OwlUserDictReset.swift) | [Migration tests](../../tests/OwlUserMigrationTests.swift), [reset tests](../../tests/OwlUserDictResetTests.swift), [candidate store tests](../../tests/CandidateStoreTests.swift) |
-| AI provider, request or search | [Provider profiles](../../sources/Lane/OwlProviderProfile.swift), [streaming client](../../sources/Lane/OwlStreamingChatClient.swift), [Ask search](../../sources/Lane/OwlAskSearchResolver.swift) | [Provider tests](../../tests/ProviderProfileStoreTests.swift), [streaming tests](../../tests/OwlStreamingChatClientTests.swift), [search tests](../../tests/OwlAskSearchResolverTests.swift) |
+| AI provider, request or search | [Provider profiles](../../sources/Lane/OwlProviderProfile.swift), [LLM gateway](../../sources/Lane/OwlLLMGateway.swift) (polish, drafting, connectivity probe), [streaming client](../../sources/Lane/OwlStreamingChatClient.swift), [Ask search](../../sources/Lane/OwlAskSearchResolver.swift) | [Gateway request table](../../tests/OwlLLMGatewayTests.swift), [provider tests](../../tests/ProviderProfileStoreTests.swift), [streaming tests](../../tests/OwlStreamingChatClientTests.swift), [search tests](../../tests/OwlAskSearchResolverTests.swift) |
 | Installation, update or missing input method | [Installation constraints](../operations/installation.md), [app startup](../../sources/Main.swift), [session self-check](../../installer/Shared/OwlSessionRestart.swift), [recovery prompt and self-check record](../../sources/Controller/OwlUpdateLogoutPrompt.swift) | [Activation tests](../../tests/ActivationPolicyTests.swift), [installer policy tests](../../tests/InstallerActivationPolicyTests.swift), [session self-check tests](../../tests/OwlSessionRestartTests.swift), [installed-process check](../../scripts/check-installed-process.py) |
 
 ## Build and validation
@@ -62,5 +62,6 @@ Research describes its recorded revision and date. Confirm current source, gener
 schema and installed version before applying its conclusions; acceptance records state
 which real-host behaviour was tested. Historical plans are not current command recipes.
 
-Use the domain names in the linked implementation and records. There is currently no
-standalone glossary or ADR directory; creating empty placeholders is not a prerequisite.
+Use the domain names in the linked implementation and records; shared terms are defined in
+[GLOSSARY.md](../../GLOSSARY.md). There is no ADR directory; creating an empty one is not a
+prerequisite.

@@ -10,7 +10,7 @@
 //    A. SSE 流式（OwlResponsesStreamingClient）—— 翻译 / 润色·多版本 / 润色·仿范例 / 公文排版 /
 //       辅助检索共用的传输，逐技能用真实 prompt 打，断言产出符合各自的输出契约。
 //    B. Responses 内置 web_search —— 同一 Responses 客户端 + Qwen web_search（来源核验共用这条传输）。
-//    C. 划词润色（OwlSelectionPolishClient）—— 非流式 json_object 候选契约，v1/v2 变体各一发。
+//    C. 划词润色（OwlSelectionPolishClient 经 LLM gateway）—— 非流式 json_object 候选契约，v1/v2 变体各一发。
 //    D. 来源核验（OwlSourceVerificationService）—— 豆包搜索取来源 + 默认供应商对照判断。
 //    E. DeepSeek 搜索接口 + deepseek-flash —— 来源核验、任意提问联网。
 //
@@ -149,8 +149,9 @@ final class OwlSkillsLiveTests: XCTestCase {
       OwlPolishPromptCatalog.responsayAlignedVariantID
     ] {
       OwlExperimentalPreferences.selectionPolishPromptVariant = variantID
-      let client = OwlSelectionPolishClient(
-        endpoint: Self.endpoint, model: Self.model, providerID: "qwen", authHeaderStyle: .bearer)
+      let client = OwlSelectionPolishClient(routing: OwlCloudRouting(
+        providerID: "qwen", endpoint: Self.endpoint, model: Self.model,
+        secretName: nil, authHeaderStyle: .bearer))
       let rewrites = try await client.fetchPolishedRewrites(
         for: "这个事情我们得赶紧弄一下，不然要出问题。", apiKey: apiKey)
 
@@ -367,11 +368,13 @@ final class OwlSkillsLiveTests: XCTestCase {
       最好断了能接着下，下载完还得校验一下别装出坏包。
       """
 
-    let client = OwlGoalBriefClient(
-      endpoint: Self.endpoint, model: Self.model, providerID: "qwen", authHeaderStyle: .bearer)
+    let client = OwlStructuredDrafting.live(
+      OwlGoalBrief.structuredDraftingConfiguration,
+      routing: OwlCloudRouting(providerID: "qwen", endpoint: Self.endpoint, model: Self.model,
+                               secretName: nil, authHeaderStyle: .bearer),
+      apiKey: apiKey)
     let started = Date()
-    let outcome = try await client.fetchOptimizedPrompt(
-      forDraft: draft, clarifications: [], apiKey: apiKey)
+    let outcome = try await client.draft(draft)
     let elapsed = Date().timeIntervalSince(started)
 
     guard case let .ready(brief) = outcome else {

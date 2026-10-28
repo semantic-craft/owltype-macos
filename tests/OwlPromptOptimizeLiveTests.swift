@@ -8,7 +8,7 @@
 //  为什么需要它：#138 的整条链路此前只用 mock fetcher 验过，真实供应商返回的 JSON 长什么样
 //  （套不套 markdown 围栏、status 给不给全、questions 会不会超 3 条）一个样本都没有，解析层
 //  的防御全是凭推测写的。这条测试打真实的阿里云百炼，把原始响应落到 /tmp 供人工核对，并跑通
-//  真实的 `OwlPromptOptimizeClient`（编码 → POST → 解码 → 解析全链路）。
+//  真实的 `OwlStructuredDraftingClient` 经 LLM gateway（编码 → POST → 解码 → 解析全链路）。
 //
 //  Key 从仓库外的文件读，绝不落进代码、环境变量导出或日志。
 //
@@ -84,10 +84,12 @@ final class OwlPromptOptimizeLiveTests: XCTestCase {
     XCTAssertFalse(content.isEmpty, "模型返回空 content")
 
     // 真实客户端全链路（编码 → POST → 解码 → 解析）。
-    let client = OwlPromptOptimizeClient(
-      endpoint: endpoint, model: model, providerID: "qwen", authHeaderStyle: .bearer)
-    let outcome = try await client.fetchOptimizedPrompt(
-      forDraft: draft, clarifications: [], apiKey: apiKey)
+    let client = OwlStructuredDrafting.live(
+      OwlPromptOptimizer.structuredDraftingConfiguration,
+      routing: OwlCloudRouting(providerID: "qwen", endpoint: endpoint, model: model,
+                               secretName: nil, authHeaderStyle: .bearer),
+      apiKey: apiKey)
+    let outcome = try await client.draft(draft)
 
     guard case let .ready(prompt) = outcome else {
       return XCTFail("信息完整的草稿应当直接出终稿，实际 \(outcome)")
@@ -107,10 +109,12 @@ final class OwlPromptOptimizeLiveTests: XCTestCase {
     let content = try await dumpRawResponse(draft: draft, apiKey: apiKey, label: "clarify")
     XCTAssertFalse(content.isEmpty)
 
-    let client = OwlPromptOptimizeClient(
-      endpoint: endpoint, model: model, providerID: "qwen", authHeaderStyle: .bearer)
-    let outcome = try await client.fetchOptimizedPrompt(
-      forDraft: draft, clarifications: [], apiKey: apiKey)
+    let client = OwlStructuredDrafting.live(
+      OwlPromptOptimizer.structuredDraftingConfiguration,
+      routing: OwlCloudRouting(providerID: "qwen", endpoint: endpoint, model: model,
+                               secretName: nil, authHeaderStyle: .bearer),
+      apiKey: apiKey)
+    let outcome = try await client.draft(draft)
 
     switch outcome {
     case let .needsClarification(questions):
@@ -129,17 +133,19 @@ final class OwlPromptOptimizeLiveTests: XCTestCase {
 
   func testClarificationAnswersProduceReadyPrompt() async throws {
     let apiKey = try testAPIKey()
-    let client = OwlPromptOptimizeClient(
-      endpoint: endpoint, model: model, providerID: "qwen", authHeaderStyle: .bearer)
+    let client = OwlStructuredDrafting.live(
+      OwlPromptOptimizer.structuredDraftingConfiguration,
+      routing: OwlCloudRouting(providerID: "qwen", endpoint: endpoint, model: model,
+                               secretName: nil, authHeaderStyle: .bearer),
+      apiKey: apiKey)
 
-    let outcome = try await client.fetchOptimizedPrompt(
-      forDraft: "帮我写个爬虫",
+    let outcome = try await client.draft(
+      "帮我写个爬虫",
       clarifications: [
         OwlPromptClarification(question: "这份提示词要给谁用？", answer: "给实验室新来的研究助理"),
         OwlPromptClarification(
           question: "产出用来做什么？", answer: "抓裁判文书网的公开判决书做实证研究语料")
-      ],
-      apiKey: apiKey
+      ]
     )
 
     guard case let .ready(prompt) = outcome else {

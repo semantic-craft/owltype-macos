@@ -31,57 +31,6 @@ enum OwlPromptOptimizeError: Error, Equatable {
   }
 }
 
-/// 提示词优化的 live remote adapter。HTTP/wire 细节统一委托给 structured-drafting client；
-/// 带固定路由的 convenience method 只供既有 live integration test 驱动同一模块全流程。
-struct OwlPromptOptimizeClient: OwlStructuredDraftingRemote {
-  let endpoint: URL
-  let model: String
-  /// 活跃档案的供应商 id，用来选关思考的字段方言（见 `OwlThinkingControl`）。
-  /// 默认空串 = 不知道档案 id，退回按 model 前缀判定。
-  let providerID: String
-  let authHeaderStyle: OwlProviderAuthHeaderStyle
-  let urlSession: URLSession
-
-  init(
-    endpoint: URL = OwlCloudPreferences.deepSeekEndpoint,
-    model: String = OwlCloudPreferences.deepSeekModel,
-    providerID: String = "",
-    authHeaderStyle: OwlProviderAuthHeaderStyle = .bearer,
-    urlSession: URLSession = .shared
-  ) {
-    self.endpoint = endpoint
-    self.model = model
-    self.providerID = providerID
-    self.authHeaderStyle = authHeaderStyle
-    self.urlSession = urlSession
-  }
-
-  func fetchOptimizedPrompt(
-    forDraft draft: String,
-    clarifications: [OwlPromptClarification],
-    apiKey: String
-  ) async throws -> OwlPromptOptimizeOutcome {
-    let routing = OwlCloudRouting(
-      providerID: providerID,
-      endpoint: endpoint,
-      model: model,
-      secretName: nil,
-      authHeaderStyle: authHeaderStyle
-    )
-    let module = OwlStructuredDrafting(
-      configuration: OwlPromptOptimizer.structuredDraftingConfiguration,
-      cloudEnabled: { true },
-      authorization: { .ready(routing: routing, apiKey: apiKey) },
-      remote: self
-    )
-    return try await module.draft(draft, clarifications: clarifications)
-  }
-
-  func fetch(_ request: OwlStructuredDraftingRemoteRequest) async throws -> String {
-    try await OwlStructuredDraftingClient(urlSession: urlSession).fetch(request)
-  }
-}
-
 /// UI-facing façade. The deep module owns admission, auth ordering, request assembly, remote fetch,
 /// and safe parsing; this type only supplies live dependencies and keeps the feature's public verb.
 @MainActor
@@ -128,14 +77,6 @@ enum OwlPromptOptimizer {
   /// 澄清问题上限：要预填进任意提问窗口的单行输入框，多了就没法用了。
   static let maxClarificationQuestions = OwlStructuredDrafting.maxClarificationQuestions
 
-  /// 本技能自己的请求超时，**不复用** `OwlCloudPreferences.requestTimeout`（8 秒）——那个值是给
-  /// 打字时的候选补全调的：输出短、要求快，超时就该早失败别卡住输入。
-  ///
-  /// 提示词优化要生成一整段结构化提示词。实测阿里云百炼 qwen3.6-flash 生成约 1.3KB 中文提示词
-  /// 耗时约 20 秒，8 秒必然掐断——上线前用 mock fetcher 测不出这条，直到打了真实网络才暴露。
-  /// 用户此刻已经看到「正在优化提示词…」，等十几秒可以接受，卡死不行，故设 60 秒硬上限。
-  static let requestTimeout: TimeInterval = 60
-
   /// 改写目标依据 Anthropic《Prompting Claude Fable 5》：补齐四要素、去步骤脚手架、
   /// 禁止要求复述内部推理（会触发 reasoning_extraction 拒绝）；并依《Prompting best
   /// practices》「Structure prompts with XML tags」给产出按语义套成对标签（原「结构化·
@@ -180,7 +121,6 @@ enum OwlPromptOptimizer {
     systemPrompt: systemPrompt,
     maxDraftLength: OwlSelectionPolish.maxSelectionLength,
     temperature: 0.2,
-    requestTimeout: requestTimeout,
     traceName: "prompt-optimize",
     admissionError: { admission in
       switch admission {
