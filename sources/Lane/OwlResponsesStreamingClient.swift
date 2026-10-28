@@ -181,7 +181,8 @@ struct OwlResponsesStreamingClient: OwlResponsesStreaming {
           let source = try await bytesProvider(request)
 
           if let http = source.response, !(200...299).contains(http.statusCode) {
-            continuation.finish(throwing: OwlStreamingError.badHTTPStatus(http.statusCode))
+            let detail = await OwlServerErrorDetail.read(source.chunks)
+            continuation.finish(throwing: OwlStreamingError.badHTTPStatus(http.statusCode, detail: detail))
             return
           }
 

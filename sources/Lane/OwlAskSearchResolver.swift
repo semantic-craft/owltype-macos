@@ -157,7 +157,7 @@ enum OwlAskSearchFailover {
     switch error {
     case let streaming as OwlStreamingError:
       switch streaming {
-      case let .badHTTPStatus(status):
+      case let .badHTTPStatus(status, _):
         return isConfigurationRefusal(status: status)
       case .invalidEndpoint:
         // Responses URL 连改写都做不到，请求尚未发出；这是候选配置不可用，不是运行期故障。

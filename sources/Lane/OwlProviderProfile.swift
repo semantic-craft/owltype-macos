@@ -674,8 +674,9 @@ enum OwlProviderConnectivityCheck {
   enum Outcome: Equatable {
     /// 通了。`latencyMS` 是整轮往返，顺带让用户对这条链路的手感有个数。
     case ok(latencyMS: Int)
-    /// 连上了但对面拒绝（Key 无效 / 型号不服务 / 欠费）。`message` 是服务端原话。
-    case rejected(status: Int, message: String)
+    /// 连上了但对面拒绝（Key 无效 / 型号不服务 / 欠费）。`message` 是服务端原话（已脱敏、截短），
+    /// `code` 是它的错误码，认得就换成一句中文判断。
+    case rejected(status: Int, message: String, code: String? = nil)
     /// 连都没连上：DNS、超时、证书、代理。
     case unreachable(String)
     /// 2xx 却不是一个能认的 chat 响应 —— 多半是网关/代理插进来的页面。
@@ -742,10 +743,14 @@ enum OwlProviderConnectivityCheck {
   }
 
   /// 响应 → 结论。纯函数，测试不碰网络。
-  static func outcome(data: Data, response: URLResponse?, latencyMS: Int) -> Outcome {
+  static func outcome(data: Data, response: URLResponse?, latencyMS: Int, apiKey: String = "") -> Outcome {
     guard let http = response as? HTTPURLResponse else { return .malformed }
     guard (200...299).contains(http.statusCode) else {
-      return .rejected(status: http.statusCode, message: errorMessage(in: data))
+      let detail = OwlServerErrorDetail.parse(data)
+      return .rejected(
+        status: http.statusCode,
+        message: detail?.sanitized(removing: apiKey) ?? "",
+        code: detail?.code)
     }
     // Recognize either protocol shell: Qwen uses Responses `output`; other providers remain chat.
     guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
@@ -753,20 +758,6 @@ enum OwlProviderConnectivityCheck {
       return .malformed
     }
     return .ok(latencyMS: latencyMS)
-  }
-
-  /// 从错误正文里挖那句人话。两种壳都认：OpenAI 风格的 `error.message`，
-  /// 与 DashScope 原生风格的顶层 `message`。挖不到就留空，由调用方退回纯状态码。
-  static func errorMessage(in data: Data) -> String {
-    guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-      return ""
-    }
-    if let error = root["error"] as? [String: Any],
-       let message = error["message"] as? String, !message.isEmpty {
-      return message
-    }
-    if let message = root["message"] as? String, !message.isEmpty { return message }
-    return ""
   }
 
   /// 真打一发。**不 throw**：连不上也是一种结论，调用方要的是一句能显示的话，不是一个错误。
@@ -786,7 +777,7 @@ enum OwlProviderConnectivityCheck {
         apiKey: apiKey, authStyle: authStyle)
       let (data, response) = try await transport.send(request)
       let elapsed = Int(clock().timeIntervalSince(started) * 1000)
-      return outcome(data: data, response: response, latencyMS: elapsed)
+      return outcome(data: data, response: response, latencyMS: elapsed, apiKey: apiKey)
     } catch {
       return .unreachable((error as? URLError)?.localizedDescription ?? error.localizedDescription)
     }
@@ -799,12 +790,14 @@ extension OwlProviderConnectivityCheck.Outcome {
     switch self {
     case let .ok(latencyMS):
       return "连通正常，\(latencyMS) ms 收到回复。"
-    case let .rejected(status, message):
+    case let .rejected(status, message, code):
       let detail = message.isEmpty ? "" : "：\(message)"
-      // 401/403 几乎总是 Key，400/404 几乎总是型号或端点 —— 直接把判断给出来，别让人自己对表。
-      let hint = (status == 401 || status == 403)
-        ? "（多半是 API Key 无效或没权限）"
-        : (status == 400 || status == 404 ? "（多半是这个端点不服务该模型，换个型号再试）" : "")
+      // 认得错误码就照它说；否则 401/403 几乎总是 Key，400/404 几乎总是型号或端点 —— 直接把判断
+      // 给出来，别让人自己对表。
+      let hint = OwlServerRefusal(code: code).map { "（\($0.message)）" }
+        ?? ((status == 401 || status == 403)
+          ? "（多半是 API Key 无效或没权限）"
+          : (status == 400 || status == 404 ? "（多半是这个端点不服务该模型，换个型号再试）" : ""))
       return "对方拒绝了这次请求，HTTP \(status)\(hint)\(detail)"
     case let .unreachable(reason):
       return "连不上：\(reason)。检查网络、端点地址或代理。"
