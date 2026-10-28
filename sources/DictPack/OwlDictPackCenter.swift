@@ -2,12 +2,13 @@
 //  OwlDictPackCenter.swift
 //  Owltype
 //
-//  dict-pack 编排层（MainActor）：状态发布给设置页、启动知情同意提示、完成后触发 deploy()。
-//  下载在后台 Task 里跑 OwlDictPackFetcher；本类只做状态机与线程切换，不做 IO。
+//  完整词库的生命周期（MainActor）：把随包 msime 资源复制成一个 Rust 资源代次（prepare）、
+//  用户确认后启用（activate）、可回退到上一代（rollback），并决定首启是否需要征求同意
+//  （needsPrompt）。只看 Rust 资源状态；旧版 Rime YAML 词库与其装机记录不参与任何判定，
+//  也不会被读写。IO 在后台 Task 里经 `OwlDictPackCenterRustBackend` 做，本类只做状态机。
 //
-//  本文件承载 dict-pack 提示线三个类型（同一功能、同居一处，对齐 OwlUpdateLogoutPrompt 的
-//  做法，避免新增源文件带来的 pbxproj 手术）：
-//    - `OwlDictPackCenter`            状态机 + 下载编排
+//  本文件承载提示线三个类型（同一功能、同居一处，对齐 OwlUpdateLogoutPrompt 的做法）：
+//    - `OwlDictPackCenter`            状态机 + 资源代次编排
 //    - `OwlDictPackPrompt`            纯判定 + 文案 + 呈现
 //    - `OwlDictPackPromptScheduler`   首启安全时机门控（复用 OwlLogoutPromptTiming）
 //
@@ -86,14 +87,11 @@ final class OwlDictPackCenter {
   /// The transaction is committed, but the active session is waiting for its current
   /// composition to finish before it can switch without dropping selected phrase progress.
   private(set) var isAwaitingLiveSessionRefresh = false
-  let usesRustResources: Bool
 
   private var running = false
   private var preparedResources: OwlRustDictPackPreparedResources?
   private var failedOperation: FailedOperation?
   private let rustBackend: OwlDictPackCenterRustBackend
-  private let makeFetcher: () -> OwlDictPackFetcher
-  private let deploy: @MainActor @Sendable () -> Bool
   private let liveSessionRefresh: OwlDictPackLiveSessionRefresh
 
   private enum FailedOperation {
@@ -103,53 +101,53 @@ final class OwlDictPackCenter {
   }
 
   init(
-    usesRustResources: Bool = true,
     rustBackend: OwlDictPackCenterRustBackend = .production(),
-    makeFetcher: @escaping () -> OwlDictPackFetcher = {
-      OwlDictPackFetcher(manifest: .current, userDir: OwlApp.userDir)
-    },
-    deploy: @escaping @MainActor @Sendable () -> Bool = {
-      NSApp.owlAppDelegate.deploy()
-    },
     liveSessionRefresh: @escaping OwlDictPackLiveSessionRefresh = { completion in
       NSApp.owlAppDelegate.requestLiveSessionRefreshWhenIdle(completion: completion)
     }
   ) {
-    self.usesRustResources = usesRustResources
     self.rustBackend = rustBackend
-    self.makeFetcher = makeFetcher
-    self.deploy = deploy
     self.liveSessionRefresh = liveSessionRefresh
   }
 
   func refresh() {
     guard !running, preparedCandidate == nil else { return }
     failedOperation = nil
-    if usesRustResources {
-      refreshRustStatus()
-    } else {
-      status = makeFetcher().assess()
+    do {
+      if let state = try rustBackend.environment.activeState() {
+        _ = try rustBackend.environment.activeGeneration()
+        status = .installed(version: state.current.manifest.version)
+        rollbackTargetVersion = state.previous?.manifest.version
+        return
+      }
+    } catch {
       rollbackTargetVersion = nil
+      status = .failed("Rust 词库状态无法读取：\(error.localizedDescription)")
+      return
     }
+    rollbackTargetVersion = nil
+    status = .notInstalled
   }
 
-  /// 提示调度器用：是否仍需提示。轮询期间用户可能已从设置页手动装好，届时静默收摊。
+  /// 提示调度器用：是否仍需提示。轮询期间用户可能已从设置页手动启用，届时静默收摊。
   var needsPrompt: Bool {
-    if usesRustResources {
-      if let state = try? rustBackend.environment.activeState() {
-        return state.current.manifest.version < OwlRustCompatibleResources.packageVersion
-      }
-    }
-    return makeFetcher().needsFetch()
+    Self.needsPrompt(activeVersion: (try? rustBackend.environment.activeState())?.current.manifest.version)
+  }
+
+  /// 只按 Rust 资源判定：没有可读的启用代次，或启用的代次旧于本二进制随包的版本，就该问。
+  nonisolated static func needsPrompt(
+    activeVersion: Int?, bundledVersion: Int = OwlRustCompatibleResources.packageVersion
+  ) -> Bool {
+    guard let activeVersion else { return true }
+    return activeVersion < bundledVersion
   }
 
   var canRollback: Bool {
-    usesRustResources && rollbackTargetVersion != nil
+    rollbackTargetVersion != nil
   }
 
-  /// 启动时机（Main.swift，loadSettings 之后）调用。知情同意改版（2026-07-27）：不再静默自动
-  /// 下载——未装则**武装提示调度器**，等安全时机弹窗说明版权缘由；用户点「同意并下载」才拉。
-  /// 已装 / 用户自备 / 已提示过都只刷新状态。`autoFetch` 开关打开＝用户显式授权免提示直接拉。
+  /// 启动时机（Main.swift，loadSettings 之后）调用。不静默准备——需要时**武装提示调度器**，
+  /// 等安全时机弹窗征求同意；`autoFetch` 开关打开＝用户显式授权免提示直接准备。
   ///
   /// 引导待办时让路：新手引导有自己的「词库」步骤，讲同一件事、写同一个 `promptShown`
   /// （见 `OwlOnboardingView` 的 dict 步骤）。此处再武装调度器就会在引导窗上再弹一次模态
@@ -166,7 +164,7 @@ final class OwlDictPackCenter {
     case .doNothing:
       return
     case .fetchSilently:
-      start()
+      prepare()
     case .deferToOnboarding:
       OwlDictPackPrompt.log.log("first-run consent deferred to onboarding's dict step")
     case .armPrompt:
@@ -174,30 +172,42 @@ final class OwlDictPackCenter {
     }
   }
 
-  /// 知情同意通过 → 开始下载并把用户送到设置页「完整词库」卡（那里有进度条/失败重试）。
-  /// 引导里不走这条：引导的词库步骤自带进度显示，把用户甩进设置窗会打断向导（用 `start()`）。
-  func acceptAndStart() {
+  /// 同意 → 开始准备并把用户送到设置页「完整词库」卡（那里有进度、启用和重试）。
+  /// 引导里不走这条：引导的词库步骤自带进度显示，把用户甩进设置窗会打断向导（用 `prepare()`）。
+  func acceptAndPrepare() {
     NSApp.owlAppDelegate.showSettings(selectedPage: .keyboard)
-    start()
+    prepare()
   }
 
-  /// 设置页「立即下载完整词库」按钮 / 自动拉取共用入口。幂等：进行中再点无效。
-  func start() {
+  /// Copies the bundled resources into a verified, not yet active generation.
+  /// Idempotent: does nothing while an operation runs or a candidate awaits confirmation.
+  func prepare() {
     guard !running, preparedCandidate == nil else { return }
     running = true
     failedOperation = nil
-    status = .downloading(progress: 0)
-    if usesRustResources {
-      startRustPreparation()
-    } else {
-      startLegacyFetch()
+    status = .preparing(progress: 0)
+    let backend = rustBackend
+    Task.detached(priority: .utility) { [self] in
+      do {
+        let prepared = try await backend.prepare(backend.environment) { fraction in
+          Task { @MainActor [weak self] in
+            self?.noteProgress(fraction)
+          }
+        }
+        await MainActor.run {
+          self.finishPreparation(prepared)
+        }
+      } catch {
+        await MainActor.run {
+          self.fail(error, operation: .prepare)
+        }
+      }
     }
   }
 
-  /// User confirmation for a prepared Rust generation. Legacy Rime has no
-  /// equivalent two-step path: it keeps the existing fetch-and-deploy flow.
-  func activatePrepared() {
-    guard usesRustResources, !running, let preparedResources else { return }
+  /// User confirmation for the prepared generation.
+  func activate() {
+    guard !running, let preparedResources else { return }
     running = true
     failedOperation = nil
     status = .activating
@@ -207,7 +217,7 @@ final class OwlDictPackCenter {
       do {
         let result = try await backend.activate(backend.environment, resource)
         await MainActor.run {
-          self.finishRustActivation(result)
+          self.finishActivation(result)
         }
       } catch {
         await MainActor.run {
@@ -218,7 +228,7 @@ final class OwlDictPackCenter {
   }
 
   func rollback() {
-    guard usesRustResources, !running, canRollback else { return }
+    guard !running, canRollback else { return }
     running = true
     failedOperation = nil
     status = .rollingBack
@@ -230,7 +240,7 @@ final class OwlDictPackCenter {
           OwlRustResourceEnvironment.activeInputKind
         )
         await MainActor.run {
-          self.finishRustRollback(state)
+          self.finishRollback(state)
         }
       } catch {
         await MainActor.run {
@@ -240,106 +250,23 @@ final class OwlDictPackCenter {
     }
   }
 
-  func discardPrepared() {
-    guard !running, preparedCandidate != nil else { return }
-    preparedCandidate = nil
-    preparedResources = nil
-    failedOperation = nil
-    refresh()
-  }
-
   func retryFailedOperation() {
     switch failedOperation {
     case .activate:
-      activatePrepared()
+      activate()
     case .rollback:
       rollback()
     case .prepare, nil:
-      start()
-    }
-  }
-
-  private func startRustPreparation() {
-    let backend = rustBackend
-    Task.detached(priority: .utility) { [self] in
-      do {
-        let prepared = try await backend.prepare(backend.environment) { fraction in
-          Task { @MainActor [weak self] in
-            self?.noteProgress(fraction)
-          }
-        }
-        await MainActor.run {
-          self.finishRustPreparation(prepared)
-        }
-      } catch {
-        await MainActor.run {
-          self.fail(error, operation: .prepare)
-        }
-      }
-    }
-  }
-
-  private func startLegacyFetch() {
-    let fetcher = makeFetcher()
-    Task.detached(priority: .utility) { [self] in
-      do {
-        let result = try await fetcher.run { fraction in
-          Task { @MainActor [weak self] in
-            self?.noteProgress(fraction)
-          }
-        }
-        await MainActor.run {
-          self.finishLegacyFetch(result: result)
-        }
-      } catch {
-        await MainActor.run {
-          self.fail(error, operation: .prepare)
-        }
-      }
+      prepare()
     }
   }
 
   private func noteProgress(_ fraction: Double) {
     guard running else { return }
-    status = .downloading(progress: fraction)
+    status = .preparing(progress: fraction)
   }
 
-  private func finishLegacyFetch(result: OwlDictPackInstallResult) {
-    if !result.skippedUserFiles.isEmpty {
-      print("Owltype dict-pack: kept \(result.skippedUserFiles.count) user-provided files untouched.")
-    }
-    status = .deploying
-    // 词库落盘完成 → 全量重部署编译新词库。deploy() 内部 start_maintenance 是异步的：
-    // 这里保持 .deploying（running 仍占位，挡住 refresh()/start() 重入），直到 librime 的
-    // deploy 通知（notificationHandler → noteDeployFinished）宣告编译真正结束 —— 引导页
-    // 的「开始使用」按钮以此为就绪判据，注销收尾必须等到编译完成才有意义。
-    guard deploy() else {
-      running = false
-      status = .failed("词库已下载，但部署未能启动 —— 可在设置里手动「保存并重新应用」")
-      return
-    }
-    // 防卡死兜底：deploy 通知理论上必达（start_maintenance 已受理），但若维护线程异常
-    // 失声，10 分钟后按落盘记录收尾，避免引导/设置页永远停在「编译中」。
-    deployTimeout = Task { [weak self] in
-      try? await Task.sleep(for: .seconds(600))
-      guard !Task.isCancelled else { return }
-      self?.noteDeployFinished(success: true)
-    }
-  }
-
-  /// librime 维护线程的 deploy success/failure 通知（经 notificationHandler 转发）。
-  /// 只在本中心等待编译时生效 —— 无关的日常 deploy 到这里是 no-op。
-  func noteDeployFinished(success: Bool) {
-    guard status == .deploying else { return }
-    deployTimeout?.cancel()
-    deployTimeout = nil
-    running = false
-    status = success ? makeFetcher().assess() : .failed("词库编译失败，详见 设置 → 诊断")
-  }
-
-  private var deployTimeout: Task<Void, Never>?
-
-  private func finishRustPreparation(_ prepared: OwlRustDictPackPreparedResources) {
+  private func finishPreparation(_ prepared: OwlRustDictPackPreparedResources) {
     running = false
     failedOperation = nil
     preparedResources = prepared
@@ -350,7 +277,7 @@ final class OwlDictPackCenter {
     )
   }
 
-  private func finishRustActivation(_ result: OwlRustResourceInstallResult) {
+  private func finishActivation(_ result: OwlRustResourceInstallResult) {
     running = false
     failedOperation = nil
     preparedResources = nil
@@ -360,11 +287,11 @@ final class OwlDictPackCenter {
     rollbackTargetVersion = result.state.previous?.manifest.version
     scheduleLiveSessionRefresh()
     OwlDictPackPrompt.log.log(
-      "activated Rust dict-pack generation v\(current.manifest.version, privacy: .public); no Rime deploy"
+      "activated Rust dict-pack generation v\(current.manifest.version, privacy: .public)"
     )
   }
 
-  private func finishRustRollback(_ state: OwlRustResourceActiveState) {
+  private func finishRollback(_ state: OwlRustResourceActiveState) {
     running = false
     failedOperation = nil
     preparedResources = nil
@@ -373,7 +300,7 @@ final class OwlDictPackCenter {
     rollbackTargetVersion = state.previous?.manifest.version
     scheduleLiveSessionRefresh()
     OwlDictPackPrompt.log.log(
-      "rolled back Rust dict-pack generation to v\(state.current.manifest.version, privacy: .public); no Rime deploy"
+      "rolled back Rust dict-pack generation to v\(state.current.manifest.version, privacy: .public)"
     )
   }
 
@@ -384,28 +311,6 @@ final class OwlDictPackCenter {
     }
     if !deferred {
       isAwaitingLiveSessionRefresh = false
-    }
-  }
-
-  private func refreshRustStatus() {
-    do {
-      if let state = try rustBackend.environment.activeState() {
-        _ = try rustBackend.environment.activeGeneration()
-        status = .installed(version: state.current.manifest.version)
-        rollbackTargetVersion = state.previous?.manifest.version
-        return
-      }
-    } catch {
-      rollbackTargetVersion = nil
-      status = .failed("Rust 词库状态无法读取：\(error.localizedDescription)")
-      return
-    }
-
-    rollbackTargetVersion = nil
-    if case .userProvided = makeFetcher().assess() {
-      status = .failed("检测到无 Owltype 安装记录的词库源；为保护用户文件，Rust 资源不会使用它")
-    } else {
-      status = .notInstalled
     }
   }
 
@@ -446,9 +351,9 @@ enum OwlDictPackPrompt {
 
   /// 启动时该做什么（纯判定，`promptOrFetchIfNeeded` 的全部分支逻辑）。
   enum LaunchAction: Equatable {
-    /// 已装 / 用户自备 / 已问过 —— 只刷新状态。
+    /// 已启用当前版本 / 已问过 —— 只刷新状态。
     case doNothing
-    /// 用户显式开了 autoFetch 开关＝授权免提示直接拉。
+    /// 用户显式开了 autoFetch 开关＝授权免提示直接准备。
     case fetchSilently
     /// 引导本次会接手（它的词库步骤讲同一件事、写同一个 promptShown）—— 别再弹一次模态。
     case deferToOnboarding
@@ -480,15 +385,14 @@ enum OwlDictPackPrompt {
   ///
   /// 真值才该弹版权说明；否则维持既有的「该方案可能尚未编译」提示——后者对 dict-pack 缺失是
   /// **误导**（叫用户去「应用配置改动」，可方案文件压根不在磁盘上，照做也没用）。
-  /// 下载中/编译中不弹：用户已经同意过，方案很快就位，再弹一次纯噪音。
+  /// 准备、启用或回退中不弹：用户已经同意过，再弹一次纯噪音。
   static func isAbsentDictPackSchema(
     schemaID: String,
     manifest: OwlDictPackManifest = .current,
     status: OwlDictPackStatus
   ) -> Bool {
     switch status {
-    case .installed, .userProvided, .downloading, .deploying,
-         .prepared, .activating, .rollingBack:
+    case .installed, .preparing, .prepared, .activating, .rollingBack:
       return false
     case .notInstalled, .failed: break
     }
@@ -546,7 +450,7 @@ enum OwlDictPackPrompt {
     OwlDictPackPreferences.promptShown = true
     switch presentAlert(schemaID: schemaID) {
     case .download:
-      OwlDictPackCenter.shared.acceptAndStart()
+      OwlDictPackCenter.shared.acceptAndPrepare()
     case .later:
       log.log("user deferred dict-pack download for \(schemaID, privacy: .public)")
     }
@@ -606,7 +510,7 @@ final class OwlDictPackPromptScheduler {
     OwlDictPackPreferences.promptShown = true
     switch OwlDictPackPrompt.presentAlert(schemaID: nil) {
     case .download:
-      OwlDictPackCenter.shared.acceptAndStart()
+      OwlDictPackCenter.shared.acceptAndPrepare()
     case .later:
       OwlDictPackPrompt.log.log("user deferred dict-pack download at first run")
       capturedApp?.activate()  // 还原宿主焦点，别把用户晾在猫头鹰这边

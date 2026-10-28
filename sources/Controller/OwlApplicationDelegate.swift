@@ -892,16 +892,10 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     defer { OwlLatencyTrace.end("deploy.startRime", trace) }
     print("Initializing the Rust input engine...")
     guard !templateRecoveryBlocksDeployment(migrationDirectory) else { return false }
-    do {
-      if let sharedSupport = Bundle.main.sharedSupportURL {
-        try OwlPinyinMixedInput.apply(userDir: migrationDirectory, sharedDir: sharedSupport)
-        do { try OwlPinyinCandidateDeployment.apply(userDir: migrationDirectory, sharedDir: sharedSupport) } catch {
-          Self.deployLog.error("Pinyin candidate priorities unavailable: \(error.localizedDescription, privacy: .public)")
-        }
+    if let sharedSupport = Bundle.main.sharedSupportURL {
+      do { try OwlPinyinCandidateDeployment.apply(userDir: migrationDirectory, sharedDir: sharedSupport) } catch {
+        Self.deployLog.error("Pinyin candidate priorities unavailable: \(error.localizedDescription, privacy: .public)")
       }
-    } catch {
-      Self.deployLog.error("English candidate configuration failed: \(error.localizedDescription, privacy: .public)")
-      return false
     }
     // check for configuration updates
     let maintained = engine.startMaintenance(fullCheck: fullCheck)
@@ -1123,14 +1117,6 @@ private func notificationHandler(
       OwlApplicationDelegate.showMessage(msgText: NSLocalizedString("deploy_failure", comment: ""))
     default:
       break
-    }
-    // dict-pack 等编译真实结束的唯一信号（通知来自 librime 维护线程，跳回 MainActor）。
-    // Center 只在自己处于 .deploying 时消费 —— 日常 deploy 到那里是 no-op。
-    if messageValue == "success" || messageValue == "failure" {
-      let succeeded = messageValue == "success"
-      Task { @MainActor in
-        OwlDictPackCenter.shared.noteDeployFinished(success: succeeded)
-      }
     }
     return
   }
