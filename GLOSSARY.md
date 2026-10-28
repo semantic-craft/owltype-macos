@@ -26,15 +26,16 @@ provider: how it is reached, whether it can search, and what it is called are on
 
 **Provider capabilities** — what a provider profile's wire supports, resolved once from
 `(providerID, model, host)` (`OwlProviderCapabilities`): the wire dialect, how thinking is
-switched off, whether Chat JSON mode is sent, and sampling rules.
+switched off, whether Chat JSON mode is sent, sampling rules, and which 任意提问 search channel
+applies with its 署名 name.
 
-**LLM gateway** — the module every non-streaming AI skill calls for a model reply
-(`OwlLLMGateway`). It applies provider capabilities, builds the Chat or `/responses` request,
-sends it through the transport, parses the reply and records usage telemetry (never text).
-Streaming chat and Ask do not go through it yet.
+**LLM gateway** — the module every AI skill calls for a model reply (`OwlLLMGateway`). It applies
+provider capabilities, builds the Chat or `/responses` request, sends it through the transport,
+parses the reply and records usage telemetry (never text). `stream` does the same fork for a
+streamed free-text answer (plain generation, 任意提问).
 
 **Transport** — the seam under the LLM gateway that sends one `URLRequest` and returns the bytes
-and response (`OwlLLMTransport`). Adapters: URLSession in production, a recording fake in tests.
+and response, or opens one and returns its body as text chunks (`OwlLLMTransport`). Adapters: URLSession in production, a recording fake in tests.
 
 **Call purpose** — why an AI skill is calling (`OwlLLMCallPurpose`: interactive rewrite, drafting,
 connectivity probe). It fixes the timeout and retry, so callers never pass them.

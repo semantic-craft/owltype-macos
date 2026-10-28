@@ -249,6 +249,39 @@ final class OwlLLMGatewayTests: XCTestCase {
     XCTAssertEqual(transport.requests.count, 1, "a cancelled call is not retried")
   }
 
+  func testStreamPicksTheWireFromCapabilities() async throws {
+    let cases: [(OwlCloudRouting, String, String)] = [
+      (Self.routing("openai", "https://api.openai.com/v1/chat/completions", "gpt-4o"),
+       "data: {\"choices\":[{\"delta\":{\"content\":\"甲\"}}]}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"乙\"}}]}\n\ndata: [DONE]\n\n",
+       "https://api.openai.com/v1/chat/completions"),
+      (Self.routing("qwen", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", "qwen3.7-plus"),
+       "data: {\"type\":\"response.output_text.delta\",\"delta\":\"甲\"}\n\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"乙\"}\n\ndata: {\"type\":\"response.completed\"}\n\n",
+       "https://dashscope.aliyuncs.com/compatible-mode/v1/responses"),
+    ]
+    for (routing, sse, url) in cases {
+      let transport = OwlRecordingTransport.replying(Data(sse.utf8))
+      var text = ""
+      for try await delta in OwlLLMGateway(transport: transport)
+        .stream(messages: [OwlDeepSeekMessage(role: "user", content: "问")], routing: routing, apiKey: "sk-test") {
+        text += delta
+      }
+      XCTAssertEqual(text, "甲乙", routing.providerID)
+      XCTAssertEqual(transport.requests.map { $0.url?.absoluteString }, [url], routing.providerID)
+    }
+  }
+
+  func testStreamFinishesWithTheHTTPStatusOnRefusal() async throws {
+    let routing = Self.routing("openai", "https://api.openai.com/v1/chat/completions", "gpt-4o")
+    let transport = OwlRecordingTransport.replying(Data(), status: 401)
+    do {
+      for try await _ in OwlLLMGateway(transport: transport)
+        .stream(messages: [], routing: routing, apiKey: "sk-test") {}
+      XCTFail("401 must surface")
+    } catch let error as OwlStreamingError {
+      XCTAssertEqual(error, .badHTTPStatus(401))
+    }
+  }
+
   func testTelemetryRecordsTokenCountsButNeverText() async throws {
     let sentinel = "SENTINEL_甲乙丙"
     let replies: [(OwlCloudRouting, String)] = [
