@@ -163,7 +163,7 @@ struct OwlKeyboardPage: View {
   }
 
   /// 完整词库（方案B）：公开包只带清洁室精简词库；此卡展示 dict-pack 拉取状态并提供手动
-  /// 触发。状态由 OwlDictPackCenter（@Observable）驱动，下载/校验/装配全在 Center/Fetcher。
+  /// 触发。状态由 OwlDictPackCenter（@Observable）驱动，准备/启用/回退都在 Center。
   private var dictPackCard: some View {
     let center = OwlDictPackCenter.shared
     return SettingsCard(title: "完整词库", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
@@ -171,27 +171,16 @@ struct OwlKeyboardPage: View {
         HStack(spacing: 10) {
           switch center.status {
           case .notInstalled:
-            Text(center.usesRustResources
-              ? "未启用 — 当前使用随包精简资源"
-              : "未安装 — 当前为精简词库，候选质量受限")
+            Text("未启用 — 当前使用随包精简资源")
               .font(.system(size: 12, weight: .medium))
               .foregroundStyle(palette.ink2)
             Spacer(minLength: 8)
-            dictPackActionButton("立即下载（约 90 MB）") { center.start() }
-          case .downloading(let progress):
+            dictPackActionButton("立即下载（约 90 MB）") { center.prepare() }
+          case .preparing(let progress):
             ProgressView(value: progress)
               .controlSize(.small)
               .frame(maxWidth: 180)
-            Text(center.usesRustResources
-              ? "下载、校验并生成资源 \(Int(progress * 100))%"
-              : "下载中 \(Int(progress * 100))%")
-              .font(.system(size: 12))
-              .foregroundStyle(palette.ink2)
-            Spacer(minLength: 8)
-          case .deploying:
-            ProgressView()
-              .controlSize(.small)
-            Text("正在编译词库…")
+            Text("下载、校验并生成资源 \(Int(progress * 100))%")
               .font(.system(size: 12))
               .foregroundStyle(palette.ink2)
             Spacer(minLength: 8)
@@ -203,7 +192,7 @@ struct OwlKeyboardPage: View {
               .font(.system(size: 12, weight: .medium))
               .foregroundStyle(palette.ink2)
             Spacer(minLength: 8)
-            dictPackActionButton("启用") { center.activatePrepared() }
+            dictPackActionButton("启用") { center.activate() }
           case .activating:
             ProgressView()
               .controlSize(.small)
@@ -231,14 +220,6 @@ struct OwlKeyboardPage: View {
             if let target = center.rollbackTargetVersion {
               dictPackActionButton("回退到 v\(target)") { center.rollback() }
             }
-          case .userProvided:
-            Image(systemName: "checkmark.circle")
-              .font(.system(size: 13))
-              .foregroundStyle(OwlProvenanceColor.verified)
-            Text("检测到自备完整词库（不由猫头鹰管理，不会被覆盖）")
-              .font(.system(size: 12, weight: .medium))
-              .foregroundStyle(palette.ink3)
-            Spacer(minLength: 8)
           case .failed(let message):
             Image(systemName: "exclamationmark.triangle.fill")
               .font(.system(size: 13))
@@ -266,9 +247,7 @@ struct OwlKeyboardPage: View {
             .foregroundStyle(palette.ink3)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        Text(center.usesRustResources
-          ? "完整词库来自第三方开源项目，为避免版权争议不随安装包分发，也不会在你不知情时自动下载。下载后会先校验版本、摘要和许可证，再显示生成统计；只有点「启用」才切换资源代次，旧版本保留可回退。更新不改写 msime-user 学习库，也不触发 Rime 部署。"
-          : "完整词库来自第三方开源项目，为避免版权争议不随安装包分发，也不会在你不知情时自动下载。点下载后按固定版本从上游原仓库（雾凇拼音 / 极点五笔 / 八股文语法模型）获取并逐文件校验，完成后自动重新部署。")
+        Text("完整词库来自第三方开源项目，为避免版权争议不随安装包分发，也不会在你不知情时自动下载。下载后会先校验版本、摘要和许可证，再显示生成统计；只有点「启用」才切换资源代次，旧版本保留可回退。更新不改写 msime-user 学习库，也不触发 Rime 部署。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .frame(maxWidth: .infinity, alignment: .leading)
