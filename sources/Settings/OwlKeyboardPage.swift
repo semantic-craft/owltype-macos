@@ -2,13 +2,6 @@
 
 import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
-
-private final class SchemaCompatibilityPanelDelegate: NSObject, NSOpenSavePanelDelegate {
-  func panel(_ sender: Any, shouldEnable url: URL) -> Bool {
-    url.hasDirectoryPath || OwlRimeSchemaCompatibilityReport.supports(fileURL: url)
-  }
-}
 
 /// The 键盘输入 detail page. Palette/theme/reduceTransparency come from
 /// `OwlSettingsView` (same arg style as the other pages); `state` carries the mirror
@@ -53,8 +46,6 @@ struct OwlKeyboardPage: View {
   /// stay live-only and do not use this status line.
   @State private var isAutoApplyingRimeConfig = false
   @State private var autoApplyStatus: String?
-  @State private var compatibilityReport: OwlRimeSchemaCompatibilityReport.Report?
-  @State private var compatibilityReportError: String?
   @State private var rerankRuntimeStatuses =
     OwlRerankRuntimeStatusRegistry.shared.snapshot()
   @State private var rerankStatusTimer: Timer?
@@ -66,7 +57,6 @@ struct OwlKeyboardPage: View {
         case .keyboard:
           applyConfigCard
           inputMethodCard
-          schemaCompatibilityCard
           dictPackCard
           defaultStateCard
           wubiCard
@@ -379,98 +369,6 @@ struct OwlKeyboardPage: View {
       }
       .disabled(!rimeBackedRowsEnabled)
       .opacity(rimeBackedRowsEnabled ? 1 : 0.55)
-    }
-  }
-
-  private var schemaCompatibilityCard: some View {
-    SettingsCard(
-      title: "自定义 Rime 方案兼容检查",
-      palette: palette,
-      theme: theme,
-      reduceTransparency: reduceTransparency
-    ) {
-      VStack(alignment: .leading, spacing: 10) {
-        Text("仅检查你主动选择的 .schema.yaml / .custom.yaml；不扫描目录，也不改写原文。")
-          .font(.system(size: 12))
-          .foregroundStyle(palette.ink3)
-        HStack(spacing: 10) {
-          Button("选择方案文件…") {
-            chooseSchemaCompatibilityFiles()
-          }
-          .buttonStyle(.borderedProminent)
-          if compatibilityReport != nil {
-            Button("清除检查结果") {
-              compatibilityReport = nil
-              compatibilityReportError = nil
-            }
-            .buttonStyle(.bordered)
-          }
-        }
-        if let compatibilityReportError {
-          Text(compatibilityReportError)
-            .font(.system(size: 12, weight: .medium))
-            .foregroundStyle(.orange)
-            .fixedSize(horizontal: false, vertical: true)
-        }
-        if let report = compatibilityReport {
-          VStack(alignment: .leading, spacing: 8) {
-            ForEach(Array(report.files.enumerated()), id: \.offset) { _, file in
-              VStack(alignment: .leading, spacing: 3) {
-                Text("\(file.fileName) · \(file.kind == .schema ? "方案" : "补丁")")
-                  .font(.system(size: 13, weight: .medium))
-                  .foregroundStyle(palette.ink)
-                Text("schema id：\(file.schemaID ?? "未找到")")
-                  .font(.system(size: 11.5, design: .monospaced))
-                  .foregroundStyle(palette.ink3)
-                Text(
-                  "Lua 引用：\(file.luaReferences.isEmpty ? "无" : file.luaReferences.joined(separator: "、"))"
-                )
-                .font(.system(size: 11.5))
-                .foregroundStyle(palette.ink3)
-              }
-              .padding(9)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .background {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                  .fill(palette.card2)
-              }
-            }
-            Text("原生等价能力：\(report.nativeEquivalentCapabilities.joined(separator: "、"))")
-              .font(.system(size: 12, weight: .medium))
-              .foregroundStyle(palette.ink2)
-            Text(report.notice)
-              .font(.system(size: 12))
-              .foregroundStyle(palette.ink3)
-              .fixedSize(horizontal: false, vertical: true)
-          }
-        }
-        Text("外部自定义 schema/Lua 不执行；原文不改；内置日期、农历、Unicode、表达式由 Rust 原生实现。")
-          .font(.system(size: 12))
-          .foregroundStyle(palette.ink3)
-          .fixedSize(horizontal: false, vertical: true)
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
-    }
-  }
-
-  private func chooseSchemaCompatibilityFiles() {
-    let panel = NSOpenPanel()
-    panel.title = "选择自定义 Rime 方案文件"
-    panel.prompt = "检查"
-    panel.canChooseFiles = true
-    panel.canChooseDirectories = false
-    panel.allowsMultipleSelection = true
-    panel.allowedContentTypes = [.yaml]
-    let delegate = SchemaCompatibilityPanelDelegate()
-    panel.delegate = delegate
-    let response = withExtendedLifetime(delegate) { panel.runModal() }
-    guard response == .OK else { return }
-    do {
-      compatibilityReport = try OwlRimeSchemaCompatibilityReport.inspect(fileURLs: panel.urls)
-      compatibilityReportError = nil
-    } catch {
-      compatibilityReport = nil
-      compatibilityReportError = error.localizedDescription
     }
   }
 
