@@ -149,8 +149,8 @@ struct OwlKeyboardSettingsCatalog {
   /// The stored value, or the row's default when the key was never written (not
   /// UserDefaults' implicit `false`).
   func load(_ toggle: OwlKeyboardSwitch) -> Bool {
-    let key = toggle.key
-    return defaults.object(forKey: key) == nil ? toggle.defaultValue : defaults.bool(forKey: key)
+    let row = toggle.row
+    return defaults.object(forKey: row.key) == nil ? row.defaultValue : defaults.bool(forKey: row.key)
   }
 
   /// Every switch's current value.

@@ -774,8 +774,7 @@ final class OwlRustSession: RimeSession {
     }
   }
 
-  /// Push each catalog engine option whose stored value differs from the last one sent. The
-  /// response is applied so a queued option change keeps the live composition snapshot current.
+  /// Push each catalog engine option whose stored value differs from the last one sent.
   private func applyEngineOptions() -> Bool {
     let catalog = OwlKeyboardSettingsCatalog.live
     for (index, option) in OwlKeyboardSettingsCatalog.engineOptions.enumerated() {
@@ -784,7 +783,12 @@ final class OwlRustSession: RimeSession {
       guard let response = sendAction(["op": "set_option", "name": option.name, "value": value]),
             response.isOK else { return false }
       lastAppliedEngineOptions[index] = value
-      _ = applyActionResponse(response)
+      // Quick phrases queue until the composition is idle, so their snapshot is safe to take.
+      // Other options keep the snapshot they had: `wubi_z_wildcard` rebuilds the engine and
+      // cancels the composition, and the host must not see that mid-keystroke.
+      if option.toggle == .quickPhraseCandidates {
+        _ = applyActionResponse(response)
+      }
     }
     return true
   }
