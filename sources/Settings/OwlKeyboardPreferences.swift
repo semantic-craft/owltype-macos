@@ -153,13 +153,9 @@ enum OwlDoublePinyin: String, CaseIterable, Sendable {
   }
 }
 
-/// Single home for the 键盘输入 page preferences. The UserDefaults key string literals
-/// appear ONLY here; `OwlSettingsState` mirrors the values and the page writes back
-/// through these accessors, so there are no duplicate literals.
-///
-/// Bool accessors use `object(forKey:) == nil ? <default> : bool(forKey:)` so the
-/// reference defaults (shift 切换 / 减号等号 / 左右中括号 / 符号替换 = on)
-/// apply on first read instead of UserDefaults' implicit `false`.
+/// Single home for the 键盘输入 page preferences. Multi-valued preferences keep their keys and
+/// migrations here; every on/off switch is a row of `OwlKeyboardSettingsCatalog`, and its
+/// accessor below only forwards, so callers keep reading `OwlKeyboardPreferences.x`.
 enum OwlKeyboardPreferences {
   // MARK: - 输入方式
 
@@ -228,33 +224,33 @@ enum OwlKeyboardPreferences {
 
   /// 五笔完整四码只有一个候选时自动提交；与水杉默认值一致。
   static var wubiAutoCommitUnique: Bool {
-    get { boolValue("OwlKeyboardWubiAutoCommitUnique", default: true) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiAutoCommitUnique") }
+    get { catalog.load(.wubiAutoCommitUnique) }
+    set { catalog.set(.wubiAutoCommitUnique, newValue) }
   }
 
   /// 完整四码后的字母顶字上屏。关闭只影响五笔拼音混输，纯五笔仍顶字保留第五码。
   static var wubiFifthCodeTopCommit: Bool {
-    get { boolValue("OwlKeyboardWubiFifthCodeTopCommit", default: true) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiFifthCodeTopCommit") }
+    get { catalog.load(.wubiFifthCodeTopCommit) }
+    set { catalog.set(.wubiFifthCodeTopCommit, newValue) }
   }
 
   /// 优先显示候选尚未输入的五笔编码；无剩余码时沿用引擎完整编码注释。
   static var wubiCodeHint: Bool {
-    get { boolValue("OwlKeyboardWubiCodeHint", default: true) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiCodeHint") }
+    get { catalog.load(.wubiCodeHint) }
+    set { catalog.set(.wubiCodeHint, newValue) }
   }
 
   /// z 匹配未知码位；开启时由引擎暂停临时拼音反查，与水杉默认关闭一致。
   static var wubiZWildcard: Bool {
-    get { boolValue("OwlKeyboardWubiZWildcard", default: false) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiZWildcard") }
+    get { catalog.load(.wubiZWildcard) }
+    set { catalog.set(.wubiZWildcard, newValue) }
   }
 
   /// 空码自动清码. Key `"OwlKeyboardWubiAutoClear"`, default `false`.
   /// Eventual Rime mapping: `speller/auto_clear: max_length`.
   static var wubiAutoClear: Bool {
-    get { boolValue("OwlKeyboardWubiAutoClear", default: false) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiAutoClear") }
+    get { catalog.load(.wubiAutoClear) }
+    set { catalog.set(.wubiAutoClear, newValue) }
   }
 
   /// 单字候选模式. Key `"OwlKeyboardWubiCandidateMode"`, default `.normal`.
@@ -271,8 +267,8 @@ enum OwlKeyboardPreferences {
   /// z 临时拼音反查. Key `"OwlKeyboardWubiZReverseLookup"`, default `true`.
   /// Rime mapping: `recognizer/patterns/reverse_lookup`（关闭时清空反查正则，z 不再触发拼音反查）.
   static var wubiZReverseLookup: Bool {
-    get { boolValue("OwlKeyboardWubiZReverseLookup", default: true) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiZReverseLookup") }
+    get { catalog.load(.wubiZReverseLookup) }
+    set { catalog.set(.wubiZReverseLookup, newValue) }
   }
 
   /// ` 临时英文（五笔前缀英文通道）. Key `"OwlKeyboardWubiEnglishChannel"`, default `false`（出厂关）.
@@ -280,15 +276,15 @@ enum OwlKeyboardPreferences {
   /// table_translator@melt_eng（词库 melt_eng，拼音线正在用的同一份）+ recognizer 正则。
   /// 前缀段不受五笔四码上屏影响（z+拼音 >4 码同理，活先例）。
   static var wubiEnglishChannel: Bool {
-    get { boolValue("OwlKeyboardWubiEnglishChannel", default: false) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiEnglishChannel") }
+    get { catalog.load(.wubiEnglishChannel) }
+    set { catalog.set(.wubiEnglishChannel, newValue) }
   }
 
   /// 记住我常用的词（个性化）. Key `"OwlKeyboardWubiUserDictLearning"`, default `true` (native MSIME).
   /// Rust learning and its shared journal own selection frequency, composed words and restart replay.
   static var wubiUserDictLearning: Bool {
-    get { boolValue("OwlKeyboardWubiUserDictLearning", default: true) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardWubiUserDictLearning") }
+    get { catalog.load(.wubiUserDictLearning) }
+    set { catalog.set(.wubiUserDictLearning, newValue) }
   }
 
   // MARK: - 中英文状态切换
@@ -296,15 +292,15 @@ enum OwlKeyboardPreferences {
   /// 使用 Shift 切换中英文. Key `"OwlKeyboardShiftSwitchCJK"`, default `true`.
   /// Eventual Rime mapping: `ascii_composer/switch_key/Shift_L` + `Shift_R`（左/右 Shift 都切）.
   static var shiftSwitchCJK: Bool {
-    get { boolValue("OwlKeyboardShiftSwitchCJK", default: true) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardShiftSwitchCJK") }
+    get { catalog.load(.shiftSwitchCJK) }
+    set { catalog.set(.shiftSwitchCJK, newValue) }
   }
 
   /// 中文下中英标点切换. Key `"OwlKeyboardCJKPunctToggle"`, default `false`.
   /// Eventual Rime mapping: `ascii_punct` switch.
   static var cjkPunctToggle: Bool {
-    get { boolValue("OwlKeyboardCJKPunctToggle", default: false) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardCJKPunctToggle") }
+    get { catalog.load(.cjkPunctToggle) }
+    set { catalog.set(.cjkPunctToggle, newValue) }
   }
 
   /// 简入繁出 (简↔繁), 全局开关. Key `"OwlKeyboardTraditionalOutput"`, default `false` (简体).
@@ -314,8 +310,8 @@ enum OwlKeyboardPreferences {
   /// schema. NOT a patch key — applied live via `setTraditionalOutputOptions(…)` + seeded on
   /// session create.
   static var traditionalOutput: Bool {
-    get { boolValue("OwlKeyboardTraditionalOutput", default: false) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardTraditionalOutput") }
+    get { catalog.load(.traditionalOutput) }
+    set { catalog.set(.traditionalOutput, newValue) }
   }
 
   // MARK: - 默认状态 (搜狗式：新会话 / 切 App 时的初始态)
@@ -324,15 +320,15 @@ enum OwlKeyboardPreferences {
   /// `true` = 英文 (`ascii_mode` on). Seeded on session create BEFORE `updateAppOptions()`,
   /// so per-app「默认英文」(app_options) still wins where listed.
   static var defaultAsciiMode: Bool {
-    get { boolValue("OwlKeyboardDefaultAsciiMode", default: false) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardDefaultAsciiMode") }
+    get { catalog.load(.defaultAsciiMode) }
+    set { catalog.set(.defaultAsciiMode, newValue) }
   }
 
   /// 全半角默认态. Key `"OwlKeyboardDefaultFullShape"`, default `false` (半角).
   /// `true` = 全角 (`full_shape` on). Seeded on session create so the choice survives focus changes.
   static var defaultFullShape: Bool {
-    get { boolValue("OwlKeyboardDefaultFullShape", default: false) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardDefaultFullShape") }
+    get { catalog.load(.defaultFullShape) }
+    set { catalog.set(.defaultFullShape, newValue) }
   }
 
   // MARK: - 中英文切换键动作 (ascii_composer/switch_key)
@@ -340,8 +336,8 @@ enum OwlKeyboardPreferences {
   /// 经典 Caps Lock 切换西文. Key `"OwlKeyboardGoodOldCapsLock"`, default `true` (经典 Caps Lock 行为).
   /// Rime mapping: `ascii_composer/good_old_caps_lock`. Only written when `shiftSwitchCJK` is on.
   static var goodOldCapsLock: Bool {
-    get { boolValue("OwlKeyboardGoodOldCapsLock", default: true) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardGoodOldCapsLock") }
+    get { catalog.load(.goodOldCapsLock) }
+    set { catalog.set(.goodOldCapsLock, newValue) }
   }
 
   // MARK: - 候选翻页快捷键
@@ -349,22 +345,22 @@ enum OwlKeyboardPreferences {
   /// 减号等号翻页. Key `"OwlKeyboardPageMinusEquals"`, default `true`.
   /// Eventual Rime mapping: `key_binder` page_up `minus` / page_down `equal`.
   static var pageMinusEquals: Bool {
-    get { boolValue("OwlKeyboardPageMinusEquals", default: true) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardPageMinusEquals") }
+    get { catalog.load(.pageMinusEquals) }
+    set { catalog.set(.pageMinusEquals, newValue) }
   }
 
   /// 左右中括号翻页. Key `"OwlKeyboardPageBrackets"`, default `true`.
   /// Eventual Rime mapping: `key_binder` page_up `bracketleft` / page_down `bracketright`.
   static var pageBrackets: Bool {
-    get { boolValue("OwlKeyboardPageBrackets", default: true) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardPageBrackets") }
+    get { catalog.load(.pageBrackets) }
+    set { catalog.set(.pageBrackets, newValue) }
   }
 
   /// 逗号句号翻页. Key `"OwlKeyboardPageCommaPeriod"`, default `false`.
   /// Eventual Rime mapping: `key_binder` page_up `comma` / page_down `period`.
   static var pageCommaPeriod: Bool {
-    get { boolValue("OwlKeyboardPageCommaPeriod", default: false) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardPageCommaPeriod") }
+    get { catalog.load(.pageCommaPeriod) }
+    set { catalog.set(.pageCommaPeriod, newValue) }
   }
 
   // MARK: - 候选快速选词
@@ -372,8 +368,8 @@ enum OwlKeyboardPreferences {
   /// 分号引号选 2/3 位. Key `"OwlKeyboardSelect23Semicolon"`, default `false`.
   /// Eventual Rime mapping: `key_binder` select 2nd (`semicolon`) / 3rd (`apostrophe`).
   static var select23Semicolon: Bool {
-    get { boolValue("OwlKeyboardSelect23Semicolon", default: false) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardSelect23Semicolon") }
+    get { catalog.load(.select23Semicolon) }
+    set { catalog.set(.select23Semicolon, newValue) }
   }
 
   // MARK: - 符号
@@ -385,10 +381,7 @@ enum OwlKeyboardPreferences {
   /// both half/full-shape candidate lists.
   static var slashSymbolMenu: Bool {
     get { cachedSlashSymbolMenu }
-    set {
-      cachedSlashSymbolMenu = newValue
-      OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardSlashSymbolMenu")
-    }
+    set { catalog.set(.slashSymbolMenu, newValue) }
   }
 
   /// 输入中文时 "<" 弹出符号选单（《〈 ASCII< 「【）。Key `"OwlKeyboardAngleSymbolMenu"`,
@@ -396,8 +389,8 @@ enum OwlKeyboardPreferences {
   /// Eventual Rime mapping: `punctuator/half_shape/<` → 单字符候选列表（拼音/五笔 schema 均
   /// import_preset: default，一份 patch 通吃）；选出 ASCII `<` 后由自动配对（已含 ASCII 表）补对。
   static var angleSymbolMenu: Bool {
-    get { boolValue("OwlKeyboardAngleSymbolMenu", default: false) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardAngleSymbolMenu") }
+    get { catalog.load(.angleSymbolMenu) }
+    set { catalog.set(.angleSymbolMenu, newValue) }
   }
 
   // MARK: - 本地便捷输入
@@ -415,20 +408,14 @@ enum OwlKeyboardPreferences {
   /// Runtime mapping: cached flag + pure commit-text transform in `OwlCommitTransform`.
   static var cjkEnglishSpacing: Bool {
     get { cachedCJKEnglishSpacing }
-    set {
-      cachedCJKEnglishSpacing = newValue
-      OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardCJKEnglishSpacing")
-    }
+    set { catalog.set(.cjkEnglishSpacing, newValue) }
   }
 
   /// 中文与数字自动空格. Key `"OwlKeyboardCJKNumberSpacing"`, default `false`.
   /// Runtime mapping: cached flag + pure commit-text transform in `OwlCommitTransform`.
   static var cjkNumberSpacing: Bool {
     get { cachedCJKNumberSpacing }
-    set {
-      cachedCJKNumberSpacing = newValue
-      OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardCJKNumberSpacing")
-    }
+    set { catalog.set(.cjkNumberSpacing, newValue) }
   }
 
   /// 自动配对括号 (task 07-02). Key `"OwlKeyboardAutoPairBrackets"`, native pinyin default `true`
@@ -437,34 +424,31 @@ enum OwlKeyboardPreferences {
   /// Shared native mixed_input.quick_phrase preference; retain the original persisted key.
   /// Fresh installs default off for all schemes; K browsing stays available.
   static var quickPhraseCandidates: Bool {
-    get { boolValue("OwlKeyboardPinyinQuickPhraseCandidates", default: false) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardPinyinQuickPhraseCandidates") }
+    get { catalog.load(.quickPhraseCandidates) }
+    set { catalog.set(.quickPhraseCandidates, newValue) }
   }
 
   static var smartPunctuation: Bool {
-    get { boolValue("OwlKeyboardSmartPunctuation", default: true) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardSmartPunctuation") }
+    get { catalog.load(.smartPunctuation) }
+    set { catalog.set(.smartPunctuation, newValue) }
   }
   static var smartPunctuationRepeat: Bool {
-    get { boolValue("OwlKeyboardSmartPunctuationRepeat", default: true) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardSmartPunctuationRepeat") }
+    get { catalog.load(.smartPunctuationRepeat) }
+    set { catalog.set(.smartPunctuationRepeat, newValue) }
   }
   static var smartPunctuationSpace: Bool {
-    get { boolValue("OwlKeyboardSmartPunctuationSpace", default: false) }
-    set { OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardSmartPunctuationSpace") }
+    get { catalog.load(.smartPunctuationSpace) }
+    set { catalog.set(.smartPunctuationSpace, newValue) }
   }
 
   static var autoPairBrackets: Bool {
     get {
-      if OwlDefaults.standard.object(forKey: "OwlKeyboardAutoPairBrackets") == nil {
-        return true
+      if OwlDefaults.standard.object(forKey: OwlKeyboardSwitch.autoPairBrackets.key) == nil {
+        return OwlKeyboardSwitch.autoPairBrackets.defaultValue
       }
       return cachedAutoPairBrackets
     }
-    set {
-      cachedAutoPairBrackets = newValue
-      OwlDefaults.standard.set(newValue, forKey: "OwlKeyboardAutoPairBrackets")
-    }
+    set { catalog.set(.autoPairBrackets, newValue) }
   }
 
   /// 这些 App 默认英文. Key `"OwlKeyboardAppEnglishBundleIDs"`, default `[]`.
@@ -489,17 +473,24 @@ enum OwlKeyboardPreferences {
 
   // MARK: - Helpers
 
-  private static var cachedCJKEnglishSpacing = boolValue("OwlKeyboardCJKEnglishSpacing", default: false)
-  private static var cachedCJKNumberSpacing = boolValue("OwlKeyboardCJKNumberSpacing", default: false)
-  private static var cachedAutoPairBrackets = boolValue("OwlKeyboardAutoPairBrackets", default: true)
-  private static var cachedSlashSymbolMenu = boolValue("OwlKeyboardSlashSymbolMenu", default: false)
+  /// The switches' keys, defaults and persistence live in the catalog; these accessors forward.
+  private static var catalog: OwlKeyboardSettingsCatalog { .live }
 
-  /// Read a Bool that defaults to `defaultValue` when the key was never written,
-  /// instead of UserDefaults' implicit `false`.
-  private static func boolValue(_ key: String, default defaultValue: Bool) -> Bool {
-    OwlDefaults.standard.object(forKey: key) == nil
-      ? defaultValue
-      : OwlDefaults.standard.bool(forKey: key)
+  // Read on the key-event hot path, so they are cached rather than read from defaults.
+  private static var cachedCJKEnglishSpacing = catalog.load(.cjkEnglishSpacing)
+  private static var cachedCJKNumberSpacing = catalog.load(.cjkNumberSpacing)
+  private static var cachedAutoPairBrackets = catalog.load(.autoPairBrackets)
+  private static var cachedSlashSymbolMenu = catalog.load(.slashSymbolMenu)
+
+  /// The live catalog calls this after every write so the hot-path caches follow defaults.
+  static func refreshCache(_ toggle: OwlKeyboardSwitch, _ value: Bool) {
+    switch toggle {
+    case .cjkEnglishSpacing: cachedCJKEnglishSpacing = value
+    case .cjkNumberSpacing: cachedCJKNumberSpacing = value
+    case .autoPairBrackets: cachedAutoPairBrackets = value
+    case .slashSymbolMenu: cachedSlashSymbolMenu = value
+    default: break
+    }
   }
 
   private static func isSafeBundleID(_ value: String) -> Bool {

@@ -178,18 +178,13 @@ final class OwlRustSession: RimeSession {
   private var preeditCaretByteOffset: Int = 0
   private var customCaretPos: Int?
   private var lastAppliedPageSize: Int = 0
-  private var lastAppliedQuickPhrases: Bool?
   private var lastAppliedASCIIPunct: Bool?
   private var lastAppliedFuzzyMask: UInt32 = 0
   private var lastAppliedWubiCandidateMode: String = ""
-  private var lastAppliedWubiAutoCommitUnique: Bool?
-  private var lastAppliedWubiFifthCodeTopCommit: Bool?
-  private var lastAppliedWubiCodeHint: Bool?
-  private var lastAppliedWubiZWildcard: Bool?
-  private var lastAppliedWubiAutoClear: Bool?
-  private var lastAppliedWubiZReverseLookup: Bool?
-  private var lastAppliedWubiEnglishChannel: Bool?
-  private var lastAppliedWubiUserDictLearning: Bool?
+  /// One slot per `OwlKeyboardSettingsCatalog.engineOptions` entry, in the same order.
+  private var lastAppliedEngineOptions = [Bool?](
+    repeating: nil, count: OwlKeyboardSettingsCatalog.engineOptions.count
+  )
   private var lastAppliedHostPhrases: String = ""
   private var lastAppliedRerankConfiguration: String?
   private var lastRerankStatusRefresh: UInt64 = 0
@@ -760,31 +755,9 @@ final class OwlRustSession: RimeSession {
   }
 
   private func applyRuntimePreferences(includeHostPhrases: Bool) -> Bool {
-    let quickPhrases = OwlKeyboardPreferences.quickPhraseCandidates
-    if quickPhrases != lastAppliedQuickPhrases {
-      guard let response = sendAction(["op": "set_option", "name": "quick_phrase_candidates",
-                                       "value": quickPhrases]), response.isOK else { return false }
-      lastAppliedQuickPhrases = quickPhrases
-      _ = applyActionResponse(response)
-    }
     let pageSize = max(3, min(9, OwlKeyboardPreferences.pageSize))
     let fuzzyMask = OwlRustSchemaMap.fuzzyBitmask(from: OwlFuzzySnapshot.current())
     let candMode = OwlKeyboardPreferences.wubiCandidateMode.rawValue
-    let booleanOptions: [(String, Bool?, ReferenceWritableKeyPath<OwlRustSession, Bool?>)] = [
-      ("wubi_auto_commit_unique", OwlKeyboardPreferences.wubiAutoCommitUnique,
-       \.lastAppliedWubiAutoCommitUnique),
-      ("wubi_fifth_code_top_commit", OwlKeyboardPreferences.wubiFifthCodeTopCommit,
-       \.lastAppliedWubiFifthCodeTopCommit),
-      ("wubi_code_hint", OwlKeyboardPreferences.wubiCodeHint, \.lastAppliedWubiCodeHint),
-      ("wubi_z_wildcard", OwlKeyboardPreferences.wubiZWildcard, \.lastAppliedWubiZWildcard),
-      ("wubi_auto_clear", OwlKeyboardPreferences.wubiAutoClear, \.lastAppliedWubiAutoClear),
-      ("wubi_z_reverse_lookup",
-       OwlKeyboardPreferences.wubiZReverseLookup, \.lastAppliedWubiZReverseLookup),
-      ("wubi_english_channel",
-       OwlKeyboardPreferences.wubiEnglishChannel, \.lastAppliedWubiEnglishChannel),
-      ("wubi_user_dict_learning",
-       OwlKeyboardPreferences.wubiUserDictLearning, \.lastAppliedWubiUserDictLearning)
-    ]
     guard
       applyChanged(pageSize, at: \.lastAppliedPageSize,
                    action: { ["op": "set_page_size", "page_size": pageSize] }),
@@ -793,19 +766,27 @@ final class OwlRustSession: RimeSession {
       applyChanged(candMode, at: \.lastAppliedWubiCandidateMode,
                    action: { ["op": "set_wubi_candidate_mode", "mode": candMode] })
     else { return false }
-    guard
-      (booleanOptions.allSatisfy { option in
-        applyChanged(option.1, at: option.2) {
-          ["op": "set_option", "name": option.0, "value": option.1 as Any]
-        }
-      }),
-      applyASCIIPunctIfNeeded()
-    else { return false }
+    guard applyEngineOptions(), applyASCIIPunctIfNeeded() else { return false }
     guard includeHostPhrases, let ownerEngine else { return true }
     let packed = ownerEngine.loadPackedHostPhrases()
     return applyChanged(packed, at: \.lastAppliedHostPhrases) {
       ["op": "set_host_phrases", "text": packed]
     }
+  }
+
+  /// Push each catalog engine option whose stored value differs from the last one sent. The
+  /// response is applied so a queued option change keeps the live composition snapshot current.
+  private func applyEngineOptions() -> Bool {
+    let catalog = OwlKeyboardSettingsCatalog.live
+    for (index, option) in OwlKeyboardSettingsCatalog.engineOptions.enumerated() {
+      let value = catalog.load(option.toggle)
+      guard value != lastAppliedEngineOptions[index] else { continue }
+      guard let response = sendAction(["op": "set_option", "name": option.name, "value": value]),
+            response.isOK else { return false }
+      lastAppliedEngineOptions[index] = value
+      _ = applyActionResponse(response)
+    }
+    return true
   }
 
   private func applyASCIIPunctIfNeeded() -> Bool {

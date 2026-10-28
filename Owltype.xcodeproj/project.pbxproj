@@ -125,6 +125,7 @@
 		FA000912CAFE0098CAFE0098 /* OwlPromptInterceptionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000913CAFE0099CAFE0099 /* OwlPromptInterceptionTests.swift */; };
 		FADADA04CAFE0004CAFE0004 /* OwlPromptPageRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FADADA03CAFE0003CAFE0003 /* OwlPromptPageRenderTests.swift */; };
 		FA000020CAFE0020CAFE0020 /* OwlKeyboardPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000ACAFE000ACAFE000A /* OwlKeyboardPreferences.swift */; };
+		C47A10C0CA7A10C0CA7A10C1 /* OwlKeyboardSettingsCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = C47A10C0CA7A10C0CA7A10C0 /* OwlKeyboardSettingsCatalog.swift */; };
 		C701A7A8D5A9475DAD05D334 /* OwlWubiLookupSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C701A7A8D5A9475DAD05D335 /* OwlWubiLookupSettings.swift */; };
 		C701A7A8D5A9475DAD03D334 /* OwlWubiCommitSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C701A7A8D5A9475DAD03D335 /* OwlWubiCommitSettings.swift */; };
 		FA000021CAFE0021CAFE0021 /* OwlKeyboardPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000BCAFE000BCAFE000B /* OwlKeyboardPage.swift */; };
@@ -218,6 +219,7 @@
 		FA000081CAFE0081CAFE0081 /* SnapshotValidityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000080CAFE0080CAFE0080 /* SnapshotValidityTests.swift */; };
 		FA000113CAFE0113CAFE0113 /* OwlSettingsE2ETests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000112CAFE0112CAFE0112 /* OwlSettingsE2ETests.swift */; };
 		FA000115CAFE0115CAFE0115 /* OwlSettingsActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000114CAFE0114CAFE0114 /* OwlSettingsActionTests.swift */; };
+		C47A10C0CA7A10C0CA7A10C3 /* OwlKeyboardSettingsCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C47A10C0CA7A10C0CA7A10C2 /* OwlKeyboardSettingsCatalogTests.swift */; };
 		4DC2E2F919B24AB4BCB7EEAA /* OwlSelectionRewriteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A55BB5C3A874140ADB7AFA7 /* OwlSelectionRewriteTests.swift */; };
 		24912619084A4D62AF759D54 /* OwlKeyboardSettingsApplicationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E88208014E44BDE91225F9C /* OwlKeyboardSettingsApplicationTests.swift */; };
 		FA00011ACAFE011ACAFE011A /* OwlSettingsCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000119CAFE0119CAFE0119 /* OwlSettingsCoverageTests.swift */; };
@@ -423,6 +425,7 @@
 		FA000913CAFE0099CAFE0099 /* OwlPromptInterceptionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlPromptInterceptionTests.swift; path = tests/OwlPromptInterceptionTests.swift; sourceTree = "<group>"; };
 		FADADA03CAFE0003CAFE0003 /* OwlPromptPageRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlPromptPageRenderTests.swift; path = tests/OwlPromptPageRenderTests.swift; sourceTree = "<group>"; };
 		FA00000ACAFE000ACAFE000A /* OwlKeyboardPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlKeyboardPreferences.swift; path = sources/Settings/OwlKeyboardPreferences.swift; sourceTree = "<group>"; };
+		C47A10C0CA7A10C0CA7A10C0 /* OwlKeyboardSettingsCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlKeyboardSettingsCatalog.swift; path = sources/Settings/OwlKeyboardSettingsCatalog.swift; sourceTree = "<group>"; };
 		C701A7A8D5A9475DAD05D335 /* OwlWubiLookupSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlWubiLookupSettings.swift; path = sources/Settings/OwlWubiLookupSettings.swift; sourceTree = "<group>"; };
 		C701A7A8D5A9475DAD03D335 /* OwlWubiCommitSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlWubiCommitSettings.swift; path = sources/Settings/OwlWubiCommitSettings.swift; sourceTree = "<group>"; };
 		FA00000BCAFE000BCAFE000B /* OwlKeyboardPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlKeyboardPage.swift; path = sources/Settings/OwlKeyboardPage.swift; sourceTree = "<group>"; };
@@ -534,6 +537,7 @@
 		FA000080CAFE0080CAFE0080 /* SnapshotValidityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SnapshotValidityTests.swift; path = tests/SnapshotValidityTests.swift; sourceTree = "<group>"; };
 		FA000112CAFE0112CAFE0112 /* OwlSettingsE2ETests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSettingsE2ETests.swift; path = tests/OwlSettingsE2ETests.swift; sourceTree = "<group>"; };
 		FA000114CAFE0114CAFE0114 /* OwlSettingsActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSettingsActionTests.swift; path = tests/OwlSettingsActionTests.swift; sourceTree = "<group>"; };
+		C47A10C0CA7A10C0CA7A10C2 /* OwlKeyboardSettingsCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlKeyboardSettingsCatalogTests.swift; path = tests/OwlKeyboardSettingsCatalogTests.swift; sourceTree = "<group>"; };
 		3A55BB5C3A874140ADB7AFA7 /* OwlSelectionRewriteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSelectionRewriteTests.swift; path = tests/OwlSelectionRewriteTests.swift; sourceTree = "<group>"; };
 		1E88208014E44BDE91225F9C /* OwlKeyboardSettingsApplicationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlKeyboardSettingsApplicationTests.swift; path = tests/OwlKeyboardSettingsApplicationTests.swift; sourceTree = "<group>"; };
 		FA000119CAFE0119CAFE0119 /* OwlSettingsCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSettingsCoverageTests.swift; path = tests/OwlSettingsCoverageTests.swift; sourceTree = "<group>"; };
@@ -653,6 +657,7 @@
 				FA0000FDCAFE00FDCAFE00FD /* OwlPromptStore.swift */,
 				FADADA01CAFE0001CAFE0001 /* OwlPromptPage.swift */,
 				FA00000ACAFE000ACAFE000A /* OwlKeyboardPreferences.swift */,
+				C47A10C0CA7A10C0CA7A10C0 /* OwlKeyboardSettingsCatalog.swift */,
 				FAAB0002CAFE0002CAFE0002 /* OwlAutoPair.swift */,
 				FA07070002CAFE0002CAFE07 /* OwlForcedFinalize.swift */,
 				FA0707510002CAFE0052CA07 /* OwlSchemaSelectionGate.swift */,
@@ -751,6 +756,7 @@
 				FA000080CAFE0080CAFE0080 /* SnapshotValidityTests.swift */,
 				FA000112CAFE0112CAFE0112 /* OwlSettingsE2ETests.swift */,
 				FA000114CAFE0114CAFE0114 /* OwlSettingsActionTests.swift */,
+				C47A10C0CA7A10C0CA7A10C2 /* OwlKeyboardSettingsCatalogTests.swift */,
 				3A55BB5C3A874140ADB7AFA7 /* OwlSelectionRewriteTests.swift */,
 				1E88208014E44BDE91225F9C /* OwlKeyboardSettingsApplicationTests.swift */,
 				FA000119CAFE0119CAFE0119 /* OwlSettingsCoverageTests.swift */,
@@ -1148,6 +1154,7 @@
 				FA0000FECAFE00FECAFE00FE /* OwlPromptStore.swift in Sources */,
 				FADADA02CAFE0002CAFE0002 /* OwlPromptPage.swift in Sources */,
 				FA000020CAFE0020CAFE0020 /* OwlKeyboardPreferences.swift in Sources */,
+				C47A10C0CA7A10C0CA7A10C1 /* OwlKeyboardSettingsCatalog.swift in Sources */,
 				FAAB0001CAFE0001CAFE0001 /* OwlAutoPair.swift in Sources */,
 				FA07070001CAFE0001CAFE07 /* OwlForcedFinalize.swift in Sources */,
 				FA0707510001CAFE0051CA07 /* OwlSchemaSelectionGate.swift in Sources */,
@@ -1249,6 +1256,7 @@
 				FA000081CAFE0081CAFE0081 /* SnapshotValidityTests.swift in Sources */,
 				FA000113CAFE0113CAFE0113 /* OwlSettingsE2ETests.swift in Sources */,
 				FA000115CAFE0115CAFE0115 /* OwlSettingsActionTests.swift in Sources */,
+				C47A10C0CA7A10C0CA7A10C3 /* OwlKeyboardSettingsCatalogTests.swift in Sources */,
 				4DC2E2F919B24AB4BCB7EEAA /* OwlSelectionRewriteTests.swift in Sources */,
 				24912619084A4D62AF759D54 /* OwlKeyboardSettingsApplicationTests.swift in Sources */,
 				FA00011ACAFE011ACAFE011A /* OwlSettingsCoverageTests.swift in Sources */,

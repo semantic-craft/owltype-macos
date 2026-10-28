@@ -250,8 +250,7 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "API Key（\\(hint)留空＝保持现有 Key 不变）",
     "OwlSettingsActions.saveDoubaoSearchKey(",
     "OwlSettingsActions.clearDoubaoSearchKey(",
-    "keyPath: \\.quickPhraseCandidates",
-    "OwlKeyboardPreferences.quickPhraseCandidates = $0",
+    "toggle(.quickPhraseCandidates)",
     "OwlExperimentalPreferences.keyboardRerankEnabled",
     "OwlExperimentalPreferences.settledRerankEnabled",
   ]
