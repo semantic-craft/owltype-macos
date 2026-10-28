@@ -21,8 +21,8 @@ struct OwlKeyboardPage: View {
   let onApplyFuzzyConfigFast: () throws -> OwlKeyboardSettingsApplication.Outcome
   var writesRimeConfiguration = true
 
-  /// Which card group this instance renders. 键盘输入 shows everything except the three
-  /// shortcut cards; 快捷键设置 (a separate sidebar page) shows only those three. One view
+  /// Which card group this instance renders. 键盘输入 shows the four input cards plus the
+  /// collapsed 高级 section; 快捷键设置 (a separate sidebar page) shows the five shortcut items. One view
   /// + one apply path, two sidebar entries — avoids duplicating all the toggle plumbing.
   enum Variant { case keyboard, shortcuts }  // ponytail: one view, two sidebar pages
   var variant: Variant = .keyboard
@@ -42,10 +42,14 @@ struct OwlKeyboardPage: View {
   @State private var fuzzySnapshot = OwlFuzzySnapshot.current()
   @State private var fuzzyEnabledCount = OwlFuzzySnapshot.current().enabledCount
 
-  /// Compact click-to-apply state for Rime-backed rows. Local convenience transforms
-  /// stay live-only and do not use this status line.
+  /// Settings apply as soon as a row changes, so the page shows nothing on success; a failed
+  /// apply stays on screen until the next one succeeds. Local convenience transforms stay
+  /// live-only and never report here.
   @State private var isAutoApplyingRimeConfig = false
-  @State private var autoApplyStatus: String?
+  @State private var applyFailure: String?
+
+  /// 高级 starts collapsed: the four main cards cover everyday input.
+  @State private var showAdvanced = false
   @State private var rerankRuntimeStatuses =
     OwlRerankRuntimeStatusRegistry.shared.snapshot()
   @State private var rerankStatusTimer: Timer?
@@ -53,26 +57,29 @@ struct OwlKeyboardPage: View {
   var body: some View {
     ScrollView {
       VStack(spacing: 20) {
+        if let applyFailure {
+          applyFailureCard(applyFailure)
+        }
         switch variant {
         case .keyboard:
-          applyConfigCard
           inputMethodCard
-          dictPackCard
           defaultStateCard
-          wubiCard
           fuzzyCard
-          rerankCard
-          symbolCard
-          candidateEmojiCard
-          localConvenienceCard
+          dictPackCard
+          advancedToggle
+          if showAdvanced {
+            wubiCard
+            rerankCard
+            symbolCard
+            candidateEmojiCard
+            localConvenienceCard
+          }
         case .shortcuts:
           cjkSwitchCard
-          pagingCard
-          quickSelectCard
+          pagingAndSelectCard
           OwlPinnedWordsSettings(palette: palette, theme: theme, reduceTransparency: reduceTransparency)
           quickSendPanelHotKeyCard
           selectionMenuPanelHotKeyCard
-          noteCard
         }
       }
       .padding(20)
@@ -109,57 +116,43 @@ struct OwlKeyboardPage: View {
 
   // MARK: - 输入方式
 
-  private var applyConfigCard: some View {
+  /// Shown only after an apply failed, so a change that did not take effect is never silent.
+  private func applyFailureCard(_ message: String) -> some View {
     SettingsCard(title: "", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
-      VStack(alignment: .leading, spacing: 8) {
-        // 配置改动本就自动应用 → 把「重新应用」从满宽主按钮降级为右侧次级钮，左侧常驻自动应用状态。
-        HStack(spacing: 10) {
-          HStack(spacing: 6) {
-            if isAutoApplyingRimeConfig {
-              ProgressView()
-                .controlSize(.small)
-            } else {
-              Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 13))
-                .foregroundStyle(OwlProvenanceColor.verified)
-            }
-            Text(autoApplyStatus ?? defaultApplyStatus)
-              .font(.system(size: 12, weight: .medium))
-              .foregroundStyle(isAutoApplyingRimeConfig ? palette.ink2 : palette.ink3)
-          }
-          Spacer(minLength: 8)
-          Button(action: { applyCurrentKeyboardSnapshot() }, label: {
-            HStack(spacing: 6) {
-              Image(systemName: "arrow.clockwise")
-                .font(.system(size: 12))
-              Text(reapplyButtonTitle)
-                .font(.system(size: 13, weight: .medium))
-            }
-            .foregroundStyle(palette.accentDeep)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background {
-              RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(palette.card2)
-            }
-            .overlay {
-              RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(palette.accentDeep.opacity(0.30), lineWidth: 1)
-            }
-            .contentShape(Rectangle())
-          })
-          .buttonStyle(.plain)
-          .disabled(!rimeBackedRowsEnabled)
-          .opacity(rimeBackedRowsEnabled ? 1 : 0.5)
-          .accessibilityLabel(writesRimeConfiguration ? "保存并重新应用" : "重新应用")
-        }
-
-        Text(applyFootnote)
-          .font(.system(size: 12))
-          .foregroundStyle(palette.ink3)
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Image(systemName: "exclamationmark.triangle.fill")
+          .font(.system(size: 13))
+          .foregroundStyle(.orange)
+        Text(message)
+          .font(.system(size: 12, weight: .medium))
+          .foregroundStyle(palette.ink2)
+          .fixedSize(horizontal: false, vertical: true)
           .frame(maxWidth: .infinity, alignment: .leading)
       }
     }
+  }
+
+  /// 高级：五笔细节、本地重排、符号、emoji 与快捷短语、本地便捷输入。Collapsed by default.
+  private var advancedToggle: some View {
+    Button(action: { showAdvanced.toggle() }, label: {
+      HStack(spacing: 6) {
+        Image(systemName: "chevron.right")
+          .font(.system(size: 11, weight: .semibold))
+          .rotationEffect(.degrees(showAdvanced ? 90 : 0))
+        Text("高级")
+          .font(.system(size: 13, weight: .semibold))
+        Text("五笔、本地重排、符号、emoji 与快捷短语、便捷输入")
+          .font(.system(size: 12))
+          .foregroundStyle(palette.ink3)
+        Spacer(minLength: 0)
+      }
+      .foregroundStyle(palette.ink2)
+      .padding(.horizontal, 4)
+      .contentShape(Rectangle())
+    })
+    .buttonStyle(.plain)
+    .accessibilityLabel(showAdvanced ? "收起高级设置" : "展开高级设置")
+    .accessibilityIdentifier("settings.keyboard.advanced")
   }
 
   /// 完整词库（方案B）：公开包只带清洁室精简词库；此卡展示 dict-pack 拉取状态并提供手动
@@ -604,12 +597,12 @@ struct OwlKeyboardPage: View {
   // 简入繁出 卡已并入「默认状态」组的「简繁体」下拉（同一 `traditionalOutput` pref，
   // 去重，对标搜狗式默认状态）。
 
-  // MARK: - 候选翻页快捷键
+  // MARK: - 翻页与选词键
 
-  /// ☑ 减号等号 [- =] · ☑ 左右中括号 [[ ]] · ☐ 逗号句号 [, 。]
-  private var pagingCard: some View {
+  /// ☑ 减号等号 [- =] · ☑ 左右中括号 [[ ]] · ☐ 逗号句号 [, 。] · ☐ 分号引号选 2/3 位 [; ']
+  private var pagingAndSelectCard: some View {
     SettingsCard(
-      title: "候选翻页快捷键",
+      title: "翻页与选词键",
       palette: palette,
       theme: theme,
       reduceTransparency: reduceTransparency
@@ -641,21 +634,7 @@ struct OwlKeyboardPage: View {
           isEnabled: rimeBackedRowsEnabled,
           onToggle: { toggle(.pageCommaPeriod) }
         )
-      }
-    }
-  }
-
-  // MARK: - 候选快速选词
-
-  /// ☐ 分号引号选 2/3 位 [; ']
-  private var quickSelectCard: some View {
-    SettingsCard(
-      title: "候选快速选词",
-      palette: palette,
-      theme: theme,
-      reduceTransparency: reduceTransparency
-    ) {
-      VStack(spacing: 0) {
+        SettingsCardDivider(palette: palette)
         SettingsCheckRow(
           title: "分号引号选 2/3 位",
           isOn: state.keyboardSelect23Semicolon,
@@ -756,7 +735,7 @@ struct OwlKeyboardPage: View {
     }
   }
 
-  // MARK: - 符号
+  // MARK: - 本地轻量重排
 
   private var rerankCard: some View {
     SettingsCard(
@@ -805,6 +784,8 @@ struct OwlKeyboardPage: View {
       }
     }
   }
+
+  // MARK: - 符号
 
   /// 中文标点模式、`/` 与 `<` 的可选候选菜单。
   private var symbolCard: some View {
@@ -856,11 +837,10 @@ struct OwlKeyboardPage: View {
 
   // MARK: - 候选 emoji
 
-  /// 在打字候选里显示 emoji — drives the rime-ice 原生 `emoji` switch, applied LIVE via the
-  /// delegate (no redeploy). Owltype ships it OFF (owl-seed.sh resets the schema switch 1→0).
-  /// Relocated here from the removed 表情符号 page (the 表情/符号面板 itself lives on the menu bar).
+  /// 在打字候选里显示 emoji, applied live via the delegate (no redeploy). Defaults on when never
+  /// stored, like the pinned macOS upstream (`OwlEmojiPreferences.candidateEmojiEnabled`).
   private var candidateEmojiCard: some View {
-    SettingsCard(title: "", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
+    SettingsCard(title: "emoji 与快捷短语", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
       VStack(spacing: 0) {
         SettingsToggleRow(
           title: "在候选中显示 emoji",
@@ -877,7 +857,7 @@ struct OwlKeyboardPage: View {
           title: "普通候选中显示快捷短语", isOn: state.quickPhraseCandidates,
           palette: palette, onToggle: { toggle(.quickPhraseCandidates) }
         )
-        Text("打开后，打字时 emoji 会作为候选出现（如 weixiao → 微笑 😊）。默认关闭；也可用 ⌃⇧E 或输入法菜单临时切换。")
+        Text("打开后，打字时 emoji 会作为候选出现（如 weixiao → 微笑 😊）。默认开启，与水杉一致。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .frame(maxWidth: .infinity, alignment: .leading)
@@ -933,47 +913,12 @@ struct OwlKeyboardPage: View {
     return ids.isEmpty ? "未指定应用（指定后该应用默认英文输入）" : "已指定 \(ids.count) 个应用"
   }
 
-  // MARK: - 说明 footnote
-
-  /// Persistence-boundary note for the 快捷键 page, whose Rime-backed rows also auto-apply.
-  private var noteCard: some View {
-    SettingsCard(
-      title: "",
-      palette: palette,
-      theme: theme,
-      reduceTransparency: reduceTransparency
-    ) {
-      VStack(alignment: .leading, spacing: 6) {
-        Text(writesRimeConfiguration
-          ? "快捷键配置会自动写入 ~/Library/Application Support/Owltype 并应用。"
-          : "快捷键配置会即时应用；Rust 引擎不写入 Rime YAML。")
-          .font(.system(size: 12))
-          .foregroundStyle(palette.ink3)
-          .frame(maxWidth: .infinity, alignment: .leading)
-      }
-    }
-  }
-
   private var rimeBackedRowsEnabled: Bool {
     !isAutoApplyingRimeConfig
   }
 
   private var symbolMenusEnabled: Bool {
     rimeBackedRowsEnabled
-  }
-
-  private var defaultApplyStatus: String {
-    writesRimeConfiguration ? "改动已自动保存并应用" : "改动已即时应用"
-  }
-
-  private var reapplyButtonTitle: String {
-    writesRimeConfiguration ? "保存并重新应用" : "重新应用"
-  }
-
-  private var applyFootnote: String {
-    writesRimeConfiguration
-      ? "配置改动即时生效；此处仅用于异常时重新写入并应用当前键盘设置。"
-      : "配置改动即时生效；此处仅用于重新应用当前键盘设置。"
   }
 
   private func persistAndApplyRimeConfig(_ mutation: () -> Void) {
@@ -986,32 +931,34 @@ struct OwlKeyboardPage: View {
   /// managed patch, then config deploy + live reselect + replay makes it
   /// effective immediately — no full `EngineRuntime.redeploy()`.
   private func applyCurrentKeyboardSnapshot() {
-    applyKeyboardSnapshot(progress: "正在应用配置…", apply: onApplyKeyboardConfigFast)
+    applyKeyboardSnapshot(onApplyKeyboardConfigFast)
   }
 
   /// 模糊拼音 apply path. `speller/algebra` rebuilds the schema PRISM, which the config-only
   /// fast path does NOT do, so this uses the mtime-gated `fullCheck:false` maintenance —
-  /// faster than the full `deploy()` but honestly not instant (copy says "可能需要片刻").
+  /// faster than the full `deploy()` but not instant.
   private func applyFuzzyKeyboardSnapshot() {
-    applyKeyboardSnapshot(progress: "正在应用模糊拼音（可能需要片刻）…", apply: onApplyFuzzyConfigFast)
+    applyKeyboardSnapshot(onApplyFuzzyConfigFast)
   }
 
-  private func applyKeyboardSnapshot(progress: String, apply: @escaping () throws -> OwlKeyboardSettingsApplication.Outcome) {
+  private func applyKeyboardSnapshot(_ apply: @escaping () throws -> OwlKeyboardSettingsApplication.Outcome) {
     guard !isAutoApplyingRimeConfig else { return }
     isAutoApplyingRimeConfig = true
-    autoApplyStatus = progress
 
     DispatchQueue.main.async {
       do {
         let outcome = try apply()
-        autoApplyStatus = Self.autoApplyStatusMessage(
-          written: outcome.written,
-          deploySucceeded: outcome.succeeded
-        )
+        applyFailure = outcome.succeeded
+          ? nil
+          : Self.autoApplyStatusMessage(
+            written: outcome.written,
+            deploySucceeded: false,
+            writesRimeConfiguration: writesRimeConfiguration
+          )
       } catch OwlConfigWriteError.refusedNeverTouch(let name) {
-        autoApplyStatus = "已拒绝写入受保护文件：\(name)。改动未生效，请查看诊断日志。"
+        applyFailure = "已拒绝写入受保护文件：\(name)。改动未生效，请查看诊断日志。"
       } catch {
-        autoApplyStatus = writesRimeConfiguration
+        applyFailure = writesRimeConfiguration
           ? "写入失败，改动未生效，请查看诊断日志：\(error.localizedDescription)"
           : "应用失败，改动未生效，请查看诊断日志：\(error.localizedDescription)"
       }

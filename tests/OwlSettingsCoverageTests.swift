@@ -199,7 +199,8 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "` 临时英文",
     "逗号句号翻页",
     "设置模糊拼音",
-    "保存并重新应用", "重新应用",
+    // 键盘输入页底部的「高级」折叠区（#315）：五笔、本地重排、符号、emoji 与快捷短语、便捷输入。
+    "展开高级设置", "收起高级设置",
     // 完整词库卡（方案B dict-pack）：Rust 后端先把 generation 准备成候选，用户再显式启用或回退；
     // legacy Rime 后端仍走下载后 deploy。事务与不自动切换由 OwlRustResourceTransactionTests、
     // OwlRustEngineTests 和 OwlDictPackTests 的中心层门控覆盖。
