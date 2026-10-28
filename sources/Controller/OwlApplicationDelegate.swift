@@ -465,38 +465,13 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     // Seed the complete candidate-panel lifecycle from its single module boundary.
     OwlCandidatePanelSettings.live.seed(state)
     state.candidatePageSize = OwlKeyboardPreferences.pageSize
-    // Seed the 键盘输入 option groups from their single home (OwlKeyboardPreferences).
+    // Seed the 键盘输入 option groups: every on/off switch from its catalog, the rest from
+    // their single home (OwlKeyboardPreferences).
+    OwlKeyboardSettingsCatalog.live.seed(into: state)
     state.keyboardInputMethod = OwlKeyboardPreferences.inputMethod
     state.keyboardDoublePinyin = OwlKeyboardPreferences.doublePinyin
-    state.keyboardWubiAutoCommitUnique = OwlKeyboardPreferences.wubiAutoCommitUnique
-    state.keyboardWubiFifthCodeTopCommit = OwlKeyboardPreferences.wubiFifthCodeTopCommit
-    state.keyboardWubiCodeHint = OwlKeyboardPreferences.wubiCodeHint
-    state.keyboardWubiZWildcard = OwlKeyboardPreferences.wubiZWildcard
-    state.keyboardWubiAutoClear = OwlKeyboardPreferences.wubiAutoClear
     state.keyboardWubiCandidateMode = OwlKeyboardPreferences.wubiCandidateMode
     state.keyboardWubiScheme = OwlKeyboardPreferences.wubiScheme
-    state.keyboardWubiZReverseLookup = OwlKeyboardPreferences.wubiZReverseLookup
-    state.keyboardWubiEnglishChannel = OwlKeyboardPreferences.wubiEnglishChannel
-    state.keyboardWubiUserDictLearning = OwlKeyboardPreferences.wubiUserDictLearning
-    state.keyboardShiftSwitchCJK = OwlKeyboardPreferences.shiftSwitchCJK
-    state.keyboardCJKPunctToggle = OwlKeyboardPreferences.cjkPunctToggle
-    state.keyboardTraditionalOutput = OwlKeyboardPreferences.traditionalOutput
-    state.keyboardDefaultAsciiMode = OwlKeyboardPreferences.defaultAsciiMode
-    state.keyboardDefaultFullShape = OwlKeyboardPreferences.defaultFullShape
-    state.keyboardGoodOldCapsLock = OwlKeyboardPreferences.goodOldCapsLock
-    state.keyboardPageMinusEquals = OwlKeyboardPreferences.pageMinusEquals
-    state.keyboardPageBrackets = OwlKeyboardPreferences.pageBrackets
-    state.keyboardPageCommaPeriod = OwlKeyboardPreferences.pageCommaPeriod
-    state.keyboardSelect23Semicolon = OwlKeyboardPreferences.select23Semicolon
-    state.keyboardSlashSymbolMenu = OwlKeyboardPreferences.slashSymbolMenu
-    state.keyboardAngleSymbolMenu = OwlKeyboardPreferences.angleSymbolMenu
-    state.keyboardCJKAlnumSpacing = OwlKeyboardPreferences.cjkAlnumSpacing
-    state.keyboardCJKEnglishSpacing = OwlKeyboardPreferences.cjkEnglishSpacing
-    state.keyboardCJKNumberSpacing = OwlKeyboardPreferences.cjkNumberSpacing
-    state.keyboardAutoPairBrackets = OwlKeyboardPreferences.autoPairBrackets
-    state.keyboardSmartPunctuation = OwlKeyboardPreferences.smartPunctuation
-    state.keyboardSmartPunctuationRepeat = OwlKeyboardPreferences.smartPunctuationRepeat
-    state.keyboardSmartPunctuationSpace = OwlKeyboardPreferences.smartPunctuationSpace
     state.keyboardRerankEnabled = OwlExperimentalPreferences.keyboardRerankEnabled
     state.settledRerankEnabled = OwlExperimentalPreferences.settledRerankEnabled
     state.keyboardAppEnglishBundleIDsText = OwlKeyboardPreferences.appEnglishBundleIDs.joined(separator: ", ")

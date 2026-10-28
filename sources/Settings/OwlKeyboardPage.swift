@@ -406,27 +406,21 @@ struct OwlKeyboardPage: View {
     let asciiBinding = Binding(
       get: { state.keyboardDefaultAsciiMode },
       set: { newValue in
-        OwlSettingsActions.set(newValue, state: state, keyPath: \.keyboardDefaultAsciiMode) {
-          OwlKeyboardPreferences.defaultAsciiMode = $0
-        }
+        setSwitch(.defaultAsciiMode, newValue)
         NSApp.owlAppDelegate.applyDefaultAsciiModeToLiveSession(newValue)
       }
     )
     let traditionalBinding = Binding(
       get: { state.keyboardTraditionalOutput },
       set: { newValue in
-        OwlSettingsActions.set(newValue, state: state, keyPath: \.keyboardTraditionalOutput) {
-          OwlKeyboardPreferences.traditionalOutput = $0
-        }
+        setSwitch(.traditionalOutput, newValue)
         NSApp.owlAppDelegate.applyTraditionalOutputToLiveSession(newValue)
       }
     )
     let fullShapeBinding = Binding(
       get: { state.keyboardDefaultFullShape },
       set: { newValue in
-        OwlSettingsActions.set(newValue, state: state, keyPath: \.keyboardDefaultFullShape) {
-          OwlKeyboardPreferences.defaultFullShape = $0
-        }
+        setSwitch(.defaultFullShape, newValue)
         NSApp.owlAppDelegate.applyDefaultFullShapeToLiveSession(newValue)
       }
     )
@@ -513,8 +507,8 @@ struct OwlKeyboardPage: View {
           fifthCodeTopCommit: state.keyboardWubiFifthCodeTopCommit,
           palette: palette,
           isEnabled: rimeBackedRowsEnabled,
-          onToggleAutoCommitUnique: { toggleWubiAutoCommitUnique() },
-          onToggleFifthCodeTopCommit: { toggleWubiFifthCodeTopCommit() }
+          onToggleAutoCommitUnique: { toggle(.wubiAutoCommitUnique) },
+          onToggleFifthCodeTopCommit: { toggle(.wubiFifthCodeTopCommit) }
         )
         OwlWubiLookupSettings(
           codeHint: state.keyboardWubiCodeHint,
@@ -522,16 +516,16 @@ struct OwlKeyboardPage: View {
           zReverseLookup: state.keyboardWubiZReverseLookup,
           palette: palette,
           isEnabled: rimeBackedRowsEnabled,
-          onToggleCodeHint: { toggleWubiCodeHint() },
-          onToggleZWildcard: { toggleWubiZWildcard() },
-          onToggleZReverseLookup: { toggleWubiZReverseLookup() }
+          onToggleCodeHint: { toggle(.wubiCodeHint) },
+          onToggleZWildcard: { toggle(.wubiZWildcard) },
+          onToggleZReverseLookup: { toggle(.wubiZReverseLookup) }
         )
         SettingsToggleRow(
           title: "空码自动清码",
           isOn: state.keyboardWubiAutoClear,
           palette: palette,
           isEnabled: rimeBackedRowsEnabled,
-          onToggle: { toggleWubiAutoClear() }
+          onToggle: { toggle(.wubiAutoClear) }
         )
         SettingsCardDivider(palette: palette)
         HStack(spacing: 11) {
@@ -555,7 +549,7 @@ struct OwlKeyboardPage: View {
           isOn: state.keyboardWubiEnglishChannel,
           palette: palette,
           isEnabled: rimeBackedRowsEnabled,
-          onToggle: { toggleWubiEnglishChannel() }
+          onToggle: { toggle(.wubiEnglishChannel) }
         )
         Text("按 `（反引号）后直接打英文单词，候选出英文、上屏后回到五笔；不切换模式，也不影响四码上屏。")
           .font(.system(size: 12))
@@ -569,7 +563,7 @@ struct OwlKeyboardPage: View {
           isOn: state.keyboardWubiUserDictLearning,
           palette: palette,
           isEnabled: rimeBackedRowsEnabled,
-          onToggle: { toggleWubiUserDictLearning() }
+          onToggle: { toggle(.wubiUserDictLearning) }
         )
       }
     }
@@ -593,7 +587,7 @@ struct OwlKeyboardPage: View {
           keys: ["⇧"],
           palette: palette,
           isEnabled: rimeBackedRowsEnabled,
-          onToggle: { toggleShiftSwitchCJK() }
+          onToggle: { toggle(.shiftSwitchCJK) }
         )
         SettingsCardDivider(palette: palette)
         SettingsCheckRow(
@@ -601,7 +595,7 @@ struct OwlKeyboardPage: View {
           isOn: state.keyboardGoodOldCapsLock,
           palette: palette,
           isEnabled: rimeBackedRowsEnabled,
-          onToggle: { toggleGoodOldCapsLock() }
+          onToggle: { toggle(.goodOldCapsLock) }
         )
       }
     }
@@ -627,7 +621,7 @@ struct OwlKeyboardPage: View {
           keys: ["- ="],
           palette: palette,
           isEnabled: rimeBackedRowsEnabled,
-          onToggle: { togglePageMinusEquals() }
+          onToggle: { toggle(.pageMinusEquals) }
         )
         SettingsCardDivider(palette: palette)
         SettingsCheckRow(
@@ -636,7 +630,7 @@ struct OwlKeyboardPage: View {
           keys: ["[ ]"],
           palette: palette,
           isEnabled: rimeBackedRowsEnabled,
-          onToggle: { togglePageBrackets() }
+          onToggle: { toggle(.pageBrackets) }
         )
         SettingsCardDivider(palette: palette)
         SettingsCheckRow(
@@ -645,7 +639,7 @@ struct OwlKeyboardPage: View {
           keys: [", 。"],
           palette: palette,
           isEnabled: rimeBackedRowsEnabled,
-          onToggle: { togglePageCommaPeriod() }
+          onToggle: { toggle(.pageCommaPeriod) }
         )
       }
     }
@@ -668,7 +662,7 @@ struct OwlKeyboardPage: View {
           keys: ["; '"],
           palette: palette,
           isEnabled: rimeBackedRowsEnabled,
-          onToggle: { toggleSelect23Semicolon() }
+          onToggle: { toggle(.select23Semicolon) }
         )
       }
     }
@@ -826,7 +820,7 @@ struct OwlKeyboardPage: View {
           isOn: state.keyboardCJKPunctToggle,
           palette: palette,
           isEnabled: rimeBackedRowsEnabled,
-          onToggle: { toggleCJKPunct() }
+          onToggle: { toggle(.cjkPunctToggle) }
         )
         SettingsCardDivider(palette: palette)
         SettingsToggleRow(
@@ -834,7 +828,7 @@ struct OwlKeyboardPage: View {
           isOn: state.keyboardSlashSymbolMenu,
           palette: palette,
           isEnabled: symbolMenusEnabled,
-          onToggle: { toggleSlashSymbolMenu() }
+          onToggle: { toggle(.slashSymbolMenu) }
         )
         Text("打开后按 / 键从 、 / ／ ÷ 里挑一个；关闭时维持默认行为：提交当前中文候选、切到英文并直接输入 /。")
           .font(.system(size: 12))
@@ -848,7 +842,7 @@ struct OwlKeyboardPage: View {
           isOn: state.keyboardAngleSymbolMenu,
           palette: palette,
           isEnabled: symbolMenusEnabled,
-          onToggle: { toggleAngleSymbolMenu() }
+          onToggle: { toggle(.angleSymbolMenu) }
         )
         Text("按 < 键从 《 〈 < 「 “ 里挑一个；首选仍是 《，继续打字会自动上屏首选。配合「成对输入」，选出的开括号（含弯引号）会自动补全成对。")
           .font(.system(size: 12))
@@ -881,11 +875,7 @@ struct OwlKeyboardPage: View {
         )
         SettingsToggleRow(
           title: "普通候选中显示快捷短语", isOn: state.quickPhraseCandidates,
-          palette: palette, onToggle: {
-            OwlSettingsActions.toggle(state: state, keyPath: \.quickPhraseCandidates) {
-              OwlKeyboardPreferences.quickPhraseCandidates = $0
-            }
-          }
+          palette: palette, onToggle: { toggle(.quickPhraseCandidates) }
         )
         Text("打开后，打字时 emoji 会作为候选出现（如 weixiao → 微笑 😊）。默认关闭；也可用 ⌃⇧E 或输入法菜单临时切换。")
           .font(.system(size: 12))
@@ -919,7 +909,7 @@ struct OwlKeyboardPage: View {
           title: "成对输入",
           isOn: state.keyboardAutoPairBrackets,
           palette: palette,
-          onToggle: { toggleAutoPairBrackets() }
+          onToggle: { toggle(.autoPairBrackets) }
         )
         Text("拼音输入括号或引号时补全闭合符，闭合符随当前组合一起提交。五笔保留原有配对方式。")
           .font(.system(size: 12))
@@ -1114,59 +1104,24 @@ struct OwlKeyboardPage: View {
         : "应用失败，改动未生效，请查看诊断日志。"
   }
 
-  // MARK: - Bool write-through helpers
+  // MARK: - Switch write path
 
-  // Each toggle flips the mirror + writes through to `OwlKeyboardPreferences` in one
-  // place, keeping the card bodies declarative and the key literals out of this file.
-
-  private func persistRimeToggle(
-    _ keyPath: ReferenceWritableKeyPath<OwlSettingsState, Bool>,
-    write: (Bool) -> Void
-  ) {
-    persistAndApplyRimeConfig {
-      OwlSettingsActions.toggle(state: state, keyPath: keyPath, write: write)
-    }
+  /// The one write path for catalog switches: update the mirror, persist through the catalog,
+  /// then re-apply the keyboard configuration when the row asks for it.
+  func toggle(_ toggle: OwlKeyboardSwitch) {
+    setSwitch(toggle, !state[keyPath: toggle.row.mirror])
   }
 
-  private func toggleShiftSwitchCJK() {
-    persistRimeToggle(\.keyboardShiftSwitchCJK) {
-      OwlKeyboardPreferences.shiftSwitchCJK = $0
+  func setSwitch(_ toggle: OwlKeyboardSwitch, _ value: Bool) {
+    let write = {
+      OwlSettingsActions.set(value, state: state, keyPath: toggle.row.mirror) {
+        OwlKeyboardSettingsCatalog.live.set(toggle, $0)
+      }
     }
-  }
-
-  private func toggleCJKPunct() {
-    persistRimeToggle(\.keyboardCJKPunctToggle) {
-      OwlKeyboardPreferences.cjkPunctToggle = $0
-    }
-  }
-
-  private func toggleGoodOldCapsLock() {
-    persistRimeToggle(\.keyboardGoodOldCapsLock) {
-      OwlKeyboardPreferences.goodOldCapsLock = $0
-    }
-  }
-
-  private func togglePageMinusEquals() {
-    persistRimeToggle(\.keyboardPageMinusEquals) {
-      OwlKeyboardPreferences.pageMinusEquals = $0
-    }
-  }
-
-  private func togglePageBrackets() {
-    persistRimeToggle(\.keyboardPageBrackets) {
-      OwlKeyboardPreferences.pageBrackets = $0
-    }
-  }
-
-  private func togglePageCommaPeriod() {
-    persistRimeToggle(\.keyboardPageCommaPeriod) {
-      OwlKeyboardPreferences.pageCommaPeriod = $0
-    }
-  }
-
-  private func toggleSelect23Semicolon() {
-    persistRimeToggle(\.keyboardSelect23Semicolon) {
-      OwlKeyboardPreferences.select23Semicolon = $0
+    if toggle.row.reappliesConfiguration {
+      persistAndApplyRimeConfig(write)
+    } else {
+      write()
     }
   }
 
@@ -1174,79 +1129,12 @@ struct OwlKeyboardPage: View {
   // OwlSettingsE2ETests 锁死（macOS 优先处理 ⌘，待真机验证后再加绑定）。故此处刻意没有
   // toggle handler；别再加回来，否则就是一个永远不会被调用的死开关。
 
-  private func toggleWubiAutoCommitUnique() {
-    persistRimeToggle(\.keyboardWubiAutoCommitUnique) {
-      OwlKeyboardPreferences.wubiAutoCommitUnique = $0
-    }
-  }
-
-  private func toggleWubiFifthCodeTopCommit() {
-    persistRimeToggle(\.keyboardWubiFifthCodeTopCommit) {
-      OwlKeyboardPreferences.wubiFifthCodeTopCommit = $0
-    }
-  }
-
-  private func toggleWubiCodeHint() {
-    persistRimeToggle(\.keyboardWubiCodeHint) {
-      OwlKeyboardPreferences.wubiCodeHint = $0
-    }
-  }
-
-  private func toggleWubiAutoClear() {
-    persistRimeToggle(\.keyboardWubiAutoClear) {
-      OwlKeyboardPreferences.wubiAutoClear = $0
-    }
-  }
-
-  private func toggleWubiZWildcard() {
-    persistRimeToggle(\.keyboardWubiZWildcard) {
-      OwlKeyboardPreferences.wubiZWildcard = $0
-    }
-  }
-
-  private func toggleWubiZReverseLookup() {
-    persistRimeToggle(\.keyboardWubiZReverseLookup) {
-      OwlKeyboardPreferences.wubiZReverseLookup = $0
-    }
-  }
-
-  private func toggleWubiEnglishChannel() {
-    persistRimeToggle(\.keyboardWubiEnglishChannel) {
-      OwlKeyboardPreferences.wubiEnglishChannel = $0
-    }
-  }
-
-  private func toggleWubiUserDictLearning() {
-    persistRimeToggle(\.keyboardWubiUserDictLearning) {
-      OwlKeyboardPreferences.wubiUserDictLearning = $0
-    }
-  }
-
-  private func toggleAngleSymbolMenu() {
-    persistRimeToggle(\.keyboardAngleSymbolMenu) {
-      OwlKeyboardPreferences.angleSymbolMenu = $0
-    }
-  }
-
-  private func toggleSlashSymbolMenu() {
-    persistRimeToggle(\.keyboardSlashSymbolMenu) {
-      OwlKeyboardPreferences.slashSymbolMenu = $0
-    }
-  }
-
+  /// One UI switch over two catalog keys, so it is not a catalog row of its own.
   private func toggleCJKAlnumSpacing() {
     OwlSettingsActions.toggle(state: state, keyPath: \.keyboardCJKAlnumSpacing) {
       OwlKeyboardPreferences.cjkAlnumSpacing = $0
       state.keyboardCJKEnglishSpacing = $0
       state.keyboardCJKNumberSpacing = $0
-    }
-  }
-
-  /// 自动配对括号 (task 07-02) — a Owltype-side cached flag read live at the commit seam by the
-  /// `OwlAutoPair` decision; like 中文与英文间加入空格 it must NOT trigger a Rime apply/deploy.
-  private func toggleAutoPairBrackets() {
-    OwlSettingsActions.toggle(state: state, keyPath: \.keyboardAutoPairBrackets) {
-      OwlKeyboardPreferences.autoPairBrackets = $0
     }
   }
 

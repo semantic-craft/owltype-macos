@@ -31,6 +31,15 @@ the controller keeps as marked text after the engine commits the opening half, a
 the composition ends (`pendingPairedClosing`). Only while the engine is in no local mode
 (`acceptsHostSmartPunctuation`).
 
+**Keyboard settings catalog** — the module that owns every on/off switch on the 键盘输入 page
+(`OwlKeyboardSettingsCatalog`, one `OwlKeyboardSwitch` row each): its `UserDefaults` key, its
+default, the settings-state mirror, and how a change reaches input (a Rust `set_option` name, a
+Rime option the session re-asserts, or a host-side read). Its interface is `load`,
+`seed(into:)`, `set(_:_:)` and the derived `engineOptions`; the settings seed, the page toggles
+and the Rust session's per-keystroke sync all iterate it, so a new switch is one row. Keys and
+stored values are user data and never change. Multi-valued preferences (input method, schemes,
+page size) stay in `OwlKeyboardPreferences`, whose switch accessors only forward here.
+
 ## Dictionary
 
 **Resource generation** — one verified, immutable copy of the bundled `msime` resources in the

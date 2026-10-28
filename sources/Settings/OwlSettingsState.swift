@@ -153,74 +153,72 @@ final class OwlSettingsState {
 
   // MARK: - 键盘输入 page mirrors (v0.3.1)
 
-  /// Mirrors of `OwlKeyboardPreferences` for the 键盘输入 option groups. The delegate
-  /// seeds each from the prefs home in `showSettings()`; the page writes back through
-  /// both these mirrors AND `OwlKeyboardPreferences` (explicit `Binding(get:set:)`)
-  /// so the UserDefaults key strings live solely in `OwlKeyboardPreferences`.
-  /// Defaults here match the prefs defaults so the initial render is correct even
-  /// before seeding.
+  /// Mirrors of `OwlKeyboardPreferences` for the 键盘输入 option groups. On/off switches are
+  /// rows of `OwlKeyboardSettingsCatalog`: their initial values come from the catalog, the
+  /// catalog seeds them, and the page writes back through the catalog. Multi-valued mirrors
+  /// are seeded by the delegate and written through `OwlKeyboardPreferences`.
 
   /// 输入方式: 拼音 / 双拼 (mirror of `OwlKeyboardPreferences.inputMethod`).
   var keyboardInputMethod: OwlInputMethod = .pinyin
   /// 双拼方案 (mirror of `OwlKeyboardPreferences.doublePinyin`).
   var keyboardDoublePinyin: OwlDoublePinyin = .flypy
   /// 四码唯一自动上屏 (mirror of `OwlKeyboardPreferences.wubiAutoCommitUnique`).
-  var keyboardWubiAutoCommitUnique: Bool = true
+  var keyboardWubiAutoCommitUnique = OwlKeyboardSwitch.wubiAutoCommitUnique.defaultValue
   /// 第五码顶字上屏 (mirror of `OwlKeyboardPreferences.wubiFifthCodeTopCommit`).
-  var keyboardWubiFifthCodeTopCommit: Bool = true
+  var keyboardWubiFifthCodeTopCommit = OwlKeyboardSwitch.wubiFifthCodeTopCommit.defaultValue
   /// 五笔编码提示 (mirror of `OwlKeyboardPreferences.wubiCodeHint`).
-  var keyboardWubiCodeHint: Bool = true
+  var keyboardWubiCodeHint = OwlKeyboardSwitch.wubiCodeHint.defaultValue
   /// z 通配 (mirror of `OwlKeyboardPreferences.wubiZWildcard`).
-  var keyboardWubiZWildcard: Bool = false
+  var keyboardWubiZWildcard = OwlKeyboardSwitch.wubiZWildcard.defaultValue
   /// 五笔空码自动清码 (mirror of `OwlKeyboardPreferences.wubiAutoClear`).
-  var keyboardWubiAutoClear: Bool = false
+  var keyboardWubiAutoClear = OwlKeyboardSwitch.wubiAutoClear.defaultValue
   /// 五笔单字候选模式 (mirror of `OwlKeyboardPreferences.wubiCandidateMode`).
   var keyboardWubiCandidateMode: OwlWubiCandidateMode = .normal
   /// 五笔方案 (mirror of `OwlKeyboardPreferences.wubiScheme`).
   var keyboardWubiScheme: OwlWubiScheme = .jidian86
   /// z 临时拼音反查 (mirror of `OwlKeyboardPreferences.wubiZReverseLookup`).
-  var keyboardWubiZReverseLookup: Bool = true
+  var keyboardWubiZReverseLookup = OwlKeyboardSwitch.wubiZReverseLookup.defaultValue
   /// ` 临时英文（五笔前缀英文通道，mirror of `OwlKeyboardPreferences.wubiEnglishChannel`）。Default false（出厂关）.
-  var keyboardWubiEnglishChannel: Bool = false
+  var keyboardWubiEnglishChannel = OwlKeyboardSwitch.wubiEnglishChannel.defaultValue
   /// 记住我常用的词·个性化 (mirror of `OwlKeyboardPreferences.wubiUserDictLearning`).
-  var keyboardWubiUserDictLearning: Bool = true
+  var keyboardWubiUserDictLearning = OwlKeyboardSwitch.wubiUserDictLearning.defaultValue
   /// 使用 Shift 切换中英文 (mirror of `OwlKeyboardPreferences.shiftSwitchCJK`).
-  var keyboardShiftSwitchCJK: Bool = true
+  var keyboardShiftSwitchCJK = OwlKeyboardSwitch.shiftSwitchCJK.defaultValue
   /// 中文下中英标点切换 (mirror of `OwlKeyboardPreferences.cjkPunctToggle`).
-  var keyboardCJKPunctToggle: Bool = false
+  var keyboardCJKPunctToggle = OwlKeyboardSwitch.cjkPunctToggle.defaultValue
   /// 输出繁体字形 (mirror of `OwlKeyboardPreferences.traditionalOutput`). Feature 1.
   /// Also drives the 默认状态 简繁体 picker (简体=false / 繁体=true).
-  var keyboardTraditionalOutput: Bool = false
+  var keyboardTraditionalOutput = OwlKeyboardSwitch.traditionalOutput.defaultValue
   /// 默认状态·中英文 (mirror of `OwlKeyboardPreferences.defaultAsciiMode`). 中文=false / 英文=true.
-  var keyboardDefaultAsciiMode: Bool = false
+  var keyboardDefaultAsciiMode = OwlKeyboardSwitch.defaultAsciiMode.defaultValue
   /// 默认状态·全半角 (mirror of `OwlKeyboardPreferences.defaultFullShape`). 半角=false / 全角=true.
-  var keyboardDefaultFullShape: Bool = false
+  var keyboardDefaultFullShape = OwlKeyboardSwitch.defaultFullShape.defaultValue
   /// 经典 Caps Lock 切换西文 (mirror of `OwlKeyboardPreferences.goodOldCapsLock`).
-  var keyboardGoodOldCapsLock: Bool = true
+  var keyboardGoodOldCapsLock = OwlKeyboardSwitch.goodOldCapsLock.defaultValue
   /// 减号等号翻页 (mirror of `OwlKeyboardPreferences.pageMinusEquals`).
-  var keyboardPageMinusEquals: Bool = true
+  var keyboardPageMinusEquals = OwlKeyboardSwitch.pageMinusEquals.defaultValue
   /// 左右中括号翻页 (mirror of `OwlKeyboardPreferences.pageBrackets`).
-  var keyboardPageBrackets: Bool = true
+  var keyboardPageBrackets = OwlKeyboardSwitch.pageBrackets.defaultValue
   /// 逗号句号翻页 (mirror of `OwlKeyboardPreferences.pageCommaPeriod`).
-  var keyboardPageCommaPeriod: Bool = false
+  var keyboardPageCommaPeriod = OwlKeyboardSwitch.pageCommaPeriod.defaultValue
   /// 分号引号选 2/3 位 (mirror of `OwlKeyboardPreferences.select23Semicolon`).
-  var keyboardSelect23Semicolon: Bool = false
+  var keyboardSelect23Semicolon = OwlKeyboardSwitch.select23Semicolon.defaultValue
   /// 「/」键弹出符号选单 (mirror of `OwlKeyboardPreferences.slashSymbolMenu`)。Default false；
   /// 关闭时裸 `/` 维持切英文并输出 ASCII slash 的既有行为。
-  var keyboardSlashSymbolMenu: Bool = false
+  var keyboardSlashSymbolMenu = OwlKeyboardSwitch.slashSymbolMenu.defaultValue
   /// 「<」键弹出符号选单 (mirror of `OwlKeyboardPreferences.angleSymbolMenu`)。Default false（出厂关）.
-  var keyboardAngleSymbolMenu: Bool = false
+  var keyboardAngleSymbolMenu = OwlKeyboardSwitch.angleSymbolMenu.defaultValue
   /// 中文与英文间加入空格 (mirror of `OwlKeyboardPreferences.cjkAlnumSpacing`).
   var keyboardCJKAlnumSpacing: Bool = false
   /// 中英文自动空格 legacy mirror.
-  var keyboardCJKEnglishSpacing: Bool = false
+  var keyboardCJKEnglishSpacing = OwlKeyboardSwitch.cjkEnglishSpacing.defaultValue
   /// 中文与数字自动空格 legacy mirror.
-  var keyboardCJKNumberSpacing: Bool = false
+  var keyboardCJKNumberSpacing = OwlKeyboardSwitch.cjkNumberSpacing.defaultValue
   /// 自动配对括号 (mirror of `OwlKeyboardPreferences.autoPairBrackets`); native input defaults on.
-  var keyboardAutoPairBrackets: Bool = true
-  var keyboardSmartPunctuation: Bool = true
-  var keyboardSmartPunctuationRepeat: Bool = true
-  var keyboardSmartPunctuationSpace: Bool = false
+  var keyboardAutoPairBrackets = OwlKeyboardSwitch.autoPairBrackets.defaultValue
+  var keyboardSmartPunctuation = OwlKeyboardSwitch.smartPunctuation.defaultValue
+  var keyboardSmartPunctuationRepeat = OwlKeyboardSwitch.smartPunctuationRepeat.defaultValue
+  var keyboardSmartPunctuationSpace = OwlKeyboardSwitch.smartPunctuationSpace.defaultValue
   /// 这些 App 默认英文 (mirror of `OwlKeyboardPreferences.appEnglishBundleIDs`).
   var keyboardAppEnglishBundleIDsText: String = ""
   /// 逐键候选重排 (mirror of `OwlExperimentalPreferences.keyboardRerankEnabled`). Default false.
@@ -235,7 +233,7 @@ final class OwlSettingsState {
   var skin: OwlSkin = .deepred
   /// 在候选中显示 emoji (mirror of `OwlEmojiPreferences.candidateEmojiEnabled`). Default true（上游 macOS 默认）.
   var candidateEmojiEnabled: Bool = true
-  var quickPhraseCandidates: Bool = false
+  var quickPhraseCandidates = OwlKeyboardSwitch.quickPhraseCandidates.defaultValue
   /// Cloud AI enable — 全部划词技能的总闸 (mirror of `OwlCloudPreferences.isEnabled`).
   var cloudEnabled: Bool = false
   /// DeepSeek model id (mirror of `OwlCloudPreferences.deepSeekModel`).
