@@ -17,36 +17,25 @@ struct OwlKeyboardSettingsApplication {
 
   let engine: RimeEngine
   let directory: URL
-  let activeSchema: () -> String
   let refresh: () -> Void
-  /// `nil` infers the backend; tests may force either path without replacing the engine.
-  let nativeApply: Bool?
 
   init(
     engine: RimeEngine,
     directory: URL,
-    activeSchema: @escaping () -> String,
-    refresh: @escaping () -> Void,
-    nativeApply: Bool? = nil
+    refresh: @escaping () -> Void
   ) {
     self.engine = engine
     self.directory = directory
-    self.activeSchema = activeSchema
     self.refresh = refresh
-    self.nativeApply = nativeApply
   }
 
+  /// The engine reads keyboard preferences from defaults, so applying writes no Rime files:
+  /// `written` is always empty and `snapshot` is not read.
   func apply(_ snapshot: OwlKeyboardSnapshot, mode: Mode) throws -> Outcome {
     // Do not overwrite migration inputs while their rollback journal is unresolved.
     guard !OwlTemplateMigration.hasPendingRecovery(rimeDir: directory) else {
       throw Failure.recoveryPending
     }
-    let usesNativeApply = nativeApply ?? (engine is OwlRustEngine)
-    let written = usesNativeApply
-      ? []
-      : try OwlManagedKeyboardPatchPlan.apply(
-        snapshot: snapshot, writer: OwlConfigWriter(rimeDir: directory)
-      )
     // Keep the existing activation-only diagnostics; persistence precedes this interval.
     let traceName: StaticString = mode == .config ? "deploy.fast.config" : "deploy.fast.fuzzy"
     let trace = OwlLatencyTrace.begin(traceName)
@@ -58,24 +47,13 @@ struct OwlKeyboardSettingsApplication {
     let succeeded: Bool
     switch mode {
     case .config:
-      if usesNativeApply {
-        succeeded = engine.deployConfigFile("default.yaml", versionKey: "config_version")
-      } else {
-        // Config tasks complete synchronously, including the untracked frontend config.
-        var deployed = engine.deployConfigFile("default.yaml", versionKey: "config_version")
-        deployed = engine.deployConfigFile(OwlRimeIdentity.configFile, versionKey: "config_version") && deployed
-        let schema = activeSchema()
-        if !schema.isEmpty, schema.first != "." {
-          deployed = engine.deployConfigFile("\(schema).schema.yaml", versionKey: "schema/version") && deployed
-        }
-        succeeded = deployed
-      }
+      succeeded = engine.deployConfigFile("default.yaml", versionKey: "config_version")
     case .fuzzy:
       succeeded = engine.startMaintenance(fullCheck: false)
       // The prism must be ready before a live session reads it.
       if succeeded { engine.joinMaintenance() }
     }
     refresh()
-    return Outcome(written: written, succeeded: succeeded)
+    return Outcome(written: [], succeeded: succeeded)
   }
 }

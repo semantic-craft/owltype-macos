@@ -342,22 +342,11 @@ extension OwlInputController {
       return
     }
     guard let rime else { return }
-    let fallback: Bool
-    if rime is OwlRustSession {
-      fallback = OwlRustSchemaMap.initialASCIIMode(
-        forApp: currentApp,
-        englishBundleIDs: OwlKeyboardPreferences.appEnglishBundleIDs,
-        defaultASCIIMode: OwlKeyboardPreferences.defaultAsciiMode
-      )
-    } else {
-      let appOptions = NSApp.owlAppDelegate.config?.getAppOptions(currentApp) ?? [:]
-      for (key, value) in appOptions where key != RimeOption.asciiMode.rawValue {
-        // Other app options remain authoritative, including arbitrary user-defined keys.
-        rime.setAppOption(key, value)
-      }
-      fallback = appOptions[RimeOption.asciiMode.rawValue]
-        ?? OwlKeyboardPreferences.defaultAsciiMode
-    }
+    let fallback = OwlRustSchemaMap.initialASCIIMode(
+      forApp: currentApp,
+      englishBundleIDs: OwlKeyboardPreferences.appEnglishBundleIDs,
+      defaultASCIIMode: OwlKeyboardPreferences.defaultAsciiMode
+    )
     let restored = OwlAppInputMemory.shared.initialMode(app: currentApp, fallback: fallback)
     if rime.option(.asciiMode) != restored { rime.setOption(.asciiMode, restored) }
     appModeObservation.seed(restored)

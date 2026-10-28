@@ -13,28 +13,11 @@ final class OwlKeyboardSettingsApplicationTests: XCTestCase {
     try FileManager.default.removeItem(at: directory)
   }
 
-  func testConfigWritesBeforeRefreshAndDeploysFrontendAndActiveSchema() throws {
-    let engine = FakeRimeEngine()
-    var refreshed = false
-    let application = OwlKeyboardSettingsApplication(
-      engine: engine, directory: directory, activeSchema: { "rime_ice" }, refresh: {
-        refreshed = true
-        XCTAssertTrue(FileManager.default.fileExists(atPath: self.directory.appendingPathComponent("default.custom.yaml").path))
-        XCTAssertEqual(engine.deployedConfigFiles, ["default.yaml", "owltype.yaml", "rime_ice.schema.yaml"])
-      })
-    let outcome = try application.apply(.current(), mode: .config)
-    XCTAssertTrue(outcome.succeeded)
-    XCTAssertTrue(outcome.written.contains("default.custom.yaml"))
-    XCTAssertTrue(refreshed)
-    XCTAssertEqual(engine.finalizeCount, 0)
-    XCTAssertTrue(engine.lifecycleTrace.isEmpty)
-  }
-
   func testFuzzyWaitsForPrismBeforeRefreshing() throws {
     let engine = FakeRimeEngine()
     var refreshed = false
     let application = OwlKeyboardSettingsApplication(
-      engine: engine, directory: directory, activeSchema: { "rime_ice" }, refresh: {
+      engine: engine, directory: directory, refresh: {
         refreshed = true
         XCTAssertEqual(engine.lifecycleTrace, ["startMaintenance", "joinMaintenance"])
       })
@@ -43,36 +26,12 @@ final class OwlKeyboardSettingsApplicationTests: XCTestCase {
     XCTAssertTrue(engine.deployedConfigFiles.isEmpty)
   }
 
-  func testWriteFailureNeverDeploysOrRefreshes() throws {
-    // A regular file cannot serve as a configuration directory.
-    let blocked = directory.appendingPathComponent("not-a-directory")
-    try Data("blocked".utf8).write(to: blocked)
-    let engine = FakeRimeEngine()
-    let application = OwlKeyboardSettingsApplication(
-      engine: engine, directory: blocked, activeSchema: { "rime_ice" },
-      refresh: { XCTFail("Failed write must not refresh") })
-    XCTAssertThrowsError(try application.apply(.current(), mode: .config))
-    XCTAssertTrue(engine.deployedConfigFiles.isEmpty)
-    XCTAssertTrue(engine.lifecycleTrace.isEmpty)
-  }
-
-  func testFailedDeploymentReportsSavedButNotEffective() throws {
-    let engine = FakeRimeEngine(deployConfigFileResult: false)
-    let application = OwlKeyboardSettingsApplication(
-      engine: engine, directory: directory, activeSchema: { "rime_ice" }, refresh: {})
-    let outcome = try application.apply(.current(), mode: .config)
-    XCTAssertFalse(outcome.succeeded)
-    XCTAssertFalse(outcome.written.isEmpty)
-  }
-
-  func testNativeApplyUsesTheEngineSeamWithoutWritingRimeFiles() throws {
+  func testConfigApplyDeploysThroughTheEngineWithoutWritingRimeFiles() throws {
     let engine = FakeRimeEngine()
     let application = OwlKeyboardSettingsApplication(
       engine: engine,
       directory: directory,
-      activeSchema: { "rime_ice" },
-      refresh: {},
-      nativeApply: true
+      refresh: {}
     )
 
     let outcome = try application.apply(.current(), mode: .config)
@@ -85,14 +44,12 @@ final class OwlKeyboardSettingsApplicationTests: XCTestCase {
     ))
   }
 
-  func testNativeApplyFailureIsNotReportedAsEffective() throws {
+  func testFailedConfigApplyIsNotReportedAsEffective() throws {
     let engine = FakeRimeEngine(deployConfigFileResult: false)
     let application = OwlKeyboardSettingsApplication(
       engine: engine,
       directory: directory,
-      activeSchema: { "rime_ice" },
-      refresh: {},
-      nativeApply: true
+      refresh: {}
     )
 
     let outcome = try application.apply(.current(), mode: .config)
@@ -101,7 +58,7 @@ final class OwlKeyboardSettingsApplicationTests: XCTestCase {
     XCTAssertEqual(outcome.written, [])
   }
 
-  func testNativeApplyStillRefusesPendingMigrationRecovery() throws {
+  func testApplyRefusesPendingMigrationRecovery() throws {
     let journal = directory
       .appendingPathComponent(".owl-template-migration", isDirectory: true)
       .appendingPathComponent("journal.json")
@@ -114,9 +71,7 @@ final class OwlKeyboardSettingsApplicationTests: XCTestCase {
     let application = OwlKeyboardSettingsApplication(
       engine: engine,
       directory: directory,
-      activeSchema: { "rime_ice" },
-      refresh: { XCTFail("Recovery-pending apply must not refresh") },
-      nativeApply: true
+      refresh: { XCTFail("Recovery-pending apply must not refresh") }
     )
 
     XCTAssertThrowsError(try application.apply(.current(), mode: .config)) { error in

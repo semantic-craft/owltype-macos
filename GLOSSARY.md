@@ -10,6 +10,21 @@ composition or commit reaching the host. Bounded latency, no network, no blockin
 no failure may stop plain typing. The input method runs inside every host app, so a hang or
 crash here is an outage across apps.
 
+**Input session** — one composition's conversation with the engine (`RimeSession`; the engine
+that vends sessions is `RimeEngine`). The Rust session is the only production adapter, and the
+controller never casts past the protocol: a behaviour it needs is a requirement there, so the
+test fake (`FakeRimeSession`) has to model it.
+
+**Native finish** — ending a composition by asking the engine to select the highlighted
+conversion and commit it (`finishNativeComposition`), so the engine learns the choice. An
+application chord finishes; the host ending the composition finishes on focus loss. Only when
+the engine refuses does the controller fall back to inserting the converted preview.
+
+**Host-held closing mark** — the closing half of a paired punctuation mark (`（）`, `《》`…) that
+the controller keeps as marked text after the engine commits the opening half, and inserts when
+the composition ends (`pendingPairedClosing`). Only while the engine is in no local mode
+(`acceptsHostSmartPunctuation`).
+
 ## Dictionary
 
 **Resource generation** — one verified, immutable copy of the bundled `msime` resources in the

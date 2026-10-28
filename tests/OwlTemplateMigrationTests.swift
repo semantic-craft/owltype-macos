@@ -299,7 +299,7 @@ final class OwlTemplateMigrationTests: XCTestCase {
     // The complete settings path must reject edits before touching recovery inputs.
     let before = try? Data(contentsOf: root.appendingPathComponent("rime_ice.custom.yaml"))
     let application = OwlKeyboardSettingsApplication(
-      engine: engine, directory: root, activeSchema: { "rime_ice" },
+      engine: engine, directory: root,
       refresh: { XCTFail("Recovery must block settings activation") })
     XCTAssertThrowsError(try application.apply(.current(), mode: .config))
     XCTAssertEqual(try? Data(contentsOf: root.appendingPathComponent("rime_ice.custom.yaml")), before)

@@ -201,7 +201,6 @@ final class OwlRustSession: RimeSession {
     .simplification: true,
     .linear: true
   ]
-  private var appOptionFlags: [String: Bool] = [:]
   private var properties: [String: String] = [:]
   private var shiftKeyArmed = false
   private var capsLockKeyState = OwlCapsLockKeyState()
@@ -892,13 +891,6 @@ final class OwlRustSession: RimeSession {
     _ = sendAction(["op": "set_option", "name": option.rawValue, "value": value])
     if previous != value {
       ownerEngine?.notifyOptionChanged(sessionID: sessionID, optionName: option.rawValue, value: value)
-    }
-  }
-
-  func setAppOption(_ key: String, _ value: Bool) {
-    appOptionFlags[key] = value
-    if let opt = RimeOption(rawValue: key) {
-      setOption(opt, value)
     }
   }
 

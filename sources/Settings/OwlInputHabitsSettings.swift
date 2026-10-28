@@ -75,10 +75,6 @@ struct OwlPinnedWordsSettings: View {
           Button("管理置顶词…") { showWords = true }
             .accessibilityIdentifier("settings.managePinnedWords")
         }
-        if !OwlPinyinCandidateDeployment.available && !(NSApp.owlAppDelegate.engine is OwlRustEngine) {
-          Text("置顶通道尚未就绪。重新部署后生效；自定义方案或过滤器由你的配置管理。")
-            .font(.system(size: 12)).foregroundStyle(palette.ink3)
-        }
       }
     }
     .sheet(isPresented: $showWords) {

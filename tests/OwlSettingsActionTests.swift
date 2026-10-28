@@ -641,21 +641,6 @@ final class OwlSettingsActionTests: XCTestCase {
     XCTAssertFalse(engine.lifecycleTrace.contains("startMaintenance"))
   }
 
-  /// #121: App 默认英文 writes land in owltype.custom.yaml's managed block (owltype domain), so the
-  /// fast-apply MUST recompile owltype.yaml too — deploying only default.yaml + the active schema
-  /// leaves build/owltype.yaml stale and getAppOptions serving factory entries only (the 真机验收
-  /// failure: user-added apps silently never went English).
-  func testApplyKeyboardConfigFastDeploysOwltypeFrontendConfig() throws {
-    let delegate = OwlApplicationDelegate()
-    let engine = FakeRimeEngine(currentSchema: "rime_ice", deployConfigFileResult: true)
-    delegate.engine = engine
-
-    XCTAssertTrue(try delegate.applyKeyboardSettings(.config, directory: applicationDirectory()).succeeded)
-    XCTAssertTrue(engine.deployedConfigFiles.contains("owltype.yaml"),
-                  "fast-apply must recompile owltype.yaml (per-app app_options live there)")
-    XCTAssertTrue(engine.deployedConfigFiles.contains("default.yaml"))
-  }
-
   /// #121 companion gap: rime's detect_modifications does not track owltype.custom.yaml, so a
   /// owltype-domain-only change leaves `start_maintenance` with "nothing to do" (false). startRime
   /// used to gate the owltype.yaml deploy on that flag — even a full 重新部署 then skipped it and
