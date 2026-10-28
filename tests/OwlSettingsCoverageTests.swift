@@ -98,7 +98,7 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "新 Workspace 的 API Key（换空间时必填）",
     "保存空间",
     // 已配供应商的原地编辑（换模型不必删了重加）：入口按钮 + 编辑态的两个 footer 按钮。
-    // action coverage 在 ProviderProfileStoreTests 的 updateProviderProfile 两条断言。
+    // action coverage 在 OwlProviderRegistryTests 与 ProviderProfileStoreTests 的 replaceEndpoint 断言。
     "修改模型：\\(profile.displayName)",
     "保存修改",
     "取消",
@@ -243,7 +243,7 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "(\"竖排\", .vertical)",
     "ForEach(OwlLLMProviderCatalog.presets)",
     "providerID: providerID",
-    "OwlSettingsActions.saveQwenWorkspace(",
+    "registry.applyQwenWorkspace(",
     // Key 字段的提示语按「新增 / 编辑」两态分叉：编辑态留空＝保持现有 Key，不是稍后再填。
     // 这个区别是原地改模型不用重贴 Key 的用户可见凭据，两支都钉住。
     "API Key（\\(hint)写入 Keychain，可留空稍后再填）",
