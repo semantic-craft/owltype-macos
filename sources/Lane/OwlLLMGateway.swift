@@ -260,7 +260,7 @@ struct OwlLLMGateway: Sendable {
 
     let (data, response) = try await transport.send(request)
     if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-      throw OwlCloudRequestError.badHTTPStatus(http.statusCode)
+      throw OwlCloudRequestError.badHTTPStatus(http.statusCode, detail: OwlServerErrorDetail.parse(data))
     }
 
     if dialect != nil {

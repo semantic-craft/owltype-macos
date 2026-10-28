@@ -1897,14 +1897,14 @@ final class OwlProviderConnectivityCheckTests: XCTestCase {
     XCTAssertEqual(
       OwlProviderConnectivityCheck.outcome(
         data: openAIShape, response: response(401), latencyMS: 5),
-      .rejected(status: 401, message: "Invalid API-key provided."))
+      .rejected(status: 401, message: "Invalid API-key provided.", code: "x"))
 
     // DashScope 原生是顶层 message，不是 error.message。
     let dashScopeShape = Data(#"{"code":"InvalidParameter","message":"url error, please check url"}"#.utf8)
     XCTAssertEqual(
       OwlProviderConnectivityCheck.outcome(
         data: dashScopeShape, response: response(400), latencyMS: 5),
-      .rejected(status: 400, message: "url error, please check url"))
+      .rejected(status: 400, message: "url error, please check url", code: "InvalidParameter"))
   }
 
   /// 状态字要把「下一步动哪里」直接说出来，而不是只丢一个数字给用户。

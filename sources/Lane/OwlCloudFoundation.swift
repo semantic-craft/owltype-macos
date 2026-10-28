@@ -91,11 +91,19 @@ enum OwlCloudPreferences {
     }
   }
 
+  /// The one Chinese mapper for a refused cloud request, on every surface next to the cursor
+  /// (划词技能、AI 窗). A known server code wins; otherwise the HTTP status decides.
   static func message(for error: Error) -> String {
-    guard let cloudError = error as? OwlCloudRequestError,
-          case let .badHTTPStatus(status) = cloudError else {
+    let status: Int
+    let detail: OwlServerErrorDetail?
+    switch error {
+    case let OwlCloudRequestError.badHTTPStatus(code, body),
+         let OwlStreamingError.badHTTPStatus(code, body):
+      (status, detail) = (code, body)
+    default:
       return "云端 AI 请求失败"
     }
+    if let refusal = OwlServerRefusal(code: detail?.code) { return refusal.message }
     switch status {
     case 400:
       return "云端 AI 拒绝了此请求"
@@ -103,6 +111,10 @@ enum OwlCloudPreferences {
       return "云端 AI 的 API Key 无效"
     case 402:
       return "云端 AI 账户余额不足"
+    case 403:
+      return "云端 AI 拒绝访问，检查 API Key 的权限"
+    case 404:
+      return "云端 AI 找不到这个型号或端点"
     case 422:
       return "云端 AI 不支持的请求格式"
     case 429:
@@ -313,8 +325,119 @@ enum OwlCloudRequestError: Error, Equatable {
   case disabled
   case missingAPIKey
   case unsupportedProvider
-  case badHTTPStatus(Int)
+  /// A non-2xx reply. `detail` is what the error body said, nil when it said nothing readable.
+  case badHTTPStatus(Int, detail: OwlServerErrorDetail? = nil)
   case emptyResponse
+}
+
+/// What a provider said when it refused a request, read from the error body. The raw `message`
+/// never reaches a surface next to the cursor: `OwlCloudPreferences.message(for:)` maps `code`,
+/// and only the settings connectivity probe shows `message`, after `sanitized(removing:)`.
+struct OwlServerErrorDetail: Equatable, Sendable {
+  /// The provider's machine-readable reason (`code`, else `type`), e.g. `invalid_api_key`.
+  let code: String?
+  let message: String?
+
+  /// Reads `{"error":{...}}`, a top-level `{"code","message"}` (DashScope native), or a
+  /// one-element array of either. A numeric `code` (Gemini repeats the HTTP status there) gives way
+  /// to the string `status` beside it. Nil when the body has neither a code nor a message.
+  static func parse(_ data: Data) -> OwlServerErrorDetail? {
+    var root = try? JSONSerialization.jsonObject(with: data)
+    if let array = root as? [Any] { root = array.first }
+    guard let object = root as? [String: Any] else { return nil }
+    let fields = object["error"] as? [String: Any] ?? object
+    let code = [fields["code"], fields["status"], fields["type"]]
+      .lazy.compactMap { $0 as? String }.first { !$0.isEmpty }
+    let message = (fields["message"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+      ?? (object["error"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+    guard code != nil || message != nil else { return nil }
+    return OwlServerErrorDetail(code: code, message: message)
+  }
+
+  /// Collects a refused stream's body (bounded) and parses it. Never throws: a body that cannot
+  /// be read only loses the detail, not the status.
+  static func read(_ chunks: AsyncThrowingStream<String, Error>, limit: Int = 16_384) async -> OwlServerErrorDetail? {
+    var body = ""
+    do {
+      for try await chunk in chunks {
+        body += chunk
+        if body.utf8.count >= limit { break }
+      }
+    } catch {}
+    return parse(Data(body.utf8))
+  }
+
+  /// `message` safe to show in settings: the API key and anything shaped like one masked,
+  /// whitespace collapsed, at most `maxLength` characters.
+  func sanitized(removing apiKey: String, maxLength: Int = 160) -> String {
+    guard var text = message else { return "" }
+    if apiKey.count >= 8 { text = text.replacingOccurrences(of: apiKey, with: "***") }
+    text = text.replacingOccurrences(
+      of: #"\b(sk|ak|key)-[A-Za-z0-9*._-]{4,}"#, with: "***",
+      options: [.regularExpression, .caseInsensitive])
+    text = text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    return text.count > maxLength ? String(text.prefix(maxLength)) + "…" : text
+  }
+}
+
+/// Why a provider refused, as far as its error code says. Codes come from each provider's
+/// published error reference (checked 2026-10-28): 百炼 help.aliyun.com/zh/model-studio/error-code,
+/// 方舟 docs.volcengine.com/docs/82379/1299023, OpenAI developers.openai.com/api/docs/guides/error-codes,
+/// Gemini ai.google.dev/gemini-api/docs/api-errors. DeepSeek documents statuses only, and MiniMax
+/// reports `base_resp` inside a 200, so neither adds codes here. An unknown code is nil and the
+/// caller falls back to the HTTP status.
+enum OwlServerRefusal: Equatable {
+  case invalidKey
+  case modelUnavailable
+  case insufficientBalance
+  case quotaExhausted
+  case rateLimited
+  case contentBlocked
+
+  init?(code: String?) {
+    guard let code, let refusal = Self.codes[code.lowercased()] else { return nil }
+    self = refusal
+  }
+
+  /// Lowercased. 百炼 lists each code as a `Native/compatible` pair; both spellings are here.
+  private static let codes: [String: OwlServerRefusal] = [
+    "invalidapikey": .invalidKey, "invalid_api_key": .invalidKey,
+    "authenticationerror": .invalidKey, "authentication": .invalidKey,
+
+    "modelnotfound": .modelUnavailable, "model_not_found": .modelUnavailable,
+    "model_not_supported": .modelUnavailable, "modelnotopen": .modelUnavailable,
+    "invalidendpointormodel.notfound": .modelUnavailable,
+    "invalidendpointormodel.modelidaccessdisabled": .modelUnavailable,
+
+    "arrearage": .insufficientBalance, "accountoverdueerror": .insufficientBalance,
+    "operationdenied.serviceoverdue": .insufficientBalance,
+    "credit_balance_exhausted": .insufficientBalance, "payment_required": .insufficientBalance,
+
+    "allocationquota.freetieronly": .quotaExhausted, "quotaexceeded": .quotaExhausted,
+    "setlimitexceeded": .quotaExhausted, "quota_exceeded": .quotaExhausted,
+
+    "throttling.ratequota": .rateLimited, "limit_requests": .rateLimited,
+    "throttling.burstrate": .rateLimited, "ratelimitexceeded.endpointrpmexceeded": .rateLimited,
+    "ratelimitexceeded.endpointtpmexceeded": .rateLimited, "rate_limit_exceeded": .rateLimited,
+    "too_many_requests": .rateLimited, "slow_down": .rateLimited,
+
+    "datainspectionfailed": .contentBlocked, "data_inspection_failed": .contentBlocked,
+    "sensitivecontentdetected": .contentBlocked,
+    "inputtextsensitivecontentdetected": .contentBlocked,
+    "outputtextsensitivecontentdetected": .contentBlocked,
+    "inputtextriskdetection": .contentBlocked,
+  ]
+
+  var message: String {
+    switch self {
+    case .invalidKey: return "云端 AI 的 API Key 无效"
+    case .modelUnavailable: return "云端 AI 不提供这个型号，检查供应商档案里的型号"
+    case .insufficientBalance: return "云端 AI 账户余额不足"
+    case .quotaExhausted: return "云端 AI 的用量额度已用完"
+    case .rateLimited: return "云端 AI 请求过于频繁，请稍后再试"
+    case .contentBlocked: return "云端 AI 的内容审核拦下了这次请求"
+    }
+  }
 }
 
 /// Resolved routing for one cloud request: endpoint / model + the Keychain account
@@ -470,7 +593,7 @@ enum OwlCloudRetry {
     if let cloud = error as? OwlCloudRequestError {
       switch cloud {
       case .emptyResponse: return true
-      case .badHTTPStatus(let status): return status == 500 || status == 503
+      case .badHTTPStatus(let status, _): return status == 500 || status == 503
       default: return false
       }
     }

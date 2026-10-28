@@ -359,7 +359,7 @@ final class OwlSourceVerificationService {
         messages: messages, routing: routing, apiKey: apiKey) {
         content += delta
       }
-    } catch let OwlStreamingError.badHTTPStatus(status) {
+    } catch let OwlStreamingError.badHTTPStatus(status, _) {
       throw OwlSourceVerificationError.badHTTPStatus(status)
     }
     let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)

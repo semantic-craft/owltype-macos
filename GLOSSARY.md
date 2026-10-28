@@ -37,5 +37,10 @@ streamed free-text answer (plain generation, 任意提问).
 **Transport** — the seam under the LLM gateway that sends one `URLRequest` and returns the bytes
 and response, or opens one and returns its body as text chunks (`OwlLLMTransport`). Adapters: URLSession in production, a recording fake in tests.
 
+**Server error detail** — what a provider said when it refused a request (`OwlServerErrorDetail`:
+its error code and message), carried on `badHTTPStatus`. `OwlCloudPreferences.message(for:)` is
+the one Chinese mapper: a known code (`OwlServerRefusal`) wins, otherwise the HTTP status decides.
+The raw message is shown only in the settings connectivity probe, sanitized.
+
 **Call purpose** — why an AI skill is calling (`OwlLLMCallPurpose`: interactive rewrite, drafting,
 connectivity probe). It fixes the timeout and retry, so callers never pass them.

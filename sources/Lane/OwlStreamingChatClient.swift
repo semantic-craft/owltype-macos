@@ -24,7 +24,8 @@ import Foundation
 /// streaming chat path (a free-text answer) and the candidate path (a list) never share an error space.
 enum OwlStreamingError: Error, Equatable {
   /// The HTTP response was non-2xx. The stream finishes with this instead of yielding garbage.
-  case badHTTPStatus(Int)
+  /// `detail` is what the error body said, nil when it said nothing readable.
+  case badHTTPStatus(Int, detail: OwlServerErrorDetail? = nil)
   /// The response was not an HTTPURLResponse (should not happen for http(s), defensive).
   case nonHTTPResponse
   /// The endpoint could not be rewritten to the route's transport (`/responses`). No request sent.
@@ -251,7 +252,8 @@ struct OwlStreamingChatClient: OwlChatStreaming {
           let source = try await bytesProvider(request)
 
           if let http = source.response, !(200...299).contains(http.statusCode) {
-            continuation.finish(throwing: OwlStreamingError.badHTTPStatus(http.statusCode))
+            let detail = await OwlServerErrorDetail.read(source.chunks)
+            continuation.finish(throwing: OwlStreamingError.badHTTPStatus(http.statusCode, detail: detail))
             return
           }
 
