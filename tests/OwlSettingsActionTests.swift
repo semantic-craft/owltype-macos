@@ -532,9 +532,9 @@ final class OwlSettingsActionTests: XCTestCase {
   func testApplyFuzzyConfigFastJoinsMaintenanceAfterStartAndBeforeReselect() throws {
     let delegate = OwlApplicationDelegate()
     let engine = FakeRimeEngine(startMaintenanceResult: true)
-    delegate.engine = engine
+    delegate.runtime.engine = engine
 
-    XCTAssertTrue(try delegate.applyKeyboardSettings(.fuzzy, directory: applicationDirectory()).succeeded)
+    XCTAssertTrue(try delegate.runtime.applyKeyboardSettings(.fuzzy, directory: applicationDirectory()).succeeded)
 
     XCTAssertEqual(engine.joinMaintenanceCount, 1, "fuzzy fast-apply must join the maintenance thread")
     XCTAssertEqual(
@@ -548,9 +548,9 @@ final class OwlSettingsActionTests: XCTestCase {
   func testApplyFuzzyConfigFastSkipsJoinWhenMaintenanceFails() throws {
     let delegate = OwlApplicationDelegate()
     let engine = FakeRimeEngine(startMaintenanceResult: false)
-    delegate.engine = engine
+    delegate.runtime.engine = engine
 
-    XCTAssertFalse(try delegate.applyKeyboardSettings(.fuzzy, directory: applicationDirectory()).succeeded)
+    XCTAssertFalse(try delegate.runtime.applyKeyboardSettings(.fuzzy, directory: applicationDirectory()).succeeded)
     XCTAssertEqual(engine.joinMaintenanceCount, 0)
     XCTAssertEqual(engine.lifecycleTrace, ["startMaintenance"])
   }
@@ -561,9 +561,9 @@ final class OwlSettingsActionTests: XCTestCase {
   func testApplyKeyboardConfigFastUsesConfigFileDeployNotMaintenance() throws {
     let delegate = OwlApplicationDelegate()
     let engine = FakeRimeEngine(currentSchema: "rime_ice", deployConfigFileResult: true)
-    delegate.engine = engine
+    delegate.runtime.engine = engine
 
-    XCTAssertTrue(try delegate.applyKeyboardSettings(.config, directory: applicationDirectory()).succeeded)
+    XCTAssertTrue(try delegate.runtime.applyKeyboardSettings(.config, directory: applicationDirectory()).succeeded)
     XCTAssertEqual(engine.joinMaintenanceCount, 0, "config-only fast-apply must not run/join maintenance")
     XCTAssertFalse(engine.lifecycleTrace.contains("startMaintenance"))
   }
@@ -572,12 +572,11 @@ final class OwlSettingsActionTests: XCTestCase {
   /// owltype-domain-only change leaves `start_maintenance` with "nothing to do" (false). startRime
   /// used to gate the owltype.yaml deploy on that flag — even a full 重新部署 then skipped it and
   /// the managed-block write stayed inert. The deploy must run regardless of the flag.
-  func testStartRimeDeploysOwltypeConfigEvenWhenMaintenanceIdle() {
-    let delegate = OwlApplicationDelegate()
+  func testStartRimeDeploysOwltypeConfigEvenWhenMaintenanceIdle() throws {
     let engine = FakeRimeEngine(startMaintenanceResult: false)
-    delegate.engine = engine
+    let runtime = EngineRuntime(engine: engine, userDirectory: try applicationDirectory())
 
-    _ = delegate.startRime(fullCheck: true)
+    _ = runtime.start(fullCheck: true)
     XCTAssertTrue(engine.deployedConfigFiles.contains("owltype.yaml"),
                   "owltype.yaml deploy must not be gated on start_maintenance having work to do")
   }

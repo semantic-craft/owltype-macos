@@ -103,7 +103,7 @@ final class OwlDictPackCenter {
   init(
     rustBackend: OwlDictPackCenterRustBackend = .production(),
     liveSessionRefresh: @escaping OwlDictPackLiveSessionRefresh = { completion in
-      NSApp.owlAppDelegate.requestLiveSessionRefreshWhenIdle(completion: completion)
+      NSApp.owlAppDelegate.runtime.requestLiveSessionRefreshWhenIdle(completion: completion)
     }
   ) {
     self.rustBackend = rustBackend

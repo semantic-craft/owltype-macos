@@ -343,6 +343,7 @@ final class FakeRimeEngine: RimeEngine {
   func cleanupAllSessions() { cleanupAllSessionsCount += 1 }
   func finalize() -> Bool {
     finalizeCount += 1
+    lifecycleTrace.append("finalize")
     return finalizeResult
   }
   func schemaList() -> [(id: String, name: String)] { scriptedSchemaList }
@@ -438,14 +439,14 @@ final class RimeSeamTests: XCTestCase {
     replayComposition: Bool
   ) throws -> FakeRimeSession {
     let delegate = NSApp.owlAppDelegate
-    let previous = delegate.engine
-    delegate.engine = FakeRimeEngine()
-    defer { delegate.engine = previous; delegate.owlPanel?.hidePanel() }
+    let previous = delegate.runtime.engine
+    delegate.runtime.engine = FakeRimeEngine()
+    defer { delegate.runtime.engine = previous; delegate.owlPanel?.hidePanel() }
     let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     controller.destroySession()
     controller.rime = old
     controller.schemaId = capturedSchema
-    delegate.engine = engine
+    delegate.runtime.engine = engine
     controller.reapplyConfigToLiveSession(replayComposition: replayComposition)
     // Detach the fake so controller teardown cannot change the observed result.
     let result = controller.rime as? FakeRimeSession ?? old
@@ -537,8 +538,8 @@ final class RimeSeamTests: XCTestCase {
     OwlExperimentalPreferences.resetForTesting()
     OwlExperimentalPreferences.settledRerankEnabled = true
     let delegate = NSApp.owlAppDelegate
-    let previousEngine = delegate.engine
-    delegate.engine = FakeRimeEngine(vendedSession: session)
+    let previousEngine = delegate.runtime.engine
+    delegate.runtime.engine = FakeRimeEngine(vendedSession: session)
     let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     return (controller, delegate, previousEngine)
   }
@@ -575,7 +576,7 @@ final class RimeSeamTests: XCTestCase {
     let controller = fixture.controller
     defer {
       controller.destroySession()
-      fixture.delegate.engine = fixture.previousEngine
+      fixture.delegate.runtime.engine = fixture.previousEngine
       OwlExperimentalPreferences.resetForTesting()
       fixture.delegate.owlPanel?.hidePanel()
     }
@@ -608,7 +609,7 @@ final class RimeSeamTests: XCTestCase {
     let controller = fixture.controller
     defer {
       controller.destroySession()
-      fixture.delegate.engine = fixture.previousEngine
+      fixture.delegate.runtime.engine = fixture.previousEngine
       OwlExperimentalPreferences.resetForTesting()
       fixture.delegate.owlPanel?.hidePanel()
     }
@@ -655,7 +656,7 @@ final class RimeSeamTests: XCTestCase {
     let controller = fixture.controller
     defer {
       controller.destroySession()
-      fixture.delegate.engine = fixture.previousEngine
+      fixture.delegate.runtime.engine = fixture.previousEngine
       OwlExperimentalPreferences.resetForTesting()
       fixture.delegate.owlPanel?.hidePanel()
     }
@@ -692,7 +693,7 @@ final class RimeSeamTests: XCTestCase {
     let controller = fixture.controller
     defer {
       controller.destroySession()
-      fixture.delegate.engine = fixture.previousEngine
+      fixture.delegate.runtime.engine = fixture.previousEngine
       OwlExperimentalPreferences.resetForTesting()
       fixture.delegate.owlPanel?.hidePanel()
     }
@@ -725,7 +726,7 @@ final class RimeSeamTests: XCTestCase {
     let controller = fixture.controller
     defer {
       controller.destroySession()
-      fixture.delegate.engine = fixture.previousEngine
+      fixture.delegate.runtime.engine = fixture.previousEngine
       OwlExperimentalPreferences.resetForTesting()
       fixture.delegate.owlPanel?.hidePanel()
     }
@@ -756,7 +757,7 @@ final class RimeSeamTests: XCTestCase {
     defer {
       controller.invalidateSettledRerankForAction()
       controller.destroySession()
-      fixture.delegate.engine = fixture.previousEngine
+      fixture.delegate.runtime.engine = fixture.previousEngine
       OwlExperimentalPreferences.resetForTesting()
       fixture.delegate.owlPanel?.hidePanel()
     }
@@ -803,7 +804,7 @@ final class RimeSeamTests: XCTestCase {
     let controller = fixture.controller
     defer {
       controller.destroySession()
-      fixture.delegate.engine = fixture.previousEngine
+      fixture.delegate.runtime.engine = fixture.previousEngine
       OwlExperimentalPreferences.resetForTesting()
       fixture.delegate.owlPanel?.hidePanel()
     }
@@ -843,7 +844,7 @@ final class RimeSeamTests: XCTestCase {
     let controller = fixture.controller
     defer {
       controller.destroySession()
-      fixture.delegate.engine = fixture.previousEngine
+      fixture.delegate.runtime.engine = fixture.previousEngine
       OwlExperimentalPreferences.resetForTesting()
       fixture.delegate.owlPanel?.hidePanel()
     }
@@ -880,7 +881,7 @@ final class RimeSeamTests: XCTestCase {
     let controller = fixture.controller
     defer {
       controller.destroySession()
-      fixture.delegate.engine = fixture.previousEngine
+      fixture.delegate.runtime.engine = fixture.previousEngine
       OwlExperimentalPreferences.resetForTesting()
       fixture.delegate.owlPanel?.hidePanel()
     }
@@ -905,7 +906,7 @@ final class RimeSeamTests: XCTestCase {
     let controller = fixture.controller
     defer {
       controller.destroySession()
-      fixture.delegate.engine = fixture.previousEngine
+      fixture.delegate.runtime.engine = fixture.previousEngine
       OwlExperimentalPreferences.resetForTesting()
       fixture.delegate.owlPanel?.hidePanel()
     }
@@ -939,8 +940,8 @@ final class RimeSeamTests: XCTestCase {
     session: FakeRimeSession
   ) throws -> (controller: OwlInputController, client: HabitsTextClient, restore: () -> Void) {
     let delegate = NSApp.owlAppDelegate
-    let previousEngine = delegate.engine
-    delegate.engine = FakeRimeEngine(vendedSession: session)
+    let previousEngine = delegate.runtime.engine
+    delegate.runtime.engine = FakeRimeEngine(vendedSession: session)
     let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     controller.rime = session
     let client = HabitsTextClient()
@@ -951,7 +952,7 @@ final class RimeSeamTests: XCTestCase {
     OwlKeyboardPreferences.autoPairBrackets = true
     return (controller, client, {
       controller.rime = nil
-      delegate.engine = previousEngine
+      delegate.runtime.engine = previousEngine
       delegate.owlPanel?.hidePanel()
       if let savedPair { OwlDefaults.standard.set(savedPair, forKey: pairKey) } else {
         OwlDefaults.standard.removeObject(forKey: pairKey)

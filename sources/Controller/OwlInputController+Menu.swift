@@ -75,7 +75,7 @@ extension OwlInputController {
 
   @objc func deploy() {
     OwlLatencyTrace.event("button.open.deploy")
-    NSApp.owlAppDelegate.deploy()
+    engineRuntime.redeploy()
   }
 
   @objc func toggleASCIIModeFromMenu() {

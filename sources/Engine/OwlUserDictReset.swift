@@ -6,7 +6,7 @@
 //
 //  只处理 `msime-user/msime_user.db*` 与 `msime-user/dictionaries/`。旧版 Rime
 //  `*.userdb`、`sync/*.userdb.txt`、设置和置顶词属于迁移原件或独立设置，本动作不碰。
-//  引擎侧顺序约束由唯一调用者 `OwlApplicationDelegate.resetUserDict()` 负责：先关闭
+//  引擎侧顺序约束由唯一调用者 `EngineRuntime.resetUserDict()`（经 `whileStopped`）负责：先关闭
 //  Rust 会话与缓存数据库，再运行这里，最后重新启动引擎。
 //
 

@@ -40,6 +40,15 @@ and the Rust session's per-keystroke sync all iterate it, so a new switch is one
 stored values are user data and never change. Multi-valued preferences (input method, schemes,
 page size) stay in `OwlKeyboardPreferences`, whose switch accessors only forward here.
 
+**Engine runtime** — the module that owns the one engine, the config it serves and the order they
+change in (`EngineRuntime`). Its interface is `start`, `redeploy`, `whileStopped` (run user-data
+work with the engine stopped; reset and legacy migration use it), the cached `styleFlags` and
+`config`, and the idle live-session refresh. It hides the ordering: stop before touching user
+data and always restart after, skip recompiling (never the engine) while a template-migration
+journal is unresolved, and replace the cached config only with one that has a `style` section.
+The seam below it is `RimeEngine` (`OwlRustEngine` in production, `FakeRimeEngine` in tests).
+Controllers receive it at init; the application delegate only wires it to AppKit.
+
 ## Dictionary
 
 **Resource generation** — one verified, immutable copy of the bundled `msime` resources in the

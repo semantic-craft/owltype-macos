@@ -290,10 +290,9 @@ final class OwlTemplateMigrationTests: XCTestCase {
   func testPendingRecoveryKeepsRimeRunningButSkipsDeployment() throws {
     try seed()
     try migration.prepareTransaction(migration.prepare())
-    let delegate = OwlApplicationDelegate()
     let engine = FakeRimeEngine()
-    delegate.engine = engine
-    XCTAssertFalse(delegate.startRime(fullCheck: true, migrationDirectory: root))
+    let runtime = EngineRuntime(engine: engine, userDirectory: root)
+    XCTAssertFalse(runtime.start(fullCheck: true))
     XCTAssertTrue(engine.lifecycleTrace.isEmpty)
     XCTAssertTrue(engine.deployedConfigFiles.isEmpty)
     // The complete settings path must reject edits before touching recovery inputs.
@@ -306,7 +305,7 @@ final class OwlTemplateMigrationTests: XCTestCase {
     XCTAssertTrue(engine.deployedConfigFiles.isEmpty)
 
     try OwlTemplateMigration(rimeDir: root).recoverIfNeeded()
-    XCTAssertTrue(delegate.startRime(fullCheck: true, migrationDirectory: root))
+    XCTAssertTrue(runtime.start(fullCheck: true))
     XCTAssertEqual(engine.lifecycleTrace, ["startMaintenance"])
   }
 

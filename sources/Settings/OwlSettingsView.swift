@@ -36,7 +36,7 @@ struct OwlSettingsView: View {
   /// 应用配置改动 → delegate `deploy()` (the heavy full maintenance; 维护与诊断「重新部署」).
   let onRedeploy: () -> Bool
   /// Track-2 config-only fast apply → shared settings application (deploy_config_file
-  /// + live reselect + replay; no `shutdownRime`). Used for 候选个数 / 键位 / 标点 / schema_list.
+  /// + live reselect + replay; no engine shutdown). Used for 候选个数 / 键位 / 标点 / schema_list.
   let onApplyKeyboardConfigFast: () throws -> OwlKeyboardSettingsApplication.Outcome
   /// 模糊拼音 fast-ish apply → shared settings application (mtime-gated `fullCheck:false`
   /// maintenance — rebuilds the affected schema prism, not octagram — + reselect + replay).

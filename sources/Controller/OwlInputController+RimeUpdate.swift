@@ -126,13 +126,13 @@ extension OwlInputController {
         pinnedWordsRevision = nil
         syncPinnedWords()
         MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.noteSchemaChange() }
-        NSApp.owlAppDelegate.loadSettings(for: schemaId)
+        engineRuntime.loadSettings(for: schemaId)
       }
       // inline 旗标每轮重算（2026-07-12 B3 破闩锁）：原先只在上面 schema 变化分支里算一次——
       // delegate styleFlags 若在毒化后恢复（见 loadSettings 的先验后换契约），老控制器永远陷在
       // 占位模式。get_option 是进程内 librime 调用（零 IPC 往返），每键重算可承受；styleFlags
       // 读 delegate 缓存值不重开 config。soft_cursor 只在首轮或值变化时下发，避免每键 set_option。
-      let styleFlags = NSApp.owlAppDelegate.styleFlags
+      let styleFlags = engineRuntime.styleFlags
       let resolved = OwlStyleFlags.sessionInline(
         style: styleFlags, noInline: rime.option(.noInline), inlineForced: rime.option(.inline))
       if !styleFlagsSynced || resolved.preedit != inlinePreedit || resolved.candidate != inlineCandidate {
@@ -197,7 +197,7 @@ extension OwlInputController {
     // This is the normal idle boundary after a key or candidate selection. The delegate is a
     // no-op unless a resource-generation switch is queued.
     MainActor.assumeIsolated {
-      NSApp.owlAppDelegate.applyPendingLiveSessionRefreshIfIdle()
+      engineRuntime.applyPendingLiveSessionRefreshIfIdle()
     }
   }
 
@@ -507,8 +507,8 @@ extension OwlInputController {
     // on the delegate so the status HUD can position near the caret and `finalizeStranded
     // Composition` can reach the controller (was `panel.position` / `panel.inputController`).
     NSApp.owlAppDelegate.recordCaretAnchor(inputPos, host: host)
-    NSApp.owlAppDelegate.activeInputController = self
-    NSApp.owlAppDelegate.registerLiveController(self)
+    engineRuntime.activeInputController = self
+    engineRuntime.registerLiveController(self)
 
     let isVertical = rime?.option(.vertical) ?? false
     let candidatePanelSettings = OwlCandidatePanelSettings.live.snapshot()
