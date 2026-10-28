@@ -2,11 +2,11 @@
 //  KeyTranslationTests.swift
 //  OwltypeTests — pure input pipeline (task 06-22-pure-input-pipeline-refactor)
 //
-//  Before this task ZERO tests touched key translation: `OwlKeycode.osxKeycodeToRime` /
-//  `osxModifiersToRime` / `inferModifierKeycode`, the `keyChars` character resolution, and the
+//  Before this task ZERO tests touched key translation: `OwlKeycode.osxKeycodeToEngine` /
+//  `osxModifiersToEngine` / `inferModifierKeycode`, the `keyChars` character resolution, and the
 //  classification of a raw key event into rime keycodes lived inline in `handle()`, only
 //  exercisable on a real machine. The refactor lifted that logic into the PURE
-//  `OwlUserActionClassifier` + `OwlKeycode`, so it is now unit-testable headless (no librime,
+//  `OwlUserActionClassifier` + `OwlKeycode`, so it is now unit-testable headless (no engine,
 //  no IMK, no NSScreen — see `.trellis/spec/frontend/type-safety.md` Equatable-testability rule).
 //
 //  These tests lock the behaviour byte-for-byte against the old inline code, INCLUDING the three
@@ -25,61 +25,61 @@ import XCTest
 
 final class KeyTranslationTests: XCTestCase {
 
-  // MARK: - OwlKeycode.osxModifiersToRime
+  // MARK: - OwlKeycode.osxModifiersToEngine
 
   func testModifiersNoneIsZero() {
-    XCTAssertEqual(OwlKeycode.osxModifiersToRime(modifiers: []), 0)
+    XCTAssertEqual(OwlKeycode.osxModifiersToEngine(modifiers: []), 0)
   }
 
   func testModifiersShiftMapsToShiftMask() {
-    XCTAssertEqual(OwlKeycode.osxModifiersToRime(modifiers: .shift), kShiftMask.rawValue)
+    XCTAssertEqual(OwlKeycode.osxModifiersToEngine(modifiers: .shift), kShiftMask.rawValue)
   }
 
   func testModifiersControlOptionCommandCapsCombine() {
     let mods: NSEvent.ModifierFlags = [.control, .option, .command, .capsLock]
     let expected = kControlMask.rawValue | kAltMask.rawValue | kSuperMask.rawValue | kLockMask.rawValue
-    XCTAssertEqual(OwlKeycode.osxModifiersToRime(modifiers: mods), expected)
+    XCTAssertEqual(OwlKeycode.osxModifiersToEngine(modifiers: mods), expected)
   }
 
-  // MARK: - OwlKeycode.osxKeycodeToRime
+  // MARK: - OwlKeycode.osxKeycodeToEngine
 
   func testKeycodeLowercaseLetterA() {
     // 'a' keyCode (kVK_ANSI_A) with char 'a', no shift/caps → XK_a.
-    let rime = OwlKeycode.osxKeycodeToRime(keycode: UInt16(kVK_ANSI_A), keychar: "a", shift: false, caps: false)
-    XCTAssertEqual(rime, UInt32(XK_a))
+    let engineSession = OwlKeycode.osxKeycodeToEngine(keycode: UInt16(kVK_ANSI_A), keychar: "a", shift: false, caps: false)
+    XCTAssertEqual(engineSession, UInt32(XK_a))
   }
 
   func testKeycodeUppercaseViaShift() {
     // IBus/Rime use different keycodes for upper/lower. Shift on a lowercase char → uppercase keysym.
-    let rime = OwlKeycode.osxKeycodeToRime(keycode: UInt16(kVK_ANSI_A), keychar: "a", shift: true, caps: false)
-    XCTAssertEqual(rime, "A".unicodeScalars.first!.value)
+    let engineSession = OwlKeycode.osxKeycodeToEngine(keycode: UInt16(kVK_ANSI_A), keychar: "a", shift: true, caps: false)
+    XCTAssertEqual(engineSession, "A".unicodeScalars.first!.value)
   }
 
   func testKeycodeCapsAndShiftCancelToLowercase() {
     // shift != caps drives the uppercase branch; shift == caps (both true) does NOT → stays 'a'.
-    let rime = OwlKeycode.osxKeycodeToRime(keycode: UInt16(kVK_ANSI_A), keychar: "a", shift: true, caps: true)
-    XCTAssertEqual(rime, UInt32(XK_a))
+    let engineSession = OwlKeycode.osxKeycodeToEngine(keycode: UInt16(kVK_ANSI_A), keychar: "a", shift: true, caps: true)
+    XCTAssertEqual(engineSession, UInt32(XK_a))
   }
 
   func testKeycodeSpecialSpace() {
-    let rime = OwlKeycode.osxKeycodeToRime(keycode: UInt16(kVK_Space), keychar: " ", shift: false, caps: false)
-    XCTAssertEqual(rime, UInt32(XK_space))
+    let engineSession = OwlKeycode.osxKeycodeToEngine(keycode: UInt16(kVK_Space), keychar: " ", shift: false, caps: false)
+    XCTAssertEqual(engineSession, UInt32(XK_space))
   }
 
   func testKeycodeReturnViaMapping() {
-    let rime = OwlKeycode.osxKeycodeToRime(keycode: UInt16(kVK_Return), keychar: nil, shift: false, caps: false)
-    XCTAssertEqual(rime, UInt32(XK_Return))
+    let engineSession = OwlKeycode.osxKeycodeToEngine(keycode: UInt16(kVK_Return), keychar: nil, shift: false, caps: false)
+    XCTAssertEqual(engineSession, UInt32(XK_Return))
   }
 
   func testKeycodeBackspaceViaMapping() {
-    let rime = OwlKeycode.osxKeycodeToRime(keycode: UInt16(kVK_Delete), keychar: nil, shift: false, caps: false)
-    XCTAssertEqual(rime, UInt32(XK_BackSpace))
+    let engineSession = OwlKeycode.osxKeycodeToEngine(keycode: UInt16(kVK_Delete), keychar: nil, shift: false, caps: false)
+    XCTAssertEqual(engineSession, UInt32(XK_BackSpace))
   }
 
   func testKeycodeUnknownNonASCIIIsVoidSymbol() {
     // A non-ASCII char with an unmapped keyCode → XK_VoidSymbol (the old fall-through).
-    let rime = OwlKeycode.osxKeycodeToRime(keycode: 9999, keychar: "中", shift: false, caps: false)
-    XCTAssertEqual(rime, UInt32(XK_VoidSymbol))
+    let engineSession = OwlKeycode.osxKeycodeToEngine(keycode: 9999, keychar: "中", shift: false, caps: false)
+    XCTAssertEqual(engineSession, UInt32(XK_VoidSymbol))
   }
 
   // MARK: - OwlKeycode.inferModifierKeycode (#825 Parsec ghost-'a' fix backing)
@@ -178,7 +178,7 @@ final class KeyTranslationTests: XCTestCase {
 
   func testResolveKeyCharsShiftLetterKeepsIgnoringModifiers() {
     // capitalModifiers (shift) + letter → keep charsIgnoringModifiers ("a"); the keysym shift is
-    // applied later in osxKeycodeToRime, not by swapping to `characters`.
+    // applied later in osxKeycodeToEngine, not by swapping to `characters`.
     let resolved = OwlUserActionClassifier.resolveKeyChars(
       charactersIgnoringModifiers: "a", characters: "A", modifiers: .shift)
     XCTAssertEqual(resolved, "a")
@@ -219,13 +219,13 @@ final class KeyTranslationTests: XCTestCase {
 
   func testClassifyPlainLetterKeyDown() {
     let action = OwlUserActionClassifier.classify(keyDown(keyCode: UInt16(kVK_ANSI_A), chars: "a", ignoring: "a"))
-    XCTAssertEqual(action, .keyDown(rimeKeycode: UInt32(XK_a), rimeModifiers: 0))
+    XCTAssertEqual(action, .keyDown(engineKeycode: UInt32(XK_a), engineModifiers: 0))
   }
 
   func testClassifyShiftLetterKeyDownProducesUppercaseKeysym() {
     let action = OwlUserActionClassifier.classify(
       keyDown(keyCode: UInt16(kVK_ANSI_A), chars: "A", ignoring: "a", modifiers: .shift))
-    XCTAssertEqual(action, .keyDown(rimeKeycode: "A".unicodeScalars.first!.value, rimeModifiers: kShiftMask.rawValue))
+    XCTAssertEqual(action, .keyDown(engineKeycode: "A".unicodeScalars.first!.value, engineModifiers: kShiftMask.rawValue))
   }
 
   func testClassifyCommandKeyDownIsPassthrough() {
@@ -240,19 +240,19 @@ final class KeyTranslationTests: XCTestCase {
     XCTAssertEqual(action, .ignored)
   }
 
-  func testClassifyKeyDownVoidSymbolStillFedToLibrime() {
-    // Behaviour-equivalence guard: the old `handle()` guard was `if rimeKeycode != 0`, and
+  func testClassifyKeyDownVoidSymbolStillFedToEngine() {
+    // Behaviour-equivalence guard: the old `handle()` guard was `if engineKeycode != 0`, and
     // XK_VoidSymbol is 0xFFFFFF (NON-zero), so an unmapped keyCode + non-ASCII char produced a
-    // VoidSymbol keycode that WAS fed to librime (with no modifiers). The classifier must do the
+    // VoidSymbol keycode that WAS fed to the engine (with no modifiers). The classifier must do the
     // same — `.ignored` here would be a behaviour change. (Only an actual 0 keycode is dropped.)
     let action = OwlUserActionClassifier.classify(keyDown(keyCode: 9999, chars: "中", ignoring: "中"))
-    XCTAssertEqual(action, .keyDown(rimeKeycode: UInt32(XK_VoidSymbol), rimeModifiers: 0))
+    XCTAssertEqual(action, .keyDown(engineKeycode: UInt32(XK_VoidSymbol), engineModifiers: 0))
   }
 
   func testClassifyKeyDownSpace() {
     let action = OwlUserActionClassifier.classify(
       keyDown(keyCode: UInt16(kVK_Space), chars: " ", ignoring: " "))
-    XCTAssertEqual(action, .keyDown(rimeKeycode: UInt32(XK_space), rimeModifiers: 0))
+    XCTAssertEqual(action, .keyDown(engineKeycode: UInt32(XK_space), engineModifiers: 0))
   }
 
   // MARK: - classify: flagsChanged
@@ -268,10 +268,10 @@ final class KeyTranslationTests: XCTestCase {
     let event = OwlKeyEvent(type: .flagsChanged, keyCode: UInt16(kVK_Shift), characters: nil,
                              charactersIgnoringModifiers: nil, modifierFlags: .shift, lastModifiers: [])
     let action = OwlUserActionClassifier.classify(event)
-    let rimeShiftKeycode = OwlKeycode.osxKeycodeToRime(keycode: UInt16(kVK_Shift), keychar: nil, shift: false, caps: false)
+    let engineShiftKeycode = OwlKeycode.osxKeycodeToEngine(keycode: UInt16(kVK_Shift), keychar: nil, shift: false, caps: false)
     XCTAssertEqual(action, .flagsChanged(
       capsLockRevert: nil,
-      events: [(keycode: rimeShiftKeycode, modifiers: kShiftMask.rawValue)],
+      events: [(keycode: engineShiftKeycode, modifiers: kShiftMask.rawValue)],
       updateLastModifiers: .shift,
       handled: false))
   }
@@ -281,11 +281,11 @@ final class KeyTranslationTests: XCTestCase {
     let event = OwlKeyEvent(type: .flagsChanged, keyCode: UInt16(kVK_Shift), characters: nil,
                              charactersIgnoringModifiers: nil, modifierFlags: [], lastModifiers: .shift)
     let action = OwlUserActionClassifier.classify(event)
-    let rimeShiftKeycode = OwlKeycode.osxKeycodeToRime(keycode: UInt16(kVK_Shift), keychar: nil, shift: false, caps: false)
-    // On release, rimeModifiers reflects the NEW (empty) modifiers (0), OR'd with kReleaseMask.
+    let engineShiftKeycode = OwlKeycode.osxKeycodeToEngine(keycode: UInt16(kVK_Shift), keychar: nil, shift: false, caps: false)
+    // On release, engineModifiers reflects the NEW (empty) modifiers (0), OR'd with kReleaseMask.
     XCTAssertEqual(action, .flagsChanged(
       capsLockRevert: nil,
-      events: [(keycode: rimeShiftKeycode, modifiers: kReleaseMask.rawValue)],
+      events: [(keycode: engineShiftKeycode, modifiers: kReleaseMask.rawValue)],
       updateLastModifiers: [],
       handled: false))
   }
@@ -294,7 +294,7 @@ final class KeyTranslationTests: XCTestCase {
   // `OwlKeyEvent(event:lastModifiers:)` init used to read `event.characters` /
   // `charactersIgnoringModifiers` UNCONDITIONALLY. For a modifier press (a `flagsChanged`, not a
   // keyDown) `NSEvent.characters` raises NSInternalInconsistencyException — IMK swallowed it and
-  // `handle()` aborted BEFORE feeding the modifier to librime, so left-Shift CJK/English toggle
+  // `handle()` aborted BEFORE feeding the modifier to the engine, so left-Shift CJK/English toggle
   // (all flagsChanged handling) was silently dead. The fix sets characters to `nil` for non-keyDown
   // events. These two tests prove the classifier feeds the correct Shift down/up keycode+modifier
   // pairs with `characters: nil` — i.e. the modifier-feed path works WITHOUT ever needing
@@ -304,26 +304,26 @@ final class KeyTranslationTests: XCTestCase {
     let event = OwlKeyEvent(type: .flagsChanged, keyCode: UInt16(kVK_Shift), characters: nil,
                              charactersIgnoringModifiers: nil, modifierFlags: .shift, lastModifiers: [])
     let action = OwlUserActionClassifier.classify(event)
-    let rimeShiftKeycode = OwlKeycode.osxKeycodeToRime(keycode: UInt16(kVK_Shift), keychar: nil, shift: false, caps: false)
+    let engineShiftKeycode = OwlKeycode.osxKeycodeToEngine(keycode: UInt16(kVK_Shift), keychar: nil, shift: false, caps: false)
     XCTAssertEqual(action, .flagsChanged(
       capsLockRevert: nil,
-      events: [(keycode: rimeShiftKeycode, modifiers: kShiftMask.rawValue)],
+      events: [(keycode: engineShiftKeycode, modifiers: kShiftMask.rawValue)],
       updateLastModifiers: .shift,
       handled: false),
-      "Shift-press flagsChanged with nil characters must still feed the Shift keycode to librime")
+      "Shift-press flagsChanged with nil characters must still feed the Shift keycode to the engine")
   }
 
   func testClassifyShiftReleaseWithNilCharactersFeedsToggle() {
     let event = OwlKeyEvent(type: .flagsChanged, keyCode: UInt16(kVK_Shift), characters: nil,
                              charactersIgnoringModifiers: nil, modifierFlags: [], lastModifiers: .shift)
     let action = OwlUserActionClassifier.classify(event)
-    let rimeShiftKeycode = OwlKeycode.osxKeycodeToRime(keycode: UInt16(kVK_Shift), keychar: nil, shift: false, caps: false)
+    let engineShiftKeycode = OwlKeycode.osxKeycodeToEngine(keycode: UInt16(kVK_Shift), keychar: nil, shift: false, caps: false)
     XCTAssertEqual(action, .flagsChanged(
       capsLockRevert: nil,
-      events: [(keycode: rimeShiftKeycode, modifiers: kReleaseMask.rawValue)],
+      events: [(keycode: engineShiftKeycode, modifiers: kReleaseMask.rawValue)],
       updateLastModifiers: [],
       handled: false),
-      "Shift-release flagsChanged with nil characters must still feed the release to librime")
+      "Shift-release flagsChanged with nil characters must still feed the release to the engine")
   }
 
   func testClassifyParsecGhostAFixInfersModifierKeycode() {
@@ -333,7 +333,7 @@ final class KeyTranslationTests: XCTestCase {
     let event = OwlKeyEvent(type: .flagsChanged, keyCode: UInt16(kVK_ANSI_A), characters: nil,
                              charactersIgnoringModifiers: nil, modifierFlags: .shift, lastModifiers: [])
     let action = OwlUserActionClassifier.classify(event)
-    let inferredShift = OwlKeycode.osxKeycodeToRime(keycode: UInt16(kVK_Shift), keychar: nil, shift: false, caps: false)
+    let inferredShift = OwlKeycode.osxKeycodeToEngine(keycode: UInt16(kVK_Shift), keychar: nil, shift: false, caps: false)
     // The fed keycode is the SHIFT keysym, never XK_a.
     XCTAssertEqual(action, .flagsChanged(
       capsLockRevert: nil,
@@ -349,7 +349,7 @@ final class KeyTranslationTests: XCTestCase {
 
   func testClassifyFlagsChangedUninferableProducesEmptyEvents() {
     // keyCode is not a real modifier AND no modifier flag changed in a way we can infer → the old
-    // code stored lastModifiers, ran rimeUpdate, marked handled. Represented as empty events.
+    // code stored lastModifiers, ran engineUpdate, marked handled. Represented as empty events.
     let event = OwlKeyEvent(type: .flagsChanged, keyCode: UInt16(kVK_ANSI_A), characters: nil,
                              charactersIgnoringModifiers: nil, modifierFlags: [.function], lastModifiers: [])
     let action = OwlUserActionClassifier.classify(event)
@@ -369,9 +369,9 @@ final class KeyTranslationTests: XCTestCase {
     // capsLock is not in the [shift, control, option, command] buffer loop → no buffered events.
     XCTAssertTrue(events.isEmpty)
     XCTAssertEqual(updateLast, .capsLock)
-    let rimeCaps = OwlKeycode.osxKeycodeToRime(keycode: UInt16(kVK_CapsLock), keychar: nil, shift: false, caps: false)
-    XCTAssertEqual(capsLockRevert?.keycode, rimeCaps)
-    // rimeModifiers starts as kLockMask (caps on), XOR'd with kLockMask → 0.
+    let engineCaps = OwlKeycode.osxKeycodeToEngine(keycode: UInt16(kVK_CapsLock), keychar: nil, shift: false, caps: false)
+    XCTAssertEqual(capsLockRevert?.keycode, engineCaps)
+    // engineModifiers starts as kLockMask (caps on), XOR'd with kLockMask → 0.
     XCTAssertEqual(capsLockRevert?.modifiers, 0)
   }
 

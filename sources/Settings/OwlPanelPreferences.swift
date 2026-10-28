@@ -56,9 +56,9 @@ enum OwlPanelOrientation: String, CaseIterable, Sendable {
   /// `.auto`) so existing call sites need no change; there is no per-schema vertical default
   /// anymore (the old Wubi-forces-vertical special case was removed, 2026-06-22). The user can
   /// still pick 横排/竖排 explicitly to override.
-  func isVertical(rimeVertical: Bool, schemaID _: String = "") -> Bool {
+  func isVertical(engineVertical: Bool, schemaID _: String = "") -> Bool {
     switch self {
-    case .auto: rimeVertical
+    case .auto: engineVertical
     case .horizontal: false
     case .vertical: true
     case .scroll: false   // 多行是横排的一种（多行页），不是竖排

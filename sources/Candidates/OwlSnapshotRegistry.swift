@@ -9,7 +9,7 @@
 //
 //  Scope (Increment 1): this file is the registry + staleness check ONLY. The hot-path
 //  EMITTER that produces snapshots (P0-02 emitter part) is Increment 2 and lives elsewhere;
-//  nothing here touches `OwlInputController` or librime.
+//  nothing here touches `OwlInputController` or the engine.
 //
 
 import Foundation

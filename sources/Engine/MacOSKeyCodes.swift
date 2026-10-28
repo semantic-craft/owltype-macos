@@ -18,8 +18,8 @@ enum OwlKeyMask: UInt32 {
 }
 
 // Frozen X11 keysym values used by the Rust engine. They used to come from
-// librime's C headers; keeping the numeric ABI here removes every header and
-// link-time dependency on librime from Swift.
+// the former Rime C headers; keeping the numeric ABI here keeps Swift free of
+// any engine header or link-time dependency.
 // swiftlint:disable identifier_name
 let kShiftMask = OwlKeyMask.shift
 let kLockMask = OwlKeyMask.lock
@@ -154,7 +154,7 @@ let XK_Eisu_Shift: Int32 = 0x00ff_2f
 
 struct OwlKeycode {
 
-  static func osxModifiersToRime(modifiers: NSEvent.ModifierFlags) -> UInt32 {
+  static func osxModifiersToEngine(modifiers: NSEvent.ModifierFlags) -> UInt32 {
     var ret: UInt32 = 0
     if modifiers.contains(.capsLock) {
       ret |= kLockMask.rawValue
@@ -191,7 +191,7 @@ struct OwlKeycode {
     return (modifiers & blocked) == 0
   }
 
-  static func osxKeycodeToRime(keycode: UInt16, keychar: Character?, shift: Bool, caps: Bool) -> UInt32 {
+  static func osxKeycodeToEngine(keycode: UInt16, keychar: Character?, shift: Bool, caps: Bool) -> UInt32 {
     if let code = keycodeMappings[Int(keycode)] {
       return UInt32(code)
     }

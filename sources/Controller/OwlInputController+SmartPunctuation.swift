@@ -38,7 +38,7 @@ extension OwlInputController {
     guard (modifiers & kReleaseMask.rawValue) == 0 else { return false }
     let state = smartPunctuation
     state.source = nil
-    guard let client, let session = rime,
+    guard let client, let session = engineSession,
           !session.option(.asciiMode), session.acceptsHostSmartPunctuation, pendingPairedClosing == nil,
           (modifiers & (kControlMask.rawValue | kAltMask.rawValue | kSuperMask.rawValue)) == 0,
           key >= 32, key < 127 else { state.reset(); return false }
@@ -160,7 +160,7 @@ extension OwlInputController {
       "smart": OwlKeyboardPreferences.smartPunctuation,
       "repeat_enabled": OwlKeyboardPreferences.smartPunctuationRepeat,
       "space_enabled": OwlKeyboardPreferences.smartPunctuationSpace,
-      "chinese": !(rime?.option(.asciiPunct) ?? false),
+      "chinese": !(engineSession?.option(.asciiPunct) ?? false),
       "auto_closed_pair": OwlKeyboardPreferences.autoPairBrackets && committed.count == 1 && committed.first.map { OwlAutoPair.pairs[$0] != nil } == true
     ])
     state.repeatSnapshot = armed["repeat"] is NSNull ? nil : armed["repeat"]

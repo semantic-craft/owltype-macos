@@ -13,7 +13,7 @@
 //  not the dictionary we handed in: rewritten `/responses` URL, `stream: true`, Qwen's
 //  Chat-compatible input messages, and the 方舟/OpenAI `input_text` dialect.
 //
-//  No network, no Keychain, no librime.
+//  No network, no Keychain, no engine.
 //
 
 import Foundation

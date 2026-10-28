@@ -2,7 +2,7 @@
 //  OwlInputController+Session.swift
 //  Owltype
 //
-//  Single responsibility: librime session lifecycle (create / app-options / destroy)
+//  Single responsibility: the engine session lifecycle (create / app-options / destroy)
 //  and chord-typing accumulation (timer + key buffer) for OwlInputController.
 //  Moved verbatim out of OwlInputController.swift (god-object shrink, 2026-06-20);
 //  no logic edits.
@@ -20,10 +20,10 @@ extension OwlInputController {
   func onChordTimer(_: Timer) {
     // chord release triggered by timer
     var processedKeys = false
-    if chordKeyCount > 0, let rime, rime.sessionID != 0 {
+    if chordKeyCount > 0, let engineSession, engineSession.sessionID != 0 {
       // simulate key-ups
       for i in 0..<chordKeyCount {
-        let handled = rime.process(keycode: chordKeyCodes[i], modifiers: chordModifiers[i] | kReleaseMask.rawValue)
+        let handled = engineSession.process(keycode: chordKeyCodes[i], modifiers: chordModifiers[i] | kReleaseMask.rawValue)
         if handled {
           processedKeys = true
         }
@@ -31,7 +31,7 @@ extension OwlInputController {
     }
     clearChord()
     if processedKeys {
-      rimeUpdate()
+      engineUpdate()
     }
   }
 
@@ -83,8 +83,8 @@ extension OwlInputController {
   func armSettledRerankAfterInput() {
     guard !applyingSettledRerank,
           OwlExperimentalPreferences.settledRerankEnabled,
-          let rime, rime.isValid,
-          let input = rime.input(), !input.isEmpty else {
+          let engineSession, engineSession.isValid,
+          let input = engineSession.input(), !input.isEmpty else {
       return
     }
     settledRerankLastInputAt = settledRerankNow()
@@ -115,11 +115,11 @@ extension OwlInputController {
   func rerankPreferencesDidChange() {
     invalidateSettledRerankForAction()
     settledRerankLastInputAt = nil
-    guard let rime, rime.isValid else { return }
-    rime.syncRerankPreferences()
+    guard let engineSession, engineSession.isValid else { return }
+    engineSession.syncRerankPreferences()
     if !applyingSettledRerank,
        OwlExperimentalPreferences.settledRerankEnabled,
-       let input = rime.input(), !input.isEmpty {
+       let input = engineSession.input(), !input.isEmpty {
       armSettledRerankAfterInput()
     }
   }
@@ -137,28 +137,28 @@ extension OwlInputController {
   private func settledRerankDebounceFired() {
     settledRerankDebounceTimer = nil
     guard !applyingSettledRerank else { return }
-    guard let rime, rime.isValid,
+    guard let engineSession, engineSession.isValid,
           OwlExperimentalPreferences.settledRerankEnabled else {
       return
     }
 
     // The model loads on the FFI worker. Querying here runs after the pause is already over and
     // lets a slow first load become ready without putting file IO on a keystroke.
-    rime.syncRerankPreferences()
-    guard let input = rime.input(), !input.isEmpty else { return }
-    if rime.settledRerankLoading {
+    engineSession.syncRerankPreferences()
+    guard let input = engineSession.input(), !input.isEmpty else { return }
+    if engineSession.settledRerankLoading {
       scheduleSettledRerankDebounce(after: OwlSettledRerankTiming.modelLoadPollInterval)
       return
     }
-    guard rime.settledRerankReady else { return }
+    guard engineSession.settledRerankReady else { return }
     if settledRerankJob != nil {
       settledRerankWaitingForDrain = true
       return
     }
-    startSettledRerankIfDue(session: rime, input: input)
+    startSettledRerankIfDue(session: engineSession, input: input)
   }
 
-  private func startSettledRerankIfDue(session: RimeSession, input: String) {
+  private func startSettledRerankIfDue(session: EngineSession, input: String) {
     guard !applyingSettledRerank,
           session.isValid,
           session.settledRerankReady,
@@ -216,21 +216,21 @@ extension OwlInputController {
       settledRerankPollTimer = nil
       return
     }
-    guard let rime, rime.isValid else {
+    guard let engineSession, engineSession.isValid else {
       resetSettledRerankRuntime()
       return
     }
 
-    let input = rime.input() ?? ""
+    let input = engineSession.input() ?? ""
     let accepts = job.actionEpoch == settledRerankActionEpoch
       && OwlExperimentalPreferences.settledRerankEnabled
       && job.ticket.isCurrent(
-        sessionID: rime.sessionID,
-        generation: rime.generation,
+        sessionID: engineSession.sessionID,
+        generation: engineSession.generation,
         rawInput: input,
-        configurationEpoch: rime.rerankConfigurationEpoch
+        configurationEpoch: engineSession.rerankConfigurationEpoch
       )
-    let result = rime.pollSettledRerank(token: job.token, accept: accepts)
+    let result = engineSession.pollSettledRerank(token: job.token, accept: accepts)
     if result.pending {
       return
     }
@@ -248,9 +248,9 @@ extension OwlInputController {
     if settledRerankWaitingForDrain {
       settledRerankWaitingForDrain = false
       if OwlExperimentalPreferences.settledRerankEnabled,
-         rime.isValid,
-         let input = rime.input(), !input.isEmpty {
-        startSettledRerankIfDue(session: rime, input: input)
+         engineSession.isValid,
+         let input = engineSession.input(), !input.isEmpty {
+        startSettledRerankIfDue(session: engineSession, input: input)
       }
     }
   }
@@ -258,7 +258,7 @@ extension OwlInputController {
   private func applySettledRerankRefresh() {
     applyingSettledRerank = true
     defer { applyingSettledRerank = false }
-    rimeUpdate()
+    engineUpdate()
   }
 
   func createSession() {
@@ -269,7 +269,7 @@ extension OwlInputController {
     }()
     currentApp = app
     let newSession = engineRuntime.engine.createSession()
-    rime = newSession
+    engineSession = newSession
     schemaId = ""
     pinnedWordsRevision = nil
 
@@ -286,7 +286,7 @@ extension OwlInputController {
       // picker (`OwlApplicationDelegate.selectSchema`) surfaces a user-facing failure.
       knownFailedSchemaID = OwlSchemaSelectionGate.markerAfterAttempt(preferred: preferredSchema, selected: selected)
       // Resolve app memory and initial language once; avoid transient default-mode notifications.
-      setRimeOption(.fullShape, OwlKeyboardPreferences.defaultFullShape)
+      setEngineOption(.fullShape, OwlKeyboardPreferences.defaultFullShape)
       updateAppOptions()
       // Feature 1: seed 简↔繁 from the pref so Owltype's「简入繁出」choice survives focus changes /
       // new sessions (方案 reset 回简体). Seeds the full option set so it covers 全拼/双拼
@@ -294,7 +294,7 @@ extension OwlInputController {
       setTraditionalOutputOptions(OwlKeyboardPreferences.traditionalOutput)
       // 候选 emoji (rime-ice 原生 emoji switch). Owltype 出厂关；按 表情符号 设置开关 seed，
       // 让选择在焦点切换 / 新会话后保持（rime 每次新会话会 reset 回 schema 默认值）。
-      setRimeOption(.emojiSuggestion, OwlEmojiPreferences.candidateEmojiEnabled)
+      setEngineOption(.emojiSuggestion, OwlEmojiPreferences.candidateEmojiEnabled)
       syncPinnedWords()
     }
     // Register as a LIVE controller so the fast settings-apply path can force this session to
@@ -302,31 +302,31 @@ extension OwlInputController {
     engineRuntime.registerLiveController(self)
   }
 
-  /// Guard the first real key after activation/update against librime restoring an older schema
+  /// Guard the first real key after activation/update against the engine restoring an older schema
   /// from `user.yaml`. The session is still idle here, so switching does not discard user input.
   func ensurePreferredSchemaForIdleSession() {
-    guard let rime, rime.isValid else { return }
+    guard let engineSession, engineSession.isValid else { return }
     let preferredSchema = OwlKeyboardPreferences.preferredSchemaID
     guard !preferredSchema.isEmpty else { return }
-    if let input = rime.input(), !input.isEmpty {
+    if let input = engineSession.input(), !input.isEmpty {
       return
     }
-    let currentSchema = rime.status()?.schemaId ?? schemaId
+    let currentSchema = engineSession.status()?.schemaId ?? schemaId
     switch OwlSchemaSelectionGate.idleAction(current: currentSchema, preferred: preferredSchema, knownFailed: knownFailedSchemaID) {
     case .alreadyActive:
       schemaId = currentSchema
       debugLiveInputTrace("ensurePreferred idle current=\(currentSchema) preferred=\(preferredSchema) noop")
     case .skipKnownFailed:
       // Back off: this preferred id already failed select() and config hasn't changed since. No
-      // librime call, no per-key trace. The marker clears when a session recreate / config apply
+      // engine call, no per-key trace. The marker clears when a session recreate / config apply
       // re-runs createSession (or a later attempt succeeds).
       return
     case .attempt:
-      let ascii = rime.option(.asciiMode)
-      let selected = rime.selectSchema(preferredSchema)
-      if selected { rime.setOption(.asciiMode, ascii) }
+      let ascii = engineSession.option(.asciiMode)
+      let selected = engineSession.selectSchema(preferredSchema)
+      if selected { engineSession.setOption(.asciiMode, ascii) }
       knownFailedSchemaID = OwlSchemaSelectionGate.markerAfterAttempt(preferred: preferredSchema, selected: selected)
-      debugLiveInputTrace("ensurePreferred idle current=\(currentSchema) preferred=\(preferredSchema) select=\(selected) after=\(rime.status()?.schemaId ?? "<nil>")")
+      debugLiveInputTrace("ensurePreferred idle current=\(currentSchema) preferred=\(preferredSchema) select=\(selected) after=\(engineSession.status()?.schemaId ?? "<nil>")")
       if selected {
         schemaId = preferredSchema
         pinnedWordsRevision = nil
@@ -341,17 +341,17 @@ extension OwlInputController {
     if currentApp == "" {
       return
     }
-    guard let rime else { return }
+    guard let engineSession else { return }
     let fallback = OwlRustSchemaMap.initialASCIIMode(
       forApp: currentApp,
       englishBundleIDs: OwlKeyboardPreferences.appEnglishBundleIDs,
       defaultASCIIMode: OwlKeyboardPreferences.defaultAsciiMode
     )
     let restored = OwlAppInputMemory.shared.initialMode(app: currentApp, fallback: fallback)
-    if rime.option(.asciiMode) != restored { rime.setOption(.asciiMode, restored) }
+    if engineSession.option(.asciiMode) != restored { engineSession.setOption(.asciiMode, restored) }
     appModeObservation.seed(restored)
     if let reportBundleID = engineRuntime.config?.getBool("unsafe/report_bundleid"), reportBundleID {
-      rime.setProperty(name: "client_app", value: currentApp)
+      engineSession.setProperty(name: "client_app", value: currentApp)
     }
   }
 
@@ -360,8 +360,8 @@ extension OwlInputController {
     finishAutomaticExpansion(replaySemicolon: false)
     resetSettledRerankRuntime()
     // print("[DEBUG] destroySession:")
-    rime?.destroy()
-    rime = nil
+    engineSession?.destroy()
+    engineSession = nil
     clearChord()
   }
 
@@ -369,20 +369,20 @@ extension OwlInputController {
   /// phrase progress outside that string. The generation handoff therefore waits for an idle
   /// composition instead of recreating this session mid-selection.
   var hasInFlightComposition: Bool {
-    guard let rime, rime.isValid else { return false }
+    guard let engineSession, engineSession.isValid else { return false }
     if pendingPairedClosing != nil { return true }
-    if let input = rime.input(), !input.isEmpty { return true }
-    guard let composition = rime.composition() else { return false }
+    if let input = engineSession.input(), !input.isEmpty { return true }
+    guard let composition = engineSession.composition() else { return false }
     return !composition.preedit.isEmpty
   }
 
   /// Fast settings-apply re-entry (Track 2, PR3; live-session-reload rewrite, 2026-06-22).
   /// Called for every LIVE controller after a `deploy_config_file` refreshed the compiled
   /// `build/`, or for a queued Rust generation switch after the last live session becomes idle.
-  /// The latter reaches this code only from an outermost `rimeUpdate` / next-key boundary, never
+  /// The latter reaches this code only from an outermost `engineUpdate` / next-key boundary, never
   /// from the middle of `handle` / `processKey`.
   ///
-  /// WHY destroy rather than `select_schema(sameId)`: a same-id reselect does NOT force librime
+  /// WHY destroy rather than `select_schema(sameId)`: a same-id reselect does NOT force the engine
   /// to rebuild the cached `Schema` for that id, so the running session kept the OLD
   /// `menu/page_size` (the 8→5-not-applying bug). The old full `deploy()` only worked because
   /// `EngineRuntime.shutdown()` destroyed every session → the next keystroke `createSession` read fresh
@@ -398,7 +398,7 @@ extension OwlInputController {
   ///        (its `client` is live, so per-app options + `currentApp` are derived correctly),
   ///     3. restore the captured `schemaId` (a fresh session defaults to `schema_list`'s first
   ///        entry, so without this a 五笔/双拼 user would be kicked back to 拼音),
-  ///     4. replay the captured rawInput + `rimeUpdate()` so the panel re-renders with the
+  ///     4. replay the captured rawInput + `engineUpdate()` so the panel re-renders with the
   ///        user's preedit intact.
   ///
   /// - BACKGROUND controller (`replayComposition == false`): a controller for an app that is NOT
@@ -406,7 +406,7 @@ extension OwlInputController {
   ///   controller has had `deactivateServer` set its `client = nil`, so an eager `createSession()`
   ///   would derive `currentApp = "UnknownApp<n>"` (losing the app's per-app ascii_mode/options
   ///   and bumping the UnknownApp counter). Destroy-only is both safe and sufficient: the
-  ///   controller's `handle()` hot path already recreates the session (`rime?.isValid != true →
+  ///   controller's `handle()` hot path already recreates the session (`engineSession?.isValid != true →
   ///   createSession()`) on its NEXT keystroke, by which point its `client` is live again, so the
   ///   fresh session reads the new `build/` AND derives the correct per-app options. The schema is
   ///   re-derived by the delegate's per-client schema selection on reactivation.
@@ -416,7 +416,7 @@ extension OwlInputController {
   /// - Parameter replayComposition: true only for the ACTIVE controller. Background controllers
   ///   pass `false` (destroy-only, lazy recreate on their next keystroke).
   func reapplyConfigToLiveSession(replayComposition: Bool) {
-    guard let rime, rime.isValid else { return }
+    guard let engineSession, engineSession.isValid else { return }
 
     // Background controller: destroy only. The next keystroke's `handle()` recreates the session
     // with a live `client`, reading the new `build/` and the correct per-app options. Eager
@@ -427,14 +427,14 @@ extension OwlInputController {
     }
 
     let capturedSchema = schemaId
-    let rawInput = rime.input() ?? ""
+    let rawInput = engineSession.input() ?? ""
 
     // Active controller: force the session to re-read the freshly-deployed build/ by recreating
     // it (a same-id reselect would NOT pick up the new page_size). Recreating resets `schemaId`
     // to "". The active controller's `client` is live, so per-app options derive correctly.
     destroySession()
     createSession()
-    guard let fresh = self.rime, fresh.isValid else { return }
+    guard let fresh = self.engineSession, fresh.isValid else { return }
 
     // A fresh session defaults to schema_list's first entry — restore the user's active schema
     // so the reload doesn't kick them off 五笔/双拼. This re-reads build/<id>.schema.yaml in place.
@@ -443,11 +443,11 @@ extension OwlInputController {
     }
 
     // Replay the in-flight composition so the panel re-renders under the new config without a
-    // retype. (`switchLiveSessionSchema` already ran `rimeUpdate`, but it rendered an empty
-    // composition; replay + a final `rimeUpdate` restores the user's preedit.)
+    // retype. (`switchLiveSessionSchema` already ran `engineUpdate`, but it rendered an empty
+    // composition; replay + a final `engineUpdate` restores the user's preedit.)
     if !rawInput.isEmpty {
       replayRawInput(rawInput)
-      rimeUpdate()
+      engineUpdate()
     }
   }
 
@@ -457,9 +457,9 @@ extension OwlInputController {
   /// digits map 1:1 to their codepoint); non-ASCII is skipped — Owltype's raw input codes are
   /// ASCII. No-op on empty input.
   func replayRawInput(_ rawInput: String) {
-    guard let rime, rime.isValid, !rawInput.isEmpty else { return }
+    guard let engineSession, engineSession.isValid, !rawInput.isEmpty else { return }
     for scalar in rawInput.unicodeScalars where scalar.isASCII {
-      _ = rime.process(keycode: scalar.value, modifiers: 0)
+      _ = engineSession.process(keycode: scalar.value, modifiers: 0)
     }
   }
 
@@ -468,27 +468,73 @@ extension OwlInputController {
   /// `build/<newId>.schema.yaml` in place (no dict/octagram rebuild; clears the composition).
   /// Updates the cached `schemaId` ONLY when the select actually lands, and re-renders. Off the IMK
   /// keystroke hot path. Returns `.noLiveSession` when there is no live session (the next
-  /// `createSession` will pick up the switched schema, which librime remembers via the
+  /// `createSession` will pick up the switched schema, which the engine remembers via the
   /// transient-session select the delegate also performs); `.selectFailed` when `select_schema`
   /// returns false (e.g. `build/<id>.schema.yaml` not compiled) — in that case `schemaId` is left
-  /// untouched so the cache never claims a schema librime isn't actually on (设置显示拼音/打字出五笔).
+  /// untouched so the cache never claims a schema the engine isn't actually on (设置显示拼音/打字出五笔).
   @discardableResult
   func switchLiveSessionSchema(to id: String) -> SchemaSwitchResult {
-    guard !id.isEmpty, let rime, rime.isValid else { return .noLiveSession }
+    guard !id.isEmpty, let engineSession, engineSession.isValid else { return .noLiveSession }
     invalidateSettledRerankForAction()
     finishAutomaticExpansion(replaySemicolon: false)
-    let ascii = rime.option(.asciiMode)
-    let selected = rime.selectSchema(id)   // re-reads build/<id>.schema.yaml in place; clears composition
+    let ascii = engineSession.option(.asciiMode)
+    let selected = engineSession.selectSchema(id)   // re-reads build/<id>.schema.yaml in place; clears composition
     knownFailedSchemaID = OwlSchemaSelectionGate.markerAfterAttempt(preferred: id, selected: selected)
     if selected {
-      rime.setOption(.asciiMode, ascii)
-      schemaId = id                        // only cache the id librime actually switched to
+      engineSession.setOption(.asciiMode, ascii)
+      schemaId = id                        // only cache the id the engine actually switched to
       pinnedWordsRevision = nil
       syncPinnedWords()
     } else {
       debugLiveInputTrace("switchLiveSessionSchema id=\(id) select=false — schemaId NOT updated (no cache poisoning)")
     }
-    rimeUpdate()                           // render librime's true post-select state either way
+    engineUpdate()                           // render the engine's true post-select state either way
     return selected ? .ok : .selectFailed(schemaID: id)
+  }
+}
+
+// MARK: - Engine options
+
+/// Option read/write/toggle helpers and the derived status-flags tuple used by the menu
+/// builder and toggle actions (merged from the former `+RimeOptions` file).
+extension OwlInputController {
+  typealias EngineStatusFlags = (asciiMode: Bool, traditional: Bool, asciiPunct: Bool, fullShape: Bool)
+
+  func currentEngineStatusFlags() -> EngineStatusFlags {
+    guard let engineSession, engineSession.isValid, let status = engineSession.status() else { return (false, false, false, false) }
+    return (status.isASCIIMode, currentTraditionalOutputEnabled(), status.isASCIIPunct, status.isFullShape)
+  }
+
+  func setEngineOption(_ option: EngineOption, _ enabled: Bool) {
+    guard let engineSession, engineSession.isValid else { return }
+    engineSession.setOption(option, enabled)
+  }
+
+  func toggleEngineOption(_ option: EngineOption) {
+    guard let engineSession, engineSession.isValid else { return }
+    engineSession.setOption(option, !engineSession.option(option))
+    engineUpdate()
+  }
+
+  func optionValue(_ option: EngineOption) -> Bool {
+    guard let engineSession, engineSession.isValid else { return false }
+    return engineSession.option(option)
+  }
+
+  func currentTraditionalOutputEnabled() -> Bool {
+    // rime-ice 全拼/双拼走 `.traditionalization`，五笔走 `.zhTrad`；`.transcription` 是 rime_mint 类
+    // 方案的简繁 option，本底座用不到但保留以兼容其他可能携带这些 option 的方案。
+    optionValue(.traditional) || optionValue(.traditionalization) || optionValue(.zhTrad) || optionValue(.transcription)
+  }
+
+  /// 简↔繁 全局开关：把 Owltype 暴露的各方案用到的所有简繁 option 一次性设到当前会话，使「简入繁出」
+  /// 对全拼/双拼（`transcription`）与五笔（`zh_trad`）等所有方案统一生效。不调 `engineUpdate()`，
+  /// 由调用方决定是否立即重渲染（session seed 不需要、菜单/设置即时切换需要）。
+  func setTraditionalOutputOptions(_ traditional: Bool) {
+    setEngineOption(.traditional, traditional)
+    setEngineOption(.traditionalization, traditional)
+    setEngineOption(.zhTrad, traditional)
+    setEngineOption(.transcription, traditional)
+    setEngineOption(.simplification, !traditional)
   }
 }

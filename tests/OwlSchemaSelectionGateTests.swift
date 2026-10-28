@@ -8,7 +8,7 @@
 //      different id (so a fixed/changed config is never permanently suppressed);
 //    - markerAfterAttempt: a failed select remembers the id, a success clears the mark.
 //
-//  No IMK, no librime, no disk: pure value logic, mirrors OwlForcedFinalizeTests / OwlAutoPairTests.
+//  No IMK, no engine, no disk: pure value logic, mirrors OwlForcedFinalizeTests / OwlAutoPairTests.
 //
 
 import Foundation
@@ -19,7 +19,7 @@ final class OwlSchemaSelectionGateTests: XCTestCase {
 
   // MARK: - idleAction
 
-  // Session already on the preferred schema → adopt it, no librime call.
+  // Session already on the preferred schema → adopt it, no engine call.
   func testIdleAlreadyActiveWhenCurrentEqualsPreferred() {
     XCTAssertEqual(
       OwlSchemaSelectionGate.idleAction(current: "rime_ice", preferred: "rime_ice", knownFailed: nil),
@@ -108,7 +108,7 @@ final class OwlSchemaSelectionGateTests: XCTestCase {
     // 1. attempt rime_ice, it fails → marker = rime_ice
     var marker = OwlSchemaSelectionGate.markerAfterAttempt(preferred: "rime_ice", selected: false)
     XCTAssertEqual(marker, "rime_ice")
-    // 2. same preferred next idle key → back off, no librime call
+    // 2. same preferred next idle key → back off, no engine call
     XCTAssertEqual(
       OwlSchemaSelectionGate.idleAction(current: "wubi86_jidian", preferred: "rime_ice", knownFailed: marker),
       .skipKnownFailed

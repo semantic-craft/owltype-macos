@@ -12,7 +12,7 @@
 //  Colors are hardcoded from colors.md (light/dark per skin). `owlColor(hex:)` and the
 //  `OwlCandidatePalette` / `OwlCandidateTheme` types live in OwlCandidatePanelState.swift.
 //
-//  Boundary (ADR-0001 / 0002 / 0003): UI palette only; no Rime / hot-path involvement.
+//  Boundary (ADR-0001 / 0002 / 0003): UI palette only; no engine / hot-path involvement.
 //
 
 import SwiftUI

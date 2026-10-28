@@ -4,7 +4,7 @@
 //
 //  A floating NSPanel that lists the configured 快捷短语 (`OwlQuickSendStore`) and inserts a
 //  picked phrase at the cursor — mode-independent (works identically in 五笔/拼音/英文 because it
-//  never touches the Rime engine).
+//  never touches the input engine).
 //
 //  PR2 adopts `OwlPromptFillSheet`'s FOCUS RECIPE so the panel can host a TYPED SEARCH field
 //  WITHOUT losing the insert-into-host path. Instead of PR1's hard `canBecomeKey = false` (which

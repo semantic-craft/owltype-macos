@@ -24,8 +24,7 @@ verify_archive() {
   echo "${expected}  ${file}" | shasum -a 256 --check
 }
 
-rm -rf lib/rime-plugins data/opencc data/plum Frameworks
-rm -f lib/librime*.dylib bin/rime-install bin/rime_deployer bin/rime_dict_manager
+rm -rf data/opencc Frameworks
 mkdir -p download Frameworks
 download_archive "$sparkle_download_url" "download/${sparkle_archive}"
 verify_archive "$sparkle_archive_sha256" "download/${sparkle_archive}"

@@ -1,26 +1,26 @@
 //
-//  RimeCompositionRenderer.swift
+//  EngineCompositionRenderer.swift
 //  Owltype
 //
 //  Pure value renderer for the IMK marked-text presentation of a Composition (C3,
 //  task 07-05-owl-composition-render-seam). The byte→UTF-16 index math and the
 //  inline-candidate-preview assembly were moved here VERBATIM out of
-//  `OwlInputController+RimeUpdate.swift` (rimeUpdate) — no logic edits; the only
-//  change is that the three former `show(...)` call sites now RETURN a `RimeMarkedText`
+//  `OwlInputController+EngineUpdate.swift` (engineUpdate) — no logic edits; the only
+//  change is that the three former `show(...)` call sites now RETURN a `EngineMarkedText`
 //  value instead of driving IMK.
 //
 //  Depth: a caller hands in a Composition + the two inline style flags and gets back a
-//  ready-to-`setMarkedText` description — all of librime's UTF-8 byte-offset hazard stays
-//  behind this seam. Pure: Foundation only (String / NSRange), no AppKit, no librime.
-//  The interface is the test surface — feed a fabricated `RimeComposition`, assert the
-//  `RimeMarkedText` (no NSPanel, no live engine). See CONTEXT.md → Composition.
+//  ready-to-`setMarkedText` description — all of the engine's UTF-8 byte-offset hazard stays
+//  behind this seam. Pure: Foundation only (String / NSRange), no AppKit, no engine.
+//  The interface is the test surface — feed a fabricated `EngineComposition`, assert the
+//  `EngineMarkedText` (no NSPanel, no live engine). See CONTEXT.md → Composition.
 //
 
 import Foundation
 
 /// What the controller needs to present one Composition as IMK marked text, plus the
 /// preedit-space caret the composition Snapshot records. All offsets are UTF-16.
-struct RimeMarkedText: Equatable {
+struct EngineMarkedText: Equatable {
   /// The string to `setMarkedText` — the inline candidate preview, a full-shape space,
   /// or the raw preedit, depending on the inline flags (see `markedText`).
   let preedit: String
@@ -40,7 +40,7 @@ struct RimeMarkedText: Equatable {
   let preeditSelEndUTF16: Int
 }
 
-enum RimeCompositionRenderer {
+enum EngineCompositionRenderer {
 
   /// 合成期 keep-alive 占位（#89, spec 主线仓#88 §3）：零宽空格 U+200B。
   /// fcitx5-macos 先例（macosfrontend.swift `commitAndSetPreeditSync`，见
@@ -54,15 +54,15 @@ enum RimeCompositionRenderer {
   /// Byte→UTF-16 index math + inline-candidate-preview assembly（verbatim 搬运体见
   /// `rendered`），外加 #89 的合成期 keep-alive 兜底：组码中渲染产物为空 → 以
   /// `compositionKeepAlive` 顶住 marked text 非空契约。Pure — no side effects.
-  static func markedText(composition: RimeComposition,
+  static func markedText(composition: EngineComposition,
                          inlinePreedit: Bool,
-                         inlineCandidate: Bool) -> RimeMarkedText {
+                         inlineCandidate: Bool) -> EngineMarkedText {
     let marked = rendered(composition: composition,
                           inlinePreedit: inlinePreedit, inlineCandidate: inlineCandidate)
     // 空产出面只有 inlineCandidate 分支（commitTextPreview 空且无尾码）能在组码中触达；
     // 其余分支「渲染空 ⇔ raw 空」。统一在唯一出口兜底，防未来分支演化漏网。
     guard marked.preedit.isEmpty, !composition.preedit.isEmpty else { return marked }
-    return RimeMarkedText(
+    return EngineMarkedText(
       preedit: compositionKeepAlive,
       selRange: NSRange(location: 0, length: 0),
       caretPos: 0,
@@ -72,11 +72,11 @@ enum RimeCompositionRenderer {
   }
 
   /// Byte→UTF-16 index math + inline-candidate-preview assembly, moved verbatim from
-  /// `rimeUpdate`. `inlinePreedit` / `inlineCandidate` are the controller's resolved style
+  /// `engineUpdate`. `inlinePreedit` / `inlineCandidate` are the controller's resolved style
   /// flags (schema style + rime options). Pure — no side effects, no dependencies created.
-  private static func rendered(composition: RimeComposition,
+  private static func rendered(composition: EngineComposition,
                                inlinePreedit: Bool,
-                               inlineCandidate: Bool) -> RimeMarkedText {
+                               inlineCandidate: Bool) -> EngineMarkedText {
     let preedit = composition.preedit
 
     let start = String.Index(preedit.utf8.index(preedit.utf8.startIndex, offsetBy: composition.selStart), within: preedit) ?? preedit.startIndex
@@ -124,14 +124,14 @@ enum RimeCompositionRenderer {
         // preedit:             ^已選某些字|[xiang zuo]yidongguangbiao$
         // commit_text_preview: ^已選某些字向左yidongguangbiao$
         // candidate_preview:   ^已選某些字|[向左]???$
-        // FIXME: add librime APIs to support preview candidate without remaining code.
+        // FIXME: add engine APIs to support preview candidate without remaining code.
       }
       // preedit can contain additional prompt text before start:
       // ^(prompt)[selection]$
       let start = min(start, candidatePreview.endIndex)
       // caret can be either before or after the selected range.
       let caretPos = caretPos <= start ? caretPos : endOfCandidatePreview
-      return RimeMarkedText(
+      return EngineMarkedText(
         preedit: candidatePreview,
         selRange: NSRange(location: start.utf16Offset(in: candidatePreview),
                           length: candidatePreview.utf16.distance(from: start, to: candidatePreview.endIndex)),
@@ -141,7 +141,7 @@ enum RimeCompositionRenderer {
         preeditSelEndUTF16: preeditSelEndUTF16)
     } else {
       if inlinePreedit {
-        return RimeMarkedText(
+        return EngineMarkedText(
           preedit: preedit,
           selRange: NSRange(location: start.utf16Offset(in: preedit), length: preedit.utf16.distance(from: start, to: end)),
           caretPos: caretPos.utf16Offset(in: preedit),
@@ -153,7 +153,7 @@ enum RimeCompositionRenderer {
         // each character in preedit. note this is a full-shape space U+3000;
         // using half shape characters like "..." will result in an unstable
         // baseline when composing Chinese characters.
-        return RimeMarkedText(
+        return EngineMarkedText(
           preedit: preedit.isEmpty ? "" : "　",
           selRange: NSRange(location: 0, length: 0),
           caretPos: 0,

@@ -5,7 +5,7 @@ enum OwlCapsLockTransition: Equatable {
   case setASCIIMode(Bool, consumed: Bool)
 }
 
-/// Mirrors librime `ascii_composer.cc:143-186`. The caller passes the pre-flip `kLockMask`
+/// Mirrors upstream Rime `ascii_composer.cc:143-186`. The caller passes the pre-flip `kLockMask`
 /// state, matching the classifier's Caps Lock revert event on macOS.
 struct OwlCapsLockKeyState {
   private(set) var toggleWithCaps = false

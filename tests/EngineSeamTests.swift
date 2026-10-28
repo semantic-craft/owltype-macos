@@ -1,13 +1,13 @@
 //
-//  RimeSeamTests.swift
-//  OwltypeTests — the input Engine/Session seam (sources/Engine/RimeSeam.swift)
+//  EngineSeamTests.swift
+//  OwltypeTests — the input Engine/Session seam (sources/Engine/EngineSeam.swift)
 //
-//  `FakeRimeSession` / `FakeRimeEngine` are scripted, in-memory stand-ins for the Rust engine.
-//  `RimeSession` has no default implementations and production never casts past it, so the
+//  `FakeEngineSession` / `FakeInputEngine` are scripted, in-memory stand-ins for the Rust engine.
+//  `EngineSession` has no default implementations and production never casts past it, so the
 //  fake models every path the controller runs, and these tests drive the production controller
 //  through it:
 //
-//    1. `RimeOption` — the closed set of option keys and their exact engine strings.
+//    1. `EngineOption` — the closed set of option keys and their exact engine strings.
 //    2. Fast settings-apply — live-session reload, schema restore and raw-input replay.
 //    3. Settled rerank — timers, tickets and stale-result ownership.
 //    4. Native finish and paired punctuation — composition end, application chords and the
@@ -23,36 +23,36 @@ import XCTest
 
 // MARK: - Fakes (test fixtures only — never shipped in sources/)
 
-/// A scripted `RimeSession` with no librime. Construct it with the canned state a test
+/// A scripted `EngineSession` with no engine. Construct it with the canned state a test
 /// wants the controller to read (composition / status / commit / per-option booleans /
 /// validity), then assert:
 ///   • reads come back exactly (`composition()` / `status()` / `takeCommit()` / `option`),
 ///   • drives are recorded (`processedKeys` / `setOptions` / `properties` / `selectedIndices` /
 ///     `pageChanges` / caret moves / `clearCompositionCount` / `nativeFinishes` /
 ///     `pairBalanceCount` / `destroyed`).
-/// It implements every `RimeSession` requirement; the protocol has no default implementations.
-final class FakeRimeSession: RimeSession {
+/// It implements every `EngineSession` requirement; the protocol has no default implementations.
+final class FakeEngineSession: EngineSession {
 
   // --- Scripted read-back state -------------------------------------------------
 
   var sessionID: UInt64
   var generation: UInt64
   var isValid: Bool
-  /// `process(keycode:modifiers:)` returns this (whether librime "consumed" the key).
+  /// `process(keycode:modifiers:)` returns this (whether the engine "consumed" the key).
   var processResult: Bool
   /// Drained by `takeCommit()` (returns then clears, like the live `get_commit`).
   var pendingCommit: String?
-  var scriptedStatus: RimeStatus?
-  var scriptedComposition: RimeComposition?
+  var scriptedStatus: EngineStatus?
+  var scriptedComposition: EngineComposition?
   var scriptedInput: String?
   var scriptedCaretPos: Int
   /// Per-option booleans `option(_:)` reads and `setOption(_:_:)` mutates.
-  var optionState: [RimeOption: Bool]
+  var optionState: [EngineOption: Bool]
   var selectCandidateResult: Bool
   var changePageResult: Bool
   /// Returned by `selectSchema(_:)` on this live session (the fast-apply reselect).
   var selectSchemaResult: Bool
-  /// The settled rerank model load state exposed through `RimeSession`.
+  /// The settled rerank model load state exposed through `EngineSession`.
   var settledRerankReady: Bool
   var settledRerankLoading: Bool
   var rerankConfigurationEpoch: UInt64
@@ -75,14 +75,14 @@ final class FakeRimeSession: RimeSession {
   var acceptsHostSmartPunctuation: Bool
   var lastCommittedRawInput: String?
   /// The whole candidate list `peekCandidates(from:count:)` slices.
-  var peekableCandidates: [RimeCandidate]
+  var peekableCandidates: [EngineCandidate]
   var selectCandidateAbsoluteResult: Bool
   var removeCandidateResult: Bool
 
   // --- Recorded drives ----------------------------------------------------------
 
   private(set) var processedKeys: [(keycode: UInt32, modifiers: UInt32)] = []
-  private(set) var setOptions: [(option: RimeOption, value: Bool)] = []
+  private(set) var setOptions: [(option: EngineOption, value: Bool)] = []
   private(set) var properties: [(name: String, value: String)] = []
   private(set) var selectedIndices: [Int] = []
   private(set) var pageChanges: [Bool] = []   // true == up
@@ -107,11 +107,11 @@ final class FakeRimeSession: RimeSession {
     isValid: Bool = true,
     processResult: Bool = true,
     pendingCommit: String? = nil,
-    status: RimeStatus? = nil,
-    composition: RimeComposition? = nil,
+    status: EngineStatus? = nil,
+    composition: EngineComposition? = nil,
     input: String? = nil,
     caretPos: Int = 0,
-    optionState: [RimeOption: Bool] = [:],
+    optionState: [EngineOption: Bool] = [:],
     selectCandidateResult: Bool = false,
     changePageResult: Bool = false,
     selectSchemaResult: Bool = true,
@@ -163,9 +163,9 @@ final class FakeRimeSession: RimeSession {
 
   func lastCommittedInput() -> String? { lastCommittedRawInput }
 
-  func status() -> RimeStatus? { scriptedStatus }
+  func status() -> EngineStatus? { scriptedStatus }
 
-  func composition() -> RimeComposition? { scriptedComposition }
+  func composition() -> EngineComposition? { scriptedComposition }
 
   func input() -> String? { scriptedInput }
 
@@ -203,7 +203,7 @@ final class FakeRimeSession: RimeSession {
     return removeCandidateResult
   }
 
-  func peekCandidates(from index: Int, count: Int) -> [RimeCandidate] {
+  func peekCandidates(from index: Int, count: Int) -> [EngineCandidate] {
     guard index >= 0, index < peekableCandidates.count, count > 0 else { return [] }
     return Array(peekableCandidates[index..<min(index + count, peekableCandidates.count)])
   }
@@ -235,9 +235,9 @@ final class FakeRimeSession: RimeSession {
     return settledRerankPollResults.removeFirst()
   }
 
-  func option(_ option: RimeOption) -> Bool { optionState[option] ?? false }
+  func option(_ option: EngineOption) -> Bool { optionState[option] ?? false }
 
-  func setOption(_ option: RimeOption, _ value: Bool) {
+  func setOption(_ option: EngineOption, _ value: Bool) {
     setOptions.append((option, value))
     optionState[option] = value
   }
@@ -273,14 +273,14 @@ final class FakeRimeSession: RimeSession {
   }
 }
 
-/// A scripted `RimeEngine` with no librime. `createSession()` / `session(for:)` vend a
-/// `FakeRimeSession` (the configured `vendedSession`, or a default valid one), and the
+/// A scripted `InputEngine` with no engine. `createSession()` / `session(for:)` vend a
+/// `FakeEngineSession` (the configured `vendedSession`, or a default valid one), and the
 /// global-lifecycle calls are no-ops that record they happened.
-final class FakeRimeEngine: RimeEngine {
+final class FakeInputEngine: InputEngine {
 
   /// The session handed back by `createSession()` and `session(for:)`. Default: a fresh
   /// valid fake, so a test can `engine.createSession()` and immediately script it.
-  var vendedSession: FakeRimeSession
+  var vendedSession: FakeEngineSession
   var scriptedSchemaList: [(id: String, name: String)]
   var scriptedCurrentSchema: String
   var scriptedVersion: String?
@@ -297,7 +297,7 @@ final class FakeRimeEngine: RimeEngine {
   /// `start_maintenance` and BEFORE a reselect on the fast fuzzy-apply path.
   private(set) var lifecycleTrace: [String] = []
   /// Every `deploy_config_file` file name, in call order — so a test can assert WHICH configs
-  /// a deploy path recompiles (owltype.yaml's absence from fast-apply/startRime was the #121 gap).
+  /// a deploy path recompiles (owltype.yaml's absence from fast-apply/startEngine was the #121 gap).
   private(set) var deployedConfigFiles: [String] = []
   private(set) var createdSessionCount = 0
   private(set) var selectedSchemas: [String] = []
@@ -305,7 +305,7 @@ final class FakeRimeEngine: RimeEngine {
   private(set) var notificationHandlerSet = false
 
   init(
-    vendedSession: FakeRimeSession = FakeRimeSession(),
+    vendedSession: FakeEngineSession = FakeEngineSession(),
     schemaList: [(id: String, name: String)] = [],
     currentSchema: String = "",
     version: String? = nil,
@@ -337,7 +337,7 @@ final class FakeRimeEngine: RimeEngine {
     deployedConfigFiles.append(fileName)
     return deployConfigFileResult
   }
-  func setNotificationHandler(_ handler: @escaping RimeNotificationHandler) {
+  func setNotificationHandler(_ handler: @escaping EngineNotificationHandler) {
     notificationHandlerSet = true
   }
   func cleanupAllSessions() { cleanupAllSessionsCount += 1 }
@@ -354,12 +354,12 @@ final class FakeRimeEngine: RimeEngine {
   }
   func version() -> String? { scriptedVersion }
 
-  func createSession() -> RimeSession {
+  func createSession() -> EngineSession {
     createdSessionCount += 1
     return vendedSession
   }
 
-  func session(for id: UInt64) -> RimeSession {
+  func session(for id: UInt64) -> EngineSession {
     sessionForIDs.append(id)
     return vendedSession
   }
@@ -367,13 +367,13 @@ final class FakeRimeEngine: RimeEngine {
 
 // MARK: - Tests
 
-final class RimeSeamTests: XCTestCase {
+final class EngineSeamTests: XCTestCase {
 
-  // MARK: 1. RimeOption — closed-set contract
+  // MARK: 1. EngineOption — closed-set contract
 
-  /// The librime option keys the enum replaced. If the enum ever drops/renames a case or
+  /// The option keys the enum replaced. If the enum ever drops/renames a case or
   /// a rawValue drifts, this dictionary makes the test fail at the exact key.
-  private static let expectedRawValues: [RimeOption: String] = [
+  private static let expectedRawValues: [EngineOption: String] = [
     .asciiMode: "ascii_mode",
     .asciiPunct: "ascii_punct",
     .fullShape: "full_shape",
@@ -393,36 +393,47 @@ final class RimeSeamTests: XCTestCase {
   ]
 
   func testRimeOptionHasExactly16Cases() {
-    XCTAssertEqual(RimeOption.allCases.count, 16)
+    XCTAssertEqual(EngineOption.allCases.count, 16)
     // The expectation map must cover every case (no case left untested).
-    XCTAssertEqual(Set(RimeOption.allCases), Set(Self.expectedRawValues.keys))
+    XCTAssertEqual(Set(EngineOption.allCases), Set(Self.expectedRawValues.keys))
   }
 
-  func testRimeOptionRawValuesMatchLibrimeKeys() {
-    for option in RimeOption.allCases {
+  /// The Rime-era identifiers were renamed, but these names are on users' disks: the Rust FFI
+  /// reads `owltype.yaml` + `owltype.custom.yaml`, and the seed marker and legacy file gate
+  /// first-run seeding and migration. Renaming any value would orphan existing user data.
+  func testPersistedIdentityNamesSurviveTheEngineRename() {
+    XCTAssertEqual(OwlEngineIdentity.appName, "rime.owltype")
+    XCTAssertEqual(OwlEngineIdentity.configFile, "owltype.yaml")
+    XCTAssertEqual(OwlEngineIdentity.customConfigFile, "owltype.custom.yaml")
+    XCTAssertEqual(OwlEngineIdentity.legacyCustomConfigFile, "squirrel.custom.yaml")
+    XCTAssertEqual(OwlEngineIdentity.seedMarkerFile, ".owl-seed-v2")
+  }
+
+  func testEngineOptionRawValuesMatchOptionKeys() {
+    for option in EngineOption.allCases {
       XCTAssertEqual(
         option.rawValue,
         Self.expectedRawValues[option],
-        "RimeOption.\(option) must map to its original librime key"
+        "EngineOption.\(option) must map to its original option key"
       )
     }
   }
 
   func testRimeOptionRawValueRoundTrips() {
-    for option in RimeOption.allCases {
-      XCTAssertEqual(RimeOption(rawValue: option.rawValue), option,
-                     "RimeOption(rawValue:) must round-trip \(option.rawValue)")
+    for option in EngineOption.allCases {
+      XCTAssertEqual(EngineOption(rawValue: option.rawValue), option,
+                     "EngineOption(rawValue:) must round-trip \(option.rawValue)")
     }
   }
 
   func testRimeOptionRawValuesAreUnique() {
-    let raws = RimeOption.allCases.map(\.rawValue)
-    XCTAssertEqual(Set(raws).count, raws.count, "Two RimeOption cases share a librime key")
+    let raws = EngineOption.allCases.map(\.rawValue)
+    XCTAssertEqual(Set(raws).count, raws.count, "Two EngineOption cases share an option key")
   }
 
   func testFrontEndOptionsAreUnderscorePrefixed() {
     // Client-set presentation options keep Rime's `_` convention.
-    for option in [RimeOption.linear, .vertical, .chordTyping] {
+    for option in [EngineOption.linear, .vertical, .chordTyping] {
       XCTAssertTrue(option.rawValue.hasPrefix("_"), "\(option) should be `_`-prefixed")
     }
   }
@@ -433,32 +444,32 @@ final class RimeSeamTests: XCTestCase {
   @MainActor
   @discardableResult
   private func driveReload(
-    old: FakeRimeSession,
-    engine: FakeRimeEngine,
+    old: FakeEngineSession,
+    engine: FakeInputEngine,
     capturedSchema: String,
     replayComposition: Bool
-  ) throws -> FakeRimeSession {
+  ) throws -> FakeEngineSession {
     let delegate = NSApp.owlAppDelegate
     let previous = delegate.runtime.engine
-    delegate.runtime.engine = FakeRimeEngine()
+    delegate.runtime.engine = FakeInputEngine()
     defer { delegate.runtime.engine = previous; delegate.owlPanel?.hidePanel() }
     let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     controller.destroySession()
-    controller.rime = old
+    controller.engineSession = old
     controller.schemaId = capturedSchema
     delegate.runtime.engine = engine
     controller.reapplyConfigToLiveSession(replayComposition: replayComposition)
     // Detach the fake so controller teardown cannot change the observed result.
-    let result = controller.rime as? FakeRimeSession ?? old
-    controller.rime = nil
+    let result = controller.engineSession as? FakeEngineSession ?? old
+    controller.engineSession = nil
     return result
   }
 
   @MainActor
   func testFastApplyReloadsActiveSessionRestoresSchemaAndReplays() throws {
-    let old = FakeRimeSession(sessionID: 1, input: "qiu")
-    let fresh = FakeRimeSession(sessionID: 2)         // a DIFFERENT session id — proves it's recreated
-    let engine = FakeRimeEngine(vendedSession: fresh)
+    let old = FakeEngineSession(sessionID: 1, input: "qiu")
+    let fresh = FakeEngineSession(sessionID: 2)         // a DIFFERENT session id — proves it's recreated
+    let engine = FakeInputEngine(vendedSession: fresh)
 
     let result = try driveReload(old: old, engine: engine, capturedSchema: "wubi86_jidian", replayComposition: true)
 
@@ -483,9 +494,9 @@ final class RimeSeamTests: XCTestCase {
     // backgrounded controller's `client` is nil (deactivateServer cleared it), so recreating
     // here would derive `UnknownApp<n>` and drop the app's per-app options. Its `handle()` hot
     // path lazily recreates with a live client (reading the new build/) on the next keystroke.
-    let old = FakeRimeSession(sessionID: 10, input: "shouldNotReplay")
-    let fresh = FakeRimeSession(sessionID: 11)
-    let engine = FakeRimeEngine(vendedSession: fresh)
+    let old = FakeEngineSession(sessionID: 10, input: "shouldNotReplay")
+    let fresh = FakeEngineSession(sessionID: 11)
+    let engine = FakeInputEngine(vendedSession: fresh)
 
     let result = try driveReload(old: old, engine: engine, capturedSchema: "rime_ice", replayComposition: false)
 
@@ -500,9 +511,9 @@ final class RimeSeamTests: XCTestCase {
   func testFastApplyReloadWithEmptySchemaLeavesFreshSessionDefault() throws {
     // Empty captured schema (no schema yet) → leave the fresh session on its default; the
     // PRD says this is fine (no reselect, no replay needed).
-    let old = FakeRimeSession(sessionID: 20, input: "")
-    let fresh = FakeRimeSession(sessionID: 21)
-    let engine = FakeRimeEngine(vendedSession: fresh)
+    let old = FakeEngineSession(sessionID: 20, input: "")
+    let fresh = FakeEngineSession(sessionID: 21)
+    let engine = FakeInputEngine(vendedSession: fresh)
 
     try driveReload(old: old, engine: engine, capturedSchema: "", replayComposition: true)
 
@@ -515,9 +526,9 @@ final class RimeSeamTests: XCTestCase {
   @MainActor
   func testReplayRawInputSkipsNonASCIIAndPreservesOrder() throws {
     // Owltype raw input codes are ASCII; a stray non-ASCII scalar must be skipped, not crash.
-    let old = FakeRimeSession(sessionID: 30, input: "ow鹰ltype")
-    let fresh = FakeRimeSession(sessionID: 31)
-    let engine = FakeRimeEngine(vendedSession: fresh)
+    let old = FakeEngineSession(sessionID: 30, input: "ow鹰ltype")
+    let fresh = FakeEngineSession(sessionID: 31)
+    let engine = FakeInputEngine(vendedSession: fresh)
 
     try driveReload(old: old, engine: engine, capturedSchema: "rime_ice", replayComposition: true)
 
@@ -529,17 +540,17 @@ final class RimeSeamTests: XCTestCase {
 
   @MainActor
   private func makeSettledRerankController(
-    session: FakeRimeSession
+    session: FakeEngineSession
   ) throws -> (
     controller: OwlInputController,
     delegate: OwlApplicationDelegate,
-    previousEngine: RimeEngine
+    previousEngine: InputEngine
   ) {
     OwlExperimentalPreferences.resetForTesting()
     OwlExperimentalPreferences.settledRerankEnabled = true
     let delegate = NSApp.owlAppDelegate
     let previousEngine = delegate.runtime.engine
-    delegate.runtime.engine = FakeRimeEngine(vendedSession: session)
+    delegate.runtime.engine = FakeInputEngine(vendedSession: session)
     let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     return (controller, delegate, previousEngine)
   }
@@ -565,7 +576,7 @@ final class RimeSeamTests: XCTestCase {
 
   @MainActor
   func testSettledActionInvalidationRejectsAResultEvenWithoutEngineMutation() throws {
-    let session = FakeRimeSession(sessionID: 71, generation: 9, input: "ni", settledRerankReady: true)
+    let session = FakeEngineSession(sessionID: 71, generation: 9, input: "ni", settledRerankReady: true)
     session.settledRerankStartResult = OwlSettledRerankStartResult(
       token: 104, current: false, moved: false, error: nil
     )
@@ -598,7 +609,7 @@ final class RimeSeamTests: XCTestCase {
 
   @MainActor
   func testSettledPauseUsesLastInputAndDrainsOldScoringBeforeRestarting() throws {
-    let session = FakeRimeSession(sessionID: 72, generation: 10, input: "ni", settledRerankReady: true)
+    let session = FakeEngineSession(sessionID: 72, generation: 10, input: "ni", settledRerankReady: true)
     session.settledRerankStartResult = OwlSettledRerankStartResult(
       token: 105, current: false, moved: false, error: nil
     )
@@ -645,7 +656,7 @@ final class RimeSeamTests: XCTestCase {
 
   @MainActor
   func testFocusLossRejectsSettledResultWithoutRelyingOnEngineClear() throws {
-    let session = FakeRimeSession(sessionID: 73, generation: 11, input: "ni", settledRerankReady: true)
+    let session = FakeEngineSession(sessionID: 73, generation: 11, input: "ni", settledRerankReady: true)
     session.settledRerankStartResult = OwlSettledRerankStartResult(
       token: 106, current: false, moved: false, error: nil
     )
@@ -677,7 +688,7 @@ final class RimeSeamTests: XCTestCase {
 
   @MainActor
   func testSettledRerankRetriesWhileModelIsStillLoading() throws {
-    let session = FakeRimeSession(input: "ni", settledRerankLoading: true)
+    let session = FakeEngineSession(input: "ni", settledRerankLoading: true)
     session.syncRerankPreferencesTransition = {
       guard session.rerankPreferenceSyncCount >= 2 else { return }
       session.settledRerankLoading = false
@@ -707,7 +718,7 @@ final class RimeSeamTests: XCTestCase {
 
   @MainActor
   func testSynchronousMovedSettledResultRefreshesAfterGenerationAdvance() throws {
-    let session = FakeRimeSession(
+    let session = FakeEngineSession(
       sessionID: 52,
       generation: 17,
       input: "ni",
@@ -745,7 +756,7 @@ final class RimeSeamTests: XCTestCase {
 
   @MainActor
   func testNewInputCancelsThePreviousSettledRerankPause() throws {
-    let session = FakeRimeSession(input: "ni", settledRerankReady: true)
+    let session = FakeEngineSession(input: "ni", settledRerankReady: true)
     session.settledRerankStartResult = OwlSettledRerankStartResult(
       token: 7,
       current: false,
@@ -784,7 +795,7 @@ final class RimeSeamTests: XCTestCase {
 
   @MainActor
   func testStaleSettledResultIsDrainedWithoutRefreshingThePanel() throws {
-    let session = FakeRimeSession(
+    let session = FakeEngineSession(
       sessionID: 41,
       generation: 8,
       input: "ni",
@@ -824,7 +835,7 @@ final class RimeSeamTests: XCTestCase {
 
   @MainActor
   func testSymbolMenuGenerationDrainsRunningSettledResultWithoutRefreshingThePanel() throws {
-    let session = FakeRimeSession(
+    let session = FakeEngineSession(
       sessionID: 45,
       generation: 0x1234,
       input: "ni",
@@ -866,7 +877,7 @@ final class RimeSeamTests: XCTestCase {
 
   @MainActor
   func testCurrentMovedSettledResultRefreshesOnlyOnce() throws {
-    let session = FakeRimeSession(sessionID: 51, input: "ni", settledRerankReady: true)
+    let session = FakeEngineSession(sessionID: 51, input: "ni", settledRerankReady: true)
     session.settledRerankStartResult = OwlSettledRerankStartResult(
       token: 102,
       current: false,
@@ -901,7 +912,7 @@ final class RimeSeamTests: XCTestCase {
 
   @MainActor
   func testSettledRerankDebounceIsClearedBySessionLifecycle() throws {
-    let session = FakeRimeSession(sessionID: 61, input: "ni", settledRerankReady: true)
+    let session = FakeEngineSession(sessionID: 61, input: "ni", settledRerankReady: true)
     let fixture = try makeSettledRerankController(session: session)
     let controller = fixture.controller
     defer {
@@ -937,13 +948,13 @@ final class RimeSeamTests: XCTestCase {
 
   @MainActor
   private func makeNativeController(
-    session: FakeRimeSession
+    session: FakeEngineSession
   ) throws -> (controller: OwlInputController, client: HabitsTextClient, restore: () -> Void) {
     let delegate = NSApp.owlAppDelegate
     let previousEngine = delegate.runtime.engine
-    delegate.runtime.engine = FakeRimeEngine(vendedSession: session)
+    delegate.runtime.engine = FakeInputEngine(vendedSession: session)
     let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
-    controller.rime = session
+    controller.engineSession = session
     let client = HabitsTextClient()
     client.appID = "com.apple.TextEdit"
     controller.client = client
@@ -951,7 +962,7 @@ final class RimeSeamTests: XCTestCase {
     let savedPair = OwlDefaults.standard.object(forKey: pairKey)
     OwlKeyboardPreferences.autoPairBrackets = true
     return (controller, client, {
-      controller.rime = nil
+      controller.engineSession = nil
       delegate.runtime.engine = previousEngine
       delegate.owlPanel?.hidePanel()
       if let savedPair { OwlDefaults.standard.set(savedPair, forKey: pairKey) } else {
@@ -960,11 +971,11 @@ final class RimeSeamTests: XCTestCase {
     })
   }
 
-  private func composing(_ input: String, candidates: [String], highlighted: Int) -> RimeComposition {
-    RimeComposition(
+  private func composing(_ input: String, candidates: [String], highlighted: Int) -> EngineComposition {
+    EngineComposition(
       preedit: input, selStart: 0, selEnd: input.utf8.count, cursorPos: input.utf8.count,
       commitTextPreview: candidates[highlighted],
-      candidates: candidates.map { RimeCandidate(text: $0, comment: nil) },
+      candidates: candidates.map { EngineCandidate(text: $0, comment: nil) },
       labels: candidates.indices.map { String($0 + 1) }, pageNo: 0, pageSize: 5,
       isLastPage: true, highlightedIndex: highlighted, numCandidates: candidates.count
     )
@@ -980,7 +991,7 @@ final class RimeSeamTests: XCTestCase {
   /// what the engine committed, and never clears the engine instead of finishing it.
   @MainActor
   func testHostCompositionEndCommitsThroughNativeFinish() throws {
-    let session = FakeRimeSession(
+    let session = FakeEngineSession(
       composition: composing("gggg", candidates: ["王", "五一"], highlighted: 1), input: "gggg",
       finishNativeResult: true, finishNativeCommit: "五一")
     let fixture = try makeNativeController(session: session)
@@ -995,7 +1006,7 @@ final class RimeSeamTests: XCTestCase {
 
   @MainActor
   func testRefusedNativeFinishFallsBackToTheConvertedPreview() throws {
-    let session = FakeRimeSession(
+    let session = FakeEngineSession(
       composition: composing("gggg", candidates: ["王", "五一"], highlighted: 0), input: "gggg",
       finishNativeResult: false)
     let fixture = try makeNativeController(session: session)
@@ -1010,7 +1021,7 @@ final class RimeSeamTests: XCTestCase {
 
   @MainActor
   func testApplicationChordFinishesNativelyBeforePassthrough() throws {
-    let session = FakeRimeSession(
+    let session = FakeEngineSession(
       composition: composing("ni", candidates: ["你"], highlighted: 0), input: "ni",
       finishNativeResult: true, finishNativeCommit: "你")
     let fixture = try makeNativeController(session: session)
@@ -1024,7 +1035,7 @@ final class RimeSeamTests: XCTestCase {
 
   @MainActor
   func testPairedPunctuationHoldsTheClosingUntilCompositionEnds() throws {
-    let session = FakeRimeSession(pendingCommit: "（", acceptsHostSmartPunctuation: true)
+    let session = FakeEngineSession(pendingCommit: "（", acceptsHostSmartPunctuation: true)
     let fixture = try makeNativeController(session: session)
     defer { fixture.restore() }
 
@@ -1040,7 +1051,7 @@ final class RimeSeamTests: XCTestCase {
 
   @MainActor
   func testOpeningBookTitleMarkBalancesTheEnginePair() throws {
-    let session = FakeRimeSession(pendingCommit: "《", acceptsHostSmartPunctuation: true)
+    let session = FakeEngineSession(pendingCommit: "《", acceptsHostSmartPunctuation: true)
     let fixture = try makeNativeController(session: session)
     defer { fixture.restore() }
 
@@ -1053,7 +1064,7 @@ final class RimeSeamTests: XCTestCase {
 
   @MainActor
   func testEngineLocalModeKeepsTheHostOutOfPairing() throws {
-    let session = FakeRimeSession(pendingCommit: "（", acceptsHostSmartPunctuation: false)
+    let session = FakeEngineSession(pendingCommit: "（", acceptsHostSmartPunctuation: false)
     let fixture = try makeNativeController(session: session)
     defer { fixture.restore() }
 
@@ -1065,7 +1076,7 @@ final class RimeSeamTests: XCTestCase {
 
   @MainActor
   func testSwitchingClientsFinishesTheCompositionBeforeClosingThePair() throws {
-    let session = FakeRimeSession(pendingCommit: "（", acceptsHostSmartPunctuation: true)
+    let session = FakeEngineSession(pendingCommit: "（", acceptsHostSmartPunctuation: true)
     let fixture = try makeNativeController(session: session)
     defer { fixture.restore() }
     XCTAssertTrue(fixture.controller.handle(try key("(", code: 25, flags: .shift), client: fixture.client))

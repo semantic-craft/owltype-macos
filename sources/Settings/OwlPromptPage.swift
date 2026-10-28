@@ -24,8 +24,8 @@ struct OwlPromptPage: View {
   let theme: OwlCandidateTheme
   let reduceTransparency: Bool
 
-  /// 注入的配置写入器（默认 = 实时 Owltype user_data_dir）。测试把它的 `rimeDir` 指向临时目录，
-  /// 这样本页永远不写真实 `~/Library`。读取（列表 / 跨特性重码源）也走 `writer.rimeDir`。
+  /// 注入的配置写入器（默认 = 实时 Owltype user_data_dir）。测试把它的 `dataDir` 指向临时目录，
+  /// 这样本页永远不写真实 `~/Library`。读取（列表 / 跨特性重码源）也走 `writer.dataDir`。
   var writer = OwlConfigWriter()
 
   @State private var entries: [OwlPromptEntry] = []
@@ -389,15 +389,15 @@ struct OwlPromptPage: View {
   // MARK: - 动作
 
   private func reload() {
-    entries = OwlPromptStore.load(rimeDir: writer.rimeDir)
-    quickSendCodes = OwlPromptStore.quickSendCodes(rimeDir: writer.rimeDir)
+    entries = OwlPromptStore.load(dataDir: writer.dataDir)
+    quickSendCodes = OwlPromptStore.quickSendCodes(dataDir: writer.dataDir)
   }
 
   /// 导入官方 XML 模板包（A1）：只增不改地并入现有条目，撞码的跳过，随后落盘 + 刷新列表。
   /// 从盘上重读而非信任内存 `entries`，避免并发会话改过文件后合并到过期列表。
   private func importOfficialTemplates() {
-    let existing = OwlPromptStore.load(rimeDir: writer.rimeDir)
-    let codes = OwlPromptStore.quickSendCodes(rimeDir: writer.rimeDir)
+    let existing = OwlPromptStore.load(dataDir: writer.dataDir)
+    let codes = OwlPromptStore.quickSendCodes(dataDir: writer.dataDir)
     let result = OwlPromptPresets.merge(into: existing, quickSendCodes: codes)
     guard !result.added.isEmpty else {
       status = "官方模板已全部导入过了。"
@@ -458,7 +458,7 @@ struct OwlPromptPage: View {
       var next = entries.filter { $0.code != entry.code && $0.code != editingCode }
       next.append(entry)
       try OwlPromptStore.save(next, writer: writer)
-      entries = OwlPromptStore.load(rimeDir: writer.rimeDir)
+      entries = OwlPromptStore.load(dataDir: writer.dataDir)
       select(entry)
       status = "已保存提示词。"
     } catch {
@@ -471,7 +471,7 @@ struct OwlPromptPage: View {
     do {
       let next = entries.filter { $0.code != editingCode }
       try OwlPromptStore.save(next, writer: writer)
-      entries = OwlPromptStore.load(rimeDir: writer.rimeDir)
+      entries = OwlPromptStore.load(dataDir: writer.dataDir)
       newDraft()
       status = "已删除提示词。"
     } catch {

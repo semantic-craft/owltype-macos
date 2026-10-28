@@ -9,7 +9,7 @@
 //  size means every branch the initial state touches compiled and laid out.
 //
 //  The store/variable contracts are locked separately in `OwlPromptStoreTests`; this is the view
-//  seam: the page reaches its data through `writer.rimeDir`, so seeding that temp dir and confirming
+//  seam: the page reaches its data through `writer.dataDir`, so seeding that temp dir and confirming
 //  the page's data source resolves to it ties the render to the injected fake.
 //
 //  Limitation (documented): `.onAppear` (which calls `reload()`) does not fire deterministically in
@@ -58,9 +58,9 @@ final class OwlPromptPageRenderTests: XCTestCase {
   }
 
   func testRendersWithInjectedWriterAndNeverTouchesRealUserDir() {
-    let writer = OwlConfigWriter(rimeDir: tempRoot)
+    let writer = OwlConfigWriter(dataDir: tempRoot)
     // The page's data source must resolve to the injected temp dir, not OwlApp.userDir.
-    XCTAssertEqual(writer.rimeDir, tempRoot)
+    XCTAssertEqual(writer.dataDir, tempRoot)
 
     let size = fittingSize(of: page(writer: writer))
     XCTAssertGreaterThan(size.width, 0, "prompt page should lay out a non-zero width")
@@ -68,7 +68,7 @@ final class OwlPromptPageRenderTests: XCTestCase {
   }
 
   func testRendersAcrossSchemeAndTransparencyBranches() {
-    let writer = OwlConfigWriter(rimeDir: tempRoot)
+    let writer = OwlConfigWriter(dataDir: tempRoot)
     for scheme in [ColorScheme.light, .dark] {
       for reduceTransparency in [false, true] {
         let size = fittingSize(of: page(writer: writer, scheme: scheme, reduceTransparency: reduceTransparency))
@@ -80,9 +80,9 @@ final class OwlPromptPageRenderTests: XCTestCase {
 
   func testSeededTempDirIsReachableThroughTheInjectedWriter() throws {
     // Seed the injected temp dir with a multi-line, variable-bearing prompt + a quick-send code,
-    // then confirm the page's exact data sources (writer.rimeDir) surface them — this is the wiring
+    // then confirm the page's exact data sources (writer.dataDir) surface them — this is the wiring
     // the page's `reload()` depends on.
-    let writer = OwlConfigWriter(rimeDir: tempRoot)
+    let writer = OwlConfigWriter(dataDir: tempRoot)
     try OwlQuickSendStore.save(
       [try OwlQuickSendStore.entry(text: "判决摘要", code: "pjzy")],
       writer: writer,
@@ -97,9 +97,9 @@ final class OwlPromptPageRenderTests: XCTestCase {
       timestamp: "20260701-000001"
     )
 
-    let loaded = OwlPromptStore.load(rimeDir: writer.rimeDir)
+    let loaded = OwlPromptStore.load(dataDir: writer.dataDir)
     XCTAssertEqual(loaded.map(\.code), ["fanyi", "hetong"], "page data source must read the injected temp dir")
-    let collisionCodes = OwlPromptStore.quickSendCodes(rimeDir: writer.rimeDir)
+    let collisionCodes = OwlPromptStore.quickSendCodes(dataDir: writer.dataDir)
     XCTAssertTrue(collisionCodes.contains("pjzy"), "shared-namespace collision source must read the injected temp dir")
 
     // The page still lays out with seeded data present in its source dir.

@@ -40,8 +40,8 @@ OWL_FORBIDDEN_HARD=(
   "/Library/Input Methods/Famo.app"
   "Application Support/Famo"
 )
-# CLAIM: Squirrel's ids, which Owltype must never claim — it is a librime derivative that
-# has to coexist with an installed Squirrel, not displace it. A live guarantee, unrelated
+# CLAIM: Squirrel's ids, which Owltype must never claim — its frontend descends from Squirrel
+# and has to coexist with an installed Squirrel, not displace it. A live guarantee, unrelated
 # to the rename, so it outlives it.
 #
 # Enforced on shipped artifacts only (Info.plist, resource filenames, DMG loose files),
@@ -73,7 +73,7 @@ OWL_FORBIDDEN_PRODUCT=(
 # prints each hit to stderr. Returns 0 always; the caller decides fail vs warn.
 #
 # The executable scan is deliberately limited to OWL_FORBIDDEN_HARD. Generic brand
-# fragments and librime/Squirrel symbols are legitimate provenance and would create
+# fragments and Squirrel provenance symbols are legitimate provenance and would create
 # false positives. Contents/SharedSupport is likewise engine data, not product identity.
 owl_scan_app_identity() {
   local app="$1"

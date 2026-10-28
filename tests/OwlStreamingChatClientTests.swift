@@ -11,7 +11,7 @@
 //    3. `OwlStreamingChatService.readiness()`: no-default-profile + no-key → `.unconfigured`;
 //       a profile with no stored key → `.missingKey`; a resolvable key → `.ready` (no network).
 //
-//  No network, no librime.
+//  No network, no engine.
 //
 
 import Foundation

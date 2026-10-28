@@ -56,7 +56,7 @@ struct OwlTemplateBackup {
     let library: OwlTemplateLibrary
     let backupURL: URL?
   }
-  let rimeDir: URL
+  let dataDir: URL
 
   static func decode(_ data: Data) throws -> OwlTemplateLibrary {
     do {
@@ -94,9 +94,9 @@ struct OwlTemplateBackup {
   }
 
   func currentLibrary() throws -> OwlTemplateLibrary {
-    switch OwlTemplateStore.mode(rimeDir: rimeDir) {
+    switch OwlTemplateStore.mode(dataDir: dataDir) {
     case .empty: return OwlTemplateLibrary()
-    case .unified: return try OwlTemplateStore.load(rimeDir: rimeDir)
+    case .unified: return try OwlTemplateStore.load(dataDir: dataDir)
     case .legacy: throw OwlTemplateError.legacyRequiresMigration
     case .unavailable(let message): throw OwlTemplateError.invalid(message)
     }
@@ -153,7 +153,7 @@ struct OwlTemplateBackup {
   func commit(_ next: OwlTemplateLibrary, expected: OwlTemplateLibrary,
                       checkpoint: @escaping (String) throws -> Void) throws -> Outcome {
     try OwlTemplateStore.exclusively {
-      let transaction = OwlTemplateMigration(rimeDir: rimeDir)
+      let transaction = OwlTemplateMigration(dataDir: dataDir)
       try transaction.recoverIfNeeded()
       let current = try currentLibrary()
       guard try OwlTemplateStore.encoded(current) == OwlTemplateStore.encoded(expected) else { throw OwlTemplateError.changedOnDisk }
@@ -161,11 +161,11 @@ struct OwlTemplateBackup {
       guard try OwlTemplateStore.encoded(next) != OwlTemplateStore.encoded(current) else {
         return Outcome(library: current, backupURL: nil)
       }
-      let backupDirectory = rimeDir.appendingPathComponent(".owl-backup/templates-" + UUID().uuidString)
+      let backupDirectory = dataDir.appendingPathComponent(".owl-backup/templates-" + UUID().uuidString)
       try checkpoint("backup")
       try OwlPrivateStorage.prepareDirectory(backupDirectory)
       let backupURL = backupDirectory.appendingPathComponent(OwlTemplateStore.fileName)
-      let source = rimeDir.appendingPathComponent(OwlTemplateStore.fileName)
+      let source = dataDir.appendingPathComponent(OwlTemplateStore.fileName)
       let bytes = FileManager.default.fileExists(atPath: source.path) ? try Data(contentsOf: source) : try OwlTemplateStore.encoded(current)
       guard try OwlTemplateStore.encoded(Self.decode(bytes)) == OwlTemplateStore.encoded(current) else { throw OwlTemplateError.changedOnDisk }
       try Self.writeBackup(bytes, to: backupURL)

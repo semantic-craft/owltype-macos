@@ -24,7 +24,7 @@ enum OwlPrivateStorage {
   }
 }
 
-enum OwlRimeIdentity {
+enum OwlEngineIdentity {
   static let appName = "rime.owltype"
   static let builderAppName = "rime.owltype-builder"
   static let baseConfig = "owltype"
@@ -130,7 +130,7 @@ struct OwlApp {
         case "--reload":
           // deliverImmediately（2026-07-24 静默 reload 根因）：NSApplication 在 app 激活过又失活后
           // （任何一次设置/引导窗口访问）自动挂起本进程的分布式通知投递；默认 post 会被 coalesce
-          // 进挂起队列，而后台 IME 永远不会再激活去冲队列——通知就静默丢失（librime 侧因此零日志）。
+          // 进挂起队列，而后台 IME 永远不会再激活去冲队列——通知就静默丢失（引擎侧因此零日志）。
           // deliverImmediately 无视挂起态直接送达所有 observer。下面各 CLI post 同理。
           DistributedNotificationCenter.default().postNotificationName(.init("OwlReloadNotification"), object: nil, userInfo: nil, deliverImmediately: true)
           return true
@@ -335,10 +335,10 @@ struct OwlApp {
         task.arguments = args
         try? task.run()
       } else {
-        let perfRime = OwlPerf.mark()
-        delegate.setupRime()
+        let perfEngine = OwlPerf.mark()
+        delegate.setupEngine()
         delegate.runtime.start(fullCheck: false)  // maintenance, then the config cache
-        OwlPerf.since(perfRime, "coldstart.rime")  // heavy: start_maintenance — dict + octagram load
+        OwlPerf.since(perfEngine, "coldstart.rime")  // heavy: start_maintenance — dict + octagram load
         // 方案B：公开包只带清洁室词库种子；完整词库在用户知情同意后按 pin 拉取（不阻塞冷启动，
         // 下载完成后自动 deploy() 编译）。已装 / 用户自备 / 已提示过时这里只刷新状态。
         OwlDictPackCenter.shared.promptOrFetchIfNeeded()

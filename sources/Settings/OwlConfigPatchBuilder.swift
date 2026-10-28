@@ -1,5 +1,5 @@
 //
-//  OwlRimePatchBuilder.swift
+//  OwlConfigPatchBuilder.swift
 //  猫头鹰输入法 (Owltype) — Rime patch generators (default.custom.yaml + rime_ice.custom.yaml)
 //
 //  v0.3.2: turn the 键盘输入 choices (persisted in `OwlKeyboardPreferences`) into a
@@ -346,7 +346,7 @@ func owlWubiCustomYAML(from s: OwlKeyboardSnapshot, target: OwlWubiPatchTarget) 
     lines.append("    - xform/.+//")
   }
 
-  // z 临时拼音那一路的注释不是拼音，而是 librime 拿候选文本回主方案词典反查出的五笔编码
+  // z 临时拼音那一路的注释不是拼音，而是 引擎拿候选文本回主方案词典反查出的五笔编码
   // （reverse_lookup_translator 的 rev_dict 默认 target = translator，即 wubi86_jidian）。
   // 那正是「打拼音顺带认五笔码」的练习价值，所以刻意不跟「候选编码提示」联动——后者只管
   // 五笔本身那一路。恒写空规则表，压掉方案里可能存在的 comment_format。
@@ -380,7 +380,7 @@ func owlWubiCustomYAML(from s: OwlKeyboardSnapshot, target: OwlWubiPatchTarget) 
 
   if s.wubiEnglishChannel {
     // ` 临时英文：仿 z 反查的前缀通道。` 追加进 speller/alphabet（4 变体均未显式定义 alphabet，
-    // 基线 = librime 默认 zyxwvutsrqponmlkjihgfedcba，2026-07-21 核对）；segmentors 整表替换而非
+    // 基线 = Rime 默认 zyxwvutsrqponmlkjihgfedcba，2026-07-21 核对）；segmentors 整表替换而非
     // `/+` 追加——追加会落到 fallback_segmentor 之后永远不执行，affix_segmentor 必须排在
     // abc_segmentor 之前（4 变体 stock 列表完全一致，2026-07-21 核对）。词库 melt_eng 与拼音线
     // 同一份（seed 已随 *.dict.yaml 打包进 SharedSupport）。前缀段不受四码上屏影响（z 反查同理）。
@@ -489,7 +489,7 @@ private func punctuatorPatchLines(from s: OwlKeyboardSnapshot) -> [String] {
   if s.angleSymbolMenu {
     // 只动 `<`（开括号），`>` 保持标量 `》` 直上屏——`>` 若变列表，每次闭合都弹菜单，且菜单确认
     // 的提交在 commit seam 会因 preedit 非空跳过右邻读，自动配对的 skip-over 就死了（见
-    // OwlInputController+RimeUpdate 的 gate 注释）。选出 ASCII `<` 后由自动配对（ASCII 表）补对。
+    // OwlInputController+EngineUpdate 的 gate 注释）。选出 ASCII `<` 后由自动配对（ASCII 表）补对。
     // 整键替换（非 /+ 合并）：rime-ice half_shape 的 `<` 是标量 `《`，标量→列表类型不兼容合并。
     lines.append("  # 符号：< 弹出符号选单（《 〈 ASCII< 「 弯引号“；首选仍是《，继续打字自动上屏首选）")
     lines.append("  # 每项都是单字符开括号——选中后由「自动配对括号」补成对并居中光标（弯引号同表）。")
