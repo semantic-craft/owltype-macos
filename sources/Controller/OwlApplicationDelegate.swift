@@ -270,10 +270,6 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   func migrateLegacyUserData() -> String {
     let trace = OwlLatencyTrace.begin("migrate.rimeUserData")
     defer { OwlLatencyTrace.end("migrate.rimeUserData", trace) }
-    guard engine is OwlRustEngine else {
-      return "当前使用的是旧版 Rime 引擎，不需要迁移到 Rust 学习库。"
-    }
-
     let userRoot = OwlApp.userDir
     let rustUserRoot = userRoot.appendingPathComponent("msime-user", isDirectory: true)
     let staged: OwlUserMigrationStageResult
@@ -520,7 +516,6 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
 
     let window = owlSettingsWindow ?? OwlSettingsWindow()
     owlSettingsWindow = window
-    let usesRustEngine = engine is OwlRustEngine
     OwlLatencyTrace.event("window.settings.controllerSelected")
 
     window.show(
@@ -574,7 +569,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
         self.owlPanel?.refreshPreferences()
         OwlInputStatusPanel.shared.refreshPreferences()
       },
-      writesRimeConfiguration: !usesRustEngine
+      writesRimeConfiguration: false
     )
     OwlLatencyTrace.event("window.settings.firstVisible")
   }
@@ -946,7 +941,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     let usable = opened && Self.isUsable(candidate)
     OwlLiveInputTrace.write { "loadSettings openBase=\(opened) usable=\(usable)" }
     guard usable else {
-      if engine is OwlRustEngine && config == nil {
+      if config == nil {
         var flags = OwlStyleFlags(linear: true, vertical: false, inlinePreedit: true, inlineCandidate: false)
         OwlCandidatePanelSettings.live.applyInlineCandidate(to: &flags)
         styleFlags = flags

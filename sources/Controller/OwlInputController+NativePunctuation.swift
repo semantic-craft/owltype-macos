@@ -15,7 +15,7 @@ extension OwlInputController {
   }
 
   var usesNativePairedPunctuation: Bool {
-    guard let session = rime as? OwlRustSession,
+    guard let session = rime,
           session.acceptsHostSmartPunctuation,
           !session.option(.asciiMode), !session.option(.asciiPunct),
           client?.bundleIdentifier()?.caseInsensitiveCompare("com.microsoft.Excel") != .orderedSame
@@ -41,7 +41,7 @@ extension OwlInputController {
       }
       opened = pairs[mark]
       if opened != nil, mark == "《" || mark == "〈" {
-        (rime as? OwlRustSession)?.balanceHostPairedPunctuation()
+        rime?.balanceHostPairedPunctuation()
       }
     }
     pendingPairedClosing = opened
@@ -82,7 +82,7 @@ extension OwlInputController {
   func finishPairBeforeChangingClient(to incoming: IMKTextInput?) {
     guard let incoming, let previous = client, incoming !== previous else { return }
     if pendingPairedClosing != nil {
-      (rime as? OwlRustSession)?.finishNativeComposition()
+      rime?.finishNativeComposition(onFocusLoss: false)
       rimeUpdate()
       flushPendingPairedClosing()
     }

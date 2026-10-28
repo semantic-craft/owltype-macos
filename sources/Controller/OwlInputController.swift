@@ -222,7 +222,7 @@ final class OwlInputController: IMKInputController {
 
     case .commandPassthrough:
       invalidateSettledRerankForAction()
-      (rime as? OwlRustSession)?.finishNativeComposition()
+      rime?.finishNativeComposition(onFocusLoss: false)
       rimeUpdate()
       flushPendingPairedClosing()
       return false

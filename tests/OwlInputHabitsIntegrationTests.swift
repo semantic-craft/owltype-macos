@@ -712,7 +712,8 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
   }
 }
 
-private final class HabitsTextClient: NSObject, IMKTextInput {
+/// A native text view behind the IMK client protocol; shared by the fake-driven controller tests.
+final class HabitsTextClient: NSObject, IMKTextInput {
   let text = OwlPracticeTextView(frame: NSRect(x: 0, y: 0, width: 500, height: 100))
   var appID = "com.owltype.test.habits"
   var exposesText = true

@@ -16,6 +16,21 @@ each engine update. Readers use it only to tell whether the user is mid-composit
 logout prompt, the dictionary prompt). Candidates come only from the engine's main lane; there is
 no second candidate lane.
 
+**Input session** — one composition's conversation with the engine (`RimeSession`; the engine
+that vends sessions is `RimeEngine`). The Rust session is the only production adapter, and the
+controller never casts past the protocol: a behaviour it needs is a requirement there, so the
+test fake (`FakeRimeSession`) has to model it.
+
+**Native finish** — ending a composition by asking the engine to select the highlighted
+conversion and commit it (`finishNativeComposition`), so the engine learns the choice. An
+application chord finishes; the host ending the composition finishes on focus loss. Only when
+the engine refuses does the controller fall back to inserting the converted preview.
+
+**Host-held closing mark** — the closing half of a paired punctuation mark (`（）`, `《》`…) that
+the controller keeps as marked text after the engine commits the opening half, and inserts when
+the composition ends (`pendingPairedClosing`). Only while the engine is in no local mode
+(`acceptsHostSmartPunctuation`).
+
 ## Dictionary
 
 **Resource generation** — one verified, immutable copy of the bundled `msime` resources in the

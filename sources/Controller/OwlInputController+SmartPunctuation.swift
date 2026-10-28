@@ -38,7 +38,7 @@ extension OwlInputController {
     guard (modifiers & kReleaseMask.rawValue) == 0 else { return false }
     let state = smartPunctuation
     state.source = nil
-    guard let client, let session = rime as? OwlRustSession,
+    guard let client, let session = rime,
           !session.option(.asciiMode), session.acceptsHostSmartPunctuation, pendingPairedClosing == nil,
           (modifiers & (kControlMask.rawValue | kAltMask.rawValue | kSuperMask.rawValue)) == 0,
           key >= 32, key < 127 else { state.reset(); return false }
