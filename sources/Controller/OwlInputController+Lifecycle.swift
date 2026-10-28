@@ -97,11 +97,11 @@ extension OwlInputController {
     self.client ?= sender as? IMKTextInput
     // print("[DEBUG] commitComposition: \(sender ?? "nil")")
     // Native finish performs the selection and learning, preserving focus-loss local-mode rules.
-    // Non-Rust sessions and failed native actions retain the converted-preview/raw fallback.
+    // A missing session or a refused native action retains the converted-preview/raw fallback.
     // Every path clears the snapshot registry, even when no composition remains (#37).
     let live: RimeSession? = (rime?.isValid == true) ? rime : nil
-    if let native = live as? OwlRustSession, native.finishNativeComposition(onFocusLoss: true) {
-      if let text = native.takeCommit(), !text.isEmpty { commit(string: text) }
+    if let live, live.finishNativeComposition(onFocusLoss: true) {
+      if let text = live.takeCommit(), !text.isEmpty { commit(string: text) }
       MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.emitCleared() }
       flushPendingPairedClosing()
       return

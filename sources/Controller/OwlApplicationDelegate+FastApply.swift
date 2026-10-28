@@ -60,7 +60,6 @@ extension OwlApplicationDelegate {
     try OwlKeyboardSettingsApplication(
       engine: engine,
       directory: directory,
-      activeSchema: activeSchemaIdForFastApply,
       refresh: { self.loadSettings(); self.reapplyToLiveSession() }
     ).apply(snapshot, mode: mode)
   }
@@ -98,14 +97,5 @@ extension OwlApplicationDelegate {
       OwlLatencyTrace.event("deploy.sessionRecreate")
     }
     active?.reapplyConfigToLiveSession(replayComposition: true)
-  }
-
-  /// The schema id to refresh + reselect for the fast path: prefer the active controller's
-  /// live `schemaId`, else the engine's best-effort current schema. "" when unavailable.
-  func activeSchemaIdForFastApply() -> String {
-    if let live = activeInputController?.schemaId, !live.isEmpty {
-      return live
-    }
-    return currentSchemaId()
   }
 }

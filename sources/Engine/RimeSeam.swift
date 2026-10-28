@@ -10,8 +10,10 @@
 //    • `RimeSession` — one composition's conversation (process key, take commit, read
 //                      status/composition, candidate select/page/caret, options).
 //
-//  `OwlRustEngine` / `OwlRustSession` are the production adapters. Opaque native
-//  handles stay inside them; only value types cross the protocol boundary.
+//  `OwlRustEngine` / `OwlRustSession` are the only production adapters. Opaque native
+//  handles stay inside them; only value types cross the protocol boundary. Callers never
+//  cast past these protocols: every behaviour the controller needs is a requirement here,
+//  with no default implementations, so a fake has to model each path production runs.
 //
 //  Threading invariant: these are synchronous and MUST be called on the IMK input
 //  thread (the thread IMK delivers `handle(_:client:)` on). There is no actor and no
@@ -180,55 +182,32 @@ protocol RimeSession: AnyObject {
   /// `set_option` for a Owltype-driven option.
   func setOption(_ option: RimeOption, _ value: Bool)
 
-  /// `set_option` for an open-namespace app option (arbitrary key from config). Kept
-  /// separate from the closed `RimeOption` set on purpose — see `updateAppOptions`.
-  func setAppOption(_ key: String, _ value: Bool)
-
   /// `set_property`.
   func setProperty(name: String, value: String)
 
   /// `get_state_label_abbreviated` for the open-namespace option name librime reports.
   func stateLabel(option name: String, state: Bool, abbreviated: Bool) -> String?
 
+  /// Native finish: select the highlighted conversion and commit it through the engine
+  /// (`finish`, or `finish_on_focus_loss` when the host ends the composition), so the engine
+  /// learns the selection. Returns false when the engine refused the action; the caller then
+  /// falls back to `OwlForcedFinalize`. Any commit is drained with `takeCommit()`.
+  @discardableResult
+  func finishNativeComposition(onFocusLoss: Bool) -> Bool
+
+  /// True when the engine is in no local mode (no symbol menu, no reverse lookup…), so the
+  /// host may apply smart punctuation and keep a paired closing mark.
+  var acceptsHostSmartPunctuation: Bool { get }
+
+  /// Tell the engine the host opened a 《 or 〈 pair, so its own nesting state stays balanced.
+  func balanceHostPairedPunctuation()
+
+  /// Smart punctuation routed this key to ASCII during a composition: the engine commits the
+  /// composition followed by the ASCII mark. Returns whether the engine handled it.
+  func processHostASCIIPunctuation(_ character: String) -> Bool
+
   /// `destroy_session`. After this the session is invalid.
   func destroy()
-}
-
-extension RimeSession {
-  var generation: UInt64 { 0 }
-  var rerankConfigurationEpoch: UInt64 { 0 }
-  var settledRerankReady: Bool { false }
-  var settledRerankLoading: Bool { false }
-
-  func lastCommittedInput() -> String? { nil }
-
-  /// Default no-preview implementation — keeps fakes/spies source-compatible; the live
-  /// adapter overrides with the real iterator walk.
-  func peekCandidates(from _: Int, count _: Int) -> [RimeCandidate] { [] }
-
-  /// Default no-op — keeps fakes/spies source-compatible; the live adapter overrides with
-  /// `select_candidate`.
-  func selectCandidateAbsolute(_: Int) -> Bool { false }
-
-  func syncRerankPreferences() {}
-
-  func startSettledRerank() -> OwlSettledRerankStartResult { .noWork }
-
-  func pollSettledRerank(token _: UInt64, accept _: Bool) -> OwlSettledRerankPollResult {
-    .doneWithoutChange
-  }
-
-  func removeCandidate(_: OwlCandidateToken) -> Bool { false }
-
-  func selectCandidate(_ token: OwlCandidateToken) -> Bool {
-    if token.sessionID != 0 && token.sessionID != sessionID {
-      return false
-    }
-    if token.isAbsolute {
-      return selectCandidateAbsolute(token.candidateID)
-    }
-    return selectCandidate(token.candidateID)
-  }
 }
 
 struct OwlEngineTraits {
