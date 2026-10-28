@@ -187,4 +187,62 @@ final class OwlTemplateHostDeliveryTests: XCTestCase {
     invocation.cancel()
     XCTAssertEqual(finishes, 1)
   }
+
+  // #331: after a template window the host field came back through a new IMK controller, while
+  // delivery still compared against the old controller's client and timed out as focusNotRestored.
+  func testDeliveryRebindsToTheSessionActivatedForTheSameApplication() throws {
+    let old = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    let new = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    defer { old.destroySession(); new.destroySession() }
+    let captured = HabitsTextClient(); captured.appID = "com.apple.TextEdit"
+    let returned = HabitsTextClient(); returned.appID = "com.apple.TextEdit"
+    old.client = captured
+    XCTAssertNil(OwlTemplateHostDelivery.rebindTarget(controller: old, client: captured, activated: new,
+      bundleID: "com.apple.TextEdit"), "a captured session that is still live is kept")
+    old.client = nil
+    new.client = returned
+    XCTAssertTrue(OwlTemplateHostDelivery.rebindTarget(controller: old, client: captured, activated: new,
+      bundleID: "com.apple.TextEdit") === new)
+    XCTAssertTrue(OwlTemplateHostDelivery.rebindTarget(controller: nil, client: nil, activated: new,
+      bundleID: "com.apple.TextEdit") === new, "a released capture still finds the returned field")
+    XCTAssertNil(OwlTemplateHostDelivery.rebindTarget(controller: old, client: captured, activated: new,
+      bundleID: "com.google.Chrome"), "never another application's session")
+    new.client = nil
+    XCTAssertNil(OwlTemplateHostDelivery.rebindTarget(controller: old, client: captured, activated: new,
+      bundleID: "com.apple.TextEdit"), "never a deactivated session")
+  }
+
+  func testActivationRegistryFollowsIMKActivation() throws {
+    let first = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    let second = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    defer { first.destroySession(); second.destroySession() }
+    let client = HabitsTextClient()
+    let runtime = NSApp.owlAppDelegate.runtime
+    first.activateServer(client)
+    XCTAssertTrue(runtime.activatedInputController === first)
+    first.deactivateServer(client)
+    second.activateServer(client)
+    XCTAssertTrue(runtime.activatedInputController === second)
+    first.deactivateServer(client)
+    XCTAssertTrue(runtime.activatedInputController === second, "a stale deactivation keeps the live session")
+    second.deactivateServer(client)
+    XCTAssertNil(runtime.activatedInputController)
+  }
+
+  // #331: a template candidate left its code as marked text; the parameter window took focus and
+  // TextEdit committed the raw `Kyshx` into the document.
+  func testTemplateCandidateClearsHostMarkedTextBeforeAnyWindow() throws {
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    controller.destroySession()
+    defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
+    let session = FakeRimeSession(pendingCommit: OwlTemplateStore.candidatePrefix + UUID().uuidString + "]验收")
+    controller.rime = session
+    let client = HabitsTextClient(); client.appID = "com.apple.TextEdit"
+    controller.client = client
+    controller.show(preedit: "Kyshx", selRange: NSRange(location: 0, length: 0), caretPos: 5)
+    XCTAssertTrue(client.text.hasMarkedText())
+    controller.rimeConsumeCommittedText()
+    XCTAssertFalse(client.text.hasMarkedText())
+    XCTAssertEqual(client.text.string, "", "the raw code never reaches the document")
+  }
 }

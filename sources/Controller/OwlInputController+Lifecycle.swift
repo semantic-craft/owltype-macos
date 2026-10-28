@@ -25,9 +25,10 @@ extension OwlInputController {
     discardAutomaticExpansion()
     finishPairBeforeChangingClient(to: sender as? IMKTextInput)
     self.client ?= sender as? IMKTextInput
+    engineRuntime.activatedInputController = self
     pendingTemplateDelivery?.hostDidActivate()
     // print("[DEBUG] activateServer:")
-    debugLiveInputTrace("activateServer hasSender=\(sender != nil)")
+    debugLiveInputTrace("activateServer hasSender=\(sender != nil) controller=\(ObjectIdentifier(self).hashValue)")
     var keyboardLayout = engineRuntime.config?.getString("keyboard_layout") ?? ""
     if keyboardLayout == "last" || keyboardLayout == "" {
       keyboardLayout = ""
@@ -56,7 +57,7 @@ extension OwlInputController {
     pendingTemplateDelivery?.hostWillDeactivate()
     templateHostGeneration &+= 1
     // print("[DEBUG] deactivateServer: \(sender ?? "nil")")
-    debugLiveInputTrace("deactivateServer hasSender=\(sender != nil)")
+    debugLiveInputTrace("deactivateServer hasSender=\(sender != nil) controller=\(ObjectIdentifier(self).hashValue)")
     // B8: this input session is ending — cancel any in-flight AI lane requests it spawned so they
     // don't run to completion against a session that's gone (wasted tokens).
     aiTasks.cancelAll()
@@ -67,6 +68,7 @@ extension OwlInputController {
     // commit doesn't inherit a stale boundary char.
     lastCommittedCharacter = nil
     client = nil
+    if engineRuntime.activatedInputController === self { engineRuntime.activatedInputController = nil }
   }
 
   override func hidePalettes() {

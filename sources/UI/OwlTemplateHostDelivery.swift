@@ -106,12 +106,13 @@ final class OwlTemplateHostDelivery {
         guard let self else { return .missingHost }; return self.liveRejection(immediate: immediate)
       },
       rangeIsCurrent: { [weak self] in self?.liveRangesAllowed() == true },
-      revision: { [weak controller] in controller?.templateHostGeneration ?? UInt64.max },
-      selection: { [weak client] in client?.selectedRange() },
-      marked: { [weak client] in client?.markedRange() },
-      text: { [weak client] range in client?.attributedSubstring(from: range)?.string },
-      insert: { [weak controller, weak client] text, range in
-        guard let controller, let client else { return }
+      // Read the bound controller and client at call time: delivery may re-bind them.
+      revision: { [weak self] in self?.controller?.templateHostGeneration ?? UInt64.max },
+      selection: { [weak self] in self?.client?.selectedRange() },
+      marked: { [weak self] in self?.client?.markedRange() },
+      text: { [weak self] range in self?.client?.attributedSubstring(from: range)?.string },
+      insert: { [weak self] text, range in
+        guard let controller = self?.controller, let client = self?.client else { return }
         let previous = controller.automaticApplyingClientAction
         controller.automaticApplyingClientAction = true
         defer { controller.automaticApplyingClientAction = previous }
@@ -245,7 +246,11 @@ final class OwlTemplateHostDelivery {
 
   func deliver(_ result: OwlTemplateInvocation.Result) -> OwlTemplateDeliveryOutcome {
     guard !resultDispatched else { return .notAttempted(.targetChanged) }
-    guard isReadyForDelivery() else { return .notAttempted(access.rejection(immediate) ?? .targetChanged) }
+    guard isReadyForDelivery() else {
+      let reason = access.rejection(immediate) ?? .targetChanged
+      Self.trace("refused before insert: \(reason)")
+      return .notAttempted(reason)
+    }
     var replacement: NSRange?
     var origin: NSRange?
     if let source {
@@ -265,15 +270,17 @@ final class OwlTemplateHostDelivery {
     resultDispatched = true
     access.insert(result.text, replacement)
     // Even a successful Void dispatch is unverified until the bounded readback agrees.
-    guard let origin, access.revision() == revision,
-          let inserted = OwlTemplateCursorPlacement.insertedRange(text: result.text, base: origin.location),
-          confirmedText(result.text, in: inserted) else { return .attemptedUnverified }
+    guard let origin else { Self.trace("inserted without a readable origin"); return .attemptedUnverified }
+    guard access.revision() == revision else { Self.trace("host session changed during insert"); return .attemptedUnverified }
+    guard let inserted = OwlTemplateCursorPlacement.insertedRange(text: result.text, base: origin.location),
+          confirmedText(result.text, in: inserted) else { Self.trace("readback did not match the insert"); return .attemptedUnverified }
     guard let offset = result.cursorOffset else { return .confirmed }
     guard let selection = access.selection(), let target = OwlTemplateCursorPlacement.target(text: result.text,
       offset: offset, base: origin.location, selection: selection, readback: result.text) else {
       return .confirmedWithCursor(.positionUnverified)
     }
     let moved = access.move(target, inserted, result.text)
+    if !moved { Self.trace("cursor placement refused") }
     guard !invalid, access.revision() == revision, access.rejection(immediate) == nil else {
       return .confirmedWithCursor(.positionUnverified)
     }
@@ -282,7 +289,9 @@ final class OwlTemplateHostDelivery {
   }
 
   private func liveRejection(immediate: Bool) -> OwlTemplateDeliveryOutcome.Reason? {
-    guard let controller, let client, let application, !application.isTerminated else { return .missingHost }
+    guard let application, !application.isTerminated else { return .missingHost }
+    if !immediate { rebindToActivatedClient(application) }
+    guard let controller, let client else { return .missingHost }
     let current = Self.focusedField(application)
     guard !OwlClientPrivacyState.current().isSecureInputEnabled,
           field?.isSecure != true, current?.isSecure != true else { return .secureInput }
@@ -294,6 +303,31 @@ final class OwlTemplateHostDelivery {
       guard CFEqual(field.element, current.element), sameActiveClient else { return .targetChanged }
     }
     return nil
+  }
+
+  /// A window over the host deactivates its input session. When the field regains focus IMK may
+  /// serve it through a new controller or client proxy, so the captured pair no longer matches.
+  /// Re-bind only to the session IMK activated for the captured application; the caller still
+  /// requires the focused accessibility field to be the one captured before the window.
+  private func rebindToActivatedClient(_ application: NSRunningApplication) {
+    guard let activated = Self.rebindTarget(controller: controller, client: client,
+      activated: NSApp.owlAppDelegate.runtime.activatedInputController, bundleID: application.bundleIdentifier) else { return }
+    Self.trace("rebind to activated session")
+    controller = activated
+    client = activated.client
+  }
+
+  /// The activated controller to adopt, or nil while the captured pair is still live.
+  static func rebindTarget(controller: OwlInputController?, client: IMKTextInput?,
+                           activated: OwlInputController?, bundleID: String?) -> OwlInputController? {
+    if let controller, let client, let live = controller.client, live === client { return nil }
+    guard let activated, let live = activated.client, let bundleID,
+          live.bundleIdentifier() == bundleID else { return nil }
+    return activated
+  }
+
+  static func trace(_ message: @autoclosure () -> String) {
+    OwlLiveInputTrace.write({ "template delivery " + message() })
   }
 
   private func liveRangesAllowed(replacement: Bool = false) -> Bool {
@@ -308,9 +342,14 @@ final class OwlTemplateHostDelivery {
   private func moveCursor(_ target: NSRange, inserted: NSRange, text: String) -> Bool {
     guard !invalid, liveRangesAllowed(replacement: true), let application, let field,
           let current = Self.focusedField(application), CFEqual(field.element, current.element),
-          let client, OwlTemplateCursorPlacement.selectionIsAtEnd(Self.axSelection(field.element), inserted: inserted),
-          OwlTemplateCursorPlacement.selectionIsAtEnd(client.selectedRange(), inserted: inserted),
-          let axText = Self.axText(field.element, range: inserted), OwlTemplateCursorPlacement.equalText(axText, text) else { return false }
+          let client else { Self.trace("cursor: host field or range policy unavailable"); return false }
+    guard OwlTemplateCursorPlacement.selectionIsAtEnd(Self.axSelection(field.element), inserted: inserted),
+          OwlTemplateCursorPlacement.selectionIsAtEnd(client.selectedRange(), inserted: inserted) else {
+      Self.trace("cursor: selection is not at the end of the insert"); return false
+    }
+    guard let axText = Self.axText(field.element, range: inserted), OwlTemplateCursorPlacement.equalText(axText, text) else {
+      Self.trace("cursor: accessible text does not match the insert"); return false
+    }
     // Check the actual local composed-character boundary, including host neighbors. No full document read.
     let length = client.length()
     guard length >= NSMaxRange(inserted), length != NSNotFound else { return false }
@@ -321,18 +360,24 @@ final class OwlTemplateHostDelivery {
           OwlTemplateCursorPlacement.isHostBoundary(target.location - start, in: context,
             startsAtDocumentStart: start == 0), liveRejection(immediate: false) == nil,
           OwlTemplateCursorPlacement.selectionIsAtEnd(Self.axSelection(field.element), inserted: inserted),
-          OwlTemplateCursorPlacement.selectionIsAtEnd(client.selectedRange(), inserted: inserted) else { return false }
+          OwlTemplateCursorPlacement.selectionIsAtEnd(client.selectedRange(), inserted: inserted) else {
+      Self.trace("cursor: target is not a character boundary in the host"); return false
+    }
     // End markers need the same identity/context proof, but no selection mutation.
     if target == NSRange(location: NSMaxRange(inserted), length: 0) { return true }
     var settable = DarwinBoolean(false)
     guard AXUIElementIsAttributeSettable(field.element, kAXSelectedTextRangeAttribute as CFString, &settable) == .success,
-          settable.boolValue, liveRejection(immediate: false) == nil else { return false }
+          settable.boolValue, liveRejection(immediate: false) == nil else {
+      Self.trace("cursor: host selection is not settable"); return false
+    }
     var range = CFRange(location: target.location, length: 0)
     guard let value = AXValueCreate(.cfRange, &range) else { return false }
     guard !invalid, liveRejection(immediate: false) == nil,
           OwlTemplateCursorPlacement.selectionIsAtEnd(Self.axSelection(field.element), inserted: inserted),
           OwlTemplateCursorPlacement.selectionIsAtEnd(client.selectedRange(), inserted: inserted),
-          AXUIElementSetAttributeValue(field.element, kAXSelectedTextRangeAttribute as CFString, value) == .success else { return false }
+          AXUIElementSetAttributeValue(field.element, kAXSelectedTextRangeAttribute as CFString, value) == .success else {
+      Self.trace("cursor: setting the host selection failed"); return false
+    }
     return Self.axSelection(field.element) == target
   }
 

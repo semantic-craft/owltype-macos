@@ -75,11 +75,16 @@ final class OwlPanelInsertionBroker {
     }
     guard isPending() else { return }
     captured.restore()
-    awaitRestoration(captured, remaining: 12, isHostReady: isHostReady, isPending: isPending) { restored in
+    awaitRestoration(captured, remaining: Self.restorationPolls, isHostReady: isHostReady, isPending: isPending) { restored in
       guard isPending() else { return }
-      completion(restored ? host(result) : .notAttempted(.focusNotRestored))
+      // The application is back but its field never verified: the host refuses without writing
+      // and names its own reason. Only an application that never came back is a focus failure.
+      completion(restored || captured.isRestored() ? host(result) : .notAttempted(.focusNotRestored))
     }
   }
+
+  /// 25 ms polls. The host's input session can return after the application reports active.
+  static let restorationPolls = 40
 
   private func awaitRestoration(_ captured: FocusTarget, remaining: Int,
                                 isHostReady: @escaping () -> Bool, isPending: @escaping () -> Bool, completion: @escaping (Bool) -> Void) {

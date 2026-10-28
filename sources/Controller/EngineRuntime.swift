@@ -37,6 +37,9 @@ final class EngineRuntime {
   /// The controller that composed last, set on each `showPanel`. Refreshed last (with replay)
   /// when live sessions reload the config.
   weak var activeInputController: OwlInputController?
+  /// The controller IMK activated last and has not deactivated. A host field that regains focus
+  /// after a template window may be served by a new controller; delivery re-binds to it.
+  weak var activatedInputController: OwlInputController?
   /// Registry of every LIVE controller (one per host-app input session). WEAK members — a
   /// controller registers itself when it creates a session (and on each `showPanel`); dead
   /// controllers drop out automatically, so there is no retain cycle and no manual unregister
