@@ -24,10 +24,10 @@ struct OwlAIPage: View {
   let theme: OwlCandidateTheme
   let reduceTransparency: Bool
 
-  // AI 供应商 (multi-provider profiles, B1). The store + secret store default to the live homes;
-  // both are reachable only through the tested `OwlSettingsActions` funcs (write-only key field).
-  private let providerStore = OwlProviderProfileStore.shared
-  private let providerSecrets: OwlSecretStoring = OwlProviderKeychain()
+  // AI 供应商 (multi-provider profiles, B1). Profiles, their keys and verification markers change
+  // only through the tested `OwlProviderRegistry` (write-only key field). `@State` keeps one
+  // registry across re-renders, so a probe's result reaches the save that follows it.
+  @State private var registry = OwlProviderRegistry()
   @State private var providers: [OwlProviderProfile] = []
   @State private var providerID = OwlLLMProviderCatalog.customID
   @State private var providerName = ""
@@ -41,7 +41,7 @@ struct OwlAIPage: View {
   @State private var fetchedModels: [String] = []
   /// Non-nil = the form is editing this saved profile instead of adding a new one. Editing keeps the
   /// profile's `id`/`secretName`, so 换模型 doesn't need the key re-pasted (see
-  /// `OwlSettingsActions.updateProviderProfile`).
+  /// `OwlProviderRegistry.replaceEndpoint`).
   @State private var editingProfile: OwlProviderProfile?
   /// 百炼 Workspace ID / API Host。非密钥，所有 Qwen 供应商档案共用这一项。
   @State private var qwenWorkspaceInput = ""
@@ -49,8 +49,6 @@ struct OwlAIPage: View {
   @State private var doubaoSearchKeyInput = ""
   @State private var doubaoSearchKeyConfigured = false
   @State private var doubaoSearchKeyStatus = ""
-  /// 新增流程里「拉取最新」已经用这把 Key 调通过：profile 落库后补标验证（见 `addProvider`）。
-  @State private var pendingKeyVerified = false
 
   var body: some View {
     ScrollView {
@@ -66,10 +64,10 @@ struct OwlAIPage: View {
       // real Keychain for every row. Besides violating test isolation, a test-signed host can
       // block indefinitely in SecItemCopyMatching. Product and UI-test processes keep the live
       // stores; pure unit tests render the documented empty state.
-      providers = OwlDefaults.isRunningUnitTests ? [] : providerStore.profiles()
+      providers = OwlDefaults.isRunningUnitTests ? [] : registry.profiles
       qwenWorkspaceInput = OwlQwenWorkspaceSettings.apiHost()
       doubaoSearchKeyConfigured = !OwlDefaults.isRunningUnitTests
-        && OwlDoubaoSearchKeyStore.isConfigured(secrets: providerSecrets)
+        && OwlDoubaoSearchKeyStore.isConfigured(secrets: registry.secrets)
       if qwenWorkspaceInput.isEmpty,
          let profile = providers.first(where: {
            OwlLLMProviderCatalog.inferredProviderID(for: $0) == "qwen"
@@ -173,16 +171,16 @@ struct OwlAIPage: View {
 
   private func saveDoubaoSearchKey() {
     let result = OwlSettingsActions.saveDoubaoSearchKey(
-      doubaoSearchKeyInput, secrets: providerSecrets)
+      doubaoSearchKeyInput, secrets: registry.secrets)
     doubaoSearchKeyInput = result.input
     doubaoSearchKeyStatus = result.status
-    doubaoSearchKeyConfigured = OwlDoubaoSearchKeyStore.isConfigured(secrets: providerSecrets)
+    doubaoSearchKeyConfigured = OwlDoubaoSearchKeyStore.isConfigured(secrets: registry.secrets)
   }
 
   private func clearDoubaoSearchKey() {
-    doubaoSearchKeyStatus = OwlSettingsActions.clearDoubaoSearchKey(secrets: providerSecrets)
+    doubaoSearchKeyStatus = OwlSettingsActions.clearDoubaoSearchKey(secrets: registry.secrets)
     doubaoSearchKeyInput = ""
-    doubaoSearchKeyConfigured = OwlDoubaoSearchKeyStore.isConfigured(secrets: providerSecrets)
+    doubaoSearchKeyConfigured = OwlDoubaoSearchKeyStore.isConfigured(secrets: registry.secrets)
   }
 
   // MARK: - 供应商（配一个就行）
@@ -226,7 +224,7 @@ struct OwlAIPage: View {
   /// carries `isDefault` in the file is not shown as the active provider.
   @ViewBuilder
   private func providerRow(_ profile: OwlProviderProfile) -> some View {
-    let isActive = providerStore.defaultProfile?.id == profile.id
+    let isActive = registry.defaultProfile?.id == profile.id
     HStack(spacing: 10) {
       Button(action: { if !isActive { setDefaultProvider(profile) } }) {
         HStack(spacing: 10) {
@@ -237,7 +235,7 @@ struct OwlAIPage: View {
             Text(profile.displayName)
               .font(.system(size: 13.5, weight: .medium))
               .foregroundStyle(palette.ink)
-            Text("\(profile.model.isEmpty ? "默认模型" : profile.model) · \(OwlSettingsActions.providerProfileKeyStatus(profile, secrets: providerSecrets))")
+            Text("\(profile.model.isEmpty ? "默认模型" : profile.model) · \(registry.keyState(for: profile).statusText)")
               .font(.system(size: 11.5, design: .monospaced))
               .foregroundStyle(palette.ink3)
           }
@@ -497,51 +495,25 @@ struct OwlAIPage: View {
 
   private func addProvider() {
     guard let effectiveEndpoint = prepareProviderEndpoint() else { return }
-    // 每家一条：先移除同一供应商的旧配置（含其 Keychain 键），再添加。
-    let newKey = dedupKey(providerID: providerID, endpointHost: URL(string: effectiveEndpoint)?.host)
-    for existing in providers where dedupKey(
-      providerID: OwlLLMProviderCatalog.inferredProviderID(for: existing),
-      endpointHost: existing.endpoint.host) == newKey {
-      _ = OwlSettingsActions.deleteProviderProfile(existing, store: providerStore, secrets: providerSecrets)
-    }
     // Custom entries have no preset name — derive one from the endpoint host so rows stay distinct.
     let name = isCustomProvider
       ? "自定义 · \(URL(string: providerEndpoint)?.host ?? "OpenAI 兼容")"
       : providerName
-    let result = OwlSettingsActions.addProviderProfile(
+    // 每家一条：registry 在同一次写入里换掉同一供应商的旧配置；失败时旧配置与其 Key 原样保留。
+    let form = OwlProviderRegistry.Form(
+      providerID: providerID,
       displayName: name,
       endpoint: effectiveEndpoint,
       model: providerModel,
-      apiKey: providerKeyInput,
-      makeDefault: true,
-      store: providerStore,
-      secrets: providerSecrets,
-      providerID: providerID
-    )
-    providers = result.profiles
-    providerStatus = result.status
-    if result.status.hasPrefix("已添加") {
-      persistQwenWorkspaceIfNeeded()
-      // 「拉取最新」验证过的正是刚存进去的这把 Key —— 落库后补标，行状态才写「已验证」。
-      if pendingKeyVerified,
-         let added = result.profiles.first(where: {
-           OwlLLMProviderCatalog.inferredProviderID(for: $0) == providerID
-         }) {
-        OwlSettingsActions.markProviderProfileKeyVerified(added)
-        providers = providerStore.profiles()
-      }
-      pendingKeyVerified = false
-      fillCustomPreset()
-      providerName = ""       // back to the empty 「选择 LLM 预设…」 prompt
-      providerKeyInput = ""
-    }
-  }
-
-  /// One-per-vendor key: a known preset dedupes by its provider id; custom / unknown by endpoint host.
-  private func dedupKey(providerID: String, endpointHost: String?) -> String {
-    providerID.isEmpty || providerID == OwlLLMProviderCatalog.customID
-      ? "host:\(endpointHost ?? "")"
-      : "id:\(providerID)"
+      qwenWorkspace: providerID == "qwen" ? qwenWorkspaceInput : nil)
+    let change = registry.upsert(form, key: providerKeyInput)
+    providers = change.profiles
+    providerStatus = change.outcome.statusText
+    guard case .added = change.outcome else { return }
+    if providerID == "qwen" { qwenWorkspaceInput = OwlQwenWorkspaceSettings.apiHost() }
+    fillCustomPreset()
+    providerName = ""       // back to the empty 「选择 LLM 预设…」 prompt
+    providerKeyInput = ""
   }
 
   /// 「拉取最新」: GET the provider's `/models` with the typed endpoint + key, merge into the model
@@ -549,15 +521,11 @@ struct OwlAIPage: View {
   private func fetchModels() {
     guard let effectiveEndpoint = prepareProviderEndpoint(),
           let endpoint = URL(string: effectiveEndpoint),
-          OwlSettingsActions.isHTTPSEndpoint(endpoint) else {
+          OwlProviderRegistry.isHTTPS(endpoint) else {
       providerStatus = "端点必须是 https"; return
     }
     let probedProfile = editingProfile
-    let probe = OwlSettingsActions.providerProbeKey(
-      editing: probedProfile, endpoint: endpoint, typedKey: providerKeyInput,
-      store: providerStore, secrets: providerSecrets)
-    if let status = probe.status { providerStatus = status; return }
-    guard let key = probe.key else { providerStatus = "请先填入 API Key 再拉取"; return }
+    guard let key = probeKey(missing: "请先填入 API Key 再拉取", endpoint: endpoint) else { return }
     let authStyle = OwlProviderAuthHeaderStyle.bearer
     providerStatus = "拉取模型中…"
     Task {
@@ -568,14 +536,9 @@ struct OwlAIPage: View {
           if providerModel.isEmpty { providerModel = availableModels.first ?? "" }
           providerStatus = models.isEmpty ? "已连接，但未解析到模型" : "拉到 \(models.count) 个模型，点右侧下拉选择"
           // 这一次 `/models` 是拿这把 Key 真的调通的 —— 记下来，行状态才敢写「已验证」。
-          // 新增流程里 profile 还不存在，先记 flag，`addProvider` 落库后再补标。
-          if probedProfile == nil {
-            if editingProfile == nil { pendingKeyVerified = true }
-          } else if let profile = OwlSettingsActions.profileToMarkVerified(
-            probed: probedProfile, current: editingProfile) {
-            OwlSettingsActions.markProviderProfileKeyVerified(profile)
-            providers = providerStore.profiles()
-          }
+          // 新增或换 Key 时 profile 还没存这把 Key，由 registry 在保存同一组端点 + Key 时补标。
+          registry.probeSucceeded(endpoint: endpoint, key: key, editing: probedProfile)
+          providers = registry.profiles
         }
       } catch {
         await MainActor.run { providerStatus = "拉取失败，请检查端点与 Key" }
@@ -592,17 +555,13 @@ struct OwlAIPage: View {
   private func checkConnectivity() {
     guard let effectiveEndpoint = prepareProviderEndpoint(),
           let endpoint = URL(string: effectiveEndpoint),
-          OwlSettingsActions.isHTTPSEndpoint(endpoint) else {
+          OwlProviderRegistry.isHTTPS(endpoint) else {
       providerStatus = "端点必须是 https"; return
     }
     let model = providerModel.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !model.isEmpty else { providerStatus = "请先填模型再验证"; return }
     let probedProfile = editingProfile
-    let probe = OwlSettingsActions.providerProbeKey(
-      editing: probedProfile, endpoint: endpoint, typedKey: providerKeyInput,
-      store: providerStore, secrets: providerSecrets)
-    if let status = probe.status { providerStatus = status; return }
-    guard let key = probe.key else { providerStatus = "请先填入 API Key 再验证"; return }
+    guard let key = probeKey(missing: "请先填入 API Key 再验证", endpoint: endpoint) else { return }
     let authStyle = OwlProviderAuthHeaderStyle.bearer
 
     providerStatus = "验证中…（\(model)）"
@@ -613,26 +572,33 @@ struct OwlAIPage: View {
       await MainActor.run {
         providerStatus = outcome.statusText
         guard outcome.isOK else { return }
-        // 与 `fetchModels` 同一条：新增流程里 profile 还不存在，先记 flag，落库后再补标。
-        if probedProfile == nil {
-          if editingProfile == nil { pendingKeyVerified = true }
-        } else if let profile = OwlSettingsActions.profileToMarkVerified(
-          probed: probedProfile, current: editingProfile) {
-          OwlSettingsActions.markProviderProfileKeyVerified(profile)
-          providers = providerStore.profiles()
-        }
+        // 与 `fetchModels` 同一条。
+        registry.probeSucceeded(endpoint: endpoint, key: key, editing: probedProfile)
+        providers = registry.profiles
       }
     }
   }
 
+  /// The key 「拉取最新」 and 「验证连通性」 send, or nil after showing why there is none.
+  private func probeKey(missing: String, endpoint: URL) -> String? {
+    switch registry.probeKey(editing: editingProfile, endpoint: endpoint, typedKey: providerKeyInput) {
+    case let .key(key):
+      return key
+    case .missing:
+      providerStatus = missing
+    case .needsReplacementKey:
+      providerStatus = OwlProviderRegistry.ProbeKey.replacementKeyPrompt
+    }
+    return nil
+  }
+
   private func saveQwenWorkspaceSetting() {
-    let result = OwlSettingsActions.saveQwenWorkspace(
-      qwenWorkspaceInput, apiKey: qwenWorkspaceKeyInput, store: providerStore, secrets: providerSecrets)
-    providers = result.profiles
+    let change = registry.applyQwenWorkspace(qwenWorkspaceInput, key: qwenWorkspaceKeyInput)
+    providers = change.profiles
     editingProfile = OwlSettingsActions.editingProfileAfterWorkspaceSave(
-      editingProfile, profiles: result.profiles)
-    providerStatus = result.status
-    guard result.saved else { return }
+      editingProfile, profiles: change.profiles)
+    providerStatus = change.outcome.statusText
+    guard case .saved = change.outcome else { return }
     qwenWorkspaceKeyInput = ""
     qwenWorkspaceInput = OwlQwenWorkspaceSettings.apiHost()
     if providerID == "qwen" {
@@ -656,12 +622,6 @@ struct OwlAIPage: View {
     }
     providerEndpoint = endpoint.absoluteString
     return providerEndpoint
-  }
-
-  private func persistQwenWorkspaceIfNeeded() {
-    guard providerID == "qwen" else { return }
-    _ = OwlQwenWorkspaceSettings.save(qwenWorkspaceInput)
-    qwenWorkspaceInput = OwlQwenWorkspaceSettings.apiHost()
   }
 
   /// Load a saved provider into the form so its model / endpoint can be changed in place.
@@ -694,25 +654,24 @@ struct OwlAIPage: View {
   private func saveEdit() {
     guard let profile = editingProfile else { return }
     guard let effectiveEndpoint = prepareProviderEndpoint() else { return }
-    let result = OwlSettingsActions.updateProviderProfile(
-      profile,
+    let change = registry.replaceEndpoint(
+      of: profile,
       endpoint: effectiveEndpoint,
       model: providerModel,
-      apiKey: providerKeyInput,
-      store: providerStore,
-      secrets: providerSecrets
+      key: providerKeyInput,
+      qwenWorkspace: providerID == "qwen" ? qwenWorkspaceInput : nil
     )
-    providers = result.profiles
-    providerStatus = result.status
-    if result.status.hasPrefix("已保存") {
-      persistQwenWorkspaceIfNeeded()
+    providers = change.profiles
+    providerStatus = change.outcome.statusText
+    if case .saved = change.outcome {
+      if providerID == "qwen" { qwenWorkspaceInput = OwlQwenWorkspaceSettings.apiHost() }
       editingProfile = nil
       fillCustomPreset()
       providerName = ""
       providerKeyInput = ""
-      providerStatus = result.status
+      providerStatus = change.outcome.statusText
     } else {
-      editingProfile = OwlSettingsActions.providerProfileForRetry(profile, profiles: result.profiles)
+      editingProfile = OwlSettingsActions.providerProfileForRetry(profile, profiles: change.profiles)
     }
   }
 
@@ -724,15 +683,15 @@ struct OwlAIPage: View {
   }
 
   private func setDefaultProvider(_ profile: OwlProviderProfile) {
-    let result = OwlSettingsActions.setDefaultProviderProfile(profile, store: providerStore)
-    providers = result.profiles
-    providerStatus = result.status
+    let change = registry.setDefault(profile)
+    providers = change.profiles
+    providerStatus = change.outcome.statusText
   }
 
   private func deleteProvider(_ profile: OwlProviderProfile) {
-    let result = OwlSettingsActions.deleteProviderProfile(profile, store: providerStore, secrets: providerSecrets)
-    providers = result.profiles
-    providerStatus = result.status
+    let change = registry.delete(profile)
+    providers = change.profiles
+    providerStatus = change.outcome.statusText
     // 删掉的正是正在编辑的那条 → 表单退回新增态，否则「保存修改」会写回一条已删除的 profile。
     if editingProfile?.id == profile.id {
       editingProfile = nil
