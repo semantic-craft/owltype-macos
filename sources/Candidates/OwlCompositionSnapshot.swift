@@ -3,12 +3,12 @@
 //  猫头鹰输入法 (Owltype) — P0 bypass candidate infrastructure (spec P0-01)
 //
 //  An IMMUTABLE, value-type snapshot of one composition state, copied off the IMK hot
-//  path AFTER librime + the candidate UI have already updated. It carries everything the
+//  path AFTER the engine + the candidate UI have already updated. It carries everything the
 //  asynchronous enhancement layer (T1 local / T2 cloud) needs to (a) build a request and
 //  (b) later prove the result is still fresh — so a late async result can be dropped
 //  instead of clobbering newer input.
 //
-//  Boundary (parent prd / ADR-0001..0003): this type holds NO librime pointer or handle.
+//  Boundary (parent prd / ADR-0001..0003): this type holds NO engine pointer or handle.
 //  Background threads only ever touch these plain values; the engine and the hot path are
 //  never reached from here.
 //
@@ -17,10 +17,10 @@
 
 import Foundation
 
-/// One candidate, copied out of librime into a plain value. Deliberately holds no engine
+/// One candidate, copied out of the engine into a plain value. Deliberately holds no engine
 /// handle / index into live Rime state — only what the enhancement layer may read or echo
 /// back (e.g. as `rime_top_candidates` in a cloud payload).
-struct RimeCandidateSnapshot: Hashable, Sendable {
+struct EngineCandidateSnapshot: Hashable, Sendable {
   /// 0-based position in the Rime menu page at capture time.
   let index: Int
   /// Candidate text (the would-be commit string).
@@ -61,7 +61,7 @@ struct OwlCompositionSnapshot: Hashable, Sendable {
   /// 0-based candidate page number at capture time.
   let pageNo: Int
   /// Top-N candidates copied out of the live menu page (default N = ``defaultTopN``).
-  let candidates: [RimeCandidateSnapshot]
+  let candidates: [EngineCandidateSnapshot]
   /// Commit serial at capture time; bumped on commit/clear/escape/schema switch.
   let commitSerial: UInt64
   /// `DispatchTime.now().uptimeNanos` at capture, for local debug telemetry only (never uploaded).
@@ -78,7 +78,7 @@ struct OwlCompositionSnapshot: Hashable, Sendable {
     preedit: String,
     cursor: Int,
     pageNo: Int,
-    candidates: [RimeCandidateSnapshot],
+    candidates: [EngineCandidateSnapshot],
     commitSerial: UInt64,
     createdAtNanos: UInt64 = DispatchTime.now().uptimeNanoseconds
   ) {

@@ -34,7 +34,7 @@ final class OwlCandidatePanelSettingsTests: XCTestCase {
 
     func applyRuntimeSnapshot() {
       let runtime = settings.snapshot()
-      settings.apply(runtime, to: panelState, rimeVertical: true, schemaID: "rime_ice")
+      settings.apply(runtime, to: panelState, engineVertical: true, schemaID: "rime_ice")
       latestRuntime = runtime
       applyCount += 1
     }

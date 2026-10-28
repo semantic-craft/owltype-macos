@@ -52,15 +52,15 @@ final class OwlTemplateMigration {
                                     OwlTemplateStore.fileName, OwlTemplateStore.stateFileName]
   private static let targetNames = [OwlTemplateStore.fileName, OwlTemplateStore.dictFileName, "rime_ice.custom.yaml",
                                     OwlTemplateStore.stateFileName, "owltype/rollback-manifest.json"]
-  let rimeDir: URL
-  private var writer: OwlConfigWriter { OwlConfigWriter(rimeDir: rimeDir) }
-  init(rimeDir: URL) { self.rimeDir = rimeDir }
-  private func url(_ name: String) -> URL { rimeDir.appendingPathComponent(name) }
+  let dataDir: URL
+  private var writer: OwlConfigWriter { OwlConfigWriter(dataDir: dataDir) }
+  init(dataDir: URL) { self.dataDir = dataDir }
+  private func url(_ name: String) -> URL { dataDir.appendingPathComponent(name) }
   private static func hash(_ bytes: Data) -> String { SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined() }
   private func exists(_ name: String) -> Bool { FileManager.default.fileExists(atPath: url(name).path) }
 
-  static func hasPendingRecovery(rimeDir: URL) -> Bool {
-    let path = rimeDir.appendingPathComponent(journalName)
+  static func hasPendingRecovery(dataDir: URL) -> Bool {
+    let path = dataDir.appendingPathComponent(journalName)
     guard FileManager.default.fileExists(atPath: path.path) else { return false }
     guard let journal = try? JSONDecoder().decode(Journal.self, from: Data(contentsOf: path)), journal.version == 1 else { return true }
     return journal.phase != "committed" && journal.phase != "rolledBack"
@@ -88,9 +88,9 @@ final class OwlTemplateMigration {
 
   /// prepare preserves a plan (and its UUIDs) while the source bytes remain identical.
   func prepare() throws -> Plan {
-    try OwlTemplateStore.withWriteLock(rimeDir: rimeDir) {
+    try OwlTemplateStore.withWriteLock(dataDir: dataDir) {
       try recoverIfNeeded()
-      if OwlTemplateStore.mode(rimeDir: rimeDir) == .unified { throw Failure.alreadyUnified }
+      if OwlTemplateStore.mode(dataDir: dataDir) == .unified { throw Failure.alreadyUnified }
       if exists(Self.planName) {
         let previous = try JSONDecoder().decode(Plan.self, from: Data(contentsOf: url(Self.planName)))
         if previous.version == 1, previous.sources.count == Self.sourceNames.count, try previous.sources.allSatisfy({ try matches($0) }) { return previous }
@@ -106,7 +106,7 @@ final class OwlTemplateMigration {
         issues.append(Issue(file: OwlTemplateStore.stateFileName, record: nil, message: "启用标记无效，不能用迁移覆盖已启用的库。"))
       }
       if exists(OwlTemplateStore.fileName) {
-        do { existing = try OwlTemplateStore.load(rimeDir: rimeDir).entries }
+        do { existing = try OwlTemplateStore.load(dataDir: dataDir).entries }
         catch { issues.append(Issue(file: OwlTemplateStore.fileName, record: nil, message: "已有新库无法严格读取，不能覆盖。")) }
       }
       var plan = Plan(id: UUID(), sources: sources, entries: [], existingEntries: existing, issues: issues, collapsedRows: 0)
@@ -218,7 +218,7 @@ final class OwlTemplateMigration {
   }
 
   func resolve(_ plan: Plan, id: UUID, code: String?) throws -> Plan {
-    try OwlTemplateStore.withWriteLock(rimeDir: rimeDir) {
+    try OwlTemplateStore.withWriteLock(dataDir: dataDir) {
       try verifyPlan(plan)
       var updated = plan
       guard let index = updated.entries.firstIndex(where: { $0.id == id }) else { throw Failure.changed }
@@ -284,7 +284,7 @@ final class OwlTemplateMigration {
   /// Persist before-images before handing the fixed write set to a batch executor. A fresh
   /// instance can recover if execution terminates without reaching commit/finalization.
   @discardableResult func prepareTransaction(_ plan: Plan) throws -> [OwlTemplateStore.PreparedWrite] {
-    try OwlTemplateStore.withWriteLock(rimeDir: rimeDir) {
+    try OwlTemplateStore.withWriteLock(dataDir: dataDir) {
       try recoverIfNeeded()
       let (_, writes) = try stage(plan)
       return writes
@@ -292,7 +292,7 @@ final class OwlTemplateMigration {
   }
 
   func commit(_ plan: Plan, checkpoint: @escaping (String) throws -> Void = { _ in }) throws {
-    try OwlTemplateStore.withWriteLock(rimeDir: rimeDir) {
+    try OwlTemplateStore.withWriteLock(dataDir: dataDir) {
       try recoverIfNeeded()
       let staged = try stage(plan, checkpoint: checkpoint)
       try execute(staged, library: plan.library, checkpoint: checkpoint) {
@@ -301,7 +301,7 @@ final class OwlTemplateMigration {
         }
       }
     }
-    OwlTemplateStore.notifyCommittedLibrary(rimeDir: rimeDir)
+    OwlTemplateStore.notifyCommittedLibrary(dataDir: dataDir)
   }
 
   /// Reuse the migration journal for the same fixed template outputs, with a new transaction ID.
@@ -309,9 +309,9 @@ final class OwlTemplateMigration {
   private func stageLibrary(_ library: OwlTemplateLibrary, expected: OwlTemplateLibrary,
                             checkpoint: (String) throws -> Void) throws -> (Journal, [OwlTemplateStore.PreparedWrite]) {
     let current: OwlTemplateLibrary
-    switch OwlTemplateStore.mode(rimeDir: rimeDir) {
+    switch OwlTemplateStore.mode(dataDir: dataDir) {
     case .empty: current = OwlTemplateLibrary()
-    case .unified: current = try OwlTemplateStore.load(rimeDir: rimeDir)
+    case .unified: current = try OwlTemplateStore.load(dataDir: dataDir)
     case .legacy: throw OwlTemplateError.legacyRequiresMigration
     case .unavailable(let message): throw OwlTemplateError.invalid(message)
     }
@@ -327,7 +327,7 @@ final class OwlTemplateMigration {
       contents: try OwlTemplateStore.activationContents(transactionID: id), marker: writes[last].marker)
     // Snapshot hooks/other writers must not move the baseline between preview validation
     // and journal publication. Recheck both semantic baseline and exact fixed target bytes.
-    let reread = current.entries.isEmpty && !exists(OwlTemplateStore.fileName) ? OwlTemplateLibrary() : try OwlTemplateStore.load(rimeDir: rimeDir)
+    let reread = current.entries.isEmpty && !exists(OwlTemplateStore.fileName) ? OwlTemplateLibrary() : try OwlTemplateStore.load(dataDir: dataDir)
     guard try OwlTemplateStore.encoded(reread) == OwlTemplateStore.encoded(expected),
           try snapshots.allSatisfy({ try matches($0) }) else { throw OwlTemplateError.changedOnDisk }
     let journal = Journal(migrationID: id, phase: "prepared", snapshots: snapshots,
@@ -338,7 +338,7 @@ final class OwlTemplateMigration {
 
   /// Failure-injection tests can stop after staging and restart a fresh recovery instance.
   func prepareLibraryTransaction(_ library: OwlTemplateLibrary, expected: OwlTemplateLibrary) throws -> [OwlTemplateStore.PreparedWrite] {
-    try OwlTemplateStore.withWriteLock(rimeDir: rimeDir) {
+    try OwlTemplateStore.withWriteLock(dataDir: dataDir) {
       try recoverIfNeeded()
       return try stageLibrary(library, expected: expected, checkpoint: { _ in }).1
     }
@@ -346,12 +346,12 @@ final class OwlTemplateMigration {
 
   func commitLibrary(_ library: OwlTemplateLibrary, expected: OwlTemplateLibrary,
                      checkpoint: @escaping (String) throws -> Void = { _ in }) throws {
-    try OwlTemplateStore.withWriteLock(rimeDir: rimeDir) {
+    try OwlTemplateStore.withWriteLock(dataDir: dataDir) {
       try recoverIfNeeded()
       let staged = try stageLibrary(library, expected: expected, checkpoint: checkpoint)
       try execute(staged, library: library, checkpoint: checkpoint)
     }
-    OwlTemplateStore.notifyCommittedLibrary(rimeDir: rimeDir)
+    OwlTemplateStore.notifyCommittedLibrary(dataDir: dataDir)
   }
 
   private func execute(_ staged: (Journal, [OwlTemplateStore.PreparedWrite]), library: OwlTemplateLibrary,
@@ -359,7 +359,7 @@ final class OwlTemplateMigration {
     var journal = staged.0
     do {
       try checkpoint("journal")
-      let committingWriter = OwlConfigWriter(rimeDir: rimeDir, writeCheckpoint: checkpoint)
+      let committingWriter = OwlConfigWriter(dataDir: dataDir, writeCheckpoint: checkpoint)
       try OwlTemplateStore.commitPreparedWrites(staged.1, library: library, writer: committingWriter, beforeWrite: { name in
         try verifySources()
         if let original = journal.snapshots.first(where: { $0.name == name }) {
@@ -378,8 +378,8 @@ final class OwlTemplateMigration {
 
   func recoverIfNeeded(beforeRestore: (String) throws -> Void = { _ in }) throws {
     var settled = false
-    defer { if settled { OwlTemplateStore.notifyCommittedLibrary(rimeDir: rimeDir) } }
-    try OwlTemplateStore.withWriteLock(rimeDir: rimeDir) {
+    defer { if settled { OwlTemplateStore.notifyCommittedLibrary(dataDir: dataDir) } }
+    try OwlTemplateStore.withWriteLock(dataDir: dataDir) {
       guard exists(Self.journalName) else { return }
       var journal: Journal
       do { journal = try JSONDecoder().decode(Journal.self, from: Data(contentsOf: url(Self.journalName))) }
@@ -405,7 +405,7 @@ final class OwlTemplateMigration {
           guard exists(name) else { return false }
           return try Data(contentsOf: url(name)) == bytes
         }) else { throw Failure.changed }
-        _ = try OwlTemplateStore.loadCommittedBytes(rimeDir: rimeDir)
+        _ = try OwlTemplateStore.loadCommittedBytes(dataDir: dataDir)
         journal.phase = "committed"
         try persist(journal, name: Self.journalName)
         settled = true
@@ -466,7 +466,7 @@ final class OwlTemplateMigration {
 
   @discardableResult func runAutomatically() throws -> Bool {
     try recoverIfNeeded()
-    let mode = OwlTemplateStore.mode(rimeDir: rimeDir)
+    let mode = OwlTemplateStore.mode(dataDir: dataDir)
     guard mode == .legacy else { return false }
     let plan = try prepare()
     guard plan.issues.isEmpty, conflicts(in: plan).isEmpty else { return false }

@@ -13,7 +13,7 @@
 //    3. Variable engine: `extract` (dedup, first-seen order) and `substitute`
 //       (unfilled placeholder preserved, same var twice replaced, explicit empty value honored).
 //
-//  No network, no librime. The store is pointed at a unique temp root so it never touches the
+//  No network, no engine. The store is pointed at a unique temp root so it never touches the
 //  real ~/Library/Application Support/Owltype. (The commit-interception decision function + the
 //  `PromptResolving` port are covered in OwlPromptInterceptionTests.swift.)
 //
@@ -43,7 +43,7 @@ final class OwlPromptStoreTests: XCTestCase {
   // MARK: - JSON round-trip
 
   func testSaveLoadRoundTripThroughConfigWriter() throws {
-    let writer = OwlConfigWriter(rimeDir: tempRoot)
+    let writer = OwlConfigWriter(dataDir: tempRoot)
     let entries = [
       try OwlPromptStore.entry(code: "hetong", title: "合同审查", body: "请审查以下合同：\n{{合同正文}}", category: "法律"),
       try OwlPromptStore.entry(code: "fanyi", title: "翻译", body: "把下面译成{{语言}}：{{原文}}"),
@@ -53,7 +53,7 @@ final class OwlPromptStoreTests: XCTestCase {
     let url = tempRoot.appendingPathComponent(OwlPromptStore.fileName)
     XCTAssertTrue(FileManager.default.fileExists(atPath: url.path), "owl_prompts.json must be written")
 
-    let loaded = OwlPromptStore.load(rimeDir: tempRoot)
+    let loaded = OwlPromptStore.load(dataDir: tempRoot)
     // normalized() sorts by code: fanyi < hetong.
     XCTAssertEqual(loaded.map(\.code), ["fanyi", "hetong"])
     XCTAssertEqual(loaded, try OwlPromptStore.normalized(entries))
@@ -65,13 +65,13 @@ final class OwlPromptStoreTests: XCTestCase {
   }
 
   func testLoadMissingFileReturnsEmpty() {
-    XCTAssertTrue(OwlPromptStore.load(rimeDir: tempRoot).isEmpty)
+    XCTAssertTrue(OwlPromptStore.load(dataDir: tempRoot).isEmpty)
   }
 
   // MARK: - Derived Rime dict + rime_ice patch (R1 dict)
 
   func testSaveWritesDerivedDictWithMarkerAndCollisionVariant() throws {
-    let writer = OwlConfigWriter(rimeDir: tempRoot)
+    let writer = OwlConfigWriter(dataDir: tempRoot)
     let entries = [
       try OwlPromptStore.entry(code: "hetong", title: "合同审查", body: "请审查以下合同：\n{{合同正文}}", category: "法律"),
     ]
@@ -91,7 +91,7 @@ final class OwlPromptStoreTests: XCTestCase {
   }
 
   func testSaveWritesRimeIcePatchRegisteringTranslator() throws {
-    let writer = OwlConfigWriter(rimeDir: tempRoot)
+    let writer = OwlConfigWriter(dataDir: tempRoot)
     let entries = [try OwlPromptStore.entry(code: "abc", title: "T", body: "B")]
     try OwlPromptStore.save(entries, writer: writer, timestamp: "20260630-000011")
 
@@ -105,13 +105,13 @@ final class OwlPromptStoreTests: XCTestCase {
   func testSaveDictIsDerivedNotLoaded() throws {
     // `load` reads JSON only; the .txt is a pure projection regenerated every save. Saving an
     // empty list still rewrites the .txt to an entries-free table (so old rows are cleared).
-    let writer = OwlConfigWriter(rimeDir: tempRoot)
+    let writer = OwlConfigWriter(dataDir: tempRoot)
     try OwlPromptStore.save([try OwlPromptStore.entry(code: "abc", title: "T", body: "B")],
                              writer: writer, timestamp: "20260630-000012")
     try OwlPromptStore.save([], writer: writer, timestamp: "20260630-000013")
     let dict = try String(contentsOf: tempRoot.appendingPathComponent(OwlPromptStore.dictFileName), encoding: .utf8)
     XCTAssertFalse(dict.contains("\tabc\t"), "stale entry row must be regenerated away on empty save")
-    XCTAssertTrue(OwlPromptStore.load(rimeDir: tempRoot).isEmpty, "load reads JSON, which is now empty")
+    XCTAssertTrue(OwlPromptStore.load(dataDir: tempRoot).isEmpty, "load reads JSON, which is now empty")
   }
 
   func testRenderDictIsPureProjection() {
@@ -134,12 +134,12 @@ final class OwlPromptStoreTests: XCTestCase {
     let url = tempRoot.appendingPathComponent(OwlPromptStore.fileName)
     try json.data(using: .utf8)!.write(to: url, options: .atomic)
 
-    let loaded = OwlPromptStore.load(rimeDir: tempRoot)
+    let loaded = OwlPromptStore.load(dataDir: tempRoot)
     XCTAssertEqual(loaded.map(\.code), ["good"], "invalid-code entry should be dropped on load")
   }
 
   func testSaveIsIdempotentNoOpWhenUnchanged() throws {
-    let writer = OwlConfigWriter(rimeDir: tempRoot)
+    let writer = OwlConfigWriter(dataDir: tempRoot)
     let entries = [try OwlPromptStore.entry(code: "abc", title: "T", body: "B")]
     try OwlPromptStore.save(entries, writer: writer, timestamp: "20260630-000001")
     let url = tempRoot.appendingPathComponent(OwlPromptStore.fileName)
@@ -220,11 +220,11 @@ final class OwlPromptStoreTests: XCTestCase {
 
   func testQuickSendCodesReadFromStore() throws {
     // Persist a quick-send entry into the temp dir, then confirm the collision source reads it back.
-    let writer = OwlConfigWriter(rimeDir: tempRoot)
+    let writer = OwlConfigWriter(dataDir: tempRoot)
     let qs = try OwlQuickSendStore.entry(text: "判决摘要", code: "pjzy")
     try OwlQuickSendStore.save([qs], writer: writer, timestamp: "20260630-000003")
 
-    let codes = OwlPromptStore.quickSendCodes(rimeDir: tempRoot)
+    let codes = OwlPromptStore.quickSendCodes(dataDir: tempRoot)
     XCTAssertTrue(codes.contains("pjzy"))
     XCTAssertThrowsError(
       try OwlPromptStore.assertNoQuickSendCollision(code: "PJZY", quickSendCodes: codes)
@@ -318,11 +318,11 @@ final class OwlPromptStoreTests: XCTestCase {
   }
 
   func testPresetMergeRoundTripsThroughSaveLoad() throws {
-    let writer = OwlConfigWriter(rimeDir: tempRoot)
+    let writer = OwlConfigWriter(dataDir: tempRoot)
     let result = OwlPromptPresets.merge(into: [], quickSendCodes: [])
     try OwlPromptStore.save(result.merged, writer: writer, timestamp: "20260721-000000")
 
-    let loaded = OwlPromptStore.load(rimeDir: tempRoot)
+    let loaded = OwlPromptStore.load(dataDir: tempRoot)
     XCTAssertEqual(Set(loaded.map(\.code)), ["four", "icx", "fewshot", "docs", "role"])
     // 嵌套骨架的正文与变量在落盘后仍完整。
     let docs = loaded.first { $0.code == "docs" }

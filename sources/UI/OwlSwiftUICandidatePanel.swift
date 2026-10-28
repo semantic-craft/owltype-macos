@@ -157,7 +157,7 @@ struct OwlPanelContent: Equatable {
 
 /// Pure gate + shaping for the 多行后页行。Lives beside `OwlPanelContent`（同一面板值层）
 /// so the controller's `showPanel` stays a thin call site and the decision/chunking is
-/// unit-testable without IMK or librime.
+/// unit-testable without IMK or the engine.
 enum OwlScrollRowsPlan {
   /// Whether `showPanel` should peek at the next page(s) for this composition.
   /// True only when: 选了多行、**本次组字翻过页**（翻页才展开，2026-07-28）、还有后页、
@@ -167,12 +167,12 @@ enum OwlScrollRowsPlan {
   /// 门控依旧正确，且与视图分支一一对应；现在它只对非多行方向起作用（那些已被首条挡掉）。
   static func wantsRows(settings: OwlCandidatePanelSettings.Snapshot,
                         didPage: Bool, lastPage: Bool,
-                        candidateCount: Int, rimeVertical: Bool, schemaID: String) -> Bool {
+                        candidateCount: Int, engineVertical: Bool, schemaID: String) -> Bool {
     return settings.orientation.scrolls
       && didPage
       && !lastPage
       && candidateCount > 0
-      && !settings.orientation.isVertical(rimeVertical: rimeVertical, schemaID: schemaID)
+      && !settings.orientation.isVertical(engineVertical: engineVertical, schemaID: schemaID)
   }
 
   /// Whether `showPanel` should peek at the page BEFORE the current one（前页行）。
@@ -181,12 +181,12 @@ enum OwlScrollRowsPlan {
   /// 前页看 `page > 0`（翻回第一页就没有前页），后页看 `!lastPage`。
   static func wantsPrevRow(settings: OwlCandidatePanelSettings.Snapshot,
                            didPage: Bool, page: Int,
-                           candidateCount: Int, rimeVertical: Bool, schemaID: String) -> Bool {
+                           candidateCount: Int, engineVertical: Bool, schemaID: String) -> Bool {
     return settings.orientation.scrolls
       && didPage
       && page > 0
       && candidateCount > 0
-      && !settings.orientation.isVertical(rimeVertical: rimeVertical, schemaID: schemaID)
+      && !settings.orientation.isVertical(engineVertical: engineVertical, schemaID: schemaID)
   }
 
   /// Chunk the peeked candidates into whole pages（尾行可不满）。前/后页行渲染注释但不渲染
@@ -196,7 +196,7 @@ enum OwlScrollRowsPlan {
   /// 页号（多行动画的身份），候选 id 取**绝对下标**（`startPage * pageSize + …`），点击时
   /// 直接喂给 `select_candidate`。
   static func rows(
-    from peeked: [RimeCandidate],
+    from peeked: [EngineCandidate],
     pageSize: Int,
     startPage: Int,
     sessionID: UInt64 = 0,
@@ -228,7 +228,7 @@ enum OwlScrollRowsPlan {
 
 final class OwlSwiftUICandidatePanel: NSPanel {
   private let panelState = CandidatePanelState()
-  private var lastRimeVertical = false
+  private var lastEngineVertical = false
   private var lastSchemaID = ""
 
   /// The content + settings of the last fully-rendered `update(_:settings:)` (B5). Used to skip the
@@ -332,7 +332,7 @@ final class OwlSwiftUICandidatePanel: NSPanel {
       return false
     }
     let wasVisible = isVisible
-    lastRimeVertical = content.isVertical
+    lastEngineVertical = content.isVertical
     lastSchemaID = content.schemaID
     panelState.preedit = content.preedit
     panelState.cursor = content.cursor
@@ -344,7 +344,7 @@ final class OwlSwiftUICandidatePanel: NSPanel {
     panelState.hasPrevPage = content.hasPrevPage
     panelState.hasNextPage = content.hasNextPage
     panelState.scrollRows = content.scrollRows
-    applySettings(settings, rimeVertical: content.isVertical, schemaID: content.schemaID)
+    applySettings(settings, engineVertical: content.isVertical, schemaID: content.schemaID)
 
     lastAnchor = content.anchor
     // Force the hosting view to lay out the NEW candidates before measuring; otherwise
@@ -420,7 +420,7 @@ final class OwlSwiftUICandidatePanel: NSPanel {
     lastSettings = nil
     applySettings(
       OwlCandidatePanelSettings.live.snapshot(),
-      rimeVertical: lastRimeVertical,
+      engineVertical: lastEngineVertical,
       schemaID: lastSchemaID
     )
     contentView?.layoutSubtreeIfNeeded()
@@ -429,7 +429,7 @@ final class OwlSwiftUICandidatePanel: NSPanel {
 
   private func applySettings(
     _ settings: OwlCandidatePanelSettings.Snapshot,
-    rimeVertical: Bool,
+    engineVertical: Bool,
     schemaID: String
   ) {
     // 每次组字都从未展开状态开始：竖排走 `isVertical`，多行走 `isScroll`。
@@ -438,7 +438,7 @@ final class OwlSwiftUICandidatePanel: NSPanel {
     OwlCandidatePanelSettings.live.apply(
       settings,
       to: panelState,
-      rimeVertical: rimeVertical,
+      engineVertical: engineVertical,
       schemaID: schemaID
     ) {
       self.appearance = $0

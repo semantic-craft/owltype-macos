@@ -7,7 +7,7 @@
 //  apps (icon + name) you 添加…/移除, resolved from bundle IDs via NSWorkspace.
 //
 //  Backend is unchanged: edits write through `OwlSettingsActions.setAppEnglishBundleIDsText`
-//  (the single home for `OwlKeyboardPreferences.appEnglishBundleIDs`), which librime turns
+//  (the single home for `OwlKeyboardPreferences.appEnglishBundleIDs`), which the engine turns
 //  into `app_options/<bundle>/ascii_mode: true`. The parent page applies the Rime patch
 //  once on dismiss (OwlKeyboardPage `.sheet(onDismiss:)`).
 //

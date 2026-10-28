@@ -39,7 +39,7 @@ pack_version=1
 # patch 字段：fetcher 在 sha256 校验通过后套用的既知修正（空=无）。
 # wubiDateTranslator = KyleBing _trad/_trad_pinyin 里 active 的短名
 # `lua_translator@date_translator` 改为 `lua_translator@*wubi86_jidian_date_translator`
-# （与 owl-seed-full.sh 的必修 bug 一致）。
+# （与已删除的旧全量种子脚本的必修 bug 一致）。
 entries=(
   # rime-ice 全量词库（公开包缺失的 delta；lua/opencc/default.yaml/symbols 公开包已有）
   "$rime_ice_repo|$rime_ice_sha|rime_ice.dict.yaml|rime_ice.dict.yaml|"
@@ -71,7 +71,7 @@ entries=(
   "$rime_ice_repo|$rime_ice_sha|double_pinyin_sogou.schema.yaml|double_pinyin_sogou.schema.yaml|"
   "$rime_ice_repo|$rime_ice_sha|double_pinyin_ziguang.schema.yaml|double_pinyin_ziguang.schema.yaml|"
   "$rime_ice_repo|$rime_ice_sha|LICENSE|rime-ice.LICENSE|"
-  # KyleBing 极点五笔86 全套 + 反查依赖 + lua（对齐 owl-seed-full.sh 的 overlay 规则）
+  # KyleBing 极点五笔86 全套 + 反查依赖 + lua（对齐旧全量种子的 overlay 规则）
   "$wubi_repo|$wubi_sha|wubi86_jidian.dict.yaml|wubi86_jidian.dict.yaml|"
   "$wubi_repo|$wubi_sha|wubi86_jidian.schema.yaml|wubi86_jidian.schema.yaml|"
   "$wubi_repo|$wubi_sha|wubi86_jidian_extra.dict.yaml|wubi86_jidian_extra.dict.yaml|"

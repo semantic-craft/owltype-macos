@@ -2,7 +2,7 @@
 //  OwlLaneTasksTests.swift
 //  OwltypeTests — per-lane AI task supervisor (B8)
 //
-//  Proves, with NO librime, NO network, NO real Keychain, that `OwlLaneTasks` supervises one
+//  Proves, with NO engine, NO network, NO real Keychain, that `OwlLaneTasks` supervises one
 //  in-flight task per lane: a second `run` on the SAME lane cancels the first (the first op
 //  observes `Task.isCancelled` / throws `CancellationError`); a `run` on a DIFFERENT lane does
 //  NOT cancel; `cancel(lane)` cancels one lane; `cancelAll()` cancels all.

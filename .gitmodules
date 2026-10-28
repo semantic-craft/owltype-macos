@@ -1,12 +1,3 @@
-[submodule "librime"]
-	path = librime
-	url = https://github.com/rime/librime.git
-[submodule "plum"]
-	path = plum
-	url = https://github.com/rime/plum.git
-[submodule "librime-lua"]
-	path = librime-lua
-	url = https://github.com/hchunhui/librime-lua.git
 [submodule "Sparkle"]
 	path = Sparkle
 	url = https://github.com/sparkle-project/Sparkle

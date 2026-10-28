@@ -7,7 +7,7 @@
 //  settings layer reads/writes through these accessors so there is no duplicate literal anywhere.
 //
 //  Boundary (ADR-0001 / 0002 / 0003): prefs layer only — never touches the IMK key-event hot
-//  path (OwlInputController), the Rime main lane, or rime config/deploy.
+//  path (OwlInputController), the engine main lane, or engine config/deploy.
 //
 
 import Foundation

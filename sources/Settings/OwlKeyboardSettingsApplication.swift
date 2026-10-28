@@ -15,12 +15,12 @@ struct OwlKeyboardSettingsApplication {
     var errorDescription: String? { "快捷片段恢复尚未完成，请先完成恢复再应用配置。" }
   }
 
-  let engine: RimeEngine
+  let engine: InputEngine
   let directory: URL
   let refresh: () -> Void
 
   init(
-    engine: RimeEngine,
+    engine: InputEngine,
     directory: URL,
     refresh: @escaping () -> Void
   ) {
@@ -33,7 +33,7 @@ struct OwlKeyboardSettingsApplication {
   /// `written` is always empty and `snapshot` is not read.
   func apply(_ snapshot: OwlKeyboardSnapshot, mode: Mode) throws -> Outcome {
     // Do not overwrite migration inputs while their rollback journal is unresolved.
-    guard !OwlTemplateMigration.hasPendingRecovery(rimeDir: directory) else {
+    guard !OwlTemplateMigration.hasPendingRecovery(dataDir: directory) else {
       throw Failure.recoveryPending
     }
     // Keep the existing activation-only diagnostics; persistence precedes this interval.

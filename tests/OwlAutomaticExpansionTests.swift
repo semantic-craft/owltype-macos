@@ -143,16 +143,16 @@ final class OwlAutomaticExpansionTests: XCTestCase {
     }
     let runtime = OwlAutomaticExpansionRuntime()
     defaults.set(true, forKey: key)
-    try runtime.reload(rimeDir: directory)
+    try runtime.reload(dataDir: directory)
     XCTAssertTrue(runtime.enabled)
     defaults.set(false, forKey: key)
-    try runtime.reload(rimeDir: directory)
+    try runtime.reload(dataDir: directory)
     XCTAssertFalse(runtime.enabled)
   }
 
 
-  private func context(_ preedit: String = "") -> RimeComposition {
-    RimeComposition(preedit: preedit, selStart: 0, selEnd: preedit.utf8.count,
+  private func context(_ preedit: String = "") -> EngineComposition {
+    EngineComposition(preedit: preedit, selStart: 0, selEnd: preedit.utf8.count,
       cursorPos: preedit.utf8.count, commitTextPreview: preedit.isEmpty ? nil : "候选",
       candidates: [], labels: [], pageNo: 0, pageSize: 5, isLastPage: true,
       highlightedIndex: 0, numCandidates: 0)
@@ -162,19 +162,19 @@ final class OwlAutomaticExpansionTests: XCTestCase {
     let runtime = OwlAutomaticExpansionRuntime()
     try runtime.publish(entries: [entry(";;a")], enabled: true, disabledBundleIDs: [])
     for (schema, ascii) in [("rime_ice", false), ("wubi86", false), ("rime_ice", true)] {
-      let rime = FakeRimeSession(status: RimeStatus(schemaId: schema, isASCIIMode: ascii,
+      let engineSession = FakeEngineSession(status: EngineStatus(schemaId: schema, isASCIIMode: ascii,
         isASCIIPunct: ascii, isFullShape: false), composition: context(), input: "", optionState: [.asciiMode: ascii])
       let recognizer = OwlAutomaticExpansionRecognizer()
       var marked = ""
       let handled = OwlAutomaticExpansionControllerEntry.start(input: .text(";"), bundleID: "test.host",
-        runtime: runtime, rime: rime) {
+        runtime: runtime, engineSession: engineSession) {
         guard case .mark(let text) = recognizer.consume(.text(";"), index: runtime.index, canStart: true) else { return false }
         marked = text
         return true
       }
       XCTAssertTrue(handled, "A valid idle context is non-nil for " + schema)
       XCTAssertEqual(marked, ";")
-      XCTAssertTrue(rime.processedKeys.isEmpty, "Reserved prefix must not also reach Rime")
+      XCTAssertTrue(engineSession.processedKeys.isEmpty, "Reserved prefix must not also reach Rime")
     }
   }
 
@@ -182,19 +182,19 @@ final class OwlAutomaticExpansionTests: XCTestCase {
     let runtime = OwlAutomaticExpansionRuntime()
     try runtime.publish(entries: [entry(";;a")], enabled: true, disabledBundleIDs: [])
     for (raw, composition) in [(Optional("ni"), Optional(context("ni"))), (nil, Optional(context())), (Optional(""), nil)] {
-      let rime = FakeRimeSession(composition: composition, input: raw)
+      let engineSession = FakeEngineSession(composition: composition, input: raw)
       XCTAssertFalse(OwlAutomaticExpansionControllerEntry.start(input: .text(";"), bundleID: "test.host",
-        runtime: runtime, rime: rime) { XCTFail("Must leave the original Rime/candidate path alone"); return true })
+        runtime: runtime, engineSession: engineSession) { XCTFail("Must leave the original Rime/candidate path alone"); return true })
     }
   }
 
   func testControllerEntryDoesNotProbeHostForOrdinaryInputOrDisabledApp() throws {
     let runtime = OwlAutomaticExpansionRuntime()
     try runtime.publish(entries: [entry(";;a")], enabled: true, disabledBundleIDs: ["test.disabled"])
-    let rime = FakeRimeSession(composition: context(), input: "")
+    let engineSession = FakeEngineSession(composition: context(), input: "")
     for (text, bundle) in [("ordinary", "test.host"), (";", "test.disabled")] {
       XCTAssertFalse(OwlAutomaticExpansionControllerEntry.start(input: .text(text), bundleID: bundle,
-        runtime: runtime, rime: rime) { XCTFail("Ordinary input must not probe the host"); return true })
+        runtime: runtime, engineSession: engineSession) { XCTFail("Ordinary input must not probe the host"); return true })
     }
   }
 
@@ -206,10 +206,10 @@ final class OwlAutomaticExpansionTests: XCTestCase {
   func testControllerMarkedWriteRefusalReturnsOriginalKeyToPunctuationPath() throws {
     let runtime = OwlAutomaticExpansionRuntime()
     try runtime.publish(entries: [entry(";;a")], enabled: true, disabledBundleIDs: [])
-    let rime = FakeRimeSession(composition: context(), input: "")
+    let engineSession = FakeEngineSession(composition: context(), input: "")
     var document = ""
     let handled = OwlAutomaticExpansionControllerEntry.start(input: .text(";"), bundleID: "test.host",
-      runtime: runtime, rime: rime) {
+      runtime: runtime, engineSession: engineSession) {
       let outcome = OwlAutomaticExpansionMarkDelivery.perform(before: emptyHost(), write: {},
         isCurrent: { true }, owns: { false }, readAfter: { emptyHost() })
       XCTAssertEqual(outcome, .rejectedWithoutChange)
@@ -237,33 +237,33 @@ final class OwlAutomaticExpansionTests: XCTestCase {
   }
 
   func testControllerSingleSemicolonKeepsOriginalPunctuationBeforeShift() {
-    let rime = FakeRimeSession(composition: context(), input: "", optionState: [.asciiMode: false])
+    let engineSession = FakeEngineSession(composition: context(), input: "", optionState: [.asciiMode: false])
     var document = ""
     OwlAutomaticExpansionControllerEntry.processModifiers(pending: ";", finishSemicolon: {
       OwlAutomaticExpansionControllerEntry.replaySemicolon(keycode: 59, modifiers: 2, process: { code, modifiers in
-        let handled = rime.process(keycode: code, modifiers: modifiers)
-        rime.pendingCommit = rime.option(.asciiMode) ? ";" : "；"
+        let handled = engineSession.process(keycode: code, modifiers: modifiers)
+        engineSession.pendingCommit = engineSession.option(.asciiMode) ? ";" : "；"
         return handled
-      }, update: { document += rime.takeCommit() ?? "" }, isCurrent: { true }, insertLiteral: { document += ";" })
-    }, process: { rime.setOption(.asciiMode, true) })
+      }, update: { document += engineSession.takeCommit() ?? "" }, isCurrent: { true }, insertLiteral: { document += ";" })
+    }, process: { engineSession.setOption(.asciiMode, true) })
     XCTAssertEqual(document, "；")
-    XCTAssertEqual(rime.processedKeys.count, 1)
-    XCTAssertEqual(rime.processedKeys.first?.keycode, 59)
-    XCTAssertEqual(rime.processedKeys.first?.modifiers, 2)
-    XCTAssertTrue(rime.option(.asciiMode))
+    XCTAssertEqual(engineSession.processedKeys.count, 1)
+    XCTAssertEqual(engineSession.processedKeys.first?.keycode, 59)
+    XCTAssertEqual(engineSession.processedKeys.first?.modifiers, 2)
+    XCTAssertTrue(engineSession.option(.asciiMode))
   }
 
   func testControllerPunctuationCandidateRemainsInOriginalRimeFlow() {
-    let rime = FakeRimeSession(composition: context(), input: "")
+    let engineSession = FakeEngineSession(composition: context(), input: "")
     var shownCandidates: [String] = []
     var inserts: [String] = []
     OwlAutomaticExpansionControllerEntry.replaySemicolon(keycode: 59, modifiers: 0, process: { code, modifiers in
-      let handled = rime.process(keycode: code, modifiers: modifiers)
-      rime.scriptedComposition = RimeComposition(preedit: ";", selStart: 0, selEnd: 1, cursorPos: 1,
-        commitTextPreview: "；", candidates: [RimeCandidate(text: "；", comment: nil)], labels: ["1"],
+      let handled = engineSession.process(keycode: code, modifiers: modifiers)
+      engineSession.scriptedComposition = EngineComposition(preedit: ";", selStart: 0, selEnd: 1, cursorPos: 1,
+        commitTextPreview: "；", candidates: [EngineCandidate(text: "；", comment: nil)], labels: ["1"],
         pageNo: 0, pageSize: 5, isLastPage: true, highlightedIndex: 0, numCandidates: 1)
       return handled
-    }, update: { shownCandidates = rime.composition()?.candidates.map(\.text) ?? [] },
+    }, update: { shownCandidates = engineSession.composition()?.candidates.map(\.text) ?? [] },
       isCurrent: { true }, insertLiteral: { inserts.append(";") })
     XCTAssertEqual(shownCandidates, ["；"])
     XCTAssertTrue(inserts.isEmpty, "A Rime punctuation menu must not also insert a literal semicolon")
@@ -291,15 +291,15 @@ final class OwlAutomaticExpansionTests: XCTestCase {
 
   func testControllerOrdinaryInputAndDisabledExpansionDoNotReadBundleID() throws {
     let runtime = OwlAutomaticExpansionRuntime()
-    let rime = FakeRimeSession(composition: context(), input: "")
+    let engineSession = FakeEngineSession(composition: context(), input: "")
     var bundleReads = 0
     func readBundle() -> String? { bundleReads += 1; return "test.host" }
     XCTAssertFalse(OwlAutomaticExpansionControllerEntry.start(input: .text(";"), bundleID: readBundle(),
-      runtime: runtime, rime: rime) { XCTFail("disabled"); return true })
+      runtime: runtime, engineSession: engineSession) { XCTFail("disabled"); return true })
     try runtime.publish(entries: [entry(";;a")], enabled: true, disabledBundleIDs: [])
     for _ in 0..<1000 {
       XCTAssertFalse(OwlAutomaticExpansionControllerEntry.start(input: .text("a"), bundleID: readBundle(),
-        runtime: runtime, rime: rime) { XCTFail("ordinary input"); return true })
+        runtime: runtime, engineSession: engineSession) { XCTFail("ordinary input"); return true })
     }
     XCTAssertEqual(bundleReads, 0)
   }
@@ -460,17 +460,17 @@ final class OwlAutomaticExpansionTests: XCTestCase {
   func testOrdinaryTabAndReturnDoNotReadHostOrStealComposition() throws {
     let runtime = OwlAutomaticExpansionRuntime()
     try runtime.publish(entries: [entry(";;a", mode: .delimiterKeep)], enabled: true, disabledBundleIDs: [])
-    let rime = FakeRimeSession(composition: context("ni"), input: "ni")
+    let engineSession = FakeEngineSession(composition: context("ni"), input: "ni")
     var bundleReads = 0
     func bundle() -> String? { bundleReads += 1; return "test.host" }
     for (code, text) in [(kVK_Return, "\r"), (kVK_Tab, "\t")] {
       let input = OwlAutomaticExpansionEventInput.classify(key(code, text: text))
       XCTAssertFalse(OwlAutomaticExpansionControllerEntry.start(input: input, bundleID: bundle(), runtime: runtime,
-        rime: rime) { XCTFail("Normal composition must remain with Rime"); return true })
+        engineSession: engineSession) { XCTFail("Normal composition must remain with Rime"); return true })
     }
     XCTAssertEqual(bundleReads, 0)
-    XCTAssertEqual(rime.input(), "ni")
-    XCTAssertTrue(rime.processedKeys.isEmpty)
+    XCTAssertEqual(engineSession.input(), "ni")
+    XCTAssertTrue(engineSession.processedKeys.isEmpty)
   }
 
   func testDelimiterModesRespectCaseAndWordBoundaries() throws {
@@ -567,13 +567,13 @@ final class OwlAutomaticExpansionTests: XCTestCase {
     }
     defaults.set(true, forKey: OwlAutomaticExpansionRuntime.enabledKey)
     let runtime = OwlAutomaticExpansionRuntime()
-    try runtime.reload(rimeDir: root, defaults: defaults)
-    let writer = OwlConfigWriter(rimeDir: root)
+    try runtime.reload(dataDir: root, defaults: defaults)
+    let writer = OwlConfigWriter(dataDir: root)
     var item = entry(";;a")
     for mode in [OwlTemplateEntry.ExpansionMode.immediate, .delimiterKeep, .delimiterDrop] {
       item.expansionMode = mode
       try OwlTemplateStore.save(.init(entries: [item]), writer: writer)
-      XCTAssertEqual(try OwlTemplateStore.load(rimeDir: root).entries.first?.expansionMode, mode)
+      XCTAssertEqual(try OwlTemplateStore.load(dataDir: root).entries.first?.expansionMode, mode)
       let recognizer = OwlAutomaticExpansionRecognizer()
       let step = type(";;a", into: recognizer, index: runtime.index)
       if mode == .immediate { XCTAssertEqual(step, .invoke(item, trigger: ";;a")) }
@@ -586,7 +586,7 @@ final class OwlAutomaticExpansionTests: XCTestCase {
     var conflict = item
     conflict.expansionMode = .immediate
     XCTAssertThrowsError(try OwlTemplateStore.save(.init(entries: [conflict, entry(";;ab")]), writer: writer))
-    XCTAssertEqual(try OwlTemplateStore.load(rimeDir: root).entries, [item])
+    XCTAssertEqual(try OwlTemplateStore.load(dataDir: root).entries, [item])
     XCTAssertEqual(runtime.revision, revision)
     XCTAssertTrue(runtime.allows(bundleID: "test.host"))
     try runtime.publish(entries: [item], enabled: true, disabledBundleIDs: ["TEST.HOST"])

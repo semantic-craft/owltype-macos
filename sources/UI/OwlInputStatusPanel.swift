@@ -71,7 +71,7 @@ final class OwlInputStatusPanel: NSPanel {
 
   func refresh(_ controller: OwlInputController) {
     guard owner === controller, isEnabled else { return }
-    let flags = controller.currentRimeStatusFlags()
+    let flags = controller.currentEngineStatusFlags()
     let schema = controller.schemaId.isEmpty ? OwlKeyboardPreferences.preferredSchemaID : controller.schemaId
     let value = Presentation(schema: schema, ascii: flags.asciiMode, punctuation: flags.asciiPunct,
                              fullShape: flags.fullShape, traditional: flags.traditional,

@@ -3,7 +3,7 @@
 //  OwltypeTests — 来源核验跳库深链核心 (issue #133)
 //
 //  纯值逻辑：路由表逐源 URL 断言（含编码边界：裸 +、&、CJK）、知网专业检索式、
-//  剪贴板纪律判定、链接安全闸。无网络、无剪贴板副作用、无 librime。
+//  剪贴板纪律判定、链接安全闸。无网络、无剪贴板副作用、无引擎。
 //  URL 模板逐字对齐 Responsay VerificationQueryRouter（docs/owl-responsay-alignment-spec.md §1）。
 //
 

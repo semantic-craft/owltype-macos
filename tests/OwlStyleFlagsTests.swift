@@ -3,10 +3,10 @@
 //  OwltypeTests — inline 旗标决策纯函数锁（2026-07-12，#90 真机诊断产出）
 //
 //  Locks `OwlStyleFlags.sessionInline` — the per-session inline resolution hoisted out of
-//  `rimeUpdate` when the flags moved to per-round recompute (B3 闩锁修复). The precedence it
+//  `engineUpdate` when the flags moved to per-round recompute (B3 闩锁修复). The precedence it
 //  pins: global style ∧ ¬no_inline, with the app_options `inline` force-override winning for
 //  the PREEDIT only (squirrel#435 先例，Chromium omnibox 规避). Pure value math — no config,
-//  no librime.
+//  no engine.
 //
 
 import XCTest

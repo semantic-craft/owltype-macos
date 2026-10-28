@@ -148,7 +148,7 @@ final class OwlRustEngineTests: XCTestCase {
         sharedDataDir: seedDir,
         userDataDir: userDir,
         logDir: userDir,
-        appName: OwlRimeIdentity.appName
+        appName: OwlEngineIdentity.appName
       )
     )
     return engine
@@ -170,7 +170,7 @@ final class OwlRustEngineTests: XCTestCase {
 
   private func typeText(
     _ text: String,
-    into session: RimeSession,
+    into session: EngineSession,
     file: StaticString = #filePath,
     line: UInt = #line
   ) {
@@ -218,7 +218,7 @@ final class OwlRustEngineTests: XCTestCase {
     UInt32(character.asciiValue!)
   }
 
-  private func pageToVisibleCandidate(_ text: String, in session: RimeSession) throws -> Int {
+  private func pageToVisibleCandidate(_ text: String, in session: EngineSession) throws -> Int {
     var page = try XCTUnwrap(session.composition())
     while !page.candidates.contains(where: { $0.text == text }) && !page.isLastPage {
       let previous = page.pageNo
@@ -231,9 +231,9 @@ final class OwlRustEngineTests: XCTestCase {
   }
 
   private func visibleAndPeekedCandidates(
-    in session: RimeSession,
+    in session: EngineSession,
     count: Int = 100
-  ) -> [RimeCandidate] {
+  ) -> [EngineCandidate] {
     guard let composition = session.composition() else { return [] }
     let start = composition.pageSize
     return composition.candidates + session.peekCandidates(from: start, count: count)
@@ -931,7 +931,7 @@ final class OwlRustEngineTests: XCTestCase {
       else { defaults.removeObject(forKey: learningKey) }
     }
 
-    func assertWubi(_ session: any RimeSession, learned86: Bool, learned98: Bool) {
+    func assertWubi(_ session: any EngineSession, learned86: Bool, learned98: Bool) {
       for (schema, code, learned) in [("wubi86_jidian", "go", learned86), ("wubi98", "gu", learned98)] {
         XCTAssertTrue(session.selectSchema(schema))
         typeText(code, into: session)
@@ -944,7 +944,7 @@ final class OwlRustEngineTests: XCTestCase {
       XCTAssertTrue(session.selectSchema("rime_ice"))
     }
 
-    func learnWubi(_ session: any RimeSession, schema: String) {
+    func learnWubi(_ session: any EngineSession, schema: String) {
       XCTAssertTrue(session.selectSchema(schema))
       typeText("gggg", into: session)
       XCTAssertTrue(session.selectCandidate(1))
@@ -1608,7 +1608,7 @@ final class OwlRustEngineTests: XCTestCase {
     }
     let simplified = try XCTUnwrap(session.composition())
     let index = try XCTUnwrap(simplified.candidates.firstIndex { $0.text == "中国" })
-    let options: [RimeOption] = [.traditional, .traditionalization, .zhTrad, .transcription]
+    let options: [EngineOption] = [.traditional, .traditionalization, .zhTrad, .transcription]
     for option in options { session.setOption(option, true) }
     session.setOption(.simplification, false)
     let traditional = try XCTUnwrap(session.composition())
@@ -2763,7 +2763,7 @@ final class OwlRustEngineTests: XCTestCase {
     var entry = OwlTemplateEntry(title: "增强测试", body: "模板正文")
     entry.trigger = "ni"
     entry.invocationMode = .candidate
-    try OwlTemplateStore.save(.init(entries: [entry]), writer: OwlConfigWriter(rimeDir: userDir))
+    try OwlTemplateStore.save(.init(entries: [entry]), writer: OwlConfigWriter(dataDir: userDir))
     let engine = try makeHostPhraseEngine(userDataURL: userDir)
     let baselineEngine = try makeHostPhraseEngine(userDataURL: baselineDir)
     let session = engine.createSession()
@@ -2793,7 +2793,7 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.takeCommit(), templateText)
     XCTAssertEqual(session.lastCommittedInput(), "Kni")
     XCTAssertEqual(OwlTemplateStore.resolveCandidate(code: session.lastCommittedInput(), text: templateText,
-      loadLibrary: { try OwlTemplateStore.load(rimeDir: userDir) })?.id, entry.id)
+      loadLibrary: { try OwlTemplateStore.load(dataDir: userDir) })?.id, entry.id)
     XCTAssertNil(session.takeCommit())
     XCTAssertTrue(session.process(keycode: asciiKeycode("K"), modifiers: kShiftMask.rawValue))
     typeText("ni", into: session)
@@ -2822,7 +2822,7 @@ final class OwlRustEngineTests: XCTestCase {
       fileName: "custom_phrase.txt",
       to: userDir
     )
-    XCTAssertEqual(OwlTemplateStore.mode(rimeDir: userDir), .legacy)
+    XCTAssertEqual(OwlTemplateStore.mode(dataDir: userDir), .legacy)
 
     let engine = try makeHostPhraseEngine(userDataURL: userDir)
     let session = engine.createSession()
@@ -2942,9 +2942,9 @@ final class OwlRustEngineTests: XCTestCase {
     entry.invocationMode = .candidate
     try OwlTemplateStore.save(
       OwlTemplateLibrary(entries: [entry]),
-      writer: OwlConfigWriter(rimeDir: userDir)
+      writer: OwlConfigWriter(dataDir: userDir)
     )
-    XCTAssertEqual(OwlTemplateStore.mode(rimeDir: userDir), .unified)
+    XCTAssertEqual(OwlTemplateStore.mode(dataDir: userDir), .unified)
 
     // These stale projections must not be merged back after migration to the unified store.
     try writeHostPhrase(
@@ -2981,7 +2981,7 @@ final class OwlRustEngineTests: XCTestCase {
       OwlTemplateStore.resolveCandidate(
         code: session.lastCommittedInput(),
         text: committedTemplate,
-        loadLibrary: { try OwlTemplateStore.load(rimeDir: userDir) }
+        loadLibrary: { try OwlTemplateStore.load(dataDir: userDir) }
       )?.id,
       entry.id
     )
@@ -3005,7 +3005,7 @@ final class OwlRustEngineTests: XCTestCase {
     // Deleting the committed record refreshes the projection without touching the seed table.
     try OwlTemplateStore.save(
       OwlTemplateLibrary(),
-      writer: OwlConfigWriter(rimeDir: userDir)
+      writer: OwlConfigWriter(dataDir: userDir)
     )
     XCTAssertTrue(engine.deployConfigFile(OwlTemplateStore.dictFileName, versionKey: "config_version"))
     for scalar in "Kowlrecord".unicodeScalars {
@@ -3036,7 +3036,7 @@ final class OwlRustEngineTests: XCTestCase {
       fileName: "custom_phrase.txt",
       to: emptyDir
     )
-    XCTAssertEqual(OwlTemplateStore.mode(rimeDir: emptyDir), .empty)
+    XCTAssertEqual(OwlTemplateStore.mode(dataDir: emptyDir), .empty)
     let emptyEngine = try makeHostPhraseEngine(userDataURL: emptyDir)
     let emptySession = emptyEngine.createSession()
     defer { emptySession.destroy() }
@@ -3066,7 +3066,7 @@ final class OwlRustEngineTests: XCTestCase {
       fileName: OwlTemplateStore.stateFileName,
       to: unavailableDir
     )
-    guard case .unavailable = OwlTemplateStore.mode(rimeDir: unavailableDir) else {
+    guard case .unavailable = OwlTemplateStore.mode(dataDir: unavailableDir) else {
       return XCTFail("corrupt unified state must block host phrase loading")
     }
     let unavailableEngine = try makeHostPhraseEngine(userDataURL: unavailableDir)
@@ -3093,7 +3093,7 @@ final class OwlRustEngineTests: XCTestCase {
     entry.invocationMode = .candidate
     try OwlTemplateStore.save(
       OwlTemplateLibrary(entries: [entry]),
-      writer: OwlConfigWriter(rimeDir: userDir)
+      writer: OwlConfigWriter(dataDir: userDir)
     )
     let templateText = OwlTemplateStore.candidateText(entry)
     try writeHostPhrase(
@@ -3125,7 +3125,7 @@ final class OwlRustEngineTests: XCTestCase {
       OwlTemplateStore.resolveCandidate(
         code: session.lastCommittedInput(),
         text: templateText,
-        loadLibrary: { try OwlTemplateStore.load(rimeDir: userDir) }
+        loadLibrary: { try OwlTemplateStore.load(dataDir: userDir) }
       )?.id,
       entry.id
     )

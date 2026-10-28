@@ -5,7 +5,7 @@
 //  The transient toast that briefly announces a mode/schema change (e.g. 中/英、
 //  简/繁、方案切换). Reimplemented in SwiftUI to replace the legacy AppKit
 //  OwlPanel.show(status:) path, so SwiftUI is the SOLE renderer (candidates +
-//  status). It is NOT on the IMK hot path: it fires only on a Rime option/schema
+//  status). It is NOT on the IMK hot path: it fires only on an engine option/schema
 //  notification (mode change), never per keystroke — so SwiftUI is fine here.
 //
 //  Styling: the `OwlThemes` design system (OwlSkin → OwlCandidateTheme palette,
@@ -22,7 +22,7 @@
 //  Duration: auto-dismiss after `OwlStatusHUD.showDuration` (≈1.2s — inlined here;
 //  OwlTheme used to own this constant and is being deleted).
 //
-//  Boundary (ADR-0001 / 0002): UI layer only; no Rime / hot-path involvement.
+//  Boundary (ADR-0001 / 0002): UI layer only; no engine / hot-path involvement.
 //
 
 import AppKit

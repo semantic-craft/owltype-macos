@@ -1,7 +1,7 @@
 //
 //  CandidateStoreTests.swift
 //  OwltypeTests — candidate provenance, shared cloud base, commit transforms, panel display and
-//  selection polish. No network, no librime.
+//  selection polish. No network, no engine.
 //
 
 import AppKit
@@ -289,7 +289,7 @@ final class OwlModernUISmokeTests: XCTestCase {
         migrateLegacy: {},
         resetUserDict: {}
       ),
-      onOpenRimeFolder: {},
+      onOpenDataFolder: {},
       onOpenLog: {},
       onShowOnboarding: {},
       onPanelPreferencesChanged: {}
@@ -308,7 +308,7 @@ final class OwlModernUISmokeTests: XCTestCase {
         migrateLegacy: {},
         resetUserDict: {}
       ),
-      onOpenRimeFolder: {},
+      onOpenDataFolder: {},
       onOpenLog: {},
       onShowOnboarding: {},
       onPanelPreferencesChanged: {}
@@ -501,12 +501,12 @@ final class OwlCandidateDisplayTests: XCTestCase {
 
   func testOrientationResolution() {
     // With no schema default, .auto follows Rime's _vertical; explicit overrides ignore it.
-    XCTAssertTrue(OwlPanelOrientation.auto.isVertical(rimeVertical: true))
-    XCTAssertFalse(OwlPanelOrientation.auto.isVertical(rimeVertical: false))
-    XCTAssertFalse(OwlPanelOrientation.horizontal.isVertical(rimeVertical: true))
-    XCTAssertTrue(OwlPanelOrientation.vertical.isVertical(rimeVertical: false))
+    XCTAssertTrue(OwlPanelOrientation.auto.isVertical(engineVertical: true))
+    XCTAssertFalse(OwlPanelOrientation.auto.isVertical(engineVertical: false))
+    XCTAssertFalse(OwlPanelOrientation.horizontal.isVertical(engineVertical: true))
+    XCTAssertTrue(OwlPanelOrientation.vertical.isVertical(engineVertical: false))
     // 多行是横排的一种：`isVertical` 恒 false，`scrolls` 才是它与单行横排的区别。
-    XCTAssertFalse(OwlPanelOrientation.scroll.isVertical(rimeVertical: true))
+    XCTAssertFalse(OwlPanelOrientation.scroll.isVertical(engineVertical: true))
     XCTAssertTrue(OwlPanelOrientation.scroll.scrolls)
     XCTAssertFalse(OwlPanelOrientation.horizontal.scrolls)
   }
@@ -514,21 +514,21 @@ final class OwlCandidateDisplayTests: XCTestCase {
   func testAutoOrientationIsHorizontalForWubiSchemas() {
     // Fix #2 (2026-06-22): the old Wubi-forces-vertical special case was removed. With
     // orientation 自动, every schema — including Wubi — follows ONLY rime's _vertical, so a
-    // Wubi schema with rimeVertical:false now resolves to horizontal like rime_ice.
-    XCTAssertFalse(OwlPanelOrientation.auto.isVertical(rimeVertical: false, schemaID: "wubi86_jidian"))
-    XCTAssertFalse(OwlPanelOrientation.auto.isVertical(rimeVertical: false, schemaID: "wubi86_jidian_pinyin"))
-    XCTAssertFalse(OwlPanelOrientation.auto.isVertical(rimeVertical: false, schemaID: "wubi86_jidian_trad"))
-    XCTAssertFalse(OwlPanelOrientation.auto.isVertical(rimeVertical: false, schemaID: "wubi86_jidian_trad_pinyin"))
-    XCTAssertFalse(OwlPanelOrientation.auto.isVertical(rimeVertical: false, schemaID: "rime_ice"))
+    // Wubi schema with engineVertical:false now resolves to horizontal like rime_ice.
+    XCTAssertFalse(OwlPanelOrientation.auto.isVertical(engineVertical: false, schemaID: "wubi86_jidian"))
+    XCTAssertFalse(OwlPanelOrientation.auto.isVertical(engineVertical: false, schemaID: "wubi86_jidian_pinyin"))
+    XCTAssertFalse(OwlPanelOrientation.auto.isVertical(engineVertical: false, schemaID: "wubi86_jidian_trad"))
+    XCTAssertFalse(OwlPanelOrientation.auto.isVertical(engineVertical: false, schemaID: "wubi86_jidian_trad_pinyin"))
+    XCTAssertFalse(OwlPanelOrientation.auto.isVertical(engineVertical: false, schemaID: "rime_ice"))
     // …but a schema that DOES set rime _vertical still goes vertical under 自动.
-    XCTAssertTrue(OwlPanelOrientation.auto.isVertical(rimeVertical: true, schemaID: "wubi86_jidian"))
+    XCTAssertTrue(OwlPanelOrientation.auto.isVertical(engineVertical: true, schemaID: "wubi86_jidian"))
   }
 
   func testExplicitOrientationStillOverridesForAnySchema() {
     // Explicit 横排/竖排 win regardless of schema and regardless of rime _vertical.
-    XCTAssertFalse(OwlPanelOrientation.horizontal.isVertical(rimeVertical: true, schemaID: "wubi86_jidian"))
-    XCTAssertTrue(OwlPanelOrientation.vertical.isVertical(rimeVertical: false, schemaID: "wubi86_jidian"))
-    XCTAssertTrue(OwlPanelOrientation.vertical.isVertical(rimeVertical: false, schemaID: "rime_ice"))
+    XCTAssertFalse(OwlPanelOrientation.horizontal.isVertical(engineVertical: true, schemaID: "wubi86_jidian"))
+    XCTAssertTrue(OwlPanelOrientation.vertical.isVertical(engineVertical: false, schemaID: "wubi86_jidian"))
+    XCTAssertTrue(OwlPanelOrientation.vertical.isVertical(engineVertical: false, schemaID: "rime_ice"))
   }
 
   func testCandidateFontDownloadURL() {

@@ -214,7 +214,7 @@ enum OwlKeyboardPreferences {
     }
   }
 
-  /// The schema a new librime session must use to match the settings source of truth.
+  /// The schema a new engine session must use to match the settings source of truth.
   /// Keeps stale `user.yaml` `previously_selected_schema` values from overriding Owltype prefs.
   static var preferredSchemaID: String {
     inputMethod.schemaId(doublePinyin: doublePinyin, wubiScheme: wubiScheme)

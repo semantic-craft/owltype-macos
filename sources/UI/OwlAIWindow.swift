@@ -9,7 +9,7 @@
 //  callbacks are `[weak self]` and nilled in `close()` so the window↔model retain cycle is broken.
 //
 //  The window is COPY-ONLY: the streamed answer is never auto-inserted into the target app and there
-//  is no replace-selection. Opening / using it never mutates the librime session or the composition
+//  is no replace-selection. Opening / using it never mutates the engine session or the composition
 //  — it only reads the captured snapshot (already a plain value) and talks to the cloud provider.
 //
 //  Boundary: SwiftUI is the sole renderer (the view is hosted via `NSHostingView`); the IMK

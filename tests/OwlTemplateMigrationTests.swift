@@ -4,7 +4,7 @@ import XCTest
 @MainActor
 final class OwlTemplateMigrationTests: XCTestCase {
   private var root: URL!
-  private var migration: OwlTemplateMigration { OwlTemplateMigration(rimeDir: root) }
+  private var migration: OwlTemplateMigration { OwlTemplateMigration(dataDir: root) }
 
   override func setUpWithError() throws {
     root = FileManager.default.temporaryDirectory.appendingPathComponent("OwlMigration-" + UUID().uuidString)
@@ -26,10 +26,10 @@ final class OwlTemplateMigrationTests: XCTestCase {
     XCTAssertEqual(plan.entries.count, 2)
     XCTAssertEqual(try migration.prepare().entries.map(\.id), plan.entries.map(\.id))
     try migration.commit(plan)
-    let library = try OwlTemplateStore.load(rimeDir: root)
+    let library = try OwlTemplateStore.load(dataDir: root)
     XCTAssertEqual(library.entries.map(\.id), plan.entries.map(\.id))
     XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("owl_quick_send.json")), before)
-    XCTAssertEqual(OwlTemplateStore.mode(rimeDir: root), .unified)
+    XCTAssertEqual(OwlTemplateStore.mode(dataDir: root), .unified)
     let prompt = try XCTUnwrap(library.entries.first { $0.category == .prompt })
     XCTAssertEqual(prompt.syntax, .legacyDoubleBraces)
     XCTAssertEqual(prompt.tags, ["写作"])
@@ -45,7 +45,7 @@ final class OwlTemplateMigrationTests: XCTestCase {
     invocation.confirm(values: [:])
     XCTAssertEqual(delivered, ["\n{clipboard}  值\t "])
     XCTAssertFalse(try migration.runAutomatically())
-    XCTAssertEqual(try OwlTemplateStore.load(rimeDir: root).entries.map(\.id), library.entries.map(\.id))
+    XCTAssertEqual(try OwlTemplateStore.load(dataDir: root).entries.map(\.id), library.entries.map(\.id))
   }
   func testRawAuditReportsAllBadRecordsWithoutFallbackOrPartialCommit() throws {
     try write("owl_quick_send.json", #"[null,{"text":5,"code":"x"},{"text":"ok","code":"UP"},{"text":" ","code":"blank"}]"#)
@@ -68,7 +68,7 @@ final class OwlTemplateMigrationTests: XCTestCase {
     }
     XCTAssertTrue(migration.conflicts(in: plan).isEmpty)
     try migration.commit(plan)
-    let entries = try OwlTemplateStore.load(rimeDir: root).entries
+    let entries = try OwlTemplateStore.load(dataDir: root).entries
     XCTAssertEqual(entries.count, 3)
     XCTAssertEqual(entries.filter { $0.invocationMode == .searchOnly }.compactMap { $0.migrationSource?.originalCode }.sorted(), ["prompt", "vprompt"])
   }
@@ -79,7 +79,7 @@ final class OwlTemplateMigrationTests: XCTestCase {
     let plan = try migration.prepare()
     XCTAssertEqual(plan.existingEntries, [existing])
     try migration.commit(plan)
-    XCTAssertEqual(try OwlTemplateStore.load(rimeDir: root).entries.first, existing)
+    XCTAssertEqual(try OwlTemplateStore.load(dataDir: root).entries.first, existing)
   }
   func testTXTOnlyCollapseHasSourceAccountingAndBadRowsBlock() throws {
     try write("owl_quick_send.txt", "# Rime table\n正文\tabc\t1\n正文\tvabc\t1\n正文\tvvabc\t1\n不同\tvip\t1\n")
@@ -118,15 +118,15 @@ final class OwlTemplateMigrationTests: XCTestCase {
     let plan = try migration.prepare()
     let writes = try migration.prepareTransaction(plan)
     try write(OwlTemplateStore.fileName, try XCTUnwrap(writes.first?.contents))
-    XCTAssertNotEqual(OwlTemplateStore.mode(rimeDir: root), .legacy)
-    try OwlTemplateMigration(rimeDir: root).recoverIfNeeded()
+    XCTAssertNotEqual(OwlTemplateStore.mode(dataDir: root), .legacy)
+    try OwlTemplateMigration(dataDir: root).recoverIfNeeded()
     XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(OwlTemplateStore.fileName).path))
-    XCTAssertEqual(OwlTemplateStore.mode(rimeDir: root), .legacy)
+    XCTAssertEqual(OwlTemplateStore.mode(dataDir: root), .legacy)
     XCTAssertEqual(try migration.prepare().entries.map(\.id), plan.entries.map(\.id))
   }
   func testOldPatchBlocksDisabledWithoutChangingUserFragmentOrOldFiles() throws {
     try seed()
-    let writer = OwlConfigWriter(rimeDir: root)
+    let writer = OwlConfigWriter(dataDir: root)
     try writer.apply(fileName: "rime_ice.custom.yaml", block: OwlPromptStore.rimeIcePatchBlock)
     try OwlQuickSendStore.save([OwlQuickSendEntry(text: "短句", code: "short")], writer: writer)
     let path = root.appendingPathComponent("rime_ice.custom.yaml")
@@ -146,16 +146,16 @@ final class OwlTemplateMigrationTests: XCTestCase {
     let plan = try migration.prepare()
     for count in 0...4 {
       let writes = try migration.prepareTransaction(plan)
-      let writer = OwlConfigWriter(rimeDir: root)
+      let writer = OwlConfigWriter(dataDir: root)
       for write in writes.prefix(count) {
         try writer.applyTextFile(fileName: write.fileName, contents: write.contents, marker: write.marker, timestamp: "migration-" + plan.id.uuidString)
       }
-      try OwlTemplateMigration(rimeDir: root).recoverIfNeeded()
+      try OwlTemplateMigration(dataDir: root).recoverIfNeeded()
       if count == writes.count {
-        XCTAssertEqual(OwlTemplateStore.mode(rimeDir: root), .unified)
-        XCTAssertEqual(try OwlTemplateStore.load(rimeDir: root).entries.map(\.id), plan.entries.map(\.id))
+        XCTAssertEqual(OwlTemplateStore.mode(dataDir: root), .unified)
+        XCTAssertEqual(try OwlTemplateStore.load(dataDir: root).entries.map(\.id), plan.entries.map(\.id))
       } else {
-        XCTAssertEqual(OwlTemplateStore.mode(rimeDir: root), .legacy)
+        XCTAssertEqual(OwlTemplateStore.mode(dataDir: root), .legacy)
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(OwlTemplateStore.fileName).path))
       }
     }
@@ -168,17 +168,17 @@ final class OwlTemplateMigrationTests: XCTestCase {
     let writes = try migration.prepareTransaction(plan)
     let patch = root.appendingPathComponent("rime_ice.custom.yaml")
     for write in writes.dropLast() {
-      try OwlConfigWriter(rimeDir: root).applyTextFile(fileName: write.fileName, contents: write.contents,
+      try OwlConfigWriter(dataDir: root).applyTextFile(fileName: write.fileName, contents: write.contents,
         marker: write.marker, timestamp: "migration-" + plan.id.uuidString)
     }
     XCTAssertThrowsError(try migration.recoverIfNeeded(beforeRestore: { name in
       if name == "rime_ice.custom.yaml" { throw CocoaError(.fileWriteNoPermission) }
     }))
-    XCTAssertTrue(OwlTemplateMigration.hasPendingRecovery(rimeDir: root))
-    XCTAssertThrowsError(try OwlTemplateStore.save(OwlTemplateLibrary(), writer: OwlConfigWriter(rimeDir: root)))
+    XCTAssertTrue(OwlTemplateMigration.hasPendingRecovery(dataDir: root))
+    XCTAssertThrowsError(try OwlTemplateStore.save(OwlTemplateLibrary(), writer: OwlConfigWriter(dataDir: root)))
     try migration.recoverIfNeeded()
     XCTAssertEqual(try String(contentsOf: patch, encoding: .utf8), "patch:\n  preserved: true\n")
-    XCTAssertFalse(OwlTemplateMigration.hasPendingRecovery(rimeDir: root))
+    XCTAssertFalse(OwlTemplateMigration.hasPendingRecovery(dataDir: root))
   }
 
   func testCorruptJournalBlocksRecoveryWithoutReplacingAnySource() throws {
@@ -188,23 +188,23 @@ final class OwlTemplateMigrationTests: XCTestCase {
     let source = try Data(contentsOf: root.appendingPathComponent("owl_prompts.json"))
     try write(".owl-template-migration/journal.json", "{broken")
     XCTAssertThrowsError(try migration.recoverIfNeeded())
-    XCTAssertTrue(OwlTemplateMigration.hasPendingRecovery(rimeDir: root))
+    XCTAssertTrue(OwlTemplateMigration.hasPendingRecovery(dataDir: root))
     XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("owl_prompts.json")), source)
   }
 
   func testCommittedLibraryEditsSurviveSubsequentStartup() throws {
     try seed()
     try migration.commit(migration.prepare())
-    var library = try OwlTemplateStore.load(rimeDir: root)
+    var library = try OwlTemplateStore.load(dataDir: root)
     library.entries[0].body = "new edit"
-    try OwlTemplateStore.save(library, writer: OwlConfigWriter(rimeDir: root))
+    try OwlTemplateStore.save(library, writer: OwlConfigWriter(dataDir: root))
     XCTAssertFalse(try migration.runAutomatically())
-    XCTAssertEqual(try OwlTemplateStore.load(rimeDir: root).entries[0].body, "new edit")
+    XCTAssertEqual(try OwlTemplateStore.load(dataDir: root).entries[0].body, "new edit")
   }
 
   func testInvalidCodeCanBeExplicitlyResolvedAndModelRetainsFailureState() throws {
     try write("owl_quick_send.json", #"[{"text":"原文","code":"UP"}]"#)
-    let model = OwlTemplateMigrationModel(rimeDir: root)
+    let model = OwlTemplateMigrationModel(dataDir: root)
     model.reload()
     XCTAssertFalse(model.canCommit)
     let id = try XCTUnwrap(model.plan?.entries.first?.id)
@@ -225,7 +225,7 @@ final class OwlTemplateMigrationTests: XCTestCase {
       let permissions = try FileManager.default.attributesOfItem(atPath: root.appendingPathComponent(name).path)[.posixPermissions] as? NSNumber
       XCTAssertEqual(permissions?.intValue, 0o600)
     }
-    let library = try OwlTemplateStore.load(rimeDir: root)
+    let library = try OwlTemplateStore.load(dataDir: root)
     XCTAssertEqual(library.entries.first?.migrationSource?.sourceFile, "owl_quick_send.json")
   }
 
@@ -234,7 +234,7 @@ final class OwlTemplateMigrationTests: XCTestCase {
     let plan = try migration.prepare()
     let writes = try migration.prepareTransaction(plan)
     for write in writes {
-      try OwlConfigWriter(rimeDir: root).applyTextFile(fileName: write.fileName, contents: write.contents,
+      try OwlConfigWriter(dataDir: root).applyTextFile(fileName: write.fileName, contents: write.contents,
         marker: write.marker, timestamp: "migration-" + plan.id.uuidString)
     }
     var edited = plan.library
@@ -243,7 +243,7 @@ final class OwlTemplateMigrationTests: XCTestCase {
     try editedBytes.write(to: root.appendingPathComponent(OwlTemplateStore.fileName))
     XCTAssertThrowsError(try migration.recoverIfNeeded())
     XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent(OwlTemplateStore.fileName)), editedBytes)
-    XCTAssertTrue(OwlTemplateMigration.hasPendingRecovery(rimeDir: root))
+    XCTAssertTrue(OwlTemplateMigration.hasPendingRecovery(dataDir: root))
   }
 
   func testManualRecoveryOfCompletedActivationPublishesCompletedState() throws {
@@ -251,14 +251,14 @@ final class OwlTemplateMigrationTests: XCTestCase {
     let plan = try migration.prepare()
     let writes = try migration.prepareTransaction(plan)
     for write in writes {
-      try OwlConfigWriter(rimeDir: root).applyTextFile(fileName: write.fileName, contents: write.contents,
+      try OwlConfigWriter(dataDir: root).applyTextFile(fileName: write.fileName, contents: write.contents,
         marker: write.marker, timestamp: "migration-" + plan.id.uuidString)
     }
-    let model = OwlTemplateMigrationModel(rimeDir: root)
+    let model = OwlTemplateMigrationModel(dataDir: root)
     model.reload()
     XCTAssertTrue(model.completed)
     XCTAssertFalse(model.canCommit)
-    XCTAssertEqual(OwlTemplateStore.mode(rimeDir: root), .unified)
+    XCTAssertEqual(OwlTemplateStore.mode(dataDir: root), .unified)
   }
 
   func testUncommittedRecoveryRefusesUnknownExternalTargetChanges() throws {
@@ -280,9 +280,9 @@ final class OwlTemplateMigrationTests: XCTestCase {
     }))
     XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(OwlTemplateStore.stateFileName).path))
     XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(OwlTemplateStore.fileName).path))
-    XCTAssertTrue(OwlTemplateMigration.hasPendingRecovery(rimeDir: root))
-    try OwlTemplateMigration(rimeDir: root).recoverIfNeeded()
-    XCTAssertEqual(OwlTemplateStore.mode(rimeDir: root), .legacy)
+    XCTAssertTrue(OwlTemplateMigration.hasPendingRecovery(dataDir: root))
+    try OwlTemplateMigration(dataDir: root).recoverIfNeeded()
+    XCTAssertEqual(OwlTemplateStore.mode(dataDir: root), .legacy)
     XCTAssertEqual(try migration.prepare().entries.map(\.id), plan.entries.map(\.id))
   }
 
@@ -290,7 +290,7 @@ final class OwlTemplateMigrationTests: XCTestCase {
   func testPendingRecoveryKeepsRimeRunningButSkipsDeployment() throws {
     try seed()
     try migration.prepareTransaction(migration.prepare())
-    let engine = FakeRimeEngine()
+    let engine = FakeInputEngine()
     let runtime = EngineRuntime(engine: engine, userDirectory: root)
     XCTAssertFalse(runtime.start(fullCheck: true))
     XCTAssertTrue(engine.lifecycleTrace.isEmpty)
@@ -304,7 +304,7 @@ final class OwlTemplateMigrationTests: XCTestCase {
     XCTAssertEqual(try? Data(contentsOf: root.appendingPathComponent("rime_ice.custom.yaml")), before)
     XCTAssertTrue(engine.deployedConfigFiles.isEmpty)
 
-    try OwlTemplateMigration(rimeDir: root).recoverIfNeeded()
+    try OwlTemplateMigration(dataDir: root).recoverIfNeeded()
     XCTAssertTrue(runtime.start(fullCheck: true))
     XCTAssertEqual(engine.lifecycleTrace, ["startMaintenance"])
   }

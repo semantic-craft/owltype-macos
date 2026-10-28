@@ -67,8 +67,8 @@ require_stable_signature() {
 
 echo "Building ($CONFIG)..."
 if [[ -f Makefile ]]; then
-  # 'make debug' / 'make release' both depend on the prebuilt librime/opencc/plum
-  # deps from action-install.sh. Run action-install.sh first if deps are missing.
+  # 'make debug' / 'make release' both depend on the Rust FFI archive and Sparkle
+  # framework from action-install.sh. Run action-install.sh first if deps are missing.
   if [[ "$CONFIG" == "Release" ]]; then
     make release ARCHS="$ARCHS" MACOSX_DEPLOYMENT_TARGET="$DEPLOY"
   else

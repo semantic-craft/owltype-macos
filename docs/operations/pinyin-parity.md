@@ -1,7 +1,7 @@
 # Pinyin differential replay
 
 `scripts/pinyin-parity.py` runs the same event stream through the unmodified,
-fixed MSIME Host API and the Swift `OwlRustEngine` / `RimeSession` seam used by
+fixed MSIME Host API and the Swift `OwlRustEngine` / `EngineSession` seam used by
 Owltype. This includes Swift configuration and candidate handling. It does not
 launch or install either input method, load personal preferences, or read a
 personal dictionary. Every replay creates new temporary learning state.

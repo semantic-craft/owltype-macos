@@ -110,9 +110,9 @@ final class OwlSettingsState {
   /// Currently selected sidebar page (drives the NavigationSplitView detail).
   /// Defaults to 键盘输入 (the IME's primary surface,豆包-style).
   var selectedPage: OwlSettingsPage = .keyboard
-  /// librime version string for the 关于 page, seeded by the delegate from the Rime
+  /// the engine version string for the 关于 page, seeded by the delegate from the Rime
   /// C API (`get_version`). Empty when unavailable — the About page omits the row.
-  var librimeVersion: String = ""
+  var engineVersion: String = ""
   /// Installed schemas, populated by the delegate via the Rime C API.
   var schemas: [SchemaItem] = []
   /// `schema_id` of the currently active schema (best-effort; may be empty).
@@ -122,7 +122,7 @@ final class OwlSettingsState {
   var currentInputSourceDisplayName: String = ""
   /// Transient status line shown under the action buttons (deploy result, etc.).
   var statusMessage: String = ""
-  /// Current librime user-data sync directory. Empty only before delegate seeding.
+  /// Current the engine user-data sync directory. Empty only before delegate seeding.
   /// Candidate-panel appearance editing value (跟随系统/浅色/深色). Seeded and persisted through
   /// `OwlCandidatePanelSettings` together with skin, font, and animation preference.
   var panelAppearance: OwlPanelAppearance = .system
@@ -336,22 +336,22 @@ enum OwlSelectionMenuPreferences {
   }
 }
 
-struct OwlRimeSyncSettings {
-  let rimeDir: URL
+struct OwlSyncSettings {
+  let dataDir: URL
 
-  init(rimeDir: URL = OwlApp.userDir) {
-    self.rimeDir = rimeDir
+  init(dataDir: URL = OwlApp.userDir) {
+    self.dataDir = dataDir
   }
 
   var installationURL: URL {
-    rimeDir.appendingPathComponent("installation.yaml")
+    dataDir.appendingPathComponent("installation.yaml")
   }
 
   func currentSyncDirectory() -> URL {
     guard let text = try? String(contentsOf: installationURL, encoding: .utf8),
           let raw = Self.topLevelValue("sync_dir", in: text),
           !raw.isEmpty else {
-      return rimeDir.appendingPathComponent("sync", isDirectory: true)
+      return dataDir.appendingPathComponent("sync", isDirectory: true)
     }
     return URL(
       fileURLWithPath: (raw as NSString).expandingTildeInPath,
