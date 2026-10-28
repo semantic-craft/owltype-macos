@@ -522,12 +522,18 @@ final class OwlProviderProfileStore {
   /// default yet (first-profile case).
   @discardableResult
   func add(_ profile: OwlProviderProfile) throws -> OwlProviderProfile {
-    var all = load().profiles
+    try add(profile, replacing: []).first { $0.id == profile.id } ?? profile
+  }
+
+  /// Append a profile and drop `replacedIDs` in one file write, so a failed write keeps them all.
+  @discardableResult
+  func add(_ profile: OwlProviderProfile, replacing replacedIDs: [String]) throws -> [OwlProviderProfile] {
+    var all = load().profiles.filter { !replacedIDs.contains($0.id) }
     let prefer = (profile.isDefault || !all.contains { $0.isDefault }) ? profile.id : nil
     all.append(profile)
     let normalized = enforcingSingleDefault(all, preferred: prefer)
     try save(normalized)
-    return normalized.first { $0.id == profile.id } ?? profile
+    return normalized
   }
 
   /// Replace an existing profile (by id). Throws `.notFound` for an unknown id. If the incoming
