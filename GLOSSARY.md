@@ -27,6 +27,19 @@ and usage telemetry never carries text.
 (`OwlProviderProfile`). The default profile drives every AI skill. To the user it is one
 provider: how it is reached, whether it can search, and what it is called are one fact.
 
+**Provider registry** — the one place a provider profile, the Keychain key its `secretName`
+names, and its key verification marker change together (`OwlProviderRegistry`): add (one profile
+per vendor), edit, Qwen workspace, set default, delete. It returns typed outcomes; the settings
+page owns the Chinese copy.
+
+**Key verification marker** — a timestamp per `secretName` saying that key once answered a real
+call (`OwlProviderKeyVerification`); never the key itself. A new or replaced key starts unverified.
+
+**Staged commit** — how the provider registry writes a new key: store it under a fresh name, then
+write the profile that points at it, and retire the old key only after the write is confirmed and
+no profile names it. A failed write removes the staged key only when the file proves it did not
+land; an unreadable file keeps every key.
+
 **Wire dialect** — which request shape a provider speaks: Chat Completions, or one of the
 `/responses` dialects (`qwen`, `ark`, `deepseek`, `openAI`) in `OwlResponsesWire`.
 
