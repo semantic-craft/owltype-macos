@@ -16,6 +16,18 @@ each engine update. Readers use it only to tell whether the user is mid-composit
 logout prompt, the dictionary prompt). Candidates come only from the engine's main lane; there is
 no second candidate lane.
 
+## Dictionary
+
+**Resource generation** — one verified, immutable copy of the bundled `msime` resources in the
+Rust resource store (`OwlRustResourceStore`), named by its digest. Typing uses the active
+generation, or the bundled files directly when none is active.
+
+**Dictionary lifecycle** — `OwlDictPackCenter`: `prepare()` copies the bundled resources into a
+candidate generation, `activate()` makes it current after the user confirms, `rollback()` returns
+to the previous one. `needsPrompt` is true while no generation is active or the active one is
+older than the bundled version. Only Rust state decides; the legacy Rime YAML download
+(`.owl-dictpack.json`, `cn_dicts/`) is never read or changed.
+
 ## AI
 
 **AI skill** — a user-invoked, out-of-band operation that sends text to a cloud model:

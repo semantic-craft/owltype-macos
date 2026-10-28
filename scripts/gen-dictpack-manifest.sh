@@ -32,7 +32,7 @@ wubi_sha="a194fb8b3ec41ef9dcf079d3a67876fa75f79135"
 octagram_repo="lotem/rime-octagram-data"
 octagram_sha="f8ce3b534733e489a8470a7c2adf5a154e8ea069"
 
-# dict-pack 版本：递增触发已装用户升级（fetcher 对比 .owl-dictpack.json 里的版本）。
+# dict-pack 版本：旧版下载器的升级版本，App 已不据此下载；Rust 资源版本见 OwlRustCompatibleResources.packageVersion。
 pack_version=1
 
 # ── file maps: "repo|sha|path-in-repo|dest-rel-path|patch" ───────────────────
