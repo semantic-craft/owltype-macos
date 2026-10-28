@@ -28,7 +28,7 @@ extension OwlInputController {
     pendingTemplateDelivery?.hostDidActivate()
     // print("[DEBUG] activateServer:")
     debugLiveInputTrace("activateServer hasSender=\(sender != nil)")
-    var keyboardLayout = NSApp.owlAppDelegate.config?.getString("keyboard_layout") ?? ""
+    var keyboardLayout = engineRuntime.config?.getString("keyboard_layout") ?? ""
     if keyboardLayout == "last" || keyboardLayout == "" {
       keyboardLayout = ""
     } else if keyboardLayout == "default" {

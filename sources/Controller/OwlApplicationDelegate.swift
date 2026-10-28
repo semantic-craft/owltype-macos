@@ -16,17 +16,10 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   static let rimeWikiURL = URL(string: "https://github.com/rime/home/wiki")!
   static let updateNotificationIdentifier = "OwlUpdateNotification"
   static let notificationIdentifier = "OwlNotification"
-  /// Deploy/reload lifecycle evidence in the unified log. `print` from an IME process goes
-  /// nowhere useful, and rime's glog can't record a notification that never reached the
-  /// process — this channel is the app-side proof of "reload arrived / deploy succeeded or
-  /// failed". Read with:
-  ///   log show --predicate 'subsystem == "im.owltype.inputmethod.Owltype" && category == "deploy"' --info
-  static let deployLog = Logger(subsystem: "im.owltype.inputmethod.Owltype", category: "deploy")
 
-  /// The single owner of the global librime lifecycle. The input controller obtains its
-  /// per-composition Session from this engine (via `NSApp.owlAppDelegate.engine`), the
-  /// same indirection pattern as `ensureOwltypePanel`. Swappable so tests can inject a fake.
-  var engine: RimeEngine = OwlRustEngine.makeConfiguredEngine()
+  /// The engine, its config cache and their start/redeploy/reset ordering. One instance for
+  /// the process: controllers capture it at init, so tests swap `runtime.engine`, never this.
+  let runtime = EngineRuntime()
   /// The controller's read-only view of the live composition snapshot, behind the narrow
   /// `SnapshotReading` port (same composition-root pattern as `engine`). Default is the
   /// production `.shared` registry; swappable so tests can inject a scripted snapshot.
@@ -50,34 +43,6 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   var clientCapabilityPolicy = OwlClientCapabilityPolicy()
   var clientWorkarounds = OwlClientWorkaroundSettings()
   var suppressOnboarding = false
-  var config: OwlConfig?
-  /// Candidate-window LAYOUT flags read from Rime `style/*` (linear/vertical/inline*),
-  /// read live by the IMK path (was `panel.linear` etc. on the deleted OwlPanel/OwlTheme).
-  /// Seeded in `loadSettings` from the global config, overridden per-schema in
-  /// `loadSettings(for:)`. Not theming — the skin/colors live in `OwlThemes`.
-  var styleFlags = OwlStyleFlags()
-  /// The active input controller (was `panel.inputController`), set by the controller on
-  /// each `showPanel`. Used by `finalizeStrandedComposition` to finalize a stranded
-  /// composition when the input source is switched away.
-  weak var activeInputController: OwlInputController?
-  /// Registry of every LIVE controller (one per host-app input session). WEAK members — a
-  /// controller registers itself when it creates a session (and on each `showPanel`); dead
-  /// controllers drop out automatically via `NSHashTable.weakObjects()` + `destroySession`,
-  /// so there is no retain cycle and no manual unregister bookkeeping. The fast settings-apply
-  /// path (`reapplyToLiveSession`) iterates this to force EVERY live session to reload the
-  /// freshly-deployed `build/` (a fresh session reads the new config; a same-id reselect does
-  /// NOT, which was the page_size-not-applying bug). Off the IMK keystroke hot path.
-  let liveControllers = NSHashTable<OwlInputController>.weakObjects()
-  /// Resource activation changes the generation read by `createSession()`, not an existing
-  /// session. These completions are drained at an idle composition boundary so enabling or
-  /// rolling back a dict-pack never discards a partially selected phrase.
-  var liveSessionRefreshCompletions: [@MainActor () -> Void] = []
-
-  /// Register a controller as live (idempotent — `NSHashTable` ignores duplicates). Called by
-  /// the controller from `createSession` / `showPanel`. Off the IMK keystroke hot path.
-  func registerLiveController(_ controller: OwlInputController) {
-    liveControllers.add(controller)
-  }
   /// SwiftUI candidate panel, created lazily on first composition (always on now — SwiftUI
   /// is the sole renderer).
   var owlPanel: OwlSwiftUICandidatePanel?
@@ -202,141 +167,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     owlPanel?.hidePanel()
   }
 
-  @discardableResult
-  func deploy() -> Bool {
-    let trace = OwlLatencyTrace.begin("deploy.full")
-    defer { OwlLatencyTrace.end("deploy.full", trace) }
-    print("Start maintenance...")
-    OwlLatencyTrace.event("deploy.maintenanceStart")
-    guard self.shutdownRime() else {
-      Self.deployLog.error("deploy BLOCKED: Rust engine still has live sessions")
-      return false
-    }
-    let ok = self.startRime(fullCheck: true)
-    OwlLatencyTrace.event("deploy.restoreSettings")
-    self.loadSettings()
-    OwlLatencyTrace.event("deploy.finalUIState")
-    return ok
-  }
 
-  // Fast settings-apply (Track 2 / PR3) lives in `OwlApplicationDelegate+FastApply.swift`.
-
-  /// 「重置用户词典…」：备份并删除 Rust 学习日志与词典代次，随后重新启动引擎。
-  /// 返回给「维护与诊断」卡状态行的文案。
-  ///
-  /// 顺序是硬约束：Rust SQLite 日志由当前进程缓存持有，必须先关闭会话和缓存数据库，
-  /// 备份/删除才有确定结果。
-  ///
-  /// 无论删除成败都把引擎重新拉起来：半死在「已 finalize」状态会让输入法整个不能打字，
-  /// 比重置失败严重得多。
-  func resetUserDict() -> String {
-    let trace = OwlLatencyTrace.begin("reset.userDict")
-    defer { OwlLatencyTrace.end("reset.userDict", trace) }
-    Self.deployLog.notice("reset Rust user dictionary requested")
-    guard shutdownRime() else {
-      Self.deployLog.error(
-        "reset user dict BLOCKED: Rust engine still has live sessions; no data deleted"
-      )
-      return "重置失败：Rust 引擎仍有活动会话，未删除用户词典。请重新打开猫头鹰后再试。"
-    }
-
-    let result = Result {
-      try OwlUserDictReset.run(root: OwlApp.userDir, timestamp: Self.backupTimestamp())
-    }
-
-    let redeployed = startRime(fullCheck: true)
-    loadSettings()
-
-    switch result {
-    case .success(let outcome):
-      Self.deployLog.notice("""
-        reset Rust user dictionary cleared \(outcome.removedItems.count, privacy: .public) item(s), \
-        redeploy=\(redeployed, privacy: .public)
-        """)
-      return OwlUserDictReset.statusMessage(outcome: outcome, redeployed: redeployed)
-    case .failure(let error):
-      Self.deployLog.error("""
-        reset user dict FAILED (restored from backup): \
-        \(error.localizedDescription, privacy: .public), redeploy=\(redeployed, privacy: .public)
-        """)
-      return OwlUserDictReset.failureMessage(error: error, redeployed: redeployed)
-    }
-  }
-
-  /// Imports Rime's stable userdb text snapshots into the Rust journal.
-  ///
-  /// Planning and staging happen before shutdown, so a missing or changing snapshot leaves
-  /// typing untouched. Once shutdown begins, every exit path restarts the engine.
-  func migrateLegacyUserData() -> String {
-    let trace = OwlLatencyTrace.begin("migrate.rimeUserData")
-    defer { OwlLatencyTrace.end("migrate.rimeUserData", trace) }
-    let userRoot = OwlApp.userDir
-    let rustUserRoot = userRoot.appendingPathComponent("msime-user", isDirectory: true)
-    let staged: OwlUserMigrationStageResult
-    do {
-      let pinsData = try JSONEncoder().encode(OwlPinnedWords.shared.words)
-      let plan = try OwlUserMigration.makePlan(
-        userData: userRoot,
-        pinnedWordsData: pinsData,
-        syncDirectory: OwlRimeSyncSettings(rimeDir: userRoot).currentSyncDirectory()
-      )
-      guard !plan.captures.isEmpty || !plan.manifest.pins.isEmpty else {
-        return "没有找到旧版稳定快照或置顶词；请确认旧版猫头鹰的同步目录和设置。"
-      }
-      try FileManager.default.createDirectory(
-        at: rustUserRoot,
-        withIntermediateDirectories: true,
-        attributes: [.posixPermissions: 0o700]
-      )
-      staged = try OwlUserMigrationStage.prepare(
-        plan,
-        in: rustUserRoot
-      )
-    } catch {
-      let reason = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-      Self.deployLog.error(
-        "legacy user migration staging FAILED: \(reason, privacy: .public)"
-      )
-      return "迁移准备失败，输入引擎未中断：\(reason)"
-    }
-
-    guard shutdownRime() else {
-      Self.deployLog.error(
-        "legacy user migration BLOCKED: Rust engine still has live sessions; nothing imported"
-      )
-      return "迁移失败：Rust 引擎仍有活动会话，未写入迁移数据。请重新打开猫头鹰后再试。"
-    }
-    let imported = Result {
-      try OwlUserMigrationImport.run(staged, userRoot: userRoot)
-    }
-    let restarted = startRime(fullCheck: true)
-    loadSettings()
-
-    switch imported {
-    case .success(let outcome):
-      Self.deployLog.notice("""
-        legacy user migration succeeded: sources=\(outcome.report.sourceCount, privacy: .public) \
-        records=\(outcome.report.recordCount, privacy: .public) \
-        written=\(outcome.report.entriesWritten, privacy: .public) \
-        pins=\(outcome.report.pinsWritten, privacy: .public) \
-        restart=\(restarted, privacy: .public)
-        """)
-      return OwlUserMigrationImport.successMessage(outcome, engineRestarted: restarted)
-    case .failure(let error):
-      Self.deployLog.error("""
-        legacy user migration FAILED: \(error.localizedDescription, privacy: .public), \
-        restart=\(restarted, privacy: .public)
-        """)
-      return OwlUserMigrationImport.failureMessage(error, engineRestarted: restarted)
-    }
-  }
-
-  /// 备份目录名用的文件系统安全时间戳。只在用户显式点击时调用，故直接读 `Date()`。
-  private static func backupTimestamp() -> String {
-    let formatter = DateFormatter()
-    formatter.dateFormat = "yyyyMMdd-HHmmss"
-    return formatter.string(from: Date())
-  }
 
   func openLogFolder() {
     NSWorkspace.shared.open(OwlApp.logDir)
@@ -423,7 +254,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   /// logged gate drops.
   func startHotKeyTap() {
     hotKeyTap.onQuickSend = { [weak self] in
-      guard let controller = self?.activeInputController else {
+      guard let controller = self?.runtime.activeInputController else {
         OwlHotKeyMatcher.log.notice("quickSend fired but activeInputController=nil — dropped")
         return
       }
@@ -437,7 +268,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       coordinator.summonForCurrentSelection()
     }
     hotKeyTap.onPromptAssistant = { [weak self] in
-      guard let controller = self?.activeInputController else {
+      guard let controller = self?.runtime.activeInputController else {
         OwlHotKeyMatcher.log.notice("promptAssistant fired but activeInputController=nil — dropped")
         return
       }
@@ -507,26 +338,26 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
           : NSLocalizedString("方案尚不可用；请先下载完整词库或按提示重试。", comment: "schema unavailable")
       },
       onRedeploy: { [weak self] in
-        let ok = self?.deploy() ?? false
+        let ok = self?.runtime.redeploy() ?? false
         state.statusMessage = ok
           ? NSLocalizedString("已应用配置改动。", comment: "redeployed")
           : NSLocalizedString("应用配置失败，请查看诊断日志。", comment: "redeploy failed")
         return ok
       },
       onApplyKeyboardConfigFast: { [weak self] in
-        try self?.applyKeyboardSettings(.config) ?? .init(written: [], succeeded: false)
+        try self?.runtime.applyKeyboardSettings(.config) ?? .init(written: [], succeeded: false)
       },
       onApplyFuzzyConfigFast: { [weak self] in
-        try self?.applyKeyboardSettings(.fuzzy) ?? .init(written: [], succeeded: false)
+        try self?.runtime.applyKeyboardSettings(.fuzzy) ?? .init(written: [], succeeded: false)
       },
       userDataActions: .init(
         migrateLegacy: { [weak self] in
           guard let self, OwlUserMigrationPrompt.confirm() else { return }
-          state.statusMessage = self.migrateLegacyUserData()
+          state.statusMessage = self.runtime.migrateLegacyUserData()
         },
         resetUserDict: { [weak self] in
           guard let self, OwlUserDictResetPrompt.confirm() else { return }
-          state.statusMessage = self.resetUserDict()
+          state.statusMessage = self.runtime.resetUserDict()
         }
       ),
       onOpenRimeFolder: { [weak self] in
@@ -540,7 +371,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       },
       onPanelPreferencesChanged: { [weak self] in
         guard let self else { return }
-        OwlCandidatePanelSettings.live.applyInlineCandidate(to: &self.styleFlags)
+        self.runtime.applyPanelPreferences()
         self.owlPanel?.refreshPreferences()
         OwlInputStatusPanel.shared.refreshPreferences()
       },
@@ -620,24 +451,24 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   /// Installed schemas, via the Engine seam (`get_schema_list`). Best-effort: returns
   /// an empty list if librime is not yet deployed.
   func loadSchemaList() -> [SchemaItem] {
-    engine.schemaList().map { SchemaItem(id: $0.id, name: $0.name) }
+    runtime.engine.schemaList().map { SchemaItem(id: $0.id, name: $0.name) }
   }
 
   /// Best-effort current schema id, read via the Engine's transient session. Returns ""
   /// when unavailable (e.g. before the first deploy).
   func currentSchemaId() -> String {
-    engine.currentSchema()
+    runtime.engine.currentSchema()
   }
 
   /// librime version string for the 关于 page, via the Engine seam (`get_version`).
   /// Returns nil when the getter or string is unavailable so the About page omits
   /// the row gracefully (never crashes).
   func rimeVersion() -> String? {
-    engine.version()
+    runtime.engine.version()
   }
 
   /// Switch the active schema (输入方式/双拼 picker, 方案切换 row). PR3: this no longer runs
-  /// the heavy full `deploy()` (`shutdownRime` + `startRime(fullCheck:true)`). Schema configs
+  /// the heavy full `runtime.redeploy()`. Schema configs
   /// are already built, so switching is `select_schema`-only:
   ///   1. `engine.selectSchema(id)` on a transient session — librime REMEMBERS the selection
   ///      for subsequent new sessions (e.g. the next app the user types in).
@@ -654,8 +485,8 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     let schemaTrace = OwlLatencyTrace.begin("deploy.schemaSwitch")
     defer { OwlLatencyTrace.end("deploy.schemaSwitch", schemaTrace) }
     let perf = OwlPerf.mark()
-    let engineSelected = engine.selectSchema(id)          // remembered for future sessions
-    let result = activeInputController?.switchLiveSessionSchema(to: id) // live session, no full deploy
+    let engineSelected = runtime.engine.selectSchema(id)          // remembered for future sessions
+    let result = runtime.activeInputController?.switchLiveSessionSchema(to: id) // live session, no full deploy
     let failedID = OwlSchemaSelectionGate.failedSchemaID(
       requested: id, engineSelected: engineSelected, liveResult: result
     )
@@ -679,8 +510,8 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
         Self.notifySchemaNotCompiled(failedID)
       }
     }
-    loadSettings()
-    loadSettings(for: id)
+    runtime.loadSettings()
+    runtime.loadSettings(for: id)
     OwlPerf.since(perf, "fastapply.schema")
     return failedID == nil
   }
@@ -704,7 +535,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     }
     _ = selectSchema(schemaID)
     do {
-      _ = try applyKeyboardSettings(.config)
+      _ = try runtime.applyKeyboardSettings(.config)
     } catch {
       print("Onboarding scheme patch write failed: \(error)")
     }
@@ -775,8 +606,8 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     // select, punctuator, switcher/save_options) used to be written ONLY when the user round-tripped
     // a settings toggle. On a fresh install (or upgrade) that left right-Shift on rime-ice's
     // `Shift_R: noop` default and the Owltype keyboard defaults inactive OOTB. Write the managed
-    // blocks from the CURRENT prefs here — AFTER the seed, BEFORE the initial deploy (startRime in
-    // Main.swift / deploy()) — so the first `start_maintenance` compiles them into build/. The
+    // blocks from the CURRENT prefs here — AFTER the seed, BEFORE the initial deploy (`runtime.start` in
+    // Main.swift / `redeploy()`) — so the first `start_maintenance` compiles them into build/. The
     // managed blocks are marker-delimited, so this is idempotent and runs cheaply on every launch
     // (not gated by the seed marker), which also fixes existing upgraders.
     if templateRecoveryReady {
@@ -794,7 +625,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     // profile. No-op on a fresh install (no legacy key) or once a profile already exists. Off the
     // IMK hot path — runs only here at app launch.
     OwlProviderMigration.migrateLegacyDeepSeekIfNeeded()
-    engine.setNotificationHandler { [weak self] sessionID, messageType, messageValue in
+    runtime.engine.setNotificationHandler { [weak self] sessionID, messageType, messageValue in
       guard let self else { return }
       notificationHandler(
         delegate: self,
@@ -803,7 +634,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
         messageValue: messageValue
       )
     }
-    engine.setup(
+    runtime.engine.setup(
       OwlEngineTraits(
         sharedDataDir: URL(
           fileURLWithPath: Bundle.main.sharedSupportPath!,
@@ -819,7 +650,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   /// ADR-0004 cycle 3: on first run, seed Owltype's OWN `user_data_dir`
   /// (`~/Library/Application Support/Owltype`) from the bundled `SharedSupport/_user_seed`
   /// (`*.custom.yaml` selecting the 猫头鹰 schema_list / 深大红 / 法学 opt-in), so the next
-  /// `deploy()` compiles them against the bundled rime-ice + 五笔 shared data. Idempotent
+  /// `runtime.redeploy()` compiles them against the bundled rime-ice + 五笔 shared data. Idempotent
   /// via a version marker; never overwrites a file the user already has. Writes ONLY to
   /// Owltype's own dir — never the user's `~/Library/Rime` (ADR-0004).
   private func seedUserDirIfNeeded() {
@@ -856,107 +687,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     }
   }
 
-  @discardableResult
-  func startRime(fullCheck: Bool, migrationDirectory: URL = OwlApp.userDir) -> Bool {
-    let trace = OwlLatencyTrace.begin("deploy.startRime")
-    defer { OwlLatencyTrace.end("deploy.startRime", trace) }
-    print("Initializing the Rust input engine...")
-    guard !templateRecoveryBlocksDeployment(migrationDirectory) else { return false }
-    if let sharedSupport = Bundle.main.sharedSupportURL {
-      do { try OwlPinyinCandidateDeployment.apply(userDir: migrationDirectory, sharedDir: sharedSupport) } catch {
-        Self.deployLog.error("Pinyin candidate priorities unavailable: \(error.localizedDescription, privacy: .public)")
-      }
-    }
-    // check for configuration updates
-    let maintained = engine.startMaintenance(fullCheck: fullCheck)
-    if maintained {
-      OwlLatencyTrace.event("deploy.maintenanceStarted")
-    }
-    // update Owltype frontend config — UNCONDITIONALLY: rime's detect_modifications does not
-    // track owltype.custom.yaml, so a owltype-domain-only change (App 默认英文 add) leaves
-    // maintenance with "nothing to do" and used to skip this deploy entirely — the write
-    // then never reached build/owltype.yaml even via 重新部署 (#121 真机验收逮住).
-    // config_file_update is fingerprint-gated → free when unchanged.
-    _ = engine.deployConfigFile(OwlRimeIdentity.configFile, versionKey: "config_version")
-    OwlLatencyTrace.event("deploy.configFile")
-    if maintained {
-      return true
-    } else {
-      // print("[DEBUG] maintenance fails")
-      print("Owltype: deploy failed during Rime maintenance.")
-      Self.deployLog.error("start_maintenance failed (fullCheck=\(fullCheck, privacy: .public)) — installation_update/detect_modifications refused; see rime glog in \(OwlApp.logDir.path, privacy: .public)")
-      return false
-    }
-  }
 
-  /// While a template migration journal is unresolved, its target files (template dict,
-  /// rime_ice.custom.yaml, …) may be half-written. Typing keeps running on the last compiled
-  /// `build/`; only recompiling from those sources waits until recovery succeeds.
-  func templateRecoveryBlocksDeployment(_ directory: URL = OwlApp.userDir) -> Bool {
-    guard OwlTemplateMigration.hasPendingRecovery(rimeDir: directory) else { return false }
-    Self.deployLog.error("template migration recovery pending — skipped Rime deployment, serving the last build")
-    return true
-  }
-
-  /// `self.config` 可用性判据（2026-07-12 B1/B2）：打得开且非空壳。实测 `config_open("owltype")`
-  /// 在 build/owltype.yaml 缺席/重建窗口会「成功」返回空壳（一切读取失败）——只看 open 返回值不够，
-  /// 必须探真内容（owltype.yaml 恒有 style 段）。
-  private static func isUsable(_ config: OwlConfig?) -> Bool {
-    config?.has(section: "style") ?? false
-  }
-
-  func loadSettings() {
-    // 先验后换（B1）：曾经是「先把 self.config 换成新对象、open 失败静默 return」——一次失败的
-    // 重读（部署重写 build/ 的窗口期）就把好句柄换成毒句柄，此后每个新控制器经 loadSettings(for:)
-    // 用它重算 styleFlags → 全默认（inlinePreedit=false 占位模式），且零诊断、永不自愈。
-    // 现契约：candidate 全验证（open + 非空壳）通过才换 self.config / 重读 styleFlags；失败保留
-    // 旧状态（旧而真 > 新而毒）+ trace（只记布尔，#88 §4）。
-    let candidate = OwlConfig()
-    let opened = candidate.openBaseConfig()
-    let usable = opened && Self.isUsable(candidate)
-    OwlLiveInputTrace.write { "loadSettings openBase=\(opened) usable=\(usable)" }
-    guard usable else {
-      if config == nil {
-        var flags = OwlStyleFlags(linear: true, vertical: false, inlinePreedit: true, inlineCandidate: false)
-        OwlCandidatePanelSettings.live.applyInlineCandidate(to: &flags)
-        styleFlags = flags
-      }
-      return
-    }
-    config = candidate
-    // Layout flags from the global `style/*` (was `panel.load(...)` into OwlTheme).
-    styleFlags = OwlStyleFlags.base(config: candidate)
-    // Feature 3: the 内嵌候选预览 pref overrides `style/inline_candidate` without hand-editing
-    // yaml. The same module method runs after live edits and every global/schema style reload.
-    OwlCandidatePanelSettings.live.applyInlineCandidate(to: &styleFlags)
-    OwlLiveInputTrace.write { "loadSettings styleFlags inlinePreedit=\(styleFlags.inlinePreedit) inlineCandidate=\(styleFlags.inlineCandidate)" }
-  }
-
-  func loadSettings(for schemaID: String) {
-    if schemaID.count == 0 || schemaID.first == "." {
-      return
-    }
-    // 自愈（B1/B2）：句柄缺失或空壳（历史毒化/启动竞态残留）→ 先试全量重读；仍不可用则保留现有
-    // styleFlags 直接返回——宁可沿用旧值也不用全默认去踩掉内嵌旗标（那正是占位模式蔓延的路径）。
-    if !Self.isUsable(config) {
-      loadSettings()
-    }
-    guard let config = self.config, Self.isUsable(config) else {
-      OwlLiveInputTrace.write { "loadSettings(for:) config unusable — keeping current styleFlags" }
-      return
-    }
-    let schema = OwlConfig()
-    // Base flags from the global style, then let a per-schema `style` section override
-    // (same precedence the deleted OwlTheme.load used for these layout keys).
-    var flags = OwlStyleFlags.base(config: config)
-    if schema.open(schemaID: schemaID, baseConfig: config) && schema.has(section: "style") {
-      flags.apply(config: schema)
-    }
-    // Feature 3: pref override wins over both global + per-schema `style/inline_candidate`.
-    OwlCandidatePanelSettings.live.applyInlineCandidate(to: &flags)
-    styleFlags = flags
-    schema.close()
-  }
 
   /// Feature 1: apply 简↔繁 to the live session right away from the settings UI — no redeploy.
   /// Sets the FULL simplification/traditional option set (`transcription` for 全拼/双拼,
@@ -965,29 +696,29 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   /// stays in the settings layer; this only flips the options + re-renders the in-flight
   /// composition. Seeded on session create (`createSession`) so the choice survives focus changes.
   func applyTraditionalOutputToLiveSession(_ traditional: Bool) {
-    activeInputController?.setTraditionalOutputOptions(traditional)
-    activeInputController?.rimeUpdate()
+    runtime.activeInputController?.setTraditionalOutputOptions(traditional)
+    runtime.activeInputController?.rimeUpdate()
   }
 
   /// 候选 emoji 开关 live 生效（仿 `applyTraditionalOutputToLiveSession`）：切当前会话的
   /// `emoji` option（rime-ice 的 emoji switch 名），立即重算候选。新会话由 `createSession` 按 pref 重新 seed。
   func applyEmojiSuggestionToLiveSession(_ enabled: Bool) {
-    activeInputController?.setRimeOption(.emojiSuggestion, enabled)
-    activeInputController?.rimeUpdate()
+    runtime.activeInputController?.setRimeOption(.emojiSuggestion, enabled)
+    runtime.activeInputController?.rimeUpdate()
   }
 
   /// 默认状态·中英文 live 生效：改下拉时立刻把当前会话切到 中文/英文（`ascii_mode`）。新会话由
   /// `createSession` 按 `defaultAsciiMode` pref 重新 seed。
   func applyDefaultAsciiModeToLiveSession(_ english: Bool) {
-    activeInputController?.setRimeOption(.asciiMode, english)
-    activeInputController?.rimeUpdate()
+    runtime.activeInputController?.setRimeOption(.asciiMode, english)
+    runtime.activeInputController?.rimeUpdate()
   }
 
   /// 默认状态·全半角 live 生效：改下拉时立刻把当前会话切到 半角/全角（`full_shape`）。新会话由
   /// `createSession` 按 `defaultFullShape` pref 重新 seed。
   func applyDefaultFullShapeToLiveSession(_ fullShape: Bool) {
-    activeInputController?.setRimeOption(.fullShape, fullShape)
-    activeInputController?.rimeUpdate()
+    runtime.activeInputController?.setRimeOption(.fullShape, fullShape)
+    runtime.activeInputController?.rimeUpdate()
   }
 
   // prevent freezing the system
@@ -1065,7 +796,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
 
   func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
     print("Owltype is quitting.")
-    _ = engine.finalize()
+    _ = runtime.engine.finalize()
     return .terminateNow
   }
 
@@ -1105,7 +836,7 @@ private func notificationHandler(
       // The reported option `name` is an open namespace owned by Rime/the schema, so it
       // stays a String (not a RimeOption). Read its label through the Engine's session
       // wrapper for the librime-supplied session id.
-      let session = delegate.engine.session(for: sessionId)
+      let session = delegate.runtime.engine.session(for: sessionId)
       func shortLabel() -> String? {
         session.stateLabel(option: optionName, state: state, abbreviated: true)
       }
@@ -1134,7 +865,7 @@ private func notificationHandler(
 private extension OwlApplicationDelegate {
   internal func showStatusMessage(msgTextLong: String?, msgTextShort: String?) {
     guard !(msgTextLong ?? "").isEmpty || !(msgTextShort ?? "").isEmpty else { return }
-    let messageType = styleFlags.statusMessageType
+    let messageType = runtime.styleFlags.statusMessageType
     // The toast is an NSPanel — show it on the main thread (a Rime option/schema
     // notification can arrive off-main). The anchor is read INSIDE the hop for the same
     // reason: it now asks NSWorkspace which app is frontmost, which belongs on main.
@@ -1159,23 +890,17 @@ private extension OwlApplicationDelegate {
   func finalizeStrandedComposition() {
     let currentInputSourceID = OwlInstaller.currentInputSourceID() ?? ""
     guard !currentInputSourceID.hasPrefix(OwlInstaller.inputSourcePrefix) else { return }
-    if let inputController = activeInputController {
+    if let inputController = runtime.activeInputController {
       let trace = OwlLatencyTrace.begin("strandedComposition.finalize")
       defer { OwlLatencyTrace.end("strandedComposition.finalize", trace) }
       inputController.deactivateServer(inputController.client())
     }
   }
 
-  @discardableResult
-  func shutdownRime() -> Bool {
-    OwlLatencyTrace.event("deploy.rimeFinalize")
-    config?.close()
-    return engine.finalize()
-  }
 
   func workspaceWillPowerOff(_: Notification) {
     print("Finalizing before logging out.")
-    _ = self.shutdownRime()
+    _ = self.runtime.shutdown()
   }
 
   @objc func rimeNeedsReload(_: Notification) {
@@ -1183,12 +908,12 @@ private extension OwlApplicationDelegate {
     defer { OwlLatencyTrace.end("reload.notification", trace) }
     print("Reloading rime on demand.")
     // 送达凭据：通知丢失时 app 侧和 librime 侧都零日志（2026-07-24 静默 reload 排查的盲区）。
-    OwlApplicationDelegate.deployLog.notice("OwlReloadNotification received — starting full deploy")
-    let ok = self.deploy()
+    EngineRuntime.deployLog.notice("OwlReloadNotification received — starting full deploy")
+    let ok = self.runtime.redeploy()
     if ok {
-      OwlApplicationDelegate.deployLog.notice("reload deploy succeeded")
+      EngineRuntime.deployLog.notice("reload deploy succeeded")
     } else {
-      OwlApplicationDelegate.deployLog.error("reload deploy FAILED — see rime glog in \(OwlApp.logDir.path, privacy: .public)")
+      EngineRuntime.deployLog.error("reload deploy FAILED — see rime glog in \(OwlApp.logDir.path, privacy: .public)")
     }
   }
 

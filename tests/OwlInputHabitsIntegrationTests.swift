@@ -527,14 +527,14 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     XCTAssertTrue(engine.startMaintenance(fullCheck: true))
     engine.joinMaintenance()
     let delegate = NSApp.owlAppDelegate
-    let originalEngine = delegate.engine
-    delegate.engine = engine
+    let originalEngine = delegate.runtime.engine
+    delegate.runtime.engine = engine
     let method = OwlKeyboardPreferences.inputMethod
     OwlKeyboardPreferences.inputMethod = .pinyin
     let initial = OwlKeyboardPreferences.defaultAsciiMode
     OwlKeyboardPreferences.defaultAsciiMode = false
     defer {
-      delegate.engine = originalEngine
+      delegate.runtime.engine = originalEngine
       OwlKeyboardPreferences.inputMethod = method
       OwlKeyboardPreferences.defaultAsciiMode = initial
     }
@@ -667,7 +667,7 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     defer { OwlKeyboardPreferences.pageSize = previousPageSize }
     let previousSession = try XCTUnwrap(controller.rime)
     OwlKeyboardPreferences.pageSize = 3
-    let applied = try delegate.applyKeyboardSettings(.config, directory: root)
+    let applied = try delegate.runtime.applyKeyboardSettings(.config, directory: root)
     XCTAssertTrue(applied.succeeded)
     // Prove the recreate by the wrapper instead: the old one is destroyed, a new one is live.
     XCTAssertFalse(previousSession.isValid, "Applying settings must destroy the old session")

@@ -265,19 +265,19 @@ final class OwlDictPackCenterTests: XCTestCase {
       }
     )
     let delegate = NSApp.owlAppDelegate
-    let previousEngine = delegate.engine
-    let previousActive = delegate.activeInputController
-    delegate.engine = FakeRimeEngine()
+    let previousEngine = delegate.runtime.engine
+    let previousActive = delegate.runtime.activeInputController
+    delegate.runtime.engine = FakeRimeEngine()
     let active = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     let background = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     active.destroySession()
     background.destroySession()
     defer {
-      delegate.liveControllers.remove(active)
-      delegate.liveControllers.remove(background)
-      delegate.activeInputController = previousActive
-      delegate.engine = previousEngine
-      _ = delegate.applyPendingLiveSessionRefreshIfIdle()
+      delegate.runtime.liveControllers.remove(active)
+      delegate.runtime.liveControllers.remove(background)
+      delegate.runtime.activeInputController = previousActive
+      delegate.runtime.engine = previousEngine
+      _ = delegate.runtime.applyPendingLiveSessionRefreshIfIdle()
     }
 
     let partialSelection = RimeComposition(
@@ -306,16 +306,16 @@ final class OwlDictPackCenterTests: XCTestCase {
     )
     let activeFresh = FakeRimeSession(sessionID: 11)
     let engine = FakeRimeEngine(vendedSession: activeFresh)
-    delegate.engine = engine
+    delegate.runtime.engine = engine
 
     active.rime = activeOld
     active.schemaId = "rime_ice"
     active.preedit = "西te'le"
     background.rime = backgroundOld
     background.schemaId = "rime_ice"
-    delegate.registerLiveController(active)
-    delegate.registerLiveController(background)
-    delegate.activeInputController = active
+    delegate.runtime.registerLiveController(active)
+    delegate.runtime.registerLiveController(background)
+    delegate.runtime.activeInputController = active
 
     let center = OwlDictPackCenter(rustBackend: backend)
     center.prepare()

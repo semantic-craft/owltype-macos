@@ -336,10 +336,9 @@ struct OwlApp {
         try? task.run()
       } else {
         let perfRime = OwlPerf.mark()
-        NSApp.owlAppDelegate.setupRime()
-        NSApp.owlAppDelegate.startRime(fullCheck: false)
+        delegate.setupRime()
+        delegate.runtime.start(fullCheck: false)  // maintenance, then the config cache
         OwlPerf.since(perfRime, "coldstart.rime")  // heavy: start_maintenance — dict + octagram load
-        NSApp.owlAppDelegate.loadSettings()
         // 方案B：公开包只带清洁室词库种子；完整词库在用户知情同意后按 pin 拉取（不阻塞冷启动，
         // 下载完成后自动 deploy() 编译）。已装 / 用户自备 / 已提示过时这里只刷新状态。
         OwlDictPackCenter.shared.promptOrFetchIfNeeded()
@@ -360,7 +359,7 @@ struct OwlApp {
       app.run()
       print("Owltype is quitting...")
       if !runningUnitTests {
-        _ = delegate.engine.finalize()
+        _ = delegate.runtime.engine.finalize()
       }
     }
     return

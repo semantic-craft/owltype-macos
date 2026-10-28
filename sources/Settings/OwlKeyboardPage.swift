@@ -984,7 +984,7 @@ struct OwlKeyboardPage: View {
 
   /// Track-2 config-only apply path (页内 Rime-backed toggles + App 默认英文). The shared application module writes the
   /// managed patch, then config deploy + live reselect + replay makes it
-  /// effective immediately — no full `deploy()` / shutdownRime.
+  /// effective immediately — no full `EngineRuntime.redeploy()`.
   private func applyCurrentKeyboardSnapshot() {
     applyKeyboardSnapshot(progress: "正在应用配置…", apply: onApplyKeyboardConfigFast)
   }

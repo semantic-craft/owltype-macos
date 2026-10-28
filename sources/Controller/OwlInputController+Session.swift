@@ -52,7 +52,7 @@ extension OwlInputController {
       timer.invalidate()
     }
     chordDuration = 0.1
-    if let duration = NSApp.owlAppDelegate.config?.getDouble("chord_duration"), duration > 0 {
+    if let duration = engineRuntime.config?.getDouble("chord_duration"), duration > 0 {
       chordDuration = duration
     }
     chordTimer = Timer.scheduledTimer(withTimeInterval: chordDuration, repeats: false, block: onChordTimer)
@@ -268,7 +268,7 @@ extension OwlInputController {
       return "UnknownApp\(OwlInputController.unknownAppCnt)"
     }()
     currentApp = app
-    let newSession = NSApp.owlAppDelegate.engine.createSession()
+    let newSession = engineRuntime.engine.createSession()
     rime = newSession
     schemaId = ""
     pinnedWordsRevision = nil
@@ -299,7 +299,7 @@ extension OwlInputController {
     }
     // Register as a LIVE controller so the fast settings-apply path can force this session to
     // reload the freshly-deployed `build/` (weak membership; deinit/destroy drops it). Idempotent.
-    NSApp.owlAppDelegate.registerLiveController(self)
+    engineRuntime.registerLiveController(self)
   }
 
   /// Guard the first real key after activation/update against librime restoring an older schema
@@ -332,7 +332,7 @@ extension OwlInputController {
         pinnedWordsRevision = nil
         syncPinnedWords()
         MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.noteSchemaChange() }
-        NSApp.owlAppDelegate.loadSettings(for: preferredSchema)
+        engineRuntime.loadSettings(for: preferredSchema)
       }
     }
   }
@@ -350,7 +350,7 @@ extension OwlInputController {
     let restored = OwlAppInputMemory.shared.initialMode(app: currentApp, fallback: fallback)
     if rime.option(.asciiMode) != restored { rime.setOption(.asciiMode, restored) }
     appModeObservation.seed(restored)
-    if let reportBundleID = NSApp.owlAppDelegate.config?.getBool("unsafe/report_bundleid"), reportBundleID {
+    if let reportBundleID = engineRuntime.config?.getBool("unsafe/report_bundleid"), reportBundleID {
       rime.setProperty(name: "client_app", value: currentApp)
     }
   }
@@ -385,7 +385,7 @@ extension OwlInputController {
   /// WHY destroy rather than `select_schema(sameId)`: a same-id reselect does NOT force librime
   /// to rebuild the cached `Schema` for that id, so the running session kept the OLD
   /// `menu/page_size` (the 8→5-not-applying bug). The old full `deploy()` only worked because
-  /// `shutdownRime()` destroyed every session → the next keystroke `createSession` read fresh
+  /// `EngineRuntime.shutdown()` destroyed every session → the next keystroke `createSession` read fresh
   /// `build/`. We reproduce ONLY that "force the session to re-read build/" effect, WITHOUT
   /// tearing down the engine (no dict/octagram rebuild → still sub-second).
   ///

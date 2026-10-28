@@ -34,10 +34,13 @@ final class OwlInputController: IMKInputController {
   var pendingPairedClosing: String?
   var pairedClosings: [String] = []
   var punctuationKeyInFlight: UInt32?
-  /// The current composition's Session, vended by the Engine seam. `nil` (or `!isValid`)
-  /// means "no live session — recreate before use". Swappable so PR2 can inject a fake;
-  /// the live default comes from `NSApp.owlAppDelegate.engine` (same indirection as
-  /// `ensureOwltypePanel`). All access is on the IMK input thread.
+  /// The engine runtime this controller composes against: it vends sessions and holds the
+  /// config cache, style flags and the live-session registry. IMKServer constructs controllers,
+  /// so the process's runtime is injected here at init, the single composition point.
+  let engineRuntime: EngineRuntime
+  /// The current composition's Session, vended by `engineRuntime.engine`. `nil` (or `!isValid`)
+  /// means "no live session — recreate before use". Swappable so tests can inject a fake.
+  /// All access is on the IMK input thread.
   var rime: RimeSession?
   // seam: was private; internal so OwlInputController+RimeUpdate.swift / +Lifecycle.swift can reach it across files.
   var preedit: String = ""
@@ -143,7 +146,7 @@ final class OwlInputController: IMKInputController {
     // A Rust resource switch that arrived mid-composition is queued. If the host or a
     // previous command already completed it, switch before this key reaches the old session.
     MainActor.assumeIsolated {
-      NSApp.owlAppDelegate.applyPendingLiveSessionRefreshIfIdle()
+      engineRuntime.applyPendingLiveSessionRefreshIfIdle()
     }
 
     if let incoming = sender as? IMKTextInput, let previous = self.client, incoming !== previous {
@@ -278,6 +281,7 @@ final class OwlInputController: IMKInputController {
 
   override init!(server: IMKServer!, delegate: Any!, client: Any!) {
     self.client = client as? IMKTextInput
+    self.engineRuntime = NSApp.owlAppDelegate.runtime
     // print("[DEBUG] initWithServer: \(server ?? .init()) delegate: \(delegate ?? "nil") client:\(client ?? "nil")")
     super.init(server: server, delegate: delegate, client: client)
     debugLiveInputTrace("controller init hasClient=\(client != nil)")
@@ -367,7 +371,7 @@ final class OwlInputController: IMKInputController {
     }
 
     // with linear candidate list, arrow keys may behave differently.
-    let styleFlags = NSApp.owlAppDelegate.styleFlags
+    let styleFlags = engineRuntime.styleFlags
     if styleFlags.linear != rime.option(.linear) {
       rime.setOption(.linear, styleFlags.linear)
     }
