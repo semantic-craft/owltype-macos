@@ -62,6 +62,10 @@ copy-owl-seed:
 	@test -s data/owl-rime/msime/msime-others.db || { echo "[owltype] ERROR: missing data/owl-rime/msime/msime-others.db; run 'make owl-seed'" >&2; exit 1; }
 	@echo "[owltype] bundling generated resources -> SharedSupport ($(OWL_CONFIG))"
 	@rsync -a --delete data/owl-rime/. "$(DERIVED_DATA_PATH)/Build/Products/$(OWL_CONFIG)/Owltype.app/Contents/SharedSupport/"
+	@test -x bin/owltype-mcp || { echo "[owltype] ERROR: missing bin/owltype-mcp; run scripts/build-rust-ffi.sh" >&2; exit 1; }
+	@echo "[owltype] bundling MCP helper -> Contents/Helpers/owltype-mcp ($(OWL_CONFIG))"
+	@install -d "$(DERIVED_DATA_PATH)/Build/Products/$(OWL_CONFIG)/Owltype.app/Contents/Helpers"
+	@install -m 755 bin/owltype-mcp "$(DERIVED_DATA_PATH)/Build/Products/$(OWL_CONFIG)/Owltype.app/Contents/Helpers/owltype-mcp"
 	@echo "[owltype] re-signing after seed copy (local ad-hoc)"
 	@codesign --force --deep --sign - "$(DERIVED_DATA_PATH)/Build/Products/$(OWL_CONFIG)/Owltype.app"
 
