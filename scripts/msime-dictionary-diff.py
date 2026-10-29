@@ -208,6 +208,8 @@ def markdown(report: dict, old_label: str, new_label: str) -> str:
               f'({pages["pages_new"]["page_size"]} bytes each); free pages {pages["pages_old"]["freelist_count"]} → '
               f'{pages["pages_new"]["freelist_count"]}.', '']
     for label, data in sections[:1] + sections[4:]:
+        if not data['top_added'] and not data['top_row_changed_sample']:
+            continue
         lines.append(f'{label}, highest-weight additions: ' + '; '.join(f'{value} `{key}` {weight}' for key, value, weight in data['top_added']))
         lines.append(f'{label}, first row changed (code, before, after): ' + '; '.join(
             f'`{key}` {before}→{after}' for key, before, after in data['top_row_changed_sample']))
