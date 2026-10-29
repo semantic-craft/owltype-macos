@@ -1,7 +1,25 @@
 import AppKit
+import Carbon
 import XCTest
 
 final class OwlSettingsUITests: XCTestCase {
+  private var previousInputSource: TISInputSource?
+
+  // The installed Owltype input method shares this app's bundle id. While it is the active input
+  // source, its panels count as the target app's interrupting dialogs and it composes typed text,
+  // so the run uses an ASCII keyboard layout and restores the user's source afterwards.
+  override func setUpWithError() throws {
+    previousInputSource = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue()
+    if let ascii = TISCopyCurrentASCIICapableKeyboardLayoutInputSource()?.takeRetainedValue() {
+      TISSelectInputSource(ascii)
+    }
+  }
+
+  override func tearDown() {
+    if let previousInputSource { TISSelectInputSource(previousInputSource) }
+    super.tearDown()
+  }
+
   func testAppModeMemoryUsesFullWidthSettingsToggle() throws {
     let app = try launchSettings()
     defer { app.terminate() }
@@ -13,8 +31,10 @@ final class OwlSettingsUITests: XCTestCase {
                    "The toggle must align with the card's trailing controls")
     XCTAssertGreaterThan(row.frame.width, 400, "The whole settings row must be clickable")
     XCTAssertTrue(row.isSelected)
+    app.activate()
     row.click()
     XCTAssertFalse(row.isSelected)
+    app.activate()
     row.click()
     XCTAssertTrue(row.isSelected)
     let screenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
@@ -80,14 +100,14 @@ final class OwlSettingsUITests: XCTestCase {
     tap("template-save", in: app)
     XCTAssertTrue(app.buttons["uitest snippet"].waitForExistence(timeout: 3))
     tap("提示词", in: app)
-    XCTAssertFalse(app.buttons["uitest snippet"].exists)
+    XCTAssertTrue(app.buttons["uitest snippet"].waitForNonExistence(timeout: 3))
     tap("新建", in: app)
     type("template-title", text: "uitest prompt", in: app)
     type("template-body", text: "prompt body", in: app)
     tap("template-save", in: app)
     XCTAssertTrue(app.buttons["uitest prompt"].waitForExistence(timeout: 3))
     tap("全部", in: app)
-    XCTAssertTrue(app.buttons["uitest snippet"].exists)
+    XCTAssertTrue(app.buttons["uitest snippet"].waitForExistence(timeout: 3))
     XCTAssertTrue(app.buttons["uitest prompt"].exists)
 
     openPage("clipboard", in: app)
@@ -101,14 +121,10 @@ final class OwlSettingsUITests: XCTestCase {
              "润色", "提示词优化", "任务书"], in: app)
 
     openPage("ai", in: app)
-    tapMany([
-      "+ OpenAI",
-      "+ Google Gemini",
-      "+ 火山引擎 · 豆包 Seed",
-      "+ 自定义（OpenAI 兼容）",
-      "+ DeepSeek",
-      "Reasoner · V4 Pro",
-    ], in: app)
+    for preset in ["OpenAI", "Google Gemini", "火山引擎 · 豆包 Seed", "自定义（OpenAI 兼容）", "DeepSeek"] {
+      choose(preset, from: "选择供应商预设", in: app)
+    }
+    choose("deepseek-v4-pro", from: "选择模型", in: app)
 
     openPage("skin", in: app)
     tapMany(["珞珈青", "暗"], in: app)
@@ -125,10 +141,10 @@ final class OwlSettingsUITests: XCTestCase {
     XCTAssertTrue(app.buttons["e2e snippet"].waitForExistence(timeout: 3))
     XCTAssertTrue(app.buttons["e2e prompt"].exists)
     tap("提示词", in: app)
-    XCTAssertFalse(app.buttons["e2e snippet"].exists)
+    XCTAssertTrue(app.buttons["e2e snippet"].waitForNonExistence(timeout: 3))
     XCTAssertTrue(app.buttons["e2e prompt"].exists)
     tap("全部", in: app)
-    XCTAssertTrue(app.buttons["e2e snippet"].exists)
+    XCTAssertTrue(app.buttons["e2e snippet"].waitForExistence(timeout: 3))
     XCTAssertTrue(app.buttons["e2e prompt"].exists)
     let screenshot = XCTAttachment(screenshot: app.screenshot())
     screenshot.name = "Snippet filter — all entries"
@@ -173,6 +189,7 @@ final class OwlSettingsUITests: XCTestCase {
       XCTFail("Missing sidebar page \(page)", file: file, line: line)
       return
     }
+    app.activate()
     row.click()
   }
 
@@ -204,9 +221,12 @@ final class OwlSettingsUITests: XCTestCase {
     }
   }
 
+  // Other apps on a shared desktop can raise windows over the settings window mid-run, so every
+  // click and keystroke first brings the app under test forward.
   private func tap(_ label: String, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
     for _ in 0..<5 {
       if let element = element(label, in: app) {
+        app.activate()
         element.click()
         return
       }
@@ -214,17 +234,32 @@ final class OwlSettingsUITests: XCTestCase {
     }
     for _ in 0..<5 {
       if let element = element(label, in: app) {
+        app.activate()
         element.click()
         return
       }
       app.scrollViews.firstMatch.swipeDown()
     }
+    attachHierarchy(of: app, named: "Missing \(label)")
     XCTFail("Missing tappable settings control: \(label)", file: file, line: line)
+  }
+
+  private func choose(_ item: String, from menu: String, in app: XCUIApplication,
+                      file: StaticString = #filePath, line: UInt = #line) {
+    tap(menu, in: app, file: file, line: line)
+    let entry = app.menuItems[item]
+    guard entry.waitForExistence(timeout: 2) else {
+      attachHierarchy(of: app, named: "Missing menu item \(item)")
+      XCTFail("Missing menu item \(item) in \(menu)", file: file, line: line)
+      return
+    }
+    entry.click()
   }
 
   private func type(_ label: String, text: String, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
     for _ in 0..<5 {
       if let field = firstExisting([app.textFields[label], app.secureTextFields[label], app.textViews[label]]) {
+        app.activate()
         field.click()
         field.typeText(text)
         return
@@ -233,18 +268,30 @@ final class OwlSettingsUITests: XCTestCase {
     }
     for _ in 0..<5 {
       if let field = firstExisting([app.textFields[label], app.secureTextFields[label], app.textViews[label]]) {
+        app.activate()
         field.click()
         field.typeText(text)
         return
       }
       app.scrollViews.firstMatch.swipeDown()
     }
+    attachHierarchy(of: app, named: "Missing \(label)")
     XCTFail("Missing text input: \(label)", file: file, line: line)
+  }
+
+  /// A miss only says the queries came up empty; the tree shows what the control became.
+  private func attachHierarchy(of app: XCUIApplication, named name: String) {
+    let tree = XCTAttachment(string: app.debugDescription)
+    tree.name = "\(name) — accessibility tree"
+    tree.lifetime = .keepAlways
+    add(tree)
   }
 
   private func element(_ label: String, in app: XCUIApplication) -> XCUIElement? {
     firstExisting([
       app.buttons[label],
+      app.menuButtons[label],
+      app.popUpButtons[label],
       app.staticTexts[label],
       app.checkBoxes[label],
       app.radioButtons[label],

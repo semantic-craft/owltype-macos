@@ -32,6 +32,29 @@ review dates, not retries. Keep deterministic checks in the local gate.
   caret at the `{cursor}` offset.
 - Seen on 1 distinct date: 2026-10-29.
 
+## Settings UI tests need an isolated desktop and real accessibility roles
+
+**A settings control that VoiceOver cannot reach, or another process sharing the bundle id,
+fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoticed.**
+
+- Reason: on 2026-10-29 the suite failed 9 checks at main. `SettingsRadioRow` combined the whole
+  row, so 双拼输入 and 五笔输入 surfaced as one row-wide pop-up (their scheme Picker) instead of a
+  radio button. The AI page had replaced the `+ 供应商` buttons with the 选择供应商预设 menu.
+  The rest were the desktop: the installed input method (`/Library/Input Methods/Owltype.app`)
+  shares `im.owltype.inputmethod.Owltype`, so XCTest took its panels for the target's dialogs;
+  another worktree's gate launched its own Owltype host mid-run; other agents' apps raised
+  windows over the settings window and took keyboard focus.
+- Prevention: a row with a trailing control labels only its own button. The suite selects an
+  ASCII keyboard layout for the run, activates the app before each click or keystroke, waits
+  for filter changes instead of reading `exists` at once, and attaches `app.debugDescription`
+  when a control is missing. Run it when no other Owltype test or gate is running.
+- Regression: [OwlSettingsUITests.swift](tests/OwlSettingsUITests.swift), all four tests.
+- Scope: the settings UI suite (scheme `OwltypeUITests`). The gate does not run it.
+- Verify (验证点): `xcodebuild test -project Owltype.xcodeproj -scheme OwltypeUITests
+  -destination 'platform=macOS' -only-testing:OwltypeUITests/OwlSettingsUITests` passes; on a
+  miss, the attached tree names the role the control has.
+- Seen on 1 distinct date: 2026-10-29.
+
 ## A host field that comes back after a window is not the IMK client you captured
 
 **Bind a template delivery to the application and its focused accessibility field; take the IMK session from whatever IMK activated for that application when the field returns.**
