@@ -100,7 +100,12 @@ final class OwlTemplateHostDelivery {
     generation = controller.templateHostGeneration
     let app = NSWorkspace.shared.frontmostApplication
     application = app?.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : app
-    field = application.flatMap(Self.focusedField)
+    if let application {
+      Self.captureOutsideKeyEvent({ Self.focusedField(application) }) { [weak self] captured in
+        guard let self, self.field == nil, !self.resultDispatched, !self.invalid else { return }
+        self.field = captured
+      }
+    }
     access = Access(
       rejection: { [weak self] immediate in
         guard let self else { return .missingHost }; return self.liveRejection(immediate: immediate)
@@ -229,18 +234,38 @@ final class OwlTemplateHostDelivery {
   }
 
   private func confirmedText(_ text: String, in range: NSRange) -> Bool {
-    guard let actual = read(range), OwlTemplateCursorPlacement.equalText(actual, text),
-          access.selection() == NSRange(location: NSMaxRange(range), length: 0), noMarkedText() else { return false }
-    return access.rejection(immediate) == nil && !invalid && (source?.isValid() ?? true)
+    guard let actual = read(range) else { Self.trace("readback: \(range) unreadable; \(bindingState())"); return false }
+    guard OwlTemplateCursorPlacement.equalText(actual, text) else {
+      Self.trace("readback: \(range) holds \(actual.utf16.count) different units"); return false
+    }
+    let selection = access.selection()
+    guard selection == NSRange(location: NSMaxRange(range), length: 0) else {
+      Self.trace("readback: selection \(String(describing: selection)) is not at \(NSMaxRange(range))"); return false
+    }
+    guard noMarkedText() else { Self.trace("readback: marked text \(String(describing: access.marked())) remains"); return false }
+    if let reason = access.rejection(immediate) { Self.trace("readback: host refused \(reason)"); return false }
+    return !invalid && (source?.isValid() ?? true)
+  }
+
+  private func bindingState() -> String {
+    let live = controller?.client.map { ($0 as AnyObject) === (client as AnyObject?) } ?? false
+    return "controller=\(controller != nil) client=\(client != nil) live=\(live) " +
+      "refusal=\(String(describing: access.rejection(immediate))) ranges=\(liveRangesAllowed())"
   }
 
   /// For candidates, IMK's marked replacement range, not its caret, is the insertion origin.
   private func insertionRange() -> NSRange? {
-    guard access.rangeIsCurrent(), let selection = access.selection(), OwlTemplateCursorPlacement.valid(selection),
-          let marked = access.marked() else { return nil }
+    guard access.rangeIsCurrent() else { Self.trace("origin: host ranges not trusted; \(bindingState())"); return nil }
+    guard let selection = access.selection(), OwlTemplateCursorPlacement.valid(selection),
+          let marked = access.marked() else {
+      Self.trace("origin: selection \(String(describing: access.selection())) marked \(String(describing: access.marked()))")
+      return nil
+    }
     if marked.location == NSNotFound || marked.length == 0 { return selection }
     guard OwlTemplateCursorPlacement.valid(marked), selection.location >= marked.location,
-          NSMaxRange(selection) <= NSMaxRange(marked), read(marked) != nil else { return nil }
+          NSMaxRange(selection) <= NSMaxRange(marked), read(marked) != nil else {
+      Self.trace("origin: selection \(selection) outside readable marked \(marked)"); return nil
+    }
     return marked
   }
 
@@ -299,7 +324,8 @@ final class OwlTemplateHostDelivery {
           let bundle = client.bundleIdentifier(), bundle == application.bundleIdentifier else { return .targetChanged }
     let sameActiveClient = controller.client.map { ($0 as AnyObject) === (client as AnyObject) } ?? false
     if !(immediate && sameActiveClient && generation == controller.templateHostGeneration) {
-      guard let field, let current else { return .unverifiableTarget }
+      guard let field else { Self.trace("no host field captured at invocation"); return .unverifiableTarget }
+      guard let current else { Self.trace("host field unreadable now"); return .unverifiableTarget }
       guard CFEqual(field.element, current.element), sameActiveClient else { return .targetChanged }
     }
     return nil
@@ -324,6 +350,20 @@ final class OwlTemplateHostDelivery {
     guard let activated, let live = activated.client, let bundleID,
           live.bundleIdentifier() == bundleID else { return nil }
     return activated
+  }
+
+  /// Candidate and automatic invocations start inside `handle()`, while the host waits on this
+  /// process for the key event's answer and cannot serve accessibility. Read the focused field
+  /// again once the key event has returned, before any window can move focus in the host.
+  static func captureOutsideKeyEvent<Value>(_ read: @escaping () -> Value?,
+                                            schedule: (@escaping () -> Void) -> Void = { DispatchQueue.main.async(execute: $0) },
+                                            store: @escaping (Value) -> Void) {
+    if let value = read() { store(value); return }
+    trace("host field unreadable during the key event; reading it after the event")
+    schedule {
+      guard let value = read() else { trace("host field still unreadable after the key event"); return }
+      store(value)
+    }
   }
 
   static func trace(_ message: @autoclosure () -> String) {

@@ -212,6 +212,27 @@ final class OwlTemplateHostDeliveryTests: XCTestCase {
       bundleID: "com.apple.TextEdit"), "never a deactivated session")
   }
 
+  /// 2026-10-29 live (candidate dfbf8d6, TextEdit): candidate and automatic invocations refused with
+  /// unverifiableTarget because the field was read inside the key event, while the host could not answer.
+  func testFieldUnreadableDuringKeyEventIsReadAfterIt() {
+    var reads = [nil, "field"] as [String?]
+    var scheduled: [() -> Void] = []
+    var stored: [String] = []
+    OwlTemplateHostDelivery.captureOutsideKeyEvent({ reads.removeFirst() }, schedule: { scheduled.append($0) }) {
+      stored.append($0)
+    }
+    XCTAssertEqual(stored, [], "nothing captured while the host is blocked")
+    XCTAssertEqual(scheduled.count, 1)
+    scheduled.removeFirst()()
+    XCTAssertEqual(stored, ["field"])
+
+    var direct: [String] = []
+    OwlTemplateHostDelivery.captureOutsideKeyEvent({ "field" }, schedule: { _ in XCTFail("a readable field is not read twice") }) {
+      direct.append($0)
+    }
+    XCTAssertEqual(direct, ["field"])
+  }
+
   func testActivationRegistryFollowsIMKActivation() throws {
     let first = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     let second = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
