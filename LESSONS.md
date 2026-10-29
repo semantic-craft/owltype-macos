@@ -5,6 +5,26 @@ that the lesson is in place: which file to read, which command to run, what resu
 and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## A recorded request body must not read the clock
+
+**A digest of a request body that embeds today's date passes only on the day it was recorded.**
+
+- Reason: #323 recorded SHA-256 digests of every streaming and Ask request body. The Ask system
+  prompt states the search date, and `OwlWebSearchGrounding.askSystemPrompt` took it from
+  `Date()`. From 2026-10-29 the three `ask|deepseek|…#1` keys mismatched, so `scripts/gate.sh`
+  failed on every head and blocked merges.
+- Prevention: `OwlAskAnythingTransportAdapter` and `OwlAskAnythingModule` take `now:` (default
+  `Date.init`) and pass the day to `askMessages`; the recording test pins it to 2026-10-28.
+  Any new value in a recorded body that comes from the clock, a UUID or the environment gets the
+  same injection before it is recorded.
+- Regression: `testEveryStreamingAndAskRequestMatchesTheRecordedPreGatewayRequest` in
+  [OwlLLMStreamingRecordingTests.swift](tests/OwlLLMStreamingRecordingTests.swift).
+- Scope: request bodies recorded by that test. Production still states the current day.
+- Verify (验证点): `python3 scripts/verify.py swift --test OwlLLMStreamingRecordingTests` passes
+  on any date; `grep -n "Date()" sources/Lane/OwlDeepSeekSearch.swift` shows only parameter
+  defaults.
+- Seen on 1 distinct date: 2026-10-29.
+
 ## A release App must be readable by the console user, whatever umask built it
 
 **The PKG commits the App as root and finishes the install as the console user, so a file other users cannot read passes signing, notarization and every digest check and still fails the install.**

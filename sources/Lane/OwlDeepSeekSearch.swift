@@ -154,9 +154,9 @@ enum OwlWebSearchGrounding {
 
   /// 检索结果放在最前面的 system 消息里，会话原样跟在后面。
   static func askMessages(
-    _ messages: [OwlDeepSeekMessage], results: [OwlWebSearchResult]
+    _ messages: [OwlDeepSeekMessage], results: [OwlWebSearchResult], today: Date = Date()
   ) -> [OwlDeepSeekMessage] {
-    [OwlDeepSeekMessage(role: "system", content: askSystemPrompt(results))] + messages
+    [OwlDeepSeekMessage(role: "system", content: askSystemPrompt(results, today: today))] + messages
   }
 
   /// 答案里 `[n]` 引到的结果，按引用顺序、去重。
