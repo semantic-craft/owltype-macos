@@ -5,13 +5,13 @@ final class OwlTemplateMigrationModel: ObservableObject {
   @Published var status = ""
   @Published var completed = false
   private let migration: OwlTemplateMigration
-  init(rimeDir: URL) { migration = OwlTemplateMigration(rimeDir: rimeDir) }
+  init(dataDir: URL) { migration = OwlTemplateMigration(dataDir: dataDir) }
   var conflicts: [String] { plan.map { migration.conflicts(in: $0) } ?? [] }
   var canCommit: Bool { plan?.issues.isEmpty == true && conflicts.isEmpty && !completed }
   func reload() {
     do {
       try migration.recoverIfNeeded()
-      if OwlTemplateStore.mode(rimeDir: migration.rimeDir) == .unified {
+      if OwlTemplateStore.mode(dataDir: migration.dataDir) == .unified {
         completed = true; plan = nil; status = "迁移已恢复并启用。"; return
       }
       plan = try migration.prepare()
@@ -35,8 +35,8 @@ struct OwlTemplateMigrationView: View {
   @State private var selectedID: UUID?
   @State private var editedCode = ""
   let onMigrated: () -> Void
-  init(rimeDir: URL, onMigrated: @escaping () -> Void) {
-    _model = StateObject(wrappedValue: OwlTemplateMigrationModel(rimeDir: rimeDir))
+  init(dataDir: URL, onMigrated: @escaping () -> Void) {
+    _model = StateObject(wrappedValue: OwlTemplateMigrationModel(dataDir: dataDir))
     self.onMigrated = onMigrated
   }
   var body: some View {
@@ -94,15 +94,15 @@ struct OwlTemplateMigrationView: View {
 /// The unified snippet settings entry audits legacy content before opening the editor.
 struct OwlTemplateSettingsRoute: View {
   let palette: OwlCandidatePalette
-  var rimeDir: URL = OwlApp.userDir
+  var dataDir: URL = OwlApp.userDir
   let onRedeploy: () -> Void
   @State private var unified = false
   var body: some View {
     Group {
-      if unified || OwlTemplateStore.mode(rimeDir: rimeDir) == .empty || OwlTemplateStore.mode(rimeDir: rimeDir) == .unified {
-        OwlTemplatePage(palette: palette, writer: OwlConfigWriter(rimeDir: rimeDir), onRedeploy: onRedeploy)
+      if unified || OwlTemplateStore.mode(dataDir: dataDir) == .empty || OwlTemplateStore.mode(dataDir: dataDir) == .unified {
+        OwlTemplatePage(palette: palette, writer: OwlConfigWriter(dataDir: dataDir), onRedeploy: onRedeploy)
       } else {
-        OwlTemplateMigrationView(rimeDir: rimeDir) { unified = true; onRedeploy() }
+        OwlTemplateMigrationView(dataDir: dataDir) { unified = true; onRedeploy() }
       }
     }
   }

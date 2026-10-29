@@ -28,6 +28,7 @@ final class OwlKeyboardSettingsCatalogTests: XCTestCase {
 
   /// Keys and defaults that shipped before the catalog. They are user data: a row may be added,
   /// but none of these may be renamed or change default.
+  /// The two paging rows moved to 水杉's defaults on purpose (#315); stored values are untouched.
   private let shipped: [String: Bool] = [
     "OwlKeyboardWubiAutoCommitUnique": true, "OwlKeyboardWubiFifthCodeTopCommit": true,
     "OwlKeyboardWubiCodeHint": true, "OwlKeyboardWubiZWildcard": false,
@@ -35,8 +36,8 @@ final class OwlKeyboardSettingsCatalogTests: XCTestCase {
     "OwlKeyboardWubiEnglishChannel": false, "OwlKeyboardWubiUserDictLearning": true,
     "OwlKeyboardPinyinQuickPhraseCandidates": false, "OwlKeyboardCJKPunctToggle": false,
     "OwlKeyboardShiftSwitchCJK": true, "OwlKeyboardGoodOldCapsLock": true,
-    "OwlKeyboardPageMinusEquals": true, "OwlKeyboardPageBrackets": true,
-    "OwlKeyboardPageCommaPeriod": false, "OwlKeyboardSelect23Semicolon": false,
+    "OwlKeyboardPageMinusEquals": true, "OwlKeyboardPageBrackets": false,
+    "OwlKeyboardPageCommaPeriod": true, "OwlKeyboardSelect23Semicolon": false,
     "OwlKeyboardSlashSymbolMenu": false, "OwlKeyboardAngleSymbolMenu": false,
     "OwlKeyboardTraditionalOutput": false, "OwlKeyboardDefaultAsciiMode": false,
     "OwlKeyboardDefaultFullShape": false, "OwlKeyboardAutoPairBrackets": true,
@@ -103,7 +104,7 @@ final class OwlKeyboardSettingsCatalogTests: XCTestCase {
     for option in OwlKeyboardSettingsCatalog.engineOptions {
       XCTAssertTrue(source.contains("\"\(option.name)\" =>"), "FFI has no set_option arm for \(option.name)")
     }
-    XCTAssertTrue(source.contains("\"\(RimeOption.asciiPunct.rawValue)\" =>"))
+    XCTAssertTrue(source.contains("\"\(EngineOption.asciiPunct.rawValue)\" =>"))
   }
 
   func testLiveCatalogKeepsHotPathCachesInStepWithDefaults() {

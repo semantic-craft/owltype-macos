@@ -2,15 +2,15 @@
 //  SeamPortsTests.swift
 //  OwltypeTests — PR for task 06-20-extend-rimeengine-seam-to-snapshot-cloud-ports
 //
-//  Cashes in the testability goal the RimeEngine seam established (sources/RimeSeam.swift,
-//  tests/RimeSeamTests.swift), extended to the only OTHER two global singletons
+//  Cashes in the testability goal the InputEngine seam established (sources/EngineSeam.swift,
+//  tests/EngineSeamTests.swift), extended to the only OTHER two global singletons
 //  `OwlInputController` directly reaches off the IMK hot path:
 //
 //    • `SnapshotReading`            — the read-only live-snapshot view the controller reads
 //                                     (was `OwlSnapshotRegistry.shared.current`); the 任意提问 /
 //                                     local Smart-lane triggers read it off the IMK hot path.
 //
-//  This file adds the test-only `FakeSnapshotStore` (scripted, in-memory, NO librime, NO
+//  This file adds the test-only `FakeSnapshotStore` (scripted, in-memory, NO engine, NO
 //  network) and proves:
 //
 //    1. The narrow `SnapshotReading` port carries exactly what the controller needs: a scripted
@@ -19,14 +19,14 @@
 //       `snapshots` (the composition root, alongside `engine`) type-checks and swaps the
 //       production `.shared` defaults out.
 //
-//  Scope (PRD Out-of-Scope, mirrors RimeSeamTests): this stops at the port boundary.
+//  Scope (PRD Out-of-Scope, mirrors EngineSeamTests): this stops at the port boundary.
 //  Constructing a `OwlInputController` headless calls `IMKInputController`'s server
 //  initializer, so the trigger's read-then-request SEQUENCE is reproduced here against the
-//  ports the controller now funnels through — the same approach RimeSeamTests used to prove
-//  the controller's librime helpers without a live controller. `.shared` stays the
+//  ports the controller now funnels through — the same approach EngineSeamTests used to prove
+//  the controller's the engine helpers without a live controller. `.shared` stays the
 //  production default; injection is pure addition.
 //
-//  No network, no librime, no disk: the fakes are pure in-memory scripted state.
+//  No network, no engine, no disk: the fakes are pure in-memory scripted state.
 //
 
 import Foundation
@@ -35,7 +35,7 @@ import XCTest
 
 // MARK: - Fakes (test fixtures only — never shipped in sources/)
 
-/// A scripted `SnapshotReading` with no registry/librime. Construct it with the snapshot a
+/// A scripted `SnapshotReading` with no registry/engine. Construct it with the snapshot a
 /// test wants the controller's trigger path to read; `readCount` records how many times the
 /// trigger reached for `current`.
 @MainActor
@@ -53,7 +53,7 @@ final class FakeSnapshotStore: SnapshotReading {
   }
 }
 
-/// A scripted `SnapshotEmitting` with no registry/store/librime. Records every emitter call
+/// A scripted `SnapshotEmitting` with no registry/store/engine. Records every emitter call
 /// (and `emitComposing`'s args) so a test can assert the controller's snapshot-timeline pokes
 /// flowed through the port — without a live composition or the real timeline singleton.
 @MainActor
@@ -75,7 +75,7 @@ final class FakeSnapshotEmitter: SnapshotEmitting {
   func noteCommit() { noteCommitCount += 1 }
   func noteSchemaChange() { noteSchemaChangeCount += 1 }
   func emitCleared() { emitClearedCount += 1 }
-  func emitComposing(sessionID: UInt64, schemaID: String, rawInput: String, preedit: String, cursor: Int, pageNo: Int, candidates: [RimeCandidateSnapshot]) {
+  func emitComposing(sessionID: UInt64, schemaID: String, rawInput: String, preedit: String, cursor: Int, pageNo: Int, candidates: [EngineCandidateSnapshot]) {
     composings.append(Composing(sessionID: sessionID, schemaID: schemaID, rawInput: rawInput, preedit: preedit, cursor: cursor, pageNo: pageNo, candidateCount: candidates.count))
   }
 }
@@ -145,7 +145,7 @@ final class SeamPortsTests: XCTestCase {
       preedit: raw,
       cursor: raw.count,
       pageNo: 0,
-      candidates: [RimeCandidateSnapshot(index: 0, text: "你好", comment: "nǐ hǎo")],
+      candidates: [EngineCandidateSnapshot(index: 0, text: "你好", comment: "nǐ hǎo")],
       commitSerial: 0,
       createdAtNanos: 0
     )
@@ -189,7 +189,7 @@ final class SeamPortsTests: XCTestCase {
   // Each port mirrors the SnapshotReading cases above: prove the
   // delegate runtime default IS the `.shared` singleton, prove the property is swappable to a
   // fake, and drive the controller's trigger SEQUENCE through ONLY the injected port (no
-  // librime, no network, headless `IMKInputController` not constructed — see file header).
+  // the engine, no network, headless `IMKInputController` not constructed — see file header).
 
   func testDelegatePortDefaultsAreTheSharedSingletons() {
     let delegate = OwlApplicationDelegate()
@@ -211,7 +211,7 @@ final class SeamPortsTests: XCTestCase {
     XCTAssertTrue(delegate.promptStore === prompts)
   }
 
-  /// Reproduces the controller's `rimeUpdate()` / `commit()` emitter SEQUENCE
+  /// Reproduces the controller's `engineUpdate()` / `commit()` emitter SEQUENCE
   /// (noteSchemaChange → emitComposing → emitCleared → noteCommit) against the injected port,
   /// asserting each call — and `emitComposing`'s scripted args — flowed through the fake.
   func testSnapshotEmitterTriggerFlowsThroughInjectedPort() {

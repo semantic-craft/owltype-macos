@@ -50,7 +50,7 @@ enum OwlKeyboardSwitch: Int, CaseIterable, Sendable {
     case engineOption(String)
     /// The Rust session owns this Rime option and re-asserts it on every sync
     /// (`applyASCIIPunctIfNeeded`), because the session's option flags must follow it too.
-    case sessionOption(RimeOption)
+    case sessionOption(EngineOption)
     /// Host code reads the preference when it needs it; nothing is pushed.
     case host
   }
@@ -103,8 +103,8 @@ enum OwlKeyboardSwitch: Int, CaseIterable, Sendable {
     case .shiftSwitchCJK: return Row("OwlKeyboardShiftSwitchCJK", true, \.keyboardShiftSwitchCJK, .host, reapplies: true)
     case .goodOldCapsLock: return Row("OwlKeyboardGoodOldCapsLock", true, \.keyboardGoodOldCapsLock, .host, reapplies: true)
     case .pageMinusEquals: return Row("OwlKeyboardPageMinusEquals", true, \.keyboardPageMinusEquals, .host, reapplies: true)
-    case .pageBrackets: return Row("OwlKeyboardPageBrackets", true, \.keyboardPageBrackets, .host, reapplies: true)
-    case .pageCommaPeriod: return Row("OwlKeyboardPageCommaPeriod", false, \.keyboardPageCommaPeriod, .host, reapplies: true)
+    case .pageBrackets: return Row("OwlKeyboardPageBrackets", false, \.keyboardPageBrackets, .host, reapplies: true)
+    case .pageCommaPeriod: return Row("OwlKeyboardPageCommaPeriod", true, \.keyboardPageCommaPeriod, .host, reapplies: true)
     case .select23Semicolon: return Row("OwlKeyboardSelect23Semicolon", false, \.keyboardSelect23Semicolon, .host, reapplies: true)
     case .slashSymbolMenu: return Row("OwlKeyboardSlashSymbolMenu", false, \.keyboardSlashSymbolMenu, .host, reapplies: true)
     case .angleSymbolMenu: return Row("OwlKeyboardAngleSymbolMenu", false, \.keyboardAngleSymbolMenu, .host, reapplies: true)

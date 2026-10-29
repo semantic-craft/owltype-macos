@@ -404,7 +404,7 @@ final class OwlUserMigrationTests: XCTestCase {
     try Data("sync_dir: \"\(customSync.path)\"\n".utf8).write(
       to: root.appendingPathComponent("installation.yaml")
     )
-    let resolved = OwlRimeSyncSettings(rimeDir: root).currentSyncDirectory()
+    let resolved = OwlSyncSettings(dataDir: root).currentSyncDirectory()
     let plan = try OwlUserMigration.makePlan(
       userData: root,
       pinnedWordsData: nil,
@@ -536,16 +536,16 @@ final class OwlUserMigrationTests: XCTestCase {
     XCTAssertEqual(session.takeCommit(), "迁移混输")
   }
 
-  private func typeText(_ text: String, into session: RimeSession) {
+  private func typeText(_ text: String, into session: EngineSession) {
     for scalar in text.unicodeScalars {
       XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
     }
   }
 
   private func visibleAndPeekedCandidates(
-    in session: RimeSession,
+    in session: EngineSession,
     count: Int = 100
-  ) -> [RimeCandidate] {
+  ) -> [EngineCandidate] {
     guard let composition = session.composition() else { return [] }
     let start = composition.pageSize
     return composition.candidates + session.peekCandidates(from: start, count: count)

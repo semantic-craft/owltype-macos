@@ -65,9 +65,9 @@ struct OwlAboutPage: View {
         infoRow(label: "构建标识", value: appBuildIdentityDisplay)
         SettingsCardDivider(palette: palette)
         infoRow(label: "设计与开发", value: "深圳大学法律人工智能实训实验室")
-        if !state.librimeVersion.isEmpty {
+        if !state.engineVersion.isEmpty {
           SettingsCardDivider(palette: palette)
-          infoRow(label: "水杉 Rust 引擎", value: state.librimeVersion)
+          infoRow(label: "水杉 Rust 引擎", value: state.engineVersion)
         }
         SettingsCardDivider(palette: palette)
         infoRow(label: "已安装方案", value: "\(state.schemas.count) 个")

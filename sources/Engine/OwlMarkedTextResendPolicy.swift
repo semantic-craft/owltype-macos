@@ -10,9 +10,9 @@
 //  调用」（`_hasUnhandledKeyDownEvent`），静默回合按键被重派为原始键 → 原始退格遇合成文本
 //  `TextfieldModel::Backspace → CancelCompositionText` 整段清除（squirrel#906，猫头鹰 trace 实证）。
 //
-//  修法 = fcitx5-macos 契约（docs/chromium-omnibox-ime-prior-art.md §2.2）：每个被 rime 消费
+//  修法 = fcitx5-macos 契约（docs/chromium-omnibox-ime-prior-art.md §2.2）：每个被引擎消费
 //  的按键都无条件重发 setMarkedText——**内容去重不复存在**。唯一保留的短路是「空→空」：
-//  闲置轮（未组码）屏上无 marked text、也无可清内容，重发纯属浪费 IPC（rimeUpdate 在
+//  闲置轮（未组码）屏上无 marked text、也无可清内容，重发纯属浪费 IPC（engineUpdate 在
 //  keyDown 后无条件运行，含 handled=false 的穿透轮）；这不是内容去重，语义 = 维持 #89 前
 //  闲置路径的零 IPC 现状。
 //

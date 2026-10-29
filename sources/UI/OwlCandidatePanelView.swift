@@ -43,7 +43,7 @@ struct OwlCandidatePanelView: View {
   let onPage: (Bool) -> Void
   /// Click-to-select for a 多行后页行 candidate, by **absolute** index into the whole candidate
   /// list. Separate from `onSelect` (which is a current-page offset) because the two land on
-  /// different librime calls. Optional so the settings skin-preview call site is unaffected.
+  /// different engine calls. Optional so the settings skin-preview call site is unaffected.
   var onSelectAbsolute: ((Int) -> Void)? = nil
   /// Unified token-based candidate selection callback (#264). When set, current-page and
   /// scroll-row taps pass `candidate.token` here instead of separate `onSelect` / `onSelectAbsolute`.
@@ -343,7 +343,7 @@ struct OwlCandidatePanelView: View {
 
   // MARK: 多行（共享候选列 + 独立翻页页脚）
 
-  /// 多行的行集合：主行（librime 当前页）与预取的前/后页行按**页号排序**合并——前页行
+  /// 多行的行集合：主行（引擎当前页）与预取的前/后页行按**页号排序**合并——前页行
   /// （页号 = 主行 − 1）自然落在主行上方，后页行跟在下方。
   ///
   /// 所有行必须放进**同一个** `ForEach`、以页号为身份：翻一页后集合从 [p−1, p, p+1, …]

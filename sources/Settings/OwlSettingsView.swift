@@ -43,15 +43,15 @@ struct OwlSettingsView: View {
   let onApplyFuzzyConfigFast: () throws -> OwlKeyboardSettingsApplication.Outcome
   /// 迁移与重置 → delegate-owned user-data operations.
   let userDataActions: OwlSettingsUserDataActions
-  /// 打开用户目录 → delegate `openRimeFolder()`.
-  let onOpenRimeFolder: () -> Void
+  /// 打开用户目录 → delegate `openDataFolder()`.
+  let onOpenDataFolder: () -> Void
   /// 日志 → delegate `openLogFolder()`.
   let onOpenLog: () -> Void
   /// 欢迎与引导 → delegate `showOnboarding()`.
   let onShowOnboarding: () -> Void
   /// Candidate setting changed → refresh all live runtime consumers.
   let onPanelPreferencesChanged: () -> Void
-  var writesRimeConfiguration = true
+  var writesConfigPatches = true
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -136,7 +136,7 @@ struct OwlSettingsView: View {
   }
 
   private var engineFooterText: String {
-    let version = state.librimeVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+    let version = state.engineVersion.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !version.isEmpty else { return "Rust 引擎" }
     let prefix = "msime-rust-"
     if version.hasPrefix(prefix) {
@@ -206,7 +206,7 @@ struct OwlSettingsView: View {
           onRedeploy: onRedeploy,
           onApplyKeyboardConfigFast: onApplyKeyboardConfigFast,
           onApplyFuzzyConfigFast: onApplyFuzzyConfigFast,
-          writesRimeConfiguration: writesRimeConfiguration
+          writesConfigPatches: writesConfigPatches
         )
       case .shortcuts:
         OwlKeyboardPage(
@@ -218,7 +218,7 @@ struct OwlSettingsView: View {
           onRedeploy: onRedeploy,
           onApplyKeyboardConfigFast: onApplyKeyboardConfigFast,
           onApplyFuzzyConfigFast: onApplyFuzzyConfigFast,
-          writesRimeConfiguration: writesRimeConfiguration,
+          writesConfigPatches: writesConfigPatches,
           variant: .shortcuts
         )
       case .appearance:
@@ -369,7 +369,7 @@ struct OwlSettingsView: View {
         }
         actionButton(title: OwlInputMenuTitles.migrateLegacyUserData, systemImage: "arrow.right.arrow.left.square", action: userDataActions.migrateLegacy)
         actionButton(title: OwlInputMenuTitles.resetUserDict, systemImage: "trash", action: userDataActions.resetUserDict)
-        actionButton(title: OwlInputMenuTitles.rimeConfig, systemImage: "folder", action: onOpenRimeFolder)
+        actionButton(title: OwlInputMenuTitles.configFolder, systemImage: "folder", action: onOpenDataFolder)
         actionButton(title: OwlInputMenuTitles.logs, systemImage: "doc.text.magnifyingglass", action: onOpenLog)
         actionButton(title: OwlInputMenuTitles.onboarding, systemImage: "sparkles", action: onShowOnboarding)
       }
@@ -681,7 +681,7 @@ struct OwlSettingsView: View {
       } catch OwlConfigWriteError.refusedNeverTouch(let name) {
         candidatePageSizeApplyStatus = "已拒绝写入受保护文件：\(name)。候选个数未生效，请查看诊断日志。"
       } catch {
-        candidatePageSizeApplyStatus = writesRimeConfiguration
+        candidatePageSizeApplyStatus = writesConfigPatches
           ? "写入失败，候选个数未生效，请查看诊断日志：\(error.localizedDescription)"
           : "应用失败，候选个数未生效，请查看诊断日志：\(error.localizedDescription)"
       }
@@ -692,7 +692,7 @@ struct OwlSettingsView: View {
   static func candidatePageSizeApplyStatusMessage(
     written: [String],
     deploySucceeded: Bool,
-    writesRimeConfiguration: Bool = true
+    writesConfigPatches: Bool = true
   ) -> String {
     let files = written.joined(separator: "、")
     if deploySucceeded {
@@ -700,7 +700,7 @@ struct OwlSettingsView: View {
     }
     return files.isEmpty
       ? "应用失败，候选个数未生效，请查看诊断日志。"
-      : writesRimeConfiguration
+      : writesConfigPatches
         ? "已写入 \(files)，但应用失败；候选个数未生效，请查看诊断日志。"
         : "应用失败，候选个数未生效，请查看诊断日志。"
   }

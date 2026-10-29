@@ -75,7 +75,7 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "OwlInputMenuTitles.deploy",
     "OwlInputMenuTitles.logs",
     "OwlInputMenuTitles.onboarding",
-    "OwlInputMenuTitles.rimeConfig",
+    "OwlInputMenuTitles.configFolder",
     // 重置用户词典…（#37）：备份+删除+还原全链路覆盖在 OwlUserDictResetTests，
     // 确认弹窗默认按钮同处断言。
     "OwlInputMenuTitles.resetUserDict",

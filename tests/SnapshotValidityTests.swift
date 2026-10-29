@@ -4,7 +4,7 @@
 //
 //  Verifies `OwlSnapshotRegistry.isCurrent(_:)` returns false after every invalidation
 //  event (rawInput / preedit / pageNo / commitSerial / schemaID / sessionID change) and true
-//  for an identical snapshot. No network, no librime dependency.
+//  for an identical snapshot. No network, no engine dependency.
 //
 
 import Foundation
@@ -33,7 +33,7 @@ final class SnapshotValidityTests: XCTestCase {
       preedit: preedit,
       cursor: cursor,
       pageNo: pageNo,
-      candidates: [RimeCandidateSnapshot(index: 0, text: "根据")],
+      candidates: [EngineCandidateSnapshot(index: 0, text: "根据")],
       commitSerial: commitSerial
     )
   }
@@ -155,11 +155,11 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
   func testDefaultDirectoryIsOwltypeUserDataDir() {
     let writer = OwlConfigWriter()
     XCTAssertEqual(
-      writer.rimeDir.standardizedFileURL.path,
+      writer.dataDir.standardizedFileURL.path,
       OwlApp.userDir.standardizedFileURL.path
     )
     XCTAssertFalse(
-      writer.rimeDir.path.hasSuffix("/Library/Rime"),
+      writer.dataDir.path.hasSuffix("/Library/Rime"),
       "Owltype must not default to the user's shared Rime directory"
     )
   }
@@ -168,7 +168,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     let dir = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: dir) }
 
-    let settings = OwlRimeSyncSettings(rimeDir: dir)
+    let settings = OwlSyncSettings(dataDir: dir)
     XCTAssertEqual(
       settings.currentSyncDirectory().standardizedFileURL.path,
       dir.appendingPathComponent("sync", isDirectory: true).standardizedFileURL.path
@@ -187,7 +187,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     """.write(to: dir.appendingPathComponent("installation.yaml"), atomically: true, encoding: .utf8)
 
     XCTAssertEqual(
-      OwlRimeSyncSettings(rimeDir: dir).currentSyncDirectory().path,
+      OwlSyncSettings(dataDir: dir).currentSyncDirectory().path,
       "/tmp/Owltype Sync"
     )
   }
@@ -205,7 +205,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     """.write(to: installation, atomically: true, encoding: .utf8)
     let before = try Data(contentsOf: installation)
 
-    let settings = OwlRimeSyncSettings(rimeDir: dir)
+    let settings = OwlSyncSettings(dataDir: dir)
     XCTAssertEqual(
       settings.currentSyncDirectory().path,
       FileManager.default.homeDirectoryForCurrentUser
@@ -278,7 +278,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
 
     let written = try OwlManagedKeyboardPatchPlan.apply(
       snapshot: keyboardSnapshot(),
-      writer: OwlConfigWriter(rimeDir: dir),
+      writer: OwlConfigWriter(dataDir: dir),
       timestamp: "20260619-smoke"
     )
 
@@ -320,7 +320,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     let entry = try OwlQuickSendStore.entry(text: "猫头鹰测试短语", code: "mtycs")
     try OwlQuickSendStore.save(
       [entry],
-      writer: OwlConfigWriter(rimeDir: dir),
+      writer: OwlConfigWriter(dataDir: dir),
       timestamp: "20260619-quick"
     )
 
@@ -430,7 +430,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     let target = dir.appendingPathComponent("default.custom.yaml")
     try original.write(to: target, atomically: true, encoding: .utf8)
 
-    let writer = OwlConfigWriter(rimeDir: dir)
+    let writer = OwlConfigWriter(dataDir: dir)
     let block = ManagedPatchBlock(
       marker: "OWL MANAGED TEST PATCH",
       yamlLinesIndentedUnderPatch: [
@@ -475,7 +475,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     try defaultOriginal.write(to: defaultURL, atomically: true, encoding: .utf8)
     try rimeIceOriginal.write(to: rimeIceURL, atomically: true, encoding: .utf8)
 
-    let writer = OwlConfigWriter(rimeDir: dir)
+    let writer = OwlConfigWriter(dataDir: dir)
     let defaultBlock = ManagedPatchBlock(
       marker: "OWL MANAGED DEFAULT TEST",
       yamlLinesIndentedUnderPatch: ["  \"menu/page_size\": 8"]
@@ -497,7 +497,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     let dir = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: dir) }
 
-    let writer = OwlConfigWriter(rimeDir: dir)
+    let writer = OwlConfigWriter(dataDir: dir)
     let block = ManagedPatchBlock(
       marker: "OWL MANAGED TEST PATCH",
       yamlLinesIndentedUnderPatch: ["  \"menu/page_size\": 8"]
@@ -517,7 +517,7 @@ final class OwlConfigWriterBoundaryTests: XCTestCase {
     let dir = try makeTempDir()
     defer { try? FileManager.default.removeItem(at: dir) }
 
-    let writer = OwlConfigWriter(rimeDir: dir)
+    let writer = OwlConfigWriter(dataDir: dir)
     let block = ManagedPatchBlock(
       marker: "OWL MANAGED TEST PATCH",
       yamlLinesIndentedUnderPatch: ["  \"menu/page_size\": 8"]

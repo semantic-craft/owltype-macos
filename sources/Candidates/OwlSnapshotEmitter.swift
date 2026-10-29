@@ -2,12 +2,12 @@
 //  OwlSnapshotEmitter.swift
 //  猫头鹰输入法 (Owltype) — P0 bypass candidate infrastructure (spec P0-02, emitter part)
 //
-//  The ONE place that touches the IMK hot-path region. It runs strictly AFTER librime and the
+//  The ONE place that touches the IMK hot-path region. It runs strictly AFTER the engine and the
 //  main candidate lane have already updated (post-update / post-commit), copies the public
 //  composition state into an immutable `OwlCompositionSnapshot` and registers it. Readers (the
 //  update logout prompt, the dictionary prompt) use the registry to tell whether the user is
 //  mid-composition. It NEVER calls process_key / setMarkedText / insertText / commit, never holds
-//  a librime pointer, never throws, and never affects the caller — capture failure must not
+//  an engine pointer, never throws, and never affects the caller — capture failure must not
 //  influence input (parent prd hard constraint).
 //
 //  Ownership: this emitter owns `commitSerial`, the monotonic counter bumped on every
@@ -40,7 +40,7 @@ final class OwlSnapshotEmitter {
   init() {}
 
   /// A commit just happened. Bump the serial so pre-commit snapshots are stale. The composition
-  /// will be re-emitted (or cleared) by the subsequent `rimeUpdate()`; we do not clear here.
+  /// will be re-emitted (or cleared) by the subsequent `engineUpdate()`; we do not clear here.
   func noteCommit() {
     commitSerial &+= 1
   }
@@ -50,10 +50,10 @@ final class OwlSnapshotEmitter {
     commitSerial &+= 1
   }
 
-  /// Emit a fresh snapshot for an active composition. Called from `rimeUpdate()` AFTER the engine
+  /// Emit a fresh snapshot for an active composition. Called from `engineUpdate()` AFTER the engine
   /// state and the main candidate lane have already been shown, and registers the snapshot.
   ///
-  /// - Important: pure observation. Builds plain values only; touches no librime handle.
+  /// - Important: pure observation. Builds plain values only; touches no engine handle.
   func emitComposing(
     sessionID: UInt64,
     schemaID: String,
@@ -61,7 +61,7 @@ final class OwlSnapshotEmitter {
     preedit: String,
     cursor: Int,
     pageNo: Int,
-    candidates: [RimeCandidateSnapshot]
+    candidates: [EngineCandidateSnapshot]
   ) {
     let snapshot = OwlCompositionSnapshot(
       id: OwlSnapshotIDGenerator.shared.next(),

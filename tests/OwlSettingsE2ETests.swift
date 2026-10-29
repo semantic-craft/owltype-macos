@@ -63,10 +63,10 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     XCTAssertEqual(snapshot.appEnglishBundleIDs, ["com.apple.Terminal"])
     XCTAssertEqual(snapshot.fuzzy.enabledCount, 3)
 
-    let rimeDir = try makeTempDir()
+    let dataDir = try makeTempDir()
     let written = try OwlManagedKeyboardPatchPlan.apply(
       snapshot: snapshot,
-      writer: OwlConfigWriter(rimeDir: rimeDir),
+      writer: OwlConfigWriter(dataDir: dataDir),
       timestamp: "20260622-settings-e2e"
     )
 
@@ -80,7 +80,7 @@ final class OwlSettingsE2EContractTests: XCTestCase {
       "wubi86_jidian_trad_pinyin.custom.yaml",
     ])
 
-    let defaultPatch = try read("default.custom.yaml", in: rimeDir)
+    let defaultPatch = try read("default.custom.yaml", in: dataDir)
     XCTAssertTrue(defaultPatch.contains("wubi86_jidian_trad_pinyin"))
     XCTAssertTrue(defaultPatch.contains("\"menu/page_size\": 9"))
     XCTAssertFalse(defaultPatch.contains("\"ascii_composer/switch_key/Shift_L\": commit_code"))
@@ -97,12 +97,12 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     // app_options moved to the owltype domain (task 07-08): NOT in default anymore — it lives in
     // owltype.custom.yaml, the only domain OwlConfig.getAppOptions reads.
     XCTAssertFalse(defaultPatch.contains("app_options/"))
-    let owlPatch = try read("owltype.custom.yaml", in: rimeDir)
+    let owlPatch = try read("owltype.custom.yaml", in: dataDir)
     XCTAssertTrue(owlPatch.contains("\"app_options/com.apple.Terminal/ascii_mode\": true"))
     XCTAssertFalse(owlPatch.contains("bad:key"))
     XCTAssertFalse(defaultPatch.contains("Super_L"))
 
-    let rimeIcePatch = try read("rime_ice.custom.yaml", in: rimeDir)
+    let rimeIcePatch = try read("rime_ice.custom.yaml", in: dataDir)
     XCTAssertTrue(rimeIcePatch.contains("\"speller/algebra/+\""))
     XCTAssertTrue(rimeIcePatch.contains("derive/^zh/z/"))
     XCTAssertTrue(rimeIcePatch.contains("derive/^ch/c/"))
@@ -114,7 +114,7 @@ final class OwlSettingsE2EContractTests: XCTestCase {
       "wubi86_jidian_trad.custom.yaml",
       "wubi86_jidian_trad_pinyin.custom.yaml",
     ] {
-      let patch = try read(name, in: rimeDir)
+      let patch = try read(name, in: dataDir)
       XCTAssertTrue(patch.contains("\"translator/comment_format\": []"), name)
       XCTAssertTrue(patch.contains("\"reverse_lookup/comment_format\": []"), name)
       XCTAssertTrue(patch.contains("\"reverse_lookup/prefix\": \"z\""), name)
@@ -145,7 +145,7 @@ final class OwlSettingsE2EContractTests: XCTestCase {
 
     XCTAssertEqual(panelSettings.snapshot().appearance, .dark)
     XCTAssertEqual(panelSettings.snapshot().size, .large)
-    XCTAssertTrue(panelSettings.snapshot().orientation.isVertical(rimeVertical: false, schemaID: "rime_ice"))
+    XCTAssertTrue(panelSettings.snapshot().orientation.isVertical(engineVertical: false, schemaID: "rime_ice"))
     XCTAssertEqual(panelSettings.snapshot().font.selection, .notoSerifSC)
     XCTAssertFalse(panelSettings.snapshot().animationsEnabled)
     XCTAssertEqual(panelSettings.snapshot().skin, .wuda)
@@ -155,7 +155,7 @@ final class OwlSettingsE2EContractTests: XCTestCase {
   }
 
   func testStoreBackedSettingsUseIsolatedLocalStorage() throws {
-    let rimeDir = try makeTempDir()
+    let dataDir = try makeTempDir()
     let suiteName = "OwlSettingsE2E-\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
     defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -163,23 +163,23 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     let quickEntry = try OwlQuickSendStore.entry(text: "猫头鹰测试", code: "mtycs")
     try OwlQuickSendStore.save(
       [quickEntry],
-      writer: OwlConfigWriter(rimeDir: rimeDir),
+      writer: OwlConfigWriter(dataDir: dataDir),
       timestamp: "20260622-settings-e2e"
     )
     // load reads the JSON source of truth: exactly the saved entries. The derived table carries
     // the same bare code (no prefix — ` collides with rime-ice's radical-search lead key).
-    XCTAssertEqual(OwlQuickSendStore.load(rimeDir: rimeDir), [quickEntry])
-    XCTAssertTrue(try read("owl_quick_send.txt", in: rimeDir).contains("猫头鹰测试\tmtycs\t100000"))
-    XCTAssertFalse(try read("owl_quick_send.txt", in: rimeDir).contains("`mtycs"))
-    XCTAssertTrue(try read("rime_ice.custom.yaml", in: rimeDir).contains("table_translator@owl_quick_send"))
+    XCTAssertEqual(OwlQuickSendStore.load(dataDir: dataDir), [quickEntry])
+    XCTAssertTrue(try read("owl_quick_send.txt", in: dataDir).contains("猫头鹰测试\tmtycs\t100000"))
+    XCTAssertFalse(try read("owl_quick_send.txt", in: dataDir).contains("`mtycs"))
+    XCTAssertTrue(try read("rime_ice.custom.yaml", in: dataDir).contains("table_translator@owl_quick_send"))
 
     XCTAssertFalse(OwlClipboardStore.isEnabled(defaults: defaults))
     OwlClipboardStore.setEnabled(true, defaults: defaults)
     XCTAssertTrue(OwlClipboardStore.isEnabled(defaults: defaults))
-    let clipboard = try OwlClipboardStore.capture("  判决摘要  ", root: rimeDir, now: Date(timeIntervalSince1970: 0))
+    let clipboard = try OwlClipboardStore.capture("  判决摘要  ", root: dataDir, now: Date(timeIntervalSince1970: 0))
     XCTAssertEqual(clipboard.map(\.text), ["判决摘要"])
-    try OwlClipboardStore.clear(root: rimeDir)
-    XCTAssertTrue(OwlClipboardStore.load(root: rimeDir).isEmpty)
+    try OwlClipboardStore.clear(root: dataDir)
+    XCTAssertTrue(OwlClipboardStore.load(root: dataDir).isEmpty)
   }
 
   func testQuickSendExamplesAreValidAndEnableRoundtripsToRimePatch() throws {
@@ -201,19 +201,19 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     // Enabling an example == saving entries that include its `entry`: it roundtrips through `load`
     // as exactly itself, while the generated TSV + rime_ice patch carry the command under its
     // bare code (full-code trigger; enable_completion stays off in the patch).
-    let rimeDir = try makeTempDir()
+    let dataDir = try makeTempDir()
     let claude = try XCTUnwrap(OwlQuickSendExamples.all.first { $0.tool == "Claude Code" })
     try OwlQuickSendStore.save(
       [claude.entry],
-      writer: OwlConfigWriter(rimeDir: rimeDir),
+      writer: OwlConfigWriter(dataDir: dataDir),
       timestamp: "20260630-quick-send-examples"
     )
-    XCTAssertEqual(OwlQuickSendStore.load(rimeDir: rimeDir), [claude.entry])
-    let table = try read("owl_quick_send.txt", in: rimeDir)
+    XCTAssertEqual(OwlQuickSendStore.load(dataDir: dataDir), [claude.entry])
+    let table = try read("owl_quick_send.txt", in: dataDir)
     XCTAssertTrue(table.contains("claude --dangerously-skip-permissions\tyocc\t100000"))
     XCTAssertFalse(table.contains("`yocc"))
     XCTAssertFalse(table.contains("\tvyocc\t"))
-    XCTAssertTrue(try read("rime_ice.custom.yaml", in: rimeDir).contains("table_translator@owl_quick_send"))
+    XCTAssertTrue(try read("rime_ice.custom.yaml", in: dataDir).contains("table_translator@owl_quick_send"))
   }
 
   private func makeTempDir() throws -> URL {

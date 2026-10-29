@@ -267,7 +267,7 @@ final class OwlDictPackCenterTests: XCTestCase {
     let delegate = NSApp.owlAppDelegate
     let previousEngine = delegate.runtime.engine
     let previousActive = delegate.runtime.activeInputController
-    delegate.runtime.engine = FakeRimeEngine()
+    delegate.runtime.engine = FakeInputEngine()
     let active = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     let background = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     active.destroySession()
@@ -280,13 +280,13 @@ final class OwlDictPackCenterTests: XCTestCase {
       _ = delegate.runtime.applyPendingLiveSessionRefreshIfIdle()
     }
 
-    let partialSelection = RimeComposition(
+    let partialSelection = EngineComposition(
       preedit: "西te'le",
       selStart: 3,
       selEnd: 9,
       cursorPos: 9,
       commitTextPreview: "西特乐",
-      candidates: [RimeCandidate(text: "西特乐", comment: "xi'te'le")],
+      candidates: [EngineCandidate(text: "西特乐", comment: "xi'te'le")],
       labels: ["1"],
       pageNo: 0,
       pageSize: 1,
@@ -294,24 +294,24 @@ final class OwlDictPackCenterTests: XCTestCase {
       highlightedIndex: 0,
       numCandidates: 1
     )
-    let activeOld = FakeRimeSession(
+    let activeOld = FakeEngineSession(
       sessionID: 10,
       composition: partialSelection,
       input: "te'le"
     )
-    let backgroundOld = FakeRimeSession(
+    let backgroundOld = FakeEngineSession(
       sessionID: 20,
       composition: partialSelection,
       input: "te'le"
     )
-    let activeFresh = FakeRimeSession(sessionID: 11)
-    let engine = FakeRimeEngine(vendedSession: activeFresh)
+    let activeFresh = FakeEngineSession(sessionID: 11)
+    let engine = FakeInputEngine(vendedSession: activeFresh)
     delegate.runtime.engine = engine
 
-    active.rime = activeOld
+    active.engineSession = activeOld
     active.schemaId = "rime_ice"
     active.preedit = "西te'le"
-    background.rime = backgroundOld
+    background.engineSession = backgroundOld
     background.schemaId = "rime_ice"
     delegate.runtime.registerLiveController(active)
     delegate.runtime.registerLiveController(background)
@@ -331,7 +331,7 @@ final class OwlDictPackCenterTests: XCTestCase {
     activeOld.scriptedInput = ""
     activeOld.scriptedComposition = nil
     active.preedit = ""
-    active.rimeUpdate()
+    active.engineUpdate()
 
     XCTAssertFalse(activeOld.destroyed, "an unfinished background session must also block the handoff")
     XCTAssertFalse(backgroundOld.destroyed)
@@ -342,7 +342,7 @@ final class OwlDictPackCenterTests: XCTestCase {
     backgroundOld.scriptedComposition = nil
     // A stale UI preedit is not source of truth: the underlying session is idle.
     background.preedit = "stale"
-    active.rimeUpdate()
+    active.engineUpdate()
 
     XCTAssertTrue(activeOld.destroyed)
     XCTAssertTrue(backgroundOld.destroyed)

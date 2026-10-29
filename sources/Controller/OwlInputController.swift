@@ -8,10 +8,10 @@
 //  (`handle()` / `processKey`), candidate navigation, and the controller's init/deinit.
 //  Cohesive clusters live in same-module extension files:
 //    OwlInputController+Menu.swift       — menu() + @objc actions
-//    OwlInputController+RimeUpdate.swift  — rimeUpdate/commit/show/showPanel
+//    OwlInputController+EngineUpdate.swift  — engineUpdate/commit/show/showPanel
 //    OwlInputController+Lifecycle.swift   — IMK lifecycle overrides + notification handlers
-//    OwlInputController+Session.swift     — librime session + chord typing
-//    OwlInputController+RimeOptions.swift — RimeOption helpers
+//    OwlInputController+Session.swift     — the engine session + chord typing
+//    OwlInputController+Session.swift — EngineOption helpers
 //
 
 import InputMethodKit
@@ -22,7 +22,7 @@ final class OwlInputController: IMKInputController {
   // seam: was private; internal so OwlInputController+Session.swift can reach it across files.
   static var unknownAppCnt: UInt = 0
 
-  // seam: was private; internal so the Menu/RimeUpdate/Lifecycle/Session extensions can reach it across files.
+  // seam: was private; internal so the Menu/EngineUpdate/Lifecycle/Session extensions can reach it across files.
   weak var client: IMKTextInput?
   var templateHostGeneration: UInt64 = 0
   weak var pendingTemplateDelivery: OwlTemplateHostDelivery?
@@ -41,36 +41,36 @@ final class OwlInputController: IMKInputController {
   /// The current composition's Session, vended by `engineRuntime.engine`. `nil` (or `!isValid`)
   /// means "no live session — recreate before use". Swappable so tests can inject a fake.
   /// All access is on the IMK input thread.
-  var rime: RimeSession?
-  // seam: was private; internal so OwlInputController+RimeUpdate.swift / +Lifecycle.swift can reach it across files.
+  var engineSession: EngineSession?
+  // seam: was private; internal so OwlInputController+EngineUpdate.swift / +Lifecycle.swift can reach it across files.
   var preedit: String = ""
-  // seam: was private; internal so OwlInputController+RimeUpdate.swift can reach it across files.
+  // seam: was private; internal so OwlInputController+EngineUpdate.swift can reach it across files.
   var selRange: NSRange = .empty
-  // seam: was private; internal so OwlInputController+RimeUpdate.swift can reach it across files.
+  // seam: was private; internal so OwlInputController+EngineUpdate.swift can reach it across files.
   var caretPos: Int = 0
   // Cross-commit auto-spacing seed: the trailing char of the last inserted text, threaded into
   // OwlCommitTransform so a space lands at a 中文|英文 boundary that spans two commits. Reset on
-  // deactivateServer (focus change). seam: internal for +RimeUpdate.swift / +Lifecycle.swift.
+  // deactivateServer (focus change). seam: internal for +EngineUpdate.swift / +Lifecycle.swift.
   // ponytail: goes stale if the cursor moves (arrow/click/manual space) between commits — query the
   // document via the client instead if that ever becomes a real complaint.
   var lastCommittedCharacter: Character?
   private var lastModifiers: NSEvent.ModifierFlags = .init()
-  // seam: was private; internal so OwlInputController+RimeUpdate.swift / +Session.swift can reach it across files.
+  // seam: was private; internal so OwlInputController+EngineUpdate.swift / +Session.swift can reach it across files.
   var schemaId: String = ""
   // 07-07-schema-consistency-guard: the last preferredSchemaID whose `select_schema` failed and has
   // NOT been cleared by a later success / session recreate. Drives `OwlSchemaSelectionGate`'s
   // idle-key backoff so a doomed select isn't retried on every keystroke. nil = none known-failed.
   // Off the IMK hot path (only touched by createSession / ensurePreferred / switchLiveSessionSchema).
   var knownFailedSchemaID: String?
-  // seam: was private; internal so OwlInputController+RimeUpdate.swift can reach it across files.
+  // seam: was private; internal so OwlInputController+EngineUpdate.swift can reach it across files.
   var inlinePreedit = false
-  // seam: was private; internal so OwlInputController+RimeUpdate.swift can reach it across files.
+  // seam: was private; internal so OwlInputController+EngineUpdate.swift can reach it across files.
   var inlineCandidate = false
   // 多行的「本次组字翻过页」旗标（2026-07-28 翻页才展开）：showPanel 见 page > 0 时置位，
   // 组字结束（空 menu 的 showPanel）复位。展开后整个组字期内保持——翻回第一页、追打字母
   // 都不收起；只有提交/清空才回到单行。只被 showPanel 读写，不在按键判定路径上。
   var scrollDidPage = false
-  // 首轮旗标同步哨兵（2026-07-12 B3 破闩锁）：inline 旗标改为每轮 rimeUpdate 重算——原先只在
+  // 首轮旗标同步哨兵（2026-07-12 B3 破闩锁）：inline 旗标改为每轮 engineUpdate 重算——原先只在
   // schema 变化时算一次，delegate styleFlags 事后恢复了老控制器也永远用不上；soft_cursor 只在
   // 首轮或值变化时下发。false = 本控制器还没做过第一次同步。
   var styleFlagsSynced = false
@@ -137,9 +137,9 @@ final class OwlInputController: IMKInputController {
     // Returning false means the original key down will be passed on to the client.
 
     if self.client == nil { self.client = sender as? IMKTextInput }
-    if rime?.isValid != true {
+    if engineSession?.isValid != true {
       createSession()
-      if rime?.isValid != true {
+      if engineSession?.isValid != true {
         return false
       }
     }
@@ -177,16 +177,16 @@ final class OwlInputController: IMKInputController {
       return true
     }
 
-    // PURE pipeline (task 06-22): de-platform the NSEvent → classify (pure) → feed librime.
+    // PURE pipeline (task 06-22): de-platform the NSEvent → classify (pure) → feed the engine.
     let action = OwlUserActionClassifier.classify(OwlKeyEvent(event: event, lastModifiers: lastModifiers))
     debugLiveInputTrace("handle classified type=\(event.type.rawValue) key=\(event.keyCode)")
     return apply(userAction: action)
   }
 
-  /// Feed a classified `OwlUserAction` to librime (the only stateful step) and refresh IMK.
+  /// Feed a classified `OwlUserAction` to the engine (the only stateful step) and refresh IMK.
   /// This is the controller-side dispatch of the pure classification: it performs the
   /// `processKey` side effects in the same order the old `handle()` switch did, stores the new
-  /// `lastModifiers`, and runs `rimeUpdate()`. Returns the same `handled` value the old code did.
+  /// `lastModifiers`, and runs `engineUpdate()`. Returns the same `handled` value the old code did.
   private func apply(userAction action: OwlUserAction) -> Bool {
     switch action {
     case .flagsUnchanged:
@@ -205,28 +205,28 @@ final class OwlInputController: IMKInputController {
         }
       })
       lastModifiers = updateLastModifiers
-      if !refreshAutomaticExpansionAfterModifiers() { rimeUpdate() }
+      if !refreshAutomaticExpansionAfterModifiers() { engineUpdate() }
       // `handled` mirrors the original: true only for the couldn't-infer bail; false on the
       // normal modifier path so the host app still receives the modifier event. Caps Lock may
       // additionally be consumed by the session when good_old_caps_lock is off.
       return handled || capsLockHandled
 
-    case let .keyDown(rimeKeycode, rimeModifiers):
+    case let .keyDown(engineKeycode, engineModifiers):
       invalidateSettledRerankForAction()
-      let handled = processKey(rimeKeycode, modifiers: rimeModifiers)
-      rimeUpdate()
-      if !handled, (rimeModifiers & (kControlMask.rawValue | kAltMask.rawValue)) != 0 {
+      let handled = processKey(engineKeycode, modifiers: engineModifiers)
+      engineUpdate()
+      if !handled, (engineModifiers & (kControlMask.rawValue | kAltMask.rawValue)) != 0 {
         flushPendingPairedClosing()
       }
-      if shouldArmSettledRerank(after: rimeKeycode) {
+      if shouldArmSettledRerank(after: engineKeycode) {
         armSettledRerankAfterInput()
       }
       return handled
 
     case .commandPassthrough:
       invalidateSettledRerankForAction()
-      rime?.finishNativeComposition(onFocusLoss: false)
-      rimeUpdate()
+      engineSession?.finishNativeComposition(onFocusLoss: false)
+      engineUpdate()
       flushPendingPairedClosing()
       return false
 
@@ -236,45 +236,45 @@ final class OwlInputController: IMKInputController {
   }
 
   func selectCandidate(_ index: Int) -> Bool {
-    guard let rime else { return false }
+    guard let engineSession else { return false }
     invalidateSettledRerankForAction()
-    let success = rime.selectCandidate(index)
+    let success = engineSession.selectCandidate(index)
     if success {
-      rimeUpdate()
+      engineUpdate()
     }
     return success
   }
 
   /// Commit a candidate by its absolute index into the whole candidate list — the 多行后页行
-  /// click path, where the clicked candidate is visible but not on librime's current page.
+  /// click path, where the clicked candidate is visible but not on the engine's current page.
   func selectCandidateAbsolute(_ index: Int) -> Bool {
-    guard let rime else { return false }
+    guard let engineSession else { return false }
     invalidateSettledRerankForAction()
-    let success = rime.selectCandidateAbsolute(index)
+    let success = engineSession.selectCandidateAbsolute(index)
     if success {
-      rimeUpdate()
+      engineUpdate()
     }
     return success
   }
 
   func selectCandidate(_ token: OwlCandidateToken) -> Bool {
-    guard let rime else { return false }
+    guard let engineSession else { return false }
     invalidateSettledRerankForAction()
-    let success = rime.selectCandidate(token)
+    let success = engineSession.selectCandidate(token)
     if success {
-      rimeUpdate()
+      engineUpdate()
     }
     return success
   }
 
   // swiftlint:disable:next identifier_name
   func page(up: Bool) -> Bool {
-    guard let rime else { return false }
+    guard let engineSession else { return false }
     invalidateSettledRerankForAction()
     var handled = false
-    handled = rime.changePage(up: up)
+    handled = engineSession.changePage(up: up)
     if handled {
-      rimeUpdate()
+      engineUpdate()
     }
     return handled
   }
@@ -339,86 +339,86 @@ final class OwlInputController: IMKInputController {
     })
   }
 
-  func processKey(_ rimeKeycode: UInt32, modifiers rimeModifiers: UInt32) -> Bool {
+  func processKey(_ engineKeycode: UInt32, modifiers engineModifiers: UInt32) -> Bool {
     // TODO add special key event preprocessing here
-    guard let rime else { return false }
+    guard let engineSession else { return false }
 
-    trackNativePunctuationKey(rimeKeycode, modifiers: rimeModifiers)
-    if handleSmartPunctuation(rimeKeycode, modifiers: rimeModifiers) { return true }
+    trackNativePunctuationKey(engineKeycode, modifiers: engineModifiers)
+    if handleSmartPunctuation(engineKeycode, modifiers: engineModifiers) { return true }
 
     // '/' → English, globally & schema-agnostically (programming convenience), unless the user
     // explicitly enabled the slash symbol menu. That opt-in lets the event fall through to Rime's
     // punctuator candidate list without committing the composition or changing ascii_mode.
     // A bare slash in Chinese mode commits the highlighted candidate (commit_text_preview),
-    // flips to ASCII mode, then FALLS THROUGH to `rime.process` below so the slash is emitted
-    // as a literal ASCII '/': in ASCII mode librime either rejects it (the host types '/') or
-    // commits it (rimeUpdate inserts '/') — either path yields exactly one ASCII slash. Sits
+    // flips to ASCII mode, then FALLS THROUGH to `engineSession.process` below so the slash is emitted
+    // as a literal ASCII '/': in ASCII mode the engine either rejects it (the host types '/') or
+    // commits it (engineUpdate inserts '/') — either path yields exactly one ASCII slash. Sits
     // above the active schema, so pinyin / wubi / any schema behave identically. The bare-slash
     // gate is the pure `OwlKeycode.slashSwitchesToEnglish` (unit-tested).
     if OwlKeycode.slashSwitchesToEnglish(
-      keycode: rimeKeycode,
-      modifiers: rimeModifiers,
-      asciiMode: rime.option(.asciiMode),
+      keycode: engineKeycode,
+      modifiers: engineModifiers,
+      asciiMode: engineSession.option(.asciiMode),
       symbolMenuEnabled: OwlKeyboardPreferences.slashSymbolMenu
     ) {
       punctuationKeyInFlight = nil
-      if let preview = rime.composition()?.commitTextPreview, !preview.isEmpty {
+      if let preview = engineSession.composition()?.commitTextPreview, !preview.isEmpty {
         commit(string: preview)
-        rime.clearComposition()
+        engineSession.clearComposition()
       }
       flushPendingPairedClosing()
-      rime.setOption(.asciiMode, true)
+      engineSession.setOption(.asciiMode, true)
     }
 
     // with linear candidate list, arrow keys may behave differently.
     let styleFlags = engineRuntime.styleFlags
-    if styleFlags.linear != rime.option(.linear) {
-      rime.setOption(.linear, styleFlags.linear)
+    if styleFlags.linear != engineSession.option(.linear) {
+      engineSession.setOption(.linear, styleFlags.linear)
     }
     // with vertical text, arrow keys may behave differently.
-    if styleFlags.vertical != rime.option(.vertical) {
-      rime.setOption(.vertical, styleFlags.vertical)
+    if styleFlags.vertical != engineSession.option(.vertical) {
+      engineSession.setOption(.vertical, styleFlags.vertical)
     }
 
-    debugLiveInputTrace("process before schema=\(rime.status()?.schemaId ?? "<nil>") key=\(rimeKeycode) mods=\(rimeModifiers)")
+    debugLiveInputTrace("process before schema=\(engineSession.status()?.schemaId ?? "<nil>") key=\(engineKeycode) mods=\(engineModifiers)")
     let processTrace = OwlLatencyTrace.begin("session.process")
-    let handled = rime.process(keycode: rimeKeycode, modifiers: rimeModifiers)
+    let handled = engineSession.process(keycode: engineKeycode, modifiers: engineModifiers)
     OwlLatencyTrace.end("session.process", processTrace)
-    debugLiveInputTrace("process after handled=\(handled) schema=\(rime.status()?.schemaId ?? "<nil>")")
-    // print("[DEBUG] rime_keycode: \(rimeKeycode), rime_modifiers: \(rimeModifiers), handled = \(handled)")
+    debugLiveInputTrace("process after handled=\(handled) schema=\(engineSession.status()?.schemaId ?? "<nil>")")
+    // print("[DEBUG] rime_keycode: \(engineKeycode), rime_modifiers: \(engineModifiers), handled = \(handled)")
 
     // TODO add special key event postprocessing here
 
     if !handled {
-      let hasControl = rimeModifiers & kControlMask.rawValue != 0
-      let isVimCommandKey = rimeKeycode == UInt32(XK_c)
-        || rimeKeycode == UInt32(XK_C)
-        || rimeKeycode == UInt32(XK_bracketleft)
-      let isVimBackInCommandMode = rimeKeycode == UInt32(XK_Escape)
+      let hasControl = engineModifiers & kControlMask.rawValue != 0
+      let isVimCommandKey = engineKeycode == UInt32(XK_c)
+        || engineKeycode == UInt32(XK_C)
+        || engineKeycode == UInt32(XK_bracketleft)
+      let isVimBackInCommandMode = engineKeycode == UInt32(XK_Escape)
         || (hasControl && isVimCommandKey)
-      if isVimBackInCommandMode && rime.option(.vimMode) &&
-          !rime.option(.asciiMode) {
-        rime.setOption(.asciiMode, true)
+      if isVimBackInCommandMode && engineSession.option(.vimMode) &&
+          !engineSession.option(.asciiMode) {
+        engineSession.setOption(.asciiMode, true)
         // print("[DEBUG] turned Chinese mode off in vim-like editor's command mode")
       }
     } else {
-      let isChordingKey = switch Int32(rimeKeycode) {
+      let isChordingKey = switch Int32(engineKeycode) {
       case XK_space...XK_asciitilde, XK_Control_L, XK_Control_R, XK_Alt_L, XK_Alt_R, XK_Shift_L, XK_Shift_R:
         true
       default:
         false
       }
-      if isChordingKey && rime.option(.chordTyping) {
-        updateChord(keycode: rimeKeycode, modifiers: rimeModifiers)
-      } else if (rimeModifiers & kReleaseMask.rawValue) == 0 {
+      if isChordingKey && engineSession.option(.chordTyping) {
+        updateChord(keycode: engineKeycode, modifiers: engineModifiers)
+      } else if (engineModifiers & kReleaseMask.rawValue) == 0 {
         // non-chording key pressed
         clearChord()
       }
     }
 
-    if !handled, rimeKeycode >= 32, rimeKeycode < 127,
-       (rimeModifiers & (kControlMask.rawValue | kAltMask.rawValue | kSuperMask.rawValue | kReleaseMask.rawValue)) == 0 {
-      smartPunctuation.shadow = UnicodeScalar(rimeKeycode).map(String.init)
+    if !handled, engineKeycode >= 32, engineKeycode < 127,
+       (engineModifiers & (kControlMask.rawValue | kAltMask.rawValue | kSuperMask.rawValue | kReleaseMask.rawValue)) == 0 {
+      smartPunctuation.shadow = UnicodeScalar(engineKeycode).map(String.init)
       smartPunctuation.expectedCaret = nil
     }
     return handled

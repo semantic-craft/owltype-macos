@@ -5,7 +5,7 @@ import Darwin
 @MainActor
 final class OwlTemplateBackupTests: XCTestCase {
   private var root: URL!
-  private var writer: OwlConfigWriter { OwlConfigWriter(rimeDir: root) }
+  private var writer: OwlConfigWriter { OwlConfigWriter(dataDir: root) }
   override func setUpWithError() throws {
     root = FileManager.default.temporaryDirectory.appendingPathComponent("OwlTemplateBackupTests-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -36,17 +36,17 @@ final class OwlTemplateBackupTests: XCTestCase {
     // Use one fixed identity throughout the real persistence path.
     let saved = OwlTemplateLibrary(entries: [original])
     try OwlTemplateStore.save(saved, writer: writer)
-    let backup = OwlTemplateBackup(rimeDir: root)
+    let backup = OwlTemplateBackup(dataDir: root)
     let exportURL = root.appendingPathComponent("export.json")
     try backup.export(to: exportURL)
     XCTAssertEqual(try OwlTemplateStore.encoded(OwlTemplateBackup.decode(Data(contentsOf: exportURL))), try OwlTemplateStore.encoded(saved))
     let removed = try backup.delete(id: original.id, expected: saved)
     XCTAssertNotNil(removed.backupURL)
-    XCTAssertTrue(try OwlTemplateStore.load(rimeDir: root).entries.isEmpty)
+    XCTAssertTrue(try OwlTemplateStore.load(dataDir: root).entries.isEmpty)
     let preview = try backup.preview(data: Data(contentsOf: exportURL))
     XCTAssertEqual(preview.rows.first?.kind, .new)
     _ = try backup.restore(preview)
-    let reopened = try OwlTemplateStore.load(rimeDir: root)
+    let reopened = try OwlTemplateStore.load(dataDir: root)
     XCTAssertEqual(try OwlTemplateStore.encoded(reopened), try OwlTemplateStore.encoded(saved))
     XCTAssertEqual(OwlTemplateStore.filtered(reopened.entries, query: "oldcode", tag: "写作").first?.id, original.id)
     var delivered: [String] = []
@@ -61,7 +61,7 @@ final class OwlTemplateBackupTests: XCTestCase {
     let incoming = OwlTemplateLibrary(entries: [item])
     item.body = "当前编辑"
     try OwlTemplateStore.save(OwlTemplateLibrary(entries: [item]), writer: writer)
-    let backup = OwlTemplateBackup(rimeDir: root)
+    let backup = OwlTemplateBackup(dataDir: root)
     var preview = try backup.preview(data: OwlTemplateStore.encoded(incoming))
     XCTAssertEqual(preview.rows[0].kind, .update); XCTAssertFalse(preview.rows[0].selected)
     let before = try snapshot()
@@ -72,21 +72,21 @@ final class OwlTemplateBackupTests: XCTestCase {
     let repeated = try backup.preview(data: OwlTemplateStore.encoded(incoming))
     XCTAssertEqual(repeated.rows[0].kind, .identical)
     XCTAssertNil(try backup.restore(repeated).backupURL)
-    XCTAssertEqual(try OwlTemplateStore.load(rimeDir: root).entries.count, 1)
+    XCTAssertEqual(try OwlTemplateStore.load(dataDir: root).entries.count, 1)
   }
 
   func testConflictResolutionRetainsSourceAndExistingEntry() throws {
     let existing = sample()
     try OwlTemplateStore.save(OwlTemplateLibrary(entries: [existing]), writer: writer)
     var incoming = sample(); incoming.body = "另一条"
-    let backup = OwlTemplateBackup(rimeDir: root)
+    let backup = OwlTemplateBackup(dataDir: root)
     var preview = try backup.preview(data: OwlTemplateStore.encoded(OwlTemplateLibrary(entries: [incoming])))
     XCTAssertFalse(preview.conflicts.isEmpty)
     XCTAssertThrowsError(try backup.restore(preview))
     preview.makeSearchOnly(id: incoming.id)
     XCTAssertTrue(preview.conflicts.isEmpty)
     _ = try backup.restore(preview)
-    let entries = try OwlTemplateStore.load(rimeDir: root).entries
+    let entries = try OwlTemplateStore.load(dataDir: root).entries
     XCTAssertEqual(entries.count, 2)
     let restored = try XCTUnwrap(entries.first { $0.id == incoming.id })
     XCTAssertNil(restored.trigger); XCTAssertTrue(restored.candidateAliases.isEmpty)
@@ -98,7 +98,7 @@ final class OwlTemplateBackupTests: XCTestCase {
     var item = OwlTemplateEntry(title: "标题", body: "é")
     try OwlTemplateStore.save(.init(entries: [item]), writer: writer)
     item.body = "e\u{301}"
-    let preview = try OwlTemplateBackup(rimeDir: root).preview(data: OwlTemplateStore.encoded(.init(entries: [item])))
+    let preview = try OwlTemplateBackup(dataDir: root).preview(data: OwlTemplateStore.encoded(.init(entries: [item])))
     XCTAssertEqual(preview.rows[0].kind, .update)
   }
 
@@ -121,7 +121,7 @@ final class OwlTemplateBackupTests: XCTestCase {
   func testStalePreviewDoesNotOverwriteLaterEdit() throws {
     let item = sample()
     try OwlTemplateStore.save(.init(entries: [item]), writer: writer)
-    let backup = OwlTemplateBackup(rimeDir: root)
+    let backup = OwlTemplateBackup(dataDir: root)
     var addition = OwlTemplateEntry(title: "新增", body: "正文")
     let preview = try backup.preview(data: OwlTemplateStore.encoded(.init(entries: [addition])))
     addition.title = "另一窗口"
@@ -140,11 +140,11 @@ final class OwlTemplateBackupTests: XCTestCase {
     for point in checkpoints {
       // The YAML no-op does not reach writer callbacks; before-write is still covered.
       if point == "replaced:rime_ice.custom.yaml" || point == "manifest:rime_ice.custom.yaml" { continue }
-      XCTAssertThrowsError(try OwlTemplateBackup(rimeDir: root).delete(id: item.id, expected: saved, checkpoint: {
+      XCTAssertThrowsError(try OwlTemplateBackup(dataDir: root).delete(id: item.id, expected: saved, checkpoint: {
         if $0 == point { throw CocoaError(.fileWriteNoPermission) }
       }), point)
       XCTAssertEqual(try snapshot(), before, point)
-      XCTAssertFalse(OwlTemplateMigration.hasPendingRecovery(rimeDir: root), point)
+      XCTAssertFalse(OwlTemplateMigration.hasPendingRecovery(dataDir: root), point)
     }
   }
 
@@ -152,13 +152,13 @@ final class OwlTemplateBackupTests: XCTestCase {
     let old = OwlTemplateLibrary(entries: [sample()])
     try OwlTemplateStore.save(old, writer: writer)
     let before = try snapshot()
-    let migration = OwlTemplateMigration(rimeDir: root)
+    let migration = OwlTemplateMigration(dataDir: root)
     let writes = try migration.prepareLibraryTransaction(.init(), expected: old)
     // Simulate abrupt termination after the first replacement, without catch/defer recovery.
     let first = try XCTUnwrap(writes.first)
     try Data(first.contents.utf8).write(to: root.appendingPathComponent(first.fileName), options: .atomic)
-    XCTAssertThrowsError(try OwlTemplateStore.load(rimeDir: root))
-    try OwlTemplateMigration(rimeDir: root).recoverIfNeeded()
+    XCTAssertThrowsError(try OwlTemplateStore.load(dataDir: root))
+    try OwlTemplateMigration(dataDir: root).recoverIfNeeded()
     XCTAssertEqual(try snapshot(), before)
   }
 
@@ -166,10 +166,10 @@ final class OwlTemplateBackupTests: XCTestCase {
     let old = OwlTemplateLibrary(entries: [sample()])
     try OwlTemplateStore.save(old, writer: writer)
     let next = OwlTemplateLibrary(entries: [OwlTemplateEntry(title: "新", body: "新正文")])
-    let writes = try OwlTemplateMigration(rimeDir: root).prepareLibraryTransaction(next, expected: old)
+    let writes = try OwlTemplateMigration(dataDir: root).prepareLibraryTransaction(next, expected: old)
     for write in writes { try Data(write.contents.utf8).write(to: root.appendingPathComponent(write.fileName), options: .atomic) }
-    try OwlTemplateMigration(rimeDir: root).recoverIfNeeded()
-    XCTAssertEqual(try OwlTemplateStore.encoded(OwlTemplateStore.load(rimeDir: root)), try OwlTemplateStore.encoded(next))
+    try OwlTemplateMigration(dataDir: root).recoverIfNeeded()
+    XCTAssertEqual(try OwlTemplateStore.encoded(OwlTemplateStore.load(dataDir: root)), try OwlTemplateStore.encoded(next))
   }
 
   func testTagsSortingCopyAndSourceSearch() throws {
@@ -189,7 +189,7 @@ final class OwlTemplateBackupTests: XCTestCase {
   }
   func testClearingThenRetypingTriggerRetainsOriginalInvocationMode() throws {
     let item = sample()
-    var preview = try OwlTemplateBackup(rimeDir: root).preview(data: OwlTemplateStore.encoded(.init(entries: [item])))
+    var preview = try OwlTemplateBackup(dataDir: root).preview(data: OwlTemplateStore.encoded(.init(entries: [item])))
     preview.changeTrigger(id: item.id, to: "")
     XCTAssertEqual(preview.rows[0].entry.invocationMode, .searchOnly)
     preview.changeTrigger(id: item.id, to: "newcode")
@@ -202,19 +202,19 @@ final class OwlTemplateBackupTests: XCTestCase {
     let old = OwlTemplateLibrary(entries: [sample()])
     try OwlTemplateStore.save(old, writer: writer)
     var external = old; external.entries[0].body = "external update"
-    XCTAssertThrowsError(try OwlTemplateMigration(rimeDir: root).commitLibrary(.init(), expected: old, checkpoint: { step in
+    XCTAssertThrowsError(try OwlTemplateMigration(dataDir: root).commitLibrary(.init(), expected: old, checkpoint: { step in
       if step == "snapshot:" + OwlTemplateStore.fileName {
         try OwlTemplateStore.encoded(external).write(to: self.root.appendingPathComponent(OwlTemplateStore.fileName), options: .atomic)
       }
     }))
-    XCTAssertEqual(try OwlTemplateStore.encoded(OwlTemplateStore.load(rimeDir: root)), try OwlTemplateStore.encoded(external))
-    XCTAssertFalse(OwlTemplateMigration.hasPendingRecovery(rimeDir: root))
+    XCTAssertEqual(try OwlTemplateStore.encoded(OwlTemplateStore.load(dataDir: root)), try OwlTemplateStore.encoded(external))
+    XCTAssertFalse(OwlTemplateMigration.hasPendingRecovery(dataDir: root))
   }
 
   func testExternalYAMLChangeDuringSnapshotIsPreservedByPreparedWrites() throws {
     let old = OwlTemplateLibrary(entries: [sample()])
     try OwlTemplateStore.save(old, writer: writer)
-    try OwlTemplateMigration(rimeDir: root).commitLibrary(.init(), expected: old, checkpoint: { step in
+    try OwlTemplateMigration(dataDir: root).commitLibrary(.init(), expected: old, checkpoint: { step in
       if step == "snapshot:rime_ice.custom.yaml" {
         let url = self.root.appendingPathComponent("rime_ice.custom.yaml")
         let before = try String(contentsOf: url, encoding: .utf8)
@@ -229,7 +229,7 @@ final class OwlTemplateBackupTests: XCTestCase {
     let destination = root.appendingPathComponent("existing.json")
     try Data("old".utf8).write(to: destination)
     try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: destination.path)
-    try OwlTemplateBackup(rimeDir: root).export(to: destination)
+    try OwlTemplateBackup(dataDir: root).export(to: destination)
     XCTAssertEqual((try FileManager.default.attributesOfItem(atPath: destination.path)[.posixPermissions] as? NSNumber)?.intValue, 0o600)
     XCTAssertEqual(try OwlTemplateBackup.decode(Data(contentsOf: destination)).entries.count, 1)
   }
@@ -263,7 +263,7 @@ final class OwlTemplateBackupTests: XCTestCase {
     XCTAssertEqual(model.draft.tags, before.tags); XCTAssertTrue(model.draft.isPinned)
     XCTAssertEqual(model.draft.body, "{argument}{clipboard}")
     XCTAssertTrue(model.save())
-    let loaded = try XCTUnwrap(OwlTemplateStore.load(rimeDir: root).entries.first)
+    let loaded = try XCTUnwrap(OwlTemplateStore.load(dataDir: root).entries.first)
     XCTAssertTrue(OwlTemplateEngine.parse(loaded).contextRequirements.contains(.clipboard))
   }
 
@@ -284,11 +284,11 @@ final class OwlTemplateBackupTests: XCTestCase {
     let library = OwlTemplateLibrary(entries: [second, first])
     try OwlTemplateStore.save(library, writer: writer)
     let before = try snapshot()
-    _ = try OwlTemplateBackup(rimeDir: root).preview(data: OwlTemplateStore.encoded(.init(entries: [sample()])))
+    _ = try OwlTemplateBackup(dataDir: root).preview(data: OwlTemplateStore.encoded(.init(entries: [sample()])))
     XCTAssertEqual(try snapshot(), before)
     XCTAssertEqual(OwlTemplateStore.sorted(library.entries).map(\.id), [first.id, second.id])
-    _ = try OwlTemplateBackup(rimeDir: root).delete(id: second.id, expected: library)
-    XCTAssertEqual(try OwlTemplateStore.load(rimeDir: root).entries.map(\.id), [first.id])
+    _ = try OwlTemplateBackup(dataDir: root).delete(id: second.id, expected: library)
+    XCTAssertEqual(try OwlTemplateStore.load(dataDir: root).entries.map(\.id), [first.id])
   }
 
   func testTemporalEditorInsertsAllKindsAndPreservesMetadata() throws {
@@ -306,7 +306,7 @@ final class OwlTemplateBackupTests: XCTestCase {
       XCTAssertEqual(model.draft.parameters, before.parameters)
       XCTAssertEqual(model.draft.tags, before.tags); XCTAssertTrue(model.draft.isPinned)
       XCTAssertTrue(model.save())
-      let saved = try XCTUnwrap(OwlTemplateStore.load(rimeDir: root).entries.first { $0.id == before.id })
+      let saved = try XCTUnwrap(OwlTemplateStore.load(dataDir: root).entries.first { $0.id == before.id })
       XCTAssertTrue(OwlTemplateEngine.parse(saved).contextRequirements.contains(.temporal))
     }
   }
@@ -355,7 +355,7 @@ final class OwlTemplateBackupTests: XCTestCase {
     XCTAssertTrue(model.insertTemporalField(kind: .date, format: "yyyy", offset: ""))
     XCTAssertEqual(model.draft.invocationMode, .automatic)
     XCTAssertTrue(model.save(), model.status)
-    XCTAssertEqual(try OwlTemplateStore.load(rimeDir: root).entries.first, model.draft)
+    XCTAssertEqual(try OwlTemplateStore.load(dataDir: root).entries.first, model.draft)
 
     model.draft.expansionMode = .delimiterKeep
     model.setInvocationMode(.automatic)
@@ -410,22 +410,22 @@ final class OwlTemplateBackupTests: XCTestCase {
     let library = OwlTemplateLibrary(entries: [item])
     try OwlTemplateStore.save(library, writer: writer)
     let runtime = OwlAutomaticExpansionRuntime()
-    try runtime.reload(rimeDir: root, defaults: defaults)
+    try runtime.reload(dataDir: root, defaults: defaults)
     XCTAssertTrue(runtime.allows(bundleID: "com.example.Host"))
     var publications = 0
     let observer = NotificationCenter.default.addObserver(forName: OwlTemplateStore.libraryDidCommit, object: nil, queue: nil) { notification in
       guard let directory = notification.object as? URL,
             directory.standardizedFileURL == self.root.standardizedFileURL else { return }
       publications += 1
-      XCTAssertFalse(OwlTemplateMigration.hasPendingRecovery(rimeDir: directory))
+      XCTAssertFalse(OwlTemplateMigration.hasPendingRecovery(dataDir: directory))
       do {
-        _ = try OwlTemplateStore.load(rimeDir: directory)
+        _ = try OwlTemplateStore.load(dataDir: directory)
       } catch {
         XCTFail("Committed library must be readable when published: \(error)")
       }
     }
     defer { NotificationCenter.default.removeObserver(observer) }
-    let backup = OwlTemplateBackup(rimeDir: root)
+    let backup = OwlTemplateBackup(dataDir: root)
     XCTAssertThrowsError(try backup.delete(id: item.id, expected: library, checkpoint: { step in
       XCTAssertEqual(publications, 0, "Staged writes must not publish")
       if step == "completed" { throw CocoaError(.fileWriteNoPermission) }
@@ -450,13 +450,13 @@ final class OwlTemplateBackupTests: XCTestCase {
     let library = OwlTemplateLibrary(entries: [item])
     try OwlTemplateStore.save(library, writer: writer)
     let runtime = OwlAutomaticExpansionRuntime()
-    try runtime.reload(rimeDir: root, defaults: defaults)
-    let writes = try OwlTemplateMigration(rimeDir: root).prepareLibraryTransaction(.init(), expected: library)
+    try runtime.reload(dataDir: root, defaults: defaults)
+    let writes = try OwlTemplateMigration(dataDir: root).prepareLibraryTransaction(.init(), expected: library)
     let first = try XCTUnwrap(writes.first)
     try Data(first.contents.utf8).write(to: root.appendingPathComponent(first.fileName), options: .atomic)
-    XCTAssertThrowsError(try runtime.reload(rimeDir: root, defaults: defaults))
+    XCTAssertThrowsError(try runtime.reload(dataDir: root, defaults: defaults))
     XCTAssertFalse(runtime.allows(bundleID: "com.example.Host"))
-    try OwlTemplateMigration(rimeDir: root).recoverIfNeeded()
+    try OwlTemplateMigration(dataDir: root).recoverIfNeeded()
     XCTAssertTrue(runtime.allows(bundleID: "com.example.Host"))
   }
 

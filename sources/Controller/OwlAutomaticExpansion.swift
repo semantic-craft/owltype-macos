@@ -230,11 +230,11 @@ enum OwlAutomaticExpansionScope {
 /// that handleAutomaticExpansion uses, without constructing an IMK server in the test process.
 enum OwlAutomaticExpansionControllerEntry {
   static func start(input: OwlAutomaticExpansionRecognizer.Input, bundleID: @autoclosure () -> String?,
-                    runtime: OwlAutomaticExpansionRuntime, rime: RimeSession?, openHost: () -> Bool) -> Bool {
+                    runtime: OwlAutomaticExpansionRuntime, engineSession: EngineSession?, openHost: () -> Bool) -> Bool {
     guard case .text(";") = input, runtime.enabled, !runtime.index.isEmpty,
           runtime.allows(bundleID: bundleID()),
-          let rime, rime.isValid, let raw = rime.input(), raw.isEmpty,
-          let context = rime.composition(), context.preedit.isEmpty,
+          let engineSession, engineSession.isValid, let raw = engineSession.input(), raw.isEmpty,
+          let context = engineSession.composition(), context.preedit.isEmpty,
           context.candidates.isEmpty, (context.commitTextPreview ?? "").isEmpty else { return false }
     return openHost()
   }
@@ -310,7 +310,7 @@ final class OwlAutomaticExpansionRuntime {
       let refresh = { [weak self] in
         guard let self, let directory = self.directory,
               changed.standardizedFileURL == directory else { return }
-        try? self.reload(rimeDir: directory, defaults: self.defaults)
+        try? self.reload(dataDir: directory, defaults: self.defaults)
       }
       if Thread.isMainThread { refresh() } else { DispatchQueue.main.async(execute: refresh) }
     }
@@ -319,14 +319,14 @@ final class OwlAutomaticExpansionRuntime {
   deinit { if let commitObserver { NotificationCenter.default.removeObserver(commitObserver) } }
 
   /// Startup/settings/successful-transaction path only; ordinary keystrokes never call this.
-  func reload(rimeDir: URL = OwlApp.userDir, defaults: UserDefaults = OwlDefaults.standard) throws {
-    directory = rimeDir.standardizedFileURL
+  func reload(dataDir: URL = OwlApp.userDir, defaults: UserDefaults = OwlDefaults.standard) throws {
+    directory = dataDir.standardizedFileURL
     self.defaults = defaults
     do {
       let entries: [OwlTemplateEntry]
-      switch OwlTemplateStore.mode(rimeDir: rimeDir) {
+      switch OwlTemplateStore.mode(dataDir: dataDir) {
       case .empty: entries = []
-      case .unified: entries = try OwlTemplateStore.load(rimeDir: rimeDir).entries
+      case .unified: entries = try OwlTemplateStore.load(dataDir: dataDir).entries
       case .legacy: throw OwlTemplateError.legacyRequiresMigration
       case .unavailable(let message): throw OwlTemplateError.invalid(message)
       }

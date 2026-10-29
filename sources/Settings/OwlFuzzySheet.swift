@@ -10,7 +10,7 @@
 //
 //  Persistence boundary (see `.trellis/spec/frontend/owl-modern-ui-direction.md`):
 //  these toggles map to `speller/algebra` derive rules previewed by
-//  `OwlRimePatchBuilder`; this sheet persists choices in UserDefaults, and the parent
+//  `OwlConfigPatchBuilder`; this sheet persists choices in UserDefaults, and the parent
 //  keyboard page writes Owltype's user_data_dir + `deploy()` when the sheet closes.
 //
 //  Boundary (ADR-0001 / 0002 / 0003): SwiftUI is the settings UI layer only — never

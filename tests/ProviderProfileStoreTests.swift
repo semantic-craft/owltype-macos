@@ -11,7 +11,7 @@
 //    4. The key NEVER appears in providers.json; it lives only in the secret store under secretName.
 //    5. Legacy DeepSeek migration is idempotent and only fires when a legacy key exists.
 //
-//  No network, no librime.
+//  No network, no engine.
 //
 
 import Foundation

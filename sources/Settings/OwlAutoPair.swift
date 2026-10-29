@@ -7,7 +7,7 @@
 //
 //  This file is PURE value logic only — no IMK, no client reads, no UserDefaults. The
 //  execution (insertText with replacementRange, the zero-permission right-neighbor read)
-//  lives at the commit seam in `OwlInputController+RimeUpdate.swift`, mirroring how
+//  lives at the commit seam in `OwlInputController+EngineUpdate.swift`, mirroring how
 //  `OwlCommitTransform` splits pure transform vs. controller side effects.
 //
 //  Boundary (ADR-0001 / 0002 / 0003): string/value transforms only when reached from the

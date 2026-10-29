@@ -214,7 +214,7 @@ enum OwlKeyboardPreferences {
     }
   }
 
-  /// The schema a new librime session must use to match the settings source of truth.
+  /// The schema a new engine session must use to match the settings source of truth.
   /// Keeps stale `user.yaml` `previously_selected_schema` values from overriding Owltype prefs.
   static var preferredSchemaID: String {
     inputMethod.schemaId(doublePinyin: doublePinyin, wubiScheme: wubiScheme)
@@ -349,14 +349,16 @@ enum OwlKeyboardPreferences {
     set { catalog.set(.pageMinusEquals, newValue) }
   }
 
-  /// 左右中括号翻页. Key `"OwlKeyboardPageBrackets"`, default `true`.
+  /// 左右中括号翻页. Key `"OwlKeyboardPageBrackets"`, default `false`
+  /// (水杉 keeps `[` `]` for 以词定字; #315).
   /// Eventual Rime mapping: `key_binder` page_up `bracketleft` / page_down `bracketright`.
   static var pageBrackets: Bool {
     get { catalog.load(.pageBrackets) }
     set { catalog.set(.pageBrackets, newValue) }
   }
 
-  /// 逗号句号翻页. Key `"OwlKeyboardPageCommaPeriod"`, default `false`.
+  /// 逗号句号翻页. Key `"OwlKeyboardPageCommaPeriod"`, default `true`
+  /// (水杉 default; #315).
   /// Eventual Rime mapping: `key_binder` page_up `comma` / page_down `period`.
   static var pageCommaPeriod: Bool {
     get { catalog.load(.pageCommaPeriod) }

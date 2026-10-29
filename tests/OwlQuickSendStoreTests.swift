@@ -15,7 +15,7 @@
 //       `v` chains collapsed — base codes kept, orphaned chains keep their shortest code, and a
 //       genuine user code that merely starts with "v" survives.
 //
-//  No network, no librime. The store is pointed at a unique temp root so it never touches the
+//  No network, no engine. The store is pointed at a unique temp root so it never touches the
 //  real ~/Library/Application Support/Owltype.
 //
 
@@ -48,14 +48,14 @@ final class OwlQuickSendStoreTests: XCTestCase {
   // MARK: - JSON source of truth + derived table
 
   func testSaveWritesJSONSourceOfTruthPlusDerivedTable() throws {
-    let writer = OwlConfigWriter(rimeDir: tempRoot)
+    let writer = OwlConfigWriter(dataDir: tempRoot)
     let entries = [
       try OwlQuickSendStore.entry(text: "claude --dangerously-skip-permissions", code: "yocc"),
       try OwlQuickSendStore.entry(text: "最高人民法院", code: "zgfy"),
     ]
     try OwlQuickSendStore.save(entries, writer: writer, timestamp: "20260724-000000")
 
-    let loaded = OwlQuickSendStore.load(rimeDir: tempRoot)
+    let loaded = OwlQuickSendStore.load(dataDir: tempRoot)
     XCTAssertEqual(loaded.map(\.code), ["yocc", "zgfy"])
 
     // Derived table carries the BARE code — no ` prefix (` is rime-ice's radical-search lead;
@@ -73,11 +73,11 @@ final class OwlQuickSendStoreTests: XCTestCase {
   /// THE regression guard for the snowball bug: repeated save→load cycles are a fixpoint.
   /// (The old dict-backed store grew one `v` generation per cycle.)
   func testRepeatedSaveLoadRoundTripsAreAFixpoint() throws {
-    let writer = OwlConfigWriter(rimeDir: tempRoot)
+    let writer = OwlConfigWriter(dataDir: tempRoot)
     var entries = [try OwlQuickSendStore.entry(text: "opencode --auto", code: "yooc")]
     for cycle in 1...5 {
       try OwlQuickSendStore.save(entries, writer: writer, timestamp: "20260724-00000\(cycle)")
-      entries = OwlQuickSendStore.load(rimeDir: tempRoot)
+      entries = OwlQuickSendStore.load(dataDir: tempRoot)
       XCTAssertEqual(entries.map(\.code), ["yooc"], "cycle \(cycle) must not grow the store")
     }
   }
@@ -98,7 +98,7 @@ final class OwlQuickSendStoreTests: XCTestCase {
       to: tempRoot.appendingPathComponent(OwlQuickSendStore.dictFileName),
       atomically: true, encoding: .utf8)
 
-    let migrated = OwlQuickSendStore.load(rimeDir: tempRoot)
+    let migrated = OwlQuickSendStore.load(dataDir: tempRoot)
     XCTAssertEqual(migrated, [OwlQuickSendEntry(text: "opencode --auto", code: "yooc")])
   }
 
@@ -115,7 +115,7 @@ final class OwlQuickSendStoreTests: XCTestCase {
       to: tempRoot.appendingPathComponent(OwlQuickSendStore.dictFileName),
       atomically: true, encoding: .utf8)
 
-    let migrated = OwlQuickSendStore.load(rimeDir: tempRoot)
+    let migrated = OwlQuickSendStore.load(dataDir: tempRoot)
     XCTAssertEqual(migrated.map(\.code), ["ip", "vip", "vyocc"])
   }
 
@@ -152,7 +152,7 @@ final class OwlQuickSendStoreTests: XCTestCase {
       to: tempRoot.appendingPathComponent("rime_ice.custom.yaml"),
       atomically: true, encoding: .utf8)
 
-    OwlQuickSendStore.migrateDerivedArtifactsIfNeeded(rimeDir: tempRoot)
+    OwlQuickSendStore.migrateDerivedArtifactsIfNeeded(dataDir: tempRoot)
 
     // JSON source of truth materialized with the v-chain collapsed to the bare code.
     let json = try read(OwlQuickSendStore.fileName)
@@ -181,7 +181,7 @@ final class OwlQuickSendStoreTests: XCTestCase {
   /// prefix collides with rime-ice's radical-search lead key, so those phrases can never fire.
   /// Migration must re-render bare codes from the JSON.
   func testMigrateRewritesPrefixedTableFromJSONSourceOfTruth() throws {
-    let writer = OwlConfigWriter(rimeDir: tempRoot)
+    let writer = OwlConfigWriter(dataDir: tempRoot)
     try OwlQuickSendStore.save(
       [try OwlQuickSendStore.entry(text: "claude --dangerously-skip-permissions", code: "yocc")],
       writer: writer, timestamp: "20260726-000001")
@@ -190,7 +190,7 @@ final class OwlQuickSendStoreTests: XCTestCase {
       to: tempRoot.appendingPathComponent(OwlQuickSendStore.dictFileName),
       atomically: true, encoding: .utf8)
 
-    OwlQuickSendStore.migrateDerivedArtifactsIfNeeded(rimeDir: tempRoot)
+    OwlQuickSendStore.migrateDerivedArtifactsIfNeeded(dataDir: tempRoot)
 
     let dict = try read(OwlQuickSendStore.dictFileName)
     XCTAssertTrue(dict.contains("claude --dangerously-skip-permissions\tyocc\t100000"))
@@ -200,7 +200,7 @@ final class OwlQuickSendStoreTests: XCTestCase {
   /// Once artifacts are in sync the launch-time replay must be pure comparison — zero disk writes,
   /// zero new rollback-manifest entries (it runs on EVERY launch).
   func testMigrateIsNoOpOnceArtifactsAreInSync() throws {
-    let writer = OwlConfigWriter(rimeDir: tempRoot)
+    let writer = OwlConfigWriter(dataDir: tempRoot)
     try OwlQuickSendStore.save(
       [try OwlQuickSendStore.entry(text: "opencode --auto", code: "yooc")],
       writer: writer, timestamp: "20260726-000000")
@@ -209,7 +209,7 @@ final class OwlQuickSendStoreTests: XCTestCase {
     let dictBefore = try read(OwlQuickSendStore.dictFileName)
     let yamlBefore = try read("rime_ice.custom.yaml")
 
-    OwlQuickSendStore.migrateDerivedArtifactsIfNeeded(rimeDir: tempRoot)
+    OwlQuickSendStore.migrateDerivedArtifactsIfNeeded(dataDir: tempRoot)
 
     XCTAssertEqual(try Data(contentsOf: manifestURL), manifestBefore, "in-sync replay must not append manifest entries")
     XCTAssertEqual(try read(OwlQuickSendStore.dictFileName), dictBefore)
@@ -219,7 +219,7 @@ final class OwlQuickSendStoreTests: XCTestCase {
   /// A user who never used quick send has neither the JSON nor the dict — migration must not
   /// conjure files (that would register the translator for everyone).
   func testMigrateDoesNothingWhenFeatureNeverUsed() throws {
-    OwlQuickSendStore.migrateDerivedArtifactsIfNeeded(rimeDir: tempRoot)
+    OwlQuickSendStore.migrateDerivedArtifactsIfNeeded(dataDir: tempRoot)
     let fm = FileManager.default
     XCTAssertFalse(fm.fileExists(atPath: tempRoot.appendingPathComponent(OwlQuickSendStore.fileName).path))
     XCTAssertFalse(fm.fileExists(atPath: tempRoot.appendingPathComponent(OwlQuickSendStore.dictFileName).path))
@@ -227,7 +227,7 @@ final class OwlQuickSendStoreTests: XCTestCase {
   }
 
   func testJSONWinsOverLegacyDictWhenBothExist() throws {
-    let writer = OwlConfigWriter(rimeDir: tempRoot)
+    let writer = OwlConfigWriter(dataDir: tempRoot)
     try OwlQuickSendStore.save(
       [try OwlQuickSendStore.entry(text: "最高人民法院", code: "zgfy")],
       writer: writer, timestamp: "20260724-000010")
@@ -236,6 +236,6 @@ final class OwlQuickSendStoreTests: XCTestCase {
       to: tempRoot.appendingPathComponent(OwlQuickSendStore.dictFileName),
       atomically: true, encoding: .utf8)
 
-    XCTAssertEqual(OwlQuickSendStore.load(rimeDir: tempRoot).map(\.code), ["zgfy"])
+    XCTAssertEqual(OwlQuickSendStore.load(dataDir: tempRoot).map(\.code), ["zgfy"])
   }
 }

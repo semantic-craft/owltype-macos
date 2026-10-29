@@ -4,20 +4,20 @@
 //
 //  The PURE key-event classifier (task 06-22-pure-input-pipeline-refactor).
 //
-//  Pipeline:  NSEvent → OwlUserAction (PURE classify) → feed librime (processKey, stateful)
+//  Pipeline:  NSEvent → OwlUserAction (PURE classify) → feed the engine (processKey, stateful)
 //             → OwlClientAction[] → apply(client) (single side-effect point).
 //
 //  This file owns ONLY the "what semantic action is this key event?" decision, lifted verbatim
 //  out of `OwlInputController.handle()` (the `keyChars`/`capitalModifiers` character resolution
 //  and the flagsChanged press/release ordering buffer). It is a pure value enum + a pure
-//  classifier: no AppKit-instance state is held, no librime, no IMK. Reading an `NSEvent`'s
+//  classifier: no AppKit-instance state is held, no engine, no IMK. Reading an `NSEvent`'s
 //  fields as classifier INPUT is fine (mirrors azooKey's `KeyEventCore`); the classifier itself
 //  works on plain value fields (`OwlKeyEvent`) so it is fully unit-testable headless.
 //
-//  IMPORTANT (the task's hard constraint): librime still owns ALL conversion state
-//  (`RimeContext` via `RimeSeam`). This is NOT a `OwlInputState` reducer — it only classifies
+//  IMPORTANT (the task's hard constraint): The engine still owns ALL conversion state
+//  (`EngineComposition` via `EngineSeam`). This is NOT a `OwlInputState` reducer — it only classifies
 //  a single raw key event into the rime keycode/modifier pair(s) the controller must feed
-//  librime, plus the press/release ORDERING for flagsChanged. State stays in librime.
+//  the engine, plus the press/release ORDERING for flagsChanged. State stays in the engine.
 //
 
 import AppKit
@@ -56,7 +56,7 @@ struct OwlKeyEvent: Equatable {
     // NSEvent.characters / charactersIgnoringModifiers raise NSInternalInconsistencyException for
     // non-key events (a modifier press is a flagsChanged, not keyDown). Reading them eagerly here
     // threw for EVERY modifier event → IMK swallowed the exception → handle() aborted before the
-    // modifier reached librime → Shift CJK/English toggle (all flagsChanged handling) was silently
+    // modifier reached the engine → Shift CJK/English toggle (all flagsChanged handling) was silently
     // dead (regression from the pure-pipeline refactor 27b337e). Only keyDown uses these (classify's
     // .keyDown case); leave them nil for flagsChanged/other.
     if type == .keyDown {
@@ -83,16 +83,16 @@ struct OwlKeyEvent: Equatable {
 }
 
 /// The semantic action a raw key event maps to. The controller feeds the resulting rime
-/// keycode/modifier pair(s) to librime (which owns conversion state) and then runs `rimeUpdate`.
+/// keycode/modifier pair(s) to the engine (which owns conversion state) and then runs `engineUpdate`.
 enum OwlUserAction: Equatable {
-  /// A real key press to feed librime. `rimeKeycode == 0` is NOT produced (the classifier drops
-  /// it, matching the old `if rimeKeycode != 0` guard); a non-zero keycode here is always fed.
-  case keyDown(rimeKeycode: UInt32, rimeModifiers: UInt32)
+  /// A real key press to feed the engine. `engineKeycode == 0` is NOT produced (the classifier drops
+  /// it, matching the old `if engineKeycode != 0` guard); a non-zero keycode here is always fed.
+  case keyDown(engineKeycode: UInt32, engineModifiers: UInt32)
 
-  /// One or more modifier transitions to feed librime IN ORDER (release-before-down ordering
+  /// One or more modifier transitions to feed the engine IN ORDER (release-before-down ordering
   /// already applied). `updateLastModifiers` always becomes the controller's new `lastModifiers`.
   /// `events` may be empty (e.g. capsLock-only revert handled via `capsLockRevert`) — the
-  /// controller still runs `rimeUpdate` and stores `updateLastModifiers`.
+  /// controller still runs `engineUpdate` and stores `updateLastModifiers`.
   /// `handled` is the value `handle()` must return: the original code returned `true` ONLY on the
   /// couldn't-infer-keycode early-bail; the normal modifier press/release path left `handled` at
   /// its initial `false` (so the host app still sees the modifier event). `events.isEmpty` cannot
@@ -110,7 +110,7 @@ enum OwlUserAction: Equatable {
   case commandPassthrough
 
   /// Nothing to do; `handled` stays false (non-key event, or a keyDown that produced no usable
-  /// rime keycode — same as the old fall-through where `keyChars?.first` was nil or rimeKeycode 0).
+  /// rime keycode — same as the old fall-through where `keyChars?.first` was nil or engineKeycode 0).
   case ignored
 
   // Equatable can't be synthesized for the tuple-carrying `flagsChanged` case; provide it.
@@ -155,7 +155,7 @@ enum OwlUserActionClassifier {
     return keyChars
   }
 
-  /// Classify a de-platformed key event. PURE: no librime, no IMK, no `NSScreen`.
+  /// Classify a de-platformed key event. PURE: no engine, no IMK, no `NSScreen`.
   static func classify(_ event: OwlKeyEvent) -> OwlUserAction {
     let modifiers = event.modifierFlags
     let changes = event.lastModifiers.symmetricDifference(modifiers)
@@ -165,7 +165,7 @@ enum OwlUserActionClassifier {
       if event.lastModifiers == modifiers {
         return .flagsUnchanged
       }
-      var rimeModifiers: UInt32 = OwlKeycode.osxModifiersToRime(modifiers: modifiers)
+      var engineModifiers: UInt32 = OwlKeycode.osxModifiersToEngine(modifiers: modifiers)
       // For flags-changed event, keyCode is available since macOS 10.15 (#715).
       // Some remote desktop software (e.g. Parsec) sends flagsChanged events with keyCode
       // defaulting to 0 (kVK_ANSI_A) instead of the actual modifier keycode, causing a ghost 'a'
@@ -173,22 +173,22 @@ enum OwlUserActionClassifier {
       var keyCode = event.keyCode
       if !OwlKeycode.modifierKeycodes.contains(keyCode) {
         guard let inferred = OwlKeycode.inferModifierKeycode(from: changes) else {
-          // Couldn't infer a modifier keycode → old code stored lastModifiers, ran rimeUpdate,
+          // Couldn't infer a modifier keycode → old code stored lastModifiers, ran engineUpdate,
           // and marked handled = true. Represent that as a flagsChanged with no events to feed.
           return .flagsChanged(capsLockRevert: nil, events: [], updateLastModifiers: modifiers, handled: true)
         }
         keyCode = inferred
       }
-      let rimeKeycode: UInt32 = OwlKeycode.osxKeycodeToRime(keycode: keyCode, keychar: nil, shift: false, caps: false)
+      let engineKeycode: UInt32 = OwlKeycode.osxKeycodeToEngine(keycode: keyCode, keychar: nil, shift: false, caps: false)
 
       var capsLockRevert: (keycode: UInt32, modifiers: UInt32)?
       if changes.contains(.capsLock) {
         // NOTE: rime assumes XK_Caps_Lock to be sent before modifier changes, while the
         // NSFlagsChanged event has the flag changed already — so revert kLockMask.
-        // The original code mutated `rimeModifiers` in place via `^=`; subsequent press/release
+        // The original code mutated `engineModifiers` in place via `^=`; subsequent press/release
         // events use that XOR'd value. Preserve that exactly.
-        rimeModifiers ^= kLockMask.rawValue
-        capsLockRevert = (keycode: rimeKeycode, modifiers: rimeModifiers)
+        engineModifiers ^= kLockMask.rawValue
+        capsLockRevert = (keycode: engineKeycode, modifiers: engineModifiers)
       }
 
       // Need to process release before modifier down. Because sometimes the release event is
@@ -196,9 +196,9 @@ enum OwlUserActionClassifier {
       var buffer = [(keycode: UInt32, modifiers: UInt32)]()
       for flag in [NSEvent.ModifierFlags.shift, .control, .option, .command] where changes.contains(flag) {
         if modifiers.contains(flag) { // New modifier
-          buffer.append((keycode: rimeKeycode, modifiers: rimeModifiers))
+          buffer.append((keycode: engineKeycode, modifiers: engineModifiers))
         } else { // Release
-          buffer.insert((keycode: rimeKeycode, modifiers: rimeModifiers | kReleaseMask.rawValue), at: 0)
+          buffer.insert((keycode: engineKeycode, modifiers: engineModifiers | kReleaseMask.rawValue), at: 0)
         }
       }
       // Normal modifier press/release path: the original code left `handled` at its initial
@@ -216,12 +216,12 @@ enum OwlUserActionClassifier {
                                      modifiers: modifiers)
       // translate osx keyevents to rime keyevents
       guard let char = keyChars?.first else { return .ignored }
-      let rimeKeycode = OwlKeycode.osxKeycodeToRime(keycode: event.keyCode, keychar: char,
+      let engineKeycode = OwlKeycode.osxKeycodeToEngine(keycode: event.keyCode, keychar: char,
                                                      shift: modifiers.contains(.shift),
                                                      caps: modifiers.contains(.capsLock))
-      guard rimeKeycode != 0 else { return .ignored }
-      let rimeModifiers = OwlKeycode.osxModifiersToRime(modifiers: modifiers)
-      return .keyDown(rimeKeycode: rimeKeycode, rimeModifiers: rimeModifiers)
+      guard engineKeycode != 0 else { return .ignored }
+      let engineModifiers = OwlKeycode.osxModifiersToEngine(modifiers: modifiers)
+      return .keyDown(engineKeycode: engineKeycode, engineModifiers: engineModifiers)
 
     case .other:
       return .ignored

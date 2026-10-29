@@ -27,7 +27,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   /// The controller's composition-timeline snapshot emitter, behind the narrow
   /// `SnapshotEmitting` port (same composition-root pattern as `engine`). Default is the
   /// production `.shared` emitter; swappable so tests can drive the snapshot path and assert
-  /// the emitted call/args without a librime session.
+  /// the emitted call/args without an engine session.
   var snapshotEmitter: SnapshotEmitting = OwlSnapshotEmitter.shared
   /// The controller's explicit 润色选中 rewrite, behind the narrow `SelectionPolishing` port.
   /// Default is the production `.shared` service; swappable so tests can return scripted
@@ -173,7 +173,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     NSWorkspace.shared.open(OwlApp.logDir)
   }
 
-  func openRimeFolder() {
+  func openDataFolder() {
     NSWorkspace.shared.open(OwlApp.userDir)
   }
 
@@ -316,8 +316,8 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     state.researchAssistSkillEnabled = OwlSelectionMenuPreferences.researchAssistEnabled
     state.publishFormattingSkillEnabled = OwlSelectionMenuPreferences.publishFormattingEnabled
     state.translationSkillEnabled = OwlSelectionMenuPreferences.translationEnabled
-    // Seed the librime version for the 关于 page (best-effort; empty when absent).
-    state.librimeVersion = rimeVersion() ?? ""
+    // Seed the engine version for the 关于 page (best-effort; empty when absent).
+    state.engineVersion = engineVersion() ?? ""
     OwlLatencyTrace.event("window.settings.dataLoaded")
 
     let window = owlSettingsWindow ?? OwlSettingsWindow()
@@ -329,7 +329,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       onSelectSchema: { [weak self] schemaID in
         guard let self else { return }
         let selected = self.selectSchema(schemaID)
-        // Never highlight or announce the requested schema when librime rejected it. On a clean
+        // Never highlight or announce the requested schema when the engine rejected it. On a clean
         // install this is the exact interval in which the dict-pack consent/download UI takes over.
         let actualSchemaID = self.currentSchemaId()
         if !actualSchemaID.isEmpty { state.currentSchemaId = actualSchemaID }
@@ -360,8 +360,8 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
           state.statusMessage = self.runtime.resetUserDict()
         }
       ),
-      onOpenRimeFolder: { [weak self] in
-        self?.openRimeFolder()
+      onOpenDataFolder: { [weak self] in
+        self?.openDataFolder()
       },
       onOpenLog: { [weak self] in
         self?.openLogFolder()
@@ -375,7 +375,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
         self.owlPanel?.refreshPreferences()
         OwlInputStatusPanel.shared.refreshPreferences()
       },
-      writesRimeConfiguration: false
+      writesConfigPatches: false
     )
     OwlLatencyTrace.event("window.settings.firstVisible")
   }
@@ -385,7 +385,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     state.schemas = [SchemaItem(id: "rime_ice", name: "雾凇拼音")]
     state.currentSchemaId = "rime_ice"
     state.currentInputSourceDisplayName = "Owltype UI Test"
-    state.librimeVersion = "ui-test"
+    state.engineVersion = "ui-test"
 
     let window = owlSettingsWindow ?? OwlSettingsWindow()
     owlSettingsWindow = window
@@ -399,7 +399,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
         migrateLegacy: {},
         resetUserDict: {}
       ),
-      onOpenRimeFolder: {},
+      onOpenDataFolder: {},
       onOpenLog: {},
       onShowOnboarding: {},
       onPanelPreferencesChanged: {}
@@ -449,7 +449,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   }
 
   /// Installed schemas, via the Engine seam (`get_schema_list`). Best-effort: returns
-  /// an empty list if librime is not yet deployed.
+  /// an empty list if the engine is not yet deployed.
   func loadSchemaList() -> [SchemaItem] {
     runtime.engine.schemaList().map { SchemaItem(id: $0.id, name: $0.name) }
   }
@@ -460,17 +460,17 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     runtime.engine.currentSchema()
   }
 
-  /// librime version string for the 关于 page, via the Engine seam (`get_version`).
+  /// the engine version string for the 关于 page, via the Engine seam (`get_version`).
   /// Returns nil when the getter or string is unavailable so the About page omits
   /// the row gracefully (never crashes).
-  func rimeVersion() -> String? {
+  func engineVersion() -> String? {
     runtime.engine.version()
   }
 
   /// Switch the active schema (输入方式/双拼 picker, 方案切换 row). PR3: this no longer runs
   /// the heavy full `runtime.redeploy()`. Schema configs
   /// are already built, so switching is `select_schema`-only:
-  ///   1. `engine.selectSchema(id)` on a transient session — librime REMEMBERS the selection
+  ///   1. `engine.selectSchema(id)` on a transient session — the engine REMEMBERS the selection
   ///      for subsequent new sessions (e.g. the next app the user types in).
   ///   2. switch the ACTIVE controller's LIVE session in place (`select_schema(id)` re-reads
   ///      the built `build/<id>.schema.yaml`; no dict/octagram rebuild) so the current
@@ -587,7 +587,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     }
   }
 
-  func setupRime() {
+  func setupEngine() {
     do {
       try OwlPrivateStorage.prepareDirectory(OwlApp.userDir)
     } catch {
@@ -598,7 +598,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     // Recover before any seed/managed patch can change the shared rollback manifest.
     // Failure leaves originals and the durable journal intact; the settings route exposes retry.
     var templateRecoveryReady = true
-    do { try OwlTemplateMigration(rimeDir: OwlApp.userDir).recoverIfNeeded() }
+    do { try OwlTemplateMigration(dataDir: OwlApp.userDir).recoverIfNeeded() }
     catch { templateRecoveryReady = false }
     if templateRecoveryReady { seedUserDirIfNeeded() }
     // Bug fix: the seeded `default.custom.yaml` is bare (schema_list + page_size only) and the
@@ -613,14 +613,14 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     if templateRecoveryReady {
       // Only valid, conflict-free raw data is migrated automatically. Never replay a tolerant
       // legacy loader into its source JSON before this audit.
-      _ = try? OwlTemplateMigration(rimeDir: OwlApp.userDir).runAutomatically()
-      if !OwlTemplateMigration.hasPendingRecovery(rimeDir: OwlApp.userDir) {
+      _ = try? OwlTemplateMigration(dataDir: OwlApp.userDir).runAutomatically()
+      if !OwlTemplateMigration.hasPendingRecovery(dataDir: OwlApp.userDir) {
         _ = try? OwlManagedKeyboardPatchPlan.apply(snapshot: OwlKeyboardSnapshot.current())
       }
     }
     // Bind the committed template directory after migration/recovery. reload closes the
     // in-memory index on unavailable/legacy state; UI tests use the isolated defaults source.
-    _ = try? OwlAutomaticExpansionRuntime.shared.reload(rimeDir: OwlApp.userDir, defaults: OwlDefaults.standard)
+    _ = try? OwlAutomaticExpansionRuntime.shared.reload(dataDir: OwlApp.userDir, defaults: OwlDefaults.standard)
     // B1: one-shot, idempotent migration of a legacy single-DeepSeek setup into a default provider
     // profile. No-op on a fresh install (no legacy key) or once a profile already exists. Off the
     // IMK hot path — runs only here at app launch.
@@ -642,7 +642,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
         ),
         userDataDir: OwlApp.userDir,
         logDir: OwlApp.logDir,
-        appName: OwlRimeIdentity.appName
+        appName: OwlEngineIdentity.appName
       )
     )
   }
@@ -658,7 +658,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     guard let sharedSupport = Bundle.main.sharedSupportPath else { return }
     let seedDir = URL(fileURLWithPath: sharedSupport).appending(component: "_user_seed", directoryHint: .isDirectory)
     migrateLegacyOwltypeCustomConfigIfNeeded()
-    let marker = OwlApp.userDir.appending(component: OwlRimeIdentity.seedMarkerFile, directoryHint: .notDirectory)
+    let marker = OwlApp.userDir.appending(component: OwlEngineIdentity.seedMarkerFile, directoryHint: .notDirectory)
     guard fm.fileExists(atPath: seedDir.path), !fm.fileExists(atPath: marker.path) else { return }
     do {
       for src in try fm.contentsOfDirectory(at: seedDir, includingPropertiesForKeys: nil) {
@@ -676,12 +676,12 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
 
   private func migrateLegacyOwltypeCustomConfigIfNeeded() {
     let fm = FileManager.default
-    let legacy = OwlApp.userDir.appending(component: OwlRimeIdentity.legacyCustomConfigFile, directoryHint: .notDirectory)
-    let current = OwlApp.userDir.appending(component: OwlRimeIdentity.customConfigFile, directoryHint: .notDirectory)
+    let legacy = OwlApp.userDir.appending(component: OwlEngineIdentity.legacyCustomConfigFile, directoryHint: .notDirectory)
+    let current = OwlApp.userDir.appending(component: OwlEngineIdentity.customConfigFile, directoryHint: .notDirectory)
     guard fm.fileExists(atPath: legacy.path), !fm.fileExists(atPath: current.path) else { return }
     do {
       try fm.copyItem(at: legacy, to: current)
-      print("Owltype: migrated legacy \(OwlRimeIdentity.legacyCustomConfigFile) to \(OwlRimeIdentity.customConfigFile) in Owltype user_data_dir.")
+      print("Owltype: migrated legacy \(OwlEngineIdentity.legacyCustomConfigFile) to \(OwlEngineIdentity.customConfigFile) in Owltype user_data_dir.")
     } catch {
       print("Owltype: legacy custom config migration failed: \(error)")
     }
@@ -697,28 +697,28 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   /// composition. Seeded on session create (`createSession`) so the choice survives focus changes.
   func applyTraditionalOutputToLiveSession(_ traditional: Bool) {
     runtime.activeInputController?.setTraditionalOutputOptions(traditional)
-    runtime.activeInputController?.rimeUpdate()
+    runtime.activeInputController?.engineUpdate()
   }
 
   /// 候选 emoji 开关 live 生效（仿 `applyTraditionalOutputToLiveSession`）：切当前会话的
   /// `emoji` option（rime-ice 的 emoji switch 名），立即重算候选。新会话由 `createSession` 按 pref 重新 seed。
   func applyEmojiSuggestionToLiveSession(_ enabled: Bool) {
-    runtime.activeInputController?.setRimeOption(.emojiSuggestion, enabled)
-    runtime.activeInputController?.rimeUpdate()
+    runtime.activeInputController?.setEngineOption(.emojiSuggestion, enabled)
+    runtime.activeInputController?.engineUpdate()
   }
 
   /// 默认状态·中英文 live 生效：改下拉时立刻把当前会话切到 中文/英文（`ascii_mode`）。新会话由
   /// `createSession` 按 `defaultAsciiMode` pref 重新 seed。
   func applyDefaultAsciiModeToLiveSession(_ english: Bool) {
-    runtime.activeInputController?.setRimeOption(.asciiMode, english)
-    runtime.activeInputController?.rimeUpdate()
+    runtime.activeInputController?.setEngineOption(.asciiMode, english)
+    runtime.activeInputController?.engineUpdate()
   }
 
   /// 默认状态·全半角 live 生效：改下拉时立刻把当前会话切到 半角/全角（`full_shape`）。新会话由
   /// `createSession` 按 `defaultFullShape` pref 重新 seed。
   func applyDefaultFullShapeToLiveSession(_ fullShape: Bool) {
-    runtime.activeInputController?.setRimeOption(.fullShape, fullShape)
-    runtime.activeInputController?.rimeUpdate()
+    runtime.activeInputController?.setEngineOption(.fullShape, fullShape)
+    runtime.activeInputController?.engineUpdate()
   }
 
   // prevent freezing the system
@@ -766,9 +766,9 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     // Selector registration is the only API that exposes `suspensionBehavior`;
     // `.deliverImmediately` keeps these observers reachable from ANY poster (including an
     // older CLI binary that posts without deliverImmediately).
-    notifCenter.addObserver(self, selector: #selector(rimeNeedsReload(_:)), name: .init("OwlReloadNotification"), object: nil, suspensionBehavior: .deliverImmediately)
-    notifCenter.addObserver(self, selector: #selector(rimeToggleASCIIMode(_:)), name: .init("OwlToggleASCIIModeNotification"), object: nil, suspensionBehavior: .deliverImmediately)
-    notifCenter.addObserver(self, selector: #selector(rimeGetASCIIMode(_:)), name: .init("OwlGetASCIIModeNotification"), object: nil, suspensionBehavior: .deliverImmediately)
+    notifCenter.addObserver(self, selector: #selector(engineNeedsReload(_:)), name: .init("OwlReloadNotification"), object: nil, suspensionBehavior: .deliverImmediately)
+    notifCenter.addObserver(self, selector: #selector(engineToggleASCIIMode(_:)), name: .init("OwlToggleASCIIModeNotification"), object: nil, suspensionBehavior: .deliverImmediately)
+    notifCenter.addObserver(self, selector: #selector(engineGetASCIIMode(_:)), name: .init("OwlGetASCIIModeNotification"), object: nil, suspensionBehavior: .deliverImmediately)
     // 授权后补装 tap 的第二保险（第一保险=applicationDidBecomeActive）：TCC 辅助功能表变更时
     // 系统会广播这条 DNC（未文档化、10.9 起稳定，alt-tab 等在用）。任何 app 的授权变化都触发、
     // 无 payload——只当「该重查一次」的信号用，让用户在系统设置里勾上开关的瞬间 tap 就位，
@@ -834,8 +834,8 @@ private func notificationHandler(
     }
     if let optionName = optionName {
       // The reported option `name` is an open namespace owned by Rime/the schema, so it
-      // stays a String (not a RimeOption). Read its label through the Engine's session
-      // wrapper for the librime-supplied session id.
+      // stays a String (not a EngineOption). Read its label through the Engine's session
+      // wrapper for the engine-supplied session id.
       let session = delegate.runtime.engine.session(for: sessionId)
       func shortLabel() -> String? {
         session.stateLabel(option: optionName, state: state, abbreviated: true)
@@ -903,21 +903,21 @@ private extension OwlApplicationDelegate {
     _ = self.runtime.shutdown()
   }
 
-  @objc func rimeNeedsReload(_: Notification) {
+  @objc func engineNeedsReload(_: Notification) {
     let trace = OwlLatencyTrace.begin("reload.notification")
     defer { OwlLatencyTrace.end("reload.notification", trace) }
-    print("Reloading rime on demand.")
-    // 送达凭据：通知丢失时 app 侧和 librime 侧都零日志（2026-07-24 静默 reload 排查的盲区）。
+    print("Reloading the engine on demand.")
+    // 送达凭据：通知丢失时 app 侧和 引擎侧都零日志（2026-07-24 静默 reload 排查的盲区）。
     EngineRuntime.deployLog.notice("OwlReloadNotification received — starting full deploy")
     let ok = self.runtime.redeploy()
     if ok {
       EngineRuntime.deployLog.notice("reload deploy succeeded")
     } else {
-      EngineRuntime.deployLog.error("reload deploy FAILED — see rime glog in \(OwlApp.logDir.path, privacy: .public)")
+      EngineRuntime.deployLog.error("reload deploy FAILED — see the engine log in \(OwlApp.logDir.path, privacy: .public)")
     }
   }
 
-  @objc func rimeToggleASCIIMode(_ notification: Notification) {
+  @objc func engineToggleASCIIMode(_ notification: Notification) {
     guard let mode = notification.object as? String else { return }
     let enableASCII = mode == "ascii"
 
@@ -928,7 +928,7 @@ private extension OwlApplicationDelegate {
     }
   }
 
-  @objc func rimeGetASCIIMode(_: Notification) {
+  @objc func engineGetASCIIMode(_: Notification) {
     NotificationCenter.default.post(name: .init("OwlReportASCIIModeNotification"), object: nil)
   }
 

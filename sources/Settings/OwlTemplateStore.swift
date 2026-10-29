@@ -129,9 +129,9 @@ enum OwlTemplateStore {
 
   /// One advisory lock for this fixed library write set, shared by app instances. Recursive
   /// calls from journal recovery reuse the descriptor while the process lock is held.
-  static func withWriteLock<T>(rimeDir: URL, _ action: () throws -> T) throws -> T {
+  static func withWriteLock<T>(dataDir: URL, _ action: () throws -> T) throws -> T {
     try exclusively {
-      let directory = rimeDir.standardizedFileURL.resolvingSymlinksInPath()
+      let directory = dataDir.standardizedFileURL.resolvingSymlinksInPath()
       let key = directory.path
       if lockedDirectories.contains(key) { return try action() }
       try OwlPrivateStorage.prepareDirectory(directory)
@@ -146,12 +146,12 @@ enum OwlTemplateStore {
     }
   }
 
-  static func mode(rimeDir: URL = OwlApp.userDir) -> Mode {
-    if OwlTemplateMigration.hasPendingRecovery(rimeDir: rimeDir) {
+  static func mode(dataDir: URL = OwlApp.userDir) -> Mode {
+    if OwlTemplateMigration.hasPendingRecovery(dataDir: dataDir) {
       return .unavailable("模板库操作需要恢复，请到快捷片段设置中重试。")
     }
     let fm = FileManager.default
-    let state = rimeDir.appendingPathComponent(stateFileName)
+    let state = dataDir.appendingPathComponent(stateFileName)
     if fm.fileExists(atPath: state.path) {
       do {
         let data = try Data(contentsOf: state)
@@ -160,29 +160,29 @@ enum OwlTemplateStore {
         guard value.formatVersion == 1, value.committed else {
           return .unavailable("模板库启用状态无效，请恢复备份。")
         }
-        _ = try load(rimeDir: rimeDir)
+        _ = try load(dataDir: dataDir)
         return .unified
       } catch { return .unavailable("模板库无法读取，请保留原件并恢复备份。") }
     }
-    if fm.fileExists(atPath: rimeDir.appendingPathComponent(fileName).path) {
+    if fm.fileExists(atPath: dataDir.appendingPathComponent(fileName).path) {
       return .unavailable("发现未完成写入的模板库，请恢复备份后继续。")
     }
     let legacy = [OwlQuickSendStore.fileName, OwlQuickSendStore.dictFileName, OwlPromptStore.fileName, OwlPromptStore.dictFileName]
-    return legacy.contains { fm.fileExists(atPath: rimeDir.appendingPathComponent($0).path) } ? .legacy : .empty
+    return legacy.contains { fm.fileExists(atPath: dataDir.appendingPathComponent($0).path) } ? .legacy : .empty
   }
 
-  static func load(rimeDir: URL = OwlApp.userDir) throws -> OwlTemplateLibrary {
+  static func load(dataDir: URL = OwlApp.userDir) throws -> OwlTemplateLibrary {
     try exclusively {
-      guard !OwlTemplateMigration.hasPendingRecovery(rimeDir: rimeDir) else {
+      guard !OwlTemplateMigration.hasPendingRecovery(dataDir: dataDir) else {
         throw OwlTemplateError.invalid("模板库操作尚未完成，请先恢复。")
       }
-      return try loadCommittedBytes(rimeDir: rimeDir)
+      return try loadCommittedBytes(dataDir: dataDir)
     }
   }
 
   /// Only transaction verification/recovery may inspect staged bytes before publication.
-  static func loadCommittedBytes(rimeDir: URL) throws -> OwlTemplateLibrary {
-    let library = try JSONDecoder().decode(OwlTemplateLibrary.self, from: Data(contentsOf: rimeDir.appendingPathComponent(fileName)))
+  static func loadCommittedBytes(dataDir: URL) throws -> OwlTemplateLibrary {
+    let library = try JSONDecoder().decode(OwlTemplateLibrary.self, from: Data(contentsOf: dataDir.appendingPathComponent(fileName)))
     try validate(library)
     return library
   }
@@ -308,27 +308,27 @@ enum OwlTemplateStore {
   /// beforeWrite is a failure-injection seam; it receives only file names, never user content.
   static func save(_ library: OwlTemplateLibrary, writer: OwlConfigWriter = OwlConfigWriter(),
                    expectedLibrary: OwlTemplateLibrary? = nil, beforeWrite: (String) throws -> Void = { _ in }) throws {
-    try withWriteLock(rimeDir: writer.rimeDir) {
+    try withWriteLock(dataDir: writer.dataDir) {
       try validate(library)
-      switch mode(rimeDir: writer.rimeDir) {
+      switch mode(dataDir: writer.dataDir) {
       case .legacy: throw OwlTemplateError.legacyRequiresMigration
       case .unavailable(let message): throw OwlTemplateError.invalid(message)
       case .empty:
         if let expectedLibrary, !expectedLibrary.entries.isEmpty { throw OwlTemplateError.changedOnDisk }
       case .unified:
-        if let expectedLibrary, try encoded(load(rimeDir: writer.rimeDir)) != encoded(expectedLibrary) { throw OwlTemplateError.changedOnDisk }
+        if let expectedLibrary, try encoded(load(dataDir: writer.dataDir)) != encoded(expectedLibrary) { throw OwlTemplateError.changedOnDisk }
       }
       try performBatch(prepareWrites(library, writer: writer), library: library, writer: writer, beforeWrite: beforeWrite)
     }
-    notifyCommittedLibrary(rimeDir: writer.rimeDir)
+    notifyCommittedLibrary(dataDir: writer.dataDir)
   }
 
   static let libraryDidCommit = Notification.Name("OwlTemplateLibraryDidCommit")
 
   /// Call only after the complete transaction/journal has settled. Runtime listeners re-read
   /// through the public gate; staged bytes and partially committed writes are never published.
-  static func notifyCommittedLibrary(rimeDir: URL) {
-    NotificationCenter.default.post(name: libraryDidCommit, object: rimeDir.standardizedFileURL)
+  static func notifyCommittedLibrary(dataDir: URL) {
+    NotificationCenter.default.post(name: libraryDidCommit, object: dataDir.standardizedFileURL)
   }
 
   static func encoded(_ library: OwlTemplateLibrary) throws -> Data {
@@ -348,7 +348,7 @@ enum OwlTemplateStore {
   static func prepareWrites(_ library: OwlTemplateLibrary, writer: OwlConfigWriter) throws -> [PreparedWrite] {
     try validate(library)
     let json = String(decoding: try encoded(library), as: UTF8.self) + "\n"
-    let yamlURL = writer.rimeDir.appendingPathComponent("rime_ice.custom.yaml")
+    let yamlURL = writer.dataDir.appendingPathComponent("rime_ice.custom.yaml")
     let yaml = FileManager.default.fileExists(atPath: yamlURL.path) ? try String(contentsOf: yamlURL, encoding: .utf8) : "patch:\n"
     return [
       PreparedWrite(fileName: fileName, contents: json, marker: "OWL MANAGED TEMPLATES JSON v1"),
@@ -362,7 +362,7 @@ enum OwlTemplateStore {
   /// journal and recovery across process termination. Normal editors MUST use save instead.
   static func commitPreparedWrites(_ writes: [PreparedWrite], library: OwlTemplateLibrary, writer: OwlConfigWriter,
                                    beforeWrite: (String) throws -> Void = { _ in }, batchTimestamp: String? = nil, restoreOnFailure: Bool = true) throws {
-    try withWriteLock(rimeDir: writer.rimeDir) {
+    try withWriteLock(dataDir: writer.dataDir) {
       try validate(library)
       try performBatch(writes, library: library, writer: writer, beforeWrite: beforeWrite, batchTimestamp: batchTimestamp, restoreOnFailure: restoreOnFailure)
     }
@@ -379,17 +379,17 @@ enum OwlTemplateStore {
     let timestamp = batchTimestamp ?? "templates-" + UUID().uuidString
     let names = writes.map(\.fileName) + ["owltype/rollback-manifest.json"]
     let snapshots = try names.map { name -> (URL, Data?) in
-      let url = writer.rimeDir.appendingPathComponent(name)
+      let url = writer.dataDir.appendingPathComponent(name)
       return (url, FileManager.default.fileExists(atPath: url.path) ? try Data(contentsOf: url) : nil)
     }
     do {
       for write in writes {
         if write.fileName == stateFileName {
-          guard try encoded(loadCommittedBytes(rimeDir: writer.rimeDir)) == encoded(library) else { throw OwlTemplateError.invalid("写入核对失败。") }
+          guard try encoded(loadCommittedBytes(dataDir: writer.dataDir)) == encoded(library) else { throw OwlTemplateError.invalid("写入核对失败。") }
         }
         try beforeWrite(write.fileName)
         try writer.applyTextFile(fileName: write.fileName, contents: write.contents, marker: write.marker, timestamp: timestamp)
-        guard try Data(contentsOf: writer.rimeDir.appendingPathComponent(write.fileName)) == Data(write.contents.utf8) else {
+        guard try Data(contentsOf: writer.dataDir.appendingPathComponent(write.fileName)) == Data(write.contents.utf8) else {
           throw OwlTemplateError.invalid("写入核对失败。")
         }
       }

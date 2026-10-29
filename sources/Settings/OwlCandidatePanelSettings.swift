@@ -301,7 +301,7 @@ struct OwlCandidatePanelSettings {
     style.inlineCandidate = currentInlineCandidate()
   }
 
-  /// Lightweight runtime read for librime notifications, which may arrive off the main thread.
+  /// Lightweight runtime read for engine notifications, which may arrive off the main thread.
   /// Keeping it on this seam avoids touching the AppKit-backed font catalog in `snapshot()`.
   func currentShowNotificationsWhen() -> OwlNotificationWhen {
     OwlNotificationWhen(
@@ -309,7 +309,7 @@ struct OwlCandidatePanelSettings {
     ) ?? Self.defaultShowNotificationsWhen
   }
 
-  /// Runtime policy consumed by the librime notification callback. This stays lightweight because
+  /// Runtime policy consumed by the engine notification callback. This stays lightweight because
   /// notifications may arrive off-main and must never resolve the AppKit-backed font catalog.
   func shouldShowNotification(for event: NotificationEvent) -> Bool {
     switch (currentShowNotificationsWhen(), event) {
@@ -323,13 +323,13 @@ struct OwlCandidatePanelSettings {
   func apply(
     _ snapshot: Snapshot,
     to state: CandidatePanelState,
-    rimeVertical: Bool = false,
+    engineVertical: Bool = false,
     schemaID: String = "",
     setAppearance: (NSAppearance?) -> Void = { _ in }
   ) {
     state.schemaID = schemaID
     state.isVertical = snapshot.orientation.isVertical(
-      rimeVertical: rimeVertical,
+      engineVertical: engineVertical,
       schemaID: schemaID
     )
     state.isScroll = snapshot.orientation.scrolls

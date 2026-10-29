@@ -4,23 +4,23 @@
 //
 //  The SINGLE side-effect point of the pure input pipeline (task 06-22-pure-input-pipeline-refactor).
 //
-//  Pipeline:  NSEvent → OwlUserAction (PURE classify) → feed librime (processKey, stateful)
+//  Pipeline:  NSEvent → OwlUserAction (PURE classify) → feed the engine (processKey, stateful)
 //             → OwlClientAction[] → apply(client) (single side-effect point).
 //
 //  `OwlClientAction` is a PURE value enum of the two IMK text mutations the controller performs.
 //  After this refactor, `apply(_:client:)` is the ONLY place that calls `client.insertText` /
-//  `client.setMarkedText` — the two former call sites (`commit` / `show` in +RimeUpdate.swift)
+//  `client.setMarkedText` — the two former call sites (`commit` / `show` in +EngineUpdate.swift)
 //  now build a `OwlClientAction` and route it through `apply`. Behaviour is byte-for-byte
 //  identical: `apply` performs exactly the same `insertText` / `setMarkedText` call the old code
 //  did, with the same arguments.
 //
 //  This is NOT a state machine — it carries no conversion state; it is a 1:1 description of the
-//  side effect to perform. librime still owns all conversion state (`RimeContext` via `RimeSeam`).
+//  side effect to perform. The engine still owns all conversion state (`EngineComposition` via `EngineSeam`).
 //
 
 import InputMethodKit
 
-/// A pure description of a client (IMK) text side-effect. Built off librime's composition state by
+/// A pure description of a client (IMK) text side-effect. Built off the engine's composition state by
 /// `commit` / `show`, then dispatched once through `apply(_:client:)`.
 enum OwlClientAction: Equatable {
   /// Insert committed text at the cursor (replacing the empty range). The string is already

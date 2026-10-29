@@ -15,21 +15,21 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
         userDataURL: root, activeGenerationProvider: { nil })
       let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
       controller.destroySession()
-      controller.rime = engine.createSession()
+      controller.engineSession = engine.createSession()
       let client = HabitsTextClient()
       client.appID = "com.apple.TextEdit"
       controller.client = client
       defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
-      controller.rime?.setOption(.asciiMode, false)
+      controller.engineSession?.setOption(.asciiMode, false)
       try type("ni", into: controller, client: client)
       XCTAssertFalse(controller.handle(try key("c", code: 8, flags: flags), client: client))
       XCTAssertEqual(client.text.string, "你", "application receives its chord only after native FinishComposition")
-      XCTAssertEqual(controller.rime?.input(), "")
+      XCTAssertEqual(controller.engineSession?.input(), "")
       XCTAssertFalse(client.text.hasMarkedText())
       // The input method's own segment-editing chord must keep ownership.
       try type("nihao", into: controller, client: client)
       XCTAssertTrue(controller.handle(try key("\u{f702}", code: 123, flags: .control), client: client))
-      XCTAssertEqual(controller.rime?.input(), "nihao")
+      XCTAssertEqual(controller.engineSession?.input(), "nihao")
       XCTAssertTrue(client.text.hasMarkedText())
     }
   }
@@ -45,18 +45,18 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
     let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     controller.destroySession()
-    controller.rime = engine.createSession()
+    controller.engineSession = engine.createSession()
     let client = HabitsTextClient()
     client.appID = "com.apple.TextEdit"
     controller.client = client
     defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
-    controller.rime?.setOption(.asciiMode, false)
+    controller.engineSession?.setOption(.asciiMode, false)
     try type("i", into: controller, client: client)
-    XCTAssertEqual(controller.rime?.status()?.schemaId, "wubi86_jidian")
-    XCTAssertEqual(controller.rime?.composition()?.candidates.first?.text, "不")
+    XCTAssertEqual(controller.engineSession?.status()?.schemaId, "wubi86_jidian")
+    XCTAssertEqual(controller.engineSession?.composition()?.candidates.first?.text, "不")
     XCTAssertFalse(controller.handle(try key("c", code: 8, flags: .command), client: client))
     XCTAssertEqual(client.text.string, "不")
-    XCTAssertEqual(controller.rime?.input(), "")
+    XCTAssertEqual(controller.engineSession?.input(), "")
     XCTAssertFalse(client.text.hasMarkedText())
   }
 
@@ -79,13 +79,13 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
     let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     controller.destroySession()
-    controller.rime = engine.createSession()
+    controller.engineSession = engine.createSession()
     let client = HabitsTextClient()
     client.appID = "com.apple.TextEdit"
     controller.client = client
     defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
-    controller.rime?.setOption(.asciiMode, false)
-    controller.rime?.setOption(.asciiPunct, false)
+    controller.engineSession?.setOption(.asciiMode, false)
+    controller.engineSession?.setOption(.asciiPunct, false)
     XCTAssertTrue(OwlKeyboardPreferences.autoPairBrackets)
     XCTAssertTrue(controller.handle(try key("(", code: 25, flags: .shift), client: client))
     XCTAssertEqual(client.text.string, "（）")
@@ -123,19 +123,19 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
     let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     controller.destroySession()
-    controller.rime = engine.createSession()
+    controller.engineSession = engine.createSession()
     let client = HabitsTextClient()
     client.appID = "com.apple.TextEdit"
     controller.client = client
     defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
-    controller.rime?.setOption(.asciiMode, false)
+    controller.engineSession?.setOption(.asciiMode, false)
     try type("gggg", into: controller, client: client)
-    XCTAssertEqual(controller.rime?.composition()?.candidates.prefix(2).map(\.text), ["王", "五一"])
+    XCTAssertEqual(controller.engineSession?.composition()?.candidates.prefix(2).map(\.text), ["王", "五一"])
     XCTAssertTrue(controller.handle(try key("\u{f701}", code: 125), client: client))
-    XCTAssertEqual(controller.rime?.composition()?.highlightedIndex, 1)
+    XCTAssertEqual(controller.engineSession?.composition()?.highlightedIndex, 1)
     controller.commitComposition(client)
     XCTAssertEqual(client.text.string, "五一")
-    XCTAssertEqual(controller.rime?.input(), "")
+    XCTAssertEqual(controller.engineSession?.input(), "")
     XCTAssertFalse(client.text.hasMarkedText())
     controller.destroySession()
     XCTAssertTrue(engine.finalize())
@@ -163,17 +163,17 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
       userDataURL: root, activeGenerationProvider: { nil })
     let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     controller.destroySession()
-    controller.rime = engine.createSession()
+    controller.engineSession = engine.createSession()
     let client = HabitsTextClient()
     client.appID = "com.apple.TextEdit"
     controller.client = client
     defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
-    controller.rime?.setOption(.asciiMode, false)
+    controller.engineSession?.setOption(.asciiMode, false)
     try type("tadefangjian", into: controller, client: client)
     controller.commitComposition(client)
     // Fixed native fresh-state baseline; focus end must not leak the typed Latin letters.
     XCTAssertEqual(client.text.string, "它的房间")
-    XCTAssertEqual(controller.rime?.input(), "")
+    XCTAssertEqual(controller.engineSession?.input(), "")
     XCTAssertFalse(client.text.hasMarkedText())
   }
 
@@ -185,14 +185,14 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
       userDataURL: root, activeGenerationProvider: { nil })
     let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     controller.destroySession()
-    controller.rime = engine.createSession()
+    controller.engineSession = engine.createSession()
     let client = HabitsTextClient()
     client.appID = "com.apple.TextEdit"
     controller.client = client
     defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
     XCTAssertTrue(OwlKeyboardPreferences.autoPairBrackets, "pinned native default is paired punctuation on")
-    controller.rime?.setOption(.asciiMode, false)
-    controller.rime?.setOption(.asciiPunct, false)
+    controller.engineSession?.setOption(.asciiMode, false)
+    controller.engineSession?.setOption(.asciiPunct, false)
     XCTAssertTrue(controller.handle(try key("(", code: 25, flags: .shift), client: client))
     XCTAssertEqual(client.text.string, "（）")
     XCTAssertEqual(client.text.markedRange(), NSRange(location: 1, length: 1))
@@ -253,11 +253,11 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
                                activeGenerationProvider: { nil })
     let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     controller.destroySession()
-    controller.rime = engine.createSession()
+    controller.engineSession = engine.createSession()
     let client = HabitsTextClient()
     controller.client = client
     defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
-    let session = try XCTUnwrap(controller.rime)
+    let session = try XCTUnwrap(controller.engineSession)
     XCTAssertTrue(session.selectSchema("rime_ice"))
     for ch in "nihao".unicodeScalars { XCTAssertTrue(session.process(keycode: ch.value, modifiers: 0)) }
     let before = try XCTUnwrap(session.composition())
@@ -279,12 +279,12 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     XCTAssertEqual(client.text.string, "", "Cancel clears only marked text; deletion must not commit the chord")
     controller.destroySession()
     XCTAssertTrue(engine.finalize())
-    controller.rime = engine.createSession()
-    let reopened = try XCTUnwrap(controller.rime)
+    controller.engineSession = engine.createSession()
+    let reopened = try XCTUnwrap(controller.engineSession)
     XCTAssertTrue(reopened.selectSchema("rime_ice"))
     for ch in "nihao".unicodeScalars { XCTAssertTrue(reopened.process(keycode: ch.value, modifiers: 0)) }
     XCTAssertFalse(reopened.composition()?.candidates.contains { $0.text == "你好吗" } == true)
-    controller.rimeUpdate()
+    controller.engineUpdate()
     let menuIndex = try XCTUnwrap(reopened.composition()?.candidates.firstIndex { $0.text == "你好啊" })
     let menuToken = OwlCandidateToken(sessionID: reopened.sessionID, generation: reopened.generation,
                                       candidateID: menuIndex)
@@ -318,7 +318,7 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
       let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
       controller.destroySession()
       let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
-      controller.rime = session
+      controller.engineSession = session
       let client = HabitsTextClient()
       controller.client = client
       defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
@@ -406,13 +406,13 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     let engine = OwlRustEngine(sharedSupportURL: shared, userDataURL: root)
     let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     controller.destroySession()
-    controller.rime = engine.createSession()
+    controller.engineSession = engine.createSession()
     let client = HabitsTextClient()
     client.appID = "com.apple.TextEdit"
     controller.client = client
     defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
-    controller.rime?.setOption(.asciiMode, false)
-    controller.rime?.setOption(.asciiPunct, false)
+    controller.engineSession?.setOption(.asciiMode, false)
+    controller.engineSession?.setOption(.asciiPunct, false)
     client.text.string = "1"
     client.text.setSelectedRange(NSRange(location: 1, length: 0))
     XCTAssertTrue(controller.handle(try key(".", code: 47), client: client))
@@ -440,13 +440,13 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     let engine = OwlRustEngine(sharedSupportURL: shared, userDataURL: root)
     let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     controller.destroySession()
-    controller.rime = engine.createSession()
+    controller.engineSession = engine.createSession()
     let client = HabitsTextClient()
     client.appID = "com.apple.TextEdit"
     controller.client = client
     defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
-    controller.rime?.setOption(.asciiMode, false)
-    controller.rime?.setOption(.asciiPunct, false)
+    controller.engineSession?.setOption(.asciiMode, false)
+    controller.engineSession?.setOption(.asciiPunct, false)
     let previous = OwlKeyboardPreferences.smartPunctuationSpace
     OwlKeyboardPreferences.smartPunctuationSpace = true
     defer { OwlKeyboardPreferences.smartPunctuationSpace = previous }
@@ -473,13 +473,13 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     let engine = OwlRustEngine(sharedSupportURL: shared, userDataURL: root)
     let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     controller.destroySession()
-    controller.rime = engine.createSession()
+    controller.engineSession = engine.createSession()
     let client = HabitsTextClient()
     client.appID = "com.apple.TextEdit"
     controller.client = client
     defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
-    controller.rime?.setOption(.asciiMode, false)
-    controller.rime?.setOption(.asciiPunct, false)
+    controller.engineSession?.setOption(.asciiMode, false)
+    controller.engineSession?.setOption(.asciiPunct, false)
     client.exposesText = false
     var posted = 0
     controller.smartPunctuation.postRewrite = { _, replacement in
@@ -511,16 +511,13 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     defer {
       if let previousUserDir { setenv("OWL_TEST_USER_DIR", previousUserDir, 1) } else { unsetenv("OWL_TEST_USER_DIR") }
     }
-    let availability = OwlPinyinCandidateDeployment.available
-    defer { OwlPinyinCandidateDeployment.available = availability }
-    try OwlPinyinCandidateDeployment.apply(userDir: root, sharedDir: shared)
     let engine = OwlRustEngine(sharedSupportURL: shared, userDataURL: root)
     engine.setup(
       OwlEngineTraits(
         sharedDataDir: shared,
         userDataDir: root,
         logDir: root,
-        appName: OwlRimeIdentity.appName
+        appName: OwlEngineIdentity.appName
       )
     )
     defer { engine.cleanupAllSessions(); _ = engine.finalize() }
@@ -541,7 +538,7 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     let client = HabitsTextClient()
     let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     defer { controller.destroySession(); delegate.owlPanel?.hidePanel() }
-    XCTAssertTrue(controller.rime?.isValid == true)
+    XCTAssertTrue(controller.engineSession?.isValid == true)
     XCTAssertEqual(controller.schemaId, "rime_ice")
     controller.client = client
     controller.activateServer(client)
@@ -568,7 +565,7 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     XCTAssertTrue(panel.canPin?(pin.text) == true)
     panel.onPin?(pin.text)
     XCTAssertTrue(pins.words.contains(pin))
-    XCTAssertEqual(controller.rime?.composition()?.candidates.first?.text, pin.text)
+    XCTAssertEqual(controller.engineSession?.composition()?.candidates.first?.text, pin.text)
     XCTAssertNotEqual(client.text.string, pin.text, "Pinning must not commit")
     try type(" ", into: controller, client: client)
     XCTAssertEqual(client.text.string, pin.text)
@@ -580,7 +577,7 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     XCTAssertTrue(controller.handle(try key("P", code: 35, flags: [.control, .shift]), client: client))
     XCTAssertFalse(pins.words.contains(pin), "The hotkey must unpin the highlighted word")
     XCTAssertFalse(
-      controller.rime?.composition()?.candidates.contains {
+      controller.engineSession?.composition()?.candidates.contains {
         $0.text == pin.text && $0.comment == "置顶"
       } ?? true,
       "Unpinning must remove the candidate annotation even when it otherwise ranks first"
@@ -597,7 +594,7 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     defer { pins.remove(umlautPin) }
     panel.onPin?("略")
     XCTAssertTrue(pins.words.contains(umlautPin))
-    XCTAssertEqual(controller.rime?.input(), "lue", "Normalization must not change the actual code")
+    XCTAssertEqual(controller.engineSession?.input(), "lue", "Normalization must not change the actual code")
     try type("1", into: controller, client: client)
     XCTAssertEqual(client.text.string, "略")
     clear(client)
@@ -609,16 +606,16 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     other.appID = "com.owltype.test.habits.other"
     defer { memory.forget(client.appID); memory.forget(other.appID); memory.enabled = enabled }
     XCTAssertNil(memory.modes[client.appID], "Initial mode must not create a choice")
-    controller.rime?.setOption(.asciiMode, true)
-    controller.rimeUpdate()
+    controller.engineSession?.setOption(.asciiMode, true)
+    controller.engineUpdate()
     XCTAssertEqual(memory.modes[client.appID], true)
     for _ in 0..<20 {
       controller.deactivateServer(client)
       controller.activateServer(other)
-      XCTAssertFalse(controller.rime?.option(.asciiMode) ?? true)
+      XCTAssertFalse(controller.engineSession?.option(.asciiMode) ?? true)
       controller.deactivateServer(other)
       controller.activateServer(client)
-      XCTAssertTrue(controller.rime?.option(.asciiMode) == true)
+      XCTAssertTrue(controller.engineSession?.option(.asciiMode) == true)
     }
     XCTAssertFalse(controller.handle(try key("a", code: 0), client: client), "English passes through to the host")
     // A second window of the same app changes the remembered mode. The old controller must
@@ -633,30 +630,30 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     statusPanel.deactivate(controller)
     XCTAssertTrue(statusPanel.isVisible, "Old sessions cannot hide the active status bar")
     XCTAssertTrue(statusPanel.contentView === currentStatusView, "Old sessions cannot repaint the active status bar")
-    XCTAssertTrue(second.rime?.option(.asciiMode) == true)
-    second.rime?.setOption(.asciiMode, false)
-    second.rimeUpdate()
+    XCTAssertTrue(second.engineSession?.option(.asciiMode) == true)
+    second.engineSession?.setOption(.asciiMode, false)
+    second.engineUpdate()
     second.deactivateServer(client)
     XCTAssertFalse(statusPanel.isVisible)
     controller.deactivateServer(client)
     XCTAssertEqual(memory.modes[client.appID], false)
     controller.activateServer(client)
-    XCTAssertFalse(controller.rime?.option(.asciiMode) ?? true)
-    controller.rime?.setOption(.asciiMode, true)
-    controller.rimeUpdate()
+    XCTAssertFalse(controller.engineSession?.option(.asciiMode) ?? true)
+    controller.engineSession?.setOption(.asciiMode, true)
+    controller.engineUpdate()
     memory.enabled = false
     controller.deactivateServer(client)
     controller.activateServer(client)
-    XCTAssertFalse(controller.rime?.option(.asciiMode) ?? true)
+    XCTAssertFalse(controller.engineSession?.option(.asciiMode) ?? true)
     XCTAssertEqual(memory.modes[client.appID], true, "Disabling memory must retain the stored choice")
     memory.enabled = true
     controller.deactivateServer(client)
     controller.activateServer(client)
-    XCTAssertTrue(controller.rime?.option(.asciiMode) == true)
+    XCTAssertTrue(controller.engineSession?.option(.asciiMode) == true)
     memory.forget(client.appID)
     controller.deactivateServer(client)
     controller.activateServer(client)
-    XCTAssertFalse(controller.rime?.option(.asciiMode) ?? true, "Forget restores the initial mode")
+    XCTAssertFalse(controller.engineSession?.option(.asciiMode) ?? true, "Forget restores the initial mode")
     try type("nihao ", into: controller, client: client)
     XCTAssertEqual(client.text.string, "你好")
 
@@ -665,16 +662,16 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     try type("nihao", into: controller, client: client)
     let previousPageSize = OwlKeyboardPreferences.pageSize
     defer { OwlKeyboardPreferences.pageSize = previousPageSize }
-    let previousSession = try XCTUnwrap(controller.rime)
+    let previousSession = try XCTUnwrap(controller.engineSession)
     OwlKeyboardPreferences.pageSize = 3
     let applied = try delegate.runtime.applyKeyboardSettings(.config, directory: root)
     XCTAssertTrue(applied.succeeded)
     // Prove the recreate by the wrapper instead: the old one is destroyed, a new one is live.
     XCTAssertFalse(previousSession.isValid, "Applying settings must destroy the old session")
-    XCTAssertFalse(controller.rime === previousSession, "The active controller must get a new session")
-    XCTAssertEqual(controller.rime?.input(), "nihao", "Applying settings must retain in-flight composition")
-    XCTAssertEqual(controller.rime?.composition()?.pageSize, 3, "The running engine must read the saved setting")
-    XCTAssertFalse(second.rime?.isValid == true, "Background sessions must wait for their next activation")
+    XCTAssertFalse(controller.engineSession === previousSession, "The active controller must get a new session")
+    XCTAssertEqual(controller.engineSession?.input(), "nihao", "Applying settings must retain in-flight composition")
+    XCTAssertEqual(controller.engineSession?.composition()?.pageSize, 3, "The running engine must read the saved setting")
+    XCTAssertFalse(second.engineSession?.isValid == true, "Background sessions must wait for their next activation")
     try type(" ", into: controller, client: client)
     XCTAssertEqual(client.text.string, "你好", "The replayed composition must still commit normally")
   }

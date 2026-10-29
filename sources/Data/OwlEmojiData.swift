@@ -7,7 +7,7 @@
 //  follow-up (tied to the self-contained config bundling, ADR-0004) — this starter set
 //  makes the panel functional now. 「最近」 lives in UserDefaults.
 //
-//  Boundary (ADR-0001 / 0002 / 0003): pure data; no Rime / hot-path involvement.
+//  Boundary (ADR-0001 / 0002 / 0003): pure data; no engine / hot-path involvement.
 //
 
 import Foundation

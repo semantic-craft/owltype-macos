@@ -16,10 +16,10 @@ each engine update. Readers use it only to tell whether the user is mid-composit
 logout prompt, the dictionary prompt). Candidates come only from the engine's main lane; there is
 no second candidate lane.
 
-**Input session** — one composition's conversation with the engine (`RimeSession`; the engine
-that vends sessions is `RimeEngine`). The Rust session is the only production adapter, and the
+**Input session** — one composition's conversation with the engine (`EngineSession`; the engine
+that vends sessions is `InputEngine`). The Rust session is the only production adapter, and the
 controller never casts past the protocol: a behaviour it needs is a requirement there, so the
-test fake (`FakeRimeSession`) has to model it.
+test fake (`FakeEngineSession`) has to model it.
 
 **Native finish** — ending a composition by asking the engine to select the highlighted
 conversion and commit it (`finishNativeComposition`), so the engine learns the choice. An
@@ -46,7 +46,7 @@ work with the engine stopped; reset and legacy migration use it), the cached `st
 `config`, and the idle live-session refresh. It hides the ordering: stop before touching user
 data and always restart after, skip recompiling (never the engine) while a template-migration
 journal is unresolved, and replace the cached config only with one that has a `style` section.
-The seam below it is `RimeEngine` (`OwlRustEngine` in production, `FakeRimeEngine` in tests).
+The seam below it is `InputEngine` (`OwlRustEngine` in production, `FakeInputEngine` in tests).
 Controllers receive it at init; the application delegate only wires it to AppKit.
 
 ## Dictionary

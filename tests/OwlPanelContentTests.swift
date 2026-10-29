@@ -297,8 +297,8 @@ final class OwlScrollRowsPlanTests: XCTestCase {
     )
   }
 
-  private func cand(_ text: String) -> RimeCandidate {
-    RimeCandidate(text: text, comment: nil)
+  private func cand(_ text: String) -> EngineCandidate {
+    EngineCandidate(text: text, comment: nil)
   }
 
   // MARK: gate
@@ -306,29 +306,29 @@ final class OwlScrollRowsPlanTests: XCTestCase {
   func testWantsRowsOnScrollMidListAfterPaging() {
     XCTAssertTrue(OwlScrollRowsPlan.wantsRows(
       settings: snapshot(), didPage: true, lastPage: false, candidateCount: 5,
-      rimeVertical: false, schemaID: ""))
+      engineVertical: false, schemaID: ""))
   }
 
   /// 翻页才展开（2026-07-28）：没翻过页的组字保持单行，即便选了多行、还有后页。
   func testNoPagingMeansNoRows() {
     XCTAssertFalse(OwlScrollRowsPlan.wantsRows(
       settings: snapshot(), didPage: false, lastPage: false, candidateCount: 5,
-      rimeVertical: false, schemaID: ""))
+      engineVertical: false, schemaID: ""))
     XCTAssertFalse(OwlScrollRowsPlan.wantsPrevRow(
       settings: snapshot(), didPage: false, page: 1, candidateCount: 5,
-      rimeVertical: false, schemaID: ""))
+      engineVertical: false, schemaID: ""))
   }
 
   func testLastPageNeverFetches() {
     XCTAssertFalse(OwlScrollRowsPlan.wantsRows(
       settings: snapshot(), didPage: true, lastPage: true, candidateCount: 5,
-      rimeVertical: false, schemaID: ""))
+      engineVertical: false, schemaID: ""))
   }
 
   func testEmptyPageNeverFetches() {
     XCTAssertFalse(OwlScrollRowsPlan.wantsRows(
       settings: snapshot(), didPage: true, lastPage: false, candidateCount: 0,
-      rimeVertical: false, schemaID: ""))
+      engineVertical: false, schemaID: ""))
   }
 
   /// 非多行的三个方向都不取数——多行是唯一带前/后页行的形态（「预览后页」开关已被它吸收）。
@@ -336,10 +336,10 @@ final class OwlScrollRowsPlanTests: XCTestCase {
     for orientation in [OwlPanelOrientation.auto, .horizontal, .vertical] {
       XCTAssertFalse(OwlScrollRowsPlan.wantsRows(
         settings: snapshot(orientation: orientation), didPage: true, lastPage: false,
-        candidateCount: 5, rimeVertical: false, schemaID: ""), "\(orientation) 不该预取后页行")
+        candidateCount: 5, engineVertical: false, schemaID: ""), "\(orientation) 不该预取后页行")
       XCTAssertFalse(OwlScrollRowsPlan.wantsPrevRow(
         settings: snapshot(orientation: orientation), didPage: true, page: 1,
-        candidateCount: 5, rimeVertical: false, schemaID: ""), "\(orientation) 不该预取前页行")
+        candidateCount: 5, engineVertical: false, schemaID: ""), "\(orientation) 不该预取前页行")
     }
   }
 
@@ -348,7 +348,7 @@ final class OwlScrollRowsPlanTests: XCTestCase {
   func testScrollIgnoresRimeVertical() {
     XCTAssertTrue(OwlScrollRowsPlan.wantsRows(
       settings: snapshot(), didPage: true, lastPage: false, candidateCount: 5,
-      rimeVertical: true, schemaID: ""))
+      engineVertical: true, schemaID: ""))
   }
 
   /// 前页行：翻过页且不在第一页才有（末页也算——那时只剩前页行 + 主行）；
@@ -356,10 +356,10 @@ final class OwlScrollRowsPlanTests: XCTestCase {
   func testPrevRowNeedsANonFirstPage() {
     XCTAssertTrue(OwlScrollRowsPlan.wantsPrevRow(
       settings: snapshot(), didPage: true, page: 1, candidateCount: 5,
-      rimeVertical: false, schemaID: ""))
+      engineVertical: false, schemaID: ""))
     XCTAssertFalse(OwlScrollRowsPlan.wantsPrevRow(
       settings: snapshot(), didPage: true, page: 0, candidateCount: 5,
-      rimeVertical: false, schemaID: ""))
+      engineVertical: false, schemaID: ""))
   }
 
   // MARK: chunking
@@ -370,7 +370,7 @@ final class OwlScrollRowsPlanTests: XCTestCase {
     XCTAssertEqual(rows.map { $0.candidates.map(\.text) }, [["一", "二", "三"], ["四", "五", "六"]])
   }
 
-  /// 行 id = librime 页号。这是多行动画的身份来源：翻页后同一页号的行必须仍是同一行，
+  /// 行 id = 引擎页号。这是多行动画的身份来源：翻页后同一页号的行必须仍是同一行，
   /// SwiftUI 才会把它动画成「上滚一格」而不是整块重建。
   func testRowIDIsThePageNumber() {
     let rows = OwlScrollRowsPlan.rows(
@@ -401,7 +401,7 @@ final class OwlScrollRowsPlanTests: XCTestCase {
     // 前/后页行无序号（label 空）——序号只属于主行（数字键只选得中主行）；
     // 注释保留（码提示，2026-07-28 截图定案：信息密度与主行一致）。
     let rows = OwlScrollRowsPlan.rows(
-      from: [RimeCandidate(text: "甲", comment: "wg"), cand("乙")], pageSize: 2, startPage: 1)
+      from: [EngineCandidate(text: "甲", comment: "wg"), cand("乙")], pageSize: 2, startPage: 1)
     XCTAssertEqual(rows.count, 1)
     XCTAssertEqual(rows[0].candidates.map(\.label), ["", ""])
     XCTAssertEqual(rows[0].candidates.map(\.comment), ["wg", nil])

@@ -83,7 +83,7 @@ final class OwlPinnedWords {
 
   /// Require a complete, unconfirmed full-pinyin composition. Initials, completions,
   /// partially selected sentences, non-Han candidates and other schemas are excluded.
-  static func target(schema: String, input: String, composition: RimeComposition,
+  static func target(schema: String, input: String, composition: EngineComposition,
                      candidate: String, traditional: Bool, caret: Int) -> OwlPinnedWord? {
     guard schema == "rime_ice", composition.selStart == 0, caret == input.utf8.count,
           !input.isEmpty, input.utf8.allSatisfy({ (97...122).contains($0) || $0 == 39 }),

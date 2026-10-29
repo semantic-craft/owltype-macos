@@ -12,7 +12,6 @@
 		670F2E760700470A9CE045E9 /* OwlInputHabitsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC3E22E941504EA49830A2A2 /* OwlInputHabitsTests.swift */; };
 		8E0219EE244D455186692B00 /* OwlInputController+InputHabits.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18655B9FE96489FABD6D0D3 /* OwlInputController+InputHabits.swift */; };
 		07860FECCA2A4B9EAC2331D8 /* OwlInputHabitsSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA978779A9B64A19A7E70BB9 /* OwlInputHabitsSettings.swift */; };
-		7AE040E79F0946C2A2036977 /* OwlPinyinCandidateDeployment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F32FC4A4E5B46B5A07BC2F5 /* OwlPinyinCandidateDeployment.swift */; };
 		F1233813CC4543789D65C9A9 /* OwlPinnedWords.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8573B4C99C949C5BB32E7C5 /* OwlPinnedWords.swift */; };
 		FA260001CAFE0260CAFE0001 /* OwlRimeUserDBSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA260002CAFE0260CAFE0002 /* OwlRimeUserDBSnapshot.swift */; };
 		FA260003CAFE0260CAFE0003 /* OwlUserMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA260004CAFE0260CAFE0004 /* OwlUserMigration.swift */; };
@@ -67,11 +66,10 @@
 		B38E9B952BEAFEFD0036ABEF /* OwlInputController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B38E9B942BEAFEFD0036ABEF /* OwlInputController.swift */; };
 		FA000101CAFE0101CAFE0101 /* OwlInputMenuTitles.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000100CAFE0100CAFE0100 /* OwlInputMenuTitles.swift */; };
 		FA000103CAFE0103CAFE0103 /* OwlInputController+Menu.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000102CAFE0102CAFE0102 /* OwlInputController+Menu.swift */; };
-		FA000105CAFE0105CAFE0105 /* OwlInputController+RimeUpdate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000104CAFE0104CAFE0104 /* OwlInputController+RimeUpdate.swift */; };
+		FA000105CAFE0105CAFE0105 /* OwlInputController+EngineUpdate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000104CAFE0104CAFE0104 /* OwlInputController+EngineUpdate.swift */; };
 		FA000107CAFE0107CAFE0107 /* OwlInputController+Lifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000106CAFE0106CAFE0106 /* OwlInputController+Lifecycle.swift */; };
 		FA000109CAFE0109CAFE0109 /* OwlInputController+Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000108CAFE0108CAFE0108 /* OwlInputController+Session.swift */; };
 		FA0001F0CAFE01F0CAFE01F0 /* EngineRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0001F1CAFE01F1CAFE01F1 /* EngineRuntime.swift */; };
-		FA00010BCAFE010BCAFE010B /* OwlInputController+RimeOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00010ACAFE010ACAFE010A /* OwlInputController+RimeOptions.swift */; };
 		B39771232BECEA150093A49B /* MacOSKeyCodes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39771222BECEA150093A49B /* MacOSKeyCodes.swift */; };
 		FA000130CAFE0130CAFE0130 /* OwlUserAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000131CAFE0131CAFE0131 /* OwlUserAction.swift */; };
 		FA000132CAFE0132CAFE0132 /* OwlInputController+ClientAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000133CAFE0133CAFE0133 /* OwlInputController+ClientAction.swift */; };
@@ -137,7 +135,7 @@
 		FACE0103FACE0103FACE0103 /* OwlClipboardPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACE0003FACE0003FACE0003 /* OwlClipboardPage.swift */; };
 		FACE0104FACE0104FACE0104 /* OwlSkillsPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACE0004FACE0004FACE0004 /* OwlSkillsPage.swift */; };
 		FACE0105FACE0105FACE0105 /* OwlAIPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FACE0005FACE0005FACE0005 /* OwlAIPage.swift */; };
-		FA000022CAFE0022CAFE0022 /* OwlRimePatchBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000CCAFE000CCAFE000C /* OwlRimePatchBuilder.swift */; };
+		FA000022CAFE0022CAFE0022 /* OwlConfigPatchBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000CCAFE000CCAFE000C /* OwlConfigPatchBuilder.swift */; };
 		FA000023CAFE0023CAFE0023 /* OwlOnboardingWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000DCAFE000DCAFE000D /* OwlOnboardingWindow.swift */; };
 		FA000024CAFE0024CAFE0024 /* OwlOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000ECAFE000ECAFE000E /* OwlOnboardingView.swift */; };
 		FA000025CAFE0025CAFE0025 /* OwlFuzzyPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000FCAFE000FCAFE000F /* OwlFuzzyPreferences.swift */; };
@@ -206,10 +204,10 @@
 		FA13A0E1CAFE00E1CAFE00E1 /* OwlLiveKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA13A0E2CAFE00E2CAFE00E2 /* OwlLiveKeys.swift */; };
 		FA141001CAFE0001CAFE0001 /* OwlSkillsLiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA141002CAFE0002CAFE0002 /* OwlSkillsLiveTests.swift */; };
 		FA5C0DE100000000000000C1 /* OwlTextInserter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA5C0DE100000000000000C2 /* OwlTextInserter.swift */; };
-		FA0000F2CAFE00F2CAFE00F2 /* RimeOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F1CAFE00F1CAFE00F1 /* RimeOption.swift */; };
-		FA0000F4CAFE00F4CAFE00F4 /* RimeValueTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F3CAFE00F3CAFE00F3 /* RimeValueTypes.swift */; };
-		FAA0000DCAFE000DCAFE000D /* RimeCompositionRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA0000ECAFE000ECAFE000E /* RimeCompositionRenderer.swift */; };
-		FA0000F6CAFE00F6CAFE00F6 /* RimeSeam.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F5CAFE00F5CAFE00F5 /* RimeSeam.swift */; };
+		FA0000F2CAFE00F2CAFE00F2 /* EngineOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F1CAFE00F1CAFE00F1 /* EngineOption.swift */; };
+		FA0000F4CAFE00F4CAFE00F4 /* EngineValueTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F3CAFE00F3CAFE00F3 /* EngineValueTypes.swift */; };
+		FAA0000DCAFE000DCAFE000D /* EngineCompositionRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA0000ECAFE000ECAFE000E /* EngineCompositionRenderer.swift */; };
+		FA0000F6CAFE00F6CAFE00F6 /* EngineSeam.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F5CAFE00F5CAFE00F5 /* EngineSeam.swift */; };
 		FA000249CAFE0249CAFE0001 /* OwlRustEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000249CAFE0249CAFE0002 /* OwlRustEngine.swift */; };
 		AB286009CAFE0001CAFE0001 /* OwlRustPayloads.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB286009CAFE0002CAFE0002 /* OwlRustPayloads.swift */; };
 		FA257C01CAFE2570CAFE0001 /* OwlRustEngine+KeyRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA257C02CAFE2570CAFE0002 /* OwlRustEngine+KeyRouting.swift */; };
@@ -244,9 +242,9 @@
 		FA000303CAFE0303CAFE0303 /* ProviderProfileStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000302CAFE0302CAFE0302 /* ProviderProfileStoreTests.swift */; };
 		C5A1D003BEEF0003C5A1D003 /* OwlProviderRegistryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A1D004BEEF0004C5A1D004 /* OwlProviderRegistryTests.swift */; };
 		FA000401CAFE0401CAFE0401 /* CloudRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000400CAFE0400CAFE0400 /* CloudRoutingTests.swift */; };
-		FA0000F8CAFE00F8CAFE00F8 /* RimeSeamTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F7CAFE00F7CAFE00F7 /* RimeSeamTests.swift */; };
+		FA0000F8CAFE00F8CAFE00F8 /* EngineSeamTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F7CAFE00F7CAFE00F7 /* EngineSeamTests.swift */; };
 		FA000A02CAFE0A02CAFE0A02 /* OwlGetAppOptionsRoundTripTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000A01CAFE0A01CAFE0A01 /* OwlGetAppOptionsRoundTripTests.swift */; };
-		FAA0000FCAFE000FCAFE000F /* RimeCompositionRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00010CAFE0010CAFE0010 /* RimeCompositionRendererTests.swift */; };
+		FAA0000FCAFE000FCAFE000F /* EngineCompositionRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00010CAFE0010CAFE0010 /* EngineCompositionRendererTests.swift */; };
 		FAA00022CAFE0022CAFE0022 /* OwlUpdateLogoutPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00023CAFE0023CAFE0023 /* OwlUpdateLogoutPromptTests.swift */; };
 		FAA00034CAFE0034CAFE0034 /* OwlUserDictResetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00035CAFE0035CAFE0035 /* OwlUserDictResetTests.swift */; };
 		FA0000FACAFE00FACAFE00FA /* SeamPortsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F9CAFE00F9CAFE00F9 /* SeamPortsTests.swift */; };
@@ -306,7 +304,6 @@
 		CC3E22E941504EA49830A2A2 /* OwlInputHabitsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputHabitsTests.swift"; path = "tests/OwlInputHabitsTests.swift"; sourceTree = "<group>"; };
 		A18655B9FE96489FABD6D0D3 /* OwlInputController+InputHabits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+InputHabits.swift"; path = "sources/Controller/OwlInputController+InputHabits.swift"; sourceTree = "<group>"; };
 		FA978779A9B64A19A7E70BB9 /* OwlInputHabitsSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputHabitsSettings.swift"; path = "sources/Settings/OwlInputHabitsSettings.swift"; sourceTree = "<group>"; };
-		8F32FC4A4E5B46B5A07BC2F5 /* OwlPinyinCandidateDeployment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlPinyinCandidateDeployment.swift"; path = "sources/Settings/OwlPinyinCandidateDeployment.swift"; sourceTree = "<group>"; };
 		D8573B4C99C949C5BB32E7C5 /* OwlPinnedWords.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlPinnedWords.swift"; path = "sources/Settings/OwlPinnedWords.swift"; sourceTree = "<group>"; };
 		FA260002CAFE0260CAFE0002 /* OwlRimeUserDBSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRimeUserDBSnapshot.swift; path = sources/UserMigration/OwlRimeUserDBSnapshot.swift; sourceTree = "<group>"; };
 		FA260004CAFE0260CAFE0004 /* OwlUserMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlUserMigration.swift; path = sources/UserMigration/OwlUserMigration.swift; sourceTree = "<group>"; };
@@ -368,11 +365,10 @@
 		B38E9B942BEAFEFD0036ABEF /* OwlInputController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlInputController.swift; path = sources/Controller/OwlInputController.swift; sourceTree = "<group>"; };
 		FA000100CAFE0100CAFE0100 /* OwlInputMenuTitles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlInputMenuTitles.swift; path = sources/Controller/OwlInputMenuTitles.swift; sourceTree = "<group>"; };
 		FA000102CAFE0102CAFE0102 /* OwlInputController+Menu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+Menu.swift"; path = "sources/Controller/OwlInputController+Menu.swift"; sourceTree = "<group>"; };
-		FA000104CAFE0104CAFE0104 /* OwlInputController+RimeUpdate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+RimeUpdate.swift"; path = "sources/Controller/OwlInputController+RimeUpdate.swift"; sourceTree = "<group>"; };
+		FA000104CAFE0104CAFE0104 /* OwlInputController+EngineUpdate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+EngineUpdate.swift"; path = "sources/Controller/OwlInputController+EngineUpdate.swift"; sourceTree = "<group>"; };
 		FA000106CAFE0106CAFE0106 /* OwlInputController+Lifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+Lifecycle.swift"; path = "sources/Controller/OwlInputController+Lifecycle.swift"; sourceTree = "<group>"; };
 		FA000108CAFE0108CAFE0108 /* OwlInputController+Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+Session.swift"; path = "sources/Controller/OwlInputController+Session.swift"; sourceTree = "<group>"; };
 		FA0001F1CAFE01F1CAFE01F1 /* EngineRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EngineRuntime.swift; path = sources/Controller/EngineRuntime.swift; sourceTree = "<group>"; };
-		FA00010ACAFE010ACAFE010A /* OwlInputController+RimeOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+RimeOptions.swift"; path = "sources/Controller/OwlInputController+RimeOptions.swift"; sourceTree = "<group>"; };
 		B39771222BECEA150093A49B /* MacOSKeyCodes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MacOSKeyCodes.swift; path = sources/Engine/MacOSKeyCodes.swift; sourceTree = "<group>"; };
 		FA000131CAFE0131CAFE0131 /* OwlUserAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlUserAction.swift; path = sources/Engine/OwlUserAction.swift; sourceTree = "<group>"; };
 		FA000133CAFE0133CAFE0133 /* OwlInputController+ClientAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+ClientAction.swift"; path = "sources/Controller/OwlInputController+ClientAction.swift"; sourceTree = "<group>"; };
@@ -438,7 +434,7 @@
 		FACE0003FACE0003FACE0003 /* OwlClipboardPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlClipboardPage.swift; path = sources/Settings/OwlClipboardPage.swift; sourceTree = "<group>"; };
 		FACE0004FACE0004FACE0004 /* OwlSkillsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSkillsPage.swift; path = sources/Settings/OwlSkillsPage.swift; sourceTree = "<group>"; };
 		FACE0005FACE0005FACE0005 /* OwlAIPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAIPage.swift; path = sources/Settings/OwlAIPage.swift; sourceTree = "<group>"; };
-		FA00000CCAFE000CCAFE000C /* OwlRimePatchBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRimePatchBuilder.swift; path = sources/Settings/OwlRimePatchBuilder.swift; sourceTree = "<group>"; };
+		FA00000CCAFE000CCAFE000C /* OwlConfigPatchBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlConfigPatchBuilder.swift; path = sources/Settings/OwlConfigPatchBuilder.swift; sourceTree = "<group>"; };
 		FA00000DCAFE000DCAFE000D /* OwlOnboardingWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlOnboardingWindow.swift; path = sources/Settings/OwlOnboardingWindow.swift; sourceTree = "<group>"; };
 		FA00000ECAFE000ECAFE000E /* OwlOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlOnboardingView.swift; path = sources/Settings/OwlOnboardingView.swift; sourceTree = "<group>"; };
 		FA00000FCAFE000FCAFE000F /* OwlFuzzyPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlFuzzyPreferences.swift; path = sources/Settings/OwlFuzzyPreferences.swift; sourceTree = "<group>"; };
@@ -499,10 +495,10 @@
 		FA13A0E2CAFE00E2CAFE00E2 /* OwlLiveKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlLiveKeys.swift; path = tests/OwlLiveKeys.swift; sourceTree = "<group>"; };
 		FA141002CAFE0002CAFE0002 /* OwlSkillsLiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSkillsLiveTests.swift; path = tests/OwlSkillsLiveTests.swift; sourceTree = "<group>"; };
 		FA5C0DE100000000000000C2 /* OwlTextInserter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTextInserter.swift; path = sources/Lane/OwlTextInserter.swift; sourceTree = "<group>"; };
-		FA0000F1CAFE00F1CAFE00F1 /* RimeOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeOption.swift; path = sources/Engine/RimeOption.swift; sourceTree = "<group>"; };
-		FA0000F3CAFE00F3CAFE00F3 /* RimeValueTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeValueTypes.swift; path = sources/Engine/RimeValueTypes.swift; sourceTree = "<group>"; };
-		FAA0000ECAFE000ECAFE000E /* RimeCompositionRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeCompositionRenderer.swift; path = sources/Engine/RimeCompositionRenderer.swift; sourceTree = "<group>"; };
-		FA0000F5CAFE00F5CAFE00F5 /* RimeSeam.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeSeam.swift; path = sources/Engine/RimeSeam.swift; sourceTree = "<group>"; };
+		FA0000F1CAFE00F1CAFE00F1 /* EngineOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EngineOption.swift; path = sources/Engine/EngineOption.swift; sourceTree = "<group>"; };
+		FA0000F3CAFE00F3CAFE00F3 /* EngineValueTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EngineValueTypes.swift; path = sources/Engine/EngineValueTypes.swift; sourceTree = "<group>"; };
+		FAA0000ECAFE000ECAFE000E /* EngineCompositionRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EngineCompositionRenderer.swift; path = sources/Engine/EngineCompositionRenderer.swift; sourceTree = "<group>"; };
+		FA0000F5CAFE00F5CAFE00F5 /* EngineSeam.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EngineSeam.swift; path = sources/Engine/EngineSeam.swift; sourceTree = "<group>"; };
 		FA000249CAFE0249CAFE0002 /* OwlRustEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRustEngine.swift; path = sources/Engine/OwlRustEngine.swift; sourceTree = "<group>"; };
 		AB286009CAFE0002CAFE0002 /* OwlRustPayloads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRustPayloads.swift; path = sources/Engine/OwlRustPayloads.swift; sourceTree = "<group>"; };
 		FA257C02CAFE2570CAFE0002 /* OwlRustEngine+KeyRouting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlRustEngine+KeyRouting.swift"; path = "sources/Engine/OwlRustEngine+KeyRouting.swift"; sourceTree = "<group>"; };
@@ -527,10 +523,10 @@
 		FA5C0DE100000000000000C4 /* OwlTextInserterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlTextInserterTests.swift; path = tests/OwlTextInserterTests.swift; sourceTree = "<group>"; };
 		FA00090DCAFE009DCAFE009D /* OwlAIConversationModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAIConversationModelTests.swift; path = tests/OwlAIConversationModelTests.swift; sourceTree = "<group>"; };
 		FA000400CAFE0400CAFE0400 /* CloudRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CloudRoutingTests.swift; path = tests/CloudRoutingTests.swift; sourceTree = "<group>"; };
-		FA0000F7CAFE00F7CAFE00F7 /* RimeSeamTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeSeamTests.swift; path = tests/RimeSeamTests.swift; sourceTree = "<group>"; };
+		FA0000F7CAFE00F7CAFE00F7 /* EngineSeamTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EngineSeamTests.swift; path = tests/EngineSeamTests.swift; sourceTree = "<group>"; };
 		FA000249CAFE0249CAFE0004 /* OwlRustEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRustEngineTests.swift; path = tests/OwlRustEngineTests.swift; sourceTree = "<group>"; };
 		FA000A01CAFE0A01CAFE0A01 /* OwlGetAppOptionsRoundTripTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlGetAppOptionsRoundTripTests.swift; path = tests/OwlGetAppOptionsRoundTripTests.swift; sourceTree = "<group>"; };
-		FAA00010CAFE0010CAFE0010 /* RimeCompositionRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RimeCompositionRendererTests.swift; path = tests/RimeCompositionRendererTests.swift; sourceTree = "<group>"; };
+		FAA00010CAFE0010CAFE0010 /* EngineCompositionRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EngineCompositionRendererTests.swift; path = tests/EngineCompositionRendererTests.swift; sourceTree = "<group>"; };
 		FAA00023CAFE0023CAFE0023 /* OwlUpdateLogoutPromptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlUpdateLogoutPromptTests.swift; path = tests/OwlUpdateLogoutPromptTests.swift; sourceTree = "<group>"; };
 		FAA00035CAFE0035CAFE0035 /* OwlUserDictResetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlUserDictResetTests.swift; path = tests/OwlUserDictResetTests.swift; sourceTree = "<group>"; };
 		FA0000F9CAFE00F9CAFE00F9 /* SeamPortsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SeamPortsTests.swift; path = tests/SeamPortsTests.swift; sourceTree = "<group>"; };
@@ -602,10 +598,9 @@
 				B38E9B942BEAFEFD0036ABEF /* OwlInputController.swift */,
 				FA000100CAFE0100CAFE0100 /* OwlInputMenuTitles.swift */,
 				FA000102CAFE0102CAFE0102 /* OwlInputController+Menu.swift */,
-				FA000104CAFE0104CAFE0104 /* OwlInputController+RimeUpdate.swift */,
+				FA000104CAFE0104CAFE0104 /* OwlInputController+EngineUpdate.swift */,
 				FA000106CAFE0106CAFE0106 /* OwlInputController+Lifecycle.swift */,
 				FA000108CAFE0108CAFE0108 /* OwlInputController+Session.swift */,
-				FA00010ACAFE010ACAFE010A /* OwlInputController+RimeOptions.swift */,
 				FA000701CAFE0701CAFE0701 /* OwlLaneTasks.swift */,
 				B39771222BECEA150093A49B /* MacOSKeyCodes.swift */,
 				FA000131CAFE0131CAFE0131 /* OwlUserAction.swift */,
@@ -681,7 +676,7 @@
 				FACE0003FACE0003FACE0003 /* OwlClipboardPage.swift */,
 				FACE0004FACE0004FACE0004 /* OwlSkillsPage.swift */,
 				FACE0005FACE0005FACE0005 /* OwlAIPage.swift */,
-				FA00000CCAFE000CCAFE000C /* OwlRimePatchBuilder.swift */,
+				FA00000CCAFE000CCAFE000C /* OwlConfigPatchBuilder.swift */,
 				FA00000DCAFE000DCAFE000D /* OwlOnboardingWindow.swift */,
 				FA00000ECAFE000ECAFE000E /* OwlOnboardingView.swift */,
 				FA00000FCAFE000FCAFE000F /* OwlFuzzyPreferences.swift */,
@@ -696,7 +691,6 @@
 				FAD1CF01CAFEDF01CAFEDF01 /* OwlDictPack.swift */,
 				A18655B9FE96489FABD6D0D3 /* OwlInputController+InputHabits.swift */,
 				FA978779A9B64A19A7E70BB9 /* OwlInputHabitsSettings.swift */,
-				8F32FC4A4E5B46B5A07BC2F5 /* OwlPinyinCandidateDeployment.swift */,
 				D8573B4C99C949C5BB32E7C5 /* OwlPinnedWords.swift */,
 				FA260002CAFE0260CAFE0002 /* OwlRimeUserDBSnapshot.swift */,
 				FA260004CAFE0260CAFE0004 /* OwlUserMigration.swift */,
@@ -736,10 +730,10 @@
 				FA139002CAFE0002CAFE0002 /* OwlPromptOptimizer.swift */,
 				FA142002CAFE0002CAFE0002 /* OwlGoalBrief.swift */,
 				FA5C0DE100000000000000C2 /* OwlTextInserter.swift */,
-				FA0000F1CAFE00F1CAFE00F1 /* RimeOption.swift */,
-				FA0000F3CAFE00F3CAFE00F3 /* RimeValueTypes.swift */,
-				FAA0000ECAFE000ECAFE000E /* RimeCompositionRenderer.swift */,
-				FA0000F5CAFE00F5CAFE00F5 /* RimeSeam.swift */,
+				FA0000F1CAFE00F1CAFE00F1 /* EngineOption.swift */,
+				FA0000F3CAFE00F3CAFE00F3 /* EngineValueTypes.swift */,
+				FAA0000ECAFE000ECAFE000E /* EngineCompositionRenderer.swift */,
+				FA0000F5CAFE00F5CAFE00F5 /* EngineSeam.swift */,
 				FA000249CAFE0249CAFE0002 /* OwlRustEngine.swift */,
 				AB286009CAFE0002CAFE0002 /* OwlRustPayloads.swift */,
 				FA257C02CAFE2570CAFE0002 /* OwlRustEngine+KeyRouting.swift */,
@@ -842,10 +836,10 @@
 				FA143002CAFE0002CAFE0002 /* OwlGoalBriefLiveTests.swift */,
 				FA13A0E2CAFE00E2CAFE00E2 /* OwlLiveKeys.swift */,
 				FA141002CAFE0002CAFE0002 /* OwlSkillsLiveTests.swift */,
-				FA0000F7CAFE00F7CAFE00F7 /* RimeSeamTests.swift */,
+				FA0000F7CAFE00F7CAFE00F7 /* EngineSeamTests.swift */,
 				FA000249CAFE0249CAFE0004 /* OwlRustEngineTests.swift */,
 				FA000A01CAFE0A01CAFE0A01 /* OwlGetAppOptionsRoundTripTests.swift */,
-				FAA00010CAFE0010CAFE0010 /* RimeCompositionRendererTests.swift */,
+				FAA00010CAFE0010CAFE0010 /* EngineCompositionRendererTests.swift */,
 				FAA00023CAFE0023CAFE0023 /* OwlUpdateLogoutPromptTests.swift */,
 				FAA00035CAFE0035CAFE0035 /* OwlUserDictResetTests.swift */,
 				FA260008CAFE0260CAFE0008 /* OwlUserMigrationTests.swift */,
@@ -1104,10 +1098,9 @@
 				FB5A00010000000000000006 /* OwlSessionRestart.swift in Sources */,
 				FA000101CAFE0101CAFE0101 /* OwlInputMenuTitles.swift in Sources */,
 				FA000103CAFE0103CAFE0103 /* OwlInputController+Menu.swift in Sources */,
-				FA000105CAFE0105CAFE0105 /* OwlInputController+RimeUpdate.swift in Sources */,
+				FA000105CAFE0105CAFE0105 /* OwlInputController+EngineUpdate.swift in Sources */,
 				FA000107CAFE0107CAFE0107 /* OwlInputController+Lifecycle.swift in Sources */,
 				FA000109CAFE0109CAFE0109 /* OwlInputController+Session.swift in Sources */,
-				FA00010BCAFE010BCAFE010B /* OwlInputController+RimeOptions.swift in Sources */,
 				B39771252BED899F0093A49B /* OwlConfig.swift in Sources */,
 				B397712F2BEECBED0093A49B /* Main.swift in Sources */,
 				B397712D2BEEB39D0093A49B /* InputSource.swift in Sources */,
@@ -1177,7 +1170,7 @@
 				FACE0103FACE0103FACE0103 /* OwlClipboardPage.swift in Sources */,
 				FACE0104FACE0104FACE0104 /* OwlSkillsPage.swift in Sources */,
 				FACE0105FACE0105FACE0105 /* OwlAIPage.swift in Sources */,
-				FA000022CAFE0022CAFE0022 /* OwlRimePatchBuilder.swift in Sources */,
+				FA000022CAFE0022CAFE0022 /* OwlConfigPatchBuilder.swift in Sources */,
 				FA000023CAFE0023CAFE0023 /* OwlOnboardingWindow.swift in Sources */,
 				FA000024CAFE0024CAFE0024 /* OwlOnboardingView.swift in Sources */,
 				FA000025CAFE0025CAFE0025 /* OwlFuzzyPreferences.swift in Sources */,
@@ -1192,7 +1185,6 @@
 				FAD1CF02CAFEDF02CAFEDF02 /* OwlDictPack.swift in Sources */,
 				8E0219EE244D455186692B00 /* OwlInputController+InputHabits.swift in Sources */,
 				07860FECCA2A4B9EAC2331D8 /* OwlInputHabitsSettings.swift in Sources */,
-				7AE040E79F0946C2A2036977 /* OwlPinyinCandidateDeployment.swift in Sources */,
 				F1233813CC4543789D65C9A9 /* OwlPinnedWords.swift in Sources */,
 				FA260001CAFE0260CAFE0001 /* OwlRimeUserDBSnapshot.swift in Sources */,
 				FA260003CAFE0260CAFE0003 /* OwlUserMigration.swift in Sources */,
@@ -1235,10 +1227,10 @@
 				FA139001CAFE0001CAFE0001 /* OwlPromptOptimizer.swift in Sources */,
 				FA142001CAFE0001CAFE0001 /* OwlGoalBrief.swift in Sources */,
 				FA5C0DE100000000000000C1 /* OwlTextInserter.swift in Sources */,
-				FA0000F2CAFE00F2CAFE00F2 /* RimeOption.swift in Sources */,
-				FA0000F4CAFE00F4CAFE00F4 /* RimeValueTypes.swift in Sources */,
-				FAA0000DCAFE000DCAFE000D /* RimeCompositionRenderer.swift in Sources */,
-				FA0000F6CAFE00F6CAFE00F6 /* RimeSeam.swift in Sources */,
+				FA0000F2CAFE00F2CAFE00F2 /* EngineOption.swift in Sources */,
+				FA0000F4CAFE00F4CAFE00F4 /* EngineValueTypes.swift in Sources */,
+				FAA0000DCAFE000DCAFE000D /* EngineCompositionRenderer.swift in Sources */,
+				FA0000F6CAFE00F6CAFE00F6 /* EngineSeam.swift in Sources */,
 				FA000249CAFE0249CAFE0001 /* OwlRustEngine.swift in Sources */,
 				AB286009CAFE0001CAFE0001 /* OwlRustPayloads.swift in Sources */,
 				FA257C01CAFE2570CAFE0001 /* OwlRustEngine+KeyRouting.swift in Sources */,
@@ -1343,10 +1335,10 @@
 				FA143001CAFE0001CAFE0001 /* OwlGoalBriefLiveTests.swift in Sources */,
 				FA13A0E1CAFE00E1CAFE00E1 /* OwlLiveKeys.swift in Sources */,
 				FA141001CAFE0001CAFE0001 /* OwlSkillsLiveTests.swift in Sources */,
-				FA0000F8CAFE00F8CAFE00F8 /* RimeSeamTests.swift in Sources */,
+				FA0000F8CAFE00F8CAFE00F8 /* EngineSeamTests.swift in Sources */,
 				FA000249CAFE0249CAFE0003 /* OwlRustEngineTests.swift in Sources */,
 				FA000A02CAFE0A02CAFE0A02 /* OwlGetAppOptionsRoundTripTests.swift in Sources */,
-				FAA0000FCAFE000FCAFE000F /* RimeCompositionRendererTests.swift in Sources */,
+				FAA0000FCAFE000FCAFE000F /* EngineCompositionRendererTests.swift in Sources */,
 				FAA00022CAFE0022CAFE0022 /* OwlUpdateLogoutPromptTests.swift in Sources */,
 				FAA00034CAFE0034CAFE0034 /* OwlUserDictResetTests.swift in Sources */,
 				FA260007CAFE0260CAFE0007 /* OwlUserMigrationTests.swift in Sources */,

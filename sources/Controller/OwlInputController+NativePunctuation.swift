@@ -15,7 +15,7 @@ extension OwlInputController {
   }
 
   var usesNativePairedPunctuation: Bool {
-    guard let session = rime,
+    guard let session = engineSession,
           session.acceptsHostSmartPunctuation,
           !session.option(.asciiMode), !session.option(.asciiPunct),
           client?.bundleIdentifier()?.caseInsensitiveCompare("com.microsoft.Excel") != .orderedSame
@@ -41,7 +41,7 @@ extension OwlInputController {
       }
       opened = pairs[mark]
       if opened != nil, mark == "《" || mark == "〈" {
-        rime?.balanceHostPairedPunctuation()
+        engineSession?.balanceHostPairedPunctuation()
       }
     }
     pendingPairedClosing = opened
@@ -49,7 +49,7 @@ extension OwlInputController {
     let inserted = committed + (pending ?? "")
     apply(.insertText(inserted), client: client)
     lastCommittedCharacter = inserted.last
-    // rimeUpdate publishes the new marked closing after consuming this commit.
+    // engineUpdate publishes the new marked closing after consuming this commit.
   }
 
   /// Pinned PairedPunctuationTracker owns at most sixteen closing marks. A host
@@ -59,7 +59,7 @@ extension OwlInputController {
           event.type == .keyDown,
           event.modifierFlags.intersection([.control, .option, .command]).isEmpty,
           event.characters == closing, let client,
-          rime?.input()?.isEmpty != false else { return nil }
+          engineSession?.input()?.isEmpty != false else { return nil }
     let policy = clientCapabilityDecisions(for: client)
     let replacementTrusted = policy.replacementRange.reason == .allowedAppKitClient
       || policy.replacementRange.reason == .userForcedAllow
@@ -82,8 +82,8 @@ extension OwlInputController {
   func finishPairBeforeChangingClient(to incoming: IMKTextInput?) {
     guard let incoming, let previous = client, incoming !== previous else { return }
     if pendingPairedClosing != nil {
-      rime?.finishNativeComposition(onFocusLoss: false)
-      rimeUpdate()
+      engineSession?.finishNativeComposition(onFocusLoss: false)
+      engineUpdate()
       flushPendingPairedClosing()
     }
     pairedClosings.removeAll()

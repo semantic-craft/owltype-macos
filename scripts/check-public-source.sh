@@ -21,7 +21,7 @@ while IFS= read -r tracked_path; do
   esac
 
   case "$tracked_path" in
-    build/*|download/*|bin/*|lib/*|Frameworks/*|data/opencc/*|data/plum/*|data/owl-rime/*|.wrangler/*|*.xcresult/*)
+    build/*|download/*|bin/*|lib/*|Frameworks/*|data/opencc/*|data/owl-rime/*|.wrangler/*|*.xcresult/*)
       printf 'forbidden generated artifact: %s\n' "$tracked_path" >&2
       failed=1
       ;;

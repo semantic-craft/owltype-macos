@@ -4,7 +4,7 @@
 //
 //  The candidate-window LAYOUT flags the IMK path needs from Rime config:
 //    linear / vertical → which Rime options the hot path (`processKey`) syncs;
-//    inlinePreedit / inlineCandidate → how `rimeUpdate` assembles the inline preview;
+//    inlinePreedit / inlineCandidate → how `engineUpdate` assembles the inline preview;
 //    statusMessageType → how the status HUD picks long vs. short labels.
 //
 //  These used to live on `OwlTheme` (deleted when SwiftUI became the sole renderer).
@@ -50,7 +50,7 @@ struct OwlStyleFlags: Sendable, Equatable {
     return flags
   }
 
-  /// Per-session inline flag resolution（2026-07-12，从 `rimeUpdate` 提出来的纯函数，把优先级
+  /// Per-session inline flag resolution（2026-07-12，从 `engineUpdate` 提出来的纯函数，把优先级
   /// 锁死）：全局 `style/*` ∧ ¬`no_inline`，其中 app_options 的 `inline` 强制覆盖只对 preedit
   /// 生效（Chromium omnibox 规避，squirrel#435 先例——`inline: true` 必须压过全局 style 与
   /// `no_inline`）；`inline` 不强制 candidate 内嵌预览。

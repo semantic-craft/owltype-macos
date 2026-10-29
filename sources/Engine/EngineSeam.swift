@@ -1,13 +1,13 @@
 //
-//  RimeSeam.swift
+//  EngineSeam.swift
 //  Owltype
 //
 //  The input Engine/Session seam. Two small protocols put a testable boundary
 //  in front of the production Rust engine:
 //
-//    • `RimeEngine`  — the global Rime lifecycle (setup/initialize/deploy/sync/finalize,
+//    • `InputEngine`  — the global engine lifecycle (setup/initialize/deploy/sync/finalize,
 //                      schema list & selection, notification handler). Vends Sessions.
-//    • `RimeSession` — one composition's conversation (process key, take commit, read
+//    • `EngineSession` — one composition's conversation (process key, take commit, read
 //                      status/composition, candidate select/page/caret, options).
 //
 //  `OwlRustEngine` / `OwlRustSession` are the only production adapters. Opaque native
@@ -20,9 +20,9 @@
 //  async — the contract is "single-threaded on the IMK callback thread", matching the
 //  non-isolated controller. Fakes (PR2) are synchronous too.
 //
-//  Behaviour note: this is a behaviour-preserving strangler. Each method makes the SAME
-//  librime call(s) in the SAME order the controller used to make inline — only the call
-//  SITE moved behind the seam.
+//  Behaviour note: this began as a behaviour-preserving strangler over the former Rime
+//  engine. Each method keeps the call order the controller used to make inline — only
+//  the call SITE moved behind the seam.
 //
 
 import Foundation
@@ -82,8 +82,8 @@ struct OwlSettledRerankPollResult: Equatable, Sendable {
   )
 }
 
-/// One composition's conversation with librime. All calls are on the IMK input thread.
-protocol RimeSession: AnyObject {
+/// One composition's conversation with the engine. All calls are on the IMK input thread.
+protocol EngineSession: AnyObject {
   /// A stable opaque identifier for this session, used only to tag composition snapshots
   /// (`OwlSnapshotEmitter`). The engine assigns it.
   var sessionID: UInt64 { get }
@@ -93,17 +93,17 @@ protocol RimeSession: AnyObject {
   /// True if this session id is still valid (`find_session`). 0/destroyed → false.
   var isValid: Bool { get }
 
-  /// `process_key` — returns whether librime consumed the key.
+  /// `process_key` — returns whether the engine consumed the key.
   func process(keycode: UInt32, modifiers: UInt32) -> Bool
 
   /// Drain a pending commit (`get_commit` + `free_commit`); nil if none.
   func takeCommit() -> String?
 
   /// Read status (`get_status` + `free_status`) as a value type; nil on failure.
-  func status() -> RimeStatus?
+  func status() -> EngineStatus?
 
   /// Read the composition/context (`get_context` + `free_context`) as a value type; nil on failure.
-  func composition() -> RimeComposition?
+  func composition() -> EngineComposition?
 
   /// The raw input string (`get_input`); nil if unavailable.
   func input() -> String?
@@ -127,7 +127,7 @@ protocol RimeSession: AnyObject {
   /// `select_candidate`: select by **absolute** index into the whole candidate list, so a
   /// candidate that is visible but not on the current page can be committed without paging
   /// there first. Only the 多行后页行 click path uses it (mouse-only — the keyboard hot path
-  /// still goes through librime's own current-page number keys). A default implementation
+  /// still goes through the engine's own current-page number keys). A default implementation
   /// returns `false` so existing fakes stay source-compatible.
   func selectCandidateAbsolute(_ index: Int) -> Bool
   /// Select a candidate using its `OwlCandidateToken` (#264).
@@ -146,7 +146,7 @@ protocol RimeSession: AnyObject {
   /// state is untouched, and no IMK client round-trip is involved. Returns `[]` when the
   /// API is unavailable or the iterator can't start (e.g. index past the end). A default
   /// implementation returns `[]` so existing fakes stay source-compatible.
-  func peekCandidates(from index: Int, count: Int) -> [RimeCandidate]
+  func peekCandidates(from index: Int, count: Int) -> [EngineCandidate]
 
   /// The configured model generation. Changes whenever enabled/path/version/hash changes, so a
   /// settled result started under an older model configuration is discarded.
@@ -177,15 +177,15 @@ protocol RimeSession: AnyObject {
   func selectSchema(_ id: String) -> Bool
 
   /// `get_option` for a Owltype-driven option.
-  func option(_ option: RimeOption) -> Bool
+  func option(_ option: EngineOption) -> Bool
 
   /// `set_option` for a Owltype-driven option.
-  func setOption(_ option: RimeOption, _ value: Bool)
+  func setOption(_ option: EngineOption, _ value: Bool)
 
   /// `set_property`.
   func setProperty(name: String, value: String)
 
-  /// `get_state_label_abbreviated` for the open-namespace option name librime reports.
+  /// `get_state_label_abbreviated` for the open-namespace option name the engine reports.
   func stateLabel(option name: String, state: Bool, abbreviated: Bool) -> String?
 
   /// Native finish: select the highlighted conversion and commit it through the engine
@@ -218,32 +218,32 @@ struct OwlEngineTraits {
 }
 
 /// Swift-owned engine notification. No C callback or context pointer crosses the seam.
-typealias RimeNotificationHandler = (UInt64, String, String?) -> Void
+typealias EngineNotificationHandler = (UInt64, String, String?) -> Void
 
 /// The global input-engine lifecycle. Vends Sessions. All calls are on the IMK input thread.
-protocol RimeEngine: AnyObject {
+protocol InputEngine: AnyObject {
   func setup(_ traits: OwlEngineTraits)
   func startMaintenance(fullCheck: Bool) -> Bool
   func joinMaintenance()
   func deployConfigFile(_ fileName: String, versionKey: String) -> Bool
-  func setNotificationHandler(_ handler: @escaping RimeNotificationHandler)
+  func setNotificationHandler(_ handler: @escaping EngineNotificationHandler)
   func cleanupAllSessions()
   func finalize() -> Bool
   func schemaList() -> [(id: String, name: String)]
   func currentSchema() -> String
   func selectSchema(_ id: String) -> Bool
   func version() -> String?
-  func createSession() -> RimeSession
-  func session(for id: UInt64) -> RimeSession
+  func createSession() -> EngineSession
+  func session(for id: UInt64) -> EngineSession
 }
 
 // MARK: - Snapshot-reading port (god-object reduction)
 //
-// The SAME injection range RimeEngine/RimeSession established for librime, extended to the
+// The SAME injection range InputEngine/EngineSession established for the engine, extended to the
 // live composition snapshot the controller reads off the IMK hot path (e.g. to drive the
 // 任意提问 window over the current composition context). A narrow (ISP) protocol over the one
 // member the controller uses — NOT the registry's whole surface — so the path becomes drivable
-// from a fake with no librime session. Production wires the `.shared` instance on the AppDelegate
+// from a fake with no engine session. Production wires the `.shared` instance on the AppDelegate
 // (composition root, alongside `engine`); injection is purely additive and changes no behaviour.
 // `@MainActor` because the backing singleton (`OwlSnapshotRegistry`) is, and the controller
 // touches it only from `@MainActor` Task bodies.
@@ -263,18 +263,18 @@ extension OwlSnapshotRegistry: SnapshotReading {}
 
 // MARK: - Controller→service ports: snapshot emitter / selection polish
 //
-// The SAME controller→service injection range RimeEngine/SnapshotReading
+// The SAME controller→service injection range InputEngine/SnapshotReading
 // established, extended to the TWO remaining global singletons `OwlInputController` still
 // reached for off the IMK hot path via bare `.shared`:
 //
 //   • `SnapshotEmitting`     — the composition-timeline emitter the controller pokes from
-//                              `rimeUpdate()` / `commit()` (was `OwlSnapshotEmitter.shared`).
+//                              `engineUpdate()` / `commit()` (was `OwlSnapshotEmitter.shared`).
 //   • `SelectionPolishing`   — the explicit 润色选中 rewrite the controller awaits (was
 //                              `OwlSelectionPolishService.shared`).
 //
 // Each is a narrow (ISP) protocol over ONLY the members the controller calls — NOT the
 // singleton's whole surface — so the AI / snapshot path becomes drivable from a fake with no
-// librime session and no network. Production wires the `.shared` instances on the AppDelegate
+// the engine session and no network. Production wires the `.shared` instances on the AppDelegate
 // (composition root, alongside `engine` / `snapshots`); injection is purely
 // additive and changes no behaviour. Both are `@MainActor` because the backing singletons
 // are, and the controller touches them only on the main actor (the emitter calls are already
@@ -282,12 +282,12 @@ extension OwlSnapshotRegistry: SnapshotReading {}
 
 /// The controller's view of the composition-timeline snapshot emitter. Exposes ONLY the 4
 /// methods the controller pokes — not the emitter's `commitSerial` — so the snapshot path can be
-/// driven and asserted without a librime session.
+/// driven and asserted without an engine session.
 @MainActor
 protocol SnapshotEmitting: AnyObject {
   func noteCommit()
   func noteSchemaChange()
-  func emitComposing(sessionID: UInt64, schemaID: String, rawInput: String, preedit: String, cursor: Int, pageNo: Int, candidates: [RimeCandidateSnapshot])
+  func emitComposing(sessionID: UInt64, schemaID: String, rawInput: String, preedit: String, cursor: Int, pageNo: Int, candidates: [EngineCandidateSnapshot])
   func emitCleared()
 }
 

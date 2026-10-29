@@ -3,10 +3,10 @@
 //  OwltypeTests — P0 added-cost latency proxy (spec P0-06)
 //
 //  A true IMK hot-path latency test needs a live rime session and is not unit-testable. This is
-//  a PROXY: it measures only the work P0 actually appends to the hot path per `rimeUpdate()` —
+//  a PROXY: it measures only the work P0 actually appends to the hot path per `engineUpdate()` —
 //  building a `OwlCompositionSnapshot` from ~9 candidates and running `emitComposing` +
 //  `emitCleared` on the main actor — and asserts the added per-iteration cost stays well under
-//  1 ms (the parent prd budget). No network, no librime. The real timing/timing-order guarantee
+//  1 ms (the parent prd budget). No network, no engine. The real timing/timing-order guarantee
 //  is still a manual real-machine check; this only guards against the bypass becoming expensive.
 //
 
@@ -17,9 +17,9 @@ import XCTest
 final class HotPathLatencyTests: XCTestCase {
 
   /// A representative top-9 candidate page (9 = `OwlCompositionSnapshot.defaultTopN`).
-  private func makeCandidates() -> [RimeCandidateSnapshot] {
+  private func makeCandidates() -> [EngineCandidateSnapshot] {
     (0..<9).map { i in
-      RimeCandidateSnapshot(index: i, text: "候选\(i)", comment: i == 0 ? "běn yuàn" : nil, quality: nil)
+      EngineCandidateSnapshot(index: i, text: "候选\(i)", comment: i == 0 ? "běn yuàn" : nil, quality: nil)
     }
   }
 
@@ -58,7 +58,7 @@ final class HotPathLatencyTests: XCTestCase {
   }
 
   /// The appended hot-path work (build snapshot + emitComposing + emitCleared) must cost well
-  /// under the 1 ms budget per `rimeUpdate()`. Averaged over many iterations to absorb noise.
+  /// under the 1 ms budget per `engineUpdate()`. Averaged over many iterations to absorb noise.
   func testEmitAddedCostUnderOneMillisecond() {
     let emitter = OwlSnapshotEmitter.shared
     let candidates = makeCandidates()
