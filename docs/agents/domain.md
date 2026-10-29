@@ -60,6 +60,8 @@ workflow when actual typing must be tested.
 - MiniMax endpoints, reasoning and subscription search:
   [integration research](../minimax-integration-research-2026-10-01.md).
 - Publishing and installation validation: [publishing checklist](../PUBLISHING_CHECKLIST.md).
+- Keyboard and shortcut setting defaults against pinned Metasequoia:
+  [defaults comparison](../settings-defaults-msime.md).
 
 Research describes its recorded revision and date. Confirm current source, generated
 schema and installed version before applying its conclusions; acceptance records state
