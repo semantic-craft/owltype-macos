@@ -53,6 +53,18 @@ struct Helper {
 
 impl Helper {
     fn start(socket: &Path) -> Helper {
+        let mut helper = Helper::spawn(socket);
+        let initialized = helper.request(
+            "initialize",
+            json!({ "protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": { "name": "grok-build", "version": "0.9.3" } }),
+        );
+        assert_eq!(initialized["result"]["protocolVersion"], "2025-11-25");
+        assert_eq!(initialized["result"]["serverInfo"]["name"], "owltype-mcp");
+        helper.send(json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }));
+        helper
+    }
+
+    fn spawn(socket: &Path) -> Helper {
         let mut child = Command::new(env!("CARGO_BIN_EXE_owltype-mcp"))
             .env("OWLTYPE_AGENT_BRIDGE_SOCKET", socket)
             .stdin(Stdio::piped())
@@ -62,15 +74,7 @@ impl Helper {
             .unwrap();
         let stdin = child.stdin.take().unwrap();
         let stdout = BufReader::new(child.stdout.take().unwrap());
-        let mut helper = Helper { child, stdin, stdout, next_id: 1 };
-        let initialized = helper.request(
-            "initialize",
-            json!({ "protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": { "name": "grok-build", "version": "0.9.3" } }),
-        );
-        assert_eq!(initialized["result"]["protocolVersion"], "2025-11-25");
-        assert_eq!(initialized["result"]["serverInfo"]["name"], "owltype-mcp");
-        helper.send(json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }));
-        helper
+        Helper { child, stdin, stdout, next_id: 1 }
     }
 
     fn send(&mut self, message: Value) {
@@ -130,6 +134,26 @@ fn lists_and_calls_owltype_status_through_the_bridge() {
     assert_eq!(seen.recv().unwrap()["method"], "owltype_status");
 }
 
+/// Antigravity CLI speaks MCP 2026-07-28: server/discover instead of initialize, and its name in
+/// each request's _meta (captured from agy 1.4.10 on 2026-10-29).
+#[test]
+fn names_a_stateless_client_from_its_request_meta() {
+    let directory = private_directory();
+    let (socket, seen) = fake_bridge(directory.path());
+    let mut helper = Helper::spawn(&socket);
+    let meta = json!({
+        "io.modelcontextprotocol/clientCapabilities": {},
+        "io.modelcontextprotocol/clientInfo": { "name": "antigravity-client", "version": "v1.0.0" },
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28"
+    });
+    let discovered = helper.request("server/discover", json!({ "_meta": meta }));
+    assert!(discovered["result"]["supportedVersions"].as_array().unwrap().contains(&json!("2026-07-28")));
+    let called = helper.request("tools/call", json!({ "_meta": meta, "name": "owltype_status", "arguments": {} }));
+    assert_eq!(called["result"]["isError"], false);
+    let hello = seen.recv().unwrap();
+    assert_eq!(hello["params"]["agentClient"], json!({ "name": "antigravity-client", "version": "v1.0.0" }));
+}
+
 #[test]
 fn reports_owltype_offline_as_a_tool_error() {
     let directory = private_directory();
@@ -184,6 +208,17 @@ fn template_tools_forward_their_arguments() {
     assert_eq!(rendered["result"]["structuredContent"], sample("template_render.response.json")["result"]);
     let requests: Vec<Value> = seen.try_iter().filter(|request| request["method"] != "hello").collect();
     assert_eq!(requests[1]["params"], json!({ "id": id, "arguments": { "n:议题": "发版" } }));
+
+    // Antigravity CLI cannot send nested objects in tool arguments; the map may come as JSON text.
+    let as_text = helper.request(
+        "tools/call",
+        json!({ "name": "template_render", "arguments": { "id": id, "arguments": "{\"n:议题\":\"发版\"}" } }),
+    );
+    assert_eq!(as_text["result"]["isError"], false);
+    let renders: Vec<Value> = seen.try_iter().filter(|request| request["method"] == "template_render").collect();
+    assert_eq!(renders[0]["params"], json!({ "id": id, "arguments": { "n:议题": "发版" } }));
+    let bad_text = helper.request("tools/call", json!({ "name": "template_render", "arguments": { "id": id, "arguments": "[1]" } }));
+    assert_eq!(bad_text["result"]["isError"], true);
 
     let missing = helper.request("tools/call", json!({ "name": "template_get", "arguments": {} }));
     assert_eq!(missing["result"]["isError"], true);

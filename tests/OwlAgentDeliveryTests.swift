@@ -171,10 +171,25 @@ final class OwlAgentDeliveryTests: XCTestCase {
     let reply = start(params())
     coordinator.applicationDidActivate(getpid())  // Owltype itself coming forward is not a change
     XCTAssertNil(reply())
+    let decide = preview.decide
     coordinator.applicationDidActivate(300)
+    XCTAssertGreaterThan(preview.dismissed, 0, "the preview closes at once")
+    decide?(true)
+    XCTAssertNil(reply(), "decided only once it is clear the app did not quit")
+    host.fire(OwlAgentDeliveryCoordinator.leaveSettle)
     XCTAssertEqual(try result(reply()).status, .targetChanged(.focusChanged))
-    preview.decide?(true)
     XCTAssertTrue(host.target.writes.isEmpty)
+  }
+
+  /// 2026-10-29 live (agy, Stickies): quitting the bound app activated another app before the
+  /// termination notice, so it was reported as a focus change.
+  func testTheBoundAppQuittingAfterAnotherTookTheFront() throws {
+    let reply = start(params())
+    coordinator.applicationDidActivate(300)
+    host.target.isTerminated = true
+    coordinator.applicationDidTerminate(200)
+    host.fire(OwlAgentDeliveryCoordinator.leaveSettle)
+    XCTAssertEqual(try result(reply()).status, .targetChanged(.targetQuit))
   }
 
   func testTheBoundAppQuitting() throws {
