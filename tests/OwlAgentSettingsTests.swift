@@ -83,6 +83,21 @@ final class OwlAgentSettingsTests: XCTestCase {
     XCTAssertEqual(OwlAgentCallLog(fileURL: file).records, [])
   }
 
+  func testConcurrentRecordsAndClearLeaveTheDiskMatchingMemory() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("owl-agent-log-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let file = directory.appendingPathComponent("calls.json")
+    let log = OwlAgentCallLog(fileURL: file)
+    let client = OwlAgentBridgeClient(helper: .init(name: "owltype-mcp", version: "0.1.0"), agentClient: nil, processID: 1)
+    for _ in 0..<20 {
+      DispatchQueue.concurrentPerform(iterations: 40) { index in
+        if index == 20 { log.clear() } else { log.record(.owltypeStatus, from: client, reply: .success(.object([:]))) }
+      }
+      log.flush()
+      XCTAssertEqual(OwlAgentCallLog(fileURL: file).records.count, log.records.count, "the last write on disk is the latest state")
+    }
+  }
+
   func testAccessRecordsEachAnsweredCall() {
     let suite = "OwlAgentSettingsTests.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!

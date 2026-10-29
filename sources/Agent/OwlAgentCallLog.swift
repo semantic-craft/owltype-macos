@@ -45,19 +45,21 @@ final class OwlAgentCallLog: @unchecked Sendable {
     let component = client.agentClient ?? client.helper
     let entry = OwlAgentCallRecord(at: at, client: "\(component.name) \(component.version)",
                                    method: call.method.rawValue, outcome: Self.outcome(reply))
-    let snapshot = lock.withLock { () -> [OwlAgentCallRecord] in
+    // Enqueue the write under the lock, so writes reach the disk in the order of the changes.
+    lock.withLock {
       var next = loadedLocked()
       next.insert(entry, at: 0)
       if next.count > Self.limit { next.removeLast(next.count - Self.limit) }
       cached = next
-      return next
+      persist(next)
     }
-    persist(snapshot)
   }
 
   func clear() {
-    lock.withLock { cached = [] }
-    persist([])
+    lock.withLock {
+      cached = []
+      persist([])
+    }
   }
 
   /// Waits until every change so far is on disk (tests).
@@ -83,6 +85,7 @@ final class OwlAgentCallLog: @unchecked Sendable {
     return loaded
   }
 
+  /// Called with `lock` held; the serial writer keeps that order.
   private func persist(_ records: [OwlAgentCallRecord]) {
     writer.async { [fileURL] in
       if let fileURL {
