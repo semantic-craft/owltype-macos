@@ -7,6 +7,12 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cache_root="${OWLTYPE_SEED_CACHE:-/tmp/owltype-rime-seed}"
+# The cache is shared by every worktree on this Mac; concurrent gates used to collide on its git
+# locks (shallow.lock). Hold one lock for the whole run; another run waits for it.
+if [[ -z "${OWLTYPE_SEED_LOCKED:-}" ]]; then
+  mkdir -p "$cache_root"
+  OWLTYPE_SEED_LOCKED=1 exec /usr/bin/lockf -t 1800 "$cache_root/.owl-seed.lock" bash "$0" "$@"
+fi
 source_dir="$cache_root/rime-ice"
 output_dir="$repo_root/data/owl-rime"
 msime_release="$(python3 "$repo_root/scripts/msime_pin.py" get release)"

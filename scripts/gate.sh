@@ -73,6 +73,7 @@ portable_scripts() {
     scripts/build-owltype-msime-seed-db.py \
     scripts/check-rust-delivery.py \
     scripts/owl-agent-mcp-licenses.py \
+    scripts/merge-pr.py \
     scripts/fetch-msime-others.py \
     scripts/fetch-rerank-models.py \
     scripts/install-reference-dictionary-update.py \
@@ -89,6 +90,7 @@ portable_scripts() {
   python3 scripts/fetch-msime-resources.selftest.py
   python3 scripts/fetch-msime-others.selftest.py
   python3 scripts/msime_pin.selftest.py
+  python3 scripts/merge-pr.selftest.py
   python3 scripts/msime_pin.py check
   python3 scripts/msime-dictionary-diff.selftest.py
   python3 scripts/fetch-rerank-models.selftest.py
