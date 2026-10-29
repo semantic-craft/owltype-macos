@@ -325,3 +325,44 @@ final class OwlQuickSendPanelModelTests: XCTestCase {
     return dir
   }
 }
+
+/// The session tap's consume rule (2026-10-29 typing freeze): the tap now runs off the main thread,
+/// so the decision is a pure function of the key, the stored combos and two flags main keeps current.
+extension OwlQuickSendPanelModelTests {
+  private func tapSlot(keyCode: Int, flags: NSEvent.ModifierFlags, suppressed: Bool = false,
+                       owltypeIsCurrent: Bool = true) -> OwlHotKeySlot? {
+    let combos: [OwlHotKeySlot: (keyCode: UInt32, modifiers: UInt32)] = [
+      .quickSendPanel: (UInt32(kVK_ANSI_J), UInt32(controlKey | optionKey)),
+      .selectionMenu: (UInt32(kVK_ANSI_K), UInt32(controlKey | optionKey)),
+      .pinCandidate: (UInt32(kVK_ANSI_P), UInt32(controlKey | shiftKey))
+    ]
+    return OwlHotKeyEventTap.slotToConsume(
+      keyCode: UInt16(keyCode), flags: flags, suppressed: suppressed,
+      owltypeIsCurrent: owltypeIsCurrent, combo: { combos[$0] })
+  }
+
+  func testEventTapConsumesOnlyAMatchedComboWhileOwltypeIsCurrent() {
+    XCTAssertEqual(tapSlot(keyCode: kVK_ANSI_J, flags: [.control, .option]), .quickSendPanel)
+    XCTAssertEqual(tapSlot(keyCode: kVK_ANSI_K, flags: [.control, .option]), .selectionMenu)
+    XCTAssertNil(tapSlot(keyCode: kVK_ANSI_J, flags: [.control, .option], owltypeIsCurrent: false),
+                 "another input source keeps the combo")
+    XCTAssertNil(tapSlot(keyCode: kVK_ANSI_J, flags: [.control, .option], suppressed: true),
+                 "the recorder must see the combo")
+    XCTAssertNil(tapSlot(keyCode: kVK_ANSI_J, flags: [.shift]), "shift-typing passes")
+    XCTAssertNil(tapSlot(keyCode: kVK_ANSI_J, flags: []), "plain typing passes")
+    XCTAssertNil(tapSlot(keyCode: kVK_ANSI_P, flags: [.control, .shift]),
+                 "pinning belongs to the IMK path with live candidates")
+  }
+
+  func testEventTapFlagsAreSharedAcrossThreads() {
+    let saved = OwlHotKeyEventTap.isSuppressed
+    defer { OwlHotKeyEventTap.isSuppressed = saved }
+    OwlHotKeyEventTap.isSuppressed = true
+    let read = expectation(description: "tap thread reads the recorder's flag")
+    Thread {
+      XCTAssertTrue(OwlHotKeyEventTap.isSuppressed)
+      read.fulfill()
+    }.start()
+    wait(for: [read], timeout: 2)
+  }
+}

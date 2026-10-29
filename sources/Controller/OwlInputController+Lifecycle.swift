@@ -26,6 +26,7 @@ extension OwlInputController {
     finishPairBeforeChangingClient(to: sender as? IMKTextInput)
     self.client ?= sender as? IMKTextInput
     engineRuntime.activatedInputController = self
+    OwlHotKeyEventTap.refreshCurrentInputSource()
     pendingTemplateDelivery?.hostDidActivate()
     // print("[DEBUG] activateServer:")
     debugLiveInputTrace("activateServer hasSender=\(sender != nil) controller=\(ObjectIdentifier(self).hashValue)")
