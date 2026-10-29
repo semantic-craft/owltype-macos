@@ -300,7 +300,7 @@ final class OwlTemplateHostDeliveryTests: XCTestCase {
     controller.client = client
     controller.show(preedit: "Kyshx", selRange: NSRange(location: 0, length: 0), caretPos: 5)
     XCTAssertTrue(client.text.hasMarkedText())
-    controller.rimeConsumeCommittedText()
+    controller.consumeCommittedText()
     XCTAssertFalse(client.text.hasMarkedText())
     XCTAssertEqual(client.text.string, "", "the raw code never reaches the document")
   }
