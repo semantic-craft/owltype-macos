@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Behavioral checks for the differential comparator; no engine/resource downloads."""
 import copy
+import hashlib
+import io
+from contextlib import redirect_stderr
 import importlib.util
 from pathlib import Path
 import unittest
@@ -109,7 +112,8 @@ class BatchReplayTests(unittest.TestCase):
                     return {'steps': [dict(event=e, consumed=True, input=e['value'],
                         preedit=e['value'], caret=1, page=0, page_size=6, has_more=False,
                         highlighted=0, candidates=['fixture'], commit=None) for e in events]}
-                def reference(_library, _resources, state, events, _profile, scheme):
+                def reference(_library, _resources, state, events, _profile, scheme, update):
+                    self.assertIsNone(update)
                     self.assertEqual(scheme, "quanpin" if events[0]["value"] == "a" else "wubi98")
                     roots.append(state.parent)
                     return dict(observation(events), preferences={'candidate_page_size': 6})
@@ -153,6 +157,50 @@ class BatchReplayTests(unittest.TestCase):
                     receipt = json.loads(receipt_path.read_text())
                     self.assertTrue(receipt['owned_build_cleanup_verified'])
                     self.assertEqual(receipt['owl_build']['source'], {'head': 'fixed'})
+
+
+class DictionaryUpdateTests(unittest.TestCase):
+    def make_update(self, root, version, content):
+        generation = root / 'dictionary-updates/generations' / ('0' * 64)
+        generation.mkdir(parents=True)
+        (generation / 'msime-pinyin.db').write_bytes(content)
+        (root / 'dictionary-updates/installed.json').write_text(json.dumps({'active': {'version': version}}))
+        return {'msime-pinyin.db': hashlib.sha256(b'pinned').hexdigest()}
+
+    def test_update_must_select_the_pinned_release_with_pinned_bytes(self):
+        for version, content, error in (('dict-v9.0.1', b'pinned', None),
+                                        ('dict-v9.0.0', b'pinned', 'not the pinned'),
+                                        ('dict-v9.0.1', b'other', 'no installed reference generation')):
+            with self.subTest(version=version, content=content), tempfile.TemporaryDirectory() as directory:
+                required = self.make_update(Path(directory), version, content)
+                if error is None:
+                    parity.verify_dictionary_update(Path(directory), 'dict-v9.0.1', required)
+                else:
+                    with self.assertRaisesRegex(ValueError, error):
+                        parity.verify_dictionary_update(Path(directory), 'dict-v9.0.1', required)
+
+    def test_newer_pin_than_the_reference_lock_requires_the_installed_update(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fixtures = root / 'tests/fixtures/pinyin-parity'
+            fixtures.mkdir(parents=True)
+            library = root / 'oracle.dylib'
+            library.write_bytes(b'isolated oracle fixture')
+            (root / 'lock.db').write_bytes(b'lock')
+            (fixtures / 'baseline.json').write_text(json.dumps({
+                'reference_library_sha256': parity.sha256(library), 'upstream_commit': 'fixed',
+                'resources': {'pin.db': '0' * 64}, 'wubi_resources': {},
+                'engine_lock_resources': {'lock.db': parity.sha256(root / 'lock.db')}}))
+            trace = root / 'trace.json'
+            trace.write_text(json.dumps({'events': [{'op': 'character', 'value': 'a'}]}))
+            argv = ['parity', '--reference-library', str(library), '--reference-resources', str(root),
+                    '--xctestrun', 'Build/Products/probe.xctestrun', '--trace', str(trace), '--output', str(root / 'out')]
+            with patch.object(parity, 'ROOT', root), patch.object(parity.sys, 'argv', argv), \
+                    patch.object(parity, 'build_owl') as build, redirect_stderr(io.StringIO()) as stderr:
+                with self.assertRaises(SystemExit):
+                    parity.main()
+            self.assertIn('--reference-dictionary-update', stderr.getvalue())
+            build.assert_not_called()
 
 
 class BuildLifecycleTests(unittest.TestCase):

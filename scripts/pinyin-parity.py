@@ -184,9 +184,13 @@ def restart_phases(events):
     return phases
 
 
-def reference_replay(library, resources, state, events, profile, scheme="quanpin"):
+def reference_replay(library, resources, state, events, profile, scheme="quanpin", update=None):
     # A fresh interpreter per restart proves recovery from disk, beyond in-process caches.
     traces = []
+    if update:
+        # The fixed Host API reads a newer dictionary only from its own installed update.
+        state.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(update / 'dictionary-updates', state / 'dictionary-updates', symlinks=True)
     worker = """import importlib.util,json,sys
 from pathlib import Path
 sys.path.insert(0,str(Path(sys.argv[1]).parent))
@@ -207,7 +211,24 @@ sys.stdout.write(json.dumps(trace,ensure_ascii=False))
     output['steps'] = [step for trace in traces for step in trace['steps']]
     output['raw_views'] = [view for trace in traces for view in trace['raw_views']]
     output['process_runs'] = len(traces)
+    loaded = {Path(trace['options']['resources']) for trace in traces}
+    generations = (state / 'dictionary-updates' / 'generations').resolve()
+    if update and not all(path.resolve().parent == generations for path in loaded):
+        raise ValueError(f'reference did not load the installed dictionary update: {sorted(map(str, loaded))}')
     return output
+
+
+def verify_dictionary_update(update, release, required):
+    """The update state the Host API installed must select the pinned release with pinned bytes."""
+    installed = json.loads((update / 'dictionary-updates' / 'installed.json').read_text())
+    active = installed['active']
+    if active['version'] != release:
+        raise ValueError(f'reference dictionary update is {active["version"]}, not the pinned {release}')
+    folders = [path for path in (update / 'dictionary-updates' / 'generations').iterdir() if path.is_dir()]
+    matching = [folder for folder in folders
+                if all((folder / name).is_file() and sha256(folder / name) == digest for name, digest in required.items())]
+    if not matching:
+        raise ValueError('no installed reference generation matches the pinned dictionary digests')
 
 
 def source_identity():
@@ -329,6 +350,9 @@ def main():
                         default='native-mac-host', help='pinned macOS host capabilities or bare API defaults')
     parser.add_argument('--scheme', choices=tuple(INPUT_SCHEMES),
                         help='input scheme; defaults to the trace scheme, then quanpin')
+    parser.add_argument('--reference-dictionary-update', type=Path,
+                        help='state directory from install-reference-dictionary-update.py; required when the '
+                             'pinned dictionary is newer than the dictionary compiled into the reference')
     parser.add_argument('--owl-resources', type=Path, default=ROOT / 'data/owl-rime')
     parser.add_argument('--xctestrun', type=Path, required=True,
                         help='expected xctestrun filename; build uses a separate owned temporary directory')
@@ -355,9 +379,19 @@ def main():
     required_resources = dict(baseline['resources'])
     if any(scheme.startswith('wubi') for scheme in schemes):
         required_resources.update(baseline['wubi_resources'])
-    for name, expected in required_resources.items():
+    # The reference's bundled resources must match the dictionary lock compiled into it. When the
+    # pin is newer, the pinned bytes reach the reference only through its installed update.
+    bundled_resources = baseline.get('engine_lock_resources', required_resources)
+    for name, expected in bundled_resources.items():
         if sha256(args.reference_resources / name) != expected:
-            parser.error(f'reference resource differs from pinned baseline: {name}')
+            parser.error(f'reference resource differs from the reference dictionary lock: {name}')
+    update = None
+    if 'engine_lock_resources' in baseline:
+        if not args.reference_dictionary_update:
+            parser.error('the pinned dictionary is newer than the reference lock; pass --reference-dictionary-update')
+        update = args.reference_dictionary_update.resolve()
+        release = json.loads((ROOT / 'rust/msime-source.json').read_text())['resources']['release']
+        verify_dictionary_update(update, release, required_resources)
     if len({trace.stem for trace in traces}) != len(traces):
         parser.error('batch trace filenames must have unique stems')
     outputs = [args.output / trace.stem if len(traces) > 1 else args.output for trace in traces]
@@ -370,10 +404,11 @@ def main():
         for trace, document, scheme, output in zip(traces, trace_documents, schemes, outputs):
             events = document['events']
             with tempfile.TemporaryDirectory(prefix='owl-pinyin-parity-') as state:
-                reference = reference_replay(args.reference_library.resolve(), args.reference_resources.resolve(), Path(state) / 'reference', events, args.reference_profile, scheme)
+                state = Path(state).resolve()
+                reference = reference_replay(args.reference_library.resolve(), args.reference_resources.resolve(), state / 'reference', events, args.reference_profile, scheme, update)
                 request = output.resolve() / 'owl-request.json'
                 request.write_text(json.dumps({'run_id': str(uuid.uuid4()), 'events': events, 'resources': str(args.owl_resources.resolve()),
-                                               'state_root': str(Path(state) / 'owl'), 'schema': INPUT_SCHEMES[scheme][1], 'page_size': reference['preferences']['candidate_page_size']}))
+                                               'state_root': str(state / 'owl'), 'schema': INPUT_SCHEMES[scheme][1], 'page_size': reference['preferences']['candidate_page_size']}))
                 owl = owl_replay(xctestrun, request, output.resolve() / 'owl.json')
             results.append((trace, scheme, output, events, reference, owl))
     if source_identity() != build['source']:

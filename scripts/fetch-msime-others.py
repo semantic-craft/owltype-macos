@@ -16,16 +16,17 @@ import urllib.request
 from pathlib import Path
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import msime_pin  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = ROOT / "data/owl-rime/msime/msime-others.db"
-SOURCE_URL = (
-    "https://github.com/metasequoiaime/msime-dictionary/releases/download/"
-    "dict-v2.0.24/msime-others.db"
-)
-SOURCE_SIZE = 1_314_816
-SOURCE_SHA256 = "9f3cae5b407038e0e4536c40582a0bc0feb732657f0ae2d38196374cede52f94"
-DATA_COMMIT = "71dc6f6cc7a451231ee29c0a39b39adbf2e04d32"
-BUILDER_COMMIT = "128a332cabc5fa42b1cf5f827033ad5697ff528b"
+PIN = msime_pin.load(ROOT)
+SOURCE_URL = PIN.url("msime-others.db")
+SOURCE_SIZE = PIN.files["msime-others.db"]["size"]
+SOURCE_SHA256 = PIN.files["msime-others.db"]["sha256"]
+DATA_COMMIT = PIN.data_commit
+BUILDER_COMMIT = PIN.builder_commit
 EXPECTED_ROWS = {"emoji": 1_935, "emoji_pinyin": 21_541, "kaomoji": 1_675, "kaomoji_catalog": 1_400}
 EXPECTED_ROW_HASHES = {
     "kaomoji": "31ecdb996b3d5dcd30d350d779651685fbc0d9d83578d846ac16c241b89b506f",
@@ -36,7 +37,7 @@ EXPECTED_ROW_HASHES = {
 LICENSE_EXPRESSION = "GPL-3.0-only AND Unicode-3.0 AND MIT"
 REQUIRED_NOTICE_HASHES = {
     "rime-kaomoji.LICENSE": "bc4f44c16c8a6ea28e30ac4e1e9a737e8711ba3140f241fea9c8404a86f3ffe1",
-    "msime-others-NOTICE.txt": "b1ac4e7efbc3c97d44cd65ecfb43ef30042ce8c91bad57bbb1dc1b94ef4ba7a3",
+    "msime-others-NOTICE.txt": "2a8f11ff86c458cf1a18969af474705564d7b032ca762f7e3b9af5551e6220ff",
 }
 TABLE_ORDER = {
     "kaomoji": ("pinyin", "jianpin", "kaomoji"),
@@ -334,7 +335,7 @@ def main() -> None:
         print(f"FAIL: {error}", file=sys.stderr)
         raise SystemExit(1) from error
     print(
-        "source release dict-v2.0.24; "
+        f"source release {PIN.release}; "
         f"data commit {DATA_COMMIT}; builder commit {BUILDER_COMMIT}; "
         f"tables emoji, emoji_pinyin, kaomoji, kaomoji_catalog only; licensing {LICENSE_EXPRESSION}"
     )

@@ -23,7 +23,7 @@
   crates.io 依赖、版本与许可见 [`rust/crates/owl-agent-mcp/THIRD-PARTY-CRATES.md`](rust/crates/owl-agent-mcp/THIRD-PARTY-CRATES.md)
   （由 `scripts/owl-agent-mcp-licenses.py` 从 `rust/Cargo.lock` 生成，门禁核对；均为 MIT 或 Apache-2.0 可选许可），
   随对应源码归档分发；MIT 与 Apache-2.0 原文随 App 保存在 `Contents/SharedSupport/licenses`。
-- **完整官方拼音、五笔、英文与上下文资源** —— 固定 `dict-v2.0.24`，来源、大小、摘要和逐项许可见
+- **完整官方拼音、五笔、英文与上下文资源** —— 固定 `dict-v2.0.39`，来源、大小、摘要和逐项许可见
   [`msime-resources-NOTICE.md`](data/msime-resources-NOTICE.md)。生产拼音、独立五笔 86/98 码表、英文和 bigram/trigram 均原样交付。
 - **chinese-ime-lm reference crate** —— <https://github.com/metasequoiaime/chinese-ime-lm>（Apache-2.0）
   Owltype 仅 vendored 上游 `reference/` 子树到 `rust/crates/chinese-ime-lm`，固定于
@@ -37,11 +37,11 @@
   与 settled 两个 safetensors，训练语料为 C4 中文部分（ODC-BY）与 LCCC（MIT）；署名随权重元数据和
   [`NOTICE`](resources/licenses/chinese-ime-lm-model-NOTICE.txt) 一同保留。
 - **msime-others.db（派生 emoji 与颜文字目录）** ——
-  [`dict-v2.0.24`](https://github.com/metasequoiaime/msime-dictionary/releases/tag/dict-v2.0.24)，
+  [`dict-v2.0.39`](https://github.com/metasequoiaime/msime-dictionary/releases/tag/dict-v2.0.39)，
   固定大小 1,314,816 字节、SHA-256
   `9f3cae5b407038e0e4536c40582a0bc0feb732657f0ae2d38196374cede52f94`。发布清单记录的
-  msime 构建器提交为 `128a332cabc5fa42b1cf5f827033ad5697ff528b`，msime-dictionary
-  数据提交为 `71dc6f6cc7a451231ee29c0a39b39adbf2e04d32`。Owltype 不发布该多来源
+  msime 构建器提交为 `8bb181be2ed36ed9559a87434cc4c9048077ff29`，msime-dictionary
+  数据提交为 `75978c6a6470171cc805c74e87ef465d894a7be4`。Owltype 不发布该多来源
   整包，只在生成 seed 时保留 `emoji`、`emoji_pinyin`、`kaomoji` 与
   `kaomoji_catalog` 四表。中文关键词来自
   rime-ice（GPL-3.0-only，固定提交 `9e66b072…`），英文名称来自 Unicode Emoji
@@ -58,8 +58,8 @@
 ## 内置数据与方案 Bundled data & schemas
 
 - 雾凇拼音 rime-ice —— <https://github.com/iDvel/rime-ice>
-- **水杉官方五笔 86 / 98 码表** —— 固定 `dict-v2.0.24/msime-wubi.db`，
-  SHA-256 `851ed68211311a76847fe6a26096702747abbaab8dffb141698e0365143b31c1`。
+- **水杉官方五笔 86 / 98 码表** —— 固定 `dict-v2.0.39/msime-wubi.db`，
+  SHA-256 `54ee94799d8e33d5356468bdae164d21f68ce8ca0de9e6464ed4b3783924b93c`。
   两表包含原表与水杉补充词组，保留官方权重与 rowid 顺序；不再由 Owl 极点原表覆盖。
   极点 86 基础编码来自 [KyleBing/rime-wubi86-jidian](https://github.com/KyleBing/rime-wubi86-jidian)
   （Apache-2.0）；98 原表来自 [98wubi-tables](https://github.com/yanhuacuo/98wubi-tables)

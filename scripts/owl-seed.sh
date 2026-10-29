@@ -9,14 +9,8 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cache_root="${OWLTYPE_SEED_CACHE:-/tmp/owltype-rime-seed}"
 source_dir="$cache_root/rime-ice"
 output_dir="$repo_root/data/owl-rime"
-msime_others_version="dict-v2.0.24"
-msime_others_sha="9f3cae5b407038e0e4536c40582a0bc0feb732657f0ae2d38196374cede52f94"
-msime_others_size="1314816"
-msime_others_builder_sha="128a332cabc5fa42b1cf5f827033ad5697ff528b"
-msime_others_data_sha="71dc6f6cc7a451231ee29c0a39b39adbf2e04d32"
-msime_others_manifest_sha="5b656a5db35b4dcf804ce4348d8584c899d0012fe62bbbe3689204ddaba8722f"
-msime_others_manifest_size="4627"
-msime_others_rime_ice_sha="9e66b0729083b37d217312294f6d516c8d7234be"
+msime_release="$(python3 "$repo_root/scripts/msime_pin.py" get release)"
+msime_manifest_sha="$(python3 "$repo_root/scripts/msime_pin.py" get manifest-sha256)"
 msime_emoji_rows="1935"
 msime_emoji_row_sha="b3939c2005a8d46b18a5421eeee35698ba7b1ae01b3c24e6f470a524710905a7"
 msime_emoji_pinyin_rows="21541"
@@ -239,10 +233,10 @@ echo "ee820ff0db4ce628569e0975ac27dc926052a9f85d102b101edb104311ef4d90  $repo_ro
 cp "$repo_root/licenses/Unlicense.txt" "$output_dir/licenses/Unlicense.txt"
 cp "$repo_root/licenses/Administrative-divisions-of-China-WTFPL.txt" "$output_dir/licenses/Administrative-divisions-of-China-WTFPL.txt"
 
-cat > "$output_dir/OWLTYPE-SEED-SOURCES.md" <<'EOF'
+cat > "$output_dir/OWLTYPE-SEED-SOURCES.md" <<EOF
 # Owltype production resource sources
 
-The production Rust engine uses the complete pinned official dict-v2.0.24
+The production Rust engine uses the complete pinned official $msime_release
 pinyin, split Wubi86/Wubi98 and English data plus both bigram/trigram scoring sidecars. Legacy Rime
 YAML files are build intermediates and do not supply the production pinyin DB.
 All official dictionary files are published unchanged; no Owl Wubi overlay is applied.
@@ -253,8 +247,8 @@ The product's others DB remains the audited four-table emoji/kaomoji derivative.
 EOF
 cat > "$output_dir/OWLTYPE-SEED-MANIFEST.txt" <<EOF
 Owltype production seed
-official-resource-set dict-v2.0.24
-manifest-sha256 5b656a5db35b4dcf804ce4348d8584c899d0012fe62bbbe3689204ddaba8722f
+official-resource-set $msime_release
+manifest-sha256 $msime_manifest_sha
 resource-identities msime/OWLTYPE-UPSTREAM-RESOURCES.json
 wubi-resource msime/msime-wubi.db; upstream identity in resource-identities
 wubi86-license $wubi86_license_sha256 wubi86-jidian.LICENSE

@@ -5,19 +5,19 @@ Runtime file:
 
 Owltype derives this database at seed time from the pinned release artifact:
 
-  https://github.com/metasequoiaime/msime-dictionary/releases/download/dict-v2.0.24/msime-others.db
+  https://github.com/metasequoiaime/msime-dictionary/releases/download/dict-v2.0.39/msime-others.db
   Size: 1314816 bytes
   SHA-256: 9f3cae5b407038e0e4536c40582a0bc0feb732657f0ae2d38196374cede52f94
 
 Release manifest:
-  https://github.com/metasequoiaime/msime-dictionary/releases/download/dict-v2.0.24/msime-dictionary-manifest.json
-  Size: 4627 bytes
-  SHA-256: 5b656a5db35b4dcf804ce4348d8584c899d0012fe62bbbe3689204ddaba8722f
+  https://github.com/metasequoiaime/msime-dictionary/releases/download/dict-v2.0.39/msime-dictionary-manifest.json
+  Size: 4769 bytes
+  SHA-256: d697cc197ac4c61fc6447a42eb8cb96d9913bec4ebdd79fad4c68d91f37bbb55
   source.repository: metasequoiaime/msime
   source.path: resources/dictionary-sources
-  source.commit: 128a332cabc5fa42b1cf5f827033ad5697ff528b
+  source.commit: 8bb181be2ed36ed9559a87434cc4c9048077ff29
   source.dirty: false
-  custom_dictionary_commit: 71dc6f6cc7a451231ee29c0a39b39adbf2e04d32
+  custom_dictionary_commit: 75978c6a6470171cc805c74e87ef465d894a7be4
   references.rime-ice.commit: 9e66b0729083b37d217312294f6d516c8d7234be
 
 The release artifact is a multi-source database whose overall licensing is not
@@ -33,9 +33,9 @@ All other tables in the release artifact, including symbol_catalog, are excluded
 
 The pinned builder code reads the emoji inputs in the Emoji stage here:
 
-  https://github.com/metasequoiaime/msime/blob/128a332cabc5fa42b1cf5f827033ad5697ff528b/crates/dict-builder/src/main.rs
-  https://github.com/metasequoiaime/msime/blob/128a332cabc5fa42b1cf5f827033ad5697ff528b/crates/dict-builder/src/others.rs
-  https://github.com/metasequoiaime/msime/blob/128a332cabc5fa42b1cf5f827033ad5697ff528b/crates/dict-builder/src/pinyin.rs
+  https://github.com/metasequoiaime/msime/blob/8bb181be2ed36ed9559a87434cc4c9048077ff29/crates/dict-builder/src/main.rs
+  https://github.com/metasequoiaime/msime/blob/8bb181be2ed36ed9559a87434cc4c9048077ff29/crates/dict-builder/src/others.rs
+  https://github.com/metasequoiaime/msime/blob/8bb181be2ed36ed9559a87434cc4c9048077ff29/crates/dict-builder/src/pinyin.rs
 
 Sources for the retained tables at the builder commit:
 

@@ -75,6 +75,9 @@ portable_scripts() {
     scripts/owl-agent-mcp-licenses.py \
     scripts/fetch-msime-others.py \
     scripts/fetch-rerank-models.py \
+    scripts/install-reference-dictionary-update.py \
+    scripts/msime_pin.py \
+    scripts/msime-dictionary-diff.py \
     scripts/finalize-release-bundle.py \
     scripts/inventory-release-bundle.py \
     scripts/release-bundle.selftest.py \
@@ -85,6 +88,9 @@ portable_scripts() {
   python3 scripts/check-rust-delivery.selftest.py
   python3 scripts/fetch-msime-resources.selftest.py
   python3 scripts/fetch-msime-others.selftest.py
+  python3 scripts/msime_pin.selftest.py
+  python3 scripts/msime_pin.py check
+  python3 scripts/msime-dictionary-diff.selftest.py
   python3 scripts/fetch-rerank-models.selftest.py
   python3 scripts/test-defaults-isolation.selftest.py
   python3 scripts/pinyin-parity.selftest.py

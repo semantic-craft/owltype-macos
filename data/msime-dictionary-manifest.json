@@ -9,12 +9,12 @@
   "source": {
     "repository": "metasequoiaime/msime",
     "path": "resources/dictionary-sources",
-    "commit": "128a332cabc5fa42b1cf5f827033ad5697ff528b",
+    "commit": "8bb181be2ed36ed9559a87434cc4c9048077ff29",
     "dirty": false
   },
   "sqlite_journal_mode": "delete",
-  "format_contract_commit": "128a332cabc5fa42b1cf5f827033ad5697ff528b",
-  "custom_dictionary_commit": "71dc6f6cc7a451231ee29c0a39b39adbf2e04d32",
+  "format_contract_commit": "8bb181be2ed36ed9559a87434cc4c9048077ff29",
+  "custom_dictionary_commit": "75978c6a6470171cc805c74e87ef465d894a7be4",
   "custom_dictionary_repository": "metasequoiaime/msime-dictionary",
   "custom_dictionary_path": "custom",
   "references": {
@@ -29,6 +29,10 @@
     "McBopomofo": {
       "repository": "https://github.com/openvanilla/McBopomofo.git",
       "commit": "be6564acad6c4d3265c34a2e1a872d80f9db6068"
+    },
+    "OpenCC": {
+      "repository": "https://github.com/BYVoid/OpenCC.git",
+      "commit": "26753884f1984add422f3b0249ccee8613deaff6"
     },
     "SCOWL": {
       "repository": "https://github.com/en-wl/wordlist.git",
@@ -52,7 +56,7 @@
     },
     "msime-dictionary": {
       "repository": "https://github.com/metasequoiaime/msime-dictionary.git",
-      "commit": "71dc6f6cc7a451231ee29c0a39b39adbf2e04d32"
+      "commit": "75978c6a6470171cc805c74e87ef465d894a7be4"
     },
     "rime-cantonese": {
       "repository": "https://github.com/rime/rime-cantonese.git",
@@ -93,15 +97,15 @@
   },
   "files": {
     "msime-pinyin.db": {
-      "sha256": "7c672458e6068c22c07b33b146c5a07f4e734959abc3bddd2784fe18a7582a76",
-      "size": 73723904
+      "sha256": "e8d7a7bc8f990b6553d5d5199e652d29d86015dc8f48498689108fca408fc935",
+      "size": 73916416
     },
     "msime-wubi.db": {
-      "sha256": "851ed68211311a76847fe6a26096702747abbaab8dffb141698e0365143b31c1",
-      "size": 14536704
+      "sha256": "54ee94799d8e33d5356468bdae164d21f68ce8ca0de9e6464ed4b3783924b93c",
+      "size": 94982144
     },
     "msime-english.db": {
-      "sha256": "d216f66cab7edb9072ba7a07f3fe35623e76870438b76d360a89cc2a4795d3cd",
+      "sha256": "1b5497d6764f15ebd2f86225c29b0fa1e45961638dfb0e13859214fbfc6f4bfd",
       "size": 4526080
     },
     "msime-others.db": {
@@ -113,11 +117,11 @@
       "size": 66547565
     },
     "msime-bigram.bin": {
-      "sha256": "79607ae9fcd80ef6df2f001cfbc1fa6048f81c1de00f45c634bbc8e132642d88",
+      "sha256": "3513db47cbe2f035af969b1c3ba8d414f760d70ab404ad49c477630799f94c6b",
       "size": 12000016
     },
     "msime-trigram.bin": {
-      "sha256": "59e4eeba6f3e96cc46f3ae1477e9268187bb9df346634564e989889b282d68ea",
+      "sha256": "818e87be6f4d6ba5004a64533fae543c8738d03899d37495d0fb818eaaa5495c",
       "size": 12000016
     },
     "msime-mozc_dictionary_oss_README.txt": {

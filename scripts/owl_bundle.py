@@ -17,6 +17,8 @@ import os
 import stat
 from pathlib import Path
 
+import msime_pin
+
 
 MANIFEST_NAME = "OWLTYPE-FILE-MANIFEST.sha256"
 SBOM_NAME = "OWLTYPE-SBOM.spdx.json"
@@ -33,25 +35,30 @@ RELEASE_ARTIFACTS = ("app", "installer-pkg", "update-pkg", "dmg")
 RELEASE_ARTIFACT_STATES = ("built", "signed", "notarized", "stapled", "failed")
 RELEASE_OUTPUTS = ("appcast", "source-archive")
 
-COMPONENTS = (
-    ("Owltype", None, "GPL-3.0-only", "https://responsay.com/owltype/"),
-    ("Squirrel-derived frontend", "4db2c85ac639c229e14fd9424f79c3c4f97ce478", "GPL-3.0-only", "https://github.com/rime/squirrel"),
-    ("Sparkle", "41847a58cdef7506b257591fcca6f9495df591d4", "MIT", "https://github.com/sparkle-project/Sparkle"),
-    ("rime-ice configuration", "b681a34f788795034b3b288830f4861980bc8b0d", "GPL-3.0-only", "https://github.com/iDvel/rime-ice"),
-    ("rime-wubi86-jidian", "a194fb8b3ec41ef9dcf079d3a67876fa75f79135", "Apache-2.0", "https://github.com/KyleBing/rime-wubi86-jidian"),
-    ("jieba", "v0.42.1", "MIT", "https://github.com/fxsjy/jieba"),
-    ("phrase-pinyin-data", "cee0ed6e6e4898580cafd2bd5e3723e20b214aa0", "MIT", "https://github.com/mozillazg/phrase-pinyin-data"),
-    ("Unicode Unihan", "16.0.0", "Unicode-3.0", "https://www.unicode.org/Public/16.0.0/ucd/Unihan.zip"),
-    ("OpenCC data", "556ed22496d650bd0b13b6c163be9814637970ae", "Apache-2.0", "https://github.com/BYVoid/OpenCC"),
-    ("Metasequoia IME (msime)", "208c10e848bbed99373ca8b609fd2142b6b0b4e2", "GPL-3.0-only", "https://github.com/metasequoiaime/msime"),
-    ("Owltype emoji and kaomoji catalog (msime-others.db)", "dict-v2.0.24", "GPL-3.0-only AND Unicode-3.0 AND MIT", "https://github.com/metasequoiaime/msime-dictionary/releases/tag/dict-v2.0.24"),
-    ("rime-ice emoji data", "9e66b0729083b37d217312294f6d516c8d7234be", "GPL-3.0-only", "https://github.com/iDvel/rime-ice"),
-    ("Unicode Emoji, CLDR annotations, and Emoji 1.0 names", "17.0", "Unicode-3.0", "https://unicode.org/Public/emoji/17.0/"),
-    ("python-pinyin emoji reading overrides", "v0.55.0", "MIT", "https://github.com/mozillazg/python-pinyin"),
-    ("rime_kaomoji_dict", "dict-v2.0.24-derived", "MIT", "https://github.com/aoguai/rime_kaomoji_dict"),
-    ("chinese-ime-lm reference crate", "15caab4fdeb59c11f452b91884371cf30e2e5608", "Apache-2.0", "https://github.com/metasequoiaime/chinese-ime-lm"),
-    ("chinese-ime-lm model weights", "model-v1", "Apache-2.0", "https://github.com/metasequoiaime/chinese-ime-lm/releases/tag/model-v1"),
-)
+def components(pin=None) -> tuple:
+    """SBOM packages; the MSIME engine and dictionary versions come from rust/msime-source.json."""
+    pin = pin or msime_pin.load()
+    tag_url = f"https://github.com/metasequoiaime/msime-dictionary/releases/tag/{pin.release}"
+    return (
+        ("Owltype", None, "GPL-3.0-only", "https://responsay.com/owltype/"),
+        ("Squirrel-derived frontend", "4db2c85ac639c229e14fd9424f79c3c4f97ce478", "GPL-3.0-only", "https://github.com/rime/squirrel"),
+        ("Sparkle", "41847a58cdef7506b257591fcca6f9495df591d4", "MIT", "https://github.com/sparkle-project/Sparkle"),
+        ("rime-ice configuration", "b681a34f788795034b3b288830f4861980bc8b0d", "GPL-3.0-only", "https://github.com/iDvel/rime-ice"),
+        ("rime-wubi86-jidian", "a194fb8b3ec41ef9dcf079d3a67876fa75f79135", "Apache-2.0", "https://github.com/KyleBing/rime-wubi86-jidian"),
+        ("jieba", "v0.42.1", "MIT", "https://github.com/fxsjy/jieba"),
+        ("phrase-pinyin-data", "cee0ed6e6e4898580cafd2bd5e3723e20b214aa0", "MIT", "https://github.com/mozillazg/phrase-pinyin-data"),
+        ("Unicode Unihan", "16.0.0", "Unicode-3.0", "https://www.unicode.org/Public/16.0.0/ucd/Unihan.zip"),
+        ("OpenCC data", "556ed22496d650bd0b13b6c163be9814637970ae", "Apache-2.0", "https://github.com/BYVoid/OpenCC"),
+        ("Metasequoia IME (msime)", pin.engine_revision, "GPL-3.0-only", "https://github.com/metasequoiaime/msime"),
+        ("msime-dictionary pinyin, Wubi86/98, English and context resources", pin.release, "GPL-3.0-only AND GPL-3.0-or-later AND MIT AND CC-BY-SA-4.0 AND Apache-2.0 AND Unlicense AND WTFPL AND LicenseRef-SCOWL", tag_url),
+        ("Owltype emoji and kaomoji catalog (msime-others.db)", pin.release, "GPL-3.0-only AND Unicode-3.0 AND MIT", tag_url),
+        ("rime-ice emoji data", "9e66b0729083b37d217312294f6d516c8d7234be", "GPL-3.0-only", "https://github.com/iDvel/rime-ice"),
+        ("Unicode Emoji, CLDR annotations, and Emoji 1.0 names", "17.0", "Unicode-3.0", "https://unicode.org/Public/emoji/17.0/"),
+        ("python-pinyin emoji reading overrides", "v0.55.0", "MIT", "https://github.com/mozillazg/python-pinyin"),
+        ("rime_kaomoji_dict", f"{pin.release}-derived", "MIT", "https://github.com/aoguai/rime_kaomoji_dict"),
+        ("chinese-ime-lm reference crate", "15caab4fdeb59c11f452b91884371cf30e2e5608", "Apache-2.0", "https://github.com/metasequoiaime/chinese-ime-lm"),
+        ("chinese-ime-lm model weights", "model-v1", "Apache-2.0", "https://github.com/metasequoiaime/chinese-ime-lm/releases/tag/model-v1"),
+    )
 
 
 def sha256(path: Path) -> str:
@@ -301,6 +308,7 @@ def relative_files(app: Path) -> list[tuple[str, Path]]:
 
 
 def make_sbom(app: Path, version: str, revision: str, created: str) -> dict:
+    pin = msime_pin.load()
     files = []
     for relative, path in relative_files(app):
         identifier = hashlib.sha256(relative.encode()).hexdigest()[:24]
@@ -315,7 +323,7 @@ def make_sbom(app: Path, version: str, revision: str, created: str) -> dict:
         )
 
     packages = []
-    for index, (name, component_version, license_id, source) in enumerate(COMPONENTS, start=1):
+    for index, (name, component_version, license_id, source) in enumerate(components(pin), start=1):
         packages.append(
             {
                 "SPDXID": f"SPDXRef-Package-{index}",
@@ -337,17 +345,22 @@ def make_sbom(app: Path, version: str, revision: str, created: str) -> dict:
                 "MIT, Copyright (c) 2023 aoguai; verbatim rime-kaomoji.LICENSE SHA256 "
                 "bc4f44c16c8a6ea28e30ac4e1e9a737e8711ba3140f241fea9c8404a86f3ffe1. "
                 "Only kaomoji (1675 rows) and kaomoji_catalog (1400 rows), retained unchanged "
-                "from msime dict-v2.0.24 (source artifact SHA256 "
-                "9f3cae5b407038e0e4536c40582a0bc0feb732657f0ae2d38196374cede52f94), "
-                "builder commit 128a332cabc5fa42b1cf5f827033ad5697ff528b, "
+                f"from msime {pin.release} (source artifact SHA256 "
+                f"{pin.files['msime-others.db']['sha256']}), "
+                f"builder commit {pin.builder_commit}, "
                 "resources/dictionary-sources/kaomoji/kaomoji.txt. "
                 "The version identifies the pinned derived release, not an aoguai repository revision."
             )
+        elif name.startswith("msime-dictionary "):
+            packages[-1]["sourceInfo"] = (
+                f"Verbatim {pin.release} members pinned by manifest SHA256 {pin.manifest_sha256}; "
+                "per-member sources and licenses: SharedSupport/msime-resources-NOTICE.md."
+            )
         elif name == "Owltype emoji and kaomoji catalog (msime-others.db)":
             packages[-1]["sourceInfo"] = (
-                "Derived from the pinned dict-v2.0.24 release artifact with msime "
-                "builder commit 128a332cabc5fa42b1cf5f827033ad5697ff528b and "
-                "msime-dictionary data commit 71dc6f6cc7a451231ee29c0a39b39adbf2e04d32; "
+                f"Derived from the pinned {pin.release} release artifact with msime "
+                f"builder commit {pin.builder_commit} and "
+                f"msime-dictionary data commit {pin.data_commit}; "
                 "only emoji, emoji_pinyin, kaomoji and kaomoji_catalog are retained. The upstream artifact's "
                 "other tables, including PiliApp symbol_catalog, are excluded."
             )

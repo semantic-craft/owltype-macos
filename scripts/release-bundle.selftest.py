@@ -27,6 +27,9 @@ def load_script(name: str):
 
 FINALIZER = load_script("finalize-release-bundle")
 BUNDLE = load_script("owl_bundle")
+import msime_pin  # noqa: E402  (a real import: its dataclass needs sys.modules)
+
+PIN = msime_pin.load(ROOT)
 RETIRED_LICENSES = {
     "Contents/SharedSupport/librime-lua.LICENSE",
     "Contents/SharedSupport/librime.LICENSE",
@@ -170,8 +173,10 @@ class ReleaseSBOMTests(unittest.TestCase):
             by_name["rime-wubi86-jidian"]["versionInfo"],
             "a194fb8b3ec41ef9dcf079d3a67876fa75f79135",
         )
-        self.assertEqual(by_name["Metasequoia IME (msime)"]["versionInfo"],
-                         "208c10e848bbed99373ca8b609fd2142b6b0b4e2")
+        self.assertEqual(by_name["Metasequoia IME (msime)"]["versionInfo"], PIN.engine_revision)
+        dictionary = by_name["msime-dictionary pinyin, Wubi86/98, English and context resources"]
+        self.assertEqual(dictionary["versionInfo"], PIN.release)
+        self.assertIn(PIN.manifest_sha256, dictionary["sourceInfo"])
         self.assertEqual(
             by_name["chinese-ime-lm model weights"]["versionInfo"],
             "model-v1",
@@ -190,7 +195,7 @@ class ReleaseSBOMTests(unittest.TestCase):
         )
         self.assertNotIn("PiliApp symbol catalog", names)
         self.assertEqual(by_name["rime_kaomoji_dict"]["licenseConcluded"], "MIT")
-        self.assertEqual(by_name["rime_kaomoji_dict"]["versionInfo"], "dict-v2.0.24-derived")
+        self.assertEqual(by_name["rime_kaomoji_dict"]["versionInfo"], f"{PIN.release}-derived")
         self.assertIn("1675 rows", by_name["rime_kaomoji_dict"]["sourceInfo"])
 
         owltype_id = next(
