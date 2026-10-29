@@ -967,7 +967,7 @@ final class OwlRustEngineTests: XCTestCase {
         "msime-macos-v0.55.0-native-input-v1\n")
       XCTAssertEqual(try OwlRustResourceVerifier.digestOfFile(
         packageRoot.appendingPathComponent("files/msime-wubi.db")),
-        "sha256:851ed68211311a76847fe6a26096702747abbaab8dffb141698e0365143b31c1")
+        "sha256:54ee94799d8e33d5356468bdae164d21f68ce8ca0de9e6464ed4b3783924b93c")
       if version == 4 {
         let others = packageRoot.appendingPathComponent("files/msime-others.db")
         var database: OpaquePointer?
@@ -1937,7 +1937,7 @@ final class OwlRustEngineTests: XCTestCase {
     defer { session.destroy() }
     typeText("i", into: session)
     let page = try XCTUnwrap(session.composition())
-    // Pinned 0.55 native defaults and official dict-v2.0.24, no forced page-size preference.
+    // Pinned 0.55 native defaults and official dict-v2.0.39, no forced page-size preference.
     XCTAssertEqual(page.pageSize, 6)
     XCTAssertEqual(page.candidates.map(\.text), ["不", "水", "淄博", "湛江", "江门", "兴安"])
   }
@@ -2028,10 +2028,10 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.input(), "x")
     XCTAssertEqual(session.composition()?.preedit, pureFirst + "x")
     session.clearComposition()
-    typeText("aaab", into: session)
+    typeText("bbbx", into: session)
     XCTAssertFalse(session.process(keycode: asciiKeycode("x"), modifiers: 0))
     XCTAssertNil(session.takeCommit())
-    XCTAssertEqual(session.input(), "aaab")
+    XCTAssertEqual(session.input(), "bbbx")
   }
 
   func testWubi86PureAndMixedSchemasZLookupAndPreferences() throws {
@@ -2093,9 +2093,9 @@ final class OwlRustEngineTests: XCTestCase {
     session.clearComposition()
     OwlKeyboardPreferences.wubiZReverseLookup = true
 
-    // 3. wubiAutoClear on 4-code empty miss (`aaab` miss -> auto-cleared)
+    // 3. wubiAutoClear on 4-code empty miss (`bbbx` miss -> auto-cleared)
     OwlKeyboardPreferences.wubiAutoClear = true
-    for scalar in "aaab".unicodeScalars {
+    for scalar in "bbbx".unicodeScalars {
       _ = session.process(keycode: scalar.value, modifiers: 0)
     }
     XCTAssertEqual(session.input(), "")
@@ -2178,8 +2178,8 @@ final class OwlRustEngineTests: XCTestCase {
 
     // Mixed Wubi can still answer a longer ASCII sequence with pinyin fallback, so the
     // key contract is that it stays open instead of silently committing or dropping keys.
-    typeText("aaab", into: session)
-    XCTAssertEqual(session.input(), "aaab")
+    typeText("bbbx", into: session)
+    XCTAssertEqual(session.input(), "bbbx")
     XCTAssertNil(session.takeCommit())
     XCTAssertNotNil(session.composition())
     session.clearComposition()

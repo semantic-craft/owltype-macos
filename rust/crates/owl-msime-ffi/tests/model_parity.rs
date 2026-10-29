@@ -107,7 +107,7 @@ fn official_keyboard_model_matches_pinned_host_order_and_failure_fallback() {
     let resources = Path::new(&resources);
     let keyboard = resources.join("models/keyboard-model.bin");
     let digest = "86ac529510cb3b4968a5e6ade83ec8080f5b34a0a681e75c362accbbd387d1c1";
-    // Independent oracle: macos-v0.55.0 Host API, blank state, official dict-v2.0.24,
+    // Independent oracle: macos-v0.55.0 Host API, blank state, official dict-v2.0.39,
     // all defaults except neural_keyboard=true and the explicit locked model path.
     let baseline = [
         "它的房间",

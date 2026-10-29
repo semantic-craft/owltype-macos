@@ -33,10 +33,10 @@
     "quick_phrase_candidates": false
   },
   "resources": {
-    "release": "dict-v2.0.24",
+    "release": "dict-v2.0.39",
     "manifest": "../data/msime-dictionary-manifest.json",
-    "manifestSha256": "5b656a5db35b4dcf804ce4348d8584c899d0012fe62bbbe3689204ddaba8722f",
-    "manifestSize": 4627,
+    "manifestSha256": "d697cc197ac4c61fc6447a42eb8cb96d9913bec4ebdd79fad4c68d91f37bbb55",
+    "manifestSize": 4769,
     "sourceNotice": "../data/msime-resources-NOTICE.md"
   },
   "license": "GPL-3.0-only; dependency, model and data licenses remain separate."

@@ -204,11 +204,11 @@ def lob_test_identifier(finding: Finding) -> bool:
     return in_test_directory or is_selftest_source
 
 
-# Public dict-v2.0.24 msime-english.db is shipped byte-for-byte from the
+# Public dict-v2.0.39 msime-english.db is shipped byte-for-byte from the
 # SHA-pinned official manifest. Eraser matches one serialized word/display
 # pair rather than a credential. Pin this single raw match as well as the
 # complete public file; do not exempt a path, table, detector or generic shape.
-PUBLIC_ENGLISH_DB_SHA256 = "d216f66cab7edb9072ba7a07f3fe35623e76870438b76d360a89cc2a4795d3cd"
+PUBLIC_ENGLISH_DB_SHA256 = "1b5497d6764f15ebd2f86225c29b0fa1e45961638dfb0e13859214fbfc6f4bfd"
 PUBLIC_ENGLISH_PAIR_SHA256 = "0765860a9a46aa632108905db5870971f1e74c377435cf6df910651abd976298"
 
 

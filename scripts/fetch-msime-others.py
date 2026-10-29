@@ -37,7 +37,7 @@ EXPECTED_ROW_HASHES = {
 LICENSE_EXPRESSION = "GPL-3.0-only AND Unicode-3.0 AND MIT"
 REQUIRED_NOTICE_HASHES = {
     "rime-kaomoji.LICENSE": "bc4f44c16c8a6ea28e30ac4e1e9a737e8711ba3140f241fea9c8404a86f3ffe1",
-    "msime-others-NOTICE.txt": "b1ac4e7efbc3c97d44cd65ecfb43ef30042ce8c91bad57bbb1dc1b94ef4ba7a3",
+    "msime-others-NOTICE.txt": "2a8f11ff86c458cf1a18969af474705564d7b032ca762f7e3b9af5551e6220ff",
 }
 TABLE_ORDER = {
     "kaomoji": ("pinyin", "jianpin", "kaomoji"),

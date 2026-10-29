@@ -167,11 +167,13 @@ struct OwlDictPackCandidate: Equatable, Sendable {
 enum OwlRustCompatibleResources {
   /// Existing generations live under this id in the store library; never change it.
   static let packageId = "owltype-dictpack"
-  static let packageVersion = 3
+  /// Advance with any change to the bundled set (dictionary release, models, configuration):
+  /// an installed older generation then fails validation and the user is asked to prepare again.
+  static let packageVersion = 4
   static let configurationVersion = "msime-macos-v0.55.0-native-input-v1"
-  // data/msime-dictionary-manifest.json, dict-v2.0.24: both official 86/98 tables.
+  // data/msime-dictionary-manifest.json, dict-v2.0.39: both official 86/98 tables.
   // Like the model hashes, this identity belongs to the fixed binary configuration.
-  static let wubiDictionaryDigest = "sha256:851ed68211311a76847fe6a26096702747abbaab8dffb141698e0365143b31c1"
+  static let wubiDictionaryDigest = "sha256:54ee94799d8e33d5356468bdae164d21f68ce8ca0de9e6464ed4b3783924b93c"
   static let requiredFiles = [
     "msime-pinyin.db", "msime-wubi.db", "msime-english.db", "msime-others.db",
     "msime-bigram.bin", "msime-trigram.bin", "msime-dictionary-manifest.json",

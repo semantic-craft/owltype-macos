@@ -484,9 +484,10 @@ review dates, not retries. Keep deterministic checks in the local gate.
 ### Synthetic test codes are not production dictionary evidence
 
 - `testWubi86PureAndMixedSchemasZLookupAndPreferences` treated `gggg` as a unique four-code and `ffff` as empty, both inherited from the removed 50-row fixture. The real Wubi86 table has multiple `gggg` candidates and non-empty `ffff`, so seven assertions failed and later mixed-input checks cascaded.
-- Choose uniqueness and empty-code fixtures from the pinned production table; currently `sebv → 极限` and nonexistent `aaab`. Keep the production provenance assertions in the seed selftest so the fixture cannot silently return.
+- Choose uniqueness and empty-code fixtures from the pinned production table; currently `sebv → 极限` and nonexistent `bbbx`. Keep the production provenance assertions in the seed selftest so the fixture cannot silently return.
+- dict-v2.0.39 derived about 600,000 Wubi phrases per profile, so `aaab` gained seven rows and stopped being an empty code (2026-10-29). Re-check both fixtures with SQL against both Wubi tables on every dictionary re-pin.
 - Regression and Verify (验证点): `python3 scripts/verify.py swift --test OwlRustEngineTests` passes 15/15 after the fixture update. This is automated engine evidence, not native-host acceptance.
-- Seen on 1 distinct date: 2026-10-25.
+- Seen on 2 distinct dates: 2026-10-25, 2026-10-29.
 
 ### Publish seed data and its sidecars as one set
 

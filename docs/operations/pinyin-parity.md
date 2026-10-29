@@ -13,8 +13,8 @@ not the installed IMK executable. The resource manifest and every file used
 from the selected public desktop resource bundle are pinned by SHA-256 in
 [baseline.json](../../tests/fixtures/pinyin-parity/baseline.json), including the
 bigram/trigram and sentence models. The manifest identifies dictionary release
-`dict-v2.0.24`, builder commit `128a332cabc5fa42b1cf5f827033ad5697ff528b` and
-custom dictionary commit `71dc6f6cc7a451231ee29c0a39b39adbf2e04d32`.
+`dict-v2.0.39`, builder commit `8bb181be2ed36ed9559a87434cc4c9048077ff29` and
+custom dictionary commit `75978c6a6470171cc805c74e87ef465d894a7be4`.
 
 The default `native-mac-host` profile preserves `prepare_host` preferences and
 adds the three boolean capabilities requested by the pinned macOS
