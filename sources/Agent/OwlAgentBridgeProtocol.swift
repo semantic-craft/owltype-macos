@@ -322,7 +322,7 @@ enum OwlAgentBridgeProtocol {
     var supportedProtocolVersions: [Int]?
   }
 
-  struct ErrorObject: Codable, Equatable, Sendable {
+  struct ErrorObject: Codable, Equatable, Sendable, Error {
     var code: ErrorCode
     var message: String
     var data: ErrorData?

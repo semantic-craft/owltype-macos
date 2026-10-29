@@ -273,6 +273,10 @@
 		B255000BCAFE0255CAFE000B /* OwlRustDictPackResource.swift in Sources */ = {isa = PBXBuildFile; fileRef = B255000CCAFE0255CAFE000C /* OwlRustDictPackResource.swift */; };
 		A6E8A61B63612C6E0E12F290 /* OwlAgentBridgeProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E7A61B63612C6E0E12F290 /* OwlAgentBridgeProtocol.swift */; };
 		A6E8FC376924CE2C5A00DF83 /* OwlAgentBridgeContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E7FC376924CE2C5A00DF83 /* OwlAgentBridgeContractTests.swift */; };
+		A6E8B9B0C5C5DB8BF6BB296E /* OwlAgentBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E7B9B0C5C5DB8BF6BB296E /* OwlAgentBridge.swift */; };
+		A6E8F2F51C1954EA4991A25C /* OwlAgentPeerVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E7F2F51C1954EA4991A25C /* OwlAgentPeerVerifier.swift */; };
+		A6E8E038D81D62B8123C23B7 /* OwlAgentAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E7E038D81D62B8123C23B7 /* OwlAgentAccess.swift */; };
+		A6E86E1CE2B11A75E0302AD4 /* OwlAgentBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E76E1CE2B11A75E0302AD4 /* OwlAgentBridgeTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -573,6 +577,10 @@
 		B255000CCAFE0255CAFE000C /* OwlRustDictPackResource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRustDictPackResource.swift; path = sources/DictPack/OwlRustDictPackResource.swift; sourceTree = "<group>"; };
 		A6E7A61B63612C6E0E12F290 /* OwlAgentBridgeProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAgentBridgeProtocol.swift; path = sources/Agent/OwlAgentBridgeProtocol.swift; sourceTree = "<group>"; };
 		A6E7FC376924CE2C5A00DF83 /* OwlAgentBridgeContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAgentBridgeContractTests.swift; path = tests/OwlAgentBridgeContractTests.swift; sourceTree = "<group>"; };
+		A6E7B9B0C5C5DB8BF6BB296E /* OwlAgentBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAgentBridge.swift; path = sources/Agent/OwlAgentBridge.swift; sourceTree = "<group>"; };
+		A6E7F2F51C1954EA4991A25C /* OwlAgentPeerVerifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAgentPeerVerifier.swift; path = sources/Agent/OwlAgentPeerVerifier.swift; sourceTree = "<group>"; };
+		A6E7E038D81D62B8123C23B7 /* OwlAgentAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAgentAccess.swift; path = sources/Agent/OwlAgentAccess.swift; sourceTree = "<group>"; };
+		A6E76E1CE2B11A75E0302AD4 /* OwlAgentBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAgentBridgeTests.swift; path = tests/OwlAgentBridgeTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -593,6 +601,9 @@
 		080E96DDFE201D6D7F000001 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				A6E7E038D81D62B8123C23B7 /* OwlAgentAccess.swift */,
+				A6E7F2F51C1954EA4991A25C /* OwlAgentPeerVerifier.swift */,
+				A6E7B9B0C5C5DB8BF6BB296E /* OwlAgentBridge.swift */,
 				A6E7A61B63612C6E0E12F290 /* OwlAgentBridgeProtocol.swift */,
 				B38E9B902BE9AE1E0036ABEF /* OwlApplicationDelegate.swift */,
 				FB5A00020000000000000005 /* OwlInstallSession.swift */,
@@ -754,6 +765,7 @@
 		FA0000A0CAFE00A0CAFE00A0 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				A6E76E1CE2B11A75E0302AD4 /* OwlAgentBridgeTests.swift */,
 				A6E7FC376924CE2C5A00DF83 /* OwlAgentBridgeContractTests.swift */,
 				FA000080CAFE0080CAFE0080 /* SnapshotValidityTests.swift */,
 				FA000112CAFE0112CAFE0112 /* OwlSettingsE2ETests.swift */,
@@ -1093,6 +1105,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A6E8E038D81D62B8123C23B7 /* OwlAgentAccess.swift in Sources */,
+				A6E8F2F51C1954EA4991A25C /* OwlAgentPeerVerifier.swift in Sources */,
+				A6E8B9B0C5C5DB8BF6BB296E /* OwlAgentBridge.swift in Sources */,
 				A6E8A61B63612C6E0E12F290 /* OwlAgentBridgeProtocol.swift in Sources */,
 				B39771232BECEA150093A49B /* MacOSKeyCodes.swift in Sources */,
 				FA000130CAFE0130CAFE0130 /* OwlUserAction.swift in Sources */,
@@ -1255,6 +1270,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A6E86E1CE2B11A75E0302AD4 /* OwlAgentBridgeTests.swift in Sources */,
 				A6E8FC376924CE2C5A00DF83 /* OwlAgentBridgeContractTests.swift in Sources */,
 				FA000081CAFE0081CAFE0081 /* SnapshotValidityTests.swift in Sources */,
 				FA000113CAFE0113CAFE0113 /* OwlSettingsE2ETests.swift in Sources */,
