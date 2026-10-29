@@ -342,6 +342,8 @@ struct OwlApp {
         // 方案B：公开包只带清洁室词库种子；完整词库在用户知情同意后按 pin 拉取（不阻塞冷启动，
         // 下载完成后自动 deploy() 编译）。已装 / 用户自备 / 已提示过时这里只刷新状态。
         OwlDictPackCenter.shared.promptOrFetchIfNeeded()
+        // Agent access (#208): listens only while its switch is on; off by default.
+        OwlAgentAccess.shared.start()
         OwlPerf.since(perfColdStart, "coldstart.total")
         // Activation belongs to the installer path. Public Sparkle updates are information-only and
         // send users to the standalone installer, so a plain app launch must not toggle TIS state.
