@@ -296,6 +296,10 @@ final class OwlTemplateHostDelivery {
     access.insert(result.text, replacement)
     // Even a successful Void dispatch is unverified until the bounded readback agrees.
     guard let origin else { Self.trace("inserted without a readable origin"); completion(.attemptedUnverified); return }
+    // An immediate result is written while the key event is still being answered, through the
+    // session that is handling it; it verifies in that same turn. Waiting would end the
+    // active-session exception it relies on.
+    if immediate { completion(verify(result, origin: origin, revision: revision)); return }
     access.settle { [self] in completion(verify(result, origin: origin, revision: revision)) }
   }
 

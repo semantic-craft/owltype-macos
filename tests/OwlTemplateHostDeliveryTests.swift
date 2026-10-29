@@ -71,6 +71,7 @@ final class OwlTemplateHostDeliveryTests: XCTestCase {
     access.settle = { settled.append($0) }
     host.onWrite = { hostBusy = true }
     let delivery = OwlTemplateHostDelivery(access: access)
+    delivery.endImmediateDelivery()
     var outcomes: [OwlTemplateDeliveryOutcome] = []
     delivery.deliver(.init(text: "前后", cursorOffset: 1)) { outcomes.append($0) }
     XCTAssertEqual(outcomes, [], "nothing is reported while the host is still processing the insert")
@@ -83,6 +84,19 @@ final class OwlTemplateHostDeliveryTests: XCTestCase {
     XCTAssertEqual(host.writes.count, 1)
   }
 
+  /// PR #337 review: a template without parameters is delivered inside the key event. Deferring its
+  /// verification ended the active-session exception it relies on, so it reported unverified.
+  func testImmediateDeliveryVerifiesInTheSameTurn() {
+    let host = Host(); host.marked = NSRange(location: NSNotFound, length: 0); host.selection = NSRange(location: 1, length: 0)
+    var access = host.access
+    access.settle = { _ in XCTFail("an immediate delivery does not wait") }
+    let delivery = OwlTemplateHostDelivery(access: access)
+    var outcomes: [OwlTemplateDeliveryOutcome] = []
+    delivery.deliver(.init(text: "前后", cursorOffset: 1)) { outcomes.append($0) }
+    XCTAssertEqual(outcomes, [.confirmedWithCursor(.positioned)])
+    XCTAssertEqual(host.writes.count, 1)
+  }
+
   func testReactivatedSessionMustStillProveTheSameField() {
     for sameField in [true, false] {
       let host = Host(); host.marked = NSRange(location: NSNotFound, length: 0); host.selection = NSRange(location: 1, length: 0)
@@ -91,6 +105,7 @@ final class OwlTemplateHostDeliveryTests: XCTestCase {
       access.rejection = { _ in reactivated && !sameField ? .targetChanged : nil }
       access.settle = { next in host.epoch += 1; reactivated = true; next() }
       let delivery = OwlTemplateHostDelivery(access: access)
+      delivery.endImmediateDelivery()
       XCTAssertEqual(delivery.deliver(.init(text: "前后", cursorOffset: 1)),
                      sameField ? .confirmedWithCursor(.positioned) : .attemptedUnverified)
       XCTAssertEqual(host.writes.count, 1)
