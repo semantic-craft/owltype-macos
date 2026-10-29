@@ -4,7 +4,10 @@
 forwards each tool call to `OwlAgentBridge` inside Owltype.app (Swift, `sources/Agent`). This
 directory is the contract between those two processes.
 
-- **Transport:** a Unix domain socket in a directory only the user can open (0700, socket 0600).
+- **Transport:** a Unix domain socket in a directory only the user can open (0700, socket 0600):
+  `~/Library/Application Support/Owltype/AgentBridge/bridge.sock`
+  (`OWLTYPE_AGENT_BRIDGE_SOCKET` overrides it for tests and development builds). The helper refuses
+  a socket or directory another user owns or can open, and a listener of another user.
   One UTF-8 JSON object per line, at most 1 MiB, JSON-RPC 2.0.
 - **Handshake:** `hello` is the first request on every connection. It carries the bridge
   `protocolVersion` (independent of the MCP protocol version the helper negotiates with its

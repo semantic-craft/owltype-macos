@@ -105,6 +105,22 @@ else
   block "Release app is not Developer ID Application signed"
 fi
 
+# #208: OwlAgentBridge accepts a connection only from code signed by the App's own team, so the
+# helper must carry the same Team ID, under the hardened runtime, as the App.
+helper="$APP/Contents/Helpers/owltype-mcp"
+/usr/bin/codesign --verify --strict --verbose=2 "$helper" || fail "MCP helper codesign does not verify"
+helper_details=$(/usr/bin/codesign -dv --verbose=2 "$helper" 2>&1)
+app_team=$(sed -n 's/^TeamIdentifier=//p' <<<"$codesign_details")
+helper_team=$(sed -n 's/^TeamIdentifier=//p' <<<"$helper_details")
+if [[ -z "$app_team" || "$app_team" == "not set" ]]; then
+  block "Release app has no Team ID, so the MCP helper's team cannot be checked"
+fi
+[[ "$helper_team" == "$app_team" ]] ||
+  fail "MCP helper Team ID ${helper_team:-none} differs from the App's $app_team"
+grep -q '^CodeDirectory .*flags=.*runtime' <<<"$helper_details" ||
+  fail "MCP helper is not signed with the hardened runtime"
+pass "MCP helper is signed by the App's team ($app_team) with the hardened runtime"
+
 # #116：Apple Events 授权前置。1.4.7 发货了「更新后强推注销」（OwlUpdateLogoutPrompt），但 hardened
 # runtime 下缺 entitlement 或 usage string，发 Apple 事件直接 errAEEventNotPermitted (-1743) 且 TCC
 # 连授权框都不弹 —— 主按钮从未生效过，每次都体面地退化成「请手动注销」，失败被 fallback 文案掩盖着。

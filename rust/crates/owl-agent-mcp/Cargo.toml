@@ -7,9 +7,20 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[[bin]]
+name = "owltype-mcp"
+path = "src/main.rs"
+
 [dependencies]
+# Official MCP Rust SDK (Apache-2.0), pinned exactly; see PROVENANCE.md.
+rmcp = { version = "=3.8.0", default-features = false, features = ["server", "transport-io"] }
+tokio = { version = "1", features = ["rt", "net", "io-util", "io-std", "time", "macros"] }
 serde.workspace = true
 serde_json.workspace = true
+rustix = { workspace = true, features = ["process"] }
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints]
 workspace = true
