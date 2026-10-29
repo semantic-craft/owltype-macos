@@ -515,6 +515,10 @@ struct OwlTemplatePage: View {
         Text("动态模板可自动展开；宿主无法安全替换时保留原输入并提供结果复制。").font(.caption).foregroundStyle(.secondary)
       }
       Toggle("置顶", isOn: $model.draft.isPinned)
+      Toggle("开放给 Agent", isOn: $model.draft.isExposedToAgents)
+        .accessibilityIdentifier("template-exposed-to-agents")
+      Text("开启「Agent 接入」后，本机 Agent 可以读取并预览这条模板；写入输入框仍需你在猫头鹰的预览里确认。")
+        .font(.caption).foregroundStyle(.secondary)
       VStack(alignment: .leading, spacing: 6) {
         Text("标签").font(.caption)
         ForEach(Array(model.draft.tags.enumerated()), id: \.offset) { index, tag in
