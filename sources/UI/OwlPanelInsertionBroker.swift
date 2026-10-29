@@ -59,7 +59,7 @@ final class OwlPanelInsertionBroker {
   func copyResult(_ result: OwlTemplateInvocation.Result) -> Bool { pasteboardWrite(result.text) }
 
   func restoreAndDeliver(_ result: OwlTemplateInvocation.Result,
-                         host: ((OwlTemplateInvocation.Result) -> OwlTemplateDeliveryOutcome)?,
+                         host: OwlTemplateInvocation.HostDelivery?,
                          isHostReady: @escaping () -> Bool = { true },
                          isPending: @escaping () -> Bool,
                          completion: @escaping (OwlTemplateDeliveryOutcome) -> Void) {
@@ -70,7 +70,7 @@ final class OwlPanelInsertionBroker {
     guard !neededCapture || captured != nil else { completion(.notAttempted(.missingHost)); return }
     // Direct active-session calls never opened a window and require no activation request.
     guard let captured else {
-      if isPending() { completion(host(result)) }
+      if isPending() { host(result, completion) }
       return
     }
     guard isPending() else { return }
@@ -79,7 +79,7 @@ final class OwlPanelInsertionBroker {
       guard isPending() else { return }
       // The application is back but its field never verified: the host refuses without writing
       // and names its own reason. Only an application that never came back is a focus failure.
-      completion(restored || captured.isRestored() ? host(result) : .notAttempted(.focusNotRestored))
+      if restored || captured.isRestored() { host(result, completion) } else { completion(.notAttempted(.focusNotRestored)) }
     }
   }
 

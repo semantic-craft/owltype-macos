@@ -59,6 +59,44 @@ final class OwlTemplateHostDeliveryTests: XCTestCase {
     XCTAssertEqual(host.writes.count, 1)
   }
 
+  /// 2026-10-29 live (candidate cb9314f, TextEdit, all three entries): the host could not answer
+  /// accessibility in the same turn as the insert, so every readback failed and the cursor stayed at the end.
+  func testVerificationWaitsUntilTheHostHasProcessedTheInsert() {
+    let host = Host(); host.marked = NSRange(location: NSNotFound, length: 0); host.selection = NSRange(location: 1, length: 0)
+    var settled: [() -> Void] = []
+    var access = host.access
+    let readable = access.text
+    var hostBusy = false
+    access.text = { hostBusy ? nil : readable($0) }
+    access.settle = { settled.append($0) }
+    host.onWrite = { hostBusy = true }
+    let delivery = OwlTemplateHostDelivery(access: access)
+    var outcomes: [OwlTemplateDeliveryOutcome] = []
+    delivery.deliver(.init(text: "前后", cursorOffset: 1)) { outcomes.append($0) }
+    XCTAssertEqual(outcomes, [], "nothing is reported while the host is still processing the insert")
+    XCTAssertEqual(host.writes.count, 1)
+    hostBusy = false
+    settled.removeFirst()()
+    XCTAssertEqual(outcomes, [.confirmedWithCursor(.positioned)])
+    XCTAssertEqual(host.text as String, "左前后;;a右")
+    XCTAssertEqual(host.selection, NSRange(location: 2, length: 0))
+    XCTAssertEqual(host.writes.count, 1)
+  }
+
+  func testReactivatedSessionMustStillProveTheSameField() {
+    for sameField in [true, false] {
+      let host = Host(); host.marked = NSRange(location: NSNotFound, length: 0); host.selection = NSRange(location: 1, length: 0)
+      var access = host.access
+      var reactivated = false
+      access.rejection = { _ in reactivated && !sameField ? .targetChanged : nil }
+      access.settle = { next in host.epoch += 1; reactivated = true; next() }
+      let delivery = OwlTemplateHostDelivery(access: access)
+      XCTAssertEqual(delivery.deliver(.init(text: "前后", cursorOffset: 1)),
+                     sameField ? .confirmedWithCursor(.positioned) : .attemptedUnverified)
+      XCTAssertEqual(host.writes.count, 1)
+    }
+  }
+
   func testPlacementFailureKeepsCompleteTextAndDoesNotRepeatIt() {
     let host = Host(); host.acceptsMove = false
     let delivery = OwlTemplateHostDelivery(access: host.access)

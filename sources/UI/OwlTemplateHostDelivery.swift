@@ -71,6 +71,9 @@ final class OwlTemplateHostDelivery {
     var move: (NSRange, NSRange, String) -> Bool
     var isPresentationFocused: () -> Bool = { false }
     var canRestore: () -> Bool = { true }
+    /// Runs the post-insert checks once the host has processed the insert. The host may need this
+    /// process to answer while it handles the insert, so production waits a turn; tests run inline.
+    var settle: (@escaping () -> Void) -> Void = { $0() }
   }
 
   private weak var controller: OwlInputController?
@@ -130,7 +133,8 @@ final class OwlTemplateHostDelivery {
         guard let self, let front = NSWorkspace.shared.frontmostApplication else { return false }
         return front.processIdentifier == self.application?.processIdentifier ||
           (front.processIdentifier == ProcessInfo.processInfo.processIdentifier && self.presentationWindow?.isKeyWindow == true)
-      })
+      },
+      settle: { [weak self] next in self?.awaitReadableHost(polls: Self.settlePolls, next) })
     if automaticSource != nil {
       controller.pendingTemplateDelivery?.invalidate()
       controller.pendingTemplateDelivery = self
@@ -249,8 +253,7 @@ final class OwlTemplateHostDelivery {
 
   private func bindingState() -> String {
     let live = controller?.client.map { ($0 as AnyObject) === (client as AnyObject?) } ?? false
-    return "controller=\(controller != nil) client=\(client != nil) live=\(live) " +
-      "refusal=\(String(describing: access.rejection(immediate))) ranges=\(liveRangesAllowed())"
+    return "controller=\(controller != nil) client=\(client != nil) live=\(live) policy=\(policyAllowsRanges())"
   }
 
   /// For candidates, IMK's marked replacement range, not its caret, is the insertion origin.
@@ -269,34 +272,53 @@ final class OwlTemplateHostDelivery {
     return marked
   }
 
+  /// Synchronous form for callers whose access settles inline (tests).
   func deliver(_ result: OwlTemplateInvocation.Result) -> OwlTemplateDeliveryOutcome {
-    guard !resultDispatched else { return .notAttempted(.targetChanged) }
+    var outcome = OwlTemplateDeliveryOutcome.attemptedUnverified
+    deliver(result) { outcome = $0 }
+    return outcome
+  }
+
+  /// Inserts at most once, then verifies after the host has processed the insert.
+  func deliver(_ result: OwlTemplateInvocation.Result, completion: @escaping (OwlTemplateDeliveryOutcome) -> Void) {
+    guard !resultDispatched else { completion(.notAttempted(.targetChanged)); return }
     guard isReadyForDelivery() else {
       let reason = access.rejection(immediate) ?? .targetChanged
       Self.trace("refused before insert: \(reason)")
-      return .notAttempted(reason)
+      completion(.notAttempted(reason))
+      return
     }
-    var replacement: NSRange?
-    var origin: NSRange?
-    if let source {
-      if let original = committedOriginal {
-        guard access.canReplace(), confirmedText(source.originalInput, in: original) else { return .notAttempted(.targetChanged) }
-        replacement = original
-        origin = original
-      } else {
-        guard ownsSource(source) else { return .notAttempted(.targetChanged) }
-        origin = source.markedRange
-      }
-    } else if result.cursorOffset != nil {
-      origin = insertionRange()
-    }
-    guard isReadyForDelivery() else { return .notAttempted(.targetChanged) }
+    guard let plan = insertionPlan(for: result) else { completion(.notAttempted(.targetChanged)); return }
+    let (origin, replacement) = plan
+    guard isReadyForDelivery() else { completion(.notAttempted(.targetChanged)); return }
     let revision = access.revision()
     resultDispatched = true
     access.insert(result.text, replacement)
     // Even a successful Void dispatch is unverified until the bounded readback agrees.
-    guard let origin else { Self.trace("inserted without a readable origin"); return .attemptedUnverified }
-    guard access.revision() == revision else { Self.trace("host session changed during insert"); return .attemptedUnverified }
+    guard let origin else { Self.trace("inserted without a readable origin"); completion(.attemptedUnverified); return }
+    access.settle { [self] in completion(verify(result, origin: origin, revision: revision)) }
+  }
+
+  /// The origin to verify against (nil when unreadable) and the range to replace, or nil to refuse.
+  private func insertionPlan(for result: OwlTemplateInvocation.Result) -> (NSRange?, NSRange?)? {
+    if let source {
+      if let original = committedOriginal {
+        guard access.canReplace(), confirmedText(source.originalInput, in: original) else { return nil }
+        return (original, original)
+      }
+      guard ownsSource(source) else { return nil }
+      return (source.markedRange, nil)
+    }
+    return (result.cursorOffset != nil ? insertionRange() : nil, nil)
+  }
+
+  private func verify(_ result: OwlTemplateInvocation.Result, origin: NSRange, revision: UInt64) -> OwlTemplateDeliveryOutcome {
+    // Restoring the host may re-activate the same field's session. The readback below still has
+    // to prove the same accessible field, a live client, the inserted text and the caret.
+    if access.revision() != revision {
+      guard access.rejection(false) == nil else { Self.trace("host session changed during insert"); return .attemptedUnverified }
+      Self.trace("host session re-activated on the same field during insert")
+    }
     guard let inserted = OwlTemplateCursorPlacement.insertedRange(text: result.text, base: origin.location),
           confirmedText(result.text, in: inserted) else { Self.trace("readback did not match the insert"); return .attemptedUnverified }
     guard let offset = result.cursorOffset else { return .confirmed }
@@ -304,9 +326,10 @@ final class OwlTemplateHostDelivery {
       offset: offset, base: origin.location, selection: selection, readback: result.text) else {
       return .confirmedWithCursor(.positionUnverified)
     }
+    let settled = access.revision()
     let moved = access.move(target, inserted, result.text)
     if !moved { Self.trace("cursor placement refused") }
-    guard !invalid, access.revision() == revision, access.rejection(immediate) == nil else {
+    guard !invalid, access.revision() == settled, access.rejection(immediate) == nil else {
       return .confirmedWithCursor(.positionUnverified)
     }
     if moved, access.selection() == target { return .confirmedWithCursor(.positioned) }
@@ -352,6 +375,20 @@ final class OwlTemplateHostDelivery {
     return activated
   }
 
+  /// 25 ms polls for the host to answer accessibility again after an insert.
+  static let settlePolls = 8
+
+  private func awaitReadableHost(polls: Int, _ next: @escaping () -> Void) {
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.025) { [weak self] in
+      guard let self else { return }
+      if polls > 0, let application = self.application, Self.focusedField(application) == nil {
+        self.awaitReadableHost(polls: polls - 1, next)
+      } else {
+        next()
+      }
+    }
+  }
+
   /// Candidate and automatic invocations start inside `handle()`, while the host waits on this
   /// process for the key event's answer and cannot serve accessibility. Read the focused field
   /// again once the key event has returned, before any window can move focus in the host.
@@ -371,7 +408,11 @@ final class OwlTemplateHostDelivery {
   }
 
   private func liveRangesAllowed(replacement: Bool = false) -> Bool {
-    guard liveRejection(immediate: immediate) == nil, let client else { return false }
+    liveRejection(immediate: immediate) == nil && policyAllowsRanges(replacement: replacement)
+  }
+
+  private func policyAllowsRanges(replacement: Bool = false) -> Bool {
+    guard let client else { return false }
     let bundle = client.bundleIdentifier()
     let policy = NSApp.owlAppDelegate.clientCapabilityPolicy.evaluate(.init(
       host: .init(bundleID: bundle, linksElectronFramework: OwlElectronHostDetector.shared.linksElectron(bundleID: bundle)),

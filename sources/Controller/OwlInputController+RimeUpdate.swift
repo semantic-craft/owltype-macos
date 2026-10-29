@@ -98,7 +98,7 @@ extension OwlInputController {
                       automaticSource: OwlTemplateHostDelivery.AutomaticSource? = nil) {
     let delivery = target ?? OwlTemplateHostDelivery(controller: self, client: capturedClient, automaticSource: automaticSource)
     let invocation = OwlTemplateInvocation(content: content, broker: broker,
-      deliver: { delivery.deliver($0) }, trailingText: trailingText, intent: intent,
+      hostDelivery: { delivery.deliver($0, completion: $1) }, trailingText: trailingText, intent: intent,
       isHostReady: { delivery.isReadyForDelivery() },
       mayRestoreFocus: { delivery.mayRestoreFocus() },
       presentationTransition: { delivery.presentationTransition(window: $0, active: $1) },
