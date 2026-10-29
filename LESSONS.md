@@ -5,6 +5,29 @@ that the lesson is in place: which file to read, which command to run, what resu
 and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## A merge is allowed only by a passed gate receipt for its exact head
+
+**Merge with `scripts/merge-pr.py`, which refuses unless a passed full-gate receipt names the pull request's head; a gate log, a PR body or an earlier head is not that proof.**
+
+- Reason: on 2026-10-29 PR #345 was merged on head `d2ae1a8` whose gate had failed. The merge
+  command ran after a `grep -q "gate: ok" … && update-body` chain joined by `;`, so the failed
+  check only skipped the body edit, and the body still claimed the earlier head's pass. The
+  failure itself was not the change: `make owl-seed` hit `shallow.lock` in the cache
+  `/tmp/owltype-rime-seed`, which every worktree shares, while another worktree's gate was
+  fetching into it. A re-run on `d2ae1a8` passed (receipt `20261029T095608Z-full-8kprc1mf`).
+- Prevention: [merge-pr.py](scripts/merge-pr.py) reads the `scripts/verify.py` receipts and
+  merges only with `--match-head-commit` on a head that has a passed, clean, unchanged full
+  gate; [ci.md](docs/operations/ci.md) names it as the merge command.
+  [owl-seed.sh](scripts/owl-seed.sh) holds `/usr/bin/lockf` on the cache for the whole run, so
+  concurrent gates wait instead of failing.
+- Regression: [merge-pr.selftest.py](scripts/merge-pr.selftest.py) (failed, focused, other-head,
+  moved, dirty, changed and unreadable receipts are refused), run by the gate.
+- Scope: local merges by agents and the maintainer. A `gh pr merge` typed by hand still
+  bypasses it; the ruleset cannot see local receipts.
+- Verify (验证点): `python3 scripts/merge-pr.py <open PR> --dry-run` prints a receipt only after
+  `scripts/gate.sh` passed on that head; two `make owl-seed` runs started together both succeed.
+- Seen on 1 distinct date: 2026-10-29.
+
 ## A host waiting on the input method cannot answer accessibility
 
 **Never read the host through accessibility in the same turn as a key event or an insert it is still processing; read it once that turn has returned.**

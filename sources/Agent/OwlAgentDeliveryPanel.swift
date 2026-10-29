@@ -154,8 +154,14 @@ final class OwlAgentLiveDeliveryHost: OwlAgentDeliveryHost {
     var isTerminated: Bool { application.isTerminated }
 
     func write(_ text: String, completion: @escaping (OwlTemplateDeliveryOutcome) -> Void) {
-      delivery.deliver(OwlTemplateInvocation.Result(text: text), completion: completion)
+      delivery.deliver(OwlAgentLiveDeliveryHost.deliveryResult(text), completion: completion)
     }
+  }
+
+  /// The caret ends after the text either way. Naming that offset makes the delivery capture the
+  /// insertion origin and read back what it inserted, so a readable field reports verified.
+  static func deliveryResult(_ text: String) -> OwlTemplateInvocation.Result {
+    OwlTemplateInvocation.Result(text: text, cursorOffset: text.utf16.count)
   }
 
   private var observers: [NSObjectProtocol] = []

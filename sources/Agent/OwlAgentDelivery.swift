@@ -58,6 +58,9 @@ final class OwlAgentDeliveryCoordinator {
   /// Polls for the newly activated application's input session while waiting for a target.
   static let bindPolls = 10
   static let bindPollInterval: TimeInterval = 0.2
+  /// After those, keeps looking at this pace while the request waits: focusing a field later in the
+  /// same application sends no activation, and 写入 stays disabled until a target is bound.
+  static let slowBindPollInterval: TimeInterval = 0.5
 
   private final class Pending {
     let requestID: String
@@ -160,11 +163,11 @@ final class OwlAgentDeliveryCoordinator {
 
   /// The newly active application's input session appears after its activation; bind once it does.
   private func awaitInputSession(_ request: Pending, process: pid_t, polls: Int) {
-    host.schedule(after: Self.bindPollInterval) { [weak self, weak request] in
+    host.schedule(after: polls > 0 ? Self.bindPollInterval : Self.slowBindPollInterval) { [weak self, weak request] in
       guard let self, let request, self.pending === request, request.target == nil,
             self.host.frontmostProcess == process else { return }
       if case .success = self.host.bindFrontmost() { return self.bind(request) }
-      if polls > 0 { self.awaitInputSession(request, process: process, polls: polls - 1) }
+      self.awaitInputSession(request, process: process, polls: max(polls - 1, 0))
     }
   }
 

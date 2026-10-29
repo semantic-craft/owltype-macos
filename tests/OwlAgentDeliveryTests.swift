@@ -213,6 +213,24 @@ final class OwlAgentDeliveryTests: XCTestCase {
     XCTAssertEqual(host.target.writes, ["你好"])
   }
 
+  func testAFieldFocusedLongAfterTheSwitchStillBinds() throws {
+    host.frontmostProcess = 50
+    let reply = start(params())
+    host.frontmostProcess = 200
+    host.bindResult = .failure(.noTarget)
+    coordinator.applicationDidActivate(200)
+    for _ in 0...OwlAgentDeliveryCoordinator.bindPolls { host.fire(OwlAgentDeliveryCoordinator.bindPollInterval) }
+    for _ in 0..<20 { host.fire(OwlAgentDeliveryCoordinator.slowBindPollInterval) }
+    XCTAssertEqual(preview.targets.last, .some(nil), "no field yet: 写入 stays disabled")
+    host.bindResult = .success(host.target)
+    host.fire(OwlAgentDeliveryCoordinator.slowBindPollInterval)
+    XCTAssertEqual(preview.targets.last, "TextEdit", "the panel learns its target without another app switch")
+    preview.decide?(true)
+    XCTAssertEqual(try result(reply()).status, .delivered(verified: true))
+    host.fire(OwlAgentDeliveryCoordinator.slowBindPollInterval)
+    XCTAssertTrue(host.scheduled.filter { $0.0 == OwlAgentDeliveryCoordinator.slowBindPollInterval }.isEmpty, "polling stops once bound")
+  }
+
   func testDisconnectCancelsAndTheOutcomeIsKeptForARetry() throws {
     let cancellation = OwlAgentBridgeCancellation()
     _ = start(params(), cancellation: cancellation)

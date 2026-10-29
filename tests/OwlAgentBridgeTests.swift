@@ -158,6 +158,17 @@ final class OwlAgentBridgeTests: XCTestCase {
     XCTAssertEqual(invalid?["error"]?["data"]?["field"], .string("requestId"))
   }
 
+  func testOverlongLineIsRefusedEvenWhenItsNewlineArrivesInTheSameRead() throws {
+    try bridge.start()
+    let client = try XCTUnwrap(TestClient(socketPath))
+    let padding = String(repeating: "x", count: OwlAgentBridgeProtocol.maxLineBytes)
+    client.send(#"{"jsonrpc":"2.0","id":1,"method":"hello","params":{"protocolVersion":1,"helper":{"name":"\#(padding)","version":"0"}}}"#)
+    let answer = client.receive()
+    XCTAssertEqual(answer?["error"]?["code"], .number(-32600))
+    XCTAssertNil(client.receive(), "the connection is closed")
+    XCTAssertTrue(service.calls.isEmpty)
+  }
+
   func testRefusedPeerIsClosedWithoutAnAnswer() throws {
     bridge = OwlAgentBridge(socketURL: URL(fileURLWithPath: socketPath), verifier: SameUserVerifier(refuse: true), service: service)
     try bridge.start()

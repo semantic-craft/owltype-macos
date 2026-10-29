@@ -249,13 +249,17 @@ final class OwlAgentBridge {
       while let newline = buffer.firstIndex(of: 0x0A) {
         let line = buffer[buffer.startIndex..<newline]
         buffer.removeSubrange(buffer.startIndex...newline)
+        // A complete line can arrive in the same read that crosses the limit; check each one.
+        guard line.count <= Wire.maxLineBytes else { return refuseLongLine() }
         receive(Data(line))
         if isClosed { return }
       }
-      if buffer.count > Wire.maxLineBytes {
-        send(.failure(.init(id: nil, error: .init(code: .invalidRequest, message: "Line longer than 1 MiB"))))
-        close()
-      }
+      if buffer.count > Wire.maxLineBytes { refuseLongLine() }
+    }
+
+    private func refuseLongLine() {
+      send(.failure(.init(id: nil, error: .init(code: .invalidRequest, message: "Line longer than 1 MiB"))))
+      close()
     }
 
     /// The request on `line`, or nil after answering why it is not one.

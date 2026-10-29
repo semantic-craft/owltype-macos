@@ -97,6 +97,22 @@ final class OwlTemplateHostDeliveryTests: XCTestCase {
     XCTAssertEqual(host.writes.count, 1)
   }
 
+  /// PR #344 review: agent text carried no cursor offset, so the delivery never captured an origin
+  /// and every deliver_text into a readable field came back unverified.
+  func testAgentTextIsReadBackAndVerified() {
+    for (result, expected) in [(OwlAgentLiveDeliveryHost.deliveryResult("你好😀"), OwlTemplateDeliveryOutcome.confirmedWithCursor(.positioned)),
+                               (OwlTemplateInvocation.Result(text: "你好😀"), .attemptedUnverified)] {
+      let host = Host(); host.marked = NSRange(location: NSNotFound, length: 0); host.selection = NSRange(location: 1, length: 0)
+      let delivery = OwlTemplateHostDelivery(access: host.access)
+      delivery.endImmediateDelivery()
+      XCTAssertEqual(delivery.deliver(result), expected)
+      XCTAssertEqual(host.text as String, "左你好😀;;a右")
+      XCTAssertEqual(host.writes.count, 1)
+      XCTAssertEqual(host.moves, 0, "the caret is already after the text")
+    }
+    XCTAssertEqual(OwlAgentDeliveryCoordinator.status(for: .confirmedWithCursor(.positioned), targetQuit: false), .delivered(verified: true))
+  }
+
   func testReactivatedSessionMustStillProveTheSameField() {
     for sameField in [true, false] {
       let host = Host(); host.marked = NSRange(location: NSNotFound, length: 0); host.selection = NSRange(location: 1, length: 0)

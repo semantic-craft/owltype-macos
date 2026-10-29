@@ -119,11 +119,16 @@ gh pr create --fill
 
 Before the final gate, update the branch from fresh `origin/main`. Then run the narrowest
 focused checks plus `scripts/gate.sh` on the exact head and record the commands and
-result in the pull request. Merge through GitHub only while that baseline is still current:
+result in the pull request. Merge through GitHub only while that baseline is still current,
+with [merge-pr.py](../../scripts/merge-pr.py):
 
 ```bash
-gh pr merge <number> --squash --delete-branch
+python3 scripts/merge-pr.py <number>
 ```
+
+It refuses unless a passed full-gate receipt from `scripts/verify.py` names the pull
+request's exact head (clean tree, same commit before and after), and it merges only that
+head (`--squash --delete-branch --match-head-commit`). Never call `gh pr merge` directly.
 
 The repository accepts only squash merges. The commit on `main` takes the pull request
 title as its subject and the pull request body as its message, so write the body to
