@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 import hashlib
-import importlib.util
 import json
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-SCRIPT = Path(__file__).with_name('msime_pin.py')
-spec = importlib.util.spec_from_file_location('msime_pin', SCRIPT)
-PIN = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(PIN)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import msime_pin as PIN  # noqa: E402
 
 MANIFEST = {
     'format_contract_commit': 'b' * 40, 'custom_dictionary_commit': 'd' * 40,

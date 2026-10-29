@@ -27,7 +27,9 @@ def load_script(name: str):
 
 FINALIZER = load_script("finalize-release-bundle")
 BUNDLE = load_script("owl_bundle")
-PIN = load_script("msime_pin").load(ROOT)
+import msime_pin  # noqa: E402  (a real import: its dataclass needs sys.modules)
+
+PIN = msime_pin.load(ROOT)
 RETIRED_LICENSES = {
     "Contents/SharedSupport/librime-lua.LICENSE",
     "Contents/SharedSupport/librime.LICENSE",
