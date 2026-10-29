@@ -16,6 +16,8 @@
   Rust 输入引擎与运行时 crate 固定于 `macos-v0.55.0` /
   `208c10e848bbed99373ca8b609fd2142b6b0b4e2`（`rust/crates/`，经窄 C-ABI 静态链接入
   `Owltype.app`）。提取边界与宿主适配见 [`rust/msime-source.json`](rust/msime-source.json)。
+  `rust/crates/owl-msime-ffi`、`rust/crates/owl-agent-mcp` 与 `rust/shared/contracts/` 是 Owltype 自有代码，
+  不属于上游提取范围。
 - **完整官方拼音、五笔、英文与上下文资源** —— 固定 `dict-v2.0.24`，来源、大小、摘要和逐项许可见
   [`msime-resources-NOTICE.md`](data/msime-resources-NOTICE.md)。生产拼音、独立五笔 86/98 码表、英文和 bigram/trigram 均原样交付。
 - **chinese-ime-lm reference crate** —— <https://github.com/metasequoiaime/chinese-ime-lm>（Apache-2.0）

@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://owltype.app/contracts/agent-bridge/bridge.schema.json",
+  "title": "Owl Agent Bridge",
+  "description": "Messages between owltype-mcp and OwlAgentBridge in Owltype.app: JSON-RPC 2.0, one UTF-8 JSON object per line over a Unix domain socket, at most 1 MiB per line. The Rust (owl-agent-mcp) and Swift (OwlAgentBridgeProtocol) types are the enforcement; this file documents them and the shared samples exercise both.",
+  "contractVersion": 1,
+  "protocolVersion": 1,
+  "methods": ["hello", "owltype_status", "templates_list", "template_get", "template_render", "deliver_text"],
+  "errorCodes": {
+    "parse_error": -32700,
+    "invalid_request": -32600,
+    "method_not_found": -32601,
+    "invalid_params": -32602,
+    "internal_error": -32603,
+    "unsupported_protocol_version": -32001,
+    "hello_required": -32002,
+    "agent_access_disabled": -32003,
+    "template_not_found": -32004,
+    "delivery_busy": -32005
+  },
+  "deliverStatuses": ["delivered", "cancelled", "target_changed", "expired"],
+  "targetChangedReasons": ["focus_changed", "target_quit", "secure_input", "no_target", "unverifiable_target"],
+  "oneOf": [{ "$ref": "#/$defs/request" }, { "$ref": "#/$defs/success" }, { "$ref": "#/$defs/failure" }],
+  "$defs": {
+    "id": { "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "string", "minLength": 1, "maxLength": 128 }] },
+    "request": {
+      "type": "object",
+      "required": ["jsonrpc", "id", "method"],
+      "additionalProperties": false,
+      "properties": {
+        "jsonrpc": { "const": "2.0" },
+        "id": { "$ref": "#/$defs/id" },
+        "method": { "enum": ["hello", "owltype_status", "templates_list", "template_get", "template_render", "deliver_text"] },
+        "params": { "type": "object" }
+      },
+      "allOf": [
+        { "if": { "properties": { "method": { "const": "hello" } } }, "then": { "required": ["params"], "properties": { "params": { "$ref": "#/$defs/helloParams" } } } },
+        { "if": { "properties": { "method": { "const": "template_get" } } }, "then": { "required": ["params"], "properties": { "params": { "$ref": "#/$defs/templateRef" } } } },
+        { "if": { "properties": { "method": { "const": "template_render" } } }, "then": { "required": ["params"], "properties": { "params": { "$ref": "#/$defs/renderParams" } } } },
+        { "if": { "properties": { "method": { "const": "deliver_text" } } }, "then": { "required": ["params"], "properties": { "params": { "$ref": "#/$defs/deliverParams" } } } }
+      ]
+    },
+    "success": {
+      "type": "object",
+      "required": ["jsonrpc", "id", "result"],
+      "additionalProperties": false,
+      "properties": {
+        "jsonrpc": { "const": "2.0" },
+        "id": { "$ref": "#/$defs/id" },
+        "result": { "oneOf": [
+          { "$ref": "#/$defs/helloResult" }, { "$ref": "#/$defs/status" }, { "$ref": "#/$defs/templateList" },
+          { "$ref": "#/$defs/templateDetail" }, { "$ref": "#/$defs/render" }, { "$ref": "#/$defs/deliverResult" }
+        ] }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "required": ["jsonrpc", "id", "error"],
+      "additionalProperties": false,
+      "properties": {
+        "jsonrpc": { "const": "2.0" },
+        "id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "error": {
+          "type": "object",
+          "required": ["code", "message"],
+          "additionalProperties": false,
+          "properties": {
+            "code": { "enum": [-32700, -32600, -32601, -32602, -32603, -32001, -32002, -32003, -32004, -32005] },
+            "message": { "type": "string" },
+            "data": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "field": { "type": "string" },
+                "supportedProtocolVersions": { "type": "array", "items": { "type": "integer" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "component": {
+      "type": "object", "required": ["name", "version"], "additionalProperties": false,
+      "properties": { "name": { "type": "string", "maxLength": 128 }, "version": { "type": "string", "maxLength": 64 } }
+    },
+    "helloParams": {
+      "description": "First request on every connection. agentClient is the MCP client the helper is serving, as it introduced itself; the App shows it in the call log.",
+      "type": "object", "required": ["protocolVersion", "helper"], "additionalProperties": false,
+      "properties": {
+        "protocolVersion": { "type": "integer", "minimum": 1 },
+        "helper": { "$ref": "#/$defs/component" },
+        "agentClient": { "$ref": "#/$defs/component" }
+      }
+    },
+    "helloResult": {
+      "type": "object", "required": ["protocolVersion", "app"], "additionalProperties": false,
+      "properties": {
+        "protocolVersion": { "type": "integer", "minimum": 1 },
+        "app": { "type": "object", "required": ["version", "build"], "additionalProperties": false,
+                 "properties": { "version": { "type": "string" }, "build": { "type": "string" } } }
+      }
+    },
+    "status": {
+      "description": "Redacted App state. It never carries composing, committed, clipboard or host text.",
+      "type": "object", "additionalProperties": false,
+      "required": ["appVersion", "appBuild", "resourceGeneration", "inputSchema", "inputMode", "exposedTemplateCount"],
+      "properties": {
+        "appVersion": { "type": "string" },
+        "appBuild": { "type": "string" },
+        "resourceGeneration": { "type": "string" },
+        "inputSchema": { "type": "object", "required": ["id", "name"], "additionalProperties": false,
+                         "properties": { "id": { "type": "string" }, "name": { "type": "string" } } },
+        "inputMode": { "enum": ["chinese", "english"] },
+        "exposedTemplateCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "parameter": {
+      "description": "Mirrors OwlTemplateParameter. key is the value key template_render takes, for example n:议题.",
+      "type": "object", "required": ["key", "name", "isRequired", "options"], "additionalProperties": false,
+      "properties": {
+        "key": { "type": "string" }, "name": { "type": "string" }, "isRequired": { "type": "boolean" },
+        "defaultValue": { "type": "string" }, "options": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "requirements": { "type": "array", "items": { "enum": ["clipboard", "date"] }, "uniqueItems": true },
+    "templateSummary": {
+      "type": "object", "required": ["id", "title", "parameters", "requirements"], "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "format": "uuid" }, "title": { "type": "string" },
+        "parameters": { "type": "array", "items": { "$ref": "#/$defs/parameter" } },
+        "requirements": { "$ref": "#/$defs/requirements" }
+      }
+    },
+    "templateList": {
+      "description": "Only templates the user exposed to agents.",
+      "type": "object", "required": ["templates"], "additionalProperties": false,
+      "properties": { "templates": { "type": "array", "items": { "$ref": "#/$defs/templateSummary" } } }
+    },
+    "templateRef": {
+      "type": "object", "required": ["id"], "additionalProperties": false,
+      "properties": { "id": { "type": "string", "format": "uuid" } }
+    },
+    "templateDetail": {
+      "type": "object", "required": ["template"], "additionalProperties": false,
+      "properties": { "template": {
+        "type": "object", "required": ["id", "title", "body", "parameters", "requirements"], "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "format": "uuid" }, "title": { "type": "string" }, "body": { "type": "string" },
+          "parameters": { "type": "array", "items": { "$ref": "#/$defs/parameter" } },
+          "requirements": { "$ref": "#/$defs/requirements" }
+        } } }
+    },
+    "renderParams": {
+      "type": "object", "required": ["id"], "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "arguments": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "render": {
+      "description": "Preview only; nothing is written to any field. cursorOffset counts UTF-16 code units from the start of previewText.",
+      "type": "object", "required": ["previewText", "missingKeys", "diagnostics"], "additionalProperties": false,
+      "properties": {
+        "previewText": { "type": "string" },
+        "cursorOffset": { "type": "integer", "minimum": 0 },
+        "missingKeys": { "type": "array", "items": { "type": "string" } },
+        "diagnostics": { "type": "array", "items": {
+          "type": "object", "required": ["severity", "message"], "additionalProperties": false,
+          "properties": { "severity": { "enum": ["warning", "error"] }, "message": { "type": "string" } } } }
+      }
+    },
+    "deliverParams": {
+      "description": "requestId is chosen by the caller and makes the request idempotent: resubmitting it, also after a reconnect, never writes twice. timeoutMs bounds the wait for the user's confirmation.",
+      "type": "object", "required": ["requestId", "text"], "additionalProperties": false,
+      "properties": {
+        "requestId": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 20000 },
+        "timeoutMs": { "type": "integer", "minimum": 5000, "maximum": 600000, "default": 120000 }
+      }
+    },
+    "deliverResult": {
+      "type": "object", "required": ["requestId", "status", "replayed"], "additionalProperties": false,
+      "properties": {
+        "requestId": { "type": "string" },
+        "status": { "enum": ["delivered", "cancelled", "target_changed", "expired"] },
+        "verified": { "type": "boolean", "description": "delivered only: false when the host accepted the text but its field could not be read back." },
+        "reason": { "enum": ["focus_changed", "target_quit", "secure_input", "no_target", "unverifiable_target"], "description": "target_changed only." },
+        "replayed": { "type": "boolean", "description": "true when this is the stored outcome of an earlier request with the same requestId." }
+      },
+      "allOf": [
+        { "if": { "properties": { "status": { "const": "delivered" } } }, "then": { "required": ["verified"], "not": { "required": ["reason"] } } },
+        { "if": { "properties": { "status": { "const": "target_changed" } } }, "then": { "required": ["reason"], "not": { "required": ["verified"] } } },
+        { "if": { "properties": { "status": { "enum": ["cancelled", "expired"] } } }, "then": { "not": { "anyOf": [{ "required": ["verified"] }, { "required": ["reason"] }] } } }
+      ]
+    }
+  }
+}

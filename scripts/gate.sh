@@ -149,6 +149,8 @@ lint_release_tests() {
 product_tests() {
   stage "cargo test (owl-msime-ffi)"
   cargo test --locked --manifest-path rust/Cargo.toml --package owl-msime-ffi
+  stage "cargo test (owl-agent-mcp)"
+  cargo test --locked --manifest-path rust/Cargo.toml --package owl-agent-mcp
   stage "make test"
   make test DERIVED_DATA_PATH=build/gate-tests TEST_ONLY=
 }
