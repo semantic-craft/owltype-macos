@@ -16,6 +16,13 @@
   Rust 输入引擎与运行时 crate 固定于 `macos-v0.55.0` /
   `208c10e848bbed99373ca8b609fd2142b6b0b4e2`（`rust/crates/`，经窄 C-ABI 静态链接入
   `Owltype.app`）。提取边界与宿主适配见 [`rust/msime-source.json`](rust/msime-source.json)。
+  `rust/crates/owl-msime-ffi`、`rust/crates/owl-agent-mcp` 与 `rust/shared/contracts/` 是 Owltype 自有代码，
+  不属于上游提取范围。
+- **rmcp（MCP 官方 Rust SDK）** —— <https://github.com/modelcontextprotocol/rust-sdk>（Apache-2.0）
+  固定 `=3.8.0`（crates.io），编入 `Owltype.app/Contents/Helpers/owltype-mcp`。该辅助程序编入的全部
+  crates.io 依赖、版本与许可见 [`rust/crates/owl-agent-mcp/THIRD-PARTY-CRATES.md`](rust/crates/owl-agent-mcp/THIRD-PARTY-CRATES.md)
+  （由 `scripts/owl-agent-mcp-licenses.py` 从 `rust/Cargo.lock` 生成，门禁核对；均为 MIT 或 Apache-2.0 可选许可），
+  随对应源码归档分发；MIT 与 Apache-2.0 原文随 App 保存在 `Contents/SharedSupport/licenses`。
 - **完整官方拼音、五笔、英文与上下文资源** —— 固定 `dict-v2.0.24`，来源、大小、摘要和逐项许可见
   [`msime-resources-NOTICE.md`](data/msime-resources-NOTICE.md)。生产拼音、独立五笔 86/98 码表、英文和 bigram/trigram 均原样交付。
 - **chinese-ime-lm reference crate** —— <https://github.com/metasequoiaime/chinese-ime-lm>（Apache-2.0）

@@ -59,6 +59,59 @@ final class OwlTemplateHostDeliveryTests: XCTestCase {
     XCTAssertEqual(host.writes.count, 1)
   }
 
+  /// 2026-10-29 live (candidate cb9314f, TextEdit, all three entries): the host could not answer
+  /// accessibility in the same turn as the insert, so every readback failed and the cursor stayed at the end.
+  func testVerificationWaitsUntilTheHostHasProcessedTheInsert() {
+    let host = Host(); host.marked = NSRange(location: NSNotFound, length: 0); host.selection = NSRange(location: 1, length: 0)
+    var settled: [() -> Void] = []
+    var access = host.access
+    let readable = access.text
+    var hostBusy = false
+    access.text = { hostBusy ? nil : readable($0) }
+    access.settle = { settled.append($0) }
+    host.onWrite = { hostBusy = true }
+    let delivery = OwlTemplateHostDelivery(access: access)
+    delivery.endImmediateDelivery()
+    var outcomes: [OwlTemplateDeliveryOutcome] = []
+    delivery.deliver(.init(text: "前后", cursorOffset: 1)) { outcomes.append($0) }
+    XCTAssertEqual(outcomes, [], "nothing is reported while the host is still processing the insert")
+    XCTAssertEqual(host.writes.count, 1)
+    hostBusy = false
+    settled.removeFirst()()
+    XCTAssertEqual(outcomes, [.confirmedWithCursor(.positioned)])
+    XCTAssertEqual(host.text as String, "左前后;;a右")
+    XCTAssertEqual(host.selection, NSRange(location: 2, length: 0))
+    XCTAssertEqual(host.writes.count, 1)
+  }
+
+  /// PR #337 review: a template without parameters is delivered inside the key event. Deferring its
+  /// verification ended the active-session exception it relies on, so it reported unverified.
+  func testImmediateDeliveryVerifiesInTheSameTurn() {
+    let host = Host(); host.marked = NSRange(location: NSNotFound, length: 0); host.selection = NSRange(location: 1, length: 0)
+    var access = host.access
+    access.settle = { _ in XCTFail("an immediate delivery does not wait") }
+    let delivery = OwlTemplateHostDelivery(access: access)
+    var outcomes: [OwlTemplateDeliveryOutcome] = []
+    delivery.deliver(.init(text: "前后", cursorOffset: 1)) { outcomes.append($0) }
+    XCTAssertEqual(outcomes, [.confirmedWithCursor(.positioned)])
+    XCTAssertEqual(host.writes.count, 1)
+  }
+
+  func testReactivatedSessionMustStillProveTheSameField() {
+    for sameField in [true, false] {
+      let host = Host(); host.marked = NSRange(location: NSNotFound, length: 0); host.selection = NSRange(location: 1, length: 0)
+      var access = host.access
+      var reactivated = false
+      access.rejection = { _ in reactivated && !sameField ? .targetChanged : nil }
+      access.settle = { next in host.epoch += 1; reactivated = true; next() }
+      let delivery = OwlTemplateHostDelivery(access: access)
+      delivery.endImmediateDelivery()
+      XCTAssertEqual(delivery.deliver(.init(text: "前后", cursorOffset: 1)),
+                     sameField ? .confirmedWithCursor(.positioned) : .attemptedUnverified)
+      XCTAssertEqual(host.writes.count, 1)
+    }
+  }
+
   func testPlacementFailureKeepsCompleteTextAndDoesNotRepeatIt() {
     let host = Host(); host.acceptsMove = false
     let delivery = OwlTemplateHostDelivery(access: host.access)
@@ -186,5 +239,84 @@ final class OwlTemplateHostDeliveryTests: XCTestCase {
     XCTAssertEqual(writes, 0); XCTAssertEqual(prepares, 1); XCTAssertEqual(finishes, 1)
     invocation.cancel()
     XCTAssertEqual(finishes, 1)
+  }
+
+  // #331: after a template window the host field came back through a new IMK controller, while
+  // delivery still compared against the old controller's client and timed out as focusNotRestored.
+  func testDeliveryRebindsToTheSessionActivatedForTheSameApplication() throws {
+    let old = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    let new = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    defer { old.destroySession(); new.destroySession() }
+    let captured = HabitsTextClient(); captured.appID = "com.apple.TextEdit"
+    let returned = HabitsTextClient(); returned.appID = "com.apple.TextEdit"
+    old.client = captured
+    XCTAssertNil(OwlTemplateHostDelivery.rebindTarget(controller: old, client: captured, activated: new,
+      bundleID: "com.apple.TextEdit"), "a captured session that is still live is kept")
+    old.client = nil
+    new.client = returned
+    XCTAssertTrue(OwlTemplateHostDelivery.rebindTarget(controller: old, client: captured, activated: new,
+      bundleID: "com.apple.TextEdit") === new)
+    XCTAssertTrue(OwlTemplateHostDelivery.rebindTarget(controller: nil, client: nil, activated: new,
+      bundleID: "com.apple.TextEdit") === new, "a released capture still finds the returned field")
+    XCTAssertNil(OwlTemplateHostDelivery.rebindTarget(controller: old, client: captured, activated: new,
+      bundleID: "com.google.Chrome"), "never another application's session")
+    new.client = nil
+    XCTAssertNil(OwlTemplateHostDelivery.rebindTarget(controller: old, client: captured, activated: new,
+      bundleID: "com.apple.TextEdit"), "never a deactivated session")
+  }
+
+  /// 2026-10-29 live (candidate dfbf8d6, TextEdit): candidate and automatic invocations refused with
+  /// unverifiableTarget because the field was read inside the key event, while the host could not answer.
+  func testFieldUnreadableDuringKeyEventIsReadAfterIt() {
+    var reads = [nil, "field"] as [String?]
+    var scheduled: [() -> Void] = []
+    var stored: [String] = []
+    OwlTemplateHostDelivery.captureOutsideKeyEvent({ reads.removeFirst() }, schedule: { scheduled.append($0) }) {
+      stored.append($0)
+    }
+    XCTAssertEqual(stored, [], "nothing captured while the host is blocked")
+    XCTAssertEqual(scheduled.count, 1)
+    scheduled.removeFirst()()
+    XCTAssertEqual(stored, ["field"])
+
+    var direct: [String] = []
+    OwlTemplateHostDelivery.captureOutsideKeyEvent({ "field" }, schedule: { _ in XCTFail("a readable field is not read twice") }) {
+      direct.append($0)
+    }
+    XCTAssertEqual(direct, ["field"])
+  }
+
+  func testActivationRegistryFollowsIMKActivation() throws {
+    let first = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    let second = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    defer { first.destroySession(); second.destroySession() }
+    let client = HabitsTextClient()
+    let runtime = NSApp.owlAppDelegate.runtime
+    first.activateServer(client)
+    XCTAssertTrue(runtime.activatedInputController === first)
+    first.deactivateServer(client)
+    second.activateServer(client)
+    XCTAssertTrue(runtime.activatedInputController === second)
+    first.deactivateServer(client)
+    XCTAssertTrue(runtime.activatedInputController === second, "a stale deactivation keeps the live session")
+    second.deactivateServer(client)
+    XCTAssertNil(runtime.activatedInputController)
+  }
+
+  // #331: a template candidate left its code as marked text; the parameter window took focus and
+  // TextEdit committed the raw `Kyshx` into the document.
+  func testTemplateCandidateClearsHostMarkedTextBeforeAnyWindow() throws {
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    controller.destroySession()
+    defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
+    let session = FakeEngineSession(pendingCommit: OwlTemplateStore.candidatePrefix + UUID().uuidString + "]验收")
+    controller.engineSession = session
+    let client = HabitsTextClient(); client.appID = "com.apple.TextEdit"
+    controller.client = client
+    controller.show(preedit: "Kyshx", selRange: NSRange(location: 0, length: 0), caretPos: 5)
+    XCTAssertTrue(client.text.hasMarkedText())
+    controller.consumeCommittedText()
+    XCTAssertFalse(client.text.hasMarkedText())
+    XCTAssertEqual(client.text.string, "", "the raw code never reaches the document")
   }
 }

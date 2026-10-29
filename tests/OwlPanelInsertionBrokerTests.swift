@@ -36,8 +36,8 @@ final class OwlPanelInsertionBrokerTests: XCTestCase {
       .init(restore: { events.append("restore") }, isRestored: { true })
     }, pasteboardWrite: { _ in XCTFail("no copy"); return false })
     broker.capture()
-    broker.restoreAndDeliver(.init(text: "你好"), host: { result in
-      events.append(result.text); return .attemptedUnverified
+    broker.restoreAndDeliver(.init(text: "你好"), host: { result, completion in
+      events.append(result.text); completion(.attemptedUnverified)
     }, isPending: { true }, completion: { XCTAssertEqual($0, .attemptedUnverified) })
     XCTAssertEqual(events, ["restore", "你好"])
   }
@@ -159,4 +159,20 @@ final class OwlPanelInsertionBrokerTests: XCTestCase {
     XCTAssertEqual(writes, 1)
   }
 
+  // #331: an application that came back but whose field never verified was reported as a focus
+  // failure. The host now refuses on its own terms, without writing.
+  func testRestoredApplicationReportsTheHostsOwnRefusal() {
+    var queue: [() -> Void] = []
+    var attempts = 0
+    let broker = OwlPanelInsertionBroker(captureFrontmost: {
+      .init(restore: {}, isRestored: { true })
+    }, pasteboardWrite: { _ in XCTFail("no copy"); return false }, schedule: { _, work in queue.append(work) })
+    broker.capture()
+    let invocation = OwlTemplateInvocation(content: .plainText("text"), broker: broker,
+      deliver: { _ in attempts += 1; return .notAttempted(.targetChanged) }, isHostReady: { false })
+    invocation.start { _ in }
+    while !queue.isEmpty { queue.removeFirst()() }
+    XCTAssertEqual(attempts, 1)
+    XCTAssertEqual(invocation.outcome, .notAttempted(.targetChanged))
+  }
 }
