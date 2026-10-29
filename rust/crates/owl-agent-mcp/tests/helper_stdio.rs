@@ -32,6 +32,7 @@ fn fake_bridge(directory: &Path) -> (PathBuf, mpsc::Receiver<Value>) {
                     "templates_list" => sample("templates_list.response.json"),
                     "template_get" => sample("template_get.response.json"),
                     "template_render" => sample("template_render.response.json"),
+                    "deliver_text" => sample("deliver_text.response.delivered.json"),
                     _ => sample("error.method_not_found.json"),
                 };
                 answer["id"] = request["id"].clone();
@@ -188,4 +189,23 @@ fn template_tools_forward_their_arguments() {
     assert_eq!(missing["result"]["isError"], true);
     let extra = helper.request("tools/call", json!({ "name": "template_get", "arguments": { "id": id, "body": "x" } }));
     assert_eq!(extra["result"]["isError"], true);
+}
+
+#[test]
+fn deliver_text_forwards_the_request_and_checks_it_first() {
+    let directory = private_directory();
+    let (socket, seen) = fake_bridge(directory.path());
+    let mut helper = Helper::start(&socket);
+    let arguments = json!({ "requestId": "grok-2026-10-29-0001", "text": "今天的发版改到下午三点。", "timeoutMs": 120000 });
+    let delivered = helper.request("tools/call", json!({ "name": "deliver_text", "arguments": arguments }));
+    assert_eq!(delivered["result"]["structuredContent"]["status"], "delivered");
+    let forwarded: Vec<Value> = seen.try_iter().filter(|request| request["method"] == "deliver_text").collect();
+    assert_eq!(forwarded[0]["params"], arguments);
+
+    for bad in [json!({ "requestId": "has space", "text": "x" }), json!({ "requestId": "a", "text": "" }),
+                json!({ "requestId": "a", "text": "x", "timeoutMs": 1 })] {
+        let refused = helper.request("tools/call", json!({ "name": "deliver_text", "arguments": bad }));
+        assert_eq!(refused["result"]["isError"], true, "{bad}");
+    }
+    assert_eq!(seen.try_iter().filter(|request| request["method"] == "deliver_text").count(), 0);
 }

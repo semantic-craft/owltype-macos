@@ -25,6 +25,11 @@ directory is the contract between those two processes.
   | `target_changed` | the bound target is gone: `focus_changed`, `target_quit`, `secure_input`, `no_target` or `unverifiable_target` |
   | `expired` | no confirmation within `timeoutMs` |
 
+  The request binds to the focused field of the frontmost application. When that application is
+  the agent's own terminal (an ancestor of the helper process), the preview asks the user to switch
+  and binds to the next application that comes forward with an input session. Once bound, that
+  application losing the front or quitting ends the request as `target_changed`.
+
   `requestId` is the caller's idempotency key. A repeated `requestId`, also on a new connection,
   returns the stored outcome with `replayed: true` and never writes again. Return is never pressed.
 

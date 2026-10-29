@@ -45,6 +45,14 @@ final class OwlAgentAccess: NSObject, OwlAgentBridgeService {
   var loadLibrary: () throws -> OwlTemplateLibrary = {
     OwlTemplateStore.mode() == .unified ? try OwlTemplateStore.load() : OwlTemplateLibrary()
   }
+  /// Made on first use, on the main thread; tests supply their own.
+  var makeDeliveryCoordinator: () -> OwlAgentDeliveryCoordinator = {
+    let host = OwlAgentLiveDeliveryHost()
+    let coordinator = OwlAgentDeliveryCoordinator(host: host, preview: { OwlAgentDeliveryPanel() })
+    host.observe(for: coordinator)  // the coordinator keeps the host
+    return coordinator
+  }
+  private lazy var deliveryCoordinator = makeDeliveryCoordinator()
   private(set) var bridge: OwlAgentBridge?
   private var makeBridge: (OwlAgentAccess) -> OwlAgentBridge = {
     OwlAgentBridge(verifier: OwlAgentPeerVerifier(), service: $0)
@@ -119,8 +127,12 @@ final class OwlAgentAccess: NSObject, OwlAgentBridgeService {
       }
     case .templatesList, .templateGet, .templateRender:
       reply(answerTemplates(call))
-    case .hello, .deliverText:
-      reply(.failure(.init(code: .methodNotFound, message: "Not available in this Owltype build")))
+    case .deliverText(let params):
+      DispatchQueue.main.async {
+        self.deliveryCoordinator.deliver(params, from: client, cancellation: cancellation, reply: reply)
+      }
+    case .hello:
+      reply(.failure(.init(code: .invalidRequest, message: "hello was already sent")))
     }
   }
 
