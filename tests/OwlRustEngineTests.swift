@@ -413,7 +413,7 @@ final class OwlRustEngineTests: XCTestCase {
 
       // Pinned 0.55.0 with the official dictionary keeps zhongguoren unchanged.
       // The desktop model changes this sentence's first two rows in a blank state.
-      typeText("tadefangjian", into: session)
+      typeText("tamenzaijiaoshi", into: session)
       let before = try XCTUnwrap(session.composition())
       let beforeGeneration = session.generation
 
@@ -443,7 +443,7 @@ final class OwlRustEngineTests: XCTestCase {
       }
 
       XCTAssertTrue(current)
-      XCTAssertTrue(moved, "real settled model must move the tadefangjian candidate order")
+      XCTAssertTrue(moved, "real settled model must move the tamenzaijiaoshi candidate order")
       let refreshed = try XCTUnwrap(session.composition())
       XCTAssertGreaterThan(session.generation, beforeGeneration)
       XCTAssertNotEqual(
@@ -624,13 +624,13 @@ final class OwlRustEngineTests: XCTestCase {
     let backend = OwlDictPackCenterRustBackend.production(userRoot: user, sharedSupport: seed)
     let prepared = try await backend.prepare(backend.environment, nil)
     XCTAssertNil(try backend.environment.activeState(), "preparing must not activate")
-    XCTAssertEqual(prepared.version, 3, "the native-input-v1 production combination is version 3")
+    XCTAssertEqual(prepared.version, 4, "the native-input-v1 production combination is version 4")
     let names = Set(prepared.resource.record.manifest.files.map(\.path))
     for name in OwlRustCompatibleResources.requiredFiles + ["compatibility.txt"] {
       XCTAssertTrue(names.contains("files/" + name), "complete payload lacks \(name)")
     }
     XCTAssertGreaterThan(prepared.stats.pinyinEntries, 900_000)
-    XCTAssertEqual(prepared.stats.wubiEntries, 126_078)
+    XCTAssertEqual(prepared.stats.wubiEntries, 729_717)
     XCTAssertGreaterThan(prepared.stats.englishEntries, 70_000)
     let preparedResources = try backend.environment.validatedGeneration(prepared.resource.record).resourcesURL
     let model = preparedResources.appendingPathComponent("models/keyboard-model.bin")
@@ -651,7 +651,7 @@ final class OwlRustEngineTests: XCTestCase {
     defer { session.destroy() }
     XCTAssertTrue(session.isValid)
     typeText("tadefangjian", into: session)
-    XCTAssertEqual(session.composition()?.candidates.first?.text, "它的房间")
+    XCTAssertEqual(session.composition()?.candidates.first?.text, "他的房间")
   }
 
   func testActivatedGenerationUsesItsOwnAuxiliaryResources() throws {
@@ -699,8 +699,9 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertFalse(candidates.contains { $0.text == "🍎" || $0.text == "🍏" }, "do not mix bundled auxiliary data")
     waitForSettledRerankReady(session)
     session.clearComposition()
-    typeText("tadefangjian", into: session)
-    XCTAssertEqual(session.composition()?.candidates.first?.text, "它的房间")
+    // On the pinned dictionary the settled model moves this sentence's first two rows.
+    typeText("tamenzaijiaoshi", into: session)
+    XCTAssertEqual(session.composition()?.candidates.first?.text, "他们在教师")
     let started = session.startSettledRerank()
     if let token = started.token {
       var result = session.pollSettledRerank(token: token, accept: true)
@@ -718,7 +719,7 @@ final class OwlRustEngineTests: XCTestCase {
       XCTAssertTrue(started.moved)
       XCTAssertNil(started.error)
     }
-    XCTAssertEqual(session.composition()?.candidates.first?.text, "他的房间",
+    XCTAssertEqual(session.composition()?.candidates.first?.text, "他们在教室",
                    "generation-owned model must score even when bundle models are unavailable")
   }
 
@@ -2258,8 +2259,8 @@ final class OwlRustEngineTests: XCTestCase {
 
     // #252 AC 3: a unique four-code in pure Wubi commits on the fourth key. The next
     // physical key starts a new composition rather than disappearing.
-    typeText("jixu", into: session)
-    XCTAssertEqual(session.takeCommit(), "曳光弹")
+    typeText("sebv", into: session)
+    XCTAssertEqual(session.takeCommit(), "极限")
     XCTAssertEqual(session.input(), "")
     typeText("n", into: session)
     XCTAssertEqual(session.input(), "n")
@@ -2304,8 +2305,8 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertTrue(mixed.candidates.contains(where: { $0.text == "继续" }))
     XCTAssertTrue(mixed.candidates.contains(where: { $0.text == "曳光弹" }))
     XCTAssertTrue(session.selectSchema("wubi86_jidian"))
-    typeText("jixu", into: session)
-    XCTAssertEqual(session.takeCommit(), "曳光弹")
+    typeText("sebv", into: session)
+    XCTAssertEqual(session.takeCommit(), "极限")
   }
 
   func testMixedWubiPartialPhraseSelectionContinuesInPinyinTail() throws {
@@ -2389,8 +2390,8 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.input(), "wo")
     XCTAssertTrue(session.selectSchema("wubi86_jidian"))
     XCTAssertEqual(session.input(), "")
-    typeText("jixu", into: session)
-    XCTAssertEqual(session.takeCommit(), "曳光弹")
+    typeText("sebv", into: session)
+    XCTAssertEqual(session.takeCommit(), "极限")
   }
 
   func testWubiZLookupUsesOnlyNativeSuffixAndDoesNotLearnPinyinFrequency() throws {
@@ -2416,7 +2417,7 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.takeCommit(), "i", "unanswered native lookup commits the suffix without marker z")
     typeText("zhai", into: session)
     let lookup = try XCTUnwrap(session.composition())
-    XCTAssertEqual(lookup.candidates.map(\.text), ["还", "海", "孩", "害", "骇", "嗨"])
+    XCTAssertEqual(lookup.candidates.map(\.text), ["还", "海", "孩", "害", "嗨", "亥"])
     XCTAssertEqual(lookup.candidates[1].comment, "itxu")
     XCTAssertTrue(session.selectCandidate(1))
     XCTAssertEqual(session.takeCommit(), "海")
@@ -2628,9 +2629,9 @@ final class OwlRustEngineTests: XCTestCase {
     let session = engine.createSession()
     defer { session.destroy() }
     for (input, expected) in [
-      ("xi", ["洗", "xi", "西", "喜", "系", "息"]),
-      ("chan", ["产", "chan", "颤", "缠", "禅", "蝉"]),
-      ("nihao", ["你好", "👋", "尼好", "你好吗", "你好啊", "拟好"])
+      ("xi", ["系", "xi", "习", "喜", "西", "息"]),
+      ("chan", ["产", "chan", "馋", "缠", "禅", "阐"]),
+      ("nihao", ["你好", "👋", "妳好", "你好像", "你好好", "你好多"])
     ] {
       typeText(input, into: session)
       XCTAssertEqual(session.composition()?.candidates.map(\.text), expected, input)
@@ -2748,7 +2749,7 @@ final class OwlRustEngineTests: XCTestCase {
 
     // Pinned full resources replace the former Owl-only mixed lexicon. Keep the
     // actual upstream top row rather than requiring words absent from its table.
-    for (input, expected) in [("xguang", "星光"), ("txu", "特许")] {
+    for (input, expected) in [("xguang", "星光"), ("txu", "剃须")] {
       typeText(input, into: session)
       XCTAssertEqual(session.composition()?.candidates.first?.text, expected)
       session.clearComposition()
@@ -3218,7 +3219,7 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertTrue(session.selectSchema("rime_ice"))
     typeText("addr", into: session)
     let plain = try XCTUnwrap(session.composition())
-    XCTAssertEqual(plain.candidates.map(\.text), ["按当地", "addr", "按订单", "矮墩墩", "按到底", "啊对对"])
+    XCTAssertEqual(plain.candidates.map(\.text), ["按当地", "addr", "按到底", "按订单", "爱得多", "挨刀的"])
     let generation = session.generation
     let state = OwlSettingsState()
     OwlSettingsActions.toggle(state: state, keyPath: \.quickPhraseCandidates) {
@@ -3232,7 +3233,7 @@ final class OwlRustEngineTests: XCTestCase {
     typeText("addr", into: session)
     let enabled = try XCTUnwrap(session.composition())
     XCTAssertEqual(enabled.candidates.map(\.text),
-      ["按当地", "addr", "按订单", "矮墩墩", "按到底", "示例大学示例校区1栋101"])
+      ["按当地", "addr", "按到底", "按订单", "爱得多", "示例大学示例校区1栋101"])
     OwlSettingsActions.toggle(state: state, keyPath: \.quickPhraseCandidates) {
       OwlKeyboardPreferences.quickPhraseCandidates = $0
     }

@@ -172,7 +172,7 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     try type("tadefangjian", into: controller, client: client)
     controller.commitComposition(client)
     // Fixed native fresh-state baseline; focus end must not leak the typed Latin letters.
-    XCTAssertEqual(client.text.string, "它的房间")
+    XCTAssertEqual(client.text.string, "他的房间")
     XCTAssertEqual(controller.engineSession?.input(), "")
     XCTAssertFalse(client.text.hasMarkedText())
   }
@@ -261,19 +261,19 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     XCTAssertTrue(session.selectSchema("rime_ice"))
     for ch in "nihao".unicodeScalars { XCTAssertTrue(session.process(keycode: ch.value, modifiers: 0)) }
     let before = try XCTUnwrap(session.composition())
-    let index = try XCTUnwrap(before.candidates.firstIndex { $0.text == "你好吗" })
+    let index = try XCTUnwrap(before.candidates.firstIndex { $0.text == "你好像" })
     let token = OwlCandidateToken(sessionID: session.sessionID, generation: session.generation,
                                   candidateID: index)
     session.clearComposition()
     for ch in "nihao".unicodeScalars { XCTAssertTrue(session.process(keycode: ch.value, modifiers: 0)) }
     XCTAssertFalse(controller.removeCandidate(token), "An old context menu cannot delete a new row")
-    XCTAssertTrue(session.composition()?.candidates.contains { $0.text == "你好吗" } == true)
+    XCTAssertTrue(session.composition()?.candidates.contains { $0.text == "你好像" } == true)
     let codes: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28]
-    let current = try XCTUnwrap(session.composition()?.candidates.firstIndex { $0.text == "你好吗" })
+    let current = try XCTUnwrap(session.composition()?.candidates.firstIndex { $0.text == "你好像" })
     // Deliberately layout-dependent text: deletion must use the physical key code.
     XCTAssertTrue(controller.handle(try key("$", code: codes[current],
       flags: [.control, .option, .shift]), client: client))
-    XCTAssertFalse(session.composition()?.candidates.contains { $0.text == "你好吗" } == true)
+    XCTAssertFalse(session.composition()?.candidates.contains { $0.text == "你好像" } == true)
     XCTAssertNil(session.takeCommit())
     XCTAssertTrue(controller.handle(try key("\u{1b}", code: 53), client: client))
     XCTAssertEqual(client.text.string, "", "Cancel clears only marked text; deletion must not commit the chord")
@@ -283,14 +283,14 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     let reopened = try XCTUnwrap(controller.engineSession)
     XCTAssertTrue(reopened.selectSchema("rime_ice"))
     for ch in "nihao".unicodeScalars { XCTAssertTrue(reopened.process(keycode: ch.value, modifiers: 0)) }
-    XCTAssertFalse(reopened.composition()?.candidates.contains { $0.text == "你好吗" } == true)
+    XCTAssertFalse(reopened.composition()?.candidates.contains { $0.text == "你好像" } == true)
     controller.engineUpdate()
-    let menuIndex = try XCTUnwrap(reopened.composition()?.candidates.firstIndex { $0.text == "你好啊" })
+    let menuIndex = try XCTUnwrap(reopened.composition()?.candidates.firstIndex { $0.text == "你好好" })
     let menuToken = OwlCandidateToken(sessionID: reopened.sessionID, generation: reopened.generation,
                                       candidateID: menuIndex)
     let menuAction = try XCTUnwrap(NSApp.owlAppDelegate.owlPanel?.onRemove)
     menuAction(menuToken)
-    XCTAssertFalse(reopened.composition()?.candidates.contains { $0.text == "你好啊" } == true)
+    XCTAssertFalse(reopened.composition()?.candidates.contains { $0.text == "你好好" } == true)
   }
 
   @MainActor
@@ -334,10 +334,10 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
       } while Date() < readyDeadline
       XCTAssertTrue(session.settledRerankReady)
       XCTAssertEqual(OwlKeyboardPreferences.pageSize, 6, "isolated model oracle requires native six-row page")
-      try type("tadefangjian", into: controller, client: client)
+      try type("tamenzaijiaoshi", into: controller, client: client)
       let before = try XCTUnwrap(session.composition())
       XCTAssertEqual(before.candidates.map(\.text),
-        ["它的房间", "他的房间", "她的房间", "它的放吉安", "他的放吉安", "她的放吉安"])
+        ["他们在教师", "他们在教室", "它们在教师", "他们", "它们", "她们"])
       let oldToken = OwlCandidateToken(sessionID: session.sessionID, generation: session.generation,
         candidateID: 0, isAbsolute: false)
       now += 149_999_999
@@ -376,7 +376,7 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
       let published = try XCTUnwrap(session.composition())
       if action == "token" || action == "digit" {
         XCTAssertEqual(published.candidates.map(\.text),
-          ["他的房间", "它的房间", "她的房间", "它的放吉安", "他的放吉安", "她的放吉安"])
+          ["他们在教室", "他们在教师", "它们在教师", "他们", "它们", "她们"])
         XCTAssertGreaterThan(session.generation, oldToken.generation)
         XCTAssertFalse(controller.selectCandidate(oldToken), "stale visible identities cannot select a new seat")
         if action == "token" {

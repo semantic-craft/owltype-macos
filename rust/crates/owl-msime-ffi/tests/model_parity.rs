@@ -110,20 +110,20 @@ fn official_keyboard_model_matches_pinned_host_order_and_failure_fallback() {
     // Independent oracle: macos-v0.55.0 Host API, blank state, official dict-v2.0.39,
     // all defaults except neural_keyboard=true and the explicit locked model path.
     let baseline = [
-        "它的房间",
         "他的房间",
         "她的房间",
-        "它的放吉安",
+        "它的房间",
         "他的放吉安",
-        "她的放吉安",
+        "他的方剂按",
+        "他的防己按",
     ];
     let ranked = [
         "他的房间",
-        "它的房间",
-        "它的放吉安",
         "他的放吉安",
         "他的",
         "她的",
+        "它的",
+        "他",
     ];
     let off = Session::new(resources);
     let (actual, off_typing) = off.type_phrase();
@@ -138,7 +138,7 @@ fn official_keyboard_model_matches_pinned_host_order_and_failure_fallback() {
     let (actual, hot_typing) = hot.type_phrase();
     assert_eq!(actual, ranked);
     let selected = hot.action(json!({"op":"select_visible", "index":1}));
-    assert_eq!(selected["committed_text"], "它的房间");
+    assert_eq!(selected["committed_text"], "他的放吉安");
     eprintln!("keyboard off_phrase={off_typing:?}, cold_load={cold_load:?}, hot_load={hot_load:?}, cold_phrase={cold_typing:?}, hot_phrase={hot_typing:?}");
     // A schema rebuild must retain both scorers. Returning to quanpin uses the same oracle.
     assert_eq!(

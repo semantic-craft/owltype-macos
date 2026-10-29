@@ -33,16 +33,16 @@
     "msime-wubi.db": "851ed68211311a76847fe6a26096702747abbaab8dffb141698e0365143b31c1"
   },
   "isolated_default_top3": [
-    "它的房间",
     "他的房间",
-    "她的房间"
+    "她的房间",
+    "它的房间"
   ],
   "reported_screenshot_top3": [
     "他的房间",
     "她的房间",
     "它的房间"
   ],
-  "screenshot_provenance": "Source version, effective preferences and initial learning state of screenshot are unknown. The fresh-state upstream default does not reproduce its order.",
+  "screenshot_provenance": "Source version, effective preferences and initial learning state of screenshot are unknown. The fresh-state upstream default on the pinned dictionary has the same top three order.",
   "wubi_resources": {
     "msime-wubi.db": "54ee94799d8e33d5356468bdae164d21f68ce8ca0de9e6464ed4b3783924b93c"
   },

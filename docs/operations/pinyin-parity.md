@@ -128,13 +128,13 @@ its own currently published identity: MSIME uses the visible candidate's
 `generation/index`; Owl uses the public session selection method. No candidate
 text/order, page, commit, or behavior field is discarded as cosmetic.
 
-The fixed, fresh-state upstream default returns **它的房间 / 他的房间 / 她的房间**.
-The reported screenshot shows **他的房间 / 她的房间 / 它的房间**. Its source version,
-effective configuration and learned state were not captured, so the screenshot
-order cannot be attributed to one of those causes. Its three sentence readings
-are present in this baseline, but its exact order is not reproduced. The oracle
-preserves the actual isolated default rather than editing it to match either
-the screenshot or Owltype. The default `tadefangjian` trace now matches all 75 events, including all
+On the pinned dictionary the fixed, fresh-state upstream default returns
+**他的房间 / 她的房间 / 它的房间**, the order of the reported screenshot. The previous
+pin (an older bigram/trigram pair) returned 它的房间 first; the change comes from the
+upstream context statistics, not from Owltype. The screenshot's source version,
+configuration and learned state were never captured, so this agreement explains the
+default, not that report. The oracle records the actual isolated default rather than
+editing it to match the screenshot or Owltype. The default `tadefangjian` trace now matches all 75 events, including all
 candidate pages, first/last-page consumption and the second-row commit. The
 boundary-page adapter must preserve the upstream `handled` result even when the
 page number stays unchanged; the key belongs to the composition and must not
@@ -177,9 +177,9 @@ visible `tadefangjian` rows with model-off and model-on orders captured through
 macOS 0.55.0's Host API, checks cold and shared-cache sessions, selection identity,
 engine replacement, disabling during composition, and missing/corrupt/digest-error
 fallback. It prints measured loading and typing time without treating a machine's
-latency as a portable pass threshold. Model-on changes the first row to `他的房间`
-and also changes later sentence/completion rows; checking only the first row misses
-a disconnected engine lattice scorer.
+latency as a portable pass threshold. On the pinned dictionary model-on keeps `他的房间`
+first and replaces rows two to six with sentence and completion rows; checking only the
+first row would miss a disconnected engine lattice scorer.
 
 The host passes its already validated worker-loaded keyboard weights into the
 existing upstream lattice scorer and runtime reranker. This avoids a second file
@@ -190,8 +190,9 @@ Desktop pause scheduling and installed IMK behavior require their own acceptance
 ## Learning and process restart
 
 `--trace tests/fixtures/pinyin-parity/learning.json` starts both sides with new,
-separate learning roots. It selects 尼 from the second row, verifies the changed
-complete paged order, restarts, removes the dictionary phrase 你好吗 and restarts again.
+separate learning roots. It selects the second row (泥 on the pinned dictionary), verifies the
+changed complete paged order, restarts, removes the dictionary phrase in the fourth row (你好像)
+and restarts again.
 The fixture also checks independent six-row learning checkpoints, so equal but
 unchanged ranking or a reset learning root cannot pass.
 Every `restart` begins a fresh reference Python process and a fresh Owl XCTest
