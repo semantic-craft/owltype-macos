@@ -27,10 +27,12 @@ struct OwlAgentInputSnapshot: Equatable {
 final class OwlAgentAccess: NSObject, OwlAgentBridgeService {
   typealias Wire = OwlAgentBridgeProtocol
 
-  static let shared = OwlAgentAccess()
+  static let shared = OwlAgentAccess(callLog: .shared)
 
   private let defaults: UserDefaults
   private let bundle: Bundle
+  /// Every answered call, redacted, for 设置 → Agent 接入.
+  let callLog: OwlAgentCallLog
   /// Reads the input state; called on the main thread.
   var inputSnapshot: () -> OwlAgentInputSnapshot = {
     let controller = NSApp.owlAppDelegate.runtime.activatedInputController
@@ -58,9 +60,10 @@ final class OwlAgentAccess: NSObject, OwlAgentBridgeService {
     OwlAgentBridge(verifier: OwlAgentPeerVerifier(), service: $0)
   }
 
-  init(defaults: UserDefaults = .standard, bundle: Bundle = .main) {
+  init(defaults: UserDefaults = .standard, bundle: Bundle = .main, callLog: OwlAgentCallLog = OwlAgentCallLog(fileURL: nil)) {
     self.defaults = defaults
     self.bundle = bundle
+    self.callLog = callLog
     super.init()
   }
 
@@ -108,6 +111,14 @@ final class OwlAgentAccess: NSObject, OwlAgentBridgeService {
 
   func handle(_ call: Wire.Call, from client: OwlAgentBridgeClient, cancellation: OwlAgentBridgeCancellation,
               reply: @escaping (OwlAgentBridgeReply) -> Void) {
+    answer(call, from: client, cancellation: cancellation) { [callLog] result in
+      callLog.record(call, from: client, reply: result)
+      reply(result)
+    }
+  }
+
+  private func answer(_ call: Wire.Call, from client: OwlAgentBridgeClient, cancellation: OwlAgentBridgeCancellation,
+                      reply: @escaping (OwlAgentBridgeReply) -> Void) {
     guard OwlAgentAccessPreferences.isEnabled(defaults) else {
       return reply(.failure(.init(code: .agentAccessDisabled, message: "Agent access is turned off in Owltype settings")))
     }

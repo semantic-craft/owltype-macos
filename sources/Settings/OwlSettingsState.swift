@@ -39,6 +39,7 @@ enum OwlSettingsPage: String, CaseIterable, Identifiable, Sendable {
   case clipboard
   case project
   case ai
+  case agent
   case skin
   case diagnostics
   case about
@@ -59,6 +60,7 @@ enum OwlSettingsPage: String, CaseIterable, Identifiable, Sendable {
     case .clipboard: return "剪贴板"
     case .project: return "划词工具箱"
     case .ai: return "AI 配置"
+    case .agent: return "Agent 接入"
     case .skin: return "皮肤外观"
     case .diagnostics: return "诊断"
     case .about: return "关于"
@@ -75,6 +77,7 @@ enum OwlSettingsPage: String, CaseIterable, Identifiable, Sendable {
     case .clipboard: return "doc.on.clipboard"
     case .project: return "wand.and.sparkles"
     case .ai: return "sparkles"
+    case .agent: return "point.3.connected.trianglepath.dotted"
     case .skin: return "paintbrush"
     case .diagnostics: return "stethoscope"
     case .about: return "info.circle"
@@ -93,6 +96,7 @@ enum OwlSettingsPage: String, CaseIterable, Identifiable, Sendable {
     case .clipboard: return "贴"
     case .project: return "技"
     case .ai: return "智"
+    case .agent: return "代"
     case .skin: return "皮"
     case .diagnostics: return "诊"
     case .about: return "关"

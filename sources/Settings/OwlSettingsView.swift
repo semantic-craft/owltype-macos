@@ -247,6 +247,12 @@ struct OwlSettingsView: View {
           theme: theme,
           reduceTransparency: reduceTransparency
         )
+      case .agent:
+        OwlAgentPage(
+          palette: palette,
+          theme: theme,
+          reduceTransparency: reduceTransparency
+        )
       case .skin:
         OwlSkinPage(
           state: state,
