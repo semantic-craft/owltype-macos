@@ -1780,6 +1780,10 @@ final class OwlRustEngineTests: XCTestCase {
   }
 
   func testPunctuationAndCaretNavigation() throws {
+    // 逗号句号翻页 defaults on (水杉, #315); this test covers the comma-commits path.
+    let savedCommaPaging = OwlKeyboardPreferences.pageCommaPeriod
+    OwlKeyboardPreferences.pageCommaPeriod = false
+    defer { OwlKeyboardPreferences.pageCommaPeriod = savedCommaPaging }
     let engine = try makeSharedSupportSeedEngine()
     let session = engine.createSession()
     defer { session.destroy() }

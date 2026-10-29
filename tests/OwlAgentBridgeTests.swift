@@ -252,7 +252,13 @@ final class OwlAgentAccessTests: XCTestCase {
     let access = OwlAgentAccess(defaults: defaults)
     access.inputSnapshot = { OwlAgentInputSnapshot(schemaID: "wubi86_jidian", asciiMode: true) }
     access.resourceGeneration = { "generation-7" }
-    access.exposedTemplateCount = { 2 }
+    access.loadLibrary = {
+      var exposed = OwlTemplateEntry(title: "签名", body: "此致")
+      exposed.isExposedToAgents = true
+      var second = OwlTemplateEntry(title: "问候", body: "你好")
+      second.isExposedToAgents = true
+      return OwlTemplateLibrary(entries: [exposed, second, OwlTemplateEntry(title: "私有", body: "不开放")])
+    }
     return access
   }
 

@@ -20,7 +20,7 @@ struct OwlTemplateMigrationSource: Codable, Equatable, Sendable {
 struct OwlTemplateEntry: Identifiable, Codable, Equatable, Sendable {
   enum CodingKeys: String, CodingKey, CaseIterable {
     case id, title, body, bodyType, syntax, candidateAliases, trigger, tags, isPinned, category
-    case parameters, invocationMode, expansionMode, migrationSource, importSource, reviewState
+    case parameters, invocationMode, expansionMode, migrationSource, importSource, reviewState, exposedToAgents
   }
   enum ReviewState: String, Codable, Sendable { case pending }
   enum BodyType: String, Codable, Sendable { case plainText, template }
@@ -45,7 +45,14 @@ struct OwlTemplateEntry: Identifiable, Codable, Equatable, Sendable {
   var migrationSource: OwlTemplateMigrationSource?
   var importSource: OwlTemplateImportSource?
   var reviewState: ReviewState?
+  /// Offered to local agents through Agent access (#208). Absent means not exposed; a copy is
+  /// never exposed until the user exposes it.
+  var exposedToAgents: Bool?
   var isPendingReview: Bool { reviewState == .pending }
+  var isExposedToAgents: Bool {
+    get { exposedToAgents == true }
+    set { exposedToAgents = newValue ? true : nil }
+  }
 
   init(id: UUID = UUID(), title: String = "", body: String = "") {
     self.id = id
