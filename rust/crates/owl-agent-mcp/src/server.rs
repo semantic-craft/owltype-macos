@@ -1,7 +1,7 @@
 //! The MCP side: tools named after the bridge methods. Each call opens its own bridge connection,
 //! so a restarted Owltype or a toggled Agent access switch takes effect on the next call.
 
-use crate::bridge::{Call, Component, Outcome};
+use crate::bridge::{Call, Component, Outcome, RenderParams, TemplateRef};
 use crate::client::{call_once, BridgeError, CALL_TIMEOUT};
 use rmcp::model::{
     CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation, ListToolsResult,
@@ -14,7 +14,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 const INSTRUCTIONS: &str = "Owltype is a macOS Chinese input method. These tools read its redacted \
-status and the templates the user chose to expose. They never return what the user is typing.";
+status and the templates the user chose to expose, and preview them. They never return what the user \
+is typing.";
 
 /// One MCP tool and the bridge call it makes.
 struct ToolSpec {
@@ -38,15 +39,72 @@ fn expect_no_arguments(arguments: Map<String, Value>, call: Call) -> Result<(Cal
     }
 }
 
-const TOOLS: &[ToolSpec] = &[ToolSpec {
-    name: "owltype_status",
-    title: "Owltype status",
-    description: "Owltype's version, dictionary resource generation, current input schema, Chinese or \
+fn template_id_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": { "id": { "type": "string", "description": "Template id from templates_list" } },
+        "required": ["id"],
+        "additionalProperties": false
+    })
+}
+
+fn render_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "id": { "type": "string", "description": "Template id from templates_list" },
+            "arguments": {
+                "type": "object",
+                "description": "Parameter values by key (the parameters' `key` from templates_list); omitted ones use their defaults",
+                "additionalProperties": { "type": "string" }
+            }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+    })
+}
+
+fn decode<T: serde::de::DeserializeOwned>(arguments: Map<String, Value>) -> Result<T, String> {
+    serde_json::from_value(Value::Object(arguments)).map_err(|error| format!("invalid arguments: {error}"))
+}
+
+const TOOLS: &[ToolSpec] = &[
+    ToolSpec {
+        name: "owltype_status",
+        title: "Owltype status",
+        description: "Owltype's version, dictionary resource generation, current input schema, Chinese or \
 English mode and how many templates are exposed to agents. Contains no typed text.",
-    read_only: true,
-    input_schema: no_arguments,
-    call: |arguments| expect_no_arguments(arguments, Call::OwltypeStatus),
-}];
+        read_only: true,
+        input_schema: no_arguments,
+        call: |arguments| expect_no_arguments(arguments, Call::OwltypeStatus),
+    },
+    ToolSpec {
+        name: "templates_list",
+        title: "List Owltype templates",
+        description: "The templates the user exposed to agents in Owltype settings, with their parameters. \
+Templates the user did not expose are never listed.",
+        read_only: true,
+        input_schema: no_arguments,
+        call: |arguments| expect_no_arguments(arguments, Call::TemplatesList),
+    },
+    ToolSpec {
+        name: "template_get",
+        title: "Get an Owltype template",
+        description: "One exposed template with its body and parameters.",
+        read_only: true,
+        input_schema: template_id_schema,
+        call: |arguments| Ok((Call::TemplateGet(decode::<TemplateRef>(arguments)?), CALL_TIMEOUT)),
+    },
+    ToolSpec {
+        name: "template_render",
+        title: "Preview an Owltype template",
+        description: "Fill an exposed template with arguments and return the preview text, any missing \
+parameters and diagnostics. Writes nothing anywhere; clipboard fields preview empty.",
+        read_only: true,
+        input_schema: render_schema,
+        call: |arguments| Ok((Call::TemplateRender(decode::<RenderParams>(arguments)?), CALL_TIMEOUT)),
+    },
+];
 
 /// Names of the tools this build offers, in listing order.
 pub fn tool_names() -> Vec<&'static str> {

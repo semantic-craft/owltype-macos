@@ -15,8 +15,7 @@ fn sample(name: &str) -> Value {
     serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
 }
 
-/// A bridge that answers `hello` and then `owltype_status` on each connection, reporting the
-/// requests it saw.
+/// A bridge that answers each method with its contract sample, reporting the requests it saw.
 fn fake_bridge(directory: &Path) -> (PathBuf, mpsc::Receiver<Value>) {
     let socket = directory.join("bridge.sock");
     let listener = UnixListener::bind(&socket).unwrap();
@@ -30,6 +29,9 @@ fn fake_bridge(directory: &Path) -> (PathBuf, mpsc::Receiver<Value>) {
                 let mut answer = match request["method"].as_str().unwrap() {
                     "hello" => sample("hello.response.json"),
                     "owltype_status" => sample("owltype_status.response.json"),
+                    "templates_list" => sample("templates_list.response.json"),
+                    "template_get" => sample("template_get.response.json"),
+                    "template_render" => sample("template_render.response.json"),
                     _ => sample("error.method_not_found.json"),
                 };
                 answer["id"] = request["id"].clone();
@@ -163,4 +165,27 @@ fn prints_its_version() {
     let output = Command::new(env!("CARGO_BIN_EXE_owltype-mcp")).arg("--version").output().unwrap();
     assert!(output.status.success());
     assert!(String::from_utf8(output.stdout).unwrap().contains("bridge protocol 1"));
+}
+
+#[test]
+fn template_tools_forward_their_arguments() {
+    let directory = private_directory();
+    let (socket, seen) = fake_bridge(directory.path());
+    let mut helper = Helper::start(&socket);
+    let id = "6F1C2E0A-2B7D-4C1E-9D3B-1A2B3C4D5E6F";
+
+    let listed = helper.request("tools/call", json!({ "name": "templates_list", "arguments": {} }));
+    assert_eq!(listed["result"]["structuredContent"], sample("templates_list.response.json")["result"]);
+    let rendered = helper.request(
+        "tools/call",
+        json!({ "name": "template_render", "arguments": { "id": id, "arguments": { "n:议题": "发版" } } }),
+    );
+    assert_eq!(rendered["result"]["structuredContent"], sample("template_render.response.json")["result"]);
+    let requests: Vec<Value> = seen.try_iter().filter(|request| request["method"] != "hello").collect();
+    assert_eq!(requests[1]["params"], json!({ "id": id, "arguments": { "n:议题": "发版" } }));
+
+    let missing = helper.request("tools/call", json!({ "name": "template_get", "arguments": {} }));
+    assert_eq!(missing["result"]["isError"], true);
+    let extra = helper.request("tools/call", json!({ "name": "template_get", "arguments": { "id": id, "body": "x" } }));
+    assert_eq!(extra["result"]["isError"], true);
 }
