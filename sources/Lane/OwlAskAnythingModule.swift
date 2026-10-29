@@ -55,10 +55,16 @@ protocol OwlAskAnythingTransporting {
 struct OwlAskAnythingTransportAdapter: OwlAskAnythingTransporting {
   private let gateway: OwlLLMGateway
   private let searchClient: OwlDeepSeekSearching
+  /// The date the searched system prompt states. Tests pin it so recorded request bodies stay stable.
+  private let now: () -> Date
 
   /// `searchClient` defaults to the DeepSeek search client over the gateway's transport.
-  init(gateway: OwlLLMGateway = OwlLLMGateway(), searchClient: OwlDeepSeekSearching? = nil) {
+  init(
+    gateway: OwlLLMGateway = OwlLLMGateway(), searchClient: OwlDeepSeekSearching? = nil,
+    now: @escaping () -> Date = Date.init
+  ) {
     self.gateway = gateway
+    self.now = now
     let transport = gateway.transport
     self.searchClient = searchClient ?? OwlDeepSeekSearchClient(fetch: { try await transport.send($0) })
   }
@@ -91,6 +97,7 @@ struct OwlAskAnythingTransportAdapter: OwlAskAnythingTransporting {
       let endpoint = OwlDeepSeekSearchWire.endpoint(for: routing.endpoint) else { return nil }
     let question = messages.last(where: { $0.role == "user" })?.content ?? ""
     let searchClient = searchClient
+    let today = now()
     return AsyncThrowingStream { continuation in
       let task = Task { @MainActor in
         do {
@@ -107,7 +114,7 @@ struct OwlAskAnythingTransportAdapter: OwlAskAnythingTransporting {
           }
           var answer = ""
           for try await delta in streamPlain(
-            messages: OwlWebSearchGrounding.askMessages(messages, results: results),
+            messages: OwlWebSearchGrounding.askMessages(messages, results: results, today: today),
             routing: routing, apiKey: apiKey) {
             try Task.checkCancellation()
             answer += delta
@@ -150,7 +157,8 @@ final class OwlAskAnythingModule: OwlAskAnythingOpening {
     },
     legacyKeyProvider: @escaping () throws -> String? = OwlCloudKeychain.readDeepSeekAPIKey,
     searchResolver: OwlAskSearchResolver? = nil,
-    searchClient: OwlDeepSeekSearching? = nil
+    searchClient: OwlDeepSeekSearching? = nil,
+    now: @escaping () -> Date = Date.init
   ) {
     let gate = OwlProviderAuthGate(
       profileProvider: profileProvider,
@@ -158,7 +166,7 @@ final class OwlAskAnythingModule: OwlAskAnythingOpening {
       legacyKeyProvider: legacyKeyProvider)
     let transport = OwlAskAnythingTransportAdapter(
       gateway: OwlLLMGateway(chatStreamer: client, responsesStreamer: responsesClient),
-      searchClient: searchClient)
+      searchClient: searchClient, now: now)
     self.init(
       gate: gate,
       transport: transport,

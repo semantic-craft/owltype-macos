@@ -66,6 +66,10 @@ final class OwlRecordingURLProtocol: URLProtocol {
 
 @MainActor
 final class OwlLLMStreamingRecordingTests: XCTestCase {
+  /// The day the Ask bodies were recorded. The searched system prompt states the date, so the test
+  /// pins it instead of reading the clock.
+  private static let recordedDay = ISO8601DateFormatter().date(from: "2026-10-28T12:00:00Z")!
+
   private static let messages = [
     OwlDeepSeekMessage(role: "system", content: "你是助手"),
     OwlDeepSeekMessage(role: "user", content: "今天上海天气如何"),
@@ -202,7 +206,8 @@ final class OwlLLMStreamingRecordingTests: XCTestCase {
         legacyKeyProvider: { nil },
         searchResolver: OwlAskSearchResolver(
           isEnabled: { true }, profilesProvider: { [profile] },
-          defaultProfileProvider: { profile }, secretProvider: { _ in "sk-test" }))
+          defaultProfileProvider: { profile }, secretProvider: { _ in "sk-test" }),
+        now: { Self.recordedDay })
       guard case let .success(open) = ask.open(messages: Self.messages) else {
         return XCTFail("ask not ready: \(suffix)")
       }
