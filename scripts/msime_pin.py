@@ -149,12 +149,12 @@ def check_baseline(pin: Pin, root: Path) -> list[str]:
 
 
 # A dict-v tag other than the pin is stale, except in vendored upstream code (its own test
-# fixtures), dated history, and the re-pin documents that name the previous release on purpose.
+# fixtures), dated history, self-test fixtures, and the re-pin documents that name the previous
+# release on purpose.
 STALE_TAG_EXEMPT = (
     'rust/crates/engine/', 'rust/crates/input-runtime/', 'rust/crates/path-trust/',
     'rust/crates/client-core/', 'LESSONS.md', 'CHANGELOG.md', 'progress/', 'docs/release-',
-    'docs/operations/msime-repin.md', 'docs/reports/', 'scripts/msime_pin.selftest.py',
-    'scripts/msime-dictionary-diff.selftest.py',
+    'docs/operations/msime-repin.md', 'docs/reports/',
 )
 TAG = re.compile(r'dict-v\d+\.\d+\.\d+')
 
@@ -164,7 +164,7 @@ def stale_tags(pin: Pin, root: Path) -> list[str]:
                             capture_output=True).stdout.decode().split('\0')
     errors = []
     for relative in filter(None, listed):
-        if relative.startswith(STALE_TAG_EXEMPT):
+        if relative.startswith(STALE_TAG_EXEMPT) or relative.endswith('.selftest.py'):
             continue
         path = root / relative
         if path.is_symlink() or not path.is_file():

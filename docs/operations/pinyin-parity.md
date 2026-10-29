@@ -70,7 +70,24 @@ python3 scripts/pinyin-parity.py \
   --output "$EVIDENCE"
 ```
 
-`REFERENCE_RESOURCES` must contain the pinned public desktop resource set.
+`REFERENCE_RESOURCES` must contain the resource set the reference library was built to bundle:
+its engine tag's `resources/desktop-dictionary.lock.json`, recorded as `engine_lock_resources` in
+the baseline, with its upstream location in `engine_lock_source`. The fixed Host API refuses any
+other bytes there.
+When Owltype pins a newer dictionary, the reference receives the same pinned bytes the way an
+installed MSIME does: its own dictionary updater. Install that once and pass it to every run:
+
+```sh
+python3 scripts/install-reference-dictionary-update.py \
+  --reference-library "$REFERENCE_BUILD/libmsime_host_api.dylib" \
+  --reference-resources "$REFERENCE_RESOURCES" --output "$REFERENCE_UPDATE"
+# then add to pinyin-parity.py: --reference-dictionary-update "$REFERENCE_UPDATE"
+```
+
+The installer requires the updater to land on the pinned release with the pinned digests. The
+runner copies that `dictionary-updates/` state into each fresh reference state and fails unless
+the reference actually loaded the installed generation.
+The pinned public desktop resource set is described below.
 The runner verifies all pinned hashes before loading the library. Obtain that
 resource set from the matching official desktop distribution; a personal
 resource generation with a different hash is rejected. `XCTESTRUN` is the
