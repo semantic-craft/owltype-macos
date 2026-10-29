@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"method":"hello","params":{"protocolVersion":1,"helper":{"name":"owltype-mcp","version":"2.2.0"},"agentClient":{"name":"grok-build","version":"0.9.3"}}}

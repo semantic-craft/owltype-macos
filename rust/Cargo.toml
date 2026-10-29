@@ -6,6 +6,7 @@ members = [
     "crates/client-core",
     "crates/input-runtime",
     "crates/owl-msime-ffi",
+    "crates/owl-agent-mcp",
 ]
 resolver = "2"
 

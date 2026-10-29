@@ -25,6 +25,7 @@ EXPECTED_NATIVE = {
     "Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app/Contents/MacOS/Updater",
     "Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc/Contents/MacOS/Downloader",
     "Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc/Contents/MacOS/Installer",
+    "Contents/Helpers/owltype-mcp",
     "Contents/MacOS/Owltype",
 }
 REQUIRED_LICENSES = {

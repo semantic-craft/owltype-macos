@@ -271,6 +271,8 @@
 		B2550005CAFE0255CAFE0005 /* OwlRustResourceContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2550006CAFE0255CAFE0006 /* OwlRustResourceContractTests.swift */; };
 		B2550007CAFE0255CAFE0007 /* OwlRustResourceTransactionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2550008CAFE0255CAFE0008 /* OwlRustResourceTransactionTests.swift */; };
 		B255000BCAFE0255CAFE000B /* OwlRustDictPackResource.swift in Sources */ = {isa = PBXBuildFile; fileRef = B255000CCAFE0255CAFE000C /* OwlRustDictPackResource.swift */; };
+		A6E8A61B63612C6E0E12F290 /* OwlAgentBridgeProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E7A61B63612C6E0E12F290 /* OwlAgentBridgeProtocol.swift */; };
+		A6E8FC376924CE2C5A00DF83 /* OwlAgentBridgeContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E7FC376924CE2C5A00DF83 /* OwlAgentBridgeContractTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -569,6 +571,8 @@
 		B2550006CAFE0255CAFE0006 /* OwlRustResourceContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRustResourceContractTests.swift; path = tests/OwlRustResourceContractTests.swift; sourceTree = "<group>"; };
 		B2550008CAFE0255CAFE0008 /* OwlRustResourceTransactionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRustResourceTransactionTests.swift; path = tests/OwlRustResourceTransactionTests.swift; sourceTree = "<group>"; };
 		B255000CCAFE0255CAFE000C /* OwlRustDictPackResource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRustDictPackResource.swift; path = sources/DictPack/OwlRustDictPackResource.swift; sourceTree = "<group>"; };
+		A6E7A61B63612C6E0E12F290 /* OwlAgentBridgeProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAgentBridgeProtocol.swift; path = sources/Agent/OwlAgentBridgeProtocol.swift; sourceTree = "<group>"; };
+		A6E7FC376924CE2C5A00DF83 /* OwlAgentBridgeContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAgentBridgeContractTests.swift; path = tests/OwlAgentBridgeContractTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -589,6 +593,7 @@
 		080E96DDFE201D6D7F000001 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				A6E7A61B63612C6E0E12F290 /* OwlAgentBridgeProtocol.swift */,
 				B38E9B902BE9AE1E0036ABEF /* OwlApplicationDelegate.swift */,
 				FB5A00020000000000000005 /* OwlInstallSession.swift */,
 				FB5A00020000000000000007 /* OwlInstallFiles.swift */,
@@ -749,6 +754,7 @@
 		FA0000A0CAFE00A0CAFE00A0 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				A6E7FC376924CE2C5A00DF83 /* OwlAgentBridgeContractTests.swift */,
 				FA000080CAFE0080CAFE0080 /* SnapshotValidityTests.swift */,
 				FA000112CAFE0112CAFE0112 /* OwlSettingsE2ETests.swift */,
 				FA000114CAFE0114CAFE0114 /* OwlSettingsActionTests.swift */,
@@ -1087,6 +1093,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A6E8A61B63612C6E0E12F290 /* OwlAgentBridgeProtocol.swift in Sources */,
 				B39771232BECEA150093A49B /* MacOSKeyCodes.swift in Sources */,
 				FA000130CAFE0130CAFE0130 /* OwlUserAction.swift in Sources */,
 				FA000132CAFE0132CAFE0132 /* OwlInputController+ClientAction.swift in Sources */,
@@ -1248,6 +1255,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A6E8FC376924CE2C5A00DF83 /* OwlAgentBridgeContractTests.swift in Sources */,
 				FA000081CAFE0081CAFE0081 /* SnapshotValidityTests.swift in Sources */,
 				FA000113CAFE0113CAFE0113 /* OwlSettingsE2ETests.swift in Sources */,
 				FA000115CAFE0115CAFE0115 /* OwlSettingsActionTests.swift in Sources */,

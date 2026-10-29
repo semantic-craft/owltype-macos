@@ -60,7 +60,20 @@ class RustDeliveryTests(unittest.TestCase):
         with (app / "Contents/Info.plist").open("wb") as handle:
             plistlib.dump({"CFBundleIdentifier": "fixture"}, handle)
         self.write_resources(app)
+        self.write_helper(app)
         return app
+
+    def write_helper(self, app: Path, version: str = "owltype-mcp 0.1.0 (bridge protocol 1)",
+                     archs: tuple[str, ...] = ("arm64", "x86_64")) -> None:
+        helper = app / CHECKER.MCP_HELPER
+        helper.parent.mkdir(parents=True, exist_ok=True)
+        # A file, not stdin: clang reads stdin once, for the first architecture only.
+        source = self.root / "helper.c"
+        source.write_text(f'#include <stdio.h>\nint main(void) {{ puts("{version}"); return 0; }}\n')
+        subprocess.run(
+            ["clang", *(flag for arch in archs for flag in ("-arch", arch)), str(source), "-o", str(helper)],
+            check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
 
     def write_resources(self, app: Path) -> None:
         resource_root = app / "Contents/SharedSupport/msime"
@@ -160,6 +173,22 @@ class RustDeliveryTests(unittest.TestCase):
         with self.assertRaisesRegex(CHECKER.DeliveryError, "librime.1.dylib"):
             CHECKER.validate_app(app)
 
+    def test_rejects_a_missing_or_wrong_mcp_helper(self) -> None:
+        app = self.make_app("NoHelper.app")
+        self.compile_fixture(app, VALID_SOURCE)
+        (app / CHECKER.MCP_HELPER).unlink()
+        with self.assertRaisesRegex(CHECKER.DeliveryError, "MCP helper is missing"):
+            CHECKER.validate_app(app)
+        self.write_helper(app, archs=("arm64",))
+        with self.assertRaisesRegex(CHECKER.DeliveryError, "x86_64"):
+            CHECKER.validate_app(app)
+        self.write_helper(app, version="something else")
+        with self.assertRaisesRegex(CHECKER.DeliveryError, "not owltype-mcp"):
+            CHECKER.validate_app(app)
+        (app / CHECKER.MCP_HELPER).chmod(0o644)
+        with self.assertRaisesRegex(CHECKER.DeliveryError, "not executable"):
+            CHECKER.validate_app(app)
+
     def test_rejects_missing_rust_symbols(self) -> None:
         app = self.make_app("MissingSymbols.app")
         self.compile_fixture(app, "int main(void) { return 0; }\n")
@@ -201,7 +230,7 @@ class RustDeliveryTests(unittest.TestCase):
         app = self.make_app("Valid.app")
         self.compile_fixture(app, VALID_SOURCE)
         result = CHECKER.validate_app(app)
-        self.assertEqual(result, (1, 4))
+        self.assertEqual(result, (2, 4))  # the App binary and the MCP helper
 
     def test_rejects_forbidden_msime_others_catalogs(self) -> None:
         app = self.make_app("ForbiddenOthers.app")

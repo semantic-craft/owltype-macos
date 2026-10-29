@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Verify that an Owltype App delivers the Rust engine, not legacy Rime runtime files."""
+"""Verify that an Owltype App delivers the Rust engine and MCP helper, not legacy Rime runtime files."""
 
 from __future__ import annotations
 
 import argparse
 import importlib.util
 import os
+import re
 import sqlite3
 import subprocess
 import sys
@@ -51,6 +52,10 @@ FORBIDDEN_RESOURCE_TABLES = {
 EXACT_RESOURCE_TABLES = {
     "msime-others.db": set(OTHERS.EXPECTED_ROWS),
 }
+
+
+MCP_HELPER = "Contents/Helpers/owltype-mcp"
+MCP_HELPER_ARCHS = {"arm64", "x86_64"}
 
 
 class DeliveryError(RuntimeError):
@@ -231,6 +236,24 @@ def verify_resources(app: Path) -> None:
         raise DeliveryError(f"pinned others delivery contract failed: {error}") from error
 
 
+def verify_mcp_helper(app: Path) -> None:
+    helper = app / MCP_HELPER
+    if helper.is_symlink() or not helper.is_file() or not is_macho(helper):
+        raise DeliveryError(f"MCP helper is missing or not a Mach-O file: {MCP_HELPER}")
+    if not os.access(helper, os.X_OK):
+        raise DeliveryError(f"MCP helper is not executable: {MCP_HELPER}")
+    archs = subprocess.run(["lipo", "-archs", str(helper)], text=True, capture_output=True, check=False)
+    missing = MCP_HELPER_ARCHS - set(archs.stdout.split())
+    if archs.returncode != 0 or missing:
+        raise DeliveryError(f"MCP helper lacks architectures: {', '.join(sorted(missing)) or archs.stderr.strip()}")
+    try:
+        version = subprocess.run([str(helper), "--version"], text=True, capture_output=True, timeout=10, check=False)
+    except subprocess.TimeoutExpired as error:
+        raise DeliveryError("MCP helper --version did not exit") from error
+    if version.returncode != 0 or not re.fullmatch(r"owltype-mcp \S+ \(bridge protocol \d+\)\n", version.stdout):
+        raise DeliveryError(f"MCP helper --version is not owltype-mcp: {version.stdout.strip()!r}")
+
+
 def validate_app(app: Path) -> tuple[int, int]:
     app = app.resolve()
     if not (app / "Contents/Info.plist").is_file():
@@ -241,6 +264,7 @@ def validate_app(app: Path) -> tuple[int, int]:
         raise DeliveryError("App contains no Mach-O files")
     verify_no_legacy_dependencies(app, binaries)
     verify_rust_symbols(binaries)
+    verify_mcp_helper(app)
     verify_resources(app)
     return len(binaries), len(REQUIRED_RESOURCES)
 
@@ -258,6 +282,7 @@ def main() -> None:
         raise SystemExit(1) from error
     print("PASS: no legacy Rime runtime files or dynamic dependencies")
     print("PASS: required Rust FFI symbols are linked into the App")
+    print(f"PASS: universal MCP helper at {MCP_HELPER}")
     print(f"PASS: {resource_count} Rust SQLite resources are complete")
     print(f"PASS: Rust delivery verified across {binary_count} Mach-O files")
 
