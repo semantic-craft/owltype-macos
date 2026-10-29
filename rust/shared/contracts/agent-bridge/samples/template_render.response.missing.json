@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":"r-6","result":{"previewText":"2026-10-29 会议：\n语气：正式\n","missingKeys":["n:议题"],"diagnostics":[{"severity":"error","message":"缺少必填参数「议题」。"}]}}
