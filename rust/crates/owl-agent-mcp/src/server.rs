@@ -54,8 +54,9 @@ fn render_schema() -> Value {
         "properties": {
             "id": { "type": "string", "description": "Template id from templates_list" },
             "arguments": {
-                "type": "object",
-                "description": "Parameter values by key (the parameters' `key` from templates_list); omitted ones use their defaults",
+                "type": ["object", "string"],
+                "description": "Parameter values by key (the parameters' `key` from templates_list); omitted ones use their defaults. \
+A client that cannot send nested objects may pass the same map as a JSON string.",
                 "additionalProperties": { "type": "string" }
             }
         },
@@ -89,6 +90,16 @@ fn deliver_call(arguments: Map<String, Value>) -> Result<(Call, Duration), Strin
     params.validate().map_err(|field| format!("invalid {field}"))?;
     let timeout = Duration::from_millis(params.timeout_ms()) + DELIVER_GRACE;
     Ok((Call::DeliverText(params), timeout))
+}
+
+/// Antigravity CLI sends tool arguments as flat primitives only, so `arguments` may arrive as the
+/// JSON text of the map.
+fn render_params(mut arguments: Map<String, Value>) -> Result<RenderParams, String> {
+    if let Some(Value::String(text)) = arguments.get("arguments") {
+        let map: Value = serde_json::from_str(text).map_err(|error| format!("invalid arguments: `arguments` is not a JSON object: {error}"))?;
+        arguments.insert("arguments".into(), map);
+    }
+    decode(arguments)
 }
 
 fn decode<T: serde::de::DeserializeOwned>(arguments: Map<String, Value>) -> Result<T, String> {
@@ -129,7 +140,7 @@ Templates the user did not expose are never listed.",
 parameters and diagnostics. Writes nothing anywhere; clipboard fields preview empty.",
         read_only: true,
         input_schema: render_schema,
-        call: |arguments| Ok((Call::TemplateRender(decode::<RenderParams>(arguments)?), CALL_TIMEOUT)),
+        call: |arguments| Ok((Call::TemplateRender(render_params(arguments)?), CALL_TIMEOUT)),
     },
     ToolSpec {
         name: "deliver_text",
@@ -209,10 +220,14 @@ impl ServerHandler for OwltypeMcp {
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
+        // A 2026-07-28 client (Antigravity CLI) never sends initialize: it names itself in each
+        // request's _meta instead.
         let agent_client = context
             .peer
             .peer_info()
-            .map(|info| Component { name: info.client_info.name.clone(), version: info.client_info.version.clone() });
+            .map(|info| info.client_info.clone())
+            .or_else(|| context.meta.client_info())
+            .map(|info| Component { name: info.name, version: info.version });
         let arguments = request.arguments.unwrap_or_default();
         Ok(Self::run(&request.name, arguments, agent_client).await.into())
     }

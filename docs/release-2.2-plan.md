@@ -102,11 +102,11 @@ Agent 客户端 ──stdio/MCP──▶ owltype-mcp（Rust，随 App 分发的�
 4. **模板工具**：模板增加「开放给 Agent」字段（默认关），实现 `templates_list`、`template_get`、`template_render`。
 5. **`deliver_text`**：原生预览，加上目标绑定、去重、过期处理，复用 `OwlTemplateHostDelivery`。**先修 #331**：现在从面板确认后会因焦点没恢复而写不进原宿主，`deliver_text` 走的是同一条路。
 6. **「Agent 接入」设置页**。
-7. **真实客户端验收**：用 Grok Build 完整走一遍「连接 → 发现工具 → 只读调用 → `deliver_text` → 在原生 UI 确认 → 写入 TextEdit 和 Chrome」，记录客户端版本、协商到的协议版本和服务端 commit。异常情况也要覆盖：密码框、目标应用退出、焦点切换、断连、超时和重复调用。
+7. **真实客户端验收**：用 Antigravity CLI（AGY）完整走一遍「连接 → 发现工具 → 只读调用 → `deliver_text` → 在原生 UI 确认 → 写入 TextEdit 和 Chrome」，记录客户端版本、协商到的协议版本和服务端 commit。异常情况也要覆盖：密码框、目标应用退出、焦点切换、断连、超时和重复调用。
 
 怎么算完成：上述 7 步都已合并；MCP 关闭、辅助程序缺失或 Agent 离线时，打字、候选和模板都正常；不新增任何必须填写的模型 API key。
 
-首个验收客户端定为 Grok Build（2026-10-29 已确认）。
+验收客户端：起初定为 Grok Build，2026-10-29 用户改为「我们自己的 Antigravity CLI 能连上就行」，两个哪个先接通用哪个，都不行再用本机 DeepSeek flash 写最小客户端。实际用的是 AGY 1.4.10：它先接通，并且全流程跑完。Grok Build 1.0.70 只验到连接和发现工具（MCP 2025-11-25，5 个工具）。
 
 ### 阶段 4 · 设置精简（#315，可并行）
 
@@ -141,6 +141,6 @@ Agent 客户端 ──stdio/MCP──▶ owltype-mcp（Rust，随 App 分发的�
 | # | 决定 | 结论 | 影响 |
 | --- | --- | --- | --- |
 | 1 | #293 的核对对象 | 改为 2.2 RC，#317 不再被它阻塞 | 阶段 1 可以开始 |
-| 2 | 首个 MCP 验收客户端 | Grok Build；AGY 放到 2.2 之后 | 阶段 3 第 7 步 |
+| 2 | 首个 MCP 验收客户端 | 原定 Grok Build、AGY 放到 2.2 之后；2026-10-29 改为 AGY（Antigravity CLI），Grok Build 只做连接核对 | 阶段 3 第 7 步 |
 | 3 | #315 卡片去留 | 按 #315 的建议清单 | 阶段 4 可以开始 |
 | 4 | 五笔库约增大 80 MB | 2026-10-29 选全量随包：更新包 150.5 MB，首次启动 3–4 s，工作词库 224 MB | 阶段 2 按现结构交付 |

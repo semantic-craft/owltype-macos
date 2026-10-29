@@ -13,6 +13,8 @@ final class OwlAgentSettingsTests: XCTestCase {
 
   func testGrokSnippetsPointAtTheBundledHelper() {
     let path = "/Library/Input Methods/Owltype.app/Contents/Helpers/owltype-mcp"
+    XCTAssertEqual(OwlAgentSettings.agyCommand(helperPath: path),
+                   "agy mcp add owltype '/Library/Input Methods/Owltype.app/Contents/Helpers/owltype-mcp'")
     XCTAssertEqual(OwlAgentSettings.grokCommand(helperPath: path),
                    "grok mcp add owltype '/Library/Input Methods/Owltype.app/Contents/Helpers/owltype-mcp'")
     XCTAssertEqual(OwlAgentSettings.grokConfig(helperPath: path), """

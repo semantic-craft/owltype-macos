@@ -3,7 +3,7 @@
 //  Owltype
 //
 //  设置 → Agent 接入 (#208): the switch, which templates agents may read, the configuration a
-//  user pastes into Grok Build, and the redacted call log. `OwlAgentSettings` holds the logic so
+//  user pastes into Antigravity CLI or Grok Build, and the redacted call log. `OwlAgentSettings` holds the logic so
 //  tests can drive it without the view.
 //
 
@@ -16,6 +16,11 @@ enum OwlAgentSettings {
 
   static func helperPath(bundle: Bundle = .main) -> String {
     bundle.bundleURL.appendingPathComponent("Contents/Helpers/owltype-mcp").path
+  }
+
+  /// The `agy mcp add` command for Antigravity CLI, quoted for zsh.
+  static func agyCommand(helperPath: String) -> String {
+    "agy mcp add owltype \(shellQuoted(helperPath))"
   }
 
   /// The `grok mcp add` command, quoted for zsh.
@@ -138,9 +143,11 @@ struct OwlAgentPage: View {
   }
 
   private var configCard: some View {
-    SettingsCard(title: "接入 Grok Build", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
+    SettingsCard(title: "接入本机 Agent", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
       VStack(alignment: .leading, spacing: 10) {
-        note("在终端运行这条命令，或把下面的配置加入 ~/.grok/config.toml（写入文字要等你确认，配置里把单次调用的等待放宽到 \(OwlAgentSettings.toolTimeoutSeconds) 秒）。不需要任何模型 API key。")
+        note("Antigravity CLI：在终端运行这条命令。猫头鹰不需要任何模型 API key。")
+        snippet(OwlAgentSettings.agyCommand(helperPath: helperPath), id: "agy")
+        note("Grok Build：运行这条命令，或把下面的配置加入 ~/.grok/config.toml（写入文字要等你确认，配置里把单次调用的等待放宽到 \(OwlAgentSettings.toolTimeoutSeconds) 秒）。")
         snippet(OwlAgentSettings.grokCommand(helperPath: helperPath), id: "command")
         snippet(OwlAgentSettings.grokConfig(helperPath: helperPath), id: "config")
       }

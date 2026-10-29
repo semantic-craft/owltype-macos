@@ -61,6 +61,9 @@ final class OwlAgentDeliveryCoordinator {
   /// After those, keeps looking at this pace while the request waits: focusing a field later in the
   /// same application sends no activation, and 写入 stays disabled until a target is bound.
   static let slowBindPollInterval: TimeInterval = 0.5
+  /// When the bound application loses the front, waits this long before calling it a focus change:
+  /// a quitting application hands the front to another one before its termination is announced.
+  static let leaveSettle: TimeInterval = 0.5
 
   private final class Pending {
     let requestID: String
@@ -70,6 +73,8 @@ final class OwlAgentDeliveryCoordinator {
     let ancestors: Set<pid_t>
     var decided = false
     var writing = false
+    /// The bound application lost the front; the request ends once it is clear whether it quit.
+    var leaving = false
 
     init(requestID: String, text: String, ancestors: Set<pid_t>) {
       self.requestID = requestID
@@ -118,7 +123,7 @@ final class OwlAgentDeliveryCoordinator {
       if confirmed { self.write(request) } else { self.finish(request, .cancelled) }
     }
     host.schedule(after: Double(params.effectiveTimeoutMs) / 1000) { [weak self, weak request] in
-      guard let self, let request, self.pending === request, !request.writing else { return }
+      guard let self, let request, self.pending === request, !request.writing, !request.leaving else { return }
       self.finish(request, .expired)
     }
 
@@ -154,7 +159,14 @@ final class OwlAgentDeliveryCoordinator {
   func applicationDidActivate(_ process: pid_t) {
     guard let request = pending, !request.decided else { return }
     if let target = request.target {
-      if process != target.processIdentifier, process != getpid() { finish(request, .targetChanged(.focusChanged)) }
+      guard process != target.processIdentifier, process != getpid(), !request.leaving, !request.writing else { return }
+      request.leaving = true
+      preview?.dismiss()
+      preview = nil
+      host.schedule(after: Self.leaveSettle) { [weak self, weak request, weak target] in
+        guard let self, let request else { return }
+        self.finish(request, .targetChanged(target?.isTerminated ?? true ? .targetQuit : .focusChanged))
+      }
       return
     }
     guard !request.ancestors.contains(process), process != getpid() else { return }
@@ -177,7 +189,7 @@ final class OwlAgentDeliveryCoordinator {
   }
 
   private func write(_ request: Pending) {
-    guard !request.decided, !request.writing else { return }
+    guard !request.decided, !request.writing, !request.leaving else { return }
     if request.target == nil {
       // The user may have focused the field after the binding polls ran out: try again now,
       // unless the agent's own terminal is still in front.

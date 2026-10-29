@@ -5,6 +5,31 @@ that the lesson is in place: which file to read, which command to run, what resu
 and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## A real MCP client is not the one the helper tests imitate
+
+**Check the helper against a captured session from each client: Antigravity CLI speaks MCP 2026-07-28 without `initialize` and sends only flat tool arguments.**
+
+- Reason: on 2026-10-29 the installed e38405f build passed every helper test, yet with agy 1.4.10
+  the call log named no agent (the client is read from `initialize`, which agy never sends; it
+  opens with `server/discover` and names itself in each request's `_meta`), and
+  `template_render` could not be called with parameters (agy's `call_mcp_tool` sends only
+  primitive values, so the `arguments` map arrived as a string and was refused). Quitting the
+  bound app was reported as `focus_changed`: macOS activates another app before announcing the
+  termination.
+- Prevention: the helper reads the client from request `_meta` when there was no `initialize`
+  and accepts `arguments` as JSON text; the delivery waits `leaveSettle` before naming why the
+  bound app left the front.
+- Regression: `names_a_stateless_client_from_its_request_meta` and
+  `template_tools_forward_their_arguments` in
+  [helper_stdio.rs](rust/crates/owl-agent-mcp/tests/helper_stdio.rs);
+  `testTheBoundAppQuittingAfterAnotherTookTheFront` in
+  [OwlAgentDeliveryTests](tests/OwlAgentDeliveryTests.swift).
+- Scope: agy 1.4.10 and Grok Build 1.0.70 (initialize, MCP 2025-11-25) on macOS 27. Other
+  clients are not covered.
+- Verify (验证点): with Agent 接入 on, `agy -p "call owltype's template_render with 议题=发版"`
+  returns a preview, and the call log in 设置 → Agent 接入 names `antigravity-client`.
+- Seen on 1 distinct date: 2026-10-29.
+
 ## A merge is allowed only by a passed gate receipt for its exact head
 
 **Merge with `scripts/merge-pr.py`, which refuses unless a passed full-gate receipt names the pull request's head; a gate log, a PR body or an earlier head is not that proof.**
