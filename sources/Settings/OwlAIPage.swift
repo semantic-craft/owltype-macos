@@ -466,8 +466,8 @@ struct OwlAIPage: View {
       : "API Key（\(hint)留空＝保持现有 Key 不变）"
   }
 
-  /// Prefill the add form from a one-tap preset; the user only pastes the key. DeepSeek keeps the
-  /// Chat·V4 Flash / Reasoner·V4 Pro quick model toggle; the others show a plain model field.
+  /// Prefill the add form from a one-tap preset; the user only pastes the key. The model field
+  /// starts at the preset's default; `curatedModels` lists the alternatives in 选择模型.
   private func fillPreset(_ preset: OwlLLMProviderPreset) {
     providerID = preset.id
     providerName = preset.displayName

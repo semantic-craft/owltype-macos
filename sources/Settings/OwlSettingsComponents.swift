@@ -375,15 +375,16 @@ struct SettingsRadioRow<Trailing: View>: View {
         .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
+      // Label only the radio button: combining the whole row folds a trailing Picker into it,
+      // and the row then reads as one row-wide pop-up that opens the menu instead of selecting.
+      .accessibilityLabel(title)
+      .accessibilityAddTraits(isSelected ? .isSelected : [])
       Spacer(minLength: 8)
       KeyChipStrip(keys: keys, palette: palette)
       trailing()
     }
     .padding(.vertical, 8)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .accessibilityElement(children: .combine)
-    .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
-    .accessibilityLabel(title)
   }
 }
 
