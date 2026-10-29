@@ -59,7 +59,7 @@ final class OwlPanelInsertionBroker {
   func copyResult(_ result: OwlTemplateInvocation.Result) -> Bool { pasteboardWrite(result.text) }
 
   func restoreAndDeliver(_ result: OwlTemplateInvocation.Result,
-                         host: ((OwlTemplateInvocation.Result) -> OwlTemplateDeliveryOutcome)?,
+                         host: OwlTemplateInvocation.HostDelivery?,
                          isHostReady: @escaping () -> Bool = { true },
                          isPending: @escaping () -> Bool,
                          completion: @escaping (OwlTemplateDeliveryOutcome) -> Void) {
@@ -70,16 +70,21 @@ final class OwlPanelInsertionBroker {
     guard !neededCapture || captured != nil else { completion(.notAttempted(.missingHost)); return }
     // Direct active-session calls never opened a window and require no activation request.
     guard let captured else {
-      if isPending() { completion(host(result)) }
+      if isPending() { host(result, completion) }
       return
     }
     guard isPending() else { return }
     captured.restore()
-    awaitRestoration(captured, remaining: 12, isHostReady: isHostReady, isPending: isPending) { restored in
+    awaitRestoration(captured, remaining: Self.restorationPolls, isHostReady: isHostReady, isPending: isPending) { restored in
       guard isPending() else { return }
-      completion(restored ? host(result) : .notAttempted(.focusNotRestored))
+      // The application is back but its field never verified: the host refuses without writing
+      // and names its own reason. Only an application that never came back is a focus failure.
+      if restored || captured.isRestored() { host(result, completion) } else { completion(.notAttempted(.focusNotRestored)) }
     }
   }
+
+  /// 25 ms polls. The host's input session can return after the application reports active.
+  static let restorationPolls = 40
 
   private func awaitRestoration(_ captured: FocusTarget, remaining: Int,
                                 isHostReady: @escaping () -> Bool, isPending: @escaping () -> Bool, completion: @escaping (Bool) -> Void) {

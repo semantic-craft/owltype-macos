@@ -66,7 +66,9 @@ final class OwlTemplateInvocation: ObservableObject {
   }
   private let broker: OwlPanelInsertionBroker
   private var started = false
-  private var deliver: ((Result) -> OwlTemplateDeliveryOutcome)?
+  /// Writes a result into the host and reports once, possibly after the host has processed it.
+  typealias HostDelivery = (Result, @escaping (OwlTemplateDeliveryOutcome) -> Void) -> Void
+  private var deliver: HostDelivery?
   private let isHostReady: () -> Bool
   private let mayRestoreFocus: () -> Bool
   private let presentationTransition: ((NSWindow, Bool) -> Void)?
@@ -78,7 +80,21 @@ final class OwlTemplateInvocation: ObservableObject {
   private var onFinish: (() -> Void)?
   private(set) var preparationFailure: OwlTemplateDeliveryOutcome?
 
-  init(content: Content, broker: OwlPanelInsertionBroker, deliver: ((Result) -> OwlTemplateDeliveryOutcome)?,
+  convenience init(content: Content, broker: OwlPanelInsertionBroker, deliver: ((Result) -> OwlTemplateDeliveryOutcome)?,
+                   trailingText: String = "", intent: Intent = .insert,
+                   isHostReady: @escaping () -> Bool = { true },
+                   mayRestoreFocus: @escaping () -> Bool = { true },
+                   presentationTransition: ((NSWindow, Bool) -> Void)? = nil,
+                   preparePresentation: (() -> OwlTemplatePresentationPreparation)? = nil,
+                   onFinish: (() -> Void)? = nil,
+                   captureContext: @escaping (Set<OwlTemplateEngine.Requirement>) -> OwlTemplateEngine.FrozenContext = { OwlTemplateContextCapture.capture($0) }) {
+    self.init(content: content, broker: broker, hostDelivery: deliver.map { deliver in { $1(deliver($0)) } },
+              trailingText: trailingText, intent: intent, isHostReady: isHostReady, mayRestoreFocus: mayRestoreFocus,
+              presentationTransition: presentationTransition, preparePresentation: preparePresentation,
+              onFinish: onFinish, captureContext: captureContext)
+  }
+
+  init(content: Content, broker: OwlPanelInsertionBroker, hostDelivery deliver: HostDelivery?,
        trailingText: String = "", intent: Intent = .insert,
        isHostReady: @escaping () -> Bool = { true },
        mayRestoreFocus: @escaping () -> Bool = { true },
@@ -207,17 +223,17 @@ final class OwlTemplateInvocation: ObservableObject {
     state = .delivering(result)
     frozenContext = nil
     let failure = preparationFailure
-    let host: ((Result) -> OwlTemplateDeliveryOutcome)?
-    if let failure { host = { _ in failure } } else { host = deliver }
+    let host: HostDelivery?
+    if let failure { host = { $1(failure) } } else { host = deliver }
     deliver = nil
     if failure != nil { broker.drop() }
-    let guardedHost: ((Result) -> OwlTemplateDeliveryOutcome)? = host.map { host in
-      { [weak self] result in
+    let guardedHost: HostDelivery? = host.map { host in
+      { [weak self] result, completion in
         guard let self, case .delivering = self.state, !self.dispatchStarted else {
-          return .notAttempted(.targetChanged)
+          completion(.notAttempted(.targetChanged)); return
         }
         self.dispatchStarted = true
-        return host(result)
+        host(result, completion)
       }
     }
     if !mayRestoreFocus(), failure == nil {

@@ -5,6 +5,65 @@ that the lesson is in place: which file to read, which command to run, what resu
 and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## A host waiting on the input method cannot answer accessibility
+
+**Never read the host through accessibility in the same turn as a key event or an insert it is still processing; read it once that turn has returned.**
+
+- Reason: on installed candidates for #331 (2026-10-29, builds dfbf8d6 and cb9314f) the candidate
+  and automatic entries in TextEdit captured no field (`unverifiableTarget`) because the field
+  was read inside `handle()`, while TextEdit waited for the key event's answer. After that was
+  fixed, all three entries wrote the text once but every readback right after `insertText`
+  timed out (`host field unreadable now`), so the cursor stayed at the end. The live trace
+  named both; the 50 ms AX timeout made each one look like a missing field.
+- Prevention: `captureOutsideKeyEvent` reads the field again after the key event when the first
+  read fails. `deliver(_:completion:)` inserts once, then runs every post-insert check through
+  `Access.settle`, which in production waits (25 ms polls, at most 8) until the host answers. A
+  session re-activated during the insert is accepted only when the same AX field and a live
+  client are proven again.
+- Regression: `testFieldUnreadableDuringKeyEventIsReadAfterIt`,
+  `testVerificationWaitsUntilTheHostHasProcessedTheInsert` and
+  `testReactivatedSessionMustStillProveTheSameField` in
+  [OwlTemplateHostDeliveryTests](tests/OwlTemplateHostDeliveryTests.swift).
+- Scope: TextEdit manual, candidate and automatic entries land `{cursor}` on build 32383e9.
+  Chrome ranges are denied by `OwlClientCapabilityPolicy`, so Chrome inserts once and leaves
+  the cursor at the end, and automatic expansion does not trigger there at all.
+- Verify (验证点): the regression tests pass; with `OwlDebugLiveInputTrace` on, a confirmed
+  TextEdit template logs no `readback:` or `refused before insert` line and AX reports the
+  caret at the `{cursor}` offset.
+- Seen on 1 distinct date: 2026-10-29.
+
+## A host field that comes back after a window is not the IMK client you captured
+
+**Bind a template delivery to the application and its focused accessibility field; take the IMK session from whatever IMK activated for that application when the field returns.**
+
+- Reason: on installed 2.0.12 (2026-10-05) and 2.1.1 (2026-10-29) a template confirmed in the
+  parameter window never reached TextEdit or a Chrome textarea and was reported as
+  `focusNotRestored`. The live trace showed the host field returning through a new IMK
+  controller (`controller init` and a fresh `activateServer` right after the window closed),
+  while delivery still required `capturedController.client === capturedClient`. That never
+  held, so restoration timed out and every cause was collapsed into one focus message. The
+  candidate route also left its code as marked text: it assigned `preedit = ""` without
+  sending, the next empty update was skipped as empty-to-empty, and TextEdit committed the raw
+  `Kyshx` when the window took focus.
+- Prevention: `EngineRuntime.activatedInputController` follows `activateServer` and
+  `deactivateServer`; non-immediate delivery re-binds to it when its client reports the
+  captured application, and the focused AX field must still equal the captured one. The broker
+  reports the host's own refusal once the application is back, and `focusNotRestored` only
+  when it never came back. `clearHostComposition()` sends the empty marked text before any
+  window. Each refusal and cursor fallback writes a `template delivery` line to the live trace.
+- Regression: `testDeliveryRebindsToTheSessionActivatedForTheSameApplication`,
+  `testActivationRegistryFollowsIMKActivation` and
+  `testTemplateCandidateClearsHostMarkedTextBeforeAnyWindow` in
+  [OwlTemplateHostDeliveryTests](tests/OwlTemplateHostDeliveryTests.swift);
+  `testRestoredApplicationReportsTheHostsOwnRefusal` in
+  [OwlPanelInsertionBrokerTests](tests/OwlPanelInsertionBrokerTests.swift).
+- Scope: unit tests cover the decision, not IMK. Installed-host results for TextEdit and Chrome
+  are recorded in #331; WeChat and other hosts are not covered.
+- Verify (验证点): `python3 scripts/verify.py swift --test OwlTemplateHostDeliveryTests --test OwlPanelInsertionBrokerTests`
+  passes; with `OwlDebugLiveInputTrace` on, a confirmed template in TextEdit logs no
+  `template delivery refused` line.
+- Seen on 2 distinct dates: 2026-10-05, 2026-10-29.
+
 ## A recorded request body must not read the clock
 
 **A digest of a request body that embeds today's date passes only on the day it was recorded.**

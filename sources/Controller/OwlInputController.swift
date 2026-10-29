@@ -136,7 +136,11 @@ final class OwlInputController: IMKInputController {
     // continue in that case (the system will not deliver a key down event to the application).
     // Returning false means the original key down will be passed on to the client.
 
-    if self.client == nil { self.client = sender as? IMKTextInput }
+    if self.client == nil {
+      self.client = sender as? IMKTextInput
+      // A session that starts on a key instead of activateServer is still the one IMK serves.
+      if self.client != nil { engineRuntime.activatedInputController = self }
+    }
     if engineSession?.isValid != true {
       createSession()
       if engineSession?.isValid != true {

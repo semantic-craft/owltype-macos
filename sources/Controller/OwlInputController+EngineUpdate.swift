@@ -31,7 +31,7 @@ extension OwlInputController {
         return try OwlTemplateStore.load()
       }
       let capturedClient = client
-      preedit = ""
+      clearHostComposition()
       hidePalettes()
       MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.noteCommit() }
       // A stale/deleted/renamed record must never leak its marker or insert a different body.
@@ -68,8 +68,10 @@ extension OwlInputController {
       // parameter entry cleans composition before showing the non-activating window.
       if !needsFill {
         invokeTemplate(.prompt(entry), broker: broker, capturedClient: capturedClient)
+        preedit = ""
+      } else {
+        clearHostComposition()
       }
-      preedit = ""
       hidePalettes()
       MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.noteCommit() }
       if needsFill {
@@ -77,6 +79,14 @@ extension OwlInputController {
         invokeTemplate(.prompt(entry), broker: broker, capturedClient: capturedClient)
       }
     }
+  }
+
+  /// The candidate's code is still marked text in the host. Clear it before a window can take
+  /// focus: a host that loses focus with marked text commits the raw code. Assigning `preedit`
+  /// alone sends nothing, and the next empty update is skipped as empty-to-empty.
+  func clearHostComposition() {
+    show(preedit: "", selRange: NSRange(location: 0, length: 0), caretPos: 0)
+    preedit = ""
   }
 
   /// Every route delivers the same Result, including a literal trailing delimiter. A later
@@ -88,7 +98,7 @@ extension OwlInputController {
                       automaticSource: OwlTemplateHostDelivery.AutomaticSource? = nil) {
     let delivery = target ?? OwlTemplateHostDelivery(controller: self, client: capturedClient, automaticSource: automaticSource)
     let invocation = OwlTemplateInvocation(content: content, broker: broker,
-      deliver: { delivery.deliver($0) }, trailingText: trailingText, intent: intent,
+      hostDelivery: { delivery.deliver($0, completion: $1) }, trailingText: trailingText, intent: intent,
       isHostReady: { delivery.isReadyForDelivery() },
       mayRestoreFocus: { delivery.mayRestoreFocus() },
       presentationTransition: { delivery.presentationTransition(window: $0, active: $1) },
