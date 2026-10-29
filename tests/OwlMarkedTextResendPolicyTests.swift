@@ -50,7 +50,7 @@ final class OwlMarkedTextResendPolicyTests: XCTestCase {
     XCTAssertTrue(OwlMarkedTextResendPolicy.shouldSend(previous: "zhong", next: ""))
     // zws keep-alive 之后的清理同样必发（zws 非空 → 空）。
     XCTAssertTrue(OwlMarkedTextResendPolicy.shouldSend(
-      previous: RimeCompositionRenderer.compositionKeepAlive, next: ""))
+      previous: EngineCompositionRenderer.compositionKeepAlive, next: ""))
   }
 
   // MARK: - 唯一短路：空→空（闲置轮零 IPC 现状）

@@ -123,7 +123,7 @@ struct OwlRaycastImport {
     }
   }
 
-  let rimeDir: URL
+  let dataDir: URL
 
   func preview(data: Data) throws -> Preview {
     let objects: [Any]
@@ -134,7 +134,7 @@ struct OwlRaycastImport {
       objects = array
     } catch let error as OwlTemplateError { throw error }
     catch { throw OwlTemplateError.invalid("JSON 无法读取，请保留原文件并检查格式。") }
-    let baseline = try OwlTemplateBackup(rimeDir: rimeDir).currentLibrary()
+    let baseline = try OwlTemplateBackup(dataDir: dataDir).currentLibrary()
     var preview = Preview(baseline: baseline, rows: objects.enumerated().map { Self.row($0.element, number: $0.offset + 1) })
     for index in preview.rows.indices {
       preview.rows[index].selected = preview.rows[index].entry.map { !$0.isPendingReview } ?? false
@@ -146,7 +146,7 @@ struct OwlRaycastImport {
 
   func commit(_ preview: Preview, checkpoint: @escaping (String) throws -> Void = { _ in }) throws -> OwlTemplateBackup.Outcome {
     if let message = preview.validationMessage { throw OwlTemplateError.invalid(message) }
-    return try OwlTemplateBackup(rimeDir: rimeDir).commit(preview.library, expected: preview.baseline, checkpoint: checkpoint)
+    return try OwlTemplateBackup(dataDir: dataDir).commit(preview.library, expected: preview.baseline, checkpoint: checkpoint)
   }
 
   private static func row(_ value: Any, number: Int) -> Row {

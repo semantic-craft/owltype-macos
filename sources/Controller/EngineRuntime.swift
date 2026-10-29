@@ -24,7 +24,7 @@ final class EngineRuntime {
   /// The single owner of the global engine lifecycle. Controllers obtain their per-composition
   /// session from it. Swappable so tests can inject a fake; replace the engine, never the runtime,
   /// because controllers hold the runtime they were created with.
-  var engine: RimeEngine
+  var engine: InputEngine
   /// User data root: deploy inputs, the template-migration journal and the Rust user data.
   let userDirectory: URL
   private let sharedSupportURL: URL?
@@ -51,7 +51,7 @@ final class EngineRuntime {
   private var liveSessionRefreshCompletions: [@MainActor () -> Void] = []
 
   init(
-    engine: RimeEngine = OwlRustEngine.makeConfiguredEngine(),
+    engine: InputEngine = OwlRustEngine.makeConfiguredEngine(),
     userDirectory: URL = OwlApp.userDir,
     sharedSupportURL: URL? = Bundle.main.sharedSupportURL
   ) {
@@ -121,15 +121,10 @@ final class EngineRuntime {
   }
 
   private func startEngine(fullCheck: Bool) -> Bool {
-    let trace = OwlLatencyTrace.begin("deploy.startRime")
-    defer { OwlLatencyTrace.end("deploy.startRime", trace) }
+    let trace = OwlLatencyTrace.begin("deploy.startEngine")
+    defer { OwlLatencyTrace.end("deploy.startEngine", trace) }
     print("Initializing the Rust input engine...")
     guard !templateRecoveryBlocksDeployment() else { return false }
-    if let sharedSupportURL {
-      do { try OwlPinyinCandidateDeployment.apply(userDir: userDirectory, sharedDir: sharedSupportURL) } catch {
-        Self.deployLog.error("Pinyin candidate priorities unavailable: \(error.localizedDescription, privacy: .public)")
-      }
-    }
     // check for configuration updates
     let maintained = engine.startMaintenance(fullCheck: fullCheck)
     if maintained {
@@ -140,13 +135,13 @@ final class EngineRuntime {
     // maintenance with "nothing to do" and used to skip this deploy entirely — the write
     // then never reached build/owltype.yaml even via 重新部署 (#121 真机验收逮住).
     // config_file_update is fingerprint-gated → free when unchanged.
-    _ = engine.deployConfigFile(OwlRimeIdentity.configFile, versionKey: "config_version")
+    _ = engine.deployConfigFile(OwlEngineIdentity.configFile, versionKey: "config_version")
     OwlLatencyTrace.event("deploy.configFile")
     if maintained {
       return true
     } else {
       print("Owltype: deploy failed during Rime maintenance.")
-      Self.deployLog.error("start_maintenance failed (fullCheck=\(fullCheck, privacy: .public)) — installation_update/detect_modifications refused; see rime glog in \(OwlApp.logDir.path, privacy: .public)")
+      Self.deployLog.error("start_maintenance failed (fullCheck=\(fullCheck, privacy: .public)) — installation_update/detect_modifications refused; see the engine log in \(OwlApp.logDir.path, privacy: .public)")
       return false
     }
   }
@@ -155,7 +150,7 @@ final class EngineRuntime {
   /// rime_ice.custom.yaml, …) may be half-written. Typing keeps running on the last compiled
   /// `build/`; only recompiling from those sources waits until recovery succeeds.
   private func templateRecoveryBlocksDeployment() -> Bool {
-    guard OwlTemplateMigration.hasPendingRecovery(rimeDir: userDirectory) else { return false }
+    guard OwlTemplateMigration.hasPendingRecovery(dataDir: userDirectory) else { return false }
     Self.deployLog.error("template migration recovery pending — skipped Rime deployment, serving the last build")
     return true
   }
@@ -296,7 +291,7 @@ final class EngineRuntime {
   /// `build/` actually takes effect (live-session-reload rewrite, 2026-06-22).
   ///
   /// The old implementation only touched `activeInputController` and used `select_schema(sameId)`,
-  /// which does NOT force librime to rebuild the cached `Schema` — so a changed `menu/page_size`
+  /// which does NOT force the engine to rebuild the cached `Schema` — so a changed `menu/page_size`
   /// never reached the running session (the 8→5-not-applying bug). The fix forces a real reload
   /// by destroying sessions (the engine stays up — no octagram reload → still sub-second):
   ///
@@ -376,7 +371,7 @@ extension EngineRuntime {
       let plan = try OwlUserMigration.makePlan(
         userData: userRoot,
         pinnedWordsData: pinsData,
-        syncDirectory: OwlRimeSyncSettings(rimeDir: userRoot).currentSyncDirectory()
+        syncDirectory: OwlSyncSettings(dataDir: userRoot).currentSyncDirectory()
       )
       guard !plan.captures.isEmpty || !plan.manifest.pins.isEmpty else {
         return "没有找到旧版稳定快照或置顶词；请确认旧版猫头鹰的同步目录和设置。"

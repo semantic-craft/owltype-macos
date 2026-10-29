@@ -14,7 +14,7 @@
 //
 //  The "active" provider is the single profile flagged `isDefault` — one source of truth in the
 //  file, so there is no UserDefaults pointer to drift out of sync. Nothing here touches the IMK
-//  hot path, the Rime main lane, or rime config/deploy.
+//  hot path, the engine main lane, or engine config/deploy.
 //
 //  Concurrency: not `@MainActor`-isolated (matches the rest of the store layer); accessed from the
 //  settings UI / delegate on the main thread.

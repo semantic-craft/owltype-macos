@@ -19,16 +19,16 @@ import Observation
 final class CandidatePanelState {
   var preedit: String = ""
   /// Caret position within `preedit`, as a UTF-16 offset (0…`preedit.utf16.count`). Splits the
-  /// header so the blinking bar sits at librime's real cursor while arrow keys edit the pinyin,
+  /// header so the blinking bar sits at the engine's real cursor while arrow keys edit the pinyin,
   /// instead of always at the tail. Seeded each composition from `cursor_pos` (see
-  /// `RimeCompositionRenderer.preeditCaretUTF16`); the panel clamps it before slicing.
+  /// `EngineCompositionRenderer.preeditCaretUTF16`); the panel clamps it before slicing.
   var cursor: Int = 0
   /// Highlight span within `preedit` (the syllable being converted), UTF-16 offsets. The header
   /// tints [selStart, selEnd) with the accent color. Both 0 when there is no active selection.
   var selStart: Int = 0
   var selEnd: Int = 0
   var candidates: [CandidateViewModel] = []
-  /// 多行的前/后页行：主行（`candidates` = librime 当前页）之外预取的整页——紧邻的前 1 页
+  /// 多行的前/后页行：主行（`candidates` = 引擎当前页）之外预取的整页——紧邻的前 1 页
   /// + 后 1–4 页，视图按页号排序合并进同一列。空 = 单行（没翻过页 / 非多行方向 / 竖排
   /// ——控制器侧已按偏好与「翻页才展开」旗标门控，这里只消费数据）。
   var scrollRows: [OwlScrollRow] = []
@@ -102,7 +102,7 @@ final class CandidatePanelState {
   }
 }
 
-/// 多行里的一整页候选（前页行或后页行）。`id` 取 librime 的**页号**，这是多行动画的关键：
+/// 多行里的一整页候选（前页行或后页行）。`id` 取 the engine 的**页号**，这是多行动画的关键：
 /// 翻一页后行集合从 [p−1, p, p+1, …] 变成 [p, p+1, p+2, …]，页号不变的行保住 SwiftUI
 /// 身份、于是被动画成「上滚一行」，而不是整块闪替。
 ///

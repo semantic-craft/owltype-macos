@@ -39,20 +39,20 @@ enum OwlQuickSendStore {
   /// 派生的 Rime 表文件名。`load` 不读它（仅旧格式迁移时读一次）——它只是 JSON 的投影。
   static let dictFileName = "owl_quick_send.txt"
 
-  static func load(rimeDir: URL = OwlApp.userDir) -> [OwlQuickSendEntry] {
-    let url = rimeDir.appendingPathComponent(fileName)
+  static func load(dataDir: URL = OwlApp.userDir) -> [OwlQuickSendEntry] {
+    let url = dataDir.appendingPathComponent(fileName)
     if let data = try? Data(contentsOf: url),
        let decoded = try? JSONDecoder().decode([OwlQuickSendEntry].self, from: data) {
       let valid = decoded.compactMap { try? entry(text: $0.text, code: $0.code) }
       return (try? normalized(valid)) ?? valid
     }
-    return legacyEntries(rimeDir: rimeDir)
+    return legacyEntries(dataDir: dataDir)
   }
 
   /// 旧格式（JSON 之前，派生表兼作存储）的一次性迁移读取：解析 `dictFileName` 各行，再折叠
   /// 滚雪球出来的 v 链。只在 JSON 缺失时走到；随后的 `save` 落 JSON，此路径不再命中。
-  private static func legacyEntries(rimeDir: URL) -> [OwlQuickSendEntry] {
-    let url = rimeDir.appendingPathComponent(dictFileName)
+  private static func legacyEntries(dataDir: URL) -> [OwlQuickSendEntry] {
+    let url = dataDir.appendingPathComponent(dictFileName)
     guard let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
     let parsed = text.split(separator: "\n").compactMap { line -> OwlQuickSendEntry? in
       let raw = String(line)
@@ -114,7 +114,7 @@ enum OwlQuickSendStore {
     try writer.apply(fileName: "rime_ice.custom.yaml", block: rimeIcePatchBlock, timestamp: ts)
   }
 
-  /// 启动期幂等迁移（对齐 `setupRime` 里键盘托管块的「每次启动重写」先例）：派生表与
+  /// 启动期幂等迁移（对齐 `setupEngine` 里键盘托管块的「每次启动重写」先例）：派生表与
   /// rime_ice patch 只在 `save()` 里重写，而 `save()` 只有用户在设置页动过短语才会跑——
   /// 1.5.2 把短语码改成 ` 前缀 + 关前缀补全后，升级用户如果从不重新保存，旧派生表
   /// （裸码 + enable_completion: true + initial_quality: 100）会永远生效，打一个 y 照旧
@@ -122,10 +122,10 @@ enum OwlQuickSendStore {
   /// `OwlConfigWriter.writeManagedFile` 在内容一致时零写入，所以已同步时本函数只读不写；
   /// 不同步时走一次完整原子写（备份 + manifest 照常）。JSON 与派生表都不存在（从未用过
   /// 快捷短语）则不落任何文件——不给没用过该功能的用户注册 translator。
-  static func migrateDerivedArtifactsIfNeeded(rimeDir: URL = OwlApp.userDir) {
+  static func migrateDerivedArtifactsIfNeeded(dataDir: URL = OwlApp.userDir) {
     let fm = FileManager.default
-    let hasJSON = fm.fileExists(atPath: rimeDir.appendingPathComponent(fileName).path)
-    let hasDict = fm.fileExists(atPath: rimeDir.appendingPathComponent(dictFileName).path)
+    let hasJSON = fm.fileExists(atPath: dataDir.appendingPathComponent(fileName).path)
+    let hasDict = fm.fileExists(atPath: dataDir.appendingPathComponent(dictFileName).path)
     guard hasJSON || hasDict else { return }
     do {
       // 独立后缀防备份撞车：启动期键盘托管块 apply 与本迁移可能同一秒内先后写
@@ -133,8 +133,8 @@ enum OwlQuickSendStore {
       // .owl-backup/<ts>/ 目录——第二次备份覆盖第一次，rollback 只能还原到
       // 键盘写完后的中间态而非启动前原状（PR #42 评审逮住）。
       try save(
-        load(rimeDir: rimeDir),
-        writer: OwlConfigWriter(rimeDir: rimeDir),
+        load(dataDir: dataDir),
+        writer: OwlConfigWriter(dataDir: dataDir),
         timestamp: timestampNow() + "-quicksend-migration"
       )
     } catch {
@@ -196,7 +196,7 @@ enum OwlQuickSendStore {
   /// （见类型文档），1.5.2 的 ` 前缀撞上 rime-ice 拆字辅助码引导键、短语彻底无法触发
   /// （见 rimeIcePatchBlock 注释）。防「打一半就冒出来」靠 enable_completion: false；
   /// 码撞常用简拼的风险由用户选码时自行规避（与 rime-ice custom_phrase 同一约定）。
-  /// 元数据行键值以 TAB 分隔（librime tsv.cc 的 #@ 语法），空格会报 invalid metadata 告警。
+  /// 元数据行键值以 TAB 分隔（Rime tsv.cc 的 #@ 语法），空格会报 invalid metadata 告警。
   private static func renderDict(_ entries: [OwlQuickSendEntry]) -> String {
     var lines = [
       "# Rime table",

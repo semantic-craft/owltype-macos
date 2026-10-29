@@ -498,7 +498,7 @@ final class OwlSettingsActionTests: XCTestCase {
       OwlKeyboardPage.autoApplyStatusMessage(
         written: [],
         deploySucceeded: true,
-        writesRimeConfiguration: false
+        writesConfigPatches: false
       ),
       "配置已生效。"
     )
@@ -514,7 +514,7 @@ final class OwlSettingsActionTests: XCTestCase {
       OwlSettingsView.candidatePageSizeApplyStatusMessage(
         written: [],
         deploySucceeded: true,
-        writesRimeConfiguration: false
+        writesConfigPatches: false
       ),
       "候选个数已生效。"
     )
@@ -531,7 +531,7 @@ final class OwlSettingsActionTests: XCTestCase {
   /// safe no-op here; we only assert the engine lifecycle ordering.
   func testApplyFuzzyConfigFastJoinsMaintenanceAfterStartAndBeforeReselect() throws {
     let delegate = OwlApplicationDelegate()
-    let engine = FakeRimeEngine(startMaintenanceResult: true)
+    let engine = FakeInputEngine(startMaintenanceResult: true)
     delegate.runtime.engine = engine
 
     XCTAssertTrue(try delegate.runtime.applyKeyboardSettings(.fuzzy, directory: applicationDirectory()).succeeded)
@@ -547,7 +547,7 @@ final class OwlSettingsActionTests: XCTestCase {
   /// fast-apply must NOT call join (nothing to join) and reports failure.
   func testApplyFuzzyConfigFastSkipsJoinWhenMaintenanceFails() throws {
     let delegate = OwlApplicationDelegate()
-    let engine = FakeRimeEngine(startMaintenanceResult: false)
+    let engine = FakeInputEngine(startMaintenanceResult: false)
     delegate.runtime.engine = engine
 
     XCTAssertFalse(try delegate.runtime.applyKeyboardSettings(.fuzzy, directory: applicationDirectory()).succeeded)
@@ -560,7 +560,7 @@ final class OwlSettingsActionTests: XCTestCase {
   /// the rebuilt `build/` is ready synchronously before the reselect.
   func testApplyKeyboardConfigFastUsesConfigFileDeployNotMaintenance() throws {
     let delegate = OwlApplicationDelegate()
-    let engine = FakeRimeEngine(currentSchema: "rime_ice", deployConfigFileResult: true)
+    let engine = FakeInputEngine(currentSchema: "rime_ice", deployConfigFileResult: true)
     delegate.runtime.engine = engine
 
     XCTAssertTrue(try delegate.runtime.applyKeyboardSettings(.config, directory: applicationDirectory()).succeeded)
@@ -569,11 +569,11 @@ final class OwlSettingsActionTests: XCTestCase {
   }
 
   /// #121 companion gap: rime's detect_modifications does not track owltype.custom.yaml, so a
-  /// owltype-domain-only change leaves `start_maintenance` with "nothing to do" (false). startRime
+  /// owltype-domain-only change leaves `start_maintenance` with "nothing to do" (false). startEngine
   /// used to gate the owltype.yaml deploy on that flag — even a full 重新部署 then skipped it and
   /// the managed-block write stayed inert. The deploy must run regardless of the flag.
   func testStartRimeDeploysOwltypeConfigEvenWhenMaintenanceIdle() throws {
-    let engine = FakeRimeEngine(startMaintenanceResult: false)
+    let engine = FakeInputEngine(startMaintenanceResult: false)
     let runtime = EngineRuntime(engine: engine, userDirectory: try applicationDirectory())
 
     _ = runtime.start(fullCheck: true)

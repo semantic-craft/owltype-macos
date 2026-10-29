@@ -14,7 +14,7 @@
 //       precedence, and the title/code/empty miss cases.
 //    5. `strippingMarker`: drops the 📝 prefix (and a following half/full-width space).
 //
-//  Uses `FakePromptStore` (defined in SeamPortsTests.swift) — no librime, no disk.
+//  Uses `FakePromptStore` (defined in SeamPortsTests.swift) — no engine, no disk.
 //
 
 import Foundation
@@ -170,7 +170,7 @@ final class OwlPromptInterceptionTests: XCTestCase {
     ]
 
     for example in examples {
-      let session = FakeRimeSession(optionState: [.asciiMode: false])
+      let session = FakeEngineSession(optionState: [.asciiMode: false])
       applyCommitModeTransition(after: example.text, to: session)
       XCTAssertEqual(session.option(.asciiMode), example.entersEnglish, example.text)
     }

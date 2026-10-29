@@ -3,7 +3,7 @@
 # 扫**发布产物**里的凭据泄漏：app bundle 与源码包。入口是 `check-secrets.sh --artifacts P…`。
 #
 # 为什么单独一道：`check-secrets.sh` 的历史扫描只覆盖主仓可达历史，而
-#   * 源码包里带 submodule 源码（librime / plum / librime-lua / Sparkle），历史扫描碰不到；
+#   * 源码包里带 submodule 源码（Sparkle），历史扫描碰不到；
 #   * app bundle 里还有编译产物、出厂种子词库这些不在 git 里的东西。
 # 2026-07-29 手工补扫时两面都干净，但当时没有任何东西会在下次发版自动扫。
 #

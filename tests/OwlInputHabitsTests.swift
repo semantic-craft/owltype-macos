@@ -119,36 +119,6 @@ final class OwlInputHabitsTests: XCTestCase {
     XCTAssertNotNil(target(input: "xi'an", preedit: "xi an", text: "西安", caret: 5))
   }
 
-  func testPinDeploymentCoexistsWithEnglishAndTemplateChannelsAndIsIdempotent() throws {
-    let priorAvailability = OwlPinyinCandidateDeployment.available
-    defer { OwlPinyinCandidateDeployment.available = priorAvailability }
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    defer { try? FileManager.default.removeItem(at: root) }
-    let user = root.appendingPathComponent("user")
-    let shared = root.appendingPathComponent("shared")
-    try FileManager.default.createDirectory(at: user, withIntermediateDirectories: true)
-    try FileManager.default.createDirectory(at: shared, withIntermediateDirectories: true)
-    try "engine:\n  filters:\n    - uniquifier\n".write(to: shared.appendingPathComponent("rime_ice.schema.yaml"), atomically: true, encoding: .utf8)
-    let custom = user.appendingPathComponent("rime_ice.custom.yaml")
-    try "patch: {} # keep me\n".write(to: custom, atomically: true, encoding: .utf8)
-    let compiled = user.appendingPathComponent("build/rime_ice.schema.yaml")
-    try FileManager.default.createDirectory(at: compiled.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try "old compiled schema".write(to: compiled, atomically: true, encoding: .utf8)
-    try OwlPinyinCandidateDeployment.apply(userDir: user, sharedDir: shared)
-    XCTAssertFalse(FileManager.default.fileExists(atPath: compiled.path), "Changed patches invalidate Rime's second-granularity cache")
-    let first = try String(contentsOf: custom, encoding: .utf8)
-    try "new compiled schema".write(to: compiled, atomically: true, encoding: .utf8)
-    XCTAssertTrue(first.contains(OwlPinyinCandidateDeployment.filter))
-    XCTAssertTrue(first.contains("# keep me"))
-    try OwlPinyinCandidateDeployment.apply(userDir: user, sharedDir: shared)
-    XCTAssertEqual(first, try String(contentsOf: custom, encoding: .utf8))
-    XCTAssertTrue(FileManager.default.fileExists(atPath: compiled.path), "An unchanged patch must not force another compile")
-    try "patch:\n  \"engine/filters\": [uniquifier]\n".write(to: custom, atomically: true, encoding: .utf8)
-    try OwlPinyinCandidateDeployment.apply(userDir: user, sharedDir: shared)
-    XCTAssertFalse(OwlPinyinCandidateDeployment.available)
-    XCTAssertFalse(try String(contentsOf: custom, encoding: .utf8).contains(OwlPinyinCandidateDeployment.filter))
-  }
-
   func testPinShortcutDefaultYieldsToExistingUserShortcut() {
     let original = Dictionary(uniqueKeysWithValues: OwlHotKeySlot.allCases.map {
       ($0.defaultsKey, OwlDefaults.standard.object(forKey: $0.defaultsKey))
@@ -199,8 +169,8 @@ final class OwlInputHabitsTests: XCTestCase {
 
   private func target(schema: String = "rime_ice", input: String = "shixing", preedit: String = "shi xing",
                       text: String = "施行", selStart: Int = 0, caret: Int? = nil) -> OwlPinnedWord? {
-    let composition = RimeComposition(preedit: preedit, selStart: selStart, selEnd: preedit.utf8.count,
-      cursorPos: preedit.utf8.count, commitTextPreview: text, candidates: [RimeCandidate(text: text, comment: nil)],
+    let composition = EngineComposition(preedit: preedit, selStart: selStart, selEnd: preedit.utf8.count,
+      cursorPos: preedit.utf8.count, commitTextPreview: text, candidates: [EngineCandidate(text: text, comment: nil)],
       labels: ["1"], pageNo: 0, pageSize: 8, isLastPage: false, highlightedIndex: 0, numCandidates: 1)
     return OwlPinnedWords.target(schema: schema, input: input, composition: composition,
       candidate: text, traditional: false, caret: caret ?? input.utf8.count)

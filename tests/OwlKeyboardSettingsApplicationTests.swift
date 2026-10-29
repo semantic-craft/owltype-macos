@@ -14,7 +14,7 @@ final class OwlKeyboardSettingsApplicationTests: XCTestCase {
   }
 
   func testFuzzyWaitsForPrismBeforeRefreshing() throws {
-    let engine = FakeRimeEngine()
+    let engine = FakeInputEngine()
     var refreshed = false
     let application = OwlKeyboardSettingsApplication(
       engine: engine, directory: directory, refresh: {
@@ -27,7 +27,7 @@ final class OwlKeyboardSettingsApplicationTests: XCTestCase {
   }
 
   func testConfigApplyDeploysThroughTheEngineWithoutWritingRimeFiles() throws {
-    let engine = FakeRimeEngine()
+    let engine = FakeInputEngine()
     let application = OwlKeyboardSettingsApplication(
       engine: engine,
       directory: directory,
@@ -45,7 +45,7 @@ final class OwlKeyboardSettingsApplicationTests: XCTestCase {
   }
 
   func testFailedConfigApplyIsNotReportedAsEffective() throws {
-    let engine = FakeRimeEngine(deployConfigFileResult: false)
+    let engine = FakeInputEngine(deployConfigFileResult: false)
     let application = OwlKeyboardSettingsApplication(
       engine: engine,
       directory: directory,
@@ -67,7 +67,7 @@ final class OwlKeyboardSettingsApplicationTests: XCTestCase {
       withIntermediateDirectories: true
     )
     try Data("{broken".utf8).write(to: journal)
-    let engine = FakeRimeEngine()
+    let engine = FakeInputEngine()
     let application = OwlKeyboardSettingsApplication(
       engine: engine,
       directory: directory,

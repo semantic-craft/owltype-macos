@@ -11,7 +11,6 @@ Frameworks/*
 bin/*
 lib/*
 data/opencc/
-data/plum/
 download/
 package/Owltype*.pkg
 package/Owltype*.dmg
@@ -33,7 +32,7 @@ package/*.xml
 data/owl-rime/
 
 # 增量 B 端上语义重排: offline build artifacts produced
-# by tools/bge_small_to_coreml.py. Large (mirrors the wanxiang .gram / data/plum pattern); injected
+# by tools/bge_small_to_coreml.py. Large (mirrors the wanxiang .gram pattern); injected
 # at build time into the app bundle Resources and NEVER committed. Absent → heuristic fallback.
 *.mlpackage
 Resources/bge-small-zh.mlpackage

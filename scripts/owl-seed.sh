@@ -217,7 +217,7 @@ echo "$python_pinyin_license_sha256  $python_pinyin_license" | shasum -a 256 --c
 cp "$python_pinyin_license" "$output_dir/python-pinyin.LICENSE"
 cp "$repo_root/licenses/rime-kaomoji.LICENSE" "$output_dir/rime-kaomoji.LICENSE"
 # The retained OpenCC conversion tables are Apache-2.0 data. Copy the pinned,
-# hash-checked SPDX text instead of reaching into an uninitialized librime tree.
+# hash-checked SPDX text.
 cp "$license_cache/Apache-2.0.txt" "$output_dir/OpenCC.LICENSE"
 cp "$repo_root/data/owltype.yaml" "$output_dir/owltype.yaml"
 cp "$repo_root/rime/"*.custom.yaml "$output_dir/_user_seed/"

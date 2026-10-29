@@ -103,7 +103,7 @@ final class OwlKeyboardSettingsCatalogTests: XCTestCase {
     for option in OwlKeyboardSettingsCatalog.engineOptions {
       XCTAssertTrue(source.contains("\"\(option.name)\" =>"), "FFI has no set_option arm for \(option.name)")
     }
-    XCTAssertTrue(source.contains("\"\(RimeOption.asciiPunct.rawValue)\" =>"))
+    XCTAssertTrue(source.contains("\"\(EngineOption.asciiPunct.rawValue)\" =>"))
   }
 
   func testLiveCatalogKeepsHotPathCachesInStepWithDefaults() {

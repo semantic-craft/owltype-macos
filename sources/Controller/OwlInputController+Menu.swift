@@ -14,7 +14,7 @@ import InputMethodKit
 extension OwlInputController {
 
   override func menu() -> NSMenu! {
-    let flags = currentRimeStatusFlags()
+    let flags = currentEngineStatusFlags()
     let cjkInput = NSMenuItem(title: OwlInputMenuTitles.cjkInput(asciiMode: flags.asciiMode), action: #selector(toggleASCIIModeFromMenu), keyEquivalent: "")
     cjkInput.target = self
     let traditionalInput = NSMenuItem(title: OwlInputMenuTitles.traditionalInput(traditional: flags.traditional), action: #selector(toggleTraditionalInputFromMenu), keyEquivalent: "")
@@ -79,28 +79,28 @@ extension OwlInputController {
   }
 
   @objc func toggleASCIIModeFromMenu() {
-    toggleRimeOption(.asciiMode)
+    toggleEngineOption(.asciiMode)
   }
 
   @objc func toggleTraditionalInputFromMenu() {
-    let traditional = !currentRimeStatusFlags().traditional
+    let traditional = !currentEngineStatusFlags().traditional
     // 全套简繁 option 一并切换（全拼/双拼走 `transcription`，五笔走 `zh_trad`），保证「简入繁出」
     // 对所有方案统一生效。同时记忆到 pref，让设置页的「简入繁出」开关保持同步。
     setTraditionalOutputOptions(traditional)
     OwlKeyboardPreferences.traditionalOutput = traditional
-    rimeUpdate()
+    engineUpdate()
   }
 
   @objc func toggleASCIIPunctuationFromMenu() {
-    let asciiPunct = !currentRimeStatusFlags().asciiPunct
-    setRimeOption(.asciiPunct, asciiPunct)
+    let asciiPunct = !currentEngineStatusFlags().asciiPunct
+    setEngineOption(.asciiPunct, asciiPunct)
     // 记忆到 pref，让设置页「中文下使用英文标点」开关 + 重启后状态保持同步（对标 toggleTraditionalInputFromMenu）。
     OwlKeyboardPreferences.cjkPunctToggle = asciiPunct
-    rimeUpdate()
+    engineUpdate()
   }
 
   @objc func toggleFullShapeFromMenu() {
-    toggleRimeOption(.fullShape)
+    toggleEngineOption(.fullShape)
   }
 
   // v0.2: forward to the delegate's SwiftUI settings window. Additive UI only;
@@ -206,9 +206,9 @@ extension OwlInputController {
     NSApp.owlAppDelegate.openLogFolder()
   }
 
-  @objc func openRimeFolder() {
+  @objc func openDataFolder() {
     OwlLatencyTrace.event("button.open.rimeFolder")
-    NSApp.owlAppDelegate.openRimeFolder()
+    NSApp.owlAppDelegate.openDataFolder()
   }
 
   @objc func checkForUpdates() {

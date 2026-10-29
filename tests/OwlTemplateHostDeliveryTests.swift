@@ -294,8 +294,8 @@ final class OwlTemplateHostDeliveryTests: XCTestCase {
     let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     controller.destroySession()
     defer { controller.destroySession(); NSApp.owlAppDelegate.owlPanel?.hidePanel() }
-    let session = FakeRimeSession(pendingCommit: OwlTemplateStore.candidatePrefix + UUID().uuidString + "]验收")
-    controller.rime = session
+    let session = FakeEngineSession(pendingCommit: OwlTemplateStore.candidatePrefix + UUID().uuidString + "]验收")
+    controller.engineSession = session
     let client = HabitsTextClient(); client.appID = "com.apple.TextEdit"
     controller.client = client
     controller.show(preedit: "Kyshx", selRange: NSRange(location: 0, length: 0), caretPos: 5)

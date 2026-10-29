@@ -3,7 +3,7 @@
 //  OwltypeTests — AI conversation window view model (roadmap B10, v1)
 //
 //  Drives the `@MainActor` state machine through a FAKE `OwlAskAnythingOpening` module so NO
-//  socket / Keychain / librime is touched:
+//  socket / Keychain / engine is touched:
 //    1. submit → streaming accumulates deltas IN ORDER → done with the full answer.
 //    2. stop() cancels: no further deltas are applied after stop.
 //    3. regenerate() reuses the SAME explicit selection and replays the last question.

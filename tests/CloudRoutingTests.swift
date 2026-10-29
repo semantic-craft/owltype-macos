@@ -5,7 +5,7 @@
 //  Contracts: cloud requests route endpoint / model + the API key through the ACTIVE provider
 //  profile, falling back to the legacy DeepSeek globals when no profile is configured.
 //
-//  Pure value + injected-fake logic: no network, no real Keychain, no real providers.json, no librime.
+//  Pure value + injected-fake logic: no network, no real Keychain, no real providers.json, no engine.
 //
 
 import Foundation

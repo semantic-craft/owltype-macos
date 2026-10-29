@@ -1,8 +1,8 @@
 //
-//  OwlInputController+RimeUpdate.swift
+//  OwlInputController+EngineUpdate.swift
 //  Owltype
 //
-//  Single responsibility: pull librime's commit/status/composition state and push it to
+//  Single responsibility: pull the engine's commit/status/composition state and push it to
 //  IMK marked text and the candidate panel (the preedit/candidate byte→UTF-16 index math).
 //  Moved verbatim out of OwlInputController.swift (god-object shrink, 2026-06-20) — the
 //  index math is intricate and was moved byte-for-byte; no logic edits.
@@ -13,19 +13,19 @@ import InputMethodKit
 
 /// Commit policy at the universal Rime chokepoint. Only the standalone ASCII dollar from the
 /// Shift+4 currency menu changes the following input mode; RMB and text containing `$` keep it.
-func applyCommitModeTransition(after committedText: String, to rime: RimeSession) {
+func applyCommitModeTransition(after committedText: String, to engineSession: EngineSession) {
   guard committedText == "$" else { return }
-  rime.setOption(.asciiMode, true)
+  engineSession.setOption(.asciiMode, true)
 }
 
 extension OwlInputController {
 
-  func rimeConsumeCommittedText() {
-    guard let text = rime?.takeCommit() else { return }
+  func consumeCommittedText() {
+    guard let text = engineSession?.takeCommit() else { return }
     // ID-marked unified candidates bypass normal input formatting. Ordinary commits do no IO.
     if text.hasPrefix(OwlTemplateStore.candidatePrefix) {
       let code = MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshots.current?.rawInput }
-        ?? rime?.lastCommittedInput()
+        ?? engineSession?.lastCommittedInput()
       let entry = OwlTemplateStore.resolveCandidate(code: code, text: text) {
         guard OwlTemplateStore.mode() == .unified else { throw OwlTemplateError.legacyRequiresMigration }
         return try OwlTemplateStore.load()
@@ -44,21 +44,21 @@ extension OwlInputController {
     // 提示词提交拦截 (task 06-30-owl-prompt-management-panel). This is the UNIVERSAL commit
     // chokepoint (keyboard space/digit AND panel click both funnel here), so a 提示词 candidate
     // selected ANY way is caught. Recover the originating code from the PRIOR composition snapshot —
-    // librime has already cleared `rime.input()` by commit time, but `snapshots.current` still holds
+    // The engine has already cleared `engineSession.input()` by commit time, but `snapshots.current` still holds
     // the composition that showed the prompt candidate. The decision is a pure function over the
-    // injected `promptStore` port (fakeable, no librime); only a 📝-marked title even reaches the
+    // injected `promptStore` port (fakeable, no engine); only a 📝-marked title even reaches the
     // store lookup, so ordinary pinyin commits pass straight through. Mirrors the slash-key
     // precedent (commit out-of-band + cancel the normal commit).
     let action: OwlPromptCommitAction = MainActor.assumeIsolated {
       let code = NSApp.owlAppDelegate.snapshots.current?.rawInput
-        ?? rime?.lastCommittedInput()
+        ?? engineSession?.lastCommittedInput()
       return resolvePromptCommit(code: code, committedTitle: text, store: NSApp.owlAppDelegate.promptStore)
     }
     switch action {
     case .passThrough:
       commit(string: text)
-      if let rime {
-        applyCommitModeTransition(after: text, to: rime)
+      if let engineSession {
+        applyCommitModeTransition(after: text, to: engineSession)
       }
     case .invoke(let entry):
       let capturedClient = client
@@ -110,13 +110,13 @@ extension OwlInputController {
     delivery.endImmediateDelivery()
   }
 
-  func rimeUpdate() {
-    // print("[DEBUG] rimeUpdate")
-    guard let rime else { return }
+  func engineUpdate() {
+    // print("[DEBUG] engineUpdate")
+    guard let engineSession else { return }
     defer { MainActor.assumeIsolated { OwlInputStatusPanel.shared.refresh(self) } }
     let updateTrace = OwlLatencyTrace.begin("composition.update")
     defer { OwlLatencyTrace.end("composition.update", updateTrace) }
-    // Same librime call order as before, only the call SITE moved behind the seam:
+    // Same engine call order as before, only the call SITE moved behind the seam:
     //   takeCommit (get_commit/free_commit) → status (get_status/free_status) →
     //   [no_inline/inline/soft_cursor option calls] → composition (get_context/free_context)
     //   → input (get_input). The Live adapter does the C-struct alloc→read→free internally,
@@ -124,12 +124,12 @@ extension OwlInputController {
     //   (i.e. before the option reads); freeing the status struct is independent of those
     //   option queries, so the behaviour is identical.
     defer { punctuationKeyInFlight = nil }
-    rimeConsumeCommittedText()
+    consumeCommittedText()
     rememberAppInputMode()
 
-    if let status = rime.status() {
+    if let status = engineSession.status() {
       // enable schema specific ui style. The value type maps a null `schema_id` C pointer
-      // to "" (librime never reports a non-null empty schema_id during composition), so a
+      // to "" (the engine never reports a non-null empty schema_id during composition), so a
       // non-empty `schemaId` here matches the old `if let schema_id = status.schema_id`.
       if !status.schemaId.isEmpty, schemaId == "" || schemaId != status.schemaId {
         schemaId = status.schemaId
@@ -140,11 +140,11 @@ extension OwlInputController {
       }
       // inline 旗标每轮重算（2026-07-12 B3 破闩锁）：原先只在上面 schema 变化分支里算一次——
       // delegate styleFlags 若在毒化后恢复（见 loadSettings 的先验后换契约），老控制器永远陷在
-      // 占位模式。get_option 是进程内 librime 调用（零 IPC 往返），每键重算可承受；styleFlags
+      // 占位模式。get_option 是进程内 引擎调用（零 IPC 往返），每键重算可承受；styleFlags
       // 读 delegate 缓存值不重开 config。soft_cursor 只在首轮或值变化时下发，避免每键 set_option。
       let styleFlags = engineRuntime.styleFlags
       let resolved = OwlStyleFlags.sessionInline(
-        style: styleFlags, noInline: rime.option(.noInline), inlineForced: rime.option(.inline))
+        style: styleFlags, noInline: engineSession.option(.noInline), inlineForced: engineSession.option(.inline))
       if !styleFlagsSynced || resolved.preedit != inlinePreedit || resolved.candidate != inlineCandidate {
         debugLiveInputTrace(
           "flags sync inlinePreedit=\(inlinePreedit)->\(resolved.preedit) inlineCandidate=\(inlineCandidate)->\(resolved.candidate)"
@@ -153,19 +153,19 @@ extension OwlInputController {
         inlinePreedit = resolved.preedit
         inlineCandidate = resolved.candidate
         // The candidate panel now draws its OWN structured caret at cursor_pos (a SwiftUI bar
-        // between the 已输入/待输入 preedit runs — see OwlCandidatePanelView.header), so librime's
+        // between the 已输入/待输入 preedit runs — see OwlCandidatePanelView.header), so the engine's
         // soft_cursor ‸ symbol must stay OUT of the preedit string in BOTH modes. Inline preedit
         // already had it off; forcing false here also drops the stray ‸ the self-drawn panel used
         // to render at the real cursor. cursor_pos itself is unaffected by this option.
-        rime.setOption(.softCursor, false)
+        engineSession.setOption(.softCursor, false)
       }
     }
 
-    if let composition = rime.composition() {
+    if let composition = engineSession.composition() {
       // Byte→UTF-16 index math + inline-preview assembly now live in the pure
-      // RimeCompositionRenderer (C3): it returns the marked-text to show, plus the
+      // EngineCompositionRenderer (C3): it returns the marked-text to show, plus the
       // raw-preedit caret (UTF-16) that the composition Snapshot records.
-      let marked = RimeCompositionRenderer.markedText(
+      let marked = EngineCompositionRenderer.markedText(
         composition: composition, inlinePreedit: inlinePreedit, inlineCandidate: inlineCandidate)
       show(preedit: marked.preedit + (pendingPairedClosing ?? ""), selRange: marked.selRange, caretPos: marked.caretPos)
 
@@ -192,12 +192,12 @@ extension OwlInputController {
                 page: page, lastPage: lastPage, pageSize: composition.pageSize)
       let snapCount = min(candidates.count, OwlCompositionSnapshot.defaultTopN)
       let snaps = (0..<snapCount).map { i in
-        RimeCandidateSnapshot(index: i, text: candidates[i], comment: comments[i].isEmpty ? nil : comments[i], quality: nil)
+        EngineCandidateSnapshot(index: i, text: candidates[i], comment: comments[i].isEmpty ? nil : comments[i], quality: nil)
       }
-      let rawInput = rime.input() ?? ""
+      let rawInput = engineSession.input() ?? ""
       MainActor.assumeIsolated {
         NSApp.owlAppDelegate.snapshotEmitter.emitComposing(
-          sessionID: rime.sessionID, schemaID: schemaId, rawInput: rawInput,
+          sessionID: engineSession.sessionID, schemaID: schemaId, rawInput: rawInput,
           preedit: composition.preedit, cursor: marked.preeditCaretUTF16, pageNo: page, candidates: snaps)
       }
     } else {
@@ -236,7 +236,7 @@ extension OwlInputController {
       pendingPairedClosing = nil
       apply(.insertText(transformed + closing), client: client)
       lastCommittedCharacter = (transformed + closing).last
-    } else if rime?.status()?.schemaId.hasPrefix("wubi") == true,
+    } else if engineSession?.status()?.schemaId.hasPrefix("wubi") == true,
               OwlKeyboardPreferences.autoPairBrackets,
               OwlDefaults.standard.object(forKey: "OwlKeyboardAutoPairBrackets") != nil {
       commitApplyingAutoPair(transformed, client: client)
@@ -427,7 +427,7 @@ extension OwlInputController {
     // print("[DEBUG] showPreeditString: '\(preedit)'")
     // #89（spec #88 §3，spike #87 绿灯）：这里曾有「内容相同即跳过」的去重守卫（Squirrel
     // show() 同款），是 Chromium omnibox 退格全退的根因——合成期静默回合的按键被宿主重派
-    // 为原始键。现行契约 = 每个被 rime 消费的按键都同步重发 setMarkedText；唯一短路 =
+    // 为原始键。现行契约 = 每个被引擎消费的按键都同步重发 setMarkedText；唯一短路 =
     // 空→空（闲置轮，维持零 IPC 现状）。决策与依据见 OwlMarkedTextResendPolicy。
     guard OwlMarkedTextResendPolicy.shouldSend(previous: self.preedit, next: preedit) else {
       return
@@ -441,7 +441,7 @@ extension OwlInputController {
     // （#88 §4 隐私，绝不记文本）。判读：合成期 `markedText send` 行数 = 每键重发计数；ESC/删空后
     // 末条应 `len=0`（客户端 marked text 被清 = 无 zws 残留）；`len=1 keepAlive=true` = zws 兜底
     // 回合。区别于下方 apply() 里 `OwlLatencyTrace("markedText.apply")` 那个 #34 IPC 计量 signpost。
-    debugLiveInputTrace("markedText send len=\(preedit.utf16.count) keepAlive=\(preedit == RimeCompositionRenderer.compositionKeepAlive) sel=\(selRange.length)")
+    debugLiveInputTrace("markedText send len=\(preedit.utf16.count) keepAlive=\(preedit == EngineCompositionRenderer.compositionKeepAlive) sel=\(selRange.length)")
 
     // Side-effect convergence (task 06-22): the ONLY setMarkedText call goes through apply().
     // apply() reconstructs the highlight attributes exactly as this method used to inline.
@@ -520,38 +520,38 @@ extension OwlInputController {
     engineRuntime.activeInputController = self
     engineRuntime.registerLiveController(self)
 
-    let isVertical = rime?.option(.vertical) ?? false
+    let isVertical = engineSession?.option(.vertical) ?? false
     let candidatePanelSettings = OwlCandidatePanelSettings.live.snapshot()
-    let currentSessionID = rime?.sessionID ?? 0
+    let currentSessionID = engineSession?.sessionID ?? 0
 
     // 多行（翻页才展开，2026-07-28）：本次组字翻过页后，预取紧邻的前 1 页 + 有界上限 4 个后页。
     // 面板按 runtime snapshot 的 scrollRows 限制可见后页，因此设置从 1 调到 4 时无需再次触碰
     // Rime 就能即时揭示已经预取的行；默认仍是 4，取数上限没有扩大。
-    // 没翻过页时保持单行——展开是翻页动作换来的。取数走 `peekCandidates`（librime
+    // 没翻过页时保持单行——展开是翻页动作换来的。取数走 `peekCandidates`（the engine
     // candidate_list_from_index 只读迭代器）——不真翻页、不动 menu 页游标、无 IMK 客户端
-    // 往返，故不在 Chromium 死锁禁区内。页宽用 librime 的 page_size：末页 candidates.count
+    // 往返，故不在 Chromium 死锁禁区内。页宽用 引擎的 page_size：末页 candidates.count
     // 不满页，拿它当页宽会把前页的绝对下标全算错。
-    var prevPeeked: [RimeCandidate]?
-    var nextPeeked: [RimeCandidate]?
-    if let rime, pageSize > 0 {
+    var prevPeeked: [EngineCandidate]?
+    var nextPeeked: [EngineCandidate]?
+    if let engineSession, pageSize > 0 {
       if OwlScrollRowsPlan.wantsPrevRow(
         settings: candidatePanelSettings, didPage: scrollDidPage, page: page,
         candidateCount: candidates.count,
-        rimeVertical: isVertical, schemaID: schemaId
+        engineVertical: isVertical, schemaID: schemaId
       ) {
-        prevPeeked = rime.peekCandidates(from: (page - 1) * pageSize, count: pageSize)
+        prevPeeked = engineSession.peekCandidates(from: (page - 1) * pageSize, count: pageSize)
       }
       if OwlScrollRowsPlan.wantsRows(
         settings: candidatePanelSettings, didPage: scrollDidPage, lastPage: lastPage,
         candidateCount: candidates.count,
-        rimeVertical: isVertical, schemaID: schemaId
+        engineVertical: isVertical, schemaID: schemaId
       ) {
-        nextPeeked = rime.peekCandidates(from: (page + 1) * pageSize,
+        nextPeeked = engineSession.peekCandidates(from: (page + 1) * pageSize,
                                          count: OwlCandidatePanelSettings.maximumScrollRows * pageSize)
       }
     }
 
-    let currentGen = rime?.generation ?? 0
+    let currentGen = engineSession?.generation ?? 0
     var scrollRows: [OwlScrollRow] = []
     if let prevPeeked {
       scrollRows += OwlScrollRowsPlan.rows(
@@ -568,8 +568,8 @@ extension OwlInputController {
 
     // The inline AI candidate lane was removed: the candidate panel shows ONLY authoritative Rime
     // rows now, so there is no async store-driven merge/refresh. Build the Rime view models and push
-    // them straight to the panel here (was the `lastRimePanel` cache + `renderPanel` merge step).
-    let rimeModels: [CandidateViewModel] = candidates.indices.map { i in
+    // them straight to the panel here (was the `lastEnginePanel` cache + `renderPanel` merge step).
+    let engineModels: [CandidateViewModel] = candidates.indices.map { i in
       let text = candidates[i]
       let rawComment = i < comments.count ? comments[i] : nil
       return CandidateViewModel(
@@ -587,11 +587,11 @@ extension OwlInputController {
     }
 
     let owlPanel = NSApp.owlAppDelegate.ensureOwltypePanel()
-    let pinInput = rime?.input() ?? ""
-    let pinSession = rime?.sessionID ?? 0
+    let pinInput = engineSession?.input() ?? ""
+    let pinSession = engineSession?.sessionID ?? 0
     owlPanel.canPin = { [weak self] text in self?.pinnedTarget(text: text) != nil }
     owlPanel.onPin = { [weak self] text in
-      guard let self, self.rime?.sessionID == pinSession, self.rime?.input() == pinInput else { return }
+      guard let self, self.engineSession?.sessionID == pinSession, self.engineSession?.input() == pinInput else { return }
       self.togglePinnedWord(text: text)
     }
     owlPanel.onRemove = { [weak self] token in _ = self?.removeCandidate(token) }
@@ -604,7 +604,7 @@ extension OwlInputController {
       cursor: cursor,
       selStart: selStart,
       selEnd: selEnd,
-      candidates: rimeModels,
+      candidates: engineModels,
       highlightedIndex: highlighted,
       page: page,
       hasPrevPage: page > 0,

@@ -24,7 +24,7 @@ python3 progress/sync.py --teslahub "$TESLAHUB_HOME" --hub-out "$OWLTYPE_BOARD_O
 - 普通输入共用固定导入的 Rust 引擎、input-runtime、FFI 和 Swift 会话适配，不另建五笔算法或第二套拼音引擎。上游来源与必要适配见 [源码基线记录](../rust/msime-source.json)；具体代码入口见 [domain](agents/domain.md)。
 - 正式资源使用官方拆分的 `msime-pinyin.db` 与 `msime-wubi.db`，后者包含完整 86/98 码表；混输、反查及英文等依赖随同版完整资源组合交付。兼容组合、摘要和许可由现有资源设施核对，准备代次时组装可写工作词库并回放共享学习日志，更新和回滚复用同一事务链路。实现入口见 [完整资源与代次](../sources/DictPack/OwlRustDictPackResource.swift)。
 - 候选生成、排序、分页、选择和提交遵循固定水杉链路。AI、模板及宿主短语使用明确入口；普通快捷短语偏好与原生语义一致，显式 K 浏览独立保留。不能等价映射的个性化能力不干扰默认对齐路径，不静默删除既有用户内容或偏好。
-- 双端驱动复用真实 `OwlRustEngine/RimeSession` 接缝，参考端使用固定水杉 Host API；运行方法及证据边界见 [双端对照指南](operations/pinyin-parity.md)，不可变源码、资源摘要和基线约束见 [对照基线](../tests/fixtures/pinyin-parity/baseline.json)。
+- 双端驱动复用真实 `OwlRustEngine/EngineSession` 接缝，参考端使用固定水杉 Host API；运行方法及证据边界见 [双端对照指南](operations/pinyin-parity.md)，不可变源码、资源摘要和基线约束见 [对照基线](../tests/fixtures/pinyin-parity/baseline.json)。
 
 共享 Rust 会话、FFI、Swift 引擎文件开始改动前须核对当前执行者、工单和开放 PR；各 agent 在独立 worktree 工作，重叠改动串行集成，不覆盖另一会话的工作。
 

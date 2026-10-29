@@ -2,7 +2,7 @@
 //  OwlRustEngine.swift
 //  Owltype
 //
-//  Swift adapter conforming to `RimeEngine` / `RimeSession` on top of the Metasequoia
+//  Swift adapter conforming to `InputEngine` / `EngineSession` on top of the Metasequoia
 //  (`msime`) Rust engine via the narrow C-ABI (`owl_msime_ffi.h`, issue #249).
 //
 
@@ -164,7 +164,7 @@ enum OwlRustSchemaMap {
 
 // MARK: - OwlRustSession
 
-final class OwlRustSession: RimeSession {
+final class OwlRustSession: EngineSession {
   private static let localModeEntryLetters = Set("UTKEMJYRVCS")
   let sessionID: UInt64
   private var handle: OpaquePointer?
@@ -192,7 +192,7 @@ final class OwlRustSession: RimeSession {
   private(set) var rerankConfigurationEpoch: UInt64 = 0
   private(set) var settledRerankReady = false
   private(set) var settledRerankLoading = false
-  private var optionFlags: [RimeOption: Bool] = [
+  private var optionFlags: [EngineOption: Bool] = [
     .simplification: true,
     .linear: true
   ]
@@ -562,9 +562,9 @@ final class OwlRustSession: RimeSession {
     lastCommittedRawInput
   }
 
-  func status() -> RimeStatus? {
+  func status() -> EngineStatus? {
     guard handle != nil else { return nil }
-    return RimeStatus(
+    return EngineStatus(
       schemaId: activeSchemaId,
       isASCIIMode: optionFlags[.asciiMode] ?? false,
       isASCIIPunct: optionFlags[.asciiPunct] ?? false,
@@ -572,12 +572,12 @@ final class OwlRustSession: RimeSession {
     )
   }
 
-  func composition() -> RimeComposition? {
+  func composition() -> EngineComposition? {
     guard handle != nil else { return nil }
     if latestSnapshot == nil {
       refreshSnapshot()
     }
-    // Like librime's valid empty context, a cleared snapshot must reach the renderer:
+    // Like the former Rime seam's valid empty context, a cleared snapshot must reach the renderer:
     // nil only hides the panel and leaves the host's previous marked text in place.
     guard let snap = latestSnapshot else {
       return nil
@@ -585,7 +585,7 @@ final class OwlRustSession: RimeSession {
     let preedit = snap.preedit.isEmpty ? snap.rawInput : snap.preedit
     let utf8Count = preedit.utf8.count
     let candidates = snap.candidates.map {
-      RimeCandidate(
+      EngineCandidate(
         text: convertToTraditionalIfNeeded($0.text, forCandidateDisplay: true),
         comment: $0.comment
       )
@@ -596,7 +596,7 @@ final class OwlRustSession: RimeSession {
     let preview = candidates.indices.contains(highlighted) ? candidates[highlighted].text : preedit
     let effectiveCaret = min(max(0, customCaretPos ?? preeditCaretByteOffset), utf8Count)
 
-    return RimeComposition(
+    return EngineComposition(
       preedit: preedit,
       selStart: 0,
       selEnd: utf8Count,
@@ -682,7 +682,7 @@ final class OwlRustSession: RimeSession {
     ]))
   }
 
-  func peekCandidates(from index: Int, count: Int) -> [RimeCandidate] {
+  func peekCandidates(from index: Int, count: Int) -> [EngineCandidate] {
     guard handle != nil, count > 0 else { return [] }
     guard let dto = sendAction([
       "op": "peek_candidates",
@@ -695,7 +695,7 @@ final class OwlRustSession: RimeSession {
       latestGeneration = gen
     }
     return dto.candidates.map {
-      RimeCandidate(
+      EngineCandidate(
         text: convertToTraditionalIfNeeded($0.text, forCandidateDisplay: true),
         comment: $0.comment
       )
@@ -796,7 +796,7 @@ final class OwlRustSession: RimeSession {
   private func applyASCIIPunctIfNeeded() -> Bool {
     let value = OwlKeyboardPreferences.cjkPunctToggle
     guard applyChanged(value, at: \.lastAppliedASCIIPunct, action: {
-      ["op": "set_option", "name": RimeOption.asciiPunct.rawValue, "value": value]
+      ["op": "set_option", "name": EngineOption.asciiPunct.rawValue, "value": value]
     }) else { return false }
     optionFlags[.asciiPunct] = value
     return true
@@ -866,11 +866,11 @@ final class OwlRustSession: RimeSession {
     )
   }
 
-  func option(_ option: RimeOption) -> Bool {
+  func option(_ option: EngineOption) -> Bool {
     optionFlags[option] ?? false
   }
 
-  func setOption(_ option: RimeOption, _ value: Bool) {
+  func setOption(_ option: EngineOption, _ value: Bool) {
     let previous = optionFlags[option]
     optionFlags[option] = value
     _ = sendAction(["op": "set_option", "name": option.rawValue, "value": value])
@@ -894,18 +894,18 @@ final class OwlRustSession: RimeSession {
 
   func stateLabel(option name: String, state: Bool, abbreviated: Bool) -> String? {
     switch name {
-    case RimeOption.asciiMode.rawValue:
+    case EngineOption.asciiMode.rawValue:
       return state ? "英" : "中"
-    case RimeOption.asciiPunct.rawValue:
+    case EngineOption.asciiPunct.rawValue:
       return state ? ".，" : "。，"
-    case RimeOption.fullShape.rawValue:
+    case EngineOption.fullShape.rawValue:
       return state ? "全" : "半"
-    case RimeOption.traditional.rawValue,
-         RimeOption.traditionalization.rawValue,
-         RimeOption.zhTrad.rawValue,
-         RimeOption.transcription.rawValue:
+    case EngineOption.traditional.rawValue,
+         EngineOption.traditionalization.rawValue,
+         EngineOption.zhTrad.rawValue,
+         EngineOption.transcription.rawValue:
       return state ? "繁" : "简"
-    case RimeOption.emojiSuggestion.rawValue:
+    case EngineOption.emojiSuggestion.rawValue:
       return state ? "😄" : "👍"
     default:
       return abbreviated ? nil : name
@@ -1049,7 +1049,7 @@ final class OwlRustSession: RimeSession {
 
 // MARK: - OwlRustEngine
 
-final class OwlRustEngine: RimeEngine {
+final class OwlRustEngine: InputEngine {
   private var sharedSupportURL: URL?
   private var userDataURL: URL?
   private let activeGenerationProvider: (@Sendable () -> OwlRustResourceGeneration?)?
@@ -1057,7 +1057,7 @@ final class OwlRustEngine: RimeEngine {
   private var selectedSchemaId: String = "rime_ice"
   private var nextSessionID: UInt64 = 1
   private var sessions: [UInt64: OwlRustSession] = [:]
-  private var notificationHandler: RimeNotificationHandler?
+  private var notificationHandler: EngineNotificationHandler?
 
   init(
     sharedSupportURL: URL? = Bundle.main.sharedSupportURL,
@@ -1069,7 +1069,7 @@ final class OwlRustEngine: RimeEngine {
     self.activeGenerationProvider = activeGenerationProvider
   }
 
-  static func makeConfiguredEngine() -> RimeEngine {
+  static func makeConfiguredEngine() -> InputEngine {
     return OwlRustEngine()
   }
 
@@ -1095,7 +1095,7 @@ final class OwlRustEngine: RimeEngine {
     return refreshAllSessionsPreferences(includeHostPhrases: true)
   }
 
-  func setNotificationHandler(_ handler: @escaping RimeNotificationHandler) {
+  func setNotificationHandler(_ handler: @escaping EngineNotificationHandler) {
     notificationHandler = handler
   }
 
@@ -1139,7 +1139,7 @@ final class OwlRustEngine: RimeEngine {
     "msime-rust-0.1"
   }
 
-  func createSession() -> RimeSession {
+  func createSession() -> EngineSession {
     let id = nextSessionID
     nextSessionID &+= 1
     let userRoot = userDataURL ?? OwlApp.userDir
@@ -1268,7 +1268,7 @@ final class OwlRustEngine: RimeEngine {
     return hasher.finalize().map { String(format: "%02x", $0) }.joined()
   }
 
-  func session(for id: UInt64) -> RimeSession {
+  func session(for id: UInt64) -> EngineSession {
     if let existing = sessions[id] {
       return existing
     }
@@ -1304,7 +1304,7 @@ final class OwlRustEngine: RimeEngine {
   fileprivate func loadPackedHostPhrases() -> String {
     let userRoot = userDataURL ?? OwlApp.userDir
     let fileNames: [String]
-    switch OwlTemplateStore.mode(rimeDir: userRoot) {
+    switch OwlTemplateStore.mode(dataDir: userRoot) {
     case .unified:
       fileNames = [OwlTemplateStore.dictFileName, "custom_phrase.txt"]
     case .legacy:

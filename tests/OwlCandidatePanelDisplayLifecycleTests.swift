@@ -38,7 +38,7 @@ final class OwlCandidatePanelDisplayLifecycleTests: XCTestCase {
       settings.apply(
         runtime,
         to: panelState,
-        rimeVertical: true,
+        engineVertical: true,
         schemaID: "rime_ice"
       )
       applyCount += 1
@@ -106,7 +106,7 @@ final class OwlCandidatePanelDisplayLifecycleTests: XCTestCase {
     restartedSettings.apply(
       restartedRuntime,
       to: restartedPanelState,
-      rimeVertical: true,
+      engineVertical: true,
       schemaID: "rime_ice"
     )
     XCTAssertEqual(restartedPanelState.fontSize, OwlPanelFontSize.extraLarge.base)

@@ -3,7 +3,7 @@
 //  猫头鹰输入法 (Owltype) — Rime 配置写入层（托管块 + 备份 + manifest + 回滚）
 //
 //  v0.5 (OwlConfigWriter, ChatGPT Pro 回包 Q13 / spec `owl-rime-config-law.md` 写入层):
-//  把 `OwlRimePatchBuilder` 生成的 patch 文本 **安全** 地写进 Owltype 自己的 user_data_dir。策略
+//  把 `OwlConfigPatchBuilder` 生成的 patch 文本 **安全** 地写进 Owltype 自己的 user_data_dir。策略
 //  来自回包：**不重写用户整个文件**，而是在 `patch:` 下插入/替换一段带标记的「托管块」
 //  (`# >>> OWL MANAGED <marker> ... # <<< <marker>`)，做到幂等；写入前时间戳备份 + sha256，
 //  同目录 temp + `FileManager.replaceItemAt` 原子替换，写 `owltype/rollback-manifest.json`，
@@ -148,16 +148,16 @@ enum OwlConfigWriteError: Error {
 
 // MARK: - OwlConfigWriter
 
-/// Rime 配置写入器。`rimeDir` 可注入（测试 / dry-run 用临时目录），默认
+/// Rime 配置写入器。`dataDir` 可注入（测试 / dry-run 用临时目录），默认
 /// Owltype 自己的 `~/Library/Application Support/Owltype`。非 `@MainActor`。
 final class OwlConfigWriter {
   /// 目标 Rime 目录。可注入以便测试；默认 Owltype 自己的 user_data_dir。
-  let rimeDir: URL
+  let dataDir: URL
 
   private let writeCheckpoint: (String) throws -> Void
 
-  init(rimeDir: URL = OwlApp.userDir, writeCheckpoint: @escaping (String) throws -> Void = { _ in }) {
-    self.rimeDir = rimeDir
+  init(dataDir: URL = OwlApp.userDir, writeCheckpoint: @escaping (String) throws -> Void = { _ in }) {
+    self.dataDir = dataDir
     self.writeCheckpoint = writeCheckpoint
   }
 
@@ -267,10 +267,10 @@ final class OwlConfigWriter {
 
   // MARK: - dry-run（默认、安全；UI 用）
 
-  /// 读 `rimeDir/fileName`（缺省 `"patch:\n"`），返回 (before, after = 渲染后文本)。**不写**。
+  /// 读 `dataDir/fileName`（缺省 `"patch:\n"`），返回 (before, after = 渲染后文本)。**不写**。
   /// 这是设置 UI 的默认动作；`after` 包含完整托管块标记，供用户预览将写入的内容。
   func dryRun(fileName: String, block: ManagedPatchBlock) -> (before: String, after: String) {
-    let url = rimeDir.appendingPathComponent(fileName)
+    let url = dataDir.appendingPathComponent(fileName)
     let original = (try? String(contentsOf: url, encoding: .utf8)) ?? "patch:\n"
     let source = sourceForManagedBlock(original, fileName: fileName, block: block)
     let after = (try? renderManagedBlock(source, block: block)) ?? original
@@ -297,7 +297,7 @@ final class OwlConfigWriter {
       throw OwlConfigWriteError.refusedUnmanagedFile(fileName)
     }
 
-    let url = rimeDir.appendingPathComponent(fileName)
+    let url = dataDir.appendingPathComponent(fileName)
     let original = (try? String(contentsOf: url, encoding: .utf8)) ?? "patch:\n"
     let source = sourceForManagedBlock(original, fileName: fileName, block: block)
     let updated = try renderManagedBlock(source, block: block)
@@ -407,7 +407,7 @@ final class OwlConfigWriter {
     marker: String,
     timestamp: String = "00000000-000000"
   ) throws {
-    let url = rimeDir.appendingPathComponent(fileName)
+    let url = dataDir.appendingPathComponent(fileName)
     let original = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
     try writeManagedFile(fileName: fileName, original: original, updated: updated, marker: marker, timestamp: timestamp)
   }
@@ -434,15 +434,15 @@ final class OwlConfigWriter {
     guard !updated.utf8.elementsEqual(original.utf8) else { return }
 
     let fm = FileManager.default
-    let url = rimeDir.appendingPathComponent(fileName)
+    let url = dataDir.appendingPathComponent(fileName)
     let beforeSha = Self.sha256Hex(of: original)
     let afterSha = Self.sha256Hex(of: updated)
     // 2. 备份原文件到 `.owl-backup/<timestamp>/<fileName>`（保留子目录结构）。
-    let backupDir = rimeDir
+    let backupDir = dataDir
       .appendingPathComponent(".owl-backup", isDirectory: true)
       .appendingPathComponent(timestamp, isDirectory: true)
     let backupFile = backupDir.appendingPathComponent(fileName)
-    try OwlPrivateStorage.prepareDirectory(rimeDir, fileManager: fm)
+    try OwlPrivateStorage.prepareDirectory(dataDir, fileManager: fm)
     try OwlPrivateStorage.prepareDirectory(backupFile.deletingLastPathComponent(), fileManager: fm)
     try original.write(to: backupFile, atomically: true, encoding: .utf8)
     try OwlPrivateStorage.hardenFile(backupFile, fileManager: fm)
@@ -512,7 +512,7 @@ final class OwlConfigWriter {
   }
 
   private func relativePath(for target: URL) -> String {
-    let root = rimeDir.standardizedFileURL.path
+    let root = dataDir.standardizedFileURL.path
     let path = target.standardizedFileURL.path
     guard path.hasPrefix(root + "/") else { return target.lastPathComponent }
     return String(path.dropFirst(root.count + 1))
@@ -521,7 +521,7 @@ final class OwlConfigWriter {
   // MARK: - manifest IO
 
   private var manifestFileURL: URL {
-    rimeDir
+    dataDir
       .appendingPathComponent("owltype", isDirectory: true)
       .appendingPathComponent("rollback-manifest.json")
   }
@@ -530,7 +530,7 @@ final class OwlConfigWriter {
   private func appendManifest(_ entry: OwlRollbackEntry) throws {
     let fm = FileManager.default
     let url = manifestFileURL
-    try OwlPrivateStorage.prepareDirectory(rimeDir, fileManager: fm)
+    try OwlPrivateStorage.prepareDirectory(dataDir, fileManager: fm)
     try OwlPrivateStorage.prepareDirectory(url.deletingLastPathComponent(), fileManager: fm)
     var manifest: OwlRollbackManifest
     if let data = try? Data(contentsOf: url),

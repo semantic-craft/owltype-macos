@@ -14,7 +14,7 @@
 //  The read-back class drives the REAL emitter + registry (no fake mirror), per the
 //  app_options 假覆盖 lesson: assert what the registry actually holds, not what we told a fake.
 //
-//  No IMK, no librime, no disk: pure value logic, mirrors OwlAutoPairTests / BackspaceCorrectionTests.
+//  No IMK, no engine, no disk: pure value logic, mirrors OwlAutoPairTests / BackspaceCorrectionTests.
 //
 
 import Foundation
@@ -56,7 +56,7 @@ final class OwlForcedFinalizeTests: XCTestCase {
   }
 }
 
-/// The #37 sequence contract, driven through recording closures (no IMK, no librime).
+/// The #37 sequence contract, driven through recording closures (no IMK, no engine).
 final class OwlForcedFinalizeSequenceTests: XCTestCase {
 
   /// One finalize run against recording closures. `events` captures the exact side-effect
@@ -134,7 +134,7 @@ final class OwlForcedFinalizeRegistryReadbackTests: XCTestCase {
     emitter.emitComposing(
       sessionID: 7, schemaID: "pinyin_simp", rawInput: "a",
       preedit: "啊", cursor: 1, pageNo: 0,
-      candidates: [RimeCandidateSnapshot(index: 0, text: "啊", comment: nil, quality: nil)]
+      candidates: [EngineCandidateSnapshot(index: 0, text: "啊", comment: nil, quality: nil)]
     )
     XCTAssertNotNil(OwlSnapshotRegistry.shared.current, "precondition: snapshot registered")
 
@@ -157,7 +157,7 @@ final class OwlForcedFinalizeRegistryReadbackTests: XCTestCase {
     emitter.emitComposing(
       sessionID: 8, schemaID: "pinyin_simp", rawInput: "nihao",
       preedit: "你好", cursor: 2, pageNo: 0,
-      candidates: [RimeCandidateSnapshot(index: 0, text: "你好", comment: nil, quality: nil)]
+      candidates: [EngineCandidateSnapshot(index: 0, text: "你好", comment: nil, quality: nil)]
     )
     var committed: [String] = []
     OwlForcedFinalize.finalize(

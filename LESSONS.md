@@ -64,6 +64,26 @@ review dates, not retries. Keep deterministic checks in the local gate.
   `template delivery refused` line.
 - Seen on 2 distinct dates: 2026-10-05, 2026-10-29.
 
+## A recorded request body must not read the clock
+
+**A digest of a request body that embeds today's date passes only on the day it was recorded.**
+
+- Reason: #323 recorded SHA-256 digests of every streaming and Ask request body. The Ask system
+  prompt states the search date, and `OwlWebSearchGrounding.askSystemPrompt` took it from
+  `Date()`. From 2026-10-29 the three `ask|deepseek|…#1` keys mismatched, so `scripts/gate.sh`
+  failed on every head and blocked merges.
+- Prevention: `OwlAskAnythingTransportAdapter` and `OwlAskAnythingModule` take `now:` (default
+  `Date.init`) and pass the day to `askMessages`; the recording test pins it to 2026-10-28.
+  Any new value in a recorded body that comes from the clock, a UUID or the environment gets the
+  same injection before it is recorded.
+- Regression: `testEveryStreamingAndAskRequestMatchesTheRecordedPreGatewayRequest` in
+  [OwlLLMStreamingRecordingTests.swift](tests/OwlLLMStreamingRecordingTests.swift).
+- Scope: request bodies recorded by that test. Production still states the current day.
+- Verify (验证点): `python3 scripts/verify.py swift --test OwlLLMStreamingRecordingTests` passes
+  on any date; `grep -n "Date()" sources/Lane/OwlDeepSeekSearch.swift` shows only parameter
+  defaults.
+- Seen on 1 distinct date: 2026-10-29.
+
 ## A release App must be readable by the console user, whatever umask built it
 
 **The PKG commits the App as root and finishes the install as the console user, so a file other users cannot read passes signing, notarization and every digest check and still fails the install.**
@@ -344,7 +364,7 @@ review dates, not retries. Keep deterministic checks in the local gate.
 **Prove a session was recreated by its wrapper, never by comparing `RimeSessionId`s.**
 
 - Reason: librime returns the `Session`'s heap address as its id
-  ([service.cc](librime/src/rime/service.cc)), so destroy-then-create often gets the
+  ([service.cc](https://github.com/rime/librime/blob/1.17.0/src/rime/service.cc), from the retired submodule pin), so destroy-then-create often gets the
   freed address back. `testControllerRoundTrip` asserted a new id after applying
   settings and failed once in `gate.sh --quick`
   (`20261020T080929Z-quick-idniri2m`, both ids `524545235096`) while the next
@@ -442,7 +462,7 @@ review dates, not retries. Keep deterministic checks in the local gate.
 ### An empty engine context must clear native marked text
 
 - #249 real TextEdit acceptance on `0621f6e` found that Esc hid the candidate panel but left underlined `ni'hao` in the host. Rust had cleared its input; `OwlRustSession.composition()` discarded every empty snapshot as nil. The existing IMK renderer sends empty marked text for a valid empty context, whereas nil only hides the panel.
-- Preserve a valid empty Rust snapshot as an empty `RimeComposition`, matching the librime seam. `testCancelReturnsEmptyContextToClearHostMarkedText` fails on the old adapter at the non-nil context assertion; it also covers deleting the last input character. An empty committed session now exposes an empty context, while destroyed/unavailable sessions still return nil.
+- Preserve a valid empty Rust snapshot as an empty `EngineComposition`, matching the former librime seam. `testCancelReturnsEmptyContextToClearHostMarkedText` fails on the old adapter at the non-nil context assertion; it also covers deleting the last input character. An empty committed session now exposes an empty context, while destroyed/unavailable sessions still return nil.
 - Engine cancellation alone is insufficient evidence: verify the actual host loses its marked text after Esc and after backspacing the last character, with no phantom commit on the next key.
 
 ### Host phrase cleanup must identify its own rows
@@ -511,9 +531,9 @@ review dates, not retries. Keep deterministic checks in the local gate.
   [engine_lifecycle.rs](rust/crates/owl-msime-ffi/tests/engine_lifecycle.rs) proves that finalize
   fails with a live session, succeeds twice after destroy, and permits a reopened session; B also
   passed the real FFI reset path (51 focused tests plus the lifecycle integration) before merging
-  it. [RimeSeamTests](tests/RimeSeamTests.swift) covers the Swift Boolean lifecycle contract.
+  it. [EngineSeamTests](tests/EngineSeamTests.swift) covers the Swift Boolean lifecycle contract.
 - Verify (验证点): `cargo test --locked --manifest-path rust/Cargo.toml --package owl-msime-ffi`
-  passes, `make test TEST_ONLY='RimeSeamTests'` passes, and reset/deploy/migration call sites guard
+  passes, `make test TEST_ONLY='EngineSeamTests'` passes, and reset/deploy/migration call sites guard
   `finalize()` instead of ignoring it. Real reset acceptance remains distinct from the unit test.
 - Seen on 1 distinct date: 2026-10-26.
 
@@ -630,7 +650,7 @@ review dates, not retries. Keep deterministic checks in the local gate.
 - Reason: a boundary-page action can return unconsumed without changing input or candidate generation. The controller only invalidated its debounce timer, so an already-running desktop score still passed its ticket check and refreshed candidates after that action. Engine identity alone did not cover the host pause lifecycle.
 - Fix: capture a host action epoch with each settled job and reject publication after any invalidating host action; continue polling with `accept: false` to return the model. The pinned native host uses the same epoch ownership guard. Keep the existing 150 ms debounce and match its 60 Hz result poll.
 - Regression: `testSettledActionInvalidationRejectsAResultEvenWithoutEngineMutation` failed before the fix (`accept` was true and the panel refreshed once), then passed. Controlled-clock coverage proves the 150 ms last-input pause and old-job drain/restart; a separate focus test deliberately retains engine state when clearing. `testSettledPauseUsesRealModelAndKeepsNativeSelectionAndEditsCurrent` connects the production controller, official desktop model, isolated journal and native text client, checking complete candidate order, stale/fresh token and digit commits, backspace, schema switch, focus loss, selection while scoring and page preservation.
-- Verify: run `RimeSeamTests` and the named native integration test through the seeded Swift test host, together with existing `OwlRustEngineTests` model/ticket checks. Timer firing and a monotonic clock are controlled; no fixed sleep determines whether a worker result is stale. This checks in-process native host behavior, not installed IMK IPC delivery.
+- Verify: run `EngineSeamTests` and the named native integration test through the seeded Swift test host, together with existing `OwlRustEngineTests` model/ticket checks. Timer firing and a monotonic clock are controlled; no fixed sleep determines whether a worker result is stale. This checks in-process native host behavior, not installed IMK IPC delivery.
 - Seen 1x (2026-10-26).
 
 ## Owl enhancement rows are distinct from native quick phrases

@@ -3,7 +3,7 @@
 //  猫头鹰输入法 (Owltype) — 宿主强制 finalize 落字决策 (task 07-07-pinyin-backspace-delete-all)
 //
 //  When a host (notably Chromium omnibox — Chrome/Edge) unilaterally ends the composition,
-//  macOS calls `commitComposition`. Stock Squirrel commits the RAW input (`rime.input()`),
+//  macOS calls `commitComposition`. Stock Squirrel commits the RAW input (`engineSession.input()`),
 //  which for pinyin dumps the raw letter stream (`zhonghuarenmin…`) into the field — then the
 //  host's follow-up backspaces eat it character by character ("退格全退"). This pure decision
 //  picks the ALREADY-CONVERTED preview (`commit_text_preview`, = what the user would get on
@@ -15,8 +15,8 @@
 //  unreachable in production; it returns `input` (empty) rather than trap.
 //
 //  This file is PURE value logic plus the closure-injected finalize SEQUENCE (#37) — no IMK,
-//  no librime handle, no client read, no UserDefaults; every side effect stays behind a caller
-//  closure. The impure shell (reading `rime.input()` / `composition().commitTextPreview`,
+//  no engine handle, no client read, no UserDefaults; every side effect stays behind a caller
+//  closure. The impure shell (reading `engineSession.input()` / `composition().commitTextPreview`,
 //  the `commit(string:)` insertText, `clearComposition`, the snapshot-registry clear) stays at
 //  the commit seam in `OwlInputController+Lifecycle.swift`, mirroring how `OwlAutoPair`
 //  splits a pure decision from the controller side effects.
@@ -33,9 +33,9 @@ enum OwlForcedFinalize {
   /// Text to commit when the host force-ends the composition.
   ///
   /// - Parameters:
-  ///   - preview: librime's `commit_text_preview` — the already-converted string the user would
+  ///   - preview: the engine's `commit_text_preview` — the already-converted string the user would
   ///     get on space. `nil` when the engine reports no preview.
-  ///   - input: the raw input stream (`rime.input()`), used as the never-lose-input fallback.
+  ///   - input: the raw input stream (`engineSession.input()`), used as the never-lose-input fallback.
   /// - Returns: `preview` when it is non-empty (land converted 中文); otherwise `input`
   ///   (fallback — never drop the user's typed characters).
   static func commitText(preview: String?, input: String) -> String {
@@ -49,16 +49,16 @@ enum OwlForcedFinalize {
   ///
   /// The one contract this exists to lock: **`emitCleared` runs on EVERY forced finalize,
   /// whatever the engine state** — including a nil/invalid session or empty input. Before #37
-  /// the snapshot-registry clear lived only in `rimeUpdate()` (the next-key path), so any
+  /// the snapshot-registry clear lived only in `engineUpdate()` (the next-key path), so any
   /// composition ended by a non-key path (`deactivateServer`, a host force-end — Chromium /
   /// Electron do this during ordinary typing — or the TIS input-source fallback) stranded the
   /// snapshot until the user's next complete typing cycle, blocking every snapshot-gated
   /// consumer (#131's wild samples: `isSafeTiming` stuck for the process lifetime).
   ///
   /// - Parameters:
-  ///   - input: raw input stream (`rime.input()`), or nil when there is no live session.
+  ///   - input: raw input stream (`engineSession.input()`), or nil when there is no live session.
   ///   - preview: lazily reads `commit_text_preview`; consulted only when `input` is non-empty,
-  ///     preserving the pre-#37 librime call pattern on the empty path.
+  ///     preserving the pre-#37 engine call pattern on the empty path.
   ///   - commit: lands the decided text in the client (`commit(string:)`).
   ///   - clearComposition: `clear_composition` on the live session.
   ///   - emitCleared: snapshot-registry clear (`OwlSnapshotEmitter.emitCleared`) — already

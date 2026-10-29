@@ -33,7 +33,7 @@ final class OwlQuickSendPanelModelTests: XCTestCase {
       .write(to: file, atomically: true, encoding: .utf8)
 
     var model = OwlPickerPanelModel(
-      rows: OwlQuickSendStore.load(rimeDir: dir).map(OwlPickerRow.quickSend)
+      rows: OwlQuickSendStore.load(dataDir: dir).map(OwlPickerRow.quickSend)
     )
     XCTAssertEqual(model.rows.map(\.display), ["北京市朝阳区人民法院", "判决摘要", "最高人民法院"])
     XCTAssertEqual(model.rows.map(\.id), ["fy", "pjzy", "zg"])
@@ -62,7 +62,7 @@ final class OwlQuickSendPanelModelTests: XCTestCase {
   func testQuickSendPanelModelEmptyWhenNoFile() throws {
     let dir = try makeTempDir()  // no owl_quick_send.txt written
     let model = OwlPickerPanelModel(
-      rows: OwlQuickSendStore.load(rimeDir: dir).map(OwlPickerRow.quickSend)
+      rows: OwlQuickSendStore.load(dataDir: dir).map(OwlPickerRow.quickSend)
     )
     XCTAssertTrue(model.isEmpty)
     XCTAssertNil(model.selectedRow)

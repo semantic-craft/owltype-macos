@@ -3,7 +3,7 @@
 all: release
 
 # CI entry: build the pinned Rust FFI archive and fetch the reviewed Sparkle
-# framework. The retired librime/OpenCC/plum runtime is no longer installed.
+# framework.
 bootstrap:
 	bash action-install.sh
 
@@ -157,7 +157,7 @@ clean:
 	rm build.log > /dev/null 2>&1 || true
 	rm bin/* > /dev/null 2>&1 || true
 	rm lib/* > /dev/null 2>&1 || true
-	rm -rf lib/rime-plugins data/plum data/opencc > /dev/null 2>&1 || true
+	rm -rf data/opencc > /dev/null 2>&1 || true
 
 clean-package:
 	rm -rf package/*appcast.xml > /dev/null 2>&1 || true

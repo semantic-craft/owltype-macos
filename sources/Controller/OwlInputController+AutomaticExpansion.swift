@@ -34,11 +34,11 @@ extension OwlInputController {
     if automaticRecognizer.isRecognizing {
       guard let target = automaticTarget, let targetClient = target.client,
             let client, targetClient === client,
-            target.sessionID == rime?.sessionID,
+            target.sessionID == engineSession?.sessionID,
             target.revision == runtime.revision,
-            target.asciiMode == rime?.option(.asciiMode),
+            target.asciiMode == engineSession?.option(.asciiMode),
             runtime.allows(bundleID: client.bundleIdentifier()),
-            (rime?.input() ?? "").isEmpty else {
+            (engineSession?.input() ?? "").isEmpty else {
         finishAutomaticExpansion(replaySemicolon: false)
         return false
       }
@@ -48,10 +48,10 @@ extension OwlInputController {
       }
     } else {
       return OwlAutomaticExpansionControllerEntry.start(input: input, bundleID: client?.bundleIdentifier(),
-        runtime: runtime, rime: rime) {
-        guard let client, let rime, preedit.isEmpty, automaticReadsAllowed(client) else { return false }
+        runtime: runtime, engineSession: engineSession) {
+        guard let client, let engineSession, preedit.isEmpty, automaticReadsAllowed(client) else { return false }
         let epoch = automaticEpoch
-        let sessionID = rime.sessionID
+        let sessionID = engineSession.sessionID
         let selection = client.selectedRange()
         guard OwlAutomaticExpansionScope.valid(selection), selection.length == 0 else { return false }
         let marked = client.markedRange()
@@ -60,9 +60,9 @@ extension OwlInputController {
         guard OwlAutomaticExpansionScope.canStart(selection: selection, marked: marked, preceding: preceding) else { return false }
         guard case let .keyDown(replayKeycode, replayModifiers) = OwlUserActionClassifier.classify(
           OwlKeyEvent(event: event, lastModifiers: [])) else { return false }
-        guard epoch == automaticEpoch, self.client === client, self.rime?.sessionID == sessionID else { return false }
+        guard epoch == automaticEpoch, self.client === client, self.engineSession?.sessionID == sessionID else { return false }
         automaticTarget = OwlAutomaticExpansionTarget(client: client, start: selection.location,
-          sessionID: sessionID, asciiMode: rime.option(.asciiMode), revision: runtime.revision,
+          sessionID: sessionID, asciiMode: engineSession.option(.asciiMode), revision: runtime.revision,
           replayKeycode: replayKeycode, replayModifiers: replayModifiers)
         return applyAutomaticExpansion(automaticRecognizer.consume(input, index: runtime.index, canStart: true))
       }
@@ -131,8 +131,8 @@ extension OwlInputController {
       // This proof must survive discard and the expected parameter-window transition. Do not
       // bind it to automaticTarget/automaticEpoch, which belong to recognition, not invocation.
       let validity = OwlAutomaticExpansionInvocationValidity { [weak self] in
-        guard let self, let rime = self.rime, rime.isValid else { return false }
-        return rime.sessionID == sessionID && rime.option(.asciiMode) == asciiMode
+        guard let self, let engineSession = self.engineSession, engineSession.isValid else { return false }
+        return engineSession.sessionID == sessionID && engineSession.option(.asciiMode) == asciiMode
           && self.schemaId == sourceSchema && runtime.revision == revision
           && runtime.allows(bundleID: bundleID)
       }
@@ -176,7 +176,7 @@ extension OwlInputController {
   /// Modifiers still reach Rime; preserve marked-text keepalive unless they actually change mode.
   func refreshAutomaticExpansionAfterModifiers() -> Bool {
     guard let target = automaticTarget else { return false }
-    guard target.asciiMode == rime?.option(.asciiMode), (rime?.input() ?? "").isEmpty,
+    guard target.asciiMode == engineSession?.option(.asciiMode), (engineSession?.input() ?? "").isEmpty,
           automaticOwns(target) else {
       finishAutomaticExpansion(replaySemicolon: false)
       return false
@@ -203,8 +203,8 @@ extension OwlInputController {
       // Keep the old marked text until original Rime punctuation replaces/commits it. Clearing
       // first would lose the semicolon on a synchronous focus/finalize callback.
       OwlAutomaticExpansionControllerEntry.replaySemicolon(keycode: target.replayKeycode, modifiers: target.replayModifiers,
-        process: { processKey($0, modifiers: $1) }, update: { rimeUpdate() },
-        isCurrent: { epoch == automaticEpoch && self.client === client && rime?.isValid == true },
+        process: { processKey($0, modifiers: $1) }, update: { engineUpdate() },
+        isCurrent: { epoch == automaticEpoch && self.client === client && engineSession?.isValid == true },
         insertLiteral: { withAutomaticClientAction { apply(.insertText(";"), client: client) } })
     } else {
       withAutomaticClientAction { apply(.insertText(text), client: client) }
@@ -223,7 +223,7 @@ extension OwlInputController {
 
   private func automaticOwns(_ target: OwlAutomaticExpansionTarget) -> Bool {
     guard let client = target.client, let active = self.client, client === active,
-          rime?.sessionID == target.sessionID, automaticReadsAllowed(client),
+          engineSession?.sessionID == target.sessionID, automaticReadsAllowed(client),
           !target.markedText.isEmpty else { return false }
     let epoch = automaticEpoch
     let marked = client.markedRange()

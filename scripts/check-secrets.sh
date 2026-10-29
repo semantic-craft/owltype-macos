@@ -7,7 +7,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # 两种模式：
 #   无参            —— 扫可达 git 历史（scripts/release.sh / CI 走这条）。
 #   --artifacts P…  —— 扫**发布产物**（app bundle、源码包），转交 check-artifact-secrets.sh。
-#                      历史干净不等于产物干净：源码包里带 submodule 源码（librime/plum/opencc），
+#                      历史干净不等于产物干净：源码包里带 submodule 源码（Sparkle），
 #                      而历史扫描只覆盖主仓；app bundle 里还有编译产物与出厂种子。
 if [[ "${1:-}" == "--artifacts" ]]; then
   shift

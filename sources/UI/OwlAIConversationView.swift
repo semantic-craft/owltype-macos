@@ -17,7 +17,7 @@
 //  composer is a bordered multi-line card (1–6 growing lines) with an optional task chip on top
 //  (`OwlAIComposerTask`): 划词脚手架不再把指令句预填进输入框，指令藏在卡里，用户只填自己的部分。
 //
-//  Boundary: no Rime / hot-path involvement — UI only.
+//  Boundary: no engine / hot-path involvement — UI only.
 //
 
 import SwiftUI

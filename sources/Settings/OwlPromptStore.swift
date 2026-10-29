@@ -6,7 +6,7 @@
 //  放不进单行的 Rime 候选条，所以正文走**独立的 JSON 存储**（source of truth），不与 quick-send
 //  代码纠缠。本文件覆盖 R1（存储 / 模型 / 派生 Rime 表与 patch 生成）+ R2 的纯逻辑（提交拦截的
 //  决策函数 `resolvePromptCommit` + 注入端口 `PromptResolving` 的活实现 `OwlPromptResolver`）+
-//  R3（变量引擎）。控制器侧的 IMK 拦截接线与填空 sheet 在 `OwlInputController+RimeUpdate.swift`
+//  R3（变量引擎）。控制器侧的 IMK 拦截接线与填空 sheet 在 `OwlInputController+EngineUpdate.swift`
 //  / `OwlPromptFillSheet.swift`。
 //
 //  存储边界（spec `owl-rime-config-law.md` 写入层 / `state-management.md` 单源单向）：
@@ -105,9 +105,9 @@ enum OwlPromptStore {
 
   // MARK: 读
 
-  /// 读 `rimeDir/owl_prompts.json`。文件缺失 / 解码失败 → `[]`；个别非法条目被丢弃（容错）。
-  static func load(rimeDir: URL = OwlApp.userDir) -> [OwlPromptEntry] {
-    let url = rimeDir.appendingPathComponent(fileName)
+  /// 读 `dataDir/owl_prompts.json`。文件缺失 / 解码失败 → `[]`；个别非法条目被丢弃（容错）。
+  static func load(dataDir: URL = OwlApp.userDir) -> [OwlPromptEntry] {
+    let url = dataDir.appendingPathComponent(fileName)
     guard let data = try? Data(contentsOf: url),
           let decoded = try? JSONDecoder().decode([OwlPromptEntry].self, from: data) else {
       return []
@@ -167,8 +167,8 @@ enum OwlPromptStore {
   }
 
   /// 现有快捷短语码集合（跨特性重码校验的默认数据源）。
-  static func quickSendCodes(rimeDir: URL = OwlApp.userDir) -> Set<String> {
-    Set(OwlQuickSendStore.load(rimeDir: rimeDir).map(\.code))
+  static func quickSendCodes(dataDir: URL = OwlApp.userDir) -> Set<String> {
+    Set(OwlQuickSendStore.load(dataDir: dataDir).map(\.code))
   }
 
   // MARK: 写
@@ -299,7 +299,7 @@ enum OwlPromptStore {
 // MARK: - 提交拦截决策（R2，纯函数 + 注入端口活实现）
 
 /// 在统一提交 chokepoint 上，对一次候选提交要做什么。`resolvePromptCommit` 的纯输出，便于在没有
-/// IMK / librime 的情况下单测分支逻辑（拦截与否、是否带变量）。
+/// IMK / 引擎 的情况下单测分支逻辑（拦截与否、是否带变量）。
 enum OwlPromptCommitAction: Equatable {
   /// 不是提示词候选 —— 照常走正常 Rime 提交。
   case passThrough
@@ -307,7 +307,7 @@ enum OwlPromptCommitAction: Equatable {
   case invoke(OwlPromptEntry)
 }
 
-/// 提交拦截的**纯决策**：给定源触发码（提交时 `rime.input()` 已清空，须取自前一合成 snapshot 的
+/// 提交拦截的**纯决策**：给定源触发码（提交时 `engineSession.input()` 已清空，须取自前一合成 snapshot 的
 /// `rawInput`）与提交的候选文本，返回该怎么处理。
 ///
 /// 廉价闸门优先：只有 Owltype 自己的提示词候选带 📝 前缀，普通拼音提交首步 `hasPrefix(📝)` 即短路
@@ -315,7 +315,7 @@ enum OwlPromptCommitAction: Equatable {
 /// 经注入端口 `store` 做 (code,title) 查找；命中再按是否有变量分支。
 ///
 /// `@MainActor`：`store.entry` 是 `@MainActor`（与其余注入端口一致）；控制器在主线程经
-/// `MainActor.assumeIsolated` 调用本函数。注入 `store`（活实现 / 测试 fake）即可无 librime 单测。
+/// `MainActor.assumeIsolated` 调用本函数。注入 `store`（活实现 / 测试 fake）即可无引擎 单测。
 @MainActor
 func resolvePromptCommit(
   code: String?,

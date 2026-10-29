@@ -40,12 +40,12 @@ extension OwlInputController {
     if keyboardLayout != "" {
       client?.overrideKeyboard(withKeyboardNamed: keyboardLayout)
     }
-    if rime?.isValid == true {
+    if engineSession?.isValid == true {
       currentApp = client?.bundleIdentifier() ?? currentApp
       updateAppOptions()
     }
     preedit = ""
-    if rime?.isValid != true { createSession() }
+    if engineSession?.isValid != true { createSession() }
     MainActor.assumeIsolated { OwlInputStatusPanel.shared.activate(self) }
   }
 
@@ -74,7 +74,7 @@ extension OwlInputController {
   override func hidePalettes() {
     NSApp.owlAppDelegate.owlPanel?.hidePanel()
     // 多行「翻页才展开」旗标的唯一复位点：commit、失焦、空 menu 的收尾全汇聚到这里，
-    // 下一次组字从单行重新开始（置位在 showPanel，见 OwlInputController+RimeUpdate）。
+    // 下一次组字从单行重新开始（置位在 showPanel，见 OwlInputController+EngineUpdate）。
     scrollDidPage = false
     super.hidePalettes()
   }
@@ -101,7 +101,7 @@ extension OwlInputController {
     // Native finish performs the selection and learning, preserving focus-loss local-mode rules.
     // A missing session or a refused native action retains the converted-preview/raw fallback.
     // Every path clears the snapshot registry, even when no composition remains (#37).
-    let live: RimeSession? = (rime?.isValid == true) ? rime : nil
+    let live: EngineSession? = (engineSession?.isValid == true) ? engineSession : nil
     if let live, live.finishNativeComposition(onFocusLoss: true) {
       if let text = live.takeCommit(), !text.isEmpty { commit(string: text) }
       MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.emitCleared() }
@@ -130,18 +130,18 @@ extension OwlInputController {
     guard let enableASCII = notification.object as? Bool else { return }
     pendingTemplateDelivery?.invalidate()
     finishAutomaticExpansion(replaySemicolon: true)
-    setRimeOption(.asciiMode, enableASCII)
+    setEngineOption(.asciiMode, enableASCII)
     OwlAppInputMemory.shared.remember(app: currentApp, ascii: enableASCII)
-    rimeUpdate()
+    engineUpdate()
   }
 
   // seam: was private; internal so OwlInputController.swift's init observer closure can reach it across files.
   func reportASCIIMode(_: Notification) {
     // Only active input controller should respond
     guard client != nil else { return }
-    guard let rime, rime.isValid else { return }
+    guard let engineSession, engineSession.isValid else { return }
 
-    let isASCIIMode = rime.option(.asciiMode)
+    let isASCIIMode = engineSession.option(.asciiMode)
     let status = isASCIIMode ? "ascii" : "nascii"
 
     // Directly respond with the status

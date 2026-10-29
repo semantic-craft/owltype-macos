@@ -50,7 +50,7 @@ enum OwlKeyboardSwitch: Int, CaseIterable, Sendable {
     case engineOption(String)
     /// The Rust session owns this Rime option and re-asserts it on every sync
     /// (`applyASCIIPunctIfNeeded`), because the session's option flags must follow it too.
-    case sessionOption(RimeOption)
+    case sessionOption(EngineOption)
     /// Host code reads the preference when it needs it; nothing is pushed.
     case host
   }

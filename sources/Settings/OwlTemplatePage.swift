@@ -28,9 +28,9 @@ final class OwlTemplateEditorModel: ObservableObject {
 
   func reload() {
     do {
-      switch OwlTemplateStore.mode(rimeDir: writer.rimeDir) {
+      switch OwlTemplateStore.mode(dataDir: writer.dataDir) {
       case .empty: library = OwlTemplateLibrary()
-      case .unified: library = try OwlTemplateStore.load(rimeDir: writer.rimeDir)
+      case .unified: library = try OwlTemplateStore.load(dataDir: writer.dataDir)
       case .legacy: throw OwlTemplateError.legacyRequiresMigration
       case .unavailable(let message): throw OwlTemplateError.invalid(message)
       }
@@ -57,7 +57,7 @@ final class OwlTemplateEditorModel: ObservableObject {
   }
 
   func reloadAutomaticConfiguration() {
-    do { try automaticRuntime.reload(rimeDir: writer.rimeDir, defaults: defaults) }
+    do { try automaticRuntime.reload(dataDir: writer.dataDir, defaults: defaults) }
     catch { status = "自动展开暂不可用：" + error.localizedDescription }
   }
 
@@ -131,7 +131,7 @@ final class OwlTemplateEditorModel: ObservableObject {
 
   func delete(_ entry: OwlTemplateEntry) -> Bool {
     do {
-      let outcome = try OwlTemplateBackup(rimeDir: writer.rimeDir).delete(id: entry.id, expected: library)
+      let outcome = try OwlTemplateBackup(dataDir: writer.dataDir).delete(id: entry.id, expected: library)
       library = outcome.library; lastBackupURL = outcome.backupURL
       if draft.id == entry.id { newDraft(category: entry.category) }
       status = "已删除，完整库备份已保留，可从备份恢复。"
@@ -140,14 +140,14 @@ final class OwlTemplateEditorModel: ObservableObject {
   }
 
   func restore(_ preview: OwlTemplateBackup.Preview) throws {
-    let outcome = try OwlTemplateBackup(rimeDir: writer.rimeDir).restore(preview)
+    let outcome = try OwlTemplateBackup(dataDir: writer.dataDir).restore(preview)
     library = outcome.library; lastBackupURL = outcome.backupURL
     if let updated = library.entries.first(where: { $0.id == draft.id }) { draft = updated }
     status = "恢复完成，当前库其他条目已保留。候选调用在重新部署后生效。"
   }
 
   func importRaycast(_ preview: OwlRaycastImport.Preview) throws {
-    let outcome = try OwlRaycastImport(rimeDir: writer.rimeDir).commit(preview)
+    let outcome = try OwlRaycastImport(dataDir: writer.dataDir).commit(preview)
     library = outcome.library; lastBackupURL = outcome.backupURL
     if let first = preview.selectedIndices.first, let entry = preview.rows[first].entry { draft = entry }
     status = "已导入 \(preview.selectedCount) 项（待处理 \(preview.pendingCount) 项）。默认仅搜索，未启用自动展开。"
@@ -411,7 +411,7 @@ struct OwlTemplatePage: View {
         Button("导出完整原生备份…", action: exportBackup)
         Button("从原生备份恢复…") { withSavedDraft { chooseRestore() } }
         Button("打开本地备份文件夹") {
-          NSWorkspace.shared.open(model.writer.rimeDir.appendingPathComponent(".owl-backup"))
+          NSWorkspace.shared.open(model.writer.dataDir.appendingPathComponent(".owl-backup"))
         }
       }.disabled(!model.canEdit)
       if entries.isEmpty { Text(model.library.entries.isEmpty ? "尚无模板" : "无匹配条目").font(.caption).foregroundStyle(.secondary) }
@@ -699,7 +699,7 @@ struct OwlTemplatePage: View {
     panel.message = "导出整个已保存库（包含所有标签和参数）；未保存草稿不包含在内。"
     presentFilePanel(panel) { [weak model] url in
       guard let model else { return }
-      do { try OwlTemplateBackup(rimeDir: model.writer.rimeDir).export(to: url); model.status = "完整原生备份已导出。" }
+      do { try OwlTemplateBackup(dataDir: model.writer.dataDir).export(to: url); model.status = "完整原生备份已导出。" }
       catch { model.status = error.localizedDescription }
     }
   }
@@ -710,7 +710,7 @@ struct OwlTemplatePage: View {
     panel.message = "选择 Raycast 基础 JSON；下一步预览并选择要导入的条目。"
     presentFilePanel(panel) { [weak model] url in
       guard let model else { return }
-      do { importPreview = try OwlRaycastImport(rimeDir: model.writer.rimeDir).preview(data: Data(contentsOf: url)) }
+      do { importPreview = try OwlRaycastImport(dataDir: model.writer.dataDir).preview(data: Data(contentsOf: url)) }
       catch { model.status = error.localizedDescription }
     }
   }
@@ -720,7 +720,7 @@ struct OwlTemplatePage: View {
     panel.allowedContentTypes = [.json]; panel.allowsMultipleSelection = false; panel.canChooseDirectories = false
     presentFilePanel(panel) { [weak model] url in
       guard let model else { return }
-      do { restorePreview = try OwlTemplateBackup(rimeDir: model.writer.rimeDir).preview(data: Data(contentsOf: url)) }
+      do { restorePreview = try OwlTemplateBackup(dataDir: model.writer.dataDir).preview(data: Data(contentsOf: url)) }
       catch { model.status = error.localizedDescription }
     }
   }

@@ -19,7 +19,7 @@ struct OwlKeyboardPage: View {
   /// 模糊拼音 fast-ish apply (mtime-gated `fullCheck:false` maintenance — rebuilds the schema
   /// prism, not octagram — + reselect + replay). NOT instant; copy stays honest.
   let onApplyFuzzyConfigFast: () throws -> OwlKeyboardSettingsApplication.Outcome
-  var writesRimeConfiguration = true
+  var writesConfigPatches = true
 
   /// Which card group this instance renders. 键盘输入 shows everything except the three
   /// shortcut cards; 快捷键设置 (a separate sidebar page) shows only those three. One view
@@ -44,7 +44,7 @@ struct OwlKeyboardPage: View {
 
   /// Compact click-to-apply state for Rime-backed rows. Local convenience transforms
   /// stay live-only and do not use this status line.
-  @State private var isAutoApplyingRimeConfig = false
+  @State private var isAutoApplyingConfig = false
   @State private var autoApplyStatus: String?
   @State private var rerankRuntimeStatuses =
     OwlRerankRuntimeStatusRegistry.shared.snapshot()
@@ -115,7 +115,7 @@ struct OwlKeyboardPage: View {
         // 配置改动本就自动应用 → 把「重新应用」从满宽主按钮降级为右侧次级钮，左侧常驻自动应用状态。
         HStack(spacing: 10) {
           HStack(spacing: 6) {
-            if isAutoApplyingRimeConfig {
+            if isAutoApplyingConfig {
               ProgressView()
                 .controlSize(.small)
             } else {
@@ -125,7 +125,7 @@ struct OwlKeyboardPage: View {
             }
             Text(autoApplyStatus ?? defaultApplyStatus)
               .font(.system(size: 12, weight: .medium))
-              .foregroundStyle(isAutoApplyingRimeConfig ? palette.ink2 : palette.ink3)
+              .foregroundStyle(isAutoApplyingConfig ? palette.ink2 : palette.ink3)
           }
           Spacer(minLength: 8)
           Button(action: { applyCurrentKeyboardSnapshot() }, label: {
@@ -149,9 +149,9 @@ struct OwlKeyboardPage: View {
             .contentShape(Rectangle())
           })
           .buttonStyle(.plain)
-          .disabled(!rimeBackedRowsEnabled)
-          .opacity(rimeBackedRowsEnabled ? 1 : 0.5)
-          .accessibilityLabel(writesRimeConfiguration ? "保存并重新应用" : "重新应用")
+          .disabled(!configBackedRowsEnabled)
+          .opacity(configBackedRowsEnabled ? 1 : 0.5)
+          .accessibilityLabel(writesConfigPatches ? "保存并重新应用" : "重新应用")
         }
 
         Text(applyFootnote)
@@ -346,8 +346,8 @@ struct OwlKeyboardPage: View {
           .frame(maxWidth: .infinity, alignment: .leading)
           .padding(.top, 6)
       }
-      .disabled(!rimeBackedRowsEnabled)
-      .opacity(rimeBackedRowsEnabled ? 1 : 0.55)
+      .disabled(!configBackedRowsEnabled)
+      .opacity(configBackedRowsEnabled ? 1 : 0.55)
     }
   }
 
@@ -488,7 +488,7 @@ struct OwlKeyboardPage: View {
     let modeBinding = Binding(
       get: { state.keyboardWubiCandidateMode },
       set: { newValue in
-        persistAndApplyRimeConfig {
+        persistAndApplyConfig {
           OwlSettingsActions.set(newValue, state: state, keyPath: \.keyboardWubiCandidateMode) {
             OwlKeyboardPreferences.wubiCandidateMode = $0
           }
@@ -506,7 +506,7 @@ struct OwlKeyboardPage: View {
           autoCommitUnique: state.keyboardWubiAutoCommitUnique,
           fifthCodeTopCommit: state.keyboardWubiFifthCodeTopCommit,
           palette: palette,
-          isEnabled: rimeBackedRowsEnabled,
+          isEnabled: configBackedRowsEnabled,
           onToggleAutoCommitUnique: { toggle(.wubiAutoCommitUnique) },
           onToggleFifthCodeTopCommit: { toggle(.wubiFifthCodeTopCommit) }
         )
@@ -515,7 +515,7 @@ struct OwlKeyboardPage: View {
           zWildcard: state.keyboardWubiZWildcard,
           zReverseLookup: state.keyboardWubiZReverseLookup,
           palette: palette,
-          isEnabled: rimeBackedRowsEnabled,
+          isEnabled: configBackedRowsEnabled,
           onToggleCodeHint: { toggle(.wubiCodeHint) },
           onToggleZWildcard: { toggle(.wubiZWildcard) },
           onToggleZReverseLookup: { toggle(.wubiZReverseLookup) }
@@ -524,7 +524,7 @@ struct OwlKeyboardPage: View {
           title: "空码自动清码",
           isOn: state.keyboardWubiAutoClear,
           palette: palette,
-          isEnabled: rimeBackedRowsEnabled,
+          isEnabled: configBackedRowsEnabled,
           onToggle: { toggle(.wubiAutoClear) }
         )
         SettingsCardDivider(palette: palette)
@@ -539,16 +539,16 @@ struct OwlKeyboardPage: View {
             palette: palette
           )
           .frame(width: 220)
-          .disabled(!rimeBackedRowsEnabled)
+          .disabled(!configBackedRowsEnabled)
         }
         .padding(.vertical, 8)
-        .opacity(rimeBackedRowsEnabled ? 1 : 0.55)
+        .opacity(configBackedRowsEnabled ? 1 : 0.55)
         SettingsCardDivider(palette: palette)
         SettingsToggleRow(
           title: "` 临时英文",
           isOn: state.keyboardWubiEnglishChannel,
           palette: palette,
-          isEnabled: rimeBackedRowsEnabled,
+          isEnabled: configBackedRowsEnabled,
           onToggle: { toggle(.wubiEnglishChannel) }
         )
         Text("按 `（反引号）后直接打英文单词，候选出英文、上屏后回到五笔；不切换模式，也不影响四码上屏。")
@@ -562,7 +562,7 @@ struct OwlKeyboardPage: View {
           title: "记住我常用的词（个性化）",
           isOn: state.keyboardWubiUserDictLearning,
           palette: palette,
-          isEnabled: rimeBackedRowsEnabled,
+          isEnabled: configBackedRowsEnabled,
           onToggle: { toggle(.wubiUserDictLearning) }
         )
       }
@@ -586,7 +586,7 @@ struct OwlKeyboardPage: View {
           isOn: state.keyboardShiftSwitchCJK,
           keys: ["⇧"],
           palette: palette,
-          isEnabled: rimeBackedRowsEnabled,
+          isEnabled: configBackedRowsEnabled,
           onToggle: { toggle(.shiftSwitchCJK) }
         )
         SettingsCardDivider(palette: palette)
@@ -594,7 +594,7 @@ struct OwlKeyboardPage: View {
           title: "Caps Lock 切换西文",
           isOn: state.keyboardGoodOldCapsLock,
           palette: palette,
-          isEnabled: rimeBackedRowsEnabled,
+          isEnabled: configBackedRowsEnabled,
           onToggle: { toggle(.goodOldCapsLock) }
         )
       }
@@ -620,7 +620,7 @@ struct OwlKeyboardPage: View {
           isOn: state.keyboardPageMinusEquals,
           keys: ["- ="],
           palette: palette,
-          isEnabled: rimeBackedRowsEnabled,
+          isEnabled: configBackedRowsEnabled,
           onToggle: { toggle(.pageMinusEquals) }
         )
         SettingsCardDivider(palette: palette)
@@ -629,7 +629,7 @@ struct OwlKeyboardPage: View {
           isOn: state.keyboardPageBrackets,
           keys: ["[ ]"],
           palette: palette,
-          isEnabled: rimeBackedRowsEnabled,
+          isEnabled: configBackedRowsEnabled,
           onToggle: { toggle(.pageBrackets) }
         )
         SettingsCardDivider(palette: palette)
@@ -638,7 +638,7 @@ struct OwlKeyboardPage: View {
           isOn: state.keyboardPageCommaPeriod,
           keys: [", 。"],
           palette: palette,
-          isEnabled: rimeBackedRowsEnabled,
+          isEnabled: configBackedRowsEnabled,
           onToggle: { toggle(.pageCommaPeriod) }
         )
       }
@@ -661,7 +661,7 @@ struct OwlKeyboardPage: View {
           isOn: state.keyboardSelect23Semicolon,
           keys: ["; '"],
           palette: palette,
-          isEnabled: rimeBackedRowsEnabled,
+          isEnabled: configBackedRowsEnabled,
           onToggle: { toggle(.select23Semicolon) }
         )
       }
@@ -747,8 +747,8 @@ struct OwlKeyboardPage: View {
             }
         }
         .buttonStyle(.plain)
-        .disabled(isAutoApplyingRimeConfig)
-        .opacity(isAutoApplyingRimeConfig ? 0.55 : 1)
+        .disabled(isAutoApplyingConfig)
+        .opacity(isAutoApplyingConfig ? 0.55 : 1)
         .accessibilityLabel("设置模糊拼音")
       }
       .padding(.vertical, 4)
@@ -819,7 +819,7 @@ struct OwlKeyboardPage: View {
           title: "中文下使用英文标点",
           isOn: state.keyboardCJKPunctToggle,
           palette: palette,
-          isEnabled: rimeBackedRowsEnabled,
+          isEnabled: configBackedRowsEnabled,
           onToggle: { toggle(.cjkPunctToggle) }
         )
         SettingsCardDivider(palette: palette)
@@ -944,7 +944,7 @@ struct OwlKeyboardPage: View {
       reduceTransparency: reduceTransparency
     ) {
       VStack(alignment: .leading, spacing: 6) {
-        Text(writesRimeConfiguration
+        Text(writesConfigPatches
           ? "快捷键配置会自动写入 ~/Library/Application Support/Owltype 并应用。"
           : "快捷键配置会即时应用；Rust 引擎不写入 Rime YAML。")
           .font(.system(size: 12))
@@ -954,30 +954,30 @@ struct OwlKeyboardPage: View {
     }
   }
 
-  private var rimeBackedRowsEnabled: Bool {
-    !isAutoApplyingRimeConfig
+  private var configBackedRowsEnabled: Bool {
+    !isAutoApplyingConfig
   }
 
   private var symbolMenusEnabled: Bool {
-    rimeBackedRowsEnabled
+    configBackedRowsEnabled
   }
 
   private var defaultApplyStatus: String {
-    writesRimeConfiguration ? "改动已自动保存并应用" : "改动已即时应用"
+    writesConfigPatches ? "改动已自动保存并应用" : "改动已即时应用"
   }
 
   private var reapplyButtonTitle: String {
-    writesRimeConfiguration ? "保存并重新应用" : "重新应用"
+    writesConfigPatches ? "保存并重新应用" : "重新应用"
   }
 
   private var applyFootnote: String {
-    writesRimeConfiguration
+    writesConfigPatches
       ? "配置改动即时生效；此处仅用于异常时重新写入并应用当前键盘设置。"
       : "配置改动即时生效；此处仅用于重新应用当前键盘设置。"
   }
 
-  private func persistAndApplyRimeConfig(_ mutation: () -> Void) {
-    guard !isAutoApplyingRimeConfig else { return }
+  private func persistAndApplyConfig(_ mutation: () -> Void) {
+    guard !isAutoApplyingConfig else { return }
     mutation()
     applyCurrentKeyboardSnapshot()
   }
@@ -997,8 +997,8 @@ struct OwlKeyboardPage: View {
   }
 
   private func applyKeyboardSnapshot(progress: String, apply: @escaping () throws -> OwlKeyboardSettingsApplication.Outcome) {
-    guard !isAutoApplyingRimeConfig else { return }
-    isAutoApplyingRimeConfig = true
+    guard !isAutoApplyingConfig else { return }
+    isAutoApplyingConfig = true
     autoApplyStatus = progress
 
     DispatchQueue.main.async {
@@ -1011,11 +1011,11 @@ struct OwlKeyboardPage: View {
       } catch OwlConfigWriteError.refusedNeverTouch(let name) {
         autoApplyStatus = "已拒绝写入受保护文件：\(name)。改动未生效，请查看诊断日志。"
       } catch {
-        autoApplyStatus = writesRimeConfiguration
+        autoApplyStatus = writesConfigPatches
           ? "写入失败，改动未生效，请查看诊断日志：\(error.localizedDescription)"
           : "应用失败，改动未生效，请查看诊断日志：\(error.localizedDescription)"
       }
-      isAutoApplyingRimeConfig = false
+      isAutoApplyingConfig = false
     }
   }
 
@@ -1091,7 +1091,7 @@ struct OwlKeyboardPage: View {
   static func autoApplyStatusMessage(
     written: [String],
     deploySucceeded: Bool,
-    writesRimeConfiguration: Bool = true
+    writesConfigPatches: Bool = true
   ) -> String {
     let files = written.joined(separator: "、")
     if deploySucceeded {
@@ -1099,7 +1099,7 @@ struct OwlKeyboardPage: View {
     }
     return files.isEmpty
       ? "应用失败，改动未生效，请查看诊断日志。"
-      : writesRimeConfiguration
+      : writesConfigPatches
         ? "已写入 \(files)，但应用失败；改动未生效，请查看诊断日志。"
         : "应用失败，改动未生效，请查看诊断日志。"
   }
@@ -1119,7 +1119,7 @@ struct OwlKeyboardPage: View {
       }
     }
     if toggle.row.reappliesConfiguration {
-      persistAndApplyRimeConfig(write)
+      persistAndApplyConfig(write)
     } else {
       write()
     }

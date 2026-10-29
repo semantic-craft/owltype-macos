@@ -34,8 +34,8 @@ fail=0
 # disarm it, so they stay verbatim and this gate looks away.
 # CHANGELOG keeps its historical entries verbatim, and the two plan documents are the
 # record of the 法墨 era, deliberately left as written (plan §2.5; the same whitelist is
-# fixed in .scratch/rename-owltype/EXECUTION.md §3). The submodules are upstream vendor
-# trees — not this product's identity surface and not ours to rewrite. .claude/ is local
+# fixed in .scratch/rename-owltype/EXECUTION.md §3). The Sparkle submodule is an upstream vendor
+# tree — not this product's identity surface and not ours to rewrite. .claude/ is local
 # agent state (settings, throwaway worktrees), whose stale paths are the repo-rename
 # ticket's business, not this gate's.
 #
@@ -56,9 +56,6 @@ SCAN_EXCLUDE=(
   -g '!docs/rename-owltype-plan.md'
   -g '!docs/default-input-method-plan.md'
   -g '!docs/rename-owltype-evidence/**'
-  -g '!librime/**'
-  -g '!librime-lua/**'
-  -g '!plum/**'
   -g '!Sparkle/**'
 )
 
@@ -166,8 +163,8 @@ if [[ "$layer" != "source" ]]; then
 
 # --- Built/installed app residue: source can be clean while shipped bytes are not. ---
 # ponytail: owl_scan_app_identity scans Info.plist text + product Resource filenames, not the
-# Mach-O binary. A `strings -a` binary scan is deferred (warning-only, later): librime links
-# thousands of legitimate rime_* symbols, so it needs a heavy allowlist to not drown in noise.
+# Mach-O binary. A `strings -a` binary scan is deferred (warning-only, later): upstream engine
+# and Squirrel provenance symbols need a heavy allowlist to not drown in noise.
 app_to_scan="${OWL_APP:-}"
 if [[ -z "$app_to_scan" ]]; then
   for cand in "build/Build/Products/Release/Owltype.app" "$OWL_INSTALL_PATH" "$HOME/Library/Input Methods/Owltype.app"; do

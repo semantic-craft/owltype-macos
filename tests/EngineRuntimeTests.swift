@@ -3,7 +3,7 @@
 //  OwltypeTests
 //
 //  Drives the engine runtime's start, redeploy, recovery, reset and config-cache sequences
-//  through `FakeRimeEngine`, with a temporary user directory and shared-support directory.
+//  through `FakeInputEngine`, with a temporary user directory and shared-support directory.
 //
 
 import AppKit
@@ -30,7 +30,7 @@ final class EngineRuntimeTests: XCTestCase {
   // MARK: - Start and redeploy
 
   func testRedeployStopsThenStartsMaintenanceThenDeploysFrontendConfig() throws {
-    let engine = FakeRimeEngine()
+    let engine = FakeInputEngine()
     try writeBaseConfig(layout: "linear")
 
     XCTAssertTrue(makeRuntime(engine).redeploy())
@@ -41,7 +41,7 @@ final class EngineRuntimeTests: XCTestCase {
 
   /// A live session makes finalize refuse. The engine must stay up, untouched.
   func testRedeployBlockedByLiveSessionLeavesEngineRunning() {
-    let engine = FakeRimeEngine(finalizeResult: false)
+    let engine = FakeInputEngine(finalizeResult: false)
 
     XCTAssertFalse(makeRuntime(engine).redeploy())
 
@@ -52,7 +52,7 @@ final class EngineRuntimeTests: XCTestCase {
   /// c00875c: an unresolved template-migration journal used to stop the engine for good once
   /// redeploy had shut it down. Recovery now only blocks recompiling; the config is reread.
   func testPendingTemplateRecoverySkipsMaintenanceButRereadsTheConfig() throws {
-    let engine = FakeRimeEngine()
+    let engine = FakeInputEngine()
     try writeBaseConfig(layout: "linear")
     let runtime = makeRuntime(engine)
     XCTAssertTrue(runtime.start(fullCheck: false))
@@ -71,7 +71,7 @@ final class EngineRuntimeTests: XCTestCase {
   // MARK: - Running work with the engine stopped
 
   func testWhileStoppedRunsBodyBetweenStopAndRestart() throws {
-    let engine = FakeRimeEngine()
+    let engine = FakeInputEngine()
     try writeBaseConfig(layout: "linear")
     let runtime = makeRuntime(engine)
 
@@ -89,7 +89,7 @@ final class EngineRuntimeTests: XCTestCase {
   /// A failing body must still bring the engine back: a finalized engine means no typing.
   func testWhileStoppedRestartsEvenWhenBodyThrows() {
     struct Failure: Error {}
-    let engine = FakeRimeEngine()
+    let engine = FakeInputEngine()
 
     let run = makeRuntime(engine).whileStopped { throw Failure() }
 
@@ -102,7 +102,7 @@ final class EngineRuntimeTests: XCTestCase {
   }
 
   func testWhileStoppedBlockedNeverRunsBody() {
-    let engine = FakeRimeEngine(finalizeResult: false)
+    let engine = FakeInputEngine(finalizeResult: false)
 
     let run = makeRuntime(engine).whileStopped { XCTFail("the body must not run while a session is live") }
 
@@ -113,7 +113,7 @@ final class EngineRuntimeTests: XCTestCase {
   // MARK: - Reset
 
   func testResetUserDictBlockedLeavesUserDataUntouched() throws {
-    let engine = FakeRimeEngine(finalizeResult: false)
+    let engine = FakeInputEngine(finalizeResult: false)
     let journal = try writeRustJournal()
 
     let message = makeRuntime(engine).resetUserDict(timestamp: "20261028-000000")
@@ -124,7 +124,7 @@ final class EngineRuntimeTests: XCTestCase {
   }
 
   func testResetUserDictRemovesDataWhileStoppedThenRestarts() throws {
-    let engine = FakeRimeEngine()
+    let engine = FakeInputEngine()
     let journal = try writeRustJournal()
 
     let message = makeRuntime(engine).resetUserDict(timestamp: "20261028-000000")
@@ -138,7 +138,7 @@ final class EngineRuntimeTests: XCTestCase {
 
   func testLoadSettingsReadsStyleFlagsFromAUsableConfig() throws {
     try writeBaseConfig(layout: "stacked")
-    let runtime = makeRuntime(FakeRimeEngine())
+    let runtime = makeRuntime(FakeInputEngine())
 
     runtime.loadSettings()
 
@@ -149,7 +149,7 @@ final class EngineRuntimeTests: XCTestCase {
   /// B1: a reread that opens an empty shell must not replace the good config or its flags.
   func testUnusableRereadKeepsThePreviousConfigAndFlags() throws {
     try writeBaseConfig(layout: "stacked")
-    let runtime = makeRuntime(FakeRimeEngine())
+    let runtime = makeRuntime(FakeInputEngine())
     runtime.loadSettings()
     let good = try XCTUnwrap(runtime.config)
     let flags = runtime.styleFlags
@@ -163,7 +163,7 @@ final class EngineRuntimeTests: XCTestCase {
 
   /// Without any usable config the IMK path still gets inline, linear defaults.
   func testNoUsableConfigFallsBackToInlineLinearFlags() {
-    let runtime = makeRuntime(FakeRimeEngine())
+    let runtime = makeRuntime(FakeInputEngine())
 
     runtime.loadSettings()
 
@@ -174,7 +174,7 @@ final class EngineRuntimeTests: XCTestCase {
 
   /// B2: a per-schema reload heals a missing config once the base config becomes readable.
   func testSchemaReloadHealsAMissingConfig() throws {
-    let runtime = makeRuntime(FakeRimeEngine())
+    let runtime = makeRuntime(FakeInputEngine())
     runtime.loadSettings()
     XCTAssertNil(runtime.config)
 
@@ -189,7 +189,7 @@ final class EngineRuntimeTests: XCTestCase {
 
   @MainActor
   func testRefreshRunsAtOnceWithoutLiveSessions() {
-    let runtime = makeRuntime(FakeRimeEngine())
+    let runtime = makeRuntime(FakeInputEngine())
     var ran = false
 
     XCTAssertFalse(runtime.requestLiveSessionRefreshWhenIdle { ran = true })
@@ -202,13 +202,13 @@ final class EngineRuntimeTests: XCTestCase {
   func testRefreshWaitsForAnInFlightComposition() throws {
     let delegate = NSApp.owlAppDelegate
     let previousEngine = delegate.runtime.engine
-    delegate.runtime.engine = FakeRimeEngine()
+    delegate.runtime.engine = FakeInputEngine()
     defer { delegate.runtime.engine = previousEngine }
     let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     controller.destroySession()
-    let session = FakeRimeSession(sessionID: 30, input: "ni")
-    controller.rime = session
-    let runtime = makeRuntime(FakeRimeEngine())
+    let session = FakeEngineSession(sessionID: 30, input: "ni")
+    controller.engineSession = session
+    let runtime = makeRuntime(FakeInputEngine())
     runtime.registerLiveController(controller)
     var ran = false
 
@@ -223,7 +223,7 @@ final class EngineRuntimeTests: XCTestCase {
 
   // MARK: - Helpers
 
-  private func makeRuntime(_ engine: FakeRimeEngine) -> EngineRuntime {
+  private func makeRuntime(_ engine: FakeInputEngine) -> EngineRuntime {
     EngineRuntime(engine: engine, userDirectory: userDirectory, sharedSupportURL: sharedSupport)
   }
 
@@ -244,7 +244,7 @@ final class EngineRuntimeTests: XCTestCase {
     let directory = userDirectory.appendingPathComponent(OwlTemplateMigration.directoryName, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     try Data("{}".utf8).write(to: directory.appendingPathComponent("journal.json"))
-    XCTAssertTrue(OwlTemplateMigration.hasPendingRecovery(rimeDir: userDirectory))
+    XCTAssertTrue(OwlTemplateMigration.hasPendingRecovery(dataDir: userDirectory))
   }
 
   private func writeRustJournal() throws -> URL {
