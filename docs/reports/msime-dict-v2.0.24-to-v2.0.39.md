@@ -85,8 +85,10 @@ Pinyin words, first row changed (code, before, after): `a'bi` 阿鼻→阿碧; `
 
 ## Cost of the new Wubi table: two ways to ship it
 
-Measured on 2026-10-29 on the maintainer's Mac (Apple silicon) with the three layouts below; the
-user still has to choose. Package sizes rebuild the voided 2.1.1 Release App with each resource
+Decision (2026-10-29): Owltype ships the table inside the App (A). B stays documented here as the
+alternative if package size or first launch becomes the larger problem.
+
+Measured on 2026-10-29 on the maintainer's Mac (Apple silicon) with the three layouts below. Package sizes rebuild the voided 2.1.1 Release App with each resource
 layout the way `package/make_package` (ditto zip inside `pkgbuild`) and `package/make_dmg` (UDZO)
 do, unsigned. Launch, latency and memory come from Owltype's C ABI (the same calls the IMK
 session makes): a fresh process creating a session on an empty user root (first launch), the same
