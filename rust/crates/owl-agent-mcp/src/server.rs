@@ -1,8 +1,8 @@
 //! The MCP side: tools named after the bridge methods. Each call opens its own bridge connection,
 //! so a restarted Owltype or a toggled Agent access switch takes effect on the next call.
 
-use crate::bridge::{Call, Component, Outcome, RenderParams, TemplateRef};
-use crate::client::{call_once, BridgeError, CALL_TIMEOUT};
+use crate::bridge::{Call, Component, DeliverParams, Outcome, RenderParams, TemplateRef};
+use crate::client::{call_once, BridgeError, CALL_TIMEOUT, DELIVER_GRACE};
 use rmcp::model::{
     CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation, ListToolsResult,
     PaginatedRequestParams, ServerCapabilities, ServerConfig, Tool, ToolAnnotations,
@@ -14,8 +14,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 const INSTRUCTIONS: &str = "Owltype is a macOS Chinese input method. These tools read its redacted \
-status and the templates the user chose to expose, and preview them. They never return what the user \
-is typing.";
+status and the templates the user chose to expose, preview them, and offer text for the user to \
+confirm into the field they are typing in. They never return what the user is typing.";
 
 /// One MCP tool and the bridge call it makes.
 struct ToolSpec {
@@ -64,6 +64,33 @@ fn render_schema() -> Value {
     })
 }
 
+fn deliver_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "requestId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._:-]{1,128}$",
+                "description": "Your id for this delivery. Reuse it to retry: a delivery with the same id is written at most once and a retry returns its outcome."
+            },
+            "text": { "type": "string", "minLength": 1, "maxLength": 20000, "description": "The text to write" },
+            "timeoutMs": {
+                "type": "integer", "minimum": 5000, "maximum": 600000,
+                "description": "How long to wait for the user's confirmation; 120000 when omitted"
+            }
+        },
+        "required": ["requestId", "text"],
+        "additionalProperties": false
+    })
+}
+
+fn deliver_call(arguments: Map<String, Value>) -> Result<(Call, Duration), String> {
+    let params: DeliverParams = decode(arguments)?;
+    params.validate().map_err(|field| format!("invalid {field}"))?;
+    let timeout = Duration::from_millis(params.timeout_ms()) + DELIVER_GRACE;
+    Ok((Call::DeliverText(params), timeout))
+}
+
 fn decode<T: serde::de::DeserializeOwned>(arguments: Map<String, Value>) -> Result<T, String> {
     serde_json::from_value(Value::Object(arguments)).map_err(|error| format!("invalid arguments: {error}"))
 }
@@ -103,6 +130,17 @@ parameters and diagnostics. Writes nothing anywhere; clipboard fields preview em
         read_only: true,
         input_schema: render_schema,
         call: |arguments| Ok((Call::TemplateRender(decode::<RenderParams>(arguments)?), CALL_TIMEOUT)),
+    },
+    ToolSpec {
+        name: "deliver_text",
+        title: "Write text where the user is typing",
+        description: "Offer text to the field the user is typing in. Owltype shows it in a native preview \
+and writes it only if the user confirms; Return is never pressed. Answers delivered (verified false when \
+the field could not be read back), cancelled, target_changed (with a reason) or expired. If the user is \
+in this agent's own terminal, the preview asks them to switch to the target field first.",
+        read_only: false,
+        input_schema: deliver_schema,
+        call: deliver_call,
     },
 ];
 
