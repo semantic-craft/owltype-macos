@@ -232,23 +232,73 @@ enum OwlHotKeyMatcher {
 /// are consumed at session level and never reach the IME, so the two paths cannot double-fire.
 ///
 /// Consumption rule: a matched combo is consumed ONLY while 猫头鹰 is the current input source
-/// (per-match TIS check, not per-keystroke) — with another IME active it passes through untouched
+/// (per-match check, not per-keystroke) — with another IME active it passes through untouched
 /// instead of being stolen system-wide (the retired Carbon registration's sin, #118).
-final class OwlHotKeyEventTap {
+///
+/// ⚠️ The tap runs on its OWN thread, never the main run loop (2026-10-29 system-wide typing
+/// freeze). A head-inserted `.defaultTap` holds every keyDown in the login session until its
+/// callback returns, whatever the input source: on the main run loop, a 600 ms main-thread stall
+/// delayed every keystroke by up to 594 ms, and a 1.2 s stall made WindowServer disable the tap
+/// and drop 6 of 8 keystrokes. The callback therefore touches no main-thread state: combos come
+/// from UserDefaults, and "is 猫头鹰 current" is a flag the main thread keeps current.
+final class OwlHotKeyEventTap: NSObject {
+  private struct Shared {
+    var suppressed = false
+    var owltypeIsCurrent = false
+  }
+
+  private static let shared = OSAllocatedUnfairLock(initialState: Shared())
+
   /// While the settings recorder is capturing, the tap must pass EVERYTHING through — otherwise
   /// re-recording the currently-bound combo would be consumed here and never reach the recorder's
-  /// local monitor. Main-thread only (tap callback runs on the main run loop).
-  static var isSuppressed = false
+  /// local monitor. Written on main, read on the tap thread.
+  static var isSuppressed: Bool {
+    get { shared.withLock { $0.suppressed } }
+    set { shared.withLock { $0.suppressed = newValue } }
+  }
 
-  private var tap: CFMachPort?
-  private var runLoopSource: CFRunLoopSource?
+  /// Re-read the current input source (TIS, main thread) into the flag the tap thread reads.
+  static func refreshCurrentInputSource() {
+    let current = OwlInstaller.currentInputSourceID()?.hasPrefix(OwlInstaller.inputSourcePrefix) == true
+    shared.withLock { $0.owltypeIsCurrent = current }
+  }
+
+  /// The slot a keyDown triggers, or `nil` to pass it through. Pure, so the consume rule is testable
+  /// without a live tap: suppression, ⌃⌥⌘ pre-filter, fixed slot precedence, then the source check.
+  static func slotToConsume(keyCode: UInt16, flags: NSEvent.ModifierFlags, suppressed: Bool,
+                            owltypeIsCurrent: Bool,
+                            combo: (OwlHotKeySlot) -> (keyCode: UInt32, modifiers: UInt32)?) -> OwlHotKeySlot? {
+    // Fast pre-filter: every configured combo requires a non-shift modifier — plain typing and
+    // shift-typing exit here before any defaults read.
+    guard !suppressed, !flags.isDisjoint(with: [.control, .option, .command]) else { return nil }
+    // Fixed precedence (allCases order): 快捷短语面板 → 划词菜单 → 提示词助手. The recorder rejects
+    // duplicates, so at most one slot matches; the order only keeps a stale duplicate deterministic.
+    let matched = OwlHotKeySlot.allCases.filter { $0 != .pinCandidate }.first { slot in
+      combo(slot).map { OwlHotKeyMatcher.matches($0, keyCode: keyCode, flags: flags) } ?? false
+    }
+    guard let matched else { return nil }
+    guard owltypeIsCurrent else {
+      OwlHotKeyMatcher.log.notice("tap match passthrough: Owltype not current input source")
+      return nil
+    }
+    return matched
+  }
+
+  /// The port and the tap thread's run loop, shared between main (start/stop) and the tap thread.
+  private struct Installed {
+    var port: CFMachPort?
+    var runLoop: CFRunLoop?
+  }
+
+  private let installed = OSAllocatedUnfairLock(uncheckedState: Installed())
+  private var observesInputSource = false
   var onQuickSend: (() -> Void)?
   var onSelectionSummon: (() -> Void)?
   var onPromptAssistant: (() -> Void)?
 
   /// Install the tap when possible. Safe to call repeatedly; no-op when installed or AX untrusted.
   func startIfPossible() {
-    guard tap == nil else { return }
+    guard installed.withLock({ $0.port == nil }) else { return }
     guard AXIsProcessTrusted() else {
       OwlHotKeyMatcher.log.notice("event tap not installed: accessibility not trusted (IMK fallback)")
       return
@@ -270,48 +320,70 @@ final class OwlHotKeyEventTap {
       OwlHotKeyMatcher.log.notice("event tap unavailable: tapCreate failed despite AX trust")
       return
     }
-    tap = created
-    runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, created, 0)
-    CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
-    CGEvent.tapEnable(tap: created, enable: true)
-    OwlHotKeyMatcher.log.notice("event tap installed")
+    observeInputSource()
+    let ready = DispatchSemaphore(value: 0)
+    let thread = Thread { [installed] in
+      let runLoop = CFRunLoopGetCurrent()
+      let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, created, 0)
+      CFRunLoopAddSource(runLoop, source, .commonModes)
+      installed.withLock { $0 = Installed(port: created, runLoop: runLoop) }
+      CGEvent.tapEnable(tap: created, enable: true)
+      ready.signal()
+      CFRunLoopRun()
+    }
+    thread.name = "im.owltype.hotkey-tap"
+    thread.qualityOfService = .userInteractive
+    thread.start()
+    ready.wait()
+    OwlHotKeyMatcher.log.notice("event tap installed on its own thread")
   }
 
   func stop() {
-    if let runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes) }
-    runLoopSource = nil
-    if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
-    tap = nil
+    let (port, runLoop) = installed.withLock { state -> (CFMachPort?, CFRunLoop?) in
+      defer { state = Installed() }
+      return (state.port, state.runLoop)
+    }
+    if let port {
+      CGEvent.tapEnable(tap: port, enable: false)
+      CFMachPortInvalidate(port)
+    }
+    if let runLoop { CFRunLoopStop(runLoop) }
+    if observesInputSource { DistributedNotificationCenter.default().removeObserver(self) }
+    observesInputSource = false
   }
 
+  /// Keep `owltypeIsCurrent` fresh. `.deliverImmediately`: this accessory app is almost never
+  /// active, and a suspended center would hold the change until it is.
+  private func observeInputSource() {
+    Self.refreshCurrentInputSource()
+    guard !observesInputSource else { return }
+    observesInputSource = true
+    DistributedNotificationCenter.default().addObserver(
+      self, selector: #selector(inputSourceChanged(_:)),
+      name: .init(kTISNotifySelectedKeyboardInputSourceChanged as String), object: nil,
+      suspensionBehavior: .deliverImmediately)
+  }
+
+  @objc private func inputSourceChanged(_ notification: Notification) {
+    Self.refreshCurrentInputSource()
+  }
+
+  /// Runs on the tap thread.
   private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
-    // The system re-disables a slow tap; re-enable and pass the event on.
+    // The system disables a slow tap; re-enable, log it (the 2026-10-29 freeze left no trace
+    // because this branch was silent), and pass the event on.
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-      if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+      OwlHotKeyMatcher.log.notice("event tap re-enabled after \(type == .tapDisabledByTimeout ? "timeout" : "user input", privacy: .public)")
+      if let port = installed.withLock({ $0.port }) { CGEvent.tapEnable(tap: port, enable: true) }
       return Unmanaged.passUnretained(event)
     }
-    guard type == .keyDown, !Self.isSuppressed else { return Unmanaged.passUnretained(event) }
-
-    // Fast pre-filter: every configured combo requires a non-shift modifier — plain typing and
-    // shift-typing exit here before any defaults read.
-    let flags = nsFlags(event.flags)
-    guard !flags.isDisjoint(with: [.control, .option, .command]) else {
-      return Unmanaged.passUnretained(event)
-    }
-
-    let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
-    // Fixed precedence (allCases order): 快捷短语面板 → 划词菜单 → 提示词助手. The recorder rejects
-    // duplicates, so at most one slot matches; the order only keeps a stale duplicate deterministic.
-    let matched = OwlHotKeySlot.allCases.filter { $0 != .pinCandidate }.first { slot in
-      (slot.current?.carbonCombo)
-        .map { OwlHotKeyMatcher.matches($0, keyCode: keyCode, flags: flags) } ?? false
-    }
-    guard let matched else { return Unmanaged.passUnretained(event) }
-
-    guard OwlInstaller.currentInputSourceID()?.hasPrefix(OwlInstaller.inputSourcePrefix) == true else {
-      OwlHotKeyMatcher.log.notice("tap match passthrough: Owltype not current input source")
-      return Unmanaged.passUnretained(event)
-    }
+    guard type == .keyDown else { return Unmanaged.passUnretained(event) }
+    let (suppressed, owltypeIsCurrent) = Self.shared.withLock { ($0.suppressed, $0.owltypeIsCurrent) }
+    guard let matched = Self.slotToConsume(
+      keyCode: UInt16(event.getIntegerValueField(.keyboardEventKeycode)),
+      flags: nsFlags(event.flags), suppressed: suppressed, owltypeIsCurrent: owltypeIsCurrent,
+      combo: { $0.current?.carbonCombo })
+    else { return Unmanaged.passUnretained(event) }
 
     OwlHotKeyMatcher.log.notice("tap fired: \(String(describing: matched), privacy: .public)")
     DispatchQueue.main.async { [weak self] in

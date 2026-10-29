@@ -5,6 +5,31 @@ that the lesson is in place: which file to read, which command to run, what resu
 and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## A session event tap must not run on the main thread
+
+**A head-inserted `.defaultTap` holds every keyDown in the login session until its callback returns, so it gets its own thread and its callback reads no main-thread state.**
+
+- Reason: on 2026-10-29 typing froze in every app, including after switching to ABC, until the
+  installed e38405f process was killed (PID 82777, killed at 23:22). The Quick Send hotkey tap was
+  serviced on the main run loop. It had never been active before: every launch until 18:48 that
+  day logged `event tap not installed: accessibility not trusted`; the first `event tap installed`
+  is 18:48:19, after Accessibility was granted. What stalled the main thread is not known. In an
+  isolated repro (head `.defaultTap` on a stalled run loop, marked F19 keyDowns swallowed by a tail
+  tap), a 600 ms stall delayed every key by up to 594 ms, and a 1.2 s stall made WindowServer
+  disable the tap and drop 6 of 8 keys; the same tap on its own thread delivered 8 of 8 within 8 ms.
+  The timeout branch re-enabled the tap without logging, so Owltype's own log held no trace.
+- Prevention: `OwlHotKeyEventTap` runs the tap on the `im.owltype.hotkey-tap` thread, reads combos
+  from UserDefaults and "Owltype is current" from a lock-guarded flag that the main thread refreshes
+  on input-source change and `activateServer`, and logs `event tap re-enabled after timeout`.
+- Regression: `testEventTapConsumesOnlyAMatchedComboWhileOwltypeIsCurrent` and
+  `testEventTapFlagsAreSharedAcrossThreads` in
+  [OwlQuickSendPanelModelTests](tests/OwlQuickSendPanelModelTests.swift). Tap placement itself is
+  not unit-testable: the XCTest host has no Accessibility trust.
+- Scope: macOS 27, Accessibility granted. The tap's latency under a stalled main thread was
+  measured with the repro, not on the installed IME; the Quick Send hotkey was not retried live.
+- Verify (验证点): `/usr/bin/log show --last 1d --predicate 'subsystem == "im.owltype.inputmethod.Owltype" && category == "hotkey"'`
+  shows `event tap installed on its own thread` for the installed build; `grep -n CFRunLoopGetMain sources/UI/OwlQuickSendHotKey.swift` finds nothing.
+
 ## A real MCP client is not the one the helper tests imitate
 
 **Check the helper against a captured session from each client: Antigravity CLI speaks MCP 2026-07-28 without `initialize` and sends only flat tool arguments.**
