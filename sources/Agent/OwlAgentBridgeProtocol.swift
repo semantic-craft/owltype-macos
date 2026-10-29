@@ -222,7 +222,7 @@ enum OwlAgentBridgeProtocol {
     var effectiveTimeoutMs: Int { timeoutMs ?? OwlAgentBridgeProtocol.defaultDeliverTimeoutMs }
   }
 
-  enum TargetChangedReason: String, Codable, CaseIterable, Sendable {
+  enum TargetChangedReason: String, Codable, CaseIterable, Sendable, Error {
     case focusChanged = "focus_changed"
     case targetQuit = "target_quit"
     case secureInput = "secure_input"
