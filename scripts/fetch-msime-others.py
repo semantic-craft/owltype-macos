@@ -16,16 +16,17 @@ import urllib.request
 from pathlib import Path
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import msime_pin  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = ROOT / "data/owl-rime/msime/msime-others.db"
-SOURCE_URL = (
-    "https://github.com/metasequoiaime/msime-dictionary/releases/download/"
-    "dict-v2.0.24/msime-others.db"
-)
-SOURCE_SIZE = 1_314_816
-SOURCE_SHA256 = "9f3cae5b407038e0e4536c40582a0bc0feb732657f0ae2d38196374cede52f94"
-DATA_COMMIT = "71dc6f6cc7a451231ee29c0a39b39adbf2e04d32"
-BUILDER_COMMIT = "128a332cabc5fa42b1cf5f827033ad5697ff528b"
+PIN = msime_pin.load(ROOT)
+SOURCE_URL = PIN.url("msime-others.db")
+SOURCE_SIZE = PIN.files["msime-others.db"]["size"]
+SOURCE_SHA256 = PIN.files["msime-others.db"]["sha256"]
+DATA_COMMIT = PIN.data_commit
+BUILDER_COMMIT = PIN.builder_commit
 EXPECTED_ROWS = {"emoji": 1_935, "emoji_pinyin": 21_541, "kaomoji": 1_675, "kaomoji_catalog": 1_400}
 EXPECTED_ROW_HASHES = {
     "kaomoji": "31ecdb996b3d5dcd30d350d779651685fbc0d9d83578d846ac16c241b89b506f",
@@ -334,7 +335,7 @@ def main() -> None:
         print(f"FAIL: {error}", file=sys.stderr)
         raise SystemExit(1) from error
     print(
-        "source release dict-v2.0.24; "
+        f"source release {PIN.release}; "
         f"data commit {DATA_COMMIT}; builder commit {BUILDER_COMMIT}; "
         f"tables emoji, emoji_pinyin, kaomoji, kaomoji_catalog only; licensing {LICENSE_EXPRESSION}"
     )

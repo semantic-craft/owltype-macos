@@ -35,6 +35,8 @@
   "resources": {
     "release": "dict-v2.0.24",
     "manifest": "../data/msime-dictionary-manifest.json",
+    "manifestSha256": "5b656a5db35b4dcf804ce4348d8584c899d0012fe62bbbe3689204ddaba8722f",
+    "manifestSize": 4627,
     "sourceNotice": "../data/msime-resources-NOTICE.md"
   },
   "license": "GPL-3.0-only; dependency, model and data licenses remain separate."

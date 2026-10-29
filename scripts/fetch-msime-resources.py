@@ -14,12 +14,14 @@ import shutil
 import tempfile
 import urllib.request
 
+import msime_pin
 from resource_publish import publish_artifacts
 
 ROOT = Path(__file__).resolve().parents[1]
-RELEASE = 'dict-v2.0.24'
+PIN = msime_pin.load(ROOT)
+RELEASE = PIN.release
 BASE_URL = f'https://github.com/metasequoiaime/msime-dictionary/releases/download/{RELEASE}/'
-MANIFEST_SHA = '5b656a5db35b4dcf804ce4348d8584c899d0012fe62bbbe3689204ddaba8722f'
+MANIFEST_SHA = PIN.manifest_sha256
 PRODUCT_FILES = ('msime-pinyin.db', 'msime-wubi.db', 'msime-english.db', 'msime-bigram.bin',
                  'msime-trigram.bin', 'msime-scowl_Copyright.txt')
 
@@ -82,7 +84,7 @@ def main():
     parser.add_argument('--cache', type=Path, default=Path(os.environ.get('OWLTYPE_MSIME_RESOURCE_CACHE', '/tmp/owltype-msime-resources')))
     args = parser.parse_args()
     manifest_path = ROOT/'data/msime-dictionary-manifest.json'
-    verify(manifest_path, {'size':4627, 'sha256':MANIFEST_SHA})
+    verify(manifest_path, {'size':PIN.manifest_size, 'sha256':MANIFEST_SHA})
     manifest = json.loads(manifest_path.read_text())
     if manifest['licensing']['includes_unlicensed_inputs'] is not False:
         raise Failure('upstream set includes unlicensed inputs')
