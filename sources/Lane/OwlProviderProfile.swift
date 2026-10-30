@@ -222,7 +222,17 @@ struct OwlProviderProfile: Codable, Identifiable, Equatable, Sendable {
       "providerID": try c.decodeIfPresent(String.self, forKey: .providerID) as Any? ?? NSNull(),
       "secretName": try c.decodeIfPresent(String.self, forKey: .secretName) as Any? ?? NSNull(),
       "isDefault": try c.decodeIfPresent(Bool.self, forKey: .isDefault) as Any? ?? NSNull(),
-      "createdAt": try c.decodeIfPresent(Date.self, forKey: .createdAt)?.timeIntervalSinceReferenceDate as Any? ?? NSNull(),
+      "createdAt": {
+        if let doubleValue = try? c.decodeIfPresent(Double.self, forKey: .createdAt) { return doubleValue }
+        if let stringValue = try? c.decodeIfPresent(String.self, forKey: .createdAt),
+           let parsedDate = ISO8601DateFormatter().date(from: stringValue) {
+          return parsedDate.timeIntervalSinceReferenceDate
+        }
+        if let dateValue = try? c.decodeIfPresent(Date.self, forKey: .createdAt) {
+          return dateValue.timeIntervalSinceReferenceDate
+        }
+        return NSNull()
+      }(),
     ]
     struct Fields: Decodable {
       let id: String; let displayName: String; let kind: OwlProviderKind; let endpoint: URL

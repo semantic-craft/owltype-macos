@@ -467,13 +467,18 @@ fn dispatch(bytes: &[u8]) -> Value {
             legacy,
             pending,
             definitions,
-        } => json!(owl_app_core::template::parse(
-            &body,
-            plain,
-            legacy,
-            pending,
-            definitions
-        )),
+        } => {
+            if body.len() > 4 * 1024 * 1024 {
+                return error("invalid_request");
+            }
+            json!(owl_app_core::template::parse(
+                &body,
+                plain,
+                legacy,
+                pending,
+                definitions
+            ))
+        }
         Request::TemplateRender {
             parsed,
             values,
@@ -481,14 +486,21 @@ fn dispatch(bytes: &[u8]) -> Value {
             clipboard_text,
             allow_empty,
             temporal,
-        } => json!(owl_app_core::template::render(
-            &parsed,
-            &values,
-            &clipboard,
-            clipboard_text.as_deref(),
-            allow_empty,
-            &temporal
-        )),
+        } => {
+            if clipboard_text.as_ref().is_some_and(|c| c.len() > 4 * 1024 * 1024)
+                || values.values().any(|v| v.len() > 4 * 1024 * 1024)
+            {
+                return error("invalid_request");
+            }
+            json!(owl_app_core::template::render(
+                &parsed,
+                &values,
+                &clipboard,
+                clipboard_text.as_deref(),
+                allow_empty,
+                &temporal
+            ))
+        }
         Request::TemplateDatePlan {
             field,
             default_pattern,
@@ -968,14 +980,15 @@ pub unsafe extern "C" fn owl_app_session_call(
         {
             return error("invalid_request");
         }
-        // Library snapshots retain the storage ABI's size semantics. Other session
+        // Library snapshots retain the storage ABI's size semantics. Invocation
+        // events enforce the 4 MiB template payload boundary. Other session
         // events use the same request bound as the pure dispatcher.
-        if length > MAX_REQUEST
-            && !matches!(
-                unsafe { &*session },
-                owl_app_core::template_session::Session::Runtime(_)
-            )
-        {
+        let limit = match unsafe { &*session } {
+            owl_app_core::template_session::Session::Runtime(_) => usize::MAX,
+            owl_app_core::template_session::Session::Invocation(_) => 4 * 1024 * 1024,
+            _ => MAX_REQUEST,
+        };
+        if length > limit {
             return error("invalid_request");
         }
         let Ok(value) =

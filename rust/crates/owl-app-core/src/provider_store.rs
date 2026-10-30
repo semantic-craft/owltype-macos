@@ -189,6 +189,14 @@ fn defaults(mut all: Vec<Value>, preferred: Option<String>) -> Vec<Value> {
     }
     all
 }
+fn sanitize_profile<H: Host>(h: &mut H, mut p: Value) -> Result<Value> {
+    if let Some(date) = p.get("createdAt").filter(|v| !v.is_null()) {
+        if date.is_string() {
+            p["createdAt"] = effect(h, "date_parse", json!({"text": date}))?;
+        }
+    }
+    Ok(p)
+}
 fn mutate<H: Host>(h: &mut H, op: &str, a: &Value) -> Result<Vec<Value>> {
     let mut all = load(h);
     let p = &a["profile"];
@@ -196,23 +204,25 @@ fn mutate<H: Host>(h: &mut H, op: &str, a: &Value) -> Result<Vec<Value>> {
     let mut preferred = None;
     match op {
         "add" => {
-            all.retain(|p| {
+            let p = sanitize_profile(h, p.clone())?;
+            all.retain(|item| {
                 !a["replacing"]
                     .as_array()
-                    .is_some_and(|ids| ids.contains(&p["id"]))
+                    .is_some_and(|ids| ids.contains(&item["id"]))
             });
-            if p["isDefault"] == true || !all.iter().any(|p| p["isDefault"] == true) {
-                preferred = Some(s(p, "id").into());
+            if p["isDefault"] == true || !all.iter().any(|item| item["isDefault"] == true) {
+                preferred = Some(s(&p, "id").into());
             }
-            all.push(p.clone());
+            all.push(p);
         }
         "update" => {
+            let p = sanitize_profile(h, p.clone())?;
             let Some(i) = all.iter().position(|v| v["id"] == p["id"]) else {
-                return Err(format!("provider_notFound:{}", s(p, "id")));
+                return Err(format!("provider_notFound:{}", s(&p, "id")));
             };
             all[i] = p.clone();
             if p["isDefault"] == true {
-                preferred = Some(s(p, "id").into());
+                preferred = Some(s(&p, "id").into());
             }
         }
         "batch" => {
@@ -221,11 +231,12 @@ fn mutate<H: Host>(h: &mut H, op: &str, a: &Value) -> Result<Vec<Value>> {
                 .find(|p| p["isDefault"] == true)
                 .map(|p| s(p, "id").into());
             let updates = a["profiles"].as_array().ok_or("invalid_profiles")?;
-            for p in updates {
+            for item in updates {
+                let p = sanitize_profile(h, item.clone())?;
                 let Some(i) = all.iter().position(|v| v["id"] == p["id"]) else {
-                    return Err(format!("provider_notFound:{}", s(p, "id")));
+                    return Err(format!("provider_notFound:{}", s(&p, "id")));
                 };
-                all[i] = p.clone();
+                all[i] = p;
             }
             if updates.is_empty() {
                 return Ok(all);
