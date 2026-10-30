@@ -119,8 +119,17 @@ final class OwlAgentAccess: NSObject, OwlAgentBridgeService {
 
   private func answer(_ call: Wire.Call, from client: OwlAgentBridgeClient, cancellation: OwlAgentBridgeCancellation,
                       reply: @escaping (OwlAgentBridgeReply) -> Void) {
-    guard OwlAgentAccessPreferences.isEnabled(defaults) else {
-      return reply(.failure(.init(code: .agentAccessDisabled, message: "Agent access is turned off in Owltype settings")))
+    struct AccessCheckResult: Decodable {
+      let allowed: Bool
+      let error: Wire.ErrorObject?
+    }
+    let check: AccessCheckResult = OwlAppCore.required([
+      "operation": "agent_rule",
+      "rule": "check_access",
+      "args": ["enabled": OwlAgentAccessPreferences.isEnabled(defaults)]
+    ])
+    guard check.allowed else {
+      return reply(.failure(check.error ?? .init(code: .agentAccessDisabled, message: "Agent access is turned off in Owltype settings")))
     }
     switch call {
     case .owltypeStatus:

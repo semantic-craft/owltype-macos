@@ -552,7 +552,8 @@ pub fn render_template(
 // Domain 3: Delivery State Machine & Outcome Cache
 // ============================================================================
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "outcome", rename_all = "snake_case")]
 pub enum TemplateHostDeliveryOutcome {
     Confirmed,
     ConfirmedWithCursor(CursorPositionOutcome),
@@ -561,14 +562,16 @@ pub enum TemplateHostDeliveryOutcome {
     NotAttempted(DeliveryRejectionReason),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum CursorPositionOutcome {
     Positioned,
     LeftAtEnd,
     PositionUnverified,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum DeliveryRejectionReason {
     MissingHost,
     FocusNotRestored,
@@ -722,14 +725,21 @@ impl OutcomeCache {
 // Delivery Coordinator State Machine
 // ----------------------------------------------------------------------------
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeliveryWaiter {
+    pub id: u64,
+    pub replayed: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TargetInfo {
     pub process_id: i32,
     pub application_name: String,
     pub is_terminated: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "phase", rename_all = "snake_case")]
 pub enum DeliveryPhase {
     WaitingForTarget,
     AwaitingInputSession { process_id: i32, polls_left: u32 },
@@ -739,24 +749,29 @@ pub enum DeliveryPhase {
     Decided,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PendingDelivery {
     pub request_id: String,
     pub text: String,
     pub ancestors: BTreeSet<i32>,
     pub target: Option<TargetInfo>,
     pub phase: DeliveryPhase,
-    pub waiters: Vec<u64>, // waiter IDs
+    pub waiters: Vec<DeliveryWaiter>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "event", rename_all = "snake_case")]
 pub enum DeliveryEvent {
     SubmitRequest {
         request_id: String,
         text: String,
+        #[serde(default)]
         timeout_ms: Option<u64>,
+        #[serde(default)]
+        agent_name: String,
         client_pid: i32,
         ancestors: BTreeSet<i32>,
+        #[serde(default)]
         frontmost_pid: Option<i32>,
         is_secure_input: bool,
         initial_bind: Result<TargetInfo, TargetChangedReason>,
@@ -771,6 +786,7 @@ pub enum DeliveryEvent {
     },
     UserDecision {
         confirmed: bool,
+        #[serde(default)]
         frontmost_pid: Option<i32>,
         is_secure_input: bool,
         rebind_if_needed: Result<TargetInfo, TargetChangedReason>,
@@ -781,6 +797,7 @@ pub enum DeliveryEvent {
         own_pid: i32,
     },
     PollFired {
+        #[serde(default)]
         frontmost_pid: Option<i32>,
         bind_result: Result<TargetInfo, TargetChangedReason>,
     },
@@ -791,12 +808,16 @@ pub enum DeliveryEvent {
         target_terminated: bool,
     },
     HostWriteCompleted {
-        outcome: TemplateHostDeliveryOutcome,
+        #[serde(default)]
+        outcome: Option<TemplateHostDeliveryOutcome>,
+        #[serde(default)]
+        outcome_code: Option<String>,
         target_terminated: bool,
     },
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "action", rename_all = "snake_case")]
 pub enum DeliveryAction {
     ShowPreview {
         text: String,
@@ -818,6 +839,10 @@ pub enum DeliveryAction {
     PerformWrite {
         text: String,
         target_pid: i32,
+    },
+    CompleteWaiter {
+        waiter_id: u64,
+        result: DeliverResult,
     },
     CompleteWaiters {
         waiters: Vec<u64>,
@@ -851,6 +876,7 @@ impl DeliveryCoordinatorCore {
                 request_id,
                 text,
                 timeout_ms,
+                agent_name,
                 ancestors,
                 frontmost_pid,
                 is_secure_input,
@@ -862,8 +888,8 @@ impl DeliveryCoordinatorCore {
 
                 // 1. Check idempotency in outcome cache
                 if let Some(status) = self.outcomes.get(&request_id, now_secs) {
-                    actions.push(DeliveryAction::CompleteWaiters {
-                        waiters: vec![waiter_id],
+                    actions.push(DeliveryAction::CompleteWaiter {
+                        waiter_id,
                         result: DeliverResult::from_status(request_id, status, true),
                     });
                     return actions;
@@ -872,7 +898,10 @@ impl DeliveryCoordinatorCore {
                 // 2. Check busy state
                 if let Some(ref mut pending) = self.pending {
                     if pending.request_id == request_id {
-                        pending.waiters.push(waiter_id);
+                        pending.waiters.push(DeliveryWaiter {
+                            id: waiter_id,
+                            replayed: true,
+                        });
                     } else {
                         actions.push(DeliveryAction::RejectWaiter {
                             waiter_id,
@@ -896,11 +925,18 @@ impl DeliveryCoordinatorCore {
                     ancestors: ancestors.clone(),
                     target: None,
                     phase: DeliveryPhase::WaitingForTarget,
-                    waiters: vec![waiter_id],
+                    waiters: vec![DeliveryWaiter {
+                        id: waiter_id,
+                        replayed: false,
+                    }],
                 };
 
                 actions.push(DeliveryAction::ScheduleTimeout {
                     timeout_seconds: timeout_sec,
+                });
+                actions.push(DeliveryAction::ShowPreview {
+                    text: text.clone(),
+                    agent_name,
                 });
 
                 // Check terminal ancestor vs initial bind
@@ -950,13 +986,16 @@ impl DeliveryCoordinatorCore {
             } => {
                 if let Some(ref mut pending) = self.pending {
                     if pending.request_id == request_id {
-                        pending.waiters.push(waiter_id);
+                        pending.waiters.push(DeliveryWaiter {
+                            id: waiter_id,
+                            replayed: true,
+                        });
                         return actions;
                     }
                 }
                 if let Some(status) = self.outcomes.get(&request_id, now_secs) {
-                    actions.push(DeliveryAction::CompleteWaiters {
-                        waiters: vec![waiter_id],
+                    actions.push(DeliveryAction::CompleteWaiter {
+                        waiter_id,
                         result: DeliverResult::from_status(request_id, status, true),
                     });
                 }
@@ -964,7 +1003,7 @@ impl DeliveryCoordinatorCore {
 
             DeliveryEvent::CancelWaiter { waiter_id } => {
                 if let Some(ref mut pending) = self.pending {
-                    pending.waiters.retain(|id| *id != waiter_id);
+                    pending.waiters.retain(|w| w.id != waiter_id);
                     if pending.waiters.is_empty()
                         && !matches!(pending.phase, DeliveryPhase::Writing { .. })
                     {
@@ -1184,10 +1223,17 @@ impl DeliveryCoordinatorCore {
 
             DeliveryEvent::HostWriteCompleted {
                 outcome,
+                outcome_code,
                 target_terminated,
             } => {
                 if let Some(pending) = self.pending.clone() {
-                    let status = map_host_delivery_outcome(&outcome, target_terminated);
+                    let status = if let Some(code) = outcome_code.as_deref() {
+                        map_outcome_code(code, target_terminated)
+                    } else if let Some(out) = outcome {
+                        map_host_delivery_outcome(&out, target_terminated)
+                    } else {
+                        DeliverStatus::Cancelled
+                    };
                     self.finish(&mut actions, &pending, status, now_secs);
                 }
             }
@@ -1208,11 +1254,16 @@ impl DeliveryCoordinatorCore {
         self.outcomes
             .store(request.request_id.clone(), status.clone(), now_secs);
 
-        let result = DeliverResult::from_status(request.request_id.clone(), status, false);
-        actions.push(DeliveryAction::CompleteWaiters {
-            waiters: request.waiters.clone(),
-            result,
-        });
+        for waiter in &request.waiters {
+            actions.push(DeliveryAction::CompleteWaiter {
+                waiter_id: waiter.id,
+                result: DeliverResult::from_status(
+                    request.request_id.clone(),
+                    status.clone(),
+                    waiter.replayed,
+                ),
+            });
+        }
     }
 }
 
@@ -1502,13 +1553,67 @@ pub fn rule(rule: &str, args: Value) -> Result<Value, String> {
             let at_iso8601 = args["at_iso8601"].as_str().unwrap_or("");
 
             let outcome = classify_call_outcome(reply_status, reply_error_code);
-            let client = format!("{client_name} {client_version}");
+            let client = if client_name.is_empty() {
+                "".to_string()
+            } else if client_version.is_empty() {
+                client_name.to_string()
+            } else {
+                format!("{client_name} {client_version}")
+            };
 
             Ok(json!({
                 "at": at_iso8601,
                 "client": client,
                 "method": method,
                 "outcome": outcome
+            }))
+        }
+
+        "agent_call_log_append" | "call_log_append" => {
+            let limit = args["limit"].as_u64().unwrap_or(CALL_LOG_LIMIT as u64) as usize;
+            let mut core = CallLogCore::new(limit);
+            if let Some(records_val) = args.get("records").and_then(|v| v.as_array()) {
+                core.records = serde_json::from_value(Value::Array(records_val.clone())).unwrap_or_default();
+            }
+            let client_name = args["client_name"].as_str().unwrap_or("");
+            let client_version = args["client_version"].as_str().unwrap_or("");
+            let method = args["method"].as_str().unwrap_or("");
+            let reply_status = args["reply_status"].as_str();
+            let reply_error_code = args["reply_error_code"].as_str();
+            let at_iso8601 = args["at_iso8601"].as_str().unwrap_or("");
+
+            let outcome = classify_call_outcome(reply_status, reply_error_code);
+            let client = if client_name.is_empty() {
+                "".to_string()
+            } else if client_version.is_empty() {
+                client_name.to_string()
+            } else {
+                format!("{client_name} {client_version}")
+            };
+
+            let entry = CallRecord {
+                at: at_iso8601.to_string(),
+                client,
+                method: method.to_string(),
+                outcome,
+            };
+            core.record(entry.clone());
+
+            Ok(json!({
+                "records": core.records,
+                "entry": entry,
+            }))
+        }
+
+        "delivery_constants" => {
+            Ok(json!({
+                "outcome_lifetime": OUTCOME_LIFETIME_SECS as f64,
+                "stored_outcome_limit": STORED_OUTCOME_LIMIT,
+                "bind_polls": BIND_POLLS,
+                "bind_poll_interval": BIND_POLL_INTERVAL_SECS,
+                "slow_bind_poll_interval": SLOW_BIND_POLL_INTERVAL_SECS,
+                "leave_settle": LEAVE_SETTLE_SECS,
+                "default_timeout_ms": DEFAULT_DELIVER_TIMEOUT_MS,
             }))
         }
 
@@ -1531,8 +1636,14 @@ pub fn rule(rule: &str, args: Value) -> Result<Value, String> {
         "check_access" => {
             let enabled = args["enabled"].as_bool().unwrap_or(false);
             match check_access(enabled) {
-                Ok(()) => Ok(json!({ "allowed": true })),
-                Err(err) => Err(err.message),
+                Ok(()) => Ok(json!({ "allowed": true, "error": Value::Null })),
+                Err(err) => Ok(json!({
+                    "allowed": false,
+                    "error": {
+                        "code": err.code.code(),
+                        "message": err.message
+                    }
+                })),
             }
         }
 
@@ -1755,6 +1866,7 @@ mod tests {
                 request_id: "req-1".to_string(),
                 text: "Text to write".to_string(),
                 timeout_ms: Some(60_000),
+                agent_name: "grok".to_string(),
                 client_pid: 10,
                 ancestors: ancestors.clone(),
                 frontmost_pid: Some(20),
@@ -1772,6 +1884,10 @@ mod tests {
         assert!(actions.contains(&DeliveryAction::ScheduleTimeout {
             timeout_seconds: 60.0
         }));
+        assert!(actions.contains(&DeliveryAction::ShowPreview {
+            text: "Text to write".to_string(),
+            agent_name: "grok".to_string(),
+        }));
         assert!(actions.contains(&DeliveryAction::ShowTarget {
             name: Some("Notes".to_string())
         }));
@@ -1782,6 +1898,7 @@ mod tests {
                 request_id: "req-2".to_string(),
                 text: "Other".to_string(),
                 timeout_ms: None,
+                agent_name: "grok".to_string(),
                 client_pid: 10,
                 ancestors: ancestors.clone(),
                 frontmost_pid: Some(20),
@@ -1827,14 +1944,15 @@ mod tests {
         // 4. Host write completed -> delivers
         let complete_actions = coord.handle_event(
             DeliveryEvent::HostWriteCompleted {
-                outcome: TemplateHostDeliveryOutcome::Confirmed,
+                outcome: Some(TemplateHostDeliveryOutcome::Confirmed),
+                outcome_code: None,
                 target_terminated: false,
             },
             112,
         );
         assert!(complete_actions.contains(&DeliveryAction::DismissPreview));
-        assert!(complete_actions.contains(&DeliveryAction::CompleteWaiters {
-            waiters: vec![1],
+        assert!(complete_actions.contains(&DeliveryAction::CompleteWaiter {
+            waiter_id: 1,
             result: DeliverResult::Delivered {
                 request_id: "req-1".to_string(),
                 verified: true,
@@ -1848,6 +1966,7 @@ mod tests {
                 request_id: "req-1".to_string(),
                 text: "Text to write".to_string(),
                 timeout_ms: None,
+                agent_name: "grok".to_string(),
                 client_pid: 10,
                 ancestors,
                 frontmost_pid: Some(20),
@@ -1863,8 +1982,8 @@ mod tests {
         );
         assert_eq!(
             replay_actions,
-            vec![DeliveryAction::CompleteWaiters {
-                waiters: vec![3],
+            vec![DeliveryAction::CompleteWaiter {
+                waiter_id: 3,
                 result: DeliverResult::Delivered {
                     request_id: "req-1".to_string(),
                     verified: true,
@@ -1872,6 +1991,101 @@ mod tests {
                 },
             }]
         );
+    }
+
+    #[test]
+    fn test_delivery_coordinator_replayed_waiters() {
+        let mut coord = DeliveryCoordinatorCore::new();
+        let mut ancestors = BTreeSet::new();
+        ancestors.insert(10);
+
+        // 1. Submit request 1 -> waiter 1
+        let a1 = coord.handle_event(
+            DeliveryEvent::SubmitRequest {
+                request_id: "req-1".to_string(),
+                text: "Hello".to_string(),
+                timeout_ms: None,
+                agent_name: "grok".to_string(),
+                client_pid: 10,
+                ancestors: ancestors.clone(),
+                frontmost_pid: Some(20),
+                is_secure_input: false,
+                initial_bind: Ok(TargetInfo {
+                    process_id: 20,
+                    application_name: "Notes".to_string(),
+                    is_terminated: false,
+                }),
+                waiter_id: 1,
+            },
+            100,
+        );
+        assert!(a1.contains(&DeliveryAction::ShowPreview {
+            text: "Hello".to_string(),
+            agent_name: "grok".to_string(),
+        }));
+
+        // 2. Submit same request 1 while pending -> waiter 2 (concurrent duplicate)
+        let a2 = coord.handle_event(
+            DeliveryEvent::SubmitRequest {
+                request_id: "req-1".to_string(),
+                text: "Hello".to_string(),
+                timeout_ms: None,
+                agent_name: "grok".to_string(),
+                client_pid: 10,
+                ancestors: ancestors.clone(),
+                frontmost_pid: Some(20),
+                is_secure_input: false,
+                initial_bind: Ok(TargetInfo {
+                    process_id: 20,
+                    application_name: "Notes".to_string(),
+                    is_terminated: false,
+                }),
+                waiter_id: 2,
+            },
+            105,
+        );
+        assert!(a2.is_empty(), "concurrent duplicate does not show second preview");
+
+        // 3. User confirms
+        coord.handle_event(
+            DeliveryEvent::UserDecision {
+                confirmed: true,
+                frontmost_pid: Some(20),
+                is_secure_input: false,
+                rebind_if_needed: Ok(TargetInfo {
+                    process_id: 20,
+                    application_name: "Notes".to_string(),
+                    is_terminated: false,
+                }),
+            },
+            110,
+        );
+
+        // 4. Host write completed -> completes both waiters, waiter 1 replayed=false, waiter 2 replayed=true!
+        let complete = coord.handle_event(
+            DeliveryEvent::HostWriteCompleted {
+                outcome: Some(TemplateHostDeliveryOutcome::Confirmed),
+                outcome_code: None,
+                target_terminated: false,
+            },
+            112,
+        );
+        assert!(complete.contains(&DeliveryAction::CompleteWaiter {
+            waiter_id: 1,
+            result: DeliverResult::Delivered {
+                request_id: "req-1".to_string(),
+                verified: true,
+                replayed: false,
+            },
+        }));
+        assert!(complete.contains(&DeliveryAction::CompleteWaiter {
+            waiter_id: 2,
+            result: DeliverResult::Delivered {
+                request_id: "req-1".to_string(),
+                verified: true,
+                replayed: true,
+            },
+        }));
     }
 
     #[test]
@@ -1953,5 +2167,37 @@ mod tests {
         // outcome_title
         let title = rule("outcome_title", json!({"outcome": "delivered"})).unwrap();
         assert_eq!(title["title"], "已写入");
+
+        // delivery_constants
+        let consts = rule("delivery_constants", json!({})).unwrap();
+        assert_eq!(consts["outcome_lifetime"], 600.0);
+        assert_eq!(consts["stored_outcome_limit"], 256);
+
+        // check_access
+        let acc_ok = rule("check_access", json!({"enabled": true})).unwrap();
+        assert_eq!(acc_ok["allowed"], true);
+        let acc_err = rule("check_access", json!({"enabled": false})).unwrap();
+        assert_eq!(acc_err["allowed"], false);
+        assert_eq!(acc_err["error"]["code"], -32003);
+
+        // agent_call_log_append
+        let log_res = rule(
+            "agent_call_log_append",
+            json!({
+                "records": [
+                    {"at": "2026-10-30T10:00:00Z", "client": "c1", "method": "m1", "outcome": "ok"}
+                ],
+                "client_name": "grok",
+                "client_version": "1.0",
+                "method": "deliver_text",
+                "reply_status": "delivered",
+                "at_iso8601": "2026-10-30T10:01:00Z",
+                "limit": 2
+            }),
+        )
+        .unwrap();
+        assert_eq!(log_res["records"].as_array().unwrap().len(), 2);
+        assert_eq!(log_res["entry"]["client"], "grok 1.0");
+        assert_eq!(log_res["entry"]["outcome"], "delivered");
     }
 }

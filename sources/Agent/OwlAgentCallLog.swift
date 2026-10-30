@@ -53,33 +53,28 @@ final class OwlAgentCallLog: @unchecked Sendable {
       replyStatus = nil
       replyErrorCode = error.code.name
     }
-    struct FormattedRecord: Decodable {
-      let at: String
-      let client: String
-      let method: String
-      let outcome: String
-    }
-    let formatted: FormattedRecord = OwlAppCore.required([
-      "operation": "agent_rule",
-      "rule": "call_log_record",
-      "args": [
-        "client_name": component.name,
-        "client_version": component.version,
-        "method": call.method.rawValue,
-        "reply_status": replyStatus as Any? ?? NSNull(),
-        "reply_error_code": replyErrorCode as Any? ?? NSNull(),
-        "at_iso8601": ISO8601DateFormatter().string(from: at)
-      ]
-    ])
-    let entry = OwlAgentCallRecord(at: at, client: formatted.client,
-                                   method: formatted.method, outcome: formatted.outcome)
-    // Enqueue the write under the lock, so writes reach the disk in the order of the changes.
     lock.withLock {
-      var next = loadedLocked()
-      next.insert(entry, at: 0)
-      if next.count > Self.limit { next.removeLast(next.count - Self.limit) }
-      cached = next
-      persist(next)
+      let current = loadedLocked()
+      struct AppendResult: Decodable {
+        let records: [OwlAgentCallRecord]
+        let entry: OwlAgentCallRecord
+      }
+      let result: AppendResult = OwlAppCore.required([
+        "operation": "agent_rule",
+        "rule": "agent_call_log_append",
+        "args": [
+          "records": OwlAppCore.payload(current),
+          "client_name": component.name,
+          "client_version": component.version,
+          "method": call.method.rawValue,
+          "reply_status": replyStatus as Any? ?? NSNull(),
+          "reply_error_code": replyErrorCode as Any? ?? NSNull(),
+          "at_iso8601": ISO8601DateFormatter().string(from: at),
+          "limit": Self.limit
+        ]
+      ])
+      cached = result.records
+      persist(result.records)
     }
   }
 

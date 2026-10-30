@@ -24,7 +24,9 @@ enum OwlAppCore {
     guard let response else { throw Failure(code: "missing_response") }
     defer { owl_app_string_free(response) }
     let data = Data(bytes: response, count: strlen(response))
-    let decoded = try JSONDecoder().decode(OwlAppCoreResponse<Value>.self, from: data)
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    let decoded = try decoder.decode(OwlAppCoreResponse<Value>.self, from: data)
     guard decoded.isOK, let value = decoded.value else {
       throw Failure(code: decoded.error ?? "invalid_response")
     }
@@ -45,14 +47,16 @@ enum OwlAppCore {
 
 extension OwlAppCore {
   static func payload<Value: Encodable>(_ value: Value) -> Any {
-    do { return try JSONSerialization.jsonObject(with: JSONEncoder().encode(value)) }
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    do { return try JSONSerialization.jsonObject(with: encoder.encode(value)) }
     catch { preconditionFailure("Invalid native App core payload") }
   }
 
   static let defaultKeyboard: EffectiveKeyboard = required(["operation": "keyboard_effective", "raw": [:]])
 
   static func required<Value: Decodable>(_ request: [String: Any]) -> Value {
-    do { return try call(request) } catch { preconditionFailure("Incompatible Owltype App core ABI") }
+    do { return try call(request) } catch { preconditionFailure("Incompatible Owltype App core ABI: \(error)") }
   }
 
   struct KeyboardSwitch: Decodable {

@@ -31,6 +31,7 @@ enum Request {
     },
     AgentRule {
         rule: String,
+        #[serde(default)]
         args: Value,
     },
     TemplateReady {

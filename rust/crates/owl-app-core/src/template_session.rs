@@ -26,6 +26,7 @@ pub enum Session {
     Invocation(Box<Invocation>),
     Index(Vec<AutomaticNode>),
     Recognizer { buffer: String, path: Vec<usize> },
+    AgentDelivery(crate::agent::DeliveryCoordinatorCore),
 }
 impl Session {
     pub fn create(kind: &str, args: Value) -> Result<Self, String> {
@@ -63,6 +64,7 @@ impl Session {
             ))),
             "focus" => Ok(Self::Focus(crate::host_delivery::Focus::default())),
             "delivery" => Ok(Self::Delivery(crate::host_delivery::Delivery::new(args))),
+            "agentDelivery" => Ok(Self::AgentDelivery(crate::agent::DeliveryCoordinatorCore::new())),
             "runtime" => Ok(Self::Runtime(Runtime::default())),
             "binding" => Ok(Self::Binding {
                 expected: expected_binding(args),
@@ -154,6 +156,18 @@ impl Session {
             },
             Self::ProviderStream(stream) => stream.event(event, args),
             Self::Delivery(delivery) => delivery.event(event, args),
+            Self::AgentDelivery(coord) => match event {
+                "transition" | "event" => {
+                    let delivery_event: crate::agent::DeliveryEvent =
+                        serde_json::from_value(args["event"].clone())
+                            .map_err(|e| format!("invalid_delivery_event: {e}"))?;
+                    let now_secs = args["now_secs"].as_u64().unwrap_or(0);
+                    let actions = coord.handle_event(delivery_event, now_secs);
+                    serde_json::to_value(&actions).map_err(|e| e.to_string())
+                }
+                "is_waiting" => Ok(json!(coord.pending.is_some())),
+                _ => Err("invalid_event".into()),
+            },
             Self::Focus(focus) => focus.event(event, args),
             Self::Runtime(runtime) => runtime.event(event, args),
             Self::Binding { expected, valid } => {
