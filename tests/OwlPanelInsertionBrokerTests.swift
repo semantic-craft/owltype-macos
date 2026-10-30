@@ -142,6 +142,19 @@ final class OwlPanelInsertionBrokerTests: XCTestCase {
     XCTAssertEqual(writes, 1)
     XCTAssertEqual(invocation.outcome, .attemptedUnverified)
   }
+  func testCancellationDuringHostReadinessDoesNotDispatch() {
+    var pending = true
+    var writes = 0
+    let broker = OwlPanelInsertionBroker(captureFrontmost: {
+      .init(restore: {}, isRestored: { true })
+    })
+    broker.capture()
+    broker.restoreAndDeliver(.init(text: "retained"), host: { _, _ in writes += 1 },
+      isHostReady: { pending = false; return true }, isPending: { pending },
+      completion: { _ in XCTFail("cancelled request has no completion") })
+    XCTAssertEqual(writes, 0)
+  }
+
   func testAppActivationWaitsForOriginalFieldReadiness() {
     var queue: [() -> Void] = []
     var fieldReady = false

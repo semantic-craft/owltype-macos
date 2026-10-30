@@ -158,6 +158,14 @@ extension OwlInputController {
   /// 提示词助手热键（OwlHotKeySlot.promptAssistant）传 .prompt 直达提示词页；状态菜单 / 旧
   /// 热键仍落在短语页。两处共用同一面板与同一 capture→restore 插入链路。
   func showOwltypePromptPicker(initialSegment: OwlPickerSegment) {
+    if isHandlingKeyEvent {
+      let generation = templateHostGeneration
+      DispatchQueue.main.async { [weak self] in
+        guard let self, self.templateHostGeneration == generation else { return }
+        self.showOwltypePromptPicker(initialSegment: initialSegment)
+      }
+      return
+    }
     OwlLatencyTrace.event("button.open.quickSend")
     let client = self.client
     let target = OwlTemplateHostDelivery(controller: self, client: client)

@@ -3,6 +3,8 @@ use crate::template_library::{automatic_index, AutomaticNode, Entry, Expansion};
 use serde_json::{json, Value};
 
 pub enum Session {
+    Delivery(crate::host_delivery::Delivery),
+    Focus(crate::host_delivery::Focus),
     Runtime(Runtime),
     Binding { expected: Value, valid: bool },
     Invocation(Box<Invocation>),
@@ -12,6 +14,8 @@ pub enum Session {
 impl Session {
     pub fn create(kind: &str, args: Value) -> Result<Self, String> {
         match kind {
+            "focus" => Ok(Self::Focus(crate::host_delivery::Focus::default())),
+            "delivery" => Ok(Self::Delivery(crate::host_delivery::Delivery::new(args))),
             "runtime" => Ok(Self::Runtime(Runtime::default())),
             "binding" => Ok(Self::Binding {
                 expected: expected_binding(args),
@@ -35,6 +39,8 @@ impl Session {
         index: Option<&Session>,
     ) -> Result<Value, String> {
         match self {
+            Self::Delivery(delivery) => delivery.event(event, args),
+            Self::Focus(focus) => focus.event(event, args),
             Self::Runtime(runtime) => runtime.event(event, args),
             Self::Binding { expected, valid } => {
                 if event != "valid" {
@@ -474,6 +480,22 @@ pub fn rule(operation: &str, args: Value) -> Value {
         }
     };
     match operation {
+        "ax_fallback" => json!(
+            args["selected"] == "deniedChromiumClient"
+                && args["surrounding"] == "deniedChromiumClient"
+        ),
+        "committed_observe" => json!(
+            args["allowed"] == true
+                && args["axFallback"] == true
+                && args["engineValid"] == true
+                && args["input"] == ""
+                && args["preedit"] == ""
+        ),
+        "committed_original" => json!(format!(
+            "{}{}",
+            args["trigger"].as_str().unwrap_or(""),
+            args["delimiter"].as_str().unwrap_or("")
+        )),
         "engine_idle" => json!(
             args["valid"] == true
                 && args["input"] == ""
