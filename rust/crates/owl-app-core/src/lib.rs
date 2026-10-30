@@ -105,3 +105,5 @@ pub mod resource_catalog;
 pub mod resource_lifecycle;
 
 pub mod client_capability;
+
+pub mod agent;

@@ -29,6 +29,10 @@ enum Request {
         rule: String,
         args: Value,
     },
+    AgentRule {
+        rule: String,
+        args: Value,
+    },
     TemplateReady {
         severities: Vec<String>,
         missing_count: usize,
@@ -155,6 +159,10 @@ fn dispatch(bytes: &[u8]) -> Value {
         Request::TemplateSessionRule { rule, args } => {
             owl_app_core::template_session::rule(&rule, args)
         }
+        Request::AgentRule { rule, args } => match owl_app_core::agent::rule(&rule, args) {
+            Ok(value) => value,
+            Err(code) => return error(&code),
+        },
         Request::TemplateReady {
             severities,
             missing_count,
@@ -402,6 +410,22 @@ mod tests {
         for _ in 0..100 {
             assert_eq!(call(1, br#"{"operation":"initial_ascii_mode","bundle_id":"editor","english_bundle_ids":["editor"],"default_ascii":false}"#)["value"], true);
         }
+    }
+    #[test]
+    fn agent_rules_dispatch_and_return_expected_results() {
+        let res = call(
+            1,
+            br#"{"operation":"agent_rule","rule":"outcome_title","args":{"outcome":"delivered"}}"#,
+        );
+        assert_eq!(res["ok"], true);
+        assert_eq!(res["value"]["title"], "已写入");
+
+        let err = call(
+            1,
+            br#"{"operation":"agent_rule","rule":"unknown_rule_xyz","args":{}}"#,
+        );
+        assert_eq!(err["ok"], false);
+        assert_eq!(err["error"], "unknown_agent_rule:unknown_rule_xyz");
     }
 }
 

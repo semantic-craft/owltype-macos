@@ -212,11 +212,21 @@ enum OwlAgentBridgeProtocol {
     var timeoutMs: Int?
 
     var invalidField: String? {
-      let allowed = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_:".utf8)
-      if !(1...128).contains(requestId.utf8.count) || !requestId.utf8.allSatisfy(allowed.contains) { return "requestId" }
-      if text.isEmpty || text.unicodeScalars.count > OwlAgentBridgeProtocol.maxDeliverCharacters { return "text" }
-      if let timeoutMs, !OwlAgentBridgeProtocol.deliverTimeoutRangeMs.contains(timeoutMs) { return "timeoutMs" }
-      return nil
+      struct ValidationResult: Decodable {
+        let valid: Bool
+        let invalid_field: String?
+      }
+      let args: [String: Any] = [
+        "request_id": requestId,
+        "text": text,
+        "timeout_ms": timeoutMs as Any? ?? NSNull()
+      ]
+      let result: ValidationResult = OwlAppCore.required([
+        "operation": "agent_rule",
+        "rule": "delivery_validate_params",
+        "args": args
+      ])
+      return result.invalid_field
     }
 
     var effectiveTimeoutMs: Int { timeoutMs ?? OwlAgentBridgeProtocol.defaultDeliverTimeoutMs }

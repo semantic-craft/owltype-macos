@@ -129,11 +129,19 @@ final class OwlAgentAccess: NSObject, OwlAgentBridgeService {
       DispatchQueue.main.async {
         let snapshot = self.inputSnapshot()
         let name = OwlRustSchemaMap.supportedSchemas.first { $0.id == snapshot.schemaID }?.name ?? snapshot.schemaID
-        let status = Wire.Status(appVersion: self.appBuild.version, appBuild: self.appBuild.build,
-                              resourceGeneration: generation,
-                              inputSchema: Wire.InputSchema(id: snapshot.schemaID, name: name),
-                              inputMode: snapshot.asciiMode ? .english : .chinese,
-                              exposedTemplateCount: exposedCount)
+        let status: Wire.Status = OwlAppCore.required([
+          "operation": "agent_rule",
+          "rule": "status",
+          "args": [
+            "app_version": self.appBuild.version,
+            "app_build": self.appBuild.build,
+            "resource_generation": generation,
+            "schema_id": snapshot.schemaID,
+            "schema_name": name,
+            "ascii_mode": snapshot.asciiMode,
+            "exposed_template_count": exposedCount
+          ]
+        ])
         reply(.success(OwlJSONValue(encoding: status)))
       }
     case .templatesList, .templateGet, .templateRender:

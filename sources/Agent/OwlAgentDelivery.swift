@@ -242,15 +242,37 @@ final class OwlAgentDeliveryCoordinator {
 
   /// The contract's four statuses from the template delivery's outcome.
   static func status(for outcome: OwlTemplateDeliveryOutcome, targetQuit: Bool) -> Wire.DeliverStatus {
+    let outcomeCode: String
     switch outcome {
-    case .confirmed, .confirmedWithCursor: return .delivered(verified: true)
-    case .attemptedUnverified, .originalPreservationUnverified: return .delivered(verified: false)
-    case .notAttempted(.secureInput): return .targetChanged(.secureInput)
-    case .notAttempted(.unverifiableTarget): return .targetChanged(.unverifiableTarget)
-    case .notAttempted(.missingHost): return .targetChanged(targetQuit ? .targetQuit : .noTarget)
+    case .confirmed, .confirmedWithCursor: outcomeCode = "confirmed"
+    case .attemptedUnverified, .originalPreservationUnverified: outcomeCode = "unverified"
+    case .notAttempted(.secureInput): outcomeCode = "secure_input"
+    case .notAttempted(.unverifiableTarget): outcomeCode = "unverifiable_target"
+    case .notAttempted(.missingHost): outcomeCode = "missing_host"
     case .notAttempted(.focusNotRestored), .notAttempted(.targetChanged),
          .notAttempted(.originalNotPreserved), .notAttempted(.selectionNotPrepared):
-      return .targetChanged(.focusChanged)
+      outcomeCode = "focus_changed"
+    }
+    struct OutcomeResult: Decodable {
+      let name: String
+      let verified: Bool?
+      let reason: String?
+    }
+    let result: OutcomeResult = OwlAppCore.required([
+      "operation": "agent_rule",
+      "rule": "delivery_status_from_outcome",
+      "args": ["outcome": outcomeCode, "target_quit": targetQuit]
+    ])
+    switch result.name {
+    case "delivered":
+      return .delivered(verified: result.verified ?? false)
+    case "target_changed":
+      let reasonRaw = result.reason ?? "focus_changed"
+      return .targetChanged(Wire.TargetChangedReason(rawValue: reasonRaw) ?? .focusChanged)
+    case "expired":
+      return .expired
+    default:
+      return .cancelled
     }
   }
 }
