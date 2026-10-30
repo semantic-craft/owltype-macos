@@ -146,7 +146,7 @@ struct OwlAIPage: View {
             .textFieldStyle(.roundedBorder)
           smallButton("粘贴") {
             if let s = NSPasteboard.general.string(forType: .string) {
-              doubaoSearchKeyInput = s.trimmingCharacters(in: .whitespacesAndNewlines)
+              doubaoSearchKeyInput = OwlProviderCore.call("trim", ["text": s])
             }
           }
           smallButton("保存") { saveDoubaoSearchKey() }
@@ -435,22 +435,7 @@ struct OwlAIPage: View {
   /// 编辑态下把该供应商**当前用的**模型排在最前：预设里写死的那个型号会过时（供应商发新版比我们发版
   /// 快），当前值不在列表里就会给人「只能选回旧型号」的错觉。
   private var curatedModels: [String] {
-    let preset: [String]
-    switch providerID {
-    case "deepseek":
-      preset = [OwlCloudPreferences.defaultDeepSeekModel, OwlCloudPreferences.reasonerDeepSeekModel]
-    case "qwen":
-      // 默认 3.8 Flash，另提供 Plus/Max；型号清单由 catalog 统一维护。
-      preset = OwlLLMProviderCatalog.qwenModels
-    case "minimax":
-      preset = OwlLLMProviderCatalog.minimaxModels
-    case OwlLLMProviderCatalog.customID:
-      preset = []
-    default:
-      preset = OwlLLMProviderCatalog.preset(id: providerID).map { [$0.model] } ?? []
-    }
-    guard let current = editingProfile?.model, !current.isEmpty else { return preset }
-    return [current] + preset.filter { $0 != current }
+    OwlProviderCore.call("curatedModels", ["providerID": providerID, "current": editingProfile?.model ?? ""])
   }
 
   private var availableModels: [String] {
@@ -558,7 +543,7 @@ struct OwlAIPage: View {
           OwlProviderRegistry.isHTTPS(endpoint) else {
       providerStatus = "端点必须是 https"; return
     }
-    let model = providerModel.trimmingCharacters(in: .whitespacesAndNewlines)
+    let model = OwlProviderCore.call("trim", ["text": providerModel]) as String
     guard !model.isEmpty else { providerStatus = "请先填模型再验证"; return }
     let probedProfile = editingProfile
     guard let key = probeKey(missing: "请先填入 API Key 再验证", endpoint: endpoint) else { return }
@@ -607,10 +592,8 @@ struct OwlAIPage: View {
   }
 
   private func resolvedQwenEndpoint() -> URL? {
-    let trimmed = qwenWorkspaceInput.trimmingCharacters(in: .whitespacesAndNewlines)
-    return trimmed.isEmpty
-      ? URL(string: OwlLLMProviderCatalog.qwenResponsesEndpoint)
-      : OwlQwenWorkspace.responsesEndpoint(for: trimmed)
+    let value: String? = OwlProviderHost().required("resolvedWorkspace", ["input": qwenWorkspaceInput])
+    return value.flatMap(URL.init(string:))
   }
 
   /// Qwen 的端点由 Workspace 输入生成；其他供应商仍使用原端点字段。
@@ -678,7 +661,7 @@ struct OwlAIPage: View {
   /// 一键从剪贴板填入 API Key（比 ⌘V / 右键更显眼，绕开菜单快捷键问题）。仍走现有的「添加并设为默认」持久化。
   private func pasteProviderKey() {
     if let s = NSPasteboard.general.string(forType: .string) {
-      providerKeyInput = s.trimmingCharacters(in: .whitespacesAndNewlines)
+      providerKeyInput = OwlProviderCore.call("trim", ["text": s])
     }
   }
 

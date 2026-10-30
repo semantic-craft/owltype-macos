@@ -1222,3 +1222,23 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
   and `OwlTemplateStoreTests/testConcurrentCurrentLibraryReadWaitsForTheCompleteSave`
   with `scripts/verify.py swift`. Existing save/recovery and Unicode-template suites must
   remain green. These synthetic fixtures do not establish installed-host acceptance.
+
+## Preserve the caller's session and wrap optional session replies
+
+- Seen 1x (2026-10-30): the #363 raw-stream prototype created a new URLSession from the
+  caller's configuration. The existing global URLProtocol recorder did not intercept that
+  session: one request containing only the synthetic `sk-test` reached the provider and was
+  rejected with 401. No personal key was read or sent. The run was stopped immediately.
+- Keep the caller's URLSession and forward AsyncBytes without decoding UTF-8 or parsing SSE.
+  The existing recording table now injects an ephemeral session with an explicit protocol
+  class into the real streaming and search clients; socket replacement is no longer implicit.
+  Its allowlist rejects unknown URL/method pairs locally. The existing table also caught
+  the native encoders' different decimal representations: retain the Rust-selected original
+  codec so both canonical bodies and Content-Length remain unchanged.
+- The same run found a nullable probe digest returned at the top of a session value. The
+  native session envelope treats a missing/null value as an ABI error; wrap the optional
+  digest in an object. The digest stays in Rust, never the key.
+- Verify (验证点): `OwlLLMStreamingRecordingTests` must match every existing recorded request;
+  `OwlProviderRegistryTests` must complete staged-key saves with and without a prior probe.
+  `OwlResponsesStreamingClientTests/testRawByteBoundariesAndCancellationReachRustParser`
+  verifies arbitrary UTF-8 splits and terminal cancellation through the real session ABI.

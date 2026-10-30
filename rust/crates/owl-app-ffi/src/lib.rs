@@ -10,6 +10,10 @@ const MAX_REQUEST: usize = 4 * 1024 * 1024;
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
+    ProviderRule {
+        rule: String,
+        args: Value,
+    },
     TemplateSessionRule {
         rule: String,
         args: Value,
@@ -131,6 +135,9 @@ fn dispatch(bytes: &[u8]) -> Value {
         Err(_) => return error("invalid_request"),
     };
     let result = match request {
+        Request::ProviderRule { rule, args } => {
+            json!({"result": owl_app_core::provider_wire::rule(&rule, args)})
+        }
         Request::TemplateSessionRule { rule, args } => {
             owl_app_core::template_session::rule(&rule, args)
         }
@@ -444,7 +451,10 @@ pub unsafe extern "C" fn owl_app_storage_call(
             return error("invalid_request");
         };
         let mut host = NativeHost { context, callback };
-        let result = if request.operation.starts_with("writer_") {
+        let result = if request.operation.starts_with("provider_") {
+            owl_app_core::provider_store::dispatch(&mut host, &request.operation, request.args)
+                .map(|v| json!({"result":v}))
+        } else if request.operation.starts_with("writer_") {
             owl_app_core::config_writer::dispatch(&mut host, &request.operation, request.args)
         } else if request.operation.starts_with("picker_") {
             owl_app_core::picker::dispatch(&mut host, &request.operation, request.args)

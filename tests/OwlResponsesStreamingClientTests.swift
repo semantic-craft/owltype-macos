@@ -22,6 +22,22 @@ import XCTest
 
 final class OwlResponsesStreamingClientTests: XCTestCase {
 
+  func testRawByteBoundariesAndCancellationReachRustParser() {
+    let bytes = Data((#"data: {"type":"response.output_text.delta","delta":"中😀é"}"# + "\r\n"
+      + #"data: {"type":"response.failed","response":{"error":{"message":"synthetic"}}}"#).utf8)
+    for split in 0...bytes.count {
+      var parser = OwlResponsesStreamParser()
+      let text = parser.consume(Data(bytes.prefix(split))) + parser.consume(Data(bytes.dropFirst(split))) + parser.finish()
+      XCTAssertEqual(text, ["中😀é"])
+      XCTAssertEqual(parser.failure, "synthetic")
+    }
+    var cancelled = OwlResponsesStreamParser()
+    XCTAssertEqual(cancelled.consume(Data(bytes.prefix(17))), [])
+    cancelled.cancel()
+    XCTAssertEqual(cancelled.consume(Data(bytes.dropFirst(17))) + cancelled.finish(), [])
+    XCTAssertTrue(cancelled.isFinished)
+  }
+
   // MARK: - Pure `/responses` parser
 
   func testResponsesFramesActuallyProduceDeltas() {

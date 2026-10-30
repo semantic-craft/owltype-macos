@@ -4,8 +4,8 @@
 //
 //  Selection polish and structured drafting used to fork Chat vs `/responses`, build the request,
 //  check the status, parse two reply shells and record usage each on their own. That sequence —
-//  and every provider quirk inside it — now lives here, above a transport seam, so one table of
-//  recorded requests covers every caller (see `OwlLLMGatewayTests`). Streaming answers (任意提问,
+//  and every provider quirk inside it — now runs in the Rust provider core through this adapter.
+//  Recorded requests cover every caller (see `OwlLLMGatewayTests`). Streaming answers (任意提问,
 //  plain generation) take the same fork through `stream(messages:routing:apiKey:)`; their table is
 //  `OwlLLMStreamingRecordingTests`.
 //
@@ -41,7 +41,7 @@ struct OwlProviderCapabilities {
 
   /// Chat `response_format: json_object`. MiniMax documents no JSON mode; keep prompt + local
   /// validation as the contract there.
-  var sendsChatJSONMode: Bool { thinkingOff.reasoningSplit == nil }
+  var sendsChatJSONMode: Bool { OwlProviderCore.call("jsonMode", ["hasSplit": thinkingOff.reasoningSplit != nil]) }
 
   /// The sampling temperature to send, or nil when the model rejects sampling controls.
   func temperature(_ value: Double) -> Double? {
@@ -74,8 +74,8 @@ struct OwlProviderCapabilities {
   /// `providerID` wins; `host` is the fallback for a custom profile whose id was never stamped —
   /// same precedence as `OwlLLMProviderCatalog.inferredProviderID`.
   static func searchChannel(providerID: String, host: String) -> OwlSearchControl.Channel {
-    if providerID.lowercased() == OwlSearchControl.searchProviderID { return .deepSeek }
-    return host.lowercased().contains("deepseek") ? .deepSeek : .none
+    let raw: String = OwlProviderCore.call("searchChannel", ["providerID": providerID, "host": host])
+    return raw == "deepSeek" ? .deepSeek : .none
   }
 
   private static func searchDisplayName(_ channel: OwlSearchControl.Channel) -> String? {
@@ -87,7 +87,7 @@ struct OwlProviderCapabilities {
 }
 
 /// Why an AI skill is calling. It fixes the timeout and retry policy, so callers never pass them.
-enum OwlLLMCallPurpose {
+enum OwlLLMCallPurpose: String {
   /// 划词润色：用户盯着菜单等，8 秒内要有结果；瞬时故障重试一次。
   case interactiveRewrite
   /// 提示词优化 / 任务书：要生成一整段结构化文本，实测百炼 qwen3.6-flash 生成约 1.3KB 中文要
@@ -98,18 +98,15 @@ enum OwlLLMCallPurpose {
   case connectivityProbe
 
   var timeout: TimeInterval {
-    switch self {
-    case .interactiveRewrite: return OwlCloudPreferences.requestTimeout
-    case .drafting: return 60
-    case .connectivityProbe: return 20
-    }
+    struct Policy: Decodable { let timeout: Double }
+    let policy: Policy = OwlProviderCore.call("purpose", ["purpose": rawValue])
+    return policy.timeout
   }
 
   var maxAttempts: Int {
-    switch self {
-    case .interactiveRewrite: return OwlCloudRetry.maxAttempts
-    case .drafting, .connectivityProbe: return 1
-    }
+    struct Policy: Decodable { let maxAttempts: Int }
+    let policy: Policy = OwlProviderCore.call("purpose", ["purpose": rawValue])
+    return policy.maxAttempts
   }
 }
 
@@ -126,12 +123,10 @@ extension OwlLLMTransport {
   /// re-frame chunks into lines, so this behaves like a fast socket.
   func openStream(_ request: URLRequest) async throws -> OwlStreamingBytesSource {
     let (data, response) = try await send(request)
-    let text = String(decoding: data, as: UTF8.self)
-    let chunks = AsyncThrowingStream<String, Error> { continuation in
-      continuation.yield(text)
-      continuation.finish()
+    let chunks = AsyncThrowingStream<Data, Error> { continuation in
+      continuation.yield(data); continuation.finish()
     }
-    return OwlStreamingBytesSource(response: response as? HTTPURLResponse, chunks: chunks)
+    return OwlStreamingBytesSource(response: response as? HTTPURLResponse, dataChunks: chunks)
   }
 }
 
@@ -146,26 +141,30 @@ struct OwlURLSessionTransport: OwlLLMTransport {
     try await session.data(for: request)
   }
 
-  /// `URLSession.bytes(for:)` → an async line iterator re-emitted as `\n`-terminated text chunks,
-  /// so the parsers' chunk-boundary buffering is exercised identically to a raw socket.
+  /// Native byte delivery only. The Rust session handles UTF-8 and SSE boundaries.
   func openStream(_ request: URLRequest) async throws -> OwlStreamingBytesSource {
     let (bytes, response) = try await session.bytes(for: request)
-    let stream = AsyncThrowingStream<String, Error> { continuation in
+    let stream = AsyncThrowingStream<Data, Error> { continuation in
       let task = Task {
         do {
-          for try await line in bytes.lines {
-            // `.lines` strips the newline; restore it so the parser frames events correctly.
-            continuation.yield(line + "\n")
-            if Task.isCancelled { break }
+          var chunk = Data()
+          for try await byte in bytes {
+            try Task.checkCancellation()
+            chunk.append(byte)
+            // Byte buffering only: retain every byte, including LF. No UTF-8 decoding,
+            // SSE fields or event decisions occur in the native transport.
+            if chunk.count >= 4096 || byte == 10 {
+              continuation.yield(chunk)
+              chunk.removeAll(keepingCapacity: true)
+            }
           }
+          if !chunk.isEmpty { continuation.yield(chunk) }
           continuation.finish()
-        } catch {
-          continuation.finish(throwing: error)
-        }
+        } catch { continuation.finish(throwing: error) }
       }
       continuation.onTermination = { _ in task.cancel() }
     }
-    return OwlStreamingBytesSource(response: response as? HTTPURLResponse, chunks: stream)
+    return OwlStreamingBytesSource(response: response as? HTTPURLResponse, dataChunks: stream)
   }
 }
 
@@ -212,17 +211,21 @@ struct OwlLLMGateway: Sendable {
     apiKey: String,
     purpose: OwlLLMCallPurpose
   ) async throws -> String {
-    var lastError: Error = OwlCloudRequestError.emptyResponse
-    for attempt in 0..<purpose.maxAttempts {
+    let call = try OwlAppSession("providerCall", args: ["purpose": purpose.rawValue])
+    defer { let _: Bool = call.call("cancel") }
+    var allowed: Bool = call.call("next")
+    while allowed {
+      try Task.checkCancellation()
       do {
         return try await completeOnce(payload, routing: routing, apiKey: apiKey, purpose: purpose)
       } catch {
-        lastError = error
-        guard attempt + 1 < purpose.maxAttempts, OwlCloudRetry.isRetryable(error) else { throw error }
+        try Task.checkCancellation()
+        allowed = call.call("retry", ["retryable": OwlCloudRetry.isRetryable(error)])
+        guard allowed else { throw error }
         try await Task.sleep(nanoseconds: OwlCloudRetry.backoffNanoseconds)
       }
     }
-    throw lastError
+    throw OwlCloudRequestError.emptyResponse
   }
 
   private func completeOnce(
@@ -259,38 +262,63 @@ struct OwlLLMGateway: Sendable {
     }
 
     let (data, response) = try await transport.send(request)
-    if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-      throw OwlCloudRequestError.badHTTPStatus(http.statusCode, detail: OwlServerErrorDetail.parse(data))
+    try Task.checkCancellation()
+    struct Parsed: Decodable {
+      let text: String?
+      let usage: OwlCloudUsageSnapshot?
+      let error: String?
+      let detail: OwlServerErrorDetail?
     }
+    let status = (response as? HTTPURLResponse)?.statusCode
+    let parsed: Parsed = OwlProviderCore.call("completionParse", ["bytes": Array(data),
+      "responses": dialect != nil, "status": status as Any? ?? NSNull(), "model": routing.model])
+    if let usage = parsed.usage { OwlCloudUsageTelemetry.record(usage) }
+    switch parsed.error {
+    case "http": throw OwlCloudRequestError.badHTTPStatus(status!, detail: parsed.detail)
+    case "empty": throw OwlCloudRequestError.emptyResponse
+    case "malformed": throw OwlResponsesWireError.malformedResponse
+    default: return parsed.text ?? ""
+    }
+  }
+}
 
-    if dialect != nil {
-      let decoded = try OwlResponsesWire.parse(data)
-      if let usage = decoded.usage {
-        OwlCloudUsageTelemetry.record(OwlCloudUsageSnapshot(
-          model: decoded.model ?? routing.model,
-          completionTokens: usage.outputTokens,
-          promptTokens: usage.inputTokens,
-          promptCacheHitTokens: usage.cachedTokens,
-          promptCacheMissTokens: max(0, usage.inputTokens - usage.cachedTokens),
-          totalTokens: usage.totalTokens))
-      }
-      guard !decoded.text.isEmpty else { throw OwlCloudRequestError.emptyResponse }
-      return decoded.text
-    }
+/// Typed transport for provider rules. Values never enter preferences, files or logs here.
+enum OwlProviderCore {
+  static func httpAccepted(_ status: Int) -> Bool { call("httpAccepted", ["status": status]) }
+  static func call<T: Decodable>(_ rule: String, _ args: [String: Any] = [:]) -> T {
+    OwlProviderHost().required("rule", ["rule": rule, "args": args])
+  }
+  static func object(_ rule: String, _ args: [String: Any] = [:]) -> [String: Any] {
+    let value: OwlJSONValue = call(rule, args)
+    return (try? JSONSerialization.jsonObject(with: JSONEncoder().encode(value))) as? [String: Any] ?? [:]
+  }
+}
 
-    let decoded = try JSONDecoder().decode(OwlDeepSeekClient.Response.self, from: data)
-    if let usage = decoded.usage {
-      OwlCloudUsageTelemetry.record(OwlCloudUsageSnapshot(
-        model: decoded.model ?? routing.model,
-        completionTokens: usage.completionTokens,
-        promptTokens: usage.promptTokens,
-        promptCacheHitTokens: usage.promptCacheHitTokens ?? 0,
-        promptCacheMissTokens: usage.promptCacheMissTokens ?? 0,
-        totalTokens: usage.totalTokens))
+/// The only mutable protocol state is the owned Rust session.
+final class OwlProviderStream {
+  private let session: OwlAppSession
+  private struct Reply: Decodable { let deltas: [String]; let isFinished: Bool; let failure: String? }
+  private var projection = Reply(deltas: [], isFinished: false, failure: nil)
+  init(responses: Bool) { session = try! OwlAppSession("providerStream", args: ["responses": responses]) }
+  var isFinished: Bool { projection.isFinished }
+  var failure: String? { projection.failure }
+  func consume(_ data: Data) -> [String] {
+    // Bound only the ABI transfer, never the protocol line or the response. A native
+    // callback may contain megabytes, and UTF-8 may split anywhere in these chunks.
+    var deltas: [String] = []
+    var offset = data.startIndex
+    while offset < data.endIndex {
+      let end = data.index(offset, offsetBy: min(65_536, data.distance(from: offset, to: data.endIndex)))
+      deltas += update("consume", ["bytes": Array(data[offset..<end])])
+      offset = end
     }
-    guard let content = decoded.choices.first?.message.content else {
-      throw OwlCloudRequestError.emptyResponse
-    }
-    return content
+    return deltas
+  }
+  func finish() -> [String] { update("finish") }
+  func cancel() { _ = update("cancel") }
+  private func update(_ event: String, _ args: [String: Any] = [:]) -> [String] {
+    do { projection = try session.request(event, args) }
+    catch { projection = Reply(deltas: [], isFinished: true, failure: "invalid stream payload") }
+    return projection.deltas
   }
 }

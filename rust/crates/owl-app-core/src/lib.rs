@@ -79,3 +79,9 @@ pub mod template_transaction;
 pub mod template_session;
 
 pub mod host_delivery;
+
+pub mod provider_wire;
+
+pub mod provider_store;
+
+pub mod provider_search;

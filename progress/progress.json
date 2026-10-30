@@ -1,16 +1,16 @@
 {
   "facts": {
-    "main": "8ad0a6ccfbfa9f9a1df46419dd32351ae40207af",
+    "main": "843b91ea027ab149197e06f2e0cb1a096a5922e1",
     "default_branch": "main",
     "pulls": [],
     "open_pulls": [
       {
         "number": 368,
-        "head": "9ef3bb149bf43b2e859ca19ebe7c9ac64e63e153"
+        "head": "fccd1e7b88bfdad4b7c4e8abbc65713596aeedbd"
       },
       {
-        "number": 374,
-        "head": "cb77c86cc0c40c3f64678b20237c668f6aa4b250"
+        "number": 376,
+        "head": "537ec03edfc01918cc4177f45839b0a40e74fca0"
       }
     ],
     "issues": [
@@ -192,7 +192,7 @@
         "number": 356,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-30T07:36:03Z"
+        "updated_at": "2026-10-30T08:23:46Z"
       },
       {
         "number": 357,
@@ -228,13 +228,13 @@
         "number": 362,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-30T07:35:48Z"
+        "updated_at": "2026-10-30T08:40:33Z"
       },
       {
         "number": 363,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-30T04:22:42Z"
+        "updated_at": "2026-10-30T08:22:58Z"
       },
       {
         "number": 364,
@@ -268,7 +268,7 @@
     "progress/sync.py",
     "progress/teslahub.mjs"
   ],
-  "observed_at": "2026-10-30T08:04:19Z",
+  "observed_at": "2026-10-30T08:43:55Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -797,7 +797,7 @@
         {
           "id": "issue-362",
           "title": "#362 [Rust 业务核心] 阶段 3：交付状态机迁 Rust 并完成 Chrome 能力适配",
-          "status": "in_progress",
+          "status": "blocked",
           "summary": "GitHub: open；负责人：未指派；未关闭前置：无。",
           "next": "读取工单和开放 PR，经共享领取入口核实后领取。",
           "evidence": [
@@ -811,7 +811,7 @@
         {
           "id": "issue-363",
           "title": "#363 [Rust 业务核心] 阶段 4A：AI 供应商、请求协议和流解析迁入 Rust",
-          "status": "blocked",
+          "status": "in_progress",
           "summary": "GitHub: open；负责人：未指派；未关闭前置：无。",
           "next": "读取工单和开放 PR，经共享领取入口核实后领取。",
           "evidence": [

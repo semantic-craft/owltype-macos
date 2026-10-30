@@ -36,97 +36,13 @@ import Foundation
 /// malformed-JSON `data:` line is skipped. A `response.failed` / `error` frame is NOT ignored — it
 /// is recorded in `failure` so the client can finish with a real error instead of an empty answer.
 struct OwlResponsesStreamParser {
-  /// Carries an incomplete trailing line between chunks. Empty between whole-line boundaries.
-  private var buffer = ""
-  /// True once a terminal frame (`response.completed` / `response.incomplete` / `[DONE]`) is seen.
-  private(set) var isFinished = false
-  /// The upstream's error message when a `response.failed` / `error` frame arrived, else nil.
-  private(set) var failure: String?
-
-  /// Feed one text chunk; return the assistant text deltas that completed within it (in order).
-  mutating func consume(_ chunk: String) -> [String] {
-    guard !isFinished else { return [] }
-    buffer += chunk
-
-    var deltas: [String] = []
-    // Split on `\n`; the LAST element is the (possibly incomplete) trailing line — re-buffer it.
-    var lines = buffer.components(separatedBy: "\n")
-    buffer = lines.removeLast()
-
-    for rawLine in lines {
-      // Tolerate CRLF framing: a `\r` left at the end of a line by `\r\n` splitting.
-      let line = rawLine.hasSuffix("\r") ? String(rawLine.dropLast()) : rawLine
-      if let delta = handle(line: line) {
-        deltas.append(delta)
-      }
-      if isFinished { break }
-    }
-    if isFinished { buffer = "" }
-    return deltas
-  }
-
-  /// Flush at end-of-stream: process any retained trailing line that never got a closing `\n`.
-  mutating func finish() -> [String] {
-    guard !isFinished else { return [] }
-    let line = buffer.hasSuffix("\r") ? String(buffer.dropLast()) : buffer
-    buffer = ""
-    guard let delta = handle(line: line) else { return [] }
-    return [delta]
-  }
-
-  /// Decide a single complete SSE line. Returns a non-empty text delta, or nil for everything
-  /// else (blank / comment / `event:` / scaffolding / malformed — all ignored, never fatal).
-  private mutating func handle(line: String) -> String? {
-    let trimmed = line.trimmingCharacters(in: .whitespaces)
-    if trimmed.isEmpty { return nil }
-    if trimmed.hasPrefix(":") { return nil }
-    guard trimmed.hasPrefix("data:") else { return nil }
-
-    // Strip exactly the `data:` prefix; SSE permits an optional single leading space after it.
-    var payload = String(trimmed.dropFirst("data:".count))
-    if payload.hasPrefix(" ") { payload.removeFirst() }
-
-    if payload == "[DONE]" {
-      isFinished = true
-      return nil
-    }
-
-    guard let data = payload.data(using: .utf8),
-          let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-          let type = object["type"] as? String else {
-      return nil
-    }
-
-    switch type {
-    case "response.output_text.delta":
-      guard let delta = object["delta"] as? String, !delta.isEmpty else { return nil }
-      return delta
-    case "response.completed", "response.incomplete":
-      isFinished = true
-      return nil
-    case "response.failed", "error":
-      failure = Self.errorMessage(object) ?? "stream error"
-      isFinished = true
-      return nil
-    default:
-      // Reasoning / output-item / content-part scaffolding: no text, not terminal.
-      return nil
-    }
-  }
-
-  /// `response.failed` nests the error under `response.error.message`; a bare `error` frame may
-  /// carry it at the top level as an object or a plain string.
-  private static func errorMessage(_ object: [String: Any]) -> String? {
-    if let response = object["response"] as? [String: Any],
-       let error = response["error"] as? [String: Any],
-       let message = error["message"] as? String {
-      return message
-    }
-    if let error = object["error"] as? [String: Any], let message = error["message"] as? String {
-      return message
-    }
-    return object["error"] as? String
-  }
+  private let core = OwlProviderStream(responses: true)
+  var isFinished: Bool { core.isFinished }
+  var failure: String? { core.failure }
+  mutating func consume(_ chunk: String) -> [String] { core.consume(Data(chunk.utf8)) }
+  mutating func consume(_ chunk: Data) -> [String] { core.consume(chunk) }
+  mutating func finish() -> [String] { core.finish() }
+  mutating func cancel() { core.cancel() }
 }
 
 // MARK: - Streaming client
@@ -180,14 +96,15 @@ struct OwlResponsesStreamingClient: OwlResponsesStreaming {
             dialect: dialect, webSearch: webSearch)
           let source = try await bytesProvider(request)
 
-          if let http = source.response, !(200...299).contains(http.statusCode) {
-            let detail = await OwlServerErrorDetail.read(source.chunks)
+          if let http = source.response, !OwlProviderCore.httpAccepted(http.statusCode) {
+            let detail = await OwlServerErrorDetail.read(source.dataChunks)
             continuation.finish(throwing: OwlStreamingError.badHTTPStatus(http.statusCode, detail: detail))
             return
           }
 
           var parser = OwlResponsesStreamParser()
-          for try await chunk in source.chunks {
+          defer { parser.cancel() }
+          for try await chunk in source.dataChunks {
             try Task.checkCancellation()
             for delta in parser.consume(chunk) {
               continuation.yield(delta)

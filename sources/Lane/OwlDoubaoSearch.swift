@@ -12,7 +12,7 @@
 import Foundation
 
 /// 一条搜索结果（豆包与 DeepSeek 搜索共用）。`publishedAt` / `hostname` 可能为空——只用于标注来源，缺了不影响核验。
-struct OwlWebSearchResult: Equatable, Sendable {
+struct OwlWebSearchResult: Codable, Equatable, Sendable {
   let title: String
   let url: String
   let snippet: String
@@ -51,15 +51,7 @@ enum OwlDoubaoSearchWire {
   static let maxQueryLength = 100
 
   static func body(query: String, limit: Int) -> [String: Any] {
-    let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    return [
-      "Query": String(trimmed.prefix(maxQueryLength)),
-      "DocCount": min(max(limit, 1), maxDocCount),
-      "MaxSnippetLength": 800,
-      // 卡片只显示文字，图片段解析时就丢掉。不能填 0：文档写「传入值 > 0 时生效」，0 会落回默认
-      // 的 3 张/条；1 是关不掉时最省的一档。
-      "MaxImageCountPerDoc": 1,
-    ]
+    OwlProviderCore.object("searchBody", ["query": query, "limit": limit, "doubao": true])
   }
 
   static func request(query: String, apiKey: String, limit: Int) throws -> URLRequest {
@@ -77,45 +69,12 @@ enum OwlDoubaoSearchWire {
 
   /// 业务错误一律 throw，绝不静默变成空列表——「搜到 0 条」和「Key 无效」对用户是两件事。
   static func parse(_ data: Data) throws -> [OwlWebSearchResult] {
-    // 摘要从网页正文抠出来，偶尔混进未转义的 C0 控制字符，那不是合法 JSON。换成空格是安全的：
-    // JSON 的结构性空白本就等价于空格，字符串里的合法转义与 UTF-8 续字节都 ≥ 0x20。
-    let sanitized = Data(data.map { $0 < 0x20 ? 0x20 : $0 })
-    guard let root = (try? JSONSerialization.jsonObject(with: sanitized)) as? [String: Any] else {
-      throw OwlDoubaoSearchError.malformedResponse
-    }
-    if let meta = root["ResponseMetadata"] as? [String: Any],
-       let error = meta["Error"] as? [String: Any] {
-      throw OwlDoubaoSearchError.serviceError(
-        code: (error["Code"] as? String) ?? String(describing: error["CodeN"] ?? "unknown"),
-        message: (error["Message"] as? String) ?? "")
-    }
-    guard let result = root["Result"] as? [String: Any] else {
-      throw OwlDoubaoSearchError.malformedResponse
-    }
-    if let code = result["ErrorCode"] as? Int, code != 0 {
-      throw OwlDoubaoSearchError.serviceError(
-        code: String(code), message: (result["ErrorMsg"] as? String) ?? "")
-    }
-    let documents = (result["Documents"] as? [[String: Any]]) ?? []
-    return documents.compactMap(document)
+    let reply: OwlSearchWireReply = OwlProviderCore.call("searchParse", ["bytes": Array(data), "doubao": true])
+    if reply.error == "service" { throw OwlDoubaoSearchError.serviceError(code: reply.code ?? "unknown", message: reply.message ?? "") }
+    guard let values = reply.values else { throw OwlDoubaoSearchError.malformedResponse }
+    return values
   }
 
-  /// 缺 Url/Title 的条目直接丢弃：不能跳查的来源没有价值。
-  private static func document(_ raw: [String: Any]) -> OwlWebSearchResult? {
-    guard let url = raw["Url"] as? String, url.hasPrefix("http"),
-          let title = raw["Title"] as? String, !title.isEmpty else { return nil }
-    let snippet = ((raw["Snippet"] as? [[String: Any]]) ?? [])
-      .filter { ($0["Type"] as? String) == "text" }
-      .compactMap { $0["Text"] as? String }
-      .joined(separator: "\n")
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-    let info = raw["DocumentInfo"] as? [String: Any]
-    let published = (info?["PublishTime"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-    let host = raw["HostInfo"] as? [String: Any]
-    let hostname = (host?["Hostname"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-    return OwlWebSearchResult(
-      title: title, url: url, snippet: snippet, publishedAt: published, hostname: hostname)
-  }
 }
 
 /// 豆包搜索的实时客户端。`fetch` 可注入，测试不碰网络。
@@ -136,7 +95,7 @@ struct OwlDoubaoSearchClient: OwlDoubaoSearching {
     var request = try OwlDoubaoSearchWire.request(query: query, apiKey: apiKey, limit: limit)
     request.timeoutInterval = timeout
     let (data, response) = try await fetch(request)
-    if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+    if let http = response as? HTTPURLResponse, !OwlProviderCore.httpAccepted(http.statusCode) {
       throw OwlDoubaoSearchError.badHTTPStatus(http.statusCode)
     }
     return try OwlDoubaoSearchWire.parse(data)
@@ -159,4 +118,11 @@ enum OwlDoubaoSearchKeyStore {
   static func isConfigured(secrets: OwlSecretStoring = OwlProviderKeychain()) -> Bool {
     apiKey(secrets: secrets) != nil
   }
+}
+
+struct OwlSearchWireReply: Decodable {
+  let values: [OwlWebSearchResult]?
+  let error: String?
+  let code: String?
+  let message: String?
 }

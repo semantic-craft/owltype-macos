@@ -45,7 +45,7 @@ enum OwlProviderAuthHeaderStyle: String, Codable, Sendable, Equatable {
   }
 }
 
-struct OwlLLMProviderPreset: Identifiable, Equatable, Sendable {
+struct OwlLLMProviderPreset: Codable, Identifiable, Equatable, Sendable {
   let id: String
   let displayName: String
   let endpoint: String
@@ -59,65 +59,11 @@ enum OwlLLMProviderCatalog {
   static let qwenResponsesEndpoint =
     "https://dashscope.aliyuncs.com/compatible-mode/v1/responses"
 
-  static let presets: [OwlLLMProviderPreset] = [
-    OwlLLMProviderPreset(
-      id: "qwen",
-      displayName: "阿里云百炼",
-      endpoint: qwenResponsesEndpoint,
-      model: "qwen3.8-flash",
-      keyHint: "按量付费 sk-…；Token Plan 请改用 token-plan.cn-beijing.maas.aliyuncs.com"
-    ),
-    OwlLLMProviderPreset(
-      id: "doubao",
-      displayName: "火山引擎 · 豆包 Seed",
-      endpoint: "https://ark.cn-beijing.volces.com/api/v3/responses",
-      model: "doubao-seed-2-1-pro-260628",
-      keyHint: "火山方舟 API Key"
-    ),
-    OwlLLMProviderPreset(
-      id: "deepseek",
-      displayName: "DeepSeek",
-      endpoint: "https://api.deepseek.com/v1/chat/completions",
-      model: OwlCloudPreferences.defaultDeepSeekModel,
-      keyHint: "sk-…"
-    ),
-    OwlLLMProviderPreset(
-      id: "minimax",
-      displayName: "MiniMax",
-      endpoint: "https://api.minimax.cn/v1/chat/completions",
-      model: "MiniMax-M3.1-Flash",
-      keyHint: "国内站 api.minimax.cn 的 M Plan / Token Plan 订阅 Key（sk-cp-…）"
-    ),
-    OwlLLMProviderPreset(
-      id: "gemini",
-      displayName: "Google Gemini",
-      endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-      model: "gemini-3.8-flash",
-      keyHint: "AIza…"
-    ),
-    OwlLLMProviderPreset(
-      id: "openai",
-      displayName: "OpenAI",
-      endpoint: "https://api.openai.com/v1/chat/completions",
-      model: "chat-latest",
-      keyHint: "sk-…"
-    ),
-  ]
-
-  /// 百炼可选模型，默认在前。第一个必须与上面 qwen 预设的 `model` 一致（下拉里选不到默认值很怪）。
-  ///
-  /// 为什么要列一串而不是像别家那样只写一个：阿里的型号迭代比猫头鹰发版快，设置页下拉里只出现一个
-  /// 型号会让人以为「只能用这个」。真正的全量清单靠设置页的「拉取最新」按钮从 `/models` 拉，这里
-  /// 只兜住没联网/没拉取时的常用几个。
-  ///
-  /// Qwen 3.8 Flash 为默认；保留已有 Plus/Max 选项供显式选择。
-  static let qwenModels = [
-    "qwen3.8-flash",
-    "qwen3.7-plus",
-    "qwen3.7-max",
-  ]
-
-  static let minimaxModels = ["MiniMax-M3.1-Flash", "MiniMax-M3"]
+  private struct Catalog: Decodable { let presets: [OwlLLMProviderPreset]; let qwenModels: [String]; let minimaxModels: [String] }
+  private static let catalog: Catalog = OwlProviderCore.call("catalog")
+  static let presets = catalog.presets
+  static let qwenModels = catalog.qwenModels
+  static let minimaxModels = catalog.minimaxModels
 
   static let customID = "custom"
 
@@ -127,31 +73,20 @@ enum OwlLLMProviderCatalog {
   }
 
   static func inferredProviderID(for profile: OwlProviderProfile?) -> String {
-    guard let profile else { return "deepseek" }
-    if let stored = profile.providerID, !stored.isEmpty { return stored }
-    let host = profile.endpoint.host?.lowercased() ?? ""
-    let name = profile.displayName.lowercased()
-    if host.contains("dashscope") || host.contains("aliyuncs") || name.contains("百炼") || name.contains("qwen") { return "qwen" }
-    if host.contains("volces") || host.contains("volcengine") || name.contains("豆包") { return "doubao" }
-    if host.contains("deepseek") || name.contains("deepseek") { return "deepseek" }
-    if host.contains("minimax") || name.contains("minimax") { return "minimax" }
-    if host.contains("generativelanguage") || name.contains("gemini") { return "gemini" }
-    if host == "api.openai.com" || name.contains("openai") { return "openai" }
-    return customID
+    OwlProviderCore.call("inferred", ["profile": profile.map(OwlAppCore.payload) ?? NSNull()])
   }
 
   /// Whether a resolved provider id is still routable: a preset in the catalog, or the custom id.
   /// A profile whose id has left the preset catalog (a provider retired by a newer build) is not a
   /// usable default and must fall back to the repo's default config instead of its own endpoint.
   static func isKnownProviderID(_ id: String) -> Bool {
-    id == customID || preset(id: id) != nil
+    OwlProviderCore.call("known", ["id": id])
   }
 
   /// The provider id the settings form shows when editing a profile. A retired id is shown as
   /// custom so the form's endpoint stays editable and no dangling preset selection appears.
   static func formProviderID(for profile: OwlProviderProfile) -> String {
-    let id = inferredProviderID(for: profile)
-    return isKnownProviderID(id) ? id : customID
+    OwlProviderCore.call("formProvider", ["profile": OwlAppCore.payload(profile)])
   }
 }
 
@@ -165,37 +100,12 @@ enum OwlQwenWorkspace {
   static let beijingHostSuffix = ".cn-beijing.maas.aliyuncs.com"
 
   static func normalizedAPIHost(_ rawValue: String) -> String? {
-    let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    guard !trimmed.isEmpty else { return nil }
-
-    let candidate: String
-    if trimmed.contains("://") {
-      guard let url = URL(string: trimmed),
-            url.scheme == "https",
-            url.user == nil,
-            url.password == nil,
-            url.port == nil,
-            let host = url.host else { return nil }
-      candidate = host
-    } else {
-      guard !trimmed.contains("/"), !trimmed.contains("@"), !trimmed.contains(":") else {
-        return nil
-      }
-      candidate = trimmed.contains(".") ? trimmed : trimmed + beijingHostSuffix
-    }
-
-    guard candidate.hasPrefix("ws-"), candidate.hasSuffix(beijingHostSuffix) else { return nil }
-    let workspaceID = String(candidate.dropLast(beijingHostSuffix.count))
-    guard workspaceID.count > 3,
-          workspaceID.utf8.allSatisfy({ byte in
-            (48...57).contains(byte) || (97...122).contains(byte) || byte == 45
-          }) else { return nil }
-    return candidate
+    OwlProviderHost().required("workspace", ["input": rawValue])
   }
 
   static func responsesEndpoint(for rawValue: String) -> URL? {
-    guard let host = normalizedAPIHost(rawValue) else { return nil }
-    return URL(string: "https://\(host)/compatible-mode/v1/responses")
+    let value: String? = OwlProviderHost().required("workspaceEndpoint", ["input": rawValue])
+    return value.flatMap(URL.init(string:))
   }
 
   static func apiHost(from endpoint: URL) -> String? {
@@ -229,19 +139,17 @@ enum OwlQwenWorkspaceSettings {
     _ rawValue: String,
     defaults: UserDefaults = OwlDefaults.standard
   ) -> (() -> Void)? {
-    let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-    if trimmed.isEmpty {
-      return { defaults.removeObject(forKey: key) }
+    let host: String? = OwlProviderHost().required("prepareWorkspace", ["input": rawValue])
+    guard let host else { return nil }
+    return {
+      if host.isEmpty { defaults.removeObject(forKey: key) }
+      else { defaults.set(host, forKey: key) }
     }
-    guard let host = OwlQwenWorkspace.normalizedAPIHost(trimmed) else { return nil }
-    return { defaults.set(host, forKey: key) }
   }
 
   static func responsesEndpoint(defaults: UserDefaults = OwlDefaults.standard) -> URL {
-    if let endpoint = OwlQwenWorkspace.responsesEndpoint(for: apiHost(defaults: defaults)) {
-      return endpoint
-    }
-    return URL(string: OwlLLMProviderCatalog.qwenResponsesEndpoint)!
+    let value: String = OwlProviderHost().required("storedWorkspaceEndpoint", ["input": apiHost(defaults: defaults)])
+    return URL(string: value)!
   }
 }
 
@@ -305,21 +213,33 @@ struct OwlProviderProfile: Codable, Identifiable, Equatable, Sendable {
   /// are required; a record missing either is treated as malformed and skipped by the store.
   init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
-    let id = try c.decode(String.self, forKey: .id)
-    self.id = id
-    self.displayName = try c.decodeIfPresent(String.self, forKey: .displayName) ?? "Provider"
-    self.kind = try c.decodeIfPresent(OwlProviderKind.self, forKey: .kind) ?? .openAICompatible
-    self.endpoint = try c.decode(URL.self, forKey: .endpoint)
-    self.model = try c.decodeIfPresent(String.self, forKey: .model) ?? ""
-    self.providerID = try c.decodeIfPresent(String.self, forKey: .providerID)
-    self.secretName = try c.decodeIfPresent(String.self, forKey: .secretName) ?? Self.defaultSecretName(for: id)
-    self.isDefault = try c.decodeIfPresent(Bool.self, forKey: .isDefault) ?? false
-    self.createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date(timeIntervalSince1970: 0)
+    let raw: [String: Any] = [
+      "id": try c.decode(String.self, forKey: .id),
+      "endpoint": try c.decode(URL.self, forKey: .endpoint).absoluteString,
+      "displayName": try c.decodeIfPresent(String.self, forKey: .displayName) as Any? ?? NSNull(),
+      "kind": try c.decodeIfPresent(String.self, forKey: .kind) as Any? ?? NSNull(),
+      "model": try c.decodeIfPresent(String.self, forKey: .model) as Any? ?? NSNull(),
+      "providerID": try c.decodeIfPresent(String.self, forKey: .providerID) as Any? ?? NSNull(),
+      "secretName": try c.decodeIfPresent(String.self, forKey: .secretName) as Any? ?? NSNull(),
+      "isDefault": try c.decodeIfPresent(Bool.self, forKey: .isDefault) as Any? ?? NSNull(),
+      "createdAt": try c.decodeIfPresent(Date.self, forKey: .createdAt)?.timeIntervalSinceReferenceDate as Any? ?? NSNull(),
+    ]
+    struct Fields: Decodable {
+      let id: String; let displayName: String; let kind: OwlProviderKind; let endpoint: URL
+      let model: String; let providerID: String?; let secretName: String; let isDefault: Bool; let createdAt: Date
+    }
+    let decoded: Fields? = OwlProviderCore.call("profileDefaults", ["profile": raw])
+    guard let value = decoded else { throw OwlAppCore.Failure(code: "malformed_profile") }
+    self.init(id: value.id, displayName: value.displayName, kind: value.kind, endpoint: value.endpoint,
+      model: value.model, providerID: value.providerID, secretName: value.secretName,
+      isDefault: value.isDefault, createdAt: value.createdAt)
   }
 
   /// Secret-name convention: `owltype.provider.<id>.apiKey`. Keeps every profile's key under a
   /// distinct Keychain account so multiple providers coexist.
-  static func defaultSecretName(for id: String) -> String { "owltype.provider.\(id).apiKey" }
+  static func defaultSecretName(for id: String) -> String {
+    OwlProviderCore.call("secretName", ["id": id])
+  }
 }
 
 /// Schema-versioned on-disk wrapper. The version is on the file, not per-record — the standard
@@ -428,157 +348,36 @@ final class OwlProviderProfileStore {
 
   var fileURL: URL { root.appendingPathComponent(Self.fileName, isDirectory: false) }
 
-  private static func makeEncoder() -> JSONEncoder {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    encoder.dateEncodingStrategy = .iso8601
-    return encoder
-  }
-
-  private static func makeDecoder() -> JSONDecoder {
-    let decoder = JSONDecoder()
-    decoder.dateDecodingStrategy = .iso8601
-    return decoder
-  }
-
-  // MARK: Read
-
-  /// The whole file, or an empty default when the file is missing / malformed (never crashes the
-  /// settings page on a corrupt `providers.json`).
-  func load() -> OwlProviderProfilesFile {
-    guard let data = try? Data(contentsOf: fileURL),
-          let file = try? Self.makeDecoder().decode(OwlProviderProfilesFile.self, from: data) else {
-      return OwlProviderProfilesFile()
-    }
-    return file
-  }
-
-  /// Profiles in a stable order (createdAt, then id as a same-second tiebreaker).
-  func profiles() -> [OwlProviderProfile] {
-    load().profiles.sorted {
-      $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt < $1.createdAt
-    }
-  }
-
-  /// Missing files are empty; unreadable or malformed files have unknown contents.
-  func readableProfiles() -> [OwlProviderProfile]? {
-    let data: Data
-    do {
-      data = try Data(contentsOf: fileURL)
-    } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
-      return []
-    } catch {
-      return nil
-    }
-    guard let file = try? Self.makeDecoder().decode(OwlProviderProfilesFile.self, from: data) else {
-      return nil
-    }
-    return file.profiles.sorted {
-      $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt < $1.createdAt
-    }
-  }
-
-  /// The active provider — the single profile flagged `isDefault`, or nil when none configured, or
-  /// when the flagged profile is a retired provider. A retired id is not a usable default: the
-  /// runtime falls back to the repo's legacy DeepSeek config instead of routing to a service this
-  /// build no longer ships. The flagged profile itself stays intact (not dropped, not rewritten).
-  var defaultProfile: OwlProviderProfile? {
-    guard let flagged = load().profiles.first(where: { $0.isDefault }) else { return nil }
-    return OwlLLMProviderCatalog.isKnownProviderID(
-      OwlLLMProviderCatalog.inferredProviderID(for: flagged)
-    ) ? flagged : nil
-  }
-
-  func profile(id: String) -> OwlProviderProfile? {
-    load().profiles.first { $0.id == id }
-  }
-
-  // MARK: Write
-
-  private func save(_ profiles: [OwlProviderProfile]) throws {
-    try beforeSave?()
-    try OwlPrivateStorage.prepareDirectory(root)
-    let file = OwlProviderProfilesFile(profiles: profiles)
-    let data = try Self.makeEncoder().encode(file)
-    try data.write(to: fileURL, options: .atomic)
-    try afterAtomicWrite?()
-    try OwlPrivateStorage.hardenFile(fileURL)
-  }
-
-  /// Force exactly one default when non-empty: prefer `preferred`, else keep the existing default,
-  /// else promote the first.
-  private func enforcingSingleDefault(
-    _ profiles: [OwlProviderProfile],
-    preferred: String?
-  ) -> [OwlProviderProfile] {
-    guard !profiles.isEmpty else { return profiles }
-    let defaultID = preferred
-      ?? profiles.first(where: { $0.isDefault })?.id
-      ?? profiles[0].id
-    return profiles.map { var p = $0; p.isDefault = (p.id == defaultID); return p }
-  }
-
-  /// Append a profile. A brand-new profile becomes default if it asked to be, or if no profile is
-  /// default yet (first-profile case).
+  private var host: OwlProviderHost { OwlProviderHost(store: self) }
+  func load() -> OwlProviderProfilesFile { host.required("load") }
+  func profiles() -> [OwlProviderProfile] { host.required("profiles") }
+  func readableProfiles() -> [OwlProviderProfile]? { host.required("readable") }
+  var defaultProfile: OwlProviderProfile? { host.required("defaultProfile") }
+  func profile(id: String) -> OwlProviderProfile? { host.required("profile", ["id": id]) }
   @discardableResult
   func add(_ profile: OwlProviderProfile) throws -> OwlProviderProfile {
     try add(profile, replacing: []).first { $0.id == profile.id } ?? profile
   }
-
-  /// Append a profile and drop `replacedIDs` in one file write, so a failed write keeps them all.
   @discardableResult
   func add(_ profile: OwlProviderProfile, replacing replacedIDs: [String]) throws -> [OwlProviderProfile] {
-    var all = load().profiles.filter { !replacedIDs.contains($0.id) }
-    let prefer = (profile.isDefault || !all.contains { $0.isDefault }) ? profile.id : nil
-    all.append(profile)
-    let normalized = enforcingSingleDefault(all, preferred: prefer)
-    try save(normalized)
-    return normalized
+    try host.call("add", ["profile": OwlAppCore.payload(profile), "replacing": replacedIDs])
   }
-
-  /// Replace an existing profile (by id). Throws `.notFound` for an unknown id. If the incoming
-  /// profile is flagged default, it wins the default slot.
   @discardableResult
   func update(_ profile: OwlProviderProfile) throws -> OwlProviderProfile {
-    var all = load().profiles
-    guard all.contains(where: { $0.id == profile.id }) else { throw OwlProviderError.notFound(profile.id) }
-    all = all.map { $0.id == profile.id ? profile : $0 }
-    let normalized = enforcingSingleDefault(all, preferred: profile.isDefault ? profile.id : nil)
-    try save(normalized)
-    return normalized.first { $0.id == profile.id } ?? profile
+    let values: [OwlProviderProfile] = try host.call("update", ["profile": OwlAppCore.payload(profile)])
+    return values.first { $0.id == profile.id } ?? profile
   }
-
-  /// Replace a batch in one atomic file write, preserving the persisted default.
-  /// Validate every id before writing anything; an empty batch needs no write.
   @discardableResult
   func update(_ profiles: [OwlProviderProfile]) throws -> [OwlProviderProfile] {
-    var all = load().profiles
-    let defaultID = all.first(where: { $0.isDefault })?.id
-    for profile in profiles {
-      guard let index = all.firstIndex(where: { $0.id == profile.id }) else {
-        throw OwlProviderError.notFound(profile.id)
-      }
-      all[index] = profile
-    }
-    guard !profiles.isEmpty else { return all }
-    let normalized = enforcingSingleDefault(all, preferred: defaultID)
-    try save(normalized)
-    return normalized
+    try host.call("batch", ["profiles": OwlAppCore.payload(profiles)])
   }
-
-  /// Delete a profile. If it was the default and others remain, the first is promoted.
   func delete(id: String) throws {
-    var all = load().profiles
-    all.removeAll { $0.id == id }
-    try save(enforcingSingleDefault(all, preferred: nil))
+    let _: [OwlProviderProfile] = try host.call("delete", ["id": id])
+  }
+  func setDefault(id: String) throws {
+    let _: [OwlProviderProfile] = try host.call("default", ["id": id])
   }
 
-  /// Make `id` the default. Throws `.notFound` for an unknown id.
-  func setDefault(id: String) throws {
-    let all = load().profiles
-    guard all.contains(where: { $0.id == id }) else { throw OwlProviderError.notFound(id) }
-    try save(enforcingSingleDefault(all, preferred: id))
-  }
 }
 
 // MARK: - Legacy migration
@@ -596,23 +395,10 @@ enum OwlProviderMigration {
     legacyEndpoint: URL = OwlCloudPreferences.deepSeekEndpoint,
     legacyModel: String = OwlCloudPreferences.deepSeekModel
   ) -> OwlProviderProfile? {
-    guard store.profiles().isEmpty else { return nil }
-    let legacyKey = (try? legacyKeyReader())?.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard let legacyKey, !legacyKey.isEmpty else { return nil }
-
-    let profile = OwlProviderProfile(
-      displayName: "DeepSeek",
-      kind: .openAICompatible,
-      endpoint: legacyEndpoint,
-      model: legacyModel,
-      providerID: "deepseek",
-      isDefault: true
-    )
-    do {
-      try secrets.setSecret(legacyKey, named: profile.secretName)
-      return try store.add(profile)
-    } catch {
-      return nil
+    withoutActuallyEscaping(legacyKeyReader) { reader in
+      let host = OwlProviderHost(store: store, secrets: secrets)
+      host.legacyReader = reader
+      return host.required("legacyMigrate", ["endpoint": legacyEndpoint.absoluteString, "model": legacyModel])
     }
   }
 }
@@ -628,25 +414,18 @@ enum OwlProviderModelList {
   /// `/chat/completions` for `/models` (covers OpenAI, DeepSeek, and the Gemini `/openai/...`
   /// shim); otherwise append `models` to the endpoint's parent path.
   static func modelsURL(from endpoint: URL) -> URL? {
-    let s = endpoint.absoluteString
-    if let r = s.range(of: "/chat/completions", options: .backwards) {
-      return URL(string: s.replacingCharacters(in: r, with: "/models"))
-    }
-    return endpoint.deletingLastPathComponent().appendingPathComponent("models")
+    let url: String? = OwlProviderCore.call("modelsURL", ["endpoint": endpoint.absoluteString])
+    return url.flatMap(URL.init(string:)) ?? endpoint.deletingLastPathComponent().appendingPathComponent("models")
   }
 
   /// Model ids from an OpenAI `{ "data": [ { "id": … } ] }` payload, in server order, deduped.
   static func parseModelIDs(_ data: Data) -> [String] {
-    struct List: Decodable { struct Model: Decodable { let id: String }; let data: [Model] }
-    guard let list = try? JSONDecoder().decode(List.self, from: data) else { return [] }
-    var seen = Set<String>()
-    return list.data.map(\.id).filter { !$0.isEmpty && seen.insert($0).inserted }
+    OwlProviderCore.call("modelsParse", ["bytes": Array(data)])
   }
 
   /// Curated models first (the always-available fallback), then any fetched ids not already listed.
   static func merged(curated: [String], fetched: [String]) -> [String] {
-    var seen = Set<String>()
-    return (curated + fetched).filter { !$0.isEmpty && seen.insert($0).inserted }
+    OwlProviderCore.call("modelsMerge", ["values": curated + fetched])
   }
 
   /// GET the provider's model list. Throws on bad URL / transport error / non-200.
@@ -698,32 +477,7 @@ enum OwlProviderConnectivityCheck {
   /// 关思考（qwen `reasoning.effort:none`、方舟 `thinking.type:disabled`）由
   /// `OwlResponsesWire.body` 统一带上。
   static func body(providerID: String, model: String, endpoint: URL? = nil) -> [String: Any] {
-    // 没有端点（表单还没填 URL）时由供应商 id 单独决定，与 `OwlResponsesWire` 的主机回退同一口径。
-    let dialect = OwlProviderCapabilities(providerID: providerID, model: model, endpoint: endpoint)
-      .dialect
-    if let dialect {
-      return OwlResponsesWire.body(
-        model: model,
-        messages: [OwlDeepSeekMessage(role: "user", content: "ping")],
-        stream: false,
-        dialect: dialect,
-        webSearch: false)
-    }
-    var body: [String: Any] = [
-      "model": model,
-      "messages": [["role": "user", "content": "ping"]],
-      // Gemini 3.8 cannot disable thinking; its token budget includes reasoning.
-      "max_tokens": model.lowercased() == "gemini-3.8-flash" ? 1024 : 16,
-      "stream": false,
-    ]
-    let thinking = OwlThinkingControl.offBody(providerID: providerID, model: model)
-    if thinking["reasoning_split"] != nil {
-      body.removeValue(forKey: "max_tokens")
-      // MiniMax counts reasoning against the generation budget; 16 can yield no answer.
-      body["max_completion_tokens"] = thinking["thinking"] == nil ? 4096 : 16
-    }
-    body.merge(thinking) { _, off in off }
-    return body
+    OwlProviderCore.object("probeBody", ["providerID": providerID, "model": model, "host": endpoint?.host ?? ""])
   }
 
   static func request(
@@ -750,20 +504,16 @@ enum OwlProviderConnectivityCheck {
 
   /// 响应 → 结论。纯函数，测试不碰网络。
   static func outcome(data: Data, response: URLResponse?, latencyMS: Int, apiKey: String = "") -> Outcome {
-    guard let http = response as? HTTPURLResponse else { return .malformed }
-    guard (200...299).contains(http.statusCode) else {
-      let detail = OwlServerErrorDetail.parse(data)
-      return .rejected(
-        status: http.statusCode,
-        message: detail?.sanitized(removing: apiKey) ?? "",
-        code: detail?.code)
+    struct Result: Decodable { let kind: String; let detail: OwlServerErrorDetail? }
+    let http = response as? HTTPURLResponse
+    let result: Result = OwlProviderCore.call("probeOutcome", ["bytes": Array(data),
+      "status": http?.statusCode as Any? ?? NSNull()])
+    switch result.kind {
+    case "ok": return .ok(latencyMS: latencyMS)
+    case "rejected": return .rejected(status: http!.statusCode,
+      message: result.detail?.sanitized(removing: apiKey) ?? "", code: result.detail?.code)
+    default: return .malformed
     }
-    // Recognize either protocol shell: Qwen uses Responses `output`; other providers remain chat.
-    guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-          root["choices"] != nil || root["output"] != nil else {
-      return .malformed
-    }
-    return .ok(latencyMS: latencyMS)
   }
 
   /// 真打一发。**不 throw**：连不上也是一种结论，调用方要的是一句能显示的话，不是一个错误。
