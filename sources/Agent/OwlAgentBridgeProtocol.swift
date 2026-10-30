@@ -214,7 +214,12 @@ enum OwlAgentBridgeProtocol {
     var invalidField: String? {
       struct ValidationResult: Decodable {
         let valid: Bool
-        let invalid_field: String?
+        let invalidField: String?
+
+        enum CodingKeys: String, CodingKey {
+          case valid
+          case invalidField = "invalid_field"
+        }
       }
       let args: [String: Any] = [
         "request_id": requestId,
@@ -226,7 +231,7 @@ enum OwlAgentBridgeProtocol {
         "rule": "delivery_validate_params",
         "args": args
       ])
-      return result.invalid_field
+      return result.invalidField
     }
 
     var effectiveTimeoutMs: Int { timeoutMs ?? OwlAgentBridgeProtocol.defaultDeliverTimeoutMs }

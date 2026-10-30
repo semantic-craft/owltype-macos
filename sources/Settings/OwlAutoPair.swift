@@ -72,7 +72,12 @@ enum OwlAutoPair {
     let kind: String
     let open: String?
     let close: String?
-    let caret_move: Bool?
+    let caretMove: Bool?
+
+    enum CodingKeys: String, CodingKey {
+      case kind, open, close
+      case caretMove = "caret_move"
+    }
   }
 
   /// Pure decision. Trigger rule v1 (PRD): the commit text must be EXACTLY one pair-table
@@ -95,7 +100,7 @@ enum OwlAutoPair {
     ])
     switch wire.kind {
     case "pair":
-      return .pair(open: wire.open ?? "", close: wire.close ?? "", caretMove: wire.caret_move ?? false)
+      return .pair(open: wire.open ?? "", close: wire.close ?? "", caretMove: wire.caretMove ?? false)
     case "skip_over":
       return .skipOver(close: wire.close ?? "")
     default:

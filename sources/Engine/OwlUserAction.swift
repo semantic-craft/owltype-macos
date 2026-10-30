@@ -165,12 +165,20 @@ enum OwlUserActionClassifier {
     }
     struct WireAction: Decodable {
       let action: String
-      let engine_keycode: UInt32?
-      let engine_modifiers: UInt32?
-      let caps_lock_revert: [UInt32]?
+      let engineKeycode: UInt32?
+      let engineModifiers: UInt32?
+      let capsLockRevert: [UInt32]?
       let events: [[UInt32]]?
-      let update_last_modifiers: UInt64?
+      let updateLastModifiers: UInt64?
       let handled: Bool?
+
+      enum CodingKeys: String, CodingKey {
+        case action, events, handled
+        case engineKeycode = "engine_keycode"
+        case engineModifiers = "engine_modifiers"
+        case capsLockRevert = "caps_lock_revert"
+        case updateLastModifiers = "update_last_modifiers"
+      }
     }
     let wire: WireAction = OwlAppCore.required([
       "operation": "pure_rule",
@@ -188,14 +196,14 @@ enum OwlUserActionClassifier {
     ])
     switch wire.action {
     case "key_down":
-      return .keyDown(engineKeycode: wire.engine_keycode ?? 0, engineModifiers: wire.engine_modifiers ?? 0)
+      return .keyDown(engineKeycode: wire.engineKeycode ?? 0, engineModifiers: wire.engineModifiers ?? 0)
     case "flags_changed":
-      let revert: (UInt32, UInt32)? = wire.caps_lock_revert.flatMap { $0.count >= 2 ? ($0[0], $0[1]) : nil }
+      let revert: (UInt32, UInt32)? = wire.capsLockRevert.flatMap { $0.count >= 2 ? ($0[0], $0[1]) : nil }
       let evs = (wire.events ?? []).compactMap { $0.count >= 2 ? ($0[0], $0[1]) : nil }
       return .flagsChanged(
         capsLockRevert: revert,
         events: evs,
-        updateLastModifiers: NSEvent.ModifierFlags(rawValue: UInt(wire.update_last_modifiers ?? 0)),
+        updateLastModifiers: NSEvent.ModifierFlags(rawValue: UInt(wire.updateLastModifiers ?? 0)),
         handled: wire.handled ?? false
       )
     case "flags_unchanged":

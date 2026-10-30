@@ -1,10 +1,10 @@
 import Foundation
 
-private protocol _NilRepresentable {
-  static var _nilValue: Self { get }
+private protocol NilRepresentable {
+  static var nilValue: Self { get }
 }
-extension Optional: _NilRepresentable {
-  static var _nilValue: Self { nil }
+extension Optional: NilRepresentable {
+  static var nilValue: Self { nil }
 }
 
 private struct OwlAppCoreResponse<Value: Decodable>: Decodable {
@@ -38,8 +38,8 @@ enum OwlAppCore {
       if let value = decoded.value {
         return value
       }
-      if let nilType = Value.self as? _NilRepresentable.Type {
-        return nilType._nilValue as! Value
+      if let nilType = Value.self as? NilRepresentable.Type {
+        return nilType.nilValue as! Value
       }
     }
     let code = decoded.error ?? "invalid_response"
@@ -356,8 +356,8 @@ final class OwlStorageHost {
       if let value = decoded.value {
         return value
       }
-      if let nilType = Value.self as? _NilRepresentable.Type {
-        return nilType._nilValue as! Value
+      if let nilType = Value.self as? NilRepresentable.Type {
+        return nilType.nilValue as! Value
       }
     }
     let code = decoded.error ?? "invalid_response"
@@ -425,8 +425,8 @@ final class OwlAppSession {
         if let value = decoded.value {
           return value
         }
-        if let nilType = T.self as? _NilRepresentable.Type {
-          return nilType._nilValue as! T
+        if let nilType = T.self as? NilRepresentable.Type {
+          return nilType.nilValue as! T
         }
       }
       throw OwlAppCore.Failure(code: decoded.error ?? "invalid_response")

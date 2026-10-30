@@ -290,98 +290,115 @@ final class OwlAgentDeliveryCoordinator {
 
   private func dispatchActions(_ actions: [ActionWire]) {
     for action in actions {
-      switch action.action {
-      case "show_preview":
-        let preview = makePreview()
-        self.preview = preview
-        preview.show(text: action.text ?? "", agentName: action.agentName ?? "") { [weak self] confirmed in
-          self?.handleUserDecision(confirmed)
-        }
+      dispatchSingleAction(action)
+    }
+  }
 
-      case "show_target":
-        preview?.showTarget(action.name)
+  private func dispatchSingleAction(_ action: ActionWire) {
+    switch action.action {
+    case "show_preview", "show_target", "dismiss_preview":
+      dispatchPreviewAction(action)
+    case "schedule_timeout", "schedule_poll", "schedule_leave_settle":
+      dispatchScheduleAction(action)
+    case "perform_write":
+      dispatchPerformWrite(action)
+    case "complete_waiter", "complete_waiters", "reject_waiter":
+      dispatchWaiterAction(action)
+    default:
+      break
+    }
+  }
 
-      case "dismiss_preview":
-        preview?.dismiss()
-        preview = nil
+  private func dispatchPreviewAction(_ action: ActionWire) {
+    switch action.action {
+    case "show_preview":
+      let preview = makePreview()
+      self.preview = preview
+      preview.show(text: action.text ?? "", agentName: action.agentName ?? "") { [weak self] confirmed in
+        self?.handleUserDecision(confirmed)
+      }
+    case "show_target":
+      preview?.showTarget(action.name)
+    case "dismiss_preview":
+      preview?.dismiss()
+      preview = nil
+    default:
+      break
+    }
+  }
 
-      case "schedule_timeout":
-        guard let seconds = action.timeoutSeconds else { break }
-        host.schedule(after: seconds) { [weak self] in
-          self?.handleTimeout()
-        }
+  private func dispatchScheduleAction(_ action: ActionWire) {
+    switch action.action {
+    case "schedule_timeout":
+      guard let seconds = action.timeoutSeconds else { return }
+      host.schedule(after: seconds) { [weak self] in self?.handleTimeout() }
+    case "schedule_poll":
+      guard let interval = action.intervalSeconds else { return }
+      host.schedule(after: interval) { [weak self] in self?.handlePoll() }
+    case "schedule_leave_settle":
+      guard let seconds = action.seconds else { return }
+      host.schedule(after: seconds) { [weak self] in self?.handleLeaveSettle() }
+    default:
+      break
+    }
+  }
 
-      case "schedule_poll":
-        guard let interval = action.intervalSeconds else { break }
-        host.schedule(after: interval) { [weak self] in
-          self?.handlePoll()
-        }
+  private func dispatchPerformWrite(_ action: ActionWire) {
+    guard let text = action.text, let target = currentTarget else {
+      handleWriteCompleted(outcomeCode: "missing_host", targetTerminated: true)
+      return
+    }
+    target.write(text) { [weak self] outcome in
+      let code = Self.outcomeCode(for: outcome)
+      self?.handleWriteCompleted(outcomeCode: code, targetTerminated: target.isTerminated)
+    }
+  }
 
-      case "schedule_leave_settle":
-        guard let seconds = action.seconds else { break }
-        host.schedule(after: seconds) { [weak self] in
-          self?.handleLeaveSettle()
-        }
-
-      case "perform_write":
-        guard let text = action.text, let target = currentTarget else {
-          handleWriteCompleted(outcomeCode: "missing_host", targetTerminated: true)
-          break
-        }
-        target.write(text) { [weak self] outcome in
-          let outcomeCode: String
-          switch outcome {
-          case .confirmed, .confirmedWithCursor: outcomeCode = "confirmed"
-          case .attemptedUnverified, .originalPreservationUnverified: outcomeCode = "unverified"
-          case .notAttempted(.secureInput): outcomeCode = "secure_input"
-          case .notAttempted(.unverifiableTarget): outcomeCode = "unverifiable_target"
-          case .notAttempted(.missingHost): outcomeCode = "missing_host"
-          case .notAttempted(.focusNotRestored), .notAttempted(.targetChanged),
-               .notAttempted(.originalNotPreserved), .notAttempted(.selectionNotPrepared):
-            outcomeCode = "focus_changed"
-          }
-          self?.handleWriteCompleted(outcomeCode: outcomeCode, targetTerminated: target.isTerminated)
-        }
-
-      case "complete_waiter":
-        guard let waiterID = action.waiterId, let result = action.result else { break }
-        if let waiter = waiters.removeValue(forKey: waiterID), !waiter.cancellation.isCancelled {
+  private func dispatchWaiterAction(_ action: ActionWire) {
+    switch action.action {
+    case "complete_waiter":
+      guard let waiterID = action.waiterId, let result = action.result else { return }
+      if let waiter = waiters.removeValue(forKey: waiterID), !waiter.cancellation.isCancelled {
+        waiter.reply(.success(OwlJSONValue(encoding: result)))
+      }
+    case "complete_waiters":
+      guard let waiterIDs = action.waiters, let result = action.result else { return }
+      for id in waiterIDs {
+        if let waiter = waiters.removeValue(forKey: id), !waiter.cancellation.isCancelled {
           waiter.reply(.success(OwlJSONValue(encoding: result)))
         }
-
-      case "complete_waiters":
-        guard let waiterIDs = action.waiters, let result = action.result else { break }
-        for id in waiterIDs {
-          if let waiter = waiters.removeValue(forKey: id), !waiter.cancellation.isCancelled {
-            waiter.reply(.success(OwlJSONValue(encoding: result)))
-          }
-        }
-
-      case "reject_waiter":
-        guard let waiterID = action.waiterId, let error = action.error else { break }
-        if let waiter = waiters.removeValue(forKey: waiterID) {
-          waiter.reply(.failure(error))
-        }
-
-      default:
-        break
       }
+    case "reject_waiter":
+      guard let waiterID = action.waiterId, let error = action.error else { return }
+      if let waiter = waiters.removeValue(forKey: waiterID) {
+        waiter.reply(.failure(error))
+      }
+    default:
+      break
+    }
+  }
+
+  static func outcomeCode(for outcome: OwlTemplateDeliveryOutcome) -> String {
+    switch outcome {
+    case .confirmed, .confirmedWithCursor:
+      return "confirmed"
+    case .attemptedUnverified, .originalPreservationUnverified:
+      return "unverified"
+    case .notAttempted(.secureInput):
+      return "secure_input"
+    case .notAttempted(.unverifiableTarget):
+      return "unverifiable_target"
+    case .notAttempted(.missingHost):
+      return "missing_host"
+    case .notAttempted(.focusNotRestored), .notAttempted(.targetChanged),
+         .notAttempted(.originalNotPreserved), .notAttempted(.selectionNotPrepared):
+      return "focus_changed"
     }
   }
 
   /// The contract's four statuses from the template delivery's outcome.
   static func status(for outcome: OwlTemplateDeliveryOutcome, targetQuit: Bool) -> Wire.DeliverStatus {
-    let outcomeCode: String
-    switch outcome {
-    case .confirmed, .confirmedWithCursor: outcomeCode = "confirmed"
-    case .attemptedUnverified, .originalPreservationUnverified: outcomeCode = "unverified"
-    case .notAttempted(.secureInput): outcomeCode = "secure_input"
-    case .notAttempted(.unverifiableTarget): outcomeCode = "unverifiable_target"
-    case .notAttempted(.missingHost): outcomeCode = "missing_host"
-    case .notAttempted(.focusNotRestored), .notAttempted(.targetChanged),
-         .notAttempted(.originalNotPreserved), .notAttempted(.selectionNotPrepared):
-      outcomeCode = "focus_changed"
-    }
+    let outcomeCode = self.outcomeCode(for: outcome)
     struct OutcomeResult: Decodable {
       let name: String
       let verified: Bool?

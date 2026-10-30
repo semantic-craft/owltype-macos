@@ -190,11 +190,20 @@ enum OwlLogoutPromptTiming {
   static func safeVerdict(_ input: SafeInput, blockedTicks: Int) -> SafeVerdict {
     struct WireVerdict: Decodable {
       let kind: String
-      let stale_composition_override: Bool?
-      let block_reason: String?
-      let snapshot_id: UInt64?
-      let blocked_ticks: Int?
-      let idle_seconds: Double?
+      let staleCompositionOverride: Bool?
+      let blockReason: String?
+      let snapshotId: UInt64?
+      let blockedTicks: Int?
+      let idleSeconds: Double?
+
+      enum CodingKeys: String, CodingKey {
+        case kind
+        case staleCompositionOverride = "stale_composition_override"
+        case blockReason = "block_reason"
+        case snapshotId = "snapshot_id"
+        case blockedTicks = "blocked_ticks"
+        case idleSeconds = "idle_seconds"
+      }
     }
     let wire: WireVerdict = OwlAppCore.required([
       "operation": "pure_rule",
@@ -209,13 +218,13 @@ enum OwlLogoutPromptTiming {
       ]
     ])
     if wire.kind == "safe" {
-      return .safe(staleCompositionOverride: wire.stale_composition_override ?? false)
+      return .safe(staleCompositionOverride: wire.staleCompositionOverride ?? false)
     }
-    switch wire.block_reason {
+    switch wire.blockReason {
     case "composing":
-      return .blocked(.composing(snapshotID: wire.snapshot_id ?? 0, blockedTicks: wire.blocked_ticks ?? 0))
+      return .blocked(.composing(snapshotID: wire.snapshotId ?? 0, blockedTicks: wire.blockedTicks ?? 0))
     case "input_busy":
-      return .blocked(.inputBusy(idleSeconds: wire.idle_seconds ?? 0))
+      return .blocked(.inputBusy(idleSeconds: wire.idleSeconds ?? 0))
     default:
       return .blocked(.loginWindow)
     }
@@ -230,7 +239,12 @@ enum OwlLogoutPromptTiming {
   static func activationVerdict(isActive: Bool, awaitingTicks: Int) -> ActivationVerdict {
     struct WireActivation: Decodable {
       let kind: String
-      let forced_without_active_confirm: Bool?
+      let forcedWithoutActiveConfirm: Bool?
+
+      enum CodingKeys: String, CodingKey {
+        case kind
+        case forcedWithoutActiveConfirm = "forced_without_active_confirm"
+      }
     }
     let wire: WireActivation = OwlAppCore.required([
       "operation": "pure_rule",
@@ -242,7 +256,7 @@ enum OwlLogoutPromptTiming {
       ]
     ])
     if wire.kind == "present" {
-      return .present(forcedWithoutActiveConfirm: wire.forced_without_active_confirm ?? false)
+      return .present(forcedWithoutActiveConfirm: wire.forcedWithoutActiveConfirm ?? false)
     }
     return .waitNextTick
   }

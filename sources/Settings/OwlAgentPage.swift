@@ -19,9 +19,15 @@ enum OwlAgentSettings {
   }
 
   struct CliConfig: Decodable {
-    let agy_command: String
-    let grok_command: String
-    let grok_config: String
+    let agyCommand: String
+    let grokCommand: String
+    let grokConfig: String
+
+    enum CodingKeys: String, CodingKey {
+      case agyCommand = "agy_command"
+      case grokCommand = "grok_command"
+      case grokConfig = "grok_config"
+    }
   }
 
   static func cliConfig(helperPath: String) -> CliConfig {
@@ -34,17 +40,17 @@ enum OwlAgentSettings {
 
   /// The `agy mcp add` command for Antigravity CLI, quoted for zsh.
   static func agyCommand(helperPath: String) -> String {
-    cliConfig(helperPath: helperPath).agy_command
+    cliConfig(helperPath: helperPath).agyCommand
   }
 
   /// The `grok mcp add` command, quoted for zsh.
   static func grokCommand(helperPath: String) -> String {
-    cliConfig(helperPath: helperPath).grok_command
+    cliConfig(helperPath: helperPath).grokCommand
   }
 
   /// The same server as a `~/.grok/config.toml` block, with the longer tool timeout.
   static func grokConfig(helperPath: String) -> String {
-    cliConfig(helperPath: helperPath).grok_config
+    cliConfig(helperPath: helperPath).grokConfig
   }
 
   static func shellQuoted(_ text: String) -> String {

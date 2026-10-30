@@ -499,8 +499,13 @@ enum OwlTISDiagnostics {
     }
     struct WireDiag: Decodable {
       let layers: [WireLayer]
-      let first_failing_layer: String?
+      let firstFailingLayer: String?
       let code: String?
+
+      enum CodingKeys: String, CodingKey {
+        case layers, code
+        case firstFailingLayer = "first_failing_layer"
+      }
     }
     let wireSources: [[String: Any]] = sources.map {
       [
@@ -528,7 +533,7 @@ enum OwlTISDiagnostics {
         LayerResult(layer: $0, ok: l.ok, code: l.code, detail: l.detail)
       }
     }
-    let firstFailing: ActivationLayer? = wire.first_failing_layer.flatMap { ActivationLayer(rawValue: $0) }
+    let firstFailing: ActivationLayer? = wire.firstFailingLayer.flatMap { ActivationLayer(rawValue: $0) }
     return TISDiagnosis(layers: layers, firstFailingLayer: firstFailing, code: wire.code)
   }
 
@@ -538,16 +543,28 @@ enum OwlTISDiagnostics {
   /// the login restore. Exactly one signed claimant — the installed copy — is the healthy shape.
   static func classifyClaims(bundleID: String, claims: [LSBundleClaim]) -> LSClaimReport {
     struct WireReport: Decodable {
-      let bundle_id: String
-      let claim_count: Int
-      let unsigned_count: Int
+      let bundleId: String
+      let claimCount: Int
+      let unsignedCount: Int
       let claims: [WireClaim]
       let code: String?
       let detail: String
+
+      enum CodingKeys: String, CodingKey {
+        case claims, code, detail
+        case bundleId = "bundle_id"
+        case claimCount = "claim_count"
+        case unsignedCount = "unsigned_count"
+      }
     }
     struct WireClaim: Decodable {
       let path: String
-      let team_id: String?
+      let teamId: String?
+
+      enum CodingKeys: String, CodingKey {
+        case path
+        case teamId = "team_id"
+      }
     }
     let wireClaims: [[String: Any]] = claims.map {
       ["path": $0.path, "team_id": $0.teamID as Any? ?? NSNull()]
@@ -560,11 +577,11 @@ enum OwlTISDiagnostics {
         "claims": wireClaims
       ]
     ])
-    let sortedClaims = wire.claims.map { LSBundleClaim(path: $0.path, teamID: $0.team_id) }
+    let sortedClaims = wire.claims.map { LSBundleClaim(path: $0.path, teamID: $0.teamId) }
     return LSClaimReport(
-      bundleID: wire.bundle_id,
-      claimCount: wire.claim_count,
-      unsignedCount: wire.unsigned_count,
+      bundleID: wire.bundleId,
+      claimCount: wire.claimCount,
+      unsignedCount: wire.unsignedCount,
       claims: sortedClaims,
       code: wire.code,
       detail: wire.detail

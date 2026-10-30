@@ -185,8 +185,13 @@ struct OwlRecordedHotKey: Equatable, Sendable {
       legacy[k] = [v.keyCode, v.modifiers]
     }
     struct WireResult: Decodable {
-      let key_code: UInt32
+      let keyCode: UInt32
       let modifiers: UInt32
+
+      enum CodingKeys: String, CodingKey {
+        case keyCode = "key_code"
+        case modifiers
+      }
     }
     let wire: WireResult? = OwlAppCore.required([
       "operation": "pure_rule",
@@ -194,7 +199,7 @@ struct OwlRecordedHotKey: Equatable, Sendable {
       "args": ["raw": raw, "legacy_presets": legacy]
     ])
     guard let wire else { return nil }
-    return OwlRecordedHotKey(keyCode: wire.key_code, modifiers: wire.modifiers)
+    return OwlRecordedHotKey(keyCode: wire.keyCode, modifiers: wire.modifiers)
   }
 }
 
