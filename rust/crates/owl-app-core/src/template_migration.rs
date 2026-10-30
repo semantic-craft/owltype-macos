@@ -45,17 +45,10 @@ impl Plan {
     }
 }
 fn title(body: &str) -> String {
-    body.split([
-        '\n', '\r', '\u{b}', '\u{c}', '\u{85}', '\u{2028}', '\u{2029}',
-    ])
-    .find(|s| {
-        !s.trim_matches(|c: char| c.is_whitespace() && c != '\n')
-            .is_empty()
-    })
-    .unwrap_or("")
-    .replace('\t', " ")
-    .trim()
-    .into()
+    let line = crate::foundation_text::lines(body)
+        .find(|s| !crate::foundation_text::trim_spaces(s).is_empty())
+        .unwrap_or("");
+    crate::foundation_text::trim_spaces(&line.replace('\t', " ")).into()
 }
 fn make<H: Host>(
     host: &mut H,
@@ -208,7 +201,9 @@ fn audit_table<H: Host>(host: &mut H, plan: &mut Plan) -> Result<()> {
         ])
         .enumerate()
     {
-        if line.trim().is_empty() || line.trim_start().starts_with('#') {
+        if crate::foundation_text::trim_spaces(line).is_empty()
+            || crate::foundation_text::trim_spaces(line).starts_with('#')
+        {
             continue;
         }
         let parts: Vec<_> = line.split('\t').collect();
@@ -304,10 +299,10 @@ pub fn prepare<H: Host>(host: &mut H) -> Result<Plan> {
         } else if read(host, "owl_prompts.txt")?.is_some() {
             match text(host, "owl_prompts.txt") {
                 Ok(Some(text)) => {
-                    if text
-                        .lines()
-                        .any(|l| !l.trim().is_empty() && !l.trim_start().starts_with('#'))
-                    {
+                    if crate::foundation_text::lines(&text).any(|l| {
+                        !crate::foundation_text::trim_spaces(l).is_empty()
+                            && !crate::foundation_text::trim_spaces(l).starts_with('#')
+                    }) {
                         plan.issue(
                             "owl_prompts.txt",
                             None,

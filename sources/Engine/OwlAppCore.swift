@@ -155,7 +155,8 @@ final class OwlStorageHost {
   let checkpoint: (String) throws -> Void
   let writerCheckpoint: (String) throws -> Void
   var errors: [String: Error] = [:]
-  private var heldDepth = 0
+  private var heldLockKeys: [String] = []
+  private var heldProcessDepth = 0
   private var response: UnsafeMutablePointer<CChar>?
   init(dataDir: URL, checkpoint: @escaping (String) throws -> Void = { _ in },
        writerCheckpoint: @escaping (String) throws -> Void = { _ in }) {
@@ -168,10 +169,13 @@ final class OwlStorageHost {
     name.hasPrefix("/") ? URL(fileURLWithPath: name) : dataDir.appendingPathComponent(name)
   }
   private func perform(_ operation: String, _ args: [String: Any]) throws -> Any {
-    if ["title_ranks", "case_contains", "localized_contains", "unique_sorted_strings"].contains(operation) {
+    if ["title_ranks", "case_contains", "localized_contains"].contains(operation) {
       return try compare(operation, args)
     }
     if ["path", "file_url", "sibling", "rename"].contains(operation) { return try paths(operation, args) }
+    if ["library_committed", "uuid", "checkpoint", "process_lock", "process_unlock", "lock", "unlock"].contains(operation) {
+      return try control(operation, args)
+    }
     let name = args["name"] as? String ?? ""
     let target = url(name)
     let fm = FileManager.default
@@ -204,15 +208,23 @@ final class OwlStorageHost {
       let target = URL(fileURLWithPath: args["path"] as? String ?? "").standardizedFileURL
       let root = dataDir.standardizedFileURL.path
       return target.path.hasPrefix(root + "/") ? String(target.path.dropFirst(root.count + 1)) : target.lastPathComponent
+    default: throw OwlAppCore.Failure(code: "unknown_native_effect")
+    }
+  }
+  private func control(_ operation: String, _ args: [String: Any]) throws -> Any {
+    let name = args["name"] as? String ?? ""
+    switch operation {
     case "library_committed": OwlTemplateStore.notifyCommittedLibrary(dataDir: dataDir); return true
     case "uuid": return UUID().uuidString
     case "checkpoint":
       if args["channel"] as? String == "writer" { try writerCheckpoint(name) }
       else { try checkpoint(name) }
       return true
-    case "lock": try Self.acquire(dataDir); heldDepth += 1; return true
-    case "unlock": Self.release(dataDir); heldDepth -= 1; return true
-    default: throw OwlAppCore.Failure(code: "unknown_native_effect")
+    case "process_lock": Self.lock.lock(); heldProcessDepth += 1; return true
+    case "process_unlock": Self.lock.unlock(); heldProcessDepth -= 1; return true
+    case "lock": heldLockKeys.append(try Self.acquire(dataDir)); return true
+    case "unlock": if let key = heldLockKeys.popLast() { Self.release(key) }; return true
+    default: throw OwlAppCore.Failure(code: "unknown_native_control")
     }
   }
   private func paths(_ operation: String, _ args: [String: Any]) throws -> Any {
@@ -249,10 +261,6 @@ final class OwlStorageHost {
       return values.contains { $0.caseInsensitiveCompare(value) == .orderedSame }
     case "localized_contains":
       return (args["text"] as? String ?? "").localizedCaseInsensitiveContains(args["query"] as? String ?? "")
-    case "unique_sorted_strings":
-      var unique: [String] = []
-      for value in args["values"] as? [String] ?? [] where !unique.contains(where: { $0.caseInsensitiveCompare(value) == .orderedSame }) { unique.append(value) }
-      return unique.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     default: throw OwlAppCore.Failure(code: "unknown_native_comparison")
     }
   }
@@ -277,11 +285,11 @@ final class OwlStorageHost {
   static func exclusively<T>(_ action: () throws -> T) rethrows -> T {
     lock.lock(); defer { lock.unlock() }; return try action()
   }
-  static func acquire(_ dataDir: URL) throws {
+  static func acquire(_ dataDir: URL) throws -> String {
     lock.lock()
     let directory = dataDir.standardizedFileURL.resolvingSymlinksInPath()
     let key = directory.path
-    if var held = locks[key] { held.depth += 1; locks[key] = held; return }
+    if var held = locks[key] { held.depth += 1; locks[key] = held; return key }
     do {
       try OwlPrivateStorage.prepareDirectory(directory)
       let descriptor = open(directory.appendingPathComponent(".owl-template-write.lock").path, O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, mode_t(0o600))
@@ -290,10 +298,10 @@ final class OwlStorageHost {
         close(descriptor); throw OwlTemplateError.invalid("另一个实例正在修改模板库，请稍后重试。")
       }
       locks[key] = (descriptor, 1)
+      return key
     } catch { lock.unlock(); throw error }
   }
-  static func release(_ dataDir: URL) {
-    let key = dataDir.standardizedFileURL.resolvingSymlinksInPath().path
+  static func release(_ key: String) {
     guard var held = locks[key] else { return }
     held.depth -= 1
     if held.depth == 0 { flock(held.descriptor, LOCK_UN); close(held.descriptor); locks.removeValue(forKey: key) }
@@ -301,8 +309,12 @@ final class OwlStorageHost {
     lock.unlock()
   }
   func call<Value: Decodable>(_ operation: String, _ args: [String: Any] = [:]) throws -> Value {
-    let initialDepth = heldDepth
-    defer { while heldDepth > initialDepth { Self.release(dataDir); heldDepth -= 1 } }
+    let initialDepth = heldLockKeys.count
+    let initialProcessDepth = heldProcessDepth
+    defer {
+      while heldLockKeys.count > initialDepth { Self.release(heldLockKeys.removeLast()) }
+      while heldProcessDepth > initialProcessDepth { Self.lock.unlock(); heldProcessDepth -= 1 }
+    }
     let bytes = try JSONSerialization.data(withJSONObject: ["operation": operation, "args": args])
     let response = bytes.withUnsafeBytes { buffer in
       owl_app_storage_call(OwlAppCore.abiVersion, buffer.bindMemory(to: UInt8.self).baseAddress, buffer.count,

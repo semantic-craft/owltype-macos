@@ -101,19 +101,12 @@ enum OwlTemplateStore {
   static let dictFileName = "owl_templates.txt"
   static let stateFileName = "owl_templates_state.json"
   static let candidatePrefix = "🦉["
-  struct Activation: Codable { var formatVersion = 1; var committed = true; var transactionID: UUID? }
   enum Mode: Equatable { case empty, legacy, unified, unavailable(String) }
   static func core<T: Decodable>(_ operation: String, _ args: [String: Any] = [:]) -> T {
     do { return try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call(operation, args) }
     catch { preconditionFailure("Incompatible template core: \(error)") }
   }
-  static func activationContents(transactionID: UUID) throws -> String {
-    core("library_activation", ["id": transactionID.uuidString])
-  }
   static func exclusively<T>(_ action: () throws -> T) rethrows -> T { try OwlStorageHost.exclusively(action) }
-  static func withWriteLock<T>(dataDir: URL, _ action: () throws -> T) throws -> T {
-    try OwlStorageHost.acquire(dataDir); defer { OwlStorageHost.release(dataDir) }; return try action()
-  }
   static func mode(dataDir: URL = OwlApp.userDir) -> Mode {
     struct State: Decodable { let kind: String; let message: String? }
     guard let value: State = try? OwlStorageHost(dataDir: dataDir).call("library_mode") else { return .unavailable("模板库无法读取，请保留原件并恢复备份。") }
@@ -122,7 +115,6 @@ enum OwlTemplateStore {
   static func load(dataDir: URL = OwlApp.userDir) throws -> OwlTemplateLibrary {
     try exclusively { try OwlStorageHost(dataDir: dataDir).call("library_load") }
   }
-  static func loadCommittedBytes(dataDir: URL) throws -> OwlTemplateLibrary { try OwlStorageHost(dataDir: dataDir).call("library_load_bytes") }
   static func validate(_ library: OwlTemplateLibrary) throws {
     let _: Bool = try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("library_validate", ["library": OwlAppCore.payload(library)])
   }
@@ -149,7 +141,6 @@ enum OwlTemplateStore {
     let result: Resolution = core("library_resolve", ["code": code, "text": text, "library": OwlAppCore.payload(library)])
     return result.entry
   }
-  static var patch: ManagedPatchBlock { core("library_patch") }
   static func save(_ library: OwlTemplateLibrary, writer: OwlConfigWriter = OwlConfigWriter(), expectedLibrary: OwlTemplateLibrary? = nil, beforeWrite: (String) throws -> Void = { _ in }) throws {
     try withoutActuallyEscaping(beforeWrite) { checkpoint in
       let _: Bool = try OwlStorageHost(dataDir: writer.dataDir, checkpoint: checkpoint, writerCheckpoint: writer.writeCheckpoint).call("library_save",

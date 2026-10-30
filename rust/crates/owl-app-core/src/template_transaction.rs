@@ -108,12 +108,20 @@ pub fn load_bytes<H: Host>(host: &mut H) -> Result<Library> {
     Ok(library)
 }
 pub fn load<H: Host>(host: &mut H) -> Result<Library> {
+    process_locked(host, load_unlocked)
+}
+fn load_unlocked<H: Host>(host: &mut H) -> Result<Library> {
     if pending(host) {
         return Err("模板库操作尚未完成，请先恢复。".into());
     }
     load_bytes(host)
 }
 pub fn mode<H: Host>(host: &mut H) -> Value {
+    process_locked(host, |host| Ok(mode_unlocked(host))).unwrap_or_else(
+        |_| json!({"kind":"unavailable","message":"模板库无法读取，请保留原件并恢复备份。"}),
+    )
+}
+fn mode_unlocked<H: Host>(host: &mut H) -> Value {
     if pending(host) {
         return json!({"kind":"unavailable","message":"模板库操作需要恢复，请到快捷片段设置中重试。"});
     }
@@ -148,6 +156,9 @@ pub fn mode<H: Host>(host: &mut H) -> Value {
     json!({"kind":if legacy{"legacy"}else{"empty"}})
 }
 pub fn current<H: Host>(host: &mut H) -> Result<Library> {
+    process_locked(host, current_unlocked)
+}
+fn current_unlocked<H: Host>(host: &mut H) -> Result<Library> {
     let state = mode(host);
     match state["kind"].as_str() {
         Some("empty") => Ok(Library::default()),

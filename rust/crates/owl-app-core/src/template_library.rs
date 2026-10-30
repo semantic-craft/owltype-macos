@@ -1,5 +1,6 @@
 //! The shared template model, validation and indexes. All UI and Agent consumers cross
 //! this module. Foundation supplies comparison facts, never business ordering policy.
+use crate::foundation_text::{is_whitespace_and_newline, trim};
 use crate::{storage::*, template};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -277,7 +278,7 @@ pub fn validate(library: &Library) -> Result<()> {
         if !ids.insert(e.id.to_uppercase()) {
             return Err("条目 ID 重复。".into());
         }
-        if e.title.trim().is_empty()
+        if trim(&e.title).is_empty()
             || e.title.chars().any(|c| {
                 [
                     '\n', '\r', '\u{b}', '\u{c}', '\u{85}', '\u{2028}', '\u{2029}', '\t',
@@ -287,7 +288,7 @@ pub fn validate(library: &Library) -> Result<()> {
         {
             return Err("标题不能为空，且不能包含换行或 Tab。".into());
         }
-        if e.body.trim().is_empty() {
+        if trim(&e.body).is_empty() {
             return Err("正文不能全部为空白。".into());
         }
         if e.review_state.is_none() {
@@ -297,7 +298,7 @@ pub fn validate(library: &Library) -> Result<()> {
         }
         if e.trigger
             .as_deref()
-            .is_some_and(|s| s.is_empty() || s.chars().any(char::is_whitespace))
+            .is_some_and(|s| s.is_empty() || s.chars().any(is_whitespace_and_newline))
         {
             return Err("触发词不能包含空白。".into());
         }
@@ -488,7 +489,7 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
         }
         "library_sorted" => Ok(json!(sorted(host, &entries()?)?)),
         "library_filtered" => {
-            let query = args["query"].as_str().unwrap_or("").trim();
+            let query = trim(args["query"].as_str().unwrap_or(""));
             let tag = args["tag"].as_str();
             let prompt = args["promptOnly"].as_bool().unwrap_or(false);
             let mut output = vec![];
@@ -522,8 +523,27 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
         }
         "library_tags" => {
             let entries = entries()?;
-            let values: Vec<_> = entries.iter().flat_map(|e| e.tags.clone()).collect();
-            effect(host, "unique_sorted_strings", json!({"values":values}))
+            let mut tags: Vec<String> = vec![];
+            for tag in entries.iter().flat_map(|e| &e.tags) {
+                let equivalent: bool = decode(effect(
+                    host,
+                    "case_contains",
+                    json!({"values":tags,"value":tag}),
+                )?)?;
+                if !equivalent {
+                    tags.push(tag.clone());
+                }
+            }
+            let ranks: Vec<usize> = decode(effect(host, "title_ranks", json!({"titles":tags}))?)?;
+            if ranks.len() != tags.len() {
+                return Err("invalid_native_collation".into());
+            }
+            let mut indices: Vec<_> = (0..tags.len()).collect();
+            indices.sort_by_key(|i| ranks[*i]);
+            Ok(json!(indices
+                .into_iter()
+                .map(|i| tags[i].clone())
+                .collect::<Vec<_>>()))
         }
         "library_search_text" => Ok(json!(search_text(&entry()?))),
         "library_candidate" => Ok(json!(entry()?.candidate())),
@@ -549,11 +569,9 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
             )
         }
         "library_projection" => Ok(json!(projection(host, &library()?)?)),
-        "library_patch" => Ok(json!({"marker":MARKER,"yamlLinesIndentedUnderPatch":patch_lines()})),
         "library_encode" => Ok(json!(encoded(&library()?)?)),
         "library_mode" => Ok(tx::mode(host)),
         "library_load" => Ok(json!(tx::load(host)?)),
-        "library_load_bytes" => Ok(json!(tx::load_bytes(host)?)),
         "library_save" => {
             let expected: Option<Library> = decode(args["expected"].clone())?;
             tx::save(host, &library()?, expected.as_ref())?;
@@ -577,9 +595,6 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
             )?;
             Ok(json!(true))
         }),
-        "library_activation" => Ok(json!(tx::activation(
-            args["id"].as_str().ok_or("invalid_payload")?
-        ))),
         "library_conflicts" => Ok(json!(conflicts(&entries()?))),
         "transaction_pending" => Ok(json!(tx::pending(host))),
         "transaction_recover" => Ok(json!(tx::recover(host)?)),

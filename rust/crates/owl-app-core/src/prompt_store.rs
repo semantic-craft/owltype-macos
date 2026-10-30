@@ -1,5 +1,6 @@
 //! Legacy prompt compatibility, normalization and projection. It remains a separate on-disk
 //! format until explicit migration; all persistence decisions use the Rust writer.
+use crate::foundation_text::trim;
 use crate::{config_writer, keyboard_export, storage::*, template_library::code_valid};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -12,10 +13,10 @@ pub struct Prompt {
     pub category: String,
 }
 pub fn entry(mut p: Prompt) -> Result<Prompt> {
-    p.code = p.code.trim().to_lowercase();
-    p.title = p.title.trim().into();
-    p.body = p.body.trim().into();
-    p.category = p.category.trim().into();
+    p.code = trim(&p.code).to_lowercase();
+    p.title = trim(&p.title).into();
+    p.body = trim(&p.body).into();
+    p.category = trim(&p.category).into();
     if p.title.is_empty() || p.title.contains(['\n', '\t']) {
         return Err("prompt_title".into());
     }
@@ -83,7 +84,7 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
             Ok(json!(e))
         }
         "prompt_collision" => {
-            let code = args["code"].as_str().unwrap_or("").trim().to_lowercase();
+            let code = trim(args["code"].as_str().unwrap_or("")).to_lowercase();
             let codes: Vec<String> = decode(args["codes"].clone())?;
             if codes.contains(&code) {
                 return Err(format!("prompt_duplicate:{code}"));
@@ -133,7 +134,7 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
         }
         "prompt_match" => {
             let entries: Vec<Prompt> = decode(args["entries"].clone())?;
-            let code = args["code"].as_str().unwrap_or("").trim().to_lowercase();
+            let code = trim(args["code"].as_str().unwrap_or("")).to_lowercase();
             let title = args["title"].as_str().unwrap_or("");
             let same: Vec<_> = entries
                 .iter()

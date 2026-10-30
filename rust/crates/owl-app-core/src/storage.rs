@@ -79,3 +79,21 @@ pub struct PreparedWrite {
     pub contents: String,
     pub marker: String,
 }
+
+/// Serialize public reads with in-process transactions without creating lock files or
+/// directories. Cross-process flock remains a write effect, matching the existing contract.
+pub fn process_locked<H: Host, T>(
+    host: &mut H,
+    action: impl FnOnce(&mut H) -> Result<T>,
+) -> Result<T> {
+    effect(host, "process_lock", json!({}))?;
+    let result = action(host);
+    let unlock = effect(host, "process_unlock", json!({}));
+    match result {
+        Err(error) => Err(error),
+        Ok(value) => {
+            unlock?;
+            Ok(value)
+        }
+    }
+}

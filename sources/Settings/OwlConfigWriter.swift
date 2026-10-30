@@ -119,10 +119,6 @@ final class OwlConfigWriter {
 
   /// **可由猫头鹰管理** 的文件。`apply` 只应被这些文件名调用（UI 侧约束）；列在这里也是
   /// 文档化的「猫头鹰托管面」。两个 custom.yaml 用托管块合并，其余由生成器整文件产出。
-  static var owlManagedFiles: Set<String> {
-    try! OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("writer_managed")
-  }
-  static let neverTouch: Set<String> = ["user.yaml", "installation.yaml", "custom_phrase.txt"]
   static func isNeverTouch(_ fileName: String) -> Bool {
     try! OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("writer_never_touch", ["name": fileName])
   }

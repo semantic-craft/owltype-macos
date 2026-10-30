@@ -154,6 +154,27 @@ final class OwlTemplateStoreTests: XCTestCase {
     }
   }
 
+  func testConcurrentCurrentLibraryReadWaitsForTheCompleteSave() throws {
+    let initial = OwlTemplateLibrary(entries: [entry()])
+    try OwlTemplateStore.save(initial, writer: writer)
+    let next = OwlTemplateLibrary(entries: [.init(title: "New", body: "new body")])
+    let directory = root!
+    let started = DispatchSemaphore(value: 0)
+    let finished = DispatchSemaphore(value: 0)
+    try OwlTemplateStore.save(next, writer: writer, expectedLibrary: initial, beforeWrite: { name in
+      guard name == OwlTemplateStore.dictFileName else { return }
+      DispatchQueue.global().async {
+        started.signal()
+        do { let current = try OwlTemplateBackup(dataDir: directory).currentLibrary(); XCTAssertEqual(current, next) }
+        catch { XCTFail("Public library read failed: \(error)") }
+        finished.signal()
+      }
+      XCTAssertEqual(started.wait(timeout: .now() + 2), .success)
+      XCTAssertEqual(finished.wait(timeout: .now() + 0.1), .timedOut, "A public read must not observe staged library bytes")
+    })
+    XCTAssertEqual(finished.wait(timeout: .now() + 2), .success)
+  }
+
   func testConcurrentEditorDoesNotOverwriteSavedChanges() throws {
     try OwlTemplateStore.save(OwlTemplateLibrary(entries: [entry()]), writer: writer)
     let first = OwlTemplateEditorModel(writer: writer)
@@ -165,6 +186,17 @@ final class OwlTemplateStoreTests: XCTestCase {
     XCTAssertFalse(second.save())
     XCTAssertEqual(second.draft.body, "B")
     XCTAssertFalse(try OwlTemplateStore.load(dataDir: root).entries.contains { $0.title == "第二窗口" })
+  }
+
+  func testFoundationWhitespaceIsPreservedAcrossLibraryAndLegacyBoundaries() throws {
+    let whitespace = "\u{200B}"
+    XCTAssertThrowsError(try OwlTemplateStore.validate(.init(entries: [.init(title: whitespace, body: "body")])))
+    XCTAssertThrowsError(try OwlTemplateStore.validate(.init(entries: [.init(title: "title", body: whitespace)])))
+    XCTAssertEqual(try OwlPromptStore.entry(code: whitespace + "foo" + whitespace, title: "Title", body: "Body").code, "foo")
+    XCTAssertEqual(try OwlQuickSendStore.entry(text: "Text", code: whitespace + "foo" + whitespace).code, "foo")
+    let entries = [OwlTemplateEntry(title: "Title", body: "Body")]
+    XCTAssertEqual(OwlTemplateStore.filtered(entries, query: whitespace).count, 1)
+    XCTAssertEqual(OwlPickerPanelModel(rows: entries.map(OwlPickerRow.template), query: whitespace).visible.count, 1)
   }
 
   func testWhitespaceRejectionDoesNotTrimValidBody() throws {

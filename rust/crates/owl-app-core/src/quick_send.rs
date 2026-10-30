@@ -1,4 +1,5 @@
 //! Legacy quick-send store and settings edit plans.
+use crate::foundation_text::trim;
 use crate::{
     config_writer, keyboard_export,
     storage::*,
@@ -13,8 +14,8 @@ pub struct Entry {
     pub code: String,
 }
 pub fn entry(mut e: Entry) -> Result<Entry> {
-    e.text = e.text.trim().into();
-    e.code = e.code.trim().to_lowercase();
+    e.text = trim(&e.text).into();
+    e.code = trim(&e.code).to_lowercase();
     if e.text.is_empty() || e.text.contains(['\n', '\t']) {
         return Err("quick_text".into());
     }
@@ -61,7 +62,7 @@ pub fn load<H: Host>(host: &mut H) -> Vec<Entry> {
         .unwrap_or_default();
     let entries = text
         .lines()
-        .filter(|l| !l.trim_start().starts_with('#'))
+        .filter(|l| !crate::foundation_text::trim_spaces(l).starts_with('#'))
         .filter_map(|line| {
             let parts: Vec<_> = line.split('\t').collect();
             if parts.len() < 2 {

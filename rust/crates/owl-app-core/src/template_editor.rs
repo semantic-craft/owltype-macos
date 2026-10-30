@@ -1,12 +1,13 @@
 //! Draft mutation policy. Native view state is an editable projection; Rust returns accepted
 //! drafts and commit plans, and failed persistence never publishes that plan to readers.
+use crate::foundation_text::trim;
 use crate::{storage::*, template, template_import, template_library::*};
 use serde_json::{json, Value};
 fn options(s: &str) -> Vec<String> {
     if s.is_empty() {
         vec![]
     } else {
-        s.split(',').map(|s| s.trim().into()).collect()
+        s.split(',').map(|s| trim(s).into()).collect()
     }
 }
 fn field(p: &Parameter, anonymous: bool) -> String {
@@ -43,7 +44,7 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
             }
             values = kept;
         } else {
-            let value = text.trim().to_lowercase();
+            let value = trim(text).to_lowercase();
             if !value.contains('.')
                 || !regex::Regex::new(r"^[a-z0-9][a-z0-9.-]*$")
                     .unwrap()
@@ -125,7 +126,7 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
             }
         }
         "tag" => {
-            let tag = args["text"].as_str().unwrap_or("").trim();
+            let tag = trim(args["text"].as_str().unwrap_or(""));
             let exists: bool = decode(effect(
                 host,
                 "case_contains",
@@ -156,7 +157,7 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
                 if !format.is_empty() {
                     text.push_str(&format!(" format={}", template::quoted(format)))
                 }
-                if !offset.trim().is_empty() {
+                if !trim(offset).is_empty() {
                     text.push_str(&format!(" offset={}", template::quoted(offset)))
                 }
                 text + "}"
@@ -177,7 +178,7 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
             let default_value: Option<String> = decode(args["defaultValue"].clone())?;
             let opts = options(args["options"].as_str().unwrap_or(""));
             let (definition, anonymous) = if insert {
-                let name = args["name"].as_str().unwrap_or("").trim();
+                let name = trim(args["name"].as_str().unwrap_or(""));
                 let count = draft
                     .parsed(false)
                     .parameters

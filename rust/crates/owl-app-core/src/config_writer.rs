@@ -185,7 +185,6 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
             rollback(host)?;
             Ok(json!(true))
         }
-        "writer_managed" => Ok(json!(MANAGED)),
         "writer_never_touch" => Ok(json!(never_touch(
             args["name"].as_str().ok_or("invalid_payload")?
         ))),
@@ -208,7 +207,7 @@ fn yaml_item(line: &str) -> Option<(usize, String, &str)> {
         Some((indent, key.into(), tail.strip_prefix(':')?))
     } else {
         let (key, value) = trimmed.split_once(':')?;
-        let key = key.trim();
+        let key = crate::foundation_text::trim_spaces(key);
         if key.is_empty() {
             None
         } else {
@@ -240,7 +239,7 @@ pub fn remove_bare(text: &str, marker: &str) -> String {
             .take_while(|b| *b == b' ' || *b == b'\t')
             .count();
         if let Some(block_indent) = dropping {
-            if line.trim().is_empty() || indent > block_indent {
+            if crate::foundation_text::trim_spaces(line).is_empty() || indent > block_indent {
                 continue;
             }
             dropping = None
@@ -265,7 +264,7 @@ pub fn remove_bare(text: &str, marker: &str) -> String {
                     ]
                     .contains(&key.as_str());
                 if owned {
-                    if value.trim().is_empty() {
+                    if crate::foundation_text::trim_spaces(value).is_empty() {
                         dropping = Some(indent)
                     }
                     continue;
@@ -288,7 +287,7 @@ fn top_level(key: &str, text: &str) -> Option<String> {
     let raw = text
         .split('\n')
         .find_map(|l| l.strip_prefix(&prefix))?
-        .trim_matches(|c: char| c.is_whitespace() && c != '\n');
+        .trim_matches(crate::foundation_text::is_whitespace);
     if raw.starts_with('"') && raw.ends_with('"') && raw.len() >= 2 {
         Some(
             raw[1..raw.len() - 1]

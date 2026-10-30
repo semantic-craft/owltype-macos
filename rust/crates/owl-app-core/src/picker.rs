@@ -16,13 +16,7 @@ pub struct Model {
     pub selection: i64,
 }
 fn visible<H: Host>(host: &mut H, m: &Model) -> Result<Vec<Row>> {
-    let query = m.query.trim_matches(|c: char| {
-        c.is_whitespace()
-            && ![
-                '\n', '\r', '\u{b}', '\u{c}', '\u{85}', '\u{2028}', '\u{2029}',
-            ]
-            .contains(&c)
-    });
+    let query = crate::foundation_text::trim_spaces(&m.query);
     if query.is_empty() {
         return Ok(m.rows.clone());
     }
