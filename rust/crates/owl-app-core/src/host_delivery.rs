@@ -53,6 +53,7 @@ pub struct Delivery {
     preparation_pending: bool,
     verify_pending: bool,
     move_pending: bool,
+    effect_pending: Option<String>,
 }
 impl Delivery {
     pub fn new(args: Value) -> Self {
@@ -176,6 +177,7 @@ impl Delivery {
                 } else {
                     self.preparation = Some("originalAttemptedUnverified".into());
                     self.preparation_pending = true;
+                    self.effect_pending = Some("original".into());
                     self.revision = f["revision"].as_u64().unwrap_or(0);
                     let s = self.source.as_ref().unwrap();
                     json!({"text":s["original"],"origin":s["range"]})
@@ -262,6 +264,7 @@ impl Delivery {
                     None
                 };
                 self.dispatched = true;
+                self.effect_pending = Some("result".into());
                 self.verify_pending = origin.is_some();
                 self.origin = origin;
                 self.revision = f["revision"].as_u64().unwrap_or(0);
@@ -289,7 +292,35 @@ impl Delivery {
                         self.selection = range(&f["selection"]);
                         self.revision = f["revision"].as_u64().unwrap_or(0);
                         self.move_pending = true;
+                        self.effect_pending = Some("cursor".into());
                         json!({"target":[r[0]+offset.unwrap(),0],"inserted":r})
+                    }
+                }
+            }
+            "admit" => {
+                let kind = f["kind"].as_str().unwrap_or("");
+                let pending = self.effect_pending.take();
+                if pending.as_deref() == Some(kind)
+                    && self.valid(&f)
+                    && f["revision"].as_u64() == Some(self.revision)
+                {
+                    json!({})
+                } else {
+                    self.invalid = true;
+                    match kind {
+                        "original" => {
+                            self.preparation_pending = false;
+                            self.preparation = Some("originalNotPreserved".into());
+                            outcome("originalNotPreserved")
+                        }
+                        "cursor" => {
+                            self.move_pending = false;
+                            outcome("positionUnverified")
+                        }
+                        _ => {
+                            self.verify_pending = false;
+                            outcome(f["rejection"].as_str().unwrap_or("targetChanged"))
+                        }
                     }
                 }
             }
@@ -306,6 +337,78 @@ impl Delivery {
                     outcome("leftAtEnd")
                 } else {
                     outcome("positionUnverified")
+                }
+            }
+            _ => return Err("invalid_event".into()),
+        })
+    }
+}
+
+/// Focus restoration policy is separate from native application identity and timer callbacks.
+/// Each poll consumes a token, so repeated or superseded callbacks cannot dispatch again.
+#[derive(Default)]
+pub struct Focus {
+    capture_attempted: bool,
+    active: bool,
+    remaining: u32,
+    token: u64,
+}
+impl Focus {
+    pub fn event(&mut self, event: &str, facts: Value) -> Result<Value, String> {
+        let effect = |action: &str, token: u64| json!({"action":action,"token":token});
+        Ok(match event {
+            "capture" => {
+                self.capture_attempted = true;
+                json!(true)
+            }
+            "drop" => {
+                self.capture_attempted = false;
+                json!(true)
+            }
+            "restore" => {
+                self.capture_attempted = false;
+                json!(facts["target"] == true)
+            }
+            "begin" => {
+                let needed = self.capture_attempted;
+                self.capture_attempted = false;
+                self.token = self.token.wrapping_add(1);
+                self.active = false;
+                if facts["host"] != true || (needed && facts["target"] != true) {
+                    effect("missing", self.token)
+                } else if facts["pending"] != true {
+                    effect("ignore", self.token)
+                } else if facts["target"] != true {
+                    effect("dispatch", self.token)
+                } else {
+                    self.active = true;
+                    self.remaining = 40;
+                    effect("restore", self.token)
+                }
+            }
+            "poll" => {
+                if !self.active || facts["token"].as_u64() != Some(self.token) {
+                    return Ok(effect("ignore", self.token));
+                }
+                self.token = self.token.wrapping_add(1);
+                if facts["pending"] != true {
+                    self.active = false;
+                    effect("ignore", self.token)
+                } else if (facts["restored"] == true && facts["ready"] == true)
+                    || self.remaining == 0
+                {
+                    self.active = false;
+                    effect(
+                        if facts["restored"] == true {
+                            "dispatch"
+                        } else {
+                            "focusNotRestored"
+                        },
+                        self.token,
+                    )
+                } else {
+                    self.remaining -= 1;
+                    effect("wait", self.token)
                 }
             }
             _ => return Err("invalid_event".into()),

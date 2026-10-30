@@ -123,6 +123,7 @@ final class OwlInputController: IMKInputController {
 
   override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
     guard let event = event else { return false }
+    if event.cgEvent?.getIntegerValueField(.eventSourceUserData) == OwlSmartPunctuation.postedEventTag { return false }
     let wasHandlingKeyEvent = isHandlingKeyEvent
     isHandlingKeyEvent = true
     if event.type == .keyDown { hostEventGeneration &+= 1 }
@@ -130,7 +131,6 @@ final class OwlInputController: IMKInputController {
       isHandlingKeyEvent = wasHandlingKeyEvent
       observeCommittedAutomaticExpansion(event)
     }
-    if event.cgEvent?.getIntegerValueField(.eventSourceUserData) == OwlSmartPunctuation.postedEventTag { return false }
     if event.type == .keyDown { pendingTemplateDelivery?.invalidate() }
     OwlLatencyTrace.event("key.received")
     let handleTrace = OwlLatencyTrace.begin("handle")

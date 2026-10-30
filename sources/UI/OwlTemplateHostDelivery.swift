@@ -202,6 +202,12 @@ final class OwlTemplateHostDelivery {
        let text = access.text(requested), text.utf16.count == requested.length { facts["text"] = text }
     return facts
   }
+  /// Final native binding sample occurs after planning reads, before each native effect.
+  private func admit(_ kind: String) -> Effect {
+    let rejection = invalid ? OwlTemplateDeliveryOutcome.Reason.targetChanged : access.rejection(immediate)
+    return core.call("admit", ["kind": kind, "sourceValid": source?.isValid() ?? true,
+      "rejection": rejection?.rawValue as Any? ?? NSNull(), "revision": access.revision()])
+  }
   private static func outcome(_ code: String?) -> OwlTemplateDeliveryOutcome {
     switch code {
     case "confirmed": return .confirmed
@@ -254,6 +260,7 @@ final class OwlTemplateHostDelivery {
     guard let text = effect.text, let origin = Self.nativeRange(effect.origin) else {
       completion(.originalNotAttempted(.originalNotPreserved)); return
     }
+    if let code = admit("original").outcome { completion(Self.preparation(code)); return }
     access.insert(text, nil)
     let finish = { [self] in
       let range = OwlTemplateCursorPlacement.insertedRange(text: text, base: origin.location)
@@ -283,6 +290,7 @@ final class OwlTemplateHostDelivery {
     if !chunk.isEmpty { let _: Bool = core.call("result_chunk", ["text": chunk]) }
     let effect: Effect = core.call("plan", facts(planning: true))
     if let code = effect.outcome { completion(Self.outcome(code)); return }
+    if let code = admit("result").outcome { completion(Self.outcome(code)); return }
     access.insert(result.text, Self.nativeRange(effect.replacement))
     guard let origin = Self.nativeRange(effect.origin) else { completion(.attemptedUnverified); return }
     let verify = { [self] in
@@ -293,6 +301,7 @@ final class OwlTemplateHostDelivery {
       guard let target = Self.nativeRange(effect.target), let inserted = Self.nativeRange(effect.inserted) else {
         completion(.confirmedWithCursor(.positionUnverified)); return
       }
+      if let code = admit("cursor").outcome { completion(Self.outcome(code)); return }
       let moved = access.move(target, inserted, result.text)
       var observation = facts()
       observation["target"] = Self.wireRange(target); observation["moved"] = moved

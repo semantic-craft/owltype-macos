@@ -147,6 +147,21 @@ final class OwlTemplateHostDeliveryTests: XCTestCase {
     XCTAssertEqual(host.writes.count, 1)
   }
 
+  func testTargetChangingDuringReadbackCannotReceiveThePlannedWrite() {
+    let host = Host()
+    var access = host.access
+    let read = access.text
+    access.text = { range in
+      let text = read(range)
+      host.current = false
+      return text
+    }
+    let delivery = OwlTemplateHostDelivery(access: access)
+    XCTAssertEqual(delivery.deliver(.init(text: "结果", cursorOffset: 1)), .notAttempted(.targetChanged))
+    XCTAssertEqual(host.writes.count, 0)
+    XCTAssertEqual(host.text as String, "左;;a右")
+  }
+
   func testPlacementFailureKeepsCompleteTextAndDoesNotRepeatIt() {
     let host = Host(); host.acceptsMove = false
     let delivery = OwlTemplateHostDelivery(access: host.access)

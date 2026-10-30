@@ -4,6 +4,7 @@ use serde_json::{json, Value};
 
 pub enum Session {
     Delivery(crate::host_delivery::Delivery),
+    Focus(crate::host_delivery::Focus),
     Runtime(Runtime),
     Binding { expected: Value, valid: bool },
     Invocation(Box<Invocation>),
@@ -13,6 +14,7 @@ pub enum Session {
 impl Session {
     pub fn create(kind: &str, args: Value) -> Result<Self, String> {
         match kind {
+            "focus" => Ok(Self::Focus(crate::host_delivery::Focus::default())),
             "delivery" => Ok(Self::Delivery(crate::host_delivery::Delivery::new(args))),
             "runtime" => Ok(Self::Runtime(Runtime::default())),
             "binding" => Ok(Self::Binding {
@@ -38,6 +40,7 @@ impl Session {
     ) -> Result<Value, String> {
         match self {
             Self::Delivery(delivery) => delivery.event(event, args),
+            Self::Focus(focus) => focus.event(event, args),
             Self::Runtime(runtime) => runtime.event(event, args),
             Self::Binding { expected, valid } => {
                 if event != "valid" {

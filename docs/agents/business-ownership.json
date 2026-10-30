@@ -145,7 +145,7 @@
     {"path": "sources/UI/OwlFloatingPanelPositioner.swift", "role": "native", "target": "Swift", "issue": null, "reason": "Native views, presentation state, geometry or explicit system context capture"},
     {"path": "sources/UI/OwlHostCaretAnchorMemory.swift", "role": "native", "target": "Swift", "issue": null, "reason": "Native views, presentation state, geometry or explicit system context capture"},
     {"path": "sources/UI/OwlInputStatusPanel.swift", "role": "native", "target": "Swift", "issue": null, "reason": "Native views, presentation state, geometry or explicit system context capture"},
-    {"path": "sources/UI/OwlPanelInsertionBroker.swift", "role": "split", "target": "owl-app-core", "issue": 362, "reason": "Delivery decisions; focus restoration remains native"},
+    {"path": "sources/UI/OwlPanelInsertionBroker.swift", "role": "adapter", "target": "Swift", "issue": null, "reason": "Rust focus-session effects; native application references, activation, timer scheduling and explicit clipboard writes"},
     {"path": "sources/UI/OwlPromptFillSheet.swift", "role": "native", "target": "Swift", "issue": null, "reason": "Native views, presentation state, geometry or explicit system context capture"},
     {"path": "sources/UI/OwlQuickSendHotKey.swift", "role": "split", "target": "owl-app-core", "issue": 367, "reason": "Shortcut policy moves; CGEvent tap thread and event conversion remain native"},
     {"path": "sources/UI/OwlQuickSendPanel.swift", "role": "adapter", "target": "Swift", "issue": null, "reason": "Native panel and focus effects; Rust picker owns filtering and selection decisions"},

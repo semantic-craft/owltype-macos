@@ -215,3 +215,11 @@ AX capabilities or rapid changes before capture leave ordinary input in place. R
 perform the host's normal action; changed focus, selection or page prevents expansion. The
 existing non-Chromium marked-text delimiter behavior is unchanged. Installed Chrome acceptance
 and its limitations remain tracked in #331; this implementation is not installation evidence.
+
+The `focus` session owns capture-required failures, restoration polling/timeout, pending
+cancellation and dispatch admission. Swift transfers the owned handle with the captured native
+application, activates it and schedules timers. Poll tokens reject duplicate or superseded
+callbacks. A restored application with an unverifiable field reaches the delivery adapter's
+specific refusal; only an application that never returns yields `focusNotRestored`.
+Every delivery effect takes a fresh binding admission after planning reads, preventing a
+field change during native text queries from authorizing a write into the new target.

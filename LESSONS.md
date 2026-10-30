@@ -5,6 +5,22 @@ that the lesson is in place: which file to read, which command to run, what resu
 and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## Read fresh admission facts after native planning queries
+
+**A native text/readiness query can reenter and change the target or cancel an invocation;
+Rust must see the final binding/pending facts before allowing an effect.**
+
+- Reason: #362 review found that delivery took `rejection` before its range/text reads.
+  The App-host regression changed the target inside a text read and still received a write.
+  A corresponding broker regression cancelled inside host readiness and still dispatched.
+- Prevention: Rust independently admits original/result/cursor effects using the fresh native
+  binding after planning. Focus polls receive `pending` after native readiness has returned.
+- Regression: `testTargetChangingDuringReadbackCannotReceiveThePlannedWrite` and
+  `testCancellationDuringHostReadinessDoesNotDispatch` both failed before their fixes.
+- Scope: synthetic native reads through the real App ABI; native field/activation evidence is separate.
+- Verify (验证点): run `OwlTemplateHostDeliveryTests` and `OwlPanelInsertionBrokerTests` with `scripts/verify.py swift`.
+- Seen on 1 distinct date: 2026-10-30.
+
 ## A late host receipt cannot repeat a native effect
 
 **Consume preservation/readback receipts in the owned delivery state before calling native
