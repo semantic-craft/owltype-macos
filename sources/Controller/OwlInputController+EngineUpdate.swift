@@ -105,7 +105,7 @@ extension OwlInputController {
       preparePresentation: automaticSource == nil ? nil : {
         broker.capture()
         return delivery.prepareForPresentation()
-      }, onFinish: { delivery.invalidate() })
+      }, onFinish: { delivery.invalidate() }, sessionBinding: { String(delivery.invocationBindingIsCurrent) })
     MainActor.assumeIsolated { OwlPromptFillSheet.shared.begin(invocation: invocation) }
     delivery.endImmediateDelivery()
   }

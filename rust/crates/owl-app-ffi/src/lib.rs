@@ -10,6 +10,10 @@ const MAX_REQUEST: usize = 4 * 1024 * 1024;
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
+    TemplateSessionRule {
+        rule: String,
+        args: Value,
+    },
     TemplateReady {
         severities: Vec<String>,
         missing_count: usize,
@@ -127,6 +131,9 @@ fn dispatch(bytes: &[u8]) -> Value {
         Err(_) => return error("invalid_request"),
     };
     let result = match request {
+        Request::TemplateSessionRule { rule, args } => {
+            owl_app_core::template_session::rule(&rule, args)
+        }
         Request::TemplateReady {
             severities,
             missing_count,
@@ -465,4 +472,100 @@ pub unsafe extern "C" fn owl_app_storage_call(
     CString::new(response.to_string())
         .expect("JSON has no literal NUL")
         .into_raw()
+}
+
+/// # Safety
+/// Requests are borrowed readable bytes. Output must point to writable pointer storage.
+/// Sessions are uniquely owned and serialized by the caller; no concurrent events/free.
+#[no_mangle]
+pub unsafe extern "C" fn owl_app_session_new(
+    version: u32,
+    request: *const u8,
+    length: usize,
+    output: *mut *mut c_char,
+) -> *mut owl_app_core::template_session::Session {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        if version != ABI {
+            return Err("abi_mismatch".to_string());
+        }
+        if request.is_null() || length == 0 || length > isize::MAX as usize {
+            return Err("invalid_request".into());
+        }
+        let value: Value =
+            serde_json::from_slice(unsafe { std::slice::from_raw_parts(request, length) })
+                .map_err(|_| "invalid_request")?;
+        owl_app_core::template_session::Session::create(
+            value["kind"].as_str().unwrap_or(""),
+            value["args"].clone(),
+        )
+    }))
+    .unwrap_or_else(|_| Err("internal_error".into()));
+    let (session, response) = match result {
+        Ok(session) => (
+            Box::into_raw(Box::new(session)),
+            json!({"ok":true,"value":true}),
+        ),
+        Err(code) => (std::ptr::null_mut(), error(&code)),
+    };
+    if !output.is_null() {
+        unsafe {
+            *output = CString::new(response.to_string()).unwrap().into_raw();
+        }
+    }
+    session
+}
+/// # Safety
+/// Session and optional index are live owned handles, distinct pointers, serialized by caller.
+#[no_mangle]
+pub unsafe extern "C" fn owl_app_session_call(
+    session: *mut owl_app_core::template_session::Session,
+    request: *const u8,
+    length: usize,
+    index: *const owl_app_core::template_session::Session,
+) -> *mut c_char {
+    let response = catch_unwind(AssertUnwindSafe(|| {
+        if session.is_null()
+            || request.is_null()
+            || length == 0
+            || length > isize::MAX as usize
+            || std::ptr::eq(session, index)
+        {
+            return error("invalid_request");
+        }
+        // Library snapshots retain the storage ABI's size semantics. Other session
+        // events use the same request bound as the pure dispatcher.
+        if length > MAX_REQUEST
+            && !matches!(
+                unsafe { &*session },
+                owl_app_core::template_session::Session::Runtime(_)
+            )
+        {
+            return error("invalid_request");
+        }
+        let Ok(value) =
+            serde_json::from_slice::<Value>(unsafe { std::slice::from_raw_parts(request, length) })
+        else {
+            return error("invalid_request");
+        };
+        match unsafe { &mut *session }.event(
+            value["event"].as_str().unwrap_or(""),
+            value["args"].clone(),
+            unsafe { index.as_ref() },
+        ) {
+            Ok(value) => json!({"ok":true,"value":value}),
+            Err(code) => error(&code),
+        }
+    }))
+    .unwrap_or_else(|_| error("internal_error"));
+    CString::new(response.to_string()).unwrap().into_raw()
+}
+/// # Safety
+/// NULL or a live uniquely owned session returned by owl_app_session_new, freed exactly once.
+#[no_mangle]
+pub unsafe extern "C" fn owl_app_session_free(
+    session: *mut owl_app_core::template_session::Session,
+) {
+    if !session.is_null() {
+        drop(unsafe { Box::from_raw(session) });
+    }
 }

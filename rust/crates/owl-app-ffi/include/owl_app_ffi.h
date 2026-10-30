@@ -22,6 +22,16 @@ uint32_t owl_app_keyboard_refresh(uint8_t pending, uint8_t composing);
 typedef const char *(*owl_app_host_callback)(void *context, const char *request);
 char *owl_app_storage_call(uint32_t abi_version, const uint8_t *request, size_t length,
                            void *context, owl_app_host_callback callback);
+// Owned ephemeral sessions: creator thread serializes all calls and destruction. No callbacks.
+// Creation validates ABI 1 and returns an owned status buffer through response (free it too).
+// Creation/runtime publication accept storage-sized snapshots; other events are <= 4 MiB.
+// The optional index is borrowed for one event and must be a distinct live session.
+// Keep the same index while recognizing; native publication drains pending recognition first.
+// Free NULL is permitted. No handle or response may be freed twice or used after free.
+typedef struct OwlAppSession OwlAppSession;
+OwlAppSession *owl_app_session_new(uint32_t version, const uint8_t *request, size_t length, char **response);
+char *owl_app_session_call(OwlAppSession *session, const uint8_t *request, size_t length, const OwlAppSession *index);
+void owl_app_session_free(OwlAppSession *session);
 void owl_app_string_free(char *response); // NULL is allowed; other pointers must be ours.
 #ifdef __cplusplus
 }

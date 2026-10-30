@@ -17,6 +17,34 @@ final class OwlTemplateDeliveryTests: XCTestCase {
       calendar: Calendar(identifier: .gregorian)))
   }
 
+  func testCommittedTemplateRevisionInvalidatesAnAlreadyPreviewedInvocation() throws {
+    var delivered: [String] = []
+    let template = entry("{clipboard}")
+    try OwlAutomaticExpansionRuntime.shared.publish(entries: [template], enabled: false, disabledBundleIDs: [])
+    let invocation = OwlTemplateInvocation(content: .template(template),
+      broker: OwlPanelInsertionBroker(), deliver: { delivered.append($0.text); return .confirmed },
+      intent: .resultPreview, captureContext: { _ in self.context() })
+    XCTAssertEqual(invocation.preview(values: [:]).text, "材料A")
+    try OwlAutomaticExpansionRuntime.shared.publish(entries: [], enabled: false, disabledBundleIDs: [])
+    XCTAssertFalse(invocation.confirm(values: [:]))
+    XCTAssertTrue(delivered.isEmpty)
+  }
+
+  func testEditingAnotherTemplateDoesNotInvalidateTheSelectedEntry() throws {
+    let selected = entry("{clipboard}")
+    var other = entry("别的模板")
+    try OwlAutomaticExpansionRuntime.shared.publish(entries: [selected, other], enabled: false, disabledBundleIDs: [])
+    var delivered: [String] = []
+    let invocation = OwlTemplateInvocation(content: .template(selected), broker: OwlPanelInsertionBroker(),
+      deliver: { delivered.append($0.text); return .confirmed }, intent: .resultPreview,
+      captureContext: { _ in self.context() })
+    XCTAssertEqual(invocation.preview(values: [:]).text, "材料A")
+    other.body = "改过的另一个模板"
+    try OwlAutomaticExpansionRuntime.shared.publish(entries: [selected, other], enabled: false, disabledBundleIDs: [])
+    XCTAssertTrue(invocation.confirm(values: [:]))
+    XCTAssertEqual(delivered, ["材料A"])
+  }
+
   func testExplicitPreviewPresentsNoParameterDynamicTemplatesWithoutDelivery() {
     for body in ["{clipboard}", "{date format=yyyy-MM-dd}", "{date format=yyyy-MM-dd}/{clipboard}"] {
       var reads = 0

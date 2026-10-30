@@ -21,7 +21,7 @@ final class OwlTemplateInvocation: ObservableObject {
     }
   }
 
-  struct Result: Equatable {
+  struct Result: Equatable, Codable {
     let text: String
     // UTF-16 offset in the final expanded text. Never a simulated Return key.
     let cursorOffset: Int?
@@ -52,8 +52,9 @@ final class OwlTemplateInvocation: ObservableObject {
   let parsed: OwlTemplateEngine.Parsed
   private let usesLegacyKeys: Bool
   private let captureContext: (Set<OwlTemplateEngine.Requirement>) -> OwlTemplateEngine.FrozenContext
-  private var frozenContext: OwlTemplateEngine.FrozenContext?
-  private(set) var decisions = OwlTemplateEngine.Decisions()
+  private let core: OwlAppSession
+  private let sessionBinding: () -> String
+  var decisions: OwlTemplateEngine.Decisions { .init(allowEmptyClipboard: core.call("allow_empty")) }
   let objectWillChange = ObservableObjectPublisher()
   private let statePublisher = PassthroughSubject<State, Never>()
   var stateChanges: AnyPublisher<State, Never> { statePublisher.eraseToAnyPublisher() }
@@ -65,7 +66,6 @@ final class OwlTemplateInvocation: ObservableObject {
     }
   }
   private let broker: OwlPanelInsertionBroker
-  private var started = false
   /// Writes a result into the host and reports once, possibly after the host has processed it.
   typealias HostDelivery = (Result, @escaping (OwlTemplateDeliveryOutcome) -> Void) -> Void
   private var deliver: HostDelivery?
@@ -75,7 +75,6 @@ final class OwlTemplateInvocation: ObservableObject {
   private let trailingText: String
   let intent: Intent
   private var presentation: ((OwlTemplateInvocation) -> Void)?
-  private var dispatchStarted = false
   private var preparePresentation: (() -> OwlTemplatePresentationPreparation)?
   private var onFinish: (() -> Void)?
   private(set) var preparationFailure: OwlTemplateDeliveryOutcome?
@@ -87,11 +86,12 @@ final class OwlTemplateInvocation: ObservableObject {
                    presentationTransition: ((NSWindow, Bool) -> Void)? = nil,
                    preparePresentation: (() -> OwlTemplatePresentationPreparation)? = nil,
                    onFinish: (() -> Void)? = nil,
+                   sessionBinding: @escaping () -> String = { "" },
                    captureContext: @escaping (Set<OwlTemplateEngine.Requirement>) -> OwlTemplateEngine.FrozenContext = { OwlTemplateContextCapture.capture($0) }) {
     self.init(content: content, broker: broker, hostDelivery: deliver.map { deliver in { $1(deliver($0)) } },
               trailingText: trailingText, intent: intent, isHostReady: isHostReady, mayRestoreFocus: mayRestoreFocus,
               presentationTransition: presentationTransition, preparePresentation: preparePresentation,
-              onFinish: onFinish, captureContext: captureContext)
+              onFinish: onFinish, sessionBinding: sessionBinding, captureContext: captureContext)
   }
 
   init(content: Content, broker: OwlPanelInsertionBroker, hostDelivery deliver: HostDelivery?,
@@ -101,7 +101,9 @@ final class OwlTemplateInvocation: ObservableObject {
        presentationTransition: ((NSWindow, Bool) -> Void)? = nil,
        preparePresentation: (() -> OwlTemplatePresentationPreparation)? = nil,
        onFinish: (() -> Void)? = nil,
+       sessionBinding: @escaping () -> String = { "" },
        captureContext: @escaping (Set<OwlTemplateEngine.Requirement>) -> OwlTemplateEngine.FrozenContext = { OwlTemplateContextCapture.capture($0) }) {
+    self.sessionBinding = sessionBinding
     self.content = content
     self.broker = broker
     self.deliver = deliver
@@ -126,61 +128,68 @@ final class OwlTemplateInvocation: ObservableObject {
     }
     let legacyKeys = usesLegacyKeys
     variables = parsed.parameters.map { legacyKeys ? $0.name : $0.key }
+    core = (try? OwlAppSession("invocation", args: ["parsed": OwlAppCore.payload(parsed),
+      "body": content.body, "legacy": usesLegacyKeys, "trailing": trailingText,
+      "preview": intent == .resultPreview,
+      "binding": Self.binding(content: content, session: sessionBinding())])) ?? (try! OwlAppSession("invocation", args: [
+        "parsed": OwlAppCore.payload(OwlTemplateEngine.Parsed(diagnostics: [Self.transportFailure])),
+        "binding": Self.binding(content: content, session: sessionBinding())]))
   }
 
   func valueKey(for parameter: OwlTemplateEngine.Parameter) -> String {
     usesLegacyKeys ? parameter.name : parameter.key
   }
 
-  var initialValues: [String: String] {
-    var values: [String: String] = [:]
-    for parameter in parsed.parameters {
-      if let value = parsed.initialValues[parameter.key] { values[valueKey(for: parameter)] = value }
+  private static func binding(content: Content, session: String) -> [String: String] {
+    var facts: [String: String] = ["session": session, "matches": "true"]
+    if case .template(let entry) = content {
+      facts.merge(OwlAutomaticExpansionRuntime.shared.binding(for: entry)) { _, new in new }
     }
-    return values
+    return facts
   }
 
-  /// Called only for an explicit result preview/use; search and raw-body preview never call it.
+  /// Library/session facts are sampled at native boundaries; Rust latches any mismatch.
+  @discardableResult
+  private func refreshBinding() -> Bool {
+    let valid: Bool = core.call("binding", Self.binding(content: content, session: sessionBinding()))
+    let invalidated: Bool = core.call("invalidated")
+    if invalidated, state != .cancelled(.replaced) {
+      state = .cancelled(.replaced)
+      finishOnce()
+      deliver = nil
+      presentation = nil
+      broker.drop()
+    }
+    return valid
+  }
+
+  private var awaiting: Bool { core.call("awaiting") }
+
+  private static var transportFailure: OwlTemplateEngine.Diagnostic {
+    .init(severity: .error, range: NSRange(location: 0, length: 0), message: "模板数据超出处理范围或无法读取，请缩短内容后重试。")
+  }
+
+  var initialValues: [String: String] { core.call("initial") }
+
+  /// Native context facts are captured once at Rust's request; Rust retains the frozen values.
   func prepareForResultPreview() {
-    guard state == .awaitingConfirmation, frozenContext == nil,
-          !parsed.diagnostics.contains(where: { $0.severity == .error }) else { return }
+    guard refreshBinding() else { return }
+    let needs: Bool = core.call("needs_context")
+    guard needs else { return }
     let context = parsed.contextRequirements.isEmpty ? OwlTemplateEngine.FrozenContext() : captureContext(parsed.contextRequirements)
-    guard state == .awaitingConfirmation else { return }
-    frozenContext = context
+    guard refreshBinding() else { return }
+    do { let _: Bool = try core.request("freeze", OwlTemplateEngine.contextFacts(parsed, context: context)) }
+    catch { let _: Bool = core.call("fail") }
   }
 
   func evaluate(values: [String: String]) -> OwlTemplateEngine.Evaluation {
-    guard state == .awaitingConfirmation else {
-      let text: String
-      if let result = retainedResult { text = result.text } else { text = content.body + trailingText }
-      return .init(previewText: text, diagnostics: [
-        .init(severity: .error, range: NSRange(location: 0, length: 0), message: "本次调用已结束，请重新调用模板。")
-      ], missingKeys: [])
-    }
     prepareForResultPreview()
-    var keyed: [String: String] = [:]
-    for parameter in parsed.parameters {
-      if let value = values[valueKey(for: parameter)] { keyed[parameter.key] = value }
-    }
-    let evaluation = OwlTemplateEngine.render(parsed, values: keyed, context: frozenContext ?? .init(), decisions: decisions)
-    let text = evaluation.previewText + trailingText
-    var diagnostics = evaluation.diagnostics
-    if let offset = evaluation.cursorOffset, evaluation.readyText != nil,
-       !OwlTemplateCursorPlacement.isBoundary(offset, in: text) {
-      diagnostics.append(.init(severity: .error, range: NSRange(location: 0, length: 0),
-        message: "光标位置与保留的分隔符组成同一字符，请调整模板。"))
-    }
-    return .init(previewText: text, diagnostics: diagnostics, missingKeys: evaluation.missingKeys,
-      needsEmptyClipboardDecision: evaluation.needsEmptyClipboardDecision, cursorOffset: evaluation.cursorOffset)
+    return (try? core.request("evaluate", ["values": values])) ?? .init(previewText: content.body + trailingText,
+      diagnostics: [Self.transportFailure], missingKeys: [])
   }
 
-  /// A decision applies only to already captured missing text; never starts a new capture.
   func continueWithEmptyClipboard() {
-    guard state == .awaitingConfirmation, let clipboard = frozenContext?.clipboard else { return }
-    switch clipboard {
-    case .empty, .nonText, .text(""): decisions.allowEmptyClipboard = true
-    case .notRequested, .text: break
-    }
+    let _: Bool = core.call("empty")
   }
 
   func preview(values: [String: String]) -> Result {
@@ -189,26 +198,28 @@ final class OwlTemplateInvocation: ObservableObject {
   }
 
   func start(presentFill: @escaping (OwlTemplateInvocation) -> Void) {
-    guard state == .awaitingConfirmation, !started else { return }
-    started = true
+    let accepted: Bool = core.call("start")
+    guard accepted else { return }
     presentation = presentFill
-    let evaluation = evaluate(values: initialValues)
-    guard state == .awaitingConfirmation else { return }
-    if intent == .insert && parsed.parameters.isEmpty && evaluation.diagnostics.isEmpty && evaluation.readyText != nil {
+    _ = evaluate(values: initialValues)
+    guard awaiting else { return }
+    let immediate: Bool = (try? core.request("immediate", ["values": initialValues])) ?? false
+    if immediate {
       confirm(values: initialValues)
     } else {
       let prepare = preparePresentation
       preparePresentation = nil // consume before a possible synchronous client callback
-      if !parsed.diagnostics.contains(where: { $0.severity == .error }), let prepare {
+      let canPrepare: Bool = core.call("prepare")
+      if canPrepare, let prepare {
         let result = prepare()
-        guard state == .awaitingConfirmation else { return }
+        guard awaiting else { return }
         switch result {
         case .ready: break
         case .originalNotAttempted(let reason): preparationFailure = .notAttempted(reason)
         case .originalAttemptedUnverified: preparationFailure = .originalPreservationUnverified
         }
       }
-      guard state == .awaitingConfirmation else { return }
+      guard awaiting else { return }
       presentFill(self)
     }
   }
@@ -216,12 +227,13 @@ final class OwlTemplateInvocation: ObservableObject {
   /// Admission is not delivery success. Occupy the one dispatch slot before restoring focus.
   @discardableResult
   func confirm(values: [String: String]) -> Bool {
-    guard state == .awaitingConfirmation else { return false }
-    let evaluation = evaluate(values: values)
-    guard let text = evaluation.readyText, state == .awaitingConfirmation else { return false }
-    let result = Result(text: text, cursorOffset: evaluation.cursorOffset)
+    prepareForResultPreview()
+    let accepted: Bool = (try? core.request("confirm", ["values": values])) ?? false
+    guard accepted else { return false }
+    struct Snapshot: Decodable { let result: Result; let generation: UInt64 }
+    let snapshot: Snapshot = core.call("snapshot")
+    let result = snapshot.result
     state = .delivering(result)
-    frozenContext = nil
     let failure = preparationFailure
     let host: HostDelivery?
     if let failure { host = { $1(failure) } } else { host = deliver }
@@ -229,15 +241,19 @@ final class OwlTemplateInvocation: ObservableObject {
     if failure != nil { broker.drop() }
     let guardedHost: HostDelivery? = host.map { host in
       { [weak self] result, completion in
-        guard let self, case .delivering = self.state, !self.dispatchStarted else {
+        guard let self else { completion(.notAttempted(.targetChanged)); return }
+        guard self.refreshBinding() else { completion(.notAttempted(.targetChanged)); return }
+        let accepted: Bool = self.core.call("dispatch")
+        guard accepted else {
           completion(.notAttempted(.targetChanged)); return
         }
-        self.dispatchStarted = true
         host(result, completion)
       }
     }
     if !mayRestoreFocus(), failure == nil {
       broker.drop()
+      let accepted: Bool = core.call("complete", ["generation": snapshot.generation])
+      guard accepted else { return true }
       state = .completed(result, .notAttempted(.targetChanged))
       finishOnce()
       presentation?(self)
@@ -245,10 +261,12 @@ final class OwlTemplateInvocation: ObservableObject {
       return true
     }
     broker.restoreAndDeliver(result, host: guardedHost, isHostReady: isHostReady, isPending: { [weak self] in
-      guard let self, case .delivering = self.state else { return false }
-      return !self.dispatchStarted
+      guard let self, self.refreshBinding() else { return false }
+      return self.core.call("pending")
     }, completion: { [self] outcome in
-      guard case .delivering = state else { return }
+      guard refreshBinding() else { return }
+      let accepted: Bool = core.call("complete", ["generation": snapshot.generation])
+      guard accepted else { return }
       self.state = .completed(result, outcome)
       self.finishOnce()
       if !outcome.finishesPresentation { self.presentation?(self) }
@@ -265,7 +283,7 @@ final class OwlTemplateInvocation: ObservableObject {
   }
 
   func notePresentationTransition(window: NSWindow, active: Bool) {
-    guard state == .awaitingConfirmation else { return }
+    guard awaiting else { return }
     presentationTransition?(window, active)
   }
 
@@ -277,15 +295,11 @@ final class OwlTemplateInvocation: ObservableObject {
   }
 
   func cancel(_ reason: Cancellation = .user, restoreFocus: Bool = true) {
-    switch state {
-    case .awaitingConfirmation: break
-    case .delivering where !dispatchStarted: break
-    default: return
-    }
+    let accepted: Bool = core.call("cancel")
+    guard accepted else { return }
     let shouldRestore = restoreFocus && mayRestoreFocus()
     state = .cancelled(reason)
     finishOnce()
-    frozenContext = nil
     deliver = nil
     presentation = nil
     if shouldRestore { broker.restoreFocus() } else { broker.drop() }

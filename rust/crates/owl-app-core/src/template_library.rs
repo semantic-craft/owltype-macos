@@ -213,8 +213,8 @@ pub fn automatic_valid(s: &str) -> bool {
 }
 #[derive(Clone, Default, Serialize)]
 pub struct AutomaticNode {
-    children: BTreeMap<String, usize>,
-    entry: Option<Entry>,
+    pub(crate) children: BTreeMap<String, usize>,
+    pub(crate) entry: Option<Entry>,
 }
 pub fn automatic_index(entries: &[Entry]) -> Result<Vec<AutomaticNode>> {
     let mut nodes = vec![AutomaticNode::default()];

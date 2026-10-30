@@ -11,8 +11,11 @@ final class OwlAutomaticExpansionTarget {
   let replayKeycode: UInt32
   let replayModifiers: UInt32
   var markedText = ""
+  private let binding: OwlAppSession
 
   init(client: IMKTextInput, start: Int, sessionID: UInt64, asciiMode: Bool, revision: UInt64, replayKeycode: UInt32, replayModifiers: UInt32) {
+    binding = try! OwlAppSession("binding", args: ["session": String(sessionID), "ascii": String(asciiMode),
+      "revision": String(revision), "allowed": "true", "input": ""])
     self.client = client
     self.start = start
     self.sessionID = sessionID
@@ -21,6 +24,11 @@ final class OwlAutomaticExpansionTarget {
     self.replayKeycode = replayKeycode
     self.replayModifiers = replayModifiers
   }
+  func isCurrent(sessionID: UInt64?, asciiMode: Bool?, revision: UInt64, allowed: Bool, input: String?) -> Bool {
+    binding.call("binding", ["session": sessionID.map(String.init) ?? "", "ascii": asciiMode.map(String.init) ?? "",
+      "revision": String(revision), "allowed": String(allowed), "input": input ?? ""])
+  }
+
 }
 
 extension OwlInputController {
@@ -34,11 +42,9 @@ extension OwlInputController {
     if automaticRecognizer.isRecognizing {
       guard let target = automaticTarget, let targetClient = target.client,
             let client, targetClient === client,
-            target.sessionID == engineSession?.sessionID,
-            target.revision == runtime.revision,
-            target.asciiMode == engineSession?.option(.asciiMode),
-            runtime.allows(bundleID: client.bundleIdentifier()),
-            (engineSession?.input() ?? "").isEmpty else {
+            target.isCurrent(sessionID: engineSession?.sessionID, asciiMode: engineSession?.option(.asciiMode),
+              revision: runtime.revision, allowed: runtime.allows(bundleID: client.bundleIdentifier()),
+              input: engineSession?.input()) else {
         finishAutomaticExpansion(replaySemicolon: false)
         return false
       }
@@ -125,17 +131,21 @@ extension OwlInputController {
       let runtime = OwlAutomaticExpansionRuntime.shared
       let sessionID = target.sessionID
       let asciiMode = target.asciiMode
-      let revision = target.revision
+      let revision = runtime.policyRevision
       let sourceSchema = schemaId
       let bundleID = client.bundleIdentifier()
       // This proof must survive discard and the expected parameter-window transition. Do not
       // bind it to automaticTarget/automaticEpoch, which belong to recognition, not invocation.
-      let validity = OwlAutomaticExpansionInvocationValidity { [weak self] in
-        guard let self, let engineSession = self.engineSession, engineSession.isValid else { return false }
-        return engineSession.sessionID == sessionID && engineSession.option(.asciiMode) == asciiMode
-          && self.schemaId == sourceSchema && runtime.revision == revision
-          && runtime.allows(bundleID: bundleID)
-      }
+      let validity = OwlAutomaticExpansionInvocationValidity(binding: [
+        "session": String(sessionID), "ascii": String(asciiMode), "schema": sourceSchema,
+        "revision": String(revision), "allowed": "true", "live": "true"
+      ].merging(runtime.binding(for: source.entry)) { _, new in new }, current: { [weak self] in
+        guard let self, let engineSession = self.engineSession else { return [:] }
+        return ["session": String(engineSession.sessionID), "ascii": String(engineSession.option(.asciiMode)),
+          "schema": self.schemaId, "revision": String(runtime.policyRevision),
+          "allowed": String(runtime.allows(bundleID: bundleID)), "live": String(engineSession.isValid)]
+          .merging(runtime.binding(for: source.entry)) { _, new in new }
+      })
       let automaticSource = OwlTemplateHostDelivery.AutomaticSource(originalInput: source.originalInput,
         markedRange: source.markedRange, markedText: source.markedText, isValid: { validity.isValid() })
       discardAutomaticExpansion()

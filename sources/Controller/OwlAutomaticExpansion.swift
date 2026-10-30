@@ -16,36 +16,18 @@ struct OwlAutomaticExpansionIndex {
     }
   }
 
-  private struct Node: Decodable {
-    var children: [UInt8: Int] = [:]
-    var entry: OwlTemplateEntry?
-    init() {}
-    enum CodingKeys: String, CodingKey { case children, entry }
-    init(from decoder: Decoder) throws {
-      let values = try decoder.container(keyedBy: CodingKeys.self)
-      let raw = try values.decode([String: Int].self, forKey: .children)
-      children = Dictionary(uniqueKeysWithValues: raw.compactMap { key, value in UInt8(key).map { ($0, value) } })
-      entry = try values.decodeIfPresent(OwlTemplateEntry.self, forKey: .entry)
-    }
-  }
-  private var nodes: [Node] = [Node()]
-  var isEmpty: Bool { nodes.count == 1 }
-  static let empty = OwlAutomaticExpansionIndex()
-  private init() {}
+  fileprivate let core: OwlAppSession
+  var isEmpty: Bool { core.call("empty") }
+  static let empty = try! OwlAutomaticExpansionIndex(entries: [])
   init(entries: [OwlTemplateEntry]) throws {
-    nodes = try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("automatic_index", ["entries": OwlAppCore.payload(entries)])
+    do { core = try OwlAppSession("index", args: OwlAppCore.payload(entries)) }
+    catch let error as OwlAppCore.Failure { throw OwlStorageHost.failure(error.code) }
   }
 
   static func validTrigger(_ text: String) -> Bool {
     OwlTemplateStore.core("automatic_valid", ["text": text])
   }
 
-  static func isSuffixByte(_ byte: UInt8) -> Bool {
-    (65...90).contains(byte) || (97...122).contains(byte) || (48...57).contains(byte) || byte == 95 || byte == 45
-  }
-
-  func next(after node: Int, byte: UInt8) -> Int? { nodes[node].children[byte] }
-  func entry(at node: Int) -> OwlTemplateEntry? { nodes[node].entry }
 }
 
 /// Only the reserved prefix buffer belongs here; Rime continues to own Chinese conversion.
@@ -61,83 +43,44 @@ final class OwlAutomaticExpansionRecognizer {
     /// Kept separately from the entry body so preview, delivery and explicit copy share it.
     /// The original delimiter remains on the step even in drop mode for future cancellation.
     var trailingText: String {
-      guard case .invoke(let entry, _, let delimiter) = self,
-            entry.expansionMode == .delimiterKeep else { return "" }
-      return delimiter ?? ""
+      guard case .invoke(let entry, _, let delimiter) = self else { return "" }
+      return OwlAutomaticExpansionScope.rule("trailing", ["mode": entry.expansionMode.rawValue,
+        "delimiter": delimiter as Any? ?? NSNull()])
     }
   }
 
-  private(set) var buffer = ""
-  private var path = [0]
+  private let core = try! OwlAppSession("recognizer")
+  var buffer: String { core.call("buffer") }
   var isRecognizing: Bool { !buffer.isEmpty }
-
-  /// Taking the pending text consumes it before any client callback can re-enter finalization.
   func takePending() -> String? {
-    guard !buffer.isEmpty else { return nil }
-    let text = buffer
-    buffer = ""
-    path = [0]
-    return text
+    let text: String = core.call("take")
+    return text.isEmpty ? nil : text
   }
-
+  private struct WireStep: Decodable {
+    let kind: String
+    let text: String?
+    let replay: Bool?
+    let consume: Bool?
+    let entry: OwlTemplateEntry?
+    let trigger: String?
+    let delimiter: String?
+  }
   func consume(_ input: Input, index: OwlAutomaticExpansionIndex, canStart: Bool = false) -> Step {
-    if !isRecognizing {
-      guard canStart, !index.isEmpty, case .text(";") = input,
-            let node = index.next(after: 0, byte: 59) else { return .passThrough }
-      buffer = ";"
-      path.append(node)
-      return .mark(buffer)
-    }
+    var args: [String: Any] = ["canStart": canStart]
     switch input {
-    case .backspace:
-      buffer.removeLast()
-      path.removeLast()
-      return buffer.isEmpty ? .clear : .mark(buffer)
-    case .escape:
-      return restore(consumeKey: true)
-    case .interrupt:
-      return restore(consumeKey: false)
-    case .text(let text):
-      if Self.isDelimiter(text) {
-        guard let entry = index.entry(at: path.last ?? 0), entry.expansionMode != .immediate else {
-          return restore(consumeKey: false)
-        }
-        let trigger = takePending() ?? ""
-        return .invoke(entry, trigger: trigger, delimiter: text)
-      }
-      let bytes = Array(text.utf8)
-      guard bytes.count == 1 else { return restore(consumeKey: false) }
-      let byte = bytes[0]
-      if buffer == ";", byte != 59 { return restore(consumeKey: false) }
-      guard buffer == ";" || OwlAutomaticExpansionIndex.isSuffixByte(byte) else {
-        return restore(consumeKey: false)
-      }
-      guard let next = index.next(after: path.last ?? 0, byte: byte) else {
-        let literal = buffer + text
-        _ = takePending()
-        return .restore(literal, replaySemicolon: false, consumeKey: true)
-      }
-      buffer += text
-      path.append(next)
-      if let entry = index.entry(at: next), entry.expansionMode == .immediate {
-        let trigger = takePending() ?? ""
-        return .invoke(entry, trigger: trigger)
-      }
-      return .mark(buffer)
+    case .text(let text): args["input"] = "text"; args["text"] = text
+    case .backspace: args["input"] = "backspace"
+    case .escape: args["input"] = "escape"
+    case .interrupt: args["input"] = "interrupt"
     }
-  }
-
-  private static func isDelimiter(_ text: String) -> Bool {
-    // Exact product set; other Unicode whitespace and multi-character input are not confirmations.
-    switch text {
-    case " ", "\t", "\n", ",", ".", "?", "!", ":", "，", "。", "？", "！", "：": return true
-    default: return false
+    let result: WireStep = core.call("consume", args, index: index.core)
+    switch result.kind {
+    case "mark": return .mark(result.text!)
+    case "clear": return .clear
+    case "restore": return .restore(result.text!, replaySemicolon: result.replay!, consumeKey: result.consume!)
+    case "invoke": return .invoke(result.entry!, trigger: result.trigger!, delimiter: result.delimiter)
+    default: return .passThrough
     }
-  }
-
-  private func restore(consumeKey: Bool) -> Step {
-    let text = takePending() ?? ""
-    return .restore(text, replaySemicolon: text == ";", consumeKey: consumeKey)
   }
 }
 
@@ -151,59 +94,53 @@ struct OwlAutomaticExpansionInvocationSource {
   let trailingText: String
 
   init?(step: OwlAutomaticExpansionRecognizer.Step, start: Int, markedText: String) {
-    guard case .invoke(let entry, let trigger, let delimiter) = step,
-          !entry.isPendingReview, entry.invocationMode == .automatic,
-          entry.trigger == trigger, OwlAutomaticExpansionIndex.validTrigger(trigger) else { return nil }
-    // The terminal immediate character has not been marked. Delimiter mode has marked the
-    // full trigger, but the consumed delimiter has not reached the host as text or a key action.
-    let expectedMarked = entry.expansionMode == .immediate ? String(trigger.dropLast()) : trigger
-    guard markedText == expectedMarked,
-          (entry.expansionMode == .immediate) == (delimiter == nil) else { return nil }
-    let range = NSRange(location: start, length: markedText.utf16.count)
-    guard OwlAutomaticExpansionScope.valid(range) else { return nil }
+    guard case .invoke(let entry, let trigger, let delimiter) = step else { return nil }
+    struct Source: Decodable { let valid: Bool; let original: String?; let trailing: String? }
+    let source: Source = OwlAutomaticExpansionScope.rule("source", ["pending": entry.isPendingReview, "invocation": entry.invocationMode.rawValue,
+      "entryTrigger": entry.trigger as Any? ?? NSNull(), "mode": entry.expansionMode.rawValue, "trigger": trigger, "delimiter": delimiter as Any? ?? NSNull(), "start": start, "marked": markedText])
+    guard source.valid else { return nil }
     self.entry = entry
-    originalInput = trigger + (delimiter ?? "")
+    originalInput = source.original!
     self.markedText = markedText
-    markedRange = range
-    trailingText = step.trailingText
+    markedRange = NSRange(location: start, length: markedText.utf16.count)
+    trailingText = source.trailing!
+
   }
 }
 
 /// Once an invocation observes a changed session/mode/configuration it cannot revive when those
 /// values later change back. The host delivery separately owns field/focus invalidation.
 final class OwlAutomaticExpansionInvocationValidity {
-  private let isCurrent: () -> Bool
-  private var valid = true
-
-  init(isCurrent: @escaping () -> Bool) { self.isCurrent = isCurrent }
-
+  private let core: OwlAppSession
+  private let current: () -> [String: String]
+  convenience init(isCurrent: @escaping () -> Bool) {
+    self.init(binding: ["current": "true"], current: { ["current": String(isCurrent())] })
+  }
+  init(binding: [String: String], current: @escaping () -> [String: String]) {
+    core = try! OwlAppSession("binding", args: binding)
+    self.current = current
+  }
   func isValid() -> Bool {
-    guard valid else { return false }
-    valid = isCurrent()
-    return valid
+    let needsFacts: Bool = core.call("valid")
+    return needsFacts ? core.call("binding", current()) : false
   }
 }
 
 /// Readback checks are values so tests can exercise invalid/stale ranges without a real IMK host.
 enum OwlAutomaticExpansionScope {
+  static func rule<T: Decodable>(_ rule: String, _ args: [String: Any]) -> T {
+    OwlAppCore.required(["operation": "template_session_rule", "rule": rule, "args": args])
+  }
   static func canStart(selection: NSRange, marked: NSRange, preceding: String?) -> Bool {
-    guard valid(selection), selection.length == 0,
-          marked.location == NSNotFound || marked.length == 0 else { return false }
-    if selection.location == 0 { return true }
-    guard let preceding, preceding.utf16.count == 1, let char = preceding.first else { return false }
-    return char.isWhitespace || ",.?!:，。？！：".contains(char)
+    rule("can_start", ["selection": [selection.location, selection.length], "marked": [marked.location, marked.length],
+      "preceding": preceding as Any? ?? NSNull()])
   }
-
   static func owns(start: Int, text: String, marked: NSRange, selection: NSRange, substring: String?) -> Bool {
-    let expected = NSRange(location: start, length: text.utf16.count)
-    guard valid(expected), valid(marked), valid(selection), marked == expected,
-          selection.length == 0, selection.location == start + expected.length else { return false }
-    return substring == text
+    rule("owns", ["start": start, "text": text, "marked": [marked.location, marked.length],
+      "selection": [selection.location, selection.length], "substring": substring as Any? ?? NSNull()])
   }
-
   static func valid(_ range: NSRange) -> Bool {
-    range.location >= 0 && range.location != NSNotFound && range.length >= 0
-      && range.length != NSNotFound && range.location <= Int.max - range.length
+    rule("valid_range", ["range": [range.location, range.length]])
   }
 }
 
@@ -214,9 +151,12 @@ enum OwlAutomaticExpansionControllerEntry {
                     runtime: OwlAutomaticExpansionRuntime, engineSession: EngineSession?, openHost: () -> Bool) -> Bool {
     guard case .text(";") = input, runtime.enabled, !runtime.index.isEmpty,
           runtime.allows(bundleID: bundleID()),
-          let engineSession, engineSession.isValid, let raw = engineSession.input(), raw.isEmpty,
-          let context = engineSession.composition(), context.preedit.isEmpty,
-          context.candidates.isEmpty, (context.commitTextPreview ?? "").isEmpty else { return false }
+          let engineSession, engineSession.isValid, let raw = engineSession.input(),
+          let context = engineSession.composition() else { return false }
+    let idle: Bool = OwlAutomaticExpansionScope.rule("engine_idle", ["valid": engineSession.isValid,
+      "input": raw, "preedit": context.preedit, "candidates": context.candidates.count,
+      "preview": context.commitTextPreview ?? ""])
+    guard idle else { return false }
     return openHost()
   }
 
@@ -274,9 +214,14 @@ final class OwlAutomaticExpansionRuntime {
   static let shared = OwlAutomaticExpansionRuntime()
   static let willChange = Notification.Name("OwlAutomaticExpansionWillChange")
   private(set) var index = OwlAutomaticExpansionIndex.empty
-  private(set) var revision: UInt64 = 0
-  private(set) var enabled = false
-  private(set) var disabledBundleIDs: Set<String> = []
+  private let core = try! OwlAppSession("runtime")
+  var revision: UInt64 { core.call("revision") }
+  var policyRevision: UInt64 { core.call("policy_revision") }
+  var enabled: Bool { core.call("enabled") }
+  var disabledBundleIDs: Set<String> { Set(core.call("disabled") as [String]) }
+  func binding(for entry: OwlTemplateEntry) -> [String: String] {
+    core.call("entry_binding", ["id": entry.id.uuidString, "entry": OwlAppCore.payload(entry)])
+  }
   static let enabledKey = "OwlAutomaticExpansionEnabled"
   static let disabledBundleIDsKey = "OwlAutomaticExpansionDisabledBundleIDs"
   private var directory: URL?
@@ -321,8 +266,8 @@ final class OwlAutomaticExpansionRuntime {
   }
 
   func allows(bundleID: String?) -> Bool {
-    guard enabled, !index.isEmpty, let bundleID, !bundleID.isEmpty else { return false }
-    return !disabledBundleIDs.contains(bundleID.lowercased())
+    OwlAutomaticExpansionScope.rule("allows", ["enabled": enabled, "empty": index.isEmpty,
+      "bundle": bundleID as Any? ?? NSNull(), "disabled": Array(disabledBundleIDs)])
   }
 
   /// Validation failure leaves both the previous snapshot and any active composition intact.
@@ -330,8 +275,7 @@ final class OwlAutomaticExpansionRuntime {
     let next = try OwlAutomaticExpansionIndex(entries: entries)
     NotificationCenter.default.post(name: Self.willChange, object: self)
     index = next
-    self.enabled = enabled
-    self.disabledBundleIDs = Set(disabledBundleIDs.map { $0.lowercased() })
-    revision &+= 1
+    let _: Bool = core.call("publish", ["entries": OwlAppCore.payload(entries), "enabled": enabled,
+      "disabled": Array(disabledBundleIDs)])
   }
 }

@@ -106,7 +106,7 @@ calendar range and arithmetic direction, requests numeric week-field facts, and 
 the final pattern. Swift executes Calendar additions, VerbatimFormatStyle requests and
 DateFormatter formatting only. It does not rescan pattern syntax. Non-Gregorian calendars,
 DST arithmetic, custom first-weekday/minimum-days rules and native hour-cycle preferences
-therefore retain their existing Foundation semantics. Library storage is described below; invocation state remains the next migration boundary.
+therefore retain their existing Foundation semantics. Library storage and invocation state are described below.
 
 ## Template storage
 
@@ -136,3 +136,42 @@ thrown-failure restoration, while migration/restore/delete persist snapshots and
 writes before mutation. Restart recovery verifies transaction identity and exact bytes,
 refuses external changes, and distinguishes a landed rename from bookkeeping failure.
 Only a fully settled library publishes the existing native commit notification.
+
+
+## Automatic recognition and invocation sessions
+
+`template_session.rs` owns the ephemeral runtime, recognizer, binding and invocation state.
+`owl_app_session_new` (ABI 1) returns an owned opaque handle and an owned JSON status buffer;
+`owl_app_session_call` borrows it synchronously; `owl_app_session_free` consumes it once.
+Swift serializes calls/destruction on its owner thread. An optional index handle is distinct,
+live and borrowed for that event. No Rust callback, I/O, worker or shared mutable singleton
+is involved. Creation and runtime library publication accept storage-sized snapshots;
+other events have the pure dispatcher's 4 MiB request bound. Native wrappers turn rejected
+user values into blocked evaluations, not traps. Response buffers have no output-size bound.
+
+The runtime uses the existing `automatic_index` builder, retaining one Rust trie. Keystrokes
+send only event facts and receive mark/restore/invoke intents; they never serialize the index,
+parse templates or read storage. Swift retains only the opaque index reference and IMK target
+objects. Publication first validates a replacement index; the native will-change notification
+flushes old marked input before publishing the committed snapshot to Rust.
+
+Rust increments a publication revision on every accepted snapshot, a policy revision only
+when enable/disabled-host policy changes, and per-entry versions only for changed or deleted
+IDs (including tombstones). IDs use the template library's existing uppercase UUID convention.
+An invocation binds its selected entry's version and value, so editing another entry does not
+invalidate it. An old version cannot revive after delete/recreate or an observed mismatch.
+The automatic source additionally binds session, mode, schema and policy facts. Runtime
+publication/version generation and comparison have no independent Swift implementation.
+
+Every invocation handle is a distinct request identity. Rust owns frozen clipboard/calendar
+facts, parameter mapping, evaluation and trailing delimiter checks, confirmation, dispatch
+admission, cancellation and completion generation. Native asynchronous completion echoes the
+accepted generation into the same owned handle; cancelled/replaced/invalidated calls reject it.
+The native `state` property is an observable UI projection, updated only after Rust accepts an
+operation. Native callbacks/closures are consumed as resources, not a second business state.
+
+Host-delivery field proofs, expected parameter-window rebind, original text preservation and
+once-only native write slots remain the existing #362 boundary. Their lease-validity fact can
+invalidate an invocation without equating a new IMK controller with a new logical host target.
+This preserves the established rebind behavior. No synchronous AX read was added, Chromium
+capability restrictions are unchanged, and #331 still requires its host implementation/acceptance.

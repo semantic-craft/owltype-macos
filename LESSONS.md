@@ -5,6 +5,25 @@ that the lesson is in place: which file to read, which command to run, what resu
 and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## An invocation binds the selected template version, not every library commit
+
+**Keep per-entry revisions in the business core, using the library's canonical UUID form; a
+changed or deleted selected entry invalidates the call, while another entry's edit does not.**
+
+- Reason: the #361 regression first showed a previewed invocation still inserting after its
+  library entry was removed. A first per-entry bridge then looked up lowercase IDs while the
+  library decoder canonicalizes UUIDs to uppercase, so removal still appeared unregistered.
+- Prevention: Rust runtime publication owns version/tombstone generation and normalized ID
+  lookup; invocation events compare the selected value/version and permanently reject mismatches.
+  A parameter window may legitimately return through a different IMK controller, so the existing
+  logical host lease, rather than the old controller pointer, supplies native binding validity.
+- Regression: `testCommittedTemplateRevisionInvalidatesAnAlreadyPreviewedInvocation` failed
+  before the binding and UUID fixes; `testEditingAnotherTemplateDoesNotInvalidateTheSelectedEntry`
+  protects the scope of invalidation. Existing cancellation and rebind suites remain applicable.
+- Scope: App-host Swift→Rust tests with synthetic template libraries. No installed-host claim.
+- Verify (验证点): `python3 scripts/verify.py swift --test OwlTemplateDeliveryTests --test OwlTemplateHostDeliveryTests`.
+- Seen on 1 distinct date: 2026-10-30.
+
 ## A session event tap must not run on the main thread
 
 **A head-inserted `.defaultTap` holds every keyDown in the login session until its callback returns, so it gets its own thread and its callback reads no main-thread state.**
