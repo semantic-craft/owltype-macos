@@ -9,6 +9,23 @@ final class OwlTemplateEngineTests: XCTestCase {
     return entry
   }
 
+  func testCanonicalUnicodeParameterIdentityAndOptionsAcrossRustBoundary() {
+    let parsed = OwlTemplateEngine.parse(entry("{argument name=é default=é options=é,乙}{argument name=e\u{301} default=e\u{301} options=e\u{301},乙}"))
+    XCTAssertEqual(parsed.parameters.count, 1)
+    XCTAssertEqual(OwlTemplateEngine.quoted("\u{301}"), "\"\u{301}\"")
+    XCTAssertTrue(parsed.diagnostics.isEmpty)
+    XCTAssertEqual(OwlTemplateEngine.render(parsed, values: ["n:e\u{301}": "e\u{301}"]).readyText, "e\u{301}e\u{301}")
+  }
+
+  func testOversizedTemplatePayloadBlocksWithoutCrashing() {
+    let body = String(repeating: "x", count: 4 * 1024 * 1024 + 1)
+    let parsed = OwlTemplateEngine.parse(entry(body))
+    XCTAssertTrue(parsed.diagnostics.contains { $0.severity == .error })
+    XCTAssertNil(OwlTemplateEngine.render(parsed, values: [:]).readyText)
+    let normal = OwlTemplateEngine.parse(entry("{argument name=x}"))
+    XCTAssertNil(OwlTemplateEngine.render(normal, values: ["n:x": body]).readyText)
+  }
+
   func testAdjacentRepeatedAnonymousAndUnicode() {
     let parsed = OwlTemplateEngine.parse(entry("🙂{argument name=目标}{argument}{argument}{argument}{argument}{{目标}}"))
     XCTAssertEqual(parsed.parameters.map(\.key), ["n:目标", "a:1", "a:2", "a:3", "a:4"])

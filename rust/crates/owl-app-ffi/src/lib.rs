@@ -10,6 +10,45 @@ const MAX_REQUEST: usize = 4 * 1024 * 1024;
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
+    TemplateReady {
+        evaluation: owl_app_core::template::Evaluation,
+    },
+    TemplateLocation {
+        body: String,
+        location: usize,
+    },
+    TemplateParse {
+        body: String,
+        plain: bool,
+        legacy: bool,
+        pending: bool,
+        definitions: Vec<owl_app_core::template::Parameter>,
+    },
+    TemplateRender {
+        parsed: owl_app_core::template::Parsed,
+        values: std::collections::BTreeMap<String, String>,
+        clipboard: String,
+        clipboard_text: Option<String>,
+        allow_empty: bool,
+        temporal: std::collections::BTreeMap<String, owl_app_core::template::TemporalFact>,
+    },
+    TemplateDatePlan {
+        field: owl_app_core::template::TemporalField,
+        default_pattern: Option<String>,
+        date: Option<f64>,
+    },
+    TemplateDateOffset {
+        current: Option<f64>,
+        next: Option<f64>,
+        value: i32,
+    },
+    TemplateDatePattern {
+        pattern: String,
+        values: Vec<String>,
+    },
+    TemplateQuoted {
+        value: String,
+    },
     KeyboardExport {
         kind: String,
         snapshot: owl_app_core::keyboard_export::Snapshot,
@@ -86,6 +125,56 @@ fn dispatch(bytes: &[u8]) -> Value {
         Err(_) => return error("invalid_request"),
     };
     let result = match request {
+        Request::TemplateReady { evaluation } => json!(owl_app_core::template::ready(&evaluation)),
+        Request::TemplateLocation { body, location } => {
+            json!(owl_app_core::template::location(&body, location))
+        }
+        Request::TemplateParse {
+            body,
+            plain,
+            legacy,
+            pending,
+            definitions,
+        } => json!(owl_app_core::template::parse(
+            &body,
+            plain,
+            legacy,
+            pending,
+            definitions
+        )),
+        Request::TemplateRender {
+            parsed,
+            values,
+            clipboard,
+            clipboard_text,
+            allow_empty,
+            temporal,
+        } => json!(owl_app_core::template::render(
+            &parsed,
+            &values,
+            &clipboard,
+            clipboard_text.as_deref(),
+            allow_empty,
+            &temporal
+        )),
+        Request::TemplateDatePlan {
+            field,
+            default_pattern,
+            date,
+        } => json!(owl_app_core::template::date_plan(
+            &field,
+            default_pattern.as_deref(),
+            date
+        )),
+        Request::TemplateDateOffset {
+            current,
+            next,
+            value,
+        } => json!({"error":owl_app_core::template::date_offset(current,next,value)}),
+        Request::TemplateDatePattern { pattern, values } => {
+            json!(owl_app_core::template::date_pattern(&pattern, &values))
+        }
+        Request::TemplateQuoted { value } => json!(owl_app_core::template::quoted(&value)),
         Request::KeyboardExport {
             kind,
             snapshot,
