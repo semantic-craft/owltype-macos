@@ -3,6 +3,9 @@ use crate::template_library::{automatic_index, AutomaticNode, Entry, Expansion};
 use serde_json::{json, Value};
 
 pub enum Session {
+    ResourceCenter(crate::resource_lifecycle::Center),
+    ResourceModels(crate::resource_lifecycle::Models),
+    Pins(crate::user_data::Pins),
     AiText(Value),
     AiRule(Value),
     TextInserter(crate::ai_selection::Inserter),
@@ -27,6 +30,9 @@ pub enum Session {
 impl Session {
     pub fn create(kind: &str, args: Value) -> Result<Self, String> {
         match kind {
+            "resourceCenter" => Ok(Self::ResourceCenter(Default::default())),
+            "resourceModels" => Ok(Self::ResourceModels(Default::default())),
+            "pins" => Ok(Self::Pins(crate::user_data::Pins::new(args))),
             "aiText" => Ok(Self::AiText(args)),
             "aiRule" => Ok(Self::AiRule(args)),
             "textInserter" => Ok(Self::TextInserter(Default::default())),
@@ -101,6 +107,9 @@ impl Session {
             return self.event(operation, packet["args"].clone(), None);
         }
         match self {
+            Self::ResourceCenter(center) => center.event(event, args),
+            Self::ResourceModels(models) => models.event(event, args),
+            Self::Pins(pins) => pins.event(event, args),
             Self::AiText(_) => Err("invalid_event".into()),
             Self::AiRule(packet) => {
                 if event == "evaluate" {

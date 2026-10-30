@@ -7,7 +7,7 @@ the dictionary. The manifest itself, [`data/msime-dictionary-manifest.json`](../
 is the upstream release's file byte for byte and supplies every member digest.
 
 Scripts read the pin through [`scripts/msime_pin.py`](../../scripts/msime_pin.py). Documents,
-fixtures and Swift constants repeat it as literals, and `msime_pin.py check` fails until each one
+fixtures and Rust resource constants repeat it as literals, and `msime_pin.py check` fails until each one
 agrees. The gate runs that check.
 
 ## Is upstream ahead?
@@ -38,7 +38,7 @@ or content. It downloads only that manifest.
    `manifestSha256` and `manifestSize` in `rust/msime-source.json`.
 4. Run `python3 scripts/msime_pin.py check` and fix every site it names. It covers the resource
    and others notices, `PROVENANCE.md`, `THIRD_PARTY_NOTICES.md`, the parity guide, the
-   parity baseline, the Swift Wubi digest, the English-DB secret-scan exception and test comments,
+   parity baseline, the Rust catalog Wubi digest, the English-DB secret-scan exception and test comments,
    and rejects any other stale `dict-v*` tag outside history files.
    - If `msime-others.db` changed, re-audit its tables before anything else: only `emoji`,
      `emoji_pinyin`, `kaomoji` and `kaomoji_catalog` may ship, and their row counts and hashes in
@@ -49,8 +49,8 @@ or content. It downloads only that manifest.
      `scripts/secret-finding-policy.py`. Scan the other new members too; a new finding blocks the
      re-pin until it is classified.
    - If `msime-upstream-licensing-NOTICE.md` differs at the new builder commit, take the new text.
-5. Advance `OwlRustCompatibleResources.packageVersion` in
-   [`OwlRustDictPackResource.swift`](../../sources/DictPack/OwlRustDictPackResource.swift). Installed
+5. Advance `packageVersion` in
+   [`resource_catalog.json`](../../rust/crates/owl-app-core/src/resource_catalog.json). Installed
    generations of the previous set then fail validation and the user is asked to prepare the new one.
 6. `make owl-seed` (set `OWLTYPE_MSIME_RESOURCE_CACHE` to a durable directory to keep the
    download), then the Rust and Swift suites:
@@ -87,7 +87,7 @@ or content. It downloads only that manifest.
 3. Replay each entry in `adaptations` one at a time, each with its own regression (named in the
    commit or in [LESSONS.md](../../LESSONS.md)). An adaptation the new tag makes unnecessary is
    deleted from the list rather than replayed.
-4. `msime_pin.py check` names the documents and the Swift configuration marker
+4. `msime_pin.py check` names the documents and the Rust catalog configuration marker
    (`configurationVersion`, which embeds the tag) to update; also update
    `data/msime-upstream-licensing-NOTICE.md` from the new revision and the reference build in the
    parity baseline (`reference_library_sha256`, built with `scripts/build-pinyin-reference.py`).

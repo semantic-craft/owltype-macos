@@ -1283,3 +1283,28 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
 - Verify (验证点): the existing typesetting suite checks those multi-scalar forms and
   distinguishes changed Hangul; the formatter's existing no-content-change tests remain.
 - Scope: synthetic text and App FFI tests, no account, network or installed UI acceptance.
+
+
+## Resource migration keeps typed errors and byte-identical recovery records
+
+- Seen 1x (2026-10-30): the #365 App ABI migration initially wrapped resource domain
+  errors as template errors; the existing stale-prepared and same-version-conflict
+  tests caught both mismatches. Keep domain error projection before the shared
+  storage host's fallback mapping.
+- The same migration's existing deterministic-stage test, extended with the prior
+  Foundation encoding contract, found a 1507-byte Rust manifest where the prior
+  encoder produced 1538 bytes. Staging compares bytes, so equivalent JSON would
+  reject an existing completed stage as a collision. Preserve colon spacing, empty
+  container newlines, sorted keys and final newline in the Rust writer.
+- Native scan errors are stable diagnostic facts, not randomly generated ABI error
+  tokens: they participate in the migration request digest. Preserve native decode
+  diagnostic text for malformed pin JSON for the same reason.
+- Verify (验证点): `OwlRustResourceTransactionTests` and
+  `OwlUserMigrationTests/testStagingIsDeterministicAndRepeatedPreparationReusesIt`
+  exercise the public Swift→Rust boundary with isolated files. No installed user
+  resources or personal journal were read, migrated or reset.
+
+- The first complete #365 gate also found `scripts/msime_pin.py` still checking
+  the removed Swift literals. Move the existing pin-consistency check with the
+  Rust catalog owner; a focused runtime pass alone does not cover repository
+  maintenance scripts. The original gate failure is retained in its receipt.

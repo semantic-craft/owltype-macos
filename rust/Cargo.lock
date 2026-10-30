@@ -932,6 +932,7 @@ dependencies = [
  "base64",
  "icu_normalizer",
  "regex",
+ "rusqlite",
  "serde",
  "serde_json",
  "sha2",

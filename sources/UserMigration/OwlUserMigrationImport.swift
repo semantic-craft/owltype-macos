@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 
-struct OwlUserMigrationImportReport: Decodable, Equatable, Sendable {
+struct OwlUserMigrationImportReport: Codable, Equatable, Sendable {
   let ok: Bool
   let error: String?
   let requestID: String?
@@ -83,106 +83,72 @@ enum OwlUserMigrationImport {
     sharedSupportURL: URL? = Bundle.main.sharedSupportURL,
     fileManager fm: FileManager = .default
   ) throws -> OwlUserMigrationImportOutcome {
-    let resolution = try resolveGeneration(
-      userRoot: userRoot,
-      sharedSupportURL: sharedSupportURL
-    )
-    let generation = resolution.generation
-
-    let rustUserRoot = userRoot.appendingPathComponent("msime-user", isDirectory: true)
-    let cacheRoot = userRoot.appendingPathComponent("msime-cache", isDirectory: true)
-    let dictionariesParent = rustUserRoot
-      .appendingPathComponent("dictionaries", isDirectory: true)
-    let dictionariesRoot = dictionariesParent
-      .appendingPathComponent(generation.contentID, isDirectory: true)
-    for directory in [rustUserRoot, cacheRoot, dictionariesParent] {
-      do {
-        try fm.createDirectory(
-          at: directory,
-          withIntermediateDirectories: true,
-          attributes: [.posixPermissions: 0o700]
-        )
-      } catch {
-        throw OwlUserMigrationImportError.runtimeDirectoryFailed(
-          path: directory.path,
-          reason: error.localizedDescription
-        )
-      }
-    }
-
-    try prepareGeneration(
-      resourcesRoot: generation.resourcesURL,
-      rustUserRoot: rustUserRoot,
-      cacheRoot: cacheRoot,
-      contentID: generation.contentID
-    )
-    var isDirectory: ObjCBool = false
-    guard fm.fileExists(atPath: dictionariesRoot.path, isDirectory: &isDirectory),
-          isDirectory.boolValue else {
-      throw OwlUserMigrationImportError.runtimeDirectoryFailed(
-        path: dictionariesRoot.path,
-        reason: "Rust did not create the prepared generation"
-      )
-    }
-
-    let rawReport = generation.resourcesURL.path.withCString { resources in
-      rustUserRoot.path.withCString { user in
-        cacheRoot.path.withCString { cache in
-          dictionariesRoot.path.withCString { dictionaries in
-            staged.manifest.requestID.withCString { requestID in
-              owl_msime_user_migration_import(
-                resources,
-                user,
-                cache,
-                dictionaries,
-                requestID
-              )
+    let host = OwlStorageHost(dataDir: userRoot)
+    host.nativeEffect = { operation, args in
+      let path = args["path"] as? String ?? ""
+      switch operation {
+      case "user_native_import_active":
+        do {
+          let generation = try OwlRustResourceEnvironment.production(userRoot: userRoot).activeGeneration()
+          return ["generation": generation.map { ["resourcesPath": $0.resourcesURL.path, "contentID": $0.contentID] } as Any? ?? NSNull()]
+        } catch { return ["error": error.localizedDescription] }
+      case "user_native_import_digest": return try OwlRustEngine.contentDigest(of: URL(fileURLWithPath: path))
+      case "user_native_import_mkdir":
+        do { try fm.createDirectory(atPath: path, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]) }
+        catch { throw OwlUserMigrationImportError.runtimeDirectoryFailed(path: path, reason: error.localizedDescription) }
+        return true
+      case "user_native_import_is_directory":
+        var directory: ObjCBool = false
+        return fm.fileExists(atPath: path, isDirectory: &directory) && directory.boolValue
+      case "user_native_import_prepare":
+        try prepareGeneration(resourcesRoot: URL(fileURLWithPath: args["resources"] as? String ?? ""),
+          rustUserRoot: URL(fileURLWithPath: args["user"] as? String ?? ""), cacheRoot: URL(fileURLWithPath: args["cache"] as? String ?? ""),
+          contentID: args["contentID"] as? String ?? "")
+        return true
+      case "user_native_import_report":
+        let raw = (args["resources"] as? String ?? "").withCString { resources in
+          (args["user"] as? String ?? "").withCString { user in
+            (args["cache"] as? String ?? "").withCString { cache in
+              (args["dictionaries"] as? String ?? "").withCString { dictionaries in
+                (args["requestID"] as? String ?? "").withCString { request in
+                  owl_msime_user_migration_import(resources, user, cache, dictionaries, request)
+                }
+              }
             }
           }
         }
+        guard let raw else { throw OwlUserMigrationImportError.missingReport }
+        defer { owl_msime_string_free(raw) }
+        do {
+          let report = try JSONDecoder().decode(OwlUserMigrationImportReport.self, from: Data(String(cString: raw).utf8))
+          return OwlAppCore.payload(report)
+        } catch { throw OwlUserMigrationImportError.invalidReport(error.localizedDescription) }
+      default: throw OwlAppCore.Failure(code: "unknown_import_effect")
       }
     }
-    guard let rawReport else {
-      throw OwlUserMigrationImportError.missingReport
+    struct Reply: Decodable {
+      struct Generation: Decodable { let resourcesPath: String; let contentID: String }
+      let report: OwlUserMigrationImportReport
+      let generation: Generation
+      let warnings: [String]
     }
-    let json = String(cString: rawReport)
-    owl_msime_string_free(rawReport)
-
-    let report: OwlUserMigrationImportReport
     do {
-      report = try JSONDecoder().decode(
-        OwlUserMigrationImportReport.self,
-        from: Data(json.utf8)
-      )
-    } catch {
-      throw OwlUserMigrationImportError.invalidReport(error.localizedDescription)
+      let reply: Reply = try host.call("user_migration_import", ["manifest": OwlAppCore.payload(staged.manifest),
+        "recordCount": staged.recordCount, "userRoot": userRoot.path, "sharedSupport": sharedSupportURL?.path as Any? ?? NSNull()])
+      return OwlUserMigrationImportOutcome(report: reply.report,
+        generation: OwlRustResourceGeneration(resourcesURL: URL(fileURLWithPath: reply.generation.resourcesPath, isDirectory: true), contentID: reply.generation.contentID), warnings: reply.warnings)
+    } catch let failure as OwlAppCore.Failure {
+      guard failure.code.hasPrefix("user_import:"), let data = String(failure.code.dropFirst(12)).data(using: .utf8),
+            let value = try? JSONSerialization.jsonObject(with: data) as? [String: String] else { throw failure }
+      let detail = value["detail"] ?? ""
+      switch value["code"] {
+      case "bundledResourcesUnavailable": throw OwlUserMigrationImportError.bundledResourcesUnavailable
+      case "runtimeDirectoryFailed": throw OwlUserMigrationImportError.runtimeDirectoryFailed(path: detail, reason: "Rust did not create the prepared generation")
+      case "invalidReport": throw OwlUserMigrationImportError.invalidReport(detail)
+      case "rejected": throw OwlUserMigrationImportError.rejected(detail)
+      default: throw failure
+      }
     }
-    guard report.ok else {
-      throw OwlUserMigrationImportError.rejected(
-        report.error ?? "Rust importer returned ok=false without an error"
-      )
-    }
-    guard report.requestID == staged.manifest.requestID else {
-      throw OwlUserMigrationImportError.invalidReport(
-        "request_id does not match the staged request"
-      )
-    }
-    guard report.sourceCount == staged.manifest.sources.count,
-          report.issueCount == staged.manifest.issues.count,
-          report.recordCount == staged.recordCount,
-          report.pinsTotal == staged.manifest.pins.count else {
-      throw OwlUserMigrationImportError.invalidReport(
-        "source, issue, record or pin count differs from the staged manifest"
-      )
-    }
-
-    var warnings = resolution.warnings
-    warnings.append(contentsOf: report.warnings)
-    return OwlUserMigrationImportOutcome(
-      report: report,
-      generation: generation,
-      warnings: warnings
-    )
   }
 
   /// Materializes the same generation the live engine will use. The importer merges into
@@ -229,40 +195,6 @@ enum OwlUserMigrationImport {
       path: resourcesRoot.path,
       reason: reason
     )
-  }
-
-  private static func resolveGeneration(
-    userRoot: URL,
-    sharedSupportURL: URL?
-  ) throws -> (generation: OwlRustResourceGeneration, warnings: [String]) {
-    let environment = OwlRustResourceEnvironment.production(userRoot: userRoot)
-    var warnings: [String] = []
-    do {
-      if let generation = try environment.activeGeneration() {
-        return (generation, warnings)
-      }
-    } catch {
-      warnings.append(
-        "当前完整词库不可用，迁移与重新启动都回退到随包精简词库：\(error.localizedDescription)"
-      )
-    }
-
-    guard let sharedSupportURL else {
-      throw OwlUserMigrationImportError.bundledResourcesUnavailable
-    }
-    let resourcesURL = sharedSupportURL.appendingPathComponent("msime", isDirectory: true)
-    do {
-      let digest = try OwlRustEngine.contentDigest(of: resourcesURL)
-      return (
-        OwlRustResourceGeneration(
-          resourcesURL: resourcesURL,
-          contentID: "seed-\(digest)"
-        ),
-        warnings
-      )
-    } catch {
-      throw OwlUserMigrationImportError.bundledResourcesUnavailable
-    }
   }
 
   static func successMessage(

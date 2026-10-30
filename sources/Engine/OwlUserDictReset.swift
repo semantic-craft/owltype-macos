@@ -57,184 +57,68 @@ enum OwlUserDictReset {
   static let dictionariesName = "dictionaries"
   static let backupDirPrefix = "rust-userdict-reset-"
 
-  private struct Item {
-    let name: String
-    let url: URL
+  private struct Reply: Decodable {
+    struct Failure: Decodable {
+      let kind: String
+      let item: String
+      let reason: String
+      let restored: Bool?
+      let restoreReason: String?
+    }
+    let removedItems: [String]?
+    let backupDir: String?
+    let error: Failure?
   }
 
-  /// root 下 Rust 用户数据中应由「重置」清空的项目，顺序固定。
-  static func resetItemNames(
-    in root: URL,
-    fileManager fm: FileManager = .default
-  ) throws -> [String] {
-    try items(in: root, fileManager: fm).map(\.name)
+  static func resetItemNames(in root: URL, fileManager fm: FileManager = .default) throws -> [String] {
+    try execute("user_reset_items", root: root, timestamp: "", fileManager: fm).removedItems
   }
 
-  /// 备份 → 删除。删除前的 checkpoint 只用于测试故障注入，正常调用为空操作。
   @discardableResult
-  static func run(
-    root: URL,
-    timestamp: String,
-    fileManager fm: FileManager = .default,
-    removeCheckpoint: (String) throws -> Void = { _ in }
-  ) throws -> OwlUserDictResetOutcome {
-    let items = try items(in: root, fileManager: fm)
-    guard !items.isEmpty else {
-      return OwlUserDictResetOutcome(removedItems: [], backupDir: nil)
+  static func run(root: URL, timestamp: String, fileManager fm: FileManager = .default,
+                  removeCheckpoint: (String) throws -> Void = { _ in }) throws -> OwlUserDictResetOutcome {
+    try withoutActuallyEscaping(removeCheckpoint) { checkpoint in
+      try execute("user_reset", root: root, timestamp: timestamp, fileManager: fm, checkpoint: checkpoint)
     }
+  }
 
-    let backupDir = uniqueBackupDirectory(
-      root: root,
-      timestamp: timestamp,
-      fileManager: fm
-    )
-    var currentItem = items[0].name
-    do {
-      try OwlPrivateStorage.prepareDirectory(backupDir, fileManager: fm)
-      for item in items {
-        currentItem = item.name
-        try fm.copyItem(
-          at: item.url,
-          to: backupDir.appendingPathComponent(item.name)
-        )
-      }
-    } catch {
-      try? fm.removeItem(at: backupDir)
-      throw OwlUserDictResetError.backupFailed(
-        item: currentItem,
-        reason: error.localizedDescription
-      )
-    }
-
-    for item in items {
-      do {
-        try removeCheckpoint(item.name)
-        try fm.removeItem(at: item.url)
-      } catch {
-        let restoration = restore(
-          items,
-          rustRoot: rustRoot(in: root),
-          backupDir: backupDir,
-          fileManager: fm
-        )
-        throw OwlUserDictResetError.removeFailed(
-          item: item.name,
-          reason: error.localizedDescription,
-          restored: restoration == nil,
-          restoreReason: restoration
-        )
+  private static func execute(_ operation: String, root: URL, timestamp: String, fileManager fm: FileManager,
+                              checkpoint: @escaping (String) throws -> Void = { _ in }) throws -> OwlUserDictResetOutcome {
+    let host = OwlStorageHost(dataDir: root)
+    host.nativeEffect = { operation, args in
+      let name = args["name"] as? String ?? ""
+      let target = root.appendingPathComponent(name)
+      switch operation {
+      case "user_native_kind":
+        guard fm.fileExists(atPath: target.path) else { return "missing" }
+        var info = stat()
+        guard lstat(target.path, &info) == 0 else { throw CocoaError(.fileReadUnknown) }
+        return info.st_mode & S_IFMT == S_IFDIR ? "directory" : "other"
+      case "user_native_list": return try fm.contentsOfDirectory(atPath: target.path)
+      case "user_native_exists": return fm.fileExists(atPath: target.path)
+      case "user_native_mkdir": try OwlPrivateStorage.prepareDirectory(target, fileManager: fm); return true
+      case "user_native_copy":
+        try fm.copyItem(at: root.appendingPathComponent(args["source"] as? String ?? ""),
+                        to: root.appendingPathComponent(args["destination"] as? String ?? "")); return true
+      case "user_native_remove": if fm.fileExists(atPath: target.path) { try fm.removeItem(at: target) }; return true
+      case "user_native_checkpoint": try checkpoint(name); return true
+      case "user_native_path": return target.path
+      default: throw OwlAppCore.Failure(code: "unknown_reset_effect")
       }
     }
-
-    return OwlUserDictResetOutcome(
-      removedItems: items.map(\.name),
-      backupDir: backupDir
-    )
-  }
-
-  private static func items(
-    in root: URL,
-    fileManager fm: FileManager
-  ) throws -> [Item] {
-    let rustRoot = rustRoot(in: root)
-    var isDirectory: ObjCBool = false
-    guard fm.fileExists(atPath: rustRoot.path, isDirectory: &isDirectory) else {
-      return []
-    }
-    guard isDirectory.boolValue, isRealDirectory(rustRoot) else {
-      throw OwlUserDictResetError.inspectionFailed(
-        item: rustDirectoryName,
-        reason: "不是普通目录"
-      )
-    }
-
-    let names: [String]
-    do {
-      names = try fm.contentsOfDirectory(atPath: rustRoot.path)
-    } catch {
-      throw OwlUserDictResetError.inspectionFailed(
-        item: rustDirectoryName,
-        reason: error.localizedDescription
-      )
-    }
-
-    var items = names
-      .filter(isJournalArtifact)
-      .sorted()
-      .map {
-        Item(
-          name: $0,
-          url: rustRoot.appendingPathComponent($0, isDirectory: false)
-        )
+    let reply: Reply = try host.call(operation, ["timestamp": timestamp])
+    if let error = reply.error {
+      func reason(_ token: String) -> String {
+        token == "not_directory" ? "不是普通目录" : (host.errors[token]?.localizedDescription ?? token)
       }
-    let dictionaries = rustRoot.appendingPathComponent(
-      dictionariesName,
-      isDirectory: true
-    )
-    if fm.fileExists(atPath: dictionaries.path) {
-      items.append(Item(name: dictionariesName, url: dictionaries))
-    }
-    return items
-  }
-
-  private static func isJournalArtifact(_ name: String) -> Bool {
-    name == journalName
-      || name.hasPrefix(journalName + "-")
-      || name.hasPrefix(journalName + ".corrupt-")
-  }
-
-  private static func rustRoot(in root: URL) -> URL {
-    root.appendingPathComponent(rustDirectoryName, isDirectory: true)
-  }
-
-  private static func uniqueBackupDirectory(
-    root: URL,
-    timestamp: String,
-    fileManager fm: FileManager
-  ) -> URL {
-    let backups = root.appendingPathComponent(".owl-backup", isDirectory: true)
-    let baseName = backupDirPrefix + timestamp
-    var candidate = backups.appendingPathComponent(baseName, isDirectory: true)
-    var suffix = 2
-    while fm.fileExists(atPath: candidate.path) {
-      candidate = backups.appendingPathComponent(
-        "\(baseName)-\(suffix)",
-        isDirectory: true
-      )
-      suffix += 1
-    }
-    return candidate
-  }
-
-  /// 恢复整组 Rust 数据。先移除中途残留，再从完整备份重建，避免半个目录留在原位。
-  /// 成功返回 nil；失败返回首个错误说明。
-  private static func restore(
-    _ items: [Item],
-    rustRoot: URL,
-    backupDir: URL,
-    fileManager fm: FileManager
-  ) -> String? {
-    do {
-      try OwlPrivateStorage.prepareDirectory(rustRoot, fileManager: fm)
-      for item in items where fm.fileExists(atPath: item.url.path) {
-        try fm.removeItem(at: item.url)
+      switch error.kind {
+      case "inspection": throw OwlUserDictResetError.inspectionFailed(item: error.item, reason: reason(error.reason))
+      case "backup": throw OwlUserDictResetError.backupFailed(item: error.item, reason: reason(error.reason))
+      default: throw OwlUserDictResetError.removeFailed(item: error.item, reason: reason(error.reason),
+        restored: error.restored ?? false, restoreReason: error.restoreReason.map(reason))
       }
-      for item in items {
-        try fm.copyItem(
-          at: backupDir.appendingPathComponent(item.name),
-          to: item.url
-        )
-      }
-      return nil
-    } catch {
-      return error.localizedDescription
     }
-  }
-
-  private static func isRealDirectory(_ url: URL) -> Bool {
-    var info = stat()
-    guard lstat(url.path, &info) == 0 else { return false }
-    return info.st_mode & S_IFMT == S_IFDIR
+    return OwlUserDictResetOutcome(removedItems: reply.removedItems ?? [], backupDir: reply.backupDir.map { URL(fileURLWithPath: $0) })
   }
 
   // MARK: - 状态行文案

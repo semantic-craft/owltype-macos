@@ -3,7 +3,7 @@
 
 `rust/msime-source.json` names the engine tag/revision and the dictionary release with the
 SHA-256 of its verbatim manifest (`data/msime-dictionary-manifest.json`); that manifest supplies
-every member digest. Scripts read the pin from here. Documents, fixtures and Swift constants
+every member digest. Scripts read the pin from here. Documents, fixtures and Rust resource constants
 repeat it as literals, so `check` verifies they agree and `drift` lists newer upstream tags.
 
   python3 scripts/msime_pin.py show            # the current pin
@@ -119,9 +119,10 @@ def literal_sites(pin: Pin) -> dict[str, list[str]]:
         'docs/operations/pinyin-parity.md': [
             f'`{pin.engine_tag}`', pin.engine_revision, f'`{pin.release}`', pin.builder_commit,
             pin.data_commit],
-        'sources/DictPack/OwlRustDictPackResource.swift': [
-            f'{pin.release}: both official 86/98 tables', f'"sha256:{f["msime-wubi.db"]}"',
-            f'"msime-{pin.engine_tag}-'],
+        'rust/crates/owl-app-core/src/resource_catalog.rs': [
+            f'{pin.release}: both official 86/98 tables'],
+        'rust/crates/owl-app-core/src/resource_catalog.json': [
+            f'"sha256:{f["msime-wubi.db"]}"', f'"msime-{pin.engine_tag}-'],
         'tests/OwlRustEngineTests.swift': [f'"sha256:{f["msime-wubi.db"]}"', f'official {pin.release}'],
         'scripts/secret-finding-policy.py': [
             f'Public {pin.release} msime-english.db', f'"{f["msime-english.db"]}"'],
