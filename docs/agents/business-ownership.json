@@ -1,0 +1,1203 @@
+{
+  "schema_version": 1,
+  "goal": 356,
+  "files": [
+    {
+      "path": "sources/Activation/InputSource.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native Text Input Services (TIS) registration, enablement and selection adapter; input source diagnostic classification and default selection planning are Rust-owned"
+    },
+    {
+      "path": "sources/Activation/OwlInstallFiles.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native privileged file operations, POSIX permissions, directory hardening and code signature verification for bundle installation"
+    },
+    {
+      "path": "sources/Activation/OwlInstallSession.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native console user session verification, process termination and fresh TIS probe subprocess execution adapter conforming to OwlSessionRestart.Effects"
+    },
+    {
+      "path": "sources/Agent/OwlAgentAccess.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native lifecycle, UserDefaults observation and input snapshot adapter; Rust agent owns status assembly and template exposure rules"
+    },
+    {
+      "path": "sources/Agent/OwlAgentBridge.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native Unix domain socket listener, connection lifecycle and line framing; Rust agent owns protocol dispatch and business state"
+    },
+    {
+      "path": "sources/Agent/OwlAgentBridgeProtocol.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native JSON-RPC DTOs and wire framing; Rust agent and contract own message semantics and validation"
+    },
+    {
+      "path": "sources/Agent/OwlAgentCallLog.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native file IO and notification dispatch; Rust agent owns ring-buffer limits, outcome redaction and log policy"
+    },
+    {
+      "path": "sources/Agent/OwlAgentDelivery.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native target binding, workspace observation and delivery execution; Rust agent owns delivery state machine, idempotency and timeout transitions"
+    },
+    {
+      "path": "sources/Agent/OwlAgentDeliveryPanel.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Agent/OwlAgentPeerVerifier.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native POSIX peer credentials, audit token extraction and Security framework code-signature verification"
+    },
+    {
+      "path": "sources/Agent/OwlAgentTemplates.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Swift template DTO adapter; Rust agent owns exposure filtering, argument validation and preview rendering"
+    },
+    {
+      "path": "sources/BridgingFunctions.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native Swift utility operators (?=), NSRange empty constants and NSPoint arithmetic extensions; pure platform helpers with no business logic"
+    },
+    {
+      "path": "sources/Candidates/OwlCandidatePanelState.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Candidates/OwlCompositionSnapshot.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Candidates/OwlSnapshotEmitter.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Candidates/OwlSnapshotRegistry.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Controller/EngineRuntime.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native controller registry, engine lifecycle coordinator and idle refresh dispatch adapter; engine state transitions, generation tracking and configuration cache are Rust-owned"
+    },
+    {
+      "path": "sources/Controller/OwlApplicationDelegate.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native NSApplicationDelegate, Sparkle updater, UserNotifications center delegate and AppKit lifecycle wiring; delegates engine operations to EngineRuntime"
+    },
+    {
+      "path": "sources/Controller/OwlAutomaticExpansion.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Owned Rust recognition/runtime handles and native committed-library notifications; Rust owns trie, recognition, policy and per-entry revisions"
+    },
+    {
+      "path": "sources/Controller/OwlInputController+AutomaticExpansion.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native key/IMK effects and deferred AX field observations; Rust recognizer, bindings and delivery own business state"
+    },
+    {
+      "path": "sources/Controller/OwlInputController+ClientAction.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native IMKTextInput client action executor (insertText, setMarkedText, selectRange) adapting discrete client actions to macOS host apps"
+    },
+    {
+      "path": "sources/Controller/OwlInputController+EngineUpdate.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native IMK candidate panel presentation, caret positioning, marked text rendering and commit text dispatching adapter"
+    },
+    {
+      "path": "sources/Controller/OwlInputController+InputHabits.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native IMK input habit observation adapter recording application bundle IDs and input mode switches to OwlAppInputMemory"
+    },
+    {
+      "path": "sources/Controller/OwlInputController+Lifecycle.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native IMKInputController lifecycle event overrides (activateServer, deactivateServer, commitComposition) and notification dispatch adapter"
+    },
+    {
+      "path": "sources/Controller/OwlInputController+Menu.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native IMK input method context menu constructor, status menu actions and preferences window summoning adapter"
+    },
+    {
+      "path": "sources/Controller/OwlInputController+NativePunctuation.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native punctuation fallback and key handling adapter forwarding punctuation events between IMK client and engine session"
+    },
+    {
+      "path": "sources/Controller/OwlInputController+Session.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native IMK session creation, chord typing state and session option toggling adapter delegating to InputEngine"
+    },
+    {
+      "path": "sources/Controller/OwlInputController+SmartPunctuation.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native smart punctuation quote pairing and key event processing adapter coordinating with engine punctuation modes"
+    },
+    {
+      "path": "sources/Controller/OwlInputController.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native IMKInputController subclass handling incoming macOS key events, caret rect tracking and candidate selection dispatch"
+    },
+    {
+      "path": "sources/Controller/OwlInputMenuTitles.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native input method status menu titles and localized display strings; pure presentation constants"
+    },
+    {
+      "path": "sources/Controller/OwlLaneTasks.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native Swift concurrency task supervisor and cancellation adapter for asynchronous AI lane operations; task lifecycle and cancellation tokens are Rust-owned"
+    },
+    {
+      "path": "sources/Controller/OwlUpdateLogoutPrompt.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native NSAlert recovery prompt presentation and user disposition recording adapter; prompt timing rules, failure version criteria and recovery diagnoses are Rust-owned"
+    },
+    {
+      "path": "sources/Controller/OwlUserDictResetPrompt.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native NSAlert confirmation dialog presentation and modal response handling for user dictionary reset"
+    },
+    {
+      "path": "sources/Data/OwlEmojiData.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native emoji UI glyph DTOs, category metadata and recents UserDefaults persistence adapter; emoji catalog, search keyword matching and recents ordering are Rust-owned"
+    },
+    {
+      "path": "sources/DictPack/OwlDictPack.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native presentation DTOs and raw preference IO; resource rules and lifecycle are Rust-owned"
+    },
+    {
+      "path": "sources/DictPack/OwlDictPackCenter.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native tasks, alerts and idle refresh effects; Rust resource_lifecycle owns status, candidate, consent policy and retry state"
+    },
+    {
+      "path": "sources/DictPack/OwlDictPackManifestData.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Legacy immutable consent presentation data; never used for resource acquisition or transaction decisions"
+    },
+    {
+      "path": "sources/DictPack/OwlRustDictPackResource.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native path discovery and DTO projection; Rust resource_catalog owns compatible sets, build, validation and active fallback"
+    },
+    {
+      "path": "sources/DictPack/OwlRustResourceContract.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Resource DTOs and typed error projection; Rust resource_contract owns manifest, digest, path and SQLite validation"
+    },
+    {
+      "path": "sources/DictPack/OwlRustResourceStore.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native transport, process identity, fsync/permissions and locks; Rust resource owns prepare/activate/rollback/leases and recovery sequencing"
+    },
+    {
+      "path": "sources/Engine/EngineCompositionRenderer.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "macOS key translation, tracing, host facts or attributed-text rendering"
+    },
+    {
+      "path": "sources/Engine/EngineOption.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Swift strongly-typed option key enum adapter mapping input session option keys to Rust input-runtime engine options"
+    },
+    {
+      "path": "sources/Engine/EngineSeam.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Swift InputEngine and EngineSession protocol seam and rerank ticket definitions adapting to Rust engine handles"
+    },
+    {
+      "path": "sources/Engine/EngineValueTypes.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Swift value types (EngineCandidate, EngineComposition, EngineStatus) decoding raw Rust engine snapshots across the FFI seam"
+    },
+    {
+      "path": "sources/Engine/MacOSKeyCodes.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "macOS key translation, tracing, host facts or attributed-text rendering"
+    },
+    {
+      "path": "sources/Engine/OwlAppCore.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "App ABI transport and synchronous raw native filesystem, locking, collation and notification effects; Rust owns transaction ordering and recovery"
+    },
+    {
+      "path": "sources/Engine/OwlClientCapabilityPolicy.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native host/privacy DTOs and bounded Rust capability projection cache; all host classification, override precedence and capability reasons live in client_capability.rs"
+    },
+    {
+      "path": "sources/Engine/OwlElectronHostDetector.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "macOS key translation, tracing, host facts or attributed-text rendering"
+    },
+    {
+      "path": "sources/Engine/OwlForcedFinalize.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native IMK forced-finalize sequence executor and snapshot emitter adapter; commit text selection decision rules are Rust-owned"
+    },
+    {
+      "path": "sources/Engine/OwlLatencyTrace.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "macOS key translation, tracing, host facts or attributed-text rendering"
+    },
+    {
+      "path": "sources/Engine/OwlLiveInputTrace.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "macOS key translation, tracing, host facts or attributed-text rendering"
+    },
+    {
+      "path": "sources/Engine/OwlMarkedTextResendPolicy.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native IMK setMarkedText resend dispatch adapter; marked text change detection and resend policy are Rust-owned"
+    },
+    {
+      "path": "sources/Engine/OwlRustEngine+KeyRouting.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Keycode translation, Caps Lock state transitions and candidate selection key routing adapter extending OwlRustSession"
+    },
+    {
+      "path": "sources/Engine/OwlRustEngine.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Swift InputEngine and EngineSession implementation wrapping the Rust input-runtime and owl-app-ffi FFI boundaries"
+    },
+    {
+      "path": "sources/Engine/OwlRustPayloads.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Swift Codable/Decodable DTO payloads for Rust engine snapshot, candidate, and rerank FFI JSON communication"
+    },
+    {
+      "path": "sources/Engine/OwlSchemaSelectionGate.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native schema-result DTOs and calls to Rust idle/backoff/failure policy; no native selection rules"
+    },
+    {
+      "path": "sources/Engine/OwlUserAction.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native NSEvent field extraction (OwlKeyEvent) and action dispatch adapter; key event classification and modifier press/release ordering rules are Rust-owned"
+    },
+    {
+      "path": "sources/Engine/OwlUserDictReset.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native file primitives and status copy; Rust user_data owns backup/delete/restore and allowed reset items"
+    },
+    {
+      "path": "sources/Lane/OwlAIContextAssembler.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Explicit-content DTOs and App ABI transport; Rust owns context assembly, prompts and grapheme limits"
+    },
+    {
+      "path": "sources/Lane/OwlAIConversationModel.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native Task execution, provider-change observation and render projection of the Rust generation/history state machine"
+    },
+    {
+      "path": "sources/Lane/OwlAskAnythingModule.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native async transport execution; owned Rust attempt session controls order, pre-content failover and source attribution"
+    },
+    {
+      "path": "sources/Lane/OwlAskSearchResolver.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Raw profile/preference/key reads and route DTOs; Rust chooses candidate order, model and refusal policy"
+    },
+    {
+      "path": "sources/Lane/OwlCNKIExpertQueryBuilder.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "DTO adapter to Rust CNKI query rules"
+    },
+    {
+      "path": "sources/Lane/OwlCloudFoundation.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native DTOs, UI and URLSession/Keychain/preferences/filesystem effects; provider_store/provider_wire/provider_search and owned Rust sessions own provider rules, protocol and transactions"
+    },
+    {
+      "path": "sources/Lane/OwlDeepSeekSearch.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native DTOs, UI and URLSession/Keychain/preferences/filesystem effects; provider_store/provider_wire/provider_search and owned Rust sessions own provider rules, protocol and transactions"
+    },
+    {
+      "path": "sources/Lane/OwlDoubaoSearch.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native DTOs, UI and URLSession/Keychain/preferences/filesystem effects; provider_store/provider_wire/provider_search and owned Rust sessions own provider rules, protocol and transactions"
+    },
+    {
+      "path": "sources/Lane/OwlGoalBrief.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native dependency wiring and error display; prompts, admission, request and outcome rules are Rust-owned"
+    },
+    {
+      "path": "sources/Lane/OwlLLMGateway.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native DTOs, UI and URLSession/Keychain/preferences/filesystem effects; provider_store/provider_wire/provider_search and owned Rust sessions own provider rules, protocol and transactions"
+    },
+    {
+      "path": "sources/Lane/OwlPolishPromptCatalog.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Raw prompt preference and DTO projection of the Rust catalog"
+    },
+    {
+      "path": "sources/Lane/OwlPromptOptimizer.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native dependency wiring and error display over Rust structured drafting"
+    },
+    {
+      "path": "sources/Lane/OwlProviderAuthGate.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native DTOs, UI and URLSession/Keychain/preferences/filesystem effects; provider_store/provider_wire/provider_search and owned Rust sessions own provider rules, protocol and transactions"
+    },
+    {
+      "path": "sources/Lane/OwlProviderProfile.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native DTOs, UI and URLSession/Keychain/preferences/filesystem effects; provider_store/provider_wire/provider_search and owned Rust sessions own provider rules, protocol and transactions"
+    },
+    {
+      "path": "sources/Lane/OwlProviderRegistry.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native DTOs, UI and URLSession/Keychain/preferences/filesystem effects; provider_store/provider_wire/provider_search and owned Rust sessions own provider rules, protocol and transactions"
+    },
+    {
+      "path": "sources/Lane/OwlResponsesStreamingClient.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native DTOs, UI and URLSession/Keychain/preferences/filesystem effects; provider_store/provider_wire/provider_search and owned Rust sessions own provider rules, protocol and transactions"
+    },
+    {
+      "path": "sources/Lane/OwlResponsesWire.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native DTOs, UI and URLSession/Keychain/preferences/filesystem effects; provider_store/provider_wire/provider_search and owned Rust sessions own provider rules, protocol and transactions"
+    },
+    {
+      "path": "sources/Lane/OwlSearchControl.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native enum projection of Rust provider capability and search constants"
+    },
+    {
+      "path": "sources/Lane/OwlSelectionPolish.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native gateway/search effects and error DTO mapping; Rust owns admission, request, verification job, source ordering and limits"
+    },
+    {
+      "path": "sources/Lane/OwlSelectionVerifyMenu.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Menu DTO projection from Rust anchor/query/source planning"
+    },
+    {
+      "path": "sources/Lane/OwlStreamingChatClient.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native DTOs, UI and URLSession/Keychain/preferences/filesystem effects; provider_store/provider_wire/provider_search and owned Rust sessions own provider rules, protocol and transactions"
+    },
+    {
+      "path": "sources/Lane/OwlStructuredDrafting.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native authorization/remote effects; Rust owns admission, protected messages and safe outcome parsing"
+    },
+    {
+      "path": "sources/Lane/OwlTextInserter.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native AX/paste/clipboard effects; Rust owns the existing selection-specific strategy sequence and per-App cache"
+    },
+    {
+      "path": "sources/Lane/OwlVerificationAnchors.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native anchor/case DTOs and badge copy; Rust owns extraction, normalization and case admission"
+    },
+    {
+      "path": "sources/Lane/OwlVerificationRouting.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "URL and route DTO projection; Rust owns query normalization, source routing, clipboard and safe-link policy"
+    },
+    {
+      "path": "sources/Main.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native application entry point (@main), IMKServer initialization, CLI argument dispatch and NSApplication run loop"
+    },
+    {
+      "path": "sources/Settings/OwlAIPage.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native DTOs, UI and URLSession/Keychain/preferences/filesystem effects; provider_store/provider_wire/provider_search and owned Rust sessions own provider rules, protocol and transactions"
+    },
+    {
+      "path": "sources/Settings/OwlAgentPage.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Settings/OwlAppEnglishSheet.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Settings/OwlAppInputMemory.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native UserDefaults persistence and mode observation adapter for app-specific input habits; mode lookup and recording criteria are Rust-owned"
+    },
+    {
+      "path": "sources/Settings/OwlAutoPair.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native IMK auto-pairing effect execution adapter; bracket pair catalog, skip-over evaluation and pairing decisions are Rust-owned"
+    },
+    {
+      "path": "sources/Settings/OwlCandidatePanelSettings.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Appearance and panel preferences only"
+    },
+    {
+      "path": "sources/Settings/OwlClipboardPage.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Settings/OwlConfig.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Rust config handles, cached native values and filesystem paths; schema path validation is Rust-owned"
+    },
+    {
+      "path": "sources/Settings/OwlConfigPatchBuilder.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Encodable keyboard snapshots and calls to Rust YAML export; no native export rules"
+    },
+    {
+      "path": "sources/Settings/OwlConfigWriter.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native DTO facade; Rust config_writer owns authorization, managed YAML, backup manifest and rollback sequencing"
+    },
+    {
+      "path": "sources/Settings/OwlEmojiPreferences.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Raw UserDefaults IO using the Rust auxiliary preference default"
+    },
+    {
+      "path": "sources/Settings/OwlExperimentalPreferences.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Raw preference IO, model DTOs and synchronized Rust model-status handle; catalog metadata and status state live in Rust"
+    },
+    {
+      "path": "sources/Settings/OwlFuzzyPreferences.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Raw UserDefaults IO and native snapshot binding; defaults and engine bitmask are Rust-owned"
+    },
+    {
+      "path": "sources/Settings/OwlFuzzySheet.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Settings/OwlInputHabitsSettings.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "SwiftUI controls and workspace application-name lookup; underlying memory and pin stores have their own owners"
+    },
+    {
+      "path": "sources/Settings/OwlKeyboardPage+SmartPunctuation.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Settings/OwlKeyboardPage.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "SwiftUI controls, native model-file facts and status presentation; invokes Rust-owned settings and application plans"
+    },
+    {
+      "path": "sources/Settings/OwlKeyboardPreferences.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "UserDefaults keyboard settings adapter and schema options mapping; commit spacing transformation algorithm (OwlCommitTransform) and keyboard normalization are Rust-owned"
+    },
+    {
+      "path": "sources/Settings/OwlKeyboardSettingsApplication.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native engine-effect executor for the Rust application plan; recovery fact capture and native diagnostics"
+    },
+    {
+      "path": "sources/Settings/OwlKeyboardSettingsCatalog.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native key-path bindings, raw UserDefaults IO and cached projection of the Rust catalog"
+    },
+    {
+      "path": "sources/Settings/OwlOnboardingPractice.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native NSTextView practice field and AppKit text observation adapter; onboarding practice verification rules and target text matching are Rust-owned"
+    },
+    {
+      "path": "sources/Settings/OwlOnboardingView.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Settings/OwlOnboardingWindow.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Settings/OwlPanelPreferences.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Appearance and panel preferences only"
+    },
+    {
+      "path": "sources/Settings/OwlPinnedWords.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Raw preference IO and native text-conversion facts; Rust owns pin order, revision, eligibility, source certification and serialization"
+    },
+    {
+      "path": "sources/Settings/OwlPromptPage.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Settings/OwlPromptStore.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Legacy prompt DTOs and preset content; Rust prompt_store owns validation, normalization, projections and persistence"
+    },
+    {
+      "path": "sources/Settings/OwlQuickSendPage.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native settings UI and legacy DTO facade; Rust quick_send owns stored entries, migration and write decisions"
+    },
+    {
+      "path": "sources/Settings/OwlRaycastImport.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Review DTO bindings; Rust template_import owns conversion, identities, conflict assessment and commit"
+    },
+    {
+      "path": "sources/Settings/OwlRaycastImportView.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Settings/OwlSettingsActions+Stores.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native keychain/form/file/redeploy effects; Rust owns credential outcomes and per-file preview apply/rollback sequencing"
+    },
+    {
+      "path": "sources/Settings/OwlSettingsComponents.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Settings/OwlSettingsPages.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Settings/OwlSettingsState.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "SwiftUI observable settings state and UI event coordinator adapter; settings schema validation, quick-send edits and configuration plans are Rust-owned"
+    },
+    {
+      "path": "sources/Settings/OwlSettingsView.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Settings/OwlSettingsWindow.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Settings/OwlSkillsPage.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Settings/OwlSkinPage.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Settings/OwlStyleFlags.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native candidate-window layout, inline presentation and HUD appearance; appearance preferences remain native"
+    },
+    {
+      "path": "sources/Settings/OwlTemplateBackup.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native preview DTO bindings; Rust template_backup owns strict decode, merge, export and restore/delete transactions"
+    },
+    {
+      "path": "sources/Settings/OwlTemplateEngine.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Template DTO/FFI transport and frozen Foundation calendar/formatting facts; Rust owns grammar, validation, rendering and readiness"
+    },
+    {
+      "path": "sources/Settings/OwlTemplateMigration.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Plan DTO facade; Rust template_migration and template_transaction own audit, journal, guards and crash recovery"
+    },
+    {
+      "path": "sources/Settings/OwlTemplateMigrationView.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Settings/OwlTemplatePage.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native draft projection, UI and effect wiring; Rust template_editor owns accepted edits and commit plans"
+    },
+    {
+      "path": "sources/Settings/OwlTemplateRestoreView.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Settings/OwlTemplateStore.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "DTO facade and commit notifications; Rust owns library rules, persistence, indexes and query decisions"
+    },
+    {
+      "path": "sources/Settings/OwlWritePreviewSheet.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/Settings/OwlWubiCommitSettings.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "SwiftUI commit-option controls only; preferences and engine policy are owned elsewhere"
+    },
+    {
+      "path": "sources/Settings/OwlWubiLookupSettings.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "SwiftUI lookup-option controls and disabled-control presentation only"
+    },
+    {
+      "path": "sources/Theme/OwlThemes.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/UI/JEVReplyPanel.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/UI/OwlAIConversationView.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/UI/OwlAIWindow.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/UI/OwlCandidatePanelGeometry.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/UI/OwlCandidatePanelView.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/UI/OwlEmojiPanel.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/UI/OwlEmojiPanelView.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/UI/OwlFloatingPanelPositioner.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/UI/OwlHostCaretAnchorMemory.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/UI/OwlInputStatusPanel.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/UI/OwlPanelInsertionBroker.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Rust focus-session effects; native application references, activation, timer scheduling and explicit clipboard writes"
+    },
+    {
+      "path": "sources/UI/OwlPromptFillSheet.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/UI/OwlQuickSendHotKey.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native CGEvent tap, Carbon event conversion and SwiftUI hotkey recorder adapter; shortcut combo matching, slot mapping and conflict validation are Rust-owned"
+    },
+    {
+      "path": "sources/UI/OwlQuickSendPanel.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native panel and focus effects; Rust picker owns filtering and selection decisions"
+    },
+    {
+      "path": "sources/UI/OwlSelectionMenuCoordinator.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native gesture/AX facts, menus and effect execution; Rust owns gesture state, skill routes, selection admission and typesetting"
+    },
+    {
+      "path": "sources/UI/OwlSelectionRewrite.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native generation/confirmation/delivery effects; Rust owns rewrite phases and generation admission"
+    },
+    {
+      "path": "sources/UI/OwlStatusHUD.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/UI/OwlSwiftUICandidatePanel.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/UI/OwlTemplateContextCapture.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/UI/OwlTemplateCursorPlacement.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native UTF-16 geometry, bounded host grapheme facts and UI position descriptions; Rust delivery owns cursor intent"
+    },
+    {
+      "path": "sources/UI/OwlTemplateHostDelivery.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Rust delivery effect adapter; native AX/IMK facts, field identity, focus/session rebind and effect execution only"
+    },
+    {
+      "path": "sources/UI/OwlTemplateInvocation.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native context facts, observable projection and UI/host effects for Rust-owned invocation, frozen context, generation and cancellation decisions"
+    },
+    {
+      "path": "sources/UI/OwlTemplatePickerView.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native presentation and navigation consume Rust library filtering and picker decisions"
+    },
+    {
+      "path": "sources/UI/OwlVerificationReceiptCard.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/UI/OwlVerificationReceiptModel.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native Task, URL, clipboard and display effects; Rust owns receipt state, per-anchor generations and result interpretation"
+    },
+    {
+      "path": "sources/UserMigration/OwlRimeUserDBSnapshot.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Raw snapshot file facts and DTOs; Rust user_migration owns discovery decisions, parsing, bounds, issues and source digest"
+    },
+    {
+      "path": "sources/UserMigration/OwlUserMigration.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Migration DTO projection and native decode diagnostics; Rust owns mapping, pins, deterministic request and persisted bytes"
+    },
+    {
+      "path": "sources/UserMigration/OwlUserMigrationImport.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Existing engine FFI calls and native paths/UI; Rust orchestrates generation resolution, preparation, import and report validation"
+    },
+    {
+      "path": "sources/UserMigration/OwlUserMigrationStage.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native file effects and typed errors; Rust owns original protection, idempotent staging, collision and failure cleanup"
+    },
+    {
+      "path": "installer/Shared/OwlBundleSwap.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native POSIX filesystem atomic directory exchange (renamex_np), canonical path checks and bundle staging; no business logic"
+    },
+    {
+      "path": "installer/Shared/OwlSessionRestart.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native process observation, TIS and launch effects adapter for session restart; diagnostic conditions and restart criteria evaluation are Rust-owned"
+    },
+    {
+      "path": "installer/Sources/ContentView.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native SwiftUI installer view hierarchy, installation progress presentation and interactive user actions"
+    },
+    {
+      "path": "installer/Sources/Installer.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native installer coordinator, privileged AppleScript execution, code signature verification and bundle staging"
+    },
+    {
+      "path": "installer/Sources/InstallerActivationPolicy.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native installer activation plan decision helper and probe signal parsing for the installer GUI shell"
+    },
+    {
+      "path": "installer/Sources/InstallerTISProbe.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native Text Input Services (TIS) query probe CLI helper for fresh process status verification"
+    },
+    {
+      "path": "installer/Sources/OwltypeInstallerApp.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native SwiftUI installer application entry, window management and NSApplicationDelegate lifecycle"
+    },
+    {
+      "path": "installer/Sources/main.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native CLI entry point dispatching installer execution or fresh TIS probe inspection"
+    }
+  ]
+}

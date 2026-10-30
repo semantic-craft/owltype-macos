@@ -87,3 +87,26 @@ Owltype 使用独立身份，与已安装的鼠须管互不干扰；对鼠须管
 
 GPLv3（见 [`LICENSE.txt`](LICENSE.txt)）。分发基于本项目的二进制时，必须一并提供对应的修改源码、
 GPLv3 许可证文本与版权声明，不得作为闭源制品分发。
+
+## Owltype App business core
+
+`rust/crates/owl-app-core` and `rust/crates/owl-app-ffi` are original Owltype
+code under GPL-3.0-only, separate from the fixed Metasequoia imports. They use
+the workspace-pinned serde/serde_json dependencies already in the source lockfile.
+Their sources and C header are part of the tracked corresponding-source inputs.
+The template module also uses the existing lockfile's `regex`, `unicode-segmentation`
+(MIT OR Apache-2.0) and ICU4X `icu_normalizer` (Unicode-3.0). Grapheme segmentation
+preserves cursor boundaries; NFC comparison preserves Swift's canonical string equality
+without rewriting authored template text or inserted values. No fixed upstream source is changed.
+
+Library journals use `base64` 0.22 (MIT OR Apache-2.0) to preserve Foundation Data
+encoding and workspace `sha2` (MIT OR Apache-2.0) for existing snapshot digests.
+Storage/backup/migration modules are original Owltype code; native Foundation operations
+are injected services, while Rust owns write authorization, phases and recovery.
+
+AI context, drafting prompts, selection rules and verification coordinates were ported
+from the existing Owltype Swift implementations into `ai_business.rs`, `ai_selection.rs`,
+`ai_verification.rs`, `ai_prompts.json` and `verification_rules.json`. Existing
+Responsay-aligned verification/query rules and translation-prompt attribution remain
+in their native facade headers; no new external source or dependency was imported.
+The native keychain identity, network primitives and persistent formats are unchanged.

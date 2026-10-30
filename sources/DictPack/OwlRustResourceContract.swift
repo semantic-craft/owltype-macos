@@ -122,14 +122,6 @@ enum OwlRustResourceFileRole: String, Codable, CaseIterable, Sendable {
   case other
   case license
 
-  var isSingleton: Bool {
-    switch self {
-    case .mainDictionary, .wubiDictionary, .englishDictionary, .bigram, .trigram:
-      return true
-    case .helpcode, .other, .license:
-      return false
-    }
-  }
 }
 
 struct OwlRustResourceLicense: Codable, Equatable, Sendable {
@@ -182,167 +174,20 @@ struct OwlRustResourceManifest: Codable, Equatable, Sendable {
   let engineCompatibility: OwlRustResourceEngineCompatibility
   let files: [OwlRustResourceFile]
 
-  func calculatedDigest() throws -> String {
-    var unsigned = self
-    unsigned = OwlRustResourceManifest(
-      schemaVersion: schemaVersion,
-      packageId: packageId,
-      inputKind: inputKind,
-      version: version,
-      digest: Self.zeroDigest,
-      license: license,
-      engineCompatibility: engineCompatibility,
-      files: files
-    )
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-    return Self.digest(for: try encoder.encode(unsigned))
-  }
-
+  func calculatedDigest() throws -> String { try OwlResourceBusiness.call("calculated", ["manifest": OwlAppCore.payload(self)]) }
   func canonicalData() throws -> Data {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-    return try encoder.encode(self)
+    let bytes: [UInt8] = try OwlResourceBusiness.call("canonical", ["manifest": OwlAppCore.payload(self)])
+    return Data(bytes)
   }
-
-  func validateMetadata() throws {
-    guard schemaVersion == Self.schemaVersionV1 else {
-      throw OwlRustResourceError.invalidManifest("不支持 schemaVersion \(schemaVersion)")
-    }
-    guard Self.isValidPackageId(packageId) else {
-      throw OwlRustResourceError.invalidManifest("packageId 无效：\(packageId)")
-    }
-    guard version > 0 else {
-      throw OwlRustResourceError.invalidManifest("version 必须为正整数")
-    }
-    guard Self.isValidDigest(digest) else {
-      throw OwlRustResourceError.invalidDigest(digest)
-    }
-    guard !license.isEmpty else {
-      throw OwlRustResourceError.invalidManifest("license 不得为空")
-    }
-    guard !files.isEmpty else {
-      throw OwlRustResourceError.invalidManifest("files 不得为空")
-    }
-
-    try Self.validateFileEntries(files)
-    try Self.validateLicenseEntries(license, files: files)
-    try Self.validateEngineCompatibility(engineCompatibility)
-  }
-
-  private static func validateFileEntries(_ files: [OwlRustResourceFile]) throws {
-    var paths = Set<String>()
-    var singletonRoles = Set<OwlRustResourceFileRole>()
-    for file in files {
-      try Self.validateRelativePath(file.path)
-      guard file.path.hasPrefix("files/") else {
-        throw OwlRustResourceError.unsafePath(file.path)
-      }
-      guard paths.insert(file.path).inserted else {
-        throw OwlRustResourceError.duplicatePath(file.path)
-      }
-      guard file.size > 0 else {
-        throw OwlRustResourceError.invalidManifest("文件大小必须为正：\(file.path)")
-      }
-      guard Self.isValidDigest(file.digest) else {
-        throw OwlRustResourceError.invalidDigest(file.digest)
-      }
-      guard !file.mediaType.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-        throw OwlRustResourceError.invalidManifest("mediaType 为空：\(file.path)")
-      }
-      if file.role.isSingleton, !singletonRoles.insert(file.role).inserted {
-        throw OwlRustResourceError.invalidManifest("role 重复：\(file.role.rawValue)")
-      }
-      for table in file.requiredTables ?? [] {
-        guard !table.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-          throw OwlRustResourceError.invalidManifest("requiredTables 含空表名：\(file.path)")
-        }
-      }
-    }
-  }
-
-  private static func validateLicenseEntries(
-    _ license: [OwlRustResourceLicense],
-    files: [OwlRustResourceFile]
-  ) throws {
-    let licenseFiles = Set(files.filter { $0.role == .license }.map(\.path))
-    for notice in license {
-      guard !notice.identifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-            !notice.attribution.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-            !notice.files.isEmpty else {
-        throw OwlRustResourceError.invalidManifest("license 条目缺少 identifier/attribution/files")
-      }
-      for path in notice.files {
-        try Self.validateRelativePath(path)
-        guard licenseFiles.contains(path) else {
-          throw OwlRustResourceError.invalidManifest("license notice 未以 role=license 列入 files：\(path)")
-        }
-      }
-    }
-  }
-
-  private static func validateEngineCompatibility(
-    _ engineCompatibility: OwlRustResourceEngineCompatibility
-  ) throws {
-    guard engineCompatibility.minimumContractVersion > 0,
-          engineCompatibility.maximumContractVersion >= engineCompatibility.minimumContractVersion else {
-      throw OwlRustResourceError.invalidManifest("engineCompatibility 版本区间无效")
-    }
-    let capabilities = engineCompatibility.requiredCapabilities
-    guard capabilities.allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }),
-          Set(capabilities).count == capabilities.count else {
-      throw OwlRustResourceError.invalidManifest("requiredCapabilities 含空值或重复值")
-    }
-  }
-
-  func validateDigest() throws {
-    try validateMetadata()
-    let actual = try calculatedDigest()
-    guard actual == digest else {
-      throw OwlRustResourceError.manifestDigestMismatch(expected: digest, actual: actual)
-    }
-  }
-
-  static func digest(for data: Data) -> String {
-    "sha256:" + SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-  }
-
-  static func isValidDigest(_ digest: String) -> Bool {
-    guard digest.hasPrefix("sha256:"), digest.count == 71 else { return false }
-    let hex = digest.dropFirst(7)
-    return hex.unicodeScalars.allSatisfy {
-      (UInt32(UInt8(ascii: "0"))...UInt32(UInt8(ascii: "9"))).contains($0.value)
-        || (UInt32(UInt8(ascii: "a"))...UInt32(UInt8(ascii: "f"))).contains($0.value)
-    }
-  }
-
-  static func validateRelativePath(_ path: String) throws {
-    guard !path.isEmpty, !path.hasPrefix("/"), !path.hasSuffix("/"),
-          !path.contains("\0"), !path.contains("\\") else {
-      throw OwlRustResourceError.unsafePath(path)
-    }
-    let components = path.split(separator: "/", omittingEmptySubsequences: false)
-    guard components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else {
-      throw OwlRustResourceError.unsafePath(path)
-    }
-  }
-
-  static func isValidPackageId(_ id: String) -> Bool {
-    guard (1...128).contains(id.utf8.count),
-          id.first.map({ $0.isASCII && ($0.isLetter || $0.isNumber) }) == true else {
-      return false
-    }
-    return id.unicodeScalars.allSatisfy {
-      ($0.value >= 97 && $0.value <= 122)
-        || ($0.value >= 48 && $0.value <= 57)
-        || $0 == "."
-        || $0 == "_"
-        || $0 == "-"
-    }
-  }
+  func validateMetadata() throws { let _: Bool = try OwlResourceBusiness.call("metadata", ["manifest": OwlAppCore.payload(self)]) }
+  func validateDigest() throws { let _: Bool = try OwlResourceBusiness.call("validate", ["manifest": OwlAppCore.payload(self)]) }
+  static func digest(for data: Data) -> String { "sha256:" + SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
+  static func isValidDigest(_ digest: String) -> Bool { try! OwlResourceBusiness.call("digest", ["digest": digest]) }
+  static func validateRelativePath(_ path: String) throws { let _: Bool = try OwlResourceBusiness.call("relative", ["path": path]) }
+  static func isValidPackageId(_ id: String) -> Bool { try! OwlResourceBusiness.call("package", ["package": id]) }
 }
 
-struct OwlRustResourceSQLiteTableRequirement: Equatable, Sendable {
+struct OwlRustResourceSQLiteTableRequirement: Codable, Equatable, Sendable {
   let table: String
   let columns: Set<String>
 
@@ -352,7 +197,7 @@ struct OwlRustResourceSQLiteTableRequirement: Equatable, Sendable {
   }
 }
 
-struct OwlRustResourceSQLiteRequirement: Equatable, Sendable {
+struct OwlRustResourceSQLiteRequirement: Codable, Equatable, Sendable {
   let role: OwlRustResourceFileRole
   let tables: [OwlRustResourceSQLiteTableRequirement]
 
@@ -365,282 +210,79 @@ struct OwlRustResourceSQLiteRequirement: Equatable, Sendable {
 /// Supplied by the real engine integration after #250 freezes its interface.
 /// Unit tests inject the same shape, so downloaded manifests never attest
 /// their own engine compatibility.
-struct OwlRustEngineIdentity: Equatable, Sendable {
+struct OwlRustEngineIdentity: Codable, Equatable, Sendable {
   let contractVersion: Int
   let capabilities: Set<String>
   let sqliteRequirements: [OwlRustResourceSQLiteRequirement]
 }
 
 enum OwlRustResourceVerifier {
-  static func verifyGeneration(
-    at generationRoot: URL,
-    manifest: OwlRustResourceManifest,
-    engine: OwlRustEngineIdentity,
-    requireCompleteMarker: Bool
-  ) throws {
-    try manifest.validateDigest()
-    try verifyEngineCompatibility(manifest: manifest, engine: engine)
-
-    let manifestURL = generationRoot.appendingPathComponent("manifest.json", isDirectory: false)
-    guard let manifestData = try? Data(contentsOf: manifestURL),
-          let storedManifest = try? JSONDecoder().decode(OwlRustResourceManifest.self, from: manifestData),
-          storedManifest == manifest else {
-      throw OwlRustResourceError.generationCorrupt("manifest.json 与期望 manifest 不一致")
-    }
-
-    if requireCompleteMarker {
-      let markerURL = generationRoot.appendingPathComponent(".complete", isDirectory: false)
-      guard let marker = try? String(contentsOf: markerURL, encoding: .utf8),
-            marker.trimmingCharacters(in: .whitespacesAndNewlines) == manifest.digest else {
-        throw OwlRustResourceError.generationCorrupt("完整标记缺失或摘要不符")
-      }
-    }
-
-    for file in manifest.files {
-      let url = try safeFileURL(relativePath: file.path, under: generationRoot)
-      try verifyFile(url, expected: file)
-    }
-
-    var requirementsByRole: [OwlRustResourceFileRole: [OwlRustResourceSQLiteTableRequirement]] = [:]
-    for requirement in engine.sqliteRequirements {
-      requirementsByRole[requirement.role, default: []].append(contentsOf: requirement.tables)
-    }
-    for (role, trustedTables) in requirementsByRole {
-      guard let file = manifest.files.first(where: { $0.role == role }) else {
-        throw OwlRustResourceError.missingEngineSQLiteFile(role: role)
-      }
-      let path = try safeFileURL(relativePath: file.path, under: generationRoot).path
-      let manifestTables = Set(file.requiredTables ?? [])
-      let allManifestTables = manifestTables.union(trustedTables.map(\.table))
-      try verifySQLite(
-        path: path,
-        requiredTables: allManifestTables,
-        trustedTableRequirements: trustedTables
-      )
-    }
-    for file in manifest.files where !(file.requiredTables ?? []).isEmpty {
-      guard !requirementsByRole.keys.contains(file.role) else { continue }
-      let path = try safeFileURL(relativePath: file.path, under: generationRoot).path
-      try verifySQLite(
-        path: path,
-        requiredTables: Set(file.requiredTables ?? []),
-        trustedTableRequirements: []
-      )
-    }
+  static func verifyGeneration(at root: URL, manifest: OwlRustResourceManifest, engine: OwlRustEngineIdentity, requireCompleteMarker: Bool) throws {
+    let _: Bool = try OwlResourceBusiness.call("generation", ["path": root.path, "manifest": OwlAppCore.payload(manifest), "engine": OwlAppCore.payload(engine), "complete": requireCompleteMarker])
   }
-
-  static func verifyEngineCompatibility(
-    manifest: OwlRustResourceManifest,
-    engine: OwlRustEngineIdentity
-  ) throws {
-    let compatibility = manifest.engineCompatibility
-    guard (compatibility.minimumContractVersion...compatibility.maximumContractVersion)
-      .contains(engine.contractVersion) else {
-      throw OwlRustResourceError.incompatibleEngine(
-        "engine contract \(engine.contractVersion) 不在 "
-          + "\(compatibility.minimumContractVersion)...\(compatibility.maximumContractVersion)"
-      )
-    }
-    let missing = Set(compatibility.requiredCapabilities).subtracting(engine.capabilities).sorted()
-    guard missing.isEmpty else {
-      throw OwlRustResourceError.incompatibleEngine(
-        "缺少 capabilities：\(missing.joined(separator: ", "))"
-      )
-    }
+  static func verifyEngineCompatibility(manifest: OwlRustResourceManifest, engine: OwlRustEngineIdentity) throws {
+    let _: Bool = try OwlResourceBusiness.call("compatibility", ["manifest": OwlAppCore.payload(manifest), "engine": OwlAppCore.payload(engine)])
   }
-
   static func verifyFile(_ url: URL, expected: OwlRustResourceFile) throws {
-    try rejectRedirectedFile(url)
-    let attributes: [FileAttributeKey: Any]
-    do {
-      attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-    } catch {
-      if !FileManager.default.fileExists(atPath: url.path) {
-        throw OwlRustResourceError.fileMissing(expected.path)
-      }
-      throw OwlRustResourceError.fileOperationFailed(
-        path: expected.path, message: error.localizedDescription
-      )
-    }
-    guard attributes[.type] as? FileAttributeType == .typeRegular else {
-      throw OwlRustResourceError.fileNotRegular(expected.path)
-    }
-    let actualSize = (attributes[.size] as? NSNumber)?.intValue ?? -1
-    guard actualSize == expected.size else {
-      throw OwlRustResourceError.fileSizeMismatch(
-        path: expected.path, expected: expected.size, actual: actualSize
-      )
-    }
-    let actualDigest = try digestOfFile(url)
-    guard actualDigest == expected.digest else {
-      throw OwlRustResourceError.fileDigestMismatch(
-        path: expected.path, expected: expected.digest, actual: actualDigest
-      )
-    }
+    let _: Bool = try OwlResourceBusiness.call("file", ["path": url.path, "file": OwlAppCore.payload(expected)])
   }
-
   static func safeFileURL(relativePath: String, under root: URL) throws -> URL {
-    try OwlRustResourceManifest.validateRelativePath(relativePath)
-    var current = root
-    let components = relativePath.split(separator: "/").map(String.init)
-    for component in components {
-      current.appendPathComponent(component)
-      var info = stat()
-      guard lstat(current.path, &info) == 0 else {
-        throw OwlRustResourceError.fileMissing(relativePath)
-      }
-      if (info.st_mode & S_IFMT) == S_IFLNK {
-        throw OwlRustResourceError.fileNotRegular(relativePath)
-      }
-    }
-    return current
+    let path: String = try OwlResourceBusiness.call("safe", ["path": relativePath, "root": root.path])
+    return URL(fileURLWithPath: path)
   }
-
-  static func digestOfFile(_ url: URL) throws -> String {
-    let handle: FileHandle
-    do {
-      handle = try FileHandle(forReadingFrom: url)
-    } catch {
-      throw OwlRustResourceError.fileOperationFailed(
-        path: url.path, message: error.localizedDescription
-      )
-    }
-    defer { try? handle.close() }
-    var hasher = SHA256()
-    while true {
-      let data = try handle.read(upToCount: 256 * 1024) ?? Data()
-      if data.isEmpty { break }
-      hasher.update(data: data)
-    }
-    return "sha256:" + hasher.finalize().map { String(format: "%02x", $0) }.joined()
-  }
-
-  private static func rejectRedirectedFile(_ url: URL) throws {
-    var info = stat()
-    guard lstat(url.path, &info) == 0 else {
-      throw OwlRustResourceError.fileMissing(url.lastPathComponent)
-    }
-    guard (info.st_mode & S_IFMT) == S_IFREG else {
-      throw OwlRustResourceError.fileNotRegular(url.lastPathComponent)
-    }
-  }
-
-  private static func verifySQLite(
-    path: String,
-    requiredTables: Set<String>,
-    trustedTableRequirements: [OwlRustResourceSQLiteTableRequirement]
-  ) throws {
-    var database: OpaquePointer?
-    let result = sqlite3_open_v2(path, &database, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, nil)
-    guard result == SQLITE_OK, let database else {
-      let message = database.map { String(cString: sqlite3_errmsg($0)) }
-        ?? String(cString: sqlite3_errstr(result))
-      if let database { sqlite3_close(database) }
-      throw OwlRustResourceError.sqliteOpenFailed(path: path, message: message)
-    }
-    defer { sqlite3_close(database) }
-
-    guard try sqliteScalar(database, sql: "PRAGMA quick_check") == "ok" else {
-      throw OwlRustResourceError.sqliteIntegrityFailed(
-        path: path, message: "PRAGMA quick_check 未返回 ok"
-      )
-    }
-    if try sqliteRows(database, sql: "PRAGMA foreign_key_check").next() != nil {
-      throw OwlRustResourceError.sqliteIntegrityFailed(
-        path: path, message: "PRAGMA foreign_key_check 返回了冲突行"
-      )
-    }
-
-    var existingTables = Set<String>()
-    let tableRows = try sqliteRows(
-      database, sql: "SELECT name FROM sqlite_master WHERE type='table'"
-    )
-    while let row = try tableRows.next() {
-      if let name = row.first ?? nil {
-        existingTables.insert(name)
-      }
-    }
-    for table in requiredTables.sorted() where !existingTables.contains(table) {
-      throw OwlRustResourceError.sqliteSchemaMismatch(
-        path: path, message: "缺少表 \(table)"
-      )
-    }
-    for requirement in trustedTableRequirements {
-      guard existingTables.contains(requirement.table) else {
-        throw OwlRustResourceError.sqliteSchemaMismatch(
-          path: path, message: "缺少可信引擎要求的表 \(requirement.table)"
-        )
-      }
-      let escaped = requirement.table.replacingOccurrences(of: "\"", with: "\"\"")
-      var columns = Set<String>()
-      let columnRows = try sqliteRows(
-        database, sql: "PRAGMA table_info(\"\(escaped)\")"
-      )
-      while let row = try columnRows.next() {
-        if row.count > 1, let name = row[1] {
-          columns.insert(name)
-        }
-      }
-      let missing = requirement.columns.subtracting(columns).sorted()
-      guard missing.isEmpty else {
-        throw OwlRustResourceError.sqliteSchemaMismatch(
-          path: path,
-          message: "表 \(requirement.table) 缺少列 \(missing.joined(separator: ", "))"
-        )
-      }
-    }
-  }
-
-  private static func sqliteScalar(_ database: OpaquePointer, sql: String) throws -> String? {
-    let rows = try sqliteRows(database, sql: sql)
-    return try rows.next()?.first ?? nil
-  }
-
-  private static func sqliteRows(
-    _ database: OpaquePointer, sql: String
-  ) throws -> OwlRustSQLiteRowIterator {
-    var statement: OpaquePointer?
-    guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK,
-          let statement else {
-      throw OwlRustResourceError.sqliteIntegrityFailed(
-        path: String(cString: sqlite3_db_filename(database, "main")),
-        message: String(cString: sqlite3_errmsg(database))
-      )
-    }
-    return OwlRustSQLiteRowIterator(database: database, statement: statement)
-  }
+  static func digestOfFile(_ url: URL) throws -> String { try OwlResourceBusiness.call("file_digest", ["path": url.path]) }
 }
 
-private final class OwlRustSQLiteRowIterator {
-  private let database: OpaquePointer
-  private let statement: OpaquePointer
-  private var finished = false
-
-  init(database: OpaquePointer, statement: OpaquePointer) {
-    self.database = database
-    self.statement = statement
+/// Typed error projection for the resource domain. Business errors retain their original
+/// public identity across the shared storage ABI.
+enum OwlResourceBusiness {
+  struct Catalog: Decodable {
+    let packageId: String
+    let packageVersion: Int
+    let configurationVersion: String
+    let wubiDictionaryDigest: String
+    let requiredFiles: [String]
+    let models: [OwlRerankModelDescriptor]
+    let nativeEngine: OwlRustEngineIdentity
+    let legacyEngine: OwlRustEngineIdentity
   }
-
-  deinit {
-    sqlite3_finalize(statement)
+  static let catalog: Catalog = try! call("catalog", [:])
+  static func call<T: Decodable>(_ operation: String, _ args: [String: Any]) throws -> T {
+    do { return try OwlAppCore.call(["operation": "resource_contract", "contract": operation, "args": args]) }
+    catch let failure as OwlAppCore.Failure { throw map(failure) }
   }
-
-  func next() throws -> [String?]? {
-    guard !finished else { return nil }
-    let result = sqlite3_step(statement)
-    if result == SQLITE_DONE {
-      finished = true
-      return nil
-    }
-    guard result == SQLITE_ROW else {
-      throw OwlRustResourceError.sqliteIntegrityFailed(
-        path: String(cString: sqlite3_db_filename(database, "main")),
-        message: String(cString: sqlite3_errmsg(database))
-      )
-    }
-    return (0..<sqlite3_column_count(statement)).map { index in
-      guard let text = sqlite3_column_text(statement, index) else { return nil }
-      return String(cString: text)
-    }
+  static func map(_ failure: OwlAppCore.Failure) -> Error {
+    guard failure.code.hasPrefix("resource:"), let data = String(failure.code.dropFirst(9)).data(using: .utf8),
+          let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let args = value["args"] as? [Any] else { return failure }
+    func string(_ index: Int = 0) -> String { index < args.count ? args[index] as? String ?? "" : "" }
+    func integer(_ index: Int) -> Int { index < args.count ? args[index] as? Int ?? 0 : 0 }
+    let text = string()
+    let constructors: [String: () -> Error] = [
+      "differentVolumes": { OwlRustResourceError.stagingAndLibraryOnDifferentVolumes },
+      "buildSQLite": { OwlRustResourceBuildError.sqlite(text) },
+      "invalidConfiguration": { OwlRustResourceError.invalidConfiguration(text) },
+      "invalidManifest": { OwlRustResourceError.invalidManifest(text) },
+      "invalidDigest": { OwlRustResourceError.invalidDigest(text) },
+      "manifestDigestMismatch": { OwlRustResourceError.manifestDigestMismatch(expected: text, actual: string(1)) },
+      "unsafePath": { OwlRustResourceError.unsafePath(text) },
+      "duplicatePath": { OwlRustResourceError.duplicatePath(text) },
+      "fileMissing": { OwlRustResourceError.fileMissing(text) },
+      "fileNotRegular": { OwlRustResourceError.fileNotRegular(text) },
+      "fileSizeMismatch": { OwlRustResourceError.fileSizeMismatch(path: text, expected: integer(1), actual: integer(2)) },
+      "fileDigestMismatch": { OwlRustResourceError.fileDigestMismatch(path: text, expected: string(1), actual: string(2)) },
+      "fileOperationFailed": { OwlRustResourceError.fileOperationFailed(path: text, message: string(1)) },
+      "sqliteOpenFailed": { OwlRustResourceError.sqliteOpenFailed(path: text, message: string(1)) },
+      "sqliteIntegrityFailed": { OwlRustResourceError.sqliteIntegrityFailed(path: text, message: string(1)) },
+      "sqliteSchemaMismatch": { OwlRustResourceError.sqliteSchemaMismatch(path: text, message: string(1)) },
+      "incompatibleEngine": { OwlRustResourceError.incompatibleEngine(text) },
+      "missingEngineSQLiteFile": { OwlRustResourceError.missingEngineSQLiteFile(role: OwlRustResourceFileRole(rawValue: text)!) },
+      "activeStateInvalid": { OwlRustResourceError.activeStateInvalid(text) },
+      "activeStateMissing": { OwlRustResourceError.activeStateMissing(OwlRustResourceInputKind(rawValue: text)!) },
+      "rollbackUnavailable": { OwlRustResourceError.rollbackUnavailable(OwlRustResourceInputKind(rawValue: text)!) },
+      "generationCorrupt": { OwlRustResourceError.generationCorrupt(text) },
+      "leaseNotFound": { OwlRustResourceError.leaseNotFound(UUID(uuidString: text)!) },
+      "versionDigestConflict": { OwlRustResourceError.versionDigestConflict(packageId: text, inputKind: OwlRustResourceInputKind(rawValue: string(1))!, version: integer(2)) },
+    ]
+    return constructors[value["code"] as? String ?? ""]?() ?? failure
   }
 }

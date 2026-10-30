@@ -161,7 +161,13 @@ final class EngineRuntime {
   /// 在 build/owltype.yaml 缺席/重建窗口会「成功」返回空壳（一切读取失败）——只看 open 返回值不够，
   /// 必须探真内容（owltype.yaml 恒有 style 段）。
   private static func isUsable(_ config: OwlConfig?) -> Bool {
-    config?.has(section: "style") ?? false
+    guard let config else { return false }
+    let hasSection = config.has(section: "style")
+    return OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "engine_runtime_is_usable",
+      "args": ["has_style_section": hasSection]
+    ])
   }
 
   private func makeConfig() -> OwlConfig {
@@ -238,7 +244,10 @@ final class EngineRuntime {
     try OwlKeyboardSettingsApplication(
       engine: engine,
       directory: directory ?? userDirectory,
-      refresh: { self.loadSettings(); self.reapplyToLiveSession() }
+      refresh: {
+        self.loadSettings()
+        MainActor.assumeIsolated { self.requestLiveSessionRefreshWhenIdle {} }
+      }
     ).apply(snapshot, mode: mode)
   }
 
@@ -273,9 +282,14 @@ final class EngineRuntime {
   @discardableResult
   @MainActor
   func applyPendingLiveSessionRefreshIfIdle() -> Bool {
-    guard !liveSessionRefreshCompletions.isEmpty else { return false }
-    guard !liveControllers.allObjects.contains(where: \.hasInFlightComposition) else {
-      return true
+    // No JSON, allocation or controller scan when the native callback queue is empty.
+    let pending = !liveSessionRefreshCompletions.isEmpty
+    let composing = pending && liveControllers.allObjects.contains(where: \.hasInFlightComposition)
+    switch owl_app_keyboard_refresh(pending ? 1 : 0, composing ? 1 : 0) {
+    case 0: return false
+    case 1: return true
+    case 2: break
+    default: preconditionFailure("Incompatible keyboard refresh plan")
     }
 
     let completions = liveSessionRefreshCompletions

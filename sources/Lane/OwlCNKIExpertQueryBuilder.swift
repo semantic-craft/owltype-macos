@@ -22,7 +22,7 @@ enum OwlCNKIExpertQueryBuilder {
   static let professionalSearchURL = URL(string: "https://kns.cnki.net/kns8s/AdvSearch")!
 
   /// 拆解后的检索输入。裸主题 → SU；学术引注可带作者/期刊，分别路由到 AU/LY。
-  struct Input: Sendable, Equatable {
+  struct Input: Codable, Sendable, Equatable {
     var query: String
     var author: String?
     var journal: String?      // 多个期刊用 '+' 分隔
@@ -40,60 +40,23 @@ enum OwlCNKIExpertQueryBuilder {
   static func build(query: String) -> String { build(Input(query: query)) }
 
   static func build(_ input: Input) -> String {
-    let query = input.query.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !query.isEmpty else { return "" }
-
-    var parts = [fieldExpr(field: normalizeField(input.field), query: query)]
-
-    if let author = input.author?.trimmingCharacters(in: .whitespacesAndNewlines), !author.isEmpty {
-      parts.append("AU = '\(escape(author))'")
-    }
-
-    if let journal = input.journal?.trimmingCharacters(in: .whitespacesAndNewlines), !journal.isEmpty {
-      let journals = journal.split(separator: "+").map { escape(String($0)) }.filter { !$0.isEmpty }
-      if journals.count == 1 {
-        parts.append("LY = '\(journals[0])'")
-      } else if journals.count > 1 {
-        parts.append("(" + journals.map { "LY = '\($0)'" }.joined(separator: " OR ") + ")")
-      }
-    }
-
-    return parts.joined(separator: " AND ")
+    OwlAIBusinessCore.call("cnki", ["input": OwlAIBusinessCore.json(input)])
   }
 
   // MARK: - Internals
 
   /// CNKI 专业检索用 '' 表示词内单引号（SQL 式转义）。
   static func escape(_ value: String) -> String {
-    value.trimmingCharacters(in: .whitespacesAndNewlines)
-      .replacingOccurrences(of: "'", with: "''")
+    OwlAIBusinessCore.call("cnkiEscape", ["text": value])
   }
 
   /// 单字段检索式。SU→%=；TI/AB→%；其余→=。多词用「 * 」组合。
   static func fieldExpr(field: String, query: String) -> String {
-    let value = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    let escaped = escape(value)
-    let terms = value.split(whereSeparator: { $0.isWhitespace })
-      .map { escape(String($0)) }
-      .filter { !$0.isEmpty }
-
-    let op: String
-    switch field {
-    case "SU": op = "%="
-    case "TI", "AB": op = "%"
-    default: op = "="
-    }
-
-    guard ["SU", "TI", "AB"].contains(field), terms.count > 1 else {
-      return "\(field) \(op) '\(escaped)'"
-    }
-    return "\(field) \(op) " + terms.map { "'\($0)'" }.joined(separator: " * ")
+    OwlAIBusinessCore.call("cnkiField", ["field": field, "query": query])
   }
 
-  private static let knownFields: Set<String> = ["SU", "TI", "AU", "AB", "KY", "DOI"]
 
   static func normalizeField(_ type: String) -> String {
-    let key = type.trimmingCharacters(in: .whitespaces).uppercased()
-    return knownFields.contains(key) ? key : "SU"
+    OwlAIBusinessCore.call("cnkiNormalize", ["text": type])
   }
 }

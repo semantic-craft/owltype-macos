@@ -11,8 +11,11 @@ final class OwlAutomaticExpansionTarget {
   let replayKeycode: UInt32
   let replayModifiers: UInt32
   var markedText = ""
+  private let binding: OwlAppSession
 
   init(client: IMKTextInput, start: Int, sessionID: UInt64, asciiMode: Bool, revision: UInt64, replayKeycode: UInt32, replayModifiers: UInt32) {
+    binding = try! OwlAppSession("binding", args: ["session": String(sessionID), "ascii": String(asciiMode),
+      "revision": String(revision), "allowed": "true", "input": ""])
     self.client = client
     self.start = start
     self.sessionID = sessionID
@@ -21,6 +24,11 @@ final class OwlAutomaticExpansionTarget {
     self.replayKeycode = replayKeycode
     self.replayModifiers = replayModifiers
   }
+  func isCurrent(sessionID: UInt64?, asciiMode: Bool?, revision: UInt64, allowed: Bool, input: String?) -> Bool {
+    binding.call("binding", ["session": sessionID.map(String.init) ?? "", "ascii": asciiMode.map(String.init) ?? "",
+      "revision": String(revision), "allowed": String(allowed), "input": input ?? ""])
+  }
+
 }
 
 extension OwlInputController {
@@ -34,11 +42,9 @@ extension OwlInputController {
     if automaticRecognizer.isRecognizing {
       guard let target = automaticTarget, let targetClient = target.client,
             let client, targetClient === client,
-            target.sessionID == engineSession?.sessionID,
-            target.revision == runtime.revision,
-            target.asciiMode == engineSession?.option(.asciiMode),
-            runtime.allows(bundleID: client.bundleIdentifier()),
-            (engineSession?.input() ?? "").isEmpty else {
+            target.isCurrent(sessionID: engineSession?.sessionID, asciiMode: engineSession?.option(.asciiMode),
+              revision: runtime.revision, allowed: runtime.allows(bundleID: client.bundleIdentifier()),
+              input: engineSession?.input()) else {
         finishAutomaticExpansion(replaySemicolon: false)
         return false
       }
@@ -125,17 +131,21 @@ extension OwlInputController {
       let runtime = OwlAutomaticExpansionRuntime.shared
       let sessionID = target.sessionID
       let asciiMode = target.asciiMode
-      let revision = target.revision
+      let revision = runtime.policyRevision
       let sourceSchema = schemaId
       let bundleID = client.bundleIdentifier()
       // This proof must survive discard and the expected parameter-window transition. Do not
       // bind it to automaticTarget/automaticEpoch, which belong to recognition, not invocation.
-      let validity = OwlAutomaticExpansionInvocationValidity { [weak self] in
-        guard let self, let engineSession = self.engineSession, engineSession.isValid else { return false }
-        return engineSession.sessionID == sessionID && engineSession.option(.asciiMode) == asciiMode
-          && self.schemaId == sourceSchema && runtime.revision == revision
-          && runtime.allows(bundleID: bundleID)
-      }
+      let validity = OwlAutomaticExpansionInvocationValidity(binding: [
+        "session": String(sessionID), "ascii": String(asciiMode), "schema": sourceSchema,
+        "revision": String(revision), "allowed": "true", "live": "true"
+      ].merging(runtime.binding(for: source.entry)) { _, new in new }, current: { [weak self] in
+        guard let self, let engineSession = self.engineSession else { return [:] }
+        return ["session": String(engineSession.sessionID), "ascii": String(engineSession.option(.asciiMode)),
+          "schema": self.schemaId, "revision": String(runtime.policyRevision),
+          "allowed": String(runtime.allows(bundleID: bundleID)), "live": String(engineSession.isValid)]
+          .merging(runtime.binding(for: source.entry)) { _, new in new }
+      })
       let automaticSource = OwlTemplateHostDelivery.AutomaticSource(originalInput: source.originalInput,
         markedRange: source.markedRange, markedText: source.markedText, isValid: { validity.isValid() })
       discardAutomaticExpansion()
@@ -241,8 +251,8 @@ extension OwlInputController {
     let policy = NSApp.owlAppDelegate.clientCapabilityPolicy.evaluate(.init(
       host: .init(bundleID: bundleID, linksElectronFramework: OwlElectronHostDetector.shared.linksElectron(bundleID: bundleID)),
       privacy: privacy, workarounds: NSApp.owlAppDelegate.clientWorkarounds))
-    // No bypass of denied document access. Chrome marked-only ownership remains a host-validation
-    // gap; this conservative implementation cannot yet claim the three-host acceptance gate.
+    // This marked-text path only uses permitted IMK ranges. Chromium observes committed
+    // literal text after the key event through the independent AX adapter below.
     return policy.selectedRange.allowed && policy.surroundingText.allowed
   }
 
@@ -272,6 +282,123 @@ enum OwlAutomaticExpansionEventInput {
         return .interrupt
       }
       return .text(text)
+    }
+  }
+}
+
+/// Native identity/coordinate capture only; the shared Rust recognizer owns recognition.
+/// No intercepted keys and no replay: unsupported fields keep their ordinary host input.
+final class OwlCommittedAutomaticCapture {
+  let sessionID: UInt64
+  let asciiMode: Bool
+  let application: NSRunningApplication
+  private let binding: OwlAutomaticExpansionInvocationValidity
+  func isCurrent() -> Bool { binding.isValid() }
+  var field: OwlTemplateHostDelivery.Field?
+  var start: Int?
+  init(sessionID: UInt64, asciiMode: Bool, application: NSRunningApplication,
+       current: @escaping () -> [String: String]) {
+    binding = OwlAutomaticExpansionInvocationValidity(binding: current(), current: current)
+    self.sessionID = sessionID; self.asciiMode = asciiMode
+    self.application = application
+  }
+}
+
+extension OwlInputController {
+  /// Called at the end of handle, but every AX operation is scheduled after handle returns.
+  /// A host may have already handled Return/Tab: a changed field/selection then fails closed.
+  func observeCommittedAutomaticExpansion(_ event: NSEvent) {
+    guard event.type == .keyDown else { return }
+    let runtime = OwlAutomaticExpansionRuntime.shared
+    guard let client, let session = engineSession else { return }
+    let admitted: Bool = OwlAutomaticExpansionScope.rule("committed_observe", [
+      "axFallback": OwlTemplateHostDelivery.usesAXFallback(client), "allowed": runtime.allows(bundleID: client.bundleIdentifier()),
+      "engineValid": session.isValid, "input": session.input() as Any? ?? NSNull(), "preedit": preedit])
+    guard admitted else {
+      _ = committedAutomaticRecognizer.takePending(); committedAutomaticCapture = nil; return
+    }
+    if let capture = committedAutomaticCapture, !capture.isCurrent() {
+      _ = committedAutomaticRecognizer.takePending(); committedAutomaticCapture = nil
+    }
+    let input = OwlAutomaticExpansionEventInput.classify(OwlKeyEvent(event: event, lastModifiers: []))
+    let step = committedAutomaticRecognizer.consume(input, index: runtime.index, canStart: true)
+    let eventGeneration = hostEventGeneration
+    let eventBinding = OwlAutomaticExpansionInvocationValidity(binding: ["event": String(eventGeneration)],
+      current: { [weak self] in ["event": self.map { String($0.hostEventGeneration) } ?? ""] })
+    switch step {
+    case .mark(let text):
+      guard text == ";", let application = NSWorkspace.shared.frontmostApplication,
+            application.bundleIdentifier == client.bundleIdentifier() else { return }
+      let capture = OwlCommittedAutomaticCapture(sessionID: session.sessionID,
+        asciiMode: session.option(.asciiMode), application: application,
+        current: { [weak self] in
+          guard let self, let session = self.engineSession else { return [:] }
+          return ["generation": String(self.templateHostGeneration), "session": String(session.sessionID),
+            "ascii": String(session.option(.asciiMode)), "revision": String(runtime.revision), "schema": self.schemaId,
+            "live": String(session.isValid)]
+        })
+      committedAutomaticCapture = capture
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.025) { [weak self, weak client] in
+        guard let self, let client, self.client === client, self.committedAutomaticCapture === capture,
+              eventBinding.isValid(), capture.isCurrent(),
+              application.isActive, !OwlClientPrivacyState.current().isSecureInputEnabled,
+              let field = OwlTemplateHostDelivery.focusedField(application), !field.isSecure,
+              let selection = OwlTemplateHostDelivery.axSelection(field.element), selection.length == 0, selection.location > 0,
+              OwlTemplateHostDelivery.axText(field.element, range: NSRange(location: selection.location - 1, length: 1)) == ";" else { return }
+        let start = selection.location - 1
+        let preceding = start > 0 ? OwlTemplateHostDelivery.axText(field.element, range: NSRange(location: start - 1, length: 1)) : nil
+        guard OwlAutomaticExpansionScope.canStart(selection: NSRange(location: start, length: 0),
+          marked: NSRange(location: NSNotFound, length: 0), preceding: preceding),
+          eventBinding.isValid(), capture.isCurrent() else { return }
+        capture.field = field; capture.start = start
+      }
+    case .invoke(let entry, let trigger, let delimiter):
+      let capture = committedAutomaticCapture
+      committedAutomaticCapture = nil
+      guard let capture else {
+        OwlTemplateHostDelivery.trace("committed automatic trigger has no bound field; original retained")
+        return
+      }
+      let original: String = OwlAutomaticExpansionScope.rule("committed_original", [
+        "trigger": trigger, "delimiter": delimiter as Any? ?? NSNull()])
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.025) { [weak self, weak client] in
+        guard let self, let client, self.client === client, eventBinding.isValid(), capture.isCurrent(),
+              capture.application.isActive, !OwlClientPrivacyState.current().isSecureInputEnabled,
+              let field = capture.field, let start = capture.start,
+              let current = OwlTemplateHostDelivery.focusedField(capture.application), !current.isSecure,
+              CFEqual(field.element, current.element) else {
+          OwlTemplateHostDelivery.trace("committed automatic target changed; original retained")
+          return
+        }
+        let range = NSRange(location: start, length: original.utf16.count)
+        guard OwlTemplateHostDelivery.axSelection(current.element) == NSRange(location: NSMaxRange(range), length: 0),
+              OwlTemplateHostDelivery.axText(current.element, range: range) == original,
+              OwlTemplateHostDelivery.axSelectionSettable(current.element), eventBinding.isValid(), capture.isCurrent() else {
+          OwlTemplateHostDelivery.trace("committed automatic text/selection capability unverified; original retained")
+          return
+        }
+        let sourceSchema = self.schemaId
+        let sourcePolicy = runtime.policyRevision
+        let binding = { [weak self] () -> [String: String] in
+          guard let self, let session = self.engineSession else { return [:] }
+          return ["session": String(session.sessionID), "ascii": String(session.option(.asciiMode)),
+            "schema": self.schemaId, "policy": String(runtime.policyRevision),
+            "allowed": String(runtime.allows(bundleID: client.bundleIdentifier())), "live": String(session.isValid)]
+            .merging(runtime.binding(for: entry)) { _, new in new }
+        }
+        let validity = OwlAutomaticExpansionInvocationValidity(binding: [
+          "session": String(capture.sessionID), "ascii": String(capture.asciiMode), "schema": sourceSchema,
+          "policy": String(sourcePolicy), "allowed": "true", "live": "true"
+        ].merging(runtime.binding(for: entry)) { _, new in new }, current: binding)
+        let source = OwlTemplateHostDelivery.AutomaticSource(originalInput: original, markedRange: range,
+          markedText: original, isValid: { validity.isValid() }, committed: true)
+        let delivery = OwlTemplateHostDelivery(controller: self, client: client, automaticSource: source,
+          boundField: current, boundApplication: capture.application)
+        self.invokeTemplate(.template(entry), broker: OwlPanelInsertionBroker(), capturedClient: client,
+          trailingText: step.trailingText, target: delivery, automaticSource: source)
+      }
+    default:
+      committedAutomaticCapture = nil
     }
   }
 }

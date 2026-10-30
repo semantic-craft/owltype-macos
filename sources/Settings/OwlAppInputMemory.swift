@@ -20,11 +20,30 @@ final class OwlAppInputMemory {
   }
 
   func initialMode(app: String, fallback: Bool) -> Bool {
-    enabled ? modes[app] ?? fallback : fallback
+    OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "app_input_memory_initial_mode",
+      "args": [
+        "enabled": enabled,
+        "modes": modes,
+        "app": app,
+        "fallback": fallback
+      ]
+    ])
   }
 
   func remember(app: String, ascii: Bool) {
-    guard enabled, app.contains("."), !app.hasPrefix("UnknownApp"), modes[app] != ascii else { return }
+    let shouldRemember: Bool = OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "app_input_memory_should_remember",
+      "args": [
+        "enabled": enabled,
+        "modes": modes,
+        "app": app,
+        "ascii": ascii
+      ]
+    ])
+    guard shouldRemember else { return }
     modes[app] = ascii
     defaults.set(modes, forKey: Self.modesKey)
   }

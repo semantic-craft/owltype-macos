@@ -39,10 +39,11 @@ enum OwlForcedFinalize {
   /// - Returns: `preview` when it is non-empty (land converted 中文); otherwise `input`
   ///   (fallback — never drop the user's typed characters).
   static func commitText(preview: String?, input: String) -> String {
-    if let preview, !preview.isEmpty {
-      return preview
-    }
-    return input
+    OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "forced_finalize_commit_text",
+      "args": ["preview": preview as Any? ?? NSNull(), "input": input]
+    ])
   }
 
   /// The forced-finalize SEQUENCE the IMK `commitComposition` override runs (#37 根治).

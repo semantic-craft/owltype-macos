@@ -17,32 +17,47 @@ struct OwlSelectionRewrite {
   let notify: (String) -> Void
 
   func run(_ action: OwlSelectionMenuAction, text: String) async {
-    let copy = Self.copy(for: action)
-    notify(copy.progress)
-    do {
-      try Task.checkCancellation()
-      let generation = try await generate(action, text)
-      try Task.checkCancellation()
-      switch generation {
-      case .empty:
-        notify("未生成改写")
-      case .clarification(let task):
-        clarify(text, task)
-      case .ready(let replacement):
-        guard confirm(replacement, copy.noun) else {
-          notify("已取消替换。")
-          return
-        }
+    struct Step: Decodable {
+      let action: String
+      let generation: UInt64
+      let text: String
+      let task: OwlAIComposerTask?
+      let message: String?
+      let noun: String
+    }
+    let core = try! OwlAITextSession("selectionRewrite", args: ["action": action.rawValue])
+    var step: Step = core.call("next")
+    while true {
+      if let message = step.message { notify(message) }
+      do {
         try Task.checkCancellation()
-        switch deliver(replacement) {
-        case .inserted: notify(copy.inserted)
-        case .copiedToClipboard: notify(copy.copied)
-        case .failed(let message): notify(message)
+        switch step.action {
+        case "generate":
+          let result = try await generate(action, text)
+          try Task.checkCancellation()
+          var args: [String: Any] = ["generation": step.generation]
+          switch result {
+          case .empty: args["kind"] = "empty"
+          case let .ready(value): args["kind"] = "ready"; args["text"] = value
+          case let .clarification(task): args["kind"] = "clarification"; args["task"] = OwlAIBusinessCore.json(task)
+          }
+          step = core.call("generated", args)
+        case "confirm": step = core.call("confirmed", ["generation": step.generation, "confirmed": confirm(step.text, step.noun)])
+        case "deliver":
+          var args: [String: Any] = ["generation": step.generation]
+          switch deliver(step.text) {
+          case .inserted: args["kind"] = "inserted"
+          case .copiedToClipboard: args["kind"] = "copied"
+          case let .failed(message): args["kind"] = "failure"; args["message"] = message
+          }
+          step = core.call("delivered", args)
+        case "clarify": clarify(text, step.task!); return
+        default: return
         }
+      } catch {
+        if OwlLaneCancellation.isCancellation(error) { let _: Step = core.call("cancel"); return }
+        step = core.call("failure", ["generation": step.generation, "message": Self.message(for: error, action: action)])
       }
-    } catch {
-      if OwlLaneCancellation.isCancellation(error) { return }
-      notify(Self.message(for: error, action: action))
     }
   }
 
@@ -50,7 +65,9 @@ struct OwlSelectionRewrite {
     switch action {
     case .polish:
       let rewrites = try await NSApp.owlAppDelegate.selectionPolish.polishSelection(text)
-      return rewrites.first.map(Generation.ready) ?? .empty
+      struct Reply: Decodable { let text: String? }
+      let reply: Reply = OwlAIBusinessCore.call("firstRewrite", ["values": rewrites])
+      return reply.text.map(Generation.ready) ?? .empty
     case .promptOptimize:
       switch try await OwlPromptOptimizeService.shared.optimize(text) {
       case .ready(let prompt): return .ready(prompt)
@@ -84,25 +101,4 @@ struct OwlSelectionRewrite {
     return OwlCloudPreferences.message(for: error)
   }
 
-  private struct Copy {
-    let noun: String
-    let progress: String
-    let inserted: String
-    let copied: String
-  }
-
-  private static func copy(for action: OwlSelectionMenuAction) -> Copy {
-    switch action {
-    case .polish:
-      return Copy(noun: "润色", progress: "正在润色…", inserted: "已替换选中文本。", copied: "已复制改写，⌘V 替换")
-    case .promptOptimize:
-      return Copy(noun: "提示词优化", progress: "正在优化提示词…", inserted: "已替换为优化后的提示词。", copied: "已复制优化结果，⌘V 替换")
-    case .goalBrief:
-      return Copy(noun: "任务书", progress: "正在整理任务书…", inserted: "已替换为整理后的任务书。", copied: "已复制任务书，⌘V 替换")
-    case .publishFormatting:
-      return Copy(noun: "规范排版", progress: "正在规范排版…", inserted: "已替换选中文本。", copied: "已复制排版，⌘V 替换")
-    default:
-      preconditionFailure("Only selected-text rewrite actions belong to this module")
-    }
-  }
 }

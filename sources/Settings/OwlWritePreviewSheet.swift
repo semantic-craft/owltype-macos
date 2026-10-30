@@ -259,10 +259,6 @@ struct OwlWritePreviewSheet: View {
   }
 
   static func applyStatusMessage(written: [String], deploySucceeded: Bool) -> String {
-    let files = written.joined(separator: "、")
-    if deploySucceeded {
-      return "已写入并应用配置 \(files)（备份+manifest 已记录，可回滚）。"
-    }
-    return "已写入 \(files)，但应用配置失败；备份+manifest 已记录，可回滚，请查看诊断日志。"
+    OwlAIBusinessCore.call("previewStatus", ["files": written, "success": deploySucceeded])
   }
 }

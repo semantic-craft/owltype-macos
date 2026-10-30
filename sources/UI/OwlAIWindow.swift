@@ -93,6 +93,7 @@ final class OwlAIWindow: NSWindowController {
       previousApp = NSWorkspace.shared.frontmostApplication
     }
 
+    self.model?.teardown()
     let model = OwlAIConversationModel(
       selectedText: selectedText,
       initialState: initialState

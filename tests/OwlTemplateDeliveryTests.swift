@@ -17,6 +17,59 @@ final class OwlTemplateDeliveryTests: XCTestCase {
       calendar: Calendar(identifier: .gregorian)))
   }
 
+  func testOversizedClipboardPresentsBlockedEvaluationWithoutRecapturingOrDelivering() {
+    let body = "前{clipboard}后"
+    var captures = 0
+    var writes = 0
+    var shown: OwlTemplateInvocation?
+    let invocation = OwlTemplateInvocation(content: .template(entry(body)), broker: OwlPanelInsertionBroker(),
+      deliver: { _ in writes += 1; return .confirmed }, captureContext: { _ in
+        captures += 1
+        return .init(clipboard: .text(String(repeating: "x", count: 4 * 1024 * 1024 + 1)))
+      })
+    invocation.start { shown = $0 }
+    XCTAssertTrue(shown === invocation, "a context transport failure must present its diagnostic")
+    let evaluation = invocation.evaluate(values: [:])
+    XCTAssertEqual(evaluation.previewText, body, "never truncate clipboard input into a usable result")
+    XCTAssertTrue(evaluation.diagnostics.contains {
+      $0.severity == .error && $0.message == "模板数据超出处理范围或无法读取，请缩短内容后重试。"
+    })
+    XCTAssertNil(evaluation.readyText)
+    XCTAssertFalse(invocation.confirm(values: [:]))
+    XCTAssertEqual(captures, 1)
+    XCTAssertEqual(writes, 0)
+    invocation.cancel()
+    XCTAssertEqual(invocation.state, .cancelled(.user))
+  }
+
+  func testCommittedTemplateRevisionInvalidatesAnAlreadyPreviewedInvocation() throws {
+    var delivered: [String] = []
+    let template = entry("{clipboard}")
+    try OwlAutomaticExpansionRuntime.shared.publish(entries: [template], enabled: false, disabledBundleIDs: [])
+    let invocation = OwlTemplateInvocation(content: .template(template),
+      broker: OwlPanelInsertionBroker(), deliver: { delivered.append($0.text); return .confirmed },
+      intent: .resultPreview, captureContext: { _ in self.context() })
+    XCTAssertEqual(invocation.preview(values: [:]).text, "材料A")
+    try OwlAutomaticExpansionRuntime.shared.publish(entries: [], enabled: false, disabledBundleIDs: [])
+    XCTAssertFalse(invocation.confirm(values: [:]))
+    XCTAssertTrue(delivered.isEmpty)
+  }
+
+  func testEditingAnotherTemplateDoesNotInvalidateTheSelectedEntry() throws {
+    let selected = entry("{clipboard}")
+    var other = entry("别的模板")
+    try OwlAutomaticExpansionRuntime.shared.publish(entries: [selected, other], enabled: false, disabledBundleIDs: [])
+    var delivered: [String] = []
+    let invocation = OwlTemplateInvocation(content: .template(selected), broker: OwlPanelInsertionBroker(),
+      deliver: { delivered.append($0.text); return .confirmed }, intent: .resultPreview,
+      captureContext: { _ in self.context() })
+    XCTAssertEqual(invocation.preview(values: [:]).text, "材料A")
+    other.body = "改过的另一个模板"
+    try OwlAutomaticExpansionRuntime.shared.publish(entries: [selected, other], enabled: false, disabledBundleIDs: [])
+    XCTAssertTrue(invocation.confirm(values: [:]))
+    XCTAssertEqual(delivered, ["材料A"])
+  }
+
   func testExplicitPreviewPresentsNoParameterDynamicTemplatesWithoutDelivery() {
     for body in ["{clipboard}", "{date format=yyyy-MM-dd}", "{date format=yyyy-MM-dd}/{clipboard}"] {
       var reads = 0

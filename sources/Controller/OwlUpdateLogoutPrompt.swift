@@ -16,7 +16,11 @@ enum OwlUpdateLogoutPrompt {
   }
 
   static func shouldSuggest(failedVersion: String?, current: String) -> Bool {
-    !current.isEmpty && failedVersion == current
+    OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "logout_prompt_should_suggest",
+      "args": ["failed_version": failedVersion as Any? ?? NSNull(), "current": current]
+    ])
   }
 
   @discardableResult
@@ -68,8 +72,12 @@ enum OwlUpdateLogoutPrompt {
   }
 
   static func recheckDecision(unmet: [String]?, error: String?) -> RecheckDecision {
-    guard error == nil, let unmet, unmet.isEmpty else { return .present }
-    return .recovered
+    let result: String = OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "logout_prompt_recheck_decision",
+      "args": ["unmet": unmet as Any? ?? NSNull(), "error": error as Any? ?? NSNull()]
+    ])
+    return result == "recovered" ? .recovered : .present
   }
 
   /// Called when the installation session reports a result, never because the app version changed.
@@ -180,21 +188,46 @@ enum OwlLogoutPromptTiming {
 
   /// 安全时机判定：合成（含搁浅阀）→ 输入空闲 → loginwindow，全过才 safe。
   static func safeVerdict(_ input: SafeInput, blockedTicks: Int) -> SafeVerdict {
-    var stale = false
-    if let id = input.snapshotID {
-      if blockedTicks >= staleCompositionTicks {
-        stale = true // 搁浅合成：不再阻塞，但要在日志中留痕
-      } else {
-        return .blocked(.composing(snapshotID: id, blockedTicks: blockedTicks))
+    struct WireVerdict: Decodable {
+      let kind: String
+      let staleCompositionOverride: Bool?
+      let blockReason: String?
+      let snapshotId: UInt64?
+      let blockedTicks: Int?
+      let idleSeconds: Double?
+
+      enum CodingKeys: String, CodingKey {
+        case kind
+        case staleCompositionOverride = "stale_composition_override"
+        case blockReason = "block_reason"
+        case snapshotId = "snapshot_id"
+        case blockedTicks = "blocked_ticks"
+        case idleSeconds = "idle_seconds"
       }
     }
-    if let idle = input.idleSeconds, idle < idleThreshold {
-      return .blocked(.inputBusy(idleSeconds: idle))
+    let wire: WireVerdict = OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "logout_prompt_safe_verdict",
+      "args": [
+        "snapshot_id": input.snapshotID as Any? ?? NSNull(),
+        "idle_seconds": input.idleSeconds as Any? ?? NSNull(),
+        "is_login_window": input.isLoginWindow,
+        "blocked_ticks": blockedTicks,
+        "stale_composition_ticks": staleCompositionTicks,
+        "idle_threshold": idleThreshold
+      ]
+    ])
+    if wire.kind == "safe" {
+      return .safe(staleCompositionOverride: wire.staleCompositionOverride ?? false)
     }
-    if input.isLoginWindow {
+    switch wire.blockReason {
+    case "composing":
+      return .blocked(.composing(snapshotID: wire.snapshotId ?? 0, blockedTicks: wire.blockedTicks ?? 0))
+    case "input_busy":
+      return .blocked(.inputBusy(idleSeconds: wire.idleSeconds ?? 0))
+    default:
       return .blocked(.loginWindow)
     }
-    return .safe(staleCompositionOverride: stale)
   }
 
   enum ActivationVerdict: Equatable {
@@ -204,8 +237,27 @@ enum OwlLogoutPromptTiming {
   }
 
   static func activationVerdict(isActive: Bool, awaitingTicks: Int) -> ActivationVerdict {
-    if isActive { return .present(forcedWithoutActiveConfirm: false) }
-    if awaitingTicks >= activationConfirmTicks { return .present(forcedWithoutActiveConfirm: true) }
+    struct WireActivation: Decodable {
+      let kind: String
+      let forcedWithoutActiveConfirm: Bool?
+
+      enum CodingKeys: String, CodingKey {
+        case kind
+        case forcedWithoutActiveConfirm = "forced_without_active_confirm"
+      }
+    }
+    let wire: WireActivation = OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "logout_prompt_activation_verdict",
+      "args": [
+        "is_active": isActive,
+        "awaiting_ticks": awaitingTicks,
+        "activation_confirm_ticks": activationConfirmTicks
+      ]
+    ])
+    if wire.kind == "present" {
+      return .present(forcedWithoutActiveConfirm: wire.forcedWithoutActiveConfirm ?? false)
+    }
     return .waitNextTick
   }
 }
@@ -521,9 +573,14 @@ enum OwlLogoutDiagnostics {
 
   /// 按 #116 实测把错误码分类：-1743=自动化被拒、-1712=超时、其余=other。
   static func classify(errorNumber: Int?) -> Category {
-    switch errorNumber {
-    case -1743: return .automationDenied
-    case -1712: return .timeout
+    let result: String = OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "logout_prompt_classify",
+      "args": ["error_number": errorNumber as Any? ?? NSNull()]
+    ])
+    switch result {
+    case "automationDenied": return .automationDenied
+    case "timeout": return .timeout
     default: return .other
     }
   }

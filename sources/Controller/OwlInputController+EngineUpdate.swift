@@ -97,17 +97,13 @@ extension OwlInputController {
                       target: OwlTemplateHostDelivery? = nil,
                       automaticSource: OwlTemplateHostDelivery.AutomaticSource? = nil) {
     let delivery = target ?? OwlTemplateHostDelivery(controller: self, client: capturedClient, automaticSource: automaticSource)
-    let invocation = OwlTemplateInvocation(content: content, broker: broker,
-      hostDelivery: { delivery.deliver($0, completion: $1) }, trailingText: trailingText, intent: intent,
-      isHostReady: { delivery.isReadyForDelivery() },
-      mayRestoreFocus: { delivery.mayRestoreFocus() },
-      presentationTransition: { delivery.presentationTransition(window: $0, active: $1) },
-      preparePresentation: automaticSource == nil ? nil : {
-        broker.capture()
-        return delivery.prepareForPresentation()
-      }, onFinish: { delivery.invalidate() })
-    MainActor.assumeIsolated { OwlPromptFillSheet.shared.begin(invocation: invocation) }
-    delivery.endImmediateDelivery()
+    let invocation = OwlTemplateInvocation(content: content, broker: broker, delivery: delivery,
+      trailingText: trailingText, intent: intent, prepareAutomaticSource: automaticSource != nil)
+    let begin = {
+      MainActor.assumeIsolated { OwlPromptFillSheet.shared.begin(invocation: invocation) }
+      delivery.endImmediateDelivery()
+    }
+    if isHandlingKeyEvent { DispatchQueue.main.asyncAfter(deadline: .now() + 0.025, execute: begin) } else { begin() }
   }
 
   func engineUpdate() {

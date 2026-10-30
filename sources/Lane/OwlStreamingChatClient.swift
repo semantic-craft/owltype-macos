@@ -106,84 +106,13 @@ struct OwlAskStreamOpen {
 ///   - A malformed-JSON `data:` line is skipped (silently) — a partial buffer is held until the
 ///     line is complete, so a split mid-JSON does not produce a spurious skip.
 struct OwlSSEChatParser {
-  /// Carries an incomplete trailing line between chunks. Empty between whole-line boundaries.
-  private var buffer = ""
-  /// True once `data: [DONE]` has been observed. Further input is ignored.
-  private(set) var isFinished = false
-
-  /// One streaming chunk's decoded JSON shape: `choices[0].delta.content`. Everything else is
-  /// `decodeIfPresent`/optional so a role-only or finish-reason-only chunk decodes without throwing.
-  private struct StreamChunk: Decodable {
-    struct Choice: Decodable {
-      struct Delta: Decodable {
-        let content: String?
-      }
-      let delta: Delta?
-    }
-    let choices: [Choice]?
-  }
-
-  /// Feed one text chunk; return the assistant content deltas that completed within it (in order).
-  /// Partial trailing content is retained for the next call. After `[DONE]` everything is ignored.
-  mutating func consume(_ chunk: String) -> [String] {
-    guard !isFinished else { return [] }
-    buffer += chunk
-
-    var deltas: [String] = []
-    // Split on `\n`; the LAST element is the (possibly incomplete) trailing line — re-buffer it.
-    // Using a manual split keeps an empty trailing line (the blank-line event separator) intact.
-    var lines = buffer.components(separatedBy: "\n")
-    buffer = lines.removeLast()
-
-    for rawLine in lines {
-      // Tolerate CRLF framing: a `\r` left at the end of a line by `\r\n` splitting.
-      let line = rawLine.hasSuffix("\r") ? String(rawLine.dropLast()) : rawLine
-      if let delta = handle(line: line) {
-        deltas.append(delta)
-      }
-      if isFinished { break }
-    }
-    if isFinished { buffer = "" }
-    return deltas
-  }
-
-  /// Flush at end-of-stream: process any retained trailing line that never got a closing `\n`
-  /// (some endpoints omit the final newline). Returns a final delta if that line carried one.
-  mutating func finish() -> [String] {
-    guard !isFinished else { return [] }
-    let line = buffer.hasSuffix("\r") ? String(buffer.dropLast()) : buffer
-    buffer = ""
-    guard let delta = handle(line: line) else { return [] }
-    return [delta]
-  }
-
-  /// Decide a single complete SSE line. Returns a non-empty content delta, or nil for
-  /// blank/comment/non-data/role-only/empty/malformed lines (all ignored, never fatal).
-  private mutating func handle(line: String) -> String? {
-    // Blank line = event separator; SSE comment = `:` prefix. Both carry no payload.
-    let trimmed = line.trimmingCharacters(in: .whitespaces)
-    if trimmed.isEmpty { return nil }
-    if trimmed.hasPrefix(":") { return nil }
-    guard trimmed.hasPrefix("data:") else { return nil }
-
-    // Strip exactly the `data:` prefix; SSE permits an optional single leading space after it.
-    var payload = String(trimmed.dropFirst("data:".count))
-    if payload.hasPrefix(" ") { payload.removeFirst() }
-
-    if payload == "[DONE]" {
-      isFinished = true
-      return nil
-    }
-
-    guard let data = payload.data(using: .utf8),
-          let chunk = try? JSONDecoder().decode(StreamChunk.self, from: data),
-          let content = chunk.choices?.first?.delta?.content,
-          !content.isEmpty else {
-      // Malformed JSON, role-only/empty delta, or unexpected shape → skip silently, not fatal.
-      return nil
-    }
-    return content
-  }
+  private let core = OwlProviderStream(responses: false)
+  var isFinished: Bool { core.isFinished }
+  var failure: String? { core.failure }
+  mutating func consume(_ chunk: String) -> [String] { core.consume(Data(chunk.utf8)) }
+  mutating func consume(_ chunk: Data) -> [String] { core.consume(chunk) }
+  mutating func finish() -> [String] { core.finish() }
+  mutating func cancel() { core.cancel() }
 }
 
 // MARK: - Streaming client
@@ -192,12 +121,27 @@ struct OwlSSEChatParser {
 /// which produces an `URLSession.AsyncBytes` line iterator. A test supplies a scripted source so the
 /// parser can be driven end-to-end with no socket (same idiom as `OwlCloudCandidateFetching`).
 ///
-/// The provider returns the HTTP response plus an `AsyncThrowingStream` of TEXT chunks (already
-/// UTF-8 decoded). Chunks need NOT be whole lines — `OwlSSEChatParser` re-frames them.
+/// The provider returns raw Data chunks; UTF-8 decoding and frame buffering belong to Rust.
+/// The text initializer is retained for the existing synthetic transport fixtures.
 struct OwlStreamingBytesSource {
   let response: HTTPURLResponse?
-  let chunks: AsyncThrowingStream<String, Error>
-}
+  let dataChunks: AsyncThrowingStream<Data, Error>
+  init(response: HTTPURLResponse?, dataChunks: AsyncThrowingStream<Data, Error>) {
+    self.response = response; self.dataChunks = dataChunks
+  }
+  init(response: HTTPURLResponse?, chunks: AsyncThrowingStream<String, Error>) {
+    self.response = response
+    self.dataChunks = AsyncThrowingStream { continuation in
+      let task = Task {
+        do {
+          for try await text in chunks { continuation.yield(Data(text.utf8)) }
+          continuation.finish()
+        } catch { continuation.finish(throwing: error) }
+      }
+      continuation.onTermination = { _ in task.cancel() }
+    }
+  }
+  }
 
 /// The narrow streaming transport port. B10 depends on THIS, not the concrete client, so the window
 /// can be tested against a fake stream.
@@ -217,14 +161,6 @@ protocol OwlChatStreaming: Sendable {
 /// model/endpoint from `routing`, NO `response_format` — streaming + json_object don't mix for a
 /// free-text answer), opens the byte source, and re-frames its chunks through `OwlSSEChatParser`.
 struct OwlStreamingChatClient: OwlChatStreaming {
-  /// Request body for a streaming chat. Mirrors `OwlDeepSeekChatRequest` minus `response_format`.
-  private struct StreamingRequest: Encodable {
-    let model: String
-    let messages: [OwlDeepSeekMessage]
-    let temperature: Double?
-    let stream: Bool
-  }
-
   /// Per-request timeout (seconds). Bounds a hung stream; same spirit as `OwlCloudPreferences.requestTimeout`.
   let timeout: TimeInterval
   /// Byte/line source. Default = the gateway transport (`URLSession.bytes` in production);
@@ -251,14 +187,15 @@ struct OwlStreamingChatClient: OwlChatStreaming {
           let request = try makeRequest(messages: messages, routing: routing, apiKey: apiKey)
           let source = try await bytesProvider(request)
 
-          if let http = source.response, !(200...299).contains(http.statusCode) {
-            let detail = await OwlServerErrorDetail.read(source.chunks)
+          if let http = source.response, !OwlProviderCore.httpAccepted(http.statusCode) {
+            let detail = await OwlServerErrorDetail.read(source.dataChunks)
             continuation.finish(throwing: OwlStreamingError.badHTTPStatus(http.statusCode, detail: detail))
             return
           }
 
           var parser = OwlSSEChatParser()
-          for try await chunk in source.chunks {
+          defer { parser.cancel() }
+          for try await chunk in source.dataChunks {
             try Task.checkCancellation()
             for delta in parser.consume(chunk) {
               continuation.yield(delta)
@@ -298,30 +235,16 @@ struct OwlStreamingChatClient: OwlChatStreaming {
     request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
     routing.authHeaderStyle.apply(to: &request, apiKey: apiKey)
     request.timeoutInterval = timeout
-    let capabilities = OwlProviderCapabilities(routing: routing)
-    let encoded = try JSONEncoder().encode(
-      StreamingRequest(
-        model: routing.model,
-        messages: messages,
-        temperature: capabilities.temperature(0.2),
-        stream: true
-      )
-    )
-    let extras = capabilities.thinkingOffBody
-    request.httpBody = extras.isEmpty ? encoded : Self.merging(extras, into: encoded)
+    struct BodyPlan: Decodable { let body: OwlJSONValue; let foundationEncoding: Bool }
+    let plan: BodyPlan = OwlProviderCore.call("chatStreamPlan", ["providerID": routing.providerID,
+      "model": routing.model, "messages": OwlAppCore.payload(messages)])
+    let encoded = try JSONEncoder().encode(plan.body)
+    request.httpBody = plan.foundationEncoding
+      ? try JSONSerialization.data(withJSONObject: JSONSerialization.jsonObject(with: encoded))
+      : encoded
     return request
   }
 
-  /// Merge thinking-control extras onto an encoded request body. A re-serialization failure falls
-  /// back to the un-merged body: the question still gets answered instead of throwing.
-  private static func merging(_ extras: [String: Any], into encoded: Data) -> Data {
-    guard var object = (try? JSONSerialization.jsonObject(with: encoded)) as? [String: Any] else {
-      return encoded
-    }
-    object.merge(extras) { _, extra in extra }
-    guard let merged = try? JSONSerialization.data(withJSONObject: object) else { return encoded }
-    return merged
-  }
 }
 
 // MARK: - Plain streaming seam

@@ -11,155 +11,26 @@ import Foundation
 
 // MARK: - Schema Mapping
 
-private struct OwlRustShuangpinTable {
-  let initials: [String: String]
-  let finals: [String: String]
-  let zeroInitials: [String: String]
-
-  var actionPayload: [String: Any] {
-    [
-      "initials": initials.sorted { $0.key < $1.key }.map { [$0.key, $0.value] },
-      "finals": finals.sorted { $0.key < $1.key }.map { [$0.key, $0.value] },
-      "zero_initials": zeroInitials.sorted { $0.key < $1.key }.map { [$0.key, $0.value] }
-    ]
-  }
-}
-
+/// Native adapter for Rust-owned configuration. The catalog is decoded once.
 enum OwlRustSchemaMap {
-  static func initialASCIIMode(
-    forApp bundleID: String,
-    englishBundleIDs: [String],
-    defaultASCIIMode: Bool
-  ) -> Bool {
-    englishBundleIDs.contains(bundleID) ? true : defaultASCIIMode
+  static func initialASCIIMode(forApp bundleID: String, englishBundleIDs: [String],
+                              defaultASCIIMode: Bool) -> Bool {
+    OwlAppCore.initialASCIIMode(bundleID: bundleID, englishBundleIDs: englishBundleIDs,
+                              defaultASCIIMode: defaultASCIIMode)
   }
-
-  static func inputMode(forSchema schemaId: String) -> String {
-    if schemaId.hasPrefix("wubi") {
-      return "wubi"
-    }
-    return "chinese"
-  }
-
-  static func doublePinyinScheme(forSchema schemaId: String) -> String {
-    switch schemaId {
-    case "double_pinyin_flypy": return "xiaohe"
-    case "double_pinyin_mspy": return "microsoft"
-    case "double_pinyin_shoudao": return "shoudao"
-    case "double_pinyin": return "ziranma"
-    case "double_pinyin_abc": return "abc"
-    case "double_pinyin_sogou", "double_pinyin_ziguang", "double_pinyin_jiajia":
-      return "custom"
-    default: return "quanpin"
-    }
-  }
-
-  fileprivate static func customShuangpinTable(forSchema schemaId: String) -> OwlRustShuangpinTable? {
-    switch schemaId {
-    case "double_pinyin_sogou":
-      return OwlRustShuangpinTable(
-        initials: ["zh": "v", "ch": "i", "sh": "u"],
-        finals: [
-          "a": "a", "o": "o", "e": "e", "i": "i", "u": "u", "v": "y",
-          "ai": "l", "ei": "z", "ui": "v", "ao": "k", "ou": "b", "iu": "q",
-          "ie": "x", "ve": "t", "ue": "t", "an": "j", "en": "f", "in": "n",
-          "un": "p", "ang": "h", "eng": "g", "ing": ";", "ong": "s",
-          "ia": "w", "ua": "w", "uo": "o", "uai": "y", "ian": "m",
-          "uan": "r", "iao": "c", "iang": "d", "uang": "d", "iong": "s"
-        ],
-        zeroInitials: [
-          "a": "oa", "ai": "ol", "an": "oj", "ang": "oh", "ao": "ok",
-          "e": "oe", "ei": "oz", "en": "of", "eng": "og", "er": "or",
-          "o": "oo", "ou": "ob"
-        ]
-      )
-    case "double_pinyin_ziguang":
-      return OwlRustShuangpinTable(
-        initials: ["zh": "u", "ch": "a", "sh": "i"],
-        finals: [
-          "a": "a", "o": "o", "e": "e", "i": "i", "u": "u", "v": "v",
-          "ai": "p", "ei": "k", "ui": "n", "ao": "q", "ou": "z", "iu": "j",
-          "ie": "d", "ve": "n", "ue": "n", "an": "r", "en": "w", "in": "y",
-          "un": "m", "ang": "s", "eng": "t", "ing": ";", "ong": "h",
-          "ia": "x", "ua": "x", "uo": "o", "uai": "y", "ian": "f",
-          "uan": "l", "iao": "b", "iang": "g", "uang": "g", "iong": "h"
-        ],
-        zeroInitials: [
-          "a": "oa", "ai": "op", "an": "or", "ang": "os", "ao": "oq",
-          "e": "oe", "ei": "ok", "en": "ow", "eng": "ot", "er": "oj",
-          "o": "oo", "ou": "oz"
-        ]
-      )
-    case "double_pinyin_jiajia":
-      return OwlRustShuangpinTable(
-        initials: ["zh": "v", "ch": "u", "sh": "i"],
-        finals: [
-          "a": "a", "o": "o", "e": "e", "i": "i", "u": "u", "v": "v",
-          "ai": "s", "ei": "w", "ui": "v", "ao": "d", "ou": "p", "iu": "n",
-          "ie": "m", "ve": "x", "ue": "x", "an": "f", "en": "r", "in": "l",
-          "un": "z", "ang": "g", "eng": "t", "ing": "q", "ong": "y",
-          "ia": "b", "ua": "b", "uo": "o", "uai": "x", "ian": "j",
-          "uan": "c", "iao": "k", "iang": "h", "uang": "h", "iong": "y"
-        ],
-        zeroInitials: [
-          "a": "aa", "ai": "as", "an": "af", "ang": "ag", "ao": "ad",
-          "e": "ee", "ei": "ew", "en": "er", "eng": "et", "er": "eq",
-          "o": "oo", "ou": "op"
-        ]
-      )
-    default:
-      return nil
-    }
-  }
-
-  static func pinyinScheme(forSchema schemaId: String) -> String {
-    switch schemaId {
-    case "wubi86_jidian_pinyin", "wubi86_jidian_trad_pinyin", "wubi98_pinyin", "wubi98_trad_pinyin":
-      return "wubi_pinyin"
-    case "wubi86_jidian", "wubi86_jidian_trad", "wubi98", "wubi98_trad":
-      return "wubi"
-    default:
-      return doublePinyinScheme(forSchema: schemaId)
-    }
-  }
-
-  static func isTraditionalSchema(_ schemaId: String) -> Bool {
-    ["wubi86_jidian_trad", "wubi86_jidian_trad_pinyin", "wubi98_trad", "wubi98_trad_pinyin"].contains(schemaId)
-  }
-
+  static func inputMode(forSchema id: String) -> String { configuration(id).inputMode }
+  static func doublePinyinScheme(forSchema id: String) -> String { configuration(id).doublePinyinScheme }
+  static func pinyinScheme(forSchema id: String) -> String { configuration(id).pinyinScheme }
+  static func isTraditionalSchema(_ id: String) -> Bool { configuration(id).traditional }
   static func fuzzyBitmask(from snapshot: OwlFuzzySnapshot) -> UInt32 {
-    var mask: UInt32 = 0
-    if snapshot.zhz { mask |= (1 << 0) }
-    if snapshot.chc { mask |= (1 << 1) }
-    if snapshot.shs { mask |= (1 << 2) }
-    if snapshot.nl { mask |= (1 << 3) }
-    if snapshot.fh { mask |= (1 << 4) }
-    if snapshot.rl { mask |= (1 << 5) }
-    if snapshot.anang { mask |= (1 << 6) }
-    if snapshot.eneng { mask |= (1 << 7) }
-    if snapshot.ining { mask |= (1 << 8) }
-    return mask
+    OwlAppCore.fuzzyMask(snapshot)
   }
-
-  static let supportedSchemas: [(id: String, name: String)] = [
-    (id: "rime_ice", name: "雾凇拼音"),
-    (id: "double_pinyin_flypy", name: "小鹤双拼"),
-    (id: "double_pinyin_mspy", name: "微软双拼"),
-    (id: "double_pinyin_shoudao", name: "手心双拼"),
-    (id: "double_pinyin", name: "自然码双拼"),
-    (id: "double_pinyin_sogou", name: "搜狗双拼"),
-    (id: "double_pinyin_abc", name: "智能ABC双拼"),
-    (id: "double_pinyin_ziguang", name: "紫光双拼"),
-    (id: "double_pinyin_jiajia", name: "拼音加加双拼"),
-    (id: "wubi86_jidian", name: "极点五笔86"),
-    (id: "wubi86_jidian_pinyin", name: "五笔拼音混输"),
-    (id: "wubi86_jidian_trad", name: "五笔简入繁出"),
-    (id: "wubi86_jidian_trad_pinyin", name: "五笔拼音混输·简入繁出"),
-    (id: "wubi98", name: "五笔98"),
-    (id: "wubi98_pinyin", name: "五笔98拼音混输"),
-    (id: "wubi98_trad", name: "五笔98简入繁出"),
-    (id: "wubi98_trad_pinyin", name: "五笔98拼音混输·简入繁出")
-  ]
+  static let supportedSchemas = OwlAppCore.keyboardCatalog.schemas.map { (id: $0.id, name: $0.name) }
+  private static let configurations = Dictionary(uniqueKeysWithValues:
+    OwlAppCore.keyboardCatalog.schemas.map { ($0.id, $0) })
+  static func configuration(_ id: String) -> OwlAppCore.SchemaConfiguration {
+    configurations[id] ?? OwlAppCore.required(["operation": "keyboard_schema", "schema": id])
+  }
 }
 
 // MARK: - OwlRustSession
@@ -714,20 +585,20 @@ final class OwlRustSession: EngineSession {
     }
     let mode = OwlRustSchemaMap.inputMode(forSchema: id)
     let scheme = OwlRustSchemaMap.pinyinScheme(forSchema: id)
-    let pageSize = max(3, min(9, OwlKeyboardPreferences.pageSize))
+    let pageSize = OwlKeyboardPreferences.pageSize
     guard sendAction(["op": "set_input_mode", "mode": mode])?.isOK == true else {
       return false
     }
     if mode == "wubi" {
-      let profile = id.hasPrefix("wubi98") ? "wubi98" : "wubi86"
+      let profile = OwlRustSchemaMap.configuration(id).wubiProfile
       guard sendAction(["op": "set_wubi_profile", "profile": profile])?.isOK == true else { return false }
     }
     var schemeAction: [String: Any] = ["op": "set_pinyin_scheme", "scheme": scheme]
     if scheme == "custom" {
-      guard let table = OwlRustSchemaMap.customShuangpinTable(forSchema: id) else {
+      guard let table = OwlRustSchemaMap.configuration(id).customProfile else {
         return false
       }
-      schemeAction["custom_profile"] = table.actionPayload
+      schemeAction["custom_profile"] = table
     }
     guard sendAction(schemeAction)?.isOK == true,
           sendAction(["op": "set_page_size", "page_size": pageSize])?.isOK == true else {
@@ -755,15 +626,15 @@ final class OwlRustSession: EngineSession {
   }
 
   private func applyRuntimePreferences(includeHostPhrases: Bool) -> Bool {
-    let pageSize = max(3, min(9, OwlKeyboardPreferences.pageSize))
+    let pageSize = OwlKeyboardPreferences.pageSize
     let fuzzyMask = OwlRustSchemaMap.fuzzyBitmask(from: OwlFuzzySnapshot.current())
     let candMode = OwlKeyboardPreferences.wubiCandidateMode.rawValue
     guard
       applyChanged(pageSize, at: \.lastAppliedPageSize,
                    action: { ["op": "set_page_size", "page_size": pageSize] }),
-      applyChanged(fuzzyMask, at: \.lastAppliedFuzzyMask,
+      applyChanged(fuzzyMask, at: \.lastAppliedFuzzyMask, requiresIdle: OwlAppCore.keyboardCatalog.idleSettings.contains("fuzzyRules"),
                    action: { ["op": "set_fuzzy_rules", "mask": fuzzyMask] }),
-      applyChanged(candMode, at: \.lastAppliedWubiCandidateMode,
+      applyChanged(candMode, at: \.lastAppliedWubiCandidateMode, requiresIdle: OwlAppCore.keyboardCatalog.idleSettings.contains("wubiCandidateMode"),
                    action: { ["op": "set_wubi_candidate_mode", "mode": candMode] })
     else { return false }
     guard applyEngineOptions(), applyASCIIPunctIfNeeded() else { return false }
@@ -779,7 +650,7 @@ final class OwlRustSession: EngineSession {
     let catalog = OwlKeyboardSettingsCatalog.live
     for (index, option) in OwlKeyboardSettingsCatalog.engineOptions.enumerated() {
       let value = catalog.load(option.toggle)
-      guard value != lastAppliedEngineOptions[index] else { continue }
+      guard value != lastAppliedEngineOptions[index], canApplyPreference(requiresIdle: option.requiresIdle) else { continue }
       guard let response = sendAction(["op": "set_option", "name": option.name, "value": value]),
             response.isOK else { return false }
       lastAppliedEngineOptions[index] = value
@@ -805,12 +676,18 @@ final class OwlRustSession: EngineSession {
   private func applyChanged<Value: Equatable>(
     _ value: Value,
     at keyPath: ReferenceWritableKeyPath<OwlRustSession, Value>,
+    requiresIdle: Bool = false,
     action: () -> [String: Any]
   ) -> Bool {
-    guard value != self[keyPath: keyPath] else { return true }
+    guard value != self[keyPath: keyPath], canApplyPreference(requiresIdle: requiresIdle) else { return true }
     guard sendAction(action())?.isOK == true else { return false }
     self[keyPath: keyPath] = value
     return true
+  }
+
+  private func canApplyPreference(requiresIdle: Bool) -> Bool {
+    let composing = !(input() ?? "").isEmpty || !(composition()?.preedit ?? "").isEmpty
+    return owl_app_keyboard_can_apply(requiresIdle ? 1 : 0, composing ? 1 : 0) != 0
   }
 
   func syncRerankPreferences() {
@@ -1145,7 +1022,7 @@ final class OwlRustEngine: InputEngine {
     let userRoot = userDataURL ?? OwlApp.userDir
     let userDir = userRoot.appendingPathComponent("msime-user", isDirectory: true).path
     let cacheDir = userRoot.appendingPathComponent("msime-cache", isDirectory: true).path
-    let pageSize = UInt32(max(3, min(9, OwlKeyboardPreferences.pageSize)))
+    let pageSize = UInt32(OwlKeyboardPreferences.pageSize)
     let generation = resolvedSessionGeneration()
 
     var creationError: UnsafeMutablePointer<CChar>?

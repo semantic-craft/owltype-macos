@@ -63,26 +63,19 @@ struct OwlProviderAuthGate {
   func resolve() -> OwlProviderAuthOutcome {
     let profile = profileProvider()
     let routing = OwlCloudRouting.resolve(profile: profile)
-
-    let rawKey: String?
+    struct Plan: Decodable { let source: String; let missing: String }
+    let plan: Plan = OwlProviderCore.call("authPlan", ["hasProfile": profile != nil,
+      "secretName": routing.secretName as Any? ?? NSNull(), "hasLegacy": legacyKeyProvider != nil])
+    let raw: String?
     do {
-      if let secretName = routing.secretName {
-        rawKey = try profileSecretProvider(secretName)
-      } else if let legacyKeyProvider {
-        rawKey = try legacyKeyProvider()
-      } else {
-        rawKey = nil                                   // no secretName and no legacy fallback (来源核验)
+      switch plan.source {
+      case "profile": raw = try profileSecretProvider(routing.secretName!)
+      case "legacy": raw = try legacyKeyProvider?()
+      default: raw = nil
       }
-    } catch {
-      // A Keychain read failure is "no usable key" — never crash the caller (mirrors streaming).
-      return profile == nil ? .unconfigured : .missingKey
-    }
-
-    let key = rawKey?.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard let apiKey = key, !apiKey.isEmpty else {
-      // No profile AND no key → unconfigured; a profile with no key yet → missingKey.
-      return profile == nil ? .unconfigured : .missingKey
-    }
-    return .ready(routing: routing, apiKey: apiKey)
+    } catch { raw = nil }
+    let key: String = OwlProviderCore.call("authKey", ["key": raw ?? ""])
+    if key.isEmpty { return plan.missing == "missingKey" ? .missingKey : .unconfigured }
+    return .ready(routing: routing, apiKey: key)
   }
 }

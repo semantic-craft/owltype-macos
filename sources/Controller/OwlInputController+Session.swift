@@ -308,9 +308,7 @@ extension OwlInputController {
     guard let engineSession, engineSession.isValid else { return }
     let preferredSchema = OwlKeyboardPreferences.preferredSchemaID
     guard !preferredSchema.isEmpty else { return }
-    if let input = engineSession.input(), !input.isEmpty {
-      return
-    }
+    guard owl_app_keyboard_can_apply(1, hasInFlightComposition ? 1 : 0) != 0 else { return }
     let currentSchema = engineSession.status()?.schemaId ?? schemaId
     switch OwlSchemaSelectionGate.idleAction(current: currentSchema, preferred: preferredSchema, knownFailed: knownFailedSchemaID) {
     case .alreadyActive:

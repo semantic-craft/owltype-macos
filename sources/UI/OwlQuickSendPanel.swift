@@ -45,7 +45,7 @@ import SwiftUI
 /// picker sources (快捷短语 / 提示词): each source maps its own entries into rows via a small adapter
 /// (see `quickSend`). `id` is the underlying entry's stable identity (its trigger code) — the pick
 /// handler resolves it back to the source entry to decide what to insert. Pure value type, no AppKit.
-struct OwlPickerRow: Identifiable, Equatable {
+struct OwlPickerRow: Identifiable, Equatable, Codable {
   /// Stable identity of the underlying entry (the trigger code).
   let id: String
   /// The string shown in the list row (快捷短语: the phrase; 提示词: the title).
@@ -93,7 +93,7 @@ enum OwlPickerSegment: String, CaseIterable {
 /// `searchText`; an empty query shows the full list. Selection, navigation, and 1–9 number mapping
 /// all operate on the FILTERED (`visible`) rows and are clamped into range. No AppKit — the view
 /// holds it as `@State` and tests drive it directly. Shared by every picker source (短语/提示词).
-struct OwlPickerPanelModel: Equatable {
+struct OwlPickerPanelModel: Equatable, Codable {
   /// The full loaded row list (source of truth for filtering); also feeds the "nothing configured
   /// at all" vs. "no match for this query" distinction in the view.
   private(set) var rows: [OwlPickerRow]
@@ -111,50 +111,25 @@ struct OwlPickerPanelModel: Equatable {
   /// Rows visible under the current query: case-insensitive substring on each row's `searchText`.
   /// An empty (or whitespace-only) query shows the full list.
   var visible: [OwlPickerRow] {
-    let trimmed = query.trimmingCharacters(in: .whitespaces)
-    guard !trimmed.isEmpty else { return rows }
-    return rows.filter { $0.searchText.localizedCaseInsensitiveContains(trimmed) }
+    OwlTemplateStore.core("picker_visible", ["model": OwlAppCore.payload(self)])
   }
-
-  /// No rows to show for the current query (either nothing configured, or nothing matched).
   var isEmpty: Bool { visible.isEmpty }
-
-  /// The row the highlight currently points at (⏎ target), or nil when nothing is visible.
+  private struct Selection: Decodable { let row: OwlPickerRow? }
   var selectedRow: OwlPickerRow? {
-    let visibleRows = visible
-    return visibleRows.indices.contains(selection) ? visibleRows[selection] : nil
+    let value: Selection = OwlTemplateStore.core("picker_selected", ["model": OwlAppCore.payload(self)]); return value.row
   }
-
   func isSelected(_ index: Int) -> Bool { index == selection }
-
-  /// Move the highlight by `delta` rows within the filtered list, clamped (no wraparound).
-  mutating func moveSelection(by delta: Int) {
-    let count = visible.count
-    guard count > 0 else { selection = -1; return }
-    selection = max(0, min(count - 1, selection + delta))
+  private mutating func update(_ action: String, _ values: [String: Any]) {
+    var args = values; args["action"] = action; args["model"] = OwlAppCore.payload(self)
+    self = OwlTemplateStore.core("picker_update", args)
   }
-
-  /// Point the highlight at `index` in the filtered list (hover/click); ignored when out of range.
-  mutating func select(_ index: Int) {
-    guard visible.indices.contains(index) else { return }
-    selection = index
-  }
-
-  /// Map a 1–9 number key (1-based) to the Nth VISIBLE row, or nil when out of range.
+  mutating func moveSelection(by delta: Int) { update("move", ["delta": delta]) }
+  mutating func select(_ index: Int) { update("select", ["index": index]) }
   func row(forNumber number: Int) -> OwlPickerRow? {
-    let index = number - 1
-    let visibleRows = visible
-    guard (1...9).contains(number), visibleRows.indices.contains(index) else { return nil }
-    return visibleRows[index]
+    let value: Selection = OwlTemplateStore.core("picker_number", ["model": OwlAppCore.payload(self), "number": number]); return value.row
   }
+  mutating func setQuery(_ newQuery: String) { update("query", ["query": newQuery]) }
 
-  /// Update the search query and clamp the selection back into the new filtered result set
-  /// (so ⏎/number keys never point past the end after typing narrows the list).
-  mutating func setQuery(_ newQuery: String) {
-    query = newQuery
-    let count = visible.count
-    selection = count > 0 ? max(0, min(count - 1, selection)) : -1
-  }
 }
 
 // MARK: - Panel

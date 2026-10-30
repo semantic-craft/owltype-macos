@@ -9,6 +9,29 @@ final class OwlTemplateEngineTests: XCTestCase {
     return entry
   }
 
+  func testCanonicalUnicodeParameterIdentityAndOptionsAcrossRustBoundary() {
+    let parsed = OwlTemplateEngine.parse(entry("{argument name=é default=é options=é,乙}{argument name=e\u{301} default=e\u{301} options=e\u{301},乙}"))
+    XCTAssertEqual(parsed.parameters.count, 1)
+    XCTAssertEqual(OwlTemplateEngine.quoted("\u{301}"), "\"\u{301}\"")
+    XCTAssertTrue(parsed.diagnostics.isEmpty)
+    XCTAssertEqual(OwlTemplateEngine.render(parsed, values: ["n:e\u{301}": "e\u{301}"]).readyText, "e\u{301}e\u{301}")
+  }
+
+  func testOversizedTemplatePayloadBlocksWithoutCrashing() {
+    let body = String(repeating: "x", count: 4 * 1024 * 1024 + 1)
+    let parsed = OwlTemplateEngine.parse(entry(body))
+    XCTAssertTrue(parsed.diagnostics.contains { $0.severity == .error })
+    XCTAssertNil(OwlTemplateEngine.render(parsed, values: [:]).readyText)
+    let normal = OwlTemplateEngine.parse(entry("{argument name=x}"))
+    XCTAssertNil(OwlTemplateEngine.render(normal, values: ["n:x": body]).readyText)
+    // A bounded request may legitimately expand past the transport's request limit.
+    let repeated = OwlTemplateEngine.parse(entry(String(repeating: "{argument name=x}", count: 1000)))
+    let expanded = OwlTemplateEngine.render(repeated, values: ["n:x": String(repeating: "a", count: 5000)])
+    XCTAssertTrue(expanded.diagnostics.isEmpty)
+    XCTAssertEqual(expanded.previewText.utf8.count, 5_000_000)
+    XCTAssertEqual(expanded.readyText?.utf8.count, 5_000_000)
+  }
+
   func testAdjacentRepeatedAnonymousAndUnicode() {
     let parsed = OwlTemplateEngine.parse(entry("🙂{argument name=目标}{argument}{argument}{argument}{argument}{{目标}}"))
     XCTAssertEqual(parsed.parameters.map(\.key), ["n:目标", "a:1", "a:2", "a:3", "a:4"])
@@ -47,6 +70,13 @@ final class OwlTemplateEngineTests: XCTestCase {
   }
 
   func testLegacyAndPlainPreserveSingleBraces() {
+    // ICU regex dot treats VT/FF as line terminators as well as LF/CR/NEL/LS/PS.
+    for separator in ["\n", "\r", "\u{b}", "\u{c}", "\u{85}", "\u{2028}", "\u{2029}"] {
+      let multiline = "{{a" + separator + "b}}"
+      let parsed = OwlTemplateEngine.parse(entry(multiline, legacy: true))
+      XCTAssertTrue(parsed.parameters.isEmpty)
+      XCTAssertEqual(OwlTemplateEngine.render(parsed, values: parsed.initialValues).readyText, multiline)
+    }
     let body = " {{clipboard}}/{clipboard}/{date}/{argument} {{}}\n\t"
     let legacy = OwlTemplateEngine.parse(entry(body, legacy: true))
     XCTAssertEqual(legacy.parameters.map(\.key), ["n:clipboard"])

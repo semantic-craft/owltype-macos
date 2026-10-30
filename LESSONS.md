@@ -5,6 +5,100 @@ that the lesson is in place: which file to read, which command to run, what resu
 and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## Reserve delivery before selection preparation, but report actual dispatch
+
+- Seen 1x (2026-10-30): installed #362 candidate `25e4263` recognized and rendered the
+  Chrome automatic trigger, retained its result and left the literal selected. Source review
+  confirmed that a failed synchronous AX selection readback could skip `controller.apply`
+  while the Rust slot already reported `attemptedUnverified`. The actual Chrome failure
+  phase remains a native-validation question; this source defect alone did not prove it.
+- Regression: `testNativeDispatchRefusalIsNotReportedAsAnAttemptedWrite` failed with
+  `attemptedUnverified` for zero insert calls. `testDelayedSelectionPreparationWaitsAndConsumesLateCallbacksOnce`
+  failed because text was dispatched before the delayed selection was confirmed.
+- Rust now separates reservation from the native write receipt. AX selection is set once,
+  then observed with bounded, single-use tokens; fresh original/selection/binding/generation
+  facts admit one insert. Failed preparation retains the result without claiming a text attempt.
+  Duplicate receipts and cancellation cannot retry text or repeat cursor movement.
+- Independent review found one remaining native query after selection admission: obtaining
+  the AX field could reenter and cancel/change the generation before the setter. The regression
+  `testReentryWhileCapturingSelectionWriterCannotChangeTheSelection` reproduced both cases.
+  Capture the native setter first; then perform final Rust admission, with no host query between
+  that admission and the captured setter. Cancellation must prevent selection changes as well as text.
+- Verify (验证点): run `OwlTemplateHostDeliveryTests`, `OwlTemplateDeliveryTests`,
+  `OwlDynamicAutomaticTests` and `OwlClientCapabilityPolicyTests` through `scripts/verify.py swift`.
+  The failed/cancelled selection regression also checks bounded waiting and zero text writes.
+  Installed Chrome/TextEdit validation must distinguish selection set/ack, actual dispatch
+  and post-write readback using the opt-in metadata trace; synthetic tests are not that proof.
+
+## Read fresh admission facts after native planning queries
+
+**A native text/readiness query can reenter and change the target or cancel an invocation;
+Rust must see the final binding/pending facts before allowing an effect.**
+
+- Reason: #362 review found that delivery took `rejection` before its range/text reads.
+  The App-host regression changed the target inside a text read and still received a write.
+  A corresponding broker regression cancelled inside host readiness and still dispatched.
+- Prevention: Rust independently admits original/result/cursor effects using the fresh native
+  binding after planning. Focus polls receive `pending` after native readiness has returned.
+- Regression: `testTargetChangingDuringReadbackCannotReceiveThePlannedWrite` and
+  `testCancellationDuringHostReadinessDoesNotDispatch` both failed before their fixes.
+- Scope: synthetic native reads through the real App ABI; native field/activation evidence is separate.
+- Verify (验证点): run `OwlTemplateHostDeliveryTests` and `OwlPanelInsertionBrokerTests` with `scripts/verify.py swift`.
+- Seen on 1 distinct date: 2026-10-30.
+
+## A late host receipt cannot repeat a native effect
+
+**Consume preservation/readback receipts in the owned delivery state before calling native
+cursor or presentation effects; every write and completion has one slot.**
+
+- Reason: the #362 App-host regression delivered the same settled-readback callback twice.
+  After the user moved the caret back to the end, the old Swift path moved it again (2 moves)
+  and overwrote that new position. The regression failed before the Rust delivery switch.
+- Prevention: the Rust delivery session consumes verification and preservation receipts once,
+  independently of its original/result write slots. Cancelled invocations discard late presentation.
+- Regression: `testLateDuplicateReadbackCannotMoveTheCursorAgain` and
+  `testOriginalPreservationWaitsBeforePresentingAndDiscardsCancelledReceipt` through the real App ABI.
+- Scope: synthetic host and controlled native callbacks; not installed Chrome evidence.
+- Verify (验证点): `python3 scripts/verify.py swift --test OwlTemplateHostDeliveryTests`.
+- Seen on 1 distinct date: 2026-10-30.
+
+## Oversized captured context is a visible template error, not cancellation
+
+**A failed context transfer must leave the invocation presentable with a blocking diagnostic;
+only cancellation or a stale binding ends that invocation.**
+
+- Reason: #361's first Rust session bridge marked `valid = false` when a clipboard payload
+  exceeded the 4 MiB ABI request limit. `start` then returned without a window or diagnostic.
+- Prevention: Rust retains a context-failure state, returns the original template and transport
+  diagnostic, prevents confirmation, and does not request the clipboard again. No truncation.
+- Regression: `testOversizedClipboardPresentsBlockedEvaluationWithoutRecapturingOrDelivering`
+  failed at the actual `start/present` seam before the fix; it also checks explicit cancellation.
+- Scope: synthetic clipboard provider through the real App session ABI; no personal clipboard read.
+- Verify (验证点): `python3 scripts/verify.py swift --test OwlTemplateDeliveryTests --test OwlTemplateClipboardTests`.
+- Seen on 1 distinct date: 2026-10-30.
+
+## An invocation binds the selected template version, not every library commit
+
+**Keep per-entry revisions in the business core, using the library's canonical UUID form; a
+changed or deleted selected entry invalidates the call, while another entry's edit does not.**
+
+- Reason: the #361 regression first showed a previewed invocation still inserting after its
+  library entry was removed. A first per-entry bridge then looked up lowercase IDs while the
+  library decoder canonicalizes UUIDs to uppercase, so removal still appeared unregistered.
+- Prevention: Rust runtime publication owns version/tombstone generation and normalized ID
+  lookup; invocation events compare the selected value/version and permanently reject mismatches.
+  A parameter window may legitimately return through a different IMK controller; host delivery
+  validity must not be treated as invocation cancellation. Review of #361 found that doing so
+  discarded the copyable result after unconfirmed original preservation. Production and the
+  dynamic-automatic suite now share the same delivery/invocation wiring; that existing regression
+  failed with the incorrect binding and also checks explicit copy after the fix.
+- Regression: `testCommittedTemplateRevisionInvalidatesAnAlreadyPreviewedInvocation` failed
+  before the binding and UUID fixes; `testEditingAnotherTemplateDoesNotInvalidateTheSelectedEntry`
+  protects the scope of invalidation. Existing cancellation and rebind suites remain applicable.
+- Scope: App-host Swift→Rust tests with synthetic template libraries. No installed-host claim.
+- Verify (验证点): `python3 scripts/verify.py swift --test OwlTemplateDeliveryTests --test OwlTemplateHostDeliveryTests`.
+- Seen on 1 distinct date: 2026-10-30.
+
 ## A session event tap must not run on the main thread
 
 **A head-inserted `.defaultTap` holds every keyDown in the login session until its callback returns, so it gets its own thread and its callback reads no main-thread state.**
@@ -1084,3 +1178,158 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
   fixture and rejects forged context, changed DB/manifest/output digest, verified
   or other findings, history and other locations. Run the actual source TAR
   scanner red/green and compare original artifact/cohort hashes before and after.
+
+## Settings must preserve selected phrase progress until idle
+
+- Seen 1x (2026-10-30): #358's real engine regression selected `你好`, left raw suffix `wo`,
+  then changed Wubi wildcard and continued with `men`. The old settings path lost the selected
+  phrase and returned `men`, without the `我们` candidate. A controller regression also showed
+  settings/onboarding schema selection clearing `nihao` before the idle guard.
+- Preserve both engine option eligibility and native session refresh timing. Replaying only
+  `rawInput` cannot reconstruct a selected phrase prefix. Settings/onboarding schema changes
+  enter the same idle queue; explicit host/menu schema effects remain immediate.
+- Verify (验证点): `EngineRuntimeTests/testKeyboardApplyPreservesCompositionUntilIdle`,
+  `OwlRustEngineTests/testMixedWubiPartialPhraseSelectionContinuesInPinyinTail`, and
+  `OwlInputHabitsIntegrationTests/testControllerRoundTrip` exercise the real App/input seam.
+  Check continued commit `你好我们` and eventual idle drain. PR #369's exact-head gate
+  `f0c3240620cbe2aecc483db4409a18cd29087e41` passed 1470 Swift tests (1 designed skip).
+  Evidence establishes isolated native/engine behavior, not installed-host acceptance.
+
+## Template migration must retain canonical Unicode equality and derived readiness
+
+- Seen 1x (2026-10-30): #359's first native FFI run split canonically equivalent `é` and
+  `é` names into two parameters. Rust byte equality also disagreed with Swift for defaults,
+  options and supplied keys. Use ICU NFC only for comparison; retain authored and inserted bytes.
+- The same run exposed two transport seams: internally tagged serde requests cannot decode
+  numeric-key maps from their buffered JSON content, and invocation wrappers reconstruct
+  Evaluation values. Keep temporal-fact keys as strings and readiness derived by Rust for
+  every Evaluation, including reconstructed ones.
+- Verify (验证点): `OwlTemplateEngineTests/testCanonicalUnicodeParameterIdentityAndOptionsAcrossRustBoundary`
+  must merge the names and accept decomposed option values. Existing invocation, temporal,
+  clipboard and cursor suites must still deliver through the real Swift→Rust seam.
+  `testOversizedTemplatePayloadBlocksWithoutCrashing` checks parser and renderer rejection
+  as diagnostics instead of ABI precondition crashes. These are isolated App-host checks.
+
+- The independent #359 review also found ICU dot's VT/FF exclusions missing from the
+  legacy regex, turning multiline literals into empty substitutions, and a readiness request
+  that resent the whole expanded preview through the 4 MiB input limit. Existing legacy and
+  transport tests now replay both failures, including a small request producing 5,000,000
+  output bytes. Send only compact readiness facts; a request limit is not an output limit.
+
+## Preserve automatic-index error precedence across the App ABI
+
+- Seen 1x (2026-10-30): the #360 migration initially compared all trigger pairs before
+  building an index. Equal triggers with immediate expansion then reported a prefix conflict,
+  while the existing public seam requires duplicateTrigger. Five assertions in
+  `OwlAutomaticExpansionTests/testPrefixValidationDependsOnShorterModeInBothInsertionOrders`
+  failed. Rust now builds the actual trie and checks terminal duplication before descendants;
+  Swift decodes its immutable nodes without maintaining another conflict rule.
+- Verify (验证点): run that existing App-host test through `scripts/verify.py swift`.
+  Both insertion orders and all expansion modes must retain the original typed error.
+  This is isolated regression evidence, not installed keyboard acceptance.
+
+## Storage migration must retain Foundation text classes and read isolation
+
+- Seen 1x (2026-10-30): #360 review found Rust's default whitespace set omitted U+200B,
+  changing empty-content rejection, legacy code normalization and empty queries. It also
+  found `.lines()` missed CR/VT/FF/NEL/LS/PS in the orphan prompt-table audit, allowing
+  activation without the missing JSON bodies. Two real App-seam regressions reproduced
+  10 failed assertions before the fix. `foundation_text` now supplies the original three
+  CharacterSet contracts; parser, stores, editor and picker share them.
+- The same migration exposed a read path bypass: `currentLibrary` could return staged JSON
+  while another thread held the write transaction. The concurrent public-read regression
+  failed before Rust mode/load/current acquired a native process-lock effect. Read locks
+  create no directory/file and acquire no cross-process flock; pure candidate/picker
+  operations do not wait on this storage lock. The native call defer releases both lock
+  kinds after errors or ABI-contained panics, using the acquired canonical directory key.
+- Verify (验证点): run `OwlTemplateStoreTests/testFoundationWhitespaceIsPreservedAcrossLibraryAndLegacyBoundaries`,
+  `OwlTemplateMigrationTests/testOrphanPromptTableWithCarriageReturnCannotActivateAnEmptyLibrary`
+  and `OwlTemplateStoreTests/testConcurrentCurrentLibraryReadWaitsForTheCompleteSave`
+  with `scripts/verify.py swift`. Existing save/recovery and Unicode-template suites must
+  remain green. These synthetic fixtures do not establish installed-host acceptance.
+
+## Preserve the caller's session and wrap optional session replies
+
+- Seen 1x (2026-10-30): the #363 raw-stream prototype created a new URLSession from the
+  caller's configuration. The existing global URLProtocol recorder did not intercept that
+  session: one request containing only the synthetic `sk-test` reached the provider and was
+  rejected with 401. No personal key was read or sent. The run was stopped immediately.
+- Keep the caller's URLSession and forward AsyncBytes without decoding UTF-8 or parsing SSE.
+  The existing recording table now injects an ephemeral session with an explicit protocol
+  class into the real streaming and search clients; socket replacement is no longer implicit.
+  Its allowlist rejects unknown URL/method pairs locally. The existing table also caught
+  the native encoders' different decimal representations: retain the Rust-selected original
+  codec so both canonical bodies and Content-Length remain unchanged.
+- The same run found a nullable probe digest returned at the top of a session value. The
+  native session envelope treats a missing/null value as an ABI error; wrap the optional
+  digest in an object. The digest stays in Rust, never the key.
+- Verify (验证点): `OwlLLMStreamingRecordingTests` must match every existing recorded request;
+  `OwlProviderRegistryTests` must complete staged-key saves with and without a prior probe.
+  `OwlResponsesStreamingClientTests/testRawByteBoundariesAndCancellationReachRustParser`
+  verifies arbitrary UTF-8 splits and terminal cancellation through the real session ABI.
+
+## Provider changes must retire an active AI request
+
+- Seen 1x (2026-10-30): the #364 migration audit found no event connecting provider
+  configuration writes to an already-streaming conversation. The isolated
+  `testProviderConfigurationChangeRetiresTheOldStream` reproduced an old answer
+  becoming `done` and entering history after the configuration-change notification.
+- Successful native profile writes now emit a notification after the Rust transaction
+  returns, including the write-landed-before-error case. Conversation sessions retire
+  their generation and preserve any already-visible partial answer. Replacing the AI
+  window model also tears down the previous session. Native Task cancellation remains
+  an execution optimization; Rust independently rejects retired callback generations.
+- Verify (验证点): `OwlAIConversationModelTests` covers the provider-change regression
+  and late deltas/completion/failure through the owned App session ABI. Existing stop,
+  regeneration, explicit context and history-limit tests remain the feature seam.
+- Scope: isolated notifications/streams and real App FFI, with no real provider key,
+  account, installed input method or network request. This is not live-account evidence.
+
+## Explicit AI text is not a bounded control event
+
+- Seen 1x (2026-10-30): independent #364 review found that selections, questions and
+  model results above the ordinary 4 MiB event bound reached the native ABI precondition
+  before Rust could apply content limits. This was a source-review finding; the failing
+  fatal path was not run against an installed input method.
+- AI text now enters through owned session snapshots, like existing template-library
+  snapshots. Small control events reference the snapshot; the ordinary event bound
+  remains intact. Rust applies the original per-feature limits and owns admission.
+- Verify (验证点): existing context and conversation suites exercise a 4.5 MB selection,
+  question, structured result and streamed answer through the real App ABI.
+
+## Typesetting fingerprints must retain multi-scalar letters
+
+- Seen 1x (2026-10-30): independent #364 review found that a single-letter regex omitted
+  Indic conjuncts, decomposed Hangul and letter-plus-joiner graphemes, allowing changed
+  text to have an empty matching fingerprint. Native read-only Character checks confirmed
+  the mismatch.
+- Keep the whole grapheme whenever any scalar is alphanumeric, and compare canonical
+  normalized fingerprints. This conservatively protects letters without a script whitelist.
+- Verify (验证点): the existing typesetting suite checks those multi-scalar forms and
+  distinguishes changed Hangul; the formatter's existing no-content-change tests remain.
+- Scope: synthetic text and App FFI tests, no account, network or installed UI acceptance.
+
+
+## Resource migration keeps typed errors and byte-identical recovery records
+
+- Seen 1x (2026-10-30): the #365 App ABI migration initially wrapped resource domain
+  errors as template errors; the existing stale-prepared and same-version-conflict
+  tests caught both mismatches. Keep domain error projection before the shared
+  storage host's fallback mapping.
+- The same migration's existing deterministic-stage test, extended with the prior
+  Foundation encoding contract, found a 1507-byte Rust manifest where the prior
+  encoder produced 1538 bytes. Staging compares bytes, so equivalent JSON would
+  reject an existing completed stage as a collision. Preserve colon spacing, empty
+  container newlines, sorted keys and final newline in the Rust writer.
+- Native scan errors are stable diagnostic facts, not randomly generated ABI error
+  tokens: they participate in the migration request digest. Preserve native decode
+  diagnostic text for malformed pin JSON for the same reason.
+- Verify (验证点): `OwlRustResourceTransactionTests` and
+  `OwlUserMigrationTests/testStagingIsDeterministicAndRepeatedPreparationReusesIt`
+  exercise the public Swift→Rust boundary with isolated files. No installed user
+  resources or personal journal were read, migrated or reset.
+
+- The first complete #365 gate also found `scripts/msime_pin.py` still checking
+  the removed Swift literals. Move the existing pin-consistency check with the
+  Rust catalog owner; a focused runtime pass alone does not cover repository
+  maintenance scripts. The original gate failure is retained in its receipt.

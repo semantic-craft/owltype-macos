@@ -11,23 +11,23 @@ extension OwlSettingsActions {
   static func deepSeekAPIKeyStatus(read: () throws -> String?) -> String {
     do {
       let key = try read()
-      return key?.isEmpty == false ? "已配置 Keychain API Key" : "未配置 API Key"
-    } catch {
-      return "无法读取 Keychain"
-    }
+      return credentialForm("read", present: key?.isEmpty == false).status
+    } catch { return credentialForm("read", failure: true).status }
   }
 
   static func saveDeepSeekAPIKey(
     _ input: String,
     save: (String) throws -> Void
   ) -> (input: String, status: String) {
-    let key = input.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !key.isEmpty else { return (input, "请输入 API Key") }
+    let plan = credentialForm("save", text: input)
+    guard plan.execute else { return (plan.input, plan.status) }
     do {
-      try save(key)
-      return ("", "已保存到 Keychain")
+      try save(plan.key)
+      let result = credentialForm("saved")
+      return (result.input, result.status)
     } catch {
-      return (input, "保存 Keychain 失败")
+      let result = credentialForm("saved", text: input, failure: true)
+      return (result.input, result.status)
     }
   }
 
@@ -37,9 +37,11 @@ extension OwlSettingsActions {
   ) -> (input: String, status: String) {
     do {
       try delete()
-      return ("", "已删除 API Key")
+      let result = credentialForm("deleted")
+      return (result.input, result.status)
     } catch {
-      return (input, "删除 Keychain 失败")
+      let result = credentialForm("deleted", text: input, failure: true)
+      return (result.input, result.status)
     }
   }
 
@@ -49,23 +51,23 @@ extension OwlSettingsActions {
     _ apiKey: String,
     secrets: OwlSecretStoring
   ) -> (input: String, status: String) {
-    let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !key.isEmpty else { return (apiKey, "请输入豆包搜索的 API Key") }
+    let plan = credentialForm("save", text: apiKey, doubao: true)
+    guard plan.execute else { return (plan.input, plan.status) }
     do {
-      try secrets.setSecret(key, named: OwlDoubaoSearchKeyStore.secretName)
-      return ("", "已保存到 Keychain，来源核验将用豆包搜索取来源。")
+      try secrets.setSecret(plan.key, named: OwlDoubaoSearchKeyStore.secretName)
+      let result = credentialForm("saved", doubao: true)
+      return (result.input, result.status)
     } catch {
-      return (apiKey, "保存 Keychain 失败")
+      let result = credentialForm("saved", text: apiKey, doubao: true, failure: true)
+      return (result.input, result.status)
     }
   }
 
   static func clearDoubaoSearchKey(secrets: OwlSecretStoring) -> String {
     do {
       try secrets.deleteSecret(named: OwlDoubaoSearchKeyStore.secretName)
-      return "已删除豆包搜索的 API Key，来源核验只保留跳库查询。"
-    } catch {
-      return "删除 Keychain 失败"
-    }
+      return credentialForm("deleted", doubao: true).status
+    } catch { return credentialForm("deleted", doubao: true, failure: true).status }
   }
 
   // MARK: - AI provider profiles
@@ -75,7 +77,9 @@ extension OwlSettingsActions {
   static func providerProfileForRetry(
     _ profile: OwlProviderProfile, profiles: [OwlProviderProfile]
   ) -> OwlProviderProfile? {
-    profiles.first { $0.id == profile.id }
+    struct Reply: Decodable { let index: Int? }
+    let reply: Reply = OwlAIBusinessCore.call("profileRetry", ["id": profile.id, "ids": profiles.map { $0.id }])
+    return reply.index.map { profiles[$0] }
   }
 
   static func editingProfileAfterWorkspaceSave(
@@ -107,19 +111,8 @@ extension OwlSettingsActions {
     apply: (OwlManagedPatchFile, String) throws -> Void,
     redeploy: () -> Bool
   ) -> String? {
-    guard confirmed else { return nil }
-    var written: [String] = []
-    do {
-      for file in files {
-        try apply(file, timestamp)
-        written.append(file.fileName)
-      }
-      return OwlWritePreviewSheet.applyStatusMessage(written: written, deploySucceeded: redeploy())
-    } catch OwlConfigWriteError.refusedNeverTouch(let name) {
-      return "已拒绝写入受保护文件：\(name)。"
-    } catch {
-      return "写入失败：\(error.localizedDescription)。已写入：\(written.joined(separator: "、"))。"
-    }
+    runWritePreview(confirmed: confirmed, files: files.map(\.fileName), rollback: false,
+      perform: { index in try apply(files[index], timestamp) }, redeploy: redeploy)
   }
 
   static func rollbackWritePreview(
@@ -127,16 +120,38 @@ extension OwlSettingsActions {
     rollback: () throws -> Void,
     redeploy: () -> Bool
   ) -> String? {
-    guard confirmed else { return nil }
-    do {
-      try rollback()
-      return redeploy()
-        ? "已按 manifest 回滚最近一次写入并应用配置改动。"
-        : "已按 manifest 回滚最近一次写入；应用配置失败，请查看诊断日志。"
-    } catch {
-      return "回滚失败：\(error.localizedDescription)。"
+    runWritePreview(confirmed: confirmed, files: [], rollback: true,
+      perform: { _ in try rollback() }, redeploy: redeploy)
+  }
+  private struct CredentialForm: Decodable {
+    let status: String
+    let input: String
+    let key: String
+    let execute: Bool
+  }
+  private static func credentialForm(_ action: String, text: String = "", doubao: Bool = false,
+                                     present: Bool = false, failure: Bool = false) -> CredentialForm {
+    OwlAIBusinessCore.call("credentialForm", ["action": action, "text": text, "doubao": doubao,
+      "present": present, "failure": failure])
+  }
+  private static func runWritePreview(confirmed: Bool, files: [String], rollback: Bool,
+                                      perform: (Int) throws -> Void, redeploy: () -> Bool) -> String? {
+    struct Step: Decodable { let action: String; let index: Int; let status: String? }
+    let core = try! OwlAppSession("writePreview", args: ["confirmed": confirmed, "files": files, "rollback": rollback])
+    var step: Step = core.call("next")
+    while true {
+      switch step.action {
+      case "apply", "rollback":
+        do { try perform(step.index); step = core.call("success") }
+        catch OwlConfigWriteError.refusedNeverTouch(let name) {
+          step = core.call("failure", ["protected": name, "message": OwlConfigWriteError.refusedNeverTouch(name).localizedDescription])
+        } catch { step = core.call("failure", ["message": error.localizedDescription]) }
+      case "redeploy": step = core.call("redeployed", ["success": redeploy()])
+      default: return step.status
+      }
     }
   }
+
 }
 
 // MARK: - Provider registry copy

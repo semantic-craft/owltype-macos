@@ -43,15 +43,38 @@ final class OwlAgentCallLog: @unchecked Sendable {
 
   func record(_ call: Wire.Call, from client: OwlAgentBridgeClient, reply: OwlAgentBridgeReply, at: Date = Date()) {
     let component = client.agentClient ?? client.helper
-    let entry = OwlAgentCallRecord(at: at, client: "\(component.name) \(component.version)",
-                                   method: call.method.rawValue, outcome: Self.outcome(reply))
-    // Enqueue the write under the lock, so writes reach the disk in the order of the changes.
+    let replyStatus: String?
+    let replyErrorCode: String?
+    switch reply {
+    case .success(let value):
+      if case .string(let status)? = value["status"] { replyStatus = status } else { replyStatus = "ok" }
+      replyErrorCode = nil
+    case .failure(let error):
+      replyStatus = nil
+      replyErrorCode = error.code.name
+    }
     lock.withLock {
-      var next = loadedLocked()
-      next.insert(entry, at: 0)
-      if next.count > Self.limit { next.removeLast(next.count - Self.limit) }
-      cached = next
-      persist(next)
+      let current = loadedLocked()
+      struct AppendResult: Decodable {
+        let records: [OwlAgentCallRecord]
+        let entry: OwlAgentCallRecord
+      }
+      let result: AppendResult = OwlAppCore.required([
+        "operation": "agent_rule",
+        "rule": "agent_call_log_append",
+        "args": [
+          "records": OwlAppCore.payload(current),
+          "client_name": component.name,
+          "client_version": component.version,
+          "method": call.method.rawValue,
+          "reply_status": replyStatus as Any? ?? NSNull(),
+          "reply_error_code": replyErrorCode as Any? ?? NSNull(),
+          "at_iso8601": ISO8601DateFormatter().string(from: at),
+          "limit": Self.limit
+        ]
+      ])
+      cached = result.records
+      persist(result.records)
     }
   }
 
@@ -66,13 +89,32 @@ final class OwlAgentCallLog: @unchecked Sendable {
   func flush() { writer.sync {} }
 
   static func outcome(_ reply: OwlAgentBridgeReply) -> String {
+    let replyStatus: String?
+    let replyErrorCode: String?
     switch reply {
     case .success(let value):
-      if case .string(let status)? = value["status"] { return status }
-      return "ok"
+      if case .string(let status)? = value["status"] { replyStatus = status } else { replyStatus = "ok" }
+      replyErrorCode = nil
     case .failure(let error):
-      return error.code.name
+      replyStatus = nil
+      replyErrorCode = error.code.name
     }
+    struct OutcomeResult: Decodable {
+      let outcome: String
+    }
+    let res: OutcomeResult = OwlAppCore.required([
+      "operation": "agent_rule",
+      "rule": "call_log_record",
+      "args": [
+        "client_name": "",
+        "client_version": "",
+        "method": "",
+        "reply_status": replyStatus as Any? ?? NSNull(),
+        "reply_error_code": replyErrorCode as Any? ?? NSNull(),
+        "at_iso8601": ""
+      ]
+    ])
+    return res.outcome
   }
 
   private func loadedLocked() -> [OwlAgentCallRecord] {

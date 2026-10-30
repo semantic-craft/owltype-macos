@@ -119,8 +119,17 @@ final class OwlAgentAccess: NSObject, OwlAgentBridgeService {
 
   private func answer(_ call: Wire.Call, from client: OwlAgentBridgeClient, cancellation: OwlAgentBridgeCancellation,
                       reply: @escaping (OwlAgentBridgeReply) -> Void) {
-    guard OwlAgentAccessPreferences.isEnabled(defaults) else {
-      return reply(.failure(.init(code: .agentAccessDisabled, message: "Agent access is turned off in Owltype settings")))
+    struct AccessCheckResult: Decodable {
+      let allowed: Bool
+      let error: Wire.ErrorObject?
+    }
+    let check: AccessCheckResult = OwlAppCore.required([
+      "operation": "agent_rule",
+      "rule": "check_access",
+      "args": ["enabled": OwlAgentAccessPreferences.isEnabled(defaults)]
+    ])
+    guard check.allowed else {
+      return reply(.failure(check.error ?? .init(code: .agentAccessDisabled, message: "Agent access is turned off in Owltype settings")))
     }
     switch call {
     case .owltypeStatus:
@@ -129,11 +138,19 @@ final class OwlAgentAccess: NSObject, OwlAgentBridgeService {
       DispatchQueue.main.async {
         let snapshot = self.inputSnapshot()
         let name = OwlRustSchemaMap.supportedSchemas.first { $0.id == snapshot.schemaID }?.name ?? snapshot.schemaID
-        let status = Wire.Status(appVersion: self.appBuild.version, appBuild: self.appBuild.build,
-                              resourceGeneration: generation,
-                              inputSchema: Wire.InputSchema(id: snapshot.schemaID, name: name),
-                              inputMode: snapshot.asciiMode ? .english : .chinese,
-                              exposedTemplateCount: exposedCount)
+        let status: Wire.Status = OwlAppCore.required([
+          "operation": "agent_rule",
+          "rule": "status",
+          "args": [
+            "app_version": self.appBuild.version,
+            "app_build": self.appBuild.build,
+            "resource_generation": generation,
+            "schema_id": snapshot.schemaID,
+            "schema_name": name,
+            "ascii_mode": snapshot.asciiMode,
+            "exposed_template_count": exposedCount
+          ]
+        ])
         reply(.success(OwlJSONValue(encoding: status)))
       }
     case .templatesList, .templateGet, .templateRender:

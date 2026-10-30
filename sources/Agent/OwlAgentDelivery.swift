@@ -53,203 +53,372 @@ final class OwlAgentDeliveryCoordinator {
   typealias Wire = OwlAgentBridgeProtocol
   typealias Reply = (OwlAgentBridgeReply) -> Void
 
-  static let outcomeLifetime: TimeInterval = 600
-  static let storedOutcomeLimit = 256
-  /// Polls for the newly activated application's input session while waiting for a target.
-  static let bindPolls = 10
-  static let bindPollInterval: TimeInterval = 0.2
-  /// After those, keeps looking at this pace while the request waits: focusing a field later in the
-  /// same application sends no activation, and 写入 stays disabled until a target is bound.
-  static let slowBindPollInterval: TimeInterval = 0.5
-  /// When the bound application loses the front, waits this long before calling it a focus change:
-  /// a quitting application hands the front to another one before its termination is announced.
-  static let leaveSettle: TimeInterval = 0.5
+  struct Constants: Decodable {
+    let outcomeLifetime: TimeInterval
+    let storedOutcomeLimit: Int
+    let bindPolls: Int
+    let bindPollInterval: TimeInterval
+    let slowBindPollInterval: TimeInterval
+    let leaveSettle: TimeInterval
 
-  private final class Pending {
-    let requestID: String
-    let text: String
-    var waiters: [(reply: Reply, cancellation: OwlAgentBridgeCancellation, replayed: Bool)] = []
-    var target: OwlAgentDeliveryTarget?
-    let ancestors: Set<pid_t>
-    var decided = false
-    var writing = false
-    /// The bound application lost the front; the request ends once it is clear whether it quit.
-    var leaving = false
+    enum CodingKeys: String, CodingKey {
+      case outcomeLifetime = "outcome_lifetime"
+      case storedOutcomeLimit = "stored_outcome_limit"
+      case bindPolls = "bind_polls"
+      case bindPollInterval = "bind_poll_interval"
+      case slowBindPollInterval = "slow_bind_poll_interval"
+      case leaveSettle = "leave_settle"
+    }
+  }
 
-    init(requestID: String, text: String, ancestors: Set<pid_t>) {
-      self.requestID = requestID
-      self.text = text
-      self.ancestors = ancestors
+  static let constants: Constants = OwlAppCore.required([
+    "operation": "agent_rule",
+    "rule": "delivery_constants",
+    "args": [:]
+  ])
+  static var outcomeLifetime: TimeInterval { constants.outcomeLifetime }
+  static var storedOutcomeLimit: Int { constants.storedOutcomeLimit }
+  static var bindPolls: Int { constants.bindPolls }
+  static var bindPollInterval: TimeInterval { constants.bindPollInterval }
+  static var slowBindPollInterval: TimeInterval { constants.slowBindPollInterval }
+  static var leaveSettle: TimeInterval { constants.leaveSettle }
+
+  private struct ActionWire: Decodable {
+    let action: String
+    let text: String?
+    let agentName: String?
+    let name: String?
+    let timeoutSeconds: Double?
+    let intervalSeconds: Double?
+    let seconds: Double?
+    let targetPid: Int32?
+    let waiterId: UInt64?
+    let waiters: [UInt64]?
+    let result: Wire.DeliverResult?
+    let error: Wire.ErrorObject?
+
+    enum CodingKeys: String, CodingKey {
+      case action
+      case text
+      case agentName = "agent_name"
+      case name
+      case timeoutSeconds = "timeout_seconds"
+      case intervalSeconds = "interval_seconds"
+      case seconds
+      case targetPid = "target_pid"
+      case waiterId = "waiter_id"
+      case waiters
+      case result
+      case error
     }
   }
 
   private let host: OwlAgentDeliveryHost
   private let makePreview: () -> OwlAgentDeliveryPreview
   private var preview: OwlAgentDeliveryPreview?
-  private var pending: Pending?
-  private var outcomes: [String: (status: Wire.DeliverStatus, at: Date)] = [:]
   private let now: () -> Date
+  private let core: OwlAppSession
+
+  private var currentTarget: OwlAgentDeliveryTarget?
+  private var nextWaiterID: UInt64 = 1
+  private var waiters: [UInt64: (reply: Reply, cancellation: OwlAgentBridgeCancellation)] = [:]
 
   init(host: OwlAgentDeliveryHost, preview: @escaping () -> OwlAgentDeliveryPreview, now: @escaping () -> Date = Date.init) {
     self.host = host
-    makePreview = preview
+    self.makePreview = preview
     self.now = now
+    do {
+      self.core = try OwlAppSession("agentDelivery")
+    } catch {
+      preconditionFailure("Failed to initialize agent delivery session: \(error)")
+    }
   }
 
-  var isWaiting: Bool { pending != nil }
+  var isWaiting: Bool {
+    core.call("is_waiting")
+  }
 
   func deliver(_ params: Wire.DeliverParams, from client: OwlAgentBridgeClient,
                cancellation: OwlAgentBridgeCancellation, reply: @escaping Reply) {
-    dropExpiredOutcomes()
-    if let stored = outcomes[params.requestId] {
-      return reply(.success(Self.encode(params.requestId, stored.status, replayed: true)))
-    }
-    if let pending {
-      guard pending.requestID == params.requestId else {
-        return reply(.failure(.init(code: .deliveryBusy, message: "Another deliver_text request is waiting for confirmation")))
-      }
-      return attach(pending, reply: reply, cancellation: cancellation, replayed: true)
-    }
+    let waiterID = nextWaiterID
+    nextWaiterID += 1
+    waiters[waiterID] = (reply, cancellation)
 
-    let request = Pending(requestID: params.requestId, text: params.text, ancestors: host.ancestors(of: client.processID))
-    pending = request
-    attach(request, reply: reply, cancellation: cancellation, replayed: false)
-    guard pending === request else { return }
-
-    let preview = makePreview()
-    self.preview = preview
-    preview.show(text: params.text, agentName: client.agentClient?.name ?? client.helper.name) { [weak self, weak request] confirmed in
-      guard let self, let request, self.pending === request else { return }
-      if confirmed { self.write(request) } else { self.finish(request, .cancelled) }
-    }
-    host.schedule(after: Double(params.effectiveTimeoutMs) / 1000) { [weak self, weak request] in
-      guard let self, let request, self.pending === request, !request.writing, !request.leaving else { return }
-      self.finish(request, .expired)
-    }
-
-    if let front = host.frontmostProcess, request.ancestors.contains(front) {
-      preview.showTarget(nil)  // the agent's own terminal is in front: wait for the user to switch
-    } else {
-      bind(request)
-    }
-  }
-
-  private func attach(_ request: Pending, reply: @escaping Reply, cancellation: OwlAgentBridgeCancellation, replayed: Bool) {
-    request.waiters.append((reply, cancellation, replayed))
-    cancellation.onCancel { [weak self, weak request] in
+    cancellation.onCancel { [weak self] in
       DispatchQueue.main.async {
-        guard let self, let request, self.pending === request, !request.writing else { return }
-        if request.waiters.allSatisfy({ $0.cancellation.isCancelled }) { self.finish(request, .cancelled) }
+        self?.cancelWaiter(waiterID)
       }
     }
-  }
 
-  private func bind(_ request: Pending) {
-    if host.isSecureInputEnabled { return finish(request, .targetChanged(.secureInput)) }
-    switch host.bindFrontmost() {
-    case .success(let target):
-      request.target = target
-      preview?.showTarget(target.applicationName)
-    case .failure(let reason):
-      finish(request, .targetChanged(reason))
+    let initialBindPayload: [String: Any]
+    let front = host.frontmostProcess
+    let isAncestor = front.map { host.ancestors(of: client.processID).contains($0) } ?? false
+    if !isAncestor && !host.isSecureInputEnabled {
+      switch host.bindFrontmost() {
+      case .success(let target):
+        self.currentTarget = target
+        initialBindPayload = ["Ok": [
+          "process_id": target.processIdentifier,
+          "application_name": target.applicationName,
+          "is_terminated": target.isTerminated
+        ]]
+      case .failure(let reason):
+        initialBindPayload = ["Err": reason.rawValue]
+      }
+    } else {
+      initialBindPayload = ["Err": "no_target"]
     }
+
+    let event: [String: Any] = [
+      "event": "submit_request",
+      "request_id": params.requestId,
+      "text": params.text,
+      "timeout_ms": params.timeoutMs as Any? ?? NSNull(),
+      "agent_name": client.agentClient?.name ?? client.helper.name,
+      "client_pid": client.processID,
+      "ancestors": Array(host.ancestors(of: client.processID)),
+      "frontmost_pid": host.frontmostProcess as Any? ?? NSNull(),
+      "is_secure_input": host.isSecureInputEnabled,
+      "initial_bind": initialBindPayload,
+      "waiter_id": waiterID
+    ]
+
+    dispatch(event)
   }
 
-  /// NSWorkspace activation, forwarded by the production host.
   func applicationDidActivate(_ process: pid_t) {
-    guard let request = pending, !request.decided else { return }
-    if let target = request.target {
-      guard process != target.processIdentifier, process != getpid(), !request.leaving, !request.writing else { return }
-      request.leaving = true
-      preview?.dismiss()
-      preview = nil
-      host.schedule(after: Self.leaveSettle) { [weak self, weak request, weak target] in
-        guard let self, let request else { return }
-        self.finish(request, .targetChanged(target?.isTerminated ?? true ? .targetQuit : .focusChanged))
-      }
-      return
-    }
-    guard !request.ancestors.contains(process), process != getpid() else { return }
-    awaitInputSession(request, process: process, polls: Self.bindPolls)
-  }
-
-  /// The newly active application's input session appears after its activation; bind once it does.
-  private func awaitInputSession(_ request: Pending, process: pid_t, polls: Int) {
-    host.schedule(after: polls > 0 ? Self.bindPollInterval : Self.slowBindPollInterval) { [weak self, weak request] in
-      guard let self, let request, self.pending === request, request.target == nil,
-            self.host.frontmostProcess == process else { return }
-      if case .success = self.host.bindFrontmost() { return self.bind(request) }
-      self.awaitInputSession(request, process: process, polls: max(polls - 1, 0))
-    }
+    dispatch([
+      "event": "application_activated",
+      "process_id": process,
+      "own_pid": getpid()
+    ])
   }
 
   func applicationDidTerminate(_ process: pid_t) {
-    guard let request = pending, let target = request.target, target.processIdentifier == process else { return }
-    finish(request, .targetChanged(.targetQuit))
+    dispatch([
+      "event": "application_terminated",
+      "process_id": process
+    ])
   }
 
-  private func write(_ request: Pending) {
-    guard !request.decided, !request.writing, !request.leaving else { return }
-    if request.target == nil {
-      // The user may have focused the field after the binding polls ran out: try again now,
-      // unless the agent's own terminal is still in front.
-      if let front = host.frontmostProcess, !request.ancestors.contains(front) { bind(request) }
-      guard request.target != nil else {
-        if !request.decided { preview?.showTarget(nil) }
-        return
+  private func handleUserDecision(_ confirmed: Bool) {
+    let rebindPayload: [String: Any]
+    if let front = host.frontmostProcess, !host.isSecureInputEnabled {
+      switch host.bindFrontmost() {
+      case .success(let target):
+        self.currentTarget = target
+        rebindPayload = ["Ok": [
+          "process_id": target.processIdentifier,
+          "application_name": target.applicationName,
+          "is_terminated": target.isTerminated
+        ]]
+      case .failure(let reason):
+        rebindPayload = ["Err": reason.rawValue]
       }
+    } else {
+      rebindPayload = ["Err": "no_target"]
     }
-    guard let target = request.target else { return }
-    if target.isTerminated { return finish(request, .targetChanged(.targetQuit)) }
-    if host.isSecureInputEnabled { return finish(request, .targetChanged(.secureInput)) }
-    request.writing = true
-    preview?.dismiss()
-    preview = nil
-    target.write(request.text) { [weak self, weak request, weak target] outcome in
-      guard let self, let request else { return }
-      self.finish(request, Self.status(for: outcome, targetQuit: target?.isTerminated ?? true))
+
+    dispatch([
+      "event": "user_decision",
+      "confirmed": confirmed,
+      "frontmost_pid": host.frontmostProcess as Any? ?? NSNull(),
+      "is_secure_input": host.isSecureInputEnabled,
+      "rebind_if_needed": rebindPayload
+    ])
+  }
+
+  private func handleTimeout() {
+    dispatch(["event": "timeout_fired"])
+  }
+
+  private func handlePoll() {
+    let bindPayload: [String: Any]
+    if !host.isSecureInputEnabled {
+      switch host.bindFrontmost() {
+      case .success(let target):
+        self.currentTarget = target
+        bindPayload = ["Ok": [
+          "process_id": target.processIdentifier,
+          "application_name": target.applicationName,
+          "is_terminated": target.isTerminated
+        ]]
+      case .failure(let reason):
+        bindPayload = ["Err": reason.rawValue]
+      }
+    } else {
+      bindPayload = ["Err": "secure_input"]
+    }
+
+    dispatch([
+      "event": "poll_fired",
+      "frontmost_pid": host.frontmostProcess as Any? ?? NSNull(),
+      "bind_result": bindPayload
+    ])
+  }
+
+  private func handleLeaveSettle() {
+    dispatch([
+      "event": "leave_settle_fired",
+      "target_terminated": currentTarget?.isTerminated ?? true
+    ])
+  }
+
+  private func handleWriteCompleted(outcomeCode: String, targetTerminated: Bool) {
+    dispatch([
+      "event": "host_write_completed",
+      "outcome_code": outcomeCode,
+      "target_terminated": targetTerminated
+    ])
+  }
+
+  private func cancelWaiter(_ waiterID: UInt64) {
+    dispatch([
+      "event": "cancel_waiter",
+      "waiter_id": waiterID
+    ])
+  }
+
+  private func dispatch(_ event: [String: Any]) {
+    let nowSecs = UInt64(now().timeIntervalSince1970)
+    let actions: [ActionWire] = core.call("transition", [
+      "event": event,
+      "now_secs": nowSecs
+    ])
+    dispatchActions(actions)
+  }
+
+  private func dispatchActions(_ actions: [ActionWire]) {
+    for action in actions {
+      dispatchSingleAction(action)
     }
   }
 
-  private func finish(_ request: Pending, _ status: Wire.DeliverStatus) {
-    guard pending === request, !request.decided else { return }
-    request.decided = true
-    pending = nil
-    preview?.dismiss()
-    preview = nil
-    outcomes[request.requestID] = (status, now())
-    trimOutcomes()
-    for waiter in request.waiters where !waiter.cancellation.isCancelled {
-      waiter.reply(.success(Self.encode(request.requestID, status, replayed: waiter.replayed)))
+  private func dispatchSingleAction(_ action: ActionWire) {
+    switch action.action {
+    case "show_preview", "show_target", "dismiss_preview":
+      dispatchPreviewAction(action)
+    case "schedule_timeout", "schedule_poll", "schedule_leave_settle":
+      dispatchScheduleAction(action)
+    case "perform_write":
+      dispatchPerformWrite(action)
+    case "complete_waiter", "complete_waiters", "reject_waiter":
+      dispatchWaiterAction(action)
+    default:
+      break
     }
   }
 
-  private func dropExpiredOutcomes() {
-    let oldest = now().addingTimeInterval(-Self.outcomeLifetime)
-    outcomes = outcomes.filter { $0.value.at >= oldest }
-  }
-
-  private func trimOutcomes() {
-    guard outcomes.count > Self.storedOutcomeLimit else { return }
-    for (key, _) in outcomes.sorted(by: { $0.value.at < $1.value.at }).prefix(outcomes.count - Self.storedOutcomeLimit) {
-      outcomes[key] = nil
+  private func dispatchPreviewAction(_ action: ActionWire) {
+    switch action.action {
+    case "show_preview":
+      let preview = makePreview()
+      self.preview = preview
+      preview.show(text: action.text ?? "", agentName: action.agentName ?? "") { [weak self] confirmed in
+        self?.handleUserDecision(confirmed)
+      }
+    case "show_target":
+      preview?.showTarget(action.name)
+    case "dismiss_preview":
+      preview?.dismiss()
+      preview = nil
+    default:
+      break
     }
   }
 
-  static func encode(_ requestID: String, _ status: Wire.DeliverStatus, replayed: Bool) -> OwlJSONValue {
-    OwlJSONValue(encoding: Wire.DeliverResult(requestId: requestID, status: status, replayed: replayed))
+  private func dispatchScheduleAction(_ action: ActionWire) {
+    switch action.action {
+    case "schedule_timeout":
+      guard let seconds = action.timeoutSeconds else { return }
+      host.schedule(after: seconds) { [weak self] in self?.handleTimeout() }
+    case "schedule_poll":
+      guard let interval = action.intervalSeconds else { return }
+      host.schedule(after: interval) { [weak self] in self?.handlePoll() }
+    case "schedule_leave_settle":
+      guard let seconds = action.seconds else { return }
+      host.schedule(after: seconds) { [weak self] in self?.handleLeaveSettle() }
+    default:
+      break
+    }
+  }
+
+  private func dispatchPerformWrite(_ action: ActionWire) {
+    guard let text = action.text, let target = currentTarget else {
+      handleWriteCompleted(outcomeCode: "missing_host", targetTerminated: true)
+      return
+    }
+    target.write(text) { [weak self] outcome in
+      let code = Self.outcomeCode(for: outcome)
+      self?.handleWriteCompleted(outcomeCode: code, targetTerminated: target.isTerminated)
+    }
+  }
+
+  private func dispatchWaiterAction(_ action: ActionWire) {
+    switch action.action {
+    case "complete_waiter":
+      guard let waiterID = action.waiterId, let result = action.result else { return }
+      if let waiter = waiters.removeValue(forKey: waiterID), !waiter.cancellation.isCancelled {
+        waiter.reply(.success(OwlJSONValue(encoding: result)))
+      }
+    case "complete_waiters":
+      guard let waiterIDs = action.waiters, let result = action.result else { return }
+      for id in waiterIDs {
+        if let waiter = waiters.removeValue(forKey: id), !waiter.cancellation.isCancelled {
+          waiter.reply(.success(OwlJSONValue(encoding: result)))
+        }
+      }
+    case "reject_waiter":
+      guard let waiterID = action.waiterId, let error = action.error else { return }
+      if let waiter = waiters.removeValue(forKey: waiterID) {
+        waiter.reply(.failure(error))
+      }
+    default:
+      break
+    }
+  }
+
+  static func outcomeCode(for outcome: OwlTemplateDeliveryOutcome) -> String {
+    switch outcome {
+    case .confirmed, .confirmedWithCursor:
+      return "confirmed"
+    case .attemptedUnverified, .originalPreservationUnverified:
+      return "unverified"
+    case .notAttempted(.secureInput):
+      return "secure_input"
+    case .notAttempted(.unverifiableTarget):
+      return "unverifiable_target"
+    case .notAttempted(.missingHost):
+      return "missing_host"
+    case .notAttempted(.focusNotRestored), .notAttempted(.targetChanged),
+         .notAttempted(.originalNotPreserved), .notAttempted(.selectionNotPrepared):
+      return "focus_changed"
+    }
   }
 
   /// The contract's four statuses from the template delivery's outcome.
   static func status(for outcome: OwlTemplateDeliveryOutcome, targetQuit: Bool) -> Wire.DeliverStatus {
-    switch outcome {
-    case .confirmed, .confirmedWithCursor: return .delivered(verified: true)
-    case .attemptedUnverified, .originalPreservationUnverified: return .delivered(verified: false)
-    case .notAttempted(.secureInput): return .targetChanged(.secureInput)
-    case .notAttempted(.unverifiableTarget): return .targetChanged(.unverifiableTarget)
-    case .notAttempted(.missingHost): return .targetChanged(targetQuit ? .targetQuit : .noTarget)
-    case .notAttempted(.focusNotRestored), .notAttempted(.targetChanged), .notAttempted(.originalNotPreserved):
-      return .targetChanged(.focusChanged)
+    let outcomeCode = self.outcomeCode(for: outcome)
+    struct OutcomeResult: Decodable {
+      let name: String
+      let verified: Bool?
+      let reason: String?
+    }
+    let result: OutcomeResult = OwlAppCore.required([
+      "operation": "agent_rule",
+      "rule": "delivery_status_from_outcome",
+      "args": ["outcome": outcomeCode, "target_quit": targetQuit]
+    ])
+    switch result.name {
+    case "delivered":
+      return .delivered(verified: result.verified ?? false)
+    case "target_changed":
+      let reasonRaw = result.reason ?? "focus_changed"
+      return .targetChanged(Wire.TargetChangedReason(rawValue: reasonRaw) ?? .focusChanged)
+    case "expired":
+      return .expired
+    default:
+      return .cancelled
     }
   }
 }

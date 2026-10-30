@@ -32,6 +32,7 @@ final class OwlTemplateHostDeliveryTests: XCTestCase {
             self.selection = NSRange(location: replacement.location + text.utf16.count, length: 0)
           }
           self.onWrite?()
+          return true
         }, canReplace: { self.writable }, move: { range, inserted, _ in
           self.beforeMove?()
           guard OwlTemplateCursorPlacement.selectionIsAtEnd(self.selection, inserted: inserted),
@@ -128,6 +129,40 @@ final class OwlTemplateHostDeliveryTests: XCTestCase {
     }
   }
 
+  func testLateDuplicateReadbackCannotMoveTheCursorAgain() {
+    let host = Host()
+    var callbacks: [() -> Void] = []
+    var access = host.access
+    access.settle = { callbacks.append($0) }
+    let delivery = OwlTemplateHostDelivery(access: access)
+    delivery.endImmediateDelivery()
+    var completions = 0
+    delivery.deliver(.init(text: "正文", cursorOffset: 1)) { _ in completions += 1 }
+    let callback = callbacks.removeFirst()
+    callback()
+    host.selection = NSRange(location: 3, length: 0)
+    callback()
+    XCTAssertEqual(completions, 1)
+    XCTAssertEqual(host.moves, 1, "a late duplicate receipt cannot repeat the cursor effect")
+    XCTAssertEqual(host.selection, NSRange(location: 3, length: 0))
+    XCTAssertEqual(host.writes.count, 1)
+  }
+
+  func testTargetChangingDuringReadbackCannotReceiveThePlannedWrite() {
+    let host = Host()
+    var access = host.access
+    let read = access.text
+    access.text = { range in
+      let text = read(range)
+      host.current = false
+      return text
+    }
+    let delivery = OwlTemplateHostDelivery(access: access)
+    XCTAssertEqual(delivery.deliver(.init(text: "结果", cursorOffset: 1)), .notAttempted(.targetChanged))
+    XCTAssertEqual(host.writes.count, 0)
+    XCTAssertEqual(host.text as String, "左;;a右")
+  }
+
   func testPlacementFailureKeepsCompleteTextAndDoesNotRepeatIt() {
     let host = Host(); host.acceptsMove = false
     let delivery = OwlTemplateHostDelivery(access: host.access)
@@ -138,11 +173,148 @@ final class OwlTemplateHostDeliveryTests: XCTestCase {
     XCTAssertTrue(OwlTemplateDeliveryOutcome.confirmedWithCursor(.leftAtEnd).keepsHostFocus)
   }
 
+  func testNativeDispatchRefusalIsNotReportedAsAnAttemptedWrite() {
+    let host = Host()
+    var access = host.access
+    access.insert = { _, _ in false }
+    let delivery = OwlTemplateHostDelivery(access: access)
+    XCTAssertEqual(delivery.deliver(.init(text: "正文", cursorOffset: 1)), .notAttempted(.targetChanged))
+    XCTAssertEqual(delivery.deliver(.init(text: "再次")), .notAttempted(.targetChanged))
+    XCTAssertEqual(host.writes.count, 0)
+    XCTAssertEqual(host.text as String, "左;;a右")
+  }
+
   func testReadbackFailureNeverMovesOrRepeats() {
     let host = Host(); host.acceptsText = false
     let delivery = OwlTemplateHostDelivery(access: host.access)
     XCTAssertEqual(delivery.deliver(.init(text: "正文", cursorOffset: 1)), .attemptedUnverified)
     XCTAssertEqual(host.writes.count, 1); XCTAssertEqual(host.moves, 0)
+  }
+
+  func testVerifiedCommittedTriggerIsPreservedAndReplacedWithoutIMKRanges() {
+    let host = Host()
+    host.text = "左;;ab\n右"
+    host.marked = NSRange(location: NSNotFound, length: 0)
+    host.selection = NSRange(location: 6, length: 0)
+    let source = OwlTemplateHostDelivery.AutomaticSource(originalInput: ";;ab\n",
+      markedRange: NSRange(location: 1, length: 5), markedText: ";;ab\n", isValid: { true }, committed: true)
+    let delivery = OwlTemplateHostDelivery(access: host.access, automaticSource: source)
+    XCTAssertEqual(delivery.prepareForPresentation(), .ready)
+    XCTAssertEqual(host.writes.count, 0, "the host already owns the complete original input")
+    XCTAssertEqual(delivery.deliver(.init(text: "中😀尾", cursorOffset: 3)), .confirmedWithCursor(.positioned))
+    XCTAssertEqual(host.text as String, "左中😀尾右")
+    XCTAssertEqual(host.selection, NSRange(location: 4, length: 0))
+    XCTAssertEqual(host.writes.count, 1)
+  }
+
+  func testDelayedSelectionPreparationWaitsAndConsumesLateCallbacksOnce() {
+    let host = Host()
+    host.marked = NSRange(location: NSNotFound, length: 0)
+    let original = NSRange(location: 1, length: 3)
+    let source = OwlTemplateHostDelivery.AutomaticSource(originalInput: ";;a",
+      markedRange: original, markedText: ";;a", isValid: { true }, committed: true)
+    var callbacks: [() -> Void] = []
+    var selections = 0
+    var access = host.access
+    access.needsSelectionPreparation = { true }
+    access.selectionWriter = { { range in
+      XCTAssertEqual(range, original)
+      selections += 1
+      return true // macOS accepted the request; its readback is still the previous selection.
+    } }
+    access.nextTurn = { callbacks.append($0) }
+    let insert = access.insert
+    access.insert = { text, range in
+      XCTAssertNil(range, "the AX route must not send a denied IMK replacement range")
+      return insert(text, range)
+    }
+    let delivery = OwlTemplateHostDelivery(access: access, automaticSource: source)
+    var outcomes: [OwlTemplateDeliveryOutcome] = []
+    delivery.deliver(.init(text: "前后", cursorOffset: 1)) { outcomes.append($0) }
+    XCTAssertEqual(host.writes.count, 0)
+    XCTAssertEqual(outcomes, [])
+    XCTAssertEqual(selections, 1)
+    guard !callbacks.isEmpty else { XCTFail("selection must settle before insertion"); return }
+    let first = callbacks.removeFirst()
+    first()
+    XCTAssertEqual(host.writes.count, 0)
+    guard !callbacks.isEmpty else { XCTFail("pending selection should receive a bounded later read"); return }
+    let ready = callbacks.removeFirst()
+    host.selection = original
+    ready()
+    ready(); first()
+    XCTAssertEqual(outcomes, [.confirmedWithCursor(.positioned)])
+    XCTAssertEqual(host.text as String, "左前后右")
+    XCTAssertEqual(host.selection, NSRange(location: 2, length: 0))
+    XCTAssertEqual(host.writes.count, 1)
+    XCTAssertEqual(selections, 1)
+  }
+
+  func testReentryWhileCapturingSelectionWriterCannotChangeTheSelection() {
+    for changesGeneration in [false, true] {
+      let host = Host()
+      host.marked = NSRange(location: NSNotFound, length: 0)
+      let source = OwlTemplateHostDelivery.AutomaticSource(originalInput: ";;a",
+        markedRange: NSRange(location: 1, length: 3), markedText: ";;a", isValid: { true }, committed: true)
+      weak var pending: OwlTemplateHostDelivery?
+      var selections = 0
+      var access = host.access
+      access.needsSelectionPreparation = { true }
+      access.selectionWriter = {
+        // Like axField(): a native query can reenter before returning the old field.
+        if changesGeneration { host.epoch += 1 } else { pending?.invalidate() }
+        return { range in selections += 1; host.selection = range; return true }
+      }
+      let delivery = OwlTemplateHostDelivery(access: access, automaticSource: source)
+      pending = delivery
+      XCTAssertEqual(delivery.deliver(.init(text: "正文", cursorOffset: 1)), .notAttempted(.targetChanged))
+      XCTAssertEqual(selections, 0, "cancelled or superseded calls must not change even the selection")
+      XCTAssertEqual(host.selection, NSRange(location: 4, length: 0))
+      XCTAssertEqual(host.writes.count, 0)
+      XCTAssertEqual(host.text as String, "左;;a右")
+    }
+  }
+
+  func testFailedOrCancelledSelectionPreparationNeverDispatches() {
+    // The native setter can reject outright, acknowledge without settling, or finish after cancel.
+    for mode in ["rejected", "unsettled", "cancelled"] {
+      let host = Host()
+      host.marked = NSRange(location: NSNotFound, length: 0)
+      let source = OwlTemplateHostDelivery.AutomaticSource(originalInput: ";;a",
+        markedRange: NSRange(location: 1, length: 3), markedText: ";;a", isValid: { true }, committed: true)
+      var callbacks: [() -> Void] = []
+      var selections = 0
+      var access = host.access
+      access.needsSelectionPreparation = { true }
+      access.selectionWriter = { { _ in selections += 1; return mode != "rejected" } }
+      access.nextTurn = { callbacks.append($0) }
+      let delivery = OwlTemplateHostDelivery(access: access, automaticSource: source)
+      var outcomes: [OwlTemplateDeliveryOutcome] = []
+      delivery.deliver(.init(text: "正文", cursorOffset: 1)) { outcomes.append($0) }
+      if mode == "cancelled" { delivery.invalidate() }
+      var turns = 0
+      while !callbacks.isEmpty && turns < 10 {
+        let callback = callbacks.removeFirst(); callback(); callback()
+        turns += 1
+      }
+      XCTAssertTrue(callbacks.isEmpty, "selection waiting must be bounded")
+      XCTAssertEqual(outcomes, [.notAttempted(mode == "cancelled" ? .targetChanged : .selectionNotPrepared)])
+      XCTAssertEqual(delivery.deliver(.init(text: "再次")), .notAttempted(.targetChanged))
+      XCTAssertEqual(selections, 1)
+      XCTAssertEqual(host.writes.count, 0)
+      XCTAssertEqual(host.text as String, "左;;a右")
+    }
+  }
+
+  func testExpandedResultLargerThanRequestLimitStillWritesOnce() {
+    let host = Host()
+    let delivery = OwlTemplateHostDelivery(access: host.access)
+    let text = String(repeating: "x", count: 5 * 1024 * 1024)
+    XCTAssertEqual(delivery.deliver(.init(text: text)), .attemptedUnverified)
+    XCTAssertEqual(host.writes.count, 1)
+    XCTAssertEqual(host.text.length, text.utf16.count + 2)
+    XCTAssertEqual(delivery.deliver(.init(text: "again")), .notAttempted(.targetChanged))
+    XCTAssertEqual(host.writes.count, 1)
   }
 
   func testAutomaticPreparationPreservesCompleteOriginalThenReplacesItsRangeOnce() {
@@ -198,6 +370,30 @@ final class OwlTemplateHostDeliveryTests: XCTestCase {
     XCTAssertEqual(delivery.deliver(.init(text: "结果")), .notAttempted(.targetChanged))
     XCTAssertEqual(host.writes.count, 1)
     XCTAssertEqual(host.text as String, "左;;ab\n右")
+  }
+
+  func testOriginalPreservationWaitsBeforePresentingAndDiscardsCancelledReceipt() {
+    for cancel in [false, true] {
+      let host = Host()
+      var settled: [() -> Void] = []
+      var access = host.access
+      access.settle = { settled.append($0) }
+      let delivery = OwlTemplateHostDelivery(access: access, automaticSource: host.source())
+      var entry = OwlTemplateEntry(title: "参数", body: "{argument name=x}")
+      entry.bodyType = .template
+      let invocation = OwlTemplateInvocation(content: .template(entry), broker: OwlPanelInsertionBroker(),
+        delivery: delivery, prepareAutomaticSource: true)
+      var presentations = 0
+      invocation.start { _ in presentations += 1 }
+      XCTAssertEqual(presentations, 0)
+      XCTAssertEqual(host.text as String, "左;;ab\n右")
+      if cancel { invocation.cancel() }
+      let callback = settled.removeFirst()
+      callback()
+      callback()
+      XCTAssertEqual(presentations, cancel ? 0 : 1)
+      XCTAssertEqual(host.writes.count, 1)
+    }
   }
 
   func testOriginalRangeEditAndRuntimeInvalidationRefuseReplacement() {
@@ -300,6 +496,13 @@ final class OwlTemplateHostDeliveryTests: XCTestCase {
       direct.append($0)
     }
     XCTAssertEqual(direct, ["field"])
+
+    var keyEventReads = 0
+    OwlTemplateHostDelivery.captureOutsideKeyEvent({ keyEventReads += 1; return "field" },
+      deferRead: true, schedule: { scheduled.append($0) }, store: { _ in })
+    XCTAssertEqual(keyEventReads, 0, "ordinary key handling never probes AX synchronously")
+    scheduled.removeFirst()()
+    XCTAssertEqual(keyEventReads, 1)
   }
 
   func testActivationRegistryFollowsIMKActivation() throws {

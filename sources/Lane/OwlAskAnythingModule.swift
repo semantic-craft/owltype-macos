@@ -143,6 +143,7 @@ final class OwlAskAnythingModule: OwlAskAnythingOpening {
   private let gate: OwlProviderAuthGate
   private let transport: OwlAskAnythingTransporting
   private let searchResolver: OwlAskSearchResolver
+  private struct AttemptStep: Decodable { let action: String; let index: Int; let providerID: String? }
 
   /// Live composition root for 任意提问. Callers receive only `OwlAskAnythingOpening`; all
   /// provider, search, and wire dependencies are assembled here and never cross that boundary.
@@ -191,13 +192,16 @@ final class OwlAskAnythingModule: OwlAskAnythingOpening {
     messages: [OwlDeepSeekMessage]
   ) -> Result<OwlAskStreamOpen, OwlStreamingReadiness> {
     let attempts = searchResolver.resolveAll()
-    guard let first = attempts.first else {
+    let core = try! OwlAppSession("askAttempts", args: ["providers": attempts.map(\.providerID)])
+    let plan: AttemptStep = core.call("next")
+    guard plan.action == "attempt" else {
       return plainOpen(messages: messages).map {
         OwlAskStreamOpen(stream: $0, searchProviderID: nil)
       }
     }
 
-    let attribution = OwlAskAttribution(searchProviderID: first.providerID)
+    let first = attempts[plan.index]
+    let attribution = OwlAskAttribution(searchProviderID: plan.providerID)
     // The first route is opened synchronously. Keeping it primed preserves the existing synchronous
     // opening timing, while the outer stream owns cancellation of the active adapter.
     let primed = transport.streamWebSearch(
@@ -206,6 +210,7 @@ final class OwlAskAnythingModule: OwlAskAnythingOpening {
       let task = Task { [weak self] in
         guard let self else { return continuation.finish() }
         await self.pump(
+          core: core,
           attempts: attempts,
           primed: primed,
           messages: messages,
@@ -219,73 +224,52 @@ final class OwlAskAnythingModule: OwlAskAnythingOpening {
 
   /// 逐家尝试到首个 delta；一旦有内容，后续失败不能换家，避免拼出两家各半的答案。
   private func pump(
+    core: OwlAppSession,
     attempts: [OwlAskSearchRoute],
     primed: AsyncThrowingStream<String, Error>?,
     messages: [OwlDeepSeekMessage],
     attribution: OwlAskAttribution,
     into continuation: AsyncThrowingStream<String, Error>.Continuation
   ) async {
-    var primed = primed
+    var step: AttemptStep = core.call("next")
     var lastError: Error?
-
-    for (index, attempt) in attempts.enumerated() {
-      if Task.isCancelled { return continuation.finish() }
-      attribution.update(searchProviderID: attempt.providerID)
-
-      let inner: AsyncThrowingStream<String, Error>
-      do {
-        if index == 0, let ready = primed {
-          inner = ready
-        } else {
-          inner = try open(route: attempt, messages: messages)
+    while true {
+      if Task.isCancelled { let _: AttemptStep = core.call("cancel"); return continuation.finish() }
+      attribution.update(searchProviderID: step.providerID)
+      switch step.action {
+      case "attempt":
+        let attempt = attempts[step.index]
+        do {
+          let inner: AsyncThrowingStream<String, Error>
+          if step.index == 0, let primed { inner = primed }
+          else { inner = try open(route: attempt, messages: messages) }
+          for try await delta in inner {
+            try Task.checkCancellation()
+            step = core.call("delta")
+            continuation.yield(delta)
+          }
+          step = core.call("complete")
+          if step.action == "empty" { return continuation.finish(throwing: OwlStreamingError.emptyResponse) }
+          return continuation.finish()
+        } catch {
+          if error is CancellationError || Task.isCancelled {
+            let _: AttemptStep = core.call("cancel")
+            return continuation.finish(throwing: CancellationError())
+          }
+          lastError = error
+          step = core.call("failure", OwlAskSearchFailover.facts(error))
         }
-      } catch {
-        if error is CancellationError || Task.isCancelled {
-          return continuation.finish(throwing: CancellationError())
+      case "plain":
+        guard case let .success(plain) = plainOpen(messages: messages) else {
+          return continuation.finish(throwing: lastError ?? OwlStreamingError.nonHTTPResponse)
         }
-        guard OwlAskSearchFailover.shouldTryNextAttempt(
-          after: error, hasYieldedDelta: false) else {
-          return continuation.finish(throwing: error)
-        }
-        lastError = error
-        continue
+        do {
+          for try await delta in plain { try Task.checkCancellation(); continuation.yield(delta) }
+          continuation.finish()
+        } catch { continuation.finish(throwing: error) }
+        return
+      default: return continuation.finish(throwing: lastError ?? OwlStreamingError.nonHTTPResponse)
       }
-      primed = nil
-
-      var yieldedAnyContent = false
-      do {
-        for try await delta in inner {
-          try Task.checkCancellation()
-          yieldedAnyContent = true
-          continuation.yield(delta)
-        }
-        guard yieldedAnyContent else { throw OwlStreamingError.emptyResponse }
-        return continuation.finish()
-      } catch {
-        if error is CancellationError || Task.isCancelled {
-          return continuation.finish(throwing: CancellationError())
-        }
-        guard OwlAskSearchFailover.shouldTryNextAttempt(
-          after: error, hasYieldedDelta: yieldedAnyContent) else {
-          return continuation.finish(throwing: error)
-        }
-        lastError = error
-      }
-    }
-
-    // Every online route was unusable. Fall back to plain ask and remove the online signature.
-    attribution.update(searchProviderID: nil)
-    guard case let .success(plain) = plainOpen(messages: messages) else {
-      return continuation.finish(throwing: lastError ?? OwlStreamingError.nonHTTPResponse)
-    }
-    do {
-      for try await delta in plain {
-        try Task.checkCancellation()
-        continuation.yield(delta)
-      }
-      continuation.finish()
-    } catch {
-      continuation.finish(throwing: error)
     }
   }
 

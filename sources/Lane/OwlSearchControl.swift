@@ -48,5 +48,5 @@ enum OwlSearchControl {
 
   /// 官方端点上依据检索结果作答的型号：V4.1 Flash，便宜、约 1 秒出首字。档案选的作答型号只管普通问答；
   /// 代理端点保留档案型号（代理不一定提供这个型号）。
-  static let searchModel = "deepseek-flash"
+  static let searchModel: String = OwlAIBusinessCore.call("searchModel", ["host": "api.deepseek.com"])
 }

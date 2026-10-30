@@ -5237,6 +5237,7 @@ fn real_engine_options(root: &std::path::Path) -> msime_engine::host::EngineOpti
         plugin_commands: Vec::new(),
         mention_entries: Vec::new(),
         quick_phrase_table: Vec::new(),
+        quick_phrase_table_in_candidates: false,
         quick_phrase_candidates: false,
         quick_phrase_frequency: true,
         helpcode_table: None,

@@ -25,10 +25,16 @@ enum OwlAnchorVerifyState: Equatable {
   case error(String)                       // 联网核验暂不可用
 
   var isPending: Bool {
+    let kind: String
     switch self {
-    case .idle, .notFound, .error: return true
-    case .loading, .success, .confirmed: return false
+    case .idle: kind = "idle"
+    case .loading: kind = "loading"
+    case .success: kind = "success"
+    case .confirmed: kind = "confirmed"
+    case .notFound: kind = "notFound"
+    case .error: kind = "error"
     }
+    return OwlAIBusinessCore.call("receiptPending", ["kind": kind])
   }
 
   var isVerified: Bool {
@@ -41,6 +47,8 @@ enum OwlAnchorVerifyState: Equatable {
 
 @MainActor
 final class OwlVerificationReceiptModel: ObservableObject {
+  private let core: OwlAITextSession
+  private var projection: Projection
   let selectedText: String
   let anchors: [OwlVerificationAnchor]
   /// 是否配好了豆包搜索（来源核验的检索层）；false 时只留跳库深链路（对齐 Responsay LegalBrain off）。
@@ -74,6 +82,9 @@ final class OwlVerificationReceiptModel: ObservableObject {
     },
     now: @escaping () -> Date = Date.init
   ) {
+    core = try! OwlAITextSession("verificationReceipt", args: ["anchors": OwlAIBusinessCore.json(anchors),
+      "text": selectedText, "available": onlineVerifyAvailable])
+    projection = core.call("snapshot")
     self.selectedText = selectedText
     self.anchors = anchors
     self.onlineVerifyAvailable = onlineVerifyAvailable
@@ -88,11 +99,7 @@ final class OwlVerificationReceiptModel: ObservableObject {
   /// 抽取 + 案号准入闸：案例类锚点显示前必过 OwlCaseNumberVerifier（spec §1.7），
   /// 形状对但年份非法（疑似杜撰）或残缺的案号不进清单。其余 kind 直接放行。
   static func admittedAnchors(from text: String, currentYear: Int) -> [OwlVerificationAnchor] {
-    let gate = OwlCaseNumberVerifier(currentYear: currentYear)
-    return OwlFactCoordinateExtractor.extract(from: text).filter { anchor in
-      guard anchor.kind == .caseLaw else { return true }
-      return gate.verify(anchor.label).disposition == .admit
-    }
+    OwlAIBusinessCore.call("admittedAnchors", ["text": text, "currentYear": currentYear])
   }
 
   // MARK: - 状态读数
@@ -101,25 +108,11 @@ final class OwlVerificationReceiptModel: ObservableObject {
     states[anchor.id] ?? .idle
   }
 
-  var isBusy: Bool { states.values.contains(.loading) }
-
-  var hasOutcome: Bool {
-    states.values.contains { state in
-      switch state {
-      case .success, .confirmed, .notFound, .error: return true
-      case .idle, .loading: return false
-      }
-    }
-  }
-
-  var verifiedCount: Int { anchors.filter { state(for: $0).isVerified }.count }
-
-  /// 红「疑似杜撰 · 待核」计数：法条联网搜不到（法条权威齐全，搜不到高度可疑）。
-  var suspectedCount: Int {
-    anchors.filter { $0.kind == .law && state(for: $0) == .notFound }.count
-  }
-
-  var pendingCount: Int { anchors.count - verifiedCount }
+  var isBusy: Bool { projection.busy }
+  var hasOutcome: Bool { projection.hasOutcome }
+  var verifiedCount: Int { projection.verifiedCount }
+  var suspectedCount: Int { projection.suspectedCount }
+  var pendingCount: Int { projection.pendingCount }
 
   /// 回执标题区副标题（对齐原型三态文案）。
   var subtitle: String {
@@ -137,44 +130,41 @@ final class OwlVerificationReceiptModel: ObservableObject {
   // MARK: - 联网核验（复用 OwlSourceVerificationService，结果进卡不进 AI 窗口）
 
   func verify(_ anchor: OwlVerificationAnchor) {
-    guard onlineVerifyAvailable else { return }
-    guard state(for: anchor) != .loading else { return }
+    transition("begin", ["id": anchor.id])
+    guard projection.accepted else { return }
+    let generation = projection.generation
     tasks[anchor.id]?.cancel()
-    states[anchor.id] = .loading
     tasks[anchor.id] = Task { [weak self] in
       guard let self else { return }
       let result: Result<OwlSourceVerificationOutcome, Error>
       do { result = .success(try await self.verifier(anchor.query)) }
       catch { result = .failure(error) }
-      // 被取消/卡已关的迟到结果不落盘——90s 后的旧答案不能覆盖用户已离开的视图。
       guard !Task.isCancelled else { return }
-      self.commit(result, for: anchor)
+      var args = Self.resultFacts(result, at: self.now())
+      args["id"] = anchor.id
+      args["generation"] = generation
+      self.transition("complete", args)
+      guard self.projection.accepted else { return }
+      let state = self.state(for: anchor)
+      if case .success = state { self.expanded[anchor.id] = true }
+      else if state == .notFound { self.expanded[anchor.id] = false }
+      self.tasks[anchor.id] = nil
     }
   }
 
   func verifyAll() {
-    for anchor in anchors where state(for: anchor).isPending {
-      verify(anchor)
-    }
+    let ids: [String] = core.call("eligible")
+    for id in ids { if let anchor = anchors.first(where: { $0.id == id }) { verify(anchor) } }
   }
 
   func cancel(_ anchor: OwlVerificationAnchor) {
     tasks[anchor.id]?.cancel()
     tasks[anchor.id] = nil
-    if states[anchor.id] == .loading { states[anchor.id] = .idle }
+    transition("cancel", ["id": anchor.id])
   }
 
   func cancelAll() {
     for anchor in anchors { cancel(anchor) }
-  }
-
-  private func commit(_ result: Result<OwlSourceVerificationOutcome, Error>, for anchor: OwlVerificationAnchor) {
-    let state = Self.resolvedState(from: result, at: now())
-    states[anchor.id] = state
-    // 绿卡默认展开、橙/红卡默认收起。
-    if case .success = state { expanded[anchor.id] = true } else if state == .notFound { expanded[anchor.id] = false }
-    completedAt = now()
-    tasks[anchor.id] = nil
   }
 
   /// 结果 → 行状态的纯映射（可单测）：有来源→绿；无来源（含 emptyResponse）→ notFound；
@@ -182,31 +172,19 @@ final class OwlVerificationReceiptModel: ObservableObject {
   nonisolated static func resolvedState(
     from result: Result<OwlSourceVerificationOutcome, Error>, at date: Date
   ) -> OwlAnchorVerifyState {
-    switch result {
-    case .success(let outcome):
-      guard let first = outcome.sources.first else { return .notFound }
-      let host = URL(string: first.url)?.host ?? "联网核验"
-      return .success(OwlVerifiedAnchorSource(
-        title: first.title.isEmpty ? first.url : first.title,
-        url: first.url,
-        accessedAt: timestamp(date),
-        provider: host,
-        snippet: outcome.content.isEmpty ? nil : String(outcome.content.prefix(200))
-      ))
-    case .failure(let error):
-      if case OwlSourceVerificationError.emptyResponse = error { return .notFound }
-      return .error(OwlSourceVerificationService.message(for: error))
-    }
+    let value: Row = OwlAIBusinessCore.call("receiptState", resultFacts(result, at: date))
+    return value.native
   }
 
   func confirm(_ anchor: OwlVerificationAnchor) {
-    guard case .success(let source) = state(for: anchor) else { return }
-    states[anchor.id] = .confirmed(source)
+    transition("confirm", ["id": anchor.id])
   }
 
   /// 「不对，手动查」：回到待核 + 复制检索词 + 打开该 kind 的默认库（对齐 Responsay dismissAndFallback）。
   func manualFallback(_ anchor: OwlVerificationAnchor) {
-    states[anchor.id] = .idle
+    tasks[anchor.id]?.cancel()
+    tasks[anchor.id] = nil
+    transition("fallback", ["id": anchor.id])
     copyQuery(anchor)
     open(OwlVerificationQueryRouter.route(
       query: anchor.query,
@@ -299,29 +277,51 @@ final class OwlVerificationReceiptModel: ObservableObject {
   }
 
   func receiptText() -> String {
-    var lines: [String] = ["猫头鹰核验回执 · \(Self.timestamp(completedAt ?? now()))"]
-    let quote = OwlVerificationQueryRouter.normalizeSelection(selectedText)
-    lines.append("引文：「\(quote)」")
-    for anchor in anchors {
-      let state = state(for: anchor)
-      let badge = state.isVerified ? "[已核]" : "[待核]"
-      var line = "\(badge) \(anchor.label)（\(anchor.kind.badgeLabel)）"
-      switch state {
-      case .confirmed(let source), .success(let source):
-        line += "\n    来源：\(source.title) \(source.url)"
-      case .notFound:
-        line += anchor.kind == .law
-          ? " — 疑似杜撰 · 待核（联网搜不到该条号）"
-          : " — 未能通过联网核实（搜不到 ≠ 不存在）"
-      case .error(let message):
-        line += " — \(message)"
-      case .idle, .loading:
-        break
+    core.call("receipt", ["timestamp": Self.timestamp(completedAt ?? now())])
+  }
+
+  private struct Row: Decodable {
+    let kind: String
+    let source: OwlVerifiedAnchorSource?
+    let message: String?
+    var native: OwlAnchorVerifyState {
+      switch kind {
+      case "loading": return .loading
+      case "success": return .success(source!)
+      case "confirmed": return .confirmed(source!)
+      case "notFound": return .notFound
+      case "error": return .error(message ?? "")
+      default: return .idle
       }
-      lines.append(line)
     }
-    lines.append("已核 \(verifiedCount) · 待核 \(pendingCount) · 疑似杜撰 \(suspectedCount)")
-    return lines.joined(separator: "\n")
+  }
+  private struct Projection: Decodable {
+    let accepted: Bool
+    let generation: UInt64
+    let states: [String: Row]
+    let busy: Bool
+    let hasOutcome: Bool
+    let verifiedCount: Int
+    let pendingCount: Int
+    let suspectedCount: Int
+    let completedAt: Double?
+  }
+  private func transition(_ event: String, _ args: [String: Any]) {
+    projection = core.call(event, args)
+    states = projection.states.mapValues(\.native)
+    completedAt = projection.completedAt.map(Date.init(timeIntervalSince1970:))
+  }
+  nonisolated private static func resultFacts(_ result: Result<OwlSourceVerificationOutcome, Error>, at date: Date) -> [String: Any] {
+    var facts: [String: Any] = ["timestamp": timestamp(date), "time": date.timeIntervalSince1970]
+    switch result {
+    case let .success(outcome):
+      facts["sources"] = OwlAIBusinessCore.json(outcome.sources)
+      facts["content"] = outcome.content
+    case let .failure(error):
+      if case OwlSourceVerificationError.emptyResponse = error { facts["error"] = "empty" }
+      else { facts["error"] = "failure"; facts["message"] = OwlSourceVerificationService.message(for: error) }
+    }
+    return facts
   }
 
   // MARK: - Toast

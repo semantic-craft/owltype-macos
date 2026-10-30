@@ -96,4 +96,14 @@ final class OwlAIContextAssemblerTests: XCTestCase {
     let lastSystemIndex = messages.lastIndex { $0.role == "system" } ?? -1
     XCTAssertLessThan(lastSystemIndex, firstUserIndex)
   }
+  func testOversizedExplicitTextUsesBusinessLimitsWithoutAnABIFailure() {
+    let text = String(repeating: "文", count: 1_500_000)
+    let messages = OwlAIContextAssembler.assemble(selectedText: text, question: text)
+    XCTAssertEqual(messages.last?.content, text)
+    XCTAssertEqual(OwlAIContextAssembler.selectionSummary(text), String(repeating: "文", count: 2000) + "…")
+    XCTAssertEqual(OwlSelectionPolish.rejectionReason(for: text), .selectionTooLong(1_500_000))
+    let raw = "{\"status\":\"ok\",\"prompt\":\"" + text + "\"}"
+    XCTAssertEqual(OwlPromptOptimizer.parse(raw), .ready(text))
+  }
+
 }

@@ -135,10 +135,12 @@ struct OwlRecordedHotKey: Equatable, Sendable {
   /// `nil` when the combo is outside the recordable range (non-letter key, unknown modifier bits,
   /// or fewer than two modifiers).
   init?(keyCode: UInt32, modifiers: UInt32) {
-    guard Self.letterKeyCodes[keyCode] != nil,
-          modifiers & ~Self.allowedModifierBits == 0,
-          modifiers.nonzeroBitCount >= 2
-    else { return nil }
+    let valid: Bool = OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "hotkey_validate",
+      "args": ["key_code": keyCode, "modifiers": modifiers]
+    ])
+    guard valid else { return nil }
     self.keyCode = keyCode
     self.modifiers = modifiers
   }
@@ -169,35 +171,35 @@ struct OwlRecordedHotKey: Equatable, Sendable {
 
   /// Encoded as "ctrl+shift+A"-style tokens; a slot's legacy preset rawValues also decode.
   static func encode(_ combo: OwlRecordedHotKey) -> String {
-    var tokens: [String] = []
-    if combo.modifiers & UInt32(controlKey) != 0 { tokens.append("ctrl") }
-    if combo.modifiers & UInt32(optionKey) != 0 { tokens.append("opt") }
-    if combo.modifiers & UInt32(shiftKey) != 0 { tokens.append("shift") }
-    if combo.modifiers & UInt32(cmdKey) != 0 { tokens.append("cmd") }
-    tokens.append(letterKeyCodes[combo.keyCode] ?? "?")
-    return tokens.joined(separator: "+")
+    OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "hotkey_encode",
+      "args": ["key_code": combo.keyCode, "modifiers": combo.modifiers]
+    ])
   }
 
   static func decode(_ raw: String,
                      legacyPresets: [String: (keyCode: UInt32, modifiers: UInt32)]) -> OwlRecordedHotKey? {
-    if let legacy = legacyPresets[raw] {
-      return OwlRecordedHotKey(keyCode: legacy.keyCode, modifiers: legacy.modifiers)
+    var legacy: [String: [UInt32]] = [:]
+    for (k, v) in legacyPresets {
+      legacy[k] = [v.keyCode, v.modifiers]
     }
-    let tokens = raw.split(separator: "+").map(String.init)
-    guard tokens.count >= 2, let letter = tokens.last,
-          let keyCode = letterKeyCodes.first(where: { $0.value == letter })?.key
-    else { return nil }
-    var modifiers: UInt32 = 0
-    for token in tokens.dropLast() {
-      switch token {
-      case "ctrl": modifiers |= UInt32(controlKey)
-      case "opt": modifiers |= UInt32(optionKey)
-      case "shift": modifiers |= UInt32(shiftKey)
-      case "cmd": modifiers |= UInt32(cmdKey)
-      default: return nil
+    struct WireResult: Decodable {
+      let keyCode: UInt32
+      let modifiers: UInt32
+
+      enum CodingKeys: String, CodingKey {
+        case keyCode = "key_code"
+        case modifiers
       }
     }
-    return OwlRecordedHotKey(keyCode: keyCode, modifiers: modifiers)
+    let wire: WireResult? = OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "hotkey_decode",
+      "args": ["raw": raw, "legacy_presets": legacy]
+    ])
+    guard let wire else { return nil }
+    return OwlRecordedHotKey(keyCode: wire.keyCode, modifiers: wire.modifiers)
   }
 }
 
@@ -212,13 +214,16 @@ enum OwlHotKeyMatcher {
 
   static func matches(_ combo: (keyCode: UInt32, modifiers: UInt32),
                       keyCode: UInt16, flags: NSEvent.ModifierFlags) -> Bool {
-    guard UInt32(keyCode) == combo.keyCode else { return false }
-    var expected: NSEvent.ModifierFlags = []
-    if combo.modifiers & UInt32(controlKey) != 0 { expected.insert(.control) }
-    if combo.modifiers & UInt32(optionKey) != 0 { expected.insert(.option) }
-    if combo.modifiers & UInt32(shiftKey) != 0 { expected.insert(.shift) }
-    if combo.modifiers & UInt32(cmdKey) != 0 { expected.insert(.command) }
-    return flags.intersection([.control, .option, .shift, .command]) == expected
+    OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "hotkey_matches",
+      "args": [
+        "combo_key_code": combo.keyCode,
+        "combo_modifiers": combo.modifiers,
+        "key_code": keyCode,
+        "flags": flags.rawValue
+      ]
+    ])
   }
 }
 

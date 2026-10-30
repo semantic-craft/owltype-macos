@@ -26,7 +26,7 @@ import SwiftUI
 /// 澄清）改由它承载：指令前缀藏进 `scaffold`（不再预填进输入框），澄清问题逐条显示在卡上，用户
 /// 只输入自己要补的内容；送出时发给模型的是 `scaffold + 输入`，气泡里展示的是「任务名：输入」。
 /// 点 × 可摘掉任务，退回普通提问。
-struct OwlAIComposerTask: Equatable {
+struct OwlAIComposerTask: Codable, Equatable {
   /// 任务签标题；也用作提问气泡的前缀，让历史可读。
   let label: String
   /// 逐条显示在任务卡上的澄清问题（空 = 无问题区）。
@@ -437,7 +437,7 @@ struct OwlAIConversationView: View {
   }
 
   private var canSend: Bool {
-    !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isStreaming
+    OwlAIContextAssembler.submission(question).accepted && !isStreaming
   }
 
   /// The answer currently available to copy (a finished answer, or a non-empty partial mid-stream).
@@ -464,18 +464,10 @@ struct OwlAIConversationView: View {
   }
 
   private func submit() {
-    let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return }
-    if let task {
-      // 任务卡：真正提交的是 scaffold + 用户补充；气泡展示「任务名：补充」。任务是一次性的，
-      // 送出即摘（后续追问不再重复携带脚手架）。
-      model.submit(
-        question: task.scaffold + trimmed,
-        displayQuestion: "\(task.label)：\(trimmed)")
-      self.task = nil
-    } else {
-      model.submit(question: trimmed)
-    }
+    let submission = OwlAIContextAssembler.submission(question, scaffold: task?.scaffold, label: task?.label)
+    guard submission.accepted else { return }
+    model.submit(question: submission.question, displayQuestion: submission.displayQuestion)
+    task = nil
     question = ""
   }
 }

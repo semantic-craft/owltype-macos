@@ -9,7 +9,7 @@
 import Carbon
 import Foundation
 
-enum OwlClientCapability: String, CaseIterable, Sendable {
+enum OwlClientCapability: String, CaseIterable, Codable, Sendable {
   case selectedRange
   case replacementRange
   case surroundingText
@@ -21,7 +21,7 @@ enum OwlClientCapability: String, CaseIterable, Sendable {
   case privacyComposition
 }
 
-enum OwlClientCapabilityReason: String, Sendable {
+enum OwlClientCapabilityReason: String, Codable, Sendable {
   case allowedDefault
   case allowedAppKitClient
   case deniedSecureInput
@@ -45,14 +45,14 @@ enum OwlClientCapabilityReason: String, Sendable {
   case userForcedDeny
 }
 
-struct OwlClientCapabilityDecision: Equatable, Sendable {
+struct OwlClientCapabilityDecision: Equatable, Codable, Sendable {
   let allowed: Bool
   let reason: OwlClientCapabilityReason
 
   var diagnosticReason: String { reason.rawValue }
 }
 
-struct OwlClientCapabilities: Equatable, Sendable {
+struct OwlClientCapabilities: Equatable, Codable, Sendable {
   let selectedRange: OwlClientCapabilityDecision
   let replacementRange: OwlClientCapabilityDecision
   let surroundingText: OwlClientCapabilityDecision
@@ -78,7 +78,7 @@ struct OwlClientCapabilities: Equatable, Sendable {
   }
 }
 
-struct OwlClientHostIdentity: Equatable, Sendable {
+struct OwlClientHostIdentity: Equatable, Codable, Sendable {
   var bundleID: String?
   var appName: String?
   var fieldRole: String?
@@ -108,7 +108,7 @@ struct OwlClientHostIdentity: Equatable, Sendable {
   }
 }
 
-struct OwlClientPrivacyState: Equatable, Sendable {
+struct OwlClientPrivacyState: Equatable, Codable, Sendable {
   var isSecureInputEnabled: Bool
   var isPasswordLike: Bool
   var isPrivacyModeRequested: Bool
@@ -128,7 +128,7 @@ struct OwlClientPrivacyState: Equatable, Sendable {
   }
 }
 
-struct OwlClientWorkaroundSettings: Equatable, Sendable {
+struct OwlClientWorkaroundSettings: Equatable, Codable, Sendable {
   var forceDeniedCapabilitiesByBundleID: [String: Set<OwlClientCapability>]
   var forceAllowedCapabilitiesByBundleID: [String: Set<OwlClientCapability>]
 
@@ -136,16 +136,12 @@ struct OwlClientWorkaroundSettings: Equatable, Sendable {
     forceDeniedCapabilitiesByBundleID: [String: Set<OwlClientCapability>] = [:],
     forceAllowedCapabilitiesByBundleID: [String: Set<OwlClientCapability>] = [:]
   ) {
-    self.forceDeniedCapabilitiesByBundleID = Self.normalized(forceDeniedCapabilitiesByBundleID)
-    self.forceAllowedCapabilitiesByBundleID = Self.normalized(forceAllowedCapabilitiesByBundleID)
-  }
-
-  private static func normalized(_ values: [String: Set<OwlClientCapability>]) -> [String: Set<OwlClientCapability>] {
-    Dictionary(uniqueKeysWithValues: values.map { ($0.key.lowercased(), $0.value) })
+    self.forceDeniedCapabilitiesByBundleID = forceDeniedCapabilitiesByBundleID
+    self.forceAllowedCapabilitiesByBundleID = forceAllowedCapabilitiesByBundleID
   }
 }
 
-struct OwlClientCapabilityInput: Equatable, Sendable {
+struct OwlClientCapabilityInput: Equatable, Codable, Sendable {
   var host: OwlClientHostIdentity
   var privacy: OwlClientPrivacyState
   var workarounds: OwlClientWorkaroundSettings
@@ -161,225 +157,21 @@ struct OwlClientCapabilityInput: Equatable, Sendable {
   }
 }
 
+/// Native transport and a bounded projection cache. All capability rules live in Rust.
 struct OwlClientCapabilityPolicy: Equatable, Sendable {
+  private static let lock = NSLock()
+  private static var cache: [(OwlClientCapabilityInput, OwlClientCapabilities)] = []
+
   func evaluate(_ input: OwlClientCapabilityInput) -> OwlClientCapabilities {
-    let facts = ClientFacts(input: input)
-    return OwlClientCapabilities(
-      selectedRange: selectedRange(facts),
-      replacementRange: replacementRange(facts),
-      surroundingText: surroundingText(facts),
-      caretAttributes: caretAttributes(facts),
-      nonzeroCharacterIndexAttributes: deny(.deniedNonzeroCharacterIndexHotPath),
-      inputModeSwitch: inputModeSwitch(facts),
-      contextMenu: contextMenu(facts),
-      delayedCandidatePositioning: delayedCandidatePositioning(facts),
-      privacyComposition: privacyComposition(facts)
-    )
-  }
-
-  private func selectedRange(_ facts: ClientFacts) -> OwlClientCapabilityDecision {
-    if let override = facts.override(.selectedRange) { return override }
-    if facts.secureInput { return deny(.deniedSecureInput) }
-    if facts.passwordLike { return deny(.deniedPasswordLikeContext) }
-    if facts.office { return deny(.deniedOfficeRange) }
-    if facts.googleDocs { return deny(.deniedGoogleDocsClient) }
-    if facts.chromium { return deny(.deniedChromiumClient) }
-    if facts.electron { return deny(.deniedElectronClient) }
-    if facts.safariAddressBar { return deny(.deniedSafariAddressBar) }
-    if facts.launcherSearch { return deny(.deniedLauncherSearchClient) }
-    return allow(.allowedDefault)
-  }
-
-  private func replacementRange(_ facts: ClientFacts) -> OwlClientCapabilityDecision {
-    if let override = facts.override(.replacementRange) { return override }
-    if facts.secureInput { return deny(.deniedSecureInput) }
-    if facts.passwordLike { return deny(.deniedPasswordLikeContext) }
-    if facts.office { return deny(.deniedOfficeRange) }
-    if facts.googleDocs { return deny(.deniedGoogleDocsClient) }
-    if facts.chromium { return deny(.deniedChromiumClient) }
-    if facts.electron { return deny(.deniedElectronClient) }
-    if facts.safariAddressBar { return deny(.deniedSafariAddressBar) }
-    if facts.launcherSearch { return deny(.deniedLauncherSearchClient) }
-    return facts.appKitFriendly ? allow(.allowedAppKitClient) : allow(.allowedDefault)
-  }
-
-  private func surroundingText(_ facts: ClientFacts) -> OwlClientCapabilityDecision {
-    if let override = facts.override(.surroundingText) { return override }
-    if facts.secureInput { return deny(facts.terminal ? .deniedTerminalSecureInput : .deniedSecureInput) }
-    if facts.passwordLike { return deny(.deniedPasswordLikeContext) }
-    if facts.googleDocs { return deny(.deniedGoogleDocsClient) }
-    if facts.chromium { return deny(.deniedChromiumClient) }
-    if facts.electron { return deny(.deniedElectronClient) }
-    if facts.safariAddressBar { return deny(.deniedSafariAddressBar) }
-    if facts.launcherSearch { return deny(.deniedLauncherSearchClient) }
-    return allow(.allowedDefault)
-  }
-
-  private func caretAttributes(_ facts: ClientFacts) -> OwlClientCapabilityDecision {
-    if let override = facts.override(.caretAttributes) { return override }
-    if facts.secureInput { return deny(.deniedSecureInput) }
-    if facts.passwordLike { return deny(.deniedPasswordLikeContext) }
-    if facts.launcherSearch { return deny(.deniedLauncherSearchClient) }
-    return allow(.allowedDefault)
-  }
-
-  private func inputModeSwitch(_ facts: ClientFacts) -> OwlClientCapabilityDecision {
-    if let override = facts.override(.inputModeSwitch) { return override }
-    if facts.word { return deny(.deniedOfficeInputMode) }
-    if facts.launcherSearch { return deny(.deniedLauncherSearchClient) }
-    return allow(.allowedDefault)
-  }
-
-  private func contextMenu(_ facts: ClientFacts) -> OwlClientCapabilityDecision {
-    if let override = facts.override(.contextMenu) { return override }
-    if facts.secureInput { return deny(.deniedSecureInput) }
-    if facts.passwordLike { return deny(.deniedPasswordLikeContext) }
-    if facts.launcherSearch { return deny(.deniedLauncherSearchClient) }
-    if facts.safariAddressBar { return deny(.deniedSafariAddressBar) }
-    return allow(.allowedDefault)
-  }
-
-  private func delayedCandidatePositioning(_ facts: ClientFacts) -> OwlClientCapabilityDecision {
-    if let override = facts.override(.delayedCandidatePositioning) { return override }
-    if facts.googleDocs { return allow(.delayedForGoogleDocsClient) }
-    if facts.chromium { return allow(.delayedForChromiumClient) }
-    if facts.electron { return allow(.delayedForElectronClient) }
-    if facts.safariAddressBar { return allow(.delayedForSafariAddressBar) }
-    return deny(.notNeeded)
-  }
-
-  private func privacyComposition(_ facts: ClientFacts) -> OwlClientCapabilityDecision {
-    if let override = facts.override(.privacyComposition) { return override }
-    if facts.secureInput || facts.passwordLike || facts.input.privacy.isPrivacyModeRequested {
-      return allow(.allowedPrivacyComposition)
-    }
-    return deny(.notNeeded)
-  }
-
-  private func allow(_ reason: OwlClientCapabilityReason) -> OwlClientCapabilityDecision {
-    OwlClientCapabilityDecision(allowed: true, reason: reason)
-  }
-
-  private func deny(_ reason: OwlClientCapabilityReason) -> OwlClientCapabilityDecision {
-    OwlClientCapabilityDecision(allowed: false, reason: reason)
-  }
-}
-
-private struct ClientFacts {
-  let input: OwlClientCapabilityInput
-  let bundle: String
-  let appName: String
-  let fieldRole: String
-  let fieldSignal: String
-  let windowTitle: String
-  let urlHost: String
-
-  init(input: OwlClientCapabilityInput) {
-    self.input = input
-    bundle = input.host.bundleID?.lowercased() ?? ""
-    appName = input.host.appName?.lowercased() ?? ""
-    fieldRole = input.host.fieldRole?.lowercased() ?? ""
-    fieldSignal = input.host.fieldIdentifierSignal?.lowercased() ?? ""
-    windowTitle = input.host.windowTitle?.lowercased() ?? ""
-    urlHost = input.host.urlHost?.lowercased() ?? ""
-  }
-
-  var secureInput: Bool { input.privacy.isSecureInputEnabled }
-  var passwordLike: Bool { input.privacy.isPasswordLike || fieldSignal.contains("password") || fieldRole.contains("secure") }
-
-  var word: Bool { bundle == "com.microsoft.word" }
-  var office: Bool {
-    word ||
-      bundle == "com.microsoft.excel" ||
-      bundle == "com.microsoft.powerpoint" ||
-      bundle == "com.microsoft.powerpoint.mac" ||
-      bundle == "com.microsoft.outlook"
-  }
-
-  var chromium: Bool {
-    [
-      "com.google.chrome",
-      "com.google.chrome.canary",
-      "org.chromium.chromium",
-      "com.microsoft.edgemac",
-      "com.brave.browser",
-      "com.vivaldi.vivaldi",
-      "com.operasoftware.opera"
-    ].contains(bundle)
-  }
-
-  var googleDocs: Bool {
-    urlHost == "docs.google.com" ||
-      urlHost.hasSuffix(".docs.google.com") ||
-      windowTitle.contains("google docs") ||
-      windowTitle.contains("google 文档") ||
-      windowTitle.contains("google 試算表")
-  }
-
-  var electron: Bool {
-    // 08-17 真机实锤（Cursor 候选窗不跟随光标）：手工名单永远追不上新 Electron App，判定
-    // 改为三层——① 运行时事实：宿主包里真的带 Electron Framework（OwlElectronHostDetector
-    // 探测，经 host.linksElectronFramework 喂进来）；② ToDesktop 打包的 App bundle ID 一律是
-    // `com.todesktop.<随机串>`（Cursor = com.todesktop.230313mzl4w4u92），前缀整族覆盖；
-    // ③ 原名单只作兜底，供探测拿不到 bundle URL 的场景。
-    input.host.linksElectronFramework ||
-      bundle.hasPrefix("com.todesktop.") ||
-      [
-        "com.tinyspeck.slackmacgap",
-        "com.hnc.discord",
-        "com.microsoft.vscode",
-        "com.github.githubclient",
-        "com.openai.chat",
-        // 07-21 真机实锤（Owltype `<` 菜单 → `<<>`）：Claude Code / Codex 桌面端也是 Electron，
-        // insertText(replacementRange:) 只认位置不删除范围——自替换退化成插入、内容损坏。
-        "com.anthropic.claudefordesktop",
-        "com.openai.codex",
-        "notion.id"
-      ].contains(bundle) ||
-      fieldSignal.contains("electron") ||
-      appName.contains("electron")
-  }
-
-  var safariAddressBar: Bool {
-    bundle == "com.apple.safari" &&
-      (fieldRole.contains("search") ||
-       fieldSignal.contains("address") ||
-       fieldSignal.contains("url") ||
-       fieldSignal.contains("search"))
-  }
-
-  var terminal: Bool {
-    bundle == "com.apple.terminal" ||
-      bundle == "com.googlecode.iterm2" ||
-      bundle == "dev.warp.warp-stable" ||
-      bundle == "com.github.wez.wezterm"
-  }
-
-  var launcherSearch: Bool {
-    bundle == "com.apple.spotlight" ||
-      bundle == "com.raycast.macos" ||
-      bundle == "com.runningwithcrayons.alfred" ||
-      appName.contains("spotlight") ||
-      appName.contains("raycast")
-  }
-
-  var appKitFriendly: Bool {
-    [
-      "com.apple.textedit",
-      "com.apple.notes",
-      "com.apple.mail",
-      "com.apple.stickies"
-    ].contains(bundle)
-  }
-
-  func override(_ capability: OwlClientCapability) -> OwlClientCapabilityDecision? {
-    guard !bundle.isEmpty else { return nil }
-    if input.workarounds.forceDeniedCapabilitiesByBundleID[bundle]?.contains(capability) == true {
-      return OwlClientCapabilityDecision(allowed: false, reason: .userForcedDeny)
-    }
-    if input.workarounds.forceAllowedCapabilitiesByBundleID[bundle]?.contains(capability) == true {
-      return OwlClientCapabilityDecision(allowed: true, reason: .userForcedAllow)
-    }
-    return nil
+    Self.lock.lock()
+    defer { Self.lock.unlock() }
+    if let cached = Self.cache.first(where: { $0.0 == input }) { return cached.1 }
+    let value: OwlClientCapabilities = OwlAppCore.required([
+      "operation": "client_capabilities", "input": OwlAppCore.payload(input)
+    ])
+    // Cache only native fact/value projections; no second business state or invalidation policy.
+    if Self.cache.count == 8 { Self.cache.removeFirst() }
+    Self.cache.append((input, value))
+    return value
   }
 }

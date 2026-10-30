@@ -491,96 +491,50 @@ enum OwlTISDiagnostics {
   static func classify(
     sources: [TISSourceState], currentSourceID: String?, expectedIDs: [String], primaryID: String
   ) -> TISDiagnosis {
-    var layers: [LayerResult] = []
-    let registered = !sources.isEmpty
-    let presentIDs = Set(sources.map { $0.id })
-    let primaryPresent = presentIDs.contains(primaryID)
-    let primary = sources.first { $0.id == primaryID }
-    // Half-state precedence: the current source is a Owltype source whose enabled bit is false — the
-    // key-swallowing dead state. This is a select-layer pathology (004), not an enable failure.
-    let halfState = currentSourceID.flatMap { cur in sources.first { $0.id == cur && !$0.enabled } }
-
-    // 1. register
-    layers.append(LayerResult(
-      layer: .register, ok: registered, code: registered ? nil : "OWL-TIS-001",
-      detail: registered
-        ? "\(sources.count) 个 Owltype 输入源可枚举（TISCreateInputSourceList includeAllInstalled=true）"
-        : "0 个 Owltype 输入源可枚举 → 未注册（核对安装路径/签名/Info.plist）"))
-
-    // 2. enumerate
-    let missing = expectedIDs.filter { !presentIDs.contains($0) }
-    if !registered {
-      layers.append(LayerResult(layer: .enumerate, ok: nil, code: nil, detail: "未评估（register 失败）"))
-    } else if !primaryPresent {
-      layers.append(LayerResult(
-        layer: .enumerate, ok: false, code: "OWL-TIS-001",
-        detail: "主输入源 \(primaryID) 不可枚举；已见 \(sources.map { $0.id })"))
-    } else {
-      layers.append(LayerResult(
-        layer: .enumerate, ok: true, code: nil,
-        detail: missing.isEmpty ? "全部期望输入源就位 \(expectedIDs)" : "主输入源就位；次要缺失 \(missing)"))
+    struct WireLayer: Decodable {
+      let layer: String
+      let ok: Bool?
+      let code: String?
+      let detail: String
     }
+    struct WireDiag: Decodable {
+      let layers: [WireLayer]
+      let firstFailingLayer: String?
+      let code: String?
 
-    // 3. enable (defers to select when the not-enabled source is the current one → half-state)
-    if !registered || !primaryPresent {
-      layers.append(LayerResult(layer: .enable, ok: nil, code: nil, detail: "未评估（主输入源不可枚举）"))
-    } else if let primary, primary.enabled {
-      layers.append(LayerResult(layer: .enable, ok: true, code: nil, detail: "主输入源 \(primaryID) 已启用"))
-    } else if halfState != nil {
-      layers.append(LayerResult(
-        layer: .enable, ok: nil, code: nil, detail: "enabled=false，属选中半态，见 select 层（OWL-TIS-004）"))
-    } else if let primary, !primary.enableCapable {
-      layers.append(LayerResult(
-        layer: .enable, ok: false, code: "OWL-TIS-002",
-        detail: "主输入源 \(primaryID) 不可启用（IsEnableCapable=false / 父条目未启用）"))
-    } else if let wrong = sources.first(where: { $0.enabled && !expectedIDs.contains($0.id) }) {
-      layers.append(LayerResult(
-        layer: .enable, ok: false, code: "OWL-TIS-002",
-        detail: "启用了非期望输入源 \(wrong.id) 而非 \(primaryID)（enable 打在错误条目/按名称选择）—— 只按精确 source id 操作"))
-    } else {
-      layers.append(LayerResult(
-        layer: .enable, ok: false, code: "OWL-TIS-003",
-        detail: "主输入源 \(primaryID) 可启用但读回 enabled=false —— 运行 --enable-input-source；读回仍 false = 启用不一致"))
-    }
-
-    // 4. select
-    if !registered || !primaryPresent {
-      layers.append(LayerResult(layer: .select, ok: nil, code: nil, detail: "未评估（主输入源不可枚举）"))
-    } else if let half = halfState {
-      layers.append(LayerResult(
-        layer: .select, ok: false, code: "OWL-TIS-004",
-        detail: "当前源 \(half.id) 已选中但 enabled=false（吞键死半态）—— 先切 ABC 再重选「猫头鹰」，或系统设置→键盘→输入法重加一次"))
-    } else if let primary, primary.enabled {
-      if !primary.selectCapable {
-        layers.append(LayerResult(
-          layer: .select, ok: false, code: "OWL-TIS-004",
-          detail: "主输入源 \(primaryID) 已启用但不可选中（IsSelectCapable=false）"))
-      } else if primary.selected {
-        layers.append(LayerResult(layer: .select, ok: true, code: nil, detail: "主输入源 \(primaryID) 已选中（当前）"))
-      } else {
-        layers.append(LayerResult(
-          layer: .select, ok: true, code: nil,
-          detail: "主输入源 \(primaryID) 已启用且可选中；当前未选中 —— 在输入菜单选「猫头鹰」即可"))
+      enum CodingKeys: String, CodingKey {
+        case layers, code
+        case firstFailingLayer = "first_failing_layer"
       }
-    } else {
-      layers.append(LayerResult(layer: .select, ok: nil, code: nil, detail: "未评估（主输入源未启用）"))
     }
-
-    // 5. menuVisible — read-only ceiling; surfaces the OWL-TIS-006 candidate note
-    let primaryEnabled = primary?.enabled ?? false
-    layers.append(LayerResult(
-      layer: .menuVisible, ok: nil, code: nil,
-      detail: primaryEnabled
-        ? "只读探针看不到输入菜单缓存。若已 enabled 但菜单仍不列「猫头鹰」= OWL-TIS-006（菜单缓存未刷新）：等软/硬窗自然翻绿或用手动菜单代理刷新按钮；刷新后仍不列 = 会话层拒收（TIS 全绿也无用户态解法，2026-08-12 本机实证），注销重登即愈"
-        : "未评估（主输入源未启用）"))
-
-    // 6. clientAttach — read-only ceiling; per-app IMK attach needs a live app
-    layers.append(LayerResult(
-      layer: .clientAttach, ok: nil, code: nil,
-      detail: "系统当前输入源 = \(currentSourceID ?? "无")。某 App 的 IMK client 是否 attach 需活跃 App：TIS 全绿但某「已打开」App 无输入 = OWL-TIS-005，重开该 App（系统天花板，微信同款）"))
-
-    let firstFailing = layers.first { $0.ok == false }
-    return TISDiagnosis(layers: layers, firstFailingLayer: firstFailing?.layer, code: firstFailing?.code)
+    let wireSources: [[String: Any]] = sources.map {
+      [
+        "id": $0.id,
+        "bundleID": $0.bundleID,
+        "localizedName": $0.localizedName,
+        "enabled": $0.enabled,
+        "selected": $0.selected,
+        "enableCapable": $0.enableCapable,
+        "selectCapable": $0.selectCapable
+      ]
+    }
+    let wire: WireDiag = OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "input_source_diag_classify",
+      "args": [
+        "sources": wireSources,
+        "current_source_id": currentSourceID as Any? ?? NSNull(),
+        "expected_ids": expectedIDs,
+        "primary_id": primaryID
+      ]
+    ])
+    let layers = wire.layers.compactMap { l in
+      ActivationLayer(rawValue: l.layer).map {
+        LayerResult(layer: $0, ok: l.ok, code: l.code, detail: l.detail)
+      }
+    }
+    let firstFailing: ActivationLayer? = wire.firstFailingLayer.flatMap { ActivationLayer(rawValue: $0) }
+    return TISDiagnosis(layers: layers, firstFailingLayer: firstFailing, code: wire.code)
   }
 
   /// PURE claim classifier over whatever LaunchServices resolves for `bundleID`, in any order.
@@ -588,28 +542,50 @@ enum OwlTISDiagnostics {
   /// the mechanism: a bundle with no Team ID is a local build, and resolving to it is what breaks
   /// the login restore. Exactly one signed claimant — the installed copy — is the healthy shape.
   static func classifyClaims(bundleID: String, claims: [LSBundleClaim]) -> LSClaimReport {
-    let sorted = claims.sorted { $0.path < $1.path }
-    let unsigned = sorted.filter { ($0.teamID ?? "").isEmpty }
-    let paths = sorted.map { $0.path }.joined(separator: "、")
-    let code: String?
-    let detail: String
-    if !unsigned.isEmpty {
-      code = "OWL-LS-002"
-      detail = "\(sorted.count) 个 bundle 认领 \(bundleID)，其中 \(unsigned.count) 个无 teamID（未签名 / ad-hoc 开发构建）："
-        + "\(unsigned.map { $0.path }.joined(separator: "、"))"
-    } else if sorted.count > 1 {
-      code = "OWL-LS-001"
-      detail = "\(sorted.count) 个已签名 bundle 认领 \(bundleID)：\(paths)；只应有装机版一条，其余会遮蔽它"
-    } else if let only = sorted.first {
-      code = nil
-      detail = "唯一认领 \(only.path)（teamID \(only.teamID ?? "")）"
-    } else {
-      code = nil
-      detail = "LaunchServices 解析不到 \(bundleID) 的任何认领 —— 未安装或未注册，见 register 层与 OWL-INSTALL-001"
+    struct WireReport: Decodable {
+      let bundleId: String
+      let claimCount: Int
+      let unsignedCount: Int
+      let claims: [WireClaim]
+      let code: String?
+      let detail: String
+
+      enum CodingKeys: String, CodingKey {
+        case claims, code, detail
+        case bundleId = "bundle_id"
+        case claimCount = "claim_count"
+        case unsignedCount = "unsigned_count"
+      }
     }
+    struct WireClaim: Decodable {
+      let path: String
+      let teamId: String?
+
+      enum CodingKeys: String, CodingKey {
+        case path
+        case teamId = "team_id"
+      }
+    }
+    let wireClaims: [[String: Any]] = claims.map {
+      ["path": $0.path, "team_id": $0.teamID as Any? ?? NSNull()]
+    }
+    let wire: WireReport = OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "input_source_diag_classify_claims",
+      "args": [
+        "bundle_id": bundleID,
+        "claims": wireClaims
+      ]
+    ])
+    let sortedClaims = wire.claims.map { LSBundleClaim(path: $0.path, teamID: $0.teamId) }
     return LSClaimReport(
-      bundleID: bundleID, claimCount: sorted.count, unsignedCount: unsigned.count,
-      claims: sorted, code: code, detail: detail)
+      bundleID: wire.bundleId,
+      claimCount: wire.claimCount,
+      unsignedCount: wire.unsignedCount,
+      claims: sortedClaims,
+      code: wire.code,
+      detail: wire.detail
+    )
   }
 
   /// LaunchServices claims on `bundleID`. Read-only: resolves the registration database, mutates

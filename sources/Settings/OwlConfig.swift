@@ -37,10 +37,7 @@ final class OwlConfig {
 
   func open(schemaID: String, baseConfig: OwlConfig?) -> Bool {
     close()
-    guard !schemaID.isEmpty,
-          schemaID.first != ".",
-          !schemaID.contains("/"),
-          !schemaID.contains("..") else {
+    guard OwlRustSchemaMap.configuration(schemaID).validConfigID else {
       return false
     }
     let opened = open(

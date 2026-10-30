@@ -18,23 +18,39 @@ enum OwlAgentSettings {
     bundle.bundleURL.appendingPathComponent("Contents/Helpers/owltype-mcp").path
   }
 
+  struct CliConfig: Decodable {
+    let agyCommand: String
+    let grokCommand: String
+    let grokConfig: String
+
+    enum CodingKeys: String, CodingKey {
+      case agyCommand = "agy_command"
+      case grokCommand = "grok_command"
+      case grokConfig = "grok_config"
+    }
+  }
+
+  static func cliConfig(helperPath: String) -> CliConfig {
+    OwlAppCore.required([
+      "operation": "agent_rule",
+      "rule": "cli_config",
+      "args": ["helper_path": helperPath]
+    ])
+  }
+
   /// The `agy mcp add` command for Antigravity CLI, quoted for zsh.
   static func agyCommand(helperPath: String) -> String {
-    "agy mcp add owltype \(shellQuoted(helperPath))"
+    cliConfig(helperPath: helperPath).agyCommand
   }
 
   /// The `grok mcp add` command, quoted for zsh.
   static func grokCommand(helperPath: String) -> String {
-    "grok mcp add owltype \(shellQuoted(helperPath))"
+    cliConfig(helperPath: helperPath).grokCommand
   }
 
   /// The same server as a `~/.grok/config.toml` block, with the longer tool timeout.
   static func grokConfig(helperPath: String) -> String {
-    """
-    [mcp_servers.owltype]
-    command = "\(helperPath.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))"
-    tool_timeout_sec = \(toolTimeoutSeconds)
-    """
+    cliConfig(helperPath: helperPath).grokConfig
   }
 
   static func shellQuoted(_ text: String) -> String {
@@ -57,17 +73,15 @@ enum OwlAgentSettings {
   }
 
   static func outcomeTitle(_ outcome: String) -> String {
-    switch outcome {
-    case "ok": return "完成"
-    case "delivered": return "已写入"
-    case "cancelled": return "已取消"
-    case "target_changed": return "目标已变"
-    case "expired": return "已过期"
-    case "agent_access_disabled": return "已关闭"
-    case "template_not_found": return "无此模板"
-    case "delivery_busy": return "正忙"
-    default: return outcome
+    struct OutcomeTitleResult: Decodable {
+      let title: String
     }
+    let res: OutcomeTitleResult = OwlAppCore.required([
+      "operation": "agent_rule",
+      "rule": "outcome_title",
+      "args": ["outcome": outcome]
+    ])
+    return res.title
   }
 }
 

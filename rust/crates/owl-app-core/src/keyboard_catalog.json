@@ -1,0 +1,976 @@
+{
+  "switches": [
+    {
+      "id": "wubiAutoCommitUnique",
+      "key": "OwlKeyboardWubiAutoCommitUnique",
+      "defaultValue": true,
+      "application": "engine",
+      "option": "wubi_auto_commit_unique",
+      "reappliesConfiguration": true,
+      "requiresIdle": false
+    },
+    {
+      "id": "wubiFifthCodeTopCommit",
+      "key": "OwlKeyboardWubiFifthCodeTopCommit",
+      "defaultValue": true,
+      "application": "engine",
+      "option": "wubi_fifth_code_top_commit",
+      "reappliesConfiguration": true,
+      "requiresIdle": false
+    },
+    {
+      "id": "wubiCodeHint",
+      "key": "OwlKeyboardWubiCodeHint",
+      "defaultValue": true,
+      "application": "engine",
+      "option": "wubi_code_hint",
+      "reappliesConfiguration": true,
+      "requiresIdle": false
+    },
+    {
+      "id": "wubiZWildcard",
+      "key": "OwlKeyboardWubiZWildcard",
+      "defaultValue": false,
+      "application": "engine",
+      "option": "wubi_z_wildcard",
+      "reappliesConfiguration": true,
+      "requiresIdle": true
+    },
+    {
+      "id": "wubiAutoClear",
+      "key": "OwlKeyboardWubiAutoClear",
+      "defaultValue": false,
+      "application": "engine",
+      "option": "wubi_auto_clear",
+      "reappliesConfiguration": true,
+      "requiresIdle": false
+    },
+    {
+      "id": "wubiZReverseLookup",
+      "key": "OwlKeyboardWubiZReverseLookup",
+      "defaultValue": true,
+      "application": "engine",
+      "option": "wubi_z_reverse_lookup",
+      "reappliesConfiguration": true,
+      "requiresIdle": false
+    },
+    {
+      "id": "wubiEnglishChannel",
+      "key": "OwlKeyboardWubiEnglishChannel",
+      "defaultValue": false,
+      "application": "engine",
+      "option": "wubi_english_channel",
+      "reappliesConfiguration": true,
+      "requiresIdle": false
+    },
+    {
+      "id": "wubiUserDictLearning",
+      "key": "OwlKeyboardWubiUserDictLearning",
+      "defaultValue": true,
+      "application": "engine",
+      "option": "wubi_user_dict_learning",
+      "reappliesConfiguration": true,
+      "requiresIdle": true
+    },
+    {
+      "id": "quickPhraseCandidates",
+      "key": "OwlKeyboardPinyinQuickPhraseCandidates",
+      "defaultValue": false,
+      "application": "engine",
+      "option": "quick_phrase_candidates",
+      "reappliesConfiguration": false,
+      "requiresIdle": false
+    },
+    {
+      "id": "cjkPunctToggle",
+      "key": "OwlKeyboardCJKPunctToggle",
+      "defaultValue": false,
+      "application": "session",
+      "option": "ascii_punct",
+      "reappliesConfiguration": true,
+      "requiresIdle": false
+    },
+    {
+      "id": "shiftSwitchCJK",
+      "key": "OwlKeyboardShiftSwitchCJK",
+      "defaultValue": true,
+      "application": "host",
+      "option": "",
+      "reappliesConfiguration": true,
+      "requiresIdle": false
+    },
+    {
+      "id": "goodOldCapsLock",
+      "key": "OwlKeyboardGoodOldCapsLock",
+      "defaultValue": true,
+      "application": "host",
+      "option": "",
+      "reappliesConfiguration": true,
+      "requiresIdle": false
+    },
+    {
+      "id": "pageMinusEquals",
+      "key": "OwlKeyboardPageMinusEquals",
+      "defaultValue": true,
+      "application": "host",
+      "option": "",
+      "reappliesConfiguration": true,
+      "requiresIdle": false
+    },
+    {
+      "id": "pageBrackets",
+      "key": "OwlKeyboardPageBrackets",
+      "defaultValue": false,
+      "application": "host",
+      "option": "",
+      "reappliesConfiguration": true,
+      "requiresIdle": false
+    },
+    {
+      "id": "pageCommaPeriod",
+      "key": "OwlKeyboardPageCommaPeriod",
+      "defaultValue": true,
+      "application": "host",
+      "option": "",
+      "reappliesConfiguration": true,
+      "requiresIdle": false
+    },
+    {
+      "id": "select23Semicolon",
+      "key": "OwlKeyboardSelect23Semicolon",
+      "defaultValue": false,
+      "application": "host",
+      "option": "",
+      "reappliesConfiguration": true,
+      "requiresIdle": false
+    },
+    {
+      "id": "slashSymbolMenu",
+      "key": "OwlKeyboardSlashSymbolMenu",
+      "defaultValue": false,
+      "application": "host",
+      "option": "",
+      "reappliesConfiguration": true,
+      "requiresIdle": false
+    },
+    {
+      "id": "angleSymbolMenu",
+      "key": "OwlKeyboardAngleSymbolMenu",
+      "defaultValue": false,
+      "application": "host",
+      "option": "",
+      "reappliesConfiguration": true,
+      "requiresIdle": false
+    },
+    {
+      "id": "traditionalOutput",
+      "key": "OwlKeyboardTraditionalOutput",
+      "defaultValue": false,
+      "application": "host",
+      "option": "",
+      "reappliesConfiguration": false,
+      "requiresIdle": false
+    },
+    {
+      "id": "defaultAsciiMode",
+      "key": "OwlKeyboardDefaultAsciiMode",
+      "defaultValue": false,
+      "application": "host",
+      "option": "",
+      "reappliesConfiguration": false,
+      "requiresIdle": false
+    },
+    {
+      "id": "defaultFullShape",
+      "key": "OwlKeyboardDefaultFullShape",
+      "defaultValue": false,
+      "application": "host",
+      "option": "",
+      "reappliesConfiguration": false,
+      "requiresIdle": false
+    },
+    {
+      "id": "autoPairBrackets",
+      "key": "OwlKeyboardAutoPairBrackets",
+      "defaultValue": true,
+      "application": "host",
+      "option": "",
+      "reappliesConfiguration": false,
+      "requiresIdle": false
+    },
+    {
+      "id": "smartPunctuation",
+      "key": "OwlKeyboardSmartPunctuation",
+      "defaultValue": true,
+      "application": "host",
+      "option": "",
+      "reappliesConfiguration": false,
+      "requiresIdle": false
+    },
+    {
+      "id": "smartPunctuationRepeat",
+      "key": "OwlKeyboardSmartPunctuationRepeat",
+      "defaultValue": true,
+      "application": "host",
+      "option": "",
+      "reappliesConfiguration": false,
+      "requiresIdle": false
+    },
+    {
+      "id": "smartPunctuationSpace",
+      "key": "OwlKeyboardSmartPunctuationSpace",
+      "defaultValue": false,
+      "application": "host",
+      "option": "",
+      "reappliesConfiguration": false,
+      "requiresIdle": false
+    },
+    {
+      "id": "cjkEnglishSpacing",
+      "key": "OwlKeyboardCJKEnglishSpacing",
+      "defaultValue": false,
+      "application": "host",
+      "option": "",
+      "reappliesConfiguration": false,
+      "requiresIdle": false
+    },
+    {
+      "id": "cjkNumberSpacing",
+      "key": "OwlKeyboardCJKNumberSpacing",
+      "defaultValue": false,
+      "application": "host",
+      "option": "",
+      "reappliesConfiguration": false,
+      "requiresIdle": false
+    }
+  ],
+  "schemas": [
+    {
+      "id": "rime_ice",
+      "name": "雾凇拼音"
+    },
+    {
+      "id": "double_pinyin_flypy",
+      "name": "小鹤双拼"
+    },
+    {
+      "id": "double_pinyin_mspy",
+      "name": "微软双拼"
+    },
+    {
+      "id": "double_pinyin_shoudao",
+      "name": "手心双拼"
+    },
+    {
+      "id": "double_pinyin",
+      "name": "自然码双拼"
+    },
+    {
+      "id": "double_pinyin_sogou",
+      "name": "搜狗双拼",
+      "customProfile": {
+        "initials": [
+          [
+            "ch",
+            "i"
+          ],
+          [
+            "sh",
+            "u"
+          ],
+          [
+            "zh",
+            "v"
+          ]
+        ],
+        "finals": [
+          [
+            "a",
+            "a"
+          ],
+          [
+            "ai",
+            "l"
+          ],
+          [
+            "an",
+            "j"
+          ],
+          [
+            "ang",
+            "h"
+          ],
+          [
+            "ao",
+            "k"
+          ],
+          [
+            "e",
+            "e"
+          ],
+          [
+            "ei",
+            "z"
+          ],
+          [
+            "en",
+            "f"
+          ],
+          [
+            "eng",
+            "g"
+          ],
+          [
+            "i",
+            "i"
+          ],
+          [
+            "ia",
+            "w"
+          ],
+          [
+            "ian",
+            "m"
+          ],
+          [
+            "iang",
+            "d"
+          ],
+          [
+            "iao",
+            "c"
+          ],
+          [
+            "ie",
+            "x"
+          ],
+          [
+            "in",
+            "n"
+          ],
+          [
+            "ing",
+            ";"
+          ],
+          [
+            "iong",
+            "s"
+          ],
+          [
+            "iu",
+            "q"
+          ],
+          [
+            "o",
+            "o"
+          ],
+          [
+            "ong",
+            "s"
+          ],
+          [
+            "ou",
+            "b"
+          ],
+          [
+            "u",
+            "u"
+          ],
+          [
+            "ua",
+            "w"
+          ],
+          [
+            "uai",
+            "y"
+          ],
+          [
+            "uan",
+            "r"
+          ],
+          [
+            "uang",
+            "d"
+          ],
+          [
+            "ue",
+            "t"
+          ],
+          [
+            "ui",
+            "v"
+          ],
+          [
+            "un",
+            "p"
+          ],
+          [
+            "uo",
+            "o"
+          ],
+          [
+            "v",
+            "y"
+          ],
+          [
+            "ve",
+            "t"
+          ]
+        ],
+        "zero_initials": [
+          [
+            "a",
+            "oa"
+          ],
+          [
+            "ai",
+            "ol"
+          ],
+          [
+            "an",
+            "oj"
+          ],
+          [
+            "ang",
+            "oh"
+          ],
+          [
+            "ao",
+            "ok"
+          ],
+          [
+            "e",
+            "oe"
+          ],
+          [
+            "ei",
+            "oz"
+          ],
+          [
+            "en",
+            "of"
+          ],
+          [
+            "eng",
+            "og"
+          ],
+          [
+            "er",
+            "or"
+          ],
+          [
+            "o",
+            "oo"
+          ],
+          [
+            "ou",
+            "ob"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "double_pinyin_abc",
+      "name": "智能ABC双拼"
+    },
+    {
+      "id": "double_pinyin_ziguang",
+      "name": "紫光双拼",
+      "customProfile": {
+        "initials": [
+          [
+            "ch",
+            "a"
+          ],
+          [
+            "sh",
+            "i"
+          ],
+          [
+            "zh",
+            "u"
+          ]
+        ],
+        "finals": [
+          [
+            "a",
+            "a"
+          ],
+          [
+            "ai",
+            "p"
+          ],
+          [
+            "an",
+            "r"
+          ],
+          [
+            "ang",
+            "s"
+          ],
+          [
+            "ao",
+            "q"
+          ],
+          [
+            "e",
+            "e"
+          ],
+          [
+            "ei",
+            "k"
+          ],
+          [
+            "en",
+            "w"
+          ],
+          [
+            "eng",
+            "t"
+          ],
+          [
+            "i",
+            "i"
+          ],
+          [
+            "ia",
+            "x"
+          ],
+          [
+            "ian",
+            "f"
+          ],
+          [
+            "iang",
+            "g"
+          ],
+          [
+            "iao",
+            "b"
+          ],
+          [
+            "ie",
+            "d"
+          ],
+          [
+            "in",
+            "y"
+          ],
+          [
+            "ing",
+            ";"
+          ],
+          [
+            "iong",
+            "h"
+          ],
+          [
+            "iu",
+            "j"
+          ],
+          [
+            "o",
+            "o"
+          ],
+          [
+            "ong",
+            "h"
+          ],
+          [
+            "ou",
+            "z"
+          ],
+          [
+            "u",
+            "u"
+          ],
+          [
+            "ua",
+            "x"
+          ],
+          [
+            "uai",
+            "y"
+          ],
+          [
+            "uan",
+            "l"
+          ],
+          [
+            "uang",
+            "g"
+          ],
+          [
+            "ue",
+            "n"
+          ],
+          [
+            "ui",
+            "n"
+          ],
+          [
+            "un",
+            "m"
+          ],
+          [
+            "uo",
+            "o"
+          ],
+          [
+            "v",
+            "v"
+          ],
+          [
+            "ve",
+            "n"
+          ]
+        ],
+        "zero_initials": [
+          [
+            "a",
+            "oa"
+          ],
+          [
+            "ai",
+            "op"
+          ],
+          [
+            "an",
+            "or"
+          ],
+          [
+            "ang",
+            "os"
+          ],
+          [
+            "ao",
+            "oq"
+          ],
+          [
+            "e",
+            "oe"
+          ],
+          [
+            "ei",
+            "ok"
+          ],
+          [
+            "en",
+            "ow"
+          ],
+          [
+            "eng",
+            "ot"
+          ],
+          [
+            "er",
+            "oj"
+          ],
+          [
+            "o",
+            "oo"
+          ],
+          [
+            "ou",
+            "oz"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "double_pinyin_jiajia",
+      "name": "拼音加加双拼",
+      "customProfile": {
+        "initials": [
+          [
+            "ch",
+            "u"
+          ],
+          [
+            "sh",
+            "i"
+          ],
+          [
+            "zh",
+            "v"
+          ]
+        ],
+        "finals": [
+          [
+            "a",
+            "a"
+          ],
+          [
+            "ai",
+            "s"
+          ],
+          [
+            "an",
+            "f"
+          ],
+          [
+            "ang",
+            "g"
+          ],
+          [
+            "ao",
+            "d"
+          ],
+          [
+            "e",
+            "e"
+          ],
+          [
+            "ei",
+            "w"
+          ],
+          [
+            "en",
+            "r"
+          ],
+          [
+            "eng",
+            "t"
+          ],
+          [
+            "i",
+            "i"
+          ],
+          [
+            "ia",
+            "b"
+          ],
+          [
+            "ian",
+            "j"
+          ],
+          [
+            "iang",
+            "h"
+          ],
+          [
+            "iao",
+            "k"
+          ],
+          [
+            "ie",
+            "m"
+          ],
+          [
+            "in",
+            "l"
+          ],
+          [
+            "ing",
+            "q"
+          ],
+          [
+            "iong",
+            "y"
+          ],
+          [
+            "iu",
+            "n"
+          ],
+          [
+            "o",
+            "o"
+          ],
+          [
+            "ong",
+            "y"
+          ],
+          [
+            "ou",
+            "p"
+          ],
+          [
+            "u",
+            "u"
+          ],
+          [
+            "ua",
+            "b"
+          ],
+          [
+            "uai",
+            "x"
+          ],
+          [
+            "uan",
+            "c"
+          ],
+          [
+            "uang",
+            "h"
+          ],
+          [
+            "ue",
+            "x"
+          ],
+          [
+            "ui",
+            "v"
+          ],
+          [
+            "un",
+            "z"
+          ],
+          [
+            "uo",
+            "o"
+          ],
+          [
+            "v",
+            "v"
+          ],
+          [
+            "ve",
+            "x"
+          ]
+        ],
+        "zero_initials": [
+          [
+            "a",
+            "aa"
+          ],
+          [
+            "ai",
+            "as"
+          ],
+          [
+            "an",
+            "af"
+          ],
+          [
+            "ang",
+            "ag"
+          ],
+          [
+            "ao",
+            "ad"
+          ],
+          [
+            "e",
+            "ee"
+          ],
+          [
+            "ei",
+            "ew"
+          ],
+          [
+            "en",
+            "er"
+          ],
+          [
+            "eng",
+            "et"
+          ],
+          [
+            "er",
+            "eq"
+          ],
+          [
+            "o",
+            "oo"
+          ],
+          [
+            "ou",
+            "op"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "wubi86_jidian",
+      "name": "极点五笔86"
+    },
+    {
+      "id": "wubi86_jidian_pinyin",
+      "name": "五笔拼音混输"
+    },
+    {
+      "id": "wubi86_jidian_trad",
+      "name": "五笔简入繁出"
+    },
+    {
+      "id": "wubi86_jidian_trad_pinyin",
+      "name": "五笔拼音混输·简入繁出"
+    },
+    {
+      "id": "wubi98",
+      "name": "五笔98"
+    },
+    {
+      "id": "wubi98_pinyin",
+      "name": "五笔98拼音混输"
+    },
+    {
+      "id": "wubi98_trad",
+      "name": "五笔98简入繁出"
+    },
+    {
+      "id": "wubi98_trad_pinyin",
+      "name": "五笔98拼音混输·简入繁出"
+    }
+  ],
+  "fuzzy": [
+    {
+      "id": "zhz",
+      "key": "OwlFuzzyZhZ",
+      "defaultValue": false
+    },
+    {
+      "id": "chc",
+      "key": "OwlFuzzyChC",
+      "defaultValue": false
+    },
+    {
+      "id": "shs",
+      "key": "OwlFuzzyShS",
+      "defaultValue": false
+    },
+    {
+      "id": "nl",
+      "key": "OwlFuzzyNL",
+      "defaultValue": false
+    },
+    {
+      "id": "fh",
+      "key": "OwlFuzzyFH",
+      "defaultValue": false
+    },
+    {
+      "id": "rl",
+      "key": "OwlFuzzyRL",
+      "defaultValue": false
+    },
+    {
+      "id": "anang",
+      "key": "OwlFuzzyAnAng",
+      "defaultValue": false
+    },
+    {
+      "id": "eneng",
+      "key": "OwlFuzzyEnEng",
+      "defaultValue": false
+    },
+    {
+      "id": "ining",
+      "key": "OwlFuzzyInIng",
+      "defaultValue": false
+    }
+  ],
+  "auxiliaryDefaults": {
+    "OwlEmojiInCandidates": true,
+    "OwlExperimentalKeyboardRerankEnabled": false,
+    "OwlExperimentalSettledRerankEnabled": false
+  },
+  "exportDefaults": {
+    "wubiUserDictLearning": false
+  },
+  "idleSettings": [
+    "fuzzyRules",
+    "wubiCandidateMode"
+  ]
+}

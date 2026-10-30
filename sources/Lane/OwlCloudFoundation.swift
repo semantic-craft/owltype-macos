@@ -36,7 +36,7 @@ enum OwlCloudPreferences {
   /// Explicit per-request network timeout (seconds). Bounds worst-case degrade latency so a
   /// hung cloud request never blocks the UI that triggered it. Long-output skills (提示词优化)
   /// carry their own longer timeout instead of reusing this. (G5)
-  static let requestTimeout: TimeInterval = 8
+  static var requestTimeout: TimeInterval { OwlLLMCallPurpose.interactiveRewrite.timeout }
 
   /// Default false. A caller must explicitly enable this before any network request can happen.
   /// Shared gate for the explicit cloud-AI features (划词润色 / 任意提问).
@@ -80,15 +80,7 @@ enum OwlCloudPreferences {
   }
 
   static func canonicalDeepSeekModel(_ raw: String?) -> String {
-    let model = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    switch model {
-    case "", "deepseek-chat":
-      return defaultDeepSeekModel
-    case "deepseek-reasoner":
-      return reasonerDeepSeekModel
-    default:
-      return model
-    }
+    OwlProviderCore.call("canonicalModel", ["model": raw ?? ""])
   }
 
   /// The one Chinese mapper for a refused cloud request, on every surface next to the cursor
@@ -97,35 +89,11 @@ enum OwlCloudPreferences {
     let status: Int
     let detail: OwlServerErrorDetail?
     switch error {
-    case let OwlCloudRequestError.badHTTPStatus(code, body),
-         let OwlStreamingError.badHTTPStatus(code, body):
+    case let OwlCloudRequestError.badHTTPStatus(code, body), let OwlStreamingError.badHTTPStatus(code, body):
       (status, detail) = (code, body)
-    default:
-      return "云端 AI 请求失败"
+    default: (status, detail) = (0, nil)
     }
-    if let refusal = OwlServerRefusal(code: detail?.code) { return refusal.message }
-    switch status {
-    case 400:
-      return "云端 AI 拒绝了此请求"
-    case 401:
-      return "云端 AI 的 API Key 无效"
-    case 402:
-      return "云端 AI 账户余额不足"
-    case 403:
-      return "云端 AI 拒绝访问，检查 API Key 的权限"
-    case 404:
-      return "云端 AI 找不到这个型号或端点"
-    case 422:
-      return "云端 AI 不支持的请求格式"
-    case 429:
-      return "云端 AI 请求过于频繁，请稍后再试"
-    case 500:
-      return "云端 AI 服务器错误，请稍后重试"
-    case 503:
-      return "云端 AI 服务繁忙，请稍后重试"
-    default:
-      return "云端 AI 请求失败（\(status)）"
-    }
+    return OwlProviderCore.call("errorMessage", ["status": status, "code": detail?.code ?? ""])
   }
 }
 
@@ -236,52 +204,22 @@ enum OwlThinkingControl {
 
   /// `fields` as top-level JSON, for a body built with `JSONSerialization`.
   static func offBody(_ fields: Fields) -> [String: Any] {
-    var body: [String: Any] = [:]
-    if let thinking = fields.thinking { body["thinking"] = ["type": thinking.type] }
-    if let enabled = fields.enableThinking { body["enable_thinking"] = enabled }
-    if let effort = fields.reasoningEffort { body["reasoning_effort"] = effort }
-    if let split = fields.reasoningSplit { body["reasoning_split"] = split }
-    return body
+    let data = try! JSONEncoder().encode(fields)
+    return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
   }
 
-  struct Fields {
+  struct Fields: Codable {
     var thinking: OwlDeepSeekThinking?
     var enableThinking: Bool?
     var reasoningEffort: String?
     var reasoningSplit: Bool?
+    enum CodingKeys: String, CodingKey {
+      case thinking
+      case enableThinking = "enable_thinking", reasoningEffort = "reasoning_effort", reasoningSplit = "reasoning_split"
+    }
   }
-
-  /// Typed equivalent for JSON-producing selection skills. Reasoning stays outside content.
   static func offFields(providerID: String, model: String) -> Fields {
-    switch resolved(providerID: providerID, model: model) {
-    case .deepSeekStyle: return Fields(thinking: .disabled)
-    case .dashScope: return Fields(enableThinking: false)
-    case .minimaxAdaptive: return Fields(reasoningEffort: "low", reasoningSplit: true)
-    case .minimaxDirect: return Fields(thinking: .disabled, reasoningSplit: true)
-    case .minimaxThinking: return Fields(reasoningSplit: true)
-    case .none: return Fields()
-    }
-  }
-
-  /// Which dialect of the thinking switch applies. Not public — callers want `offBody`/`offFields`.
-  private enum Dialect { case deepSeekStyle, dashScope, minimaxAdaptive, minimaxDirect, minimaxThinking, none }
-
-  private static func resolved(providerID: String, model: String) -> Dialect {
-    switch providerID.lowercased() {
-    // `{"thinking":{"type":"disabled"}}` — DeepSeek、火山方舟豆包 用的是同一种形状。
-    case "deepseek", "doubao": return .deepSeekStyle
-    case "qwen":               return .dashScope
-    case "openai", "gemini":   return .none
-    default: break
-    }
-    let m = model.lowercased()
-    // M3.1 Flash 不能关思考，只能调深度；`-preview` 是正式版前的 ID，旧档案仍按同一形状发。
-    if m == "minimax-m3.1-flash" || m == "minimax-m3.1-flash-preview" { return .minimaxAdaptive }
-    if m == "minimax-m3" { return .minimaxDirect }
-    if m.hasPrefix("minimax-m2") { return .minimaxThinking }
-    if m.hasPrefix("deepseek") || m.hasPrefix("doubao") { return .deepSeekStyle }
-    if m.hasPrefix("qwen") { return .dashScope }
-    return .none
+    OwlProviderCore.call("thinking", ["providerID": providerID, "model": model])
   }
 }
 
@@ -289,7 +227,7 @@ enum OwlChatSamplingControl {
   /// Gemini 3.8 deprecated sampling controls; omit them on its OpenAI-compatible endpoint too.
   /// https://ai.google.dev/gemini-api/docs/latest-model#migration-checklist
   static func temperature(_ value: Double, model: String) -> Double? {
-    model.lowercased() == "gemini-3.8-flash" ? nil : value
+    OwlProviderCore.call("temperature", ["model": model, "value": value])
   }
 }
 
@@ -312,6 +250,19 @@ struct OwlDeepSeekChatRequest: Codable, Equatable, Sendable {
   let reasoningEffort: String?
   let reasoningSplit: Bool?
 
+  func encode(to encoder: Encoder) throws {
+    let value: OwlJSONValue = OwlProviderCore.call("chatBody", [
+      "model": model, "messages": OwlAppCore.payload(messages), "stream": stream,
+      "temperature": temperature as Any? ?? NSNull(),
+      "responseFormat": responseFormat.map(OwlAppCore.payload) ?? NSNull(),
+      "thinking": thinking.map(OwlAppCore.payload) ?? NSNull(),
+      "enableThinking": enableThinking as Any? ?? NSNull(),
+      "reasoningEffort": reasoningEffort as Any? ?? NSNull(),
+      "reasoningSplit": reasoningSplit as Any? ?? NSNull(),
+    ])
+    try value.encode(to: encoder)
+  }
+
   enum CodingKeys: String, CodingKey {
     case model, messages, temperature, stream, thinking
     case responseFormat = "response_format"
@@ -333,7 +284,7 @@ enum OwlCloudRequestError: Error, Equatable {
 /// What a provider said when it refused a request, read from the error body. The raw `message`
 /// never reaches a surface next to the cursor: `OwlCloudPreferences.message(for:)` maps `code`,
 /// and only the settings connectivity probe shows `message`, after `sanitized(removing:)`.
-struct OwlServerErrorDetail: Equatable, Sendable {
+struct OwlServerErrorDetail: Codable, Equatable, Sendable {
   /// The provider's machine-readable reason (`code`, else `type`), e.g. `invalid_api_key`.
   let code: String?
   let message: String?
@@ -342,16 +293,7 @@ struct OwlServerErrorDetail: Equatable, Sendable {
   /// one-element array of either. A numeric `code` (Gemini repeats the HTTP status there) gives way
   /// to the string `status` beside it. Nil when the body has neither a code nor a message.
   static func parse(_ data: Data) -> OwlServerErrorDetail? {
-    var root = try? JSONSerialization.jsonObject(with: data)
-    if let array = root as? [Any] { root = array.first }
-    guard let object = root as? [String: Any] else { return nil }
-    let fields = object["error"] as? [String: Any] ?? object
-    let code = [fields["code"], fields["status"], fields["type"]]
-      .lazy.compactMap { $0 as? String }.first { !$0.isEmpty }
-    let message = (fields["message"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-      ?? (object["error"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-    guard code != nil || message != nil else { return nil }
-    return OwlServerErrorDetail(code: code, message: message)
+    OwlProviderCore.call("errorDetail", ["bytes": Array(data)])
   }
 
   /// Collects a refused stream's body (bounded) and parses it. Never throws: a body that cannot
@@ -367,16 +309,21 @@ struct OwlServerErrorDetail: Equatable, Sendable {
     return parse(Data(body.utf8))
   }
 
+  static func read(_ chunks: AsyncThrowingStream<Data, Error>, limit: Int = 16_384) async -> OwlServerErrorDetail? {
+    var data = Data()
+    do {
+      for try await chunk in chunks {
+        data.append(chunk.prefix(max(0, limit - data.count)))
+        if data.count >= limit { break }
+      }
+    } catch {}
+    return parse(data)
+  }
+
   /// `message` safe to show in settings: the API key and anything shaped like one masked,
   /// whitespace collapsed, at most `maxLength` characters.
   func sanitized(removing apiKey: String, maxLength: Int = 160) -> String {
-    guard var text = message else { return "" }
-    if apiKey.count >= 8 { text = text.replacingOccurrences(of: apiKey, with: "***") }
-    text = text.replacingOccurrences(
-      of: #"\b(sk|ak|key)-[A-Za-z0-9*._-]{4,}"#, with: "***",
-      options: [.regularExpression, .caseInsensitive])
-    text = text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
-    return text.count > maxLength ? String(text.prefix(maxLength)) + "…" : text
+    OwlProviderCore.call("sanitize", ["message": message ?? "", "key": apiKey, "limit": maxLength])
   }
 }
 
@@ -386,7 +333,7 @@ struct OwlServerErrorDetail: Equatable, Sendable {
 /// Gemini ai.google.dev/gemini-api/docs/api-errors. DeepSeek documents statuses only, and MiniMax
 /// reports `base_resp` inside a 200, so neither adds codes here. An unknown code is nil and the
 /// caller falls back to the HTTP status.
-enum OwlServerRefusal: Equatable {
+enum OwlServerRefusal: String, Equatable {
   case invalidKey
   case modelUnavailable
   case insufficientBalance
@@ -395,49 +342,12 @@ enum OwlServerRefusal: Equatable {
   case contentBlocked
 
   init?(code: String?) {
-    guard let code, let refusal = Self.codes[code.lowercased()] else { return nil }
-    self = refusal
+    let raw: String? = OwlProviderCore.call("refusal", ["code": code ?? ""])
+    guard let raw, let result = Self(rawValue: raw) else { return nil }
+    self = result
   }
+  var message: String { OwlProviderCore.call("refusalMessage", ["kind": rawValue]) }
 
-  /// Lowercased. 百炼 lists each code as a `Native/compatible` pair; both spellings are here.
-  private static let codes: [String: OwlServerRefusal] = [
-    "invalidapikey": .invalidKey, "invalid_api_key": .invalidKey,
-    "authenticationerror": .invalidKey, "authentication": .invalidKey,
-
-    "modelnotfound": .modelUnavailable, "model_not_found": .modelUnavailable,
-    "model_not_supported": .modelUnavailable, "modelnotopen": .modelUnavailable,
-    "invalidendpointormodel.notfound": .modelUnavailable,
-    "invalidendpointormodel.modelidaccessdisabled": .modelUnavailable,
-
-    "arrearage": .insufficientBalance, "accountoverdueerror": .insufficientBalance,
-    "operationdenied.serviceoverdue": .insufficientBalance,
-    "credit_balance_exhausted": .insufficientBalance, "payment_required": .insufficientBalance,
-
-    "allocationquota.freetieronly": .quotaExhausted, "quotaexceeded": .quotaExhausted,
-    "setlimitexceeded": .quotaExhausted, "quota_exceeded": .quotaExhausted,
-
-    "throttling.ratequota": .rateLimited, "limit_requests": .rateLimited,
-    "throttling.burstrate": .rateLimited, "ratelimitexceeded.endpointrpmexceeded": .rateLimited,
-    "ratelimitexceeded.endpointtpmexceeded": .rateLimited, "rate_limit_exceeded": .rateLimited,
-    "too_many_requests": .rateLimited, "slow_down": .rateLimited,
-
-    "datainspectionfailed": .contentBlocked, "data_inspection_failed": .contentBlocked,
-    "sensitivecontentdetected": .contentBlocked,
-    "inputtextsensitivecontentdetected": .contentBlocked,
-    "outputtextsensitivecontentdetected": .contentBlocked,
-    "inputtextriskdetection": .contentBlocked,
-  ]
-
-  var message: String {
-    switch self {
-    case .invalidKey: return "云端 AI 的 API Key 无效"
-    case .modelUnavailable: return "云端 AI 不提供这个型号，检查供应商档案里的型号"
-    case .insufficientBalance: return "云端 AI 账户余额不足"
-    case .quotaExhausted: return "云端 AI 的用量额度已用完"
-    case .rateLimited: return "云端 AI 请求过于频繁，请稍后再试"
-    case .contentBlocked: return "云端 AI 的内容审核拦下了这次请求"
-    }
-  }
 }
 
 /// Resolved routing for one cloud request: endpoint / model + the Keychain account
@@ -452,7 +362,7 @@ enum OwlServerRefusal: Equatable {
 ///      + `OwlCloudKeychain.readDeepSeekAPIKey`). This is the safety net; do not remove it.
 ///
 /// No network, no IMK hot path; pure value resolution from the store + UserDefaults.
-struct OwlCloudRouting: Equatable, Sendable {
+struct OwlCloudRouting: Codable, Equatable, Sendable {
   let providerID: String
   let endpoint: URL
   let model: String
@@ -462,22 +372,9 @@ struct OwlCloudRouting: Equatable, Sendable {
 
   /// Resolve from the active provider profile, falling back to the legacy globals when none exists.
   static func resolve(profile: OwlProviderProfile?) -> OwlCloudRouting {
-    if let profile {
-      return OwlCloudRouting(
-        providerID: OwlLLMProviderCatalog.inferredProviderID(for: profile),
-        endpoint: profile.endpoint,
-        model: profile.model.isEmpty ? OwlCloudPreferences.deepSeekModel : profile.model,
-        secretName: profile.secretName,
-        authHeaderStyle: .bearer
-      )
-    }
-    return OwlCloudRouting(
-      providerID: "deepseek",
-      endpoint: OwlCloudPreferences.deepSeekEndpoint,
-      model: OwlCloudPreferences.deepSeekModel,
-      secretName: nil,
-      authHeaderStyle: .bearer
-    )
+    OwlProviderCore.call("routing", ["profile": profile.map(OwlAppCore.payload) ?? NSNull(),
+      "legacyEndpoint": OwlCloudPreferences.deepSeekEndpoint.absoluteString,
+      "legacyModel": OwlCloudPreferences.deepSeekModel])
   }
 }
 
@@ -513,33 +410,7 @@ enum OwlCloudUsageTelemetry {
 /// numbered/bulleted list, and returns the cleaned, de-duplicated rewrite strings.
 enum OwlNumberedRewriteParser {
   static func parse(_ content: String) -> [String] {
-    let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-    if let data = trimmed.data(using: .utf8),
-       let array = try? JSONDecoder().decode([String].self, from: data) {
-      return cleaned(array)
-    }
-    if let data = trimmed.data(using: .utf8),
-       let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-       let array = object["candidates"] as? [String] {
-      return cleaned(array)
-    }
-    if trimmed.hasPrefix("[") || trimmed.hasPrefix("{") { return [] }
-    return cleaned(
-      trimmed
-        .split(whereSeparator: \.isNewline)
-        .map { line in
-          line.trimmingCharacters(in: CharacterSet(charactersIn: "-*0123456789.、 \t"))
-        }
-    )
-  }
-
-  private static func cleaned(_ values: [String]) -> [String] {
-    var seen = Set<String>()
-    return values.compactMap { value in
-      let text = value.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !text.isEmpty, seen.insert(text).inserted else { return nil }
-      return text
-    }
+    OwlProviderCore.call("numberedRewrite", ["text": content])
   }
 }
 
@@ -586,23 +457,23 @@ enum OwlDeepSeekClient {
 /// timeouts, dropped connections, 500/503, and empty content. Client errors (4xx) and
 /// decode failures are never retried (an identical second request won't change them).
 enum OwlCloudRetry {
-  static let maxAttempts = 2                            // 1 initial + 1 retry
-  static let backoffNanoseconds: UInt64 = 400_000_000  // ~400ms, a suspension not a block
+  static var maxAttempts: Int { OwlLLMCallPurpose.interactiveRewrite.maxAttempts }
+  static var backoffNanoseconds: UInt64 { OwlProviderCore.call("retryDelay") }
 
   static func isRetryable(_ error: Error) -> Bool {
-    if let cloud = error as? OwlCloudRequestError {
-      switch cloud {
-      case .emptyResponse: return true
-      case .badHTTPStatus(let status, _): return status == 500 || status == 503
-      default: return false
+    var kind = "other"
+    var status = 0
+    switch error {
+    case OwlCloudRequestError.emptyResponse: kind = "empty"
+    case let OwlCloudRequestError.badHTTPStatus(value, _): kind = "http"; status = value
+    case let value as URLError:
+      switch value.code {
+      case .timedOut: kind = "timeout"
+      case .networkConnectionLost: kind = "connectionLost"
+      default: break
       }
+    default: break
     }
-    if let urlError = error as? URLError {
-      switch urlError.code {
-      case .timedOut, .networkConnectionLost: return true
-      default: return false
-      }
-    }
-    return false
+    return OwlProviderCore.call("retry", ["kind": kind, "status": status])
   }
 }
