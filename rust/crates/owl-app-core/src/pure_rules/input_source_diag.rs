@@ -1,11 +1,16 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TisSourceState {
     pub id: String,
+    #[serde(alias = "bundle_id", alias = "bundleID")]
     pub bundle_id: String,
+    #[serde(alias = "localized_name")]
     pub localized_name: String,
+    #[serde(alias = "enable_capable")]
     pub enable_capable: bool,
+    #[serde(alias = "select_capable")]
     pub select_capable: bool,
     pub enabled: bool,
     pub selected: bool,
@@ -245,6 +250,7 @@ pub fn classify_tis_diagnosis(
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LsBundleClaim {
     pub path: String,
+    #[serde(default, alias = "teamID")]
     pub team_id: Option<String>,
 }
 
@@ -260,16 +266,19 @@ pub struct LsClaimReport {
 
 pub fn classify_ls_claims(bundle_id: &str, claims: &[LsBundleClaim]) -> LsClaimReport {
     let claim_count = claims.len();
-    let unsigned_count = claims.iter().filter(|c| c.team_id.is_none()).count();
-    let (code, detail) = if claim_count > 1 {
-        (
-            Some("OWL-LS-001".into()),
-            format!("{} 个不同构建认领同一 bundle id ({})", claim_count, bundle_id),
-        )
-    } else if unsigned_count > 0 {
+    let unsigned_count = claims
+        .iter()
+        .filter(|c| c.team_id.as_deref().map_or(true, |t| t.is_empty()))
+        .count();
+    let (code, detail) = if unsigned_count > 0 {
         (
             Some("OWL-LS-002".into()),
             format!("存在未签名构建认领同一 bundle id ({})", bundle_id),
+        )
+    } else if claim_count > 1 {
+        (
+            Some("OWL-LS-001".into()),
+            format!("{} 个不同构建认领同一 bundle id ({})", claim_count, bundle_id),
         )
     } else {
         (
@@ -277,11 +286,13 @@ pub fn classify_ls_claims(bundle_id: &str, claims: &[LsBundleClaim]) -> LsClaimR
             format!("{} 个构建认领同一 bundle id ({})，无冲突", claim_count, bundle_id),
         )
     };
+    let mut sorted_claims = claims.to_vec();
+    sorted_claims.sort_by(|a, b| a.path.cmp(&b.path));
     LsClaimReport {
         bundle_id: bundle_id.into(),
         claim_count,
         unsigned_count,
-        claims: claims.to_vec(),
+        claims: sorted_claims,
         code,
         detail,
     }

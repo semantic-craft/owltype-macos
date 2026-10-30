@@ -1,5 +1,12 @@
 import Foundation
 
+private protocol _NilRepresentable {
+  static var _nilValue: Self { get }
+}
+extension Optional: _NilRepresentable {
+  static var _nilValue: Self { nil }
+}
+
 private struct OwlAppCoreResponse<Value: Decodable>: Decodable {
   enum CodingKeys: String, CodingKey { case isOK = "ok", value, error }
   let isOK: Bool
@@ -27,18 +34,23 @@ enum OwlAppCore {
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .iso8601
     let decoded = try decoder.decode(OwlAppCoreResponse<Value>.self, from: data)
-    guard decoded.isOK, let value = decoded.value else {
-      let code = decoded.error ?? "invalid_response"
-      if code.hasPrefix("never_touch:") { throw OwlConfigWriteError.refusedNeverTouch(String(code.dropFirst(12))) }
-      if code.hasPrefix("unmanaged:") { throw OwlConfigWriteError.refusedUnmanagedFile(String(code.dropFirst(10))) }
-      if (code.hasPrefix("resource:") || code.hasPrefix("user_stage:") || code.hasPrefix("user_import:")) { throw Failure(code: code) }
-      let failure = OwlStorageHost.failure(code)
-      if case OwlTemplateError.invalid(let msg) = failure, msg == code {
-        throw Failure(code: code)
+    if decoded.isOK {
+      if let value = decoded.value {
+        return value
       }
-      throw failure
+      if let nilType = Value.self as? _NilRepresentable.Type {
+        return nilType._nilValue as! Value
+      }
     }
-    return value
+    let code = decoded.error ?? "invalid_response"
+    if code.hasPrefix("never_touch:") { throw OwlConfigWriteError.refusedNeverTouch(String(code.dropFirst(12))) }
+    if code.hasPrefix("unmanaged:") { throw OwlConfigWriteError.refusedUnmanagedFile(String(code.dropFirst(10))) }
+    if (code.hasPrefix("resource:") || code.hasPrefix("user_stage:") || code.hasPrefix("user_import:")) { throw Failure(code: code) }
+    let failure = OwlStorageHost.failure(code)
+    if case OwlTemplateError.invalid(let msg) = failure, msg == code {
+      throw Failure(code: code)
+    }
+    throw failure
   }
 
   static func initialASCIIMode(bundleID: String, englishBundleIDs: [String], defaultASCIIMode: Bool) -> Bool {
@@ -340,16 +352,20 @@ final class OwlStorageHost {
     guard let response else { throw OwlAppCore.Failure(code: "missing_response") }
     defer { owl_app_string_free(response) }
     let decoded = try decoder.decode(OwlAppCoreResponse<Value>.self, from: Data(bytes: response, count: strlen(response)))
-    guard decoded.isOK, let value = decoded.value else {
-      let code = decoded.error ?? "invalid_response"
-      if let error = errors[code] { throw error }
-      if code.hasPrefix("never_touch:") { throw OwlConfigWriteError.refusedNeverTouch(String(code.dropFirst(12))) }
-      if code.hasPrefix("unmanaged:") { throw OwlConfigWriteError.refusedUnmanagedFile(String(code.dropFirst(10))) }
-      if (code.hasPrefix("resource:") || code.hasPrefix("user_stage:") || code.hasPrefix("user_import:")) { throw OwlAppCore.Failure(code: code) }
-      throw Self.failure(code)
+    if decoded.isOK {
+      if let value = decoded.value {
+        return value
+      }
+      if let nilType = Value.self as? _NilRepresentable.Type {
+        return nilType._nilValue as! Value
+      }
     }
-
-    return value
+    let code = decoded.error ?? "invalid_response"
+    if let error = errors[code] { throw error }
+    if code.hasPrefix("never_touch:") { throw OwlConfigWriteError.refusedNeverTouch(String(code.dropFirst(12))) }
+    if code.hasPrefix("unmanaged:") { throw OwlConfigWriteError.refusedUnmanagedFile(String(code.dropFirst(10))) }
+    if (code.hasPrefix("resource:") || code.hasPrefix("user_stage:") || code.hasPrefix("user_import:")) { throw OwlAppCore.Failure(code: code) }
+    throw Self.failure(code)
   }
   static func failure(_ code: String) -> Error {
     let fixed: [String: Error] = [
@@ -405,7 +421,14 @@ final class OwlAppSession {
       guard let response else { throw OwlAppCore.Failure(code: "missing_response") }
       defer { owl_app_string_free(response) }
       let decoded = try JSONDecoder().decode(OwlAppCoreResponse<T>.self, from: Data(bytes: response, count: strlen(response)))
-      guard decoded.isOK, let value = decoded.value else { throw OwlAppCore.Failure(code: decoded.error ?? "invalid_response") }
-      return value
+      if decoded.isOK {
+        if let value = decoded.value {
+          return value
+        }
+        if let nilType = T.self as? _NilRepresentable.Type {
+          return nilType._nilValue as! T
+        }
+      }
+      throw OwlAppCore.Failure(code: decoded.error ?? "invalid_response")
   }
 }

@@ -5,7 +5,7 @@ use std::ffi::{c_char, CString};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 const ABI: u32 = 1;
-const MAX_REQUEST: usize = 4 * 1024 * 1024;
+const MAX_REQUEST: usize = 32 * 1024 * 1024;
 
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
@@ -340,7 +340,33 @@ fn dispatch(bytes: &[u8]) -> Value {
         }
         Request::TemplateRule { rule, args } => {
             let mut host = StatelessHost;
-            match owl_app_core::template_library::dispatch(&mut host, &rule, args) {
+            let result = if rule.starts_with("resource_") {
+                owl_app_core::resource::dispatch(&mut host, &rule, args)
+            } else if rule.starts_with("user_") {
+                owl_app_core::user_data::dispatch(&mut host, &rule, args)
+            } else if rule.starts_with("provider_") {
+                owl_app_core::provider_store::dispatch(&mut host, &rule, args)
+                    .map(|v| json!({"result": v}))
+            } else if rule.starts_with("writer_") {
+                owl_app_core::config_writer::dispatch(&mut host, &rule, args)
+            } else if rule.starts_with("picker_") {
+                owl_app_core::picker::dispatch(&mut host, &rule, args)
+            } else if rule.starts_with("quick_") {
+                owl_app_core::quick_send::dispatch(&mut host, &rule, args)
+            } else if rule.starts_with("editor_") {
+                owl_app_core::template_editor::dispatch(&mut host, &rule, args)
+            } else if rule.starts_with("prompt_") {
+                owl_app_core::prompt_store::dispatch(&mut host, &rule, args)
+            } else if rule.starts_with("import_") {
+                owl_app_core::template_import::dispatch(&mut host, &rule, args)
+            } else if rule.starts_with("backup_") {
+                owl_app_core::template_backup::dispatch(&mut host, &rule, args)
+            } else if rule.starts_with("migration_") {
+                owl_app_core::template_migration::dispatch(&mut host, &rule, args)
+            } else {
+                owl_app_core::template_library::dispatch(&mut host, &rule, args)
+            };
+            match result {
                 Ok(value) => value,
                 Err(code) => return error(&code),
             }
@@ -593,8 +619,26 @@ pub extern "C" fn owl_app_keyboard_refresh(pending: u8, composing: u8) -> u32 {
 }
 
 #[no_mangle]
-pub extern "C" fn owl_app_marked_text_should_send(prev_len: usize, next_len: usize) -> u8 {
-    u8::from(owl_app_core::pure_rules::marked_text_resend::should_resend_lengths(prev_len, next_len))
+pub unsafe extern "C" fn owl_app_marked_text_should_send(
+    prev_ptr: *const c_char,
+    prev_len: usize,
+    next_ptr: *const c_char,
+    next_len: usize,
+) -> bool {
+    if prev_len == 0 && next_len == 0 {
+        return false;
+    }
+    let prev_str = if prev_ptr.is_null() || prev_len == 0 {
+        ""
+    } else {
+        std::str::from_utf8(std::slice::from_raw_parts(prev_ptr as *const u8, prev_len)).unwrap_or("")
+    };
+    let next_str = if next_ptr.is_null() || next_len == 0 {
+        ""
+    } else {
+        std::str::from_utf8(std::slice::from_raw_parts(next_ptr as *const u8, next_len)).unwrap_or("")
+    };
+    owl_app_core::pure_rules::marked_text_resend::should_resend_marked_text(prev_str, next_str)
 }
 
 #[no_mangle]
@@ -701,14 +745,45 @@ mod tests {
             r#"{"operation":"pure_rule","rule":"auto_pair_decide","args":{"enabled":true,"commit_text":"（","right_neighbor":null,"caret_move_allowed":true}}"#.as_bytes(),
         );
         assert_eq!(res["ok"], true);
-        assert_eq!(res["value"]["action"], "pair");
+        assert_eq!(res["value"]["kind"], "pair");
         assert_eq!(res["value"]["open"], "（");
         assert_eq!(res["value"]["close"], "）");
 
         // Test C-ABI: marked_text_should_send
-        assert_eq!(owl_app_marked_text_should_send(0, 0), 0);
-        assert_eq!(owl_app_marked_text_should_send(1, 0), 1);
-        assert_eq!(owl_app_marked_text_should_send(0, 2), 1);
+        unsafe {
+            assert!(!owl_app_marked_text_should_send(std::ptr::null(), 0, std::ptr::null(), 0));
+            let s = std::ffi::CString::new("abc").unwrap();
+            assert!(owl_app_marked_text_should_send(s.as_ptr(), 3, std::ptr::null(), 0));
+            assert!(owl_app_marked_text_should_send(std::ptr::null(), 0, s.as_ptr(), 3));
+            assert!(owl_app_marked_text_should_send(s.as_ptr(), 3, s.as_ptr(), 3));
+            let empty = std::ffi::CString::new("").unwrap();
+            assert!(!owl_app_marked_text_should_send(empty.as_ptr(), 0, empty.as_ptr(), 0));
+        }
+    }
+
+    #[test]
+    fn handles_large_ai_rule_payloads_without_abi_rejection() {
+        let large_text = "文".repeat(1_500_000);
+        let req = json!({
+            "operation": "ai_rule",
+            "rule": "selectionSummary",
+            "args": { "text": large_text }
+        });
+        let bytes = serde_json::to_vec(&req).unwrap();
+        assert!(bytes.len() > 4 * 1024 * 1024);
+        let res = call(1, &bytes);
+        assert_eq!(res["ok"], true);
+        assert!(res["value"].as_str().unwrap().ends_with('…'));
+    }
+
+    #[test]
+    fn stateless_template_picker_rules_dispatch_cleanly() {
+        let res = call(
+            1,
+            br#"{"operation":"template_rule","rule":"picker_visible","args":{"model":{"rows":[],"query":"","selection":0}}}"#,
+        );
+        assert_eq!(res["ok"], true);
+        assert_eq!(res["value"], json!([]));
     }
 
     #[test]
