@@ -1303,3 +1303,8 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
   `OwlUserMigrationTests/testStagingIsDeterministicAndRepeatedPreparationReusesIt`
   exercise the public Swift→Rust boundary with isolated files. No installed user
   resources or personal journal were read, migrated or reset.
+
+- The first complete #365 gate also found `scripts/msime_pin.py` still checking
+  the removed Swift literals. Move the existing pin-consistency check with the
+  Rust catalog owner; a focused runtime pass alone does not cover repository
+  maintenance scripts. The original gate failure is retained in its receipt.

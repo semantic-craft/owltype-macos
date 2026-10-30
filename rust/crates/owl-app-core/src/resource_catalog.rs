@@ -1,4 +1,5 @@
 //! Binary-owned compatible resource set, model metadata and active-generation resolution.
+//! Pinned Wubi identity: dict-v2.0.39: both official 86/98 tables.
 use crate::{resource_contract::*, storage::Result};
 use serde_json::{json, Value};
 use std::{fs, path::Path};
