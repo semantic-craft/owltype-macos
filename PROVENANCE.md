@@ -98,3 +98,8 @@ The template module also uses the existing lockfile's `regex`, `unicode-segmenta
 (MIT OR Apache-2.0) and ICU4X `icu_normalizer` (Unicode-3.0). Grapheme segmentation
 preserves cursor boundaries; NFC comparison preserves Swift's canonical string equality
 without rewriting authored template text or inserted values. No fixed upstream source is changed.
+
+Library journals use `base64` 0.22 (MIT OR Apache-2.0) to preserve Foundation Data
+encoding and workspace `sha2` (MIT OR Apache-2.0) for existing snapshot digests.
+Storage/backup/migration modules are original Owltype code; native Foundation operations
+are injected services, while Rust owns write authorization, phases and recovery.

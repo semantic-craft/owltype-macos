@@ -1121,3 +1121,35 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
   that resent the whole expanded preview through the 4 MiB input limit. Existing legacy and
   transport tests now replay both failures, including a small request producing 5,000,000
   output bytes. Send only compact readiness facts; a request limit is not an output limit.
+
+## Preserve automatic-index error precedence across the App ABI
+
+- Seen 1x (2026-10-30): the #360 migration initially compared all trigger pairs before
+  building an index. Equal triggers with immediate expansion then reported a prefix conflict,
+  while the existing public seam requires duplicateTrigger. Five assertions in
+  `OwlAutomaticExpansionTests/testPrefixValidationDependsOnShorterModeInBothInsertionOrders`
+  failed. Rust now builds the actual trie and checks terminal duplication before descendants;
+  Swift decodes its immutable nodes without maintaining another conflict rule.
+- Verify (验证点): run that existing App-host test through `scripts/verify.py swift`.
+  Both insertion orders and all expansion modes must retain the original typed error.
+  This is isolated regression evidence, not installed keyboard acceptance.
+
+## Storage migration must retain Foundation text classes and read isolation
+
+- Seen 1x (2026-10-30): #360 review found Rust's default whitespace set omitted U+200B,
+  changing empty-content rejection, legacy code normalization and empty queries. It also
+  found `.lines()` missed CR/VT/FF/NEL/LS/PS in the orphan prompt-table audit, allowing
+  activation without the missing JSON bodies. Two real App-seam regressions reproduced
+  10 failed assertions before the fix. `foundation_text` now supplies the original three
+  CharacterSet contracts; parser, stores, editor and picker share them.
+- The same migration exposed a read path bypass: `currentLibrary` could return staged JSON
+  while another thread held the write transaction. The concurrent public-read regression
+  failed before Rust mode/load/current acquired a native process-lock effect. Read locks
+  create no directory/file and acquire no cross-process flock; pure candidate/picker
+  operations do not wait on this storage lock. The native call defer releases both lock
+  kinds after errors or ABI-contained panics, using the acquired canonical directory key.
+- Verify (验证点): run `OwlTemplateStoreTests/testFoundationWhitespaceIsPreservedAcrossLibraryAndLegacyBoundaries`,
+  `OwlTemplateMigrationTests/testOrphanPromptTableWithCarriageReturnCannotActivateAnEmptyLibrary`
+  and `OwlTemplateStoreTests/testConcurrentCurrentLibraryReadWaitsForTheCompleteSave`
+  with `scripts/verify.py swift`. Existing save/recovery and Unicode-template suites must
+  remain green. These synthetic fixtures do not establish installed-host acceptance.

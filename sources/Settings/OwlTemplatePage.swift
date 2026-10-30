@@ -28,12 +28,7 @@ final class OwlTemplateEditorModel: ObservableObject {
 
   func reload() {
     do {
-      switch OwlTemplateStore.mode(dataDir: writer.dataDir) {
-      case .empty: library = OwlTemplateLibrary()
-      case .unified: library = try OwlTemplateStore.load(dataDir: writer.dataDir)
-      case .legacy: throw OwlTemplateError.legacyRequiresMigration
-      case .unavailable(let message): throw OwlTemplateError.invalid(message)
-      }
+      library = try OwlTemplateBackup(dataDir: writer.dataDir).currentLibrary()
       canEdit = true
       status = ""
     } catch {
@@ -49,11 +44,7 @@ final class OwlTemplateEditorModel: ObservableObject {
   }
 
   func setInvocationMode(_ mode: OwlTemplateEntry.InvocationMode) {
-    if mode == .automatic {
-      if draft.invocationMode != .automatic { draft.expansionMode = .immediate }
-    }
-    draft.invocationMode = mode
-    if mode != .candidate { draft.candidateAliases = [] }
+    _ = edit("invocation", ["mode": mode.rawValue])
   }
 
   func reloadAutomaticConfiguration() {
@@ -69,64 +60,37 @@ final class OwlTemplateEditorModel: ObservableObject {
 
   @discardableResult
   func addDisabledBundleID(_ text: String) -> Bool {
-    let value = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    guard value.contains("."), value.range(of: "^[a-z0-9][a-z0-9.-]*$", options: .regularExpression) != nil else {
-      status = "请输入应用的完整 bundle ID，例如 com.apple.TextEdit。"; return false
-    }
-    guard !disabledBundleIDs.contains(where: { $0.caseInsensitiveCompare(value) == .orderedSame }) else { return true }
-    disabledBundleIDs.append(value)
-    defaults.set(disabledBundleIDs, forKey: OwlAutomaticExpansionRuntime.disabledBundleIDsKey)
-    reloadAutomaticConfiguration()
-    return true
+    do {
+      disabledBundleIDs = try OwlStorageHost(dataDir: writer.dataDir).call("editor_disabled_apps", ["values": disabledBundleIDs, "text": text, "remove": false])
+      defaults.set(disabledBundleIDs, forKey: OwlAutomaticExpansionRuntime.disabledBundleIDsKey)
+      reloadAutomaticConfiguration()
+      return true
+    } catch { status = error.localizedDescription; return false }
   }
-
   func removeDisabledBundleID(_ value: String) {
-    disabledBundleIDs.removeAll { $0.caseInsensitiveCompare(value) == .orderedSame }
+    disabledBundleIDs = OwlTemplateStore.core("editor_disabled_apps", ["values": disabledBundleIDs, "text": value, "remove": true])
     defaults.set(disabledBundleIDs, forKey: OwlAutomaticExpansionRuntime.disabledBundleIDsKey)
     reloadAutomaticConfiguration()
   }
 
   var hasUnsavedChanges: Bool {
-    if let saved = library.entries.first(where: { $0.id == draft.id }) {
-      return (try? OwlTemplateStore.encoded(.init(entries: [saved]))) != (try? OwlTemplateStore.encoded(.init(entries: [draft])))
-    }
-    return !draft.title.isEmpty || !draft.body.isEmpty || draft.trigger != nil || !draft.tags.isEmpty || draft.isPinned
+    OwlTemplateStore.core("editor_unsaved", ["draft": OwlAppCore.payload(draft), "library": OwlAppCore.payload(library)])
   }
-
-  func addTag(_ input: String) {
-    let tag = input.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !tag.isEmpty, !draft.tags.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) else { return }
-    draft.tags.append(tag)
+  @discardableResult private func edit(_ action: String, _ values: [String: Any] = [:]) -> Bool {
+    struct Result: Decodable { let draft: OwlTemplateEntry; let status: String? }
+    var args = values; args["action"] = action; args["draft"] = OwlAppCore.payload(draft)
+    do {
+      let result: Result = try OwlStorageHost(dataDir: writer.dataDir).call("editor_edit", args)
+      draft = result.draft
+      if let message = result.status { status = message }
+      return true
+    } catch { status = error.localizedDescription; return false }
   }
-
-  @discardableResult
-  func insertClipboardField() -> Bool { appendDynamicField("{clipboard}") }
-
-  @discardableResult
-  func insertCursorField() -> Bool { appendDynamicField("{cursor}") }
-
-  @discardableResult
-  func insertTemporalField(kind: OwlTemplateEngine.TemporalKind, format: String, offset: String) -> Bool {
-    var field = "{" + kind.rawValue
-    if !format.isEmpty { field += " format=" + OwlTemplateEngine.quoted(format) }
-    if !offset.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      field += " offset=" + OwlTemplateEngine.quoted(offset)
-    }
-    return appendDynamicField(field + "}")
-  }
-
-  private func appendDynamicField(_ field: String) -> Bool {
-    guard draft.bodyType == .template, draft.syntax == .standard else {
-      status = "请先明确切换到模板及动态字段语法。"; return false
-    }
-    var candidate = draft
-    candidate.body += field
-    if let error = OwlTemplateEngine.parse(body: candidate.body, bodyType: candidate.bodyType, syntax: candidate.syntax, definitions: candidate.parameters).diagnostics.first(where: { $0.severity == .error }) {
-      status = error.message; return false
-    }
-    draft = candidate
-    status = "已插入到正文末尾，保存后生效。"
-    return true
+  func addTag(_ input: String) { _ = edit("tag", ["text": input]) }
+  @discardableResult func insertClipboardField() -> Bool { edit("dynamic", ["text": "{clipboard}"]) }
+  @discardableResult func insertCursorField() -> Bool { edit("dynamic", ["text": "{cursor}"]) }
+  @discardableResult func insertTemporalField(kind: OwlTemplateEngine.TemporalKind, format: String, offset: String) -> Bool {
+    edit("temporal", ["kind": kind.rawValue, "format": format, "offset": offset])
   }
 
   func delete(_ entry: OwlTemplateEntry) -> Bool {
@@ -180,103 +144,24 @@ final class OwlTemplateEditorModel: ObservableObject {
     return diagnostic.message
   }
 
-  func setBody(_ body: String) {
-    guard !draft.body.utf8.elementsEqual(body.utf8) else { return }
-    let hadAnonymousSettings = draft.parameters.contains { $0.key.hasPrefix("a:") }
-    draft.body = body
-    if hadAnonymousSettings {
-      draft.parameters.removeAll { $0.key.hasPrefix("a:") }
-      status = "正文已修改：匿名参数设置已重置，请重新核对必填、默认值和选项。命名参数设置保留。"
-    }
+  func setBody(_ body: String) { _ = edit("body", ["text": body]) }
+  @discardableResult func insertParameter(name: String, required: Bool, defaultValue: String?, options: String) -> Bool {
+    edit("insert_parameter", ["name": name, "required": required, "defaultValue": defaultValue as Any? ?? NSNull(), "options": options])
   }
-
-  @discardableResult
-  func insertParameter(name: String, required: Bool, defaultValue: String?, options: String) -> Bool {
-    guard draft.bodyType == .template, draft.syntax == .standard else {
-      status = "请先明确选择模板及动态字段语法。"
-      return false
-    }
-    let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-    let count = parsed.parameters.filter { $0.key.hasPrefix("a:") }.count + 1
-    let key = cleanName.isEmpty ? "a:\(count)" : "n:" + cleanName
-    let definition = OwlTemplateParameter(key: key, name: cleanName.isEmpty ? "参数 \(count)" : cleanName,
-      isRequired: required, defaultValue: defaultValue, options: parseOptions(options))
-    var candidate = draft
-    candidate.body += parameterText(definition, anonymous: cleanName.isEmpty)
-    candidate.parameters.removeAll { $0.key == key }
-    candidate.parameters.append(definition)
-    let diagnostics = OwlTemplateEngine.parse(body: candidate.body, bodyType: candidate.bodyType, syntax: candidate.syntax, definitions: candidate.parameters).diagnostics
-    guard !diagnostics.contains(where: { $0.severity == .error }) else {
-      status = diagnostics.first(where: { $0.severity == .error })?.message ?? "参数无效。"
-      return false
-    }
-    draft = candidate
-    status = "已插入到正文末尾，保存后生效。"
-    return true
-  }
-
   func updateParameter(_ parameter: OwlTemplateEngine.Parameter, required: Bool, defaultValue: String?, options: String) -> Bool {
-    let definition = OwlTemplateParameter(key: parameter.key, name: parameter.name, isRequired: required,
-      defaultValue: defaultValue, options: parseOptions(options))
-    var candidate = draft
-    if !parameter.legacy {
-      let text = NSMutableString(string: candidate.body)
-      for range in parameter.ranges.reversed() {
-        text.replaceCharacters(in: range, with: parameterText(definition, anonymous: parameter.key.hasPrefix("a:")))
-      }
-      candidate.body = text as String
-    }
-    candidate.parameters.removeAll { $0.key == parameter.key }
-    candidate.parameters.append(definition)
-    let diagnostics = OwlTemplateEngine.parse(body: candidate.body, bodyType: candidate.bodyType, syntax: candidate.syntax, definitions: candidate.parameters).diagnostics
-    guard !diagnostics.contains(where: { $0.severity == .error }) else {
-      status = diagnostics.first(where: { $0.severity == .error })?.message ?? "参数无效。"
-      return false
-    }
-    draft = candidate
-    status = "参数设置已更新，保存后生效。"
-    return true
+    edit("update_parameter", ["parameter": OwlAppCore.payload(parameter), "required": required, "defaultValue": defaultValue as Any? ?? NSNull(), "options": options])
   }
-
-  private func parseOptions(_ text: String) -> [String] {
-    text.isEmpty ? [] : text.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-  }
-
-  private func parameterText(_ parameter: OwlTemplateParameter, anonymous: Bool) -> String {
-    var text = "{argument"
-    if !anonymous { text += " name=" + OwlTemplateEngine.quoted(parameter.name) }
-    if let value = parameter.defaultValue { text += " default=" + OwlTemplateEngine.quoted(value) }
-    if !parameter.options.isEmpty { text += " options=" + OwlTemplateEngine.quoted(parameter.options.joined(separator: ", ")) }
-    return text + "}"
-  }
-
   func save() -> Bool {
     guard canEdit else { return false }
-    if !draft.isPendingReview, let error = parsed.diagnostics.first(where: { $0.severity == .error }) {
-      status = error.message
-      return false
-    }
-    var candidate = draft
-    if candidate.importSource != nil && !OwlRaycastImport.compatibilityIssues(candidate).isEmpty {
-      candidate.reviewState = .pending
-    }
-    if candidate.trigger?.isEmpty == true { candidate.trigger = nil }
-    var next = library
-    if let index = next.entries.firstIndex(where: { $0.id == candidate.id }) {
-      next.entries[index] = candidate
-    } else { next.entries.append(candidate) }
+    struct Result: Decodable { let draft: OwlTemplateEntry; let library: OwlTemplateLibrary; let status: String }
     do {
-      try OwlTemplateStore.validate(next)
-      try write(next, library)
-      library = next
-      draft = candidate
-      status = candidate.isPendingReview ? "已保存为待处理；修正并启用前不能执行。" : "已保存。候选调用在重新部署后生效。"
+      let result: Result = try OwlStorageHost(dataDir: writer.dataDir).call("editor_save", ["draft": OwlAppCore.payload(draft), "library": OwlAppCore.payload(library)])
+      try write(result.library, library)
+      library = result.library; draft = result.draft; status = result.status
       return true
-    } catch {
-      status = error.localizedDescription
-      return false
-    }
+    } catch { status = error.localizedDescription; return false }
   }
+
 }
 
 /// Scroll the whole detail surface so native toolbar safe areas and short windows never clip controls.

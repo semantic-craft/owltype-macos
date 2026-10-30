@@ -47,6 +47,15 @@ final class OwlTemplateMigrationTests: XCTestCase {
     XCTAssertFalse(try migration.runAutomatically())
     XCTAssertEqual(try OwlTemplateStore.load(dataDir: root).entries.map(\.id), library.entries.map(\.id))
   }
+  func testOrphanPromptTableWithCarriageReturnCannotActivateAnEmptyLibrary() throws {
+    try write("owl_prompts.txt", "# header\r📝Title\tfoo\t100000")
+    let plan = try migration.prepare()
+    XCTAssertTrue(plan.issues.contains { $0.file == "owl_prompts.txt" && $0.message.contains("缺少正文原件") })
+    XCTAssertFalse(try migration.runAutomatically())
+    XCTAssertEqual(OwlTemplateStore.mode(dataDir: root), .legacy)
+    XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(OwlTemplateStore.fileName).path))
+  }
+
   func testRawAuditReportsAllBadRecordsWithoutFallbackOrPartialCommit() throws {
     try write("owl_quick_send.json", #"[null,{"text":5,"code":"x"},{"text":"ok","code":"UP"},{"text":" ","code":"blank"}]"#)
     try write("owl_quick_send.txt", "fallback\tf\t1\n")

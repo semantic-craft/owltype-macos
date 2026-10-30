@@ -16,47 +16,28 @@ struct OwlAutomaticExpansionIndex {
     }
   }
 
-  private struct Node {
+  private struct Node: Decodable {
     var children: [UInt8: Int] = [:]
     var entry: OwlTemplateEntry?
+    init() {}
+    enum CodingKeys: String, CodingKey { case children, entry }
+    init(from decoder: Decoder) throws {
+      let values = try decoder.container(keyedBy: CodingKeys.self)
+      let raw = try values.decode([String: Int].self, forKey: .children)
+      children = Dictionary(uniqueKeysWithValues: raw.compactMap { key, value in UInt8(key).map { ($0, value) } })
+      entry = try values.decodeIfPresent(OwlTemplateEntry.self, forKey: .entry)
+    }
   }
   private var nodes: [Node] = [Node()]
-  private(set) var isEmpty = true
+  var isEmpty: Bool { nodes.count == 1 }
   static let empty = OwlAutomaticExpansionIndex()
   private init() {}
-
   init(entries: [OwlTemplateEntry]) throws {
-    self.init()
-    for entry in entries where entry.invocationMode == .automatic && !entry.isPendingReview {
-      guard let trigger = entry.trigger, Self.validTrigger(trigger) else { throw ValidationError.invalidTrigger }
-      // Parse only when publishing the index, never while walking trigger keystrokes.
-      if let error = OwlTemplateEngine.parse(entry).diagnostics.first(where: { $0.severity == .error }) {
-        throw ValidationError.invalidTemplate(error.message)
-      }
-      var cursor = 0
-      for byte in trigger.utf8 {
-        if nodes[cursor].entry?.expansionMode == .immediate { throw ValidationError.immediatePrefixConflict }
-        if let next = nodes[cursor].children[byte] {
-          cursor = next
-        } else {
-          let next = nodes.count
-          nodes.append(Node())
-          nodes[cursor].children[byte] = next
-          cursor = next
-        }
-      }
-      guard nodes[cursor].entry == nil else { throw ValidationError.duplicateTrigger }
-      if entry.expansionMode == .immediate && !nodes[cursor].children.isEmpty {
-        throw ValidationError.immediatePrefixConflict
-      }
-      nodes[cursor].entry = entry
-      isEmpty = false
-    }
+    nodes = try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("automatic_index", ["entries": OwlAppCore.payload(entries)])
   }
 
   static func validTrigger(_ text: String) -> Bool {
-    let bytes = Array(text.utf8)
-    return bytes.count > 2 && bytes[0] == 59 && bytes[1] == 59 && bytes.dropFirst(2).allSatisfy(isSuffixByte)
+    OwlTemplateStore.core("automatic_valid", ["text": text])
   }
 
   static func isSuffixByte(_ byte: UInt8) -> Bool {

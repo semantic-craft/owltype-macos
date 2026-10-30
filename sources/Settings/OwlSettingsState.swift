@@ -364,24 +364,9 @@ struct OwlSyncSettings {
   }
 
   static func topLevelValue(_ key: String, in text: String) -> String? {
-    for line in text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
-      guard line.hasPrefix("\(key):") else { continue }
-      let raw = line.dropFirst(key.count + 1).trimmingCharacters(in: .whitespaces)
-      return yamlStringValue(String(raw))
-    }
-    return nil
-  }
-
-  private static func yamlStringValue(_ raw: String) -> String {
-    if raw.hasPrefix("\""), raw.hasSuffix("\""), raw.count >= 2 {
-      return raw.dropFirst().dropLast()
-        .replacingOccurrences(of: "\\\"", with: "\"")
-        .replacingOccurrences(of: "\\\\", with: "\\")
-    }
-    if raw.hasPrefix("'"), raw.hasSuffix("'"), raw.count >= 2 {
-      return raw.dropFirst().dropLast().replacingOccurrences(of: "''", with: "'")
-    }
-    return raw
+    struct Result: Decodable { let value: String? }
+    let result: Result = OwlTemplateStore.core("writer_top_level", ["key": key, "text": text])
+    return result.value
   }
 
 }
@@ -475,33 +460,18 @@ enum OwlSettingsActions {
     entries: [OwlQuickSendEntry],
     persist: ([OwlQuickSendEntry]) throws -> ([OwlQuickSendEntry], Bool)
   ) throws -> (entries: [OwlQuickSendEntry], phrase: String, code: String, editingCode: String?, status: String) {
-    let entry = try OwlQuickSendStore.entry(text: phrase, code: code)
-    var next = entries.filter { $0.code != entry.code && $0.code != editingCode }
-    next.append(entry)
+    let next: [OwlQuickSendEntry] = try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("quick_edit", ["entry": OwlAppCore.payload(OwlQuickSendEntry(text: phrase, code: code)), "entries": OwlAppCore.payload(entries), "editing": editingCode as Any? ?? NSNull(), "delete": false])
     let persisted = try persist(next)
-    return (
-      persisted.0,
-      "",
-      "",
-      nil,
-      persisted.1 ? "已保存并应用配置改动。" : "已保存；应用配置失败，请查看诊断日志。"
-    )
+    let result: QuickSendResult = OwlTemplateStore.core("quick_edit_result", ["applied": persisted.1, "delete": false])
+    return (persisted.0, "", "", nil, result.status)
   }
-
-  static func deleteQuickSendEntry(
-    _ entry: OwlQuickSendEntry,
-    editingCode: String?,
-    entries: [OwlQuickSendEntry],
-    persist: ([OwlQuickSendEntry]) throws -> ([OwlQuickSendEntry], Bool)
-  ) throws -> (entries: [OwlQuickSendEntry], phrase: String?, code: String?, editingCode: String?, status: String) {
-    let persisted = try persist(entries.filter { $0.code != entry.code })
-    return (
-      persisted.0,
-      editingCode == entry.code ? "" : nil,
-      editingCode == entry.code ? "" : nil,
-      editingCode == entry.code ? nil : editingCode,
-      persisted.1 ? "已删除并应用配置改动。" : "已删除；应用配置失败，请查看诊断日志。"
-    )
+  private struct QuickSendResult: Decodable { let clear: Bool; let editing: String?; let status: String }
+  static func deleteQuickSendEntry(_ entry: OwlQuickSendEntry, editingCode: String?, entries: [OwlQuickSendEntry],
+    persist: ([OwlQuickSendEntry]) throws -> ([OwlQuickSendEntry], Bool)) throws -> (entries: [OwlQuickSendEntry], phrase: String?, code: String?, editingCode: String?, status: String) {
+    let next: [OwlQuickSendEntry] = try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("quick_edit", ["entry": OwlAppCore.payload(entry), "entries": OwlAppCore.payload(entries), "editing": editingCode as Any? ?? NSNull(), "delete": true])
+    let persisted = try persist(next)
+    let result: QuickSendResult = OwlTemplateStore.core("quick_edit_result", ["applied": persisted.1, "delete": true, "editing": editingCode as Any? ?? NSNull(), "code": entry.code])
+    return (persisted.0, result.clear ? "" : nil, result.clear ? "" : nil, result.editing, result.status)
   }
 
   static func setClipboardEnabled(_ value: Bool, write: (Bool) -> Void) -> String {

@@ -111,9 +111,7 @@ fn lookup<'a>(values: &'a Map, key: &str) -> Option<&'a String> {
         .get(key)
         .or_else(|| values.iter().find(|(k, _)| equal(k, key)).map(|(_, v)| v))
 }
-fn trim(s: &str) -> &str {
-    s.trim_matches(|c: char| c.is_whitespace() || c == '\u{200b}')
-}
+use crate::foundation_text::trim;
 fn issue(p: &mut Parsed, range: &Range, message: &str, warning: bool) {
     p.diagnostics.push(Diagnostic {
         severity: if warning { "warning" } else { "error" }.into(),

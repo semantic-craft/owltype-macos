@@ -62,8 +62,8 @@ uses `owl_app_keyboard_schema_idle_action` (0 already active, 1 attempt, 2 known
 [`keyboard_export.rs`](../../rust/crates/owl-app-core/src/keyboard_export.rs) owns the
 retained YAML preview/export strings, complete file plan and managed-block rendering.
 This does not reintroduce YAML into normal settings activation. Shared write/backup/rollback
-transactions remain assigned to storage migration, and input commit transforms remain
-assigned to lifecycle/input closeout; their inventory rows identify the remaining owner.
+transactions live in `config_writer` and the template storage modules below. Input commit
+transforms remain assigned to lifecycle/input closeout.
 
 ## Behavior and data baselines
 
@@ -106,5 +106,33 @@ calendar range and arithmetic direction, requests numeric week-field facts, and 
 the final pattern. Swift executes Calendar additions, VerbatimFormatStyle requests and
 DateFormatter formatting only. It does not rescan pattern syntax. Non-Gregorian calendars,
 DST arithmetic, custom first-weekday/minimum-days rules and native hour-cycle preferences
-therefore retain their existing Foundation semantics. Store and invocation state migration
-remain separate tickets; this change does not claim those boundaries are complete.
+therefore retain their existing Foundation semantics. Library storage is described below; invocation state remains the next migration boundary.
+
+## Template storage
+
+`owl_app_storage_call` is the synchronous storage ABI alongside the bounded pure dispatcher.
+It borrows requests and native service context for one calling-thread operation. Rust invokes
+one explicit native primitive at a time (read, atomic write/rename, permissions, lock, UUID,
+collation fact or commit notification); it owns the complete operation, journal phases and
+error recovery. Native effect errors use opaque per-call tokens so the original Swift Error
+can cross back without serializing it. Domain validation still returns user-facing messages.
+No callback/context is retained or sent to a worker thread. These storage operations preserve
+the existing callers' scheduling; ordinary keys do not invoke filesystem effects.
+
+`template_library`, `template_editor`, `picker`, `template_import`, `template_backup`,
+`prompt_store` and `quick_send` own their models and decisions. UI projections remain Codable
+DTOs. Foundation supplies title ranks, case comparison and localized substring facts; Rust
+chooses pin priority, deduplication representatives and ordering. `foundation_text` preserves
+Foundation whitespaces/newlines (including U+200B) without normalizing authored content.
+The automatic trie and conflict validation are built once by Rust; per-key recognition
+remains the #361 boundary and consumes immutable native-decoded nodes.
+
+`template_transaction` serializes public mode/load/current reads with the process lock,
+without creating files. Writes also hold the original nonblocking per-directory flock.
+The native call tracks acquired canonical keys and both recursive lock depths and releases
+unbalanced acquisitions after an ABI-caught panic. Pure template queries take neither lock.
+Expected-library checks fence editor commits; state is written last. Ordinary saves retain
+thrown-failure restoration, while migration/restore/delete persist snapshots and expected
+writes before mutation. Restart recovery verifies transaction identity and exact bytes,
+refuses external changes, and distinguishes a landed rename from bookkeeping failure.
+Only a fully settled library publishes the existing native commit notification.

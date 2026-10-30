@@ -45,3 +45,7 @@ librime Lua 插件或 plum。本文件按当前二进制实际携带的内容汇
 `owl-app-core` 模板语义复用锁文件中的 `unicode-segmentation`（MIT OR Apache-2.0，
 https://github.com/unicode-rs/unicode-segmentation）与 ICU4X `icu_normalizer`
 （Unicode-3.0，https://github.com/unicode-org/icu4x）；随 Rust 依赖许可集合分发。
+
+模板库恢复记录使用 `base64`（MIT OR Apache-2.0，https://github.com/marshallpierce/rust-base64）
+和 `sha2`（MIT OR Apache-2.0，https://github.com/RustCrypto/hashes）。锁定版本见 Cargo.lock，
+随 Rust 依赖许可集合分发。
