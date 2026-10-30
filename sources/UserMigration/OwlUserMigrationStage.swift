@@ -49,177 +49,50 @@ enum OwlUserMigrationStage {
     in userData: URL,
     fileManager fm: FileManager = .default
   ) throws -> OwlUserMigrationStageResult {
-    guard plan.manifest.schemaVersion == OwlUserMigrationManifest.schemaVersionV1,
-          plan.manifest.mapperVersion == OwlUserMigrationManifest.mapperVersionV1,
-          plan.manifest.requestID.range(of: #"^owlrime-migrate-[0-9a-f]{64}$"#,
-                                        options: .regularExpression) != nil,
-          plan.manifest.recordDigest == OwlUserMigrationDigest.sha256(plan.recordData) else {
-      throw OwlUserMigrationError.invalidPlan("manifest 版本、requestID 或 recordDigest 不匹配")
-    }
-
-    let before = try OwlRimeUserDBSnapshotReader.scan(
-      syncDirectory: plan.syncDirectory,
-      fileManager: fm
-    )
-    guard before.sourceDigest == plan.manifest.sourceDigest else {
-      throw OwlUserMigrationStageError.sourceChanged
-    }
-
-    let migrationRoot = userData.appendingPathComponent(rootName, isDirectory: true)
-    try preparePrivateRoot(migrationRoot, fileManager: fm)
-    let destination = migrationRoot.appendingPathComponent(
-      plan.manifest.requestID,
-      isDirectory: true
-    )
-
-    if pathKind(destination) != .missing {
-      switch inspectExisting(destination, plan: plan, fileManager: fm) {
-      case .reused:
-        guard try sourceDigestUnchanged(
-          plan.syncDirectory,
-          expected: plan.manifest.sourceDigest,
-          fm: fm
-        ) else {
-          throw OwlUserMigrationStageError.sourceChanged
-        }
-        return result(.reused, destination, plan)
-      case .collision:
-        throw OwlUserMigrationStageError.requestIDCollision(plan.manifest.requestID)
-      case .incomplete:
-        try removeIncomplete(destination, fileManager: fm)
+    let host = OwlStorageHost(dataDir: userData)
+    host.nativeEffect = { operation, args in
+      let target = userData.appendingPathComponent(args["name"] as? String ?? "")
+      switch operation {
+      case "user_native_stage_source_digest": return try OwlRimeUserDBSnapshotReader.scan(syncDirectory: plan.syncDirectory, fileManager: fm).sourceDigest
+      case "user_native_stage_kind": return pathKind(target).rawValue
+      case "user_native_stage_mkdir":
+        do { try fm.createDirectory(at: target, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700]) }
+        catch { throw OwlUserMigrationStageError.fileOperationFailed(path: target.path, reason: error.localizedDescription) }
+        return true
+      case "user_native_stage_chmod": try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: target.path); return true
+      case "user_native_stage_list": return try fm.contentsOfDirectory(atPath: target.path)
+      case "user_native_stage_read": return Array(try Data(contentsOf: target))
+      case "user_native_stage_remove":
+        do { try fm.removeItem(at: target) }
+        catch { throw OwlUserMigrationStageError.fileOperationFailed(path: target.path, reason: error.localizedDescription) }
+        return true
+      case "user_native_stage_write": try writeFile(Data(args["bytes"] as? [UInt8] ?? []), to: target, fm: fm); return true
+      case "user_native_stage_sync": try syncDirectory(target); return true
+      default: throw OwlAppCore.Failure(code: "unknown_migration_stage_effect")
       }
     }
-
-    var ownsDestination = false
+    struct Reply: Decodable { let disposition: String; let directory: String }
     do {
-      try createDirectoryExclusive(destination, fileManager: fm)
-      ownsDestination = true
-      try writeFile(plan.manifestData, to: destination.appendingPathComponent(manifestName), fm: fm)
-      try writeFile(plan.recordData, to: destination.appendingPathComponent(recordsName), fm: fm)
-      try writeFile(marker, to: destination.appendingPathComponent(preparedName), fm: fm)
-      try syncDirectory(destination)
-      try syncDirectory(migrationRoot)
-
-      guard try sourceDigestUnchanged(
-        plan.syncDirectory,
-        expected: plan.manifest.sourceDigest,
-        fm: fm
-      ) else {
-        throw OwlUserMigrationStageError.sourceChanged
+      let reply: Reply = try host.call("user_migration_stage", ["manifest": OwlAppCore.payload(plan.manifest),
+        "manifestData": Array(plan.manifestData), "recordData": Array(plan.recordData)])
+      return OwlUserMigrationStageResult(disposition: reply.disposition == "reused" ? .reused : .prepared,
+        directory: userData.appendingPathComponent(reply.directory, isDirectory: true), manifest: plan.manifest, recordCount: plan.records.count)
+    } catch let failure as OwlAppCore.Failure {
+      guard failure.code.hasPrefix("user_stage:"), let data = String(failure.code.dropFirst(11)).data(using: .utf8),
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: String] else { throw failure }
+      let detail = object["detail"] ?? ""
+      switch object["code"] {
+      case "invalidPlan": throw OwlUserMigrationError.invalidPlan(detail)
+      case "sourceChanged": throw OwlUserMigrationStageError.sourceChanged
+      case "requestIDCollision": throw OwlUserMigrationStageError.requestIDCollision(detail)
+      case "invalidStagingPath": throw OwlUserMigrationStageError.invalidStagingPath(userData.appendingPathComponent(detail).path)
+      default: throw failure
       }
-      return result(.prepared, destination, plan)
-    } catch {
-      if ownsDestination {
-        try? fm.removeItem(at: destination)
-      }
-      throw error
     }
   }
 
-  private enum Existing {
-    case reused
-    case collision
-    case incomplete
-  }
-
-  private enum PathKind {
-    case missing
-    case regularFile
-    case directory
-    case symlink
-    case other
-  }
-
-  private static func inspectExisting(
-    _ directory: URL,
-    plan: OwlUserMigrationPlan,
-    fileManager fm: FileManager
-  ) -> Existing {
-    guard pathKind(directory) == .directory else { return .collision }
-    guard let names = try? fm.contentsOfDirectory(atPath: directory.path) else {
-      return .collision
-    }
-    let expectedNames = [manifestName, recordsName, preparedName]
-    let requiredPresent = expectedNames.allSatisfy(names.contains)
-    guard requiredPresent else { return .incomplete }
-    guard Set(names) == Set(expectedNames) else { return .collision }
-
-    let manifest = directory.appendingPathComponent(manifestName)
-    let records = directory.appendingPathComponent(recordsName)
-    let markerURL = directory.appendingPathComponent(preparedName)
-    guard pathKind(manifest) == .regularFile,
-          pathKind(records) == .regularFile,
-          pathKind(markerURL) == .regularFile,
-          (try? Data(contentsOf: manifest)) == plan.manifestData,
-          (try? Data(contentsOf: records)) == plan.recordData,
-          (try? Data(contentsOf: markerURL)) == marker else {
-      return .collision
-    }
-    return .reused
-  }
-
-  private static func preparePrivateRoot(_ directory: URL, fileManager fm: FileManager) throws {
-    switch pathKind(directory) {
-    case .missing:
-      do {
-        try fm.createDirectory(
-          at: directory,
-          withIntermediateDirectories: false,
-          attributes: [.posixPermissions: 0o700]
-        )
-      } catch {
-        throw OwlUserMigrationStageError.fileOperationFailed(
-          path: directory.path,
-          reason: error.localizedDescription
-        )
-      }
-    case .directory:
-      do {
-        try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
-      } catch {
-        throw OwlUserMigrationStageError.fileOperationFailed(
-          path: directory.path,
-          reason: error.localizedDescription
-        )
-      }
-    case .symlink, .regularFile, .other:
-      throw OwlUserMigrationStageError.invalidStagingPath(directory.path)
-    }
-  }
-
-  private static func removeIncomplete(_ directory: URL, fileManager fm: FileManager) throws {
-    guard pathKind(directory) == .directory else {
-      throw OwlUserMigrationStageError.invalidStagingPath(directory.path)
-    }
-    do {
-      try fm.removeItem(at: directory)
-    } catch {
-      throw OwlUserMigrationStageError.fileOperationFailed(
-        path: directory.path,
-        reason: error.localizedDescription
-      )
-    }
-  }
-
-  private static func createDirectoryExclusive(
-    _ directory: URL,
-    fileManager fm: FileManager
-  ) throws {
-    do {
-      try fm.createDirectory(
-        at: directory,
-        withIntermediateDirectories: false,
-        attributes: [.posixPermissions: 0o700]
-      )
-    } catch {
-      if pathKind(directory) != .missing {
-        throw OwlUserMigrationStageError.requestIDCollision(directory.lastPathComponent)
-      }
-      throw OwlUserMigrationStageError.fileOperationFailed(
-        path: directory.path,
-        reason: error.localizedDescription
-      )
-    }
+  private enum PathKind: String {
+    case missing, regularFile, directory, symlink, other
   }
 
   private static func writeFile(_ data: Data, to url: URL, fm: FileManager) throws {
@@ -235,17 +108,6 @@ enum OwlUserMigrationStage {
         reason: error.localizedDescription
       )
     }
-  }
-
-  private static func sourceDigestUnchanged(
-    _ syncDirectory: URL,
-    expected: String,
-    fm: FileManager
-  ) throws -> Bool {
-    try OwlRimeUserDBSnapshotReader.scan(
-      syncDirectory: syncDirectory,
-      fileManager: fm
-    ).sourceDigest == expected
   }
 
   private static func syncDirectory(_ directory: URL) throws {
@@ -278,16 +140,4 @@ enum OwlUserMigrationStage {
     }
   }
 
-  private static func result(
-    _ disposition: OwlUserMigrationStageDisposition,
-    _ directory: URL,
-    _ plan: OwlUserMigrationPlan
-  ) -> OwlUserMigrationStageResult {
-    OwlUserMigrationStageResult(
-      disposition: disposition,
-      directory: directory,
-      manifest: plan.manifest,
-      recordCount: plan.records.count
-    )
-  }
 }

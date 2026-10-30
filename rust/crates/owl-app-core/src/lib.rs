@@ -91,3 +91,15 @@ pub mod ai_business;
 pub mod ai_verification;
 
 pub mod ai_selection;
+
+pub mod user_data;
+
+pub mod user_migration;
+
+pub mod resource;
+
+pub mod resource_contract;
+
+pub mod resource_catalog;
+
+pub mod resource_lifecycle;

@@ -52,20 +52,14 @@ struct OwlDictPackCenterRustBackend: Sendable {
         let temporary = environment.packageRoot.deletingLastPathComponent()
           .appendingPathComponent("compatible-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: temporary) }
-        let built = try OwlRustCompatibleResources.build(sharedSupport: sharedSupport, at: temporary, version: OwlRustCompatibleResources.packageVersion)
-        let prepared = try await store.prepare(OwlRustResourceDirectorySource(root: built.root)) { value in progress?(value) }
-        return OwlRustDictPackPreparedResources(resource: prepared, stats: built.stats)
+        return try await store.prepareBundled(sharedSupport: sharedSupport, at: temporary, progress: progress)
       },
       activate: { environment, prepared in
         let store = try environment.makeStore()
-        _ = try environment.validatedGeneration(prepared.record)
         return try await store.activate(prepared)
       },
       rollback: { environment, inputKind in
         let store = try environment.makeStore()
-        if let previous = try environment.activeState(inputKind: inputKind)?.previous {
-          _ = try environment.validatedGeneration(previous)
-        }
         return try await store.rollback(inputKind: inputKind)
       }
     )
@@ -88,16 +82,35 @@ final class OwlDictPackCenter {
   /// composition to finish before it can switch without dropping selected phrase progress.
   private(set) var isAwaitingLiveSessionRefresh = false
 
-  private var running = false
-  private var preparedResources: OwlRustDictPackPreparedResources?
-  private var failedOperation: FailedOperation?
+  private let core = try! OwlAppSession("resourceCenter")
   private let rustBackend: OwlDictPackCenterRustBackend
   private let liveSessionRefresh: OwlDictPackLiveSessionRefresh
 
-  private enum FailedOperation {
-    case prepare
-    case activate
-    case rollback
+  private struct Snapshot: Decodable {
+    let action: String
+    let phase: String
+    let version: Int?
+    let progress: Double
+    let message: String
+    let prepared: OwlRustDictPackPreparedResources?
+    let rollback: Int?
+    let awaiting: Bool
+  }
+  private func event(_ name: String, _ args: [String: Any] = [:]) -> Snapshot {
+    let snapshot: Snapshot = core.call(name, args)
+    preparedCandidate = snapshot.prepared.map(OwlDictPackCandidate.init)
+    rollbackTargetVersion = snapshot.rollback
+    isAwaitingLiveSessionRefresh = snapshot.awaiting
+    switch snapshot.phase {
+    case "preparing": status = .preparing(progress: snapshot.progress)
+    case "prepared": status = .prepared(version: snapshot.version!)
+    case "activating": status = .activating
+    case "rollingBack": status = .rollingBack
+    case "installed": status = .installed(version: snapshot.version!)
+    case "failed": status = .failed(snapshot.message)
+    default: status = .notInstalled
+    }
+    return snapshot
   }
 
   init(
@@ -111,22 +124,13 @@ final class OwlDictPackCenter {
   }
 
   func refresh() {
-    guard !running, preparedCandidate == nil else { return }
-    failedOperation = nil
+    let allowed: Bool = core.call("can_refresh")
+    guard allowed else { return }
     do {
-      if let state = try rustBackend.environment.activeState() {
-        _ = try rustBackend.environment.activeGeneration()
-        status = .installed(version: state.current.manifest.version)
-        rollbackTargetVersion = state.previous?.manifest.version
-        return
-      }
-    } catch {
-      rollbackTargetVersion = nil
-      status = .failed("Rust 词库状态无法读取：\(error.localizedDescription)")
-      return
-    }
-    rollbackTargetVersion = nil
-    status = .notInstalled
+      let state = try rustBackend.environment.activeState()
+      if state != nil { _ = try rustBackend.environment.activeGeneration() }
+      _ = event("refreshed", ["state": state.map(OwlAppCore.payload) ?? NSNull()])
+    } catch { _ = event("refreshed", ["error": error.localizedDescription]) }
   }
 
   /// 提示调度器用：是否仍需提示。轮询期间用户可能已从设置页手动启用，届时静默收摊。
@@ -138,8 +142,7 @@ final class OwlDictPackCenter {
   nonisolated static func needsPrompt(
     activeVersion: Int?, bundledVersion: Int = OwlRustCompatibleResources.packageVersion
   ) -> Bool {
-    guard let activeVersion else { return true }
-    return activeVersion < bundledVersion
+    OwlAppCore.required(["operation": "resource_rule", "rule": "needs_prompt", "args": ["active": activeVersion as Any? ?? NSNull(), "bundled": bundledVersion]])
   }
 
   var canRollback: Bool {
@@ -181,160 +184,50 @@ final class OwlDictPackCenter {
 
   /// Copies the bundled resources into a verified, not yet active generation.
   /// Idempotent: does nothing while an operation runs or a candidate awaits confirmation.
-  func prepare() {
-    guard !running, preparedCandidate == nil else { return }
-    running = true
-    failedOperation = nil
-    status = .preparing(progress: 0)
+  func prepare() { execute(event("prepare")) }
+  func activate() { execute(event("activate")) }
+  func rollback() { execute(event("rollback")) }
+  func retryFailedOperation() { execute(event("retry")) }
+
+  private func execute(_ snapshot: Snapshot) {
     let backend = rustBackend
-    Task.detached(priority: .utility) { [self] in
-      do {
-        let prepared = try await backend.prepare(backend.environment) { fraction in
-          Task { @MainActor [weak self] in
-            self?.noteProgress(fraction)
+    switch snapshot.action {
+    case "prepare":
+      Task.detached(priority: .utility) { [self] in
+        do {
+          let prepared = try await backend.prepare(backend.environment) { fraction in
+            Task { @MainActor [weak self] in _ = self?.event("progress", ["fraction": fraction]) }
           }
-        }
-        await MainActor.run {
-          self.finishPreparation(prepared)
-        }
-      } catch {
-        await MainActor.run {
-          self.fail(error, operation: .prepare)
-        }
+          await MainActor.run { _ = self.event("prepared", OwlAppCore.payload(prepared) as! [String: Any]) }
+        } catch { await fail(error, operation: "prepare") }
       }
-    }
-  }
-
-  /// User confirmation for the prepared generation.
-  func activate() {
-    guard !running, let preparedResources else { return }
-    running = true
-    failedOperation = nil
-    status = .activating
-    let backend = rustBackend
-    let resource = preparedResources.resource
-    Task.detached(priority: .utility) { [self] in
-      do {
-        let result = try await backend.activate(backend.environment, resource)
-        await MainActor.run {
-          self.finishActivation(result)
-        }
-      } catch {
-        await MainActor.run {
-          self.fail(error, operation: .activate)
-        }
+    case "activate":
+      guard let resource = snapshot.prepared?.resource else { return }
+      Task.detached(priority: .utility) { [self] in
+        do {
+          let result = try await backend.activate(backend.environment, resource)
+          await MainActor.run { self.execute(self.event("activated", OwlAppCore.payload(result.state) as! [String: Any])) }
+        } catch { await fail(error, operation: "activate") }
       }
-    }
-  }
-
-  func rollback() {
-    guard !running, canRollback else { return }
-    running = true
-    failedOperation = nil
-    status = .rollingBack
-    let backend = rustBackend
-    Task.detached(priority: .utility) { [self] in
-      do {
-        let state = try await backend.rollback(
-          backend.environment,
-          OwlRustResourceEnvironment.activeInputKind
-        )
-        await MainActor.run {
-          self.finishRollback(state)
-        }
-      } catch {
-        await MainActor.run {
-          self.fail(error, operation: .rollback)
-        }
+    case "rollback":
+      Task.detached(priority: .utility) { [self] in
+        do {
+          let state = try await backend.rollback(backend.environment, OwlRustResourceEnvironment.activeInputKind)
+          await MainActor.run { self.execute(self.event("rolledBack", OwlAppCore.payload(state) as! [String: Any])) }
+        } catch { await fail(error, operation: "rollback") }
       }
+    case "refresh":
+      let deferred = liveSessionRefresh { [weak self] in _ = self?.event("refresh_done") }
+      if !deferred { _ = event("refresh_done") }
+    default: break
     }
   }
-
-  func retryFailedOperation() {
-    switch failedOperation {
-    case .activate:
-      activate()
-    case .rollback:
-      rollback()
-    case .prepare, nil:
-      prepare()
-    }
+  private func fail(_ error: Error, operation: String) {
+    let reason = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+    let snapshot = event("failed", ["operation": operation, "message": reason])
+    OwlDictPackPrompt.log.error("\(snapshot.message, privacy: .public)")
   }
 
-  private func noteProgress(_ fraction: Double) {
-    guard running else { return }
-    status = .preparing(progress: fraction)
-  }
-
-  private func finishPreparation(_ prepared: OwlRustDictPackPreparedResources) {
-    running = false
-    failedOperation = nil
-    preparedResources = prepared
-    preparedCandidate = OwlDictPackCandidate(prepared: prepared)
-    status = .prepared(version: prepared.version)
-    OwlDictPackPrompt.log.log(
-      "prepared Rust dict-pack generation v\(prepared.version, privacy: .public)"
-    )
-  }
-
-  private func finishActivation(_ result: OwlRustResourceInstallResult) {
-    running = false
-    failedOperation = nil
-    preparedResources = nil
-    preparedCandidate = nil
-    let current = result.state.current
-    status = .installed(version: current.manifest.version)
-    rollbackTargetVersion = result.state.previous?.manifest.version
-    scheduleLiveSessionRefresh()
-    OwlDictPackPrompt.log.log(
-      "activated Rust dict-pack generation v\(current.manifest.version, privacy: .public)"
-    )
-  }
-
-  private func finishRollback(_ state: OwlRustResourceActiveState) {
-    running = false
-    failedOperation = nil
-    preparedResources = nil
-    preparedCandidate = nil
-    status = .installed(version: state.current.manifest.version)
-    rollbackTargetVersion = state.previous?.manifest.version
-    scheduleLiveSessionRefresh()
-    OwlDictPackPrompt.log.log(
-      "rolled back Rust dict-pack generation to v\(state.current.manifest.version, privacy: .public)"
-    )
-  }
-
-  private func scheduleLiveSessionRefresh() {
-    isAwaitingLiveSessionRefresh = true
-    let deferred = liveSessionRefresh { [weak self] in
-      self?.isAwaitingLiveSessionRefresh = false
-    }
-    if !deferred {
-      isAwaitingLiveSessionRefresh = false
-    }
-  }
-
-  private func fail(_ error: Error, operation: FailedOperation) {
-    running = false
-    failedOperation = operation
-    if operation == .prepare {
-      preparedResources = nil
-      preparedCandidate = nil
-    }
-    let message = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
-    let label: String
-    switch operation {
-    case .prepare:
-      label = "词库准备失败"
-    case .activate:
-      label = "词库启用失败"
-    case .rollback:
-      label = "词库回退失败"
-    }
-    print("Owltype dict-pack: \(label): \(message)")
-    OwlDictPackPrompt.log.error("\(label, privacy: .public): \(message, privacy: .public)")
-    status = .failed("\(label)：\(message)")
-  }
 }
 
 /// 知情同意提示（2026-07-27 改版）：完整词库来自第三方开源项目（rime-ice / KyleBing 极点五笔86），
@@ -350,7 +243,7 @@ enum OwlDictPackPrompt {
   }
 
   /// 启动时该做什么（纯判定，`promptOrFetchIfNeeded` 的全部分支逻辑）。
-  enum LaunchAction: Equatable {
+  enum LaunchAction: String, Equatable {
     /// 已启用当前版本 / 已问过 —— 只刷新状态。
     case doNothing
     /// 用户显式开了 autoFetch 开关＝授权免提示直接准备。
@@ -366,10 +259,10 @@ enum OwlDictPackPrompt {
   static func launchAction(
     needsFetch: Bool, autoFetch: Bool, promptShown: Bool, onboardingDone: Bool
   ) -> LaunchAction {
-    guard needsFetch else { return .doNothing }
-    if autoFetch { return .fetchSilently }
-    guard !promptShown else { return .doNothing }
-    return onboardingDone ? .armPrompt : .deferToOnboarding
+    let result: String = OwlAppCore.required(["operation": "resource_rule", "rule": "launch", "args": [
+      "needsFetch": needsFetch, "autoFetch": autoFetch, "promptShown": promptShown, "onboardingDone": onboardingDone,
+    ]])
+    return LaunchAction(rawValue: result)!
   }
 
   /// 方案是否由 dict-pack 管理。**纯 manifest 查询、不碰运行期状态**，因此非隔离可调——
@@ -377,8 +270,7 @@ enum OwlDictPackPrompt {
   static func isDictPackManagedSchema(
     _ schemaID: String, manifest: OwlDictPackManifest = .current
   ) -> Bool {
-    guard !schemaID.isEmpty else { return false }
-    return manifest.files.contains { $0.dest == "\(schemaID).schema.yaml" }
+    OwlAppCore.required(["operation": "resource_rule", "rule": "managed_schema", "args": ["schema": schemaID, "destinations": manifest.files.map(\.dest)]])
   }
 
   /// 切方案失败是不是「dict-pack 未安装」造成的。

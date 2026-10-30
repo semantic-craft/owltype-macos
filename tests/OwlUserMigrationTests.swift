@@ -191,6 +191,14 @@ final class OwlUserMigrationTests: XCTestCase {
     ])
     let firstPlan = try OwlUserMigration.makePlan(userData: root, pinnedWordsData: pins)
 
+    // A persisted pre-migration stage uses Foundation's exact pretty JSON bytes.
+    // Retry must reuse that stage instead of treating whitespace as a collision.
+    let legacyEncoder = JSONEncoder()
+    legacyEncoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+    var legacyManifest = try legacyEncoder.encode(firstPlan.manifest)
+    legacyManifest.append(0x0A)
+    XCTAssertEqual(firstPlan.manifestData, legacyManifest)
+
     let first = try OwlUserMigrationStage.prepare(firstPlan, in: root)
     let manifestBefore = try Data(contentsOf: first.directory.appendingPathComponent("manifest.json"))
     let recordsBefore = try Data(

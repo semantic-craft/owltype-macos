@@ -154,6 +154,7 @@ final class OwlStorageHost {
   let dataDir: URL
   let checkpoint: (String) throws -> Void
   let writerCheckpoint: (String) throws -> Void
+  var nativeEffect: ((String, [String: Any]) throws -> Any)?
   var errors: [String: Error] = [:]
   private var heldLockKeys: [String] = []
   private var heldProcessDepth = 0
@@ -169,6 +170,7 @@ final class OwlStorageHost {
     name.hasPrefix("/") ? URL(fileURLWithPath: name) : dataDir.appendingPathComponent(name)
   }
   private func perform(_ operation: String, _ args: [String: Any]) throws -> Any {
+    if (operation.hasPrefix("user_native_") || operation.hasPrefix("resource_native_")), let nativeEffect { return try nativeEffect(operation, args) }
     if ["title_ranks", "case_contains", "localized_contains"].contains(operation) {
       return try compare(operation, args)
     }
@@ -308,7 +310,7 @@ final class OwlStorageHost {
     else { locks[key] = held }
     lock.unlock()
   }
-  func call<Value: Decodable>(_ operation: String, _ args: [String: Any] = [:]) throws -> Value {
+  func call<Value: Decodable>(_ operation: String, _ args: [String: Any] = [:], decoder: JSONDecoder = JSONDecoder()) throws -> Value {
     let initialDepth = heldLockKeys.count
     let initialProcessDepth = heldProcessDepth
     defer {
@@ -325,12 +327,13 @@ final class OwlStorageHost {
     }
     guard let response else { throw OwlAppCore.Failure(code: "missing_response") }
     defer { owl_app_string_free(response) }
-    let decoded = try JSONDecoder().decode(OwlAppCoreResponse<Value>.self, from: Data(bytes: response, count: strlen(response)))
+    let decoded = try decoder.decode(OwlAppCoreResponse<Value>.self, from: Data(bytes: response, count: strlen(response)))
     guard decoded.isOK, let value = decoded.value else {
       let code = decoded.error ?? "invalid_response"
       if let error = errors[code] { throw error }
       if code.hasPrefix("never_touch:") { throw OwlConfigWriteError.refusedNeverTouch(String(code.dropFirst(12))) }
       if code.hasPrefix("unmanaged:") { throw OwlConfigWriteError.refusedUnmanagedFile(String(code.dropFirst(10))) }
+      if (code.hasPrefix("resource:") || code.hasPrefix("user_stage:") || code.hasPrefix("user_import:")) { throw OwlAppCore.Failure(code: code) }
       throw Self.failure(code)
     }
 
