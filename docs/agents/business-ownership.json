@@ -126,7 +126,7 @@
     {"path": "sources/Settings/OwlSkinPage.swift", "role": "native", "target": "Swift", "issue": null, "reason": "Native views, presentation state, geometry or explicit system context capture"},
     {"path": "sources/Settings/OwlStyleFlags.swift", "role": "native", "target": "Swift", "issue": null, "reason": "Native candidate-window layout, inline presentation and HUD appearance; appearance preferences remain native"},
     {"path": "sources/Settings/OwlTemplateBackup.swift", "role": "migrate", "target": "owl-app-core", "issue": 360, "reason": "Template library, validation, import and persistence rules"},
-    {"path": "sources/Settings/OwlTemplateEngine.swift", "role": "split", "target": "owl-app-core", "issue": 359, "reason": "Template grammar and rendering; native locale/calendar formatting remains a supplied service"},
+    {"path": "sources/Settings/OwlTemplateEngine.swift", "role": "adapter", "target": "Swift", "issue": null, "reason": "Template DTO/FFI transport and frozen Foundation calendar/formatting facts; Rust owns grammar, validation, rendering and readiness"},
     {"path": "sources/Settings/OwlTemplateMigration.swift", "role": "migrate", "target": "owl-app-core", "issue": 360, "reason": "Template library, validation, import and persistence rules"},
     {"path": "sources/Settings/OwlTemplateMigrationView.swift", "role": "native", "target": "Swift", "issue": null, "reason": "Native views, presentation state, geometry or explicit system context capture"},
     {"path": "sources/Settings/OwlTemplatePage.swift", "role": "split", "target": "owl-app-core", "issue": 360, "reason": "Template validation and library decisions move; native editor remains"},

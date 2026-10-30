@@ -2,6 +2,7 @@
 
 pub mod keyboard;
 pub mod keyboard_export;
+pub mod template;
 
 /// Existing per-application initial input mode; preferences are supplied by the host.
 pub fn initial_ascii_mode(

@@ -1084,3 +1084,40 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
   fixture and rejects forged context, changed DB/manifest/output digest, verified
   or other findings, history and other locations. Run the actual source TAR
   scanner red/green and compare original artifact/cohort hashes before and after.
+
+## Settings must preserve selected phrase progress until idle
+
+- Seen 1x (2026-10-30): #358's real engine regression selected `你好`, left raw suffix `wo`,
+  then changed Wubi wildcard and continued with `men`. The old settings path lost the selected
+  phrase and returned `men`, without the `我们` candidate. A controller regression also showed
+  settings/onboarding schema selection clearing `nihao` before the idle guard.
+- Preserve both engine option eligibility and native session refresh timing. Replaying only
+  `rawInput` cannot reconstruct a selected phrase prefix. Settings/onboarding schema changes
+  enter the same idle queue; explicit host/menu schema effects remain immediate.
+- Verify (验证点): `EngineRuntimeTests/testKeyboardApplyPreservesCompositionUntilIdle`,
+  `OwlRustEngineTests/testMixedWubiPartialPhraseSelectionContinuesInPinyinTail`, and
+  `OwlInputHabitsIntegrationTests/testControllerRoundTrip` exercise the real App/input seam.
+  Check continued commit `你好我们` and eventual idle drain. PR #369's exact-head gate
+  `f0c3240620cbe2aecc483db4409a18cd29087e41` passed 1470 Swift tests (1 designed skip).
+  Evidence establishes isolated native/engine behavior, not installed-host acceptance.
+
+## Template migration must retain canonical Unicode equality and derived readiness
+
+- Seen 1x (2026-10-30): #359's first native FFI run split canonically equivalent `é` and
+  `é` names into two parameters. Rust byte equality also disagreed with Swift for defaults,
+  options and supplied keys. Use ICU NFC only for comparison; retain authored and inserted bytes.
+- The same run exposed two transport seams: internally tagged serde requests cannot decode
+  numeric-key maps from their buffered JSON content, and invocation wrappers reconstruct
+  Evaluation values. Keep temporal-fact keys as strings and readiness derived by Rust for
+  every Evaluation, including reconstructed ones.
+- Verify (验证点): `OwlTemplateEngineTests/testCanonicalUnicodeParameterIdentityAndOptionsAcrossRustBoundary`
+  must merge the names and accept decomposed option values. Existing invocation, temporal,
+  clipboard and cursor suites must still deliver through the real Swift→Rust seam.
+  `testOversizedTemplatePayloadBlocksWithoutCrashing` checks parser and renderer rejection
+  as diagnostics instead of ABI precondition crashes. These are isolated App-host checks.
+
+- The independent #359 review also found ICU dot's VT/FF exclusions missing from the
+  legacy regex, turning multiline literals into empty substitutions, and a readiness request
+  that resent the whole expanded preview through the 4 MiB input limit. Existing legacy and
+  transport tests now replay both failures, including a small request producing 5,000,000
+  output bytes. Send only compact readiness facts; a request limit is not an output limit.

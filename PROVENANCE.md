@@ -94,3 +94,7 @@ GPLv3 许可证文本与版权声明，不得作为闭源制品分发。
 code under GPL-3.0-only, separate from the fixed Metasequoia imports. They use
 the workspace-pinned serde/serde_json dependencies already in the source lockfile.
 Their sources and C header are part of the tracked corresponding-source inputs.
+The template module also uses the existing lockfile's `regex`, `unicode-segmentation`
+(MIT OR Apache-2.0) and ICU4X `icu_normalizer` (Unicode-3.0). Grapheme segmentation
+preserves cursor boundaries; NFC comparison preserves Swift's canonical string equality
+without rewriting authored template text or inserted values. No fixed upstream source is changed.

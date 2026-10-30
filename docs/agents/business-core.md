@@ -88,3 +88,23 @@ The build produces both static archives for native tests and universal distribut
 The delivery checker requires the App ABI call/free symbols in the shipped binary.
 The full gate tests both App crates and checks ownership coverage. Unit, Swift-host,
 installed-host and published-artifact evidence remain separate.
+
+## Template semantics
+
+[`template.rs`](../../rust/crates/owl-app-core/src/template.rs) owns both grammars,
+UTF-16 token/diagnostic ranges, parameter identity/defaults/options, context requirements,
+initial values, nonrecursive expansion, clipboard decisions, cursor grapheme boundaries
+and final readiness. `OwlTemplateEngine` retains the existing App interface as Codable DTOs.
+User-authored requests rejected by the bounded ABI become blocking template diagnostics,
+not `required()` preconditions. Readiness exchanges only compact diagnostic/decision facts,
+so repeated parameters can produce output larger than the request limit. No template body
+or parameter value is logged.
+
+Temporal rendering uses the invocation's frozen Foundation calendar, locale, zone and
+resolved default patterns. Rust parses TR35 patterns and offset syntax, validates the
+calendar range and arithmetic direction, requests numeric week-field facts, and builds
+the final pattern. Swift executes Calendar additions, VerbatimFormatStyle requests and
+DateFormatter formatting only. It does not rescan pattern syntax. Non-Gregorian calendars,
+DST arithmetic, custom first-weekday/minimum-days rules and native hour-cycle preferences
+therefore retain their existing Foundation semantics. Store and invocation state migration
+remain separate tickets; this change does not claim those boundaries are complete.

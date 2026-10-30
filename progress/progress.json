@@ -6,11 +6,11 @@
     "open_pulls": [
       {
         "number": 368,
-        "head": "10e2270575d128d1d86ac542f6272810b75ab0ef"
+        "head": "2f25f11b630c3f4461bf86d1243847b871964ba6"
       },
       {
-        "number": 369,
-        "head": "1ea3222164a0d768c783f11bdedcdd39c1f4e406"
+        "number": 370,
+        "head": "6c931d5a1744cb4694020c281e294c50b29c3215"
       }
     ],
     "issues": [
@@ -202,15 +202,15 @@
       },
       {
         "number": 358,
-        "state": "open",
-        "reason": null,
-        "updated_at": "2026-10-30T04:55:46Z"
+        "state": "closed",
+        "reason": "completed",
+        "updated_at": "2026-10-30T05:16:25Z"
       },
       {
         "number": 359,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-30T04:22:32Z"
+        "updated_at": "2026-10-30T05:29:11Z"
       },
       {
         "number": 360,
@@ -268,7 +268,7 @@
     "progress/sync.py",
     "progress/teslahub.mjs"
   ],
-  "observed_at": "2026-10-30T05:00:00Z",
+  "observed_at": "2026-10-30T05:32:24Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -741,9 +741,9 @@
         {
           "id": "issue-358",
           "title": "#358 [Rust 业务核心] 阶段 1：设置规则与输入配置迁入 Rust",
-          "status": "in_progress",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：无。",
-          "next": "读取工单和开放 PR，经共享领取入口核实后领取。",
+          "status": "unverified",
+          "summary": "GitHub: closed；负责人：未指派；未关闭前置：无。",
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
@@ -755,9 +755,9 @@
         {
           "id": "issue-359",
           "title": "#359 [Rust 业务核心] 阶段 2A：模板解析、参数校验与渲染迁入 Rust",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#358。",
-          "next": "等待前置完成，复用其成果。",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：无。",
+          "next": "读取工单和开放 PR，经共享领取入口核实后领取。",
           "evidence": [
             {
               "kind": "issue",
@@ -812,8 +812,8 @@
           "id": "issue-363",
           "title": "#363 [Rust 业务核心] 阶段 4A：AI 供应商、请求协议和流解析迁入 Rust",
           "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#358。",
-          "next": "等待前置完成，复用其成果。",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：无。",
+          "next": "读取工单和开放 PR，经共享领取入口核实后领取。",
           "evidence": [
             {
               "kind": "issue",

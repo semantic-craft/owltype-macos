@@ -9,6 +9,8 @@ license.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 regex = "1"
+unicode-segmentation = "1"
+icu_normalizer = { version = "2.4", default-features = false, features = ["compiled_data"] }
 
 [lints]
 workspace = true
