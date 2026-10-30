@@ -61,3 +61,15 @@ mod tests {
         assert!(initial_ascii_mode("other", &apps, true));
     }
 }
+
+pub mod config_writer;
+pub mod picker;
+pub mod prompt_store;
+pub mod quick_send;
+pub mod storage;
+pub mod template_backup;
+pub mod template_editor;
+pub mod template_import;
+pub mod template_library;
+pub mod template_migration;
+pub mod template_transaction;

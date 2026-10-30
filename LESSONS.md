@@ -1121,3 +1121,15 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
   that resent the whole expanded preview through the 4 MiB input limit. Existing legacy and
   transport tests now replay both failures, including a small request producing 5,000,000
   output bytes. Send only compact readiness facts; a request limit is not an output limit.
+
+## Preserve automatic-index error precedence across the App ABI
+
+- Seen 1x (2026-10-30): the #360 migration initially compared all trigger pairs before
+  building an index. Equal triggers with immediate expansion then reported a prefix conflict,
+  while the existing public seam requires duplicateTrigger. Five assertions in
+  `OwlAutomaticExpansionTests/testPrefixValidationDependsOnShorterModeInBothInsertionOrders`
+  failed. Rust now builds the actual trie and checks terminal duplication before descendants;
+  Swift decodes its immutable nodes without maintaining another conflict rule.
+- Verify (验证点): run that existing App-host test through `scripts/verify.py swift`.
+  Both insertion orders and all expansion modes must retain the original typed error.
+  This is isolated regression evidence, not installed keyboard acceptance.

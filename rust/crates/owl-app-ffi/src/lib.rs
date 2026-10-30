@@ -376,3 +376,93 @@ mod tests {
         }
     }
 }
+
+/// Synchronous host service. Its returned JSON pointer is borrowed until the next callback
+/// (or the end of the enclosing call), never freed by Rust and never retained.
+type HostCallback = unsafe extern "C" fn(*mut std::ffi::c_void, *const c_char) -> *const c_char;
+struct NativeHost {
+    context: *mut std::ffi::c_void,
+    callback: HostCallback,
+}
+impl owl_app_core::storage::Host for NativeHost {
+    fn effect(&mut self, value: Value) -> Result<Value, String> {
+        let request = CString::new(value.to_string()).map_err(|_| "invalid_payload")?;
+        let pointer = unsafe { (self.callback)(self.context, request.as_ptr()) };
+        if pointer.is_null() {
+            return Err("native_effect_failed".into());
+        }
+        let response: Value =
+            serde_json::from_slice(unsafe { std::ffi::CStr::from_ptr(pointer) }.to_bytes())
+                .map_err(|_| "invalid_effect_response")?;
+        if response["ok"] == true {
+            Ok(response["value"].clone())
+        } else {
+            Err(response["error"]
+                .as_str()
+                .unwrap_or("native_effect_failed")
+                .into())
+        }
+    }
+}
+/// # Safety
+/// Input and context are borrowed for this synchronous call; callback follows HostCallback's
+/// lifetime contract. No pointer is stored globally or passed to another thread.
+#[no_mangle]
+pub unsafe extern "C" fn owl_app_storage_call(
+    version: u32,
+    request: *const u8,
+    length: usize,
+    context: *mut std::ffi::c_void,
+    callback: Option<HostCallback>,
+) -> *mut c_char {
+    let response = catch_unwind(AssertUnwindSafe(|| {
+        if version != ABI {
+            return error("abi_mismatch");
+        }
+        if request.is_null() || length == 0 || length > isize::MAX as usize {
+            return error("invalid_request");
+        }
+        let Some(callback) = callback else {
+            return error("invalid_request");
+        };
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct StorageRequest {
+            operation: String,
+            args: Value,
+        }
+        let Ok(request) = serde_json::from_slice::<StorageRequest>(unsafe {
+            std::slice::from_raw_parts(request, length)
+        }) else {
+            return error("invalid_request");
+        };
+        let mut host = NativeHost { context, callback };
+        let result = if request.operation.starts_with("writer_") {
+            owl_app_core::config_writer::dispatch(&mut host, &request.operation, request.args)
+        } else if request.operation.starts_with("picker_") {
+            owl_app_core::picker::dispatch(&mut host, &request.operation, request.args)
+        } else if request.operation.starts_with("quick_") {
+            owl_app_core::quick_send::dispatch(&mut host, &request.operation, request.args)
+        } else if request.operation.starts_with("editor_") {
+            owl_app_core::template_editor::dispatch(&mut host, &request.operation, request.args)
+        } else if request.operation.starts_with("prompt_") {
+            owl_app_core::prompt_store::dispatch(&mut host, &request.operation, request.args)
+        } else if request.operation.starts_with("import_") {
+            owl_app_core::template_import::dispatch(&mut host, &request.operation, request.args)
+        } else if request.operation.starts_with("backup_") {
+            owl_app_core::template_backup::dispatch(&mut host, &request.operation, request.args)
+        } else if request.operation.starts_with("migration_") {
+            owl_app_core::template_migration::dispatch(&mut host, &request.operation, request.args)
+        } else {
+            owl_app_core::template_library::dispatch(&mut host, &request.operation, request.args)
+        };
+        match result {
+            Ok(value) => json!({"ok":true,"value":value}),
+            Err(code) => error(&code),
+        }
+    }))
+    .unwrap_or_else(|_| error("internal_error"));
+    CString::new(response.to_string())
+        .expect("JSON has no literal NUL")
+        .into_raw()
+}

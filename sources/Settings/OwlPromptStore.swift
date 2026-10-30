@@ -97,202 +97,35 @@ enum OwlPromptVariables {
 /// 写入经 `OwlConfigWriter`（原子、可回滚），与 quick-send 同路。
 enum OwlPromptStore {
   static let fileName = "owl_prompts.json"
-  /// 派生的 Rime 表文件名（`📝title \t code \t score`）。`load` 不读它——它只是 JSON 的投影。
   static let dictFileName = "owl_prompts.txt"
-
-  /// 候选标题前缀的 📝 标记。同时是「视觉可辨」与提交拦截的廉价闸门（见文件头注）。
   static let candidateMarker = "📝"
-
-  // MARK: 读
-
-  /// 读 `dataDir/owl_prompts.json`。文件缺失 / 解码失败 → `[]`；个别非法条目被丢弃（容错）。
   static func load(dataDir: URL = OwlApp.userDir) -> [OwlPromptEntry] {
-    let url = dataDir.appendingPathComponent(fileName)
-    guard let data = try? Data(contentsOf: url),
-          let decoded = try? JSONDecoder().decode([OwlPromptEntry].self, from: data) else {
-      return []
-    }
-    let valid = decoded.compactMap {
-      try? entry(code: $0.code, title: $0.title, body: $0.body, category: $0.category)
-    }
-    return (try? normalized(valid)) ?? valid
+    (try? OwlStorageHost(dataDir: dataDir).call("prompt_load")) ?? []
   }
-
-  // MARK: 校验
-
-  /// 校验并归一**单条** entry：触发码（格式）、标题（单行、非空）、正文（非空）。非法即抛。
-  static func entry(
-    code rawCode: String,
-    title rawTitle: String,
-    body rawBody: String,
-    category rawCategory: String = ""
-  ) throws -> OwlPromptEntry {
-    let code = rawCode.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    let title = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-    let body = rawBody.trimmingCharacters(in: .whitespacesAndNewlines)
-    let category = rawCategory.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !title.isEmpty, !title.contains("\n"), !title.contains("\t") else {
-      throw OwlPromptError.invalidTitle
-    }
-    guard !body.isEmpty else { throw OwlPromptError.invalidBody }
-    guard code.range(of: #"^[a-z][a-z0-9]{0,31}$"#, options: .regularExpression) != nil else {
-      throw OwlPromptError.invalidCode
-    }
-    return OwlPromptEntry(code: code, title: title, body: body, category: category)
+  static func entry(code: String, title: String, body: String, category: String = "") throws -> OwlPromptEntry {
+    try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("prompt_entry", ["entry": OwlAppCore.payload(OwlPromptEntry(code: code, title: title, body: body, category: category))])
   }
-
-  /// 跨特性重码校验：提示码不得与任何快捷短语码重复（共享触发命名空间）。注入 `quickSendCodes`
-  /// 便于单测；默认从 `OwlQuickSendStore.load()` 读现有快捷短语码。命中即抛 `.duplicateCode`。
-  static func assertNoQuickSendCollision(
-    code rawCode: String,
-    quickSendCodes: Set<String>
-  ) throws {
-    let code = rawCode.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    if quickSendCodes.contains(code) {
-      throw OwlPromptError.duplicateCode(code)
-    }
+  static func assertNoQuickSendCollision(code: String, quickSendCodes: Set<String>) throws {
+    let _: Bool = try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("prompt_collision", ["code": code, "codes": Array(quickSendCodes)])
   }
-
-  /// 校验单条 entry（格式）**并**做跨特性重码校验。UI 新建 / 编辑保存时用。
-  static func validatedEntry(
-    code: String,
-    title: String,
-    body: String,
-    category: String = "",
-    quickSendCodes: Set<String>
-  ) throws -> OwlPromptEntry {
-    let clean = try entry(code: code, title: title, body: body, category: category)
-    try assertNoQuickSendCollision(code: clean.code, quickSendCodes: quickSendCodes)
-    return clean
+  static func validatedEntry(code: String, title: String, body: String, category: String = "", quickSendCodes: Set<String>) throws -> OwlPromptEntry {
+    try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("prompt_entry", ["entry": OwlAppCore.payload(OwlPromptEntry(code: code, title: title, body: body, category: category)), "codes": Array(quickSendCodes)])
   }
-
-  /// 现有快捷短语码集合（跨特性重码校验的默认数据源）。
-  static func quickSendCodes(dataDir: URL = OwlApp.userDir) -> Set<String> {
-    Set(OwlQuickSendStore.load(dataDir: dataDir).map(\.code))
+  static func quickSendCodes(dataDir: URL = OwlApp.userDir) -> Set<String> { Set(OwlQuickSendStore.load(dataDir: dataDir).map(\.code)) }
+  static func save(_ entries: [OwlPromptEntry], writer: OwlConfigWriter = OwlConfigWriter(), timestamp: String? = nil) throws {
+    let f = DateFormatter(); f.dateFormat = "yyyyMMdd-HHmmss"
+    let _: Bool = try OwlStorageHost(dataDir: writer.dataDir, writerCheckpoint: writer.writeCheckpoint).call("prompt_save", ["entries": OwlAppCore.payload(entries), "timestamp": timestamp ?? f.string(from: Date())])
   }
-
-  // MARK: 写
-
-  /// 原子写三件（经 `OwlConfigWriter`：备份 + manifest + 回滚），镜像 `OwlQuickSendStore.save`：
-  ///   1. `owl_prompts.json` —— source of truth（先严格归一，非法即抛，再编码 JSON）。
-  ///   2. `owl_prompts.txt`  —— 从同一批 entries 派生的 Rime 表（每次保存全量重生成）。
-  ///   3. `rime_ice.custom.yaml` patch —— 注册 `table_translator@owl_prompts`。
-  /// 三者同一 `timestamp`（同一回滚批次，rollback 会一起还原）。
-  static func save(
-    _ entries: [OwlPromptEntry],
-    writer: OwlConfigWriter = OwlConfigWriter(),
-    timestamp: String? = nil
-  ) throws {
-    let ts = timestamp ?? timestampNow()
-    let clean = try normalized(entries)
-    try writer.applyTextFile(
-      fileName: fileName,
-      contents: try render(clean),
-      marker: OwlManagedMarker.promptsFile,
-      timestamp: ts
-    )
-    try writer.applyTextFile(
-      fileName: dictFileName,
-      contents: renderDict(clean),
-      marker: OwlManagedMarker.promptsDictFile,
-      timestamp: ts
-    )
-    try writer.apply(fileName: "rime_ice.custom.yaml", block: rimeIcePatchBlock, timestamp: ts)
-  }
-
-  /// `rime_ice.custom.yaml` 托管块：把 `owl_prompts` 注册成一个 Owltype-owned `table_translator`。
-  /// 与快捷短语用**不同 marker**，两块在同一文件里各自独立、互不覆盖。候选只显示 📝 标题，正文
-  /// 由控制器在提交拦截时换入——所以这里照常是个普通短码表，无需任何特殊 Rime 配置。
-  static var rimeIcePatchBlock: ManagedPatchBlock {
-    ManagedPatchBlock(
-      marker: OwlManagedMarker.promptsRimeIce,
-      yamlLinesIndentedUnderPatch: [
-        "  # 提示词：Owltype-owned table_translator，候选只显示 📝 标题；正文由控制器拦截插入",
-        "  \"engine/translators/+\":",
-        "    - table_translator@owl_prompts",
-        "  owl_prompts:",
-        "    dictionary: \"\"",
-        "    user_dict: owl_prompts",
-        "    db_class: stabledb",
-        "    enable_completion: false",
-        "    enable_sentence: false",
-        "    initial_quality: 100",
-      ]
-    )
-  }
-
-  /// 从（已归一的）entries 派生 Rime 表文本。每条出两行：`📝title \t code \t 100000` 与防撞
-  /// `📝title \t v{code} \t 100000`（镜像快捷短语 `render`）。`title` 已被 `entry` 校验过无
-  /// 换行 / 无 Tab，对 Tab 分隔安全。正文（`body`）**绝不**进此文件。
-  static func renderDict(_ entries: [OwlPromptEntry]) -> String {
-    var lines = [
-      "# Rime table",
-      "# coding: utf-8",
-      "#@/db_name owl_prompts",
-      "#@/db_type tabledb",
-      "# Owltype prompt titles. Body lives in owl_prompts.json; selecting a 📝 row inserts the body.",
-      "",
-    ]
-    for entry in entries {
-      let marked = candidateMarker + entry.title
-      lines.append("\(marked)\t\(entry.code)\t100000")
-      lines.append("\(marked)\tv\(entry.code)\t100000")
-    }
-    return lines.joined(separator: "\n") + "\n"
-  }
-
-  // MARK: 归一 / 渲染
-
-  /// 严格归一（保存路径）：逐条校验（非法即抛）、按 code 去重（后出现者覆盖）、按 code 升序排序。
+  static var rimeIcePatchBlock: ManagedPatchBlock { OwlTemplateStore.core("prompt_patch") }
+  static func renderDict(_ entries: [OwlPromptEntry]) -> String { OwlTemplateStore.core("prompt_projection", ["entries": OwlAppCore.payload(entries)]) }
   static func normalized(_ entries: [OwlPromptEntry]) throws -> [OwlPromptEntry] {
-    var out: [OwlPromptEntry] = []
-    for item in entries {
-      let clean = try entry(code: item.code, title: item.title, body: item.body, category: item.category)
-      if let existing = out.firstIndex(where: { $0.code == clean.code }) {
-        out[existing] = clean
-      } else {
-        out.append(clean)
-      }
-    }
-    return out.sorted { $0.code < $1.code }
+    try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("prompt_normalized", ["entries": OwlAppCore.payload(entries)])
   }
-
-  /// 编码为稳定（排序键 + 美化）JSON 文本，末尾补换行。
-  private static func render(_ entries: [OwlPromptEntry]) throws -> String {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    let data = try encoder.encode(entries)
-    return (String(data: data, encoding: .utf8) ?? "[]") + "\n"
-  }
-
-  private static func timestampNow() -> String {
-    let f = DateFormatter()
-    f.dateFormat = "yyyyMMdd-HHmmss"
-    return f.string(from: Date())
-  }
-
-  // MARK: 提交拦截支持（R2，纯逻辑）
-
-  /// 去掉提交字符串开头的 📝 标记（及紧随空白），还原存在 JSON 里的干净标题。无标记则原样返回。
-  static func strippingMarker(_ committed: String) -> String {
-    guard committed.hasPrefix(candidateMarker) else { return committed }
-    let afterMarker = committed.dropFirst(candidateMarker.count)
-    return String(afterMarker.drop { $0 == " " || $0 == "\u{3000}" })
-  }
-
-  /// 按 (触发码, 干净标题) 在 `entries` 里找匹配提示词。纯函数，便于单测。先按标题缩小候选，再
-  /// 在其中匹配触发码：精确 `entry.code == code` 优先；否则若 `code` 是防撞 `v{...}` 形态，剥掉
-  /// 前导 `v` 再比。标题不唯一（store 以 code 为键），故必须 code+title 双匹配。无命中返回 nil。
-  static func matchEntry(code rawCode: String, title: String, in entries: [OwlPromptEntry]) -> OwlPromptEntry? {
-    let code = rawCode.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    guard !code.isEmpty else { return nil }
-    let sameTitle = entries.filter { $0.title == title }
-    if let exact = sameTitle.first(where: { $0.code == code }) { return exact }
-    if code.hasPrefix("v") {
-      let stripped = String(code.dropFirst())
-      if let viaCollision = sameTitle.first(where: { $0.code == stripped }) { return viaCollision }
-    }
-    return nil
+  static func strippingMarker(_ committed: String) -> String { OwlTemplateStore.core("prompt_strip", ["text": committed]) }
+  static func matchEntry(code: String, title: String, in entries: [OwlPromptEntry]) -> OwlPromptEntry? {
+    struct Result: Decodable { let entry: OwlPromptEntry? }
+    let result: Result = OwlTemplateStore.core("prompt_match", ["code": code, "title": title, "entries": OwlAppCore.payload(entries)])
+    return result.entry
   }
 }
 
@@ -425,7 +258,7 @@ enum OwlPromptPresets {
   ]
 
   /// 合并结果：合并后的完整条目集（拿去 `save`）+ 实际导入的码 + 因撞码跳过的码。
-  struct MergeResult: Equatable {
+  struct MergeResult: Equatable, Decodable {
     let merged: [OwlPromptEntry]
     let added: [String]
     let skipped: [String]
@@ -437,18 +270,6 @@ enum OwlPromptPresets {
     into existing: [OwlPromptEntry],
     quickSendCodes: Set<String>
   ) -> MergeResult {
-    let taken = Set(existing.map(\.code)).union(quickSendCodes)
-    var merged = existing
-    var added: [String] = []
-    var skipped: [String] = []
-    for template in templates {
-      if taken.contains(template.code) {
-        skipped.append(template.code)
-      } else {
-        merged.append(template)
-        added.append(template.code)
-      }
-    }
-    return MergeResult(merged: merged, added: added, skipped: skipped)
+    OwlTemplateStore.core("prompt_presets", ["entries": OwlAppCore.payload(existing), "codes": Array(quickSendCodes), "presets": OwlAppCore.payload(templates)])
   }
 }

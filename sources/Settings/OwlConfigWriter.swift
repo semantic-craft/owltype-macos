@@ -108,7 +108,7 @@ final class OwlConfigWriter {
   /// 目标 Rime 目录。可注入以便测试；默认 Owltype 自己的 user_data_dir。
   let dataDir: URL
 
-  private let writeCheckpoint: (String) throws -> Void
+  let writeCheckpoint: (String) throws -> Void
 
   init(dataDir: URL = OwlApp.userDir, writeCheckpoint: @escaping (String) throws -> Void = { _ in }) {
     self.dataDir = dataDir
@@ -119,41 +119,12 @@ final class OwlConfigWriter {
 
   /// **可由猫头鹰管理** 的文件。`apply` 只应被这些文件名调用（UI 侧约束）；列在这里也是
   /// 文档化的「猫头鹰托管面」。两个 custom.yaml 用托管块合并，其余由生成器整文件产出。
-  static let owlManagedFiles: Set<String> = [
-    "default.custom.yaml",       // 托管块：键位 / 翻页 / 标点 / schema_list
-    "owltype.custom.yaml",          // 托管块：per-app app_options（owltype 域，getAppOptions 实读）
-    "rime_ice.custom.yaml",      // 托管块：全拼方案级模糊音
-    "wubi86_jidian.custom.yaml", // 托管块：五笔编码提示 / 单字 / 清码
-    "wubi86_jidian_pinyin.custom.yaml",
-    "wubi86_jidian_trad.custom.yaml",
-    "wubi86_jidian_trad_pinyin.custom.yaml",
-    "owl_quick_send.json",      // 快捷短语 source of truth（text·code）
-    "owl_quick_send.txt",       // 快捷短语派生 Rime 表（Owltype-owned, not user's custom_phrase.txt）
-    "owl_templates.json",
-    "owl_templates.txt",
-    "owl_templates_state.json",
-    "owl_prompts.json",         // 提示词 source of truth（code·title·body·category）
-    "owl_prompts.txt",          // 提示词派生 Rime 表（只含 📝title \t code \t score，正文不进表）
-  ]
-
-  /// **必须保留 / 默认绝不碰** 的文件 —— 用户私有数据、用户自定义、运行时状态。`apply`
-  /// 在写入前先 guard 这个集合，命中则 `throw refusedNeverTouch`。`*.userdb*` 用前缀/后缀
-  /// 规则匹配（见 `isNeverTouch`），其余精确匹配。
-  static let neverTouch: Set<String> = [
-    "user.yaml",          // 用户运行时选项状态
-    "installation.yaml",  // 安装标识 / 同步配置
-    "custom_phrase.txt",  // 用户自造词短语
-  ]
-
-  /// 是否落在 `neverTouch`：精确命中 `neverTouch`，或匹配「`*.userdb*`」用户词典数据
-  /// （含 `.userdb/`、`.userdb.txt`、`.userdb.bin` 等前缀/后缀形态）。lua/ 等子目录文件
-  /// 取其末段比对，与 `owlManagedFiles` 的 key 形态无关——这里只防误伤用户数据。
+  static var owlManagedFiles: Set<String> {
+    try! OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("writer_managed")
+  }
+  static let neverTouch: Set<String> = ["user.yaml", "installation.yaml", "custom_phrase.txt"]
   static func isNeverTouch(_ fileName: String) -> Bool {
-    let last = (fileName as NSString).lastPathComponent
-    if neverTouch.contains(fileName) || neverTouch.contains(last) { return true }
-    // `*.userdb*`：用户词典目录 / 导出文本 / 二进制，任何形态都不碰。
-    if last.contains(".userdb") { return true }
-    return false
+    try! OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("writer_never_touch", ["name": fileName])
   }
 
   // MARK: - 纯托管块渲染（回包 replaceOrInsertBlock）
@@ -189,135 +160,15 @@ final class OwlConfigWriter {
   /// 读 `dataDir/fileName`（缺省 `"patch:\n"`），返回 (before, after = 渲染后文本)。**不写**。
   /// 这是设置 UI 的默认动作；`after` 包含完整托管块标记，供用户预览将写入的内容。
   func dryRun(fileName: String, block: ManagedPatchBlock) -> (before: String, after: String) {
-    let url = dataDir.appendingPathComponent(fileName)
-    let original = (try? String(contentsOf: url, encoding: .utf8)) ?? "patch:\n"
-    let source = sourceForManagedBlock(original, fileName: fileName, block: block)
-    let after = (try? renderManagedBlock(source, block: block)) ?? original
-    return (before: original, after: after)
+    struct Preview: Decodable { let before: String; let after: String }
+    let value: Preview = try! OwlStorageHost(dataDir: dataDir).call("writer_preview", ["fileName": fileName, "marker": block.marker, "lines": block.yamlLinesIndentedUnderPatch])
+    return (value.before, value.after)
   }
-
-  // MARK: - apply（真机；唯一磁盘写入路径）
-
-  // NEEDS REAL-MACHINE VERIFICATION: writes Owltype's user_data_dir.
-  // 这是唯一真正写磁盘的方法。备份 → 同目录 temp → `replaceItemAt` 原子替换 → 追加 manifest。
-  // **绝不在任何 build / 默认 / IMK 路径上调用**；只由 UI 上明确标注「需真机」的按钮触发。
-  // 部署（reload/deploy）不在此处——本方法只落文件。`timestamp` 由调用方注入（默认占位串），
-  // 不在内部调用 `Date()`，保证可测、可复现。
-  func apply(
-    fileName: String,
-    block: ManagedPatchBlock,
-    timestamp: String = "00000000-000000"
-  ) throws {
-    // 1. 白名单 guard：neverTouch / 非托管文件一律拒绝。
-    guard !Self.isNeverTouch(fileName) else {
-      throw OwlConfigWriteError.refusedNeverTouch(fileName)
-    }
-    guard Self.owlManagedFiles.contains(fileName) else {
-      throw OwlConfigWriteError.refusedUnmanagedFile(fileName)
-    }
-
-    let url = dataDir.appendingPathComponent(fileName)
-    let original = (try? String(contentsOf: url, encoding: .utf8)) ?? "patch:\n"
-    let source = sourceForManagedBlock(original, fileName: fileName, block: block)
-    let updated = try renderManagedBlock(source, block: block)
-    try writeManagedFile(fileName: fileName, original: original, updated: updated, marker: block.marker, timestamp: timestamp)
+  func apply(fileName: String, block: ManagedPatchBlock, timestamp: String = "00000000-000000") throws {
+    let _: Bool = try OwlStorageHost(dataDir: dataDir, writerCheckpoint: writeCheckpoint).call("writer_apply", ["fileName": fileName, "marker": block.marker, "lines": block.yamlLinesIndentedUnderPatch, "timestamp": timestamp])
   }
-
-  private func sourceForManagedBlock(_ original: String, fileName: String, block: ManagedPatchBlock) -> String {
-    guard fileName == "default.custom.yaml", block.marker == OwlManagedMarker.defaultPatch else {
-      return original
-    }
-    return Self.removingBareDefaultPatchKeys(from: original, managedMarker: block.marker)
-  }
-
   static func removingBareDefaultPatchKeys(from text: String, managedMarker: String) -> String {
-    let begin = "# >>> \(managedMarker)"
-    let end = "# <<< \(managedMarker)"
-    var inManagedBlock = false
-    var droppingBlockIndent: Int?
-    var out: [String] = []
-
-    for line in text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
-      if line.contains(begin) {
-        droppingBlockIndent = nil
-        inManagedBlock = true
-        out.append(line)
-        continue
-      }
-      if line.contains(end) {
-        droppingBlockIndent = nil
-        inManagedBlock = false
-        out.append(line)
-        continue
-      }
-
-      if let blockIndent = droppingBlockIndent {
-        if line.trimmingCharacters(in: .whitespaces).isEmpty || Self.leadingSpaceCount(line) > blockIndent {
-          continue
-        }
-        droppingBlockIndent = nil
-      }
-
-      if !inManagedBlock,
-         let item = Self.yamlMapItem(in: line),
-         Self.isDefaultPatchManagedKey(item.key) {
-        if item.valueAfterColon.trimmingCharacters(in: .whitespaces).isEmpty {
-          droppingBlockIndent = item.indent
-        }
-        continue
-      }
-
-      out.append(line)
-    }
-
-    return out.joined(separator: "\n")
-  }
-
-  private static func isDefaultPatchManagedKey(_ key: String) -> Bool {
-    // app_options/*/ascii_mode now lives in the owltype domain (owltype.custom.yaml, task 07-08). Owltype no
-    // longer WRITES it into default.custom.yaml, but we keep it as a PURGE rule: any stray/legacy
-    // app_options in default is dead (getAppOptions reads owltype) — strip it so default stays clean.
-    if key.hasPrefix("app_options/"), key.hasSuffix("/ascii_mode") {
-      return true
-    }
-    return [
-      "schema_list",
-      "menu/page_size",
-      "menu/alternative_select_keys",
-      "ascii_composer/switch_key/Shift_L",
-      "ascii_composer/switch_key/Shift_R",
-      "ascii_composer/switch_key/Caps_Lock",
-      "ascii_composer/good_old_caps_lock",
-      "key_binder/select_first_character",
-      "key_binder/select_last_character",
-      "punctuator/half_shape/+",
-      "punctuator/full_shape/+",
-      "key_binder/bindings/+",
-      "switcher/save_options/+",
-    ].contains(key)
-  }
-
-  private static func yamlMapItem(in line: String) -> (indent: Int, key: String, valueAfterColon: String)? {
-    let indent = leadingSpaceCount(line)
-    let trimmed = line.dropFirst(indent)
-    guard !trimmed.hasPrefix("#"), !trimmed.isEmpty else { return nil }
-
-    if trimmed.hasPrefix("\"") {
-      guard let close = trimmed.dropFirst().firstIndex(of: "\"") else { return nil }
-      let key = String(trimmed[trimmed.index(after: trimmed.startIndex)..<close])
-      let afterQuote = trimmed[trimmed.index(after: close)...].drop { $0 == " " || $0 == "\t" }
-      guard afterQuote.hasPrefix(":") else { return nil }
-      return (indent, key, String(afterQuote.dropFirst()))
-    }
-
-    guard let colon = trimmed.firstIndex(of: ":") else { return nil }
-    let key = String(trimmed[..<colon]).trimmingCharacters(in: .whitespaces)
-    guard !key.isEmpty else { return nil }
-    return (indent, key, String(trimmed[trimmed.index(after: colon)...]))
-  }
-
-  private static func leadingSpaceCount(_ line: String) -> Int {
-    line.prefix { $0 == " " || $0 == "\t" }.count
+    OwlTemplateStore.core("writer_remove_bare", ["text": text, "marker": managedMarker])
   }
 
   func applyTextFile(
@@ -326,144 +177,11 @@ final class OwlConfigWriter {
     marker: String,
     timestamp: String = "00000000-000000"
   ) throws {
-    let url = dataDir.appendingPathComponent(fileName)
-    let original = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-    try writeManagedFile(fileName: fileName, original: original, updated: updated, marker: marker, timestamp: timestamp)
+    let _: Bool = try OwlStorageHost(dataDir: dataDir, writerCheckpoint: writeCheckpoint).call("writer_apply_text", ["fileName": fileName, "contents": updated, "marker": marker, "timestamp": timestamp])
   }
 
-  private func writeManagedFile(
-    fileName: String,
-    original: String,
-    updated: String,
-    marker: String,
-    timestamp: String
-  ) throws {
-    guard !Self.isNeverTouch(fileName) else {
-      throw OwlConfigWriteError.refusedNeverTouch(fileName)
-    }
-    guard Self.owlManagedFiles.contains(fileName) else {
-      throw OwlConfigWriteError.refusedUnmanagedFile(fileName)
-    }
-
-    // No-op when nothing actually changed. The launch-time apply (OwlApplicationDelegate)
-    // re-runs on EVERY launch; without this it would back up + rewrite + append a rollback
-    // manifest entry + force a redeploy every time. The rendered block is timestamp-free
-    // (timestamp only names the backup dir), so `updated == original` whenever prefs are
-    // unchanged and the bare keys are already stripped → skip all disk work.
-    guard !updated.utf8.elementsEqual(original.utf8) else { return }
-
-    let fm = FileManager.default
-    let url = dataDir.appendingPathComponent(fileName)
-    let beforeSha = Self.sha256Hex(of: original)
-    let afterSha = Self.sha256Hex(of: updated)
-    // 2. 备份原文件到 `.owl-backup/<timestamp>/<fileName>`（保留子目录结构）。
-    let backupDir = dataDir
-      .appendingPathComponent(".owl-backup", isDirectory: true)
-      .appendingPathComponent(timestamp, isDirectory: true)
-    let backupFile = backupDir.appendingPathComponent(fileName)
-    try OwlPrivateStorage.prepareDirectory(dataDir, fileManager: fm)
-    try OwlPrivateStorage.prepareDirectory(backupFile.deletingLastPathComponent(), fileManager: fm)
-    try original.write(to: backupFile, atomically: true, encoding: .utf8)
-    try OwlPrivateStorage.hardenFile(backupFile, fileManager: fm)
-    try writeCheckpoint("backup:" + fileName)
-
-    // 3. 同目录 temp 写入，4. 原子替换。
-    try OwlPrivateStorage.prepareDirectory(url.deletingLastPathComponent(), fileManager: fm)
-    let tmp = url.deletingLastPathComponent()
-      .appendingPathComponent(".\(url.lastPathComponent).owl.tmp")
-    try updated.write(to: tmp, atomically: true, encoding: .utf8)
-    if fm.fileExists(atPath: url.path) {
-      _ = try fm.replaceItemAt(url, withItemAt: tmp)
-    } else {
-      try fm.moveItem(at: tmp, to: url)
-    }
-    try OwlPrivateStorage.hardenFile(url, fileManager: fm)
-    try writeCheckpoint("replaced:" + fileName)
-
-    // 5. 追加 rollback manifest 条目。
-    let entry = OwlRollbackEntry(
-      path: url.path,
-      beforeSha256: beforeSha,
-      afterSha256: afterSha,
-      managedBlock: marker,
-      backupDir: backupDir.path,
-      ts: timestamp
-    )
-    try appendManifest(entry)
-    try writeCheckpoint("manifest:" + fileName)
-  }
-
-  // MARK: - rollback（best-effort）
-
-  /// 读最新 manifest 批次，按其 `backupDir` 还原对应文件。best-effort：单个文件还原失败不
-  /// 中断其余。无 manifest / 空 manifest 时安静返回。
   func rollback() throws {
-    let manifestURL = manifestFileURL
-    guard let data = try? Data(contentsOf: manifestURL) else { return }
-    let manifest = try JSONDecoder().decode(OwlRollbackManifest.self, from: data)
-    guard let latest = manifest.files.last else { return }
-
-    let batch = manifest.files.reversed().prefix {
-      $0.ts == latest.ts && $0.backupDir == latest.backupDir
-    }.reversed()
-    let fm = FileManager.default
-    for entry in batch {
-      restore(entry, fileManager: fm)
-    }
-  }
-
-  private func restore(_ entry: OwlRollbackEntry, fileManager fm: FileManager) {
-    let target = URL(fileURLWithPath: entry.path)
-    let backupFile = URL(fileURLWithPath: entry.backupDir)
-      .appendingPathComponent(relativePath(for: target))
-    guard fm.fileExists(atPath: backupFile.path) else { return }
-    let restored = (try? String(contentsOf: backupFile, encoding: .utf8)) ?? ""
-    // 还原同样走 temp + 原子替换，避免半截文件。
-    let tmp = target.deletingLastPathComponent()
-      .appendingPathComponent(".\(target.lastPathComponent).owl.rollback.tmp")
-    try? restored.write(to: tmp, atomically: true, encoding: .utf8)
-    if fm.fileExists(atPath: target.path) {
-      _ = try? fm.replaceItemAt(target, withItemAt: tmp)
-    } else {
-      try? fm.moveItem(at: tmp, to: target)
-    }
-    try? OwlPrivateStorage.hardenFile(target, fileManager: fm)
-  }
-
-  private func relativePath(for target: URL) -> String {
-    let root = dataDir.standardizedFileURL.path
-    let path = target.standardizedFileURL.path
-    guard path.hasPrefix(root + "/") else { return target.lastPathComponent }
-    return String(path.dropFirst(root.count + 1))
-  }
-
-  // MARK: - manifest IO
-
-  private var manifestFileURL: URL {
-    dataDir
-      .appendingPathComponent("owltype", isDirectory: true)
-      .appendingPathComponent("rollback-manifest.json")
-  }
-
-  /// 读现有 manifest（缺省空），追加一条，原子写回。
-  private func appendManifest(_ entry: OwlRollbackEntry) throws {
-    let fm = FileManager.default
-    let url = manifestFileURL
-    try OwlPrivateStorage.prepareDirectory(dataDir, fileManager: fm)
-    try OwlPrivateStorage.prepareDirectory(url.deletingLastPathComponent(), fileManager: fm)
-    var manifest: OwlRollbackManifest
-    if let data = try? Data(contentsOf: url),
-       let decoded = try? JSONDecoder().decode(OwlRollbackManifest.self, from: data) {
-      manifest = decoded
-    } else {
-      manifest = OwlRollbackManifest(version: 1, files: [])
-    }
-    manifest.files.append(entry)
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    let out = try encoder.encode(manifest)
-    try out.write(to: url, options: .atomic)
-    try OwlPrivateStorage.hardenFile(url, fileManager: fm)
+    let _: Bool = try OwlStorageHost(dataDir: dataDir).call("writer_rollback")
   }
 
   // MARK: - sha256

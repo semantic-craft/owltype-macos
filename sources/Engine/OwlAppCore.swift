@@ -147,3 +147,208 @@ extension OwlAppCore {
     let effects: [String]
   }
 }
+
+/// Native services for Rust-owned storage protocols. This adapter performs one primitive
+/// at a time; it has no knowledge of library modes, write ordering or recovery phases.
+final class OwlStorageHost {
+  let dataDir: URL
+  let checkpoint: (String) throws -> Void
+  let writerCheckpoint: (String) throws -> Void
+  var errors: [String: Error] = [:]
+  private var heldDepth = 0
+  private var response: UnsafeMutablePointer<CChar>?
+  init(dataDir: URL, checkpoint: @escaping (String) throws -> Void = { _ in },
+       writerCheckpoint: @escaping (String) throws -> Void = { _ in }) {
+    self.dataDir = dataDir
+    self.checkpoint = checkpoint
+    self.writerCheckpoint = writerCheckpoint
+  }
+  deinit { free(response) }
+  private func url(_ name: String) -> URL {
+    name.hasPrefix("/") ? URL(fileURLWithPath: name) : dataDir.appendingPathComponent(name)
+  }
+  private func perform(_ operation: String, _ args: [String: Any]) throws -> Any {
+    if ["title_ranks", "case_contains", "localized_contains", "unique_sorted_strings"].contains(operation) {
+      return try compare(operation, args)
+    }
+    if ["path", "file_url", "sibling", "rename"].contains(operation) { return try paths(operation, args) }
+    let name = args["name"] as? String ?? ""
+    let target = url(name)
+    let fm = FileManager.default
+    switch operation {
+    case "read":
+      guard fm.fileExists(atPath: target.path) else { return NSNull() }
+      return Array(try Data(contentsOf: target))
+    case "write":
+      let bytes = Data((args["bytes"] as? [UInt8]) ?? [])
+      try OwlPrivateStorage.prepareDirectory(target.deletingLastPathComponent())
+      try bytes.write(to: target, options: .atomic)
+      try fm.setAttributes([.posixPermissions: args["permissions"] as? Int ?? 0o600], ofItemAtPath: target.path)
+      return true
+    case "replace":
+      let bytes = Data((args["bytes"] as? [UInt8]) ?? [])
+      try OwlPrivateStorage.prepareDirectory(target.deletingLastPathComponent())
+      let temporary = target.deletingLastPathComponent().appendingPathComponent("." + target.lastPathComponent + "." + (args["suffix"] as? String ?? "owl.tmp"))
+      try bytes.write(to: temporary, options: .atomic)
+      if fm.fileExists(atPath: target.path) { _ = try fm.replaceItemAt(target, withItemAt: temporary) }
+      else { try fm.moveItem(at: temporary, to: target) }
+      try OwlPrivateStorage.hardenFile(target)
+      return true
+    case "remove":
+      if fm.fileExists(atPath: target.path) { try fm.removeItem(at: target) }
+      return true
+    case "permissions":
+      guard fm.fileExists(atPath: target.path) else { return NSNull() }
+      return (try fm.attributesOfItem(atPath: target.path)[.posixPermissions] as? NSNumber) ?? NSNumber(value: 0o600)
+    case "relative":
+      let target = URL(fileURLWithPath: args["path"] as? String ?? "").standardizedFileURL
+      let root = dataDir.standardizedFileURL.path
+      return target.path.hasPrefix(root + "/") ? String(target.path.dropFirst(root.count + 1)) : target.lastPathComponent
+    case "library_committed": OwlTemplateStore.notifyCommittedLibrary(dataDir: dataDir); return true
+    case "uuid": return UUID().uuidString
+    case "checkpoint":
+      if args["channel"] as? String == "writer" { try writerCheckpoint(name) }
+      else { try checkpoint(name) }
+      return true
+    case "lock": try Self.acquire(dataDir); heldDepth += 1; return true
+    case "unlock": Self.release(dataDir); heldDepth -= 1; return true
+    default: throw OwlAppCore.Failure(code: "unknown_native_effect")
+    }
+  }
+  private func paths(_ operation: String, _ args: [String: Any]) throws -> Any {
+    let target = url(args["name"] as? String ?? "")
+    let fm = FileManager.default
+    switch operation {
+    case "path": return target.path
+    case "file_url": return target.absoluteString
+    case "sibling": return target.deletingLastPathComponent().appendingPathComponent(args["sibling"] as? String ?? "").path
+    case "rename":
+      let source = url(args["source"] as? String ?? "")
+      let destination = url(args["destination"] as? String ?? "")
+      if fm.fileExists(atPath: destination.path) { _ = try fm.replaceItemAt(destination, withItemAt: source, options: .usingNewMetadataOnly) }
+      else { try fm.moveItem(at: source, to: destination) }
+      return true
+    default: throw OwlAppCore.Failure(code: "unknown_native_path_effect")
+    }
+  }
+  private func compare(_ operation: String, _ args: [String: Any]) throws -> Any {
+    switch operation {
+    case "title_ranks":
+      let titles = args["titles"] as? [String] ?? []
+      let order = titles.indices.sorted { titles[$0].localizedStandardCompare(titles[$1]) == .orderedAscending }
+      var ranks = [Int](repeating: 0, count: titles.count)
+      var rank = 0
+      for (position, index) in order.enumerated() {
+        if position > 0 && titles[order[position - 1]].localizedStandardCompare(titles[index]) != .orderedSame { rank += 1 }
+        ranks[index] = rank
+      }
+      return ranks
+    case "case_contains":
+      let values = args["values"] as? [String] ?? []
+      let value = args["value"] as? String ?? ""
+      return values.contains { $0.caseInsensitiveCompare(value) == .orderedSame }
+    case "localized_contains":
+      return (args["text"] as? String ?? "").localizedCaseInsensitiveContains(args["query"] as? String ?? "")
+    case "unique_sorted_strings":
+      var unique: [String] = []
+      for value in args["values"] as? [String] ?? [] where !unique.contains(where: { $0.caseInsensitiveCompare(value) == .orderedSame }) { unique.append(value) }
+      return unique.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    default: throw OwlAppCore.Failure(code: "unknown_native_comparison")
+    }
+  }
+  fileprivate func respond(_ request: UnsafePointer<CChar>) -> UnsafePointer<CChar>? {
+    free(response)
+    let result: [String: Any]
+    do {
+      let data = Data(bytes: request, count: strlen(request))
+      let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+      result = ["ok": true, "value": try perform(object["operation"] as? String ?? "", object["args"] as? [String: Any] ?? [:])]
+    } catch {
+      let token = "native:" + UUID().uuidString
+      errors[token] = error
+      result = ["ok": false, "error": token]
+    }
+    guard let data = try? JSONSerialization.data(withJSONObject: result, options: [.fragmentsAllowed]) else { return nil }
+    response = strdup(String(decoding: data, as: UTF8.self))
+    return response.map { UnsafePointer($0) }
+  }
+  private static let lock = NSRecursiveLock()
+  private static var locks: [String: (descriptor: Int32, depth: Int)] = [:]
+  static func exclusively<T>(_ action: () throws -> T) rethrows -> T {
+    lock.lock(); defer { lock.unlock() }; return try action()
+  }
+  static func acquire(_ dataDir: URL) throws {
+    lock.lock()
+    let directory = dataDir.standardizedFileURL.resolvingSymlinksInPath()
+    let key = directory.path
+    if var held = locks[key] { held.depth += 1; locks[key] = held; return }
+    do {
+      try OwlPrivateStorage.prepareDirectory(directory)
+      let descriptor = open(directory.appendingPathComponent(".owl-template-write.lock").path, O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, mode_t(0o600))
+      guard descriptor >= 0 else { throw OwlTemplateError.invalid("无法锁定模板库，请检查目录权限。") }
+      guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
+        close(descriptor); throw OwlTemplateError.invalid("另一个实例正在修改模板库，请稍后重试。")
+      }
+      locks[key] = (descriptor, 1)
+    } catch { lock.unlock(); throw error }
+  }
+  static func release(_ dataDir: URL) {
+    let key = dataDir.standardizedFileURL.resolvingSymlinksInPath().path
+    guard var held = locks[key] else { return }
+    held.depth -= 1
+    if held.depth == 0 { flock(held.descriptor, LOCK_UN); close(held.descriptor); locks.removeValue(forKey: key) }
+    else { locks[key] = held }
+    lock.unlock()
+  }
+  func call<Value: Decodable>(_ operation: String, _ args: [String: Any] = [:]) throws -> Value {
+    let initialDepth = heldDepth
+    defer { while heldDepth > initialDepth { Self.release(dataDir); heldDepth -= 1 } }
+    let bytes = try JSONSerialization.data(withJSONObject: ["operation": operation, "args": args])
+    let response = bytes.withUnsafeBytes { buffer in
+      owl_app_storage_call(OwlAppCore.abiVersion, buffer.bindMemory(to: UInt8.self).baseAddress, buffer.count,
+        Unmanaged.passUnretained(self).toOpaque()) { context, request in
+          guard let context, let request else { return nil }
+          return Unmanaged<OwlStorageHost>.fromOpaque(context).takeUnretainedValue().respond(request)
+        }
+    }
+    guard let response else { throw OwlAppCore.Failure(code: "missing_response") }
+    defer { owl_app_string_free(response) }
+    let decoded = try JSONDecoder().decode(OwlAppCoreResponse<Value>.self, from: Data(bytes: response, count: strlen(response)))
+    guard decoded.isOK, let value = decoded.value else {
+      let code = decoded.error ?? "invalid_response"
+      if let error = errors[code] { throw error }
+      if code.hasPrefix("never_touch:") { throw OwlConfigWriteError.refusedNeverTouch(String(code.dropFirst(12))) }
+      if code.hasPrefix("unmanaged:") { throw OwlConfigWriteError.refusedUnmanagedFile(String(code.dropFirst(10))) }
+      throw Self.failure(code)
+    }
+
+    return value
+  }
+  private static func failure(_ code: String) -> Error {
+    let fixed: [String: Error] = [
+      "legacy_requires_migration": OwlTemplateError.legacyRequiresMigration,
+      "changed_on_disk": OwlTemplateError.changedOnDisk,
+      "recovery_failed": OwlTemplateError.recoveryFailed,
+      "migration_invalidJournal": OwlTemplateMigration.Failure.invalidJournal,
+      "migration_changed": OwlTemplateMigration.Failure.changed,
+      "migration_recovery": OwlTemplateMigration.Failure.recovery,
+      "migration_issues": OwlTemplateMigration.Failure.issues,
+      "migration_conflict": OwlTemplateMigration.Failure.conflict,
+      "migration_alreadyUnified": OwlTemplateMigration.Failure.alreadyUnified,
+      "automatic_invalid": OwlAutomaticExpansionIndex.ValidationError.invalidTrigger,
+      "automatic_duplicate": OwlAutomaticExpansionIndex.ValidationError.duplicateTrigger,
+      "automatic_prefix": OwlAutomaticExpansionIndex.ValidationError.immediatePrefixConflict,
+      "quick_text": OwlQuickSendError.invalidText,
+      "quick_code": OwlQuickSendError.invalidCode,
+      "prompt_title": OwlPromptError.invalidTitle,
+      "prompt_body": OwlPromptError.invalidBody,
+      "prompt_code": OwlPromptError.invalidCode,
+      "invalid_patch": OwlConfigWriteError.fileHasNoPatchAndCannotCreate
+    ]
+    if let failure = fixed[code] { return failure }
+    if code.hasPrefix("prompt_duplicate:") { return OwlPromptError.duplicateCode(String(code.dropFirst(17))) }
+    if code.hasPrefix("automatic_template:") { return OwlAutomaticExpansionIndex.ValidationError.invalidTemplate(String(code.dropFirst(19))) }
+    return OwlTemplateError.invalid(code)
+  }
+
+}
