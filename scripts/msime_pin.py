@@ -153,7 +153,7 @@ def check_baseline(pin: Pin, root: Path) -> list[str]:
 # release on purpose.
 STALE_TAG_EXEMPT = (
     'rust/crates/engine/', 'rust/crates/input-runtime/', 'rust/crates/path-trust/',
-    'rust/crates/client-core/', 'LESSONS.md', 'CHANGELOG.md', 'progress/', 'docs/release-',
+    'rust/crates/client-core/', 'LESSONS.md', 'CHANGELOG.md', 'progress/',
     'docs/operations/msime-repin.md', 'docs/reports/',
 )
 TAG = re.compile(r'dict-v\d+\.\d+\.\d+')
