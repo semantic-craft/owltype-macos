@@ -84,6 +84,11 @@ final class JEVReplyModel: ObservableObject {
     busy = false
   }
 
+  func userEdited() {
+    invalidate()
+    status = "要求已修改，请重新生成候选。"
+  }
+
   private func call(_ object: [String: Any]) async throws -> [String: Any] {
     let data = try JSONSerialization.data(withJSONObject: object)
     let transport = self.transport
@@ -92,20 +97,23 @@ final class JEVReplyModel: ObservableObject {
     }.value
     try Task.checkCancellation()
     guard let value = try JSONSerialization.jsonObject(with: response) as? [String: Any],
-          value["ok"] as? Bool == true else { throw JEVTransport.Failure.invalid }
+          value["ok"] as? Bool == true, value["version"] as? Int == 1 else { throw JEVTransport.Failure.invalid }
     return value
   }
 
   func load() {
     invalidate()
+    ready = false
     busy = true
     let token = revision
     job = Task {
       do {
         let value = try await call(["version": 1, "operation": "preferences"])
         guard revision == token else { return }
+        guard let replyStyle = value["reply_style"] as? [String: Any],
+              JSONSerialization.isValidJSONObject(replyStyle) else { throw JEVTransport.Failure.invalid }
         style = try JSONDecoder().decode(JEVStyle.self,
-          from: JSONSerialization.data(withJSONObject: value["reply_style"] as Any))
+          from: JSONSerialization.data(withJSONObject: replyStyle))
         ready = true
         status = "已载入保存的风格。选区仅作为待回复材料，不推断消息方向。"
       } catch {
@@ -116,7 +124,7 @@ final class JEVReplyModel: ObservableObject {
     }
   }
 
-  var canGenerate: Bool { !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && text.count <= 10000 }
+  var canGenerate: Bool { instructions.unicodeScalars.count <= 1000 && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && text.unicodeScalars.count <= 10000 }
 
   func generate() {
     invalidate()
@@ -127,14 +135,16 @@ final class JEVReplyModel: ObservableObject {
     let token = revision
     let currentStyle = style
     let currentInstructions = instructions
+    let currentText = text
     job = Task {
       do {
         let styleValue = try JSONSerialization.jsonObject(with: JSONEncoder().encode(currentStyle))
         let value = try await call(["version": 1, "operation": "recommend",
-          "request_id": token.uuidString, "source": source, "text": text,
+          "request_id": token.uuidString, "source": source, "text": currentText,
           "reply_style": styleValue, "instructions": currentInstructions])
         guard revision == token else { return }
-        guard style == currentStyle, instructions == currentInstructions,
+        guard style == currentStyle, instructions == currentInstructions, text == currentText,
+
               value["request_id"] as? String == token.uuidString else { throw JEVTransport.Failure.invalid }
         guard let rows = value["candidates"] as? [[String: Any]],
               !rows.isEmpty, rows.allSatisfy({ ($0["text"] as? String)?.isEmpty == false }) else {
@@ -152,23 +162,27 @@ final class JEVReplyModel: ObservableObject {
   }
 }
 
+@MainActor
 private struct JEVReplyView: View {
   @ObservedObject var model: JEVReplyModel
+  private func styleBinding(_ key: WritableKeyPath<JEVStyle, String>) -> Binding<String> {
+    Binding(get: { model.style[keyPath: key] }, set: { model.style[keyPath: key] = $0; model.userEdited() })
+  }
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       Text("JEV 回复建议").font(.title2)
       Text("只展示候选，不填入、不发送；风格调整仅用于本次").font(.caption).foregroundStyle(.secondary)
       ScrollView { Text(model.text).frame(maxWidth: .infinity, alignment: .leading) }.frame(height: 90)
       Form {
-        TextField("关系", text: $model.style.relationship)
-        TextField("目标", text: $model.style.purpose)
-        TextField("语气", text: $model.style.tone)
-        TextField("长度", text: $model.style.length)
-        TextField("限制", text: $model.style.constraints)
+        TextField("关系", text: styleBinding(\.relationship))
+        TextField("目标", text: styleBinding(\.purpose))
+        TextField("语气", text: styleBinding(\.tone))
+        TextField("长度", text: styleBinding(\.length))
+        TextField("限制", text: styleBinding(\.constraints))
         Toggle("非暴力沟通（保留你的表达风格）", isOn: Binding(
           get: { model.style.approach == "nvc" },
-          set: { model.style.approach = $0 ? "nvc" : "standard" }))
-        TextField("这次我想怎么回", text: $model.instructions)
+          set: { model.style.approach = $0 ? "nvc" : "standard"; model.userEdited() }))
+        TextField("这次我想怎么回", text: Binding(get: { model.instructions }, set: { model.instructions = $0; model.userEdited() }))
       }.disabled(model.busy)
       HStack {
         Button(model.ready ? "判断并生成候选" : "重新连接") { model.generate() }.disabled(model.busy || (model.ready && !model.canGenerate))
@@ -183,8 +197,6 @@ private struct JEVReplyView: View {
         }
       }.frame(minHeight: 120)
     }.padding(20).frame(width: 560, height: 620)
-      .onChange(of: model.style) { if !model.busy { model.invalidate() } }
-      .onChange(of: model.instructions) { model.invalidate() }
   }
 }
 
@@ -196,6 +208,7 @@ final class JEVReplyPanel: NSObject, NSWindowDelegate {
 
   func show(text: String, source: String) {
     model?.invalidate()
+    window?.delegate = nil
     window?.close()
     let model = JEVReplyModel(text: text, source: source)
     self.model = model
@@ -212,5 +225,8 @@ final class JEVReplyPanel: NSObject, NSWindowDelegate {
     model.load()
   }
 
-  func windowWillClose(_ notification: Notification) { model?.invalidate() }
+  func windowWillClose(_ notification: Notification) {
+    guard (notification.object as? NSWindow) === window else { return }
+    model?.invalidate()
+  }
 }
