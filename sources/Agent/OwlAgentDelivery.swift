@@ -248,7 +248,8 @@ final class OwlAgentDeliveryCoordinator {
     case .notAttempted(.secureInput): return .targetChanged(.secureInput)
     case .notAttempted(.unverifiableTarget): return .targetChanged(.unverifiableTarget)
     case .notAttempted(.missingHost): return .targetChanged(targetQuit ? .targetQuit : .noTarget)
-    case .notAttempted(.focusNotRestored), .notAttempted(.targetChanged), .notAttempted(.originalNotPreserved):
+    case .notAttempted(.focusNotRestored), .notAttempted(.targetChanged),
+         .notAttempted(.originalNotPreserved), .notAttempted(.selectionNotPrepared):
       return .targetChanged(.focusChanged)
     }
   }

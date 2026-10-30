@@ -221,6 +221,7 @@ final class OwlDynamicAutomaticTests: XCTestCase {
           self.marked = NSRange(location: NSNotFound, length: 0)
           self.selection = NSRange(location: range.location + text.utf16.count, length: 0)
           if !self.acknowledgeWrites { self.readable = false }
+          return true
         }, canReplace: { self.canReplace }, move: { range, _, _ in
           self.moves += 1
           self.selection = range

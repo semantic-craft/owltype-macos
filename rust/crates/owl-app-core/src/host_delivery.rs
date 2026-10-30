@@ -40,7 +40,9 @@ fn outcome(s: &str) -> Value {
 pub struct Delivery {
     source: Option<Value>,
     invalid: bool,
+    reserved: bool,
     dispatched: bool,
+    write_pending: Option<String>,
     immediate: bool,
     preparation: Option<String>,
     committed: Option<Range>,
@@ -54,6 +56,11 @@ pub struct Delivery {
     verify_pending: bool,
     move_pending: bool,
     effect_pending: Option<String>,
+    selection_required: bool,
+    selection_set_pending: bool,
+    selection_poll_pending: bool,
+    selection_remaining: u32,
+    selection_token: u64,
 }
 impl Delivery {
     pub fn new(args: Value) -> Self {
@@ -71,7 +78,7 @@ impl Delivery {
         }
     }
     fn ready(&self, f: &Value) -> bool {
-        !self.invalid && !self.dispatched && f["sourceValid"] == true && f["rejection"].is_null()
+        !self.invalid && !self.reserved && f["sourceValid"] == true && f["rejection"].is_null()
     }
     fn valid(&self, f: &Value) -> bool {
         !self.invalid && f["sourceValid"] == true && f["rejection"].is_null()
@@ -99,10 +106,69 @@ impl Delivery {
             && range(&f["selection"]) == Some(end(r))
             && f["text"] == s["marked"]
     }
+    fn original_matches(&self, f: &Value, selected: bool) -> bool {
+        let Some(r) = self.committed else {
+            return false;
+        };
+        self.valid(f)
+            && f["ranges"] == true
+            && f["replace"] == true
+            && no_mark(f)
+            && range(&f["selection"]) == Some(if selected { r } else { end(r) })
+            && self
+                .source
+                .as_ref()
+                .is_some_and(|s| f["text"] == s["original"])
+    }
+    fn wait_for_selection(&mut self) -> Value {
+        self.selection_token = self.selection_token.wrapping_add(1);
+        self.selection_poll_pending = true;
+        json!({"action":"wait_selection", "token":self.selection_token, "origin":self.origin})
+    }
+    fn selection_failure(&mut self, reason: &str) -> Value {
+        self.invalid = true;
+        self.selection_poll_pending = false;
+        self.effect_pending = None;
+        outcome(reason)
+    }
+    fn poll_selection(&mut self, f: &Value) -> Value {
+        if !self.selection_poll_pending || f["token"].as_u64() != Some(self.selection_token) {
+            return json!({"ignored":true});
+        }
+        // Consume this callback before examining facts or authorizing any subsequent effect.
+        self.selection_poll_pending = false;
+        if self.invalid || f["sourceValid"] != true || f["revision"].as_u64() != Some(self.revision)
+        {
+            return self.selection_failure("targetChanged");
+        }
+        if let Some(reason) = f["rejection"]
+            .as_str()
+            .filter(|s| *s != "unverifiableTarget")
+        {
+            return self.selection_failure(reason);
+        }
+        if self.original_matches(f, true) {
+            self.effect_pending = Some("result".into());
+            return json!({"action":"insert", "origin":self.origin});
+        }
+        let r = self.committed.unwrap();
+        let changed_selection = range(&f["selection"]).is_some_and(|s| s != r && s != end(r));
+        let changed_text = f
+            .get("text")
+            .is_some_and(|t| Some(t) != self.source.as_ref().map(|s| &s["original"]));
+        if changed_selection || changed_text || (f["ranges"] == true && !no_mark(f)) {
+            return self.selection_failure("targetChanged");
+        }
+        if self.selection_remaining == 0 {
+            return self.selection_failure("selectionNotPrepared");
+        }
+        self.selection_remaining -= 1;
+        self.wait_for_selection()
+    }
     pub fn event(&mut self, event: &str, f: Value) -> Result<Value, String> {
         Ok(match event {
             "invalid" => json!(self.invalid),
-            "dispatched" => json!(self.dispatched),
+            "reserved" => json!(self.reserved),
             "immediate" => json!(self.immediate),
             "end_immediate" => {
                 self.immediate = false;
@@ -204,7 +270,7 @@ impl Delivery {
                 }
             }
             "result_begin" => {
-                if self.dispatched {
+                if self.reserved {
                     json!(false)
                 } else {
                     self.result = Some(json!({"text":"", "cursorOffset":f["cursorOffset"]}));
@@ -212,7 +278,7 @@ impl Delivery {
                 }
             }
             "result_chunk" => {
-                if self.dispatched {
+                if self.reserved {
                     json!(false)
                 } else {
                     let result = self.result.as_mut().ok_or("invalid_event")?;
@@ -225,7 +291,7 @@ impl Delivery {
             }
             "plan" => {
                 if !self.ready(&f) {
-                    return Ok(outcome(if self.dispatched {
+                    return Ok(outcome(if self.reserved {
                         "targetChanged"
                     } else {
                         f["rejection"].as_str().unwrap_or("targetChanged")
@@ -263,16 +329,65 @@ impl Delivery {
                 } else {
                     None
                 };
-                self.dispatched = true;
-                self.effect_pending = Some("result".into());
-                self.verify_pending = origin.is_some();
+                self.reserved = true;
+                self.selection_required = replacement.is_some() && f["needsSelection"] == true;
+                self.effect_pending = Some(
+                    if self.selection_required {
+                        "selection"
+                    } else {
+                        "result"
+                    }
+                    .into(),
+                );
+                self.verify_pending = false;
                 self.origin = origin;
                 self.revision = f["revision"].as_u64().unwrap_or(0);
                 self.result = Some(result.clone());
-                json!({"origin":origin,"replacement":replacement})
+                json!({"action":if self.selection_required { "select" } else { "insert" },
+                    "origin":origin,"replacement":replacement})
+            }
+            "selection_set" => {
+                if !self.selection_set_pending {
+                    return Ok(json!({"ignored":true}));
+                }
+                self.selection_set_pending = false;
+                if f["accepted"] != true {
+                    self.selection_failure("selectionNotPrepared")
+                } else {
+                    self.selection_remaining = 7;
+                    self.wait_for_selection()
+                }
+            }
+            "selection_poll" => self.poll_selection(&f),
+            "write_receipt" => {
+                let kind = f["kind"].as_str().unwrap_or("");
+                if self.write_pending.as_deref() != Some(kind) {
+                    return Ok(json!({"ignored":true}));
+                }
+                self.write_pending = None;
+                if f["dispatched"] != true {
+                    self.invalid = true;
+                    if kind == "original" {
+                        self.preparation_pending = false;
+                        self.preparation = Some("originalNotPreserved".into());
+                        outcome("originalNotPreserved")
+                    } else {
+                        outcome("targetChanged")
+                    }
+                } else if kind == "result" {
+                    self.dispatched = true;
+                    self.verify_pending = self.origin.is_some();
+                    if self.verify_pending {
+                        json!({})
+                    } else {
+                        outcome("attemptedUnverified")
+                    }
+                } else {
+                    json!({})
+                }
             }
             "verify" => {
-                if !self.verify_pending {
+                if !self.dispatched || !self.verify_pending {
                     return Ok(json!({"ignored":true}));
                 }
                 self.verify_pending = false;
@@ -303,7 +418,20 @@ impl Delivery {
                 if pending.as_deref() == Some(kind)
                     && self.valid(&f)
                     && f["revision"].as_u64() == Some(self.revision)
+                    && (kind != "selection" || self.original_matches(&f, false))
+                    && (kind != "result"
+                        || self.committed.is_none()
+                        || self.original_matches(&f, self.selection_required))
+                    && (kind != "result"
+                        || self.committed.is_none()
+                        || (f["needsSelection"] == true) == self.selection_required)
                 {
+                    if kind == "selection" {
+                        self.selection_set_pending = true;
+                    }
+                    if kind == "original" || kind == "result" {
+                        self.write_pending = Some(kind.into());
+                    }
                     json!({})
                 } else {
                     self.invalid = true;

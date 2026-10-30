@@ -103,3 +103,5 @@ pub mod resource_contract;
 pub mod resource_catalog;
 
 pub mod resource_lifecycle;
+
+pub mod client_capability;

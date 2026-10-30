@@ -3,7 +3,7 @@
 <title>Owltype · 水杉输入对齐</title>
 <style>body{font:16px system-ui;max-width:960px;margin:3rem auto;padding:0 1rem;color:#202936;background:#f7f8fb}article,section{padding:1rem;margin:1rem 0;background:white;border-radius:12px}a{color:#1555ac}.badge{padding:.25rem .6rem;border-radius:20px;background:#e9edf5}small{color:#566}</style>
 <h1>Owltype · 水杉输入对齐</h1>
-<p>Observed: 2026-10-30T10:54:15.053897Z</p>
+<p>Observed: 2026-10-30T11:30:00.240649Z</p>
 <p>Main: <code>main: 209f5a5852f30b8180d5b9c0525cf37ba470946d</code></p>
 <section id="contract"><h2>共同入口与领取</h2>
 <article id="coordination"><h3>GitHub 为真源；两个输入方案共用设施</h3><span class="badge">in_progress</span><p>本页是带观察时间的快照。阻塞按 GitHub 原生依赖计算；负责人只表示 GitHub 指派，不冒充 agent 会话。工单关闭不自动等于产品验收。</p><ul>
@@ -100,9 +100,9 @@
 </ul><p>Next: 核对工单完成证据。</p></article>
 </section>
 <section id="rust-business"><h2>Rust 业务核心迁移</h2>
-<article id="issue-356"><h3>#356 [目标] 业务核心全面迁入 Rust，Swift 仅保留 macOS 界面与系统适配</h3><span class="badge">planned</span><p>GitHub: open；负责人：未指派；未关闭前置：无。</p><ul>
+<article id="issue-356"><h3>#356 [目标] 业务核心全面迁入 Rust，Swift 仅保留 macOS 界面与系统适配</h3><span class="badge">in_progress</span><p>阶段 0–5 的迁移代码已逐票进入 foundation；#362 仍需 Chrome 原生修复验收，#366/#367 尚未完成。总 PR 保持候选，未合 main 或发布。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/356">issue 356: 范围、当前状态和证据原件</a></li>
-</ul><p>Next: 读取工单和开放 PR，经共享领取入口核实后领取。</p></article>
+</ul><p>Next: 完成 #362 修复评审、精确门禁及原生验收，再继续 Agent 与生命周期收尾。</p></article>
 <article id="issue-357"><h3>#357 [Rust 业务核心] 阶段 0：建立业务归属、App FFI 与行为基线</h3><span class="badge">unverified</span><p>GitHub: closed；负责人：未指派；未关闭前置：无。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/357">issue 357: 范围、当前状态和证据原件</a></li>
 </ul><p>Next: 核对工单完成证据。</p></article>
@@ -118,28 +118,28 @@
 <article id="issue-361"><h3>#361 [Rust 业务核心] 阶段 2C：自动展开与模板调用业务状态迁入 Rust</h3><span class="badge">unverified</span><p>GitHub: closed；负责人：未指派；未关闭前置：无。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/361">issue 361: 范围、当前状态和证据原件</a></li>
 </ul><p>Next: 核对工单完成证据。</p></article>
-<article id="issue-362"><h3>#362 [Rust 业务核心] 阶段 3：交付状态机迁 Rust 并完成 Chrome 能力适配</h3><span class="badge">blocked</span><p>GitHub: open；负责人：未指派；未关闭前置：无。</p><ul>
-<li><a href="https://github.com/semantic-craft/owltype-macos/issues/362">issue 362: 范围、当前状态和证据原件</a></li>
-</ul><p>Next: 读取工单和开放 PR，经共享领取入口核实后领取。</p></article>
+<article id="issue-362"><h3>#362 [Rust 业务核心] 阶段 3：交付状态机迁 Rust 并完成 Chrome 能力适配</h3><span class="badge">in_progress</span><p>交付已在 foundation；本轮候选修复原生选区准备与正文尝试反馈，并将纯宿主能力策略迁入 Rust。两个已知缺陷及评审发现的选区准入后重入回归均红转绿，145 项定向 App→Rust 测试通过。独立评审、精确 HEAD 完整门禁及新候选 Chrome/TextEdit 原生验收待完成；未发布。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/issues/362">issue 362: 修复及策略归属调整；#331保留既有原生失败事实</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/tests/OwlTemplateHostDeliveryTests.swift">file tests/OwlTemplateHostDeliveryTests.swift: 零次正文写入反馈、延迟选区、失败/取消及晚回执回归；定向测试通过不等于原生验收</a></li>
+</ul><p>Next: 评审修复候选，通过精确 HEAD 门禁后由协调者构建安装候选并核对 Chrome 自动展开/cursor 及 TextEdit 回归。</p></article>
 <article id="issue-363"><h3>#363 [Rust 业务核心] 阶段 4A：AI 供应商、请求协议和流解析迁入 Rust</h3><span class="badge">unverified</span><p>GitHub: closed；负责人：未指派；未关闭前置：无。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/363">issue 363: 范围、当前状态和证据原件</a></li>
 </ul><p>Next: 核对工单完成证据。</p></article>
 <article id="issue-364"><h3>#364 [Rust 业务核心] 阶段 4B：AI 搜索、写作与聊天业务状态迁入 Rust</h3><span class="badge">in_progress</span><p>GitHub: open；负责人：未指派；未关闭前置：无。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/364">issue 364: 范围、当前状态和证据原件</a></li>
 </ul><p>Next: 读取工单和开放 PR，经共享领取入口核实后领取。</p></article>
-<article id="issue-365"><h3>#365 [Rust 业务核心] 阶段 5：资源代次与用户数据事务迁入 Rust</h3><span class="badge">in_progress</span><p>资源代次、校验、激活/回退、迁移/重置及置顶词业务已迁入 Rust；71 项既有 App→Rust 测试通过，最终工作线程调整再通过 16 项定向回归。PR #379 待独立评审及干净精确 HEAD 完整门禁；未安装或迁移真实用户数据。</p><ul>
-<li><a href="https://github.com/semantic-craft/owltype-macos/issues/365">issue 365: 范围、当前状态和证据原件</a></li>
-<li><a href="https://github.com/semantic-craft/owltype-macos/pull/379">pull 379: 实现与回归证据；尚未合入 foundation</a></li>
-</ul><p>Next: 独立评审并修复必要问题，再运行一次精确 HEAD 完整门禁，交集成人合入 foundation。</p></article>
-<article id="issue-366"><h3>#366 [Rust 业务核心] 阶段 6：Agent App 侧业务、去重与交付调度迁入 Rust</h3><span class="badge">blocked</span><p>GitHub: open；负责人：未指派；未关闭前置：#365, #364, #362。</p><ul>
+<article id="issue-365"><h3>#365 [Rust 业务核心] 阶段 5：资源代次与用户数据事务迁入 Rust</h3><span class="badge">done</span><p>PR #379 已合入 foundation a572d8e，#365 已关闭。精确 b3a7a88 完整门禁 15 阶段通过，1491 项 Swift / 1 项条件跳过 / 0 失败；独立评审通过。未安装、发布或迁移真实用户数据。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/issues/365">issue 365: 已关闭；合流及验证边界由原工单记录</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/commit/a572d8e059cf4e6ca4e1abe2d01edde03fc5a13b">commit a572d8e059cf4e6ca4e1abe2d01edde03fc5a13b: 资源业务迁移的集成提交</a></li>
+</ul><p>Next: 后续阶段复用 Rust 资源/迁移接口；安装与真实用户数据验收边界保持独立。</p></article>
+<article id="issue-366"><h3>#366 [Rust 业务核心] 阶段 6：Agent App 侧业务、去重与交付调度迁入 Rust</h3><span class="badge">blocked</span><p>GitHub: open；未关闭前置：#362。#364/#365 已合流关闭。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/366">issue 366: 范围、当前状态和证据原件</a></li>
 </ul><p>Next: 等待前置完成，复用其成果。</p></article>
-<article id="issue-367"><h3>#367 [Rust 业务核心] 阶段 7：生命周期收尾与 Swift 业务残留审计</h3><span class="badge">blocked</span><p>GitHub: open；负责人：未指派；未关闭前置：#366, #365, #364, #362。</p><ul>
+<article id="issue-367"><h3>#367 [Rust 业务核心] 阶段 7：生命周期收尾与 Swift 业务残留审计</h3><span class="badge">blocked</span><p>GitHub: open；未关闭前置：#362、#366。纯宿主能力策略提前由 #362 迁移，其余收尾范围保留。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/367">issue 367: 范围、当前状态和证据原件</a></li>
 </ul><p>Next: 等待前置完成，复用其成果。</p></article>
 </section>
 <section><h2>Open pull requests</h2><ul>
-<li><a href="https://github.com/semantic-craft/owltype-macos/pull/368">#368</a> <code>ed646285ff680802409c127f8cf8a14baa3c27d2</code></li>
-<li><a href="https://github.com/semantic-craft/owltype-macos/pull/379">#379</a> <code>dbaafd3b1b5aa8effc692d246b6c8a9a6d610258</code></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/pull/368">#368</a> <code>a572d8e059cf4e6ca4e1abe2d01edde03fc5a13b</code></li>
 </ul><h2>Recent releases</h2><ul>
 </ul></section></html>
