@@ -147,6 +147,20 @@ struct OwlSkillsPage: View {
     SettingsCard(title: "内置技能", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
       VStack(spacing: 0) {
         SettingsToggleRow(
+          title: "Kotone 回复建议",
+          subtitle: "选中文字后经本地回复服务判断、按风格拟稿；仅展示，不填入或发送。需先启动本地服务。",
+          systemImage: "bubble.left.and.bubble.right",
+          isOn: state.jevReplySkillEnabled,
+          palette: palette,
+          isEnabled: state.cloudEnabled,
+          onToggle: {
+            OwlSettingsActions.toggle(state: state, keyPath: \.jevReplySkillEnabled) {
+              OwlSelectionMenuPreferences.jevReplyEnabled = $0
+            }
+          }
+        )
+        SettingsCardDivider(palette: palette)
+        SettingsToggleRow(
           title: "任意提问",
           subtitle: "全部技能的兜底，也是工具箱的输入框：对选中文本直接下指令（改写、排版、拟回复…）或提问；只回结果、一键复制，不改动原文",
           systemImage: "text.bubble",

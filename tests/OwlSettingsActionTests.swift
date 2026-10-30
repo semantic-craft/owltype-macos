@@ -136,6 +136,15 @@ final class OwlSettingsActionTests: XCTestCase {
     XCTAssertTrue(OwlSelectionMenuPreferences.goalBriefEnabled)
   }
 
+  func testJEVReplyIsOptInAndHonorsCloudGate() {
+    OwlSelectionMenuPreferences.resetForTesting()
+    defer { OwlSelectionMenuPreferences.resetForTesting() }
+    XCTAssertFalse(OwlSelectionMenuAction.enabledActions(cloudEnabled: true).contains(.jevReply))
+    OwlSelectionMenuPreferences.jevReplyEnabled = true
+    XCTAssertTrue(OwlSelectionMenuAction.enabledActions(cloudEnabled: true).contains(.jevReply))
+    XCTAssertFalse(OwlSelectionMenuAction.enabledActions(cloudEnabled: false).contains(.jevReply))
+  }
+
   func testSelectionMenuActionsFollowEnabledSkillPreferences() {
     OwlSelectionMenuPreferences.resetForTesting()
 

@@ -17,6 +17,7 @@ import SwiftUI
 /// 「任意提问」对选区直接下指令兜底；「结构化·加标签」并入「提示词优化」（优化+加标签一次做完）。
 enum OwlSelectionMenuAction: String, Codable, CaseIterable, Sendable {
   case ask
+  case jevReply
   case polish
   case sourceVerification
   case researchAssist
@@ -27,6 +28,7 @@ enum OwlSelectionMenuAction: String, Codable, CaseIterable, Sendable {
 
   var title: String {
     switch self {
+    case .jevReply: return "Kotone 回复建议"
     case .ask: return "任意提问"
     case .polish: return "润色"
     case .sourceVerification: return "来源核验"
@@ -43,6 +45,7 @@ enum OwlSelectionMenuAction: String, Codable, CaseIterable, Sendable {
 
   var symbol: String {
     switch self {
+    case .jevReply: return "bubble.left.and.bubble.right"
     case .ask: return "text.bubble"
     case .polish: return "wand.and.stars"
     case .sourceVerification: return "checkmark.seal"
@@ -59,6 +62,7 @@ enum OwlSelectionMenuAction: String, Codable, CaseIterable, Sendable {
 
   static func enabledActions(cloudEnabled: Bool = OwlCloudPreferences.isEnabled) -> [OwlSelectionMenuAction] {
     OwlAIBusinessCore.call("enabledActions", ["cloud": cloudEnabled, "enabled": [
+      "jevReply": OwlSelectionMenuPreferences.jevReplyEnabled,
       "ask": OwlSelectionMenuPreferences.askEnabled, "polish": OwlSelectionMenuPreferences.polishEnabled,
       "sourceVerification": OwlSelectionMenuPreferences.sourceVerificationEnabled,
       "researchAssist": OwlSelectionMenuPreferences.researchAssistEnabled,
@@ -237,6 +241,11 @@ final class OwlSelectionMenuCoordinator {
       Task { @MainActor in
         OwlAIWindow.shared.close()
         OwlVerificationReceiptController.shared.show(selectedText: snapshot.text, anchorBounds: snapshot.bounds)
+      }
+    case "jevReply":
+      Task { @MainActor in
+        OwlAIWindow.shared.close()
+        JEVReplyPanel.shared.show(text: snapshot.text, source: "owltype-selection")
       }
     case "rewrite":
       Task { @MainActor in

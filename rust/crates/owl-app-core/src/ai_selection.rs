@@ -213,6 +213,7 @@ pub fn rule(name: &str, a: Value) -> Value {
         }),
         "enabledActions" => {
             let order = [
+                "jevReply",
                 "ask",
                 "polish",
                 "sourceVerification",
@@ -229,7 +230,25 @@ pub fn rule(name: &str, a: Value) -> Value {
         }
         "toolboxRoute" => {
             let action = s(&a, "action");
-            json!({"effect":match action{"translate"|"researchAssist"=>"question","sourceVerification"=>"verify","ask"=>"none",_=>"rewrite"},"prompt":match action{"translate"=>"translationQuestion","researchAssist"=>"researchAssistQuestion",_=>""},"display":match action{"translate"=>"翻译","researchAssist"=>"辅助检索",_=>""}})
+            json!({
+                "effect": match action {
+                    "translate" | "researchAssist" => "question",
+                    "sourceVerification" => "verify",
+                    "jevReply" => "jevReply",
+                    "ask" => "none",
+                    _ => "rewrite",
+                },
+                "prompt": match action {
+                    "translate" => "translationQuestion",
+                    "researchAssist" => "researchAssistQuestion",
+                    _ => "",
+                },
+                "display": match action {
+                    "translate" => "翻译",
+                    "researchAssist" => "辅助检索",
+                    _ => "",
+                }
+            })
         }
         "clarificationScaffold" => {
             let qs = a["questions"]

@@ -136,6 +136,7 @@
     {"path": "sources/Settings/OwlWubiCommitSettings.swift", "role": "native", "target": "Swift", "issue": null, "reason": "SwiftUI commit-option controls only; preferences and engine policy are owned elsewhere"},
     {"path": "sources/Settings/OwlWubiLookupSettings.swift", "role": "native", "target": "Swift", "issue": null, "reason": "SwiftUI lookup-option controls and disabled-control presentation only"},
     {"path": "sources/Theme/OwlThemes.swift", "role": "native", "target": "Swift", "issue": null, "reason": "Native views, presentation state, geometry or explicit system context capture"},
+    {"path": "sources/UI/JEVReplyPanel.swift", "role": "native", "target": "Swift", "issue": null, "reason": "Native views, presentation state, geometry or explicit system context capture"},
     {"path": "sources/UI/OwlAIConversationView.swift", "role": "native", "target": "Swift", "issue": null, "reason": "Native views, presentation state, geometry or explicit system context capture"},
     {"path": "sources/UI/OwlAIWindow.swift", "role": "native", "target": "Swift", "issue": null, "reason": "Native views, presentation state, geometry or explicit system context capture"},
     {"path": "sources/UI/OwlCandidatePanelGeometry.swift", "role": "native", "target": "Swift", "issue": null, "reason": "Native views, presentation state, geometry or explicit system context capture"},

@@ -245,6 +245,7 @@ final class OwlSettingsState {
   /// 任意提问「联网搜索」(mirror of `OwlAskWebSearchSettings.isEnabled`). Default false（出厂关，opt-in）.
   var askWebSearchEnabled: Bool = OwlAskWebSearchSettings.isEnabled
   /// 划词菜单总开关 + 划词工具箱页内置技能 mirrors.
+  var jevReplySkillEnabled = OwlSelectionMenuPreferences.jevReplyEnabled
   var selectionMenuEnabled: Bool = OwlSelectionMenuPreferences.isEnabled
   var askAnythingSkillEnabled: Bool = OwlSelectionMenuPreferences.askEnabled
   var polishSkillEnabled: Bool = OwlSelectionMenuPreferences.polishEnabled
@@ -265,6 +266,12 @@ final class OwlSettingsState {
 // （OwlSkillPolishVariantsEnabled）、润色·仿我的范例（OwlSkillPolishStyleMatchEnabled）、
 // 结构化·加标签（OwlSkillPromptStructureEnabled）四个技能已删；旧偏好键成死数据，不迁移不解码。
 enum OwlSelectionMenuPreferences {
+  static let jevReplyEnabledKey = "OwlSkillJEVReplyEnabled"
+  static var jevReplyEnabled: Bool {
+    get { bool(jevReplyEnabledKey, default: false) }
+    set { OwlDefaults.standard.set(newValue, forKey: jevReplyEnabledKey) }
+  }
+
   static let enabledKey = "OwlSelectionMenuEnabled"
   static let askEnabledKey = "OwlSkillAskAnythingEnabled"
   static let polishEnabledKey = "OwlSkillPolishEnabled"
@@ -323,6 +330,7 @@ enum OwlSelectionMenuPreferences {
   }
 
   static func resetForTesting() {
+    OwlDefaults.standard.removeObject(forKey: jevReplyEnabledKey)
     OwlDefaults.standard.removeObject(forKey: enabledKey)
     OwlDefaults.standard.removeObject(forKey: askEnabledKey)
     OwlDefaults.standard.removeObject(forKey: polishEnabledKey)
