@@ -222,6 +222,6 @@ CI：合并前的门禁由开发机上的 `scripts/gate.sh` 执行，详见
 - [雾凇拼音 rime-ice](https://github.com/iDvel/rime-ice)
 - [极点五笔 86](https://github.com/KyleBing/rime-wubi86-jidian)
 
-### JEV 回复建议
+### Kotone 回复建议
 
 可选的本地回复服务接入：选区 → 判断与多条风格候选，仅展示，不填入、不发送。见 [接入与使用](docs/operations/jev-replies.md)。

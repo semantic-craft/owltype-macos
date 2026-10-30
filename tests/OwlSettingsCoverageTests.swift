@@ -47,7 +47,7 @@ final class OwlSettingsCoverageTests: XCTestCase {
 
   private static let expectedControlLabels: Set<String> = [
     // Opt-in/cloud gate: OwlSettingsActionTests.testJEVReplyIsOptInAndHonorsCloudGate.
-    "JEV 回复建议",
+    "Kotone 回复建议",
     // OwlSegmentedControl option labels (replaced the old `Picker(.segmented)` titles).
     // 浅色/深色 dropped: 外观模式 + 皮肤预览 removed from 候选窗设置 (明暗 lives on 皮肤外观, uses 亮/暗).
     "跟随系统",

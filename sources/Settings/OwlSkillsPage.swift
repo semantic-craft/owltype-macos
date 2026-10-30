@@ -147,7 +147,7 @@ struct OwlSkillsPage: View {
     SettingsCard(title: "内置技能", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
       VStack(spacing: 0) {
         SettingsToggleRow(
-          title: "JEV 回复建议",
+          title: "Kotone 回复建议",
           subtitle: "选中文字后经本地回复服务判断、按风格拟稿；仅展示，不填入或发送。需先启动本地服务。",
           systemImage: "bubble.left.and.bubble.right",
           isOn: state.jevReplySkillEnabled,
