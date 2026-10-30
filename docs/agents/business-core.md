@@ -202,7 +202,9 @@ selection preparation. The native selection setter runs once; Rust consumes up t
 25 ms observation tokens until the original text and requested selection are confirmed.
 Every observation rechecks field/source identity and the captured host generation. A fresh
 admission after the final native reads authorizes at most one insert; duplicate or cancelled
-callbacks cannot write. A rejected/unsettled selection reports `selectionNotPrepared`, with
+callbacks cannot write. The native AX setter captures its field before final selection admission;
+no reentrant host query occurs between that admission and the actual selection effect.
+A rejected/unsettled selection reports `selectionNotPrepared`, with
 no text dispatch. Native insert receipts distinguish a call actually made from a pre-call
 refusal, while host acceptance still requires post-write readback. No uncertain write is retried.
 The existing disabled-by-default `OwlDebugLiveInputTrace` records only selection set/ack,

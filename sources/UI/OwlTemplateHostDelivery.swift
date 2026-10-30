@@ -78,7 +78,8 @@ final class OwlTemplateHostDelivery {
     /// process to answer while it handles the insert, so production waits a turn; tests run inline.
     var settle: (@escaping () -> Void) -> Void = { $0() }
     var needsSelectionPreparation: () -> Bool = { false }
-    var select: (NSRange) -> Bool = { _ in false }
+    /// Capture native field references before admission. The returned closure only executes AXSet.
+    var selectionWriter: () -> ((NSRange) -> Bool)? = { nil }
     var nextTurn: (@escaping () -> Void) -> Void = { $0() }
   }
 
@@ -144,9 +145,9 @@ final class OwlTemplateHostDelivery {
       },
       settle: { [weak self] next in self?.awaitReadableHost(polls: Self.settlePolls, next) },
       needsSelectionPreparation: { [weak self] in self?.policyAllowsRanges(replacement: true) == false },
-      select: { [weak self] range in
-        guard let field = self?.axField() else { return false }
-        return Self.axSetSelection(field.element, range: range)
+      selectionWriter: { [weak self] in
+        guard let field = self?.axField() else { return nil }
+        return { range in Self.axSetSelection(field.element, range: range) }
       },
       nextTurn: { next in DispatchQueue.main.asyncAfter(deadline: .now() + 0.025, execute: next) })
     if automaticSource != nil {
@@ -329,8 +330,11 @@ final class OwlTemplateHostDelivery {
     switch effect.action {
     case "select":
       guard let origin else { completion(.notAttempted(.selectionNotPrepared)); return }
+      // Capturing the AX field may reenter and invalidate the invocation or change its generation.
+      let writer = access.selectionWriter()
       if let code = admit("selection", read: origin).outcome { completion(Self.outcome(code)); return }
-      let accepted = access.select(origin)
+      // No host query between the final admission and the already-captured setter.
+      let accepted = writer?(origin) ?? false
       Self.trace("selection_set accepted=\(accepted)")
       let next: Effect = core.call("selection_set", ["accepted": accepted])
       performDelivery(next, result: result, completion: completion)

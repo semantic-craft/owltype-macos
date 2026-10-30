@@ -217,11 +217,11 @@ final class OwlTemplateHostDeliveryTests: XCTestCase {
     var selections = 0
     var access = host.access
     access.needsSelectionPreparation = { true }
-    access.select = { range in
+    access.selectionWriter = { { range in
       XCTAssertEqual(range, original)
       selections += 1
       return true // macOS accepted the request; its readback is still the previous selection.
-    }
+    } }
     access.nextTurn = { callbacks.append($0) }
     let insert = access.insert
     access.insert = { text, range in
@@ -250,6 +250,31 @@ final class OwlTemplateHostDeliveryTests: XCTestCase {
     XCTAssertEqual(selections, 1)
   }
 
+  func testReentryWhileCapturingSelectionWriterCannotChangeTheSelection() {
+    for changesGeneration in [false, true] {
+      let host = Host()
+      host.marked = NSRange(location: NSNotFound, length: 0)
+      let source = OwlTemplateHostDelivery.AutomaticSource(originalInput: ";;a",
+        markedRange: NSRange(location: 1, length: 3), markedText: ";;a", isValid: { true }, committed: true)
+      weak var pending: OwlTemplateHostDelivery?
+      var selections = 0
+      var access = host.access
+      access.needsSelectionPreparation = { true }
+      access.selectionWriter = {
+        // Like axField(): a native query can reenter before returning the old field.
+        if changesGeneration { host.epoch += 1 } else { pending?.invalidate() }
+        return { range in selections += 1; host.selection = range; return true }
+      }
+      let delivery = OwlTemplateHostDelivery(access: access, automaticSource: source)
+      pending = delivery
+      XCTAssertEqual(delivery.deliver(.init(text: "正文", cursorOffset: 1)), .notAttempted(.targetChanged))
+      XCTAssertEqual(selections, 0, "cancelled or superseded calls must not change even the selection")
+      XCTAssertEqual(host.selection, NSRange(location: 4, length: 0))
+      XCTAssertEqual(host.writes.count, 0)
+      XCTAssertEqual(host.text as String, "左;;a右")
+    }
+  }
+
   func testFailedOrCancelledSelectionPreparationNeverDispatches() {
     // The native setter can reject outright, acknowledge without settling, or finish after cancel.
     for mode in ["rejected", "unsettled", "cancelled"] {
@@ -261,7 +286,7 @@ final class OwlTemplateHostDeliveryTests: XCTestCase {
       var selections = 0
       var access = host.access
       access.needsSelectionPreparation = { true }
-      access.select = { _ in selections += 1; return mode != "rejected" }
+      access.selectionWriter = { { _ in selections += 1; return mode != "rejected" } }
       access.nextTurn = { callbacks.append($0) }
       let delivery = OwlTemplateHostDelivery(access: access, automaticSource: source)
       var outcomes: [OwlTemplateDeliveryOutcome] = []

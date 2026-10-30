@@ -805,7 +805,7 @@
           "id": "issue-362",
           "next": "评审修复候选，通过精确 HEAD 门禁后由协调者构建安装候选并核对 Chrome 自动展开/cursor 及 TextEdit 回归。",
           "status": "in_progress",
-          "summary": "交付已在 foundation；本轮候选修复原生选区准备与正文尝试反馈，并将纯宿主能力策略迁入 Rust。两个已知缺陷回归红转绿，144 项定向 App→Rust 测试通过。独立评审、精确 HEAD 完整门禁及新候选 Chrome/TextEdit 原生验收待完成；未发布。",
+          "summary": "交付已在 foundation；本轮候选修复原生选区准备与正文尝试反馈，并将纯宿主能力策略迁入 Rust。两个已知缺陷及评审发现的选区准入后重入回归均红转绿，145 项定向 App→Rust 测试通过。独立评审、精确 HEAD 完整门禁及新候选 Chrome/TextEdit 原生验收待完成；未发布。",
           "title": "#362 [Rust 业务核心] 阶段 3：交付状态机迁 Rust 并完成 Chrome 能力适配"
         },
         {

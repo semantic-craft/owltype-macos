@@ -19,6 +19,11 @@ review dates, not retries. Keep deterministic checks in the local gate.
   then observed with bounded, single-use tokens; fresh original/selection/binding/generation
   facts admit one insert. Failed preparation retains the result without claiming a text attempt.
   Duplicate receipts and cancellation cannot retry text or repeat cursor movement.
+- Independent review found one remaining native query after selection admission: obtaining
+  the AX field could reenter and cancel/change the generation before the setter. The regression
+  `testReentryWhileCapturingSelectionWriterCannotChangeTheSelection` reproduced both cases.
+  Capture the native setter first; then perform final Rust admission, with no host query between
+  that admission and the captured setter. Cancellation must prevent selection changes as well as text.
 - Verify (验证点): run `OwlTemplateHostDeliveryTests`, `OwlTemplateDeliveryTests`,
   `OwlDynamicAutomaticTests` and `OwlClientCapabilityPolicyTests` through `scripts/verify.py swift`.
   The failed/cancelled selection regression also checks bounded waiting and zero text writes.
