@@ -147,7 +147,10 @@ Swift serializes calls/destruction on its owner thread. An optional index handle
 live and borrowed for that event. No Rust callback, I/O, worker or shared mutable singleton
 is involved. Creation and runtime library publication accept storage-sized snapshots;
 other events have the pure dispatcher's 4 MiB request bound. Native wrappers turn rejected
-user values into blocked evaluations, not traps. Response buffers have no output-size bound.
+user values into blocked evaluations, not traps. A context-transfer failure remains presentable
+with the original template and a blocking diagnostic; it neither invalidates the invocation nor
+requests the clipboard again. Input is never truncated into a usable result. Response buffers
+have no output-size bound.
 
 The runtime uses the existing `automatic_index` builder, retaining one Rust trie. Keystrokes
 send only event facts and receive mark/restore/invoke intents; they never serialize the index,

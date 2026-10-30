@@ -17,6 +17,31 @@ final class OwlTemplateDeliveryTests: XCTestCase {
       calendar: Calendar(identifier: .gregorian)))
   }
 
+  func testOversizedClipboardPresentsBlockedEvaluationWithoutRecapturingOrDelivering() {
+    let body = "前{clipboard}后"
+    var captures = 0
+    var writes = 0
+    var shown: OwlTemplateInvocation?
+    let invocation = OwlTemplateInvocation(content: .template(entry(body)), broker: OwlPanelInsertionBroker(),
+      deliver: { _ in writes += 1; return .confirmed }, captureContext: { _ in
+        captures += 1
+        return .init(clipboard: .text(String(repeating: "x", count: 4 * 1024 * 1024 + 1)))
+      })
+    invocation.start { shown = $0 }
+    XCTAssertTrue(shown === invocation, "a context transport failure must present its diagnostic")
+    let evaluation = invocation.evaluate(values: [:])
+    XCTAssertEqual(evaluation.previewText, body, "never truncate clipboard input into a usable result")
+    XCTAssertTrue(evaluation.diagnostics.contains {
+      $0.severity == .error && $0.message == "模板数据超出处理范围或无法读取，请缩短内容后重试。"
+    })
+    XCTAssertNil(evaluation.readyText)
+    XCTAssertFalse(invocation.confirm(values: [:]))
+    XCTAssertEqual(captures, 1)
+    XCTAssertEqual(writes, 0)
+    invocation.cancel()
+    XCTAssertEqual(invocation.state, .cancelled(.user))
+  }
+
   func testCommittedTemplateRevisionInvalidatesAnAlreadyPreviewedInvocation() throws {
     var delivered: [String] = []
     let template = entry("{clipboard}")

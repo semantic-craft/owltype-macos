@@ -5,6 +5,21 @@ that the lesson is in place: which file to read, which command to run, what resu
 and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## Oversized captured context is a visible template error, not cancellation
+
+**A failed context transfer must leave the invocation presentable with a blocking diagnostic;
+only cancellation or a stale binding ends that invocation.**
+
+- Reason: #361's first Rust session bridge marked `valid = false` when a clipboard payload
+  exceeded the 4 MiB ABI request limit. `start` then returned without a window or diagnostic.
+- Prevention: Rust retains a context-failure state, returns the original template and transport
+  diagnostic, prevents confirmation, and does not request the clipboard again. No truncation.
+- Regression: `testOversizedClipboardPresentsBlockedEvaluationWithoutRecapturingOrDelivering`
+  failed at the actual `start/present` seam before the fix; it also checks explicit cancellation.
+- Scope: synthetic clipboard provider through the real App session ABI; no personal clipboard read.
+- Verify (验证点): `python3 scripts/verify.py swift --test OwlTemplateDeliveryTests --test OwlTemplateClipboardTests`.
+- Seen on 1 distinct date: 2026-10-30.
+
 ## An invocation binds the selected template version, not every library commit
 
 **Keep per-entry revisions in the business core, using the library's canonical UUID form; a

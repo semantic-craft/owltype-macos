@@ -167,6 +167,7 @@ pub struct Invocation {
     trailing: String,
     preview: bool,
     context: Option<Value>,
+    context_failed: bool,
     allow_empty: bool,
     started: bool,
     phase: String,
@@ -187,6 +188,7 @@ impl Invocation {
             trailing: args["trailing"].as_str().unwrap_or("").into(),
             preview: args["preview"] == true,
             context: None,
+            context_failed: false,
             allow_empty: false,
             started: false,
             phase: "awaiting".into(),
@@ -213,6 +215,21 @@ impl Invocation {
                     range: Default::default(),
                     message: "本次调用已结束，请重新调用模板。".into(),
                 }],
+                missing_keys: vec![],
+                needs_empty_clipboard_decision: false,
+                cursor_offset: None,
+            };
+        }
+        if self.context_failed {
+            let mut diagnostics = self.parsed.diagnostics.clone();
+            diagnostics.push(Diagnostic {
+                severity: "error".into(),
+                range: Default::default(),
+                message: "模板数据超出处理范围或无法读取，请缩短内容后重试。".into(),
+            });
+            return Evaluation {
+                preview_text: self.body.clone() + &self.trailing,
+                diagnostics,
                 missing_keys: vec![],
                 needs_empty_clipboard_decision: false,
                 cursor_offset: None,
@@ -259,9 +276,15 @@ impl Invocation {
             "awaiting" => return Ok(json!(self.awaiting())),
             "invalidated" => return Ok(json!(self.invalidated)),
             "fail" => {
-                self.valid = false;
-                self.context = None;
-                true
+                // A native fact that cannot cross the ABI is a visible evaluation error,
+                // not cancellation. Keep presentation/cancellation available and never
+                // recapture or silently truncate that context into a deliverable result.
+                if self.awaiting() && self.context.is_none() {
+                    self.context_failed = true;
+                    true
+                } else {
+                    false
+                }
             }
             "evaluate" => return Ok(json!(self.evaluate(args["values"].clone()))),
             "initial" => {
@@ -282,6 +305,7 @@ impl Invocation {
             "needs_context" => {
                 return Ok(json!(
                     self.awaiting()
+                        && !self.context_failed
                         && self.context.is_none()
                         && !self
                             .parsed
