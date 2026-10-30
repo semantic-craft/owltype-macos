@@ -4,8 +4,8 @@
 //
 //  Selection polish and structured drafting used to fork Chat vs `/responses`, build the request,
 //  check the status, parse two reply shells and record usage each on their own. That sequence —
-//  and every provider quirk inside it — now lives here, above a transport seam, so one table of
-//  recorded requests covers every caller (see `OwlLLMGatewayTests`). Streaming answers (任意提问,
+//  and every provider quirk inside it — now runs in the Rust provider core through this adapter.
+//  Recorded requests cover every caller (see `OwlLLMGatewayTests`). Streaming answers (任意提问,
 //  plain generation) take the same fork through `stream(messages:routing:apiKey:)`; their table is
 //  `OwlLLMStreamingRecordingTests`.
 //
