@@ -15,8 +15,11 @@ changed or deleted selected entry invalidates the call, while another entry's ed
   library decoder canonicalizes UUIDs to uppercase, so removal still appeared unregistered.
 - Prevention: Rust runtime publication owns version/tombstone generation and normalized ID
   lookup; invocation events compare the selected value/version and permanently reject mismatches.
-  A parameter window may legitimately return through a different IMK controller, so the existing
-  logical host lease, rather than the old controller pointer, supplies native binding validity.
+  A parameter window may legitimately return through a different IMK controller; host delivery
+  validity must not be treated as invocation cancellation. Review of #361 found that doing so
+  discarded the copyable result after unconfirmed original preservation. Production and the
+  dynamic-automatic suite now share the same delivery/invocation wiring; that existing regression
+  failed with the incorrect binding and also checks explicit copy after the fix.
 - Regression: `testCommittedTemplateRevisionInvalidatesAnAlreadyPreviewedInvocation` failed
   before the binding and UUID fixes; `testEditingAnotherTemplateDoesNotInvalidateTheSelectedEntry`
   protects the scope of invalidation. Existing cancellation and rebind suites remain applicable.

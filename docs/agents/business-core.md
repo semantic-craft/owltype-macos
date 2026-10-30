@@ -171,7 +171,11 @@ The native `state` property is an observable UI projection, updated only after R
 operation. Native callbacks/closures are consumed as resources, not a second business state.
 
 Host-delivery field proofs, expected parameter-window rebind, original text preservation and
-once-only native write slots remain the existing #362 boundary. Their lease-validity fact can
-invalidate an invocation without equating a new IMK controller with a new logical host target.
-This preserves the established rebind behavior. No synchronous AX read was added, Chromium
+once-only native write slots remain the existing #362 boundary. A refused or unverifiable host write is a delivery outcome, not cancellation of the user's
+preview: preparation failure still yields a retained, explicitly copyable result. Production
+and the dynamic-automatic tests share the same thin delivery-to-invocation initializer.
+Automatic input-session identity is checked by the Rust source binding; each invocation handle
+owns its request/session lifetime and confirmation/cancellation generation. Manual/K host-field
+and IMK rebind generations remain in the existing delivery adapter for #362. A new controller
+is therefore not equated with a new logical host target. No synchronous AX read was added, Chromium
 capability restrictions are unchanged, and #331 still requires its host implementation/acceptance.

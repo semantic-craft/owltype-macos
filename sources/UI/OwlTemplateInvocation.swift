@@ -53,7 +53,6 @@ final class OwlTemplateInvocation: ObservableObject {
   private let usesLegacyKeys: Bool
   private let captureContext: (Set<OwlTemplateEngine.Requirement>) -> OwlTemplateEngine.FrozenContext
   private let core: OwlAppSession
-  private let sessionBinding: () -> String
   var decisions: OwlTemplateEngine.Decisions { .init(allowEmptyClipboard: core.call("allow_empty")) }
   let objectWillChange = ObservableObjectPublisher()
   private let statePublisher = PassthroughSubject<State, Never>()
@@ -79,6 +78,23 @@ final class OwlTemplateInvocation: ObservableObject {
   private var onFinish: (() -> Void)?
   private(set) var preparationFailure: OwlTemplateDeliveryOutcome?
 
+  /// Shared production wiring. Host refusal is a delivery outcome, not cancellation of the
+  /// user's preview: a failed original-text preservation must still retain a copyable result.
+  convenience init(content: Content, broker: OwlPanelInsertionBroker, delivery: OwlTemplateHostDelivery,
+                   trailingText: String = "", intent: Intent = .insert, prepareAutomaticSource: Bool = false,
+                   onFinish: @escaping () -> Void = {},
+                   captureContext: @escaping (Set<OwlTemplateEngine.Requirement>) -> OwlTemplateEngine.FrozenContext = { OwlTemplateContextCapture.capture($0) }) {
+    let prepare: (() -> OwlTemplatePresentationPreparation)? = prepareAutomaticSource ? {
+      broker.capture()
+      return delivery.prepareForPresentation()
+    } : nil
+    self.init(content: content, broker: broker, hostDelivery: { delivery.deliver($0, completion: $1) },
+      trailingText: trailingText, intent: intent, isHostReady: { delivery.isReadyForDelivery() },
+      mayRestoreFocus: { delivery.mayRestoreFocus() },
+      presentationTransition: { delivery.presentationTransition(window: $0, active: $1) },
+      preparePresentation: prepare, onFinish: { delivery.invalidate(); onFinish() }, captureContext: captureContext)
+  }
+
   convenience init(content: Content, broker: OwlPanelInsertionBroker, deliver: ((Result) -> OwlTemplateDeliveryOutcome)?,
                    trailingText: String = "", intent: Intent = .insert,
                    isHostReady: @escaping () -> Bool = { true },
@@ -86,12 +102,11 @@ final class OwlTemplateInvocation: ObservableObject {
                    presentationTransition: ((NSWindow, Bool) -> Void)? = nil,
                    preparePresentation: (() -> OwlTemplatePresentationPreparation)? = nil,
                    onFinish: (() -> Void)? = nil,
-                   sessionBinding: @escaping () -> String = { "" },
                    captureContext: @escaping (Set<OwlTemplateEngine.Requirement>) -> OwlTemplateEngine.FrozenContext = { OwlTemplateContextCapture.capture($0) }) {
     self.init(content: content, broker: broker, hostDelivery: deliver.map { deliver in { $1(deliver($0)) } },
               trailingText: trailingText, intent: intent, isHostReady: isHostReady, mayRestoreFocus: mayRestoreFocus,
               presentationTransition: presentationTransition, preparePresentation: preparePresentation,
-              onFinish: onFinish, sessionBinding: sessionBinding, captureContext: captureContext)
+              onFinish: onFinish, captureContext: captureContext)
   }
 
   init(content: Content, broker: OwlPanelInsertionBroker, hostDelivery deliver: HostDelivery?,
@@ -101,9 +116,7 @@ final class OwlTemplateInvocation: ObservableObject {
        presentationTransition: ((NSWindow, Bool) -> Void)? = nil,
        preparePresentation: (() -> OwlTemplatePresentationPreparation)? = nil,
        onFinish: (() -> Void)? = nil,
-       sessionBinding: @escaping () -> String = { "" },
        captureContext: @escaping (Set<OwlTemplateEngine.Requirement>) -> OwlTemplateEngine.FrozenContext = { OwlTemplateContextCapture.capture($0) }) {
-    self.sessionBinding = sessionBinding
     self.content = content
     self.broker = broker
     self.deliver = deliver
@@ -131,27 +144,27 @@ final class OwlTemplateInvocation: ObservableObject {
     core = (try? OwlAppSession("invocation", args: ["parsed": OwlAppCore.payload(parsed),
       "body": content.body, "legacy": usesLegacyKeys, "trailing": trailingText,
       "preview": intent == .resultPreview,
-      "binding": Self.binding(content: content, session: sessionBinding())])) ?? (try! OwlAppSession("invocation", args: [
+      "binding": Self.binding(content: content)])) ?? (try! OwlAppSession("invocation", args: [
         "parsed": OwlAppCore.payload(OwlTemplateEngine.Parsed(diagnostics: [Self.transportFailure])),
-        "binding": Self.binding(content: content, session: sessionBinding())]))
+        "binding": Self.binding(content: content)]))
   }
 
   func valueKey(for parameter: OwlTemplateEngine.Parameter) -> String {
     usesLegacyKeys ? parameter.name : parameter.key
   }
 
-  private static func binding(content: Content, session: String) -> [String: String] {
-    var facts: [String: String] = ["session": session, "matches": "true"]
+  private static func binding(content: Content) -> [String: String] {
+    var facts: [String: String] = ["matches": "true"]
     if case .template(let entry) = content {
       facts.merge(OwlAutomaticExpansionRuntime.shared.binding(for: entry)) { _, new in new }
     }
     return facts
   }
 
-  /// Library/session facts are sampled at native boundaries; Rust latches any mismatch.
+  /// Committed library facts are sampled at native boundaries; Rust latches any mismatch.
   @discardableResult
   private func refreshBinding() -> Bool {
-    let valid: Bool = core.call("binding", Self.binding(content: content, session: sessionBinding()))
+    let valid: Bool = core.call("binding", Self.binding(content: content))
     let invalidated: Bool = core.call("invalidated")
     if invalidated, state != .cancelled(.replaced) {
       state = .cancelled(.replaced)

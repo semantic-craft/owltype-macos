@@ -154,10 +154,6 @@ final class OwlTemplateHostDelivery {
 
   deinit { if let activationObserver { NSWorkspace.shared.notificationCenter.removeObserver(activationObserver) } }
 
-  // Logical host lease, not a particular IMK controller: the established field proof may
-  // rebind to a new controller after the parameter window. Reading this fact performs no AX.
-  var invocationBindingIsCurrent: Bool { !invalid }
-
   func endImmediateDelivery() { immediate = false }
   func invalidate() { invalid = true; isPresentingWindow = false; suspendedForPanel = false }
 
