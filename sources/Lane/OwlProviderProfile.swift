@@ -335,6 +335,7 @@ struct OwlProviderKeychain: OwlSecretStoring {
 final class OwlProviderProfileStore {
   static let shared = OwlProviderProfileStore()
   static let fileName = "providers.json"
+  static let configurationDidChange = Notification.Name("OwlProviderConfigurationDidChange")
 
   private let root: URL
 

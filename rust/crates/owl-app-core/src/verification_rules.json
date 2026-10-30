@@ -1,0 +1,63 @@
+[
+  {
+    "kind": "law",
+    "pattern": "《[^》]{1,40}》(?:[（(]\\d{4}年[^）)]{0,12}[)）])?第\\s*[0-9〇零一二三四五六七八九十百千两]+\\s*条(?:之\\s*[0-9〇零一二三四五六七八九十百千两]+)?(?:第\\s*[0-9〇零一二三四五六七八九十百千两]+\\s*款)?(?:第\\s*[（(]?\\s*[0-9〇零一二三四五六七八九十百千两]+\\s*[)）]?\\s*项)?",
+    "minLength": 4,
+    "sources": [
+      "govLaw",
+      "pkulaw"
+    ]
+  },
+  {
+    "kind": "law",
+    "pattern": "指导案例(?:第)?\\s*\\d+\\s*号",
+    "minLength": 5,
+    "sources": [
+      "pkulaw",
+      "qwenSearch"
+    ]
+  },
+  {
+    "kind": "officialDocument",
+    "pattern": "[一-龥]{1,8}〔\\s*\\d{4}\\s*〕\\s*\\d+\\s*号",
+    "minLength": 5,
+    "sources": [
+      "govLaw",
+      "pkulaw"
+    ]
+  },
+  {
+    "kind": "caseLaw",
+    "pattern": "[(（〔]\\s*\\d{4}\\s*[)）〕][^\\s，。；,.；]{2,24}?号",
+    "minLength": 8,
+    "sources": [
+      "pkulaw",
+      "qwenSearch"
+    ]
+  },
+  {
+    "kind": "standard",
+    "pattern": "(?:GB(?:/T)?|JR/T|YD/T|ISO|IEC)\\s*\\d+(?:[\\-—.]\\d+)*",
+    "minLength": 4,
+    "sources": [
+      "govLaw",
+      "qwenSearch"
+    ]
+  },
+  {
+    "kind": "date",
+    "pattern": "\\d{4}\\s*年\\s*\\d{1,2}\\s*月\\s*\\d{1,2}\\s*日|\\d{4}-\\d{1,2}-\\d{1,2}",
+    "minLength": 6,
+    "sources": [
+      "manual"
+    ]
+  },
+  {
+    "kind": "money",
+    "pattern": "(?:￥|¥)\\s*\\d[\\d,]*(?:\\.\\d+)?|\\d[\\d,]*(?:\\.\\d+)?\\s*(?:万|亿)?\\s*元",
+    "minLength": 2,
+    "sources": [
+      "manual"
+    ]
+  }
+]

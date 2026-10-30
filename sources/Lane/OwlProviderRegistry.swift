@@ -307,6 +307,7 @@ final class OwlProviderHost {
   var legacyReader: (() throws -> String?)?
   private var errors: [String: Error] = [:]
   private var responseBuffer: UnsafeMutablePointer<CChar>?
+  private var wroteProfiles = false
   init(store: OwlProviderProfileStore? = nil, secrets: OwlSecretStoring? = nil,
        defaults: UserDefaults = OwlDefaults.standard, session: OwlAppSession? = nil, key: String = "") {
     self.store = store; self.secrets = secrets; self.defaults = defaults; self.session = session
@@ -316,6 +317,12 @@ final class OwlProviderHost {
   private struct Envelope<T: Decodable>: Decodable { let result: T }
   private struct Response<T: Decodable>: Decodable { let ok: Bool; let value: Envelope<T>?; let error: String? }
   func call<T: Decodable>(_ operation: String, _ args: [String: Any] = [:]) throws -> T {
+    defer {
+      if wroteProfiles, store === OwlProviderProfileStore.shared {
+        wroteProfiles = false
+        NotificationCenter.default.post(name: OwlProviderProfileStore.configurationDidChange, object: nil)
+      }
+    }
     let bytes = try JSONSerialization.data(withJSONObject: ["operation": "provider_" + operation, "args": args])
     let pointer = bytes.withUnsafeBytes { buffer in
       owl_app_storage_call(OwlAppCore.abiVersion, buffer.bindMemory(to: UInt8.self).baseAddress, buffer.count,
@@ -371,6 +378,7 @@ final class OwlProviderHost {
       try store.beforeSave?()
       try OwlPrivateStorage.prepareDirectory(store.fileURL.deletingLastPathComponent())
       try Data(args["bytes"] as? [UInt8] ?? []).write(to: store.fileURL, options: .atomic)
+      wroteProfiles = true
       try store.afterAtomicWrite?()
       try OwlPrivateStorage.hardenFile(store.fileURL)
       return true

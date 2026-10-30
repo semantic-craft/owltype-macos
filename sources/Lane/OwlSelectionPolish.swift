@@ -47,7 +47,7 @@ enum OwlSelectionPolishError: Error, Equatable {
 enum OwlSelectionPolish {
   /// Upper bound on selection size sent to the cloud. Selections beyond this are rejected rather
   /// than uploaded — a privacy + cost guard, not a model limit.
-  static let maxSelectionLength = 2000
+  static let maxSelectionLength: Int = OwlAIBusinessCore.call("limit", ["id": "selection"])
 
   /// System message (legacy alias): the v1 prompt now lives in `OwlPolishPromptCatalog` as the
   /// `v1-legacy` variant (issue #136 A/B registry); this constant stays so existing call sites and
@@ -55,20 +55,16 @@ enum OwlSelectionPolish {
   /// `chatRequest` via `OwlPolishPromptCatalog.resolveActive()`.
   static let systemPrompt: String = OwlPolishPromptCatalog.legacySystemPrompt
 
-  /// The user-message body. Selected text is the payload here — see the CodeOnly exception note at
-  /// the top of this file. Encoded as a tiny JSON object so the model gets an unambiguous field.
-  struct Payload: Codable, Equatable, Sendable {
-    let text: String
-  }
-
   /// Pure length / emptiness policy. Returns the error to surface, or `nil` if the selection is
   /// acceptable to send. Trimming mirrors the controller's emptiness check so a whitespace-only
   /// selection is treated as empty.
   static func rejectionReason(for selection: String) -> OwlSelectionPolishError? {
-    let trimmed = selection.trimmingCharacters(in: .whitespacesAndNewlines)
-    if trimmed.isEmpty { return .emptySelection }
-    if selection.count > maxSelectionLength { return .selectionTooLong(selection.count) }
-    return nil
+    let admission: OwlAIAdmission = OwlAIBusinessCore.call("admission", ["text": selection])
+    switch admission.error {
+    case "empty": return .emptySelection
+    case "tooLong": return .selectionTooLong(admission.count)
+    default: return nil
+    }
   }
 
   /// Build the chat-shaped request payload for a selection (the Responses providers reuse its
@@ -83,36 +79,9 @@ enum OwlSelectionPolish {
     providerID: String = "",
     variant: OwlPolishPromptVariant = OwlPolishPromptCatalog.resolveActive()
   ) throws -> OwlDeepSeekChatRequest {
-    let data = try JSONEncoder().encode(Payload(text: selection))
-    let userContent = String(data: data, encoding: .utf8) ?? "{}"
-    let messages = [
-      OwlDeepSeekMessage(role: "system", content: variant.systemPrompt),
-      OwlDeepSeekMessage(role: "user", content: userContent),
-    ]
-    // Interactive selection polish — disable hidden thinking so it returns in ~1s (see
-    // OwlDeepSeekThinking). deepseek 沿用 Chat 的 `thinking:{disabled}` 形状
-    // （OwlThinkingControl 的 deepSeekStyle）；下方 typed payload 保留旧 Chat 方言供
-    // 非 Responses 供应商使用。真正的 Qwen / 豆包 请求会在 client 层改走 Responses，
-    // 关思考由 OwlResponsesWire 统一带上（qwen `reasoning.effort:none`、方舟
-    // `thinking.type:disabled`——方舟官方示例默认思考一句寒暄就烧 211 reasoning token）。
-    // 混合思考模型默认开思考的代价（2026-07-20 实盘百炼旧基线）：润色一句话烧 948
-    // reasoning token / 5.4s，直接把 8 秒交互超时打爆；关掉后 0.6s。别家两个字段都 nil
-    // 省略。逐家形状由 OwlThinkingControl 单一真相给出：providerID 优先（自定义档案的
-    // 模型名可能不带标准前缀，如百炼上托管的 deepseek-* 该走 enable_thinking），传空时
-    // 退回 model 前缀判定。
-    let capabilities = OwlProviderCapabilities(providerID: providerID, model: model)
-    let thinkingOff = capabilities.thinkingOff
-    return OwlDeepSeekChatRequest(
-      model: model,
-      messages: messages,
-      temperature: capabilities.temperature(variant.temperature),
-      stream: false,
-      responseFormat: capabilities.sendsChatJSONMode ? .jsonObject : nil,
-      thinking: thinkingOff.thinking,
-      enableThinking: thinkingOff.enableThinking,
-      reasoningEffort: thinkingOff.reasoningEffort,
-      reasoningSplit: thinkingOff.reasoningSplit
-    )
+    OwlAIBusinessCore.call("skillRequest", ["kind": "polish", "text": selection,
+      "systemPrompt": variant.systemPrompt, "temperature": variant.temperature,
+      "model": model, "providerID": providerID])
   }
 }
 
@@ -207,7 +176,7 @@ enum OwlSourceVerificationError: Error, Equatable {
   case emptyResponse
 }
 
-struct OwlVerifiedSource: Equatable, Sendable {
+struct OwlVerifiedSource: Codable, Equatable, Sendable {
   let title: String
   let url: String
 }
@@ -231,31 +200,19 @@ final class OwlSourceVerificationService {
   static let shared = OwlSourceVerificationService()
 
   /// 每一路检索取回的网页数。两路合并去重后最多 `2 × resultCount` 条。
-  static let resultCount = 8
+  static let resultCount: Int = OwlAIBusinessCore.call("limit", ["id": "verificationResults"])
 
   /// Product prompt surfaced for the live evaluation. Keeping it here (rather than copying it into
   /// the test) makes the evaluated bytes the same bytes production sends.
   ///
   /// 来源按权威优先：用户要跳查的恰恰是「发布机关自己怎么说」，聚合站/百科转载只能兜底。
-  nonisolated static let systemPrompt =
-    "你是来源核验助手。只依据给出的检索结果核验选中文本，不要凭常识补来源；"
-    + "检索结果不足以判断时，直接说明需要人工确认。"
-    + "来源按权威优先：优先引用一手官方来源（发布机关、法院、政府官网或法规公报、标准原文页）；"
-    + "确无一手来源时才用权威媒体或数据库转载，并注明系转载。引用时用 [序号] 标注对应的检索结果。"
+  nonisolated static let systemPrompt: String = OwlAIBusinessCore.call("verificationPrompt")
 
   nonisolated static func userPrompt(
     for selectedText: String,
     results: [OwlWebSearchResult]
   ) -> String {
-    """
-    请核验以下选中文本，给出判断、支持判断的来源序号和关键信息。
-
-    选中文本：
-    \(selectedText)
-
-    检索结果：
-    \(OwlWebSearchGrounding.numbered(results))
-    """
+    OwlAIBusinessCore.call("verificationUser", ["text": selectedText, "results": OwlAIBusinessCore.json(results)])
   }
 
   private let searchClient: OwlDoubaoSearching
@@ -302,69 +259,81 @@ final class OwlSourceVerificationService {
   }
 
   func verifyStructured(_ selectedText: String) async throws -> OwlSourceVerificationOutcome {
-    guard OwlCloudPreferences.isEnabled else { throw OwlSourceVerificationError.disabled }
-    if OwlSelectionPolish.rejectionReason(for: selectedText) != nil {
-      throw OwlSourceVerificationError.emptySelection
+    struct Step: Decodable {
+      let action: String
+      let error: String
+      let messages: [OwlDeepSeekMessage]
+      let content: String
+      let sources: [OwlVerifiedSource]
     }
-    let searchKey = searchKeyProvider()
-    let routes = deepSeekRoutesProvider()
-    guard searchKey != nil || !routes.isEmpty else {
-      throw OwlSourceVerificationError.missingSearchKey
+    let core = try! OwlAITextSession("verification", args: ["text": selectedText, "enabled": OwlCloudPreferences.isEnabled])
+    var step: Step = core.call("next")
+    var searchKey: String?
+    var routes: [OwlAskSearchRoute] = []
+    var doubaoOutcome = DoubaoOutcome()
+    var deepSeekOutcome = DeepSeekOutcome()
+    var authorization: OwlProviderAuthOutcome = .unconfigured
+    var judgeError: Error = OwlSourceVerificationError.emptyResponse
+    while true {
+      try Task.checkCancellation()
+      switch step.action {
+      case "configuration":
+        searchKey = searchKeyProvider()
+        routes = deepSeekRoutesProvider()
+        step = core.call("configuration", ["hasKey": searchKey != nil, "routeCount": routes.count])
+      case "search":
+        async let doubao = Self.doubaoSearch(selectedText, apiKey: searchKey, client: searchClient)
+        async let deepSeek = Self.deepSeekSearch(selectedText, routes: routes, client: deepSeekSearchClient)
+        (doubaoOutcome, deepSeekOutcome) = await (doubao, deepSeek)
+        step = core.call("searched", ["deepResults": OwlAIBusinessCore.json(deepSeekOutcome.results),
+          "doubaoResults": OwlAIBusinessCore.json(doubaoOutcome.results), "routeCount": routes.count,
+          "doubaoFailed": doubaoOutcome.error != nil, "failedStatus": deepSeekOutcome.failedStatus as Any? ?? NSNull(),
+          "hasRoute": deepSeekOutcome.route != nil])
+      case "authorize":
+        authorization = gate.resolve()
+        if case .ready = authorization { step = core.call("authorized", ["ready": true]) }
+        else { step = core.call("authorized", ["ready": false]) }
+      case "judgeSearch", "judgeDefault":
+        let routing: OwlCloudRouting
+        let key: String
+        if step.action == "judgeSearch", let route = deepSeekOutcome.route { routing = route.routing; key = route.apiKey }
+        else if case let .ready(value, secret) = authorization { routing = value; key = secret }
+        else { preconditionFailure("Rust requested an unauthorized judgment") }
+        do {
+          let content = try await judge(step.messages, routing: routing, apiKey: key)
+          step = core.call("judged", ["content": content])
+        } catch {
+          judgeError = error
+          var status: Int?
+          if case OwlSourceVerificationError.badHTTPStatus(let value) = error { status = value }
+          step = core.call("judgeFailed", ["status": status as Any? ?? NSNull()])
+        }
+      case "done": return OwlSourceVerificationOutcome(content: step.content, sources: step.sources)
+      default:
+        switch step.error {
+        case "disabled": throw OwlSourceVerificationError.disabled
+        case "emptySelection": throw OwlSourceVerificationError.emptySelection
+        case "missingSearchKey": throw OwlSourceVerificationError.missingSearchKey
+        case "doubao": throw OwlSourceVerificationError.search(doubaoOutcome.error!)
+        case "http": throw OwlSourceVerificationError.badHTTPStatus(deepSeekOutcome.failedStatus!)
+        case "judge": throw judgeError
+        default: throw OwlSourceVerificationError.emptyResponse
+        }
+      }
     }
-
-    async let doubao = Self.doubaoSearch(
-      selectedText, apiKey: searchKey, client: searchClient)
-    async let deepSeek = Self.deepSeekSearch(
-      selectedText, routes: routes, client: deepSeekSearchClient)
-    let (doubaoOutcome, deepSeekOutcome) = await (doubao, deepSeek)
-
-    let results = Self.merged(deepSeekOutcome.results, doubaoOutcome.results)
-    guard !results.isEmpty else {
-      // 两路都没有结果：只配了豆包且它报错时如实说豆包；DeepSeek 被拒时带上状态码。
-      if routes.isEmpty, let error = doubaoOutcome.error { throw OwlSourceVerificationError.search(error) }
-      if let status = deepSeekOutcome.failedStatus { throw OwlSourceVerificationError.badHTTPStatus(status) }
-      throw OwlSourceVerificationError.emptyResponse
-    }
-    let sources = results.map { OwlVerifiedSource(title: $0.title, url: $0.url) }
-    let messages = [
-      OwlDeepSeekMessage(role: "system", content: Self.systemPrompt),
-      OwlDeepSeekMessage(
-        role: "user", content: Self.userPrompt(for: selectedText, results: results)),
-    ]
-
-    // 判断：搜索接口认过这把 Key 的 DeepSeek 档案优先，被配置拒绝时退回默认供应商。
-    if let route = deepSeekOutcome.route {
-      do {
-        return try await judge(
-          messages, routing: route.routing, apiKey: route.apiKey, sources: sources)
-      } catch OwlSourceVerificationError.badHTTPStatus(let status)
-        where OwlAskSearchFailover.isConfigurationRefusal(status: status) {}
-    }
-    guard case let .ready(routing, apiKey) = gate.resolve() else {
-      // 没配作答模型：来源仍然可跳查，判断留给用户（卡片会提示人工复核）。
-      return OwlSourceVerificationOutcome(content: "", sources: sources)
-    }
-    return try await judge(messages, routing: routing, apiKey: apiKey, sources: sources)
   }
 
-  private func judge(
-    _ messages: [OwlDeepSeekMessage],
-    routing: OwlCloudRouting,
-    apiKey: String,
-    sources: [OwlVerifiedSource]
-  ) async throws -> OwlSourceVerificationOutcome {
+  private func judge(_ messages: [OwlDeepSeekMessage], routing: OwlCloudRouting, apiKey: String) async throws -> String {
     var content = ""
     do {
-      for try await delta in transport.streamPlain(
-        messages: messages, routing: routing, apiKey: apiKey) {
+      for try await delta in transport.streamPlain(messages: messages, routing: routing, apiKey: apiKey) {
+        try Task.checkCancellation()
         content += delta
       }
     } catch let OwlStreamingError.badHTTPStatus(status, _) {
       throw OwlSourceVerificationError.badHTTPStatus(status)
     }
-    let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-    return OwlSourceVerificationOutcome(
-      content: trimmed, sources: Self.citedFirst(sources, in: trimmed))
+    return content
   }
 
   private struct DoubaoOutcome {
@@ -397,21 +366,26 @@ final class OwlSourceVerificationService {
   nonisolated private static func deepSeekSearch(
     _ text: String, routes: [OwlAskSearchRoute], client: OwlDeepSeekSearching
   ) async -> DeepSeekOutcome {
+    struct Step: Decodable { let action: String; let index: Int }
+    let core = try! OwlAppSession("askAttempts", args: ["providers": routes.map(\.providerID)])
+    var step: Step = core.call("next")
     var outcome = DeepSeekOutcome()
-    for route in routes {
-      guard let endpoint = OwlDeepSeekSearchWire.endpoint(for: route.routing.endpoint) else { continue }
+    while step.action == "attempt" {
+      if Task.isCancelled { let _: Step = core.call("cancel"); return outcome }
+      let route = routes[step.index]
+      guard let endpoint = OwlDeepSeekSearchWire.endpoint(for: route.routing.endpoint) else {
+        step = core.call("failure", ["invalidEndpoint": true]); continue
+      }
       do {
-        outcome.results = try await client.search(
-          query: text, endpoint: endpoint, apiKey: route.apiKey, limit: resultCount)
+        outcome.results = try await client.search(query: text, endpoint: endpoint, apiKey: route.apiKey, limit: resultCount)
         outcome.route = route
         outcome.failedStatus = nil
+        let _: Step = core.call("succeeded")
         return outcome
       } catch OwlDeepSeekSearchError.badHTTPStatus(let status) {
         outcome.failedStatus = status
-        guard OwlAskSearchFailover.isConfigurationRefusal(status: status) else { return outcome }
-      } catch {
-        return outcome
-      }
+        step = core.call("failure", ["status": status])
+      } catch { step = core.call("failure") }
     }
     return outcome
   }
@@ -420,8 +394,7 @@ final class OwlSourceVerificationService {
   nonisolated static func merged(
     _ first: [OwlWebSearchResult], _ second: [OwlWebSearchResult]
   ) -> [OwlWebSearchResult] {
-    var seen = Set<String>()
-    return (first + second).filter { seen.insert($0.url).inserted }
+    OwlAIBusinessCore.call("mergedSources", ["first": OwlAIBusinessCore.json(first), "second": OwlAIBusinessCore.json(second)])
   }
 
   /// 把判断里 `[序号]` 引到的来源按引用顺序提到前面。回执卡拿第一条当「核到的来源」，
@@ -430,16 +403,7 @@ final class OwlSourceVerificationService {
     _ sources: [OwlVerifiedSource],
     in content: String
   ) -> [OwlVerifiedSource] {
-    guard !sources.isEmpty else { return sources }
-    var cited: [Int] = []
-    let pattern = /\[(\d{1,2})\]/
-    for match in content.matches(of: pattern) {
-      if let number = Int(match.1), (1...sources.count).contains(number), !cited.contains(number - 1) {
-        cited.append(number - 1)
-      }
-    }
-    let rest = sources.indices.filter { !cited.contains($0) }
-    return (cited + rest).map { sources[$0] }
+    OwlAIBusinessCore.call("citedSources", ["sources": OwlAIBusinessCore.json(sources), "text": content])
   }
 
   nonisolated static func message(for error: Error) -> String {

@@ -3,6 +3,16 @@ use crate::template_library::{automatic_index, AutomaticNode, Entry, Expansion};
 use serde_json::{json, Value};
 
 pub enum Session {
+    AiText(Value),
+    AiRule(Value),
+    TextInserter(crate::ai_selection::Inserter),
+    SelectionGesture(crate::ai_selection::Gesture),
+    SelectionRewrite(crate::ai_selection::Rewrite),
+    Verification(crate::ai_business::Verification),
+    AskAttempts(crate::ai_business::Attempts),
+    WritePreview(crate::ai_business::Preview),
+    Receipt(crate::ai_verification::Receipt),
+    Conversation(crate::ai_business::Conversation),
     ProviderCall { remaining: usize, cancelled: bool },
     ProviderRegistry { probe: Value },
     ProviderStream(crate::provider_wire::Stream),
@@ -17,6 +27,22 @@ pub enum Session {
 impl Session {
     pub fn create(kind: &str, args: Value) -> Result<Self, String> {
         match kind {
+            "aiText" => Ok(Self::AiText(args)),
+            "aiRule" => Ok(Self::AiRule(args)),
+            "textInserter" => Ok(Self::TextInserter(Default::default())),
+            "selectionGesture" => Ok(Self::SelectionGesture(Default::default())),
+            "selectionRewrite" => Ok(Self::SelectionRewrite(crate::ai_selection::Rewrite::new(
+                args,
+            ))),
+            "verification" => Ok(Self::Verification(crate::ai_business::Verification::new(
+                args,
+            ))),
+            "askAttempts" => Ok(Self::AskAttempts(crate::ai_business::Attempts::new(args))),
+            "writePreview" => Ok(Self::WritePreview(crate::ai_business::Preview::new(args))),
+            "verificationReceipt" => Ok(Self::Receipt(crate::ai_verification::Receipt::new(args))),
+            "conversation" => Ok(Self::Conversation(crate::ai_business::Conversation::new(
+                args,
+            ))),
             "providerCall" => Ok(Self::ProviderCall {
                 remaining: if args["purpose"] == "interactiveRewrite" {
                     2
@@ -53,7 +79,47 @@ impl Session {
         args: Value,
         index: Option<&Session>,
     ) -> Result<Value, String> {
+        // Only AI text owners accept a borrowed transient snapshot. The control event stays
+        // bounded; the snapshot follows the existing large library/session input contract.
+        if event == "ai_text_event" {
+            if !matches!(
+                self,
+                Self::Conversation(_)
+                    | Self::Receipt(_)
+                    | Self::SelectionRewrite(_)
+                    | Self::Verification(_)
+            ) {
+                return Err("invalid_text_owner".into());
+            }
+            let Some(Self::AiText(packet)) = index else {
+                return Err("missing_text_packet".into());
+            };
+            let operation = packet["event"].as_str().unwrap_or("");
+            if operation == "ai_text_event" {
+                return Err("invalid_event".into());
+            }
+            return self.event(operation, packet["args"].clone(), None);
+        }
         match self {
+            Self::AiText(_) => Err("invalid_event".into()),
+            Self::AiRule(packet) => {
+                if event == "evaluate" {
+                    Ok(crate::ai_business::rule(
+                        packet["rule"].as_str().unwrap_or(""),
+                        packet["args"].clone(),
+                    ))
+                } else {
+                    Err("invalid_event".into())
+                }
+            }
+            Self::TextInserter(state) => state.event(event, args),
+            Self::SelectionGesture(state) => state.event(event, args),
+            Self::SelectionRewrite(state) => state.event(event, args),
+            Self::Verification(state) => state.event(event, args),
+            Self::AskAttempts(state) => state.event(event, args),
+            Self::WritePreview(state) => state.event(event, args),
+            Self::Receipt(state) => state.event(event, args),
+            Self::Conversation(state) => state.event(event, args),
             Self::ProviderCall {
                 remaining,
                 cancelled,
