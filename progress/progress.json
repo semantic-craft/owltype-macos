@@ -1,18 +1,9 @@
 {
   "facts": {
-    "main": "23fdd0c5b7efb4b5e5f6eecc07296183c9bf77d0",
+    "main": "8ad0a6ccfbfa9f9a1df46419dd32351ae40207af",
     "default_branch": "main",
     "pulls": [],
-    "open_pulls": [
-      {
-        "number": 308,
-        "head": "229d4379da96242a5fe1598c09b40ba8c1418c6e"
-      },
-      {
-        "number": 310,
-        "head": "d817d3044d7038a23fe5a4f357909fde85022971"
-      }
-    ],
+    "open_pulls": [],
     "issues": [
       {
         "number": 280,
@@ -187,6 +178,78 @@
         "state": "closed",
         "reason": "completed",
         "updated_at": "2026-10-28T23:41:35Z"
+      },
+      {
+        "number": 356,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-30T03:49:04Z"
+      },
+      {
+        "number": 357,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-30T03:38:52Z"
+      },
+      {
+        "number": 358,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-30T03:37:50Z"
+      },
+      {
+        "number": 359,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-30T03:37:57Z"
+      },
+      {
+        "number": 360,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-30T03:38:04Z"
+      },
+      {
+        "number": 361,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-30T03:38:11Z"
+      },
+      {
+        "number": 362,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-30T03:38:19Z"
+      },
+      {
+        "number": 363,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-30T03:38:26Z"
+      },
+      {
+        "number": 364,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-30T03:38:33Z"
+      },
+      {
+        "number": 365,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-30T03:38:41Z"
+      },
+      {
+        "number": 366,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-30T03:38:48Z"
+      },
+      {
+        "number": 367,
+        "state": "open",
+        "reason": null,
+        "updated_at": "2026-10-30T03:38:58Z"
       }
     ],
     "releases": []
@@ -196,7 +259,7 @@
     "progress/sync.py",
     "progress/teslahub.mjs"
   ],
-  "observed_at": "2026-10-30T01:05:18Z",
+  "observed_at": "2026-10-30T03:49:07Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -633,6 +696,180 @@
           ]
         }
       ]
+    },
+    {
+      "id": "rust-business",
+      "title": "Rust 业务核心迁移",
+      "items": [
+        {
+          "id": "issue-356",
+          "title": "#356 [目标] 业务核心全面迁入 Rust，Swift 仅保留 macOS 界面与系统适配",
+          "status": "planned",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：无。",
+          "next": "读取工单和开放 PR，经共享领取入口核实后领取。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 356,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-357",
+          "title": "#357 [Rust 业务核心] 阶段 0：建立业务归属、App FFI 与行为基线",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：无。",
+          "next": "读取工单和开放 PR，经共享领取入口核实后领取。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 357,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-358",
+          "title": "#358 [Rust 业务核心] 阶段 1：设置规则与输入配置迁入 Rust",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#357。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 358,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-359",
+          "title": "#359 [Rust 业务核心] 阶段 2A：模板解析、参数校验与渲染迁入 Rust",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#358。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 359,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-360",
+          "title": "#360 [Rust 业务核心] 阶段 2B：模板库、导入导出与恢复事务迁入 Rust",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#359。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 360,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-361",
+          "title": "#361 [Rust 业务核心] 阶段 2C：自动展开与模板调用业务状态迁入 Rust",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#360。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 361,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-362",
+          "title": "#362 [Rust 业务核心] 阶段 3：交付状态机迁 Rust 并完成 Chrome 能力适配",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#361。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 362,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-363",
+          "title": "#363 [Rust 业务核心] 阶段 4A：AI 供应商、请求协议和流解析迁入 Rust",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#358。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 363,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-364",
+          "title": "#364 [Rust 业务核心] 阶段 4B：AI 搜索、写作与聊天业务状态迁入 Rust",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#360, #363。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 364,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-365",
+          "title": "#365 [Rust 业务核心] 阶段 5：资源代次与用户数据事务迁入 Rust",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#360。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 365,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-366",
+          "title": "#366 [Rust 业务核心] 阶段 6：Agent App 侧业务、去重与交付调度迁入 Rust",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#365, #364, #362。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 366,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        },
+        {
+          "id": "issue-367",
+          "title": "#367 [Rust 业务核心] 阶段 7：生命周期收尾与 Swift 业务残留审计",
+          "status": "blocked",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：#366, #365, #364, #362。",
+          "next": "等待前置完成，复用其成果。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 367,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
+        }
+      ]
     }
   ],
   "title": "Owltype · 水杉输入对齐",
@@ -666,7 +903,19 @@
       314,
       315,
       316,
-      317
+      317,
+      356,
+      357,
+      358,
+      359,
+      360,
+      361,
+      362,
+      363,
+      364,
+      365,
+      366,
+      367
     ],
     "pulls": []
   }

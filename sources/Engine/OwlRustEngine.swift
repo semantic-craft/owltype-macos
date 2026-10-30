@@ -31,7 +31,8 @@ enum OwlRustSchemaMap {
     englishBundleIDs: [String],
     defaultASCIIMode: Bool
   ) -> Bool {
-    englishBundleIDs.contains(bundleID) ? true : defaultASCIIMode
+    OwlAppCore.initialASCIIMode(bundleID: bundleID, englishBundleIDs: englishBundleIDs,
+                              defaultASCIIMode: defaultASCIIMode)
   }
 
   static func inputMode(forSchema schemaId: String) -> String {

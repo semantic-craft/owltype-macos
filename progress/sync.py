@@ -9,8 +9,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = 'semantic-craft/owltype-macos'
-GROUPS = {'pinyin': list(range(281, 294)), 'wubi': list(range(295, 305)), 'followup': [314, 315, 316, 317]}
-TITLES = {'pinyin': '拼音对齐（现有执行线）', 'wubi': '五笔对齐（本轮工单）', 'followup': '发布后跟进'}
+GROUPS = {'pinyin': list(range(281, 294)), 'wubi': list(range(295, 305)), 'followup': [314, 315, 316, 317], 'rust-business': list(range(356, 368))}
+TITLES = {'pinyin': '拼音对齐（现有执行线）', 'wubi': '五笔对齐（本轮工单）', 'followup': '发布后跟进', 'rust-business': 'Rust 业务核心迁移'}
 
 def run(*args):
     return subprocess.check_output(args, cwd=ROOT, text=True)

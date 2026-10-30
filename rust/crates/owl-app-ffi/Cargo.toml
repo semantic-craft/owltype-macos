@@ -1,0 +1,14 @@
+[package]
+name = "owl-app-ffi"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+owl-app-core = { path = "../owl-app-core" }
+serde.workspace = true
+serde_json.workspace = true

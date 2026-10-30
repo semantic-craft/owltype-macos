@@ -26,6 +26,8 @@ SPEC.loader.exec_module(CHECKER)
 VALID_SOURCE = """
 #include <stddef.h>
 #include <stdbool.h>
+char *owl_app_call(void) { return NULL; }
+void owl_app_string_free(char *value) { (void)value; }
 bool owl_msime_engine_finalize(void) { return true; }
 void *owl_msime_session_create_with_generation(void) { return NULL; }
 char *owl_msime_session_handle_action_json(void) { return NULL; }
@@ -193,6 +195,13 @@ class RustDeliveryTests(unittest.TestCase):
         app = self.make_app("MissingSymbols.app")
         self.compile_fixture(app, "int main(void) { return 0; }\n")
         with self.assertRaisesRegex(CHECKER.DeliveryError, "Rust FFI symbols"):
+            CHECKER.validate_app(app)
+
+    def test_rejects_engine_only_binary_without_app_core(self) -> None:
+        app = self.make_app("MissingAppCore.app")
+        source = "\n".join(line for line in VALID_SOURCE.splitlines() if "owl_app_" not in line)
+        self.compile_fixture(app, source)
+        with self.assertRaisesRegex(CHECKER.DeliveryError, "owl_app_call"):
             CHECKER.validate_app(app)
 
     def test_rejects_bad_resources(self) -> None:

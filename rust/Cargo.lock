@@ -920,6 +920,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "owl-app-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "owl-app-ffi"
+version = "0.1.0"
+dependencies = [
+ "owl-app-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "owl-msime-ffi"
 version = "0.1.0"
 dependencies = [

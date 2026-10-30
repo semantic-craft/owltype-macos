@@ -87,3 +87,10 @@ Owltype 使用独立身份，与已安装的鼠须管互不干扰；对鼠须管
 
 GPLv3（见 [`LICENSE.txt`](LICENSE.txt)）。分发基于本项目的二进制时，必须一并提供对应的修改源码、
 GPLv3 许可证文本与版权声明，不得作为闭源制品分发。
+
+## Owltype App business core
+
+`rust/crates/owl-app-core` and `rust/crates/owl-app-ffi` are original Owltype
+code under GPL-3.0-only, separate from the fixed Metasequoia imports. They use
+the workspace-pinned serde/serde_json dependencies already in the source lockfile.
+Their sources and C header are part of the tracked corresponding-source inputs.

@@ -13,6 +13,27 @@ import XCTest
 @testable import Owltype
 
 final class OwlRustEngineTests: XCTestCase {
+  func testAppCoreABIRejectsBadRequestsAndPreservesUnicodeRanges() throws {
+    let enabled: Bool = try OwlAppCore.call([
+      "operation": "initial_ascii_mode", "bundle_id": "com.example.Editor",
+      "english_bundle_ids": ["com.example.Editor"], "default_ascii": false
+    ])
+    XCTAssertTrue(enabled)
+    let range: [String: Int] = try OwlAppCore.call([
+      "operation": "utf16_range", "text": "中😀e\u{301}", "location": 1, "length": 2
+    ])
+    XCTAssertEqual(range, ["start": 3, "end": 7])
+    for (request, version, code) in [
+      (["operation": "unknown"], UInt32(1), "invalid_request"),
+      (["operation": "unknown"], UInt32(2), "abi_mismatch"),
+      (["operation": "utf16_range", "text": "😀", "location": 1, "length": 0], UInt32(1), "invalid_range")
+    ] as [([String: Any], UInt32, String)] {
+      XCTAssertThrowsError(try OwlAppCore.call(request, version: version) as Bool) { error in
+        XCTAssertEqual(error as? OwlAppCore.Failure, .init(code: code))
+      }
+    }
+  }
+
 
   // Opt-in transport for scripts/pinyin-parity.py. Uses the same public host seam as IMK;
   // all preferences and learning state are isolated from the installed input method.

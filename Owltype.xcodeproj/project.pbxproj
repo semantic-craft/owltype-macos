@@ -210,6 +210,7 @@
 		FA0000F6CAFE00F6CAFE00F6 /* EngineSeam.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F5CAFE00F5CAFE00F5 /* EngineSeam.swift */; };
 		FA000249CAFE0249CAFE0001 /* OwlRustEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000249CAFE0249CAFE0002 /* OwlRustEngine.swift */; };
 		AB286009CAFE0001CAFE0001 /* OwlRustPayloads.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB286009CAFE0002CAFE0002 /* OwlRustPayloads.swift */; };
+		AB357001CAFE0001CAFE0001 /* OwlAppCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB357001CAFE0002CAFE0002 /* OwlAppCore.swift */; };
 		FA257C01CAFE2570CAFE0001 /* OwlRustEngine+KeyRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA257C02CAFE2570CAFE0002 /* OwlRustEngine+KeyRouting.swift */; };
 		FA000249CAFE0249CAFE0003 /* OwlRustEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000249CAFE0249CAFE0004 /* OwlRustEngineTests.swift */; };
 		FAA00032CAFE0032CAFE0032 /* OwlUserDictReset.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00033CAFE0033CAFE0033 /* OwlUserDictReset.swift */; };
@@ -515,6 +516,7 @@
 		FA0000F5CAFE00F5CAFE00F5 /* EngineSeam.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EngineSeam.swift; path = sources/Engine/EngineSeam.swift; sourceTree = "<group>"; };
 		FA000249CAFE0249CAFE0002 /* OwlRustEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRustEngine.swift; path = sources/Engine/OwlRustEngine.swift; sourceTree = "<group>"; };
 		AB286009CAFE0002CAFE0002 /* OwlRustPayloads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlRustPayloads.swift; path = sources/Engine/OwlRustPayloads.swift; sourceTree = "<group>"; };
+		AB357001CAFE0002CAFE0002 /* OwlAppCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAppCore.swift; path = sources/Engine/OwlAppCore.swift; sourceTree = "<group>"; };
 		FA257C02CAFE2570CAFE0002 /* OwlRustEngine+KeyRouting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlRustEngine+KeyRouting.swift"; path = "sources/Engine/OwlRustEngine+KeyRouting.swift"; sourceTree = "<group>"; };
 		FAA00033CAFE0033CAFE0033 /* OwlUserDictReset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlUserDictReset.swift; path = sources/Engine/OwlUserDictReset.swift; sourceTree = "<group>"; };
 		FA0000D8CAFE00D8CAFE00D8 /* OwlExperimentalPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlExperimentalPreferences.swift; path = sources/Settings/OwlExperimentalPreferences.swift; sourceTree = "<group>"; };
@@ -773,6 +775,7 @@
 				FA0000F5CAFE00F5CAFE00F5 /* EngineSeam.swift */,
 				FA000249CAFE0249CAFE0002 /* OwlRustEngine.swift */,
 				AB286009CAFE0002CAFE0002 /* OwlRustPayloads.swift */,
+				AB357001CAFE0002CAFE0002 /* OwlAppCore.swift */,
 				FA257C02CAFE2570CAFE0002 /* OwlRustEngine+KeyRouting.swift */,
 				FAA00033CAFE0033CAFE0033 /* OwlUserDictReset.swift */,
 				FA0000D8CAFE00D8CAFE00D8 /* OwlExperimentalPreferences.swift */,
@@ -1284,6 +1287,7 @@
 				FA0000F6CAFE00F6CAFE00F6 /* EngineSeam.swift in Sources */,
 				FA000249CAFE0249CAFE0001 /* OwlRustEngine.swift in Sources */,
 				AB286009CAFE0001CAFE0001 /* OwlRustPayloads.swift in Sources */,
+				AB357001CAFE0001CAFE0001 /* OwlAppCore.swift in Sources */,
 				FA257C01CAFE2570CAFE0001 /* OwlRustEngine+KeyRouting.swift in Sources */,
 				FAA00032CAFE0032CAFE0032 /* OwlUserDictReset.swift in Sources */,
 				FA0000D9CAFE00D9CAFE00D9 /* OwlExperimentalPreferences.swift in Sources */,
@@ -1461,6 +1465,7 @@
 				);
 				OTHER_LDFLAGS = (
 					"-lowl_msime_ffi",
+					"-lowl_app_ffi",
 				);
 				MARKETING_VERSION = 2.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.Owltype;
@@ -1519,6 +1524,7 @@
 				);
 				OTHER_LDFLAGS = (
 					"-lowl_msime_ffi",
+					"-lowl_app_ffi",
 				);
 				MARKETING_VERSION = 2.2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.Owltype;
