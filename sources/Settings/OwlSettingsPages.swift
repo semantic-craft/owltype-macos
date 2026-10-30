@@ -274,7 +274,7 @@ struct OwlDiagnosticsPage: View {
     }
   }
 
-  /// 「设为系统默认输入法」= enable + select（docs/default-input-method-plan.md §4）：系统随即把猫头鹰
+  /// 「设为系统默认输入法」= enable + select：系统随即把猫头鹰
   /// 写进 `AppleSelectedInputSources`，下次登录自动恢复猫头鹰。这个按钮是全仓唯一允许调用
   /// `makeDefault()` 的地方 —— 用户显式点击才动当前输入源，安装 / 更新 / 启动路径一律不得复用。
   private var makeDefaultRow: some View {

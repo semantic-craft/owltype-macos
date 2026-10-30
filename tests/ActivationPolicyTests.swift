@@ -97,7 +97,7 @@ final class ActivationPolicyTests: XCTestCase {
   // The old Sogou-style `AppleEnabledInputSources` plist fallback is intentionally gone. On this
   // macOS version it created duplicate Owltype TIS rows and hid Owltype from the input menu.
 
-  // MARK: - 「设为系统默认输入法」的纯决策层（docs/default-input-method-plan.md §4）
+  // MARK: - 「设为系统默认输入法」的纯决策层
   //
   // makeDefault() 本身要碰 TIS（不可 headless 测），但它是薄包装：全部判断都在下面这两个纯函数里
   // —— 做什么（plan）与结果怎么翻译（result）。UI 文案第三个纯函数一并钉住。
@@ -264,7 +264,7 @@ final class ActivationPolicyTests: XCTestCase {
     XCTAssertNil(diag.layers.first { $0.layer == .clientAttach }?.code)
   }
 
-  // MARK: - LaunchServices bundle-id claims (docs/default-input-method-plan.md §1.3 结论 A/C)
+  // MARK: - LaunchServices bundle-id claims
 
   // Fixture paths deliberately sit outside any home directory: check-public-privacy.sh blocks
   // home-directory paths anywhere in tracked files, so a realistic one fails the gate.

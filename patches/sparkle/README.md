@@ -8,7 +8,7 @@ On the tested macOS host, opening an App with `NSWorkspace.openURL` requests a
 `com.apple.app-sandbox.read-write` extension for that App. An independently launched
 ad-hoc Updater is denied by App Management even though installation already succeeded.
 The application-specific API reuses the running App without that request. See issue #204
-and `docs/operations/no-logout-install-update.md` for the captured call stack and controls.
+for the captured call stack and controls.
 
 The patch uses `openApplicationAtURL` for APPL bundles on macOS 10.15+, waits for its
 completion, reports failures, then preserves upstream's exit delay. Plug-in bundles and
