@@ -423,8 +423,7 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
 - Reason: `install-dev.sh` re-signed the installed App ad hoc and `make install*` copied
   ad hoc or unsigned builds over the notarized copy. Keychain grants follow the designated
   requirement, so each rebuild would re-prompt for the login password; leftover ad hoc
-  claims of the same bundle id made macOS resolve the input method to a dead build at login
-  ([conclusion A](docs/default-input-method-plan.md)). Sonori hit the Keychain prompt on
+  claims of the same bundle id made macOS resolve the input method to a dead build at login. Sonori hit the Keychain prompt on
   three dates (2026-10-13, 10-16, 10-19).
 - Prevention: [stable-sign-identity.sh](scripts/stable-sign-identity.sh) picks the identity;
   `install-dev.sh` rejects `# designated => cdhash` and identity changes before copying; the

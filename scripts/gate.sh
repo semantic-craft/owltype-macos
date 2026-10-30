@@ -217,7 +217,7 @@ unused_code() {
 # the IMK service fails to come up and the system falls through to whatever
 # input source comes next. That is the measured cause of "the default input
 # method changes after a restart" on this machine, and it regenerates every time
-# the gate runs (docs/default-input-method-plan.md §1.3 结论 A/C).
+# the gate runs.
 #
 # This reports and stops there. Sweeping it is `scripts/clean-dev.sh --apply`,
 # which removes build products a parallel session may still be using, so it

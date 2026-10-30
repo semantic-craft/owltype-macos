@@ -173,8 +173,7 @@ final class OwlInstaller {
   //
   // macOS 没有 set-default API，也没有排序 API。系统在切换输入源时把它写进
   // `AppleSelectedInputSources`，那才是登录时恢复的目标 —— 所以 enable + select 就是「默认」在这台
-  // 机器上能达到的全部含义（docs/default-input-method-plan.md §1/§4，其中「第三方列表顺序决定默认」
-  // 已被对照实验证伪）。因此下面不新增任何 TIS 逻辑，只是把上面那条既有链路包成三态结果给 UI。
+  // 机器上能达到的全部含义（「第三方列表顺序决定默认」已被对照实验证伪）。因此下面不新增任何 TIS 逻辑，只是把上面那条既有链路包成三态结果给 UI。
   //
   // no-steal 边界：`makeDefault()` 只能由用户在设置页显式点击触发。安装 / 更新 / 启动路径一律不得
   // 复用 —— 程序自作主张抢用户当前的输入源正是 no-steal 禁止的事。
@@ -454,7 +453,7 @@ struct LSBundleClaim: Equatable, Codable {
 /// bundle id, so a second claimant can be resolved *instead of* the installed copy at login: the
 /// IMK service fails to come up and the system falls through to the next input source. That is the
 /// measured cause of 「重启后默认输入法变成别家」 on this developer machine, and it regenerates every
-/// time a build runs (docs/default-input-method-plan.md §1.3 结论 A/C).
+/// time a build runs.
 ///
 /// Advisory by design: `code` never becomes `OwlTISReport.Summary.code`. A shadowing development
 /// build is a developer-machine condition, not a broken install, and check-installed.sh treats any

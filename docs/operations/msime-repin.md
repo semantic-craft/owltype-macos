@@ -32,8 +32,8 @@ or content. It downloads only that manifest.
    ```
 
    It counts added, removed and re-weighted words, codes whose first candidate changed, new
-   Wubi duplicate codes and four-letter codes that lose unique auto-commit. Keep the report under
-   `docs/reports/` when it explains a behaviour change users will notice.
+   Wubi duplicate codes and four-letter codes that lose unique auto-commit. Put the report in the PR
+   body when it explains a behaviour change users will notice.
 3. Copy the new manifest to `data/msime-dictionary-manifest.json`; set `resources.release`,
    `manifestSha256` and `manifestSize` in `rust/msime-source.json`.
 4. Run `python3 scripts/msime_pin.py check` and fix every site it names. It covers the resource

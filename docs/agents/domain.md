@@ -55,10 +55,7 @@ workflow when actual typing must be tested.
 ## Research and current acceptance
 
 - Current input behavior, pinyin/Wubi tickets and shared board: [MSIME alignment](../input-alignment.md).
-- Input habits, pinning, onboarding and installed-host evidence:
-  [design and acceptance record](../input-habits-design.md).
-- MiniMax endpoints, reasoning and subscription search:
-  [integration research](../minimax-integration-research-2026-10-01.md).
+- Input habits, pinning and onboarding: [design](../input-habits-design.md).
 - Publishing and installation validation: [publishing checklist](../PUBLISHING_CHECKLIST.md).
 - Keyboard and shortcut setting defaults against pinned Metasequoia:
   [defaults comparison](../settings-defaults-msime.md).

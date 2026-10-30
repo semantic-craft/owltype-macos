@@ -8,7 +8,7 @@
 # This file legitimately contains the forbidden literals as scan patterns, so the
 # residual scanner excludes it (see check-identity-residual.sh -g globs).
 
-# ---- Canonical Owltype identity (docs/rename-owltype-plan.md §0) ----
+# ---- Canonical Owltype identity ----
 OWL_PRODUCT_NAME="Owltype Input Method"
 OWL_PRODUCT_NAME_ZH="猫头鹰输入法"
 OWL_BUNDLE_ID="im.owltype.inputmethod.Owltype"

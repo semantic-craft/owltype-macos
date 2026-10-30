@@ -656,13 +656,13 @@ class ShellAdapterTests(unittest.TestCase):
     def test_source_archive_allows_the_published_sparkle_public_key(self) -> None:
         documented_public_key = next(
             line
-            for line in (REPO_ROOT / "docs" / "rename-owltype-plan.md")
+            for line in (REPO_ROOT / "scripts" / "sparkle-key-transition.selftest.py")
             .read_text(encoding="utf-8")
             .splitlines()
-            if "SUPublicEDKey" in line
+            if line.startswith("NEW_KEY = ")
         )
         source_archive = self._source_archive_with(
-            "docs/rename-owltype-plan.md",
+            "scripts/sparkle-key-transition.selftest.py",
             documented_public_key + "\n",
         )
 
@@ -697,13 +697,13 @@ class ShellAdapterTests(unittest.TestCase):
         synthetic_key = synthetic_generic_api_key()
         documented_public_key = next(
             line
-            for line in (REPO_ROOT / "docs" / "rename-owltype-plan.md")
+            for line in (REPO_ROOT / "scripts" / "sparkle-key-transition.selftest.py")
             .read_text(encoding="utf-8")
             .splitlines()
-            if "SUPublicEDKey" in line
+            if line.startswith("NEW_KEY = ")
         )
         source_archive = self._source_archive_with(
-            "docs/rename-owltype-plan.md",
+            "scripts/sparkle-key-transition.selftest.py",
             f'{documented_public_key} api_key = "{synthetic_key}"\n',
         )
 

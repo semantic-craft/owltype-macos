@@ -1,7 +1,6 @@
 # Installation and activation constraints
 
-This describes the branch implementation. Native acceptance and failures are recorded in
-[the no-logout investigation](no-logout-install-update.md); unit tests do not establish host typing.
+Unit tests do not establish host typing; installed-host behaviour needs a live check.
 Release composition remains in the [publishing checklist](../PUBLISHING_CHECKLIST.md).
 
 ## Shared file and session phases

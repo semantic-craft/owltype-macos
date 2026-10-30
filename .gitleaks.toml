@@ -3,6 +3,7 @@ useDefault = true
 
 # Sparkle 的 EdDSA 公钥（SUPublicEDKey）随 app 的 Info.plist 公开分发，是验签公钥而非机密。
 # 路径与精确公钥值必须同时匹配；同一行夹带其他凭据时不会被豁免。
+# docs/rename-owltype-plan.md 已删除，但仍在可达历史里，历史扫描需要这条路径。
 [[allowlists]]
 targetRules = ["generic-api-key"]
 description = "The exact Owltype Sparkle EdDSA public keys are public by design"
