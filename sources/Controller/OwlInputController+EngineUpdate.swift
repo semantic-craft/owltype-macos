@@ -99,8 +99,11 @@ extension OwlInputController {
     let delivery = target ?? OwlTemplateHostDelivery(controller: self, client: capturedClient, automaticSource: automaticSource)
     let invocation = OwlTemplateInvocation(content: content, broker: broker, delivery: delivery,
       trailingText: trailingText, intent: intent, prepareAutomaticSource: automaticSource != nil)
-    MainActor.assumeIsolated { OwlPromptFillSheet.shared.begin(invocation: invocation) }
-    delivery.endImmediateDelivery()
+    let begin = {
+      MainActor.assumeIsolated { OwlPromptFillSheet.shared.begin(invocation: invocation) }
+      delivery.endImmediateDelivery()
+    }
+    if isHandlingKeyEvent { DispatchQueue.main.asyncAfter(deadline: .now() + 0.025, execute: begin) } else { begin() }
   }
 
   func engineUpdate() {

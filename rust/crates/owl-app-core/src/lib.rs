@@ -77,3 +77,5 @@ pub mod template_migration;
 pub mod template_transaction;
 
 pub mod template_session;
+
+pub mod host_delivery;

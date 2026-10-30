@@ -173,8 +173,9 @@ accepted generation into the same owned handle; cancelled/replaced/invalidated c
 The native `state` property is an observable UI projection, updated only after Rust accepts an
 operation. Native callbacks/closures are consumed as resources, not a second business state.
 
-Host-delivery field proofs, expected parameter-window rebind, original text preservation and
-once-only native write slots remain the existing #362 boundary. A refused or unverifiable host write is a delivery outcome, not cancellation of the user's
+`host_delivery.rs` owns original preservation, the independent original/result write slots,
+expected presentation suspension, cancellation, readback consumption and UTF-16 cursor intent.
+Swift owns field identity and expected IMK rebind, supplies facts and executes returned effects. A refused or unverifiable host write is a delivery outcome, not cancellation of the user's
 preview: preparation failure still yields a retained, explicitly copyable result. Production
 and the dynamic-automatic tests share the same thin delivery-to-invocation initializer.
 Automatic input-session identity is checked by the Rust source binding; each invocation handle
@@ -182,3 +183,35 @@ owns its request/session lifetime and confirmation/cancellation generation. Manu
 and IMK rebind generations remain in the existing delivery adapter for #362. A new controller
 is therefore not equated with a new logical host target. No synchronous AX read was added, Chromium
 capability restrictions are unchanged, and #331 still requires its host implementation/acceptance.
+
+
+## Host delivery and Chromium
+
+The owned `delivery` session uses the existing serialized App session ABI. Every original
+preservation, result dispatch and verification receipt is consumed before native callbacks;
+reentrant confirmation and duplicate/late readback cannot repeat an effect or completion.
+Expanded results enter in bounded Unicode-scalar chunks, so a valid result larger than 4 MiB
+is still written once. Host readback remains bounded to 65,536 UTF-16 units; unavailable
+proof yields a retained copyable result, never a retry, speculative deletion or truncation.
+
+Native IMK range policy remains unchanged. Chromium's AX field identity, UTF-16 selection,
+bounded string-for-range readback, character count and settable selection are proved separately.
+An explicit replacement selects only the previously verified original range and uses ordinary
+IMK insertion, without a denied IMK replacement range. Field, text and selection are checked
+again before insertion. Cursor placement independently validates the inserted text and a bounded
+host grapheme context, then reads the actual selection back. Secure or unreadable fields fail closed.
+
+Candidate/manual launches, field capture, original-preservation readback and result verification
+wait until the host has returned from key processing. Ordinary keys add no synchronous AX,
+network or disk access. Native AX/IMK evidence is not implied by a passing synthetic-host suite.
+
+For Chromium automatic expansion, the shared Rust recognizer observes normal key processing;
+no key is intercepted or replayed by the added path. After the first literal semicolon is
+committed, the adapter binds its field and start coordinate outside the key event. A complete
+trigger is used only when the same generation, field, caret and full original text are proven
+again. Rust's committed-original mode preserves that text without a preservation write, and
+replaces it once after confirmation. Fullwidth punctuation is not an ASCII trigger. Unsupported
+AX capabilities or rapid changes before capture leave ordinary input in place. Return/Tab may
+perform the host's normal action; changed focus, selection or page prevents expansion. The
+existing non-Chromium marked-text delimiter behavior is unchanged. Installed Chrome acceptance
+and its limitations remain tracked in #331; this implementation is not installation evidence.

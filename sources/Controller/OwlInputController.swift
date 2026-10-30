@@ -25,6 +25,10 @@ final class OwlInputController: IMKInputController {
   // seam: was private; internal so the Menu/EngineUpdate/Lifecycle/Session extensions can reach it across files.
   weak var client: IMKTextInput?
   var templateHostGeneration: UInt64 = 0
+  var isHandlingKeyEvent = false
+  var hostEventGeneration: UInt64 = 0
+  let committedAutomaticRecognizer = OwlAutomaticExpansionRecognizer()
+  var committedAutomaticCapture: OwlCommittedAutomaticCapture?
   weak var pendingTemplateDelivery: OwlTemplateHostDelivery?
   let automaticRecognizer = OwlAutomaticExpansionRecognizer()
   var automaticTarget: OwlAutomaticExpansionTarget?
@@ -119,6 +123,13 @@ final class OwlInputController: IMKInputController {
 
   override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
     guard let event = event else { return false }
+    let wasHandlingKeyEvent = isHandlingKeyEvent
+    isHandlingKeyEvent = true
+    if event.type == .keyDown { hostEventGeneration &+= 1 }
+    defer {
+      isHandlingKeyEvent = wasHandlingKeyEvent
+      observeCommittedAutomaticExpansion(event)
+    }
     if event.cgEvent?.getIntegerValueField(.eventSourceUserData) == OwlSmartPunctuation.postedEventTag { return false }
     if event.type == .keyDown { pendingTemplateDelivery?.invalidate() }
     OwlLatencyTrace.event("key.received")

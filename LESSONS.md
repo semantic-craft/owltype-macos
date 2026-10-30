@@ -5,6 +5,22 @@ that the lesson is in place: which file to read, which command to run, what resu
 and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## A late host receipt cannot repeat a native effect
+
+**Consume preservation/readback receipts in the owned delivery state before calling native
+cursor or presentation effects; every write and completion has one slot.**
+
+- Reason: the #362 App-host regression delivered the same settled-readback callback twice.
+  After the user moved the caret back to the end, the old Swift path moved it again (2 moves)
+  and overwrote that new position. The regression failed before the Rust delivery switch.
+- Prevention: the Rust delivery session consumes verification and preservation receipts once,
+  independently of its original/result write slots. Cancelled invocations discard late presentation.
+- Regression: `testLateDuplicateReadbackCannotMoveTheCursorAgain` and
+  `testOriginalPreservationWaitsBeforePresentingAndDiscardsCancelledReceipt` through the real App ABI.
+- Scope: synthetic host and controlled native callbacks; not installed Chrome evidence.
+- Verify (验证点): `python3 scripts/verify.py swift --test OwlTemplateHostDeliveryTests`.
+- Seen on 1 distinct date: 2026-10-30.
+
 ## Oversized captured context is a visible template error, not cancellation
 
 **A failed context transfer must leave the invocation presentable with a blocking diagnostic;

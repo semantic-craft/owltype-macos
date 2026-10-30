@@ -75,6 +75,7 @@ final class OwlTemplateInvocation: ObservableObject {
   let intent: Intent
   private var presentation: ((OwlTemplateInvocation) -> Void)?
   private var preparePresentation: (() -> OwlTemplatePresentationPreparation)?
+  private var preparePresentationAsync: ((@escaping (OwlTemplatePresentationPreparation) -> Void) -> Void)?
   private var onFinish: (() -> Void)?
   private(set) var preparationFailure: OwlTemplateDeliveryOutcome?
 
@@ -84,15 +85,17 @@ final class OwlTemplateInvocation: ObservableObject {
                    trailingText: String = "", intent: Intent = .insert, prepareAutomaticSource: Bool = false,
                    onFinish: @escaping () -> Void = {},
                    captureContext: @escaping (Set<OwlTemplateEngine.Requirement>) -> OwlTemplateEngine.FrozenContext = { OwlTemplateContextCapture.capture($0) }) {
-    let prepare: (() -> OwlTemplatePresentationPreparation)? = prepareAutomaticSource ? {
-      broker.capture()
-      return delivery.prepareForPresentation()
-    } : nil
     self.init(content: content, broker: broker, hostDelivery: { delivery.deliver($0, completion: $1) },
       trailingText: trailingText, intent: intent, isHostReady: { delivery.isReadyForDelivery() },
       mayRestoreFocus: { delivery.mayRestoreFocus() },
       presentationTransition: { delivery.presentationTransition(window: $0, active: $1) },
-      preparePresentation: prepare, onFinish: { delivery.invalidate(); onFinish() }, captureContext: captureContext)
+      onFinish: { delivery.invalidate(); onFinish() }, captureContext: captureContext)
+    if prepareAutomaticSource {
+      preparePresentationAsync = { completion in
+        broker.capture()
+        delivery.prepareForPresentation(completion: completion)
+      }
+    }
   }
 
   convenience init(content: Content, broker: OwlPanelInsertionBroker, deliver: ((Result) -> OwlTemplateDeliveryOutcome)?,
@@ -221,19 +224,22 @@ final class OwlTemplateInvocation: ObservableObject {
       confirm(values: initialValues)
     } else {
       let prepare = preparePresentation
-      preparePresentation = nil // consume before a possible synchronous client callback
+      let prepareAsync = preparePresentationAsync
+      preparePresentation = nil
+      preparePresentationAsync = nil
       let canPrepare: Bool = core.call("prepare")
-      if canPrepare, let prepare {
-        let result = prepare()
-        guard awaiting else { return }
+      let finish: (OwlTemplatePresentationPreparation) -> Void = { [self] result in
+        guard awaiting, refreshBinding() else { return }
         switch result {
         case .ready: break
         case .originalNotAttempted(let reason): preparationFailure = .notAttempted(reason)
         case .originalAttemptedUnverified: preparationFailure = .originalPreservationUnverified
         }
+        presentFill(self)
       }
-      guard awaiting else { return }
-      presentFill(self)
+      if canPrepare, let prepareAsync { prepareAsync(finish) }
+      else if canPrepare, let prepare { finish(prepare()) }
+      else { finish(.ready) }
     }
   }
 
