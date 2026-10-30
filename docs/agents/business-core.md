@@ -42,7 +42,7 @@ Split entries retain only their native parts as the corresponding ticket is deli
 
 [`keyboard.rs`](../../rust/crates/owl-app-core/src/keyboard.rs) owns the settings catalog,
 legacy raw-value normalization, schema mapping, custom shuangpin tables, fuzzy bit order,
-selection/application plans and idle eligibility. Native controls keep their existing
+selection/application plans, onboarding mappings, schema failure/backoff and idle eligibility. Native controls keep their existing
 keys and value formats. The Swift adapter decodes the immutable catalog once and caches
 normalized multi-value and fuzzy projections until their raw inputs change. The existing
 per-session last-applied option slots remain native transport caches.
@@ -53,7 +53,11 @@ or 2 (apply), and can-apply returns 0/1. They perform no I/O or callbacks. Ordin
 never JSON-decodes the complete catalog per key. Options that rebuild an engine wait
 until its composition is idle; settings-triggered native session replacement also waits
 for all live compositions, preserving selected phrase progress that raw-input replay loses.
-Safe live options retain their current application behavior.
+Safe live options retain their current application behavior. Settings and onboarding schema
+selection use `selectSettingsSchema`, which queues the native effect at this same idle boundary.
+The separate `selectSchema` effect interface remains immediate for explicit host/menu operations;
+this is not a claim that every schema switch is deferred. The per-key schema backoff decision
+uses `owl_app_keyboard_schema_idle_action` (0 already active, 1 attempt, 2 known failure).
 
 [`keyboard_export.rs`](../../rust/crates/owl-app-core/src/keyboard_export.rs) owns the
 retained YAML preview/export strings, complete file plan and managed-block rendering.

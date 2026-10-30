@@ -31,6 +31,19 @@ enum Request {
         marker: String,
         lines: Vec<String>,
     },
+    KeyboardOnboarding {
+        schema: String,
+    },
+    KeyboardSchemaMarker {
+        preferred: String,
+        selected: bool,
+    },
+    KeyboardSchemaFailure {
+        requested: String,
+        engine_selected: bool,
+        live_result: String,
+        failed_schema: String,
+    },
     KeyboardCatalog,
     KeyboardSchema {
         schema: String,
@@ -109,6 +122,22 @@ fn dispatch(bytes: &[u8]) -> Value {
             };
             json!(rendered)
         }
+        Request::KeyboardOnboarding { schema } => owl_app_core::keyboard::onboarding(&schema),
+        Request::KeyboardSchemaMarker {
+            preferred,
+            selected,
+        } => owl_app_core::keyboard::schema_marker(&preferred, selected),
+        Request::KeyboardSchemaFailure {
+            requested,
+            engine_selected,
+            live_result,
+            failed_schema,
+        } => owl_app_core::keyboard::schema_failure(
+            &requested,
+            engine_selected,
+            &live_result,
+            &failed_schema,
+        ),
         Request::KeyboardCatalog => owl_app_core::keyboard::catalog().clone(),
         Request::KeyboardSchema { schema } => owl_app_core::keyboard::schema(&schema),
         Request::KeyboardEffective { raw } => owl_app_core::keyboard::effective(&raw),
@@ -152,6 +181,14 @@ pub extern "C" fn owl_app_keyboard_can_apply(requires_idle: u8, composing: u8) -
         requires_idle != 0,
         composing != 0,
     ))
+}
+
+#[no_mangle]
+pub extern "C" fn owl_app_keyboard_schema_idle_action(
+    current_matches: u8,
+    failed_matches: u8,
+) -> u32 {
+    owl_app_core::keyboard::schema_idle_action(current_matches != 0, failed_matches != 0)
 }
 
 /// Allocation-free equivalent of the core refresh policy for the per-key native hook.

@@ -675,6 +675,24 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     XCTAssertFalse(previousSession.isValid, "The idle boundary replaces the old session")
     XCTAssertEqual(controller.engineSession?.composition()?.pageSize, 3, "The refreshed engine reads saved settings")
     XCTAssertFalse(second.engineSession?.isValid == true, "Background sessions wait for their next activation")
+
+    // The settings scheme picker must preserve the same composition, not select the new
+    // schema before the configuration's idle refresh has a chance to defer.
+    clear(client)
+    try type("nihao", into: controller, client: client)
+    let selectionSession = try XCTUnwrap(controller.engineSession)
+    let state = OwlSettingsState()
+    state.keyboardDoublePinyin = OwlKeyboardPreferences.doublePinyin
+    OwlSettingsActions.selectInputMethod(.doublePinyin, state: state, applyConfig: {
+      do { _ = try delegate.runtime.applyKeyboardSettings(.config, directory: root) }
+      catch { XCTFail("Applying settings failed: \(error)") }
+    }, onSelectSchema: { delegate.selectSettingsSchema($0) })
+    XCTAssertEqual(selectionSession.input(), "nihao", "Changing the scheme must preserve the active composition")
+    XCTAssertEqual(selectionSession.status()?.schemaId, "rime_ice")
+    try type(" ", into: controller, client: client)
+    XCTAssertEqual(client.text.string, "你好")
+    XCTAssertFalse(delegate.runtime.applyPendingLiveSessionRefreshIfIdle())
+    XCTAssertEqual(controller.engineSession?.status()?.schemaId, OwlKeyboardPreferences.preferredSchemaID)
   }
 
   @MainActor

@@ -328,14 +328,16 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       state: state,
       onSelectSchema: { [weak self] schemaID in
         guard let self else { return }
-        let selected = self.selectSchema(schemaID)
-        // Never highlight or announce the requested schema when the engine rejected it. On a clean
-        // install this is the exact interval in which the dict-pack consent/download UI takes over.
-        let actualSchemaID = self.currentSchemaId()
-        if !actualSchemaID.isEmpty { state.currentSchemaId = actualSchemaID }
-        state.statusMessage = selected
-          ? NSLocalizedString("已切换方案并应用配置改动。", comment: "schema switched")
-          : NSLocalizedString("方案尚不可用；请先下载完整词库或按提示重试。", comment: "schema unavailable")
+        let deferred = self.selectSettingsSchema(schemaID) { selected in
+          // Never highlight or announce the requested schema when the engine rejected it. On a clean
+          // install this is the exact interval in which the dict-pack consent/download UI takes over.
+          let actualSchemaID = self.currentSchemaId()
+          if !actualSchemaID.isEmpty { state.currentSchemaId = actualSchemaID }
+          state.statusMessage = selected
+            ? NSLocalizedString("已切换方案并应用配置改动。", comment: "schema switched")
+            : NSLocalizedString("方案尚不可用；请先下载完整词库或按提示重试。", comment: "schema unavailable")
+        }
+        if deferred { state.statusMessage = "当前输入完成后切换方案。" }
       },
       onRedeploy: { [weak self] in
         let ok = self?.runtime.redeploy() ?? false
@@ -516,24 +518,28 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     return failedID == nil
   }
 
+  /// Settings/onboarding entry point. Rust decides when the native idle queue may drain;
+  /// the effect interface `selectSchema` remains available for explicit host/menu operations.
+  /// Returns whether queued; completion reports the actual selection result after the boundary.
+  @discardableResult
+  func selectSettingsSchema(_ id: String, completion: @escaping (Bool) -> Void = { _ in }) -> Bool {
+    MainActor.assumeIsolated {
+      runtime.requestLiveSessionRefreshWhenIdle { [weak self] in
+        completion(self?.selectSchema(id) ?? false)
+      }
+    }
+  }
+
   /// Onboarding's 选方案 step entry point. A raw `selectSchema(_:)` alone doesn't stick for a
   /// schema outside the bundled `default.yaml` `schema_list` (e.g. 五笔 `wubi86_jidian`):
   /// every new session reads `OwlKeyboardPreferences.preferredSchemaID` and re-enforces it on
   /// every idle keystroke, so an unset preference silently overwrites the pick back to pinyin.
-  /// Mirrors `OwlSettingsActions.selectInputMethod` — write the pref, select, then patch
-  /// `default.custom.yaml`'s `schema_list` + fast-apply, exactly like the 键盘输入 page.
+  /// Rust supplies the existing onboarding preference writes. Scheme selection and settings
+  /// activation share the keyboard page's idle boundary, preserving the current composition.
   func applyOnboardingScheme(_ schemaID: String) {
-    switch schemaID {
-    case "wubi86_jidian":
-      OwlKeyboardPreferences.inputMethod = .wubi
-      OwlKeyboardPreferences.wubiScheme = .jidian86
-    case "double_pinyin":
-      OwlKeyboardPreferences.inputMethod = .doublePinyin
-      OwlKeyboardPreferences.doublePinyin = .ziranma
-    default:
-      OwlKeyboardPreferences.inputMethod = .pinyin
-    }
-    _ = selectSchema(schemaID)
+    let writes: [String: String] = OwlAppCore.required(["operation": "keyboard_onboarding", "schema": schemaID])
+    for (key, value) in writes { OwlDefaults.standard.set(value, forKey: key) }
+    selectSettingsSchema(schemaID)
     do {
       _ = try runtime.applyKeyboardSettings(.config)
     } catch {

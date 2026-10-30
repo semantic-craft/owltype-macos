@@ -190,3 +190,49 @@ pub fn selection(changed: &str, raw: &Value) -> Value {
         || (changed == "wubiScheme" && effective["inputMethod"] == "wubi");
     json!({"schema": if applies { effective["preferredSchemaID"].clone() } else { Value::Null }})
 }
+
+/// Onboarding writes only the choices represented by its three existing rows.
+pub fn onboarding(schema: &str) -> Value {
+    match schema {
+        "wubi86_jidian" => {
+            json!({"OwlKeyboardInputMethod":"wubi", "OwlKeyboardWubiScheme":"jidian86"})
+        }
+        "double_pinyin" => {
+            json!({"OwlKeyboardInputMethod":"doublePinyin", "OwlKeyboardDoublePinyin":"ziranma"})
+        }
+        _ => json!({"OwlKeyboardInputMethod":"pinyin"}),
+    }
+}
+
+pub fn schema_idle_action(current_matches: bool, failed_matches: bool) -> u32 {
+    if current_matches {
+        0
+    } else if failed_matches {
+        2
+    } else {
+        1
+    }
+}
+
+pub fn schema_marker(preferred: &str, selected: bool) -> Value {
+    json!({"schema": if selected { None } else { Some(preferred) }})
+}
+
+pub fn schema_failure(
+    requested: &str,
+    engine_selected: bool,
+    live_result: &str,
+    failed_schema: &str,
+) -> Value {
+    let failed = if requested.is_empty() {
+        None
+    } else {
+        match live_result {
+            "ok" => None,
+            "failed" => Some(failed_schema),
+            _ if engine_selected => None,
+            _ => Some(requested),
+        }
+    };
+    json!({"schema":failed})
+}
