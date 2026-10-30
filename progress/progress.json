@@ -180,7 +180,7 @@
         "number": 356,
         "reason": null,
         "state": "open",
-        "updated_at": "2026-10-30T10:33:34Z"
+        "updated_at": "2026-10-30T11:20:09Z"
       },
       {
         "number": 357,
@@ -216,7 +216,7 @@
         "number": 362,
         "reason": null,
         "state": "open",
-        "updated_at": "2026-10-30T09:07:24Z"
+        "updated_at": "2026-10-30T11:19:15Z"
       },
       {
         "number": 363,
@@ -232,9 +232,9 @@
       },
       {
         "number": 365,
-        "reason": null,
-        "state": "open",
-        "updated_at": "2026-10-30T10:32:37Z"
+        "reason": "completed",
+        "state": "closed",
+        "updated_at": "2026-10-30T11:18:05Z"
       },
       {
         "number": 366,
@@ -246,18 +246,14 @@
         "number": 367,
         "reason": null,
         "state": "open",
-        "updated_at": "2026-10-30T05:51:32Z"
+        "updated_at": "2026-10-30T11:06:39Z"
       }
     ],
     "main": "209f5a5852f30b8180d5b9c0525cf37ba470946d",
     "open_pulls": [
       {
-        "head": "ed646285ff680802409c127f8cf8a14baa3c27d2",
+        "head": "a572d8e059cf4e6ca4e1abe2d01edde03fc5a13b",
         "number": 368
-      },
-      {
-        "head": "dbaafd3b1b5aa8effc692d246b6c8a9a6d610258",
-        "number": 379
       }
     ],
     "pulls": [],
@@ -268,7 +264,7 @@
     "progress/sync.py",
     "progress/teslahub.mjs"
   ],
-  "observed_at": "2026-10-30T10:54:15.053897Z",
+  "observed_at": "2026-10-30T11:30:00.240649Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -718,9 +714,9 @@
             }
           ],
           "id": "issue-356",
-          "next": "读取工单和开放 PR，经共享领取入口核实后领取。",
-          "status": "planned",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：无。",
+          "next": "完成 #362 修复评审、精确门禁及原生验收，再继续 Agent 与生命周期收尾。",
+          "status": "in_progress",
+          "summary": "阶段 0–5 的迁移代码已逐票进入 foundation；#362 仍需 Chrome 原生修复验收，#366/#367 尚未完成。总 PR 保持候选，未合 main 或发布。",
           "title": "#356 [目标] 业务核心全面迁入 Rust，Swift 仅保留 macOS 界面与系统适配"
         },
         {
@@ -797,14 +793,19 @@
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
+              "note": "修复及策略归属调整；#331保留既有原生失败事实",
               "ref": 362
+            },
+            {
+              "kind": "file",
+              "note": "零次正文写入反馈、延迟选区、失败/取消及晚回执回归；定向测试通过不等于原生验收",
+              "ref": "tests/OwlTemplateHostDeliveryTests.swift"
             }
           ],
           "id": "issue-362",
-          "next": "读取工单和开放 PR，经共享领取入口核实后领取。",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：无。",
+          "next": "评审修复候选，通过精确 HEAD 门禁后由协调者构建安装候选并核对 Chrome 自动展开/cursor 及 TextEdit 回归。",
+          "status": "in_progress",
+          "summary": "交付已在 foundation；本轮候选修复原生选区准备与正文尝试反馈，并将纯宿主能力策略迁入 Rust。两个已知缺陷回归红转绿，144 项定向 App→Rust 测试通过。独立评审、精确 HEAD 完整门禁及新候选 Chrome/TextEdit 原生验收待完成；未发布。",
           "title": "#362 [Rust 业务核心] 阶段 3：交付状态机迁 Rust 并完成 Chrome 能力适配"
         },
         {
@@ -839,19 +840,19 @@
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
+              "note": "已关闭；合流及验证边界由原工单记录",
               "ref": 365
             },
             {
-              "kind": "pull",
-              "ref": 379,
-              "note": "实现与回归证据；尚未合入 foundation"
+              "kind": "commit",
+              "note": "资源业务迁移的集成提交",
+              "ref": "a572d8e059cf4e6ca4e1abe2d01edde03fc5a13b"
             }
           ],
           "id": "issue-365",
-          "next": "独立评审并修复必要问题，再运行一次精确 HEAD 完整门禁，交集成人合入 foundation。",
-          "status": "in_progress",
-          "summary": "资源代次、校验、激活/回退、迁移/重置及置顶词业务已迁入 Rust；71 项既有 App→Rust 测试通过，最终工作线程调整再通过 16 项定向回归。PR #379 待独立评审及干净精确 HEAD 完整门禁；未安装或迁移真实用户数据。",
+          "next": "后续阶段复用 Rust 资源/迁移接口；安装与真实用户数据验收边界保持独立。",
+          "status": "done",
+          "summary": "PR #379 已合入 foundation a572d8e，#365 已关闭。精确 b3a7a88 完整门禁 15 阶段通过，1491 项 Swift / 1 项条件跳过 / 0 失败；独立评审通过。未安装、发布或迁移真实用户数据。",
           "title": "#365 [Rust 业务核心] 阶段 5：资源代次与用户数据事务迁入 Rust"
         },
         {
@@ -865,7 +866,7 @@
           "id": "issue-366",
           "next": "等待前置完成，复用其成果。",
           "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#365, #364, #362。",
+          "summary": "GitHub: open；未关闭前置：#362。#364/#365 已合流关闭。",
           "title": "#366 [Rust 业务核心] 阶段 6：Agent App 侧业务、去重与交付调度迁入 Rust"
         },
         {
@@ -879,7 +880,7 @@
           "id": "issue-367",
           "next": "等待前置完成，复用其成果。",
           "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#366, #365, #364, #362。",
+          "summary": "GitHub: open；未关闭前置：#362、#366。纯宿主能力策略提前由 #362 迁移，其余收尾范围保留。",
           "title": "#367 [Rust 业务核心] 阶段 7：生命周期收尾与 Swift 业务残留审计"
         }
       ],

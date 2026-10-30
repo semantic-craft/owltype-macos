@@ -5,6 +5,26 @@ that the lesson is in place: which file to read, which command to run, what resu
 and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## Reserve delivery before selection preparation, but report actual dispatch
+
+- Seen 1x (2026-10-30): installed #362 candidate `25e4263` recognized and rendered the
+  Chrome automatic trigger, retained its result and left the literal selected. Source review
+  confirmed that a failed synchronous AX selection readback could skip `controller.apply`
+  while the Rust slot already reported `attemptedUnverified`. The actual Chrome failure
+  phase remains a native-validation question; this source defect alone did not prove it.
+- Regression: `testNativeDispatchRefusalIsNotReportedAsAnAttemptedWrite` failed with
+  `attemptedUnverified` for zero insert calls. `testDelayedSelectionPreparationWaitsAndConsumesLateCallbacksOnce`
+  failed because text was dispatched before the delayed selection was confirmed.
+- Rust now separates reservation from the native write receipt. AX selection is set once,
+  then observed with bounded, single-use tokens; fresh original/selection/binding/generation
+  facts admit one insert. Failed preparation retains the result without claiming a text attempt.
+  Duplicate receipts and cancellation cannot retry text or repeat cursor movement.
+- Verify (验证点): run `OwlTemplateHostDeliveryTests`, `OwlTemplateDeliveryTests`,
+  `OwlDynamicAutomaticTests` and `OwlClientCapabilityPolicyTests` through `scripts/verify.py swift`.
+  The failed/cancelled selection regression also checks bounded waiting and zero text writes.
+  Installed Chrome/TextEdit validation must distinguish selection set/ack, actual dispatch
+  and post-write readback using the opt-in metadata trace; synthetic tests are not that proof.
+
 ## Read fresh admission facts after native planning queries
 
 **A native text/readiness query can reenter and change the target or cancel an invocation;

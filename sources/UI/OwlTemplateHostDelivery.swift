@@ -5,7 +5,7 @@ import InputMethodKit
 enum OwlTemplateDeliveryOutcome: Equatable {
   enum Reason: String, Equatable {
     case missingHost, focusNotRestored, targetChanged, unverifiableTarget, secureInput
-    case originalNotPreserved
+    case originalNotPreserved, selectionNotPrepared
   }
   enum Cursor: Equatable { case positioned, leftAtEnd, positionUnverified }
   case notAttempted(Reason)
@@ -32,6 +32,7 @@ enum OwlTemplateDeliveryOutcome: Equatable {
     case .confirmedWithCursor(.positionUnverified): return "正文已插入，光标位置未能确认；请检查原输入框。"
     case .attemptedUnverified: return "已尝试插入，暂无法确认。若有光标字段，定位也未确认。请先检查原输入框；需要时复制结果。"
     case .originalPreservationUnverified: return "已尝试保留原触发文本，暂无法确认；模板结果未插入。请检查原输入框，结果可复制使用。"
+    case .notAttempted(.selectionNotPrepared): return "未能确认原触发文本的选区，未插入。结果已保留，可复制使用。"
     case .notAttempted(.originalNotPreserved): return "未能安全保留原触发文本，模板结果未插入；请检查原输入框，结果可复制使用。"
     case .notAttempted(.missingHost): return "没有可用的原输入框，未插入。结果已保留，可复制使用。"
     case .notAttempted(.focusNotRestored): return "未能恢复原应用焦点，未插入。结果已保留，可复制使用。"
@@ -67,7 +68,8 @@ final class OwlTemplateHostDelivery {
     var selection: () -> NSRange?
     var marked: () -> NSRange?
     var text: (NSRange) -> String?
-    var insert: (String, NSRange?) -> Void
+    /// True only when the native insert call was made; this is not host acceptance.
+    var insert: (String, NSRange?) -> Bool
     var canReplace: () -> Bool
     var move: (NSRange, NSRange, String) -> Bool
     var isPresentationFocused: () -> Bool = { false }
@@ -75,6 +77,9 @@ final class OwlTemplateHostDelivery {
     /// Runs the post-insert checks once the host has processed the insert. The host may need this
     /// process to answer while it handles the insert, so production waits a turn; tests run inline.
     var settle: (@escaping () -> Void) -> Void = { $0() }
+    var needsSelectionPreparation: () -> Bool = { false }
+    var select: (NSRange) -> Bool = { _ in false }
+    var nextTurn: (@escaping () -> Void) -> Void = { $0() }
   }
 
   private weak var controller: OwlInputController?
@@ -105,7 +110,7 @@ final class OwlTemplateHostDelivery {
           return ["event": String(controller.hostEventGeneration), "host": String(controller.templateHostGeneration)]
         })
       Self.captureOutsideKeyEvent({ Self.focusedField(application) }, deferRead: controller.isHandlingKeyEvent) { [weak self] captured in
-        guard let self, self.field == nil, !self.resultDispatched, !self.invalid else { return }
+        guard let self, self.field == nil, !self.resultReserved, !self.invalid else { return }
         guard captureBinding.isValid() else { self.invalidate(); return }
         self.field = captured
       }
@@ -121,18 +126,14 @@ final class OwlTemplateHostDelivery {
       marked: { [weak self] in self?.nativeMarked() },
       text: { [weak self] range in self?.nativeText(range) },
       insert: { [weak self] text, range in
-        guard let controller = self?.controller, let client = self?.client else { return }
+        guard let controller = self?.controller, let client = self?.client else { return false }
         let previous = controller.automaticApplyingClientAction
         controller.automaticApplyingClientAction = true
         defer { controller.automaticApplyingClientAction = previous }
         if let range {
-          if self?.policyAllowsRanges(replacement: true) == true {
-            controller.apply(.insertTextInRange(text, replacementRange: range), client: client)
-          } else if self?.selectAXReplacement(range) == true {
-            // Ordinary insertion replaces the independently verified AX selection. No IMK range.
-            controller.apply(.insertText(text), client: client)
-          }
+          controller.apply(.insertTextInRange(text, replacementRange: range), client: client)
         } else { controller.apply(.insertText(text), client: client) }
+        return true
       }, canReplace: { [weak self] in self?.nativeReplacementAllowed() == true },
       move: { [weak self] target, inserted, text in self?.moveCursor(target, inserted: inserted, text: text) == true },
       isPresentationFocused: { [weak self] in self?.presentationWindow?.isKeyWindow == true },
@@ -141,7 +142,13 @@ final class OwlTemplateHostDelivery {
         return front.processIdentifier == self.application?.processIdentifier ||
           (front.processIdentifier == ProcessInfo.processInfo.processIdentifier && self.presentationWindow?.isKeyWindow == true)
       },
-      settle: { [weak self] next in self?.awaitReadableHost(polls: Self.settlePolls, next) })
+      settle: { [weak self] next in self?.awaitReadableHost(polls: Self.settlePolls, next) },
+      needsSelectionPreparation: { [weak self] in self?.policyAllowsRanges(replacement: true) == false },
+      select: { [weak self] range in
+        guard let field = self?.axField() else { return false }
+        return Self.axSetSelection(field.element, range: range)
+      },
+      nextTurn: { next in DispatchQueue.main.asyncAfter(deadline: .now() + 0.025, execute: next) })
     if automaticSource != nil {
       controller.pendingTemplateDelivery?.invalidate()
       controller.pendingTemplateDelivery = self
@@ -166,9 +173,11 @@ final class OwlTemplateHostDelivery {
   } as Any? ?? NSNull()])
   private var immediate: Bool { core.call("immediate") }
   private var invalid: Bool { core.call("invalid") }
-  private var resultDispatched: Bool { core.call("dispatched") }
+  private var resultReserved: Bool { core.call("reserved") }
 
   private struct Effect: Decodable {
+    var action: String?
+    var token: UInt64?
     var outcome: String?
     var ignored: Bool?
     var text: String?
@@ -192,7 +201,8 @@ final class OwlTemplateHostDelivery {
     var facts: [String: Any] = ["sourceValid": source?.isValid() ?? true,
       "rejection": rejection?.rawValue as Any? ?? NSNull(), "revision": access.revision(),
       "ranges": ranges, "marked": Self.wireRange(marked),
-      "selection": Self.wireRange(ranges ? access.selection() : nil), "replace": access.canReplace()]
+      "selection": Self.wireRange(ranges ? access.selection() : nil), "replace": access.canReplace(),
+      "needsSelection": access.needsSelectionPreparation()]
     var requested = range
     if planning {
       let raw: [Int]? = core.call("read_range", ["marked": Self.wireRange(marked)])
@@ -200,13 +210,23 @@ final class OwlTemplateHostDelivery {
     }
     if ranges, let requested, OwlTemplateCursorPlacement.valid(requested), requested.length <= Self.readLimit,
        let text = access.text(requested), text.utf16.count == requested.length { facts["text"] = text }
+    // AX/text queries can reenter. Always finish with the live binding, after every planning read.
+    facts["rejection"] = (invalid ? OwlTemplateDeliveryOutcome.Reason.targetChanged : access.rejection(immediate))?.rawValue as Any? ?? NSNull()
+    facts["sourceValid"] = source?.isValid() ?? true
+    facts["revision"] = access.revision()
     return facts
   }
   /// Final native binding sample occurs after planning reads, before each native effect.
-  private func admit(_ kind: String) -> Effect {
+  private func admit(_ kind: String, read range: NSRange? = nil) -> Effect {
+    var observation = range.map { facts(read: $0) } ?? [:]
     let rejection = invalid ? OwlTemplateDeliveryOutcome.Reason.targetChanged : access.rejection(immediate)
-    return core.call("admit", ["kind": kind, "sourceValid": source?.isValid() ?? true,
-      "rejection": rejection?.rawValue as Any? ?? NSNull(), "revision": access.revision()])
+    observation["kind"] = kind
+    observation["sourceValid"] = source?.isValid() ?? true
+    observation["rejection"] = rejection?.rawValue as Any? ?? NSNull()
+    observation["revision"] = access.revision()
+    let effect: Effect = core.call("admit", observation)
+    traceEffect("admit_" + kind, effect)
+    return effect
   }
   private static func outcome(_ code: String?) -> OwlTemplateDeliveryOutcome {
     switch code {
@@ -226,7 +246,10 @@ final class OwlTemplateHostDelivery {
     }
   }
   func endImmediateDelivery() { let _: Bool = core.call("end_immediate") }
-  func invalidate() { let _: Bool = core.call("invalidate") }
+  func invalidate() {
+    Self.trace("id=\(ObjectIdentifier(self)) invalidated")
+    let _: Bool = core.call("invalidate")
+  }
   func mayRestoreFocus() -> Bool {
     core.call("restore", ["sourceValid": source?.isValid() ?? true, "canRestore": access.canRestore()])
   }
@@ -261,7 +284,12 @@ final class OwlTemplateHostDelivery {
       completion(.originalNotAttempted(.originalNotPreserved)); return
     }
     if let code = admit("original").outcome { completion(Self.preparation(code)); return }
-    access.insert(text, nil)
+    let dispatched = access.insert(text, nil)
+    Self.trace("original_write dispatched=\(dispatched)")
+    let receipt: Effect = core.call("write_receipt", ["kind": "original", "dispatched": dispatched])
+    traceEffect("original_receipt", receipt)
+    guard receipt.ignored != true else { return }
+    if let code = receipt.outcome { completion(Self.preparation(code)); return }
     let finish = { [self] in
       let range = OwlTemplateCursorPlacement.insertedRange(text: text, base: origin.location)
       let result: Effect = core.call("prepared", facts(read: range))
@@ -289,13 +317,51 @@ final class OwlTemplateHostDelivery {
     }
     if !chunk.isEmpty { let _: Bool = core.call("result_chunk", ["text": chunk]) }
     let effect: Effect = core.call("plan", facts(planning: true))
+    performDelivery(effect, result: result, completion: completion)
+  }
+
+  private func performDelivery(_ effect: Effect, result: OwlTemplateInvocation.Result,
+                               completion: @escaping (OwlTemplateDeliveryOutcome) -> Void) {
+    traceEffect("delivery", effect)
+    guard effect.ignored != true else { return }
     if let code = effect.outcome { completion(Self.outcome(code)); return }
-    if let code = admit("result").outcome { completion(Self.outcome(code)); return }
-    access.insert(result.text, Self.nativeRange(effect.replacement))
-    guard let origin = Self.nativeRange(effect.origin) else { completion(.attemptedUnverified); return }
+    let origin = Self.nativeRange(effect.origin)
+    switch effect.action {
+    case "select":
+      guard let origin else { completion(.notAttempted(.selectionNotPrepared)); return }
+      if let code = admit("selection", read: origin).outcome { completion(Self.outcome(code)); return }
+      let accepted = access.select(origin)
+      Self.trace("selection_set accepted=\(accepted)")
+      let next: Effect = core.call("selection_set", ["accepted": accepted])
+      performDelivery(next, result: result, completion: completion)
+    case "wait_selection":
+      access.nextTurn { [self] in
+        var observation = facts(read: origin)
+        observation["token"] = effect.token
+        let next: Effect = core.call("selection_poll", observation)
+        traceEffect("selection_ack", next)
+        performDelivery(next, result: result, completion: completion)
+      }
+    default:
+      if let code = admit("result", read: origin).outcome { completion(Self.outcome(code)); return }
+      let replacement = Self.nativeRange(effect.replacement)
+      let dispatched = access.insert(result.text, replacement)
+      Self.trace("result_write dispatched=\(dispatched) explicit_range=\(replacement != nil)")
+      let receipt: Effect = core.call("write_receipt", ["kind": "result", "dispatched": dispatched])
+      traceEffect("result_receipt", receipt)
+      guard receipt.ignored != true else { return }
+      if let code = receipt.outcome { completion(Self.outcome(code)); return }
+      guard let origin else { completion(.attemptedUnverified); return }
+      verifyDelivery(result, origin: origin, completion: completion)
+    }
+  }
+
+  private func verifyDelivery(_ result: OwlTemplateInvocation.Result, origin: NSRange,
+                              completion: @escaping (OwlTemplateDeliveryOutcome) -> Void) {
     let verify = { [self] in
       let inserted = OwlTemplateCursorPlacement.insertedRange(text: result.text, base: origin.location)
       let effect: Effect = core.call("verify", facts(read: inserted))
+      traceEffect("verify", effect)
       guard effect.ignored != true else { return }
       if let code = effect.outcome { completion(Self.outcome(code)); return }
       guard let target = Self.nativeRange(effect.target), let inserted = Self.nativeRange(effect.inserted) else {
@@ -306,6 +372,7 @@ final class OwlTemplateHostDelivery {
       var observation = facts()
       observation["target"] = Self.wireRange(target); observation["moved"] = moved
       let outcome: Effect = core.call("moved", observation)
+      traceEffect("cursor", outcome)
       completion(Self.outcome(outcome.outcome))
     }
     if immediate && controller == nil { verify() } else { access.settle(verify) }
@@ -379,6 +446,11 @@ final class OwlTemplateHostDelivery {
     }
   }
 
+  /// The existing opt-in sink receives only phase names, enum outcomes and tokens; never text.
+  private func traceEffect(_ phase: String, _ effect: Effect) {
+    Self.trace("id=\(ObjectIdentifier(self)) phase=\(phase) action=\(effect.action ?? "none") outcome=\(effect.outcome ?? "none") ignored=\(effect.ignored == true) token=\(effect.token ?? 0)")
+  }
+
   static func trace(_ message: @autoclosure () -> String) {
     OwlLiveInputTrace.write({ "template delivery " + message() })
   }
@@ -423,13 +495,6 @@ final class OwlTemplateHostDelivery {
     if policyAllowsRanges(replacement: true) { return liveRangesAllowed(replacement: true) }
     guard let field = axField(), nativeRangesAllowed() else { return false }
     return Self.axSelectionSettable(field.element)
-  }
-  private func selectAXReplacement(_ range: NSRange) -> Bool {
-    guard let field = axField(), Self.axSelectionSettable(field.element),
-          Self.axSelection(field.element) == NSRange(location: NSMaxRange(range), length: 0),
-          let text = Self.axText(field.element, range: range), text == source?.originalInput else { return false }
-    return Self.axSetSelection(field.element, range: range) && axField() != nil &&
-      Self.axSelection(field.element) == range && Self.axText(field.element, range: range) == source?.originalInput
   }
   static func axSelectionSettable(_ field: AXUIElement) -> Bool {
     var settable = DarwinBoolean(false)

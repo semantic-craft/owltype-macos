@@ -10,6 +10,9 @@ const MAX_REQUEST: usize = 4 * 1024 * 1024;
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
+    ClientCapabilities {
+        input: Value,
+    },
     ResourceRule {
         rule: String,
         args: Value,
@@ -143,6 +146,7 @@ fn dispatch(bytes: &[u8]) -> Value {
         Err(_) => return error("invalid_request"),
     };
     let result = match request {
+        Request::ClientCapabilities { input } => owl_app_core::client_capability::evaluate(&input),
         Request::ResourceRule { rule, args } => owl_app_core::resource_lifecycle::rule(&rule, args),
         Request::UserDataRule { rule, args } => owl_app_core::user_data::rule(&rule, args),
         Request::ProviderRule { rule, args } => {
