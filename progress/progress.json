@@ -178,9 +178,9 @@
       },
       {
         "number": 356,
-        "reason": null,
-        "state": "open",
-        "updated_at": "2026-10-30T11:20:09Z"
+        "reason": "completed",
+        "state": "closed",
+        "updated_at": "2026-10-30T19:56:08Z"
       },
       {
         "number": 357,
@@ -214,9 +214,9 @@
       },
       {
         "number": 362,
-        "reason": null,
-        "state": "open",
-        "updated_at": "2026-10-30T11:19:15Z"
+        "reason": "completed",
+        "state": "closed",
+        "updated_at": "2026-10-30T14:17:13Z"
       },
       {
         "number": 363,
@@ -238,24 +238,19 @@
       },
       {
         "number": 366,
-        "reason": null,
-        "state": "open",
-        "updated_at": "2026-10-30T04:22:50Z"
+        "reason": "completed",
+        "state": "closed",
+        "updated_at": "2026-10-30T15:10:22Z"
       },
       {
         "number": 367,
-        "reason": null,
-        "state": "open",
-        "updated_at": "2026-10-30T11:06:39Z"
+        "reason": "completed",
+        "state": "closed",
+        "updated_at": "2026-10-30T17:19:30Z"
       }
     ],
-    "main": "209f5a5852f30b8180d5b9c0525cf37ba470946d",
-    "open_pulls": [
-      {
-        "head": "a572d8e059cf4e6ca4e1abe2d01edde03fc5a13b",
-        "number": 368
-      }
-    ],
+    "main": "72657aeadde39cbcf2b0fbd44f6cf1b02bef46fc",
+    "open_pulls": [],
     "pulls": [],
     "releases": []
   },
@@ -264,7 +259,7 @@
     "progress/sync.py",
     "progress/teslahub.mjs"
   ],
-  "observed_at": "2026-10-30T11:30:00.240649Z",
+  "observed_at": "2026-10-30T19:57:05.926231Z",
   "outputs": [
     "progress/index.html"
   ],
