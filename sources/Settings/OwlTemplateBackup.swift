@@ -28,7 +28,7 @@ struct OwlTemplateBackup {
   struct Outcome: Decodable { let library: OwlTemplateLibrary; let backupURL: URL? }
   let dataDir: URL
   static func decode(_ data: Data) throws -> OwlTemplateLibrary {
-    try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("backup_decode", ["bytes": Array(data)])
+    try OwlAppCore.call(["operation": "backup_decode", "bytes": Array(data)])
   }
   func currentLibrary() throws -> OwlTemplateLibrary { try OwlStorageHost(dataDir: dataDir).call("library_current") }
   func preview(data: Data) throws -> Preview {

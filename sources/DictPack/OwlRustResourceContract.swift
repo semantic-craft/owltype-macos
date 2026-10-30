@@ -248,7 +248,7 @@ enum OwlResourceBusiness {
   }
   static let catalog: Catalog = try! call("catalog", [:])
   static func call<T: Decodable>(_ operation: String, _ args: [String: Any]) throws -> T {
-    do { return try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("resource_contract_" + operation, args) }
+    do { return try OwlAppCore.call(["operation": "resource_contract", "contract": operation, "args": args]) }
     catch let failure as OwlAppCore.Failure { throw map(failure) }
   }
   static func map(_ failure: OwlAppCore.Failure) -> Error {

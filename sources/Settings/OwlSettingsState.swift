@@ -468,7 +468,7 @@ enum OwlSettingsActions {
     entries: [OwlQuickSendEntry],
     persist: ([OwlQuickSendEntry]) throws -> ([OwlQuickSendEntry], Bool)
   ) throws -> (entries: [OwlQuickSendEntry], phrase: String, code: String, editingCode: String?, status: String) {
-    let next: [OwlQuickSendEntry] = try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("quick_edit", ["entry": OwlAppCore.payload(OwlQuickSendEntry(text: phrase, code: code)), "entries": OwlAppCore.payload(entries), "editing": editingCode as Any? ?? NSNull(), "delete": false])
+    let next: [OwlQuickSendEntry] = try OwlAppCore.call(["operation": "quick_edit", "entry": OwlAppCore.payload(OwlQuickSendEntry(text: phrase, code: code)), "entries": OwlAppCore.payload(entries), "editing": editingCode as Any? ?? NSNull(), "delete": false])
     let persisted = try persist(next)
     let result: QuickSendResult = OwlTemplateStore.core("quick_edit_result", ["applied": persisted.1, "delete": false])
     return (persisted.0, "", "", nil, result.status)
@@ -476,7 +476,7 @@ enum OwlSettingsActions {
   private struct QuickSendResult: Decodable { let clear: Bool; let editing: String?; let status: String }
   static func deleteQuickSendEntry(_ entry: OwlQuickSendEntry, editingCode: String?, entries: [OwlQuickSendEntry],
     persist: ([OwlQuickSendEntry]) throws -> ([OwlQuickSendEntry], Bool)) throws -> (entries: [OwlQuickSendEntry], phrase: String?, code: String?, editingCode: String?, status: String) {
-    let next: [OwlQuickSendEntry] = try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("quick_edit", ["entry": OwlAppCore.payload(entry), "entries": OwlAppCore.payload(entries), "editing": editingCode as Any? ?? NSNull(), "delete": true])
+    let next: [OwlQuickSendEntry] = try OwlAppCore.call(["operation": "quick_edit", "entry": OwlAppCore.payload(entry), "entries": OwlAppCore.payload(entries), "editing": editingCode as Any? ?? NSNull(), "delete": true])
     let persisted = try persist(next)
     let result: QuickSendResult = OwlTemplateStore.core("quick_edit_result", ["applied": persisted.1, "delete": true, "editing": editingCode as Any? ?? NSNull(), "code": entry.code])
     return (persisted.0, result.clear ? "" : nil, result.clear ? "" : nil, result.editing, result.status)

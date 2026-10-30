@@ -157,73 +157,52 @@ enum OwlUserActionClassifier {
 
   /// Classify a de-platformed key event. PURE: no engine, no IMK, no `NSScreen`.
   static func classify(_ event: OwlKeyEvent) -> OwlUserAction {
-    let modifiers = event.modifierFlags
-    let changes = event.lastModifiers.symmetricDifference(modifiers)
-
+    let eventType: String
     switch event.type {
-    case .flagsChanged:
-      if event.lastModifiers == modifiers {
-        return .flagsUnchanged
-      }
-      var engineModifiers: UInt32 = OwlKeycode.osxModifiersToEngine(modifiers: modifiers)
-      // For flags-changed event, keyCode is available since macOS 10.15 (#715).
-      // Some remote desktop software (e.g. Parsec) sends flagsChanged events with keyCode
-      // defaulting to 0 (kVK_ANSI_A) instead of the actual modifier keycode, causing a ghost 'a'
-      // keypress. Validate and infer the correct keycode from the changed modifier flags. (#825)
-      var keyCode = event.keyCode
-      if !OwlKeycode.modifierKeycodes.contains(keyCode) {
-        guard let inferred = OwlKeycode.inferModifierKeycode(from: changes) else {
-          // Couldn't infer a modifier keycode → old code stored lastModifiers, ran engineUpdate,
-          // and marked handled = true. Represent that as a flagsChanged with no events to feed.
-          return .flagsChanged(capsLockRevert: nil, events: [], updateLastModifiers: modifiers, handled: true)
-        }
-        keyCode = inferred
-      }
-      let engineKeycode: UInt32 = OwlKeycode.osxKeycodeToEngine(keycode: keyCode, keychar: nil, shift: false, caps: false)
-
-      var capsLockRevert: (keycode: UInt32, modifiers: UInt32)?
-      if changes.contains(.capsLock) {
-        // NOTE: rime assumes XK_Caps_Lock to be sent before modifier changes, while the
-        // NSFlagsChanged event has the flag changed already — so revert kLockMask.
-        // The original code mutated `engineModifiers` in place via `^=`; subsequent press/release
-        // events use that XOR'd value. Preserve that exactly.
-        engineModifiers ^= kLockMask.rawValue
-        capsLockRevert = (keycode: engineKeycode, modifiers: engineModifiers)
-      }
-
-      // Need to process release before modifier down. Because sometimes the release event is
-      // delayed to the next modifier keydown.
-      var buffer = [(keycode: UInt32, modifiers: UInt32)]()
-      for flag in [NSEvent.ModifierFlags.shift, .control, .option, .command] where changes.contains(flag) {
-        if modifiers.contains(flag) { // New modifier
-          buffer.append((keycode: engineKeycode, modifiers: engineModifiers))
-        } else { // Release
-          buffer.insert((keycode: engineKeycode, modifiers: engineModifiers | kReleaseMask.rawValue), at: 0)
-        }
-      }
-      // Normal modifier press/release path: the original code left `handled` at its initial
-      // `false` here (only the couldn't-infer bail above set it true), so the host app still
-      // sees the modifier event. capsLock-only changes also land here (handled: false).
-      return .flagsChanged(capsLockRevert: capsLockRevert, events: buffer, updateLastModifiers: modifiers, handled: false)
-
-    case .keyDown:
-      // ignore Command+X hotkeys.
-      if modifiers.contains(.command) {
-        return .commandPassthrough
-      }
-      let keyChars = resolveKeyChars(charactersIgnoringModifiers: event.charactersIgnoringModifiers,
-                                     characters: event.characters,
-                                     modifiers: modifiers)
-      // translate osx keyevents to rime keyevents
-      guard let char = keyChars?.first else { return .ignored }
-      let engineKeycode = OwlKeycode.osxKeycodeToEngine(keycode: event.keyCode, keychar: char,
-                                                     shift: modifiers.contains(.shift),
-                                                     caps: modifiers.contains(.capsLock))
-      guard engineKeycode != 0 else { return .ignored }
-      let engineModifiers = OwlKeycode.osxModifiersToEngine(modifiers: modifiers)
-      return .keyDown(engineKeycode: engineKeycode, engineModifiers: engineModifiers)
-
-    case .other:
+    case .keyDown: eventType = "keyDown"
+    case .flagsChanged: eventType = "flagsChanged"
+    case .other: eventType = "other"
+    }
+    struct WireAction: Decodable {
+      let action: String
+      let engine_keycode: UInt32?
+      let engine_modifiers: UInt32?
+      let caps_lock_revert: [UInt32]?
+      let events: [[UInt32]]?
+      let update_last_modifiers: UInt64?
+      let handled: Bool?
+    }
+    let wire: WireAction = OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "user_action_classify",
+      "args": [
+        "event": [
+          "event_type": eventType,
+          "key_code": event.keyCode,
+          "characters": event.characters as Any? ?? NSNull(),
+          "characters_ignoring_modifiers": event.charactersIgnoringModifiers as Any? ?? NSNull(),
+          "modifier_flags": event.modifierFlags.rawValue,
+          "last_modifiers": event.lastModifiers.rawValue
+        ]
+      ]
+    ])
+    switch wire.action {
+    case "key_down":
+      return .keyDown(engineKeycode: wire.engine_keycode ?? 0, engineModifiers: wire.engine_modifiers ?? 0)
+    case "flags_changed":
+      let revert: (UInt32, UInt32)? = wire.caps_lock_revert.flatMap { $0.count >= 2 ? ($0[0], $0[1]) : nil }
+      let evs = (wire.events ?? []).compactMap { $0.count >= 2 ? ($0[0], $0[1]) : nil }
+      return .flagsChanged(
+        capsLockRevert: revert,
+        events: evs,
+        updateLastModifiers: NSEvent.ModifierFlags(rawValue: UInt(wire.update_last_modifiers ?? 0)),
+        handled: wire.handled ?? false
+      )
+    case "flags_unchanged":
+      return .flagsUnchanged
+    case "command_passthrough":
+      return .commandPassthrough
+    default:
       return .ignored
     }
   }

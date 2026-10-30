@@ -483,26 +483,16 @@ enum OwlCommitTransform {
     cjkNumberSpacing: Bool,
     previous previousCharacter: Character? = nil
   ) -> String {
-    var result = ""
-    if cjkEnglishSpacing || cjkNumberSpacing {
-      // `previousCharacter` seeds the boundary with the trailing char of the PRIOR commit so a
-      // space lands at a commit boundary (中文|英文), where the string-only loop alone is blind.
-      var previous: BoundaryKind? = previousCharacter.flatMap(BoundaryKind.init)
-
-      for character in text {
-        let current = BoundaryKind(character)
-        if let previous, let current, needsSpace(previous, current, cjkEnglishSpacing: cjkEnglishSpacing, cjkNumberSpacing: cjkNumberSpacing),
-           !result.hasSuffix(" ") {
-          result.append(" ")
-        }
-        result.append(character)
-        previous = current
-      }
-    } else {
-      result = text
-    }
-
-    return result
+    OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "commit_transform_apply",
+      "args": [
+        "text": text,
+        "cjk_english_spacing": cjkEnglishSpacing,
+        "cjk_number_spacing": cjkNumberSpacing,
+        "previous": previousCharacter.map(String.init) as Any? ?? NSNull()
+      ]
+    ])
   }
 
   private enum BoundaryKind {

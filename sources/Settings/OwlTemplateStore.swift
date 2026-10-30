@@ -61,7 +61,7 @@ struct OwlTemplateEntry: Identifiable, Codable, Equatable, Sendable {
   }
 
   func duplicated() -> Self {
-    try! OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("library_duplicate", ["entry": OwlAppCore.payload(self)])
+    OwlAppCore.required(["operation": "template_duplicate", "entry": OwlAppCore.payload(self), "new_id": UUID().uuidString])
   }
 
   var executionIssue: String? {
@@ -103,8 +103,7 @@ enum OwlTemplateStore {
   static let candidatePrefix = "🦉["
   enum Mode: Equatable { case empty, legacy, unified, unavailable(String) }
   static func core<T: Decodable>(_ operation: String, _ args: [String: Any] = [:]) -> T {
-    do { return try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call(operation, args) }
-    catch { preconditionFailure("Incompatible template core: \(error)") }
+    OwlAppCore.required(["operation": "template_rule", "rule": operation, "args": args])
   }
   static func exclusively<T>(_ action: () throws -> T) rethrows -> T { try OwlStorageHost.exclusively(action) }
   static func mode(dataDir: URL = OwlApp.userDir) -> Mode {
@@ -116,7 +115,7 @@ enum OwlTemplateStore {
     try exclusively { try OwlStorageHost(dataDir: dataDir).call("library_load") }
   }
   static func validate(_ library: OwlTemplateLibrary) throws {
-    let _: Bool = try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("library_validate", ["library": OwlAppCore.payload(library)])
+    let _: Bool = try OwlAppCore.call(["operation": "template_validate", "library": OwlAppCore.payload(library)])
   }
   static func sorted(_ entries: [OwlTemplateEntry]) -> [OwlTemplateEntry] { core("library_sorted", ["entries": OwlAppCore.payload(entries)]) }
   static func filtered(_ entries: [OwlTemplateEntry], query: String = "", tag: String? = nil, promptOnly: Bool = false) -> [OwlTemplateEntry] {
@@ -151,7 +150,7 @@ enum OwlTemplateStore {
   static let libraryDidCommit = Notification.Name("OwlTemplateLibraryDidCommit")
   static func notifyCommittedLibrary(dataDir: URL) { NotificationCenter.default.post(name: libraryDidCommit, object: dataDir.standardizedFileURL) }
   static func encoded(_ library: OwlTemplateLibrary) throws -> Data {
-    let bytes: [UInt8] = try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("library_encode", ["library": OwlAppCore.payload(library)])
+    let bytes: [UInt8] = try OwlAppCore.call(["operation": "template_encode", "library": OwlAppCore.payload(library)])
     return Data(bytes)
   }
   struct PreparedWrite: Codable { let fileName: String; let contents: String; let marker: String }

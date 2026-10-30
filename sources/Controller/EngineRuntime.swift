@@ -161,7 +161,13 @@ final class EngineRuntime {
   /// 在 build/owltype.yaml 缺席/重建窗口会「成功」返回空壳（一切读取失败）——只看 open 返回值不够，
   /// 必须探真内容（owltype.yaml 恒有 style 段）。
   private static func isUsable(_ config: OwlConfig?) -> Bool {
-    config?.has(section: "style") ?? false
+    guard let config else { return false }
+    let hasSection = config.has(section: "style")
+    return OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "engine_runtime_is_usable",
+      "args": ["has_style_section": hasSection]
+    ])
   }
 
   private func makeConfig() -> OwlConfig {

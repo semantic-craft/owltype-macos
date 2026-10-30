@@ -43,7 +43,7 @@ enum OwlQuickSendStore {
     OwlTemplateStore.core("quick_collapse", ["entries": OwlAppCore.payload(entries)])
   }
   static func entry(text: String, code: String) throws -> OwlQuickSendEntry {
-    try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("quick_entry", ["entry": OwlAppCore.payload(OwlQuickSendEntry(text: text, code: code))])
+    try OwlAppCore.call(["operation": "quick_entry", "entry": OwlAppCore.payload(OwlQuickSendEntry(text: text, code: code))])
   }
   static func save(_ entries: [OwlQuickSendEntry], writer: OwlConfigWriter = OwlConfigWriter(), timestamp: String? = nil) throws {
     let _: Bool = try OwlStorageHost(dataDir: writer.dataDir, writerCheckpoint: writer.writeCheckpoint).call("quick_save", ["entries": OwlAppCore.payload(entries), "timestamp": timestamp ?? timestampNow()])

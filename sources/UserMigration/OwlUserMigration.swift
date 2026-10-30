@@ -93,8 +93,7 @@ enum OwlUserMigrationError: LocalizedError, Equatable {
 enum OwlUserMigration {
   static let maximumWeight: Int64 = 100_000_000
   static var limitations: [String] {
-    let host = OwlStorageHost(dataDir: URL(fileURLWithPath: "/"))
-    return try! host.call("user_migration_limitations")
+    OwlAppCore.required(["operation": "user_migration_limitations"])
   }
 
   static func makePlan(userData: URL, pinnedWordsData: Data?, syncDirectory: URL? = nil,

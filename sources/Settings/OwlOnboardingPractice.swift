@@ -13,7 +13,17 @@ struct OwlPracticeProof {
   }
 
   func isComplete(text: String, hasMarkedText: Bool) -> Bool {
-    text == Self.target && hasOwlCommit && !hasOtherSource && !hasMarkedText
+    OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "onboarding_practice_is_complete",
+      "args": [
+        "target": Self.target,
+        "text": text,
+        "has_owl_commit": hasOwlCommit,
+        "has_other_source": hasOtherSource,
+        "has_marked_text": hasMarkedText
+      ]
+    ])
   }
 }
 
@@ -87,7 +97,13 @@ final class OwlPracticeTextView: NSTextView {
   override func pasteAsRichText(_ sender: Any?) { paste(sender) }
 
   private func publish() {
-    let hint = proof.hasOtherSource ? "包含其他输入法的内容，请清空后用猫头鹰重新输入。" : nil
+    let hint: String? = OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "onboarding_practice_hint",
+      "args": [
+        "has_other_source": proof.hasOtherSource
+      ]
+    ])
     onChange?(string, proof.isComplete(text: string, hasMarkedText: hasMarkedText()), hint)
   }
 }

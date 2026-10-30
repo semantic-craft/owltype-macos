@@ -107,3 +107,5 @@ pub mod resource_lifecycle;
 pub mod client_capability;
 
 pub mod agent;
+
+pub mod pure_rules;

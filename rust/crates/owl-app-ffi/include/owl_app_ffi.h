@@ -1,5 +1,6 @@
 #ifndef OWL_APP_FFI_H
 #define OWL_APP_FFI_H
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #ifdef __cplusplus
@@ -17,6 +18,7 @@ uint8_t owl_app_keyboard_can_apply(uint8_t requires_idle, uint8_t composing);
 // Schema action: 0 already active, 1 attempt, 2 skip known failure. Inputs are identity facts.
 uint32_t owl_app_keyboard_schema_idle_action(uint8_t current_matches, uint8_t failed_matches);
 uint32_t owl_app_keyboard_refresh(uint8_t pending, uint8_t composing);
+bool owl_app_marked_text_should_send(const char *prev_ptr, size_t prev_len, const char *next_ptr, size_t next_len);
 // Storage requests synchronously call raw native services on the calling thread. The
 // callback response is borrowed until its next invocation or the end of this call.
 typedef const char *(*owl_app_host_callback)(void *context, const char *request);

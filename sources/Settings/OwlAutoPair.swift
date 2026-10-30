@@ -64,8 +64,15 @@ enum OwlAutoPair {
   /// The commit path calls this BEFORE reading the caret's right neighbor, so the client
   /// (IPC) read only happens when it could actually matter.
   static func singleCloser(in text: String) -> Character? {
-    guard let character = text.first, text.count == 1, closers.contains(character) else { return nil }
-    return character
+    let closer: String? = OwlAppCore.required(["operation": "pure_rule", "rule": "auto_pair_single_closer", "args": ["text": text]])
+    return closer?.first
+  }
+
+  private struct WireAction: Decodable {
+    let kind: String
+    let open: String?
+    let close: String?
+    let caret_move: Bool?
   }
 
   /// Pure decision. Trigger rule v1 (PRD): the commit text must be EXACTLY one pair-table
@@ -76,13 +83,23 @@ enum OwlAutoPair {
     rightNeighbor: Character?,
     caretMoveAllowed: Bool
   ) -> OwlAutoPairAction {
-    guard enabled, let character = commitText.first, commitText.count == 1 else { return .plain }
-    if let close = pairs[character] {
-      return .pair(open: String(character), close: String(close), caretMove: caretMoveAllowed)
+    let wire: WireAction = OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "auto_pair_decision",
+      "args": [
+        "enabled": enabled,
+        "commit_text": commitText,
+        "right_neighbor": rightNeighbor.map(String.init) as Any? ?? NSNull(),
+        "caret_move_allowed": caretMoveAllowed
+      ]
+    ])
+    switch wire.kind {
+    case "pair":
+      return .pair(open: wire.open ?? "", close: wire.close ?? "", caretMove: wire.caret_move ?? false)
+    case "skip_over":
+      return .skipOver(close: wire.close ?? "")
+    default:
+      return .plain
     }
-    if closers.contains(character), rightNeighbor == character {
-      return .skipOver(close: String(character))
-    }
-    return .plain
   }
 }

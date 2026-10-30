@@ -103,13 +103,13 @@ enum OwlPromptStore {
     (try? OwlStorageHost(dataDir: dataDir).call("prompt_load")) ?? []
   }
   static func entry(code: String, title: String, body: String, category: String = "") throws -> OwlPromptEntry {
-    try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("prompt_entry", ["entry": OwlAppCore.payload(OwlPromptEntry(code: code, title: title, body: body, category: category))])
+    try OwlAppCore.call(["operation": "prompt_rule", "rule": "prompt_entry", "args": ["entry": OwlAppCore.payload(OwlPromptEntry(code: code, title: title, body: body, category: category))]])
   }
   static func assertNoQuickSendCollision(code: String, quickSendCodes: Set<String>) throws {
-    let _: Bool = try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("prompt_collision", ["code": code, "codes": Array(quickSendCodes)])
+    let _: Bool = try OwlAppCore.call(["operation": "prompt_rule", "rule": "prompt_collision", "args": ["code": code, "codes": Array(quickSendCodes)]])
   }
   static func validatedEntry(code: String, title: String, body: String, category: String = "", quickSendCodes: Set<String>) throws -> OwlPromptEntry {
-    try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("prompt_entry", ["entry": OwlAppCore.payload(OwlPromptEntry(code: code, title: title, body: body, category: category)), "codes": Array(quickSendCodes)])
+    try OwlAppCore.call(["operation": "prompt_rule", "rule": "prompt_entry", "args": ["entry": OwlAppCore.payload(OwlPromptEntry(code: code, title: title, body: body, category: category)), "codes": Array(quickSendCodes)]])
   }
   static func quickSendCodes(dataDir: URL = OwlApp.userDir) -> Set<String> { Set(OwlQuickSendStore.load(dataDir: dataDir).map(\.code)) }
   static func save(_ entries: [OwlPromptEntry], writer: OwlConfigWriter = OwlConfigWriter(), timestamp: String? = nil) throws {
@@ -119,7 +119,7 @@ enum OwlPromptStore {
   static var rimeIcePatchBlock: ManagedPatchBlock { OwlTemplateStore.core("prompt_patch") }
   static func renderDict(_ entries: [OwlPromptEntry]) -> String { OwlTemplateStore.core("prompt_projection", ["entries": OwlAppCore.payload(entries)]) }
   static func normalized(_ entries: [OwlPromptEntry]) throws -> [OwlPromptEntry] {
-    try OwlStorageHost(dataDir: URL(fileURLWithPath: "/")).call("prompt_normalized", ["entries": OwlAppCore.payload(entries)])
+    try OwlAppCore.call(["operation": "prompt_rule", "rule": "prompt_normalized", "args": ["entries": OwlAppCore.payload(entries)]])
   }
   static func strippingMarker(_ committed: String) -> String { OwlTemplateStore.core("prompt_strip", ["text": committed]) }
   static func matchEntry(code: String, title: String, in entries: [OwlPromptEntry]) -> OwlPromptEntry? {

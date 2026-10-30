@@ -34,6 +34,66 @@ enum Request {
         #[serde(default)]
         args: Value,
     },
+    AiRule {
+        rule: String,
+        #[serde(default)]
+        args: Value,
+    },
+    PureRule {
+        rule: String,
+        #[serde(default)]
+        args: Value,
+    },
+    TemplateValidate {
+        library: Value,
+    },
+    TemplateDuplicate {
+        entry: Value,
+        new_id: Option<String>,
+    },
+    TemplateEncode {
+        library: Value,
+    },
+    TemplateRule {
+        rule: String,
+        #[serde(default)]
+        args: Value,
+    },
+    QuickEdit {
+        entry: Value,
+        entries: Vec<Value>,
+        editing: Option<String>,
+        #[serde(default)]
+        delete: bool,
+    },
+    QuickEditResult {
+        #[serde(default)]
+        applied: bool,
+        #[serde(default)]
+        delete: bool,
+        editing: Option<String>,
+        code: Option<String>,
+    },
+    QuickEntry {
+        entry: Value,
+    },
+    PromptRule {
+        rule: String,
+        #[serde(default)]
+        args: Value,
+    },
+    BackupDecode {
+        bytes: Vec<u8>,
+    },
+    WriterNeverTouch {
+        name: String,
+    },
+    UserMigrationLimitations,
+    ResourceContract {
+        contract: String,
+        #[serde(default)]
+        args: Value,
+    },
     TemplateReady {
         severities: Vec<String>,
         missing_count: usize,
@@ -145,6 +205,67 @@ fn error(code: &str) -> Value {
     json!({"ok": false, "error": code})
 }
 
+struct StatelessHost;
+impl owl_app_core::storage::Host for StatelessHost {
+    fn effect(&mut self, value: Value) -> Result<Value, String> {
+        let op = value["operation"].as_str().unwrap_or("");
+        match op {
+            "uuid" => {
+                use std::time::{SystemTime, UNIX_EPOCH};
+                let d = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0);
+                Ok(json!(format!(
+                    "{:08X}-{:04X}-4000-8000-{:012X}",
+                    (d & 0xFFFFFFFF) as u32,
+                    ((d >> 32) & 0xFFFF) as u16,
+                    (d >> 48) as u64 & 0xFFFFFFFFFFFF
+                )))
+            }
+            "case_contains" => {
+                let values = value["args"]["values"].as_array();
+                let target = value["args"]["value"].as_str().unwrap_or("");
+                let found = values.map_or(false, |arr| {
+                    arr.iter().any(|v| v.as_str().unwrap_or("").eq_ignore_ascii_case(target))
+                });
+                Ok(json!(found))
+            }
+            "localized_contains" => {
+                let text = value["args"]["text"].as_str().unwrap_or("").to_lowercase();
+                let query = value["args"]["query"].as_str().unwrap_or("").to_lowercase();
+                Ok(json!(text.contains(&query)))
+            }
+            "title_ranks" => {
+                let titles = value["args"]["titles"].as_array();
+                if let Some(titles) = titles {
+                    let mut order: Vec<usize> = (0..titles.len()).collect();
+                    order.sort_by(|&a, &b| {
+                        let sa = titles[a].as_str().unwrap_or("");
+                        let sb = titles[b].as_str().unwrap_or("");
+                        sa.cmp(sb)
+                    });
+                    let mut ranks = vec![0; titles.len()];
+                    let mut rank = 0;
+                    for (pos, &idx) in order.iter().enumerate() {
+                        if pos > 0 {
+                            let prev_idx = order[pos - 1];
+                            if titles[prev_idx].as_str() != titles[idx].as_str() {
+                                rank += 1;
+                            }
+                        }
+                        ranks[idx] = rank;
+                    }
+                    Ok(json!(ranks))
+                } else {
+                    Ok(json!([]))
+                }
+            }
+            _ => Err("stateless_host_unsupported_effect".into()),
+        }
+    }
+}
+
 fn dispatch(bytes: &[u8]) -> Value {
     let request: Request = match serde_json::from_slice(bytes) {
         Ok(request) => request,
@@ -164,6 +285,144 @@ fn dispatch(bytes: &[u8]) -> Value {
             Ok(value) => value,
             Err(code) => return error(&code),
         },
+        Request::AiRule { rule, args } => owl_app_core::ai_business::rule(&rule, args),
+        Request::PureRule { rule, args } => match owl_app_core::pure_rules::dispatch(&rule, args) {
+            Ok(value) => value,
+            Err(code) => return error(&code),
+        },
+        Request::TemplateValidate { library } => {
+            let lib = match owl_app_core::storage::decode::<owl_app_core::template_library::Library>(library) {
+                Ok(l) => l,
+                Err(code) => return error(&code),
+            };
+            match owl_app_core::template_library::validate(&lib) {
+                Ok(()) => json!(true),
+                Err(code) => return error(&code),
+            }
+        }
+        Request::TemplateDuplicate { entry, new_id } => {
+            let e = match owl_app_core::storage::decode::<owl_app_core::template_library::Entry>(entry) {
+                Ok(e) => e,
+                Err(code) => return error(&code),
+            };
+            let id = new_id.unwrap_or_else(|| {
+                use std::time::{SystemTime, UNIX_EPOCH};
+                let d = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0);
+                format!(
+                    "{:08X}-{:04X}-4000-8000-{:012X}",
+                    (d & 0xFFFFFFFF) as u32,
+                    ((d >> 32) & 0xFFFF) as u16,
+                    (d >> 48) as u64 & 0xFFFFFFFFFFFF
+                )
+            });
+            let mut copy = owl_app_core::template_library::Entry::new(id, e.title + " 副本", e.body);
+            copy.body_type = e.body_type;
+            copy.syntax = e.syntax;
+            copy.tags = e.tags;
+            copy.is_pinned = e.is_pinned;
+            copy.category = e.category;
+            copy.parameters = e.parameters;
+            copy.review_state = e.review_state;
+            json!(copy)
+        }
+        Request::TemplateEncode { library } => {
+            let lib = match owl_app_core::storage::decode::<owl_app_core::template_library::Library>(library) {
+                Ok(l) => l,
+                Err(code) => return error(&code),
+            };
+            match owl_app_core::template_library::encoded(&lib) {
+                Ok(bytes) => json!(bytes),
+                Err(code) => return error(&code),
+            }
+        }
+        Request::TemplateRule { rule, args } => {
+            let mut host = StatelessHost;
+            match owl_app_core::template_library::dispatch(&mut host, &rule, args) {
+                Ok(value) => value,
+                Err(code) => return error(&code),
+            }
+        }
+        Request::QuickEdit {
+            entry,
+            entries,
+            editing,
+            delete,
+        } => {
+            let mut host = StatelessHost;
+            let args = json!({
+                "entry": entry,
+                "entries": entries,
+                "editing": editing,
+                "delete": delete
+            });
+            match owl_app_core::quick_send::dispatch(&mut host, "quick_edit", args) {
+                Ok(value) => value,
+                Err(code) => return error(&code),
+            }
+        }
+        Request::QuickEditResult {
+            applied,
+            delete,
+            editing,
+            code,
+        } => {
+            let mut host = StatelessHost;
+            let args = json!({
+                "applied": applied,
+                "delete": delete,
+                "editing": editing,
+                "code": code
+            });
+            match owl_app_core::quick_send::dispatch(&mut host, "quick_edit_result", args) {
+                Ok(value) => value,
+                Err(code) => return error(&code),
+            }
+        }
+        Request::QuickEntry { entry } => {
+            let mut host = StatelessHost;
+            let args = json!({ "entry": entry });
+            match owl_app_core::quick_send::dispatch(&mut host, "quick_entry", args) {
+                Ok(value) => value,
+                Err(code) => return error(&code),
+            }
+        }
+        Request::PromptRule { rule, args } => {
+            let mut host = StatelessHost;
+            match owl_app_core::prompt_store::dispatch(&mut host, &rule, args) {
+                Ok(value) => value,
+                Err(code) => return error(&code),
+            }
+        }
+        Request::BackupDecode { bytes } => {
+            match owl_app_core::template_backup::decode_backup(&bytes) {
+                Ok(library) => json!(library),
+                Err(code) => return error(&code),
+            }
+        }
+        Request::WriterNeverTouch { name } => {
+            json!(owl_app_core::config_writer::never_touch(&name))
+        }
+        Request::UserMigrationLimitations => {
+            let mut host = StatelessHost;
+            match owl_app_core::user_data::dispatch(&mut host, "user_migration_limitations", json!({})) {
+                Ok(val) => val,
+                Err(code) => return error(&code),
+            }
+        }
+        Request::ResourceContract { contract, args } => {
+            let op = if contract.starts_with("resource_contract_") {
+                contract
+            } else {
+                format!("resource_contract_{contract}")
+            };
+            match owl_app_core::resource_contract::dispatch(&op, args) {
+                Ok(value) => value,
+                Err(code) => return error(&code),
+            }
+        }
         Request::TemplateReady {
             severities,
             missing_count,
@@ -334,6 +593,11 @@ pub extern "C" fn owl_app_keyboard_refresh(pending: u8, composing: u8) -> u32 {
 }
 
 #[no_mangle]
+pub extern "C" fn owl_app_marked_text_should_send(prev_len: usize, next_len: usize) -> u8 {
+    u8::from(owl_app_core::pure_rules::marked_text_resend::should_resend_lengths(prev_len, next_len))
+}
+
+#[no_mangle]
 pub extern "C" fn owl_app_abi_version() -> u32 {
     ABI
 }
@@ -428,7 +692,51 @@ mod tests {
         assert_eq!(err["ok"], false);
         assert_eq!(err["error"], "unknown_agent_rule:unknown_rule_xyz");
     }
+
+    #[test]
+    fn stateless_ai_and_pure_rules_dispatch_cleanly() {
+        // Test pure rule: auto_pair
+        let res = call(
+            1,
+            r#"{"operation":"pure_rule","rule":"auto_pair_decide","args":{"enabled":true,"commit_text":"（","right_neighbor":null,"caret_move_allowed":true}}"#.as_bytes(),
+        );
+        assert_eq!(res["ok"], true);
+        assert_eq!(res["value"]["action"], "pair");
+        assert_eq!(res["value"]["open"], "（");
+        assert_eq!(res["value"]["close"], "）");
+
+        // Test C-ABI: marked_text_should_send
+        assert_eq!(owl_app_marked_text_should_send(0, 0), 0);
+        assert_eq!(owl_app_marked_text_should_send(1, 0), 1);
+        assert_eq!(owl_app_marked_text_should_send(0, 2), 1);
+    }
+
+    #[test]
+    fn stateless_in_memory_operations_dispatch_without_host() {
+        // Test writer_never_touch
+        let res = call(
+            1,
+            br#"{"operation":"writer_never_touch","name":"user.yaml"}"#,
+        );
+        assert_eq!(res["ok"], true);
+        assert_eq!(res["value"], true);
+
+        let res2 = call(
+            1,
+            br#"{"operation":"writer_never_touch","name":"custom.yaml"}"#,
+        );
+        assert_eq!(res2["ok"], true);
+        assert_eq!(res2["value"], false);
+
+        // Test user_migration_limitations
+        let res3 = call(
+            1,
+            br#"{"operation":"user_migration_limitations"}"#,
+        );
+        assert_eq!(res3["ok"], true);
+    }
 }
+
 
 /// Synchronous host service. Its returned JSON pointer is borrowed until the next callback
 /// (or the end of the enclosing call), never freed by Rust and never retained.

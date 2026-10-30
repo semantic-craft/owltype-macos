@@ -26,6 +26,15 @@ enum OwlMarkedTextResendPolicy {
   /// true = 必须调 setMarkedText。合成期（任一端非空）永远 true——包括 next == previous
   /// （每键重发正是本策略的存在理由）与 非空→空（ESC/删空的清理回合）。
   static func shouldSend(previous: String, next: String) -> Bool {
-    !(previous.isEmpty && next.isEmpty)
+    previous.utf8CString.withUnsafeBufferPointer { prevBuf in
+      next.utf8CString.withUnsafeBufferPointer { nextBuf in
+        owl_app_marked_text_should_send(
+          prevBuf.baseAddress,
+          prevBuf.count > 0 ? prevBuf.count - 1 : 0,
+          nextBuf.baseAddress,
+          nextBuf.count > 0 ? nextBuf.count - 1 : 0
+        )
+      }
+    }
   }
 }

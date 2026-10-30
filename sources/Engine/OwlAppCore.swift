@@ -28,7 +28,15 @@ enum OwlAppCore {
     decoder.dateDecodingStrategy = .iso8601
     let decoded = try decoder.decode(OwlAppCoreResponse<Value>.self, from: data)
     guard decoded.isOK, let value = decoded.value else {
-      throw Failure(code: decoded.error ?? "invalid_response")
+      let code = decoded.error ?? "invalid_response"
+      if code.hasPrefix("never_touch:") { throw OwlConfigWriteError.refusedNeverTouch(String(code.dropFirst(12))) }
+      if code.hasPrefix("unmanaged:") { throw OwlConfigWriteError.refusedUnmanagedFile(String(code.dropFirst(10))) }
+      if (code.hasPrefix("resource:") || code.hasPrefix("user_stage:") || code.hasPrefix("user_import:")) { throw Failure(code: code) }
+      let failure = OwlStorageHost.failure(code)
+      if case OwlTemplateError.invalid(let msg) = failure, msg == code {
+        throw Failure(code: code)
+      }
+      throw failure
     }
     return value
   }

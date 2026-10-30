@@ -92,25 +92,30 @@ enum OwlEmojiData {
     g("«»", "法文引号"), g("¡", "倒叹号"), g("¿", "倒问号"), g("℃", "摄氏度")
   ]
 
+  struct WireGlyph: Decodable {
+    let char: String
+    let keywords: String
+    let wide: Bool
+  }
+
   /// Items for a fixed (non-recent) category.
   static func items(for category: OwlEmojiCategory) -> [OwlGlyph] {
-    switch category {
-    case .recent: return []   // handled by OwlEmojiRecents
-    case .emoji: return emoji
-    case .symbol: return symbol
-    case .kaomoji: return kaomoji
-    case .punct: return punct
-    }
+    let wire: [WireGlyph] = OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "emoji_category_items",
+      "args": ["category": category.rawValue]
+    ])
+    return wire.map { OwlGlyph(char: $0.char, keywords: $0.keywords, wide: $0.wide) }
   }
 
   /// Search across every category by char or keyword (case-insensitive).
   static func search(_ query: String) -> [OwlGlyph] {
-    let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-    guard !q.isEmpty else { return [] }
-    let all = emoji + symbol + punct + kaomoji
-    return all.filter {
-      $0.char.lowercased().contains(q) || $0.keywords.lowercased().contains(q)
-    }
+    let wire: [WireGlyph] = OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "emoji_search",
+      "args": ["query": query]
+    ])
+    return wire.map { OwlGlyph(char: $0.char, keywords: $0.keywords, wide: $0.wide) }
   }
 
   private static func g(_ char: String, _ keywords: String) -> OwlGlyph {
@@ -135,9 +140,15 @@ enum OwlEmojiRecents {
 
   @discardableResult
   static func push(_ char: String) -> [String] {
-    var list = current().filter { $0 != char }
-    list.insert(char, at: 0)
-    if list.count > cap { list = Array(list.prefix(cap)) }
+    let list: [String] = OwlAppCore.required([
+      "operation": "pure_rule",
+      "rule": "emoji_push_recent",
+      "args": [
+        "list": current(),
+        "char": char,
+        "cap": cap
+      ]
+    ])
     OwlDefaults.standard.set(list, forKey: key)
     return list
   }
