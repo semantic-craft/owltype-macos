@@ -10,6 +10,60 @@ const MAX_REQUEST: usize = 4 * 1024 * 1024;
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
+    KeyboardExport {
+        kind: String,
+        snapshot: owl_app_core::keyboard_export::Snapshot,
+        target: Option<owl_app_core::keyboard_export::Target>,
+    },
+    KeyboardExportPlan {
+        snapshot: owl_app_core::keyboard_export::Snapshot,
+    },
+    KeyboardManagedBlock {
+        yaml: String,
+        marker: String,
+    },
+    KeyboardSelection {
+        changed: String,
+        raw: Value,
+    },
+    KeyboardRenderManaged {
+        original: String,
+        marker: String,
+        lines: Vec<String>,
+    },
+    KeyboardOnboarding {
+        schema: String,
+    },
+    KeyboardSchemaMarker {
+        preferred: String,
+        selected: bool,
+    },
+    KeyboardSchemaFailure {
+        requested: String,
+        engine_selected: bool,
+        live_result: String,
+        failed_schema: String,
+    },
+    KeyboardCatalog,
+    KeyboardSchema {
+        schema: String,
+    },
+    KeyboardEffective {
+        raw: Value,
+    },
+    KeyboardPageSizeWrite {
+        value: i64,
+    },
+    KeyboardBundleIds {
+        raw: String,
+    },
+    KeyboardFuzzyMask {
+        values: Vec<bool>,
+    },
+    KeyboardApplication {
+        mode: String,
+        recovery_pending: bool,
+    },
     InitialAsciiMode {
         bundle_id: String,
         english_bundle_ids: Vec<String>,
@@ -32,6 +86,72 @@ fn dispatch(bytes: &[u8]) -> Value {
         Err(_) => return error("invalid_request"),
     };
     let result = match request {
+        Request::KeyboardExport {
+            kind,
+            snapshot,
+            target,
+        } => {
+            use owl_app_core::keyboard_export::*;
+            json!(match kind.as_str() {
+                "default" => default_yaml(&snapshot),
+                "apps" => app_options_yaml(&snapshot),
+                "fuzzy" => fuzzy_yaml(&snapshot),
+                "wubi" => match target {
+                    Some(target) => wubi_yaml(&snapshot, &target),
+                    None => return error("invalid_request"),
+                },
+                _ => return error("invalid_request"),
+            })
+        }
+        Request::KeyboardExportPlan { snapshot } => owl_app_core::keyboard_export::plan(&snapshot),
+        Request::KeyboardManagedBlock { yaml, marker } => {
+            owl_app_core::keyboard_export::managed_block(&yaml, &marker)
+        }
+        Request::KeyboardSelection { changed, raw } => {
+            owl_app_core::keyboard::selection(&changed, &raw)
+        }
+        Request::KeyboardRenderManaged {
+            original,
+            marker,
+            lines,
+        } => {
+            let Some(rendered) =
+                owl_app_core::keyboard_export::render_managed(&original, &marker, &lines)
+            else {
+                return error("invalid_patch");
+            };
+            json!(rendered)
+        }
+        Request::KeyboardOnboarding { schema } => owl_app_core::keyboard::onboarding(&schema),
+        Request::KeyboardSchemaMarker {
+            preferred,
+            selected,
+        } => owl_app_core::keyboard::schema_marker(&preferred, selected),
+        Request::KeyboardSchemaFailure {
+            requested,
+            engine_selected,
+            live_result,
+            failed_schema,
+        } => owl_app_core::keyboard::schema_failure(
+            &requested,
+            engine_selected,
+            &live_result,
+            &failed_schema,
+        ),
+        Request::KeyboardCatalog => owl_app_core::keyboard::catalog().clone(),
+        Request::KeyboardSchema { schema } => owl_app_core::keyboard::schema(&schema),
+        Request::KeyboardEffective { raw } => owl_app_core::keyboard::effective(&raw),
+        Request::KeyboardPageSizeWrite { value } => {
+            json!(owl_app_core::keyboard::page_size_write(value))
+        }
+        Request::KeyboardBundleIds { raw } => {
+            json!(owl_app_core::keyboard::normalized_bundle_ids(&raw))
+        }
+        Request::KeyboardFuzzyMask { values } => json!(owl_app_core::keyboard::fuzzy_mask(&values)),
+        Request::KeyboardApplication {
+            mode,
+            recovery_pending,
+        } => owl_app_core::keyboard::application(&mode, recovery_pending),
         Request::InitialAsciiMode {
             bundle_id,
             english_bundle_ids,
@@ -53,6 +173,28 @@ fn dispatch(bytes: &[u8]) -> Value {
         }
     };
     json!({"ok": true, "value": result})
+}
+
+#[no_mangle]
+pub extern "C" fn owl_app_keyboard_can_apply(requires_idle: u8, composing: u8) -> u8 {
+    u8::from(owl_app_core::keyboard::can_apply(
+        requires_idle != 0,
+        composing != 0,
+    ))
+}
+
+#[no_mangle]
+pub extern "C" fn owl_app_keyboard_schema_idle_action(
+    current_matches: u8,
+    failed_matches: u8,
+) -> u32 {
+    owl_app_core::keyboard::schema_idle_action(current_matches != 0, failed_matches != 0)
+}
+
+/// Allocation-free equivalent of the core refresh policy for the per-key native hook.
+#[no_mangle]
+pub extern "C" fn owl_app_keyboard_refresh(pending: u8, composing: u8) -> u32 {
+    owl_app_core::keyboard::refresh_decision(pending != 0, composing != 0)
 }
 
 #[no_mangle]

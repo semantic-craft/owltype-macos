@@ -12,6 +12,11 @@ extern "C" {
 // No callbacks, I/O or global mutable state. Calls may run concurrently.
 uint32_t owl_app_abi_version(void);
 char *owl_app_call(uint32_t abi_version, const uint8_t *request, size_t length);
+// Allocation-free keyboard hot-path decision: 0 none, 1 defer, 2 apply. Inputs are 0/1.
+uint8_t owl_app_keyboard_can_apply(uint8_t requires_idle, uint8_t composing);
+// Schema action: 0 already active, 1 attempt, 2 skip known failure. Inputs are identity facts.
+uint32_t owl_app_keyboard_schema_idle_action(uint8_t current_matches, uint8_t failed_matches);
+uint32_t owl_app_keyboard_refresh(uint8_t pending, uint8_t composing);
 void owl_app_string_free(char *response); // NULL is allowed; other pointers must be ours.
 #ifdef __cplusplus
 }

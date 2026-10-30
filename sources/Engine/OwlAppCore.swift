@@ -42,3 +42,108 @@ enum OwlAppCore {
     }
   }
 }
+
+extension OwlAppCore {
+  static func payload<Value: Encodable>(_ value: Value) -> Any {
+    do { return try JSONSerialization.jsonObject(with: JSONEncoder().encode(value)) }
+    catch { preconditionFailure("Invalid native App core payload") }
+  }
+
+  static let defaultKeyboard: EffectiveKeyboard = required(["operation": "keyboard_effective", "raw": [:]])
+
+  static func required<Value: Decodable>(_ request: [String: Any]) -> Value {
+    do { return try call(request) } catch { preconditionFailure("Incompatible Owltype App core ABI") }
+  }
+
+  struct KeyboardSwitch: Decodable {
+    let id: String
+    let key: String
+    let defaultValue: Bool
+    let application: String
+    let option: String
+    let requiresIdle: Bool
+    let reappliesConfiguration: Bool
+  }
+  struct FuzzySwitch: Decodable {
+    let id: String
+    let key: String
+    let defaultValue: Bool
+  }
+  struct SchemaConfiguration: Decodable {
+    let id: String
+    let name: String
+    let validConfigID: Bool
+    let inputMode: String
+    let wubiProfile: String
+    let doublePinyinScheme: String
+    let pinyinScheme: String
+    let traditional: Bool
+    let customProfile: [String: [[String]]]?
+  }
+  struct KeyboardCatalog: Decodable {
+    let idleSettings: Set<String>
+    let auxiliaryDefaults: [String: Bool]
+    let exportDefaults: [String: Bool]
+    let exportTargets: [OwlWubiPatchTarget]
+    let switches: [KeyboardSwitch]
+    let fuzzy: [FuzzySwitch]
+    let schemas: [SchemaConfiguration]
+    let doublePinyinSchemas: [String: String]
+    let wubiSchemas: [String: String]
+    let candidateFilters: [String: String?]
+  }
+  static let keyboardCatalog: KeyboardCatalog = required(["operation": "keyboard_catalog"])
+
+  struct EffectiveKeyboard: Decodable {
+    let inputMethod: String
+    let wubiScheme: String
+    let doublePinyin: String
+    let candidateMode: String
+    let pageSize: Int
+    let preferredSchemaID: String
+  }
+  private struct RawKeyboard: Equatable {
+    let inputMethod: String?
+    let wubiScheme: String?
+    let doublePinyin: String?
+    let candidateMode: String?
+    let pageSize: Int
+    var payload: [String: Any] {
+      ["inputMethod": inputMethod as Any? ?? NSNull(), "wubiScheme": wubiScheme as Any? ?? NSNull(),
+       "doublePinyin": doublePinyin as Any? ?? NSNull(), "candidateMode": candidateMode as Any? ?? NSNull(),
+       "pageSize": pageSize]
+    }
+  }
+  // The host caches a value projection, not a second policy. External defaults writes are
+  // visible on the next read, without decoding a JSON response for each setting or keystroke.
+  private static var keyboardCache: (raw: RawKeyboard, effective: EffectiveKeyboard)?
+  static var effectiveKeyboard: EffectiveKeyboard {
+    let defaults = OwlDefaults.standard
+    let raw = RawKeyboard(inputMethod: defaults.string(forKey: "OwlKeyboardInputMethod"),
+                          wubiScheme: defaults.string(forKey: "OwlKeyboardWubiScheme"),
+                          doublePinyin: defaults.string(forKey: "OwlKeyboardDoublePinyin"),
+                          candidateMode: defaults.string(forKey: "OwlKeyboardWubiCandidateMode"),
+                          pageSize: defaults.integer(forKey: "OwlKeyboardPageSize"))
+    if let cached = keyboardCache, cached.raw == raw { return cached.effective }
+    let value: EffectiveKeyboard = required(["operation": "keyboard_effective", "raw": raw.payload])
+    keyboardCache = (raw, value)
+    return value
+  }
+
+  private static var fuzzyCache: (snapshot: OwlFuzzySnapshot, mask: UInt32)?
+  static func fuzzyMask(_ snapshot: OwlFuzzySnapshot) -> UInt32 {
+    if let cached = fuzzyCache, cached.snapshot == snapshot { return cached.mask }
+    let mask: UInt32 = required(["operation": "keyboard_fuzzy_mask", "values":
+      [snapshot.zhz, snapshot.chc, snapshot.shs, snapshot.nl, snapshot.rl, snapshot.fh,
+       snapshot.anang, snapshot.eneng, snapshot.ining]])
+    fuzzyCache = (snapshot, mask)
+    return mask
+  }
+
+  struct KeyboardSelection: Decodable { let schema: String? }
+
+  struct KeyboardApplication: Decodable {
+    let blocked: Bool
+    let effects: [String]
+  }
+}

@@ -156,7 +156,7 @@ enum OwlExperimentalPreferences {
   }
 
   private static func boolValue(_ key: String) -> Bool {
-    OwlDefaults.standard.object(forKey: key) as? Bool ?? false
+    OwlDefaults.standard.object(forKey: key) as? Bool ?? OwlAppCore.keyboardCatalog.auxiliaryDefaults[key]!
   }
 
   private static func notifyRerankPreferencesChanged() {

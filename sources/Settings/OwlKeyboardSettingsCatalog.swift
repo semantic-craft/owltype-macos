@@ -86,40 +86,52 @@ enum OwlKeyboardSwitch: Int, CaseIterable, Sendable {
   var key: String { row.key }
   var defaultValue: Bool { row.defaultValue }
 
-  // One row per switch: key, default, state mirror, application, page re-apply.
-  // swiftlint:disable line_length
+  // Native bindings only; metadata is decoded once from the linked Rust catalog.
   private var makeRow: Row {
+    let metadata = OwlAppCore.keyboardCatalog.switches[rawValue]
+    precondition(metadata.id == String(describing: self), "Incompatible keyboard catalog binding")
+    let application: Application
+    switch metadata.application {
+    case "engine": application = .engineOption(metadata.option)
+    case "session": application = .sessionOption(EngineOption(rawValue: metadata.option)!)
+    default: application = .host
+    }
+    return Row(metadata.key, metadata.defaultValue, mirror, application,
+               reapplies: metadata.reappliesConfiguration)
+  }
+
+  private var mirror: ReferenceWritableKeyPath<OwlSettingsState, Bool> {
     switch self {
-    case .wubiAutoCommitUnique: return Row("OwlKeyboardWubiAutoCommitUnique", true, \.keyboardWubiAutoCommitUnique, .engineOption("wubi_auto_commit_unique"), reapplies: true)
-    case .wubiFifthCodeTopCommit: return Row("OwlKeyboardWubiFifthCodeTopCommit", true, \.keyboardWubiFifthCodeTopCommit, .engineOption("wubi_fifth_code_top_commit"), reapplies: true)
-    case .wubiCodeHint: return Row("OwlKeyboardWubiCodeHint", true, \.keyboardWubiCodeHint, .engineOption("wubi_code_hint"), reapplies: true)
-    case .wubiZWildcard: return Row("OwlKeyboardWubiZWildcard", false, \.keyboardWubiZWildcard, .engineOption("wubi_z_wildcard"), reapplies: true)
-    case .wubiAutoClear: return Row("OwlKeyboardWubiAutoClear", false, \.keyboardWubiAutoClear, .engineOption("wubi_auto_clear"), reapplies: true)
-    case .wubiZReverseLookup: return Row("OwlKeyboardWubiZReverseLookup", true, \.keyboardWubiZReverseLookup, .engineOption("wubi_z_reverse_lookup"), reapplies: true)
-    case .wubiEnglishChannel: return Row("OwlKeyboardWubiEnglishChannel", false, \.keyboardWubiEnglishChannel, .engineOption("wubi_english_channel"), reapplies: true)
-    case .wubiUserDictLearning: return Row("OwlKeyboardWubiUserDictLearning", true, \.keyboardWubiUserDictLearning, .engineOption("wubi_user_dict_learning"), reapplies: true)
-    case .quickPhraseCandidates: return Row("OwlKeyboardPinyinQuickPhraseCandidates", false, \.quickPhraseCandidates, .engineOption("quick_phrase_candidates"), reapplies: false)
-    case .cjkPunctToggle: return Row("OwlKeyboardCJKPunctToggle", false, \.keyboardCJKPunctToggle, .sessionOption(.asciiPunct), reapplies: true)
-    case .shiftSwitchCJK: return Row("OwlKeyboardShiftSwitchCJK", true, \.keyboardShiftSwitchCJK, .host, reapplies: true)
-    case .goodOldCapsLock: return Row("OwlKeyboardGoodOldCapsLock", true, \.keyboardGoodOldCapsLock, .host, reapplies: true)
-    case .pageMinusEquals: return Row("OwlKeyboardPageMinusEquals", true, \.keyboardPageMinusEquals, .host, reapplies: true)
-    case .pageBrackets: return Row("OwlKeyboardPageBrackets", false, \.keyboardPageBrackets, .host, reapplies: true)
-    case .pageCommaPeriod: return Row("OwlKeyboardPageCommaPeriod", true, \.keyboardPageCommaPeriod, .host, reapplies: true)
-    case .select23Semicolon: return Row("OwlKeyboardSelect23Semicolon", false, \.keyboardSelect23Semicolon, .host, reapplies: true)
-    case .slashSymbolMenu: return Row("OwlKeyboardSlashSymbolMenu", false, \.keyboardSlashSymbolMenu, .host, reapplies: true)
-    case .angleSymbolMenu: return Row("OwlKeyboardAngleSymbolMenu", false, \.keyboardAngleSymbolMenu, .host, reapplies: true)
-    case .traditionalOutput: return Row("OwlKeyboardTraditionalOutput", false, \.keyboardTraditionalOutput, .host, reapplies: false)
-    case .defaultAsciiMode: return Row("OwlKeyboardDefaultAsciiMode", false, \.keyboardDefaultAsciiMode, .host, reapplies: false)
-    case .defaultFullShape: return Row("OwlKeyboardDefaultFullShape", false, \.keyboardDefaultFullShape, .host, reapplies: false)
-    case .autoPairBrackets: return Row("OwlKeyboardAutoPairBrackets", true, \.keyboardAutoPairBrackets, .host, reapplies: false)
-    case .smartPunctuation: return Row("OwlKeyboardSmartPunctuation", true, \.keyboardSmartPunctuation, .host, reapplies: false)
-    case .smartPunctuationRepeat: return Row("OwlKeyboardSmartPunctuationRepeat", true, \.keyboardSmartPunctuationRepeat, .host, reapplies: false)
-    case .smartPunctuationSpace: return Row("OwlKeyboardSmartPunctuationSpace", false, \.keyboardSmartPunctuationSpace, .host, reapplies: false)
-    case .cjkEnglishSpacing: return Row("OwlKeyboardCJKEnglishSpacing", false, \.keyboardCJKEnglishSpacing, .host, reapplies: false)
-    case .cjkNumberSpacing: return Row("OwlKeyboardCJKNumberSpacing", false, \.keyboardCJKNumberSpacing, .host, reapplies: false)
+    case .wubiAutoCommitUnique: return \.keyboardWubiAutoCommitUnique
+    case .wubiFifthCodeTopCommit: return \.keyboardWubiFifthCodeTopCommit
+    case .wubiCodeHint: return \.keyboardWubiCodeHint
+    case .wubiZWildcard: return \.keyboardWubiZWildcard
+    case .wubiAutoClear: return \.keyboardWubiAutoClear
+    case .wubiZReverseLookup: return \.keyboardWubiZReverseLookup
+    case .wubiEnglishChannel: return \.keyboardWubiEnglishChannel
+    case .wubiUserDictLearning: return \.keyboardWubiUserDictLearning
+    case .quickPhraseCandidates: return \.quickPhraseCandidates
+    case .cjkPunctToggle: return \.keyboardCJKPunctToggle
+    case .shiftSwitchCJK: return \.keyboardShiftSwitchCJK
+    case .goodOldCapsLock: return \.keyboardGoodOldCapsLock
+    case .pageMinusEquals: return \.keyboardPageMinusEquals
+    case .pageBrackets: return \.keyboardPageBrackets
+    case .pageCommaPeriod: return \.keyboardPageCommaPeriod
+    case .select23Semicolon: return \.keyboardSelect23Semicolon
+    case .slashSymbolMenu: return \.keyboardSlashSymbolMenu
+    case .angleSymbolMenu: return \.keyboardAngleSymbolMenu
+    case .traditionalOutput: return \.keyboardTraditionalOutput
+    case .defaultAsciiMode: return \.keyboardDefaultAsciiMode
+    case .defaultFullShape: return \.keyboardDefaultFullShape
+    case .autoPairBrackets: return \.keyboardAutoPairBrackets
+    case .smartPunctuation: return \.keyboardSmartPunctuation
+    case .smartPunctuationRepeat: return \.keyboardSmartPunctuationRepeat
+    case .smartPunctuationSpace: return \.keyboardSmartPunctuationSpace
+    case .cjkEnglishSpacing: return \.keyboardCJKEnglishSpacing
+    case .cjkNumberSpacing: return \.keyboardCJKNumberSpacing
     }
   }
-  // swiftlint:enable line_length
+
 }
 
 /// The 键盘输入 switches as one module: load, seed the settings state, set, and the engine
@@ -127,10 +139,10 @@ enum OwlKeyboardSwitch: Int, CaseIterable, Sendable {
 struct OwlKeyboardSettingsCatalog {
   /// The engine-option switches in catalog order. The Rust session keeps one last-applied slot
   /// per entry, so the per-keystroke sync allocates nothing and hashes no strings.
-  static let engineOptions: [(name: String, toggle: OwlKeyboardSwitch)] =
+  static let engineOptions: [(name: String, toggle: OwlKeyboardSwitch, requiresIdle: Bool)] =
     OwlKeyboardSwitch.allCases.compactMap { toggle in
       guard case .engineOption(let name) = toggle.row.application else { return nil }
-      return (name, toggle)
+      return (name, toggle, OwlAppCore.keyboardCatalog.switches[toggle.rawValue].requiresIdle)
     }
 
   static let live = OwlKeyboardSettingsCatalog(

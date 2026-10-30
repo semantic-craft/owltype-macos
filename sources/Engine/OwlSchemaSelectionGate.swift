@@ -46,9 +46,12 @@ enum OwlSchemaSelectionGate {
   ///   - knownFailed: the last preferred id whose `select_schema` returned false and has not been
   ///     cleared by a success or a config change; `nil` when none is known-failed.
   static func idleAction(current: String, preferred: String, knownFailed: String?) -> IdleAction {
-    if current == preferred { return .alreadyActive }
-    if let knownFailed, knownFailed == preferred { return .skipKnownFailed }
-    return .attempt
+    switch owl_app_keyboard_schema_idle_action(current == preferred ? 1 : 0, knownFailed == preferred ? 1 : 0) {
+    case 0: return .alreadyActive
+    case 1: return .attempt
+    case 2: return .skipKnownFailed
+    default: preconditionFailure("Incompatible schema selection policy")
+    }
   }
 
   /// The new known-failed marker after a `select_schema` attempt.
@@ -57,7 +60,9 @@ enum OwlSchemaSelectionGate {
   ///   consistent); the attempted `preferred` id when it failed (remember it so the idle guard
   ///   backs off instead of retrying every key).
   static func markerAfterAttempt(preferred: String, selected: Bool) -> String? {
-    selected ? nil : preferred
+    let result: OwlAppCore.KeyboardSelection = OwlAppCore.required([
+      "operation": "keyboard_schema_marker", "preferred": preferred, "selected": selected])
+    return result.schema
   }
 
   /// Resolve the picker result across both selection attempts. The transient engine attempt is
@@ -66,15 +71,17 @@ enum OwlSchemaSelectionGate {
   static func failedSchemaID(
     requested: String, engineSelected: Bool, liveResult: SchemaSwitchResult?
   ) -> String? {
-    guard !requested.isEmpty else { return nil }
+    let nativeResult: String
+    var failedSchema = ""
     switch liveResult {
-    case .ok:
-      return nil
-    case .selectFailed(let schemaID):
-      return schemaID
-    case .noLiveSession, nil:
-      return engineSelected ? nil : requested
+    case .ok: nativeResult = "ok"
+    case .selectFailed(let schemaID): nativeResult = "failed"; failedSchema = schemaID
+    case .noLiveSession, nil: nativeResult = "none"
     }
+    let result: OwlAppCore.KeyboardSelection = OwlAppCore.required([
+      "operation": "keyboard_schema_failure", "requested": requested,
+      "engine_selected": engineSelected, "live_result": nativeResult, "failed_schema": failedSchema])
+    return result.schema
   }
 }
 

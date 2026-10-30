@@ -2336,11 +2336,14 @@ final class OwlRustEngineTests: XCTestCase {
 
   func testMixedWubiPartialPhraseSelectionContinuesInPinyinTail() throws {
     let origCandidateMode = OwlKeyboardPreferences.wubiCandidateMode
+    let origWildcard = OwlKeyboardPreferences.wubiZWildcard
     let origPageSize = OwlKeyboardPreferences.pageSize
     defer {
+      OwlKeyboardPreferences.wubiZWildcard = origWildcard
       OwlKeyboardPreferences.wubiCandidateMode = origCandidateMode
       OwlKeyboardPreferences.pageSize = origPageSize
     }
+    OwlKeyboardPreferences.wubiZWildcard = false
     OwlKeyboardPreferences.wubiCandidateMode = .normal
     OwlKeyboardPreferences.pageSize = 6
 
@@ -2369,6 +2372,13 @@ final class OwlRustEngineTests: XCTestCase {
     let tail = try XCTUnwrap(session.composition())
     XCTAssertTrue(tail.preedit.contains("你好"))
     XCTAssertTrue(tail.candidates.contains(where: { $0.text == "我" }))
+
+    // A setting that rebuilds the native engine must wait: rawInput contains only
+    // "wo", so replaying it cannot restore the selected "你好" phrase prefix.
+    OwlKeyboardPreferences.wubiZWildcard = true
+    XCTAssertTrue(engine.deployConfigFile("default.yaml", versionKey: "config_version"))
+    XCTAssertEqual(session.input(), "wo")
+    XCTAssertTrue(session.composition()?.preedit.contains("你好") == true)
 
     // Appending `men` updates the consumed reading to `women`; selecting the tail
     // with the mouse path commits one combined phrase.

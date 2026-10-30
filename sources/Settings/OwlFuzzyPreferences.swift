@@ -105,9 +105,12 @@ enum OwlFuzzyPreferences {
   /// Read a Bool that defaults to `false` when the key was never written. Equivalent
   /// to UserDefaults' implicit `false`, but written explicitly so the default is part
   /// of the contract (and stays parallel to `OwlKeyboardPreferences.boolValue`).
+  private static let defaultsByKey = Dictionary(uniqueKeysWithValues:
+    OwlAppCore.keyboardCatalog.fuzzy.map { ($0.key, $0.defaultValue) })
+
   private static func boolValue(_ key: String) -> Bool {
     OwlDefaults.standard.object(forKey: key) == nil
-      ? false
+      ? defaultsByKey[key]!
       : OwlDefaults.standard.bool(forKey: key)
   }
 }
@@ -115,7 +118,7 @@ enum OwlFuzzyPreferences {
 /// A plain, `Sendable` snapshot of the nine 模糊拼音 toggles, decoupled from
 /// UserDefaults so the patch builder (`owlDefaultCustomYAML(from:)`) stays a pure
 /// value→string function. Mirrors `OwlFuzzyPreferences` field-for-field.
-struct OwlFuzzySnapshot: Sendable, Equatable {
+struct OwlFuzzySnapshot: Sendable, Equatable, Encodable {
   let zhz: Bool
   let chc: Bool
   let shs: Bool
