@@ -39,7 +39,7 @@ enum OwlAIConversationState: Equatable {
 final class OwlAIConversationModel {
   private let askAnything: OwlAskAnythingOpening
   private let capturedSelectedText: String?
-  private let core: OwlAppSession
+  private let core: OwlAITextSession
   private var projection: Projection
   private var streamTask: Task<Void, Never>?
   private var providerObserver: NSObjectProtocol?
@@ -84,7 +84,7 @@ final class OwlAIConversationModel {
        askAnything: OwlAskAnythingOpening? = nil) {
     capturedSelectedText = selectedText
     self.askAnything = askAnything ?? OwlAskAnythingModule.shared
-    core = try! OwlAppSession("conversation", args: ["selectedText": selectedText as Any? ?? NSNull(),
+    core = try! OwlAITextSession("conversation", args: ["selectedText": selectedText as Any? ?? NSNull(),
       "state": OwlAIBusinessCore.json(Self.render(initialState))])
     projection = core.call("snapshot")
     providerObserver = NotificationCenter.default.addObserver(

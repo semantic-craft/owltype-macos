@@ -55,12 +55,6 @@ enum OwlSelectionPolish {
   /// `chatRequest` via `OwlPolishPromptCatalog.resolveActive()`.
   static let systemPrompt: String = OwlPolishPromptCatalog.legacySystemPrompt
 
-  /// The user-message body. Selected text is the payload here — see the CodeOnly exception note at
-  /// the top of this file. Encoded as a tiny JSON object so the model gets an unambiguous field.
-  struct Payload: Codable, Equatable, Sendable {
-    let text: String
-  }
-
   /// Pure length / emptiness policy. Returns the error to surface, or `nil` if the selection is
   /// acceptable to send. Trimming mirrors the controller's emptiness check so a whitespace-only
   /// selection is treated as empty.
@@ -272,7 +266,7 @@ final class OwlSourceVerificationService {
       let content: String
       let sources: [OwlVerifiedSource]
     }
-    let core = try! OwlAppSession("verification", args: ["text": selectedText, "enabled": OwlCloudPreferences.isEnabled])
+    let core = try! OwlAITextSession("verification", args: ["text": selectedText, "enabled": OwlCloudPreferences.isEnabled])
     var step: Step = core.call("next")
     var searchKey: String?
     var routes: [OwlAskSearchRoute] = []

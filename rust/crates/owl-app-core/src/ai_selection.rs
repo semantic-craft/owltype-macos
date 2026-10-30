@@ -15,19 +15,12 @@ fn script(c: &str) -> bool {
         std::sync::LazyLock::new(|| Regex::new(r"[\p{Han}\p{Hiragana}\p{Katakana}]").unwrap());
     PATTERN.is_match(c)
 }
-fn letters(c: &str) -> bool {
-    static PATTERN: std::sync::LazyLock<Regex> =
-        std::sync::LazyLock::new(|| Regex::new(r"^\p{L}\p{M}*$").unwrap());
-    PATTERN.is_match(c)
-}
 fn numbers(c: &str) -> bool {
-    static PATTERN: std::sync::LazyLock<Regex> =
-        std::sync::LazyLock::new(|| Regex::new(r"^\p{N}\p{M}*$").unwrap());
-    PATTERN.is_match(c)
+    c.chars().any(char::is_numeric)
 }
 fn fingerprint(t: &str) -> String {
     t.graphemes(true)
-        .filter(|c| letters(c) || numbers(c))
+        .filter(|c| c.chars().any(char::is_alphanumeric))
         .collect()
 }
 fn preclean(t: &str) -> String {

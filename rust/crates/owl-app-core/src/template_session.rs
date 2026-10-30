@@ -3,6 +3,8 @@ use crate::template_library::{automatic_index, AutomaticNode, Entry, Expansion};
 use serde_json::{json, Value};
 
 pub enum Session {
+    AiText(Value),
+    AiRule(Value),
     TextInserter(crate::ai_selection::Inserter),
     SelectionGesture(crate::ai_selection::Gesture),
     SelectionRewrite(crate::ai_selection::Rewrite),
@@ -25,6 +27,8 @@ pub enum Session {
 impl Session {
     pub fn create(kind: &str, args: Value) -> Result<Self, String> {
         match kind {
+            "aiText" => Ok(Self::AiText(args)),
+            "aiRule" => Ok(Self::AiRule(args)),
             "textInserter" => Ok(Self::TextInserter(Default::default())),
             "selectionGesture" => Ok(Self::SelectionGesture(Default::default())),
             "selectionRewrite" => Ok(Self::SelectionRewrite(crate::ai_selection::Rewrite::new(
@@ -75,7 +79,39 @@ impl Session {
         args: Value,
         index: Option<&Session>,
     ) -> Result<Value, String> {
+        // Only AI text owners accept a borrowed transient snapshot. The control event stays
+        // bounded; the snapshot follows the existing large library/session input contract.
+        if event == "ai_text_event" {
+            if !matches!(
+                self,
+                Self::Conversation(_)
+                    | Self::Receipt(_)
+                    | Self::SelectionRewrite(_)
+                    | Self::Verification(_)
+            ) {
+                return Err("invalid_text_owner".into());
+            }
+            let Some(Self::AiText(packet)) = index else {
+                return Err("missing_text_packet".into());
+            };
+            let operation = packet["event"].as_str().unwrap_or("");
+            if operation == "ai_text_event" {
+                return Err("invalid_event".into());
+            }
+            return self.event(operation, packet["args"].clone(), None);
+        }
         match self {
+            Self::AiText(_) => Err("invalid_event".into()),
+            Self::AiRule(packet) => {
+                if event == "evaluate" {
+                    Ok(crate::ai_business::rule(
+                        packet["rule"].as_str().unwrap_or(""),
+                        packet["args"].clone(),
+                    ))
+                } else {
+                    Err("invalid_event".into())
+                }
+            }
             Self::TextInserter(state) => state.event(event, args),
             Self::SelectionGesture(state) => state.event(event, args),
             Self::SelectionRewrite(state) => state.event(event, args),

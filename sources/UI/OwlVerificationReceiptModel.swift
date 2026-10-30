@@ -25,10 +25,16 @@ enum OwlAnchorVerifyState: Equatable {
   case error(String)                       // 联网核验暂不可用
 
   var isPending: Bool {
+    let kind: String
     switch self {
-    case .idle, .notFound, .error: return true
-    case .loading, .success, .confirmed: return false
+    case .idle: kind = "idle"
+    case .loading: kind = "loading"
+    case .success: kind = "success"
+    case .confirmed: kind = "confirmed"
+    case .notFound: kind = "notFound"
+    case .error: kind = "error"
     }
+    return OwlAIBusinessCore.call("receiptPending", ["kind": kind])
   }
 
   var isVerified: Bool {
@@ -41,7 +47,7 @@ enum OwlAnchorVerifyState: Equatable {
 
 @MainActor
 final class OwlVerificationReceiptModel: ObservableObject {
-  private let core: OwlAppSession
+  private let core: OwlAITextSession
   private var projection: Projection
   let selectedText: String
   let anchors: [OwlVerificationAnchor]
@@ -76,7 +82,7 @@ final class OwlVerificationReceiptModel: ObservableObject {
     },
     now: @escaping () -> Date = Date.init
   ) {
-    core = try! OwlAppSession("verificationReceipt", args: ["anchors": OwlAIBusinessCore.json(anchors),
+    core = try! OwlAITextSession("verificationReceipt", args: ["anchors": OwlAIBusinessCore.json(anchors),
       "text": selectedText, "available": onlineVerifyAvailable])
     projection = core.call("snapshot")
     self.selectedText = selectedText
@@ -147,9 +153,8 @@ final class OwlVerificationReceiptModel: ObservableObject {
   }
 
   func verifyAll() {
-    for anchor in anchors where state(for: anchor).isPending {
-      verify(anchor)
-    }
+    let ids: [String] = core.call("eligible")
+    for id in ids { if let anchor = anchors.first(where: { $0.id == id }) { verify(anchor) } }
   }
 
   func cancel(_ anchor: OwlVerificationAnchor) {

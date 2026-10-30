@@ -26,7 +26,6 @@ enum OwlInsertOutcome: Equatable, Sendable {
 
 /// 策略排序（纯函数）：默认序，cached 提到最前，优先复用上次成功的回填方式。
 enum OwlInsertLadder {
-  static let order: [OwlInsertStrategy] = [.axSelectedText, .paste, .clipboardOnly]
 
   static func sequence(cached: OwlInsertStrategy?) -> [OwlInsertStrategy] {
     OwlAIBusinessCore.call("insertSequence", ["cached": cached?.rawValue as Any? ?? NSNull()])

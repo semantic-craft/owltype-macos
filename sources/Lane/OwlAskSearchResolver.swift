@@ -145,7 +145,6 @@ struct OwlAskSearchResolver {
 ///     所以这里采取封闭列表；只有可以确认是配置拒绝的错误才允许在首个 delta 前换家。
 enum OwlAskSearchFailover {
   /// 这些状态能确认是当前候选的固定配置问题，而不是这次请求的内容/网络问题。
-  static let configurationRefusalStatuses: Set<Int> = OwlAIBusinessCore.call("refusalStatuses")
 
   /// 该换下一条联网尝试吗？首个 delta 是不可逆边界：一旦已有输出，即使随后收到明确的
   /// 401/404，也必须原样上报，不能把两家答案拼在一起。

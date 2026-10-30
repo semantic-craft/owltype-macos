@@ -373,6 +373,7 @@ impl Conversation {
                 }
                 self.generation += 1;
                 self.saw_content = false;
+                self.attribution = Value::Null;
                 self.state = json!({"kind":"streaming","text":""});
                 start = true;
             }

@@ -525,4 +525,14 @@ final class OwlAIConversationModelTests: XCTestCase {
     XCTAssertEqual(late.state.text, "新答案")
   }
 
+  func testLargeQuestionAndStreamDeltaDoNotTripTheSmallEventBound() async {
+    let text = String(repeating: "文", count: 1_500_000)
+    let streamer = FakeAskAnything(readiness: .ready(routing: readyRouting, apiKey: "synthetic"), deltas: [text])
+    let model = OwlAIConversationModel(askAnything: streamer)
+    model.submit(question: text)
+    await waitUntil({ if case .done = model.state { return true }; return false }, timeout: 5)
+    XCTAssertEqual(model.turns, [OwlConversationTurn(question: text, answer: text)])
+    model.teardown()
+  }
+
 }

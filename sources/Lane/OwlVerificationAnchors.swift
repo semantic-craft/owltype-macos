@@ -96,7 +96,6 @@ struct OwlVerificationAnchor: Codable, Sendable, Identifiable, Equatable {
 // MARK: - 本地坐标抽取器（正则 + 小词表，确定性，无 LLM）
 
 enum OwlFactCoordinateExtractor {
-  static let numeralClass = "0-9〇零一二三四五六七八九十百千两"
   static func extract(from text: String) -> [OwlVerificationAnchor] {
     OwlAIBusinessCore.call("anchors", ["text": text])
   }
@@ -123,7 +122,7 @@ enum OwlCaseNumberStatus: String, Codable, Sendable, Equatable {
   case suspectedFabricated // ❓ 形似案号但格式不符规范（常见于 AI 杜撰）
 }
 
-enum OwlCaseNumberDisposition: Sendable, Equatable {
+enum OwlCaseNumberDisposition: String, Codable, Sendable, Equatable {
   case admit                       // 准入
   case attemptCompleteElseDiscard  // 尝试补全，失败则废弃
   case discard                     // 废弃
@@ -142,12 +141,9 @@ struct OwlCaseNumberVerdict: Codable, Sendable, Equatable {
   let status: OwlCaseNumberStatus
 
   var disposition: OwlCaseNumberDisposition {
-    switch status {
-    case .complete: return .admit
-    case .partial: return .attemptCompleteElseDiscard
-    case .missing, .suspectedFabricated: return .discard
-    }
+    OwlAIBusinessCore.call("caseDisposition", ["status": status.rawValue])
   }
+
 }
 
 /// 纯函数：提取 → 格式校验 → 三重分类（+❓疑似虚构）→ 处置。

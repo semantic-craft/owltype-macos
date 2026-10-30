@@ -25,7 +25,7 @@ struct OwlSelectionRewrite {
       let message: String?
       let noun: String
     }
-    let core = try! OwlAppSession("selectionRewrite", args: ["action": action.rawValue])
+    let core = try! OwlAITextSession("selectionRewrite", args: ["action": action.rawValue])
     var step: Step = core.call("next")
     while true {
       if let message = step.message { notify(message) }

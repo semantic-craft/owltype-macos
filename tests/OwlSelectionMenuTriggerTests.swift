@@ -98,6 +98,12 @@ final class OwlOptionDoubleTapDetectorTests: XCTestCase {
 // MARK: - 规范排版：确定性规则（纯函数，无偏好域 / 无网络，零污染）
 
 final class OwlChineseTypesettingTests: XCTestCase {
+  func testContentFingerprintKeepsMultiScalarLetters() {
+    let original = "क्ष 가 a\u{200D}"
+    XCTAssertEqual(OwlChineseTypesetting.contentFingerprint(original), "क्ष가a\u{200D}")
+    XCTAssertNotEqual(OwlChineseTypesetting.contentFingerprint("가"), OwlChineseTypesetting.contentFingerprint("나"))
+  }
+
   func testStraightQuotesPairIntoCurly() {
     XCTAssertEqual(OwlChineseTypesetting.normalizeQuotes("选\"甲\"与'乙'"), "选“甲”与‘乙’")
   }

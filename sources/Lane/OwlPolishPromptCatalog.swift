@@ -35,18 +35,10 @@ enum OwlPolishPromptCatalog {
   static let responsayAlignedVariantID = "v2-responsay-aligned"
 
   /// v1 保底：出厂 prompt 原样（从 OwlSelectionPolish.systemPrompt 原位迁入，逐字未动）。
-  static let legacy = OwlPolishPromptVariant(
-    id: legacyVariantID,
-    systemPrompt: legacySystemPrompt,
-    temperature: 0.3
-  )
+  static let legacy = variant(id: legacyVariantID)
 
   /// v2：对齐 Responsay rewrite 线（temp 0.2 = LLMGenerationProfile.resolve(rewrite)）。
-  static let responsayAligned = OwlPolishPromptVariant(
-    id: responsayAlignedVariantID,
-    systemPrompt: responsayAlignedSystemPrompt,
-    temperature: 0.2
-  )
+  static let responsayAligned = variant(id: responsayAlignedVariantID)
 
   /// Total lookup: known id → its variant; nil / unknown → v1-legacy (never throws, never blank).
   static func variant(id: String?) -> OwlPolishPromptVariant {

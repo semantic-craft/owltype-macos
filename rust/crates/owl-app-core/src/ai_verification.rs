@@ -226,6 +226,12 @@ fn display(source: &str) -> &str {
 }
 pub fn rule(name: &str, a: Value) -> Value {
     match name {
+        "receiptPending" => json!(["idle", "notFound", "error"].contains(&s(&a, "kind"))),
+        "caseDisposition" => json!(match s(&a, "status") {
+            "complete" => "admit",
+            "partial" => "attemptCompleteElseDiscard",
+            _ => "discard",
+        }),
         "receiptState" => resolved_state(&a),
         "admittedAnchors" => json!(anchors(s(&a, "text"))
             .as_array()
@@ -376,6 +382,15 @@ impl Receipt {
         let mut accepted = true;
         let mut generation = *self.generations.get(id).unwrap_or(&0);
         match event {
+            "eligible" => {
+                return Ok(json!(self
+                    .anchors
+                    .iter()
+                    .filter(|a| ["idle", "notFound", "error"]
+                        .contains(&s(&self.state(s(a, "id")), "kind")))
+                    .map(|a| a["id"].clone())
+                    .collect::<Vec<_>>()))
+            }
             "snapshot" => {}
             "begin" => {
                 accepted = self.available && self.state(id)["kind"] != "loading";

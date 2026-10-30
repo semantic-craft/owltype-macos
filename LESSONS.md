@@ -1259,3 +1259,27 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
   regeneration, explicit context and history-limit tests remain the feature seam.
 - Scope: isolated notifications/streams and real App FFI, with no real provider key,
   account, installed input method or network request. This is not live-account evidence.
+
+## Explicit AI text is not a bounded control event
+
+- Seen 1x (2026-10-30): independent #364 review found that selections, questions and
+  model results above the ordinary 4 MiB event bound reached the native ABI precondition
+  before Rust could apply content limits. This was a source-review finding; the failing
+  fatal path was not run against an installed input method.
+- AI text now enters through owned session snapshots, like existing template-library
+  snapshots. Small control events reference the snapshot; the ordinary event bound
+  remains intact. Rust applies the original per-feature limits and owns admission.
+- Verify (验证点): existing context and conversation suites exercise a 4.5 MB selection,
+  question, structured result and streamed answer through the real App ABI.
+
+## Typesetting fingerprints must retain multi-scalar letters
+
+- Seen 1x (2026-10-30): independent #364 review found that a single-letter regex omitted
+  Indic conjuncts, decomposed Hangul and letter-plus-joiner graphemes, allowing changed
+  text to have an empty matching fingerprint. Native read-only Character checks confirmed
+  the mismatch.
+- Keep the whole grapheme whenever any scalar is alphanumeric, and compare canonical
+  normalized fingerprints. This conservatively protects letters without a script whitelist.
+- Verify (验证点): the existing typesetting suite checks those multi-scalar forms and
+  distinguishes changed Hangul; the formatter's existing no-content-change tests remain.
+- Scope: synthetic text and App FFI tests, no account, network or installed UI acceptance.

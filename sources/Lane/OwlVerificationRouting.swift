@@ -82,10 +82,8 @@ struct OwlVerificationRoute: Codable, Sendable, Equatable {
 enum OwlVerificationQueryRouter {
 
   /// 必应检索基址 —— 直达 `.bing` 与所有 site: 兜底共用。
-  static let bingSearchBase = "https://www.bing.com/search"
 
   /// 整段选区兜底检索词上限：超长 CJK 检索词会让站内引擎直接返回空（Responsay issue 328）。
-  static let maxSelectionQueryLength: Int = OwlAIBusinessCore.call("limit", ["id": "query"])
 
   /// 整段选区 → 兜底检索词：合并空白后截断到上限。
   static func normalizeSelection(_ text: String) -> String {

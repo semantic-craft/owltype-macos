@@ -66,9 +66,21 @@ enum OwlAIContextAssembler {
 /// Native JSON transport only; Rust owns prompts, admission, limits and state transitions.
 enum OwlAIBusinessCore {
   static func call<T: Decodable>(_ rule: String, _ args: [String: Any] = [:]) -> T {
-    OwlAppCore.required(["operation": "ai_rule", "rule": rule, "args": args])
+    let snapshot = try! OwlAppSession("aiRule", args: ["rule": rule, "args": args])
+    return snapshot.call("evaluate")
   }
   static func json<T: Encodable>(_ value: T) -> Any {
     try! JSONSerialization.jsonObject(with: JSONEncoder().encode(value), options: [.fragmentsAllowed])
+  }
+}
+
+/// User/model text is an owned snapshot, like template library snapshots. A small event borrows
+/// it for one synchronous transition; the common 4 MiB control-event bound is not a text limit.
+final class OwlAITextSession {
+  private let session: OwlAppSession
+  init(_ kind: String, args: Any = NSNull()) throws { session = try OwlAppSession(kind, args: args) }
+  func call<T: Decodable>(_ event: String, _ args: [String: Any] = [:]) -> T {
+    let packet = try! OwlAppSession("aiText", args: ["event": event, "args": args])
+    return session.call("ai_text_event", index: packet)
   }
 }
