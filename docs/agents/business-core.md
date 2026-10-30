@@ -223,3 +223,40 @@ callbacks. A restored application with an unverifiable field reaches the deliver
 specific refusal; only an application that never returns yields `focusNotRestored`.
 Every delivery effect takes a fresh binding admission after planning reads, preventing a
 field change during native text queries from authorizing a write into the new target.
+
+## Providers, requests and streaming
+
+`provider_store.rs` owns profile defaults, catalog inference, active/default selection and CRUD,
+legacy migration, scheme/host/default-port origin checks, Qwen Workspace rules and registry
+transactions. The native provider host supplies raw atomic file writes, ISO-8601 formatting,
+Foundation URL facts, UUID/time, preferences and the unchanged Keychain APIs. `providers.json`
+keeps schema 1, its existing path, optional-field omission and secret-name convention. Keys never
+enter that file or telemetry. The synchronous storage ABI carries explicit provider operations;
+callback errors retain opaque tokens so public store failures preserve their native Error values.
+
+The registry stages independent credential references before committing a profile. A thrown write
+rereads the file; ambiguous contents retain both old and staged keys. Only a proved unreferenced
+key is retired. Workspace batches can settle a proved landed write, while single-profile edits
+retain the original failure outcome. A separate owned `providerRegistry` session holds only the
+probe digest; native per-call key references supply digest facts and perform Keychain effects.
+Fresh references do not inherit verification markers. Optional session facts use object envelopes.
+
+`provider_wire.rs`, `provider_search.rs` and `provider_catalog.json` own capabilities, payloads,
+Chat/Responses decoding, SSE dialects, retry policy, error classification/sanitization, model lists,
+search results and grounding. Native code encodes the returned body plan with the original codec;
+this preserves both canonical request bodies and historical numeric wire representations.
+Provider request/response rules use storage-sized synchronous envelopes because network replies
+and explicit AI payloads are not limited by the input-session request bound. Pure rules do no I/O.
+
+Owned `providerStream` sessions buffer raw bytes across arbitrary UTF-8 splits and decide deltas,
+errors, completion and cancellation. Native URLSession AsyncBytes are only buffered and forwarded;
+Swift performs no UTF-8 or SSE parsing. It retains the caller's session, including its configured
+transport behavior. Large native chunks are split only for bounded ABI transfer, never truncated.
+Owned `providerCall` sessions govern retry admission; native tasks execute sends and sleeps and
+reject cancelled results before parsing/telemetry. No provider call is added to ordinary input.
+
+Existing request recording and public provider/storage suites exercise the actual App ABI.
+The network recorder uses an explicit ephemeral session and a local URL/method allowlist;
+unmatched requests fail locally. These are synthetic protocol and native-adapter checks, not
+personal account or installed Keychain acceptance. Signing and Keychain storage identities are
+unchanged; no real account or upgrade matrix is required by this internal rules migration.

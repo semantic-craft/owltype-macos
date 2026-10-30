@@ -2,8 +2,8 @@
 //  OwlLLMStreamingRecordingTests.swift
 //  OwltypeTests — streaming chat and 任意提问: one table of recorded provider requests
 //
-//  Offline: a URLProtocol stub on `URLSession.shared` answers every request and records it, so the
-//  live default composition (no injected client) is what gets measured. `recorded` was captured from
+//  Offline: an explicit ephemeral URLSession with a URLProtocol stub answers every request.
+//  Real native streaming/search clients and the Rust protocol core are measured; only sockets are replaced. `recorded` was captured from
 //  the pre-gateway streaming clients (2026-10-28, revision ba25e99); a refactor that changes any
 //  provider's URL, timeout, headers or body breaks here first.
 //
@@ -15,11 +15,16 @@ import XCTest
 /// Answers every request with a canned SSE / search reply and records what was sent.
 final class OwlRecordingURLProtocol: URLProtocol {
   private static let lock = NSLock()
+  nonisolated(unsafe) private static var allowedURLs: Set<String> = []
   nonisolated(unsafe) private static var recordedRequests: [(request: URLRequest, body: Data)] = []
 
   static var requests: [(request: URLRequest, body: Data)] {
     lock.lock(); defer { lock.unlock() }
     return recordedRequests
+  }
+
+  static func allowOnly(_ urls: Set<String>) {
+    lock.lock(); allowedURLs = urls; lock.unlock()
   }
 
   static func reset() {
@@ -33,6 +38,13 @@ final class OwlRecordingURLProtocol: URLProtocol {
     let body = request.httpBody ?? Self.drain(request.httpBodyStream)
     Self.lock.lock(); Self.recordedRequests.append((request, body)); Self.lock.unlock()
 
+    Self.lock.lock()
+    let permitted = Self.allowedURLs.contains(request.url?.absoluteString ?? "") && request.httpMethod == "POST"
+    Self.lock.unlock()
+    guard permitted else {
+      client?.urlProtocol(self, didFailWithError: URLError(.unsupportedURL))
+      return
+    }
     let path = request.url?.path ?? ""
     let reply: String
     if path.hasSuffix("/tools/search") {
@@ -123,11 +135,13 @@ final class OwlLLMStreamingRecordingTests: XCTestCase {
   override func setUp() async throws {
     try await super.setUp()
     OwlRecordingURLProtocol.reset()
+    OwlRecordingURLProtocol.allowOnly(Set(Self.recorded.values.map(\.url)))
     URLProtocol.registerClass(OwlRecordingURLProtocol.self)
   }
 
   override func tearDown() async throws {
     URLProtocol.unregisterClass(OwlRecordingURLProtocol.self)
+    OwlRecordingURLProtocol.allowOnly([])
     OwlRecordingURLProtocol.reset()
     try await super.tearDown()
   }
@@ -183,7 +197,30 @@ final class OwlLLMStreamingRecordingTests: XCTestCase {
       seen.count, Self.recorded.keys.filter { $0.hasPrefix("\(flow)#") }.count, "\(flow) request count")
   }
 
+  func testRecordingTransportRejectsUnmatchedURLsLocally() async {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [OwlRecordingURLProtocol.self]
+    let session = URLSession(configuration: configuration)
+    defer { session.invalidateAndCancel() }
+    do {
+      _ = try await OwlURLSessionTransport(session: session).send(
+        URLRequest(url: URL(string: "https://unmatched.invalid/synthetic")!))
+      XCTFail("An unmatched request must fail inside URLProtocol")
+    } catch {
+      XCTAssertEqual((error as? URLError)?.code, .unsupportedURL)
+      XCTAssertEqual(OwlRecordingURLProtocol.requests.count, 1)
+    }
+  }
+
   func testEveryStreamingAndAskRequestMatchesTheRecordedPreGatewayRequest() async throws {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [OwlRecordingURLProtocol.self]
+    let session = URLSession(configuration: configuration)
+    defer { session.invalidateAndCancel() }
+    let transport = OwlURLSessionTransport(session: session)
+    let chat = OwlStreamingChatClient(transport: transport)
+    let responses = OwlResponsesStreamingClient(transport: transport)
+    let search = OwlDeepSeekSearchClient(fetch: { try await transport.send($0) })
     var lines: [String] = []
     for (providerID, endpoint, model) in Self.matrix {
       let profile = Self.profile(providerID, endpoint, model)
@@ -191,6 +228,7 @@ final class OwlLLMStreamingRecordingTests: XCTestCase {
 
       // Plain streaming (划词技能 / 普通生成): the service resolves the profile and streams.
       let plain = OwlStreamingChatService(
+        client: chat, responsesClient: responses,
         profileProvider: { profile }, profileSecretProvider: { _ in "sk-test" },
         legacyKeyProvider: { nil })
       guard case let .success(plainStream) = plain.stream(messages: Self.messages) else {
@@ -202,12 +240,13 @@ final class OwlLLMStreamingRecordingTests: XCTestCase {
       // 任意提问 with 联网 on and this profile as the only one: DeepSeek searches then answers;
       // every other provider falls back to the plain answer.
       let ask = OwlAskAnythingModule(
+        client: chat, responsesClient: responses,
         profileProvider: { profile }, profileSecretProvider: { _ in "sk-test" },
         legacyKeyProvider: { nil },
         searchResolver: OwlAskSearchResolver(
           isEnabled: { true }, profilesProvider: { [profile] },
           defaultProfileProvider: { profile }, secretProvider: { _ in "sk-test" }),
-        now: { Self.recordedDay })
+        searchClient: search, now: { Self.recordedDay })
       guard case let .success(open) = ask.open(messages: Self.messages) else {
         return XCTFail("ask not ready: \(suffix)")
       }
@@ -224,7 +263,7 @@ final class OwlLLMStreamingRecordingTests: XCTestCase {
       let routing = OwlCloudRouting(
         providerID: providerID, endpoint: URL(string: endpoint)!, model: model,
         secretName: nil, authHeaderStyle: .bearer)
-      _ = try await drain(OwlResponsesStreamingClient().stream(
+      _ = try await drain(responses.stream(
         messages: Self.messages, routing: routing, apiKey: "sk-test", dialect: dialect, webSearch: true))
       try check("responses-search|\(providerID)|\(model)", &lines)
     }

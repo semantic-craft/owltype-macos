@@ -3,6 +3,9 @@ use crate::template_library::{automatic_index, AutomaticNode, Entry, Expansion};
 use serde_json::{json, Value};
 
 pub enum Session {
+    ProviderCall { remaining: usize, cancelled: bool },
+    ProviderRegistry { probe: Value },
+    ProviderStream(crate::provider_wire::Stream),
     Delivery(crate::host_delivery::Delivery),
     Focus(crate::host_delivery::Focus),
     Runtime(Runtime),
@@ -14,6 +17,18 @@ pub enum Session {
 impl Session {
     pub fn create(kind: &str, args: Value) -> Result<Self, String> {
         match kind {
+            "providerCall" => Ok(Self::ProviderCall {
+                remaining: if args["purpose"] == "interactiveRewrite" {
+                    2
+                } else {
+                    1
+                },
+                cancelled: false,
+            }),
+            "providerRegistry" => Ok(Self::ProviderRegistry { probe: Value::Null }),
+            "providerStream" => Ok(Self::ProviderStream(crate::provider_wire::Stream::new(
+                args["responses"] == true,
+            ))),
             "focus" => Ok(Self::Focus(crate::host_delivery::Focus::default())),
             "delivery" => Ok(Self::Delivery(crate::host_delivery::Delivery::new(args))),
             "runtime" => Ok(Self::Runtime(Runtime::default())),
@@ -39,6 +54,30 @@ impl Session {
         index: Option<&Session>,
     ) -> Result<Value, String> {
         match self {
+            Self::ProviderCall {
+                remaining,
+                cancelled,
+            } => {
+                if event == "cancel" {
+                    *cancelled = true;
+                }
+                let allowed = !*cancelled
+                    && *remaining > 0
+                    && (event == "next" || (event == "retry" && args["retryable"] == true));
+                if allowed {
+                    *remaining -= 1;
+                }
+                Ok(json!(allowed))
+            }
+            Self::ProviderRegistry { probe } => match event {
+                "set" => {
+                    *probe = args["digest"].clone();
+                    Ok(json!(true))
+                }
+                "take" => Ok(json!({"digest":std::mem::take(probe)})),
+                _ => Err("invalid_event".into()),
+            },
+            Self::ProviderStream(stream) => stream.event(event, args),
             Self::Delivery(delivery) => delivery.event(event, args),
             Self::Focus(focus) => focus.event(event, args),
             Self::Runtime(runtime) => runtime.event(event, args),

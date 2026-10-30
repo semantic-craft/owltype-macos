@@ -1,0 +1,55 @@
+{
+  "presets": [
+    {
+      "id": "qwen",
+      "displayName": "阿里云百炼",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/responses",
+      "model": "qwen3.8-flash",
+      "keyHint": "按量付费 sk-…；Token Plan 请改用 token-plan.cn-beijing.maas.aliyuncs.com"
+    },
+    {
+      "id": "doubao",
+      "displayName": "火山引擎 · 豆包 Seed",
+      "endpoint": "https://ark.cn-beijing.volces.com/api/v3/responses",
+      "model": "doubao-seed-2-1-pro-260628",
+      "keyHint": "火山方舟 API Key"
+    },
+    {
+      "id": "deepseek",
+      "displayName": "DeepSeek",
+      "endpoint": "https://api.deepseek.com/v1/chat/completions",
+      "model": "deepseek-flash",
+      "keyHint": "sk-…"
+    },
+    {
+      "id": "minimax",
+      "displayName": "MiniMax",
+      "endpoint": "https://api.minimax.cn/v1/chat/completions",
+      "model": "MiniMax-M3.1-Flash",
+      "keyHint": "国内站 api.minimax.cn 的 M Plan / Token Plan 订阅 Key（sk-cp-…）"
+    },
+    {
+      "id": "gemini",
+      "displayName": "Google Gemini",
+      "endpoint": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+      "model": "gemini-3.8-flash",
+      "keyHint": "AIza…"
+    },
+    {
+      "id": "openai",
+      "displayName": "OpenAI",
+      "endpoint": "https://api.openai.com/v1/chat/completions",
+      "model": "chat-latest",
+      "keyHint": "sk-…"
+    }
+  ],
+  "qwenModels": [
+    "qwen3.8-flash",
+    "qwen3.7-plus",
+    "qwen3.7-max"
+  ],
+  "minimaxModels": [
+    "MiniMax-M3.1-Flash",
+    "MiniMax-M3"
+  ]
+}

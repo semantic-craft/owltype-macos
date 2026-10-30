@@ -64,7 +64,7 @@ final class OwlProviderRegistry {
   private let defaults: UserDefaults
   /// Digest of the endpoint and key the last successful probe used. The next save that stores
   /// the same pair marks its key verified; the key itself is never held.
-  private var probedPair: SHA256Digest?
+  private let session = try! OwlAppSession("providerRegistry")
 
   init(
     store: OwlProviderProfileStore = .shared,
@@ -87,7 +87,7 @@ final class OwlProviderRegistry {
 
   /// The add form as typed. `providerID` is the form's preset id (`customID` for a custom entry);
   /// `qwenWorkspace` is the Workspace input the Qwen endpoint was derived from.
-  struct Form: Equatable {
+  struct Form: Codable, Equatable {
     var providerID: String
     var displayName: String
     var endpoint: String
@@ -99,27 +99,17 @@ final class OwlProviderRegistry {
 
   /// The HTTPS check shared by save, model fetch and connectivity probe; scheme is case-insensitive.
   static func isHTTPS(_ url: URL) -> Bool {
-    url.scheme?.lowercased() == "https"
+    OwlProviderCore.call("isHTTPS", ["scheme": url.scheme ?? ""])
   }
 
-  private static func origin(_ url: URL) -> (String?, String?, Int?) {
-    let scheme = url.scheme?.lowercased()
-    let port: Int? = url.port ?? (scheme == "https" ? 443 : scheme == "http" ? 80 : nil)
-    return (scheme, url.host?.lowercased(), port)
-  }
-
-  /// A stored key may follow its profile only within the same scheme, host and port. Moving to
-  /// another origin needs a key the user typed for it, so the old key never reaches a new server.
   static func needsReplacementKey(current: OwlProviderProfile, endpoint: URL, key: String) -> Bool {
-    key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      && origin(endpoint) != origin(current.endpoint)
+    OwlProviderHost().required("replacement", ["profile": OwlAppCore.payload(current),
+      "endpoint": endpoint.absoluteString, "keyEmpty": normalizedKey(key).isEmpty])
   }
 
   /// One profile per vendor: a known preset by its provider id, a custom entry by endpoint host.
   static func vendorKey(providerID: String, host: String?) -> String {
-    providerID.isEmpty || providerID == OwlLLMProviderCatalog.customID
-      ? "host:\(host ?? "")"
-      : "id:\(providerID)"
+    OwlProviderCore.call("vendorKey", ["providerID": providerID, "host": host ?? ""])
   }
 
   private static func vendorKey(of profile: OwlProviderProfile) -> String {
@@ -128,7 +118,7 @@ final class OwlProviderRegistry {
 
   // MARK: Key state
 
-  enum KeyState: Equatable {
+  enum KeyState: String, Equatable {
     case missing
     /// The Keychain holds a value that has not yet answered a real call.
     case unverified
@@ -138,13 +128,8 @@ final class OwlProviderRegistry {
 
   /// Never includes the key itself.
   func keyState(for profile: OwlProviderProfile) -> KeyState {
-    do {
-      guard try secrets.secret(named: profile.secretName)?.isEmpty == false else { return .missing }
-      return OwlProviderKeyVerification.verifiedAt(secretName: profile.secretName) == nil
-        ? .unverified : .verified
-    } catch {
-      return .unreadable
-    }
+    let raw: String = host().required("keyState", ["profile": OwlAppCore.payload(profile)])
+    return KeyState(rawValue: raw) ?? .unreadable
   }
 
   func markVerified(_ profile: OwlProviderProfile) {
@@ -162,39 +147,21 @@ final class OwlProviderRegistry {
   /// The key 「拉取最新」 and 「验证连通性」 send: the typed key, else the editing profile's stored
   /// key when the endpoint keeps its origin. Cross-origin probes never read the Keychain.
   func probeKey(editing profile: OwlProviderProfile?, endpoint: URL, typedKey: String) -> ProbeKey {
-    let typed = typedKey.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard typed.isEmpty else { return .key(typed) }
-    guard let profile else { return .missing }
-    let current = store.profile(id: profile.id) ?? profile
-    if Self.needsReplacementKey(current: current, endpoint: endpoint, key: typed) {
-      return .needsReplacementKey
+    let native = host(key: Self.normalizedKey(typedKey))
+    let result: Reply = native.required("probeKey", ["profile": profile.map(OwlAppCore.payload) ?? NSNull(),
+      "endpoint": endpoint.absoluteString, "keyEmpty": native.keys["typed"]?.isEmpty ?? true])
+    switch result.outcome {
+    case "key": return .key(native.keys[result.reference ?? ""] ?? "")
+    case "needsReplacementKey": return .needsReplacementKey
+    default: return .missing
     }
-    guard let stored = try? secrets.secret(named: current.secretName), !stored.isEmpty else {
-      return .missing
-    }
-    return .key(stored)
   }
 
   /// A probe with this endpoint and key got a real answer. A saved profile that already stores
   /// exactly this pair is marked now; otherwise the next save of the pair is.
   func probeSucceeded(endpoint: URL, key: String, editing profile: OwlProviderProfile?) {
-    probedPair = Self.digest(endpoint: endpoint, key: key)
-    guard let profile, let current = store.profile(id: profile.id), current.endpoint == endpoint,
-          (try? secrets.secret(named: current.secretName)) == key else { return }
-    markVerified(current)
-  }
-
-  private static func digest(endpoint: URL, key: String) -> SHA256Digest {
-    SHA256.hash(data: Data((endpoint.absoluteString + "\n" + key).utf8))
-  }
-
-  /// Marks `saved` verified when a probe already proved the endpoint and key it now stores.
-  private func applyProbe(to saved: OwlProviderProfile, typedKey: String) {
-    guard let probed = probedPair else { return }
-    probedPair = nil
-    let key = typedKey.isEmpty ? ((try? secrets.secret(named: saved.secretName)) ?? nil) : typedKey
-    guard let key, !key.isEmpty, Self.digest(endpoint: saved.endpoint, key: key) == probed else { return }
-    markVerified(saved)
+    let _: Bool = host(key: key).required("probeSucceeded", ["endpoint": endpoint.absoluteString,
+      "profile": profile.map(OwlAppCore.payload) ?? NSNull()])
   }
 
   // MARK: Add
@@ -211,41 +178,16 @@ final class OwlProviderRegistry {
   /// key is staged first; the replaced profiles' keys are retired only after the write is
   /// confirmed, so a failed add leaves the previous provider and its key as they were.
   func upsert(_ form: Form, key rawKey: String, makeDefault: Bool = true) -> Change<UpsertOutcome> {
-    let name = form.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !name.isEmpty else { return Change(outcome: .blankName, profiles: profiles) }
-    guard let url = URL(string: form.endpoint.trimmingCharacters(in: .whitespacesAndNewlines)),
-          Self.isHTTPS(url) else {
-      return Change(outcome: .insecureEndpoint, profiles: profiles)
+    let result = perform("upsert", ["form": OwlAppCore.payload(form), "makeDefault": makeDefault], key: rawKey)
+    let outcome: UpsertOutcome
+    switch result.outcome {
+    case "added": outcome = result.profile.map(UpsertOutcome.added) ?? .failed
+    case "blankName": outcome = .blankName
+    case "insecureEndpoint": outcome = .insecureEndpoint
+    case "invalidWorkspace": outcome = .invalidWorkspace
+    default: outcome = .failed
     }
-    var commitWorkspace: (() -> Void)?
-    if form.providerID == "qwen", let workspace = form.qwenWorkspace {
-      guard let commit = OwlQwenWorkspaceSettings.prepareSave(workspace, defaults: defaults) else {
-        return Change(outcome: .invalidWorkspace, profiles: profiles)
-      }
-      commitWorkspace = commit
-    }
-    let profile = OwlProviderProfile(
-      displayName: name,
-      endpoint: url,
-      model: form.model.trimmingCharacters(in: .whitespacesAndNewlines),
-      providerID: form.providerID.isEmpty ? nil : form.providerID,
-      isDefault: makeDefault
-    )
-    let key = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
-    let vendor = Self.vendorKey(providerID: form.providerID, host: url.host)
-    let replaced = profiles.filter { Self.vendorKey(of: $0) == vendor }
-    let outcome = commit(
-      staging: key.isEmpty ? [] : [(profile.secretName, key)],
-      expecting: [profile],
-      replacing: replaced,
-      write: { try self.store.add(profile, replacing: replaced.map(\.id)) })
-    guard case let .committed(saved) = outcome,
-          let added = saved.first(where: { $0.id == profile.id }) else {
-      return Change(outcome: .failed, profiles: profiles)
-    }
-    commitWorkspace?()
-    applyProbe(to: added, typedKey: key)
-    return Change(outcome: .added(added), profiles: profiles)
+    return Change(outcome: outcome, profiles: result.profiles ?? [])
   }
 
   // MARK: Edit
@@ -266,46 +208,16 @@ final class OwlProviderRegistry {
     key rawKey: String,
     qwenWorkspace: String? = nil
   ) -> Change<EditOutcome> {
-    guard let current = store.profile(id: profile.id) else {
-      return Change(outcome: .failed, profiles: profiles)
+    let result = perform("replace", ["profile": OwlAppCore.payload(profile), "endpoint": endpoint,
+      "model": model, "qwenWorkspace": qwenWorkspace as Any? ?? NSNull()], key: rawKey)
+    let outcome: EditOutcome
+    switch result.outcome {
+    case "saved": outcome = result.profile.map(EditOutcome.saved) ?? .failed
+    case "insecureEndpoint": outcome = .insecureEndpoint
+    case "needsReplacementKey": outcome = .needsReplacementKey
+    default: outcome = .failed
     }
-    guard let url = URL(string: endpoint.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-      return Change(outcome: .insecureEndpoint, profiles: profiles)
-    }
-    let key = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
-    if Self.needsReplacementKey(current: current, endpoint: url, key: key) {
-      return Change(outcome: .needsReplacementKey, profiles: profiles)
-    }
-    guard Self.isHTTPS(url) else { return Change(outcome: .insecureEndpoint, profiles: profiles) }
-    let commitWorkspace = qwenWorkspace.flatMap {
-      OwlQwenWorkspaceSettings.prepareSave($0, defaults: defaults)
-    }
-    var updated = current
-    if !OwlLLMProviderCatalog.isKnownProviderID(OwlLLMProviderCatalog.inferredProviderID(for: current)) {
-      updated.providerID = OwlLLMProviderCatalog.customID
-    }
-    updated.endpoint = url
-    updated.model = model.trimmingCharacters(in: .whitespacesAndNewlines)
-    var staging: [(name: String, key: String)] = []
-    if !key.isEmpty {
-      updated.secretName = OwlProviderProfile.defaultSecretName(for: UUID().uuidString)
-      staging = [(updated.secretName, key)]
-    }
-    let target = updated
-    let outcome = commit(
-      staging: staging,
-      expecting: [target],
-      replacing: key.isEmpty ? [] : [current],
-      write: {
-        _ = try self.store.update(target)
-        return self.store.profiles()
-      })
-    // A write that threw after landing is still reported as failed; both keys stay, and the
-    // retry refreshes its profile from the returned list.
-    guard case .committed = outcome else { return Change(outcome: .failed, profiles: profiles) }
-    commitWorkspace?()
-    applyProbe(to: target, typedKey: key)
-    return Change(outcome: .saved(target), profiles: profiles)
+    return Change(outcome: outcome, profiles: result.profiles ?? [])
   }
 
   // MARK: Qwen Workspace
@@ -320,48 +232,15 @@ final class OwlProviderRegistry {
   /// Save the shared Qwen Workspace host and move every Qwen profile onto its Responses endpoint
   /// in one file write, so profiles added at different times never drift to different workspaces.
   func applyQwenWorkspace(_ input: String, key rawKey: String) -> Change<WorkspaceOutcome> {
-    let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-    let key = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard let commitWorkspace = OwlQwenWorkspaceSettings.prepareSave(trimmed, defaults: defaults),
-          let endpoint = trimmed.isEmpty
-            ? URL(string: OwlLLMProviderCatalog.qwenResponsesEndpoint)
-            : OwlQwenWorkspace.responsesEndpoint(for: trimmed) else {
-      return Change(outcome: .invalidInput, profiles: profiles)
+    let result = perform("applyWorkspace", ["input": input], key: rawKey)
+    let outcome: WorkspaceOutcome
+    switch result.outcome {
+    case "saved": outcome = .saved(cleared: result.cleared ?? false)
+    case "invalidInput": outcome = .invalidInput
+    case "needsReplacementKey": outcome = .needsReplacementKey
+    default: outcome = .failed
     }
-    guard let all = store.readableProfiles() else { return Change(outcome: .failed, profiles: profiles) }
-    let qwen = all.filter { OwlLLMProviderCatalog.inferredProviderID(for: $0) == "qwen" }
-    if qwen.contains(where: { Self.needsReplacementKey(current: $0, endpoint: endpoint, key: key) }) {
-      return Change(outcome: .needsReplacementKey, profiles: profiles)
-    }
-    // Asking with an empty key names the profiles whose origin changes.
-    let changing = qwen.filter { Self.needsReplacementKey(current: $0, endpoint: endpoint, key: "") }
-    var staging: [(name: String, key: String)] = []
-    let updated = qwen.map { profile -> OwlProviderProfile in
-      var next = profile
-      next.endpoint = endpoint
-      if changing.contains(where: { $0.id == profile.id }) {
-        // Independent names keep deleting one profile from removing another profile's key.
-        next.secretName = OwlProviderProfile.defaultSecretName(for: UUID().uuidString)
-        staging.append((next.secretName, key))
-      }
-      return next
-    }
-    let outcome = commit(
-      staging: staging, expecting: updated, replacing: changing,
-      write: { try self.store.update(updated) })
-    let saved: [OwlProviderProfile]
-    switch outcome {
-    case let .committed(profiles):
-      saved = profiles
-    case let .landedAfterError(profiles):
-      // The batch is on disk; finish it like a clean commit.
-      settle(staged: staging.map(\.name), replacing: changing, in: profiles)
-      saved = profiles
-    case .notCommitted:
-      return Change(outcome: .failed, profiles: profiles)
-    }
-    commitWorkspace()
-    return Change(outcome: .saved(cleared: trimmed.isEmpty), profiles: Self.sorted(saved))
+    return Change(outcome: outcome, profiles: result.profiles ?? [])
   }
 
   // MARK: Default and delete
@@ -374,15 +253,14 @@ final class OwlProviderRegistry {
   }
 
   func setDefault(_ profile: OwlProviderProfile) -> Change<DefaultOutcome> {
-    guard OwlLLMProviderCatalog.isKnownProviderID(OwlLLMProviderCatalog.inferredProviderID(for: profile)) else {
-      return Change(outcome: .needsEdit, profiles: profiles)
+    let result = perform("setDefault", ["profile": OwlAppCore.payload(profile)])
+    let outcome: DefaultOutcome
+    switch result.outcome {
+    case "set": outcome = .set(profile)
+    case "needsEdit": outcome = .needsEdit
+    default: outcome = .failed
     }
-    do {
-      try store.setDefault(id: profile.id)
-      return Change(outcome: .set(profile), profiles: profiles)
-    } catch {
-      return Change(outcome: .failed, profiles: profiles)
-    }
+    return Change(outcome: outcome, profiles: result.profiles ?? [])
   }
 
   enum DeleteOutcome: Equatable {
@@ -392,80 +270,170 @@ final class OwlProviderRegistry {
 
   /// Delete a profile, then its key and marker unless another profile still names that key.
   func delete(_ profile: OwlProviderProfile) -> Change<DeleteOutcome> {
-    do {
-      try store.delete(id: profile.id)
-    } catch {
-      return Change(outcome: .failed, profiles: profiles)
-    }
-    let remaining = profiles
-    settle(staged: [], replacing: [profile], in: remaining)
-    return Change(outcome: .deleted(profile), profiles: remaining)
+    let result = perform("remove", ["profile": OwlAppCore.payload(profile)])
+    return Change(outcome: result.outcome == "deleted" ? .deleted(profile) : .failed, profiles: result.profiles ?? [])
   }
 
-  // MARK: Staged commit
-
-  private enum CommitOutcome {
-    case committed([OwlProviderProfile])
-    /// The write threw, but rereading shows every expected profile on disk.
-    case landedAfterError([OwlProviderProfile])
-    case notCommitted
+  private struct Reply: Decodable {
+    let outcome: String
+    let profile: OwlProviderProfile?
+    let profiles: [OwlProviderProfile]?
+    let reference: String?
+    let cleared: Bool?
+  }
+  private static func normalizedKey(_ key: String) -> String {
+    OwlProviderCore.call("trim", ["text": key])
+  }
+  private func host(key: String = "") -> OwlProviderHost {
+    OwlProviderHost(store: store, secrets: secrets, defaults: defaults, session: session, key: key)
+  }
+  private func perform(_ operation: String, _ args: [String: Any], key: String = "") -> Reply {
+    let native = host(key: Self.normalizedKey(key))
+    var args = args; args["keyEmpty"] = native.keys["typed"]?.isEmpty ?? true
+    do { return try native.call(operation, args) }
+    catch { return Reply(outcome: "failed", profile: nil, profiles: profiles, reference: nil, cleared: nil) }
   }
 
-  /// Stage keys under their new names, write the profiles, and on a clean write retire what the
-  /// write replaced. On failure a staged key is removed only when a readable file proves the write
-  /// did not land: every replaced profile still holds its old name and nothing names a staged key.
-  /// An unreadable file is ambiguous, so every key stays.
-  private func commit(
-    staging: [(name: String, key: String)],
-    expecting expected: [OwlProviderProfile],
-    replacing replaced: [OwlProviderProfile],
-    write: () throws -> [OwlProviderProfile]
-  ) -> CommitOutcome {
-    var staged: [String] = []
-    do {
-      for entry in staging {
-        staged.append(entry.name)
-        try secrets.setSecret(entry.key, named: entry.name)
-      }
-    } catch {
-      for name in staged { try? secrets.deleteSecret(named: name) }
-      return .notCommitted
-    }
-    do {
-      let saved = try write()
-      settle(staged: staged, replacing: replaced, in: saved)
-      return .committed(saved)
-    } catch {
-      guard let reread = store.readableProfiles() else { return .notCommitted }
-      let landed = expected.allSatisfy { target in
-        reread.contains {
-          $0.id == target.id && $0.endpoint == target.endpoint && $0.secretName == target.secretName
+}
+
+/// Raw native effects for synchronous Rust provider transactions. Keys stay in this call's
+/// native reference table; neither the profile JSON nor Rust session state contains them.
+final class OwlProviderHost {
+  let store: OwlProviderProfileStore?
+  let secrets: OwlSecretStoring?
+  let defaults: UserDefaults
+  let session: OwlAppSession?
+  var keys: [String: String] = [:]
+  var legacyReader: (() throws -> String?)?
+  private var errors: [String: Error] = [:]
+  private var responseBuffer: UnsafeMutablePointer<CChar>?
+  init(store: OwlProviderProfileStore? = nil, secrets: OwlSecretStoring? = nil,
+       defaults: UserDefaults = OwlDefaults.standard, session: OwlAppSession? = nil, key: String = "") {
+    self.store = store; self.secrets = secrets; self.defaults = defaults; self.session = session
+    keys["typed"] = key
+  }
+  deinit { free(responseBuffer) }
+  private struct Envelope<T: Decodable>: Decodable { let result: T }
+  private struct Response<T: Decodable>: Decodable { let ok: Bool; let value: Envelope<T>?; let error: String? }
+  func call<T: Decodable>(_ operation: String, _ args: [String: Any] = [:]) throws -> T {
+    let bytes = try JSONSerialization.data(withJSONObject: ["operation": "provider_" + operation, "args": args])
+    let pointer = bytes.withUnsafeBytes { buffer in
+      owl_app_storage_call(OwlAppCore.abiVersion, buffer.bindMemory(to: UInt8.self).baseAddress, buffer.count,
+        Unmanaged.passUnretained(self).toOpaque()) { context, request in
+          guard let context, let request else { return nil }
+          return Unmanaged<OwlProviderHost>.fromOpaque(context).takeUnretainedValue().respond(request)
         }
-      }
-      if landed { return .landedAfterError(reread) }
-      let untouched = replaced.allSatisfy { old in
-        reread.first(where: { $0.id == old.id })?.secretName == old.secretName
-      } && !reread.contains(where: { staged.contains($0.secretName) })
-      if untouched {
-        for name in staged { try? secrets.deleteSecret(named: name) }
-      }
-      return .notCommitted
+    }
+    guard let pointer else { throw OwlAppCore.Failure(code: "missing_response") }
+    defer { owl_app_string_free(pointer) }
+    let response = try JSONDecoder().decode(Response<T>.self, from: Data(bytes: pointer, count: strlen(pointer)))
+    guard response.ok, let value = response.value else {
+      let code = response.error ?? "invalid_response"
+      if let error = errors[code] { throw error }
+      if code.hasPrefix("provider_notFound:") { throw OwlProviderError.notFound(String(code.dropFirst(18))) }
+      throw OwlAppCore.Failure(code: code)
+    }
+    return value.result
+  }
+  func required<T: Decodable>(_ operation: String, _ args: [String: Any] = [:]) -> T {
+    do { return try call(operation, args) } catch { preconditionFailure("Incompatible provider core ABI") }
+  }
+  private func respond(_ request: UnsafePointer<CChar>) -> UnsafePointer<CChar>? {
+    let response: [String: Any]
+    do {
+      let raw = try JSONSerialization.jsonObject(with: Data(bytes: request, count: strlen(request))) as? [String: Any] ?? [:]
+      let value = try effect(raw["operation"] as? String ?? "", raw["args"] as? [String: Any] ?? [:])
+      response = ["ok": true, "value": value]
+    } catch {
+      let token = "native_error_\(errors.count)"; errors[token] = error
+      response = ["ok": false, "error": token]
+    }
+    guard let data = try? JSONSerialization.data(withJSONObject: response), let text = String(data: data, encoding: .utf8) else { return nil }
+    free(responseBuffer); responseBuffer = strdup(text)
+    return responseBuffer.map { UnsafePointer($0) }
+  }
+  private func effect(_ operation: String, _ args: [String: Any]) throws -> Any {
+    switch operation {
+    case "provider_read", "provider_write": return try fileEffect(operation, args)
+    case "date_parse", "date_format", "url_facts", "uuid", "now": return try factEffect(operation, args)
+    case "legacy_read", "secret_read", "secret_write", "secret_delete", "key_digest": return try keyEffect(operation, args)
+    default: return try preferenceEffect(operation, args)
     }
   }
-
-  /// After a confirmed write: fresh keys start unverified, and a replaced key that no profile
-  /// names any more is deleted with its marker.
-  private func settle(staged: [String], replacing replaced: [OwlProviderProfile], in saved: [OwlProviderProfile]) {
-    for name in staged { OwlProviderKeyVerification.clear(secretName: name) }
-    for old in replaced where !saved.contains(where: { $0.secretName == old.secretName }) {
-      try? secrets.deleteSecret(named: old.secretName)
-      OwlProviderKeyVerification.clear(secretName: old.secretName)
+  private func fileEffect(_ operation: String, _ args: [String: Any]) throws -> Any {
+    switch operation {
+    case "provider_read":
+      guard let store else { throw OwlAppCore.Failure(code: "missing_store") }
+      do { return Array(try Data(contentsOf: store.fileURL)) }
+      catch let error as CocoaError where error.code == .fileReadNoSuchFile { return NSNull() }
+    case "provider_write":
+      guard let store else { throw OwlAppCore.Failure(code: "missing_store") }
+      try store.beforeSave?()
+      try OwlPrivateStorage.prepareDirectory(store.fileURL.deletingLastPathComponent())
+      try Data(args["bytes"] as? [UInt8] ?? []).write(to: store.fileURL, options: .atomic)
+      try store.afterAtomicWrite?()
+      try OwlPrivateStorage.hardenFile(store.fileURL)
+      return true
+    default: throw OwlAppCore.Failure(code: "unknown_provider_effect")
     }
   }
-
-  private static func sorted(_ profiles: [OwlProviderProfile]) -> [OwlProviderProfile] {
-    profiles.sorted {
-      $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt < $1.createdAt
+  private func factEffect(_ operation: String, _ args: [String: Any]) throws -> Any {
+    switch operation {
+    case "date_parse":
+      guard let text = args["text"] as? String,
+            let date = ISO8601DateFormatter().date(from: text) else { throw OwlAppCore.Failure(code: "invalid_date") }
+      return date.timeIntervalSinceReferenceDate
+    case "date_format":
+      return ISO8601DateFormatter().string(from: Date(timeIntervalSinceReferenceDate: args["value"] as? Double ?? 0))
+    case "url_facts":
+      guard let url = URL(string: args["text"] as? String ?? "") else { return NSNull() }
+      return ["absolute": url.absoluteString, "scheme": url.scheme ?? "", "host": url.host ?? "",
+              "port": url.port as Any? ?? NSNull(), "hasUser": url.user != nil, "hasPassword": url.password != nil]
+    case "uuid": return UUID().uuidString
+    case "now": return Date().timeIntervalSinceReferenceDate
+    default: throw OwlAppCore.Failure(code: "unknown_provider_effect")
+    }
+  }
+  private func keyEffect(_ operation: String, _ args: [String: Any]) throws -> Any {
+    let name = args["name"] as? String ?? ""
+    switch operation {
+    case "legacy_read":
+      let raw = try legacyReader?()
+      let key: String = OwlProviderCore.call("trim", ["text": raw ?? ""])
+      guard !key.isEmpty else { return NSNull() }
+      keys["legacy"] = key; return "legacy"
+    case "secret_read":
+      guard let value = try secrets?.secret(named: name), !value.isEmpty else { return NSNull() }
+      let reference = "read_\(keys.count)"; keys[reference] = value; return reference
+    case "secret_write":
+      guard let value = keys[args["reference"] as? String ?? ""], let secrets else { throw OwlAppCore.Failure(code: "missing_key_reference") }
+      try secrets.setSecret(value, named: name); return true
+    case "secret_delete": try secrets?.deleteSecret(named: name); return true
+    case "key_digest":
+      guard let value = keys[args["reference"] as? String ?? ""] else { return NSNull() }
+      return SHA256.hash(data: Data(((args["endpoint"] as? String ?? "") + "\n" + value).utf8)).map { String(format: "%02x", $0) }.joined()
+    default: throw OwlAppCore.Failure(code: "unknown_provider_effect")
+    }
+  }
+  private func preferenceEffect(_ operation: String, _ args: [String: Any]) throws -> Any {
+    let name = args["name"] as? String ?? ""
+    switch operation {
+    case "verification_clear": OwlProviderKeyVerification.clear(secretName: name); return true
+    case "verification_mark": OwlProviderKeyVerification.markVerified(secretName: name); return true
+    case "verification_get": return OwlProviderKeyVerification.verifiedAt(secretName: name)?.timeIntervalSince1970 as Any? ?? NSNull()
+    case "workspace_write":
+      let host = args["host"] as? String ?? ""
+      if host.isEmpty { defaults.removeObject(forKey: OwlQwenWorkspaceSettings.key) }
+      else { defaults.set(host, forKey: OwlQwenWorkspaceSettings.key) }
+      return true
+    case "probe_set":
+      let result: Bool = session?.call("set", ["digest": args["digest"] ?? NSNull()]) ?? false
+      return result
+    case "probe_take":
+      struct Probe: Decodable { let digest: String? }
+      let value: Probe? = session?.call("take")
+      return value?.digest as Any? ?? NSNull()
+    default: throw OwlAppCore.Failure(code: "unknown_provider_effect")
     }
   }
 }
