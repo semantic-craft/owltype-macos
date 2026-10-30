@@ -336,7 +336,7 @@ final class OwlStorageHost {
 
     return value
   }
-  private static func failure(_ code: String) -> Error {
+  static func failure(_ code: String) -> Error {
     let fixed: [String: Error] = [
       "legacy_requires_migration": OwlTemplateError.legacyRequiresMigration,
       "changed_on_disk": OwlTemplateError.changedOnDisk,
@@ -363,4 +363,34 @@ final class OwlStorageHost {
     return OwlTemplateError.invalid(code)
   }
 
+}
+
+/// Owned Rust state; used only on the native owner thread, never across callbacks concurrently.
+final class OwlAppSession {
+  private let handle: OpaquePointer
+  init(_ kind: String, args: Any = NSNull()) throws {
+    let bytes = try JSONSerialization.data(withJSONObject: ["kind": kind, "args": args])
+    var response: UnsafeMutablePointer<CChar>?
+    let pointer = bytes.withUnsafeBytes { owl_app_session_new(OwlAppCore.abiVersion, $0.bindMemory(to: UInt8.self).baseAddress, $0.count, &response) }
+    defer { owl_app_string_free(response) }
+    guard let pointer else {
+      let failure = response.flatMap { try? JSONDecoder().decode(OwlAppCoreResponse<Bool>.self, from: Data(bytes: $0, count: strlen($0))) }
+      throw OwlAppCore.Failure(code: failure?.error ?? "invalid_session")
+    }
+    handle = pointer
+  }
+  deinit { owl_app_session_free(handle) }
+  func call<T: Decodable>(_ event: String, _ args: [String: Any] = [:], index: OwlAppSession? = nil) -> T {
+    do { return try request(event, args, index: index) }
+    catch { preconditionFailure("Incompatible Owltype session ABI") }
+  }
+  func request<T: Decodable>(_ event: String, _ args: [String: Any] = [:], index: OwlAppSession? = nil) throws -> T {
+      let bytes = try JSONSerialization.data(withJSONObject: ["event": event, "args": args])
+      let response = bytes.withUnsafeBytes { owl_app_session_call(handle, $0.bindMemory(to: UInt8.self).baseAddress, $0.count, index?.handle) }
+      guard let response else { throw OwlAppCore.Failure(code: "missing_response") }
+      defer { owl_app_string_free(response) }
+      let decoded = try JSONDecoder().decode(OwlAppCoreResponse<T>.self, from: Data(bytes: response, count: strlen(response)))
+      guard decoded.isOK, let value = decoded.value else { throw OwlAppCore.Failure(code: decoded.error ?? "invalid_response") }
+      return value
+  }
 }

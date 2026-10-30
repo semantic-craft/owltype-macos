@@ -234,18 +234,15 @@ final class OwlDynamicAutomaticTests: XCTestCase {
   }
 
   private func invocation(source: OwlAutomaticExpansionInvocationSource, host: Host,
+                          copy: @escaping (String) -> Bool = { _ in XCTFail("no implicit copy"); return false },
                           capture: @escaping (Set<OwlTemplateEngine.Requirement>) -> OwlTemplateEngine.FrozenContext = { _ in .init() },
                           onFinish: @escaping () -> Void = {}) -> OwlTemplateInvocation {
     let delivery = host.delivery()
     let broker = OwlPanelInsertionBroker(captureFrontmost: {
       .init(restore: { host.restorations += 1 }, isRestored: { true })
-    }, pasteboardWrite: { _ in XCTFail("no implicit copy"); return false }, schedule: { _, action in action() })
-    return OwlTemplateInvocation(content: .template(source.entry), broker: broker,
-      deliver: { delivery.deliver($0) }, trailingText: source.trailingText,
-      isHostReady: { delivery.isReadyForDelivery() }, mayRestoreFocus: { delivery.mayRestoreFocus() }, preparePresentation: {
-        broker.capture()
-        return delivery.prepareForPresentation()
-      }, onFinish: { delivery.invalidate(); onFinish() }, captureContext: capture)
+    }, pasteboardWrite: copy, schedule: { _, action in action() })
+    return OwlTemplateInvocation(content: .template(source.entry), broker: broker, delivery: delivery,
+      trailingText: source.trailingText, prepareAutomaticSource: true, onFinish: onFinish, captureContext: capture)
   }
 
   func testDeferredCancellationKeepsCompleteOriginalIncludingDroppedDelimiterWithoutAnotherWrite() throws {
@@ -360,7 +357,8 @@ final class OwlDynamicAutomaticTests: XCTestCase {
     let source = try source(entry("{argument name=purpose}", mode: .delimiterDrop), delimiter: "\n")
     let host = Host(source: source)
     host.acknowledgeWrites = false
-    let call = invocation(source: source, host: host)
+    var copies: [String] = []
+    let call = invocation(source: source, host: host, copy: { copies.append($0); return true })
     call.start { _ in }
     XCTAssertEqual(host.writes.count, 1)
     XCTAssertEqual(host.document, "prefix ;;dynamic\n suffix")
@@ -368,6 +366,9 @@ final class OwlDynamicAutomaticTests: XCTestCase {
     XCTAssertEqual(call.outcome, .originalPreservationUnverified)
     XCTAssertEqual(call.retainedResult?.text, "result")
     XCTAssertEqual(host.writes.count, 1)
+    XCTAssertTrue(copies.isEmpty)
+    XCTAssertTrue(call.copyResult())
+    XCTAssertEqual(copies, ["result"])
     call.cancel()
     XCTAssertEqual(host.writes.count, 1)
   }

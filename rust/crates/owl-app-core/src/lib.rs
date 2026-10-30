@@ -75,3 +75,5 @@ pub mod template_import;
 pub mod template_library;
 pub mod template_migration;
 pub mod template_transaction;
+
+pub mod template_session;

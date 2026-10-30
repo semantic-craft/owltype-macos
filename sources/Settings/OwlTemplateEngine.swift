@@ -135,6 +135,17 @@ enum OwlTemplateEngine {
   }
   static func render(_ parsed: Parsed, values: [String: String], context: FrozenContext = .init(),
                      decisions: Decisions = .init()) -> Evaluation {
+    let facts = contextFacts(parsed, context: context)
+    do {
+      return try OwlAppCore.call(["operation": "template_render", "parsed": OwlAppCore.payload(parsed),
+        "values": values, "clipboard": facts["clipboard"]!, "clipboard_text": facts["clipboard_text"]!,
+        "allow_empty": decisions.allowEmptyClipboard, "temporal": facts["temporal"]!])
+    } catch {
+      return Evaluation(previewText: parsed.tokens.map(\.raw).joined(),
+        diagnostics: parsed.diagnostics + [failure()], missingKeys: [])
+    }
+  }
+  static func contextFacts(_ parsed: Parsed, context: FrozenContext) -> [String: Any] {
     var facts: [String: Any] = [:]
     if let temporal = context.temporal {
       for (index, token) in parsed.tokens.enumerated() {
@@ -152,14 +163,7 @@ enum OwlTemplateEngine {
     case .nonText: clipboard = "nonText"
     case .text(let text): clipboard = "text"; clipboardText = text
     }
-    do {
-      return try OwlAppCore.call(["operation": "template_render", "parsed": OwlAppCore.payload(parsed),
-        "values": values, "clipboard": clipboard, "clipboard_text": clipboardText as Any? ?? NSNull(),
-        "allow_empty": decisions.allowEmptyClipboard, "temporal": facts])
-    } catch {
-      return Evaluation(previewText: parsed.tokens.map(\.raw).joined(),
-        diagnostics: parsed.diagnostics + [failure()], missingKeys: [])
-    }
+    return ["clipboard": clipboard, "clipboard_text": clipboardText as Any? ?? NSNull(), "temporal": facts]
   }
   static func quoted(_ value: String) -> String {
     // Quoting cannot fail for input size: use the same Rust escaping operation in bounded chunks.
