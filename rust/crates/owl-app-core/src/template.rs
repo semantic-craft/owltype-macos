@@ -86,8 +86,6 @@ pub struct Evaluation {
     pub missing_keys: Vec<String>,
     pub needs_empty_clipboard_decision: bool,
     pub cursor_offset: Option<usize>,
-    #[serde(default)]
-    pub ready_text: Option<String>,
 }
 #[derive(Default, Deserialize)]
 pub struct TemporalFact {
@@ -420,7 +418,7 @@ pub fn parse(
         return p;
     }
     // ICU dot excludes all line terminators, not just LF.
-    let re = regex::Regex::new(r"\{\{([^\n\r\u{85}\u{2028}\u{2029}]*?)\}\}").unwrap();
+    let re = regex::Regex::new(r"\{\{([^\n\r\x0B\x0C\u{85}\u{2028}\u{2029}]*?)\}\}").unwrap();
     let matches: BTreeMap<usize, (usize, &str)> = re
         .captures_iter(body)
         .map(|c| {
@@ -711,18 +709,12 @@ pub fn render(
             }
         }
     }
-    let ready_text = if !needs && missing.is_empty() && !has_errors(&diagnostics) {
-        Some(text.clone())
-    } else {
-        None
-    };
     Evaluation {
         preview_text: text,
         diagnostics,
         missing_keys: missing,
         needs_empty_clipboard_decision: needs,
         cursor_offset: cursor,
-        ready_text,
     }
 }
 #[derive(Clone, Deserialize, Serialize)]
@@ -928,6 +920,6 @@ pub fn location(body: &str, location: usize) -> String {
     )
 }
 
-pub fn ready(e: &Evaluation) -> bool {
-    !e.needs_empty_clipboard_decision && e.missing_keys.is_empty() && !has_errors(&e.diagnostics)
+pub fn ready(severities: &[String], missing_count: usize, needs_empty: bool) -> bool {
+    !needs_empty && missing_count == 0 && !severities.iter().any(|s| s == "error")
 }

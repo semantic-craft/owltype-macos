@@ -24,6 +24,12 @@ final class OwlTemplateEngineTests: XCTestCase {
     XCTAssertNil(OwlTemplateEngine.render(parsed, values: [:]).readyText)
     let normal = OwlTemplateEngine.parse(entry("{argument name=x}"))
     XCTAssertNil(OwlTemplateEngine.render(normal, values: ["n:x": body]).readyText)
+    // A bounded request may legitimately expand past the transport's request limit.
+    let repeated = OwlTemplateEngine.parse(entry(String(repeating: "{argument name=x}", count: 1000)))
+    let expanded = OwlTemplateEngine.render(repeated, values: ["n:x": String(repeating: "a", count: 5000)])
+    XCTAssertTrue(expanded.diagnostics.isEmpty)
+    XCTAssertEqual(expanded.previewText.utf8.count, 5_000_000)
+    XCTAssertEqual(expanded.readyText?.utf8.count, 5_000_000)
   }
 
   func testAdjacentRepeatedAnonymousAndUnicode() {
@@ -64,6 +70,13 @@ final class OwlTemplateEngineTests: XCTestCase {
   }
 
   func testLegacyAndPlainPreserveSingleBraces() {
+    // ICU regex dot treats VT/FF as line terminators as well as LF/CR/NEL/LS/PS.
+    for separator in ["\n", "\r", "\u{b}", "\u{c}", "\u{85}", "\u{2028}", "\u{2029}"] {
+      let multiline = "{{a" + separator + "b}}"
+      let parsed = OwlTemplateEngine.parse(entry(multiline, legacy: true))
+      XCTAssertTrue(parsed.parameters.isEmpty)
+      XCTAssertEqual(OwlTemplateEngine.render(parsed, values: parsed.initialValues).readyText, multiline)
+    }
     let body = " {{clipboard}}/{clipboard}/{date}/{argument} {{}}\n\t"
     let legacy = OwlTemplateEngine.parse(entry(body, legacy: true))
     XCTAssertEqual(legacy.parameters.map(\.key), ["n:clipboard"])

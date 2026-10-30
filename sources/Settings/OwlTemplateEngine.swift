@@ -100,7 +100,9 @@ enum OwlTemplateEngine {
     var needsEmptyClipboardDecision = false
     var cursorOffset: Int? = nil
     var readyText: String? {
-      let ready: Bool = (try? OwlAppCore.call(["operation": "template_ready", "evaluation": OwlAppCore.payload(self)])) ?? false
+      let ready: Bool = (try? OwlAppCore.call(["operation": "template_ready",
+        "severities": diagnostics.map { $0.severity.rawValue }, "missing_count": missingKeys.count,
+        "needs_empty": needsEmptyClipboardDecision])) ?? false
       return ready ? previewText : nil
     }
   }

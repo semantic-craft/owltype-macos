@@ -96,7 +96,9 @@ UTF-16 token/diagnostic ranges, parameter identity/defaults/options, context req
 initial values, nonrecursive expansion, clipboard decisions, cursor grapheme boundaries
 and final readiness. `OwlTemplateEngine` retains the existing App interface as Codable DTOs.
 User-authored requests rejected by the bounded ABI become blocking template diagnostics,
-not `required()` preconditions. No template body or parameter value is logged.
+not `required()` preconditions. Readiness exchanges only compact diagnostic/decision facts,
+so repeated parameters can produce output larger than the request limit. No template body
+or parameter value is logged.
 
 Temporal rendering uses the invocation's frozen Foundation calendar, locale, zone and
 resolved default patterns. Rust parses TR35 patterns and offset syntax, validates the

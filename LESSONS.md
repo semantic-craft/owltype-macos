@@ -1115,3 +1115,9 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
   clipboard and cursor suites must still deliver through the real Swift→Rust seam.
   `testOversizedTemplatePayloadBlocksWithoutCrashing` checks parser and renderer rejection
   as diagnostics instead of ABI precondition crashes. These are isolated App-host checks.
+
+- The independent #359 review also found ICU dot's VT/FF exclusions missing from the
+  legacy regex, turning multiline literals into empty substitutions, and a readiness request
+  that resent the whole expanded preview through the 4 MiB input limit. Existing legacy and
+  transport tests now replay both failures, including a small request producing 5,000,000
+  output bytes. Send only compact readiness facts; a request limit is not an output limit.

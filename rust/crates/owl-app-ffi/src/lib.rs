@@ -11,7 +11,9 @@ const MAX_REQUEST: usize = 4 * 1024 * 1024;
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
     TemplateReady {
-        evaluation: owl_app_core::template::Evaluation,
+        severities: Vec<String>,
+        missing_count: usize,
+        needs_empty: bool,
     },
     TemplateLocation {
         body: String,
@@ -125,7 +127,15 @@ fn dispatch(bytes: &[u8]) -> Value {
         Err(_) => return error("invalid_request"),
     };
     let result = match request {
-        Request::TemplateReady { evaluation } => json!(owl_app_core::template::ready(&evaluation)),
+        Request::TemplateReady {
+            severities,
+            missing_count,
+            needs_empty,
+        } => json!(owl_app_core::template::ready(
+            &severities,
+            missing_count,
+            needs_empty
+        )),
         Request::TemplateLocation { body, location } => {
             json!(owl_app_core::template::location(&body, location))
         }
