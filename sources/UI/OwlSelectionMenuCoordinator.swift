@@ -17,6 +17,7 @@ import SwiftUI
 /// 「任意提问」对选区直接下指令兜底；「结构化·加标签」并入「提示词优化」（优化+加标签一次做完）。
 enum OwlSelectionMenuAction: String, CaseIterable, Sendable {
   case ask
+  case jevReply
   case polish
   case sourceVerification
   case researchAssist
@@ -27,6 +28,7 @@ enum OwlSelectionMenuAction: String, CaseIterable, Sendable {
 
   var title: String {
     switch self {
+    case .jevReply: return "回复建议"
     case .ask: return "任意提问"
     case .polish: return "润色"
     case .sourceVerification: return "来源核验"
@@ -43,6 +45,7 @@ enum OwlSelectionMenuAction: String, CaseIterable, Sendable {
 
   var symbol: String {
     switch self {
+    case .jevReply: return "bubble.left.and.bubble.right"
     case .ask: return "text.bubble"
     case .polish: return "wand.and.stars"
     case .sourceVerification: return "checkmark.seal"
@@ -62,6 +65,7 @@ enum OwlSelectionMenuAction: String, CaseIterable, Sendable {
     // （此前只挡 ask/polish，其余 6 个照常显示、点了才在窗口内报错——设置页文案与实际不符。）
     guard cloudEnabled else { return [] }
     var out: [OwlSelectionMenuAction] = []
+    if OwlSelectionMenuPreferences.jevReplyEnabled { out.append(.jevReply) }
     // 任意提问是全部划词技能的兜底（带选区开对话窗、对选区下指令），入口只有本菜单项；直达热键
     // 与状态栏的无选区入口都已退役（2026-07-26）。同日起它有自己的技能开关（默认开）。
     if OwlSelectionMenuPreferences.askEnabled {
@@ -300,6 +304,11 @@ final class OwlSelectionMenuCoordinator {
   /// （核验回执卡、三个替换原文的技能）先关窗（把焦点还给宿主，替换流与小菜单时代同构）再执行。
   private func toolboxPick(_ action: OwlSelectionMenuAction, snapshot: OwlSelectionMenuSnapshot) {
     switch action {
+    case .jevReply:
+      Task { @MainActor in
+        OwlAIWindow.shared.close()
+        JEVReplyPanel.shared.show(text: snapshot.text, source: "owltype-selection")
+      }
     case .ask:
       break  // 输入框本身就是任意提问，没有按钮。
     case .translate:
