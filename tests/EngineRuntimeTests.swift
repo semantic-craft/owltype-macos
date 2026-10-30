@@ -221,6 +221,28 @@ final class EngineRuntimeTests: XCTestCase {
     XCTAssertTrue(ran)
   }
 
+  @MainActor
+  func testKeyboardApplyPreservesCompositionUntilIdle() throws {
+    let delegate = NSApp.owlAppDelegate
+    let previousEngine = delegate.runtime.engine
+    delegate.runtime.engine = FakeInputEngine()
+    defer { delegate.runtime.engine = previousEngine }
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    controller.destroySession()
+    let session = FakeEngineSession(sessionID: 31, input: "ni")
+    controller.engineSession = session
+    let runtime = makeRuntime(FakeInputEngine())
+    runtime.registerLiveController(controller)
+
+    _ = try runtime.applyKeyboardSettings(.config)
+
+    XCTAssertFalse(session.destroyed, "applying settings must not tear down a composing session")
+    XCTAssertEqual(controller.engineSession?.input(), "ni")
+    session.scriptedInput = nil
+    XCTAssertFalse(runtime.applyPendingLiveSessionRefreshIfIdle())
+    XCTAssertTrue(session.destroyed, "the queued configuration refresh runs at the idle boundary")
+  }
+
   // MARK: - Helpers
 
   private func makeRuntime(_ engine: FakeInputEngine) -> EngineRuntime {

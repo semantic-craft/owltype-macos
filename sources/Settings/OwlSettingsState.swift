@@ -153,7 +153,7 @@ final class OwlSettingsState {
   var panelScrollRows = OwlCandidatePanelSettings.defaultScrollRows
   /// G8 候选个数 mirror of `OwlKeyboardPreferences.pageSize` (Rime menu/page_size).
   /// Unlike the panel mirrors, this flows through the keyboard patch + 应用配置改动.
-  var candidatePageSize: Int = 6
+  var candidatePageSize = OwlAppCore.defaultKeyboard.pageSize
 
   // MARK: - 键盘输入 page mirrors (v0.3.1)
 
@@ -163,9 +163,9 @@ final class OwlSettingsState {
   /// are seeded by the delegate and written through `OwlKeyboardPreferences`.
 
   /// 输入方式: 拼音 / 双拼 (mirror of `OwlKeyboardPreferences.inputMethod`).
-  var keyboardInputMethod: OwlInputMethod = .pinyin
+  var keyboardInputMethod = OwlInputMethod(rawValue: OwlAppCore.defaultKeyboard.inputMethod)!
   /// 双拼方案 (mirror of `OwlKeyboardPreferences.doublePinyin`).
-  var keyboardDoublePinyin: OwlDoublePinyin = .flypy
+  var keyboardDoublePinyin = OwlDoublePinyin(rawValue: OwlAppCore.defaultKeyboard.doublePinyin)!
   /// 四码唯一自动上屏 (mirror of `OwlKeyboardPreferences.wubiAutoCommitUnique`).
   var keyboardWubiAutoCommitUnique = OwlKeyboardSwitch.wubiAutoCommitUnique.defaultValue
   /// 第五码顶字上屏 (mirror of `OwlKeyboardPreferences.wubiFifthCodeTopCommit`).
@@ -177,9 +177,9 @@ final class OwlSettingsState {
   /// 五笔空码自动清码 (mirror of `OwlKeyboardPreferences.wubiAutoClear`).
   var keyboardWubiAutoClear = OwlKeyboardSwitch.wubiAutoClear.defaultValue
   /// 五笔单字候选模式 (mirror of `OwlKeyboardPreferences.wubiCandidateMode`).
-  var keyboardWubiCandidateMode: OwlWubiCandidateMode = .normal
+  var keyboardWubiCandidateMode = OwlWubiCandidateMode(rawValue: OwlAppCore.defaultKeyboard.candidateMode)!
   /// 五笔方案 (mirror of `OwlKeyboardPreferences.wubiScheme`).
-  var keyboardWubiScheme: OwlWubiScheme = .jidian86
+  var keyboardWubiScheme = OwlWubiScheme(rawValue: OwlAppCore.defaultKeyboard.wubiScheme)!
   /// z 临时拼音反查 (mirror of `OwlKeyboardPreferences.wubiZReverseLookup`).
   var keyboardWubiZReverseLookup = OwlKeyboardSwitch.wubiZReverseLookup.defaultValue
   /// ` 临时英文（五笔前缀英文通道，mirror of `OwlKeyboardPreferences.wubiEnglishChannel`）。Default false（出厂关）.
@@ -213,7 +213,7 @@ final class OwlSettingsState {
   /// 「<」键弹出符号选单 (mirror of `OwlKeyboardPreferences.angleSymbolMenu`)。Default false（出厂关）.
   var keyboardAngleSymbolMenu = OwlKeyboardSwitch.angleSymbolMenu.defaultValue
   /// 中文与英文间加入空格 (mirror of `OwlKeyboardPreferences.cjkAlnumSpacing`).
-  var keyboardCJKAlnumSpacing: Bool = false
+  var keyboardCJKAlnumSpacing = OwlKeyboardSwitch.cjkEnglishSpacing.defaultValue || OwlKeyboardSwitch.cjkNumberSpacing.defaultValue
   /// 中英文自动空格 legacy mirror.
   var keyboardCJKEnglishSpacing = OwlKeyboardSwitch.cjkEnglishSpacing.defaultValue
   /// 中文与数字自动空格 legacy mirror.
@@ -226,9 +226,9 @@ final class OwlSettingsState {
   /// 这些 App 默认英文 (mirror of `OwlKeyboardPreferences.appEnglishBundleIDs`).
   var keyboardAppEnglishBundleIDsText: String = ""
   /// 逐键候选重排 (mirror of `OwlExperimentalPreferences.keyboardRerankEnabled`). Default false.
-  var keyboardRerankEnabled: Bool = false
+  var keyboardRerankEnabled = OwlAppCore.keyboardCatalog.auxiliaryDefaults["OwlExperimentalKeyboardRerankEnabled"]!
   /// 停顿候选重排 (mirror of `OwlExperimentalPreferences.settledRerankEnabled`). Default false.
-  var settledRerankEnabled: Bool = false
+  var settledRerankEnabled = OwlAppCore.keyboardCatalog.auxiliaryDefaults["OwlExperimentalSettledRerankEnabled"]!
 
   // MARK: - 皮肤外观 / 候选 emoji
 
@@ -236,7 +236,7 @@ final class OwlSettingsState {
   /// `OwlCandidatePanelSettings` re-skins both the settings window and live candidate panel.
   var skin: OwlSkin = .deepred
   /// 在候选中显示 emoji (mirror of `OwlEmojiPreferences.candidateEmojiEnabled`). Default true（上游 macOS 默认）.
-  var candidateEmojiEnabled: Bool = true
+  var candidateEmojiEnabled = OwlAppCore.keyboardCatalog.auxiliaryDefaults["OwlEmojiInCandidates"]!
   var quickPhraseCandidates = OwlKeyboardSwitch.quickPhraseCandidates.defaultValue
   /// Cloud AI enable — 全部划词技能的总闸 (mirror of `OwlCloudPreferences.isEnabled`).
   var cloudEnabled: Bool = false
@@ -420,8 +420,7 @@ enum OwlSettingsActions {
     set(method, state: state, keyPath: \.keyboardInputMethod) {
       OwlKeyboardPreferences.inputMethod = $0
     }
-    onSelectSchema(method.schemaId(doublePinyin: state.keyboardDoublePinyin, wubiScheme: state.keyboardWubiScheme))
-    applyConfig()
+    applyKeyboardSelection("inputMethod", state: state, applyConfig: applyConfig, onSelectSchema: onSelectSchema)
   }
 
   static func selectDoublePinyin(
@@ -433,10 +432,7 @@ enum OwlSettingsActions {
     set(scheme, state: state, keyPath: \.keyboardDoublePinyin) {
       OwlKeyboardPreferences.doublePinyin = $0
     }
-    if state.keyboardInputMethod == .doublePinyin {
-      onSelectSchema(scheme.schemaId)
-      applyConfig()
-    }
+    applyKeyboardSelection("doublePinyin", state: state, applyConfig: applyConfig, onSelectSchema: onSelectSchema)
   }
 
   static func selectWubiScheme(
@@ -448,8 +444,20 @@ enum OwlSettingsActions {
     set(scheme, state: state, keyPath: \.keyboardWubiScheme) {
       OwlKeyboardPreferences.wubiScheme = $0
     }
-    if state.keyboardInputMethod == .wubi {
-      onSelectSchema(scheme.schemaId)
+    applyKeyboardSelection("wubiScheme", state: state, applyConfig: applyConfig, onSelectSchema: onSelectSchema)
+  }
+
+  private static func applyKeyboardSelection(
+    _ changed: String, state: OwlSettingsState, applyConfig: () -> Void,
+    onSelectSchema: (String) -> Void
+  ) {
+    let plan: OwlAppCore.KeyboardSelection = OwlAppCore.required([
+      "operation": "keyboard_selection", "changed": changed,
+      "raw": ["inputMethod": state.keyboardInputMethod.rawValue,
+              "doublePinyin": state.keyboardDoublePinyin.rawValue,
+              "wubiScheme": state.keyboardWubiScheme.rawValue]])
+    if let schema = plan.schema {
+      onSelectSchema(schema)
       applyConfig()
     }
   }

@@ -6,7 +6,7 @@
     "open_pulls": [
       {
         "number": 368,
-        "head": "4f10b28fb6b317c221277af2362ab5678100d27f"
+        "head": "10e2270575d128d1d86ac542f6272810b75ab0ef"
       }
     ],
     "issues": [
@@ -188,73 +188,73 @@
         "number": 356,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-30T04:10:23Z"
+        "updated_at": "2026-10-30T04:20:16Z"
       },
       {
         "number": 357,
-        "state": "open",
-        "reason": null,
-        "updated_at": "2026-10-30T04:10:25Z"
+        "state": "closed",
+        "reason": "completed",
+        "updated_at": "2026-10-30T04:39:35Z"
       },
       {
         "number": 358,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-30T04:10:28Z"
+        "updated_at": "2026-10-30T04:40:11Z"
       },
       {
         "number": 359,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-30T04:10:30Z"
+        "updated_at": "2026-10-30T04:22:32Z"
       },
       {
         "number": 360,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-30T04:10:33Z"
+        "updated_at": "2026-10-30T04:22:35Z"
       },
       {
         "number": 361,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-30T04:10:36Z"
+        "updated_at": "2026-10-30T04:22:37Z"
       },
       {
         "number": 362,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-30T04:10:38Z"
+        "updated_at": "2026-10-30T04:22:40Z"
       },
       {
         "number": 363,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-30T04:10:41Z"
+        "updated_at": "2026-10-30T04:22:42Z"
       },
       {
         "number": 364,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-30T04:10:44Z"
+        "updated_at": "2026-10-30T04:22:45Z"
       },
       {
         "number": 365,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-30T04:10:46Z"
+        "updated_at": "2026-10-30T04:22:48Z"
       },
       {
         "number": 366,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-30T04:10:49Z"
+        "updated_at": "2026-10-30T04:22:50Z"
       },
       {
         "number": 367,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-30T04:10:51Z"
+        "updated_at": "2026-10-30T04:22:53Z"
       }
     ],
     "releases": []
@@ -264,7 +264,7 @@
     "progress/sync.py",
     "progress/teslahub.mjs"
   ],
-  "observed_at": "2026-10-30T04:11:17Z",
+  "observed_at": "2026-10-30T04:51:57Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -723,9 +723,9 @@
         {
           "id": "issue-357",
           "title": "#357 [Rust 业务核心] 阶段 0：建立业务归属、App FFI 与行为基线",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：无。",
-          "next": "读取工单和开放 PR，经共享领取入口核实后领取。",
+          "status": "unverified",
+          "summary": "GitHub: closed；负责人：未指派；未关闭前置：无。",
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
@@ -737,9 +737,9 @@
         {
           "id": "issue-358",
           "title": "#358 [Rust 业务核心] 阶段 1：设置规则与输入配置迁入 Rust",
-          "status": "blocked",
-          "summary": "GitHub: open；负责人：未指派；未关闭前置：#357。",
-          "next": "等待前置完成，复用其成果。",
+          "status": "in_progress",
+          "summary": "GitHub: open；负责人：未指派；未关闭前置：无。",
+          "next": "读取工单和开放 PR，经共享领取入口核实后领取。",
           "evidence": [
             {
               "kind": "issue",

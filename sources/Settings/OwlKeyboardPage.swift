@@ -927,16 +927,13 @@ struct OwlKeyboardPage: View {
     applyCurrentKeyboardSnapshot()
   }
 
-  /// Track-2 config-only apply path (页内 Rime-backed toggles + App 默认英文). The shared application module writes the
-  /// managed patch, then config deploy + live reselect + replay makes it
-  /// effective immediately — no full `EngineRuntime.redeploy()`.
+  /// Activate saved settings through the Rust plan. Safe options apply live; engine rebuilds
+  /// and native session replacement wait for the current composition to finish.
   private func applyCurrentKeyboardSnapshot() {
     applyKeyboardSnapshot(onApplyKeyboardConfigFast)
   }
 
-  /// 模糊拼音 apply path. `speller/algebra` rebuilds the schema PRISM, which the config-only
-  /// fast path does NOT do, so this uses the mtime-gated `fullCheck:false` maintenance —
-  /// faster than the full `deploy()` but not instant.
+  /// The Rust application plan preserves maintenance/join ordering and the idle boundary.
   private func applyFuzzyKeyboardSnapshot() {
     applyKeyboardSnapshot(onApplyFuzzyConfigFast)
   }

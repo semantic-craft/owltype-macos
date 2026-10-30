@@ -1,5 +1,8 @@
 //! Owltype-owned business rules. No AppKit, IMK, credentials or host callbacks.
 
+pub mod keyboard;
+pub mod keyboard_export;
+
 /// Existing per-application initial input mode; preferences are supplied by the host.
 pub fn initial_ascii_mode(
     bundle_id: &str,

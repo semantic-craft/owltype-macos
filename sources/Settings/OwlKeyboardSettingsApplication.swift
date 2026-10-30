@@ -33,7 +33,10 @@ struct OwlKeyboardSettingsApplication {
   /// `written` is always empty and `snapshot` is not read.
   func apply(_ snapshot: OwlKeyboardSnapshot, mode: Mode) throws -> Outcome {
     // Do not overwrite migration inputs while their rollback journal is unresolved.
-    guard !OwlTemplateMigration.hasPendingRecovery(dataDir: directory) else {
+    let plan: OwlAppCore.KeyboardApplication = OwlAppCore.required([
+      "operation": "keyboard_application", "mode": mode == .config ? "config" : "fuzzy",
+      "recovery_pending": OwlTemplateMigration.hasPendingRecovery(dataDir: directory)])
+    guard !plan.blocked else {
       throw Failure.recoveryPending
     }
     // Keep the existing activation-only diagnostics; persistence precedes this interval.
@@ -44,16 +47,16 @@ struct OwlKeyboardSettingsApplication {
       OwlPerf.since(performance, mode == .config ? "fastapply.config" : "fastapply.fuzzy")
       OwlLatencyTrace.end(traceName, trace)
     }
-    let succeeded: Bool
-    switch mode {
-    case .config:
-      succeeded = engine.deployConfigFile("default.yaml", versionKey: "config_version")
-    case .fuzzy:
-      succeeded = engine.startMaintenance(fullCheck: false)
-      // The prism must be ready before a live session reads it.
-      if succeeded { engine.joinMaintenance() }
+    var succeeded = true
+    for effect in plan.effects {
+      switch effect {
+      case "deploy": succeeded = engine.deployConfigFile("default.yaml", versionKey: "config_version")
+      case "maintenance": succeeded = engine.startMaintenance(fullCheck: false)
+      case "join_if_succeeded": if succeeded { engine.joinMaintenance() }
+      case "refresh": refresh()
+      default: preconditionFailure("Incompatible keyboard application plan")
+      }
     }
-    refresh()
     return Outcome(written: [], succeeded: succeeded)
   }
 }

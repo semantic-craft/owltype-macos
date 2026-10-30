@@ -37,7 +37,7 @@ import Foundation
 
 /// 一段「托管块」：标记名 + 已经按 `patch:` 下 2 空格缩进的若干 YAML 行。
 /// `yamlLinesIndentedUnderPatch` 不含 `patch:` 行、不含标记注释——只是块内的键。
-struct ManagedPatchBlock {
+struct ManagedPatchBlock: Decodable {
   let marker: String
   let yamlLinesIndentedUnderPatch: [String]
 }
@@ -58,7 +58,7 @@ enum OwlManagedMarker {
 }
 
 /// One file that Owltype can merge into its own Rime user_data_dir.
-struct OwlManagedPatchFile {
+struct OwlManagedPatchFile: Decodable {
   let fileName: String
   let block: ManagedPatchBlock
 }
@@ -66,53 +66,7 @@ struct OwlManagedPatchFile {
 /// Shared keyboard patch plan used by the preview sheet and the CLI smoke command.
 enum OwlManagedKeyboardPatchPlan {
   static func files(from snapshot: OwlKeyboardSnapshot) -> [OwlManagedPatchFile] {
-    var out: [OwlManagedPatchFile] = []
-
-    let defaultYAML = owlDefaultCustomYAML(from: snapshot)
-    out.append(OwlManagedPatchFile(
-      fileName: "default.custom.yaml",
-      block: OwlConfigWriter.managedBlock(
-        fromGeneratedYAML: defaultYAML,
-        marker: OwlManagedMarker.defaultPatch
-      )
-    ))
-
-    // App 默认英文 — per-app `app_options` MUST target the OWLTYPE domain (owltype.custom.yaml),
-    // the only domain OwlConfig.getAppOptions reads. Empty list → empty managed block
-    // (clears any app_options Owltype wrote before). This is what makes user-added apps take effect.
-    let owlAppOptionsYAML = owlAppOptionsCustomYAML(from: snapshot)
-    out.append(OwlManagedPatchFile(
-      fileName: "owltype.custom.yaml",
-      block: OwlConfigWriter.managedBlock(
-        fromGeneratedYAML: owlAppOptionsYAML,
-        marker: OwlManagedMarker.owlAppOptions
-      )
-    ))
-
-    // Always include the schema-level fuzzy file. When all pairs are off the generated
-    // YAML has no `patch:` body, so the managed block becomes empty and clears any older
-    // fuzzy rules previously written by Owltype.
-    let rimeIceYAML = owlRimeIceCustomYAML(from: snapshot)
-    out.append(OwlManagedPatchFile(
-      fileName: "rime_ice.custom.yaml",
-      block: OwlConfigWriter.managedBlock(
-        fromGeneratedYAML: rimeIceYAML,
-        marker: OwlManagedMarker.rimeIce
-      )
-    ))
-
-    for target in owlWubiPatchTargets {
-      let wubiYAML = owlWubiCustomYAML(from: snapshot, target: target)
-      out.append(OwlManagedPatchFile(
-        fileName: target.fileName,
-        block: OwlConfigWriter.managedBlock(
-          fromGeneratedYAML: wubiYAML,
-          marker: OwlManagedMarker.wubiJidian
-        )
-      ))
-    }
-
-    return out
+    OwlAppCore.required(["operation": "keyboard_export_plan", "snapshot": OwlAppCore.payload(snapshot)])
   }
 
   static func apply(
@@ -212,25 +166,12 @@ final class OwlConfigWriter {
   /// - 否则若 `original` 含 `patch:`：在末尾追加 `\n\n` + 托管块 + `\n`。
   /// - 否则（无 `patch:`，无法安全创建）：`throw fileHasNoPatchAndCannotCreate`。
   func renderManagedBlock(_ original: String, block: ManagedPatchBlock) throws -> String {
-    // The public seed uses `patch: {}`. Expand that empty map before adding children.
-    let original = original.replacingOccurrences(
-      of: #"(?m)^patch:\s*\{\s*\}[ \t]*(#.*)?$"#,
-      with: "patch: $1", options: .regularExpression)
-    let begin = "  # >>> \(block.marker)"
-    let end = "  # <<< \(block.marker)"
-    let managed = ([begin] + block.yamlLinesIndentedUnderPatch + [end])
-      .joined(separator: "\n")
-
-    if let beginRange = original.range(of: begin),
-       let endRange = original.range(of: end) {
-      let replaceRange = beginRange.lowerBound..<endRange.upperBound
-      return original.replacingCharacters(in: replaceRange, with: managed)
-    }
-
-    guard original.contains("patch:") else {
+    do {
+      return try OwlAppCore.call(["operation": "keyboard_render_managed", "original": original,
+                                 "marker": block.marker, "lines": block.yamlLinesIndentedUnderPatch])
+    } catch let failure as OwlAppCore.Failure where failure.code == "invalid_patch" {
       throw OwlConfigWriteError.fileHasNoPatchAndCannotCreate
     }
-    return original.trimmingCharacters(in: .newlines) + "\n\n" + managed + "\n"
   }
 
   /// **PURE** helper：把一段 `owlDefaultCustomYAML` / `owlRimeIceCustomYAML` 的生成结果转成
@@ -240,29 +181,7 @@ final class OwlConfigWriter {
   /// 注意：只丢「文件头部」的连续 `#` 行（在遇到第一个 `patch:` 之前），块内部的注释行
   /// （如 `  # 候选翻页…`）会被保留——它们是 2 空格缩进的，属于块内容。
   static func managedBlock(fromGeneratedYAML yaml: String, marker: String) -> ManagedPatchBlock {
-    let rawLines = yaml.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-    var body: [String] = []
-    var seenPatch = false
-    for line in rawLines {
-      if !seenPatch {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        if trimmed == "patch:" {
-          seenPatch = true
-          continue
-        }
-        // 头部 `#` 注释行 / 空行：在 patch: 之前的，丢弃。
-        if trimmed.hasPrefix("#") || trimmed.isEmpty { continue }
-        // 兜底：patch: 之前出现非头部行（理论上不该发生），保留之。
-        body.append(line)
-        continue
-      }
-      body.append(line)
-    }
-    // 裁掉尾随空行，避免块尾多出空白。
-    while let last = body.last, last.trimmingCharacters(in: .whitespaces).isEmpty {
-      body.removeLast()
-    }
-    return ManagedPatchBlock(marker: marker, yamlLinesIndentedUnderPatch: body)
+    OwlAppCore.required(["operation": "keyboard_managed_block", "yaml": yaml, "marker": marker])
   }
 
   // MARK: - dry-run（默认、安全；UI 用）

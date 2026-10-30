@@ -38,6 +38,29 @@ Split entries retain only their native parts as the corresponding ticket is deli
   host services. Provider protocol, retry/route choice, template syntax, data
   transactions and cancellation decisions belong to Rust.
 
+## Keyboard configuration
+
+[`keyboard.rs`](../../rust/crates/owl-app-core/src/keyboard.rs) owns the settings catalog,
+legacy raw-value normalization, schema mapping, custom shuangpin tables, fuzzy bit order,
+selection/application plans and idle eligibility. Native controls keep their existing
+keys and value formats. The Swift adapter decodes the immutable catalog once and caches
+normalized multi-value and fuzzy projections until their raw inputs change. The existing
+per-session last-applied option slots remain native transport caches.
+
+`owl_app_keyboard_refresh` and `owl_app_keyboard_can_apply` are allocation-free ABI 1
+scalar calls for input boundaries: 0/1 Boolean inputs; refresh returns 0 (none), 1 (defer)
+or 2 (apply), and can-apply returns 0/1. They perform no I/O or callbacks. Ordinary input
+never JSON-decodes the complete catalog per key. Options that rebuild an engine wait
+until its composition is idle; settings-triggered native session replacement also waits
+for all live compositions, preserving selected phrase progress that raw-input replay loses.
+Safe live options retain their current application behavior.
+
+[`keyboard_export.rs`](../../rust/crates/owl-app-core/src/keyboard_export.rs) owns the
+retained YAML preview/export strings, complete file plan and managed-block rendering.
+This does not reintroduce YAML into normal settings activation. Shared write/backup/rollback
+transactions remain assigned to storage migration, and input commit transforms remain
+assigned to lifecycle/input closeout; their inventory rows identify the remaining owner.
+
 ## Behavior and data baselines
 
 Use existing synthetic fixtures and the real Swift/FFI seam; do not copy personal data.

@@ -24,7 +24,7 @@ import Foundation
 
 /// Input method family. These are the first-class local modes shown on the 键盘输入 page.
 /// Eventual Rime mapping: the active `schema_id` + mode-specific Rime patch.
-enum OwlInputMethod: String, CaseIterable, Sendable {
+enum OwlInputMethod: String, CaseIterable, Sendable, Encodable {
   case pinyin
   case doublePinyin
   /// 五笔输入 (参照微信). The 86/拼音混输 sub-choice moved into the `OwlWubiScheme` dropdown,
@@ -40,17 +40,16 @@ enum OwlInputMethod: String, CaseIterable, Sendable {
   }
 
   func schemaId(doublePinyin: OwlDoublePinyin, wubiScheme: OwlWubiScheme) -> String {
-    switch self {
-    case .pinyin: return "rime_ice"
-    case .doublePinyin: return doublePinyin.schemaId
-    case .wubi: return wubiScheme.schemaId
-    }
+    let value: OwlAppCore.EffectiveKeyboard = OwlAppCore.required([
+      "operation": "keyboard_effective", "raw": ["inputMethod": rawValue,
+        "doublePinyin": doublePinyin.rawValue, "wubiScheme": wubiScheme.rawValue]])
+    return value.preferredSchemaID
   }
 }
 
 /// 五笔方案 sub-selection shown in the 输入方式 dropdown when 五笔输入 is active — mirrors the
 /// 双拼 dropdown pattern. 简入繁出 remains available through the global toggle.
-enum OwlWubiScheme: String, CaseIterable, Sendable {
+enum OwlWubiScheme: String, CaseIterable, Sendable, Encodable {
   case jidian86
   case pinyinMix
   case jidian98
@@ -66,16 +65,11 @@ enum OwlWubiScheme: String, CaseIterable, Sendable {
   }
 
   var schemaId: String {
-    switch self {
-    case .jidian86: return "wubi86_jidian"
-    case .pinyinMix: return "wubi86_jidian_pinyin"
-    case .jidian98: return "wubi98"
-    case .pinyinMix98: return "wubi98_pinyin"
-    }
+    OwlAppCore.keyboardCatalog.wubiSchemas[rawValue]!
   }
 }
 
-enum OwlWubiCandidateMode: String, CaseIterable, Sendable {
+enum OwlWubiCandidateMode: String, CaseIterable, Sendable, Encodable {
   case normal
   case singleFirst
   case singleOnly
@@ -89,11 +83,7 @@ enum OwlWubiCandidateMode: String, CaseIterable, Sendable {
   }
 
   var luaFilter: String? {
-    switch self {
-    case .normal: return nil
-    case .singleFirst: return "lua_filter@*wubi86_jidian_single_char_first_filter"
-    case .singleOnly: return "lua_filter@*wubi86_jidian_single_char_only"
-    }
+    OwlAppCore.keyboardCatalog.candidateFilters[rawValue] ?? nil
   }
 }
 
@@ -105,7 +95,7 @@ enum OwlWubiCandidateMode: String, CaseIterable, Sendable {
 /// `double_pinyin_jiajia` (there is no `double_pinyin_pyjj`).
 ///
 /// These prefs are unreleased, so the `String` raw values may change freely.
-enum OwlDoublePinyin: String, CaseIterable, Sendable {
+enum OwlDoublePinyin: String, CaseIterable, Sendable, Encodable {
   /// 小鹤双拼 — rime-ice `schema_id`: `double_pinyin_flypy`. Owltype default.
   case flypy
   /// 微软双拼 — rime-ice `schema_id`: `double_pinyin_mspy`.
@@ -140,16 +130,7 @@ enum OwlDoublePinyin: String, CaseIterable, Sendable {
   /// rime-ice `schema_id` — the real schema id used by the commented schema hint in
   /// the generated `default.custom.yaml` patch.
   var schemaId: String {
-    switch self {
-    case .flypy: return "double_pinyin_flypy"
-    case .mspy: return "double_pinyin_mspy"
-    case .shoudao: return "double_pinyin_shoudao"
-    case .ziranma: return "double_pinyin"
-    case .sogou: return "double_pinyin_sogou"
-    case .abc: return "double_pinyin_abc"
-    case .ziguang: return "double_pinyin_ziguang"
-    case .jiajia: return "double_pinyin_jiajia"
-    }
+    OwlAppCore.keyboardCatalog.doublePinyinSchemas[rawValue]!
   }
 }
 
@@ -163,12 +144,7 @@ enum OwlKeyboardPreferences {
   /// Eventual Rime mapping: active `schema_id` + `speller/algebra`.
   static var inputMethod: OwlInputMethod {
     get {
-      switch OwlDefaults.standard.string(forKey: "OwlKeyboardInputMethod") {
-      case "doublePinyin": return .doublePinyin
-      // legacy（已发行）: 两个独立五笔单选并入 .wubi；子方案由 wubiScheme 还原。
-      case "wubi", "wubi86", "wubiPinyin": return .wubi
-      default: return .pinyin
-      }
+      OwlInputMethod(rawValue: OwlAppCore.effectiveKeyboard.inputMethod)!
     }
     set {
       OwlDefaults.standard.set(newValue.rawValue, forKey: "OwlKeyboardInputMethod")
@@ -179,11 +155,7 @@ enum OwlKeyboardPreferences {
   /// 迁移：key 未写且 legacy inputMethod 原值为 `"wubiPinyin"` 时回到 `.pinyinMix`，保住老用户的混输选择。
   static var wubiScheme: OwlWubiScheme {
     get {
-      if let raw = OwlDefaults.standard.string(forKey: "OwlKeyboardWubiScheme"),
-         let scheme = OwlWubiScheme(rawValue: raw) {
-        return scheme
-      }
-      return OwlDefaults.standard.string(forKey: "OwlKeyboardInputMethod") == "wubiPinyin" ? .pinyinMix : .jidian86
+      OwlWubiScheme(rawValue: OwlAppCore.effectiveKeyboard.wubiScheme)!
     }
     set {
       OwlDefaults.standard.set(newValue.rawValue, forKey: "OwlKeyboardWubiScheme")
@@ -195,11 +167,11 @@ enum OwlKeyboardPreferences {
   /// through the keyboard patch (`owlDefaultCustomYAML`) + 应用配置改动, not the live panel.
   static var pageSize: Int {
     get {
-      let stored = OwlDefaults.standard.integer(forKey: "OwlKeyboardPageSize")
-      return stored == 0 ? 6 : min(max(stored, 3), 9)
+      OwlAppCore.effectiveKeyboard.pageSize
     }
     set {
-      OwlDefaults.standard.set(min(max(newValue, 3), 9), forKey: "OwlKeyboardPageSize")
+      let value: Int = OwlAppCore.required(["operation": "keyboard_page_size_write", "value": newValue])
+      OwlDefaults.standard.set(value, forKey: "OwlKeyboardPageSize")
     }
   }
 
@@ -207,7 +179,7 @@ enum OwlKeyboardPreferences {
   /// Eventual Rime mapping: the chosen scheme's `schema_id`.
   static var doublePinyin: OwlDoublePinyin {
     get {
-      OwlDoublePinyin(rawValue: OwlDefaults.standard.string(forKey: "OwlKeyboardDoublePinyin") ?? "") ?? .flypy
+      OwlDoublePinyin(rawValue: OwlAppCore.effectiveKeyboard.doublePinyin)!
     }
     set {
       OwlDefaults.standard.set(newValue.rawValue, forKey: "OwlKeyboardDoublePinyin")
@@ -217,7 +189,7 @@ enum OwlKeyboardPreferences {
   /// The schema a new engine session must use to match the settings source of truth.
   /// Keeps stale `user.yaml` `previously_selected_schema` values from overriding Owltype prefs.
   static var preferredSchemaID: String {
-    inputMethod.schemaId(doublePinyin: doublePinyin, wubiScheme: wubiScheme)
+    OwlAppCore.effectiveKeyboard.preferredSchemaID
   }
 
   // MARK: - 五笔
@@ -257,7 +229,7 @@ enum OwlKeyboardPreferences {
   /// Eventual Rime mapping: one of the bundled `wubi86_jidian_*` Lua filters.
   static var wubiCandidateMode: OwlWubiCandidateMode {
     get {
-      OwlWubiCandidateMode(rawValue: OwlDefaults.standard.string(forKey: "OwlKeyboardWubiCandidateMode") ?? "") ?? .normal
+      OwlWubiCandidateMode(rawValue: OwlAppCore.effectiveKeyboard.candidateMode)!
     }
     set {
       OwlDefaults.standard.set(newValue.rawValue, forKey: "OwlKeyboardWubiCandidateMode")
@@ -466,11 +438,7 @@ enum OwlKeyboardPreferences {
   }
 
   static func normalizedAppEnglishBundleIDs(from raw: String) -> [String] {
-    var seen = Set<String>()
-    return raw.split { ",;\n\r\t ".contains($0) }
-      .map(String.init)
-      .filter(isSafeBundleID)
-      .filter { seen.insert($0).inserted }
+    OwlAppCore.required(["operation": "keyboard_bundle_ids", "raw": raw])
   }
 
   // MARK: - Helpers
@@ -495,16 +463,7 @@ enum OwlKeyboardPreferences {
     }
   }
 
-  private static func isSafeBundleID(_ value: String) -> Bool {
-    !value.isEmpty && value.unicodeScalars.allSatisfy {
-      switch $0.value {
-      case 45, 46, 48...57, 65...90, 95, 97...122:
-        return true
-      default:
-        return false
-      }
-    }
-  }
+
 }
 
 enum OwlCommitTransform {

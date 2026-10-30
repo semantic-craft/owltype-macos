@@ -16,7 +16,7 @@ enum OwlEmojiPreferences {
 
   /// 在打字候选里显示 emoji。未保存偏好时遵循 macOS 上游默认开启。
   static var candidateEmojiEnabled: Bool {
-    get { (OwlDefaults.standard.object(forKey: candidateEmojiKey) as? Bool) ?? true }
+    get { (OwlDefaults.standard.object(forKey: candidateEmojiKey) as? Bool) ?? OwlAppCore.keyboardCatalog.auxiliaryDefaults[candidateEmojiKey]! }
     set { OwlDefaults.standard.set(newValue, forKey: candidateEmojiKey) }
   }
 }

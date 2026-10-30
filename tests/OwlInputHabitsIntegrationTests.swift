@@ -666,14 +666,15 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     OwlKeyboardPreferences.pageSize = 3
     let applied = try delegate.runtime.applyKeyboardSettings(.config, directory: root)
     XCTAssertTrue(applied.succeeded)
-    // Prove the recreate by the wrapper instead: the old one is destroyed, a new one is live.
-    XCTAssertFalse(previousSession.isValid, "Applying settings must destroy the old session")
-    XCTAssertFalse(controller.engineSession === previousSession, "The active controller must get a new session")
-    XCTAssertEqual(controller.engineSession?.input(), "nihao", "Applying settings must retain in-flight composition")
-    XCTAssertEqual(controller.engineSession?.composition()?.pageSize, 3, "The running engine must read the saved setting")
-    XCTAssertFalse(second.engineSession?.isValid == true, "Background sessions must wait for their next activation")
+    XCTAssertTrue(previousSession.isValid, "A composing session remains live until idle")
+    XCTAssertTrue(controller.engineSession === previousSession)
+    XCTAssertEqual(controller.engineSession?.input(), "nihao", "Applying settings retains in-flight composition")
     try type(" ", into: controller, client: client)
-    XCTAssertEqual(client.text.string, "你好", "The replayed composition must still commit normally")
+    XCTAssertEqual(client.text.string, "你好", "The original composition must still commit normally")
+    XCTAssertFalse(delegate.runtime.applyPendingLiveSessionRefreshIfIdle(), "No refresh stays queued after commit")
+    XCTAssertFalse(previousSession.isValid, "The idle boundary replaces the old session")
+    XCTAssertEqual(controller.engineSession?.composition()?.pageSize, 3, "The refreshed engine reads saved settings")
+    XCTAssertFalse(second.engineSession?.isValid == true, "Background sessions wait for their next activation")
   }
 
   @MainActor
