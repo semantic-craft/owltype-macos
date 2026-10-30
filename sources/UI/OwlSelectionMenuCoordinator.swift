@@ -28,7 +28,7 @@ enum OwlSelectionMenuAction: String, CaseIterable, Sendable {
 
   var title: String {
     switch self {
-    case .jevReply: return "回复建议"
+    case .jevReply: return "Kotone 回复建议"
     case .ask: return "任意提问"
     case .polish: return "润色"
     case .sourceVerification: return "来源核验"

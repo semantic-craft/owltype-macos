@@ -118,7 +118,7 @@ final class JEVReplyModel: ObservableObject {
         status = "已载入保存的风格。选区仅作为待回复材料，不推断消息方向。"
       } catch {
         guard revision == token else { return }
-        status = "本地 JEV 服务未连接。请启动服务后重试；不需要在输入法中配置密钥。"
+        status = "本地 Kotone 服务未连接。请启动服务后重试；不需要在输入法中配置密钥。"
       }
       busy = false
     }
@@ -170,7 +170,7 @@ private struct JEVReplyView: View {
   }
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
-      Text("JEV 回复建议").font(.title2)
+      Text("Kotone 回复建议").font(.title2)
       Text("只展示候选，不填入、不发送；风格调整仅用于本次").font(.caption).foregroundStyle(.secondary)
       ScrollView { Text(model.text).frame(maxWidth: .infinity, alignment: .leading) }.frame(height: 90)
       Form {
@@ -214,7 +214,7 @@ final class JEVReplyPanel: NSObject, NSWindowDelegate {
     self.model = model
     let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 660),
       styleMask: [.titled, .closable], backing: .buffered, defer: false)
-    window.title = "JEV 回复建议"
+    window.title = "Kotone 回复建议"
     window.isReleasedWhenClosed = false
     window.delegate = self
     window.contentView = NSHostingView(rootView: JEVReplyView(model: model))

@@ -1,4 +1,4 @@
-# JEV local reply suggestions
+# Kotone（琴音）local reply suggestions
 
 This optional client reads an explicit selection and displays reply candidates. It never inserts or sends text. Enable the local reply service separately; the input method/application itself stores no service credential. Missing service is shown as an error and does not alter normal input.
 
@@ -6,4 +6,4 @@ Protocol v1 uses one UTF-8 JSON line per connection over the user-private Unix s
 
 Responses have `ok`, `version`, and for recommendations the same `request_id`, `verdict.intent`, `candidates` (each with text/prob), effective `reply_style`, and `elapsed`. Clients discard results after closing or superseding the request. Receive timeout is120 seconds. Errors never trigger automatic input or fallback to another provider. The protocol has no fill/send operation. No build dependency on a service implementation is required.
 
-Enable JEV 回复建议 in Settings → Skills, with cloud AI and the selection toolbox enabled. Select the message, double-tap Option (or the configured summon key), choose 回复建议, then generate. Only this explicit invocation submits text.
+Enable Kotone 回复建议 in Settings → Skills, with cloud AI and the selection toolbox enabled. Select the message, double-tap Option (or the configured summon key), choose 回复建议, then generate. Only this explicit invocation submits text.
