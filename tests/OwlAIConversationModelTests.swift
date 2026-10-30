@@ -483,4 +483,46 @@ final class OwlAIConversationModelTests: XCTestCase {
 
     XCTAssertNil(model.searchAttribution, "没真的联网就不能留着联网署名")
   }
+  func testProviderConfigurationChangeRetiresTheOldStream() async {
+    let streamer = FailoverAskAnything()
+    let model = OwlAIConversationModel(askAnything: streamer)
+    model.submit(question: "切换供应商前的问题")
+    NotificationCenter.default.post(name: Notification.Name("OwlProviderConfigurationDidChange"), object: nil)
+    await waitUntil { model.state == .idle }
+    streamer.emitAnswer("旧供应商的迟到答案")
+    try? await Task.sleep(nanoseconds: 30_000_000)
+    XCTAssertEqual(model.state, .idle)
+    XCTAssertTrue(model.turns.isEmpty)
+    model.teardown()
+  }
+
+  /// The public owned-session ABI admits callbacks independently of Swift Task cancellation.
+  func testRetiredGenerationCannotWriteIntoANewConversation() throws {
+    struct State: Decodable { let kind: String; let text: String? }
+    struct Reply: Decodable {
+      let generation: UInt64
+      let accepted: Bool
+      let state: State
+      let turns: [OwlConversationTurn]
+      let attribution: String?
+    }
+    let core = try OwlAppSession("conversation", args: ["state": ["kind": "idle"]])
+    let first: Reply = try core.request("submit", ["question": "旧问题"])
+    let _: Reply = try core.request("stop")
+    let next: Reply = try core.request("submit", ["question": "新问题"])
+    let stale: Reply = try core.request("delta", ["generation": first.generation,
+      "text": "不应出现", "attribution": "旧来源"])
+    XCTAssertFalse(stale.accepted)
+    XCTAssertEqual(stale.state.text, "")
+    XCTAssertNil(stale.attribution)
+    let _: Reply = try core.request("delta", ["generation": next.generation, "text": "新答案"])
+    let complete: Reply = try core.request("complete", ["generation": next.generation])
+    XCTAssertEqual(complete.turns, [OwlConversationTurn(question: "新问题", answer: "新答案")])
+    let _: Reply = try core.request("teardown")
+    let late: Reply = try core.request("failure", ["generation": next.generation, "text": "迟到错误"])
+    XCTAssertFalse(late.accepted)
+    XCTAssertEqual(late.state.kind, "done")
+    XCTAssertEqual(late.state.text, "新答案")
+  }
+
 }

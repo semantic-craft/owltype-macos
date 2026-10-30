@@ -10,6 +10,10 @@ const MAX_REQUEST: usize = 4 * 1024 * 1024;
 #[derive(Deserialize)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
+    AiRule {
+        rule: String,
+        args: Value,
+    },
     ProviderRule {
         rule: String,
         args: Value,
@@ -135,6 +139,7 @@ fn dispatch(bytes: &[u8]) -> Value {
         Err(_) => return error("invalid_request"),
     };
     let result = match request {
+        Request::AiRule { rule, args } => owl_app_core::ai_business::rule(&rule, args),
         Request::ProviderRule { rule, args } => {
             json!({"result": owl_app_core::provider_wire::rule(&rule, args)})
         }

@@ -65,13 +65,13 @@ enum OwlVerificationSource: String, Codable, Sendable, CaseIterable {
   }
 }
 
-enum OwlVerificationRouteKind: String, Sendable, Equatable {
+enum OwlVerificationRouteKind: String, Codable, Sendable, Equatable {
   case deepLink      // 打开检索结果页（该站自己的，或必应 site:）
   case modelSearch   // 模型内置搜索 — 只带 query 不带 URL
   case copyOnly      // 手动 — 复制检索词，用户自己搜
 }
 
-struct OwlVerificationRoute: Sendable, Equatable {
+struct OwlVerificationRoute: Codable, Sendable, Equatable {
   let kind: OwlVerificationRouteKind
   let source: OwlVerificationSource
   let query: String
@@ -85,37 +85,21 @@ enum OwlVerificationQueryRouter {
   static let bingSearchBase = "https://www.bing.com/search"
 
   /// 整段选区兜底检索词上限：超长 CJK 检索词会让站内引擎直接返回空（Responsay issue 328）。
-  static let maxSelectionQueryLength = 80
+  static let maxSelectionQueryLength: Int = OwlAIBusinessCore.call("limit", ["id": "query"])
 
   /// 整段选区 → 兜底检索词：合并空白后截断到上限。
   static func normalizeSelection(_ text: String) -> String {
-    let joined = text
-      .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
-      .joined(separator: " ")
-    return String(joined.prefix(maxSelectionQueryLength))
+    OwlAIBusinessCore.call("normalizeQuery", ["text": text])
   }
 
   /// kind 的默认跳库来源（未显式选源时）。
   static func defaultSource(for kind: OwlVerificationKind) -> OwlVerificationSource {
-    switch kind {
-    case .scholarlyArticle: return .baiduScholar
-    case .caseLaw: return .pkulaw
-    case .law, .administrativeRule, .standard, .officialDocument: return .govLaw
-    case .date, .money, .other: return .baiduScholar
-    }
+    OwlAIBusinessCore.call("defaultSource", ["kind": kind.rawValue])
   }
 
   /// 把检索词路由到指定来源。
   static func route(query: String, source: OwlVerificationSource) -> OwlVerificationRoute {
-    switch source {
-    case .qwenSearch:
-      return OwlVerificationRoute(kind: .modelSearch, source: source, query: query, url: nil)
-    case .manual:
-      return OwlVerificationRoute(kind: .copyOnly, source: source, query: query, url: nil)
-    default:
-      return OwlVerificationRoute(kind: .deepLink, source: source, query: query,
-                                   url: searchURL(for: source, query: query))
-    }
+    OwlAIBusinessCore.call("route", ["query": query, "source": source.rawValue])
   }
 
   // MARK: - 逐源检索样式
@@ -126,43 +110,21 @@ enum OwlVerificationQueryRouter {
   }
 
   static func style(for source: OwlVerificationSource) -> SearchStyle? {
-    switch source {
-    case .baiduScholar: return .directSearch(base: "https://xueshu.baidu.com/s", param: "wd")
-    case .cnki: return .directSearch(base: "https://kns.cnki.net/kns8s/defaultresult/index", param: "kw")
-    case .webSearch: return .directSearch(base: "https://www.baidu.com/s", param: "wd")
-    case .bing: return .directSearch(base: bingSearchBase, param: "q")
-    case .itslaw: return .directSearch(base: "https://www.itslaw.com/search", param: "searchWord")
-    case .wanfang: return .directSearch(base: "https://s.wanfangdata.com.cn/paper", param: "q")
-    case .vip: return .directSearch(base: "https://qikan.cqvip.com/Qikan/Search/Index", param: "key")
-    case .pkulaw: return .bingSite(domain: "pkulaw.com")             // 付费 → site:
-    case .govLaw: return .bingSite(domain: "flk.npc.gov.cn")         // JS 前端检索 → site:
-    case .rmfyalk: return .bingSite(domain: "rmfyalk.court.gov.cn")  // JS 前端检索 → site:
-    case .wenshu: return .bingSite(domain: "wenshu.court.gov.cn")    // 验证码 → site:
-    case .qwenSearch, .manual: return nil                            // 不走 URL
-    }
+    struct Style: Decodable { let base: String?; let param: String?; let domain: String? }
+    let value: Style = OwlAIBusinessCore.call("searchStyle", ["source": source.rawValue])
+    if let domain = value.domain { return .bingSite(domain: domain) }
+    if let base = value.base, let param = value.param { return .directSearch(base: base, param: param) }
+    return nil
   }
 
   static func searchURL(for source: OwlVerificationSource, query: String) -> URL? {
-    switch style(for: source) {
-    case let .directSearch(base, param):
-      return makeURL(base: base, param: param, value: query)
-    case let .bingSite(domain):
-      return makeURL(base: bingSearchBase, param: "q", value: "site:\(domain) \(query)")
-    case nil:
-      return nil
-    }
-  }
-
-  private static func makeURL(base: String, param: String, value: String) -> URL? {
-    URL(string: "\(base)?\(param)=\(encodeQueryValue(value))")
+    route(query: query, source: source).url
   }
 
   /// RFC-3986 query-value 编码，且额外把 `+` 转义为 `%2B`：裸 `+` 会被百度/必应解成空格，
   /// 撕裂多词法律检索（Responsay issue 328 踩坑修复，必须逐字复刻）。空格→%20，CJK→百分号。
   static func encodeQueryValue(_ value: String) -> String {
-    var allowed = CharacterSet.urlQueryAllowed
-    allowed.remove(charactersIn: "+&=?#")
-    return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
+    OwlAIBusinessCore.call("queryEncode", ["text": value])
   }
 }
 
@@ -171,10 +133,9 @@ enum OwlVerificationQueryRouter {
 /// **不动用户剪贴板**。先 open 后复制的时序由调用方保证。
 enum OwlSelectionVerifyClipboard {
   static func pasteQuery(openedRoutes: [OwlVerificationRoute]) -> String? {
-    openedRoutes.first { route in
-      guard let url = route.url else { return false }   // 未打开的 route 不算
-      return url.query?.isEmpty ?? true                 // 无 query 串 → 需要粘贴
-    }?.query
+    struct Reply: Decodable { let query: String? }
+    let reply: Reply = OwlAIBusinessCore.call("pasteQuery", ["routes": OwlAIBusinessCore.json(openedRoutes)])
+    return reply.query
   }
 }
 
@@ -183,11 +144,8 @@ enum OwlSelectionVerifyClipboard {
 /// + 无 userinfo 才允许成为可点链接；否则渲染为不可点纯文本。
 enum OwlExternalLinkPolicy {
   static func safeWebURL(_ raw: String) -> URL? {
-    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty, let url = URL(string: trimmed) else { return nil }
-    guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return nil }
-    guard let host = url.host, !host.isEmpty else { return nil }
-    guard url.user == nil else { return nil }   // 拒绝 userinfo 钓鱼
-    return url
+    struct Reply: Decodable { let url: String? }
+    let reply: Reply = OwlAIBusinessCore.call("safeURL", ["text": raw])
+    return reply.url.flatMap(URL.init(string:))
   }
 }

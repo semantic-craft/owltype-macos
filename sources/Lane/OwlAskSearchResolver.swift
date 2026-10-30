@@ -100,12 +100,12 @@ struct OwlAskSearchResolver {
       guard let apiKey = usableKey(for: profile) else { return nil }
       let base = OwlCloudRouting.resolve(profile: profile)
       // 官方端点用固定的作答型号；代理端点不一定提供它，保留档案型号。
-      let official = base.endpoint.host?.lowercased() == OwlCloudPreferences.defaultDeepSeekEndpoint.host
+      let model: String = OwlAIBusinessCore.call("searchModel", ["host": base.endpoint.host ?? "", "model": base.model])
       let route = OwlAskSearchRoute(
         routing: OwlCloudRouting(
           providerID: base.providerID,
           endpoint: base.endpoint,
-          model: official ? OwlSearchControl.searchModel : base.model,
+          model: model,
           secretName: base.secretName,
           authHeaderStyle: base.authHeaderStyle),
         apiKey: apiKey)
@@ -117,14 +117,11 @@ struct OwlAskSearchResolver {
   /// DeepSeek profiles in the order they are tried: the active profile first when it is one,
   /// then the rest in the store's stable order.
   private func candidateProfiles() -> [OwlProviderProfile] {
-    let deepSeek = profilesProvider().filter {
-      OwlLLMProviderCatalog.inferredProviderID(for: $0) == OwlSearchControl.searchProviderID
-    }
-    guard let active = defaultProfileProvider(),
-          let index = deepSeek.firstIndex(where: { $0.id == active.id }) else { return deepSeek }
-    var ordered = deepSeek
-    ordered.insert(ordered.remove(at: index), at: 0)
-    return ordered
+    let profiles = profilesProvider()
+    let ids: [String] = OwlAIBusinessCore.call("searchCandidates", [
+      "profiles": profiles.map { ["id": $0.id, "providerID": OwlLLMProviderCatalog.inferredProviderID(for: $0)] },
+      "activeID": defaultProfileProvider()?.id as Any? ?? NSNull()])
+    return ids.compactMap { id in profiles.first { $0.id == id } }
   }
 
   /// A non-empty stored key for `profile`, or nil. A profile with no `secretName` (never happens for
@@ -133,7 +130,7 @@ struct OwlAskSearchResolver {
   private func usableKey(for profile: OwlProviderProfile) -> String? {
     // `try?` flattens both failure modes into nil: a Keychain throw and a genuinely absent key.
     guard let raw = try? secretProvider(profile.secretName) else { return nil }
-    let key = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    let key: String = OwlAIBusinessCore.call("trim", ["text": raw])
     return key.isEmpty ? nil : key
   }
 }
@@ -148,32 +145,31 @@ struct OwlAskSearchResolver {
 ///     所以这里采取封闭列表；只有可以确认是配置拒绝的错误才允许在首个 delta 前换家。
 enum OwlAskSearchFailover {
   /// 这些状态能确认是当前候选的固定配置问题，而不是这次请求的内容/网络问题。
-  static let configurationRefusalStatuses: Set<Int> = [401, 402, 403, 404]
+  static let configurationRefusalStatuses: Set<Int> = OwlAIBusinessCore.call("refusalStatuses")
 
   /// 该换下一条联网尝试吗？首个 delta 是不可逆边界：一旦已有输出，即使随后收到明确的
   /// 401/404，也必须原样上报，不能把两家答案拼在一起。
   static func shouldTryNextAttempt(after error: Error, hasYieldedDelta: Bool) -> Bool {
-    guard !hasYieldedDelta else { return false }
-    switch error {
-    case let streaming as OwlStreamingError:
+    var args = facts(error)
+    args["yielded"] = hasYieldedDelta
+    return OwlAIBusinessCore.call("failover", args)
+  }
+
+  static func facts(_ error: Error) -> [String: Any] {
+    var status = 0
+    var invalidEndpoint = false
+    if let streaming = error as? OwlStreamingError {
       switch streaming {
-      case let .badHTTPStatus(status, _):
-        return isConfigurationRefusal(status: status)
-      case .invalidEndpoint:
-        // Responses URL 连改写都做不到，请求尚未发出；这是候选配置不可用，不是运行期故障。
-        return true
-      default:
-        // 非 HTTP 响应 / 2xx 之后才失败：请求已被接受、模型已开工，换一家不会更好。
-        return false
+      case let .badHTTPStatus(value, _): status = value
+      case .invalidEndpoint: invalidEndpoint = true
+      default: break
       }
-    default:
-      // URLError（断网/超时/DNS）与一切未知错误：如实上报，绝不静默换家。
-      return false
     }
+    return ["status": status, "invalidEndpoint": invalidEndpoint]
   }
 
   /// 明确的配置拒绝。451、422 等语义可能与问题内容有关，不能据此跨供应商追加请求。
   static func isConfigurationRefusal(status: Int) -> Bool {
-    configurationRefusalStatuses.contains(status)
+    OwlAIBusinessCore.call("failover", ["status": status])
   }
 }

@@ -12,7 +12,7 @@
 import AppKit
 import ApplicationServices
 
-enum OwlInsertStrategy: String, Equatable, Sendable {
+enum OwlInsertStrategy: String, Codable, Equatable, Sendable {
   case axSelectedText   // AX 写回选区（首选，无副作用）
   case paste            // 剪贴板 + 模拟 ⌘V（通用，微信可用，中文完美）
   case clipboardOnly    // 仅写剪贴板（终态兜底，用户手动粘）
@@ -29,8 +29,7 @@ enum OwlInsertLadder {
   static let order: [OwlInsertStrategy] = [.axSelectedText, .paste, .clipboardOnly]
 
   static func sequence(cached: OwlInsertStrategy?) -> [OwlInsertStrategy] {
-    guard let cached, order.contains(cached) else { return order }
-    return [cached] + order.filter { $0 != cached }
+    OwlAIBusinessCore.call("insertSequence", ["cached": cached?.rawValue as Any? ?? NSNull()])
   }
 }
 
@@ -40,7 +39,7 @@ final class OwlTextInserter {
   static let shared = OwlTextInserter()
 
   /// bundleID → 上次成功策略。内存态（跨会话不持久，够用）。
-  private var cache: [String: OwlInsertStrategy] = [:]
+  private let core = try! OwlAppSession("textInserter")
 
   /// 按梯子逐策略试，首个成功即缓存并返回。`axSet`/`paste` 返回是否成功；`clipboardOnly` 是终态。
   func insert(
@@ -50,16 +49,17 @@ final class OwlTextInserter {
     paste: (String) -> Bool,
     copyOnly: (String) -> Void
   ) -> OwlInsertOutcome {
-    let key = bundleID ?? ""
-    for strategy in OwlInsertLadder.sequence(cached: cache[key]) {
+    struct Step: Decodable { let strategy: OwlInsertStrategy?; let done: Bool }
+    var step: Step = core.call("begin", ["bundleID": bundleID ?? ""])
+    while let strategy = step.strategy {
+      let success: Bool
       switch strategy {
-      case .axSelectedText:
-        if axSet() { cache[key] = .axSelectedText; return .inserted(.axSelectedText) }
-      case .paste:
-        if paste(text) { cache[key] = .paste; return .inserted(.paste) }
-      case .clipboardOnly:
-        copyOnly(text); cache[key] = .clipboardOnly; return .copiedToClipboard
+      case .axSelectedText: success = axSet()
+      case .paste: success = paste(text)
+      case .clipboardOnly: copyOnly(text); success = true
       }
+      step = core.call("result", ["success": success])
+      if step.done { return strategy == .clipboardOnly ? .copiedToClipboard : .inserted(strategy) }
     }
     return .failed("插入失败。")
   }

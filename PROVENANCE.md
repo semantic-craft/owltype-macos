@@ -103,3 +103,10 @@ Library journals use `base64` 0.22 (MIT OR Apache-2.0) to preserve Foundation Da
 encoding and workspace `sha2` (MIT OR Apache-2.0) for existing snapshot digests.
 Storage/backup/migration modules are original Owltype code; native Foundation operations
 are injected services, while Rust owns write authorization, phases and recovery.
+
+AI context, drafting prompts, selection rules and verification coordinates were ported
+from the existing Owltype Swift implementations into `ai_business.rs`, `ai_selection.rs`,
+`ai_verification.rs`, `ai_prompts.json` and `verification_rules.json`. Existing
+Responsay-aligned verification/query rules and translation-prompt attribution remain
+in their native facade headers; no new external source or dependency was imported.
+The native keychain identity, network primitives and persistent formats are unchanged.

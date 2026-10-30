@@ -37,212 +37,123 @@ enum OwlAIConversationState: Equatable {
 
 @MainActor
 final class OwlAIConversationModel {
-  /// 任意提问 use-case port (injected; live default is the shared module).
   private let askAnything: OwlAskAnythingOpening
-
-  /// Optional selected text captured by the global selection menu. It is explicit-action context,
-  /// sent only when the user picks a menu action, and reused for regenerate.
   private let capturedSelectedText: String?
-  /// The last question the user submitted, kept so `regenerate()` can replay it against the same
-  /// captured context.
-  private(set) var lastQuestion: String = ""
-  /// 气泡展示用的最后一问（任务卡把 scaffold 藏起来时展示「任务名：用户补充」而非全文）。
-  /// nil = 直接展示 `lastQuestion`。发给模型的永远是 `lastQuestion` 全文。
-  private(set) var lastDisplayQuestion: String?
-
-  /// 已完成的问答轮，按序喂回后续请求（issue #137）。上下文包不在此列——它只在装配时注入一次。
-  private(set) var turns: [OwlConversationTurn] = []
-
-  /// 历史轮上限。每轮请求都要重发全部历史，不设上限则 token 随轮数线性膨胀直到打满上下文窗口；
-  /// 超出时丢最早的轮，保留离当前话题最近的对话。
-  static let maxHistoryTurns = 10
-
-  /// 面向用户的联网模型署名（通义千问 / 豆包 / OpenAI），或 nil 表示这一问没走联网搜索。Set per submit
-  /// (and per regenerate — a route can change between attempts if the user configures a key
-  /// mid-conversation), read by the window's 署名 chip.
-  private(set) var searchAttribution: String?
-
-  /// Current render state. The view observes this via the `onStateChange` callback.
-  private(set) var state: OwlAIConversationState {
-    didSet { onStateChange?(state) }
-  }
-  /// Pushed on every `state` change so the SwiftUI host can re-render. Set by the window.
+  private let core: OwlAppSession
+  private var projection: Projection
+  private var streamTask: Task<Void, Never>?
+  private var providerObserver: NSObjectProtocol?
+  static let maxHistoryTurns: Int = OwlAIBusinessCore.call("limit", ["id": "history"])
   var onStateChange: ((OwlAIConversationState) -> Void)?
 
-  /// The in-flight stream consumer, so `stop()` / a new `submit` can cancel it.
-  private var streamTask: Task<Void, Never>?
-
-  /// `askAnything` defaults to nil → the shared module is resolved INSIDE the (`@MainActor`) init, so
-  /// the `@MainActor`-isolated `.shared` is never referenced from the nonisolated default-argument
-  /// context (Swift 6-clean; same `client: … ? = nil` idiom as `OwlStreamingChatService`).
-  init(
-    selectedText: String? = nil,
-    initialState: OwlAIConversationState = .idle,
-    askAnything: OwlAskAnythingOpening? = nil
-  ) {
-    self.capturedSelectedText = selectedText
-    self.state = initialState
+  private struct RenderState: Codable { let kind: String; var text: String? }
+  private struct Projection: Decodable {
+    let generation: UInt64
+    let lastQuestion: String
+    let lastDisplayQuestion: String?
+    let turns: [OwlConversationTurn]
+    let state: RenderState
+    let attribution: String?
+    let start: Bool
+    let accepted: Bool
+    let messages: [OwlDeepSeekMessage]
+  }
+  var lastQuestion: String { projection.lastQuestion }
+  var lastDisplayQuestion: String? { projection.lastDisplayQuestion }
+  var turns: [OwlConversationTurn] { projection.turns }
+  var searchAttribution: String? { projection.attribution }
+  var state: OwlAIConversationState {
+    switch projection.state.kind {
+    case "streaming": return .streaming(partialAnswer: projection.state.text ?? "")
+    case "done": return .done(answer: projection.state.text ?? "")
+    case "failed": return .failed(message: projection.state.text ?? "")
+    case "unconfigured": return .unconfigured
+    default: return .idle
+    }
+  }
+  private static func render(_ state: OwlAIConversationState) -> RenderState {
+    switch state {
+    case .idle: return RenderState(kind: "idle")
+    case let .streaming(text): return RenderState(kind: "streaming", text: text)
+    case let .done(text): return RenderState(kind: "done", text: text)
+    case let .failed(text): return RenderState(kind: "failed", text: text)
+    case .unconfigured: return RenderState(kind: "unconfigured")
+    }
+  }
+  init(selectedText: String? = nil, initialState: OwlAIConversationState = .idle,
+       askAnything: OwlAskAnythingOpening? = nil) {
+    capturedSelectedText = selectedText
     self.askAnything = askAnything ?? OwlAskAnythingModule.shared
-  }
-
-  /// A short one-line summary of the explicit selection shown in the window header.
-  var capturedContextSummary: String {
-    return OwlAIContextAssembler.selectionSummary(capturedSelectedText)
-  }
-
-  /// Resolve the provider route for the window's header ("local / cloud / unconfigured"). No network.
-  func currentReadiness() -> OwlStreamingReadiness {
-    askAnything.readiness()
-  }
-
-  /// Submit a question. Resolves readiness FIRST (no network if unconfigured), assembles messages,
-  /// then consumes the delta stream into `state`. Cancels any prior stream.
-  /// `displayQuestion`: 气泡展示用的短文本（任务卡 / autoSubmit 技能）；nil = 展示全文。
-  func submit(question: String, displayQuestion: String? = nil) {
-    let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return }
-    lastQuestion = trimmed
-    lastDisplayQuestion = displayQuestion
-    start(question: trimmed)
-  }
-
-  /// 重放最后一问，明确选中的文本与更早的历史都保持不变。
-  ///
-  /// 摘掉最后一轮是必须的：那一问已经作为历史留在 `turns` 里，不摘就会既当历史、又当新问题
-  /// 出现两次，模型会看到自己刚答过的问题被重复提问。重放成功后 `finish` 会把它加回去。
-  func regenerate() {
-    guard !lastQuestion.isEmpty else { return }
-    if turns.last?.question == lastQuestion { turns.removeLast() }
-    start(question: lastQuestion)
-  }
-
-  /// Cancel the in-flight stream. Whatever was accumulated becomes the `done` answer (so a partial
-  /// answer the user stopped is still usable / copyable); an empty partial returns to `idle`.
-  func stop() {
-    streamTask?.cancel()
-    streamTask = nil
-    if case let .streaming(partial) = state {
-      if partial.isEmpty {
-        state = .idle
-      } else {
-        finish(answer: partial)
+    core = try! OwlAppSession("conversation", args: ["selectedText": selectedText as Any? ?? NSNull(),
+      "state": OwlAIBusinessCore.json(Self.render(initialState))])
+    projection = core.call("snapshot")
+    providerObserver = NotificationCenter.default.addObserver(
+      forName: OwlProviderProfileStore.configurationDidChange, object: nil, queue: .main
+    ) { [weak self] _ in
+      MainActor.assumeIsolated {
+        self?.cancelTask()
+        self?.transition("providerChanged")
       }
     }
   }
+  deinit {
+    if let providerObserver { NotificationCenter.default.removeObserver(providerObserver) }
+  }
+  var capturedContextSummary: String { OwlAIContextAssembler.selectionSummary(capturedSelectedText) }
+  func currentReadiness() -> OwlStreamingReadiness { askAnything.readiness() }
 
-  /// Tear down on window close — cancel any in-flight stream and drop the callback retain.
+  func submit(question: String, displayQuestion: String? = nil) {
+    transition("submit", ["question": question, "displayQuestion": displayQuestion as Any? ?? NSNull()])
+    if projection.start { start() }
+  }
+  func regenerate() {
+    transition("regenerate")
+    if projection.start { start() }
+  }
+  func stop() { cancelTask(); transition("stop") }
   func teardown() {
-    streamTask?.cancel()
-    streamTask = nil
+    cancelTask()
+    if let providerObserver { NotificationCenter.default.removeObserver(providerObserver) }
+    providerObserver = nil
     onStateChange = nil
+    transition("teardown")
   }
-
   func replaceState(_ next: OwlAIConversationState) {
-    streamTask?.cancel()
-    streamTask = nil
-    state = next
+    cancelTask(); transition("replace", ["state": OwlAIBusinessCore.json(Self.render(next))])
   }
-
-  // MARK: - Private
-
-  /// 收束一轮：落 `.done` 并把这轮问答记进历史。正常读完、报错但已有部分答案、用户 stop() 三条
-  /// 路径都汇到这里——凡是用户在窗口里看得见的答案，就必须进历史，否则下一轮的上下文与屏幕
-  /// 上显示的对话对不上。
-  private func finish(answer: String) {
-    state = .done(answer: answer)
-    guard !lastQuestion.isEmpty, !answer.isEmpty else { return }
-    turns.append(OwlConversationTurn(
-      question: lastQuestion, answer: answer, displayQuestion: lastDisplayQuestion))
-    if turns.count > Self.maxHistoryTurns {
-      turns.removeFirst(turns.count - Self.maxHistoryTurns)
-    }
+  func newConversation() { cancelTask(); transition("new") }
+  private func cancelTask() { streamTask?.cancel(); streamTask = nil }
+  private func transition(_ event: String, _ args: [String: Any] = [:]) {
+    projection = core.call(event, args)
+    if projection.accepted { onStateChange?(state) }
   }
-
-  /// 开一段新对话：清空历史与最后一问，回到空白态。窗口由划词入口打开时，用户明确选中的
-  /// 文本仍保持不变。
-  func newConversation() {
-    streamTask?.cancel()
-    streamTask = nil
-    turns.removeAll()
-    lastQuestion = ""
-    lastDisplayQuestion = nil
-    searchAttribution = nil
-    state = .idle
+  private func receive(_ event: String, generation: UInt64, open: OwlAskStreamOpen, text: String = "") {
+    let attribution = open.searchProviderID.flatMap(OwlProviderCapabilities.searchDisplayName(providerID:))
+    transition(event, ["generation": generation, "text": text, "attribution": attribution as Any? ?? NSNull()])
   }
-
-  private func start(question: String) {
-    // Cancel any prior in-flight stream before starting a new one.
-    streamTask?.cancel()
-    streamTask = nil
-
-    // Assemble messages from explicit user content only.
-    let messages = OwlAIContextAssembler.assemble(
-      selectedText: capturedSelectedText,
-      history: turns,
-      question: question
-    )
-
-    // Ask only through the module interface. `unconfigured` / `missingKey` produce NO network call;
-    // provider/search/wire planning and plain fallback stay behind this boundary.
+  /// Task owns only asynchronous effect execution. Every callback is admitted by Rust generation.
+  private func start() {
+    cancelTask()
+    let generation = projection.generation
     let open: OwlAskStreamOpen
-    switch askAnything.open(messages: messages) {
-    case let .success(value):
-      open = value
-      applyAttribution(open)
+    switch askAnything.open(messages: projection.messages) {
+    case let .success(value): open = value
     case .failure:
-      searchAttribution = nil
-      state = .unconfigured
-      return
+      transition("unconfigured", ["generation": generation]); return
     }
-
-    state = .streaming(partialAnswer: "")
+    receive("opened", generation: generation, open: open)
     streamTask = Task { [weak self] in
-      var sawContent = false
       do {
         for try await delta in open.stream {
-          guard let self else { return }
-          if Task.isCancelled { return }
-          if !sawContent {
-            sawContent = true
-            // 运行期顺位只发生在首个 delta 之前，所以内容一到，归属才算定了。
-            self.applyAttribution(open)
-          }
-          // Accumulate in order. Only fold a delta in while still streaming (a stop() may have
-          // already transitioned us away).
-          if case let .streaming(partial) = self.state {
-            self.state = .streaming(partialAnswer: partial + delta)
-          }
+          guard let self, !Task.isCancelled else { return }
+          self.receive("delta", generation: generation, open: open, text: delta)
         }
         guard let self, !Task.isCancelled else { return }
-        self.applyAttribution(open)
-        if case let .streaming(partial) = self.state {
-          self.finish(answer: partial)
-        }
+        self.receive("complete", generation: generation, open: open)
       } catch {
-        guard let self, !Task.isCancelled else { return }
-        // A cancellation is not a user-facing failure — stop() already moved state.
-        if error is CancellationError { return }
-        // 一个字都没出就失败时，归属可能已经被顺位改写过 —— 撤掉过期的联网署名。
-        self.applyAttribution(open)
-        let partial: String
-        if case let .streaming(p) = self.state { partial = p } else { partial = "" }
-        // Keep any partial answer the user already received; surface the failure too.
-        if partial.isEmpty {
-          self.state = .failed(message: OwlCloudPreferences.message(for: error))
-        } else {
-          self.finish(answer: partial)
-        }
+        guard let self, !Task.isCancelled, !(error is CancellationError) else { return }
+        self.receive("failure", generation: generation, open: open, text: OwlCloudPreferences.message(for: error))
       }
     }
-  }
-
-  /// 从流的归属载体读回署名。
-  ///
-  /// 为什么不是开流时读一次就完：联网请求发出后才知道对方拒不服务（方舟 404 `ToolNotOpen`、Key 失效
-  /// 401、搜索服务的 Key 是错的），运行期顺位会换一家、全败会退回普通问答。开流那一刻的值只是「打算
-  /// 用谁」，所以在拿到第一段内容与流收场两个时点各重读一次 —— chip 于是写的是真正答了这一问的那家，
-  /// 退回普通问答时如实撤掉。
-  private func applyAttribution(_ open: OwlAskStreamOpen) {
-    searchAttribution = open.searchProviderID.flatMap(OwlProviderCapabilities.searchDisplayName(providerID:))
   }
 }

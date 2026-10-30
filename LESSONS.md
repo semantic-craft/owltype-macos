@@ -1242,3 +1242,20 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
   `OwlProviderRegistryTests` must complete staged-key saves with and without a prior probe.
   `OwlResponsesStreamingClientTests/testRawByteBoundariesAndCancellationReachRustParser`
   verifies arbitrary UTF-8 splits and terminal cancellation through the real session ABI.
+
+## Provider changes must retire an active AI request
+
+- Seen 1x (2026-10-30): the #364 migration audit found no event connecting provider
+  configuration writes to an already-streaming conversation. The isolated
+  `testProviderConfigurationChangeRetiresTheOldStream` reproduced an old answer
+  becoming `done` and entering history after the configuration-change notification.
+- Successful native profile writes now emit a notification after the Rust transaction
+  returns, including the write-landed-before-error case. Conversation sessions retire
+  their generation and preserve any already-visible partial answer. Replacing the AI
+  window model also tears down the previous session. Native Task cancellation remains
+  an execution optimization; Rust independently rejects retired callback generations.
+- Verify (验证点): `OwlAIConversationModelTests` covers the provider-change regression
+  and late deltas/completion/failure through the owned App session ABI. Existing stop,
+  regeneration, explicit context and history-limit tests remain the feature seam.
+- Scope: isolated notifications/streams and real App FFI, with no real provider key,
+  account, installed input method or network request. This is not live-account evidence.

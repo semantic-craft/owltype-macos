@@ -3,6 +3,14 @@ use crate::template_library::{automatic_index, AutomaticNode, Entry, Expansion};
 use serde_json::{json, Value};
 
 pub enum Session {
+    TextInserter(crate::ai_selection::Inserter),
+    SelectionGesture(crate::ai_selection::Gesture),
+    SelectionRewrite(crate::ai_selection::Rewrite),
+    Verification(crate::ai_business::Verification),
+    AskAttempts(crate::ai_business::Attempts),
+    WritePreview(crate::ai_business::Preview),
+    Receipt(crate::ai_verification::Receipt),
+    Conversation(crate::ai_business::Conversation),
     ProviderCall { remaining: usize, cancelled: bool },
     ProviderRegistry { probe: Value },
     ProviderStream(crate::provider_wire::Stream),
@@ -17,6 +25,20 @@ pub enum Session {
 impl Session {
     pub fn create(kind: &str, args: Value) -> Result<Self, String> {
         match kind {
+            "textInserter" => Ok(Self::TextInserter(Default::default())),
+            "selectionGesture" => Ok(Self::SelectionGesture(Default::default())),
+            "selectionRewrite" => Ok(Self::SelectionRewrite(crate::ai_selection::Rewrite::new(
+                args,
+            ))),
+            "verification" => Ok(Self::Verification(crate::ai_business::Verification::new(
+                args,
+            ))),
+            "askAttempts" => Ok(Self::AskAttempts(crate::ai_business::Attempts::new(args))),
+            "writePreview" => Ok(Self::WritePreview(crate::ai_business::Preview::new(args))),
+            "verificationReceipt" => Ok(Self::Receipt(crate::ai_verification::Receipt::new(args))),
+            "conversation" => Ok(Self::Conversation(crate::ai_business::Conversation::new(
+                args,
+            ))),
             "providerCall" => Ok(Self::ProviderCall {
                 remaining: if args["purpose"] == "interactiveRewrite" {
                     2
@@ -54,6 +76,14 @@ impl Session {
         index: Option<&Session>,
     ) -> Result<Value, String> {
         match self {
+            Self::TextInserter(state) => state.event(event, args),
+            Self::SelectionGesture(state) => state.event(event, args),
+            Self::SelectionRewrite(state) => state.event(event, args),
+            Self::Verification(state) => state.event(event, args),
+            Self::AskAttempts(state) => state.event(event, args),
+            Self::WritePreview(state) => state.event(event, args),
+            Self::Receipt(state) => state.event(event, args),
+            Self::Conversation(state) => state.event(event, args),
             Self::ProviderCall {
                 remaining,
                 cancelled,
