@@ -3,7 +3,12 @@
     "main": "8ad0a6ccfbfa9f9a1df46419dd32351ae40207af",
     "default_branch": "main",
     "pulls": [],
-    "open_pulls": [],
+    "open_pulls": [
+      {
+        "number": 368,
+        "head": "9a9dcf8146b564ba3efe9c187b6d04a13e22e55c"
+      }
+    ],
     "issues": [
       {
         "number": 280,
@@ -183,13 +188,13 @@
         "number": 356,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-30T03:49:04Z"
+        "updated_at": "2026-10-30T03:58:27Z"
       },
       {
         "number": 357,
         "state": "open",
         "reason": null,
-        "updated_at": "2026-10-30T03:38:52Z"
+        "updated_at": "2026-10-30T03:57:47Z"
       },
       {
         "number": 358,
@@ -259,7 +264,7 @@
     "progress/sync.py",
     "progress/teslahub.mjs"
   ],
-  "observed_at": "2026-10-30T03:49:07Z",
+  "observed_at": "2026-10-30T03:58:47Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -718,7 +723,7 @@
         {
           "id": "issue-357",
           "title": "#357 [Rust 业务核心] 阶段 0：建立业务归属、App FFI 与行为基线",
-          "status": "in_progress",
+          "status": "blocked",
           "summary": "GitHub: open；负责人：未指派；未关闭前置：无。",
           "next": "读取工单和开放 PR，经共享领取入口核实后领取。",
           "evidence": [
