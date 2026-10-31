@@ -5,6 +5,17 @@ that the lesson is in place: which file to read, which command to run, what resu
 and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## Upgrading across resource engine contracts must not require the old active generation to satisfy the new engine
+
+**`Store::prepare` only verifies the active record when short-circuiting an identical digest; `Store::commit` drops an incompatible previous generation instead of retaining a broken rollback target, and `OwlDictPackCenter.refresh()` treats an outdated incompatible active generation as `.notInstalled`.**
+
+- Reason: on 2026-10-31 Settings → 键盘输入 → 完整词库 showed `Rust 词库状态无法读取：资源文件缺失：files/msime-wubi.db` with a `重试` button that could never recover. On-disk `state/active/pinyin-wubi.json` held `version: 1` (built under `legacyEngine` before `files/msime-wubi.db` and `role: "wubi-dictionary"` were introduced in v4). `OwlDictPackCenter.refresh()` validated the v1 active state against the v4 `validate_compatible` contract and entered `.failed`; then `Store::prepare` ran `this.verify_record(&active["current"])` against the v4 `nativeEngine` before checking `this.version(&active, &m)`, failing with `missingEngineSQLiteFile("wubi-dictionary")` and blocking any upgrade to v4.
+- Prevention: in `rust/crates/owl-app-core/src/resource.rs`, `Store::prepare` verifies `active["current"]` only when `active["current"]["digest"] == m["digest"]`, and `Store::commit` retains `active["current"]` as `previous` only if it passes current verification and compatibility checks. In `sources/DictPack/OwlDictPackCenter.swift`, `refresh()` treats an active generation older than `OwlRustCompatibleResources.packageVersion` that fails `activeGeneration()` validation as `.notInstalled` while preserving `.failed` diagnostics for corrupt current-version generations.
+- Regression: `testOutdatedIncompatibleActiveGenerationRefreshesAsNotInstalledWhileCurrentCorruptFails` in `tests/OwlDictPackTests.swift` and `testPrepareAndActivateOverIncompatibleOlderActiveGenerationDropsUnusableRollbackTarget` in `tests/OwlRustResourceTransactionTests.swift`.
+- Scope: Rust resource store and `OwlDictPackCenter` state machine across engine contract upgrades.
+- Verify (验证点): `python3 scripts/verify.py swift --test OwlDictPackTests --test OwlDictPackCenterTests --test OwlRustResourceTransactionTests --test OwlRustResourceContractTests`.
+- Seen on 1 distinct date: 2026-10-31.
+
 ## Reserve delivery before selection preparation, but report actual dispatch
 
 - Seen 1x (2026-10-30): installed #362 candidate `25e4263` recognized and rendered the

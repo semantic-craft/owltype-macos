@@ -128,7 +128,14 @@ final class OwlDictPackCenter {
     guard allowed else { return }
     do {
       let state = try rustBackend.environment.activeState()
-      if state != nil { _ = try rustBackend.environment.activeGeneration() }
+      if let state {
+        do {
+          _ = try rustBackend.environment.activeGeneration()
+        } catch where state.current.manifest.version < OwlRustCompatibleResources.packageVersion {
+          _ = event("refreshed", ["state": NSNull()])
+          return
+        }
+      }
       _ = event("refreshed", ["state": state.map(OwlAppCore.payload) ?? NSNull()])
     } catch { _ = event("refreshed", ["error": error.localizedDescription]) }
   }
