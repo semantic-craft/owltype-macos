@@ -224,8 +224,11 @@ impl<H: Host> Store<'_, H> {
             this.check()?; let active=this.read_active(&kind)?;
             if !active.is_null() {
                 if active["current"]["manifest"]["packageId"]!=m["packageId"] { return Err(err("invalidManifest",json!([format!("同一 inputKind 的 active packageId 为 {}",s(&active["current"]["manifest"],"packageId"))]))); }
-                this.verify_record(&active["current"])?;
-                if active["current"]["digest"]==m["digest"] { return Ok(json!({"record":active["current"],"previousGenerationId":active["previous"]["generationId"]})); }
+                if active["current"]["digest"]==m["digest"] {
+                    this.verify_record(&active["current"])?;
+                    if this.compatible { crate::resource_catalog::validate_compatible(std::path::Path::new(&this.generation_path(&active["current"])),&active["current"]["manifest"],true)?; }
+                    return Ok(json!({"record":active["current"],"previousGenerationId":active["previous"]["generationId"]}));
+                }
                 this.version(&active,&m)?;
             }
             let dir=path(&this.root("libraryRoot"),&format!("{}/generations",s(&m,"packageId")));
@@ -372,7 +375,21 @@ impl<H: Host> Store<'_, H> {
         let id = self.uuid()?;
         let old = &active["current"]["generationId"];
         self.journal(&id, kind, phase, old, &r["generationId"], json!(message))?;
-        let next = json!({"schemaVersion":1,"inputKind":kind,"current":r,"previous":active["current"],"activatedAt":self.now()?});
+        let previous = if !active["current"].is_null()
+            && self.verify_record(&active["current"]).is_ok()
+            && (!self.compatible
+                || crate::resource_catalog::validate_compatible(
+                    std::path::Path::new(&self.generation_path(&active["current"])),
+                    &active["current"]["manifest"],
+                    true,
+                )
+                .is_ok())
+        {
+            active["current"].clone()
+        } else {
+            Value::Null
+        };
+        let next = json!({"schemaVersion":1,"inputKind":kind,"current":r,"previous":previous,"activatedAt":self.now()?});
         let result = (|| {
             self.check()?;
             self.write_active(&next)?;

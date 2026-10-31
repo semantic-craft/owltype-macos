@@ -161,6 +161,94 @@ final class OwlRustResourceTransactionTests: XCTestCase {
     XCTAssertEqual(repeated.state, activated.state)
   }
 
+  func testPrepareAndActivateOverIncompatibleOlderActiveGenerationDropsUnusableRollbackTarget() async throws {
+    let environment = try makeEnvironment()
+    let first = try makePackage(
+      in: environment, name: "v1", version: 1, candidate: "合成甲"
+    )
+    let legacyStore = try makeStore(environment)
+    _ = try await legacyStore.install(source(for: first))
+
+    let upgradedRequirement = OwlRustResourceSQLiteRequirement(
+      role: .wubiDictionary,
+      tables: [
+        OwlRustResourceSQLiteTableRequirement(
+          table: "tbl_1_n", columns: ["key", "jp", "value", "weight"]
+        )
+      ]
+    )
+    let upgradedEngine = OwlRustResourceTestFixtures.defaultEngine(
+      extraRequirements: [upgradedRequirement]
+    )
+    let upgradedStore = try OwlRustResourceStore(
+      configuration: environment.configuration,
+      engine: upgradedEngine
+    )
+
+    let secondRoot = environment.root.appendingPathComponent("packages/v2", isDirectory: true)
+    let secondFiles = secondRoot.appendingPathComponent("files", isDirectory: true)
+    let secondLicenses = secondFiles.appendingPathComponent("licenses", isDirectory: true)
+    try FileManager.default.createDirectory(at: secondLicenses, withIntermediateDirectories: true)
+    let mainDB = secondFiles.appendingPathComponent("dictionary.db")
+    let wubiDB = secondFiles.appendingPathComponent("msime-wubi.db")
+    try OwlRustResourceTestFixtures.makeSQLite(at: mainDB, candidate: "合成乙")
+    try OwlRustResourceTestFixtures.makeSQLite(at: wubiDB, candidate: "五笔乙")
+    let licenseURL = secondLicenses.appendingPathComponent("NOTICE.txt")
+    let licenseData = Data("Apache-2.0 synthetic fixture\n".utf8)
+    try licenseData.write(to: licenseURL)
+    let mainData = try Data(contentsOf: mainDB)
+    let wubiData = try Data(contentsOf: wubiDB)
+    let files = [
+      OwlRustResourceFile(
+        path: "files/dictionary.db",
+        role: .mainDictionary,
+        mediaType: "application/vnd.sqlite3",
+        size: mainData.count,
+        digest: try OwlRustResourceVerifier.digestOfFile(mainDB)
+      ),
+      OwlRustResourceFile(
+        path: "files/licenses/NOTICE.txt",
+        role: .license,
+        mediaType: "text/plain",
+        size: licenseData.count,
+        digest: OwlRustResourceManifest.digest(for: licenseData)
+      ),
+      OwlRustResourceFile(
+        path: "files/msime-wubi.db",
+        role: .wubiDictionary,
+        mediaType: "application/vnd.sqlite3",
+        size: wubiData.count,
+        digest: try OwlRustResourceVerifier.digestOfFile(wubiDB)
+      ),
+    ]
+    let provisional = OwlRustResourceManifest(
+      schemaVersion: 1,
+      packageId: first.manifest.packageId,
+      inputKind: first.manifest.inputKind,
+      version: 2,
+      digest: OwlRustResourceManifest.zeroDigest,
+      license: first.manifest.license,
+      engineCompatibility: first.manifest.engineCompatibility,
+      files: files
+    )
+    let secondManifest = try OwlRustResourceTestFixtures.replacingDigest(
+      of: provisional, with: provisional.calculatedDigest()
+    )
+    try OwlRustResourceTestFixtures.writeManifest(secondManifest, at: secondRoot)
+
+    let prepared = try await upgradedStore.prepare(
+      OwlRustResourceDirectorySource(root: secondRoot)
+    )
+    XCTAssertEqual(prepared.record.manifest.version, 2)
+    let activated = try await upgradedStore.activate(prepared)
+    XCTAssertEqual(activated.disposition, .installed)
+    XCTAssertEqual(activated.state.current.manifest.version, 2)
+    XCTAssertNil(
+      activated.state.previous,
+      "an older generation incompatible with the current engine must not be retained as a rollback target"
+    )
+  }
+
   func testStalePreparedActivationCannotOverwriteANewerActiveGeneration() async throws {
     let environment = try makeEnvironment()
     let first = try makePackage(in: environment, name: "v1", version: 1)

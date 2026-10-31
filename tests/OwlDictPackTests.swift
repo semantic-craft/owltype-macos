@@ -135,6 +135,50 @@ final class OwlDictPackCenterTests: XCTestCase {
                    "user data on disk stays untouched")
   }
 
+  func testOutdatedIncompatibleActiveGenerationRefreshesAsNotInstalledWhileCurrentCorruptFails() throws {
+    let root = FileManager.default.temporaryDirectory
+      .appending(component: "owl-dictpack-legacy-v1-\(UUID().uuidString)", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let environment = OwlRustResourceEnvironment.production(userRoot: root)
+    let activeDir = environment.configuration.stateRoot.appending(component: "active", directoryHint: .isDirectory)
+    try FileManager.default.createDirectory(at: activeDir, withIntermediateDirectories: true)
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+
+    let legacyV1 = OwlRustResourceActiveState(
+      schemaVersion: 1,
+      inputKind: .pinyinWubi,
+      current: fixtureRecord(version: 1, seed: "1"),
+      previous: nil,
+      activatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    try encoder.encode(legacyV1).write(to: activeDir.appending(component: "pinyin-wubi.json"))
+
+    let center = OwlDictPackCenter(rustBackend: .production(userRoot: root, sharedSupport: nil))
+    XCTAssertTrue(center.needsPrompt, "outdated v1 generation still needs the current bundled generation")
+    center.refresh()
+    XCTAssertEqual(
+      center.status, .notInstalled,
+      "an older generation lacking v4 files (like msime-wubi.db) must not lock the UI in an error banner"
+    )
+
+    let corruptCurrent = OwlRustResourceActiveState(
+      schemaVersion: 1,
+      inputKind: .pinyinWubi,
+      current: fixtureRecord(version: OwlRustCompatibleResources.packageVersion, seed: "4"),
+      previous: nil,
+      activatedAt: Date(timeIntervalSince1970: 1_700_000_001)
+    )
+    try encoder.encode(corruptCurrent).write(to: activeDir.appending(component: "pinyin-wubi.json"))
+    center.refresh()
+    guard case .failed(let message) = center.status else {
+      return XCTFail("corrupt current generation must still report failure, got \(center.status)")
+    }
+    XCTAssertTrue(message.contains("Rust 词库状态无法读取：资源文件缺失："), "unexpected message: \(message)")
+  }
+
   func testRustPrepareActivateAndRollback() async throws {
     let root = FileManager.default.temporaryDirectory
       .appending(component: "owl-dictpack-center-\(UUID().uuidString)", directoryHint: .isDirectory)
