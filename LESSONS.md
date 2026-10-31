@@ -5,6 +5,17 @@ that the lesson is in place: which file to read, which command to run, what resu
 and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## Input-menu PDF icons must use pure vector paths without SVG masks and be verified through AppKit
+
+**Author `resources/OwlMenuIcon.svg` with `fill-rule="evenodd"` vector subpaths rather than `<mask>`, and verify the generated `OwlMenuIcon.pdf` by drawing it through `NSImage` in AppKit.**
+
+- Reason: on 2026-10-31 the installed 2.3.0 input menu bar and dropdown showed a blank space beside「猫头鹰输入法」even though `/Library/Input Methods/Owltype.app/Contents/Resources/OwlMenuIcon.pdf` matched the committed file from #308 (`741c795`). `OwlMenuIcon.svg` used `<mask id="owl-cutouts">` for the eye and wing cutouts; `rsvg-convert -f pdf` (Cairo 1.18.6) exported that `<mask>` as a PDF `/SMask /S /Alpha` containing a 1-bit `/DeviceGray` image with a nested 8-bit 22×16 `/SMask` and flipped matrix (`22 0 0 -16 0 16 cm`). CoreGraphics (`NSPDFImageRep`) rendered all pixels with alpha `0.0`; #308 had only inspected SVG rendering and PDF byte identity without rendering the generated PDF through AppKit.
+- Prevention: express the eye oval and stroked wing curve as closed subpaths inside a `fill-rule="evenodd"` `<path>` with a separate `<circle>` for the pupil in [OwlMenuIcon.svg](resources/OwlMenuIcon.svg), so `rsvg-convert -f pdf` emits pure vector PDF path operators with no `/SMask` or bitmap objects.
+- Regression: `testBundledMenuIconPDFRendersNonEmptyTemplateWithCutoutsInAppKit` in [ActivationPolicyTests.swift](tests/ActivationPolicyTests.swift) asserts that the bundled `OwlMenuIcon.pdf` contains no `/SMask` and renders >300 opaque pixels with opaque pupil/body and transparent eye/wing cutouts when drawn via `NSImage` into an `NSBitmapImageRep` (fails with `0` opaque pixels on the #308 PDF).
+- Scope: `resources/OwlMenuIcon.svg`, `resources/OwlMenuIcon.pdf`, and AppKit/CoreGraphics PDF rendering.
+- Verify (验证点): `python3 scripts/verify.py swift --test ActivationPolicyTests/testBundledMenuIconPDFRendersNonEmptyTemplateWithCutoutsInAppKit` passes and `rg -a '/SMask' resources/OwlMenuIcon.pdf` prints nothing.
+- Seen on 1 distinct date: 2026-10-31.
+
 ## Upgrading across resource engine contracts must not require the old active generation to satisfy the new engine
 
 **`Store::prepare` only verifies the active record when short-circuiting an identical digest; `Store::commit` drops an incompatible previous generation instead of retaining a broken rollback target, and `OwlDictPackCenter.refresh()` treats an outdated incompatible active generation as `.notInstalled`.**
