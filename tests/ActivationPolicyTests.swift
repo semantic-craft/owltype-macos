@@ -9,6 +9,7 @@
 //  selected-source-change observer and from `--detect-activation`, and must never misfire.
 //
 
+import AppKit
 import Foundation
 import XCTest
 @testable import Owltype
@@ -359,5 +360,53 @@ final class ActivationPolicyTests: XCTestCase {
     let link = inputMethods.appending(component: "Owltype.app", directoryHint: .isDirectory)
     try FileManager.default.createSymbolicLink(at: link, withDestinationURL: products)
     XCTAssertFalse(OwlApp.isInstalledInputMethodBundle(link, libraryDir: library))
+  }
+
+  // MARK: - Bundled menu bar icon PDF renders in CoreGraphics/AppKit
+
+  func testBundledMenuIconPDFRendersNonEmptyTemplateWithCutoutsInAppKit() throws {
+    let bundle = Bundle(for: OwlApplicationDelegate.self)
+    let iconURL = try XCTUnwrap(bundle.url(forResource: "OwlMenuIcon", withExtension: "pdf"))
+    let pdfData = try Data(contentsOf: iconURL)
+    XCTAssertNil(
+      pdfData.range(of: Data("/SMask".utf8)),
+      "OwlMenuIcon.pdf must be pure vector without Cairo /SMask bitmaps that CoreGraphics renders blank"
+    )
+
+    let image = try XCTUnwrap(NSImage(contentsOf: iconURL))
+    XCTAssertEqual(image.size, NSSize(width: 22, height: 16))
+
+    let width = 44
+    let height = 32
+    let rep = try XCTUnwrap(
+      NSBitmapImageRep(
+        bitmapDataPlanes: nil,
+        pixelsWide: width,
+        pixelsHigh: height,
+        bitsPerSample: 8,
+        samplesPerPixel: 4,
+        hasAlpha: true,
+        isPlanar: false,
+        colorSpaceName: .deviceRGB,
+        bytesPerRow: 0,
+        bitsPerPixel: 0
+      )
+    )
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+    image.draw(in: NSRect(x: 0, y: 0, width: width, height: height))
+    NSGraphicsContext.restoreGraphicsState()
+
+    var opaquePixels = 0
+    for y in 0..<height {
+      for x in 0..<width where (rep.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.5 {
+        opaquePixels += 1
+      }
+    }
+    XCTAssertGreaterThan(opaquePixels, 300, "OwlMenuIcon.pdf rendered blank in AppKit")
+    XCTAssertGreaterThan(rep.colorAt(x: 18, y: 10)?.alphaComponent ?? 0, 0.9)
+    XCTAssertGreaterThan(rep.colorAt(x: 20, y: 20)?.alphaComponent ?? 0, 0.9)
+    XCTAssertLessThan(rep.colorAt(x: 23, y: 10)?.alphaComponent ?? 1, 0.05)
+    XCTAssertLessThan(rep.colorAt(x: 25, y: 23)?.alphaComponent ?? 1, 0.05)
   }
 }

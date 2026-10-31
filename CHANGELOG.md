@@ -2,6 +2,7 @@
 ## 2.3.1 (2026-10-31)
 
 ### 修复 | Fixes
+- 菜单栏图标显示修复：将菜单栏猫头鹰图标（`OwlMenuIcon.svg` / `OwlMenuIcon.pdf`）从 SVG `<mask>` 改为纯矢量 `evenodd` 复合路径，修复 Cairo 导出的嵌套 `/SMask` 位图遮罩在 macOS CoreGraphics 下渲染为空白的问题。
 - 完整词库跨代次升级修复：解决从老版本（如 v1）升级到当前版本（v4）时，设置页误报「资源文件缺失：files/msime-wubi.db」且点击重试无法完成准备与启用的死锁问题；旧代次不再阻塞新词库准备，升级后自动清除不可用的旧回退目标。
 
 <a name="2.3.0"></a>
