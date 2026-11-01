@@ -1391,3 +1391,16 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
 - Scope: isolated native model, real socket and engine tests. Installed selection, focus,
   shortcut and input-method acceptance remain separate; a safely failed live generation
   must be recorded as failure, not as language-quality success.
+
+## Keep the offline test exclusion contract in sync with new live suites
+
+- Seen 1x (2026-11-02): adding `JEVReplyServiceLiveTests` to the product test
+  exclusions left the release-chain selftest expecting exactly five skipped suites.
+  Native tests passed, but the complete gate correctly rejected the stale contract.
+- The selftest now names the local-service suite alongside the five credential-gated
+  suites. Keep the exact exclusion count and per-suite uniqueness checks; do not
+  replace them with a broad Live-name match or permit skipping offline privacy tests.
+- Verify (验证点): `bash scripts/release-chain.selftest.sh` checks the actual `make -n test`
+  output; `bash scripts/live-test.selftest.sh` checks that the local-service profile
+  cannot select provider suites or treat a skipped live test as success. These are
+  synthetic script checks, not live-service or installed-host acceptance.
