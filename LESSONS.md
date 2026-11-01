@@ -1355,3 +1355,21 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
   the removed Swift literals. Move the existing pin-consistency check with the
   Rust catalog owner; a focused runtime pass alone does not cover repository
   maintenance scripts. The original gate failure is retained in its receipt.
+
+## Reply candidates need a total deadline and revocable copy ownership
+
+- Seen 1x (2026-11-02): the optional reply client accepted one, four, duplicate and blank
+  candidates. The new public-model regression failed four assertions before enforcing the
+  shared 2–3 distinct-text contract. It also had no explicit copy effect and disabled editing
+  while generation was running, preventing the requested mid-flight correction.
+- Copy now requires a current candidate and writes only on the explicit button action.
+  Editing, cancellation and closing retire its request identity. Nonblocking socket I/O
+  uses one monotonic deadline; a service sending intermittent bytes cannot reset the limit.
+- Verify (验证点): `python3 scripts/verify.py swift --test JEVReplyModelTests --test JEVTransportTests`
+  covers candidate admission, a private pasteboard, an old response released after a new
+  result, real-socket cancellation/deadlines and ordinary pinyin after service unavailability.
+  `bash scripts/live-test.selftest.sh` keeps the local-service profile restricted to its own
+  live suite without weakening other providers' credential and skip-as-failure checks.
+- Scope: isolated native model, real socket and engine tests. Installed selection, focus,
+  shortcut and input-method acceptance remain separate; a safely failed live generation
+  must be recorded as failure, not as language-quality success.

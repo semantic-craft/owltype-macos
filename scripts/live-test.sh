@@ -33,6 +33,18 @@ have_any_key() {
   return 1
 }
 
+forward=()
+missing=()
+if [[ ${1:-} == --reply-service ]]; then
+  # No credentials belong to the input method. Only this fixed local-service suite is
+  # eligible; other Live suites must still pass through direnv and OwlLiveKey.
+  [[ $# == 2 && $2 == /* ]] || { echo "用法：live-test.sh --reply-service /absolute/test.sock" >&2; exit 2; }
+  forward+=("TEST_RUNNER_OWL_REPLY_SERVICE_SOCKET=$2")
+  for name in "${KEYS[@]}" OPENAI_API_KEY; do
+    unset "$name" "TEST_RUNNER_$name"
+  done
+  set -- JEVReplyServiceLiveTests/testSharedServiceCandidatesAndOverrides
+else
 if [[ -z ${OWL_LIVE_TEST_REEXEC:-} ]] && command -v direnv >/dev/null; then
   OWL_LIVE_TEST_REEXEC=1 exec direnv exec "$root" bash "$0" "$@"
 fi
@@ -42,8 +54,6 @@ if ! have_any_key; then
   exit 1
 fi
 
-forward=()
-missing=()
 for name in "${KEYS[@]}"; do
   if [[ -n ${!name:-} ]]; then
     forward+=("TEST_RUNNER_${name}=${!name}")
@@ -53,6 +63,8 @@ for name in "${KEYS[@]}"; do
 done
 # 全量提示词评测的开关同样要经前缀才进得了测试进程。
 [[ -n ${OWL_RUN_LIVE_PROMPT_EVAL:-} ]] && forward+=("TEST_RUNNER_OWL_RUN_LIVE_PROMPT_EVAL=$OWL_RUN_LIVE_PROMPT_EVAL")
+
+fi
 
 only=()
 for test in "$@"; do
@@ -70,7 +82,7 @@ log=$(mktemp -t owl-live-test)
 trap 'rm -f "$log"' EXIT
 status=0
 env "${forward[@]}" "${xcode[@]}" test-without-building "${only[@]}" >"$log" 2>&1 || status=$?
-grep -E "^Test Case|error: -|skipped|Executed" "$log" | sort -u || true
+grep -E "^Test Case|error: -|skipped|Executed|^KOTONE_LIVE " "$log" | sort -u || true
 
 if grep -qE "^Test Case .*skipped|Test skipped" "$log"; then
   echo "live-test: 有实盘测试被跳过，算失败。环境缺少：${missing[*]:-（无，见上方跳过原因）}" >&2
