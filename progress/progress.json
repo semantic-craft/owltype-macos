@@ -249,9 +249,23 @@
         "updated_at": "2026-10-30T17:19:30Z"
       }
     ],
-    "main": "8eb560d2cf59bdb406935fee1104f78dd7b1bac4",
-    "open_pulls": [],
-    "pulls": [],
+    "main": "480471d95b052776e67531a8dc98f84e9f1ac878",
+    "open_pulls": [
+      {
+        "head": "436ac2a75979a2a9349256f88448988c4100b8d6",
+        "number": 388
+      }
+    ],
+    "pulls": [
+      {
+        "base": "480471d95b052776e67531a8dc98f84e9f1ac878",
+        "head": "436ac2a75979a2a9349256f88448988c4100b8d6",
+        "merge_commit": "df1a63650e03d14dd9d6323a129ecc8449f54a28",
+        "merged": false,
+        "number": 388,
+        "state": "open"
+      }
+    ],
     "releases": []
   },
   "inputs": [
@@ -259,13 +273,15 @@
     "progress/sync.py",
     "progress/teslahub.mjs"
   ],
-  "observed_at": "2026-10-31T15:24:56.669570Z",
+  "observed_at": "2026-11-01T19:56:47.290637Z",
   "outputs": [
     "progress/index.html"
   ],
   "page": "progress/index.html",
   "related_repositories": [
-    "semantic-craft/TeslaHub"
+    "semantic-craft/TeslaHub",
+    "semantic-craft/pallas-macos",
+    "semantic-craft/kotone"
   ],
   "renderer": null,
   "repository": "semantic-craft/owltype-macos",
@@ -880,6 +896,36 @@
         }
       ],
       "title": "Rust 业务核心迁移"
+    },
+    {
+      "id": "kotone-replies",
+      "items": [
+        {
+          "evidence": [
+            {
+              "kind": "pull",
+              "note": "集成草稿；未合并",
+              "ref": 388
+            },
+            {
+              "kind": "file",
+              "note": "模型、socket与共享服务验收入口；自动检查不替代安装体验",
+              "ref": "tests/JEVReplyModelTests.swift"
+            },
+            {
+              "kind": "file",
+              "note": "服务启动与只读边界",
+              "ref": "docs/operations/jev-replies.md"
+            }
+          ],
+          "id": "kotone-selection-replies",
+          "next": "完成独立评审与精确提交完整门禁；按Pallas #763核对六场景，原生选区及快捷键由维护者验收。",
+          "status": "in_progress",
+          "summary": "候选限定2–3条，生成中可修改要求，旧请求失效；56项原生检查通过。真实共享服务4个正向合成案例通过，注入负例明确失败且无候选。未完成整体验收、安装或发布。",
+          "title": "选区候选、取消与明确复制"
+        }
+      ],
+      "title": "琴音选区回复"
     }
   ],
   "title": "Owltype · 水杉输入对齐",
@@ -927,6 +973,8 @@
       366,
       367
     ],
-    "pulls": []
+    "pulls": [
+      388
+    ]
   }
 }
