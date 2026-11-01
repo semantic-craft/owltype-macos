@@ -7,6 +7,35 @@ import XCTest
 /// The IMK IPC transport and TIS source detection are the only substituted boundaries.
 final class OwlInputHabitsIntegrationTests: XCTestCase {
   @MainActor
+  func testStatusPanelUsesIsolatedVisibilityPreference() throws {
+    let defaults = OwlDefaults.standard
+    let key = OwlInputStatusPanel.enabledKey
+    let saved = defaults.object(forKey: key)
+    defer {
+      if let saved { defaults.set(saved, forKey: key) } else { defaults.removeObject(forKey: key) }
+    }
+    let panel = OwlInputStatusPanel.shared
+    for enabled in [false, true] {
+      defaults.set(enabled, forKey: key)
+      // Do not exercise a write until the panel proves it reads the isolated domain.
+      guard panel.isEnabled == enabled else {
+        XCTFail("Status panel must read the isolated visibility preference: \(enabled)")
+        return
+      }
+    }
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    defer { panel.deactivate(controller); controller.destroySession() }
+    panel.toggleVisibility(controller)
+    XCTAssertFalse(defaults.bool(forKey: key), "Hiding must write to the isolated domain")
+    XCTAssertFalse(panel.isEnabled)
+    XCTAssertFalse(panel.isVisible)
+    panel.toggleVisibility(controller)
+    XCTAssertTrue(defaults.bool(forKey: key), "Showing must write to the isolated domain")
+    XCTAssertTrue(panel.isEnabled)
+    XCTAssertTrue(panel.isVisible)
+  }
+
+  @MainActor
   func testNativeApplicationChordsFinishCompositionBeforePassthrough() throws {
     for flags: NSEvent.ModifierFlags in [.command, .control, .option] {
       let root = FileManager.default.temporaryDirectory.appendingPathComponent("owl-finish-chord-\(UUID())")

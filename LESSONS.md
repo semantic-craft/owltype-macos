@@ -5,6 +5,24 @@ that the lesson is in place: which file to read, which command to run, what resu
 and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## Floating status visibility must use the application's preference owner
+
+- Seen 1x (2026-11-02): the full gate failed the two status-panel visibility assertions
+  in `testControllerRoundTrip`. The unchanged test also failed alone after other native
+  hosts stopped. `OwlInputStatusPanel` bypassed `OwlDefaults.standard`, reading the
+  installed application's hidden-state preference instead of the isolated test domain.
+- Both visibility reads and toggle writes now use `OwlDefaults.standard`; production
+  retains its existing preference and tests use their process-specific suite.
+- Regression: `testStatusPanelUsesIsolatedVisibilityPreference` failed before the fix
+  when the isolated preference was true. It checks both values before any toggle,
+  then verifies hide/show writes and panel visibility through the public panel actions.
+- Verify (验证点): `python3 scripts/verify.py swift --test OwlInputHabitsIntegrationTests
+  --test OwlInputStatusPanelGeometryTests --test OwlInputStatusPanelRenderingTests`
+  passes. The original round trip and the isolated preference regression both pass;
+  the installed visibility preference remained false before and after verification.
+- Scope: isolated native test host only; no installed input method or user preference
+  was changed, and this does not establish installed-host acceptance.
+
 ## Input-menu PDF icons must use pure vector paths without SVG masks and be verified through AppKit
 
 **Author `resources/OwlMenuIcon.svg` with `fill-rule="evenodd"` vector subpaths rather than `<mask>`, and verify the generated `OwlMenuIcon.pdf` by drawing it through `NSImage` in AppKit.**
