@@ -28,6 +28,17 @@ final class OwlInMemorySecretStore: OwlSecretStoring {
 
 final class ProviderProfileStoreTests: XCTestCase {
 
+  func testIsolatedHostCannotReadOrWritePersonalKeychain() throws {
+    XCTAssertTrue(OwlTestStorage.isEnabled)
+    let secrets = OwlProviderKeychain()
+    XCTAssertNil(try secrets.secret(named: "isolated-test"))
+    XCTAssertThrowsError(try secrets.setSecret("synthetic", named: "isolated-test"))
+    XCTAssertThrowsError(try secrets.deleteSecret(named: "isolated-test"))
+    XCTAssertNil(try OwlCloudKeychain.readDeepSeekAPIKey())
+    XCTAssertThrowsError(try OwlCloudKeychain.saveDeepSeekAPIKey("synthetic"))
+    XCTAssertThrowsError(try OwlCloudKeychain.deleteDeepSeekAPIKey())
+  }
+
   private final class FailingSecretStore: OwlSecretStoring {
     let backing = OwlInMemorySecretStore()
     func secret(named name: String) throws -> String? { try backing.secret(named: name) }
