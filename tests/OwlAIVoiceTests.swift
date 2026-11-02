@@ -403,4 +403,59 @@ final class OwlAIVoiceTests: XCTestCase {
     XCTAssertEqual(coordinator.mode, .idle, "Must remain .idle in secure input")
     XCTAssertEqual(mockRecorder.startRecordingCallCount, 0, "Must not start recording in secure input")
   }
+
+  func testMicrophonePermissionNotDeterminedRequestsBeforeRecording() async throws {
+    let coordinator = OwlVoiceInputCoordinator()
+    coordinator.isEnabledOverride = true
+    coordinator.secureInputChecker = { false }
+
+    let mockRecorder = OwlMockAudioRecorder()
+    coordinator.audioRecorder = mockRecorder
+    coordinator.targetSnapshotProvider = { OwlVoiceTargetSnapshot() }
+
+    var permissionRequestedCount = 0
+    coordinator.microphonePermissionStatusProvider = { .notDetermined }
+    coordinator.microphonePermissionRequester = {
+      permissionRequestedCount += 1
+      return true
+    }
+
+    coordinator.startVoiceInput()
+    for _ in 0..<20 {
+      if mockRecorder.startRecordingCallCount > 0 { break }
+      try await Task.sleep(nanoseconds: 20_000_000)
+    }
+
+    XCTAssertEqual(permissionRequestedCount, 1, "Must request microphone permission when .notDetermined")
+    XCTAssertEqual(mockRecorder.startRecordingCallCount, 1, "Must start recording once permission is granted")
+  }
+
+  func testVoiceHotKeyTriggerTogglesStartAndFinish() throws {
+    let coordinator = OwlVoiceInputCoordinator()
+    coordinator.isEnabledOverride = true
+    coordinator.secureInputChecker = { false }
+
+    let mockRecorder = OwlMockAudioRecorder()
+    var pcm = [Float](repeating: 0.25, count: 8000)
+    pcm[0] = 0.35
+    mockRecorder.stubbedWavData = OwlWAVPacker.pack16kHzMono16BitPCM(samples: pcm)
+    coordinator.audioRecorder = mockRecorder
+    coordinator.targetSnapshotProvider = { OwlVoiceTargetSnapshot() }
+
+    // 1. Trigger from idle -> starts recording
+    coordinator.handleVoiceHotKeyTrigger()
+    XCTAssertEqual(mockRecorder.startRecordingCallCount, 1)
+
+    // 2. Quick keyUp -> transitions to .toggled
+    coordinator.shortcutMatcher = { $0.keyCode == 9 }
+    let up = try makeKeyEvent(type: .keyUp, keyCode: 9)
+    XCTAssertTrue(coordinator.handleKeyEvent(up))
+    guard case .toggled = coordinator.mode else {
+      return XCTFail("Expected .toggled mode, got \(coordinator.mode)")
+    }
+
+    // 3. Trigger again in .toggled -> stops recording
+    coordinator.handleVoiceHotKeyTrigger()
+    XCTAssertEqual(mockRecorder.stopRecordingCallCount, 1)
+  }
 }

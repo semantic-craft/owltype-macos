@@ -274,9 +274,14 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       }
       controller.showOwltypePromptPicker(initialSegment: .prompt)
     }
+    hotKeyTap.onVoiceInputEvent = { event in
+      Task { @MainActor in
+        _ = OwlVoiceInputCoordinator.shared.handleKeyEvent(event)
+      }
+    }
     hotKeyTap.onVoiceInput = {
       Task { @MainActor in
-        OwlVoiceInputCoordinator.shared.startVoiceInput()
+        OwlVoiceInputCoordinator.shared.handleVoiceHotKeyTrigger()
       }
     }
     hotKeyTap.startIfPossible()

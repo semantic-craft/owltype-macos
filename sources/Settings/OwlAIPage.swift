@@ -136,11 +136,18 @@ struct OwlAIPage: View {
           isOn: state.voiceInputEnabled,
           palette: palette,
           onToggle: {
-            OwlSettingsActions.toggle(state: state, keyPath: \.voiceInputEnabled) {
-              OwlVoiceSettings.isEnabled = $0
+            OwlSettingsActions.toggle(state: state, keyPath: \.voiceInputEnabled) { enabled in
+              OwlVoiceSettings.isEnabled = enabled
+              if enabled, !OwlDefaults.isRunningUnitTests, OwlMicrophonePermission.status == .notDetermined {
+                Task { _ = await OwlMicrophonePermission.request() }
+              }
             }
           }
         )
+        SettingsCardDivider(palette: palette)
+        OwlHotKeyRecorderRow(slot: .voiceInput, palette: palette)
+          .padding(.horizontal, 14)
+          .padding(.vertical, 10)
         SettingsCardDivider(palette: palette)
         SettingsToggleRow(
           title: "语音润色",

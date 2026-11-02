@@ -101,6 +101,7 @@ final class OwlAIWindow: NSWindowController {
     let effectiveSelectedText: String? = {
       if let selectedText { return selectedText }
       if case let .selection(snapshot) = context { return snapshot.text }
+      if case let .typing(_, preedit, _, _) = context, !preedit.isEmpty { return preedit }
       return nil
     }()
     let model = OwlAIConversationModel(

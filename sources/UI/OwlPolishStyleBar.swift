@@ -32,8 +32,10 @@ struct OwlPolishStyleBar: View {
         let isSelected = (selectedStyle == style)
         Button {
           guard !isDisabled, selectedStyle != style else { return }
-          selectedStyle = style
           onSelectStyle(style)
+          if selectedStyle != style {
+            selectedStyle = style
+          }
         } label: {
           HStack(spacing: 4) {
             Image(systemName: style.iconName)

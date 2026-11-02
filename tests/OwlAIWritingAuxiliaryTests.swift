@@ -1067,4 +1067,16 @@ final class OwlAIWritingAuxiliaryTests: XCTestCase {
     XCTAssertEqual(callTrace, ["window.close", "client.insert:新上屏文本"])
     XCTAssertEqual(mockClient.replacementRanges, [.empty], "Typing writeback must insert at cursor with .empty range")
   }
+
+  func testShowAIWindowWithTypingContextSeedsCapturedContextSummary() {
+    let typingContext = OwlAIInvocationContext.typing(
+      client: nil,
+      preedit: "待润色草稿",
+      frontmostApp: nil,
+      bundleID: "com.apple.Notes"
+    )
+    OwlAIWindow.shared.show(context: typingContext, initialMode: .polish)
+    XCTAssertEqual(OwlAIWindow.shared.model?.capturedContextSummary, "待润色草稿")
+    OwlAIWindow.shared.closeWindow()
+  }
 }

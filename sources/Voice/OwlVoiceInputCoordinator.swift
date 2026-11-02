@@ -67,6 +67,8 @@ final class OwlVoiceInputCoordinator {
   var shortcutMatcher: ((NSEvent) -> Bool)?
   var targetSnapshotProvider: (() -> OwlVoiceTargetSnapshot)?
   var secureInputChecker: (() -> Bool)?
+  var microphonePermissionStatusProvider: (() -> OwlMicrophonePermission.Status)?
+  var microphonePermissionRequester: (() async -> Bool)?
   var isEnabledOverride: Bool?
 
   var isVoiceEnabled: Bool {
@@ -81,6 +83,19 @@ final class OwlVoiceInputCoordinator {
   init() {}
 
   // MARK: - Key Event Handling
+
+  /// Fallback trigger when a hotkey tap fires without an `NSEvent`.
+  func handleVoiceHotKeyTrigger() {
+    guard isVoiceEnabled else { return }
+    switch mode {
+    case .idle:
+      startVoiceInput()
+    case .toggled, .handsFreeLocked:
+      finishRecordingAndTranscribe()
+    default:
+      break
+    }
+  }
 
   /// Intercepts key events. Returns true if consumed by the voice input subsystem.
   func handleKeyEvent(_ event: NSEvent) -> Bool {
@@ -122,7 +137,7 @@ final class OwlVoiceInputCoordinator {
         }
       }
     } else if event.type == .keyUp {
-      if isVoiceShortcut(event) {
+      if isVoiceShortcutKeyUp(event) {
         switch mode {
         case let .holding(t0):
           let elapsed = Date().timeIntervalSince(t0)
@@ -192,9 +207,36 @@ final class OwlVoiceInputCoordinator {
 
     let anchor = targetSnapshot?.caretAnchor ?? .zero
 
+    let shouldCheckPermission = (microphonePermissionStatusProvider != nil) || (audioRecorder is OwlVoiceAudioRecorder)
+    if shouldCheckPermission {
+      let currentStatus = microphonePermissionStatusProvider?() ?? OwlMicrophonePermission.status
+      if currentStatus == .notDetermined {
+        let requester = microphonePermissionRequester ?? { await OwlMicrophonePermission.request() }
+        Task { @MainActor [weak self] in
+          guard let self else { return }
+          let granted = await requester()
+          if granted {
+            self.beginAudioRecording(anchor: anchor, initialMode: .toggled(startTime: Date()))
+          } else {
+            self.mode = .idle
+            self.hudPanel.present(
+              state: .failed(OwlVoiceRecorderError.microphonePermissionDenied.localizedDescription),
+              anchor: anchor
+            )
+            self.scheduleDismiss(after: 2.0)
+          }
+        }
+        return
+      }
+    }
+
+    beginAudioRecording(anchor: anchor, initialMode: .holding(startTime: Date()))
+  }
+
+  private func beginAudioRecording(anchor: NSRect, initialMode: Mode) {
     // 2. Start Audio Recording
     do {
-      mode = .holding(startTime: Date())
+      mode = initialMode
       hudPanel.present(state: .recording(level: 0.0, duration: 0.0, isHandsFreeLocked: false), anchor: anchor)
 
       audioRecorder.audioLevelHandler = { [weak self] level in
@@ -394,6 +436,14 @@ final class OwlVoiceInputCoordinator {
     }
     guard let combo = OwlVoiceSettings.hotkey?.carbonCombo else { return false }
     return OwlHotKeyMatcher.matches(combo, keyCode: event.keyCode, flags: event.modifierFlags)
+  }
+
+  private func isVoiceShortcutKeyUp(_ event: NSEvent) -> Bool {
+    if isVoiceShortcut(event) { return true }
+    if case .holding = mode, let combo = OwlVoiceSettings.hotkey?.carbonCombo {
+      return UInt32(event.keyCode) == combo.keyCode
+    }
+    return false
   }
 
   private func isSecureInputActive() -> Bool {

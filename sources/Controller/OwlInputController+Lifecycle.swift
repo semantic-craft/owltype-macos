@@ -16,7 +16,7 @@ extension OwlInputController {
   override func recognizedEvents(_ sender: Any!) -> Int {
     // print("[DEBUG] recognizedEvents:")
     debugLiveInputTrace("recognizedEvents hasSender=\(sender != nil)")
-    return Int(NSEvent.EventTypeMask.Element(arrayLiteral: .keyDown, .flagsChanged).rawValue)
+    return Int(NSEvent.EventTypeMask.Element(arrayLiteral: .keyDown, .keyUp, .flagsChanged).rawValue)
   }
 
   override func activateServer(_ sender: Any!) {

@@ -156,6 +156,9 @@ final class OwlInputController: IMKInputController {
   override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
     guard let event = event else { return false }
     if event.cgEvent?.getIntegerValueField(.eventSourceUserData) == OwlSmartPunctuation.postedEventTag { return false }
+    if event.type == .keyUp {
+      return MainActor.assumeIsolated { OwlVoiceInputCoordinator.shared.handleKeyEvent(event) }
+    }
     let wasHandlingKeyEvent = isHandlingKeyEvent
     isHandlingKeyEvent = true
     if event.type == .keyDown { hostEventGeneration &+= 1 }
@@ -215,29 +218,27 @@ final class OwlInputController: IMKInputController {
 
     if let handled = handleNativePairedClosing(event) { return handled }
     if handleAutomaticExpansion(event) { return true }
-
-    if MainActor.assumeIsolated({ OwlVoiceInputCoordinator.shared.handleKeyEvent(event) }) {
-      return true
-    }
-
-    // 全局热键的唯一路径（#118）: 快捷短语面板与划词菜单召唤只在猫头鹰为活跃输入法时有意义 —— 此时
-    // 每个 keyDown 本来就流经这里，直接匹配。绝不可回退到 Carbon RegisterEventHotKey：在本 IMK
-    // 进程它注册返回 noErr 后窗口服务器会全局吞掉该组合，但事件永不进程内派发（真机实证）——
-    // 热键不响应，还把组合键从所有应用（包括本匹配器）手里偷走。
-    if event.type == .keyDown, handleGlobalHotKeyViaIMK(event) {
-      return true
-    }
-    if event.type == .keyDown, handleAIWritingHotKey(event) {
-      return true
-    }
-    if event.type == .keyDown, handleAICommandDetector(event) {
-      return true
-    }
+    if handleInterceptedKeyDown(event) { return true }
 
     // PURE pipeline (task 06-22): de-platform the NSEvent → classify (pure) → feed the engine.
     let action = OwlUserActionClassifier.classify(OwlKeyEvent(event: event, lastModifiers: lastModifiers))
     debugLiveInputTrace("handle classified type=\(event.type.rawValue) key=\(event.keyCode)")
     return apply(userAction: action)
+  }
+
+  private func handleInterceptedKeyDown(_ event: NSEvent) -> Bool {
+    if MainActor.assumeIsolated({ OwlVoiceInputCoordinator.shared.handleKeyEvent(event) }) {
+      return true
+    }
+    // 全局热键的唯一路径（#118）: 快捷短语面板与划词菜单召唤只在猫头鹰为活跃输入法时有意义 —— 此时
+    // 每个 keyDown 本来就流经这里，直接匹配。绝不可回退到 Carbon RegisterEventHotKey：在本 IMK
+    // 进程它注册返回 noErr 后窗口服务器会全局吞掉该组合，但事件永不进程内派发（真机实证）——
+    // 热键不响应，还把组合键从所有应用（包括本匹配器）手里偷走。
+    guard event.type == .keyDown else { return false }
+    if handleGlobalHotKeyViaIMK(event) { return true }
+    if handleAIWritingHotKey(event) { return true }
+    if handleAICommandDetector(event) { return true }
+    return false
   }
 
   /// Feed a classified `OwlUserAction` to the engine (the only stateful step) and refresh IMK.

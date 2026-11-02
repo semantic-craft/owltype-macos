@@ -304,6 +304,7 @@ final class OwlHotKeyEventTap: NSObject {
   var onSelectionSummon: (() -> Void)?
   var onPromptAssistant: (() -> Void)?
   var onVoiceInput: (() -> Void)?
+  var onVoiceInputEvent: ((NSEvent) -> Void)?
 
   /// Install the tap when possible. Safe to call repeatedly; no-op when installed or AX untrusted.
   func startIfPossible() {
@@ -312,7 +313,7 @@ final class OwlHotKeyEventTap: NSObject {
       OwlHotKeyMatcher.log.notice("event tap not installed: accessibility not trusted (IMK fallback)")
       return
     }
-    let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
+    let mask = CGEventMask((1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue))
     let context = Unmanaged.passUnretained(self).toOpaque()
     guard let created = CGEvent.tapCreate(
       tap: .cgSessionEventTap,
@@ -386,21 +387,46 @@ final class OwlHotKeyEventTap: NSObject {
       if let port = installed.withLock({ $0.port }) { CGEvent.tapEnable(tap: port, enable: true) }
       return Unmanaged.passUnretained(event)
     }
-    guard type == .keyDown else { return Unmanaged.passUnretained(event) }
+    guard type == .keyDown || type == .keyUp else { return Unmanaged.passUnretained(event) }
+    let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+    let flags = nsFlags(event.flags)
+    let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
     let (suppressed, owltypeIsCurrent) = Self.shared.withLock { ($0.suppressed, $0.owltypeIsCurrent) }
     guard let matched = Self.slotToConsume(
-      keyCode: UInt16(event.getIntegerValueField(.keyboardEventKeycode)),
-      flags: nsFlags(event.flags), suppressed: suppressed, owltypeIsCurrent: owltypeIsCurrent,
+      keyCode: keyCode,
+      flags: flags, suppressed: suppressed, owltypeIsCurrent: owltypeIsCurrent,
       combo: { $0.current?.carbonCombo })
     else { return Unmanaged.passUnretained(event) }
 
+    if type == .keyUp && matched != .voiceInput {
+      return Unmanaged.passUnretained(event)
+    }
+
     OwlHotKeyMatcher.log.notice("tap fired: \(String(describing: matched), privacy: .public)")
+    let eventType: NSEvent.EventType = (type == .keyUp) ? .keyUp : .keyDown
     DispatchQueue.main.async { [weak self] in
       switch matched {
       case .quickSendPanel: self?.onQuickSend?()
       case .selectionMenu: self?.onSelectionSummon?()
       case .promptAssistant: self?.onPromptAssistant?()
-      case .voiceInput: self?.onVoiceInput?()
+      case .voiceInput:
+        if let onVoiceInputEvent = self?.onVoiceInputEvent,
+           let nsEvent = NSEvent.keyEvent(
+             with: eventType,
+             location: .zero,
+             modifierFlags: flags,
+             timestamp: ProcessInfo.processInfo.systemUptime,
+             windowNumber: 0,
+             context: nil,
+             characters: "",
+             charactersIgnoringModifiers: "",
+             isARepeat: isRepeat,
+             keyCode: keyCode
+           ) {
+          onVoiceInputEvent(nsEvent)
+        } else if eventType == .keyDown {
+          self?.onVoiceInput?()
+        }
       case .pinCandidate: break // excluded above; handled only by IMK with live candidates
       }
     }

@@ -141,6 +141,9 @@ struct OwlAIConversationView: View {
         if case let .selection(snapshot) = context {
           return snapshot.text
         }
+        if case let .typing(_, preedit, _, _) = context, !preedit.isEmpty {
+          return preedit
+        }
         return model.capturedContextSummary
       }()
       polishViewModel = OwlAIPolishViewModel(originalText: targetText, context: context)
