@@ -160,6 +160,12 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "五笔方案",
     "z 临时拼音反查",
     "启用云端 AI",
+    "AI 联想",                        // Milestone M1 (Issue #392)
+    "英文模式 AI 候选",               // Milestone M1 (Issue #392)
+    "Jev 选词",                       // Milestone M2 (Issue #395)
+    "语音输入",                       // Milestone M3 (Issue #393)
+    "语音润色",                       // Milestone M5 (Issue #398)
+    "AI 对话面板",                    // Milestone M6 (Issue #394)
     "联网搜索",                        // 任意提问专属：开启后交给可联网供应商作答
     "启用划词工具箱",                  // 2026-07-26 重设计：自动弹出改双击 ⌥ 召唤，开关随之改名
     "启用剪贴板面板",

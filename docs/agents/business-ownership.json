@@ -3,6 +3,62 @@
   "goal": 356,
   "files": [
     {
+      "path": "installer/Shared/OwlBundleSwap.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native POSIX filesystem atomic directory exchange (renamex_np), canonical path checks and bundle staging; no business logic"
+    },
+    {
+      "path": "installer/Shared/OwlSessionRestart.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native process observation, TIS and launch effects adapter for session restart; diagnostic conditions and restart criteria evaluation are Rust-owned"
+    },
+    {
+      "path": "installer/Sources/ContentView.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native SwiftUI installer view hierarchy, installation progress presentation and interactive user actions"
+    },
+    {
+      "path": "installer/Sources/Installer.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native installer coordinator, privileged AppleScript execution, code signature verification and bundle staging"
+    },
+    {
+      "path": "installer/Sources/InstallerActivationPolicy.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native installer activation plan decision helper and probe signal parsing for the installer GUI shell"
+    },
+    {
+      "path": "installer/Sources/InstallerTISProbe.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native Text Input Services (TIS) query probe CLI helper for fresh process status verification"
+    },
+    {
+      "path": "installer/Sources/OwltypeInstallerApp.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native SwiftUI installer application entry, window management and NSApplicationDelegate lifecycle"
+    },
+    {
+      "path": "installer/Sources/main.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native CLI entry point dispatching installer execution or fresh TIS probe inspection"
+    },
+    {
       "path": "sources/Activation/InputSource.swift",
       "role": "adapter",
       "target": "Swift",
@@ -122,6 +178,13 @@
       "reason": "Native controller registry, engine lifecycle coordinator and idle refresh dispatch adapter; engine state transitions, generation tracking and configuration cache are Rust-owned"
     },
     {
+      "path": "sources/Controller/OwlAICommandDetector.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Pure Swift state machine for detecting the /ai writing assistant invocation command without networking or engine dependencies"
+    },
+    {
       "path": "sources/Controller/OwlApplicationDelegate.swift",
       "role": "native",
       "target": "Swift",
@@ -155,6 +218,13 @@
       "target": "Swift",
       "issue": null,
       "reason": "Native IMK candidate panel presentation, caret positioning, marked text rendering and commit text dispatching adapter"
+    },
+    {
+      "path": "sources/Controller/OwlInputController+Events.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native keyboard event and hotkey routing adapter for summoning the AI writing assistant panel"
     },
     {
       "path": "sources/Controller/OwlInputController+InputHabits.swift",
@@ -409,6 +479,20 @@
       "reason": "Native file primitives and status copy; Rust user_data owns backup/delete/restore and allowed reset items"
     },
     {
+      "path": "sources/Lane/OwlAICandidatePreferences.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native UserDefaults storage for AI candidate associations and English mode settings"
+    },
+    {
+      "path": "sources/Lane/OwlAICandidateService.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native async LLM gateway orchestration and candidate line parsing for generative completions"
+    },
+    {
       "path": "sources/Lane/OwlAIContextAssembler.swift",
       "role": "adapter",
       "target": "Swift",
@@ -421,6 +505,34 @@
       "target": "Swift",
       "issue": null,
       "reason": "Native Task execution, provider-change observation and render projection of the Rust generation/history state machine"
+    },
+    {
+      "path": "sources/Lane/OwlAIInvocationContext.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Data structures representing typing, selection, and standalone invocation contexts for AI writing assistant"
+    },
+    {
+      "path": "sources/Lane/OwlAIPolishService.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native async LLM polish and reply generation service conforming to writing auxiliary protocols"
+    },
+    {
+      "path": "sources/Lane/OwlAIWritebackCoordinator.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Context-aware writeback execution coordinator handling client insertion and Vulcan selection replacement"
+    },
+    {
+      "path": "sources/Lane/OwlAIWritingSettings.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native UserDefaults preferences storage for the AI writing auxiliary panel"
     },
     {
       "path": "sources/Lane/OwlAskAnythingModule.swift",
@@ -465,6 +577,13 @@
       "reason": "Native DTOs, UI and URLSession/Keychain/preferences/filesystem effects; provider_store/provider_wire/provider_search and owned Rust sessions own provider rules, protocol and transactions"
     },
     {
+      "path": "sources/Lane/OwlDualPolishParser.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native 5-tier cascading resilient XML parser for dual polish and quick reply candidates"
+    },
+    {
       "path": "sources/Lane/OwlGoalBrief.swift",
       "role": "adapter",
       "target": "Swift",
@@ -484,6 +603,13 @@
       "target": "Swift",
       "issue": null,
       "reason": "Raw prompt preference and DTO projection of the Rust catalog"
+    },
+    {
+      "path": "sources/Lane/OwlPolishStyle.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native enum, metadata, and prompt catalogs for 4-style dual candidate writing polish"
     },
     {
       "path": "sources/Lane/OwlPromptOptimizer.swift",
@@ -512,6 +638,13 @@
       "target": "Swift",
       "issue": null,
       "reason": "Native DTOs, UI and URLSession/Keychain/preferences/filesystem effects; provider_store/provider_wire/provider_search and owned Rust sessions own provider rules, protocol and transactions"
+    },
+    {
+      "path": "sources/Lane/OwlReplyTemplate.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native enum, perspective metadata, and prompt catalogs for 5 quick reply templates"
     },
     {
       "path": "sources/Lane/OwlResponsesStreamingClient.swift",
@@ -955,6 +1088,13 @@
       "reason": "Native views, presentation state, geometry or explicit system context capture"
     },
     {
+      "path": "sources/UI/OwlAIPolishCardsView.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native SwiftUI view for dual candidate polish cards with diff badges, keycaps, and writeback"
+    },
+    {
       "path": "sources/UI/OwlAIWindow.swift",
       "role": "native",
       "target": "Swift",
@@ -1018,11 +1158,25 @@
       "reason": "Rust focus-session effects; native application references, activation, timer scheduling and explicit clipboard writes"
     },
     {
+      "path": "sources/UI/OwlPolishStyleBar.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native SwiftUI segmented switcher bar for 4-style writing polish"
+    },
+    {
       "path": "sources/UI/OwlPromptFillSheet.swift",
       "role": "native",
       "target": "Swift",
       "issue": null,
       "reason": "Native views, presentation state, geometry or explicit system context capture"
+    },
+    {
+      "path": "sources/UI/OwlQuickReplyView.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Native SwiftUI view for 5-template quick reply switcher and 3-candidate reply cards"
     },
     {
       "path": "sources/UI/OwlQuickSendHotKey.swift",
@@ -1144,60 +1298,116 @@
       "reason": "Native file effects and typed errors; Rust owns original protection, idempotent staging, collision and failure cleanup"
     },
     {
-      "path": "installer/Shared/OwlBundleSwap.swift",
+      "path": "sources/Voice/OwlAudioRecordingProtocol.swift",
       "role": "native",
       "target": "Swift",
       "issue": null,
-      "reason": "Native POSIX filesystem atomic directory exchange (renamex_np), canonical path checks and bundle staging; no business logic"
+      "reason": "Protocol definition and error types for in-memory audio recording subsystem"
     },
     {
-      "path": "installer/Shared/OwlSessionRestart.swift",
+      "path": "sources/Voice/OwlMicrophonePermission.swift",
       "role": "adapter",
       "target": "Swift",
       "issue": null,
-      "reason": "Native process observation, TIS and launch effects adapter for session restart; diagnostic conditions and restart criteria evaluation are Rust-owned"
+      "reason": "Native AVFoundation microphone permission status query, authorization request, and system settings navigation"
     },
     {
-      "path": "installer/Sources/ContentView.swift",
+      "path": "sources/Voice/OwlVoiceAudioRecorder.swift",
       "role": "native",
       "target": "Swift",
       "issue": null,
-      "reason": "Native SwiftUI installer view hierarchy, installation progress presentation and interactive user actions"
+      "reason": "In-memory 16kHz mono audio recorder with Accelerate RMS normalization, 60-second limit, and silence detection"
     },
     {
-      "path": "installer/Sources/Installer.swift",
+      "path": "sources/Voice/OwlVoiceCapsulePanel.swift",
       "role": "native",
       "target": "Swift",
       "issue": null,
-      "reason": "Native installer coordinator, privileged AppleScript execution, code signature verification and bundle staging"
+      "reason": "Non-activating floating NSPanel container for voice input HUD"
     },
     {
-      "path": "installer/Sources/InstallerActivationPolicy.swift",
+      "path": "sources/Voice/OwlVoiceCapsuleState.swift",
       "role": "native",
       "target": "Swift",
       "issue": null,
-      "reason": "Native installer activation plan decision helper and probe signal parsing for the installer GUI shell"
+      "reason": "Voice capsule HUD state models and state transition representation"
     },
     {
-      "path": "installer/Sources/InstallerTISProbe.swift",
+      "path": "sources/Voice/OwlVoiceCapsuleView.swift",
       "role": "native",
       "target": "Swift",
       "issue": null,
-      "reason": "Native Text Input Services (TIS) query probe CLI helper for fresh process status verification"
+      "reason": "SwiftUI voice capsule HUD presenting dynamic waveform, elapsed timer, hands-free badge and status subtitles"
     },
     {
-      "path": "installer/Sources/OwltypeInstallerApp.swift",
+      "path": "sources/Voice/OwlVoiceDeepSeekPolisher.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "DeepSeek LLM voice transcript post-processor with thinking disabled, 4s timeout fallback, and anti-hallucination guard"
+    },
+    {
+      "path": "sources/Voice/OwlVoiceError.swift",
       "role": "native",
       "target": "Swift",
       "issue": null,
-      "reason": "Native SwiftUI installer application entry, window management and NSApplicationDelegate lifecycle"
+      "reason": "Typed error representation for cloud voice transcription, network errors, and auth failures"
     },
     {
-      "path": "installer/Sources/main.swift",
+      "path": "sources/Voice/OwlVoiceGrokASRClient.swift",
       "role": "native",
       "target": "Swift",
       "issue": null,
-      "reason": "Native CLI entry point dispatching installer execution or fresh TIS probe inspection"
+      "reason": "xAI Grok ASR cloud client with in-memory multipart form packaging and JSON transcript parsing"
+    },
+    {
+      "path": "sources/Voice/OwlVoiceHotwordsExtractor.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Extracts personal hotwords from pinned words, custom words, and personal bigrams, assembling token-safe Grok ASR prompts within 800 UTF-8 bytes"
+    },
+    {
+      "path": "sources/Voice/OwlVoiceInputCoordinator.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Gesture coordinator state machine handling hold-to-speak, hands-free locking, toggle triggers and text insertion"
+    },
+    {
+      "path": "sources/Voice/OwlVoiceKeychain.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Secure Keychain storage and retrieval for xAI API key adhering to test storage invariants"
+    },
+    {
+      "path": "sources/Voice/OwlVoiceNetworkTransport.swift",
+      "role": "adapter",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Network transport protocol abstraction and offline test stub implementation"
+    },
+    {
+      "path": "sources/Voice/OwlVoicePolishServiceProtocol.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Protocol definition for voice transcription LLM post-processing and polishing"
+    },
+    {
+      "path": "sources/Voice/OwlVoiceSettings.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "UserDefaults preferences and shortcuts configuration for voice input"
+    },
+    {
+      "path": "sources/Voice/OwlWAVPacker.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "In-memory 44-byte standard RIFF WAVE header packaging with little-endian byte ordering"
     }
   ]
 }

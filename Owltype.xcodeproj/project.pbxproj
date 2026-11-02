@@ -154,10 +154,26 @@
 		FAD1CF0ACAFEDF0ACAFEDF0A /* OwlDictPackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD1CF09CAFEDF09CAFEDF09 /* OwlDictPackTests.swift */; };
 		FA000800CAFE0080CAFE0080 /* OwlStreamingChatClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000801CAFE0081CAFE0081 /* OwlStreamingChatClient.swift */; };
 		FA000900CAFE0090CAFE0090 /* OwlAIContextAssembler.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000901CAFE0091CAFE0091 /* OwlAIContextAssembler.swift */; };
+		FA000910CAFE0091CAFE0010 /* OwlAICandidatePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000911CAFE0091CAFE0011 /* OwlAICandidatePreferences.swift */; };
+		FA000912CAFE0091CAFE0012 /* OwlAICandidateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000913CAFE0091CAFE0013 /* OwlAICandidateService.swift */; };
 		FA000902CAFE0092CAFE0092 /* OwlAIConversationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000903CAFE0093CAFE0093 /* OwlAIConversationModel.swift */; };
 		FA000904CAFE0094CAFE0094 /* OwlAIWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000905CAFE0095CAFE0095 /* OwlAIWindow.swift */; };
 		FA000910CAFE0096CAFE0096 /* OwlPromptFillSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000911CAFE0097CAFE0097 /* OwlPromptFillSheet.swift */; };
 		FA000906CAFE0096CAFE0096 /* OwlAIConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000907CAFE0097CAFE0097 /* OwlAIConversationView.swift */; };
+		FA000611CAFE0611CAFE0611 /* OwlAIInvocationContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000610CAFE0610CAFE0610 /* OwlAIInvocationContext.swift */; };
+		FA000613CAFE0613CAFE0613 /* OwlAIWritingSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000612CAFE0612CAFE0612 /* OwlAIWritingSettings.swift */; };
+		FA000615CAFE0615CAFE0615 /* OwlAIWritebackCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000614CAFE0614CAFE0614 /* OwlAIWritebackCoordinator.swift */; };
+		FA000617CAFE0617CAFE0617 /* OwlAICommandDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000616CAFE0616CAFE0616 /* OwlAICommandDetector.swift */; };
+		FA000619CAFE0619CAFE0619 /* OwlInputController+Events.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000618CAFE0618CAFE0618 /* OwlInputController+Events.swift */; };
+		FA000621CAFE0621CAFE0621 /* OwlAIWindowWritebackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000620CAFE0620CAFE0620 /* OwlAIWindowWritebackTests.swift */; };
+		FA000771CAFE0771CAFE0771 /* "OwlPolishStyle.swift" in Sources */ = {isa = PBXBuildFile; fileRef = FA000770CAFE0770CAFE0770 /* "OwlPolishStyle.swift" */; };
+		FA000773CAFE0773CAFE0773 /* "OwlReplyTemplate.swift" in Sources */ = {isa = PBXBuildFile; fileRef = FA000772CAFE0772CAFE0772 /* "OwlReplyTemplate.swift" */; };
+		FA000775CAFE0775CAFE0775 /* "OwlDualPolishParser.swift" in Sources */ = {isa = PBXBuildFile; fileRef = FA000774CAFE0774CAFE0774 /* "OwlDualPolishParser.swift" */; };
+		FA000777CAFE0777CAFE0777 /* "OwlAIPolishService.swift" in Sources */ = {isa = PBXBuildFile; fileRef = FA000776CAFE0776CAFE0776 /* "OwlAIPolishService.swift" */; };
+		FA000779CAFE0779CAFE0779 /* "OwlPolishStyleBar.swift" in Sources */ = {isa = PBXBuildFile; fileRef = FA000778CAFE0778CAFE0778 /* "OwlPolishStyleBar.swift" */; };
+		FA00077BCAFE077BCAFE077B /* "OwlAIPolishCardsView.swift" in Sources */ = {isa = PBXBuildFile; fileRef = FA00077ACAFE077ACAFE077A /* "OwlAIPolishCardsView.swift" */; };
+		FA00077DCAFE077DCAFE077D /* "OwlQuickReplyView.swift" in Sources */ = {isa = PBXBuildFile; fileRef = FA00077CCAFE077CCAFE077C /* "OwlQuickReplyView.swift" */; };
+		FA00077FCAFE077FCAFE077F /* "OwlAIWritingAuxiliaryTests.swift" in Sources */ = {isa = PBXBuildFile; fileRef = FA00077ECAFE077ECAFE077E /* "OwlAIWritingAuxiliaryTests.swift" */; };
 		FA000802CAFE0082CAFE0082 /* OwlStreamingChatClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000803CAFE0083CAFE0083 /* OwlStreamingChatClientTests.swift */; };
 		FAA0000BCAFE000BCAFE000B /* OwlProviderAuthGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA0000CCAFE000CCAFE000C /* OwlProviderAuthGateTests.swift */; };
 		FAB1A003CAFE0003CAFE0003 /* OwlLLMGatewayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB1A004CAFE0004CAFE0004 /* OwlLLMGatewayTests.swift */; };
@@ -223,6 +239,8 @@
 		E4E7A0E0E4E7A0E0E4E7A0E1 /* EngineRuntimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4E7A0E0E4E7A0E0E4E7A0E2 /* EngineRuntimeTests.swift */; };
 		4DC2E2F919B24AB4BCB7EEAA /* OwlSelectionRewriteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A55BB5C3A874140ADB7AFA7 /* OwlSelectionRewriteTests.swift */; };
 		A1F64DD8CFE44B94B1100103 /* JEVReplyModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F64DD8CFE44B94B1100104 /* JEVReplyModelTests.swift */; };
+		E2E00001CAFE0001CAFE0002 /* OwlE2EMockTransports.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2E00001CAFE0001CAFE0001 /* OwlE2EMockTransports.swift */; };
+		E2E00002CAFE0002CAFE0002 /* OwlE2EFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2E00002CAFE0002CAFE0001 /* OwlE2EFeatureTests.swift */; };
 		24912619084A4D62AF759D54 /* OwlKeyboardSettingsApplicationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E88208014E44BDE91225F9C /* OwlKeyboardSettingsApplicationTests.swift */; };
 		FA00011ACAFE011ACAFE011A /* OwlSettingsCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000119CAFE0119CAFE0119 /* OwlSettingsCoverageTests.swift */; };
 		FA000121CAFE0121CAFE0121 /* OwlSettingsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000120CAFE0120CAFE0120 /* OwlSettingsUITests.swift */; };
@@ -252,6 +270,7 @@
 		FAA00034CAFE0034CAFE0034 /* OwlUserDictResetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA00035CAFE0035CAFE0035 /* OwlUserDictResetTests.swift */; };
 		FA0000FACAFE00FACAFE00FA /* SeamPortsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000F9CAFE00F9CAFE00F9 /* SeamPortsTests.swift */; };
 		FA000702CAFE0702CAFE0702 /* OwlLaneTasksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000703CAFE0703CAFE0703 /* OwlLaneTasksTests.swift */; };
+		FA000714CAFE0714CAFE0714 /* OwlAICandidateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA000715CAFE0715CAFE0715 /* OwlAICandidateTests.swift */; };
 		B397712D2BEEB39D0093A49B /* InputSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = B397712C2BEEB39D0093A49B /* InputSource.swift */; };
 		B397712F2BEECBED0093A49B /* Main.swift in Sources */ = {isa = PBXBuildFile; fileRef = B397712E2BEECBED0093A49B /* Main.swift */; };
 		B39771312BEEE4540093A49B /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = B39771302BEEE4540093A49B /* InfoPlist.xcstrings */; };
@@ -288,6 +307,29 @@
 		A6E83ACA708E088370F10D90 /* OwlAgentDeliveryPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E73ACA708E088370F10D90 /* OwlAgentDeliveryPanel.swift */; };
 		A6E8D9F50B28DE30EFE04BC7 /* OwlAgentDeliveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E7D9F50B28DE30EFE04BC7 /* OwlAgentDeliveryTests.swift */; };
 		A6E888FED8F25AA3C15839E4 /* OwlAgentSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E788FED8F25AA3C15839E4 /* OwlAgentSettingsTests.swift */; };
+		VOIC0101CAFE0101CAFE0101 /* OwlAudioRecordingProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0001CAFE0001CAFE0001 /* OwlAudioRecordingProtocol.swift */; };
+		VOIC0102CAFE0102CAFE0102 /* OwlMicrophonePermission.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0002CAFE0002CAFE0002 /* OwlMicrophonePermission.swift */; };
+		VOIC0103CAFE0103CAFE0103 /* OwlVoiceAudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0003CAFE0003CAFE0003 /* OwlVoiceAudioRecorder.swift */; };
+		VOIC0104CAFE0104CAFE0104 /* OwlVoiceCapsulePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0004CAFE0004CAFE0004 /* OwlVoiceCapsulePanel.swift */; };
+		VOIC0105CAFE0105CAFE0105 /* OwlVoiceCapsuleState.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0005CAFE0005CAFE0005 /* OwlVoiceCapsuleState.swift */; };
+		VOIC0106CAFE0106CAFE0106 /* OwlVoiceCapsuleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0006CAFE0006CAFE0006 /* OwlVoiceCapsuleView.swift */; };
+		VOIC0107CAFE0107CAFE0107 /* OwlVoiceError.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0007CAFE0007CAFE0007 /* OwlVoiceError.swift */; };
+		VOIC0108CAFE0108CAFE0108 /* OwlVoiceGrokASRClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0008CAFE0008CAFE0008 /* OwlVoiceGrokASRClient.swift */; };
+		VOIC0109CAFE0109CAFE0109 /* OwlVoiceInputCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0009CAFE0009CAFE0009 /* OwlVoiceInputCoordinator.swift */; };
+		VOIC0110CAFE0110CAFE0110 /* OwlVoiceKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0010CAFE0010CAFE0010 /* OwlVoiceKeychain.swift */; };
+		VOIC0111CAFE0111CAFE0111 /* OwlVoiceNetworkTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0011CAFE0011CAFE0011 /* OwlVoiceNetworkTransport.swift */; };
+		VOIC0112CAFE0112CAFE0112 /* OwlVoicePolishServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0012CAFE0012CAFE0012 /* OwlVoicePolishServiceProtocol.swift */; };
+		VOIC0113CAFE0113CAFE0113 /* OwlVoiceSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0013CAFE0013CAFE0013 /* OwlVoiceSettings.swift */; };
+		VOIC0114CAFE0114CAFE0114 /* OwlWAVPacker.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0014CAFE0014CAFE0014 /* OwlWAVPacker.swift */; };
+		VOIC0115CAFE0115CAFE0115 /* OwlVoiceHotwordsExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0015CAFE0015CAFE0015 /* OwlVoiceHotwordsExtractor.swift */; };
+		VOIC0116CAFE0116CAFE0116 /* OwlVoiceDeepSeekPolisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0016CAFE0016CAFE0016 /* OwlVoiceDeepSeekPolisher.swift */; };
+		VOIC0301CAFE0301CAFE0301 /* OwlVoiceAudioRecorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0201CAFE0201CAFE0201 /* OwlVoiceAudioRecorderTests.swift */; };
+		VOIC0302CAFE0302CAFE0302 /* OwlVoiceGrokASRClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0202CAFE0202CAFE0202 /* OwlVoiceGrokASRClientTests.swift */; };
+		VOIC0303CAFE0303CAFE0303 /* OwlVoiceCapsuleHUDTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0203CAFE0203CAFE0203 /* OwlVoiceCapsuleHUDTests.swift */; };
+		VOIC0304CAFE0304CAFE0304 /* OwlVoiceInputIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0204CAFE0204CAFE0204 /* OwlVoiceInputIntegrationTests.swift */; };
+		VOIC0305CAFE0305CAFE0305 /* OwlVoiceHotwordsExtractorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0205CAFE0205CAFE0205 /* OwlVoiceHotwordsExtractorTests.swift */; };
+		VOIC0306CAFE0306CAFE0306 /* OwlVoiceDeepSeekPostProcessorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0206CAFE0206CAFE0206 /* OwlVoiceDeepSeekPostProcessorTests.swift */; };
+		VOIC0307CAFE0307CAFE0307 /* OwlAIVoiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = VOIC0207CAFE0207CAFE0207 /* OwlAIVoiceTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -470,10 +512,26 @@
 		FAD1CF09CAFEDF09CAFEDF09 /* OwlDictPackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlDictPackTests.swift; path = tests/OwlDictPackTests.swift; sourceTree = "<group>"; };
 		FA000801CAFE0081CAFE0081 /* OwlStreamingChatClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlStreamingChatClient.swift; path = sources/Lane/OwlStreamingChatClient.swift; sourceTree = "<group>"; };
 		FA000901CAFE0091CAFE0091 /* OwlAIContextAssembler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAIContextAssembler.swift; path = sources/Lane/OwlAIContextAssembler.swift; sourceTree = "<group>"; };
+		FA000911CAFE0091CAFE0011 /* OwlAICandidatePreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAICandidatePreferences.swift; path = sources/Lane/OwlAICandidatePreferences.swift; sourceTree = "<group>"; };
+		FA000913CAFE0091CAFE0013 /* OwlAICandidateService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAICandidateService.swift; path = sources/Lane/OwlAICandidateService.swift; sourceTree = "<group>"; };
 		FA000903CAFE0093CAFE0093 /* OwlAIConversationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAIConversationModel.swift; path = sources/Lane/OwlAIConversationModel.swift; sourceTree = "<group>"; };
 		FA000905CAFE0095CAFE0095 /* OwlAIWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAIWindow.swift; path = sources/UI/OwlAIWindow.swift; sourceTree = "<group>"; };
 		FA000911CAFE0097CAFE0097 /* OwlPromptFillSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlPromptFillSheet.swift; path = sources/UI/OwlPromptFillSheet.swift; sourceTree = "<group>"; };
 		FA000907CAFE0097CAFE0097 /* OwlAIConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAIConversationView.swift; path = sources/UI/OwlAIConversationView.swift; sourceTree = "<group>"; };
+		FA000610CAFE0610CAFE0610 /* OwlAIInvocationContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAIInvocationContext.swift; path = sources/Lane/OwlAIInvocationContext.swift; sourceTree = "<group>"; };
+		FA000612CAFE0612CAFE0612 /* OwlAIWritingSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAIWritingSettings.swift; path = sources/Lane/OwlAIWritingSettings.swift; sourceTree = "<group>"; };
+		FA000614CAFE0614CAFE0614 /* OwlAIWritebackCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAIWritebackCoordinator.swift; path = sources/Lane/OwlAIWritebackCoordinator.swift; sourceTree = "<group>"; };
+		FA000616CAFE0616CAFE0616 /* OwlAICommandDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAICommandDetector.swift; path = sources/Controller/OwlAICommandDetector.swift; sourceTree = "<group>"; };
+		FA000618CAFE0618CAFE0618 /* OwlInputController+Events.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlInputController+Events.swift"; path = "sources/Controller/OwlInputController+Events.swift"; sourceTree = "<group>"; };
+		FA000620CAFE0620CAFE0620 /* OwlAIWindowWritebackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAIWindowWritebackTests.swift; path = tests/OwlAIWindowWritebackTests.swift; sourceTree = "<group>"; };
+		FA000770CAFE0770CAFE0770 /* "OwlPolishStyle.swift" */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlPolishStyle.swift"; path = "sources/Lane/OwlPolishStyle.swift"; sourceTree = "<group>"; };
+		FA000772CAFE0772CAFE0772 /* "OwlReplyTemplate.swift" */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlReplyTemplate.swift"; path = "sources/Lane/OwlReplyTemplate.swift"; sourceTree = "<group>"; };
+		FA000774CAFE0774CAFE0774 /* "OwlDualPolishParser.swift" */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlDualPolishParser.swift"; path = "sources/Lane/OwlDualPolishParser.swift"; sourceTree = "<group>"; };
+		FA000776CAFE0776CAFE0776 /* "OwlAIPolishService.swift" */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlAIPolishService.swift"; path = "sources/Lane/OwlAIPolishService.swift"; sourceTree = "<group>"; };
+		FA000778CAFE0778CAFE0778 /* "OwlPolishStyleBar.swift" */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlPolishStyleBar.swift"; path = "sources/UI/OwlPolishStyleBar.swift"; sourceTree = "<group>"; };
+		FA00077ACAFE077ACAFE077A /* "OwlAIPolishCardsView.swift" */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlAIPolishCardsView.swift"; path = "sources/UI/OwlAIPolishCardsView.swift"; sourceTree = "<group>"; };
+		FA00077CCAFE077CCAFE077C /* "OwlQuickReplyView.swift" */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlQuickReplyView.swift"; path = "sources/UI/OwlQuickReplyView.swift"; sourceTree = "<group>"; };
+		FA00077ECAFE077ECAFE077E /* "OwlAIWritingAuxiliaryTests.swift" */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "OwlAIWritingAuxiliaryTests.swift"; path = "tests/OwlAIWritingAuxiliaryTests.swift"; sourceTree = "<group>"; };
 		FA000701CAFE0701CAFE0701 /* OwlLaneTasks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlLaneTasks.swift; path = sources/Controller/OwlLaneTasks.swift; sourceTree = "<group>"; };
 		FA000300CAFE0300CAFE0300 /* OwlProviderProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlProviderProfile.swift; path = sources/Lane/OwlProviderProfile.swift; sourceTree = "<group>"; };
 		FA0000C1CAFE00C1CAFE00C1 /* OwlSelectionPolish.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSelectionPolish.swift; path = sources/Lane/OwlSelectionPolish.swift; sourceTree = "<group>"; };
@@ -550,6 +608,7 @@
 		FAA00035CAFE0035CAFE0035 /* OwlUserDictResetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlUserDictResetTests.swift; path = tests/OwlUserDictResetTests.swift; sourceTree = "<group>"; };
 		FA0000F9CAFE00F9CAFE00F9 /* SeamPortsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SeamPortsTests.swift; path = tests/SeamPortsTests.swift; sourceTree = "<group>"; };
 		FA000703CAFE0703CAFE0703 /* OwlLaneTasksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlLaneTasksTests.swift; path = tests/OwlLaneTasksTests.swift; sourceTree = "<group>"; };
+		FA000715CAFE0715CAFE0715 /* OwlAICandidateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAICandidateTests.swift; path = tests/OwlAICandidateTests.swift; sourceTree = "<group>"; };
 		FA000080CAFE0080CAFE0080 /* SnapshotValidityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SnapshotValidityTests.swift; path = tests/SnapshotValidityTests.swift; sourceTree = "<group>"; };
 		FA000112CAFE0112CAFE0112 /* OwlSettingsE2ETests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSettingsE2ETests.swift; path = tests/OwlSettingsE2ETests.swift; sourceTree = "<group>"; };
 		FA000114CAFE0114CAFE0114 /* OwlSettingsActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSettingsActionTests.swift; path = tests/OwlSettingsActionTests.swift; sourceTree = "<group>"; };
@@ -557,6 +616,8 @@
 		E4E7A0E0E4E7A0E0E4E7A0E2 /* EngineRuntimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = EngineRuntimeTests.swift; path = tests/EngineRuntimeTests.swift; sourceTree = "<group>"; };
 		3A55BB5C3A874140ADB7AFA7 /* OwlSelectionRewriteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSelectionRewriteTests.swift; path = tests/OwlSelectionRewriteTests.swift; sourceTree = "<group>"; };
 		A1F64DD8CFE44B94B1100104 /* JEVReplyModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = JEVReplyModelTests.swift; path = tests/JEVReplyModelTests.swift; sourceTree = "<group>"; };
+		E2E00001CAFE0001CAFE0001 /* OwlE2EMockTransports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlE2EMockTransports.swift; path = tests/OwlE2EMockTransports.swift; sourceTree = "<group>"; };
+		E2E00002CAFE0002CAFE0001 /* OwlE2EFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlE2EFeatureTests.swift; path = tests/OwlE2EFeatureTests.swift; sourceTree = "<group>"; };
 		1E88208014E44BDE91225F9C /* OwlKeyboardSettingsApplicationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlKeyboardSettingsApplicationTests.swift; path = tests/OwlKeyboardSettingsApplicationTests.swift; sourceTree = "<group>"; };
 		FA000119CAFE0119CAFE0119 /* OwlSettingsCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSettingsCoverageTests.swift; path = tests/OwlSettingsCoverageTests.swift; sourceTree = "<group>"; };
 		FA000120CAFE0120CAFE0120 /* OwlSettingsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSettingsUITests.swift; path = tests/OwlSettingsUITests.swift; sourceTree = "<group>"; };
@@ -603,6 +664,29 @@
 		A6E73ACA708E088370F10D90 /* OwlAgentDeliveryPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAgentDeliveryPanel.swift; path = sources/Agent/OwlAgentDeliveryPanel.swift; sourceTree = "<group>"; };
 		A6E7D9F50B28DE30EFE04BC7 /* OwlAgentDeliveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAgentDeliveryTests.swift; path = tests/OwlAgentDeliveryTests.swift; sourceTree = "<group>"; };
 		A6E788FED8F25AA3C15839E4 /* OwlAgentSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAgentSettingsTests.swift; path = tests/OwlAgentSettingsTests.swift; sourceTree = "<group>"; };
+		VOIC0001CAFE0001CAFE0001 /* OwlAudioRecordingProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAudioRecordingProtocol.swift; path = sources/Voice/OwlAudioRecordingProtocol.swift; sourceTree = "<group>"; };
+		VOIC0002CAFE0002CAFE0002 /* OwlMicrophonePermission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlMicrophonePermission.swift; path = sources/Voice/OwlMicrophonePermission.swift; sourceTree = "<group>"; };
+		VOIC0003CAFE0003CAFE0003 /* OwlVoiceAudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVoiceAudioRecorder.swift; path = sources/Voice/OwlVoiceAudioRecorder.swift; sourceTree = "<group>"; };
+		VOIC0004CAFE0004CAFE0004 /* OwlVoiceCapsulePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVoiceCapsulePanel.swift; path = sources/Voice/OwlVoiceCapsulePanel.swift; sourceTree = "<group>"; };
+		VOIC0005CAFE0005CAFE0005 /* OwlVoiceCapsuleState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVoiceCapsuleState.swift; path = sources/Voice/OwlVoiceCapsuleState.swift; sourceTree = "<group>"; };
+		VOIC0006CAFE0006CAFE0006 /* OwlVoiceCapsuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVoiceCapsuleView.swift; path = sources/Voice/OwlVoiceCapsuleView.swift; sourceTree = "<group>"; };
+		VOIC0007CAFE0007CAFE0007 /* OwlVoiceError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVoiceError.swift; path = sources/Voice/OwlVoiceError.swift; sourceTree = "<group>"; };
+		VOIC0008CAFE0008CAFE0008 /* OwlVoiceGrokASRClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVoiceGrokASRClient.swift; path = sources/Voice/OwlVoiceGrokASRClient.swift; sourceTree = "<group>"; };
+		VOIC0009CAFE0009CAFE0009 /* OwlVoiceInputCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVoiceInputCoordinator.swift; path = sources/Voice/OwlVoiceInputCoordinator.swift; sourceTree = "<group>"; };
+		VOIC0010CAFE0010CAFE0010 /* OwlVoiceKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVoiceKeychain.swift; path = sources/Voice/OwlVoiceKeychain.swift; sourceTree = "<group>"; };
+		VOIC0011CAFE0011CAFE0011 /* OwlVoiceNetworkTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVoiceNetworkTransport.swift; path = sources/Voice/OwlVoiceNetworkTransport.swift; sourceTree = "<group>"; };
+		VOIC0012CAFE0012CAFE0012 /* OwlVoicePolishServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVoicePolishServiceProtocol.swift; path = sources/Voice/OwlVoicePolishServiceProtocol.swift; sourceTree = "<group>"; };
+		VOIC0013CAFE0013CAFE0013 /* OwlVoiceSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVoiceSettings.swift; path = sources/Voice/OwlVoiceSettings.swift; sourceTree = "<group>"; };
+		VOIC0014CAFE0014CAFE0014 /* OwlWAVPacker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlWAVPacker.swift; path = sources/Voice/OwlWAVPacker.swift; sourceTree = "<group>"; };
+		VOIC0015CAFE0015CAFE0015 /* OwlVoiceHotwordsExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVoiceHotwordsExtractor.swift; path = sources/Voice/OwlVoiceHotwordsExtractor.swift; sourceTree = "<group>"; };
+		VOIC0016CAFE0016CAFE0016 /* OwlVoiceDeepSeekPolisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVoiceDeepSeekPolisher.swift; path = sources/Voice/OwlVoiceDeepSeekPolisher.swift; sourceTree = "<group>"; };
+		VOIC0201CAFE0201CAFE0201 /* OwlVoiceAudioRecorderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVoiceAudioRecorderTests.swift; path = tests/OwlVoiceAudioRecorderTests.swift; sourceTree = "<group>"; };
+		VOIC0202CAFE0202CAFE0202 /* OwlVoiceGrokASRClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVoiceGrokASRClientTests.swift; path = tests/OwlVoiceGrokASRClientTests.swift; sourceTree = "<group>"; };
+		VOIC0203CAFE0203CAFE0203 /* OwlVoiceCapsuleHUDTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVoiceCapsuleHUDTests.swift; path = tests/OwlVoiceCapsuleHUDTests.swift; sourceTree = "<group>"; };
+		VOIC0204CAFE0204CAFE0204 /* OwlVoiceInputIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVoiceInputIntegrationTests.swift; path = tests/OwlVoiceInputIntegrationTests.swift; sourceTree = "<group>"; };
+		VOIC0205CAFE0205CAFE0205 /* OwlVoiceHotwordsExtractorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVoiceHotwordsExtractorTests.swift; path = tests/OwlVoiceHotwordsExtractorTests.swift; sourceTree = "<group>"; };
+		VOIC0206CAFE0206CAFE0206 /* OwlVoiceDeepSeekPostProcessorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVoiceDeepSeekPostProcessorTests.swift; path = tests/OwlVoiceDeepSeekPostProcessorTests.swift; sourceTree = "<group>"; };
+		VOIC0207CAFE0207CAFE0207 /* OwlAIVoiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlAIVoiceTests.swift; path = tests/OwlAIVoiceTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -749,10 +833,24 @@
 				B255000CCAFE0255CAFE000C /* OwlRustDictPackResource.swift */,
 				FA000801CAFE0081CAFE0081 /* OwlStreamingChatClient.swift */,
 				FA000901CAFE0091CAFE0091 /* OwlAIContextAssembler.swift */,
+				FA000911CAFE0091CAFE0011 /* OwlAICandidatePreferences.swift */,
+				FA000913CAFE0091CAFE0013 /* OwlAICandidateService.swift */,
 				FA000903CAFE0093CAFE0093 /* OwlAIConversationModel.swift */,
 				FA000905CAFE0095CAFE0095 /* OwlAIWindow.swift */,
 				FA000911CAFE0097CAFE0097 /* OwlPromptFillSheet.swift */,
 				FA000907CAFE0097CAFE0097 /* OwlAIConversationView.swift */,
+				FA000610CAFE0610CAFE0610 /* OwlAIInvocationContext.swift */,
+				FA000612CAFE0612CAFE0612 /* OwlAIWritingSettings.swift */,
+				FA000614CAFE0614CAFE0614 /* OwlAIWritebackCoordinator.swift */,
+				FA000616CAFE0616CAFE0616 /* OwlAICommandDetector.swift */,
+				FA000618CAFE0618CAFE0618 /* OwlInputController+Events.swift */,
+				FA000770CAFE0770CAFE0770 /* "OwlPolishStyle.swift" */,
+				FA000772CAFE0772CAFE0772 /* "OwlReplyTemplate.swift" */,
+				FA000774CAFE0774CAFE0774 /* "OwlDualPolishParser.swift" */,
+				FA000776CAFE0776CAFE0776 /* "OwlAIPolishService.swift" */,
+				FA000778CAFE0778CAFE0778 /* "OwlPolishStyleBar.swift" */,
+				FA00077ACAFE077ACAFE077A /* "OwlAIPolishCardsView.swift" */,
+				FA00077CCAFE077CCAFE077C /* "OwlQuickReplyView.swift" */,
 				FA000300CAFE0300CAFE0300 /* OwlProviderProfile.swift */,
 				FA0000C1CAFE00C1CAFE00C1 /* OwlSelectionPolish.swift */,
 				FAA0000ACAFE000ACAFE000A /* OwlProviderAuthGate.swift */,
@@ -786,6 +884,22 @@
 				FA0000D8CAFE00D8CAFE00D8 /* OwlExperimentalPreferences.swift */,
 				B39771242BED899F0093A49B /* OwlConfig.swift */,
 				B35D2FE72BF00839009D156B /* BridgingFunctions.swift */,
+				VOIC0001CAFE0001CAFE0001 /* OwlAudioRecordingProtocol.swift */,
+				VOIC0002CAFE0002CAFE0002 /* OwlMicrophonePermission.swift */,
+				VOIC0003CAFE0003CAFE0003 /* OwlVoiceAudioRecorder.swift */,
+				VOIC0004CAFE0004CAFE0004 /* OwlVoiceCapsulePanel.swift */,
+				VOIC0005CAFE0005CAFE0005 /* OwlVoiceCapsuleState.swift */,
+				VOIC0006CAFE0006CAFE0006 /* OwlVoiceCapsuleView.swift */,
+				VOIC0007CAFE0007CAFE0007 /* OwlVoiceError.swift */,
+				VOIC0008CAFE0008CAFE0008 /* OwlVoiceGrokASRClient.swift */,
+				VOIC0009CAFE0009CAFE0009 /* OwlVoiceInputCoordinator.swift */,
+				VOIC0010CAFE0010CAFE0010 /* OwlVoiceKeychain.swift */,
+				VOIC0011CAFE0011CAFE0011 /* OwlVoiceNetworkTransport.swift */,
+				VOIC0012CAFE0012CAFE0012 /* OwlVoicePolishServiceProtocol.swift */,
+				VOIC0013CAFE0013CAFE0013 /* OwlVoiceSettings.swift */,
+				VOIC0014CAFE0014CAFE0014 /* OwlWAVPacker.swift */,
+				VOIC0015CAFE0015CAFE0015 /* OwlVoiceHotwordsExtractor.swift */,
+				VOIC0016CAFE0016CAFE0016 /* OwlVoiceDeepSeekPolisher.swift */,
 				B38E9B8F2BE9AE1E0036ABEF /* Owltype-Bridging-Header.h */,
 			);
 			name = Sources;
@@ -794,6 +908,13 @@
 		FA0000A0CAFE00A0CAFE00A0 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				VOIC0201CAFE0201CAFE0201 /* OwlVoiceAudioRecorderTests.swift */,
+				VOIC0202CAFE0202CAFE0202 /* OwlVoiceGrokASRClientTests.swift */,
+				VOIC0203CAFE0203CAFE0203 /* OwlVoiceCapsuleHUDTests.swift */,
+				VOIC0204CAFE0204CAFE0204 /* OwlVoiceInputIntegrationTests.swift */,
+				VOIC0205CAFE0205CAFE0205 /* OwlVoiceHotwordsExtractorTests.swift */,
+				VOIC0206CAFE0206CAFE0206 /* OwlVoiceDeepSeekPostProcessorTests.swift */,
+				VOIC0207CAFE0207CAFE0207 /* OwlAIVoiceTests.swift */,
 				A6E7D9F50B28DE30EFE04BC7 /* OwlAgentDeliveryTests.swift */,
 				A6E788FED8F25AA3C15839E4 /* OwlAgentSettingsTests.swift */,
 				A6E7900E31F98FC3F6B4A358 /* OwlAgentTemplatesTests.swift */,
@@ -806,6 +927,8 @@
 				E4E7A0E0E4E7A0E0E4E7A0E2 /* EngineRuntimeTests.swift */,
 				3A55BB5C3A874140ADB7AFA7 /* OwlSelectionRewriteTests.swift */,
 				A1F64DD8CFE44B94B1100104 /* JEVReplyModelTests.swift */,
+				E2E00001CAFE0001CAFE0001 /* OwlE2EMockTransports.swift */,
+				E2E00002CAFE0002CAFE0001 /* OwlE2EFeatureTests.swift */,
 				1E88208014E44BDE91225F9C /* OwlKeyboardSettingsApplicationTests.swift */,
 				FA000119CAFE0119CAFE0119 /* OwlSettingsCoverageTests.swift */,
 				FA000120CAFE0120CAFE0120 /* OwlSettingsUITests.swift */,
@@ -871,6 +994,8 @@
 				FA00090BCAFE009BCAFE009B /* OwlAIContextAssemblerTests.swift */,
 				FA5C0DE100000000000000C4 /* OwlTextInserterTests.swift */,
 				FA00090DCAFE009DCAFE009D /* OwlAIConversationModelTests.swift */,
+				FA000620CAFE0620CAFE0620 /* OwlAIWindowWritebackTests.swift */,
+				FA00077ECAFE077ECAFE077E /* "OwlAIWritingAuxiliaryTests.swift" */,
 				FA000400CAFE0400CAFE0400 /* CloudRoutingTests.swift */,
 				FA133006CAFE0006CAFE0006 /* OwlVerificationRoutingTests.swift */,
 				FA134006CAFE0006CAFE0006 /* OwlVerificationAnchorsTests.swift */,
@@ -896,6 +1021,7 @@
 				FA260008CAFE0260CAFE0008 /* OwlUserMigrationTests.swift */,
 				FA0000F9CAFE00F9CAFE00F9 /* SeamPortsTests.swift */,
 				FA000703CAFE0703CAFE0703 /* OwlLaneTasksTests.swift */,
+				FA000715CAFE0715CAFE0715 /* OwlAICandidateTests.swift */,
 			);
 			name = Tests;
 			sourceTree = "<group>";
@@ -1260,10 +1386,24 @@
 				B255000BCAFE0255CAFE000B /* OwlRustDictPackResource.swift in Sources */,
 				FA000800CAFE0080CAFE0080 /* OwlStreamingChatClient.swift in Sources */,
 				FA000900CAFE0090CAFE0090 /* OwlAIContextAssembler.swift in Sources */,
+				FA000910CAFE0091CAFE0010 /* OwlAICandidatePreferences.swift in Sources */,
+				FA000912CAFE0091CAFE0012 /* OwlAICandidateService.swift in Sources */,
 				FA000902CAFE0092CAFE0092 /* OwlAIConversationModel.swift in Sources */,
 				FA000904CAFE0094CAFE0094 /* OwlAIWindow.swift in Sources */,
 				FA000910CAFE0096CAFE0096 /* OwlPromptFillSheet.swift in Sources */,
 				FA000906CAFE0096CAFE0096 /* OwlAIConversationView.swift in Sources */,
+				FA000611CAFE0611CAFE0611 /* OwlAIInvocationContext.swift in Sources */,
+				FA000613CAFE0613CAFE0613 /* OwlAIWritingSettings.swift in Sources */,
+				FA000615CAFE0615CAFE0615 /* OwlAIWritebackCoordinator.swift in Sources */,
+				FA000617CAFE0617CAFE0617 /* OwlAICommandDetector.swift in Sources */,
+				FA000619CAFE0619CAFE0619 /* OwlInputController+Events.swift in Sources */,
+				FA000771CAFE0771CAFE0771 /* "OwlPolishStyle.swift" in Sources */,
+				FA000773CAFE0773CAFE0773 /* "OwlReplyTemplate.swift" in Sources */,
+				FA000775CAFE0775CAFE0775 /* "OwlDualPolishParser.swift" in Sources */,
+				FA000777CAFE0777CAFE0777 /* "OwlAIPolishService.swift" in Sources */,
+				FA000779CAFE0779CAFE0779 /* "OwlPolishStyleBar.swift" in Sources */,
+				FA00077BCAFE077BCAFE077B /* "OwlAIPolishCardsView.swift" in Sources */,
+				FA00077DCAFE077DCAFE077D /* "OwlQuickReplyView.swift" in Sources */,
 				FA000700CAFE0700CAFE0700 /* OwlLaneTasks.swift in Sources */,
 				FA000301CAFE0301CAFE0301 /* OwlProviderProfile.swift in Sources */,
 				FA0000B1CAFE00B1CAFE00B1 /* OwlSelectionPolish.swift in Sources */,
@@ -1303,6 +1443,22 @@
 				FAA00030CAFE0030CAFE0030 /* OwlUserDictResetPrompt.swift in Sources */,
 				FA0001F0CAFE01F0CAFE01F0 /* EngineRuntime.swift in Sources */,
 				B35D2FE82BF00839009D156B /* BridgingFunctions.swift in Sources */,
+				VOIC0101CAFE0101CAFE0101 /* OwlAudioRecordingProtocol.swift in Sources */,
+				VOIC0102CAFE0102CAFE0102 /* OwlMicrophonePermission.swift in Sources */,
+				VOIC0103CAFE0103CAFE0103 /* OwlVoiceAudioRecorder.swift in Sources */,
+				VOIC0104CAFE0104CAFE0104 /* OwlVoiceCapsulePanel.swift in Sources */,
+				VOIC0105CAFE0105CAFE0105 /* OwlVoiceCapsuleState.swift in Sources */,
+				VOIC0106CAFE0106CAFE0106 /* OwlVoiceCapsuleView.swift in Sources */,
+				VOIC0107CAFE0107CAFE0107 /* OwlVoiceError.swift in Sources */,
+				VOIC0108CAFE0108CAFE0108 /* OwlVoiceGrokASRClient.swift in Sources */,
+				VOIC0109CAFE0109CAFE0109 /* OwlVoiceInputCoordinator.swift in Sources */,
+				VOIC0110CAFE0110CAFE0110 /* OwlVoiceKeychain.swift in Sources */,
+				VOIC0111CAFE0111CAFE0111 /* OwlVoiceNetworkTransport.swift in Sources */,
+				VOIC0112CAFE0112CAFE0112 /* OwlVoicePolishServiceProtocol.swift in Sources */,
+				VOIC0113CAFE0113CAFE0113 /* OwlVoiceSettings.swift in Sources */,
+				VOIC0114CAFE0114CAFE0114 /* OwlWAVPacker.swift in Sources */,
+				VOIC0115CAFE0115CAFE0115 /* OwlVoiceHotwordsExtractor.swift in Sources */,
+				VOIC0116CAFE0116CAFE0116 /* OwlVoiceDeepSeekPolisher.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1310,6 +1466,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				VOIC0301CAFE0301CAFE0301 /* OwlVoiceAudioRecorderTests.swift in Sources */,
+				VOIC0302CAFE0302CAFE0302 /* OwlVoiceGrokASRClientTests.swift in Sources */,
+				VOIC0303CAFE0303CAFE0303 /* OwlVoiceCapsuleHUDTests.swift in Sources */,
+				VOIC0304CAFE0304CAFE0304 /* OwlVoiceInputIntegrationTests.swift in Sources */,
+				VOIC0305CAFE0305CAFE0305 /* OwlVoiceHotwordsExtractorTests.swift in Sources */,
+				VOIC0306CAFE0306CAFE0306 /* OwlVoiceDeepSeekPostProcessorTests.swift in Sources */,
+				VOIC0307CAFE0307CAFE0307 /* OwlAIVoiceTests.swift in Sources */,
 				A6E8D9F50B28DE30EFE04BC7 /* OwlAgentDeliveryTests.swift in Sources */,
 				A6E888FED8F25AA3C15839E4 /* OwlAgentSettingsTests.swift in Sources */,
 				A6E8900E31F98FC3F6B4A358 /* OwlAgentTemplatesTests.swift in Sources */,
@@ -1322,6 +1485,8 @@
 				E4E7A0E0E4E7A0E0E4E7A0E1 /* EngineRuntimeTests.swift in Sources */,
 				4DC2E2F919B24AB4BCB7EEAA /* OwlSelectionRewriteTests.swift in Sources */,
 				A1F64DD8CFE44B94B1100103 /* JEVReplyModelTests.swift in Sources */,
+				E2E00001CAFE0001CAFE0002 /* OwlE2EMockTransports.swift in Sources */,
+				E2E00002CAFE0002CAFE0002 /* OwlE2EFeatureTests.swift in Sources */,
 				24912619084A4D62AF759D54 /* OwlKeyboardSettingsApplicationTests.swift in Sources */,
 				FA00011ACAFE011ACAFE011A /* OwlSettingsCoverageTests.swift in Sources */,
 				FA0000A1CAFE00A1CAFE00A1 /* ActivationPolicyTests.swift in Sources */,
@@ -1387,6 +1552,8 @@
 				FA00090ACAFE009ACAFE009A /* OwlAIContextAssemblerTests.swift in Sources */,
 				FA5C0DE100000000000000C3 /* OwlTextInserterTests.swift in Sources */,
 				FA00090CCAFE009CCAFE009C /* OwlAIConversationModelTests.swift in Sources */,
+				FA000621CAFE0621CAFE0621 /* OwlAIWindowWritebackTests.swift in Sources */,
+				FA00077FCAFE077FCAFE077F /* "OwlAIWritingAuxiliaryTests.swift" in Sources */,
 				FA000401CAFE0401CAFE0401 /* CloudRoutingTests.swift in Sources */,
 				FA133005CAFE0005CAFE0005 /* OwlVerificationRoutingTests.swift in Sources */,
 				FA134005CAFE0005CAFE0005 /* OwlVerificationAnchorsTests.swift in Sources */,
@@ -1412,6 +1579,7 @@
 				FA260007CAFE0260CAFE0007 /* OwlUserMigrationTests.swift in Sources */,
 				FA0000FACAFE00FACAFE00FA /* SeamPortsTests.swift in Sources */,
 				FA000702CAFE0702CAFE0702 /* OwlLaneTasksTests.swift in Sources */,
+				FA000714CAFE0714CAFE0714 /* OwlAICandidateTests.swift in Sources */,
 				);
 				runOnlyForDeploymentPostprocessing = 0;
 			};
