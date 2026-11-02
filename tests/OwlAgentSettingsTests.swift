@@ -23,6 +23,43 @@ final class OwlAgentSettingsTests: XCTestCase {
     XCTAssertEqual(try OwlTemplateStore.load().entries.map(\.id), [entry.id])
   }
 
+  func testDefaultAgentSwitchAndServiceUseIsolatedPreferences() throws {
+    XCTAssertTrue(OwlTestStorage.isEnabled)
+    let isolated = OwlDefaults.standard
+    let key = OwlAgentAccessPreferences.enabledKey
+    let previous = isolated.object(forKey: key)
+    let domain = try XCTUnwrap(Bundle.main.bundleIdentifier)
+    let dailyBefore = UserDefaults.standard.persistentDomain(forName: domain) ?? [:]
+    defer {
+      if let previous { isolated.set(previous, forKey: key) } else { isolated.removeObject(forKey: key) }
+    }
+    // Prove the read path first: a regression must fail without writing the daily domain.
+    for enabled in [false, true] {
+      isolated.set(enabled, forKey: key)
+      guard OwlAgentAccessPreferences.isEnabled() == enabled else {
+        XCTFail("Default Agent preference read escaped the isolated suite; no default write attempted")
+        return
+      }
+    }
+    let access = OwlAgentAccess()
+    access.loadLibrary = { OwlTemplateLibrary() }
+    let client = OwlAgentBridgeClient(helper: .init(name: "owltype-mcp", version: "0.1.0"),
+                                      agentClient: nil, processID: 1)
+    for enabled in [false, true, false] {
+      OwlAgentAccessPreferences.setEnabled(enabled)
+      XCTAssertEqual(isolated.bool(forKey: key), enabled)
+      XCTAssertEqual(OwlAgentAccessPreferences.isEnabled(), enabled)
+      var outcome: String?
+      access.handle(.templatesList, from: client, cancellation: OwlAgentBridgeCancellation()) {
+        outcome = OwlAgentCallLog.outcome($0)
+      }
+      XCTAssertEqual(outcome, enabled ? "ok" : "agent_access_disabled")
+      let dailyAfter = UserDefaults.standard.persistentDomain(forName: domain) ?? [:]
+      XCTAssertTrue(NSDictionary(dictionary: dailyBefore).isEqual(to: dailyAfter), "Daily preferences changed")
+    }
+    print("OWL_AGENT_ISOLATION_SUITE=" + OwlDefaults.testSuiteName)
+  }
+
   func testGrokSnippetsPointAtTheBundledHelper() {
     let path = "/Library/Input Methods/Owltype.app/Contents/Helpers/owltype-mcp"
     XCTAssertEqual(OwlAgentSettings.agyCommand(helperPath: path),

@@ -1386,3 +1386,19 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
   processes, default/explicit roots, symlink overlap rejection, independent preferences
   and cleanup. `OwlAgentSettingsTests` exercises template storage in the App test root;
   `ProviderProfileStoreTests` verifies rejection before personal Keychain calls.
+
+## Agent access must share the test-isolated preference owner
+
+- Seen 1x (2026-11-02): after the storage-isolation change, the Agent switch getter,
+  setter and default service initializer still used Foundation's standard domain.
+  The new default-path regression reproduced a read escaping the test suite. It
+  deliberately checked both read states before attempting any default write, so
+  the failing run did not modify the daily switch.
+- Route all three defaults through `OwlDefaults.standard`. Production retains its
+  existing domain; XCTest, settings previews and explicit test roots use the isolated
+  suite. Keep explicit dependency injection for bridge/transport fixtures.
+- Verify: `OwlAgentSettingsTests/testDefaultAgentSwitchAndServiceUseIsolatedPreferences`
+  toggles off/on/off through the default setter, checks default service admission,
+  and compares the daily persistent domain after each transition. The existing
+  bridge switch test checks listener start/stop. Confirm the isolated suite is
+  removed after the host exits; never seed the user's daily preference for a red run.
