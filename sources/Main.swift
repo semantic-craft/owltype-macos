@@ -48,20 +48,15 @@ struct OwlApp {
   // ADR-0004: Owltype is self-contained — its Rime user_data_dir is its OWN directory,
   // NOT the shared ~/Library/Rime. This keeps Owltype isolated from the user's existing
   // Coexists with the user's other Rime input methods without clobbering them.
-  private static let defaultUserDir = libraryDir.appending(components: "Application Support", "Owltype", directoryHint: .isDirectory)
+  fileprivate static let defaultUserDir = libraryDir.appending(components: "Application Support", "Owltype", directoryHint: .isDirectory)
   static var userDir: URL {
-    if let override = ProcessInfo.processInfo.environment["OWL_TEST_USER_DIR"], !override.isEmpty {
-      return URL(fileURLWithPath: override, isDirectory: true)
-    }
-    return defaultUserDir
+    OwlTestStorage.directory(override: "OWL_TEST_USER_DIR", child: "data", production: defaultUserDir)
   }
   // Register the bundle that is actually running: dev and pkg installs live in different roots.
   static let appDir = Bundle.main.bundleURL
   static var logDir: URL {
-    if let override = ProcessInfo.processInfo.environment["OWL_TEST_LOG_DIR"], !override.isEmpty {
-      return URL(fileURLWithPath: override, isDirectory: true)
-    }
-    return FileManager.default.temporaryDirectory.appending(component: "rime.owltype", directoryHint: .isDirectory)
+    OwlTestStorage.directory(override: "OWL_TEST_LOG_DIR", child: "logs", production:
+      FileManager.default.temporaryDirectory.appending(component: "rime.owltype", directoryHint: .isDirectory))
   }
 
   fileprivate static var isRunningUnitTests: Bool {
@@ -389,6 +384,42 @@ struct OwlApp {
   """
 }
 
+/// Test data never falls back to the daily input method's files. Explicit roots belong to
+/// the caller; only the fresh, process-owned fallback is removed on normal exit.
+enum OwlTestStorage {
+  static let isEnabled = OwlApp.isRunningUnitTests || OwlApp.isShowingSettingsForUITests
+    || ProcessInfo.processInfo.environment.keys.contains("OWL_TEST_USER_DIR")
+    || ProcessInfo.processInfo.environment.keys.contains("OWL_TEST_LOG_DIR")
+
+  static let root: URL = {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("OwltypeAcceptance-\(UUID().uuidString)", isDirectory: true)
+    do { try OwlPrivateStorage.prepareDirectory(directory) } catch {
+      fatalError("Cannot create isolated Owltype test data: \(error)")
+    }
+    atexit { try? FileManager.default.removeItem(at: OwlTestStorage.root) }
+    return directory
+  }()
+
+  static func directory(override key: String, child: String, production: URL) -> URL {
+    guard isEnabled else { return production }
+    if let path = ProcessInfo.processInfo.environment[key], !path.isEmpty {
+      let candidate = URL(fileURLWithPath: path, isDirectory: true).resolvingSymlinksInPath().standardizedFileURL
+      let protected = [production, OwlApp.defaultUserDir].map {
+        $0.resolvingSymlinksInPath().standardizedFileURL.path
+      }
+      guard path.hasPrefix("/"), !protected.contains(where: { real in
+        candidate.path == real || candidate.path.hasPrefix(real + "/") || real.hasPrefix(candidate.path + "/")
+      }) else {
+        fputs("Test data must not overlap production storage: \(key)\n", stderr)
+        exit(EX_CONFIG)
+      }
+      return candidate
+    }
+    return root.appendingPathComponent(child, isDirectory: true)
+  }
+}
+
 // 测试隔离（2026-07-21）：TEST_HOST 让单测跑在 Owltype.app 进程里，OwlDefaults.standard 即真实
 // 偏好域 ~/Library/Preferences/im.owltype.inputmethod.Owltype.plist——全量单测曾清掉云端开关/热键槽
 // 等线上配置。Owltype 代码一律经 OwlDefaults.standard 访问偏好；测试进程（单测注入 /
@@ -398,7 +429,7 @@ enum OwlDefaults {
   static let testSuiteName = "im.owltype.inputmethod.Owltype.tests.\(UUID().uuidString)"
   static var isRunningUnitTests: Bool { OwlApp.isRunningUnitTests }
   static let standard: UserDefaults = {
-    guard OwlApp.isRunningUnitTests || OwlApp.isShowingSettingsForUITests else { return .standard }
+    guard OwlTestStorage.isEnabled else { return .standard }
     let defaults = UserDefaults(suiteName: testSuiteName)!
     defaults.removePersistentDomain(forName: testSuiteName)
     // Concurrent worktrees and XCTest hosts must never overwrite one another.

@@ -1367,3 +1367,22 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
 - Verify: the existing controller round-trip test passes with the user's real panel
   preference still disabled. Full release validation remains required for each artifact;
   this regression is not first-install or real typing acceptance.
+
+## Acceptance fixtures must not enter the daily input method
+
+- Seen 1x (2026-11-02): #362 installed-host acceptance left `;;owlnative362` in the
+  user's template library and automatic expansion enabled; a separate `test 1.0`
+  status call remained in the daily Agent log. The user found both in normal settings.
+- Test hosts previously isolated preferences but defaulted file storage to the real
+  user root unless callers supplied both environment overrides. Test/UI hosts now
+  allocate private data/log subdirectories automatically; explicit roots also isolate
+  preferences and reject production overlaps. Personal Keychain entry points refuse
+  test-host access. Caller-owned fixtures stay caller-owned; automatic roots are
+  removed on normal exit. Abrupt process death can leave a system-temp directory.
+- Installed typing/MCP acceptance requires a separate macOS test session; a settings
+  preview is not typing evidence and a data override alone does not isolate IMK/helper
+  routing. See [acceptance isolation](docs/operations/installation.md#acceptance-data-isolation).
+- Verify: `scripts/test-defaults-isolation.selftest.py` exercises real Foundation
+  processes, default/explicit roots, symlink overlap rejection, independent preferences
+  and cleanup. `OwlAgentSettingsTests` exercises template storage in the App test root;
+  `ProviderProfileStoreTests` verifies rejection before personal Keychain calls.

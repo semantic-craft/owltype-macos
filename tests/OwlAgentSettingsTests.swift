@@ -11,6 +11,18 @@ import XCTest
 final class OwlAgentSettingsTests: XCTestCase {
   private typealias Wire = OwlAgentBridgeProtocol
 
+  func testTestHostRoutesTemplatesAndAgentLogToItsOwnDataRoot() throws {
+    XCTAssertTrue(OwlTestStorage.isEnabled)
+    XCTAssertTrue(OwlApp.userDir.path.hasPrefix(OwlTestStorage.root.path + "/"))
+    XCTAssertEqual(OwlAgentBridge.defaultSocketURL.deletingLastPathComponent(),
+                   OwlApp.userDir.appendingPathComponent("AgentBridge", isDirectory: true))
+    let entry = OwlTemplateEntry(title: "isolated acceptance", body: "synthetic")
+    let original = OwlTemplateStore.mode() == .empty ? OwlTemplateLibrary(entries: []) : try OwlTemplateStore.load()
+    defer { try? OwlTemplateStore.save(original) }
+    try OwlTemplateStore.save(OwlTemplateLibrary(entries: [entry]))
+    XCTAssertEqual(try OwlTemplateStore.load().entries.map(\.id), [entry.id])
+  }
+
   func testGrokSnippetsPointAtTheBundledHelper() {
     let path = "/Library/Input Methods/Owltype.app/Contents/Helpers/owltype-mcp"
     XCTAssertEqual(OwlAgentSettings.agyCommand(helperPath: path),

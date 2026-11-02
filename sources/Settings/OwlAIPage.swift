@@ -62,8 +62,8 @@ struct OwlAIPage: View {
     .onAppear {
       // Unit-test rendering must never enumerate the user's real provider file and then ask the
       // real Keychain for every row. Besides violating test isolation, a test-signed host can
-      // block indefinitely in SecItemCopyMatching. Product and UI-test processes keep the live
-      // stores; pure unit tests render the documented empty state.
+      // block indefinitely in SecItemCopyMatching. Product processes keep the live stores; UI tests use isolated files and blocked
+      // personal Keychain access. Pure unit tests render the documented empty state.
       providers = OwlDefaults.isRunningUnitTests ? [] : registry.profiles
       qwenWorkspaceInput = OwlQwenWorkspaceSettings.apiHost()
       doubaoSearchKeyConfigured = !OwlDefaults.isRunningUnitTests

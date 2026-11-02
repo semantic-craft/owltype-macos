@@ -297,6 +297,7 @@ struct OwlProviderKeychain: OwlSecretStoring {
   }
 
   func secret(named name: String) throws -> String? {
+    guard !OwlTestStorage.isEnabled else { return nil }
     var query = baseQuery(name: name)
     query[kSecReturnData as String] = true
     query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -309,6 +310,7 @@ struct OwlProviderKeychain: OwlSecretStoring {
   }
 
   func setSecret(_ value: String, named name: String) throws {
+    guard !OwlTestStorage.isEnabled else { throw OwlProviderKeychainError.unexpectedStatus(errSecNotAvailable) }
     let data = Data(value.utf8)
     let base = baseQuery(name: name)
     let update: [String: Any] = [kSecValueData as String: data]
@@ -327,6 +329,7 @@ struct OwlProviderKeychain: OwlSecretStoring {
   }
 
   func deleteSecret(named name: String) throws {
+    guard !OwlTestStorage.isEnabled else { throw OwlProviderKeychainError.unexpectedStatus(errSecNotAvailable) }
     let status = SecItemDelete(baseQuery(name: name) as CFDictionary)
     guard status == errSecSuccess || status == errSecItemNotFound else {
       throw OwlProviderKeychainError.unexpectedStatus(status)

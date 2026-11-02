@@ -3,6 +3,34 @@
 Unit tests do not establish host typing; installed-host behaviour needs a live check.
 Release composition remains in the [publishing checklist](../PUBLISHING_CHECKLIST.md).
 
+## Acceptance data isolation
+
+Never create test templates, Agent calls or temporary preferences in the daily input method.
+The #362 acceptance left `;;owlnative362`, automatic expansion enabled, and a `test 1.0`
+call in the user's live library/log. Cleanup after testing is not an isolation mechanism.
+
+- Settings acceptance uses the candidate executable with `--ui-test-show-settings`.
+  This does not claim IMK or establish real typing acceptance. XCTest and this mode create
+  a private `OwltypeAcceptance-<uuid>/` under the system temporary directory, with data
+  (templates, learning data and AgentBridge/calls.json) and logs subdirectories.
+  Preferences use a separate per-process suite. Normal exit removes the owned directory
+  and suite. Never copy the user's library or credentials into a test root.
+- Existing harnesses may set absolute `OWL_TEST_USER_DIR` / `OWL_TEST_LOG_DIR` paths;
+  setting either enables preference and credential isolation too, and the missing path
+  gets an isolated default. Paths overlapping production storage (including symlinks) are
+  rejected. The harness owns cleanup of explicit fixture directories, including on failure.
+  Do not launch an older candidate that lacks these safeguards without explicit isolated
+  paths and its verified preference isolation.
+- Both personal provider and legacy Keychain access are disabled in isolated hosts.
+  Provider tests inject synthetic secret stores; a real-service test needs a separately
+  supplied test credential, never a fallback to the daily account.
+- Installed Chrome/TextEdit typing and MCP bridge acceptance use a separate macOS test
+  account/session with its own data and helper socket. A second same-user process can
+  claim the same IMK endpoint, and the default MCP helper connects to that user's daily
+  socket: changing only an App data path does not isolate either boundary. Do not run
+  test MCP calls against the daily helper. Installation/upgrade checks on the user's
+  actual account preserve existing data and do not add synthetic entries.
+
 ## Shared file and session phases
 
 Both the GUI installer and package scripts invoke the installed payload's CLI:

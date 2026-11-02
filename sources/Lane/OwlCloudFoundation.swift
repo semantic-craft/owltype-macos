@@ -107,6 +107,7 @@ enum OwlCloudKeychain {
   private static let account = "DeepSeekAPIKey"
 
   static func readDeepSeekAPIKey() throws -> String? {
+    guard !OwlTestStorage.isEnabled else { return nil }
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: service,
@@ -124,6 +125,7 @@ enum OwlCloudKeychain {
   }
 
   static func saveDeepSeekAPIKey(_ key: String) throws {
+    guard !OwlTestStorage.isEnabled else { throw OwlCloudKeychainError.unexpectedStatus(errSecNotAvailable) }
     let data = Data(key.utf8)
     let base: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
@@ -146,6 +148,7 @@ enum OwlCloudKeychain {
   }
 
   static func deleteDeepSeekAPIKey() throws {
+    guard !OwlTestStorage.isEnabled else { throw OwlCloudKeychainError.unexpectedStatus(errSecNotAvailable) }
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: service,

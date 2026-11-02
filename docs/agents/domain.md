@@ -57,7 +57,7 @@ invoke them. The Rust resource seed is prepared by [the Make target](../../Makef
 verified through the Rust and dict-pack tests above.
 
 For a settings-only preview, the app's `--ui-test-show-settings` mode avoids IMK/engine
-startup and uses isolated preferences. See [startup and CLI flags](../../sources/Main.swift).
+startup and uses isolated data, logs and preferences. Personal Keychain access is disabled. See [startup and CLI flags](../../sources/Main.swift).
 A development build cannot serve as the installed input method; use the installation
 workflow when actual typing must be tested.
 
