@@ -140,10 +140,11 @@
 </ul><p>Next: 等待前置完成，复用其成果。</p></article>
 </section>
 <section id="local-installer-preparation"><h2>本地安装包准备</h2>
-<article id="status-panel-defaults-isolation"><h3>状态栏测试偏好隔离</h3><span class="badge">done</span><p>状态栏读写接入既有 OwlDefaults；本机隐藏状态栏偏好保持关闭，原失败的 controller round-trip 测试通过。仅本地修正，未合并或发布；安装包与真实安装另行验证。</p><ul>
+<article id="status-panel-defaults-isolation"><h3>状态栏测试偏好隔离</h3><span class="badge">done</span><p>本地提交 0f3840a 修正状态栏偏好隔离，完整离线测试 1503 项／1 跳过／0 失败；2.3.1 本地发布链 8/8 通过，App、PKG、DMG 均签名、公证并附票，源码与产物扫描通过。未推送、合并、公开发布或安装验收。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/sources/UI/OwlInputStatusPanel.swift">file sources/UI/OwlInputStatusPanel.swift: 生产仍使用标准偏好，测试使用独立 suite。</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/LESSONS.md">file LESSONS.md: 2026-11-02 记录失败与回归范围。</a></li>
-</ul><p>Next: 运行完整发布链生成本地分享包。</p></article>
+<li><a href="https://github.com/semantic-craft/owltype-macos/commit/0f3840a3a79fcbc7e9f08f4cf08173dca4de4b01">commit 0f3840a3a79fcbc7e9f08f4cf08173dca4de4b01: 本次安装包绑定的干净源码提交；构建记录随本地分享产物留存。</a></li>
+</ul><p>Next: 本地分享文件已交付；朋友机器首次安装与真实输入待验收。</p></article>
 </section>
 <section><h2>Open pull requests</h2><ul>
 </ul><h2>Recent releases</h2><ul>
