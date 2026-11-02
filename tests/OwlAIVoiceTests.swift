@@ -436,9 +436,7 @@ final class OwlAIVoiceTests: XCTestCase {
     coordinator.secureInputChecker = { false }
 
     let mockRecorder = OwlMockAudioRecorder()
-    var pcm = [Float](repeating: 0.25, count: 8000)
-    pcm[0] = 0.35
-    mockRecorder.stubbedWavData = OwlWAVPacker.pack16kHzMono16BitPCM(samples: pcm)
+    mockRecorder.simulatedDuration = 1.0
     coordinator.audioRecorder = mockRecorder
     coordinator.targetSnapshotProvider = { OwlVoiceTargetSnapshot() }
 
