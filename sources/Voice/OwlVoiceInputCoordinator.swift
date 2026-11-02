@@ -4,6 +4,7 @@
 //
 
 import AppKit
+import AVFoundation
 import Foundation
 import InputMethodKit
 
@@ -67,7 +68,7 @@ final class OwlVoiceInputCoordinator {
   var shortcutMatcher: ((NSEvent) -> Bool)?
   var targetSnapshotProvider: (() -> OwlVoiceTargetSnapshot)?
   var secureInputChecker: (() -> Bool)?
-  var microphonePermissionStatusProvider: (() -> OwlMicrophonePermission.Status)?
+  var microphonePermissionStatusProvider: (() -> AVAuthorizationStatus)?
   var microphonePermissionRequester: (() async -> Bool)?
   var isEnabledOverride: Bool?
 
@@ -220,7 +221,7 @@ final class OwlVoiceInputCoordinator {
           } else {
             self.mode = .idle
             self.hudPanel.present(
-              state: .failed(OwlVoiceRecorderError.microphonePermissionDenied.localizedDescription),
+              state: .failed(OwlVoiceAudioError.microphonePermissionDenied.localizedDescription),
               anchor: anchor
             )
             self.scheduleDismiss(after: 2.0)
