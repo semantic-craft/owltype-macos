@@ -880,6 +880,36 @@
         }
       ],
       "title": "Rust 业务核心迁移"
+    },
+    {
+      "id": "local-installer-preparation",
+      "title": "本地安装包准备",
+      "items": [
+        {
+          "id": "status-panel-defaults-isolation",
+          "title": "状态栏测试偏好隔离",
+          "status": "done",
+          "summary": "本地提交 0f3840a 修正状态栏偏好隔离，完整离线测试 1503 项／1 跳过／0 失败；2.3.1 本地发布链 8/8 通过，App、PKG、DMG 均签名、公证并附票，源码与产物扫描通过。本地分享包已交付；代码合并状态以 GitHub PR 为准。未公开发布或安装验收。",
+          "next": "本地分享文件已交付；朋友机器首次安装与真实输入待验收。",
+          "evidence": [
+            {
+              "kind": "file",
+              "ref": "sources/UI/OwlInputStatusPanel.swift",
+              "note": "生产仍使用标准偏好，测试使用独立 suite。"
+            },
+            {
+              "kind": "file",
+              "ref": "LESSONS.md",
+              "note": "2026-11-02 记录失败与回归范围。"
+            },
+            {
+              "kind": "commit",
+              "ref": "0f3840a3a79fcbc7e9f08f4cf08173dca4de4b01",
+              "note": "本次安装包绑定的干净源码提交；构建记录随本地分享产物留存。"
+            }
+          ]
+        }
+      ]
     }
   ],
   "title": "Owltype · 水杉输入对齐",

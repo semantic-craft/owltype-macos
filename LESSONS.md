@@ -1355,3 +1355,15 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
   the removed Swift literals. Move the existing pin-consistency check with the
   Rust catalog owner; a focused runtime pass alone does not cover repository
   maintenance scripts. The original gate failure is retained in its receipt.
+
+## Status-panel preferences must use the test-isolated defaults owner
+
+- Seen 1x (2026-11-02): local installer preparation at 480471d ran 1503 tests
+  with two assertions failing in `OwlInputHabitsIntegrationTests/testControllerRoundTrip`.
+  The user's status panel was disabled; direct `UserDefaults.standard` reads escaped
+  the existing test suite isolation. A separate CFPreferences home did not isolate it.
+- Route status-panel reads and writes through `OwlDefaults.standard`, which retains
+  standard defaults in production and uses an empty process-specific suite in tests.
+- Verify: the existing controller round-trip test passes with the user's real panel
+  preference still disabled. Full release validation remains required for each artifact;
+  this regression is not first-install or real typing acceptance.
