@@ -13,7 +13,8 @@ call in the user's live library/log. Cleanup after testing is not an isolation m
   This does not claim IMK or establish real typing acceptance. XCTest and this mode create
   a private `OwltypeAcceptance-<uuid>/` under the system temporary directory, with data
   (templates, learning data and AgentBridge/calls.json) and logs subdirectories.
-  Preferences use a separate per-process suite. Normal exit removes the owned directory
+  Preferences, including the Agent access switch and service admission, use a separate
+  per-process suite. Normal exit removes the owned directory
   and suite. Never copy the user's library or credentials into a test root.
 - Existing harnesses may set absolute `OWL_TEST_USER_DIR` / `OWL_TEST_LOG_DIR` paths;
   setting either enables preference and credential isolation too, and the missing path

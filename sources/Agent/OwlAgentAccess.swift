@@ -13,9 +13,9 @@ import Foundation
 enum OwlAgentAccessPreferences {
   static let enabledKey = "OwlAgentAccessEnabled"
 
-  static func isEnabled(_ defaults: UserDefaults = .standard) -> Bool { defaults.bool(forKey: enabledKey) }
+  static func isEnabled(_ defaults: UserDefaults = OwlDefaults.standard) -> Bool { defaults.bool(forKey: enabledKey) }
 
-  static func setEnabled(_ enabled: Bool, _ defaults: UserDefaults = .standard) { defaults.set(enabled, forKey: enabledKey) }
+  static func setEnabled(_ enabled: Bool, _ defaults: UserDefaults = OwlDefaults.standard) { defaults.set(enabled, forKey: enabledKey) }
 }
 
 /// The redacted state `owltype_status` reports, gathered on the main thread.
@@ -60,7 +60,7 @@ final class OwlAgentAccess: NSObject, OwlAgentBridgeService {
     OwlAgentBridge(verifier: OwlAgentPeerVerifier(), service: $0)
   }
 
-  init(defaults: UserDefaults = .standard, bundle: Bundle = .main, callLog: OwlAgentCallLog = OwlAgentCallLog(fileURL: nil)) {
+  init(defaults: UserDefaults = OwlDefaults.standard, bundle: Bundle = .main, callLog: OwlAgentCallLog = OwlAgentCallLog(fileURL: nil)) {
     self.defaults = defaults
     self.bundle = bundle
     self.callLog = callLog
