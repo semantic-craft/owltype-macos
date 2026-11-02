@@ -1075,8 +1075,8 @@ final class OwlAIWritingAuxiliaryTests: XCTestCase {
       frontmostApp: nil,
       bundleID: "com.apple.Notes"
     )
-    OwlAIWindow.shared.show(context: typingContext, initialMode: .polish)
-    XCTAssertEqual(OwlAIWindow.shared.model?.capturedContextSummary, "待润色草稿")
-    OwlAIWindow.shared.closeWindow()
+    let model = OwlAIWindow.shared.show(context: typingContext, initialMode: .polish)
+    XCTAssertEqual(model.capturedContextSummary, "待润色草稿")
+    OwlAIWindow.shared.close()
   }
 }
