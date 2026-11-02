@@ -159,6 +159,109 @@ struct CandidateViewModel: Identifiable, Sendable, Equatable {
   }
 }
 
+/// Pure layout algorithm for positioning the first AI candidate in candidate window.
+enum OwlAICandidateLayout {
+  @discardableResult
+  static func applyAICandidate(
+    into engineModels: inout [CandidateViewModel],
+    activeAICandidates: [String],
+    activeAICandidateTicket: OwlAICandidateTicket?,
+    currentSessionID: UInt64,
+    currentGen: UInt64,
+    rawInput: String,
+    page: Int,
+    pageSize: Int,
+    labels: [String]
+  ) -> Int? {
+    let isAICandidateValid = !activeAICandidates.isEmpty
+      && activeAICandidateTicket?.sessionID == currentSessionID
+      && activeAICandidateTicket?.generation == currentGen
+      && activeAICandidateTicket?.rawInput == rawInput
+
+    if isAICandidateValid, page == 0, pageSize > 0, let aiCandidateText = activeAICandidates.first {
+      let slotIndex = min(engineModels.count, pageSize - 1)
+      let label = slotIndex < labels.count ? labels[slotIndex] : "\(slotIndex + 1)."
+      let aiModel = CandidateViewModel(
+        id: slotIndex,
+        label: label,
+        text: aiCandidateText,
+        comment: "AI",
+        provenance: .ai,
+        token: OwlCandidateToken(
+          sessionID: currentSessionID,
+          generation: currentGen,
+          candidateID: 999_999,
+          isAbsolute: false
+        )
+      )
+      if slotIndex < engineModels.count {
+        engineModels[slotIndex] = aiModel
+      } else {
+        engineModels.append(aiModel)
+      }
+      return slotIndex
+    }
+    return nil
+  }
+
+  @discardableResult
+  static func applyJevRerank(
+    into engineModels: inout [CandidateViewModel],
+    elevatedIndex: Int?,
+    ticket: OwlAICandidateTicket?,
+    currentSessionID: UInt64,
+    currentGen: UInt64,
+    rawInput: String,
+    page: Int,
+    labels: [String],
+    allLocalCandidates: [String] = []
+  ) -> Bool {
+    guard let targetIndex = elevatedIndex, targetIndex > 0 else { return false }
+    guard ticket?.sessionID == currentSessionID,
+          ticket?.generation == currentGen,
+          ticket?.rawInput == rawInput,
+          page == 0 else {
+      return false
+    }
+
+    if targetIndex < engineModels.count {
+      let promoted = engineModels.remove(at: targetIndex)
+      engineModels.insert(promoted, at: 0)
+    } else if targetIndex < allLocalCandidates.count {
+      let text = allLocalCandidates[targetIndex]
+      let promoted = CandidateViewModel(
+        id: targetIndex,
+        label: "",
+        text: text,
+        token: OwlCandidateToken(
+          sessionID: currentSessionID,
+          generation: currentGen,
+          candidateID: targetIndex,
+          isAbsolute: true
+        )
+      )
+      engineModels.insert(promoted, at: 0)
+    } else {
+      return false
+    }
+
+    // Re-assign labels
+    for i in 0..<engineModels.count {
+      let label = i < labels.count ? labels[i] : "\(i + 1)."
+      let current = engineModels[i]
+      engineModels[i] = CandidateViewModel(
+        id: i,
+        label: label,
+        text: current.text,
+        comment: current.comment,
+        provenance: current.provenance,
+        token: current.token
+      )
+    }
+    return true
+  }
+}
+
 /// sRGB color built from a `#RRGGBB` hex string (no alpha). Used by the 深大红 theme.
 /// Falls back to opaque black for malformed input — values here are all hardcoded and valid.
 func owlColor(hex: String) -> Color {

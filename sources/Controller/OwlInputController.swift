@@ -16,6 +16,20 @@
 
 import InputMethodKit
 
+struct OwlPanelCompositionParams {
+  let preedit: String
+  let cursor: Int
+  let selStart: Int
+  let selEnd: Int
+  let candidates: [String]
+  let comments: [String]
+  let labels: [String]
+  let highlighted: Int
+  let page: Int
+  let lastPage: Bool
+  let pageSize: Int
+}
+
 final class OwlInputController: IMKInputController {
   // seam: was private; internal so OwlInputController+Session.swift can reach it across files.
   static let keyRollOver = 50
@@ -115,6 +129,24 @@ final class OwlInputController: IMKInputController {
   var settledRerankWaitingForDrain = false
   var applyingSettledRerank = false
 
+  // AI candidate association is owned by this controller/session (#392).
+  var aiCandidateDebounceTimer: Timer?
+  var aiCandidateActionEpoch: UInt64 = 0
+  var activeAICandidates: [String] = []
+  var activeAICandidateTicket: OwlAICandidateTicket?
+  var activeAICandidateSlot: Int?
+  var activeJevRerankIndex: Int?
+  var activeJevRerankTicket: OwlAICandidateTicket?
+  var activeJevLocalCandidates: [String] = []
+  var currentHighlightedCandidateIndex: Int = 0
+  var lastPanelComposition: OwlPanelCompositionParams?
+  var aiCandidateService: (any OwlAICandidateServiceProtocol)?
+  var privacyStateProvider: () -> OwlClientPrivacyState = { OwlClientPrivacyState.current() }
+  var lastComposedCandidates: [CandidateViewModel] = []
+
+  // AI writing command detector (/ai sequence) (#394)
+  let aiCommandDetector = OwlAICommandDetector()
+
   // Tokens of the block-based NotificationCenter observers registered in init. Block observers are
   // NOT covered by `removeObserver(self)` — the token must be removed explicitly in deinit, or every
   // dead controller (one per input session, in a process that lives for weeks) stays registered in
@@ -184,11 +216,21 @@ final class OwlInputController: IMKInputController {
     if let handled = handleNativePairedClosing(event) { return handled }
     if handleAutomaticExpansion(event) { return true }
 
+    if MainActor.assumeIsolated({ OwlVoiceInputCoordinator.shared.handleKeyEvent(event) }) {
+      return true
+    }
+
     // 全局热键的唯一路径（#118）: 快捷短语面板与划词菜单召唤只在猫头鹰为活跃输入法时有意义 —— 此时
     // 每个 keyDown 本来就流经这里，直接匹配。绝不可回退到 Carbon RegisterEventHotKey：在本 IMK
     // 进程它注册返回 noErr 后窗口服务器会全局吞掉该组合，但事件永不进程内派发（真机实证）——
     // 热键不响应，还把组合键从所有应用（包括本匹配器）手里偷走。
     if event.type == .keyDown, handleGlobalHotKeyViaIMK(event) {
+      return true
+    }
+    if event.type == .keyDown, handleAIWritingHotKey(event) {
+      return true
+    }
+    if event.type == .keyDown, handleAICommandDetector(event) {
       return true
     }
 
@@ -227,7 +269,24 @@ final class OwlInputController: IMKInputController {
       return handled || capsLockHandled
 
     case let .keyDown(engineKeycode, engineModifiers):
+      if shouldInterceptForAICandidate(keycode: engineKeycode, modifiers: engineModifiers) {
+        commitActiveAICandidate()
+        return true
+      }
+      if let jevSlot = shouldInterceptForJevRerank(keycode: engineKeycode, modifiers: engineModifiers) {
+        let model = lastComposedCandidates[jevSlot]
+        if model.token.candidateID == 999_999, let aiText = activeAICandidates.first {
+          commitAICandidate(text: aiText)
+        } else {
+          _ = selectCandidate(model.token)
+        }
+        return true
+      }
+      activeJevRerankIndex = nil
+      activeJevRerankTicket = nil
+      activeJevLocalCandidates = []
       invalidateSettledRerankForAction()
+      invalidateAICandidateForAction()
       let handled = processKey(engineKeycode, modifiers: engineModifiers)
       engineUpdate()
       if !handled, (engineModifiers & (kControlMask.rawValue | kAltMask.rawValue)) != 0 {
@@ -236,10 +295,12 @@ final class OwlInputController: IMKInputController {
       if shouldArmSettledRerank(after: engineKeycode) {
         armSettledRerankAfterInput()
       }
+      armAICandidateAfterInput()
       return handled
 
     case .commandPassthrough:
       invalidateSettledRerankForAction()
+      invalidateAICandidateForAction()
       engineSession?.finishNativeComposition(onFocusLoss: false)
       engineUpdate()
       flushPendingPairedClosing()
@@ -253,6 +314,7 @@ final class OwlInputController: IMKInputController {
   func selectCandidate(_ index: Int) -> Bool {
     guard let engineSession else { return false }
     invalidateSettledRerankForAction()
+    invalidateAICandidateForAction()
     let success = engineSession.selectCandidate(index)
     if success {
       engineUpdate()
@@ -265,6 +327,7 @@ final class OwlInputController: IMKInputController {
   func selectCandidateAbsolute(_ index: Int) -> Bool {
     guard let engineSession else { return false }
     invalidateSettledRerankForAction()
+    invalidateAICandidateForAction()
     let success = engineSession.selectCandidateAbsolute(index)
     if success {
       engineUpdate()
@@ -275,6 +338,7 @@ final class OwlInputController: IMKInputController {
   func selectCandidate(_ token: OwlCandidateToken) -> Bool {
     guard let engineSession else { return false }
     invalidateSettledRerankForAction()
+    invalidateAICandidateForAction()
     let success = engineSession.selectCandidate(token)
     if success {
       engineUpdate()
@@ -286,6 +350,7 @@ final class OwlInputController: IMKInputController {
   func page(up: Bool) -> Bool {
     guard let engineSession else { return false }
     invalidateSettledRerankForAction()
+    invalidateAICandidateForAction()
     var handled = false
     handled = engineSession.changePage(up: up)
     if handled {
@@ -442,6 +507,7 @@ final class OwlInputController: IMKInputController {
   deinit {
     discardAutomaticExpansion()
     resetSettledRerankRuntime()
+    resetAICandidateRuntime()
     // B8: cancel any in-flight AI lane tasks for this session (nonisolated deinit — `cancelAll()`
     // only calls `Task.cancel()`, which is thread safe and needs no main actor).
     aiTasks.cancelAll()

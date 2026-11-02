@@ -37,6 +37,7 @@ enum OwlHotKeySlot: CaseIterable, Sendable {
   case promptAssistant
   /// Local to a live pinyin candidate menu; never intercepted by the global event tap.
   case pinCandidate
+  case voiceInput
 
   // 任意提问的直达热键槽（askAnything / "OwlAskAnythingHotKey"）已退役（产品决策 2026-07-26）：
   // 任意提问是划词技能的兜底，必须带着选区从划词菜单点进（同日删掉了状态栏那个空选区入口）；
@@ -49,6 +50,7 @@ enum OwlHotKeySlot: CaseIterable, Sendable {
     case .selectionMenu: return "OwlSelectionMenuHotKey"
     case .promptAssistant: return "OwlPromptAssistantHotKey"
     case .pinCandidate: return "OwlPinCandidateHotKey"
+    case .voiceInput: return "OwlVoiceInputHotKey"
     }
   }
 
@@ -61,6 +63,7 @@ enum OwlHotKeySlot: CaseIterable, Sendable {
     case .selectionMenu: return "划词工具箱"
     case .promptAssistant: return "快捷片段 · 提示词筛选"
     case .pinCandidate: return "置顶当前候选"
+    case .voiceInput: return "语音输入"
     }
   }
 
@@ -69,7 +72,7 @@ enum OwlHotKeySlot: CaseIterable, Sendable {
   /// an upgrade migrates them to 未设置 rather than showing a combo the user could never re-record.
   var legacyPresets: [String: (keyCode: UInt32, modifiers: UInt32)] {
     switch self {
-    case .quickSendPanel, .promptAssistant, .pinCandidate:
+    case .quickSendPanel, .promptAssistant, .pinCandidate, .voiceInput:
       return [:]
     case .selectionMenu:
       return [
@@ -300,6 +303,7 @@ final class OwlHotKeyEventTap: NSObject {
   var onQuickSend: (() -> Void)?
   var onSelectionSummon: (() -> Void)?
   var onPromptAssistant: (() -> Void)?
+  var onVoiceInput: (() -> Void)?
 
   /// Install the tap when possible. Safe to call repeatedly; no-op when installed or AX untrusted.
   func startIfPossible() {
@@ -396,6 +400,7 @@ final class OwlHotKeyEventTap: NSObject {
       case .quickSendPanel: self?.onQuickSend?()
       case .selectionMenu: self?.onSelectionSummon?()
       case .promptAssistant: self?.onPromptAssistant?()
+      case .voiceInput: self?.onVoiceInput?()
       case .pinCandidate: break // excluded above; handled only by IMK with live candidates
       }
     }

@@ -10,6 +10,8 @@
 
 import InputMethodKit
 import Foundation
+import ApplicationServices
+import Carbon
 
 extension OwlInputController {
 
@@ -534,5 +536,255 @@ extension OwlInputController {
     setEngineOption(.zhTrad, traditional)
     setEngineOption(.transcription, traditional)
     setEngineOption(.simplification, !traditional)
+  }
+
+  // MARK: - AI Candidate Association (#392)
+
+  static let aiCandidateDebounceInterval: TimeInterval = 0.12
+
+  func armAICandidateAfterInput() {
+    guard let engineSession, engineSession.isValid,
+          let input = engineSession.input(), !input.isEmpty else {
+      return
+    }
+    let isEnglish = engineSession.option(.asciiMode)
+    let aiAssociationEnabled = isEnglish ? OwlAICandidatePreferences.aiEnglishCandidateEnabled : OwlAICandidatePreferences.aiAssociationEnabled
+    let jevRerankEnabled = !isEnglish && OwlAICandidatePreferences.jevDiscriminativeRerankEnabled
+    guard aiAssociationEnabled || jevRerankEnabled else { return }
+
+    if isSecureInputGated() { return }
+
+    aiCandidateDebounceTimer?.invalidate()
+    let timer = Timer(timeInterval: Self.aiCandidateDebounceInterval, repeats: false) { [weak self] _ in
+      self?.aiCandidateDebounceFired()
+    }
+    aiCandidateDebounceTimer = timer
+    RunLoop.main.add(timer, forMode: .common)
+  }
+
+  func invalidateAICandidateForAction() {
+    aiCandidateActionEpoch &+= 1
+    aiCandidateDebounceTimer?.invalidate()
+    aiCandidateDebounceTimer = nil
+    aiTasks.cancel(.cloud)
+  }
+
+  func resetAICandidateRuntime() {
+    aiCandidateActionEpoch &+= 1
+    aiCandidateDebounceTimer?.invalidate()
+    aiCandidateDebounceTimer = nil
+    aiTasks.cancel(.cloud)
+    activeAICandidates = []
+    activeAICandidateTicket = nil
+    activeAICandidateSlot = nil
+    activeJevRerankIndex = nil
+    activeJevRerankTicket = nil
+    activeJevLocalCandidates = []
+  }
+
+  func aiCandidateDebounceFired() {
+    aiCandidateDebounceTimer = nil
+    guard let engineSession, engineSession.isValid,
+          let input = engineSession.input(), !input.isEmpty else {
+      return
+    }
+    let isEnglish = engineSession.option(.asciiMode)
+    let aiAssociationEnabled = isEnglish ? OwlAICandidatePreferences.aiEnglishCandidateEnabled : OwlAICandidatePreferences.aiAssociationEnabled
+    let jevRerankEnabled = !isEnglish && OwlAICandidatePreferences.jevDiscriminativeRerankEnabled
+    guard aiAssociationEnabled || jevRerankEnabled else { return }
+
+    if isSecureInputGated() { return }
+
+    let ticket = OwlAICandidateTicket(
+      sessionID: engineSession.sessionID,
+      generation: engineSession.generation,
+      rawInput: input,
+      actionEpoch: aiCandidateActionEpoch
+    )
+
+    var preContext: String?
+    if let client = self.client {
+      let decisions = clientCapabilityDecisions(for: client)
+      if decisions.surroundingText.allowed {
+        let range = NSRange(location: 0, length: 0)
+        if let str = client.attributedSubstring(from: range)?.string {
+          preContext = String(str.suffix(100))
+        }
+      }
+    }
+
+    let service = self.aiCandidateService ?? OwlAICandidateService.shared
+
+    var localCandidates: [String] = []
+    if jevRerankEnabled {
+      let peeked = engineSession.peekCandidates(from: 0, count: 32).map(\.text)
+      if !peeked.isEmpty {
+        localCandidates = peeked
+      } else if let params = lastPanelComposition {
+        localCandidates = params.candidates
+      }
+    }
+
+    let pinyin = lastPanelComposition?.preedit ?? input
+
+    aiTasks.run(.cloud) { [weak self] in
+      var aiCandidates: [String] = []
+      var rerankedIndex: Int?
+
+      if aiAssociationEnabled {
+        aiCandidates = await service.generateCandidates(ticket: ticket, preContext: preContext)
+      }
+
+      if jevRerankEnabled, localCandidates.count >= 2 {
+        rerankedIndex = try? await service.rerankCandidates(
+          preContext: preContext,
+          pinyin: pinyin,
+          localCandidates: localCandidates,
+          ticket: ticket
+        )
+      }
+
+      guard let self else { return }
+      guard let currentSession = self.engineSession,
+            currentSession.isValid,
+            currentSession.sessionID == ticket.sessionID,
+            currentSession.generation == ticket.generation,
+            (currentSession.input() ?? "") == ticket.rawInput,
+            self.aiCandidateActionEpoch == ticket.actionEpoch else {
+        return
+      }
+
+      if let params = self.lastPanelComposition, params.page > 0 || self.currentHighlightedCandidateIndex > 0 {
+        return
+      }
+
+      var hasUpdate = false
+      if aiAssociationEnabled, !aiCandidates.isEmpty {
+        self.activeAICandidates = aiCandidates
+        self.activeAICandidateTicket = ticket
+        hasUpdate = true
+      }
+
+      if jevRerankEnabled, let elevatedIndex = rerankedIndex, elevatedIndex > 0 {
+        self.activeJevRerankIndex = elevatedIndex
+        self.activeJevRerankTicket = ticket
+        self.activeJevLocalCandidates = localCandidates
+        hasUpdate = true
+      }
+
+      if hasUpdate {
+        self.applyAICandidatesUpdate()
+      }
+    }
+  }
+
+  func applyAICandidatesUpdate() {
+    guard let params = lastPanelComposition else { return }
+    showPanel(
+      preedit: params.preedit,
+      cursor: params.cursor,
+      selStart: params.selStart,
+      selEnd: params.selEnd,
+      candidates: params.candidates,
+      comments: params.comments,
+      labels: params.labels,
+      highlighted: params.highlighted,
+      page: params.page,
+      lastPage: params.lastPage,
+      pageSize: params.pageSize
+    )
+  }
+
+  func isSecureInputGated() -> Bool {
+    if IsSecureEventInputEnabled() { return true }
+    let privacy = privacyStateProvider()
+    if privacy.isSecureInputEnabled || privacy.isPasswordLike { return true }
+    if let app = NSWorkspace.shared.frontmostApplication,
+       AXIsProcessTrusted(), !app.isTerminated {
+      let axApp = AXUIElementCreateApplication(app.processIdentifier)
+      var ref: CFTypeRef?
+      if AXUIElementCopyAttributeValue(axApp, kAXFocusedUIElementAttribute as CFString, &ref) == .success,
+         let ref, CFGetTypeID(ref) == AXUIElementGetTypeID() {
+        let element = ref as! AXUIElement
+        var subrole: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subrole) == .success,
+           let subroleStr = subrole as? String,
+           subroleStr == (kAXSecureTextFieldSubrole as String) {
+          return true
+        }
+      }
+    }
+    return false
+  }
+
+  func shouldInterceptForAICandidate(keycode: UInt32, modifiers: UInt32) -> Bool {
+    guard let slotIndex = activeAICandidateSlot, !activeAICandidates.isEmpty else { return false }
+    let blocked = kControlMask.rawValue | kAltMask.rawValue | kSuperMask.rawValue
+    guard (modifiers & blocked) == 0 else { return false }
+
+    let numberKey = UInt32(XK_1) + UInt32(slotIndex)
+    let keypadKey = UInt32(XK_KP_1) + UInt32(slotIndex)
+    if keycode == numberKey || keycode == keypadKey {
+      return true
+    }
+
+    if currentHighlightedCandidateIndex == slotIndex {
+      if keycode == UInt32(XK_space) || keycode == UInt32(XK_Return) || keycode == UInt32(XK_KP_Enter) {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  func shouldInterceptForJevRerank(keycode: UInt32, modifiers: UInt32) -> Int? {
+    guard activeJevRerankIndex != nil, !lastComposedCandidates.isEmpty else { return nil }
+    guard let ticket = activeJevRerankTicket,
+          let currentSession = engineSession,
+          currentSession.isValid,
+          currentSession.sessionID == ticket.sessionID,
+          currentSession.generation == ticket.generation,
+          (currentSession.input() ?? "") == ticket.rawInput,
+          aiCandidateActionEpoch == ticket.actionEpoch else {
+      return nil
+    }
+    let blocked = kControlMask.rawValue | kAltMask.rawValue | kSuperMask.rawValue
+    guard (modifiers & blocked) == 0 else { return nil }
+
+    // Space / Enter with currentHighlightedCandidateIndex
+    if keycode == UInt32(XK_space) || keycode == UInt32(XK_Return) || keycode == UInt32(XK_KP_Enter) {
+      if currentHighlightedCandidateIndex >= 0 && currentHighlightedCandidateIndex < lastComposedCandidates.count {
+        return currentHighlightedCandidateIndex
+      }
+    }
+
+    let numberKeyCodes: [UInt32] = [XK_1, XK_2, XK_3, XK_4, XK_5, XK_6, XK_7, XK_8, XK_9].map { UInt32($0) }
+    let keypadKeyCodes: [UInt32] = [XK_KP_1, XK_KP_2, XK_KP_3, XK_KP_4, XK_KP_5, XK_KP_6, XK_KP_7, XK_KP_8, XK_KP_9].map { UInt32($0) }
+    for (i, code) in numberKeyCodes.enumerated() where keycode == code && i < lastComposedCandidates.count {
+      return i
+    }
+    for (i, code) in keypadKeyCodes.enumerated() where keycode == code && i < lastComposedCandidates.count {
+      return i
+    }
+
+    return nil
+  }
+
+  func commitActiveAICandidate() {
+    guard let aiText = activeAICandidates.first else { return }
+    commitAICandidate(text: aiText)
+  }
+
+  func commitAICandidate(text: String) {
+    clearHostComposition()
+    activeAICandidates = []
+    activeAICandidateTicket = nil
+    activeAICandidateSlot = nil
+    activeJevRerankIndex = nil
+    activeJevRerankTicket = nil
+    activeJevLocalCandidates = []
+    commit(string: text)
+    engineSession?.clearComposition()
+    engineUpdate()
   }
 }

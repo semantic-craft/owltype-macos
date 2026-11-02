@@ -244,6 +244,18 @@ final class OwlSettingsState {
   var cloudModel: String = OwlCloudPreferences.defaultDeepSeekModel
   /// 任意提问「联网搜索」(mirror of `OwlAskWebSearchSettings.isEnabled`). Default false（出厂关，opt-in）.
   var askWebSearchEnabled: Bool = OwlAskWebSearchSettings.isEnabled
+  /// AI 候选 · 云端联想 (mirror of `OwlAICandidatePreferences.aiAssociationEnabled`). Default false.
+  var aiAssociationEnabled: Bool = OwlAICandidatePreferences.aiAssociationEnabled
+  /// 英文模式 AI 候选 (mirror of `OwlAICandidatePreferences.aiEnglishCandidateEnabled`). Default false.
+  var aiEnglishCandidateEnabled: Bool = OwlAICandidatePreferences.aiEnglishCandidateEnabled
+  /// Jev 选词提权 (mirror of `OwlAICandidatePreferences.jevDiscriminativeRerankEnabled`). Default false.
+  var jevDiscriminativeRerankEnabled: Bool = OwlAICandidatePreferences.jevDiscriminativeRerankEnabled
+  /// 语音输入 (mirror of `OwlVoiceSettings.isEnabled`). Default false.
+  var voiceInputEnabled: Bool = OwlVoiceSettings.isEnabled
+  /// 语音润色 (mirror of `OwlVoiceSettings.isPolishEnabled`). Default false.
+  var voicePolishEnabled: Bool = OwlVoiceSettings.isPolishEnabled
+  /// AI 对话面板 (mirror of `OwlAIWritingSettings.isEnabled`). Default false.
+  var aiWritingPanelEnabled: Bool = OwlAIWritingSettings.isEnabled
   /// 划词菜单总开关 + 划词工具箱页内置技能 mirrors.
   var jevReplySkillEnabled = OwlSelectionMenuPreferences.jevReplyEnabled
   var selectionMenuEnabled: Bool = OwlSelectionMenuPreferences.isEnabled

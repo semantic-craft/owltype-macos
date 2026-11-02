@@ -54,6 +54,9 @@ struct OwlAIPage: View {
     ScrollView {
       VStack(spacing: 20) {
         providerSectionCard
+        aiCandidateSettingsCard
+        voiceInputSettingsCard
+        aiWritingSettingsCard
         askWebSearchCard
         sourceVerificationSearchCard
       }
@@ -74,6 +77,102 @@ struct OwlAIPage: View {
          }),
          let host = OwlQwenWorkspace.apiHost(from: profile.endpoint) {
         qwenWorkspaceInput = host
+      }
+    }
+  }
+
+  // MARK: - AI 候选 · 云端联想
+
+  private var aiCandidateSettingsCard: some View {
+    SettingsCard(title: "AI 候选 · 云端联想", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
+      VStack(spacing: 0) {
+        SettingsToggleRow(
+          title: "AI 联想",
+          subtitle: "打字停顿 120ms 后触发云端生成式「AI 联想」，首条 AI 候选固定在候选窗首页末位展示且带 AI 徽标，前排本地候选不跳变。",
+          isOn: state.aiAssociationEnabled,
+          palette: palette,
+          onToggle: {
+            OwlSettingsActions.toggle(state: state, keyPath: \.aiAssociationEnabled) {
+              OwlAICandidatePreferences.aiAssociationEnabled = $0
+            }
+          }
+        )
+        SettingsCardDivider(palette: palette)
+        SettingsToggleRow(
+          title: "英文模式 AI 候选",
+          subtitle: "在英文输入模式下停顿同样提供云端 AI 候选补全与联想。",
+          isOn: state.aiEnglishCandidateEnabled,
+          palette: palette,
+          onToggle: {
+            OwlSettingsActions.toggle(state: state, keyPath: \.aiEnglishCandidateEnabled) {
+              OwlAICandidatePreferences.aiEnglishCandidateEnabled = $0
+            }
+          }
+        )
+        SettingsCardDivider(palette: palette)
+        SettingsToggleRow(
+          title: "Jev 选词",
+          subtitle: "打字停顿后基于上文语义从本地候选列表中智能提权最匹配词条至首位，零词表外幻觉。",
+          isOn: state.jevDiscriminativeRerankEnabled,
+          palette: palette,
+          onToggle: {
+            OwlSettingsActions.toggle(state: state, keyPath: \.jevDiscriminativeRerankEnabled) {
+              OwlAICandidatePreferences.jevDiscriminativeRerankEnabled = $0
+            }
+          }
+        )
+      }
+    }
+  }
+
+  // MARK: - 语音输入 · xAI Grok ASR
+
+  private var voiceInputSettingsCard: some View {
+    SettingsCard(title: "语音输入 · xAI Grok ASR", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
+      VStack(spacing: 0) {
+        SettingsToggleRow(
+          title: "语音输入",
+          subtitle: "按住热键说话或单击切换开启录音，实时语音胶囊波形 HUD 上屏。",
+          isOn: state.voiceInputEnabled,
+          palette: palette,
+          onToggle: {
+            OwlSettingsActions.toggle(state: state, keyPath: \.voiceInputEnabled) {
+              OwlVoiceSettings.isEnabled = $0
+            }
+          }
+        )
+        SettingsCardDivider(palette: palette)
+        SettingsToggleRow(
+          title: "语音润色",
+          subtitle: "转写后调用 DeepSeek 智能去除口水词、纠偏同音词与补全标点；若超时无感降级直接上屏原文。",
+          isOn: state.voicePolishEnabled,
+          palette: palette,
+          onToggle: {
+            OwlSettingsActions.toggle(state: state, keyPath: \.voicePolishEnabled) {
+              OwlVoiceSettings.isPolishEnabled = $0
+            }
+          }
+        )
+      }
+    }
+  }
+
+  // MARK: - AI 写作辅助 · 对话面板
+
+  private var aiWritingSettingsCard: some View {
+    SettingsCard(title: "AI 写作辅助 · 对话面板", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
+      VStack(spacing: 0) {
+        SettingsToggleRow(
+          title: "AI 对话面板",
+          subtitle: "打字输入 /ai 指令或按 Shift+K 呼出非激活 AI 对话面板，支持一键上屏与替换选区。",
+          isOn: state.aiWritingPanelEnabled,
+          palette: palette,
+          onToggle: {
+            OwlSettingsActions.toggle(state: state, keyPath: \.aiWritingPanelEnabled) {
+              OwlAIWritingSettings.isEnabled = $0
+            }
+          }
+        )
       }
     }
   }

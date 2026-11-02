@@ -37,8 +37,26 @@ struct OwlAIComposerTask: Codable, Equatable {
   let scaffold: String
 }
 
+public enum OwlAIWritingMode: String, CaseIterable, Identifiable, Sendable {
+  case chat = "对话"
+  case polish = "双候选润色"
+  case quickReply = "快捷回复"
+
+  public var id: String { rawValue }
+
+  public var iconName: String {
+    switch self {
+    case .chat: return "bubble.left.and.bubble.right"
+    case .polish: return "sparkles"
+    case .quickReply: return "bolt.fill"
+    }
+  }
+}
+
 struct OwlAIConversationView: View {
   let model: OwlAIConversationModel
+  var context: OwlAIInvocationContext = .standalone
+  var initialMode: OwlAIWritingMode = .chat
   let initialQuestion: String
   /// 展示用短署名（如「辅助检索」）：autoSubmit 技能的完整指令 prompt 不适合整段出现在提问气泡里。
   let initialDisplayQuestion: String?
@@ -47,11 +65,15 @@ struct OwlAIConversationView: View {
   let initialTask: OwlAIComposerTask?
   /// 工具箱上下文（2026-07-26 重设计）：非 nil 时在引文下渲染技能按钮行；nil = 纯任意提问窗。
   let toolbox: OwlAIToolboxContext?
+  var onWriteback: ((String) -> Void)? = nil
   /// Window-owned copy (copy-only; never auto-inserts into the target app).
   let onCopy: (String) -> Void
   /// Window-owned close.
   let onClose: () -> Void
 
+  @State private var writingMode: OwlAIWritingMode = .chat
+  @State private var polishViewModel: OwlAIPolishViewModel?
+  @State private var replyViewModel: OwlQuickReplyViewModel?
   @State private var question: String = ""
   @State private var task: OwlAIComposerTask?
   @State private var state: OwlAIConversationState = .idle
@@ -74,9 +96,36 @@ struct OwlAIConversationView: View {
         header
         contextQuote
         skillChips
-        conversationFlow
-        if composerVisible {
-          composer
+        switch writingMode {
+        case .polish:
+          if let pvm = polishViewModel {
+            OwlAIPolishCardsView(
+              viewModel: pvm,
+              palette: palette,
+              inputFocused: inputFocused,
+              onChoose: { chosen in
+                onWriteback?(chosen)
+              },
+              onDismiss: onClose
+            )
+          }
+        case .quickReply:
+          if let rvm = replyViewModel {
+            OwlQuickReplyView(
+              viewModel: rvm,
+              palette: palette,
+              inputFocused: inputFocused,
+              onChoose: { chosen in
+                onWriteback?(chosen)
+              },
+              onDismiss: onClose
+            )
+          }
+        case .chat:
+          conversationFlow
+          if composerVisible {
+            composer
+          }
         }
         controlRow
       }
@@ -87,6 +136,16 @@ struct OwlAIConversationView: View {
     }
     .frame(minWidth: 420, minHeight: 360)
     .onAppear {
+      writingMode = initialMode
+      let targetText: String = {
+        if case let .selection(snapshot) = context {
+          return snapshot.text
+        }
+        return model.capturedContextSummary
+      }()
+      polishViewModel = OwlAIPolishViewModel(originalText: targetText, context: context)
+      replyViewModel = OwlQuickReplyViewModel(contextText: targetText, invocationContext: context)
+
       // Mirror the model's state into the view, and seed from the current state.
       state = model.state
       turns = model.turns
@@ -118,11 +177,40 @@ struct OwlAIConversationView: View {
             .foregroundColor(palette.accent)
         }
         Spacer()
+        modeSwitcherBar
         routeSeal
       }
       RoundedRectangle(cornerRadius: 1)
         .fill(palette.accent)
         .frame(width: 40, height: 2)
+    }
+  }
+
+  private var modeSwitcherBar: some View {
+    HStack(spacing: 4) {
+      ForEach(OwlAIWritingMode.allCases) { mode in
+        let isSelected = (mode == writingMode)
+        Button {
+          writingMode = mode
+        } label: {
+          HStack(spacing: 3) {
+            Image(systemName: mode.iconName)
+              .font(.system(size: 9.5, weight: isSelected ? .bold : .medium))
+            Text(mode.rawValue)
+              .font(.system(size: 10.5, weight: isSelected ? .semibold : .regular))
+          }
+          .padding(.horizontal, 6)
+          .padding(.vertical, 3)
+          .background(isSelected ? palette.accent.opacity(0.18) : palette.card2.opacity(0.6))
+          .overlay(
+            RoundedRectangle(cornerRadius: 5)
+              .stroke(isSelected ? palette.accent : palette.ink3.opacity(0.2), lineWidth: 1)
+          )
+          .foregroundColor(isSelected ? palette.accent : palette.ink)
+          .cornerRadius(5)
+        }
+        .buttonStyle(.plain)
+      }
     }
   }
 
@@ -376,34 +464,74 @@ struct OwlAIConversationView: View {
     }
   }
 
+  private var isSelectionContext: Bool {
+    if case .selection = context { return true }
+    return false
+  }
+
   private var controlRow: some View {
-    HStack(spacing: 16) {
-      quietButton(NSLocalizedString("复制", comment: "copy button"), enabled: currentAnswer != nil) {
-        if let answer = currentAnswer { onCopy(answer) }
-      }
-      // 「复制粘贴回去」的一键动线：复制结果 + 关窗（关窗自动把焦点还给原 App），回去 ⌘V 即贴。
-      quietButton(NSLocalizedString("复制并关闭", comment: "copy and close button"),
-                  enabled: currentAnswer != nil) {
-        guard let answer = currentAnswer else { return }
-        onCopy(answer)
-        onClose()
-      }
-      quietButton(NSLocalizedString("重新生成", comment: "regenerate button"),
-                  enabled: !model.lastQuestion.isEmpty && !isStreaming) {
-        model.regenerate()
-      }
-      quietButton(NSLocalizedString("停止", comment: "stop button"), enabled: isStreaming) {
-        model.stop()
-      }
-      quietButton(NSLocalizedString("新对话", comment: "new conversation button"),
-                  enabled: !turns.isEmpty && !isStreaming) {
-        model.newConversation()
-        state = model.state
-        turns = model.turns
-        question = ""
+    HStack(spacing: 12) {
+      if writingMode == .chat {
+        if let onWriteback {
+          let primaryTitle = context.primaryActionTitle
+          Button(action: {
+            if let answer = currentAnswer {
+              onWriteback(answer)
+            }
+          }) {
+            HStack(spacing: 4) {
+              Image(systemName: isSelectionContext ? "arrow.triangle.2.circlepath" : "arrow.up.forward.app")
+                .font(.system(size: 11, weight: .semibold))
+              Text(primaryTitle)
+                .font(.system(size: 12, weight: .semibold))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(currentAnswer != nil ? palette.accent : palette.ink3.opacity(0.15))
+            .foregroundColor(currentAnswer != nil ? palette.onAccent : palette.ink3.opacity(0.5))
+            .cornerRadius(5)
+          }
+          .buttonStyle(.plain)
+          .disabled(currentAnswer == nil)
+          .keyboardShortcut(.defaultAction)
+          .background(
+            Button("") {
+              if let answer = currentAnswer {
+                onWriteback(answer)
+              }
+            }
+            .keyboardShortcut(.return, modifiers: [.command])
+            .opacity(0)
+          )
+        }
+
+        quietButton(NSLocalizedString("复制", comment: "copy button"), enabled: currentAnswer != nil) {
+          if let answer = currentAnswer { onCopy(answer) }
+        }
+        // 「复制粘贴回去」的一键动线：复制结果 + 关窗（关窗自动把焦点还给原 App），回去 ⌘V 即贴。
+        quietButton(NSLocalizedString("复制并关闭", comment: "copy and close button"),
+                    enabled: currentAnswer != nil) {
+          guard let answer = currentAnswer else { return }
+          onCopy(answer)
+          onClose()
+        }
+        quietButton(NSLocalizedString("重新生成", comment: "regenerate button"),
+                    enabled: !model.lastQuestion.isEmpty && !isStreaming) {
+          model.regenerate()
+        }
+        quietButton(NSLocalizedString("停止", comment: "stop button"), enabled: isStreaming) {
+          model.stop()
+        }
+        quietButton(NSLocalizedString("新对话", comment: "new conversation button"),
+                    enabled: !turns.isEmpty && !isStreaming) {
+          model.newConversation()
+          state = model.state
+          turns = model.turns
+          question = ""
+        }
       }
       Spacer()
-      quietButton(NSLocalizedString("关闭", comment: "close button"), enabled: true, action: onClose)
+      quietButton(NSLocalizedString("取消 (Esc)", comment: "cancel button"), enabled: true, action: onClose)
         .keyboardShortcut(.cancelAction)
     }
   }

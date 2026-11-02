@@ -258,7 +258,7 @@ final class OwlSelectionMenuCoordinator {
 
   /// 同步读当前前台 App 的选区（仅召唤用）。在主线程等待，但有 50ms AX 消息超时，最坏
   /// ~0.25s 的一次性等待，换召唤即时响应。
-  private func readCurrentSelection() -> OwlSelectionMenuSnapshot? {
+  func readCurrentSelection() -> OwlSelectionMenuSnapshot? {
     guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
     guard app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return nil }
     return readSelection(from: app)

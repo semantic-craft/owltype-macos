@@ -55,6 +55,7 @@ extension OwlInputController {
     MainActor.assumeIsolated { OwlInputStatusPanel.shared.deactivate(self) }
     rememberAppInputMode()
     invalidateSettledRerankForAction()
+    resetAICandidateRuntime()
     pendingTemplateDelivery?.hostWillDeactivate()
     templateHostGeneration &+= 1
     // print("[DEBUG] deactivateServer: \(sender ?? "nil")")
@@ -92,6 +93,7 @@ extension OwlInputController {
    */
   override func commitComposition(_ sender: Any!) {
     invalidateSettledRerankForAction()
+    resetAICandidateRuntime()
     if let incoming = sender as? IMKTextInput, let previous = client, incoming !== previous {
       discardAutomaticExpansion()
     }

@@ -48,26 +48,28 @@ final class OwlAIWindow: NSWindowController {
   private weak var previousApp: NSRunningApplication?
 
   init() {
-    let window = NSWindow(
+    let panel = NSPanel(
       contentRect: NSRect(x: 0, y: 0, width: 460, height: 420),
-      styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
+      styleMask: [.titled, .closable, .resizable, .fullSizeContentView, .nonactivatingPanel],
       backing: .buffered,
       defer: false
     )
     // Keep the title for a11y / the Window menu, but hide it and let the SwiftUI paper flow under a
     // transparent titlebar (方案 C) — no duplicate "猫头鹰 AI 对话" over the content header.
-    window.title = NSLocalizedString("猫头鹰 AI 对话", comment: "Owltype AI conversation window title")
-    window.titleVisibility = .hidden
-    window.titlebarAppearsTransparent = true
-    window.isMovableByWindowBackground = true
-    window.isReleasedWhenClosed = false
-    window.minSize = NSSize(width: 420, height: 360)
-    window.level = .floating
-    window.center()
+    panel.title = NSLocalizedString("猫头鹰 AI 对话", comment: "Owltype AI conversation window title")
+    panel.titleVisibility = .hidden
+    panel.titlebarAppearsTransparent = true
+    panel.isMovableByWindowBackground = true
+    panel.isReleasedWhenClosed = false
+    panel.minSize = NSSize(width: 420, height: 360)
+    panel.level = .floating
+    panel.becomesKeyOnlyIfNeeded = true
+    panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+    panel.center()
     // 可 resize 后记住用户调过的尺寸/位置（首开仍居中；有存档则存档优先）。
-    window.setFrameAutosaveName("OwlAIConversationWindow")
-    super.init(window: window)
-    window.delegate = self
+    panel.setFrameAutosaveName("OwlAIConversationWindow")
+    super.init(window: panel)
+    panel.delegate = self
   }
 
   @available(*, unavailable)
@@ -75,17 +77,19 @@ final class OwlAIWindow: NSWindowController {
     fatalError("init(coder:) has not been implemented")
   }
 
-  /// Build (or reuse) the window with an optional, user-explicit selected-text payload, then bring
-  /// it front. With no selection, the window opens for a general question.
+  /// Build (or reuse) the window with an optional invocation context, then bring it front without
+  /// activating the Owltype process at the OS level (nonactivating panel).
   @discardableResult
   func show(
+    context: OwlAIInvocationContext = .standalone,
     selectedText: String? = nil,
     initialQuestion: String = "",
     initialDisplayQuestion: String? = nil,
     autoSubmit: Bool = false,
     composerTask: OwlAIComposerTask? = nil,
     initialState: OwlAIConversationState = .idle,
-    toolbox: OwlAIToolboxContext? = nil
+    toolbox: OwlAIToolboxContext? = nil,
+    initialMode: OwlAIWritingMode = .chat
   ) -> OwlAIConversationModel {
     // 已开着时不重复抓前台 App：工具箱按钮（翻译/辅助检索）原地刷新窗口，此刻前台是本窗自己，
     // 覆盖掉会把「关窗还焦点」的目标丢掉。
@@ -94,28 +98,62 @@ final class OwlAIWindow: NSWindowController {
     }
 
     self.model?.teardown()
+    let effectiveSelectedText: String? = {
+      if let selectedText { return selectedText }
+      if case let .selection(snapshot) = context { return snapshot.text }
+      return nil
+    }()
     let model = OwlAIConversationModel(
-      selectedText: selectedText,
+      selectedText: effectiveSelectedText,
       initialState: initialState
     )
     self.model = model
 
     let rootView = OwlAIConversationView(
       model: model,
+      context: context,
+      initialMode: initialMode,
       initialQuestion: initialQuestion,
       initialDisplayQuestion: initialDisplayQuestion,
       autoSubmit: autoSubmit,
       initialTask: composerTask,
       toolbox: toolbox,
+      onWriteback: { [weak self] answer in
+        guard let self else { return }
+        OwlAIWritebackCoordinator.shared.writeback(
+          text: answer,
+          context: context,
+          onDismissWindow: { [weak self] in
+            self?.window?.close()
+          }
+        )
+      },
       onCopy: { [weak self] text in self?.copy(text) },
       onClose: { [weak self] in self?.window?.close() }
     )
     window?.contentView = NSHostingView(rootView: rootView)
 
-    NSApp.activate(ignoringOtherApps: true)
     showWindow(nil)
     window?.makeKeyAndOrderFront(nil)
     return model
+  }
+
+  @discardableResult
+  func showPolish(
+    context: OwlAIInvocationContext,
+    selectedText: String? = nil,
+    style: OwlPolishStyle = .faithful
+  ) -> OwlAIConversationModel {
+    show(context: context, selectedText: selectedText, initialMode: .polish)
+  }
+
+  @discardableResult
+  func showReply(
+    context: OwlAIInvocationContext,
+    contextText: String? = nil,
+    template: OwlReplyTemplate = .agree
+  ) -> OwlAIConversationModel {
+    show(context: context, selectedText: contextText, initialMode: .quickReply)
   }
   // 出窗技能（核验回执卡 / 替换原文的技能）执行前用继承的 NSWindowController.close() 关窗，
   // 经 windowWillClose 把焦点还给宿主。

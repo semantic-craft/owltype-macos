@@ -62,6 +62,9 @@ extension OwlInputController {
     // 表情/符号 entry is always present — the panel is summoned from here. The old 启用 toggle
     // was removed (hiding the only entry point made the panel unreachable from anywhere).
     menu.addItem(owlEmoji)
+    let aiWriting = NSMenuItem(title: "AI 写作助手 (⇧K)", action: #selector(showOwltypeAIWritingAssistant), keyEquivalent: "")
+    aiWriting.target = self
+    menu.addItem(aiWriting)
     menu.addItem(.separator())
     menu.addItem(update)
 

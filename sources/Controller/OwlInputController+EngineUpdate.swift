@@ -198,6 +198,7 @@ extension OwlInputController {
       }
     } else {
       hidePalettes()
+      resetAICandidateRuntime()
       MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.emitCleared() }
     }
     // This is the normal idle boundary after a key or candidate selection. The delegate is a
@@ -562,10 +563,22 @@ extension OwlInputController {
       )
     }
 
-    // The inline AI candidate lane was removed: the candidate panel shows ONLY authoritative Rime
-    // rows now, so there is no async store-driven merge/refresh. Build the Rime view models and push
-    // them straight to the panel here (was the `lastEnginePanel` cache + `renderPanel` merge step).
-    let engineModels: [CandidateViewModel] = candidates.indices.map { i in
+    currentHighlightedCandidateIndex = highlighted
+    lastPanelComposition = OwlPanelCompositionParams(
+      preedit: preedit,
+      cursor: cursor,
+      selStart: selStart,
+      selEnd: selEnd,
+      candidates: candidates,
+      comments: comments,
+      labels: labels,
+      highlighted: highlighted,
+      page: page,
+      lastPage: lastPage,
+      pageSize: pageSize
+    )
+
+    var engineModels: [CandidateViewModel] = candidates.indices.map { i in
       let text = candidates[i]
       let rawComment = i < comments.count ? comments[i] : nil
       return CandidateViewModel(
@@ -582,6 +595,31 @@ extension OwlInputController {
       )
     }
 
+    OwlAICandidateLayout.applyJevRerank(
+      into: &engineModels,
+      elevatedIndex: activeJevRerankIndex,
+      ticket: activeJevRerankTicket,
+      currentSessionID: currentSessionID,
+      currentGen: currentGen,
+      rawInput: engineSession?.input() ?? "",
+      page: page,
+      labels: labels,
+      allLocalCandidates: activeJevLocalCandidates
+    )
+
+    activeAICandidateSlot = OwlAICandidateLayout.applyAICandidate(
+      into: &engineModels,
+      activeAICandidates: activeAICandidates,
+      activeAICandidateTicket: activeAICandidateTicket,
+      currentSessionID: currentSessionID,
+      currentGen: currentGen,
+      rawInput: engineSession?.input() ?? "",
+      page: page,
+      pageSize: pageSize,
+      labels: labels
+    )
+    lastComposedCandidates = engineModels
+
     let owlPanel = NSApp.owlAppDelegate.ensureOwltypePanel()
     let pinInput = engineSession?.input() ?? ""
     let pinSession = engineSession?.sessionID ?? 0
@@ -594,7 +632,13 @@ extension OwlInputController {
     owlPanel.onSelect = { [weak self] index in self?.selectPanelIndex(index) }
     owlPanel.onPage = { [weak self] up in _ = self?.page(up: up) }
     owlPanel.onSelectAbsolute = { [weak self] index in _ = self?.selectCandidateAbsolute(index) }
-    owlPanel.onSelectToken = { [weak self] token in _ = self?.selectCandidate(token) }
+    owlPanel.onSelectToken = { [weak self] token in
+      if token.candidateID == 999_999, let aiText = self?.activeAICandidates.first {
+        self?.commitAICandidate(text: aiText)
+        return
+      }
+      _ = self?.selectCandidate(token)
+    }
     let content = OwlPanelContent(
       preedit: preedit,
       cursor: cursor,
@@ -622,10 +666,19 @@ extension OwlInputController {
     }
   }
 
-  /// Selection routing for a clicked / selected panel `index`. Every panel row is now an
-  /// authoritative Rime candidate, so this is a direct `selectCandidate(index)` — the inline AI
-  /// candidate lane that used to append extra rows and route them through the broker was removed.
+  /// Selection routing for a clicked / selected panel `index`.
   func selectPanelIndex(_ index: Int) {
+    if activeAICandidateSlot == index, let aiText = activeAICandidates.first {
+      commitAICandidate(text: aiText)
+      return
+    }
+    if index >= 0, index < lastComposedCandidates.count {
+      let token = lastComposedCandidates[index].token
+      if token.candidateID != 999_999 {
+        _ = selectCandidate(token)
+        return
+      }
+    }
     _ = selectCandidate(index)
   }
 
