@@ -22,7 +22,7 @@ final class OwlInputStatusPanel: NSPanel {
 
   override var canBecomeKey: Bool { false }
   override var canBecomeMain: Bool { false }
-  var isEnabled: Bool { UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? true }
+  var isEnabled: Bool { OwlDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? true }
 
   private init() {
     super.init(contentRect: NSRect(x: 0, y: 0, width: 340, height: 48),
@@ -60,7 +60,7 @@ final class OwlInputStatusPanel: NSPanel {
   }
 
   func toggleVisibility(_ controller: OwlInputController) {
-    UserDefaults.standard.set(!isEnabled, forKey: Self.enabledKey)
+    OwlDefaults.standard.set(!isEnabled, forKey: Self.enabledKey)
     if isEnabled { activate(controller) } else { orderOut(nil) }
   }
 

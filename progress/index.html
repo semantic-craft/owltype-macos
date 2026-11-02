@@ -139,6 +139,12 @@
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/367">issue 367: 范围、当前状态和证据原件</a></li>
 </ul><p>Next: 等待前置完成，复用其成果。</p></article>
 </section>
+<section id="local-installer-preparation"><h2>本地安装包准备</h2>
+<article id="status-panel-defaults-isolation"><h3>状态栏测试偏好隔离</h3><span class="badge">done</span><p>状态栏读写接入既有 OwlDefaults；本机隐藏状态栏偏好保持关闭，原失败的 controller round-trip 测试通过。仅本地修正，未合并或发布；安装包与真实安装另行验证。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/sources/UI/OwlInputStatusPanel.swift">file sources/UI/OwlInputStatusPanel.swift: 生产仍使用标准偏好，测试使用独立 suite。</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/LESSONS.md">file LESSONS.md: 2026-11-02 记录失败与回归范围。</a></li>
+</ul><p>Next: 运行完整发布链生成本地分享包。</p></article>
+</section>
 <section><h2>Open pull requests</h2><ul>
 </ul><h2>Recent releases</h2><ul>
 </ul></section></html>

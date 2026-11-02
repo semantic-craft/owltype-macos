@@ -880,6 +880,31 @@
         }
       ],
       "title": "Rust 业务核心迁移"
+    },
+    {
+      "id": "local-installer-preparation",
+      "title": "本地安装包准备",
+      "items": [
+        {
+          "id": "status-panel-defaults-isolation",
+          "title": "状态栏测试偏好隔离",
+          "status": "done",
+          "summary": "状态栏读写接入既有 OwlDefaults；本机隐藏状态栏偏好保持关闭，原失败的 controller round-trip 测试通过。仅本地修正，未合并或发布；安装包与真实安装另行验证。",
+          "next": "运行完整发布链生成本地分享包。",
+          "evidence": [
+            {
+              "kind": "file",
+              "ref": "sources/UI/OwlInputStatusPanel.swift",
+              "note": "生产仍使用标准偏好，测试使用独立 suite。"
+            },
+            {
+              "kind": "file",
+              "ref": "LESSONS.md",
+              "note": "2026-11-02 记录失败与回归范围。"
+            }
+          ]
+        }
+      ]
     }
   ],
   "title": "Owltype · 水杉输入对齐",
