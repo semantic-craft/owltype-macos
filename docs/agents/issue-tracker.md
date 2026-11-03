@@ -91,4 +91,5 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
 
 Pinyin #280 and Wubi #294 share the [coordination entry](../input-alignment.md) and
 [generated progress](../../progress/index.html). Check native blockers and current ownership
-before claiming; use the existing TeslaHub atomic claim workflow, not independent agent ledgers.
+before starting. For cross-agent delegation, follow the official ANet entry maintained
+by agent-fleet and linked from that page; do not restore the retired claim ledger.

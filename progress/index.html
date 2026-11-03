@@ -3,8 +3,8 @@
 <title>Owltype · 水杉输入对齐</title>
 <style>body{font:16px system-ui;max-width:960px;margin:3rem auto;padding:0 1rem;color:#202936;background:#f7f8fb}article,section{padding:1rem;margin:1rem 0;background:white;border-radius:12px}a{color:#1555ac}.badge{padding:.25rem .6rem;border-radius:20px;background:#e9edf5}small{color:#566}</style>
 <h1>Owltype · 水杉输入对齐</h1>
-<p>Observed: 2026-11-03T13:53:19.282595Z</p>
-<p>Main: <code>main: 8a746308f266037ee7cba13e1dd42ae416a4f2ee</code></p>
+<p>Observed: 2026-11-03T14:20:19Z</p>
+<p>Main: <code>main: 62f3839ba23192a4179a7f0299464be96d57e77a</code></p>
 <section id="project-review"><h2>项目进度复核 · 2026-11-03</h2>
 <article id="review-release"><h3>当前交付：2.4.1</h3><span class="badge">done</span><p>main 8a74630；PR #404 记录确切 head 15 阶段门禁、签名公证、10 项不可变资产及发布指针核验。此次直接读取公开 latest.json 返回 HTTP 403，线上状态以该发布回执为证，未独立重验。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/pull/404">pull 404: 2026-11-03 发布收口与完整门禁回执</a></li>
@@ -16,9 +16,9 @@
 <article id="review-373"><h3>#373 选区工具箱接入 JEV 本地回复建议（仅展示）</h3><span class="badge">unverified</span><p>回复建议已实现并随 2.4.1 发布；2–3 条候选、复制、超时和取消合同已修正。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/373">issue 373: 原始验收标准、后续范围决定和交付记录</a></li>
 </ul><p>Next: 补安装版选区、焦点、候选展示/复制及普通输入验收。</p></article>
-<article id="review-335"><h3>#335 领取说明与 input-claims.sh 跟上 TeslaHub 领取账本新规则（--scope、独占路径、claimable、release-session）</h3><span class="badge">planned</span><p>TeslaHub #121 已合并，跨仓前置解除；本仓命令白名单和说明尚未更新。</p><ul>
+<article id="review-335"><h3>#335 退役旧领取与看板入口，遵循官方 ANet 契约</h3><span class="badge">in_progress</span><p>用户已批准按现行架构收口。旧 claims 账本与看板投影移除；官方 ANet 协作协议由 agent-fleet 维护。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/335">issue 335: 原始验收标准、后续范围决定和交付记录</a></li>
-</ul><p>Next: 补 --scope、独占路径、claimable、release-session；用临时账本验证。</p></article>
+</ul><p>Next: 完成项目门禁与合并；不启动真实派工，不改共享账本。</p></article>
 <article id="review-316"><h3>#316 [性能考查] 端到端输入延迟测量（合并 #274–#277）</h3><span class="badge">planned</span><p>热键事件 tap 已移出主线程；完整端到端延迟矩阵尚未完成，既有决策不阻塞发布。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/316">issue 316: 原始验收标准、后续范围决定和交付记录</a></li>
 </ul><p>Next: 测量原生与 Chromium 输入端到端延迟，再决定是否优化。</p></article>
@@ -49,7 +49,7 @@
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/280">issue 280: 拼音规格与已存在工单</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/294">issue 294: 五笔规格与十张子票</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/docs/input-alignment.md">file docs/input-alignment.md: 共用依赖、领取及同步协议</a></li>
-</ul><p>Next: 按 docs/input-alignment.md 使用 TeslaHub 唯一领取入口；不要从静态 HTML 启动第二个执行器。刷新：python3 progress/sync.py。</p></article>
+</ul><p>Next: 按 docs/input-alignment.md 核对授权与现有执行者；需要委派时使用 agent-fleet 维护的官方 ANet 入口。静态页面不派工。刷新：python3 progress/sync.py。</p></article>
 </section>
 <section id="pinyin"><h2>拼音对齐（现有执行线）</h2>
 <article id="issue-281"><h3>#281 [拼音对齐 T01] 固定水杉基线，建立双端按键对照</h3><span class="badge">unverified</span><p>GitHub: closed；负责人：semantic-craft；未关闭前置：无。</p><ul>
@@ -133,7 +133,7 @@
 </ul><p>Next: 核对工单完成证据。</p></article>
 <article id="issue-316"><h3>#316 [性能考查] 端到端输入延迟测量（合并 #274–#277）</h3><span class="badge">planned</span><p>GitHub: open；负责人：未指派；未关闭前置：无。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/316">issue 316: 范围、当前状态和证据原件</a></li>
-</ul><p>Next: 读取工单和开放 PR，经共享领取入口核实后领取。</p></article>
+</ul><p>Next: 读取工单和开放 PR，核对本轮授权、负责人和文件范围后开工。</p></article>
 <article id="issue-317"><h3>#317 [清理] 移除 Rime 残留子模块、构建路径与命名</h3><span class="badge">unverified</span><p>GitHub: closed；负责人：未指派；未关闭前置：无。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/317">issue 317: 范围、当前状态和证据原件</a></li>
 </ul><p>Next: 核对工单完成证据。</p></article>
