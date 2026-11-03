@@ -1,6 +1,6 @@
 {
   "facts": {
-    "main": "62f3839ba23192a4179a7f0299464be96d57e77a",
+    "main": "db2d2562be04fc3eee94b4f7870dad0a560c5396",
     "default_branch": "main",
     "pulls": [
       {
@@ -26,6 +26,14 @@
         "head": "e38c743a04d010612bc2ea7a6a135ab7d66424f0",
         "base": "f0c1ef5facc959f2d5e7c7d7a37aeee64291b308",
         "merge_commit": "8a746308f266037ee7cba13e1dd42ae416a4f2ee"
+      },
+      {
+        "number": 406,
+        "state": "closed",
+        "merged": true,
+        "head": "28de4e7cde1f345c2705759d1d333f3d409ac628",
+        "base": "62f3839ba23192a4179a7f0299464be96d57e77a",
+        "merge_commit": "db2d2562be04fc3eee94b4f7870dad0a560c5396"
       }
     ],
     "open_pulls": [],
@@ -248,9 +256,9 @@
       },
       {
         "number": 335,
-        "state": "open",
-        "reason": null,
-        "updated_at": "2026-11-03T14:20:15Z"
+        "state": "closed",
+        "reason": "completed",
+        "updated_at": "2026-11-03T14:36:19Z"
       },
       {
         "number": 356,
@@ -337,7 +345,7 @@
     "docs/input-alignment.md",
     "progress/sync.py"
   ],
-  "observed_at": "2026-11-03T14:20:19Z",
+  "observed_at": "2026-11-03T14:36:57Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -406,12 +414,17 @@
               "kind": "issue",
               "note": "原始验收标准、后续范围决定和交付记录",
               "ref": 335
+            },
+            {
+              "kind": "pull",
+              "ref": 406,
+              "note": "实现、受验提交与三项验证披露"
             }
           ],
           "id": "review-335",
-          "next": "完成项目门禁与合并；不启动真实派工，不改共享账本。",
-          "status": "in_progress",
-          "summary": "用户已批准按现行架构收口。旧 claims 账本与看板投影移除；官方 ANet 协作协议由 agent-fleet 维护。",
+          "next": "后续跨 Agent 委派沿用 agent-fleet 官方契约；本次未部署 ANet、未发起真实派工或改写共享账本。",
+          "status": "done",
+          "summary": "按用户确认的新范围完成：#406 已合并，旧领取脚本与看板投影已删除，协作说明引用 agent-fleet 官方 ANet 契约。13 项同步回归、导航检查及确切提交完整门禁通过。",
           "title": "#335 退役旧领取与看板入口，遵循官方 ANet 契约"
         },
         {
@@ -1187,7 +1200,8 @@
     "pulls": [
       305,
       340,
-      404
+      404,
+      406
     ]
   }
 }
