@@ -249,11 +249,23 @@
         "updated_at": "2026-10-30T17:19:30Z"
       }
     ],
-    "main": "b438ca9899e0f14683a8f95372732834ccd4a294",
+    "main": "f0c1ef5facc959f2d5e7c7d7a37aeee64291b308",
     "open_pulls": [
       {
         "head": "64f33f15ad866cf4f3377aa6eeb457253960e5ac",
         "number": 388
+      },
+      {
+        "head": "a75756c3d322d31d080af95a3299346efbe63765",
+        "number": 401
+      },
+      {
+        "head": "908fc6d45ec84ab5a04c7e94a8e2f56444bffb02",
+        "number": 402
+      },
+      {
+        "head": "693867a3c2e6c9cb5a8e34c20dd937dcb884bf1c",
+        "number": 403
       }
     ],
     "pulls": [],
@@ -264,7 +276,7 @@
     "progress/sync.py",
     "progress/teslahub.mjs"
   ],
-  "observed_at": "2026-11-03T01:22:35.519221Z",
+  "observed_at": "2026-11-03T07:50:20.228804Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -698,6 +710,40 @@
           "status": "unverified",
           "summary": "GitHub: closed；负责人：未指派；未关闭前置：无。",
           "title": "#317 [清理] 移除 Rime 残留子模块、构建路径与命名"
+        },
+        {
+          "evidence": [
+            {
+              "kind": "file",
+              "note": "三卡片布局、六核心供应商徽标与五供应商语音 ASR 密钥复用状态展示。",
+              "ref": "sources/Settings/OwlAIPage.swift"
+            },
+            {
+              "kind": "file",
+              "note": "旧 ASR 返回与旧润色错误不能影响下一次录音或目标。",
+              "ref": "tests/OwlVoiceInputIntegrationTests.swift"
+            },
+            {
+              "kind": "file",
+              "note": "连续斜杠与组合键中断的原文保留回归。",
+              "ref": "tests/OwlAIWindowWritebackTests.swift"
+            },
+            {
+              "kind": "file",
+              "note": "两条候选链共享有界上文，排除组字和后文。",
+              "ref": "tests/OwlAICandidateTests.swift"
+            },
+            {
+              "kind": "file",
+              "note": "Kotone 候选显式复制、非阻塞截止/取消与 v1 安全错误码校验。",
+              "ref": "tests/JEVReplyModelTests.swift"
+            }
+          ],
+          "id": "ai-voice-regressions",
+          "next": "运行完整本地门禁并通过 PR 合并后执行 2.4.1 签名公证与发布。",
+          "status": "in_progress",
+          "summary": "整合六大核心模型供应商（Qwen、Doubao、Grok、OpenAI、Gemini、DeepSeek）与五套云端语音识别（ASR）预设，支持复用模型供应商密钥并重组 AI 设置页为三张卡片；合入 2.4.0 四项回归修复（#401）与 Kotone 回复建议可取消、显式复制及 v1 安全错误码对齐（#388, #402）。本地单元与集成测试通过，待完成完整门禁、PR 合并与 2.4.1 签名发版。",
+          "title": "2.4.1 AI 供应商收敛、三卡片设置重组、语音/指令回归修复与 Kotone v1 协议对齐"
         }
       ],
       "title": "发布后跟进"

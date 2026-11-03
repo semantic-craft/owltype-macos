@@ -10,12 +10,23 @@ public enum OwlVoiceKeychain {
   private static let service = "im.owltype.inputmethod.Owltype.voice"
   private static let xaiAccount = "xAIAPIKey"
 
-  public static func readXAIAPIKey() throws -> String? {
+  static func accountName(forProviderID providerID: String) -> String {
+    switch OwlVoiceASRCatalog.preset(id: providerID).id {
+    case "qwen": return "QwenASRAPIKey"
+    case "doubao": return "DoubaoASRAPIKey"
+    case "openai": return "OpenAIASRAPIKey"
+    case "gemini": return "GeminiASRAPIKey"
+    default: return xaiAccount
+    }
+  }
+
+  public static func readDedicatedAPIKey(forProviderID providerID: String) throws -> String? {
     guard !OwlTestStorage.isEnabled else { return nil }
+    let account = accountName(forProviderID: providerID)
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: service,
-      kSecAttrAccount as String: xaiAccount,
+      kSecAttrAccount as String: account,
       kSecReturnData as String: true,
       kSecMatchLimit as String: kSecMatchLimitOne
     ]
@@ -27,13 +38,50 @@ public enum OwlVoiceKeychain {
     return String(data: data, encoding: .utf8)
   }
 
-  public static func saveXAIAPIKey(_ key: String) throws {
+  static func readConfiguredProfileKey(
+    forProviderID providerID: String,
+    store: OwlProviderProfileStore = .shared,
+    secrets: OwlSecretStoring = OwlProviderKeychain()
+  ) -> String? {
+    let targetID = providerID == "deepseek" ? "deepseek" : OwlVoiceASRCatalog.preset(id: providerID).id
+    if targetID != "deepseek" && !OwlVoiceASRCatalog.preset(id: targetID).sharesProviderProfileKey {
+      return nil
+    }
+    let profiles = store.profiles()
+    let activeID = store.defaultProfile?.id
+    let ordered = profiles.sorted { lhs, rhs in
+      (lhs.id == activeID ? 0 : 1) < (rhs.id == activeID ? 0 : 1)
+    }
+    for profile in ordered where OwlLLMProviderCatalog.inferredProviderID(for: profile) == targetID {
+      if let raw = try? secrets.secret(named: profile.secretName) {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { return trimmed }
+      }
+    }
+    return nil
+  }
+
+  static func readAPIKey(
+    forProviderID providerID: String = OwlVoiceSettings.asrProviderID,
+    store: OwlProviderProfileStore = .shared,
+    secrets: OwlSecretStoring = OwlProviderKeychain()
+  ) throws -> String? {
+    if let dedicated = try readDedicatedAPIKey(forProviderID: providerID)?
+      .trimmingCharacters(in: .whitespacesAndNewlines),
+       !dedicated.isEmpty {
+      return dedicated
+    }
+    return readConfiguredProfileKey(forProviderID: providerID, store: store, secrets: secrets)
+  }
+
+  public static func saveAPIKey(_ key: String, forProviderID providerID: String) throws {
     guard !OwlTestStorage.isEnabled else { throw OwlCloudKeychainError.unexpectedStatus(errSecNotAvailable) }
     let data = Data(key.utf8)
+    let account = accountName(forProviderID: providerID)
     let base: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: service,
-      kSecAttrAccount as String: xaiAccount
+      kSecAttrAccount as String: account
     ]
     let update: [String: Any] = [kSecValueData as String: data]
     let updateStatus = SecItemUpdate(base as CFDictionary, update as CFDictionary)
@@ -51,17 +99,50 @@ public enum OwlVoiceKeychain {
     }
   }
 
-  public static func deleteXAIAPIKey() throws {
+  public static func deleteAPIKey(forProviderID providerID: String) throws {
     guard !OwlTestStorage.isEnabled else { throw OwlCloudKeychainError.unexpectedStatus(errSecNotAvailable) }
+    let account = accountName(forProviderID: providerID)
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: service,
-      kSecAttrAccount as String: xaiAccount
+      kSecAttrAccount as String: account
     ]
     let status = SecItemDelete(query as CFDictionary)
     guard status == errSecSuccess || status == errSecItemNotFound else {
       throw OwlCloudKeychainError.unexpectedStatus(status)
     }
+  }
+
+  public static func readActiveASRAPIKey() throws -> String? {
+    try readAPIKey(forProviderID: OwlVoiceSettings.asrProviderID)
+  }
+
+  public static func readXAIAPIKey() throws -> String? {
+    try readAPIKey(forProviderID: "grok")
+  }
+
+  public static func saveXAIAPIKey(_ key: String) throws {
+    try saveAPIKey(key, forProviderID: "grok")
+  }
+
+  public static func deleteXAIAPIKey() throws {
+    try deleteAPIKey(forProviderID: "grok")
+  }
+
+  public static func isXAIKeyConfigured(read: () throws -> String? = readXAIAPIKey) -> Bool {
+    guard let key = try? read() else { return false }
+    return !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  static func isASRKeyConfigured(
+    forProviderID providerID: String = OwlVoiceSettings.asrProviderID,
+    store: OwlProviderProfileStore = .shared,
+    secrets: OwlSecretStoring = OwlProviderKeychain()
+  ) -> Bool {
+    guard let key = try? readAPIKey(forProviderID: providerID, store: store, secrets: secrets) else {
+      return false
+    }
+    return !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   private static let deepSeekAccount = "DeepSeekAPIKey"
@@ -83,7 +164,17 @@ public enum OwlVoiceKeychain {
     if status != errSecItemNotFound && status != errSecSuccess {
       throw OwlCloudKeychainError.unexpectedStatus(status)
     }
+    if let profileKey = readConfiguredDeepSeekProfileKey() {
+      return profileKey
+    }
     return try OwlCloudKeychain.readDeepSeekAPIKey()
+  }
+
+  static func readConfiguredDeepSeekProfileKey(
+    store: OwlProviderProfileStore = .shared,
+    secrets: OwlSecretStoring = OwlProviderKeychain()
+  ) -> String? {
+    readConfiguredProfileKey(forProviderID: "deepseek", store: store, secrets: secrets)
   }
 
   public static func saveDeepSeekAPIKey(_ key: String) throws {

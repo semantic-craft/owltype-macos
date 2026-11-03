@@ -1,3 +1,14 @@
+<a name="2.4.1"></a>
+## 2.4.1 (2026-11-03)
+
+### AI 与语音设置 | AI and Voice Settings
+- 模型供应商收敛与三卡片设置重组：将「AI」设置页从 6 张零散卡片整合为「模型供应商（配一个就行）」「语音输入 · 云端语音识别」「AI 能力与联网搜索」3 张清晰卡片；预设模型供应商精简为通义千问（Qwen）、豆包（Doubao）、xAI Grok、OpenAI、Google Gemini 与 DeepSeek 六大核心服务商（并保留自定义接入），每行显示能力徽标（如 `LLM · 语音识别`、`LLM · 联网搜索 · 语音润色`）。
+- 5 供应商云端语音识别（ASR）预设与密钥自动复用：语音输入新增 xAI Grok、通义千问 Qwen ASR、豆包语音识别、OpenAI Audio 与 Google Gemini Audio 五套云端 ASR 预设，支持一键切换接口与模型；当已在上方模型供应商中配置同厂商密钥时自动复用（显示「已复用供应商密钥」），也支持单独配置或清除语音专属 API Key；语音润色同样支持自动回退复用已配置的 DeepSeek 供应商密钥。
+
+### 修复与协议对齐 | Fixes and Protocol Alignment
+- 修复 2.4.0 语音输入、AI 候选上文与 `/ai` 指令检测四项回归：按录音代次隔离已取消的陈旧语音回调与润色错误回调；修正连续输入 `//` 产生多余斜杠及组合快捷键吞掉缓冲 `/ai` 前缀的问题；修复 AI 联想与 Jev 选词请求组字前有效 UTF-16 宿主上文范围。（#401）
+- Kotone 选区回复建议可取消、显式复制与 v1 协议对齐：新增非阻塞单调截止时间与请求取消机制，提供显式「复制」与「取消」按钮并允许生成中修改要求；对齐 v1 安全错误码（`paused`、`scenario_disabled`、`request_invalidated`、`model_quota_exhausted`、`model_rate_limited`）与 `needs_clarification` 状态校验。（#388, #402）
+
 <a name="2.4.0"></a>
 ## 2.4.0 (2026-11-03)
 

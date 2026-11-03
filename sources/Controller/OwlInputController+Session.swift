@@ -605,10 +605,21 @@ extension OwlInputController {
     var preContext: String?
     if let client = self.client {
       let decisions = clientCapabilityDecisions(for: client)
-      if decisions.surroundingText.allowed {
-        let range = NSRange(location: 0, length: 0)
-        if let str = client.attributedSubstring(from: range)?.string {
-          preContext = String(str.suffix(100))
+      if decisions.selectedRange.allowed, decisions.surroundingText.allowed {
+        let selected = client.selectedRange()
+        if selected.location != NSNotFound, selected.location > 0 {
+          // IMK ranges count UTF-16 units. Exclude the live marked composition, which
+          // is already sent as rawInput, and never include text after the selection.
+          let marked = client.markedRange()
+          let end = marked.location != NSNotFound && marked.location >= 0
+            ? min(selected.location, marked.location) : selected.location
+          let length = min(end, 200)
+          if length > 0 {
+            let range = NSRange(location: end - length, length: length)
+            if let str = client.attributedSubstring(from: range)?.string, !str.isEmpty {
+              preContext = String(str.suffix(100))
+            }
+          }
         }
       }
     }

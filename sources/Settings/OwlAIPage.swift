@@ -46,19 +46,22 @@ struct OwlAIPage: View {
   /// 百炼 Workspace ID / API Host。非密钥，所有 Qwen 供应商档案共用这一项。
   @State private var qwenWorkspaceInput = ""
   @State private var qwenWorkspaceKeyInput = ""
-  @State private var doubaoSearchKeyInput = ""
-  @State private var doubaoSearchKeyConfigured = false
-  @State private var doubaoSearchKeyStatus = ""
+  @State private var voiceASRProviderID = OwlVoiceSettings.asrProviderID
+  @State private var voiceEndpointInput = OwlVoiceSettings.xaiEndpoint
+  @State private var voiceModelInput = OwlVoiceSettings.xaiModel
+  @State private var voiceFetchedModels: [String] = []
+  @State private var xaiKeyInput = ""
+  @State private var xaiKeyConfigured = false
+  @State private var voiceASRHasDedicatedKey = false
+  @State private var voiceASRHasSharedKey = false
+  @State private var voiceASRStatus = ""
 
   var body: some View {
     ScrollView {
       VStack(spacing: 20) {
         providerSectionCard
-        aiCandidateSettingsCard
         voiceInputSettingsCard
-        aiWritingSettingsCard
-        askWebSearchCard
-        sourceVerificationSearchCard
+        aiCapabilitiesAndSearchCard
       }
       .padding(20)
     }
@@ -69,8 +72,10 @@ struct OwlAIPage: View {
       // personal Keychain access. Pure unit tests render the documented empty state.
       providers = OwlDefaults.isRunningUnitTests ? [] : registry.profiles
       qwenWorkspaceInput = OwlQwenWorkspaceSettings.apiHost()
-      doubaoSearchKeyConfigured = !OwlDefaults.isRunningUnitTests
-        && OwlDoubaoSearchKeyStore.isConfigured(secrets: registry.secrets)
+      voiceASRProviderID = OwlVoiceSettings.asrProviderID
+      voiceEndpointInput = OwlVoiceSettings.xaiEndpoint
+      voiceModelInput = OwlVoiceSettings.xaiModel
+      refreshVoiceASRKeyState()
       if qwenWorkspaceInput.isEmpty,
          let profile = providers.first(where: {
            OwlLLMProviderCatalog.inferredProviderID(for: $0) == "qwen"
@@ -81,10 +86,239 @@ struct OwlAIPage: View {
     }
   }
 
-  // MARK: - AI 候选 · 云端联想
+  private func refreshVoiceASRKeyState() {
+    guard !OwlDefaults.isRunningUnitTests else {
+      voiceASRHasDedicatedKey = false
+      voiceASRHasSharedKey = false
+      xaiKeyConfigured = false
+      return
+    }
+    let dedicated = (try? OwlVoiceKeychain.readDedicatedAPIKey(forProviderID: voiceASRProviderID))?
+      .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let shared = OwlVoiceKeychain.readConfiguredProfileKey(
+      forProviderID: voiceASRProviderID, store: registry.store, secrets: registry.secrets) ?? ""
+    voiceASRHasDedicatedKey = !dedicated.isEmpty
+    voiceASRHasSharedKey = !shared.isEmpty
+    xaiKeyConfigured = voiceASRHasDedicatedKey || voiceASRHasSharedKey
+  }
 
-  private var aiCandidateSettingsCard: some View {
-    SettingsCard(title: "AI 候选 · 云端联想", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
+  private var voiceASRKeyStatusText: String {
+    if voiceASRHasDedicatedKey {
+      return "已单独设置"
+    }
+    if voiceASRHasSharedKey {
+      return "已复用供应商密钥"
+    }
+    return "未设置"
+  }
+
+  // MARK: - 语音输入 · 云端语音识别
+
+  private var activeVoiceASRPreset: OwlVoiceASRPreset {
+    OwlVoiceASRCatalog.preset(id: voiceASRProviderID)
+  }
+
+  private var voiceAvailableModels: [String] {
+    let current = OwlProviderCore.call("trim", ["text": voiceModelInput]) as String
+    let seed = current.isEmpty || activeVoiceASRPreset.curatedModels.contains(current)
+      ? activeVoiceASRPreset.curatedModels
+      : [current] + activeVoiceASRPreset.curatedModels
+    return OwlProviderModelList.merged(curated: seed, fetched: voiceFetchedModels)
+  }
+
+  private var voiceInputSettingsCard: some View {
+    SettingsCard(title: "语音输入 · 云端语音识别", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
+      VStack(spacing: 0) {
+        SettingsToggleRow(
+          title: "语音输入",
+          subtitle: "按住热键说话或单击切换开启录音，实时语音胶囊波形 HUD 上屏。",
+          isOn: state.voiceInputEnabled,
+          palette: palette,
+          onToggle: {
+            OwlSettingsActions.toggle(state: state, keyPath: \.voiceInputEnabled) { enabled in
+              OwlVoiceSettings.isEnabled = enabled
+              if enabled, !OwlDefaults.isRunningUnitTests, OwlMicrophonePermission.status == .notDetermined {
+                Task { _ = await OwlMicrophonePermission.request() }
+              }
+            }
+          }
+        )
+        SettingsCardDivider(palette: palette)
+        OwlHotKeyRecorderRow(slot: .voiceInput, palette: palette)
+          .padding(.horizontal, 14)
+          .padding(.vertical, 10)
+        SettingsCardDivider(palette: palette)
+        voiceASRConfigRows
+          .padding(.horizontal, 14)
+          .padding(.vertical, 12)
+        SettingsCardDivider(palette: palette)
+        SettingsToggleRow(
+          title: "语音润色",
+          subtitle: "转写后调用 DeepSeek 智能去除口水词、纠偏同音词与补全标点；若超时无感降级直接上屏原文。",
+          isOn: state.voicePolishEnabled,
+          palette: palette,
+          onToggle: {
+            OwlSettingsActions.toggle(state: state, keyPath: \.voicePolishEnabled) {
+              OwlVoiceSettings.isPolishEnabled = $0
+            }
+          }
+        )
+      }
+    }
+  }
+
+  private var voiceASRConfigRows: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      formRow("预设") {
+        HStack(spacing: 8) {
+          Menu {
+            ForEach(OwlVoiceASRCatalog.presets) { preset in
+              Button(preset.displayName) { selectVoiceASRPreset(preset) }
+            }
+          } label: {
+            Text(activeVoiceASRPreset.displayName)
+          }
+          .fixedSize()
+          .accessibilityLabel("选择语音识别预设")
+          Spacer(minLength: 8)
+          Text(voiceASRKeyStatusText)
+            .font(.system(size: 12, design: .monospaced))
+            .foregroundStyle(palette.ink3)
+        }
+      }
+      formRow("端点") {
+        TextField("ASR 端点，如 https://api.x.ai/v1/audio/transcriptions", text: $voiceEndpointInput)
+          .textFieldStyle(.roundedBorder)
+      }
+      formRow("模型") {
+        HStack(spacing: 8) {
+          TextField("ASR 模型，如 grok-voice-transcribe-2.0", text: $voiceModelInput)
+            .textFieldStyle(.roundedBorder)
+          Menu {
+            ForEach(voiceAvailableModels, id: \.self) { id in
+              Button(id) {
+                voiceModelInput = id
+                OwlVoiceSettings.xaiModel = id
+              }
+            }
+          } label: {
+            Text("选择")
+          }
+          .fixedSize()
+          .accessibilityLabel("选择语音识别模型")
+          smallButton("拉取模型") { fetchVoiceModels() }
+        }
+      }
+      formRow("密钥") {
+        HStack(spacing: 8) {
+          SecureField(
+            xaiKeyConfigured ? "已设置 ●●●●●●（输入新 Key 可覆盖）"
+              : "ASR API Key（写入 Keychain，同名供应商自动复用）",
+            text: $xaiKeyInput)
+            .textFieldStyle(.roundedBorder)
+          smallButton("粘贴") {
+            if let str = NSPasteboard.general.string(forType: .string) {
+              xaiKeyInput = OwlProviderCore.call("trim", ["text": str])
+            }
+          }
+          smallButton("保存") { saveVoiceASRSettings() }
+          if voiceASRHasDedicatedKey {
+            smallButton("清除") { clearXAIAPIKey() }
+          }
+        }
+      }
+      formRow("") {
+        Text("""
+          格式 \(activeVoiceASRPreset.keyHint) · 存系统钥匙串。上方已配置同名供应商时自动复用密钥；\
+          开启下方「语音润色」时自动复用已配置的 DeepSeek 供应商密钥。\(voiceASRStatus.isEmpty ? "" : "\n\n\(voiceASRStatus)")
+          """)
+          .font(.system(size: 12))
+          .foregroundStyle(palette.ink3)
+          .fixedSize(horizontal: false, vertical: true)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
+    }
+  }
+
+  private func selectVoiceASRPreset(_ preset: OwlVoiceASRPreset) {
+    voiceASRProviderID = preset.id
+    voiceEndpointInput = preset.endpoint
+    voiceModelInput = preset.defaultModel
+    voiceFetchedModels = []
+    voiceASRStatus = ""
+    OwlVoiceSettings.asrProviderID = preset.id
+    OwlVoiceSettings.xaiEndpoint = preset.endpoint
+    OwlVoiceSettings.xaiModel = preset.defaultModel
+    refreshVoiceASRKeyState()
+  }
+
+  private func saveVoiceASRSettings() {
+    let result = OwlSettingsActions.saveVoiceASRSettings(
+      providerID: voiceASRProviderID,
+      endpoint: voiceEndpointInput,
+      model: voiceModelInput,
+      apiKey: xaiKeyInput,
+      isKeyAlreadyConfigured: xaiKeyConfigured
+    )
+    xaiKeyInput = result.input
+    voiceEndpointInput = result.endpoint
+    voiceModelInput = result.model
+    voiceASRStatus = result.status
+    refreshVoiceASRKeyState()
+  }
+
+  private func clearXAIAPIKey() {
+    voiceASRStatus = OwlSettingsActions.clearXAIAPIKey(providerID: voiceASRProviderID)
+    xaiKeyInput = ""
+    refreshVoiceASRKeyState()
+  }
+
+  private func fetchVoiceModels() {
+    let trimmedEndpoint = OwlProviderCore.call("trim", ["text": voiceEndpointInput]) as String
+    let effectiveEndpoint = trimmedEndpoint.isEmpty ? activeVoiceASRPreset.endpoint : trimmedEndpoint
+    guard let endpoint = URL(string: effectiveEndpoint), OwlProviderRegistry.isHTTPS(endpoint) else {
+      voiceASRStatus = "端点必须是 https。"
+      return
+    }
+    let typedKey = OwlProviderCore.call("trim", ["text": xaiKeyInput]) as String
+    let storedKey = (try? OwlVoiceKeychain.readAPIKey(
+      forProviderID: voiceASRProviderID, store: registry.store, secrets: registry.secrets))?
+      .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let effectiveKey = !typedKey.isEmpty ? typedKey : storedKey
+    guard !effectiveKey.isEmpty else {
+      voiceASRStatus = "请先填入 \(activeVoiceASRPreset.keyLabel) 再拉取"
+      return
+    }
+    voiceASRStatus = "拉取模型中…"
+    Task {
+      do {
+        let models = try await OwlProviderModelList.fetch(
+          endpoint: endpoint, apiKey: effectiveKey, authStyle: .bearer)
+        await MainActor.run {
+          voiceFetchedModels = models
+          if voiceModelInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            voiceModelInput = voiceAvailableModels.first ?? activeVoiceASRPreset.defaultModel
+          }
+          voiceASRStatus = models.isEmpty
+            ? "已连接，但未解析到模型"
+            : "拉到 \(models.count) 个模型，点「选择」切换"
+        }
+      } catch {
+        await MainActor.run {
+          voiceASRStatus = "拉取失败，请检查端点与 Key"
+        }
+      }
+    }
+  }
+
+  // MARK: - AI 能力与联网搜索
+
+  /// The search provider and answering model the 联网 copy names, from the provider capabilities.
+  static var searchName: String { OwlProviderCapabilities.askSearch.searchDisplayName ?? "" }
+  static var searchModel: String { OwlProviderCapabilities.askSearch.model }
+
+  private var aiCapabilitiesAndSearchCard: some View {
+    SettingsCard(title: "AI 能力与联网搜索", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
       VStack(spacing: 0) {
         SettingsToggleRow(
           title: "AI 联想",
@@ -121,54 +355,7 @@ struct OwlAIPage: View {
             }
           }
         )
-      }
-    }
-  }
-
-  // MARK: - 语音输入 · xAI Grok ASR
-
-  private var voiceInputSettingsCard: some View {
-    SettingsCard(title: "语音输入 · xAI Grok ASR", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
-      VStack(spacing: 0) {
-        SettingsToggleRow(
-          title: "语音输入",
-          subtitle: "按住热键说话或单击切换开启录音，实时语音胶囊波形 HUD 上屏。",
-          isOn: state.voiceInputEnabled,
-          palette: palette,
-          onToggle: {
-            OwlSettingsActions.toggle(state: state, keyPath: \.voiceInputEnabled) { enabled in
-              OwlVoiceSettings.isEnabled = enabled
-              if enabled, !OwlDefaults.isRunningUnitTests, OwlMicrophonePermission.status == .notDetermined {
-                Task { _ = await OwlMicrophonePermission.request() }
-              }
-            }
-          }
-        )
         SettingsCardDivider(palette: palette)
-        OwlHotKeyRecorderRow(slot: .voiceInput, palette: palette)
-          .padding(.horizontal, 14)
-          .padding(.vertical, 10)
-        SettingsCardDivider(palette: palette)
-        SettingsToggleRow(
-          title: "语音润色",
-          subtitle: "转写后调用 DeepSeek 智能去除口水词、纠偏同音词与补全标点；若超时无感降级直接上屏原文。",
-          isOn: state.voicePolishEnabled,
-          palette: palette,
-          onToggle: {
-            OwlSettingsActions.toggle(state: state, keyPath: \.voicePolishEnabled) {
-              OwlVoiceSettings.isPolishEnabled = $0
-            }
-          }
-        )
-      }
-    }
-  }
-
-  // MARK: - AI 写作辅助 · 对话面板
-
-  private var aiWritingSettingsCard: some View {
-    SettingsCard(title: "AI 写作辅助 · 对话面板", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
-      VStack(spacing: 0) {
         SettingsToggleRow(
           title: "AI 对话面板",
           subtitle: "打字输入 /ai 指令或按 Shift+K 呼出非激活 AI 对话面板，支持一键上屏与替换选区。",
@@ -180,27 +367,10 @@ struct OwlAIPage: View {
             }
           }
         )
-      }
-    }
-  }
-
-  // MARK: - 任意提问 · 联网搜索
-
-  /// The search provider and answering model the 联网 copy names, from the provider capabilities.
-  static var searchName: String { OwlProviderCapabilities.askSearch.searchDisplayName ?? "" }
-  static var searchModel: String { OwlProviderCapabilities.askSearch.model }
-
-  /// 任意提问 的联网搜索开关。只作用于「任意提问」：划词技能、候选、听写都不受影响。
-  ///
-  /// 开启后这一问会路由到一个**已配好密钥、能联网的 DeepSeek 档案**，与上面选定的默认供应商
-  /// 解耦 —— 默认供应商是别家时，这一问仍能真的搜到。没有可用的 DeepSeek 档案时自动退回普通问答，
-  /// 不报错。
-  private var askWebSearchCard: some View {
-    SettingsCard(title: "任意提问 · 联网搜索", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
-      VStack(spacing: 0) {
+        SettingsCardDivider(palette: palette)
         SettingsToggleRow(
           title: "联网搜索",
-          subtitle: "开启后，「任意提问」会交给已配好密钥的 \(Self.searchName) 联网作答；关闭时用模型自有知识回答。只作用于任意提问，不影响划词技能与打字候选。",
+          subtitle: "开启后，「任意提问」与「来源核验」统一交由已配好密钥的 \(Self.searchName) 联网检索并作答；关闭时任意提问用模型自有知识回答。",
           isOn: state.askWebSearchEnabled,
           palette: palette,
           onToggle: {
@@ -211,11 +381,8 @@ struct OwlAIPage: View {
         )
         SettingsCardDivider(palette: palette)
         Text("""
-          联网先用 \(Self.searchName) 搜索接口取回网页，再由 \(Self.searchModel) 依据结果作答，需在上面添加 \(Self.searchName) 供应商。\
-          回答末尾列出引用的网页。没有可用的 \(Self.searchName) 档案时，退回普通问答。
-
-          任意提问优先减少思考等待：支持关闭思考的模型默认关闭；MiniMax M3.1 Flash 不支持关闭，\
-          使用低思考强度，M3 则关闭思考。
+          联网检索统一走 \(Self.searchName) 搜索接口取回网页，再由 \(Self.searchModel) 依据结果作答或对照核验，需在上方添加 \(Self.searchName) 供应商。\
+          回答末尾列出引用的网页；没有可用的 \(Self.searchName) 档案时，任意提问自动退回普通问答。
           """)
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
@@ -226,74 +393,11 @@ struct OwlAIPage: View {
     }
   }
 
-  // MARK: - 来源核验 · 豆包搜索
-
-  /// 来源核验的检索层。Key 与上面「供应商」里的模型 Key 分开存：豆包搜索的 Key 要在火山引擎
-  /// 联网搜索控制台单独建，方舟模型 Key 打不通（`700901`）。配好后由豆包搜索取回网页，
-  /// 默认供应商对照判断 —— 默认配的是哪家都能核验。
-  private var sourceVerificationSearchCard: some View {
-    SettingsCard(title: "来源核验 · 豆包搜索", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
-      VStack(alignment: .leading, spacing: 6) {
-        HStack(spacing: 11) {
-          Text("豆包搜索 API Key")
-            .font(.system(size: 14))
-            .foregroundStyle(palette.ink)
-          Spacer(minLength: 8)
-          Text(doubaoSearchKeyConfigured ? "已设置" : "未设置")
-            .font(.system(size: 12, design: .monospaced))
-            .foregroundStyle(palette.ink3)
-        }
-        HStack(spacing: 8) {
-          // 保存后输入框按「只写不回显」契约清空；占位符换成已设置态，否则空框看起来像没存上。
-          SecureField(
-            doubaoSearchKeyConfigured ? "已设置 ●●●●●●（输入新 Key 可覆盖）"
-              : "豆包搜索 API Key（写入 Keychain）",
-            text: $doubaoSearchKeyInput)
-            .textFieldStyle(.roundedBorder)
-          smallButton("粘贴") {
-            if let s = NSPasteboard.general.string(forType: .string) {
-              doubaoSearchKeyInput = OwlProviderCore.call("trim", ["text": s])
-            }
-          }
-          smallButton("保存") { saveDoubaoSearchKey() }
-          if doubaoSearchKeyConfigured {
-            smallButton("清除") { clearDoubaoSearchKey() }
-          }
-        }
-        Text("""
-          来源核验用豆包搜索（Global 版）与 \(Self.searchName) 搜索取回网页，配了哪个用哪个，来源只取自搜索结果。\
-          配有 \(Self.searchName) 供应商时由 \(Self.searchModel) 对照判断，否则交给默认供应商；只配 \(Self.searchName) 也能核验。\
-          这把 Key 与方舟模型 Key 不同：在火山引擎「联网搜索控制台 → API Key 管理 → 按量后付费」创建，\
-          每月 500 次免费。\(doubaoSearchKeyStatus.isEmpty ? "" : "\n\n\(doubaoSearchKeyStatus)")
-          """)
-          .font(.system(size: 12))
-          .foregroundStyle(palette.ink3)
-          .fixedSize(horizontal: false, vertical: true)
-          .frame(maxWidth: .infinity, alignment: .leading)
-      }
-      .padding(.vertical, 8)
-    }
-  }
-
-  private func saveDoubaoSearchKey() {
-    let result = OwlSettingsActions.saveDoubaoSearchKey(
-      doubaoSearchKeyInput, secrets: registry.secrets)
-    doubaoSearchKeyInput = result.input
-    doubaoSearchKeyStatus = result.status
-    doubaoSearchKeyConfigured = OwlDoubaoSearchKeyStore.isConfigured(secrets: registry.secrets)
-  }
-
-  private func clearDoubaoSearchKey() {
-    doubaoSearchKeyStatus = OwlSettingsActions.clearDoubaoSearchKey(secrets: registry.secrets)
-    doubaoSearchKeyInput = ""
-    doubaoSearchKeyConfigured = OwlDoubaoSearchKeyStore.isConfigured(secrets: registry.secrets)
-  }
-
-  // MARK: - 供应商（配一个就行）
+  // MARK: - 模型供应商（配一个就行）
 
   /// Provider list + Responsay-parity LLM presets + generic add form, in one card.
   private var providerSectionCard: some View {
-    SettingsCard(title: "供应商（配一个就行）", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
+    SettingsCard(title: "模型供应商（配一个就行）", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
       VStack(alignment: .leading, spacing: 14) {
         providerList
         providerForm
@@ -341,7 +445,7 @@ struct OwlAIPage: View {
             Text(profile.displayName)
               .font(.system(size: 13.5, weight: .medium))
               .foregroundStyle(palette.ink)
-            Text("\(profile.model.isEmpty ? "默认模型" : profile.model) · \(registry.keyState(for: profile).statusText)")
+            Text("\(profile.model.isEmpty ? "默认模型" : profile.model) · \(OwlLLMProviderCatalog.capabilitySummary(for: profile)) · \(registry.keyState(for: profile).statusText)")
               .font(.system(size: 11.5, design: .monospaced))
               .foregroundStyle(palette.ink3)
           }
@@ -600,6 +704,7 @@ struct OwlAIPage: View {
     let change = registry.upsert(form, key: providerKeyInput)
     providers = change.profiles
     providerStatus = change.outcome.statusText
+    refreshVoiceASRKeyState()
     guard case .added = change.outcome else { return }
     if providerID == "qwen" { qwenWorkspaceInput = OwlQwenWorkspaceSettings.apiHost() }
     fillCustomPreset()
@@ -752,6 +857,7 @@ struct OwlAIPage: View {
     )
     providers = change.profiles
     providerStatus = change.outcome.statusText
+    refreshVoiceASRKeyState()
     if case .saved = change.outcome {
       if providerID == "qwen" { qwenWorkspaceInput = OwlQwenWorkspaceSettings.apiHost() }
       editingProfile = nil
@@ -781,6 +887,7 @@ struct OwlAIPage: View {
     let change = registry.delete(profile)
     providers = change.profiles
     providerStatus = change.outcome.statusText
+    refreshVoiceASRKeyState()
     // 删掉的正是正在编辑的那条 → 表单退回新增态，否则「保存修改」会写回一条已删除的 profile。
     if editingProfile?.id == profile.id {
       editingProfile = nil

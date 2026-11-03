@@ -88,6 +88,18 @@ enum OwlLLMProviderCatalog {
   static func formProviderID(for profile: OwlProviderProfile) -> String {
     OwlProviderCore.call("formProvider", ["profile": OwlAppCore.payload(profile)])
   }
+
+  /// Short capability summary displayed on the provider row in AI settings.
+  static func capabilitySummary(for profile: OwlProviderProfile) -> String {
+    switch inferredProviderID(for: profile) {
+    case "deepseek":
+      return "LLM · 联网搜索 · 语音润色"
+    case "qwen", "doubao", "grok", "openai", "gemini":
+      return "LLM · 语音识别"
+    default:
+      return "LLM"
+    }
+  }
 }
 
 // MARK: - Qwen Workspace API Host

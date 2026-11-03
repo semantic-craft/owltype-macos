@@ -27,8 +27,9 @@ extension OwlInputController {
     // Command/Option/Control chords never match the bare "/ai" sequence.
     let flags = event.modifierFlags.intersection([.control, .option, .command])
     guard flags.isEmpty else {
-      if aiCommandDetector.isArmed {
-        aiCommandDetector.reset()
+      let pending = aiCommandDetector.flushPendingText()
+      if !pending.isEmpty {
+        client?.insertText(pending, replacementRange: .empty)
       }
       return false
     }
@@ -57,7 +58,8 @@ extension OwlInputController {
       } else {
         client?.insertText("/", replacementRange: .empty)
       }
-      return false
+      // A second slash flushes the old prefix but remains buffered as a new command.
+      return aiCommandDetector.isArmed
     }
 
     if aiCommandDetector.isArmed {

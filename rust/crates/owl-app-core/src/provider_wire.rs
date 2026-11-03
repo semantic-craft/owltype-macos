@@ -233,6 +233,7 @@ pub fn rule(op: &str, a: Value) -> Value {
             let mut values = match s(&a, "providerID") {
                 "deepseek" => vec![json!("deepseek-flash"), json!("deepseek-v4-pro")],
                 "qwen" => catalog["qwenModels"].as_array().unwrap().clone(),
+                "grok" => catalog["grokModels"].as_array().unwrap().clone(),
                 "minimax" => catalog["minimaxModels"].as_array().unwrap().clone(),
                 id => catalog["presets"]
                     .as_array()
@@ -264,11 +265,15 @@ pub fn rule(op: &str, a: Value) -> Value {
         }),
         "modelsURL" => {
             let endpoint = s(&a, "endpoint");
-            json!(endpoint.rfind("/chat/completions").map(|i| {
-                let mut x = endpoint.to_owned();
-                x.replace_range(i..i + 17, "/models");
-                x
-            }))
+            json!(endpoint
+                .rfind("/chat/completions")
+                .map(|i| (i, 17))
+                .or_else(|| endpoint.rfind("/audio/transcriptions").map(|i| (i, 21)))
+                .map(|(i, len)| {
+                    let mut x = endpoint.to_owned();
+                    x.replace_range(i..i + len, "/models");
+                    x
+                }))
         }
         "modelsParse" => {
             let bytes: Vec<u8> = serde_json::from_value(a["bytes"].clone()).unwrap_or_default();

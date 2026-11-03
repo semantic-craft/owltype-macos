@@ -59,4 +59,19 @@ if env PATH="$bin:/usr/bin:/bin" bash "$root/scripts/live-test.sh" >/dev/null 2>
   fail "不带测试名应当报错"
 fi
 
+# The local reply profile talks only to an already running backend, without host keys.
+out=$(env PATH="$bin:/usr/bin:/bin" FAKE_LOG="$log" FAKE_DIRENV_BLOCKED=1 \
+  bash "$root/scripts/live-test.sh" --reply-service /tmp/synthetic-replies.sock 2>&1) \
+  || fail "本地服务不应加载 direnv 或要求宿主 Key：$out"
+grep -q "forwarded TEST_RUNNER_OWL_REPLY_SERVICE_SOCKET" "$log" || fail "没转发明确测试 socket"
+grep -q "API_KEY" "$log" && fail "本地服务 profile 转发了宿主 Key"
+if env PATH="$bin:/usr/bin:/bin" FAKE_LOG="$log" bash "$root/scripts/live-test.sh" \
+  --reply-service /tmp/synthetic-replies.sock OwlSkillsLiveTests/testX >/dev/null 2>&1; then
+  fail "本地服务 profile 不得绕过其他实盘测试的凭据入口"
+fi
+if env PATH="$bin:/usr/bin:/bin" FAKE_LOG="$log" FAKE_SKIP=1 bash "$root/scripts/live-test.sh" \
+  --reply-service /tmp/synthetic-replies.sock >/dev/null 2>&1; then
+  fail "本地服务 profile 跳过应失败"
+fi
+
 echo "live-test.selftest: ok"

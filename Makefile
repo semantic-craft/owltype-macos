@@ -196,6 +196,7 @@ test: $(DEPS_CHECK)
 		CODE_SIGNING_ALLOWED=YES \
 		CODE_SIGN_IDENTITY=- \
 		test-without-building $(foreach test,$(TEST_ONLY),-only-testing:OwltypeTests/$(test)) \
+		-skip-testing:OwltypeTests/JEVReplyServiceLiveTests \
 		-skip-testing:OwltypeTests/OwlGoalBriefLiveTests \
 		-skip-testing:OwltypeTests/OwlPromptOptimizeLiveTests \
 		-skip-testing:OwltypeTests/OwlResponsesPromptEvaluationLiveTests \

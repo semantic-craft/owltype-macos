@@ -225,11 +225,26 @@ final class ProviderProfileStoreTests: XCTestCase {
   }
 
   func testMiniMaxFlashUsesLowThinkingAndAdequateProbeBudget() throws {
-    let preset = try XCTUnwrap(OwlLLMProviderCatalog.preset(id: "minimax"))
-    XCTAssertEqual(preset.model, "MiniMax-M3.1-Flash")
-    XCTAssertEqual(preset.endpoint, "https://api.minimax.cn/v1/chat/completions", "只接国内站")
-    XCTAssertEqual(OwlLLMProviderCatalog.minimaxModels.first, preset.model)
-    let body = OwlProviderConnectivityCheck.body(providerID: "minimax", model: preset.model)
+    XCTAssertEqual(
+      OwlLLMProviderCatalog.presets.map(\.id),
+      ["qwen", "doubao", "grok", "openai", "gemini", "deepseek"],
+      "UI 预设目录收敛为 6 家全能/搜索供应商"
+    )
+    let grok = try XCTUnwrap(OwlLLMProviderCatalog.preset(id: "grok"))
+    XCTAssertEqual(grok.endpoint, "https://api.x.ai/v1/chat/completions")
+    XCTAssertEqual(grok.model, "grok-4-fast")
+    let grokProfile = OwlProviderProfile(
+      displayName: grok.displayName, endpoint: URL(string: grok.endpoint)!,
+      model: grok.model, providerID: "grok")
+    XCTAssertEqual(OwlLLMProviderCatalog.capabilitySummary(for: grokProfile), "LLM · 语音识别")
+    let deepSeekProfile = OwlProviderProfile(
+      displayName: "DeepSeek", endpoint: URL(string: "https://api.deepseek.com/v1/chat/completions")!,
+      model: "deepseek-flash", providerID: "deepseek")
+    XCTAssertEqual(OwlLLMProviderCatalog.capabilitySummary(for: deepSeekProfile), "LLM · 联网搜索 · 语音润色")
+
+    let defaultMiniMaxModel = try XCTUnwrap(OwlLLMProviderCatalog.minimaxModels.first)
+    XCTAssertEqual(defaultMiniMaxModel, "MiniMax-M3.1-Flash")
+    let body = OwlProviderConnectivityCheck.body(providerID: "minimax", model: defaultMiniMaxModel)
     XCTAssertEqual(body["reasoning_effort"] as? String, "low")
     XCTAssertEqual(body["reasoning_split"] as? Bool, true)
     XCTAssertNil(body["thinking"])
@@ -252,7 +267,7 @@ final class ProviderProfileStoreTests: XCTestCase {
     XCTAssertEqual(legacyPreview["reasoning_effort"] as? String, "low")
     XCTAssertNil(legacyPreview["thinking"])
     let drafting = OwlStructuredDrafting.chatRequest(
-      systemPrompt: "Return JSON", draft: "安排会议", model: preset.model,
+      systemPrompt: "Return JSON", draft: "安排会议", model: defaultMiniMaxModel,
       providerID: "minimax", temperature: 0.2)
     XCTAssertEqual(drafting.reasoningEffort, "low")
     XCTAssertEqual(drafting.reasoningSplit, true)
@@ -1780,6 +1795,9 @@ final class OwlProviderModelListTests: XCTestCase {
     XCTAssertEqual(
       OwlProviderModelList.modelsURL(from: URL(string: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")!)?.absoluteString,
       "https://generativelanguage.googleapis.com/v1beta/openai/models")
+    XCTAssertEqual(
+      OwlProviderModelList.modelsURL(from: URL(string: "https://api.x.ai/v1/audio/transcriptions")!)?.absoluteString,
+      "https://api.x.ai/v1/models")
   }
 
   func testModelsURLFallsBackToParentPath() {
