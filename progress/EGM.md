@@ -2,16 +2,15 @@
 
 ## Overview
 
-This directory stores a versioned GitHub observation and generates its static HTML presentation. The optional TeslaHub projection consumes the same scoped observation. It does not own issue assignment or agent dispatch.
+This directory stores a versioned GitHub observation and generates its static HTML presentation. It does not own issue assignment or agent dispatch.
 
 ## Interface
 
 - `[progress.py:main]` exposes `init`, `refresh`, `render`, `check`, and `publish`, with `--live`, `--publication`, `--adapter`, and `--receipt` controls. `schema`, `paths`, `generate`, `check`, and `publication` validate configuration, generated output, and supplied publication proof.
 - `[progress.py:live]`, `progress_pull`, and `progress_ancestry` collect GitHub facts and recognize changes confined to `progress/` while checking snapshot ancestry.
 - `[progress.py:HTML]`, `resources`, `contained`, and `relative_target` inspect reachable HTML/CSS/JavaScript/SVG resources and local link safety.
-- `[sync.py:main]` refreshes the fixed `GROUPS` issue sets, open pull requests, and releases, writes `progress.json`, and invokes render/check. Paired `--teslahub` and `--hub-out` options add a local board projection.
+- `[sync.py:main]` refreshes the fixed `GROUPS` plus configured tracked issues/PRs, open pull requests, and releases, writes `progress.json`, and invokes render/check. It preserves editorial sections outside the generated groups and their evidence tracking.
 - `[sync.py:fetch_snapshot]`, `paginate_pull_request`, and `checked_pr_node` fetch complete bounded observations, fencing PR head/base identities during pagination.
-- `[teslahub.mjs:process.argv]` accepts `HOME SNAPSHOT OUTPUT`, imports TeslaHub's `buildBoard`, `COLUMNS`, and `render`, and produces `board.json` plus `index.html`.
 
 ## Invariants
 
@@ -19,15 +18,14 @@ This directory stores a versioned GitHub observation and generates its static HT
 - `[progress.py:generate]` requires the generated file set to equal declared outputs; `[progress.py:regenerate]` requires byte equality with checked-in outputs. `[progress.py:contained]` rejects external/runtime resource access and requires inline CSS/JavaScript in HTML outputs.
 - `[progress.py:progress_ancestry]` accepts a changed live head only after proving the intervening commits change `progress/` exclusively; incomplete capped GitHub listings fail validation.
 - `[sync.py:paginate_pull_request]` rejects repeated/empty cursors, duplicate/incomplete files or commits, and moving PR head/base identities. `[sync.py:complete]` rejects any remaining unconsumed pagination.
-- `[sync.py:main]` classifies closed issues as `unverified`; issue closure alone does not become product acceptance. `[teslahub.mjs:assignees]` treats assignees and open dependencies as existing work/waiting state.
+- `[sync.py:main]` classifies closed issues as `unverified`; issue closure alone does not become product acceptance. Assignees and open dependencies describe GitHub state, not an active agent session.
 - The `publish` branch of `[progress.py:main]` requires supplied artifact proof and an external receipt destination, live validation, and a clean checkout at the proof commit. `[progress.py:check]` also requires private repository visibility when live checking is enabled; this is a code requirement, not a statement about current visibility.
 
 ## Side Effects
 
 - `[progress.py:github]` and `[sync.py:run]` invoke authenticated `gh` read APIs. `refresh`/`sync.py:main` write local snapshots; render writes declared outputs; check regenerates into a temporary directory and can invoke a configured renderer.
 - The `publish` branch of `[progress.py:main]` verifies an existing publication/readback proof and writes a receipt; it does not upload the page itself.
-- `[teslahub.mjs:fs.writeFile]` writes the optional local board outputs. No dispatch or issue mutation is implemented in these entry points.
 
 ## Verification
 
-From the repository root: `python3 progress/progress.py check` validates local schema, generation, resource containment, and links. `--live` additionally calls GitHub and applies the live/private checks. No network refresh, publication, or progress-data mutation was performed for this contract.
+From the repository root: `python3 progress/progress.py check` validates local schema, generation, resource containment, and links. `--live` additionally calls GitHub and applies the live/private checks. `python3 scripts/progress-sync.selftest.py` covers complete pagination, moving heads/bases, rejection before writes, preservation of editorial evidence, and rejection of retired projection flags. No dispatch or issue mutation is implemented here.

@@ -1458,3 +1458,17 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
   output; `bash scripts/live-test.selftest.sh` checks that the local-service profile
   cannot select provider suites or treat a skipped live test as success. These are
   synthetic script checks, not live-service or installed-host acceptance.
+
+## Progress refresh must preserve reviewed sections and their evidence
+
+- Seen 1x (2026-11-03): retiring the obsolete TeslaHub projection for #335 exposed
+  that `progress/sync.py` replaced the project review and cleared tracked PR facts.
+  The existing one-page and paginated snapshot tests, extended with an editorial
+  section and extra issue/PR evidence, failed on the original implementation.
+- Preserve non-generated sections and tracked issue/PR numbers, refreshing their
+  facts before writing. A snapshot refresh must not silently replace a reviewed
+  implementation/acceptance conclusion with tracker state.
+- Verify: `python3 scripts/progress-sync.selftest.py` covers preservation alongside
+  pagination and head/base drift rejection. Retired projection flags must fail
+  before GitHub access or output writes. This is isolated snapshot validation,
+  not official ANet dispatch or shared-ledger acceptance.
