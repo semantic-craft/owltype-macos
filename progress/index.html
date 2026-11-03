@@ -3,9 +3,14 @@
 <title>Owltype · 项目进度与剩余工作</title>
 <style>body{font:16px system-ui;max-width:960px;margin:3rem auto;padding:0 1rem;color:#202936;background:#f7f8fb}article,section{padding:1rem;margin:1rem 0;background:white;border-radius:12px}a{color:#1555ac}.badge{padding:.25rem .6rem;border-radius:20px;background:#e9edf5}small{color:#566}</style>
 <h1>Owltype · 项目进度与剩余工作</h1>
-<p>Observed: 2026-11-03T15:07:25.779599Z</p>
-<p>Main: <code>main: 08385f2277c76305bfd132760fad881e7f09d94d</code></p>
+<p>Observed: 2026-11-03T16:45:57.153801Z</p>
+<p>Main: <code>main: 7598e7b40d84b9ae032a4d42aa18a241b009594c</code></p>
 <section id="project-review"><h2>当前结论 · 2026-11-03</h2>
+<article id="kotone-reply-contract"><h3>Kotone 回复契约兼容检查</h3><span class="badge">in_progress</span><p>源码已增加 optional reply contract 身份与严格版本检查，旧服务缺字段兼容；冻结 12 案例直接覆盖生产解析器。本轮 34 项离线 Swift 回归通过，默认关闭、cloud gate、只读复制与普通输入路径保留。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/sources/UI/JEVReplyPanel.swift">file sources/UI/JEVReplyPanel.swift: 候选解析入口同时校验既有 source/status/candidates/session 与新增 contract。</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/tests/JEVReplyModelTests.swift">file tests/JEVReplyModelTests.swift: JEVReplyModelTests、JEVTransportTests、OwlSettingsActionTests 共 34 项通过；含共享样例 SHA-256/source 版本与来源提交核对。</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/docs/operations/jev-replies.md">file docs/operations/jev-replies.md: 部署说明改为 Kotone office；Jev 选词仍为现有通用文本模型，不迁移实现。</a></li>
+</ul><p>Next: 完成精确提交的全量合并门禁与合并。真实供应商调用、已安装 IMK 与用户体验验收另行记录。</p></article>
 <article id="review-backlog"><h3>8 张开放工单：功能余项、可选改进与历史证据分开处理</h3><span class="badge">done</span><p>已核对 main 08385f2、全部 8 张开放工单及后续评论。未发现已确认且尚未修复的发布阻断问题；#208 有功能余项，#269/#316 为可选改进或测量，#204/#205/#207/#278 为已交付实现的历史证据跟踪，#247 维持现状。无开放产品 PR。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/208">issue 208: 本轮核对原始范围及后续决定</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/269">issue 269: 本轮核对原始范围及后续决定</a></li>

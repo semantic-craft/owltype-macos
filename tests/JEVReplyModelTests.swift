@@ -2,6 +2,7 @@ import XCTest
 import Combine
 import AppKit
 import Darwin
+import CryptoKit
 @testable import Owltype
 
 @MainActor
@@ -12,6 +13,97 @@ final class JEVReplyModelTests: XCTestCase {
     action()
     await fulfillment(of: [done], timeout: 3)
     withExtendedLifetime(token) {}
+  }
+
+  private func contractFixtures() throws -> [[String: Any]] {
+    let folder = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+      .appendingPathComponent("fixtures/kotone-contracts")
+    let data = try Data(contentsOf: folder.appendingPathComponent("behavior-v1.json"))
+    let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    let manifest = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf:
+      folder.appendingPathComponent("manifest.json"))) as? [String: Any])
+    XCTAssertEqual(manifest["schema"] as? String, "kotone-contract-fixture-manifest")
+    XCTAssertEqual(manifest["version"] as? Int, 1)
+    let entry = try XCTUnwrap((manifest["fixtures"] as? [[String: Any]])?.first)
+    let source = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf:
+      folder.appendingPathComponent("source.json"))) as? [String: Any])
+    XCTAssertEqual(entry["path"] as? String, "behavior-v1.json")
+    XCTAssertEqual(entry["sha256"] as? String, digest)
+    XCTAssertEqual(source["sha256"] as? String, digest)
+    XCTAssertEqual(digest, "b87cbf33129531f2058894e48b36395b72fca3ba77c0a3fb399f71a571c52200")
+    XCTAssertEqual(source["source"] as? String, "kotone/tests/fixtures/contracts")
+    XCTAssertEqual(source["source_revision"] as? String, "0a41a30f86a9ecd4807b967d92a058efe0b2f94a")
+    let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    XCTAssertEqual(fixture["schema"] as? String, source["schema"] as? String)
+    XCTAssertEqual(fixture["schema"] as? String, "kotone-behavior")
+    XCTAssertEqual(fixture["version"] as? Int, 1)
+    XCTAssertEqual(source["version"] as? Int, 1)
+    return try XCTUnwrap(fixture["reply"] as? [[String: Any]])
+  }
+
+  func testSharedReplyContractFixturesThroughProductionParser() throws {
+    let fixtures = try contractFixtures()
+    XCTAssertEqual(fixtures.count, 12)
+    for fixture in fixtures {
+      let name = try XCTUnwrap(fixture["id"] as? String)
+      let request = try XCTUnwrap(fixture["request"] as? [String: Any])
+      let response = try XCTUnwrap(fixture["response"] as? [String: Any])
+      let expected = try XCTUnwrap((fixture["expected"] as? [String: String])?["owltype"])
+      do {
+        let result = try JEVReplyModel.validateAndExtractCandidates(from: response,
+          expectedSource: try XCTUnwrap(request["source"] as? String),
+          expectedRequestID: try XCTUnwrap(request["request_id"] as? String))
+        XCTAssertEqual(result.needsClarification ? "needs_clarification" : "accepted", expected, name)
+        XCTAssertEqual(result.candidates, result.needsClarification ? [] : ["合成候选一", "合成候选二"], name)
+      } catch {
+        XCTAssertEqual(expected, "rejected", name)
+        XCTAssertEqual(error as? JEVTransport.Failure, .invalid, name)
+      }
+    }
+  }
+
+  func testMalformedContractMetadataIsRejected() throws {
+    let valid = try XCTUnwrap(try contractFixtures().first { $0["id"] as? String == "valid" })
+    let response = try XCTUnwrap(valid["response"] as? [String: Any])
+    let contract = try XCTUnwrap(response["contract"] as? [String: Any])
+    for key in ["name", "version", "request_id", "source", "rule_version", "build_identity"] {
+      var changed = contract
+      changed.removeValue(forKey: key)
+      var payload = response
+      payload["contract"] = changed
+      XCTAssertThrowsError(try JEVReplyModel.validateAndExtractCandidates(from: payload,
+        expectedSource: "responsay-selection", expectedRequestID: "reply-contract"), key)
+    }
+    for (key, value) in [("version", true as Any), ("version", 1.0), ("version", 1.5), ("version", "1"),
+                         ("rule_version", " "), ("build_identity", ""), ("build_identity", NSNull())] {
+      var changed = contract
+      changed[key] = value
+      var payload = response
+      payload["contract"] = changed
+      XCTAssertThrowsError(try JEVReplyModel.validateAndExtractCandidates(from: payload,
+        expectedSource: "responsay-selection", expectedRequestID: "reply-contract"), key)
+    }
+  }
+
+  func testContractBindsToCurrentGenerationAndPreservesReadOnlyFailure() async {
+    for matches in [true, false] {
+      let model = JEVReplyModel(text: "合成消息", source: "owltype-selection") { data in
+        let request = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        return try JSONSerialization.data(withJSONObject: ["version": 1, "ok": true,
+          "request_id": request["request_id"]!, "source": request["source"]!,
+          "contract": ["name": "reply", "version": 1,
+            "request_id": matches ? request["request_id"]! : "other-request",
+            "source": request["source"]!, "rule_version": "replies-v1", "build_identity": "test"],
+          "candidates": [["text": "候选一"], ["text": "候选二"]]])
+      }
+      model.ready = true
+      model.instructions = "请简洁回复"
+      await waitForIdle(model) { model.generate() }
+      XCTAssertEqual(model.candidates, matches ? ["候选一", "候选二"] : [])
+      XCTAssertEqual(model.text, "合成消息")
+      XCTAssertEqual(model.instructions, "请简洁回复")
+      XCTAssertFalse(model.busy)
+    }
   }
 
   func testMatchingReplyAppearsAndChangedInputsClearIt() async {
@@ -157,7 +249,7 @@ final class JEVReplyModelTests: XCTestCase {
     await waitForIdle(model) { model.load() }
     XCTAssertFalse(model.ready)
     XCTAssertFalse(model.busy)
-    XCTAssertTrue(model.status.contains("scripts/reply-service"))
+    XCTAssertTrue(model.status.contains("Kotone"))
     XCTAssertEqual(model.text, "今天能把方案给我吗？")
     let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
     let engine = OwlRustEngine(sharedSupportURL: root.appendingPathComponent("data/owl-rime"),

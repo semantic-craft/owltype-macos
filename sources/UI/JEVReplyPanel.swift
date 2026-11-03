@@ -222,7 +222,26 @@ final class JEVReplyModel: ObservableObject {
     return value
   }
 
-  static func validateAndExtractCandidates(from value: [String: Any], expectedSource: String) throws -> (needsClarification: Bool, candidates: [String]) {
+  static func validateAndExtractCandidates(from value: [String: Any], expectedSource: String, expectedRequestID: String) throws -> (needsClarification: Bool, candidates: [String]) {
+    guard value["request_id"] as? String == expectedRequestID else {
+      throw JEVTransport.Failure.invalid
+    }
+    if let rawContract = value["contract"] {
+      guard let contract = rawContract as? [String: Any],
+            contract["name"] as? String == "reply",
+            let version = contract["version"] as? NSNumber,
+            CFGetTypeID(version) != CFBooleanGetTypeID(),
+            ["c", "s", "i", "l", "q"].contains(String(cString: version.objCType)),
+            version.int64Value == 1,
+            contract["request_id"] as? String == expectedRequestID,
+            contract["source"] as? String == expectedSource,
+            let rule = contract["rule_version"] as? String,
+            !rule.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            let build = contract["build_identity"] as? String,
+            !build.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        throw JEVTransport.Failure.invalid
+      }
+    }
     if let rawSource = value["source"] {
       guard let sourceString = rawSource as? String, sourceString == expectedSource else {
         throw JEVTransport.Failure.invalid
@@ -285,7 +304,7 @@ final class JEVReplyModel: ObservableObject {
     }
   }
 
-  static let offlineGuidance = "请在琴音服务目录运行 scripts/reply-service，再点重新连接或重新生成。服务需配置 OPENAI_API_KEY；输入法无需密钥，也无需打开 Pallas 或录音。普通输入不受影响。"
+  static let offlineGuidance = "请打开 Kotone 检查办公服务与回复场景，再点重新连接或重新生成。服务凭据由 Kotone 管理；输入法无需密钥或录音。普通输入不受影响。"
 
   var canGenerate: Bool { instructions.unicodeScalars.count <= 1000 && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && text.unicodeScalars.count <= 10000 }
 
@@ -306,9 +325,8 @@ final class JEVReplyModel: ObservableObject {
           "request_id": token.uuidString, "source": source, "text": currentText,
           "reply_style": styleValue, "instructions": currentInstructions])
         guard revision == token else { return }
-        guard style == currentStyle, instructions == currentInstructions, text == currentText,
-              value["request_id"] as? String == token.uuidString else { throw JEVTransport.Failure.invalid }
-        let validated = try Self.validateAndExtractCandidates(from: value, expectedSource: source)
+        guard style == currentStyle, instructions == currentInstructions, text == currentText else { throw JEVTransport.Failure.invalid }
+        let validated = try Self.validateAndExtractCandidates(from: value, expectedSource: source, expectedRequestID: token.uuidString)
         if validated.needsClarification {
           candidates = []
           status = "请补充这次想怎么回复，再重新生成候选。"
