@@ -3,8 +3,47 @@
 <title>Owltype · 水杉输入对齐</title>
 <style>body{font:16px system-ui;max-width:960px;margin:3rem auto;padding:0 1rem;color:#202936;background:#f7f8fb}article,section{padding:1rem;margin:1rem 0;background:white;border-radius:12px}a{color:#1555ac}.badge{padding:.25rem .6rem;border-radius:20px;background:#e9edf5}small{color:#566}</style>
 <h1>Owltype · 水杉输入对齐</h1>
-<p>Observed: 2026-11-03T07:50:20.228804Z</p>
-<p>Main: <code>main: f0c1ef5facc959f2d5e7c7d7a37aeee64291b308</code></p>
+<p>Observed: 2026-11-03T13:53:19.282595Z</p>
+<p>Main: <code>main: 8a746308f266037ee7cba13e1dd42ae416a4f2ee</code></p>
+<section id="project-review"><h2>项目进度复核 · 2026-11-03</h2>
+<article id="review-release"><h3>当前交付：2.4.1</h3><span class="badge">done</span><p>main 8a74630；PR #404 记录确切 head 15 阶段门禁、签名公证、10 项不可变资产及发布指针核验。此次直接读取公开 latest.json 返回 HTTP 403，线上状态以该发布回执为证，未独立重验。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/pull/404">pull 404: 2026-11-03 发布收口与完整门禁回执</a></li>
+</ul><p>Next: 安装版语音、服务账号及宿主输入体验仍按对应工单验收。</p></article>
+<article id="review-pinyin"><h3>拼音父规格已收口</h3><span class="badge">done</span><p>#305 实现并对照，#340 更新资源；#292/#293 记录按最终范围完成验证、2.2.0 安装与发布。本次关闭滞留父票 #280。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/issues/280">issue 280: 最终范围与父票收口</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/issues/293">issue 293: 安装身份、资源摘要与发布证据</a></li>
+</ul><p>Next: 新回归另按实际版本调查；性能测量留 #316。</p></article>
+<article id="review-373"><h3>#373 选区工具箱接入 JEV 本地回复建议（仅展示）</h3><span class="badge">unverified</span><p>回复建议已实现并随 2.4.1 发布；2–3 条候选、复制、超时和取消合同已修正。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/issues/373">issue 373: 原始验收标准、后续范围决定和交付记录</a></li>
+</ul><p>Next: 补安装版选区、焦点、候选展示/复制及普通输入验收。</p></article>
+<article id="review-335"><h3>#335 领取说明与 input-claims.sh 跟上 TeslaHub 领取账本新规则（--scope、独占路径、claimable、release-session）</h3><span class="badge">planned</span><p>TeslaHub #121 已合并，跨仓前置解除；本仓命令白名单和说明尚未更新。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/issues/335">issue 335: 原始验收标准、后续范围决定和交付记录</a></li>
+</ul><p>Next: 补 --scope、独占路径、claimable、release-session；用临时账本验证。</p></article>
+<article id="review-316"><h3>#316 [性能考查] 端到端输入延迟测量（合并 #274–#277）</h3><span class="badge">planned</span><p>热键事件 tap 已移出主线程；完整端到端延迟矩阵尚未完成，既有决策不阻塞发布。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/issues/316">issue 316: 原始验收标准、后续范围决定和交付记录</a></li>
+</ul><p>Next: 测量原生与 Chromium 输入端到端延迟，再决定是否优化。</p></article>
+<article id="review-278"><h3>#278 增加与候选窗皮肤一致的浮动输入状态栏</h3><span class="badge">unverified</span><p>浮动状态栏已实现并包含在 2.4.1；有定向测试和皮肤渲染证据。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/issues/278">issue 278: 原始验收标准、后续范围决定和交付记录</a></li>
+</ul><p>Next: 补首次点击焦点、位置恢复、拔屏等安装版验收。</p></article>
+<article id="review-269"><h3>#269 [UI] 借鉴 Galaxy 改善原生设置的字段与状态可读性</h3><span class="badge">planned</span><p>设置可读性提案尚无隔离展示、VoiceOver、九套皮肤对比度等完整验收；2.4.1 AI 设置改版不等于本票完成。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/issues/269">issue 269: 原始验收标准、后续范围决定和交付记录</a></li>
+</ul><p>Next: 按原票先做窄范围展示与取舍，不自动扩大改版。</p></article>
+<article id="review-247"><h3>#247 LaunchServices 里 4 条已卸载的 Owltype DMG 卷记录：决定保留还是重置清除</h3><span class="badge">blocked</span><p>历史 DMG 卷记录按用户既有决定保持；本次 clean-dev 检查无失效 App 注册，只有系统安装版。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/issues/247">issue 247: 原始验收标准、后续范围决定和交付记录</a></li>
+</ul><p>Next: 保留现状，等待是否处理无害卷记录的产品决定；不重置全机数据库。</p></article>
+<article id="review-208"><h3>#208 立项：原生输入与外部 Agent MCP 接入，以 Grok Build / AGY 实机验收</h3><span class="badge">in_progress</span><p>MCP helper、桥、模板开放、原生确认交付及首轮 AGY 实机链路已交付。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/issues/208">issue 208: 原始验收标准、后续范围决定和交付记录</a></li>
+</ul><p>Next: 主动委托、配置写入与发版级闭环仍待做；内置聊天迁移需先与后续 AI 写作产品方向核对。</p></article>
+<article id="review-207"><h3>#207 2.0.14 可正常打字时仍出现安装会话自检失败提示</h3><span class="badge">unverified</span><p>失败诊断、弹窗前重探与恢复抑制已实现并发布；正常升级路径有证据。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/issues/207">issue 207: 原始验收标准、后续范围决定和交付记录</a></li>
+</ul><p>Next: 等待受控失败/恢复场景和真实诊断包证据，不推测原投诉根因。</p></article>
+<article id="review-205"><h3>#205 免注销安装：完成剩余 GUI/pkg 真机验收矩阵</h3><span class="badge">unverified</span><p>归档 pkg 与共享会话恢复已交付，已有局部原选输入源通过记录。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/issues/205">issue 205: 原始验收标准、后续范围决定和交付记录</a></li>
+</ul><p>Next: 保留 GUI/pkg 首装、GUI 覆盖、旧收据迁移和未覆盖平台验收；不重复已通过场景。</p></article>
+<article id="review-204"><h3>#204 免注销更新：验证并修正官方 Sparkle 与安装包的配合</h3><span class="badge">unverified</span><p>Sparkle 公开 API 重启补丁及原选猫头鹰更新路径已有通过记录。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/issues/204">issue 204: 原始验收标准、后续范围决定和交付记录</a></li>
+</ul><p>Next: 保留其他输入源、正式签名信任路径与失败/取消/并发边界的完整验收缺口。</p></article>
+</section>
 <section id="contract"><h2>共同入口与领取</h2>
 <article id="coordination"><h3>GitHub 为真源；两个输入方案共用设施</h3><span class="badge">in_progress</span><p>本页是带观察时间的快照。阻塞按 GitHub 原生依赖计算；负责人只表示 GitHub 指派，不冒充 agent 会话。工单关闭不自动等于产品验收。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/280">issue 280: 拼音规格与已存在工单</a></li>
@@ -98,13 +137,6 @@
 <article id="issue-317"><h3>#317 [清理] 移除 Rime 残留子模块、构建路径与命名</h3><span class="badge">unverified</span><p>GitHub: closed；负责人：未指派；未关闭前置：无。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/317">issue 317: 范围、当前状态和证据原件</a></li>
 </ul><p>Next: 核对工单完成证据。</p></article>
-<article id="ai-voice-regressions"><h3>2.4.1 AI 供应商收敛、三卡片设置重组、语音/指令回归修复与 Kotone v1 协议对齐</h3><span class="badge">in_progress</span><p>整合六大核心模型供应商（Qwen、Doubao、Grok、OpenAI、Gemini、DeepSeek）与五套云端语音识别（ASR）预设，支持复用模型供应商密钥并重组 AI 设置页为三张卡片；合入 2.4.0 四项回归修复（#401）与 Kotone 回复建议可取消、显式复制及 v1 安全错误码对齐（#388, #402）。本地单元与集成测试通过，待完成完整门禁、PR 合并与 2.4.1 签名发版。</p><ul>
-<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/sources/Settings/OwlAIPage.swift">file sources/Settings/OwlAIPage.swift: 三卡片布局、六核心供应商徽标与五供应商语音 ASR 密钥复用状态展示。</a></li>
-<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/tests/OwlVoiceInputIntegrationTests.swift">file tests/OwlVoiceInputIntegrationTests.swift: 旧 ASR 返回与旧润色错误不能影响下一次录音或目标。</a></li>
-<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/tests/OwlAIWindowWritebackTests.swift">file tests/OwlAIWindowWritebackTests.swift: 连续斜杠与组合键中断的原文保留回归。</a></li>
-<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/tests/OwlAICandidateTests.swift">file tests/OwlAICandidateTests.swift: 两条候选链共享有界上文，排除组字和后文。</a></li>
-<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/tests/JEVReplyModelTests.swift">file tests/JEVReplyModelTests.swift: Kotone 候选显式复制、非阻塞截止/取消与 v1 安全错误码校验。</a></li>
-</ul><p>Next: 运行完整本地门禁并通过 PR 合并后执行 2.4.1 签名公证与发布。</p></article>
 </section>
 <section id="rust-business"><h2>Rust 业务核心迁移</h2>
 <article id="issue-356"><h3>#356 [目标] 业务核心全面迁入 Rust，Swift 仅保留 macOS 界面与系统适配</h3><span class="badge">unverified</span><p>GitHub: closed；负责人：未指派；未关闭前置：无。</p><ul>
@@ -145,9 +177,5 @@
 </ul><p>Next: 核对工单完成证据。</p></article>
 </section>
 <section><h2>Open pull requests</h2><ul>
-<li><a href="https://github.com/semantic-craft/owltype-macos/pull/388">#388</a> <code>64f33f15ad866cf4f3377aa6eeb457253960e5ac</code></li>
-<li><a href="https://github.com/semantic-craft/owltype-macos/pull/401">#401</a> <code>a75756c3d322d31d080af95a3299346efbe63765</code></li>
-<li><a href="https://github.com/semantic-craft/owltype-macos/pull/402">#402</a> <code>908fc6d45ec84ab5a04c7e94a8e2f56444bffb02</code></li>
-<li><a href="https://github.com/semantic-craft/owltype-macos/pull/403">#403</a> <code>693867a3c2e6c9cb5a8e34c20dd937dcb884bf1c</code></li>
 </ul><h2>Recent releases</h2><ul>
 </ul></section></html>
