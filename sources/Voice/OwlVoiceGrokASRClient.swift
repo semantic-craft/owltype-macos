@@ -12,26 +12,28 @@ public protocol OwlVoiceASRServiceProtocol: Sendable {
 public final class OwlVoiceGrokASRClient: OwlVoiceASRServiceProtocol, @unchecked Sendable {
   public static let shared = OwlVoiceGrokASRClient()
 
-  public let endpoint: URL
-  public let model: String
+  private let explicitEndpoint: URL?
+  private let explicitModel: String?
+  public var endpoint: URL { explicitEndpoint ?? OwlVoiceSettings.xaiEndpointURL }
+  public var model: String { explicitModel ?? OwlVoiceSettings.xaiModel }
   public let transport: OwlVoiceNetworkTransport
   public let apiKeyProvider: @Sendable () throws -> String?
   public var requestTimeout: TimeInterval
 
   public init(
-    endpoint: URL = URL(string: "https://api.x.ai/v1/audio/transcriptions")!,
-    model: String = "grok-asr",
+    endpoint: URL? = nil,
+    model: String? = nil,
     transport: OwlVoiceNetworkTransport = OwlURLSessionVoiceTransport(),
     requestTimeout: TimeInterval = 15.0,
     apiKeyProvider: @escaping @Sendable () throws -> String? = {
       if let env = ProcessInfo.processInfo.environment["XAI_API_KEY"], !env.isEmpty {
         return env
       }
-      return try OwlVoiceKeychain.readXAIAPIKey()
+      return try OwlVoiceKeychain.readActiveASRAPIKey()
     }
   ) {
-    self.endpoint = endpoint
-    self.model = model
+    self.explicitEndpoint = endpoint
+    self.explicitModel = model
     self.transport = transport
     self.requestTimeout = requestTimeout
     self.apiKeyProvider = apiKeyProvider

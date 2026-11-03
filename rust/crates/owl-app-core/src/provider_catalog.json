@@ -15,18 +15,18 @@
       "keyHint": "火山方舟 API Key"
     },
     {
-      "id": "deepseek",
-      "displayName": "DeepSeek",
-      "endpoint": "https://api.deepseek.com/v1/chat/completions",
-      "model": "deepseek-flash",
-      "keyHint": "sk-…"
+      "id": "grok",
+      "displayName": "xAI Grok",
+      "endpoint": "https://api.x.ai/v1/chat/completions",
+      "model": "grok-4-fast",
+      "keyHint": "xai-…"
     },
     {
-      "id": "minimax",
-      "displayName": "MiniMax",
-      "endpoint": "https://api.minimax.cn/v1/chat/completions",
-      "model": "MiniMax-M3.1-Flash",
-      "keyHint": "国内站 api.minimax.cn 的 M Plan / Token Plan 订阅 Key（sk-cp-…）"
+      "id": "openai",
+      "displayName": "OpenAI",
+      "endpoint": "https://api.openai.com/v1/chat/completions",
+      "model": "chat-latest",
+      "keyHint": "sk-…"
     },
     {
       "id": "gemini",
@@ -36,10 +36,10 @@
       "keyHint": "AIza…"
     },
     {
-      "id": "openai",
-      "displayName": "OpenAI",
-      "endpoint": "https://api.openai.com/v1/chat/completions",
-      "model": "chat-latest",
+      "id": "deepseek",
+      "displayName": "DeepSeek",
+      "endpoint": "https://api.deepseek.com/v1/chat/completions",
+      "model": "deepseek-flash",
       "keyHint": "sk-…"
     }
   ],
@@ -47,6 +47,10 @@
     "qwen3.8-flash",
     "qwen3.7-plus",
     "qwen3.7-max"
+  ],
+  "grokModels": [
+    "grok-4-fast",
+    "grok-4.20-non-reasoning"
   ],
   "minimaxModels": [
     "MiniMax-M3.1-Flash",

@@ -70,6 +70,81 @@ extension OwlSettingsActions {
     } catch { return credentialForm("deleted", doubao: true, failure: true).status }
   }
 
+  struct VoiceASRSaveResult: Equatable {
+    let input: String
+    let endpoint: String
+    let model: String
+    let status: String
+  }
+
+  /// Save the voice ASR configuration (provider preset, https endpoint, model ID, and write-only
+  /// ASR API Key in `OwlVoiceKeychain`). When `isKeyAlreadyConfigured` is true and `apiKey` is
+  /// blank, the existing Keychain key (or shared provider profile key) is preserved while
+  /// endpoint/model changes are saved.
+  static func saveVoiceASRSettings(
+    providerID: String = OwlVoiceSettings.asrProviderID,
+    endpoint: String,
+    model: String,
+    apiKey: String,
+    isKeyAlreadyConfigured: Bool,
+    saveKey: ((String) throws -> Void)? = nil,
+    defaults: UserDefaults = OwlDefaults.standard
+  ) -> VoiceASRSaveResult {
+    let preset = OwlVoiceASRCatalog.preset(id: providerID)
+    let trimmedEndpoint = OwlProviderCore.call("trim", ["text": endpoint]) as String
+    let effectiveEndpoint = trimmedEndpoint.isEmpty ? preset.endpoint : trimmedEndpoint
+    guard let url = URL(string: effectiveEndpoint), OwlProviderRegistry.isHTTPS(url) else {
+      return VoiceASRSaveResult(input: apiKey, endpoint: endpoint, model: model, status: "端点必须是 https。")
+    }
+    let trimmedModel = OwlProviderCore.call("trim", ["text": model]) as String
+    let effectiveModel = trimmedModel.isEmpty ? preset.defaultModel : trimmedModel
+    let trimmedKey = OwlProviderCore.call("trim", ["text": apiKey]) as String
+
+    if trimmedKey.isEmpty && !isKeyAlreadyConfigured {
+      return VoiceASRSaveResult(
+        input: "", endpoint: effectiveEndpoint, model: effectiveModel, status: "请输入 \(preset.keyLabel)")
+    }
+
+    if !trimmedKey.isEmpty {
+      do {
+        if let saveKey {
+          try saveKey(trimmedKey)
+        } else {
+          try OwlVoiceKeychain.saveAPIKey(trimmedKey, forProviderID: preset.id)
+        }
+      } catch {
+        return VoiceASRSaveResult(
+          input: apiKey, endpoint: effectiveEndpoint, model: effectiveModel, status: "保存 Keychain 失败")
+      }
+    }
+
+    defaults.set(preset.id, forKey: OwlVoiceSettings.asrProviderIDKey)
+    defaults.set(effectiveEndpoint, forKey: OwlVoiceSettings.xaiEndpointKey)
+    defaults.set(effectiveModel, forKey: OwlVoiceSettings.xaiModelKey)
+
+    let status = trimmedKey.isEmpty
+      ? "已保存语音识别配置（\(effectiveModel)）。"
+      : "已保存 \(preset.displayName) 密钥与语音识别配置（\(effectiveModel)）。"
+    return VoiceASRSaveResult(input: "", endpoint: effectiveEndpoint, model: effectiveModel, status: status)
+  }
+
+  static func clearXAIAPIKey(
+    providerID: String = "grok",
+    deleteKey: (() throws -> Void)? = nil
+  ) -> String {
+    let preset = OwlVoiceASRCatalog.preset(id: providerID)
+    do {
+      if let deleteKey {
+        try deleteKey()
+      } else {
+        try OwlVoiceKeychain.deleteAPIKey(forProviderID: preset.id)
+      }
+      return "已清除 \(preset.keyLabel)。"
+    } catch {
+      return "删除 Keychain 失败"
+    }
+  }
+
   // MARK: - AI provider profiles
 
   // Persistence goes through `OwlProviderRegistry`; these keep the form's editing snapshot current.

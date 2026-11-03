@@ -456,4 +456,172 @@ final class OwlAIVoiceTests: XCTestCase {
     coordinator.handleVoiceHotKeyTrigger()
     XCTAssertEqual(mockRecorder.stopRecordingCallCount, 1)
   }
+
+  // MARK: - 7. Voice ASR Settings & DeepSeek Profile Key Reuse
+
+  func testSaveVoiceASRSettingsPersistsKeyEndpointAndModel() {
+    let suiteName = "OwlVoiceASRSettingsTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+
+    var savedKey: String?
+    let res = OwlSettingsActions.saveVoiceASRSettings(
+      providerID: "grok",
+      endpoint: " https://api.x.ai/v1/audio/transcriptions ",
+      model: " grok-voice-transcribe-2.0 ",
+      apiKey: " xai-secret-999 ",
+      isKeyAlreadyConfigured: false,
+      saveKey: { savedKey = $0 },
+      defaults: defaults
+    )
+
+    XCTAssertEqual(savedKey, "xai-secret-999")
+    XCTAssertEqual(res.input, "", "Write-only Keychain input must clear after save")
+    XCTAssertEqual(res.endpoint, "https://api.x.ai/v1/audio/transcriptions")
+    XCTAssertEqual(res.model, "grok-voice-transcribe-2.0")
+    XCTAssertTrue(res.status.contains("已保存"))
+    XCTAssertEqual(defaults.string(forKey: OwlVoiceSettings.xaiEndpointKey), "https://api.x.ai/v1/audio/transcriptions")
+    XCTAssertEqual(defaults.string(forKey: OwlVoiceSettings.xaiModelKey), "grok-voice-transcribe-2.0")
+
+    // Updating model while key is already configured and input is blank preserves existing key
+    var overwriteCount = 0
+    let updateRes = OwlSettingsActions.saveVoiceASRSettings(
+      providerID: "grok",
+      endpoint: "https://api.x.ai/v1/audio/transcriptions",
+      model: "grok-asr",
+      apiKey: "",
+      isKeyAlreadyConfigured: true,
+      saveKey: { _ in overwriteCount += 1 },
+      defaults: defaults
+    )
+    XCTAssertEqual(overwriteCount, 0)
+    XCTAssertEqual(updateRes.model, "grok-asr")
+    XCTAssertEqual(defaults.string(forKey: OwlVoiceSettings.xaiModelKey), "grok-asr")
+
+    // Rejects non-https endpoint
+    let insecure = OwlSettingsActions.saveVoiceASRSettings(
+      providerID: "grok",
+      endpoint: "http://api.x.ai/v1/audio/transcriptions",
+      model: "grok-voice-transcribe-2.0",
+      apiKey: "xai-123",
+      isKeyAlreadyConfigured: false,
+      saveKey: { _ in XCTFail("Must not save key on invalid endpoint") },
+      defaults: defaults
+    )
+    XCTAssertEqual(insecure.status, "端点必须是 https。")
+
+    var deleted = false
+    let clearStatus = OwlSettingsActions.clearXAIAPIKey(deleteKey: { deleted = true })
+    XCTAssertTrue(deleted)
+    XCTAssertEqual(clearStatus, "已清除 xAI API Key。")
+    XCTAssertTrue(OwlVoiceKeychain.isXAIKeyConfigured(read: { "xai-key" }))
+    XCTAssertFalse(OwlVoiceKeychain.isXAIKeyConfigured(read: { "  " }))
+  }
+
+  func testGrokASRClientFollowsLiveVoiceSettingsWhenNotExplicitlyOverridden() async throws {
+    let savedEndpoint = OwlDefaults.standard.object(forKey: OwlVoiceSettings.xaiEndpointKey)
+    let savedModel = OwlDefaults.standard.object(forKey: OwlVoiceSettings.xaiModelKey)
+    defer {
+      if let savedEndpoint { OwlDefaults.standard.set(savedEndpoint, forKey: OwlVoiceSettings.xaiEndpointKey) }
+      else { OwlDefaults.standard.removeObject(forKey: OwlVoiceSettings.xaiEndpointKey) }
+      if let savedModel { OwlDefaults.standard.set(savedModel, forKey: OwlVoiceSettings.xaiModelKey) }
+      else { OwlDefaults.standard.removeObject(forKey: OwlVoiceSettings.xaiModelKey) }
+    }
+
+    OwlVoiceSettings.xaiEndpoint = "https://custom.x.ai/v1/audio/transcriptions"
+    OwlVoiceSettings.xaiModel = "grok-voice-transcribe-2.0"
+
+    let stubTransport = OwlStubVoiceTransport { req in
+      let resp = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+      return (Data("{\"text\": \"测试动态配置\"}".utf8), resp)
+    }
+    let client = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "xai-test" })
+    let wav = OwlWAVPacker.pack16kMono(pcmData: Data([0x01, 0x02]))
+    _ = try await client.transcribe(audioWavData: wav, prompt: nil)
+
+    let req = try XCTUnwrap(stubTransport.recordedRequests.first)
+    XCTAssertEqual(req.url?.absoluteString, "https://custom.x.ai/v1/audio/transcriptions")
+    let bodyStr = String(decoding: req.httpBody ?? Data(), as: UTF8.self)
+    XCTAssertTrue(bodyStr.contains("name=\"model\"\r\n\r\ngrok-voice-transcribe-2.0\r\n"))
+  }
+
+  func testVoiceKeychainReadsConfiguredDeepSeekProfileKey() throws {
+    let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir) }
+
+    let store = OwlProviderProfileStore(root: tempDir)
+    let profile = try store.add(OwlProviderProfile(
+      displayName: "DeepSeek",
+      endpoint: URL(string: "https://api.deepseek.com/v1/chat/completions")!,
+      model: "deepseek-chat",
+      providerID: "deepseek",
+      isDefault: true
+    ))
+
+    final class InMemorySecrets: OwlSecretStoring {
+      var values: [String: String] = [:]
+      func secret(named name: String) throws -> String? { values[name] }
+      func setSecret(_ value: String, named name: String) throws { values[name] = value }
+      func deleteSecret(named name: String) throws { values.removeValue(forKey: name) }
+    }
+    let secrets = InMemorySecrets()
+    try secrets.setSecret(" sk-deepseek-from-profile ", named: profile.secretName)
+
+    let resolved = OwlVoiceKeychain.readConfiguredDeepSeekProfileKey(store: store, secrets: secrets)
+    XCTAssertEqual(resolved, "sk-deepseek-from-profile")
+  }
+
+  func testFiveProviderASRCatalogAndSharedProviderKeyFallback() throws {
+    XCTAssertEqual(
+      OwlVoiceASRCatalog.presets.map(\.id),
+      ["grok", "qwen", "doubao", "openai", "gemini"]
+    )
+    XCTAssertTrue(OwlVoiceASRCatalog.preset(id: "grok").sharesProviderProfileKey)
+    XCTAssertTrue(OwlVoiceASRCatalog.preset(id: "qwen").sharesProviderProfileKey)
+    XCTAssertFalse(OwlVoiceASRCatalog.preset(id: "doubao").sharesProviderProfileKey)
+    XCTAssertTrue(OwlVoiceASRCatalog.preset(id: "openai").sharesProviderProfileKey)
+    XCTAssertTrue(OwlVoiceASRCatalog.preset(id: "gemini").sharesProviderProfileKey)
+
+    let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir) }
+
+    let store = OwlProviderProfileStore(root: tempDir)
+    let grokProfile = try store.add(OwlProviderProfile(
+      displayName: "xAI Grok",
+      endpoint: URL(string: "https://api.x.ai/v1/chat/completions")!,
+      model: "grok-4-fast",
+      providerID: "grok",
+      isDefault: true
+    ))
+    let qwenProfile = try store.add(OwlProviderProfile(
+      displayName: "阿里云百炼",
+      endpoint: URL(string: OwlLLMProviderCatalog.qwenResponsesEndpoint)!,
+      model: "qwen3.8-flash",
+      providerID: "qwen",
+      isDefault: false
+    ))
+
+    final class InMemorySecrets: OwlSecretStoring {
+      var values: [String: String] = [:]
+      func secret(named name: String) throws -> String? { values[name] }
+      func setSecret(_ value: String, named name: String) throws { values[name] = value }
+      func deleteSecret(named name: String) throws { values.removeValue(forKey: name) }
+    }
+    let secrets = InMemorySecrets()
+    try secrets.setSecret(" xai-from-provider-profile ", named: grokProfile.secretName)
+    try secrets.setSecret(" sk-qwen-from-provider-profile ", named: qwenProfile.secretName)
+
+    XCTAssertEqual(
+      try OwlVoiceKeychain.readAPIKey(forProviderID: "grok", store: store, secrets: secrets),
+      "xai-from-provider-profile"
+    )
+    XCTAssertEqual(
+      try OwlVoiceKeychain.readAPIKey(forProviderID: "qwen", store: store, secrets: secrets),
+      "sk-qwen-from-provider-profile"
+    )
+    XCTAssertTrue(OwlVoiceKeychain.isASRKeyConfigured(forProviderID: "grok", store: store, secrets: secrets))
+    XCTAssertFalse(OwlVoiceKeychain.isASRKeyConfigured(forProviderID: "openai", store: store, secrets: secrets))
+  }
 }
