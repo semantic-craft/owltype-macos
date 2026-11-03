@@ -822,6 +822,58 @@ final class OwlAIWindowWritebackTests: XCTestCase {
     XCTAssertTrue(mockClient.replacementRanges.isEmpty, "Host client must receive zero replacement ranges on cancel")
   }
 
+  func testRepeatedSlashIsDeliveredExactlyOnce() throws {
+    OwlAIWritingSettings.isEnabled = true
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    controller.destroySession()
+    defer { controller.destroySession() }
+    let client = MockAIWritebackTextInputClient()
+    controller.client = client
+
+    for input in ["//x", "///x", "/a/x", "/x"] {
+      controller.aiCommandDetector.reset()
+      client.insertedTexts.removeAll()
+      for character in input {
+        let text = String(character)
+        if !controller.handleAICommandDetector(commandEvent(text)) {
+          // Model normal ASCII delivery only for events the controller passes through.
+          client.insertText(text, replacementRange: .empty)
+        }
+      }
+      XCTAssertEqual(client.insertedTexts.joined(), input)
+      XCTAssertFalse(controller.aiCommandDetector.isArmed)
+    }
+  }
+
+  func testCommandChordFlushesBufferedAICommandPrefixBeforePassingThrough() throws {
+    OwlAIWritingSettings.isEnabled = true
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    controller.destroySession()
+    defer { controller.destroySession() }
+    let client = MockAIWritebackTextInputClient()
+    controller.client = client
+
+    for prefix in ["/", "/a"] {
+      for flags: NSEvent.ModifierFlags in [.command, .option, .control] {
+        client.insertedTexts.removeAll()
+        for character in prefix {
+          XCTAssertTrue(controller.handleAICommandDetector(commandEvent(String(character))))
+        }
+        XCTAssertFalse(controller.handleAICommandDetector(commandEvent("s", flags: flags)))
+        XCTAssertEqual(client.insertedTexts.joined(), prefix)
+        XCTAssertFalse(controller.aiCommandDetector.isArmed)
+        XCTAssertFalse(controller.handleAICommandDetector(commandEvent("x")))
+        XCTAssertEqual(client.insertedTexts.joined(), prefix, "Flushed text must not be replayed")
+      }
+    }
+  }
+
+  private func commandEvent(_ text: String, flags: NSEvent.ModifierFlags = []) -> NSEvent {
+    NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0,
+                    windowNumber: 0, context: nil, characters: text, charactersIgnoringModifiers: text,
+                    isARepeat: false, keyCode: 0)!
+  }
+
   func testEmpiricalControllerAICommandEventHandling() throws {
     OwlAIWritingSettings.isEnabled = true
     defer {

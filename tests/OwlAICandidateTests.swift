@@ -136,6 +136,67 @@ final class OwlAICandidateTests: XCTestCase {
     XCTAssertEqual(ticket1.actionEpoch, 5)
   }
 
+  @MainActor
+  func testBothCandidateLanesReceiveBoundedTextBeforeTheComposition() async throws {
+    OwlAICandidatePreferences.aiAssociationEnabled = true
+    OwlAICandidatePreferences.jevDiscriminativeRerankEnabled = true
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    controller.destroySession()
+    defer { controller.destroySession() }
+    let client = HabitsTextClient()
+    controller.client = client
+    let session = FakeEngineSession(sessionID: 80, generation: 1, isValid: true, input: "nihao")
+    controller.engineSession = session
+    controller.lastPanelComposition = OwlPanelCompositionParams(
+      preedit: "nihao", cursor: 5, selStart: 0, selEnd: 5, candidates: ["你好", "拟好"],
+      comments: [], labels: [], highlighted: 0, page: 0, lastPage: true, pageSize: 5)
+
+    let preceding = String(repeating: "旧", count: 220) + "讨论计划🙂"
+    client.text.string = preceding + "后文不能发送"
+    client.text.setSelectedRange(NSRange(location: preceding.utf16.count, length: 0))
+    client.setMarkedText("nihao", selectionRange: NSRange(location: 5, length: 0), replacementRange: .empty)
+    let expected = String(preceding.suffix(100))
+    let generated = expectation(description: "generative context")
+    let reranked = expectation(description: "discriminative context")
+    controller.aiCandidateService = OwlAICandidateService(
+      customGenerator: { _, context in
+        XCTAssertEqual(context, expected)
+        generated.fulfill()
+        return []
+      },
+      customReranker: { context, _, _, _ in
+        XCTAssertEqual(context, expected)
+        reranked.fulfill()
+        return nil
+      })
+    controller.aiCandidateDebounceFired()
+    await fulfillment(of: [generated, reranked], timeout: 2)
+  }
+
+  @MainActor
+  func testCandidateContextHandlesStartAndUnavailableSelection() async throws {
+    OwlAICandidatePreferences.aiAssociationEnabled = true
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    controller.destroySession()
+    defer { controller.destroySession() }
+    let client = HabitsTextClient()
+    controller.client = client
+    controller.engineSession = FakeEngineSession(sessionID: 81, generation: 1, isValid: true, input: "ni")
+    client.text.string = "不能读取的后文"
+    client.text.setSelectedRange(NSRange(location: 0, length: 0))
+    for exposesText in [true, false] {
+      client.exposesText = exposesText
+      let generated = expectation(description: "no preceding text")
+      controller.aiCandidateService = OwlAICandidateService(customGenerator: { _, context in
+        XCTAssertNil(context)
+        generated.fulfill()
+        return []
+      })
+      controller.aiCandidateDebounceFired()
+      await fulfillment(of: [generated], timeout: 2)
+    }
+  }
+
   // MARK: - 5. Layout Merging & Non-Jump Guarantee
 
   func testFirstAICandidatePositionedAtLastSlotOfFirstPage() throws {

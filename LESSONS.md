@@ -1402,3 +1402,22 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
   and compares the daily persistent domain after each transition. The existing
   bridge switch test checks listener start/stop. Confirm the isolated suite is
   removed after the host exits; never seed the user's daily preference for a red run.
+
+## Retired voice callbacks and buffered command input must preserve the next operation
+
+- Seen 1x (2026-11-03): post-release review of 2.4.0 reproduced old ASR cancellation
+  stopping a new recording, and an old polish error inserting its raw transcript into
+  the new target. Cancellation alone does not retire a transport callback. The voice
+  coordinator now checks a recording generation after suspension and in error, audio,
+  permission and timer callbacks before changing state or writing text.
+- The same review reproduced `//x` becoming `///x` and Command/Option/Control chords
+  discarding a buffered `/` or `/a`. Flush the previous prefix exactly once and consume
+  any new slash still owned by the command detector; flush before passing chords on.
+- AI association and Jev reranking requested an empty host range. Read a bounded UTF-16
+  range before the selection/marked composition under the existing capability policy,
+  and keep unavailable or document-start context empty.
+- Verify: the six regressions added to `OwlVoiceInputIntegrationTests`,
+  `OwlAIWindowWritebackTests` and `OwlAICandidateTests` failed on the original code.
+  The five related suites then passed 134 tests after the fix. Tests use suspended fake
+  transports and synthetic IMK clients through the App test host; they do not establish
+  real microphone, provider-account or installed input-method acceptance.

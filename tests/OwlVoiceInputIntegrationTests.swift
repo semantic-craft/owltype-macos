@@ -662,6 +662,75 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
     XCTAssertEqual(coordinator.mode, .idle, "Mode must remain .idle")
   }
 
+  func testRetiredRecognitionCannotCancelOrFailANewRecording() async throws {
+    // Exercise both a late successful ASR return and URLSession's cancellation error.
+    for failure in [false, true] {
+      let coordinator = OwlVoiceInputCoordinator()
+      let recorder = OwlMockAudioRecorder()
+      let asr = SuspendedVoiceASR()
+      let client = MockVoiceTextInputClient()
+      let panel = TestTrackingVoiceCapsulePanel()
+      coordinator.audioRecorder = recorder
+      coordinator.asrClient = asr
+      coordinator.hotwordsExtractor = OwlMockHotwordsExtractor()
+      coordinator.hudPanel = panel
+      coordinator.isEnabledOverride = true
+      coordinator.isPolishEnabledOverride = false
+      coordinator.secureInputChecker = { false }
+      coordinator.targetSnapshotProvider = { OwlVoiceTargetSnapshot(client: client) }
+      defer { coordinator.cancelVoiceInput() }
+
+      coordinator.startVoiceInput()
+      coordinator.finishRecordingAndTranscribe()
+      await asr.waitUntilRequested()
+      coordinator.cancelVoiceInput()
+      coordinator.startVoiceInput()
+      let newMode = coordinator.mode
+      let newStates = panel.recordedStates
+      let cancelCount = recorder.cancelRecordingCallCount
+      await asr.complete(failure: failure)
+      // Let the resumed coordinator task process the controlled response.
+      try await Task.sleep(nanoseconds: 30_000_000)
+      XCTAssertEqual(coordinator.mode, newMode)
+      XCTAssertTrue(recorder.isRecording)
+      XCTAssertEqual(recorder.cancelRecordingCallCount, cancelCount)
+      XCTAssertEqual(panel.recordedStates, newStates)
+      XCTAssertTrue(client.insertedTexts.isEmpty)
+      XCTAssertNotNil(coordinator.targetSnapshot)
+    }
+  }
+
+  func testRetiredPolishFailureCannotWriteRawTextIntoANewTarget() async throws {
+    let coordinator = OwlVoiceInputCoordinator()
+    let recorder = OwlMockAudioRecorder()
+    let polisher = SuspendedVoiceASR()
+    let original = MockVoiceTextInputClient()
+    let next = MockVoiceTextInputClient()
+    coordinator.audioRecorder = recorder
+    coordinator.asrClient = OwlVoiceGrokASRClient(
+      transport: OwlStubVoiceTransport(), apiKeyProvider: { "mock-key" })
+    coordinator.postProcessor = polisher
+    coordinator.hotwordsExtractor = OwlMockHotwordsExtractor()
+    coordinator.isEnabledOverride = true
+    coordinator.isPolishEnabledOverride = true
+    coordinator.secureInputChecker = { false }
+    coordinator.targetSnapshotProvider = { OwlVoiceTargetSnapshot(client: original) }
+    defer { coordinator.cancelVoiceInput() }
+    coordinator.startVoiceInput()
+    coordinator.finishRecordingAndTranscribe()
+    await polisher.waitUntilRequested()
+    coordinator.cancelVoiceInput()
+    coordinator.targetSnapshotProvider = { OwlVoiceTargetSnapshot(client: next) }
+    coordinator.startVoiceInput()
+    let mode = coordinator.mode
+    await polisher.complete(failure: true)
+    try await Task.sleep(nanoseconds: 30_000_000)
+    XCTAssertEqual(coordinator.mode, mode)
+    XCTAssertTrue(recorder.isRecording)
+    XCTAssertTrue(original.insertedTexts.isEmpty)
+    XCTAssertTrue(next.insertedTexts.isEmpty)
+  }
+
   // MARK: - Helper
 
   private func makeKeyEvent(type: NSEvent.EventType, keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []) throws -> NSEvent {
@@ -767,3 +836,35 @@ final class OwlMockHotwordsExtractor: OwlVoiceHotwordsExtracting, @unchecked Sen
   }
 }
 
+
+// A continuation deliberately ignores cancellation to replay a late transport completion.
+private actor SuspendedVoiceASR: OwlVoiceASRServiceProtocol, OwlVoicePolishServiceProtocol {
+  private var response: CheckedContinuation<String, Error>?
+  private var requested: CheckedContinuation<Void, Never>?
+
+  func waitUntilRequested() async {
+    if response != nil { return }
+    await withCheckedContinuation { requested = $0 }
+  }
+
+  func transcribe(audioWavData: Data, prompt: String?) async throws -> String {
+    try await withCheckedThrowingContinuation { continuation in
+      response = continuation
+      requested?.resume()
+      requested = nil
+    }
+  }
+
+  func polish(rawTranscript: String, hotwords: [String], preContext: String?) async throws -> String {
+    try await transcribe(audioWavData: Data(), prompt: nil)
+  }
+
+  func complete(failure: Bool) {
+    if failure {
+      response?.resume(throwing: URLError(.cancelled))
+    } else {
+      response?.resume(returning: "旧请求结果")
+    }
+    response = nil
+  }
+}

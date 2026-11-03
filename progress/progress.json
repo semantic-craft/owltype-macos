@@ -249,7 +249,7 @@
         "updated_at": "2026-10-30T17:19:30Z"
       }
     ],
-    "main": "b438ca9899e0f14683a8f95372732834ccd4a294",
+    "main": "f0c1ef5facc959f2d5e7c7d7a37aeee64291b308",
     "open_pulls": [
       {
         "head": "64f33f15ad866cf4f3377aa6eeb457253960e5ac",
@@ -264,7 +264,7 @@
     "progress/sync.py",
     "progress/teslahub.mjs"
   ],
-  "observed_at": "2026-11-03T01:22:35.519221Z",
+  "observed_at": "2026-11-03T02:17:57.836206Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -698,6 +698,30 @@
           "status": "unverified",
           "summary": "GitHub: closed；负责人：未指派；未关闭前置：无。",
           "title": "#317 [清理] 移除 Rime 残留子模块、构建路径与命名"
+        },
+        {
+          "id": "ai-voice-regressions",
+          "title": "2.4.0 AI 候选、语音与指令输入回归修复",
+          "status": "in_progress",
+          "summary": "本地实现四项修复：旧语音回调按代次隔离，连续斜杠只输入一次，快捷键前保留 /ai 前缀，AI 与 Jev 读取组字前的有效上文。新增 6 项回归在原代码失败，修复后相关 134 项测试通过；完整 gate 以对应提交的本地回执为准。未推送、未合并、未发布，装机验收未验证。",
+          "evidence": [
+            {
+              "kind": "file",
+              "ref": "tests/OwlVoiceInputIntegrationTests.swift",
+              "note": "旧 ASR 返回与旧润色错误不能影响下一次录音或目标。"
+            },
+            {
+              "kind": "file",
+              "ref": "tests/OwlAIWindowWritebackTests.swift",
+              "note": "连续斜杠与组合键中断的原文保留回归。"
+            },
+            {
+              "kind": "file",
+              "ref": "tests/OwlAICandidateTests.swift",
+              "note": "两条候选链共享有界上文，排除组字和后文。"
+            }
+          ],
+          "next": "审阅本地修复；合并与发布另行决定，真实宿主及麦克风验收单独进行。"
         }
       ],
       "title": "发布后跟进"

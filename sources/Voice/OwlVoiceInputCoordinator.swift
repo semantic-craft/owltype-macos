@@ -57,6 +57,8 @@ final class OwlVoiceInputCoordinator {
   private var durationTimer: Timer?
   private var dismissTimer: Timer?
   private var recognitionTask: Task<Void, Never>?
+  // Cancellation is cooperative. Every callback must still belong to this recording.
+  private var voiceGeneration: UInt64 = 0
 
   // Dependencies (Injected or defaulted for production & offline testing)
   var audioRecorder: OwlAudioRecordingProtocol = OwlVoiceAudioRecorder.shared
@@ -166,6 +168,11 @@ final class OwlVoiceInputCoordinator {
   // MARK: - Workflow Actions
 
   func startVoiceInput() {
+    guard mode == .idle else { return }
+    voiceGeneration &+= 1
+    let generation = voiceGeneration
+    dismissTimer?.invalidate()
+    dismissTimer = nil
     if isSecureInputActive() {
       hudPanel.present(state: .failed("密码输入模式下已禁用语音输入"), anchor: .zero)
       scheduleDismiss(after: 2.0)
@@ -216,6 +223,7 @@ final class OwlVoiceInputCoordinator {
         Task { @MainActor [weak self] in
           guard let self else { return }
           let granted = await requester()
+          guard self.voiceGeneration == generation else { return }
           if granted {
             self.beginAudioRecording(anchor: anchor, initialMode: .toggled(startTime: Date()))
           } else {
@@ -236,20 +244,21 @@ final class OwlVoiceInputCoordinator {
 
   private func beginAudioRecording(anchor: NSRect, initialMode: Mode) {
     // 2. Start Audio Recording
+    let generation = voiceGeneration
     do {
       mode = initialMode
       hudPanel.present(state: .recording(level: 0.0, duration: 0.0, isHandsFreeLocked: false), anchor: anchor)
 
       audioRecorder.audioLevelHandler = { [weak self] level in
         Task { @MainActor [weak self] in
-          guard let self else { return }
+          guard let self, self.voiceGeneration == generation else { return }
           self.updateRecordingHUD(level: level)
         }
       }
 
       audioRecorder.autoStopHandler = { [weak self] in
         Task { @MainActor [weak self] in
-          guard let self else { return }
+          guard let self, self.voiceGeneration == generation else { return }
           self.finishRecordingAndTranscribe()
         }
       }
@@ -264,6 +273,11 @@ final class OwlVoiceInputCoordinator {
   }
 
   func finishRecordingAndTranscribe() {
+    switch mode {
+    case .holding, .toggled, .handsFreeLocked: break
+    default: return
+    }
+    let generation = voiceGeneration
     stopDurationTimer()
 
     let wavData: Data
@@ -286,58 +300,51 @@ final class OwlVoiceInputCoordinator {
     hudPanel.present(state: .recognizing, anchor: anchor)
 
     recognitionTask?.cancel()
-    recognitionTask = Task { [weak self] in
-      guard let self else { return }
+    recognitionTask = Task { @MainActor [weak self] in
+      guard let self, self.voiceGeneration == generation else { return }
+      defer {
+        if self.voiceGeneration == generation { self.recognitionTask = nil }
+      }
       do {
-        // Step 1: Grok ASR Transcription with Hotwords Prompt
         let hotwords = self.hotwordsExtractor.extractHotwords(limit: 50)
         let prompt = self.hotwordsExtractor.buildPrompt(preContext: snapshot?.preContext, hotwords: hotwords, maxBytes: 800)
-        let promptToSend = prompt.isEmpty ? nil : prompt
-        let rawTranscript = try await self.asrClient.transcribe(audioWavData: wavData, prompt: promptToSend)
+        let rawTranscript = try await self.asrClient.transcribe(
+          audioWavData: wavData, prompt: prompt.isEmpty ? nil : prompt)
+        guard self.voiceGeneration == generation else { return }
         try Task.checkCancellation()
 
         let trimmed = rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-          await MainActor.run {
-            self.cancelVoiceInput()
-          }
+          self.cancelVoiceInput()
           return
         }
 
-        // Step 2: Post-Processing Polish (if enabled)
         if self.isPolishEnabled, let polisher = self.postProcessor {
-          // Subtitle preview in .polishing
-          await MainActor.run {
-            self.mode = .polishing(rawTranscript: trimmed)
-            self.hudPanel.updateState(.polishing(rawTranscript: trimmed), anchor: anchor)
-          }
+          self.mode = .polishing(rawTranscript: trimmed)
+          self.hudPanel.updateState(.polishing(rawTranscript: trimmed), anchor: anchor)
           do {
-            let polishedText = try await polisher.polish(rawTranscript: trimmed, hotwords: hotwords, preContext: snapshot?.preContext)
+            let polishedText = try await polisher.polish(
+              rawTranscript: trimmed, hotwords: hotwords, preContext: snapshot?.preContext)
+            guard self.voiceGeneration == generation else { return }
             try Task.checkCancellation()
-            await MainActor.run {
-              self.deliverFinalText(polishedText)
-            }
-          } catch is CancellationError {
-            await MainActor.run {
-              self.cancelVoiceInput()
-            }
+            self.deliverFinalText(polishedText)
           } catch {
-            // Degrade gracefully to raw transcript on polish error/timeout
-            await MainActor.run {
+            guard self.voiceGeneration == generation else { return }
+            if Task.isCancelled || error is CancellationError {
+              self.cancelVoiceInput()
+            } else {
+              // Only the current recording may degrade to its raw transcript.
               self.deliverFinalText(trimmed)
             }
           }
         } else {
-          await MainActor.run {
-            self.deliverFinalText(trimmed)
-          }
-        }
-      } catch is CancellationError {
-        await MainActor.run {
-          self.cancelVoiceInput()
+          self.deliverFinalText(trimmed)
         }
       } catch {
-        await MainActor.run {
+        guard self.voiceGeneration == generation else { return }
+        if Task.isCancelled || error is CancellationError {
+          self.cancelVoiceInput()
+        } else {
           self.mode = .failed(error.localizedDescription)
           self.hudPanel.present(state: .failed(error.localizedDescription), anchor: anchor)
           self.scheduleDismiss(after: 2.0)
@@ -347,6 +354,9 @@ final class OwlVoiceInputCoordinator {
   }
 
   func cancelVoiceInput() {
+    voiceGeneration &+= 1
+    dismissTimer?.invalidate()
+    dismissTimer = nil
     stopDurationTimer()
     recognitionTask?.cancel()
     recognitionTask = nil
@@ -398,10 +408,11 @@ final class OwlVoiceInputCoordinator {
   }
 
   private func startDurationTimer() {
+    let generation = voiceGeneration
     durationTimer?.invalidate()
     durationTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
       Task { @MainActor [weak self] in
-        guard let self else { return }
+        guard let self, self.voiceGeneration == generation else { return }
         switch self.mode {
         case let .holding(t0), let .toggled(t0), let .handsFreeLocked(t0):
           let dur = Date().timeIntervalSince(t0)
@@ -421,10 +432,11 @@ final class OwlVoiceInputCoordinator {
   }
 
   private func scheduleDismiss(after interval: TimeInterval) {
+    let generation = voiceGeneration
     dismissTimer?.invalidate()
     dismissTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
       Task { @MainActor [weak self] in
-        guard let self else { return }
+        guard let self, self.voiceGeneration == generation else { return }
         self.hudPanel.dismiss()
         self.mode = .idle
       }

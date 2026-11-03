@@ -90,6 +90,16 @@ final class OwlAICommandDetector {
     }
   }
 
+  /// Return a partially typed command to normal host input before abandoning detection.
+  func flushPendingText() -> String {
+    defer { reset() }
+    switch state {
+    case .idle: return ""
+    case .sawSlash: return "/"
+    case .sawSlashA: return "/a"
+    }
+  }
+
   func reset() {
     state = .idle
   }
