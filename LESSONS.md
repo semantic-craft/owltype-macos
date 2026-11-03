@@ -1402,3 +1402,9 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
   and compares the daily persistent domain after each transition. The existing
   bridge switch test checks listener start/stop. Confirm the isolated suite is
   removed after the host exits; never seed the user's daily preference for a red run.
+
+## Kotone socket v1 reply model must enforce whole-group candidate invariants and preserve safe failure codes
+
+- Seen 1x (2026-11-03): `JEVReplyModel` in `sources/UI/JEVReplyPanel.swift` previously accepted any non-empty candidate array without checking the 2–3 count, trimmed uniqueness, or 2000 Unicode scalar limit, treated `status: "needs_clarification"` (empty candidates) as a generic failure, and collapsed all `ok: false` responses into `JEVTransport.Failure.invalid`.
+- Enforce the Owltype v1 compatibility table in `JEVReplyModel.validateAndExtractCandidates`: handle `status == "needs_clarification"` with empty `candidates` as a clarification prompt, accept missing `status` as legacy `ready` and missing `source` as legacy v1 request-bound compatibility (while rejecting `null` or mismatched `source`/`status`), require 2–3 unique non-empty trimmed candidates of at most 2000 Unicode scalars (rejecting the entire group on any violation), and map allowlisted `ok == false` codes (`paused`, `scenario_disabled`, `request_invalidated`, `model_quota_exhausted`, `model_rate_limited`) to local static messages without echoing provider text.
+- Verify (验证点): `python3 scripts/verify.py swift --test JEVReplyModelTests` passes all v1 compatibility, safe error code, and late cancelled response cases.
