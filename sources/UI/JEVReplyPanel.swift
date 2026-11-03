@@ -46,7 +46,37 @@ enum JEVTransport {
     }
     throw Failure.invalid
   }
-  enum Failure: Error { case unavailable, invalid }
+  enum Failure: Error, Equatable {
+    case unavailable
+    case invalid
+    case remote(SafeReason)
+  }
+
+  enum SafeReason: String, Sendable, Equatable {
+    case paused
+    case scenarioDisabled = "scenario_disabled"
+    case requestInvalidated = "request_invalidated"
+    case modelQuotaExhausted = "model_quota_exhausted"
+    case modelRateLimited = "model_rate_limited"
+    case serviceUnavailable = "service_unavailable"
+
+    var message: String {
+      switch self {
+      case .paused:
+        return "Kotone 已全局暂停；原选区和本次要求已保留，不会自动调用其他服务。"
+      case .scenarioDisabled:
+        return "Kotone 回复与表达场景已停用；原选区和本次要求已保留，不会自动调用其他服务。"
+      case .requestInvalidated:
+        return "等待期间 Kotone 场景状态已变化，旧请求已失效；原选区和本次要求已保留。"
+      case .modelQuotaExhausted:
+        return "模型可用配额不足；原选区和本次要求已保留，未自动重试。"
+      case .modelRateLimited:
+        return "模型服务暂时限流；原选区和本次要求已保留，未自动重试。"
+      case .serviceUnavailable:
+        return "未能取得候选。请检查本地服务和完整选区后重试。"
+      }
+    }
+  }
 }
 
 struct JEVStyle: Codable, Equatable {
@@ -97,8 +127,64 @@ final class JEVReplyModel: ObservableObject {
     }.value
     try Task.checkCancellation()
     guard let value = try JSONSerialization.jsonObject(with: response) as? [String: Any],
-          value["ok"] as? Bool == true, value["version"] as? Int == 1 else { throw JEVTransport.Failure.invalid }
+          let versionNumber = value["version"] as? NSNumber,
+          CFGetTypeID(versionNumber) != CFBooleanGetTypeID(),
+          versionNumber.intValue == 1,
+          let okNumber = value["ok"] as? NSNumber, CFGetTypeID(okNumber) == CFBooleanGetTypeID() else {
+      throw JEVTransport.Failure.invalid
+    }
+    if !okNumber.boolValue {
+      if let rawCode = value["code"] {
+        guard let codeString = rawCode as? String else {
+          throw JEVTransport.Failure.invalid
+        }
+        if let safe = JEVTransport.SafeReason(rawValue: codeString), safe != .serviceUnavailable {
+          throw JEVTransport.Failure.remote(safe)
+        }
+      }
+      throw JEVTransport.Failure.remote(.serviceUnavailable)
+    }
     return value
+  }
+
+  static func validateAndExtractCandidates(from value: [String: Any], expectedSource: String) throws -> (needsClarification: Bool, candidates: [String]) {
+    if let rawSource = value["source"] {
+      guard let sourceString = rawSource as? String, sourceString == expectedSource else {
+        throw JEVTransport.Failure.invalid
+      }
+    }
+    if let rawStatus = value["status"] {
+      guard let statusString = rawStatus as? String else {
+        throw JEVTransport.Failure.invalid
+      }
+      if statusString == "needs_clarification" {
+        guard let rawCandidates = value["candidates"] as? [Any], rawCandidates.isEmpty else {
+          throw JEVTransport.Failure.invalid
+        }
+        return (true, [])
+      }
+      guard statusString == "ready" else {
+        throw JEVTransport.Failure.invalid
+      }
+    }
+    guard let rawRows = value["candidates"] as? [Any], (2...3).contains(rawRows.count) else {
+      throw JEVTransport.Failure.invalid
+    }
+    var trimmedTexts: [String] = []
+    var seen: Set<String> = []
+    for item in rawRows {
+      guard let row = item as? [String: Any],
+            let rawText = row["text"] as? String else {
+        throw JEVTransport.Failure.invalid
+      }
+      let trimmed = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !trimmed.isEmpty, trimmed.unicodeScalars.count <= 2000, !seen.contains(trimmed) else {
+        throw JEVTransport.Failure.invalid
+      }
+      seen.insert(trimmed)
+      trimmedTexts.append(trimmed)
+    }
+    return (false, trimmedTexts)
   }
 
   func load() {
@@ -146,15 +232,23 @@ final class JEVReplyModel: ObservableObject {
         guard style == currentStyle, instructions == currentInstructions, text == currentText,
 
               value["request_id"] as? String == token.uuidString else { throw JEVTransport.Failure.invalid }
-        guard let rows = value["candidates"] as? [[String: Any]],
-              !rows.isEmpty, rows.allSatisfy({ ($0["text"] as? String)?.isEmpty == false }) else {
-          throw JEVTransport.Failure.invalid
+        let validated = try Self.validateAndExtractCandidates(from: value, expectedSource: source)
+        if validated.needsClarification {
+          candidates = []
+          status = "请补充这次想怎么回复，再重新生成候选。"
+          busy = false
+          return
         }
-        candidates = rows.compactMap { $0["text"] as? String }
+        candidates = validated.candidates
         let verdict = value["verdict"] as? [String: Any]
         status = "判断：\(verdict?["intent"] as? String ?? "已完成") · 候选仅供阅读"
+      } catch let JEVTransport.Failure.remote(reason) {
+        guard revision == token else { return }
+        candidates = []
+        status = reason.message
       } catch {
         guard revision == token else { return }
+        candidates = []
         status = "未能取得候选。请检查本地服务和完整选区后重试。"
       }
       if revision == token { busy = false }
