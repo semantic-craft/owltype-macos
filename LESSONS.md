@@ -1427,3 +1427,34 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
 - Seen 1x (2026-11-03): `JEVReplyModel` in `sources/UI/JEVReplyPanel.swift` previously accepted any non-empty candidate array without checking the 2–3 count, trimmed uniqueness, or 2000 Unicode scalar limit, treated `status: "needs_clarification"` (empty candidates) as a generic failure, and collapsed all `ok: false` responses into `JEVTransport.Failure.invalid`.
 - Enforce the Owltype v1 compatibility table in `JEVReplyModel.validateAndExtractCandidates`: handle `status == "needs_clarification"` with empty `candidates` as a clarification prompt, accept missing `status` as legacy `ready` and missing `source` as legacy v1 request-bound compatibility (while rejecting `null` or mismatched `source`/`status`), require 2–3 unique non-empty trimmed candidates of at most 2000 Unicode scalars (rejecting the entire group on any violation), and map allowlisted `ok == false` codes (`paused`, `scenario_disabled`, `request_invalidated`, `model_quota_exhausted`, `model_rate_limited`) to local static messages without echoing provider text.
 - Verify (验证点): `python3 scripts/verify.py swift --test JEVReplyModelTests` passes all v1 compatibility, safe error code, and late cancelled response cases.
+
+## Reply candidates need a total deadline and revocable copy ownership
+
+- Seen 1x (2026-11-02): the optional reply client accepted one, four, duplicate and blank
+  candidates. The new public-model regression failed four assertions before enforcing the
+  shared 2–3 distinct-text contract. It also had no explicit copy effect and disabled editing
+  while generation was running, preventing the requested mid-flight correction.
+- Copy now requires a current candidate and writes only on the explicit button action.
+  Editing, cancellation and closing retire its request identity. Nonblocking socket I/O
+  uses one monotonic deadline; a service sending intermittent bytes cannot reset the limit.
+- Verify (验证点): `python3 scripts/verify.py swift --test JEVReplyModelTests --test JEVTransportTests`
+  covers candidate admission, a private pasteboard, an old response released after a new
+  result, real-socket cancellation/deadlines and ordinary pinyin after service unavailability.
+  `bash scripts/live-test.selftest.sh` keeps the local-service profile restricted to its own
+  live suite without weakening other providers' credential and skip-as-failure checks.
+- Scope: isolated native model, real socket and engine tests. Installed selection, focus,
+  shortcut and input-method acceptance remain separate; a safely failed live generation
+  must be recorded as failure, not as language-quality success.
+
+## Keep the offline test exclusion contract in sync with new live suites
+
+- Seen 1x (2026-11-02): adding `JEVReplyServiceLiveTests` to the product test
+  exclusions left the release-chain selftest expecting exactly five skipped suites.
+  Native tests passed, but the complete gate correctly rejected the stale contract.
+- The selftest now names the local-service suite alongside the five credential-gated
+  suites. Keep the exact exclusion count and per-suite uniqueness checks; do not
+  replace them with a broad Live-name match or permit skipping offline privacy tests.
+- Verify (验证点): `bash scripts/release-chain.selftest.sh` checks the actual `make -n test`
+  output; `bash scripts/live-test.selftest.sh` checks that the local-service profile
+  cannot select provider suites or treat a skipped live test as success. These are
+  synthetic script checks, not live-service or installed-host acceptance.

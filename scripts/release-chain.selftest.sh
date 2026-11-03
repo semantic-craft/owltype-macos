@@ -79,6 +79,7 @@ import sys
 
 text = open(sys.argv[1]).read()
 suites = (
+    "JEVReplyServiceLiveTests",
     "OwlGoalBriefLiveTests",
     "OwlPromptOptimizeLiveTests",
     "OwlResponsesPromptEvaluationLiveTests",
@@ -91,10 +92,10 @@ for suite in suites:
     assert text.count(f"-skip-testing:OwltypeTests/{suite}") == 1, (suite, text)
 PY
 then
-  ok "product test entrypoint excludes only the five credential-gated Live suites"
+  ok "product test entrypoint excludes only the six explicit-service or credential-gated Live suites"
 else
   sed 's/^/     /' "$test_trace" >&2
-  bad "product test entrypoint must run offline privacy tests and exclude credential-gated Live suites"
+  bad "product test entrypoint must run offline privacy tests and exclude explicit-service or credential-gated Live suites"
 fi
 
 source_mode_repo="$work/source-mode-repo"

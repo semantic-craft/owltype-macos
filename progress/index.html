@@ -3,7 +3,7 @@
 <title>Owltype · 水杉输入对齐</title>
 <style>body{font:16px system-ui;max-width:960px;margin:3rem auto;padding:0 1rem;color:#202936;background:#f7f8fb}article,section{padding:1rem;margin:1rem 0;background:white;border-radius:12px}a{color:#1555ac}.badge{padding:.25rem .6rem;border-radius:20px;background:#e9edf5}small{color:#566}</style>
 <h1>Owltype · 水杉输入对齐</h1>
-<p>Observed: 2026-11-03T02:17:57.836206Z</p>
+<p>Observed: 2026-11-03T07:50:20.228804Z</p>
 <p>Main: <code>main: f0c1ef5facc959f2d5e7c7d7a37aeee64291b308</code></p>
 <section id="contract"><h2>共同入口与领取</h2>
 <article id="coordination"><h3>GitHub 为真源；两个输入方案共用设施</h3><span class="badge">in_progress</span><p>本页是带观察时间的快照。阻塞按 GitHub 原生依赖计算；负责人只表示 GitHub 指派，不冒充 agent 会话。工单关闭不自动等于产品验收。</p><ul>
@@ -98,11 +98,13 @@
 <article id="issue-317"><h3>#317 [清理] 移除 Rime 残留子模块、构建路径与命名</h3><span class="badge">unverified</span><p>GitHub: closed；负责人：未指派；未关闭前置：无。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/317">issue 317: 范围、当前状态和证据原件</a></li>
 </ul><p>Next: 核对工单完成证据。</p></article>
-<article id="ai-voice-regressions"><h3>2.4.0 AI 候选、语音与指令输入回归修复</h3><span class="badge">in_progress</span><p>本地实现四项修复：旧语音回调按代次隔离，连续斜杠只输入一次，快捷键前保留 /ai 前缀，AI 与 Jev 读取组字前的有效上文。新增 6 项回归在原代码失败，修复后相关 134 项测试通过；完整 gate 以对应提交的本地回执为准。未推送、未合并、未发布，装机验收未验证。</p><ul>
+<article id="ai-voice-regressions"><h3>2.4.1 AI 供应商收敛、三卡片设置重组、语音/指令回归修复与 Kotone v1 协议对齐</h3><span class="badge">in_progress</span><p>整合六大核心模型供应商（Qwen、Doubao、Grok、OpenAI、Gemini、DeepSeek）与五套云端语音识别（ASR）预设，支持复用模型供应商密钥并重组 AI 设置页为三张卡片；合入 2.4.0 四项回归修复（#401）与 Kotone 回复建议可取消、显式复制及 v1 安全错误码对齐（#388, #402）。本地单元与集成测试通过，待完成完整门禁、PR 合并与 2.4.1 签名发版。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/sources/Settings/OwlAIPage.swift">file sources/Settings/OwlAIPage.swift: 三卡片布局、六核心供应商徽标与五供应商语音 ASR 密钥复用状态展示。</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/tests/OwlVoiceInputIntegrationTests.swift">file tests/OwlVoiceInputIntegrationTests.swift: 旧 ASR 返回与旧润色错误不能影响下一次录音或目标。</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/tests/OwlAIWindowWritebackTests.swift">file tests/OwlAIWindowWritebackTests.swift: 连续斜杠与组合键中断的原文保留回归。</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/tests/OwlAICandidateTests.swift">file tests/OwlAICandidateTests.swift: 两条候选链共享有界上文，排除组字和后文。</a></li>
-</ul><p>Next: 审阅本地修复；合并与发布另行决定，真实宿主及麦克风验收单独进行。</p></article>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/tests/JEVReplyModelTests.swift">file tests/JEVReplyModelTests.swift: Kotone 候选显式复制、非阻塞截止/取消与 v1 安全错误码校验。</a></li>
+</ul><p>Next: 运行完整本地门禁并通过 PR 合并后执行 2.4.1 签名公证与发布。</p></article>
 </section>
 <section id="rust-business"><h2>Rust 业务核心迁移</h2>
 <article id="issue-356"><h3>#356 [目标] 业务核心全面迁入 Rust，Swift 仅保留 macOS 界面与系统适配</h3><span class="badge">unverified</span><p>GitHub: closed；负责人：未指派；未关闭前置：无。</p><ul>
@@ -144,5 +146,8 @@
 </section>
 <section><h2>Open pull requests</h2><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/pull/388">#388</a> <code>64f33f15ad866cf4f3377aa6eeb457253960e5ac</code></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/pull/401">#401</a> <code>a75756c3d322d31d080af95a3299346efbe63765</code></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/pull/402">#402</a> <code>908fc6d45ec84ab5a04c7e94a8e2f56444bffb02</code></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/pull/403">#403</a> <code>693867a3c2e6c9cb5a8e34c20dd937dcb884bf1c</code></li>
 </ul><h2>Recent releases</h2><ul>
 </ul></section></html>
