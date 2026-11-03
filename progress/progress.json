@@ -1,6 +1,6 @@
 {
   "facts": {
-    "main": "08385f2277c76305bfd132760fad881e7f09d94d",
+    "main": "7598e7b40d84b9ae032a4d42aa18a241b009594c",
     "default_branch": "main",
     "pulls": [
       {
@@ -345,7 +345,7 @@
     "docs/input-alignment.md",
     "progress/sync.py"
   ],
-  "observed_at": "2026-11-03T15:07:25.779599Z",
+  "observed_at": "2026-11-03T16:45:57.153801Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -361,6 +361,30 @@
     {
       "id": "project-review",
       "items": [
+        {
+          "id": "kotone-reply-contract",
+          "title": "Kotone 回复契约兼容检查",
+          "status": "in_progress",
+          "summary": "源码已增加 optional reply contract 身份与严格版本检查，旧服务缺字段兼容；冻结 12 案例直接覆盖生产解析器。本轮 34 项离线 Swift 回归通过，默认关闭、cloud gate、只读复制与普通输入路径保留。",
+          "next": "完成精确提交的全量合并门禁与合并。真实供应商调用、已安装 IMK 与用户体验验收另行记录。",
+          "evidence": [
+            {
+              "kind": "file",
+              "ref": "sources/UI/JEVReplyPanel.swift",
+              "note": "候选解析入口同时校验既有 source/status/candidates/session 与新增 contract。"
+            },
+            {
+              "kind": "file",
+              "ref": "tests/JEVReplyModelTests.swift",
+              "note": "JEVReplyModelTests、JEVTransportTests、OwlSettingsActionTests 共 34 项通过；含共享样例 SHA-256/source 版本与来源提交核对。"
+            },
+            {
+              "kind": "file",
+              "ref": "docs/operations/jev-replies.md",
+              "note": "部署说明改为 Kotone office；Jev 选词仍为现有通用文本模型，不迁移实现。"
+            }
+          ]
+        },
         {
           "id": "review-backlog",
           "title": "8 张开放工单：功能余项、可选改进与历史证据分开处理",

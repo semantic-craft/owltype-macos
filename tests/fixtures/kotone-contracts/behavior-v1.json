@@ -1,0 +1,2737 @@
+{
+  "schema": "kotone-behavior",
+  "version": 1,
+  "voice": [
+    {
+      "id": "dictation",
+      "entry": "model",
+      "request": {
+        "request_id": "dictation",
+        "transcript": "合成契约测试输入",
+        "preferences": {},
+        "constraints": {}
+      },
+      "response": {
+        "id": "fixture-dictation",
+        "version": "office-v4",
+        "route": "dictation",
+        "confidence": 0.95,
+        "provider": "fixture-judge",
+        "decision": {
+          "request_id": "dictation",
+          "task": "dictation",
+          "transform": "raw",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": null,
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        },
+        "answers": [
+          {
+            "name": "task",
+            "type": "choice",
+            "choice": "dictation",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "verbatim",
+                "probability": 0.0
+              },
+              {
+                "value": "dictation",
+                "probability": 1.0
+              },
+              {
+                "value": "idiomatic",
+                "probability": 0.0
+              },
+              {
+                "value": "prompt",
+                "probability": 0.0
+              },
+              {
+                "value": "ambitious",
+                "probability": 0.0
+              },
+              {
+                "value": "rea",
+                "probability": 0.0
+              },
+              {
+                "value": "reply",
+                "probability": 0.0
+              },
+              {
+                "value": "choose",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "explanation",
+            "type": "choice",
+            "choice": "default",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "default",
+                "probability": 1.0
+              },
+              {
+                "value": "expand",
+                "probability": 0.0
+              },
+              {
+                "value": "result_only",
+                "probability": 0.0
+              },
+              {
+                "value": "only_explain",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "language",
+            "type": "choice",
+            "choice": "unspecified",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "en-US",
+                "probability": 0.0
+              },
+              {
+                "value": "de-DE",
+                "probability": 0.0
+              },
+              {
+                "value": "ja-JP",
+                "probability": 0.0
+              },
+              {
+                "value": "zh-CN",
+                "probability": 0.0
+              },
+              {
+                "value": "unspecified",
+                "probability": 1.0
+              }
+            ]
+          }
+        ],
+        "contract": {
+          "name": "voice-route",
+          "version": 1,
+          "build_identity": "fixture-build",
+          "request_id": "dictation",
+          "source": "responsay",
+          "rule_version": "office-v4"
+        }
+      },
+      "expected": {
+        "kotone": {
+          "request_id": "dictation",
+          "task": "dictation",
+          "transform": "raw",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": null,
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        },
+        "responsay": {
+          "request_id": "dictation",
+          "task": "dictation",
+          "transform": "raw",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": null,
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        }
+      }
+    },
+    {
+      "id": "dictation-only-explain",
+      "entry": "model",
+      "request": {
+        "request_id": "dictation-only-explain",
+        "transcript": "合成契约测试输入",
+        "preferences": {},
+        "constraints": {}
+      },
+      "response": {
+        "id": "fixture-dictation-only-explain",
+        "version": "office-v4",
+        "route": "dictation",
+        "confidence": 0.95,
+        "provider": "fixture-judge",
+        "decision": {
+          "request_id": "dictation-only-explain",
+          "task": "dictation",
+          "transform": "raw",
+          "status": "ready",
+          "explanation_source": "spoken",
+          "prompt_mode": null,
+          "target_language": null,
+          "explanation_policy": "only_explain"
+        },
+        "answers": [
+          {
+            "name": "task",
+            "type": "choice",
+            "choice": "dictation",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "verbatim",
+                "probability": 0.0
+              },
+              {
+                "value": "dictation",
+                "probability": 1.0
+              },
+              {
+                "value": "idiomatic",
+                "probability": 0.0
+              },
+              {
+                "value": "prompt",
+                "probability": 0.0
+              },
+              {
+                "value": "ambitious",
+                "probability": 0.0
+              },
+              {
+                "value": "rea",
+                "probability": 0.0
+              },
+              {
+                "value": "reply",
+                "probability": 0.0
+              },
+              {
+                "value": "choose",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "explanation",
+            "type": "choice",
+            "choice": "only_explain",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "default",
+                "probability": 0.0
+              },
+              {
+                "value": "expand",
+                "probability": 0.0
+              },
+              {
+                "value": "result_only",
+                "probability": 0.0
+              },
+              {
+                "value": "only_explain",
+                "probability": 1.0
+              }
+            ]
+          },
+          {
+            "name": "language",
+            "type": "choice",
+            "choice": "unspecified",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "en-US",
+                "probability": 0.0
+              },
+              {
+                "value": "de-DE",
+                "probability": 0.0
+              },
+              {
+                "value": "ja-JP",
+                "probability": 0.0
+              },
+              {
+                "value": "zh-CN",
+                "probability": 0.0
+              },
+              {
+                "value": "unspecified",
+                "probability": 1.0
+              }
+            ]
+          }
+        ],
+        "contract": {
+          "name": "voice-route",
+          "version": 1,
+          "build_identity": "fixture-build",
+          "request_id": "dictation-only-explain",
+          "source": "responsay",
+          "rule_version": "office-v4"
+        }
+      },
+      "expected": {
+        "kotone": {
+          "request_id": "dictation-only-explain",
+          "task": "dictation",
+          "transform": "raw",
+          "status": "ready",
+          "explanation_source": "spoken",
+          "prompt_mode": null,
+          "target_language": null,
+          "explanation_policy": "only_explain"
+        },
+        "responsay": {
+          "request_id": "dictation-only-explain",
+          "task": "dictation",
+          "transform": "raw",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": null,
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        }
+      }
+    },
+    {
+      "id": "prompt-preferred-language",
+      "entry": "model",
+      "request": {
+        "request_id": "prompt-preferred-language",
+        "transcript": "合成契约测试输入",
+        "preferences": {
+          "target_language": "de-DE"
+        },
+        "constraints": {}
+      },
+      "response": {
+        "id": "fixture-prompt-preferred-language",
+        "version": "office-v4",
+        "route": "prompt",
+        "confidence": 0.95,
+        "provider": "fixture-judge",
+        "decision": {
+          "request_id": "prompt-preferred-language",
+          "task": "prompt",
+          "transform": "prompt",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": "fable",
+          "target_language": "de-DE",
+          "explanation_policy": "collapsed"
+        },
+        "answers": [
+          {
+            "name": "task",
+            "type": "choice",
+            "choice": "prompt",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "verbatim",
+                "probability": 0.0
+              },
+              {
+                "value": "dictation",
+                "probability": 0.0
+              },
+              {
+                "value": "idiomatic",
+                "probability": 0.0
+              },
+              {
+                "value": "prompt",
+                "probability": 1.0
+              },
+              {
+                "value": "ambitious",
+                "probability": 0.0
+              },
+              {
+                "value": "rea",
+                "probability": 0.0
+              },
+              {
+                "value": "reply",
+                "probability": 0.0
+              },
+              {
+                "value": "choose",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "explanation",
+            "type": "choice",
+            "choice": "default",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "default",
+                "probability": 1.0
+              },
+              {
+                "value": "expand",
+                "probability": 0.0
+              },
+              {
+                "value": "result_only",
+                "probability": 0.0
+              },
+              {
+                "value": "only_explain",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "language",
+            "type": "choice",
+            "choice": "unspecified",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "en-US",
+                "probability": 0.0
+              },
+              {
+                "value": "de-DE",
+                "probability": 0.0
+              },
+              {
+                "value": "ja-JP",
+                "probability": 0.0
+              },
+              {
+                "value": "zh-CN",
+                "probability": 0.0
+              },
+              {
+                "value": "unspecified",
+                "probability": 1.0
+              }
+            ]
+          }
+        ],
+        "contract": {
+          "name": "voice-route",
+          "version": 1,
+          "build_identity": "fixture-build",
+          "request_id": "prompt-preferred-language",
+          "source": "responsay",
+          "rule_version": "office-v4"
+        }
+      },
+      "expected": {
+        "kotone": {
+          "request_id": "prompt-preferred-language",
+          "task": "prompt",
+          "transform": "prompt",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": "fable",
+          "target_language": "de-DE",
+          "explanation_policy": "collapsed"
+        },
+        "responsay": {
+          "request_id": "prompt-preferred-language",
+          "task": "prompt",
+          "transform": "prompt",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": "fable",
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        }
+      }
+    },
+    {
+      "id": "prompt-practice",
+      "entry": "model",
+      "request": {
+        "request_id": "prompt-practice",
+        "transcript": "合成契约测试输入",
+        "preferences": {
+          "practice": true
+        },
+        "constraints": {}
+      },
+      "response": {
+        "id": "fixture-prompt-practice",
+        "version": "office-v4",
+        "route": "prompt",
+        "confidence": 0.95,
+        "provider": "fixture-judge",
+        "decision": {
+          "request_id": "prompt-practice",
+          "task": "prompt",
+          "transform": "prompt",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": "fable",
+          "target_language": null,
+          "explanation_policy": "expand"
+        },
+        "answers": [
+          {
+            "name": "task",
+            "type": "choice",
+            "choice": "prompt",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "verbatim",
+                "probability": 0.0
+              },
+              {
+                "value": "dictation",
+                "probability": 0.0
+              },
+              {
+                "value": "idiomatic",
+                "probability": 0.0
+              },
+              {
+                "value": "prompt",
+                "probability": 1.0
+              },
+              {
+                "value": "ambitious",
+                "probability": 0.0
+              },
+              {
+                "value": "rea",
+                "probability": 0.0
+              },
+              {
+                "value": "reply",
+                "probability": 0.0
+              },
+              {
+                "value": "choose",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "explanation",
+            "type": "choice",
+            "choice": "default",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "default",
+                "probability": 1.0
+              },
+              {
+                "value": "expand",
+                "probability": 0.0
+              },
+              {
+                "value": "result_only",
+                "probability": 0.0
+              },
+              {
+                "value": "only_explain",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "language",
+            "type": "choice",
+            "choice": "unspecified",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "en-US",
+                "probability": 0.0
+              },
+              {
+                "value": "de-DE",
+                "probability": 0.0
+              },
+              {
+                "value": "ja-JP",
+                "probability": 0.0
+              },
+              {
+                "value": "zh-CN",
+                "probability": 0.0
+              },
+              {
+                "value": "unspecified",
+                "probability": 1.0
+              }
+            ]
+          }
+        ],
+        "contract": {
+          "name": "voice-route",
+          "version": 1,
+          "build_identity": "fixture-build",
+          "request_id": "prompt-practice",
+          "source": "responsay",
+          "rule_version": "office-v4"
+        }
+      },
+      "expected": {
+        "kotone": {
+          "request_id": "prompt-practice",
+          "task": "prompt",
+          "transform": "prompt",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": "fable",
+          "target_language": null,
+          "explanation_policy": "expand"
+        },
+        "responsay": {
+          "request_id": "prompt-practice",
+          "task": "prompt",
+          "transform": "prompt",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": "fable",
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        }
+      }
+    },
+    {
+      "id": "idiomatic-only-explain",
+      "entry": "model",
+      "request": {
+        "request_id": "idiomatic-only-explain",
+        "transcript": "合成契约测试输入",
+        "preferences": {},
+        "constraints": {}
+      },
+      "response": {
+        "id": "fixture-idiomatic-only-explain",
+        "version": "office-v4",
+        "route": "idiomatic",
+        "confidence": 0.95,
+        "provider": "fixture-judge",
+        "decision": {
+          "request_id": "idiomatic-only-explain",
+          "task": "idiomatic",
+          "transform": "idiomatic",
+          "status": "ready",
+          "explanation_source": "spoken",
+          "prompt_mode": null,
+          "target_language": "en-US",
+          "explanation_policy": "only_explain"
+        },
+        "answers": [
+          {
+            "name": "task",
+            "type": "choice",
+            "choice": "idiomatic",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "verbatim",
+                "probability": 0.0
+              },
+              {
+                "value": "dictation",
+                "probability": 0.0
+              },
+              {
+                "value": "idiomatic",
+                "probability": 1.0
+              },
+              {
+                "value": "prompt",
+                "probability": 0.0
+              },
+              {
+                "value": "ambitious",
+                "probability": 0.0
+              },
+              {
+                "value": "rea",
+                "probability": 0.0
+              },
+              {
+                "value": "reply",
+                "probability": 0.0
+              },
+              {
+                "value": "choose",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "explanation",
+            "type": "choice",
+            "choice": "only_explain",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "default",
+                "probability": 0.0
+              },
+              {
+                "value": "expand",
+                "probability": 0.0
+              },
+              {
+                "value": "result_only",
+                "probability": 0.0
+              },
+              {
+                "value": "only_explain",
+                "probability": 1.0
+              }
+            ]
+          },
+          {
+            "name": "language",
+            "type": "choice",
+            "choice": "en-US",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "en-US",
+                "probability": 1.0
+              },
+              {
+                "value": "de-DE",
+                "probability": 0.0
+              },
+              {
+                "value": "ja-JP",
+                "probability": 0.0
+              },
+              {
+                "value": "zh-CN",
+                "probability": 0.0
+              },
+              {
+                "value": "unspecified",
+                "probability": 0.0
+              }
+            ]
+          }
+        ],
+        "contract": {
+          "name": "voice-route",
+          "version": 1,
+          "build_identity": "fixture-build",
+          "request_id": "idiomatic-only-explain",
+          "source": "responsay",
+          "rule_version": "office-v4"
+        }
+      },
+      "expected": {
+        "kotone": {
+          "request_id": "idiomatic-only-explain",
+          "task": "idiomatic",
+          "transform": "idiomatic",
+          "status": "ready",
+          "explanation_source": "spoken",
+          "prompt_mode": null,
+          "target_language": "en-US",
+          "explanation_policy": "only_explain"
+        },
+        "responsay": {
+          "request_id": "idiomatic-only-explain",
+          "task": "idiomatic",
+          "transform": "idiomatic",
+          "status": "ready",
+          "explanation_source": "spoken",
+          "prompt_mode": null,
+          "target_language": "en-US",
+          "explanation_policy": "only_explain"
+        }
+      }
+    },
+    {
+      "id": "idiomatic-missing-language",
+      "entry": "model",
+      "request": {
+        "request_id": "idiomatic-missing-language",
+        "transcript": "合成契约测试输入",
+        "preferences": {},
+        "constraints": {}
+      },
+      "response": {
+        "id": "fixture-idiomatic-missing-language",
+        "version": "office-v4",
+        "route": "choose",
+        "confidence": 0.95,
+        "provider": "fixture-judge",
+        "decision": {
+          "request_id": "idiomatic-missing-language",
+          "task": "idiomatic",
+          "transform": "idiomatic",
+          "status": "needs_choice",
+          "explanation_source": "preferences",
+          "prompt_mode": null,
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        },
+        "answers": [
+          {
+            "name": "task",
+            "type": "choice",
+            "choice": "idiomatic",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "verbatim",
+                "probability": 0.0
+              },
+              {
+                "value": "dictation",
+                "probability": 0.0
+              },
+              {
+                "value": "idiomatic",
+                "probability": 1.0
+              },
+              {
+                "value": "prompt",
+                "probability": 0.0
+              },
+              {
+                "value": "ambitious",
+                "probability": 0.0
+              },
+              {
+                "value": "rea",
+                "probability": 0.0
+              },
+              {
+                "value": "reply",
+                "probability": 0.0
+              },
+              {
+                "value": "choose",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "explanation",
+            "type": "choice",
+            "choice": "default",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "default",
+                "probability": 1.0
+              },
+              {
+                "value": "expand",
+                "probability": 0.0
+              },
+              {
+                "value": "result_only",
+                "probability": 0.0
+              },
+              {
+                "value": "only_explain",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "language",
+            "type": "choice",
+            "choice": "unspecified",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "en-US",
+                "probability": 0.0
+              },
+              {
+                "value": "de-DE",
+                "probability": 0.0
+              },
+              {
+                "value": "ja-JP",
+                "probability": 0.0
+              },
+              {
+                "value": "zh-CN",
+                "probability": 0.0
+              },
+              {
+                "value": "unspecified",
+                "probability": 1.0
+              }
+            ]
+          }
+        ],
+        "contract": {
+          "name": "voice-route",
+          "version": 1,
+          "build_identity": "fixture-build",
+          "request_id": "idiomatic-missing-language",
+          "source": "responsay",
+          "rule_version": "office-v4"
+        }
+      },
+      "expected": {
+        "kotone": {
+          "request_id": "idiomatic-missing-language",
+          "task": "idiomatic",
+          "transform": "idiomatic",
+          "status": "needs_choice",
+          "explanation_source": "preferences",
+          "prompt_mode": null,
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        },
+        "responsay": {
+          "request_id": "idiomatic-missing-language",
+          "task": "idiomatic",
+          "transform": "idiomatic",
+          "status": "needs_choice",
+          "explanation_source": "preferences",
+          "prompt_mode": null,
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        }
+      }
+    },
+    {
+      "id": "ambitious",
+      "entry": "model",
+      "request": {
+        "request_id": "ambitious",
+        "transcript": "合成契约测试输入",
+        "preferences": {},
+        "constraints": {}
+      },
+      "response": {
+        "id": "fixture-ambitious",
+        "version": "office-v4",
+        "route": "ambitious",
+        "confidence": 0.95,
+        "provider": "fixture-judge",
+        "decision": {
+          "request_id": "ambitious",
+          "task": "prompt",
+          "transform": "prompt",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": "ambitious",
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        },
+        "answers": [
+          {
+            "name": "task",
+            "type": "choice",
+            "choice": "ambitious",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "verbatim",
+                "probability": 0.0
+              },
+              {
+                "value": "dictation",
+                "probability": 0.0
+              },
+              {
+                "value": "idiomatic",
+                "probability": 0.0
+              },
+              {
+                "value": "prompt",
+                "probability": 0.0
+              },
+              {
+                "value": "ambitious",
+                "probability": 1.0
+              },
+              {
+                "value": "rea",
+                "probability": 0.0
+              },
+              {
+                "value": "reply",
+                "probability": 0.0
+              },
+              {
+                "value": "choose",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "explanation",
+            "type": "choice",
+            "choice": "default",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "default",
+                "probability": 1.0
+              },
+              {
+                "value": "expand",
+                "probability": 0.0
+              },
+              {
+                "value": "result_only",
+                "probability": 0.0
+              },
+              {
+                "value": "only_explain",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "language",
+            "type": "choice",
+            "choice": "unspecified",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "en-US",
+                "probability": 0.0
+              },
+              {
+                "value": "de-DE",
+                "probability": 0.0
+              },
+              {
+                "value": "ja-JP",
+                "probability": 0.0
+              },
+              {
+                "value": "zh-CN",
+                "probability": 0.0
+              },
+              {
+                "value": "unspecified",
+                "probability": 1.0
+              }
+            ]
+          }
+        ],
+        "contract": {
+          "name": "voice-route",
+          "version": 1,
+          "build_identity": "fixture-build",
+          "request_id": "ambitious",
+          "source": "responsay",
+          "rule_version": "office-v4"
+        }
+      },
+      "expected": {
+        "kotone": {
+          "request_id": "ambitious",
+          "task": "prompt",
+          "transform": "prompt",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": "ambitious",
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        },
+        "responsay": {
+          "request_id": "ambitious",
+          "task": "prompt",
+          "transform": "prompt",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": "ambitious",
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        }
+      }
+    },
+    {
+      "id": "rea",
+      "entry": "model",
+      "request": {
+        "request_id": "rea",
+        "transcript": "合成契约测试输入",
+        "preferences": {},
+        "constraints": {}
+      },
+      "response": {
+        "id": "fixture-rea",
+        "version": "office-v4",
+        "route": "rea",
+        "confidence": 0.95,
+        "provider": "fixture-judge",
+        "decision": {
+          "request_id": "rea",
+          "task": "prompt",
+          "transform": "prompt",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": "rea",
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        },
+        "answers": [
+          {
+            "name": "task",
+            "type": "choice",
+            "choice": "rea",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "verbatim",
+                "probability": 0.0
+              },
+              {
+                "value": "dictation",
+                "probability": 0.0
+              },
+              {
+                "value": "idiomatic",
+                "probability": 0.0
+              },
+              {
+                "value": "prompt",
+                "probability": 0.0
+              },
+              {
+                "value": "ambitious",
+                "probability": 0.0
+              },
+              {
+                "value": "rea",
+                "probability": 1.0
+              },
+              {
+                "value": "reply",
+                "probability": 0.0
+              },
+              {
+                "value": "choose",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "explanation",
+            "type": "choice",
+            "choice": "default",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "default",
+                "probability": 1.0
+              },
+              {
+                "value": "expand",
+                "probability": 0.0
+              },
+              {
+                "value": "result_only",
+                "probability": 0.0
+              },
+              {
+                "value": "only_explain",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "language",
+            "type": "choice",
+            "choice": "unspecified",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "en-US",
+                "probability": 0.0
+              },
+              {
+                "value": "de-DE",
+                "probability": 0.0
+              },
+              {
+                "value": "ja-JP",
+                "probability": 0.0
+              },
+              {
+                "value": "zh-CN",
+                "probability": 0.0
+              },
+              {
+                "value": "unspecified",
+                "probability": 1.0
+              }
+            ]
+          }
+        ],
+        "contract": {
+          "name": "voice-route",
+          "version": 1,
+          "build_identity": "fixture-build",
+          "request_id": "rea",
+          "source": "responsay",
+          "rule_version": "office-v4"
+        }
+      },
+      "expected": {
+        "kotone": {
+          "request_id": "rea",
+          "task": "prompt",
+          "transform": "prompt",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": "rea",
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        },
+        "responsay": {
+          "request_id": "rea",
+          "task": "prompt",
+          "transform": "prompt",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": "rea",
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        }
+      }
+    },
+    {
+      "id": "reply-selection",
+      "entry": "model",
+      "request": {
+        "request_id": "reply-selection",
+        "transcript": "合成契约测试输入",
+        "preferences": {},
+        "constraints": {},
+        "selection": "合成选区问题"
+      },
+      "response": {
+        "id": "fixture-reply-selection",
+        "version": "office-v4",
+        "route": "reply",
+        "confidence": 0.95,
+        "provider": "fixture-judge",
+        "decision": {
+          "request_id": "reply-selection",
+          "task": "reply",
+          "transform": "reply",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": null,
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        },
+        "answers": [
+          {
+            "name": "task",
+            "type": "choice",
+            "choice": "reply",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "verbatim",
+                "probability": 0.0
+              },
+              {
+                "value": "dictation",
+                "probability": 0.0
+              },
+              {
+                "value": "idiomatic",
+                "probability": 0.0
+              },
+              {
+                "value": "prompt",
+                "probability": 0.0
+              },
+              {
+                "value": "ambitious",
+                "probability": 0.0
+              },
+              {
+                "value": "rea",
+                "probability": 0.0
+              },
+              {
+                "value": "reply",
+                "probability": 1.0
+              },
+              {
+                "value": "choose",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "explanation",
+            "type": "choice",
+            "choice": "default",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "default",
+                "probability": 1.0
+              },
+              {
+                "value": "expand",
+                "probability": 0.0
+              },
+              {
+                "value": "result_only",
+                "probability": 0.0
+              },
+              {
+                "value": "only_explain",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "language",
+            "type": "choice",
+            "choice": "unspecified",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "en-US",
+                "probability": 0.0
+              },
+              {
+                "value": "de-DE",
+                "probability": 0.0
+              },
+              {
+                "value": "ja-JP",
+                "probability": 0.0
+              },
+              {
+                "value": "zh-CN",
+                "probability": 0.0
+              },
+              {
+                "value": "unspecified",
+                "probability": 1.0
+              }
+            ]
+          }
+        ],
+        "contract": {
+          "name": "voice-route",
+          "version": 1,
+          "build_identity": "fixture-build",
+          "request_id": "reply-selection",
+          "source": "responsay",
+          "rule_version": "office-v4"
+        }
+      },
+      "expected": {
+        "kotone": {
+          "request_id": "reply-selection",
+          "task": "reply",
+          "transform": "reply",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": null,
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        },
+        "responsay": {
+          "request_id": "reply-selection",
+          "task": "reply",
+          "transform": "reply",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": null,
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        }
+      }
+    },
+    {
+      "id": "reply-no-selection",
+      "entry": "model",
+      "request": {
+        "request_id": "reply-no-selection",
+        "transcript": "合成契约测试输入",
+        "preferences": {},
+        "constraints": {}
+      },
+      "response": {
+        "id": "fixture-reply-no-selection",
+        "version": "office-v4",
+        "route": "reply",
+        "confidence": 0.95,
+        "provider": "fixture-judge",
+        "decision": {
+          "request_id": "reply-no-selection",
+          "task": "reply",
+          "transform": "reply",
+          "status": "needs_choice",
+          "explanation_source": "preferences",
+          "prompt_mode": null,
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        },
+        "answers": [
+          {
+            "name": "task",
+            "type": "choice",
+            "choice": "reply",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "verbatim",
+                "probability": 0.0
+              },
+              {
+                "value": "dictation",
+                "probability": 0.0
+              },
+              {
+                "value": "idiomatic",
+                "probability": 0.0
+              },
+              {
+                "value": "prompt",
+                "probability": 0.0
+              },
+              {
+                "value": "ambitious",
+                "probability": 0.0
+              },
+              {
+                "value": "rea",
+                "probability": 0.0
+              },
+              {
+                "value": "reply",
+                "probability": 1.0
+              },
+              {
+                "value": "choose",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "explanation",
+            "type": "choice",
+            "choice": "default",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "default",
+                "probability": 1.0
+              },
+              {
+                "value": "expand",
+                "probability": 0.0
+              },
+              {
+                "value": "result_only",
+                "probability": 0.0
+              },
+              {
+                "value": "only_explain",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "language",
+            "type": "choice",
+            "choice": "unspecified",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "en-US",
+                "probability": 0.0
+              },
+              {
+                "value": "de-DE",
+                "probability": 0.0
+              },
+              {
+                "value": "ja-JP",
+                "probability": 0.0
+              },
+              {
+                "value": "zh-CN",
+                "probability": 0.0
+              },
+              {
+                "value": "unspecified",
+                "probability": 1.0
+              }
+            ]
+          }
+        ],
+        "contract": {
+          "name": "voice-route",
+          "version": 1,
+          "build_identity": "fixture-build",
+          "request_id": "reply-no-selection",
+          "source": "responsay",
+          "rule_version": "office-v4"
+        }
+      },
+      "expected": {
+        "kotone": {
+          "request_id": "reply-no-selection",
+          "task": "reply",
+          "transform": "reply",
+          "status": "needs_choice",
+          "explanation_source": "preferences",
+          "prompt_mode": null,
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        },
+        "responsay": {
+          "request_id": "reply-no-selection",
+          "task": "reply",
+          "transform": "reply",
+          "status": "needs_choice",
+          "explanation_source": "preferences",
+          "prompt_mode": null,
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        }
+      }
+    },
+    {
+      "id": "manual-policy",
+      "entry": "model",
+      "request": {
+        "request_id": "manual-policy",
+        "transcript": "合成契约测试输入",
+        "preferences": {},
+        "constraints": {
+          "policy_source": "manual",
+          "explanation_policy": "result_only"
+        }
+      },
+      "response": {
+        "id": "fixture-manual-policy",
+        "version": "office-v4",
+        "route": "idiomatic",
+        "confidence": 0.95,
+        "provider": "fixture-judge",
+        "decision": {
+          "request_id": "manual-policy",
+          "task": "idiomatic",
+          "transform": "idiomatic",
+          "status": "ready",
+          "explanation_source": "manual",
+          "prompt_mode": null,
+          "target_language": "en-US",
+          "explanation_policy": "result_only"
+        },
+        "answers": [
+          {
+            "name": "task",
+            "type": "choice",
+            "choice": "idiomatic",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "verbatim",
+                "probability": 0.0
+              },
+              {
+                "value": "dictation",
+                "probability": 0.0
+              },
+              {
+                "value": "idiomatic",
+                "probability": 1.0
+              },
+              {
+                "value": "prompt",
+                "probability": 0.0
+              },
+              {
+                "value": "ambitious",
+                "probability": 0.0
+              },
+              {
+                "value": "rea",
+                "probability": 0.0
+              },
+              {
+                "value": "reply",
+                "probability": 0.0
+              },
+              {
+                "value": "choose",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "explanation",
+            "type": "choice",
+            "choice": "only_explain",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "default",
+                "probability": 0.0
+              },
+              {
+                "value": "expand",
+                "probability": 0.0
+              },
+              {
+                "value": "result_only",
+                "probability": 0.0
+              },
+              {
+                "value": "only_explain",
+                "probability": 1.0
+              }
+            ]
+          },
+          {
+            "name": "language",
+            "type": "choice",
+            "choice": "en-US",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "en-US",
+                "probability": 1.0
+              },
+              {
+                "value": "de-DE",
+                "probability": 0.0
+              },
+              {
+                "value": "ja-JP",
+                "probability": 0.0
+              },
+              {
+                "value": "zh-CN",
+                "probability": 0.0
+              },
+              {
+                "value": "unspecified",
+                "probability": 0.0
+              }
+            ]
+          }
+        ],
+        "contract": {
+          "name": "voice-route",
+          "version": 1,
+          "build_identity": "fixture-build",
+          "request_id": "manual-policy",
+          "source": "responsay",
+          "rule_version": "office-v4"
+        }
+      },
+      "expected": {
+        "kotone": {
+          "request_id": "manual-policy",
+          "task": "idiomatic",
+          "transform": "idiomatic",
+          "status": "ready",
+          "explanation_source": "manual",
+          "prompt_mode": null,
+          "target_language": "en-US",
+          "explanation_policy": "result_only"
+        },
+        "responsay": {
+          "request_id": "manual-policy",
+          "task": "idiomatic",
+          "transform": "idiomatic",
+          "status": "ready",
+          "explanation_source": "manual",
+          "prompt_mode": null,
+          "target_language": "en-US",
+          "explanation_policy": "result_only"
+        }
+      }
+    },
+    {
+      "id": "low-confidence",
+      "entry": "model",
+      "request": {
+        "request_id": "low-confidence",
+        "transcript": "合成契约测试输入",
+        "preferences": {},
+        "constraints": {}
+      },
+      "response": {
+        "id": "fixture-low-confidence",
+        "version": "office-v4",
+        "route": "choose",
+        "confidence": 0.6,
+        "provider": "fixture-judge",
+        "decision": {
+          "request_id": "low-confidence",
+          "task": "choose",
+          "transform": "choose",
+          "status": "needs_choice",
+          "explanation_source": "preferences",
+          "prompt_mode": null,
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        },
+        "answers": [
+          {
+            "name": "task",
+            "type": "choice",
+            "choice": "prompt",
+            "confidence": 0.6,
+            "probabilities": [
+              {
+                "value": "verbatim",
+                "probability": 0.0
+              },
+              {
+                "value": "dictation",
+                "probability": 0.0
+              },
+              {
+                "value": "idiomatic",
+                "probability": 0.0
+              },
+              {
+                "value": "prompt",
+                "probability": 1.0
+              },
+              {
+                "value": "ambitious",
+                "probability": 0.0
+              },
+              {
+                "value": "rea",
+                "probability": 0.0
+              },
+              {
+                "value": "reply",
+                "probability": 0.0
+              },
+              {
+                "value": "choose",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "explanation",
+            "type": "choice",
+            "choice": "default",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "default",
+                "probability": 1.0
+              },
+              {
+                "value": "expand",
+                "probability": 0.0
+              },
+              {
+                "value": "result_only",
+                "probability": 0.0
+              },
+              {
+                "value": "only_explain",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "language",
+            "type": "choice",
+            "choice": "unspecified",
+            "confidence": 0.95,
+            "probabilities": [
+              {
+                "value": "en-US",
+                "probability": 0.0
+              },
+              {
+                "value": "de-DE",
+                "probability": 0.0
+              },
+              {
+                "value": "ja-JP",
+                "probability": 0.0
+              },
+              {
+                "value": "zh-CN",
+                "probability": 0.0
+              },
+              {
+                "value": "unspecified",
+                "probability": 1.0
+              }
+            ]
+          }
+        ],
+        "contract": {
+          "name": "voice-route",
+          "version": 1,
+          "build_identity": "fixture-build",
+          "request_id": "low-confidence",
+          "source": "responsay",
+          "rule_version": "office-v4"
+        }
+      },
+      "expected": {
+        "kotone": {
+          "request_id": "low-confidence",
+          "task": "choose",
+          "transform": "choose",
+          "status": "needs_choice",
+          "explanation_source": "preferences",
+          "prompt_mode": null,
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        },
+        "responsay": {
+          "request_id": "low-confidence",
+          "task": "choose",
+          "transform": "choose",
+          "status": "needs_choice",
+          "explanation_source": "preferences",
+          "prompt_mode": null,
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        }
+      }
+    },
+    {
+      "id": "explicit-verbatim",
+      "entry": "explicit",
+      "request": {
+        "request_id": "explicit-verbatim",
+        "transcript": "合成明确模式输入",
+        "explicit_mode": "verbatim",
+        "preferences": {
+          "dictation_mode": "polished"
+        }
+      },
+      "response": {
+        "id": null,
+        "version": "office-v4",
+        "route": "verbatim",
+        "provider": "deterministic-mode",
+        "decision": {
+          "request_id": "explicit-verbatim",
+          "task": "dictation",
+          "transform": "raw",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": null,
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        },
+        "answers": [
+          {
+            "name": "task",
+            "type": "choice",
+            "choice": "verbatim",
+            "confidence": 1.0,
+            "probabilities": [
+              {
+                "value": "verbatim",
+                "probability": 1.0
+              },
+              {
+                "value": "dictation",
+                "probability": 0.0
+              },
+              {
+                "value": "idiomatic",
+                "probability": 0.0
+              },
+              {
+                "value": "prompt",
+                "probability": 0.0
+              },
+              {
+                "value": "ambitious",
+                "probability": 0.0
+              },
+              {
+                "value": "rea",
+                "probability": 0.0
+              },
+              {
+                "value": "reply",
+                "probability": 0.0
+              },
+              {
+                "value": "choose",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "explanation",
+            "type": "choice",
+            "choice": "default",
+            "confidence": 1.0,
+            "probabilities": [
+              {
+                "value": "default",
+                "probability": 1.0
+              },
+              {
+                "value": "expand",
+                "probability": 0.0
+              },
+              {
+                "value": "result_only",
+                "probability": 0.0
+              },
+              {
+                "value": "only_explain",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "language",
+            "type": "choice",
+            "choice": "unspecified",
+            "confidence": 1.0,
+            "probabilities": [
+              {
+                "value": "en-US",
+                "probability": 0.0
+              },
+              {
+                "value": "de-DE",
+                "probability": 0.0
+              },
+              {
+                "value": "ja-JP",
+                "probability": 0.0
+              },
+              {
+                "value": "zh-CN",
+                "probability": 0.0
+              },
+              {
+                "value": "unspecified",
+                "probability": 1.0
+              }
+            ]
+          }
+        ],
+        "contract": {
+          "name": "voice-route",
+          "version": 1,
+          "build_identity": "fixture-build",
+          "request_id": "explicit-verbatim",
+          "source": "responsay",
+          "rule_version": "office-v4"
+        }
+      },
+      "expected": {
+        "kotone": {
+          "request_id": "explicit-verbatim",
+          "task": "dictation",
+          "transform": "raw",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": null,
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        },
+        "responsay": {
+          "request_id": "explicit-verbatim",
+          "task": "dictation",
+          "transform": "raw",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": null,
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        }
+      }
+    },
+    {
+      "id": "explicit-ambitious",
+      "entry": "explicit",
+      "request": {
+        "request_id": "explicit-ambitious",
+        "transcript": "合成明确模式输入",
+        "explicit_mode": "ambitious",
+        "preferences": {
+          "dictation_mode": "polished"
+        }
+      },
+      "response": {
+        "id": null,
+        "version": "office-v4",
+        "route": "ambitious",
+        "provider": "deterministic-mode",
+        "decision": {
+          "request_id": "explicit-ambitious",
+          "task": "prompt",
+          "transform": "prompt",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": "ambitious",
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        },
+        "answers": [
+          {
+            "name": "task",
+            "type": "choice",
+            "choice": "ambitious",
+            "confidence": 1.0,
+            "probabilities": [
+              {
+                "value": "verbatim",
+                "probability": 0.0
+              },
+              {
+                "value": "dictation",
+                "probability": 0.0
+              },
+              {
+                "value": "idiomatic",
+                "probability": 0.0
+              },
+              {
+                "value": "prompt",
+                "probability": 0.0
+              },
+              {
+                "value": "ambitious",
+                "probability": 1.0
+              },
+              {
+                "value": "rea",
+                "probability": 0.0
+              },
+              {
+                "value": "reply",
+                "probability": 0.0
+              },
+              {
+                "value": "choose",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "explanation",
+            "type": "choice",
+            "choice": "default",
+            "confidence": 1.0,
+            "probabilities": [
+              {
+                "value": "default",
+                "probability": 1.0
+              },
+              {
+                "value": "expand",
+                "probability": 0.0
+              },
+              {
+                "value": "result_only",
+                "probability": 0.0
+              },
+              {
+                "value": "only_explain",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "language",
+            "type": "choice",
+            "choice": "unspecified",
+            "confidence": 1.0,
+            "probabilities": [
+              {
+                "value": "en-US",
+                "probability": 0.0
+              },
+              {
+                "value": "de-DE",
+                "probability": 0.0
+              },
+              {
+                "value": "ja-JP",
+                "probability": 0.0
+              },
+              {
+                "value": "zh-CN",
+                "probability": 0.0
+              },
+              {
+                "value": "unspecified",
+                "probability": 1.0
+              }
+            ]
+          }
+        ],
+        "contract": {
+          "name": "voice-route",
+          "version": 1,
+          "build_identity": "fixture-build",
+          "request_id": "explicit-ambitious",
+          "source": "responsay",
+          "rule_version": "office-v4"
+        }
+      },
+      "expected": {
+        "kotone": {
+          "request_id": "explicit-ambitious",
+          "task": "prompt",
+          "transform": "prompt",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": "ambitious",
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        },
+        "responsay": {
+          "request_id": "explicit-ambitious",
+          "task": "prompt",
+          "transform": "prompt",
+          "status": "ready",
+          "explanation_source": "preferences",
+          "prompt_mode": "ambitious",
+          "target_language": null,
+          "explanation_policy": "collapsed"
+        }
+      }
+    },
+    {
+      "id": "explicit-fluent",
+      "entry": "explicit",
+      "request": {
+        "request_id": "explicit-fluent",
+        "transcript": "合成明确模式输入",
+        "explicit_mode": "fluent",
+        "preferences": {
+          "dictation_mode": "polished"
+        }
+      },
+      "response": {
+        "id": null,
+        "version": "office-v4",
+        "route": "prompt",
+        "provider": "deterministic-mode",
+        "decision": {
+          "request_id": "explicit-fluent",
+          "task": "prompt",
+          "transform": "prompt",
+          "status": "ready",
+          "explanation_source": "mode",
+          "prompt_mode": "fluent",
+          "target_language": null,
+          "explanation_policy": "expand"
+        },
+        "answers": [
+          {
+            "name": "task",
+            "type": "choice",
+            "choice": "prompt",
+            "confidence": 1.0,
+            "probabilities": [
+              {
+                "value": "verbatim",
+                "probability": 0.0
+              },
+              {
+                "value": "dictation",
+                "probability": 0.0
+              },
+              {
+                "value": "idiomatic",
+                "probability": 0.0
+              },
+              {
+                "value": "prompt",
+                "probability": 1.0
+              },
+              {
+                "value": "ambitious",
+                "probability": 0.0
+              },
+              {
+                "value": "rea",
+                "probability": 0.0
+              },
+              {
+                "value": "reply",
+                "probability": 0.0
+              },
+              {
+                "value": "choose",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "explanation",
+            "type": "choice",
+            "choice": "default",
+            "confidence": 1.0,
+            "probabilities": [
+              {
+                "value": "default",
+                "probability": 1.0
+              },
+              {
+                "value": "expand",
+                "probability": 0.0
+              },
+              {
+                "value": "result_only",
+                "probability": 0.0
+              },
+              {
+                "value": "only_explain",
+                "probability": 0.0
+              }
+            ]
+          },
+          {
+            "name": "language",
+            "type": "choice",
+            "choice": "unspecified",
+            "confidence": 1.0,
+            "probabilities": [
+              {
+                "value": "en-US",
+                "probability": 0.0
+              },
+              {
+                "value": "de-DE",
+                "probability": 0.0
+              },
+              {
+                "value": "ja-JP",
+                "probability": 0.0
+              },
+              {
+                "value": "zh-CN",
+                "probability": 0.0
+              },
+              {
+                "value": "unspecified",
+                "probability": 1.0
+              }
+            ]
+          }
+        ],
+        "contract": {
+          "name": "voice-route",
+          "version": 1,
+          "build_identity": "fixture-build",
+          "request_id": "explicit-fluent",
+          "source": "responsay",
+          "rule_version": "office-v4"
+        }
+      },
+      "expected": {
+        "kotone": {
+          "request_id": "explicit-fluent",
+          "task": "prompt",
+          "transform": "prompt",
+          "status": "ready",
+          "explanation_source": "mode",
+          "prompt_mode": "fluent",
+          "target_language": null,
+          "explanation_policy": "expand"
+        },
+        "responsay": {
+          "request_id": "explicit-fluent",
+          "task": "prompt",
+          "transform": "prompt",
+          "status": "ready",
+          "explanation_source": "mode",
+          "prompt_mode": "fluent",
+          "target_language": "en-US",
+          "explanation_policy": "expand"
+        }
+      }
+    }
+  ],
+  "reply": [
+    {
+      "id": "legacy",
+      "request": {
+        "version": 1,
+        "operation": "recommend",
+        "source": "responsay-selection",
+        "request_id": "reply-contract",
+        "text": "合成选区问题",
+        "instructions": "请简洁回复"
+      },
+      "response": {
+        "version": 1,
+        "ok": true,
+        "request_id": "reply-contract",
+        "status": "ready",
+        "candidates": [
+          {
+            "text": "合成候选一",
+            "prob": 0.95
+          },
+          {
+            "text": "合成候选二",
+            "prob": 0.9
+          }
+        ]
+      },
+      "expected": {
+        "responsay": "accepted",
+        "owltype": "accepted"
+      }
+    },
+    {
+      "id": "valid",
+      "request": {
+        "version": 1,
+        "operation": "recommend",
+        "source": "responsay-selection",
+        "request_id": "reply-contract",
+        "text": "合成选区问题",
+        "instructions": "请简洁回复"
+      },
+      "response": {
+        "version": 1,
+        "ok": true,
+        "request_id": "reply-contract",
+        "source": "responsay-selection",
+        "status": "ready",
+        "candidates": [
+          {
+            "text": "合成候选一",
+            "prob": 0.95
+          },
+          {
+            "text": "合成候选二",
+            "prob": 0.9
+          }
+        ],
+        "contract": {
+          "name": "reply",
+          "version": 1,
+          "request_id": "reply-contract",
+          "source": "responsay-selection",
+          "rule_version": "replies-v1",
+          "build_identity": "fixture-build"
+        }
+      },
+      "expected": {
+        "responsay": "accepted",
+        "owltype": "accepted"
+      }
+    },
+    {
+      "id": "clarify",
+      "request": {
+        "version": 1,
+        "operation": "recommend",
+        "source": "responsay-selection",
+        "request_id": "reply-contract",
+        "text": "合成选区问题",
+        "instructions": "请简洁回复"
+      },
+      "response": {
+        "version": 1,
+        "ok": true,
+        "request_id": "reply-contract",
+        "source": "responsay-selection",
+        "status": "needs_clarification",
+        "candidates": [],
+        "contract": {
+          "name": "reply",
+          "version": 1,
+          "request_id": "reply-contract",
+          "source": "responsay-selection",
+          "rule_version": "replies-v1",
+          "build_identity": "fixture-build"
+        }
+      },
+      "expected": {
+        "responsay": "needs_clarification",
+        "owltype": "needs_clarification"
+      }
+    },
+    {
+      "id": "mismatched-source",
+      "request": {
+        "version": 1,
+        "operation": "recommend",
+        "source": "responsay-selection",
+        "request_id": "reply-contract",
+        "text": "合成选区问题",
+        "instructions": "请简洁回复"
+      },
+      "response": {
+        "version": 1,
+        "ok": true,
+        "request_id": "reply-contract",
+        "source": "responsay-selection",
+        "status": "ready",
+        "candidates": [
+          {
+            "text": "合成候选一",
+            "prob": 0.95
+          },
+          {
+            "text": "合成候选二",
+            "prob": 0.9
+          }
+        ],
+        "contract": {
+          "name": "reply",
+          "version": 1,
+          "request_id": "reply-contract",
+          "source": "owltype-selection",
+          "rule_version": "replies-v1",
+          "build_identity": "fixture-build"
+        }
+      },
+      "expected": {
+        "responsay": "rejected",
+        "owltype": "rejected"
+      }
+    },
+    {
+      "id": "mismatched-request-id",
+      "request": {
+        "version": 1,
+        "operation": "recommend",
+        "source": "responsay-selection",
+        "request_id": "reply-contract",
+        "text": "合成选区问题",
+        "instructions": "请简洁回复"
+      },
+      "response": {
+        "version": 1,
+        "ok": true,
+        "request_id": "reply-contract",
+        "source": "responsay-selection",
+        "status": "ready",
+        "candidates": [
+          {
+            "text": "合成候选一",
+            "prob": 0.95
+          },
+          {
+            "text": "合成候选二",
+            "prob": 0.9
+          }
+        ],
+        "contract": {
+          "name": "reply",
+          "version": 1,
+          "request_id": "other-request",
+          "source": "responsay-selection",
+          "rule_version": "replies-v1",
+          "build_identity": "fixture-build"
+        }
+      },
+      "expected": {
+        "responsay": "rejected",
+        "owltype": "rejected"
+      }
+    },
+    {
+      "id": "mismatched-version",
+      "request": {
+        "version": 1,
+        "operation": "recommend",
+        "source": "responsay-selection",
+        "request_id": "reply-contract",
+        "text": "合成选区问题",
+        "instructions": "请简洁回复"
+      },
+      "response": {
+        "version": 1,
+        "ok": true,
+        "request_id": "reply-contract",
+        "source": "responsay-selection",
+        "status": "ready",
+        "candidates": [
+          {
+            "text": "合成候选一",
+            "prob": 0.95
+          },
+          {
+            "text": "合成候选二",
+            "prob": 0.9
+          }
+        ],
+        "contract": {
+          "name": "reply",
+          "version": 2,
+          "request_id": "reply-contract",
+          "source": "responsay-selection",
+          "rule_version": "replies-v1",
+          "build_identity": "fixture-build"
+        }
+      },
+      "expected": {
+        "responsay": "rejected",
+        "owltype": "rejected"
+      }
+    },
+    {
+      "id": "mismatched-name",
+      "request": {
+        "version": 1,
+        "operation": "recommend",
+        "source": "responsay-selection",
+        "request_id": "reply-contract",
+        "text": "合成选区问题",
+        "instructions": "请简洁回复"
+      },
+      "response": {
+        "version": 1,
+        "ok": true,
+        "request_id": "reply-contract",
+        "source": "responsay-selection",
+        "status": "ready",
+        "candidates": [
+          {
+            "text": "合成候选一",
+            "prob": 0.95
+          },
+          {
+            "text": "合成候选二",
+            "prob": 0.9
+          }
+        ],
+        "contract": {
+          "name": "voice-route",
+          "version": 1,
+          "request_id": "reply-contract",
+          "source": "responsay-selection",
+          "rule_version": "replies-v1",
+          "build_identity": "fixture-build"
+        }
+      },
+      "expected": {
+        "responsay": "rejected",
+        "owltype": "rejected"
+      }
+    },
+    {
+      "id": "missing-contract-source",
+      "request": {
+        "version": 1,
+        "operation": "recommend",
+        "source": "responsay-selection",
+        "request_id": "reply-contract",
+        "text": "合成选区问题",
+        "instructions": "请简洁回复"
+      },
+      "response": {
+        "version": 1,
+        "ok": true,
+        "request_id": "reply-contract",
+        "source": "responsay-selection",
+        "status": "ready",
+        "candidates": [
+          {
+            "text": "合成候选一",
+            "prob": 0.95
+          },
+          {
+            "text": "合成候选二",
+            "prob": 0.9
+          }
+        ],
+        "contract": {
+          "name": "reply",
+          "version": 1,
+          "request_id": "reply-contract",
+          "rule_version": "replies-v1",
+          "build_identity": "fixture-build"
+        }
+      },
+      "expected": {
+        "responsay": "rejected",
+        "owltype": "rejected"
+      }
+    },
+    {
+      "id": "missing-contract-request-id",
+      "request": {
+        "version": 1,
+        "operation": "recommend",
+        "source": "responsay-selection",
+        "request_id": "reply-contract",
+        "text": "合成选区问题",
+        "instructions": "请简洁回复"
+      },
+      "response": {
+        "version": 1,
+        "ok": true,
+        "request_id": "reply-contract",
+        "source": "responsay-selection",
+        "status": "ready",
+        "candidates": [
+          {
+            "text": "合成候选一",
+            "prob": 0.95
+          },
+          {
+            "text": "合成候选二",
+            "prob": 0.9
+          }
+        ],
+        "contract": {
+          "name": "reply",
+          "version": 1,
+          "source": "responsay-selection",
+          "rule_version": "replies-v1",
+          "build_identity": "fixture-build"
+        }
+      },
+      "expected": {
+        "responsay": "rejected",
+        "owltype": "rejected"
+      }
+    },
+    {
+      "id": "null-contract",
+      "request": {
+        "version": 1,
+        "operation": "recommend",
+        "source": "responsay-selection",
+        "request_id": "reply-contract",
+        "text": "合成选区问题",
+        "instructions": "请简洁回复"
+      },
+      "response": {
+        "version": 1,
+        "ok": true,
+        "request_id": "reply-contract",
+        "source": "responsay-selection",
+        "status": "ready",
+        "candidates": [
+          {
+            "text": "合成候选一",
+            "prob": 0.95
+          },
+          {
+            "text": "合成候选二",
+            "prob": 0.9
+          }
+        ],
+        "contract": null
+      },
+      "expected": {
+        "responsay": "rejected",
+        "owltype": "rejected"
+      }
+    },
+    {
+      "id": "wrong-top-source",
+      "request": {
+        "version": 1,
+        "operation": "recommend",
+        "source": "responsay-selection",
+        "request_id": "reply-contract",
+        "text": "合成选区问题",
+        "instructions": "请简洁回复"
+      },
+      "response": {
+        "version": 1,
+        "ok": true,
+        "request_id": "reply-contract",
+        "source": "owltype-selection",
+        "status": "ready",
+        "candidates": [
+          {
+            "text": "合成候选一",
+            "prob": 0.95
+          },
+          {
+            "text": "合成候选二",
+            "prob": 0.9
+          }
+        ],
+        "contract": {
+          "name": "reply",
+          "version": 1,
+          "request_id": "reply-contract",
+          "source": "responsay-selection",
+          "rule_version": "replies-v1",
+          "build_identity": "fixture-build"
+        }
+      },
+      "expected": {
+        "responsay": "rejected",
+        "owltype": "rejected"
+      }
+    },
+    {
+      "id": "wrong-top-request-id",
+      "request": {
+        "version": 1,
+        "operation": "recommend",
+        "source": "responsay-selection",
+        "request_id": "reply-contract",
+        "text": "合成选区问题",
+        "instructions": "请简洁回复"
+      },
+      "response": {
+        "version": 1,
+        "ok": true,
+        "request_id": "other-request",
+        "source": "responsay-selection",
+        "status": "ready",
+        "candidates": [
+          {
+            "text": "合成候选一",
+            "prob": 0.95
+          },
+          {
+            "text": "合成候选二",
+            "prob": 0.9
+          }
+        ],
+        "contract": {
+          "name": "reply",
+          "version": 1,
+          "request_id": "reply-contract",
+          "source": "responsay-selection",
+          "rule_version": "replies-v1",
+          "build_identity": "fixture-build"
+        }
+      },
+      "expected": {
+        "responsay": "rejected",
+        "owltype": "rejected"
+      }
+    }
+  ]
+}

@@ -10,11 +10,19 @@ generate. Only this explicit action submits the material. The selection's speake
 remain unknown. Edit “这次我想怎么回” during generation to retire the old request, then generate
 again. Cancel or close also retires the request; late replies cannot restore its candidates.
 
-Start the separate Kotone service with `scripts/reply-service` from its own service directory,
-with `OPENAI_API_KEY` supplied to that backend process. Reconnect or generate again after
-starting it. Owltype does not launch the backend, load its key, record audio or start Pallas.
-The service has a bounded lifetime and may need relaunching. Its implementation is optional;
+Kotone office owns the reply socket for the installed `Kotone.app` / `dev.kotone.office`
+service. Check its service and reply-scene state in Kotone, then reconnect or generate again.
+For a development service, run `scripts/office-service` in the Kotone repository with its
+existing secure credential entrypoint. Office mounts the socket itself and has no temporary
+reply-service two-hour lifetime. Do not start a second reply service on the same socket.
+The backend's default TypeSafe JEV judgment uses `TYPESAFE_API_KEY`; independent drafting
+still uses `OPENAI_API_KEY`. Explicit OpenAI Decisions judgment also uses `OPENAI_API_KEY`.
+Owltype does not launch office, load these keys, record audio or start Responsay.
 Owltype builds independently against the protocol below.
+
+This reply integration is separate from Owltype's existing Jev candidate-selection path.
+That [selection path](../../sources/Lane/OwlAICandidateService.swift) currently uses a general text model. This contract change does not
+migrate it to Kotone, change its implementation, or change any defaults.
 
 ## Shared protocol
 
@@ -48,6 +56,13 @@ codes (`paused`, `scenario_disabled`, `request_invalidated`, `model_quota_exhaus
 preserving the selection and instructions. Errors never produce automatic input or another
 provider fallback. The protocol has no fill/send operation.
 
+A recommendation may also include `contract`. Its absence preserves legacy compatibility.
+When present, it must be an object with `name: reply`, integer `version: 1` (not a boolean),
+`request_id` and `source` matching this request, and nonblank `rule_version` and
+`build_identity` strings. Null, missing required fields, unsupported versions and mismatched
+identity reject the response before candidates or clarification are presented. Existing
+source, status, candidate and session checks still apply.
+
 Nonblocking socket I/O uses one monotonic deadline across connection, sending and receiving:
 5 seconds for preferences, 120 seconds for a recommendation. Cancellation is checked at
 most 100 ms apart and closes the client socket. It does not promise immediate cancellation
@@ -72,3 +87,10 @@ not successful generation or proof that the model recognized an injection.
 Automated in-process tests and synthetic provider calls do not establish installed keyboard,
 shortcut, focus, real selection or user acceptance. Validate those separately on the installed
 build; do not install an ad-hoc input method merely to run the isolated tests.
+
+The byte-identical synthetic Kotone fixture is vendored under
+`tests/fixtures/kotone-contracts/`. `source.json` records its origin and schema version;
+`manifest.json` records the frozen SHA-256. `JEVReplyModelTests` verifies both offline and
+runs all 12 reply cases through the production parser, without a neighboring checkout.
+These checks prove source behavior. They do not establish a live provider call or installed
+IMK acceptance.

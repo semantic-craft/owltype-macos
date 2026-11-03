@@ -1,0 +1,10 @@
+{
+  "schema": "kotone-contract-fixture-manifest",
+  "version": 1,
+  "fixtures": [
+    {
+      "path": "behavior-v1.json",
+      "sha256": "b87cbf33129531f2058894e48b36395b72fca3ba77c0a3fb399f71a571c52200"
+    }
+  ]
+}
