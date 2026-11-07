@@ -441,6 +441,20 @@ fn wubi_hint_prefix(view: &View, enabled: bool) -> Option<&str> {
         .then_some(view.preedit.as_str())
 }
 
+fn show_wubi_annotation(
+    view: &View,
+    candidate: &msime_input_runtime::Candidate,
+    wubi_code_hint: bool,
+) -> bool {
+    if view.scheme != SchemeType::Wubi as u8 {
+        return false;
+    }
+    wubi_code_hint
+        || view.answered_by_pinyin_fallback
+        || view.preedit.contains('z')
+        || candidate.code.contains('\'')
+}
+
 fn candidate_comment(
     candidate: &msime_input_runtime::Candidate,
     wubi_prefix: Option<&str>,
@@ -515,14 +529,14 @@ fn snapshot_from_view(
         )
     };
     let hint_prefix = wubi_hint_prefix(&view, wubi_code_hint).map(str::to_owned);
-    let wubi_annotations = view.scheme == SchemeType::Wubi as u8;
     let candidates = view
         .candidates
-        .into_iter()
+        .iter()
         .map(|c| {
-            let comment = candidate_comment(&c, hint_prefix.as_deref(), wubi_annotations);
+            let wubi_annotations = show_wubi_annotation(&view, c, wubi_code_hint);
+            let comment = candidate_comment(c, hint_prefix.as_deref(), wubi_annotations);
             CandidateDto {
-                text: c.text,
+                text: c.text.clone(),
                 comment,
                 kind: "Phrase".to_owned(),
                 input_len,
@@ -1142,7 +1156,7 @@ impl OwlMsimeSession {
             input_mode: "chinese".to_owned(),
             pinyin_scheme: "quanpin".to_owned(),
             quick_phrase_candidates: false,
-            wubi_code_hint: true,
+            wubi_code_hint: false,
             wubi_auto_clear: false,
             wubi_candidate_mode: "normal".to_owned(),
             wubi_z_reverse_lookup: true,
@@ -2059,9 +2073,9 @@ impl OwlMsimeSession {
                 let all = self.runtime.all_candidates_cached();
                 let view = self.runtime.view();
                 let hint_prefix = wubi_hint_prefix(&view, self.wubi_code_hint).map(str::to_owned);
-                let wubi_annotations = view.scheme == SchemeType::Wubi as u8;
+                let show_hint = self.wubi_code_hint;
                 let input_len = view.editing_text.len();
-                let mut dto = self.build_snapshot(view, true, None, false);
+                let mut dto = self.build_snapshot(view.clone(), true, None, false);
                 dto.generation = HostGenerationNamespace::Runtime.encode(all.generation);
                 dto.candidates = all
                     .candidates
@@ -2069,6 +2083,7 @@ impl OwlMsimeSession {
                     .skip(start)
                     .take(count)
                     .map(|c| {
+                        let wubi_annotations = show_wubi_annotation(&view, &c, show_hint);
                         let comment =
                             candidate_comment(&c, hint_prefix.as_deref(), wubi_annotations);
                         CandidateDto {
@@ -5887,6 +5902,71 @@ mod tests {
             "pao'pao",
             "the previous xiaohe key map must not survive the rebuild"
         );
+        owl_msime_session_destroy(session);
+    }
+
+    #[test]
+    fn wubi_code_hint_off_hides_native_codes_while_preserving_lookup_and_wildcard_annotations() {
+        let seed_pinyin = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(Path::parent)
+            .and_then(Path::parent)
+            .expect("repo root")
+            .join("data/owl-rime/msime/msime-pinyin.db");
+        if !seed_pinyin.is_file() {
+            return;
+        }
+        let temporary = TempDir::new().unwrap();
+        let (session, error) = create_with_generation(
+            seed_pinyin.parent().unwrap(),
+            &temporary.path().join("user"),
+            &temporary.path().join("cache"),
+            "wubi-hint-policy",
+        );
+        assert!(error.is_none(), "{error:?}");
+        assert!(!session.is_null());
+
+        assert!(call_action(session, r#"{"op":"set_input_mode","mode":"wubi"}"#).ok);
+        assert!(call_action(session, r#"{"op":"set_pinyin_scheme","scheme":"wubi"}"#).ok);
+
+        assert!(call_action(session, r#"{"op":"insert","ch":"i"}"#).ok);
+        let default_off = call_snapshot(session);
+        assert!(
+            default_off
+                .candidates
+                .iter()
+                .all(|candidate| candidate.comment.is_none()),
+            "native Wubi candidates must hide code annotations when wubi_code_hint is off"
+        );
+        assert!(call_action(session, r#"{"op":"clear"}"#).ok);
+
+        for ch in "znihao".chars() {
+            assert!(call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#)).ok);
+        }
+        let lookup = call_snapshot(session);
+        let hello = lookup
+            .candidates
+            .iter()
+            .find(|candidate| candidate.text == "你好")
+            .expect("你好 in znihao lookup");
+        assert_eq!(hello.comment.as_deref(), Some("wqvb"));
+        assert!(call_action(session, r#"{"op":"clear"}"#).ok);
+
+        assert!(
+            call_action(
+                session,
+                r#"{"op":"set_option","name":"wubi_code_hint","value":true}"#
+            )
+            .ok
+        );
+        assert!(call_action(session, r#"{"op":"insert","ch":"i"}"#).ok);
+        let hint_on = call_snapshot(session);
+        let zibo = hint_on
+            .candidates
+            .iter()
+            .find(|candidate| candidate.text == "淄博")
+            .expect("淄博 in i candidates");
+        assert_eq!(zibo.comment.as_deref(), Some("vfg"));
         owl_msime_session_destroy(session);
     }
 }

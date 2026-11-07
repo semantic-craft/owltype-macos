@@ -145,7 +145,7 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "候选条动画",
     "候选窗显示输入串",
     // Actual runtime toggles are covered by the existing Wubi commit and hint/wildcard tests.
-    "候选剩余编码提示",
+    "候选显示五笔编码提示",
     "四码唯一候选自动上屏",
     "第五码将首选上屏",
     "z 通配",
@@ -207,8 +207,7 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "` 临时英文",
     "逗号句号翻页",
     "设置模糊拼音",
-    // 键盘输入页底部的「高级」折叠区（#315）：五笔、本地重排、符号、emoji 与快捷短语、便捷输入。
-    "展开高级设置", "收起高级设置",
+    "方案与状态", "拼音设置", "五笔设置", "标点与习惯",
     // 完整词库卡（方案B dict-pack）：Rust 后端先把 generation 准备成候选，用户再显式启用或回退；
     // legacy Rime 后端仍走下载后 deploy。事务与不自动切换由 OwlRustResourceTransactionTests、
     // OwlRustEngineTests 和 OwlDictPackTests 的中心层门控覆盖。

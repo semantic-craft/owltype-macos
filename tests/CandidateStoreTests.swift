@@ -468,15 +468,15 @@ final class OwlCandidateDisplayTests: XCTestCase {
     let settings = OwlCandidatePanelSettings.live
     let state = OwlSettingsState()
     // Defaults.
-    XCTAssertEqual(settings.snapshot().orientation, .auto)
+    XCTAssertEqual(settings.snapshot().orientation, .vertical)
     settings.seed(state)
     XCTAssertEqual(state.candidateFont.selection, .default)
     XCTAssertTrue(settings.snapshot().animationsEnabled)
     // Round-trip.
-    settings.edit(.orientation(.vertical), state: state, onChange: {})
+    settings.edit(.orientation(.horizontal), state: state, onChange: {})
     settings.edit(.font(.mapleMono), state: state, onChange: {})
     settings.edit(.animationsEnabled(false), state: state, onChange: {})
-    XCTAssertEqual(settings.snapshot().orientation, .vertical)
+    XCTAssertEqual(settings.snapshot().orientation, .horizontal)
     XCTAssertEqual(settings.snapshot().font.selection, .mapleMono)
     XCTAssertFalse(settings.snapshot().animationsEnabled)
   }
@@ -539,7 +539,7 @@ final class OwlCandidateDisplayTests: XCTestCase {
   }
 
   func testPageSizeDefaultAndClamp() {
-    XCTAssertEqual(OwlKeyboardPreferences.pageSize, 6)       // pinned native default
+    XCTAssertEqual(OwlKeyboardPreferences.pageSize, 4)
     OwlKeyboardPreferences.pageSize = 5
     XCTAssertEqual(OwlKeyboardPreferences.pageSize, 5)
     OwlKeyboardPreferences.pageSize = 99                     // clamp high

@@ -132,7 +132,7 @@ final class OwlCandidatePanelDisplayLifecycleTests: XCTestCase {
 
     var snapshot = settings.snapshot()
     XCTAssertEqual(snapshot.size, .medium)
-    XCTAssertEqual(snapshot.orientation, .auto)
+    XCTAssertEqual(snapshot.orientation, .vertical)
     XCTAssertTrue(snapshot.showPreedit)
     XCTAssertTrue(snapshot.showPaging)
     XCTAssertEqual(snapshot.candidateFormat, .full)

@@ -108,7 +108,7 @@ pub fn effective(raw: &Value) -> Value {
     };
     let stored_page = raw["pageSize"].as_i64().unwrap_or(0);
     let page = if stored_page == 0 {
-        6
+        4
     } else {
         stored_page.clamp(3, 9)
     };

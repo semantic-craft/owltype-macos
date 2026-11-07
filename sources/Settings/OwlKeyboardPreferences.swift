@@ -162,9 +162,6 @@ enum OwlKeyboardPreferences {
     }
   }
 
-  /// 候选个数 — Rime `menu/page_size` (G8). Key `"OwlKeyboardPageSize"`, default 6
-  /// (the pinned native baseline). Clamped to 3…9 so the candidate window stays usable; flows
-  /// through the keyboard patch (`owlDefaultCustomYAML`) + 应用配置改动, not the live panel.
   static var pageSize: Int {
     get {
       OwlAppCore.effectiveKeyboard.pageSize

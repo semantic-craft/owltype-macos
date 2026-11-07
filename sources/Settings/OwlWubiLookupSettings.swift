@@ -14,13 +14,13 @@ struct OwlWubiLookupSettings: View {
   var body: some View {
     VStack(spacing: 0) {
       SettingsToggleRow(
-        title: "候选剩余编码提示",
+        title: "候选显示五笔编码提示",
         isOn: codeHint,
         palette: palette,
         isEnabled: isEnabled,
         onToggle: onToggleCodeHint
       )
-      explanation("开启时优先显示尚未输入的编码；没有可补部分时，保留词条的完整编码注释。")
+      explanation("开启后在五笔候选旁显示剩余编码或全码提示；关闭后原生五笔打字不显示编码，仅在 z 临时拼音反查、五笔拼音混输及 z 通配查字时显示五笔编码。")
       SettingsCardDivider(palette: palette)
       SettingsToggleRow(
         title: "z 通配",

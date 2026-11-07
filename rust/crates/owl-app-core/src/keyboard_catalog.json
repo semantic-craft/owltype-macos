@@ -21,7 +21,7 @@
     {
       "id": "wubiCodeHint",
       "key": "OwlKeyboardWubiCodeHint",
-      "defaultValue": true,
+      "defaultValue": false,
       "application": "engine",
       "option": "wubi_code_hint",
       "reappliesConfiguration": true,
