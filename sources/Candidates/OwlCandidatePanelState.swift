@@ -94,7 +94,7 @@ final class CandidatePanelState {
   }
 
   var isWubiSchema: Bool {
-    schemaID.hasPrefix("wubi86_")
+    schemaID.hasPrefix("wubi")
   }
 
   func showsCompactComment(for candidate: CandidateViewModel) -> Bool {

@@ -48,8 +48,14 @@ struct OwlKeyboardPage: View {
   @State private var isAutoApplyingConfig = false
   @State private var applyFailure: String?
 
-  /// 高级 starts collapsed: the four main cards cover everyday input.
-  @State private var showAdvanced = false
+  enum KeyboardTab: String, CaseIterable {
+    case scheme
+    case pinyin
+    case wubi
+    case habits
+  }
+
+  @State private var keyboardTab: KeyboardTab = .scheme
   @State private var rerankRuntimeStatuses =
     OwlRerankRuntimeStatusRegistry.shared.snapshot()
   @State private var rerankStatusTimer: Timer?
@@ -62,17 +68,21 @@ struct OwlKeyboardPage: View {
         }
         switch variant {
         case .keyboard:
-          inputMethodCard
-          defaultStateCard
-          fuzzyCard
-          dictPackCard
-          advancedToggle
-          if showAdvanced {
-            wubiCard
+          keyboardTabSelector
+          switch keyboardTab {
+          case .scheme:
+            inputMethodCard
+            defaultStateCard
+            dictPackCard
+          case .pinyin:
+            fuzzyCard
             rerankCard
+          case .wubi:
+            wubiCard
+          case .habits:
             symbolCard
-            candidateEmojiCard
             localConvenienceCard
+            candidateEmojiCard
           }
         case .shortcuts:
           cjkSwitchCard
@@ -132,27 +142,18 @@ struct OwlKeyboardPage: View {
     }
   }
 
-  /// 高级：五笔细节、本地重排、符号、emoji 与快捷短语、本地便捷输入。Collapsed by default.
-  private var advancedToggle: some View {
-    Button(action: { showAdvanced.toggle() }, label: {
-      HStack(spacing: 6) {
-        Image(systemName: "chevron.right")
-          .font(.system(size: 11, weight: .semibold))
-          .rotationEffect(.degrees(showAdvanced ? 90 : 0))
-        Text("高级")
-          .font(.system(size: 13, weight: .semibold))
-        Text("五笔、本地重排、符号、emoji 与快捷短语、便捷输入")
-          .font(.system(size: 12))
-          .foregroundStyle(palette.ink3)
-        Spacer(minLength: 0)
-      }
-      .foregroundStyle(palette.ink2)
-      .padding(.horizontal, 4)
-      .contentShape(Rectangle())
-    })
-    .buttonStyle(.plain)
-    .accessibilityLabel(showAdvanced ? "收起高级设置" : "展开高级设置")
-    .accessibilityIdentifier("settings.keyboard.advanced")
+  private var keyboardTabSelector: some View {
+    OwlSegmentedControl(
+      selection: $keyboardTab,
+      options: [
+        ("方案与状态", KeyboardTab.scheme),
+        ("拼音设置", KeyboardTab.pinyin),
+        ("五笔设置", KeyboardTab.wubi),
+        ("标点与习惯", KeyboardTab.habits)
+      ],
+      palette: palette
+    )
+    .frame(maxWidth: .infinity)
   }
 
   /// 完整词库（方案B）：公开包只带清洁室精简词库；此卡展示 dict-pack 拉取状态并提供手动
@@ -495,14 +496,6 @@ struct OwlKeyboardPage: View {
       reduceTransparency: reduceTransparency
     ) {
       VStack(spacing: 0) {
-        OwlWubiCommitSettings(
-          autoCommitUnique: state.keyboardWubiAutoCommitUnique,
-          fifthCodeTopCommit: state.keyboardWubiFifthCodeTopCommit,
-          palette: palette,
-          isEnabled: configBackedRowsEnabled,
-          onToggleAutoCommitUnique: { toggle(.wubiAutoCommitUnique) },
-          onToggleFifthCodeTopCommit: { toggle(.wubiFifthCodeTopCommit) }
-        )
         OwlWubiLookupSettings(
           codeHint: state.keyboardWubiCodeHint,
           zWildcard: state.keyboardWubiZWildcard,
@@ -513,14 +506,6 @@ struct OwlKeyboardPage: View {
           onToggleZWildcard: { toggle(.wubiZWildcard) },
           onToggleZReverseLookup: { toggle(.wubiZReverseLookup) }
         )
-        SettingsToggleRow(
-          title: "空码自动清码",
-          isOn: state.keyboardWubiAutoClear,
-          palette: palette,
-          isEnabled: configBackedRowsEnabled,
-          onToggle: { toggle(.wubiAutoClear) }
-        )
-        SettingsCardDivider(palette: palette)
         HStack(spacing: 11) {
           Text("单字候选")
             .font(.system(size: 14))
@@ -536,6 +521,22 @@ struct OwlKeyboardPage: View {
         }
         .padding(.vertical, 8)
         .opacity(configBackedRowsEnabled ? 1 : 0.55)
+        SettingsCardDivider(palette: palette)
+        OwlWubiCommitSettings(
+          autoCommitUnique: state.keyboardWubiAutoCommitUnique,
+          fifthCodeTopCommit: state.keyboardWubiFifthCodeTopCommit,
+          palette: palette,
+          isEnabled: configBackedRowsEnabled,
+          onToggleAutoCommitUnique: { toggle(.wubiAutoCommitUnique) },
+          onToggleFifthCodeTopCommit: { toggle(.wubiFifthCodeTopCommit) }
+        )
+        SettingsToggleRow(
+          title: "空码自动清码",
+          isOn: state.keyboardWubiAutoClear,
+          palette: palette,
+          isEnabled: configBackedRowsEnabled,
+          onToggle: { toggle(.wubiAutoClear) }
+        )
         SettingsCardDivider(palette: palette)
         SettingsToggleRow(
           title: "` 临时英文",

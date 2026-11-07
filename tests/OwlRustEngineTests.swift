@@ -797,12 +797,15 @@ final class OwlRustEngineTests: XCTestCase {
   func testRustPunctuationMenusMatchRimeOrderAndContinueTyping() throws {
     let originalSlash = OwlKeyboardPreferences.slashSymbolMenu
     let originalAngle = OwlKeyboardPreferences.angleSymbolMenu
+    let originalPageSize = OwlKeyboardPreferences.pageSize
     defer {
       OwlKeyboardPreferences.slashSymbolMenu = originalSlash
       OwlKeyboardPreferences.angleSymbolMenu = originalAngle
+      OwlKeyboardPreferences.pageSize = originalPageSize
     }
     OwlKeyboardPreferences.slashSymbolMenu = true
     OwlKeyboardPreferences.angleSymbolMenu = true
+    OwlKeyboardPreferences.pageSize = 6
 
     let engine = try makeSharedSupportSeedEngine()
     let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
@@ -1903,7 +1906,7 @@ final class OwlRustEngineTests: XCTestCase {
       }
     }
     keys.forEach { defaults.removeObject(forKey: $0) }
-    XCTAssertTrue(OwlKeyboardPreferences.wubiCodeHint, "Pinned native Wubi code hints default on")
+    XCTAssertFalse(OwlKeyboardPreferences.wubiCodeHint, "Wubi code hints default off")
     let engine = try makeSharedSupportSeedEngine()
     XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
     let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
@@ -1921,7 +1924,7 @@ final class OwlRustEngineTests: XCTestCase {
     defaults.set(false, forKey: keys[0])
     session.clearComposition()
     typeText("i", into: session)
-    XCTAssertEqual(session.composition()?.candidates[zibo].comment, "ivfg")
+    XCTAssertNil(session.composition()?.candidates[zibo].comment)
     XCTAssertTrue(session.selectCandidate(zibo))
     XCTAssertEqual(session.takeCommit(), "淄博")
 
@@ -1963,9 +1966,9 @@ final class OwlRustEngineTests: XCTestCase {
     defer { session.destroy() }
     typeText("i", into: session)
     let page = try XCTUnwrap(session.composition())
-    // Pinned 0.55 native defaults and official dict-v2.0.39, no forced page-size preference.
-    XCTAssertEqual(page.pageSize, 6)
-    XCTAssertEqual(page.candidates.map(\.text), ["不", "水", "淄博", "湛江", "江门", "兴安"])
+    // Pinned 0.55 native defaults and official dict-v2.0.39, default 4-row page.
+    XCTAssertEqual(page.pageSize, 4)
+    XCTAssertEqual(page.candidates.map(\.text), ["不", "水", "淄博", "湛江"])
   }
 
   func testWubiLearningDefaultsToNativeAndPreservesExplicitOptOut() throws {
@@ -2441,6 +2444,9 @@ final class OwlRustEngineTests: XCTestCase {
     OwlKeyboardPreferences.wubiZReverseLookup = true
     OwlKeyboardPreferences.wubiZWildcard = false
     OwlKeyboardPreferences.wubiUserDictLearning = true
+    let origPageSize = OwlKeyboardPreferences.pageSize
+    OwlKeyboardPreferences.pageSize = 6
+    defer { OwlKeyboardPreferences.pageSize = origPageSize }
     let engine = try makeSharedSupportSeedEngine()
     let session = engine.createSession()
     defer { session.destroy() }
@@ -2492,8 +2498,8 @@ final class OwlRustEngineTests: XCTestCase {
     session.clearComposition()
 
     typeText("a", into: session)
-    XCTAssertEqual(session.composition()?.candidates.first?.comment, "aaaa",
-                   "Native hint-off rendering retains the engine full-code annotation")
+    XCTAssertNil(session.composition()?.candidates.first?.comment,
+                 "Native hint-off rendering hides the engine full-code annotation")
     session.clearComposition()
 
     // Numeric and mouse selection both commit the reverse-lookup row.

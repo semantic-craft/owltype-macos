@@ -60,24 +60,26 @@ final class OwlSettingsUITests: XCTestCase {
 
     tapMany([
       "双拼输入",
-      "五笔输入",
-      // 简入繁出 toggle → 「默认状态·简繁体」下拉（menu Picker，与其它 picker 一样不在本 tap-smoke 内）。
-      "设置模糊拼音",
+      "五笔输入"
     ], in: app)
+    tap("拼音设置", in: app)
+    tap("设置模糊拼音", in: app)
     tap("zh = z（翘舌）", in: app)
     tap("完成", in: app)
-    // 五笔细节、符号、emoji 与便捷输入在折叠的「高级」区（#315）。
-    tap("展开高级设置", in: app)
+    tap("五笔设置", in: app)
     tapMany([
-      "候选剩余编码提示",
+      "候选显示五笔编码提示",
       "空码自动清码",
       "纯单字",
-      "z 临时拼音反查",
+      "z 临时拼音反查"
+    ], in: app)
+    tap("标点与习惯", in: app)
+    tapMany([
       "中文下使用英文标点",
       "输入中文时 “/” 弹出符号选单",
       "输入中文时 “<” 弹出符号选单",
       "在候选中显示 emoji",
-      "中文与英文间加入空格",
+      "中文与英文间加入空格"
     ], in: app)
 
     // 中英文状态切换与「翻页与选词键」live on the 快捷键设置 sidebar page.

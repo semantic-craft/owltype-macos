@@ -31,7 +31,7 @@ final class OwlKeyboardSettingsCatalogTests: XCTestCase {
   /// The two paging rows moved to 水杉's defaults on purpose (#315); stored values are untouched.
   private let shipped: [String: Bool] = [
     "OwlKeyboardWubiAutoCommitUnique": true, "OwlKeyboardWubiFifthCodeTopCommit": true,
-    "OwlKeyboardWubiCodeHint": true, "OwlKeyboardWubiZWildcard": false,
+    "OwlKeyboardWubiCodeHint": false, "OwlKeyboardWubiZWildcard": false,
     "OwlKeyboardWubiAutoClear": false, "OwlKeyboardWubiZReverseLookup": true,
     "OwlKeyboardWubiEnglishChannel": false, "OwlKeyboardWubiUserDictLearning": true,
     "OwlKeyboardPinyinQuickPhraseCandidates": false, "OwlKeyboardCJKPunctToggle": false,

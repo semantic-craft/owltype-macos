@@ -130,7 +130,7 @@ struct OwlCandidatePanelSettings {
   }
 
   static let defaultSize: OwlPanelFontSize = .medium
-  static let defaultOrientation: OwlPanelOrientation = .auto
+  static let defaultOrientation: OwlPanelOrientation = .vertical
   static let defaultShowPreedit = true
   static let defaultInlineCandidate = false
   static let defaultShowPaging = true
