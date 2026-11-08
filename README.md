@@ -8,8 +8,6 @@
 
 水杉 Rust 输入引擎 · 全拼 / 双拼 / 五笔 86·98 / 中英混输 · 云端语音输入 · AI 联想与 Jev 选词 · 提示词快捷片段 · 四合一安装维护向导
 
-**深圳大学法律人工智能实训实验室**
-
 [![Latest Release: 2.4.2](https://img.shields.io/badge/release-2.4.2-brightgreen)](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg)
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)](https://responsay.com/owltype/)
 [![Apple Silicon + Intel](https://img.shields.io/badge/Apple_Silicon_%2B_Intel-Universal-grey)](#立即下载与安装)
@@ -199,8 +197,6 @@
 ---
 
 ## 项目与反馈
-
-本项目由 **深圳大学法律人工智能实训实验室** 研发与维护。欢迎下载安装包测试并提交问题反馈：
 
 - **安装包下载**：[项目主页与下载中心](https://responsay.com/owltype/) · [直接下载 Owltype-2.4.2.dmg](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg) · [直接下载 Owltype.pkg](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype.pkg)
 - **问题反馈与功能建议**：[GitHub Issues](https://github.com/semantic-craft/owltype-macos/issues)。提交测试反馈时，请注明 **猫头鹰版本号（如 2.4.2）**、**macOS 版本与芯片型号**、**出现问题的宿主应用** 以及 **复现步骤**。
