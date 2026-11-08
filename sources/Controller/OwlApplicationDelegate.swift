@@ -785,6 +785,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     notifCenter.addObserver(self, selector: #selector(engineNeedsReload(_:)), name: .init("OwlReloadNotification"), object: nil, suspensionBehavior: .deliverImmediately)
     notifCenter.addObserver(self, selector: #selector(engineToggleASCIIMode(_:)), name: .init("OwlToggleASCIIModeNotification"), object: nil, suspensionBehavior: .deliverImmediately)
     notifCenter.addObserver(self, selector: #selector(engineGetASCIIMode(_:)), name: .init("OwlGetASCIIModeNotification"), object: nil, suspensionBehavior: .deliverImmediately)
+    notifCenter.addObserver(self, selector: #selector(showSettingsFromNotification(_:)), name: .init("OwlShowSettingsNotification"), object: nil, suspensionBehavior: .deliverImmediately)
     // 授权后补装 tap 的第二保险（第一保险=applicationDidBecomeActive）：TCC 辅助功能表变更时
     // 系统会广播这条 DNC（未文档化、10.9 起稳定，alt-tab 等在用）。任何 app 的授权变化都触发、
     // 无 payload——只当「该重查一次」的信号用，让用户在系统设置里勾上开关的瞬间 tap 就位，
@@ -946,6 +947,12 @@ private extension OwlApplicationDelegate {
 
   @objc func engineGetASCIIMode(_: Notification) {
     NotificationCenter.default.post(name: .init("OwlReportASCIIModeNotification"), object: nil)
+  }
+
+  @objc func showSettingsFromNotification(_: Notification) {
+    DispatchQueue.main.async { [weak self] in
+      self?.showSettings()
+    }
   }
 
   @objc func accessibilityAPIChanged(_: Notification) {
