@@ -46,11 +46,13 @@
 
 ---
 
-## 产品简介
+## 项目缘起与定位
 
-猫头鹰（Owltype）是一款基于 **水杉体系 Rust 引擎**（`owl-msime-ffi` + `owl-app-core`）构建的开源 macOS 中文输入法。用中文向 Agent 描述任务，接着输入 `/` 命令、`$` 技能名，插入一段带参数的常用提示词，或者按住快捷键说一段话自动转写润色上屏——我们把日常打字与 AI 协作中高频发生的动作放进了输入法。
+猫头鹰（Owltype）是一个围绕个人日常打字与 AI 协作习惯打磨的业余开源项目。
 
-原生 SwiftUI 候选窗、同配色浮动输入状态栏与九套学院风配色兼顾视觉与响应速度；全拼、双拼、五笔 86/98 和中英混输延续熟悉的输入手感。日常按键、组字、词库与快捷片段均在本机处理，云端语音与 AI 能力默认关闭，由你按需配置并掌控触发边界。
+项目最初基于 **[RIME / 鼠须管（Squirrel）](https://github.com/rime/squirrel)** 起步；后来看到 **[水杉输入法（Metasequoia IME / `msime`）](https://github.com/metasequoiaime/msime)** 用纯 Rust 重构中文输入引擎与词库体系的设计，深受启发，因此自 `2.1.0` 起在核心输入引擎、SQLite 词库与重排模型上直接复用了水杉的成果，同时在 macOS 前端交互、快捷键与细节手感上保留了自己早期基于 RIME 开发和日常使用中养成的个人习惯，并顺手把平时高频用到的 `/` 命令上屏、提示词片段、云端语音转写和选区润色整合了进来。
+
+> 💡 **如果你想要一款功能更完整、多语种与跨平台支持更全面的主力输入法，非常推荐直接前往下载上游的 [水杉输入法（Metasequoia IME / MSIME-Apple）](https://github.com/metasequoiaime/MSIME-Apple)**；如果你偏爱完整的 RIME 方案定制生态，也推荐直接使用经典的 **[鼠须管（Squirrel）](https://github.com/rime/squirrel)**。猫头鹰更多是服务于作者自身偏好与 AI 工作流习惯的个人探索项目，欢迎感兴趣的朋友下载把玩与交流。
 
 ---
 
@@ -207,17 +209,36 @@
 
 ---
 
-## 来源与许可
+## 来源、致谢与许可
 
 本项目遵循 **GPL-3.0** 许可证，全文见 [LICENSE.txt](LICENSE.txt)。
 
-猫头鹰 macOS 前端早期派生自 [RIME 鼠须管（Squirrel）](https://github.com/rime/squirrel) 与 [librime](https://github.com/rime/librime)；自 `2.1.0` 起输入引擎切换为 [水杉输入法（Metasequoia IME）](https://github.com/metasequoiaime/msime) Rust 引擎（当前固定上游引擎基线 `macos-v0.55.0`、词库基线 `dict-v2.0.39`），公开分发的 App 不再打包或链接 `librime`。
+猫头鹰站在众多优秀的开源输入法、词库与工具项目的肩膀上才得以完成。前端早期派生自 [鼠须管（Squirrel）](https://github.com/rime/squirrel) 与 [librime](https://github.com/rime/librime)；自 `2.1.0` 起输入引擎切换为 [水杉输入法（Metasequoia IME）](https://github.com/metasequoiaime/msime) Rust 引擎（当前固定上游引擎基线 `macos-v0.55.0`、词库基线 `dict-v2.0.39`），公开分发的 App 不再打包或链接 `librime`。完整来源脉络与提取边界见 [PROVENANCE.md](PROVENANCE.md)，第三方组件与词库逐项授权说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
-完整来源脉络见 [PROVENANCE.md](PROVENANCE.md)，第三方组件与词库授权说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+在此向以下全部上游项目、词库维护者与开源社区致以诚挚感谢：
 
-### 致谢
+### 1. 输入引擎与前端基座
 
-- [水杉输入法（Metasequoia IME）](https://github.com/metasequoiaime/msime)：Rust 输入引擎、词库与语言模型生态
-- [RIME / 中州韻输入法引擎](https://rime.im)：历史前端与方案生态
-- [雾凇拼音 rime-ice](https://github.com/iDvel/rime-ice)
-- [极点五笔 86](https://github.com/KyleBing/rime-wubi86-jidian)
+- **[水杉输入法（Metasequoia IME / `msime`）](https://github.com/metasequoiaime/msime) & [MSIME-Apple](https://github.com/metasequoiaime/MSIME-Apple)**（GPL-3.0）：直接启发了本项目向 Rust 架构的演进，并提供核心 Rust 输入引擎、整句解码器与运行时底座。想要体验原汁原味且功能更全面的版本，请直接访问并下载 [水杉输入法](https://github.com/metasequoiaime/MSIME-Apple)。
+- **[chinese-ime-lm](https://github.com/metasequoiaime/chinese-ime-lm)**（Apache-2.0）：水杉中文输入法神经网络重排语言模型与参考库，以及基于 C4 中文语料（ODC-BY）与 LCCC 语料（MIT）训练的逐键与停顿重排模型权重（`model-v1`）。
+- **[鼠须管（Squirrel）](https://github.com/rime/squirrel)**（GPL-3.0）：本项目 macOS InputMethodKit 前端的起点与派生基座。
+- **[RIME / 中州韻输入法引擎（librime）](https://github.com/rime/librime)**（[rime.im](https://rime.im)，BSD-3-Clause）：项目早期的输入引擎基座，塑造了本项目一直延续至今的输入方案设计和操作手感。
+
+### 2. 词库、码表与语言数据
+
+- **[水杉词库（msime-dictionary）](https://github.com/metasequoiaime/msime-dictionary)**（`dict-v2.0.39`）：提供随包内置的拼音、五笔 86/98、英文、Emoji 与颜文字 SQLite 词库及上下文统计表构建。
+- **[雾凇拼音（rime-ice，iDvel）](https://github.com/iDvel/rime-ice)**（GPL-3.0）：现代拼音词库、单字与长词词频、英文补充词表、Emoji 映射与 Lua 方案生态的核心上游来源。
+- **[极点五笔 86（KyleBing/rime-wubi86-jidian）](https://github.com/KyleBing/rime-wubi86-jidian)**（Apache-2.0）：86 版五笔基础单字与词组码表来源。
+- **[98 五笔码表（yanhuacuo/98wubi-tables · 98五笔小组）](https://github.com/yanhuacuo/98wubi-tables)**（Unlicense）与 **[fcitx5-table-extra](https://github.com/fcitx/fcitx5-table-extra)**（GPL-3.0-or-later）：98 版五笔基础与补充码表来源。
+- **小鹤双拼 / 小鹤音形**：双拼键位布局与形码辅助规则参考。
+- **[OpenCC（开放中文转换，BYVoid）](https://github.com/BYVoid/OpenCC)**（Apache-2.0）：简繁转换词表与配置。
+- **[结巴分词（fxsjy/jieba）](https://github.com/fxsjy/jieba)**（MIT）、**[mozillazg/pinyin-data](https://github.com/mozillazg/pinyin-data)**（MIT）、**[mozillazg/phrase-pinyin-data](https://github.com/mozillazg/phrase-pinyin-data)**（MIT）与 **[mozillazg/python-pinyin](https://github.com/mozillazg/python-pinyin)**（MIT）：清洁室基础种子词频、汉字读音校正与多音词注音数据。
+- **[SCOWL（Kevin Atkinson, en-wl/wordlist）](https://github.com/en-wl/wordlist)**、**[Google 词频表（Peter Norvig）](https://www.norvig.com/ngrams/count_1w.txt)** 与 **[ECDICT（skywind3000）](https://github.com/skywind3000/ECDICT)**（MIT）：英文拼写词典、词频与候选释义来源。
+- **[aoguai/rime_kaomoji_dict](https://github.com/aoguai/rime_kaomoji_dict)**（MIT）与 **[Unicode Emoji / CLDR](https://unicode.org/Public/emoji/17.0/)**（Unicode-3.0）：颜文字词典与 Emoji 英文名称标注来源。
+- **[modood/Administrative-divisions-of-China](https://github.com/modood/Administrative-divisions-of-China)**（WTFPL）：中国行政区划全称与简称补充词条。
+- **[中文维基百科（zhwiki dump）](https://dumps.wikimedia.org/zhwiki/)**（CC-BY-SA 4.0）：整句输入二元/三元（`bigram`/`trigram`）上下文统计语料来源。
+
+### 3. 框架与协议组件
+
+- **[Sparkle](https://github.com/sparkle-project/Sparkle)**（MIT）：macOS 应用内自动更新与签名校验框架。
+- **[rmcp（Model Context Protocol 官方 Rust SDK）](https://github.com/modelcontextprotocol/rust-sdk)**（Apache-2.0）及 Rust 开源社区依赖（详见 [`THIRD-PARTY-CRATES.md`](rust/crates/owl-agent-mcp/THIRD-PARTY-CRATES.md)）：本地 Agent MCP 桥接辅助实现。
