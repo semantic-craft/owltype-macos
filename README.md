@@ -17,7 +17,7 @@
 
 ### [📥 下载最新版 2.4.2 安装镜像（Owltype-2.4.2.dmg）](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg)
 
-[立即下载与安装](#立即下载与安装) · [为 AI 工作流设计](#为-ai-工作流设计) · [核心功能](#核心功能) · [安装与故障修复](#安装与故障修复) · [从源码构建](#从源码构建) · [反馈与贡献](#项目与反馈) · [English](README.en.md)
+[立即下载与安装](#立即下载与安装) · [为 AI 工作流设计](#为-ai-工作流设计) · [核心功能](#核心功能) · [安装与故障修复](#安装与故障修复) · [测试反馈](#项目与反馈) · [English](README.en.md)
 
 </div>
 
@@ -32,7 +32,6 @@
 | **📥 猫头鹰安装器 DMG（推荐）** | 首次安装、版本升级、故障修复、彻底卸载（内置四合一图形化安装维护向导 `OwltypeInstaller.app`） | [**Owltype-2.4.2.dmg**](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg) | [responsay.com/owltype/Owltype.dmg](https://responsay.com/owltype/Owltype.dmg) |
 | **📦 标准安装包 PKG** | 系统标准安装器或批量部署 | [Owltype.pkg](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype.pkg) | [responsay.com/owltype/Owltype.pkg](https://responsay.com/owltype/Owltype.pkg) |
 | **🔄 覆盖更新包 PKG** | 已安装旧版时直接覆盖升级（保留词库与配置） | [Owltype-update.pkg](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-update.pkg) | [responsay.com/owltype/Owltype-update.pkg](https://responsay.com/owltype/Owltype-update.pkg) |
-| **🗂️ 对应版本源码包** | GPL-3.0 完整对应源码归档 | [Owltype-macOS-2.4.2-source.tar.gz](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-macOS-2.4.2-source.tar.gz) | [responsay.com/owltype/source.tar.gz](https://responsay.com/owltype/source.tar.gz) |
 
 - **校验与构建溯源**：[SHA-256 校验清单](https://downloads.responsay.com/owltype/releases/2.4.2/OWLTYPE-FILE-MANIFEST.sha256) · [SPDX SBOM](https://downloads.responsay.com/owltype/releases/2.4.2/OWLTYPE-SBOM.spdx.json) · [构建溯源 Provenance](https://downloads.responsay.com/owltype/releases/2.4.2/OWLTYPE-APP-PROVENANCE.txt) · [最新发布元数据 `latest.json`](https://downloads.responsay.com/owltype/latest.json)
 - **应用内自动更新**：已安装 `2.0.10` 及以上版本的用户，可直接在输入法菜单「关于 → 检查更新」升级（Sparkle 更新源：`https://downloads.responsay.com/owltype/v3/appcast.xml`）。
@@ -197,44 +196,22 @@
 
 ---
 
-## 从源码构建
-
-需要 **macOS 14.0+**、**Xcode 26+** 与 **Rust stable 工具链**。也可直接从 [版本源码下载入口](https://responsay.com/owltype/source.tar.gz) 获取与发布二进制完全对应的源码归档。
-
-```sh
-git clone https://github.com/semantic-craft/owltype-macos.git
-cd owltype-macos
-git submodule update --init --recursive
-make setup-dev
-make bootstrap
-make owl-seed
-make release
-```
-
-- `make setup-dev`：为当前工作区启用 `.githooks` 预推送门禁（自动检查私钥文件、本机个人目录绝对路径、提交邮箱与 TruffleHog / Gitleaks 秘密扫描）。
-- `make bootstrap`：拉取并校验固定版本的 Sparkle 源码，编译带输入法重激活补丁的 `Sparkle.framework`。
-- `make owl-seed`：组装清洁室基础词库种子（`scripts/owl-seed.sh`）、校验并准备固定版本的水杉 SQLite 词库资源（`dict-v2.0.39`）与双端重排模型（`resources/rerank-models.lock.json`）。
-- `make release`：编译 Rust FFI 静态库（`owl-msime-ffi`、`owl-app-ffi`）与 `owltype-mcp` 辅助程序，并构建 Universal（`arm64` + `x86_64`）Release 版 `Owltype.app`。
-- **开发态本机安装与验证**：日常开发自测请使用 `bash scripts/install-dev.sh`（使用固定开发签名避免覆盖公证版 Keychain 信任链）；合并门禁请运行 `bash scripts/gate.sh`，清理构建产物与残留 LaunchServices 注册请运行 `bash scripts/clean-dev.sh --apply`。详见 [贡献指南 CONTRIBUTING.md](CONTRIBUTING.md) 与 [安装运维说明](docs/operations/installation.md)。
-
----
-
 ## 项目与反馈
 
-本项目由 **深圳大学法律人工智能实训实验室** 研发与维护。欢迎下载测试并提交问题反馈：
+本项目由 **深圳大学法律人工智能实训实验室** 研发与维护。欢迎下载安装包测试并提交问题反馈：
 
-- **安装包与源码下载**：[项目主页与下载中心](https://responsay.com/owltype/) · [直接下载 Owltype-2.4.2.dmg](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg) · [获取对应版本源码](https://responsay.com/owltype/source.tar.gz)
+- **安装包下载**：[项目主页与下载中心](https://responsay.com/owltype/) · [直接下载 Owltype-2.4.2.dmg](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg) · [直接下载 Owltype.pkg](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype.pkg)
 - **问题反馈与功能建议**：[GitHub Issues](https://github.com/semantic-craft/owltype-macos/issues)。提交测试反馈时，请注明 **猫头鹰版本号（如 2.4.2）**、**macOS 版本与芯片型号**、**出现问题的宿主应用** 以及 **复现步骤**。
 - **项目进度看板**：[输入对齐与交付进度页](progress/index.html)
 - **Windows 版**：[semantic-craft/owltype-win](https://github.com/semantic-craft/owltype-win)（独立仓库维护，版本号与发布资产不与 macOS 版自动同步）。
 
 ---
 
-## 来源与开源许可
+## 来源与许可
 
-本项目以 **GPL-3.0** 许可证开源发布，全文见 [LICENSE.txt](LICENSE.txt)。
+本项目遵循 **GPL-3.0** 许可证，全文见 [LICENSE.txt](LICENSE.txt)。
 
-猫头鹰 macOS 前端早期派生自 [RIME 鼠须管（Squirrel）](https://github.com/rime/squirrel) 与 [librime](https://github.com/rime/librime)；自 `2.1.0` 起输入引擎切换为 [水杉输入法（Metasequoia IME）](https://github.com/metasequoiaime/msime) Rust 引擎（当前固定上游引擎基线 `macos-v0.55.0`、词库基线 `dict-v2.0.39`），公开分发的 App 不再打包或链接 `librime`。基于本项目修改或再分发二进制时，必须同时提供对应的完整修改源码、GPL-3.0 许可证文本与版权声明，不得作为闭源产品分发。
+猫头鹰 macOS 前端早期派生自 [RIME 鼠须管（Squirrel）](https://github.com/rime/squirrel) 与 [librime](https://github.com/rime/librime)；自 `2.1.0` 起输入引擎切换为 [水杉输入法（Metasequoia IME）](https://github.com/metasequoiaime/msime) Rust 引擎（当前固定上游引擎基线 `macos-v0.55.0`、词库基线 `dict-v2.0.39`），公开分发的 App 不再打包或链接 `librime`。
 
 完整来源脉络见 [PROVENANCE.md](PROVENANCE.md)，第三方组件与词库授权说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 

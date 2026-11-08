@@ -17,7 +17,7 @@ MSIME Rust Engine · Pinyin / Double Pinyin / Wubi 86 & 98 / Mixed Input · Clou
 
 ### [📥 Download Owltype 2.4.2 Installer DMG (Owltype-2.4.2.dmg)](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg)
 
-[Download & Install](#download-and-install) · [AI Workflows](#built-for-ai-workflows) · [Features](#features) · [Installer & Repair](#installer-and-recovery) · [Build from Source](#build-from-source) · [Feedback](#project-and-feedback) · [中文](README.md)
+[Download & Install](#download-and-install) · [AI Workflows](#built-for-ai-workflows) · [Features](#features) · [Installer & Repair](#installer-and-recovery) · [Feedback](#project-and-feedback) · [中文](README.md)
 
 </div>
 
@@ -32,7 +32,6 @@ MSIME Rust Engine · Pinyin / Double Pinyin / Wubi 86 & 98 / Mixed Input · Clou
 | **📥 Owltype Installer DMG (Recommended)** | First-time install, upgrades, repair, and full uninstall via the built-in 4-in-1 `OwltypeInstaller.app` wizard | [**Owltype-2.4.2.dmg**](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg) | [responsay.com/owltype/Owltype.dmg](https://responsay.com/owltype/Owltype.dmg) |
 | **📦 Standard PKG Installer** | Standard macOS Installer or managed deployment | [Owltype.pkg](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype.pkg) | [responsay.com/owltype/Owltype.pkg](https://responsay.com/owltype/Owltype.pkg) |
 | **🔄 In-place Update PKG** | Direct upgrade over an existing installation while preserving user dictionaries and settings | [Owltype-update.pkg](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-update.pkg) | [responsay.com/owltype/Owltype-update.pkg](https://responsay.com/owltype/Owltype-update.pkg) |
-| **🗂️ Release Source Archive** | Complete corresponding source code under GPL-3.0 | [Owltype-macOS-2.4.2-source.tar.gz](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-macOS-2.4.2-source.tar.gz) | [responsay.com/owltype/source.tar.gz](https://responsay.com/owltype/source.tar.gz) |
 
 - **Verification and provenance**: [SHA-256 Manifest](https://downloads.responsay.com/owltype/releases/2.4.2/OWLTYPE-FILE-MANIFEST.sha256) · [SPDX SBOM](https://downloads.responsay.com/owltype/releases/2.4.2/OWLTYPE-SBOM.spdx.json) · [App Provenance](https://downloads.responsay.com/owltype/releases/2.4.2/OWLTYPE-APP-PROVENANCE.txt) · [Latest Release Metadata `latest.json`](https://downloads.responsay.com/owltype/latest.json)
 - **In-app updates**: Users on `2.0.10` or later can update directly from **About → Check for Updates** (Sparkle feed: `https://downloads.responsay.com/owltype/v3/appcast.xml`).
@@ -142,33 +141,11 @@ See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md) for details.
 
 ---
 
-## Build from source
-
-Requires **macOS 14.0+**, **Xcode 26+**, and a **Rust stable toolchain**. You can either clone this repository or download the [release source archive](https://responsay.com/owltype/source.tar.gz).
-
-```sh
-git clone https://github.com/semantic-craft/owltype-macos.git
-cd owltype-macos
-git submodule update --init --recursive
-make setup-dev
-make bootstrap
-make owl-seed
-make release
-```
-
-- `make setup-dev`: Enables the tracked `.githooks` pre-push privacy and secret-scanning gate.
-- `make bootstrap`: Verifies the pinned Sparkle archive and builds the patched `Sparkle.framework`.
-- `make owl-seed`: Assembles the clean-room dictionary seed (`scripts/owl-seed.sh`), pinned MSIME SQLite dictionaries (`dict-v2.0.39`), and neural reranking models (`resources/rerank-models.lock.json`).
-- `make release`: Builds the Rust FFI static archives (`owl-msime-ffi`, `owl-app-ffi`), `owltype-mcp`, and the Universal (`arm64` + `x86_64`) Release `Owltype.app`.
-- For local development installs, run `bash scripts/install-dev.sh`. Run `bash scripts/gate.sh` for the pre-merge verification gate and `bash scripts/clean-dev.sh --apply` to clean build outputs and stale LaunchServices claims. See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/operations/installation.md](docs/operations/installation.md).
-
----
-
 ## Project and feedback
 
 Developed and maintained by **Shenzhen University Legal AI Training Lab (深圳大学法律人工智能实训实验室)**.
 
-- **Downloads**: [Website & Downloads](https://responsay.com/owltype/) · [Direct DMG Download (2.4.2)](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg) · [Release Source Archive](https://responsay.com/owltype/source.tar.gz)
+- **Installer downloads**: [Website & Downloads](https://responsay.com/owltype/) · [Direct DMG Download (2.4.2)](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg) · [Direct PKG Download (2.4.2)](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype.pkg)
 - **Issues & testing feedback**: [GitHub Issues](https://github.com/semantic-craft/owltype-macos/issues). When reporting an issue, please include your Owltype version (for example, `2.4.2`), macOS version, chip architecture, host application, and steps to reproduce.
 - **Progress page**: [Alignment & Delivery Progress](progress/index.html)
 - **Windows edition**: [semantic-craft/owltype-win](https://github.com/semantic-craft/owltype-win) (maintained independently).
@@ -177,8 +154,8 @@ Developed and maintained by **Shenzhen University Legal AI Training Lab (深圳�
 
 ## Provenance and license
 
-Released under **GPL-3.0**; see [LICENSE.txt](LICENSE.txt).
+Licensed under **GPL-3.0**; see [LICENSE.txt](LICENSE.txt).
 
-Owltype's macOS frontend originally derived from [RIME Squirrel](https://github.com/rime/squirrel) and [librime](https://github.com/rime/librime). Starting in `2.1.0`, the input core uses the [Metasequoia IME (MSIME)](https://github.com/metasequoiaime/msime) Rust engine (currently pinned to engine `macos-v0.55.0` and dictionary release `dict-v2.0.39`), and shipped builds no longer bundle or link `librime`. Any binary distribution based on this project must include the corresponding source code, the GPL-3.0 license text, and copyright notices.
+Owltype's macOS frontend originally derived from [RIME Squirrel](https://github.com/rime/squirrel) and [librime](https://github.com/rime/librime). Starting in `2.1.0`, the input core uses the [Metasequoia IME (MSIME)](https://github.com/metasequoiaime/msime) Rust engine (currently pinned to engine `macos-v0.55.0` and dictionary release `dict-v2.0.39`), and shipped builds no longer bundle or link `librime`.
 
 See [PROVENANCE.md](PROVENANCE.md) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for complete lineage and third-party license notices.
