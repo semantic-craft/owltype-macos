@@ -1,3 +1,14 @@
+<a name="2.4.2"></a>
+## 2.4.2 (2026-11-08)
+
+### 安装与维护向导 | Unified Installer and Session Convergence
+- 四合一安装与维护向导（`OwltypeInstaller.app`）：重构首装向导为两步引导 + 底部维护抽屉，内置「安装 / 更新输入法」「修复安装（保留词库与配置）」「清空修复（备份用户数据后重建环境）」「彻底卸载（移除应用并可选清理用户数据）」四项能力，并按 TIS 注册与启用状态（`notRegistered` / `registeredButDisabled` / `enabled`）精准分流引导文案与轮询恢复。（#411）
+- 非阻塞式安装文件落盘与 IMK 会话收敛：移除 `/Library/Input Methods/Owltype.app` 覆盖安装前的 45 秒 `lsof` 阻塞式自检门禁，避免已落盘文件因后台常驻进程句柄占用而误报「安装失败」；补充 TIS 气泡父源递归注册（参照上游 Fcitx5 / Rime Squirrel）与 macOS 14+ `TISSelectInputSource` 焦点窗口辅助激活（参照微信输入法 WeTypeInstaller），降低覆盖更新后需手动注销重登的概率。（#411）
+
+### 键盘设置与协议校验 | Keyboard Settings and Contract Validation
+- 五笔编码提示关闭行为对齐、默认竖排 4 候选与键盘设置横向四标签页：对齐上游水杉 `#10790` 五笔编码提示关闭语义并默认关闭 `OwlKeyboardWubiCodeHint`；默认候选栏改为竖排、每页 4 项；将键盘设置页底部折叠「高级」手风琴替换为顶部横向四标签栏（`方案与状态` / `拼音设置` / `五笔设置` / `标点与习惯`）。（#410）
+- Kotone 回复决策契约校验：在保留现有输入行为与旧服务兼容的前提下，对带 `contract` 字段的 Kotone 响应严格校验场景、整数版本、请求/来源及构建字段，并冻结 12 组契约回归样例。（#409）
+
 <a name="2.4.1"></a>
 ## 2.4.1 (2026-11-03)
 
