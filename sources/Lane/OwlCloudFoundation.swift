@@ -132,7 +132,10 @@ enum OwlCloudKeychain {
       kSecAttrService as String: service,
       kSecAttrAccount as String: account,
     ]
-    let update: [String: Any] = [kSecValueData as String: data]
+    let update: [String: Any] = [
+      kSecValueData as String: data,
+      kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+    ]
     let updateStatus = SecItemUpdate(base as CFDictionary, update as CFDictionary)
     if updateStatus == errSecSuccess { return }
     guard updateStatus == errSecItemNotFound else {
@@ -141,6 +144,7 @@ enum OwlCloudKeychain {
 
     var add = base
     add[kSecValueData as String] = data
+    add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
     let addStatus = SecItemAdd(add as CFDictionary, nil)
     guard addStatus == errSecSuccess else {
       throw OwlCloudKeychainError.unexpectedStatus(addStatus)

@@ -51,9 +51,13 @@ while IFS= read -r stray; do
   [ -n "$stray" ] || continue
   TARGETS+=("$stray")
   # 正式位置没有可执行的猫头鹰时，用仍在的旧副本停用输入源，免得删掉后当前输入源指向已删除的程序。
-  if [ ! -x "$OWL_BIN" ] && [ -x "$stray/Contents/MacOS/Owltype" ]; then
-    OWL_BIN="$stray/Contents/MacOS/Owltype"
-  fi
+  case "${stray##*/}" in
+    *.app)
+      if [ ! -x "$OWL_BIN" ] && [ ! -L "$stray" ] && [ -x "$stray/Contents/MacOS/Owltype" ]; then
+        OWL_BIN="$stray/Contents/MacOS/Owltype"
+      fi
+      ;;
+  esac
 done < <(owl_stray_copies)
 
 # 安全闸：任何疑似他人输入法 / Rime 的路径，宁可中止也绝不删除。

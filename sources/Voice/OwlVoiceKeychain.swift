@@ -83,7 +83,10 @@ public enum OwlVoiceKeychain {
       kSecAttrService as String: service,
       kSecAttrAccount as String: account
     ]
-    let update: [String: Any] = [kSecValueData as String: data]
+    let update: [String: Any] = [
+      kSecValueData as String: data,
+      kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+    ]
     let updateStatus = SecItemUpdate(base as CFDictionary, update as CFDictionary)
     if updateStatus == errSecSuccess { return }
     guard updateStatus == errSecItemNotFound else {
@@ -185,7 +188,10 @@ public enum OwlVoiceKeychain {
       kSecAttrService as String: service,
       kSecAttrAccount as String: deepSeekAccount
     ]
-    let update: [String: Any] = [kSecValueData as String: data]
+    let update: [String: Any] = [
+      kSecValueData as String: data,
+      kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+    ]
     let updateStatus = SecItemUpdate(base as CFDictionary, update as CFDictionary)
     if updateStatus == errSecSuccess { return }
     guard updateStatus == errSecItemNotFound else {

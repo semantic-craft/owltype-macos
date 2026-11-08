@@ -7,11 +7,9 @@ failed=0
 
 bash scripts/check-public-privacy.sh
 
-# The complete product — including the cloud/AI layer — is developed in the private
-# GitHub repository. This gate protects the corresponding-source snapshot distributed
-# with each binary release by blocking what must never leave the private tree:
-# generated artifacts, license-restricted data sources, key material, personal
-# paths, and drift of the pinned Sparkle update anchor.
+# This gate protects the public repository and release tree by blocking what must
+# never be tracked or distributed: generated artifacts, license-restricted data
+# sources, key material, personal paths, and drift of the pinned Sparkle update anchor.
 
 while IFS= read -r tracked_path; do
   case "$tracked_path" in

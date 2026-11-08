@@ -88,7 +88,7 @@ struct OwlDeepSeekSearchClient: OwlDeepSeekSearching {
     fetch: (@Sendable (URLRequest) async throws -> (Data, URLResponse))? = nil
   ) {
     self.timeout = timeout
-    self.fetch = fetch ?? { try await URLSession.shared.data(for: $0) }
+    self.fetch = fetch ?? { try await URLSession.shared.data(for: $0, delegate: OwlURLSessionTransport.noRedirectDelegate) }
   }
 
   func search(

@@ -4,10 +4,10 @@ Thank you for improving Owltype. This repository is the complete source for the 
 product, so every accepted change must remain independently buildable and auditable
 from this repository alone.
 
-The GitHub development repository is private. The issue, pull-request and clone workflows
-below require collaborator access. Other recipients can obtain released versions from the
-[public corresponding-source archive](https://responsay.com/owltype/source.tar.gz).
-No public feedback endpoint is currently configured for users without repository access.
+Issues and pull requests are tracked on GitHub at
+[semantic-craft/owltype-macos](https://github.com/semantic-craft/owltype-macos).
+Signed installers for released versions are published at
+[responsay.com/owltype](https://responsay.com/owltype/).
 
 ## What we accept
 
@@ -32,8 +32,8 @@ make owl-seed
 make test
 ```
 
-`make bootstrap` uses the pinned prebuilt dependencies the gate builds against. Contributors
-who want to build those dependencies from source may use `make deps` instead. Before opening
+`make bootstrap` runs `action-install.sh`, which builds the pinned Rust FFI archive and builds or
+reuses the reviewed patched Sparkle framework (`make deps` runs the same targets). Before opening
 a pull request, also run the public-source boundary relevant to every change:
 
 ```sh
@@ -66,7 +66,7 @@ bundled data, or corresponding-source obligations. Never include secrets or real
 content in a fixture; use synthetic placeholders.
 
 For security reporting availability and sensitive-data boundaries, see
-[SECURITY.md](SECURITY.md). Private repository access must not be assumed for reporters.
+[SECURITY.md](SECURITY.md).
 
 ## Pull requests and review
 

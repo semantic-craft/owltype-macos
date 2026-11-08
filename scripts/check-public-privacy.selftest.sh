@@ -60,4 +60,9 @@ git -C "$case_repo" remote add private \
   git@github.com:semantic-craft/famoime-mac-private-archive-20260724.git
 expect_failure "private remote"
 
+new_case
+printf 'internal fleet link: https://github.com/semantic-craft/agent-fleet\n' > "$case_repo/notes.txt"
+git -C "$case_repo" add notes.txt
+expect_failure "internal repository reference"
+
 printf 'public privacy self-test passed\n'

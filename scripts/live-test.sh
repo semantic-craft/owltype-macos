@@ -1,7 +1,7 @@
 #!/bin/bash
 # 实盘测试的唯一入口：bash scripts/live-test.sh OwlSkillsLiveTests/testX [OwlSkillsLiveTests/testY …]
 #
-# 开发凭据来自项目 .envrc 的 `use secrets`（1Password → ~/.env）。agent 的 shell 不是 login
+# 开发凭据来自项目 .envrc。agent 的 shell 不是 login
 # shell、不加载 direnv，继承来的环境还可能是旧 .envrc 导出的残留（2026-10-21：有千问、豆包
 # 方舟 Key，却没有后加的 DeepSeek Key）。所以不看当前环境有没有 Key，一律经 `direnv exec`
 # 按当前 .envrc 重新执行自己一次。
@@ -50,7 +50,7 @@ if [[ -z ${OWL_LIVE_TEST_REEXEC:-} ]] && command -v direnv >/dev/null; then
 fi
 if ! have_any_key; then
   echo "live-test: 没有任何实盘 Key（${KEYS[*]}）。.envrc 被拦截时先在仓库主目录运行 direnv allow；" >&2
-  echo "           名字不在 .envrc 的 use secrets 里时补上；~/.env 里没有时先在 1Password 加上。" >&2
+  echo "           名字不在 .envrc 里时补上对应环境变量导出。" >&2
   exit 1
 fi
 

@@ -347,7 +347,7 @@
 ### 更新与分发 | Updates
 - 自动更新和对应源码改由 `responsay.com` 发布：Sparkle appcast 指向按构建号固定的签名公证更新包，官网下载入口与同一版本的安装包、DMG、源码归档一起切换。开发仓库保持私有，不再把 GitHub Release 写进 appcast。
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.6.2...1.6.3
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.6.2...1.6.3
 
 <a name="1.6.2"></a>
 ## 1.6.2 (2026-08-17)
@@ -355,7 +355,7 @@
 ### 主要功能更新 | Major Updates
 - 在 Cursor 等 Electron 应用里打字，候选窗现在会跟着光标走。以前只认一份手工名单（VS Code、Slack 等），Cursor 这种 ToDesktop 打包的应用不在名单里，同步查到的光标位置是旧的，又没有第二次修正，窗就钉在上一次的位置。现在改为看宿主包里是不是真带 Electron Framework，ToDesktop 家族也整族覆盖，以后新出的 Electron 应用不用再往名单里加 (#138)
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.6.1...1.6.2
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.6.1...1.6.2
 
 <a name="1.6.1"></a>
 ## 1.6.1 (2026-08-12)
@@ -365,7 +365,7 @@
   - 现在菜单刷新改为**无条件**在安装收尾边界执行：不还原选中态（不抢源的边界一点没动），但一定把菜单列表刷新一次；首装与开发直装同样覆盖
 - 「输入菜单不列法墨」的自助诊断补上最后一级台阶：手动刷新菜单代理后仍然不列时，指引会明确告诉你注销重登即可。确实存在系统会话层拒收的形态——那时输入法本身一切正常（TIS 六层全绿、打字照常），用户态没有别的解法 (#135)
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.6.0...1.6.1
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.6.0...1.6.1
 
 <a name="1.6.0"></a>
 ## 1.6.0 (2026-08-12)
@@ -376,7 +376,7 @@
   - 全程可观察：`log stream --predicate 'eventMessage CONTAINS "famo-deferred-update-select"'`
   - 更新后「建议注销」的提示仍在：已打开的旧 App 需要重开（或注销）才能挂上新输入法服务，这是系统边界，与本次修复各管一段
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.21...1.6.0
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.21...1.6.0
 
 <a name="1.5.21"></a>
 ## 1.5.21 (2026-08-11)
@@ -389,7 +389,7 @@
 ### 更新与分发 | Updates
 - 发布链现在把 App、首装 PKG、更新 PKG、DMG、appcast 和对应源码绑定为同一个可验证 cohort；签名、公证、stapling、密钥泄漏检查和十项公开资产验收均为失败即停止 (#109, #111, #116, #121)
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.20...1.5.21
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.20...1.5.21
 
 <a name="1.5.20"></a>
 ## 1.5.20 (2026-08-06)
@@ -401,7 +401,7 @@
   - **默认档（中）逐像素不变**：留白的换算以中档为锚，没动过这项设置的人升级后看不出任何区别
   - 已知变化：选了「小」或「大」的用户，字号不变但边距会跟着变（小更紧、大更松）——这正是这次要修的东西
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.19...1.5.20
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.19...1.5.20
 
 <a name="1.5.19"></a>
 ## 1.5.19 (2026-08-02)
@@ -414,7 +414,7 @@
 - 竖排候选窗里，点第一个候选的右端不再误触右上角的收起箭头：箭头的点击区比给它让出的净空还宽 7pt，那一小片正压在第一行的选中块上，点下去是收起面板而不是选词。顺带那个灰箭头也不再切进色块的右上圆角 (#97)
 - 横排候选窗的输入串与第一个候选现在左对齐了：此前输入串在 14pt、候选文字在 16pt，差的这 2pt 在小面板上一眼看得见 (#97)
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.18...1.5.19
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.18...1.5.19
 
 <a name="1.5.18"></a>
 ## 1.5.18 (2026-07-31)
@@ -436,7 +436,7 @@
 - 新增发布后校验闸：每次发版后会打用户实际轮询的那条更新地址，断言首条就是本版、更新包能下载且字节数与订阅源逐字相符。这道闸专门盯两种本地检查看不见的静默死法——Release 误标成预发布时 GitHub 会悄悄回退到上一版，漏附订阅源文件时永久链接 404 而 Sparkle 不报任何错 (#90)
 - 隐私说明补上〈自动更新〉一节：如实写明检查与下载的对端、请求携带与不携带的内容（系统画像未启用）。此前隐私说明对更新检查只字未提 (#90)
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.17...1.5.18
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.17...1.5.18
 
 <a name="1.5.17"></a>
 ## 1.5.17 (2026-07-31)
@@ -458,7 +458,7 @@
 - 「来源核验」优先给一手官方来源（发布机关、法院、政府官网、法规公报），确实没有时才用权威转载并注明；此前常拿聚合站或百科转载充数，而用户要跳查的恰恰是发布机关自己怎么说 (#88)
 - 「辅助检索」的方案控制在约 500 字内分要点给出：此前会展开成长篇解释，最慢一次 16.5 秒——检索方案本来就是拿来复制的，不是拿来读的 (#88)
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.16...1.5.17
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.16...1.5.17
 
 <a name="1.5.16"></a>
 ## 1.5.16 (2026-07-29)
@@ -466,12 +466,12 @@
 ### Bug 修復 | Bug Fixes
 - 出厂 app 的文件清单此前对不上它所描述的那个 app：清单在签名之前就算好了，而签名会重写全部 12 个原生二进制、公证盖票又往包里再写一个文件——拿它去校验下载到的 app，15 个文件全部报错。现在清单改在签名 + 公证 + staple **之后**生成，随 Release 单独发布，校验真能通过 (#81)
   - 清单不再放在 app 包内：放在包内等于「盘点自己」，结果会随跑了第几次而变。1.5.14 那份清单里记的甚至是**上一版**的公证票——公证票能扛住重签、在构建目录里跨版本存活
-  - 校验方式：从 Release 下载 `FAMOTYPE-FILE-MANIFEST.sha256`，然后 `cd Famo.app && shasum -a 256 -c <该文件>`
-  - 源码包 `FAMOTYPE-SOURCE-PROVENANCE.txt` 里的 `app-manifest` 现在确实指向出厂那份清单；此前记的哈希在任何出厂产物里都不存在
+  - 校验方式：从 Release 下载 `OWLTYPE-FILE-MANIFEST.sha256`，然后 `cd Owltype.app && shasum -a 256 -c <该文件>`
+  - 源码包 `OWLTYPE-SOURCE-PROVENANCE.txt` 里的 `app-manifest` 现在确实指向出厂那份清单；此前记的哈希在任何出厂产物里都不存在
   - 归档源码前会复核盘点没过期（记录的 commit 必须等于当前 HEAD、清单必须仍吻合包内实际内容），避免出现「今天的源码配昨天的二进制」
 - 本版对输入法本身的行为没有任何改动
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.15...1.5.16
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.15...1.5.16
 
 <a name="1.5.15"></a>
 ## 1.5.15 (2026-07-29)
@@ -482,7 +482,7 @@
   - 命名循胡佛红（Hoover Tower）的地标建筑法，而不是纽约紫 / 黑文蓝的城市法：哈佛所在的 Cambridge 中译「剑桥」在中文里几乎专指剑桥大学，叫「剑桥红」会被读错，故取哈佛园正中心的列柱大馆 Widener Library 定名
   - 三套红靠纸面分家：荔园红暖羊皮纸、胡佛红冷蓝灰、怀德纳红中性灰白纸配暖灰墨
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.14...1.5.15
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.14...1.5.15
 
 <a name="1.5.14"></a>
 ## 1.5.14 (2026-07-29)
@@ -491,7 +491,7 @@
 - 五笔用 `z` 切临时拼音查字时，候选右侧重新显示五笔编码：那串注释并不是拼音，而是法墨拿候选字回五笔词典反查出来的编码——「打拼音顺带把码认下来」正是这一路的练习价值。此前它被「候选编码提示」那个开关连带抹掉了（出厂默认关着），现在两者解耦：编码提示只管五笔本身那一路，z 反查的编码恒显，也不多加一个开关 (#70)
   - 单字会一次列出简码与全码（如 `你` → `wq wqi wqiy`），这是反查的原生行为，没有过滤
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.13...1.5.14
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.13...1.5.14
 
 <a name="1.5.13"></a>
 ## 1.5.13 (2026-07-29)
@@ -513,7 +513,7 @@
 ### Bug 修復 | Bug Fixes
 - 在阿里云百炼上使用它托管的 deepseek-* 型号时，关思考发的是百炼不认识的字段，等于没关：现在按你档案里的供应商来决定字段方言，而不是只看模型名前缀 (#71)
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.12...1.5.13
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.12...1.5.13
 
 <a name="1.5.12"></a>
 ## 1.5.12 (2026-07-28)
@@ -526,7 +526,7 @@
   - 后页行数上限从 2 提到 4、默认 4，设置里相应多了「跟 3 页 / 跟 4 页」两档；此前存的 1 行 / 2 行选择原样生效
   - 前后页那几行也显示编码提示注释，与主行同一个开关控制
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.11...1.5.12
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.11...1.5.12
 
 <a name="1.5.11"></a>
 ## 1.5.11 (2026-07-27)
@@ -544,7 +544,7 @@
 - GitHub 直连不通时自动换源：下载源改成有序的一串（你自己配的镜像 → GitHub 直连 → 两个公共加速源），某个文件在一处取不到就换下一处继续，不再直接报「下载失败」让你自己想办法。所有来源都要通过同一份哈希校验，取到的内容对不上就换下一家，不会装进你的目录 (#60)
 - 词库编译完成的时机现在是真的：此前「正在编译词库…」一闪而过，实际编译还在后台跑，你并不知道什么时候能用。现在这个状态会持续到 librime 真的编译完 (#60)
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.10...1.5.11
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.10...1.5.11
 <a name="1.5.10"></a>
 ## 1.5.10 (2026-07-27)
 
@@ -559,7 +559,7 @@
 - 切到未随包分发的方案（如五笔）失败时，提示不再误导：此前会说「该方案可能尚未编译，请在设置里『应用配置改动』后重试」，可那些方案的文件压根不在磁盘上，照做也没用——现在改为说明版权缘由并直接给出下载入口；确实已下载却切换失败（真的未编译）时，原提示照常发出 (9f5f260)
 - 已装应用冒烟检查 `check-installed.sh` 修复两处失效：断言仍停在单仓公开化之前，在任何按当前口径安装的机器上恒报 FAIL；且失败即退出，卡在第一条就把后面 6 条同类断言、TIS 层与候选级探针整段遮蔽——真回归无从发现。修复后跑满 23 条断言并汇总 (db8a3e8)
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.9...1.5.10
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.9...1.5.10
 
 <a name="1.5.9"></a>
 ## 1.5.9 (2026-07-27)
@@ -577,7 +577,7 @@
 - Perplexity 检索结果里的裸控制字符会让整次提问失败（三次里出一次），已在解析前统一清洗；检索接地档位由 low 改 high——实测 low 档 5 条里只有 1 条带摘要，而三档时延完全一样 (e6b39b5)
 - 豆包搜索每条结果的配图数上限填 0 等于没填（落回默认 3 张），改用真正生效的最小值 1 (6e4fdfd)
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.8...1.5.9
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.8...1.5.9
 
 <a name="1.5.8"></a>
 ## 1.5.8 (2026-07-27)
@@ -588,7 +588,7 @@
   - 纯事件驱动，没有新增任何后台轮询——打字与划词链路的开销分毫未变
 - 「唤起热键」设置行的「需辅助功能权限」提示不再滞留：授权后切回设置窗口即自动撤下 (77c033e)
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.7...1.5.8
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.7...1.5.8
 
 <a name="1.5.7"></a>
 ## 1.5.7 (2026-07-26)
@@ -600,7 +600,7 @@
   - 设置里「排列方向」现在是 自动 / 横排 / 竖排 / 卷轴；选中卷轴后可选跟 1 页或 2 页
 - 1.5.4 的「预览后页」开关退役，功能并入卷轴：原来的预览行不可点、纯淡显，现在成了卷轴的后页行，可以直接点选。此前开过这个开关的用户会自动落到卷轴，观感不丢；显式改选其他排列方向即以新选择为准 (44b07b9)
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.6...1.5.7
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.6...1.5.7
 
 <a name="1.5.6"></a>
 ## 1.5.6 (2026-07-26)
@@ -612,7 +612,7 @@
 - 技能列表精简为 7 项：删去公文排版、润色·多版本挑选、润色·仿我的范例——个性化加工需求由「任意提问」对选中文本直接下指令兜底；「结构化·加标签」并入「提示词优化」（补齐四要素并按语义加 XML 标签一次做完）；「任意提问」置顶技能列表并获得自己的开关（默认开），「润色·直接替换」简名「润色」 (331c371)
 - 下架智谱 GLM：从供应商预设、联网搜索与来源核验中彻底移除 (c8a308d)
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.5...1.5.6
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.5...1.5.6
 
 <a name="1.5.5"></a>
 ## 1.5.5 (2026-07-26)
@@ -626,7 +626,7 @@
 - 候选窗与状态提示的窗口投影其实一直没画出来：窗口投影关着，而视图层那层模糊不撑布局、窗口尺寸又严格等于内容尺寸，等于没有落点。改由系统按内容形状绘制，并只在面板尺寸真的变化时重算，不占按键热路径 (66565f1)
 - 清掉一个失效旋钮与两处与实现不符的注释：皮肤里的投影半径在上述改动后已零引用（看着能调、调了没反应） (66565f1)
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.4...1.5.5
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.4...1.5.5
 
 <a name="1.5.4"></a>
 ## 1.5.4 (2026-07-26)
@@ -642,7 +642,7 @@
 - 横排候选栏下方预览后两页候选 (b1e90f6)
 - 「任意提问」改为划词技能兜底：对选中文本直接下指令、只回结果、一键复制并关窗 (1d74ee5)
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.3...1.5.4
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.3...1.5.4
 
 <a name="1.5.3"></a>
 ## 1.5.3 (2026-07-26)
@@ -651,7 +651,7 @@
 - 设置「维护与诊断」新增「重置用户词典…」：清空输入习惯与自造词学习记录，方案、皮肤、快捷短语等设置与词库均不受影响。确认弹窗默认按钮是取消；重置前把 `*.userdb` 整目录备份到 `.famo-backup/userdb-reset-<ts>/`，可手工还原 (fca5f6f, 40ce3f0)
   - 修的是 1.4.23 → 1.5.0 那三天种子为 Unihan 全汉字表时被学进 userdb 的繁体词频：升级到干净词库后 `fan ti zi` 首选仍是「繁體字」。属用户自己按的维护动作，不做静默自动净化 (closes #37)
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.2...1.5.3
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.2...1.5.3
 
 <a name="1.5.2"></a>
 ## 1.5.2 (2026-07-25)
@@ -663,7 +663,7 @@
 ### 主要功能更新 | Major Updates
 - 设置「输入方式」卡片署名底座方案：拼音与双拼为雾凇拼音 rime-ice，五笔为极点五笔 86 (d496d19)
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.1...1.5.2
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.1...1.5.2
 
 <a name="1.5.1"></a>
 ## 1.5.1 (2026-07-25)
@@ -681,7 +681,7 @@
 ### 文檔 | Documentation
 - README 补安装段落、界面截图与英文版 (b7b09d1, c6e5b66)
 
-**Full Changelog**: https://github.com/semantic-craft/famotype-macos/compare/1.5.0...1.5.1
+**Full Changelog**: https://github.com/semantic-craft/owltype-macos/compare/1.5.0...1.5.1
 
 <a name="1.5.0"></a>
 ## 1.5.0 (2026-07-24)

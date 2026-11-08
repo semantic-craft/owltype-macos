@@ -131,6 +131,20 @@ extension OwlLLMTransport {
 }
 
 struct OwlURLSessionTransport: OwlLLMTransport {
+  final class NoRedirectDelegate: NSObject, URLSessionTaskDelegate, Sendable {
+    func urlSession(
+      _ session: URLSession,
+      task: URLSessionTask,
+      willPerformHTTPRedirection response: HTTPURLResponse,
+      newRequest request: URLRequest,
+      completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+      completionHandler(nil)
+    }
+  }
+
+  static let noRedirectDelegate = NoRedirectDelegate()
+
   let session: URLSession
 
   init(session: URLSession = .shared) {
@@ -138,12 +152,12 @@ struct OwlURLSessionTransport: OwlLLMTransport {
   }
 
   func send(_ request: URLRequest) async throws -> (Data, URLResponse) {
-    try await session.data(for: request)
+    try await session.data(for: request, delegate: Self.noRedirectDelegate)
   }
 
   /// Native byte delivery only. The Rust session handles UTF-8 and SSE boundaries.
   func openStream(_ request: URLRequest) async throws -> OwlStreamingBytesSource {
-    let (bytes, response) = try await session.bytes(for: request)
+    let (bytes, response) = try await session.bytes(for: request, delegate: Self.noRedirectDelegate)
     let stream = AsyncThrowingStream<Data, Error> { continuation in
       let task = Task {
         do {

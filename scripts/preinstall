@@ -18,7 +18,8 @@ login_user=$(/usr/bin/stat -f%Su /dev/console)
 kind=first
 source_before=''
 # An App without Info.plist is incomplete; --commit-install sets it aside and installs fresh.
-if [[ -f "$input_root/Owltype.app/Contents/Info.plist" ]]; then
+if [[ ! -L "$input_root/Owltype.app" && -f "$input_root/Owltype.app/Contents/Info.plist" ]] \
+   && /usr/bin/codesign --verify --deep --strict "$input_root/Owltype.app" >/dev/null 2>&1; then
   kind=update
   source_before=$(/bin/launchctl asuser "$login_uid" /usr/bin/sudo -u "$login_user" \
     "$input_root/Owltype.app/Contents/MacOS/Owltype" --current-input-source)

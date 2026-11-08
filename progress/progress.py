@@ -534,7 +534,7 @@ def check(c, online=False, proof=None):
             test('publication', lambda: publication(c, json.loads(Path(proof).read_text(encoding='utf-8'))))
         if online:
             test('live-facts', lambda: live_matches(c))
-            test('private-repo', lambda: require(json.loads(run('gh', 'repo', 'view', c['repository'], '--json', 'visibility'))['visibility'] == 'PRIVATE', 'Repository must be PRIVATE'))
+            test('repo-visibility', lambda: require(json.loads(run('gh', 'repo', 'view', c['repository'], '--json', 'visibility'))['visibility'] in ('PUBLIC', 'PRIVATE'), 'Repository visibility must be PUBLIC or PRIVATE'))
     for error in errors:
         print(error, file=sys.stderr)
     return not errors

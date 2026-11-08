@@ -231,8 +231,9 @@ trap cleanup EXIT
 pkg="${OWL_PKG:-package/Owltype.pkg}"
 if [[ -f "$pkg" ]]; then
   printf '== scanning pkg payload content: %s ==\n' "$pkg"
-  # pkgutil --expand-full refuses a pre-existing target, so use an uncreated `mktemp -u` name.
-  _pkg_tmp="$(mktemp -u /tmp/owl-pkg-scan.XXXXXX)"
+  # pkgutil --expand-full refuses a pre-existing target, so expand inside a private mktemp -d directory.
+  _pkg_tmp_parent="$(mktemp -d "${TMPDIR:-/tmp}/owl-pkg-scan.XXXXXX")"
+  _pkg_tmp="$_pkg_tmp_parent/expanded"
   if pkgutil --expand-full "$pkg" "$_pkg_tmp" >/dev/null 2>&1; then
     if pkg_app="$(python3 "$ROOT/scripts/check-staged-pkg.py" "$_pkg_tmp/Owltype-component.pkg" --extract-to "$_pkg_tmp/checked-app")"; then
       owl_scan_app_identity "$pkg_app"
@@ -243,7 +244,7 @@ if [[ -f "$pkg" ]]; then
   else
     pkg_unscanned="pkgutil --expand-full failed for $pkg"
   fi
-  rm -rf "$_pkg_tmp"; _pkg_tmp=""
+  rm -rf "$_pkg_tmp_parent"; _pkg_tmp=""
   # An expand path that drifted (component pkg renamed, payload moved) leaves this layer
   # unscanned while everything above it still says PASS. Strict mode refuses that.
   if [[ -n "${pkg_unscanned:-}" ]]; then

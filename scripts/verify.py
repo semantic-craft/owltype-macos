@@ -164,7 +164,7 @@ def main():
 
     caller_umask = os.umask(0o077)
     evidence = Path(os.environ.get('OWL_VERIFICATION_DIR',
-                    str(Path.home() / 'Projects/_shared-work/owltype/verification'))).expanduser().resolve()
+                    str(Path.home() / 'Library/Caches/Owltype/verification'))).expanduser().resolve()
     if evidence == ROOT or ROOT in evidence.parents:
         parser.error('OWL_VERIFICATION_DIR must be outside the checkout to survive build cleanup')
     evidence.mkdir(parents=True, exist_ok=True)

@@ -57,12 +57,12 @@ else
   bad "release metadata must populate both version roles with marketing newer than 1.4.17 (marketing=${marketing_version:-unset} app=${app_version:-unset})"
 fi
 
-if env -u NOTARY_PROFILE EXPECTED_NOTARY_PROFILE=xw-notary \
+if env -u NOTARY_PROFILE EXPECTED_NOTARY_PROFILE=owltype-notary \
     PATH="$work/valid-bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     bash "$GATE" --preflight-only >"$output" 2>&1; then
-  ok "missing NOTARY_PROFILE uses the canonical xw-notary profile"
+  ok "missing NOTARY_PROFILE uses the canonical owltype-notary profile"
 else
-  bad "missing NOTARY_PROFILE should use the canonical xw-notary profile"
+  bad "missing NOTARY_PROFILE should use the canonical owltype-notary profile"
 fi
 
 if run_gate "$work/invalid-bin" NOTARY_PROFILE=fixture-profile >"$output" 2>&1; then

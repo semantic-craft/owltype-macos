@@ -86,9 +86,12 @@ fetch_pinned() {
   echo "$expected_sha  $target" | shasum -a 256 --check
 }
 
-if [[ ! -d "$source_dir/.git" ]]; then
+if ! git -C "$source_dir" rev-parse --git-dir >/dev/null 2>&1; then
+  rm -rf "$source_dir"
   mkdir -p "$cache_root"
   git init "$source_dir"
+  git -C "$source_dir" remote add origin "$rime_ice_remote"
+elif ! git -C "$source_dir" remote get-url origin >/dev/null 2>&1; then
   git -C "$source_dir" remote add origin "$rime_ice_remote"
 fi
 

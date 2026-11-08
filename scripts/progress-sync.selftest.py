@@ -110,8 +110,8 @@ class ProgressSyncTests(unittest.TestCase):
             self.assertTrue(all('headRefOid' in q and 'baseRefOid' in q for q in calls[1:]))
 
     def test_retired_projection_flags_fail_before_any_io(self):
-        for flags in (['--teslahub', '/unused'], ['--hub-out', '/unused'],
-                      ['--teslahub', '/unused', '--hub-out', '/unused']):
+        for flags in (['--board-dir', '/unused'], ['--hub-out', '/unused'],
+                      ['--board-dir', '/unused', '--hub-out', '/unused']):
             with self.subTest(flags=flags), patch.object(sys, 'argv', ['sync.py', *flags]), \
                     patch.object(sync, 'run') as run, patch.object(sync.subprocess, 'run') as process, \
                     contextlib.redirect_stderr(io.StringIO()):

@@ -370,7 +370,7 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
   installer's probe saw exactly one server mapping the installed executable's inode, but the path
   and version it parsed from `lsappinfo info -only executablepath,CFBundleVersion` were empty: the
   parser matched only `executable path="…"` and `Version="…"`, the layout macOS 27.0.1 prints
-  (checked on Helios and Janus). What the tester's Mac printed is unknown; a 2020 write-up of
+  (checked on two test Macs). What the tester's Mac printed is unknown; a 2020 write-up of
   `lsappinfo` on Catalina shows raw `"Key"="Value"` pairs, and a pid LaunchServices does not know
   prints nothing. Separately, the App's re-probe (#240) runs the probe as its child, and macOS
   `pgrep` leaves out its own ancestors unless given `-a`, so the running App never saw itself and
@@ -420,9 +420,9 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
 
 **Live keys come from the environment only; `scripts/live-test.sh` loads them through direnv and fails when a named live test skips.**
 
-- Reason: the DeepSeek key was in the project's `use secrets`, yet live tests skipped and the
+- Reason: the DeepSeek key was in the project's `.envrc`, yet live tests skipped and the
   agent reported the key as missing. Three causes stacked: tests read keys from three places
-  (`TEST_RUNNER_*`, `~/.owl-test-key`, `~/.owl-test-key-doubao`); the agent shell is not a login
+  (`TEST_RUNNER_*` and legacy home-directory key files); the agent shell is not a login
   shell and had inherited a stale direnv export (DashScope and Ark keys, no DeepSeek key); and
   xcodebuild drops plain environment variables, so a skip looked like a clean run.
 - Prevention: [OwlLiveKeys](tests/OwlLiveKeys.swift) is the only key reader and key list.
@@ -539,7 +539,7 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
 - Reason: `install-dev.sh` re-signed the installed App ad hoc and `make install*` copied
   ad hoc or unsigned builds over the notarized copy. Keychain grants follow the designated
   requirement, so each rebuild would re-prompt for the login password; leftover ad hoc
-  claims of the same bundle id made macOS resolve the input method to a dead build at login. Sonori hit the Keychain prompt on
+  claims of the same bundle id made macOS resolve the input method to a dead build at login. A sibling app hit the Keychain prompt on
   three dates (2026-10-13, 10-16, 10-19).
 - Prevention: [stable-sign-identity.sh](scripts/stable-sign-identity.sh) picks the identity;
   `install-dev.sh` rejects `# designated => cdhash` and identity changes before copying; the
@@ -549,7 +549,7 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
   with a fake bundle and mocked `codesign`/`security`; it failed 8/8 cases on the old script.
   It runs in [the merge gate](scripts/gate.sh).
 - Verify (验证点): `scripts/install-dev.selftest.sh` passes.
-- Seen in this project on 1 distinct date: 2026-10-19 (found by audit; same class as Sonori).
+- Seen in this project on 1 distinct date: 2026-10-19 (found by audit; same class as a sibling app).
 
 ## Every bundle that claims the id is a menu entry
 
@@ -1461,7 +1461,7 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
 
 ## Progress refresh must preserve reviewed sections and their evidence
 
-- Seen 1x (2026-11-03): retiring the obsolete TeslaHub projection for #335 exposed
+- Seen 1x (2026-11-03): retiring the obsolete external board projection for #335 exposed
   that `progress/sync.py` replaced the project review and cleared tracked PR facts.
   The existing one-page and paginated snapshot tests, extended with an editorial
   section and extra issue/PR evidence, failed on the original implementation.
@@ -1471,4 +1471,4 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
 - Verify: `python3 scripts/progress-sync.selftest.py` covers preservation alongside
   pagination and head/base drift rejection. Retired projection flags must fail
   before GitHub access or output writes. This is isolated snapshot validation,
-  not official ANet dispatch or shared-ledger acceptance.
+  not external task dispatch or shared-ledger acceptance.

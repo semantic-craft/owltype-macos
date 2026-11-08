@@ -12,13 +12,9 @@ again. Cancel or close also retires the request; late replies cannot restore its
 
 Kotone office owns the reply socket for the installed `Kotone.app` / `dev.kotone.office`
 service. Check its service and reply-scene state in Kotone, then reconnect or generate again.
-For a development service, run `scripts/office-service` in the Kotone repository with its
-existing secure credential entrypoint. Office mounts the socket itself and has no temporary
-reply-service two-hour lifetime. Do not start a second reply service on the same socket.
-The backend's default TypeSafe JEV judgment uses `TYPESAFE_API_KEY`; independent drafting
-still uses `OPENAI_API_KEY`. Explicit OpenAI Decisions judgment also uses `OPENAI_API_KEY`.
-Owltype does not launch office, load these keys, record audio or start Responsay.
-Owltype builds independently against the protocol below.
+Office mounts the socket itself and has no temporary reply-service two-hour lifetime. Do not
+start a second reply service on the same socket. Owltype does not launch office, load backend
+keys, record audio or start Responsay. Owltype builds independently against the protocol below.
 
 This reply integration is separate from Owltype's existing Jev candidate-selection path.
 That [selection path](../../sources/Lane/OwlAICandidateService.swift) currently uses a general text model. This contract change does not

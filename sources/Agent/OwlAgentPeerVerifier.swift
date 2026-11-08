@@ -57,8 +57,19 @@ struct OwlAgentPeerVerifier: OwlAgentPeerVerifying {
     var gid: gid_t = 0
     guard getpeereid(descriptor, &uid, &gid) == 0, uid == getuid() else { return nil }
     guard let token = Self.auditToken(descriptor), let code = Self.guestCode(token) else { return nil }
+    let requirement: SecRequirement?
+    if case .team(let expectedTeam) = policy {
+      let reqString = "anchor apple generic and certificate leaf[subject.OU] = \"\(expectedTeam)\"" as CFString
+      var compiled: SecRequirement?
+      guard SecRequirementCreateWithString(reqString, [], &compiled) == errSecSuccess, let compiled else {
+        return nil
+      }
+      requirement = compiled
+    } else {
+      requirement = nil
+    }
     var staticCode: SecStaticCode?
-    guard SecCodeCheckValidity(code, [], nil) == errSecSuccess,
+    guard SecCodeCheckValidity(code, [], requirement) == errSecSuccess,
           SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode,
           let info = Self.signingInformation(staticCode),
           Self.allows(policy, info: info, path: Self.path(staticCode)) else { return nil }

@@ -26,7 +26,7 @@ unpack="$(/usr/bin/mktemp -d "${installer_state_dir}/unpack.XXXXXXXX")"
 /usr/bin/ditto -x -k "$archive" "$unpack"
 staged_app="$unpack/Owltype.app"
 [[ -d "$staged_app" && ! -L "$staged_app" ]] || exit 1
-/usr/bin/codesign --verify --deep --strict "$staged_app"
+/usr/bin/codesign --verify --deep --strict -R='=anchor apple generic and identifier "im.owltype.inputmethod.Owltype" and certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */ and certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */ and certificate leaf[subject.OU] = "LQAVR62TK2"' "$staged_app"
 version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$staged_app/Contents/Info.plist")
 "$staged_app/Contents/MacOS/Owltype" --commit-install "$staged_app"
 /bin/rm -rf "$unpack"

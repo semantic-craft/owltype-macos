@@ -132,7 +132,7 @@ def main():
     sections = [{'id':'contract','title':'共同入口与领取','items':[{
         'id':'coordination','title':'GitHub 为真源；两个输入方案共用设施','status':'in_progress',
         'summary':'本页是带观察时间的快照。阻塞按 GitHub 原生依赖计算；负责人只表示 GitHub 指派，不冒充 agent 会话。工单关闭不自动等于产品验收。',
-        'next':'按 docs/input-alignment.md 核对授权与现有执行者；需要委派时使用 agent-fleet 维护的官方 ANet 入口。静态页面不派工。刷新：python3 progress/sync.py。',
+        'next':'按 docs/input-alignment.md 核对授权与现有执行者；需要跨会话委派时遵循外部协作契约。静态页面不派工。刷新：python3 progress/sync.py。',
         'evidence':[{'kind':'issue','ref':280,'note':'拼音规格与已存在工单'},{'kind':'issue','ref':294,'note':'五笔规格与十张子票'},{'kind':'file','ref':'docs/input-alignment.md','note':'共用依赖、领取及同步协议'}]}]}]
     for group, members in GROUPS.items():
         items=[]

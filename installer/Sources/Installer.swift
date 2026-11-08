@@ -590,15 +590,35 @@ enum Installer {
         }
     }
 
+    private static func privilegedCommitCommand(fromAppPath sourcePath: String) -> String {
+        let qSource = shellQuote(sourcePath)
+        let stateDir = "/private/var/db/im.owltype.inputmethod.Owltype-installer"
+        let reqParts = [
+            "anchor apple generic",
+            "identifier \"\(expectedBundleID)\"",
+            "certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */",
+            "certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */",
+            "certificate leaf[subject.OU] = \"\(expectedTeamID)\""
+        ]
+        let req = "=" + reqParts.joined(separator: " and ")
+        return [
+            "/usr/bin/install -d -o root -g wheel -m 711 \(shellQuote(stateDir))",
+            "stage=$(/usr/bin/mktemp -d \(shellQuote(stateDir + "/gui-stage.XXXXXXXX")))",
+            "trap '/bin/rm -rf \"$stage\"' EXIT",
+            "/bin/chmod 700 \"$stage\"",
+            "/usr/bin/ditto \(qSource) \"$stage/Owltype.app\"",
+            "/usr/bin/codesign --verify --deep --strict -R\(shellQuote(req)) \"$stage/Owltype.app\"",
+            "\"$stage/Owltype.app/Contents/MacOS/Owltype\" --commit-install \"$stage/Owltype.app\""
+        ].joined(separator: " && ")
+    }
+
     private static func privilegedReplace(fromAppPath sourcePath: String) throws {
-        let executable = shellQuote(sourcePath + "/Contents/MacOS/Owltype")
-        try runPrivileged("\(executable) --commit-install \(shellQuote(sourcePath))")
+        try runPrivileged(privilegedCommitCommand(fromAppPath: sourcePath))
     }
 
     private static func privilegedReplaceAndCleanSystemLeftovers(fromAppPath sourcePath: String) throws {
-        let executable = shellQuote(sourcePath + "/Contents/MacOS/Owltype")
         let systemStrays = systemStrayCopies()
-        var command = "\(executable) --commit-install \(shellQuote(sourcePath))"
+        var command = privilegedCommitCommand(fromAppPath: sourcePath)
         if !systemStrays.isEmpty {
             let quoted = systemStrays.map { shellQuote($0.path) }.joined(separator: " ")
             command = "rm -rf \(quoted) && " + command
