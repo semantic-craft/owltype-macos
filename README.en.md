@@ -8,8 +8,6 @@
 
 MSIME Rust Engine · Pinyin / Double Pinyin / Wubi 86 & 98 / Mixed Input · Cloud Voice ASR · AI Candidates & Jev Reranking · Prompt Snippets · 4-in-1 Installer & Repair Wizard
 
-**深圳大学法律人工智能实训实验室 · Shenzhen University**
-
 [![Latest Release: 2.4.2](https://img.shields.io/badge/release-2.4.2-brightgreen)](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg)
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)](https://responsay.com/owltype/)
 [![Apple Silicon + Intel](https://img.shields.io/badge/Apple_Silicon_%2B_Intel-Universal-grey)](#download-and-install)
@@ -144,8 +142,6 @@ See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md) for details.
 ---
 
 ## Project and feedback
-
-Developed and maintained by **Shenzhen University Legal AI Training Lab (深圳大学法律人工智能实训实验室)**.
 
 - **Installer downloads**: [Website & Downloads](https://responsay.com/owltype/) · [Direct DMG Download (2.4.2)](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg) · [Direct PKG Download (2.4.2)](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype.pkg)
 - **Issues & testing feedback**: [GitHub Issues](https://github.com/semantic-craft/owltype-macos/issues). When reporting an issue, please include your Owltype version (for example, `2.4.2`), macOS version, chip architecture, host application, and steps to reproduce.
