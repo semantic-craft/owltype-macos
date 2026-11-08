@@ -37,7 +37,6 @@ enum OwlHotKeySlot: CaseIterable, Sendable {
   case promptAssistant
   /// Local to a live pinyin candidate menu; never intercepted by the global event tap.
   case pinCandidate
-  case voiceInput
 
   // 任意提问的直达热键槽（askAnything / "OwlAskAnythingHotKey"）已退役（产品决策 2026-07-26）：
   // 任意提问是划词技能的兜底，必须带着选区从划词菜单点进（同日删掉了状态栏那个空选区入口）；
@@ -50,7 +49,6 @@ enum OwlHotKeySlot: CaseIterable, Sendable {
     case .selectionMenu: return "OwlSelectionMenuHotKey"
     case .promptAssistant: return "OwlPromptAssistantHotKey"
     case .pinCandidate: return "OwlPinCandidateHotKey"
-    case .voiceInput: return "OwlVoiceInputHotKey"
     }
   }
 
@@ -63,7 +61,6 @@ enum OwlHotKeySlot: CaseIterable, Sendable {
     case .selectionMenu: return "划词工具箱"
     case .promptAssistant: return "快捷片段 · 提示词筛选"
     case .pinCandidate: return "置顶当前候选"
-    case .voiceInput: return "语音输入"
     }
   }
 
@@ -72,7 +69,7 @@ enum OwlHotKeySlot: CaseIterable, Sendable {
   /// an upgrade migrates them to 未设置 rather than showing a combo the user could never re-record.
   var legacyPresets: [String: (keyCode: UInt32, modifiers: UInt32)] {
     switch self {
-    case .quickSendPanel, .promptAssistant, .pinCandidate, .voiceInput:
+    case .quickSendPanel, .promptAssistant, .pinCandidate:
       return [:]
     case .selectionMenu:
       return [
@@ -303,8 +300,6 @@ final class OwlHotKeyEventTap: NSObject {
   var onQuickSend: (() -> Void)?
   var onSelectionSummon: (() -> Void)?
   var onPromptAssistant: (() -> Void)?
-  var onVoiceInput: (() -> Void)?
-  var onVoiceInputEvent: ((NSEvent) -> Void)?
 
   /// Install the tap when possible. Safe to call repeatedly; no-op when installed or AX untrusted.
   func startIfPossible() {
@@ -313,7 +308,7 @@ final class OwlHotKeyEventTap: NSObject {
       OwlHotKeyMatcher.log.notice("event tap not installed: accessibility not trusted (IMK fallback)")
       return
     }
-    let mask = CGEventMask((1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue))
+    let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
     let context = Unmanaged.passUnretained(self).toOpaque()
     guard let created = CGEvent.tapCreate(
       tap: .cgSessionEventTap,
@@ -387,10 +382,9 @@ final class OwlHotKeyEventTap: NSObject {
       if let port = installed.withLock({ $0.port }) { CGEvent.tapEnable(tap: port, enable: true) }
       return Unmanaged.passUnretained(event)
     }
-    guard type == .keyDown || type == .keyUp else { return Unmanaged.passUnretained(event) }
+    guard type == .keyDown else { return Unmanaged.passUnretained(event) }
     let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
     let flags = nsFlags(event.flags)
-    let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
     let (suppressed, owltypeIsCurrent) = Self.shared.withLock { ($0.suppressed, $0.owltypeIsCurrent) }
     guard let matched = Self.slotToConsume(
       keyCode: keyCode,
@@ -398,35 +392,12 @@ final class OwlHotKeyEventTap: NSObject {
       combo: { $0.current?.carbonCombo })
     else { return Unmanaged.passUnretained(event) }
 
-    if type == .keyUp && matched != .voiceInput {
-      return Unmanaged.passUnretained(event)
-    }
-
     OwlHotKeyMatcher.log.notice("tap fired: \(String(describing: matched), privacy: .public)")
-    let eventType: NSEvent.EventType = (type == .keyUp) ? .keyUp : .keyDown
     DispatchQueue.main.async { [weak self] in
       switch matched {
       case .quickSendPanel: self?.onQuickSend?()
       case .selectionMenu: self?.onSelectionSummon?()
       case .promptAssistant: self?.onPromptAssistant?()
-      case .voiceInput:
-        if let onVoiceInputEvent = self?.onVoiceInputEvent,
-           let nsEvent = NSEvent.keyEvent(
-             with: eventType,
-             location: .zero,
-             modifierFlags: flags,
-             timestamp: ProcessInfo.processInfo.systemUptime,
-             windowNumber: 0,
-             context: nil,
-             characters: "",
-             charactersIgnoringModifiers: "",
-             isARepeat: isRepeat,
-             keyCode: keyCode
-           ) {
-          onVoiceInputEvent(nsEvent)
-        } else if eventType == .keyDown {
-          self?.onVoiceInput?()
-        }
       case .pinCandidate: break // excluded above; handled only by IMK with live candidates
       }
     }

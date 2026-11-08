@@ -51,12 +51,21 @@ final class OwlVoiceInputCoordinator {
     case failed(String)
   }
 
+  static let rightOptionKeyCode: UInt16 = 61 // kVK_RightOption
+  private static let deviceLeftOptionMask: UInt = 0x00000020 // NX_DEVICELALTKEYMASK
+  private static let deviceRightOptionMask: UInt = 0x00000040 // NX_DEVICERALTKEYMASK
+
   private(set) var mode: Mode = .idle
   private(set) var targetSnapshot: OwlVoiceTargetSnapshot?
+  private(set) var isHoldingRightOption = false
 
   private var durationTimer: Timer?
   private var dismissTimer: Timer?
   private var recognitionTask: Task<Void, Never>?
+  private var globalEventMonitor: Any?
+  private var lastHandledEventTimestamp: TimeInterval = -1
+  private var lastHandledEventType: NSEvent.EventType?
+  private var lastHandledKeyCode: UInt16 = .max
   // Cancellation is cooperative. Every callback must still belong to this recording.
   private var voiceGeneration: UInt64 = 0
 
@@ -67,15 +76,22 @@ final class OwlVoiceInputCoordinator {
   var postProcessor: OwlVoicePolishServiceProtocol? = OwlVoiceDeepSeekPolisher.shared
   var hudPanel: OwlVoiceCapsulePanel = OwlVoiceCapsulePanel.shared
 
-  var shortcutMatcher: ((NSEvent) -> Bool)?
   var targetSnapshotProvider: (() -> OwlVoiceTargetSnapshot)?
   var secureInputChecker: (() -> Bool)?
   var microphonePermissionStatusProvider: (() -> AVAuthorizationStatus)?
   var microphonePermissionRequester: (() async -> Bool)?
   var isEnabledOverride: Bool?
+  var holdRightOptionEnabledOverride: Bool?
+  var physicalRightOptionHeldProvider: (() -> Bool)? = OwlDefaults.isRunningUnitTests
+    ? nil
+    : { CGEventSource.keyState(.hidSystemState, key: 61) }
 
   var isVoiceEnabled: Bool {
     isEnabledOverride ?? OwlVoiceSettings.isEnabled
+  }
+
+  var isHoldRightOptionEnabled: Bool {
+    holdRightOptionEnabledOverride ?? OwlVoiceSettings.holdRightOptionEnabled
   }
 
   var isPolishEnabledOverride: Bool?
@@ -85,26 +101,72 @@ final class OwlVoiceInputCoordinator {
 
   init() {}
 
-  // MARK: - Key Event Handling
+  // MARK: - Global Event Monitor (MSIME Right Option Hold Fallback)
 
-  /// Fallback trigger when a hotkey tap fires without an `NSEvent`.
-  func handleVoiceHotKeyTrigger() {
-    guard isVoiceEnabled else { return }
-    switch mode {
-    case .idle:
-      startVoiceInput()
-    case .toggled, .handsFreeLocked:
-      finishRecordingAndTranscribe()
-    default:
-      break
+  /// Installs a lightweight global monitor for `.flagsChanged` and `.keyDown` so holding Right Option
+  /// works even in hosts that do not forward bare modifier key transitions to `IMKInputController.handle`.
+  func startGlobalMonitor() {
+    guard !OwlDefaults.isRunningUnitTests, globalEventMonitor == nil else { return }
+    globalEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.flagsChanged, .keyDown]) { [weak self] event in
+      Task { @MainActor [weak self] in
+        guard let self, self.isVoiceEnabled else { return }
+        guard event.timestamp != self.lastHandledEventTimestamp
+           || event.type != self.lastHandledEventType
+           || event.keyCode != self.lastHandledKeyCode else {
+          return
+        }
+        guard OwlInstaller.currentInputSourceID()?.hasPrefix(OwlInstaller.inputSourcePrefix) == true else {
+          return
+        }
+        _ = self.handleKeyEvent(event)
+      }
     }
   }
+
+  func stopGlobalMonitor() {
+    if let monitor = globalEventMonitor {
+      NSEvent.removeMonitor(monitor)
+      globalEventMonitor = nil
+    }
+  }
+
+  // MARK: - Key Event Handling
 
   /// Intercepts key events. Returns true if consumed by the voice input subsystem.
   func handleKeyEvent(_ event: NSEvent) -> Bool {
     guard isVoiceEnabled else { return false }
 
+    if event.timestamp > 0 {
+      lastHandledEventTimestamp = event.timestamp
+      lastHandledEventType = event.type
+      lastHandledKeyCode = event.keyCode
+    }
+
+    if event.type == .flagsChanged {
+      return handleFlagsChangedEvent(event)
+    }
+
     if event.type == .keyDown {
+      if isHoldingRightOption, case .holding = mode {
+        if event.keyCode == 53 { // Escape
+          cancelVoiceInput()
+          return true
+        }
+        if event.keyCode == 49 { // Space -> lock hands-free
+          if case let .holding(t0) = mode {
+            mode = .handsFreeLocked(startTime: t0)
+            updateRecordingHUD(level: 0)
+          }
+          return true
+        }
+        if !event.isARepeat {
+          // ChordCancel (msime VoiceHoldShortcut.h): Option + another key is a keyboard shortcut
+          // or Option character, not speech. Cancel recording and pass the key chord to the host.
+          cancelVoiceInput()
+          return false
+        }
+      }
+
       if event.keyCode == 53 { // Escape
         if mode != .idle {
           cancelVoiceInput()
@@ -124,45 +186,92 @@ final class OwlVoiceInputCoordinator {
           break
         }
       }
-
-      if isVoiceShortcut(event) {
-        switch mode {
-        case .idle:
-          startVoiceInput()
-          return true
-        case .toggled, .handsFreeLocked:
-          finishRecordingAndTranscribe()
-          return true
-        case .holding:
-          return true // Ignore auto-repeat keyDown
-        default:
-          break
-        }
-      }
     } else if event.type == .keyUp {
-      if isVoiceShortcutKeyUp(event) {
-        switch mode {
-        case let .holding(t0):
-          let elapsed = Date().timeIntervalSince(t0)
-          if elapsed < 0.300 {
-            // Clicked quickly -> transition to toggle mode
-            mode = .toggled(startTime: t0)
-            updateRecordingHUD(level: 0)
-          } else {
-            // Held to speak -> finish recording
-            finishRecordingAndTranscribe()
-          }
-          return true
-        case .handsFreeLocked:
-          // Ignore keyUp while locked in hands-free mode
-          return true
-        default:
-          break
-        }
+      if event.keyCode == 49, case .handsFreeLocked = mode {
+        return true
       }
     }
 
     return false
+  }
+
+  private func handleFlagsChangedEvent(_ event: NSEvent) -> Bool {
+    guard isHoldRightOptionEnabled else { return false }
+
+    if event.keyCode == Self.rightOptionKeyCode {
+      if Self.isRightOptionPressFlags(event.modifierFlags) {
+        switch mode {
+        case .idle:
+          isHoldingRightOption = true
+          startVoiceInput()
+          if mode == .idle {
+            isHoldingRightOption = false
+          }
+          return true
+        case .toggled, .handsFreeLocked:
+          isHoldingRightOption = false
+          finishRecordingAndTranscribe()
+          return true
+        case .holding:
+          return true
+        default:
+          return false
+        }
+      } else if isHoldingRightOption {
+        isHoldingRightOption = false
+        switch mode {
+        case .holding:
+          finishRecordingAndTranscribe()
+          return true
+        case .handsFreeLocked:
+          return true
+        default:
+          return true
+        }
+      }
+    } else if isHoldingRightOption, !Self.isRightOptionStillHeld(event.modifierFlags) {
+      isHoldingRightOption = false
+      if case .holding = mode {
+        finishRecordingAndTranscribe()
+        return true
+      }
+    }
+
+    return false
+  }
+
+  static func isRightOptionPressFlags(_ flags: NSEvent.ModifierFlags) -> Bool {
+    let relevant = flags.intersection([.command, .option, .control, .shift])
+    guard relevant == [.option] else { return false }
+    let raw = flags.rawValue
+    let deviceOptionBits = raw & (deviceLeftOptionMask | deviceRightOptionMask)
+    if deviceOptionBits != 0 {
+      return (raw & deviceRightOptionMask) != 0 && (raw & deviceLeftOptionMask) == 0
+    }
+    return true
+  }
+
+  private static func isRightOptionStillHeld(_ flags: NSEvent.ModifierFlags) -> Bool {
+    guard flags.contains(.option) else { return false }
+    let raw = flags.rawValue
+    let deviceOptionBits = raw & (deviceLeftOptionMask | deviceRightOptionMask)
+    if deviceOptionBits != 0 {
+      return (raw & deviceRightOptionMask) != 0
+    }
+    return true
+  }
+
+  /// Polls physical HID Right Option state as a fallback when macOS drops `.flagsChanged` on focus shifts.
+  func pollPhysicalRightOptionReleaseIfNeeded() {
+    guard isHoldingRightOption,
+          case .holding = mode,
+          let provider = physicalRightOptionHeldProvider else {
+      return
+    }
+    if !provider() {
+      isHoldingRightOption = false
+      finishRecordingAndTranscribe()
+    }
   }
 
   // MARK: - Workflow Actions
@@ -277,6 +386,7 @@ final class OwlVoiceInputCoordinator {
     case .holding, .toggled, .handsFreeLocked: break
     default: return
     }
+    isHoldingRightOption = false
     let generation = voiceGeneration
     stopDurationTimer()
 
@@ -355,6 +465,7 @@ final class OwlVoiceInputCoordinator {
 
   func cancelVoiceInput() {
     voiceGeneration &+= 1
+    isHoldingRightOption = false
     dismissTimer?.invalidate()
     dismissTimer = nil
     stopDurationTimer()
@@ -413,6 +524,8 @@ final class OwlVoiceInputCoordinator {
     durationTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
       Task { @MainActor [weak self] in
         guard let self, self.voiceGeneration == generation else { return }
+        self.pollPhysicalRightOptionReleaseIfNeeded()
+        guard self.voiceGeneration == generation else { return }
         switch self.mode {
         case let .holding(t0), let .toggled(t0), let .handsFreeLocked(t0):
           let dur = Date().timeIntervalSince(t0)
@@ -441,22 +554,6 @@ final class OwlVoiceInputCoordinator {
         self.mode = .idle
       }
     }
-  }
-
-  private func isVoiceShortcut(_ event: NSEvent) -> Bool {
-    if let customMatcher = shortcutMatcher {
-      return customMatcher(event)
-    }
-    guard let combo = OwlVoiceSettings.hotkey?.carbonCombo else { return false }
-    return OwlHotKeyMatcher.matches(combo, keyCode: event.keyCode, flags: event.modifierFlags)
-  }
-
-  private func isVoiceShortcutKeyUp(_ event: NSEvent) -> Bool {
-    if isVoiceShortcut(event) { return true }
-    if case .holding = mode, let combo = OwlVoiceSettings.hotkey?.carbonCombo {
-      return UInt32(event.keyCode) == combo.keyCode
-    }
-    return false
   }
 
   private func isSecureInputActive() -> Bool {

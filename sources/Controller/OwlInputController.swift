@@ -174,7 +174,7 @@ final class OwlInputController: IMKInputController {
       Self.recordedFirstHostKeyEvent = true
       OwlActivationHealth.recordHostKeyEventOnce()
     }
-    debugLiveInputTrace("handle enter type=\(event.type.rawValue) key=\(event.keyCode) hasClient=\(sender != nil)")
+    debugLiveInputTrace("handle enter type=\(event.type.rawValue) hasClient=\(sender != nil)")
     let perfFirstKey = Self.loggedFirstKey ? nil : OwlPerf.mark()
     defer { if let perfFirstKey { OwlPerf.since(perfFirstKey, "firstkey.handle"); Self.loggedFirstKey = true } }
 
@@ -222,7 +222,7 @@ final class OwlInputController: IMKInputController {
 
     // PURE pipeline (task 06-22): de-platform the NSEvent → classify (pure) → feed the engine.
     let action = OwlUserActionClassifier.classify(OwlKeyEvent(event: event, lastModifiers: lastModifiers))
-    debugLiveInputTrace("handle classified type=\(event.type.rawValue) key=\(event.keyCode)")
+    debugLiveInputTrace("handle classified type=\(event.type.rawValue)")
     return apply(userAction: action)
   }
 
@@ -461,7 +461,7 @@ final class OwlInputController: IMKInputController {
       engineSession.setOption(.vertical, styleFlags.vertical)
     }
 
-    debugLiveInputTrace("process before schema=\(engineSession.status()?.schemaId ?? "<nil>") key=\(engineKeycode) mods=\(engineModifiers)")
+    debugLiveInputTrace("process before schema=\(engineSession.status()?.schemaId ?? "<nil>")")
     let processTrace = OwlLatencyTrace.begin("session.process")
     let handled = engineSession.process(keycode: engineKeycode, modifiers: engineModifiers)
     OwlLatencyTrace.end("session.process", processTrace)

@@ -227,16 +227,15 @@ final class ProviderProfileStoreTests: XCTestCase {
   func testMiniMaxFlashUsesLowThinkingAndAdequateProbeBudget() throws {
     XCTAssertEqual(
       OwlLLMProviderCatalog.presets.map(\.id),
-      ["qwen", "doubao", "grok", "openai", "gemini", "deepseek"],
-      "UI 预设目录收敛为 6 家全能/搜索供应商"
+      ["qwen", "doubao", "openai", "gemini", "deepseek"],
+      "UI 预设目录收敛为 5 家核心供应商（已移除 Grok）"
     )
-    let grok = try XCTUnwrap(OwlLLMProviderCatalog.preset(id: "grok"))
-    XCTAssertEqual(grok.endpoint, "https://api.x.ai/v1/chat/completions")
-    XCTAssertEqual(grok.model, "grok-4-fast")
-    let grokProfile = OwlProviderProfile(
-      displayName: grok.displayName, endpoint: URL(string: grok.endpoint)!,
-      model: grok.model, providerID: "grok")
-    XCTAssertEqual(OwlLLMProviderCatalog.capabilitySummary(for: grokProfile), "LLM · 语音识别")
+    XCTAssertNil(OwlLLMProviderCatalog.preset(id: "grok"))
+    let geminiPreset = try XCTUnwrap(OwlLLMProviderCatalog.preset(id: "gemini"))
+    let geminiProfile = OwlProviderProfile(
+      displayName: geminiPreset.displayName, endpoint: URL(string: geminiPreset.endpoint)!,
+      model: geminiPreset.model, providerID: "gemini")
+    XCTAssertEqual(OwlLLMProviderCatalog.capabilitySummary(for: geminiProfile), "LLM · 语音识别")
     let deepSeekProfile = OwlProviderProfile(
       displayName: "DeepSeek", endpoint: URL(string: "https://api.deepseek.com/v1/chat/completions")!,
       model: "deepseek-flash", providerID: "deepseek")

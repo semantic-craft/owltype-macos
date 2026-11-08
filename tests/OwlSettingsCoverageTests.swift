@@ -235,17 +235,20 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "保存并应用",
     "搜索",
     "变量",
-    // 语音输入 · 云端语音识别：预设、端点、模型、拉取模型与 ASR API Key 存取，
+    // 语音输入 · 云端语音识别：预设、端点、模型、拉取模型、ASR API Key 存取与 OpenAI 账号登录状态/验证，
     // 行为由 OwlAIVoiceTests 与 OwlVoiceGrokASRClientTests 覆盖。
     "已设置 ●●●●●●（输入新 Key 可覆盖）",
     "保存",
     "清除",
     "选择语音识别预设",
-    "ASR 端点，如 https://api.x.ai/v1/audio/transcriptions",
-    "ASR 模型，如 grok-voice-transcribe-2.0",
+    "ASR 端点，如 https://api.openai.com/v1/audio/transcriptions",
+    "ASR 模型，如 gpt-transcribe",
     "选择语音识别模型",
     "拉取模型",
     "ASR API Key（写入 Keychain，同名供应商自动复用）",
+    "刷新状态",
+    "复制命令",
+    "验证连接",
   ]
 
   private static let expectedSourceMarkers = [
@@ -262,7 +265,7 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "API Key（\\(hint)写入 Keychain，可留空稍后再填）",
     "API Key（\\(hint)留空＝保持现有 Key 不变）",
     "OwlSettingsActions.saveVoiceASRSettings(",
-    "OwlSettingsActions.clearXAIAPIKey(",
+    "OwlSettingsActions.clearVoiceASRAPIKey(",
     "toggle(.quickPhraseCandidates)",
     "OwlExperimentalPreferences.keyboardRerankEnabled",
     "OwlExperimentalPreferences.settledRerankEnabled",

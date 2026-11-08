@@ -55,4 +55,18 @@ final class OwlLiveInputTraceTests: XCTestCase {
     let permissions = try FileManager.default.attributesOfItem(atPath: traceURL.path)[.posixPermissions] as? NSNumber
     XCTAssertEqual(permissions?.intValue, 0o600)
   }
+
+  func testEnabledTraceRefusesSymlinkTarget() throws {
+    defaults.set(true, forKey: OwlLiveInputTrace.defaultsKey)
+    let victimURL = FileManager.default.temporaryDirectory.appending(component: "owl-trace-victim-\(UUID().uuidString).txt")
+    defer { try? FileManager.default.removeItem(at: victimURL) }
+    try "original".write(to: victimURL, atomically: true, encoding: .utf8)
+    try FileManager.default.createSymbolicLink(at: traceURL, withDestinationURL: victimURL)
+
+    OwlLiveInputTrace.write({
+      "should not overwrite symlink target"
+    }, defaults: defaults, fileURL: traceURL)
+
+    XCTAssertEqual(try String(contentsOf: victimURL, encoding: .utf8), "original")
+  }
 }

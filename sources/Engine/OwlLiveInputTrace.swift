@@ -6,6 +6,7 @@
 //  or call Session status just to discard the result.
 //
 
+import Darwin
 import Foundation
 
 enum OwlLiveInputTrace {
@@ -26,18 +27,27 @@ enum OwlLiveInputTrace {
     now: () -> Date = Date.init,
     fileManager: FileManager = .default
   ) {
+    _ = fileManager
     guard isEnabled(defaults: defaults) else { return }
     let line = "\(now()) \(message())\n"
     guard let data = line.data(using: .utf8) else { return }
-    if fileManager.fileExists(atPath: fileURL.path),
-       let handle = try? FileHandle(forWritingTo: fileURL) {
-      defer { try? handle.close() }
-      try? handle.seekToEnd()
-      try? handle.write(contentsOf: data)
-    } else {
-      try? data.write(to: fileURL)
+    // Debug traces contain metadata only; open with O_NOFOLLOW and 0600 permissions so
+    // temporary-directory symlinks are rejected and the file is never world-readable.
+    let descriptor = fileURL.path.withCString { cPath in
+      open(cPath, O_CREAT | O_WRONLY | O_APPEND | O_NOFOLLOW | O_CLOEXEC, mode_t(0o600))
     }
-    // Debug traces contain metadata only, but still keep them private to the current macOS user.
-    try? fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
+    guard descriptor >= 0 else { return }
+    defer { close(descriptor) }
+    var fileStat = stat()
+    guard fstat(descriptor, &fileStat) == 0,
+          (fileStat.st_mode & S_IFMT) == S_IFREG,
+          fileStat.st_uid == geteuid() else {
+      return
+    }
+    _ = fchmod(descriptor, mode_t(0o600))
+    data.withUnsafeBytes { buffer in
+      guard let base = buffer.baseAddress, buffer.count > 0 else { return }
+      _ = Darwin.write(descriptor, base, buffer.count)
+    }
   }
 }

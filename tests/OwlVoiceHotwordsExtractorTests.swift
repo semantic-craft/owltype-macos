@@ -347,10 +347,12 @@ final class OwlVoiceHotwordsExtractorTests: XCTestCase {
       )
     }
 
-    coordinator.shortcutMatcher = { $0.keyCode == 9 }
-
-    // Trigger key down
-    let down = try makeKeyEvent(type: .keyDown, keyCode: 9)
+    // Trigger Right Option press
+    let down = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option]
+    )
     XCTAssertTrue(coordinator.handleKeyEvent(down))
 
     // Verify snapshot preContext was captured

@@ -233,7 +233,6 @@ pub fn rule(op: &str, a: Value) -> Value {
             let mut values = match s(&a, "providerID") {
                 "deepseek" => vec![json!("deepseek-flash"), json!("deepseek-v4-pro")],
                 "qwen" => catalog["qwenModels"].as_array().unwrap().clone(),
-                "grok" => catalog["grokModels"].as_array().unwrap().clone(),
                 "minimax" => catalog["minimaxModels"].as_array().unwrap().clone(),
                 id => catalog["presets"]
                     .as_array()

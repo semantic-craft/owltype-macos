@@ -106,7 +106,7 @@ final class OwlAIVoiceTests: XCTestCase {
 
     let req = try XCTUnwrap(stubTransport.recordedRequests.first)
     XCTAssertEqual(req.httpMethod, "POST")
-    XCTAssertEqual(req.url?.absoluteString, "https://api.x.ai/v1/audio/transcriptions")
+    XCTAssertEqual(req.url?.absoluteString, "https://api.openai.com/v1/audio/transcriptions")
     XCTAssertEqual(req.value(forHTTPHeaderField: "Authorization"), "Bearer xai-test-key-12345")
     XCTAssertTrue(req.value(forHTTPHeaderField: "Content-Type")?.contains("multipart/form-data") == true)
   }
@@ -273,23 +273,27 @@ final class OwlAIVoiceTests: XCTestCase {
       OwlVoiceTargetSnapshot(client: mockClient, caretAnchor: NSRect(x: 200, y: 300, width: 2, height: 16))
     }
 
-    coordinator.shortcutMatcher = { event in
-      event.keyCode == 9 && event.modifierFlags.contains(.command)
-    }
-
-    // Step 1: KeyDown -> Starts recording
-    let keyDownEvent = try makeKeyEvent(type: .keyDown, keyCode: 9, modifiers: .command)
-    let consumedDown = coordinator.handleKeyEvent(keyDownEvent)
+    // Step 1: Press Right Option -> Starts recording
+    let pressEvent = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option]
+    )
+    let consumedDown = coordinator.handleKeyEvent(pressEvent)
     XCTAssertTrue(consumedDown)
     guard case .holding = coordinator.mode else {
       return XCTFail("Expected .holding, got \(coordinator.mode)")
     }
     XCTAssertTrue(mockRecorder.isRecording)
 
-    // Step 2: KeyUp -> Triggers transcription
-    try await Task.sleep(nanoseconds: 350_000_000)
-    let keyUpEvent = try makeKeyEvent(type: .keyUp, keyCode: 9, modifiers: .command)
-    let consumedUp = coordinator.handleKeyEvent(keyUpEvent)
+    // Step 2: Release Right Option -> Triggers transcription
+    try await Task.sleep(nanoseconds: 50_000_000)
+    let releaseEvent = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: []
+    )
+    let consumedUp = coordinator.handleKeyEvent(releaseEvent)
     XCTAssertTrue(consumedUp)
 
     // Wait for async pipeline
@@ -322,30 +326,40 @@ final class OwlAIVoiceTests: XCTestCase {
       OwlVoiceTargetSnapshot(client: mockClient)
     }
 
-    coordinator.shortcutMatcher = { $0.keyCode == 9 }
-
-    // 1. Shortcut Down -> .holding
-    let down = try makeKeyEvent(type: .keyDown, keyCode: 9)
+    // 1. Right Option Down -> .holding
+    let down = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option]
+    )
     XCTAssertTrue(coordinator.handleKeyEvent(down))
     guard case .holding = coordinator.mode else { return XCTFail() }
 
     // 2. Space Down -> .handsFreeLocked
-    let space = try makeKeyEvent(type: .keyDown, keyCode: 49) // Space
+    let space = try makeKeyEvent(type: .keyDown, keyCode: 49, modifiers: [.option]) // Space
     XCTAssertTrue(coordinator.handleKeyEvent(space))
     guard case .handsFreeLocked = coordinator.mode else {
       return XCTFail("Expected .handsFreeLocked, got \(coordinator.mode)")
     }
 
-    // 3. Shortcut Up -> Remains .handsFreeLocked (does NOT stop recording)
-    let up = try makeKeyEvent(type: .keyUp, keyCode: 9)
+    // 3. Right Option Up -> Remains .handsFreeLocked (does NOT stop recording)
+    let up = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: []
+    )
     XCTAssertTrue(coordinator.handleKeyEvent(up))
     guard case .handsFreeLocked = coordinator.mode else {
-      return XCTFail("Expected .handsFreeLocked to persist on keyUp, got \(coordinator.mode)")
+      return XCTFail("Expected .handsFreeLocked to persist on Right Option release, got \(coordinator.mode)")
     }
     XCTAssertTrue(mockRecorder.isRecording)
 
-    // 4. Subsequent Shortcut Down -> Finishes recording
-    let finishDown = try makeKeyEvent(type: .keyDown, keyCode: 9)
+    // 4. Subsequent Right Option Down -> Finishes recording
+    let finishDown = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option]
+    )
     XCTAssertTrue(coordinator.handleKeyEvent(finishDown))
 
     for _ in 0..<30 {
@@ -367,12 +381,12 @@ final class OwlAIVoiceTests: XCTestCase {
       OwlVoiceTargetSnapshot(client: mockClient, caretAnchor: .zero)
     }
 
-    coordinator.shortcutMatcher = { event in
-      event.keyCode == 9 && event.modifierFlags.contains(.command)
-    }
-
-    // Start holding
-    let downEvent = try makeKeyEvent(type: .keyDown, keyCode: 9, modifiers: .command)
+    // Start holding Right Option
+    let downEvent = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option]
+    )
     _ = coordinator.handleKeyEvent(downEvent)
     XCTAssertTrue(mockRecorder.isRecording)
 
@@ -395,9 +409,11 @@ final class OwlAIVoiceTests: XCTestCase {
     let mockRecorder = OwlMockAudioRecorder()
     coordinator.audioRecorder = mockRecorder
 
-    coordinator.shortcutMatcher = { $0.keyCode == 9 }
-
-    let down = try makeKeyEvent(type: .keyDown, keyCode: 9)
+    let down = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option]
+    )
     let consumed = coordinator.handleKeyEvent(down)
     XCTAssertTrue(consumed, "Secure input consumes key event safely")
     XCTAssertEqual(coordinator.mode, .idle, "Must remain .idle in secure input")
@@ -430,9 +446,62 @@ final class OwlAIVoiceTests: XCTestCase {
     XCTAssertEqual(mockRecorder.startRecordingCallCount, 1, "Must start recording once permission is granted")
   }
 
-  func testVoiceHotKeyTriggerTogglesStartAndFinish() throws {
+  func testRightOptionHoldToSpeakAndReleaseTranscribes() async throws {
     let coordinator = OwlVoiceInputCoordinator()
     coordinator.isEnabledOverride = true
+    coordinator.holdRightOptionEnabledOverride = true
+    coordinator.secureInputChecker = { false }
+
+    let mockRecorder = OwlMockAudioRecorder()
+    mockRecorder.simulatedDuration = 1.0
+    mockRecorder.simulatedPeakRMS = 0.25
+    coordinator.audioRecorder = mockRecorder
+
+    let stubTransport = OwlStubVoiceTransport { req in
+      let json = "{\"text\": \"右Option按住说话上屏\"}"
+      let resp = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+      return (Data(json.utf8), resp)
+    }
+    coordinator.asrClient = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
+
+    let mockClient = MockVoiceTextInputClient()
+    coordinator.targetSnapshotProvider = {
+      OwlVoiceTargetSnapshot(client: mockClient, caretAnchor: NSRect(x: 160, y: 240, width: 2, height: 16))
+    }
+
+    // 1. Press Right Option (keyCode 61, .option) -> starts recording in .holding
+    let pressEvent = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option]
+    )
+    XCTAssertTrue(coordinator.handleKeyEvent(pressEvent))
+    XCTAssertTrue(coordinator.isHoldingRightOption)
+    guard case .holding = coordinator.mode else {
+      return XCTFail("Expected .holding after pressing Right Option, got \(coordinator.mode)")
+    }
+    XCTAssertTrue(mockRecorder.isRecording)
+
+    // 2. Release Right Option (keyCode 61, []) -> finishes recording & transcribes
+    let releaseEvent = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: []
+    )
+    XCTAssertTrue(coordinator.handleKeyEvent(releaseEvent))
+    XCTAssertFalse(coordinator.isHoldingRightOption)
+
+    for _ in 0..<30 {
+      if !mockClient.insertedTexts.isEmpty { break }
+      try await Task.sleep(nanoseconds: 30_000_000)
+    }
+    XCTAssertEqual(mockClient.insertedTexts.first, "右Option按住说话上屏")
+  }
+
+  func testRightOptionChordCancelAbortsRecordingAndPassesKeyToHost() throws {
+    let coordinator = OwlVoiceInputCoordinator()
+    coordinator.isEnabledOverride = true
+    coordinator.holdRightOptionEnabledOverride = true
     coordinator.secureInputChecker = { false }
 
     let mockRecorder = OwlMockAudioRecorder()
@@ -440,20 +509,103 @@ final class OwlAIVoiceTests: XCTestCase {
     coordinator.audioRecorder = mockRecorder
     coordinator.targetSnapshotProvider = { OwlVoiceTargetSnapshot() }
 
-    // 1. Trigger from idle -> starts recording
-    coordinator.handleVoiceHotKeyTrigger()
-    XCTAssertEqual(mockRecorder.startRecordingCallCount, 1)
+    // 1. Hold Right Option -> enters .holding
+    let pressRightOption = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option]
+    )
+    XCTAssertTrue(coordinator.handleKeyEvent(pressRightOption))
+    XCTAssertTrue(coordinator.isHoldingRightOption)
+    XCTAssertTrue(mockRecorder.isRecording)
 
-    // 2. Quick keyUp -> transitions to .toggled
-    coordinator.shortcutMatcher = { $0.keyCode == 9 }
-    let up = try makeKeyEvent(type: .keyUp, keyCode: 9)
-    XCTAssertTrue(coordinator.handleKeyEvent(up))
-    guard case .toggled = coordinator.mode else {
-      return XCTFail("Expected .toggled mode, got \(coordinator.mode)")
+    // 2. Press 'a' (keyCode 0) while holding Option -> ChordCancel cancels voice input and returns false
+    let chordKeyDown = try makeKeyEvent(type: .keyDown, keyCode: 0, modifiers: [.option])
+    let consumed = coordinator.handleKeyEvent(chordKeyDown)
+    XCTAssertFalse(consumed, "ChordCancel must return false so Option+key chord reaches the host app")
+    XCTAssertFalse(coordinator.isHoldingRightOption)
+    XCTAssertEqual(coordinator.mode, .idle)
+    XCTAssertEqual(mockRecorder.cancelRecordingCallCount, 1)
+    XCTAssertEqual(mockRecorder.stopRecordingCallCount, 0)
+  }
+
+  func testRightOptionHoldSpaceLocksHandsFreeAndSecondTapFinishes() throws {
+    let coordinator = OwlVoiceInputCoordinator()
+    coordinator.isEnabledOverride = true
+    coordinator.holdRightOptionEnabledOverride = true
+    coordinator.secureInputChecker = { false }
+
+    let mockRecorder = OwlMockAudioRecorder()
+    mockRecorder.simulatedDuration = 1.0
+    coordinator.audioRecorder = mockRecorder
+    coordinator.targetSnapshotProvider = { OwlVoiceTargetSnapshot() }
+
+    // 1. Hold Right Option -> .holding
+    let pressRightOption = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option]
+    )
+    XCTAssertTrue(coordinator.handleKeyEvent(pressRightOption))
+    guard case .holding = coordinator.mode else {
+      return XCTFail("Expected .holding, got \(coordinator.mode)")
     }
 
-    // 3. Trigger again in .toggled -> stops recording
-    coordinator.handleVoiceHotKeyTrigger()
+    // 2. Tap Space (keyCode 49) while holding Right Option -> .handsFreeLocked
+    let spaceDown = try makeKeyEvent(type: .keyDown, keyCode: 49, modifiers: [.option])
+    XCTAssertTrue(coordinator.handleKeyEvent(spaceDown))
+    guard case .handsFreeLocked = coordinator.mode else {
+      return XCTFail("Expected .handsFreeLocked after Space, got \(coordinator.mode)")
+    }
+
+    // 3. Release Right Option -> stays in .handsFreeLocked and keeps recording
+    let releaseRightOption = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: []
+    )
+    XCTAssertTrue(coordinator.handleKeyEvent(releaseRightOption))
+    guard case .handsFreeLocked = coordinator.mode else {
+      return XCTFail("Releasing Right Option in .handsFreeLocked must keep recording, got \(coordinator.mode)")
+    }
+    XCTAssertTrue(mockRecorder.isRecording)
+
+    // 4. Press Right Option again -> finishes recording
+    XCTAssertTrue(coordinator.handleKeyEvent(pressRightOption))
+    XCTAssertEqual(mockRecorder.stopRecordingCallCount, 1)
+  }
+
+  func testRightOptionHIDReleasePollingFallbackFinishesRecording() throws {
+    let coordinator = OwlVoiceInputCoordinator()
+    coordinator.isEnabledOverride = true
+    coordinator.holdRightOptionEnabledOverride = true
+    coordinator.secureInputChecker = { false }
+
+    var physicalHeld = true
+    coordinator.physicalRightOptionHeldProvider = { physicalHeld }
+
+    let mockRecorder = OwlMockAudioRecorder()
+    mockRecorder.simulatedDuration = 1.0
+    coordinator.audioRecorder = mockRecorder
+    coordinator.targetSnapshotProvider = { OwlVoiceTargetSnapshot() }
+
+    let pressRightOption = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option]
+    )
+    XCTAssertTrue(coordinator.handleKeyEvent(pressRightOption))
+    XCTAssertTrue(coordinator.isHoldingRightOption)
+
+    // While physicalHeld is true, polling keeps .holding
+    coordinator.pollPhysicalRightOptionReleaseIfNeeded()
+    XCTAssertTrue(coordinator.isHoldingRightOption)
+    XCTAssertEqual(mockRecorder.stopRecordingCallCount, 0)
+
+    // When physical key is released without a flagsChanged event (e.g. focus shift), polling finishes recording
+    physicalHeld = false
+    coordinator.pollPhysicalRightOptionReleaseIfNeeded()
+    XCTAssertFalse(coordinator.isHoldingRightOption)
     XCTAssertEqual(mockRecorder.stopRecordingCallCount, 1)
   }
 
@@ -466,44 +618,58 @@ final class OwlAIVoiceTests: XCTestCase {
 
     var savedKey: String?
     let res = OwlSettingsActions.saveVoiceASRSettings(
-      providerID: "grok",
-      endpoint: " https://api.x.ai/v1/audio/transcriptions ",
-      model: " grok-voice-transcribe-2.0 ",
-      apiKey: " xai-secret-999 ",
+      providerID: "openai",
+      endpoint: " https://api.openai.com/v1/audio/transcriptions ",
+      model: " gpt-4o-mini-transcribe ",
+      apiKey: " sk-openai-secret-999 ",
       isKeyAlreadyConfigured: false,
       saveKey: { savedKey = $0 },
       defaults: defaults
     )
 
-    XCTAssertEqual(savedKey, "xai-secret-999")
+    XCTAssertEqual(savedKey, "sk-openai-secret-999")
     XCTAssertEqual(res.input, "", "Write-only Keychain input must clear after save")
-    XCTAssertEqual(res.endpoint, "https://api.x.ai/v1/audio/transcriptions")
-    XCTAssertEqual(res.model, "grok-voice-transcribe-2.0")
+    XCTAssertEqual(res.endpoint, "https://api.openai.com/v1/audio/transcriptions")
+    XCTAssertEqual(res.model, "gpt-4o-mini-transcribe")
     XCTAssertTrue(res.status.contains("已保存"))
-    XCTAssertEqual(defaults.string(forKey: OwlVoiceSettings.xaiEndpointKey), "https://api.x.ai/v1/audio/transcriptions")
-    XCTAssertEqual(defaults.string(forKey: OwlVoiceSettings.xaiModelKey), "grok-voice-transcribe-2.0")
+    XCTAssertEqual(defaults.string(forKey: OwlVoiceSettings.asrEndpointKey), "https://api.openai.com/v1/audio/transcriptions")
+    XCTAssertEqual(defaults.string(forKey: OwlVoiceSettings.asrModelKey), "gpt-4o-mini-transcribe")
 
     // Updating model while key is already configured and input is blank preserves existing key
     var overwriteCount = 0
     let updateRes = OwlSettingsActions.saveVoiceASRSettings(
-      providerID: "grok",
-      endpoint: "https://api.x.ai/v1/audio/transcriptions",
-      model: "grok-asr",
+      providerID: "openai",
+      endpoint: "https://api.openai.com/v1/audio/transcriptions",
+      model: "gpt-4o-transcribe",
       apiKey: "",
       isKeyAlreadyConfigured: true,
       saveKey: { _ in overwriteCount += 1 },
       defaults: defaults
     )
     XCTAssertEqual(overwriteCount, 0)
-    XCTAssertEqual(updateRes.model, "grok-asr")
-    XCTAssertEqual(defaults.string(forKey: OwlVoiceSettings.xaiModelKey), "grok-asr")
+    XCTAssertEqual(updateRes.model, "gpt-4o-transcribe")
+    XCTAssertEqual(defaults.string(forKey: OwlVoiceSettings.asrModelKey), "gpt-4o-transcribe")
+
+    // OpenAI Login mode saves without requiring an API key
+    let loginRes = OwlSettingsActions.saveVoiceASRSettings(
+      providerID: "openai-login",
+      endpoint: "",
+      model: "",
+      apiKey: "",
+      isKeyAlreadyConfigured: false,
+      saveKey: { _ in XCTFail("OpenAI Login mode must not write a Keychain API key") },
+      defaults: defaults
+    )
+    XCTAssertEqual(loginRes.endpoint, "https://chatgpt.com/backend-api/transcribe")
+    XCTAssertEqual(loginRes.model, "chatgpt-dictation")
+    XCTAssertTrue(loginRes.status.contains("Codex 登录态"))
 
     // Rejects non-https endpoint
     let insecure = OwlSettingsActions.saveVoiceASRSettings(
-      providerID: "grok",
-      endpoint: "http://api.x.ai/v1/audio/transcriptions",
-      model: "grok-voice-transcribe-2.0",
-      apiKey: "xai-123",
+      providerID: "openai",
+      endpoint: "http://api.openai.com/v1/audio/transcriptions",
+      model: "gpt-4o-mini-transcribe",
+      apiKey: "sk-123",
       isKeyAlreadyConfigured: false,
       saveKey: { _ in XCTFail("Must not save key on invalid endpoint") },
       defaults: defaults
@@ -511,38 +677,105 @@ final class OwlAIVoiceTests: XCTestCase {
     XCTAssertEqual(insecure.status, "端点必须是 https。")
 
     var deleted = false
-    let clearStatus = OwlSettingsActions.clearXAIAPIKey(deleteKey: { deleted = true })
+    let clearStatus = OwlSettingsActions.clearVoiceASRAPIKey(providerID: "openai", deleteKey: { deleted = true })
     XCTAssertTrue(deleted)
-    XCTAssertEqual(clearStatus, "已清除 xAI API Key。")
-    XCTAssertTrue(OwlVoiceKeychain.isXAIKeyConfigured(read: { "xai-key" }))
-    XCTAssertFalse(OwlVoiceKeychain.isXAIKeyConfigured(read: { "  " }))
+    XCTAssertEqual(clearStatus, "已清除 OpenAI API Key。")
   }
 
   func testGrokASRClientFollowsLiveVoiceSettingsWhenNotExplicitlyOverridden() async throws {
-    let savedEndpoint = OwlDefaults.standard.object(forKey: OwlVoiceSettings.xaiEndpointKey)
-    let savedModel = OwlDefaults.standard.object(forKey: OwlVoiceSettings.xaiModelKey)
+    let savedProvider = OwlDefaults.standard.object(forKey: OwlVoiceSettings.asrProviderIDKey)
+    let savedEndpoint = OwlDefaults.standard.object(forKey: OwlVoiceSettings.asrEndpointKey)
+    let savedModel = OwlDefaults.standard.object(forKey: OwlVoiceSettings.asrModelKey)
     defer {
-      if let savedEndpoint { OwlDefaults.standard.set(savedEndpoint, forKey: OwlVoiceSettings.xaiEndpointKey) }
-      else { OwlDefaults.standard.removeObject(forKey: OwlVoiceSettings.xaiEndpointKey) }
-      if let savedModel { OwlDefaults.standard.set(savedModel, forKey: OwlVoiceSettings.xaiModelKey) }
-      else { OwlDefaults.standard.removeObject(forKey: OwlVoiceSettings.xaiModelKey) }
+      if let savedProvider { OwlDefaults.standard.set(savedProvider, forKey: OwlVoiceSettings.asrProviderIDKey) }
+      else { OwlDefaults.standard.removeObject(forKey: OwlVoiceSettings.asrProviderIDKey) }
+      if let savedEndpoint { OwlDefaults.standard.set(savedEndpoint, forKey: OwlVoiceSettings.asrEndpointKey) }
+      else { OwlDefaults.standard.removeObject(forKey: OwlVoiceSettings.asrEndpointKey) }
+      if let savedModel { OwlDefaults.standard.set(savedModel, forKey: OwlVoiceSettings.asrModelKey) }
+      else { OwlDefaults.standard.removeObject(forKey: OwlVoiceSettings.asrModelKey) }
     }
 
-    OwlVoiceSettings.xaiEndpoint = "https://custom.x.ai/v1/audio/transcriptions"
-    OwlVoiceSettings.xaiModel = "grok-voice-transcribe-2.0"
+    OwlVoiceSettings.asrProviderID = "openai"
+    OwlVoiceSettings.asrEndpoint = "https://custom.openai.example/v1/audio/transcriptions"
+    OwlVoiceSettings.asrModel = "gpt-4o-mini-transcribe"
 
     let stubTransport = OwlStubVoiceTransport { req in
       let resp = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
       return (Data("{\"text\": \"测试动态配置\"}".utf8), resp)
     }
-    let client = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "xai-test" })
+    let client = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "sk-test" })
     let wav = OwlWAVPacker.pack16kMono(pcmData: Data([0x01, 0x02]))
     _ = try await client.transcribe(audioWavData: wav, prompt: nil)
 
     let req = try XCTUnwrap(stubTransport.recordedRequests.first)
-    XCTAssertEqual(req.url?.absoluteString, "https://custom.x.ai/v1/audio/transcriptions")
+    XCTAssertEqual(req.url?.absoluteString, "https://custom.openai.example/v1/audio/transcriptions")
     let bodyStr = String(decoding: req.httpBody ?? Data(), as: UTF8.self)
-    XCTAssertTrue(bodyStr.contains("name=\"model\"\r\n\r\ngrok-voice-transcribe-2.0\r\n"))
+    XCTAssertTrue(bodyStr.contains("name=\"model\"\r\n\r\ngpt-4o-mini-transcribe\r\n"))
+  }
+
+  func testConfiguredGeminiProviderProfileAutoSwitchesVoiceASRAndFormatsErrorsWithGeminiName() throws {
+    let suiteName = "OwlVoiceAutoGeminiTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+
+    let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir) }
+
+    let store = OwlProviderProfileStore(root: tempDir)
+    let geminiProfile = try store.add(OwlProviderProfile(
+      displayName: "Google Gemini",
+      endpoint: URL(string: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")!,
+      model: "gemini-3.8-flash",
+      providerID: "gemini",
+      isDefault: true
+    ))
+
+    final class InMemorySecrets: OwlSecretStoring {
+      var values: [String: String] = [:]
+      func secret(named name: String) throws -> String? { values[name] }
+      func setSecret(_ value: String, named name: String) throws { values[name] = value }
+      func deleteSecret(named name: String) throws { values.removeValue(forKey: name) }
+    }
+    let secrets = InMemorySecrets()
+    try secrets.setSecret("AIza-gemini-key", named: geminiProfile.secretName)
+
+    // Even when defaults had no ASR provider or had unconfigured "openai" or legacy "grok",
+    // resolvedASRProviderID automatically selects "gemini" because the user configured Gemini!
+    XCTAssertEqual(
+      OwlVoiceSettings.resolvedASRProviderID(defaults: defaults, store: store, secrets: secrets),
+      "gemini"
+    )
+    defaults.set("grok", forKey: OwlVoiceSettings.asrProviderIDKey)
+    XCTAssertEqual(
+      OwlVoiceSettings.resolvedASRProviderID(defaults: defaults, store: store, secrets: secrets),
+      "gemini"
+    )
+    defaults.set("openai", forKey: OwlVoiceSettings.asrProviderIDKey)
+    XCTAssertEqual(
+      OwlVoiceSettings.resolvedASRProviderID(defaults: defaults, store: store, secrets: secrets),
+      "gemini"
+    )
+
+    // Verify OwlVoiceError uses the active preset name instead of hardcoded "xAI"
+    let savedProvider = OwlDefaults.standard.object(forKey: OwlVoiceSettings.asrProviderIDKey)
+    defer {
+      if let savedProvider { OwlDefaults.standard.set(savedProvider, forKey: OwlVoiceSettings.asrProviderIDKey) }
+      else { OwlDefaults.standard.removeObject(forKey: OwlVoiceSettings.asrProviderIDKey) }
+    }
+    OwlVoiceSettings.asrProviderID = "gemini"
+    XCTAssertEqual(
+      OwlVoiceError.missingAPIKey.errorDescription,
+      "未配置 Gemini API Key，请在 AI 设置中配置。"
+    )
+    XCTAssertEqual(
+      OwlVoiceError.invalidToken(status: 401, message: "bad key").errorDescription,
+      "Google Gemini 认证失败 (401): bad key"
+    )
+    XCTAssertEqual(
+      OwlVoiceError.badHTTPStatus(status: 503, message: "unavailable").errorDescription,
+      "Google Gemini 语音服务响应异常 (503): unavailable"
+    )
   }
 
   func testVoiceKeychainReadsConfiguredDeepSeekProfileKey() throws {
@@ -572,34 +805,39 @@ final class OwlAIVoiceTests: XCTestCase {
     XCTAssertEqual(resolved, "sk-deepseek-from-profile")
   }
 
-  func testFiveProviderASRCatalogAndSharedProviderKeyFallback() throws {
+  func testThreePresetASRCatalogOpenAIGeminiAndOpenAILogin() throws {
     XCTAssertEqual(
       OwlVoiceASRCatalog.presets.map(\.id),
-      ["grok", "qwen", "doubao", "openai", "gemini"]
+      ["openai", "gemini", "openai-login"]
     )
-    XCTAssertTrue(OwlVoiceASRCatalog.preset(id: "grok").sharesProviderProfileKey)
-    XCTAssertTrue(OwlVoiceASRCatalog.preset(id: "qwen").sharesProviderProfileKey)
-    XCTAssertFalse(OwlVoiceASRCatalog.preset(id: "doubao").sharesProviderProfileKey)
+    XCTAssertEqual(OwlVoiceASRCatalog.preset(id: "openai").defaultModel, "gpt-transcribe")
+    XCTAssertEqual(OwlVoiceASRCatalog.preset(id: "gemini").defaultModel, "gemini-3.5-transcribe")
     XCTAssertTrue(OwlVoiceASRCatalog.preset(id: "openai").sharesProviderProfileKey)
+    XCTAssertTrue(OwlVoiceASRCatalog.preset(id: "openai").requiresAPIKey)
     XCTAssertTrue(OwlVoiceASRCatalog.preset(id: "gemini").sharesProviderProfileKey)
+    XCTAssertTrue(OwlVoiceASRCatalog.preset(id: "gemini").requiresAPIKey)
+    XCTAssertFalse(OwlVoiceASRCatalog.preset(id: "openai-login").sharesProviderProfileKey)
+    XCTAssertTrue(OwlVoiceASRCatalog.preset(id: "openai-login").isOpenAILogin)
+    // Legacy/retired preset IDs fall back to OpenAI
+    XCTAssertEqual(OwlVoiceASRCatalog.preset(id: "grok").id, "openai")
 
     let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: tempDir) }
 
     let store = OwlProviderProfileStore(root: tempDir)
-    let grokProfile = try store.add(OwlProviderProfile(
-      displayName: "xAI Grok",
-      endpoint: URL(string: "https://api.x.ai/v1/chat/completions")!,
-      model: "grok-4-fast",
-      providerID: "grok",
+    let openAIProfile = try store.add(OwlProviderProfile(
+      displayName: "OpenAI",
+      endpoint: URL(string: "https://api.openai.com/v1/chat/completions")!,
+      model: "gpt-4o",
+      providerID: "openai",
       isDefault: true
     ))
-    let qwenProfile = try store.add(OwlProviderProfile(
-      displayName: "阿里云百炼",
-      endpoint: URL(string: OwlLLMProviderCatalog.qwenResponsesEndpoint)!,
-      model: "qwen3.8-flash",
-      providerID: "qwen",
+    let geminiProfile = try store.add(OwlProviderProfile(
+      displayName: "Google Gemini",
+      endpoint: URL(string: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")!,
+      model: "gemini-3.8-flash",
+      providerID: "gemini",
       isDefault: false
     ))
 
@@ -610,18 +848,30 @@ final class OwlAIVoiceTests: XCTestCase {
       func deleteSecret(named name: String) throws { values.removeValue(forKey: name) }
     }
     let secrets = InMemorySecrets()
-    try secrets.setSecret(" xai-from-provider-profile ", named: grokProfile.secretName)
-    try secrets.setSecret(" sk-qwen-from-provider-profile ", named: qwenProfile.secretName)
+    try secrets.setSecret(" sk-openai-from-provider-profile ", named: openAIProfile.secretName)
+    try secrets.setSecret(" AIza-gemini-from-provider-profile ", named: geminiProfile.secretName)
 
     XCTAssertEqual(
-      try OwlVoiceKeychain.readAPIKey(forProviderID: "grok", store: store, secrets: secrets),
-      "xai-from-provider-profile"
+      try OwlVoiceKeychain.readAPIKey(forProviderID: "openai", store: store, secrets: secrets),
+      "sk-openai-from-provider-profile"
     )
     XCTAssertEqual(
-      try OwlVoiceKeychain.readAPIKey(forProviderID: "qwen", store: store, secrets: secrets),
-      "sk-qwen-from-provider-profile"
+      try OwlVoiceKeychain.readAPIKey(forProviderID: "gemini", store: store, secrets: secrets),
+      "AIza-gemini-from-provider-profile"
     )
-    XCTAssertTrue(OwlVoiceKeychain.isASRKeyConfigured(forProviderID: "grok", store: store, secrets: secrets))
-    XCTAssertFalse(OwlVoiceKeychain.isASRKeyConfigured(forProviderID: "openai", store: store, secrets: secrets))
+    XCTAssertNil(
+      try OwlVoiceKeychain.readAPIKey(forProviderID: "openai-login", store: store, secrets: secrets)
+    )
+    XCTAssertTrue(OwlVoiceKeychain.isASRKeyConfigured(forProviderID: "openai", store: store, secrets: secrets))
+    XCTAssertTrue(OwlVoiceKeychain.isASRKeyConfigured(forProviderID: "gemini", store: store, secrets: secrets))
+    XCTAssertFalse(OwlVoiceKeychain.isASRKeyConfigured(forProviderID: "openai-login", store: store, secrets: secrets))
+
+    // Verify OpenAI Login status state machine & JWT claim extraction
+    XCTAssertEqual(OwlVoiceOpenAILoginStatus.unchecked.statusText, "尚未检查 Codex 登录")
+    XCTAssertEqual(OwlVoiceOpenAILoginStatus.signedIn(plan: "plus").statusText, "Codex 已用 ChatGPT 账号登录 · plus")
+    XCTAssertTrue(OwlVoiceOpenAILoginStatus.signedIn(plan: "plus").isReady)
+    XCTAssertTrue(OwlVoiceOpenAILoginStatus.signedOut.needsTerminalLogin)
+    XCTAssertTrue(OwlVoiceOpenAILoginStatus.cliMissing.needsTerminalLogin)
+    XCTAssertTrue(OwlVoiceOpenAILoginStatus.notChatGPT(method: "apikey").needsTerminalLogin)
   }
 }

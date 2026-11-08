@@ -28,7 +28,6 @@ pub fn inferred(p: &Value) -> String {
     for (id, hosts, names) in [
         ("qwen", vec!["dashscope", "aliyuncs"], vec!["百炼", "qwen"]),
         ("doubao", vec!["volces", "volcengine"], vec!["豆包"]),
-        ("grok", vec!["x.ai"], vec!["grok", "xai"]),
         ("deepseek", vec!["deepseek"], vec!["deepseek"]),
         ("minimax", vec!["minimax"], vec!["minimax"]),
         ("gemini", vec!["generativelanguage"], vec!["gemini"]),
@@ -50,7 +49,7 @@ pub fn inferred(p: &Value) -> String {
 pub fn known(id: &str) -> bool {
     matches!(
         id,
-        "qwen" | "doubao" | "grok" | "deepseek" | "minimax" | "gemini" | "openai" | "custom"
+        "qwen" | "doubao" | "deepseek" | "minimax" | "gemini" | "openai" | "custom"
     )
 }
 fn sorted(mut p: Vec<Value>) -> Vec<Value> {

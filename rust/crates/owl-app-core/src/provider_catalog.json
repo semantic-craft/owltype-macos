@@ -15,13 +15,6 @@
       "keyHint": "火山方舟 API Key"
     },
     {
-      "id": "grok",
-      "displayName": "xAI Grok",
-      "endpoint": "https://api.x.ai/v1/chat/completions",
-      "model": "grok-4-fast",
-      "keyHint": "xai-…"
-    },
-    {
       "id": "openai",
       "displayName": "OpenAI",
       "endpoint": "https://api.openai.com/v1/chat/completions",
@@ -47,10 +40,6 @@
     "qwen3.8-flash",
     "qwen3.7-plus",
     "qwen3.7-max"
-  ],
-  "grokModels": [
-    "grok-4-fast",
-    "grok-4.20-non-reasoning"
   ],
   "minimaxModels": [
     "MiniMax-M3.1-Flash",
