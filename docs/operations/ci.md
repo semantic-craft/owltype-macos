@@ -8,7 +8,7 @@ git@github.com:semantic-craft/owltype-macos.git
 
 The local remote topology has one canonical remote:
 
-- `origin`: the private GitHub development repository, used for fetch, branches, pull requests,
+- `origin`: the canonical GitHub repository, used for fetch, branches, pull requests,
   and merges.
 
 Signed installers, the Sparkle appcast, and the corresponding source for every
@@ -58,8 +58,8 @@ Direct `scripts/gate.sh` and `scripts/gate.sh --quick` calls also use the record
 pre-merge subset, not the everyday focused check. Gate and release calls explicitly
 clear `TEST_ONLY`, so a focused selection cannot silently narrow release validation.
 
-Each run creates a private directory under
-`~/Projects/_shared-work/owltype/verification` with `result.json`, `summary.md` and
+Each run creates a local directory under
+`~/Library/Caches/Owltype/verification` with `result.json`, `summary.md` and
 numbered command logs. Set `OWL_VERIFICATION_DIR` to use another durable location
 outside the checkout. These files survive worktree/build cleanup. They are local
 evidence and may contain machine paths; review and redact before sharing.

@@ -4,7 +4,7 @@
     python3 scripts/merge-pr.py <number>
 
 The receipt is a `scripts/verify.py full` result.json under OWL_VERIFICATION_DIR (default
-~/Projects/_shared-work/owltype/verification). It must say `passed`, start and end on the
+~/Library/Caches/Owltype/verification). It must say `passed`, start and end on the
 pull request's head commit with a clean tree and unchanged source. GitHub merges only that
 head (`--match-head-commit`), so a push after the gate is refused too. Prints the receipt it
 used, for the pull request record.
@@ -21,7 +21,7 @@ from pathlib import Path
 
 def verification_dir() -> Path:
     return Path(os.environ.get('OWL_VERIFICATION_DIR',
-                               str(Path.home() / 'Projects/_shared-work/owltype/verification'))).expanduser()
+                               str(Path.home() / 'Library/Caches/Owltype/verification'))).expanduser()
 
 
 def passing_receipt(root: Path, head: str) -> Path | None:

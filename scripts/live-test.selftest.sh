@@ -8,7 +8,7 @@ trap 'rm -rf "$work"' EXIT
 bin="$work/bin"
 mkdir -p "$bin"
 
-# direnv exec：模拟项目 .envrc 的 use secrets，只给 DEEPSEEK_API_KEY。
+# direnv exec：模拟项目 .envrc，只给 DEEPSEEK_API_KEY。
 cat >"$bin/direnv" <<'SH'
 #!/bin/bash
 [[ $1 == exec ]] || exit 9

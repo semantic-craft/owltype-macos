@@ -25,17 +25,12 @@ python3 progress/progress.py check --live
 
 共享 Rust 会话、FFI、Swift 引擎文件开始改动前须核对当前执行者、工单和开放 PR；各 agent 在独立 worktree 工作，重叠改动串行集成，不覆盖另一会话的工作。
 
-## Agent 开工、委派与回报
-
-跨 Agent 委派使用 **agent-fleet 维护的官方 ANet**：[派活与回流契约](https://github.com/semantic-craft/agent-fleet/blob/main/docs/dispatch-contract.md) 与 [delegate-via-anet 入口](https://github.com/semantic-craft/agent-fleet/blob/main/skills/delegate-via-anet/SKILL.md)。身份、任务查询、换会话和回流机制由该维护源定义；本仓不复制 CLI 参数或建立第二套任务账本。
+## 协作与工单约定
 
 1. 开工前核对本轮用户授权、当前 GitHub 前置、负责人、开工评论和开放 PR，明确文件范围。父规格不当作可并发领取的实现票，ready-for-agent 标签也不代表已经授权或没有前置。
 2. 在 fresh main 上确定实际 base SHA；并行执行者使用独立 worktree，重叠文件串行集成。已经在当前会话执行的工作继续在本会话完成，不为登记进度再派一次。
-3. 需要跨 Agent 委派时使用上述官方入口，记录完整对端 AID、返回的 task id、分支和 SHA。无可用入口则报告缺口，不自行增加信任或恢复旧控制面。
-4. 续接、查询、取消和换会话按官方契约针对原任务办理。断连、超时或状态未知时先回读原任务，不能当作执行失败并重复派发；取消请求也不等于执行端已经停止。
-5. 在原工单/PR 记录实现、测试、受验提交与未验项，再刷新项目进度。ANet 的完成状态只证明协议终态；合并、发布与业务验收各自需要证据。
-
-TeslaHub 已在 [#134](https://github.com/semantic-craft/TeslaHub/pull/134) 删除工程领取账本与旧看板，并在 [#135](https://github.com/semantic-craft/TeslaHub/pull/135) 将现行派活指向官方 ANet。本仓旧领取脚本和看板投影已退役；不再配置旧账本目录或兼容固定历史版本。此变更不读取、迁移或删除已有共享账本，不部署 ANet，也不自动派工。
+3. 需要跨会话协作时按外部协作契约记录完整任务标识、分支和 SHA。本仓不维护第二套任务账本；旧领取脚本和外部看板投影已退役。
+4. 在原工单/PR 记录实现、测试、受验提交与未验项，再刷新项目进度。协议完成状态不代替合并、发布与业务验收各自的证据。
 
 ## 验证与交付边界
 

@@ -42,7 +42,7 @@ enum OwlInstallFiles {
     try manager.createDirectory(at: layout.inputMethods, withIntermediateDirectories: true,
                                 attributes: [.posixPermissions: 0o755])
     try privateDirectory(layout.work.deletingLastPathComponent(), mode: 0o711)
-    try privateDirectory(layout.work, mode: 0o700)
+    try privateDirectory(layout.work, mode: 0o711)
     try requireSameVolume(layout.work, layout.inputMethods)
     let lock = layout.work.appendingPathComponent("install-lock")
     guard mkdir(lock.path, 0o700) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
@@ -124,11 +124,26 @@ enum OwlInstallFiles {
     return result
   }
 
+  private static let developerIDRequirement = [
+    "anchor apple generic",
+    "identifier \"\(bundleID)\"",
+    "certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */",
+    "certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */",
+    "certificate leaf[subject.OU] = \"LQAVR62TK2\""
+  ].joined(separator: " and ")
+
   private static func verify(_ app: URL) throws {
     var code: SecStaticCode?
     var status = SecStaticCodeCreateWithPath(app as CFURL, [], &code)
     guard status == errSecSuccess, let code else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(status)) }
-    status = SecStaticCodeCheckValidity(code, SecCSFlags(rawValue: kSecCSStrictValidate | kSecCSCheckAllArchitectures | kSecCSCheckNestedCode), nil)
+    var requirement: SecRequirement?
+    status = SecRequirementCreateWithString(developerIDRequirement as CFString, [], &requirement)
+    guard status == errSecSuccess, let requirement else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(status)) }
+    status = SecStaticCodeCheckValidity(
+      code,
+      SecCSFlags(rawValue: kSecCSStrictValidate | kSecCSCheckAllArchitectures | kSecCSCheckNestedCode),
+      requirement
+    )
     guard status == errSecSuccess else { throw NSError(domain: NSOSStatusErrorDomain, code: Int(status)) }
   }
 }

@@ -41,7 +41,7 @@ case "${1:-}" in
   *) usage >&2; fail "unknown argument: $1" ;;
 esac
 
-NOTARY_PROFILE="${NOTARY_PROFILE:-xw-notary}"
+NOTARY_PROFILE="${NOTARY_PROFILE:-owltype-notary}"
 if xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
   pass "NOTARY_PROFILE keychain profile is available"
 else
@@ -152,12 +152,14 @@ fi
 
 # The package carries the pinned official full pinyin/English/context set, Owl Wubi,
 # and the audited emoji derivative. Restricted auxiliary catalogs stay excluded.
-tmp=$(mktemp -u /tmp/owl-pkg.XXXXXX)
-tmp_update=$(mktemp -u /tmp/owl-update-pkg.XXXXXX)
+tmp_parent=$(mktemp -d "${TMPDIR:-/tmp}/owl-pkg.XXXXXX")
+tmp="$tmp_parent/expanded"
+tmp_update_parent=$(mktemp -d "${TMPDIR:-/tmp}/owl-update-pkg.XXXXXX")
+tmp_update="$tmp_update_parent/expanded"
 cleanup_packages() {
   local status=$?
   trap - EXIT
-  for path in "$tmp" "$tmp_update"; do
+  for path in "$tmp_parent" "$tmp_update_parent"; do
     if ! python3 "$ROOT/scripts/cleanup_app_registrations.py" --remove "$path"; then
       [[ "$status" != 0 ]] || status=1
     fi

@@ -44,7 +44,7 @@ fi
 
 private_repo_matches="$(
   git grep -I -l -E \
-    'semantic-craft/(famoime-mac|famotype-mac-private|famotype-macos-retired-private|famotype-macos-merge-metadata)' \
+    'semantic-craft/(famoime-mac|famotype-mac-private|famotype-macos|famotype-macos-retired-private|famotype-macos-merge-metadata|agent-fleet|TeslaHub)|_shared-work|xw-notary' \
     -- . \
     ':(exclude)scripts/check-public-privacy.sh' \
     ':(exclude)scripts/check-public-privacy.selftest.sh' || true
@@ -73,8 +73,11 @@ while IFS= read -r remote_name; do
     case "$remote_url" in
       *semantic-craft/famoime-mac*|\
       *semantic-craft/famotype-mac-private*|\
+      *semantic-craft/famotype-macos*|\
       *semantic-craft/famotype-macos-retired-private*|\
-      *semantic-craft/famotype-macos-merge-metadata*)
+      *semantic-craft/famotype-macos-merge-metadata*|\
+      *semantic-craft/agent-fleet*|\
+      *semantic-craft/TeslaHub*)
         printf 'private repository configured on remote: %s\n' "$remote_name" >&2
         failed=1
         ;;

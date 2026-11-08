@@ -350,10 +350,7 @@
     "progress/index.html"
   ],
   "page": "progress/index.html",
-  "related_repositories": [
-    "semantic-craft/agent-fleet",
-    "semantic-craft/TeslaHub"
-  ],
+  "related_repositories": [],
   "renderer": null,
   "repository": "semantic-craft/owltype-macos",
   "schema_version": 1,
@@ -478,7 +475,7 @@
           "next": "低优先级可选：只做固定标签/焦点/错误说明的窄范围对比，有明确收益再接入，不整体改版。",
           "status": "planned",
           "summary": "未启动的设置可读性改进提案，不是已确认缺陷；现有原生设置、皮肤及资源状态功能已存在。",
-          "title": "#269 [UI] 借鉴 Galaxy 改善原生设置的字段与状态可读性"
+          "title": "#269 [UI] 改善原生设置的字段与状态可读性"
         },
         {
           "evidence": [
@@ -629,10 +626,10 @@
             }
           ],
           "id": "review-335",
-          "next": "后续跨 Agent 委派沿用 agent-fleet 官方契约；本次未部署 ANet、未发起真实派工或改写共享账本。",
+          "next": "后续跨会话委派遵循外部协作契约；本次未部署控制面、未发起真实派工或改写共享账本。",
           "status": "done",
-          "summary": "按用户确认的新范围完成：#406 已合并，旧领取脚本与看板投影已删除，协作说明引用 agent-fleet 官方 ANet 契约。13 项同步回归、导航检查及确切提交完整门禁通过。",
-          "title": "#335 退役旧领取与看板入口，遵循官方 ANet 契约"
+          "summary": "按用户确认的新范围完成：#406 已合并，旧领取脚本与看板投影已删除，协作说明对齐外部协作契约。13 项同步回归、导航检查及确切提交完整门禁通过。",
+          "title": "#335 退役旧领取与看板入口，遵循外部协作契约"
         },
         {
           "evidence": [
@@ -659,7 +656,7 @@
           "title": "GitHub 为真源；两个输入方案共用设施",
           "status": "in_progress",
           "summary": "本页是带观察时间的快照。阻塞按 GitHub 原生依赖计算；负责人只表示 GitHub 指派，不冒充 agent 会话。工单关闭不自动等于产品验收。",
-          "next": "按 docs/input-alignment.md 核对授权与现有执行者；需要委派时使用 agent-fleet 维护的官方 ANet 入口。静态页面不派工。刷新：python3 progress/sync.py。",
+          "next": "按 docs/input-alignment.md 核对授权与现有执行者；需要跨会话委派时遵循外部协作契约。静态页面不派工。刷新：python3 progress/sync.py。",
           "evidence": [
             {
               "kind": "issue",

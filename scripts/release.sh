@@ -52,7 +52,7 @@ app="$output_root/Build/Products/Release/Owltype.app"
 release_dir="$output_root/release"
 cohort_file="$release_dir/OWLTYPE-RELEASE-COHORT.json"
 dev_id="${DEV_ID:-}"
-notary_profile="${NOTARY_PROFILE:-xw-notary}"
+notary_profile="${NOTARY_PROFILE:-owltype-notary}"
 
 run python3 "$STATE" revoke-publish "$output_root"
 

@@ -1,13 +1,11 @@
 # Binary and corresponding-source publishing checklist
 
-Every distributed change must pass the applicable gates below before merge. A private development
-repository limits future disclosure; it does not retract copies of previously distributed source
-archives or reduce recipients' GPL rights.
+Every distributed change must pass the applicable gates below before merge.
 
 ## Never import
 
-Do not copy the old product repository's Git history. Export reviewed files from the private mother
-repository through an allowlist, then create a new root commit.
+Do not import unreviewed historical branches or private repositories. Keep the repository history
+and release tree restricted to reviewed files that pass the public-source and privacy gates.
 
 The corresponding-source archive and all public artifacts must exclude secrets and private data,
 but must not omit source merely because the implementation is sensitive. If code is compiled,
@@ -139,10 +137,11 @@ entrypoint must never rely on default skip behavior or run an unfiltered `xcodeb
 
 ## Interrupted publication and release closeout
 
-The publisher updates immutable assets first, then the website pointer and finally
-the client feed. These remote writes are sequential, not one atomic transaction.
-A failure after the website pointer changes can leave website downloads newer than
-the Sparkle feed; record which write/readback failed before choosing recovery.
+The publisher uploads immutable GitHub Release assets first, then pushes the updated
+`site/_redirects`, `owltype/latest.json`, and `owltype/v3/appcast.xml` together in one
+commit to `semantic-craft/downloads`, and finally verifies the deployed Cloudflare Pages
+endpoints. If publication is interrupted between the GitHub Release upload and the site
+push, or if edge verification fails, record which step failed before choosing recovery.
 
 | Failure point | Recovery within the authorized release |
 | --- | --- |
@@ -157,7 +156,7 @@ mutable pointers is a separate, explicitly authorized operation: verify the prio
 assets still exist, restore the reviewed bytes, then recheck website aliases and feed.
 There is no automatic remote rollback command. Never modify the frozen v2 or bridge
 feeds for ordinary recovery. Installed-machine recovery follows the
-[installation acceptance procedure](operations/installation.md#installed-acceptance-and-recovery-record).
+[installation acceptance procedure](operations/installation.md#acceptance-and-recovery).
 
 Close the release in the existing PR/issue or acceptance record with source commit,
 tag if created, marketing/build versions, cohort ID, public artifact verification,

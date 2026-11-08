@@ -15,7 +15,7 @@ DERIVED_DATA_PATH ?= build
 RELEASE_OUTPUT_ROOT ?= $(DERIVED_DATA_PATH)
 RELEASE_APP = $(RELEASE_OUTPUT_ROOT)/Build/Products/Release/Owltype.app
 RELEASE_OUTPUT_ROOT_ABSOLUTE = $(shell python3 -c 'import os, sys; print(os.path.abspath(sys.argv[1]))' "$(RELEASE_OUTPUT_ROOT)")
-NOTARY_PROFILE ?= xw-notary
+NOTARY_PROFILE ?= owltype-notary
 
 RUST_FFI_LIBRARY = lib/libowl_msime_ffi.a
 

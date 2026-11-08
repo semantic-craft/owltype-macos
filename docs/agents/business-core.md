@@ -6,10 +6,10 @@ Swift owns UI, macOS fact capture and system-effect execution. A class called
 ViewModel or Adapter is not exempt from this boundary.
 
 [Ownership inventory](business-ownership.json) assigns every production Swift file
-a final owner or a migration issue. It is an architecture map, not a progress ledger:
-GitHub goal #356 and its native dependencies own current implementation/acceptance
-state. `scripts/check-business-boundary.py` checks coverage, not semantic purity.
-Split entries retain only their native parts as the corresponding ticket is delivered.
+its final owner. It is an architecture map, not a progress ledger:
+GitHub goal #356 and its native dependencies own implementation/acceptance
+history. `scripts/check-business-boundary.py` checks coverage, not semantic purity.
+Split entries retain only their native parts.
 
 ## ABI contract
 
@@ -20,15 +20,15 @@ Split entries retain only their native parts as the corresponding ticket is deli
 - Responses are `{ok:true,value:...}` or `{ok:false,error:...}`. Errors contain stable
   codes and no request content. Unsupported ABI versions fail before reading input.
   Panics are contained at the ABI; invalid pointers still violate the C contract.
-- The initial dispatcher is stateless and concurrent-call safe; it does no I/O and
-  invokes no host callbacks. Per-application initial ASCII policy is the first
+- The pure dispatcher is stateless and concurrent-call safe; it does no I/O and
+  invokes no host callbacks. Per-application initial ASCII policy is a
   production consumer, through `OwlAppCore`. Ordinary per-key input is unchanged.
-- Future stateful modules must expose opaque owned handles with explicit destruction
+- Stateful modules expose opaque owned handles with explicit destruction
   and serialized per-handle access. No global mutable business singleton in Swift.
   Rust owns request IDs, template revisions and generations; host facts carry their
   capture generation. A native effect is rechecked against the current bound target
   immediately before execution, then returns a typed outcome to Rust.
-- Future asynchronous effects use command/event exchange; no synchronous callback
+- Asynchronous effects use command/event exchange; no synchronous callback
   into AppKit from a Rust worker and no UI wait for disk, network or AX. Cancellation
   invalidates the request generation; late events cannot mutate a new invocation.
 - Host ranges are UTF-16 code-unit offsets. Rust text indices are UTF-8 bytes.
@@ -125,7 +125,7 @@ DTOs. Foundation supplies title ranks, case comparison and localized substring f
 chooses pin priority, deduplication representatives and ordering. `foundation_text` preserves
 Foundation whitespaces/newlines (including U+200B) without normalizing authored content.
 The automatic trie and conflict validation are built once by Rust; per-key recognition
-remains the #361 boundary and consumes immutable native-decoded nodes.
+consumes immutable native-decoded nodes via the session ABI below.
 
 `template_transaction` serializes public mode/load/current reads with the process lock,
 without creating files. Writes also hold the original nonblocking per-directory flock.
@@ -180,7 +180,7 @@ preview: preparation failure still yields a retained, explicitly copyable result
 and the dynamic-automatic tests share the same thin delivery-to-invocation initializer.
 Automatic input-session identity is checked by the Rust source binding; each invocation handle
 owns its request/session lifetime and confirmation/cancellation generation. Manual/K host-field
-and IMK rebind generations remain in the existing delivery adapter for #362. A new controller
+and IMK rebind generations are coordinated through the host delivery session below. A new controller
 is therefore not equated with a new logical host target. No synchronous AX read was added, Chromium
 capability restrictions are unchanged, and #331 still requires its host implementation/acceptance.
 

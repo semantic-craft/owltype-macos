@@ -325,7 +325,10 @@ struct OwlProviderKeychain: OwlSecretStoring {
     guard !OwlTestStorage.isEnabled else { throw OwlProviderKeychainError.unexpectedStatus(errSecNotAvailable) }
     let data = Data(value.utf8)
     let base = baseQuery(name: name)
-    let update: [String: Any] = [kSecValueData as String: data]
+    let update: [String: Any] = [
+      kSecValueData as String: data,
+      kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+    ]
     let updateStatus = SecItemUpdate(base as CFDictionary, update as CFDictionary)
     if updateStatus == errSecSuccess { return }
     guard updateStatus == errSecItemNotFound else {
@@ -464,7 +467,7 @@ enum OwlProviderModelList {
     var req = URLRequest(url: url)
     req.httpMethod = "GET"
     authStyle.apply(to: &req, apiKey: apiKey)
-    let (data, resp) = try await URLSession.shared.data(for: req)
+    let (data, resp) = try await URLSession.shared.data(for: req, delegate: OwlURLSessionTransport.noRedirectDelegate)
     guard (resp as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
     return parseModelIDs(data)
   }
