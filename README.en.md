@@ -46,11 +46,13 @@ MSIME Rust Engine · Pinyin / Double Pinyin / Wubi 86 & 98 / Mixed Input · Clou
 
 ---
 
-## Overview
+## Story and positioning
 
-Owltype is an open-source Chinese input method for macOS built on the **MSIME Rust engine** (`owl-msime-ffi` + `owl-app-core`). Describe a task in Chinese, follow it with a `/` slash command or a `$` skill name, expand a parameterized prompt template, or hold a shortcut to dictate and polish speech into text. Owltype brings these everyday AI workflow actions directly into the input method.
+Owltype is a personal hobby project shaped around everyday typing and AI-assisted workflows on macOS.
 
-Native SwiftUI candidate windows, a skin-matched floating status bar, and nine collegiate palettes keep the interface clean and responsive. Full Pinyin, Double Pinyin, Wubi 86/98, and mixed Chinese-English input run locally on your Mac, while optional cloud voice and AI features stay off until you configure and invoke them.
+The project originally started on top of **[RIME / Squirrel (鼠须管)](https://github.com/rime/squirrel)**. Later, inspired by **[Metasequoia IME (`msime` / 水杉输入法)](https://github.com/metasequoiaime/msime)** and its clean Rust input engine and dictionary architecture, Owltype switched its core input engine, SQLite dictionaries, and neural reranking models to Metasequoia IME starting in `2.1.0`, while keeping the personal typing habits, shortcuts, and workflow tweaks formed during earlier RIME-based daily use, alongside built-in `/` slash-command handling, parameterized prompt snippets, cloud voice transcription, and selection tools.
+
+> 💡 **If you are looking for a more comprehensive, full-featured input method across platforms and languages, we strongly recommend downloading upstream [Metasequoia IME (水杉输入法 / MSIME-Apple)](https://github.com/metasequoiaime/MSIME-Apple) directly**; or **[Squirrel (鼠须管)](https://github.com/rime/squirrel)** if you prefer full RIME schema customization. Owltype is primarily an opinionated hobby project built around the author's personal preferences.
 
 ---
 
@@ -152,10 +154,31 @@ Developed and maintained by **Shenzhen University Legal AI Training Lab (深圳�
 
 ---
 
-## Provenance and license
+## Provenance, acknowledgments, and license
 
 Licensed under **GPL-3.0**; see [LICENSE.txt](LICENSE.txt).
 
-Owltype's macOS frontend originally derived from [RIME Squirrel](https://github.com/rime/squirrel) and [librime](https://github.com/rime/librime). Starting in `2.1.0`, the input core uses the [Metasequoia IME (MSIME)](https://github.com/metasequoiaime/msime) Rust engine (currently pinned to engine `macos-v0.55.0` and dictionary release `dict-v2.0.39`), and shipped builds no longer bundle or link `librime`.
+Owltype stands on the shoulders of many open-source input methods, dictionaries, and libraries. Its macOS frontend originally derived from [RIME Squirrel](https://github.com/rime/squirrel) and [librime](https://github.com/rime/librime). Starting in `2.1.0`, the input core uses the [Metasequoia IME (MSIME)](https://github.com/metasequoiaime/msime) Rust engine (currently pinned to engine `macos-v0.55.0` and dictionary release `dict-v2.0.39`), and shipped builds no longer bundle or link `librime`. See [PROVENANCE.md](PROVENANCE.md) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for complete lineage and third-party license notices.
 
-See [PROVENANCE.md](PROVENANCE.md) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for complete lineage and third-party license notices.
+### Acknowledgments
+
+- **Core engine and frontend foundations**:
+  - **[Metasequoia IME (`msime` / 水杉输入法)](https://github.com/metasequoiaime/msime) & [MSIME-Apple](https://github.com/metasequoiaime/MSIME-Apple)** (GPL-3.0): Inspired Owltype's Rust architecture and provides the core Rust input engine, lattice decoder, and runtime foundation. Visit [MSIME-Apple](https://github.com/metasequoiaime/MSIME-Apple) for the full-featured upstream release.
+  - **[chinese-ime-lm](https://github.com/metasequoiaime/chinese-ime-lm)** (Apache-2.0): Neural language model reference implementation and `model-v1` reranking weights trained on Chinese C4 (ODC-BY) and LCCC (MIT).
+  - **[Squirrel (鼠须管)](https://github.com/rime/squirrel)** (GPL-3.0): The macOS InputMethodKit frontend from which Owltype originally derived.
+  - **[RIME / librime (中州韻输入法引擎)](https://github.com/rime/librime)** ([rime.im](https://rime.im), BSD-3-Clause): The historical engine foundation that shaped Owltype's input habits and schema conventions.
+- **Dictionaries, tables, and linguistic resources**:
+  - **[msime-dictionary (水杉词库)](https://github.com/metasequoiaime/msime-dictionary)** (`dict-v2.0.39`): Bundled SQLite dictionaries for Pinyin, Wubi 86/98, English, Emoji, kaomoji, and n-gram context tables.
+  - **[rime-ice (雾凇拼音, iDvel)](https://github.com/iDvel/rime-ice)** (GPL-3.0): Core upstream source for Pinyin vocabulary, word frequencies, English supplements, Emoji mappings, and schema conventions.
+  - **[rime-wubi86-jidian (极点五笔 86, KyleBing)](https://github.com/KyleBing/rime-wubi86-jidian)** (Apache-2.0): Wubi 86 base table.
+  - **[98wubi-tables (yanhuacuo · 98五笔小组)](https://github.com/yanhuacuo/98wubi-tables)** (Unlicense) and **[fcitx5-table-extra](https://github.com/fcitx/fcitx5-table-extra)** (GPL-3.0-or-later): Wubi 98 base and supplemental tables.
+  - **Flypy (小鹤双拼 / 小鹤音形)**: Double Pinyin layout and auxiliary code reference.
+  - **[OpenCC (BYVoid)](https://github.com/BYVoid/OpenCC)** (Apache-2.0): Simplified-Traditional Chinese conversion tables and configurations.
+  - **[jieba (结巴分词, fxsjy)](https://github.com/fxsjy/jieba)** (MIT), **[mozillazg/pinyin-data](https://github.com/mozillazg/pinyin-data)** (MIT), **[mozillazg/phrase-pinyin-data](https://github.com/mozillazg/phrase-pinyin-data)** (MIT), and **[mozillazg/python-pinyin](https://github.com/mozillazg/python-pinyin)** (MIT): Clean-room seed word frequencies and character/phrase Pinyin annotations.
+  - **[SCOWL (Kevin Atkinson, en-wl/wordlist)](https://github.com/en-wl/wordlist)**, **[Google Web Trillion Word Corpus (Peter Norvig)](https://www.norvig.com/ngrams/count_1w.txt)**, and **[ECDICT (skywind3000)](https://github.com/skywind3000/ECDICT)** (MIT): English word lists, word frequencies, and candidate glosses.
+  - **[aoguai/rime_kaomoji_dict](https://github.com/aoguai/rime_kaomoji_dict)** (MIT) and **[Unicode Emoji / CLDR](https://unicode.org/Public/emoji/17.0/)** (Unicode-3.0): Kaomoji catalog and Emoji English annotations.
+  - **[modood/Administrative-divisions-of-China](https://github.com/modood/Administrative-divisions-of-China)** (WTFPL): Chinese administrative division place names.
+  - **[Chinese Wikipedia (`zhwiki` dump)](https://dumps.wikimedia.org/zhwiki/)** (CC-BY-SA 4.0): Corpus source for bigram and trigram context statistics.
+- **Frameworks and protocols**:
+  - **[Sparkle](https://github.com/sparkle-project/Sparkle)** (MIT): macOS in-app update framework.
+  - **[rmcp (Official Model Context Protocol Rust SDK)](https://github.com/modelcontextprotocol/rust-sdk)** (Apache-2.0) and the Rust open-source crate ecosystem (see [`THIRD-PARTY-CRATES.md`](rust/crates/owl-agent-mcp/THIRD-PARTY-CRATES.md)).
