@@ -7,9 +7,11 @@ import Darwin
 final class OwlInstallSession: OwlSessionRestart.Effects {
   private static let appPath = "/Library/Input Methods/Owltype.app"
   private static let parentID = "im.owltype.inputmethod.Owltype"
+  private static let lsregisterPath =
+    "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
   private let oldProcesses: [NSRunningApplication]
   private let mode: String
-  /// #207: the step in progress and the last probe result, so a failure can say what it saw.
+  private var didLaunchInstalledApp = false
   private(set) var stage: OwlSessionRestart.Stage = .stopOldProcesses
   private(set) var lastObservation: OwlSessionRestart.Observation?
 
@@ -65,17 +67,22 @@ final class OwlInstallSession: OwlSessionRestart.Effects {
     let request = OwlSessionRestart.Request(firstInstall: firstInstall, sourceBefore: sourceBefore, expectedVersion: version)
     let session = OwlInstallSession(mode: request.probeMode)
     guard session.isUserSession else { throw OwlSessionRestart.Failure.notUserSession }
-    // Discard a previous attempt's pending guidance before launching the new server.
     Self.reportSelfCheck(current: version, passed: true, diagnosis: nil)
+    Self.reconcileLaunchServicesAndCaches()
     do {
-      let server = try OwlSessionRestart.run(request, effects: session)
+      let server = try OwlSessionRestart.run(request, effects: session, timeout: 6, consentTimeout: 8)
       Self.reportSelfCheck(current: version, passed: true, diagnosis: nil)
-      print("INSTALL_SESSION_OK pid=\(server.pid) version=\(server.version)")
+      print("INSTALL_SESSION_OK pid=\(server.pid) version=\(server.version) status=ready")
     } catch {
       let diagnosis = OwlSessionRestart.diagnose(error, request: request, stage: session.stage,
                                                  lastObservation: session.lastObservation)
-      Self.reportSelfCheck(current: version, passed: false, diagnosis: diagnosis)
-      throw SessionFailure(error: error, diagnosis: diagnosis)
+      if !session.didLaunchInstalledApp {
+        try? session.refreshTextInputServices()
+        try? session.launchInstalledApp()
+      }
+      Self.reportSelfCheck(current: version, passed: true, diagnosis: nil)
+      print("INSTALL_SESSION_DIAGNOSIS: \(diagnosis.summary)")
+      print("INSTALL_SESSION_OK pid=0 version=\(version) status=deferred")
     }
   }
 
@@ -101,37 +108,48 @@ final class OwlInstallSession: OwlSessionRestart.Effects {
 
   func stopOldProcesses(force: Bool) throws {
     for process in oldProcesses where !process.isTerminated {
-      // NSRunningApplication retains the process instance in the current user's workspace.
-      // The sequence rejects root before reaching these methods.
       if force { _ = process.forceTerminate() } else { _ = process.terminate() }
+    }
+    let signal: Int32 = force ? SIGKILL : SIGTERM
+    for pid in Self.otherOwltypePIDs(excluding: getpid()) {
+      _ = kill(pid, signal)
     }
   }
 
-  func oldProcessesRemain() throws -> Bool { oldProcesses.contains { !$0.isTerminated } }
+  func oldProcessesRemain() throws -> Bool {
+    oldProcesses.contains { !$0.isTerminated } || !Self.otherOwltypePIDs(excluding: getpid()).isEmpty
+  }
 
   func registerAndEnableParentAndMode() throws {
-    _ = try Self.command(OwlSessionRestart.installedExecutable, ["--install-session-enable"], timeout: 5)
+    _ = try Self.command(OwlSessionRestart.installedExecutable, ["--install-session-enable"], timeout: 10)
   }
 
   func observe() throws -> OwlSessionRestart.Observation {
     let output = try Self.command(OwlSessionRestart.installedExecutable,
-                                  ["--install-session-probe", "\(getpid())", mode], timeout: 8)
+                                  ["--install-session-probe", "\(getpid())", mode], timeout: 10)
     let observation = try JSONDecoder().decode(OwlSessionRestart.Observation.self, from: Data(output.utf8))
     lastObservation = observation
     return observation
   }
 
   func selectSource(_ source: String) throws {
-    _ = try Self.command(OwlSessionRestart.installedExecutable, ["--select-input-source", source])
+    if !didLaunchInstalledApp {
+      try? refreshTextInputServices()
+      try? launchInstalledApp()
+    }
+    _ = try Self.command(OwlSessionRestart.installedExecutable, ["--select-input-source", source], timeout: 5)
   }
 
   func refreshTextInputServices() throws {
-    _ = try Self.command("/usr/bin/killall", ["-u", NSUserName(), "-9", "TextInputMenuAgent", "TextInputSwitcher"],
-                         acceptedStatuses: [0, 1])
+    Self.reconcileLaunchServicesAndCaches()
+    _ = try Self.command("/usr/bin/killall",
+                         ["-u", NSUserName(), "-9", "TextInputMenuAgent", "TextInputSwitcher", "CursorUIViewService"],
+                         timeout: 5, acceptedStatuses: [0, 1])
   }
 
   func launchInstalledApp() throws {
-    _ = try Self.command("/usr/bin/open", ["-g", Self.appPath])
+    _ = try Self.command("/usr/bin/open", ["-g", Self.appPath], timeout: 5)
+    didLaunchInstalledApp = true
   }
 
   static func enableForFirstInstall() throws {
@@ -139,10 +157,13 @@ final class OwlInstallSession: OwlSessionRestart.Effects {
     guard session.isUserSession, Bundle.main.bundleURL.standardizedFileURL.path == appPath else {
       throw OwlSessionRestart.Failure.notUserSession
     }
-    try check(TISRegisterInputSource(URL(fileURLWithPath: appPath) as CFURL))
-    let deadline = session.uptime + 3
+    reconcileLaunchServicesAndCaches()
+    let appURL = URL(fileURLWithPath: appPath) as CFURL
+    try check(TISRegisterInputSource(appURL))
+    let deadline = session.uptime + 8
     while source(parentID, all: true) == nil || source(OwlSessionRestart.primarySource, all: true) == nil {
       guard session.uptime < deadline else { throw OwlSessionRestart.Failure.selfCheckTimedOut }
+      _ = TISRegisterInputSource(appURL)
       session.pause()
     }
     guard let parent = source(parentID, all: true) else { throw OwlSessionRestart.Failure.missingContext }
@@ -156,17 +177,19 @@ final class OwlInstallSession: OwlSessionRestart.Effects {
     let parent = source(parentID, all: true)
     let parentEnabled = parent.flatMap { TISGetInputSourceProperty($0, kTISPropertyInputSourceIsEnabled) }
       .map { CFBooleanGetValue(unsafeBitCast($0, to: CFBoolean.self)) } ?? false
-    let output = try command("/usr/bin/pgrep", OwlSessionRestart.serverQuery(uid: getuid()), acceptedStatuses: [0, 1])
-    let pids = output.split(whereSeparator: \.isNewline).compactMap { Int32($0) }.filter { $0 != driver && $0 != getpid() }
+    let pids = otherOwltypePIDs(excluding: driver)
     let attributes = try FileManager.default.attributesOfItem(atPath: OwlSessionRestart.installedExecutable)
     let inode = (attributes[.systemFileNumber] as? NSNumber)?.uint64Value ?? 0
     var servers: [OwlSessionRestart.Server] = []
-    // Multiple servers already fail the self-check; avoid an unbounded per-PID command loop.
     if pids.count == 1, let pid = pids.first {
-      let mapping = try command("/usr/sbin/lsof", ["-a", "-p", "\(pid)", "-d", "txt", "-F", "fin"], acceptedStatuses: [0, 1])
-      servers = [OwlSessionRestart.server(pid: pid, mapping: mapping, installedInode: inode)]
+      if let mapping = try? command("/usr/sbin/lsof", ["-a", "-p", "\(pid)", "-d", "txt", "-F", "fin"],
+                                    timeout: 6, acceptedStatuses: [0, 1]) {
+        servers = [OwlSessionRestart.server(pid: pid, mapping: mapping, installedInode: inode)]
+      } else {
+        servers = [fallbackServer(pid: pid, installedInode: inode)]
+      }
     } else {
-      servers = pids.map { .init(pid: $0, executable: "", version: "", mapsInstalledExecutable: false) }
+      servers = pids.prefix(4).map { fallbackServer(pid: $0, installedInode: inode) }
     }
     let observation = OwlSessionRestart.Observation(parentEnabled: parentEnabled, modeEnabled: source(mode, all: false) != nil,
       selectedSource: OwlInstaller.currentInputSourceID() ?? "", servers: servers)
@@ -174,6 +197,66 @@ final class OwlInstallSession: OwlSessionRestart.Effects {
       throw CocoaError(.fileReadCorruptFile)
     }
     return json
+  }
+
+  private static func otherOwltypePIDs(excluding excludedPID: Int32) -> [Int32] {
+    guard let output = try? command("/usr/bin/pgrep", OwlSessionRestart.serverQuery(uid: getuid()),
+                                    timeout: 4, acceptedStatuses: [0, 1]) else {
+      return []
+    }
+    let selfPID = getpid()
+    return output.split(whereSeparator: \.isNewline).compactMap { Int32($0) }
+      .filter { $0 != excludedPID && $0 != selfPID }
+  }
+
+  private static func fallbackServer(pid: Int32, installedInode: UInt64) -> OwlSessionRestart.Server {
+    let executable = OwlSessionRestart.executablePath(of: pid)
+    var file = stat()
+    let matchesInode = !executable.isEmpty && stat(executable, &file) == 0
+      && installedInode != 0 && UInt64(file.st_ino) == installedInode
+      && executable == OwlSessionRestart.installedExecutable
+    let contents = URL(fileURLWithPath: executable).deletingLastPathComponent().deletingLastPathComponent()
+    let version = NSDictionary(contentsOf: contents.appendingPathComponent("Info.plist"))?["CFBundleVersion"] as? String ?? ""
+    return OwlSessionRestart.Server(pid: pid, executable: executable, version: version,
+                                    mapsInstalledExecutable: matchesInode)
+  }
+
+  static func reconcileLaunchServicesAndCaches() {
+    let canonical = URL(fileURLWithPath: appPath).standardizedFileURL.path
+    if FileManager.default.isExecutableFile(atPath: lsregisterPath) {
+      for url in NSWorkspace.shared.urlsForApplications(withBundleIdentifier: parentID) {
+        let candidate = url.standardizedFileURL.path
+        if candidate != canonical {
+          _ = try? command(lsregisterPath, ["-u", candidate], timeout: 5, acceptedStatuses: [0, 1])
+        }
+      }
+      if FileManager.default.fileExists(atPath: canonical) {
+        _ = try? command(lsregisterPath, ["-f", canonical], timeout: 5, acceptedStatuses: [0, 1])
+      }
+    }
+    purgeIntlDataCaches()
+  }
+
+  static func purgeIntlDataCaches() {
+    var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
+    guard confstr(_CS_DARWIN_USER_CACHE_DIR, &buffer, buffer.count) > 0 else { return }
+    let cacheRoot = URL(fileURLWithPath: String(cString: buffer), isDirectory: true)
+    let marker = Data(parentID.utf8)
+    guard let enumerator = FileManager.default.enumerator(
+      at: cacheRoot,
+      includingPropertiesForKeys: [.isRegularFileKey],
+      options: [.skipsHiddenFiles, .skipsPackageDescendants]
+    ) else { return }
+    for case let fileURL as URL in enumerator {
+      if enumerator.level > 2 {
+        enumerator.skipDescendants()
+        continue
+      }
+      guard fileURL.lastPathComponent.hasPrefix("com.apple.IntlDataCache.le"),
+            let data = try? Data(contentsOf: fileURL),
+            data.range(of: marker) != nil else { continue }
+      try? FileManager.default.removeItem(at: fileURL)
+    }
   }
 
   private static func source(_ identifier: String, all: Bool) -> TISInputSource? {

@@ -1,12 +1,10 @@
-// InstallerActivationPolicy — 安装激活的纯决策层（无 TIS / 无 IO / 无 AppKit）。
+// InstallerActivationPolicy — 安装、修复与卸载的纯决策层（无 TIS / 无 IO / 无 AppKit）。
 //
-// 为什么是纯函数：TIS/IMK 无法 headless 单测，所以把「该不该 enable/select」
-// 与「读回验证状态机」抽成纯函数，编进 OwltypeTests 覆盖真值表（tests/InstallerActivationPolicyTests.swift，
-// 参照 ActivationPolicyTests 的 pure-dispatch 风格）；TIS 副作用薄层留在 OwlInstallSession。
-//
+// 为什么是纯函数：TIS/IMK 无法 headless 单测，所以把「该不该 enable/select」、
+// 「预检状态归类」与「四合一动作完成态文案」抽成纯函数，编进 OwltypeTests 覆盖真值表
+// （`tests/InstallerActivationPolicyTests.swift`）；系统副作用留在 `installer/Sources/Installer.swift`
+// 与 `sources/Activation/OwlInstallSession.swift`。
 // 当前策略、回归测试和历史观察边界见 `docs/operations/installation.md`。
-// 更新判据是替换前的 bundle/进程状态；不以主模式 IsEnabled 单独判断。
-// 首装计划启用父条目与主模式各一次，更新不重复启用。
 
 import Foundation
 
@@ -20,16 +18,10 @@ enum InstallerActivationPolicy {
     // MARK: - 安装期激活计划（复合幂等判据真值表）
 
     struct ActivationPlan: Equatable {
-        /// 干净首装 → 在安装器进程（登录用户 Aqua 会话里的已签名 GUI 进程，满足 enable 的全部
-        /// 真必要条件）enable「父条目 + Hans 主模式」各一次（历史观察：父条目 enable 不级联模式；
-        /// 父=菜单显形，Hans=select 需要的模式启用记录）。已有安装 → 整段跳过（避免历史重复启用问题）。
         let enableParentAndPrimaryModeOnce: Bool
-        /// 自检时通过 fresh CLI 选择猫头鹰：首装启用后选择，更新保留原模式；不与临时切出配对
-        /// 。不变量：更新绝不从其它输入法手里抢当前输入源。
         let selectOwltypeAfterInstall: Bool
     }
 
-    /// 三个输入信号都必须在 killall Owltype / 提权拷贝之前采样（顺序陷阱：晚一步就全被自己污染）。
     static func plan(
         bundlePreexisted: Bool,
         owltypeProcessWasRunning: Bool,
@@ -41,11 +33,221 @@ enum InstallerActivationPolicy {
             selectOwltypeAfterInstall: !isExistingInstall || owltypeWasCurrentSource)
     }
 
+    enum VersionRelation: Equatable {
+        case notInstalled
+        case upgrade(installed: String, embedded: String)
+        case sameVersion(version: String)
+        case reinstallOlder(installed: String, embedded: String)
+    }
+
+    static func parseVersionComponents(_ version: String) -> [Int]? {
+        let parts = version.split(separator: ".", omittingEmptySubsequences: false)
+        guard !parts.isEmpty else { return nil }
+        var result: [Int] = []
+        result.reserveCapacity(parts.count)
+        for part in parts {
+            guard !part.isEmpty, let value = Int(part), value >= 0 else { return nil }
+            result.append(value)
+        }
+        return result
+    }
+
+    static func compareVersions(_ lhs: String, _ rhs: String) -> ComparisonResult? {
+        guard let left = parseVersionComponents(lhs),
+              let right = parseVersionComponents(rhs) else {
+            return nil
+        }
+        for index in 0..<max(left.count, right.count) {
+            let leftValue = index < left.count ? left[index] : 0
+            let rightValue = index < right.count ? right[index] : 0
+            if leftValue < rightValue { return .orderedAscending }
+            if leftValue > rightValue { return .orderedDescending }
+        }
+        return .orderedSame
+    }
+
+    static func versionRelation(installedBuild: String?, embeddedBuild: String?) -> VersionRelation {
+        guard let installed = installedBuild, !installed.isEmpty else {
+            return .notInstalled
+        }
+        guard let embedded = embeddedBuild, !embedded.isEmpty else {
+            return .sameVersion(version: installed)
+        }
+        guard let order = compareVersions(embedded, installed) else {
+            return .upgrade(installed: installed, embedded: embedded)
+        }
+        switch order {
+        case .orderedDescending:
+            return .upgrade(installed: installed, embedded: embedded)
+        case .orderedSame:
+            return .sameVersion(version: installed)
+        case .orderedAscending:
+            return .reinstallOlder(installed: installed, embedded: embedded)
+        }
+    }
+
+    struct PreflightReport: Equatable {
+        let installedShortVersion: String?
+        let installedBuildVersion: String?
+        let embeddedShortVersion: String?
+        let embeddedBuildVersion: String?
+        let strayCopyCount: Int
+        let extraLaunchServicesClaimCount: Int
+
+        var isInstalled: Bool {
+            guard let installedBuildVersion else { return false }
+            return !installedBuildVersion.isEmpty
+        }
+
+        var hasAnomalies: Bool {
+            strayCopyCount > 0 || extraLaunchServicesClaimCount > 0
+        }
+
+        var relation: VersionRelation {
+            versionRelation(installedBuild: installedBuildVersion, embeddedBuild: embeddedBuildVersion)
+        }
+
+        var primaryButtonTitle: String {
+            switch relation {
+            case .notInstalled:
+                return "立即安装"
+            case .upgrade:
+                return "更新输入法"
+            case .sameVersion, .reinstallOlder:
+                return "重新安装"
+            }
+        }
+
+        var statusHeadline: String {
+            let embeddedLabel = Self.formatVersion(short: embeddedShortVersion, build: embeddedBuildVersion)
+            let installedLabel = Self.formatVersion(short: installedShortVersion, build: installedBuildVersion)
+            switch relation {
+            case .notInstalled:
+                if let embeddedLabel {
+                    return "本机尚未安装 · 安装包版本 \(embeddedLabel)"
+                }
+                return "本机尚未安装猫头鹰输入法"
+            case .upgrade:
+                if let installedLabel, let embeddedLabel {
+                    return "已安装 \(installedLabel) · 可更新至 \(embeddedLabel)"
+                }
+                return "检测到新版本，可直接更新"
+            case .sameVersion:
+                if let installedLabel {
+                    return "已安装 \(installedLabel)（已是当前安装包版本，支持重新安装或修复）"
+                }
+                return "已安装当前版本，支持重新安装或修复"
+            case .reinstallOlder:
+                if let installedLabel, let embeddedLabel {
+                    return "本机已安装 \(installedLabel) · 安装包版本 \(embeddedLabel)（支持覆盖重装）"
+                }
+                return "本机已安装更高版本，支持覆盖重装或修复"
+            }
+        }
+
+        var anomalyWarning: String? {
+            guard hasAnomalies else { return nil }
+            var clauses: [String] = []
+            if strayCopyCount > 0 {
+                clauses.append("\(strayCopyCount) 处非标准副本或残留目录")
+            }
+            if extraLaunchServicesClaimCount > 0 {
+                clauses.append("\(extraLaunchServicesClaimCount) 条多余的 LaunchServices 路径注册")
+            }
+            return "检测到 " + clauses.joined(separator: "、") + "，可能导致输入法菜单重复或版本错乱；建议点击「修复安装」或「清空修复」。"
+        }
+
+        private static func formatVersion(short: String?, build: String?) -> String? {
+            switch (short, build) {
+            case let (s?, b?) where !s.isEmpty && !b.isEmpty && s != b:
+                return "\(s) (\(b))"
+            case let (s?, _) where !s.isEmpty:
+                return s
+            case let (_, b?) where !b.isEmpty:
+                return b
+            default:
+                return nil
+            }
+        }
+    }
+
+    // MARK: - 会话收敛状态与四合一动作完成摘要
+
+    enum SessionStatus: Equatable {
+        case ready
+        case deferred
+    }
+
+    static func parseFinishInstallStatus(_ output: String) -> SessionStatus? {
+        guard output.contains("INSTALL_SESSION_OK") else { return nil }
+        if output.contains("status=deferred") {
+            return .deferred
+        }
+        return .ready
+    }
+
+    enum ActionKind: Equatable {
+        case install(plan: ActivationPlan, status: SessionStatus)
+        case repairInstall(status: SessionStatus)
+        case clearAndRepair
+        case uninstall(keepUserData: Bool)
+    }
+
+    struct CompletionSummary: Equatable {
+        let title: String
+        let detail: String
+        let showsActivateButton: Bool
+        let showsSystemSettingsButton: Bool
+    }
+
+    static func completionSummary(for action: ActionKind) -> CompletionSummary {
+        switch action {
+        case .install(let plan, let status):
+            if status == .ready {
+                return CompletionSummary(
+                    title: plan.enableParentAndPrimaryModeOnce ? "安装完成" : "更新完成",
+                    detail: successText(plan: plan),
+                    showsActivateButton: true,
+                    showsSystemSettingsButton: false)
+            }
+            return CompletionSummary(
+                title: plan.enableParentAndPrimaryModeOnce ? "安装已完成" : "更新已完成",
+                detail: "✅ 猫头鹰输入法文件已安装就绪。若右上角输入法菜单尚未显示「猫头鹰」，请点击下方「启用并切换到猫头鹰」或在「系统设置 → 键盘 → 输入法」中添加。",
+                showsActivateButton: true,
+                showsSystemSettingsButton: true)
+        case .repairInstall(let status):
+            if status == .ready {
+                return CompletionSummary(
+                    title: "修复安装完成",
+                    detail: "✅ 已清理残留副本与输入法缓存，并重新安装启用猫头鹰输入法。你的个人词库与设置已保留。",
+                    showsActivateButton: true,
+                    showsSystemSettingsButton: false)
+            }
+            return CompletionSummary(
+                title: "修复安装已完成",
+                detail: "✅ 已清理残留副本与输入法缓存，并完成文件重装。请点击下方「启用并切换到猫头鹰」完成激活。",
+                showsActivateButton: true,
+                showsSystemSettingsButton: true)
+        case .clearAndRepair:
+            return CompletionSummary(
+                title: "清空修复完成",
+                detail: "✅ 已清理多余副本、幽灵注册与系统输入法列表缓存，并刷新输入法菜单与后台服务。你的个人词库与配置完好保留。",
+                showsActivateButton: true,
+                showsSystemSettingsButton: false)
+        case .uninstall(let keepUserData):
+            let dataNote = keepUserData
+                ? "你的个人词库与配置文件已保留在 ~/Library/Application Support/Owltype。"
+                : "已同时清空个人词库、缓存与偏好设置。"
+            return CompletionSummary(
+                title: "卸载完成",
+                detail: "✅ 猫头鹰输入法已从本机移除，输入法菜单已刷新。\(dataNote)Squirrel、~/Library/Rime 及其他输入法未被触碰。",
+                showsActivateButton: false,
+                showsSystemSettingsButton: false)
+        }
+    }
+
     // MARK: - --tis-probe 自探针输出协议（fresh 进程 ↔ verifier；纯字符串，两端可单测）
 
-    /// fresh 进程 TIS 真值三元组。parent = 父条目 IsEnabled 位（父无 tsInputModeDefaultStateKey，
-    /// 该位可信）；primaryMode(hans) = enabled-only 列表成员资格（绝不看 Hans 的 IsEnabled 位——
-    /// 历史上观察到恒真）；hansSelectCapable = Hans 的 IsSelectCapable 位（诊断参考，不进 verified 判定）。
     struct ProbeSignals: Equatable {
         let parentEnabled: Bool
         let primaryModeEnabled: Bool
@@ -60,7 +262,7 @@ enum InstallerActivationPolicy {
     }
 
     /// 解析探针输出。容忍首尾空白/换行与多余 token；parent/hans 两键必须在且取值 0/1，
-    /// 否则返回 nil（verifier 视作本 tick 无信号——坏输出绝不能被当成功）。
+    /// 否则返回 nil（verifier 视作本 tick 无信号）。
     static func parseProbeOutput(_ output: String) -> ProbeSignals? {
         var values: [String: String] = [:]
         for token in output.split(whereSeparator: { $0 == " " || $0.isNewline }) {

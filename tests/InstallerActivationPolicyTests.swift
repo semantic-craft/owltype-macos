@@ -167,4 +167,98 @@ final class InstallerActivationPolicyTests: XCTestCase {
       XCTAssertTrue(text.contains("自检通过"))
     }
   }
+
+  func testVersionRelationNeverBlocksSameOrOlderVersionReinstall() {
+    XCTAssertEqual(
+      InstallerActivationPolicy.versionRelation(installedBuild: nil, embeddedBuild: "2.0.19"),
+      .notInstalled)
+    XCTAssertEqual(
+      InstallerActivationPolicy.versionRelation(installedBuild: "2.0.18", embeddedBuild: "2.0.19"),
+      .upgrade(installed: "2.0.18", embedded: "2.0.19"))
+    XCTAssertEqual(
+      InstallerActivationPolicy.versionRelation(installedBuild: "2.0.19", embeddedBuild: "2.0.19"),
+      .sameVersion(version: "2.0.19"))
+    XCTAssertEqual(
+      InstallerActivationPolicy.versionRelation(installedBuild: "2.0.20", embeddedBuild: "2.0.19"),
+      .reinstallOlder(installed: "2.0.20", embedded: "2.0.19"))
+  }
+
+  func testPreflightReportMapsPrimaryButtonAndAnomalyWarnings() {
+    let cleanFirst = InstallerActivationPolicy.PreflightReport(
+      installedShortVersion: nil,
+      installedBuildVersion: nil,
+      embeddedShortVersion: "2.0.19",
+      embeddedBuildVersion: "2.0.19",
+      strayCopyCount: 0,
+      extraLaunchServicesClaimCount: 0)
+    XCTAssertFalse(cleanFirst.isInstalled)
+    XCTAssertFalse(cleanFirst.hasAnomalies)
+    XCTAssertEqual(cleanFirst.primaryButtonTitle, "立即安装")
+    XCTAssertNil(cleanFirst.anomalyWarning)
+
+    let upgradeWithStrays = InstallerActivationPolicy.PreflightReport(
+      installedShortVersion: "2.0.18",
+      installedBuildVersion: "2.0.18",
+      embeddedShortVersion: "2.0.19",
+      embeddedBuildVersion: "2.0.19",
+      strayCopyCount: 1,
+      extraLaunchServicesClaimCount: 2)
+    XCTAssertTrue(upgradeWithStrays.isInstalled)
+    XCTAssertTrue(upgradeWithStrays.hasAnomalies)
+    XCTAssertEqual(upgradeWithStrays.primaryButtonTitle, "更新输入法")
+    XCTAssertNotNil(upgradeWithStrays.anomalyWarning)
+    XCTAssertTrue(upgradeWithStrays.anomalyWarning?.contains("修复安装") == true)
+    XCTAssertTrue(upgradeWithStrays.anomalyWarning?.contains("清空修复") == true)
+
+    let reinstallSame = InstallerActivationPolicy.PreflightReport(
+      installedShortVersion: "2.0.19",
+      installedBuildVersion: "2.0.19",
+      embeddedShortVersion: "2.0.19",
+      embeddedBuildVersion: "2.0.19",
+      strayCopyCount: 0,
+      extraLaunchServicesClaimCount: 0)
+    XCTAssertEqual(reinstallSame.primaryButtonTitle, "重新安装")
+  }
+
+  func testFinishInstallParserDistinguishesReadyAndDeferred() {
+    XCTAssertEqual(
+      InstallerActivationPolicy.parseFinishInstallStatus("INSTALL_SESSION_OK pid=420 version=2.0.19 status=ready\n"),
+      .ready)
+    XCTAssertEqual(
+      InstallerActivationPolicy.parseFinishInstallStatus("INSTALL_SESSION_OK pid=0 version=2.0.19 status=deferred\n"),
+      .deferred)
+    XCTAssertNil(InstallerActivationPolicy.parseFinishInstallStatus("INSTALL_SESSION_FAILED: timeout"))
+  }
+
+  func testCompletionSummaryCoversAllFourMaintenanceActions() {
+    let firstPlan = InstallerActivationPolicy.plan(
+      bundlePreexisted: false, owltypeProcessWasRunning: false, owltypeWasCurrentSource: false)
+    let readySummary = InstallerActivationPolicy.completionSummary(
+      for: .install(plan: firstPlan, status: .ready))
+    XCTAssertEqual(readySummary.title, "安装完成")
+    XCTAssertTrue(readySummary.showsActivateButton)
+    XCTAssertFalse(readySummary.showsSystemSettingsButton)
+
+    let deferredSummary = InstallerActivationPolicy.completionSummary(
+      for: .install(plan: firstPlan, status: .deferred))
+    XCTAssertEqual(deferredSummary.title, "安装已完成")
+    XCTAssertTrue(deferredSummary.showsActivateButton)
+    XCTAssertTrue(deferredSummary.showsSystemSettingsButton)
+
+    let repairSummary = InstallerActivationPolicy.completionSummary(for: .repairInstall(status: .ready))
+    XCTAssertEqual(repairSummary.title, "修复安装完成")
+    XCTAssertTrue(repairSummary.detail.contains("个人词库"))
+
+    let clearSummary = InstallerActivationPolicy.completionSummary(for: .clearAndRepair)
+    XCTAssertEqual(clearSummary.title, "清空修复完成")
+    XCTAssertTrue(clearSummary.showsActivateButton)
+
+    let uninstallKeep = InstallerActivationPolicy.completionSummary(for: .uninstall(keepUserData: true))
+    XCTAssertEqual(uninstallKeep.title, "卸载完成")
+    XCTAssertFalse(uninstallKeep.showsActivateButton)
+    XCTAssertTrue(uninstallKeep.detail.contains("已保留"))
+
+    let uninstallPurge = InstallerActivationPolicy.completionSummary(for: .uninstall(keepUserData: false))
+    XCTAssertTrue(uninstallPurge.detail.contains("清空个人词库"))
+  }
 }

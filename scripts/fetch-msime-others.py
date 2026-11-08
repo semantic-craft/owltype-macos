@@ -261,24 +261,35 @@ def write_derived_database(
 
 
 def download_source(directory: Path) -> Path:
+    cache_root = Path(
+        os.environ.get("OWLTYPE_MSIME_RESOURCE_CACHE", "/tmp/owltype-msime-resources")
+    )
+    cached_source = cache_root / PIN.release / "msime-others.db"
     descriptor, temporary_name = tempfile.mkstemp(
         dir=directory, prefix=".msime-others-source.", suffix=".db"
     )
     temporary = Path(temporary_name)
     try:
         with os.fdopen(descriptor, "wb") as staged:
-            request = urllib.request.Request(
-                SOURCE_URL, headers={"User-Agent": "owltype-msime-resource-fetch/1"}
-            )
-            with urllib.request.urlopen(request, timeout=60) as response:
-                received = 0
-                for chunk in iter(lambda: response.read(CHUNK_BYTES), b""):
-                    received += len(chunk)
-                    if received > SOURCE_SIZE:
-                        raise Failure(
-                            f"download exceeded pinned size {SOURCE_SIZE}: {SOURCE_URL}"
-                        )
-                    staged.write(chunk)
+            try:
+                verify_file(cached_source, SOURCE_SIZE, SOURCE_SHA256)
+            except Failure:
+                request = urllib.request.Request(
+                    SOURCE_URL, headers={"User-Agent": "owltype-msime-resource-fetch/1"}
+                )
+                with urllib.request.urlopen(request, timeout=60) as response:
+                    received = 0
+                    for chunk in iter(lambda: response.read(CHUNK_BYTES), b""):
+                        received += len(chunk)
+                        if received > SOURCE_SIZE:
+                            raise Failure(
+                                f"download exceeded pinned size {SOURCE_SIZE}: {SOURCE_URL}"
+                            )
+                        staged.write(chunk)
+            else:
+                with cached_source.open("rb") as cached_stream:
+                    for chunk in iter(lambda: cached_stream.read(CHUNK_BYTES), b""):
+                        staged.write(chunk)
             staged.flush()
             os.fsync(staged.fileno())
         verify_file(temporary, SOURCE_SIZE, SOURCE_SHA256)

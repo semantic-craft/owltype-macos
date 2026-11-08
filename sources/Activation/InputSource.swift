@@ -83,8 +83,8 @@ final class OwlInstaller {
   static func refreshInputMenuAgents() {
     let p = Process()
     p.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
-    p.arguments = ["-9", "TextInputMenuAgent", "TextInputSwitcher"]
-    p.standardError = FileHandle.nullDevice  // "No matching processes" is expected, not an error
+    p.arguments = ["-9", "TextInputMenuAgent", "TextInputSwitcher", "CursorUIViewService"]
+    p.standardError = FileHandle.nullDevice
     try? p.run()
     p.waitUntilExit()
   }
@@ -265,11 +265,20 @@ final class OwlInstaller {
   func disable(modes: [InputMode] = []) {
     let modesToDisable = modes.isEmpty ? InputMode.allCases : modes
     for (mode, inputSource) in getInputSource(modes: modesToDisable) {
+      _ = TISDeselectInputSource(inputSource)
       if let enabled = getBool(for: inputSource, key: kTISPropertyInputSourceIsEnabled), enabled {
         let error = TISDisableInputSource(inputSource)
         print("Disable \(error == noErr ? "succeeds" : "fails") for input source: \(mode.rawValue)")
       }
     }
+    if modes.isEmpty, let parent = inputSources[Self.inputSourcePrefix] {
+      _ = TISDeselectInputSource(parent)
+      if let enabled = getBool(for: parent, key: kTISPropertyInputSourceIsEnabled), enabled {
+        let error = TISDisableInputSource(parent)
+        print("Disable \(error == noErr ? "succeeds" : "fails") for parent input source: \(Self.inputSourcePrefix)")
+      }
+    }
+    notifyInputSourcesChanged()
   }
 
   static func currentInputSourceID() -> String? {

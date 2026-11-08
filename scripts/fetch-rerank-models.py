@@ -422,16 +422,29 @@ def materialize(
     )
     try:
         staged: list[tuple[Path, Path]] = []
+        cache_root = Path(
+            os.environ.get("OWLTYPE_RERANK_MODEL_CACHE", "/tmp/owltype-rerank-models")
+        ) / str(upstream["release"])
         model_by_output = {model["output_name"]: model for model in models}
         for source, output_name, size, digest, label in missing:
             destination = staging / output_name
             if output_name in model_by_output and source is None:
-                staged.append(
-                    (
-                        download(model_by_output[output_name], destination),
-                        output / output_name,
+                model = model_by_output[output_name]
+                cached = cache_root / model["upstream_name"]
+                if matches(cached, size, digest):
+                    staged.append(
+                        (
+                            stage_copy(cached, destination, size, digest, label),
+                            output / output_name,
+                        )
                     )
-                )
+                else:
+                    staged.append(
+                        (
+                            download(model, destination),
+                            output / output_name,
+                        )
+                    )
             else:
                 assert source is not None
                 staged.append(

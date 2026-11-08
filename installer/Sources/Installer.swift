@@ -1,11 +1,10 @@
-// Installer — 安装/卸载的全部副作用逻辑（无 UI）。
+// Installer — 安装、修复安装、清空修复与彻底卸载的全部副作用逻辑（无 UI）。
 //
-// 安全纪律（卸载白名单，照搬 scripts/uninstall-owltype.sh 精神）：
-//   - 删除目标 **硬编码** 为猫头鹰自有路径，绝不触碰 Squirrel / ~/Library/Rime / im.rime /
+// 安全纪律（卸载与修复白名单，对齐 scripts/uninstall-owltype.sh 与 scripts/repair-owltype.sh）：
+//   - 删除目标硬编码为猫头鹰自有路径，绝不触碰 Squirrel / ~/Library/Rime / im.rime /
 //     Sogou / 搜狗 / Weasel 等他人输入法。
-//   - root 陷阱：`do shell script ... with administrator privileges` 以 root 运行，$HOME 会变成
-//     /var/root，所以用户目录下的清理 **绝不** 交给 root 跑——用安装器进程自身（= 登录用户）的
-//     FileManager 删；只有 /Library/Input Methods 下的系统级 bundle 才走提权。
+//   - 用户目录下的清理一律由登录用户进程自身通过 FileManager 执行；
+//     只有 /Library/Input Methods 与 /private/var/db 下的系统级路径才走提权。
 
 import Foundation
 import Carbon
@@ -37,70 +36,285 @@ enum InstallerError: LocalizedError {
 enum Installer {
     /// 系统输入法目录里的猫头鹰安装位置。
     static let installedAppPath = "/Library/Input Methods/Owltype.app"
+    private static let systemInputMethodsDir = "/Library/Input Methods"
     private static let installerStatePath = "/private/var/db/im.owltype.inputmethod.Owltype-installer"
     private static let expectedBundleID = "im.owltype.inputmethod.Owltype"
     private static let expectedTeamID = "LQAVR62TK2"
+    private static let lsregisterPath =
+        "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 
-    private struct AppMetadata {
+    struct AppMetadata: Equatable {
         let bundleID: String
         let shortVersion: String
         let buildVersion: String
     }
 
-    private enum InstallKind {
-        case firstInstall
-        case update
-        case repair
-        case replaceInvalidExisting
-    }
+    static let inputMethodID = "im.owltype.inputmethod.Owltype"
+    static let primaryModeID = "im.owltype.inputmethod.Owltype.Hans"
+    private static let allSourceIDs = [
+        "im.owltype.inputmethod.Owltype",
+        "im.owltype.inputmethod.Owltype.Hans",
+        "im.owltype.inputmethod.Owltype.Hant",
+    ]
 
-    // MARK: - 内嵌 Owltype.app 定位
-
-    /// 内嵌的 Owltype.app = 安装器自身 Contents/Library/Owltype.app（由 P3 打包时放入）。
-    /// 放 Contents/Library（Apple 约定的嵌套代码位置），不放 Contents/Resources——避免真公证
-    /// 时对 Resources 里嵌套可执行代码的潜在拒绝（WeChat/Sogou 也不把裸 .app 放 Resources）。
-    /// P2 阶段它尚不存在，运行到 install() 会按预期报「未找到内嵌 Owltype.app」。
     static func embeddedOwltypeAppURL() -> URL? {
         let url = Bundle.main.bundleURL.appendingPathComponent("Contents/Library/Owltype.app")
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
-    // MARK: - 安装
+    static func inspectPreflight() -> InstallerActivationPolicy.PreflightReport {
+        let embedded = embeddedOwltypeAppURL().flatMap { try? appMetadata(at: $0) }
+        let installedURL = URL(fileURLWithPath: installedAppPath)
+        let installed = (try? appMetadata(at: installedURL)).flatMap {
+            $0.bundleID == expectedBundleID ? $0 : nil
+        }
+        let strayCount = strayCopies().count
+        let extraClaims = nonCanonicalLaunchServicesClaims().count
+        return InstallerActivationPolicy.PreflightReport(
+            installedShortVersion: installed?.shortVersion,
+            installedBuildVersion: installed?.buildVersion,
+            embeddedShortVersion: embedded?.shortVersion,
+            embeddedBuildVersion: embedded?.buildVersion,
+            strayCopyCount: strayCount,
+            extraLaunchServicesClaimCount: extraClaims)
+    }
 
-    /// Return only after file validation and the user-session self-check both succeed.
-    static func install() throws -> InstallerActivationPolicy.ActivationPlan {
+    static func install() throws -> (plan: InstallerActivationPolicy.ActivationPlan,
+                                     status: InstallerActivationPolicy.SessionStatus) {
         guard let embedded = embeddedOwltypeAppURL() else {
             throw InstallerError.embeddedAppNotFound
         }
         let payload = try validatePayload(at: embedded)
 
-        // A shell without Info.plist is set aside by --commit-install and installed fresh.
         let bundlePreexisted = FileManager.default.fileExists(atPath: installedAppPath + "/Contents/Info.plist")
         let wasRunning = owltypeProcessIsRunning()
         let sourceBefore = DispatchQueue.main.sync { currentSourceID() }
         let plan = InstallerActivationPolicy.plan(
             bundlePreexisted: bundlePreexisted, owltypeProcessWasRunning: wasRunning,
             owltypeWasCurrentSource: sourceBefore.hasPrefix(inputMethodID + "."))
-        _ = try installKind(for: payload)
-        // Leave the old server alive while Contents is staged and exchanged.
+        try rejectForeignBundleAtInstallPath()
+
+        try removeUserStrayCopies()
+        unregisterNonCanonicalLaunchServicesClaims()
+
         try privilegedReplace(fromAppPath: embedded.path)
         try validateInstalledApp(expected: payload)
-        do {
-            let output = try runProcess(installedAppPath + "/Contents/MacOS/Owltype", [
-                "--finish-install", plan.enableParentAndPrimaryModeOnce ? "first" : "update",
-                sourceBefore, payload.buildVersion,
-            ])
-            guard output.contains("INSTALL_SESSION_OK ") else {
-                throw InstallerError.activationFailed("安装后的会话自检未返回成功结果。")
-            }
-        } catch {
-            throw InstallerError.activationFailed(error.localizedDescription)
-        }
-        return plan
+        let status = try runFinishInstall(
+            firstInstall: plan.enableParentAndPrimaryModeOnce,
+            sourceBefore: sourceBefore,
+            buildVersion: payload.buildVersion)
+        return (plan, status)
     }
 
-    /// pgrep 登录用户域的 Owltype 进程（复合判据副信号）：进程活着 ⟺ 已被 register+enable 过
-    /// （IMK 只拉起已启用的输入法——fcitx5 幂等判据，比会撒谎的 IsEnabled 可靠）。
+    static func repairInstall() throws -> InstallerActivationPolicy.SessionStatus {
+        guard let embedded = embeddedOwltypeAppURL() else {
+            throw InstallerError.embeddedAppNotFound
+        }
+        let payload = try validatePayload(at: embedded)
+        try rejectForeignBundleAtInstallPath()
+
+        let sourceBefore = DispatchQueue.main.sync { currentSourceID() }
+        let installedExecutable = installedAppPath + "/Contents/MacOS/Owltype"
+        if sourceBefore.hasPrefix(inputMethodID),
+           FileManager.default.isExecutableFile(atPath: installedExecutable) {
+            try? parkCurrentSource(usingOwltypeApp: URL(fileURLWithPath: installedAppPath))
+        }
+        disableAllOwltypeTIS()
+        stopAllOwltypeProcesses()
+
+        try removeUserStrayCopies()
+        try clearUserCachesAndSelfCheckRecord()
+        unregisterNonCanonicalLaunchServicesClaims()
+        purgeIntlDataCaches()
+
+        try privilegedReplaceAndCleanSystemLeftovers(fromAppPath: embedded.path)
+        try validateInstalledApp(expected: payload)
+        let restoreSource = sourceBefore.hasPrefix(inputMethodID + ".") ? sourceBefore : primaryModeID
+        return try runFinishInstall(
+            firstInstall: true,
+            sourceBefore: restoreSource,
+            buildVersion: payload.buildVersion)
+    }
+
+    static func clearAndRepair() throws {
+        let installedURL = URL(fileURLWithPath: installedAppPath)
+        let installedExecutable = installedAppPath + "/Contents/MacOS/Owltype"
+        let hasValidInstalled = (try? appMetadata(at: installedURL))?.bundleID == expectedBundleID
+            && FileManager.default.isExecutableFile(atPath: installedExecutable)
+        if !hasValidInstalled {
+            if embeddedOwltypeAppURL() != nil {
+                _ = try repairInstall()
+                return
+            }
+            throw InstallerError.validationFailed("本机尚未安装猫头鹰输入法，请点击「立即安装」。")
+        }
+
+        let sourceBefore = DispatchQueue.main.sync { currentSourceID() }
+        if sourceBefore.hasPrefix(inputMethodID) {
+            try? parkCurrentSource(usingOwltypeApp: installedURL)
+        }
+        _ = try? runProcess(installedExecutable, ["--disable-input-source"])
+        disableAllOwltypeTIS()
+        stopAllOwltypeProcesses()
+
+        try removeUserStrayCopies()
+        try clearUserCachesAndSelfCheckRecord()
+
+        let systemStrays = systemStrayCopies()
+        if !systemStrays.isEmpty {
+            let quoted = systemStrays.map { shellQuote($0.path) }.joined(separator: " ")
+            try runPrivileged("rm -rf \(quoted)")
+        }
+
+        unregisterNonCanonicalLaunchServicesClaims()
+        forceRegisterCanonicalBundle()
+        purgeIntlDataCaches()
+
+        _ = try? runProcess(installedExecutable, ["--install-session-enable"])
+        _ = try? runProcess(installedExecutable, ["--activate-once"])
+        refreshInputMenuAgents()
+        _ = try? runProcess("/usr/bin/open", ["-g", installedAppPath])
+        let targetSource = sourceBefore.hasPrefix(inputMethodID + ".") ? sourceBefore : primaryModeID
+        _ = try? runProcess(installedExecutable, ["--select-input-source", targetSource])
+    }
+
+    static func uninstall() throws {
+        try uninstall(keepUserData: false)
+    }
+
+    static func uninstall(keepUserData: Bool) throws {
+        let fileManager = FileManager.default
+
+        let installedExecutable = installedAppPath + "/Contents/MacOS/Owltype"
+        if fileManager.isExecutableFile(atPath: installedExecutable) {
+            let current = (try? runProcess(installedExecutable, ["--current-input-source"])) ?? ""
+            if current.hasPrefix(inputMethodID) {
+                try? parkCurrentSource(usingOwltypeApp: URL(fileURLWithPath: installedAppPath))
+            }
+            _ = try? runProcess(installedExecutable, ["--disable-input-source"])
+            _ = try? runProcess(installedExecutable, ["--quit"])
+        }
+        disableAllOwltypeTIS()
+        stopAllOwltypeProcesses()
+        unregisterAllLaunchServicesClaims()
+
+        for url in userLevelTargets(keepUserData: keepUserData) where fileManager.fileExists(atPath: url.path) {
+            try fileManager.removeItem(at: url)
+        }
+        try removeUserStrayCopies()
+        clearSelfCheckFailureRecord()
+        purgeIntlDataCaches()
+
+        let systemStrays = systemStrayCopies()
+        let receiptExists = (try? runProcess(
+            "/usr/sbin/pkgutil", ["--pkg-info", expectedBundleID])) != nil
+        if fileManager.fileExists(atPath: installedAppPath)
+            || fileManager.fileExists(atPath: installerStatePath)
+            || !systemStrays.isEmpty
+            || receiptExists {
+            var targets = [shellQuote(installedAppPath), shellQuote(installerStatePath)]
+            targets.append(contentsOf: systemStrays.map { shellQuote($0.path) })
+            var command = "rm -rf " + targets.joined(separator: " ")
+            if receiptExists {
+                command += " && /usr/sbin/pkgutil --forget im.owltype.inputmethod.Owltype >/dev/null"
+            }
+            try runPrivileged(command)
+        }
+
+        refreshInputMenuAgents()
+    }
+
+    static func activateAndOpenSettings() {
+        let installedExecutable = installedAppPath + "/Contents/MacOS/Owltype"
+        forceRegisterCanonicalBundle()
+        if FileManager.default.isExecutableFile(atPath: installedExecutable) {
+            _ = try? runProcess(installedExecutable, ["--install-session-enable"])
+            _ = try? runProcess(installedExecutable, ["--enable-input-source"])
+            _ = try? runProcess("/usr/bin/open", ["-g", installedAppPath])
+            _ = try? runProcess(installedExecutable, ["--select-input-source", primaryModeID])
+        }
+        refreshInputMenuAgents()
+        DistributedNotificationCenter.default().postNotificationName(
+            .init("OwlShowSettingsNotification"),
+            object: nil,
+            userInfo: nil,
+            deliverImmediately: true)
+    }
+
+    static func openSystemKeyboardSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    private static func runFinishInstall(
+        firstInstall: Bool,
+        sourceBefore: String,
+        buildVersion: String
+    ) throws -> InstallerActivationPolicy.SessionStatus {
+        let executable = installedAppPath + "/Contents/MacOS/Owltype"
+        do {
+            let output = try runProcess(executable, [
+                "--finish-install", firstInstall ? "first" : "update",
+                sourceBefore, buildVersion,
+            ])
+            if let status = InstallerActivationPolicy.parseFinishInstallStatus(output) {
+                return status
+            }
+            return .deferred
+        } catch {
+            fallbackRefreshAndLaunchInstalledApp()
+            return .deferred
+        }
+    }
+
+    private static func fallbackRefreshAndLaunchInstalledApp() {
+        forceRegisterCanonicalBundle()
+        purgeIntlDataCaches()
+        refreshInputMenuAgents()
+        _ = try? runProcess("/usr/bin/open", ["-g", installedAppPath])
+    }
+
+    private static func disableAllOwltypeTIS() {
+        let work = {
+            guard let cfList = TISCreateInputSourceList(nil, true)?.takeRetainedValue(),
+                  let list = cfList as? [TISInputSource] else {
+                return
+            }
+            for source in list {
+                guard let ref = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) else { continue }
+                let id = unsafeBitCast(ref, to: CFString.self) as String
+                guard id == inputMethodID || id.hasPrefix(inputMethodID + ".") || allSourceIDs.contains(id) else {
+                    continue
+                }
+                _ = TISDeselectInputSource(source)
+                _ = TISDisableInputSource(source)
+            }
+        }
+        if Thread.isMainThread {
+            work()
+        } else {
+            DispatchQueue.main.sync(execute: work)
+        }
+    }
+
+    private static func stopAllOwltypeProcesses() {
+        for app in NSRunningApplication.runningApplications(withBundleIdentifier: expectedBundleID)
+        where !app.isTerminated {
+            _ = app.terminate()
+        }
+        terminateUserProcess(named: "Owltype", force: false)
+        for _ in 0..<10 {
+            if !owltypeProcessIsRunning() { return }
+            Thread.sleep(forTimeInterval: 0.15)
+        }
+        for app in NSRunningApplication.runningApplications(withBundleIdentifier: expectedBundleID)
+        where !app.isTerminated {
+            _ = app.forceTerminate()
+        }
+        terminateUserProcess(named: "Owltype", force: true)
+    }
+
     private static func owltypeProcessIsRunning() -> Bool {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
@@ -116,16 +330,12 @@ enum Installer {
         return process.terminationStatus == 0
     }
 
-    /// 当前系统输入源是否猫头鹰（只读 TIS；主线程调用）。
     private static func currentSourceID() -> String {
         let source = TISCopyCurrentKeyboardInputSource().takeRetainedValue()
         guard let ref = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) else { return "" }
         return unsafeBitCast(ref, to: CFString.self) as String
     }
 
-    /// Only choose an enabled ASCII keyboard actually present on this Mac (US is not ABC).
-    /// Read TIS on the main thread; select in a fresh CLI process to avoid nested-runloop failure.
-    /// Verify readback because the existing CLI also exits successfully when selection fails.
     private static func parkCurrentSource(usingOwltypeApp app: URL) throws {
         let sourceID: String? = DispatchQueue.main.sync {
             let filter = [kTISPropertyInputSourceType: kTISTypeKeyboardLayout,
@@ -153,15 +363,173 @@ enum Installer {
         }
     }
 
-    // MARK: - 安装包校验 / 更新分类
+    // MARK: - 杂散副本、LaunchServices 与输入法列表缓存清理
+
+    private static func strayCopies() -> [URL] {
+        userStrayCopies() + systemStrayCopies()
+    }
+
+    private static func userStrayCopies() -> [URL] {
+        let userIMDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Input Methods", isDirectory: true)
+        return strayCopies(in: userIMDir, excludingCanonicalPath: nil)
+    }
+
+    private static func systemStrayCopies() -> [URL] {
+        let sysIMDir = URL(fileURLWithPath: systemInputMethodsDir, isDirectory: true)
+        return strayCopies(in: sysIMDir, excludingCanonicalPath: installedAppPath)
+    }
+
+    private static func strayCopies(in directory: URL, excludingCanonicalPath canonical: String?) -> [URL] {
+        guard let entries = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil,
+            options: []
+        ) else { return [] }
+        return entries.filter { url in
+            let path = url.standardizedFileURL.path
+            if let canonical, path == URL(fileURLWithPath: canonical).standardizedFileURL.path {
+                return false
+            }
+            let name = url.lastPathComponent
+            guard !isForbiddenForeignPath(path) else { return false }
+            if name.hasPrefix(".Owltype.") {
+                return true
+            }
+            if url.pathExtension == "app",
+               let info = NSDictionary(contentsOf: url.appendingPathComponent("Contents/Info.plist")),
+               info["CFBundleIdentifier"] as? String == expectedBundleID {
+                return true
+            }
+            return false
+        }
+    }
+
+    private static func isForbiddenForeignPath(_ path: String) -> Bool {
+        let lower = path.lowercased()
+        return lower.contains("squirrel")
+            || lower.contains("/library/rime")
+            || lower.contains("im.rime")
+            || lower.contains("sogou")
+            || path.contains("搜狗")
+            || lower.contains("weasel")
+    }
+
+    private static func removeUserStrayCopies() throws {
+        let fileManager = FileManager.default
+        for url in userStrayCopies() where fileManager.fileExists(atPath: url.path) {
+            guard !isForbiddenForeignPath(url.path) else { continue }
+            if FileManager.default.isExecutableFile(atPath: lsregisterPath) {
+                _ = try? runProcess(lsregisterPath, ["-u", url.path])
+            }
+            try fileManager.removeItem(at: url)
+        }
+    }
+
+    private static func clearUserCachesAndSelfCheckRecord() throws {
+        let fileManager = FileManager.default
+        let home = fileManager.homeDirectoryForCurrentUser
+        let cacheTargets = [
+            home.appendingPathComponent("Library/Caches/im.owltype.inputmethod.Owltype"),
+            home.appendingPathComponent("Library/HTTPStorages/im.owltype.inputmethod.Owltype"),
+        ]
+        for url in cacheTargets where fileManager.fileExists(atPath: url.path) {
+            try fileManager.removeItem(at: url)
+        }
+        clearSelfCheckFailureRecord()
+    }
+
+    private static func clearSelfCheckFailureRecord() {
+        if let defaults = UserDefaults(suiteName: expectedBundleID) {
+            defaults.removeObject(forKey: "OwlInstallSelfCheckFailedVersion")
+            defaults.removeObject(forKey: "OwlInstallSelfCheckDiagnosis")
+            defaults.synchronize()
+        }
+    }
+
+    private static func nonCanonicalLaunchServicesClaims() -> [URL] {
+        let canonical = URL(fileURLWithPath: installedAppPath).standardizedFileURL.path
+        return NSWorkspace.shared.urlsForApplications(withBundleIdentifier: expectedBundleID)
+            .filter { $0.standardizedFileURL.path != canonical && !isForbiddenForeignPath($0.path) }
+    }
+
+    private static func unregisterNonCanonicalLaunchServicesClaims() {
+        guard FileManager.default.isExecutableFile(atPath: lsregisterPath) else { return }
+        for url in nonCanonicalLaunchServicesClaims() {
+            _ = try? runProcess(lsregisterPath, ["-u", url.standardizedFileURL.path])
+        }
+    }
+
+    private static func unregisterAllLaunchServicesClaims() {
+        guard FileManager.default.isExecutableFile(atPath: lsregisterPath) else { return }
+        var paths = Set(NSWorkspace.shared.urlsForApplications(withBundleIdentifier: expectedBundleID)
+            .map { $0.standardizedFileURL.path })
+        paths.insert(installedAppPath)
+        for url in strayCopies() {
+            paths.insert(url.standardizedFileURL.path)
+        }
+        for path in paths where !isForbiddenForeignPath(path) {
+            _ = try? runProcess(lsregisterPath, ["-u", path])
+        }
+    }
+
+    private static func forceRegisterCanonicalBundle() {
+        guard FileManager.default.isExecutableFile(atPath: lsregisterPath),
+              FileManager.default.fileExists(atPath: installedAppPath) else { return }
+        _ = try? runProcess(lsregisterPath, ["-f", installedAppPath])
+    }
+
+    private static func purgeIntlDataCaches() {
+        terminateUserProcess(named: "System Settings", force: false)
+        var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
+        guard confstr(_CS_DARWIN_USER_CACHE_DIR, &buffer, buffer.count) > 0 else { return }
+        let cacheRoot = URL(fileURLWithPath: String(cString: buffer), isDirectory: true)
+        let marker = Data(expectedBundleID.utf8)
+        guard let enumerator = FileManager.default.enumerator(
+            at: cacheRoot,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        ) else { return }
+        for case let fileURL as URL in enumerator {
+            if enumerator.level > 2 {
+                enumerator.skipDescendants()
+                continue
+            }
+            guard fileURL.lastPathComponent.hasPrefix("com.apple.IntlDataCache.le"),
+                  let data = try? Data(contentsOf: fileURL),
+                  data.range(of: marker) != nil,
+                  FileManager.default.fileExists(atPath: fileURL.path) else { continue }
+            do {
+                try FileManager.default.removeItem(at: fileURL)
+            } catch {
+                continue
+            }
+        }
+    }
+
+    private static func refreshInputMenuAgents() {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
+        process.arguments = ["-9", "TextInputMenuAgent", "TextInputSwitcher", "CursorUIViewService"]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try? process.run()
+        process.waitUntilExit()
+    }
+
+    // MARK: - 安装包校验
 
     private static func validatePayload(at url: URL) throws -> AppMetadata {
         let metadata = try appMetadata(at: url)
         guard metadata.bundleID == expectedBundleID else {
             throw InstallerError.validationFailed("bundle id 应为 \(expectedBundleID)，实际为 \(metadata.bundleID)")
         }
-        _ = try versionComponents(metadata.shortVersion, label: "CFBundleShortVersionString")
-        _ = try versionComponents(metadata.buildVersion, label: "CFBundleVersion")
+        guard InstallerActivationPolicy.parseVersionComponents(metadata.shortVersion) != nil else {
+            throw InstallerError.validationFailed("CFBundleShortVersionString 不是可比较版本号：\(metadata.shortVersion)")
+        }
+        guard InstallerActivationPolicy.parseVersionComponents(metadata.buildVersion) != nil else {
+            throw InstallerError.validationFailed("CFBundleVersion 不是可比较版本号：\(metadata.buildVersion)")
+        }
         guard FileManager.default.isExecutableFile(atPath: url.appendingPathComponent("Contents/MacOS/Owltype").path) else {
             throw InstallerError.validationFailed("缺少可执行文件 Contents/MacOS/Owltype")
         }
@@ -183,34 +551,14 @@ enum Installer {
         try verifyCodeSignature(at: url)
     }
 
-    private static func installKind(for payload: AppMetadata) throws -> InstallKind {
+    private static func rejectForeignBundleAtInstallPath() throws {
         let installedURL = URL(fileURLWithPath: installedAppPath)
-        guard FileManager.default.fileExists(atPath: installedURL.path) else {
-            return .firstInstall
-        }
-        guard !FileManager.default.fileExists(atPath: installedURL.appendingPathComponent("Owltype.app").path) else {
-            return .replaceInvalidExisting
-        }
-        let installed: AppMetadata
-        do {
-            installed = try appMetadata(at: installedURL)
-        } catch {
-            return .replaceInvalidExisting
-        }
-        guard installed.bundleID == expectedBundleID else {
+        guard FileManager.default.fileExists(atPath: installedURL.path) else { return }
+        if let installed = try? appMetadata(at: installedURL),
+           !installed.bundleID.isEmpty,
+           installed.bundleID != expectedBundleID {
             throw InstallerError.validationFailed("目标路径已有非 Owltype bundle：\(installed.bundleID)")
         }
-        let order: ComparisonResult
-        do {
-            order = try compareVersions(payload.buildVersion, installed.buildVersion)
-        } catch {
-            return .replaceInvalidExisting
-        }
-        if order == .orderedAscending {
-            throw InstallerError.validationFailed(
-                "拒绝降级：已安装 \(installed.buildVersion)，安装包 \(payload.buildVersion)")
-        }
-        return order == .orderedSame ? .repair : .update
     }
 
     private static func appMetadata(at url: URL) throws -> AppMetadata {
@@ -231,31 +579,6 @@ enum Installer {
         return value
     }
 
-    private static func versionComponents(_ version: String, label: String) throws -> [Int] {
-        let parts = version.split(separator: ".", omittingEmptySubsequences: false)
-        guard !parts.isEmpty else {
-            throw InstallerError.validationFailed("\(label) 为空")
-        }
-        return try parts.map { part in
-            guard !part.isEmpty, let value = Int(part), value >= 0 else {
-                throw InstallerError.validationFailed("\(label) 不是可比较版本号：\(version)")
-            }
-            return value
-        }
-    }
-
-    private static func compareVersions(_ lhs: String, _ rhs: String) throws -> ComparisonResult {
-        let left = try versionComponents(lhs, label: "CFBundleVersion")
-        let right = try versionComponents(rhs, label: "已安装 CFBundleVersion")
-        for index in 0..<max(left.count, right.count) {
-            let leftValue = index < left.count ? left[index] : 0
-            let rightValue = index < right.count ? right[index] : 0
-            if leftValue < rightValue { return .orderedAscending }
-            if leftValue > rightValue { return .orderedDescending }
-        }
-        return .orderedSame
-    }
-
     private static func verifyCodeSignature(at url: URL) throws {
         try runProcess("/usr/bin/codesign", ["--verify", "--strict", "--verbose=2", url.path])
         let details = try runProcess("/usr/bin/codesign", ["-dv", "--verbose=4", url.path])
@@ -267,72 +590,41 @@ enum Installer {
         }
     }
 
-    static let inputMethodID = "im.owltype.inputmethod.Owltype"
-    static let primaryModeID = "im.owltype.inputmethod.Owltype.Hans"
-
-    /// 唯一需要 root 的一步：把内嵌 Owltype.app 事务替换到 /Library/Input Methods/。
     private static func privilegedReplace(fromAppPath sourcePath: String) throws {
         let executable = shellQuote(sourcePath + "/Contents/MacOS/Owltype")
         try runPrivileged("\(executable) --commit-install \(shellQuote(sourcePath))")
     }
 
-    // MARK: - 卸载
+    private static func privilegedReplaceAndCleanSystemLeftovers(fromAppPath sourcePath: String) throws {
+        let executable = shellQuote(sourcePath + "/Contents/MacOS/Owltype")
+        let systemStrays = systemStrayCopies()
+        var command = "\(executable) --commit-install \(shellQuote(sourcePath))"
+        if !systemStrays.isEmpty {
+            let quoted = systemStrays.map { shellQuote($0.path) }.joined(separator: " ")
+            command = "rm -rf \(quoted) && " + command
+        }
+        try runPrivileged(command)
+    }
 
     /// 用户级删除白名单：全部是猫头鹰自有路径（绝不含他人输入法 / Rime）。
-    private static func userLevelTargets() -> [URL] {
+    private static func userLevelTargets(keepUserData: Bool) -> [URL] {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        return [
-            home.appendingPathComponent("Library/Application Support/Owltype"),
+        var targets = [
             home.appendingPathComponent("Library/Caches/im.owltype.inputmethod.Owltype"),
-            home.appendingPathComponent("Library/Preferences/im.owltype.inputmethod.Owltype.plist"),
             home.appendingPathComponent("Library/HTTPStorages/im.owltype.inputmethod.Owltype"),
-            home.appendingPathComponent("Library/Logs/Owltype")
+            home.appendingPathComponent("Library/Logs/Owltype"),
         ]
+        if !keepUserData {
+            targets.insert(home.appendingPathComponent("Library/Application Support/Owltype"), at: 0)
+            targets.append(home.appendingPathComponent("Library/Preferences/im.owltype.inputmethod.Owltype.plist"))
+        }
+        return targets
     }
 
-    static func uninstall() throws {
-        let fileManager = FileManager.default
-
-        // 1) 若当前输入源是猫头鹰，先停到可用的系统英文键盘；随后停用 TIS 条目再退出。否则只删 bundle 会在
-        // 当前登录会话留下一个 enabled 但不可启动的幽灵输入源，直到注销后才消失。
-        let installedExecutable = installedAppPath + "/Contents/MacOS/Owltype"
-        if fileManager.isExecutableFile(atPath: installedExecutable) {
-            let current = (try? runProcess(installedExecutable, ["--current-input-source"])) ?? ""
-            if current.hasPrefix(inputMethodID) {
-                try parkCurrentSource(usingOwltypeApp: URL(fileURLWithPath: installedAppPath))
-            }
-            _ = try? runProcess(installedExecutable, ["--disable-input-source"])
-            _ = try? runProcess(installedExecutable, ["--quit"])
-        }
-        terminateUserProcess(named: "Owltype")
-
-        // 2) 用户级清理：安装器进程本身就是登录用户，直接用 FileManager 删，避免 root 的 $HOME 陷阱。
-        for url in userLevelTargets() where fileManager.fileExists(atPath: url.path) {
-            try fileManager.removeItem(at: url)
-        }
-
-        // 3) 提权级：只删两个硬编码的 Owltype 系统路径（bundle + root-owned 安装状态）。
-        //    二者都不存在时不弹授权框，避免干净机器卸载时无谓地要密码。
-        let receiptExists = (try? runProcess(
-            "/usr/sbin/pkgutil", ["--pkg-info", expectedBundleID])) != nil
-        if fileManager.fileExists(atPath: installedAppPath)
-            || fileManager.fileExists(atPath: installerStatePath)
-            || receiptExists {
-            let dest = shellQuote(installedAppPath)
-            let state = shellQuote(installerStatePath)
-            var command = "rm -rf \(dest) \(state)"
-            if receiptExists {
-                command += " && /usr/sbin/pkgutil --forget im.owltype.inputmethod.Owltype >/dev/null"
-            }
-            try runPrivileged(command)
-        }
-    }
-
-    /// 用户级 killall（不提权）。退出码忽略：进程不存在属正常。
-    private static func terminateUserProcess(named name: String) {
+    private static func terminateUserProcess(named name: String, force: Bool = false) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
-        process.arguments = [name]
+        process.arguments = force ? ["-9", name] : [name]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         try? process.run()
@@ -341,10 +633,7 @@ enum Installer {
 
     // MARK: - 提权执行（NSAppleScript do-shell-script）
 
-    /// 通过 NSAppleScript `with administrator privileges` 以 root 跑一条 shell 命令。
-    /// 用户在系统授权框输密码 / Touch ID；取消 → InstallerError.userCancelled。
     private static func runPrivileged(_ command: String) throws {
-        // command 内的反斜杠与双引号需为 AppleScript 字符串字面量转义。
         let escaped = command
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
@@ -359,7 +648,6 @@ enum Installer {
 
         if let errorInfo {
             let code = (errorInfo[NSAppleScript.errorNumber] as? Int) ?? 0
-            // -128 = userCancelledErr（用户在授权框点了取消）。
             if code == -128 {
                 throw InstallerError.userCancelled
             }
@@ -368,12 +656,10 @@ enum Installer {
         }
     }
 
-    /// 单引号包裹路径并转义内部单引号，安全嵌入 shell 命令（再经 runPrivileged 做 AppleScript 转义）。
     private static func shellQuote(_ path: String) -> String {
         "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
-    /// Run a checked CLI command; drain stdout before waiting to avoid pipe deadlock.
     @discardableResult
     static func runProcess(_ executable: String, _ arguments: [String]) throws -> String {
         let process = Process()
@@ -388,10 +674,6 @@ enum Installer {
         } catch {
             throw InstallerError.validationFailed(error.localizedDescription)
         }
-        // 先排空管道到 EOF，再 waitUntilExit —— 顺序绝不可倒（1.3.32 首装 QA Bug A 根因）：
-        // 匿名管道缓冲上限 64KB；子进程输出更大时（launchctl print gui/$uid 实测 131KB）会阻塞在
-        // write(2) 等父进程消费，父进程若先 waitUntilExit 则双方互等 = 无 deadline 的永久死锁
-        // （安装器卡死在「正在安装猫头鹰…」，verifier 层的 30s 超时降级根本没机会启动）。
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
 

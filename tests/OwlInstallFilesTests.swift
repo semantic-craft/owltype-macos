@@ -111,17 +111,41 @@ final class OwlInstallFilesTests: XCTestCase {
                    "/private/var/db/im.owltype.inputmethod.Owltype-installer")
   }
 
+  func testUpdateAllowsInputModeDictEvolutionAndRejectsForeignBundle() throws {
+    let oldApp = try bundle("old", inputModes: ["Hans"])
+    try commit(oldApp)
+    let evolvedApp = try bundle("new", inputModes: ["Hans", "Hant"])
+    try commit(evolvedApp)
+    XCTAssertEqual(try marker(live), "new")
+
+    let foreignInfo = live.appendingPathComponent("Contents/Info.plist")
+    let foreign: [String: Any] = ["CFBundleIdentifier": "com.example.other",
+                                  "InputMethodConnectionName": "Owltype_Connection",
+                                  "CFBundleVersion": "1.0"]
+    try PropertyListSerialization.data(fromPropertyList: foreign, format: .xml, options: 0).write(to: foreignInfo)
+    XCTAssertThrowsError(try commit(try bundle("after-foreign")))
+  }
+
+  func testCorruptLiveInfoPlistIsRetainedAndReplacedCleanly() throws {
+    try commit(try bundle("old"))
+    try Data("not-a-plist".utf8).write(to: live.appendingPathComponent("Contents/Info.plist"))
+    try commit(try bundle("repaired"))
+    XCTAssertEqual(try marker(live), "repaired")
+    let retained = layout.work.deletingLastPathComponent().appendingPathComponent("retained")
+    XCTAssertEqual(try entries(retained).count, 1)
+  }
+
   private func commit(_ source: URL, verify: @escaping (URL) throws -> Void = { _ in }) throws {
     try OwlInstallFiles.commit(source: source, layout: layout, verify: verify) { _ in }
   }
 
-  private func bundle(_ text: String) throws -> URL {
+  private func bundle(_ text: String, inputModes: [String] = ["Hans"]) throws -> URL {
     let app = root.appendingPathComponent("source-\(UUID().uuidString)/Owltype.app")
     let contents = app.appendingPathComponent("Contents")
     try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
     let info: [String: Any] = ["CFBundleIdentifier": "im.owltype.inputmethod.Owltype",
                                "InputMethodConnectionName": "Owltype_Connection",
-                               "ComponentInputModeDict": ["tsVisibleInputModeOrderedArrayKey": ["Hans"]],
+                               "ComponentInputModeDict": ["tsVisibleInputModeOrderedArrayKey": inputModes],
                                "CFBundleVersion": text]
     try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
       .write(to: contents.appendingPathComponent("Info.plist"))
