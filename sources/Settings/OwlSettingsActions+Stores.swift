@@ -91,6 +91,18 @@ extension OwlSettingsActions {
     defaults: UserDefaults = OwlDefaults.standard
   ) -> VoiceASRSaveResult {
     let preset = OwlVoiceASRCatalog.preset(id: providerID)
+    if preset.isOpenAILogin {
+      defaults.set(preset.id, forKey: OwlVoiceSettings.asrProviderIDKey)
+      defaults.set(preset.endpoint, forKey: OwlVoiceSettings.asrEndpointKey)
+      defaults.set(preset.defaultModel, forKey: OwlVoiceSettings.asrModelKey)
+      return VoiceASRSaveResult(
+        input: "",
+        endpoint: preset.endpoint,
+        model: preset.defaultModel,
+        status: "已启用 \(preset.displayName)（复用本机 Codex 登录态）。"
+      )
+    }
+
     let trimmedEndpoint = OwlProviderCore.call("trim", ["text": endpoint]) as String
     let effectiveEndpoint = trimmedEndpoint.isEmpty ? preset.endpoint : trimmedEndpoint
     guard let url = URL(string: effectiveEndpoint), OwlProviderRegistry.isHTTPS(url) else {
@@ -119,8 +131,8 @@ extension OwlSettingsActions {
     }
 
     defaults.set(preset.id, forKey: OwlVoiceSettings.asrProviderIDKey)
-    defaults.set(effectiveEndpoint, forKey: OwlVoiceSettings.xaiEndpointKey)
-    defaults.set(effectiveModel, forKey: OwlVoiceSettings.xaiModelKey)
+    defaults.set(effectiveEndpoint, forKey: OwlVoiceSettings.asrEndpointKey)
+    defaults.set(effectiveModel, forKey: OwlVoiceSettings.asrModelKey)
 
     let status = trimmedKey.isEmpty
       ? "已保存语音识别配置（\(effectiveModel)）。"
@@ -128,8 +140,8 @@ extension OwlSettingsActions {
     return VoiceASRSaveResult(input: "", endpoint: effectiveEndpoint, model: effectiveModel, status: status)
   }
 
-  static func clearXAIAPIKey(
-    providerID: String = "grok",
+  static func clearVoiceASRAPIKey(
+    providerID: String = OwlVoiceASRCatalog.openai.id,
     deleteKey: (() throws -> Void)? = nil
   ) -> String {
     let preset = OwlVoiceASRCatalog.preset(id: providerID)

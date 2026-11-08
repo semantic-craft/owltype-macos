@@ -205,7 +205,7 @@ public final class OwlVoiceDeepSeekPolisher: OwlVoicePolishServiceProtocol, @unc
     }
 
     if httpResponse.statusCode != 200 {
-      let errorMsg = Self.parseErrorMessage(from: data)
+      let errorMsg = Self.parseErrorMessage(from: data, removing: apiKey)
       if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
         throw OwlVoiceError.invalidToken(status: httpResponse.statusCode, message: errorMsg)
       } else {
@@ -302,17 +302,26 @@ public final class OwlVoiceDeepSeekPolisher: OwlVoicePolishServiceProtocol, @unc
     return cleaned
   }
 
-  public static func parseErrorMessage(from data: Data) -> String {
+  public static func parseErrorMessage(from data: Data, removing apiKey: String = "") -> String {
+    let raw: String?
     if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
       if let errorObj = json["error"] as? [String: Any], let msg = errorObj["message"] as? String {
-        return msg
+        raw = msg
+      } else if let msg = json["message"] as? String {
+        raw = msg
+      } else {
+        raw = nil
       }
-      if let msg = json["message"] as? String {
-        return msg
-      }
+    } else {
+      raw = nil
+    }
+    if let raw, !raw.isEmpty {
+      let cleaned = OwlServerErrorDetail(code: nil, message: raw).sanitized(removing: apiKey, maxLength: 200)
+      if !cleaned.isEmpty { return cleaned }
     }
     if let text = String(data: data, encoding: .utf8), !text.isEmpty {
-      return String(text.prefix(200).trimmingCharacters(in: .whitespacesAndNewlines))
+      let cleaned = OwlServerErrorDetail(code: nil, message: text).sanitized(removing: apiKey, maxLength: 200)
+      if !cleaned.isEmpty { return cleaned }
     }
     return "未知错误"
   }

@@ -94,7 +94,7 @@ enum OwlLLMProviderCatalog {
     switch inferredProviderID(for: profile) {
     case "deepseek":
       return "LLM · 联网搜索 · 语音润色"
-    case "qwen", "doubao", "grok", "openai", "gemini":
+    case "openai", "gemini":
       return "LLM · 语音识别"
     default:
       return "LLM"

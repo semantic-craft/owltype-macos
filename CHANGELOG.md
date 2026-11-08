@@ -1,3 +1,10 @@
+<a name="2.4.3"></a>
+## 2.4.3 (2026-11-08)
+
+### 语音输入与供应商收敛 | Voice Input and Provider Alignment
+- 水杉单键语音手势与三通道云端语音识别：语音输入改为对齐上游水杉 `msime` 单键手势（按住右 Option 键说话、松手即上屏，录音中按空格锁为免提模式，按 `Option + 其他键` 组合键自动退让），彻底移除复杂的自定义组合键录制器；云端语音识别收敛为 OpenAI（`gpt-transcribe`）、Google Gemini（`gemini-3.5-transcribe` 原生 `:generateContent`）与 OpenAI 账号登录（Codex CLI ChatGPT 听写）三套通道，并在仅配置模型供应商时自动联动已配密钥的 Gemini 或 OpenAI 档案。
+- 移除 Grok / xAI 预设与错误文案残留：从 Rust 与 Swift 供应商目录、语音设置及 Keychain 读写中移除 `grok` / `xAI` 预设，并将语音识别异常文案改为按当前激活语音通道动态展示。
+
 <a name="2.4.2"></a>
 ## 2.4.2 (2026-11-08)
 

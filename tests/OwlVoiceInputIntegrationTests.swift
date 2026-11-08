@@ -35,24 +35,27 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
       OwlVoiceTargetSnapshot(client: mockClient, caretAnchor: NSRect(x: 200, y: 300, width: 2, height: 16))
     }
 
-    // Custom matcher: keyCode 9 (V) with command
-    coordinator.shortcutMatcher = { event in
-      event.keyCode == 9 && event.modifierFlags.contains(.command)
-    }
-
-    // Step 1: KeyDown -> Starts recording
-    let keyDownEvent = try makeKeyEvent(type: .keyDown, keyCode: 9, modifiers: .command)
-    let consumedDown = coordinator.handleKeyEvent(keyDownEvent)
+    // Step 1: Press Right Option -> Starts recording
+    let pressEvent = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option]
+    )
+    let consumedDown = coordinator.handleKeyEvent(pressEvent)
     XCTAssertTrue(consumedDown)
     guard case .holding = coordinator.mode else {
       return XCTFail("Expected .holding, got \(coordinator.mode)")
     }
     XCTAssertTrue(mockRecorder.isRecording)
 
-    // Step 2: Wait > 300ms, then KeyUp -> Triggers transcription
-    try await Task.sleep(nanoseconds: 350_000_000) // 350ms
-    let keyUpEvent = try makeKeyEvent(type: .keyUp, keyCode: 9, modifiers: .command)
-    let consumedUp = coordinator.handleKeyEvent(keyUpEvent)
+    // Step 2: Release Right Option -> Triggers transcription
+    try await Task.sleep(nanoseconds: 50_000_000)
+    let releaseEvent = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: []
+    )
+    let consumedUp = coordinator.handleKeyEvent(releaseEvent)
     XCTAssertTrue(consumedUp)
 
     // Wait for async ASR task
@@ -85,30 +88,40 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
       OwlVoiceTargetSnapshot(client: mockClient)
     }
 
-    coordinator.shortcutMatcher = { $0.keyCode == 9 }
-
-    // 1. Shortcut Down -> .holding
-    let down = try makeKeyEvent(type: .keyDown, keyCode: 9)
+    // 1. Right Option Down -> .holding
+    let down = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option]
+    )
     XCTAssertTrue(coordinator.handleKeyEvent(down))
     guard case .holding = coordinator.mode else { return XCTFail() }
 
     // 2. Space Down -> .handsFreeLocked
-    let space = try makeKeyEvent(type: .keyDown, keyCode: 49) // Space
+    let space = try makeKeyEvent(type: .keyDown, keyCode: 49, modifiers: [.option]) // Space
     XCTAssertTrue(coordinator.handleKeyEvent(space))
     guard case .handsFreeLocked = coordinator.mode else {
       return XCTFail("Expected .handsFreeLocked, got \(coordinator.mode)")
     }
 
-    // 3. Shortcut Up -> Remains .handsFreeLocked (does NOT stop recording)
-    let up = try makeKeyEvent(type: .keyUp, keyCode: 9)
+    // 3. Right Option Up -> Remains .handsFreeLocked (does NOT stop recording)
+    let up = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: []
+    )
     XCTAssertTrue(coordinator.handleKeyEvent(up))
     guard case .handsFreeLocked = coordinator.mode else {
-      return XCTFail("Expected .handsFreeLocked to persist on keyUp, got \(coordinator.mode)")
+      return XCTFail("Expected .handsFreeLocked to persist on Right Option release, got \(coordinator.mode)")
     }
     XCTAssertTrue(mockRecorder.isRecording)
 
-    // 4. Subsequent Shortcut Down -> Finishes recording
-    let finishDown = try makeKeyEvent(type: .keyDown, keyCode: 9)
+    // 4. Subsequent Right Option Down -> Finishes recording
+    let finishDown = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option]
+    )
     XCTAssertTrue(coordinator.handleKeyEvent(finishDown))
 
     for _ in 0..<30 {
@@ -118,47 +131,33 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
     XCTAssertEqual(mockClient.insertedTexts, ["双手锁定输入成功"])
   }
 
-  // MARK: - 3. Click-to-Toggle Workflow
+  // MARK: - 3. ChordCancel Workflow (Option + Key Passes Through)
 
-  func testClickToToggleWorkflow() async throws {
+  func testChordCancelDuringRightOptionHoldWorkflow() throws {
     let coordinator = OwlVoiceInputCoordinator()
     coordinator.isEnabledOverride = true
 
     let mockRecorder = OwlMockAudioRecorder()
     coordinator.audioRecorder = mockRecorder
 
-    let stubTransport = OwlStubVoiceTransport { req in
-      let json = "{\"text\": \"单击切换转写\"}"
-      let resp = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-      return (Data(json.utf8), resp)
-    }
-    coordinator.asrClient = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
-
     let mockClient = MockVoiceTextInputClient()
     coordinator.targetSnapshotProvider = { OwlVoiceTargetSnapshot(client: mockClient) }
-    coordinator.shortcutMatcher = { $0.keyCode == 9 }
 
-    // 1. Down -> .holding
-    let down = try makeKeyEvent(type: .keyDown, keyCode: 9)
+    // 1. Right Option Down -> .holding
+    let down = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option]
+    )
     XCTAssertTrue(coordinator.handleKeyEvent(down))
-
-    // 2. Up immediately (<300ms) -> .toggled
-    let up = try makeKeyEvent(type: .keyUp, keyCode: 9)
-    XCTAssertTrue(coordinator.handleKeyEvent(up))
-    guard case .toggled = coordinator.mode else {
-      return XCTFail("Expected .toggled, got \(coordinator.mode)")
-    }
     XCTAssertTrue(mockRecorder.isRecording)
 
-    // 3. Second Click Down -> Finishes recording
-    let finishDown = try makeKeyEvent(type: .keyDown, keyCode: 9)
-    XCTAssertTrue(coordinator.handleKeyEvent(finishDown))
-
-    for _ in 0..<30 {
-      if !mockClient.insertedTexts.isEmpty { break }
-      try await Task.sleep(nanoseconds: 50_000_000)
-    }
-    XCTAssertEqual(mockClient.insertedTexts, ["单击切换转写"])
+    // 2. Another key pressed while holding Option -> cancels voice input and passes key through
+    let otherKey = try makeKeyEvent(type: .keyDown, keyCode: 0, modifiers: [.option])
+    XCTAssertFalse(coordinator.handleKeyEvent(otherKey))
+    XCTAssertEqual(coordinator.mode, .idle)
+    XCTAssertFalse(mockRecorder.isRecording)
+    XCTAssertEqual(mockRecorder.cancelRecordingCallCount, 1)
   }
 
   // MARK: - 4. Esc Cancellation
@@ -172,10 +171,13 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
 
     let mockClient = MockVoiceTextInputClient()
     coordinator.targetSnapshotProvider = { OwlVoiceTargetSnapshot(client: mockClient) }
-    coordinator.shortcutMatcher = { $0.keyCode == 9 }
 
     // Start
-    let down = try makeKeyEvent(type: .keyDown, keyCode: 9)
+    let down = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option]
+    )
     XCTAssertTrue(coordinator.handleKeyEvent(down))
     XCTAssertTrue(mockRecorder.isRecording)
 
@@ -198,9 +200,12 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
 
     let mockRecorder = OwlMockAudioRecorder()
     coordinator.audioRecorder = mockRecorder
-    coordinator.shortcutMatcher = { $0.keyCode == 9 }
 
-    let down = try makeKeyEvent(type: .keyDown, keyCode: 9)
+    let down = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option]
+    )
     XCTAssertTrue(coordinator.handleKeyEvent(down))
     XCTAssertEqual(coordinator.mode, .idle)
     XCTAssertEqual(mockRecorder.startRecordingCallCount, 0)
@@ -227,15 +232,17 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
     let mockRecorder = OwlMockAudioRecorder()
     coordinator.audioRecorder = mockRecorder
 
-    coordinator.shortcutMatcher = { $0.keyCode == 9 }
-
-    // 1. Shortcut Down -> .holding
-    let down = try makeKeyEvent(type: .keyDown, keyCode: 9)
+    // 1. Right Option Down -> .holding
+    let down = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option]
+    )
     XCTAssertTrue(coordinator.handleKeyEvent(down))
     guard case .holding = coordinator.mode else { return XCTFail() }
 
     // 2. Space Down -> .handsFreeLocked
-    let space = try makeKeyEvent(type: .keyDown, keyCode: 49) // Space
+    let space = try makeKeyEvent(type: .keyDown, keyCode: 49, modifiers: [.option]) // Space
     XCTAssertTrue(coordinator.handleKeyEvent(space))
     guard case .handsFreeLocked = coordinator.mode else {
       return XCTFail("Expected .handsFreeLocked")
@@ -257,13 +264,20 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
 
     let mockRecorder = OwlMockAudioRecorder()
     coordinator.audioRecorder = mockRecorder
-    coordinator.shortcutMatcher = { $0.keyCode == 9 }
 
-    // Rapid storm: 20 rapid down/up transitions simulating erratic user tapping
+    // Rapid storm: 20 rapid Right Option press/release transitions simulating erratic user tapping
     for _ in 0..<10 {
-      let down = try makeKeyEvent(type: .keyDown, keyCode: 9)
+      let down = try makeKeyEvent(
+        type: .flagsChanged,
+        keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+        modifiers: [.option]
+      )
       _ = coordinator.handleKeyEvent(down)
-      let up = try makeKeyEvent(type: .keyUp, keyCode: 9)
+      let up = try makeKeyEvent(
+        type: .flagsChanged,
+        keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+        modifiers: []
+      )
       _ = coordinator.handleKeyEvent(up)
     }
 
@@ -295,9 +309,12 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
 
     let mockRecorder = OwlMockAudioRecorder()
     coordinator.audioRecorder = mockRecorder
-    coordinator.shortcutMatcher = { $0.keyCode == 9 }
 
-    let down = try makeKeyEvent(type: .keyDown, keyCode: 9)
+    let down = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option]
+    )
     let handled = coordinator.handleKeyEvent(down)
     XCTAssertTrue(handled)
     XCTAssertEqual(coordinator.mode, .idle, "Must never transition away from idle in secure input")
@@ -318,16 +335,21 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
     let stubTransport = OwlStubVoiceTransport()
     coordinator.asrClient = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
 
-    coordinator.shortcutMatcher = { $0.keyCode == 9 }
-
-    // KeyDown -> starts recording (.holding)
-    let down = try makeKeyEvent(type: .keyDown, keyCode: 9)
+    // Right Option Down -> starts recording (.holding)
+    let down = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option]
+    )
     XCTAssertTrue(coordinator.handleKeyEvent(down))
     guard case .holding = coordinator.mode else { return XCTFail() }
 
-    // Simulate hold for > 300ms coordinator elapsed time, but recorder measures 150ms
-    try await Task.sleep(nanoseconds: 350_000_000)
-    let up = try makeKeyEvent(type: .keyUp, keyCode: 9)
+    // Release Right Option when recorder measures 150ms
+    let up = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: []
+    )
     XCTAssertTrue(coordinator.handleKeyEvent(up))
 
     try await Task.sleep(nanoseconds: 50_000_000)
@@ -350,16 +372,21 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
     let stubTransport = OwlStubVoiceTransport()
     coordinator.asrClient = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
 
-    coordinator.shortcutMatcher = { $0.keyCode == 9 }
-
-    // KeyDown -> starts recording (.holding)
-    let down = try makeKeyEvent(type: .keyDown, keyCode: 9)
+    // Right Option Down -> starts recording (.holding)
+    let down = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option]
+    )
     XCTAssertTrue(coordinator.handleKeyEvent(down))
     guard case .holding = coordinator.mode else { return XCTFail() }
 
-    // Wait > 300ms, then KeyUp
-    try await Task.sleep(nanoseconds: 350_000_000)
-    let up = try makeKeyEvent(type: .keyUp, keyCode: 9)
+    // Release Right Option
+    let up = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: []
+    )
     XCTAssertTrue(coordinator.handleKeyEvent(up))
 
     try await Task.sleep(nanoseconds: 50_000_000)
@@ -380,15 +407,14 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
     let stubTransport = OwlStubVoiceTransport()
     coordinator.asrClient = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
 
-    coordinator.shortcutMatcher = { $0.keyCode == 9 }
-
-    let keyCodes: [UInt16] = [9, 9, 49, 9, 53, 9, 49, 53, 9, 9, 9]
-    let types: [NSEvent.EventType] = [.keyDown, .keyUp]
+    let keyCodes: [UInt16] = [61, 61, 49, 61, 53, 61, 49, 53, 61, 61, 61]
+    let types: [NSEvent.EventType] = [.flagsChanged, .keyDown]
 
     for round in 0..<20 {
       for kc in keyCodes {
         let t = types[round % 2]
-        let event = try makeKeyEvent(type: t, keyCode: kc)
+        let mods: NSEvent.ModifierFlags = (kc == 61 && round % 2 == 0) ? [.option] : []
+        let event = try makeKeyEvent(type: t, keyCode: kc, modifiers: mods)
         _ = coordinator.handleKeyEvent(event)
       }
     }
@@ -428,10 +454,13 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
 
     let mockClient = MockVoiceTextInputClient()
     coordinator.targetSnapshotProvider = { OwlVoiceTargetSnapshot(client: mockClient) }
-    coordinator.shortcutMatcher = { $0.keyCode == 9 }
 
-    // Start recording
-    let down = try makeKeyEvent(type: .keyDown, keyCode: 9)
+    // Start recording via Right Option
+    let down = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option]
+    )
     XCTAssertTrue(coordinator.handleKeyEvent(down))
     guard case .holding = coordinator.mode else { return XCTFail() }
 

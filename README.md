@@ -8,12 +8,12 @@
 
 水杉 Rust 输入引擎 · 全拼 / 双拼 / 五笔 86·98 / 中英混输 · 云端语音输入 · AI 联想与 Jev 选词 · 提示词快捷片段 · 四合一安装维护向导
 
-[![Latest Release: 2.4.2](https://img.shields.io/badge/release-2.4.2-brightgreen)](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg)
+[![Latest Release: 2.4.3](https://img.shields.io/badge/release-2.4.3-brightgreen)](https://downloads.responsay.com/owltype/releases/2.4.3/Owltype-2.4.3.dmg)
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)](https://responsay.com/owltype/)
 [![Apple Silicon + Intel](https://img.shields.io/badge/Apple_Silicon_%2B_Intel-Universal-grey)](#立即下载与安装)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE.txt)
 
-### [📥 下载最新版 2.4.2 安装镜像（Owltype-2.4.2.dmg）](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg)
+### [📥 下载最新版 2.4.3 安装镜像（Owltype-2.4.3.dmg）](https://downloads.responsay.com/owltype/releases/2.4.3/Owltype-2.4.3.dmg)
 
 [立即下载与安装](#立即下载与安装) · [为 AI 工作流设计](#为-ai-工作流设计) · [核心功能](#核心功能) · [安装与故障修复](#安装与故障修复) · [测试反馈](#项目与反馈) · [English](README.en.md)
 
@@ -25,18 +25,18 @@
 
 > **系统要求**：macOS 14.0（Sonoma）及以上 · 原生支持 Apple Silicon（M 系列）与 Intel（Universal 双架构） · 已通过 Apple Developer ID 签名与公证（Notarized）。
 
-| 下载项 | 适用场景 | 2.4.2 不可变直链 | 稳定最新别名 |
+| 下载项 | 适用场景 | 2.4.3 不可变直链 | 稳定最新别名 |
 | --- | --- | --- | --- |
-| **📥 猫头鹰安装器 DMG（推荐）** | 首次安装、版本升级、故障修复、彻底卸载（内置四合一图形化安装维护向导 `OwltypeInstaller.app`） | [**Owltype-2.4.2.dmg**](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg) | [responsay.com/owltype/Owltype.dmg](https://responsay.com/owltype/Owltype.dmg) |
-| **📦 标准安装包 PKG** | 系统标准安装器或批量部署 | [Owltype.pkg](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype.pkg) | [responsay.com/owltype/Owltype.pkg](https://responsay.com/owltype/Owltype.pkg) |
-| **🔄 覆盖更新包 PKG** | 已安装旧版时直接覆盖升级（保留词库与配置） | [Owltype-update.pkg](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-update.pkg) | [responsay.com/owltype/Owltype-update.pkg](https://responsay.com/owltype/Owltype-update.pkg) |
+| **📥 猫头鹰安装器 DMG（推荐）** | 首次安装、版本升级、故障修复、彻底卸载（内置四合一图形化安装维护向导 `OwltypeInstaller.app`） | [**Owltype-2.4.3.dmg**](https://downloads.responsay.com/owltype/releases/2.4.3/Owltype-2.4.3.dmg) | [responsay.com/owltype/Owltype.dmg](https://responsay.com/owltype/Owltype.dmg) |
+| **📦 标准安装包 PKG** | 系统标准安装器或批量部署 | [Owltype.pkg](https://downloads.responsay.com/owltype/releases/2.4.3/Owltype.pkg) | [responsay.com/owltype/Owltype.pkg](https://responsay.com/owltype/Owltype.pkg) |
+| **🔄 覆盖更新包 PKG** | 已安装旧版时直接覆盖升级（保留词库与配置） | [Owltype-update.pkg](https://downloads.responsay.com/owltype/releases/2.4.3/Owltype-update.pkg) | [responsay.com/owltype/Owltype-update.pkg](https://responsay.com/owltype/Owltype-update.pkg) |
 
-- **校验与构建溯源**：[SHA-256 校验清单](https://downloads.responsay.com/owltype/releases/2.4.2/OWLTYPE-FILE-MANIFEST.sha256) · [SPDX SBOM](https://downloads.responsay.com/owltype/releases/2.4.2/OWLTYPE-SBOM.spdx.json) · [构建溯源 Provenance](https://downloads.responsay.com/owltype/releases/2.4.2/OWLTYPE-APP-PROVENANCE.txt) · [最新发布元数据 `latest.json`](https://downloads.responsay.com/owltype/latest.json)
+- **校验与构建溯源**：[SHA-256 校验清单](https://downloads.responsay.com/owltype/releases/2.4.3/OWLTYPE-FILE-MANIFEST.sha256) · [SPDX SBOM](https://downloads.responsay.com/owltype/releases/2.4.3/OWLTYPE-SBOM.spdx.json) · [构建溯源 Provenance](https://downloads.responsay.com/owltype/releases/2.4.3/OWLTYPE-APP-PROVENANCE.txt) · [最新发布元数据 `latest.json`](https://downloads.responsay.com/owltype/latest.json)
 - **应用内自动更新**：已安装 `2.0.10` 及以上版本的用户，可直接在输入法菜单「关于 → 检查更新」升级（Sparkle 更新源：`https://downloads.responsay.com/owltype/v3/appcast.xml`）。
 
 ### 三步上手测试
 
-1. 下载并打开 [**Owltype-2.4.2.dmg**](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg)，双击运行「**猫头鹰安装器**」，点击「**安装输入法**」并完成 macOS 管理员授权。
+1. 下载并打开 [**Owltype-2.4.3.dmg**](https://downloads.responsay.com/owltype/releases/2.4.3/Owltype-2.4.3.dmg)，双击运行「**猫头鹰安装器**」，点击「**安装输入法**」并完成 macOS 管理员授权。
 2. 安装器会自动将输入法落盘至 `/Library/Input Methods/Owltype.app` 并在当前登录会话直接完成注册与激活。若系统提示启用，按安装器向导第 2 步点击「打开系统设置 → 键盘 → 输入法」勾选「**猫头鹰**」，向导检测到启用后会自动跳转完成页。
 3. 打开猫头鹰设置页：在「**键盘输入**」选择拼音、双拼或五笔方案并确认准备随包内置的完整词库；日常打字完全在本机运行，需要语音转写或 AI 辅助时再到「**AI**」页面配置任一供应商密钥即可。
 
@@ -96,8 +96,8 @@
 
 ### 2. 云端语音输入（Voice ASR）与非激活语音胶囊
 
-- **三种录音手势与非激活胶囊 HUD**：支持「按住说话」「单击切换」「空格免提锁定」三种录音方式，16kHz 单声道内存 WAV 直传云端识别接口；悬浮非激活语音胶囊实时展示声波振幅与转写状态，全程不抢占当前输入框焦点。
-- **5 大云端 ASR 预设与热词自动注入**：内置 **xAI Grok、通义千问 Qwen ASR、豆包语音识别、OpenAI Audio、Google Gemini Audio** 五套预设；录音时自动从用户置顶词、自定义短语与高频自学习词中提取个人热词（UTF-8 800B 预算），连同组字前上文注入识别提示，提升专有名词与中英混输识别准确率。
+- **水杉单键语音手势与非激活胶囊 HUD**：对齐上游水杉 `msime` 单键手势（按住右 Option 键说话、松手即上屏，录音中按空格锁为免提模式，按 `Option + 其他键` 组合键自动退让），16kHz 单声道内存 WAV 直传云端识别接口；悬浮非激活语音胶囊实时展示声波振幅与转写状态，全程不抢占当前输入框焦点。
+- **3 套云端 ASR 通道与热词自动注入**：内置 **OpenAI（`gpt-transcribe`）、Google Gemini（`gemini-3.5-transcribe`）与 OpenAI 账号登录（Codex CLI ChatGPT 听写）** 三套通道；录音时自动从用户置顶词、自定义短语与高频自学习词中提取个人热词（UTF-8 800B 预算），连同组字前上文注入识别提示，提升专有名词与中英混输识别准确率。
 - **DeepSeek 语音后处理润色**：转写完成后可选经过 DeepSeek 非思考模式自动去除口水词、修正同音错字并补全标点；设有 4.0 秒硬超时与按录音代次隔离机制，网络异常或超时时无感降级直接上屏原始转写文本。
 
 ### 3. AI 联想、Jev 选词与 AI 写作辅助
@@ -126,8 +126,8 @@
 
 「AI」设置页收敛为三张清晰卡片，只用普通打字时无需配置任何密钥：
 
-1. **模型供应商（配一个就行）**：内置 **通义千问（Qwen）、豆包（Doubao）、xAI Grok、OpenAI、Google Gemini、DeepSeek** 六大核心预设（每行标注 `LLM · 语音识别`、`LLM · 联网搜索 · 语音润色` 等能力徽标），同时保留自定义 OpenAI 兼容端点接入与连通性测试。
-2. **语音输入 · 云端语音识别**：一键切换 5 套云端 ASR 预设；当上方已配置同厂商模型供应商密钥时**自动复用**（显示「已复用供应商密钥」），也支持单独保存或清除语音专属 API Key；DeepSeek 语音润色同样自动回退复用已配置的 DeepSeek 供应商密钥。
+1. **模型供应商（配一个就行）**：内置 **通义千问（Qwen）、豆包（Doubao）、OpenAI、Google Gemini、DeepSeek** 五大核心预设（每行标注 `LLM · 语音识别`、`LLM · 联网搜索 · 语音润色` 等能力徽标），同时保留自定义 OpenAI 兼容端点接入与连通性测试。
+2. **语音输入 · 云端语音识别**：支持 OpenAI、Google Gemini 与 OpenAI 账号登录（ChatGPT 听写）；当上方已配置 Gemini 或 OpenAI 模型供应商密钥时**自动联动复用**（显示「已复用供应商密钥」），也支持单独保存或清除语音专属 API Key；DeepSeek 语音润色同样自动回退复用已配置的 DeepSeek 供应商密钥。
 3. **AI 能力与联网搜索**：集中管理候选词智能辅助（AI 联想 / 英文 AI 候选 / Jev 选词）、选区与写作工具（划词工具栏 / 自动朗读 / Kotone 回复建议）以及联网搜索与来源核验策略。
 
 ### 6. 九套学院配色与浮动状态栏
@@ -149,7 +149,7 @@
 
 ## 安装与故障修复
 
-`Owltype-2.4.2.dmg` 内置独立的图形化安装维护器 **「猫头鹰安装器」（`OwltypeInstaller.app`）**。除了首次安装与版本升级外，打开安装器底部的「**故障修复与彻底卸载**」抽屉即可随时执行维护操作：
+`Owltype-2.4.3.dmg` 内置独立的图形化安装维护器 **「猫头鹰安装器」（`OwltypeInstaller.app`）**。除了首次安装与版本升级外，打开安装器底部的「**故障修复与彻底卸载**」抽屉即可随时执行维护操作：
 
 | 模式 | 作用与适用场景 | 用户数据（词库与配置） |
 | --- | --- | --- |
@@ -160,13 +160,17 @@
 
 **安装或升级后暂时打不出字？**
 1. 先确认系统菜单栏输入法图标已切换为「猫头鹰」，并重新打开一次当前打字的目标应用窗口。
-2. 若仍未响应，打开 `Owltype-2.4.2.dmg` 中的「猫头鹰安装器」，展开底部抽屉点击「**修复安装**」；仅在 macOS `imklaunchagent` 仍持有旧进程句柄未释放时，按提示注销并重新登录一次即可恢复。
+2. 若仍未响应，打开 `Owltype-2.4.3.dmg` 中的「猫头鹰安装器」，展开底部抽屉点击「**修复安装**」；仅在 macOS `imklaunchagent` 仍持有旧进程句柄未释放时，按提示注销并重新登录一次即可恢复。
 
 ---
 
-## 最近更新（2.4.2）
+## 最近更新（2.4.3）
 
 完整变更历史见 [CHANGELOG.md](CHANGELOG.md)。
+
+### 2.4.3（2026-11-08）
+- **水杉单键语音手势与三通道云端语音识别**：语音输入改为按住右 Option 键说话、松手即上屏（录音中按空格锁为免提，组合键自动退让），移除复杂组合键录制器；云端语音识别收敛为 OpenAI（`gpt-transcribe`）、Google Gemini（`gemini-3.5-transcribe`）与 OpenAI 账号登录（ChatGPT 听写）三套通道，并支持自动跟随已配密钥的 Gemini / OpenAI 供应商档案。
+- **移除 Grok / xAI 预设与错误文案残留**：清理模型供应商与语音设置中的 Grok / xAI 预设，语音报错文案按当前激活语音通道动态展示。
 
 ### 2.4.2（2026-11-08）
 - **四合一安装与维护向导（`OwltypeInstaller.app`）**：重构为仿微信输入法两步极简向导 + 底部维护抽屉，集成「安装 / 更新输入法」「修复安装（保留词库与配置）」「清空修复（备份用户数据后重建）」「彻底卸载」四项能力，并按 TIS 注册与启用状态精准分流引导文案。（#411）
@@ -175,12 +179,12 @@
 - **Kotone 回复决策契约校验**：对含 `contract` 字段的响应严格校验场景、整数版本、请求/来源与构建字段，兼容旧服务并冻结 12 组回归样例。（#409）
 
 ### 2.4.1（2026-11-03）
-- **三卡片 AI 设置与 5 供应商云端语音识别（ASR）**：整合通义千问、豆包、xAI Grok、OpenAI、Google Gemini、DeepSeek 六大核心供应商预设与五套云端 ASR 预设，支持语音识别与润色自动复用同厂商模型密钥。（#404）
+- **三卡片 AI 设置与云端语音识别（ASR）**：整合三卡片 AI 设置与多通道云端 ASR 预设，支持语音识别与润色自动复用同厂商模型密钥。（#404）
 - **语音代次隔离、上文边界与 `/ai` 指令修复**：按录音代次隔离已取消的陈旧语音回调，修复连续 `//` 斜杠保留、组合键缓冲刷新及 AI 候选有界 UTF-16 上文计算。（#401, #402）
 
 ### 2.4.0（2026-11-03）
 - **AI 联想与 Jev 选词**：新增停顿触发的云端生成式 `[AI]` 联想候选与本地词表内判别式 `[Jev]` 语义提权。（#392, #395）
-- **语音输入与个人热词注入**：新增非激活语音胶囊 HUD、三种录音手势、个人词库热词自动提取注入与 DeepSeek 语音后处理润色。（#393, #396, #398）
+- **语音输入与个人热词注入**：新增非激活语音胶囊 HUD、个人词库热词自动提取注入与 DeepSeek 语音后处理润色。（#393, #396, #398）
 - **AI 写作面板与双候选多风格润色**：新增 `/ai` 与 `⇧K` 呼出、4 种风格双候选对照润色、6 类快捷回复模板与一键上屏写回链路。（#394, #397）
 
 ---
@@ -198,8 +202,8 @@
 
 ## 项目与反馈
 
-- **安装包下载**：[项目主页与下载中心](https://responsay.com/owltype/) · [直接下载 Owltype-2.4.2.dmg](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg) · [直接下载 Owltype.pkg](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype.pkg)
-- **问题反馈与功能建议**：[GitHub Issues](https://github.com/semantic-craft/owltype-macos/issues)。提交测试反馈时，请注明 **猫头鹰版本号（如 2.4.2）**、**macOS 版本与芯片型号**、**出现问题的宿主应用** 以及 **复现步骤**。
+- **安装包下载**：[项目主页与下载中心](https://responsay.com/owltype/) · [直接下载 Owltype-2.4.3.dmg](https://downloads.responsay.com/owltype/releases/2.4.3/Owltype-2.4.3.dmg) · [直接下载 Owltype.pkg](https://downloads.responsay.com/owltype/releases/2.4.3/Owltype.pkg)
+- **问题反馈与功能建议**：[GitHub Issues](https://github.com/semantic-craft/owltype-macos/issues)。提交测试反馈时，请注明 **猫头鹰版本号（如 2.4.3）**、**macOS 版本与芯片型号**、**出现问题的宿主应用** 以及 **复现步骤**。
 - **项目进度看板**：[输入对齐与交付进度页](progress/index.html)
 - **Windows 版**：[semantic-craft/owltype-win](https://github.com/semantic-craft/owltype-win)（独立仓库维护，版本号与发布资产不与 macOS 版自动同步）。
 

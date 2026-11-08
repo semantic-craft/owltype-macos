@@ -12,7 +12,7 @@ public protocol OwlVoiceHotwordsExtracting: Sendable {
   /// Extracts sanitized, deduplicated hotwords ordered by priority (Pinned > Custom > Bigrams), filtered of noise.
   func extractHotwords(limit: Int) -> [String]
 
-  /// Assembles pre-context and hotwords into Grok ASR prompt strictly within maxBytes UTF-8 without token truncation.
+  /// Assembles pre-context and hotwords into an ASR prompt strictly within maxBytes UTF-8 without token truncation.
   func buildPrompt(preContext: String?, hotwords: [String]?, maxBytes: Int) -> String
 }
 

@@ -411,6 +411,28 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
     } catch let error as OwlVoiceError {
       XCTAssertEqual(error, .missingAPIKey)
     }
+
+    // Echoed credential in 401 error body is masked
+    let echoedValue = "echoed-fixture-value"
+    let echoingTransport = OwlStubVoiceTransport { req in
+      let response = HTTPURLResponse(url: req.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!
+      return (Data("{\"error\": {\"message\": \"Invalid credential \(echoedValue)\"}}".utf8), response)
+    }
+    let echoingPolisher = OwlVoiceDeepSeekPolisher(
+      transport: echoingTransport,
+      apiKeyProvider: { echoedValue }
+    )
+    do {
+      _ = try await echoingPolisher.polishWithTimeout(rawTranscript: "测试Key掩码")
+      XCTFail("polishWithTimeout must throw on 401")
+    } catch let error as OwlVoiceError {
+      if case .invalidToken(let status, let message) = error {
+        XCTAssertEqual(status, 401)
+        XCTAssertFalse(message?.contains(echoedValue) ?? true, "Echoed credential must be masked")
+      } else {
+        XCTFail("Expected .invalidToken, got \(error)")
+      }
+    }
   }
 
   // MARK: - 7. Challenger Adversarial Stress Tests

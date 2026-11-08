@@ -16,15 +16,16 @@ public enum OwlVoiceError: LocalizedError, Equatable, Sendable {
   case cancelled
 
   public var errorDescription: String? {
+    let preset = OwlVoiceASRCatalog.preset(id: OwlVoiceSettings.asrProviderID)
     switch self {
     case .missingAPIKey:
-      return "未配置 xAI API Key，请在设置中配置。"
+      return "未配置 \(preset.keyLabel)，请在 AI 设置中配置。"
     case .invalidToken(let status, let msg):
-      return "xAI 认证失败 (\(status)): \(msg ?? "API Key 无效或已过期")"
+      return "\(preset.displayName) 认证失败 (\(status)): \(msg ?? "API Key 无效或已过期")"
     case .emptyAudioData:
       return "录音数据为空，无法转写。"
     case .badHTTPStatus(let status, let msg):
-      return "xAI 语音服务响应异常 (\(status)): \(msg ?? "未知错误")"
+      return "\(preset.displayName) 语音服务响应异常 (\(status)): \(msg ?? "未知错误")"
     case .emptyTranscript:
       return "未能识别到有效语音内容。"
     case .decodingError(let detail):

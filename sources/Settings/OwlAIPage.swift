@@ -47,14 +47,18 @@ struct OwlAIPage: View {
   @State private var qwenWorkspaceInput = ""
   @State private var qwenWorkspaceKeyInput = ""
   @State private var voiceASRProviderID = OwlVoiceSettings.asrProviderID
-  @State private var voiceEndpointInput = OwlVoiceSettings.xaiEndpoint
-  @State private var voiceModelInput = OwlVoiceSettings.xaiModel
+  @State private var voiceEndpointInput = OwlVoiceSettings.asrEndpoint
+  @State private var voiceModelInput = OwlVoiceSettings.asrModel
   @State private var voiceFetchedModels: [String] = []
-  @State private var xaiKeyInput = ""
-  @State private var xaiKeyConfigured = false
+  @State private var asrKeyInput = ""
+  @State private var asrKeyConfigured = false
   @State private var voiceASRHasDedicatedKey = false
   @State private var voiceASRHasSharedKey = false
   @State private var voiceASRStatus = ""
+  @State private var openAILoginStatus: OwlVoiceOpenAILoginStatus = .unchecked
+  @State private var openAILoginVerifying = false
+  @State private var openAILoginVerifySucceeded = false
+  @State private var openAILoginVerifyTask: Task<Void, Never>?
 
   var body: some View {
     ScrollView {
@@ -73,9 +77,12 @@ struct OwlAIPage: View {
       providers = OwlDefaults.isRunningUnitTests ? [] : registry.profiles
       qwenWorkspaceInput = OwlQwenWorkspaceSettings.apiHost()
       voiceASRProviderID = OwlVoiceSettings.asrProviderID
-      voiceEndpointInput = OwlVoiceSettings.xaiEndpoint
-      voiceModelInput = OwlVoiceSettings.xaiModel
+      voiceEndpointInput = OwlVoiceSettings.asrEndpoint
+      voiceModelInput = OwlVoiceSettings.asrModel
       refreshVoiceASRKeyState()
+      if activeVoiceASRPreset.isOpenAILogin {
+        refreshOpenAILoginStatus()
+      }
       if qwenWorkspaceInput.isEmpty,
          let profile = providers.first(where: {
            OwlLLMProviderCatalog.inferredProviderID(for: $0) == "qwen"
@@ -84,13 +91,18 @@ struct OwlAIPage: View {
         qwenWorkspaceInput = host
       }
     }
+    .onDisappear {
+      openAILoginVerifyTask?.cancel()
+      openAILoginVerifyTask = nil
+      openAILoginVerifying = false
+    }
   }
 
   private func refreshVoiceASRKeyState() {
-    guard !OwlDefaults.isRunningUnitTests else {
+    guard !OwlDefaults.isRunningUnitTests, activeVoiceASRPreset.requiresAPIKey else {
       voiceASRHasDedicatedKey = false
       voiceASRHasSharedKey = false
-      xaiKeyConfigured = false
+      asrKeyConfigured = false
       return
     }
     let dedicated = (try? OwlVoiceKeychain.readDedicatedAPIKey(forProviderID: voiceASRProviderID))?
@@ -99,10 +111,13 @@ struct OwlAIPage: View {
       forProviderID: voiceASRProviderID, store: registry.store, secrets: registry.secrets) ?? ""
     voiceASRHasDedicatedKey = !dedicated.isEmpty
     voiceASRHasSharedKey = !shared.isEmpty
-    xaiKeyConfigured = voiceASRHasDedicatedKey || voiceASRHasSharedKey
+    asrKeyConfigured = voiceASRHasDedicatedKey || voiceASRHasSharedKey
   }
 
   private var voiceASRKeyStatusText: String {
+    if activeVoiceASRPreset.isOpenAILogin {
+      return "实验 · 免 API Key"
+    }
     if voiceASRHasDedicatedKey {
       return "已单独设置"
     }
@@ -131,7 +146,7 @@ struct OwlAIPage: View {
       VStack(spacing: 0) {
         SettingsToggleRow(
           title: "语音输入",
-          subtitle: "按住热键说话或单击切换开启录音，实时语音胶囊波形 HUD 上屏。",
+          subtitle: "按住右 Option (⌥) 说话，松手即上屏；按住期间点空格锁定免提，按 Esc 取消，按其他键自动退让组合键。",
           isOn: state.voiceInputEnabled,
           palette: palette,
           onToggle: {
@@ -143,10 +158,6 @@ struct OwlAIPage: View {
             }
           }
         )
-        SettingsCardDivider(palette: palette)
-        OwlHotKeyRecorderRow(slot: .voiceInput, palette: palette)
-          .padding(.horizontal, 14)
-          .padding(.vertical, 10)
         SettingsCardDivider(palette: palette)
         voiceASRConfigRows
           .padding(.horizontal, 14)
@@ -183,73 +194,208 @@ struct OwlAIPage: View {
           Spacer(minLength: 8)
           Text(voiceASRKeyStatusText)
             .font(.system(size: 12, design: .monospaced))
-            .foregroundStyle(palette.ink3)
+            .foregroundStyle(activeVoiceASRPreset.isOpenAILogin ? palette.accent : palette.ink3)
         }
       }
-      formRow("端点") {
-        TextField("ASR 端点，如 https://api.x.ai/v1/audio/transcriptions", text: $voiceEndpointInput)
-          .textFieldStyle(.roundedBorder)
-      }
-      formRow("模型") {
-        HStack(spacing: 8) {
-          TextField("ASR 模型，如 grok-voice-transcribe-2.0", text: $voiceModelInput)
-            .textFieldStyle(.roundedBorder)
-          Menu {
-            ForEach(voiceAvailableModels, id: \.self) { id in
-              Button(id) {
-                voiceModelInput = id
-                OwlVoiceSettings.xaiModel = id
-              }
-            }
-          } label: {
-            Text("选择")
-          }
-          .fixedSize()
-          .accessibilityLabel("选择语音识别模型")
-          smallButton("拉取模型") { fetchVoiceModels() }
-        }
-      }
-      formRow("密钥") {
-        HStack(spacing: 8) {
-          SecureField(
-            xaiKeyConfigured ? "已设置 ●●●●●●（输入新 Key 可覆盖）"
-              : "ASR API Key（写入 Keychain，同名供应商自动复用）",
-            text: $xaiKeyInput)
-            .textFieldStyle(.roundedBorder)
-          smallButton("粘贴") {
-            if let str = NSPasteboard.general.string(forType: .string) {
-              xaiKeyInput = OwlProviderCore.call("trim", ["text": str])
-            }
-          }
-          smallButton("保存") { saveVoiceASRSettings() }
-          if voiceASRHasDedicatedKey {
-            smallButton("清除") { clearXAIAPIKey() }
-          }
-        }
-      }
-      formRow("") {
-        Text("""
-          格式 \(activeVoiceASRPreset.keyHint) · 存系统钥匙串。上方已配置同名供应商时自动复用密钥；\
-          开启下方「语音润色」时自动复用已配置的 DeepSeek 供应商密钥。\(voiceASRStatus.isEmpty ? "" : "\n\n\(voiceASRStatus)")
-          """)
-          .font(.system(size: 12))
-          .foregroundStyle(palette.ink3)
-          .fixedSize(horizontal: false, vertical: true)
-          .frame(maxWidth: .infinity, alignment: .leading)
+      switch activeVoiceASRPreset.authMode {
+      case .apiKey:
+        voiceASRAPIKeyRows
+      case .openAILogin:
+        voiceASROpenAILoginRows
       }
     }
   }
 
+  @ViewBuilder
+  private var voiceASRAPIKeyRows: some View {
+    formRow("端点") {
+      TextField("ASR 端点，如 https://api.openai.com/v1/audio/transcriptions", text: $voiceEndpointInput)
+        .textFieldStyle(.roundedBorder)
+    }
+    formRow("模型") {
+      HStack(spacing: 8) {
+        TextField("ASR 模型，如 gpt-transcribe", text: $voiceModelInput)
+          .textFieldStyle(.roundedBorder)
+        Menu {
+          ForEach(voiceAvailableModels, id: \.self) { id in
+            Button(id) {
+              voiceModelInput = id
+              OwlVoiceSettings.asrModel = id
+            }
+          }
+        } label: {
+          Text("选择")
+        }
+        .fixedSize()
+        .accessibilityLabel("选择语音识别模型")
+        smallButton("拉取模型") { fetchVoiceModels() }
+      }
+    }
+    formRow("密钥") {
+      HStack(spacing: 8) {
+        SecureField(
+          asrKeyConfigured ? "已设置 ●●●●●●（输入新 Key 可覆盖）"
+            : "ASR API Key（写入 Keychain，同名供应商自动复用）",
+          text: $asrKeyInput)
+          .textFieldStyle(.roundedBorder)
+        smallButton("粘贴") {
+          if let str = NSPasteboard.general.string(forType: .string) {
+            asrKeyInput = OwlProviderCore.call("trim", ["text": str])
+          }
+        }
+        smallButton("保存") { saveVoiceASRSettings() }
+        if voiceASRHasDedicatedKey {
+          smallButton("清除") { clearVoiceASRAPIKey() }
+        }
+      }
+    }
+    formRow("") {
+      Text("""
+        格式 \(activeVoiceASRPreset.keyHint) · 存系统钥匙串。上方已配置同名供应商时自动复用密钥；\
+        开启下方「语音润色」时自动复用已配置的 DeepSeek 供应商密钥。\(voiceASRStatus.isEmpty ? "" : "\n\n\(voiceASRStatus)")
+        """)
+        .font(.system(size: 12))
+        .foregroundStyle(palette.ink3)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
+  @ViewBuilder
+  private var voiceASROpenAILoginRows: some View {
+    formRow("账号") {
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(spacing: 8) {
+          Circle()
+            .fill(openAILoginStatus.isReady || openAILoginVerifySucceeded ? Color.green : Color.orange)
+            .frame(width: 8, height: 8)
+          Text(openAILoginStatus.statusText)
+            .font(.system(size: 12.5, weight: .medium))
+            .foregroundStyle(palette.ink)
+          Spacer(minLength: 8)
+          smallButton("刷新状态") { refreshOpenAILoginStatus() }
+        }
+        if openAILoginStatus.needsTerminalLogin {
+          SettingsCardDivider(palette: palette)
+          HStack(spacing: 8) {
+            Text("在终端运行 \(OwlVoiceOpenAILoginStatus.loginCommand) 并选择用 ChatGPT 登录")
+              .font(.system(size: 12))
+              .foregroundStyle(palette.ink3)
+              .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            smallButton("复制命令") { copyOpenAILoginCommand() }
+          }
+        }
+      }
+      .padding(.horizontal, 12)
+      .padding(.vertical, 10)
+      .background(
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+          .fill(palette.card2)
+      )
+    }
+    formRow("验证") {
+      HStack(spacing: 8) {
+        smallButton("验证连接") { verifyOpenAILoginConnection() }
+          .disabled(openAILoginVerifying)
+        if openAILoginVerifying {
+          smallButton("取消") { cancelOpenAILoginVerification() }
+        }
+        Text(openAILoginVerificationCaption)
+          .font(.system(size: 12))
+          .foregroundStyle(openAILoginVerificationCaptionColor)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    formRow("") {
+      Text("""
+        · 复用本机 Codex CLI 的 ChatGPT 账号登录态（Plus / Pro / Team），无需 API Key。
+        · 录音会上传到 ChatGPT，OpenAI 保留 30 天；使用个人账号非公开接口，可能随时变化或受限。
+        · 开启下方「语音润色」时自动复用已配置的 DeepSeek 供应商密钥。
+        """)
+        .font(.system(size: 12))
+        .foregroundStyle(palette.ink3)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
+  private var openAILoginVerificationCaption: String {
+    if openAILoginVerifying {
+      return "验证中…"
+    }
+    if !voiceASRStatus.isEmpty {
+      return voiceASRStatus
+    }
+    return "发送 0.2 秒静音检测 Codex 登录态与听写接口连通性"
+  }
+
+  private var openAILoginVerificationCaptionColor: Color {
+    if openAILoginVerifying || voiceASRStatus.isEmpty {
+      return palette.ink3
+    }
+    return openAILoginVerifySucceeded ? Color.green : palette.accent
+  }
+
   private func selectVoiceASRPreset(_ preset: OwlVoiceASRPreset) {
+    openAILoginVerifyTask?.cancel()
+    openAILoginVerifyTask = nil
+    openAILoginVerifying = false
+    openAILoginVerifySucceeded = false
     voiceASRProviderID = preset.id
     voiceEndpointInput = preset.endpoint
     voiceModelInput = preset.defaultModel
     voiceFetchedModels = []
     voiceASRStatus = ""
     OwlVoiceSettings.asrProviderID = preset.id
-    OwlVoiceSettings.xaiEndpoint = preset.endpoint
-    OwlVoiceSettings.xaiModel = preset.defaultModel
+    OwlVoiceSettings.asrEndpoint = preset.endpoint
+    OwlVoiceSettings.asrModel = preset.defaultModel
     refreshVoiceASRKeyState()
+    if preset.isOpenAILogin {
+      refreshOpenAILoginStatus()
+    }
+  }
+
+  private func refreshOpenAILoginStatus() {
+    openAILoginStatus = .checking
+    Task {
+      let inspected = await OwlVoiceOpenAILoginInspector.inspectStatus()
+      await MainActor.run {
+        openAILoginStatus = inspected.status
+      }
+    }
+  }
+
+  private func copyOpenAILoginCommand() {
+    NSPasteboard.general.clearContents()
+    NSPasteboard.general.setString(OwlVoiceOpenAILoginStatus.loginCommand, forType: .string)
+    openAILoginVerifySucceeded = false
+    voiceASRStatus = "已复制 \(OwlVoiceOpenAILoginStatus.loginCommand)"
+  }
+
+  private func verifyOpenAILoginConnection() {
+    openAILoginVerifyTask?.cancel()
+    openAILoginVerifying = true
+    openAILoginVerifySucceeded = false
+    voiceASRStatus = ""
+    openAILoginVerifyTask = Task {
+      let outcome = await OwlVoiceOpenAILoginInspector.verifyConnection()
+      guard !Task.isCancelled else { return }
+      await MainActor.run {
+        openAILoginVerifying = false
+        openAILoginVerifySucceeded = outcome.succeeded
+        openAILoginStatus = outcome.status
+        voiceASRStatus = outcome.message
+      }
+    }
+  }
+
+  private func cancelOpenAILoginVerification() {
+    openAILoginVerifyTask?.cancel()
+    openAILoginVerifyTask = nil
+    openAILoginVerifying = false
+    openAILoginVerifySucceeded = false
+    voiceASRStatus = "已取消验证"
   }
 
   private func saveVoiceASRSettings() {
@@ -257,19 +403,19 @@ struct OwlAIPage: View {
       providerID: voiceASRProviderID,
       endpoint: voiceEndpointInput,
       model: voiceModelInput,
-      apiKey: xaiKeyInput,
-      isKeyAlreadyConfigured: xaiKeyConfigured
+      apiKey: asrKeyInput,
+      isKeyAlreadyConfigured: asrKeyConfigured
     )
-    xaiKeyInput = result.input
+    asrKeyInput = result.input
     voiceEndpointInput = result.endpoint
     voiceModelInput = result.model
     voiceASRStatus = result.status
     refreshVoiceASRKeyState()
   }
 
-  private func clearXAIAPIKey() {
-    voiceASRStatus = OwlSettingsActions.clearXAIAPIKey(providerID: voiceASRProviderID)
-    xaiKeyInput = ""
+  private func clearVoiceASRAPIKey() {
+    voiceASRStatus = OwlSettingsActions.clearVoiceASRAPIKey(providerID: voiceASRProviderID)
+    asrKeyInput = ""
     refreshVoiceASRKeyState()
   }
 
@@ -280,7 +426,7 @@ struct OwlAIPage: View {
       voiceASRStatus = "端点必须是 https。"
       return
     }
-    let typedKey = OwlProviderCore.call("trim", ["text": xaiKeyInput]) as String
+    let typedKey = OwlProviderCore.call("trim", ["text": asrKeyInput]) as String
     let storedKey = (try? OwlVoiceKeychain.readAPIKey(
       forProviderID: voiceASRProviderID, store: registry.store, secrets: registry.secrets))?
       .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

@@ -1358,28 +1358,28 @@
       "role": "native",
       "target": "Swift",
       "issue": null,
-      "reason": "xAI Grok ASR cloud client with in-memory multipart form packaging and JSON transcript parsing"
+      "reason": "Cloud ASR client (OpenAI, Gemini generateContent, and ChatGPT Dictation) with multipart form packaging and JSON transcript parsing"
     },
     {
       "path": "sources/Voice/OwlVoiceHotwordsExtractor.swift",
       "role": "adapter",
       "target": "Swift",
       "issue": null,
-      "reason": "Extracts personal hotwords from pinned words, custom words, and personal bigrams, assembling token-safe Grok ASR prompts within 800 UTF-8 bytes"
+      "reason": "Extracts personal hotwords from pinned words, custom words, and personal bigrams, assembling token-safe ASR prompts within 800 UTF-8 bytes"
     },
     {
       "path": "sources/Voice/OwlVoiceInputCoordinator.swift",
       "role": "adapter",
       "target": "Swift",
       "issue": null,
-      "reason": "Gesture coordinator state machine handling hold-to-speak, hands-free locking, toggle triggers and text insertion"
+      "reason": "Gesture coordinator state machine handling MSIME Right Option hold-to-speak, hands-free locking, and text insertion"
     },
     {
       "path": "sources/Voice/OwlVoiceKeychain.swift",
       "role": "adapter",
       "target": "Swift",
       "issue": null,
-      "reason": "Secure Keychain storage and retrieval for xAI API key adhering to test storage invariants"
+      "reason": "Secure Keychain storage and retrieval for voice ASR API keys adhering to test storage invariants"
     },
     {
       "path": "sources/Voice/OwlVoiceNetworkTransport.swift",

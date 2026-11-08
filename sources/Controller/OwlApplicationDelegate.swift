@@ -132,6 +132,9 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     selectionMenuCoordinator = OwlSelectionMenuCoordinator()
     selectionMenuCoordinator?.start()
     startHotKeyTap()
+    Task { @MainActor in
+      OwlVoiceInputCoordinator.shared.startGlobalMonitor()
+    }
     // v0.3.3: first-run onboarding. Guarded + non-blocking (just orders the window
     // front); kept LAST so it never interferes with Rime / panel / status setup.
     if !suppressOnboarding && !OwlOnboarding.isDone {
@@ -163,6 +166,9 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     selectionMenuCoordinator?.stop()
     selectionMenuCoordinator = nil
     stopHotKeyTap()
+    MainActor.assumeIsolated {
+      OwlVoiceInputCoordinator.shared.stopGlobalMonitor()
+    }
     statusHUD?.hidePanel()
     owlPanel?.hidePanel()
   }
@@ -273,16 +279,6 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
         return
       }
       controller.showOwltypePromptPicker(initialSegment: .prompt)
-    }
-    hotKeyTap.onVoiceInputEvent = { event in
-      Task { @MainActor in
-        _ = OwlVoiceInputCoordinator.shared.handleKeyEvent(event)
-      }
-    }
-    hotKeyTap.onVoiceInput = {
-      Task { @MainActor in
-        OwlVoiceInputCoordinator.shared.handleVoiceHotKeyTrigger()
-      }
     }
     hotKeyTap.startIfPossible()
   }

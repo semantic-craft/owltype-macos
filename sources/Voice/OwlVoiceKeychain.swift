@@ -8,15 +8,13 @@ import Security
 
 public enum OwlVoiceKeychain {
   private static let service = "im.owltype.inputmethod.Owltype.voice"
-  private static let xaiAccount = "xAIAPIKey"
+  private static let openAIAccount = "OpenAIASRAPIKey"
+  private static let geminiAccount = "GeminiASRAPIKey"
 
   static func accountName(forProviderID providerID: String) -> String {
     switch OwlVoiceASRCatalog.preset(id: providerID).id {
-    case "qwen": return "QwenASRAPIKey"
-    case "doubao": return "DoubaoASRAPIKey"
-    case "openai": return "OpenAIASRAPIKey"
-    case "gemini": return "GeminiASRAPIKey"
-    default: return xaiAccount
+    case "gemini": return geminiAccount
+    default: return openAIAccount
     }
   }
 
@@ -118,23 +116,6 @@ public enum OwlVoiceKeychain {
 
   public static func readActiveASRAPIKey() throws -> String? {
     try readAPIKey(forProviderID: OwlVoiceSettings.asrProviderID)
-  }
-
-  public static func readXAIAPIKey() throws -> String? {
-    try readAPIKey(forProviderID: "grok")
-  }
-
-  public static func saveXAIAPIKey(_ key: String) throws {
-    try saveAPIKey(key, forProviderID: "grok")
-  }
-
-  public static func deleteXAIAPIKey() throws {
-    try deleteAPIKey(forProviderID: "grok")
-  }
-
-  public static func isXAIKeyConfigured(read: () throws -> String? = readXAIAPIKey) -> Bool {
-    guard let key = try? read() else { return false }
-    return !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
   static func isASRKeyConfigured(

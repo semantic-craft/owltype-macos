@@ -970,6 +970,137 @@ final class OwlResponsesPromptEvaluationLiveTests: XCTestCase {
     let index = max(0, min(sorted.count - 1, Int(ceil(Double(sorted.count) * fraction)) - 1))
     return sorted[index]
   }
+
+  // MARK: - 语音输入实盘联通性：OpenAI (gpt-transcribe) & Google Gemini (gemini-3.5-transcribe)
+
+  func testVoiceASRLiveOpenAIAndGemini() async throws {
+    let openAIKey = try OwlLiveKey.openAI.value()
+    let geminiKey = try OwlLiveKey.gemini.value()
+
+    let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir) }
+
+    let aiffURL = tempDir.appendingPathComponent("tts.aiff")
+    let rawWavURL = tempDir.appendingPathComponent("raw.wav")
+
+    let sayProc = Process()
+    sayProc.executableURL = URL(fileURLWithPath: "/usr/bin/say")
+    sayProc.arguments = ["-v", "Tingting", "-o", aiffURL.path, "你好，今天天气很好，正在测试猫头鹰输入法的语音识别。"]
+    try sayProc.run()
+    sayProc.waitUntilExit()
+    XCTAssertEqual(sayProc.terminationStatus, 0)
+
+    let convProc = Process()
+    convProc.executableURL = URL(fileURLWithPath: "/usr/bin/afconvert")
+    convProc.arguments = ["-f", "WAVE", "-d", "LEI16@16000", "-c", "1", aiffURL.path, rawWavURL.path]
+    try convProc.run()
+    convProc.waitUntilExit()
+    XCTAssertEqual(convProc.terminationStatus, 0)
+
+    let rawWav = try Data(contentsOf: rawWavURL)
+    let dataMarker = Data([0x64, 0x61, 0x74, 0x61]) // "data"
+    let dataRange = try XCTUnwrap(rawWav.range(of: dataMarker))
+    let pcmStart = dataRange.upperBound + 4
+    let pcmData = rawWav.subdata(in: pcmStart..<rawWav.count)
+    let packedWav = OwlWAVPacker.pack16kMono(pcmData: pcmData)
+    XCTAssertGreaterThan(packedWav.count, 32000, "Synthesized 16kHz mono WAV must be > 1s")
+
+    let openAIClient = OwlVoiceGrokASRClient(
+      providerID: OwlVoiceASRCatalog.openai.id,
+      endpoint: URL(string: OwlVoiceASRCatalog.openai.endpoint)!,
+      model: OwlVoiceASRCatalog.openai.defaultModel,
+      apiKeyProvider: { openAIKey }
+    )
+    let openAITranscript = try await openAIClient.transcribe(audioWavData: packedWav, prompt: "猫头鹰输入法")
+    print("KOTONE_LIVE [OpenAI ASR \(OwlVoiceASRCatalog.openai.defaultModel)] -> \(openAITranscript)")
+    XCTAssertTrue(openAITranscript.contains("猫头鹰"), "OpenAI gpt-transcribe output: \(openAITranscript)")
+
+    let geminiClient = OwlVoiceGrokASRClient(
+      providerID: OwlVoiceASRCatalog.gemini.id,
+      endpoint: URL(string: OwlVoiceASRCatalog.gemini.endpoint)!,
+      model: OwlVoiceASRCatalog.gemini.defaultModel,
+      apiKeyProvider: { geminiKey }
+    )
+    let geminiTranscript = try await geminiClient.transcribe(audioWavData: packedWav, prompt: "猫头鹰输入法")
+    print("KOTONE_LIVE [Gemini ASR \(OwlVoiceASRCatalog.gemini.defaultModel)] -> \(geminiTranscript)")
+    XCTAssertTrue(geminiTranscript.contains("猫头鹰"), "Gemini gemini-3.5-transcribe output: \(geminiTranscript)")
+
+    let deepSeekKey = try OwlLiveKey.deepSeek.value()
+    let polisher = OwlVoiceDeepSeekPolisher(
+      requestTimeout: 10.0,
+      apiKeyProvider: { deepSeekKey },
+      isEnabledChecker: { true }
+    )
+    let polished = try await polisher.polishWithTimeout(
+      rawTranscript: "嗯那个你好今天天气很好正在测试猫头鹰输入法的语音识别",
+      hotwords: ["猫头鹰输入法"],
+      preContext: nil
+    )
+    print("KOTONE_LIVE [DeepSeek Polisher \(polisher.model)] -> \(polished)")
+    XCTAssertTrue(polished.contains("猫头鹰输入法"), "DeepSeek polisher output: \(polished)")
+  }
+
+  func testVoiceASRLiveOpenAILoginDictation() async throws {
+    OwlVoiceOpenAILoginInspector.clearCachedCredential()
+    defer { OwlVoiceOpenAILoginInspector.clearCachedCredential() }
+
+    guard let executable = OwlVoiceOpenAILoginInspector.resolveCodexExecutable() else {
+      throw XCTSkip("未安装 codex CLI，跳过 ChatGPT 登录听写实盘测试")
+    }
+
+    let credential = try await OwlVoiceOpenAILoginInspector.fetchCredential(forceRefresh: false)
+    print("KOTONE_LIVE [Codex App-Server Auth] -> executable=\(executable.path), plan=\(credential.planType ?? "unknown"), credential=\(credential)")
+
+    let verifyOutcome = await OwlVoiceOpenAILoginInspector.verifyConnection(
+      loginCredentialProvider: { forceRefresh in
+        try await OwlVoiceOpenAILoginInspector.fetchCredential(forceRefresh: forceRefresh)
+      }
+    )
+    print("KOTONE_LIVE [ChatGPT Dictation Verify Silence] -> succeeded=\(verifyOutcome.succeeded), message=\(verifyOutcome.message)")
+    XCTAssertTrue(verifyOutcome.succeeded, "ChatGPT 听写静音连接验证失败: \(verifyOutcome.message)")
+
+    let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir) }
+
+    let aiffURL = tempDir.appendingPathComponent("tts.aiff")
+    let rawWavURL = tempDir.appendingPathComponent("raw.wav")
+
+    let sayProc = Process()
+    sayProc.executableURL = URL(fileURLWithPath: "/usr/bin/say")
+    sayProc.arguments = ["-v", "Tingting", "-o", aiffURL.path, "你好，今天天气很好，正在测试猫头鹰输入法的语音识别。"]
+    try sayProc.run()
+    sayProc.waitUntilExit()
+    XCTAssertEqual(sayProc.terminationStatus, 0)
+
+    let convProc = Process()
+    convProc.executableURL = URL(fileURLWithPath: "/usr/bin/afconvert")
+    convProc.arguments = ["-f", "WAVE", "-d", "LEI16@16000", "-c", "1", aiffURL.path, rawWavURL.path]
+    try convProc.run()
+    convProc.waitUntilExit()
+    XCTAssertEqual(convProc.terminationStatus, 0)
+
+    let rawWav = try Data(contentsOf: rawWavURL)
+    let dataMarker = Data([0x64, 0x61, 0x74, 0x61]) // "data"
+    let dataRange = try XCTUnwrap(rawWav.range(of: dataMarker))
+    let pcmStart = dataRange.upperBound + 4
+    let pcmData = rawWav.subdata(in: pcmStart..<rawWav.count)
+    let packedWav = OwlWAVPacker.pack16kMono(pcmData: pcmData)
+
+    let loginClient = OwlVoiceGrokASRClient(
+      providerID: OwlVoiceASRCatalog.openaiLogin.id,
+      endpoint: URL(string: OwlVoiceASRCatalog.openaiLogin.endpoint)!,
+      model: OwlVoiceASRCatalog.openaiLogin.defaultModel,
+      apiKeyProvider: { nil },
+      loginCredentialProvider: { forceRefresh in
+        try await OwlVoiceOpenAILoginInspector.fetchCredential(forceRefresh: forceRefresh)
+      }
+    )
+    let transcript = try await loginClient.transcribe(audioWavData: packedWav, prompt: nil)
+    print("KOTONE_LIVE [ChatGPT Dictation Live Transcript] -> \(transcript)")
+    XCTAssertTrue(transcript.contains("猫头鹰"), "ChatGPT 听写返回文本异常: \(transcript)")
+  }
 }
 
 // MARK: - 三模型 8 案例 ×3 轮固定划词矩阵
