@@ -1,95 +1,124 @@
-// ContentView — 极简单窗 UI：标题 + 说明 + 「安装」/「卸载」 + 一行进度/结果。
-// 所有副作用都在 Installer.swift / OwlInstallSession.swift；本文件只管展示与派活：
-// 安装在后台完成文件交换和用户会话自检，再将结果送回主线程。
-// 文案双态（PRD R1）：成功 = 新开应用立即可用（QA 三轮拍板：不领「无需注销」绝对承诺）；
-// 验证超时 = 注销重登引导，绝不伪装成功。
+// ContentView — 两步式向导 UI（对齐微信输入法安装体验 + 四合一「安装 / 修复安装 / 清空修复 / 彻底卸载」）。
+// 所有系统副作用集中在 Installer.swift 与 OwlInstallSession.swift；本文件负责预检展示、
+// 四合一动作派发与第二步完成向导。
 
 import SwiftUI
+import AppKit
 
-/// 安装/卸载的状态机。副作用在后台队列跑，结果回主线程更新 @Published。
-/// 不用 @MainActor：背景任务经 DispatchQueue.main.async 回主线程，避免并发隔离噪声。
 final class InstallerViewModel: ObservableObject {
-    enum Phase {
+    enum Phase: Equatable {
         case idle
         case working
-        /// 文件已就位，正在等 macOS consent + fresh 进程探针读回验证（软超时 ~30s）。
-        case verifying
-        case success
-        /// 软超时未确认 → 注销重登引导（不算 success 也不算 failure）。**非终态**（fix2）：
-        /// verifier 后台继续观察到扩展截止，迟到 consent 会自动翻成 success。
-        case needsLogout
+        case completed(InstallerActivationPolicy.CompletionSummary)
         case failure
     }
 
+    @Published var preflight: InstallerActivationPolicy.PreflightReport = Installer.inspectPreflight()
     @Published var phase: Phase = .idle
-    @Published var statusText: String = "点击「安装」把猫头鹰输入法安装到本机。"
+    @Published var statusText: String = "支持一键安装、覆盖更新、修复安装、清空修复与彻底卸载。"
     @Published var isBusy: Bool = false
+    @Published var showUninstallConfirmation: Bool = false
+
+    func refreshPreflight() {
+        let report = Installer.inspectPreflight()
+        DispatchQueue.main.async {
+            self.preflight = report
+        }
+    }
 
     func install() {
-        isBusy = true
-        phase = .working
-        statusText = "正在安装猫头鹰…"
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            do {
-                let plan = try Installer.install()
-                DispatchQueue.main.async {
-                    self?.isBusy = false
-                    self?.phase = .success
-                    self?.statusText = InstallerActivationPolicy.successText(plan: plan)
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    self?.isBusy = false
-                    self?.phase = .failure
-                    self?.statusText = Self.failureText(for: error)
-                }
+        runAction(progressText: "正在安装并配置猫头鹰输入法…") {
+            let result = try Installer.install()
+            return InstallerActivationPolicy.completionSummary(
+                for: .install(plan: result.plan, status: result.status))
+        }
+    }
+
+    func repairInstall() {
+        runAction(progressText: "正在清理残留、重置缓存并执行修复安装…") {
+            let status = try Installer.repairInstall()
+            return InstallerActivationPolicy.completionSummary(
+                for: .repairInstall(status: status))
+        }
+    }
+
+    func clearAndRepair() {
+        runAction(progressText: "正在清理非标准副本、幽灵注册与系统输入法列表缓存…") {
+            try Installer.clearAndRepair()
+            return InstallerActivationPolicy.completionSummary(for: .clearAndRepair)
+        }
+    }
+
+    func uninstall(keepUserData: Bool) {
+        let progress = keepUserData
+            ? "正在卸载猫头鹰输入法（保留个人词库与设置）…"
+            : "正在彻底卸载猫头鹰输入法并清空用户数据…"
+        runAction(progressText: progress) {
+            try Installer.uninstall(keepUserData: keepUserData)
+            return InstallerActivationPolicy.completionSummary(
+                for: .uninstall(keepUserData: keepUserData))
+        }
+    }
+
+    func activateAndOpenSettings() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            Installer.activateAndOpenSettings()
+            DispatchQueue.main.async {
+                self.statusText = "✅ 已请求切换到猫头鹰输入法并打开设置窗口。"
             }
         }
     }
 
-    /// 失败文案分层：激活阶段失败时文件其实已拷好 → 补注销引导；拷贝/校验/取消则报错本身。
+    func openSystemKeyboardSettings() {
+        Installer.openSystemKeyboardSettings()
+    }
+
+    func returnToMain() {
+        refreshPreflight()
+        phase = .idle
+        statusText = "支持一键安装、覆盖更新、修复安装、清空修复与彻底卸载。"
+    }
+
     static func failureText(for error: Error) -> String {
-        if case InstallerError.activationFailed(let message) = error, message.contains("inputSourceNotEnabled") {
-            return "❌ 系统还没允许启用猫头鹰输入法。"
-                + "\n文件已安装。请再点一次「安装」，在弹出的「允许启用输入法」对话框中点「允许」；"
-                + "没有弹窗时，到系统设置 → 键盘 → 输入法 添加「猫头鹰」。"
+        if case InstallerError.userCancelled = error {
+            return "已取消授权，未对系统做任何更改。"
         }
-        if case InstallerError.activationFailed = error {
-            return "❌ " + error.localizedDescription
-                + "\n文件已安装，但会话自检失败。请先重试或在系统设置检查输入法；仍无法恢复时可注销并重新登录。"
+        if case InstallerError.activationFailed(let message) = error, message.contains("inputSourceNotEnabled") {
+            return "❌ 系统尚未允许启用猫头鹰输入法。\n"
+                + "请点击「清空修复」或在「系统设置 → 键盘 → 输入法」中添加「猫头鹰」。"
         }
         return "❌ " + error.localizedDescription
     }
 
-    func uninstall() {
-        run(progressText: "正在卸载猫头鹰…") {
-            try Installer.uninstall()
-        } onSuccess: { [weak self] in
-            self?.phase = .success
-            self?.statusText = "✅ 猫头鹰已卸载。Squirrel、~/Library/Rime 及你的其他输入法未被触碰。"
-                + "登出再登录可彻底刷新输入菜单。钥匙串如需一并清空，请手动删除服务 "
-                + "im.owltype.inputmethod.Owltype.providers 与 im.owltype.inputmethod.Owltype.deepseek。"
-        }
-    }
-
-    private func run(progressText: String,
-                     _ work: @escaping () throws -> Void,
-                     onSuccess: @escaping () -> Void) {
+    private func runAction(
+        progressText: String,
+        work: @escaping () throws -> InstallerActivationPolicy.CompletionSummary
+    ) {
         isBusy = true
         phase = .working
         statusText = progressText
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             do {
-                try work()
+                let summary = try work()
+                let updatedPreflight = Installer.inspectPreflight()
                 DispatchQueue.main.async {
                     self?.isBusy = false
-                    onSuccess()
+                    self?.preflight = updatedPreflight
+                    self?.phase = .completed(summary)
+                    self?.statusText = summary.detail
                 }
             } catch {
+                let updatedPreflight = Installer.inspectPreflight()
                 DispatchQueue.main.async {
                     self?.isBusy = false
-                    self?.phase = .failure
-                    self?.statusText = "❌ " + error.localizedDescription
+                    self?.preflight = updatedPreflight
+                    if case InstallerError.userCancelled = error {
+                        self?.phase = .idle
+                        self?.statusText = Self.failureText(for: error)
+                    } else {
+                        self?.phase = .failure
+                        self?.statusText = Self.failureText(for: error)
+                    }
                 }
             }
         }
@@ -100,68 +129,198 @@ struct ContentView: View {
     @StateObject private var model = InstallerViewModel()
 
     var body: some View {
-        VStack(spacing: 18) {
-            Text("猫头鹰输入法")
-                .font(.system(size: 28, weight: .bold))
-
-            Text("安装或更新猫头鹰输入法：输入管理员密码 → 弹出「允许启用输入法」对话框时点「允许」→ 在右上角输入法菜单选择「猫头鹰」。新打开的应用立即可用；已打开的应用请重新打开。")
-                .font(.system(size: 13))
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-
-            // 隐私说明：接住 macOS「可访问你键入的任何内容」这一系统安全框——那段文案 Apple 写死、
-            // 对所有第三方输入法统一显示，App 无法改写或免除。此处如实说明猫头鹰如何处理数据，措辞须与代码
-            // 一致（开源可审计，见 sources/Lane/*、Owltype.entitlements）：基础输入本地；AI 为 default-off
-            // 的可选功能（OwlAIPage「default-off Smart/Cloud lanes」），用用户自备 Key 直连服务商，
-            // 猫头鹰自身无中转服务器。切勿写成「不访问任何数据」——启用 AI 后确有文本发往所选服务商。
-            Text("基础输入在本机完成、不联网。AI 为可选功能，需你自行填入大模型 API Key；启用后，相关文本会直接从本机发送给你选择的服务商（如 DeepSeek），猫头鹰没有自己的服务器、不中转、也不留存你的数据。代码完全开源，可自行审计。")
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if model.isBusy {
-                ProgressView()
-                    .controlSize(.small)
+        Group {
+            if case .completed(let summary) = model.phase {
+                completionStepView(summary)
+            } else {
+                mainStepView
             }
+        }
+        .padding(32)
+        .frame(width: 520, height: 470)
+        .onAppear {
+            model.refreshPreflight()
+        }
+        .confirmationDialog(
+            "选择卸载方式",
+            isPresented: $model.showUninstallConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("卸载但保留个人词库与设置") {
+                model.uninstall(keepUserData: true)
+            }
+            Button("彻底卸载并清空全部词库与配置", role: .destructive) {
+                model.uninstall(keepUserData: false)
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("卸载只会清理猫头鹰自有文件与系统注册记录，绝不触碰 Squirrel、~/Library/Rime 或其他输入法。")
+        }
+    }
+
+    private var mainStepView: some View {
+        VStack(spacing: 16) {
+            VStack(spacing: 6) {
+                Image(nsImage: NSImage(named: NSImage.applicationIconName) ?? NSImage())
+                    .resizable()
+                    .frame(width: 56, height: 56)
+
+                Text("猫头鹰输入法")
+                    .font(.system(size: 24, weight: .bold))
+
+                Text(model.preflight.statusHeadline)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            if let warning = model.preflight.anomalyWarning {
+                Text("⚠️ " + warning)
+                    .font(.system(size: 11.5))
+                    .foregroundColor(.orange)
+                    .multilineTextAlignment(.leading)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.orange.opacity(0.10))
+                    .cornerRadius(8)
+            }
+
+            Text("基础输入在本机完成、不联网。AI 为默认关闭的可选功能，需自行填入大模型 API Key；启用后相关文本直接发往所选服务商，猫头鹰无自建服务器、不中转也不留存数据。")
+                .font(.system(size: 11.5))
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                model.install()
+            } label: {
+                HStack(spacing: 8) {
+                    if model.isBusy {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                    Text(model.preflight.primaryButtonTitle)
+                        .font(.system(size: 15, weight: .semibold))
+                }
+                .frame(minWidth: 200, minHeight: 28)
+            }
+            .buttonStyle(.borderedProminent)
+            .keyboardShortcut(.defaultAction)
+            .controlSize(.large)
+            .disabled(model.isBusy)
 
             Text(model.statusText)
                 .font(.system(size: 12))
                 .foregroundColor(statusColor)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity, minHeight: 48, alignment: .top)
+                .frame(maxWidth: .infinity, minHeight: 36, alignment: .top)
                 .fixedSize(horizontal: false, vertical: true)
 
-            HStack(spacing: 16) {
-                Button {
-                    model.install()
-                } label: {
-                    Text("安装").frame(minWidth: 100)
-                }
-                .keyboardShortcut(.defaultAction)
-                .controlSize(.large)
-                .disabled(model.isBusy)
+            Divider()
 
-                Button {
-                    model.uninstall()
-                } label: {
-                    Text("卸载").frame(minWidth: 100)
+            VStack(spacing: 8) {
+                Text("维护与修复工具")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.secondary)
+
+                HStack(spacing: 12) {
+                    Button {
+                        model.repairInstall()
+                    } label: {
+                        Text("修复安装").frame(minWidth: 96)
+                    }
+                    .help("清理残留进程、杂散副本与输入法缓存后，强制重装当前安装包并重新启用（保留个人词库）")
+                    .disabled(model.isBusy)
+
+                    Button {
+                        model.clearAndRepair()
+                    } label: {
+                        Text("清空修复").frame(minWidth: 96)
+                    }
+                    .help("不删除个人词库，清理多余副本、LaunchServices 幽灵注册与系统输入法列表缓存并刷新菜单")
+                    .disabled(model.isBusy)
+
+                    Button {
+                        model.showUninstallConfirmation = true
+                    } label: {
+                        Text("彻底卸载").frame(minWidth: 96)
+                    }
+                    .help("停用输入源、结束进程并移除猫头鹰输入法，可选保留或清空个人词库")
+                    .disabled(model.isBusy)
                 }
-                .controlSize(.large)
-                .disabled(model.isBusy)
+                .controlSize(.regular)
             }
         }
-        .padding(36)
-        .frame(width: 460, height: 410)
+    }
+
+    private func completionStepView(_ summary: InstallerActivationPolicy.CompletionSummary) -> some View {
+        VStack(spacing: 20) {
+            Spacer(minLength: 8)
+
+            Image(systemName: "checkmark.circle.fill")
+                .resizable()
+                .frame(width: 52, height: 52)
+                .foregroundColor(.green)
+
+            Text(summary.title)
+                .font(.system(size: 24, weight: .bold))
+
+            Text(summary.detail)
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 12)
+
+            if summary.showsActivateButton {
+                Button {
+                    model.activateAndOpenSettings()
+                } label: {
+                    Text("切换到猫头鹰并打开设置")
+                        .font(.system(size: 14, weight: .semibold))
+                        .frame(minWidth: 220, minHeight: 26)
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .controlSize(.large)
+            }
+
+            if summary.showsSystemSettingsButton {
+                Button {
+                    model.openSystemKeyboardSettings()
+                } label: {
+                    Text("打开「系统设置 → 键盘 → 输入法」")
+                        .frame(minWidth: 220)
+                }
+                .controlSize(.regular)
+            }
+
+            Spacer(minLength: 8)
+
+            Divider()
+
+            HStack(spacing: 16) {
+                Button("返回维护面板") {
+                    model.returnToMain()
+                }
+                .controlSize(.regular)
+
+                Button("完成退出") {
+                    NSApplication.shared.terminate(nil)
+                }
+                .controlSize(.regular)
+            }
+        }
     }
 
     private var statusColor: Color {
         switch model.phase {
-        case .failure: return .red
-        case .needsLogout: return .orange
-        case .success: return .green
-        default: return .secondary
+        case .failure:
+            return .red
+        case .completed:
+            return .green
+        default:
+            return .secondary
         }
     }
 }
