@@ -4,52 +4,77 @@
 
 # 猫头鹰输入法 · Owltype
 
-**好看、好打、好用。为 AI 工作流打磨的开源 Rust 输入法。**
+**好看、好打、好用。为日常输入与 AI 工作流打磨的开源 macOS Rust 输入法。**
 
-macOS 原生界面 · 拼音 / 双拼 / 五笔 · 提示词快捷片段 · Raycast 导入
+水杉 Rust 输入引擎 · 全拼 / 双拼 / 五笔 86·98 / 中英混输 · 云端语音输入 · AI 联想与 Jev 选词 · 提示词快捷片段 · 四合一安装维护向导
 
 **深圳大学法律人工智能实训实验室**
 
+[![Latest Release: 2.4.2](https://img.shields.io/badge/release-2.4.2-brightgreen)](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg)
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)](https://responsay.com/owltype/)
-[![Apple Silicon + Intel](https://img.shields.io/badge/Apple_Silicon_%2B_Intel-Universal-grey)](#快速开始)
+[![Apple Silicon + Intel](https://img.shields.io/badge/Apple_Silicon_%2B_Intel-Universal-grey)](#立即下载与安装)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE.txt)
 
-[下载与安装](#快速开始) · [AI 工作流](#为-ai-工作流设计) · [功能](#功能) · [界面](#界面) · [项目与反馈](#项目与反馈)
+### [📥 下载最新版 2.4.2 安装镜像（Owltype-2.4.2.dmg）](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg)
 
-[输入对齐进度](progress/index.html) · [项目主页](https://responsay.com/owltype/) · [English](README.en.md)
+[立即下载与安装](#立即下载与安装) · [为 AI 工作流设计](#为-ai-工作流设计) · [核心功能](#核心功能) · [安装与故障修复](#安装与故障修复) · [从源码构建](#从源码构建) · [反馈与贡献](#项目与反馈) · [English](README.en.md)
 
 </div>
 
-猫头鹰（Owltype）是一款基于 **水杉体系 Rust 引擎** 的开源 macOS 中文输入法。用中文向 agent 描述任务，接着输入 `/` 命令、`$` skill 名称，再插入一段常用提示词——我们把这些每天反复发生的小动作，做进了输入法。
+---
 
-原生 SwiftUI 候选窗与九套学院配色，让输入看起来舒服；拼音、双拼、五笔和中英混输，让熟悉的输入习惯继续顺手。日常输入与快捷片段在本机处理，可选云端 AI 由你配置并明确触发。
+## 立即下载与安装
 
-我们已经实际使用了两三个月，并经过小范围内测，现在开放的是可以日常稳定使用的版本。**安装完成后需要注销并重新登录一次**，让 macOS 正确加载输入法。
+> **系统要求**：macOS 14.0（Sonoma）及以上 · 原生支持 Apple Silicon（M 系列）与 Intel（Universal 双架构） · 已通过 Apple Developer ID 签名与公证（Notarized）。
 
-> 🦉 **开发仓库为私有，安装包与已发布版本的对应源码仍公开提供。** [下载安装](https://responsay.com/owltype/) · [获取版本源码](https://responsay.com/owltype/source.tar.gz)
+| 下载项 | 适用场景 | 2.4.2 不可变直链 | 稳定最新别名 |
+| --- | --- | --- | --- |
+| **📥 猫头鹰安装器 DMG（推荐）** | 首次安装、版本升级、故障修复、彻底卸载（内置四合一图形化安装维护向导 `OwltypeInstaller.app`） | [**Owltype-2.4.2.dmg**](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg) | [responsay.com/owltype/Owltype.dmg](https://responsay.com/owltype/Owltype.dmg) |
+| **📦 标准安装包 PKG** | 系统标准安装器或批量部署 | [Owltype.pkg](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype.pkg) | [responsay.com/owltype/Owltype.pkg](https://responsay.com/owltype/Owltype.pkg) |
+| **🔄 覆盖更新包 PKG** | 已安装旧版时直接覆盖升级（保留词库与配置） | [Owltype-update.pkg](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-update.pkg) | [responsay.com/owltype/Owltype-update.pkg](https://responsay.com/owltype/Owltype-update.pkg) |
+| **🗂️ 对应版本源码包** | GPL-3.0 完整对应源码归档 | [Owltype-macOS-2.4.2-source.tar.gz](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-macOS-2.4.2-source.tar.gz) | [responsay.com/owltype/source.tar.gz](https://responsay.com/owltype/source.tar.gz) |
+
+- **校验与构建溯源**：[SHA-256 校验清单](https://downloads.responsay.com/owltype/releases/2.4.2/OWLTYPE-FILE-MANIFEST.sha256) · [SPDX SBOM](https://downloads.responsay.com/owltype/releases/2.4.2/OWLTYPE-SBOM.spdx.json) · [构建溯源 Provenance](https://downloads.responsay.com/owltype/releases/2.4.2/OWLTYPE-APP-PROVENANCE.txt) · [最新发布元数据 `latest.json`](https://downloads.responsay.com/owltype/latest.json)
+- **应用内自动更新**：已安装 `2.0.10` 及以上版本的用户，可直接在输入法菜单「关于 → 检查更新」升级（Sparkle 更新源：`https://downloads.responsay.com/owltype/v3/appcast.xml`）。
+
+### 三步上手测试
+
+1. 下载并打开 [**Owltype-2.4.2.dmg**](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg)，双击运行「**猫头鹰安装器**」，点击「**安装输入法**」并完成 macOS 管理员授权。
+2. 安装器会自动将输入法落盘至 `/Library/Input Methods/Owltype.app` 并在当前登录会话直接完成注册与激活。若系统提示启用，按安装器向导第 2 步点击「打开系统设置 → 键盘 → 输入法」勾选「**猫头鹰**」，向导检测到启用后会自动跳转完成页。
+3. 打开猫头鹰设置页：在「**键盘输入**」选择拼音、双拼或五笔方案并确认准备随包内置的完整词库；日常打字完全在本机运行，需要语音转写或 AI 辅助时再到「**AI**」页面配置任一供应商密钥即可。
 
 ![猫头鹰候选窗](docs/screenshots/candidates.png)
 
+---
+
+## 产品简介
+
+猫头鹰（Owltype）是一款基于 **水杉体系 Rust 引擎**（`owl-msime-ffi` + `owl-app-core`）构建的开源 macOS 中文输入法。用中文向 Agent 描述任务，接着输入 `/` 命令、`$` 技能名，插入一段带参数的常用提示词，或者按住快捷键说一段话自动转写润色上屏——我们把日常打字与 AI 协作中高频发生的动作放进了输入法。
+
+原生 SwiftUI 候选窗、同配色浮动输入状态栏与九套学院风配色兼顾视觉与响应速度；全拼、双拼、五笔 86/98 和中英混输延续熟悉的输入手感。日常按键、组字、词库与快捷片段均在本机处理，云端语音与 AI 能力默认关闭，由你按需配置并掌控触发边界。
+
+---
+
 ## 为 AI 工作流设计
 
-在 Codex、Claude Code 等 agent 与日常写作之间切换，输入法也应该懂这些小习惯。
+在 Codex、Claude Code、终端、编辑器与日常文档之间切换时，输入法针对高频细节做了专门优化：
 
-| 你正在做的事 | 猫头鹰的小设计 |
+| 你正在做的事 | 猫头鹰的设计 |
 | --- | --- |
-| 中文聊完需求，接着输入 `/` 命令 | 默认按 `/` 提交当前中文候选、切到英文并输出半角 `/`，继续输入命令；也可在设置中改回符号选单。 |
-| 在 Codex 中输入 `$` skill 名称 | `Shift + 4` 的货币候选把半角 `$` 放在第一位，人民币符号 `¥` 仍可选。 |
-| 在编辑器、终端和聊天窗口之间切换 | 按应用记忆中英文状态，也可指定应用默认英文；支持中文下使用英文标点与可选的中英间距。 |
-| 反复给 agent 写同一套要求 | 把长提示词保存为快捷片段，按标题、正文、标签或触发词搜索，或通过候选确认插入。 |
-| 同一提示词，每次换任务、语言和材料 | 动态模板支持参数填空、默认值、选项、剪贴板、日期时间及光标位置；先预览，再插入。 |
-| 希望少开一次面板 | 开启自动展开后，用 `;;` 开头的触发词立即展开，或在分隔符后展开；可按应用禁用。 |
-| 已经在 Raycast 积累了 Snippets | 导入 Raycast 基础 JSON，逐项预览、处理重复项和触发词冲突，把现有片段带进输入法。 |
-| 需求还没想清楚就准备发给 AI | 划词调用「提示词优化」或「任务书」，整理目标、约束与缺失信息，再决定如何使用。 |
+| 中文聊完需求，接着输入 `/` 命令 | 默认按 `/` 提交当前中文候选、切到英文并输出半角 `/`，直接继续输入命令；也可在设置中改回符号选单。 |
+| 在终端或 Agent 中输入 `$` 名称 | `Shift + 4` 的货币候选把半角 `$` 放在首位，人民币符号 `¥` 仍可选。 |
+| 在空组字下快速呼出 AI 写作面板 | 连续键入 `/ai` 或按 `⇧K` 直接呼出 AI 写作与对话面板，而连续输入 `//` 会原样保留斜杠，不误吞路径或注释。 |
+| 在编辑器、终端和聊天窗口之间切换 | 按应用记忆中英文状态，支持配置指定应用默认英文、中文模式下使用英文标点，以及可选的中英自动间距。 |
+| 反复给 Agent 发送同一套提示词结构 | 把长提示词保存为快捷片段，支持参数填空 `{argument}`、默认值、剪贴板 `{clipboard}`、日期时间与光标定位 `{cursor}`，先预览再插入。 |
+| 希望不打开面板直接展开模板 | 开启自动展开后，输入 `;;` 开头的触发词立即展开（或输入大写 `K` + 触发词通过候选确认插入），支持按应用禁用。 |
+| 已经在 Raycast 积累了 Snippets | 支持导入 Raycast JSON，逐项预览、自动转换动态字段并处理重复项与触发词冲突。 |
+| 让本地 Agent 安全调用输入法能力 | 内置受控本地 Agent 桥接与 `owl-agent-mcp`（默认关闭），开启后校验对端签名并提供模板查询与文本预览投递。 |
 
 ![提示词快捷片段与 Raycast 导入](docs/screenshots/prompt-snippets.jpg)
 
-### 把提示词变成随手可用的模板
+### 把提示词变成随手可用的参数模板
 
-例如，在「快捷片段」新建一个模板，把触发词设为 `;;review`，选择自动展开，并开启「自动展开设置」：
+在「快捷片段」中新建模板，将触发词设为 `;;review` 并开启自动展开：
 
 ```text
 请审阅以下改动，重点关注 {argument name="关注点" default="正确性与边界条件"}。
@@ -58,170 +83,164 @@ macOS 原生界面 · 拼音 / 双拼 / 五笔 · 提示词快捷片段 · Rayca
 {clipboard}
 ```
 
-复制待审阅内容后，在支持的输入框中输入 `;;review`，填写或确认参数，预览后插入。模板也可保存为仅搜索或候选确认调用；候选确认时先输入大写 `K`，再输入完整触发词（如 `Kreview`），普通拼音不会混入模板。`{cursor}` 可指定插入后的光标位置，宿主无法安全定位时会提供降级提示。
+复制待审阅代码后，在输入框键入 `;;review`，确认或修改参数即可预览并插入。模板也支持仅搜索或通过大写 `K` 前缀（如 `Kreview`）候选确认调用，普通拼音输入不会混入模板候选。
 
-**与 Raycast 配合：** 在「快捷片段 → 导入 Raycast JSON…」选择导出文件。支持的动态字段会按模板解析，不支持或有歧义的字段保留待处理，可修正后启用，或明确转为普通文本。这是本地导入，不是双向同步；两个工具中相同的自动触发词应只交给一方处理。自动展开仅在猫头鹰激活时工作，不会替你发送聊天消息。
+---
 
-## 功能
+## 核心功能
 
-### ⌨️ 用熟悉的方式输入
+### 1. 水杉 Rust 输入引擎与随包完整词库
 
-全拼、小鹤双拼、极点五笔 86，以及简入繁出。候选数量、字体、横竖排、中英文初始状态和应用初始英文规则，都能在「键盘输入」与「候选窗设置」中调整。Rust 引擎在本机维护用户词频与学习数据。
+- **多方案与混输支持**：内置全拼、小鹤双拼等双拼方案、极点五笔 86、五笔 98、拼音五笔混输、英文输入与中英混输，支持简入繁出。
+- **随包完整 SQLite 词库与语义重排**：App 随包内置固定版本（`dict-v2.0.39`）的完整 SQLite 词库资源（拼音、五笔 86/98、英文、Emoji 与颜文字）以及双端语义重排模型（`keyboard-model.bin` 键盘同步重排与 `settled-model.bin` 停顿重排）。在首次引导或设置中确认后即可在本机事务化准备启用，跨版本升级自动回放保留个人学习词频与置顶词（默认 `⌃⇧P` 置顶）。
+- **横向四标签键盘设置与候选定制**：「键盘输入」设置采用顶部横向四标签栏（`方案与状态` / `拼音设置` / `五笔设置` / `标点与习惯`）；默认竖排 4 候选、默认关闭五笔编码提示（可在「五笔设置」一键开启），候选方向、数量、字体与配色即时生效。
 
-App 内置可独立启动的引擎与基础种子词库；完整词库通过应用从上游下载。首次下载需要网络，下载后的日常输入在本地运行。
+### 2. 云端语音输入（Voice ASR）与非激活语音胶囊
 
-### ✨ 选中文字，就地处理
+- **三种录音手势与非激活胶囊 HUD**：支持「按住说话」「单击切换」「空格免提锁定」三种录音方式，16kHz 单声道内存 WAV 直传云端识别接口；悬浮非激活语音胶囊实时展示声波振幅与转写状态，全程不抢占当前输入框焦点。
+- **5 大云端 ASR 预设与热词自动注入**：内置 **xAI Grok、通义千问 Qwen ASR、豆包语音识别、OpenAI Audio、Google Gemini Audio** 五套预设；录音时自动从用户置顶词、自定义短语与高频自学习词中提取个人热词（UTF-8 800B 预算），连同组字前上文注入识别提示，提升专有名词与中英混输识别准确率。
+- **DeepSeek 语音后处理润色**：转写完成后可选经过 DeepSeek 非思考模式自动去除口水词、修正同音错字并补全标点；设有 4.0 秒硬超时与按录音代次隔离机制，网络异常或超时时无感降级直接上屏原始转写文本。
 
-「划词工具箱」提供八项功能，可分别启用。需要先开启云端 AI、配置供应商，并为读取选区授予所需的系统权限。
+### 3. AI 联想、Jev 选词与 AI 写作辅助
+
+- **云端生成式「AI 联想」**：单独开启后，打字停顿（300ms）时结合宿主组字前有界 UTF-16 上文与当前输入码，在候选窗首页末位异步追加带 `[AI]` 徽标的云端联想词条，继续打字时自动取消陈旧请求。
+- **判别式「Jev 选词」**：打字停顿后基于上文语义，从当前本地候选列表中智能挑选最匹配词条提权至首位并挂载 `[Jev]` 徽标；严格限定在本地词表集合内选择，零词表外幻觉。
+- **AI 写作面板与双候选多风格润色**：支持通过 `⇧K`、状态菜单或 `/ai` 呼出；内置「润色」（保持原意、更正式、更精简、扩写润色 4 种风格双候选对照，含字数变化徽标与 `[1]`/`[2]` 快捷键一键上屏）与 6 类场景「快捷回复」模板，通过「IMK 直插 → AX 选区写回 → 剪贴板粘贴回退」三级链路可靠写回宿主应用。
+- **Kotone 选区回复建议（v1 契约）**：可选接入本地 Kotone 服务（见 [接入说明](docs/operations/jev-replies.md)），围绕选中文本给出判断与多条风格回复候选，支持非阻塞单调截止取消、生成中修改要求与显式复制，仅展示不自动填充或发送。
+
+### 4. 选中文字就地处理（划词工具箱）
+
+开启云端 AI 并授予辅助功能选区读取权限后，「划词工具箱」提供 8 项可独立开关的选区动作：
 
 | 功能 | 用途 |
 | --- | --- |
-| 任意提问 | 围绕选中文字下指令、追问；配置搜索后可先检索再作答。 |
-| 润色 | 改善表达，在预览后决定是否替换原文。 |
-| 翻译 | 翻译选中的文本。 |
-| 来源核验 | 从选区提取法条、案例、文献等线索，提供来源与检索入口。 |
-| 辅助检索 | 整理检索思路、关键词与查询线索。 |
-| 提示词优化 | 将提示词整理成更清楚的目标、约束与结构。 |
-| 任务书 | 将模糊需求整理为可执行任务，标出缺失信息。 |
-| 规范排版 | 整理中文空格、标点与段落，在预览后确认替换。 |
+| **任意提问** | 围绕选中文字下指令或追问；开启联网搜索后先检索网页再带引用作答。 |
+| **润色** | 改善选中文本表达，预览确认后替换原文。 |
+| **翻译** | 翻译选中的中外文段落。 |
+| **来源核验** | 提取选区中的法条、案例、文献线索，提供国家法律法规数据库、北大法宝、裁判文书网、人民法院案例库、知网等分组检索入口，并支持火山方舟 / DeepSeek 联网核验。 |
+| **辅助检索** | 整理检索思路、关键词组合与查询线索。 |
+| **提示词优化** | 将草稿提示词整理为目标、约束与输出结构清晰的提示词。 |
+| **任务书** | 将模糊需求拆解为可执行任务书，标出缺失前提。 |
+| **规范排版** | 整理中文空格、标点与段落格式，预览后确认替换。 |
 
-来源核验提供法规、案例、文献等分组入口，包括国家法律法规数据库、北大法宝、裁判文书网、人民法院案例库、知网等。联网核验用豆包搜索和 DeepSeek 搜索接口取回网页，对照判断并标注来源；需要在 设置 → AI 填写豆包搜索的 API Key，或配置 DeepSeek 供应商。检索入口与 AI 回答供你查阅原文，不等于已经取得数据库全文或完成事实核验。
+### 5. 三卡片 AI 设置与供应商密钥复用
 
-### 🔌 模型与搜索分别配置
+「AI」设置页收敛为三张清晰卡片，只用普通打字时无需配置任何密钥：
 
-内置阿里云百炼、豆包、DeepSeek、MiniMax 等供应商预设，也可配置 OpenAI 兼容服务。按账户填写端点、模型与密钥，并通过连通性测试检查配置。
+1. **模型供应商（配一个就行）**：内置 **通义千问（Qwen）、豆包（Doubao）、xAI Grok、OpenAI、Google Gemini、DeepSeek** 六大核心预设（每行标注 `LLM · 语音识别`、`LLM · 联网搜索 · 语音润色` 等能力徽标），同时保留自定义 OpenAI 兼容端点接入与连通性测试。
+2. **语音输入 · 云端语音识别**：一键切换 5 套云端 ASR 预设；当上方已配置同厂商模型供应商密钥时**自动复用**（显示「已复用供应商密钥」），也支持单独保存或清除语音专属 API Key；DeepSeek 语音润色同样自动回退复用已配置的 DeepSeek 供应商密钥。
+3. **AI 能力与联网搜索**：集中管理候选词智能辅助（AI 联想 / 英文 AI 候选 / Jev 选词）、选区与写作工具（划词工具栏 / 自动朗读 / Kotone 回复建议）以及联网搜索与来源核验策略。
 
-任意提问的联网先用 DeepSeek 搜索接口取回网页，再由 `deepseek-flash` 依据结果作答，回答末尾列出引用的网页：配好 DeepSeek 供应商即可，与默认作答供应商无关。MiniMax 使用国内站（api.minimax.cn）的 M3.1-Flash 正式版，思考深度可调、不能关闭。
+### 6. 九套学院配色与浮动状态栏
 
-### 📋 常用内容随手可取
+内置九套学院风主题配色，支持浅色、深色与跟随系统外观；提供与当前候选窗皮肤一致的浮动输入状态栏（中英、全半角、繁简与方案指示），以及剪贴板历史、表情与符号面板。
 
-快捷片段把普通短语与长提示词放在同一处，提供「全部／提示词」筛选。剪贴板、表情与符号面板补齐日常输入；常用入口的快捷键集中在「快捷键设置」，不必修改配置文件。
-
-### 🎨 原生设置与学院配色
-
-九套学院风配色，支持浅色、深色与跟随系统。字体、布局、候选样式和动画可调整；皮肤选择即时生效。设置中还提供词库管理、同步目录、诊断与维护入口。
-
-## 快速开始
-
-**macOS 14 及以上 · Apple Silicon / Intel**
-
-1. 从[官网下载安装器 DMG](https://responsay.com/owltype/Owltype.dmg)，打开其中的「猫头鹰安装器」，点击「安装」。macOS 可能请求管理员授权。
-2. **安装完成后注销并重新登录一次。** 若系统询问是否允许启用输入法，选择允许；随后在系统输入法菜单中选择「猫头鹰」。若未出现，检查「系统设置 → 键盘 → 输入法」。
-3. 在猫头鹰设置的「键盘输入」中选择方案，按引导准备词库，然后在新打开的文本应用中试打。
-4. 需要 AI 时，再到「AI 配置」添加供应商，在「划词工具箱」启用所需功能。只用普通输入法无需配置模型。
-
-**安装后打不出字？** 确认已注销并重新登录，再重新打开宿主应用，并检查系统输入法菜单是否选中了「猫头鹰」。
-
-**更新：** 2.0.10 起在「关于 → 检查更新」获取后续版本，更新源为 `https://downloads.responsay.com/owltype/v3/appcast.xml`。旧版需先手动安装一次 2.0.10 或更新版本。[直接下载更新包](https://responsay.com/owltype/Owltype-update.pkg)。
-
-**卸载：** 打开「猫头鹰安装器」选择「卸载」。卸载会清理猫头鹰的用户数据；需要保留个人词库或配置时先备份。
-
-## 界面
-
-设置截图来自 2.0.12 的隔离演示窗口，使用示例数据；候选窗为实际输入截图。具体控件以安装版本为准。
-
-| 皮肤外观 | 键盘输入 |
+| 皮肤外观 | 键盘输入设置 |
 | --- | --- |
 | ![皮肤外观](docs/screenshots/skins.jpg) | ![键盘输入设置](docs/screenshots/keyboard-settings.jpg) |
 
 <details>
-<summary>查看另一套候选窗配色</summary>
+<summary>查看香槟橙（燃橙）配色候选窗预览</summary>
 
 ![香槟橙（燃橙）皮肤下的候选窗](docs/screenshots/candidates-flame.png)
 
 </details>
 
-## 最近更新
+---
 
-**2.0.12 · 本仓库版本**
+## 安装与故障修复
 
-- **设置生效流程**：集中保存、编译与会话刷新，保留输入中的组字。
-- **划词改写**：统一确认、取消和回填流程，取消后的结果不会继续预览或回填。
-- **快捷片段筛选**：改用主题适配的中性底色与选中块，保留「全部／提示词」切换。
+`Owltype-2.4.2.dmg` 内置独立的图形化安装维护器 **「猫头鹰安装器」（`OwltypeInstaller.app`）**。除了首次安装与版本升级外，打开安装器底部的「**故障修复与彻底卸载**」抽屉即可随时执行维护操作：
 
-**2.0.11**
+| 模式 | 作用与适用场景 | 用户数据（词库与配置） |
+| --- | --- | --- |
+| **安装 / 更新输入法** | 将随包 `Owltype.app` 提权安装至 `/Library/Input Methods/Owltype.app`，非阻塞收敛当前 IMK/TIS 会话并按状态引导启用。 | 完整保留 |
+| **修复安装（保留词库与配置）** | 覆盖更新后遇到系统输入法列表未刷新、候选不显示或进程卡死时，重装应用并重新注册 LaunchServices / InputMethodKit 会话。 | 完整保留 |
+| **清空修复（备份数据后重建）** | 先将个人词库、Rime/水杉用户目录与偏好设置完整备份至 `~/Library/Application Support/Owltype-Backups/<时间戳>/`，再清空运行态目录并全新重装。 | 自动备份至 `Owltype-Backups` 后重置 |
+| **彻底卸载** | 从系统移除 `/Library/Input Methods/Owltype.app`、终止残留进程并注销输入源；可选择保留用户数据、备份后清理或直接彻底清理。 | 可选保留 / 备份后清理 / 彻底删除 |
 
-- **拼音中英混输**：修复完整词库下载或升级后，英文及中英混合候选通道没有接入的问题。
-- **按应用记忆中英文**：返回应用时恢复上次选择，可管理和清除单个应用的记忆。
-- **候选词置顶**：完整全拼候选支持置顶与取消，默认快捷键为 Control Shift P，并提供右键入口。
-- **引导真实试打**：在原生输入框中完成「你好，猫头鹰」，核验组字与提交；粘贴不计入。
-- **安装与介绍**：安装器选择本机实际可用的系统英文键盘；关于页只保留实验室署名，更新中英文项目介绍。
+**安装或升级后暂时打不出字？**
+1. 先确认系统菜单栏输入法图标已切换为「猫头鹰」，并重新打开一次当前打字的目标应用窗口。
+2. 若仍未响应，打开 `Owltype-2.4.2.dmg` 中的「猫头鹰安装器」，展开底部抽屉点击「**修复安装**」；仅在 macOS `imklaunchagent` 仍持有旧进程句柄未释放时，按提示注销并重新登录一次即可恢复。
 
-<details>
-<summary>验收范围与上一版更新</summary>
+---
 
-中英混输及快捷置顶已有 TextEdit 实测；右键菜单、跨应用 Shift 切换和完整引导试打尚未完成实机验收。历史验收与当前 Rust 自动检查的覆盖边界分别记录，详见[设计与验收记录](docs/input-habits-design.md)。
+## 最近更新（2.4.2）
 
-**2.0.10（2026-10-01）** 新增 MiniMax M3.1 档案与国内站订阅搜索，并恢复更新通道。2.0.9 及更早版本需要手动安装一次 2.0.10 或更新版本，之后使用 App 内更新。
+完整变更历史见 [CHANGELOG.md](CHANGELOG.md)。
 
-</details>
+### 2.4.2（2026-11-08）
+- **四合一安装与维护向导（`OwltypeInstaller.app`）**：重构为仿微信输入法两步极简向导 + 底部维护抽屉，集成「安装 / 更新输入法」「修复安装（保留词库与配置）」「清空修复（备份用户数据后重建）」「彻底卸载」四项能力，并按 TIS 注册与启用状态精准分流引导文案。（#411）
+- **非阻塞式安装落盘与 IMK 会话收敛**：移除覆盖安装前的 45 秒 `lsof` 阻塞式自检门禁，避免已落盘文件因后台句柄占用误报「安装失败」；补充 TIS 父级输入源递归注册与 macOS 14+ `TISSelectInputSource` 焦点窗口辅助激活。（#411）
+- **键盘设置横向四标签栏与默认体验对齐**：五笔编码提示关闭语义对齐水杉 `#10790` 并默认关闭；候选窗默认改为竖排 4 候选；键盘设置页底部折叠「高级」手风琴升级为顶部横向四标签栏（`方案与状态` / `拼音设置` / `五笔设置` / `标点与习惯`）。（#410）
+- **Kotone 回复决策契约校验**：对含 `contract` 字段的响应严格校验场景、整数版本、请求/来源与构建字段，兼容旧服务并冻结 12 组回归样例。（#409）
+
+### 2.4.1（2026-11-03）
+- **三卡片 AI 设置与 5 供应商云端语音识别（ASR）**：整合通义千问、豆包、xAI Grok、OpenAI、Google Gemini、DeepSeek 六大核心供应商预设与五套云端 ASR 预设，支持语音识别与润色自动复用同厂商模型密钥。（#404）
+- **语音代次隔离、上文边界与 `/ai` 指令修复**：按录音代次隔离已取消的陈旧语音回调，修复连续 `//` 斜杠保留、组合键缓冲刷新及 AI 候选有界 UTF-16 上文计算。（#401, #402）
+
+### 2.4.0（2026-11-03）
+- **AI 联想与 Jev 选词**：新增停顿触发的云端生成式 `[AI]` 联想候选与本地词表内判别式 `[Jev]` 语义提权。（#392, #395）
+- **语音输入与个人热词注入**：新增非激活语音胶囊 HUD、三种录音手势、个人词库热词自动提取注入与 DeepSeek 语音后处理润色。（#393, #396, #398）
+- **AI 写作面板与双候选多风格润色**：新增 `/ai` 与 `⇧K` 呼出、4 种风格双候选对照润色、6 类快捷回复模板与一键上屏写回链路。（#394, #397）
+
+---
 
 ## 隐私边界
 
-- **输入留在本机**：按键、组字、候选生成与词库处理不自动上传。
-- **云端 AI 默认关闭**：开启后，也只在你明确触发功能时请求模型或搜索服务。
-- **只处理明确提交的内容**：请求可包含主动提交的问题、明确选中的文本及当前对话历史；不自动附带屏幕、窗口、浏览器信息、选区之外的正文或光标前后文本。
-- **密钥保存在 Keychain**：不写入普通配置文件。更新与词库下载属于网络请求，不携带输入内容。
+- **日常打字完全留在本机**：按键、组字、候选排序、词库管理与快捷片段展开均在本机完成，不自动上传任何输入内容。
+- **云端 AI 与语音默认关闭**：仅在你主动开启并触发语音录音、划词工具、AI 写作面板，或单独勾选可选的「AI 候选（AI 联想 / Jev 选词）」时，才会向你所配置的供应商发起请求。
+- **严格的上下文边界**：划词与写作请求仅包含你主动提交的指令、明确选中的文本及当前面板对话记录；开启「AI 候选」或「语音热词」时仅附带当前组字编码、组字前有界上文（UTF-16 预算截断）与本地高频热词，绝不采集屏幕截图、无关窗口或浏览器历史。
+- **密钥存入系统 Keychain**：所有供应商与语音 API Key 均存储在 macOS Keychain 中，不写入明文配置文件。
 
-详见 [PRIVACY.md](PRIVACY.md)。安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。
+详见 [PRIVACY.md](PRIVACY.md)。如发现安全问题，请按 [SECURITY.md](SECURITY.md) 指引报告。
 
-## 项目与反馈
-
-**深圳大学法律人工智能实训实验室**。
-
-- [项目主页与公开下载](https://responsay.com/owltype/) · [每版对应源码](https://responsay.com/owltype/source.tar.gz)
-- [维护者工单](https://github.com/semantic-craft/owltype-macos/issues)：仅已获仓库访问权限的协作者可使用 Issue 和 Pull Request。反馈请说明应用版本、macOS 版本、宿主应用与复现步骤。目前未配置面向未授权用户的公开反馈入口。
-- [Windows 版](https://github.com/semantic-craft/owltype-win)：独立维护，版本、功能与发布资产不与 macOS 版自动同步。
-
-GitHub 是 macOS 版的私有开发仓库，供获授权的协作者管理产品、工单与代码评审；安装包、更新源与对应源码由官网公开分发。仓库访问权限不改变已分发版本的 GPL-3.0 许可。仓库历史从 1.4.22 源码快照开始，1.4.21 及更早公开版本已停止分发与支持。
+---
 
 ## 从源码构建
 
-需要 Xcode 26+ 与 macOS 14+。没有仓库访问权限时，从[版本源码下载入口](https://responsay.com/owltype/source.tar.gz)获取已发布版本，解压后按包内构建说明操作。以下克隆与 Git hook 命令仅供获授权的仓库协作者使用：
+需要 **macOS 14.0+**、**Xcode 26+** 与 **Rust stable 工具链**。也可直接从 [版本源码下载入口](https://responsay.com/owltype/source.tar.gz) 获取与发布二进制完全对应的源码归档。
 
 ```sh
 git clone https://github.com/semantic-craft/owltype-macos.git
 cd owltype-macos
 git submodule update --init --recursive
 make setup-dev
-make deps
+make bootstrap
+make owl-seed
 make release
 ```
 
-`make setup-dev` 为当前 checkout 启用仓库自带的 pre-push 门禁。推送前会阻止密钥文件、
-个人主目录绝对路径、已废弃的私有仓 remote、非 GitHub noreply 提交身份与 secret scanner 命中。
-请把本仓库的 Git email 配置为 GitHub 提供的 noreply 地址；本地密钥使用 Keychain 或
-被 `.gitignore` 排除的环境文件保存，不要把 AI 会话、调试日志或本机配置加入 Git。
+- `make setup-dev`：为当前工作区启用 `.githooks` 预推送门禁（自动检查私钥文件、本机个人目录绝对路径、提交邮箱与 TruffleHog / Gitleaks 秘密扫描）。
+- `make bootstrap`：拉取并校验固定版本的 Sparkle 源码，编译带输入法重激活补丁的 `Sparkle.framework`。
+- `make owl-seed`：组装清洁室基础词库种子（`scripts/owl-seed.sh`）、校验并准备固定版本的水杉 SQLite 词库资源（`dict-v2.0.39`）与双端重排模型（`resources/rerank-models.lock.json`）。
+- `make release`：编译 Rust FFI 静态库（`owl-msime-ffi`、`owl-app-ffi`）与 `owltype-mcp` 辅助程序，并构建 Universal（`arm64` + `x86_64`）Release 版 `Owltype.app`。
+- **开发态本机安装与验证**：日常开发自测请使用 `bash scripts/install-dev.sh`（使用固定开发签名避免覆盖公证版 Keychain 信任链）；合并门禁请运行 `bash scripts/gate.sh`，清理构建产物与残留 LaunchServices 注册请运行 `bash scripts/clean-dev.sh --apply`。详见 [贡献指南 CONTRIBUTING.md](CONTRIBUTING.md) 与 [安装运维说明](docs/operations/installation.md)。
 
-公开构建使用清洁室词库种子（`scripts/owl-seed.sh`）：只包含授权链可审计的输入，
-生成的词表限定在《通用规范汉字表》8105 字内。完整词库由 App 首启时从上游原仓库拉取，
-猫头鹰自身不再分发那批数据。种子的逐项来源见构建产物里的 OWLTYPE-SEED-SOURCES.md。
+---
 
-签名、公证与打包由 `scripts/release.sh` 处理；验证完成后由
-`scripts/owl_distribution.py --publish` 将完整 cohort 发布到 responsay.com。本项目没有托管
-CI：合并前的门禁由开发机上的 `scripts/gate.sh` 执行，详见
-[docs/operations/ci.md](docs/operations/ci.md)。
+## 项目与反馈
 
-## 来源与许可
+本项目由 **深圳大学法律人工智能实训实验室** 研发与维护。欢迎下载测试并提交问题反馈：
 
-本项目以 **GPL-3.0** 发布，许可证全文见 [LICENSE.txt](LICENSE.txt)。猫头鹰的 macOS 前端历史上
-派生自 [RIME 鼠须管（Squirrel）](https://github.com/rime/squirrel) 与
-[librime](https://github.com/rime/librime)；自 2.1.0 起输入核心改为水杉 msime Rust 引擎，
-公开 App 不再打包或动态链接 librime。基于本项目分发二进制时，必须同时提供
-对应的修改源码、GPL-3.0 许可证文本与版权声明，不得作为闭源制品分发。
-每个二进制版本的完整对应源码可从[官网固定入口](https://responsay.com/owltype/source.tar.gz)取得；
-欢迎依 GPL 使用、修改和再分发源码；开发分支与已发布二进制可能处于不同版本。
+- **安装包与源码下载**：[项目主页与下载中心](https://responsay.com/owltype/) · [直接下载 Owltype-2.4.2.dmg](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg) · [获取对应版本源码](https://responsay.com/owltype/source.tar.gz)
+- **问题反馈与功能建议**：[GitHub Issues](https://github.com/semantic-craft/owltype-macos/issues)。提交测试反馈时，请注明 **猫头鹰版本号（如 2.4.2）**、**macOS 版本与芯片型号**、**出现问题的宿主应用** 以及 **复现步骤**。
+- **项目进度看板**：[输入对齐与交付进度页](progress/index.html)
+- **Windows 版**：[semantic-craft/owltype-win](https://github.com/semantic-craft/owltype-win)（独立仓库维护，版本号与发布资产不与 macOS 版自动同步）。
 
-完整来源脉络见 [PROVENANCE.md](PROVENANCE.md)，第三方组件许可见
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+---
 
-## 致谢
+## 来源与开源许可
 
-- [水杉输入法（Metasequoia IME）](https://github.com/metasequoiaime/msime)——Rust 输入引擎与运行时
-- [RIME / 中州韻输入法引擎](https://rime.im)——历史前端与方案生态
+本项目以 **GPL-3.0** 许可证开源发布，全文见 [LICENSE.txt](LICENSE.txt)。
+
+猫头鹰 macOS 前端早期派生自 [RIME 鼠须管（Squirrel）](https://github.com/rime/squirrel) 与 [librime](https://github.com/rime/librime)；自 `2.1.0` 起输入引擎切换为 [水杉输入法（Metasequoia IME）](https://github.com/metasequoiaime/msime) Rust 引擎（当前固定上游引擎基线 `macos-v0.55.0`、词库基线 `dict-v2.0.39`），公开分发的 App 不再打包或链接 `librime`。基于本项目修改或再分发二进制时，必须同时提供对应的完整修改源码、GPL-3.0 许可证文本与版权声明，不得作为闭源产品分发。
+
+完整来源脉络见 [PROVENANCE.md](PROVENANCE.md)，第三方组件与词库授权说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+### 致谢
+
+- [水杉输入法（Metasequoia IME）](https://github.com/metasequoiaime/msime)：Rust 输入引擎、词库与语言模型生态
+- [RIME / 中州韻输入法引擎](https://rime.im)：历史前端与方案生态
 - [雾凇拼音 rime-ice](https://github.com/iDvel/rime-ice)
 - [极点五笔 86](https://github.com/KyleBing/rime-wubi86-jidian)
-
-### Kotone 回复建议
-
-可选的本地回复服务接入：选区 → 判断与多条风格候选，仅展示，不填入、不发送。见 [接入与使用](docs/operations/jev-replies.md)。

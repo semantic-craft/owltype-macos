@@ -4,226 +4,181 @@
 
 # Owltype · 猫头鹰输入法
 
-**An open-source Rust input method, made for everyday typing and AI workflows.**
+**An open-source macOS Rust input method crafted for everyday typing and AI workflows.**
 
-Native macOS UI · Pinyin / Double Pinyin / Wubi · Prompt snippets · Raycast import
+MSIME Rust Engine · Pinyin / Double Pinyin / Wubi 86 & 98 / Mixed Input · Cloud Voice ASR · AI Candidates & Jev Reranking · Prompt Snippets · 4-in-1 Installer & Repair Wizard
 
 **深圳大学法律人工智能实训实验室 · Shenzhen University**
 
+[![Latest Release: 2.4.2](https://img.shields.io/badge/release-2.4.2-brightgreen)](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg)
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)](https://responsay.com/owltype/)
-[![Apple Silicon + Intel](https://img.shields.io/badge/Apple_Silicon_%2B_Intel-Universal-grey)](#get-started)
+[![Apple Silicon + Intel](https://img.shields.io/badge/Apple_Silicon_%2B_Intel-Universal-grey)](#download-and-install)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE.txt)
 
-[Get started](#get-started) · [AI workflows](#built-for-ai-workflows) · [Features](#features) · [Interface](#interface) · [Contribute](#project-and-feedback)
+### [📥 Download Owltype 2.4.2 Installer DMG (Owltype-2.4.2.dmg)](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg)
 
-[Website](https://responsay.com/owltype/) · [中文](README.md)
+[Download & Install](#download-and-install) · [AI Workflows](#built-for-ai-workflows) · [Features](#features) · [Installer & Repair](#installer-and-recovery) · [Build from Source](#build-from-source) · [Feedback](#project-and-feedback) · [中文](README.md)
 
 </div>
 
-Owltype is an **open-source Chinese input method for macOS, built on the MSIME Rust engine**. Describe a task in Chinese, type a `/` command or a `$` skill name, then insert a reusable prompt: the little steps of working with AI agents belong in the input experience.
+---
 
-Native SwiftUI candidates, nine colour palettes, familiar input schemes and mixed Chinese/English typing keep everyday writing comfortable. Typing and snippets run locally. Optional cloud AI runs only after you configure and explicitly invoke it.
+## Download and install
 
-We have used Owltype ourselves for two to three months and tested it with a small group. This is a version we use reliably for everyday work. **Log out and back in once after installation** so macOS can load the input method correctly.
+> **System requirements**: macOS 14.0 (Sonoma) or later · Universal binary for Apple Silicon and Intel Macs · Signed with Apple Developer ID and notarized by Apple.
 
-> 🦉 **The development repository is private; installers and corresponding source for released versions remain public.** [Download](https://responsay.com/owltype/) · [Get release source](https://responsay.com/owltype/source.tar.gz)
+| Package | Use case | Immutable 2.4.2 link | Stable latest alias |
+| --- | --- | --- | --- |
+| **📥 Owltype Installer DMG (Recommended)** | First-time install, upgrades, repair, and full uninstall via the built-in 4-in-1 `OwltypeInstaller.app` wizard | [**Owltype-2.4.2.dmg**](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg) | [responsay.com/owltype/Owltype.dmg](https://responsay.com/owltype/Owltype.dmg) |
+| **📦 Standard PKG Installer** | Standard macOS Installer or managed deployment | [Owltype.pkg](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype.pkg) | [responsay.com/owltype/Owltype.pkg](https://responsay.com/owltype/Owltype.pkg) |
+| **🔄 In-place Update PKG** | Direct upgrade over an existing installation while preserving user dictionaries and settings | [Owltype-update.pkg](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-update.pkg) | [responsay.com/owltype/Owltype-update.pkg](https://responsay.com/owltype/Owltype-update.pkg) |
+| **🗂️ Release Source Archive** | Complete corresponding source code under GPL-3.0 | [Owltype-macOS-2.4.2-source.tar.gz](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-macOS-2.4.2-source.tar.gz) | [responsay.com/owltype/source.tar.gz](https://responsay.com/owltype/source.tar.gz) |
+
+- **Verification and provenance**: [SHA-256 Manifest](https://downloads.responsay.com/owltype/releases/2.4.2/OWLTYPE-FILE-MANIFEST.sha256) · [SPDX SBOM](https://downloads.responsay.com/owltype/releases/2.4.2/OWLTYPE-SBOM.spdx.json) · [App Provenance](https://downloads.responsay.com/owltype/releases/2.4.2/OWLTYPE-APP-PROVENANCE.txt) · [Latest Release Metadata `latest.json`](https://downloads.responsay.com/owltype/latest.json)
+- **In-app updates**: Users on `2.0.10` or later can update directly from **About → Check for Updates** (Sparkle feed: `https://downloads.responsay.com/owltype/v3/appcast.xml`).
+
+### Quick start in 3 steps
+
+1. Download and open [**Owltype-2.4.2.dmg**](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg), launch **猫头鹰安装器** (`OwltypeInstaller.app`), and click **安装输入法** (Install). Approve the macOS administrator prompt when asked.
+2. The installer places the bundle at `/Library/Input Methods/Owltype.app` and converges your current login session without blocking. If Owltype is not yet enabled in your input menu, follow Step 2 in the wizard to enable **猫头鹰** under **System Settings → Keyboard → Input Sources**.
+3. Open Owltype Settings, select your preferred input scheme under **键盘输入** (Keyboard), and confirm local dictionary preparation. Everyday typing runs entirely on-device; configure a provider under **AI** only if you want cloud voice transcription or AI assistance.
 
 ![Owltype candidate window](docs/screenshots/candidates.png)
 
+---
+
+## Overview
+
+Owltype is an open-source Chinese input method for macOS built on the **MSIME Rust engine** (`owl-msime-ffi` + `owl-app-core`). Describe a task in Chinese, follow it with a `/` slash command or a `$` skill name, expand a parameterized prompt template, or hold a shortcut to dictate and polish speech into text. Owltype brings these everyday AI workflow actions directly into the input method.
+
+Native SwiftUI candidate windows, a skin-matched floating status bar, and nine collegiate palettes keep the interface clean and responsive. Full Pinyin, Double Pinyin, Wubi 86/98, and mixed Chinese-English input run locally on your Mac, while optional cloud voice and AI features stay off until you configure and invoke them.
+
+---
+
 ## Built for AI workflows
 
-Small details for moving between agents such as Codex and Claude Code, editors and everyday writing.
-
-| Your workflow | The detail that helps |
+| Your workflow | How Owltype handles it |
 | --- | --- |
-| Follow a Chinese request with a `/` command | By default, `/` commits the current Chinese candidate, switches to English and outputs an ASCII slash. A symbol-menu option is also available. |
-| Type a `$` skill name in Codex | The `Shift + 4` currency candidates put ASCII `$` first, with `¥` still available. |
-| Switch between editors, terminals and chat | Per-app language memory, initial-English rules, English punctuation in Chinese mode and optional Chinese/English spacing. |
-| Reuse a long prompt | Search snippets by title, body, tag or trigger, or insert through candidate confirmation. |
-| Change the task or source material each time | Templates support parameters, defaults, choices, clipboard text, date/time and cursor placement, with a preview before insertion. |
-| Skip opening a panel | Opt into automatic expansion with `;;` triggers, immediately or after a delimiter, with per-app exclusions. |
-| Bring an existing Raycast snippet library | Import basic Raycast JSON, preview entries and resolve duplicates and trigger conflicts. |
-| Clarify a rough request | Use the selected-text Prompt optimization or Task brief action to organize goals, constraints and missing information. |
+| Follow Chinese text with a `/` command | Pressing `/` commits the active Chinese candidate, switches to English, and outputs an ASCII `/`. You can also switch back to a symbol menu in Settings. |
+| Type a `$` skill name in terminals or agents | `Shift + 4` places ASCII `$` first in currency candidates while keeping `¥` available. |
+| Summon the AI writing panel from empty composition | Type `/ai` or press `⇧K` to open the AI writing and chat panel. Typing `//` preserves literal slashes so file paths and comments are never swallowed. |
+| Switch between editors, terminals, and chat apps | Per-app language memory, default-English app rules, ASCII punctuation in Chinese mode, and optional spacing between Chinese and English. |
+| Reuse structured prompts across tasks | Save long prompts as snippets with `{argument}`, defaults, `{clipboard}`, date/time, and `{cursor}` placement, then preview before inserting. |
+| Expand templates without opening a panel | Enable automatic expansion with `;;` triggers, or type uppercase `K` followed by the trigger for candidate-confirmed insertion. |
+| Bring an existing Raycast snippet library | Import Raycast JSON exports, preview converted dynamic fields, and resolve duplicate items or trigger conflicts locally. |
+| Expose templates and delivery to local agents | Built-in opt-in local Agent bridge and `owl-agent-mcp` helper verify peer code signatures over a local UNIX domain socket. |
 
 ![Prompt snippets and Raycast import](docs/screenshots/prompt-snippets.jpg)
 
-### Turn prompts into reusable templates
-
-Create a template under Quick snippets, set its trigger to `;;review`, choose automatic expansion and enable it under Automatic expansion settings:
-
-```text
-Review the following changes, focusing on {argument name="Focus" default="correctness and edge cases"}.
-List reproducible issues first, then suggest the smallest fixes.
-
-{clipboard}
-```
-
-Copy the material, type `;;review` in a supported text field, fill or confirm parameters, preview and insert. Search-only and candidate-confirmed invocation are also available. `{cursor}` marks the desired caret position; unsupported hosts receive a fallback notice.
-
-**Alongside Raycast:** choose Quick snippets → Import Raycast JSON and select your export. Supported dynamic fields become templates. Unsupported or ambiguous fields stay pending until you fix them or explicitly convert the entry to plain text. This is local import, not two-way sync. Assign a shared automatic trigger to only one tool. Automatic expansion requires Owltype to be active and does not send chat messages for you.
+---
 
 ## Features
 
-### ⌨️ Familiar ways to type
+### 1. MSIME Rust engine and bundled full dictionaries
 
-Full Pinyin, Flypy double Pinyin, Wubi 86 Jidian, and simplified-to-traditional output. Adjust candidate count, fonts, orientation, initial language and per-app initial English rules in the keyboard and candidate settings. The Rust engine keeps vocabulary learning and user frequency data on-device.
+- **Input schemes**: Full Pinyin, Flypy and other Double Pinyin layouts, Wubi 86 Jidian, Wubi 98, Pinyin-Wubi mixed input, English and mixed Chinese-English typing, and simplified-to-traditional conversion.
+- **Bundled SQLite dictionaries and neural reranking**: Ships with pinned (`dict-v2.0.39`) SQLite dictionaries (Pinyin, Wubi 86/98, English, Emoji, and kaomoji) plus dual reranking models (`keyboard-model.bin` and `settled-model.bin`). Confirming setup prepares the dictionaries transactionally on disk while replaying your learned word frequencies and pinned candidates (`⌃⇧P`).
+- **4-tab keyboard settings and candidate layout**: Keyboard settings are organized into four horizontal tabs (`方案与状态` / `拼音设置` / `五笔设置` / `标点与习惯`). Candidates default to a vertical 4-item list with Wubi code hints off by default (toggleable in Wubi settings).
 
-The app bundles its engine and a basic seed dictionary. Full dictionaries are downloaded from upstream through the app. Initial downloads require a network connection; everyday typing then runs locally.
+### 2. Cloud voice input (ASR) and non-activating voice capsule
 
-### ✨ Work directly with selected text
+- **Three recording gestures and non-activating HUD**: Hold-to-talk, click-to-toggle, and spacebar hands-free lock stream 16 kHz mono WAV audio from memory while displaying a floating non-activating voice capsule that never steals focus from your active text field.
+- **Five cloud ASR presets and automatic hotword injection**: Built-in presets for **xAI Grok, Alibaba Qwen ASR, Doubao ASR, OpenAI Audio, and Google Gemini Audio**. Owltype automatically extracts up to 800 UTF-8 bytes of personal hotwords from your pinned words, custom phrases, and top learned vocabulary to boost recognition accuracy.
+- **Optional DeepSeek speech polishing**: Cleans filler words, fixes homophone typos, and restores punctuation with a 4.0-second hard timeout and generation-isolated callbacks, falling back to the raw transcript on timeout or network error.
 
-The text-selection toolbox offers eight individually configurable actions. Enable cloud AI, configure a provider and grant the system permissions needed to read your selection first.
+### 3. AI candidates, Jev reranking, and AI writing panel
 
-| Action | What it does |
-| --- | --- |
-| Ask | Give instructions about selected text and ask follow-up questions; search before answering when configured. |
-| Polish | Improve expression and preview the result before replacing the original. |
-| Translate | Translate selected text. |
-| Source verification | Extract legal, case or literature references and offer sources and search routes. |
-| Research assistance | Organize research approaches, keywords and queries. |
-| Prompt optimization | Clarify a prompt's goals, constraints and structure. |
-| Task brief | Turn a rough request into an executable brief and identify missing information. |
-| Publication formatting | Tidy Chinese spacing, punctuation and paragraphs, with a replacement preview. |
+- **Generative AI Candidates (`[AI]`)**: When enabled, a 300 ms typing pause sends bounded pre-composition UTF-16 context and the current input code to append a cloud-generated candidate at the end of the first page.
+- **Discriminative Jev Reranking (`[Jev]`)**: Promotes the most contextually appropriate local candidate to the first slot on typing pause without inventing out-of-vocabulary words.
+- **AI writing panel and dual-candidate polishing**: Summon via `⇧K`, the status menu, or `/ai`. Includes 4 polishing styles (preserve meaning, formal, concise, expand) with side-by-side dual candidates (`[1]` / `[2]` quick commit) and 6 quick-reply templates, writing back via IMK direct insertion, Accessibility selection replacement, or clipboard fallback.
+- **Kotone selection reply suggestions (v1 contract)**: Optional integration with a local Kotone service ([setup guide](docs/operations/jev-replies.md)) for multi-style reply candidates with non-blocking deadline cancellation and explicit copy.
 
-Source verification groups entry points into legislation, cases and literature, including China's national laws database, PKULaw, China Judgments Online, the People's Courts Case Database and CNKI. Online checks fetch pages with Doubao Search and the DeepSeek Search API and judge against them with citations; this needs a Doubao Search API key in Settings → AI, or a DeepSeek provider. Search routes and AI answers help you consult originals; they do not imply full database access or completed fact-checking.
+### 4. Selected-text toolbox (8 actions)
 
-### 🔌 Configure models and search separately
+With cloud AI enabled and Accessibility permission granted, the selection toolbar offers eight individually toggleable tools: **Ask Anything**, **Polish**, **Translate**, **Source Verification** (grouped legal, case, and literature portals plus Volcengine Ark / DeepSeek web verification), **Research Assistance**, **Prompt Optimization**, **Task Brief**, and **Publication Formatting**.
 
-Presets include Alibaba Cloud Bailian, Doubao, DeepSeek and MiniMax. You can also configure OpenAI-compatible services. Set an endpoint, model and key for your account, then test the connection.
+### 5. 3-card AI settings and automatic key reuse
 
-Ask Anything web search first fetches pages with the DeepSeek Search API, then `deepseek-flash` answers from them and the answer ends with the pages it cites: configure a DeepSeek provider, whichever provider is your default. MiniMax uses the GA M3.1-Flash model on the China site (api.minimax.cn); its reasoning depth is adjustable but cannot be turned off.
-
-### 📋 Keep reusable content close
-
-Quick snippets, clipboard access, emoji and symbol panels help with text you use repeatedly. Configure common shortcuts in one settings page, without editing configuration files.
-
-### 🎨 Native settings and collegiate palettes
-
-Nine colour palettes support light, dark and system appearance. Adjust fonts, layout, candidate styling and animations; skin changes apply immediately. Settings also include dictionary management, the sync directory, diagnostics and maintenance tools.
-
-## Get started
-
-**macOS 14 or later · Apple Silicon / Intel**
-
-1. [Download the installer DMG](https://responsay.com/owltype/Owltype.dmg), open “猫头鹰安装器” and click “安装” (Install). macOS may request administrator authorization.
-2. **Log out and back in once after installation.** Allow the input method if macOS asks, then select “猫头鹰” in the system input menu. If it is missing, check System Settings → Keyboard → Input Sources.
-3. Choose a scheme under “键盘输入” (Keyboard input), follow the dictionary setup and try typing in a newly opened text app.
-4. For AI, add a provider under “AI 配置” and enable the desired text-selection tools. Ordinary typing needs no model configuration.
-
-**Cannot type after installation?** Confirm you have logged out and back in, reopen the host app and check that “猫头鹰” is selected in the system input menu.
-
-**Updates:** from 2.0.10 onward, use About → Check for updates. The feed is `https://downloads.responsay.com/owltype/v3/appcast.xml`. Older versions need one manual installation of 2.0.10 or later. [Direct update-package download](https://responsay.com/owltype/Owltype-update.pkg).
-
-**Uninstall:** open the installer and choose “卸载” (Uninstall). This also clears Owltype user data; back up personal dictionaries and configuration first if you want to keep them.
-
-## Interface
-
-Settings screenshots use sample data in the isolated 2.0.12 demo window; candidates show actual typing. Exact controls depend on the installed version.
+The **AI** settings page is organized into three cards:
+1. **Model Providers (Configure just one)**: Six core presets (**Qwen, Doubao, xAI Grok, OpenAI, Google Gemini, DeepSeek**) with capability badges plus custom OpenAI-compatible endpoints.
+2. **Voice Input · Cloud ASR**: Five cloud ASR presets that **automatically reuse** your configured model provider API key when from the same vendor, with optional dedicated voice keys and automatic DeepSeek key reuse for speech polishing.
+3. **AI Capabilities & Web Search**: Unified toggles for AI candidates, selection tools, Kotone replies, and web search verification.
 
 | Appearance | Keyboard input |
 | --- | --- |
 | ![Skin picker](docs/screenshots/skins.jpg) | ![Keyboard settings](docs/screenshots/keyboard-settings.jpg) |
 
-<details>
-<summary>Another candidate-window palette</summary>
+---
 
-![Candidate window in Champagne Orange (Flame)](docs/screenshots/candidates-flame.png)
+## Installer and recovery
 
-</details>
+`Owltype-2.4.2.dmg` includes the standalone **OwltypeInstaller (`OwltypeInstaller.app`)** with a two-step onboarding wizard and a bottom **Maintenance & Uninstall** drawer offering four actions:
 
-## Recent updates
+1. **Install / Update**: Installs `/Library/Input Methods/Owltype.app` with administrator privileges, converges the active IMK/TIS session without blocking, and guides you through enabling the input source.
+2. **Repair Install (Keep dictionaries & settings)**: Reinstalls the bundle and refreshes LaunchServices, InputMethodKit, and TIS registrations while keeping all user data intact.
+3. **Clean Repair (Back up data & rebuild)**: Backs up user dictionaries and preferences to `~/Library/Application Support/Owltype-Backups/<timestamp>/`, clears runtime state directories, and performs a clean install.
+4. **Complete Uninstall**: Removes `/Library/Input Methods/Owltype.app`, stops running processes, and unregisters input sources, with options to keep, back up, or remove user data.
 
-**2.0.12 · Current source version**
+---
 
-- **Settings application:** save, compile, and refresh input sessions through one path while preserving composition.
-- **Selected-text rewrites:** share confirmation, cancellation, and delivery handling; cancelled results do not preview or replace text.
-- **Snippet filter:** use a theme-aware neutral background and selection highlight while retaining All / Prompts filtering.
+## Recent updates (2.4.2)
 
-**2.0.11**
+See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
-- **Mixed Chinese/English Pinyin:** repairs missing English and mixed-language candidate channels after a full dictionary download or upgrade.
-- **Per-app language memory:** restores the previous Chinese/English choice, with controls to inspect and forget entries.
-- **Pinned candidates:** pins or unpins complete full-Pinyin candidates, with Control Shift P as the default shortcut and a context-menu entry.
-- **Real onboarding practice:** checks composition and commitment of “你好，猫头鹰” in a native text field; pasting does not count.
-- **Installation and presentation:** selects an available system ASCII keyboard; keeps only the lab attribution in About and refreshes both project introductions.
+- **2.4.2 (2026-11-08)**: 4-in-1 unified installer wizard (`OwltypeInstaller.app`) with two-step onboarding and repair/clean-repair/uninstall drawer; non-blocking file commit and IMK/TIS session convergence (#411); Wubi code hint off by default, vertical 4-candidate default, and horizontal 4-tab keyboard settings bar (#410); Kotone reply contract v1 validation (#409).
+- **2.4.1 (2026-11-03)**: 3-card AI settings layout, 6 core LLM provider presets, 5 cloud Voice ASR presets with automatic API key reuse, voice callback generation isolation, and Kotone v1 cancellation and error-code alignment (#401, #402, #404).
+- **2.4.0 (2026-11-03)**: Generative `[AI]` candidates and discriminative `[Jev]` reranking (#392, #395); cloud Voice ASR with non-activating capsule HUD, personal hotword injection, and DeepSeek polishing (#393, #396, #398); `/ai` writing panel with dual-candidate multi-style polishing (#394, #397).
 
-<details>
-<summary>Acceptance scope and previous release</summary>
-
-Mixed input and keyboard pinning have TextEdit evidence. The context menu, cross-app Shift switching and full onboarding flow still need installed-app verification. Historical host evidence and current Rust checks have separate coverage boundaries. See the [design and acceptance record](docs/input-habits-design.md) (Chinese).
-
-**2.0.10 (2026-10-01)** added the MiniMax M3.1 preset and China subscription search, and restored the update channel. Users on 2.0.9 or earlier need one manual installation of 2.0.10 or later before receiving subsequent in-app updates.
-
-</details>
+---
 
 ## Privacy boundary
 
-- **Typing stays local:** keystrokes, composition, candidate generation and dictionary processing are not automatically uploaded.
-- **Cloud AI is off by default:** even when enabled, model and search requests require an explicit action.
-- **Only explicitly submitted content:** requests may contain your question, selected text and current conversation history. They do not automatically include screen, window or browser information, text outside the selection or text around the cursor.
-- **Keys stay in Keychain:** they are not stored in ordinary configuration files. Updates and dictionary downloads use the network without sending typing content.
+- **Everyday typing stays on-device**: Keystrokes, composition, candidate ranking, dictionary preparation, and snippet expansion run locally without uploading your typing data.
+- **Cloud AI and voice are off by default**: Network requests occur only when you explicitly trigger voice recording, a selection action, or the AI writing panel, or when you separately enable opt-in AI Candidates.
+- **Strict context bounds**: Requests include only the text or prompt you submit (or bounded pre-composition UTF-16 context and local hotwords when AI Candidates or Voice ASR is active). Owltype never captures screenshots, unrelated windows, or browsing history.
+- **API keys live in macOS Keychain**: Secrets are stored in the system Keychain, never in plain-text preference files.
 
-See [PRIVACY.md](PRIVACY.md). Report security issues privately as described in [SECURITY.md](SECURITY.md).
+See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md) for details.
 
-## Project and feedback
-
-**深圳大学法律人工智能实训实验室 · Shenzhen University**.
-
-- [Website and public downloads](https://responsay.com/owltype/) · [Corresponding source](https://responsay.com/owltype/source.tar.gz)
-- [Maintainer issues](https://github.com/semantic-craft/owltype-macos/issues): issues and pull requests are available to collaborators with repository access. Include the app version, macOS version, host app and steps to reproduce. No public feedback endpoint is currently configured for users without access.
-- [Windows edition](https://github.com/semantic-craft/owltype-win): independently maintained, with separate versions, features and release assets.
-
-GitHub is the private development repository for authorized collaborators working on the macOS product, issues and reviews. The website publicly distributes installers, update feeds and corresponding source. Repository access does not change the GPL-3.0 license of distributed versions. Repository history starts with the 1.4.22 source snapshot; public releases through 1.4.21 are no longer distributed or supported.
+---
 
 ## Build from source
 
-Requires Xcode 26+ and macOS 14+. Without repository access, download the
-[release source archive](https://responsay.com/owltype/source.tar.gz), extract it and follow
-the included build instructions. The clone and Git hook commands below are for authorized
-repository collaborators:
+Requires **macOS 14.0+**, **Xcode 26+**, and a **Rust stable toolchain**. You can either clone this repository or download the [release source archive](https://responsay.com/owltype/source.tar.gz).
 
 ```sh
 git clone https://github.com/semantic-craft/owltype-macos.git
 cd owltype-macos
 git submodule update --init --recursive
 make setup-dev
-make deps
+make bootstrap
+make owl-seed
 make release
 ```
 
-`make setup-dev` installs the repository's pre-push gate for the current checkout. It blocks key
-files, absolute home-directory paths, retired private remotes, non-noreply commit identities and secret
-scanner hits before anything leaves your machine. Configure this repository's Git email to your
-GitHub noreply address, keep local secrets in the Keychain or in gitignored env files, and never
-commit AI transcripts, debug logs or machine-local configuration.
+- `make setup-dev`: Enables the tracked `.githooks` pre-push privacy and secret-scanning gate.
+- `make bootstrap`: Verifies the pinned Sparkle archive and builds the patched `Sparkle.framework`.
+- `make owl-seed`: Assembles the clean-room dictionary seed (`scripts/owl-seed.sh`), pinned MSIME SQLite dictionaries (`dict-v2.0.39`), and neural reranking models (`resources/rerank-models.lock.json`).
+- `make release`: Builds the Rust FFI static archives (`owl-msime-ffi`, `owl-app-ffi`), `owltype-mcp`, and the Universal (`arm64` + `x86_64`) Release `Owltype.app`.
+- For local development installs, run `bash scripts/install-dev.sh`. Run `bash scripts/gate.sh` for the pre-merge verification gate and `bash scripts/clean-dev.sh --apply` to clean build outputs and stale LaunchServices claims. See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/operations/installation.md](docs/operations/installation.md).
 
-Public builds use a clean-room dictionary seed (`scripts/owl-seed.sh`) assembled only from inputs
-with an auditable redistribution grant; generated word entries are restricted to the 8,105
-characters of the 通用规范汉字表. The full dictionary set is fetched from its upstream repositories
-by the app on first run — Owltype does not redistribute that data. Per-input provenance is written
-to OWLTYPE-SEED-SOURCES.md inside the build product.
+---
 
-Signing, notarization and packaging are handled by `scripts/release.sh`. After verification,
-`scripts/owl_distribution.py --publish` publishes the complete cohort through responsay.com. There
-is no hosted CI: `scripts/gate.sh` runs the merge gate on the development Mac, as described in
-[docs/operations/ci.md](docs/operations/ci.md).
+## Project and feedback
+
+Developed and maintained by **Shenzhen University Legal AI Training Lab (深圳大学法律人工智能实训实验室)**.
+
+- **Downloads**: [Website & Downloads](https://responsay.com/owltype/) · [Direct DMG Download (2.4.2)](https://downloads.responsay.com/owltype/releases/2.4.2/Owltype-2.4.2.dmg) · [Release Source Archive](https://responsay.com/owltype/source.tar.gz)
+- **Issues & testing feedback**: [GitHub Issues](https://github.com/semantic-craft/owltype-macos/issues). When reporting an issue, please include your Owltype version (for example, `2.4.2`), macOS version, chip architecture, host application, and steps to reproduce.
+- **Progress page**: [Alignment & Delivery Progress](progress/index.html)
+- **Windows edition**: [semantic-craft/owltype-win](https://github.com/semantic-craft/owltype-win) (maintained independently).
+
+---
 
 ## Provenance and license
 
-Released under **GPL-3.0**; see [LICENSE.txt](LICENSE.txt). Owltype is a derivative work of
-[RIME Squirrel](https://github.com/rime/squirrel) and
-[librime](https://github.com/rime/librime). If you distribute binaries based on this project you
-must also provide the corresponding modified source, the GPL-3.0 license text and the copyright
-notices; it may not be shipped as a closed-source product.
-The complete corresponding source for each binary release is available from the
-[stable website link](https://responsay.com/owltype/source.tar.gz). You are welcome to use, modify and redistribute the source under the GPL. The development branch
-may differ from the source of a released binary.
+Released under **GPL-3.0**; see [LICENSE.txt](LICENSE.txt).
 
-Full lineage is in [PROVENANCE.md](PROVENANCE.md); third-party component licenses are in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Owltype's macOS frontend originally derived from [RIME Squirrel](https://github.com/rime/squirrel) and [librime](https://github.com/rime/librime). Starting in `2.1.0`, the input core uses the [Metasequoia IME (MSIME)](https://github.com/metasequoiaime/msime) Rust engine (currently pinned to engine `macos-v0.55.0` and dictionary release `dict-v2.0.39`), and shipped builds no longer bundle or link `librime`. Any binary distribution based on this project must include the corresponding source code, the GPL-3.0 license text, and copyright notices.
 
-## Acknowledgements
-
-- [RIME / Rime Input Method Engine](https://rime.im) — librime and Squirrel
-- [rime-ice](https://github.com/iDvel/rime-ice)
-- [Wubi 86 Jidian](https://github.com/KyleBing/rime-wubi86-jidian)
+See [PROVENANCE.md](PROVENANCE.md) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for complete lineage and third-party license notices.
