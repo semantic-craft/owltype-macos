@@ -186,9 +186,9 @@ for path in \
 	  './Owltype.app/Contents/SharedSupport/rime-kaomoji.LICENSE' \
 	  './Owltype.app/Contents/SharedSupport/python-pinyin.LICENSE' \
 	  './Owltype.app/Contents/SharedSupport/OWLTYPE-SEED-MANIFEST.txt' \
-	  './Owltype.app/Contents/SharedSupport/owltype.yaml' \
 	  './Owltype.app/Contents/SharedSupport/msime-others-NOTICE.txt' \
 	  './Owltype.app/Contents/SharedSupport/msime/msime-pinyin.db' \
+	  './Owltype.app/Contents/SharedSupport/msime/msime-wubi.db' \
 	  './Owltype.app/Contents/SharedSupport/msime/msime-english.db' \
 	  './Owltype.app/Contents/SharedSupport/msime/msime-others.db' \
 	  './Owltype.app/Contents/SharedSupport/msime/msime-bigram.bin' \
@@ -211,17 +211,18 @@ pkg_wubi_license="$tmp/checked-app/Owltype.app/Contents/SharedSupport/wubi86-jid
 printf '%s  %s\n' "$WUBI86_JIDIAN_LICENSE_SHA256" "$pkg_wubi_license" |
   shasum -a 256 --check --status ||
   fail "pkg payload rime-wubi86-jidian LICENSE differs from the pinned text"
-# 反倒退：dict-pack 载荷（未过再分发审计的第三方词库）绝不允许出现在公开 payload 里。
 for forbidden in \
-  '/cn_dicts/base\.dict\.yaml$' \
-  '/cn_dicts/8105\.dict\.yaml$' \
-  '/cn_dicts/tencent\.dict\.yaml$' \
+  '/cn_dicts/' \
   '/en_dicts/' \
+  '/lua/' \
+  '/opencc/' \
+  '\.yaml$' \
+  '\.lua$' \
   '\.gram$' \
   '/wubi86_jidian'
 do
   if grep -qE "$forbidden" <<<"$payload"; then
-    fail "pkg payload carries dict-pack material (matched: $forbidden) — 完整词库只能用户侧拉取，不得随包再分发"
+    fail "pkg payload carries legacy Rime or dict-pack material (matched: $forbidden)"
   fi
 done
 pass "pkg payload carries the Rust SQLite resources and no dict-pack redistribution material"

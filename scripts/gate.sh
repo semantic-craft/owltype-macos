@@ -70,7 +70,6 @@ portable_scripts() {
   python3 -m py_compile \
     scripts/owl_distribution.py \
     scripts/owl_bundle.py \
-    scripts/build-owltype-msime-seed-db.py \
     scripts/check-rust-delivery.py \
     scripts/owl-agent-mcp-licenses.py \
     scripts/merge-pr.py \
@@ -85,7 +84,6 @@ portable_scripts() {
     scripts/release-cohort-state.py \
     scripts/release_source.py \
     scripts/safe-extract-tar.py
-  python3 scripts/build-owltype-msime-seed-db.selftest.py
   python3 scripts/check-rust-delivery.selftest.py
   python3 scripts/fetch-msime-resources.selftest.py
   python3 scripts/fetch-msime-others.selftest.py

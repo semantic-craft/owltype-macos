@@ -162,7 +162,6 @@ clean:
 	rm build.log > /dev/null 2>&1 || true
 	rm bin/* > /dev/null 2>&1 || true
 	rm lib/* > /dev/null 2>&1 || true
-	rm -rf data/opencc > /dev/null 2>&1 || true
 
 clean-package:
 	rm -rf package/*appcast.xml > /dev/null 2>&1 || true

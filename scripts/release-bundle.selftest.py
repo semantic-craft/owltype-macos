@@ -31,8 +31,10 @@ import msime_pin  # noqa: E402  (a real import: its dataclass needs sys.modules)
 
 PIN = msime_pin.load(ROOT)
 RETIRED_LICENSES = {
+    "Contents/SharedSupport/jieba.LICENSE",
     "Contents/SharedSupport/librime-lua.LICENSE",
     "Contents/SharedSupport/librime.LICENSE",
+    "Contents/SharedSupport/phrase-pinyin-data.LICENSE",
     "Contents/SharedSupport/plum.LICENSE",
 }
 WUBI_LICENSE = "Contents/SharedSupport/wubi86-jidian.LICENSE"
@@ -167,7 +169,18 @@ class ReleaseSBOMTests(unittest.TestCase):
             }
             <= names
         )
-        self.assertFalse({"librime", "librime-lua", "plum"} & names)
+        self.assertFalse(
+            {
+                "librime",
+                "librime-lua",
+                "plum",
+                "rime-ice configuration",
+                "jieba",
+                "phrase-pinyin-data",
+                "Unicode Unihan",
+            }
+            & names
+        )
         by_name = {package["name"]: package for package in packages.values()}
         self.assertEqual(
             by_name["rime-wubi86-jidian"]["versionInfo"],

@@ -24,7 +24,7 @@ verify_archive() {
   echo "${expected}  ${file}" | shasum -a 256 --check
 }
 
-rm -rf data/opencc Frameworks
+rm -rf Frameworks
 mkdir -p download Frameworks
 download_archive "$sparkle_download_url" "download/${sparkle_archive}"
 verify_archive "$sparkle_archive_sha256" "download/${sparkle_archive}"

@@ -69,7 +69,7 @@
   各项出处与许可保留在 [上游完整声明](data/msime-upstream-licensing-NOTICE.md)，
   极点原始许可证继续随 seed 交付为 `wubi86-jidian.LICENSE`。
 - OpenCC 简繁转换数据 —— <https://github.com/BYVoid/OpenCC>（Apache-2.0）
-  公开 seed 只携带转换表与配置，不链接或分发 libopencc。
+  转换表固定于 `rust/resources/opencc.lock.json` 并编入 Rust 引擎，不链接或分发 libopencc。
 
 各组件的完整许可条款见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
 

@@ -34,7 +34,6 @@ REQUIRED_LICENSES = {
     "Contents/Resources/THIRD_PARTY_NOTICES.md",
     "Contents/SharedSupport/OWLTYPE-SEED-SOURCES.md",
     "Contents/SharedSupport/OpenCC.LICENSE",
-    "Contents/SharedSupport/jieba.LICENSE",
     "Contents/SharedSupport/licenses/Apache-2.0.txt",
     "Contents/SharedSupport/licenses/BSD-3-Clause.txt",
     "Contents/SharedSupport/licenses/CC-BY-3.0.txt",
@@ -46,16 +45,13 @@ REQUIRED_LICENSES = {
     "Contents/SharedSupport/msime/models/LICENSE-Apache-2.0.txt",
     "Contents/SharedSupport/msime/models/NOTICE.txt",
     "Contents/SharedSupport/msime-others-NOTICE.txt",
-    "Contents/SharedSupport/phrase-pinyin-data.LICENSE",
     "Contents/SharedSupport/python-pinyin.LICENSE",
     "Contents/SharedSupport/rime-kaomoji.LICENSE",
     "Contents/SharedSupport/rime-ice-Credits.md",
     "Contents/SharedSupport/rime-ice.LICENSE",
     "Contents/SharedSupport/wubi86-jidian.LICENSE",
 }
-# The Rust runtime uses the seeded SQLite dictionaries. Upstream grammar data
-# (*.gram from lotem/rime-octagram-data) still has no redistribution license.
-FORBIDDEN_RELEASE_SUFFIXES = (".gram",)
+FORBIDDEN_RELEASE_SUFFIXES = (".gram", ".yaml", ".lua")
 # The privacy gate keeps home-directory paths out of public artifacts. The Rust
 # build scrubs its CI runner prefix, so no account-specific exception is needed.
 # (The prefix stays split so the public-source privacy scanner does not match its

@@ -20,11 +20,9 @@ librime Lua 插件或 plum。本文件按当前二进制实际携带的内容汇
 
 | 组件 | 角色 | 许可证（以上游为准） | 上游 |
 |---|---|---|---|
-| **OpenCC 数据** | 简繁转换表与配置（`SharedSupport/opencc`；不链接 libopencc） | **Apache-2.0** | https://github.com/BYVoid/OpenCC |
+| **OpenCC 数据** | 简繁转换表（固定于 `rust/resources/opencc.lock.json`，编入 Rust 引擎；不链接 libopencc） | **Apache-2.0**（打包保留 `OpenCC.LICENSE`） | https://github.com/BYVoid/OpenCC |
 | **Sparkle** | 更新检查与签名 package 安装框架；基于固定官方版本构建，应用重开补丁见 `patches/sparkle/` | **MIT**（含其依赖各自许可） | https://github.com/sparkle-project/Sparkle |
-| **rime-ice（雾凇拼音）** | Owltype 自包含 seed（`data/owl-rime` → `SharedSupport`）的方案配置底座：rime_ice schema / Lua 辅助脚本 / OpenCC 配置 / default.yaml；公开 seed 不含其 cn_dicts 或 en_dicts | **GPL-3.0**（打包保留 `rime-ice.LICENSE` 与 Credits） | https://github.com/iDvel/rime-ice |
-| **jieba（结巴分词）** | 公开种子词库 `cn_dicts/owltype_base.dict.yaml` 的词表与词频来源（`jieba/dict.txt`，pin tag `v0.42.1`） | **MIT**（打包保留 `jieba.LICENSE`） | https://github.com/fxsjy/jieba |
-| **phrase-pinyin-data** | owltype_base 的词语注音来源（**仅用 MIT 的 `pinyin.txt`**；`large_pinyin.txt` / `cc_cedict.txt` / `zdic_*` 因 CC BY-SA / 爬取来源明确排除） | **MIT**（打包保留 `phrase-pinyin-data.LICENSE`） | https://github.com/mozillazg/phrase-pinyin-data |
+| **rime-ice（雾凇拼音）** | 官方 `msime-pinyin.db`、`msime-wubi.db` 补充词组、`msime-english.db` 与 `msime-others.db` 的上游词表与 emoji 词源（公开 App 不含 Rime YAML / Lua 方案配置） | **GPL-3.0**（打包保留 `rime-ice.LICENSE` 与 `rime-ice-Credits.md`） | https://github.com/iDvel/rime-ice |
 | **rime-wubi86-jidian（极点五笔86）** | 水杉官方 `msime-wubi.db:wubi86` 的基础码表来源；正式资源保留水杉补充词组与词频 | **Apache-2.0**；许可证原文随 seed 以 `wubi86-jidian.LICENSE` 保留并校验 SHA-256 | https://github.com/KyleBing/rime-wubi86-jidian |
 | **msime-dictionary 完整拼音、五笔与英文、上下文统计** | `dict-v2.0.39`；完整拼音、独立五笔 86/98 与英文表、bigram/trigram 均原样随产品可用。固定 manifest、每个文件的大小/摘要和源 notice 见 [`data/msime-resources-NOTICE.md`](data/msime-resources-NOTICE.md) | GPL-3.0、MIT、SCOWL、CC-BY-SA-4.0 等逐项许可，原文随 seed 保留；不据源代码 GPL 推导数据许可 | https://github.com/metasequoiaime/msime-dictionary/releases/tag/dict-v2.0.39 |
 | **LaTeX 符号码表** | 固定 msime 源码 `plugins/phrase_table/latex-symbols/symbols.tsv`，编入引擎 | MIT，版权与许可证原文随 seed 保留 | https://github.com/metasequoiaime/msime |
@@ -36,8 +34,7 @@ librime Lua 插件或 plum。本文件按当前二进制实际携带的内容汇
 
 - 上表中标「以上游为准」处，未在本文件内逐字复制许可证，避免转述失真；分发前请核对各上游 LICENSE 原文并随附。
 - `msime-others.db` 是 Owltype 从固定 release 派生的 emoji 与颜文字目录，只含 `emoji`、`emoji_pinyin`、`kaomoji` 与 `kaomoji_catalog`。上游整包仍标记 `NOASSERTION`，但其 PiliApp `symbol_catalog` 和其他表不进入交付物；不得把上游整包的授权状态或内容写成已随 Owltype 发布。实际构建阶段、输入文件摘要与发布 manifest 位置记录在 `msime-others-NOTICE.txt`。
-- 公开 App 不包含 librime 插件、plum 配方或 rime-octagram-data 的 `.gram` 文件；可选完整词包由
-  App 首启后从固定上游下载，相关来源与许可由 dict-pack 清单另行记录。
+- 公开 App 不包含 librime 插件、plum 配方、Rime YAML/Lua 方案文件或 rime-octagram-data 的 `.gram` 文件；完整官方 SQLite 词库与重排模型随包直接交付。
 - 本 fork 对 Squirrel 的修改清单见本仓 `README.md` 与 git 历史。
 - 猫头鹰自有部分（`sources/Owl*.swift`、`scripts/*`、深大红配色）随本项目许可；与上游 GPL-3.0 基座一并分发时，
   整体须满足 GPL-3.0 的传染性要求。
